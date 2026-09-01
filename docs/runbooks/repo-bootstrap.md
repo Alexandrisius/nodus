@@ -1,86 +1,51 @@
-# Runbook: создание GitHub-репозитория и базовый коммит
+# Runbook: первичная настройка репозитория и среды (repo-bootstrap)
 
-> **Статус: выполнен (01.09.2026).** Репозиторий `github.com/Alexandrisius/nodus` создан и настроен по этой процедуре. Документ оставлен как протокол и ради раздела «Открытые вопросы» внизу; повторное выполнение не требуется.
+Одноразовая настройка после скелета монорепо (issue #1). Выполняется владельцем репозитория (или агентом с его явного разрешения) — меняет настройки GitHub и Cloudflare.
 
-Одноразовая процедура. Выполняется один раз по явной команде владельца.
+## 1. Настройки ветвления (ADR-0004)
 
-## Цель
-
-Приватный репозиторий `Alexandrisius/nodus` с настроенными labels, milestone и первыми issues — готовый к работе по `docs/process/workflow.md`.
-
-## Предусловия
-
-- `gh` CLI установлен и авторизован (`gh auth status` — аккаунт Alexandrisius).
-- Git установлен; локальная папка проекта — `d:\Project\AI\nodus`.
-
-## Шаги
-
-### 1. Первый коммит
+Только squash-мерж, удаление head-веток после мержа:
 
 ```bash
-git init
-git add -A
-git commit -m "chore: фундамент проекта — документация, процессы, навыки (#1)"
+gh api -X PATCH repos/Alexandrisius/nodus \
+  -F allow_merge_commit=false -F allow_rebase_merge=false \
+  -F allow_squash_merge=true -F delete_branch_on_merge=true
 ```
 
-### 2. Репозиторий
+## 2. Branch protection на `main`
+
+Включается **после** того, как CI (`.github/workflows/ci.yml`) отработал на `main` хотя бы раз (нужно имя проверки). С этого момента прямые коммиты в `main` закрыты — работа возвращается к PR-флоу (`docs/process/workflow.md`):
 
 ```bash
-gh repo create Alexandrisius/nodus --private --source=. --push
+gh api -X PUT repos/Alexandrisius/nodus/branches/main/protection \
+  -F required_status_checks[strict]=true \
+  -f "required_status_checks[contexts][]=lint → typecheck → test → build" \
+  -F required_pull_request_reviews[required_approving_review_count]=0 \
+  -F required_pull_request_reviews[dismiss_stale_reviews]=true \
+  -f enforce_admins=false \
+  -F required_linear_history=true \
+  -F allow_force_pushes=false \
+  -F allow_deletions=false
 ```
 
-### 3. Labels (по `docs/process/workflow.md`)
+Проверка: `gh api repos/Alexandrisius/nodus/branches/main/protection --jq '.required_status_checks.contexts'`.
 
-```bash
-gh label create "type:feature" --color 0E8A16
-gh label create "type:bug" --color D73A4A
-gh label create "type:chore" --color 6B7280
-gh label create "P0" --color B60205
-gh label create "P1" --color D93F0B
-gh label create "P2" --color FBCA04
-gh label create "area:web" --color 1D76DB
-gh label create "area:api" --color 5319E7
-gh label create "area:infra" --color 0052CC
-gh label create "area:docs" --color 0075CA
-```
+## 3. Dependabot
 
-### 4. Milestone
+- Конфиг уже в репозитории (`.github/dependabot.yml`) — PR-ы начнут приходить еженедельно по понедельникам.
+- Включить алерты уязвимостей: GitHub → Settings → Code security → **Dependabot alerts** и **Dependabot security updates** — ON.
 
-```bash
-gh api repos/Alexandrisius/nodus/milestones -f title="MVP" -f description="Концепт для согласования и пилота (docs/product/vision.md)"
-```
+## 4. Cloudflare Tunnel к `nodus.by` (dev/демо, ADR-0002)
 
-### 5. Первые issues (заготовки; планы по фазам — при взятии в работу)
+1. Cloudflare Zero Trust → Networks → Tunnels → **Create tunnel** → Cloudflared.
+2. Скопировать токен туннеля в `.env` хоста: `NODUS_TUNNEL_TOKEN=...`.
+3. Public hostname: `nodus.by` → service `http://nodus_web:80` (HTTP). Один хостнейм достаточно: `/api` и `/socket.io` проксируются nginx внутри web-контейнера.
+4. Поднять: `docker compose --profile tunnel up -d`. Проверка: `https://nodus.by/api/v1/health`.
 
-1. **«Скелет монорепо и инфраструктура качества»** (`type:chore`, `area:infra`, P0). Скоуп: pnpm-workspace + turbo + базовые tsconfig; ESLint (boundaries + лимит размера файлов по I5) + Prettier; Husky + lint-staged; `engines`/`packageManager` (Node 24, pnpm 10); `dependabot.yml` (шаблон — правило `security-dependency-audit` навыка `nestjs-best-practices`); CI lint → typecheck → test → build; `docker-compose.yml` (префикс `nodus_`, порты через `.env`, dev-профиль по ADR-0002: web/api/gateway/postgres/redis/minio/gotenberg + cloudflared); `.env.example`. Вне скоупа: core-механизмы и модули (отдельные issues). PR №1 — единственный, который мержится без CI (CI он и добавляет).
-2. **«Core: сквозные механизмы»** (`type:feature`, `area:api`, P0). Скоуп: канон `docs/architecture/patterns.md` раздел «Core-примитивы» — DomainException + глобальный фильтр ошибок, ErrorCode/ApiErrorResponse в contracts, TransactionRunner, EventBus + outbox (таблица `events`), ZodValidationPipe, nestjs-pino, аудит- и идемпотентность-интерсепторы, RBAC-гуарды (`@GetUser`, `@RequirePermissions`, PermissionGuard), feature flags, health-checks. **Обязательная сверка:** имена в реализованном коде = имена в навыках `.agents/skills/` (иначе навыки устарели = баг, I12).
-3. **«Auth + directory»** (`type:feature`, `area:api`, P0). Логин (argon2id, JWT access/refresh с ротацией), сессии, пользователи/отделы/роли (directory), сидинг по ADR-0002.
-4. **«Дизайн-система и каркас UI»** (`type:feature`, `area:web`, P1). `packages/ui` (shadcn/ui, токены, темы), каркас по `docs/product/ux-principles.md` (меню/топбар/слайдеры), TanStack Router, MSW-инфраструктура (ADR-0001), i18n (`packages/contracts/i18n/ru.ts`).
+Туннель — только для dev/демо. Прод (пилот, LAN компании) — Caddy по отдельному runbook (к пилоту).
 
-### 6. Branch protection на `main`
+## 5. Локальное окружение разработчика
 
-Включить **после** появления CI в issue «Скелет»: require PR + require status checks (lint, typecheck, test, build).
-
-```bash
-gh api repos/Alexandrisius/nodus/branches/main/protection -X PUT -F required_pull_request_reviews=null -F enforce_admins=false
-```
-
-## Проверка результата
-
-- `gh repo view Alexandrisius/nodus` открывается; приватность — Private.
-- `gh label list` — 10 labels; `gh issue list` — 4 issues с milestone MVP.
-- `git log --oneline` — один коммит; `git status` — чисто.
-
-## Откат
-
-Репозиторий создан ошибочно → `gh repo delete Alexandrisius/nodus --yes` (коммит локальный остаётся, повторить с шага 2).
-
-## Открытые вопросы для первых issues (закрыть при взятии в работу, не блокируют коммит)
-
-- Нумерация задач: глобальная или per-project последовательность, формат номера (бизнес-вопрос владельца).
-- Начальная стадия новой задачи и канонический набор стадий дефолтной WorkflowScheme (seed) — бизнес-вопрос.
-- Механика идемпотентности: хранение `Idempotency-Key` (таблица/Redis, TTL, scope) — спроектировать в issue «Core», при нетривиальности — ADR.
-- Канонический каталог `Permission` (начальный набор) — в issue «Auth + directory».
-- Админка статус-схем (WorkflowScheme): владелец редактора — модуль `admin` или `tasks` — уточнить в карте модулей при реализации.
-- Виртуализация длинных списков (TanStack Virtual?) — решение при первом тяжёлом списке, зависимость = ADR.
-- Связь Task→Letter без cross-module доступа (обработчик `correspondence.resolution_issued`) — спроектировать в issue модуля correspondence.
+- Node 24 (`.node-version`), pnpm 10 (`npm i -g pnpm@10`; corepack необязателен).
+- `cp .env.example .env` и заполнить пароли — требуется для `docker compose up`.
+- Pre-commit хук ставится сам при `pnpm install` (Husky). Скрипты и хуки — всегда LF (см. Gotchas в AGENTS.md).

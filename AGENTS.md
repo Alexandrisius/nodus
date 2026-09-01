@@ -19,27 +19,27 @@
 
 ## Обязательное чтение (карта документации)
 
-| Документ | Когда читать |
-|---|---|
-| `docs/process/workflow.md` | **Всегда перед взятием задачи** — как ведём задачи через GitHub Issues |
-| `docs/process/definition-of-done.md` | Перед пометкой задачи «готово» — чеклист DoD |
-| `docs/process/skills.md` | Перед созданием навыка, поиском навыка, «записью опыта» |
-| `docs/architecture/invariants.md` | **Всегда** — I1–I15, нерушимые правила |
-| `docs/architecture/patterns.md` | **Перед написанием любого кода** — принятые паттерны слоёв |
-| `docs/architecture/repository-structure.md` | Перед созданием пакета/модуля/папки |
-| `docs/architecture/tech-stack.md` | Перед инициализацией пакета, добавлением зависимости |
-| `docs/architecture/modules.md` | Перед работой с модулем, созданием нового |
-| `docs/architecture/api-conventions.md` | Перед изменением API, DTO, событий |
-| `docs/architecture/data-model.md` | Перед миграциями и новыми сущностями |
-| `docs/architecture/non-functional-requirements.md` | Производительность, безопасность, эксплуатация |
-| `docs/product/vision.md` | Один раз в начале; при сомнениях «зачем» |
-| `docs/product/ux-principles.md` | Перед любой работой над UI (каркас, терминология — обязательны) |
-| `docs/product/core-flows.md` | Перед реализацией потоков письмо/задача/чат/согласование |
-| `docs/product/glossary.md` | Доменные термины (поручение, резолюция...) |
-| `docs/adr/` | Архитектурные решения; свой новый — по формату из `docs/adr/README.md` |
-| `docs/mvp/` | **Временная** рабочая зона MVP (ТЗ-концепт, айдентика). Не источник правил; архивируется после MVP |
-| `README.md` модуля | Всегда при работе с модулем (появится с кодом) |
-| `packages/contracts/` | Единственная точка обмена фронт↔бэк↔модули (появится с кодом) |
+| Документ                                           | Когда читать                                                                                       |
+| -------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `docs/process/workflow.md`                         | **Всегда перед взятием задачи** — как ведём задачи через GitHub Issues                             |
+| `docs/process/definition-of-done.md`               | Перед пометкой задачи «готово» — чеклист DoD                                                       |
+| `docs/process/skills.md`                           | Перед созданием навыка, поиском навыка, «записью опыта»                                            |
+| `docs/architecture/invariants.md`                  | **Всегда** — I1–I15, нерушимые правила                                                             |
+| `docs/architecture/patterns.md`                    | **Перед написанием любого кода** — принятые паттерны слоёв                                         |
+| `docs/architecture/repository-structure.md`        | Перед созданием пакета/модуля/папки                                                                |
+| `docs/architecture/tech-stack.md`                  | Перед инициализацией пакета, добавлением зависимости                                               |
+| `docs/architecture/modules.md`                     | Перед работой с модулем, созданием нового                                                          |
+| `docs/architecture/api-conventions.md`             | Перед изменением API, DTO, событий                                                                 |
+| `docs/architecture/data-model.md`                  | Перед миграциями и новыми сущностями                                                               |
+| `docs/architecture/non-functional-requirements.md` | Производительность, безопасность, эксплуатация                                                     |
+| `docs/product/vision.md`                           | Один раз в начале; при сомнениях «зачем»                                                           |
+| `docs/product/ux-principles.md`                    | Перед любой работой над UI (каркас, терминология — обязательны)                                    |
+| `docs/product/core-flows.md`                       | Перед реализацией потоков письмо/задача/чат/согласование                                           |
+| `docs/product/glossary.md`                         | Доменные термины (поручение, резолюция...)                                                         |
+| `docs/adr/`                                        | Архитектурные решения; свой новый — по формату из `docs/adr/README.md`                             |
+| `docs/mvp/`                                        | **Временная** рабочая зона MVP (ТЗ-концепт, айдентика). Не источник правил; архивируется после MVP |
+| `README.md` модуля                                 | Всегда при работе с модулем (появится с кодом)                                                     |
+| `packages/contracts/`                              | Единственная точка обмена фронт↔бэк↔модули (появится с кодом)                                      |
 
 ## Как мы работаем (кратко; детали — `docs/process/workflow.md`)
 
@@ -54,7 +54,7 @@
 
 **Стек (зафиксирован, детали — `tech-stack.md`):** pnpm + Turborepo, TypeScript strict · React 19 + Vite, Tailwind 4 + shadcn/ui, TanStack Query/Router, Zustand, RHF + zod · NestJS 11 (Fastify), Prisma + PostgreSQL 17, Redis 7 + BullMQ, Socket.IO gateway, MinIO, Gotenberg · Vitest, Playwright, k6 · Docker Compose, Caddy.
 
-**Команды:** используй только те, что реально существуют в `package.json`/`turbo.json`/`docker-compose.yml` — **не выдумывай**. Канонический набор (install/dev/build/test/lint/typecheck/e2e, `docker compose up`) появляется со скелетом монорепо.
+**Команды:** используй только те, что реально существуют в `package.json`/`turbo.json`/`docker-compose.yml` — **не выдумывай**. Канонический набор: `pnpm install`, `pnpm dev`, `pnpm build`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm format`, `docker compose up` (плюс `--profile tunnel` для nodus.by). Перед `docker compose up`: `cp .env.example .env` и заполнить пароли.
 
 **Среда разработки/демо (ADR-0002):** домашний ПК, Docker (на хосте уже крутятся чужие проекты!), Cloudflare Tunnel, домен `nodus.by`. Все контейнеры/сети/тома — только с префиксом `nodus_`, порты — через `.env`.
 
@@ -69,6 +69,7 @@
 **Браузер и e2e — Playwright CLI** (`@playwright/cli`), НЕ Playwright MCP: CLI экономит контекст (~4x) и рекомендован Microsoft для кодовых агентов; MCP — только для исследовательских сессий по явной необходимости. Прогон тестов — `npx playwright test`.
 
 **Навыки (skills)** — наша упакованная память; методология — `docs/process/skills.md` (прочти перед созданием навыка). Коротко:
+
 - Перед работой в области вызывай профильный навык: `react-best-practices`, `react-composition-patterns` (React 19 SPA), `nestjs-best-practices` (NestJS+Fastify), `prisma-migrations` (Prisma+PostgreSQL), `shadcn` (компоненты shadcn/ui, формы, токены), `web-design-guidelines` (ревью UI: доступность, иерархия, состояния) — лежат проектно в `.agents/skills/`. Это наши навыки: примеры внутри уже на нашем стеке; при конфликте с инвариантами прав инвариант, навык правится в том же коммите.
 - Перед созданием нового навыка — `find-skills` (поиск готового, `npx skills find`), затем `create-skill` (структура, < 200 строк, глубина в `references/`).
 - Решил нетривиальную повторяющуюся проблему дороже 30 минут → предложи навык в комментарии issue; создание — с одобрения владельца. Плодить навыки запрещено (≤ 10 проектных).
@@ -151,5 +152,10 @@
 Каждая ловушка, найденная в работе, добавляется сюда одной строкой в том же коммите, что и фикс.
 
 - На dev-хосте крутятся чужие Docker-проекты: контейнеры/сети/тома Nodus — только с префиксом `nodus_`, порты — через `.env`, перед `docker compose up` проверяй занятые порты (`docker ps`).
-- Хост разработки — Windows: EOL нормализованы `.gitattributes` (всё LF, кроме *.bat/*.cmd); sh-скрипты и хуки Husky — всегда LF, иначе ломаются в Linux-контейнерах с неочевидной ошибкой.
+- Хост разработки — Windows: EOL нормализованы `.gitattributes` (всё LF, кроме _.bat/_.cmd); sh-скрипты и хуки Husky — всегда LF, иначе ломаются в Linux-контейнерах с неочевидной ошибкой.
 - ADR нумеруются плотно, без дыр: перед созданием нового — проверь max существующего номера (`ls docs/adr/`), не присваивай «следующий с конца + запас».
+- pnpm 10 блокирует install-скрипты зависимостей: пакеты с бинарниками (esbuild и др.) — в `onlyBuiltDependencies` в `pnpm-workspace.yaml`, иначе падают в рантайме с невнятной ошибкой.
+- Каждый пакет, наследующий пресеты `@nodus/config` (tsconfig/eslint), обязан декларировать его в своих dependencies/devDependencies — pnpm не даёт «соседских» пакетов, `extends` упадёт с «file not found».
+- ESLint 10 линтует файлы, переданные явным путём, вопреки global ignores — исключения (например, `tests/lint/fixtures`) фильтруются вручную в `lint-staged.config.mjs`.
+- В alpine-контейнерах `localhost` резолвится в ::1, а наши сервисы слушают IPv4 (`0.0.0.0`) — healthcheck'и docker-compose ходят на `127.0.0.1`, не `localhost`.
+- На Windows-хосте `corepack enable` падает без прав на `Program Files` — pnpm ставится через `npm i -g pnpm@10`.
