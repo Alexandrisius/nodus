@@ -1,0 +1,23 @@
+# Dependabot: обновления PR-ами в main, группами, еженедельно (workflow.md).
+version: 2
+updates:
+  - package-ecosystem: 'npm' # покрывает pnpm workspaces
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+    open-pull-requests-limit: 10
+    groups:
+      production-dependencies:
+        dependency-type: 'production'
+      development-dependencies:
+        dependency-type: 'development'
+
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+    groups:
+      github-actions:
+        patterns: ['*']

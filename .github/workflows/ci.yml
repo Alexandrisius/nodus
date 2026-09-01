@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # Еженедельный аудит зависимостей (навык nestjs-best-practices: security-dependency-audit).
+  schedule:
+    - cron: '17 5 * * 1'
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: lint → typecheck → test → build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Версия pnpm берётся из поля packageManager в package.json.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Установка зависимостей
+        run: pnpm install --frozen-lockfile
+
+      - name: Аудит зависимостей (high/critical блокируют)
+        run: pnpm audit --audit-level high
+
+      - name: Lint (границы модулей I6, размер файлов I5)
+        run: pnpm lint
+
+      - name: Typecheck (strict)
+        run: pnpm typecheck
+
+      - name: Тесты (unit + тест-кейсы правил линтера)
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
