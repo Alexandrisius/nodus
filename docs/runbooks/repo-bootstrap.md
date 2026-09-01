@@ -61,7 +61,9 @@ gh api repos/Alexandrisius/nodus/milestones -f title="MVP" -f description="Ко�
 
 Выполняется **после** скелета (issue #1), когда CI (`.github/workflows/ci.yml`) отработал на `main` хотя бы раз (нужно имя проверки). С этого момента прямые коммиты в `main` закрыты — работа возвращается к PR-флоу (`docs/process/workflow.md`).
 
-Только squash-мерж, удаление head-веток после мержа:
+> **Ограничение тарифа GitHub Free:** для приватных репозиториев branch protection недоступен — API отвечает `403 Upgrade to GitHub Pro or make this repository public to enable this feature`. Варианты: (а) GitHub Pro; (б) публичный репозиторий (бизнес-решение владельца — код корпоративного портала); (в) отложить: команды ниже сохранены здесь и применяются при первой возможности, до этого `main` защищается только дисциплиной workflow. Решение — за владельцем.
+
+Настройки ветвления (squash-only) работают и на Free — применить в любом случае:
 
 ```bash
 gh api -X PATCH repos/Alexandrisius/nodus \

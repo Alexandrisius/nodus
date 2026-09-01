@@ -2,6 +2,7 @@
   "extends": "@nodus/config/tsconfig/node.json",
   "compilerOptions": {
     "rewriteRelativeImportExtensions": true,
+    "erasableSyntaxOnly": true,
     "outDir": "dist",
     "rootDir": "src"
   },
