@@ -75,11 +75,12 @@ gh api -X PATCH repos/Alexandrisius/nodus \
 
 ```bash
 gh api -X PUT repos/Alexandrisius/nodus/branches/main/protection \
-  -F required_status_checks[strict]=true \
+  -F "required_status_checks[strict]=true" \
   -f "required_status_checks[contexts][]=lint → typecheck → test → build" \
-  -F required_pull_request_reviews[required_approving_review_count]=0 \
-  -F required_pull_request_reviews[dismiss_stale_reviews]=true \
-  -f enforce_admins=false \
+  -F "required_pull_request_reviews[required_approving_review_count]=0" \
+  -F "required_pull_request_reviews[dismiss_stale_reviews]=true" \
+  -F enforce_admins=false \
+  -F restrictions=null \
   -F required_linear_history=true \
   -F allow_force_pushes=false \
   -F allow_deletions=false
