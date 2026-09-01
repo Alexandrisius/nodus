@@ -1,0 +1,152 @@
+# Dev/демо-профиль (ADR-0002): web, api, gateway, postgres, redis, minio, gotenberg
+# (+ cloudflared — опциональным профилем `tunnel`, туннель к nodus.by).
+# Изоляция от чужих проектов на хосте: контейнеры/сети/тома — только с префиксом nodus_,
+# порты публикуются через .env (шаблон — .env.example).
+name: nodus
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    container_name: nodus_web
+    restart: unless-stopped
+    ports:
+      - '${NODUS_WEB_PORT:-3000}:80'
+    depends_on:
+      - api
+      - gateway
+    networks: [nodus_net]
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: nodus_api
+    restart: unless-stopped
+    environment:
+      API_PORT: '3001'
+      DATABASE_URL: postgresql://${POSTGRES_USER:?задайте в .env}:${POSTGRES_PASSWORD:?задайте в .env}@nodus_postgres:5432/${POSTGRES_DB:?задайте в .env}
+      REDIS_URL: redis://nodus_redis:6379
+    ports:
+      - '${NODUS_API_PORT:-3001}:3001'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      # 127.0.0.1, не localhost: в alpine localhost резолвится в ::1, а сервис слушает IPv4.
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:3001/api/v1/health']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks: [nodus_net]
+
+  gateway:
+    build:
+      context: .
+      dockerfile: apps/gateway/Dockerfile
+    container_name: nodus_gateway
+    restart: unless-stopped
+    environment:
+      GATEWAY_PORT: '3002'
+    ports:
+      - '${NODUS_GATEWAY_PORT:-3002}:3002'
+    healthcheck:
+      # 127.0.0.1, не localhost: в alpine localhost резолвится в ::1, а сервис слушает IPv4.
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:3002/health']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks: [nodus_net]
+
+  postgres:
+    image: postgres:17-alpine
+    container_name: nodus_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?задайте в .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?задайте в .env}
+      POSTGRES_DB: ${POSTGRES_DB:?задайте в .env}
+    volumes:
+      - nodus_pgdata:/var/lib/postgresql/data
+    ports:
+      - '${NODUS_POSTGRES_PORT:-5432}:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks: [nodus_net]
+
+  redis:
+    image: redis:7-alpine
+    container_name: nodus_redis
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes']
+    volumes:
+      - nodus_redisdata:/data
+    ports:
+      - '${NODUS_REDIS_PORT:-6379}:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks: [nodus_net]
+
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    container_name: nodus_minio
+    restart: unless-stopped
+    command: server /data --console-address ':9001'
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?задайте в .env}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?задайте в .env}
+    volumes:
+      - nodus_miniodata:/data
+    ports:
+      - '${NODUS_MINIO_API_PORT:-9000}:9000'
+      - '${NODUS_MINIO_CONSOLE_PORT:-9001}:9001'
+    healthcheck:
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks: [nodus_net]
+
+  gotenberg:
+    image: gotenberg/gotenberg:8
+    container_name: nodus_gotenberg
+    restart: unless-stopped
+    ports:
+      - '${NODUS_GOTENBERG_PORT:-3100}:3000'
+    networks: [nodus_net]
+
+  # Туннель к nodus.by (ADR-0002): поднимается явно — `docker compose --profile tunnel up -d`.
+  # Токен — из Cloudflare Zero Trust dashboard (см. docs/runbooks/repo-bootstrap.md).
+  cloudflared:
+    image: cloudflare/cloudflared:2025.9.1
+    container_name: nodus_cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${NODUS_TUNNEL_TOKEN:?задайте в .env}
+    depends_on:
+      - web
+    networks: [nodus_net]
+    profiles: [tunnel]
+
+networks:
+  nodus_net:
+    name: nodus_net
+
+volumes:
+  nodus_pgdata:
+    name: nodus_pgdata
+  nodus_redisdata:
+    name: nodus_redisdata
+  nodus_miniodata:
+    name: nodus_miniodata
