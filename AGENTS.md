@@ -6,7 +6,7 @@
 
 **Nodus** — корпоративный портал проектной строительной компании (Минск, ~170 сотрудников), заменяющий облачный Bitrix24 (задачи, чаты) и СЭД «Е-дело» (корреспонденция). Модульный монолит в монорепозитории, self-hosted, zero cloud, установка одной командой (`docker compose up`). Центральный сценарий: письмо → резолюция → поручение-задача с трекингом времени.
 
-**Статус репозитория:** фундамент опубликован (`github.com/Alexandrisius/nodus`, приватный): документация (`docs/`), процессы, 6 навыков (`.agents/skills/`). Кода ещё нет — он появится в финальной структуре `apps/`, `packages/` (никакой папки `mvp/` для кода — ADR-0001). Актуальные задачи — issues #1–#4 (скелет → core → auth+directory → дизайн-система).
+**Контекст репозитория:** документация (`docs/`), процессы и навыки (`.agents/skills/`) — основа разработки. Код живёт в `apps/`, `packages/` (никакой папки `mvp/` для кода — ADR-0001). **Текущее состояние проекта узнавай только через issues** (`gh issue list`) — этот файл статичен и статусы не отражает.
 
 ## Владелец продукта — прочти обязательно
 
@@ -54,7 +54,7 @@
 
 **Стек (зафиксирован, детали — `tech-stack.md`):** pnpm + Turborepo, TypeScript strict · React 19 + Vite, Tailwind 4 + shadcn/ui, TanStack Query/Router, Zustand, RHF + zod · NestJS 11 (Fastify), Prisma + PostgreSQL 17, Redis 7 + BullMQ, Socket.IO gateway, MinIO, Gotenberg · Vitest, Playwright, k6 · Docker Compose, Caddy.
 
-**Команды:** код ещё не создан — появятся после issue «Скелет монорепо» (install/dev/build/test/lint/typecheck/e2e, `docker compose up`). **Не выдумывай команды** — используй только те, что реально есть в `package.json`/`turbo.json`/`docker-compose.yml`.
+**Команды:** используй только те, что реально существуют в `package.json`/`turbo.json`/`docker-compose.yml` — **не выдумывай**. Канонический набор (install/dev/build/test/lint/typecheck/e2e, `docker compose up`) появляется со скелетом монорепо.
 
 **Среда разработки/демо (ADR-0002):** домашний ПК, Docker (на хосте уже крутятся чужие проекты!), Cloudflare Tunnel, домен `nodus.by`. Все контейнеры/сети/тома — только с префиксом `nodus_`, порты — через `.env`.
 
@@ -62,7 +62,7 @@
 
 ## Инструменты и навыки
 
-**GitHub — только через `gh` CLI** (не GitHub MCP): `gh issue/pr/repo ...`, JSON-вывод через `--json`. Репозиторий: `github.com/Alexandrisius/nodus` (приватный, аккаунт владельца). Labels и milestone настроены по runbook-у `docs/runbooks/repo-bootstrap.md`; branch protection включается после появления CI (issue #1).
+**GitHub — только через `gh` CLI** (не GitHub MCP): `gh issue/pr/repo ...`, JSON-вывод через `--json`. Репозиторий: `github.com/Alexandrisius/nodus` (приватный, аккаунт владельца). Изменение настроек репозитория (labels, protection, secrets) — только по runbook-процедуре и с разрешения владельца.
 
 **Документация библиотек — Context7 MCP** (вместо угадывания API по памяти): сначала `resolve-library-id` (имя библиотеки + вопрос), затем `query-docs` с полученным ID; ≤ 3 вызовов на вопрос, для версий — version-specific ID. Триггер: любая работа с API библиотеки, где нет уверенности в актуальном синтаксисе.
 
@@ -152,3 +152,4 @@
 
 - На dev-хосте крутятся чужие Docker-проекты: контейнеры/сети/тома Nodus — только с префиксом `nodus_`, порты — через `.env`, перед `docker compose up` проверяй занятые порты (`docker ps`).
 - Хост разработки — Windows: EOL нормализованы `.gitattributes` (всё LF, кроме *.bat/*.cmd); sh-скрипты и хуки Husky — всегда LF, иначе ломаются в Linux-контейнерах с неочевидной ошибкой.
+- ADR нумеруются плотно, без дыр: перед созданием нового — проверь max существующего номера (`ls docs/adr/`), не присваивай «следующий с конца + запас».
