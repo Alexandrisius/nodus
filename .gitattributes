@@ -1,0 +1,21 @@
+# Нормализация EOL: хост разработки — Windows, контейнеры — Linux.
+* text=auto eol=lf
+
+# Скрипты и хуки — всегда LF (CRLF ломает sh в контейнерах)
+*.sh    text eol=lf
+*.bash  text eol=lf
+
+# Windows-специфичное — CRLF
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+
+# Бинарные — не трогать
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.svg text eol=lf
+*.woff binary
+*.woff2 binary
+*.pdf binary

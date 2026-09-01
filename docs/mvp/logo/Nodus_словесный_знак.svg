@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 80" width="1280" height="320">
+  <!-- Nodus wordmark master (direction: raster #7). O = hexagon with perfectly centered hollow-node graph -->
+  <g fill="#16233A">
+    <text x="8" y="60" font-family="Inter, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="62" font-weight="700" letter-spacing="3">N</text>
+    <text x="128" y="60" font-family="Inter, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="62" font-weight="700" letter-spacing="3">DUS</text>
+  </g>
+  <!-- O: hexagon centered at (92,39), radius 25 -->
+  <g stroke="#16233A" fill="none" stroke-linecap="round">
+    <polygon points="92,14 113.65,26.5 113.65,51.5 92,64 70.35,51.5 70.35,26.5" stroke-width="5"/>
+    <!-- inner graph, exact center (92,39) -->
+    <g stroke-width="2.8">
+      <line x1="92" y1="34.4" x2="92" y2="29.4"/>
+      <line x1="88.02" y1="41.3" x2="83.69" y2="43.8"/>
+      <line x1="95.98" y1="41.3" x2="100.31" y2="43.8"/>
+    </g>
+    <!-- hollow nodes -->
+    <circle cx="92" cy="39" r="3.4" stroke-width="2.8"/>
+    <circle cx="92" cy="26" r="3.2" stroke-width="2.8"/>
+    <circle cx="80.74" cy="45.5" r="3.2" stroke-width="2.8"/>
+    <circle cx="103.26" cy="45.5" r="3.2" stroke-width="2.8"/>
+  </g>
+</svg>

@@ -1,0 +1,41 @@
+name: "Фича"
+description: "Новая функциональность (одна фича = один issue)"
+title: "[Фича] "
+labels: ["type:feature"]
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: "Цель и бизнес-контекст"
+      description: "Что получит пользователь/бизнес? Зачем это нужно? 2–4 предложения простым языком."
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: "Скоуп"
+      description: "Что входит и что НЕ входит (явно). Смежное — отдельными issues."
+      value: |
+        **Входит:**
+        - 
+
+        **Не входит:**
+        - 
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: "Критерии приёмки"
+      description: "Проверяемые условия готовности. План по фазам исполнитель допишет при взятии в работу."
+      value: |
+        - [ ] 
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: "Ссылки и заметки"
+      description: "Связанные issues, docs/, референсы. Необязательно."
+    validations:
+      required: false
