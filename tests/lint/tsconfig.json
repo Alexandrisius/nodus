@@ -1,0 +1,5 @@
+{
+  "extends": "@nodus/config/tsconfig/node.json",
+  "include": ["*.ts"],
+  "exclude": ["fixtures"]
+}

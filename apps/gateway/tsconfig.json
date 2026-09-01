@@ -1,0 +1,9 @@
+{
+  "extends": "@nodus/config/tsconfig/node.json",
+  "compilerOptions": {
+    "rewriteRelativeImportExtensions": true,
+    "outDir": "dist",
+    "rootDir": "src"
+  },
+  "include": ["src/**/*.ts"]
+}

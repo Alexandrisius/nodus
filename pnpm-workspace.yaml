@@ -1,0 +1,9 @@
+packages:
+  - 'apps/*'
+  - 'packages/*'
+  - 'tests/*'
+
+# pnpm 10 по умолчанию блокирует install-скрипты зависимостей.
+# esbuild (движок транспиляции Vite/Vitest) скачивает бинарник postinstall-скриптом.
+onlyBuiltDependencies:
+  - esbuild

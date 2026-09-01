@@ -1,0 +1,4 @@
+{
+  "extends": "@nodus/config/tsconfig/react.json",
+  "include": ["src", "vite.config.ts"]
+}
