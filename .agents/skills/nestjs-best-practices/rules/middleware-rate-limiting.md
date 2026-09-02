@@ -67,7 +67,7 @@ async function bootstrap() {
 
 Design notes:
 
-- **Redis store, not in-memory.** The default local store resets on every restart and would diverge the moment a second API replica appears. The shared Redis 7 instance is already part of the platform; `nameSpace` keeps its keys isolated from BullMQ and cache keys.
+- **Redis store, not in-memory.** The default local store resets on every restart and would diverge the moment a second API replica appears. The shared Redis 8 instance is already part of the platform; `nameSpace` keeps its keys isolated from BullMQ and cache keys.
 - **`skipOnError: true`** — if Redis is briefly unavailable the API stays up (fail open) instead of rejecting every request. Rate limiting is a shield, not a single point of failure. Pair it with an error log/metric so a silent Redis outage is still visible.
 - **Key is the client IP by default.** The limiter's hook runs before NestJS guards, so `request.user` is **not** populated at that point — do not write a `keyGenerator` that reads the authenticated user. Per-user fairness is enforced by the IP key plus, where genuinely needed, application-level checks after auth.
 - **`errorResponseBuilder`** must return the platform error shape. A default Fastify 429 body (`{ statusCode, error, message }`) breaks the unified `{ code, message, details?, traceId }` contract the frontend error handling relies on.

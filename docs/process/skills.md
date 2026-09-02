@@ -30,7 +30,7 @@
 |---|---|---|
 | `react-best-practices` | React 19 SPA: производительность, bundle, re-render, data fetching | vercel-labs (MIT) |
 | `react-composition-patterns` | React: compound components, против boolean-пропсов | vercel-labs (MIT) |
-| `nestjs-best-practices` | NestJS 11 + Fastify: DI, guards, argon2id, zod, outbox, BullMQ, pino | xirothedev (MIT) |
+| `nestjs-best-practices` | NestJS 12 + Fastify: DI, guards, argon2id, zod, outbox, BullMQ, pino | xirothedev (MIT) |
 | `prisma-migrations` | Миграции Prisma + PostgreSQL: expand/contract, rollback, seed | wshobson |
 | `shadcn` | shadcn/ui: композиция компонентов, формы, семантические токены, CLI (официальный, project-aware) | shadcn/ui |
 | `web-design-guidelines` | Ревью UI на соответствие Web Interface Guidelines (доступность, иерархия, состояния) | vercel-labs |

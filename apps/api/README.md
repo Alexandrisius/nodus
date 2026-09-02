@@ -1,6 +1,6 @@
 # apps/api — @nodus/api
 
-Backend портала: модульный монолит на NestJS 11 (адаптер Fastify), ESM.
+Backend портала: модульный монолит на NestJS 12 (адаптер Fastify), ESM.
 
 ## Запуск
 

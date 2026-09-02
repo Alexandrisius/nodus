@@ -20,7 +20,7 @@
 ## Хост разработки (Windows)
 
 - EOL нормализованы `.gitattributes` (всё LF, кроме `*.bat`/`*.cmd`); sh-скрипты и хуки Husky — всегда LF, иначе ломаются в Linux-контейнерах с неочевидной ошибкой.
-- `corepack enable` падает без прав на `Program Files` — pnpm ставится через `npm i -g pnpm@10`.
+- `corepack enable` падает без прав на `Program Files` — pnpm ставится через `npm i -g pnpm@11`.
 
 ## Процесс и документация
 
