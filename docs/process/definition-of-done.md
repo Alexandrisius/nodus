@@ -25,7 +25,7 @@
 
 ## Локальные гейты перед пушем (урок issue #3: 4 итерации CI впустую)
 
-- [ ] Изменён `.github/workflows/**` → YAML прогнан парсером локально (`python -c "import yaml; yaml.safe_load(...)"`) — двоеточие в незакавыченной строке ломает весь workflow молча до пуша.
+- [ ] Изменён `.github/workflows/**` → YAML прогнан парсером локально (`python -c "import yaml,glob; [yaml.safe_load(open(f, encoding='utf-8')) for f in glob.glob('.github/workflows/*.yml')]"`) — двоеточие в незакавыченной строке ломает весь workflow молча до пуша.
 - [ ] Изменён `Dockerfile`/`docker-compose.yml` → `docker compose build <сервис>` + поднятие локально (в runner-стадии нет глобальных CLI — см. gotchas).
 - [ ] Изменён состав задач turbo/скриптов (`test`, `build`) → прогнана именно CI-комбинация команд локально (`pnpm test`, `pnpm build` — они включают все пакеты workspace, новый пакет с test-скриптом влетает и в CI).
 - [ ] Добавлен пакет с особыми рантайм-требованиями (браузеры Playwright, живой стек) → он исключён из дефолтного `turbo test` фильтром и имеет отдельную команду/джобу.
