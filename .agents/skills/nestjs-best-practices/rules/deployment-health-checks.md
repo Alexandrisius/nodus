@@ -163,7 +163,7 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
 ```yaml
 services:
   nodus_postgres:
-    image: postgres:17
+    image: postgres:18
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
       interval: 10s
@@ -171,7 +171,7 @@ services:
       retries: 5
 
   nodus_redis:
-    image: redis:7
+    image: redis:8
     healthcheck:
       test: ['CMD', 'redis-cli', 'ping']
       interval: 10s

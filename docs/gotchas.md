@@ -8,17 +8,19 @@
 
 - На dev-хосте крутятся чужие Docker-проекты: контейнеры/сети/тома Nodus — только с префиксом `nodus_`, порты — через `.env`, перед `docker compose up` проверяй занятые порты (`docker ps`).
 - В alpine-контейнерах `localhost` резолвится в ::1 (musl предпочитает AAAA), а наши сервисы слушают IPv4 (`0.0.0.0`) — healthcheck'и docker-compose ходят на `127.0.0.1`, не `localhost`.
+- Образ `postgres:18+` ждёт данные в `/var/lib/postgresql`, а не `/var/lib/postgresql/data` — со старым путём контейнер не стартует («unused mount/volume»); новый путь заодно даёт мажорные апгрейды через `pg_upgrade --link`.
 
 ## Монорепо и toolchain (pnpm, turbo, TS, ESLint)
 
-- pnpm 10 блокирует install-скрипты зависимостей: пакеты с бинарниками (esbuild, unrs-resolver и др.) — в `onlyBuiltDependencies` в `pnpm-workspace.yaml`, иначе падают в рантайме с невнятной ошибкой (в pnpm 11 механизм заменён на `allowBuilds`).
+- pnpm 11 блокирует install-скрипты зависимостей: пакеты с бинарниками (esbuild, unrs-resolver) — в `allowBuilds` в `pnpm-workspace.yaml`, иначе падают в рантайме с невнятной ошибкой (в pnpm 10 механизм был `onlyBuiltDependencies`).
+- pnpm 11 отклоняет зависимости, опубликованные < 24 ч назад (политика `minimumReleaseAge`, анти-supply-chain): свежая версия «не резолвится» — либо ждём окно, либо осознанное исключение в `minimumReleaseAgeExclude` там же.
 - Каждый пакет, наследующий пресеты `@nodus/config` (tsconfig/eslint), обязан декларировать его в своих dependencies/devDependencies — pnpm не даёт «соседских» пакетов, `extends` упадёт с «file not found».
 - ESLint при явном пути к файлу берёт ближайший к нему `eslint.config.*` (а не корневой): вложенный конфиг `tests/lint/fixtures` не содержит ignores и файлы фикстур линтуются — исключения фильтруются вручную в `lint-staged.config.mjs`.
 
 ## Хост разработки (Windows)
 
 - EOL нормализованы `.gitattributes` (всё LF, кроме `*.bat`/`*.cmd`); sh-скрипты и хуки Husky — всегда LF, иначе ломаются в Linux-контейнерах с неочевидной ошибкой.
-- `corepack enable` падает без прав на `Program Files` — pnpm ставится через `npm i -g pnpm@10`.
+- `corepack enable` падает без прав на `Program Files` — pnpm ставится через `npm i -g pnpm@11`.
 
 ## Процесс и документация
 

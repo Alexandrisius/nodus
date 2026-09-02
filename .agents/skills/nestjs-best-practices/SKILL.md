@@ -1,6 +1,6 @@
 ---
 name: nestjs-best-practices
-description: NestJS 11 + Fastify best practices for the Nodus backend. Use when writing, reviewing, or refactoring NestJS code — modules, controllers, services, repositories (Prisma), guards, pipes (zod), event bus (outbox), auth (argon2id), error handling, logging (pino), caching (Redis), or testing (Vitest).
+description: NestJS 12 + Fastify best practices for the Nodus backend. Use when writing, reviewing, or refactoring NestJS code — modules, controllers, services, repositories (Prisma), guards, pipes (zod), event bus (outbox), auth (argon2id), error handling, logging (pino), caching (Redis), or testing (Vitest).
 license: MIT
 metadata:
   author: nodus (based on xirothedev rules)
@@ -9,7 +9,7 @@ metadata:
 
 # NestJS Best Practices (Nodus)
 
-Guide for building production-ready NestJS modules in our stack: **NestJS 11 + Fastify, Prisma + PostgreSQL, Redis + BullMQ, zod contracts, EventBus + outbox, Vitest**. 32 rules across 13 categories, prioritized by impact.
+Guide for building production-ready NestJS modules in our stack: **NestJS 12 + Fastify, Prisma + PostgreSQL, Redis + BullMQ, zod contracts, EventBus + outbox, Vitest**. 32 rules across 13 categories, prioritized by impact.
 
 Apply when:
 

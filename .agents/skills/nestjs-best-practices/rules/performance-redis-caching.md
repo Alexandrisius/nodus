@@ -6,7 +6,7 @@ impactDescription: Dramatically reduces database load and improves response time
 tags: performance, caching, redis, scalability, prisma, events
 ---
 
-Every database query adds latency and load. Redis 7 is already part of the platform (BullMQ, rate limiting, event fanout) — reuse it for cache-aside caching of hot, read-heavy data: sub-millisecond reads instead of repeated PostgreSQL round-trips. **Cache read-heavy endpoints and expensive computations; invalidate through domain events.**
+Every database query adds latency and load. Redis 8 is already part of the platform (BullMQ, rate limiting, event fanout) — reuse it for cache-aside caching of hot, read-heavy data: sub-millisecond reads instead of repeated PostgreSQL round-trips. **Cache read-heavy endpoints and expensive computations; invalidate through domain events.**
 
 ## For AI Agents
 

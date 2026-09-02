@@ -3,10 +3,12 @@ packages:
   - 'packages/*'
   - 'tests/*'
 
-# pnpm 10 по умолчанию блокирует install-скрипты зависимостей.
+# pnpm 11: install-скрипты зависимостей блокируются, если пакет не разрешён явно.
 # esbuild (транспиляция Vite/Vitest) и unrs-resolver (резолвер
 # eslint-import-resolver-typescript) скачивают платформенные бинарники install-скриптами.
-# При переходе на pnpm 11: мигрировать на `allowBuilds` (onlyBuiltDependencies удалён).
-onlyBuiltDependencies:
-  - esbuild
-  - unrs-resolver
+allowBuilds:
+  esbuild: true
+  unrs-resolver: true
+
+minimumReleaseAgeExclude:
+  - globals@17.12.0

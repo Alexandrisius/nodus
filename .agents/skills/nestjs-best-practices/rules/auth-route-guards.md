@@ -468,7 +468,7 @@ await app.register(fastifyRateLimit, {
 });
 ```
 
-> The default store is in-memory per process — sufficient for our single-instance monolith. If the API is ever scaled horizontally, point the plugin at our Redis 7 with the `redis` option (ioredis client) so limits are shared.
+> The default store is in-memory per process — sufficient for our single-instance monolith. If the API is ever scaled horizontally, point the plugin at our Redis 8 with the `redis` option (ioredis client) so limits are shared.
 
 ## Summary: Guard Best Practices
 

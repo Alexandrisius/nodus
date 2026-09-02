@@ -7,7 +7,7 @@
 
 ## Быстрый старт
 
-Требования: Node.js 24 (`.node-version`), pnpm 10 (`npm i -g pnpm@10`), Docker.
+Требования: Node.js 24 (≥ 24.15, `.node-version`), pnpm 11 (`npm i -g pnpm@11`), Docker.
 
 ```bash
 # Локальная разработка (приложения на хосте, горячая перезагрузка)

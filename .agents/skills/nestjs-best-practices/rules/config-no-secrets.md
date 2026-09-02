@@ -129,10 +129,10 @@ export const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.coerce.number().int().min(1).max(65535).default(3000),
 
-  // Database (PostgreSQL 17)
+  // Database (PostgreSQL 18)
   DATABASE_URL: z.string().url(),
 
-  // Redis 7 (BullMQ, event fanout, rate-limit store)
+  // Redis 8 (BullMQ, event fanout, rate-limit store)
   REDIS_URL: z.string().url(),
 
   // JWT
@@ -262,7 +262,7 @@ Always provide a `.env.example` file to document required variables:
 NODE_ENV=development|production|test
 PORT=                          # host port for apps/api (must be free on the host)
 
-# Database (Required) — PostgreSQL 17
+# Database (Required) — PostgreSQL 18
 DATABASE_URL=
 
 # Redis (Required) — BullMQ / events / rate limit
