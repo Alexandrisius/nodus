@@ -51,6 +51,8 @@ export const ui = {
     employees: 'Сотрудники',
     collapse: 'Свернуть меню',
     expand: 'Развернуть меню',
+    sectionWork: 'Работа',
+    sectionComm: 'Общение',
   },
   topbar: {
     searchPlaceholder: 'Поиск: задачи, письма, люди, чаты…',
@@ -76,6 +78,9 @@ export const ui = {
     fallbackError: 'Не удалось войти, попробуйте ещё раз',
   },
   home: {
+    greetMorning: 'Доброе утро',
+    greetAfternoon: 'Добрый день',
+    greetEvening: 'Добрый вечер',
     feedTitle: 'Лента',
     feedPlaceholder: 'Написать сообщение…',
     myTasks: 'Мои задачи',

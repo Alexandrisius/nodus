@@ -49,6 +49,11 @@ export function AppShell() {
       >
         {ui.common.skipToContent}
       </a>
+      <div
+        aria-hidden
+        className="fixed inset-0 -z-10 bg-cover bg-center"
+        style={{ backgroundImage: "url('/wallpaper.svg')" }}
+      />
       <div className="flex h-screen overflow-hidden">
         <SideMenu />
         <div className="flex min-w-0 flex-1 flex-col">

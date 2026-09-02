@@ -19,15 +19,15 @@ export function TaskStatusBadge({ stage, className }: { stage: TaskStage; classN
   );
 }
 
-/** Тон колонки канбана по порядку стадии (пастельные статусы, §10.4). */
+/** Тон колонки канбана по порядку стадии: насыщенные «сигнальные» шапки поверх заставки. */
 export function stageColumnTone(order: number): string {
   const tones = [
-    'bg-muted-foreground/15 text-muted-foreground',
-    'bg-info-soft text-info',
-    'bg-info-soft text-info',
-    'bg-warning-soft text-warning',
-    'bg-success-soft text-success',
-    'bg-danger-soft text-danger',
+    'bg-slate-500/80 text-white',
+    'bg-sky-500/85 text-white',
+    'bg-teal-500/85 text-white',
+    'bg-amber-500/85 text-white',
+    'bg-emerald-500/85 text-white',
+    'bg-rose-500/85 text-white',
   ];
-  return tones[Math.min(order, tones.length - 1)] ?? 'bg-muted text-muted-foreground';
+  return tones[Math.min(order, tones.length - 1)] ?? 'bg-slate-500/80 text-white';
 }

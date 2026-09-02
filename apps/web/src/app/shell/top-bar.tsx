@@ -84,7 +84,7 @@ export function TopBar() {
   const search = new URLSearchParams(searchStr);
 
   return (
-    <header className="flex h-14 shrink-0 items-center gap-2 border-b bg-card px-4">
+    <header className="flex h-14 shrink-0 items-center gap-2 border-b border-white/10 bg-[#0B1524]/60 px-4 text-white backdrop-blur-xl">
       <nav className="flex min-w-0 flex-1 items-center gap-1">
         {sectionsFor(pathname).map((section) => (
           <Link
@@ -92,9 +92,9 @@ export function TopBar() {
             to={section.to}
             search={section.search}
             className={cn(
-              'h-9 rounded-lg px-3 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground',
+              'h-9 rounded-lg px-3 text-sm font-medium text-white/70 hover:bg-white/10 hover:text-white',
               'flex items-center',
-              section.isActive(search) && 'bg-secondary text-secondary-foreground',
+              section.isActive(search) && 'bg-white/15 text-white',
             )}
           >
             {section.label}
@@ -105,17 +105,24 @@ export function TopBar() {
       <Button
         variant="outline"
         size="sm"
-        className="gap-2 text-muted-foreground"
+        className="gap-2 border-white/15 bg-white/10 text-white/80 hover:bg-white/15 hover:text-white"
         onClick={() => setCommandOpen(true)}
       >
         <Search data-icon="inline-start" />
         <span className="hidden lg:inline">{ui.topbar.searchPlaceholder}</span>
-        <kbd className="rounded border bg-muted px-1.5 text-xs">{ui.topbar.searchHint}</kbd>
+        <kbd className="rounded border border-white/15 bg-white/10 px-1.5 text-xs">
+          {ui.topbar.searchHint}
+        </kbd>
       </Button>
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" aria-label={ui.topbar.theme}>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={ui.topbar.theme}
+            className="text-white/70 hover:bg-white/10 hover:text-white"
+          >
             <Palette />
           </Button>
         </DropdownMenuTrigger>
@@ -134,7 +141,12 @@ export function TopBar() {
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" aria-label={ui.topbar.notifications}>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={ui.topbar.notifications}
+            className="text-white/70 hover:bg-white/10 hover:text-white"
+          >
             <Bell />
           </Button>
         </DropdownMenuTrigger>
@@ -151,7 +163,7 @@ export function TopBar() {
           <button
             type="button"
             aria-label={ui.topbar.profile}
-            className="flex items-center gap-2 rounded-lg p-1 hover:bg-accent"
+            className="flex items-center gap-2 rounded-lg p-1 hover:bg-white/10"
           >
             <PersonAvatar name={user?.displayName ?? ''} className="size-8" />
           </button>

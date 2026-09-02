@@ -13,7 +13,7 @@ export function TaskKanbanCard({ task }: { task: TaskListItem }) {
     <button
       type="button"
       onClick={() => void navigate({ to: '/tasks/$taskId', params: { taskId: task.id } })}
-      className="flex w-full flex-col gap-2 rounded-xl border bg-card p-3 text-left shadow-sm transition-shadow hover:shadow-md"
+      className="flex w-full flex-col gap-2 rounded-xl border bg-card p-3 text-left shadow-lg shadow-black/25 transition-shadow hover:shadow-xl"
     >
       <span className="line-clamp-2 text-sm font-medium">{task.title}</span>
       <DeadlineChip deadline={task.deadline} />

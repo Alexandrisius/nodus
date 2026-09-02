@@ -26,8 +26,27 @@ export function HomePage() {
     publish.mutate(trimmed);
   }
 
+  const hour = new Date().getHours();
+  const greet =
+    hour >= 5 && hour < 11
+      ? ui.home.greetMorning
+      : hour >= 11 && hour < 17
+        ? ui.home.greetAfternoon
+        : ui.home.greetEvening;
+  const today = new Intl.DateTimeFormat('ru-RU', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  }).format(new Date());
+
   return (
     <div className="relative h-full overflow-y-auto">
+      <header className="px-5 pt-5 pb-1">
+        <h1 className="text-xl font-semibold text-white drop-shadow-sm">
+          {greet}, {me?.displayName.split(' ')[0]}
+        </h1>
+        <p className="text-sm text-white/60 first-letter:uppercase">{today}</p>
+      </header>
       <div className="grid grid-cols-[1fr_360px] gap-5 p-5">
         <div className="flex min-w-0 flex-col gap-4">
           <form

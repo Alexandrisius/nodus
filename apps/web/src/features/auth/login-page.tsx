@@ -34,10 +34,13 @@ export function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background p-4">
+    <main
+      className="flex min-h-screen items-center justify-center bg-cover bg-center p-4"
+      style={{ backgroundImage: "url('/wallpaper.svg')" }}
+    >
       <form
         onSubmit={(e) => void onSubmit(e)}
-        className="w-full max-w-sm rounded-2xl border bg-card p-8 shadow-sm"
+        className="w-full max-w-sm rounded-2xl border bg-card/95 p-8 shadow-2xl backdrop-blur-xl"
       >
         <div className="flex flex-col items-center gap-2">
           <LogoIcon className="size-12 text-primary" />
