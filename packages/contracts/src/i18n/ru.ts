@@ -13,4 +13,7 @@ export const errorMessages: Record<ErrorCode, string> = {
   [ErrorCode.CONFLICT]: 'Действие конфликтует с текущим состоянием объекта',
   [ErrorCode.RATE_LIMITED]: 'Слишком много запросов, повторите чуть позже',
   [ErrorCode.INTERNAL_ERROR]: 'Внутренняя ошибка, мы уже разбираемся',
+  [ErrorCode.AUTH_INVALID_CREDENTIALS]: 'Неверный email или пароль',
+  [ErrorCode.AUTH_SESSION_INVALID]: 'Сессия завершена, войдите снова',
+  [ErrorCode.DIRECTORY_EMAIL_TAKEN]: 'Пользователь с таким email уже существует',
 };

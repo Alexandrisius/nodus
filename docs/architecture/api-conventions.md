@@ -24,6 +24,9 @@
 
 ```
 directory.user.created / updated / deactivated
+directory.department.created / updated / archived
+directory.position.created / updated / archived
+directory.role.created / updated / deleted
 project.created / updated / stage_changed / member_added
 task.created / updated / status_changed / stage_changed / assigned / completed / overdue
 task.time_logged

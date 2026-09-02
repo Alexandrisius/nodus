@@ -26,8 +26,10 @@ services:
     restart: unless-stopped
     environment:
       API_PORT: '3001'
+      NODE_ENV: 'production'
       DATABASE_URL: postgresql://${POSTGRES_USER:?задайте в .env}:${POSTGRES_PASSWORD:?задайте в .env}@nodus_postgres:5432/${POSTGRES_DB:?задайте в .env}
       REDIS_URL: redis://nodus_redis:6379
+      JWT_SECRET: ${JWT_SECRET:?задайте в .env}
     ports:
       - '${NODUS_API_PORT:-3001}:3001'
     depends_on:

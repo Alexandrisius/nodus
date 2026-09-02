@@ -1,5 +1,7 @@
 import 'reflect-metadata';
 import { randomUUID } from 'node:crypto';
+import fastifyCookie from '@fastify/cookie';
+import fastifyRateLimit from '@fastify/rate-limit';
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
 import { Logger } from 'nestjs-pino';
@@ -20,6 +22,27 @@ async function bootstrap(): Promise<void> {
   app.useLogger(app.get(Logger));
   app.enableShutdownHooks();
   app.setGlobalPrefix('api/v1');
+
+  // Refresh-токен — в httpOnly-cookie (auth.controller).
+  await app.register(fastifyCookie);
+
+  // Базовый rate limit (защита от флода); брутфорс login ограничен пер-аккаунтным
+  // счётчиком неудач в AuthService (Redis) — плагин считает по IP до парсинга
+  // тела, что за NAT ложно блокирует весь офис. В тестах выключен.
+  if (env.NODE_ENV !== 'test') {
+    await app.register(fastifyRateLimit, {
+      global: true,
+      max: 300,
+      timeWindow: '1 minute',
+      keyGenerator: (request) => request.ip,
+      errorResponseBuilder: (request, context) => ({
+        code: 'RATE_LIMITED',
+        message: `Too many requests, retry after ${context.after}`,
+        traceId: String(request.id),
+      }),
+    });
+  }
+
   await app.listen(env.API_PORT, '0.0.0.0');
 }
 

@@ -93,4 +93,22 @@ describe('DomainExceptionFilter', () => {
       }),
     );
   });
+
+  it('ошибка @fastify/rate-limit (statusCode 429) → 429 RATE_LIMITED, а не 500', () => {
+    const { filter } = createFilter();
+    const { host, status, send } = createHost();
+
+    // Форма ошибки Fastify-плагина: объект со statusCode, не Nest-исключение.
+    const rateLimitError = Object.assign(new Error('Too many requests, retry after 7 seconds'), {
+      statusCode: 429,
+    });
+    filter.catch(rateLimitError, host);
+
+    expect(status).toHaveBeenCalledWith(429);
+    expect(send).toHaveBeenCalledWith({
+      code: 'RATE_LIMITED',
+      message: 'Too many requests, retry after 7 seconds',
+      traceId: 'req-1',
+    });
+  });
 });

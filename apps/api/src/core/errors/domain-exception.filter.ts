@@ -22,6 +22,10 @@ const CODE_TO_STATUS: Record<ErrorCode, number> = {
   [ErrorCode.CONFLICT]: HttpStatus.CONFLICT,
   [ErrorCode.RATE_LIMITED]: HttpStatus.TOO_MANY_REQUESTS,
   [ErrorCode.INTERNAL_ERROR]: HttpStatus.INTERNAL_SERVER_ERROR,
+  // Доменные коды с нестандартным статусом (остальные доменные → 400 ниже).
+  [ErrorCode.AUTH_INVALID_CREDENTIALS]: HttpStatus.UNAUTHORIZED,
+  [ErrorCode.AUTH_SESSION_INVALID]: HttpStatus.UNAUTHORIZED,
+  [ErrorCode.DIRECTORY_EMAIL_TAKEN]: HttpStatus.CONFLICT,
 };
 
 /** Код для HTTP-исключений Nest/Fastify (400 у нас — всегда валидация входа). */
@@ -99,6 +103,19 @@ export class DomainExceptionFilter implements ExceptionFilter {
     }
   }
 
+  /** Ошибка Fastify-плагина: объект со числовым statusCode (не Nest HttpException). */
+  private isFastifyError(exception: unknown): exception is { statusCode: number; message: string } {
+    return (
+      typeof exception === 'object' &&
+      exception !== null &&
+      !(exception instanceof HttpException) &&
+      'statusCode' in exception &&
+      typeof (exception as { statusCode: unknown }).statusCode === 'number' &&
+      (exception as { statusCode: number }).statusCode >= 400 &&
+      (exception as { statusCode: number }).statusCode < 600
+    );
+  }
+
   private toResponse(
     exception: unknown,
     traceId: string,
@@ -145,6 +162,20 @@ export class DomainExceptionFilter implements ExceptionFilter {
 
     if (exception instanceof Prisma.PrismaClientKnownRequestError) {
       return this.fromPrismaError(exception, traceId);
+    }
+
+    // Ошибки Fastify-плагинов (например @fastify/rate-limit): не Nest-исключения,
+    // но несут statusCode — маппим в единый формат, а не в 500.
+    if (this.isFastifyError(exception)) {
+      const status = exception.statusCode;
+      const code =
+        status >= HttpStatus.INTERNAL_SERVER_ERROR
+          ? ErrorCode.INTERNAL_ERROR
+          : (STATUS_TO_CODE[status] ?? ErrorCode.VALIDATION_FAILED);
+      return {
+        status,
+        body: { code, message: exception.message, traceId },
+      };
     }
 
     if (exception instanceof HttpException) {

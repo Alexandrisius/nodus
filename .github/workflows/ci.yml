@@ -77,6 +77,81 @@ jobs:
         env:
           DATABASE_URL: postgresql://nodus:nodus_ci_password@localhost:5432/nodus
           REDIS_URL: redis://localhost:6379
+          NODE_ENV: test
+          # Тестовый секрет (не продовый): AuthModule требует JWT_SECRET при старте.
+          JWT_SECRET: ci-integration-test-secret-min-32-chars
 
       - name: Build
         run: pnpm build
+
+  e2e:
+    name: 'E2E (Playwright — критичный путь: логин)'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: nodus
+          POSTGRES_PASSWORD: nodus_ci_password
+          POSTGRES_DB: nodus
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U nodus"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:8-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://nodus:nodus_ci_password@localhost:5432/nodus
+      REDIS_URL: redis://localhost:6379
+      # Тестовый секрет (не продовый); COOKIE_SECURE=false — e2e ходит по http://localhost.
+      JWT_SECRET: ci-e2e-test-secret-min-32-characters
+      NODE_ENV: production
+      COOKIE_SECURE: 'false'
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Установка зависимостей
+        run: pnpm install --frozen-lockfile
+
+      - name: Сборка (contracts → api + web)
+        run: pnpm build
+
+      - name: Миграции и сидинг тестовой БД
+        run: pnpm --filter @nodus/api db:deploy && pnpm --filter @nodus/api db:seed
+
+      - name: Запуск API
+        run: nohup node apps/api/dist/main.js > /tmp/nodus-api.log 2>&1 &
+
+      - name: Запуск web (vite preview с прокси /api)
+        # --host 127.0.0.1: vite preview биндит localhost (может уйти в ::1), curl идёт на IPv4.
+        run: nohup pnpm --filter @nodus/web exec vite preview --host 127.0.0.1 --port 4173 --strictPort > /tmp/nodus-web.log 2>&1 &
+
+      - name: Ожидание готовности стека
+        run: |
+          timeout 60 bash -c 'until curl -fsS http://127.0.0.1:3001/api/v1/health/ready > /dev/null; do sleep 1; done' || { echo '--- API log ---'; cat /tmp/nodus-api.log; exit 1; }
+          timeout 30 bash -c 'until curl -fsS http://127.0.0.1:4173 > /dev/null; do sleep 1; done' || { echo '--- Web log ---'; cat /tmp/nodus-web.log; exit 1; }
+
+      - name: Playwright (chromium)
+        run: pnpm --filter @nodus/e2e exec playwright install --with-deps chromium
+
+      - name: E2E-тесты
+        run: pnpm --filter @nodus/e2e test
+        env:
+          NODUS_BASE_URL: http://localhost:4173

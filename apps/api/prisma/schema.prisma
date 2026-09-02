@@ -74,3 +74,195 @@ model FeatureFlag {
 
   @@map("feature_flags")
 }
+
+// ===== Модуль directory + auth (issue #3, эпик M2 #18) =====
+
+/// Статус учётной записи. Deactivated = архивация (уволен), вход запрещён,
+/// исторические связи (задачи, события) сохраняются.
+enum UserStatus {
+  active
+  deactivated
+}
+
+enum Gender {
+  male
+  female
+}
+
+/// Вид орг-единицы: management — управленческая структура (по ней живут БП
+/// и задачи), legal — юридическая (трудовая книжка). Эпик M2: структуры
+/// расходятся (BIM-отдел юридически в «Группе ГИПов»).
+enum OrgUnitKind {
+  management
+  legal
+}
+
+/// Сотрудник (data-model.md: User). password_hash — Argon2id PHC-строка.
+model User {
+  id           String     @id @default(uuid()) @db.Uuid
+  email        String     @unique
+  passwordHash String     @map("password_hash")
+  lastName     String     @map("last_name")
+  firstName    String     @map("first_name")
+  middleName   String?    @map("middle_name")
+  /// Отображаемое имя (денормализация ФИО; меняется вместе с ФИО).
+  displayName  String     @map("display_name")
+  status       UserStatus @default(active)
+  avatarUrl    String?    @map("avatar_url")
+
+  // Орг-связи (справочники по ID, I15)
+  /// Прямой руководитель — гибкая связь внутри группы (ГИП ↔ помощник),
+  /// без фиктивных отделов (эпик M2).
+  managerId         String? @map("manager_id") @db.Uuid
+  departmentId      String? @map("department_id") @db.Uuid
+  positionId        String? @map("position_id") @db.Uuid
+  legalDepartmentId String? @map("legal_department_id") @db.Uuid
+  legalPositionId   String? @map("legal_position_id") @db.Uuid
+
+  // Контактный блок карточки
+  mobilePhone    String?   @map("mobile_phone")
+  city           String?
+  /// Кабинет / где находится.
+  officeLocation String?   @map("office_location")
+  isRemote       Boolean   @default(false) @map("is_remote")
+  /// Рабочая ставка (1 = полная).
+  workRate       Float?    @map("work_rate")
+  gender         Gender?
+  birthDate      DateTime? @map("birth_date") @db.Date
+  /// Дата приёма на работу.
+  hiredAt        DateTime? @map("hired_at") @db.Date
+  /// Начало рабочего дня, «HH:mm».
+  workdayStart   String?   @map("workday_start")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  manager         User?       @relation("UserManager", fields: [managerId], references: [id], onDelete: SetNull)
+  subordinates    User[]      @relation("UserManager")
+  department      Department? @relation("DepartmentMembers", fields: [departmentId], references: [id], onDelete: SetNull)
+  position        Position?   @relation("ManagementPosition", fields: [positionId], references: [id], onDelete: SetNull)
+  legalDepartment Department? @relation("LegalDepartmentMembers", fields: [legalDepartmentId], references: [id], onDelete: SetNull)
+  legalPosition   Position?   @relation("LegalPosition", fields: [legalPositionId], references: [id], onDelete: SetNull)
+
+  roles              UserRole[]
+  sessions           Session[]
+  headedDepartments  Department[] @relation("DepartmentHead")
+  deputiedDepartments Department[] @relation("DepartmentDeputy")
+
+  /// Список сотрудников: фильтр по статусу + детерминированная сортировка курсора.
+  @@index([status, lastName, firstName, id])
+  @@index([managerId])
+  @@index([departmentId])
+  @@map("users")
+}
+
+/// Подразделение (data-model.md: Department). Дерево по parent_id;
+/// руководитель (head) и постоянный заместитель (deputy) — эпик M2.
+model Department {
+  id        String      @id @default(uuid()) @db.Uuid
+  name      String
+  kind      OrgUnitKind @default(management)
+  parentId  String?     @map("parent_id") @db.Uuid
+  headId    String?     @map("head_id") @db.Uuid
+  deputyId  String?     @map("deputy_id") @db.Uuid
+  sortOrder Int         @default(0) @map("sort_order")
+  /// Архивация вместо удаления (связи сотрудников и история сохраняются).
+  isActive  Boolean     @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  parent   Department?  @relation("DepartmentTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children Department[] @relation("DepartmentTree")
+  head     User?        @relation("DepartmentHead", fields: [headId], references: [id], onDelete: SetNull)
+  deputy   User?        @relation("DepartmentDeputy", fields: [deputyId], references: [id], onDelete: SetNull)
+
+  members      User[] @relation("DepartmentMembers")
+  legalMembers User[] @relation("LegalDepartmentMembers")
+
+  @@index([kind, parentId, sortOrder])
+  @@map("departments")
+}
+
+/// Должность — плоский справочник; kind: management | legal (эпик M2).
+model Position {
+  id        String      @id @default(uuid()) @db.Uuid
+  name      String
+  kind      OrgUnitKind @default(management)
+  sortOrder Int         @default(0) @map("sort_order")
+  isActive  Boolean     @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  users      User[] @relation("ManagementPosition")
+  legalUsers User[] @relation("LegalPosition")
+
+  @@unique([name, kind])
+  @@map("positions")
+}
+
+/// Роль RBAC — бизнес-данные (навык auth-route-guards): права собираются
+/// администратором из каталога Permission и разворачиваются в JWT при логине.
+model Role {
+  id          String  @id @default(uuid()) @db.Uuid
+  code        String  @unique
+  name        String
+  description String?
+  /// Системная роль (seed): не удаляется, код не переименовывается.
+  isSystem    Boolean @default(false) @map("is_system")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  users       UserRole[]
+  permissions RolePermission[]
+
+  @@map("roles")
+}
+
+model UserRole {
+  userId String @map("user_id") @db.Uuid
+  roleId String @map("role_id") @db.Uuid
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@map("user_roles")
+}
+
+/// Право роли — строка из каталога Permission контрактов.
+model RolePermission {
+  roleId     String @map("role_id") @db.Uuid
+  permission String
+
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permission])
+  @@map("role_permissions")
+}
+
+/// Сессия (data-model.md: Session): refresh-токен с ротацией и reuse-detection.
+/// Храним хэши текущего и предыдущего refresh-токена: предъявление предыдущего
+/// после ротации = компрометация → отзыв всей сессии (подход Auth0).
+model Session {
+  id       String @id @default(uuid()) @db.Uuid
+  userId   String @map("user_id") @db.Uuid
+  /// SHA-256 текущего refresh-токена (сам токен — только в httpOnly-cookie).
+  refreshTokenHash String @map("refresh_token_hash")
+  /// SHA-256 предыдущего токена (grace-окно ротации + reuse-detection).
+  previousRefreshTokenHash String? @map("previous_refresh_token_hash")
+  userAgent String? @map("user_agent")
+  ip        String?
+  expiresAt DateTime @map("expires_at") @db.Timestamptz()
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz()
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+  @@map("sessions")
+}
