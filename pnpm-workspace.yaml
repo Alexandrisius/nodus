@@ -6,8 +6,11 @@ packages:
 # pnpm 11: install-скрипты зависимостей блокируются, если пакет не разрешён явно.
 # esbuild (транспиляция Vite/Vitest) и unrs-resolver (резолвер
 # eslint-import-resolver-typescript) скачивают платформенные бинарники install-скриптами.
+# prisma/@prisma/engines — CLI миграций и генерация клиента (Prisma 7).
 allowBuilds:
+  '@prisma/engines': true
   esbuild: true
+  prisma: true
   unrs-resolver: true
 
 minimumReleaseAgeExclude:

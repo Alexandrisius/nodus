@@ -1,0 +1,76 @@
+// Схема БД Nodus. Правила — docs/architecture/data-model.md:
+// суррогатные UUID PK, created_at/updated_at везде, индексы с первой миграции,
+// миграции задним числом не изменяются (только новые).
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "esm"
+  runtime      = "nodejs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// Transactional outbox + event log (I9). Append-only; пишется только через
+/// core EventBus в той же транзакции, что и изменение сущности.
+model Event {
+  id            String    @id @default(uuid()) @db.Uuid
+  /// Имя из каталога событий (api-conventions.md), например `task.created`.
+  type          String
+  actorId       String?   @map("actor_id") @db.Uuid
+  aggregateType String?   @map("aggregate_type")
+  aggregateId   String?   @map("aggregate_id") @db.Uuid
+  /// Минимальный payload (id + ключевые поля).
+  payload       Json
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  /// NULL = ожидает диспетчеризации поллером outbox.
+  publishedAt   DateTime? @map("published_at") @db.Timestamptz()
+
+  /// Горячий путь поллера: WHERE published_at IS NULL ORDER BY created_at.
+  @@index([publishedAt, createdAt])
+  @@index([aggregateType, aggregateId])
+  @@map("events")
+}
+
+/// Дедупликация обработчиков событий (идемпотентность подписчиков, patterns.md).
+model EventDelivery {
+  eventId     String   @map("event_id") @db.Uuid
+  /// Стабильный id обработчика (имя класса).
+  handler     String
+  processedAt DateTime @default(now()) @map("processed_at") @db.Timestamptz()
+
+  @@id([eventId, handler])
+  @@map("event_deliveries")
+}
+
+/// Аудит действий пользователей (I7). Append-only; пишется AuditInterceptor.
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  actorId    String?  @map("actor_id") @db.Uuid
+  /// Действие в точечной нотации (`task.create`).
+  action     String
+  entityType String?  @map("entity_type")
+  entityId   String?  @map("entity_id") @db.Uuid
+  details    Json?
+  ip         String?
+  userAgent  String?  @map("user_agent")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  @@index([entityType, entityId])
+  @@index([actorId, createdAt])
+  @@map("audit_logs")
+}
+
+/// Фичефлаги (I10): не-ядровые модули отключаемы без пересборки.
+model FeatureFlag {
+  key       String   @id
+  enabled   Boolean  @default(false)
+  /// Область применения (`global`; таргетинг по пользователям — позже).
+  scope     String   @default("global")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  @@map("feature_flags")
+}
