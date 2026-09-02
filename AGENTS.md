@@ -56,7 +56,7 @@
 
 **Стек (зафиксирован, детали — `tech-stack.md`):** pnpm + Turborepo, TypeScript strict · React 19 + Vite, Tailwind 4 + shadcn/ui, TanStack Query/Router, Zustand, RHF + zod · NestJS 12 (Fastify), Prisma 7 + PostgreSQL 18, Redis 8 + BullMQ, Socket.IO gateway, MinIO, Gotenberg · Vitest, Playwright, k6 · Docker Compose, Caddy.
 
-**Команды:** используй только те, что реально существуют в `package.json`/`turbo.json`/`docker-compose.yml` — **не выдумывай**. Канонический набор: `pnpm install`, `pnpm dev`, `pnpm build`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm format`, `docker compose up` (плюс `--profile tunnel` для nodus.by). Перед `docker compose up`: `cp .env.example .env` и заполнить пароли.
+**Команды:** используй только те, что реально существуют в `package.json`/`turbo.json`/`docker-compose.yml` — **не выдумывай**. Канонический набор: `pnpm install`, `pnpm dev`, `pnpm build`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm test:e2e` (нужен живой стек), `pnpm format`, `docker compose up` (плюс `--profile tunnel` для nodus.by). Перед `docker compose up`: `cp .env.example .env` и заполнить пароли.
 
 **Среда разработки/демо (ADR-0002):** домашний ПК, Docker (на хосте уже крутятся чужие проекты!), Cloudflare Tunnel, домен `nodus.by`. Все контейнеры/сети/тома — только с префиксом `nodus_`, порты — через `.env`.
 
@@ -66,7 +66,7 @@
 
 **GitHub — только через `gh` CLI** (не GitHub MCP): `gh issue/pr/repo ...`, JSON-вывод через `--json`. Репозиторий: `github.com/Alexandrisius/nodus` (приватный, аккаунт владельца). Изменение настроек репозитория (labels, protection, secrets) — только по runbook-процедуре и с разрешения владельца.
 
-**Документация библиотек — Context7 MCP** (вместо угадывания API по памяти): сначала `resolve-library-id` (имя библиотеки + вопрос), затем `query-docs` с полученным ID; ≤ 3 вызовов на вопрос, для версий — version-specific ID. Триггер: любая работа с API библиотеки, где нет уверенности в актуальном синтаксисе.
+**Документация библиотек — Context7 MCP** (вместо угадывания API по памяти): сначала `resolve-library-id` (имя библиотеки + вопрос), затем `query-docs` с полученным ID; ≤ 3 вызовов на вопрос, для версий — version-specific ID. Триггер: любая работа с API библиотеки, где нет уверенности в актуальном синтаксисе. **Новая зависимость/плагин — всегда Context7 по жизненному циклу ДО кода** (порядок хуков, когда доступен request.body, дефолтные опции): ошибки интеграции чужого API — самые дорогие (урок issue #3: `keyGenerator` rate-limit до парсинга тела, `vite preview --host`).
 
 **Браузер и e2e — Playwright CLI** (`@playwright/cli`), НЕ Playwright MCP: CLI экономит контекст (~4x) и рекомендован Microsoft для кодовых агентов; MCP — только для исследовательских сессий по явной необходимости. Прогон тестов — `npx playwright test`.
 
