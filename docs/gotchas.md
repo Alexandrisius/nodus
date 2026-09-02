@@ -17,6 +17,18 @@
 - Каждый пакет, наследующий пресеты `@nodus/config` (tsconfig/eslint), обязан декларировать его в своих dependencies/devDependencies — pnpm не даёт «соседских» пакетов, `extends` упадёт с «file not found».
 - ESLint при явном пути к файлу берёт ближайший к нему `eslint.config.*` (а не корневой): вложенный конфиг `tests/lint/fixtures` не содержит ignores и файлы фикстур линтуются — исключения фильтруются вручную в `lint-staged.config.mjs`.
 
+## Бэкенд (NestJS, Prisma)
+
+- Prisma 7 не загружает `.env` сам: `apps/api/prisma.config.ts` грузит корневой `.env` через dotenv; для CLI-миграций на хосте нужен `DATABASE_URL` в `.env` (в compose api получает свой из environment).
+- Генерируемый Prisma client лежит в `apps/api/src/generated/prisma` (не коммитится, eslint-игнор): typecheck/test/build падают на свежем checkout без `pnpm --filter @nodus/api db:generate` — в CI это отдельный шаг после install, в `build` клиент генерируется автоматически.
+- Json-полям Prisma `Record<string, unknown>` не назначается напрямую — нужен каст `as Prisma.InputJsonValue` (типы generated client строже входных DTO).
+- Vitest (vite 8, rolldown/oxc) не эмитит decorator metadata, нужную Nest DI: тесты, поднимающие Nest-приложение (integration), идут через `unplugin-swc` (`vitest.integration.config.ts`); unit-тесты без декораторов SWC не требуют.
+- `@swc/core`, `prisma`, `@prisma/engines` — в `allowBuilds` (pnpm 11): после их обновления проверяй, что pnpm снова не подставил заглушку «set this to true or false».
+- **pnpm 11 молча игнорирует поле `pnpm` в package.json** (overrides, allowBuilds, ...): настройки читаются только из `pnpm-workspace.yaml` — overrides в package.json просто не применяются, без предупреждений (подтверждено: pnpm.io/package_json, pnpm.io/migration, PR pnpm/pnpm#10086).
+- Интеграционные тесты используют отдельную БД `nodus_test` (создаётся автоматически, миграции — `migrate deploy`): никогда не направляй их на рабочую `nodus` — очистка таблиц деструктивна.
+
+- `DiscoveryService` (скан провайдеров по метаданным) не глобален: модуль, инжектящий его, обязан импортировать `DiscoveryModule` из `@nestjs/core` — моки в unit-тестах это не ловят, падает только bootstrap контейнера (проверяй `docker compose up` после добавления таких провайдеров).
+
 ## Хост разработки (Windows)
 
 - EOL нормализованы `.gitattributes` (всё LF, кроме `*.bat`/`*.cmd`); sh-скрипты и хуки Husky — всегда LF, иначе ломаются в Linux-контейнерах с неочевидной ошибкой.

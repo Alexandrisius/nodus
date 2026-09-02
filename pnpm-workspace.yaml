@@ -3,11 +3,22 @@ packages:
   - 'packages/*'
   - 'tests/*'
 
+# Принудительные версии транзитивных зависимостей (pnpm audit, CI gate high/critical):
+# deepmerge-ts <8 (GHSA-ggr8-5vv4-36mx) и mysql2 <3.22 (GHSA-3f6p-5ww8-9rcr) —
+# приходят из prisma CLI (dev tooling, mysql2 мы не используем вовсе).
+overrides:
+  deepmerge-ts: '>=8.0.0'
+  mysql2: '>=3.22.0'
+
 # pnpm 11: install-скрипты зависимостей блокируются, если пакет не разрешён явно.
 # esbuild (транспиляция Vite/Vitest) и unrs-resolver (резолвер
 # eslint-import-resolver-typescript) скачивают платформенные бинарники install-скриптами.
+# prisma/@prisma/engines — CLI миграций и генерация клиента (Prisma 7).
 allowBuilds:
+  '@prisma/engines': true
+  '@swc/core': true
   esbuild: true
+  prisma: true
   unrs-resolver: true
 
 minimumReleaseAgeExclude:

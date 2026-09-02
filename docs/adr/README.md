@@ -57,3 +57,4 @@ ADR — это **одно конкретное архитектурное реш
 | [0002](0002-dev-demo-environment.md) | Среда разработки/демо: домашний сервер + Cloudflare Tunnel + nodus.by | Принят | 2026-09-02 |
 | [0003](0003-local-first-spike.md) | Local-first: свой sync-движок не строим; готовые движки — спайк после пилота | Принят | 2026-09-02 |
 | [0004](0004-branching-release-environments.md) | Ветвление и релизы: GitHub Flow (main + короткие feature), теги, staging/prod | Принят | 2026-09-02 |
+| [0005](0005-idempotency-redis-interceptor.md) | Идемпотентность мутаций: Redis-интерсептор с replay ответа | принят | 2026-09-02 |
