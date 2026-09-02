@@ -5,7 +5,7 @@ import { AuditRepository } from '../../core/audit/audit.repository.js';
 import { DomainException } from '../../core/errors/domain-exception.js';
 import { AUTH_PROVIDER, type AuthProvider } from './auth-provider.js';
 import { AuthRepository, type SessionRow } from './auth.repository.js';
-import { PasswordService } from './password.service.js';
+import { PasswordService } from '../../core/crypto/password.service.js';
 import { TokenService } from './token.service.js';
 
 /** Результат успешной аутентификации/ротации — контроллер ставит cookie. */

@@ -6,9 +6,9 @@ import { getAuthConfig } from './auth.config.js';
 import { AuthController } from './auth.controller.js';
 import { AuthRepository } from './auth.repository.js';
 import { AuthService } from './auth.service.js';
+import { UserDeactivatedHandler } from './events/user-deactivated.handler.js';
 import { JwtAuthGuard } from './jwt-auth.guard.js';
 import { LocalAuthProvider } from './local-auth.provider.js';
-import { PasswordService } from './password.service.js';
 import { TokenService } from './token.service.js';
 
 /**
@@ -28,9 +28,9 @@ import { TokenService } from './token.service.js';
   providers: [
     AuthService,
     AuthRepository,
-    PasswordService,
     TokenService,
     JwtAuthGuard,
+    UserDeactivatedHandler,
     { provide: AUTH_PROVIDER, useClass: LocalAuthProvider },
   ],
   exports: [JwtAuthGuard, TokenService, JwtModule],

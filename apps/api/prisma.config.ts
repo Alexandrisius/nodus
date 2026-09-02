@@ -8,6 +8,8 @@ export default defineConfig({
   schema: 'prisma/schema.prisma',
   migrations: {
     path: 'prisma/migrations',
+    // Демо-оргструктура (ADR-0002): идемпотентный upsert-сеед.
+    seed: 'tsx prisma/seed.ts',
   },
   datasource: {
     // `prisma generate` не коннектится к БД, но config обязан содержать url —

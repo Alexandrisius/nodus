@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 
 import type { AuthProvider } from './auth-provider.js';
 import { AuthRepository, type AuthIdentity } from './auth.repository.js';
-import { PasswordService } from './password.service.js';
+import { PasswordService } from '../../core/crypto/password.service.js';
 
 /**
  * Локальный провайдер (email+пароль, Argon2id) — реализация AuthProvider (I13).

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { AuditModule } from './core/audit/audit.module.js';
+import { CryptoModule } from './core/crypto/crypto.module.js';
 import { DatabaseModule } from './core/database/database.module.js';
 import { DomainExceptionFilter } from './core/errors/domain-exception.filter.js';
 import { EventsModule } from './core/events/events.module.js';
@@ -14,17 +15,20 @@ import { RedisModule } from './core/redis/redis.module.js';
 import { HealthModule } from './health/health.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { JwtAuthGuard } from './modules/auth/jwt-auth.guard.js';
+import { DirectoryModule } from './modules/directory/directory.module.js';
 
 @Module({
   imports: [
     LoggingModule,
     DatabaseModule,
     RedisModule,
+    CryptoModule,
     EventsModule,
     FeatureFlagsModule,
     AuditModule,
     HealthModule,
     AuthModule,
+    DirectoryModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: DomainExceptionFilter },
