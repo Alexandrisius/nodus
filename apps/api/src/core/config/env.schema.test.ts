@@ -5,6 +5,7 @@ import { validateEnv } from './env.schema.js';
 const VALID = {
   DATABASE_URL: 'postgresql://u:p@localhost:5432/nodus',
   REDIS_URL: 'redis://localhost:6379',
+  JWT_SECRET: 'env-test-secret-key-min-32-chars-long',
 };
 
 describe('validateEnv', () => {
