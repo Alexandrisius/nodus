@@ -7,8 +7,10 @@ import {
 } from '@nestjs/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { PinoLogger } from 'nestjs-pino';
+import { ZodError } from 'zod';
 import { ErrorCode, type ApiErrorResponse } from '@nodus/contracts';
 
+import { Prisma } from '../../generated/prisma/client.js';
 import { DomainException } from './domain-exception.js';
 
 /** HTTP-статус для системного кода (канон формата — api-conventions.md). */
@@ -53,6 +55,50 @@ export class DomainExceptionFilter implements ExceptionFilter {
     void reply.status(status).send(body);
   }
 
+  /** Известные ошибки Prisma → безопасные коды контракта (без SQL наружу). */
+  private fromPrismaError(
+    exception: InstanceType<typeof Prisma.PrismaClientKnownRequestError>,
+    traceId: string,
+  ): { status: number; body: ApiErrorResponse } {
+    this.logger.warn({ traceId, prismaCode: exception.code }, exception.message);
+    switch (exception.code) {
+      case 'P2002': // уникальное ограничение
+        return {
+          status: HttpStatus.CONFLICT,
+          body: {
+            code: ErrorCode.CONFLICT,
+            message: 'A record with this value already exists',
+            details: { fields: (exception.meta?.target as string[]) ?? [] },
+            traceId,
+          },
+        };
+      case 'P2025': // запись не найдена
+        return {
+          status: HttpStatus.NOT_FOUND,
+          body: { code: ErrorCode.NOT_FOUND, message: 'Record not found', traceId },
+        };
+      case 'P2003': // FK-ограничение
+        return {
+          status: HttpStatus.BAD_REQUEST,
+          body: {
+            code: ErrorCode.VALIDATION_FAILED,
+            message: 'Referenced record does not exist',
+            traceId,
+          },
+        };
+      default:
+        this.logger.error({ traceId, err: exception }, 'Unhandled Prisma error');
+        return {
+          status: HttpStatus.INTERNAL_SERVER_ERROR,
+          body: {
+            code: ErrorCode.INTERNAL_ERROR,
+            message: 'Internal server error',
+            traceId,
+          },
+        };
+    }
+  }
+
   private toResponse(
     exception: unknown,
     traceId: string,
@@ -75,6 +121,30 @@ export class DomainExceptionFilter implements ExceptionFilter {
           traceId,
         },
       };
+    }
+
+    if (exception instanceof ZodError) {
+      // Защитная ветка: канон — ZodValidationPipe бросает DomainException сам,
+      // но «голый» ZodError с границы тоже маппим в единый формат.
+      return {
+        status: HttpStatus.BAD_REQUEST,
+        body: {
+          code: ErrorCode.VALIDATION_FAILED,
+          message: 'Validation failed',
+          details: {
+            issues: exception.issues.map((issue) => ({
+              path: issue.path.join('.'),
+              code: issue.code,
+              message: issue.message,
+            })),
+          },
+          traceId,
+        },
+      };
+    }
+
+    if (exception instanceof Prisma.PrismaClientKnownRequestError) {
+      return this.fromPrismaError(exception, traceId);
     }
 
     if (exception instanceof HttpException) {

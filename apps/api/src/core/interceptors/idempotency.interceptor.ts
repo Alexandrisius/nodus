@@ -64,7 +64,7 @@ export class IdempotencyInterceptor implements NestInterceptor {
         REQUEST_USER_KEY
       ];
       const actor = user?.id ?? 'anonymous';
-      scopedKey = `nodus:idempotency:${actor}:${request.method}:${request.url.split('?')[0]}:${sha256Hex(keyHeader)}`;
+      scopedKey = `nodus:core:idempotency:${actor}:${request.method}:${request.url.split('?')[0]}:${sha256Hex(keyHeader)}`;
       bodyHash = sha256Hex(stableStringify(request.body ?? null));
     } catch {
       return next.handle();

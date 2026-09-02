@@ -54,7 +54,7 @@ function createRedis() {
 
 const KEY = 'client-key-1';
 const BODY = { title: 'Задача' };
-const SCOPED = `nodus:idempotency:anonymous:POST:/api/v1/tasks:${sha256Hex(KEY)}`;
+const SCOPED = `nodus:core:idempotency:anonymous:POST:/api/v1/tasks:${sha256Hex(KEY)}`;
 
 let redis: ReturnType<typeof createRedis>;
 let interceptor: IdempotencyInterceptor;

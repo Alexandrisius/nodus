@@ -1,5 +1,6 @@
 import type { ArgumentsHost } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
+import { ZodError } from 'zod';
 import { ErrorCode } from '@nodus/contracts';
 
 import { DomainException } from './domain-exception.js';
@@ -64,5 +65,32 @@ describe('DomainExceptionFilter', () => {
       traceId: 'req-1',
     });
     expect(logger.error).toHaveBeenCalledOnce();
+  });
+
+  it('голый ZodError с границы → 400 VALIDATION_FAILED с details.issues', () => {
+    const { filter } = createFilter();
+    const { host, status, send } = createHost();
+
+    filter.catch(
+      new ZodError([
+        {
+          code: 'too_small',
+          minimum: 1,
+          origin: 'string',
+          path: ['title'],
+          message: 'Required',
+          input: '',
+        } as never,
+      ]),
+      host,
+    );
+
+    expect(status).toHaveBeenCalledWith(400);
+    expect(send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: 'VALIDATION_FAILED',
+        details: { issues: [{ path: 'title', code: 'too_small', message: 'Required' }] },
+      }),
+    );
   });
 });

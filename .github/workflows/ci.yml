@@ -16,6 +16,30 @@ jobs:
   quality:
     name: lint → typecheck → test → build
     runs-on: ubuntu-latest
+    services:
+      # Реальные PG/Redis для интеграционных тестов (outbox, идемпотентность — patterns.md).
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: nodus
+          POSTGRES_PASSWORD: nodus_ci_password
+          POSTGRES_DB: nodus
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U nodus"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:8-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v7
 
@@ -33,6 +57,12 @@ jobs:
       - name: Аудит зависимостей (high/critical блокируют)
         run: pnpm audit --audit-level high
 
+      # Клиент генерируется в apps/api/src/generated (не коммитится) — нужен typecheck/тестам/сборке.
+      - name: Генерация Prisma client
+        run: pnpm --filter @nodus/api db:generate
+        env:
+          DATABASE_URL: postgresql://nodus:nodus_ci_password@localhost:5432/nodus
+
       - name: Lint (границы модулей I6, размер файлов I5)
         run: pnpm lint
 
@@ -41,6 +71,12 @@ jobs:
 
       - name: Тесты (unit + тест-кейсы правил линтера)
         run: pnpm test
+
+      - name: Интеграционные тесты (outbox, идемпотентность, контракт ошибок — реальные PG/Redis)
+        run: pnpm --filter @nodus/api test:integration
+        env:
+          DATABASE_URL: postgresql://nodus:nodus_ci_password@localhost:5432/nodus
+          REDIS_URL: redis://localhost:6379
 
       - name: Build
         run: pnpm build

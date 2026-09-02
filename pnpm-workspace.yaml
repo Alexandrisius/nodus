@@ -9,6 +9,7 @@ packages:
 # prisma/@prisma/engines — CLI миграций и генерация клиента (Prisma 7).
 allowBuilds:
   '@prisma/engines': true
+  '@swc/core': true
   esbuild: true
   prisma: true
   unrs-resolver: true

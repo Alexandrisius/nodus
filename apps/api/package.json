@@ -11,12 +11,14 @@
     "test": "vitest run",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
-    "db:deploy": "prisma migrate deploy"
+    "db:deploy": "prisma migrate deploy",
+    "test:integration": "vitest run --config vitest.integration.config.ts"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",
     "@nestjs/core": "^12.0.1",
     "@nestjs/platform-fastify": "^12.0.1",
+    "@nestjs/terminus": "^12.0.0",
     "@nodus/contracts": "workspace:*",
     "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "^7.10.0",
@@ -32,9 +34,13 @@
   "devDependencies": {
     "@nestjs/cli": "^12.0.0",
     "@nodus/config": "workspace:*",
+    "@swc/core": "^1.16.1",
     "@types/node": "^24.13.3",
+    "@types/pg": "^8.23.1",
+    "pg": "^8.23.0",
     "prisma": "^7.10.0",
     "typescript": "~5.9.3",
+    "unplugin-swc": "^1.5.11",
     "vitest": "^4.1.11"
   }
 }
