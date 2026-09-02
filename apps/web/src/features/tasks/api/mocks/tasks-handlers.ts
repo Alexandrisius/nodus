@@ -2,7 +2,13 @@ import type { ChatMessage } from '@nodus/contracts';
 
 import { http, HttpResponse } from 'msw';
 
-import { demoTaskMessages, demoTasks, taskDetailOf } from '../../../../shared/mocks/data/tasks.js';
+import {
+  demoSubtasks,
+  demoTaskMessages,
+  demoTasks,
+  makeSubtask,
+  taskDetailOf,
+} from '../../../../shared/mocks/data/tasks.js';
 import { currentAuthUser, userRef } from '../../../../shared/mocks/data/users.js';
 
 export const tasksHandlers = [
@@ -21,6 +27,16 @@ export const tasksHandlers = [
       nextCursor: null,
     }),
   ),
+
+  http.post('/api/v1/tasks/:id/subtasks', async ({ params, request }) => {
+    const parent = demoTasks.find((t) => t.id === params.id);
+    if (!parent)
+      return HttpResponse.json({ code: 'NOT_FOUND', message: 'Task not found' }, { status: 404 });
+    const { title } = (await request.json()) as { title: string };
+    const subtask = makeSubtask(parent, title);
+    (demoSubtasks[parent.id] ??= []).push(subtask);
+    return HttpResponse.json(subtask, { status: 201 });
+  }),
 
   http.post('/api/v1/tasks/:id/messages', async ({ params, request }) => {
     const { text } = (await request.json()) as { text: string };

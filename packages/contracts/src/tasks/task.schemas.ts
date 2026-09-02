@@ -69,10 +69,17 @@ export const taskDetailSchema = taskListItemSchema.extend({
   description: z.string(),
   observers: z.array(userRefSchema),
   checklist: z.array(checklistItemSchema),
+  subtasks: z.array(taskListItemSchema),
   createdAt: z.iso.datetime(),
 });
 
 export type TaskDetail = z.infer<typeof taskDetailSchema>;
+
+export const createSubtaskBodySchema = z.object({
+  title: z.string().trim().min(1).max(200),
+});
+
+export type CreateSubtaskBody = z.infer<typeof createSubtaskBodySchema>;
 
 export const listTasksQuerySchema = cursorQuerySchema.extend({
   /** 'assignee' | 'creator' | 'participant' — роли текущего пользователя. */

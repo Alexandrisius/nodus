@@ -1,11 +1,42 @@
 import type { ChatMessage, TaskDetail, TaskListItem } from '@nodus/contracts';
 
 import { isoAgo } from './dates.js';
-import { tid } from './task-items.js';
+import { demoTasks, tid } from './task-items.js';
+import { stageNew, stagePlanned } from './task-stages.js';
 import { userIds, userRef } from './users.js';
 
 export * from './task-stages.js';
 export * from './task-items.js';
+
+export function makeSubtask(parent: TaskListItem, title: string): TaskListItem {
+  return {
+    id: crypto.randomUUID(),
+    number: parent.number * 100 + ((demoSubtasks[parent.id]?.length ?? 0) + 1),
+    title,
+    stage: stageNew,
+    priority: 'normal',
+    deadline: null,
+    creator: userRef(userIds.director),
+    assignee: parent.assignee,
+    participants: [],
+    project: parent.project,
+    spentMinutes: 0,
+    commentsCount: 0,
+    checklistDone: 0,
+    checklistTotal: 0,
+    source: 'manual',
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+export const demoSubtasks: Record<string, TaskListItem[]> = {};
+
+const subtaskParent = demoTasks.find((t) => t.id === tid(2));
+if (subtaskParent) {
+  demoSubtasks[subtaskParent.id] = [
+    { ...makeSubtask(subtaskParent, 'Свести каркас с разделом КЖ'), stage: stagePlanned },
+  ];
+}
 
 const detailsExtra: Record<
   string,
@@ -31,7 +62,7 @@ export function taskDetailOf(task: TaskListItem): TaskDetail {
     checklist: [],
     createdAt: task.updatedAt,
   };
-  return { ...task, ...extra };
+  return { ...task, ...extra, subtasks: demoSubtasks[task.id] ?? [] };
 }
 
 const mid = (n: number): string => `60000000-0000-4000-8000-${String(n).padStart(12, '0')}`;

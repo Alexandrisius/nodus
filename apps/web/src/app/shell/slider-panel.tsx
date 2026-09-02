@@ -10,11 +10,13 @@ const stack: string[] = [];
 export function SliderPanel({
   breadcrumbs,
   level = 1,
+  placement = 'right',
   onClose,
   children,
 }: {
   breadcrumbs: ReactNode;
   level?: 1 | 2;
+  placement?: 'right' | 'bottom';
   onClose: () => void;
   children: ReactNode;
 }) {
@@ -40,8 +42,14 @@ export function SliderPanel({
         role="dialog"
         aria-modal="false"
         className={cn(
-          'animate-in slide-in-from-right absolute inset-y-0 right-0 flex flex-col border-l bg-background shadow-2xl duration-200',
-          level === 1 ? 'w-[72%] max-w-[1100px]' : 'w-[60%] max-w-[900px]',
+          'animate-in absolute flex flex-col bg-background shadow-2xl',
+          placement === 'right' &&
+            cn(
+              'slide-in-from-right inset-y-0 right-0 border-l duration-200',
+              level === 1 ? 'w-[72%] max-w-[1100px]' : 'w-[60%] max-w-[900px]',
+            ),
+          placement === 'bottom' &&
+            'slide-in-from-bottom inset-x-0 bottom-0 top-6 rounded-t-2xl border-t duration-300',
         )}
       >
         <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">

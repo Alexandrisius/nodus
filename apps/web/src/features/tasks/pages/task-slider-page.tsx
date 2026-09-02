@@ -12,6 +12,7 @@ export function TaskSliderPage() {
   return (
     <div className="absolute inset-0 z-30">
       <SliderPanel
+        placement="bottom"
         breadcrumbs={
           <>
             <Link to="/tasks" className="hover:text-foreground">
