@@ -4,6 +4,7 @@ import { Test } from '@nestjs/testing';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
 import { HealthCheckService } from '@nestjs/terminus';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { apiErrorResponseSchema } from '@nodus/contracts';
 
 import { HealthController } from '../../src/health/health.controller.js';
 import { DatabaseHealthIndicator } from '../../src/health/database-health.indicator.js';
@@ -130,19 +131,19 @@ describe('OpenAPI: генерация из кода и публикация /api
   });
 
   it('схемы приходят из zod-контрактов: тело логина и ответ токенами', () => {
-    const login = (document.paths as OpenApiPaths)['/api/v1/auth/login'].post;
-    const bodySchema = login.requestBody!.content['application/json'].schema;
+    const login = (document.paths as OpenApiPaths)['/api/v1/auth/login']!.post!;
+    const bodySchema = login.requestBody!.content['application/json']!.schema;
     expect(Object.keys(bodySchema.properties ?? {})).toEqual(
       expect.arrayContaining(['email', 'password']),
     );
-    const okSchema = login.responses!['200'].content!['application/json'].schema;
+    const okSchema = login.responses!['200']!.content!['application/json']!.schema;
     expect(Object.keys(okSchema.properties ?? {})).toEqual(
       expect.arrayContaining(['accessToken', 'expiresIn']),
     );
   });
 
   it('query-параметры списка сотрудников развёрнуты из listUsersQuerySchema', () => {
-    const list = (document.paths as OpenApiPaths)['/api/v1/directory/users'].get;
+    const list = (document.paths as OpenApiPaths)['/api/v1/directory/users']!.get!;
     const names = (list.parameters ?? []).filter((p) => p.in === 'query').map((p) => p.name);
     expect(names).toEqual(
       expect.arrayContaining(['cursor', 'limit', 'search', 'departmentId', 'status']),
@@ -150,16 +151,16 @@ describe('OpenAPI: генерация из кода и публикация /api
   });
 
   it('ответ списка — канон { items, nextCursor } из paginatedSchema', () => {
-    const list = (document.paths as OpenApiPaths)['/api/v1/directory/users'].get;
-    const schema = list.responses!['200'].content!['application/json'].schema;
+    const list = (document.paths as OpenApiPaths)['/api/v1/directory/users']!.get!;
+    const schema = list.responses!['200']!.content!['application/json']!.schema;
     expect(Object.keys(schema.properties ?? {})).toEqual(
       expect.arrayContaining(['items', 'nextCursor']),
     );
   });
 
   it('ошибки документированы единым форматом { code, message, traceId }', () => {
-    const login = (document.paths as OpenApiPaths)['/api/v1/auth/login'].post;
-    const bad = login.responses!['400'].content!['application/json'].schema;
+    const login = (document.paths as OpenApiPaths)['/api/v1/auth/login']!.post!;
+    const bad = login.responses!['400']!.content!['application/json']!.schema;
     expect(Object.keys(bad.properties ?? {})).toEqual(
       expect.arrayContaining(['code', 'message', 'traceId']),
     );
@@ -169,16 +170,16 @@ describe('OpenAPI: генерация из кода и публикация /api
     const schemes = (document.components as { securitySchemes: Record<string, unknown> })
       .securitySchemes;
     expect(schemes.bearer).toMatchObject({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' });
-    const me = (document.paths as OpenApiPaths)['/api/v1/auth/me'].get;
+    const me = (document.paths as OpenApiPaths)['/api/v1/auth/me']!.get!;
     expect(JSON.stringify(me.security)).toContain('bearer');
-    const login = (document.paths as OpenApiPaths)['/api/v1/auth/login'].post;
+    const login = (document.paths as OpenApiPaths)['/api/v1/auth/login']!.post!;
     expect(login.security).toBeUndefined();
   });
 
   it('/api/docs недоступна без токена: 401 единого формата', async () => {
     const response = await fetch(`${baseUrl}/api/docs`);
     expect(response.status).toBe(401);
-    const body = (await response.json()) as { code: string; message: string; traceId: string };
+    const body = apiErrorResponseSchema.parse(await response.json());
     expect(body.code).toBe('UNAUTHENTICATED');
     expect(body.traceId).toBeTruthy();
   });
