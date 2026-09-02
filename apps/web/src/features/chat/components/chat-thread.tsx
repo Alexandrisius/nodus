@@ -52,8 +52,8 @@ export function ChatThread({ conversation }: { conversation: ConversationListIte
   }
 
   return (
-    <div className="flex h-full min-w-0 flex-1 flex-col">
-      <header className="flex h-14 shrink-0 items-center gap-3 border-b px-4">
+    <div className="flex h-full min-w-0 flex-1 flex-col bg-[#E8EEF6]">
+      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-slate-900/10 bg-white/80 px-4 backdrop-blur">
         <PersonAvatar name={conversationTitle(conversation)} className="size-9" />
         <div className="min-w-0">
           <div className="truncate text-sm font-semibold">{conversationTitle(conversation)}</div>
@@ -86,7 +86,7 @@ export function ChatThread({ conversation }: { conversation: ConversationListIte
                             <span>{formatTime(message.createdAt)}</span>
                           </MessageHeader>
                         )}
-                        <Bubble variant={mine ? 'default' : 'ghost'}>
+                        <Bubble variant={mine ? 'default' : 'outline'}>
                           <BubbleContent className="whitespace-pre-wrap">
                             {message.text}
                             {message.editedAt && (
@@ -149,7 +149,10 @@ export function ChatThread({ conversation }: { conversation: ConversationListIte
         </MessageScroller>
       </MessageScrollerProvider>
 
-      <form onSubmit={onSubmit} className="flex shrink-0 items-end gap-2 border-t p-3">
+      <form
+        onSubmit={onSubmit}
+        className="flex shrink-0 items-end gap-2 border-t border-slate-900/10 bg-white/80 p-3 backdrop-blur"
+      >
         <Textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
