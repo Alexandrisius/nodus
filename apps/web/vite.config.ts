@@ -1,5 +1,6 @@
-import { defineConfig } from 'vite';
+import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
+import { defineConfig } from 'vite';
 
 // API и WebSocket проксируются на того же origin:
 // dev — прокси Vite, preview (e2e в CI) — тот же прокси, docker — прокси nginx (infra/nginx/web.conf).
@@ -15,7 +16,9 @@ const proxy = {
 };
 
 export default defineConfig({
-  plugins: [react()],
+  // VITE_*-флаги (VITE_API_MOCK) лежат в корневом .env рядом с docker-переменными.
+  envDir: '../../',
+  plugins: [tailwindcss(), react()],
   server: {
     port: Number(process.env.NODUS_WEB_DEV_PORT ?? 5173),
     proxy,

@@ -1,41 +1,41 @@
-import { useQuery } from '@tanstack/react-query';
-import type { Paginated, UserListItem } from '@nodus/contracts';
+import { ui } from '@nodus/contracts';
+import { Skeleton } from '@nodus/ui/components/skeleton';
 
-import { api } from '../../shared/api-client.js';
-import { useAuthStore } from '../../shared/auth-store.js';
+import { useUsersList } from './api/directory-api.js';
+import { PersonAvatar } from '../../shared/ui/person-avatar.js';
 
-/** Список сотрудников (проверка directory-контракта end-to-end; UI-полировка — M3).
- *  TODO(M3): строки — в i18n-пакет (I15), полные представления список/дерево — эпик M2. */
+/** Сотрудники: справочник с аватарами, должностями и подразделениями. */
 export function UsersPage() {
-  const user = useAuthStore((s) => s.user);
-  const logout = useAuthStore((s) => s.logout);
-
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['directory', 'users'],
-    queryFn: () => api<Paginated<UserListItem>>('/directory/users?limit=50'),
-  });
+  const { data, isLoading } = useUsersList();
 
   return (
-    <main style={{ maxWidth: 720, margin: '4vh auto', fontFamily: 'system-ui, sans-serif' }}>
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1 style={{ fontSize: 20 }}>Сотрудники</h1>
-        <div>
-          <span style={{ marginRight: 12 }}>{user?.displayName}</span>
-          <button onClick={() => void logout()}>Выйти</button>
+    <div className="relative h-full overflow-y-auto p-5">
+      <h1 className="mb-4 text-xl font-semibold">{ui.employees.title}</h1>
+      {isLoading ? (
+        <div className="flex flex-col gap-2">
+          {[0, 1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} className="h-16 w-full" />
+          ))}
         </div>
-      </header>
-      {isLoading ? <p>Загрузка…</p> : null}
-      {error ? <p role="alert">Не удалось загрузить справочник</p> : null}
-      <ul style={{ listStyle: 'none', padding: 0 }}>
-        {data?.items.map((item) => (
-          <li key={item.id} style={{ padding: '10px 0', borderBottom: '1px solid #eee' }}>
-            <strong>{item.displayName}</strong>
-            <div style={{ color: '#666', fontSize: 14 }}>
-              {[item.positionName, item.departmentName].filter(Boolean).join(' · ') || item.email}
+      ) : (
+        <div className="overflow-hidden rounded-xl border bg-card">
+          {(data?.items ?? []).map((person) => (
+            <div
+              key={person.id}
+              className="flex items-center gap-4 border-b px-4 py-3 last:border-b-0"
+            >
+              <PersonAvatar name={person.displayName} className="size-10" />
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-medium">{person.displayName}</div>
+                <div className="truncate text-xs text-muted-foreground">
+                  {person.positionName} · {person.departmentName}
+                </div>
+              </div>
+              <div className="hidden text-sm text-muted-foreground md:block">{person.email}</div>
             </div>
-          </li>
-        ))}
-      </ul>
-    </main>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

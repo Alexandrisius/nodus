@@ -1,15 +1,15 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { errorMessages, ErrorCode } from '@nodus/contracts';
+import { errorMessages, ErrorCode, ui } from '@nodus/contracts';
+import { Button } from '@nodus/ui/components/button';
+import { Field, FieldGroup, FieldLabel } from '@nodus/ui/components/field';
+import { Input } from '@nodus/ui/components/input';
 
+import { LogoIcon } from '../../app/shell/logo-icon.js';
 import { ApiError } from '../../shared/api-client.js';
 import { useAuthStore } from '../../shared/auth-store.js';
 
-/**
- * Страница входа. Функциональный минимум до дизайн-системы (M3, issue #4):
- * стилизация временная, каркас и терминология — постоянные.
- * TODO(M3): строки — в i18n-пакет (I15), когда появится модуль интерфейсных строк.
- */
+/** Страница входа в фирменном стиле (M3, issue #4). */
 export function LoginPage() {
   const login = useAuthStore((s) => s.login);
   const navigate = useNavigate();
@@ -27,47 +27,59 @@ export function LoginPage() {
       await navigate({ to: '/' });
     } catch (err) {
       const code = err instanceof ApiError ? err.code : ErrorCode.INTERNAL_ERROR;
-      setError(errorMessages[code as ErrorCode] ?? 'Не удалось войти, попробуйте ещё раз');
+      setError(errorMessages[code as ErrorCode] ?? ui.auth.fallbackError);
     } finally {
       setPending(false);
     }
   }
 
   return (
-    <main style={{ maxWidth: 360, margin: '10vh auto', fontFamily: 'system-ui, sans-serif' }}>
-      <h1 style={{ fontSize: 24, marginBottom: 8 }}>Nodus</h1>
-      <p style={{ color: '#666', marginBottom: 24 }}>Вход в корпоративный портал</p>
-      <form onSubmit={(e) => void onSubmit(e)}>
-        <label style={{ display: 'block', marginBottom: 12 }}>
-          <span style={{ display: 'block', marginBottom: 4 }}>Рабочая почта</span>
-          <input
-            type="email"
-            required
-            autoComplete="username"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            style={{ width: '100%', padding: 8, boxSizing: 'border-box' }}
-          />
-        </label>
-        <label style={{ display: 'block', marginBottom: 12 }}>
-          <span style={{ display: 'block', marginBottom: 4 }}>Пароль</span>
-          <input
-            type="password"
-            required
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            style={{ width: '100%', padding: 8, boxSizing: 'border-box' }}
-          />
-        </label>
+    <main className="flex min-h-screen items-center justify-center bg-background p-4">
+      <form
+        onSubmit={(e) => void onSubmit(e)}
+        className="w-full max-w-sm rounded-2xl border bg-card p-8 shadow-sm"
+      >
+        <div className="flex flex-col items-center gap-2">
+          <LogoIcon className="size-12 text-primary" />
+          <h1 className="text-2xl font-semibold tracking-wide">{ui.auth.title}</h1>
+          <p className="text-sm text-muted-foreground">{ui.auth.subtitle}</p>
+        </div>
+
+        <FieldGroup className="mt-6">
+          <Field>
+            <FieldLabel htmlFor="email">{ui.auth.email}</FieldLabel>
+            <Input
+              id="email"
+              type="email"
+              required
+              spellCheck={false}
+              autoComplete="username"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="password">{ui.auth.password}</FieldLabel>
+            <Input
+              id="password"
+              type="password"
+              required
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </Field>
+        </FieldGroup>
+
         {error ? (
-          <p role="alert" style={{ color: '#c00', marginBottom: 12 }}>
+          <p role="alert" className="mt-3 text-sm text-destructive">
             {error}
           </p>
         ) : null}
-        <button type="submit" disabled={pending} style={{ width: '100%', padding: 10 }}>
-          {pending ? 'Входим…' : 'Войти'}
-        </button>
+
+        <Button type="submit" className="mt-5 w-full" disabled={pending}>
+          {pending ? ui.auth.submitting : ui.auth.submit}
+        </Button>
       </form>
     </main>
   );

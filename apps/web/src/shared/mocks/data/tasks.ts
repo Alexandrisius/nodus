@@ -1,0 +1,335 @@
+import type { ChatMessage, TaskDetail, TaskListItem, TaskStage } from '@nodus/contracts';
+
+import { isoAgo, isoIn } from './dates.js';
+import { userIds, userRef } from './users.js';
+
+const sid = (n: number): string => `20000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+export const tid = (n: number): string => `30000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+
+/** Стадии статус-схемы по умолчанию (I15: в бою — справочник, не enum). */
+export const stageNew: TaskStage = { id: sid(1), name: 'Новые', order: 0, systemState: 'backlog' };
+export const stagePlanned: TaskStage = {
+  id: sid(2),
+  name: 'Запланировано',
+  order: 1,
+  systemState: 'backlog',
+};
+export const stageInProgress: TaskStage = {
+  id: sid(3),
+  name: 'В работе',
+  order: 2,
+  systemState: 'active',
+};
+export const stageOnControl: TaskStage = {
+  id: sid(4),
+  name: 'Ждёт контроля',
+  order: 3,
+  systemState: 'active',
+};
+export const stageDone: TaskStage = {
+  id: sid(5),
+  name: 'Завершена',
+  order: 4,
+  systemState: 'done',
+};
+export const stagePostponed: TaskStage = {
+  id: sid(6),
+  name: 'Отложена',
+  order: 5,
+  systemState: 'paused',
+};
+
+export const demoStages: TaskStage[] = [
+  stageNew,
+  stagePlanned,
+  stageInProgress,
+  stageOnControl,
+  stageDone,
+  stagePostponed,
+];
+
+const projectRefs = {
+  p1: {
+    id: '40000000-0000-4000-8000-000000000001',
+    code: 'I001',
+    name: 'I001-Внедрение цифровых информационных технологий',
+  },
+  p2: {
+    id: '40000000-0000-4000-8000-000000000002',
+    code: 'I004',
+    name: 'I004-Разработка плагина SmartCon',
+  },
+  p3: { id: '40000000-0000-4000-8000-000000000003', code: 'I005', name: 'I005-Внедрение Revit' },
+  p4: {
+    id: '40000000-0000-4000-8000-000000000004',
+    code: '0359',
+    name: '0359-Главный корпус галургической фабрики',
+  },
+};
+
+export { projectRefs };
+
+function mk(task: TaskListItem): TaskListItem {
+  return task;
+}
+
+export const demoTasks: TaskListItem[] = [
+  mk({
+    id: tid(1),
+    number: 101,
+    title: 'Согласовать структуру CDE',
+    stage: stageOnControl,
+    priority: 'high',
+    deadline: isoIn(-2),
+    creator: userRef(userIds.director),
+    assignee: userRef(userIds.director),
+    participants: [],
+    project: projectRefs.p1,
+    spentMinutes: 0,
+    commentsCount: 2,
+    checklistDone: 0,
+    checklistTotal: 0,
+    source: 'manual',
+    updatedAt: isoAgo(1),
+  }),
+  mk({
+    id: tid(2),
+    number: 102,
+    title: 'Разработать модель 3D по облаку точек',
+    stage: stageInProgress,
+    priority: 'normal',
+    deadline: isoIn(0),
+    creator: userRef(userIds.bimLead),
+    assignee: userRef(userIds.director),
+    participants: [userRef(userIds.bimLead)],
+    project: projectRefs.p4,
+    spentMinutes: 3360,
+    commentsCount: 4,
+    checklistDone: 1,
+    checklistTotal: 3,
+    source: 'manual',
+    updatedAt: isoAgo(0, 9),
+  }),
+  mk({
+    id: tid(3),
+    number: 103,
+    title: 'Протестировать плагин SmartCon',
+    stage: stageInProgress,
+    priority: 'normal',
+    deadline: isoIn(4),
+    creator: userRef(userIds.director),
+    assignee: userRef(userIds.director),
+    participants: [userRef(userIds.bimEngineer)],
+    project: projectRefs.p2,
+    spentMinutes: 3666,
+    commentsCount: 1,
+    checklistDone: 0,
+    checklistTotal: 0,
+    source: 'manual',
+    updatedAt: isoAgo(1, 15),
+  }),
+  mk({
+    id: tid(4),
+    number: 104,
+    title: 'Кадровые изменения',
+    stage: stageNew,
+    priority: 'normal',
+    deadline: isoIn(1),
+    creator: userRef(userIds.hr),
+    assignee: userRef(userIds.director),
+    participants: [],
+    project: null,
+    spentMinutes: 0,
+    commentsCount: 0,
+    checklistDone: 0,
+    checklistTotal: 0,
+    source: 'manual',
+    updatedAt: isoAgo(0, 8),
+  }),
+  mk({
+    id: tid(5),
+    number: 105,
+    title: 'Подготовить ответ заказчику по замечаниям',
+    stage: stageOnControl,
+    priority: 'urgent',
+    deadline: isoIn(-1),
+    creator: userRef(userIds.director),
+    assignee: userRef(userIds.director),
+    participants: [userRef(userIds.engineer2)],
+    project: projectRefs.p4,
+    spentMinutes: 120,
+    commentsCount: 3,
+    checklistDone: 2,
+    checklistTotal: 2,
+    source: 'letter',
+    updatedAt: isoAgo(0, 11),
+  }),
+  mk({
+    id: tid(6),
+    number: 106,
+    title: 'Разработать технический модуль управления проектами',
+    stage: stagePlanned,
+    priority: 'normal',
+    deadline: isoIn(7),
+    creator: userRef(userIds.director),
+    assignee: userRef(userIds.director),
+    participants: [],
+    project: projectRefs.p1,
+    spentMinutes: 168,
+    commentsCount: 0,
+    checklistDone: 0,
+    checklistTotal: 0,
+    source: 'manual',
+    updatedAt: isoAgo(2),
+  }),
+  mk({
+    id: tid(7),
+    number: 107,
+    title: 'Сравнить чертежи по Балаково',
+    stage: stageDone,
+    priority: 'normal',
+    deadline: isoIn(-5),
+    creator: userRef(userIds.director),
+    assignee: userRef(userIds.director),
+    participants: [],
+    project: null,
+    spentMinutes: 1656,
+    commentsCount: 5,
+    checklistDone: 0,
+    checklistTotal: 0,
+    source: 'chat_message',
+    updatedAt: isoAgo(3),
+  }),
+  mk({
+    id: tid(8),
+    number: 108,
+    title: 'Обучение работе в Revit',
+    stage: stagePostponed,
+    priority: 'low',
+    deadline: null,
+    creator: userRef(userIds.bimLead),
+    assignee: userRef(userIds.director),
+    participants: [],
+    project: projectRefs.p3,
+    spentMinutes: 4587,
+    commentsCount: 0,
+    checklistDone: 0,
+    checklistTotal: 0,
+    source: 'manual',
+    updatedAt: isoAgo(6),
+  }),
+  mk({
+    id: tid(9),
+    number: 109,
+    title: 'Создать ЕП по работе с договорами для руководства',
+    stage: stageNew,
+    priority: 'normal',
+    deadline: null,
+    creator: userRef(userIds.director),
+    assignee: userRef(userIds.director),
+    participants: [],
+    project: null,
+    spentMinutes: 0,
+    commentsCount: 0,
+    checklistDone: 0,
+    checklistTotal: 0,
+    source: 'manual',
+    updatedAt: isoAgo(4),
+  }),
+  mk({
+    id: tid(10),
+    number: 110,
+    title: 'Встреча с командой по итогам недели',
+    stage: stageDone,
+    priority: 'normal',
+    deadline: isoIn(0, 17),
+    creator: userRef(userIds.director),
+    assignee: userRef(userIds.director),
+    participants: [],
+    project: null,
+    spentMinutes: 60,
+    commentsCount: 0,
+    checklistDone: 0,
+    checklistTotal: 0,
+    source: 'manual',
+    updatedAt: isoAgo(0, 12),
+  }),
+];
+
+const detailsExtra: Record<
+  string,
+  Pick<TaskDetail, 'description' | 'observers' | 'checklist' | 'createdAt'>
+> = {
+  [tid(2)]: {
+    description:
+      'Построить модель 3D по результатам лазерного сканирования: корпус Б, отметки 0.000–+6.000. Источник — облако точек в общем хранилище.',
+    observers: [userRef(userIds.engineer2)],
+    checklist: [
+      { id: '50000000-0000-4000-8000-000000000001', text: 'Выгрузить облако точек', done: true },
+      { id: '50000000-0000-4000-8000-000000000002', text: 'Каркас и колонны', done: false },
+      { id: '50000000-0000-4000-8000-000000000003', text: 'Свести с разделом КЖ', done: false },
+    ],
+    createdAt: isoAgo(9),
+  },
+};
+
+export function taskDetailOf(task: TaskListItem): TaskDetail {
+  const extra = detailsExtra[task.id] ?? {
+    description: 'Описание уточняется постановщиком.',
+    observers: [],
+    checklist: [],
+    createdAt: task.updatedAt,
+  };
+  return { ...task, ...extra };
+}
+
+const mid = (n: number): string => `60000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+
+export const demoTaskMessages: ChatMessage[] = [
+  {
+    id: mid(1),
+    conversationId: tid(2),
+    author: userRef(userIds.bimLead),
+    text: 'Облако точек выгрузил, качество хорошее. Берись за каркас.',
+    replyToId: null,
+    threadRootId: null,
+    threadRepliesCount: 0,
+    reactions: [],
+    attachments: [],
+    editedAt: null,
+    createdAt: isoAgo(2, 9, 12),
+  },
+  {
+    id: mid(2),
+    conversationId: tid(2),
+    author: userRef(userIds.director),
+    text: 'Принял. К пятнице покажу колонны и балки.',
+    replyToId: mid(1),
+    threadRootId: null,
+    threadRepliesCount: 0,
+    reactions: [{ emoji: '👍', count: 1, mine: false }],
+    attachments: [],
+    editedAt: null,
+    createdAt: isoAgo(2, 9, 40),
+  },
+  {
+    id: mid(3),
+    conversationId: tid(2),
+    author: userRef(userIds.engineer2),
+    text: 'Подскажите, по осям 4–7 расхождения с КЖ, приложила скрин.',
+    replyToId: null,
+    threadRootId: null,
+    threadRepliesCount: 0,
+    reactions: [],
+    attachments: [
+      {
+        id: '70000000-0000-4000-8000-000000000001',
+        name: 'расхождения_оси_4-7.pdf',
+        size: 182_000,
+        mime: 'application/pdf',
+      },
+    ],
+    editedAt: null,
+    createdAt: isoAgo(1, 14, 5),
+  },
+];
