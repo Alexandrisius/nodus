@@ -10,7 +10,7 @@ RUN turbo prune @nodus/api --docker
 # --- Стадия 2: установка зависимостей и сборка ---
 FROM node:24-alpine AS builder
 WORKDIR /app
-RUN npm install --global pnpm@10
+RUN npm install --global pnpm@11
 COPY --from=pruner /app/out/json/ .
 RUN pnpm install --frozen-lockfile
 COPY --from=pruner /app/out/full/ .
@@ -22,4 +22,6 @@ ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=builder /app ./
 EXPOSE 3001
-CMD ["node", "apps/api/dist/main.js"]
+# Миграции — при старте контейнера (prisma-migrations: demo/prod forward-only);
+# приложение поднимается только после успешных миграций.
+CMD ["sh", "-c", "cd apps/api && pnpm exec prisma migrate deploy && node dist/main.js"]

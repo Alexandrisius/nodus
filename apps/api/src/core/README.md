@@ -18,6 +18,7 @@
 | `feature-flags/` | `FeatureFlagService`                                                                | Флаги из БД с кэшем 5 с — тумблер без пересборки (I10)                                                                     |
 | `redis/`         | `REDIS_CLIENT`                                                                      | Общий клиент ioredis; конвенция ключей `nodus:<module>:*`                                                                  |
 | `audit/`         | `AuditRepository`                                                                   | Единственная точка записи в `audit_logs` (append-only)                                                                     |
+| `crypto/`        | `PasswordService`                                                                   | Argon2id-хэширование паролей (глобально): auth проверяет, directory задаёт начальный — без межмодульных импортов (I3)      |
 | `logging/`       | `LoggingModule`                                                                     | nestjs-pino: redact секретов, `traceId` = Fastify request.id                                                               |
 
 ## Правила использования модулями
