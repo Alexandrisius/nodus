@@ -57,6 +57,8 @@ export const ui = {
   topbar: {
     searchPlaceholder: 'Поиск: задачи, письма, люди, чаты…',
     searchHint: 'Ctrl+K',
+    smartSearch: 'Умный поиск',
+    smartSearchHint: 'Ищет по смыслу: задачи, письма, проекты, чаты, люди',
     notifications: 'Уведомления',
     notificationsEmpty: 'Новых уведомлений нет',
     profile: 'Профиль',

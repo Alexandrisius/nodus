@@ -2,6 +2,7 @@ import { Cake, Mail, ListTodo } from 'lucide-react';
 import { useNavigate } from '@tanstack/react-router';
 import type { HomeSummary } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
+import { cn } from '@nodus/ui/lib/utils';
 
 import { formatDate } from '../../../shared/lib/format.js';
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
@@ -9,17 +10,21 @@ import { DeadlineChip } from '../../../shared/ui/deadline-chip.js';
 
 function Widget({
   icon,
+  tone,
   title,
   children,
 }: {
   icon: React.ReactNode;
+  tone: string;
   title: string;
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-xl border bg-card p-4 shadow-sm">
+    <section className="rounded-xl border bg-card p-4 shadow-lg shadow-black/20">
       <h3 className="flex items-center gap-2 text-sm font-semibold">
-        {icon}
+        <span className={cn('flex size-7 items-center justify-center rounded-lg', tone)}>
+          {icon}
+        </span>
         {title}
       </h3>
       <div className="mt-3">{children}</div>
@@ -33,11 +38,17 @@ export function HomeWidgets({ summary }: { summary: HomeSummary }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <Widget icon={<ListTodo className="size-4" />} title={ui.home.myTasks}>
+      <Widget
+        icon={<ListTodo className="size-4" />}
+        tone="bg-indigo-400/15 text-indigo-500"
+        title={ui.home.myTasks}
+      >
         <div className="grid grid-cols-3 gap-2 text-center">
-          <div className="rounded-lg bg-danger-soft px-2 py-1.5">
-            <div className="text-lg font-semibold text-danger">{summary.tasks.overdue.length}</div>
-            <div className="text-xs text-danger">{ui.home.myTasksOverdue}</div>
+          <div className="rounded-lg bg-rose-500/10 px-2 py-1.5">
+            <div className="text-lg font-semibold text-rose-600">
+              {summary.tasks.overdue.length}
+            </div>
+            <div className="text-xs text-rose-600">{ui.home.myTasksOverdue}</div>
           </div>
           <div className="rounded-lg bg-warning-soft px-2 py-1.5">
             <div className="text-lg font-semibold text-warning">{summary.tasks.today.length}</div>
@@ -63,7 +74,11 @@ export function HomeWidgets({ summary }: { summary: HomeSummary }) {
         </div>
       </Widget>
 
-      <Widget icon={<Mail className="size-4" />} title={ui.home.recentLetters}>
+      <Widget
+        icon={<Mail className="size-4" />}
+        tone="bg-amber-400/15 text-amber-500"
+        title={ui.home.recentLetters}
+      >
         {summary.letters.unregisteredCount > 0 && (
           <button
             type="button"
@@ -90,7 +105,11 @@ export function HomeWidgets({ summary }: { summary: HomeSummary }) {
         </div>
       </Widget>
 
-      <Widget icon={<Cake className="size-4" />} title={ui.home.birthdays}>
+      <Widget
+        icon={<Cake className="size-4" />}
+        tone="bg-pink-400/15 text-pink-500"
+        title={ui.home.birthdays}
+      >
         <div className="flex flex-col gap-2">
           {summary.birthdays.map((entry) => (
             <div key={entry.user.id} className="flex items-center gap-2">

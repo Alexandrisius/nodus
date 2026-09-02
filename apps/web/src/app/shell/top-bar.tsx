@@ -1,4 +1,4 @@
-import { Bell, Check, LogOut, Palette, Search } from 'lucide-react';
+import { Bell, Check, LogOut, Palette, Sparkles } from 'lucide-react';
 import { Link, useRouterState } from '@tanstack/react-router';
 import { ui } from '@nodus/contracts';
 import { cn } from '@nodus/ui/lib/utils';
@@ -108,8 +108,8 @@ export function TopBar() {
         className="gap-2 border-white/15 bg-white/10 text-white/80 hover:bg-white/15 hover:text-white"
         onClick={() => setCommandOpen(true)}
       >
-        <Search data-icon="inline-start" />
-        <span className="hidden lg:inline">{ui.topbar.searchPlaceholder}</span>
+        <Sparkles data-icon="inline-start" />
+        <span className="hidden lg:inline">{ui.topbar.smartSearch}</span>
         <kbd className="rounded border border-white/15 bg-white/10 px-1.5 text-xs">
           {ui.topbar.searchHint}
         </kbd>
