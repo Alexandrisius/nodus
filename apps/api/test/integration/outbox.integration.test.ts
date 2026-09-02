@@ -56,10 +56,7 @@ describe.skipIf(!process.env.DATABASE_URL)('outbox (integration)', () => {
   it('откат транзакции → событие НЕ сохраняется (атомарность)', async () => {
     await expect(
       txRunner.run(async (tx) => {
-        await eventBus.emit(tx, 'test.ping', {
-          aggregateType: 'test',
-          payload: { id: 'rollback' },
-        });
+        await eventBus.emit(tx, 'test.ping', { id: 'rollback' }, { aggregateType: 'test' });
         throw new Error('сбой после записи события');
       }),
     ).rejects.toThrow('сбой после записи события');
@@ -69,10 +66,7 @@ describe.skipIf(!process.env.DATABASE_URL)('outbox (integration)', () => {
 
   it('коммит → событие в events; диспетчер доставляет и помечает published', async () => {
     await txRunner.run(async (tx) => {
-      await eventBus.emit(tx, 'test.ping', {
-        aggregateType: 'test',
-        payload: { id: 'commit' },
-      });
+      await eventBus.emit(tx, 'test.ping', { id: 'commit' }, { aggregateType: 'test' });
     });
     expect(await prisma.event.count({ where: { publishedAt: null } })).toBe(1);
 

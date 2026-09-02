@@ -26,12 +26,15 @@ nodus/
 │   │       ├── shared/        # переиспользуемое: lib, hooks, ui-kit re-export
 │   │       └── ws/            # WebSocket-клиент, синхронизация, офлайн-очередь
 │   ├── api/                   # NestJS backend (Fastify)
+│   │   ├── prisma/            # schema.prisma, миграции (задним числом не меняются), seed dev-БД
 │   │   └── src/
 │   │       ├── core/          # event bus, audit, guards RBAC, ошибки, логирование,
-│   │       │                  # пагинация, идемпотентность, feature flags, health
+│   │       │                  # пагинация, идемпотентность, feature flags, database (Prisma),
+│   │       │                  # redis-клиент (канон путей core — patterns.md)
+│   │       ├── health/        # liveness/readiness (terminus): /api/v1/health/*
 │   │       ├── modules/
 │   │       │   └── <module>/  # controller / service / repo / dto / events / README.md
-│   │       └── infra/         # prisma, redis, minio, mail (IMAP/SMTP) клиенты
+│   │       └── infra/         # minio, mail (IMAP/SMTP) клиенты — появятся с модулями
 │   ├── gateway/               # WebSocket gateway (Socket.IO): auth, presence, fanout
 │   └── desktop/               # Tauri-оболочка — создаётся в фазе «Десктоп» (после пилота)
 ├── packages/
@@ -42,9 +45,6 @@ nodus/
 ├── tests/
 │   ├── e2e/                   # Playwright — только критичные пути
 │   └── load/                  # k6-сценарии нагрузочного тестирования
-├── prisma/
-│   ├── migrations/            # миграции задним числом не меняются — только новые
-│   └── seed/                  # seed-набор dev-БД (см. политику данных по средам — ADR-0002)
 ├── .agents/
 │   └── skills/                # проектные навыки (коммитятся, едут с репо): react, nestjs, миграции...
 ├── infra/                     # конфиги инфраструктуры: caddy, cloudflared, prometheus, grafana
@@ -81,6 +81,6 @@ nodus/
 | Общие типы/DTO/схемы/события | `packages/contracts/` (никогда не дублировать в apps) |
 | Общие UI-компоненты | `packages/ui/` (никогда не дублировать в features) |
 | e2e-тест | `tests/e2e/` |
-| Миграция БД | `prisma/migrations/` (новая миграция, никогда не правка старой) |
+| Миграция БД | `apps/api/prisma/migrations/` (новая миграция, никогда не правка старой) |
 | Конфиг инфраструктуры | `infra/` |
 | Эксплуатационная процедура | `docs/runbooks/` |

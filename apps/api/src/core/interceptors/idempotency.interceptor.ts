@@ -25,7 +25,6 @@ const LOCK_POLL_MS = 100;
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 interface CachedResponse {
-  statusCode: number;
   body: unknown;
   bodyHash: string;
 }
@@ -110,20 +109,18 @@ export class IdempotencyInterceptor implements NestInterceptor {
     return next.handle().pipe(
       tap({
         next: (body: unknown) => {
-          const reply = http.getResponse<FastifyReply>();
-          if (reply.statusCode >= 200 && reply.statusCode < 300) {
-            const record: CachedResponse = { statusCode: reply.statusCode, body, bodyHash };
-            void this.redis
-              .pipeline()
-              .set(scopedKey, JSON.stringify(record), 'EX', RESPONSE_TTL_SECONDS)
-              .del(`${scopedKey}:lock`)
-              .exec()
-              .catch((error: unknown) =>
-                this.logger.warn({ err: error }, 'Failed to cache idempotent response'),
-              );
-          } else {
-            void this.redis.del(`${scopedKey}:lock`).catch(() => undefined);
-          }
+          // Успех обработчика (исключения уходят в ветку error) — кэшируем ответ.
+          // Статус-код не храним: в интерсепторе он ещё не финальный (Nest применит
+          // @HttpCode/дефолт 201 позже); при replay статус выставит сам Nest.
+          const record: CachedResponse = { body, bodyHash };
+          void this.redis
+            .pipeline()
+            .set(scopedKey, JSON.stringify(record), 'EX', RESPONSE_TTL_SECONDS)
+            .del(`${scopedKey}:lock`)
+            .exec()
+            .catch((error: unknown) =>
+              this.logger.warn({ err: error }, 'Failed to cache idempotent response'),
+            );
         },
         error: () => {
           void this.redis.del(`${scopedKey}:lock`).catch(() => undefined);
@@ -146,7 +143,8 @@ export class IdempotencyInterceptor implements NestInterceptor {
         'Idempotency key was used with a different payload',
       );
     }
-    void reply.status(cached.statusCode).header('Idempotent-Replay', 'true');
+    // Статус НЕ выставляем вручную — финальный статус маршрута применит Nest.
+    void reply.header('Idempotent-Replay', 'true');
     return of(cached.body);
   }
 

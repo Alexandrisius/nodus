@@ -81,7 +81,6 @@ describe('IdempotencyInterceptor', () => {
 
   it('replay: тот же ключ и тело → первый ответ с Idempotent-Replay', async () => {
     const cached = {
-      statusCode: 201,
       body: { id: 't1' },
       bodyHash: sha256Hex(stableStringify(BODY)),
     };
@@ -91,12 +90,13 @@ describe('IdempotencyInterceptor', () => {
 
     const result$ = await interceptor.intercept(context, next);
     expect(await lastValueFrom(result$)).toEqual({ id: 't1' });
-    expect(reply.status).toHaveBeenCalledWith(201);
     expect(reply.header).toHaveBeenCalledWith('Idempotent-Replay', 'true');
+    // Статус вручную не выставляем — его применит Nest по метаданным маршрута.
+    expect(reply.status).not.toHaveBeenCalled();
   });
 
   it('тот же ключ с иным телом → CONFLICT и продление TTL', async () => {
-    const cached = { statusCode: 201, body: {}, bodyHash: sha256Hex('{"other":true}') };
+    const cached = { body: {}, bodyHash: sha256Hex('{"other":true}') };
     redis.get.mockResolvedValue(JSON.stringify(cached));
     const { context } = createContext({ key: KEY, body: BODY });
 
@@ -114,7 +114,7 @@ describe('IdempotencyInterceptor', () => {
     expect(redis.pipeline).toHaveBeenCalled();
     expect(redis._pipeline.set).toHaveBeenCalledWith(
       SCOPED,
-      expect.stringContaining('"statusCode":201'),
+      expect.stringContaining('"bodyHash"'),
       'EX',
       86400,
     );

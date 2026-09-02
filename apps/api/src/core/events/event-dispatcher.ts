@@ -77,7 +77,8 @@ export class EventDispatcher implements OnModuleInit, OnModuleDestroy {
     try {
       const pending = await this.prisma.event.findMany({
         where: { publishedAt: null },
-        orderBy: { createdAt: 'asc' },
+        // Детерминированный порядок (I7): created_at + tiebreaker по id.
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
         take: BATCH_SIZE,
       });
       for (const row of pending) {

@@ -9,12 +9,12 @@ describe('EventBus', () => {
     const tx = { event: { create } } as unknown as TransactionClient;
     const bus = new EventBus();
 
-    await bus.emit(tx, 'task.created', {
-      actorId: 'u1',
-      aggregateType: 'task',
-      aggregateId: 't1',
-      payload: { id: 't1', title: 'Задача' },
-    });
+    await bus.emit(
+      tx,
+      'task.created',
+      { id: 't1', title: 'Задача' },
+      { actorId: 'u1', aggregateType: 'task', aggregateId: 't1' },
+    );
 
     expect(create).toHaveBeenCalledWith({
       data: {
@@ -30,7 +30,7 @@ describe('EventBus', () => {
   it('системное событие — actorId null по умолчанию', async () => {
     const create = vi.fn().mockResolvedValue({});
     const tx = { event: { create } } as unknown as TransactionClient;
-    await new EventBus().emit(tx, 'workflow.escalated', { payload: { id: 'w1' } });
+    await new EventBus().emit(tx, 'workflow.escalated', { id: 'w1' });
     expect(create).toHaveBeenCalledWith({
       data: expect.objectContaining({ actorId: null }),
     });
