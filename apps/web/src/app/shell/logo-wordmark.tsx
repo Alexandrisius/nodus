@@ -1,8 +1,7 @@
-import { LogoOMark } from './logo-icon.js';
-
 /**
- * Словесный знак NODUS, где O — гексагон с графом из полых узлов
- * (мастер docs/mvp/logo/Nodus_словесный_знак.svg; шрифт — Onest, кандидат айдентики).
+ * Словесный знак NODUS, где O — гексагон без внутреннего графа
+ * (решение владельца 03.09.2026: граф живёт в значке слева от названия).
+ * Мастер айдентики — docs/mvp/logo/Nodus_словесный_знак.svg; шрифт — Onest.
  */
 export function LogoWordmark({ className }: { className?: string }) {
   return (
@@ -10,7 +9,15 @@ export function LogoWordmark({ className }: { className?: string }) {
       className={`flex items-center font-bold tracking-[0.05em] whitespace-nowrap select-none ${className ?? ''}`}
     >
       N
-      <LogoOMark className="mx-0.5 size-[1.3em] shrink-0" />
+      <svg viewBox="0 0 64 64" className="mx-0.5 size-[1.15em] shrink-0" aria-hidden="true">
+        <polygon
+          points="32,6 54.5,19 54.5,45 32,58 9.5,45 9.5,19"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={7}
+          strokeLinejoin="round"
+        />
+      </svg>
       DUS
     </span>
   );

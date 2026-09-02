@@ -14,7 +14,7 @@ import { cn } from '@nodus/ui/lib/utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@nodus/ui/components/tooltip';
 
 import { useShellStore } from './shell-store.js';
-import { LogoOMark } from './logo-icon.js';
+import { LogoIcon } from './logo-icon.js';
 import { LogoWordmark } from './logo-wordmark.js';
 
 const items = [
@@ -39,12 +39,11 @@ export function SideMenu() {
         collapsed ? 'w-16' : 'w-60',
       )}
     >
-      <div className={cn('flex h-14 items-center px-4', collapsed && 'justify-center px-0')}>
-        {collapsed ? (
-          <LogoOMark className="size-7 text-sidebar-primary" />
-        ) : (
-          <LogoWordmark className="text-lg text-sidebar-foreground" />
-        )}
+      <div
+        className={cn('flex h-14 items-center gap-2.5 px-4', collapsed && 'justify-center px-0')}
+      >
+        <LogoIcon className="size-8 shrink-0 text-sidebar-primary" />
+        {!collapsed && <LogoWordmark className="text-lg text-sidebar-foreground" />}
       </div>
 
       <nav className="flex flex-1 flex-col gap-1 px-2.5 pt-2">
