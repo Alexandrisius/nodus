@@ -58,3 +58,4 @@ ADR — это **одно конкретное архитектурное реш
 | [0003](0003-local-first-spike.md) | Local-first: свой sync-движок не строим; готовые движки — спайк после пилота | Принят | 2026-09-02 |
 | [0004](0004-branching-release-environments.md) | Ветвление и релизы: GitHub Flow (main + короткие feature), теги, staging/prod | Принят | 2026-09-02 |
 | [0005](0005-idempotency-redis-interceptor.md) | Идемпотентность мутаций: Redis-интерсептор с replay ответа | принят | 2026-09-02 |
+| [0006](0006-openapi-from-code-standard-schema.md) | OpenAPI из кода: @nestjs/swagger + нативный Standard Schema (zod 4), /api/docs за JWT | Принят | 2026-09-02 |
