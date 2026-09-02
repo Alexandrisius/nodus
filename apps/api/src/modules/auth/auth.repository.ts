@@ -31,6 +31,8 @@ export interface SessionRow {
   expiresAt: Date;
   revokedAt: Date | null;
   createdAt: Date;
+  /** Время последней ротации — основа leeway-окна reuse-detection. */
+  updatedAt: Date;
 }
 
 /**

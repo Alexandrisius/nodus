@@ -9,6 +9,9 @@ import { LoginThrottleService } from './login-throttle.service.js';
 import { PasswordService } from '../../core/crypto/password.service.js';
 import { TokenService } from './token.service.js';
 
+/** Окно «гонки» для предыдущего refresh-токена (мультитаб/ретрай — не взлом). */
+const REUSE_LEEWAY_MS = 10_000;
+
 /** Результат успешной аутентификации/ротации — контроллер ставит cookie. */
 export interface IssuedSession {
   sessionId: string;
@@ -125,19 +128,24 @@ export class AuthService {
       session.previousRefreshTokenHash &&
       this.tokenService.hashesEqual(presentedHash, session.previousRefreshTokenHash)
     ) {
-      // Reuse сменённого токена: цепочка скомпрометирована — гасим сессию.
-      await this.authRepository.revokeSession(session.id);
-      await this.audit.append({
-        actorId: session.userId,
-        action: 'auth.session_reuse_detected',
-        entityType: 'session',
-        entityId: session.id,
-        ip,
-        userAgent: userAgent ?? undefined,
-      });
-      throw this.sessionInvalid();
-    }
-    if (!this.tokenService.hashesEqual(presentedHash, session.refreshTokenHash)) {
+      // Leeway-окно: параллельные refresh (мультитаб, ретрай после 401) приходят
+      // с предыдущим токеном сразу после ротации — это гонка, а не взлом.
+      // Повторное предъявление ПОЗЖЕ окна = компрометация: отзыв цепочки (Auth0).
+      const rotatedAgoMs = Date.now() - session.updatedAt.getTime();
+      if (rotatedAgoMs > REUSE_LEEWAY_MS) {
+        await this.authRepository.revokeSession(session.id);
+        await this.audit.append({
+          actorId: session.userId,
+          action: 'auth.session_reuse_detected',
+          entityType: 'session',
+          entityId: session.id,
+          ip,
+          userAgent: userAgent ?? undefined,
+        });
+        throw this.sessionInvalid();
+      }
+      // в пределах leeway — падаем в штатную ротацию ниже
+    } else if (!this.tokenService.hashesEqual(presentedHash, session.refreshTokenHash)) {
       throw this.sessionInvalid();
     }
 

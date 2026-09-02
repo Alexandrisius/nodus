@@ -136,20 +136,37 @@ describe('auth + directory (integration)', () => {
     expect(rotated.accessToken).toBeTruthy();
     expect(newCookie).not.toBe(cookie);
 
-    // reuse СТАРОГО токена → 401 и отзыв всей цепочки
-    const reuseRes = await fetch(`${baseUrl}/auth/refresh`, {
+    // Мгновенное переиспользование СТАРОГО токена = гонка (мультитаб/ретрай):
+    // leeway-окно принимает и ротирует штатно — НЕ отзыв.
+    const raceRes = await fetch(`${baseUrl}/auth/refresh`, {
       method: 'POST',
       headers: { cookie },
     });
-    expect(reuseRes.status).toBe(401);
-    expect((await reuseRes.json()).code).toBe(ErrorCode.AUTH_SESSION_INVALID);
+    expect(raceRes.status).toBe(200);
+    const afterRaceCookie = cookieOf(raceRes);
 
-    // новый токен тоже мёртв (сессия отозвана reuse-detection-ом)
-    const afterReuse = await fetch(`${baseUrl}/auth/refresh`, {
-      method: 'POST',
-      headers: { cookie: newCookie },
+    // Кража: предыдущий токен предъявлен ПОЗЖЕ leeway-окна (симулируем —
+    // отматываем updatedAt сессии на минуту назад) → отзыв всей цепочки.
+    const sessionId = afterRaceCookie.slice('nodus_refresh='.length).split('.')[0]!;
+    await prisma.session.update({
+      where: { id: sessionId },
+      data: { updatedAt: new Date(Date.now() - 60_000) },
     });
-    expect(afterReuse.status).toBe(401);
+    const theftRes = await fetch(`${baseUrl}/auth/refresh`, {
+      method: 'POST',
+      headers: { cookie: newCookie }, // newCookie — теперь «предыдущий»
+    });
+    expect(theftRes.status).toBe(401);
+    expect((await theftRes.json()).code).toBe(ErrorCode.AUTH_SESSION_INVALID);
+    const revoked = await prisma.session.findUnique({ where: { id: sessionId } });
+    expect(revoked?.revokedAt).not.toBeNull();
+
+    // Вся цепочка мертва, включая последний выданный токен
+    const afterRevoke = await fetch(`${baseUrl}/auth/refresh`, {
+      method: 'POST',
+      headers: { cookie: afterRaceCookie },
+    });
+    expect(afterRevoke.status).toBe(401);
 
     // заново login → logout → refresh мёртв
     const relogin = await login(baseUrl, ADMIN.email, ADMIN.password);

@@ -34,12 +34,13 @@ describe('DepartmentsService', () => {
     findParentChain: vi.fn(),
   };
   const tx = { run: vi.fn((cb: (t: string) => unknown) => cb('tx-handle')) };
+  const eventBus = { emit: vi.fn() };
 
   let service: DepartmentsService;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    service = new DepartmentsService(departments as never, tx as never);
+    service = new DepartmentsService(departments as never, tx as never, eventBus as never);
   });
 
   describe('getTree', () => {
@@ -66,35 +67,47 @@ describe('DepartmentsService', () => {
       departments.findById.mockResolvedValue(row('dep', null));
       departments.findParentChain.mockResolvedValue(['parent', 'dep']); // dep — предок parent
 
-      await expect(service.update('dep', { parentId: 'parent' })).rejects.toMatchObject({
+      await expect(service.update('dep', { parentId: 'parent' }, 'admin-1')).rejects.toMatchObject({
         code: ErrorCode.CONFLICT,
       });
       expect(departments.update).not.toHaveBeenCalled();
     });
 
-    it('валидная смена родителя → update в транзакции', async () => {
+    it('валидная смена родителя → update + событие в транзакции', async () => {
       departments.findById.mockResolvedValue(row('dep', null));
       departments.findParentChain.mockResolvedValue(['new-parent']);
       departments.update.mockResolvedValue(row('dep', 'new-parent'));
 
-      const node = await service.update('dep', { parentId: 'new-parent' });
+      const node = await service.update('dep', { parentId: 'new-parent' }, 'admin-1');
 
       expect(departments.update).toHaveBeenCalledWith(
         'dep',
         { parentId: 'new-parent' },
         'tx-handle',
       );
+      expect(eventBus.emit).toHaveBeenCalledWith(
+        'tx-handle',
+        'directory.department.updated',
+        expect.objectContaining({ departmentId: 'dep' }),
+        expect.objectContaining({ actorId: 'admin-1' }),
+      );
       expect(node.parentId).toBe('new-parent');
     });
   });
 
   describe('archive', () => {
-    it('архивирует (isActive=false), не удаляет', async () => {
+    it('архивирует (isActive=false) + событие archived', async () => {
       departments.findById.mockResolvedValue(row('dep', null));
 
-      await service.archive('dep');
+      await service.archive('dep', 'admin-1');
 
       expect(departments.update).toHaveBeenCalledWith('dep', { isActive: false }, 'tx-handle');
+      expect(eventBus.emit).toHaveBeenCalledWith(
+        'tx-handle',
+        'directory.department.archived',
+        { departmentId: 'dep' },
+        expect.objectContaining({ actorId: 'admin-1' }),
+      );
     });
   });
 });

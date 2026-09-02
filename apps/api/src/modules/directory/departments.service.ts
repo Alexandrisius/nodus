@@ -9,6 +9,7 @@ import {
 
 import { TransactionRunner } from '../../core/database/transaction-runner.js';
 import { DomainException } from '../../core/errors/domain-exception.js';
+import { EventBus } from '../../core/events/event-bus.js';
 import { DepartmentsRepository, type DepartmentRow } from './departments.repository.js';
 
 function toNode(row: DepartmentRow, children: DepartmentNode[]): DepartmentNode {
@@ -37,6 +38,7 @@ export class DepartmentsService {
   constructor(
     private readonly departments: DepartmentsRepository,
     private readonly tx: TransactionRunner,
+    private readonly eventBus: EventBus,
   ) {}
 
   /** Дерево: корни — parentId null; сортировка sortOrder+name на каждом уровне. */
@@ -61,14 +63,23 @@ export class DepartmentsService {
     return toNode(row, []);
   }
 
-  async create(dto: CreateDepartmentDto): Promise<DepartmentNode> {
+  async create(dto: CreateDepartmentDto, actorId: string): Promise<DepartmentNode> {
     if (dto.parentId) {
       await this.ensureExists(dto.parentId);
     }
-    return this.tx.run(async (tx) => toNode(await this.departments.create(dto, tx), []));
+    return this.tx.run(async (tx) => {
+      const created = await this.departments.create(dto, tx);
+      await this.eventBus.emit(
+        tx,
+        'directory.department.created',
+        { departmentId: created.id, kind: created.kind },
+        { actorId, aggregateType: 'department', aggregateId: created.id },
+      );
+      return toNode(created, []);
+    });
   }
 
-  async update(id: string, dto: UpdateDepartmentDto): Promise<DepartmentNode> {
+  async update(id: string, dto: UpdateDepartmentDto, actorId: string): Promise<DepartmentNode> {
     await this.ensureExists(id);
     if (dto.parentId !== undefined && dto.parentId !== null) {
       await this.ensureExists(dto.parentId);
@@ -81,14 +92,29 @@ export class DepartmentsService {
         });
       }
     }
-    return this.tx.run(async (tx) => toNode(await this.departments.update(id, dto, tx), []));
+    return this.tx.run(async (tx) => {
+      const updated = await this.departments.update(id, dto, tx);
+      await this.eventBus.emit(
+        tx,
+        'directory.department.updated',
+        { departmentId: id, changedFields: Object.keys(dto) },
+        { actorId, aggregateType: 'department', aggregateId: id },
+      );
+      return toNode(updated, []);
+    });
   }
 
   /** Архивация (не удаление — связи сотрудников и история сохраняются, I15). */
-  async archive(id: string): Promise<void> {
+  async archive(id: string, actorId: string): Promise<void> {
     await this.ensureExists(id);
     await this.tx.run(async (tx) => {
       await this.departments.update(id, { isActive: false }, tx);
+      await this.eventBus.emit(
+        tx,
+        'directory.department.archived',
+        { departmentId: id },
+        { actorId, aggregateType: 'department', aggregateId: id },
+      );
     });
   }
 

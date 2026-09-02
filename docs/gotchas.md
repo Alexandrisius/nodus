@@ -36,15 +36,6 @@
 - **JWT детерминирован в пределах секунды** (NumericDate = секунды, RFC 7519): два signAsync одного payload в ту же секунду дают идентичный токен — в тестах не сравнивай access-токены на неравенство, проверяй ротацию по refresh-cookie (флаки в integration issue #3).
 - Чтение строк, записанных в открытой транзакции, ДОЛЖНО идти через тот же tx-клиент: репозиторный метод `findById` без tx-параметра читает пулом и не видит uncommitted-записей — карточка возвращается со старым состоянием (поймано при реализации directory: `findCardById(id, tx)`).
 
-## Docker и инфраструктура
-
-- На dev-хосте крутятся чужие Docker-проекты: контейнеры/сети/тома Nodus — только с префиксом `nodus_`, порты — через `.env`, перед `docker compose up` проверяй занятые порты (`docker ps`).
-- В alpine-контейнерах `localhost` резолвится в ::1 (musl предпочитает AAAA), а наши сервисы слушают IPv4 (`0.0.0.0`) — healthcheck'и docker-compose ходят на `127.0.0.1`, не `localhost`.
-- Образ `postgres:18+` ждёт данные в `/var/lib/postgresql`, а не `/var/lib/postgresql/data` — со старым путём контейнер не стартует («unused mount/volume»); новый путь заодно даёт мажорные апгрейды через `pg_upgrade --link`.
-- **В runner-стадии Dockerfile глобальных CLI нет** (pnpm ставится только в builder): CMD и seed-скрипты вызывают бинарники из `node_modules/.bin/` пакета (`./node_modules/.bin/prisma migrate deploy`), иначе контейнер рестартит с «pnpm: not found» (подтверждено воспроизведением в issue #3).
-- **`prisma db seed` в контейнере не находит tsx на PATH** (pnpm-бины не экспортированы): seed-команда — `node --import tsx prisma/seed.ts`, кроссплатформенно (Windows-хост и alpine-контейнер; подтверждено воспроизведением в issue #3).
-- Cloudflare Tunnel после пересоздания web-контейнера теряет origin («connection refused» до переподключения): `docker restart nodus_cloudflared`; проверяй демо curl'ом, а не Invoke-WebRequest (тот капризничает с таймаутами на этой машине).
-
 ## Хост разработки (Windows)
 
 - **Инструмент `edit` — только после инструмента `read`**: вывод `Get-Content` в консоли Windows показывает UTF-8 файлы мозиброй cp866 (кириллица и эмодзи искажены); скопированный оттуда `oldString` не матчится с точными байтами файла — edit падает «not found». Механизм: консоль Windows рендерит вывод в OEM-кодовой странице локали (для русской — 866; подтверждено: Microsoft Learn, about_Character_Encoding — кодовые страницы консоли/ANSI, плюс воспроизведение в сессии issue #2). Тяжёлые правки кириллических файлов — `write` всего файла.

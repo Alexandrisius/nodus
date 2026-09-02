@@ -27,7 +27,7 @@
 
 ## События (outbox, I9)
 
-`directory.user.created` / `directory.user.updated` (payload: userId, changedFields) / `directory.user.deactivated` (payload: userId — auth отзывает сессии).
+`directory.user.created` / `directory.user.updated` (payload: userId, changedFields) / `directory.user.deactivated` (payload: userId — auth отзывает сессии); `directory.department.created` / `updated` / `archived`; `directory.position.created` / `updated` / `archived`; `directory.role.created` / `updated` / `deleted`.
 
 ## Правила
 

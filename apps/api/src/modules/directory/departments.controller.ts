@@ -1,6 +1,7 @@
 import { Body, Controller, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
 import { z } from 'zod';
 import {
+  type AuthUser,
   createDepartmentSchema,
   orgUnitKindSchema,
   Permission,
@@ -12,6 +13,7 @@ import {
 } from '@nodus/contracts';
 
 import { Audit } from '../../core/decorators/audit.decorator.js';
+import { GetUser } from '../../core/decorators/get-user.decorator.js';
 import { RequirePermissions } from '../../core/decorators/require-permissions.decorator.js';
 import { ZodValidationPipe } from '../../core/pipes/zod-validation.pipe.js';
 import { DepartmentsService } from './departments.service.js';
@@ -44,8 +46,9 @@ export class DepartmentsController {
   @Audit({ action: 'directory.department.create', entity: 'department' })
   create(
     @Body(new ZodValidationPipe(createDepartmentSchema)) dto: CreateDepartmentDto,
+    @GetUser() actor: AuthUser,
   ): Promise<DepartmentNode> {
-    return this.departmentsService.create(dto);
+    return this.departmentsService.create(dto, actor.id);
   }
 
   @Patch(':id')
@@ -54,15 +57,16 @@ export class DepartmentsController {
   update(
     @Param('id') id: string,
     @Body(new ZodValidationPipe(updateDepartmentSchema)) dto: UpdateDepartmentDto,
+    @GetUser() actor: AuthUser,
   ): Promise<DepartmentNode> {
-    return this.departmentsService.update(id, dto);
+    return this.departmentsService.update(id, dto, actor.id);
   }
 
   @Post(':id/archive')
   @HttpCode(204)
   @RequirePermissions(Permission.DIRECTORY_MANAGE)
   @Audit({ action: 'directory.department.archive', entity: 'department' })
-  archive(@Param('id') id: string): Promise<void> {
-    return this.departmentsService.archive(id);
+  archive(@Param('id') id: string, @GetUser() actor: AuthUser): Promise<void> {
+    return this.departmentsService.archive(id, actor.id);
   }
 }

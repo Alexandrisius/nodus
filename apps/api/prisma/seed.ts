@@ -207,7 +207,7 @@ async function main(): Promise<void> {
 
   // Гибкая связь эпика M2: помощник подчинён ГИПу в пределах одной группы —
   // без фиктивного отдела «ГИП Иванов».
-  await user({
+  const gipAssistant = await user({
     email: 'petrov@nodus.by',
     passwordHash: demoHash,
     lastName: 'Петров',
@@ -234,7 +234,7 @@ async function main(): Promise<void> {
     roleId: headRole.id,
   });
 
-  await user({
+  const bimEngineer = await user({
     email: 'sidorova@nodus.by',
     passwordHash: demoHash,
     lastName: 'Сидорова',
@@ -247,15 +247,15 @@ async function main(): Promise<void> {
     roleId: employeeRole.id,
   });
 
-  // --- Руководители и заместители подразделений ---
+  // --- Руководители и заместители подразделений (зам — эпик M2) ---
   await prisma.department.update({ where: { id: root.id }, data: { headId: director.id } });
   await prisma.department.update({
     where: { id: depProject.id },
-    data: { headId: gip.id },
+    data: { headId: gip.id, deputyId: gipAssistant.id },
   });
   await prisma.department.update({
     where: { id: depBim.id },
-    data: { headId: bimManager.id },
+    data: { headId: bimManager.id, deputyId: bimEngineer.id },
   });
   await prisma.department.update({
     where: { id: depAdmin.id },

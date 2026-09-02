@@ -69,6 +69,20 @@ describe('auth-store', () => {
     expect(useAuthStore.getState().accessToken).toBeNull();
   });
 
+  it('параллельные tryRefresh дедуплицируются в один запрос (гонка после 401)', async () => {
+    const fetchMock = vi.fn(async () => jsonResponse(200, TOKENS));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const [a, b, c] = await Promise.all([
+      useAuthStore.getState().tryRefresh(),
+      useAuthStore.getState().tryRefresh(),
+      useAuthStore.getState().tryRefresh(),
+    ]);
+
+    expect(a && b && c).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('logout: сбрасывает состояние даже при ошибке сети', async () => {
     useAuthStore.setState({ status: 'authenticated', accessToken: 't', user: USER });
     vi.stubGlobal(

@@ -8,6 +8,7 @@ import { useAuthStore } from '../../shared/auth-store.js';
 /**
  * Страница входа. Функциональный минимум до дизайн-системы (M3, issue #4):
  * стилизация временная, каркас и терминология — постоянные.
+ * TODO(M3): строки — в i18n-пакет (I15), когда появится модуль интерфейсных строк.
  */
 export function LoginPage() {
   const login = useAuthStore((s) => s.login);

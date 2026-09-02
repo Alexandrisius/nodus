@@ -22,6 +22,12 @@ interface AuthState {
  * Auth-состояние SPA (zustand): access-токен только в памяти (не localStorage —
  * защита от XSS-угона), refresh — httpOnly-cookie на стороне API.
  */
+
+/** Дедупликация параллельных refresh: один in-flight запрос на всех
+ * (пакет 401 после простоя, retry React Query). Серверный reuse-detection
+ * иначе отозвал бы сессию при двух refresh с одной cookie. */
+let refreshInFlight: Promise<boolean> | null = null;
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   status: 'unknown',
   accessToken: null,
@@ -47,14 +53,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   async tryRefresh() {
-    try {
-      const tokens = await api<AuthTokens>('/auth/refresh', { method: 'POST', auth: false });
-      set({ accessToken: tokens.accessToken });
-      return true;
-    } catch {
-      set({ status: 'anonymous', accessToken: null, user: null });
-      return false;
-    }
+    refreshInFlight ??= (async () => {
+      try {
+        const tokens = await api<AuthTokens>('/auth/refresh', { method: 'POST', auth: false });
+        set({ accessToken: tokens.accessToken });
+        return true;
+      } catch {
+        set({ status: 'anonymous', accessToken: null, user: null });
+        return false;
+      } finally {
+        refreshInFlight = null;
+      }
+    })();
+    return refreshInFlight;
   },
 
   async bootstrap() {

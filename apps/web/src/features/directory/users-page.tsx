@@ -4,7 +4,8 @@ import type { Paginated, UserListItem } from '@nodus/contracts';
 import { api } from '../../shared/api-client.js';
 import { useAuthStore } from '../../shared/auth-store.js';
 
-/** Список сотрудников (проверка directory-контракта end-to-end; UI-полировка — M3). */
+/** Список сотрудников (проверка directory-контракта end-to-end; UI-полировка — M3).
+ *  TODO(M3): строки — в i18n-пакет (I15), полные представления список/дерево — эпик M2. */
 export function UsersPage() {
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);

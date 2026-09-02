@@ -22,6 +22,7 @@ function makeSession(overrides: Record<string, unknown> = {}) {
     expiresAt: new Date(Date.now() + 30 * 24 * 3600 * 1000),
     revokedAt: null,
     createdAt: new Date(),
+    updatedAt: new Date(),
     ...overrides,
   };
 }
@@ -134,8 +135,11 @@ describe('AuthService', () => {
       });
     });
 
-    it('reuse сменённого токена → отзыв сессии + аудит + 401', async () => {
-      const session = makeSession({ previousRefreshTokenHash: 'a'.repeat(64) });
+    it('reuse сменённого токена ПОСЛЕ leeway → отзыв сессии + аудит + 401', async () => {
+      const session = makeSession({
+        previousRefreshTokenHash: 'a'.repeat(64),
+        updatedAt: new Date(Date.now() - 60_000), // ротация была минуту назад
+      });
       authRepository.findSessionById.mockResolvedValue(session);
 
       await expect(service.refresh('cookie', '1.1.1.1', 'ua')).rejects.toMatchObject({
@@ -145,6 +149,21 @@ describe('AuthService', () => {
       expect(audit.append).toHaveBeenCalledWith(
         expect.objectContaining({ action: 'auth.session_reuse_detected' }),
       );
+    });
+
+    it('предыдущий токен В ПРЕДЕЛАХ leeway (гонка мультитаб) → штатная ротация', async () => {
+      const session = makeSession({
+        previousRefreshTokenHash: 'a'.repeat(64),
+        updatedAt: new Date(), // ротация только что
+      });
+      authRepository.findSessionById.mockResolvedValue(session);
+      authRepository.findIdentityById.mockResolvedValue(IDENTITY);
+
+      const result = await service.refresh('cookie', '1.1.1.1', 'ua');
+
+      expect(result.accessToken).toBe('access-jwt');
+      expect(authRepository.rotateSession).toHaveBeenCalled();
+      expect(authRepository.revokeSession).not.toHaveBeenCalled();
     });
 
     it('чужой токен на валидной сессии → 401 без отзыва', async () => {

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { passwordSchema } from '../auth/auth.schemas.js';
 import { cursorQuerySchema } from '../pagination/paginated.schema.js';
 
 /**
@@ -98,8 +99,8 @@ export type ListUsersQuery = z.infer<typeof listUsersQuerySchema>;
 /** Создание сотрудника администратором (directory.manage). */
 export const createUserSchema = z.object({
   email: z.email(),
-  /** Начальный пароль (сотрудник сменит при первом входе — политика V2). */
-  password: z.string().min(12).max(128),
+  /** Начальный пароль — та же политика, что и при смене (сотрудник сменит при первом входе — V2). */
+  password: passwordSchema,
   lastName: z.string().trim().min(1).max(128),
   firstName: z.string().trim().min(1).max(128),
   middleName: z.string().trim().min(1).max(128).nullable().default(null),
