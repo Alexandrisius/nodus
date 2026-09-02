@@ -21,6 +21,14 @@ export const ErrorCode = {
   RATE_LIMITED: 'RATE_LIMITED',
   /** Непредвиденное (без деталей наружу). */
   INTERNAL_ERROR: 'INTERNAL_ERROR',
+
+  // Доменные коды модулей (маска MODULE_REASON):
+  /** Неверный email или пароль (без уточнения — защита от перебора учёток). */
+  AUTH_INVALID_CREDENTIALS: 'AUTH_INVALID_CREDENTIALS',
+  /** Сессия отозвана, просрочена или refresh-токен скомпрометирован (reuse). */
+  AUTH_SESSION_INVALID: 'AUTH_SESSION_INVALID',
+  /** Пользователь с таким email уже существует. */
+  DIRECTORY_EMAIL_TAKEN: 'DIRECTORY_EMAIL_TAKEN',
 } as const;
 
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];
