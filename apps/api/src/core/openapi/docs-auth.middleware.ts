@@ -33,7 +33,7 @@ export function createDocsAuthMiddleware(verifyAccessToken: VerifyAccessToken) {
     reply: ServerResponse,
     next: (err?: Error) => void,
   ): Promise<void> => {
-    if (!request.url?.startsWith(DOCS_URL_PREFIX)) {
+    if (!isDocsUrl(request.url)) {
       next();
       return;
     }
@@ -52,6 +52,24 @@ export function createDocsAuthMiddleware(verifyAccessToken: VerifyAccessToken) {
     }
     next();
   };
+}
+
+/**
+ * Относится ли URL к документации. Путь декодируется ОДИН раз — как это делает
+ * роутер Fastify (find-my-way, `safeDecodeURI`): проверка по сырому `url`
+ * обходилась бы одним `%64` (`/api/%64ocs-json` миновал бы посредника и попал
+ * в маршрут) — обход найден валидацией, issue #19. Некорректный процент-код
+ * оставляет сырым: роутер его тоже не декодирует и такие пути не матчит.
+ */
+function isDocsUrl(url: string | undefined): boolean {
+  const rawPath = url?.split('?')[0] ?? '';
+  let path = rawPath;
+  try {
+    path = decodeURIComponent(rawPath);
+  } catch {
+    // malformed percent-encoding — остаётся сырой
+  }
+  return path.startsWith(DOCS_URL_PREFIX);
 }
 
 function rejectUnauthenticated(request: RawRequest, reply: ServerResponse, message: string): void {

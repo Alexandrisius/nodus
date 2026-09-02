@@ -190,6 +190,14 @@ describe('OpenAPI: генерация из кода и публикация /api
     expect(response.status).toBe(401);
   });
 
+  it('обход через percent-кодирование закрыт: /api/%64ocs-json без токена → 401', async () => {
+    // Роутер Fastify декодирует путь при матчинге — посредник обязан тоже.
+    const response = await fetch(`${baseUrl}/api/%64ocs-json`);
+    expect(response.status).toBe(401);
+    const encodedUi = await fetch(`${baseUrl}/api/%64ocs`);
+    expect(encodedUi.status).toBe(401);
+  });
+
   it('/api/docs доступна авторизованному: UI и спека', async () => {
     const ui = await fetch(`${baseUrl}/api/docs`, {
       headers: { authorization: `Bearer ${VALID_TOKEN}` },

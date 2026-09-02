@@ -43,6 +43,7 @@
 - **Nest-Fastify передаёт в `app.use`-посредники СЫРЫЕ объекты Node** (`req.raw`, `reply.raw` — см. `fastify-middie.js`: `run(req.raw, reply.raw, next)`), не `FastifyRequest`/`FastifyReply`: `reply.status()` — «not a function»; ответ пишется в `ServerResponse` (`statusCode`/`setHeader`/`end`), `request.id` fastify кладёт на `req.raw` сам (подтверждено исходниками @nestjs/platform-fastify и воспроизведением, issue #19).
 - **`@nestjs/swagger` на Fastify требует peer `@fastify/static`**: без него `SwaggerModule.setup` падает «The @fastify/static package is missing» + `process.exit(1)` прямо в bootstrap; версия должна удовлетворять пиру `@nestjs/platform-fastify` (подтверждено воспроизведением, issue #19).
 - **`@nestjs/swagger` тянет `@scarf/scarf`** (install-аналитика): в `allowBuilds` — `false` (self-hosted, чужая телеметрия не нужна, I11), build-скрипт не одобрять.
+- **Проверка префикса пути по сырому `req.url` обходится одним percent-символом**: роутер Fastify (find-my-way) декодирует путь при матчинге (`safeDecodeURI`), поэтому `/api/%64ocs` минует проверку `startsWith('/api/docs')` и попадает в защищаемый маршрут; путь перед сравнением декодируется один раз (при `URIError` — остаётся сырым: роутер его тоже не матчит). Любой префикс-гуард в посредниках — только после той же нормализации (подтверждено воспроизведением: валидация issue #19 нашла обход `/api/docs*` без токена).
 
 ## Хост разработки (Windows)
 

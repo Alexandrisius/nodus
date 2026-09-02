@@ -81,4 +81,22 @@ describe('createDocsAuthMiddleware', () => {
       expect(next).not.toHaveBeenCalled();
     }
   });
+
+  it('обход через percent-кодирование закрыт (роутер декодирует путь, как и проверка)', async () => {
+    for (const url of [
+      '/api/%64ocs',
+      '/api/%64ocs-json',
+      '/api/d%6Fcs-yaml',
+      '/api/docs-json?x=%2F',
+    ]) {
+      const { reply, next } = await run(url, undefined, 'ok');
+      expect(reply.statusCode, `для ${url}`).toBe(401);
+      expect(next).not.toHaveBeenCalled();
+    }
+  });
+
+  it('некорректный процент-код вне документации проходит (роутер его тоже не декодирует)', async () => {
+    const { next } = await run('/api/v1/health/%zz', undefined, 'ok');
+    expect(next).toHaveBeenCalledWith();
+  });
 });

@@ -26,7 +26,8 @@ async function bootstrap(): Promise<void> {
   app.setGlobalPrefix('api/v1');
 
   // OpenAPI из кода, публикация /api/docs только для авторизованных (I2, issue #19).
-  setupOpenApi(app, (token) => app.get(TokenService).verifyAccessToken(token));
+  const tokenService = app.get(TokenService);
+  setupOpenApi(app, (token) => tokenService.verifyAccessToken(token));
 
   // Refresh-токен — в httpOnly-cookie (auth.controller).
   await app.register(fastifyCookie);
