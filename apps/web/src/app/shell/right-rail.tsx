@@ -1,4 +1,5 @@
 import { ChevronsRight, ChevronsLeft } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { ui } from '@nodus/contracts';
 import { cn } from '@nodus/ui/lib/utils';
@@ -15,8 +16,10 @@ const dotColor: Record<string, string> = {
 };
 
 /**
- * Правая полоса коллег (каркас §10.2): 56px, по наведению плавно раскрывается
- * до панели с полными именами; клик — быстрый переход в чат.
+ * Правая полоса коллег (каркас §10.2): 56px, плавно раскрывается до панели
+ * с полными именами, когда курсор упирается в правый край экрана (защита от
+ * ложных срабатываний ховера); закрывается, когда курсор покидает панель.
+ * Клик по коллеге — быстрый переход в чат.
  */
 export function RightRail() {
   const collapsed = useShellStore((s) => s.railCollapsed);
@@ -24,6 +27,15 @@ export function RightRail() {
   const { data } = usePresence();
   const { data: chats } = useConversations();
   const navigate = useNavigate();
+  const [edgeOpen, setEdgeOpen] = useState(false);
+
+  useEffect(() => {
+    const onMove = (event: MouseEvent) => {
+      if (event.clientX >= window.innerWidth - 2) setEdgeOpen(true);
+    };
+    window.addEventListener('mousemove', onMove);
+    return () => window.removeEventListener('mousemove', onMove);
+  }, []);
 
   if (collapsed) {
     return (
@@ -50,10 +62,21 @@ export function RightRail() {
   const online = data?.filter((p) => p.status === 'online').length ?? 0;
 
   return (
-    <aside className="group flex w-14 shrink-0 flex-col overflow-hidden border-l border-white/10 bg-[#0B1524]/70 backdrop-blur-xl transition-[width] duration-300 ease-out hover:w-64">
+    <aside
+      onMouseLeave={() => setEdgeOpen(false)}
+      className={cn(
+        'flex shrink-0 flex-col overflow-hidden border-l border-white/10 bg-[#0B1524]/70 backdrop-blur-xl transition-[width] duration-300 ease-out',
+        edgeOpen ? 'w-64' : 'w-14',
+      )}
+    >
       <div className="flex h-8 items-center gap-2 px-3.5 pt-3 pb-1">
         <span className="text-[11px] font-semibold text-white/50 tabular-nums">{online}</span>
-        <span className="text-[11px] font-semibold tracking-wider text-white/40 uppercase opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+        <span
+          className={cn(
+            'text-[11px] font-semibold tracking-wider text-white/40 uppercase transition-opacity duration-200',
+            edgeOpen ? 'opacity-100' : 'opacity-0',
+          )}
+        >
           {ui.topbar.onlineColleagues}
         </span>
       </div>
@@ -81,7 +104,12 @@ export function RightRail() {
                   )}
                 />
               </span>
-              <span className="truncate text-sm text-white/85 opacity-0 transition-opacity delay-75 duration-200 group-hover:opacity-100">
+              <span
+                className={cn(
+                  'truncate text-sm text-white/85 transition-opacity delay-75 duration-200',
+                  edgeOpen ? 'opacity-100' : 'opacity-0',
+                )}
+              >
                 {entry.user.displayName}
               </span>
             </button>
