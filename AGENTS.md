@@ -34,6 +34,7 @@
 | `docs/architecture/data-model.md`                  | Перед миграциями и новыми сущностями                                                               |
 | `docs/architecture/non-functional-requirements.md` | Производительность, безопасность, эксплуатация                                                     |
 | `docs/product/vision.md`                           | Один раз в начале; при сомнениях «зачем»                                                           |
+| `docs/product/roadmap.md`                          | **Перед созданием/нарезкой issues** и вопросами «что дальше» — мастер-план, нет issue вне roadmap  |
 | `docs/product/ux-principles.md`                    | Перед любой работой над UI (каркас, терминология — обязательны)                                    |
 | `docs/product/core-flows.md`                       | Перед реализацией потоков письмо/задача/чат/согласование                                           |
 | `docs/product/glossary.md`                         | Доменные термины (поручение, резолюция...)                                                         |
