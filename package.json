@@ -13,6 +13,7 @@
     "build": "turbo build",
     "typecheck": "turbo typecheck",
     "test": "turbo test",
+    "test:e2e": "pnpm --filter @nodus/e2e test",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

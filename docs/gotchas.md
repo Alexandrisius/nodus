@@ -9,6 +9,9 @@
 - На dev-хосте крутятся чужие Docker-проекты: контейнеры/сети/тома Nodus — только с префиксом `nodus_`, порты — через `.env`, перед `docker compose up` проверяй занятые порты (`docker ps`).
 - В alpine-контейнерах `localhost` резолвится в ::1 (musl предпочитает AAAA), а наши сервисы слушают IPv4 (`0.0.0.0`) — healthcheck'и docker-compose ходят на `127.0.0.1`, не `localhost`.
 - Образ `postgres:18+` ждёт данные в `/var/lib/postgresql`, а не `/var/lib/postgresql/data` — со старым путём контейнер не стартует («unused mount/volume»); новый путь заодно даёт мажорные апгрейды через `pg_upgrade --link`.
+- **В runner-стадии Dockerfile глобальных CLI нет** (pnpm ставится только в builder): CMD и seed-скрипты вызывают бинарники из `node_modules/.bin/` пакета (`./node_modules/.bin/prisma migrate deploy`), иначе контейнер рестартит с «pnpm: not found» (подтверждено воспроизведением в issue #3).
+- **`prisma db seed` в контейнере не находит tsx на PATH** (pnpm-бины не экспортированы): seed-команда — `node --import tsx prisma/seed.ts`, кроссплатформенно (Windows-хост и alpine-контейнер; подтверждено воспроизведением в issue #3).
+- Cloudflare Tunnel после пересоздания web-контейнера теряет origin («connection refused» до переподключения): `docker restart nodus_cloudflared`; проверяй демо curl'ом, а не Invoke-WebRequest (тот капризничает с таймаутами на этой машине).
 
 ## Монорепо и toolchain (pnpm, turbo, TS, ESLint)
 
@@ -28,6 +31,19 @@
 - Интеграционные тесты используют отдельную БД `nodus_test` (создаётся автоматически, миграции — `migrate deploy`): никогда не направляй их на рабочую `nodus` — очистка таблиц деструктивна.
 
 - `DiscoveryService` (скан провайдеров по метаданным) не глобален: модуль, инжектящий его, обязан импортировать `DiscoveryModule` из `@nestjs/core` — моки в unit-тестах это не ловят, падает только bootstrap контейнера (проверяй `docker compose up` после добавления таких провайдеров).
+- **Ошибки Fastify-плагинов (например @fastify/rate-limit) — не Nest-исключения**: приходят в глобальный фильтр как объект со `statusCode`, без него ветки фильтра уходят в 500 INTERNAL_ERROR вместо 429. Фильтр обязан иметь ветку для `{ statusCode: number }` (подтверждено воспроизведением в issue #3: e2e получал 500 на rate-limit).
+- **`keyGenerator` @fastify/rate-limit выполняется ДО парсинга тела** (`request.body` undefined): per-account лимиты по email через keyGenerator не работают — брутфорс-защита login живёт в AuthService (Redis-счётчик `nodus:auth:login_fail:<email>`), а не в плагине; IP-ключ за NAT офиса блокировал бы всех сотрудников разом (подтверждено воспроизведением: лимит срабатывал с ключом `ip:` при 2 логинах).
+- **JWT детерминирован в пределах секунды** (NumericDate = секунды, RFC 7519): два signAsync одного payload в ту же секунду дают идентичный токен — в тестах не сравнивай access-токены на неравенство, проверяй ротацию по refresh-cookie (флаки в integration issue #3).
+- Чтение строк, записанных в открытой транзакции, ДОЛЖНО идти через тот же tx-клиент: репозиторный метод `findById` без tx-параметра читает пулом и не видит uncommitted-записей — карточка возвращается со старым состоянием (поймано при реализации directory: `findCardById(id, tx)`).
+
+## Docker и инфраструктура
+
+- На dev-хосте крутятся чужие Docker-проекты: контейнеры/сети/тома Nodus — только с префиксом `nodus_`, порты — через `.env`, перед `docker compose up` проверяй занятые порты (`docker ps`).
+- В alpine-контейнерах `localhost` резолвится в ::1 (musl предпочитает AAAA), а наши сервисы слушают IPv4 (`0.0.0.0`) — healthcheck'и docker-compose ходят на `127.0.0.1`, не `localhost`.
+- Образ `postgres:18+` ждёт данные в `/var/lib/postgresql`, а не `/var/lib/postgresql/data` — со старым путём контейнер не стартует («unused mount/volume»); новый путь заодно даёт мажорные апгрейды через `pg_upgrade --link`.
+- **В runner-стадии Dockerfile глобальных CLI нет** (pnpm ставится только в builder): CMD и seed-скрипты вызывают бинарники из `node_modules/.bin/` пакета (`./node_modules/.bin/prisma migrate deploy`), иначе контейнер рестартит с «pnpm: not found» (подтверждено воспроизведением в issue #3).
+- **`prisma db seed` в контейнере не находит tsx на PATH** (pnpm-бины не экспортированы): seed-команда — `node --import tsx prisma/seed.ts`, кроссплатформенно (Windows-хост и alpine-контейнер; подтверждено воспроизведением в issue #3).
+- Cloudflare Tunnel после пересоздания web-контейнера теряет origin («connection refused» до переподключения): `docker restart nodus_cloudflared`; проверяй демо curl'ом, а не Invoke-WebRequest (тот капризничает с таймаутами на этой машине).
 
 ## Хост разработки (Windows)
 
