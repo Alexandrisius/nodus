@@ -140,7 +140,8 @@ jobs:
         run: nohup node apps/api/dist/main.js > /tmp/nodus-api.log 2>&1 &
 
       - name: Запуск web (vite preview с прокси /api)
-        run: nohup pnpm --filter @nodus/web exec vite preview --port 4173 --strictPort > /tmp/nodus-web.log 2>&1 &
+        # --host 127.0.0.1: vite preview биндит localhost (может уйти в ::1), curl идёт на IPv4.
+        run: nohup pnpm --filter @nodus/web exec vite preview --host 127.0.0.1 --port 4173 --strictPort > /tmp/nodus-web.log 2>&1 &
 
       - name: Ожидание готовности стека
         run: |
