@@ -51,6 +51,11 @@ describe('AuthService', () => {
     ),
   };
   const audit = { append: vi.fn() };
+  const loginThrottle = {
+    isLocked: vi.fn().mockResolvedValue(false),
+    recordFailure: vi.fn(),
+    reset: vi.fn(),
+  };
 
   let service: AuthService;
 
@@ -61,29 +66,44 @@ describe('AuthService', () => {
     tokenService.parseRefreshCookie.mockImplementation((raw?: string) =>
       raw ? { sessionId: 'session-1', token: 'raw-token' } : null,
     );
+    loginThrottle.isLocked.mockResolvedValue(false);
     service = new AuthService(
       authProvider as never,
       authRepository as never,
       passwordService as never,
       tokenService as never,
       audit as never,
+      loginThrottle as never,
     );
   });
 
   describe('login', () => {
-    it('неверные креды → AUTH_INVALID_CREDENTIALS + аудит login_failed', async () => {
+    it('неверные креды → AUTH_INVALID_CREDENTIALS + аудит + счётчик неудач', async () => {
       authProvider.verifyCredentials.mockResolvedValue(null);
 
       await expect(service.login('a@b.by', 'bad', '1.1.1.1', 'ua')).rejects.toMatchObject({
         code: ErrorCode.AUTH_INVALID_CREDENTIALS,
       });
+      expect(loginThrottle.recordFailure).toHaveBeenCalledWith('a@b.by');
       expect(audit.append).toHaveBeenCalledWith(
         expect.objectContaining({ action: 'auth.login_failed', details: { email: 'a@b.by' } }),
       );
       expect(authRepository.createSession).not.toHaveBeenCalled();
     });
 
-    it('успех → сессия + access-токен', async () => {
+    it('заблокированная учётка → 401 без обращения к провайдеру + аудит', async () => {
+      loginThrottle.isLocked.mockResolvedValue(true);
+
+      await expect(service.login('a@b.by', 'any', '1.1.1.1', 'ua')).rejects.toMatchObject({
+        code: ErrorCode.AUTH_INVALID_CREDENTIALS,
+      });
+      expect(authProvider.verifyCredentials).not.toHaveBeenCalled();
+      expect(audit.append).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'auth.login_throttled' }),
+      );
+    });
+
+    it('успех → сессия + access-токен + сброс счётчика', async () => {
       authProvider.verifyCredentials.mockResolvedValue(IDENTITY);
       authRepository.createSession.mockResolvedValue(makeSession());
 
@@ -92,6 +112,7 @@ describe('AuthService', () => {
       expect(result.accessToken).toBe('access-jwt');
       expect(result.refreshToken).toBe('raw-token');
       expect(result.expiresIn).toBe(900);
+      expect(loginThrottle.reset).toHaveBeenCalledWith('a@b.by');
       expect(authRepository.createSession).toHaveBeenCalledWith(
         expect.objectContaining({ userId: 'user-1', refreshTokenHash: 'b'.repeat(64) }),
       );

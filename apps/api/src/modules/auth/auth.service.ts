@@ -5,6 +5,7 @@ import { AuditRepository } from '../../core/audit/audit.repository.js';
 import { DomainException } from '../../core/errors/domain-exception.js';
 import { AUTH_PROVIDER, type AuthProvider } from './auth-provider.js';
 import { AuthRepository, type SessionRow } from './auth.repository.js';
+import { LoginThrottleService } from './login-throttle.service.js';
 import { PasswordService } from '../../core/crypto/password.service.js';
 import { TokenService } from './token.service.js';
 
@@ -44,6 +45,7 @@ export class AuthService {
     private readonly passwordService: PasswordService,
     private readonly tokenService: TokenService,
     private readonly audit: AuditRepository,
+    private readonly loginThrottle: LoginThrottleService,
   ) {}
 
   async login(
@@ -52,8 +54,22 @@ export class AuthService {
     ip: string,
     userAgent: string | null,
   ): Promise<IssuedSession> {
+    // Пер-аккаунтный троттлинг (OWASP): 10 неудач за 10 минут → пауза.
+    // Ответ — тот же INVALID_CREDENTIALS, чтобы не выдавать факт блокировки.
+    if (await this.loginThrottle.isLocked(email)) {
+      await this.audit.append({
+        actorId: null,
+        action: 'auth.login_throttled',
+        details: { email },
+        ip,
+        userAgent: userAgent ?? undefined,
+      });
+      throw new DomainException(ErrorCode.AUTH_INVALID_CREDENTIALS, 'Invalid email or password');
+    }
+
     const identity = await this.authProvider.verifyCredentials(email, password);
     if (!identity) {
+      await this.loginThrottle.recordFailure(email);
       // Аудит неуспешного входа (перехватчик пишет только успешные ответы).
       await this.audit.append({
         actorId: null,
@@ -64,6 +80,7 @@ export class AuthService {
       });
       throw new DomainException(ErrorCode.AUTH_INVALID_CREDENTIALS, 'Invalid email or password');
     }
+    await this.loginThrottle.reset(email);
 
     const { token, hash } = this.tokenService.generateRefreshToken();
     const session = await this.authRepository.createSession({

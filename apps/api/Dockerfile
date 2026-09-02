@@ -24,4 +24,5 @@ COPY --from=builder /app ./
 EXPOSE 3001
 # Миграции — при старте контейнера (prisma-migrations: demo/prod forward-only);
 # приложение поднимается только после успешных миграций.
-CMD ["sh", "-c", "cd apps/api && pnpm exec prisma migrate deploy && node dist/main.js"]
+# pnpm в runner-стадии нет — prisma CLI вызывается из node_modules пакета.
+CMD ["sh", "-c", "cd apps/api && ./node_modules/.bin/prisma migrate deploy && node dist/main.js"]

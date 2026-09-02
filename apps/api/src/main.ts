@@ -26,18 +26,13 @@ async function bootstrap(): Promise<void> {
   // Refresh-токен — в httpOnly-cookie (auth.controller).
   await app.register(fastifyCookie);
 
-  // Rate limiting (навык auth-route-guards): login строже всего (брутфорс),
-  // store in-memory достаточно для single-instance монолита. В тестах выключен —
-  // интеграционные прогоны делают десятки логинов с одного IP.
+  // Базовый rate limit (защита от флода); брутфорс login ограничен пер-аккаунтным
+  // счётчиком неудач в AuthService (Redis) — плагин считает по IP до парсинга
+  // тела, что за NAT ложно блокирует весь офис. В тестах выключен.
   if (env.NODE_ENV !== 'test') {
     await app.register(fastifyRateLimit, {
       global: true,
-      max: async (request) => {
-        const url = request.url;
-        if (url.startsWith('/api/v1/auth/login')) return 5;
-        if (url.startsWith('/api/v1/auth/')) return 20;
-        return 300;
-      },
+      max: 300,
       timeWindow: '1 minute',
       keyGenerator: (request) => request.ip,
       errorResponseBuilder: (request, context) => ({
