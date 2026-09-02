@@ -1,5 +1,5 @@
 import { ChevronsRight, ChevronsLeft } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { ui } from '@nodus/contracts';
 import { cn } from '@nodus/ui/lib/utils';
@@ -17,9 +17,9 @@ const dotColor: Record<string, string> = {
 
 /**
  * Правая полоса коллег (каркас §10.2): 56px, плавно раскрывается до панели
- * с полными именами, когда курсор упирается в правый край экрана (защита от
- * ложных срабатываний ховера); закрывается, когда курсор покидает панель.
- * Клик по коллеге — быстрый переход в чат.
+ * с полными именами, когда курсор задержался у правого края экрана ≥ 400 мс
+ * (защита от ложных срабатываний и случайного упора в край); закрывается,
+ * когда курсор покидает панель. Клик по коллеге — быстрый переход в чат.
  */
 export function RightRail() {
   const collapsed = useShellStore((s) => s.railCollapsed);
@@ -28,13 +28,27 @@ export function RightRail() {
   const { data: chats } = useConversations();
   const navigate = useNavigate();
   const [edgeOpen, setEdgeOpen] = useState(false);
+  const dwellTimer = useRef<number | null>(null);
 
   useEffect(() => {
     const onMove = (event: MouseEvent) => {
-      if (event.clientX >= window.innerWidth - 2) setEdgeOpen(true);
+      if (event.clientX >= window.innerWidth - 2) {
+        if (dwellTimer.current === null) {
+          dwellTimer.current = window.setTimeout(() => {
+            dwellTimer.current = null;
+            setEdgeOpen(true);
+          }, 400);
+        }
+      } else if (dwellTimer.current !== null) {
+        clearTimeout(dwellTimer.current);
+        dwellTimer.current = null;
+      }
     };
     window.addEventListener('mousemove', onMove);
-    return () => window.removeEventListener('mousemove', onMove);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      if (dwellTimer.current !== null) clearTimeout(dwellTimer.current);
+    };
   }, []);
 
   if (collapsed) {
