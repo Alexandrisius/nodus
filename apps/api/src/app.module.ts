@@ -1,20 +1,37 @@
 import { Module } from '@nestjs/common';
-import { APP_FILTER, APP_GUARD } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { AuditModule } from './core/audit/audit.module.js';
 import { DatabaseModule } from './core/database/database.module.js';
 import { DomainExceptionFilter } from './core/errors/domain-exception.filter.js';
+import { EventsModule } from './core/events/events.module.js';
 import { FeatureFlagsModule } from './core/feature-flags/feature-flags.module.js';
 import { FeatureFlagGuard } from './core/guards/feature-flag.guard.js';
 import { PermissionGuard } from './core/guards/permission.guard.js';
+import { AuditInterceptor } from './core/interceptors/audit.interceptor.js';
+import { IdempotencyInterceptor } from './core/interceptors/idempotency.interceptor.js';
 import { LoggingModule } from './core/logging/logging.module.js';
+import { RedisModule } from './core/redis/redis.module.js';
 import { HealthModule } from './health/health.module.js';
 
 @Module({
-  imports: [LoggingModule, DatabaseModule, FeatureFlagsModule, HealthModule],
+  imports: [
+    LoggingModule,
+    DatabaseModule,
+    RedisModule,
+    EventsModule,
+    FeatureFlagsModule,
+    AuditModule,
+    HealthModule,
+  ],
   providers: [
     { provide: APP_FILTER, useClass: DomainExceptionFilter },
-    // Порядок: сначала аутентификация/права (401/403), затем фичефлаг (404).
+    // Порядок guard-ов: сначала аутентификация/права (401/403), затем фичефлаг (404).
     { provide: APP_GUARD, useClass: PermissionGuard },
     { provide: APP_GUARD, useClass: FeatureFlagGuard },
+    // Порядок интерсепторов: идемпотентность внешний (replay не плодит аудит),
+    // аудит внутренний (пишет только реально исполненные действия).
+    { provide: APP_INTERCEPTOR, useClass: IdempotencyInterceptor },
+    { provide: APP_INTERCEPTOR, useClass: AuditInterceptor },
   ],
 })
 export class AppModule {}
