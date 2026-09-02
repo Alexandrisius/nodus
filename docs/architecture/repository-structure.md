@@ -49,7 +49,7 @@ nodus/
 │   └── skills/                # проектные навыки (коммитятся, едут с репо): react, nestjs, миграции...
 ├── infra/                     # конфиги инфраструктуры: caddy, cloudflared, prometheus, grafana
 ├── docs/
-│   ├── product/               # видение, глоссарий, UX-принципы, ключевые потоки
+│   ├── product/               # видение, roadmap (мастер-план), глоссарий, UX-принципы, потоки
 │   ├── architecture/          # инварианты, стек, эта структура, модули, API, данные, НФТ
 │   ├── process/               # как мы работаем: workflow через GitHub Issues, DoD
 │   ├── adr/                   # архитектурные решения (NNNN-title.md)
