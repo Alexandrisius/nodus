@@ -4,7 +4,16 @@ import fastifyCookie from '@fastify/cookie';
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ErrorCode } from '@nodus/contracts';
+import { z } from 'zod';
+import {
+  apiErrorResponseSchema,
+  authTokensSchema,
+  authUserSchema,
+  departmentNodeSchema,
+  ErrorCode,
+  paginatedSchema,
+  userListItemSchema,
+} from '@nodus/contracts';
 
 import { AppModule } from '../../src/app.module.js';
 import { PrismaService } from '../../src/core/database/prisma.service.js';
@@ -68,7 +77,7 @@ describe('auth + directory (integration)', () => {
   it('неверный пароль → 401 AUTH_INVALID_CREDENTIALS + аудит login_failed', async () => {
     const res = await login(baseUrl, ADMIN.email, 'wrong-password');
     expect(res.status).toBe(401);
-    const body = await res.json();
+    const body = apiErrorResponseSchema.parse(await res.json());
     expect(body.code).toBe(ErrorCode.AUTH_INVALID_CREDENTIALS);
 
     const audit = await prisma.auditLog.findFirst({
@@ -80,13 +89,13 @@ describe('auth + directory (integration)', () => {
   it('запрос без токена → 401 UNAUTHENTICATED (default-deny)', async () => {
     const res = await fetch(`${baseUrl}/directory/users`);
     expect(res.status).toBe(401);
-    expect((await res.json()).code).toBe(ErrorCode.UNAUTHENTICATED);
+    expect(apiErrorResponseSchema.parse(await res.json()).code).toBe(ErrorCode.UNAUTHENTICATED);
   });
 
   it('сотрудник без права directory.manage → 403 FORBIDDEN на мутации (I8)', async () => {
     const res = await login(baseUrl, EMPLOYEE.email, EMPLOYEE.password);
     expect(res.status).toBe(200);
-    const { accessToken } = await res.json();
+    const { accessToken } = authTokensSchema.parse(await res.json());
 
     // Чтение справочника разрешено (directory.read у роли employee).
     const list = await fetch(`${baseUrl}/directory/users?limit=5`, {
@@ -106,14 +115,14 @@ describe('auth + directory (integration)', () => {
       }),
     });
     expect(create.status).toBe(403);
-    expect((await create.json()).code).toBe(ErrorCode.FORBIDDEN);
+    expect(apiErrorResponseSchema.parse(await create.json()).code).toBe(ErrorCode.FORBIDDEN);
   });
 
   it('полный цикл: login → me → refresh-ротация → reuse → logout', async () => {
     // login
     const loginRes = await login(baseUrl, ADMIN.email, ADMIN.password);
     expect(loginRes.status).toBe(200);
-    const tokens = await loginRes.json();
+    const tokens = authTokensSchema.parse(await loginRes.json());
     const cookie = cookieOf(loginRes);
     expect(cookie).toMatch(/^nodus_refresh=/);
 
@@ -122,7 +131,7 @@ describe('auth + directory (integration)', () => {
       headers: { authorization: `Bearer ${tokens.accessToken}` },
     });
     expect(me.status).toBe(200);
-    expect((await me.json()).email).toBe(ADMIN.email);
+    expect(authUserSchema.parse(await me.json()).email).toBe(ADMIN.email);
 
     // refresh: ротация выдаёт новый refresh (cookie обязана смениться);
     // access-JWT детерминирован для того же payload в ту же секунду — не сравниваем.
@@ -131,7 +140,7 @@ describe('auth + directory (integration)', () => {
       headers: { cookie },
     });
     expect(refreshRes.status).toBe(200);
-    const rotated = await refreshRes.json();
+    const rotated = authTokensSchema.parse(await refreshRes.json());
     const newCookie = cookieOf(refreshRes);
     expect(rotated.accessToken).toBeTruthy();
     expect(newCookie).not.toBe(cookie);
@@ -157,7 +166,9 @@ describe('auth + directory (integration)', () => {
       headers: { cookie: newCookie }, // newCookie — теперь «предыдущий»
     });
     expect(theftRes.status).toBe(401);
-    expect((await theftRes.json()).code).toBe(ErrorCode.AUTH_SESSION_INVALID);
+    expect(apiErrorResponseSchema.parse(await theftRes.json()).code).toBe(
+      ErrorCode.AUTH_SESSION_INVALID,
+    );
     const revoked = await prisma.session.findUnique({ where: { id: sessionId } });
     expect(revoked?.revokedAt).not.toBeNull();
 
@@ -187,17 +198,17 @@ describe('auth + directory (integration)', () => {
     // Сессия сотрудника
     const employeeLogin = await login(baseUrl, EMPLOYEE.email, EMPLOYEE.password);
     const employeeCookie = cookieOf(employeeLogin);
-    const employeeTokens = await employeeLogin.json();
+    const employeeTokens = authTokensSchema.parse(await employeeLogin.json());
 
     // Админ деактивирует сотрудника
     const adminLogin = await login(baseUrl, ADMIN.email, ADMIN.password);
-    const adminTokens = await adminLogin.json();
+    const adminTokens = authTokensSchema.parse(await adminLogin.json());
     const list = await fetch(`${baseUrl}/directory/users?search=Сидорова`, {
       headers: { authorization: `Bearer ${adminTokens.accessToken}` },
     });
-    const { items } = await list.json();
-    const target = items.find((u: { email: string }) => u.email === EMPLOYEE.email);
-    const deactivate = await fetch(`${baseUrl}/directory/users/${target.id}/deactivate`, {
+    const { items } = paginatedSchema(userListItemSchema).parse(await list.json());
+    const target = items.find((u) => u.email === EMPLOYEE.email);
+    const deactivate = await fetch(`${baseUrl}/directory/users/${target!.id}/deactivate`, {
       method: 'POST',
       headers: { authorization: `Bearer ${adminTokens.accessToken}` },
     });
@@ -226,27 +237,25 @@ describe('auth + directory (integration)', () => {
 
   it('админ видит дерево оргструктуры с руководителями', async () => {
     const adminLogin = await login(baseUrl, ADMIN.email, ADMIN.password);
-    const { accessToken } = await adminLogin.json();
+    const { accessToken } = authTokensSchema.parse(await adminLogin.json());
 
     const tree = await fetch(`${baseUrl}/directory/departments/tree`, {
       headers: { authorization: `Bearer ${accessToken}` },
     });
     expect(tree.status).toBe(200);
-    const roots = await tree.json();
+    const roots = z.array(departmentNodeSchema).parse(await tree.json());
     expect(roots).toHaveLength(1);
-    expect(roots[0].name).toBe('ПассатПроект');
-    expect(roots[0].headName).toContain('Василевич');
+    expect(roots[0]!.name).toBe('ПассатПроект');
+    expect(roots[0]!.headName).toContain('Василевич');
     // BIM-группа вложена в Проектное
-    const project = roots[0].children.find((c: { name: string }) => c.name === 'Проектное');
-    expect(project.children.map((c: { name: string }) => c.name)).toContain(
-      'Группа BIM-технологий',
-    );
+    const project = roots[0]!.children.find((c) => c.name === 'Проектное');
+    expect(project!.children.map((c) => c.name)).toContain('Группа BIM-технологий');
 
     // Юридическая структура — отдельным деревом
     const legal = await fetch(`${baseUrl}/directory/departments/tree?kind=legal`, {
       headers: { authorization: `Bearer ${accessToken}` },
     });
-    const legalRoots = await legal.json();
-    expect(legalRoots[0].children.map((c: { name: string }) => c.name)).toContain('Группа ГИПов');
+    const legalRoots = z.array(departmentNodeSchema).parse(await legal.json());
+    expect(legalRoots[0]!.children.map((c) => c.name)).toContain('Группа ГИПов');
   });
 });

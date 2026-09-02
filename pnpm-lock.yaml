@@ -262,6 +262,9 @@ importers:
 
   tests/e2e:
     devDependencies:
+      '@nodus/config':
+        specifier: workspace:*
+        version: link:../../packages/config
       '@playwright/test':
         specifier: ^1.55.1
         version: 1.62.1

@@ -5,9 +5,11 @@
   "type": "module",
   "scripts": {
     "test": "playwright test",
-    "test:headed": "playwright test --headed"
+    "test:headed": "playwright test --headed",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
+    "@nodus/config": "workspace:*",
     "@playwright/test": "^1.55.1",
     "@types/node": "^24.13.3",
     "typescript": "~5.9.3"

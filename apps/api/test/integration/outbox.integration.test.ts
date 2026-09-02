@@ -73,7 +73,7 @@ describe.skipIf(!process.env.DATABASE_URL)('outbox (integration)', () => {
     await dispatcher.dispatchPending();
 
     expect(handler.received).toHaveLength(1);
-    expect(handler.received[0].type).toBe('test.ping');
+    expect(handler.received[0]!.type).toBe('test.ping');
     expect(await prisma.event.count({ where: { publishedAt: null } })).toBe(0);
     expect(await prisma.eventDelivery.count()).toBe(1);
 

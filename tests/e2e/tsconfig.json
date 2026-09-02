@@ -1,0 +1,4 @@
+{
+  "extends": "@nodus/config/tsconfig/node.json",
+  "include": ["playwright.config.ts", "specs/**/*.ts"]
+}
