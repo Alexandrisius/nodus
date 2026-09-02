@@ -31,6 +31,7 @@
 | Компонент | Выбор | Комментарий |
 |---|---|---|
 | Фреймворк | NestJS 12 (адаптер Fastify) | Модульность из коробки; Fastify — выше throughput. ESM-only пакеты и Standard Schema-валидация (zod 4) совпадают с нашими выборами (аудит — issue #8) |
+| Документация API | `@nestjs/swagger` 12 + `@fastify/static` (peer для UI на Fastify) | Спецификация из кода на `/api/docs` (I2, ADR-0006); схемы — zod-контракты через нативный Standard Schema, без классовых DTO |
 | ORM / БД | Prisma 7 + PostgreSQL 18 | Миграции, типизация, агенты знают хорошо. Prisma 7 — последняя стабильная (8 — RC). PG 18: данные монтируются в `/var/lib/postgresql` — мажорные апгрейды через pg_upgrade --link |
 | Кэш / очереди | Redis 8 + BullMQ | Фоновые задачи (превью, отчёты, дайджесты), pub/sub для WS-fanout |
 | Доменные события | Redis Streams + таблица `events` в Postgres | Интерфейс EventBus; миграция на NATS позже без смены контрактов (I13) |

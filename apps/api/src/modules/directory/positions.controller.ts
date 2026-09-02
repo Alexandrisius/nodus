@@ -1,6 +1,16 @@
 import { Body, Controller, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiCreatedResponse,
+  ApiNoContentResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiParam,
+  ApiTags,
+} from '@nestjs/swagger';
 import { z } from 'zod';
 import {
+  positionSchema,
   type AuthUser,
   createPositionSchema,
   orgUnitKindSchema,
@@ -15,6 +25,8 @@ import {
 import { Audit } from '../../core/decorators/audit.decorator.js';
 import { GetUser } from '../../core/decorators/get-user.decorator.js';
 import { RequirePermissions } from '../../core/decorators/require-permissions.decorator.js';
+import { ApiErrors } from '../../core/openapi/api-errors.decorator.js';
+import { ApiIdempotencyKey } from '../../core/openapi/api-idempotency.decorator.js';
 import { ZodValidationPipe } from '../../core/pipes/zod-validation.pipe.js';
 import { PositionsService } from './positions.service.js';
 
@@ -24,14 +36,19 @@ const listQuerySchema = z.object({
 });
 
 /** Должности (`/api/v1/directory/positions`): справочник, CRUD, архивация. */
+@ApiTags('directory')
+@ApiBearerAuth()
 @Controller('directory/positions')
 export class PositionsController {
   constructor(private readonly positionsService: PositionsService) {}
 
   @Get()
   @RequirePermissions(Permission.DIRECTORY_READ)
+  @ApiOperation({ summary: 'Список должностей (фильтр по виду и архиву)' })
+  @ApiOkResponse({ standardSchema: positionSchema, isArray: true })
+  @ApiErrors(400, 401, 403)
   list(
-    @Query(new ZodValidationPipe(listQuerySchema))
+    @Query({ schema: listQuerySchema, pipes: [new ZodValidationPipe(listQuerySchema)] })
     query: {
       kind: OrgUnitKind;
       includeArchived: boolean;
@@ -43,8 +60,13 @@ export class PositionsController {
   @Post()
   @RequirePermissions(Permission.DIRECTORY_MANAGE)
   @Audit({ action: 'directory.position.create', entity: 'position' })
+  @ApiOperation({ summary: 'Создание должности' })
+  @ApiCreatedResponse({ standardSchema: positionSchema })
+  @ApiErrors(400, 401, 403, 409)
+  @ApiIdempotencyKey()
   create(
-    @Body(new ZodValidationPipe(createPositionSchema)) dto: CreatePositionDto,
+    @Body({ schema: createPositionSchema, pipes: [new ZodValidationPipe(createPositionSchema)] })
+    dto: CreatePositionDto,
     @GetUser() actor: AuthUser,
   ): Promise<Position> {
     return this.positionsService.create(dto, actor.id);
@@ -53,9 +75,18 @@ export class PositionsController {
   @Patch(':id')
   @RequirePermissions(Permission.DIRECTORY_MANAGE)
   @Audit({ action: 'directory.position.update', entity: 'position' })
+  @ApiOperation({ summary: 'Обновление должности' })
+  @ApiParam({
+    name: 'id',
+    description: 'UUID должности',
+    schema: { type: 'string', format: 'uuid' },
+  })
+  @ApiOkResponse({ standardSchema: positionSchema })
+  @ApiErrors(400, 401, 403, 404, 409)
   update(
     @Param('id') id: string,
-    @Body(new ZodValidationPipe(updatePositionSchema)) dto: UpdatePositionDto,
+    @Body({ schema: updatePositionSchema, pipes: [new ZodValidationPipe(updatePositionSchema)] })
+    dto: UpdatePositionDto,
     @GetUser() actor: AuthUser,
   ): Promise<Position> {
     return this.positionsService.update(id, dto, actor.id);
@@ -65,6 +96,15 @@ export class PositionsController {
   @HttpCode(204)
   @RequirePermissions(Permission.DIRECTORY_MANAGE)
   @Audit({ action: 'directory.position.archive', entity: 'position' })
+  @ApiOperation({ summary: 'Архивация должности (без удаления, I15)' })
+  @ApiParam({
+    name: 'id',
+    description: 'UUID должности',
+    schema: { type: 'string', format: 'uuid' },
+  })
+  @ApiNoContentResponse({ description: 'Должность архивирована' })
+  @ApiErrors(401, 403, 404)
+  @ApiIdempotencyKey()
   archive(@Param('id') id: string, @GetUser() actor: AuthUser): Promise<void> {
     return this.positionsService.archive(id, actor.id);
   }

@@ -45,6 +45,43 @@
 | Права | `Permission` enum в contracts (`task.create` — точечная нотация); guard — `core/guards/permission.guard.ts`; декоратор `@RequirePermissions(Permission.TASK_CREATE)` | Не строковые литералы прав |
 | Логирование | nestjs-pino (`PinoLogger`); `traceId` = Fastify `request.id` | Не кастомный AppLogger в request-scope |
 | Ответ списка | `{ items, nextCursor }` | Без totals/offset/pageInfo |
+| OpenAPI-ошибки | `ApiErrors(...статусы)` — `core/openapi/api-errors.decorator.ts` | Общая схема `apiErrorResponseSchema`, без ручных `@ApiResponse` |
+| OpenAPI-идемпотентность | `@ApiIdempotencyKey()` — `core/openapi/api-idempotency.decorator.ts` | Заголовок `Idempotency-Key` на мутациях |
+
+## Бэкенд (NestJS): OpenAPI-аннотации (спека из кода, I2)
+
+Спецификация генерируется `@nestjs/swagger` из декораторов и публикуется на `/api/docs`
+только для авторизованных (ADR-0006). Источник схем — **те же zod-схемы `@nodus/contracts`**,
+что валидируют вход: одна схема = валидация + типы + документация (без дублирования).
+Классические DTO с `@ApiProperty` **запрещены** (противоречит ADR-0001).
+
+Правило: **новый/изменённый эндпоинт = аннотации в том же коммите** (критерий приёмки,
+дублирует DoD «Изменение API = обновлены … и OpenAPI-аннотации»).
+
+```
+# Тело и query: schema — в опции декоратора маршрута (нативный Standard Schema, zod 4).
+# pipes — валидация единым форматом; опция schema на рантайм не влияет.
+@Post()
+@ApiOkResponse({ standardSchema: userCardSchema })          # ответ — выходная сторона схемы
+@ApiErrors(400, 401, 403, 409)                              # ошибки единого формата
+@ApiIdempotencyKey()                                        # мутация → заголовок идемпотентности
+create(@Body({ schema: createUserSchema, pipes: [new ZodValidationPipe(createUserSchema)] }) dto: CreateUserDto) { … }
+
+@Get()
+@ApiOkResponse({ standardSchema: paginatedSchema(userListItemSchema) })
+list(@Query({ schema: listUsersQuerySchema, pipes: [new ZodValidationPipe(listUsersQuerySchema)] }) q: ListUsersQuery) { … }
+```
+
+Правила аннотирования:
+
+- **Тело/параметры** — опция `schema` у `@Body`/`@Query` (массив `pipes` рядом); **ответы** — `standardSchema` у `@Api…Response`. Ответ — выходная сторона (`output`), тело — входная (`input`): конвертирует сам `@nestjs/swagger`.
+- **Ошибки** — только через `@ApiErrors(…)` (общая схема `apiErrorResponseSchema`); не расписывать `@ApiResponse` для каждого кода вручную.
+- **Мутации** (POST/PUT/PATCH/DELETE) — `@ApiIdempotencyKey()`; чтение — нет.
+- **Безопасность** — контроллер/метод под `@ApiBearerAuth()`; публичные — `@Public()` и БЕЗ `@ApiBearerAuth` (health, login/refresh/logout).
+- **Теги** — `@ApiTags('<модуль>')` на контроллере (`health`, `auth`, `directory`).
+- **Списки** — ответ `paginatedSchema(itemSchema)`; query — курсорная схема (канон `{ items, nextCursor }`).
+- **Терминус** (`/health/live|ready`) — своей zod-схемы нет, описывается локальным `SchemaObject` в контроллере.
+- `/api/docs*` зарегистрирован в обход конвейера Nest, поэтому закрыт отдельным middie-посредником (`core/openapi/docs-auth.middleware.ts`), а не `JwtAuthGuard`.
 
 ## Фронтенд (React): структура фичи
 
