@@ -6,6 +6,7 @@ import { Toaster } from '@nodus/ui/components/sonner';
 import { TooltipProvider } from '@nodus/ui/components/tooltip';
 
 import { CommandPalette } from './command-palette.js';
+import { LiveGraph } from './live-graph.js';
 import { RightRail } from './right-rail.js';
 import { SideMenu } from './side-menu.js';
 import { useShellStore } from './shell-store.js';
@@ -49,11 +50,7 @@ export function AppShell() {
       >
         {ui.common.skipToContent}
       </a>
-      <div
-        aria-hidden
-        className="fixed inset-0 -z-10 bg-cover bg-center"
-        style={{ backgroundImage: "url('/wallpaper.svg')" }}
-      />
+      <LiveGraph />
       <div className="flex h-screen overflow-hidden">
         <SideMenu />
         <div className="flex min-w-0 flex-1 flex-col">

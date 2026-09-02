@@ -5,6 +5,7 @@ import { Button } from '@nodus/ui/components/button';
 import { Field, FieldGroup, FieldLabel } from '@nodus/ui/components/field';
 import { Input } from '@nodus/ui/components/input';
 
+import { LiveGraph } from '../../app/shell/live-graph.js';
 import { LogoIcon } from '../../app/shell/logo-icon.js';
 import { ApiError } from '../../shared/api-client.js';
 import { useAuthStore } from '../../shared/auth-store.js';
@@ -34,10 +35,8 @@ export function LoginPage() {
   }
 
   return (
-    <main
-      className="flex min-h-screen items-center justify-center bg-cover bg-center p-4"
-      style={{ backgroundImage: "url('/wallpaper.svg')" }}
-    >
+    <main className="flex min-h-screen items-center justify-center p-4">
+      <LiveGraph />
       <form
         onSubmit={(e) => void onSubmit(e)}
         className="w-full max-w-sm rounded-2xl border bg-card/95 p-8 shadow-2xl backdrop-blur-xl"

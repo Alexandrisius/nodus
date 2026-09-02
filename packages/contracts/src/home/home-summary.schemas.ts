@@ -4,18 +4,7 @@ import { letterListItemSchema } from '../correspondence/letter.schemas.js';
 import { userRefSchema } from '../directory/user-ref.schema.js';
 import { taskListItemSchema } from '../tasks/task.schemas.js';
 
-/** Агрегат главной страницы (рабочий кабинет вместо социальной ленты). */
-
-export const feedPostSchema = z.object({
-  id: z.uuid(),
-  author: userRefSchema,
-  text: z.string().min(1),
-  likesCount: z.number().int().min(0),
-  commentsCount: z.number().int().min(0),
-  createdAt: z.iso.datetime(),
-});
-
-export type FeedPost = z.infer<typeof feedPostSchema>;
+/** Агрегат главной страницы: корпоративная витрина компании + рабочий кабинет. */
 
 export const birthdayEntrySchema = z.object({
   user: userRefSchema,
@@ -24,6 +13,32 @@ export const birthdayEntrySchema = z.object({
 });
 
 export type BirthdayEntry = z.infer<typeof birthdayEntrySchema>;
+
+export const companyStatsSchema = z.object({
+  employeeCount: z.number().int().min(0),
+  projectsDone: z.number().int().min(0),
+  revenueByn: z.number().min(0),
+  dataNodes: z.number().int().min(0),
+});
+
+export type CompanyStats = z.infer<typeof companyStatsSchema>;
+
+export const companyNewsItemSchema = z.object({
+  id: z.uuid(),
+  title: z.string().min(1),
+  text: z.string().min(1),
+  publishedAt: z.iso.datetime(),
+});
+
+export type CompanyNewsItem = z.infer<typeof companyNewsItemSchema>;
+
+export const companyPhotoSchema = z.object({
+  id: z.uuid(),
+  src: z.string().min(1),
+  caption: z.string().min(1),
+});
+
+export type CompanyPhoto = z.infer<typeof companyPhotoSchema>;
 
 export const homeSummarySchema = z.object({
   tasks: z.object({
@@ -36,7 +51,9 @@ export const homeSummarySchema = z.object({
     recent: z.array(letterListItemSchema),
   }),
   birthdays: z.array(birthdayEntrySchema),
-  feed: z.array(feedPostSchema),
+  stats: companyStatsSchema,
+  news: z.array(companyNewsItemSchema),
+  photos: z.array(companyPhotoSchema),
 });
 
 export type HomeSummary = z.infer<typeof homeSummarySchema>;
