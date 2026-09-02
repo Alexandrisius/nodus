@@ -55,6 +55,7 @@ GitHub Issues — **единственный таск-трекер** проек�
 - Ветка `feat/<N>-<краткое-имя>` (bug → `fix/<N>-...`, chore → `chore/<N>-...`) — короткоживущая: часы–дни. Живёт дольше 2 дней → режь фичу на фазы.
 - Conventional commits: `feat|fix|chore|docs|test|refactor(<scope>): <описание> (#N)`.
 - Один PR = один issue. **Squash merge**: в `main` попадает один читаемый коммит на фичу — история рассказывает проект, а не дневник итераций.
+- После мержа PR исполнитель: удаляет локальную ветку (`git branch -d`; удалённая удаляется автоматически — delete_branch_on_merge) и синхронизирует локальный `main` (`git pull --ff-only`).
 - `main` всегда deployable: CI зелёный до мержа; красный main = стоп всей работы до зелёного.
 - Релизы = теги на `main` (semver) + GitHub Release с changelog из conventional commits. Dependabot — PR-ы в `main` (группами, еженедельно).
 - Среды: staging = демо `nodus.by` (с `main`); prod = сервер компании (с тегов релизов). Незаконченное — за feature flags (I10), не за ветками.

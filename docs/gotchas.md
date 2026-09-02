@@ -21,6 +21,7 @@
 
 - EOL нормализованы `.gitattributes` (всё LF, кроме `*.bat`/`*.cmd`); sh-скрипты и хуки Husky — всегда LF, иначе ломаются в Linux-контейнерах с неочевидной ошибкой.
 - `corepack enable` падает без прав на `Program Files` — pnpm ставится через `npm i -g pnpm@11`.
+- winget определяет установленные версии по ARP-записям реестра (`HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall`), а не по файлам: установка MSI поверх пакета другого семейства даёт косметический mis-id в `winget list`. Проверяй сами Uninstall-ключи; «призрачную» запись чисти удалением ключа (с export-бэкапом), НЕ `winget uninstall` — тот снесёт файлы актуальной версии по тому же пути.
 
 ## Процесс и документация
 
