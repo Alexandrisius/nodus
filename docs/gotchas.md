@@ -24,6 +24,7 @@
 - Json-полям Prisma `Record<string, unknown>` не назначается напрямую — нужен каст `as Prisma.InputJsonValue` (типы generated client строже входных DTO).
 - Vitest (vite 8, rolldown/oxc) не эмитит decorator metadata, нужную Nest DI: тесты, поднимающие Nest-приложение (integration), идут через `unplugin-swc` (`vitest.integration.config.ts`); unit-тесты без декораторов SWC не требуют.
 - `@swc/core`, `prisma`, `@prisma/engines` — в `allowBuilds` (pnpm 11): после их обновления проверяй, что pnpm снова не подставил заглушку «set this to true or false».
+- **pnpm 11 молча игнорирует поле `pnpm` в package.json** (overrides, allowBuilds, ...): настройки читаются только из `pnpm-workspace.yaml` — overrides в package.json просто не применяются, без предупреждений (подтверждено: pnpm.io/package_json, pnpm.io/migration, PR pnpm/pnpm#10086).
 - Интеграционные тесты используют отдельную БД `nodus_test` (создаётся автоматически, миграции — `migrate deploy`): никогда не направляй их на рабочую `nodus` — очистка таблиц деструктивна.
 
 - `DiscoveryService` (скан провайдеров по метаданным) не глобален: модуль, инжектящий его, обязан импортировать `DiscoveryModule` из `@nestjs/core` — моки в unit-тестах это не ловят, падает только bootstrap контейнера (проверяй `docker compose up` после добавления таких провайдеров).
