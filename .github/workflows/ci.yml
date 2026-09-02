@@ -3,7 +3,14 @@ name: CI
 on:
   push:
     branches: [main]
+    # Docs-only изменения не жгут CI (issue #23): AGENTS.md — тоже md.
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
   pull_request:
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
   # Еженедельный аудит зависимостей (навык nestjs-best-practices: security-dependency-audit).
   schedule:
     - cron: '17 5 * * 1'
@@ -42,6 +49,9 @@ jobs:
           --health-retries 10
     steps:
       - uses: actions/checkout@v7
+        with:
+          # Полная история — turbo affected-фильтру нужен merge-base с main (issue #23).
+          fetch-depth: 0
 
       # Версия pnpm берётся из поля packageManager в package.json.
       - uses: pnpm/action-setup@v6
@@ -70,7 +80,15 @@ jobs:
         run: pnpm typecheck
 
       - name: Тесты (unit + тест-кейсы правил линтера)
-        run: pnpm test
+        # PR — affected-only по дифу с base-веткой (turbo учитывает граф зависимостей:
+        # правка contracts запускает и тесты зависимых пакетов). Push в main — всегда
+        # полный прогон: main проверен целиком (issue #23).
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            pnpm turbo test --filter='!@nodus/e2e' --filter="[origin/${{ github.base_ref }}...HEAD]"
+          else
+            pnpm test
+          fi
 
       - name: Интеграционные тесты (outbox, идемпотентность, контракт ошибок — реальные PG/Redis)
         run: pnpm --filter @nodus/api test:integration
@@ -148,8 +166,24 @@ jobs:
           timeout 60 bash -c 'until curl -fsS http://127.0.0.1:3001/api/v1/health/ready > /dev/null; do sleep 1; done' || { echo '--- API log ---'; cat /tmp/nodus-api.log; exit 1; }
           timeout 30 bash -c 'until curl -fsS http://127.0.0.1:4173 > /dev/null; do sleep 1; done' || { echo '--- Web log ---'; cat /tmp/nodus-web.log; exit 1; }
 
+      - name: Кэш браузеров Playwright
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
       - name: Playwright (chromium)
-        run: pnpm --filter @nodus/e2e exec playwright install --with-deps chromium
+        # --with-deps ставит системные шрифты через apt (до 6 мин на медленном
+        # зеркале — урок 7m27s в issue #23): только при cache miss. На hit
+        # хватает системных библиотек образа ubuntu-latest (шрифты визуально
+        # не проверяем — скриншоты только при падениях).
+        run: |
+          if [ "${{ steps.playwright-cache.outputs.cache-hit }}" != "true" ]; then
+            pnpm --filter @nodus/e2e exec playwright install --with-deps chromium
+          else
+            pnpm --filter @nodus/e2e exec playwright install chromium
+          fi
 
       - name: E2E-тесты
         run: pnpm --filter @nodus/e2e test
