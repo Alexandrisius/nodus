@@ -12,6 +12,8 @@ import { IdempotencyInterceptor } from './core/interceptors/idempotency.intercep
 import { LoggingModule } from './core/logging/logging.module.js';
 import { RedisModule } from './core/redis/redis.module.js';
 import { HealthModule } from './health/health.module.js';
+import { AuthModule } from './modules/auth/auth.module.js';
+import { JwtAuthGuard } from './modules/auth/jwt-auth.guard.js';
 
 @Module({
   imports: [
@@ -22,10 +24,12 @@ import { HealthModule } from './health/health.module.js';
     FeatureFlagsModule,
     AuditModule,
     HealthModule,
+    AuthModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: DomainExceptionFilter },
-    // Порядок guard-ов: сначала аутентификация/права (401/403), затем фичефлаг (404).
+    // Порядок guard-ов: аутентификация (401) → права (403) → фичефлаг (404).
+    { provide: APP_GUARD, useExisting: JwtAuthGuard },
     { provide: APP_GUARD, useClass: PermissionGuard },
     { provide: APP_GUARD, useClass: FeatureFlagGuard },
     // Порядок интерсепторов: идемпотентность внешний (replay не плодит аудит),

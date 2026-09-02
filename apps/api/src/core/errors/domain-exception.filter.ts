@@ -22,6 +22,10 @@ const CODE_TO_STATUS: Record<ErrorCode, number> = {
   [ErrorCode.CONFLICT]: HttpStatus.CONFLICT,
   [ErrorCode.RATE_LIMITED]: HttpStatus.TOO_MANY_REQUESTS,
   [ErrorCode.INTERNAL_ERROR]: HttpStatus.INTERNAL_SERVER_ERROR,
+  // Доменные коды с нестандартным статусом (остальные доменные → 400 ниже).
+  [ErrorCode.AUTH_INVALID_CREDENTIALS]: HttpStatus.UNAUTHORIZED,
+  [ErrorCode.AUTH_SESSION_INVALID]: HttpStatus.UNAUTHORIZED,
+  [ErrorCode.DIRECTORY_EMAIL_TAKEN]: HttpStatus.CONFLICT,
 };
 
 /** Код для HTTP-исключений Nest/Fastify (400 у нас — всегда валидация входа). */

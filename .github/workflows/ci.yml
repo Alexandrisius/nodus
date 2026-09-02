@@ -77,6 +77,9 @@ jobs:
         env:
           DATABASE_URL: postgresql://nodus:nodus_ci_password@localhost:5432/nodus
           REDIS_URL: redis://localhost:6379
+          NODE_ENV: test
+          # Тестовый секрет (не продовый): AuthModule требует JWT_SECRET при старте.
+          JWT_SECRET: ci-integration-test-secret-min-32-chars
 
       - name: Build
         run: pnpm build
