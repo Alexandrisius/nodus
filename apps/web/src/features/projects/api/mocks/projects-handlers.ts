@@ -1,6 +1,7 @@
 import { http, HttpResponse } from 'msw';
 
 import { demoProjects } from '../../../../shared/mocks/data/projects.js';
+import { demoTasks } from '../../../../shared/mocks/data/tasks.js';
 
 export const projectsHandlers = [
   http.get('/api/v1/projects', () => HttpResponse.json({ items: demoProjects, nextCursor: null })),
@@ -14,4 +15,11 @@ export const projectsHandlers = [
       );
     return HttpResponse.json(project);
   }),
+
+  http.get('/api/v1/projects/:id/tasks', ({ params }) =>
+    HttpResponse.json({
+      items: demoTasks.filter((t) => t.project?.id === params.id),
+      nextCursor: null,
+    }),
+  ),
 ];

@@ -1,5 +1,6 @@
 import type { ProjectListItem } from '@nodus/contracts';
 
+import { cid } from './chat.js';
 import { isoAgo, isoDateIn } from './dates.js';
 import { projectRefs } from './tasks.js';
 import { userIds, userRef } from './users.js';
@@ -21,6 +22,7 @@ export const demoProjects: ProjectListItem[] = [
     ],
     endDate: null,
     activityAt: isoAgo(0, 9, 30),
+    channelId: null,
   },
   {
     id: projectRefs.p2.id,
@@ -34,6 +36,7 @@ export const demoProjects: ProjectListItem[] = [
     membersPreview: [userRef(userIds.director), userRef(userIds.bimEngineer)],
     endDate: null,
     activityAt: isoAgo(1, 12, 0),
+    channelId: null,
   },
   {
     id: projectRefs.p3.id,
@@ -51,6 +54,7 @@ export const demoProjects: ProjectListItem[] = [
     ],
     endDate: null,
     activityAt: isoAgo(2, 8, 25),
+    channelId: cid(2),
   },
   {
     id: projectRefs.p4.id,
@@ -69,5 +73,6 @@ export const demoProjects: ProjectListItem[] = [
     ],
     endDate: isoDateIn(120),
     activityAt: isoAgo(0, 11, 45),
+    channelId: null,
   },
 ];

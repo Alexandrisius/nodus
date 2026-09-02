@@ -17,6 +17,7 @@ export function ProjectSliderPage() {
     <div className="absolute inset-0 z-40">
       <SliderPanel
         level={level}
+        placement="bottom"
         breadcrumbs={
           params.taskId ? (
             <>

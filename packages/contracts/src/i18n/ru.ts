@@ -168,6 +168,12 @@ export const ui = {
     privacy: { open: 'Открытый', closed: 'Закрытый' },
     endDate: 'Окончание',
     activity: 'Активность',
+    viewList: 'Список',
+    viewKanban: 'Канбан',
+    viewGantt: 'Гант',
+    viewChat: 'Чат',
+    openChannel: 'Открыть чат проекта',
+    noChannel: 'У проекта пока нет канала в мессенджере',
   },
   chat: {
     title: 'Мессенджер',

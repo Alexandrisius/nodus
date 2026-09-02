@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import type { TaskStage } from '@nodus/contracts';
+import type { TaskListItem, TaskStage } from '@nodus/contracts';
 
 import { Skeleton } from '@nodus/ui/components/skeleton';
 import { cn } from '@nodus/ui/lib/utils';
@@ -9,16 +9,18 @@ import { TaskKanbanCard } from './task-kanban-card.js';
 import { stageColumnTone } from './task-status-badge.js';
 
 /** Канбан «Мой план»: колонки = стадии статус-схемы из данных (I15). */
-export function TaskKanban() {
+export function TaskKanban({ items }: { items?: TaskListItem[] }) {
   const { data, isLoading } = useTasksList();
+  const listItems = items ?? data?.items ?? [];
+  const loading = items ? false : isLoading;
 
   const stages = useMemo(() => {
     const byId = new Map<string, TaskStage>();
-    for (const task of data?.items ?? []) byId.set(task.stage.id, task.stage);
+    for (const task of listItems) byId.set(task.stage.id, task.stage);
     return [...byId.values()].sort((a, b) => a.order - b.order);
-  }, [data]);
+  }, [listItems]);
 
-  if (isLoading) {
+  if (loading) {
     return (
       <div className="flex h-full gap-3 overflow-x-auto p-4">
         {[0, 1, 2, 3].map((i) => (
@@ -31,7 +33,7 @@ export function TaskKanban() {
   return (
     <div className="flex h-full gap-3 overflow-x-auto p-4">
       {stages.map((stage) => {
-        const cards = (data?.items ?? []).filter((t) => t.stage.id === stage.id);
+        const cards = listItems.filter((t) => t.stage.id === stage.id);
         return (
           <section key={stage.id} className="flex h-full w-72 shrink-0 flex-col">
             <header
