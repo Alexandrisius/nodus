@@ -10,7 +10,7 @@ export function UsersPage() {
 
   return (
     <div className="relative h-full overflow-y-auto p-5">
-      <h1 className="mb-4 text-xl font-semibold">{ui.employees.title}</h1>
+      <h1 className="mb-4 text-xl font-semibold text-white drop-shadow-sm">{ui.employees.title}</h1>
       {isLoading ? (
         <div className="flex flex-col gap-2">
           {[0, 1, 2, 3, 4].map((i) => (
