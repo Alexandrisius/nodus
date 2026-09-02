@@ -47,3 +47,9 @@
 
 - Сессия: скользящие 30 дней; список сессий — без пагинации (десятки на пользователя).
 - Нет TOTP 2FA и password-reset (V2, за `AuthProvider` и почтой).
+
+## Документация (OpenAPI, I2)
+
+Эндпоинты аннотированы для генерации спеки из кода (ADR-0006): схемы тела/ответов —
+те же контракты (`loginSchema`, `authTokensSchema`, `sessionInfoSchema`, `authUserSchema`),
+защита — `@ApiBearerAuth` на непубличных, ошибки — `@ApiErrors`, мутации — `@ApiIdempotencyKey`.

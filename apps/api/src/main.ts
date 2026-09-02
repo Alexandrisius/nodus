@@ -7,6 +7,8 @@ import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fa
 import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module.js';
 import { validateEnv } from './core/config/env.schema.js';
+import { setupOpenApi } from './core/openapi/openapi.setup.js';
+import { TokenService } from './modules/auth/token.service.js';
 
 async function bootstrap(): Promise<void> {
   // Fail-fast: кривое окружение — понятная ошибка до старта, а не в рантайме.
@@ -22,6 +24,9 @@ async function bootstrap(): Promise<void> {
   app.useLogger(app.get(Logger));
   app.enableShutdownHooks();
   app.setGlobalPrefix('api/v1');
+
+  // OpenAPI из кода, публикация /api/docs только для авторизованных (I2, issue #19).
+  setupOpenApi(app, (token) => app.get(TokenService).verifyAccessToken(token));
 
   // Refresh-токен — в httpOnly-cookie (auth.controller).
   await app.register(fastifyCookie);
