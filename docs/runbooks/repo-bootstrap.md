@@ -104,7 +104,7 @@ gh api -X PUT repos/Alexandrisius/nodus/branches/main/protection \
 
 ### 9. Локальное окружение разработчика
 
-- Node 24 (`.node-version`), pnpm 10 (`npm i -g pnpm@10`; corepack необязателен).
+- Node 24 (≥ **24.15** — требование schematics NestJS 12 для `nest generate`/`upgrade`; пин мажорки — `.node-version`), pnpm 11 (`npm i -g pnpm@11`; corepack необязателен).
 - `cp .env.example .env` и заполнить пароли — требуется для `docker compose up`.
 - Pre-commit хук ставится сам при `pnpm install` (Husky). Скрипты и хуки — всегда LF (см. Gotchas в AGENTS.md).
 

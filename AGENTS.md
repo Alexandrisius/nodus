@@ -53,7 +53,7 @@
 
 ## Quick Reference
 
-**Стек (зафиксирован, детали — `tech-stack.md`):** pnpm + Turborepo, TypeScript strict · React 19 + Vite, Tailwind 4 + shadcn/ui, TanStack Query/Router, Zustand, RHF + zod · NestJS 11 (Fastify), Prisma + PostgreSQL 17, Redis 7 + BullMQ, Socket.IO gateway, MinIO, Gotenberg · Vitest, Playwright, k6 · Docker Compose, Caddy.
+**Стек (зафиксирован, детали — `tech-stack.md`):** pnpm + Turborepo, TypeScript strict · React 19 + Vite, Tailwind 4 + shadcn/ui, TanStack Query/Router, Zustand, RHF + zod · NestJS 12 (Fastify), Prisma 7 + PostgreSQL 18, Redis 8 + BullMQ, Socket.IO gateway, MinIO, Gotenberg · Vitest, Playwright, k6 · Docker Compose, Caddy.
 
 **Команды:** используй только те, что реально существуют в `package.json`/`turbo.json`/`docker-compose.yml` — **не выдумывай**. Канонический набор: `pnpm install`, `pnpm dev`, `pnpm build`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm format`, `docker compose up` (плюс `--profile tunnel` для nodus.by). Перед `docker compose up`: `cp .env.example .env` и заполнить пароли.
 

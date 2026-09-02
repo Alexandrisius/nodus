@@ -64,7 +64,7 @@ services:
     networks: [nodus_net]
 
   postgres:
-    image: postgres:17-alpine
+    image: postgres:18-alpine
     container_name: nodus_postgres
     restart: unless-stopped
     environment:
@@ -72,7 +72,9 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?задайте в .env}
       POSTGRES_DB: ${POSTGRES_DB:?задайте в .env}
     volumes:
-      - nodus_pgdata:/var/lib/postgresql/data
+      # Postgres 18+: монтируем корень /var/lib/postgresql (данные — во вложенной
+      # папке версии) — так будущие мажорные апгрейды возможны через pg_upgrade --link.
+      - nodus_pgdata:/var/lib/postgresql
     ports:
       - '${NODUS_POSTGRES_PORT:-5432}:5432'
     healthcheck:
@@ -83,7 +85,7 @@ services:
     networks: [nodus_net]
 
   redis:
-    image: redis:7-alpine
+    image: redis:8-alpine
     container_name: nodus_redis
     restart: unless-stopped
     command: ['redis-server', '--appendonly', 'yes']
@@ -130,7 +132,7 @@ services:
   # Туннель к nodus.by (ADR-0002): поднимается явно — `docker compose --profile tunnel up -d`.
   # Токен — из Cloudflare Zero Trust dashboard (см. docs/runbooks/repo-bootstrap.md).
   cloudflared:
-    image: cloudflare/cloudflared:2025.9.1
+    image: cloudflare/cloudflared:2026.8.3
     container_name: nodus_cloudflared
     restart: unless-stopped
     command: tunnel --no-autoupdate run --token ${NODUS_TUNNEL_TOKEN:?задайте в .env}
