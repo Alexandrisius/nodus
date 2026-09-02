@@ -85,7 +85,7 @@ jobs:
         run: pnpm build
 
   e2e:
-    name: E2E (Playwright — критичный путь: логин)
+    name: 'E2E (Playwright — критичный путь: логин)'
     runs-on: ubuntu-latest
     services:
       postgres:
