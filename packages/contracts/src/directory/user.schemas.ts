@@ -83,6 +83,7 @@ export const userListItemSchema = z.object({
   positionName: z.string().nullable(),
   departmentName: z.string().nullable(),
   email: z.email(),
+  managerId: z.uuid().nullable(),
 });
 
 export type UserListItem = z.infer<typeof userListItemSchema>;

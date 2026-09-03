@@ -17,9 +17,10 @@ const dotColor: Record<string, string> = {
 
 /**
  * Правая полоса коллег (каркас §10.2): 56px, плавно раскрывается до панели
- * с полными именами, когда курсор задержался у правого края экрана ≥ 400 мс
- * (защита от ложных срабатываний и случайного упора в край); закрывается,
- * когда курсор покидает панель. Клик по коллеге — быстрый переход в чат.
+ * с полными именами, когда курсор задержался над зоной полосы ≥ 400 мс
+ * (задержка гасит ложные срабатывания при пролёте курсора, в том числе на
+ * многомониторных конфигурациях); закрывается, когда курсор покидает панель.
+ * Клик по коллеге — быстрый переход в чат.
  */
 export function RightRail() {
   const collapsed = useShellStore((s) => s.railCollapsed);
@@ -30,26 +31,28 @@ export function RightRail() {
   const [edgeOpen, setEdgeOpen] = useState(false);
   const dwellTimer = useRef<number | null>(null);
 
-  useEffect(() => {
-    const onMove = (event: MouseEvent) => {
-      if (event.clientX >= window.innerWidth - 2) {
-        if (dwellTimer.current === null) {
-          dwellTimer.current = window.setTimeout(() => {
-            dwellTimer.current = null;
-            setEdgeOpen(true);
-          }, 400);
-        }
-      } else if (dwellTimer.current !== null) {
-        clearTimeout(dwellTimer.current);
-        dwellTimer.current = null;
-      }
-    };
-    window.addEventListener('mousemove', onMove);
-    return () => {
-      window.removeEventListener('mousemove', onMove);
+  function dwellStart() {
+    if (dwellTimer.current !== null) return;
+    dwellTimer.current = window.setTimeout(() => {
+      dwellTimer.current = null;
+      setEdgeOpen(true);
+    }, 400);
+  }
+
+  function dwellStop() {
+    if (dwellTimer.current !== null) {
+      clearTimeout(dwellTimer.current);
+      dwellTimer.current = null;
+    }
+    setEdgeOpen(false);
+  }
+
+  useEffect(
+    () => () => {
       if (dwellTimer.current !== null) clearTimeout(dwellTimer.current);
-    };
-  }, []);
+    },
+    [],
+  );
 
   if (collapsed) {
     return (
@@ -77,7 +80,8 @@ export function RightRail() {
 
   return (
     <aside
-      onMouseLeave={() => setEdgeOpen(false)}
+      onMouseEnter={dwellStart}
+      onMouseLeave={dwellStop}
       className={cn(
         'flex shrink-0 flex-col overflow-hidden border-l border-sidebar-border bg-sidebar transition-[width] duration-300 ease-out',
         edgeOpen ? 'w-64' : 'w-14',

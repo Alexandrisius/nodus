@@ -28,7 +28,7 @@ export function TaskDiscussion({ taskId }: { taskId: string }) {
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="paper-surface flex h-full flex-col">
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
         <MessageGroup>
           {(data?.items ?? []).map((message) => {
@@ -61,7 +61,7 @@ export function TaskDiscussion({ taskId }: { taskId: string }) {
       </div>
       <form
         onSubmit={onSubmit}
-        className="flex items-end gap-2 border-t border-border bg-background/60 p-3"
+        className="flex items-end gap-2 border-t border-pencil/30 bg-cream/50 p-3"
       >
         <Textarea
           value={text}

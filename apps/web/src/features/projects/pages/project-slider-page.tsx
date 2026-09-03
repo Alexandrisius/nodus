@@ -14,10 +14,9 @@ export function ProjectSliderPage() {
   const level = params.taskId ? 2 : 1;
 
   return (
-    <div className="absolute inset-0 z-40">
+    <>
       <SliderPanel
         level={level}
-        placement="bottom"
         breadcrumbs={
           params.taskId ? (
             <>
@@ -48,6 +47,6 @@ export function ProjectSliderPage() {
         <ProjectPanel projectId={params.projectId} />
       </SliderPanel>
       <Outlet />
-    </div>
+    </>
   );
 }

@@ -6,26 +6,58 @@ import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
 
 const df = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long' });
 
-/** Лента компании: посты-«бумага» с автором и счётчиками, как в концепте. */
-export function HomeNews({ news }: { news: CompanyNewsItem[] }) {
+const sketchOf: Record<string, string> = {
+  'c0000000-0000-4000-8000-000000000101': '/sketches/news-mayak.png',
+  'c0000000-0000-4000-8000-000000000102': '/sketches/news-cake.png',
+  'c0000000-0000-4000-8000-000000000103': '/sketches/news-bim.png',
+  'c0000000-0000-4000-8000-000000000104': '/sketches/news-crane.png',
+};
+
+/** Лента компании: крупные посты-«бумага» с карандашным рисунком справа;
+ * клик открывает ридер. */
+export function HomeNews({
+  news,
+  onOpen,
+}: {
+  news: CompanyNewsItem[];
+  onOpen: (item: CompanyNewsItem) => void;
+}) {
   return (
-    <section className="flex flex-col gap-4">
+    <section className="flex flex-col gap-5">
       <h2 className="text-sm font-semibold tracking-wider text-foreground/60 uppercase">
         {ui.home.newsTitle}
       </h2>
       {news.map((item) => (
         <article key={item.id} className="paper-card p-5">
-          <div className="flex items-center gap-3">
-            <PersonAvatar name={item.author.displayName} className="size-10" />
-            <div className="min-w-0">
-              <div className="truncate text-sm font-semibold">{item.author.displayName}</div>
-              <div className="text-xs text-card-foreground/55 first-letter:uppercase">
-                {df.format(new Date(item.publishedAt))}
+          <button
+            type="button"
+            onClick={() => onOpen(item)}
+            className="flex w-full items-start gap-5 text-left"
+          >
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-3">
+                <PersonAvatar name={item.author.displayName} className="size-10" />
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-semibold">{item.author.displayName}</div>
+                  <div className="text-xs text-card-foreground/55 first-letter:uppercase">
+                    {df.format(new Date(item.publishedAt))}
+                  </div>
+                </div>
               </div>
+              <h3 className="mt-3 text-base font-semibold">{item.title}</h3>
+              <p className="mt-1 line-clamp-2 text-sm text-card-foreground/75">{item.text}</p>
+              <span className="mt-2 inline-block text-sm font-medium text-rust underline underline-offset-4">
+                {ui.home.readMore}
+              </span>
             </div>
-          </div>
-          <h3 className="mt-3 text-base font-semibold">{item.title}</h3>
-          <p className="mt-1 text-sm text-card-foreground/75">{item.text}</p>
+            {sketchOf[item.id] && (
+              <img
+                src={sketchOf[item.id]}
+                alt=""
+                className="h-32 w-44 shrink-0 rounded-md border border-pencil/40 object-cover object-center mix-blend-multiply"
+              />
+            )}
+          </button>
           <div className="mt-3 flex items-center gap-5 text-sm text-card-foreground/60">
             <span className="flex items-center gap-1.5">
               <ThumbsUp className="size-4 text-rust" />

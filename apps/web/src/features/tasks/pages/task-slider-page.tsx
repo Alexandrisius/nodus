@@ -10,9 +10,8 @@ export function TaskSliderPage() {
   const navigate = useNavigate();
 
   return (
-    <div className="absolute inset-0 z-30">
+    <>
       <SliderPanel
-        placement="bottom"
         breadcrumbs={
           <>
             <Link to="/tasks" className="hover:text-foreground">
@@ -27,6 +26,6 @@ export function TaskSliderPage() {
         <TaskCard taskId={taskId} />
       </SliderPanel>
       <Outlet />
-    </div>
+    </>
   );
 }

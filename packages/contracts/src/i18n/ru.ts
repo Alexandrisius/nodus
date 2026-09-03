@@ -91,6 +91,10 @@ export const ui = {
     newsTitle: 'Новости компании',
     birthdays: 'Дни рождения',
     today: 'сегодня',
+    laborTitle: 'Трудозатраты команды',
+    topOvertime: 'Топ по переработкам',
+    hoursShort: 'ч',
+    readMore: 'Читать',
   },
   tasks: {
     title: 'Задачи',

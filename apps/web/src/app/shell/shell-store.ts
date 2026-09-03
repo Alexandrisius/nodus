@@ -15,7 +15,7 @@ interface ShellState {
 
 /** Локальное UI-состояние каркаса (персонализация на сервере — позже, §10.5). */
 export const useShellStore = create<ShellState>((set) => ({
-  menuCollapsed: true,
+  menuCollapsed: false,
   railCollapsed: false,
   theme: 'ink',
   commandOpen: false,

@@ -1,16 +1,23 @@
+import { useState } from 'react';
+import type { CompanyNewsItem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { Skeleton } from '@nodus/ui/components/skeleton';
 
 import { useAuthStore } from '../../../shared/auth-store.js';
 import { useHomeSummary } from '../api/home-api.js';
 import { HomeBirthdays } from '../components/home-birthdays.js';
+import { HomeLabor } from '../components/home-labor.js';
 import { HomeNews } from '../components/home-news.js';
+import { HomeReader } from '../components/home-reader.js';
 import { HomeStats } from '../components/home-stats.js';
+import { HomeTopOvertime } from '../components/home-top-overtime.js';
 
-/** Главная — лента компании на «грифельной доске»: посты-бумага и сводки. */
+/** Главная — лента компании на «грифельной доске»: посты-бумага со скетчами,
+ * ридер, трудозатраты, топ переработок, дни рождения. */
 export function HomePage() {
   const { data, isLoading } = useHomeSummary();
   const me = useAuthStore((s) => s.user);
+  const [readerItem, setReaderItem] = useState<CompanyNewsItem | null>(null);
 
   const hour = new Date().getHours();
   const greet =
@@ -47,11 +54,16 @@ export function HomePage() {
         <div className="flex flex-col gap-6 p-6">
           <HomeStats stats={data.stats} />
           <div className="grid grid-cols-[minmax(0,1fr)_340px] items-start gap-6">
-            <HomeNews news={data.news} />
-            <HomeBirthdays birthdays={data.birthdays} />
+            <HomeNews news={data.news} onOpen={setReaderItem} />
+            <div className="flex flex-col gap-5">
+              <HomeLabor weeks={data.labor.weeks} />
+              <HomeTopOvertime entries={data.labor.topOvertime} />
+              <HomeBirthdays birthdays={data.birthdays} />
+            </div>
           </div>
         </div>
       )}
+      <HomeReader item={readerItem} onClose={() => setReaderItem(null)} />
     </div>
   );
 }

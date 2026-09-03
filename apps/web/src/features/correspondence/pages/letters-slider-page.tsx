@@ -9,7 +9,7 @@ export function LettersSliderPage() {
   const navigate = useNavigate();
 
   return (
-    <div className="absolute inset-0 z-30">
+    <>
       <SliderPanel
         breadcrumbs={
           <>
@@ -25,6 +25,6 @@ export function LettersSliderPage() {
         <LetterCard letterId={letterId} />
       </SliderPanel>
       <Outlet />
-    </div>
+    </>
   );
 }

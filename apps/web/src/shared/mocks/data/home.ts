@@ -1,4 +1,4 @@
-import type { BirthdayEntry, CompanyNewsItem, CompanyStats } from '@nodus/contracts';
+import type { BirthdayEntry, CompanyNewsItem, CompanyStats, HomeSummary } from '@nodus/contracts';
 
 import { isoAgo, isoDateIn } from './dates.js';
 import { userIds, userRef } from './users.js';
@@ -50,6 +50,23 @@ export const demoNews: CompanyNewsItem[] = [
     commentsCount: 3,
   },
 ];
+
+export const demoLabor: HomeSummary['labor'] = {
+  weeks: [
+    { label: 'Нед 32', hours: 612 },
+    { label: 'Нед 33', hours: 648 },
+    { label: 'Нед 34', hours: 701 },
+    { label: 'Нед 35', hours: 684 },
+    { label: 'Нед 36', hours: 742 },
+    { label: 'Нед 37', hours: 693 },
+  ],
+  topOvertime: [
+    { user: userRef(userIds.engineer2), hours: 14 },
+    { user: userRef(userIds.bimLead), hours: 11 },
+    { user: userRef(userIds.architect), hours: 8 },
+    { user: userRef(userIds.engineer3), hours: 6 },
+  ],
+};
 
 export const demoBirthdays: BirthdayEntry[] = [
   { user: userRef(userIds.engineer2), birthDate: isoDateIn(0), isToday: true },

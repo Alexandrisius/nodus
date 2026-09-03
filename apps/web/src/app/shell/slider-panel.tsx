@@ -7,16 +7,15 @@ import { cn } from '@nodus/ui/lib/utils';
 /** Стек слайдеров: ESC закрывает только верхнюю панель (§10.2). */
 const stack: string[] = [];
 
+/** Детальная панель — правый sheet во всю высоту поверх каркаса, на «бумаге». */
 export function SliderPanel({
   breadcrumbs,
   level = 1,
-  placement = 'right',
   onClose,
   children,
 }: {
   breadcrumbs: ReactNode;
   level?: 1 | 2;
-  placement?: 'right' | 'bottom';
   onClose: () => void;
   children: ReactNode;
 }) {
@@ -36,30 +35,24 @@ export function SliderPanel({
   }, [id, onClose]);
 
   return (
-    <>
-      <div className="absolute inset-0 bg-black/15" onClick={onClose} aria-hidden="true" />
+    <div className="fixed inset-0 z-50">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} aria-hidden="true" />
       <section
         role="dialog"
-        aria-modal="false"
+        aria-modal="true"
         className={cn(
-          'animate-in absolute flex flex-col bg-background shadow-2xl',
-          placement === 'right' &&
-            cn(
-              'slide-in-from-right inset-y-0 right-0 border-l duration-200',
-              level === 1 ? 'w-[72%] max-w-[1100px]' : 'w-[60%] max-w-[900px]',
-            ),
-          placement === 'bottom' &&
-            'slide-in-from-bottom inset-x-0 bottom-0 top-6 rounded-t-2xl border-t duration-300',
+          'paper-surface animate-in slide-in-from-right absolute inset-y-0 right-0 flex flex-col border-l shadow-2xl duration-200',
+          level === 1 ? 'w-[78%] max-w-1200' : 'w-[60%] max-w-900',
         )}
       >
-        <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
-          <nav className="flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground">
+        <header className="flex h-12 shrink-0 items-center gap-2 border-b border-pencil/30 px-4">
+          <nav className="flex min-w-0 items-center gap-1.5 text-sm text-card-foreground/60">
             {breadcrumbs}
           </nav>
           <Button
             variant="ghost"
             size="icon"
-            className="ml-auto"
+            className="ml-auto hover:bg-pencil/10"
             onClick={onClose}
             aria-label={ui.common.close}
           >
@@ -68,6 +61,6 @@ export function SliderPanel({
         </header>
         <div className="min-h-0 flex-1 overflow-hidden">{children}</div>
       </section>
-    </>
+    </div>
   );
 }

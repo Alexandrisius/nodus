@@ -16,6 +16,7 @@ const userListSelect = {
   status: true,
   avatarUrl: true,
   email: true,
+  managerId: true,
   position: { select: { name: true } },
   department: { select: { name: true } },
 } satisfies Prisma.UserSelect;

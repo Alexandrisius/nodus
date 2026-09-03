@@ -35,6 +35,20 @@ export const companyNewsItemSchema = z.object({
 
 export type CompanyNewsItem = z.infer<typeof companyNewsItemSchema>;
 
+export const laborWeekSchema = z.object({
+  label: z.string().min(1),
+  hours: z.number().min(0),
+});
+
+export type LaborWeek = z.infer<typeof laborWeekSchema>;
+
+export const overtimeEntrySchema = z.object({
+  user: userRefSchema,
+  hours: z.number().min(0),
+});
+
+export type OvertimeEntry = z.infer<typeof overtimeEntrySchema>;
+
 export const homeSummarySchema = z.object({
   tasks: z.object({
     overdue: z.array(taskListItemSchema),
@@ -48,6 +62,10 @@ export const homeSummarySchema = z.object({
   birthdays: z.array(birthdayEntrySchema),
   stats: companyStatsSchema,
   news: z.array(companyNewsItemSchema),
+  labor: z.object({
+    weeks: z.array(laborWeekSchema),
+    topOvertime: z.array(overtimeEntrySchema),
+  }),
 });
 
 export type HomeSummary = z.infer<typeof homeSummarySchema>;
