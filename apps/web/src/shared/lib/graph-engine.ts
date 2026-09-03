@@ -1,48 +1,7 @@
-export type NodeKind =
-  'person' | 'task' | 'project' | 'letter' | 'channel' | 'external' | 'satellite';
+import { paint, type Body, type CompanyGraph, type Pulse, type Star } from './graph-paint.js';
 
-export interface GraphNode {
-  kind: NodeKind;
-  r: number;
-}
+export type { CompanyGraph, GraphNode, NodeKind } from './graph-paint.js';
 
-export interface CompanyGraph {
-  nodes: GraphNode[];
-  edges: Array<[number, number]>;
-}
-
-interface Body extends GraphNode {
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  bx: number;
-  by: number;
-  phase: number;
-  speed: number;
-  amp: number;
-  birth: number;
-}
-
-interface Star {
-  x: number;
-  y: number;
-  r: number;
-  phase: number;
-  speed: number;
-}
-
-const COLORS: Record<NodeKind, string> = {
-  person: '94,234,212',
-  task: '129,140,248',
-  project: '251,191,36',
-  letter: '251,113,133',
-  channel: '56,189,248',
-  external: '148,163,184',
-  satellite: '103,232,249',
-};
-
-const PLANET_ALT = '167,139,250';
 const MAX_NODES = 420;
 const SETTLE_TICKS = 240;
 
@@ -82,7 +41,7 @@ export function startGraph(canvas: HTMLCanvasElement, graph: CompanyGraph): () =
     birth: 0,
   }));
   const edges: Array<[number, number]> = [...graph.edges];
-  const pulses: Array<{ i: number; t0: number }> = [];
+  const pulses: Pulse[] = [];
   const stars: Star[] = Array.from({ length: 150 }, () => ({
     x: rand(),
     y: rand(),
@@ -169,6 +128,14 @@ export function startGraph(canvas: HTMLCanvasElement, graph: CompanyGraph): () =
     }
   };
 
+  const freeze = () => {
+    frozen = true;
+    for (const b of bodies) {
+      b.bx = b.x;
+      b.by = b.y;
+    }
+  };
+
   const grow = (t: number) => {
     if (bodies.length >= MAX_NODES) return;
     const real = bodies.filter((b) => b.kind !== 'satellite');
@@ -195,112 +162,10 @@ export function startGraph(canvas: HTMLCanvasElement, graph: CompanyGraph): () =
     pulses.push({ i: bodies.length - 1, t0: t });
   };
 
-  const render = (t: number) => {
-    ctx.clearRect(0, 0, w, h);
-
-    for (const s of stars) {
-      const tw = 0.5 + 0.5 * Math.sin(t * s.speed + s.phase);
-      ctx.fillStyle = `rgba(199,225,255,${(0.05 + tw * 0.16).toFixed(3)})`;
-      ctx.beginPath();
-      ctx.arc(s.x * w + px * 0.4, s.y * h + py * 0.4, s.r, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    ctx.save();
-    ctx.translate(w / 2 + px, h / 2 + py);
-    ctx.rotate(t * 0.000004);
-    ctx.translate(-w / 2, -h / 2);
-
-    const pos = bodies.map((b) => {
-      const baseX = frozen ? b.bx : b.x;
-      const baseY = frozen ? b.by : b.y;
-      return {
-        x: baseX + Math.sin(t * b.speed + b.phase) * b.amp,
-        y: baseY + Math.cos(t * b.speed * 0.9 + b.phase) * b.amp * 0.8,
-      };
-    });
-
-    ctx.lineWidth = 1;
-    for (const [i, j] of edges) {
-      const a = pos[i];
-      const b = pos[j];
-      const na = bodies[i];
-      const nb = bodies[j];
-      if (!a || !b || !na || !nb) continue;
-      const sat = na.kind === 'satellite' || nb.kind === 'satellite';
-      ctx.strokeStyle = `rgba(125,211,252,${sat ? 0.04 : 0.08})`;
-      ctx.beginPath();
-      ctx.moveTo(a.x, a.y);
-      ctx.lineTo(b.x, b.y);
-      ctx.stroke();
-    }
-
-    for (let p = pulses.length - 1; p >= 0; p--) {
-      const pulse = pulses[p];
-      if (!pulse) continue;
-      const age = t - pulse.t0;
-      if (age > 1600) {
-        pulses.splice(p, 1);
-        continue;
-      }
-      const point = pos[pulse.i];
-      const b = bodies[pulse.i];
-      if (!point || !b) continue;
-      const k = age / 1600;
-      ctx.strokeStyle = `rgba(${COLORS[b.kind]},${(0.3 * (1 - k)).toFixed(3)})`;
-      ctx.beginPath();
-      ctx.arc(point.x, point.y, b.r + k * 40, 0, Math.PI * 2);
-      ctx.stroke();
-    }
-
-    bodies.forEach((b, i) => {
-      const point = pos[i];
-      if (!point) return;
-      const fade = b.birth === 0 ? 1 : Math.min(1, (t - b.birth) / 1500);
-      const c = b.kind === 'project' && i % 2 === 1 ? PLANET_ALT : COLORS[b.kind];
-
-      if (b.kind === 'project') {
-        const g = ctx.createRadialGradient(point.x, point.y, 0, point.x, point.y, b.r * 2.6);
-        g.addColorStop(0, `rgba(${c},${(0.5 * fade).toFixed(3)})`);
-        g.addColorStop(1, `rgba(${c},0)`);
-        ctx.fillStyle = g;
-        ctx.beginPath();
-        ctx.arc(point.x, point.y, b.r * 2.6, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = `rgba(${c},${(0.75 * fade).toFixed(3)})`;
-        ctx.beginPath();
-        ctx.arc(point.x, point.y, b.r, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = `rgba(${c},${(0.14 * fade).toFixed(3)})`;
-        ctx.beginPath();
-        ctx.arc(point.x, point.y, b.r * 1.8, 0, Math.PI * 2);
-        ctx.stroke();
-        return;
-      }
-
-      ctx.fillStyle = `rgba(${c},${(0.05 * fade).toFixed(3)})`;
-      ctx.beginPath();
-      ctx.arc(point.x, point.y, b.r * 3.2, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = `rgba(${c},${((b.kind === 'satellite' ? 0.35 : 0.7) * fade).toFixed(3)})`;
-      ctx.beginPath();
-      ctx.arc(point.x, point.y, b.r, 0, Math.PI * 2);
-      ctx.fill();
-    });
-
-    ctx.restore();
-  };
-
   const frame = (t: number) => {
     if (!frozen) {
       for (let k = 0; k < 4 && settle > 0; k++, settle--) tick();
-      if (settle === 0) {
-        frozen = true;
-        for (const b of bodies) {
-          b.bx = b.x;
-          b.by = b.y;
-        }
-      }
+      if (settle === 0) freeze();
     }
 
     px += (tx - px) * 0.02;
@@ -317,7 +182,7 @@ export function startGraph(canvas: HTMLCanvasElement, graph: CompanyGraph): () =
       grow(t);
     }
 
-    render(t);
+    paint(ctx, { bodies, edges, pulses, stars, w, h, frozen, px, py }, t);
     raf = requestAnimationFrame(frame);
   };
 
@@ -326,19 +191,15 @@ export function startGraph(canvas: HTMLCanvasElement, graph: CompanyGraph): () =
 
   if (reduced) {
     for (let i = 0; i < SETTLE_TICKS; i++) tick();
-    frozen = true;
-    for (const b of bodies) {
-      b.bx = b.x;
-      b.by = b.y;
-    }
-    render(0);
+    freeze();
+    paint(ctx, { bodies, edges, pulses, stars, w, h, frozen, px, py }, 0);
   } else {
     raf = requestAnimationFrame(frame);
   }
 
   const onResize = () => {
     resize();
-    if (reduced) render(0);
+    if (reduced) paint(ctx, { bodies, edges, pulses, stars, w, h, frozen, px, py }, 0);
   };
   const onMove = (event: MouseEvent) => {
     tx = (event.clientX / Math.max(1, w) - 0.5) * 14;
