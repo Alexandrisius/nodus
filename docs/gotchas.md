@@ -12,6 +12,7 @@
 - **В runner-стадии Dockerfile глобальных CLI нет** (pnpm ставится только в builder): CMD и seed-скрипты вызывают бинарники из `node_modules/.bin/` пакета (`./node_modules/.bin/prisma migrate deploy`), иначе контейнер рестартит с «pnpm: not found» (подтверждено воспроизведением в issue #3).
 - **`prisma db seed` в контейнере не находит tsx на PATH** (pnpm-бины не экспортированы): seed-команда — `node --import tsx prisma/seed.ts`, кроссплатформенно (Windows-хост и alpine-контейнер; подтверждено воспроизведением в issue #3).
 - Cloudflare Tunnel после пересоздания web-контейнера теряет origin («connection refused» до переподключения): `docker restart nodus_cloudflared`; проверяй демо curl'ом, а не Invoke-WebRequest (тот капризничает с таймаутами на этой машине).
+- **`VITE_*`-переменные — build-time**: `.env` хоста не попадает в docker-сборку, режим демо задаётся `ARG`/build-args в compose (`NODUS_WEB_MOCK` → `VITE_API_MOCK`); сменил режим — пересобирай образ (`docker compose up -d --build web`), рестарта контейнера мало.
 
 ## Монорепо и toolchain (pnpm, turbo, TS, ESLint)
 
