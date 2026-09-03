@@ -28,7 +28,7 @@ export function HomeNews({
         {ui.home.newsTitle}
       </h2>
       {news.map((item) => (
-        <article key={item.id} className="paper-card p-5">
+        <article key={item.id} className="paper-card sketch-tilt p-5">
           <button
             type="button"
             onClick={() => onOpen(item)}
@@ -54,7 +54,7 @@ export function HomeNews({
               <img
                 src={sketchOf[item.id]}
                 alt=""
-                className="h-32 w-44 shrink-0 rounded-md border border-pencil/40 object-cover object-center mix-blend-multiply"
+                className="h-40 w-52 shrink-0 rotate-1 object-cover object-center mix-blend-multiply opacity-95"
               />
             )}
           </button>

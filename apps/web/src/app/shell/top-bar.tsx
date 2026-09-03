@@ -94,11 +94,17 @@ export function TopBar() {
             className={cn(
               'relative flex h-9 items-center rounded-lg border px-4 text-sm font-medium',
               'border-transparent text-foreground/60 hover:text-foreground',
-              section.isActive(search) &&
-                'paper-card after:absolute after:inset-x-2 after:-bottom-1 after:h-1 after:rounded-full after:bg-rust',
+              section.isActive(search) && 'paper-card text-card-foreground',
             )}
           >
             {section.label}
+            {section.isActive(search) && (
+              <span
+                aria-hidden
+                className="absolute inset-x-2 -bottom-1 h-1 rounded-full bg-rust"
+                style={{ filter: 'url(#rough-sm)' }}
+              />
+            )}
           </Link>
         ))}
       </nav>

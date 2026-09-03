@@ -107,7 +107,7 @@ export function OrgChart({ people }: { people: UserListItem[] }) {
                 if (node) nodeRefs.current.set(person.id, node);
                 else nodeRefs.current.delete(person.id);
               }}
-              className="paper-card flex w-48 items-center gap-3 px-3.5 py-3"
+              className="paper-card sketch-tilt flex w-48 items-center gap-3 px-3.5 py-3"
             >
               <PersonAvatar name={person.displayName} className="size-9" />
               <div className="min-w-0">

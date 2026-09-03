@@ -40,7 +40,7 @@ export function HomeReader({
               <img
                 src={sketchOf[item.id]}
                 alt=""
-                className="max-h-72 w-full border-b border-pencil/30 object-cover mix-blend-multiply"
+                className="max-h-72 w-full rotate-[0.4deg] object-cover mix-blend-multiply opacity-95"
               />
             )}
             <DialogHeader className="px-6 pt-5">
