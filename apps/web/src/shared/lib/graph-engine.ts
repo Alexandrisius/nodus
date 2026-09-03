@@ -16,6 +16,8 @@ interface Body extends GraphNode {
   y: number;
   vx: number;
   vy: number;
+  bx: number;
+  by: number;
   phase: number;
   speed: number;
   amp: number;
@@ -55,8 +57,11 @@ function mulberry32(seed: number): () => number {
   };
 }
 
-/** Живой граф компании: космос, где узлы-данные — звёзды, проекты — планеты.
- * Граф не замирает (дрейф, вращение, мерцание, рост); reduced-motion — статика. */
+/** Живой граф компании: космос, узлы-данные — звёзды, проекты — планеты.
+ * Раскладка оседает один раз и замирает в базовых точках; дальше движение —
+ * только гладкие синусоидальные дрейфы, медленное вращение карты, мерцание
+ * звёзд, пульсы событий и постоянный рост (никакой физики — нет вибрации).
+ * prefers-reduced-motion — один статичный кадр. */
 export function startGraph(canvas: HTMLCanvasElement, graph: CompanyGraph): () => void {
   const ctx = canvas.getContext('2d');
   if (!ctx) return () => {};
@@ -69,9 +74,11 @@ export function startGraph(canvas: HTMLCanvasElement, graph: CompanyGraph): () =
     y: 0,
     vx: 0,
     vy: 0,
+    bx: 0,
+    by: 0,
     phase: rand() * Math.PI * 2,
-    speed: 0.0002 + rand() * 0.0002,
-    amp: 6 + rand() * 10,
+    speed: 0.00025 + rand() * 0.0003,
+    amp: 8 + rand() * 10,
     birth: 0,
   }));
   const edges: Array<[number, number]> = [...graph.edges];
@@ -88,6 +95,7 @@ export function startGraph(canvas: HTMLCanvasElement, graph: CompanyGraph): () =
   let h = 0;
   let raf = 0;
   let settle = SETTLE_TICKS;
+  let frozen = false;
   let lastPulse = 0;
   let lastGrow = 0;
   let px = 0;
@@ -113,8 +121,7 @@ export function startGraph(canvas: HTMLCanvasElement, graph: CompanyGraph): () =
     }
   };
 
-  const tick = (ambient: boolean) => {
-    const k = ambient ? 0.25 : 1;
+  const tick = () => {
     const n = bodies.length;
     for (let i = 0; i < n; i++) {
       const a = bodies[i];
@@ -131,7 +138,7 @@ export function startGraph(canvas: HTMLCanvasElement, graph: CompanyGraph): () =
           d2 = 1;
         }
         if (d2 > 40000) continue;
-        const f = (950 / d2) * k;
+        const f = 950 / d2;
         a.vx += dx * f;
         a.vy += dy * f;
         b.vx -= dx * f;
@@ -146,15 +153,15 @@ export function startGraph(canvas: HTMLCanvasElement, graph: CompanyGraph): () =
       const dx = b.x - a.x;
       const dy = b.y - a.y;
       const d = Math.max(1, Math.hypot(dx, dy));
-      const f = ((d - rest) / d) * 0.015 * k;
+      const f = ((d - rest) / d) * 0.015;
       a.vx += dx * f;
       a.vy += dy * f;
       b.vx -= dx * f;
       b.vy -= dy * f;
     }
     for (const b of bodies) {
-      b.vx += (w / 2 - b.x) * 0.0016 * k;
-      b.vy += (h / 2 - b.y) * 0.0022 * k;
+      b.vx += (w / 2 - b.x) * 0.0016;
+      b.vy += (h / 2 - b.y) * 0.0022;
       b.vx *= 0.86;
       b.vy *= 0.86;
       b.x += b.vx;
@@ -167,16 +174,20 @@ export function startGraph(canvas: HTMLCanvasElement, graph: CompanyGraph): () =
     const real = bodies.filter((b) => b.kind !== 'satellite');
     const parent = real[Math.floor(rand() * real.length)];
     if (!parent) return;
+    const angle = rand() * Math.PI * 2;
+    const dist = 28 + rand() * 32;
     const child: Body = {
       kind: 'satellite',
       r: 0.9 + rand() * 0.9,
-      x: parent.x + (rand() - 0.5) * 30,
-      y: parent.y + (rand() - 0.5) * 30,
+      x: 0,
+      y: 0,
       vx: 0,
       vy: 0,
+      bx: parent.bx + Math.cos(angle) * dist,
+      by: parent.by + Math.sin(angle) * dist,
       phase: rand() * Math.PI * 2,
-      speed: 0.0002 + rand() * 0.0002,
-      amp: 4 + rand() * 6,
+      speed: 0.00025 + rand() * 0.0003,
+      amp: 5 + rand() * 7,
       birth: t,
     };
     edges.push([bodies.indexOf(parent), bodies.length]);
@@ -200,10 +211,14 @@ export function startGraph(canvas: HTMLCanvasElement, graph: CompanyGraph): () =
     ctx.rotate(t * 0.000004);
     ctx.translate(-w / 2, -h / 2);
 
-    const pos = bodies.map((b) => ({
-      x: b.x + Math.sin(t * b.speed + b.phase) * b.amp,
-      y: b.y + Math.cos(t * b.speed * 0.9 + b.phase) * b.amp * 0.8,
-    }));
+    const pos = bodies.map((b) => {
+      const baseX = frozen ? b.bx : b.x;
+      const baseY = frozen ? b.by : b.y;
+      return {
+        x: baseX + Math.sin(t * b.speed + b.phase) * b.amp,
+        y: baseY + Math.cos(t * b.speed * 0.9 + b.phase) * b.amp * 0.8,
+      };
+    });
 
     ctx.lineWidth = 1;
     for (const [i, j] of edges) {
@@ -277,10 +292,15 @@ export function startGraph(canvas: HTMLCanvasElement, graph: CompanyGraph): () =
   };
 
   const frame = (t: number) => {
-    if (settle > 0) {
-      for (let k = 0; k < 4 && settle > 0; k++, settle--) tick(false);
-    } else {
-      tick(true);
+    if (!frozen) {
+      for (let k = 0; k < 4 && settle > 0; k++, settle--) tick();
+      if (settle === 0) {
+        frozen = true;
+        for (const b of bodies) {
+          b.bx = b.x;
+          b.by = b.y;
+        }
+      }
     }
 
     px += (tx - px) * 0.02;
@@ -305,7 +325,12 @@ export function startGraph(canvas: HTMLCanvasElement, graph: CompanyGraph): () =
   seedPositions();
 
   if (reduced) {
-    for (let i = 0; i < SETTLE_TICKS; i++) tick(false);
+    for (let i = 0; i < SETTLE_TICKS; i++) tick();
+    frozen = true;
+    for (const b of bodies) {
+      b.bx = b.x;
+      b.by = b.y;
+    }
     render(0);
   } else {
     raf = requestAnimationFrame(frame);
