@@ -20,7 +20,7 @@ export function ChatPage() {
 
   return (
     <div className="relative flex h-full">
-      <aside className="flex w-80 shrink-0 flex-col border-r bg-card">
+      <aside className="paper-surface flex w-80 shrink-0 flex-col border-r">
         <header className="flex h-14 shrink-0 items-center px-4">
           <h1 className="text-lg font-semibold">{ui.chat.title}</h1>
         </header>
@@ -73,7 +73,7 @@ export function ChatPage() {
       {active ? (
         <ChatThread conversation={active} />
       ) : (
-        <div className="flex flex-1 items-center justify-center text-white">
+        <div className="flex flex-1 items-center justify-center text-foreground">
           <Empty>
             <EmptyTitle>{ui.chat.conversations}</EmptyTitle>
           </Empty>

@@ -52,8 +52,8 @@ export function ChatThread({ conversation }: { conversation: ConversationListIte
   }
 
   return (
-    <div className="flex h-full min-w-0 flex-1 flex-col bg-[#E8EEF6]">
-      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-slate-900/10 bg-white/80 px-4 backdrop-blur">
+    <div className="flex h-full min-w-0 flex-1 flex-col">
+      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-background/60 px-4">
         <PersonAvatar name={conversationTitle(conversation)} className="size-9" />
         <div className="min-w-0">
           <div className="truncate text-sm font-semibold">{conversationTitle(conversation)}</div>
@@ -151,7 +151,7 @@ export function ChatThread({ conversation }: { conversation: ConversationListIte
 
       <form
         onSubmit={onSubmit}
-        className="flex shrink-0 items-end gap-2 border-t border-slate-900/10 bg-white/80 p-3 backdrop-blur"
+        className="flex shrink-0 items-end gap-2 border-t border-border bg-background/60 p-3"
       >
         <Textarea
           value={text}

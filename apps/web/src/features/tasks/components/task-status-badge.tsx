@@ -22,12 +22,12 @@ export function TaskStatusBadge({ stage, className }: { stage: TaskStage; classN
 /** Тон колонки канбана по порядку стадии: насыщенные «сигнальные» шапки поверх заставки. */
 export function stageColumnTone(order: number): string {
   const tones = [
-    'bg-slate-500/80 text-white',
-    'bg-sky-500/85 text-white',
-    'bg-teal-500/85 text-white',
-    'bg-amber-500/85 text-white',
-    'bg-emerald-500/85 text-white',
-    'bg-rose-500/85 text-white',
+    'bg-steel/80 text-cream',
+    'bg-steel/80 text-cream',
+    'bg-tealink/85 text-cream',
+    'bg-ochre/90 text-cream',
+    'bg-sage/85 text-cream',
+    'bg-rust/85 text-cream',
   ];
-  return tones[Math.min(order, tones.length - 1)] ?? 'bg-slate-500/80 text-white';
+  return tones[Math.min(order, tones.length - 1)] ?? 'bg-steel/80 text-cream';
 }

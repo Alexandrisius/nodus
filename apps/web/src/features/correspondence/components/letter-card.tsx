@@ -45,7 +45,7 @@ export function LetterCard({ letterId }: { letterId: string }) {
   }
 
   return (
-    <div className="h-full overflow-y-auto p-5">
+    <div className="paper-surface h-full overflow-y-auto p-5">
       <div className="flex flex-wrap items-center gap-2">
         <LetterStatusBadge status={letter.status} />
         {letter.regNumber && (
@@ -91,7 +91,7 @@ export function LetterCard({ letterId }: { letterId: string }) {
           <p className="text-sm text-muted-foreground">{ui.common.empty}</p>
         )}
         {letter.resolutions.map((resolution) => (
-          <div key={resolution.id} className="rounded-xl border bg-card p-3">
+          <div key={resolution.id} className="rounded-xl border border-pencil/30 bg-cream/50 p-3">
             <div className="flex items-center gap-2 text-sm">
               <PersonAvatar name={resolution.author.displayName} className="size-6" />
               <span className="font-medium">{resolution.author.displayName}</span>
@@ -119,7 +119,7 @@ export function LetterCard({ letterId }: { letterId: string }) {
         ))}
       </div>
 
-      <div className="mt-4 flex items-end gap-2 rounded-xl border bg-card p-3">
+      <div className="mt-4 flex items-end gap-2 rounded-xl border border-pencil/30 bg-cream/50 p-3">
         <Textarea
           value={text}
           onChange={(e) => setText(e.target.value)}

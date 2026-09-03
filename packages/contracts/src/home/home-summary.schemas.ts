@@ -25,20 +25,15 @@ export type CompanyStats = z.infer<typeof companyStatsSchema>;
 
 export const companyNewsItemSchema = z.object({
   id: z.uuid(),
+  author: userRefSchema,
   title: z.string().min(1),
   text: z.string().min(1),
   publishedAt: z.iso.datetime(),
+  likesCount: z.number().int().min(0),
+  commentsCount: z.number().int().min(0),
 });
 
 export type CompanyNewsItem = z.infer<typeof companyNewsItemSchema>;
-
-export const companyPhotoSchema = z.object({
-  id: z.uuid(),
-  src: z.string().min(1),
-  caption: z.string().min(1),
-});
-
-export type CompanyPhoto = z.infer<typeof companyPhotoSchema>;
 
 export const homeSummarySchema = z.object({
   tasks: z.object({
@@ -53,7 +48,6 @@ export const homeSummarySchema = z.object({
   birthdays: z.array(birthdayEntrySchema),
   stats: companyStatsSchema,
   news: z.array(companyNewsItemSchema),
-  photos: z.array(companyPhotoSchema),
 });
 
 export type HomeSummary = z.infer<typeof homeSummarySchema>;

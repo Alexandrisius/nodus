@@ -1,4 +1,4 @@
-import { Bell, Check, LogOut, Palette, Sparkles } from 'lucide-react';
+import { Bell, Check, LogOut, Palette, Plus, Search } from 'lucide-react';
 import { Link, useRouterState } from '@tanstack/react-router';
 import { ui } from '@nodus/contracts';
 import { cn } from '@nodus/ui/lib/utils';
@@ -67,11 +67,11 @@ function sectionsFor(pathname: string): Section[] {
 }
 
 const themes: { id: ThemeId; label: string }[] = [
-  { id: 'corporate', label: ui.topbar.themeCorporate },
-  { id: 'airy', label: ui.topbar.themeAiry },
+  { id: 'ink', label: ui.topbar.themeInk },
+  { id: 'paper', label: ui.topbar.themePaper },
 ];
 
-/** Топбар: подразделы модуля, Ctrl+K, уведомления, оформление, профиль. */
+/** Топбар: вкладки-«бумага» раздела, поиск, язык, уведомления, «Создать». */
 export function TopBar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const searchStr = useRouterState({ select: (s) => s.location.searchStr });
@@ -84,17 +84,18 @@ export function TopBar() {
   const search = new URLSearchParams(searchStr);
 
   return (
-    <header className="flex h-14 shrink-0 items-center gap-2 border-b border-white/10 bg-[#0B1524]/60 px-4 text-white backdrop-blur-xl">
-      <nav className="flex min-w-0 flex-1 items-center gap-1">
+    <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-4">
+      <nav className="flex min-w-0 flex-1 items-center gap-2">
         {sectionsFor(pathname).map((section) => (
           <Link
             key={section.label}
             to={section.to}
             search={section.search}
             className={cn(
-              'h-9 rounded-lg px-3 text-sm font-medium text-white/70 hover:bg-white/10 hover:text-white',
-              'flex items-center',
-              section.isActive(search) && 'bg-white/15 text-white',
+              'relative flex h-9 items-center rounded-lg border px-4 text-sm font-medium',
+              'border-transparent text-foreground/60 hover:text-foreground',
+              section.isActive(search) &&
+                'paper-card after:absolute after:inset-x-3 after:-bottom-[3px] after:h-0.5 after:bg-rust',
             )}
           >
             {section.label}
@@ -102,18 +103,19 @@ export function TopBar() {
         ))}
       </nav>
 
-      <Button
-        variant="outline"
-        size="sm"
-        className="gap-2 border-white/15 bg-white/10 text-white/80 hover:bg-white/15 hover:text-white"
+      <button
+        type="button"
         onClick={() => setCommandOpen(true)}
+        className="flex h-9 w-56 items-center gap-2 rounded-lg border border-border bg-background/60 px-3 text-sm text-foreground/50 hover:border-foreground/30"
       >
-        <Sparkles data-icon="inline-start" />
-        <span className="hidden lg:inline">{ui.topbar.smartSearch}</span>
-        <kbd className="rounded border border-white/15 bg-white/10 px-1.5 text-xs">
-          {ui.topbar.searchHint}
-        </kbd>
-      </Button>
+        <Search className="size-4" />
+        <span className="flex-1 truncate text-left">{ui.topbar.smartSearch}</span>
+        <kbd className="rounded border border-border px-1.5 text-xs">{ui.topbar.searchHint}</kbd>
+      </button>
+
+      <span className="flex h-9 items-center rounded-lg border border-border px-2.5 text-xs font-semibold text-foreground/70">
+        RU
+      </span>
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -121,7 +123,7 @@ export function TopBar() {
             variant="ghost"
             size="icon"
             aria-label={ui.topbar.theme}
-            className="text-white/70 hover:bg-white/10 hover:text-white"
+            className="relative text-foreground/70 hover:bg-accent hover:text-foreground"
           >
             <Palette />
           </Button>
@@ -145,9 +147,10 @@ export function TopBar() {
             variant="ghost"
             size="icon"
             aria-label={ui.topbar.notifications}
-            className="text-white/70 hover:bg-white/10 hover:text-white"
+            className="relative text-foreground/70 hover:bg-accent hover:text-foreground"
           >
             <Bell />
+            <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-rust" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-72">
@@ -158,12 +161,17 @@ export function TopBar() {
         </DropdownMenuContent>
       </DropdownMenu>
 
+      <Button className="gap-1.5 bg-rust text-cream shadow-none hover:bg-rust/90">
+        <Plus data-icon="inline-start" />
+        {ui.topbar.create}
+      </Button>
+
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
             type="button"
             aria-label={ui.topbar.profile}
-            className="flex items-center gap-2 rounded-lg p-1 hover:bg-white/10"
+            className="flex items-center gap-2 rounded-lg p-1 hover:bg-accent"
           >
             <PersonAvatar name={user?.displayName ?? ''} className="size-8" />
           </button>

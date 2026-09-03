@@ -26,7 +26,7 @@ export function TaskList() {
 
   return (
     <div className="h-full overflow-y-auto p-4">
-      <div className="overflow-hidden rounded-xl border bg-card">
+      <div className="paper-surface overflow-hidden rounded-xl border">
         <div className="grid grid-cols-[5rem_1fr_14rem_10rem_10rem_6rem] items-center gap-3 border-b bg-muted/50 px-4 py-2 text-xs font-medium text-muted-foreground">
           <span>ID</span>
           <span>{ui.tasks.title}</span>

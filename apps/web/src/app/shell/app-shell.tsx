@@ -27,7 +27,7 @@ export function AppShell() {
 
   useEffect(() => {
     const root = document.documentElement;
-    if (theme === 'airy') root.dataset.theme = 'airy';
+    if (theme === 'paper') root.dataset.theme = 'paper';
     else delete root.dataset.theme;
   }, [theme]);
 
@@ -46,7 +46,7 @@ export function AppShell() {
     <TooltipProvider>
       <a
         href="#content"
-        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-lg focus:bg-card focus:px-3 focus:py-2 focus:text-sm"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:paper-surface focus:rounded-lg focus:px-3 focus:py-2 focus:text-sm"
       >
         {ui.common.skipToContent}
       </a>

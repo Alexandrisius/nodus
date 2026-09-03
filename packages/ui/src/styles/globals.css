@@ -51,6 +51,15 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
+  --color-rust: var(--rust);
+  --color-ochre: var(--ochre);
+  --color-tealink: var(--tealink);
+  --color-sage: var(--sage);
+  --color-steel: var(--steel);
+  --color-cream: var(--cream);
+  --color-paper: var(--paper);
+  --color-pencil: var(--pencil);
+
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -63,111 +72,147 @@
 /*
  * Тема — данные (§10.3 ux-principles): компоненты используют только
  * семантические токены; вариант оформления = подмена набора переменных.
- * Базовая тема — «корпоративная» (тёплый светлый, фирменный navy).
+ *
+ * Направление «карандаш и бумага»: грифельный тёмно-зелёный фон с нитью
+ * графа, карточки из состаренной бумаги с карандашным бордюром, акценты —
+ * ржавчина/охра/бирюза советской палитры. Текст — чистый Onest.
+ * Базовая тема — «Тушь» (тёмная); «Бумага» — светлый вариант.
  */
 :root {
-  --radius: 0.875rem;
-  --background: oklch(0.968 0.006 90);
-  --foreground: oklch(0.25 0.03 262);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.25 0.03 262);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.25 0.03 262);
-  --primary: oklch(0.24 0.045 262);
-  --primary-foreground: oklch(0.98 0.005 262);
-  --secondary: oklch(0.95 0.01 255);
-  --secondary-foreground: oklch(0.3 0.04 262);
-  --muted: oklch(0.955 0.008 90);
-  --muted-foreground: oklch(0.52 0.02 262);
-  --accent: oklch(0.94 0.015 255);
-  --accent-foreground: oklch(0.3 0.04 262);
-  --destructive: oklch(0.57 0.19 27);
-  --destructive-foreground: oklch(0.98 0 0);
-  --border: oklch(0.9 0.008 90);
-  --input: oklch(0.88 0.01 255);
-  --ring: oklch(0.55 0.1 255);
-  --success: oklch(0.6 0.13 155);
-  --success-soft: oklch(0.96 0.045 155);
-  --warning: oklch(0.68 0.13 75);
-  --warning-soft: oklch(0.96 0.05 80);
-  --danger: oklch(0.57 0.19 27);
-  --danger-soft: oklch(0.955 0.04 27);
-  --info: oklch(0.58 0.12 250);
-  --info-soft: oklch(0.955 0.03 250);
-  --chart-1: oklch(0.58 0.12 250);
-  --chart-2: oklch(0.6 0.13 155);
-  --chart-3: oklch(0.68 0.13 75);
-  --chart-4: oklch(0.57 0.19 27);
-  --chart-5: oklch(0.5 0.1 300);
-  --sidebar: oklch(0.235 0.045 262);
-  --sidebar-foreground: oklch(0.92 0.01 255);
-  --sidebar-primary: oklch(0.72 0.11 255);
-  --sidebar-primary-foreground: oklch(0.2 0.04 262);
-  --sidebar-accent: oklch(0.3 0.05 262);
-  --sidebar-accent-foreground: oklch(0.95 0.01 255);
-  --sidebar-border: oklch(0.32 0.05 262);
-  --sidebar-ring: oklch(0.72 0.11 255);
+  --radius: 0.75rem;
+  --background: #101d18;
+  --foreground: #e6ddc6;
+  --card: #ece3cd;
+  --card-foreground: #2c2a22;
+  --popover: #ece3cd;
+  --popover-foreground: #2c2a22;
+  --primary: #b0512c;
+  --primary-foreground: #f4ead6;
+  --secondary: #1b2f26;
+  --secondary-foreground: #d9d0b8;
+  --muted: #1a2b23;
+  --muted-foreground: #9aa695;
+  --accent: #21382d;
+  --accent-foreground: #e6ddc6;
+  --destructive: #a13a2e;
+  --destructive-foreground: #f4ead6;
+  --border: rgb(230 221 198 / 0.16);
+  --input: rgb(230 221 198 / 0.24);
+  --ring: #c9973b;
+  --success: #5f7f5a;
+  --success-soft: #dde5cd;
+  --warning: #b98a2e;
+  --warning-soft: #ecdfbe;
+  --danger: #a13a2e;
+  --danger-soft: #ecd6cd;
+  --info: #52708f;
+  --info-soft: #d5dde4;
+  --chart-1: #52708f;
+  --chart-2: #5f7f5a;
+  --chart-3: #c9973b;
+  --chart-4: #b0512c;
+  --chart-5: #7c8a6e;
+  --sidebar: #0b1613;
+  --sidebar-foreground: #cfc7b0;
+  --sidebar-primary: #c9973b;
+  --sidebar-primary-foreground: #201509;
+  --sidebar-accent: #1d352a;
+  --sidebar-accent-foreground: #e6ddc6;
+  --sidebar-border: rgb(230 221 198 / 0.12);
+  --sidebar-ring: #c9973b;
+
+  --rust: #b0512c;
+  --ochre: #c9973b;
+  --tealink: #4e7e80;
+  --sage: #7c8a6e;
+  --steel: #5b7f9d;
+  --cream: #f4ead6;
+  --paper: #ece3cd;
+  --pencil: #35332a;
+  --card-line: rgb(53 51 42 / 0.55);
 }
 
-/* Тестовый набор «воздушный минимализм» (проверка подмены токенов, §10.4). */
-[data-theme='airy'] {
-  --radius: 1.125rem;
-  --background: oklch(0.99 0.002 250);
-  --foreground: oklch(0.28 0.02 262);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.28 0.02 262);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.28 0.02 262);
-  --primary: oklch(0.45 0.13 255);
-  --primary-foreground: oklch(0.99 0 0);
-  --secondary: oklch(0.965 0.005 250);
-  --secondary-foreground: oklch(0.35 0.05 255);
-  --muted: oklch(0.97 0.004 250);
-  --muted-foreground: oklch(0.55 0.015 250);
-  --accent: oklch(0.96 0.008 250);
-  --accent-foreground: oklch(0.35 0.05 255);
-  --border: oklch(0.93 0.004 250);
-  --input: oklch(0.91 0.006 250);
-  --ring: oklch(0.62 0.12 255);
-  --sidebar: oklch(0.985 0.003 250);
-  --sidebar-foreground: oklch(0.28 0.02 262);
-  --sidebar-primary: oklch(0.45 0.13 255);
-  --sidebar-primary-foreground: oklch(0.99 0 0);
-  --sidebar-accent: oklch(0.95 0.008 250);
-  --sidebar-accent-foreground: oklch(0.28 0.02 262);
-  --sidebar-border: oklch(0.93 0.004 250);
-  --sidebar-ring: oklch(0.62 0.12 255);
+/* «Бумага» — светлый вариант: состаренная бумага вместо грифельной доски. */
+[data-theme='paper'] {
+  --background: #e3d9c0;
+  --foreground: #2c2a22;
+  --card: #f0e7d2;
+  --card-foreground: #2c2a22;
+  --popover: #f0e7d2;
+  --popover-foreground: #2c2a22;
+  --primary: #a84a27;
+  --primary-foreground: #f4ead6;
+  --secondary: #e6dcc4;
+  --secondary-foreground: #4a463a;
+  --muted: #e0d6bd;
+  --muted-foreground: #6d675a;
+  --accent: #e0d6bd;
+  --accent-foreground: #2c2a22;
+  --border: rgb(53 51 42 / 0.25);
+  --input: rgb(53 51 42 / 0.35);
+  --ring: #a84a27;
+  --sidebar: #14261e;
+  --sidebar-foreground: #d9d0b8;
+  --sidebar-accent: #1d352a;
+  --sidebar-accent-foreground: #e6ddc6;
+  --sidebar-border: rgb(230 221 198 / 0.14);
 }
 
-/* Токены тёмной темы заготовлены; включение — с персонализацией (M3, §10.5). */
-.dark {
-  --background: oklch(0.17 0.02 262);
-  --foreground: oklch(0.94 0.01 255);
-  --card: oklch(0.21 0.025 262);
-  --card-foreground: oklch(0.94 0.01 255);
-  --popover: oklch(0.21 0.025 262);
-  --popover-foreground: oklch(0.94 0.01 255);
-  --primary: oklch(0.72 0.11 255);
-  --primary-foreground: oklch(0.2 0.04 262);
-  --secondary: oklch(0.27 0.03 262);
-  --secondary-foreground: oklch(0.94 0.01 255);
-  --muted: oklch(0.27 0.03 262);
-  --muted-foreground: oklch(0.7 0.02 255);
-  --accent: oklch(0.3 0.04 262);
-  --accent-foreground: oklch(0.94 0.01 255);
-  --destructive: oklch(0.65 0.19 27);
-  --destructive-foreground: oklch(0.98 0 0);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.62 0.12 255);
-  --sidebar: oklch(0.15 0.02 262);
-  --sidebar-foreground: oklch(0.94 0.01 255);
-  --sidebar-primary: oklch(0.72 0.11 255);
-  --sidebar-primary-foreground: oklch(0.2 0.04 262);
-  --sidebar-accent: oklch(0.27 0.03 262);
-  --sidebar-accent-foreground: oklch(0.94 0.01 255);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.62 0.12 255);
+/* Зерно состаренной бумаги — единая текстура фона и карточек. */
+@utility texture-paper {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.05'/%3E%3C/svg%3E");
+}
+
+/* Карточка-«бумага»: состаренная поверхность + карандашный бордюр. */
+@utility paper-card {
+  background-color: var(--card);
+  color: var(--card-foreground);
+  border: 1px solid var(--card-line);
+  border-radius: var(--radius-lg);
+  box-shadow:
+    inset 0 0 0 1px rgb(244 234 214 / 0.35),
+    0 1px 3px rgb(16 14 8 / 0.4);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.06'/%3E%3C/svg%3E");
+}
+
+/* Бумажная поверхность (панели, списки): переопределяет вложенные токены,
+ * чтобы текст/линии/поля внутри «бумаги» были графитными в любой теме. */
+@utility paper-surface {
+  background-color: var(--card);
+  color: var(--card-foreground);
+  border-color: var(--card-line);
+
+  .text-foreground {
+    color: var(--card-foreground);
+  }
+  .text-muted-foreground {
+    color: rgb(53 51 42 / 0.62);
+  }
+  .border-border {
+    border-color: rgb(53 51 42 / 0.28);
+  }
+  .bg-muted {
+    background-color: rgb(53 51 42 / 0.08);
+  }
+  .bg-accent,
+  .bg-accent\/50,
+  .bg-accent\/60 {
+    background-color: rgb(53 51 42 / 0.1);
+  }
+  .hover\:bg-accent\/50:hover,
+  .hover\:bg-accent\/60:hover {
+    background-color: rgb(53 51 42 / 0.12);
+  }
+  input,
+  textarea {
+    border-color: rgb(53 51 42 / 0.35);
+    background-color: rgb(244 234 214 / 0.65);
+    color: var(--card-foreground);
+  }
+  input::placeholder,
+  textarea::placeholder {
+    color: rgb(53 51 42 / 0.45);
+  }
 }
 
 @layer base {
@@ -175,13 +220,13 @@
     @apply border-border outline-ring/50;
   }
   :root {
-    color-scheme: light;
-  }
-  .dark {
     color-scheme: dark;
   }
+  [data-theme='paper'] {
+    color-scheme: light;
+  }
   body {
-    @apply bg-background text-foreground font-sans text-[14px];
+    @apply bg-background text-foreground font-sans text-[14px] texture-paper;
   }
   @media (prefers-reduced-motion: reduce) {
     *,

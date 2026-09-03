@@ -56,7 +56,7 @@ export function TaskCard({ taskId }: { taskId: string }) {
 
   return (
     <div className="grid h-full grid-cols-[380px_minmax(0,1fr)_300px]">
-      <div className="min-h-0 overflow-y-auto border-r bg-card p-5">
+      <div className="paper-surface min-h-0 overflow-y-auto border-r p-5">
         <div className="flex flex-wrap items-center gap-2">
           <TaskStatusBadge stage={task.stage} />
           <Badge variant="outline">{ui.tasks.priority[task.priority]}</Badge>
@@ -76,9 +76,7 @@ export function TaskCard({ taskId }: { taskId: string }) {
 
         <h2 className="mt-3 text-xl font-semibold">{task.title}</h2>
 
-        <p className="mt-2 text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">
-          {task.description}
-        </p>
+        <p className="mt-2 text-sm leading-relaxed whitespace-pre-wrap">{task.description}</p>
 
         <div className="mt-3">
           <Field label={ui.tasks.deadline}>

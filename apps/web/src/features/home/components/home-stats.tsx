@@ -17,14 +17,14 @@ function StatCard({
   value: string;
 }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-white/5 p-4 shadow-lg shadow-black/20 backdrop-blur-md">
-      <div className="flex items-center gap-2 text-xs text-white/60">
-        <span className={cn('flex size-7 items-center justify-center rounded-lg', tone)}>
+    <div className="paper-card p-4">
+      <div className="flex items-center gap-2 text-xs text-card-foreground/60">
+        <span className={cn('flex size-7 items-center justify-center rounded-md', tone)}>
           {icon}
         </span>
         {label}
       </div>
-      <div className="mt-2 text-2xl font-semibold text-white">{value}</div>
+      <div className="mt-2 text-2xl font-semibold text-rust tabular-nums">{value}</div>
     </div>
   );
 }
@@ -35,25 +35,25 @@ export function HomeStats({ stats }: { stats: CompanyStats }) {
     <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
       <StatCard
         icon={<Users className="size-4" />}
-        tone="bg-teal-400/15 text-teal-300"
+        tone="bg-tealink/15 text-tealink"
         label={ui.home.statsEmployees}
         value={nf.format(stats.employeeCount)}
       />
       <StatCard
         icon={<CheckCircle2 className="size-4" />}
-        tone="bg-emerald-400/15 text-emerald-300"
+        tone="bg-sage/20 text-sage"
         label={ui.home.statsProjectsDone}
         value={nf.format(stats.projectsDone)}
       />
       <StatCard
         icon={<Banknote className="size-4" />}
-        tone="bg-amber-400/15 text-amber-300"
+        tone="bg-ochre/20 text-ochre"
         label={ui.home.statsRevenue}
         value={`${nf.format(Math.round(stats.revenueByn / 1_000_000))} млн BYN`}
       />
       <StatCard
         icon={<Database className="size-4" />}
-        tone="bg-violet-400/15 text-violet-300"
+        tone="bg-steel/20 text-steel"
         label={ui.home.statsDataNodes}
         value={nf.format(stats.dataNodes)}
       />

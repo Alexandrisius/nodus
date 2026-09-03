@@ -39,7 +39,7 @@ export function LoginPage() {
       <LiveGraph />
       <form
         onSubmit={(e) => void onSubmit(e)}
-        className="w-full max-w-sm rounded-2xl border bg-card/95 p-8 shadow-2xl backdrop-blur-xl"
+        className="paper-surface w-full max-w-sm rounded-2xl border p-8 shadow-2xl"
       >
         <div className="flex flex-col items-center gap-2">
           <LogoIcon className="size-12 text-primary" />

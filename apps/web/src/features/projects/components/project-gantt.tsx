@@ -7,11 +7,11 @@ import { formatDate } from '../../../shared/lib/format.js';
 const DAY = 86_400_000;
 
 const stateTone: Record<string, string> = {
-  backlog: 'bg-sky-400',
-  active: 'bg-amber-400',
-  paused: 'bg-slate-400',
-  done: 'bg-emerald-400',
-  closed: 'bg-slate-400',
+  backlog: 'bg-steel',
+  active: 'bg-ochre',
+  paused: 'bg-steel/60',
+  done: 'bg-sage',
+  closed: 'bg-steel/60',
 };
 
 /** Простой гант проекта: полосы задач по крайним срокам и маркер «сегодня». */

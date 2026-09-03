@@ -50,16 +50,16 @@ export interface PaintState {
 }
 
 const COLORS: Record<NodeKind, string> = {
-  person: '94,234,212',
-  task: '129,140,248',
-  project: '251,191,36',
-  letter: '251,113,133',
-  channel: '56,189,248',
-  external: '148,163,184',
-  satellite: '103,232,249',
+  person: '124,138,110',
+  task: '91,127,157',
+  project: '201,151,59',
+  letter: '176,81,44',
+  channel: '78,126,128',
+  external: '154,166,149',
+  satellite: '230,221,198',
 };
 
-const PLANET_ALT = '167,139,250';
+const PLANET_ALT = '176,81,44';
 
 /** Отрисовка кадра: мерцающие звёзды, созвездия-рёбра, планеты-проекты,
  * узлы-данные и пульсы событий; карта чуть смещается параллаксом и очень
@@ -70,7 +70,7 @@ export function paint(ctx: CanvasRenderingContext2D, s: PaintState, t: number): 
 
   for (const star of s.stars) {
     const tw = 0.5 + 0.5 * Math.sin(t * star.speed + star.phase);
-    ctx.fillStyle = `rgba(199,225,255,${(0.05 + tw * 0.16).toFixed(3)})`;
+    ctx.fillStyle = `rgba(230,221,198,${(0.04 + tw * 0.12).toFixed(3)})`;
     ctx.beginPath();
     ctx.arc(star.x * w + px * 0.4, star.y * h + py * 0.4, star.r, 0, Math.PI * 2);
     ctx.fill();
@@ -98,7 +98,7 @@ export function paint(ctx: CanvasRenderingContext2D, s: PaintState, t: number): 
     const nb = s.bodies[j];
     if (!a || !b || !na || !nb) continue;
     const sat = na.kind === 'satellite' || nb.kind === 'satellite';
-    ctx.strokeStyle = `rgba(125,211,252,${sat ? 0.04 : 0.08})`;
+    ctx.strokeStyle = `rgba(230,221,198,${sat ? 0.04 : 0.08})`;
     ctx.beginPath();
     ctx.moveTo(a.x, a.y);
     ctx.lineTo(b.x, b.y);

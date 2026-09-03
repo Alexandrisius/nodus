@@ -25,7 +25,7 @@ export function LettersPage() {
   return (
     <div className="relative flex h-full flex-col">
       <header className="flex items-center justify-between px-5 pt-4 pb-2">
-        <h1 className="text-xl font-semibold text-white drop-shadow-sm">{ui.letters.title}</h1>
+        <h1 className="text-xl font-semibold text-foreground">{ui.letters.title}</h1>
         <Button size="sm">
           <PenLine data-icon="inline-start" />
           {ui.letters.compose}
@@ -40,12 +40,12 @@ export function LettersPage() {
             ))}
           </div>
         ) : (data?.items ?? []).length === 0 ? (
-          <Empty className="text-white">
+          <Empty className="text-foreground">
             <EmptyTitle>{ui.common.empty}</EmptyTitle>
-            <EmptyDescription className="text-white/60">{ui.letters.title}</EmptyDescription>
+            <EmptyDescription className="text-foreground/60">{ui.letters.title}</EmptyDescription>
           </Empty>
         ) : (
-          <div className="overflow-hidden rounded-xl border bg-card">
+          <div className="paper-surface overflow-hidden rounded-xl border">
             {(data?.items ?? []).map((letter) => (
               <div
                 key={letter.id}

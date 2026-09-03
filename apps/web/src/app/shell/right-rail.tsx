@@ -10,9 +10,9 @@ import { PersonAvatar } from '../../shared/ui/person-avatar.js';
 import { useShellStore } from './shell-store.js';
 
 const dotColor: Record<string, string> = {
-  online: 'bg-success',
-  away: 'bg-warning',
-  offline: 'bg-white/30',
+  online: 'bg-sage',
+  away: 'bg-ochre',
+  offline: 'bg-foreground/30',
 };
 
 /**
@@ -57,7 +57,7 @@ export function RightRail() {
         type="button"
         onClick={toggle}
         aria-label={ui.topbar.expandRail}
-        className="flex w-6 shrink-0 items-center justify-center border-l border-white/10 bg-[#0B1524]/70 text-white/60 backdrop-blur-xl hover:bg-white/10"
+        className="flex w-6 shrink-0 items-center justify-center border-l border-sidebar-border bg-sidebar text-sidebar-foreground/60 hover:bg-sidebar-accent"
       >
         <ChevronsLeft className="size-4" />
       </button>
@@ -79,15 +79,17 @@ export function RightRail() {
     <aside
       onMouseLeave={() => setEdgeOpen(false)}
       className={cn(
-        'flex shrink-0 flex-col overflow-hidden border-l border-white/10 bg-[#0B1524]/70 backdrop-blur-xl transition-[width] duration-300 ease-out',
+        'flex shrink-0 flex-col overflow-hidden border-l border-sidebar-border bg-sidebar transition-[width] duration-300 ease-out',
         edgeOpen ? 'w-64' : 'w-14',
       )}
     >
       <div className="flex h-8 items-center gap-2 px-3.5 pt-3 pb-1">
-        <span className="text-[11px] font-semibold text-white/50 tabular-nums">{online}</span>
+        <span className="text-[11px] font-semibold text-sidebar-foreground/60 tabular-nums">
+          {online}
+        </span>
         <span
           className={cn(
-            'text-[11px] font-semibold tracking-wider text-white/40 uppercase transition-opacity duration-200',
+            'text-[11px] font-semibold tracking-wider text-sidebar-foreground/40 uppercase transition-opacity duration-200',
             edgeOpen ? 'opacity-100' : 'opacity-0',
           )}
         >
@@ -103,7 +105,7 @@ export function RightRail() {
               key={entry.user.id}
               type="button"
               onClick={() => openChat(entry.user.id)}
-              className="flex w-full items-center gap-3 rounded-lg px-3.5 py-1.5 text-left hover:bg-white/10"
+              className="flex w-full items-center gap-3 rounded-lg px-3.5 py-1.5 text-left hover:bg-sidebar-accent"
             >
               <span className="relative shrink-0">
                 <PersonAvatar
@@ -113,14 +115,14 @@ export function RightRail() {
                 />
                 <span
                   className={cn(
-                    'absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full border-2 border-[#0B1524]',
+                    'absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full border-2 border-sidebar',
                     dotColor[entry.status],
                   )}
                 />
               </span>
               <span
                 className={cn(
-                  'truncate text-sm text-white/85 transition-opacity delay-75 duration-200',
+                  'truncate text-sm text-sidebar-foreground transition-opacity delay-75 duration-200',
                   edgeOpen ? 'opacity-100' : 'opacity-0',
                 )}
               >
@@ -134,7 +136,7 @@ export function RightRail() {
         type="button"
         onClick={toggle}
         aria-label={ui.topbar.collapseRail}
-        className="flex h-9 items-center justify-center text-white/50 hover:text-white"
+        className="flex h-9 items-center justify-center text-sidebar-foreground/50 hover:text-sidebar-foreground"
       >
         <ChevronsRight className="size-4" />
       </button>

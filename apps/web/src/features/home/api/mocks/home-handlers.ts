@@ -2,12 +2,7 @@ import type { HomeSummary } from '@nodus/contracts';
 
 import { http, HttpResponse } from 'msw';
 
-import {
-  demoBirthdays,
-  demoNews,
-  demoPhotos,
-  demoStats,
-} from '../../../../shared/mocks/data/home.js';
+import { demoBirthdays, demoNews, demoStats } from '../../../../shared/mocks/data/home.js';
 import { demoLetters } from '../../../../shared/mocks/data/letters.js';
 import { demoTasks } from '../../../../shared/mocks/data/tasks.js';
 
@@ -34,7 +29,6 @@ function buildSummary(): HomeSummary {
     birthdays: demoBirthdays,
     stats: demoStats,
     news: [...demoNews].sort((a, b) => b.publishedAt.localeCompare(a.publishedAt)),
-    photos: demoPhotos,
   };
 }
 

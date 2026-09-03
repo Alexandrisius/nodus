@@ -19,14 +19,14 @@ type View = 'list' | 'kanban' | 'gantt' | 'chat';
 
 const columnTone = (order: number): string => {
   const tones = [
-    'bg-slate-500/80 text-white',
-    'bg-sky-500/85 text-white',
-    'bg-teal-500/85 text-white',
-    'bg-amber-500/85 text-white',
-    'bg-emerald-500/85 text-white',
-    'bg-rose-500/85 text-white',
+    'bg-steel/80 text-cream',
+    'bg-steel/80 text-cream',
+    'bg-tealink/85 text-cream',
+    'bg-ochre/90 text-cream',
+    'bg-sage/85 text-cream',
+    'bg-rust/85 text-cream',
   ];
-  return tones[Math.min(order, tones.length - 1)] ?? 'bg-slate-500/80 text-white';
+  return tones[Math.min(order, tones.length - 1)] ?? 'bg-steel/80 text-cream';
 };
 
 function ProjectKanban({ tasks }: { tasks: TaskListItem[] }) {
@@ -52,7 +52,7 @@ function ProjectKanban({ tasks }: { tasks: TaskListItem[] }) {
               {cards.map((task) => (
                 <div
                   key={task.id}
-                  className="flex flex-col gap-2 rounded-xl border bg-card p-3 shadow-lg shadow-black/25"
+                  className="paper-surface flex flex-col gap-2 rounded-xl border p-3 shadow-lg shadow-black/25"
                 >
                   <span className="line-clamp-2 text-sm font-medium">{task.title}</span>
                   <DeadlineChip deadline={task.deadline} />
@@ -90,7 +90,7 @@ export function ProjectPanel({ projectId }: { projectId: string }) {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="shrink-0 border-b bg-card px-5 pt-4 pb-3">
+      <div className="paper-surface shrink-0 border-b px-5 pt-4 pb-3">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline">{project.code}</Badge>
           {project.stageName && <Badge variant="secondary">{project.stageName}</Badge>}
@@ -146,7 +146,7 @@ export function ProjectPanel({ projectId }: { projectId: string }) {
       <div className="min-h-0 flex-1">
         {view === 'list' && (
           <div className="h-full overflow-y-auto p-4">
-            <div className="overflow-hidden rounded-xl border bg-card">
+            <div className="paper-surface overflow-hidden rounded-xl border">
               {items.map((task) => (
                 <div
                   key={task.id}

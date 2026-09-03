@@ -4,12 +4,10 @@ import { Skeleton } from '@nodus/ui/components/skeleton';
 import { useAuthStore } from '../../../shared/auth-store.js';
 import { useHomeSummary } from '../api/home-api.js';
 import { HomeBirthdays } from '../components/home-birthdays.js';
-import { HomeGallery } from '../components/home-gallery.js';
 import { HomeNews } from '../components/home-news.js';
 import { HomeStats } from '../components/home-stats.js';
 
-/** Главная — корпоративная витрина компании: показатели, новости,
- * жизнь компании и дни рождения (лента живёт в каналах мессенджера). */
+/** Главная — лента компании на «грифельной доске»: посты-бумага и сводки. */
 export function HomePage() {
   const { data, isLoading } = useHomeSummary();
   const me = useAuthStore((s) => s.user);
@@ -30,10 +28,10 @@ export function HomePage() {
   return (
     <div className="relative h-full overflow-y-auto">
       <header className="px-6 pt-6 pb-1">
-        <h1 className="text-xl font-semibold text-white drop-shadow-sm">
+        <h1 className="text-xl font-semibold text-foreground">
           {greet}, {me?.displayName.split(' ')[0]}
         </h1>
-        <p className="text-sm text-white/60 first-letter:uppercase">{today}</p>
+        <p className="text-sm text-foreground/55 first-letter:uppercase">{today}</p>
       </header>
 
       {isLoading || !data ? (
@@ -52,7 +50,6 @@ export function HomePage() {
             <HomeNews news={data.news} />
             <HomeBirthdays birthdays={data.birthdays} />
           </div>
-          <HomeGallery photos={data.photos} />
         </div>
       )}
     </div>

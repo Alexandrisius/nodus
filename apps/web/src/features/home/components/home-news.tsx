@@ -1,30 +1,44 @@
-import { Newspaper } from 'lucide-react';
+import { MessageSquare, ThumbsUp } from 'lucide-react';
 import type { CompanyNewsItem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 
+import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
+
 const df = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long' });
 
-/** Новости компании: корпоративная витрина вместо социальной ленты. */
+/** Лента компании: посты-«бумага» с автором и счётчиками, как в концепте. */
 export function HomeNews({ news }: { news: CompanyNewsItem[] }) {
   return (
-    <section className="rounded-xl border bg-card p-5 shadow-lg shadow-black/20">
-      <h2 className="flex items-center gap-2 text-sm font-semibold">
-        <span className="flex size-7 items-center justify-center rounded-lg bg-sky-400/15 text-sky-500">
-          <Newspaper className="size-4" />
-        </span>
+    <section className="flex flex-col gap-4">
+      <h2 className="text-sm font-semibold tracking-wider text-foreground/60 uppercase">
         {ui.home.newsTitle}
       </h2>
-      <div className="mt-3 divide-y">
-        {news.map((item) => (
-          <article key={item.id} className="py-3 first:pt-0 last:pb-0">
-            <div className="text-xs text-muted-foreground first-letter:uppercase">
-              {df.format(new Date(item.publishedAt))}
+      {news.map((item) => (
+        <article key={item.id} className="paper-card p-5">
+          <div className="flex items-center gap-3">
+            <PersonAvatar name={item.author.displayName} className="size-10" />
+            <div className="min-w-0">
+              <div className="truncate text-sm font-semibold">{item.author.displayName}</div>
+              <div className="text-xs text-card-foreground/55 first-letter:uppercase">
+                {df.format(new Date(item.publishedAt))}
+              </div>
             </div>
-            <h3 className="mt-0.5 text-sm font-semibold">{item.title}</h3>
-            <p className="mt-1 text-sm text-muted-foreground">{item.text}</p>
-          </article>
-        ))}
-      </div>
+          </div>
+          <h3 className="mt-3 text-base font-semibold">{item.title}</h3>
+          <p className="mt-1 text-sm text-card-foreground/75">{item.text}</p>
+          <div className="mt-3 flex items-center gap-5 text-sm text-card-foreground/60">
+            <span className="flex items-center gap-1.5">
+              <ThumbsUp className="size-4 text-rust" />
+              {item.likesCount}
+            </span>
+            <span className="h-4 w-px bg-pencil/30" />
+            <span className="flex items-center gap-1.5">
+              <MessageSquare className="size-4 text-tealink" />
+              {item.commentsCount}
+            </span>
+          </div>
+        </article>
+      ))}
     </section>
   );
 }

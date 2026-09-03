@@ -14,7 +14,7 @@ export function TasksPage() {
   return (
     <div className="relative flex h-full flex-col">
       <header className="flex items-center justify-between px-5 pt-4 pb-2">
-        <h1 className="text-xl font-semibold text-white drop-shadow-sm">{ui.tasks.title}</h1>
+        <h1 className="text-xl font-semibold text-foreground">{ui.tasks.title}</h1>
         <Button size="sm">
           <Plus data-icon="inline-start" />
           {ui.tasks.create}
