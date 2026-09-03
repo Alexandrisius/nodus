@@ -170,11 +170,13 @@
  * отдельный штрих (#rough-sm). Вложенные токены — зеркало paper-surface. */
 @utility paper-card {
   position: relative;
+  isolation: isolate;
   color: var(--card-foreground);
   border-radius: 0.85rem 0.65rem 0.8rem 0.7rem / 0.7rem 0.85rem 0.65rem 0.8rem;
 
   &::before {
     content: '';
+    z-index: -1;
     position: absolute;
     inset: 0;
     border: 1.6px solid var(--card-line);
