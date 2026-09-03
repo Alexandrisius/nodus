@@ -7,7 +7,8 @@ import { cn } from '@nodus/ui/lib/utils';
 /** Стек слайдеров: ESC закрывает только верхнюю панель (§10.2). */
 const stack: string[] = [];
 
-/** Детальная панель — правый sheet во всю высоту поверх каркаса, на «бумаге». */
+/** Детальная панель — общий для всех сущностей sheet снизу вверх во всю
+ * высоту поверх каркаса, на «бумаге»; уровень 2 оставляет слева край нижнего. */
 export function SliderPanel({
   breadcrumbs,
   level = 1,
@@ -41,8 +42,8 @@ export function SliderPanel({
         role="dialog"
         aria-modal="true"
         className={cn(
-          'paper-surface animate-in slide-in-from-right absolute inset-y-0 right-0 flex flex-col border-l shadow-2xl duration-200',
-          level === 1 ? 'w-[78%] max-w-1200' : 'w-[60%] max-w-900',
+          'paper-surface animate-in slide-in-from-bottom absolute inset-0 flex flex-col border-t shadow-2xl duration-300',
+          level === 2 && 'left-[8%]',
         )}
       >
         <header className="flex h-12 shrink-0 items-center gap-2 border-b border-pencil/30 px-4">

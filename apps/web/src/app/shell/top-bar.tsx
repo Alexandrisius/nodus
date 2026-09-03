@@ -95,7 +95,7 @@ export function TopBar() {
               'relative flex h-9 items-center rounded-lg border px-4 text-sm font-medium',
               'border-transparent text-foreground/60 hover:text-foreground',
               section.isActive(search) &&
-                'paper-card after:absolute after:inset-x-3 after:-bottom-[3px] after:h-0.5 after:bg-rust',
+                'paper-card after:absolute after:inset-x-2 after:-bottom-1 after:h-1 after:rounded-full after:bg-rust',
             )}
           >
             {section.label}
