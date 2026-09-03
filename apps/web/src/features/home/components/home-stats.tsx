@@ -19,7 +19,9 @@ function StatCard({
   return (
     <div className="paper-card p-4">
       <div className="flex items-center gap-2 text-xs text-card-foreground/60">
-        <span className={cn('flex size-7 items-center justify-center rounded-md', tone)}>
+        <span
+          className={cn('crayon-fill flex size-7 items-center justify-center rounded-md', tone)}
+        >
           {icon}
         </span>
         {label}

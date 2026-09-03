@@ -38,7 +38,7 @@ export function TaskKanban({ items }: { items?: TaskListItem[] }) {
           <section key={stage.id} className="flex h-full w-72 shrink-0 flex-col">
             <header
               className={cn(
-                'mb-2 flex h-8 items-center justify-between rounded-lg px-3 text-sm font-semibold',
+                'crayon-fill mb-2 flex h-8 items-center justify-between rounded-lg px-3 text-sm font-semibold',
                 stageColumnTone(stage.order),
               )}
             >

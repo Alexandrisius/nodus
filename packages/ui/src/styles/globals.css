@@ -164,18 +164,14 @@
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.08'/%3E%3C/svg%3E");
 }
 
-/* Карточка-«бумага»: состаренная поверхность с виньеткой и жёсткой чернильной
- * тенью; обе обводки — псевдоэлементы, искажённые SVG-фильтром грубости
- * (#rough-… из <SketchFilters/>), поэтому линии «от руки», а текст чистый. */
+/* Карточка-«бумага»: сам элемент прозрачный, заливка с виньеткой и главная
+ * обводка лежат в ОДНОМ псевдослое и искажаются одним фильтром (#rough-md) —
+ * поэтому контур и бумага «едут» вместе и не расходятся. Вторая линия —
+ * отдельный штрих (#rough-sm). Вложенные токены — зеркало paper-surface. */
 @utility paper-card {
   position: relative;
-  background-color: var(--card);
   color: var(--card-foreground);
   border-radius: 0.85rem 0.65rem 0.8rem 0.7rem / 0.7rem 0.85rem 0.65rem 0.8rem;
-  box-shadow: 3px 4px 0 rgb(14 27 21 / 0.28);
-  background-image:
-    radial-gradient(ellipse at 50% 30%, rgb(0 0 0 / 0) 62%, rgb(96 70 34 / 0.14) 100%),
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.09'/%3E%3C/svg%3E");
 
   &::before {
     content: '';
@@ -183,7 +179,12 @@
     inset: 0;
     border: 1.6px solid var(--card-line);
     border-radius: 0.9rem 0.55rem 0.85rem 0.6rem / 0.6rem 0.9rem 0.55rem 0.85rem;
-    filter: url(#rough-sm);
+    background-color: var(--card);
+    background-image:
+      radial-gradient(ellipse at 50% 30%, rgb(0 0 0 / 0) 62%, rgb(96 70 34 / 0.14) 100%),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.09'/%3E%3C/svg%3E");
+    box-shadow: 3px 4px 0 rgb(14 27 21 / 0.28);
+    filter: url(#rough-md);
     pointer-events: none;
   }
 
@@ -191,11 +192,38 @@
     content: '';
     position: absolute;
     inset: -4px;
-    border: 1.3px solid var(--sketch-line);
+    border: 1.2px solid var(--sketch-line);
     border-radius: 0.55rem 0.95rem 0.5rem 0.9rem / 0.9rem 0.55rem 0.95rem 0.5rem;
-    rotate: -0.35deg;
-    filter: url(#rough-md);
+    rotate: 0.25deg;
+    filter: url(#rough-sm);
     pointer-events: none;
+  }
+
+  .text-foreground {
+    color: var(--card-foreground);
+  }
+  .text-muted-foreground {
+    color: rgb(53 51 42 / 0.62);
+  }
+  .border-border {
+    border-color: rgb(53 51 42 / 0.28);
+  }
+  .bg-muted {
+    background-color: rgb(53 51 42 / 0.08);
+  }
+  .bg-accent,
+  .bg-accent\/50,
+  .bg-accent\/60 {
+    background-color: rgb(53 51 42 / 0.1);
+  }
+  .hover\:bg-accent\/50:hover,
+  .hover\:bg-accent\/60:hover {
+    background-color: rgb(53 51 42 / 0.12);
+  }
+  input,
+  textarea {
+    color: var(--card-foreground);
+    border-color: rgb(53 51 42 / 0.35);
   }
 }
 
@@ -203,14 +231,23 @@
  * по-разному, как пришпиленные записки. */
 @utility sketch-tilt {
   &:nth-child(2n) {
-    rotate: 0.3deg;
+    rotate: 0.2deg;
   }
   &:nth-child(3n) {
-    rotate: -0.35deg;
+    rotate: -0.25deg;
   }
   &:nth-child(4n + 1) {
-    rotate: 0.15deg;
+    rotate: 0.1deg;
   }
+}
+
+/* Заливка «восковым мелком/карандашом»: зерно пигмента + диагональный штрих,
+ * умножаются на любой background-color элемента (цвет остаётся токеном). */
+@utility crayon-fill {
+  background-image:
+    repeating-linear-gradient(112deg, rgb(0 0 0 / 0.06) 0 1.5px, rgb(0 0 0 / 0) 1.5px 5px),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='c'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.5' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23c)' opacity='0.28'/%3E%3C/svg%3E");
+  background-blend-mode: multiply;
 }
 
 /* Бумажная поверхность (панели, списки): переопределяет вложенные токены,
