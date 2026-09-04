@@ -9,7 +9,6 @@ import { CommandPalette } from './command-palette.js';
 import { LiveGraph } from './live-graph.js';
 import { RightRail } from './right-rail.js';
 import { SideMenu } from './side-menu.js';
-import { SketchFilters } from './sketch-filters.js';
 import { useShellStore } from './shell-store.js';
 import { TopBar } from './top-bar.js';
 
@@ -45,7 +44,6 @@ export function AppShell() {
 
   return (
     <TooltipProvider>
-      <SketchFilters />
       <a
         href="#content"
         className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:paper-surface focus:rounded-lg focus:px-3 focus:py-2 focus:text-sm"

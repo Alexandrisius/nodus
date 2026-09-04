@@ -164,9 +164,8 @@
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.08'/%3E%3C/svg%3E");
 }
 
-/* Карточка-«бумага» по референсу: заливка и её контур — один слой, искажённый
- * фильтром (#rough-md), поэтому кромка «живая» и ничего никуда не вылезает;
- * вторая тонкая линия — внутри в 3px, тоже со своей дрожью (#rough-sm). */
+/* Карточка-«бумага» по референсу: заливка и контур — один псевдослой,
+ * вторая тонкая линия — внутри в 3px; неровные радиусы дают «рисованность». */
 @utility paper-card {
   position: relative;
   isolation: isolate;
@@ -185,7 +184,6 @@
       radial-gradient(ellipse at 50% 30%, rgb(0 0 0 / 0) 62%, rgb(96 70 34 / 0.14) 100%),
       url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.09'/%3E%3C/svg%3E");
     box-shadow: 3px 4px 0 rgb(14 27 21 / 0.28);
-    filter: url(#rough-md);
     pointer-events: none;
   }
 
@@ -195,7 +193,6 @@
     inset: 3px;
     border: 1px solid var(--sketch-line);
     border-radius: 0.75rem 0.5rem 0.7rem 0.55rem / 0.55rem 0.75rem 0.5rem 0.7rem;
-    filter: url(#rough-sm);
     pointer-events: none;
   }
 

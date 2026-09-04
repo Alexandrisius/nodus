@@ -60,7 +60,7 @@ export function RightRail() {
         type="button"
         onClick={toggle}
         aria-label={ui.topbar.expandRail}
-        className="flex w-6 shrink-0 items-center justify-center border-l border-sidebar-border bg-sidebar/70 text-sidebar-foreground/60 backdrop-blur-[2px] hover:bg-sidebar-accent"
+        className="flex w-6 shrink-0 items-center justify-center border-l border-sidebar-border bg-sidebar/45 text-sidebar-foreground/60 backdrop-blur-[2px] hover:bg-sidebar-accent"
       >
         <ChevronsLeft className="size-4" />
       </button>
@@ -83,7 +83,7 @@ export function RightRail() {
       onMouseEnter={dwellStart}
       onMouseLeave={dwellStop}
       className={cn(
-        'flex shrink-0 flex-col overflow-hidden border-l border-sidebar-border bg-sidebar/70 backdrop-blur-[2px] transition-[width] duration-300 ease-out',
+        'flex shrink-0 flex-col overflow-hidden border-l border-sidebar-border bg-sidebar/45 backdrop-blur-[2px] transition-[width] duration-300 ease-out',
         edgeOpen ? 'w-64' : 'w-14',
       )}
     >

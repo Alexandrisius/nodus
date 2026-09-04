@@ -9,18 +9,12 @@ interface NodePos {
   h: number;
 }
 
-function jitter(seed: string, salt: number): number {
-  let hash = salt;
-  for (const char of seed) hash = (hash * 31 + char.charCodeAt(0)) % 997;
-  return (hash % 9) - 4;
-}
-
-/** Оргструктура: бумажные карточки по уровням и небрежные карандашные связи
- * (кривые с детерминированным «поводырём», как от руки). */
+/** Оргструктура: бумажные карточки по уровням и строгие ортогональные связи
+ * (вниз до середины зазора, горизонталь до оси ребёнка, вниз к карточке). */
 export function OrgChart({ people }: { people: UserListItem[] }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const nodeRefs = useRef(new Map<string, HTMLDivElement>());
-  const [edges, setEdges] = useState<Array<{ d: string; arrow: string; key: string }>>([]);
+  const [edges, setEdges] = useState<Array<{ d: string; key: string }>>([]);
 
   const { levels, parentOf } = useMemo(() => {
     const byId = new Map(people.map((p) => [p.id, p]));
@@ -60,19 +54,18 @@ export function OrgChart({ people }: { people: UserListItem[] }) {
           h: rect.height,
         });
       }
-      const next: Array<{ d: string; arrow: string; key: string }> = [];
+      const next: Array<{ d: string; key: string }> = [];
       for (const person of people) {
         const managerId = parentOf.get(person.id);
         if (!managerId) continue;
         const from = pos.get(managerId);
         const to = pos.get(person.id);
         if (!from || !to) continue;
-        const y0 = from.y + from.h - 4;
+        const y0 = from.y + from.h - 2;
         const y1 = to.y + 2;
-        const jx = jitter(person.id, 7);
-        const d = `M ${from.x + jx} ${y0} C ${from.x + jx} ${y0 + 22}, ${to.x + jx} ${y1 - 24}, ${to.x} ${y1}`;
-        const arrow = `M ${to.x - 5} ${y1 - 9} L ${to.x} ${y1 - 1} L ${to.x + 5} ${y1 - 9}`;
-        next.push({ d, arrow, key: person.id });
+        const midY = Math.round((y0 + y1) / 2);
+        const d = `M ${from.x} ${y0} V ${midY} H ${to.x} V ${y1}`;
+        next.push({ d, key: person.id });
       }
       setEdges((prev) =>
         prev.length === next.length && prev.every((e, i) => e?.d === next[i]?.d) ? prev : next,
@@ -88,18 +81,14 @@ export function OrgChart({ people }: { people: UserListItem[] }) {
     <div ref={rootRef} className="relative flex flex-col gap-12 py-6">
       <svg className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden="true">
         {edges.map((edge) => (
-          <g
+          <path
             key={edge.key}
+            d={edge.d}
             fill="none"
             stroke="var(--foreground)"
-            strokeOpacity="0.55"
-            strokeWidth="1.7"
-            strokeLinecap="round"
-            style={{ filter: 'url(#rough-sm)' }}
-          >
-            <path d={edge.d} />
-            <path d={edge.arrow} />
-          </g>
+            strokeOpacity="0.5"
+            strokeWidth="1.5"
+          />
         ))}
       </svg>
       {levels.map((level, levelIndex) => (

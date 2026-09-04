@@ -100,11 +100,7 @@ export function TopBar() {
           >
             {section.label}
             {section.isActive(search) && (
-              <span
-                aria-hidden
-                className="absolute inset-x-2 -bottom-1 h-1 rounded-full bg-rust"
-                style={{ filter: 'url(#rough-sm)' }}
-              />
+              <span aria-hidden className="absolute inset-x-2 -bottom-1 h-1 rounded-full bg-rust" />
             )}
           </Link>
         ))}
