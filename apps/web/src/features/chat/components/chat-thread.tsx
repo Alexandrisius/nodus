@@ -83,7 +83,7 @@ export function ChatThread({ conversation }: { conversation: ConversationListIte
                       <MessageContent>
                         <div
                           className={cn(
-                            'relative w-fit max-w-[70%] rounded-2xl rounded-bl-sm px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap shadow-[2px_3px_0_rgb(14_27_21/0.35)] after:absolute after:-left-1.5 after:bottom-1 after:size-3 after:bg-inherit after:[clip-path:polygon(100%_0,0_100%,100%_100%)]',
+                            'relative w-fit max-w-[70%] rounded-2xl rounded-tl-sm px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap shadow-[2px_3px_0_rgb(14_27_21/0.35)] after:absolute after:-left-1.5 after:top-1 after:size-3 after:bg-inherit after:[clip-path:polygon(0_0,100%_0,100%_100%)]',
                             mine ? 'bg-sage text-cream' : 'bg-card text-card-foreground',
                           )}
                         >
