@@ -27,7 +27,7 @@ import { FileText } from 'lucide-react';
 
 import { formatTime } from '../../../shared/lib/format.js';
 import { useAuthStore } from '../../../shared/auth-store.js';
-import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
+import { PersonAvatar, toneOf } from '../../../shared/ui/person-avatar.js';
 import { useConversationMessages, useMessageToTask, useSendMessage } from '../api/chat-api.js';
 
 export function conversationTitle(conversation: ConversationListItem): string {
@@ -75,37 +75,41 @@ export function ChatThread({ conversation }: { conversation: ConversationListIte
                 const mine = message.author.id === me?.id;
                 return (
                   <MessageScrollerItem key={message.id}>
-                    <Message align={mine ? 'end' : 'start'} className="group/msg">
-                      {!mine && (
-                        <PersonAvatar
-                          name={message.author.displayName}
-                          className="size-8 self-end"
-                        />
-                      )}
+                    <Message align="start" className="group/msg">
+                      <PersonAvatar
+                        name={message.author.displayName}
+                        className="size-8 shrink-0 self-center"
+                      />
                       <MessageContent>
-                        {!mine && conversation.type === 'group' && (
-                          <div className="mb-0.5 text-xs font-medium text-foreground/60">
-                            {message.author.displayName}
-                          </div>
-                        )}
                         <div
                           className={cn(
-                            'relative max-w-[75%] rounded-2xl px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap shadow-[2px_3px_0_rgb(14_27_21/0.35)]',
-                            mine
-                              ? 'rounded-br-sm bg-tealink text-cream after:absolute after:-right-1.5 after:bottom-0 after:size-3 after:bg-tealink after:[clip-path:polygon(0_0,0_100%,100%_100%)]'
-                              : 'rounded-bl-sm bg-card text-card-foreground after:absolute after:-left-1.5 after:bottom-0 after:size-3 after:bg-card after:[clip-path:polygon(100%_0,0_100%,100%_100%)]',
+                            'relative w-fit max-w-[70%] rounded-2xl rounded-bl-sm px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap shadow-[2px_3px_0_rgb(14_27_21/0.35)] after:absolute after:-left-1.5 after:bottom-1 after:size-3 after:bg-inherit after:[clip-path:polygon(100%_0,0_100%,100%_100%)]',
+                            mine ? 'bg-sage text-cream' : 'bg-card text-card-foreground',
                           )}
                         >
+                          {conversation.type !== 'direct' && (
+                            <div
+                              className={cn(
+                                'mb-0.5 text-xs font-semibold',
+                                mine && 'text-cream/80',
+                              )}
+                              style={
+                                mine ? undefined : { color: toneOf(message.author.displayName).bg }
+                              }
+                            >
+                              {message.author.displayName}
+                            </div>
+                          )}
                           {message.text}
                           {message.editedAt && (
                             <span className="ml-1 text-xs opacity-60">({ui.chat.edited})</span>
                           )}
-                          <span className="ml-2 text-[10px] opacity-60">
+                          <span className="float-right ml-3 mt-1.5 text-[10px] opacity-60">
                             {formatTime(message.createdAt)}
                           </span>
                         </div>
                         {message.reactions.length > 0 && (
-                          <div className={cn('mt-1 flex gap-1', mine && 'justify-end')}>
+                          <div className="mt-1 flex gap-1">
                             {message.reactions.map((reaction) => (
                               <span
                                 key={reaction.emoji}
@@ -132,7 +136,7 @@ export function ChatThread({ conversation }: { conversation: ConversationListIte
                         )}
                         <button
                           type="button"
-                          className="mt-1 hidden items-center gap-1 text-xs text-foreground/60 hover:text-cream group-hover/msg:flex"
+                          className="mt-1 flex items-center gap-1 text-xs text-foreground/60 opacity-0 transition-opacity group-hover/msg:opacity-100 hover:text-cream"
                           onClick={() =>
                             toTask.mutate(
                               { conversationId: conversation.id, messageId: message.id },

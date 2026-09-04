@@ -24,7 +24,7 @@ export function SketchFilters() {
             seed="3"
             result="n"
           />
-          <feDisplacementMap in="SourceGraphic" in2="n" scale="1.2" />
+          <feDisplacementMap in="SourceGraphic" in2="n" scale="2.5" />
         </filter>
         <filter id="rough-lg">
           <feTurbulence

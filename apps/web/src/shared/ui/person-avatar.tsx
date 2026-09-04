@@ -20,7 +20,7 @@ const PALETTE: Array<{ bg: string; fg: string }> = [
 ];
 
 /** Детерминированный приглушённый тон аватара от имени (советская палитра). */
-function toneOf(name: string): { bg: string; fg: string } {
+export function toneOf(name: string): { bg: string; fg: string } {
   let hash = 0;
   for (const char of name) hash = (hash * 31 + char.charCodeAt(0)) % 997;
   return PALETTE[hash % PALETTE.length] ?? PALETTE[0]!;
