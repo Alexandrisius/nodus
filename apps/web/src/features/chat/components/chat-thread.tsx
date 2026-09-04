@@ -5,6 +5,7 @@ import type { ConversationListItem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { toast } from 'sonner';
 import { Button } from '@nodus/ui/components/button';
+import { cn } from '@nodus/ui/lib/utils';
 import { Textarea } from '@nodus/ui/components/textarea';
 import {
   MessageScroller,
@@ -14,8 +15,7 @@ import {
   MessageScrollerProvider,
   MessageScrollerViewport,
 } from '@nodus/ui/components/message-scroller';
-import { Message, MessageContent, MessageHeader } from '@nodus/ui/components/message';
-import { Bubble, BubbleContent, BubbleReactions } from '@nodus/ui/components/bubble';
+import { Message, MessageContent } from '@nodus/ui/components/message';
 import {
   Attachment,
   AttachmentContent,
@@ -77,41 +77,45 @@ export function ChatThread({ conversation }: { conversation: ConversationListIte
                   <MessageScrollerItem key={message.id}>
                     <Message align={mine ? 'end' : 'start'} className="group/msg">
                       {!mine && (
-                        <PersonAvatar name={message.author.displayName} className="size-8" />
+                        <PersonAvatar
+                          name={message.author.displayName}
+                          className="size-8 self-end"
+                        />
                       )}
                       <MessageContent>
-                        {!mine && conversation.type !== 'direct' && (
-                          <MessageHeader className="gap-1">
-                            <span className="text-foreground/80">{message.author.displayName}</span>
-                            <span>{formatTime(message.createdAt)}</span>
-                          </MessageHeader>
+                        {!mine && conversation.type === 'group' && (
+                          <div className="mb-0.5 text-xs font-medium text-foreground/60">
+                            {message.author.displayName}
+                          </div>
                         )}
-                        <Bubble variant="ghost">
-                          <BubbleContent
-                            className={
-                              mine
-                                ? 'rounded-2xl rounded-br-md bg-tealink px-3 py-2 text-cream whitespace-pre-wrap shadow-[2px_3px_0_rgb(14_27_21/0.35)]'
-                                : 'rounded-2xl rounded-bl-md bg-card px-3 py-2 text-card-foreground whitespace-pre-wrap shadow-[2px_3px_0_rgb(14_27_21/0.35)]'
-                            }
-                          >
-                            {message.text}
-                            {message.editedAt && (
-                              <span className="ml-1 text-xs opacity-60">({ui.chat.edited})</span>
-                            )}
-                            <span className="ml-2 text-[10px] opacity-60">
-                              {formatTime(message.createdAt)}
-                            </span>
-                          </BubbleContent>
-                          {message.reactions.length > 0 && (
-                            <BubbleReactions align={mine ? 'end' : 'start'}>
-                              {message.reactions.map((reaction) => (
-                                <span key={reaction.emoji} className="px-1 text-xs">
-                                  {reaction.emoji} {reaction.count}
-                                </span>
-                              ))}
-                            </BubbleReactions>
+                        <div
+                          className={cn(
+                            'relative max-w-[75%] rounded-2xl px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap shadow-[2px_3px_0_rgb(14_27_21/0.35)]',
+                            mine
+                              ? 'rounded-br-sm bg-tealink text-cream after:absolute after:-right-1.5 after:bottom-0 after:size-3 after:bg-tealink after:[clip-path:polygon(0_0,0_100%,100%_100%)]'
+                              : 'rounded-bl-sm bg-card text-card-foreground after:absolute after:-left-1.5 after:bottom-0 after:size-3 after:bg-card after:[clip-path:polygon(100%_0,0_100%,100%_100%)]',
                           )}
-                        </Bubble>
+                        >
+                          {message.text}
+                          {message.editedAt && (
+                            <span className="ml-1 text-xs opacity-60">({ui.chat.edited})</span>
+                          )}
+                          <span className="ml-2 text-[10px] opacity-60">
+                            {formatTime(message.createdAt)}
+                          </span>
+                        </div>
+                        {message.reactions.length > 0 && (
+                          <div className={cn('mt-1 flex gap-1', mine && 'justify-end')}>
+                            {message.reactions.map((reaction) => (
+                              <span
+                                key={reaction.emoji}
+                                className="rounded-full bg-cream/15 px-2 py-0.5 text-xs text-cream"
+                              >
+                                {reaction.emoji} {reaction.count}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                         {message.attachments.length > 0 && (
                           <AttachmentGroup className="mt-1 flex-wrap">
                             {message.attachments.map((file) => (
