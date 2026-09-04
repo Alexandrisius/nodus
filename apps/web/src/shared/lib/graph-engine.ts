@@ -2,8 +2,8 @@ import { paint, type Body, type CompanyGraph, type Pulse, type Star } from './gr
 
 export type { CompanyGraph, GraphNode, NodeKind } from './graph-paint.js';
 
-const MAX_NODES = 420;
-const SETTLE_TICKS = 240;
+const MAX_NODES = 900;
+const SETTLE_TICKS = 300;
 
 function mulberry32(seed: number): () => number {
   let a = seed;
@@ -42,7 +42,7 @@ export function startGraph(canvas: HTMLCanvasElement, graph: CompanyGraph): () =
   }));
   const edges: Array<[number, number]> = [...graph.edges];
   const pulses: Pulse[] = [];
-  const stars: Star[] = Array.from({ length: 240 }, () => ({
+  const stars: Star[] = Array.from({ length: 320 }, () => ({
     x: rand(),
     y: rand(),
     r: 0.4 + rand() * 0.9,
@@ -179,9 +179,21 @@ export function startGraph(canvas: HTMLCanvasElement, graph: CompanyGraph): () =
   };
 
   resize();
-  seedPositions();
-  for (let i = 0; i < SETTLE_TICKS; i++) tick();
-  freeze();
+  const preplaced = graph.nodes.every((n) => n.nx !== undefined && n.ny !== undefined);
+  if (preplaced) {
+    graph.nodes.forEach((n, i) => {
+      const b = bodies[i];
+      if (b) {
+        b.x = (n.nx ?? 0.5) * w;
+        b.y = (n.ny ?? 0.5) * h;
+      }
+    });
+    freeze();
+  } else {
+    seedPositions();
+    for (let i = 0; i < SETTLE_TICKS; i++) tick();
+    freeze();
+  }
 
   if (reduced) {
     paint(ctx, { bodies, edges, pulses, stars, w, h, frozen, px, py }, 0);

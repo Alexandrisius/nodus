@@ -71,5 +71,68 @@ export function buildCompanyGraph(): CompanyGraph {
     }
   }
 
+  // «Опытная компания»: департаменты-хабы с плотными кластерами данных,
+  // детерминированно (mulberry32), чтобы фон был стабилен между рендерами.
+  let a = 2026;
+  const rnd = () => {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  for (let d = 0; d < 14; d++) {
+    const hub = add(`dep:${d}`, 'person', 3.4);
+    link(hub, Math.floor(rnd() * realCount));
+    const size = 25 + Math.floor(rnd() * 30);
+    for (let i = 0; i < size; i++) {
+      nodes.push({ kind: 'satellite', r: 0.8 + rnd() * 1.1 });
+      const parent = rnd() < 0.8 ? hub : Math.max(0, nodes.length - 1 - Math.floor(rnd() * 3));
+      edges.push([parent, nodes.length - 1]);
+    }
+  }
+
+  return { nodes, edges };
+}
+
+/** Нагрузочный граф «опытная компания»: N узлов кластерами вокруг хабов,
+ * координаты предвычислены (без физики) — для стресс-теста фона (?stress=N). */
+export function buildStressGraph(count: number): CompanyGraph {
+  let a = 77;
+  const rnd = () => {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  const clamp = (v: number) => Math.min(0.99, Math.max(0.01, v));
+  const nodes: GraphNode[] = [];
+  const edges: Array<[number, number]> = [];
+  const kinds: NodeKind[] = ['person', 'project', 'channel', 'letter'];
+  const hubs = Math.max(10, Math.round(count / 300));
+  const hubIdx: number[] = [];
+  for (let i = 0; i < hubs; i++) {
+    nodes.push({
+      kind: kinds[i % kinds.length] ?? 'person',
+      r: 2.5 + rnd() * 2,
+      nx: 0.04 + rnd() * 0.92,
+      ny: 0.06 + rnd() * 0.88,
+    });
+    hubIdx.push(nodes.length - 1);
+    if (i > 0 && rnd() < 0.5) edges.push([i - 1, nodes.length - 1]);
+  }
+  while (nodes.length < count) {
+    const hub = hubIdx[Math.floor(rnd() * hubIdx.length)] ?? 0;
+    const hx = nodes[hub]?.nx ?? 0.5;
+    const hy = nodes[hub]?.ny ?? 0.5;
+    nodes.push({
+      kind: 'satellite',
+      r: 0.7 + rnd() * 1.2,
+      nx: clamp(hx + (rnd() - 0.5) * 0.16),
+      ny: clamp(hy + (rnd() - 0.5) * 0.22),
+    });
+    edges.push([hub, nodes.length - 1]);
+  }
   return { nodes, edges };
 }

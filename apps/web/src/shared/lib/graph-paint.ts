@@ -4,6 +4,8 @@ export type NodeKind =
 export interface GraphNode {
   kind: NodeKind;
   r: number;
+  nx?: number;
+  ny?: number;
 }
 
 export interface CompanyGraph {
@@ -91,18 +93,40 @@ export function paint(ctx: CanvasRenderingContext2D, s: PaintState, t: number): 
   });
 
   ctx.lineWidth = 1;
-  for (const [i, j] of s.edges) {
-    const a = pos[i];
-    const b = pos[j];
-    const na = s.bodies[i];
-    const nb = s.bodies[j];
-    if (!a || !b || !na || !nb) continue;
-    const sat = na.kind === 'satellite' || nb.kind === 'satellite';
-    ctx.strokeStyle = `rgba(230,221,198,${sat ? 0.04 : 0.08})`;
-    ctx.beginPath();
-    ctx.moveTo(a.x, a.y);
-    ctx.lineTo(b.x, b.y);
-    ctx.stroke();
+  if (s.bodies.length > 5000) {
+    const step = s.edges.length > 60000 ? 3 : s.edges.length > 20000 ? 2 : 1;
+    const satPath = new Path2D();
+    const mainPath = new Path2D();
+    for (let e = 0; e < s.edges.length; e += step) {
+      const edge = s.edges[e];
+      if (!edge) continue;
+      const a = pos[edge[0]];
+      const b = pos[edge[1]];
+      if (!a || !b) continue;
+      const na = s.bodies[edge[0]];
+      const nb = s.bodies[edge[1]];
+      const path = na?.kind === 'satellite' || nb?.kind === 'satellite' ? satPath : mainPath;
+      path.moveTo(a.x, a.y);
+      path.lineTo(b.x, b.y);
+    }
+    ctx.strokeStyle = 'rgba(230,221,198,0.06)';
+    ctx.stroke(satPath);
+    ctx.strokeStyle = 'rgba(230,221,198,0.12)';
+    ctx.stroke(mainPath);
+  } else {
+    for (const [i, j] of s.edges) {
+      const a = pos[i];
+      const b = pos[j];
+      const na = s.bodies[i];
+      const nb = s.bodies[j];
+      if (!a || !b || !na || !nb) continue;
+      const sat = na.kind === 'satellite' || nb.kind === 'satellite';
+      ctx.strokeStyle = `rgba(230,221,198,${sat ? 0.04 : 0.08})`;
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+    }
   }
 
   for (let p = s.pulses.length - 1; p >= 0; p--) {
@@ -123,40 +147,79 @@ export function paint(ctx: CanvasRenderingContext2D, s: PaintState, t: number): 
     ctx.stroke();
   }
 
-  s.bodies.forEach((b, i) => {
-    const point = pos[i];
-    if (!point) return;
-    const fade = b.birth === 0 ? 1 : Math.min(1, (t - b.birth) / 1500);
-    const c = b.kind === 'project' && i % 2 === 1 ? PLANET_ALT : COLORS[b.kind];
+  if (s.bodies.length > 5000) {
+    const halo = new Path2D();
+    const cores = new Map<NodeKind, Path2D>();
+    s.bodies.forEach((b, i) => {
+      const point = pos[i];
+      if (!point) return;
+      if (b.kind === 'project' || b.kind === 'person' || b.kind === 'channel') {
+        const c = b.kind === 'project' && i % 2 === 1 ? PLANET_ALT : COLORS[b.kind];
+        const g = ctx.createRadialGradient(point.x, point.y, 0, point.x, point.y, b.r * 2.6);
+        g.addColorStop(0, `rgba(${c},0.5)`);
+        g.addColorStop(1, `rgba(${c},0)`);
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, b.r * 2.6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = `rgba(${c},0.75)`;
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, b.r, 0, Math.PI * 2);
+        ctx.fill();
+        return;
+      }
+      halo.moveTo(point.x + b.r * 3.2, point.y);
+      halo.arc(point.x, point.y, b.r * 3.2, 0, Math.PI * 2);
+      let path = cores.get(b.kind);
+      if (!path) {
+        path = new Path2D();
+        cores.set(b.kind, path);
+      }
+      path.moveTo(point.x + b.r, point.y);
+      path.arc(point.x, point.y, b.r, 0, Math.PI * 2);
+    });
+    ctx.fillStyle = 'rgba(230,221,198,0.07)';
+    ctx.fill(halo);
+    for (const [kind, path] of cores) {
+      ctx.fillStyle = `rgba(${COLORS[kind]},${kind === 'satellite' ? 0.5 : 0.75})`;
+      ctx.fill(path);
+    }
+  } else {
+    s.bodies.forEach((b, i) => {
+      const point = pos[i];
+      if (!point) return;
+      const fade = b.birth === 0 ? 1 : Math.min(1, (t - b.birth) / 1500);
+      const c = b.kind === 'project' && i % 2 === 1 ? PLANET_ALT : COLORS[b.kind];
 
-    if (b.kind === 'project') {
-      const g = ctx.createRadialGradient(point.x, point.y, 0, point.x, point.y, b.r * 2.6);
-      g.addColorStop(0, `rgba(${c},${(0.5 * fade).toFixed(3)})`);
-      g.addColorStop(1, `rgba(${c},0)`);
-      ctx.fillStyle = g;
+      if (b.kind === 'project') {
+        const g = ctx.createRadialGradient(point.x, point.y, 0, point.x, point.y, b.r * 2.6);
+        g.addColorStop(0, `rgba(${c},${(0.5 * fade).toFixed(3)})`);
+        g.addColorStop(1, `rgba(${c},0)`);
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, b.r * 2.6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = `rgba(${c},${(0.75 * fade).toFixed(3)})`;
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, b.r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = `rgba(${c},${(0.14 * fade).toFixed(3)})`;
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, b.r * 1.8, 0, Math.PI * 2);
+        ctx.stroke();
+        return;
+      }
+
+      ctx.fillStyle = `rgba(${c},${(0.05 * fade).toFixed(3)})`;
       ctx.beginPath();
-      ctx.arc(point.x, point.y, b.r * 2.6, 0, Math.PI * 2);
+      ctx.arc(point.x, point.y, b.r * 3.2, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = `rgba(${c},${(0.75 * fade).toFixed(3)})`;
+      ctx.fillStyle = `rgba(${c},${((b.kind === 'satellite' ? 0.35 : 0.7) * fade).toFixed(3)})`;
       ctx.beginPath();
       ctx.arc(point.x, point.y, b.r, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = `rgba(${c},${(0.14 * fade).toFixed(3)})`;
-      ctx.beginPath();
-      ctx.arc(point.x, point.y, b.r * 1.8, 0, Math.PI * 2);
-      ctx.stroke();
-      return;
-    }
-
-    ctx.fillStyle = `rgba(${c},${(0.05 * fade).toFixed(3)})`;
-    ctx.beginPath();
-    ctx.arc(point.x, point.y, b.r * 3.2, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = `rgba(${c},${((b.kind === 'satellite' ? 0.35 : 0.7) * fade).toFixed(3)})`;
-    ctx.beginPath();
-    ctx.arc(point.x, point.y, b.r, 0, Math.PI * 2);
-    ctx.fill();
-  });
+    });
+  }
 
   ctx.restore();
 }
