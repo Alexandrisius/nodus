@@ -27,7 +27,7 @@ import { FileText } from 'lucide-react';
 
 import { formatTime } from '../../../shared/lib/format.js';
 import { useAuthStore } from '../../../shared/auth-store.js';
-import { PersonAvatar, toneOf } from '../../../shared/ui/person-avatar.js';
+import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
 import { useConversationMessages, useMessageToTask, useSendMessage } from '../api/chat-api.js';
 
 export function conversationTitle(conversation: ConversationListItem): string {
@@ -78,7 +78,7 @@ export function ChatThread({ conversation }: { conversation: ConversationListIte
                     <Message align="start" className="group/msg">
                       <PersonAvatar
                         name={message.author.displayName}
-                        className="size-8 shrink-0 self-center"
+                        className="size-8 shrink-0 self-start"
                       />
                       <MessageContent>
                         <div
@@ -91,11 +91,8 @@ export function ChatThread({ conversation }: { conversation: ConversationListIte
                             <div
                               className={cn(
                                 'mb-0.5 text-xs font-semibold',
-                                mine && 'text-cream/80',
+                                mine ? 'text-cream/80' : 'text-rust',
                               )}
-                              style={
-                                mine ? undefined : { color: toneOf(message.author.displayName).bg }
-                              }
                             >
                               {message.author.displayName}
                             </div>
