@@ -75,7 +75,7 @@ export function ChatThread({ conversation }: { conversation: ConversationListIte
                 const mine = message.author.id === me?.id;
                 return (
                   <MessageScrollerItem key={message.id}>
-                    <Message align="start" className="group/msg">
+                    <Message align="start" className="group/msg items-start">
                       <PersonAvatar
                         name={message.author.displayName}
                         className="size-8 shrink-0 self-start"

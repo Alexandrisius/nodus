@@ -40,7 +40,7 @@ export function ChatPage() {
                   className={cn(
                     'flex w-full items-center gap-3 px-3 py-2.5 text-left text-foreground/80 hover:bg-cream/10',
                     conversation.id === conversationId &&
-                      'paper-card mx-1 w-[calc(100%-0.5rem)] rounded-lg',
+                      'paper-card mx-1 w-[calc(100%-0.5rem)] rounded-lg text-card-foreground',
                   )}
                 >
                   <PersonAvatar name={conversationTitle(conversation)} className="size-10" />
