@@ -69,10 +69,11 @@ export function CommandPalette() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="overflow-hidden p-0">
+      <DialogContent className="paper-surface overflow-hidden p-0">
         <DialogTitle className="sr-only">{ui.topbar.smartSearch}</DialogTitle>
         <Command shouldFilter={false}>
           <CommandInput
+            className="pr-8"
             placeholder={ui.topbar.smartSearchHint}
             value={query}
             onValueChange={setQuery}

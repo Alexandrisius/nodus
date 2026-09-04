@@ -81,22 +81,17 @@ export function ChatThread({ conversation }: { conversation: ConversationListIte
                         className="size-8 shrink-0 self-start"
                       />
                       <MessageContent>
+                        {conversation.type !== 'direct' && (
+                          <div className="mb-1 text-xs font-medium text-foreground/70">
+                            {message.author.displayName}
+                          </div>
+                        )}
                         <div
                           className={cn(
                             'relative w-fit max-w-[70%] rounded-2xl rounded-bl-sm px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap shadow-[2px_3px_0_rgb(14_27_21/0.35)] after:absolute after:-left-1.5 after:bottom-1 after:size-3 after:bg-inherit after:[clip-path:polygon(100%_0,0_100%,100%_100%)]',
                             mine ? 'bg-sage text-cream' : 'bg-card text-card-foreground',
                           )}
                         >
-                          {conversation.type !== 'direct' && (
-                            <div
-                              className={cn(
-                                'mb-0.5 text-xs font-semibold',
-                                mine ? 'text-cream/80' : 'text-rust',
-                              )}
-                            >
-                              {message.author.displayName}
-                            </div>
-                          )}
                           {message.text}
                           {message.editedAt && (
                             <span className="ml-1 text-xs opacity-60">({ui.chat.edited})</span>
