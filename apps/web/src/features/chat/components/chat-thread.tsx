@@ -52,8 +52,8 @@ export function ChatThread({ conversation }: { conversation: ConversationListIte
   }
 
   return (
-    <div className="chat-bg flex h-full min-w-0 flex-1 flex-col">
-      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-cream/10 bg-background/70 px-4 backdrop-blur-sm">
+    <div className="flex h-full min-w-0 flex-1 flex-col bg-background/30">
+      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-cream/10 bg-background/60 px-4 backdrop-blur-sm">
         <PersonAvatar name={conversationTitle(conversation)} className="size-9" />
         <div className="min-w-0">
           <div className="truncate text-sm font-semibold">{conversationTitle(conversation)}</div>
@@ -82,7 +82,7 @@ export function ChatThread({ conversation }: { conversation: ConversationListIte
                       <MessageContent>
                         {!mine && conversation.type !== 'direct' && (
                           <MessageHeader className="gap-1">
-                            <span className="text-foreground">{message.author.displayName}</span>
+                            <span className="text-foreground/80">{message.author.displayName}</span>
                             <span>{formatTime(message.createdAt)}</span>
                           </MessageHeader>
                         )}
@@ -91,7 +91,7 @@ export function ChatThread({ conversation }: { conversation: ConversationListIte
                             className={
                               mine
                                 ? 'rounded-2xl rounded-br-md bg-tealink px-3 py-2 text-cream whitespace-pre-wrap shadow-[2px_3px_0_rgb(14_27_21/0.35)]'
-                                : 'paper-card rounded-2xl rounded-bl-md px-3 py-2 whitespace-pre-wrap'
+                                : 'rounded-2xl rounded-bl-md bg-card px-3 py-2 text-card-foreground whitespace-pre-wrap shadow-[2px_3px_0_rgb(14_27_21/0.35)]'
                             }
                           >
                             {message.text}
@@ -128,7 +128,7 @@ export function ChatThread({ conversation }: { conversation: ConversationListIte
                         )}
                         <button
                           type="button"
-                          className="mt-1 hidden items-center gap-1 text-xs text-muted-foreground hover:text-foreground group-hover/msg:flex"
+                          className="mt-1 hidden items-center gap-1 text-xs text-foreground/60 hover:text-cream group-hover/msg:flex"
                           onClick={() =>
                             toTask.mutate(
                               { conversationId: conversation.id, messageId: message.id },
@@ -160,7 +160,7 @@ export function ChatThread({ conversation }: { conversation: ConversationListIte
 
       <form
         onSubmit={onSubmit}
-        className="flex shrink-0 items-end gap-2 border-t border-cream/10 bg-background/70 p-3 backdrop-blur-sm"
+        className="flex shrink-0 items-end gap-2 border-t border-cream/10 bg-background/60 p-3 backdrop-blur-sm"
       >
         <Textarea
           value={text}

@@ -55,8 +55,8 @@ export function TaskCard({ taskId }: { taskId: string }) {
   }
 
   return (
-    <div className="h-full overflow-y-auto">
-      <div className="p-5">
+    <div className="grid h-full grid-cols-[380px_minmax(0,1fr)_300px]">
+      <div className="paper-surface min-h-0 overflow-y-auto border-r p-5">
         <div className="flex flex-wrap items-center gap-2">
           <TaskStatusBadge stage={task.stage} />
           <Badge variant="outline">{ui.tasks.priority[task.priority]}</Badge>
@@ -168,7 +168,7 @@ export function TaskCard({ taskId }: { taskId: string }) {
         )}
       </div>
 
-      <div className="h-96 border-y border-pencil/30">
+      <div className="min-h-0">
         <TaskDiscussion taskId={taskId} />
       </div>
 

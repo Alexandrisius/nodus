@@ -178,8 +178,8 @@
     content: '';
     z-index: -1;
     position: absolute;
-    inset: -4px;
-    border-radius: 1rem 0.7rem 0.95rem 0.75rem / 0.75rem 1rem 0.7rem 0.95rem;
+    inset: -2px;
+    border-radius: 0.95rem 0.75rem 0.9rem 0.8rem / 0.8rem 0.95rem 0.75rem 0.9rem;
     background-color: var(--card);
     background-image:
       radial-gradient(ellipse at 50% 30%, rgb(0 0 0 / 0) 62%, rgb(96 70 34 / 0.14) 100%),
@@ -247,15 +247,6 @@
     repeating-linear-gradient(112deg, rgb(0 0 0 / 0.06) 0 1.5px, rgb(0 0 0 / 0) 1.5px 5px),
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='c'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.5' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23c)' opacity='0.28'/%3E%3C/svg%3E");
   background-blend-mode: multiply;
-}
-
-/* Фон треда мессенджера: глубокий чернильный с редким «дудл»-узором, как
- * подложка в Телеграме, — пузыри читаются контрастно. */
-@utility chat-bg {
-  background-color: #0c262b;
-  background-image:
-    radial-gradient(ellipse at 50% 20%, rgb(0 0 0 / 0) 55%, rgb(0 0 0 / 0.35) 100%),
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cg fill='none' stroke='%23e6ddc6' stroke-opacity='0.06' stroke-width='1.5'%3E%3Ccircle cx='22' cy='30' r='7'/%3E%3Cpath d='M92 18l9 15h-18z'/%3E%3Cpath d='M70 88l9 5v11l-9 5-9-5v-11z'/%3E%3Cpath d='M18 108q7-9 14 0t14 0'/%3E%3Cpath d='M112 62l3 7 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1z'/%3E%3C/g%3E%3C/svg%3E");
 }
 
 /* Бумажная поверхность (панели, списки): переопределяет вложенные токены,

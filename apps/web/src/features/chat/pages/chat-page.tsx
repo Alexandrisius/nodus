@@ -20,9 +20,9 @@ export function ChatPage() {
 
   return (
     <div className="relative flex h-full">
-      <aside className="paper-surface flex w-80 shrink-0 flex-col border-r">
+      <aside className="flex w-80 shrink-0 flex-col border-r border-cream/10 bg-background/55 backdrop-blur-sm">
         <header className="flex h-14 shrink-0 items-center px-4">
-          <h1 className="text-lg font-semibold">{ui.chat.title}</h1>
+          <h1 className="text-lg font-semibold text-foreground">{ui.chat.title}</h1>
         </header>
         <div className="min-h-0 flex-1 overflow-y-auto">
           {isLoading
@@ -38,8 +38,9 @@ export function ChatPage() {
                     })
                   }
                   className={cn(
-                    'flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-accent/60',
-                    conversation.id === conversationId && 'bg-accent',
+                    'flex w-full items-center gap-3 px-3 py-2.5 text-left text-foreground/80 hover:bg-cream/10',
+                    conversation.id === conversationId &&
+                      'paper-card mx-1 w-[calc(100%-0.5rem)] rounded-lg',
                   )}
                 >
                   <PersonAvatar name={conversationTitle(conversation)} className="size-10" />
@@ -59,7 +60,7 @@ export function ChatPage() {
                         {conversation.lastMessage?.text ?? ui.common.empty}
                       </span>
                       {conversation.unreadCount > 0 && (
-                        <Badge variant="secondary" className="bg-info-soft text-info">
+                        <Badge variant="secondary" className="bg-rust text-cream">
                           {conversation.unreadCount}
                         </Badge>
                       )}
@@ -73,7 +74,7 @@ export function ChatPage() {
       {active ? (
         <ChatThread conversation={active} />
       ) : (
-        <div className="chat-bg flex flex-1 items-center justify-center text-foreground">
+        <div className="flex flex-1 items-center justify-center text-foreground">
           <Empty>
             <EmptyTitle>{ui.chat.conversations}</EmptyTitle>
           </Empty>

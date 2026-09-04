@@ -7,9 +7,9 @@ import { cn } from '@nodus/ui/lib/utils';
 /** Стек слайдеров: ESC закрывает только верхнюю панель (§10.2). */
 const stack: string[] = [];
 
-/** Детальная панель — как в Битриксе: вертикальная бумажная панель слева
- * (~620px, во всю высоту), кнопки управления и закрытие — слева вверху;
- * уровень 2 сдвигается вправо, оставляя край нижней панели. */
+/** Детальная панель — большой sheet снизу вверх (референс: Битрикс): во всю
+ * ширину с полями и отступом сверху, чтобы каркас оставался виден; кнопки
+ * управления и закрытие — слева вверху. Уровень 2 уходит глубже вниз-вправо. */
 export function SliderPanel({
   breadcrumbs,
   level = 1,
@@ -43,8 +43,8 @@ export function SliderPanel({
         role="dialog"
         aria-modal="true"
         className={cn(
-          'paper-surface animate-in slide-in-from-left absolute inset-y-0 left-0 flex w-[620px] max-w-[88%] flex-col shadow-2xl duration-300',
-          level === 2 && 'left-16',
+          'paper-surface animate-in slide-in-from-bottom absolute inset-x-3 bottom-0 top-10 flex flex-col rounded-t-2xl shadow-2xl duration-300',
+          level === 2 && 'inset-x-10 top-16',
         )}
       >
         <header className="flex h-12 shrink-0 items-center gap-2 border-b border-pencil/30 px-3">
