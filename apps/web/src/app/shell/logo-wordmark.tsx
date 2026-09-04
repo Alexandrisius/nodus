@@ -9,7 +9,11 @@ export function LogoWordmark({ className }: { className?: string }) {
       className={`flex items-center font-bold tracking-[0.05em] whitespace-nowrap select-none ${className ?? ''}`}
     >
       N
-      <svg viewBox="0 0 64 64" className="mx-0.5 size-[1.15em] shrink-0" aria-hidden="true">
+      <svg
+        viewBox="0 0 64 64"
+        className="size-[1.15em] shrink-0 -ml-[0.1em] -mr-[0.04em]"
+        aria-hidden="true"
+      >
         <polygon
           points="32,6 54.5,19 54.5,45 32,58 9.5,45 9.5,19"
           fill="none"

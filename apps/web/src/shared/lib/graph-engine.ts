@@ -53,7 +53,6 @@ export function startGraph(canvas: HTMLCanvasElement, graph: CompanyGraph): () =
   let w = 0;
   let h = 0;
   let raf = 0;
-  let settle = SETTLE_TICKS;
   let frozen = false;
   let lastPulse = 0;
   let lastGrow = 0;
@@ -163,11 +162,6 @@ export function startGraph(canvas: HTMLCanvasElement, graph: CompanyGraph): () =
   };
 
   const frame = (t: number) => {
-    if (!frozen) {
-      for (let k = 0; k < 4 && settle > 0; k++, settle--) tick();
-      if (settle === 0) freeze();
-    }
-
     px += (tx - px) * 0.02;
     py += (ty - py) * 0.02;
 
@@ -188,10 +182,10 @@ export function startGraph(canvas: HTMLCanvasElement, graph: CompanyGraph): () =
 
   resize();
   seedPositions();
+  for (let i = 0; i < SETTLE_TICKS; i++) tick();
+  freeze();
 
   if (reduced) {
-    for (let i = 0; i < SETTLE_TICKS; i++) tick();
-    freeze();
     paint(ctx, { bodies, edges, pulses, stars, w, h, frozen, px, py }, 0);
   } else {
     raf = requestAnimationFrame(frame);

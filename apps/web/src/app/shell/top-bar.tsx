@@ -92,9 +92,10 @@ export function TopBar() {
             to={section.to}
             search={section.search}
             className={cn(
-              'relative flex h-9 items-center rounded-lg border px-4 text-sm font-medium',
-              'border-transparent text-foreground/60 hover:text-foreground',
-              section.isActive(search) && 'paper-card text-card-foreground',
+              'relative flex h-9 items-center rounded-lg border border-transparent px-4 text-sm font-medium',
+              section.isActive(search)
+                ? 'paper-card text-card-foreground'
+                : 'text-foreground/60 hover:text-foreground',
             )}
           >
             {section.label}
@@ -112,87 +113,89 @@ export function TopBar() {
       <button
         type="button"
         onClick={() => setCommandOpen(true)}
-        className="flex h-9 w-56 items-center gap-2 rounded-lg border border-border bg-background/60 px-3 text-sm text-foreground/50 hover:border-foreground/30"
+        className="flex h-9 w-96 max-w-[38vw] shrink-0 items-center gap-2 rounded-lg border border-border bg-background/60 px-3 text-sm text-foreground/50 hover:border-foreground/30"
       >
         <Search className="size-4" />
         <span className="flex-1 truncate text-left">{ui.topbar.smartSearch}</span>
         <kbd className="rounded border border-border px-1.5 text-xs">{ui.topbar.searchHint}</kbd>
       </button>
 
-      <span className="flex h-9 items-center rounded-lg border border-border px-2.5 text-xs font-semibold text-foreground/70">
-        RU
-      </span>
+      <div className="flex min-w-0 flex-1 items-center justify-end gap-3">
+        <span className="flex h-9 items-center rounded-lg border border-border px-2.5 text-xs font-semibold text-foreground/70">
+          RU
+        </span>
 
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label={ui.topbar.theme}
-            className="relative text-foreground/70 hover:bg-accent hover:text-foreground"
-          >
-            <Palette />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuLabel>{ui.topbar.theme}</DropdownMenuLabel>
-          <DropdownMenuGroup>
-            {themes.map((t) => (
-              <DropdownMenuItem key={t.id} onClick={() => setTheme(t.id)}>
-                {theme === t.id && <Check data-icon="inline-start" />}
-                {t.label}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={ui.topbar.theme}
+              className="relative text-foreground/70 hover:bg-accent hover:text-foreground"
+            >
+              <Palette />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel>{ui.topbar.theme}</DropdownMenuLabel>
+            <DropdownMenuGroup>
+              {themes.map((t) => (
+                <DropdownMenuItem key={t.id} onClick={() => setTheme(t.id)}>
+                  {theme === t.id && <Check data-icon="inline-start" />}
+                  {t.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={ui.topbar.notifications}
+              className="relative text-foreground/70 hover:bg-accent hover:text-foreground"
+            >
+              <Bell />
+              <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-rust" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-72">
+            <DropdownMenuLabel>{ui.topbar.notifications}</DropdownMenuLabel>
+            <div className="px-3 py-6 text-center text-sm text-muted-foreground">
+              {ui.topbar.notificationsEmpty}
+            </div>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <Button className="gap-1.5 bg-rust text-cream shadow-none hover:bg-rust/90">
+          <Plus data-icon="inline-start" />
+          {ui.topbar.create}
+        </Button>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              aria-label={ui.topbar.profile}
+              className="flex items-center gap-2 rounded-lg p-1 hover:bg-accent"
+            >
+              <PersonAvatar name={user?.displayName ?? ''} className="size-8" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel>{user?.displayName}</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuGroup>
+              <DropdownMenuItem onClick={() => void logout()}>
+                <LogOut data-icon="inline-start" />
+                {ui.topbar.logout}
               </DropdownMenuItem>
-            ))}
-          </DropdownMenuGroup>
-        </DropdownMenuContent>
-      </DropdownMenu>
-
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label={ui.topbar.notifications}
-            className="relative text-foreground/70 hover:bg-accent hover:text-foreground"
-          >
-            <Bell />
-            <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-rust" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-72">
-          <DropdownMenuLabel>{ui.topbar.notifications}</DropdownMenuLabel>
-          <div className="px-3 py-6 text-center text-sm text-muted-foreground">
-            {ui.topbar.notificationsEmpty}
-          </div>
-        </DropdownMenuContent>
-      </DropdownMenu>
-
-      <Button className="gap-1.5 bg-rust text-cream shadow-none hover:bg-rust/90">
-        <Plus data-icon="inline-start" />
-        {ui.topbar.create}
-      </Button>
-
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button
-            type="button"
-            aria-label={ui.topbar.profile}
-            className="flex items-center gap-2 rounded-lg p-1 hover:bg-accent"
-          >
-            <PersonAvatar name={user?.displayName ?? ''} className="size-8" />
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuLabel>{user?.displayName}</DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          <DropdownMenuGroup>
-            <DropdownMenuItem onClick={() => void logout()}>
-              <LogOut data-icon="inline-start" />
-              {ui.topbar.logout}
-            </DropdownMenuItem>
-          </DropdownMenuGroup>
-        </DropdownMenuContent>
-      </DropdownMenu>
+            </DropdownMenuGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </header>
   );
 }

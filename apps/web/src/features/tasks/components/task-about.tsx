@@ -47,7 +47,7 @@ export function TaskAbout({ task }: { task: TaskDetail }) {
   ];
 
   return (
-    <aside className="paper-surface flex min-h-0 flex-col gap-3 overflow-y-auto border-l p-4">
+    <aside className="flex flex-col gap-3 p-4">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold">{ui.tasks.aboutTask}</h3>
         <button

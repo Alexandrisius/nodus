@@ -52,8 +52,8 @@ export function ChatThread({ conversation }: { conversation: ConversationListIte
   }
 
   return (
-    <div className="flex h-full min-w-0 flex-1 flex-col">
-      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-background/60 px-4">
+    <div className="chat-bg flex h-full min-w-0 flex-1 flex-col">
+      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-cream/10 bg-background/70 px-4 backdrop-blur-sm">
         <PersonAvatar name={conversationTitle(conversation)} className="size-9" />
         <div className="min-w-0">
           <div className="truncate text-sm font-semibold">{conversationTitle(conversation)}</div>
@@ -80,18 +80,27 @@ export function ChatThread({ conversation }: { conversation: ConversationListIte
                         <PersonAvatar name={message.author.displayName} className="size-8" />
                       )}
                       <MessageContent>
-                        {!mine && (
+                        {!mine && conversation.type !== 'direct' && (
                           <MessageHeader className="gap-1">
                             <span className="text-foreground">{message.author.displayName}</span>
                             <span>{formatTime(message.createdAt)}</span>
                           </MessageHeader>
                         )}
-                        <Bubble variant={mine ? 'default' : 'outline'}>
-                          <BubbleContent className="whitespace-pre-wrap">
+                        <Bubble variant="ghost">
+                          <BubbleContent
+                            className={
+                              mine
+                                ? 'rounded-2xl rounded-br-md bg-tealink px-3 py-2 text-cream whitespace-pre-wrap shadow-[2px_3px_0_rgb(14_27_21/0.35)]'
+                                : 'paper-card rounded-2xl rounded-bl-md px-3 py-2 whitespace-pre-wrap'
+                            }
+                          >
                             {message.text}
                             {message.editedAt && (
                               <span className="ml-1 text-xs opacity-60">({ui.chat.edited})</span>
                             )}
+                            <span className="ml-2 text-[10px] opacity-60">
+                              {formatTime(message.createdAt)}
+                            </span>
                           </BubbleContent>
                           {message.reactions.length > 0 && (
                             <BubbleReactions align={mine ? 'end' : 'start'}>
@@ -151,7 +160,7 @@ export function ChatThread({ conversation }: { conversation: ConversationListIte
 
       <form
         onSubmit={onSubmit}
-        className="flex shrink-0 items-end gap-2 border-t border-border bg-background/60 p-3"
+        className="flex shrink-0 items-end gap-2 border-t border-cream/10 bg-background/70 p-3 backdrop-blur-sm"
       >
         <Textarea
           value={text}

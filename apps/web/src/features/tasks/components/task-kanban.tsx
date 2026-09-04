@@ -45,7 +45,7 @@ export function TaskKanban({ items }: { items?: TaskListItem[] }) {
               {stage.name}
               <span className="text-xs font-normal opacity-70 tabular-nums">{cards.length}</span>
             </header>
-            <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pb-2">
+            <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overflow-x-hidden px-1 pb-2">
               {cards.map((task) => (
                 <TaskKanbanCard key={task.id} task={task} />
               ))}

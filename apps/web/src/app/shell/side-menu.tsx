@@ -63,7 +63,7 @@ export function SideMenu() {
   return (
     <aside
       className={cn(
-        'flex h-full shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-[width] duration-200',
+        'flex h-full shrink-0 flex-col border-r border-sidebar-border bg-sidebar/70 text-sidebar-foreground backdrop-blur-[2px] transition-[width] duration-200',
         collapsed ? 'w-20' : 'w-60',
       )}
     >

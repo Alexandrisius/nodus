@@ -73,7 +73,7 @@ export function ChatPage() {
       {active ? (
         <ChatThread conversation={active} />
       ) : (
-        <div className="flex flex-1 items-center justify-center text-foreground">
+        <div className="chat-bg flex flex-1 items-center justify-center text-foreground">
           <Empty>
             <EmptyTitle>{ui.chat.conversations}</EmptyTitle>
           </Empty>

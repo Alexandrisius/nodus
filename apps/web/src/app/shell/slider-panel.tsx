@@ -7,8 +7,9 @@ import { cn } from '@nodus/ui/lib/utils';
 /** Стек слайдеров: ESC закрывает только верхнюю панель (§10.2). */
 const stack: string[] = [];
 
-/** Детальная панель — общий для всех сущностей sheet снизу вверх во всю
- * высоту поверх каркаса, на «бумаге»; уровень 2 оставляет слева край нижнего. */
+/** Детальная панель — как в Битриксе: вертикальная бумажная панель слева
+ * (~620px, во всю высоту), кнопки управления и закрытие — слева вверху;
+ * уровень 2 сдвигается вправо, оставляя край нижней панели. */
 export function SliderPanel({
   breadcrumbs,
   level = 1,
@@ -42,23 +43,23 @@ export function SliderPanel({
         role="dialog"
         aria-modal="true"
         className={cn(
-          'paper-surface animate-in slide-in-from-bottom absolute inset-0 flex flex-col border-t shadow-2xl duration-300',
-          level === 2 && 'left-[8%]',
+          'paper-surface animate-in slide-in-from-left absolute inset-y-0 left-0 flex w-[620px] max-w-[88%] flex-col shadow-2xl duration-300',
+          level === 2 && 'left-16',
         )}
       >
-        <header className="flex h-12 shrink-0 items-center gap-2 border-b border-pencil/30 px-4">
-          <nav className="flex min-w-0 items-center gap-1.5 text-sm text-card-foreground/60">
-            {breadcrumbs}
-          </nav>
+        <header className="flex h-12 shrink-0 items-center gap-2 border-b border-pencil/30 px-3">
           <Button
             variant="ghost"
             size="icon"
-            className="ml-auto hover:bg-pencil/10"
+            className="shrink-0 hover:bg-pencil/10"
             onClick={onClose}
             aria-label={ui.common.close}
           >
             <X />
           </Button>
+          <nav className="flex min-w-0 items-center gap-1.5 text-sm text-card-foreground/60">
+            {breadcrumbs}
+          </nav>
         </header>
         <div className="min-h-0 flex-1 overflow-hidden">{children}</div>
       </section>

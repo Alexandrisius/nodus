@@ -40,7 +40,7 @@ export function PersonAvatar({
     <Avatar className={cn('size-8 ring-1 ring-black/25', className)}>
       {avatarUrl ? <AvatarImage src={avatarUrl} alt={name} /> : null}
       <AvatarFallback
-        className="text-xs font-semibold"
+        className="crayon-fill text-xs font-semibold"
         style={{ backgroundColor: tone.bg, color: tone.fg }}
       >
         {initialsOf(name)}
