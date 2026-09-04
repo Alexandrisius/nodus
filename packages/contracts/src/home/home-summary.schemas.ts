@@ -17,7 +17,6 @@ export type BirthdayEntry = z.infer<typeof birthdayEntrySchema>;
 export const companyStatsSchema = z.object({
   employeeCount: z.number().int().min(0),
   projectsDone: z.number().int().min(0),
-  revenueByn: z.number().min(0),
   dataNodes: z.number().int().min(0),
 });
 

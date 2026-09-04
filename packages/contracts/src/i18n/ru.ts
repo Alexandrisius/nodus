@@ -86,7 +86,6 @@ export const ui = {
     greetEvening: 'Добрый вечер',
     statsEmployees: 'Сотрудников',
     statsProjectsDone: 'Проектов завершено',
-    statsRevenue: 'Выручка за год',
     statsDataNodes: 'Узлов данных накоплено',
     newsTitle: 'Новости компании',
     birthdays: 'Дни рождения',

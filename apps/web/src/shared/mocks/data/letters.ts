@@ -114,7 +114,7 @@ const letterBodies: Record<string, Pick<LetterDetail, 'body' | 'attachments' | '
       {
         id: '90000000-0000-4000-8000-000000000001',
         text: 'Александру: подготовить ответ заказчику по замечаниям, срок — до конца недели.',
-        author: userRef(userIds.director),
+        author: userRef(userIds.klimovich),
         taskId: tid(5),
         createdAt: isoAgo(2, 9, 0),
       },

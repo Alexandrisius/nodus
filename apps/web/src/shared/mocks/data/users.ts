@@ -5,16 +5,16 @@ import type { AuthUser, PresenceEntry, UserListItem, UserRef } from '@nodus/cont
 const uid = (n: number): string => `10000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 
 export const userIds = {
-  director: uid(1),
-  secretary: uid(2),
-  bimLead: uid(3),
-  hrLead: uid(4),
-  engineer1: uid(5),
-  engineer2: uid(6),
-  hr: uid(7),
-  engineer3: uid(8),
-  architect: uid(9),
-  bimEngineer: uid(10),
+  klimovich: uid(1),
+  polomar: uid(2),
+  klevantovich: uid(3),
+  voronina: uid(4),
+  matorin: uid(5),
+  karpovich: uid(6),
+  shaiderova: uid(7),
+  kuralenya: uid(8),
+  vinnichek: uid(9),
+  akulich: uid(10),
 };
 
 function mk(
@@ -38,16 +38,16 @@ function mk(
 }
 
 export const demoUserListItems: UserListItem[] = [
-  mk(1, 'Александр Климович', 'Директор', 'Руководство', null),
-  mk(2, 'Екатерина Поломар', 'Секретарь канцелярии', 'Канцелярия', 1),
+  mk(1, 'Александр Климович', 'БИМ-менеджер', 'BIM-отдел', 7),
+  mk(2, 'Екатерина Поломар', 'Инженер-проектировщик', 'BIM-отдел', 1),
   mk(3, 'Денис Клевантович', 'Главный специалист BIM', 'BIM-отдел', 1),
-  mk(4, 'Алина Воронина', 'Главный специалист', 'Отдел кадров', 1),
-  mk(5, 'Артём Маторин', 'Инженер-проектировщик', 'Конструкторский отдел', 3),
-  mk(6, 'Ольга Карпович', 'Инженер-проектировщик', 'Конструкторский отдел', 9),
-  mk(7, 'Валерия Шайдерова', 'Специалист по кадрам', 'Отдел кадров', 4),
-  mk(8, 'Андрей Кураленя', 'Инженер-проектировщик', 'Конструкторский отдел', 9),
-  mk(9, 'Полина Винничек', 'Архитектор', 'Архитектурный отдел', 1),
-  mk(10, 'Михаил Акулич', 'Инженер-проектировщик', 'BIM-отдел', 3),
+  mk(4, 'Алина Воронина', 'Инженер-проектировщик', 'BIM-отдел', 1),
+  mk(5, 'Артём Маторин', 'Инженер-проектировщик', 'BIM-отдел', 1),
+  mk(6, 'Ольга Карпович', 'Специалист по кадрам', 'Отдел кадров', 7),
+  mk(7, 'Валерия Шайдерова', 'Директор', 'Руководство', null),
+  mk(8, 'Андрей Кураленя', 'Инженер-проектировщик', 'Архитектурный отдел', 9),
+  mk(9, 'Полина Винничек', 'Главный архитектор', 'Архитектурный отдел', 7),
+  mk(10, 'Михаил Акулич', 'Инженер-проектировщик', 'Архитектурный отдел', 9),
 ];
 
 export function userRef(id: string): UserRef {
@@ -56,8 +56,8 @@ export function userRef(id: string): UserRef {
   return { id: item.id, displayName: item.displayName, avatarUrl: item.avatarUrl };
 }
 
-const me = demoUserListItems.find((u) => u.id === userIds.director);
-if (!me) throw new Error('Демо-справочник: директор не найден');
+const me = demoUserListItems.find((u) => u.id === userIds.klimovich);
+if (!me) throw new Error('Демо-справочник: текущий пользователь не найден');
 
 export const currentAuthUser: AuthUser = {
   id: me.id,
@@ -67,12 +67,12 @@ export const currentAuthUser: AuthUser = {
 };
 
 export const demoPresence: PresenceEntry[] = [
-  { user: userRef(userIds.bimLead), status: 'online' },
-  { user: userRef(userIds.engineer1), status: 'online' },
-  { user: userRef(userIds.engineer2), status: 'online' },
-  { user: userRef(userIds.architect), status: 'online' },
-  { user: userRef(userIds.bimEngineer), status: 'online' },
-  { user: userRef(userIds.secretary), status: 'online' },
-  { user: userRef(userIds.hrLead), status: 'away' },
-  { user: userRef(userIds.hr), status: 'offline' },
+  { user: userRef(userIds.klevantovich), status: 'online' },
+  { user: userRef(userIds.matorin), status: 'online' },
+  { user: userRef(userIds.karpovich), status: 'online' },
+  { user: userRef(userIds.vinnichek), status: 'online' },
+  { user: userRef(userIds.akulich), status: 'online' },
+  { user: userRef(userIds.polomar), status: 'online' },
+  { user: userRef(userIds.voronina), status: 'away' },
+  { user: userRef(userIds.shaiderova), status: 'offline' },
 ];

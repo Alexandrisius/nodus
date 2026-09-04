@@ -24,9 +24,6 @@ export function HomeNews({
 }) {
   return (
     <section className="flex flex-col gap-5">
-      <h2 className="text-sm font-semibold tracking-wider text-foreground/60 uppercase">
-        {ui.home.newsTitle}
-      </h2>
       {news.map((item) => (
         <article key={item.id} className="paper-card sketch-tilt p-5">
           <button

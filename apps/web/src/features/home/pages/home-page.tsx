@@ -53,12 +53,17 @@ export function HomePage() {
       ) : (
         <div className="flex flex-col gap-6 p-6">
           <HomeStats stats={data.stats} />
-          <div className="grid grid-cols-[minmax(0,1fr)_340px] items-start gap-6">
-            <HomeNews news={data.news} onOpen={setReaderItem} />
-            <div className="flex flex-col gap-5">
-              <HomeLabor weeks={data.labor.weeks} />
-              <HomeTopOvertime entries={data.labor.topOvertime} />
-              <HomeBirthdays birthdays={data.birthdays} />
+          <div>
+            <h2 className="text-sm font-semibold tracking-wider text-foreground/60 uppercase">
+              {ui.home.newsTitle}
+            </h2>
+            <div className="mt-4 grid grid-cols-[minmax(0,1fr)_340px] items-start gap-6">
+              <HomeNews news={data.news} onOpen={setReaderItem} />
+              <div className="flex flex-col gap-5">
+                <HomeLabor weeks={data.labor.weeks} />
+                <HomeTopOvertime entries={data.labor.topOvertime} />
+                <HomeBirthdays birthdays={data.birthdays} />
+              </div>
             </div>
           </div>
         </div>

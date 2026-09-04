@@ -1,4 +1,4 @@
-import { Banknote, CheckCircle2, Database, Users } from 'lucide-react';
+import { CheckCircle2, Database, Users } from 'lucide-react';
 import type { CompanyStats } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { cn } from '@nodus/ui/lib/utils';
@@ -31,10 +31,10 @@ function StatCard({
   );
 }
 
-/** Показатели компании на главной: люди, проекты, выручка, накопленные данные. */
+/** Показатели компании на главной: люди, проекты, накопленные данные. */
 export function HomeStats({ stats }: { stats: CompanyStats }) {
   return (
-    <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+    <div className="grid grid-cols-3 gap-4">
       <StatCard
         icon={<Users className="size-4" />}
         tone="bg-tealink/15 text-tealink"
@@ -46,12 +46,6 @@ export function HomeStats({ stats }: { stats: CompanyStats }) {
         tone="bg-sage/20 text-sage"
         label={ui.home.statsProjectsDone}
         value={nf.format(stats.projectsDone)}
-      />
-      <StatCard
-        icon={<Banknote className="size-4" />}
-        tone="bg-ochre/20 text-ochre"
-        label={ui.home.statsRevenue}
-        value={`${nf.format(Math.round(stats.revenueByn / 1_000_000))} млн BYN`}
       />
       <StatCard
         icon={<Database className="size-4" />}

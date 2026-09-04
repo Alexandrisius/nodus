@@ -16,7 +16,7 @@ export function makeSubtask(parent: TaskListItem, title: string): TaskListItem {
     stage: stageNew,
     priority: 'normal',
     deadline: null,
-    creator: userRef(userIds.director),
+    creator: userRef(userIds.klimovich),
     assignee: parent.assignee,
     participants: [],
     project: parent.project,
@@ -45,7 +45,7 @@ const detailsExtra: Record<
   [tid(2)]: {
     description:
       'Построить модель 3D по результатам лазерного сканирования: корпус Б, отметки 0.000–+6.000. Источник — облако точек в общем хранилище.',
-    observers: [userRef(userIds.engineer2)],
+    observers: [userRef(userIds.karpovich)],
     checklist: [
       { id: '50000000-0000-4000-8000-000000000001', text: 'Выгрузить облако точек', done: true },
       { id: '50000000-0000-4000-8000-000000000002', text: 'Каркас и колонны', done: false },
@@ -71,7 +71,7 @@ export const demoTaskMessages: ChatMessage[] = [
   {
     id: mid(1),
     conversationId: tid(2),
-    author: userRef(userIds.bimLead),
+    author: userRef(userIds.klevantovich),
     text: 'Облако точек выгрузил, качество хорошее. Берись за каркас.',
     replyToId: null,
     threadRootId: null,
@@ -84,7 +84,7 @@ export const demoTaskMessages: ChatMessage[] = [
   {
     id: mid(2),
     conversationId: tid(2),
-    author: userRef(userIds.director),
+    author: userRef(userIds.klimovich),
     text: 'Принял. К пятнице покажу колонны и балки.',
     replyToId: mid(1),
     threadRootId: null,
@@ -97,7 +97,7 @@ export const demoTaskMessages: ChatMessage[] = [
   {
     id: mid(3),
     conversationId: tid(2),
-    author: userRef(userIds.engineer2),
+    author: userRef(userIds.karpovich),
     text: 'Подскажите, по осям 4–7 расхождения с КЖ, приложила скрин.',
     replyToId: null,
     threadRootId: null,
