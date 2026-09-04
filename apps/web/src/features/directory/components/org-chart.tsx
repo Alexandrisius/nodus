@@ -20,7 +20,7 @@ function jitter(seed: string, salt: number): number {
 export function OrgChart({ people }: { people: UserListItem[] }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const nodeRefs = useRef(new Map<string, HTMLDivElement>());
-  const [edges, setEdges] = useState<Array<{ d: string; key: string }>>([]);
+  const [edges, setEdges] = useState<Array<{ d: string; arrow: string; key: string }>>([]);
 
   const { levels, parentOf } = useMemo(() => {
     const byId = new Map(people.map((p) => [p.id, p]));
@@ -60,7 +60,7 @@ export function OrgChart({ people }: { people: UserListItem[] }) {
           h: rect.height,
         });
       }
-      const next: Array<{ d: string; key: string }> = [];
+      const next: Array<{ d: string; arrow: string; key: string }> = [];
       for (const person of people) {
         const managerId = parentOf.get(person.id);
         if (!managerId) continue;
@@ -71,7 +71,8 @@ export function OrgChart({ people }: { people: UserListItem[] }) {
         const y1 = to.y + 2;
         const jx = jitter(person.id, 7);
         const d = `M ${from.x + jx} ${y0} C ${from.x + jx} ${y0 + 22}, ${to.x + jx} ${y1 - 24}, ${to.x} ${y1}`;
-        next.push({ d, key: person.id });
+        const arrow = `M ${to.x - 5} ${y1 - 9} L ${to.x} ${y1 - 1} L ${to.x + 5} ${y1 - 9}`;
+        next.push({ d, arrow, key: person.id });
       }
       setEdges((prev) =>
         prev.length === next.length && prev.every((e, i) => e?.d === next[i]?.d) ? prev : next,
@@ -87,15 +88,18 @@ export function OrgChart({ people }: { people: UserListItem[] }) {
     <div ref={rootRef} className="relative flex flex-col gap-12 py-6">
       <svg className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden="true">
         {edges.map((edge) => (
-          <path
+          <g
             key={edge.key}
-            d={edge.d}
             fill="none"
-            stroke="var(--pencil)"
+            stroke="var(--foreground)"
             strokeOpacity="0.55"
-            strokeWidth="1.4"
-            strokeDasharray="7 5"
-          />
+            strokeWidth="1.7"
+            strokeLinecap="round"
+            style={{ filter: 'url(#rough-sm)' }}
+          >
+            <path d={edge.d} />
+            <path d={edge.arrow} />
+          </g>
         ))}
       </svg>
       {levels.map((level, levelIndex) => (

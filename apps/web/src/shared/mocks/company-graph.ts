@@ -64,7 +64,7 @@ export function buildCompanyGraph(): CompanyGraph {
   for (let i = 0; i < realCount; i++) {
     const parent = nodes[i];
     if (!parent || parent.kind === 'external') continue;
-    const sats = parent.kind === 'project' ? 3 : 2;
+    const sats = parent.kind === 'project' ? 4 : 3;
     for (let s = 0; s < sats; s++) {
       nodes.push({ kind: 'satellite', r: 0.9 + Math.random() * 0.9 });
       edges.push([i, nodes.length - 1]);

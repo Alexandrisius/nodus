@@ -42,7 +42,7 @@ export function startGraph(canvas: HTMLCanvasElement, graph: CompanyGraph): () =
   }));
   const edges: Array<[number, number]> = [...graph.edges];
   const pulses: Pulse[] = [];
-  const stars: Star[] = Array.from({ length: 150 }, () => ({
+  const stars: Star[] = Array.from({ length: 240 }, () => ({
     x: rand(),
     y: rand(),
     r: 0.4 + rand() * 0.9,
@@ -72,10 +72,8 @@ export function startGraph(canvas: HTMLCanvasElement, graph: CompanyGraph): () =
 
   const seedPositions = () => {
     for (const b of bodies) {
-      const a = rand() * Math.PI * 2;
-      const d = 40 + rand() * Math.min(w, h) * 0.45;
-      b.x = w / 2 + Math.cos(a) * d * 1.5;
-      b.y = h / 2 + Math.sin(a) * d * 0.8;
+      b.x = w * (0.06 + rand() * 0.88);
+      b.y = h * (0.1 + rand() * 0.8);
     }
   };
 
@@ -118,8 +116,8 @@ export function startGraph(canvas: HTMLCanvasElement, graph: CompanyGraph): () =
       b.vy -= dy * f;
     }
     for (const b of bodies) {
-      b.vx += (w / 2 - b.x) * 0.0016;
-      b.vy += (h / 2 - b.y) * 0.0022;
+      b.vx += (w / 2 - b.x) * 0.0006;
+      b.vy += (h / 2 - b.y) * 0.0016;
       b.vx *= 0.86;
       b.vy *= 0.86;
       b.x += b.vx;
