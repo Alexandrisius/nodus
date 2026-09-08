@@ -21,10 +21,34 @@ import { LogoWordmark } from './logo-wordmark.js';
 
 /** Ось шины в px от левого края рейки (импортируется NavigationFlash). */
 export const RAIL_TRUNK_X = 24;
-/** Длина отвода от шины до порта модуля. */
-const BRANCH_W = 16;
+/** Центр порта модуля (конец отвода). */
+const PORT_X = 42;
 const PORT = 9;
-const PORT_X = RAIL_TRUNK_X + BRANCH_W;
+/** Отступ контента ряда от порта. */
+const CONTENT_X = 60;
+/** Геометрия рядов: h-10 + gap-0.5 → шаг 42, центр первого ряда 20. */
+const ROW_STRIDE = 42;
+const ROW_CENTER = 20;
+
+/** Хребет секции: шина от первого порта к последнему + скруглённые локтем
+ * отводы к каждому порту (вертикаль → закругление → вход в ряд, как на рефе). */
+function spinePath(count: number): string {
+  const centers = Array.from({ length: count }, (_, i) => ROW_CENTER + i * ROW_STRIDE);
+  const first = centers[0];
+  const last = centers[centers.length - 1];
+  if (first === undefined || last === undefined) return '';
+  const parts = [`M${RAIL_TRUNK_X},${first - 10} V${last}`];
+  for (const yc of centers) {
+    parts.push(`M${RAIL_TRUNK_X},${yc - 10} Q${RAIL_TRUNK_X},${yc} 34,${yc} H37.5`);
+  }
+  return parts.join(' ');
+}
+
+/** Отвод активного модуля — подсвечен отдельным слоем. */
+function branchPath(index: number): string {
+  const yc = ROW_CENTER + index * ROW_STRIDE;
+  return `M${RAIL_TRUNK_X},${yc - 10} Q${RAIL_TRUNK_X},${yc} 34,${yc} H37.5`;
+}
 
 interface MenuItem {
   to: string;
@@ -35,10 +59,9 @@ interface MenuItem {
 }
 
 /**
- * Левая рейка модулей как магистраль графа (реф node-based UI): вертикальная
- * шина секции — строго от первого порта к последнему — и отводы с портами
- * к каждому модулю (├─○), активный отвод и порт светятся. Навигационная
- * вспышка — NavigationFlash: измеряет порты по data-атрибутам.
+ * Левая рейка модулей как магистраль графа (реф node-based UI): хребет секции
+ * со скруглёнными отводами к портам модулей; активные отвод и порт светятся.
+ * Навигационная вспышка — NavigationFlash: измеряет порты по data-атрибутам.
  */
 export function NodeRail() {
   const collapsed = useShellStore((s) => s.menuCollapsed);
@@ -98,87 +121,106 @@ export function NodeRail() {
       </div>
 
       <nav className="flex flex-1 flex-col gap-4 overflow-y-auto py-3">
-        {sections.map((section) => (
-          <div key={section.title} className="flex flex-col gap-0.5">
-            {!collapsed && (
-              <span
-                className="pb-1 font-mono text-[11px] font-medium tracking-[0.16em] text-sidebar-foreground/40 uppercase"
-                style={{ paddingLeft: PORT_X + 16 }}
-              >
-                {section.title}
-              </span>
-            )}
-            <div className="relative flex flex-col gap-0.5">
-              {!collapsed && section.items.length > 1 && (
+        {sections.map((section) => {
+          const activeIndex = section.items.findIndex(isActive);
+          return (
+            <div key={section.title} className="flex flex-col gap-0.5">
+              {!collapsed && (
                 <span
-                  aria-hidden
-                  className="absolute w-px bg-edge/40"
-                  style={{ left: RAIL_TRUNK_X - 0.5, top: 20, bottom: 20 }}
-                />
+                  className="pb-1 font-mono text-[11px] font-medium tracking-[0.16em] text-sidebar-foreground/40 uppercase"
+                  style={{ paddingLeft: CONTENT_X }}
+                >
+                  {section.title}
+                </span>
               )}
-              {section.items.map((item) => {
-                const active = isActive(item);
-                const link = (
-                  <Link
-                    to={item.to}
-                    className={cn(
-                      'relative flex h-10 items-center gap-3 rounded-md text-sm font-medium transition-colors',
-                      'text-sidebar-foreground/65 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground',
-                      active && 'bg-sidebar-accent text-sidebar-accent-foreground',
-                      collapsed ? 'mx-3 justify-center' : 'mr-3',
-                    )}
-                    style={collapsed ? undefined : { paddingLeft: PORT_X + 16 }}
+              <div className="relative flex flex-col gap-0.5">
+                {section.items.map((item) => {
+                  const active = isActive(item);
+                  const link = (
+                    <Link
+                      to={item.to}
+                      className={cn(
+                        'relative flex h-10 items-center gap-3 rounded-md text-sm font-medium transition-colors',
+                        'text-sidebar-foreground/65 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground',
+                        active && 'bg-sidebar-accent text-sidebar-accent-foreground',
+                        collapsed ? 'mx-3 justify-center' : 'mr-3',
+                      )}
+                      style={collapsed ? undefined : { paddingLeft: CONTENT_X }}
+                    >
+                      <item.icon className="size-[18px] shrink-0" strokeWidth={1.75} />
+                      {!collapsed && <span className="truncate">{item.label}</span>}
+                      {!collapsed && item.badge ? (
+                        <span className="ml-auto pr-1 font-mono text-[11px] text-muted-foreground/80 tabular-nums">
+                          {item.badge}
+                        </span>
+                      ) : null}
+                      {collapsed && item.badge ? (
+                        <span className="absolute top-0.5 right-0.5 rounded bg-secondary px-1 py-0.5 font-mono text-[10px] leading-none text-muted-foreground tabular-nums">
+                          {item.badge}
+                        </span>
+                      ) : null}
+                    </Link>
+                  );
+                  return collapsed ? (
+                    <Tooltip key={item.to}>
+                      <TooltipTrigger asChild>{link}</TooltipTrigger>
+                      <TooltipContent side="right">{item.label}</TooltipContent>
+                    </Tooltip>
+                  ) : (
+                    <span key={item.to}>{link}</span>
+                  );
+                })}
+                {!collapsed && section.items.length > 1 && (
+                  <svg
+                    aria-hidden
+                    className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
                   >
-                    {!collapsed && (
-                      <>
-                        <span
-                          aria-hidden
-                          className={cn(
-                            'absolute top-1/2 h-px transition-colors',
-                            active ? 'bg-port/80' : 'bg-edge/60',
-                          )}
-                          style={{ left: RAIL_TRUNK_X, width: BRANCH_W }}
-                        />
-                        <span
-                          data-module-port={item.to}
-                          data-active={active ? 'true' : undefined}
-                          aria-hidden
-                          className={cn(
-                            'absolute top-1/2 -translate-y-1/2 rounded-full border transition-colors',
-                            active
-                              ? 'border-port bg-port shadow-[0_0_10px_var(--glow)]'
-                              : 'border-edge bg-sidebar',
-                          )}
-                          style={{ left: PORT_X - PORT / 2, width: PORT, height: PORT }}
-                        />
-                      </>
+                    <path
+                      d={spinePath(section.items.length)}
+                      fill="none"
+                      stroke="var(--edge)"
+                      strokeOpacity="0.55"
+                      strokeWidth="1"
+                    />
+                    {activeIndex >= 0 && (
+                      <path
+                        d={branchPath(activeIndex)}
+                        fill="none"
+                        stroke="var(--port)"
+                        strokeOpacity="0.9"
+                        strokeWidth="1"
+                      />
                     )}
-                    <item.icon className="size-[18px] shrink-0" strokeWidth={1.75} />
-                    {!collapsed && <span className="truncate">{item.label}</span>}
-                    {!collapsed && item.badge ? (
-                      <span className="ml-auto pr-1 font-mono text-[11px] text-muted-foreground/80 tabular-nums">
-                        {item.badge}
-                      </span>
-                    ) : null}
-                    {collapsed && item.badge ? (
-                      <span className="absolute top-0.5 right-0.5 rounded bg-secondary px-1 py-0.5 font-mono text-[10px] leading-none text-muted-foreground tabular-nums">
-                        {item.badge}
-                      </span>
-                    ) : null}
-                  </Link>
-                );
-                return collapsed ? (
-                  <Tooltip key={item.to}>
-                    <TooltipTrigger asChild>{link}</TooltipTrigger>
-                    <TooltipContent side="right">{item.label}</TooltipContent>
-                  </Tooltip>
-                ) : (
-                  <span key={item.to}>{link}</span>
-                );
-              })}
+                  </svg>
+                )}
+                {!collapsed &&
+                  section.items.map((item, i) => {
+                    const active = isActive(item);
+                    return (
+                      <span
+                        key={item.to}
+                        data-module-port={item.to}
+                        data-active={active ? 'true' : undefined}
+                        aria-hidden
+                        className={cn(
+                          'pointer-events-none absolute rounded-full border transition-colors',
+                          active
+                            ? 'border-port bg-port shadow-[0_0_10px_var(--glow)]'
+                            : 'border-edge bg-transparent',
+                        )}
+                        style={{
+                          left: PORT_X - PORT / 2,
+                          top: ROW_CENTER + i * ROW_STRIDE - PORT / 2,
+                          width: PORT,
+                          height: PORT,
+                        }}
+                      />
+                    );
+                  })}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </nav>
 
       <div className="shrink-0 border-t border-sidebar-border p-2">

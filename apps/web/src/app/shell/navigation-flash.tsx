@@ -58,7 +58,11 @@ export function NavigationFlash() {
 
   if (!route) return null;
   return (
-    <div className="dock-edge-fade pointer-events-none fixed inset-0 z-40" aria-hidden>
+    <div
+      key={`${pathname}|${searchStr}`}
+      className="dock-edge-fade pointer-events-none fixed inset-0 z-40"
+      aria-hidden
+    >
       <NodeEdge points={route} drawOn pulse="once" active />
     </div>
   );
