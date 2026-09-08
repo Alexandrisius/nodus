@@ -193,6 +193,7 @@ export const ui = {
   },
   employees: {
     title: 'Сотрудники',
+    structure: 'Структура',
     position: 'Должность',
     department: 'Подразделение',
     email: 'Почта',

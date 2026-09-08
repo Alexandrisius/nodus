@@ -31,6 +31,22 @@ export function orthPath(points: NodeEdgePoint[], r: number): string {
   return parts.join(' ');
 }
 
+/** Длина ломаной в px (сегменты ортогональные — hypot == манхэттен). */
+function pathLength(points: NodeEdgePoint[]): number {
+  let len = 0;
+  for (let i = 1; i < points.length; i++) {
+    const a = points[i - 1];
+    const b = points[i];
+    if (a && b) len += Math.hypot(b.x - a.x, b.y - a.y);
+  }
+  return len;
+}
+
+/** Скорости анимаций — px/s: длительность = длина / скорость (одинаковая
+ * скорость вспышки на коротких и дальних маршрутах). */
+const PULSE_SPEED = 1100;
+const DRAW_SPEED = 1800;
+
 function useReducedMotion(): boolean {
   const [reduced, setReduced] = useState(
     () =>
@@ -74,12 +90,16 @@ function NodeEdge({
   className?: string;
 }) {
   const d = useMemo(() => orthPath(points, elbow), [points, elbow]);
+  const len = useMemo(() => pathLength(points), [points]);
   const reduced = useReducedMotion();
   if (points.length < 2) return null;
   const start = points[0];
   const end = points[points.length - 1];
   if (!start || !end) return null;
   const animate = drawOn && !reduced;
+  // Длительности из длины маршрута — скорость вспышки одинакова на всех путях.
+  const drawDur = Math.max(len / DRAW_SPEED, 0.15);
+  const pulseDur = Math.max(len / PULSE_SPEED, 0.3);
   return (
     <svg
       aria-hidden="true"
@@ -95,7 +115,10 @@ function NodeEdge({
         strokeWidth={1}
         pathLength={animate ? 1 : undefined}
         className={animate ? 'node-edge-draw' : undefined}
-        style={active ? { filter: 'drop-shadow(0 0 6px var(--glow))' } : undefined}
+        style={{
+          ...(animate ? { animationDuration: `${drawDur}s` } : null),
+          ...(active ? { filter: 'drop-shadow(0 0 6px var(--glow))' } : null),
+        }}
       />
       {ports !== 'none' &&
         (ports === 'both' ? [start, end] : [end]).map((p, i) => (
@@ -104,8 +127,8 @@ function NodeEdge({
       {pulse && !reduced && (
         <circle r={2.5} fill="var(--port)">
           <animateMotion
-            dur="1.4s"
-            begin={drawOn ? '0.45s' : '0s'}
+            dur={`${pulseDur}s`}
+            begin={drawOn ? `${drawDur}s` : '0s'}
             repeatCount={pulse === 'once' ? '1' : 'indefinite'}
             path={d}
           />

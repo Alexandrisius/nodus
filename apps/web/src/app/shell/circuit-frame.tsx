@@ -35,7 +35,11 @@ export function CircuitFrame() {
   const menuCollapsed = useShellStore((s) => s.menuCollapsed);
   const railCollapsed = useShellStore((s) => s.railCollapsed);
   const [geo, setGeo] = useState<CircuitGeometry | null>(null);
-  const [pulse, setPulse] = useState<{ points: NodeEdgePoint[]; dot: boolean } | null>(null);
+  const [pulse, setPulse] = useState<{
+    points: NodeEdgePoint[];
+    dot: boolean;
+    kind: 'nav' | 'rail';
+  } | null>(null);
   const [pulseRun, setPulseRun] = useState(0);
   const prevFocus = useRef<CircuitFocus | null>(null);
   /** Состояние правой панели (раскрыта ли) — фронт-детекция для вспышки. */
@@ -45,26 +49,33 @@ export function CircuitFrame() {
   const pulseTimer = useRef(0);
 
   /** Одиночный пульс с авто-затуханием (общая механика для всех триггеров). */
-  const firePulse = useCallback((points: NodeEdgePoint[], dot: boolean) => {
+  const firePulse = useCallback((points: NodeEdgePoint[], dot: boolean, kind: 'nav' | 'rail') => {
     window.clearTimeout(pulseTimer.current);
-    setPulse({ points, dot });
+    setPulse({ points, dot, kind });
     setPulseRun((k) => k + 1);
     pulseTimer.current = window.setTimeout(() => setPulse(null), PULSE_FADE_MS);
   }, []);
 
   useLayoutEffect(() => {
     let raf = 0;
-    let transitionTimer = 0;
+    let loop = 0;
     const remeasure = () => {
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => setGeo(measureCircuit()));
     };
-    // Непрерывный пересчёт во время transition (панели движутся — связь тянется)
+    // Плавный пересчёт КАЖДЫЙ КАДР во время transition — контур и точка
+    // узла идут за панелью без ступенек и вибрации.
     const onTransitionRun = () => {
-      transitionTimer = window.setInterval(remeasure, 50);
+      if (loop) return;
+      const tick = () => {
+        setGeo(measureCircuit());
+        loop = requestAnimationFrame(tick);
+      };
+      loop = requestAnimationFrame(tick);
     };
     const onTransitionEnd = () => {
-      window.clearInterval(transitionTimer);
+      cancelAnimationFrame(loop);
+      loop = 0;
       remeasure();
     };
     remeasure();
@@ -76,7 +87,7 @@ export function CircuitFrame() {
     document.addEventListener('scroll', remeasure, { capture: true, passive: true });
     return () => {
       cancelAnimationFrame(raf);
-      window.clearInterval(transitionTimer);
+      cancelAnimationFrame(loop);
       ro.disconnect();
       document.removeEventListener('transitionrun', onTransitionRun, true);
       document.removeEventListener('transitionend', onTransitionEnd, true);
@@ -93,14 +104,15 @@ export function CircuitFrame() {
     const next = currentFocus(geo);
     if (!reduced && focusSig(next) !== focusSig(prevFocus.current)) {
       const p = transitionPulse(geo, prevFocus.current);
-      if (p) firePulse(p.points, p.dot);
+      if (p) firePulse(p.points, p.dot, 'nav');
     }
     prevFocus.current = next;
 
     // Вспышка на РАСКРЫТИЕ правой панели: ровно одна на фронт «схлопнута →
     // раскрыта», старт — от порта АКТИВНОГО МОДУЛЯ, огонь — после окончания
     // transition по финальной геометрии (иначе узел ещё едет и пульс перелетает
-    // его внутрь панели). Схлопывание и resize пульса не вызывают.
+    // его внутрь панели). Схлопывание гасит недолетевший пульс мгновенно —
+    // подсвеченная траектория не остаётся висеть на прежнем месте.
     const expandedNow = geo.rightRailWidth !== null && geo.rightRailWidth > 150;
     if (expandedNow && !railExpanded.current && !reduced) {
       window.clearTimeout(railPulseTimer.current);
@@ -116,10 +128,13 @@ export function CircuitFrame() {
               { x: g.rightNode.x, y: g.axisY },
             ]
           : [g.junction, { x: g.rightNode.x, y: g.axisY }];
-        firePulse(points, true);
+        firePulse(points, true, 'rail');
       }, 350);
     }
-    if (!expandedNow) window.clearTimeout(railPulseTimer.current);
+    if (!expandedNow) {
+      window.clearTimeout(railPulseTimer.current);
+      setPulse((p) => (p?.kind === 'rail' ? null : p));
+    }
     railExpanded.current = expandedNow;
   }, [geo, firePulse]);
 
@@ -134,6 +149,20 @@ export function CircuitFrame() {
           strokeOpacity="0.32"
           strokeWidth="1"
         />
+        {geo.logoDot ? (
+          <circle
+            cx={geo.logoDot.x}
+            cy={geo.logoDot.y}
+            r="3"
+            fill={geo.modules.find((m) => m.active)?.to === '/' ? 'var(--port)' : 'var(--sidebar)'}
+            stroke={geo.modules.find((m) => m.active)?.to === '/' ? 'var(--port)' : 'var(--edge)'}
+            style={
+              geo.modules.find((m) => m.active)?.to === '/'
+                ? { filter: 'drop-shadow(0 0 6px var(--glow))' }
+                : undefined
+            }
+          />
+        ) : null}
         {geo.tabs.map((t) => (
           <circle
             key={t.x}
@@ -145,15 +174,6 @@ export function CircuitFrame() {
             style={t.active ? { filter: 'drop-shadow(0 0 6px var(--glow))' } : undefined}
           />
         ))}
-        {geo.rightNode ? (
-          <circle
-            cx={geo.rightNode.x}
-            cy={geo.axisY}
-            r="3.5"
-            fill="var(--sidebar)"
-            stroke="var(--edge)"
-          />
-        ) : null}
       </svg>
       {pulse ? (
         <div key={pulseRun} className="dock-edge-fade absolute inset-0">

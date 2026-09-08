@@ -1,6 +1,6 @@
 import { orthPath, type NodeEdgePoint } from '@nodus/ui/components/node-edge';
 
-import { RAIL_TRUNK_X } from './node-rail.js';
+import { RAIL_TRUNK_X, RAIL_TRUNK_X_COLLAPSED } from './node-rail.js';
 
 /** Измеренная геометрия контура: порты из DOM по data-атрибутам. */
 export interface CircuitGeometry {
@@ -15,6 +15,8 @@ export interface CircuitGeometry {
   rightNode: NodeEdgePoint | null;
   /** Ширина правой панели (детект раскрытия для вспышки, не путаем с resize). */
   rightRailWidth: number | null;
+  /** Точка контура справа от логотипа (источник вспышки Главной). */
+  logoDot: NodeEdgePoint | null;
   /** Низ шины рейки (центр последнего модуля). */
   spineEndY: number;
 }
@@ -46,14 +48,18 @@ export function measureCircuit(): CircuitGeometry | null {
     x: centerOf(el).x,
   }));
   const rightEl = document.querySelector<HTMLElement>('[data-circuit-node]');
+  const logoEl = document.querySelector<HTMLElement>('[data-logo-dot]');
+  const railW = document.querySelector('[data-rail]')?.getBoundingClientRect().width ?? 240;
   const lastY = modules.length ? Math.max(...modules.map((m) => m.port.y)) : axisY;
   return {
-    junction: { x: RAIL_TRUNK_X, y: axisY },
+    // В схлопнутой рейке шина у края — порты лежат точками на ней.
+    junction: { x: railW < 100 ? RAIL_TRUNK_X_COLLAPSED : RAIL_TRUNK_X, y: axisY },
     axisY,
     modules,
     tabs,
     rightNode: rightEl ? centerOf(rightEl) : null,
-    rightRailWidth: rightEl?.closest('aside')?.getBoundingClientRect().width ?? null,
+    rightRailWidth: rightEl?.parentElement?.getBoundingClientRect().width ?? null,
+    logoDot: logoEl ? centerOf(logoEl) : null,
     // Шина заканчивается в точке отхода последнего отвода (порт-10) — без хвоста.
     spineEndY: modules.length ? lastY - 10 : axisY,
   };
@@ -76,6 +82,9 @@ export function framePath(g: CircuitGeometry): string {
     ),
   );
   for (const m of g.modules) {
+    // Отвод рисуем, только если порт вынесен от шины (в схлопнутой рейке
+    // порты лежат точками на самой шине — отводов нет).
+    if (m.port.x - g.junction.x < 8) continue;
     parts.push(
       orthPath(
         [
@@ -84,6 +93,15 @@ export function framePath(g: CircuitGeometry): string {
           { x: m.port.x - 4, y: m.port.y },
         ],
         8,
+      ),
+    );
+  }
+  // Отросток от точки справа от лого: вправо, локтем вниз к оси.
+  if (g.logoDot) {
+    parts.push(
+      orthPath(
+        [g.logoDot, { x: g.logoDot.x + 16, y: g.logoDot.y }, { x: g.logoDot.x + 16, y: g.axisY }],
+        6,
       ),
     );
   }
@@ -153,6 +171,20 @@ export function transitionPulse(
       dot: true,
     };
   }
+  // Главная: вспышка вылетает ИЗ ЛОГО — от точки справа от него, по отростку
+  // вниз к оси и затухает на оси (без точки).
+  if (active.to === '/' && g.logoDot) {
+    return {
+      points: [
+        g.logoDot,
+        { x: g.logoDot.x + 16, y: g.logoDot.y },
+        { x: g.logoDot.x + 16, y: g.axisY },
+        { x: g.logoDot.x + 40, y: g.axisY },
+      ],
+      dot: false,
+    };
+  }
+  // Модуль без вкладок: от порта по шине, за стык и затухание на оси без точки.
   return {
     points: [
       active.port,

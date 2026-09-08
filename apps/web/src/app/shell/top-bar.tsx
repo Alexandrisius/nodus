@@ -63,6 +63,36 @@ function sectionsFor(pathname: string): Section[] {
       },
     ];
   }
+  if (pathname.startsWith('/projects')) {
+    return [
+      {
+        label: ui.projects.viewList,
+        to: '/projects',
+        search: {},
+        isActive: () => true,
+      },
+    ];
+  }
+  if (pathname.startsWith('/chat')) {
+    return [
+      {
+        label: ui.chat.conversations,
+        to: '/chat',
+        search: {},
+        isActive: () => true,
+      },
+    ];
+  }
+  if (pathname.startsWith('/employees')) {
+    return [
+      {
+        label: ui.employees.structure,
+        to: '/employees',
+        search: {},
+        isActive: () => true,
+      },
+    ];
+  }
   return [];
 }
 

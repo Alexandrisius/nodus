@@ -201,6 +201,10 @@
   *::-webkit-scrollbar-thumb {
     background: rgb(255 255 255 / 0.14);
     border-radius: 3px;
+    /* Ползунок визуально начинается на 8px ниже верха трека — не касается
+       точки приёма связи правой панели; сам трек и разделители — у оси. */
+    border-top: 8px solid transparent;
+    background-clip: padding-box;
   }
   @media (prefers-reduced-motion: reduce) {
     *,

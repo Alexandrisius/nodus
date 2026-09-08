@@ -21,6 +21,8 @@ import { LogoWordmark } from './logo-wordmark.js';
 
 /** Ось шины в px от левого края рейки (импортируется circuit-geometry). */
 export const RAIL_TRUNK_X = 24;
+/** Ось шины при схлопнутой рейке: порты ложатся точками на саму шину. */
+export const RAIL_TRUNK_X_COLLAPSED = 8;
 /** Центр порта модуля (конец отвода). */
 const PORT_X = 42;
 const PORT = 9;
@@ -96,7 +98,11 @@ export function NodeRail() {
           <LogoIcon className="size-8 text-foreground" />
         </span>
         {!collapsed && (
-          <LogoWordmark className="text-lg tracking-[0.18em] text-foreground uppercase" />
+          <>
+            <LogoWordmark className="text-lg tracking-[0.18em] text-foreground uppercase" />
+            {/* Анкор точки контура справа от лого (по середине высоты букв). */}
+            <span data-logo-dot aria-hidden className="ml-2 size-px shrink-0" />
+          </>
         )}
       </div>
 
@@ -149,30 +155,32 @@ export function NodeRail() {
                     <span key={item.to}>{link}</span>
                   );
                 })}
-                {!collapsed &&
-                  section.items.map((item, i) => {
-                    const active = isActive(item);
-                    return (
-                      <span
-                        key={item.to}
-                        data-module-port={item.to}
-                        data-active={active ? 'true' : undefined}
-                        aria-hidden
-                        className={cn(
-                          'pointer-events-none absolute rounded-full border transition-colors',
-                          active
-                            ? 'border-port bg-port shadow-[0_0_10px_var(--glow)]'
-                            : 'border-edge bg-transparent',
-                        )}
-                        style={{
-                          left: PORT_X - PORT / 2,
-                          top: ROW_CENTER + i * ROW_STRIDE - PORT / 2,
-                          width: PORT,
-                          height: PORT,
-                        }}
-                      />
-                    );
-                  })}
+                {/* Порты модулей — всегда (в схлопнутой рейке ложатся точками
+                    на саму шину, иначе контур обрывается). */}
+                {section.items.map((item, i) => {
+                  const active = isActive(item);
+                  const portX = collapsed ? RAIL_TRUNK_X_COLLAPSED : PORT_X;
+                  return (
+                    <span
+                      key={item.to}
+                      data-module-port={item.to}
+                      data-active={active ? 'true' : undefined}
+                      aria-hidden
+                      className={cn(
+                        'pointer-events-none absolute rounded-full border transition-colors',
+                        active
+                          ? 'border-port bg-port shadow-[0_0_10px_var(--glow)]'
+                          : 'border-edge bg-transparent',
+                      )}
+                      style={{
+                        left: portX - PORT / 2,
+                        top: ROW_CENTER + i * ROW_STRIDE - PORT / 2,
+                        width: PORT,
+                        height: PORT,
+                      }}
+                    />
+                  );
+                })}
               </div>
             </div>
           );

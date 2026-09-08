@@ -60,8 +60,14 @@ export function RightRail() {
         type="button"
         onClick={toggle}
         aria-label={ui.topbar.expandRail}
-        className="flex w-6 shrink-0 items-center justify-center border-l border-sidebar-border bg-sidebar text-sidebar-foreground/60 hover:bg-sidebar-accent"
+        className="relative flex w-6 shrink-0 items-center justify-center border-l border-sidebar-border bg-sidebar text-sidebar-foreground/60 hover:bg-sidebar-accent"
       >
+        {/* Связь и точка приёма остаются и в свёрнутом состоянии. */}
+        <span data-circuit-node aria-hidden className="absolute top-[55px] left-0 size-px" />
+        <span
+          aria-hidden
+          className="absolute top-[52.5px] -left-[3.5px] size-[7px] rounded-full border border-edge bg-sidebar"
+        />
         <ChevronsLeft className="size-4" />
       </button>
     );
@@ -83,68 +89,76 @@ export function RightRail() {
       onMouseEnter={dwellStart}
       onMouseLeave={dwellStop}
       className={cn(
-        'relative flex shrink-0 flex-col overflow-hidden border-l border-sidebar-border bg-sidebar transition-[width] duration-300 ease-out',
+        'relative flex shrink-0 flex-col border-l border-sidebar-border bg-sidebar transition-[width] duration-300 ease-out',
         edgeOpen ? 'w-64' : 'w-14',
       )}
     >
+      {/* Точка приёма связи на шве — ребёнок aside ВНЕ overflow-обёртки:
+          движется с панелью синхронно (без отставания и вибрации). */}
       <span data-circuit-node aria-hidden className="absolute top-[55px] left-0 size-px" />
-      <div className="flex h-8 items-center gap-2 px-3.5 pt-3 pb-1">
-        <span className="font-mono text-[11px] font-medium text-sidebar-foreground/70 tabular-nums">
-          {online}
-        </span>
-        <span
-          className={cn(
-            'font-mono text-[11px] font-medium tracking-[0.14em] text-sidebar-foreground/40 uppercase transition-opacity duration-200',
-            edgeOpen ? 'opacity-100' : 'opacity-0',
-          )}
-        >
-          {ui.topbar.onlineColleagues}
-        </span>
-      </div>
+      <span
+        aria-hidden
+        className="absolute top-[52.5px] -left-[3.5px] z-10 size-[7px] rounded-full border border-edge bg-sidebar"
+      />
+      <div className="flex h-full min-h-0 flex-col overflow-hidden">
+        <div className="flex h-8 items-center gap-2 px-3.5 pt-3 pb-1">
+          <span className="font-mono text-[11px] font-medium text-sidebar-foreground/70 tabular-nums">
+            {online}
+          </span>
+          <span
+            className={cn(
+              'font-mono text-[11px] font-medium tracking-[0.14em] text-sidebar-foreground/40 uppercase transition-opacity duration-200',
+              edgeOpen ? 'opacity-100' : 'opacity-0',
+            )}
+          >
+            {ui.topbar.onlineColleagues}
+          </span>
+        </div>
 
-      <div className="flex flex-1 flex-col gap-1 py-1">
-        {data
-          ?.filter((p) => p.status !== 'offline')
-          .map((entry) => (
-            <button
-              key={entry.user.id}
-              type="button"
-              onClick={() => openChat(entry.user.id)}
-              className="flex w-full items-center gap-3 rounded-md px-3.5 py-1.5 text-left hover:bg-sidebar-accent"
-            >
-              <span className="relative shrink-0">
-                <PersonAvatar
-                  name={entry.user.displayName}
-                  avatarUrl={entry.user.avatarUrl}
-                  className="size-9"
-                />
+        <div className="flex flex-1 flex-col gap-1 py-1">
+          {data
+            ?.filter((p) => p.status !== 'offline')
+            .map((entry) => (
+              <button
+                key={entry.user.id}
+                type="button"
+                onClick={() => openChat(entry.user.id)}
+                className="flex w-full items-center gap-3 rounded-md px-3.5 py-1.5 text-left hover:bg-sidebar-accent"
+              >
+                <span className="relative shrink-0">
+                  <PersonAvatar
+                    name={entry.user.displayName}
+                    avatarUrl={entry.user.avatarUrl}
+                    className="size-9"
+                  />
+                  <span
+                    className={cn(
+                      'absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full border-2 border-sidebar',
+                      dotColor[entry.status],
+                    )}
+                  />
+                </span>
                 <span
                   className={cn(
-                    'absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full border-2 border-sidebar',
-                    dotColor[entry.status],
+                    'truncate text-sm text-sidebar-foreground transition-opacity delay-75 duration-200',
+                    edgeOpen ? 'opacity-100' : 'opacity-0',
                   )}
-                />
-              </span>
-              <span
-                className={cn(
-                  'truncate text-sm text-sidebar-foreground transition-opacity delay-75 duration-200',
-                  edgeOpen ? 'opacity-100' : 'opacity-0',
-                )}
-              >
-                {entry.user.displayName}
-              </span>
-            </button>
-          ))}
-      </div>
+                >
+                  {entry.user.displayName}
+                </span>
+              </button>
+            ))}
+        </div>
 
-      <button
-        type="button"
-        onClick={toggle}
-        aria-label={ui.topbar.collapseRail}
-        className="flex h-9 items-center justify-center text-sidebar-foreground/50 hover:text-sidebar-foreground"
-      >
-        <ChevronsRight className="size-4" />
-      </button>
+        <button
+          type="button"
+          onClick={toggle}
+          aria-label={ui.topbar.collapseRail}
+          className="flex h-9 items-center justify-center text-sidebar-foreground/50 hover:text-sidebar-foreground"
+        >
+          <ChevronsRight className="size-4" />
+        </button>
+      </div>
     </aside>
   );
 }
