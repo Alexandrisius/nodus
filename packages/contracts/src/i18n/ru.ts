@@ -67,8 +67,6 @@ export const ui = {
     themeNodus: 'Инструмент · граф',
     themeInk: 'Тушь · тёмная',
     themePaper: 'Бумага · светлая',
-    collapseRail: 'Скрыть коллег',
-    expandRail: 'Показать коллег',
   },
   auth: {
     title: 'Nodus',

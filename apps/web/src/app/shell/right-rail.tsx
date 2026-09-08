@@ -1,13 +1,10 @@
-import { ChevronsRight, ChevronsLeft } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { ui } from '@nodus/contracts';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { useConversations } from '../../features/chat/api/chat-api.js';
 import { usePresence } from '../../features/directory/api/directory-api.js';
 import { PersonAvatar } from '../../shared/ui/person-avatar.js';
-import { useShellStore } from './shell-store.js';
 
 const dotColor: Record<string, string> = {
   online: 'bg-success',
@@ -18,15 +15,14 @@ const dotColor: Record<string, string> = {
 /**
  * Правая полоса коллег (каркас §10.2): узкая полоса 40px под главной линией
  * (обрезана ею, как в Битрикс24), поверх контента; скроллбар контента — у
- * самого края окна за ней. Плавно раскрывается до панели с полными именами,
- * когда курсор задержался над зоной полосы ≥ 400 мс (задержка гасит ложные
+ * левого шва полосы. Плавно раскрывается до панели с полными именами, когда
+ * курсор задержался над зоной полосы ≥ 400 мс (задержка гасит ложные
  * срабатывания при пролёте курсора); закрывается, когда курсор покидает
- * панель. Список — компактный (сотни людей), прокрутка колёсиком без
- * видимого скроллбара. Клик по коллеге — быстрый переход в чат.
+ * панель. Ручного сворачивания нет — полоса и есть минимальное состояние.
+ * Список — компактный (сотни людей), прокрутка колёсиком без видимого
+ * скроллбара. Клик по коллеге — быстрый переход в чат.
  */
 export function RightRail() {
-  const collapsed = useShellStore((s) => s.railCollapsed);
-  const toggle = useShellStore((s) => s.toggleRail);
   const { data } = usePresence();
   const { data: chats } = useConversations();
   const navigate = useNavigate();
@@ -55,19 +51,6 @@ export function RightRail() {
     },
     [],
   );
-
-  if (collapsed) {
-    return (
-      <button
-        type="button"
-        onClick={toggle}
-        aria-label={ui.topbar.expandRail}
-        className="absolute top-14 right-1.5 bottom-0 z-20 flex w-6 items-center justify-center border-l border-sidebar-border bg-sidebar text-sidebar-foreground/60 hover:bg-sidebar-accent"
-      >
-        <ChevronsLeft className="size-4" />
-      </button>
-    );
-  }
 
   function openChat(userId: string) {
     const direct = (chats?.items ?? []).find(
@@ -125,18 +108,6 @@ export function RightRail() {
               </button>
             ))}
         </div>
-
-        <button
-          type="button"
-          onClick={toggle}
-          aria-label={ui.topbar.collapseRail}
-          className={cn(
-            'mx-1.5 mb-1.5 flex h-8 shrink-0 items-center rounded-md text-sidebar-foreground/50 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground',
-            edgeOpen ? 'px-2.5' : 'justify-center',
-          )}
-        >
-          <ChevronsRight className="size-4" />
-        </button>
       </div>
     </aside>
   );

@@ -32,7 +32,6 @@ export function CircuitFrame() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const searchStr = useRouterState({ select: (s) => s.location.searchStr });
   const menuCollapsed = useShellStore((s) => s.menuCollapsed);
-  const railCollapsed = useShellStore((s) => s.railCollapsed);
   const [geo, setGeo] = useState<CircuitGeometry | null>(null);
   const [pulse, setPulse] = useState<{
     points: NodeEdgePoint[];
@@ -95,7 +94,7 @@ export function CircuitFrame() {
       document.removeEventListener('transitioncancel', onTransitionEnd, true);
       document.removeEventListener('scroll', remeasure, { capture: true });
     };
-  }, [pathname, searchStr, menuCollapsed, railCollapsed]);
+  }, [pathname, searchStr, menuCollapsed]);
 
   useLayoutEffect(() => {
     if (!geo) return;
