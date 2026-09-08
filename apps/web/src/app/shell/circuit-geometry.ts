@@ -11,7 +11,7 @@ export interface CircuitGeometry {
   modules: { to: string; active: boolean; port: NodeEdgePoint }[];
   /** Центры вкладок топбара (x), активность. */
   tabs: { active: boolean; x: number }[];
-  /** Узел правой панели (в 8px от левого шва — вне зоны скроллбара). */
+  /** Узел правой панели (точка на её левом шве, на оси). */
   rightNode: NodeEdgePoint | null;
   /** Ширина правой панели (детект раскрытия для вспышки, не путаем с resize). */
   rightRailWidth: number | null;
@@ -116,20 +116,6 @@ export function framePath(g: CircuitGeometry): string {
 
 /** Длина засечки-ответвления вкладки (точка — у самого пункта, не на оси). */
 export const TICK = 12;
-
-/** Отвод к активному модулю — подсвечивается отдельным слоем. */
-export function activeBranchPath(g: CircuitGeometry): string | null {
-  const m = g.modules.find((item) => item.active);
-  if (!m) return null;
-  return orthPath(
-    [
-      { x: g.junction.x, y: m.port.y - 10 },
-      { x: g.junction.x, y: m.port.y },
-      { x: m.port.x - 4, y: m.port.y },
-    ],
-    8,
-  );
-}
 
 /** Текущий фокус навигации (активные модуль и вкладка). */
 export function currentFocus(g: CircuitGeometry): CircuitFocus | null {

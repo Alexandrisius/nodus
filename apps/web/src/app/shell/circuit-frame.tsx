@@ -3,7 +3,6 @@ import { useRouterState } from '@tanstack/react-router';
 import { NodeEdge, type NodeEdgePoint } from '@nodus/ui/components/node-edge';
 
 import {
-  activeBranchPath,
   currentFocus,
   framePath,
   measureCircuit,
@@ -39,7 +38,9 @@ export function CircuitFrame() {
   const [pulse, setPulse] = useState<{ points: NodeEdgePoint[]; dot: boolean } | null>(null);
   const [pulseRun, setPulseRun] = useState(0);
   const prevFocus = useRef<CircuitFocus | null>(null);
-  const prevRailWidth = useRef<number | null>(null);
+  /** Состояние правой панели (раскрыта ли) — фронт-детекция для вспышки. */
+  const railExpanded = useRef(false);
+  const railPulseTimer = useRef(0);
 
   const pulseTimer = useRef(0);
 
@@ -96,18 +97,33 @@ export function CircuitFrame() {
     }
     prevFocus.current = next;
 
-    // Вспышка на РАСКРЫТИЕ правой панели (ширина выросла ≥ 24px; схлопывание — нет)
-    if (!reduced && geo.rightNode && geo.rightRailWidth !== null) {
-      const prevW = prevRailWidth.current;
-      if (prevW !== null && geo.rightRailWidth >= prevW + 24) {
-        firePulse([geo.junction, { x: geo.rightNode.x, y: geo.axisY }], true);
-      }
+    // Вспышка на РАСКРЫТИЕ правой панели: ровно одна на фронт «схлопнута →
+    // раскрыта», старт — от порта АКТИВНОГО МОДУЛЯ, огонь — после окончания
+    // transition по финальной геометрии (иначе узел ещё едет и пульс перелетает
+    // его внутрь панели). Схлопывание и resize пульса не вызывают.
+    const expandedNow = geo.rightRailWidth !== null && geo.rightRailWidth > 150;
+    if (expandedNow && !railExpanded.current && !reduced) {
+      window.clearTimeout(railPulseTimer.current);
+      railPulseTimer.current = window.setTimeout(() => {
+        const g = measureCircuit();
+        if (!g?.rightNode) return;
+        const active = g.modules.find((m) => m.active);
+        const points: NodeEdgePoint[] = active
+          ? [
+              active.port,
+              { x: g.junction.x, y: active.port.y },
+              g.junction,
+              { x: g.rightNode.x, y: g.axisY },
+            ]
+          : [g.junction, { x: g.rightNode.x, y: g.axisY }];
+        firePulse(points, true);
+      }, 350);
     }
-    prevRailWidth.current = geo.rightRailWidth;
+    if (!expandedNow) window.clearTimeout(railPulseTimer.current);
+    railExpanded.current = expandedNow;
   }, [geo, firePulse]);
 
   if (!geo) return null;
-  const activeBranch = activeBranchPath(geo);
   return (
     <div className="pointer-events-none fixed inset-0 z-30" aria-hidden>
       <svg className="absolute inset-0 h-full w-full overflow-visible">
@@ -118,15 +134,6 @@ export function CircuitFrame() {
           strokeOpacity="0.32"
           strokeWidth="1"
         />
-        {activeBranch ? (
-          <path
-            d={activeBranch}
-            fill="none"
-            stroke="var(--port)"
-            strokeOpacity="0.9"
-            strokeWidth="1"
-          />
-        ) : null}
         {geo.tabs.map((t) => (
           <circle
             key={t.x}
