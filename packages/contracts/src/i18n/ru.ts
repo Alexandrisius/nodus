@@ -67,8 +67,6 @@ export const ui = {
     themeNodus: 'Инструмент · граф',
     themeInk: 'Тушь · тёмная',
     themePaper: 'Бумага · светлая',
-    create: 'Создать',
-    onlineColleagues: 'Коллеги на связи',
     collapseRail: 'Скрыть коллег',
     expandRail: 'Показать коллег',
   },

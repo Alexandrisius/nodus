@@ -1,4 +1,4 @@
-import { Bell, Check, LogOut, Palette, Plus, Search } from 'lucide-react';
+import { Bell, Check, LogOut, Palette, Search } from 'lucide-react';
 import { Link, useRouterState } from '@tanstack/react-router';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
@@ -200,17 +200,12 @@ export function TopBar() {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <Button className="gap-1.5">
-          <Plus data-icon="inline-start" />
-          {ui.topbar.create}
-        </Button>
-
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
               type="button"
               aria-label={ui.topbar.profile}
-              className="flex items-center gap-2 rounded-md p-1 hover:bg-accent"
+              className="-mr-2.5 flex items-center gap-2 rounded-md p-1 hover:bg-accent"
             >
               <PersonAvatar name={user?.displayName ?? ''} className="size-8" />
             </button>

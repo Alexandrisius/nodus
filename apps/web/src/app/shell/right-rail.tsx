@@ -88,20 +88,9 @@ export function RightRail() {
       )}
     >
       <div className="flex h-full min-h-0 flex-col overflow-hidden">
-        <div className="flex h-7 shrink-0 items-center px-2 pt-2 pb-1">
-          <span
-            className={cn(
-              'font-mono text-[10px] font-medium tracking-[0.14em] text-sidebar-foreground/40 uppercase transition-opacity duration-200',
-              edgeOpen ? 'opacity-100' : 'opacity-0',
-            )}
-          >
-            {ui.topbar.onlineColleagues}
-          </span>
-        </div>
-
         <div
           data-no-scrollbar
-          className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto py-1"
+          className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto pt-2 pb-1"
         >
           {data
             ?.filter((p) => p.status !== 'offline')
@@ -143,11 +132,10 @@ export function RightRail() {
           aria-label={ui.topbar.collapseRail}
           className={cn(
             'flex h-8 shrink-0 items-center text-sidebar-foreground/50 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground',
-            edgeOpen ? 'w-full gap-2.5 px-3' : 'justify-center',
+            edgeOpen ? 'w-full px-3' : 'justify-center',
           )}
         >
           <ChevronsRight className="size-4" />
-          {edgeOpen ? <span className="text-[13px]">{ui.topbar.collapseRail}</span> : null}
         </button>
       </div>
     </aside>

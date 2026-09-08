@@ -133,14 +133,14 @@ export function NodeRail() {
                         'relative flex h-10 items-center gap-3 rounded-md text-sm font-medium transition-colors',
                         'text-sidebar-foreground/65 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground',
                         active && 'bg-sidebar-accent text-sidebar-accent-foreground',
-                        collapsed ? 'mx-3 justify-center' : 'mr-3',
+                        collapsed ? 'mx-3 justify-center' : 'mx-3',
                       )}
                       style={collapsed ? undefined : { paddingLeft: CONTENT_X }}
                     >
                       <item.icon className="size-[18px] shrink-0" strokeWidth={1.75} />
                       {!collapsed && <span className="truncate">{item.label}</span>}
                       {!collapsed && item.badge ? (
-                        <span className="ml-auto pr-1 font-mono text-[11px] text-muted-foreground/80 tabular-nums">
+                        <span className="ml-auto pr-2.5 font-mono text-[11px] text-muted-foreground/80 tabular-nums">
                           {item.badge}
                         </span>
                       ) : null}
@@ -198,12 +198,11 @@ export function NodeRail() {
           onClick={toggle}
           aria-label={collapsed ? ui.nav.expand : ui.nav.collapse}
           className={cn(
-            'flex h-9 w-full items-center gap-3 rounded-md px-2.5 text-sm text-sidebar-foreground/50 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground',
+            'flex h-9 w-full items-center rounded-md px-2.5 text-sidebar-foreground/50 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground',
             collapsed && 'justify-center px-0',
           )}
         >
           {collapsed ? <ChevronsRight className="size-5" /> : <ChevronsLeft className="size-5" />}
-          {!collapsed && ui.nav.collapse}
         </button>
       </div>
     </aside>

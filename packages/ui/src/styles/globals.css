@@ -186,30 +186,27 @@
   body {
     @apply bg-background text-foreground font-sans text-[14px];
   }
-  /* Тонкий скроллбар, не спорящий с контуром связи. */
+  /* Едва заметный скроллбар (3px), не спорящий с контуром связи. */
   * {
     scrollbar-width: thin;
-    scrollbar-color: rgb(255 255 255 / 0.14) transparent;
+    scrollbar-color: rgb(255 255 255 / 0.1) transparent;
   }
   *::-webkit-scrollbar {
-    width: 4px;
-    height: 4px;
+    width: 3px;
+    height: 3px;
   }
   *::-webkit-scrollbar-track {
     background: transparent;
   }
   *::-webkit-scrollbar-thumb {
-    background: rgb(255 255 255 / 0.14);
-    border-radius: 3px;
-    /* Ползунок визуально начинается на 8px ниже верха трека — не касается
-       точки приёма связи правой панели; сам трек и разделители — у оси. */
-    border-top: 8px solid transparent;
-    background-clip: padding-box;
+    background: rgb(255 255 255 / 0.1);
+    border-radius: 2px;
   }
-  /* Скроллбар контентной колонки — у самого края окна за правой полосой;
-     контент страниц отступает от полосы (44px), сам скроллбар не двигается. */
-  #content > * {
-    padding-right: 44px;
+  /* Скроллбар контентной колонки — у левого шва правой полосы (старое место):
+     страницы обрезаны padding'ом контентной колонки, курсор над скроллбаром
+     не конкурирует с dwell-раскрытием полосы. */
+  #content {
+    padding-right: 46px;
   }
   /* Зоны со скрытым скроллбаром (полоса коллег и т.п.) — прокрутка колёсиком. */
   [data-no-scrollbar] {
