@@ -5,16 +5,13 @@ import { Button } from '@nodus/ui/components/button';
 import { Field, FieldGroup, FieldLabel } from '@nodus/ui/components/field';
 import { Input } from '@nodus/ui/components/input';
 
-import { LiveGraph } from '../../app/shell/live-graph.js';
 import { LogoIcon } from '../../app/shell/logo-icon.js';
-import { useShellStore } from '../../app/shell/shell-store.js';
 import { ApiError } from '../../shared/api-client.js';
 import { useAuthStore } from '../../shared/auth-store.js';
 
-/** Страница входа в фирменном стиле (M3, issue #4). */
+/** Страница входа в теме «Инструмент»: плоский фон, панель-нода (M3, issue #4). */
 export function LoginPage() {
   const login = useAuthStore((s) => s.login);
-  const theme = useShellStore((s) => s.theme);
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -37,16 +34,14 @@ export function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center p-4">
-      <LiveGraph visible={theme !== 'nodus'} />
-      <form
-        onSubmit={(e) => void onSubmit(e)}
-        className="paper-surface w-full max-w-sm rounded-2xl border p-8 shadow-2xl"
-      >
+    <main className="flex min-h-screen items-center justify-center bg-background p-4">
+      <form onSubmit={(e) => void onSubmit(e)} className="node-panel w-full max-w-sm p-8">
         <div className="flex flex-col items-center gap-2">
-          <LogoIcon className="size-12 text-primary" />
+          <LogoIcon className="size-12 text-foreground" />
           <h1 className="text-2xl font-semibold tracking-wide">{ui.auth.title}</h1>
-          <p className="text-sm text-muted-foreground">{ui.auth.subtitle}</p>
+          <p className="font-mono text-[11px] tracking-[0.16em] text-muted-foreground uppercase">
+            {ui.auth.subtitle}
+          </p>
         </div>
 
         <FieldGroup className="mt-6">

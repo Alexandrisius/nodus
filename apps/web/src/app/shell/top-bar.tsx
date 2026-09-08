@@ -1,7 +1,6 @@
 import { Bell, Check, LogOut, Palette, Plus, Search } from 'lucide-react';
 import { Link, useRouterState } from '@tanstack/react-router';
 import { ui } from '@nodus/contracts';
-import { cn } from '@nodus/ui/lib/utils';
 import { Button } from '@nodus/ui/components/button';
 import {
   DropdownMenu,
@@ -12,10 +11,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@nodus/ui/components/dropdown-menu';
+import { cn } from '@nodus/ui/lib/utils';
 
 import { useAuthStore } from '../../shared/auth-store.js';
-import { useShellStore, type ThemeId } from './shell-store.js';
 import { PersonAvatar } from '../../shared/ui/person-avatar.js';
+import { useShellStore, type ThemeId } from './shell-store.js';
 
 interface Section {
   label: string;
@@ -72,7 +72,8 @@ const themes: { id: ThemeId; label: string }[] = [
   { id: 'paper', label: ui.topbar.themePaper },
 ];
 
-/** Топбар: вкладки-«бумага» раздела, поиск, язык, уведомления, «Создать». */
+/** Топбар «инструмента»: моно-вкладки раздела с портом на оси, поиск Ctrl+K,
+ * уведомления, «Создать», профиль. Селектор легаси-тем — только в dev. */
 export function TopBar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const searchStr = useRouterState({ select: (s) => s.location.searchStr });
@@ -85,15 +86,15 @@ export function TopBar() {
   const search = new URLSearchParams(searchStr);
 
   return (
-    <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-4">
-      <nav className="flex min-w-0 flex-1 items-center gap-2">
+    <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-background px-4">
+      <nav className="flex h-full min-w-0 flex-1 items-center">
         {sectionsFor(pathname).map((section) => (
           <Link
             key={section.label}
             to={section.to}
             search={section.search}
             className={cn(
-              'relative flex h-14 items-center px-4 font-mono text-[12px] font-medium tracking-[0.14em] uppercase transition-colors',
+              'relative flex h-full items-center px-4 font-mono text-[12px] font-medium tracking-[0.14em] uppercase transition-colors',
               section.isActive(search)
                 ? 'text-foreground'
                 : 'text-muted-foreground hover:text-foreground/80',
@@ -113,41 +114,45 @@ export function TopBar() {
       <button
         type="button"
         onClick={() => setCommandOpen(true)}
-        className="flex h-9 w-96 max-w-[38vw] shrink-0 items-center gap-2 rounded-lg border border-border bg-background/60 px-3 text-sm text-foreground/50 hover:border-foreground/30"
+        className="flex h-9 w-96 max-w-[38vw] shrink-0 items-center gap-2 rounded-md border border-border bg-card px-3 text-sm text-muted-foreground transition-colors hover:border-input"
       >
         <Search className="size-4" />
         <span className="flex-1 truncate text-left">{ui.topbar.smartSearch}</span>
-        <kbd className="rounded border border-border px-1.5 text-xs">{ui.topbar.searchHint}</kbd>
+        <kbd className="rounded border border-border px-1.5 py-0.5 font-mono text-[10px] leading-none">
+          {ui.topbar.searchHint}
+        </kbd>
       </button>
 
       <div className="flex min-w-0 flex-1 items-center justify-end gap-3">
-        <span className="flex h-9 items-center rounded-lg border border-border px-2.5 text-xs font-semibold text-foreground/70">
+        <span className="flex h-9 items-center rounded-md border border-border px-2.5 font-mono text-[11px] font-medium tracking-wider text-muted-foreground">
           RU
         </span>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label={ui.topbar.theme}
-              className="relative text-foreground/70 hover:bg-accent hover:text-foreground"
-            >
-              <Palette />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>{ui.topbar.theme}</DropdownMenuLabel>
-            <DropdownMenuGroup>
-              {themes.map((t) => (
-                <DropdownMenuItem key={t.id} onClick={() => setTheme(t.id)}>
-                  {theme === t.id && <Check data-icon="inline-start" />}
-                  {t.label}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {import.meta.env.DEV ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={ui.topbar.theme}
+                className="relative text-muted-foreground hover:bg-accent hover:text-foreground"
+              >
+                <Palette />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>{ui.topbar.theme}</DropdownMenuLabel>
+              <DropdownMenuGroup>
+                {themes.map((t) => (
+                  <DropdownMenuItem key={t.id} onClick={() => setTheme(t.id)}>
+                    {theme === t.id && <Check data-icon="inline-start" />}
+                    {t.label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : null}
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -155,7 +160,7 @@ export function TopBar() {
               variant="ghost"
               size="icon"
               aria-label={ui.topbar.notifications}
-              className="relative text-foreground/70 hover:bg-accent hover:text-foreground"
+              className="relative text-muted-foreground hover:bg-accent hover:text-foreground"
             >
               <Bell />
               <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-primary" />
@@ -179,7 +184,7 @@ export function TopBar() {
             <button
               type="button"
               aria-label={ui.topbar.profile}
-              className="flex items-center gap-2 rounded-lg p-1 hover:bg-accent"
+              className="flex items-center gap-2 rounded-md p-1 hover:bg-accent"
             >
               <PersonAvatar name={user?.displayName ?? ''} className="size-8" />
             </button>

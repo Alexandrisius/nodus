@@ -1,0 +1,230 @@
+/*
+ * Легаси-оформление «карандаш и бумага» (направление до 08.09.2026).
+ * Импортируется globals.css ВРЕМЕННО: экраны фич (задачи, письма, проекты,
+ * мессенджер, сотрудники) переписываются на тему «Инструмент» по одному;
+ * до их переписывания эти утилиты держат их работоспособность.
+ * В новом коде использовать запрещено (DoD #4, grep-контроль).
+ * После переписывания всех экранов файл удаляется вместе с селектором тем.
+ */
+
+@theme inline {
+  --color-rust: var(--rust);
+  --color-ochre: var(--ochre);
+  --color-tealink: var(--tealink);
+  --color-sage: var(--sage);
+  --color-steel: var(--steel);
+  --color-cream: var(--cream);
+  --color-paper: var(--paper);
+  --color-pencil: var(--pencil);
+}
+
+/* «Тушь» — грифельный тёмно-зелёный фон с нитью графа, карточки из
+ * состаренной бумаги, акценты ржавчина/охра/бирюза советской палитры. */
+[data-theme='ink'] {
+  --background: #0e1b15;
+  --foreground: #e6ddc6;
+  --card: #e8d5a9;
+  --card-foreground: #2b2820;
+  --popover: #e8d5a9;
+  --popover-foreground: #2b2820;
+  --primary: #b0512c;
+  --primary-foreground: #f4ead6;
+  --secondary: #1b2f26;
+  --secondary-foreground: #d9d0b8;
+  --muted: #1a2b23;
+  --muted-foreground: #9aa695;
+  --accent: #21382d;
+  --accent-foreground: #e6ddc6;
+  --destructive: #a13a2e;
+  --destructive-foreground: #f4ead6;
+  --border: rgb(230 221 198 / 0.16);
+  --input: rgb(230 221 198 / 0.24);
+  --ring: #c9973b;
+  --success: #5f7f5a;
+  --success-soft: #dde5cd;
+  --warning: #b98a2e;
+  --warning-soft: #ecdfbe;
+  --danger: #a13a2e;
+  --danger-soft: #ecd6cd;
+  --info: #52708f;
+  --info-soft: #d5dde4;
+  --chart-1: #52708f;
+  --chart-2: #5f7f5a;
+  --chart-3: #c9973b;
+  --chart-4: #b0512c;
+  --chart-5: #7c8a6e;
+  --sidebar: #0b1613;
+  --sidebar-foreground: #cfc7b0;
+  --sidebar-primary: #c9973b;
+  --sidebar-primary-foreground: #201509;
+  --sidebar-accent: #1d352a;
+  --sidebar-accent-foreground: #e6ddc6;
+  --sidebar-border: rgb(230 221 198 / 0.12);
+  --sidebar-ring: #c9973b;
+  --edge: rgb(230 221 198 / 0.3);
+  --port: #e6ddc6;
+  --glow: rgb(230 221 198 / 0.6);
+}
+
+/* «Бумага» — светлый вариант: состаренная бумага вместо грифельной доски. */
+[data-theme='paper'] {
+  --background: #ddcda6;
+  --foreground: #2b2820;
+  --card: #efe2c4;
+  --card-foreground: #2b2820;
+  --popover: #efe2c4;
+  --popover-foreground: #2b2820;
+  --primary: #a84a27;
+  --primary-foreground: #f4ead6;
+  --secondary: #e6dcc4;
+  --secondary-foreground: #4a463a;
+  --muted: #e0d6bd;
+  --muted-foreground: #6d675a;
+  --accent: #e0d6bd;
+  --accent-foreground: #2c2a22;
+  --border: rgb(53 51 42 / 0.25);
+  --input: rgb(53 51 42 / 0.35);
+  --ring: #a84a27;
+  --sidebar: #14261e;
+  --sidebar-foreground: #d9d0b8;
+  --sidebar-accent: #1d352a;
+  --sidebar-accent-foreground: #e6ddc6;
+  --sidebar-border: rgb(230 221 198 / 0.14);
+}
+
+@layer base {
+  [data-theme='ink'] body,
+  [data-theme='paper'] body {
+    @apply texture-paper;
+  }
+}
+
+/* Зерно состаренной бумаги — единая текстура фона и карточек. */
+@utility texture-paper {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.08'/%3E%3C/svg%3E");
+}
+
+/* Карточка-«бумага»: заливка и контур — один псевдослой, вторая тонкая
+ * линия — внутри в 3px; неровные радиусы дают «рисованность». */
+@utility paper-card {
+  position: relative;
+  isolation: isolate;
+  color: var(--card-foreground);
+  border-radius: 0.85rem 0.65rem 0.8rem 0.7rem / 0.7rem 0.85rem 0.65rem 0.8rem;
+
+  &::before {
+    content: '';
+    z-index: -1;
+    position: absolute;
+    inset: 0;
+    border: 1.5px solid var(--card-line);
+    border-radius: 0.9rem 0.6rem 0.85rem 0.65rem / 0.65rem 0.9rem 0.6rem 0.85rem;
+    background-color: var(--card);
+    background-image:
+      radial-gradient(ellipse at 50% 30%, rgb(0 0 0 / 0) 62%, rgb(96 70 34 / 0.14) 100%),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.09'/%3E%3C/svg%3E");
+    box-shadow: 3px 4px 0 rgb(14 27 21 / 0.28);
+    pointer-events: none;
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 3px;
+    border: 1px solid var(--sketch-line);
+    border-radius: 0.75rem 0.5rem 0.7rem 0.55rem / 0.55rem 0.75rem 0.5rem 0.7rem;
+    pointer-events: none;
+  }
+
+  .text-foreground {
+    color: var(--card-foreground);
+  }
+  .text-muted-foreground {
+    color: rgb(53 51 42 / 0.62);
+  }
+  .border-border {
+    border-color: rgb(53 51 42 / 0.28);
+  }
+  .bg-muted {
+    background-color: rgb(53 51 42 / 0.08);
+  }
+  .bg-accent,
+  .bg-accent\/50,
+  .bg-accent\/60 {
+    background-color: rgb(53 51 42 / 0.1);
+  }
+  .hover\:bg-accent\/50:hover,
+  .hover\:bg-accent\/60:hover {
+    background-color: rgb(53 51 42 / 0.12);
+  }
+  input,
+  textarea {
+    color: var(--card-foreground);
+    border-color: rgb(53 51 42 / 0.35);
+  }
+}
+
+/* Микроповороты «от руки» для списков карточек. */
+@utility sketch-tilt {
+  &:nth-child(2n) {
+    rotate: 0.2deg;
+  }
+  &:nth-child(3n) {
+    rotate: -0.25deg;
+  }
+  &:nth-child(4n + 1) {
+    rotate: 0.1deg;
+  }
+}
+
+/* Заливка «восковым мелком/карандашом»: зерно + диагональный штрих. */
+@utility crayon-fill {
+  background-image:
+    repeating-linear-gradient(112deg, rgb(0 0 0 / 0.06) 0 1.5px, rgb(0 0 0 / 0) 1.5px 5px),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='c'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.5' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23c)' opacity='0.28'/%3E%3C/svg%3E");
+  background-blend-mode: multiply;
+}
+
+/* Бумажная поверхность (панели, списки): переопределяет вложенные токены. */
+@utility paper-surface {
+  background-color: var(--card);
+  color: var(--card-foreground);
+  border-color: var(--card-line);
+  background-image:
+    radial-gradient(ellipse at 50% 18%, rgb(0 0 0 / 0) 55%, rgb(96 70 34 / 0.13) 100%),
+    radial-gradient(ellipse at 12% 90%, rgb(122 88 40 / 0.1), rgb(0 0 0 / 0) 36%),
+    radial-gradient(ellipse at 88% 4%, rgb(122 88 40 / 0.08), rgb(0 0 0 / 0) 30%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.09'/%3E%3C/svg%3E");
+
+  .text-foreground {
+    color: var(--card-foreground);
+  }
+  .text-muted-foreground {
+    color: rgb(53 51 42 / 0.62);
+  }
+  .border-border {
+    border-color: rgb(53 51 42 / 0.28);
+  }
+  .bg-muted {
+    background-color: rgb(53 51 42 / 0.08);
+  }
+  .bg-accent,
+  .bg-accent\/50,
+  .bg-accent\/60 {
+    background-color: rgb(53 51 42 / 0.1);
+  }
+  .hover\:bg-accent\/50:hover,
+  .hover\:bg-accent\/60:hover {
+    background-color: rgb(53 51 42 / 0.12);
+  }
+  input,
+  textarea {
+    border-color: rgb(53 51 42 / 0.35);
+    background-color: rgb(244 234 214 / 0.65);
+    color: var(--card-foreground);
+  }
+  input::placeholder,
+  textarea::placeholder {
+    color: rgb(53 51 42 / 0.45);
+  }
+}

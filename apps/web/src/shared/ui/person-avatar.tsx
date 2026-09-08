@@ -10,16 +10,16 @@ function initialsOf(name: string): string {
     .toUpperCase();
 }
 
+/** Графитовая палитра «Инструмента»: оттенки серого, без семантики в цвете. */
 const PALETTE: Array<{ bg: string; fg: string }> = [
-  { bg: '#4e7e80', fg: '#f4ead6' },
-  { bg: '#c9973b', fg: '#201509' },
-  { bg: '#b0512c', fg: '#f4ead6' },
-  { bg: '#7c8a6e', fg: '#f4ead6' },
-  { bg: '#5b7f9d', fg: '#f4ead6' },
-  { bg: '#e6ddc6', fg: '#2c2a22' },
+  { bg: '#26262b', fg: '#d9d9d6' },
+  { bg: '#303036', fg: '#e8e8e6' },
+  { bg: '#3a3a41', fg: '#e8e8e6' },
+  { bg: '#45454d', fg: '#f0f0ee' },
+  { bg: '#d9d9d6', fg: '#0a0a0b' },
 ];
 
-/** Детерминированный приглушённый тон аватара от имени (советская палитра). */
+/** Детерминированный тон аватара от имени. */
 export function toneOf(name: string): { bg: string; fg: string } {
   let hash = 0;
   for (const char of name) hash = (hash * 31 + char.charCodeAt(0)) % 997;
@@ -37,10 +37,10 @@ export function PersonAvatar({
 }) {
   const tone = toneOf(name);
   return (
-    <Avatar className={cn('size-8 ring-1 ring-black/25', className)}>
+    <Avatar className={cn('size-8 ring-1 ring-border', className)}>
       {avatarUrl ? <AvatarImage src={avatarUrl} alt={name} /> : null}
       <AvatarFallback
-        className="crayon-fill text-xs font-semibold"
+        className="text-xs font-semibold"
         style={{ backgroundColor: tone.bg, color: tone.fg }}
       >
         {initialsOf(name)}

@@ -60,7 +60,7 @@ export function RightRail() {
         type="button"
         onClick={toggle}
         aria-label={ui.topbar.expandRail}
-        className="flex w-6 shrink-0 items-center justify-center border-l border-sidebar-border bg-sidebar/45 text-sidebar-foreground/60 backdrop-blur-[2px] hover:bg-sidebar-accent"
+        className="flex w-6 shrink-0 items-center justify-center border-l border-sidebar-border bg-sidebar text-sidebar-foreground/60 hover:bg-sidebar-accent"
       >
         <ChevronsLeft className="size-4" />
       </button>
@@ -83,17 +83,17 @@ export function RightRail() {
       onMouseEnter={dwellStart}
       onMouseLeave={dwellStop}
       className={cn(
-        'flex shrink-0 flex-col overflow-hidden border-l border-sidebar-border bg-sidebar/45 backdrop-blur-[2px] transition-[width] duration-300 ease-out',
+        'flex shrink-0 flex-col overflow-hidden border-l border-sidebar-border bg-sidebar transition-[width] duration-300 ease-out',
         edgeOpen ? 'w-64' : 'w-14',
       )}
     >
       <div className="flex h-8 items-center gap-2 px-3.5 pt-3 pb-1">
-        <span className="text-[11px] font-semibold text-sidebar-foreground/60 tabular-nums">
+        <span className="font-mono text-[11px] font-medium text-sidebar-foreground/70 tabular-nums">
           {online}
         </span>
         <span
           className={cn(
-            'text-[11px] font-semibold tracking-wider text-sidebar-foreground/40 uppercase transition-opacity duration-200',
+            'font-mono text-[11px] font-medium tracking-[0.14em] text-sidebar-foreground/40 uppercase transition-opacity duration-200',
             edgeOpen ? 'opacity-100' : 'opacity-0',
           )}
         >
@@ -109,7 +109,7 @@ export function RightRail() {
               key={entry.user.id}
               type="button"
               onClick={() => openChat(entry.user.id)}
-              className="flex w-full items-center gap-3 rounded-lg px-3.5 py-1.5 text-left hover:bg-sidebar-accent"
+              className="flex w-full items-center gap-3 rounded-md px-3.5 py-1.5 text-left hover:bg-sidebar-accent"
             >
               <span className="relative shrink-0">
                 <PersonAvatar

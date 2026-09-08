@@ -69,7 +69,7 @@ export function CommandPalette() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="paper-surface overflow-hidden p-0">
+      <DialogContent className="overflow-hidden bg-popover p-0 text-popover-foreground">
         <DialogTitle className="sr-only">{ui.topbar.smartSearch}</DialogTitle>
         <Command shouldFilter={false}>
           <CommandInput

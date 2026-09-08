@@ -48,14 +48,16 @@ function useReducedMotion(): boolean {
 
 /**
  * Ортогональное ребро «инструмента» (реф node-based UI): сегменты под прямыми
- * углами, порты-точки на концах, опциональный пульс (SMIL, без JS-цикла).
- * Координаты — пиксели позиционируемого контейнера; svg растянут на него
- * (absolute inset-0, overflow visible для свечения).
+ * углами, порты-точки на концах, опциональные отрисовка при появлении (drawOn)
+ * и пульс (SMIL, без JS-цикла). Координаты — пиксели позиционируемого
+ * контейнера; svg растянут на него (absolute inset-0, overflow visible).
+ * Перемонтирование (key) перезапускает одноразовые анимации.
  */
 function NodeEdge({
   points,
   pulse = false,
   active = false,
+  drawOn = false,
   elbow = 8,
   className,
 }: {
@@ -63,6 +65,8 @@ function NodeEdge({
   /** true — пульс бегает бесконечно; 'once' — один пробег при монтировании. */
   pulse?: boolean | 'once';
   active?: boolean;
+  /** Отрисовка линии от начала к концу при монтировании. */
+  drawOn?: boolean;
   elbow?: number;
   className?: string;
 }) {
@@ -72,6 +76,7 @@ function NodeEdge({
   const start = points[0];
   const end = points[points.length - 1];
   if (!start || !end) return null;
+  const animate = drawOn && !reduced;
   return (
     <svg
       aria-hidden="true"
@@ -85,6 +90,8 @@ function NodeEdge({
         fill="none"
         stroke={active ? 'var(--foreground)' : 'var(--edge)'}
         strokeWidth={1}
+        pathLength={animate ? 1 : undefined}
+        className={animate ? 'node-edge-draw' : undefined}
         style={active ? { filter: 'drop-shadow(0 0 6px var(--glow))' } : undefined}
       />
       {[start, end].map((p, i) => (

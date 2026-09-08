@@ -1,5 +1,5 @@
 import { X } from 'lucide-react';
-import { useEffect, useId, type ReactNode } from 'react';
+import { useEffect, useId, useState, type ReactNode } from 'react';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import { NodeEdge } from '@nodus/ui/components/node-edge';
@@ -8,21 +8,39 @@ import { cn } from '@nodus/ui/lib/utils';
 /** Стек слайдеров: ESC закрывает только верхнюю панель (§10.2). */
 const stack: string[] = [];
 
+/** Геометрия панели уровня 1: поля 12px, верх 40px (inset-x-3 top-10). */
+const PANEL_MARGIN = 12;
+const PANEL_TOP = 40;
+/** Насколько ребро «заходит» вдоль рамы панели влево от точки стыковки. */
+const DOCK_STUB = 24;
+
+export interface DockPoint {
+  x: number;
+  y: number;
+}
+
 /** Детальная панель — большой sheet снизу вверх (референс: Битрикс): во всю
  * ширину с полями и отступом сверху, чтобы каркас оставался виден; кнопки
- * управления и закрытие — слева вверху. Уровень 2 уходит глубже вниз-вправо. */
+ * управления и закрытие — слева вверху. Уровень 2 уходит глубже вниз-вправо.
+ * Стыковка — фишка «слайдер-нода»: от порта родительской сущности (dockFrom,
+ * координаты вьюпорта) к раме панели в момент открытия проходит ортогональное
+ * ребро с пульсом (поверх панели), затем растворяется — связь читается как
+ * событие, а не как постоянный декор. */
 export function SliderPanel({
   breadcrumbs,
   level = 1,
   onClose,
+  dockFrom,
   children,
 }: {
   breadcrumbs: ReactNode;
   level?: 1 | 2;
   onClose: () => void;
+  dockFrom?: DockPoint;
   children: ReactNode;
 }) {
   const id = useId();
+  const [dockVisible, setDockVisible] = useState(Boolean(dockFrom));
 
   useEffect(() => {
     stack.push(id);
@@ -37,27 +55,40 @@ export function SliderPanel({
     };
   }, [id, onClose]);
 
+  const dockX = dockFrom
+    ? Math.min(Math.max(dockFrom.x, PANEL_MARGIN + DOCK_STUB + 24), window.innerWidth - 24)
+    : 0;
+
   return (
     <div className="fixed inset-0 z-50">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} aria-hidden="true" />
+      <div className="absolute inset-0 bg-black/55" onClick={onClose} aria-hidden="true" />
+      {dockFrom && dockVisible ? (
+        <div
+          className="dock-edge-fade pointer-events-none absolute inset-0 z-30"
+          onAnimationEnd={(e) => {
+            // animationend всплывает: node-edge-draw на path тоже его стреляет
+            if (e.animationName === 'dock-edge-fade') setDockVisible(false);
+          }}
+        >
+          <NodeEdge
+            points={[
+              { x: dockX, y: dockFrom.y },
+              { x: dockX, y: PANEL_TOP },
+              { x: dockX - DOCK_STUB, y: PANEL_TOP },
+            ]}
+            drawOn
+            pulse="once"
+          />
+        </div>
+      ) : null}
       <section
         role="dialog"
         aria-modal="true"
         className={cn(
-          'animate-in slide-in-from-bottom absolute inset-x-3 bottom-0 top-10 flex flex-col rounded-t-xl border border-b-0 border-border bg-card text-card-foreground shadow-2xl duration-300',
+          'animate-in slide-in-from-bottom absolute inset-x-3 bottom-0 top-10 z-20 flex flex-col rounded-t-xl border border-b-0 border-border bg-card text-card-foreground duration-300',
           level === 2 && 'inset-x-10 top-16',
         )}
       >
-        <NodeEdge
-          className="-top-6 left-10 h-6 w-10"
-          points={[
-            { x: 6, y: 0 },
-            { x: 6, y: 12 },
-            { x: 20, y: 12 },
-            { x: 20, y: 24 },
-          ]}
-          pulse="once"
-        />
         <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-3">
           <Button
             variant="ghost"

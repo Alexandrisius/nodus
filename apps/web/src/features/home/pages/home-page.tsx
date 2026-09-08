@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import type { CompanyNewsItem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
+import { NodeLabel } from '@nodus/ui/components/node-label';
 import { Skeleton } from '@nodus/ui/components/skeleton';
 
 import { useAuthStore } from '../../../shared/auth-store.js';
+import type { DockPoint } from '../../../app/shell/slider-panel.js';
 import { useHomeSummary } from '../api/home-api.js';
 import { HomeBirthdays } from '../components/home-birthdays.js';
 import { HomeLabor } from '../components/home-labor.js';
@@ -12,12 +14,12 @@ import { HomeReader } from '../components/home-reader.js';
 import { HomeStats } from '../components/home-stats.js';
 import { HomeTopOvertime } from '../components/home-top-overtime.js';
 
-/** Главная — лента компании на «грифельной доске»: посты-бумага со скетчами,
- * ридер, трудозатраты, топ переработок, дни рождения. */
+/** Главная в теме «Инструмент»: плоская лента компании на node-панелях,
+ * моно-метки, ридер новости — слайдер с док-ребром от карточки. */
 export function HomePage() {
   const { data, isLoading } = useHomeSummary();
   const me = useAuthStore((s) => s.user);
-  const [readerItem, setReaderItem] = useState<CompanyNewsItem | null>(null);
+  const [reader, setReader] = useState<{ item: CompanyNewsItem; dock: DockPoint } | null>(null);
 
   const hour = new Date().getHours();
   const greet =
@@ -38,7 +40,9 @@ export function HomePage() {
         <h1 className="text-xl font-semibold text-foreground">
           {greet}, {me?.displayName.split(' ')[0]}
         </h1>
-        <p className="text-sm text-foreground/55 first-letter:uppercase">{today}</p>
+        <p className="mt-0.5 font-mono text-[12px] tracking-[0.08em] text-muted-foreground first-letter:uppercase">
+          {today}
+        </p>
       </header>
 
       {isLoading || !data ? (
@@ -54,11 +58,9 @@ export function HomePage() {
         <div className="flex flex-col gap-6 p-6">
           <HomeStats stats={data.stats} />
           <div>
-            <h2 className="text-sm font-semibold tracking-wider text-foreground/60 uppercase">
-              {ui.home.newsTitle}
-            </h2>
+            <NodeLabel label={ui.home.newsTitle} className="px-1" />
             <div className="mt-4 grid grid-cols-[minmax(0,1fr)_340px] items-start gap-6">
-              <HomeNews news={data.news} onOpen={setReaderItem} />
+              <HomeNews news={data.news} onOpen={(item, dock) => setReader({ item, dock })} />
               <div className="flex flex-col gap-5">
                 <HomeLabor weeks={data.labor.weeks} />
                 <HomeTopOvertime entries={data.labor.topOvertime} />
@@ -68,7 +70,9 @@ export function HomePage() {
           </div>
         </div>
       )}
-      <HomeReader item={readerItem} onClose={() => setReaderItem(null)} />
+      {reader ? (
+        <HomeReader item={reader.item} dockFrom={reader.dock} onClose={() => setReader(null)} />
+      ) : null}
     </div>
   );
 }

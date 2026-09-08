@@ -1,68 +1,63 @@
-import { MessageSquare, ThumbsUp } from 'lucide-react';
+import { ArrowRight, MessageSquare, ThumbsUp } from 'lucide-react';
+import type { MouseEvent } from 'react';
 import type { CompanyNewsItem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 
+import type { DockPoint } from '../../../app/shell/slider-panel.js';
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
 
 const df = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long' });
 
-const sketchOf: Record<string, string> = {
-  'c0000000-0000-4000-8000-000000000101': '/sketches/news-mayak.png',
-  'c0000000-0000-4000-8000-000000000102': '/sketches/news-cake.png',
-  'c0000000-0000-4000-8000-000000000103': '/sketches/news-bim.png',
-  'c0000000-0000-4000-8000-000000000104': '/sketches/news-crane.png',
-};
-
-/** Лента компании: крупные посты-«бумага» с карандашным рисунком справа;
- * клик открывает ридер. */
+/** Лента компании: плоские посты-панели; клик открывает ридер-слайдер,
+ * стыкующийся док-ребром от правого края карточки (фишка «слайдер-нода»). */
 export function HomeNews({
   news,
   onOpen,
 }: {
   news: CompanyNewsItem[];
-  onOpen: (item: CompanyNewsItem) => void;
+  onOpen: (item: CompanyNewsItem, dock: DockPoint) => void;
 }) {
+  function handleOpen(item: CompanyNewsItem, event: MouseEvent<HTMLButtonElement>) {
+    const card = event.currentTarget.closest('article');
+    const rect = card?.getBoundingClientRect();
+    const dock: DockPoint = rect
+      ? { x: rect.right, y: rect.top + 36 }
+      : { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+    onOpen(item, dock);
+  }
+
   return (
-    <section className="flex flex-col gap-5">
+    <section className="flex flex-col gap-4">
       {news.map((item) => (
-        <article key={item.id} className="paper-card sketch-tilt p-5">
+        <article key={item.id} className="node-panel">
           <button
             type="button"
-            onClick={() => onOpen(item)}
-            className="flex w-full items-start gap-5 text-left"
+            onClick={(e) => handleOpen(item, e)}
+            className="block w-full p-5 text-left transition-colors hover:bg-accent/40"
           >
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-3">
-                <PersonAvatar name={item.author.displayName} className="size-10" />
-                <div className="min-w-0">
-                  <div className="truncate text-sm font-semibold">{item.author.displayName}</div>
-                  <div className="text-xs text-card-foreground/55 first-letter:uppercase">
-                    {df.format(new Date(item.publishedAt))}
-                  </div>
+            <div className="flex items-center gap-3">
+              <PersonAvatar name={item.author.displayName} className="size-10" />
+              <div className="min-w-0">
+                <div className="truncate text-sm font-semibold">{item.author.displayName}</div>
+                <div className="font-mono text-[11px] tracking-[0.08em] text-muted-foreground first-letter:uppercase">
+                  {df.format(new Date(item.publishedAt))}
                 </div>
               </div>
-              <h3 className="mt-3 text-base font-semibold">{item.title}</h3>
-              <p className="mt-1 line-clamp-2 text-sm text-card-foreground/75">{item.text}</p>
-              <span className="mt-2 inline-block text-sm font-medium text-rust underline underline-offset-4">
-                {ui.home.readMore}
-              </span>
             </div>
-            {sketchOf[item.id] && (
-              <img
-                src={sketchOf[item.id]}
-                alt=""
-                className="h-40 w-52 shrink-0 rotate-1 object-cover object-center mix-blend-multiply opacity-95"
-              />
-            )}
+            <h3 className="mt-3 text-base font-semibold">{item.title}</h3>
+            <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{item.text}</p>
+            <span className="mt-3 inline-flex items-center gap-1.5 font-mono text-[11px] font-medium tracking-[0.14em] text-foreground/80 uppercase">
+              {ui.home.readMore}
+              <ArrowRight className="size-3.5" strokeWidth={1.75} />
+            </span>
           </button>
-          <div className="mt-3 flex items-center gap-5 text-sm text-card-foreground/60">
+          <div className="flex items-center gap-5 border-t border-border px-5 py-2.5 font-mono text-[11px] text-muted-foreground tabular-nums">
             <span className="flex items-center gap-1.5">
-              <ThumbsUp className="size-4 text-rust" />
+              <ThumbsUp className="size-3.5" strokeWidth={1.75} />
               {item.likesCount}
             </span>
-            <span className="h-4 w-px bg-pencil/30" />
             <span className="flex items-center gap-1.5">
-              <MessageSquare className="size-4 text-tealink" />
+              <MessageSquare className="size-3.5" strokeWidth={1.75} />
               {item.commentsCount}
             </span>
           </div>

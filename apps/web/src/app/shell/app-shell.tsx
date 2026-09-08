@@ -7,8 +7,8 @@ import { TooltipProvider } from '@nodus/ui/components/tooltip';
 
 import { CommandPalette } from './command-palette.js';
 import { LiveGraph } from './live-graph.js';
+import { NodeRail } from './node-rail.js';
 import { RightRail } from './right-rail.js';
-import { SideMenu } from './side-menu.js';
 import { useShellStore } from './shell-store.js';
 import { TopBar } from './top-bar.js';
 
@@ -21,9 +21,15 @@ function ShellFallback() {
   );
 }
 
-/** Каркас приложения (§10.2): меню 240px · топбар · правая полоса 56px · слайдеры. */
+/** Каркас приложения (§10.2) в теме «Инструмент»: рейка-магистраль 240px ·
+ * топбар · правая полоса 56px · слайдеры. Фон — плоский (реф node-based UI);
+ * легаси-граф монтируется только в нагрузочном режиме `?stress=N` (harness
+ * для будущей итерации живого фона, тест graph-stress). */
 export function AppShell() {
   const theme = useShellStore((s) => s.theme);
+  const stressMode =
+    typeof window !== 'undefined' &&
+    Number(new URLSearchParams(window.location.search).get('stress') ?? 0) >= 1000;
 
   useEffect(() => {
     const root = document.documentElement;
@@ -46,13 +52,13 @@ export function AppShell() {
     <TooltipProvider>
       <a
         href="#content"
-        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:paper-surface focus:rounded-lg focus:px-3 focus:py-2 focus:text-sm"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:border focus:border-border focus:bg-card focus:px-3 focus:py-2 focus:text-sm"
       >
         {ui.common.skipToContent}
       </a>
-      <LiveGraph visible={theme !== 'nodus'} />
-      <div className="flex h-screen overflow-hidden">
-        <SideMenu />
+      <div className="flex h-screen overflow-hidden bg-background">
+        {stressMode ? <LiveGraph /> : null}
+        <NodeRail />
         <div className="flex min-w-0 flex-1 flex-col">
           <TopBar />
           <div id="content" className="relative min-h-0 flex-1">

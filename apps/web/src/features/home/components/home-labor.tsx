@@ -1,8 +1,8 @@
-import { ChartNoAxesColumn } from 'lucide-react';
 import type { LaborWeek } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
+import { NodeCard } from '@nodus/ui/components/node-card';
 
-/** Карандашный столбиковый график трудозатрат: лёгкий «поводырь» линий. */
+/** Трудозатраты по неделям: плоские столбики, моно-подписи (тема «Инструмент»). */
 export function HomeLabor({ weeks }: { weeks: LaborWeek[] }) {
   const max = Math.max(...weeks.map((w) => w.hours), 1);
   const bw = 34;
@@ -11,16 +11,10 @@ export function HomeLabor({ weeks }: { weeks: LaborWeek[] }) {
   const height = 130;
 
   return (
-    <section className="paper-card p-5">
-      <h2 className="flex items-center gap-2 text-sm font-semibold">
-        <span className="flex size-7 items-center justify-center rounded-md bg-ochre/20 text-ochre">
-          <ChartNoAxesColumn className="size-4" />
-        </span>
-        {ui.home.laborTitle}
-      </h2>
+    <NodeCard label={ui.home.laborTitle}>
       <svg
         viewBox={`0 0 ${width} ${height}`}
-        className="mt-3 w-full"
+        className="w-full"
         role="img"
         aria-label={ui.home.laborTitle}
       >
@@ -29,26 +23,22 @@ export function HomeLabor({ weeks }: { weeks: LaborWeek[] }) {
           y1={height - 18}
           x2={width - gap / 2}
           y2={height - 18}
-          stroke="var(--pencil)"
-          strokeOpacity="0.45"
-          strokeDasharray="5 4"
+          stroke="var(--edge)"
+          strokeOpacity="0.5"
         />
         {weeks.map((week, i) => {
           const h = (week.hours / max) * (height - 40);
           const x = gap + i * (bw + gap);
           const y = height - 18 - h;
-          const tilt = i % 2 === 0 ? -0.6 : 0.5;
           return (
-            <g key={week.label} transform={`rotate(${tilt} ${x + bw / 2} ${y + h})`}>
+            <g key={week.label}>
               <rect
                 x={x}
                 y={y}
                 width={bw}
                 height={h}
-                fill="var(--ochre)"
-                fillOpacity="0.35"
-                stroke="var(--pencil)"
-                strokeOpacity="0.6"
+                fill="var(--foreground)"
+                fillOpacity="0.16"
                 rx="2"
               />
               <text
@@ -56,8 +46,8 @@ export function HomeLabor({ weeks }: { weeks: LaborWeek[] }) {
                 y={height - 6}
                 textAnchor="middle"
                 fontSize="9"
-                fill="var(--pencil)"
-                fillOpacity="0.6"
+                fontFamily="var(--font-mono)"
+                fill="var(--muted-foreground)"
               >
                 {week.label}
               </text>
@@ -66,8 +56,9 @@ export function HomeLabor({ weeks }: { weeks: LaborWeek[] }) {
                 y={y - 5}
                 textAnchor="middle"
                 fontSize="9"
-                fill="var(--pencil)"
-                fillOpacity="0.8"
+                fontFamily="var(--font-mono)"
+                fill="var(--foreground)"
+                fillOpacity="0.75"
               >
                 {week.hours}
               </text>
@@ -75,6 +66,6 @@ export function HomeLabor({ weeks }: { weeks: LaborWeek[] }) {
           );
         })}
       </svg>
-    </section>
+    </NodeCard>
   );
 }
