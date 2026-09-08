@@ -19,7 +19,7 @@ import { useShellStore } from './shell-store.js';
 import { LogoIcon } from './logo-icon.js';
 import { LogoWordmark } from './logo-wordmark.js';
 
-/** Ось шины в px от левого края рейки (импортируется NavigationFlash). */
+/** Ось шины в px от левого края рейки (импортируется circuit-geometry). */
 export const RAIL_TRUNK_X = 24;
 /** Центр порта модуля (конец отвода). */
 const PORT_X = 42;
@@ -29,26 +29,6 @@ const CONTENT_X = 60;
 /** Геометрия рядов: h-10 + gap-0.5 → шаг 42, центр первого ряда 20. */
 const ROW_STRIDE = 42;
 const ROW_CENTER = 20;
-
-/** Хребет секции: шина от первого порта к последнему + скруглённые локтем
- * отводы к каждому порту (вертикаль → закругление → вход в ряд, как на рефе). */
-function spinePath(count: number): string {
-  const centers = Array.from({ length: count }, (_, i) => ROW_CENTER + i * ROW_STRIDE);
-  const first = centers[0];
-  const last = centers[centers.length - 1];
-  if (first === undefined || last === undefined) return '';
-  const parts = [`M${RAIL_TRUNK_X},${first - 10} V${last}`];
-  for (const yc of centers) {
-    parts.push(`M${RAIL_TRUNK_X},${yc - 10} Q${RAIL_TRUNK_X},${yc} 34,${yc} H37.5`);
-  }
-  return parts.join(' ');
-}
-
-/** Отвод активного модуля — подсвечен отдельным слоем. */
-function branchPath(index: number): string {
-  const yc = ROW_CENTER + index * ROW_STRIDE;
-  return `M${RAIL_TRUNK_X},${yc - 10} Q${RAIL_TRUNK_X},${yc} 34,${yc} H37.5`;
-}
 
 interface MenuItem {
   to: string;
@@ -108,7 +88,7 @@ export function NodeRail() {
     >
       <div
         className={cn(
-          'flex h-14 shrink-0 items-center gap-2.5 border-b border-sidebar-border px-4',
+          'flex h-14 shrink-0 items-center gap-2.5 px-4',
           collapsed && 'justify-center px-0',
         )}
       >
@@ -122,7 +102,6 @@ export function NodeRail() {
 
       <nav className="flex flex-1 flex-col gap-4 overflow-y-auto py-3">
         {sections.map((section) => {
-          const activeIndex = section.items.findIndex(isActive);
           return (
             <div key={section.title} className="flex flex-col gap-0.5">
               {!collapsed && (
@@ -170,29 +149,6 @@ export function NodeRail() {
                     <span key={item.to}>{link}</span>
                   );
                 })}
-                {!collapsed && section.items.length > 1 && (
-                  <svg
-                    aria-hidden
-                    className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
-                  >
-                    <path
-                      d={spinePath(section.items.length)}
-                      fill="none"
-                      stroke="var(--edge)"
-                      strokeOpacity="0.55"
-                      strokeWidth="1"
-                    />
-                    {activeIndex >= 0 && (
-                      <path
-                        d={branchPath(activeIndex)}
-                        fill="none"
-                        stroke="var(--port)"
-                        strokeOpacity="0.9"
-                        strokeWidth="1"
-                      />
-                    )}
-                  </svg>
-                )}
                 {!collapsed &&
                   section.items.map((item, i) => {
                     const active = isActive(item);

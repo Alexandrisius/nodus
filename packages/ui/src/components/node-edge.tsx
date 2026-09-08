@@ -7,7 +7,7 @@ export interface NodeEdgePoint {
 }
 
 /** H/V-ломаная со скруглением elbow в промежуточных узлах (манхэттенская геометрия). */
-function orthPath(points: NodeEdgePoint[], r: number): string {
+export function orthPath(points: NodeEdgePoint[], r: number): string {
   if (points.length < 2) return '';
   const first = points[0];
   if (!first) return '';

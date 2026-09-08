@@ -86,7 +86,7 @@ export function TopBar() {
   const search = new URLSearchParams(searchStr);
 
   return (
-    <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border bg-background px-4">
+    <header data-topbar className="flex h-14 shrink-0 items-center gap-3 bg-background px-4">
       <nav className="flex h-full min-w-0 flex-1 items-center">
         {sectionsFor(pathname).map((section) => (
           <Link

@@ -88,6 +88,10 @@ export function RightRail() {
       )}
     >
       <div className="flex h-8 items-center gap-2 px-3.5 pt-3 pb-1">
+        <span
+          data-circuit-node
+          className="size-2 shrink-0 rounded-full border border-edge bg-transparent"
+        />
         <span className="font-mono text-[11px] font-medium text-sidebar-foreground/70 tabular-nums">
           {online}
         </span>
