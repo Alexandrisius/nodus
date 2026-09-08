@@ -1,11 +1,11 @@
 import {
+  ChevronsLeft,
+  ChevronsRight,
   FolderOpen,
   House,
   ListTodo,
   Mail,
   MessageSquare,
-  PanelLeftClose,
-  PanelLeftOpen,
   Users,
 } from 'lucide-react';
 import { Link, useRouterState } from '@tanstack/react-router';
@@ -100,13 +100,13 @@ export function NodeRail() {
         )}
       </div>
 
-      {/* Узел контура на боковом шве схлопнутой рейки — как на правой панели. */}
+      {/* Узел контура на боковом шве схлопнутой рейки — размер точек вкладок. */}
       {collapsed && (
         <>
           <span data-left-node aria-hidden className="absolute top-[55px] right-0 size-px" />
           <span
             aria-hidden
-            className="absolute top-[51.5px] -right-[4.5px] z-10 size-[9px] rounded-full border border-edge bg-sidebar"
+            className="absolute top-[53.5px] -right-[2.5px] z-10 size-[5px] rounded-full border border-edge bg-sidebar"
           />
         </>
       )}
@@ -202,7 +202,7 @@ export function NodeRail() {
             collapsed && 'justify-center px-0',
           )}
         >
-          {collapsed ? <PanelLeftOpen className="size-5" /> : <PanelLeftClose className="size-5" />}
+          {collapsed ? <ChevronsRight className="size-5" /> : <ChevronsLeft className="size-5" />}
           {!collapsed && ui.nav.collapse}
         </button>
       </div>

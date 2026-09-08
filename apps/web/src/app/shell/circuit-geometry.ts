@@ -11,12 +11,10 @@ export interface CircuitGeometry {
   modules: { to: string; active: boolean; port: NodeEdgePoint }[];
   /** Центры вкладок топбара (x), активность, подпись (идентичность вкладки). */
   tabs: { active: boolean; x: number; label: string }[];
-  /** Узел правой панели (точка на её левом шве, на оси). */
-  rightNode: NodeEdgePoint | null;
-  /** Ширина правой панели (детект раскрытия для вспышки, не путаем с resize). */
-  rightRailWidth: number | null;
   /** Узел схлопнутой левой рейки (точка на её боковом шве; null — рейка развёрнута). */
   leftNode: NodeEdgePoint | null;
+  /** Правый край вьюпорта — ось уходит до самого конца, как обычный бордюр. */
+  rightEdge: number;
   /** Низ шины рейки (центр последнего модуля). */
   spineEndY: number;
 }
@@ -50,42 +48,40 @@ export function measureCircuit(pathname = '/'): CircuitGeometry | null {
     x: centerOf(el).x,
     label: el.textContent?.trim() ?? '',
   }));
-  const rightEl = document.querySelector<HTMLElement>('[data-circuit-node]');
   const leftEl = document.querySelector<HTMLElement>('[data-left-node]');
   const leftNode = leftEl ? centerOf(leftEl) : null;
   const lastY = modules.length ? Math.max(...modules.map((m) => m.port.y)) : axisY;
-  // Схлопнутая рейка: стык — правый край узла бокового шва; «виртуальный»
-  // активный модуль опирает вспышки на ось (портов внутри панели нет);
-  // to — реальный маршрут, чтобы сигнатура фокуса не дёргалась при развороте.
+  // Схлопнутая рейка: стык — правый край узла бокового шва (точка 5px);
+  // «виртуальный» активный модуль опирает вспышки на ось (портов внутри
+  // панели нет); to — реальный маршрут, чтобы сигнатура фокуса не дёргалась
+  // при развороте.
   const junction: NodeEdgePoint = leftNode
-    ? { x: leftNode.x + 4.5, y: axisY }
+    ? { x: leftNode.x + 2.5, y: axisY }
     : { x: RAIL_TRUNK_X, y: axisY };
   return {
     junction,
     axisY,
     modules: leftNode ? [{ to: pathname, active: true, port: junction }] : modules,
     tabs,
-    rightNode: rightEl ? centerOf(rightEl) : null,
-    rightRailWidth: rightEl?.parentElement?.getBoundingClientRect().width ?? null,
     leftNode,
+    rightEdge: document.documentElement.clientWidth,
     // Шина заканчивается в точке отхода последнего отвода (порт-10) — без хвоста.
     spineEndY: leftNode ? axisY : modules.length ? lastY - 10 : axisY,
   };
 }
 
 /** Статичный контур: артерия — ОДНА ломаная «низ шины → стык (круглое
- * сопряжение) → ось → правый узел» (без прямых углов и точек в стыке);
- * отводы модулей локтями; засечки вкладок — локти в сторону главного меню. */
+ * сопряжение) → ось до правого края вьюпорта» (как обычный бордюр; без
+ * прямых углов и точек в стыке); отводы модулей локтями; засечки вкладок —
+ * локти в сторону главного меню. */
 export function framePath(g: CircuitGeometry): string {
   const parts: string[] = [];
-  // Ось упирается в КРАЙ точки узла — не заходит внутрь полого кружка.
-  const rightEnd = g.rightNode ? g.rightNode.x - 4.5 : g.junction.x + 200;
   parts.push(
     orthPath(
       [
         { x: g.junction.x, y: g.leftNode ? g.axisY : g.modules.length > 0 ? g.spineEndY : g.axisY },
         g.junction,
-        { x: rightEnd, y: g.axisY },
+        { x: g.rightEdge, y: g.axisY },
       ],
       8,
     ),
@@ -100,18 +96,6 @@ export function framePath(g: CircuitGeometry): string {
           { x: g.junction.x, y: m.port.y - 10 },
           { x: g.junction.x, y: m.port.y },
           { x: m.port.x - 4, y: m.port.y },
-        ],
-        8,
-      ),
-    );
-  }
-  // Узел правой панели лежит на оси — загиб рисуем только при реальном смещении.
-  if (g.rightNode && Math.abs(g.rightNode.y - g.axisY) >= 12) {
-    parts.push(
-      orthPath(
-        [
-          { x: g.rightNode.x, y: g.axisY },
-          { x: g.rightNode.x, y: g.rightNode.y - 5 },
         ],
         8,
       ),

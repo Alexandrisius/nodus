@@ -16,11 +16,13 @@ const dotColor: Record<string, string> = {
 };
 
 /**
- * Правая полоса коллег (каркас §10.2): 56px, плавно раскрывается до панели
- * с полными именами, когда курсор задержался над зоной полосы ≥ 400 мс
- * (задержка гасит ложные срабатывания при пролёте курсора, в том числе на
- * многомониторных конфигурациях); закрывается, когда курсор покидает панель.
- * Клик по коллеге — быстрый переход в чат.
+ * Правая полоса коллег (каркас §10.2): узкая полоса 40px под главной линией
+ * (обрезана ею, как в Битрикс24), поверх контента; скроллбар контента — у
+ * самого края окна за ней. Плавно раскрывается до панели с полными именами,
+ * когда курсор задержался над зоной полосы ≥ 400 мс (задержка гасит ложные
+ * срабатывания при пролёте курсора); закрывается, когда курсор покидает
+ * панель. Список — компактный (сотни людей), прокрутка колёсиком без
+ * видимого скроллбара. Клик по коллеге — быстрый переход в чат.
  */
 export function RightRail() {
   const collapsed = useShellStore((s) => s.railCollapsed);
@@ -60,14 +62,8 @@ export function RightRail() {
         type="button"
         onClick={toggle}
         aria-label={ui.topbar.expandRail}
-        className="relative flex w-6 shrink-0 items-center justify-center border-l border-sidebar-border bg-sidebar text-sidebar-foreground/60 hover:bg-sidebar-accent"
+        className="absolute top-14 right-1.5 bottom-0 z-20 flex w-6 items-center justify-center border-l border-sidebar-border bg-sidebar text-sidebar-foreground/60 hover:bg-sidebar-accent"
       >
-        {/* Связь и точка приёма остаются и в свёрнутом состоянии. */}
-        <span data-circuit-node aria-hidden className="absolute top-[55px] left-0 size-px" />
-        <span
-          aria-hidden
-          className="absolute top-[51.5px] -left-[4.5px] size-[9px] rounded-full border border-edge bg-sidebar"
-        />
         <ChevronsLeft className="size-4" />
       </button>
     );
@@ -82,32 +78,20 @@ export function RightRail() {
     else void navigate({ to: '/chat' });
   }
 
-  const online = data?.filter((p) => p.status === 'online').length ?? 0;
-
   return (
     <aside
       onMouseEnter={dwellStart}
       onMouseLeave={dwellStop}
       className={cn(
-        'relative flex shrink-0 flex-col border-l border-sidebar-border bg-sidebar transition-[width] duration-300 ease-out',
-        edgeOpen ? 'w-64' : 'w-14',
+        'absolute top-14 right-1.5 bottom-0 z-20 flex flex-col border-l border-sidebar-border bg-sidebar transition-[width] duration-300 ease-out',
+        edgeOpen ? 'w-60' : 'w-10',
       )}
     >
-      {/* Точка приёма связи на шве — ребёнок aside ВНЕ overflow-обёртки:
-          движется с панелью синхронно (без отставания и вибрации). */}
-      <span data-circuit-node aria-hidden className="absolute top-[55px] left-0 size-px" />
-      <span
-        aria-hidden
-        className="absolute top-[51.5px] -left-[4.5px] z-10 size-[9px] rounded-full border border-edge bg-sidebar"
-      />
       <div className="flex h-full min-h-0 flex-col overflow-hidden">
-        <div className="flex h-8 items-center gap-2 px-3.5 pt-3 pb-1">
-          <span className="font-mono text-[11px] font-medium text-sidebar-foreground/70 tabular-nums">
-            {online}
-          </span>
+        <div className="flex h-7 shrink-0 items-center px-2 pt-2 pb-1">
           <span
             className={cn(
-              'font-mono text-[11px] font-medium tracking-[0.14em] text-sidebar-foreground/40 uppercase transition-opacity duration-200',
+              'font-mono text-[10px] font-medium tracking-[0.14em] text-sidebar-foreground/40 uppercase transition-opacity duration-200',
               edgeOpen ? 'opacity-100' : 'opacity-0',
             )}
           >
@@ -115,7 +99,10 @@ export function RightRail() {
           </span>
         </div>
 
-        <div className="flex flex-1 flex-col gap-1 py-1">
+        <div
+          data-no-scrollbar
+          className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto py-1"
+        >
           {data
             ?.filter((p) => p.status !== 'offline')
             .map((entry) => (
@@ -123,24 +110,24 @@ export function RightRail() {
                 key={entry.user.id}
                 type="button"
                 onClick={() => openChat(entry.user.id)}
-                className="flex w-full items-center gap-3 rounded-md px-3.5 py-1.5 text-left hover:bg-sidebar-accent"
+                className="flex w-full shrink-0 items-center gap-2.5 rounded-md px-1.5 py-1 text-left hover:bg-sidebar-accent"
               >
                 <span className="relative shrink-0">
                   <PersonAvatar
                     name={entry.user.displayName}
                     avatarUrl={entry.user.avatarUrl}
-                    className="size-9"
+                    className="size-7"
                   />
                   <span
                     className={cn(
-                      'absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full border-2 border-sidebar',
+                      'absolute -right-0.5 -bottom-0.5 size-2 rounded-full border-2 border-sidebar',
                       dotColor[entry.status],
                     )}
                   />
                 </span>
                 <span
                   className={cn(
-                    'truncate text-sm text-sidebar-foreground transition-opacity delay-75 duration-200',
+                    'truncate text-[13px] text-sidebar-foreground transition-opacity delay-75 duration-200',
                     edgeOpen ? 'opacity-100' : 'opacity-0',
                   )}
                 >
@@ -154,9 +141,13 @@ export function RightRail() {
           type="button"
           onClick={toggle}
           aria-label={ui.topbar.collapseRail}
-          className="flex h-9 items-center justify-center text-sidebar-foreground/50 hover:text-sidebar-foreground"
+          className={cn(
+            'flex h-8 shrink-0 items-center text-sidebar-foreground/50 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground',
+            edgeOpen ? 'w-full gap-2.5 px-3' : 'justify-center',
+          )}
         >
           <ChevronsRight className="size-4" />
+          {edgeOpen ? <span className="text-[13px]">{ui.topbar.collapseRail}</span> : null}
         </button>
       </div>
     </aside>

@@ -125,12 +125,24 @@ function NodeEdge({
           <circle key={i} cx={p.x} cy={p.y} r={3} fill="var(--port)" />
         ))}
       {pulse && !reduced && (
-        <circle r={2.5} fill="var(--port)">
+        <circle r={2.5} fill="var(--port)" opacity={0}>
+          {/* fill=freeze — после пробега кружок остаётся в конце пути, иначе
+              SMIL возвращает его в (0,0): «светящийся пиксель» в левом верхнем
+              углу. opacity-гейт — до старта движения кружок невидим. */}
           <animateMotion
             dur={`${pulseDur}s`}
             begin={drawOn ? `${drawDur}s` : '0s'}
             repeatCount={pulse === 'once' ? '1' : 'indefinite'}
             path={d}
+            fill="freeze"
+          />
+          <animate
+            attributeName="opacity"
+            from="0"
+            to="1"
+            begin={drawOn ? `${drawDur}s` : '0s'}
+            dur="0.01s"
+            fill="freeze"
           />
         </circle>
       )}

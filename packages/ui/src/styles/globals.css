@@ -206,6 +206,18 @@
     border-top: 8px solid transparent;
     background-clip: padding-box;
   }
+  /* Скроллбар контентной колонки — у самого края окна за правой полосой;
+     контент страниц отступает от полосы (44px), сам скроллбар не двигается. */
+  #content > * {
+    padding-right: 44px;
+  }
+  /* Зоны со скрытым скроллбаром (полоса коллег и т.п.) — прокрутка колёсиком. */
+  [data-no-scrollbar] {
+    scrollbar-width: none;
+  }
+  [data-no-scrollbar]::-webkit-scrollbar {
+    display: none;
+  }
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,
