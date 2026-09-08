@@ -12,6 +12,8 @@ export interface TaskRow {
   isLast: boolean;
   /** Есть дети: от порта вниз уходит вертикаль ветки. */
   hasChildren: boolean;
+  /** Всего потомков (для счётчика свёрнутой ветки). */
+  childCount: number;
 }
 
 /**
@@ -31,25 +33,49 @@ export function buildTaskRows(items: TaskListItem[]): TaskRow[] {
   }
 
   const rows: TaskRow[] = [];
-  const walk = (nodes: TaskListItem[], depth: number, ancestorIsLast: boolean[]) => {
+  const walk = (nodes: TaskListItem[], depth: number, ancestorIsLast: boolean[]): number => {
+    let total = 0;
     nodes.forEach((task, index) => {
       const isLast = index === nodes.length - 1;
       const children = childrenOf.get(task.id) ?? [];
       const passThrough: number[] = [];
+      // Сквозная вертикаль уровня d принадлежит ветке предка d+1: она живёт,
+      // пока у этого предка ниже есть сиблинги (он не последний).
       for (let d = 0; d <= depth - 2; d += 1) {
-        if (ancestorIsLast[d] === false) passThrough.push(d);
+        if (ancestorIsLast[d + 1] === false) passThrough.push(d);
       }
-      rows.push({
+      const row: TaskRow = {
         task,
         depth,
         passThrough,
         elbowFrom: depth > 0 ? depth - 1 : null,
         isLast,
         hasChildren: children.length > 0,
-      });
-      walk(children, depth + 1, [...ancestorIsLast, isLast]);
+        childCount: 0,
+      };
+      rows.push(row);
+      const descendants = walk(children, depth + 1, [...ancestorIsLast, isLast]);
+      row.childCount = descendants;
+      total += 1 + descendants;
     });
+    return total;
   };
   walk(childrenOf.get(null) ?? [], 0, []);
   return rows;
+}
+
+/** Видимые строки с учётом свёрнутых веток: узел скрыт, если свёрнут любой
+ * предок; геометрия связей не меняется (локти считаются по полному дереву). */
+export function filterVisibleRows(rows: TaskRow[], collapsed: ReadonlySet<string>): TaskRow[] {
+  const visible: TaskRow[] = [];
+  const hiddenBelow: number[] = [];
+  for (const row of rows) {
+    while (hiddenBelow.length > 0 && row.depth <= (hiddenBelow[hiddenBelow.length - 1] ?? 0)) {
+      hiddenBelow.pop();
+    }
+    if (hiddenBelow.length > 0) continue;
+    visible.push(row);
+    if (row.hasChildren && collapsed.has(row.task.id)) hiddenBelow.push(row.depth);
+  }
+  return visible;
 }

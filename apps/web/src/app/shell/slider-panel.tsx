@@ -23,9 +23,11 @@ export interface DockPoint {
  * ширину с полями и отступом сверху, чтобы каркас оставался виден; кнопки
  * управления и закрытие — слева вверху. Уровень 2 уходит глубже вниз-вправо.
  * Стыковка — фишка «слайдер-нода»: от порта родительской сущности (dockFrom,
- * координаты вьюпорта) к раме панели в момент открытия проходит ортогональное
- * ребро с пульсом (поверх панели), затем растворяется — связь читается как
- * событие, а не как постоянный декор. */
+ * координаты вьюпорта) к раме панели проходит ортогональное ребро с пульсом.
+ * Хореография: панель стартует с задержкой 150 мс — сначала глаз видит, как
+ * ребро растёт от строки/карточки к раме, затем панель накрывает источник,
+ * а ребро растворяется за 1 с — связь читается как событие, а не как
+ * «висящая» линия поверх контента. */
 export function SliderPanel({
   breadcrumbs,
   level = 1,
@@ -85,6 +87,7 @@ export function SliderPanel({
       <section
         role="dialog"
         aria-modal="true"
+        style={{ animationDelay: '150ms', animationFillMode: 'backwards' }}
         className={cn(
           'animate-in slide-in-from-bottom absolute inset-x-3 bottom-0 top-10 z-20 flex flex-col rounded-t-xl border border-b-0 border-border bg-card text-card-foreground duration-300',
           level === 2 && 'inset-x-10 top-16',

@@ -12,18 +12,28 @@ const ELBOW = 6;
 /**
  * Граф вложенности строки списка — фирменная «плата» задач: сквозные
  * вертикали предков, локоть к порту строки, вертикаль вниз к детям.
- * Локоть отрисовывается каскадом при появлении списка; при ховере на строку
- * её сегмент загорается (currentColor — переключение классами строки).
+ * Порт родителя — кнопка сворачивания ветки («−» развёрнута, «+» свёрнута,
+ * как папки в проводнике). Локоть отрисовывается каскадом при появлении;
+ * при ховере на строку её сегмент загорается (currentColor + классы строки).
  */
-export function TaskListGraph({ row, index }: { row: TaskRow; index: number }) {
+export function TaskListGraph({
+  row,
+  index,
+  branchCollapsed,
+}: {
+  row: TaskRow;
+  index: number;
+  branchCollapsed: boolean;
+}) {
   const x = GRAPH_X(row.depth);
+  const branchOpen = row.hasChildren && !branchCollapsed;
   const staticPaths: string[] = row.passThrough.map(
     (d) => `M${GRAPH_X(d)},0 L${GRAPH_X(d)},${ROW_H}`,
   );
   if (row.elbowFrom !== null && !row.isLast) {
     staticPaths.push(`M${GRAPH_X(row.elbowFrom)},${MID} L${GRAPH_X(row.elbowFrom)},${ROW_H}`);
   }
-  if (row.hasChildren) staticPaths.push(`M${x},${MID} L${x},${ROW_H}`);
+  if (branchOpen) staticPaths.push(`M${x},${MID} L${x},${ROW_H}`);
 
   const elbowPath =
     row.elbowFrom !== null
@@ -57,13 +67,28 @@ export function TaskListGraph({ row, index }: { row: TaskRow; index: number }) {
           style={{ animationDelay: `${index * 30}ms`, animationDuration: '0.35s' }}
         />
       ) : null}
-      <circle
-        cx={x}
-        cy={MID}
-        r={3}
-        fill="currentColor"
-        className="text-port/60 transition-colors duration-200 group-hover/row:text-port"
-      />
+      {row.hasChildren ? (
+        <g className="text-port/70 transition-colors duration-200 group-hover/row:text-port">
+          <circle cx={x} cy={MID} r={7} fill="var(--card)" stroke="currentColor" strokeWidth={1} />
+          <path
+            d={
+              branchCollapsed
+                ? `M${x - 3},${MID} L${x + 3},${MID} M${x},${MID - 3} L${x},${MID + 3}`
+                : `M${x - 3},${MID} L${x + 3},${MID}`
+            }
+            stroke="currentColor"
+            strokeWidth={1.25}
+          />
+        </g>
+      ) : (
+        <circle
+          cx={x}
+          cy={MID}
+          r={3}
+          fill="currentColor"
+          className="text-port/60 transition-colors duration-200 group-hover/row:text-port"
+        />
+      )}
     </svg>
   );
 }

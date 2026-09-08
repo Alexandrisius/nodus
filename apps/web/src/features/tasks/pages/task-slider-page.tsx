@@ -30,7 +30,7 @@ export function TaskSliderPage() {
             <span className="truncate text-foreground">{ui.tasks.task}</span>
           </>
         }
-        onClose={() => void navigate({ to: '/tasks' })}
+        onClose={() => void navigate({ to: '/tasks', search: (prev) => prev })}
         dockFrom={dock ?? undefined}
       >
         <TaskCard taskId={taskId} />

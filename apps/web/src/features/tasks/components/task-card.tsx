@@ -176,7 +176,11 @@ export function TaskCard({ taskId }: { taskId: string }) {
                 key={subtask.id}
                 type="button"
                 onClick={() =>
-                  void navigate({ to: '/tasks/$taskId', params: { taskId: subtask.id } })
+                  void navigate({
+                    to: '/tasks/$taskId',
+                    params: { taskId: subtask.id },
+                    search: (prev) => prev,
+                  })
                 }
                 className="flex items-center gap-2 rounded-md px-1 py-1 text-left text-sm hover:bg-accent/50"
               >

@@ -101,6 +101,8 @@ export const ui = {
     summaryOverdue: 'Просрочено',
     subtaskOf: 'Подзадача',
     chatNode: 'Чат',
+    collapseBranch: 'Свернуть подзадачи',
+    expandBranch: 'Развернуть подзадачи',
     searchPlaceholder: 'Поиск задач',
     colNew: 'Новые',
     colPlanned: 'Запланировано',
