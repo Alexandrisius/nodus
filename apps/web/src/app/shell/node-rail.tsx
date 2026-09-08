@@ -21,8 +21,6 @@ import { LogoWordmark } from './logo-wordmark.js';
 
 /** Ось шины в px от левого края рейки (импортируется circuit-geometry). */
 export const RAIL_TRUNK_X = 24;
-/** Ось шины при схлопнутой рейке: порты ложатся точками на саму шину. */
-export const RAIL_TRUNK_X_COLLAPSED = 8;
 /** Центр порта модуля (конец отвода). */
 const PORT_X = 42;
 const PORT = 9;
@@ -84,7 +82,7 @@ export function NodeRail() {
     <aside
       data-rail
       className={cn(
-        'flex h-full shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-[width] duration-200',
+        'relative flex h-full shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-[width] duration-200',
         collapsed ? 'w-16' : 'w-60',
       )}
     >
@@ -98,13 +96,20 @@ export function NodeRail() {
           <LogoIcon className="size-8 text-foreground" />
         </span>
         {!collapsed && (
-          <>
-            <LogoWordmark className="text-lg tracking-[0.18em] text-foreground uppercase" />
-            {/* Анкор точки контура справа от лого (по середине высоты букв). */}
-            <span data-logo-dot aria-hidden className="ml-2 size-px shrink-0" />
-          </>
+          <LogoWordmark className="text-lg tracking-[0.18em] text-foreground uppercase" />
         )}
       </div>
+
+      {/* Узел контура на боковом шве схлопнутой рейки — как на правой панели. */}
+      {collapsed && (
+        <>
+          <span data-left-node aria-hidden className="absolute top-[55px] right-0 size-px" />
+          <span
+            aria-hidden
+            className="absolute top-[51.5px] -right-[4.5px] z-10 size-[9px] rounded-full border border-edge bg-sidebar"
+          />
+        </>
+      )}
 
       <nav className="flex flex-1 flex-col gap-4 overflow-y-auto py-3">
         {sections.map((section) => {
@@ -155,32 +160,32 @@ export function NodeRail() {
                     <span key={item.to}>{link}</span>
                   );
                 })}
-                {/* Порты модулей — всегда (в схлопнутой рейке ложатся точками
-                    на саму шину, иначе контур обрывается). */}
-                {section.items.map((item, i) => {
-                  const active = isActive(item);
-                  const portX = collapsed ? RAIL_TRUNK_X_COLLAPSED : PORT_X;
-                  return (
-                    <span
-                      key={item.to}
-                      data-module-port={item.to}
-                      data-active={active ? 'true' : undefined}
-                      aria-hidden
-                      className={cn(
-                        'pointer-events-none absolute rounded-full border transition-colors',
-                        active
-                          ? 'border-port bg-port shadow-[0_0_10px_var(--glow)]'
-                          : 'border-edge bg-transparent',
-                      )}
-                      style={{
-                        left: portX - PORT / 2,
-                        top: ROW_CENTER + i * ROW_STRIDE - PORT / 2,
-                        width: PORT,
-                        height: PORT,
-                      }}
-                    />
-                  );
-                })}
+                {/* Порты модулей — только в развёрнутой рейке (в схлопнутой
+                    контур опирается на узел бокового шва, как на правой панели). */}
+                {!collapsed &&
+                  section.items.map((item, i) => {
+                    const active = isActive(item);
+                    return (
+                      <span
+                        key={item.to}
+                        data-module-port={item.to}
+                        data-active={active ? 'true' : undefined}
+                        aria-hidden
+                        className={cn(
+                          'pointer-events-none absolute rounded-full border transition-colors',
+                          active
+                            ? 'border-port bg-port shadow-[0_0_10px_var(--glow)]'
+                            : 'border-edge bg-transparent',
+                        )}
+                        style={{
+                          left: PORT_X - PORT / 2,
+                          top: ROW_CENTER + i * ROW_STRIDE - PORT / 2,
+                          width: PORT,
+                          height: PORT,
+                        }}
+                      />
+                    );
+                  })}
               </div>
             </div>
           );

@@ -192,8 +192,8 @@
     scrollbar-color: rgb(255 255 255 / 0.14) transparent;
   }
   *::-webkit-scrollbar {
-    width: 5px;
-    height: 5px;
+    width: 4px;
+    height: 4px;
   }
   *::-webkit-scrollbar-track {
     background: transparent;

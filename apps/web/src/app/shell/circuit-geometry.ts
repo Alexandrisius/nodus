@@ -1,6 +1,6 @@
 import { orthPath, type NodeEdgePoint } from '@nodus/ui/components/node-edge';
 
-import { RAIL_TRUNK_X, RAIL_TRUNK_X_COLLAPSED } from './node-rail.js';
+import { RAIL_TRUNK_X } from './node-rail.js';
 
 /** Измеренная геометрия контура: порты из DOM по data-атрибутам. */
 export interface CircuitGeometry {
@@ -9,14 +9,14 @@ export interface CircuitGeometry {
   /** Y оси бордюра шапки. */
   axisY: number;
   modules: { to: string; active: boolean; port: NodeEdgePoint }[];
-  /** Центры вкладок топбара (x), активность. */
-  tabs: { active: boolean; x: number }[];
+  /** Центры вкладок топбара (x), активность, подпись (идентичность вкладки). */
+  tabs: { active: boolean; x: number; label: string }[];
   /** Узел правой панели (точка на её левом шве, на оси). */
   rightNode: NodeEdgePoint | null;
   /** Ширина правой панели (детект раскрытия для вспышки, не путаем с resize). */
   rightRailWidth: number | null;
-  /** Точка контура справа от логотипа (источник вспышки Главной). */
-  logoDot: NodeEdgePoint | null;
+  /** Узел схлопнутой левой рейки (точка на её боковом шве; null — рейка развёрнута). */
+  leftNode: NodeEdgePoint | null;
   /** Низ шины рейки (центр последнего модуля). */
   spineEndY: number;
 }
@@ -25,7 +25,9 @@ export interface CircuitGeometry {
 export interface CircuitFocus {
   moduleTo: string;
   modulePort: NodeEdgePoint;
-  tabX: number | null;
+  /** Подпись активной вкладки — идентичность (не x: сдвиг геометрии при
+   * сворачивании панелей/resize фокусом не является и вспышки не вызывает). */
+  tabLabel: string | null;
 }
 
 function centerOf(el: Element): NodeEdgePoint {
@@ -34,7 +36,7 @@ function centerOf(el: Element): NodeEdgePoint {
 }
 
 /** Измерение контура из живого DOM. Возвращает null, если каркас не смонтирован. */
-export function measureCircuit(): CircuitGeometry | null {
+export function measureCircuit(pathname = '/'): CircuitGeometry | null {
   const header = document.querySelector<HTMLElement>('[data-topbar]');
   if (!header) return null;
   const axisY = header.getBoundingClientRect().bottom;
@@ -46,22 +48,28 @@ export function measureCircuit(): CircuitGeometry | null {
   const tabs = [...document.querySelectorAll<HTMLElement>('[data-tab-port]')].map((el) => ({
     active: el.dataset.active === 'true',
     x: centerOf(el).x,
+    label: el.textContent?.trim() ?? '',
   }));
   const rightEl = document.querySelector<HTMLElement>('[data-circuit-node]');
-  const logoEl = document.querySelector<HTMLElement>('[data-logo-dot]');
-  const railW = document.querySelector('[data-rail]')?.getBoundingClientRect().width ?? 240;
+  const leftEl = document.querySelector<HTMLElement>('[data-left-node]');
+  const leftNode = leftEl ? centerOf(leftEl) : null;
   const lastY = modules.length ? Math.max(...modules.map((m) => m.port.y)) : axisY;
+  // Схлопнутая рейка: стык — правый край узла бокового шва; «виртуальный»
+  // активный модуль опирает вспышки на ось (портов внутри панели нет);
+  // to — реальный маршрут, чтобы сигнатура фокуса не дёргалась при развороте.
+  const junction: NodeEdgePoint = leftNode
+    ? { x: leftNode.x + 4.5, y: axisY }
+    : { x: RAIL_TRUNK_X, y: axisY };
   return {
-    // В схлопнутой рейке шина у края — порты лежат точками на ней.
-    junction: { x: railW < 100 ? RAIL_TRUNK_X_COLLAPSED : RAIL_TRUNK_X, y: axisY },
+    junction,
     axisY,
-    modules,
+    modules: leftNode ? [{ to: pathname, active: true, port: junction }] : modules,
     tabs,
     rightNode: rightEl ? centerOf(rightEl) : null,
     rightRailWidth: rightEl?.parentElement?.getBoundingClientRect().width ?? null,
-    logoDot: logoEl ? centerOf(logoEl) : null,
+    leftNode,
     // Шина заканчивается в точке отхода последнего отвода (порт-10) — без хвоста.
-    spineEndY: modules.length ? lastY - 10 : axisY,
+    spineEndY: leftNode ? axisY : modules.length ? lastY - 10 : axisY,
   };
 }
 
@@ -70,11 +78,12 @@ export function measureCircuit(): CircuitGeometry | null {
  * отводы модулей локтями; засечки вкладок — локти в сторону главного меню. */
 export function framePath(g: CircuitGeometry): string {
   const parts: string[] = [];
-  const rightEnd = g.rightNode?.x ?? g.junction.x + 200;
+  // Ось упирается в КРАЙ точки узла — не заходит внутрь полого кружка.
+  const rightEnd = g.rightNode ? g.rightNode.x - 4.5 : g.junction.x + 200;
   parts.push(
     orthPath(
       [
-        { x: g.junction.x, y: g.modules.length > 0 ? g.spineEndY : g.axisY },
+        { x: g.junction.x, y: g.leftNode ? g.axisY : g.modules.length > 0 ? g.spineEndY : g.axisY },
         g.junction,
         { x: rightEnd, y: g.axisY },
       ],
@@ -82,8 +91,8 @@ export function framePath(g: CircuitGeometry): string {
     ),
   );
   for (const m of g.modules) {
-    // Отвод рисуем, только если порт вынесен от шины (в схлопнутой рейке
-    // порты лежат точками на самой шине — отводов нет).
+    // Отвод рисуем, только если порт вынесен от шины (у схлопнутой рейки
+    // и виртуального модуля отвода нет).
     if (m.port.x - g.junction.x < 8) continue;
     parts.push(
       orthPath(
@@ -93,15 +102,6 @@ export function framePath(g: CircuitGeometry): string {
           { x: m.port.x - 4, y: m.port.y },
         ],
         8,
-      ),
-    );
-  }
-  // Отросток от точки справа от лого: вправо, локтем вниз к оси.
-  if (g.logoDot) {
-    parts.push(
-      orthPath(
-        [g.logoDot, { x: g.logoDot.x + 16, y: g.logoDot.y }, { x: g.logoDot.x + 16, y: g.axisY }],
-        6,
       ),
     );
   }
@@ -140,7 +140,7 @@ export function currentFocus(g: CircuitGeometry): CircuitFocus | null {
   const active = g.modules.find((m) => m.active);
   if (!active) return null;
   const activeTab = g.tabs.find((t) => t.active);
-  return { moduleTo: active.to, modulePort: active.port, tabX: activeTab?.x ?? null };
+  return { moduleTo: active.to, modulePort: active.port, tabLabel: activeTab?.label ?? null };
 }
 
 /**
@@ -157,7 +157,8 @@ export function transitionPulse(
   const active = g.modules.find((m) => m.active);
   if (!active) return null;
   const activeTab = g.tabs.find((t) => t.active);
-  const focusChanged = !prev || prev.moduleTo !== active.to || prev.tabX !== (activeTab?.x ?? null);
+  const focusChanged =
+    !prev || prev.moduleTo !== active.to || prev.tabLabel !== (activeTab?.label ?? null);
   if (!focusChanged) return null;
   if (activeTab) {
     return {
@@ -171,19 +172,8 @@ export function transitionPulse(
       dot: true,
     };
   }
-  // Главная: вспышка вылетает ИЗ ЛОГО — от точки справа от него, по отростку
-  // вниз к оси и затухает на оси (без точки).
-  if (active.to === '/' && g.logoDot) {
-    return {
-      points: [
-        g.logoDot,
-        { x: g.logoDot.x + 16, y: g.logoDot.y },
-        { x: g.logoDot.x + 16, y: g.axisY },
-        { x: g.logoDot.x + 40, y: g.axisY },
-      ],
-      dot: false,
-    };
-  }
+  // Главная — без вспышки (решение владельца).
+  if (active.to === '/') return null;
   // Модуль без вкладок: от порта по шине, за стык и затухание на оси без точки.
   return {
     points: [

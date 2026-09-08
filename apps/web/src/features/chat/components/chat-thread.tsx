@@ -180,7 +180,6 @@ export function ChatThread({ conversation }: { conversation: ConversationListIte
           {/* Фирменный гексагон-узел вместо самолётика. */}
           <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
             <polygon points="7,1.5 11.8,4.25 11.8,9.75 7,12.5 2.2,9.75 2.2,4.25" />
-            <circle cx="7" cy="7" r="1.5" fill="currentColor" stroke="none" />
           </svg>
         </Button>
       </form>

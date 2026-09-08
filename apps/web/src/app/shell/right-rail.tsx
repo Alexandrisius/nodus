@@ -66,7 +66,7 @@ export function RightRail() {
         <span data-circuit-node aria-hidden className="absolute top-[55px] left-0 size-px" />
         <span
           aria-hidden
-          className="absolute top-[52.5px] -left-[3.5px] size-[7px] rounded-full border border-edge bg-sidebar"
+          className="absolute top-[51.5px] -left-[4.5px] size-[9px] rounded-full border border-edge bg-sidebar"
         />
         <ChevronsLeft className="size-4" />
       </button>
@@ -98,7 +98,7 @@ export function RightRail() {
       <span data-circuit-node aria-hidden className="absolute top-[55px] left-0 size-px" />
       <span
         aria-hidden
-        className="absolute top-[52.5px] -left-[3.5px] z-10 size-[7px] rounded-full border border-edge bg-sidebar"
+        className="absolute top-[51.5px] -left-[4.5px] z-10 size-[9px] rounded-full border border-edge bg-sidebar"
       />
       <div className="flex h-full min-h-0 flex-col overflow-hidden">
         <div className="flex h-8 items-center gap-2 px-3.5 pt-3 pb-1">

@@ -32,7 +32,7 @@ export function orthPath(points: NodeEdgePoint[], r: number): string {
 }
 
 /** Длина ломаной в px (сегменты ортогональные — hypot == манхэттен). */
-function pathLength(points: NodeEdgePoint[]): number {
+export function pathLength(points: NodeEdgePoint[]): number {
   let len = 0;
   for (let i = 1; i < points.length; i++) {
     const a = points[i - 1];
@@ -43,9 +43,9 @@ function pathLength(points: NodeEdgePoint[]): number {
 }
 
 /** Скорости анимаций — px/s: длительность = длина / скорость (одинаковая
- * скорость вспышки на коротких и дальних маршрутах). */
-const PULSE_SPEED = 1100;
-const DRAW_SPEED = 1800;
+ * скорость вспышки на коротких и дальних маршрутах; темп — как у ближних). */
+const PULSE_SPEED = 400;
+const DRAW_SPEED = 1200;
 
 function useReducedMotion(): boolean {
   const [reduced, setReduced] = useState(

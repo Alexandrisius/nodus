@@ -1,6 +1,6 @@
 import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { useRouterState } from '@tanstack/react-router';
-import { NodeEdge, type NodeEdgePoint } from '@nodus/ui/components/node-edge';
+import { NodeEdge, pathLength, type NodeEdgePoint } from '@nodus/ui/components/node-edge';
 
 import {
   currentFocus,
@@ -13,10 +13,8 @@ import {
 } from './circuit-geometry.js';
 import { useShellStore } from './shell-store.js';
 
-const PULSE_FADE_MS = 2200;
-
 function focusSig(f: CircuitFocus | null): string {
-  return f ? `${f.moduleTo}|${f.tabX ?? ''}` : '';
+  return f ? `${f.moduleTo}|${f.tabLabel ?? ''}` : '';
 }
 
 /**
@@ -39,6 +37,8 @@ export function CircuitFrame() {
     points: NodeEdgePoint[];
     dot: boolean;
     kind: 'nav' | 'rail';
+    fadeMs: number;
+    fading?: boolean;
   } | null>(null);
   const [pulseRun, setPulseRun] = useState(0);
   const prevFocus = useRef<CircuitFocus | null>(null);
@@ -47,13 +47,33 @@ export function CircuitFrame() {
   const railPulseTimer = useRef(0);
 
   const pulseTimer = useRef(0);
+  const dissolveTimer = useRef(0);
+  /** Тип живого пульса — dissolve трогает только rail-пульсы (не гасит nav). */
+  const pulseKind = useRef<'nav' | 'rail' | null>(null);
 
-  /** Одиночный пульс с авто-затуханием (общая механика для всех триггеров). */
+  /** Одиночный пульс с авто-затуханием; длительность затухания — из длины
+   * маршрута (рисовка + пробег + догорать), иначе дальний пульс обрывается. */
   const firePulse = useCallback((points: NodeEdgePoint[], dot: boolean, kind: 'nav' | 'rail') => {
     window.clearTimeout(pulseTimer.current);
-    setPulse({ points, dot, kind });
+    window.clearTimeout(dissolveTimer.current);
+    const len = pathLength(points);
+    const fadeMs = (len / 1200 + len / 400 + 0.9) * 1000;
+    pulseKind.current = kind;
+    setPulse({ points, dot, kind, fadeMs });
     setPulseRun((k) => k + 1);
-    pulseTimer.current = window.setTimeout(() => setPulse(null), PULSE_FADE_MS);
+    pulseTimer.current = window.setTimeout(() => {
+      pulseKind.current = null;
+      setPulse(null);
+    }, fadeMs);
+  }, []);
+
+  /** Плавное гашение пульса панели при её схлопывании (не резкий обрыв). */
+  const dissolveRailPulse = useCallback(() => {
+    if (pulseKind.current !== 'rail') return;
+    pulseKind.current = null;
+    window.clearTimeout(pulseTimer.current);
+    setPulse((p) => (p ? { ...p, fading: true } : p));
+    dissolveTimer.current = window.setTimeout(() => setPulse(null), 300);
   }, []);
 
   useLayoutEffect(() => {
@@ -61,19 +81,22 @@ export function CircuitFrame() {
     let loop = 0;
     const remeasure = () => {
       cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(() => setGeo(measureCircuit()));
+      raf = requestAnimationFrame(() => setGeo(measureCircuit(pathname)));
     };
-    // Плавный пересчёт КАЖДЫЙ КАДР во время transition — контур и точка
-    // узла идут за панелью без ступенек и вибрации.
-    const onTransitionRun = () => {
-      if (loop) return;
+    // Плавный пересчёт КАЖДЫЙ КАДР во время transition ШИРИНЫ панелей —
+    // контур и точка узла идут за панелью без ступенек и вибрации. Фильтр
+    // propertyName: иначе цикл гаснет по transitionend посторонних анимаций
+    // (затухания имён и т.п.) раньше окончания движения панели — связь врала.
+    const onTransitionRun = (e: TransitionEvent) => {
+      if (e.propertyName !== 'width' || loop) return;
       const tick = () => {
-        setGeo(measureCircuit());
+        setGeo(measureCircuit(pathname));
         loop = requestAnimationFrame(tick);
       };
       loop = requestAnimationFrame(tick);
     };
-    const onTransitionEnd = () => {
+    const onTransitionEnd = (e: TransitionEvent) => {
+      if (e.propertyName !== 'width') return;
       cancelAnimationFrame(loop);
       loop = 0;
       remeasure();
@@ -117,7 +140,7 @@ export function CircuitFrame() {
     if (expandedNow && !railExpanded.current && !reduced) {
       window.clearTimeout(railPulseTimer.current);
       railPulseTimer.current = window.setTimeout(() => {
-        const g = measureCircuit();
+        const g = measureCircuit(pathname);
         if (!g?.rightNode) return;
         const active = g.modules.find((m) => m.active);
         const points: NodeEdgePoint[] = active
@@ -131,12 +154,12 @@ export function CircuitFrame() {
         firePulse(points, true, 'rail');
       }, 350);
     }
-    if (!expandedNow) {
+    if (!expandedNow && railExpanded.current) {
       window.clearTimeout(railPulseTimer.current);
-      setPulse((p) => (p?.kind === 'rail' ? null : p));
+      dissolveRailPulse();
     }
     railExpanded.current = expandedNow;
-  }, [geo, firePulse]);
+  }, [geo, firePulse, dissolveRailPulse]);
 
   if (!geo) return null;
   return (
@@ -149,20 +172,6 @@ export function CircuitFrame() {
           strokeOpacity="0.32"
           strokeWidth="1"
         />
-        {geo.logoDot ? (
-          <circle
-            cx={geo.logoDot.x}
-            cy={geo.logoDot.y}
-            r="3"
-            fill={geo.modules.find((m) => m.active)?.to === '/' ? 'var(--port)' : 'var(--sidebar)'}
-            stroke={geo.modules.find((m) => m.active)?.to === '/' ? 'var(--port)' : 'var(--edge)'}
-            style={
-              geo.modules.find((m) => m.active)?.to === '/'
-                ? { filter: 'drop-shadow(0 0 6px var(--glow))' }
-                : undefined
-            }
-          />
-        ) : null}
         {geo.tabs.map((t) => (
           <circle
             key={t.x}
@@ -176,7 +185,15 @@ export function CircuitFrame() {
         ))}
       </svg>
       {pulse ? (
-        <div key={pulseRun} className="dock-edge-fade absolute inset-0">
+        <div
+          key={pulseRun}
+          className={
+            pulse.fading
+              ? 'absolute inset-0 opacity-0 transition-opacity duration-300'
+              : 'dock-edge-fade absolute inset-0'
+          }
+          style={pulse.fading ? undefined : { animationDuration: `${pulse.fadeMs}ms` }}
+        >
           <NodeEdge
             points={pulse.points}
             ports={pulse.dot ? 'end' : 'none'}
