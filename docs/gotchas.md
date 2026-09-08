@@ -56,6 +56,10 @@
 - `corepack enable` падает без прав на `Program Files` — pnpm ставится через `npm i -g pnpm@11`.
 - winget определяет установленные версии по ARP-записям реестра (`HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall`), а не по файлам: установка MSI поверх пакета другого семейства даёт косметический mis-id в `winget list`. Проверяй сами Uninstall-ключи; «призрачную» запись чисти удалением ключа (с export-бэкапом), НЕ `winget uninstall` — тот снесёт файлы актуальной версии по тому же пути.
 
+## Инструменты агента (OpenCode)
+
+- **OpenCode V2 не подхватывает кастомные tools V1 из `~/.config/opencode/tools/`**: discovery плагинов — только `plugins/` (глобально `~/.config/opencode/plugins/`) или поле `plugins` в конфиге; лоадер ждёт default-экспорт объекта `{ id, setup }`, а `@opencode-ai/plugin@1.x` не экспортирует `Plugin` рантаймом (`Export named 'Plugin' not found`) — плагин пишется как чистый объект `{ id, async setup(ctx) { await ctx.tool.transform(e => e.add({...})) } }` без импорта SDK; input — plain JSON Schema, execute возвращает `{ content: string }` (воспроизведено по логам сервера beta-19296: «Plugin must export a default definition with an id and an effect or setup function»; рабочий пример — `~/.config/opencode/plugins/image.ts`).
+
 ## Процесс и документация
 
 - ADR нумеруются плотно, без дыр: перед созданием нового — проверь max существующего номера (`ls docs/adr/`), не присваивай «следующий с конца + запас».
