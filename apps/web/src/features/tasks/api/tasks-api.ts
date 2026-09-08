@@ -50,6 +50,7 @@ export function useAddSubtask(taskId: string) {
         ...previous,
         id: `temp-${crypto.randomUUID()}`,
         title,
+        parentId: taskId,
         commentsCount: 0,
         spentMinutes: 0,
         checklistDone: 0,

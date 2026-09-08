@@ -38,6 +38,28 @@ function mk(task: TaskListItem): TaskListItem {
   return task;
 }
 
+/** Подзадача задачи tid(2) — живёт и в общем списке (граф уровней), и в
+ * детали родителя (`demoSubtasks`, см. tasks.ts). */
+export const kjSubtask: TaskListItem = {
+  id: tid(11),
+  number: 111,
+  title: 'Свести каркас с разделом КЖ',
+  stage: stagePlanned,
+  priority: 'normal',
+  deadline: isoIn(2),
+  creator: userRef(userIds.klevantovich),
+  assignee: userRef(userIds.klimovich),
+  participants: [],
+  project: projectRefs.p4,
+  parentId: tid(2),
+  spentMinutes: 0,
+  commentsCount: 1,
+  checklistDone: 0,
+  checklistTotal: 0,
+  source: 'manual',
+  updatedAt: isoAgo(1, 12),
+};
+
 export const demoTasks: TaskListItem[] = [
   mk({
     id: tid(1),
@@ -50,6 +72,7 @@ export const demoTasks: TaskListItem[] = [
     assignee: userRef(userIds.klimovich),
     participants: [],
     project: projectRefs.p1,
+    parentId: tid(6),
     spentMinutes: 0,
     commentsCount: 2,
     checklistDone: 0,
@@ -68,6 +91,7 @@ export const demoTasks: TaskListItem[] = [
     assignee: userRef(userIds.klimovich),
     participants: [userRef(userIds.klevantovich)],
     project: projectRefs.p4,
+    parentId: null,
     spentMinutes: 3360,
     commentsCount: 4,
     checklistDone: 1,
@@ -75,6 +99,7 @@ export const demoTasks: TaskListItem[] = [
     source: 'manual',
     updatedAt: isoAgo(0, 9),
   }),
+  kjSubtask,
   mk({
     id: tid(3),
     number: 103,
@@ -86,6 +111,7 @@ export const demoTasks: TaskListItem[] = [
     assignee: userRef(userIds.klimovich),
     participants: [userRef(userIds.akulich)],
     project: projectRefs.p2,
+    parentId: null,
     spentMinutes: 3666,
     commentsCount: 1,
     checklistDone: 0,
@@ -104,6 +130,7 @@ export const demoTasks: TaskListItem[] = [
     assignee: userRef(userIds.klimovich),
     participants: [],
     project: null,
+    parentId: null,
     spentMinutes: 0,
     commentsCount: 0,
     checklistDone: 0,
@@ -122,6 +149,7 @@ export const demoTasks: TaskListItem[] = [
     assignee: userRef(userIds.klimovich),
     participants: [userRef(userIds.karpovich)],
     project: projectRefs.p4,
+    parentId: null,
     spentMinutes: 120,
     commentsCount: 3,
     checklistDone: 2,
@@ -140,6 +168,7 @@ export const demoTasks: TaskListItem[] = [
     assignee: userRef(userIds.klimovich),
     participants: [],
     project: projectRefs.p1,
+    parentId: null,
     spentMinutes: 168,
     commentsCount: 0,
     checklistDone: 0,
@@ -158,6 +187,7 @@ export const demoTasks: TaskListItem[] = [
     assignee: userRef(userIds.klimovich),
     participants: [],
     project: null,
+    parentId: null,
     spentMinutes: 1656,
     commentsCount: 5,
     checklistDone: 0,
@@ -176,6 +206,7 @@ export const demoTasks: TaskListItem[] = [
     assignee: userRef(userIds.klimovich),
     participants: [],
     project: projectRefs.p3,
+    parentId: null,
     spentMinutes: 4587,
     commentsCount: 0,
     checklistDone: 0,
@@ -194,6 +225,7 @@ export const demoTasks: TaskListItem[] = [
     assignee: userRef(userIds.klimovich),
     participants: [],
     project: null,
+    parentId: tid(1),
     spentMinutes: 0,
     commentsCount: 0,
     checklistDone: 0,
@@ -212,6 +244,7 @@ export const demoTasks: TaskListItem[] = [
     assignee: userRef(userIds.klimovich),
     participants: [],
     project: null,
+    parentId: null,
     spentMinutes: 60,
     commentsCount: 0,
     checklistDone: 0,

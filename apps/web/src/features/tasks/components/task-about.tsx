@@ -2,6 +2,7 @@ import { FileText, History, Link2, Star, Users } from 'lucide-react';
 import { useState } from 'react';
 import type { TaskDetail } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
+import { NodeLabel } from '@nodus/ui/components/node-label';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { formatDateTime } from '../../../shared/lib/format.js';
@@ -18,12 +19,12 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-lg border border-pencil/30 bg-cream/50 p-3">
-      <h4 className="flex items-center gap-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-        <Icon className="size-3.5" />
-        {title}
+    <section className="rounded-lg border border-border p-3">
+      <h4 className="flex items-center gap-2">
+        <Icon className="size-3.5 text-muted-foreground" />
+        <NodeLabel label={title} />
       </h4>
-      <div className="mt-2 flex flex-col gap-2">{children}</div>
+      <div className="mt-2.5 flex flex-col gap-2">{children}</div>
     </section>
   );
 }
@@ -47,9 +48,9 @@ export function TaskAbout({ task }: { task: TaskDetail }) {
   ];
 
   return (
-    <aside className="paper-surface flex min-h-0 flex-col gap-3 overflow-y-auto border-l p-4">
+    <aside className="flex min-h-0 flex-col gap-3 overflow-y-auto border-l border-border p-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold">{ui.tasks.aboutTask}</h3>
+        <NodeLabel label={ui.tasks.aboutTask} />
         <button
           type="button"
           onClick={() => setFavorite((v) => !v)}
@@ -75,7 +76,7 @@ export function TaskAbout({ task }: { task: TaskDetail }) {
       {files.length > 0 && (
         <Section icon={FileText} title={ui.tasks.filesMedia}>
           {files.map((file) => (
-            <span key={file.id} className="truncate text-sm text-info">
+            <span key={file.id} className="truncate font-mono text-[12px] text-info">
               {file.name}
             </span>
           ))}
@@ -90,7 +91,7 @@ export function TaskAbout({ task }: { task: TaskDetail }) {
               href={link}
               target="_blank"
               rel="noreferrer"
-              className="truncate text-sm text-info hover:underline"
+              className="truncate font-mono text-[12px] text-info hover:underline"
             >
               {link}
             </a>
@@ -101,11 +102,11 @@ export function TaskAbout({ task }: { task: TaskDetail }) {
       <Section icon={History} title={ui.tasks.history}>
         <span className="flex justify-between gap-2 text-sm">
           <span className="text-muted-foreground">{ui.tasks.created}</span>
-          <span className="shrink-0 text-xs">{formatDateTime(task.createdAt)}</span>
+          <span className="shrink-0 font-mono text-[11px]">{formatDateTime(task.createdAt)}</span>
         </span>
         <span className="flex justify-between gap-2 text-sm">
           <span className="text-muted-foreground">{ui.tasks.updated}</span>
-          <span className="shrink-0 text-xs">{formatDateTime(task.updatedAt)}</span>
+          <span className="shrink-0 font-mono text-[11px]">{formatDateTime(task.updatedAt)}</span>
         </span>
       </Section>
     </aside>

@@ -1,7 +1,5 @@
-import { SendHorizonal } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { ui } from '@nodus/contracts';
-import { Button } from '@nodus/ui/components/button';
 import { Textarea } from '@nodus/ui/components/textarea';
 import { Message, MessageContent, MessageGroup, MessageHeader } from '@nodus/ui/components/message';
 import { Bubble, BubbleContent } from '@nodus/ui/components/bubble';
@@ -10,9 +8,10 @@ import { Attachment, AttachmentGroup, AttachmentTitle } from '@nodus/ui/componen
 import { formatTime } from '../../../shared/lib/format.js';
 import { useAuthStore } from '../../../shared/auth-store.js';
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
+import { SendHexButton } from '../../../shared/ui/send-hex-button.js';
 import { useSendTaskMessage, useTaskMessages } from '../api/tasks-api.js';
 
-/** Обсуждение задачи — центр карточки: светлый тред + оптимистичная отправка. */
+/** Обсуждение задачи — центр карточки: тёмный тред + оптимистичная отправка. */
 export function TaskDiscussion({ taskId }: { taskId: string }) {
   const { data } = useTaskMessages(taskId);
   const send = useSendTaskMessage(taskId);
@@ -28,7 +27,7 @@ export function TaskDiscussion({ taskId }: { taskId: string }) {
   }
 
   return (
-    <div className="paper-surface flex h-full flex-col">
+    <div className="flex h-full flex-col">
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
         <MessageGroup>
           {(data?.items ?? []).map((message) => {
@@ -39,7 +38,7 @@ export function TaskDiscussion({ taskId }: { taskId: string }) {
                 <MessageContent>
                   <MessageHeader className="gap-1">
                     <span className="text-foreground">{message.author.displayName}</span>
-                    <span>{formatTime(message.createdAt)}</span>
+                    <span className="font-mono text-[11px]">{formatTime(message.createdAt)}</span>
                   </MessageHeader>
                   <Bubble variant={mine ? 'default' : 'outline'}>
                     <BubbleContent className="whitespace-pre-wrap">{message.text}</BubbleContent>
@@ -59,10 +58,7 @@ export function TaskDiscussion({ taskId }: { taskId: string }) {
           })}
         </MessageGroup>
       </div>
-      <form
-        onSubmit={onSubmit}
-        className="flex items-end gap-2 border-t border-pencil/30 bg-cream/50 p-3"
-      >
+      <form onSubmit={onSubmit} className="flex items-end gap-2 border-t border-border bg-card p-3">
         <Textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -70,9 +66,7 @@ export function TaskDiscussion({ taskId }: { taskId: string }) {
           rows={2}
           className="min-h-9 flex-1 resize-none"
         />
-        <Button type="submit" size="icon" disabled={!text.trim()} aria-label={ui.tasks.send}>
-          <SendHorizonal />
-        </Button>
+        <SendHexButton disabled={!text.trim()} label={ui.tasks.send} />
       </form>
     </div>
   );

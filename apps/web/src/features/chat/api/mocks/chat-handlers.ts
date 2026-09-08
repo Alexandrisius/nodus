@@ -62,6 +62,7 @@ export const chatHandlers = [
       assignee: userRef(currentAuthUser.id),
       participants: [message.author],
       project: conversation?.project ?? null,
+      parentId: null,
       spentMinutes: 0,
       commentsCount: 0,
       checklistDone: 0,

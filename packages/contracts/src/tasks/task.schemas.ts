@@ -46,6 +46,8 @@ export const taskListItemSchema = z.object({
   assignee: userRefSchema.nullable(),
   participants: z.array(userRefSchema),
   project: projectRefSchema.nullable(),
+  /** Родительская задача (вложенность: граф уровней в списке). */
+  parentId: z.uuid().nullable(),
   /** Трудозатраты суммарно, минуты (I14). */
   spentMinutes: z.number().int().min(0),
   commentsCount: z.number().int().min(0),
@@ -65,11 +67,28 @@ export const checklistItemSchema = z.object({
 
 export type ChecklistItem = z.infer<typeof checklistItemSchema>;
 
+/** Узел доменной цепочки сущности (Письмо → Резолюция → Поручение → Задача). */
+export const taskChainNodeSchema = z.object({
+  kind: z.enum(['letter', 'resolution', 'instruction', 'task', 'chat_message']),
+  /** Человекочитаемый ключ узла (Вх-2026/118, ПП-57, № 105). */
+  ref: z.string().min(1),
+  /** Короткое содержание узла. */
+  label: z.string().min(1),
+  /** Статус узла, если есть («Согласовано»). */
+  state: z.string().optional(),
+  /** Сущность для перехода по клику (письмо, чат). */
+  entityId: z.uuid().optional(),
+});
+
+export type TaskChainNode = z.infer<typeof taskChainNodeSchema>;
+
 export const taskDetailSchema = taskListItemSchema.extend({
   description: z.string(),
   observers: z.array(userRefSchema),
   checklist: z.array(checklistItemSchema),
   subtasks: z.array(taskListItemSchema),
+  /** Доменная цепочка происхождения; последний узел — текущая задача. */
+  chain: z.array(taskChainNodeSchema),
   createdAt: z.iso.datetime(),
 });
 

@@ -1,8 +1,8 @@
-import type { ChatMessage, TaskDetail, TaskListItem } from '@nodus/contracts';
+import type { ChatMessage, TaskChainNode, TaskDetail, TaskListItem } from '@nodus/contracts';
 
 import { isoAgo } from './dates.js';
-import { demoTasks, tid } from './task-items.js';
-import { stageNew, stagePlanned } from './task-stages.js';
+import { kjSubtask, tid } from './task-items.js';
+import { stageNew } from './task-stages.js';
 import { userIds, userRef } from './users.js';
 
 export * from './task-stages.js';
@@ -20,6 +20,7 @@ export function makeSubtask(parent: TaskListItem, title: string): TaskListItem {
     assignee: parent.assignee,
     participants: [],
     project: parent.project,
+    parentId: parent.id,
     spentMinutes: 0,
     commentsCount: 0,
     checklistDone: 0,
@@ -29,13 +30,38 @@ export function makeSubtask(parent: TaskListItem, title: string): TaskListItem {
   };
 }
 
-export const demoSubtasks: Record<string, TaskListItem[]> = {};
+export const demoSubtasks: Record<string, TaskListItem[]> = {
+  [tid(2)]: [kjSubtask],
+};
 
-const subtaskParent = demoTasks.find((t) => t.id === tid(2));
-if (subtaskParent) {
-  demoSubtasks[subtaskParent.id] = [
-    { ...makeSubtask(subtaskParent, 'Свести каркас с разделом КЖ'), stage: stagePlanned },
-  ];
+/** Доменная цепочка задачи tid(5): честная связь с письмом lid(3)
+ * («Замечания по разделу КЖ», Вх-2026/118) — его резолюция породила задачу. */
+const LETTER_ID_3 = '80000000-0000-4000-8000-000000000003'; // lid(3), см. letters.ts
+
+function chainOf(task: TaskListItem): TaskChainNode[] {
+  const self: TaskChainNode = { kind: 'task', ref: `№ ${task.number}`, label: task.title };
+  if (task.id === tid(5)) {
+    return [
+      {
+        kind: 'letter',
+        ref: 'Вх-2026/118',
+        label: 'Замечания по разделу КЖ главного корпуса',
+        entityId: LETTER_ID_3,
+      },
+      {
+        kind: 'resolution',
+        ref: 'Р-57',
+        label: 'Подготовить ответ заказчику по замечаниям',
+        state: 'Согласовано',
+      },
+      { kind: 'instruction', ref: 'ПП-57', label: 'Поручение по письму Вх-2026/118' },
+      self,
+    ];
+  }
+  if (task.source === 'chat_message') {
+    return [{ kind: 'chat_message', ref: 'Чат', label: 'Задача из сообщения' }, self];
+  }
+  return [self];
 }
 
 const detailsExtra: Record<
@@ -62,7 +88,7 @@ export function taskDetailOf(task: TaskListItem): TaskDetail {
     checklist: [],
     createdAt: task.updatedAt,
   };
-  return { ...task, ...extra, subtasks: demoSubtasks[task.id] ?? [] };
+  return { ...task, ...extra, subtasks: demoSubtasks[task.id] ?? [], chain: chainOf(task) };
 }
 
 const mid = (n: number): string => `60000000-0000-4000-8000-${String(n).padStart(12, '0')}`;

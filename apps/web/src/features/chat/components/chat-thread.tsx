@@ -4,7 +4,6 @@ import { useNavigate } from '@tanstack/react-router';
 import type { ConversationListItem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { toast } from 'sonner';
-import { Button } from '@nodus/ui/components/button';
 import { cn } from '@nodus/ui/lib/utils';
 import { Textarea } from '@nodus/ui/components/textarea';
 import {
@@ -28,6 +27,7 @@ import { FileText } from 'lucide-react';
 import { formatTime } from '../../../shared/lib/format.js';
 import { useAuthStore } from '../../../shared/auth-store.js';
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
+import { SendHexButton } from '../../../shared/ui/send-hex-button.js';
 import { useConversationMessages, useMessageToTask, useSendMessage } from '../api/chat-api.js';
 
 export function conversationTitle(conversation: ConversationListItem): string {
@@ -176,12 +176,7 @@ export function ChatThread({ conversation }: { conversation: ConversationListIte
           rows={2}
           className="min-h-9 flex-1 resize-none"
         />
-        <Button type="submit" size="icon" disabled={!text.trim()} aria-label={ui.tasks.send}>
-          {/* Фирменный гексагон-узел вместо самолётика. */}
-          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
-            <polygon points="7,1.5 11.8,4.25 11.8,9.75 7,12.5 2.2,9.75 2.2,4.25" />
-          </svg>
-        </Button>
+        <SendHexButton disabled={!text.trim()} label={ui.tasks.send} />
       </form>
     </div>
   );

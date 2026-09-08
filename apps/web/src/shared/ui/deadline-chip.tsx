@@ -28,7 +28,7 @@ export function DeadlineChip({
     <span
       className={cn(
         'inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium',
-        overdue && 'bg-rose-500/10 text-rose-600',
+        overdue && 'bg-danger-soft text-danger',
         today && 'bg-warning-soft text-warning',
         !overdue && !today && 'bg-muted text-muted-foreground',
         className,

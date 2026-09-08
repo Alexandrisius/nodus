@@ -46,6 +46,7 @@ export const lettersHandlers = [
       assignee: userRef(currentAuthUser.id),
       participants: [],
       project: letter.project,
+      parentId: null,
       spentMinutes: 0,
       commentsCount: 0,
       checklistDone: 0,
