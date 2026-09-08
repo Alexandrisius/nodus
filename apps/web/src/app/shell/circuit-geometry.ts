@@ -4,19 +4,24 @@ import { RAIL_TRUNK_X } from './node-rail.js';
 
 /** Измеренная геометрия контура: порты из DOM по data-атрибутам. */
 export interface CircuitGeometry {
-  /** Нижняя точка логотипа (корень контура). */
-  logoBottom: NodeEdgePoint;
-  /** Стык шины рейки и оси шапки. */
+  /** Стык шины рейки и оси шапки (корень контура). */
   junction: NodeEdgePoint;
   /** Y оси бордюра шапки. */
   axisY: number;
   modules: { to: string; active: boolean; port: NodeEdgePoint }[];
   /** Центры вкладок топбара (x), активность. */
   tabs: { active: boolean; x: number }[];
-  /** Узел правой панели (коллеги). */
+  /** Узел правой панели (лежит на оси). */
   rightNode: NodeEdgePoint | null;
   /** Низ шины рейки (центр последнего модуля). */
   spineEndY: number;
+}
+
+/** Фокус навигации: активный модуль и вкладка (для вспышки-перехода). */
+export interface CircuitFocus {
+  moduleTo: string;
+  modulePort: NodeEdgePoint;
+  tabX: number | null;
 }
 
 function centerOf(el: Element): NodeEdgePoint {
@@ -26,10 +31,8 @@ function centerOf(el: Element): NodeEdgePoint {
 
 /** Измерение контура из живого DOM. Возвращает null, если каркас не смонтирован. */
 export function measureCircuit(): CircuitGeometry | null {
-  const logo = document.querySelector<HTMLElement>('[data-logo-port]');
   const header = document.querySelector<HTMLElement>('[data-topbar]');
-  if (!logo || !header) return null;
-  const logoR = logo.getBoundingClientRect();
+  if (!header) return null;
   const axisY = header.getBoundingClientRect().bottom;
   const modules = [...document.querySelectorAll<HTMLElement>('[data-module-port]')].map((el) => ({
     to: el.dataset.modulePort ?? '',
@@ -42,7 +45,6 @@ export function measureCircuit(): CircuitGeometry | null {
   }));
   const rightEl = document.querySelector<HTMLElement>('[data-circuit-node]');
   return {
-    logoBottom: { x: logoR.left + logoR.width / 2, y: logoR.bottom },
     junction: { x: RAIL_TRUNK_X, y: axisY },
     axisY,
     modules,
@@ -52,16 +54,11 @@ export function measureCircuit(): CircuitGeometry | null {
   };
 }
 
-/** Статичный контур одним путём: артерия лого→стык→шина рейки с локтевыми
- * отводами к портам + ось шапки → правый узел + засечки-ответвления на вкладки. */
+/** Статичный контур одним путём: стык → шина рейки с локтевыми отводами к
+ * портам единым блоком + ось шапки → узел правой панели (ровно, на оси) +
+ * засечки-ответвления ВВЕРХ к вкладкам. В логотип контур не ходит. */
 export function framePath(g: CircuitGeometry): string {
   const parts: string[] = [];
-  parts.push(
-    orthPath(
-      [{ x: g.logoBottom.x, y: g.logoBottom.y + 2 }, { x: g.logoBottom.x, y: g.axisY }, g.junction],
-      8,
-    ),
-  );
   if (g.modules.length > 0) {
     parts.push(orthPath([g.junction, { x: g.junction.x, y: g.spineEndY }], 8));
     for (const m of g.modules) {
@@ -70,7 +67,7 @@ export function framePath(g: CircuitGeometry): string {
           [
             { x: g.junction.x, y: m.port.y - 10 },
             { x: g.junction.x, y: m.port.y },
-            { x: m.port.x - 5, y: m.port.y },
+            { x: m.port.x - 4, y: m.port.y },
           ],
           8,
         ),
@@ -79,7 +76,8 @@ export function framePath(g: CircuitGeometry): string {
   }
   const rightEnd = g.rightNode?.x ?? g.junction.x + 200;
   parts.push(orthPath([g.junction, { x: rightEnd, y: g.axisY }], 8));
-  if (g.rightNode) {
+  // Узел правой панели лежит на оси — загиб рисуем только при реальном смещении.
+  if (g.rightNode && Math.abs(g.rightNode.y - g.axisY) >= 12) {
     parts.push(
       orthPath(
         [
@@ -91,7 +89,7 @@ export function framePath(g: CircuitGeometry): string {
     );
   }
   for (const t of g.tabs) {
-    parts.push(`M${t.x},${g.axisY} V${g.axisY + 6}`);
+    parts.push(`M${t.x},${g.axisY} V${g.axisY - 7}`);
   }
   return parts.filter(Boolean).join(' ');
 }
@@ -104,30 +102,58 @@ export function activeBranchPath(g: CircuitGeometry): string | null {
     [
       { x: g.junction.x, y: m.port.y - 10 },
       { x: g.junction.x, y: m.port.y },
-      { x: m.port.x - 5, y: m.port.y },
+      { x: m.port.x - 4, y: m.port.y },
     ],
     8,
   );
 }
 
-/** Вспышки навигации: от логотипа по артерии к порту активного модуля и,
- * если есть вкладки, от стыка по оси шапки к активной вкладке. Концы —
- * строго в портах, никаких висящих точек. */
-export function pulsePaths(g: CircuitGeometry): NodeEdgePoint[][] {
+/** Текущий фокус навигации (активные модуль и вкладка). */
+export function currentFocus(g: CircuitGeometry): CircuitFocus | null {
   const active = g.modules.find((m) => m.active);
-  if (!active) return [];
-  const paths: NodeEdgePoint[][] = [
-    [
-      { x: g.logoBottom.x, y: g.logoBottom.y + 2 },
-      { x: g.logoBottom.x, y: g.axisY },
-      { x: g.junction.x, y: g.axisY },
-      { x: g.junction.x, y: active.port.y },
-      active.port,
-    ],
-  ];
+  if (!active) return null;
   const activeTab = g.tabs.find((t) => t.active);
-  if (activeTab) {
-    paths.push([g.junction, { x: activeTab.x, y: g.axisY }]);
+  return { moduleTo: active.to, modulePort: active.port, tabX: activeTab?.x ?? null };
+}
+
+/**
+ * Вспышка-переход — строго один пульс в одну сторону:
+ * модуль со вкладками — от порта модуля по шине и оси к активной вкладке;
+ * модуль без вкладок — от предыдущего модуля по шине к нажатому;
+ * клик по вкладке — от предыдущей вкладки по оси к новой.
+ * Концы — только в портах; логотип не участвует.
+ */
+export function transitionPulse(
+  g: CircuitGeometry,
+  prev: CircuitFocus | null,
+): NodeEdgePoint[] | null {
+  const active = g.modules.find((m) => m.active);
+  if (!active) return null;
+  const activeTab = g.tabs.find((t) => t.active);
+  if (!prev || prev.moduleTo !== active.to) {
+    if (activeTab) {
+      return [
+        active.port,
+        { x: g.junction.x, y: active.port.y },
+        g.junction,
+        { x: activeTab.x, y: g.axisY },
+      ];
+    }
+    if (prev) {
+      return [
+        prev.modulePort,
+        { x: g.junction.x, y: prev.modulePort.y },
+        { x: g.junction.x, y: active.port.y },
+        active.port,
+      ];
+    }
+    return [g.junction, { x: g.junction.x, y: active.port.y }, active.port];
   }
-  return paths;
+  if (activeTab && prev.tabX !== null && prev.tabX !== activeTab.x) {
+    return [
+      { x: prev.tabX, y: g.axisY },
+      { x: activeTab.x, y: g.axisY },
+    ];
+  }
+  return null;
 }

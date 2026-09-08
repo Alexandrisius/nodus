@@ -83,15 +83,16 @@ export function RightRail() {
       onMouseEnter={dwellStart}
       onMouseLeave={dwellStop}
       className={cn(
-        'flex shrink-0 flex-col overflow-hidden border-l border-sidebar-border bg-sidebar transition-[width] duration-300 ease-out',
+        'relative flex shrink-0 flex-col overflow-hidden border-l border-sidebar-border bg-sidebar transition-[width] duration-300 ease-out',
         edgeOpen ? 'w-64' : 'w-14',
       )}
     >
+      <span
+        data-circuit-node
+        aria-hidden
+        className="absolute top-[52px] left-1/2 size-2 -translate-x-1/2 rounded-full border border-edge bg-sidebar"
+      />
       <div className="flex h-8 items-center gap-2 px-3.5 pt-3 pb-1">
-        <span
-          data-circuit-node
-          className="size-2 shrink-0 rounded-full border border-edge bg-transparent"
-        />
         <span className="font-mono text-[11px] font-medium text-sidebar-foreground/70 tabular-nums">
           {online}
         </span>

@@ -4,9 +4,11 @@ import { NodeEdge, type NodeEdgePoint } from '@nodus/ui/components/node-edge';
 
 import {
   activeBranchPath,
+  currentFocus,
   framePath,
   measureCircuit,
-  pulsePaths,
+  transitionPulse,
+  type CircuitFocus,
   type CircuitGeometry,
 } from './circuit-geometry.js';
 import { useShellStore } from './shell-store.js';
@@ -15,13 +17,12 @@ const PULSE_FADE_MS = 2200;
 
 /**
  * Перманентный контур Nodus (фишка каркаса, реф node-based UI): единая связь
- * слева направо по верху портала — логотип → ось шапки (контур ЗАМЕНЯЕТ бордюр
- * шапки, дубля линий нет) → узел правой панели — плюс шина рейки с локтевыми
- * отводами к портам модулей единым блоком. Статика видна всегда; по контуру
- * при навигации бегут вспышки-пульсы — концы строго в портах.
- * Геометрия — измерение DOM по data-атрибутам (никаких констант координат):
- * новый модуль/вкладка достраивают контур сами; пересчёт на resize и
- * transitionend (схлопывание панелей).
+ * слева направо — стык → ось шапки (контур ЗАМЕНЯЕТ бордюр шапки) → узел
+ * правой панели — плюс шина рейки с локтевыми отводами к портам модулей
+ * единым блоком и засечки-ответвления вверх к вкладкам. Логотип в контур
+ * не входит. Вспышка — один пульс от предыдущего фокуса к нажатому порту.
+ * Геометрия — измерение DOM по data-атрибутам (без констант координат);
+ * пересчёт на resize и transitionend (схлопывание панелей).
  */
 export function CircuitFrame() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -29,8 +30,9 @@ export function CircuitFrame() {
   const menuCollapsed = useShellStore((s) => s.menuCollapsed);
   const railCollapsed = useShellStore((s) => s.railCollapsed);
   const [geo, setGeo] = useState<CircuitGeometry | null>(null);
-  const [pulses, setPulses] = useState<NodeEdgePoint[][]>([]);
-  const lastNav = useRef('');
+  const [pulse, setPulse] = useState<NodeEdgePoint[] | null>(null);
+  const [pulseKey, setPulseKey] = useState('');
+  const prevFocus = useRef<CircuitFocus | null>(null);
 
   useLayoutEffect(() => {
     let raf = 0;
@@ -50,14 +52,28 @@ export function CircuitFrame() {
   }, [pathname, searchStr, menuCollapsed, railCollapsed]);
 
   useLayoutEffect(() => {
+    if (!geo) return;
     const id = `${pathname}|${searchStr}`;
-    if (!geo || lastNav.current === id) return;
-    lastNav.current = id;
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    setPulses(pulsePaths(geo));
-    const timer = window.setTimeout(() => setPulses([]), PULSE_FADE_MS);
-    return () => window.clearTimeout(timer);
-  }, [geo, pathname, searchStr]);
+    if (id === pulseKey) return;
+    const next = currentFocus(geo);
+    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      const path = transitionPulse(geo, prevFocus.current);
+      if (path) {
+        setPulse(path);
+        setPulseKey(id);
+        const timer = window.setTimeout(() => setPulse(null), PULSE_FADE_MS);
+        return () => window.clearTimeout(timer);
+      }
+    }
+    prevFocus.current = next;
+    return undefined;
+  }, [geo, pathname, searchStr, pulseKey]);
+
+  // Фокус обновляем после построения вспышки (или если она не понадобилась)
+  useLayoutEffect(() => {
+    if (!geo) return;
+    prevFocus.current = currentFocus(geo);
+  }, [pulseKey, geo]);
 
   if (!geo) return null;
   const activeBranch = activeBranchPath(geo);
@@ -67,8 +83,8 @@ export function CircuitFrame() {
         <path
           d={framePath(geo)}
           fill="none"
-          stroke="var(--edge)"
-          strokeOpacity="0.8"
+          stroke="var(--foreground)"
+          strokeOpacity="0.32"
           strokeWidth="1"
         />
         {activeBranch ? (
@@ -81,14 +97,22 @@ export function CircuitFrame() {
           />
         ) : null}
         <circle cx={geo.junction.x} cy={geo.junction.y} r="2.5" fill="var(--port)" />
+        {geo.tabs.map((t) => (
+          <circle
+            key={t.x}
+            cx={t.x}
+            cy={geo.axisY - 7}
+            r="2"
+            fill="var(--background)"
+            stroke="var(--edge)"
+          />
+        ))}
       </svg>
-      {pulses.length > 0 && (
-        <div key={lastNav.current} className="dock-edge-fade absolute inset-0">
-          {pulses.map((pts, i) => (
-            <NodeEdge key={i} points={pts} drawOn pulse="once" active />
-          ))}
+      {pulse ? (
+        <div key={pulseKey} className="dock-edge-fade absolute inset-0">
+          <NodeEdge points={pulse} drawOn pulse="once" active />
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
