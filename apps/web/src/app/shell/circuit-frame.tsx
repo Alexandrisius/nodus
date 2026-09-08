@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { useRouterState } from '@tanstack/react-router';
 import { NodeEdge, type NodeEdgePoint } from '@nodus/ui/components/node-edge';
 
@@ -39,6 +39,17 @@ export function CircuitFrame() {
   const [pulse, setPulse] = useState<{ points: NodeEdgePoint[]; dot: boolean } | null>(null);
   const [pulseRun, setPulseRun] = useState(0);
   const prevFocus = useRef<CircuitFocus | null>(null);
+  const prevRailWidth = useRef<number | null>(null);
+
+  const pulseTimer = useRef(0);
+
+  /** Одиночный пульс с авто-затуханием (общая механика для всех триггеров). */
+  const firePulse = useCallback((points: NodeEdgePoint[], dot: boolean) => {
+    window.clearTimeout(pulseTimer.current);
+    setPulse({ points, dot });
+    setPulseRun((k) => k + 1);
+    pulseTimer.current = window.setTimeout(() => setPulse(null), PULSE_FADE_MS);
+  }, []);
 
   useLayoutEffect(() => {
     let raf = 0;
@@ -75,21 +86,25 @@ export function CircuitFrame() {
 
   useLayoutEffect(() => {
     if (!geo) return;
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    // Вспышка навигации — только на смену фокуса (не на движение панелей)
     const next = currentFocus(geo);
-    const sigChanged = focusSig(next) !== focusSig(prevFocus.current);
-    if (sigChanged && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      const path = transitionPulse(geo, prevFocus.current);
-      if (path) {
-        setPulse(path);
-        setPulseRun((k) => k + 1);
-        const timer = window.setTimeout(() => setPulse(null), PULSE_FADE_MS);
-        prevFocus.current = next;
-        return () => window.clearTimeout(timer);
-      }
+    if (!reduced && focusSig(next) !== focusSig(prevFocus.current)) {
+      const p = transitionPulse(geo, prevFocus.current);
+      if (p) firePulse(p.points, p.dot);
     }
     prevFocus.current = next;
-    return undefined;
-  }, [geo]);
+
+    // Вспышка на РАСКРЫТИЕ правой панели (ширина выросла ≥ 24px; схлопывание — нет)
+    if (!reduced && geo.rightNode && geo.rightRailWidth !== null) {
+      const prevW = prevRailWidth.current;
+      if (prevW !== null && geo.rightRailWidth >= prevW + 24) {
+        firePulse([geo.junction, { x: geo.rightNode.x, y: geo.axisY }], true);
+      }
+    }
+    prevRailWidth.current = geo.rightRailWidth;
+  }, [geo, firePulse]);
 
   if (!geo) return null;
   const activeBranch = activeBranchPath(geo);

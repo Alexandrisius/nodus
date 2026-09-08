@@ -62,7 +62,7 @@ export function AppShell() {
         <NodeRail />
         <div className="flex min-w-0 flex-1 flex-col">
           <TopBar />
-          <div id="content" className="relative min-h-0 flex-1">
+          <div id="content" className="relative min-h-0 flex-1 pr-[10px]">
             <Suspense fallback={<ShellFallback />}>
               <Outlet />
             </Suspense>

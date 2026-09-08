@@ -11,8 +11,10 @@ export interface CircuitGeometry {
   modules: { to: string; active: boolean; port: NodeEdgePoint }[];
   /** Центры вкладок топбара (x), активность. */
   tabs: { active: boolean; x: number }[];
-  /** Узел правой панели (лежит на оси). */
+  /** Узел правой панели (в 8px от левого шва — вне зоны скроллбара). */
   rightNode: NodeEdgePoint | null;
+  /** Ширина правой панели (детект раскрытия для вспышки, не путаем с resize). */
+  rightRailWidth: number | null;
   /** Низ шины рейки (центр последнего модуля). */
   spineEndY: number;
 }
@@ -44,13 +46,16 @@ export function measureCircuit(): CircuitGeometry | null {
     x: centerOf(el).x,
   }));
   const rightEl = document.querySelector<HTMLElement>('[data-circuit-node]');
+  const lastY = modules.length ? Math.max(...modules.map((m) => m.port.y)) : axisY;
   return {
     junction: { x: RAIL_TRUNK_X, y: axisY },
     axisY,
     modules,
     tabs,
     rightNode: rightEl ? centerOf(rightEl) : null,
-    spineEndY: modules.length ? Math.max(...modules.map((m) => m.port.y)) : axisY,
+    rightRailWidth: rightEl?.closest('aside')?.getBoundingClientRect().width ?? null,
+    // Шина заканчивается в точке отхода последнего отвода (порт-10) — без хвоста.
+    spineEndY: modules.length ? lastY - 10 : axisY,
   };
 }
 
