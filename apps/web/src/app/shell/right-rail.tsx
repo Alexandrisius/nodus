@@ -131,8 +131,8 @@ export function RightRail() {
           onClick={toggle}
           aria-label={ui.topbar.collapseRail}
           className={cn(
-            'flex h-8 shrink-0 items-center text-sidebar-foreground/50 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground',
-            edgeOpen ? 'w-full px-3' : 'justify-center',
+            'mx-1.5 mb-1.5 flex h-8 shrink-0 items-center rounded-md text-sidebar-foreground/50 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground',
+            edgeOpen ? 'px-2.5' : 'justify-center',
           )}
         >
           <ChevronsRight className="size-4" />

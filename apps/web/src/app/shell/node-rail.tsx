@@ -192,17 +192,17 @@ export function NodeRail() {
         })}
       </nav>
 
-      <div className="shrink-0 border-t border-sidebar-border p-2">
+      <div className="shrink-0 p-2">
         <button
           type="button"
           onClick={toggle}
           aria-label={collapsed ? ui.nav.expand : ui.nav.collapse}
           className={cn(
-            'flex h-9 w-full items-center rounded-md px-2.5 text-sidebar-foreground/50 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground',
+            'flex h-8 w-full items-center rounded-md px-2.5 text-sidebar-foreground/50 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground',
             collapsed && 'justify-center px-0',
           )}
         >
-          {collapsed ? <ChevronsRight className="size-5" /> : <ChevronsLeft className="size-5" />}
+          {collapsed ? <ChevronsRight className="size-4" /> : <ChevronsLeft className="size-4" />}
         </button>
       </div>
     </aside>
