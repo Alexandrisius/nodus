@@ -103,12 +103,6 @@ export function TopBar() {
             )}
           >
             {section.label}
-            {section.isActive(search) && (
-              <span
-                aria-hidden
-                className="absolute bottom-0 left-1/2 size-1.5 -translate-x-1/2 translate-y-1/2 rounded-full bg-port shadow-[0_0_8px_var(--glow)]"
-              />
-            )}
           </Link>
         ))}
       </nav>

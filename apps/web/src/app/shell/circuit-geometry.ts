@@ -89,10 +89,13 @@ export function framePath(g: CircuitGeometry): string {
     );
   }
   for (const t of g.tabs) {
-    parts.push(`M${t.x},${g.axisY} V${g.axisY - 7}`);
+    parts.push(`M${t.x},${g.axisY} V${g.axisY - TICK}`);
   }
   return parts.filter(Boolean).join(' ');
 }
+
+/** Длина засечки-ответвления вкладки (точка — у самого пункта, не на оси). */
+export const TICK = 12;
 
 /** Отвод к активному модулю — подсвечивается отдельным слоем. */
 export function activeBranchPath(g: CircuitGeometry): string | null {
@@ -117,11 +120,11 @@ export function currentFocus(g: CircuitGeometry): CircuitFocus | null {
 }
 
 /**
- * Вспышка-переход — строго один пульс в одну сторону:
- * модуль со вкладками — от порта модуля по шине и оси к активной вкладке;
- * модуль без вкладок — от предыдущего модуля по шине к нажатому;
- * клик по вкладке — от предыдущей вкладки по оси к новой.
- * Концы — только в портах; логотип не участвует.
+ * Вспышка-переход — строго один пульс в одну сторону, всегда к подменю:
+ * клик по модулю — от его порта по шине и оси к точке активной вкладки
+ * (у каждого модуля подменю есть или появится); клик по вкладке — от точки
+ * предыдущей вкладки по оси к новой. Логотип не участвует; перетоков
+ * модуль→модуль нет. Концы — только в портах.
  */
 export function transitionPulse(
   g: CircuitGeometry,
@@ -130,6 +133,7 @@ export function transitionPulse(
   const active = g.modules.find((m) => m.active);
   if (!active) return null;
   const activeTab = g.tabs.find((t) => t.active);
+  const tabTopY = g.axisY - TICK;
   if (!prev || prev.moduleTo !== active.to) {
     if (activeTab) {
       return [
@@ -137,22 +141,17 @@ export function transitionPulse(
         { x: g.junction.x, y: active.port.y },
         g.junction,
         { x: activeTab.x, y: g.axisY },
+        { x: activeTab.x, y: tabTopY },
       ];
     }
-    if (prev) {
-      return [
-        prev.modulePort,
-        { x: g.junction.x, y: prev.modulePort.y },
-        { x: g.junction.x, y: active.port.y },
-        active.port,
-      ];
-    }
-    return [g.junction, { x: g.junction.x, y: active.port.y }, active.port];
+    // Подменю модуля появится позже — пульс от порта до стыка контуров.
+    return [active.port, { x: g.junction.x, y: active.port.y }, g.junction];
   }
   if (activeTab && prev.tabX !== null && prev.tabX !== activeTab.x) {
     return [
       { x: prev.tabX, y: g.axisY },
       { x: activeTab.x, y: g.axisY },
+      { x: activeTab.x, y: tabTopY },
     ];
   }
   return null;

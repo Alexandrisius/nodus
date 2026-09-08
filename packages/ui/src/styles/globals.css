@@ -186,6 +186,11 @@
   body {
     @apply bg-background text-foreground font-sans text-[14px];
   }
+  /* Тонкий скроллбар, не спорящий с контуром связи. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(255 255 255 / 0.14) transparent;
+  }
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,

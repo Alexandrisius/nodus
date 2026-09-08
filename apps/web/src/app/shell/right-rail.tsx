@@ -87,11 +87,16 @@ export function RightRail() {
         edgeOpen ? 'w-64' : 'w-14',
       )}
     >
-      <span
-        data-circuit-node
-        aria-hidden
-        className="absolute top-[52px] left-1/2 size-2 -translate-x-1/2 rounded-full border border-edge bg-sidebar"
-      />
+      <span data-circuit-node aria-hidden className="absolute top-[49px] left-1/2 -translate-x-1/2">
+        <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+          <polygon
+            points="7,1 12.2,4 12.2,10 7,13 1.8,10 1.8,4"
+            fill="var(--sidebar)"
+            stroke="var(--edge)"
+          />
+          <circle cx="7" cy="7" r="2" fill="var(--port)" />
+        </svg>
+      </span>
       <div className="flex h-8 items-center gap-2 px-3.5 pt-3 pb-1">
         <span className="font-mono text-[11px] font-medium text-sidebar-foreground/70 tabular-nums">
           {online}

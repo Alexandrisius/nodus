@@ -7,6 +7,7 @@ import {
   currentFocus,
   framePath,
   measureCircuit,
+  TICK,
   transitionPulse,
   type CircuitFocus,
   type CircuitGeometry,
@@ -15,14 +16,19 @@ import { useShellStore } from './shell-store.js';
 
 const PULSE_FADE_MS = 2200;
 
+function focusSig(f: CircuitFocus | null): string {
+  return f ? `${f.moduleTo}|${f.tabX ?? ''}` : '';
+}
+
 /**
- * Перманентный контур Nodus (фишка каркаса, реф node-based UI): единая связь
- * слева направо — стык → ось шапки (контур ЗАМЕНЯЕТ бордюр шапки) → узел
- * правой панели — плюс шина рейки с локтевыми отводами к портам модулей
- * единым блоком и засечки-ответвления вверх к вкладкам. Логотип в контур
- * не входит. Вспышка — один пульс от предыдущего фокуса к нажатому порту.
- * Геометрия — измерение DOM по data-атрибутам (без констант координат);
- * пересчёт на resize и transitionend (схлопывание панелей).
+ * Перманентный контур Nodus (реф node-based UI): единая связь слева направо —
+ * стык (круглое сопряжение, без точки) → ось шапки (контур ЗАМЕНЯЕТ бордюр) →
+ * нода правой панели (длина следует за её движением) — плюс шина рейки с
+ * локтевыми отводами к портам модулей единым блоком и засечки вверх к точкам
+ * вкладок (точка — у самого пункта, на оси точек нет). Вспышка — один пульс
+ * к активному подменю, только на СМЕНУ фокуса (не на движение панелей).
+ * Геометрия — измерение DOM по data-атрибутам; пересчёт на resize, скролл
+ * навигатора и непрерывно во время transition панелей.
  */
 export function CircuitFrame() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -31,49 +37,59 @@ export function CircuitFrame() {
   const railCollapsed = useShellStore((s) => s.railCollapsed);
   const [geo, setGeo] = useState<CircuitGeometry | null>(null);
   const [pulse, setPulse] = useState<NodeEdgePoint[] | null>(null);
-  const [pulseKey, setPulseKey] = useState('');
+  const [pulseRun, setPulseRun] = useState(0);
   const prevFocus = useRef<CircuitFocus | null>(null);
 
   useLayoutEffect(() => {
     let raf = 0;
+    let transitionTimer = 0;
     const remeasure = () => {
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => setGeo(measureCircuit()));
     };
+    // Непрерывный пересчёт во время transition (панели движутся — связь тянется)
+    const onTransitionRun = () => {
+      transitionTimer = window.setInterval(remeasure, 50);
+    };
+    const onTransitionEnd = () => {
+      window.clearInterval(transitionTimer);
+      remeasure();
+    };
     remeasure();
     const ro = new ResizeObserver(remeasure);
     ro.observe(document.documentElement);
-    document.addEventListener('transitionend', remeasure, true);
+    document.addEventListener('transitionrun', onTransitionRun, true);
+    document.addEventListener('transitionend', onTransitionEnd, true);
+    document.addEventListener('transitioncancel', onTransitionEnd, true);
+    document.addEventListener('scroll', remeasure, { capture: true, passive: true });
     return () => {
       cancelAnimationFrame(raf);
+      window.clearInterval(transitionTimer);
       ro.disconnect();
-      document.removeEventListener('transitionend', remeasure, true);
+      document.removeEventListener('transitionrun', onTransitionRun, true);
+      document.removeEventListener('transitionend', onTransitionEnd, true);
+      document.removeEventListener('transitioncancel', onTransitionEnd, true);
+      document.removeEventListener('scroll', remeasure, { capture: true });
     };
   }, [pathname, searchStr, menuCollapsed, railCollapsed]);
 
   useLayoutEffect(() => {
     if (!geo) return;
-    const id = `${pathname}|${searchStr}`;
-    if (id === pulseKey) return;
     const next = currentFocus(geo);
-    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    const sigChanged = focusSig(next) !== focusSig(prevFocus.current);
+    if (sigChanged && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       const path = transitionPulse(geo, prevFocus.current);
       if (path) {
         setPulse(path);
-        setPulseKey(id);
+        setPulseRun((k) => k + 1);
         const timer = window.setTimeout(() => setPulse(null), PULSE_FADE_MS);
+        prevFocus.current = next;
         return () => window.clearTimeout(timer);
       }
     }
     prevFocus.current = next;
     return undefined;
-  }, [geo, pathname, searchStr, pulseKey]);
-
-  // Фокус обновляем после построения вспышки (или если она не понадобилась)
-  useLayoutEffect(() => {
-    if (!geo) return;
-    prevFocus.current = currentFocus(geo);
-  }, [pulseKey, geo]);
+  }, [geo]);
 
   if (!geo) return null;
   const activeBranch = activeBranchPath(geo);
@@ -96,20 +112,20 @@ export function CircuitFrame() {
             strokeWidth="1"
           />
         ) : null}
-        <circle cx={geo.junction.x} cy={geo.junction.y} r="2.5" fill="var(--port)" />
         {geo.tabs.map((t) => (
           <circle
             key={t.x}
             cx={t.x}
-            cy={geo.axisY - 7}
-            r="2"
-            fill="var(--background)"
-            stroke="var(--edge)"
+            cy={geo.axisY - TICK}
+            r="2.5"
+            fill={t.active ? 'var(--port)' : 'var(--background)'}
+            stroke={t.active ? 'var(--port)' : 'var(--edge)'}
+            style={t.active ? { filter: 'drop-shadow(0 0 6px var(--glow))' } : undefined}
           />
         ))}
       </svg>
       {pulse ? (
-        <div key={pulseKey} className="dock-edge-fade absolute inset-0">
+        <div key={pulseRun} className="dock-edge-fade absolute inset-0">
           <NodeEdge points={pulse} drawOn pulse="once" active />
         </div>
       ) : null}
