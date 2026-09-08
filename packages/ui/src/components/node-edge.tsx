@@ -99,7 +99,12 @@ function NodeEdge({
       ))}
       {pulse && !reduced && (
         <circle r={2.5} fill="var(--port)">
-          <animateMotion dur="1.4s" repeatCount={pulse === 'once' ? '1' : 'indefinite'} path={d} />
+          <animateMotion
+            dur="1.4s"
+            begin={drawOn ? '0.45s' : '0s'}
+            repeatCount={pulse === 'once' ? '1' : 'indefinite'}
+            path={d}
+          />
         </circle>
       )}
     </svg>

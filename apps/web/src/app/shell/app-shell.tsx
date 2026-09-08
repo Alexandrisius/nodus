@@ -7,6 +7,7 @@ import { TooltipProvider } from '@nodus/ui/components/tooltip';
 
 import { CommandPalette } from './command-palette.js';
 import { LiveGraph } from './live-graph.js';
+import { NavigationFlash } from './navigation-flash.js';
 import { NodeRail } from './node-rail.js';
 import { RightRail } from './right-rail.js';
 import { useShellStore } from './shell-store.js';
@@ -69,6 +70,7 @@ export function AppShell() {
         </div>
         <RightRail />
       </div>
+      <NavigationFlash />
       <CommandPalette />
       <Toaster richColors />
     </TooltipProvider>
