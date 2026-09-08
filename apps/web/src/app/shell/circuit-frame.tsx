@@ -36,7 +36,7 @@ export function CircuitFrame() {
   const menuCollapsed = useShellStore((s) => s.menuCollapsed);
   const railCollapsed = useShellStore((s) => s.railCollapsed);
   const [geo, setGeo] = useState<CircuitGeometry | null>(null);
-  const [pulse, setPulse] = useState<NodeEdgePoint[] | null>(null);
+  const [pulse, setPulse] = useState<{ points: NodeEdgePoint[]; dot: boolean } | null>(null);
   const [pulseRun, setPulseRun] = useState(0);
   const prevFocus = useRef<CircuitFocus | null>(null);
 
@@ -123,10 +123,25 @@ export function CircuitFrame() {
             style={t.active ? { filter: 'drop-shadow(0 0 6px var(--glow))' } : undefined}
           />
         ))}
+        {geo.rightNode ? (
+          <circle
+            cx={geo.rightNode.x}
+            cy={geo.axisY}
+            r="3.5"
+            fill="var(--sidebar)"
+            stroke="var(--edge)"
+          />
+        ) : null}
       </svg>
       {pulse ? (
         <div key={pulseRun} className="dock-edge-fade absolute inset-0">
-          <NodeEdge points={pulse} drawOn pulse="once" active />
+          <NodeEdge
+            points={pulse.points}
+            ports={pulse.dot ? 'end' : 'none'}
+            drawOn
+            pulse="once"
+            active
+          />
         </div>
       ) : null}
     </div>

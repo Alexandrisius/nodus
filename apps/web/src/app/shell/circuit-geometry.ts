@@ -54,28 +54,34 @@ export function measureCircuit(): CircuitGeometry | null {
   };
 }
 
-/** Статичный контур одним путём: стык → шина рейки с локтевыми отводами к
- * портам единым блоком + ось шапки → узел правой панели (ровно, на оси) +
- * засечки-ответвления ВВЕРХ к вкладкам. В логотип контур не ходит. */
+/** Статичный контур: артерия — ОДНА ломаная «низ шины → стык (круглое
+ * сопряжение) → ось → правый узел» (без прямых углов и точек в стыке);
+ * отводы модулей локтями; засечки вкладок — локти в сторону главного меню. */
 export function framePath(g: CircuitGeometry): string {
   const parts: string[] = [];
-  if (g.modules.length > 0) {
-    parts.push(orthPath([g.junction, { x: g.junction.x, y: g.spineEndY }], 8));
-    for (const m of g.modules) {
-      parts.push(
-        orthPath(
-          [
-            { x: g.junction.x, y: m.port.y - 10 },
-            { x: g.junction.x, y: m.port.y },
-            { x: m.port.x - 4, y: m.port.y },
-          ],
-          8,
-        ),
-      );
-    }
-  }
   const rightEnd = g.rightNode?.x ?? g.junction.x + 200;
-  parts.push(orthPath([g.junction, { x: rightEnd, y: g.axisY }], 8));
+  parts.push(
+    orthPath(
+      [
+        { x: g.junction.x, y: g.modules.length > 0 ? g.spineEndY : g.axisY },
+        g.junction,
+        { x: rightEnd, y: g.axisY },
+      ],
+      8,
+    ),
+  );
+  for (const m of g.modules) {
+    parts.push(
+      orthPath(
+        [
+          { x: g.junction.x, y: m.port.y - 10 },
+          { x: g.junction.x, y: m.port.y },
+          { x: m.port.x - 4, y: m.port.y },
+        ],
+        8,
+      ),
+    );
+  }
   // Узел правой панели лежит на оси — загиб рисуем только при реальном смещении.
   if (g.rightNode && Math.abs(g.rightNode.y - g.axisY) >= 12) {
     parts.push(
@@ -89,7 +95,16 @@ export function framePath(g: CircuitGeometry): string {
     );
   }
   for (const t of g.tabs) {
-    parts.push(`M${t.x},${g.axisY} V${g.axisY - TICK}`);
+    parts.push(
+      orthPath(
+        [
+          { x: t.x - 10, y: g.axisY },
+          { x: t.x, y: g.axisY },
+          { x: t.x, y: g.axisY - TICK },
+        ],
+        6,
+      ),
+    );
   }
   return parts.filter(Boolean).join(' ');
 }
@@ -120,39 +135,40 @@ export function currentFocus(g: CircuitGeometry): CircuitFocus | null {
 }
 
 /**
- * Вспышка-переход — строго один пульс в одну сторону, всегда к подменю:
- * клик по модулю — от его порта по шине и оси к точке активной вкладки
- * (у каждого модуля подменю есть или появится); клик по вкладке — от точки
- * предыдущей вкладки по оси к новой. Логотип не участвует; перетоков
- * модуль→модуль нет. Концы — только в портах.
+ * Вспышка-переход — строго один пульс в одну сторону, всегда ОТ ПОРТА МОДУЛЯ:
+ * по шине и оси к точке активной вкладки (клик по модулю и клик по вкладке —
+ * одна и та же траектория, пересечений нет по построению); у модуля без
+ * вкладок — поворот за стык и затухание на оси без точки. Логотип не участвует.
+ * dot=true — на конце пульса точка в целевом порту; false — без точки (стык).
  */
 export function transitionPulse(
   g: CircuitGeometry,
   prev: CircuitFocus | null,
-): NodeEdgePoint[] | null {
+): { points: NodeEdgePoint[]; dot: boolean } | null {
   const active = g.modules.find((m) => m.active);
   if (!active) return null;
   const activeTab = g.tabs.find((t) => t.active);
-  const tabTopY = g.axisY - TICK;
-  if (!prev || prev.moduleTo !== active.to) {
-    if (activeTab) {
-      return [
+  const focusChanged = !prev || prev.moduleTo !== active.to || prev.tabX !== (activeTab?.x ?? null);
+  if (!focusChanged) return null;
+  if (activeTab) {
+    return {
+      points: [
         active.port,
         { x: g.junction.x, y: active.port.y },
         g.junction,
         { x: activeTab.x, y: g.axisY },
-        { x: activeTab.x, y: tabTopY },
-      ];
-    }
-    // Подменю модуля появится позже — пульс от порта до стыка контуров.
-    return [active.port, { x: g.junction.x, y: active.port.y }, g.junction];
+        { x: activeTab.x, y: g.axisY - TICK },
+      ],
+      dot: true,
+    };
   }
-  if (activeTab && prev.tabX !== null && prev.tabX !== activeTab.x) {
-    return [
-      { x: prev.tabX, y: g.axisY },
-      { x: activeTab.x, y: g.axisY },
-      { x: activeTab.x, y: tabTopY },
-    ];
-  }
-  return null;
+  return {
+    points: [
+      active.port,
+      { x: g.junction.x, y: active.port.y },
+      g.junction,
+      { x: g.junction.x + 24, y: g.axisY },
+    ],
+    dot: false,
+  };
 }

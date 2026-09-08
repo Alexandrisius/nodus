@@ -58,6 +58,7 @@ function NodeEdge({
   pulse = false,
   active = false,
   drawOn = false,
+  ports = 'both',
   elbow = 8,
   className,
 }: {
@@ -67,6 +68,8 @@ function NodeEdge({
   active?: boolean;
   /** Отрисовка линии от начала к концу при монтировании. */
   drawOn?: boolean;
+  /** Порты-точки: на обоих концах, только в целевом или без точек. */
+  ports?: 'both' | 'end' | 'none';
   elbow?: number;
   className?: string;
 }) {
@@ -94,9 +97,10 @@ function NodeEdge({
         className={animate ? 'node-edge-draw' : undefined}
         style={active ? { filter: 'drop-shadow(0 0 6px var(--glow))' } : undefined}
       />
-      {[start, end].map((p, i) => (
-        <circle key={i} cx={p.x} cy={p.y} r={3} fill="var(--port)" />
-      ))}
+      {ports !== 'none' &&
+        (ports === 'both' ? [start, end] : [end]).map((p, i) => (
+          <circle key={i} cx={p.x} cy={p.y} r={3} fill="var(--port)" />
+        ))}
       {pulse && !reduced && (
         <circle r={2.5} fill="var(--port)">
           <animateMotion
