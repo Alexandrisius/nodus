@@ -93,6 +93,8 @@ export function TopBar() {
             key={section.label}
             to={section.to}
             search={section.search}
+            data-tab-port
+            data-active={section.isActive(search) ? 'true' : undefined}
             className={cn(
               'relative flex h-full items-center px-4 font-mono text-[12px] font-medium tracking-[0.14em] uppercase transition-colors',
               section.isActive(search)
@@ -103,7 +105,6 @@ export function TopBar() {
             {section.label}
             {section.isActive(search) && (
               <span
-                data-tab-port
                 aria-hidden
                 className="absolute bottom-0 left-1/2 size-1.5 -translate-x-1/2 translate-y-1/2 rounded-full bg-port shadow-[0_0_8px_var(--glow)]"
               />

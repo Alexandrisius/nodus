@@ -2,9 +2,9 @@ import { useLayoutEffect, useState } from 'react';
 import { useRouterState } from '@tanstack/react-router';
 import { NodeEdge, type NodeEdgePoint } from '@nodus/ui/components/node-edge';
 
+import { RAIL_TRUNK_X } from './node-rail.js';
+
 const FADE_MS = 2200;
-/** Отступ ребра от шва рейки в контент. */
-const SEAM_GAP = 20;
 
 function centerOf(el: Element): NodeEdgePoint {
   const r = el.getBoundingClientRect();
@@ -13,11 +13,11 @@ function centerOf(el: Element): NodeEdgePoint {
 
 /**
  * Навигационная вспышка (фишка №1 брифа): переключение модуля поджигает цепь —
- * от порта модуля в рейке ортогональное ребро со скруглёнными узлами идёт
- * через шов в контент, вверх и по оси топбара — к порту активной вкладки
- * (ЗАДАЧИ → МОЙ ПЛАН). Если у модуля нет вкладок — пульс от логотипа к порту
- * модуля по магистрали. Координаты измеряются из DOM по data-атрибутам
- * (не константами); ребро растворяется за 2.2с (связь = событие, не декор).
+ * от порта модуля по отводу в шину, вверх к логотипу-хабу и вправо по оси
+ * топбара к активной вкладке (ЗАДАЧИ → МОЙ ПЛАН). Маршрут идёт ТОЛЬКО по
+ * хрому (рейка + топбар), не пересекая контент. Если вкладок нет — цепь
+ * заканчивается в логотипе-узле. Координаты — из DOM по data-атрибутам;
+ * ребро растворяется за 2.2с (связь = событие, не декор).
  */
 export function NavigationFlash() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -30,19 +30,34 @@ export function NavigationFlash() {
       const modulePort = document.querySelector<HTMLElement>(
         '[data-module-port][data-active="true"]',
       );
-      if (!modulePort) return;
+      const logo = document.querySelector<HTMLElement>('[data-logo-port]');
+      if (!modulePort || !logo) return;
       const A = centerOf(modulePort);
-      const tabPort = document.querySelector<HTMLElement>('[data-tab-port]');
+      const logoC = centerOf(logo);
+      const railRight = document
+        .querySelector<HTMLElement>('[data-rail]')
+        ?.getBoundingClientRect().right;
+      const seamX = railRight ?? RAIL_TRUNK_X;
+      const trunk = { x: RAIL_TRUNK_X, y: A.y };
+      const hub = { x: RAIL_TRUNK_X, y: logoC.y };
+      const tab = document.querySelector<HTMLElement>('[data-tab-port][data-active="true"]');
+      // Вкладки есть: отвод → шина → хаб → угол хрома → по оси топбара во вкладку.
+      // Вкладок нет: отвод → шина → хаб → логотип-узел.
       let points: NodeEdgePoint[];
-      if (tabPort) {
-        const B = centerOf(tabPort);
-        const rail = document.querySelector<HTMLElement>('[data-rail]');
-        const seamX = (rail?.getBoundingClientRect().right ?? A.x) + SEAM_GAP;
-        points = [A, { x: seamX, y: A.y }, { x: seamX, y: B.y }, B];
+      if (tab) {
+        const tabRect = tab.getBoundingClientRect();
+        const tabY = tabRect.bottom; // ось бордюра топбара, на ней порты вкладок
+        const tabX = tabRect.left + tabRect.width / 2;
+        points = [
+          A,
+          trunk,
+          hub,
+          { x: seamX, y: logoC.y },
+          { x: seamX, y: tabY },
+          { x: tabX, y: tabY },
+        ];
       } else {
-        const logo = document.querySelector<HTMLElement>('[data-logo-port]');
-        const startY = logo ? logo.getBoundingClientRect().bottom - 4 : 0;
-        points = [{ x: A.x, y: startY }, A];
+        points = [A, trunk, hub, logoC];
       }
       setRoute(points);
     });
@@ -58,7 +73,7 @@ export function NavigationFlash() {
   if (!route) return null;
   return (
     <div className="dock-edge-fade pointer-events-none fixed inset-0 z-40" aria-hidden>
-      <NodeEdge points={route} drawOn pulse="once" />
+      <NodeEdge points={route} drawOn pulse="once" active />
     </div>
   );
 }

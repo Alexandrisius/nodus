@@ -78,6 +78,7 @@ export function SliderPanel({
             ]}
             drawOn
             pulse="once"
+            active
           />
         </div>
       ) : null}

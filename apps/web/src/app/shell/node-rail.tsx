@@ -19,9 +19,12 @@ import { useShellStore } from './shell-store.js';
 import { LogoIcon } from './logo-icon.js';
 import { LogoWordmark } from './logo-wordmark.js';
 
-/** Геометрия магистрали: ось шины (и центры портов) в px от левого края рейки. */
-const TRUNK_X = 32;
+/** Ось шины в px от левого края рейки (импортируется NavigationFlash). */
+export const RAIL_TRUNK_X = 24;
+/** Длина отвода от шины до порта модуля. */
+const BRANCH_W = 16;
 const PORT = 9;
+const PORT_X = RAIL_TRUNK_X + BRANCH_W;
 
 interface MenuItem {
   to: string;
@@ -32,10 +35,10 @@ interface MenuItem {
 }
 
 /**
- * Левая рейка модулей как магистраль графа: порты-модули на вертикальной шине.
- * Шина — строго от первого порта секции к последнему (без хвостов «просто так»,
- * как на рефе). Навигационная вспышка — NavigationFlash на уровне каркаса:
- * измеряет порты по data-атрибутам (data-module-port, data-logo-port, data-rail).
+ * Левая рейка модулей как магистраль графа (реф node-based UI): вертикальная
+ * шина секции — строго от первого порта к последнему — и отводы с портами
+ * к каждому модулю (├─○), активный отвод и порт светятся. Навигационная
+ * вспышка — NavigationFlash: измеряет порты по data-атрибутам.
  */
 export function NodeRail() {
   const collapsed = useShellStore((s) => s.menuCollapsed);
@@ -100,7 +103,7 @@ export function NodeRail() {
             {!collapsed && (
               <span
                 className="pb-1 font-mono text-[11px] font-medium tracking-[0.16em] text-sidebar-foreground/40 uppercase"
-                style={{ paddingLeft: TRUNK_X + 20 }}
+                style={{ paddingLeft: PORT_X + 16 }}
               >
                 {section.title}
               </span>
@@ -110,7 +113,7 @@ export function NodeRail() {
                 <span
                   aria-hidden
                   className="absolute w-px bg-edge/40"
-                  style={{ left: TRUNK_X - 0.5, top: 20, bottom: 20 }}
+                  style={{ left: RAIL_TRUNK_X - 0.5, top: 20, bottom: 20 }}
                 />
               )}
               {section.items.map((item) => {
@@ -124,26 +127,36 @@ export function NodeRail() {
                       active && 'bg-sidebar-accent text-sidebar-accent-foreground',
                       collapsed ? 'mx-3 justify-center' : 'mr-3',
                     )}
-                    style={collapsed ? undefined : { paddingLeft: TRUNK_X + 20 }}
+                    style={collapsed ? undefined : { paddingLeft: PORT_X + 16 }}
                   >
                     {!collapsed && (
-                      <span
-                        data-module-port={item.to}
-                        data-active={active ? 'true' : undefined}
-                        aria-hidden
-                        className={cn(
-                          'absolute top-1/2 -translate-y-1/2 rounded-full border transition-colors',
-                          active
-                            ? 'border-port bg-port shadow-[0_0_10px_var(--glow)]'
-                            : 'border-edge bg-sidebar',
-                        )}
-                        style={{ left: TRUNK_X - PORT / 2, width: PORT, height: PORT }}
-                      />
+                      <>
+                        <span
+                          aria-hidden
+                          className={cn(
+                            'absolute top-1/2 h-px transition-colors',
+                            active ? 'bg-port/80' : 'bg-edge/60',
+                          )}
+                          style={{ left: RAIL_TRUNK_X, width: BRANCH_W }}
+                        />
+                        <span
+                          data-module-port={item.to}
+                          data-active={active ? 'true' : undefined}
+                          aria-hidden
+                          className={cn(
+                            'absolute top-1/2 -translate-y-1/2 rounded-full border transition-colors',
+                            active
+                              ? 'border-port bg-port shadow-[0_0_10px_var(--glow)]'
+                              : 'border-edge bg-sidebar',
+                          )}
+                          style={{ left: PORT_X - PORT / 2, width: PORT, height: PORT }}
+                        />
+                      </>
                     )}
                     <item.icon className="size-[18px] shrink-0" strokeWidth={1.75} />
                     {!collapsed && <span className="truncate">{item.label}</span>}
                     {!collapsed && item.badge ? (
-                      <span className="ml-auto rounded bg-secondary px-1.5 py-1 font-mono text-[11px] leading-none text-muted-foreground tabular-nums">
+                      <span className="ml-auto pr-1 font-mono text-[11px] text-muted-foreground/80 tabular-nums">
                         {item.badge}
                       </span>
                     ) : null}
