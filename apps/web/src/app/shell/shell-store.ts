@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type ThemeId = 'ink' | 'paper';
+export type ThemeId = 'nodus' | 'ink' | 'paper';
 
 interface ShellState {
   menuCollapsed: boolean;
@@ -17,7 +17,7 @@ interface ShellState {
 export const useShellStore = create<ShellState>((set) => ({
   menuCollapsed: false,
   railCollapsed: false,
-  theme: 'ink',
+  theme: 'nodus',
   commandOpen: false,
   toggleMenu: () => set((s) => ({ menuCollapsed: !s.menuCollapsed })),
   toggleRail: () => set((s) => ({ railCollapsed: !s.railCollapsed })),

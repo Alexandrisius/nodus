@@ -10,8 +10,8 @@ import { PersonAvatar } from '../../shared/ui/person-avatar.js';
 import { useShellStore } from './shell-store.js';
 
 const dotColor: Record<string, string> = {
-  online: 'bg-sage',
-  away: 'bg-ochre',
+  online: 'bg-success',
+  away: 'bg-warning',
   offline: 'bg-foreground/30',
 };
 

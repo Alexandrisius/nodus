@@ -64,6 +64,7 @@ export const ui = {
     profile: 'Профиль',
     logout: 'Выйти',
     theme: 'Оформление',
+    themeNodus: 'Инструмент · граф',
     themeInk: 'Тушь · тёмная',
     themePaper: 'Бумага · светлая',
     create: 'Создать',

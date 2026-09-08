@@ -2,6 +2,7 @@ import { X } from 'lucide-react';
 import { useEffect, useId, type ReactNode } from 'react';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
+import { NodeEdge } from '@nodus/ui/components/node-edge';
 import { cn } from '@nodus/ui/lib/utils';
 
 /** Стек слайдеров: ESC закрывает только верхнюю панель (§10.2). */
@@ -43,21 +44,31 @@ export function SliderPanel({
         role="dialog"
         aria-modal="true"
         className={cn(
-          'paper-surface animate-in slide-in-from-bottom absolute inset-x-3 bottom-0 top-10 flex flex-col rounded-t-2xl shadow-2xl duration-300',
+          'animate-in slide-in-from-bottom absolute inset-x-3 bottom-0 top-10 flex flex-col rounded-t-xl border border-b-0 border-border bg-card text-card-foreground shadow-2xl duration-300',
           level === 2 && 'inset-x-10 top-16',
         )}
       >
-        <header className="flex h-12 shrink-0 items-center gap-2 border-b border-pencil/30 px-3">
+        <NodeEdge
+          className="-top-6 left-10 h-6 w-10"
+          points={[
+            { x: 6, y: 0 },
+            { x: 6, y: 12 },
+            { x: 20, y: 12 },
+            { x: 20, y: 24 },
+          ]}
+          pulse="once"
+        />
+        <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-3">
           <Button
             variant="ghost"
             size="icon"
-            className="shrink-0 hover:bg-pencil/10"
+            className="shrink-0 hover:bg-accent"
             onClick={onClose}
             aria-label={ui.common.close}
           >
             <X />
           </Button>
-          <nav className="flex min-w-0 items-center gap-1.5 text-sm text-card-foreground/60">
+          <nav className="flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground">
             {breadcrumbs}
           </nav>
         </header>

@@ -27,8 +27,8 @@ export function AppShell() {
 
   useEffect(() => {
     const root = document.documentElement;
-    if (theme === 'paper') root.dataset.theme = 'paper';
-    else delete root.dataset.theme;
+    if (theme === 'nodus') delete root.dataset.theme;
+    else root.dataset.theme = theme;
   }, [theme]);
 
   useEffect(() => {
@@ -50,7 +50,7 @@ export function AppShell() {
       >
         {ui.common.skipToContent}
       </a>
-      <LiveGraph />
+      <LiveGraph visible={theme !== 'nodus'} />
       <div className="flex h-screen overflow-hidden">
         <SideMenu />
         <div className="flex min-w-0 flex-1 flex-col">

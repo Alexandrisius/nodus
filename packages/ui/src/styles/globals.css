@@ -2,6 +2,7 @@
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
 @import '@fontsource-variable/onest';
+@import '@fontsource-variable/jetbrains-mono';
 
 @source '../';
 
@@ -9,6 +10,7 @@
 
 @theme inline {
   --font-sans: 'Onest Variable', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, 'Cascadia Mono', monospace;
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -59,6 +61,9 @@
   --color-cream: var(--cream);
   --color-paper: var(--paper);
   --color-pencil: var(--pencil);
+  --color-edge: var(--edge);
+  --color-port: var(--port);
+  --color-glow: var(--glow);
 
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
@@ -73,13 +78,75 @@
  * Тема — данные (§10.3 ux-principles): компоненты используют только
  * семантические токены; вариант оформления = подмена набора переменных.
  *
- * Направление «карандаш и бумага»: грифельный тёмно-зелёный фон с нитью
- * графа, карточки из состаренной бумаги с карандашным бордюром, акценты —
- * ржавчина/охра/бирюза советской палитры. Текст — чистый Onest.
- * Базовая тема — «Тушь» (тёмная); «Бумага» — светлый вариант.
+ * Базовая тема — «Инструмент» (реф docs/mvp/ref/node-based UI/1.png):
+ * near-black фон без текстур, тонкие бордюры, моно-метки, ортогональные
+ * связи с портами (--edge/--port/--glow). Легаси-направление «карандаш
+ * и бумага» сохранено как варианты «Тушь» и «Бумага».
  */
 :root {
-  --radius: 0.75rem;
+  --radius: 0.625rem;
+  --background: #0a0a0b;
+  --foreground: #e8e8e6;
+  --card: #121214;
+  --card-foreground: #e8e8e6;
+  --popover: #121214;
+  --popover-foreground: #e8e8e6;
+  --primary: #e8e8e6;
+  --primary-foreground: #0a0a0b;
+  --secondary: #17171a;
+  --secondary-foreground: #c9c9c6;
+  --muted: #141416;
+  --muted-foreground: #8a8a8e;
+  --accent: #1b1b1f;
+  --accent-foreground: #e8e8e6;
+  --destructive: #c8584a;
+  --destructive-foreground: #0a0a0b;
+  --border: rgb(255 255 255 / 0.09);
+  --input: rgb(255 255 255 / 0.14);
+  --ring: #d9d9d6;
+  --success: #6fa287;
+  --success-soft: #1c2b24;
+  --warning: #c9a45b;
+  --warning-soft: #2b2518;
+  --danger: #c8584a;
+  --danger-soft: #2c1a18;
+  --info: #7a93b2;
+  --info-soft: #1a2230;
+  --chart-1: #d9d9d6;
+  --chart-2: #8a8a8e;
+  --chart-3: #6fa287;
+  --chart-4: #c9a45b;
+  --chart-5: #7a93b2;
+  --sidebar: #0c0c0e;
+  --sidebar-foreground: #c9c9c6;
+  --sidebar-primary: #e8e8e6;
+  --sidebar-primary-foreground: #0a0a0b;
+  --sidebar-accent: #1a1a1e;
+  --sidebar-accent-foreground: #e8e8e6;
+  --sidebar-border: rgb(255 255 255 / 0.07);
+  --sidebar-ring: #d9d9d6;
+
+  /* Связи нод: линия ребра, точка-порт, свечение активного. */
+  --edge: rgb(255 255 255 / 0.28);
+  --port: #d9d9d6;
+  --glow: rgb(255 255 255 / 0.65);
+
+  /* Легаси-палитра «карандаш и бумага» (для тем ink/paper и их утилит). */
+  --rust: #b0512c;
+  --ochre: #c9973b;
+  --tealink: #4e7e80;
+  --sage: #7c8a6e;
+  --steel: #5b7f9d;
+  --cream: #f7ecca;
+  --paper: #e8d5a9;
+  --pencil: #35332a;
+  --card-line: rgb(53 51 42 / 0.7);
+  --sketch-line: rgb(53 51 42 / 0.4);
+}
+
+/* «Тушь» — легаси: грифельный тёмно-зелёный фон с нитью графа, карточки
+ * из состаренной бумаги, акценты ржавчина/охра/бирюза советской палитры. */
+[data-theme='ink'] {
   --background: #0e1b15;
   --foreground: #e6ddc6;
   --card: #e8d5a9;
@@ -120,17 +187,9 @@
   --sidebar-accent-foreground: #e6ddc6;
   --sidebar-border: rgb(230 221 198 / 0.12);
   --sidebar-ring: #c9973b;
-
-  --rust: #b0512c;
-  --ochre: #c9973b;
-  --tealink: #4e7e80;
-  --sage: #7c8a6e;
-  --steel: #5b7f9d;
-  --cream: #f7ecca;
-  --paper: #e8d5a9;
-  --pencil: #35332a;
-  --card-line: rgb(53 51 42 / 0.7);
-  --sketch-line: rgb(53 51 42 / 0.4);
+  --edge: rgb(230 221 198 / 0.3);
+  --port: #e6ddc6;
+  --glow: rgb(230 221 198 / 0.6);
 }
 
 /* «Бумага» — светлый вариант: состаренная бумага вместо грифельной доски. */
@@ -292,6 +351,15 @@
   }
 }
 
+/* Панель «инструмента» (реф node-based UI): плоская заливка, тонкий бордюр,
+ * радиус темы; без текстур, теней и «рисованности». */
+@utility node-panel {
+  background-color: var(--card);
+  color: var(--card-foreground);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -303,7 +371,11 @@
     color-scheme: light;
   }
   body {
-    @apply bg-background text-foreground font-sans text-[14px] texture-paper;
+    @apply bg-background text-foreground font-sans text-[14px];
+  }
+  [data-theme='ink'] body,
+  [data-theme='paper'] body {
+    @apply texture-paper;
   }
   @media (prefers-reduced-motion: reduce) {
     *,

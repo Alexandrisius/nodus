@@ -7,12 +7,14 @@ import { Input } from '@nodus/ui/components/input';
 
 import { LiveGraph } from '../../app/shell/live-graph.js';
 import { LogoIcon } from '../../app/shell/logo-icon.js';
+import { useShellStore } from '../../app/shell/shell-store.js';
 import { ApiError } from '../../shared/api-client.js';
 import { useAuthStore } from '../../shared/auth-store.js';
 
 /** Страница входа в фирменном стиле (M3, issue #4). */
 export function LoginPage() {
   const login = useAuthStore((s) => s.login);
+  const theme = useShellStore((s) => s.theme);
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -36,7 +38,7 @@ export function LoginPage() {
 
   return (
     <main className="flex min-h-screen items-center justify-center p-4">
-      <LiveGraph />
+      <LiveGraph visible={theme !== 'nodus'} />
       <form
         onSubmit={(e) => void onSubmit(e)}
         className="paper-surface w-full max-w-sm rounded-2xl border p-8 shadow-2xl"

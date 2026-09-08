@@ -67,6 +67,7 @@ function sectionsFor(pathname: string): Section[] {
 }
 
 const themes: { id: ThemeId; label: string }[] = [
+  { id: 'nodus', label: ui.topbar.themeNodus },
   { id: 'ink', label: ui.topbar.themeInk },
   { id: 'paper', label: ui.topbar.themePaper },
 ];
@@ -92,15 +93,18 @@ export function TopBar() {
             to={section.to}
             search={section.search}
             className={cn(
-              'relative flex h-9 items-center rounded-lg border border-transparent px-4 text-sm font-medium',
+              'relative flex h-14 items-center px-4 font-mono text-[12px] font-medium tracking-[0.14em] uppercase transition-colors',
               section.isActive(search)
-                ? 'paper-card text-card-foreground'
-                : 'text-foreground/60 hover:text-foreground',
+                ? 'text-foreground'
+                : 'text-muted-foreground hover:text-foreground/80',
             )}
           >
             {section.label}
             {section.isActive(search) && (
-              <span aria-hidden className="absolute inset-x-2 -bottom-1 h-1 rounded-full bg-rust" />
+              <span
+                aria-hidden
+                className="absolute bottom-0 left-1/2 size-1.5 -translate-x-1/2 translate-y-1/2 rounded-full bg-port shadow-[0_0_8px_var(--glow)]"
+              />
             )}
           </Link>
         ))}
@@ -154,7 +158,7 @@ export function TopBar() {
               className="relative text-foreground/70 hover:bg-accent hover:text-foreground"
             >
               <Bell />
-              <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-rust" />
+              <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-primary" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-72">
@@ -165,7 +169,7 @@ export function TopBar() {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <Button className="gap-1.5 bg-rust text-cream shadow-none hover:bg-rust/90">
+        <Button className="gap-1.5">
           <Plus data-icon="inline-start" />
           {ui.topbar.create}
         </Button>

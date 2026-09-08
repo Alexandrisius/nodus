@@ -70,53 +70,71 @@ export function SideMenu() {
       <div
         className={cn('flex h-14 items-center gap-2.5 px-4', collapsed && 'justify-center px-0')}
       >
-        <LogoIcon className="size-8 shrink-0 text-ochre" />
-        {!collapsed && <LogoWordmark className="text-lg tracking-[0.18em] text-cream uppercase" />}
+        <LogoIcon className="size-8 shrink-0 text-foreground" />
+        {!collapsed && (
+          <LogoWordmark className="text-lg tracking-[0.18em] text-foreground uppercase" />
+        )}
       </div>
 
       <nav className="flex flex-1 flex-col gap-4 overflow-y-auto px-3 pt-2">
         {sections.map((section) => (
           <div key={section.title} className="flex flex-col gap-1">
             {!collapsed && (
-              <span className="px-1 pb-1 text-[11px] font-semibold tracking-wider text-sidebar-foreground/40 uppercase">
+              <span className="px-1 pb-1 font-mono text-[11px] font-medium tracking-[0.16em] text-sidebar-foreground/40 uppercase">
                 {section.title}
               </span>
             )}
-            {section.items.map((item) => {
-              const active = item.exact ? pathname === '/' : pathname.startsWith(item.to);
-              const link = (
-                <Link
-                  to={item.to}
-                  className={cn(
-                    'relative flex h-11 w-full items-center gap-3 rounded-lg px-2 text-sm font-medium transition-colors',
-                    'text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground',
-                    active && 'bg-sidebar-accent text-sidebar-accent-foreground',
-                    collapsed && 'justify-center px-0',
-                  )}
-                >
-                  <item.icon className="size-5 shrink-0" strokeWidth={1.75} />
-                  {!collapsed && <span className="truncate">{item.label}</span>}
-                  {item.badge ? (
-                    <span
-                      className={cn(
-                        'rounded-full bg-rust px-1.5 py-0.5 text-[11px] font-semibold text-cream tabular-nums',
-                        collapsed ? 'absolute top-1 right-2.5' : 'ml-auto',
-                      )}
-                    >
-                      {item.badge}
-                    </span>
-                  ) : null}
-                </Link>
-              );
-              return collapsed ? (
-                <Tooltip key={item.to}>
-                  <TooltipTrigger asChild>{link}</TooltipTrigger>
-                  <TooltipContent side="right">{item.label}</TooltipContent>
-                </Tooltip>
-              ) : (
-                <span key={item.to}>{link}</span>
-              );
-            })}
+            <div
+              className={cn(
+                'flex flex-col gap-1',
+                !collapsed && 'ml-3 border-l border-edge/50 pl-2',
+              )}
+            >
+              {section.items.map((item) => {
+                const active = item.exact ? pathname === '/' : pathname.startsWith(item.to);
+                const link = (
+                  <Link
+                    to={item.to}
+                    className={cn(
+                      'relative flex h-11 w-full items-center gap-3 rounded-lg px-2 text-sm font-medium transition-colors',
+                      'text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground',
+                      active && 'bg-sidebar-accent text-sidebar-accent-foreground',
+                      collapsed && 'justify-center px-0',
+                    )}
+                  >
+                    {!collapsed && (
+                      <span
+                        aria-hidden
+                        className={cn(
+                          'absolute -left-[13px] top-1/2 size-2 -translate-y-1/2 rounded-full bg-edge transition-colors',
+                          active && 'bg-port shadow-[0_0_8px_var(--glow)]',
+                        )}
+                      />
+                    )}
+                    <item.icon className="size-5 shrink-0" strokeWidth={1.75} />
+                    {!collapsed && <span className="truncate">{item.label}</span>}
+                    {item.badge ? (
+                      <span
+                        className={cn(
+                          'rounded-full bg-secondary px-1.5 py-0.5 font-mono text-[11px] font-medium text-secondary-foreground tabular-nums',
+                          collapsed ? 'absolute top-1 right-2.5' : 'ml-auto',
+                        )}
+                      >
+                        {item.badge}
+                      </span>
+                    ) : null}
+                  </Link>
+                );
+                return collapsed ? (
+                  <Tooltip key={item.to}>
+                    <TooltipTrigger asChild>{link}</TooltipTrigger>
+                    <TooltipContent side="right">{item.label}</TooltipContent>
+                  </Tooltip>
+                ) : (
+                  <span key={item.to}>{link}</span>
+                );
+              })}
+            </div>
           </div>
         ))}
       </nav>
