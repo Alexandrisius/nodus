@@ -3,6 +3,7 @@ import {
   DndContext,
   DragOverlay,
   KeyboardSensor,
+  MeasuringStrategy,
   PointerSensor,
   TouchSensor,
   useSensor,
@@ -157,6 +158,10 @@ export function TaskKanban() {
     <DndContext
       sensors={sensors}
       collisionDetection={collision}
+      // Живой переезд меняет раскладку ВО ВРЕМЯ drag: дефолтная стратегия
+      // меряет дропаблы один раз на старте → коллизия лагает на устаревших
+      // rect (фризы/джиттер на границах). Always — перемер каждый цикл.
+      measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
       onDragStart={onDragStart}
       onDragOver={onDragOver}
       onDragEnd={onDragEnd}
