@@ -147,6 +147,9 @@ export const ui = {
     favorite: 'В избранное',
     created: 'Задача создана',
     updated: 'Обновлена',
+    emptyColumn: 'Нет задач',
+    dropHere: 'Отпустите задачу здесь',
+    stageMoveError: 'Не удалось перенести задачу — вернули на прежнюю стадию',
   },
   letters: {
     title: 'Письма',

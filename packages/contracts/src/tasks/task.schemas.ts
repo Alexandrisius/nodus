@@ -100,6 +100,14 @@ export const createSubtaskBodySchema = z.object({
 
 export type CreateSubtaskBody = z.infer<typeof createSubtaskBodySchema>;
 
+/** DTO обновления задачи: перенос между стадиями (канбан, drag-and-drop).
+ *  Остальные поля — по мере появления экранов редактирования. */
+export const taskUpdateBodySchema = z.object({
+  stageId: z.uuid(),
+});
+
+export type TaskUpdateBody = z.infer<typeof taskUpdateBodySchema>;
+
 export const listTasksQuerySchema = cursorQuerySchema.extend({
   /** 'assignee' | 'creator' | 'participant' — роли текущего пользователя. */
   scope: z.enum(['mine', 'all']).default('mine'),

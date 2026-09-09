@@ -21,6 +21,15 @@
   (клик по строке/карточке → координаты порта → `SliderPanel dockFrom`).
 - Доменная цепочка: `shared/ui/domain-chain.tsx` (узлы из `taskDetail.chain`;
   в моках задача №105 честно связана с письмом Вх-2026/118).
-- Оптимистичность: `useSendTaskMessage` — канон patterns.md; детерминированный
-  тест — `api/tasks-api.test.tsx`.
+- Оптимистичность: `useSendTaskMessage`, `useUpdateTaskStage` — канон patterns.md;
+  детерминированные тесты — `api/tasks-api.test.tsx`.
+- **DnD канбана (ADR-0007, @dnd-kit/core):** карточка = `useDraggable`
+  (`task-kanban-draggable.tsx`), колонка = `useDroppable` (`task-kanban-column.tsx`,
+  id = stage.id, пустая колонка видима и принимает перенос), призрак —
+  `DragOverlay` (карточка в стиле активного узла), PointerSensor с distance 6
+  (клик без движения открывает слайдер), Keyboard/Touch-сенсоры, Esc — отмена.
+  Перенос = оптимистичная мутация стадии (`PATCH /tasks/:id`, контракт
+  `taskUpdateBodySchema`) с откатом и тостом при ошибке. Каталог стадий —
+  `GET /tasks/stages` (`useTaskStages`), колонки из него, а не из задач.
+  Порядок внутри колонки — серверный; сортировка с полем `order` — фаза 2 (#36).
 - Виды переключаются search-параметром `view` (секции в топбаре).

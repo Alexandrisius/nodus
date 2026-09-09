@@ -7,18 +7,22 @@ import { formatMinutes } from '../../../shared/lib/format.js';
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
 import { DeadlineChip } from '../../../shared/ui/deadline-chip.js';
 import { useShellStore } from '../../../app/shell/shell-store.js';
+import { cn } from '@nodus/ui/lib/utils';
 
 /** Карточка канбана: node-панель; отображаемые поля настраиваются
  * шестерёнкой вида (tasks.kanban) — карточка получает предикат видимости.
- * Клик — слайдер с док-ребром от левого края карточки. */
+ * Клик — слайдер с док-ребром от левого края карточки.
+ * overlay — призрак DragOverlay во время переноса (активный узел: свечение). */
 export function TaskKanbanCard({
   task,
   parentNumber,
   isVisible,
+  overlay = false,
 }: {
   task: TaskListItem;
   parentNumber?: number;
   isVisible: (fieldId: string) => boolean;
+  overlay?: boolean;
 }) {
   const navigate = useNavigate();
   const setLastDock = useShellStore((s) => s.setLastDock);
@@ -32,7 +36,10 @@ export function TaskKanbanCard({
         setLastDock({ x: rect.left, y: rect.top + rect.height / 2 });
         void navigate({ to: '/tasks/$taskId', params: { taskId: task.id } });
       }}
-      className="node-panel flex w-full flex-col gap-2 p-3 text-left transition-colors hover:border-input"
+      className={cn(
+        'node-panel flex w-full flex-col gap-2 p-3 text-left transition-colors hover:border-input',
+        overlay && 'cursor-grabbing border-input shadow-[0_0_12px_var(--glow)] hover:border-input',
+      )}
     >
       {isVisible('parent') && parentNumber !== undefined ? (
         <span className="flex items-center gap-1.5 font-mono text-[10px] tracking-[0.08em] text-muted-foreground uppercase">

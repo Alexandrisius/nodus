@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { ChatMessage, Paginated, TaskDetail, TaskListItem } from '@nodus/contracts';
+import type { ChatMessage, Paginated, TaskDetail, TaskListItem, TaskStage } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { toast } from 'sonner';
 
@@ -9,6 +9,7 @@ import { api } from '../../../shared/api-client.js';
 export const tasksKeys = {
   all: ['tasks'] as const,
   list: () => [...tasksKeys.all, 'list'] as const,
+  stages: () => [...tasksKeys.all, 'stages'] as const,
   detail: (id: string) => [...tasksKeys.all, 'detail', id] as const,
   messages: (id: string) => [...tasksKeys.all, 'messages', id] as const,
 };
@@ -17,6 +18,14 @@ export function useTasksList() {
   return useQuery({
     queryKey: tasksKeys.list(),
     queryFn: () => api<Paginated<TaskListItem>>('/tasks'),
+  });
+}
+
+/** Каталог стадий статус-схемы (колонки канбана, включая пустые). */
+export function useTaskStages() {
+  return useQuery({
+    queryKey: tasksKeys.stages(),
+    queryFn: () => api<TaskStage[]>('/tasks/stages'),
   });
 }
 
@@ -31,6 +40,47 @@ export function useTaskMessages(id: string) {
   return useQuery({
     queryKey: tasksKeys.messages(id),
     queryFn: () => api<Paginated<ChatMessage>>(`/tasks/${id}/messages`),
+  });
+}
+
+/** Оптимистичный перенос задачи между стадиями (канбан DnD, I4):
+ * мутация в кэш до ответа сервера, откат по снапшоту при ошибке. */
+export function useUpdateTaskStage() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ taskId, stageId }: { taskId: string; stageId: string }) =>
+      api<TaskListItem>(`/tasks/${taskId}`, { method: 'PATCH', body: { stageId } }),
+
+    onMutate: async ({ taskId, stageId }) => {
+      await queryClient.cancelQueries({ queryKey: tasksKeys.list() });
+      const previous = queryClient.getQueryData<Paginated<TaskListItem>>(tasksKeys.list());
+      queryClient.setQueryData<Paginated<TaskListItem>>(tasksKeys.list(), (old) => {
+        if (!old) return old;
+        const stage = queryClient
+          .getQueryData<TaskStage[]>(tasksKeys.stages())
+          ?.find((s) => s.id === stageId);
+        if (!stage) return old;
+        return {
+          ...old,
+          items: old.items.map((t) =>
+            t.id === taskId ? { ...t, stage, updatedAt: new Date().toISOString() } : t,
+          ),
+        };
+      });
+      return { previous };
+    },
+
+    onError: (_error, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(tasksKeys.list(), context.previous);
+      }
+      toast.error(ui.tasks.stageMoveError);
+    },
+
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: tasksKeys.list() });
+    },
   });
 }
 

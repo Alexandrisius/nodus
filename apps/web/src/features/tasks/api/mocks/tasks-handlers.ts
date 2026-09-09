@@ -1,4 +1,5 @@
 import type { ChatMessage } from '@nodus/contracts';
+import { taskUpdateBodySchema } from '@nodus/contracts';
 
 import { http, HttpResponse } from 'msw';
 
@@ -9,9 +10,13 @@ import {
   makeSubtask,
   taskDetailOf,
 } from '../../../../shared/mocks/data/tasks.js';
+import { demoStages } from '../../../../shared/mocks/data/task-stages.js';
 import { currentAuthUser, userRef } from '../../../../shared/mocks/data/users.js';
 
 export const tasksHandlers = [
+  // ДО '/tasks/:id' — иначе «stages» съест параметр (порядок маршрутов MSW).
+  http.get('/api/v1/tasks/stages', () => HttpResponse.json(demoStages)),
+
   http.get('/api/v1/tasks', () => HttpResponse.json({ items: demoTasks, nextCursor: null })),
 
   http.get('/api/v1/tasks/:id', ({ params }) => {
@@ -36,6 +41,24 @@ export const tasksHandlers = [
     const subtask = makeSubtask(parent, title);
     (demoSubtasks[parent.id] ??= []).push(subtask);
     return HttpResponse.json(subtask, { status: 201 });
+  }),
+
+  http.patch('/api/v1/tasks/:id', async ({ params, request }) => {
+    const task = demoTasks.find((t) => t.id === params.id);
+    if (!task)
+      return HttpResponse.json({ code: 'NOT_FOUND', message: 'Task not found' }, { status: 404 });
+    const parsed = taskUpdateBodySchema.safeParse(await request.json());
+    if (!parsed.success)
+      return HttpResponse.json(
+        { code: 'VALIDATION_ERROR', message: 'Invalid body' },
+        { status: 422 },
+      );
+    const stage = demoStages.find((s) => s.id === parsed.data.stageId);
+    if (!stage)
+      return HttpResponse.json({ code: 'NOT_FOUND', message: 'Stage not found' }, { status: 404 });
+    task.stage = stage;
+    task.updatedAt = new Date().toISOString();
+    return HttpResponse.json(task);
   }),
 
   http.post('/api/v1/tasks/:id/messages', async ({ params, request }) => {
