@@ -1,4 +1,4 @@
-import { FileText, History, Link2, Star, Users, X } from 'lucide-react';
+import { FileText, History, Link2, Star, X } from 'lucide-react';
 import { useState } from 'react';
 import type { TaskDetail } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
@@ -7,7 +7,6 @@ import { NodeLabel } from '@nodus/ui/components/node-label';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { formatDateTime } from '../../../shared/lib/format.js';
-import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
 import { useTaskMessages } from '../api/tasks-api.js';
 
 function Section({
@@ -32,7 +31,7 @@ function Section({
 
 /**
  * Выдвижная дополнительная панель «О задаче» (справа поверх карточки):
- * участники, файлы и медиа, ссылки, история + избранное. По умолчанию скрыта —
+ * файлы и медиа, ссылки, история + избранное. По умолчанию скрыта —
  * обсуждение всегда видно в своей колонке, а свойства достаются по кнопке.
  */
 export function TaskAboutDrawer({ task, onClose }: { task: TaskDetail; onClose: () => void }) {
@@ -50,14 +49,6 @@ export function TaskAboutDrawer({ task, onClose }: { task: TaskDetail; onClose: 
   const links = [task.description, ...(data?.items ?? []).map((m) => m.text)].flatMap(
     (text) => text.match(/https?:\/\/\S+/g) ?? [],
   );
-  const people = [
-    ...new Map(
-      [task.creator, ...(task.assignee ? [task.assignee] : []), ...task.observers].map((p) => [
-        p.id,
-        p,
-      ]),
-    ).values(),
-  ];
 
   return (
     <aside
@@ -93,15 +84,6 @@ export function TaskAboutDrawer({ task, onClose }: { task: TaskDetail; onClose: 
           </Button>
         </div>
       </div>
-
-      <Section icon={Users} title={ui.tasks.participants}>
-        {people.map((person) => (
-          <span key={person.id} className="flex items-center gap-2 text-sm">
-            <PersonAvatar name={person.displayName} className="size-6" />
-            {person.displayName}
-          </span>
-        ))}
-      </Section>
 
       <Section icon={FileText} title={ui.tasks.filesMedia}>
         {files.length > 0 ? (

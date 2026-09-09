@@ -136,65 +136,87 @@ export function TaskCard({ taskId }: { taskId: string }) {
             <TaskStageStepper taskId={taskId} currentStageId={task.stage.id} />
           </div>
 
-          <div className="mt-5 divide-y divide-border/60 rounded-lg border border-border/60">
-            <Row label={ui.tasks.fieldPriority}>
-              <NodeChip tone={priorityTone[task.priority]}>
-                {ui.tasks.priority[task.priority]}
-              </NodeChip>
-            </Row>
-            <Row label={ui.tasks.deadline}>
-              <DeadlineChip deadline={task.deadline} />
-            </Row>
-            <Row label={ui.tasks.assignee}>
-              {task.assignee ? (
-                <>
-                  <PersonAvatar name={task.assignee.displayName} className="size-6" />
-                  <span className="truncate">{task.assignee.displayName}</span>
-                </>
-              ) : (
-                ui.common.notSet
-              )}
-            </Row>
-            <Row label={ui.tasks.creator}>
-              <PersonAvatar name={task.creator.displayName} className="size-6" />
-              <span className="truncate">{task.creator.displayName}</span>
-            </Row>
-            <Row label={ui.tasks.project}>
-              {task.project ? (
-                <button
-                  type="button"
-                  className="truncate font-mono text-[12px] text-info hover:underline"
-                  onClick={() =>
-                    void navigate({
-                      to: '/tasks/$taskId/project/$projectId',
-                      params: { taskId, projectId: task.project?.id ?? '' },
-                    })
-                  }
-                >
-                  {task.project.name}
-                </button>
-              ) : (
-                ui.common.notSet
-              )}
-            </Row>
-            <Row label={ui.tasks.spent}>
-              <span className="font-mono text-[12px] tabular-nums">
-                {formatMinutes(task.spentMinutes)}
-              </span>
-            </Row>
-            <Row label={ui.tasks.created}>
-              <span className="font-mono text-[12px] tabular-nums">
-                {formatDateTime(task.createdAt)}
-              </span>
-            </Row>
-          </div>
-
-          <Separator className="my-5" />
-
-          <NodeLabel label={ui.tasks.description} />
-          <p className="mt-2 text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">
+          <p className="mt-4 text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">
             {task.description}
           </p>
+
+          <div className="mt-5 flex flex-wrap gap-6">
+            <div className="max-w-[420px] min-w-[280px] flex-1 divide-y divide-border/60 rounded-lg border border-border/60">
+              <Row label={ui.tasks.fieldPriority}>
+                <NodeChip tone={priorityTone[task.priority]}>
+                  {ui.tasks.priority[task.priority]}
+                </NodeChip>
+              </Row>
+              <Row label={ui.tasks.deadline}>
+                <DeadlineChip deadline={task.deadline} />
+              </Row>
+              <Row label={ui.tasks.assignee}>
+                {task.assignee ? (
+                  <>
+                    <PersonAvatar name={task.assignee.displayName} className="size-6" />
+                    <span className="truncate">{task.assignee.displayName}</span>
+                  </>
+                ) : (
+                  ui.common.notSet
+                )}
+              </Row>
+              <Row label={ui.tasks.creator}>
+                <PersonAvatar name={task.creator.displayName} className="size-6" />
+                <span className="truncate">{task.creator.displayName}</span>
+              </Row>
+            </div>
+
+            <div className="max-w-[420px] min-w-[280px] flex-1 divide-y divide-border/60 rounded-lg border border-border/60">
+              <Row label={ui.tasks.participants}>
+                {task.participants.length > 0 ? (
+                  <>
+                    <span className="flex shrink-0 -space-x-1.5">
+                      {task.participants.slice(0, 3).map((p) => (
+                        <PersonAvatar
+                          key={p.id}
+                          name={p.displayName}
+                          className="size-6 ring-2 ring-card"
+                        />
+                      ))}
+                    </span>
+                    <span className="truncate">
+                      {task.participants.map((p) => p.displayName).join(', ')}
+                    </span>
+                  </>
+                ) : (
+                  ui.common.notSet
+                )}
+              </Row>
+              <Row label={ui.tasks.project}>
+                {task.project ? (
+                  <button
+                    type="button"
+                    className="truncate font-mono text-[12px] text-info hover:underline"
+                    onClick={() =>
+                      void navigate({
+                        to: '/tasks/$taskId/project/$projectId',
+                        params: { taskId, projectId: task.project?.id ?? '' },
+                      })
+                    }
+                  >
+                    {task.project.name}
+                  </button>
+                ) : (
+                  ui.common.notSet
+                )}
+              </Row>
+              <Row label={ui.tasks.spent}>
+                <span className="font-mono text-[12px] tabular-nums">
+                  {formatMinutes(task.spentMinutes)}
+                </span>
+              </Row>
+              <Row label={ui.tasks.created}>
+                <span className="font-mono text-[12px] tabular-nums">
+                  {formatDateTime(task.createdAt)}
+                </span>
+              </Row>
+            </div>
+          </div>
 
           <Separator className="my-5" />
 

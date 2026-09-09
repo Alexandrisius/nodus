@@ -62,11 +62,15 @@ export function SliderPanel({
     closingRef.current = true;
     setClosing(true);
     const dst = el.getBoundingClientRect();
-    el.style.transition = `transform ${CLOSE_MS}ms ${CLOSE_EASE}, opacity ${CLOSE_MS}ms linear`;
-    el.style.transformOrigin = 'top left';
-    el.style.transform = `translate(${sourceRect.x - dst.x}px, ${sourceRect.y - dst.y}px) scale(${sourceRect.width / dst.width}, ${sourceRect.height / dst.height})`;
-    el.style.opacity = '0.35';
-    window.setTimeout(() => closeRef.current(), CLOSE_MS);
+    const to = `translate(${sourceRect.x - dst.x}px, ${sourceRect.y - dst.y}px) scale(${sourceRect.width / dst.width}, ${sourceRect.height / dst.height})`;
+    const anim = el.animate(
+      [
+        { transform: 'none', opacity: 1 },
+        { transform: to, opacity: 0.35 },
+      ],
+      { duration: CLOSE_MS, easing: CLOSE_EASE },
+    );
+    anim.onfinish = () => closeRef.current();
   }
 
   const requestCloseRef = useRef(requestClose);
@@ -85,17 +89,26 @@ export function SliderPanel({
     };
   }, [id]);
 
-  /** FLIP-старт: до.paint ставим панель в rect источника, затем отпускаем. */
+  /** FLIP-старт: до paint ставим панель в rect источника (инверсия видна
+   *  первым кадром), затем Web Animations API проигрывает раскрытие —
+   *  transition на свежем элементе браузер пропускал (batched style recalc),
+   *  el.animate от кейфреймов не зависит от.paint-порядка (research: reactperf
+   *  FLIP, makersden, useAfterPaintEffect). */
   useLayoutEffect(() => {
     const el = panelRef.current;
     if (!el || !sourceRect) return;
     const dst = el.getBoundingClientRect();
+    const from = `translate(${sourceRect.x - dst.x}px, ${sourceRect.y - dst.y}px) scale(${sourceRect.width / dst.width}, ${sourceRect.height / dst.height})`;
     el.style.transformOrigin = 'top left';
-    el.style.transition = 'none';
-    el.style.transform = `translate(${sourceRect.x - dst.x}px, ${sourceRect.y - dst.y}px) scale(${sourceRect.width / dst.width}, ${sourceRect.height / dst.height})`;
-    void el.offsetWidth;
-    el.style.transition = `transform ${OPEN_MS}ms ${OPEN_EASE}`;
-    el.style.transform = 'none';
+    el.style.transform = from;
+    const anim = el.animate([{ transform: from }, { transform: 'none' }], {
+      duration: OPEN_MS,
+      easing: OPEN_EASE,
+    });
+    anim.onfinish = () => {
+      el.style.transform = 'none';
+    };
+    return () => anim.cancel();
   }, [sourceRect]);
 
   return (

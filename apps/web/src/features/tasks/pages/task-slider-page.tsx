@@ -4,6 +4,7 @@ import { ui } from '@nodus/contracts';
 
 import { SliderPanel } from '../../../app/shell/slider-panel.js';
 import { useShellStore } from '../../../app/shell/shell-store.js';
+import { useTaskDetail } from '../api/tasks-api.js';
 import { TaskCard } from '../components/task-card.js';
 
 /** Слайдер карточки задачи: свой URL, ESC закрывает, стек до проекта.
@@ -13,6 +14,7 @@ export function TaskSliderPage() {
   const { taskId } = useParams({ strict: false }) as { taskId: string };
   const navigate = useNavigate();
   const [source] = useState(() => useShellStore.getState().lastSource);
+  const { data: task } = useTaskDetail(taskId);
 
   useEffect(() => {
     useShellStore.getState().setLastSource(null);
@@ -27,7 +29,7 @@ export function TaskSliderPage() {
               {ui.tasks.title}
             </Link>
             <span>/</span>
-            <span className="truncate text-foreground">{ui.tasks.task}</span>
+            <span className="truncate text-foreground">{task?.title ?? ui.tasks.task}</span>
           </>
         }
         onClose={() => void navigate({ to: '/tasks', search: (prev) => prev })}

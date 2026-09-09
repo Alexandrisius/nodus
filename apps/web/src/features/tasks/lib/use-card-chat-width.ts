@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState, type PointerEvent } from 'react';
 
 const STORE_KEY = 'nodus-card-chat-w-v1';
-const DEFAULT_W = 560;
+const DEFAULT_W = 680;
 const MIN_W = 420;
 /** Доля вьюпорта: чат может стать главным, но не выжать содержание целиком. */
 const MAX_RATIO = 0.66;
