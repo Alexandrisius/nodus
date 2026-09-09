@@ -2,7 +2,7 @@ import { X } from 'lucide-react';
 import { useEffect, useId, useState, type ReactNode } from 'react';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
-import { NodeEdge } from '@nodus/ui/components/node-edge';
+import { NodeEdge, snapPx } from '@nodus/ui/components/node-edge';
 import { cn } from '@nodus/ui/lib/utils';
 
 /** Стек слайдеров: ESC закрывает только верхнюю панель (§10.2). */
@@ -58,8 +58,9 @@ export function SliderPanel({
   }, [id, onClose]);
 
   const dockX = dockFrom
-    ? Math.min(Math.max(dockFrom.x, PANEL_MARGIN + DOCK_STUB + 24), window.innerWidth - 24)
+    ? snapPx(Math.min(Math.max(dockFrom.x, PANEL_MARGIN + DOCK_STUB + 24), window.innerWidth - 24))
     : 0;
+  const dockTopY = snapPx(PANEL_TOP);
 
   return (
     <div className="fixed inset-0 z-50">
@@ -75,8 +76,8 @@ export function SliderPanel({
           <NodeEdge
             points={[
               { x: dockX, y: dockFrom.y },
-              { x: dockX, y: PANEL_TOP },
-              { x: dockX - DOCK_STUB, y: PANEL_TOP },
+              { x: dockX, y: dockTopY },
+              { x: dockX - DOCK_STUB, y: dockTopY },
             ]}
             drawOn
             pulse="once"

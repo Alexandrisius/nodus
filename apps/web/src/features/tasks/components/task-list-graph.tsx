@@ -1,4 +1,4 @@
-import { orthPath, snapToPixel, useDevicePixelRatio } from '@nodus/ui/components/node-edge';
+import { orthPath } from '@nodus/ui/components/node-edge';
 
 import type { TaskRow } from '../lib/task-tree.js';
 
@@ -25,26 +25,23 @@ export function TaskListGraph({
   index: number;
   branchCollapsed: boolean;
 }) {
-  // Рендер-координаты — сетка ФИЗИЧЕСКИХ пикселей (живой dpr): прямые
-  // 1px-сегменты одинаковой яркости с локтями при любом зуме.
-  const dpr = useDevicePixelRatio();
-  const SX = (depth: number) => snapToPixel(GRAPH_X(depth), dpr);
-  const SY = snapToPixel(MID, dpr);
-  const sx = SX(row.depth);
+  const x = GRAPH_X(row.depth);
   const branchOpen = row.hasChildren && !branchCollapsed;
-  const staticPaths: string[] = row.passThrough.map((d) => `M${SX(d)},0 L${SX(d)},${ROW_H}`);
+  const staticPaths: string[] = row.passThrough.map(
+    (d) => `M${GRAPH_X(d)},0 L${GRAPH_X(d)},${ROW_H}`,
+  );
   if (row.elbowFrom !== null && !row.isLast) {
-    staticPaths.push(`M${SX(row.elbowFrom)},${SY} L${SX(row.elbowFrom)},${ROW_H}`);
+    staticPaths.push(`M${GRAPH_X(row.elbowFrom)},${MID} L${GRAPH_X(row.elbowFrom)},${ROW_H}`);
   }
-  if (branchOpen) staticPaths.push(`M${sx},${SY} L${sx},${ROW_H}`);
+  if (branchOpen) staticPaths.push(`M${x},${MID} L${x},${ROW_H}`);
 
   const elbowPath =
     row.elbowFrom !== null
       ? orthPath(
           [
-            { x: SX(row.elbowFrom), y: 0 },
-            { x: SX(row.elbowFrom), y: SY },
-            { x: sx, y: SY },
+            { x: GRAPH_X(row.elbowFrom), y: 0 },
+            { x: GRAPH_X(row.elbowFrom), y: MID },
+            { x, y: MID },
           ],
           ELBOW,
         )
@@ -72,12 +69,12 @@ export function TaskListGraph({
       ) : null}
       {row.hasChildren ? (
         <g className="text-port/70 transition-colors duration-200 group-hover/row:text-port">
-          <circle cx={sx} cy={SY} r={7} fill="var(--card)" stroke="currentColor" strokeWidth={1} />
+          <circle cx={x} cy={MID} r={7} fill="var(--card)" stroke="currentColor" strokeWidth={1} />
           <path
             d={
               branchCollapsed
-                ? `M${sx - 3},${SY} L${sx + 3},${SY} M${sx},${SY - 3} L${sx},${SY + 3}`
-                : `M${sx - 3},${SY} L${sx + 3},${SY}`
+                ? `M${x - 3},${MID} L${x + 3},${MID} M${x},${MID - 3} L${x},${MID + 3}`
+                : `M${x - 3},${MID} L${x + 3},${MID}`
             }
             stroke="currentColor"
             strokeWidth={1.25}
@@ -85,8 +82,8 @@ export function TaskListGraph({
         </g>
       ) : (
         <circle
-          cx={sx}
-          cy={SY}
+          cx={x}
+          cy={MID}
           r={3}
           fill="currentColor"
           className="text-port/60 transition-colors duration-200 group-hover/row:text-port"

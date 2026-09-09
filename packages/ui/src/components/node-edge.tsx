@@ -31,32 +31,14 @@ export function orthPath(points: NodeEdgePoint[], r: number): string {
   return parts.join(' ');
 }
 
-/**
- * Снаппинг к сетке ФИЗИЧЕСКИХ пикселей. Линия 1px, центрированная между
- * device-пикселями, покрывает два по 50% — прямые сегменты БЛЕДНЕЕ кривых
- * того же пути (anti-aliasing локтей даёт почти полное покрытие). Центр на
- * полупиксельной сетке device-пикселей покрывает ровно один ряд — линия
- * чёткая и одинаково яркая на всём пути. dpr обязателен: при зуме браузера
- * 90% 1 CSS px = 0.9 device px и CSS-сетка x.5 уплывает (видно как «яркие
- * хвостики» при зуме ≤ 100%). Применять к path И портам согласованно.
- */
-export function snapToPixel(v: number, dpr: number): number {
+/** Привязка координаты линии к полупикселю устройства: 1px-штрих с центром
+ * на device+0.5 ложится ровно на один device-пиксель (DPR 1) или симметрично
+ * (дробный DPR/зум) — все прямые линии одинаковой яркости и чёткости. Без
+ * снапа линия на целой координате «размазывается» на две полупрозрачные
+ * полосы и выглядит тусклее соседней на дробной (заметно при зуме ≤ 100%). */
+export function snapPx(v: number): number {
+  const dpr = typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1;
   return (Math.round(v * dpr - 0.5) + 0.5) / dpr;
-}
-
-/** Текущий devicePixelRatio с переподпиской при зуме браузера (канон:
- * matchMedia resolution пересоздаётся на каждый новый dpr). */
-export function useDevicePixelRatio(): number {
-  const [dpr, setDpr] = useState(() =>
-    typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1,
-  );
-  useEffect(() => {
-    const mq = window.matchMedia(`(resolution: ${dpr}dppx)`);
-    const onChange = () => setDpr(window.devicePixelRatio || 1);
-    mq.addEventListener('change', onChange);
-    return () => mq.removeEventListener('change', onChange);
-  }, [dpr]);
-  return dpr;
 }
 
 /** Длина ломаной в px (сегменты ортогональные — hypot == манхэттен). */
@@ -117,20 +99,12 @@ function NodeEdge({
   elbow?: number;
   className?: string;
 }) {
-  // Координаты снаппятся к сетке ФИЗИЧЕСКИХ пикселей (snapToPixel с живым
-  // devicePixelRatio — иначе при зуме ≠ 100% прямые бледнее локтей);
-  // path и порты снаппятся согласованно.
-  const dpr = useDevicePixelRatio();
-  const snapped = useMemo(
-    () => points.map((p) => ({ x: snapToPixel(p.x, dpr), y: snapToPixel(p.y, dpr) })),
-    [points, dpr],
-  );
-  const d = useMemo(() => orthPath(snapped, elbow), [snapped, elbow]);
+  const d = useMemo(() => orthPath(points, elbow), [points, elbow]);
   const len = useMemo(() => pathLength(points), [points]);
   const reduced = useReducedMotion();
   if (points.length < 2) return null;
-  const start = snapped[0];
-  const end = snapped[snapped.length - 1];
+  const start = points[0];
+  const end = points[points.length - 1];
   if (!start || !end) return null;
   const animate = drawOn && !reduced;
   // Длительности из длины маршрута — скорость вспышки одинакова на всех путях.

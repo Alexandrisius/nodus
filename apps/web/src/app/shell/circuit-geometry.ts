@@ -1,4 +1,4 @@
-import { orthPath, snapToPixel, type NodeEdgePoint } from '@nodus/ui/components/node-edge';
+import { orthPath, snapPx, type NodeEdgePoint } from '@nodus/ui/components/node-edge';
 
 import { RAIL_TRUNK_X } from './node-rail.js';
 
@@ -70,30 +70,23 @@ export function measureCircuit(pathname = '/'): CircuitGeometry | null {
   };
 }
 
-/** Снаппинг точек контура к сетке ФИЗИЧЕСКИХ пикселей (dpr живой — зум
- * браузера/Windows-скейлинг) — прямые сегменты яркости локтей. */
-const sp = (pts: NodeEdgePoint[], dpr: number): NodeEdgePoint[] =>
-  pts.map((p) => ({ x: snapToPixel(p.x, dpr), y: snapToPixel(p.y, dpr) }));
-
 /** Статичный контур: артерия — ОДНА ломаная «низ шины → стык (круглое
  * сопряжение) → ось до правого края вьюпорта» (как обычный бордюр; без
  * прямых углов и точек в стыке); отводы модулей локтями; засечки вкладок —
  * локти в сторону главного меню. */
-export function framePath(g: CircuitGeometry, dpr: number): string {
+export function framePath(g: CircuitGeometry): string {
+  // Прямые сегменты — по снапнутым координатам (см. snapPx): одинаковая
+  // чёткость/яркость всех линий на любом DPR/зуме.
+  const jx = snapPx(g.junction.x);
+  const ay = snapPx(g.axisY);
   const parts: string[] = [];
   parts.push(
     orthPath(
-      sp(
-        [
-          {
-            x: g.junction.x,
-            y: g.leftNode ? g.axisY : g.modules.length > 0 ? g.spineEndY : g.axisY,
-          },
-          g.junction,
-          { x: g.rightEdge, y: g.axisY },
-        ],
-        dpr,
-      ),
+      [
+        { x: jx, y: g.leftNode ? ay : g.modules.length > 0 ? snapPx(g.spineEndY) : ay },
+        { x: jx, y: ay },
+        { x: g.rightEdge, y: ay },
+      ],
       8,
     ),
   );
@@ -101,31 +94,27 @@ export function framePath(g: CircuitGeometry, dpr: number): string {
     // Отвод рисуем, только если порт вынесен от шины (у схлопнутой рейки
     // и виртуального модуля отвода нет).
     if (m.port.x - g.junction.x < 8) continue;
+    const py = snapPx(m.port.y);
     parts.push(
       orthPath(
-        sp(
-          [
-            { x: g.junction.x, y: m.port.y - 10 },
-            { x: g.junction.x, y: m.port.y },
-            { x: m.port.x - 4, y: m.port.y },
-          ],
-          dpr,
-        ),
+        [
+          { x: jx, y: py - 10 },
+          { x: jx, y: py },
+          { x: m.port.x - 4, y: py },
+        ],
         8,
       ),
     );
   }
   for (const t of g.tabs) {
+    const tx = snapPx(t.x);
     parts.push(
       orthPath(
-        sp(
-          [
-            { x: t.x - 10, y: g.axisY },
-            { x: t.x, y: g.axisY },
-            { x: t.x, y: g.axisY - TICK },
-          ],
-          dpr,
-        ),
+        [
+          { x: tx - 10, y: ay },
+          { x: tx, y: ay },
+          { x: tx, y: snapPx(g.axisY - TICK) },
+        ],
         6,
       ),
     );
@@ -164,11 +153,11 @@ export function transitionPulse(
   if (activeTab) {
     return {
       points: [
-        active.port,
-        { x: g.junction.x, y: active.port.y },
-        g.junction,
-        { x: activeTab.x, y: g.axisY },
-        { x: activeTab.x, y: g.axisY - TICK },
+        { x: active.port.x, y: snapPx(active.port.y) },
+        { x: snapPx(g.junction.x), y: snapPx(active.port.y) },
+        { x: snapPx(g.junction.x), y: snapPx(g.axisY) },
+        { x: snapPx(activeTab.x), y: snapPx(g.axisY) },
+        { x: snapPx(activeTab.x), y: snapPx(g.axisY - TICK) },
       ],
       dot: true,
     };
@@ -178,10 +167,10 @@ export function transitionPulse(
   // Модуль без вкладок: от порта по шине, за стык и затухание на оси без точки.
   return {
     points: [
-      active.port,
-      { x: g.junction.x, y: active.port.y },
-      g.junction,
-      { x: g.junction.x + 24, y: g.axisY },
+      { x: active.port.x, y: snapPx(active.port.y) },
+      { x: snapPx(g.junction.x), y: snapPx(active.port.y) },
+      { x: snapPx(g.junction.x), y: snapPx(g.axisY) },
+      { x: snapPx(g.junction.x) + 24, y: snapPx(g.axisY) },
     ],
     dot: false,
   };

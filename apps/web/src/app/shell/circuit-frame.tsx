@@ -1,12 +1,6 @@
 import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { useRouterState } from '@tanstack/react-router';
-import {
-  NodeEdge,
-  pathLength,
-  snapToPixel,
-  useDevicePixelRatio,
-  type NodeEdgePoint,
-} from '@nodus/ui/components/node-edge';
+import { NodeEdge, pathLength, snapPx, type NodeEdgePoint } from '@nodus/ui/components/node-edge';
 
 import {
   currentFocus,
@@ -38,7 +32,6 @@ export function CircuitFrame() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const searchStr = useRouterState({ select: (s) => s.location.searchStr });
   const menuCollapsed = useShellStore((s) => s.menuCollapsed);
-  const dpr = useDevicePixelRatio();
   const [geo, setGeo] = useState<CircuitGeometry | null>(null);
   const [pulse, setPulse] = useState<{
     points: NodeEdgePoint[];
@@ -120,18 +113,17 @@ export function CircuitFrame() {
   return (
     <div className="pointer-events-none fixed inset-0 z-30" aria-hidden>
       <svg className="absolute inset-0 h-full w-full overflow-visible">
-        <path
-          d={framePath(geo, dpr)}
-          fill="none"
-          stroke="var(--foreground)"
-          strokeOpacity="0.32"
-          strokeWidth="1"
-        />
+        {/* Прозрачность — ГРУППОВАЯ: штрих рисуется в буфер полным alpha,
+            поэтому самопересечения подпутей (подходы отводов к шине, засечек
+            к оси) не удваивают яркость, как stroke-opacity. */}
+        <g opacity="0.32">
+          <path d={framePath(geo)} fill="none" stroke="var(--foreground)" strokeWidth="1" />
+        </g>
         {geo.tabs.map((t) => (
           <circle
             key={t.x}
-            cx={snapToPixel(t.x, dpr)}
-            cy={snapToPixel(geo.axisY - TICK, dpr)}
+            cx={snapPx(t.x)}
+            cy={snapPx(geo.axisY - TICK)}
             r="2.5"
             fill={t.active ? 'var(--port)' : 'var(--background)'}
             stroke={t.active ? 'var(--port)' : 'var(--edge)'}
