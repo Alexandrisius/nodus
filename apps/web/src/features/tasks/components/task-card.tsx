@@ -1,4 +1,4 @@
-import { Mail, MessageSquare, Plus } from 'lucide-react';
+import { Mail, MessageSquare, PanelRight, Plus } from 'lucide-react';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import type { TaskChainNode } from '@nodus/contracts';
@@ -9,6 +9,7 @@ import { NodeChip } from '@nodus/ui/components/node-chip';
 import { NodeLabel } from '@nodus/ui/components/node-label';
 import { Separator } from '@nodus/ui/components/separator';
 import { Skeleton } from '@nodus/ui/components/skeleton';
+import { cn } from '@nodus/ui/lib/utils';
 
 import { formatDateTime, formatMinutes } from '../../../shared/lib/format.js';
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
@@ -16,7 +17,8 @@ import { DeadlineChip } from '../../../shared/ui/deadline-chip.js';
 import { DomainChain, type ChainNode } from '../../../shared/ui/domain-chain.js';
 import { useAddSubtask, useTaskDetail } from '../api/tasks-api.js';
 import { priorityTone } from '../lib/task-fields.js';
-import { TaskSidePanel } from './task-side-panel.js';
+import { TaskAboutDrawer } from './task-about-drawer.js';
+import { TaskDiscussion } from './task-discussion.js';
 import { TaskStatusBadge } from './task-status-badge.js';
 
 const chainCaption: Record<TaskChainNode['kind'], string> = {
@@ -41,15 +43,17 @@ function Attr({ label, children }: { label: string; children: ReactNode }) {
 
 /**
  * Карточка задачи (универсальный слайдер-слой): шапка — доменная цепочка
- * происхождения (Письмо → Резолюция → Поручение → Задача); слева — название,
- * доска атрибутов сеткой, описание, подзадачи в один клик и чек-лист; справа —
- * узкая панель быстрой навигации (обсуждение/файлы/ссылки/история).
+ * происхождения (Письмо → Резолюция → Поручение → Задача) и кнопка выдвижной
+ * панели «О задаче»; слева — название, доска атрибутов сеткой, описание,
+ * подзадачи в один клик и чек-лист; справа — постоянная колонка обсуждения;
+ * свойства/участники/файлы — дополнительная выдвижная панель поверх.
  */
 export function TaskCard({ taskId }: { taskId: string }) {
   const { data: task, isLoading } = useTaskDetail(taskId);
   const addSubtask = useAddSubtask(taskId);
   const navigate = useNavigate();
   const [subtaskTitle, setSubtaskTitle] = useState('');
+  const [aboutOpen, setAboutOpen] = useState(false);
 
   function onAddSubtask(event: FormEvent) {
     event.preventDefault();
@@ -61,7 +65,7 @@ export function TaskCard({ taskId }: { taskId: string }) {
 
   if (isLoading || !task) {
     return (
-      <div className="grid h-full grid-cols-[minmax(0,1fr)_400px]">
+      <div className="grid h-full grid-cols-[minmax(0,1fr)_480px]">
         <Skeleton className="h-full" />
         <Skeleton className="h-full" />
       </div>
@@ -86,11 +90,25 @@ export function TaskCard({ taskId }: { taskId: string }) {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="shrink-0 overflow-x-auto border-b border-border px-5 py-3">
-        <DomainChain nodes={chainNodes} />
+      <div className="flex shrink-0 items-center gap-3 border-b border-border px-5 py-3">
+        <div className="min-w-0 flex-1 overflow-x-auto">
+          <DomainChain nodes={chainNodes} />
+        </div>
+        <button
+          type="button"
+          onClick={() => setAboutOpen((v) => !v)}
+          aria-label={ui.tasks.aboutTask}
+          title={ui.tasks.aboutTask}
+          className={cn(
+            'shrink-0 rounded-lg p-2 transition-colors hover:bg-accent',
+            aboutOpen ? 'text-foreground' : 'text-muted-foreground',
+          )}
+        >
+          <PanelRight className="size-4" strokeWidth={1.75} />
+        </button>
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_400px]">
+      <div className="relative grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_480px]">
         <div className="min-h-0 overflow-y-auto p-6">
           <div className="flex flex-wrap items-center gap-3">
             <h2 className="min-w-0 flex-1 truncate text-xl font-semibold">{task.title}</h2>
@@ -228,7 +246,11 @@ export function TaskCard({ taskId }: { taskId: string }) {
           ) : null}
         </div>
 
-        <TaskSidePanel task={task} />
+        <div className="min-h-0 border-l border-border bg-background">
+          <TaskDiscussion taskId={taskId} />
+        </div>
+
+        {aboutOpen ? <TaskAboutDrawer task={task} onClose={() => setAboutOpen(false)} /> : null}
       </div>
     </div>
   );
