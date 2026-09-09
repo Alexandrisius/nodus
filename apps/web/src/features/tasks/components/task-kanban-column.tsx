@@ -1,10 +1,12 @@
+import { useEffect, useRef } from 'react';
 import { useDndContext, useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import type { ReactNode } from 'react';
-import type { TaskStage } from '@nodus/contracts';
+import type { TaskStageWithCount } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 
 import { NodeLabel } from '@nodus/ui/components/node-label';
+import { Skeleton } from '@nodus/ui/components/skeleton';
 import { cn } from '@nodus/ui/lib/utils';
 
 /**
@@ -14,21 +16,47 @@ import { cn } from '@nodus/ui/lib/utils';
  * (грамматика «Инструмента»: ховер — только цвет, без теней-подниманий).
  * Подсветка — когда over есть сама колонка ИЛИ любая её карточка (collision
  * multi-container резолвит over в карточку, а не в колонку).
+ * Бесконечная подгрузка (industry/Битрикс): sentinel у дна скролл-контейнера
+ * колонки (IntersectionObserver, root — контейнер) догружает курсорную
+ * страницу; счётчик шапки — total из каталога стадий (totals в list-ответах
+ * запрещены каноном api-conventions).
  */
 export function TaskKanbanColumn({
   stage,
   count,
   cardIds,
+  hasNext,
+  loadingMore,
+  onLoadMore,
   children,
 }: {
-  stage: TaskStage;
+  stage: TaskStageWithCount;
   count: number;
   cardIds: string[];
+  hasNext: boolean;
+  loadingMore: boolean;
+  onLoadMore: () => void;
   children: ReactNode;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
   const { over } = useDndContext();
   const overInColumn = isOver || (over !== null && cardIds.includes(String(over.id)));
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    const root = scrollRef.current;
+    if (!sentinel || !root || !hasNext || loadingMore) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) onLoadMore();
+      },
+      { root },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasNext, loadingMore, onLoadMore]);
 
   return (
     <section
@@ -50,12 +78,20 @@ export function TaskKanbanColumn({
         <NodeLabel label={stage.name} count={count} />
       </header>
       <SortableContext items={cardIds} strategy={verticalListSortingStrategy}>
-        <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-0.5 pt-3 pb-2">
+        <div
+          ref={scrollRef}
+          className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-0.5 pt-3 pb-2"
+        >
           {children}
-          {count === 0 ? (
+          {count === 0 && !loadingMore ? (
             <span className="rounded-md border border-dashed border-border px-3 py-6 text-center font-mono text-[10px] tracking-[0.14em] text-muted-foreground/70 uppercase">
               {overInColumn ? ui.tasks.dropHere : ui.tasks.emptyColumn}
             </span>
+          ) : null}
+          {hasNext ? (
+            <div ref={sentinelRef} className="flex justify-center py-2">
+              {loadingMore ? <Skeleton className="h-10 w-full" /> : <span className="h-1" />}
+            </div>
           ) : null}
         </div>
       </SortableContext>

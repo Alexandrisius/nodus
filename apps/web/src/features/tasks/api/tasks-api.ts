@@ -1,5 +1,12 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { ChatMessage, Paginated, TaskDetail, TaskListItem, TaskStage } from '@nodus/contracts';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type {
+  ChatMessage,
+  Paginated,
+  TaskDetail,
+  TaskListItem,
+  TaskStage,
+  TaskStageWithCount,
+} from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { toast } from 'sonner';
 
@@ -9,23 +16,33 @@ import { api } from '../../../shared/api-client.js';
 export const tasksKeys = {
   all: ['tasks'] as const,
   list: () => [...tasksKeys.all, 'list'] as const,
+  listPages: () => [...tasksKeys.all, 'list-pages'] as const,
   stages: () => [...tasksKeys.all, 'stages'] as const,
   detail: (id: string) => [...tasksKeys.all, 'detail', id] as const,
   messages: (id: string) => [...tasksKeys.all, 'messages', id] as const,
 };
 
-export function useTasksList() {
-  return useQuery({
-    queryKey: tasksKeys.list(),
-    queryFn: () => api<Paginated<TaskListItem>>('/tasks'),
+/** Список (таблица с деревом): курсорные страницы по 100, подгрузка sentinel-ом
+ * у dna контейнера (industry-паттерн: целиком на клиент крупные списки не
+ * живут). Дерево строится из загруженного; родитель старше окна страницы
+ * отображается корнем (известное ограничение до серверного lazy-дерева). */
+export function useTasksPages() {
+  return useInfiniteQuery({
+    queryKey: tasksKeys.listPages(),
+    queryFn: ({ pageParam }) =>
+      api<Paginated<TaskListItem>>(
+        `/tasks?view=list&limit=100${pageParam ? `&cursor=${pageParam}` : ''}`,
+      ),
+    initialPageParam: null as string | null,
+    getNextPageParam: (last) => last.nextCursor,
   });
 }
 
-/** Каталог стадий статус-схемы (колонки канбана, включая пустые). */
+/** Каталог стадий статус-схемы со счётчиками колонок (канбан-шапки). */
 export function useTaskStages() {
   return useQuery({
     queryKey: tasksKeys.stages(),
-    queryFn: () => api<TaskStage[]>('/tasks/stages'),
+    queryFn: () => api<TaskStageWithCount[]>('/tasks/stages'),
   });
 }
 
@@ -81,6 +98,16 @@ export function useUpdateTaskStage() {
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: tasksKeys.list() });
     },
+  });
+}
+
+/** Поиск задач (палитра Ctrl+K): серверный фильтр по титулу/номеру —
+ * industry-паттерн: клиент не держит весь список ради поиска. */
+export function useTasksSearch(q: string) {
+  return useQuery({
+    queryKey: [...tasksKeys.all, 'search', q] as const,
+    queryFn: () => api<Paginated<TaskListItem>>(`/tasks?search=${encodeURIComponent(q)}&limit=20`),
+    enabled: q.length > 0,
   });
 }
 

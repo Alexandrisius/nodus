@@ -3,29 +3,24 @@ import { ui } from '@nodus/contracts';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { ViewSettings } from '../../../shared/views/view-settings.js';
-import { useTasksList } from '../api/tasks-api.js';
+import { useTaskStages } from '../api/tasks-api.js';
 import { taskCardFields, taskListFields } from '../lib/task-fields.js';
 import { TaskKanban } from '../components/task-kanban.js';
 import { TaskList } from '../components/task-list.js';
 
 /** Задачи: виды «Мой план» (канбан) и «Список» — переключаются в топбаре.
- * Шапка — живая сводка (в работе / просрочено) и шестерёнка представления
+ * Шапка — живая сводка из счётчиков каталога стадий (в работе / просрочено;
+ * totals в list-ответах запрещены каноном) и шестерёнка представления
  * (отображаемые поля активного вида; ширина колонок — ручкой в хедере
  * таблицы, с памятью между сессиями). */
 export function TasksPage() {
   const search = useSearch({ strict: false }) as { view?: string };
   const view = search.view === 'list' ? 'list' : 'kanban';
-  const { data } = useTasksList();
-  const items = data?.items ?? [];
+  const { data: stages } = useTaskStages();
 
-  const active = items.filter((t) => t.stage.systemState === 'active').length;
-  const overdue = items.filter(
-    (t) =>
-      t.deadline !== null &&
-      new Date(t.deadline) < new Date() &&
-      t.stage.systemState !== 'done' &&
-      t.stage.systemState !== 'closed',
-  ).length;
+  const active =
+    stages?.filter((s) => s.systemState === 'active').reduce((sum, s) => sum + s.count, 0) ?? 0;
+  const overdue = stages?.reduce((sum, s) => sum + s.overdueCount, 0) ?? 0;
 
   return (
     <div className="relative flex h-full flex-col">

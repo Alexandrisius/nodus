@@ -14,10 +14,40 @@ import { demoStages } from '../../../../shared/mocks/data/task-stages.js';
 import { currentAuthUser, userRef } from '../../../../shared/mocks/data/users.js';
 
 export const tasksHandlers = [
-  // ДО '/tasks/:id' — иначе «stages» съест параметр (порядок маршрутов MSW).
-  http.get('/api/v1/tasks/stages', () => HttpResponse.json(demoStages)),
+  http.get('/api/v1/tasks', ({ request }) => {
+    const url = new URL(request.url);
+    const stageId = url.searchParams.get('stageId');
+    const search = url.searchParams.get('search')?.trim().toLowerCase() ?? '';
+    const cursor = url.searchParams.get('cursor');
+    const limit = Math.min(Number(url.searchParams.get('limit') ?? 50) || 50, 100);
+    let filtered = stageId ? demoTasks.filter((t) => t.stage.id === stageId) : demoTasks;
+    if (search) {
+      filtered = filtered.filter(
+        (t) => t.title.toLowerCase().includes(search) || String(t.number).includes(search),
+      );
+    }
+    const start = cursor ? Number(cursor) || 0 : 0;
+    const items = filtered.slice(start, start + limit);
+    const next = start + limit < filtered.length ? String(start + limit) : null;
+    return HttpResponse.json({ items, nextCursor: next });
+  }),
 
-  http.get('/api/v1/tasks', () => HttpResponse.json({ items: demoTasks, nextCursor: null })),
+  http.get('/api/v1/tasks/stages', () =>
+    HttpResponse.json(
+      demoStages.map((s) => ({
+        ...s,
+        count: demoTasks.filter((t) => t.stage.id === s.id).length,
+        overdueCount: demoTasks.filter(
+          (t) =>
+            t.stage.id === s.id &&
+            t.deadline !== null &&
+            new Date(t.deadline) < new Date() &&
+            s.systemState !== 'done' &&
+            s.systemState !== 'closed',
+        ).length,
+      })),
+    ),
+  ),
 
   http.get('/api/v1/tasks/:id', ({ params }) => {
     const task = demoTasks.find((t) => t.id === params.id);

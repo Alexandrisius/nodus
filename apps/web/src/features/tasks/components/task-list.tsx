@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { ui } from '@nodus/contracts';
 import { NodeLabel } from '@nodus/ui/components/node-label';
@@ -7,7 +7,7 @@ import { Skeleton } from '@nodus/ui/components/skeleton';
 import { useShellStore } from '../../../app/shell/shell-store.js';
 import { ColumnResizer } from '../../../shared/views/column-resizer.js';
 import { useViewFields } from '../../../shared/views/use-view-fields.js';
-import { useTasksList } from '../api/tasks-api.js';
+import { useTasksPages } from '../api/tasks-api.js';
 import { taskListFields } from '../lib/task-fields.js';
 import { buildTaskRows, filterVisibleRows, type TaskRow } from '../lib/task-tree.js';
 import { GRAPH_X, TaskListGraph } from './task-list-graph.js';
@@ -24,15 +24,33 @@ const GRAPH_COL = 54;
  * ручкой на грани хедера, с памятью между сессиями.
  */
 export function TaskList() {
-  const { data, isLoading } = useTasksList();
+  const { data, isLoading, hasNextPage, isFetchingNextPage, fetchNextPage } = useTasksPages();
   const navigate = useNavigate();
   const setLastDock = useShellStore((s) => s.setLastDock);
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
   const { visibleFields, setWidth } = useViewFields('tasks.list', taskListFields);
   const containerRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
-  const rows = useMemo(() => buildTaskRows(data?.items ?? []), [data]);
+  const items = useMemo(() => data?.pages.flatMap((p) => p.items) ?? [], [data]);
+  const rows = useMemo(() => buildTaskRows(items), [items]);
   const visible = useMemo(() => filterVisibleRows(rows, collapsed), [rows, collapsed]);
+
+  // Бесконечная подгрузка страниц: sentinel у дна скролл-контейнера таблицы
+  // (IntersectionObserver с root=контейнер), как в битриксовском журнале.
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    const root = containerRef.current;
+    if (!sentinel || !root || !hasNextPage || isFetchingNextPage) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) void fetchNextPage();
+      },
+      { root },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const gridTemplateColumns = useMemo(
     () => `${GRAPH_COL}px ${visibleFields.map((f) => `${f.width ?? 120}px`).join(' ')}`,
@@ -162,6 +180,11 @@ export function TaskList() {
           </div>
         );
       })}
+      {hasNextPage ? (
+        <div ref={sentinelRef} className="flex justify-center py-3">
+          <Skeleton className="h-8 w-48" />
+        </div>
+      ) : null}
     </div>
   );
 }

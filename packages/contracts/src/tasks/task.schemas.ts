@@ -27,6 +27,15 @@ export const taskStageSchema = z.object({
 
 export type TaskStage = z.infer<typeof taskStageSchema>;
 
+/** Стадия + счётчики колонки канбана (шапки и сводка страницы; totals в
+ * list-ответах запрещены каноном api-conventions — счётчики живут в каталоге). */
+export const taskStageWithCountSchema = taskStageSchema.extend({
+  count: z.number().int().min(0),
+  overdueCount: z.number().int().min(0),
+});
+
+export type TaskStageWithCount = z.infer<typeof taskStageWithCountSchema>;
+
 export const projectRefSchema = z.object({
   id: z.uuid(),
   code: z.string().min(1),
@@ -115,6 +124,9 @@ export const listTasksQuerySchema = cursorQuerySchema.extend({
   scope: z.enum(['mine', 'all']).default('mine'),
   view: z.enum(['list', 'kanban']).default('kanban'),
   search: z.string().trim().min(1).max(128).optional(),
+  /** Фид колонки канбана: курсорная подгрузка порциями (industry-паттерн:
+   *  колонки держат тысячи карточек, целиком не отдаются). */
+  stageId: z.uuid().optional(),
 });
 
 export type ListTasksQuery = z.infer<typeof listTasksQuerySchema>;

@@ -14,12 +14,13 @@ import {
   type UniqueIdentifier,
 } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
-import type { TaskListItem, TaskStage } from '@nodus/contracts';
+import type { Paginated, TaskListItem, TaskStage } from '@nodus/contracts';
 
 import { Skeleton } from '@nodus/ui/components/skeleton';
 
+import { api } from '../../../shared/api-client.js';
 import { useViewFields } from '../../../shared/views/use-view-fields.js';
-import { useTaskStages, useTasksList, useUpdateTaskStage } from '../api/tasks-api.js';
+import { useTaskStages, useUpdateTaskStage } from '../api/tasks-api.js';
 import {
   indexOfInStage,
   isSameOrder,
@@ -40,22 +41,49 @@ import { TaskKanbanSortableCard } from './task-kanban-sortable-card.js';
  * Борд — локальное состояние, синхронизированное с query вне переноса
  * (официальный паттерн dnd-kit + React Query). */
 export function TaskKanban() {
-  const { data, isLoading } = useTasksList();
   const { data: stages } = useTaskStages();
   const updateStage = useUpdateTaskStage();
   const { isVisible } = useViewFields('tasks.kanban', taskCardFields);
 
   const [board, setBoard] = useState<TaskListItem[] | null>(null);
+  const [cursors, setCursors] = useState<Record<string, string | null>>({});
+  const [loadingMore, setLoadingMore] = useState<Record<string, boolean>>({});
+  const [countDelta, setCountDelta] = useState<Record<string, number>>({});
   const [activeTask, setActiveTask] = useState<TaskListItem | null>(null);
-  const draggingRef = useRef(false);
   const snapshotRef = useRef<TaskListItem[] | null>(null);
   const lastOverId = useRef<UniqueIdentifier | null>(null);
   const recentlyMoved = useRef(false);
 
-  // Синхронизация с query — только вне переноса (иначе refetch рвёт drag).
+  // Первые страницы колонок (industry: колонки держат тысячи карточек —
+  // целиком не грузим; дальше sentinel-подгрузка в колонке, как в Битриксе).
   useEffect(() => {
-    if (data && !draggingRef.current) setBoard(data.items);
-  }, [data]);
+    if (!stages || board) return;
+    let alive = true;
+    void Promise.all(
+      stages.map((s) => api<Paginated<TaskListItem>>(`/tasks?stageId=${s.id}&limit=30`)),
+    ).then((pages) => {
+      if (!alive) return;
+      setBoard(pages.flatMap((p) => p.items));
+      setCursors(Object.fromEntries(stages.map((s, i) => [s.id, pages[i]?.nextCursor ?? null])));
+    });
+    return () => {
+      alive = false;
+    };
+  }, [stages, board]);
+
+  /** Подгрузка следующей страницы колонки (sentinel в скролл-контейнере). */
+  function loadMore(stageId: string) {
+    const cursor = cursors[stageId];
+    if (cursor === null || cursor === undefined || loadingMore[stageId]) return;
+    setLoadingMore((prev) => ({ ...prev, [stageId]: true }));
+    void api<Paginated<TaskListItem>>(`/tasks?stageId=${stageId}&limit=30&cursor=${cursor}`).then(
+      (page) => {
+        setBoard((prev) => [...(prev ?? []), ...page.items]);
+        setCursors((prev) => ({ ...prev, [stageId]: page.nextCursor }));
+        setLoadingMore((prev) => ({ ...prev, [stageId]: false }));
+      },
+    );
+  }
 
   const sensors = useSensors(
     // distance: клик без движения — не drag, а открытие слайдера.
@@ -87,7 +115,6 @@ export function TaskKanban() {
     items.find((t) => t.id === id)?.stage;
 
   const onDragStart = (event: DragStartEvent) => {
-    draggingRef.current = true;
     snapshotRef.current = items;
     setActiveTask(items.find((t) => t.id === event.active.id) ?? null);
   };
@@ -120,7 +147,6 @@ export function TaskKanban() {
   };
 
   const onDragEnd = (event: DragEndEvent) => {
-    draggingRef.current = false;
     const task = activeTask;
     setActiveTask(null);
     if (!task || !event.over) return;
@@ -135,16 +161,31 @@ export function TaskKanban() {
     const snapshot = snapshotRef.current ?? [];
     const before = snapshot.find((t) => t.id === task.id);
     if (before?.stage.id === finalStage.id && indexOfInStage(snapshot, task.id) === index) return;
-    updateStage.mutate({ taskId: task.id, stageId: finalStage.id, index });
+    const fromId = task.stage.id;
+    setCountDelta((prev) => ({
+      ...prev,
+      [finalStage.id]: (prev[finalStage.id] ?? 0) + 1,
+      [fromId]: (prev[fromId] ?? 0) - 1,
+    }));
+    updateStage.mutate(
+      { taskId: task.id, stageId: finalStage.id, index },
+      {
+        onError: () =>
+          setCountDelta((prev) => ({
+            ...prev,
+            [finalStage.id]: (prev[finalStage.id] ?? 0) - 1,
+            [fromId]: (prev[fromId] ?? 0) + 1,
+          })),
+      },
+    );
   };
 
   const onDragCancel = () => {
-    draggingRef.current = false;
     setActiveTask(null);
     if (snapshotRef.current) setBoard(snapshotRef.current);
   };
 
-  if (isLoading || !stages || !board) {
+  if (!stages || !board) {
     return (
       <div className="flex h-full gap-4 overflow-x-auto p-4">
         {[0, 1, 2, 3].map((i) => (
@@ -174,8 +215,11 @@ export function TaskKanban() {
             <TaskKanbanColumn
               key={stage.id}
               stage={stage}
-              count={cards.length}
+              count={stage.count + (countDelta[stage.id] ?? 0)}
               cardIds={cards.map((t) => t.id)}
+              hasNext={cursors[stage.id] !== null && cursors[stage.id] !== undefined}
+              loadingMore={Boolean(loadingMore[stage.id])}
+              onLoadMore={() => loadMore(stage.id)}
             >
               {cards.map((task) => (
                 <TaskKanbanSortableCard

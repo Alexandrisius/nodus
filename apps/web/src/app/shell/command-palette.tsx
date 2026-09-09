@@ -16,7 +16,7 @@ import { useConversations } from '../../features/chat/api/chat-api.js';
 import { useLettersList } from '../../features/correspondence/api/letters-api.js';
 import { useUsersList } from '../../features/directory/api/directory-api.js';
 import { useProjectsList } from '../../features/projects/api/projects-api.js';
-import { useTasksList } from '../../features/tasks/api/tasks-api.js';
+import { useTasksSearch } from '../../features/tasks/api/tasks-api.js';
 import { PersonAvatar } from '../../shared/ui/person-avatar.js';
 import { useShellStore } from './shell-store.js';
 
@@ -35,13 +35,13 @@ export function CommandPalette() {
   const setOpen = useShellStore((s) => s.setCommandOpen);
   const navigate = useNavigate();
   const { data: users } = useUsersList();
-  const { data: tasks } = useTasksList();
   const { data: projects } = useProjectsList();
   const { data: chats } = useConversations();
   const { data: incoming } = useLettersList('incoming');
   const { data: unregistered } = useLettersList('unregistered');
   const { data: outgoing } = useLettersList('outgoing');
   const [query, setQuery] = useState('');
+  const { data: tasks } = useTasksSearch(query.trim());
 
   useEffect(() => {
     if (!open) setQuery('');
