@@ -67,7 +67,8 @@ export const taskListFields: ListFieldDef[] = [
     id: 'title',
     label: ui.tasks.fieldTitle,
     defaultVisible: true,
-    flex: true,
+    defaultWidth: 340,
+    minWidth: 160,
     locked: true,
     render: (task, ctx) => (
       <>
