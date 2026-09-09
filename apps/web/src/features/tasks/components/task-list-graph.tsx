@@ -1,4 +1,4 @@
-import { orthPath, snapHalf } from '@nodus/ui/components/node-edge';
+import { orthPath, snapToPixel, useDevicePixelRatio } from '@nodus/ui/components/node-edge';
 
 import type { TaskRow } from '../lib/task-tree.js';
 
@@ -8,9 +8,6 @@ export const GRAPH_WIDTH = 54;
 const ROW_H = 48;
 const MID = ROW_H / 2;
 const ELBOW = 6;
-/** Рендер-координаты — полупиксельная сетка: прямые 1px-сегменты яркости локтей. */
-const SX = (depth: number) => snapHalf(GRAPH_X(depth));
-const SY = snapHalf(MID);
 
 /**
  * Граф вложенности строки списка — фирменная «плата» задач: сквозные
@@ -28,6 +25,11 @@ export function TaskListGraph({
   index: number;
   branchCollapsed: boolean;
 }) {
+  // Рендер-координаты — сетка ФИЗИЧЕСКИХ пикселей (живой dpr): прямые
+  // 1px-сегменты одинаковой яркости с локтями при любом зуме.
+  const dpr = useDevicePixelRatio();
+  const SX = (depth: number) => snapToPixel(GRAPH_X(depth), dpr);
+  const SY = snapToPixel(MID, dpr);
   const sx = SX(row.depth);
   const branchOpen = row.hasChildren && !branchCollapsed;
   const staticPaths: string[] = row.passThrough.map((d) => `M${SX(d)},0 L${SX(d)},${ROW_H}`);

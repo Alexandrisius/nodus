@@ -1,4 +1,4 @@
-import { orthPath, snapHalf, type NodeEdgePoint } from '@nodus/ui/components/node-edge';
+import { orthPath, snapToPixel, type NodeEdgePoint } from '@nodus/ui/components/node-edge';
 
 import { RAIL_TRUNK_X } from './node-rail.js';
 
@@ -70,24 +70,30 @@ export function measureCircuit(pathname = '/'): CircuitGeometry | null {
   };
 }
 
-/** Снаппинг точек контура к полупиксельной сетке — прямые сегменты рендерятся
- * так же ярко, как локти (см. snapHalf в node-edge). */
-const sp = (pts: NodeEdgePoint[]): NodeEdgePoint[] =>
-  pts.map((p) => ({ x: snapHalf(p.x), y: snapHalf(p.y) }));
+/** Снаппинг точек контура к сетке ФИЗИЧЕСКИХ пикселей (dpr живой — зум
+ * браузера/Windows-скейлинг) — прямые сегменты яркости локтей. */
+const sp = (pts: NodeEdgePoint[], dpr: number): NodeEdgePoint[] =>
+  pts.map((p) => ({ x: snapToPixel(p.x, dpr), y: snapToPixel(p.y, dpr) }));
 
 /** Статичный контур: артерия — ОДНА ломаная «низ шины → стык (круглое
  * сопряжение) → ось до правого края вьюпорта» (как обычный бордюр; без
  * прямых углов и точек в стыке); отводы модулей локтями; засечки вкладок —
  * локти в сторону главного меню. */
-export function framePath(g: CircuitGeometry): string {
+export function framePath(g: CircuitGeometry, dpr: number): string {
   const parts: string[] = [];
   parts.push(
     orthPath(
-      sp([
-        { x: g.junction.x, y: g.leftNode ? g.axisY : g.modules.length > 0 ? g.spineEndY : g.axisY },
-        g.junction,
-        { x: g.rightEdge, y: g.axisY },
-      ]),
+      sp(
+        [
+          {
+            x: g.junction.x,
+            y: g.leftNode ? g.axisY : g.modules.length > 0 ? g.spineEndY : g.axisY,
+          },
+          g.junction,
+          { x: g.rightEdge, y: g.axisY },
+        ],
+        dpr,
+      ),
       8,
     ),
   );
@@ -97,11 +103,14 @@ export function framePath(g: CircuitGeometry): string {
     if (m.port.x - g.junction.x < 8) continue;
     parts.push(
       orthPath(
-        sp([
-          { x: g.junction.x, y: m.port.y - 10 },
-          { x: g.junction.x, y: m.port.y },
-          { x: m.port.x - 4, y: m.port.y },
-        ]),
+        sp(
+          [
+            { x: g.junction.x, y: m.port.y - 10 },
+            { x: g.junction.x, y: m.port.y },
+            { x: m.port.x - 4, y: m.port.y },
+          ],
+          dpr,
+        ),
         8,
       ),
     );
@@ -109,11 +118,14 @@ export function framePath(g: CircuitGeometry): string {
   for (const t of g.tabs) {
     parts.push(
       orthPath(
-        sp([
-          { x: t.x - 10, y: g.axisY },
-          { x: t.x, y: g.axisY },
-          { x: t.x, y: g.axisY - TICK },
-        ]),
+        sp(
+          [
+            { x: t.x - 10, y: g.axisY },
+            { x: t.x, y: g.axisY },
+            { x: t.x, y: g.axisY - TICK },
+          ],
+          dpr,
+        ),
         6,
       ),
     );

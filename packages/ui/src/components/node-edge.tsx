@@ -32,16 +32,31 @@ export function orthPath(points: NodeEdgePoint[], r: number): string {
 }
 
 /**
- * Снаппинг к полупиксельной сетке. В SVG целая координата — граница между
- * device-пикселями: 1px-линия на ней центрируется на границе и покрывает два
- * пикселя по 50% — прямые сегменты БЛЕДНЕЕ кривых того же пути (у тех
- * anti-aliasing даёт почти полное покрытие). Центр на x.5 покрывает ровно
- * один ряд пикселей (при DPR=2 — целое) — линия чёткая и одинаково яркая
- * на всём пути. Применять ко ВСЕМ ортогональным 1px-линиям (и path, и порты
- * согласованно, иначе точка уедет от конца линии).
+ * Снаппинг к сетке ФИЗИЧЕСКИХ пикселей. Линия 1px, центрированная между
+ * device-пикселями, покрывает два по 50% — прямые сегменты БЛЕДНЕЕ кривых
+ * того же пути (anti-aliasing локтей даёт почти полное покрытие). Центр на
+ * полупиксельной сетке device-пикселей покрывает ровно один ряд — линия
+ * чёткая и одинаково яркая на всём пути. dpr обязателен: при зуме браузера
+ * 90% 1 CSS px = 0.9 device px и CSS-сетка x.5 уплывает (видно как «яркие
+ * хвостики» при зуме ≤ 100%). Применять к path И портам согласованно.
  */
-export function snapHalf(v: number): number {
-  return Math.round(v - 0.5) + 0.5;
+export function snapToPixel(v: number, dpr: number): number {
+  return (Math.round(v * dpr - 0.5) + 0.5) / dpr;
+}
+
+/** Текущий devicePixelRatio с переподпиской при зуме браузера (канон:
+ * matchMedia resolution пересоздаётся на каждый новый dpr). */
+export function useDevicePixelRatio(): number {
+  const [dpr, setDpr] = useState(() =>
+    typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia(`(resolution: ${dpr}dppx)`);
+    const onChange = () => setDpr(window.devicePixelRatio || 1);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, [dpr]);
+  return dpr;
 }
 
 /** Длина ломаной в px (сегменты ортогональные — hypot == манхэттен). */
@@ -102,11 +117,13 @@ function NodeEdge({
   elbow?: number;
   className?: string;
 }) {
-  // Координаты снаппятся к полупиксельной сетке (snapHalf) — иначе прямые
-  // сегменты бледнее локтей; path и порты снаппятся согласованно.
+  // Координаты снаппятся к сетке ФИЗИЧЕСКИХ пикселей (snapToPixel с живым
+  // devicePixelRatio — иначе при зуме ≠ 100% прямые бледнее локтей);
+  // path и порты снаппятся согласованно.
+  const dpr = useDevicePixelRatio();
   const snapped = useMemo(
-    () => points.map((p) => ({ x: snapHalf(p.x), y: snapHalf(p.y) })),
-    [points],
+    () => points.map((p) => ({ x: snapToPixel(p.x, dpr), y: snapToPixel(p.y, dpr) })),
+    [points, dpr],
   );
   const d = useMemo(() => orthPath(snapped, elbow), [snapped, elbow]);
   const len = useMemo(() => pathLength(points), [points]);
