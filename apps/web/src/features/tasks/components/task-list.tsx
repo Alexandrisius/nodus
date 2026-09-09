@@ -77,10 +77,10 @@ export function TaskList() {
         style={{ gridTemplateColumns }}
       >
         <span />
-        {visibleFields.map((field) => (
+        {visibleFields.map((field, index) => (
           <span key={field.id} className="relative flex min-w-0 items-center">
             <NodeLabel label={field.label} className="truncate" />
-            {field.width !== undefined ? (
+            {field.width !== undefined && index < visibleFields.length - 1 ? (
               <ColumnResizer
                 width={field.width}
                 minWidth={field.minWidth ?? 48}
