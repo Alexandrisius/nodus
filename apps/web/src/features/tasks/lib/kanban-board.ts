@@ -42,6 +42,13 @@ export function moveTaskToStage(
   return [...rest, moved];
 }
 
+/** Одинаковый ли порядок задач (по id) — предохранитель холостых setState:
+ * идентичный результат перестановки не должен создавать новое состояние
+ * (пустые витки измерение→onDragOver→setState — топливо цикла update depth). */
+export function isSameOrder(a: TaskListItem[], b: TaskListItem[]): boolean {
+  return a.length === b.length && a.every((t, i) => t.id === b[i]?.id);
+}
+
 /** Перестановка внутри колонки (финиш drag над другой карточкой той же колонки). */
 export function reorderWithinStage(
   items: TaskListItem[],

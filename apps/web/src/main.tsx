@@ -9,7 +9,13 @@ import { App } from './app/app';
 async function enableMocking(): Promise<void> {
   if (import.meta.env.VITE_API_MOCK !== 'true') return;
   const { worker } = await import('./shared/mocks/browser.js');
-  await worker.start({ onUnhandledRequest: 'warn' });
+  // Шумим только по нашим /api/*: посторонние запросы (антивирус, devtools)
+  // молча пропускаем — иначе консоль засорена предупреждениями «нет хендлера».
+  await worker.start({
+    onUnhandledRequest: (req, print) => {
+      if (new URL(req.url).pathname.startsWith('/api/')) print.warning();
+    },
+  });
 }
 
 const container = document.getElementById('root');

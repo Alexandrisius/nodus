@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { TaskListItem, TaskStage } from '@nodus/contracts';
 
-import { indexOfInStage, moveTaskToStage, reorderWithinStage } from './kanban-board.js';
+import {
+  indexOfInStage,
+  isSameOrder,
+  moveTaskToStage,
+  reorderWithinStage,
+} from './kanban-board.js';
 
 const STAGE_A: TaskStage = { id: 'a', name: 'Новые', order: 0, systemState: 'backlog' };
 const STAGE_B: TaskStage = { id: 'b', name: 'В работе', order: 1, systemState: 'active' };
@@ -62,5 +67,11 @@ describe('kanban-board: перестановки борда', () => {
   it('indexOfInStage: позиция внутри колонки, а не массива', () => {
     expect(indexOfInStage(board(), 'b2')).toBe(1);
     expect(indexOfInStage(board(), 'nope')).toBe(-1);
+  });
+
+  it('isSameOrder: идентичный порядок не создаёт повода для setState', () => {
+    expect(isSameOrder(board(), [...board()])).toBe(true);
+    expect(isSameOrder(board(), moveTaskToStage(board(), 'a1', STAGE_A, 0))).toBe(true);
+    expect(isSameOrder(board(), moveTaskToStage(board(), 'a1', STAGE_B, 0))).toBe(false);
   });
 });

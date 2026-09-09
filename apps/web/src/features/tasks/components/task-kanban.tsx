@@ -19,7 +19,12 @@ import { Skeleton } from '@nodus/ui/components/skeleton';
 
 import { useViewFields } from '../../../shared/views/use-view-fields.js';
 import { useTaskStages, useTasksList, useUpdateTaskStage } from '../api/tasks-api.js';
-import { indexOfInStage, moveTaskToStage, reorderWithinStage } from '../lib/kanban-board.js';
+import {
+  indexOfInStage,
+  isSameOrder,
+  moveTaskToStage,
+  reorderWithinStage,
+} from '../lib/kanban-board.js';
 import { makeKanbanCollision } from '../lib/kanban-collision.js';
 import { taskCardFields } from '../lib/task-fields.js';
 import { TaskKanbanCard } from './task-kanban-card.js';
@@ -50,12 +55,6 @@ export function TaskKanban() {
   useEffect(() => {
     if (data && !draggingRef.current) setBoard(data.items);
   }, [data]);
-  useEffect(() => {
-    const raf = requestAnimationFrame(() => {
-      recentlyMoved.current = false;
-    });
-    return () => cancelAnimationFrame(raf);
-  }, [board]);
 
   const sensors = useSensors(
     // distance: клик без движения — не drag, а открытие слайдера.
@@ -93,10 +92,13 @@ export function TaskKanban() {
   };
 
   /** Живой переезд между колонками: карточка встаёт в целевую колонку ещё
-   * до дропа (индекс — от карточки под указателем, ниже/выше её центра). */
+   * до дропа (индекс — от карточки под указателем, ниже/выше её центра).
+   * Предохранители цикла update depth: (1) кадр после межколоночного переноса
+   * игнорируем (анти-осциллятор на границе колонок), (2) идентичный порядок
+   * не создаёт нового состояния (холостые витки измерение→setState). */
   const onDragOver = (event: DragOverEvent) => {
     const { active, over } = event;
-    if (!over) return;
+    if (!over || recentlyMoved.current) return;
     const activeStage = stageOf(active.id);
     const overStage = stageById.get(String(over.id)) ?? stageOf(over.id);
     if (!activeStage || !overStage || activeStage.id === overStage.id) return;
@@ -107,7 +109,13 @@ export function TaskKanban() {
       over.rect.top + over.rect.height / 2 < active.rect.current.translated.top;
     const index = overIndex >= 0 ? overIndex + (below ? 1 : 0) : overColumn.length;
     recentlyMoved.current = true;
-    setBoard((prev) => moveTaskToStage(prev ?? [], String(active.id), overStage, index));
+    requestAnimationFrame(() => {
+      recentlyMoved.current = false;
+    });
+    setBoard((prev) => {
+      const next = moveTaskToStage(prev ?? [], String(active.id), overStage, index);
+      return isSameOrder(prev ?? [], next) ? (prev ?? []) : next;
+    });
   };
 
   const onDragEnd = (event: DragEndEvent) => {
