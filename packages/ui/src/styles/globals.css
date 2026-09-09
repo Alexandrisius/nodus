@@ -238,6 +238,9 @@
  * первого кадра: владелец видел «появилась сразу», headless — нет). */
 @utility slider-expand {
   transform-origin: top left;
+  /* Слой промоутирован ДО первого кадра анимации: первый запуск без фриза
+   * (без will-change браузер создаёт композитный слой на старте анимации). */
+  will-change: transform;
   animation: slider-expand 430ms cubic-bezier(0.3, 1.16, 0.45, 1) both;
 }
 @keyframes slider-expand {
@@ -266,9 +269,11 @@
   }
 }
 
-/* Задник слайдера: проявление вместо мгновенной вспышки затемнения. */
+/* Задник слайдера: проявление синхронно раскрытию панели (та же длительность
+ * и характер кривой без овершута) — затемнение читается как часть одного
+ * события «карточка растёт», а не как отдельная смена цвета фона. */
 @utility backdrop-fade {
-  animation: backdrop-fade 300ms ease-out both;
+  animation: backdrop-fade 430ms cubic-bezier(0.3, 0.7, 0.4, 1) both;
 }
 @keyframes backdrop-fade {
   from {

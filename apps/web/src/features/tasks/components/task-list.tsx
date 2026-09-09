@@ -7,7 +7,7 @@ import { Skeleton } from '@nodus/ui/components/skeleton';
 import { useShellStore } from '../../../app/shell/shell-store.js';
 import { ColumnResizer } from '../../../shared/views/column-resizer.js';
 import { useViewFields } from '../../../shared/views/use-view-fields.js';
-import { useTasksPages } from '../api/tasks-api.js';
+import { useTasksPages, usePrefetchTask } from '../api/tasks-api.js';
 import { taskListFields } from '../lib/task-fields.js';
 import { buildTaskRows, filterVisibleRows, type TaskRow } from '../lib/task-tree.js';
 import { graphWidth, graphX, TaskListTree } from './task-list-graph.js';
@@ -26,6 +26,7 @@ export function TaskList() {
   const { data, isLoading, hasNextPage, isFetchingNextPage, fetchNextPage } = useTasksPages();
   const navigate = useNavigate();
   const setLastSource = useShellStore((s) => s.setLastSource);
+  const prefetch = usePrefetchTask();
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
   /** Каскадное построение графа: база = индекс первой раскрытой строки,
    *  key перезапускает draw-on только нового раскрытия. */
@@ -152,6 +153,7 @@ export function TaskList() {
               role="button"
               tabIndex={0}
               onClick={(e) => openTask(row, e.currentTarget)}
+              onPointerEnter={() => prefetch(task.id)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault();

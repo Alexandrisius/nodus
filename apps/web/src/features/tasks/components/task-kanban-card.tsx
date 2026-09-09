@@ -7,6 +7,7 @@ import { formatMinutes } from '../../../shared/lib/format.js';
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
 import { DeadlineChip } from '../../../shared/ui/deadline-chip.js';
 import { useShellStore } from '../../../app/shell/shell-store.js';
+import { usePrefetchTask } from '../api/tasks-api.js';
 import { cn } from '@nodus/ui/lib/utils';
 
 /** Карточка канбана: node-панель; отображаемые поля настраиваются
@@ -29,11 +30,13 @@ export function TaskKanbanCard({
 }) {
   const navigate = useNavigate();
   const setLastSource = useShellStore((s) => s.setLastSource);
+  const prefetch = usePrefetchTask();
   const showFooter = isVisible('assignee') || isVisible('comments') || isVisible('spent');
 
   return (
     <button
       type="button"
+      onPointerEnter={() => prefetch(task.id)}
       onClick={(e) => {
         const rect = e.currentTarget.getBoundingClientRect();
         setLastSource({ x: rect.x, y: rect.y, width: rect.width, height: rect.height });

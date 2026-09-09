@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Outlet, useSearch } from '@tanstack/react-router';
 import { ui } from '@nodus/contracts';
 import { cn } from '@nodus/ui/lib/utils';
@@ -17,6 +18,23 @@ export function TasksPage() {
   const search = useSearch({ strict: false }) as { view?: string };
   const view = search.view === 'list' ? 'list' : 'kanban';
   const { data: stages } = useTaskStages();
+
+  // Прогрев модулей карточки в простое: первое открытие слайдера не платит
+  // «холодную» компиляцию графа модулей (dev: vite компилирует при первом
+  // импорте; prod: прогрев парса/кэша) — первая анимация равна последующим.
+  useEffect(() => {
+    const warm = () => {
+      void import('../components/task-card.js');
+    };
+    const id =
+      typeof window.requestIdleCallback === 'function'
+        ? window.requestIdleCallback(warm)
+        : window.setTimeout(warm, 400);
+    return () => {
+      if (typeof window.cancelIdleCallback === 'function') window.cancelIdleCallback(id);
+      else window.clearTimeout(id);
+    };
+  }, []);
 
   const active =
     stages?.filter((s) => s.systemState === 'active').reduce((sum, s) => sum + s.count, 0) ?? 0;

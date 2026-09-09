@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   ChatMessage,
@@ -106,6 +107,26 @@ export function useUpdateTaskStage() {
       void queryClient.invalidateQueries({ queryKey: tasksKeys.detail(vars.taskId) });
     },
   });
+}
+
+/** Префетч детали и обсуждения по ховеру строки/карточки: первое открытие
+ *  слайдера рендерит контент одним проходом (без скелетон-релэйаута) —
+ *  первая анимация не платит холодный fetch. */
+export function usePrefetchTask() {
+  const queryClient = useQueryClient();
+  return useCallback(
+    (taskId: string) => {
+      void queryClient.prefetchQuery({
+        queryKey: tasksKeys.detail(taskId),
+        queryFn: () => api<TaskDetail>(`/tasks/${taskId}`),
+      });
+      void queryClient.prefetchQuery({
+        queryKey: tasksKeys.messages(taskId),
+        queryFn: () => api<Paginated<ChatMessage>>(`/tasks/${taskId}/messages`),
+      });
+    },
+    [queryClient],
+  );
 }
 
 /** Поиск задач (палитра Ctrl+K): серверный фильтр по титулу/номеру —
