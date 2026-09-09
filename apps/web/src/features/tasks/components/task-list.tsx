@@ -10,7 +10,7 @@ import { useViewFields } from '../../../shared/views/use-view-fields.js';
 import { useTasksPages } from '../api/tasks-api.js';
 import { taskListFields } from '../lib/task-fields.js';
 import { buildTaskRows, filterVisibleRows, type TaskRow } from '../lib/task-tree.js';
-import { GRAPH_X, TaskListGraph } from './task-list-graph.js';
+import { TaskListGraph } from './task-list-graph.js';
 
 /** Ширина колонки графа (фиксированная, не настраивается). */
 const GRAPH_COL = 54;
@@ -26,7 +26,7 @@ const GRAPH_COL = 54;
 export function TaskList() {
   const { data, isLoading, hasNextPage, isFetchingNextPage, fetchNextPage } = useTasksPages();
   const navigate = useNavigate();
-  const setLastDock = useShellStore((s) => s.setLastDock);
+  const setLastSource = useShellStore((s) => s.setLastSource);
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
   const { visibleFields, setWidth } = useViewFields('tasks.list', taskListFields);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -91,10 +91,7 @@ export function TaskList() {
 
   function openTask(row: TaskRow, rowEl: HTMLElement) {
     const rect = rowEl.getBoundingClientRect();
-    setLastDock({
-      x: rect.left + GRAPH_X(row.depth),
-      y: rect.top + rect.height / 2,
-    });
+    setLastSource({ x: rect.x, y: rect.y, width: rect.width, height: rect.height });
     void navigate({
       to: '/tasks/$taskId',
       params: { taskId: row.task.id },

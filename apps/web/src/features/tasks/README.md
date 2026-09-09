@@ -17,8 +17,9 @@
   на проде — API персонализации).
 - Граф списка: `lib/task-tree.ts` (дерево → строки с геометрией связей),
   `components/task-list-graph.tsx` (SVG per row, каскадная отрисовка локтей).
-- Док-ребро слайдера: точка стыковки пробрасывается через `useShellStore.lastDock`
-  (клик по строке/карточке → координаты порта → `SliderPanel dockFrom`).
+- Раскрытие слайдера: rect клика пробрасывается через `useShellStore.lastSource`
+  (клик по строке/карточке → `getBoundingClientRect` → `SliderPanel sourceRect`),
+  панель раскрывается из источника (FLIP); без источника — scale-fade.
 - Доменная цепочка: `shared/ui/domain-chain.tsx` (узлы из `taskDetail.chain`;
   в моках задача №105 честно связана с письмом Вх-2026/118).
 - Оптимистичность: `useSendTaskMessage`, `useUpdateTaskStage` — канон patterns.md;

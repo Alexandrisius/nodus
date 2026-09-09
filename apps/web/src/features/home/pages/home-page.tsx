@@ -5,7 +5,7 @@ import { NodeLabel } from '@nodus/ui/components/node-label';
 import { Skeleton } from '@nodus/ui/components/skeleton';
 
 import { useAuthStore } from '../../../shared/auth-store.js';
-import type { DockPoint } from '../../../app/shell/slider-panel.js';
+import type { SourceRect } from '../../../app/shell/slider-panel.js';
 import { useHomeSummary } from '../api/home-api.js';
 import { HomeBirthdays } from '../components/home-birthdays.js';
 import { HomeLabor } from '../components/home-labor.js';
@@ -15,11 +15,14 @@ import { HomeStats } from '../components/home-stats.js';
 import { HomeTopOvertime } from '../components/home-top-overtime.js';
 
 /** Главная в теме «Инструмент»: плоская лента компании на node-панелях,
- * моно-метки, ридер новости — слайдер с док-ребром от карточки. */
+ * моно-метки, ридер новости — слайдер с раскрытием из карточки. */
 export function HomePage() {
   const { data, isLoading } = useHomeSummary();
   const me = useAuthStore((s) => s.user);
-  const [reader, setReader] = useState<{ item: CompanyNewsItem; dock: DockPoint } | null>(null);
+  const [reader, setReader] = useState<{
+    item: CompanyNewsItem;
+    source?: SourceRect;
+  } | null>(null);
 
   const hour = new Date().getHours();
   const greet =
@@ -60,7 +63,7 @@ export function HomePage() {
           <div>
             <NodeLabel label={ui.home.newsTitle} className="px-1" />
             <div className="mt-4 grid grid-cols-[minmax(0,1fr)_340px] items-start gap-6">
-              <HomeNews news={data.news} onOpen={(item, dock) => setReader({ item, dock })} />
+              <HomeNews news={data.news} onOpen={(item, source) => setReader({ item, source })} />
               <div className="flex flex-col gap-5">
                 <HomeLabor weeks={data.labor.weeks} />
                 <HomeTopOvertime entries={data.labor.topOvertime} />
@@ -71,7 +74,7 @@ export function HomePage() {
         </div>
       )}
       {reader ? (
-        <HomeReader item={reader.item} dockFrom={reader.dock} onClose={() => setReader(null)} />
+        <HomeReader item={reader.item} sourceRect={reader.source} onClose={() => setReader(null)} />
       ) : null}
     </div>
   );

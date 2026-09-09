@@ -28,7 +28,7 @@ export function TaskKanbanCard({
   placeholder?: boolean;
 }) {
   const navigate = useNavigate();
-  const setLastDock = useShellStore((s) => s.setLastDock);
+  const setLastSource = useShellStore((s) => s.setLastSource);
   const showFooter = isVisible('assignee') || isVisible('comments') || isVisible('spent');
 
   return (
@@ -36,7 +36,7 @@ export function TaskKanbanCard({
       type="button"
       onClick={(e) => {
         const rect = e.currentTarget.getBoundingClientRect();
-        setLastDock({ x: rect.left, y: rect.top + rect.height / 2 });
+        setLastSource({ x: rect.x, y: rect.y, width: rect.width, height: rect.height });
         void navigate({ to: '/tasks/$taskId', params: { taskId: task.id } });
       }}
       className={cn(

@@ -2,25 +2,24 @@ import { ChevronRight, MessageSquare, ThumbsUp } from 'lucide-react';
 import type { CompanyNewsItem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 
-import { SliderPanel, type DockPoint } from '../../../app/shell/slider-panel.js';
+import { SliderPanel, type SourceRect } from '../../../app/shell/slider-panel.js';
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
 
 const df = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
 
-/** Ридер новости: слайдер, стыкующийся док-ребром с карточкой ленты
- * (фишка «слайдер-нода», бриф §Фирменные моменты). */
+/** Ридер новости: слайдер, раскрывающийся из карточки ленты (shared-element). */
 export function HomeReader({
   item,
-  dockFrom,
+  sourceRect,
   onClose,
 }: {
   item: CompanyNewsItem;
-  dockFrom: DockPoint;
+  sourceRect?: SourceRect;
   onClose: () => void;
 }) {
   return (
     <SliderPanel
-      dockFrom={dockFrom}
+      sourceRect={sourceRect}
       onClose={onClose}
       breadcrumbs={
         <>

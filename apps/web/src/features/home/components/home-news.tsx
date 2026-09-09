@@ -3,27 +3,27 @@ import type { MouseEvent } from 'react';
 import type { CompanyNewsItem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 
-import type { DockPoint } from '../../../app/shell/slider-panel.js';
+import type { SourceRect } from '../../../app/shell/slider-panel.js';
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
 
 const df = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long' });
 
 /** Лента компании: плоские посты-панели; клик открывает ридер-слайдер,
- * стыкующийся док-ребром от правого края карточки (фишка «слайдер-нода»). */
+ * раскрывающийся из rect карточки (shared-element). */
 export function HomeNews({
   news,
   onOpen,
 }: {
   news: CompanyNewsItem[];
-  onOpen: (item: CompanyNewsItem, dock: DockPoint) => void;
+  onOpen: (item: CompanyNewsItem, source?: SourceRect) => void;
 }) {
   function handleOpen(item: CompanyNewsItem, event: MouseEvent<HTMLButtonElement>) {
     const card = event.currentTarget.closest('article');
     const rect = card?.getBoundingClientRect();
-    const dock: DockPoint = rect
-      ? { x: rect.right, y: rect.top + 36 }
-      : { x: window.innerWidth / 2, y: window.innerHeight / 2 };
-    onOpen(item, dock);
+    onOpen(
+      item,
+      rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : undefined,
+    );
   }
 
   return (

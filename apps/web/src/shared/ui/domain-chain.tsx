@@ -28,7 +28,8 @@ function ChainEdge() {
 /**
  * Доменная цепочка сущности (реф 03-domain-chain): Письмо → Резолюция →
  * Поручение → Задача — компактные узлы-плашки, соединённые рёбрами с портами;
- * текущая сущность светится. Кликабельные узлы ведут к своим сущностям.
+ * текущая сущность выделена контуром порта (без свечения — сдержанно).
+ * Кликабельные узлы ведут к своим сущностям.
  */
 export function DomainChain({ nodes, className }: { nodes: ChainNode[]; className?: string }) {
   return (
@@ -52,7 +53,7 @@ export function DomainChain({ nodes, className }: { nodes: ChainNode[]; classNam
         const classes = cn(
           'min-w-0 max-w-56 rounded-lg border px-3 py-1.5 text-left transition-colors',
           node.active
-            ? 'border-port/60 bg-card text-foreground shadow-[0_0_10px_var(--glow)]'
+            ? 'border-port/60 bg-card text-foreground'
             : 'border-border bg-card/60 text-card-foreground',
           node.onClick && 'cursor-pointer hover:border-input',
         );

@@ -56,7 +56,7 @@ UPPERCASE 11px, tracking 0.16em, muted; счётчик — `text-foreground tabu
 ### Анимационные утилиты (globals.css)
 
 - `node-edge-draw` — рисовка пути (нужен `pathLength={1}` на path).
-- `dock-edge-fade` — растворение док-ребра за 1 с (см. circuit.md).
+- `dock-edge-fade` — растворение вспышек контура за 1 с (circuit-frame); док-ребро слайдера больше не использует.
 
 ## Составные (`apps/web/src/shared/ui/*`)
 
