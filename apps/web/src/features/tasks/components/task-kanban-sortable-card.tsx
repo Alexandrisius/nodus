@@ -35,7 +35,10 @@ export function TaskKanbanSortableCard({
   return (
     <div
       ref={setNodeRef}
-      style={isDragging ? undefined : { transform: CSS.Transform.toString(transform), transition }}
+      // Трансформ — ВСЕГДА (и у активного элемента): у sortable он двигает
+      // слот переносимой карточки к проекционной позиции при пересортировке;
+      // без него полупрозрачный слот стоит на месте и налезает на соседей.
+      style={{ transform: CSS.Transform.toString(transform), transition }}
     >
       <div
         ref={setActivatorNodeRef}
