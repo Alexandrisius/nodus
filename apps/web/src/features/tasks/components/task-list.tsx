@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { ui } from '@nodus/contracts';
 import { NodeLabel } from '@nodus/ui/components/node-label';
@@ -29,6 +29,7 @@ export function TaskList() {
   const setLastDock = useShellStore((s) => s.setLastDock);
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
   const { visibleFields, setWidth } = useViewFields('tasks.list', taskListFields);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const rows = useMemo(() => buildTaskRows(data?.items ?? []), [data]);
   const visible = useMemo(() => filterVisibleRows(rows, collapsed), [rows, collapsed]);
@@ -45,6 +46,29 @@ export function TaskList() {
       else next.add(taskId);
       return next;
     });
+  }
+
+  /** Автоподбор ширины по контенту (двойной клик на ручке, как в Excel):
+   * суммирует контентные ширины детей ячеек колонки (scrollWidth самой
+   * ячейки не подходит — он не меньше её текущей ширины) + дыхание. */
+  function autoFitColumn(fieldIndex: number, fieldId: string, minWidth: number, maxWidth: number) {
+    const container = containerRef.current;
+    if (!container) return;
+    const CELL_GAP = 8;
+    let max = 0;
+    for (const row of container.children) {
+      const cell = row.children[fieldIndex + 1] as HTMLElement | undefined;
+      if (!cell) continue;
+      let content = 0;
+      for (const child of cell.children) {
+        content += (child as HTMLElement).scrollWidth;
+      }
+      content += Math.max(0, cell.children.length - 1) * CELL_GAP;
+      max = Math.max(max, content);
+    }
+    if (max > 0) {
+      setWidth(fieldId, Math.min(maxWidth, Math.max(minWidth, Math.ceil(max) + 24)));
+    }
   }
 
   function openTask(row: TaskRow, rowEl: HTMLElement) {
@@ -71,7 +95,7 @@ export function TaskList() {
   }
 
   return (
-    <div className="h-full overflow-auto">
+    <div ref={containerRef} className="h-full overflow-auto">
       <div
         className="sticky top-0 z-10 grid w-max min-w-full items-center gap-3 border-b border-border bg-background px-4 py-2"
         style={{ gridTemplateColumns }}
@@ -84,7 +108,11 @@ export function TaskList() {
               <ColumnResizer
                 width={field.width}
                 minWidth={field.minWidth ?? 48}
+                maxWidth={field.maxWidth ?? 640}
                 onResize={(w) => setWidth(field.id, w)}
+                onAutoFit={() =>
+                  autoFitColumn(index, field.id, field.minWidth ?? 48, field.maxWidth ?? 640)
+                }
               />
             ) : null}
           </span>
@@ -127,7 +155,7 @@ export function TaskList() {
               </div>
             )}
             {visibleFields.map((field) => (
-              <span key={field.id} className="flex min-w-0 items-center gap-2">
+              <span key={field.id} className="flex min-w-0 items-center gap-2 overflow-hidden">
                 {field.render(task, { branchCollapsed, childCount: row.childCount })}
               </span>
             ))}

@@ -61,6 +61,7 @@ export const taskListFields: ListFieldDef[] = [
     defaultVisible: true,
     defaultWidth: 56,
     minWidth: 48,
+    maxWidth: 96,
     render: (task) => <span className={monoCell}>{task.number}</span>,
   },
   {
@@ -69,6 +70,7 @@ export const taskListFields: ListFieldDef[] = [
     defaultVisible: true,
     defaultWidth: 340,
     minWidth: 160,
+    maxWidth: 640,
     locked: true,
     render: (task, ctx) => (
       <>
@@ -87,7 +89,7 @@ export const taskListFields: ListFieldDef[] = [
     label: ui.tasks.fieldStage,
     defaultVisible: true,
     defaultWidth: 128,
-    minWidth: 96,
+    minWidth: 116,
     render: (task) => <TaskStatusBadge stage={task.stage} />,
   },
   {
@@ -95,7 +97,7 @@ export const taskListFields: ListFieldDef[] = [
     label: ui.tasks.deadline,
     defaultVisible: true,
     defaultWidth: 172,
-    minWidth: 130,
+    minWidth: 140,
     render: (task) => <DeadlineChip deadline={task.deadline} />,
   },
   {
@@ -132,7 +134,7 @@ export const taskListFields: ListFieldDef[] = [
     label: ui.tasks.fieldPriority,
     defaultVisible: false,
     defaultWidth: 108,
-    minWidth: 90,
+    minWidth: 92,
     render: (task) => (
       <NodeChip tone={priorityTone[task.priority]}>{ui.tasks.priority[task.priority]}</NodeChip>
     ),
@@ -162,7 +164,7 @@ export const taskListFields: ListFieldDef[] = [
     label: ui.tasks.fieldUpdated,
     defaultVisible: false,
     defaultWidth: 140,
-    minWidth: 110,
+    minWidth: 112,
     render: (task) => <span className={monoCell}>{formatDateTime(task.updatedAt)}</span>,
   },
 ];
