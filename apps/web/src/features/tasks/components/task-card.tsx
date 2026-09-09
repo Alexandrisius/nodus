@@ -1,7 +1,7 @@
 import { Mail, MessageSquare, Plus } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import type { TaskChainNode, TaskPriority } from '@nodus/contracts';
+import type { TaskChainNode } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { Checkbox } from '@nodus/ui/components/checkbox';
 import { Input } from '@nodus/ui/components/input';
@@ -15,6 +15,7 @@ import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
 import { DeadlineChip } from '../../../shared/ui/deadline-chip.js';
 import { DomainChain, type ChainNode } from '../../../shared/ui/domain-chain.js';
 import { useAddSubtask, useTaskDetail } from '../api/tasks-api.js';
+import { priorityTone } from '../lib/task-fields.js';
 import { TaskAbout } from './task-about.js';
 import { TaskDiscussion } from './task-discussion.js';
 import { TaskStatusBadge } from './task-status-badge.js';
@@ -25,13 +26,6 @@ const chainCaption: Record<TaskChainNode['kind'], string> = {
   instruction: ui.tasks.instruction,
   task: ui.tasks.task,
   chat_message: ui.tasks.chatNode,
-};
-
-const priorityTone: Record<TaskPriority, 'muted' | 'warning' | 'danger'> = {
-  low: 'muted',
-  normal: 'muted',
-  high: 'warning',
-  urgent: 'danger',
 };
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {

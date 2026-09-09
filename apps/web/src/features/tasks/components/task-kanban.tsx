@@ -4,15 +4,19 @@ import type { TaskListItem, TaskStage } from '@nodus/contracts';
 import { NodeLabel } from '@nodus/ui/components/node-label';
 import { Skeleton } from '@nodus/ui/components/skeleton';
 
+import { useViewFields } from '../../../shared/views/use-view-fields.js';
 import { useTasksList } from '../api/tasks-api.js';
+import { taskCardFields } from '../lib/task-fields.js';
 import { TaskKanbanCard } from './task-kanban-card.js';
 
 /** Канбан «Мой план»: колонки = стадии статус-схемы из данных (I15);
- * плоские моно-шапки с портом, карточки — node-панели. */
+ * плоские моно-шапки с портом, карточки — node-панели с настраиваемыми
+ * полями (шестерёнка вида в шапке страницы). */
 export function TaskKanban({ items }: { items?: TaskListItem[] }) {
   const { data, isLoading } = useTasksList();
   const listItems = items ?? data?.items ?? [];
   const loading = items ? false : isLoading;
+  const { isVisible } = useViewFields('tasks.kanban', taskCardFields);
 
   const stages = useMemo(() => {
     const byId = new Map<string, TaskStage>();
@@ -51,6 +55,7 @@ export function TaskKanban({ items }: { items?: TaskListItem[] }) {
                   key={task.id}
                   task={task}
                   parentNumber={task.parentId ? numberById.get(task.parentId) : undefined}
+                  isVisible={isVisible}
                 />
               ))}
             </div>

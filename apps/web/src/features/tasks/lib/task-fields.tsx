@@ -1,0 +1,182 @@
+import type { ReactNode } from 'react';
+import { Mail, MessageSquare } from 'lucide-react';
+import type { TaskListItem, TaskPriority, UserRef } from '@nodus/contracts';
+import { ui } from '@nodus/contracts';
+import { NodeChip } from '@nodus/ui/components/node-chip';
+
+import { formatDateTime, formatMinutes } from '../../../shared/lib/format.js';
+import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
+import { DeadlineChip } from '../../../shared/ui/deadline-chip.js';
+import type { FieldDef } from '../../../shared/views/use-view-fields.js';
+import { TaskStatusBadge } from '../components/task-status-badge.js';
+
+/** Контекст ячейки списка: состояние ветки дерева (счётчик свёрнутых). */
+export interface CellContext {
+  branchCollapsed?: boolean;
+  childCount?: number;
+}
+
+export interface ListFieldDef extends FieldDef {
+  render: (task: TaskListItem, ctx: CellContext) => ReactNode;
+}
+
+export const priorityTone: Record<TaskPriority, 'muted' | 'warning' | 'danger'> = {
+  low: 'muted',
+  normal: 'muted',
+  high: 'warning',
+  urgent: 'danger',
+};
+
+function SourceIcon({ task }: { task: TaskListItem }) {
+  if (task.source === 'letter')
+    return <Mail className="size-3.5 shrink-0 text-info/70" aria-label={ui.tasks.fromLetter} />;
+  if (task.source === 'chat_message')
+    return (
+      <MessageSquare className="size-3.5 shrink-0 text-info/70" aria-label={ui.tasks.fromChat} />
+    );
+  return null;
+}
+
+function personCell(user: UserRef | null): ReactNode {
+  if (!user) return <span className="text-xs text-muted-foreground">{ui.common.notSet}</span>;
+  return (
+    <>
+      <PersonAvatar name={user.displayName} className="size-6 shrink-0" />
+      <span className="truncate">{user.displayName}</span>
+    </>
+  );
+}
+
+const monoCell = 'font-mono text-[11px] text-muted-foreground tabular-nums';
+
+/**
+ * Реестр колонок списка задач (кастомизация представлений): видимость и
+ * ширина настраиваются пользователем через шестерёнку и ручку хедера;
+ * новое поле модуля = +1 запись здесь.
+ */
+export const taskListFields: ListFieldDef[] = [
+  {
+    id: 'number',
+    label: ui.tasks.fieldNumber,
+    defaultVisible: true,
+    defaultWidth: 56,
+    minWidth: 48,
+    render: (task) => <span className={monoCell}>{task.number}</span>,
+  },
+  {
+    id: 'title',
+    label: ui.tasks.fieldTitle,
+    defaultVisible: true,
+    flex: true,
+    locked: true,
+    render: (task, ctx) => (
+      <>
+        <SourceIcon task={task} />
+        <span className="truncate text-sm font-medium">{task.title}</span>
+        {ctx.branchCollapsed && (ctx.childCount ?? 0) > 0 ? (
+          <span className="shrink-0 font-mono text-[10px] text-muted-foreground tabular-nums">
+            +{ctx.childCount}
+          </span>
+        ) : null}
+      </>
+    ),
+  },
+  {
+    id: 'stage',
+    label: ui.tasks.fieldStage,
+    defaultVisible: true,
+    defaultWidth: 128,
+    minWidth: 96,
+    render: (task) => <TaskStatusBadge stage={task.stage} />,
+  },
+  {
+    id: 'deadline',
+    label: ui.tasks.deadline,
+    defaultVisible: true,
+    defaultWidth: 172,
+    minWidth: 130,
+    render: (task) => <DeadlineChip deadline={task.deadline} />,
+  },
+  {
+    id: 'assignee',
+    label: ui.tasks.assignee,
+    defaultVisible: true,
+    defaultWidth: 160,
+    minWidth: 110,
+    render: (task) => personCell(task.assignee),
+  },
+  {
+    id: 'creator',
+    label: ui.tasks.creator,
+    defaultVisible: false,
+    defaultWidth: 160,
+    minWidth: 110,
+    render: (task) => personCell(task.creator),
+  },
+  {
+    id: 'project',
+    label: ui.tasks.project,
+    defaultVisible: false,
+    defaultWidth: 180,
+    minWidth: 120,
+    render: (task) =>
+      task.project ? (
+        <span className="truncate font-mono text-[11px] text-info/80">{task.project.name}</span>
+      ) : (
+        <span className={monoCell}>—</span>
+      ),
+  },
+  {
+    id: 'priority',
+    label: ui.tasks.fieldPriority,
+    defaultVisible: false,
+    defaultWidth: 108,
+    minWidth: 90,
+    render: (task) => (
+      <NodeChip tone={priorityTone[task.priority]}>{ui.tasks.priority[task.priority]}</NodeChip>
+    ),
+  },
+  {
+    id: 'comments',
+    label: ui.tasks.colComments,
+    defaultVisible: true,
+    defaultWidth: 60,
+    minWidth: 48,
+    render: (task) => <span className={monoCell}>{task.commentsCount}</span>,
+  },
+  {
+    id: 'spent',
+    label: ui.tasks.colSpent,
+    defaultVisible: true,
+    defaultWidth: 72,
+    minWidth: 56,
+    render: (task) => (
+      <span className={monoCell}>
+        {task.spentMinutes > 0 ? formatMinutes(task.spentMinutes) : '—'}
+      </span>
+    ),
+  },
+  {
+    id: 'updated',
+    label: ui.tasks.fieldUpdated,
+    defaultVisible: false,
+    defaultWidth: 140,
+    minWidth: 110,
+    render: (task) => <span className={monoCell}>{formatDateTime(task.updatedAt)}</span>,
+  },
+];
+
+/**
+ * Реестр полей карточки канбана (видимость блоков; ширина не применяется —
+ * колонка канбана фиксированной ширины).
+ */
+export const taskCardFields: FieldDef[] = [
+  { id: 'parent', label: ui.tasks.subtaskOf, defaultVisible: true },
+  { id: 'number', label: ui.tasks.fieldNumber, defaultVisible: true },
+  { id: 'source', label: ui.tasks.fieldSource, defaultVisible: true },
+  { id: 'deadline', label: ui.tasks.deadline, defaultVisible: true },
+  { id: 'project', label: ui.tasks.project, defaultVisible: true },
+  { id: 'assignee', label: ui.tasks.assignee, defaultVisible: true },
+  { id: 'comments', label: ui.tasks.comments, defaultVisible: true },
+  { id: 'spent', label: ui.tasks.colSpent, defaultVisible: true },
+];

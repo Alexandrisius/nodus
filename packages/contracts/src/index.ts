@@ -18,3 +18,4 @@ export * from './tasks/task.schemas.js';
 export * from './projects/project.schemas.js';
 export * from './correspondence/letter.schemas.js';
 export * from './chat/chat.schemas.js';
+export * from './views/view-preset.schemas.js';

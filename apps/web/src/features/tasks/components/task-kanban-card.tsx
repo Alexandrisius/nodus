@@ -8,18 +8,21 @@ import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
 import { DeadlineChip } from '../../../shared/ui/deadline-chip.js';
 import { useShellStore } from '../../../app/shell/shell-store.js';
 
-/** Карточка канбана: node-панель, моно-ключ, маркер подзадачи (связь к
- * родителю), чип срока, проект, аватар и счётчики. Клик — слайдер с
- * док-ребром от левого края карточки. */
+/** Карточка канбана: node-панель; отображаемые поля настраиваются
+ * шестерёнкой вида (tasks.kanban) — карточка получает предикат видимости.
+ * Клик — слайдер с док-ребром от левого края карточки. */
 export function TaskKanbanCard({
   task,
   parentNumber,
+  isVisible,
 }: {
   task: TaskListItem;
   parentNumber?: number;
+  isVisible: (fieldId: string) => boolean;
 }) {
   const navigate = useNavigate();
   const setLastDock = useShellStore((s) => s.setLastDock);
+  const showFooter = isVisible('assignee') || isVisible('comments') || isVisible('spent');
 
   return (
     <button
@@ -31,42 +34,54 @@ export function TaskKanbanCard({
       }}
       className="node-panel flex w-full flex-col gap-2 p-3 text-left transition-colors hover:border-input"
     >
-      {parentNumber !== undefined ? (
+      {isVisible('parent') && parentNumber !== undefined ? (
         <span className="flex items-center gap-1.5 font-mono text-[10px] tracking-[0.08em] text-muted-foreground uppercase">
           <CornerDownRight className="size-3" />
           {ui.tasks.subtaskOf} · {parentNumber}
         </span>
       ) : null}
-      <span className="flex items-center justify-between gap-2">
-        <span className="font-mono text-[11px] text-muted-foreground tabular-nums">
-          № {task.number}
+      {isVisible('number') || isVisible('source') ? (
+        <span className="flex items-center justify-between gap-2">
+          {isVisible('number') ? (
+            <span className="font-mono text-[11px] text-muted-foreground tabular-nums">
+              № {task.number}
+            </span>
+          ) : (
+            <span />
+          )}
+          {isVisible('source') && task.source === 'letter' ? (
+            <Mail className="size-3.5 text-info/70" aria-label={ui.tasks.fromLetter} />
+          ) : null}
+          {isVisible('source') && task.source === 'chat_message' ? (
+            <MessageSquare className="size-3.5 text-info/70" aria-label={ui.tasks.fromChat} />
+          ) : null}
         </span>
-        {task.source === 'letter' ? (
-          <Mail className="size-3.5 text-info/70" aria-label={ui.tasks.fromLetter} />
-        ) : null}
-        {task.source === 'chat_message' ? (
-          <MessageSquare className="size-3.5 text-info/70" aria-label={ui.tasks.fromChat} />
-        ) : null}
-      </span>
+      ) : null}
       <span className="line-clamp-2 text-sm font-medium">{task.title}</span>
-      <DeadlineChip deadline={task.deadline} />
-      {task.project ? (
+      {isVisible('deadline') ? <DeadlineChip deadline={task.deadline} /> : null}
+      {isVisible('project') && task.project ? (
         <span className="truncate font-mono text-[11px] text-info/80">{task.project.name}</span>
       ) : null}
-      <span className="flex items-center gap-2 text-xs text-muted-foreground">
-        {task.assignee ? (
-          <PersonAvatar name={task.assignee.displayName} className="size-6" />
-        ) : null}
-        <span className="ml-auto inline-flex items-center gap-1 font-mono text-[11px] tabular-nums">
-          <MessageSquare className="size-3.5" />
-          {task.commentsCount}
+      {showFooter ? (
+        <span className="flex items-center gap-2 text-xs text-muted-foreground">
+          {isVisible('assignee') && task.assignee ? (
+            <PersonAvatar name={task.assignee.displayName} className="size-6" />
+          ) : null}
+          {isVisible('comments') ? (
+            <span className="ml-auto inline-flex items-center gap-1 font-mono text-[11px] tabular-nums">
+              <MessageSquare className="size-3.5" />
+              {task.commentsCount}
+            </span>
+          ) : (
+            <span className="ml-auto" />
+          )}
+          {isVisible('spent') && task.spentMinutes > 0 ? (
+            <span className="font-mono text-[11px] tabular-nums">
+              {formatMinutes(task.spentMinutes)}
+            </span>
+          ) : null}
         </span>
-        {task.spentMinutes > 0 ? (
-          <span className="font-mono text-[11px] tabular-nums">
-            {formatMinutes(task.spentMinutes)}
-          </span>
-        ) : null}
-      </span>
+      ) : null}
     </button>
   );
 }

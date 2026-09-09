@@ -1,35 +1,37 @@
 import { useMemo, useState } from 'react';
-import { Mail, MessageSquare } from 'lucide-react';
 import { useNavigate } from '@tanstack/react-router';
 import { ui } from '@nodus/contracts';
 import { NodeLabel } from '@nodus/ui/components/node-label';
 import { Skeleton } from '@nodus/ui/components/skeleton';
 
-import { formatMinutes } from '../../../shared/lib/format.js';
-import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
-import { DeadlineChip } from '../../../shared/ui/deadline-chip.js';
 import { useShellStore } from '../../../app/shell/shell-store.js';
+import { ColumnResizer } from '../../../shared/views/column-resizer.js';
+import { useViewFields } from '../../../shared/views/use-view-fields.js';
 import { useTasksList } from '../api/tasks-api.js';
+import { taskListFields } from '../lib/task-fields.js';
 import { buildTaskRows, filterVisibleRows } from '../lib/task-tree.js';
 import { GRAPH_X, TaskListGraph } from './task-list-graph.js';
-import { TaskStatusBadge } from './task-status-badge.js';
-
-const GRID = 'grid flex-1 grid-cols-[56px_minmax(0,1fr)_170px_160px_52px_64px] items-center gap-3';
 
 /**
  * Список задач (вид «Список»): иерархия со сворачиванием веток, как папки в
- * проводнике — порт родителя («−»/«+») раскрывает и сворачивает подзадачи,
- * у свёрнутой ветки — счётчик скрытых. Клик по строке открывает карточку
- * слайдером, стыкованным ребром от её порта.
+ * проводнике; колонки — настраиваемые (шестерёнка в шапке страницы: поля и
+ * их порядок видимости; ширина — ручкой на грани хедера, с памятью между
+ * сессиями). Клик по строке открывает карточку слайдером от её порта.
  */
 export function TaskList() {
   const { data, isLoading } = useTasksList();
   const navigate = useNavigate();
   const setLastDock = useShellStore((s) => s.setLastDock);
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
+  const { visibleFields, setWidth } = useViewFields('tasks.list', taskListFields);
 
   const rows = useMemo(() => buildTaskRows(data?.items ?? []), [data]);
   const visible = useMemo(() => filterVisibleRows(rows, collapsed), [rows, collapsed]);
+
+  const gridTemplateColumns = useMemo(
+    () => visibleFields.map((f) => (f.flex ? 'minmax(0,1fr)' : `${f.width ?? 120}px`)).join(' '),
+    [visibleFields],
+  );
 
   function toggleBranch(taskId: string) {
     setCollapsed((prev) => {
@@ -54,13 +56,19 @@ export function TaskList() {
     <div className="h-full overflow-y-auto">
       <div className="sticky top-0 z-10 flex border-b border-border bg-background px-4 py-2">
         <span className="w-[54px] shrink-0" />
-        <div className={GRID}>
-          <NodeLabel label="№" />
-          <NodeLabel label={ui.tasks.title} />
-          <NodeLabel label={ui.tasks.deadline} />
-          <NodeLabel label={ui.tasks.assignee} />
-          <NodeLabel label={ui.tasks.colComments} />
-          <NodeLabel label={ui.tasks.colSpent} />
+        <div className="grid flex-1 items-center gap-3" style={{ gridTemplateColumns }}>
+          {visibleFields.map((field) => (
+            <span key={field.id} className="relative flex min-w-0 items-center">
+              <NodeLabel label={field.label} className="truncate" />
+              {!field.flex && field.width !== undefined ? (
+                <ColumnResizer
+                  width={field.width}
+                  minWidth={field.minWidth ?? 48}
+                  onResize={(w) => setWidth(field.id, w)}
+                />
+              ) : null}
+            </span>
+          ))}
         </div>
       </div>
       {visible.map((row, index) => {
@@ -100,49 +108,17 @@ export function TaskList() {
                   search: { view: 'list' },
                 });
               }}
-              className={`${GRID} text-left`}
+              className="grid flex-1 items-center gap-3 text-left"
+              style={{ gridTemplateColumns }}
             >
-              <span className="font-mono text-[11px] text-muted-foreground tabular-nums">
-                {task.number}
-              </span>
-              <span className="flex min-w-0 items-center gap-2">
-                {task.source === 'letter' ? (
-                  <Mail
-                    className="size-3.5 shrink-0 text-info/70"
-                    aria-label={ui.tasks.fromLetter}
-                  />
-                ) : null}
-                {task.source === 'chat_message' ? (
-                  <MessageSquare
-                    className="size-3.5 shrink-0 text-info/70"
-                    aria-label={ui.tasks.fromChat}
-                  />
-                ) : null}
-                <span className="truncate text-sm font-medium">{task.title}</span>
-                <TaskStatusBadge stage={task.stage} />
-                {branchCollapsed && row.childCount > 0 ? (
-                  <span className="shrink-0 font-mono text-[10px] text-muted-foreground tabular-nums">
-                    +{row.childCount}
-                  </span>
-                ) : null}
-              </span>
-              <DeadlineChip deadline={task.deadline} />
-              <span className="flex min-w-0 items-center gap-2 text-sm">
-                {task.assignee ? (
-                  <>
-                    <PersonAvatar name={task.assignee.displayName} className="size-6 shrink-0" />
-                    <span className="truncate">{task.assignee.displayName}</span>
-                  </>
-                ) : (
-                  <span className="text-xs text-muted-foreground">{ui.common.notSet}</span>
-                )}
-              </span>
-              <span className="font-mono text-[11px] text-muted-foreground tabular-nums">
-                {task.commentsCount}
-              </span>
-              <span className="font-mono text-[11px] text-muted-foreground tabular-nums">
-                {task.spentMinutes > 0 ? formatMinutes(task.spentMinutes) : '—'}
-              </span>
+              {visibleFields.map((field) => (
+                <span key={field.id} className="flex min-w-0 items-center gap-2">
+                  {field.render(task, {
+                    branchCollapsed,
+                    childCount: row.childCount,
+                  })}
+                </span>
+              ))}
             </button>
           </div>
         );
