@@ -58,6 +58,16 @@ DropdownMenu с чекбоксами (`onSelect={e => e.preventDefault()}` — �
 
 Реестр блоков (`taskCardFields`), видимость через `isVisible(id)` из `useViewFields('tasks.kanban', …)` в родителе канбана, прокинуть предикат в карточку; группа-футер скрывается, если все её поля выключены.
 
+## Канбан: drag-and-drop (ADR-0007, @dnd-kit/core+sortable)
+
+- Колонка = `SortableContext` (verticalListSortingStrategy) + `useDroppable` (id = stage.id; пустая колонка видима, принимает перенос, моно-подсказка).
+- Карточка = `useSortable`; трансформ sortable применяется ВСЕГДА (и у активного): он двигает полупрозрачный слот к проекционной позиции; призрак — `DragOverlay` (карточка в стиле активного узла: border-input + свечение).
+- Живой переезд между колонками — в `onDragOver` (индекс от карточки под указателем, ниже/выше центра); финиш — персист стадии+индекса (`PATCH`, оптимистично I4, откат+тост); Esc — откат к снапшоту dragStart; борд — локальное состояние, синхронизированное с query вне переноса.
+- Collision — официальная multi-container стратегия (`lib/kanban-collision.ts`: pointerWithin → closestCenter внутри колонки, кэш lastOverId).
+- **Предохранители цикла update depth (обязательны):** анти-осциллятор (кадр после межколоночного переноса игнорируем, сброс rAF-ом) и гейт `isSameOrder` (идентичный порядок не создаёт setState) — механизмы в `docs/gotchas.md`.
+- Сенсоры: PointerSensor `distance: 6` (клик без движения = слайдер), TouchSensor delay 200, KeyboardSensor `sortableKeyboardCoordinates`.
+- Перестановки борда — чистые функции с тестами: `lib/kanban-board.ts`.
+
 ## Дерево-граф вложенности (список задач)
 
 `lib/task-tree.ts` → `components/task-list-graph.tsx` (SVG per row):
