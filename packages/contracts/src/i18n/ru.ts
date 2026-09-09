@@ -63,10 +63,8 @@ export const ui = {
     notificationsEmpty: 'Новых уведомлений нет',
     profile: 'Профиль',
     logout: 'Выйти',
-    theme: 'Оформление',
-    themeNodus: 'Инструмент · граф',
-    themeInk: 'Тушь · тёмная',
-    themePaper: 'Бумага · светлая',
+    themeToLight: 'Светлая тема',
+    themeToDark: 'Тёмная тема',
   },
   auth: {
     title: 'Nodus',

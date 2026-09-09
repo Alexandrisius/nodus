@@ -125,6 +125,9 @@
   --port: #d9d9d6;
   --glow: rgb(255 255 255 / 0.65);
 
+  /* Едва заметный скроллбар (тон темы). */
+  --scrollbar: rgb(255 255 255 / 0.1);
+
   /* Временно: константы легаси-палитры — нужны «бумажным» утилитам экранов
    * фич до их переписывания (M4–M6); в новом коде не использовать. */
   --rust: #b0512c;
@@ -137,6 +140,60 @@
   --pencil: #35332a;
   --card-line: rgb(53 51 42 / 0.7);
   --sketch-line: rgb(53 51 42 / 0.4);
+}
+
+/*
+ * Светлая тема «Инструмент» — не инверсия, а пересборка: фон — холодная
+ * «калька» (не слепящий белый), текст и порты — тушь, связи и свечение —
+ * тёмные зеркально к тёмной теме. Граф фона (будущий) здесь читается как
+ * чертёж на кальке, в тёмной — как созвездия.
+ */
+[data-theme='light'] {
+  --background: #f2f2f0;
+  --foreground: #1c1c1f;
+  --card: #fafaf9;
+  --card-foreground: #1c1c1f;
+  --popover: #fafaf9;
+  --popover-foreground: #1c1c1f;
+  --primary: #1c1c1f;
+  --primary-foreground: #f4f4f2;
+  --secondary: #e8e8e5;
+  --secondary-foreground: #3f3f44;
+  --muted: #e9e9e6;
+  --muted-foreground: #68686e;
+  --accent: #e6e6e3;
+  --accent-foreground: #1c1c1f;
+  --destructive: #b03a2e;
+  --destructive-foreground: #f7f3f1;
+  --border: rgb(0 0 0 / 0.1);
+  --input: rgb(0 0 0 / 0.16);
+  --ring: #3f3f44;
+  --success: #3e7056;
+  --success-soft: #dfe9e2;
+  --warning: #8a6a1f;
+  --warning-soft: #f0e8d2;
+  --danger: #b03a2e;
+  --danger-soft: #f3deda;
+  --info: #46648a;
+  --info-soft: #dfe7f0;
+  --chart-1: #3f3f44;
+  --chart-2: #68686e;
+  --chart-3: #3e7056;
+  --chart-4: #8a6a1f;
+  --chart-5: #46648a;
+  --sidebar: #e9e9e6;
+  --sidebar-foreground: #3f3f44;
+  --sidebar-primary: #1c1c1f;
+  --sidebar-primary-foreground: #f4f4f2;
+  --sidebar-accent: #dfdfdb;
+  --sidebar-accent-foreground: #1c1c1f;
+  --sidebar-border: rgb(0 0 0 / 0.08);
+  --sidebar-ring: #3f3f44;
+
+  --edge: rgb(0 0 0 / 0.26);
+  --port: #3f3f44;
+  --glow: rgb(0 0 0 / 0.22);
+  --scrollbar: rgb(0 0 0 / 0.12);
 }
 
 /* Панель «инструмента»: плоская заливка, тонкий бордюр, радиус темы. */
@@ -182,7 +239,7 @@
   :root {
     color-scheme: dark;
   }
-  [data-theme='paper'] {
+  [data-theme='light'] {
     color-scheme: light;
   }
   body {
@@ -191,7 +248,7 @@
   /* Едва заметный скроллбар (3px), не спорящий с контуром связи. */
   * {
     scrollbar-width: thin;
-    scrollbar-color: rgb(255 255 255 / 0.1) transparent;
+    scrollbar-color: var(--scrollbar) transparent;
   }
   *::-webkit-scrollbar {
     width: 3px;
@@ -201,7 +258,7 @@
     background: transparent;
   }
   *::-webkit-scrollbar-thumb {
-    background: rgb(255 255 255 / 0.1);
+    background: var(--scrollbar);
     border-radius: 2px;
   }
   /* Скроллбар контентной колонки — у левого шва правой полосы (старое место):

@@ -1,4 +1,4 @@
-import { Bell, Check, LogOut, Palette, Search } from 'lucide-react';
+import { Bell, LogOut, Moon, Search, Sun } from 'lucide-react';
 import { Link, useRouterState } from '@tanstack/react-router';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
@@ -15,7 +15,7 @@ import { cn } from '@nodus/ui/lib/utils';
 
 import { useAuthStore } from '../../shared/auth-store.js';
 import { PersonAvatar } from '../../shared/ui/person-avatar.js';
-import { useShellStore, type ThemeId } from './shell-store.js';
+import { useShellStore } from './shell-store.js';
 
 interface Section {
   label: string;
@@ -96,21 +96,15 @@ function sectionsFor(pathname: string): Section[] {
   return [];
 }
 
-const themes: { id: ThemeId; label: string }[] = [
-  { id: 'nodus', label: ui.topbar.themeNodus },
-  { id: 'ink', label: ui.topbar.themeInk },
-  { id: 'paper', label: ui.topbar.themePaper },
-];
-
 /** Топбар «инструмента»: моно-вкладки раздела с портом на оси, поиск Ctrl+K,
- * уведомления, «Создать», профиль. Селектор легаси-тем — только в dev. */
+ * уведомления, тумблер темы (тёмная/светлая), профиль. */
 export function TopBar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const searchStr = useRouterState({ select: (s) => s.location.searchStr });
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const theme = useShellStore((s) => s.theme);
-  const setTheme = useShellStore((s) => s.setTheme);
+  const toggleTheme = useShellStore((s) => s.toggleTheme);
   const setCommandOpen = useShellStore((s) => s.setCommandOpen);
 
   const search = new URLSearchParams(searchStr);
@@ -154,31 +148,17 @@ export function TopBar() {
           RU
         </span>
 
-        {import.meta.env.DEV ? (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label={ui.topbar.theme}
-                className="relative text-muted-foreground hover:bg-accent hover:text-foreground"
-              >
-                <Palette />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>{ui.topbar.theme}</DropdownMenuLabel>
-              <DropdownMenuGroup>
-                {themes.map((t) => (
-                  <DropdownMenuItem key={t.id} onClick={() => setTheme(t.id)}>
-                    {theme === t.id && <Check data-icon="inline-start" />}
-                    {t.label}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        ) : null}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={toggleTheme}
+          aria-label={theme === 'dark' ? ui.topbar.themeToLight : ui.topbar.themeToDark}
+          className="text-muted-foreground hover:bg-accent hover:text-foreground"
+        >
+          <span key={theme} className="animate-in fade-in zoom-in-95 duration-300 flex">
+            {theme === 'dark' ? <Moon /> : <Sun />}
+          </span>
+        </Button>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

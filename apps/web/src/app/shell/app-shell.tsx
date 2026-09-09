@@ -34,7 +34,7 @@ export function AppShell() {
 
   useEffect(() => {
     const root = document.documentElement;
-    if (theme === 'nodus') delete root.dataset.theme;
+    if (theme === 'dark') delete root.dataset.theme;
     else root.dataset.theme = theme;
   }, [theme]);
 
@@ -74,7 +74,7 @@ export function AppShell() {
       </div>
       <CircuitFrame />
       <CommandPalette />
-      <Toaster richColors />
+      <Toaster richColors theme={theme} />
     </TooltipProvider>
   );
 }
