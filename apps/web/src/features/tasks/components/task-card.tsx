@@ -17,8 +17,10 @@ import { DeadlineChip } from '../../../shared/ui/deadline-chip.js';
 import { DomainChain, type ChainNode } from '../../../shared/ui/domain-chain.js';
 import { useAddSubtask, useTaskDetail } from '../api/tasks-api.js';
 import { priorityTone } from '../lib/task-fields.js';
+import { useCardChatWidth } from '../lib/use-card-chat-width.js';
 import { TaskAboutDrawer } from './task-about-drawer.js';
 import { TaskDiscussion } from './task-discussion.js';
+import { TaskStageStepper } from './task-stage-stepper.js';
 import { TaskStatusBadge } from './task-status-badge.js';
 
 const chainCaption: Record<TaskChainNode['kind'], string> = {
@@ -29,14 +31,15 @@ const chainCaption: Record<TaskChainNode['kind'], string> = {
   chat_message: ui.tasks.chatNode,
 };
 
-/** Атрибут карточки: моно-метка сверху, значение снизу (сетка 2 колонки). */
-function Attr({ label, children }: { label: string; children: ReactNode }) {
+/** Строка «инспектора»: моно-метка слева, значение справа; плотно, в одну
+ *  колонку, hairline-разделители — свойства читаются таблицей, не сеткой. */
+function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="flex min-w-0 flex-col gap-1">
-      <span className="font-mono text-[10px] tracking-[0.14em] text-muted-foreground uppercase">
+    <div className="flex items-center gap-3 px-3 py-2">
+      <span className="w-36 shrink-0 font-mono text-[10px] tracking-[0.14em] text-muted-foreground uppercase">
         {label}
       </span>
-      <span className="flex min-w-0 items-center gap-2 text-sm">{children}</span>
+      <span className="flex min-w-0 flex-1 items-center gap-2 text-sm">{children}</span>
     </div>
   );
 }
@@ -54,6 +57,7 @@ export function TaskCard({ taskId }: { taskId: string }) {
   const navigate = useNavigate();
   const [subtaskTitle, setSubtaskTitle] = useState('');
   const [aboutOpen, setAboutOpen] = useState(false);
+  const { chatW, onDividerDown } = useCardChatWidth();
 
   function onAddSubtask(event: FormEvent) {
     event.preventDefault();
@@ -108,7 +112,10 @@ export function TaskCard({ taskId }: { taskId: string }) {
         </button>
       </div>
 
-      <div className="relative grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_480px]">
+      <div
+        className="relative grid min-h-0 flex-1"
+        style={{ gridTemplateColumns: `minmax(0,1fr) 6px ${chatW}px` }}
+      >
         <div className="min-h-0 overflow-y-auto p-6">
           <div className="flex flex-wrap items-center gap-3">
             <h2 className="min-w-0 flex-1 truncate text-xl font-semibold">{task.title}</h2>
@@ -125,19 +132,20 @@ export function TaskCard({ taskId }: { taskId: string }) {
             ) : null}
           </div>
 
-          <div className="mt-5 grid grid-cols-2 gap-x-10 gap-y-4">
-            <Attr label={ui.tasks.fieldStage}>
-              <TaskStatusBadge stage={task.stage} />
-            </Attr>
-            <Attr label={ui.tasks.fieldPriority}>
+          <div className="mt-3">
+            <TaskStageStepper taskId={taskId} currentStageId={task.stage.id} />
+          </div>
+
+          <div className="mt-5 divide-y divide-border/60 rounded-lg border border-border/60">
+            <Row label={ui.tasks.fieldPriority}>
               <NodeChip tone={priorityTone[task.priority]}>
                 {ui.tasks.priority[task.priority]}
               </NodeChip>
-            </Attr>
-            <Attr label={ui.tasks.deadline}>
+            </Row>
+            <Row label={ui.tasks.deadline}>
               <DeadlineChip deadline={task.deadline} />
-            </Attr>
-            <Attr label={ui.tasks.assignee}>
+            </Row>
+            <Row label={ui.tasks.assignee}>
               {task.assignee ? (
                 <>
                   <PersonAvatar name={task.assignee.displayName} className="size-6" />
@@ -146,12 +154,12 @@ export function TaskCard({ taskId }: { taskId: string }) {
               ) : (
                 ui.common.notSet
               )}
-            </Attr>
-            <Attr label={ui.tasks.creator}>
+            </Row>
+            <Row label={ui.tasks.creator}>
               <PersonAvatar name={task.creator.displayName} className="size-6" />
               <span className="truncate">{task.creator.displayName}</span>
-            </Attr>
-            <Attr label={ui.tasks.project}>
+            </Row>
+            <Row label={ui.tasks.project}>
               {task.project ? (
                 <button
                   type="button"
@@ -168,17 +176,17 @@ export function TaskCard({ taskId }: { taskId: string }) {
               ) : (
                 ui.common.notSet
               )}
-            </Attr>
-            <Attr label={ui.tasks.spent}>
+            </Row>
+            <Row label={ui.tasks.spent}>
               <span className="font-mono text-[12px] tabular-nums">
                 {formatMinutes(task.spentMinutes)}
               </span>
-            </Attr>
-            <Attr label={ui.tasks.created}>
+            </Row>
+            <Row label={ui.tasks.created}>
               <span className="font-mono text-[12px] tabular-nums">
                 {formatDateTime(task.createdAt)}
               </span>
-            </Attr>
+            </Row>
           </div>
 
           <Separator className="my-5" />
@@ -246,7 +254,16 @@ export function TaskCard({ taskId }: { taskId: string }) {
           ) : null}
         </div>
 
-        <div className="min-h-0 border-l border-border bg-background">
+        <div
+          onPointerDown={onDividerDown}
+          role="separator"
+          aria-orientation="vertical"
+          className="group relative cursor-col-resize"
+        >
+          <span className="absolute inset-y-0 left-1/2 w-px bg-border transition-colors group-hover:bg-port/60" />
+        </div>
+
+        <div className="min-h-0 bg-background">
           <TaskDiscussion taskId={taskId} />
         </div>
 

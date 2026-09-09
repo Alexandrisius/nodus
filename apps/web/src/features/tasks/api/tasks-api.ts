@@ -72,12 +72,12 @@ export function useUpdateTaskStage() {
     onMutate: async ({ taskId, stageId }) => {
       await queryClient.cancelQueries({ queryKey: tasksKeys.list() });
       const previous = queryClient.getQueryData<Paginated<TaskListItem>>(tasksKeys.list());
+      const previousDetail = queryClient.getQueryData<TaskDetail>(tasksKeys.detail(taskId));
+      const stage = queryClient
+        .getQueryData<TaskStage[]>(tasksKeys.stages())
+        ?.find((s) => s.id === stageId);
       queryClient.setQueryData<Paginated<TaskListItem>>(tasksKeys.list(), (old) => {
-        if (!old) return old;
-        const stage = queryClient
-          .getQueryData<TaskStage[]>(tasksKeys.stages())
-          ?.find((s) => s.id === stageId);
-        if (!stage) return old;
+        if (!old || !stage) return old;
         return {
           ...old,
           items: old.items.map((t) =>
@@ -85,18 +85,25 @@ export function useUpdateTaskStage() {
           ),
         };
       });
-      return { previous };
+      queryClient.setQueryData<TaskDetail>(tasksKeys.detail(taskId), (old) =>
+        old && stage ? { ...old, stage, updatedAt: new Date().toISOString() } : old,
+      );
+      return { previous, previousDetail };
     },
 
-    onError: (_error, _vars, context) => {
+    onError: (_error, vars, context) => {
       if (context?.previous) {
         queryClient.setQueryData(tasksKeys.list(), context.previous);
+      }
+      if (context?.previousDetail) {
+        queryClient.setQueryData(tasksKeys.detail(vars.taskId), context.previousDetail);
       }
       toast.error(ui.tasks.stageMoveError);
     },
 
-    onSettled: () => {
+    onSettled: (_data, _error, vars) => {
       void queryClient.invalidateQueries({ queryKey: tasksKeys.list() });
+      void queryClient.invalidateQueries({ queryKey: tasksKeys.detail(vars.taskId) });
     },
   });
 }
