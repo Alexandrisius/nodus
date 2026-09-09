@@ -10,14 +10,13 @@ import { useViewFields } from '../../../shared/views/use-view-fields.js';
 import { useTasksPages } from '../api/tasks-api.js';
 import { taskListFields } from '../lib/task-fields.js';
 import { buildTaskRows, filterVisibleRows, type TaskRow } from '../lib/task-tree.js';
-import { TaskListGraph } from './task-list-graph.js';
-
-/** Ширина колонки графа (фиксированная, не настраивается). */
-const GRAPH_COL = 54;
+import { graphWidth, graphX, TaskListTree } from './task-list-graph.js';
 
 /**
  * Список задач (вид «Список»): иерархия со сворачиванием веток, как папки в
- * проводнике. Таблица — модель Битрикса: все колонки фиксированной ширины
+ * проводнике. Граф вложенности — единый SVG-оверлей (непрерывные рёбра без
+ * зазоров, каскадное построение при раскрытии, ширина колонки растёт с
+ * глубиной). Таблица — модель Битрикса: все колонки фиксированной ширины
  * (без fr-компенсации — ручка ресайза следует за курсором 1:1, соседние
  * колонки не «уезжают»), ширина таблицы — по содержимому, при переполнении —
  * горизонтальный скролл. Настройки — шестерёнка в шапке страницы, ширина —
@@ -28,6 +27,9 @@ export function TaskList() {
   const navigate = useNavigate();
   const setLastSource = useShellStore((s) => s.setLastSource);
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
+  /** Каскадное построение графа: база = индекс первой раскрытой строки,
+   *  key перезапускает draw-on только нового раскрытия. */
+  const [reveal, setReveal] = useState({ base: 0, key: 1 });
   const { visibleFields, setWidth } = useViewFields('tasks.list', taskListFields);
   const containerRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -52,18 +54,25 @@ export function TaskList() {
     return () => observer.disconnect();
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-  const gridTemplateColumns = useMemo(
-    () => `${GRAPH_COL}px ${visibleFields.map((f) => `${f.width ?? 120}px`).join(' ')}`,
-    [visibleFields],
-  );
+  const gridTemplateColumns = useMemo(() => {
+    const maxDepth = visible.reduce((max, row) => Math.max(max, row.depth), 0);
+    return `${graphWidth(maxDepth)}px ${visibleFields.map((f) => `${f.width ?? 120}px`).join(' ')}`;
+  }, [visibleFields, visible]);
 
   function toggleBranch(taskId: string) {
+    const expanding = collapsed.has(taskId);
     setCollapsed((prev) => {
       const next = new Set(prev);
       if (next.has(taskId)) next.delete(taskId);
       else next.add(taskId);
       return next;
     });
+    if (expanding) {
+      const parentIndex = visible.findIndex((row) => row.task.id === taskId);
+      setReveal((prev) => ({ base: parentIndex + 1, key: prev.key + 1 }));
+    } else {
+      setReveal((prev) => ({ base: Number.MAX_SAFE_INTEGER, key: prev.key + 1 }));
+    }
   }
 
   /** Автоподбор ширины по контенту (двойной клик на ручке, как в Excel):
@@ -133,50 +142,71 @@ export function TaskList() {
           </span>
         ))}
       </div>
-      {visible.map((row, index) => {
-        const { task } = row;
-        const branchCollapsed = collapsed.has(task.id);
-        return (
-          <div
-            key={task.id}
-            role="button"
-            tabIndex={0}
-            onClick={(e) => openTask(row, e.currentTarget)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                openTask(row, e.currentTarget);
-              }
-            }}
-            className="group/row grid h-12 w-max min-w-full cursor-pointer items-stretch gap-3 border-b border-border/60 px-4 transition-colors last:border-b-0 hover:bg-accent/40 focus-visible:outline-2 focus-visible:outline-ring"
-            style={{ gridTemplateColumns }}
-          >
-            {row.hasChildren ? (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  toggleBranch(task.id);
-                }}
-                aria-expanded={!branchCollapsed}
-                aria-label={branchCollapsed ? ui.tasks.expandBranch : ui.tasks.collapseBranch}
-                className="cursor-pointer"
-              >
-                <TaskListGraph row={row} index={index} branchCollapsed={branchCollapsed} />
-              </button>
-            ) : (
-              <div>
-                <TaskListGraph row={row} index={index} branchCollapsed={false} />
+      <div className="relative">
+        {visible.map((row) => {
+          const { task } = row;
+          const branchCollapsed = collapsed.has(task.id);
+          return (
+            <div
+              key={task.id}
+              role="button"
+              tabIndex={0}
+              onClick={(e) => openTask(row, e.currentTarget)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  openTask(row, e.currentTarget);
+                }
+              }}
+              className="group/row grid h-12 w-max min-w-full cursor-pointer items-stretch gap-3 border-b border-border/60 px-4 transition-colors last:border-b-0 hover:bg-accent/40 focus-visible:outline-2 focus-visible:outline-ring"
+              style={{ gridTemplateColumns }}
+            >
+              <div className="relative">
+                {row.hasChildren ? (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleBranch(task.id);
+                    }}
+                    aria-expanded={!branchCollapsed}
+                    aria-label={branchCollapsed ? ui.tasks.expandBranch : ui.tasks.collapseBranch}
+                    className="absolute top-1/2 -translate-y-1/2 cursor-pointer text-port/70 transition-colors duration-200 group-hover/row:text-port hover:text-port"
+                    style={{ left: graphX(row.depth) - 9 }}
+                  >
+                    <svg width={18} height={18} viewBox="0 0 18 18" aria-hidden>
+                      <circle
+                        cx={9}
+                        cy={9}
+                        r={7}
+                        fill="var(--card)"
+                        stroke="currentColor"
+                        strokeWidth={1}
+                      />
+                      <path
+                        d={branchCollapsed ? 'M6,9 L12,9 M9,6 L9,12' : 'M6,9 L12,9'}
+                        stroke="currentColor"
+                        strokeWidth={1.25}
+                      />
+                    </svg>
+                  </button>
+                ) : null}
               </div>
-            )}
-            {visibleFields.map((field) => (
-              <span key={field.id} className="flex min-w-0 items-center gap-2 overflow-hidden">
-                {field.render(task, { branchCollapsed, childCount: row.childCount })}
-              </span>
-            ))}
-          </div>
-        );
-      })}
+              {visibleFields.map((field) => (
+                <span key={field.id} className="flex min-w-0 items-center gap-2 overflow-hidden">
+                  {field.render(task, { branchCollapsed, childCount: row.childCount })}
+                </span>
+              ))}
+            </div>
+          );
+        })}
+        <TaskListTree
+          rows={visible}
+          width={graphWidth(visible.reduce((max, row) => Math.max(max, row.depth), 0))}
+          revealBase={reveal.base}
+          revealKey={reveal.key}
+        />
+      </div>
       {hasNextPage ? (
         <div ref={sentinelRef} className="flex justify-center py-3">
           <Skeleton className="h-8 w-48" />

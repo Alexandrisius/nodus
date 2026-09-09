@@ -16,10 +16,13 @@
   localStorage (`nodus-views-v1`, схема — contracts `viewPresetSchema`,
   на проде — API персонализации).
 - Граф списка: `lib/task-tree.ts` (дерево → строки с геометрией связей),
-  `components/task-list-graph.tsx` (SVG per row, каскадная отрисовка локтей).
+  `components/task-list-graph.tsx` (единый SVG-оверлей поверх строк:
+  непрерывные рёбра без зазоров, каскадное построение от родителя к подзадачам
+  при раскрытии, ширина колонки растёт с глубиной вложенности).
 - Раскрытие слайдера: rect клика пробрасывается через `useShellStore.lastSource`
   (клик по строке/карточке → `getBoundingClientRect` → `SliderPanel sourceRect`),
-  панель раскрывается из источника (FLIP); без источника — scale-fade.
+  панель раскрывается из источника (FLIP + Web Animations API, овершут- easing,
+  фон проявляется fade); без источника — scale-fade.
 - Доменная цепочка: `shared/ui/domain-chain.tsx` (узлы из `taskDetail.chain`;
   в моках задача №105 честно связана с письмом Вх-2026/118).
 - Оптимистичность: `useSendTaskMessage`, `useUpdateTaskStage` — канон patterns.md;

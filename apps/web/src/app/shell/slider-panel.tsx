@@ -16,10 +16,11 @@ export interface SourceRect {
   height: number;
 }
 
-const OPEN_MS = 320;
+const OPEN_MS = 430;
 const CLOSE_MS = 200;
-/** Apple-style ease для раскрытия: быстрый старт, мягкая посадка. */
-const OPEN_EASE = 'cubic-bezier(0.32, 0.72, 0, 1)';
+/** Раскрытие с лёгким овершутом: панель «выдыхается» в размер — рост читается
+ *  как живое движение, а не как мгновенная подмена. */
+const OPEN_EASE = 'cubic-bezier(0.3, 1.16, 0.45, 1)';
 const CLOSE_EASE = 'cubic-bezier(0.5, 0, 0.9, 0.4)';
 
 /**
@@ -101,12 +102,17 @@ export function SliderPanel({
     const from = `translate(${sourceRect.x - dst.x}px, ${sourceRect.y - dst.y}px) scale(${sourceRect.width / dst.width}, ${sourceRect.height / dst.height})`;
     el.style.transformOrigin = 'top left';
     el.style.transform = from;
-    const anim = el.animate([{ transform: from }, { transform: 'none' }], {
-      duration: OPEN_MS,
-      easing: OPEN_EASE,
-    });
+    el.style.borderRadius = '10px';
+    const anim = el.animate(
+      [
+        { transform: from, borderRadius: '10px' },
+        { transform: 'none', borderRadius: '12px 12px 0 0' },
+      ],
+      { duration: OPEN_MS, easing: OPEN_EASE },
+    );
     anim.onfinish = () => {
       el.style.transform = 'none';
+      el.style.borderRadius = '';
     };
     return () => anim.cancel();
   }, [sourceRect]);
@@ -115,8 +121,10 @@ export function SliderPanel({
     <div className="fixed inset-0 z-50">
       <div
         className={cn(
-          'absolute inset-0 bg-black/55 transition-opacity duration-200',
-          closing && 'opacity-0',
+          'absolute inset-0 bg-black/55',
+          closing
+            ? 'transition-opacity duration-200 opacity-0'
+            : 'animate-in fade-in-0 duration-300',
         )}
         onClick={requestClose}
         aria-hidden="true"
@@ -137,7 +145,7 @@ export function SliderPanel({
             sourceRect && !closing && 'animate-in fade-in-0 duration-200',
           )}
           style={
-            sourceRect ? { animationDelay: '100ms', animationFillMode: 'backwards' } : undefined
+            sourceRect ? { animationDelay: '160ms', animationFillMode: 'backwards' } : undefined
           }
         >
           <Button
@@ -159,7 +167,7 @@ export function SliderPanel({
             sourceRect && !closing && 'animate-in fade-in-0 duration-200',
           )}
           style={
-            sourceRect ? { animationDelay: '100ms', animationFillMode: 'backwards' } : undefined
+            sourceRect ? { animationDelay: '160ms', animationFillMode: 'backwards' } : undefined
           }
         >
           {children}
