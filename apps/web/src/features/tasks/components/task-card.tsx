@@ -93,8 +93,10 @@ export function TaskCard({ taskId }: { taskId: string }) {
               <Skeleton className="h-44 w-full min-w-72 max-w-[420px] flex-1" />
             </div>
           </div>
-          <div />
-          <div className="flex min-h-0 flex-col gap-3 border-l border-border p-4">
+          <div className="relative">
+            <span className="absolute inset-y-0 left-1/2 w-px bg-border" />
+          </div>
+          <div className="flex min-h-0 flex-col gap-3 bg-background p-4">
             <Skeleton className="h-14 w-3/4 self-start" />
             <Skeleton className="h-14 w-2/3 self-end" />
             <Skeleton className="h-14 w-3/4 self-start" />
@@ -123,29 +125,33 @@ export function TaskCard({ taskId }: { taskId: string }) {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex shrink-0 items-center gap-3 border-b border-border px-5 py-3">
-        <div className="min-w-0 flex-1 overflow-x-auto">
-          <DomainChain nodes={chainNodes} />
+      {/* Полоса цепочки: бордюр — структура (с первого кадра роста), контент — fade */}
+      <div className="shrink-0 border-b border-border">
+        <div className="content-fade flex items-center gap-3 px-5 py-3">
+          <div className="min-w-0 flex-1 overflow-x-auto">
+            <DomainChain nodes={chainNodes} />
+          </div>
+          <button
+            type="button"
+            onClick={() => setAboutOpen((v) => !v)}
+            aria-label={ui.tasks.aboutTask}
+            title={ui.tasks.aboutTask}
+            className={cn(
+              'shrink-0 rounded-lg p-2 transition-colors hover:bg-accent',
+              aboutOpen ? 'text-foreground' : 'text-muted-foreground',
+            )}
+          >
+            <PanelRight className="size-4" strokeWidth={1.75} />
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={() => setAboutOpen((v) => !v)}
-          aria-label={ui.tasks.aboutTask}
-          title={ui.tasks.aboutTask}
-          className={cn(
-            'shrink-0 rounded-lg p-2 transition-colors hover:bg-accent',
-            aboutOpen ? 'text-foreground' : 'text-muted-foreground',
-          )}
-        >
-          <PanelRight className="size-4" strokeWidth={1.75} />
-        </button>
       </div>
 
       <div
         className="relative grid min-h-0 flex-1"
         style={{ gridTemplateColumns: `minmax(0,1fr) 6px ${chatW}px` }}
       >
-        <div className="min-h-0 overflow-y-auto p-6">
+        {/* Левая зона: фон совпадает с панелью — весь контент проявляется fade */}
+        <div className="content-fade min-h-0 overflow-y-auto p-6">
           <div className="flex flex-wrap items-center gap-3">
             <h2 className="min-w-0 flex-1 truncate text-xl font-semibold">{task.title}</h2>
             {task.source === 'letter' ? (
@@ -314,8 +320,13 @@ export function TaskCard({ taskId }: { taskId: string }) {
           <span className="absolute inset-y-0 left-1/2 w-px bg-border transition-colors group-hover:bg-port/60" />
         </div>
 
+        {/* Зона чата: тёмный фон — структура (виден с первого кадра роста,
+            НЕ появляется вместе с контентом — иначе читается как смена цвета
+            в середине раскрытия); fade — только содержимое обсуждения. */}
         <div className="min-h-0 bg-background">
-          <TaskDiscussion taskId={taskId} />
+          <div className="content-fade h-full">
+            <TaskDiscussion taskId={taskId} />
+          </div>
         </div>
 
         {aboutOpen ? <TaskAboutDrawer task={task} onClose={() => setAboutOpen(false)} /> : null}

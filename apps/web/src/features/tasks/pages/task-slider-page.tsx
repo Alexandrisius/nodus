@@ -34,6 +34,7 @@ export function TaskSliderPage() {
         }
         onClose={() => void navigate({ to: '/tasks', search: (prev) => prev })}
         sourceRect={source ?? undefined}
+        fadeContent={false}
       >
         <TaskCard taskId={taskId} />
       </SliderPanel>

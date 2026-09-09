@@ -43,12 +43,18 @@ export function SliderPanel({
   level = 1,
   onClose,
   sourceRect,
+  fadeContent = true,
   children,
 }: {
   breadcrumbs: ReactNode;
   level?: 1 | 2;
   onClose: () => void;
   sourceRect?: SourceRect;
+  /** false — карточка сама управляет проявлением: её зональные фоны (тёмный
+   * чат) рендерятся структурой с первого кадра роста, content-fade получают
+   * только текст/контролы зон. Иначе фон зоны появляется вместе с контентом и
+   * читается как смена цвета в середине раскрытия (вердикт владельца). */
+  fadeContent?: boolean;
   children: ReactNode;
 }) {
   const id = useId();
@@ -166,7 +172,10 @@ export function SliderPanel({
           </nav>
         </header>
         <div
-          className={cn('min-h-0 flex-1 overflow-hidden', sourceRect && !closing && 'content-fade')}
+          className={cn(
+            'min-h-0 flex-1 overflow-hidden',
+            fadeContent && sourceRect && !closing && 'content-fade',
+          )}
         >
           {contentMounted ? children : null}
         </div>
