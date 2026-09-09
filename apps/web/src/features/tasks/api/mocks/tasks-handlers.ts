@@ -58,6 +58,17 @@ export const tasksHandlers = [
       return HttpResponse.json({ code: 'NOT_FOUND', message: 'Stage not found' }, { status: 404 });
     task.stage = stage;
     task.updatedAt = new Date().toISOString();
+    // Порядок внутри колонки persistится: переставляем в массиве, чтобы
+    // refetch не «отщёлкивал» порядок после переноса.
+    const from = demoTasks.indexOf(task);
+    demoTasks.splice(from, 1);
+    const sameStage = demoTasks.filter((t) => t.stage.id === stage.id);
+    const at = parsed.data.index;
+    const anchor = at !== undefined ? sameStage[at] : undefined;
+    const last = sameStage[sameStage.length - 1];
+    if (anchor) demoTasks.splice(demoTasks.indexOf(anchor), 0, task);
+    else if (last) demoTasks.splice(demoTasks.indexOf(last) + 1, 0, task);
+    else demoTasks.push(task);
     return HttpResponse.json(task);
   }),
 

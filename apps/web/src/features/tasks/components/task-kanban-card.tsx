@@ -12,17 +12,20 @@ import { cn } from '@nodus/ui/lib/utils';
 /** Карточка канбана: node-панель; отображаемые поля настраиваются
  * шестерёнкой вида (tasks.kanban) — карточка получает предикат видимости.
  * Клик — слайдер с док-ребром от левого края карточки.
- * overlay — призрак DragOverlay во время переноса (активный узел: свечение). */
+ * overlay — призрак DragOverlay во время переноса (активный узел: свечение).
+ * placeholder — слот переносимой карточки (пунктир, без свечения). */
 export function TaskKanbanCard({
   task,
   parentNumber,
   isVisible,
   overlay = false,
+  placeholder = false,
 }: {
   task: TaskListItem;
   parentNumber?: number;
   isVisible: (fieldId: string) => boolean;
   overlay?: boolean;
+  placeholder?: boolean;
 }) {
   const navigate = useNavigate();
   const setLastDock = useShellStore((s) => s.setLastDock);
@@ -39,6 +42,7 @@ export function TaskKanbanCard({
       className={cn(
         'node-panel flex w-full flex-col gap-2 p-3 text-left transition-colors hover:border-input',
         overlay && 'cursor-grabbing border-input shadow-[0_0_12px_var(--glow)] hover:border-input',
+        placeholder && 'border-dashed opacity-60 hover:border-input',
       )}
     >
       {isVisible('parent') && parentNumber !== undefined ? (

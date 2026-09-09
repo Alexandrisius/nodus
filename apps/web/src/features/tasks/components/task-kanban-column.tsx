@@ -1,4 +1,5 @@
 import { useDroppable } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import type { ReactNode } from 'react';
 import type { TaskStage } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
@@ -7,18 +8,20 @@ import { NodeLabel } from '@nodus/ui/components/node-label';
 import { cn } from '@nodus/ui/lib/utils';
 
 /**
- * Колонка канбана = drop-зона стадии (useDroppable, id = stage.id).
+ * Колонка канбана = SortableContext карточек + drop-зона стадии
+ * (useDroppable, id = stage.id — пустая колонка принимает перенос).
  * Наведение переноса — подсветка плоскостью и свечением порта шапки
  * (грамматика «Инструмента»: ховер — только цвет, без теней-подниманий).
- * Пустая колонка принимает перенос и подсказывает моно-меткой.
  */
 export function TaskKanbanColumn({
   stage,
   count,
+  cardIds,
   children,
 }: {
   stage: TaskStage;
   count: number;
+  cardIds: string[];
   children: ReactNode;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
@@ -42,14 +45,16 @@ export function TaskKanbanColumn({
         />
         <NodeLabel label={stage.name} count={count} />
       </header>
-      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-0.5 pt-3 pb-2">
-        {children}
-        {count === 0 ? (
-          <span className="rounded-md border border-dashed border-border px-3 py-6 text-center font-mono text-[10px] tracking-[0.14em] text-muted-foreground/70 uppercase">
-            {isOver ? ui.tasks.dropHere : ui.tasks.emptyColumn}
-          </span>
-        ) : null}
-      </div>
+      <SortableContext items={cardIds} strategy={verticalListSortingStrategy}>
+        <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-0.5 pt-3 pb-2">
+          {children}
+          {count === 0 ? (
+            <span className="rounded-md border border-dashed border-border px-3 py-6 text-center font-mono text-[10px] tracking-[0.14em] text-muted-foreground/70 uppercase">
+              {isOver ? ui.tasks.dropHere : ui.tasks.emptyColumn}
+            </span>
+          ) : null}
+        </div>
+      </SortableContext>
     </section>
   );
 }

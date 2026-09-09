@@ -49,8 +49,8 @@ export function useUpdateTaskStage() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ taskId, stageId }: { taskId: string; stageId: string }) =>
-      api<TaskListItem>(`/tasks/${taskId}`, { method: 'PATCH', body: { stageId } }),
+    mutationFn: ({ taskId, stageId, index }: { taskId: string; stageId: string; index: number }) =>
+      api<TaskListItem>(`/tasks/${taskId}`, { method: 'PATCH', body: { stageId, index } }),
 
     onMutate: async ({ taskId, stageId }) => {
       await queryClient.cancelQueries({ queryKey: tasksKeys.list() });

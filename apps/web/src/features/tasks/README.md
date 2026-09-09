@@ -23,13 +23,16 @@
   в моках задача №105 честно связана с письмом Вх-2026/118).
 - Оптимистичность: `useSendTaskMessage`, `useUpdateTaskStage` — канон patterns.md;
   детерминированные тесты — `api/tasks-api.test.tsx`.
-- **DnD канбана (ADR-0007, @dnd-kit/core):** карточка = `useDraggable`
-  (`task-kanban-draggable.tsx`), колонка = `useDroppable` (`task-kanban-column.tsx`,
-  id = stage.id, пустая колонка видима и принимает перенос), призрак —
-  `DragOverlay` (карточка в стиле активного узла), PointerSensor с distance 6
-  (клик без движения открывает слайдер), Keyboard/Touch-сенсоры, Esc — отмена.
-  Перенос = оптимистичная мутация стадии (`PATCH /tasks/:id`, контракт
-  `taskUpdateBodySchema`) с откатом и тостом при ошибке. Каталог стадий —
-  `GET /tasks/stages` (`useTaskStages`), колонки из него, а не из задач.
-  Порядок внутри колонки — серверный; сортировка с полем `order` — фаза 2 (#36).
+- **DnD канбана (ADR-0007, @dnd-kit/core+sortable):** живая сортировка — карточки
+  уступают место и переезжают между колонками ВО ВРЕМЯ переноса (`onDragOver`,
+  sortable-трансформы), финализация — персист стадии+индекса
+  (`PATCH /tasks/:id`, контракт `taskUpdateBodySchema`, оптимистично I4 с
+  откатом и тостом); Esc — откат к снапшоту dragStart; призрак DragOverlay
+  садится на живой слот (обратного перелёта нет). Колонка = SortableContext +
+  useDroppable (пустая принимает перенос), collision — официальная
+  multi-container стратегия (`lib/kanban-collision.ts`), перестановки борда —
+  чистые функции с тестами (`lib/kanban-board.ts`). Борд — локальное состояние,
+  синхронизированное с query вне переноса (паттерн dnd-kit + React Query).
+  PointerSensor distance 6 (клик без движения открывает слайдер),
+  Keyboard/Touch-сенсоры. Каталог стадий — `GET /tasks/stages` (`useTaskStages`).
 - Виды переключаются search-параметром `view` (секции в топбаре).

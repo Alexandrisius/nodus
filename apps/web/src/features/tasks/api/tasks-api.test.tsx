@@ -185,7 +185,7 @@ describe('useUpdateTaskStage: оптимистичность переноса (I
 
     const { result } = renderHook(() => useUpdateTaskStage(), { wrapper: makeWrapper(client) });
     await act(async () => {
-      result.current.mutate({ taskId: TASK_ID, stageId: STAGE_B.id });
+      result.current.mutate({ taskId: TASK_ID, stageId: STAGE_B.id, index: 0 });
     });
 
     const optimistic = client.getQueryData<Paginated<TaskListItem>>(tasksKeys.list());
