@@ -112,13 +112,20 @@ export function CircuitFrame() {
   if (!geo) return null;
   return (
     <div className="pointer-events-none fixed inset-0 z-30" aria-hidden>
+      <svg
+        className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
+        style={{ opacity: 0.32, willChange: 'opacity' }}
+      >
+        {/* Прозрачность — CSS-opacity ОТДЕЛЬНОГО svg-элемента + форсированный
+            композитный слой (will-change): без слоя Chromium сворачивает
+            opacity в alpha кисти и самопересечения подпутей (подходы отводов
+            к шине, засечек к оси) композитятся дважды — «хвостики ярче шины»
+            при зуме ≤ 100%. Со слоем буфер рисуется полным alpha, opacity —
+            на композите (замерено: 130 → 82, ровно как чистая шина).
+            Порты — в соседнем svg полным alpha. */}
+        <path d={framePath(geo)} fill="none" stroke="var(--foreground)" strokeWidth="1" />
+      </svg>
       <svg className="absolute inset-0 h-full w-full overflow-visible">
-        {/* Прозрачность — ГРУППОВАЯ: штрих рисуется в буфер полным alpha,
-            поэтому самопересечения подпутей (подходы отводов к шине, засечек
-            к оси) не удваивают яркость, как stroke-opacity. */}
-        <g opacity="0.32">
-          <path d={framePath(geo)} fill="none" stroke="var(--foreground)" strokeWidth="1" />
-        </g>
         {geo.tabs.map((t) => (
           <circle
             key={t.x}
