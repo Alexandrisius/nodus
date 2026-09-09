@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -50,9 +50,12 @@ export function TaskKanban() {
   const [loadingMore, setLoadingMore] = useState<Record<string, boolean>>({});
   const [countDelta, setCountDelta] = useState<Record<string, number>>({});
   const [activeTask, setActiveTask] = useState<TaskListItem | null>(null);
+  const [activeParent, setActiveParent] = useState<number | undefined>(undefined);
   const snapshotRef = useRef<TaskListItem[] | null>(null);
   const lastOverId = useRef<UniqueIdentifier | null>(null);
   const recentlyMoved = useRef(false);
+  const cursorsRef = useRef<Record<string, string | null>>({});
+  const loadingMoreRef = useRef<Record<string, boolean>>({});
 
   // Первые страницы колонок (industry: колонки держат тысячи карточек —
   // целиком не грузим; дальше sentinel-подгрузка в колонке, как в Битриксе).
@@ -64,26 +67,33 @@ export function TaskKanban() {
     ).then((pages) => {
       if (!alive) return;
       setBoard(pages.flatMap((p) => p.items));
-      setCursors(Object.fromEntries(stages.map((s, i) => [s.id, pages[i]?.nextCursor ?? null])));
+      const cur = Object.fromEntries(stages.map((s, i) => [s.id, pages[i]?.nextCursor ?? null]));
+      setCursors(cur);
+      cursorsRef.current = cur;
     });
     return () => {
       alive = false;
     };
   }, [stages, board]);
 
-  /** Подгрузка следующей страницы колонки (sentinel в скролл-контейнере). */
-  function loadMore(stageId: string) {
-    const cursor = cursors[stageId];
-    if (cursor === null || cursor === undefined || loadingMore[stageId]) return;
+  /** Подгрузка следующей страницы колонки (sentinel в скролл-контейнере).
+   *  Стабильная идентичность: уходит в колонки как проп, новая стрелка на
+   *  каждый рендер пересоздавала бы IntersectionObserver во время drag. */
+  const loadMore = useCallback((stageId: string) => {
+    const cursor = cursorsRef.current[stageId];
+    if (cursor === null || cursor === undefined || loadingMoreRef.current[stageId]) return;
     setLoadingMore((prev) => ({ ...prev, [stageId]: true }));
+    loadingMoreRef.current = { ...loadingMoreRef.current, [stageId]: true };
     void api<Paginated<TaskListItem>>(`/tasks?stageId=${stageId}&limit=30&cursor=${cursor}`).then(
       (page) => {
         setBoard((prev) => [...(prev ?? []), ...page.items]);
         setCursors((prev) => ({ ...prev, [stageId]: page.nextCursor }));
+        cursorsRef.current = { ...cursorsRef.current, [stageId]: page.nextCursor };
         setLoadingMore((prev) => ({ ...prev, [stageId]: false }));
+        loadingMoreRef.current = { ...loadingMoreRef.current, [stageId]: false };
       },
     );
-  }
+  }, []);
 
   const sensors = useSensors(
     // distance: клик без движения — не drag, а открытие слайдера.
@@ -116,7 +126,11 @@ export function TaskKanban() {
 
   const onDragStart = (event: DragStartEvent) => {
     snapshotRef.current = items;
-    setActiveTask(items.find((t) => t.id === event.active.id) ?? null);
+    const task = items.find((t) => t.id === event.active.id) ?? null;
+    setActiveTask(task);
+    // Контекст призрака: без parentNumber оверлей ниже слота (пропадает
+    // строка ПОДЗАДАЧА) → микроскачки раскладки при дропе.
+    setActiveParent(task?.parentId ? numberById.get(task.parentId) : undefined);
   };
 
   /** Живой переезд между колонками: карточка встаёт в целевую колонку ещё
@@ -219,7 +233,7 @@ export function TaskKanban() {
               cardIds={cards.map((t) => t.id)}
               hasNext={cursors[stage.id] !== null && cursors[stage.id] !== undefined}
               loadingMore={Boolean(loadingMore[stage.id])}
-              onLoadMore={() => loadMore(stage.id)}
+              onLoadMore={loadMore}
             >
               {cards.map((task) => (
                 <TaskKanbanSortableCard
@@ -234,7 +248,14 @@ export function TaskKanban() {
         })}
       </div>
       <DragOverlay>
-        {activeTask ? <TaskKanbanCard task={activeTask} isVisible={isVisible} overlay /> : null}
+        {activeTask ? (
+          <TaskKanbanCard
+            task={activeTask}
+            parentNumber={activeParent}
+            isVisible={isVisible}
+            overlay
+          />
+        ) : null}
       </DragOverlay>
     </DndContext>
   );

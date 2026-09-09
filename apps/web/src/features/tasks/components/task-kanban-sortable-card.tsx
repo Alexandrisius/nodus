@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import type { TaskListItem } from '@nodus/contracts';
@@ -27,7 +27,7 @@ function useMountStatus(): boolean {
  * Сенсоры на активаторе: клик без движения — открытие слайдера
  * (distance-констрейнт PointerSensor).
  */
-export function TaskKanbanSortableCard({
+export const TaskKanbanSortableCard = memo(function TaskKanbanSortableCard({
   task,
   parentNumber,
   isVisible,
@@ -71,4 +71,4 @@ export function TaskKanbanSortableCard({
       </div>
     </div>
   );
-}
+});

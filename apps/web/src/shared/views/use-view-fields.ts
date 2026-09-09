@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 
 import { useViewStore } from './view-store.js';
 
@@ -53,7 +53,12 @@ export function useViewFields<T extends FieldDef>(viewKey: string, defs: T[]) {
   return {
     fields,
     visibleFields: useMemo(() => fields.filter((f) => f.visible), [fields]),
-    isVisible: (id: string) => fields.find((f) => f.id === id)?.visible ?? false,
+    // Стабильная идентичность: предикат уходит в memo-компоненты карточек
+    // (канбан на объёме), новая стрелка на каждый рендер ломала бы memo.
+    isVisible: useCallback(
+      (id: string) => fields.find((f) => f.id === id)?.visible ?? false,
+      [fields],
+    ),
     toggleField: (id: string, visible: boolean) => setFieldVisible(viewKey, id, visible),
     setWidth: (id: string, width: number) => setFieldWidth(viewKey, id, width),
     reset: () => resetView(viewKey),

@@ -35,7 +35,7 @@ export function TaskKanbanColumn({
   cardIds: string[];
   hasNext: boolean;
   loadingMore: boolean;
-  onLoadMore: () => void;
+  onLoadMore: (stageId: string) => void;
   children: ReactNode;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
@@ -50,13 +50,13 @@ export function TaskKanbanColumn({
     if (!sentinel || !root || !hasNext || loadingMore) return;
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries.some((e) => e.isIntersecting)) onLoadMore();
+        if (entries.some((e) => e.isIntersecting)) onLoadMore(stage.id);
       },
       { root },
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [hasNext, loadingMore, onLoadMore]);
+  }, [hasNext, loadingMore, onLoadMore, stage.id]);
 
   return (
     <section
