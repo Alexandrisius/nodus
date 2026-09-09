@@ -9,6 +9,7 @@ import {
 
 import { AppShell } from './shell/app-shell.js';
 import { useAuthStore } from '../shared/auth-store.js';
+import { TaskSliderPage } from '../features/tasks/pages/task-slider-page.js';
 
 const LoginPage = lazy(() =>
   import('../features/auth/login-page.js').then((m) => ({ default: m.LoginPage })),
@@ -19,11 +20,11 @@ const HomePage = lazy(() =>
 const TasksPage = lazy(() =>
   import('../features/tasks/pages/tasks-page.js').then((m) => ({ default: m.TasksPage })),
 );
-const TaskSliderPage = lazy(() =>
-  import('../features/tasks/pages/task-slider-page.js').then((m) => ({
-    default: m.TaskSliderPage,
-  })),
-);
+/* Слайдер задачи — НЕ lazy: центральный экран продукта (карточка открывается
+ * из задач, писем, проектов, ленты). Ленивый чанк делал самое первое
+ * открытие «замороженным» (ожидание компиляции/загрузки графа в момент клика);
+ * включение в основной бандл переносит эту стоимость на начальную загрузку,
+ * где уже есть загрузочное состояние, — первое открытие равно повторным. */
 const LettersPage = lazy(() =>
   import('../features/correspondence/pages/letters-page.js').then((m) => ({
     default: m.LettersPage,

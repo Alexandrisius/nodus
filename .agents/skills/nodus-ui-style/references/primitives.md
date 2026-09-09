@@ -57,7 +57,7 @@ UPPERCASE 11px, tracking 0.16em, muted; счётчик — `text-foreground tabu
 
 - `node-edge-draw` — рисовка пути (нужен `pathLength={1}` на path).
 - `dock-edge-fade` — растворение вспышек контура за 1 с (circuit-frame); док-ребро слайдера больше не использует.
-- `slider-expand` / `slider-pop` / `backdrop-fade` / `content-fade` — хореография слайдера (FLIP-переменные, scale-fade, задник, налив контента); см. circuit.md.
+- `slider-expand` / `slider-pop` / `content-fade` / `slider-shadow` — хореография слайдера (FLIP-переменные, scale-fade, налив контента, тень вместо затемняющего задника); см. circuit.md.
 
 ## Составные (`apps/web/src/shared/ui/*`)
 

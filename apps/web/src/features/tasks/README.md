@@ -21,8 +21,11 @@
   при раскрытии, ширина колонки растёт с глубиной вложенности).
 - Раскрытие слайдера: rect клика пробрасывается через `useShellStore.lastSource`
   (клик по строке/карточке → `getBoundingClientRect` → `SliderPanel sourceRect`),
-  панель раскрывается из источника (FLIP + Web Animations API, овершут- easing,
-  фон проявляется fade); без источника — scale-fade.
+  панель раскрывается из источника (CSS @keyframes `slider-expand` строго на
+  transform — композитор, контент монтируется после первого кадра); без
+  источника — scale-fade. Затемняющего задника нет: тень `slider-shadow` +
+  прозрачный click-catcher (фон страницы цвета не меняет). Роут слайдера —
+  НЕ lazy (центральный экран): первое открытие равно повторным.
 - Доменная цепочка: `shared/ui/domain-chain.tsx` (узлы из `taskDetail.chain`;
   в моках задача №105 честно связана с письмом Вх-2026/118).
 - Оптимистичность: `useSendTaskMessage`, `useUpdateTaskStage` — канон patterns.md;

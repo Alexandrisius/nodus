@@ -23,11 +23,20 @@ const CLOSE_EASE = 'cubic-bezier(0.5, 0, 0.9, 0.4)';
  * Детальная панель — общий слой карточки-сущности: во всю ширину с полями и
  * отступом сверху, чтобы каркас оставался виден; уровень 2 уходит глубже
  * вниз-вправо. Открытие — shared-element расширение (FLIP): панель стартует
- * точным rect'ом источника (строка/карточка, по которой кликнули) и за OPEN_MS
+ * точным rect'ом источника (строка/карточка, по которой кликнули) и за 430 мс
  * доезжает до своей геометрии — связь «кликнул здесь → открылось это» читается
- * без линий поверх контента; контент проявляется с задержкой 100 мс. Без
+ * без линий поверх контента; контент проявляется с задержкой 160 мс. Без
  * источника (прямая ссылка, палитра) — сдержанный scale-fade из центра.
  * Закрытие — обратное схлопывание в источник за CLOSE_MS.
+ *
+ * Хореография (канон, см. nodus-ui-style/references/circuit.md):
+ * — анимация строго transform/opacity (композитор): не зависит от занятости
+ *   main thread, первое открытие равно повторным;
+ * — тяжёлый контент (children) монтируется ПОСЛЕ первого отрисованного кадра
+ *   (double rAF): маунт дерева карточки не блокирует старт раскрытия;
+ * — затемняющего задника НЕТ (фон страницы цвета не меняет, референс —
+ *   слайдер Битрикс24): модальность дают тень slider-shadow и прозрачный
+ *   click-catcher (клик мимо панели закрывает её).
  */
 export function SliderPanel({
   breadcrumbs,
@@ -86,6 +95,22 @@ export function SliderPanel({
     };
   }, [id]);
 
+  /** Монтирование тяжёлого контента ПОСЛЕ первого отрисованного кадра панели:
+   *  double rAF гарантирует, что хром панели (пустая оболочка) уже отрисован,
+   *  анимация раскрытия стартовала и ушла на композитор — синхронный маунт
+   *  дерева карточки (десятки мс на первом открытии) не задерживает её кадры. */
+  const [contentMounted, setContentMounted] = useState(false);
+  useEffect(() => {
+    let raf2 = 0;
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => setContentMounted(true));
+    });
+    return () => {
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
+    };
+  }, []);
+
   /** FLIP-переменные раскрытия: геометрия панели детерминирована
    *  (inset-x-3 top-10 / level2 inset-x-10 top-16), поэтому дельты считаются
    *  без замеров; анимация — CSS @keyframes slider-expand (стартует с первого
@@ -107,21 +132,16 @@ export function SliderPanel({
 
   return (
     <div className="fixed inset-0 z-50">
-      <div
-        className={cn(
-          'absolute inset-0 bg-black/55',
-          closing ? 'transition-opacity duration-200 opacity-0' : 'backdrop-fade',
-        )}
-        onClick={requestClose}
-        aria-hidden="true"
-      />
+      {/* Прозрачный click-catcher вместо затемняющего задника: страница за
+          панелью цвета не меняет; клик мимо панели закрывает её. */}
+      <div className="absolute inset-0" onClick={requestClose} aria-hidden="true" />
       <section
         ref={panelRef}
         role="dialog"
         aria-modal="true"
         style={flipStyle}
         className={cn(
-          'absolute inset-x-3 bottom-0 top-10 z-20 flex flex-col rounded-t-xl border border-b-0 border-border bg-card text-card-foreground',
+          'slider-shadow absolute inset-x-3 bottom-0 top-10 z-20 flex flex-col rounded-t-xl border border-b-0 border-border bg-card text-card-foreground',
           level === 2 && 'inset-x-10 top-16',
           sourceRect ? 'slider-expand' : 'slider-pop',
         )}
@@ -148,7 +168,7 @@ export function SliderPanel({
         <div
           className={cn('min-h-0 flex-1 overflow-hidden', sourceRect && !closing && 'content-fade')}
         >
-          {children}
+          {contentMounted ? children : null}
         </div>
       </section>
     </div>
