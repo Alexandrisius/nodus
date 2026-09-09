@@ -1,5 +1,5 @@
 import { X } from 'lucide-react';
-import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import { cn } from '@nodus/ui/lib/utils';
@@ -16,11 +16,7 @@ export interface SourceRect {
   height: number;
 }
 
-const OPEN_MS = 430;
 const CLOSE_MS = 200;
-/** Раскрытие с лёгким овершутом: панель «выдыхается» в размер — рост читается
- *  как живое движение, а не как мгновенная подмена. */
-const OPEN_EASE = 'cubic-bezier(0.3, 1.16, 0.45, 1)';
 const CLOSE_EASE = 'cubic-bezier(0.5, 0, 0.9, 0.4)';
 
 /**
@@ -90,41 +86,31 @@ export function SliderPanel({
     };
   }, [id]);
 
-  /** FLIP-старт: до paint ставим панель в rect источника (инверсия видна
-   *  первым кадром), затем Web Animations API проигрывает раскрытие —
-   *  transition на свежем элементе браузер пропускал (batched style recalc),
-   *  el.animate от кейфреймов не зависит от.paint-порядка (research: reactperf
-   *  FLIP, makersden, useAfterPaintEffect). */
-  useLayoutEffect(() => {
-    const el = panelRef.current;
-    if (!el || !sourceRect) return;
-    const dst = el.getBoundingClientRect();
-    const from = `translate(${sourceRect.x - dst.x}px, ${sourceRect.y - dst.y}px) scale(${sourceRect.width / dst.width}, ${sourceRect.height / dst.height})`;
-    el.style.transformOrigin = 'top left';
-    el.style.transform = from;
-    el.style.borderRadius = '10px';
-    const anim = el.animate(
-      [
-        { transform: from, borderRadius: '10px' },
-        { transform: 'none', borderRadius: '12px 12px 0 0' },
-      ],
-      { duration: OPEN_MS, easing: OPEN_EASE },
-    );
-    anim.onfinish = () => {
-      el.style.transform = 'none';
-      el.style.borderRadius = '';
-    };
-    return () => anim.cancel();
-  }, [sourceRect]);
+  /** FLIP-переменные раскрытия: геометрия панели детерминирована
+   *  (inset-x-3 top-10 / level2 inset-x-10 top-16), поэтому дельты считаются
+   *  без замеров; анимация — CSS @keyframes slider-expand (стартует с первого
+   *  кадра на любом окружении, в отличие от transition/WAAPI на маунте). */
+  const flipStyle: CSSProperties | undefined = sourceRect
+    ? (() => {
+        const dst =
+          level === 2
+            ? { x: 40, y: 64, w: window.innerWidth - 80, h: window.innerHeight - 64 }
+            : { x: 12, y: 40, w: window.innerWidth - 24, h: window.innerHeight - 40 };
+        return {
+          '--flip-tx': `${sourceRect.x - dst.x}px`,
+          '--flip-ty': `${sourceRect.y - dst.y}px`,
+          '--flip-sx': `${sourceRect.width / dst.w}`,
+          '--flip-sy': `${sourceRect.height / dst.h}`,
+        } as CSSProperties;
+      })()
+    : undefined;
 
   return (
     <div className="fixed inset-0 z-50">
       <div
         className={cn(
           'absolute inset-0 bg-black/55',
-          closing
-            ? 'transition-opacity duration-200 opacity-0'
-            : 'animate-in fade-in-0 duration-300',
+          closing ? 'transition-opacity duration-200 opacity-0' : 'backdrop-fade',
         )}
         onClick={requestClose}
         aria-hidden="true"
@@ -133,20 +119,18 @@ export function SliderPanel({
         ref={panelRef}
         role="dialog"
         aria-modal="true"
+        style={flipStyle}
         className={cn(
           'absolute inset-x-3 bottom-0 top-10 z-20 flex flex-col rounded-t-xl border border-b-0 border-border bg-card text-card-foreground',
           level === 2 && 'inset-x-10 top-16',
-          !sourceRect && 'animate-in fade-in-0 zoom-in-[0.985] duration-200',
+          sourceRect ? 'slider-expand' : 'slider-pop',
         )}
       >
         <header
           className={cn(
             'flex h-12 shrink-0 items-center gap-2 border-b border-border px-3',
-            sourceRect && !closing && 'animate-in fade-in-0 duration-200',
+            sourceRect && !closing && 'content-fade',
           )}
-          style={
-            sourceRect ? { animationDelay: '160ms', animationFillMode: 'backwards' } : undefined
-          }
         >
           <Button
             variant="ghost"
@@ -162,13 +146,7 @@ export function SliderPanel({
           </nav>
         </header>
         <div
-          className={cn(
-            'min-h-0 flex-1 overflow-hidden',
-            sourceRect && !closing && 'animate-in fade-in-0 duration-200',
-          )}
-          style={
-            sourceRect ? { animationDelay: '160ms', animationFillMode: 'backwards' } : undefined
-          }
+          className={cn('min-h-0 flex-1 overflow-hidden', sourceRect && !closing && 'content-fade')}
         >
           {children}
         </div>

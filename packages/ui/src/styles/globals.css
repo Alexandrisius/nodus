@@ -232,6 +232,58 @@
   }
 }
 
+/* Раскрытие слайдера из источника (FLIP на маунте): CSS @keyframes с
+ * CSS-переменными — единственно надёжный механизм для свежего элемента
+ * (transition и WAAPI из layout-effect в части окружений не стартуют с
+ * первого кадра: владелец видел «появилась сразу», headless — нет). */
+@utility slider-expand {
+  transform-origin: top left;
+  animation: slider-expand 430ms cubic-bezier(0.3, 1.16, 0.45, 1) both;
+}
+@keyframes slider-expand {
+  from {
+    transform: translate(var(--flip-tx), var(--flip-ty)) scale(var(--flip-sx), var(--flip-sy));
+    border-radius: 10px;
+  }
+  to {
+    transform: none;
+    border-radius: 12px 12px 0 0;
+  }
+}
+
+/* Раскрытие без источника (прямая ссылка, палитра): сдержанный scale-fade. */
+@utility slider-pop {
+  animation: slider-pop 220ms ease-out both;
+}
+@keyframes slider-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.965);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Задник слайдера: проявление вместо мгновенной вспышки затемнения. */
+@utility backdrop-fade {
+  animation: backdrop-fade 300ms ease-out both;
+}
+@keyframes backdrop-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Контент панели наливается после формы (задержка 160 мс). */
+@utility content-fade {
+  animation: backdrop-fade 200ms ease-out 160ms both;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
