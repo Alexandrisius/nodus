@@ -31,6 +31,19 @@ export function orthPath(points: NodeEdgePoint[], r: number): string {
   return parts.join(' ');
 }
 
+/**
+ * Снаппинг к полупиксельной сетке. В SVG целая координата — граница между
+ * device-пикселями: 1px-линия на ней центрируется на границе и покрывает два
+ * пикселя по 50% — прямые сегменты БЛЕДНЕЕ кривых того же пути (у тех
+ * anti-aliasing даёт почти полное покрытие). Центр на x.5 покрывает ровно
+ * один ряд пикселей (при DPR=2 — целое) — линия чёткая и одинаково яркая
+ * на всём пути. Применять ко ВСЕМ ортогональным 1px-линиям (и path, и порты
+ * согласованно, иначе точка уедет от конца линии).
+ */
+export function snapHalf(v: number): number {
+  return Math.round(v - 0.5) + 0.5;
+}
+
 /** Длина ломаной в px (сегменты ортогональные — hypot == манхэттен). */
 export function pathLength(points: NodeEdgePoint[]): number {
   let len = 0;
@@ -89,12 +102,18 @@ function NodeEdge({
   elbow?: number;
   className?: string;
 }) {
-  const d = useMemo(() => orthPath(points, elbow), [points, elbow]);
+  // Координаты снаппятся к полупиксельной сетке (snapHalf) — иначе прямые
+  // сегменты бледнее локтей; path и порты снаппятся согласованно.
+  const snapped = useMemo(
+    () => points.map((p) => ({ x: snapHalf(p.x), y: snapHalf(p.y) })),
+    [points],
+  );
+  const d = useMemo(() => orthPath(snapped, elbow), [snapped, elbow]);
   const len = useMemo(() => pathLength(points), [points]);
   const reduced = useReducedMotion();
   if (points.length < 2) return null;
-  const start = points[0];
-  const end = points[points.length - 1];
+  const start = snapped[0];
+  const end = snapped[snapped.length - 1];
   if (!start || !end) return null;
   const animate = drawOn && !reduced;
   // Длительности из длины маршрута — скорость вспышки одинакова на всех путях.

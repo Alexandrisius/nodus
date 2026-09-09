@@ -1,6 +1,6 @@
 import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { useRouterState } from '@tanstack/react-router';
-import { NodeEdge, pathLength, type NodeEdgePoint } from '@nodus/ui/components/node-edge';
+import { NodeEdge, pathLength, snapHalf, type NodeEdgePoint } from '@nodus/ui/components/node-edge';
 
 import {
   currentFocus,
@@ -123,8 +123,8 @@ export function CircuitFrame() {
         {geo.tabs.map((t) => (
           <circle
             key={t.x}
-            cx={t.x}
-            cy={geo.axisY - TICK}
+            cx={snapHalf(t.x)}
+            cy={snapHalf(geo.axisY - TICK)}
             r="2.5"
             fill={t.active ? 'var(--port)' : 'var(--background)'}
             stroke={t.active ? 'var(--port)' : 'var(--edge)'}

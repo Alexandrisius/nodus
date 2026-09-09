@@ -1,4 +1,4 @@
-import { orthPath, type NodeEdgePoint } from '@nodus/ui/components/node-edge';
+import { orthPath, snapHalf, type NodeEdgePoint } from '@nodus/ui/components/node-edge';
 
 import { RAIL_TRUNK_X } from './node-rail.js';
 
@@ -70,6 +70,11 @@ export function measureCircuit(pathname = '/'): CircuitGeometry | null {
   };
 }
 
+/** Снаппинг точек контура к полупиксельной сетке — прямые сегменты рендерятся
+ * так же ярко, как локти (см. snapHalf в node-edge). */
+const sp = (pts: NodeEdgePoint[]): NodeEdgePoint[] =>
+  pts.map((p) => ({ x: snapHalf(p.x), y: snapHalf(p.y) }));
+
 /** Статичный контур: артерия — ОДНА ломаная «низ шины → стык (круглое
  * сопряжение) → ось до правого края вьюпорта» (как обычный бордюр; без
  * прямых углов и точек в стыке); отводы модулей локтями; засечки вкладок —
@@ -78,11 +83,11 @@ export function framePath(g: CircuitGeometry): string {
   const parts: string[] = [];
   parts.push(
     orthPath(
-      [
+      sp([
         { x: g.junction.x, y: g.leftNode ? g.axisY : g.modules.length > 0 ? g.spineEndY : g.axisY },
         g.junction,
         { x: g.rightEdge, y: g.axisY },
-      ],
+      ]),
       8,
     ),
   );
@@ -92,11 +97,11 @@ export function framePath(g: CircuitGeometry): string {
     if (m.port.x - g.junction.x < 8) continue;
     parts.push(
       orthPath(
-        [
+        sp([
           { x: g.junction.x, y: m.port.y - 10 },
           { x: g.junction.x, y: m.port.y },
           { x: m.port.x - 4, y: m.port.y },
-        ],
+        ]),
         8,
       ),
     );
@@ -104,11 +109,11 @@ export function framePath(g: CircuitGeometry): string {
   for (const t of g.tabs) {
     parts.push(
       orthPath(
-        [
+        sp([
           { x: t.x - 10, y: g.axisY },
           { x: t.x, y: g.axisY },
           { x: t.x, y: g.axisY - TICK },
-        ],
+        ]),
         6,
       ),
     );
