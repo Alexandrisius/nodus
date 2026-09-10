@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { memo, useState, type FormEvent } from 'react';
 import { ui } from '@nodus/contracts';
 import { Textarea } from '@nodus/ui/components/textarea';
 import { Message, MessageContent, MessageGroup, MessageHeader } from '@nodus/ui/components/message';
@@ -12,7 +12,7 @@ import { SendHexButton } from '../../../shared/ui/send-hex-button.js';
 import { useSendTaskMessage, useTaskMessages } from '../api/tasks-api.js';
 
 /** Обсуждение задачи — центр карточки: тёмный тред + оптимистичная отправка. */
-export function TaskDiscussion({ taskId }: { taskId: string }) {
+export const TaskDiscussion = memo(function TaskDiscussion({ taskId }: { taskId: string }) {
   const { data } = useTaskMessages(taskId);
   const send = useSendTaskMessage(taskId);
   const me = useAuthStore((s) => s.user);
@@ -70,4 +70,4 @@ export function TaskDiscussion({ taskId }: { taskId: string }) {
       </form>
     </div>
   );
-}
+});

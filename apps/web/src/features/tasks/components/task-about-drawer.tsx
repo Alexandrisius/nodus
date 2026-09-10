@@ -1,5 +1,5 @@
 import { FileText, History, Link2, Star, X } from 'lucide-react';
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import type { TaskDetail } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
@@ -36,7 +36,13 @@ function Section({
  * ссылки, история + избранное. По умолчанию скрыта — обсуждение всегда
  * видно в своей колонке, а свойства достаются по кнопке.
  */
-export function TaskAboutDrawer({ task, onClose }: { task: TaskDetail; onClose: () => void }) {
+export const TaskAboutDrawer = memo(function TaskAboutDrawer({
+  task,
+  onClose,
+}: {
+  task: TaskDetail;
+  onClose: () => void;
+}) {
   const { data } = useTaskMessages(task.id);
   const [favorite, setFavorite] = useState(false);
 
@@ -115,4 +121,4 @@ export function TaskAboutDrawer({ task, onClose }: { task: TaskDetail; onClose: 
       </Section>
     </aside>
   );
-}
+});

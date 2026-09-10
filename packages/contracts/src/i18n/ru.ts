@@ -155,6 +155,7 @@ export const ui = {
     stageCompleted: 'Завершена',
     stageReturn: 'Вернуть на доработку',
     addField: 'Добавить поле',
+    resizeChat: 'Изменить ширину обсуждения',
     quickTaskPlaceholder: 'Новая задача — Enter, чтобы создать',
     addStage: 'Добавить стадию',
     stageNamePlaceholder: 'Название колонки…',

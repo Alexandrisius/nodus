@@ -1,5 +1,4 @@
-import { Link, Outlet, useNavigate, useParams } from '@tanstack/react-router';
-import { ui } from '@nodus/contracts';
+import { Outlet, useNavigate, useParams } from '@tanstack/react-router';
 
 import { SliderPanel } from '../../../app/shell/slider-panel.js';
 import { ProjectPanel } from '../components/project-panel.js';
@@ -17,25 +16,6 @@ export function ProjectSliderPage() {
     <>
       <SliderPanel
         level={level}
-        breadcrumbs={
-          params.taskId ? (
-            <>
-              <span>{ui.tasks.title}</span>
-              <span>/</span>
-              <span>{ui.tasks.task}</span>
-              <span>/</span>
-              <span className="text-foreground">{ui.projects.title}</span>
-            </>
-          ) : (
-            <>
-              <Link to="/projects" className="hover:text-foreground">
-                {ui.projects.title}
-              </Link>
-              <span>/</span>
-              <span className="text-foreground">{ui.projects.title}</span>
-            </>
-          )
-        }
         onClose={() =>
           void navigate(
             params.taskId

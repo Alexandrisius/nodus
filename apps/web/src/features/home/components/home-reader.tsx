@@ -1,6 +1,5 @@
-import { ChevronRight, MessageSquare, ThumbsUp } from 'lucide-react';
+import { MessageSquare, ThumbsUp } from 'lucide-react';
 import type { CompanyNewsItem } from '@nodus/contracts';
-import { ui } from '@nodus/contracts';
 
 import { SliderPanel, type SourceRect } from '../../../app/shell/slider-panel.js';
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
@@ -18,17 +17,7 @@ export function HomeReader({
   onClose: () => void;
 }) {
   return (
-    <SliderPanel
-      sourceRect={sourceRect}
-      onClose={onClose}
-      breadcrumbs={
-        <>
-          <span className="shrink-0">{ui.home.newsTitle}</span>
-          <ChevronRight className="size-3.5 shrink-0" strokeWidth={1.75} />
-          <span className="truncate text-foreground">{item.title}</span>
-        </>
-      }
-    >
+    <SliderPanel sourceRect={sourceRect} onClose={onClose}>
       <article className="mx-auto h-full max-w-3xl overflow-y-auto px-8 py-8">
         <h2 className="text-2xl font-semibold text-foreground">{item.title}</h2>
         <div className="mt-3 flex items-center gap-2.5">

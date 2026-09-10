@@ -39,14 +39,12 @@ const CLOSE_EASE = 'cubic-bezier(0.5, 0, 0.9, 0.4)';
  *   click-catcher (клик мимо панели закрывает её).
  */
 export function SliderPanel({
-  breadcrumbs,
   level = 1,
   onClose,
   sourceRect,
   fadeContent = true,
   children,
 }: {
-  breadcrumbs: ReactNode;
   level?: 1 | 2;
   onClose: () => void;
   sourceRect?: SourceRect;
@@ -173,9 +171,8 @@ export function SliderPanel({
           >
             <X />
           </Button>
-          <nav className="flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground">
-            {breadcrumbs}
-          </nav>
+          {/* Хлебные крошки убраны (вердикт владельца): название сущности
+              живёт один раз — в заголовке карточки, дублирование запрещено. */}
         </header>
         <div
           className={cn(

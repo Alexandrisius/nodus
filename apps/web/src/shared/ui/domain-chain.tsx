@@ -5,8 +5,10 @@ export interface ChainNode {
   caption: string;
   /** Ключ узла (Вх-2026/118, ПП-57, № 105). */
   ref: string;
-  /** Короткое содержание. */
-  label: string;
+  /** Короткое содержание. У ТЕКУЩЕГО узла опускается: название сущности
+   *  уже дано главным заголовком карточки, дубли запрещены (вердикт
+   *  владельца) — само-узел показывает только «ТИП · КЛЮЧ». */
+  label?: string;
   /** Статус узла, если есть («Согласовано»). */
   state?: string;
   /** Текущая сущность — светящийся узел. */
@@ -40,14 +42,16 @@ export function DomainChain({ nodes, className }: { nodes: ChainNode[]; classNam
             <span className="block truncate font-mono text-[10px] tracking-[0.14em] text-muted-foreground uppercase">
               {node.caption} · {node.ref}
             </span>
-            <span className="mt-0.5 block truncate text-[13px] leading-snug font-medium">
-              {node.label}
-              {node.state ? (
-                <span className="ml-1.5 font-mono text-[10px] font-normal text-success">
-                  {node.state}
-                </span>
-              ) : null}
-            </span>
+            {node.label ? (
+              <span className="mt-0.5 block truncate text-[13px] leading-snug font-medium">
+                {node.label}
+                {node.state ? (
+                  <span className="ml-1.5 font-mono text-[10px] font-normal text-success">
+                    {node.state}
+                  </span>
+                ) : null}
+              </span>
+            ) : null}
           </>
         );
         const classes = cn(

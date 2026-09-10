@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { memo, useState, type FormEvent } from 'react';
 import { ChevronDown, ChevronRight, Plus, X } from 'lucide-react';
 import { useNavigate } from '@tanstack/react-router';
 import type { TaskBranchNode } from '@nodus/contracts';
@@ -16,7 +16,13 @@ import { stageTone } from '../lib/stage-tone.js';
  *  ту задачу в этом же слайдере (панель остаётся — навигация по ветке),
  *  текущая задача подсвечена; быстрое создание подзадачи — внизу (к текущей)
  *  или по «+» на строке (к этой строке). Выдвигается слева поверх контента. */
-export function TaskBranchDrawer({ taskId, onClose }: { taskId: string; onClose: () => void }) {
+export const TaskBranchDrawer = memo(function TaskBranchDrawer({
+  taskId,
+  onClose,
+}: {
+  taskId: string;
+  onClose: () => void;
+}) {
   const { data: branch } = useTaskBranch(taskId);
   const addSubtask = useAddSubtaskTo();
   const navigate = useNavigate();
@@ -166,7 +172,7 @@ export function TaskBranchDrawer({ taskId, onClose }: { taskId: string; onClose:
       </form>
     </div>
   );
-}
+});
 
 function InlineAdd({
   depth,

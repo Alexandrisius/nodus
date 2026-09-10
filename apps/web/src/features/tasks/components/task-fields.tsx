@@ -11,7 +11,7 @@ import {
   UserPen,
   Users,
 } from 'lucide-react';
-import { useState, type ReactNode } from 'react';
+import { memo, useState, type ReactNode } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import type { TaskDetail, UserRef } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
@@ -59,7 +59,7 @@ function readHidden(): string[] {
  *  только DnD на доске (модель Битрикса).
  *  Сетка на container queries: узкая панель — 1 колонка, широкая — 2;
  *  зазор фиксирован, дальше растут боковые отступы (mx-auto). */
-export function TaskFields({ task }: { task: TaskDetail }) {
+export const TaskFields = memo(function TaskFields({ task }: { task: TaskDetail }) {
   const navigate = useNavigate();
   const [hiddenKeys, setHiddenKeys] = useState<string[]>(readHidden);
 
@@ -202,7 +202,7 @@ export function TaskFields({ task }: { task: TaskDetail }) {
       </DropdownMenu>
     </div>
   );
-}
+});
 
 function Field({ icon, label, children }: { icon: ReactNode; label: string; children: ReactNode }) {
   return (

@@ -1,5 +1,5 @@
 import { Mail, MessageSquare, PanelRight, Plus, Waypoints } from 'lucide-react';
-import { useState, type FormEvent } from 'react';
+import { useCallback, useRef, useState, type FormEvent } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import type { TaskChainNode } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
@@ -7,7 +7,6 @@ import { Checkbox } from '@nodus/ui/components/checkbox';
 import { Input } from '@nodus/ui/components/input';
 import { NodeChip } from '@nodus/ui/components/node-chip';
 import { NodeLabel } from '@nodus/ui/components/node-label';
-import { Separator } from '@nodus/ui/components/separator';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { DomainChain, type ChainNode } from '../../../shared/ui/domain-chain.js';
@@ -29,12 +28,16 @@ const chainCaption: Record<TaskChainNode['kind'], string> = {
   chat_message: ui.tasks.chatNode,
 };
 
+/** Ширина панели «О задаче» — на неё же суется чат (сумма постоянна). */
+const ABOUT_W = 360;
+
 /**
  * Карточка задачи (универсальный слайдер-слой): шапка — доменная цепочка
- * происхождения (Письмо → Резолюция → Поручение → Задача) и кнопка выдвижной
- * панели «О задаче»; слева — название, доска атрибутов сеткой, описание,
- * подзадачи в один клик и чек-лист; справа — постоянная колонка обсуждения;
- * свойства/участники/файлы — дополнительная выдвижная панель поверх.
+ * происхождения (Письмо → Резолюция → Поручение → Задача; само-узел — только
+ * «ТИП · №», БЕЗ повтора названия — оно один раз в главном заголовке) и
+ * кнопки панелей «Ветка»/«О задаче»; слева — название, описание, доска полей,
+ * подзадачи и чек-лист + замоноличенный нижний бар действий; справа —
+ * постоянная колонка обсуждения; «О задаче» — вталкивающая колонка справа.
  */
 export function TaskCard({ taskId }: { taskId: string }) {
   const { data: task, isLoading } = useTaskDetail(taskId);
@@ -49,7 +52,12 @@ export function TaskCard({ taskId }: { taskId: string }) {
   // Навигатор ветки монтируется раз и остаётся: колонка сетки анимируется
   // 0↔300px (плавный пуш контента), состояние панели не теряется.
   const [branchMounted, setBranchMounted] = useState(false);
-  const { chatW, onDividerDown, dragging } = useCardChatWidth();
+  const chatRef = useRef<HTMLDivElement>(null);
+  const { chatW, onDividerDown, dragging } = useCardChatWidth(chatRef, aboutOpen ? ABOUT_W : 0);
+  // Стабильные колбэки: дочерние панели мемоизированы, инлайн-стрелки
+  // ломали бы memo на каждом рендере.
+  const closeBranch = useCallback(() => setBranchOpen(false), []);
+  const closeAbout = useCallback(() => setAboutOpen(false), []);
 
   function onAddSubtask(event: FormEvent) {
     event.preventDefault();
@@ -66,7 +74,8 @@ export function TaskCard({ taskId }: { taskId: string }) {
   const chainNodes: ChainNode[] = task.chain.map((node, i) => ({
     caption: chainCaption[node.kind],
     ref: node.ref,
-    label: node.label,
+    // Само-узел (последний) — без повтора названия: оно один раз в заголовке.
+    label: i === task.chain.length - 1 ? undefined : node.label,
     state: node.state,
     active: i === task.chain.length - 1,
     onClick:
@@ -120,15 +129,13 @@ export function TaskCard({ taskId }: { taskId: string }) {
         </div>
       </div>
 
-      {/* Треки БЕЗ transition: chatW меняется на каждый pointermove drag'а,
-          анимация трека = вечная догоняющая анимация и фризы (подтверждено:
-          react-resizable-panels — transitions только для программного
-          toggle, никогда при ручном ресайзе). Плавный пуш навигатора ветки
-          изолирован transition-[width] на самой колонке — drag чата его
-          не затрагивает. */}
+      {/* Треки БЕЗ transition и БЕЗ setState на кадр: во время drag ширина
+          чата выставляется императивно (el.style.width в rAF), React не
+          рендерит карточку (gotchas: transition при ручном ресайзе = фризы).
+          Пуш панелей изолирован transition-[width] на их колонках. */}
       <div
         className="relative grid min-h-0 flex-1"
-        style={{ gridTemplateColumns: `auto minmax(0,1fr) 6px auto auto` }}
+        style={{ gridTemplateColumns: `auto minmax(0,1fr) auto auto` }}
       >
         <div
           className={cn(
@@ -136,14 +143,16 @@ export function TaskCard({ taskId }: { taskId: string }) {
             branchOpen ? 'w-[300px]' : 'w-0',
           )}
         >
-          {branchMounted ? (
-            <TaskBranchDrawer taskId={taskId} onClose={() => setBranchOpen(false)} />
-          ) : null}
+          {branchMounted ? <TaskBranchDrawer taskId={taskId} onClose={closeBranch} /> : null}
         </div>
         {/* Левая зона: скроллится только контент; нижний бар действий
             замоноличен (не двигается скроллом — модель Битрикса).
+            border-r — СТРУКТУРНАЯ вертикальная граница с чатом: горизонтальные
+            линии бара действий и композера упираются ровно в неё (вердикт
+            владельца о несходящихся линиях). Ручка ресайза — оверлей поверх
+            границы (внутри этой зоны, не съедает трек).
             @container — сетка полей перестраивается от ширины зоны (ресайз чата) */}
-        <div className="flex min-h-0 flex-col @container">
+        <div className="relative flex min-h-0 flex-col border-r border-border @container">
           <div className="content-fade min-h-0 flex-1 overflow-y-auto p-6">
             <div className="flex flex-wrap items-center gap-3">
               <h2 className="min-w-0 flex-1 text-xl leading-snug font-semibold">{task.title}</h2>
@@ -166,9 +175,11 @@ export function TaskCard({ taskId }: { taskId: string }) {
 
             <TaskFields task={task} />
 
-            <Separator className="my-5" />
-
-            <NodeLabel label={ui.tasks.subtasks} count={task.subtasks.length} />
+            {/* Секции разделяются отступами, без висячих линий-сепараторов
+                (вердикт владельца: линия не доходила до границы зоны) */}
+            <div className="mt-6">
+              <NodeLabel label={ui.tasks.subtasks} count={task.subtasks.length} />
+            </div>
             <div className="mt-2.5 flex flex-col gap-1.5">
               {task.subtasks.map((subtask) => (
                 <button
@@ -207,8 +218,7 @@ export function TaskCard({ taskId }: { taskId: string }) {
             </form>
 
             {task.checklist.length > 0 ? (
-              <>
-                <Separator className="my-5" />
+              <div className="mt-6">
                 <NodeLabel label={ui.tasks.checklist} count={task.checklist.length} />
                 <div className="mt-2.5 flex flex-col gap-2">
                   {task.checklist.map((item) => (
@@ -220,7 +230,7 @@ export function TaskCard({ taskId }: { taskId: string }) {
                     </label>
                   ))}
                 </div>
-              </>
+              </div>
             ) : null}
           </div>
 
@@ -229,15 +239,20 @@ export function TaskCard({ taskId }: { taskId: string }) {
           <div className="shrink-0 border-t border-border px-5 py-3">
             <TaskActionBar task={task} />
           </div>
-        </div>
 
-        <div
-          onPointerDown={onDividerDown}
-          role="separator"
-          aria-orientation="vertical"
-          className="group relative cursor-col-resize"
-        >
-          <span className="absolute inset-y-0 left-1/2 w-px bg-border transition-colors group-hover:bg-port/60" />
+          {/* Ручка ресайза чата: невидимый оверлей ПОВЕРХ структурной
+              границы (border-r зоны) — hit-area 12px центрирована на линии,
+              трека в сетке нет, линии зон сходятся в одну вертикаль */}
+          <div
+            onPointerDown={onDividerDown}
+            role="separator"
+            aria-orientation="vertical"
+            aria-label={ui.tasks.resizeChat}
+            title={ui.tasks.resizeChat}
+            className="group absolute top-0 right-0 z-10 h-full w-3 translate-x-1/2 cursor-col-resize"
+          >
+            <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-port/60 opacity-0 transition-opacity group-hover:opacity-100" />
+          </div>
         </div>
 
         {/* Зона чата: тёмный фон — структура (виден с первого кадра роста,
@@ -247,13 +262,14 @@ export function TaskCard({ taskId }: { taskId: string }) {
             duration/easing — синхронно с её ростом, сумма постоянна):
             левая панель и разделитель НЕ двигаются (вердикт владельца). */}
         <div
+          ref={chatRef}
           className={cn(
             'min-h-0 overflow-hidden',
             // transition — ТОЛЬКО для программного toggle «О задаче»;
-            // во время ручного drag — снят, иначе догоняющая анимация (gotchas)
+            // во время ручного drag — снят, ширина идёт императивно (gotchas)
             !dragging && 'transition-[width] duration-200 ease-out',
           )}
-          style={{ width: aboutOpen ? Math.max(chatW - 360, 280) : chatW }}
+          style={{ width: Math.max(chatW - (aboutOpen ? ABOUT_W : 0), 280) }}
         >
           <div className="h-full w-full bg-background">
             <div className="content-fade h-full">
@@ -270,9 +286,7 @@ export function TaskCard({ taskId }: { taskId: string }) {
             aboutOpen ? 'w-[360px]' : 'w-0',
           )}
         >
-          {aboutMounted ? (
-            <TaskAboutDrawer task={task} onClose={() => setAboutOpen(false)} />
-          ) : null}
+          {aboutMounted ? <TaskAboutDrawer task={task} onClose={closeAbout} /> : null}
         </div>
       </div>
     </div>

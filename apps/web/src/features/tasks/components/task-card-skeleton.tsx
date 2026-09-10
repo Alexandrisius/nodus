@@ -12,9 +12,9 @@ export function TaskCardSkeleton({ chatW }: { chatW: number }) {
       </div>
       <div
         className="grid min-h-0 flex-1"
-        style={{ gridTemplateColumns: `minmax(0,1fr) 6px ${chatW}px` }}
+        style={{ gridTemplateColumns: `minmax(0,1fr) ${chatW}px` }}
       >
-        <div className="flex min-h-0 flex-col">
+        <div className="flex min-h-0 flex-col border-r border-border">
           <div className="min-h-0 flex-1 space-y-6 overflow-hidden p-6">
             <Skeleton className="h-8 w-2/3" />
             <div className="space-y-2.5">
@@ -31,9 +31,6 @@ export function TaskCardSkeleton({ chatW }: { chatW: number }) {
             <Skeleton className="h-7 w-28 rounded-md" />
             <Skeleton className="h-7 w-32 rounded-md" />
           </div>
-        </div>
-        <div className="relative">
-          <span className="absolute inset-y-0 left-1/2 w-px bg-border" />
         </div>
         <div className="flex min-h-0 flex-col gap-3 bg-background p-4">
           <Skeleton className="h-14 w-3/4 self-start" />

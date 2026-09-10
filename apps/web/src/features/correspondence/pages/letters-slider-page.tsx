@@ -1,5 +1,4 @@
-import { Link, Outlet, useNavigate, useParams } from '@tanstack/react-router';
-import { ui } from '@nodus/contracts';
+import { Outlet, useNavigate, useParams } from '@tanstack/react-router';
 
 import { SliderPanel } from '../../../app/shell/slider-panel.js';
 import { LetterCard } from '../components/letter-card.js';
@@ -10,18 +9,7 @@ export function LettersSliderPage() {
 
   return (
     <>
-      <SliderPanel
-        breadcrumbs={
-          <>
-            <Link to="/letters" className="hover:text-foreground">
-              {ui.letters.title}
-            </Link>
-            <span>/</span>
-            <span className="text-foreground">{ui.letters.letter}</span>
-          </>
-        }
-        onClose={() => void navigate({ to: '/letters' })}
-      >
+      <SliderPanel onClose={() => void navigate({ to: '/letters' })}>
         <LetterCard letterId={letterId} />
       </SliderPanel>
       <Outlet />
