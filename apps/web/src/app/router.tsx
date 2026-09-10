@@ -123,6 +123,13 @@ const projectSliderRoute = createRoute({
   path: '/$projectId',
   component: ProjectSliderPage,
 });
+/* Слайдер задачи поверх слайдера проекта (стек «Проект → Задача», §10.2):
+ * открытие из списка/канбана проектной панели. */
+const projectTaskSliderRoute = createRoute({
+  getParentRoute: () => projectSliderRoute,
+  path: '/task/$taskId',
+  component: TaskSliderPage,
+});
 
 const chatRoute = createRoute({
   getParentRoute: () => shellRoute,
@@ -147,7 +154,7 @@ const routeTree = rootRoute.addChildren([
     homeRoute,
     tasksRoute.addChildren([taskSliderRoute.addChildren([taskProjectSliderRoute])]),
     lettersRoute.addChildren([letterSliderRoute]),
-    projectsRoute.addChildren([projectSliderRoute]),
+    projectsRoute.addChildren([projectSliderRoute.addChildren([projectTaskSliderRoute])]),
     chatRoute,
     chatConversationRoute,
     employeesRoute,

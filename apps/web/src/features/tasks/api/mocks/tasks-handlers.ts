@@ -20,6 +20,7 @@ import {
   makeSubtask,
   taskDetailOf,
 } from '../../../../shared/mocks/data/tasks.js';
+import { demoProjects } from '../../../../shared/mocks/data/projects.js';
 import { demoStages } from '../../../../shared/mocks/data/task-stages.js';
 import { currentAuthUser, userRef } from '../../../../shared/mocks/data/users.js';
 
@@ -53,12 +54,16 @@ export const tasksHandlers = [
     const url = new URL(request.url);
     const stageId = url.searchParams.get('stageId');
     const personalStageId = url.searchParams.get('personalStageId');
+    const projectId = url.searchParams.get('projectId');
     const search = url.searchParams.get('search')?.trim().toLowerCase() ?? '';
     const cursor = url.searchParams.get('cursor');
     const limit = Math.min(Number(url.searchParams.get('limit') ?? 50) || 50, 100);
     let filtered = stageId ? demoTasks.filter((t) => t.stage.id === stageId) : demoTasks;
     if (personalStageId) {
       filtered = demoTasks.filter((t) => t.personalStageId === personalStageId);
+    }
+    if (projectId) {
+      filtered = filtered.filter((t) => t.project?.id === projectId);
     }
     if (search) {
       filtered = filtered.filter(
@@ -88,8 +93,10 @@ export const tasksHandlers = [
     ),
   ),
 
-  /** Быстрое создание задачи из колонки «Моего плана» (плюсик в шапке):
-   *  глобальная стадия — первая стадия схемы того же системного состояния. */
+  /** Быстрое создание задачи из колонки доски (плюсик в шапке): личная
+   *  колонка «Моего плана» — глобальная стадия подставляется по состоянию
+   *  колонки; глобальная стадия (проектная доска) — как есть, личное
+   *  размещение не создаётся (появится при первом DnD «Моего плана»). */
   http.post('/api/v1/tasks', async ({ request }) => {
     const parsed = createTaskBodySchema.safeParse(await request.json());
     if (!parsed.success)
@@ -97,20 +104,29 @@ export const tasksHandlers = [
         { code: ErrorCode.VALIDATION_FAILED, message: 'Invalid body' },
         { status: 422 },
       );
-    const column = demoPersonalStages.find((s) => s.id === parsed.data.personalStageId);
-    if (!column) return notFound('Stage not found');
+    const project = parsed.data.projectId
+      ? demoProjects.find((p) => p.id === parsed.data.projectId)
+      : undefined;
+    const personalColumn = parsed.data.personalStageId
+      ? demoPersonalStages.find((s) => s.id === parsed.data.personalStageId)
+      : undefined;
+    if (parsed.data.personalStageId && !personalColumn) return notFound('Stage not found');
+    const stage = personalColumn
+      ? globalStageForPersonal(personalColumn, demoStages)
+      : demoStages.find((s) => s.id === parsed.data.stageId);
+    if (!stage) return notFound('Stage not found');
     const task: TaskListItem = {
       id: crypto.randomUUID(),
       number: Math.max(...demoTasks.map((t) => t.number)) + 1,
       title: parsed.data.title,
-      stage: globalStageForPersonal(column, demoStages),
-      personalStageId: column.id,
+      stage,
+      personalStageId: personalColumn?.id ?? null,
       priority: 'normal',
       deadline: null,
       creator: userRef(currentAuthUser.id),
       assignee: userRef(currentAuthUser.id),
       participants: [],
-      project: null,
+      project: project ? { id: project.id, code: project.code, name: project.name } : null,
       parentId: null,
       spentMinutes: 0,
       commentsCount: 0,

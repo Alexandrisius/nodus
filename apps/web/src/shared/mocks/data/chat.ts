@@ -7,6 +7,8 @@ import { userIds, userRef } from './users.js';
 export const cid = (n: number): string => `a0000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const mid = (n: number): string => `b0000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 
+/** Канал проекта создаётся АВТОМАТИЧЕСКИ при создании проекта (вердикт
+ *  владельца 2026-09-10): канал есть у каждого проекта демо-набора. */
 export const demoConversations: ConversationListItem[] = [
   {
     id: cid(1),
@@ -25,12 +27,42 @@ export const demoConversations: ConversationListItem[] = [
   {
     id: cid(2),
     type: 'project_channel',
-    title: 'I005-Внедрение Revit',
+    title: projectRefs.p3.name,
     avatarUrl: null,
     project: projectRefs.p3,
     membersPreview: [userRef(userIds.klevantovich), userRef(userIds.klimovich)],
     lastMessage: null,
     unreadCount: 0,
+  },
+  {
+    id: cid(6),
+    type: 'project_channel',
+    title: projectRefs.p1.name,
+    avatarUrl: null,
+    project: projectRefs.p1,
+    membersPreview: [userRef(userIds.klimovich), userRef(userIds.shaiderova)],
+    lastMessage: null,
+    unreadCount: 1,
+  },
+  {
+    id: cid(7),
+    type: 'project_channel',
+    title: projectRefs.p2.name,
+    avatarUrl: null,
+    project: projectRefs.p2,
+    membersPreview: [userRef(userIds.akulich), userRef(userIds.klimovich)],
+    lastMessage: null,
+    unreadCount: 0,
+  },
+  {
+    id: cid(8),
+    type: 'project_channel',
+    title: projectRefs.p4.name,
+    avatarUrl: null,
+    project: projectRefs.p4,
+    membersPreview: [userRef(userIds.vinnichek), userRef(userIds.klimovich)],
+    lastMessage: null,
+    unreadCount: 3,
   },
   {
     id: cid(3),
@@ -64,95 +96,209 @@ export const demoConversations: ConversationListItem[] = [
   },
 ];
 
+function msg(
+  n: number,
+  conversation: number,
+  author: string,
+  text: string,
+  createdAt: string,
+  extra?: Partial<ChatMessage>,
+): ChatMessage {
+  return {
+    id: mid(n),
+    conversationId: cid(conversation),
+    author: userRef(author),
+    text,
+    replyToId: null,
+    threadRootId: null,
+    threadRepliesCount: 0,
+    reactions: [],
+    attachments: [],
+    editedAt: null,
+    createdAt,
+    ...extra,
+  };
+}
+
+/** Лента канала = корневые сообщения (новости-треды); ответы ссылаются на
+ *  корень (threadRootId), threadRepliesCount корня = число ответов. */
 export const demoMessages: ChatMessage[] = [
-  {
-    id: mid(1),
-    conversationId: cid(1),
-    author: userRef(userIds.shaiderova),
-    text: 'Коллеги, добрый день! В пятницу — корпоративный обед в честь дня рождения Ольги Карпович, начало в 15:00.',
-    replyToId: null,
-    threadRootId: null,
-    threadRepliesCount: 0,
-    reactions: [{ emoji: '🎉', count: 5, mine: true }],
-    attachments: [],
-    editedAt: null,
-    createdAt: isoAgo(0, 10, 15),
-  },
-  {
-    id: mid(2),
-    conversationId: cid(1),
-    author: userRef(userIds.vinnichek),
-    text: 'Делюсь презентацией по итогам архитектурного конкурса — спасибо всем, кто участвовал!',
-    replyToId: null,
-    threadRootId: null,
-    threadRepliesCount: 1,
-    reactions: [{ emoji: '❤️', count: 3, mine: false }],
-    attachments: [
-      {
-        id: '70000000-0000-4000-8000-000000000021',
-        name: 'презентация_конкурс.pdf',
-        size: 2_400_000,
-        mime: 'application/pdf',
-      },
-    ],
-    editedAt: null,
-    createdAt: isoAgo(1, 14, 33),
-  },
-  {
-    id: mid(3),
-    conversationId: cid(2),
-    author: userRef(userIds.klevantovich),
-    text: 'Выкатил обновление семейства колонн, проверьте на своих разделах.',
-    replyToId: null,
-    threadRootId: null,
-    threadRepliesCount: 0,
-    reactions: [],
-    attachments: [],
-    editedAt: null,
-    createdAt: isoAgo(0, 9, 5),
-  },
-  {
-    id: mid(4),
-    conversationId: cid(3),
-    author: userRef(userIds.akulich),
-    text: 'Кто тестировал SmartCon на 2026-м Revit? Есть нюансы с API.',
-    replyToId: null,
-    threadRootId: null,
-    threadRepliesCount: 0,
-    reactions: [],
-    attachments: [],
-    editedAt: null,
-    createdAt: isoAgo(0, 8, 50),
-  },
-  {
-    id: mid(5),
-    conversationId: cid(4),
-    author: userRef(userIds.vinnichek),
-    text: 'Александр, посмотрите, пожалуйста, планировки корпуса Б — отправила в задачу.',
-    replyToId: null,
-    threadRootId: null,
-    threadRepliesCount: 0,
-    reactions: [],
-    attachments: [],
-    editedAt: null,
-    createdAt: isoAgo(0, 12, 20),
-  },
-  {
-    id: mid(6),
-    conversationId: cid(5),
-    author: userRef(userIds.polomar),
-    text: 'Подписала у директора входящее от «СтройЗаказчика», передала вам на резолюцию.',
-    replyToId: null,
-    threadRootId: null,
-    threadRepliesCount: 0,
-    reactions: [],
-    attachments: [],
-    editedAt: null,
-    createdAt: isoAgo(0, 11, 55),
-  },
+  msg(
+    1,
+    1,
+    userIds.shaiderova,
+    'Коллеги, добрый день! В пятницу — корпоративный обед в честь дня рождения Ольги Карпович, начало в 15:00.',
+    isoAgo(0, 10, 15),
+    {
+      reactions: [{ emoji: '🎉', count: 5, mine: true }],
+    },
+  ),
+  msg(
+    2,
+    1,
+    userIds.vinnichek,
+    'Делюсь презентацией по итогам архитектурного конкурса — спасибо всем, кто участвовал!',
+    isoAgo(1, 14, 33),
+    {
+      threadRepliesCount: 2,
+      reactions: [{ emoji: '❤️', count: 3, mine: false }],
+      attachments: [
+        {
+          id: '70000000-0000-4000-8000-000000000021',
+          name: 'презентация_конкурс.pdf',
+          size: 2_400_000,
+          mime: 'application/pdf',
+        },
+      ],
+    },
+  ),
+  msg(
+    7,
+    1,
+    userIds.klimovich,
+    'Поздравляю команду! Презентация отличная, отправил руководству.',
+    isoAgo(1, 13, 2),
+    {
+      threadRootId: mid(2),
+    },
+  ),
+  msg(21, 1, userIds.shaiderova, 'Спасибо! Добавлю итоги в новости портала.', isoAgo(1, 12, 40), {
+    threadRootId: mid(2),
+  }),
+
+  msg(
+    3,
+    2,
+    userIds.klevantovich,
+    'Выкатил обновление семейства колонн, проверьте на своих разделах.',
+    isoAgo(0, 9, 5),
+  ),
+  msg(
+    8,
+    2,
+    userIds.klimovich,
+    'Согласовали график выпуска разделов: КЖ — до конца месяца, АР — следующим.',
+    isoAgo(1, 11, 20),
+    {
+      threadRepliesCount: 2,
+    },
+  ),
+  msg(9, 2, userIds.klevantovich, 'КЖ успеваем, нужны исходники по осям 4–7.', isoAgo(1, 10, 44), {
+    threadRootId: mid(8),
+  }),
+  msg(10, 2, userIds.vinnichek, 'Исходники передала, проверьте привязки.', isoAgo(1, 9, 30), {
+    threadRootId: mid(8),
+  }),
+
+  msg(
+    11,
+    6,
+    userIds.shaiderova,
+    'Статус недели по внедрению: обучение завершено на 80%, собираем обратную связь.',
+    isoAgo(0, 12, 40),
+    {
+      threadRepliesCount: 1,
+      reactions: [{ emoji: '👍', count: 2, mine: false }],
+    },
+  ),
+  msg(
+    12,
+    6,
+    userIds.klimovich,
+    'Добавлю сводку в отчёт для руководства к пятнице.',
+    isoAgo(0, 11, 58),
+    {
+      threadRootId: mid(11),
+    },
+  ),
+  msg(
+    13,
+    6,
+    userIds.klimovich,
+    'Структура CDE согласована — задача №101 на контроле, закрываем на этой неделе.',
+    isoAgo(2, 15, 10),
+  ),
+
+  msg(
+    14,
+    7,
+    userIds.akulich,
+    'Тесты SmartCon на 2026-м Revit: три падения API на экспорте, завёл задачи.',
+    isoAgo(0, 8, 50),
+    {
+      threadRepliesCount: 1,
+    },
+  ),
+  msg(20, 7, userIds.klimovich, 'Посмотрю сегодня вечером, приоритет высокий.', isoAgo(0, 8, 12), {
+    threadRootId: mid(14),
+  }),
+
+  msg(
+    15,
+    8,
+    userIds.vinnichek,
+    'По письму Вх-2026/118 (замечания КЖ): собираем ответ заказчику, срок до конца недели.',
+    isoAgo(2, 9, 30),
+    {
+      threadRepliesCount: 2,
+      reactions: [{ emoji: '📌', count: 2, mine: true }],
+    },
+  ),
+  msg(17, 8, userIds.klimovich, 'Взял в работу, черновик ответа покажу завтра.', isoAgo(2, 8, 15), {
+    threadRootId: mid(15),
+  }),
+  msg(
+    18,
+    8,
+    userIds.matorin,
+    'Узлы примыкания уточнил, приложу схемы к ответу.',
+    isoAgo(1, 17, 45),
+    {
+      threadRootId: mid(15),
+    },
+  ),
+  msg(
+    16,
+    8,
+    userIds.vinnichek,
+    'Вентиляционное оборудование: коммерческое получено, ждём решение по поставщику.',
+    isoAgo(1, 10, 5),
+  ),
+
+  msg(
+    4,
+    3,
+    userIds.akulich,
+    'Кто тестировал SmartCon на 2026-м Revit? Есть нюансы с API.',
+    isoAgo(0, 8, 50),
+  ),
+  msg(
+    22,
+    3,
+    userIds.klevantovich,
+    'Да, падения на экспорте — в канале проекта I004 завели задачи.',
+    isoAgo(0, 8, 20),
+  ),
+
+  msg(
+    5,
+    4,
+    userIds.vinnichek,
+    'Александр, посмотрите, пожалуйста, планировки корпуса Б — отправила в задачу.',
+    isoAgo(0, 12, 20),
+  ),
+  msg(
+    6,
+    5,
+    userIds.polomar,
+    'Подписала у директора входящее от «СтройЗаказчика», передала вам на резолюцию.',
+    isoAgo(0, 11, 55),
+  ),
 ];
 
 for (const conversation of demoConversations) {
-  const last = [...demoMessages].reverse().find((m) => m.conversationId === conversation.id);
+  const last = [...demoMessages]
+    .reverse()
+    .find((m) => m.conversationId === conversation.id && m.threadRootId === null);
   conversation.lastMessage = last ?? null;
 }

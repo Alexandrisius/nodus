@@ -1,85 +1,63 @@
-import { Plus } from 'lucide-react';
 import { Outlet, useNavigate } from '@tanstack/react-router';
+import type { ProjectListItem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
-import { Badge } from '@nodus/ui/components/badge';
-import { Button } from '@nodus/ui/components/button';
-import { Skeleton } from '@nodus/ui/components/skeleton';
 
-import { formatDateTime } from '../../../shared/lib/format.js';
-import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
+import { useShellStore } from '../../../app/shell/shell-store.js';
+import { plural } from '../../../shared/lib/format.js';
+import { DataTable } from '../../../shared/views/data-table.js';
+import { ViewSettings } from '../../../shared/views/view-settings.js';
 import { useProjectsList } from '../api/projects-api.js';
+import { projectListFields } from '../lib/project-fields.js';
 
-/** Проекты: список с ролью, участниками и приватностью (референс Битрикса). */
+/**
+ * Проекты: журнал канонической таблицей (shared/views, ключ `projects.list`) —
+ * колонки-реестр `lib/project-fields.tsx`, видимость шестерёнкой, ширина
+ * ручкой, память между сессиями. Шапка — живая сводка и шестерёнка
+ * представления. Открытие — слайдер с shared-element раскрытием из rect
+ * строки. Создание проекта — форма после MVP (мёртвых кнопок-обрубков нет).
+ */
 export function ProjectsPage() {
   const { data, isLoading } = useProjectsList();
   const navigate = useNavigate();
+  const setLastSource = useShellStore((s) => s.setLastSource);
+
+  const items = data?.items ?? [];
+  const managing = items.filter((p) => p.myRole === 'manager').length;
+
+  function openProject(project: ProjectListItem, rowEl: HTMLElement) {
+    const rect = rowEl.getBoundingClientRect();
+    setLastSource({ x: rect.x, y: rect.y, width: rect.width, height: rect.height });
+    void navigate({ to: '/projects/$projectId', params: { projectId: project.id } });
+  }
 
   return (
     <div className="relative flex h-full flex-col">
-      <header className="flex items-center justify-between px-5 pt-4 pb-2">
+      <header className="flex items-end justify-between px-6 pt-5 pb-3">
         <h1 className="text-xl font-semibold text-foreground">{ui.projects.title}</h1>
-        <Button size="sm">
-          <Plus data-icon="inline-start" />
-          {ui.projects.create}
-        </Button>
+        <div className="flex items-center gap-2">
+          <p className="font-mono text-[11px] tracking-[0.14em] text-muted-foreground uppercase select-none">
+            <span className="text-foreground tabular-nums">{items.length}</span>{' '}
+            {plural(items.length, [
+              ui.projects.countOne,
+              ui.projects.countFew,
+              ui.projects.countMany,
+            ])}
+            <span className="mx-2 text-border">·</span>
+            {ui.projects.myRole.manager}:{' '}
+            <span className="text-foreground tabular-nums">{managing}</span>
+          </p>
+          <ViewSettings viewKey="projects.list" defs={projectListFields} />
+        </div>
       </header>
-
-      <div className="min-h-0 flex-1 overflow-y-auto p-5">
-        {isLoading ? (
-          <div className="flex flex-col gap-2">
-            {[0, 1, 2, 3].map((i) => (
-              <Skeleton key={i} className="h-16 w-full" />
-            ))}
-          </div>
-        ) : (
-          <div className="paper-surface overflow-hidden rounded-xl border">
-            {(data?.items ?? []).map((project) => (
-              <button
-                key={project.id}
-                type="button"
-                onClick={() =>
-                  void navigate({ to: '/projects/$projectId', params: { projectId: project.id } })
-                }
-                className="flex w-full items-center gap-4 border-b px-4 py-3 text-left last:border-b-0 hover:bg-accent/50"
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-medium">{project.name}</div>
-                  <div className="mt-0.5 text-xs text-muted-foreground">
-                    {project.stageName} · {ui.projects.activity}:{' '}
-                    {formatDateTime(project.activityAt)}
-                  </div>
-                </div>
-                <Badge
-                  variant="secondary"
-                  className={
-                    project.myRole === 'manager'
-                      ? 'bg-success-soft text-success'
-                      : 'bg-info-soft text-info'
-                  }
-                >
-                  {ui.projects.myRole[project.myRole]}
-                </Badge>
-                <span className="flex shrink-0 items-center">
-                  {project.membersPreview.slice(0, 4).map((member) => (
-                    <PersonAvatar
-                      key={member.id}
-                      name={member.displayName}
-                      className="-ml-1.5 size-7 first:ml-0"
-                    />
-                  ))}
-                  {project.membersCount > 4 && (
-                    <span className="ml-1 text-xs text-muted-foreground">
-                      +{project.membersCount - 4}
-                    </span>
-                  )}
-                </span>
-                <span className="w-24 shrink-0 text-right text-xs text-muted-foreground">
-                  {ui.projects.privacy[project.privacy]}
-                </span>
-              </button>
-            ))}
-          </div>
-        )}
+      <div className="min-h-0 flex-1">
+        <DataTable
+          viewKey="projects.list"
+          defs={projectListFields}
+          rows={items}
+          rowKey={(project) => project.id}
+          isLoading={isLoading}
+          onOpenRow={openProject}
+        />
       </div>
       <Outlet />
     </div>

@@ -1,41 +1,15 @@
 import type { ReactNode } from 'react';
-import { Mail, MessageSquare } from 'lucide-react';
-import type { TaskListItem, TaskPriority, UserRef } from '@nodus/contracts';
+import type { TaskListItem, UserRef } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
-import { NodeChip } from '@nodus/ui/components/node-chip';
 
 import { formatDateTime, formatMinutes } from '../../../shared/lib/format.js';
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
 import { DeadlineChip } from '../../../shared/ui/deadline-chip.js';
-import type { FieldDef } from '../../../shared/views/use-view-fields.js';
 import { TaskStatusBadge } from '../../../shared/ui/task-status-badge.js';
+import type { DataTableField } from '../../../shared/views/data-table.js';
+import type { FieldDef } from '../../../shared/views/use-view-fields.js';
 
-/** Контекст ячейки списка: состояние ветки дерева (счётчик свёрнутых). */
-export interface CellContext {
-  branchCollapsed?: boolean;
-  childCount?: number;
-}
-
-export interface ListFieldDef extends FieldDef {
-  render: (task: TaskListItem, ctx: CellContext) => ReactNode;
-}
-
-export const priorityTone: Record<TaskPriority, 'muted' | 'warning' | 'danger'> = {
-  low: 'muted',
-  normal: 'muted',
-  high: 'warning',
-  urgent: 'danger',
-};
-
-function SourceIcon({ task }: { task: TaskListItem }) {
-  if (task.source === 'letter')
-    return <Mail className="size-3.5 shrink-0 text-info/70" aria-label={ui.tasks.fromLetter} />;
-  if (task.source === 'chat_message')
-    return (
-      <MessageSquare className="size-3.5 shrink-0 text-info/70" aria-label={ui.tasks.fromChat} />
-    );
-  return null;
-}
+const monoCell = 'font-mono text-[11px] text-muted-foreground tabular-nums';
 
 function personCell(user: UserRef | null): ReactNode {
   if (!user) return <span className="text-xs text-muted-foreground">{ui.common.notSet}</span>;
@@ -47,14 +21,13 @@ function personCell(user: UserRef | null): ReactNode {
   );
 }
 
-const monoCell = 'font-mono text-[11px] text-muted-foreground tabular-nums';
-
 /**
- * Реестр колонок списка задач (кастомизация представлений): видимость и
- * ширина настраиваются пользователем через шестерёнку и ручку хедера;
- * новое поле модуля = +1 запись здесь.
+ * Реестр колонок списка задач проекта (ключ вида `projects.tasks` — своя
+ * память колонок, отдельно от журнала задач `tasks.list`). Плоский список:
+ * граф-дерево подзадач не рендерится (иерархия — в навигаторе ветки карточки
+ * задачи, плейбук §3.3). Колонка «Проект» отсутствует — контекст очевиден.
  */
-export const taskListFields: ListFieldDef[] = [
+export const projectTaskListFields: DataTableField<TaskListItem>[] = [
   {
     id: 'number',
     label: ui.tasks.fieldNumber,
@@ -72,17 +45,7 @@ export const taskListFields: ListFieldDef[] = [
     minWidth: 160,
     maxWidth: 640,
     locked: true,
-    render: (task, ctx) => (
-      <>
-        <SourceIcon task={task} />
-        <span className="truncate text-sm font-medium">{task.title}</span>
-        {ctx.branchCollapsed && (ctx.childCount ?? 0) > 0 ? (
-          <span className="shrink-0 font-mono text-[10px] text-muted-foreground tabular-nums">
-            +{ctx.childCount}
-          </span>
-        ) : null}
-      </>
-    ),
+    render: (task) => <span className="truncate text-sm font-medium">{task.title}</span>,
   },
   {
     id: 'stage',
@@ -117,29 +80,6 @@ export const taskListFields: ListFieldDef[] = [
     render: (task) => personCell(task.creator),
   },
   {
-    id: 'project',
-    label: ui.tasks.project,
-    defaultVisible: false,
-    defaultWidth: 180,
-    minWidth: 120,
-    render: (task) =>
-      task.project ? (
-        <span className="truncate font-mono text-[11px] text-info/80">{task.project.name}</span>
-      ) : (
-        <span className={monoCell}>—</span>
-      ),
-  },
-  {
-    id: 'priority',
-    label: ui.tasks.fieldPriority,
-    defaultVisible: false,
-    defaultWidth: 108,
-    minWidth: 92,
-    render: (task) => (
-      <NodeChip tone={priorityTone[task.priority]}>{ui.tasks.priority[task.priority]}</NodeChip>
-    ),
-  },
-  {
     id: 'comments',
     label: ui.tasks.colComments,
     defaultVisible: true,
@@ -170,15 +110,16 @@ export const taskListFields: ListFieldDef[] = [
 ];
 
 /**
- * Реестр полей карточки канбана (видимость блоков; ширина не применяется —
- * колонка канбана фиксированной ширины).
+ * Реестр блоков карточки проектного канбана (ключ вида `projects.kanban`;
+ * id — те же, что читает общая BoardTaskCard). «Проект» по умолчанию скрыт:
+ * доска открыта внутри карточки проекта.
  */
-export const taskCardFields: FieldDef[] = [
+export const projectKanbanCardFields: FieldDef[] = [
   { id: 'parent', label: ui.tasks.subtaskOf, defaultVisible: true },
   { id: 'number', label: ui.tasks.fieldNumber, defaultVisible: true },
   { id: 'source', label: ui.tasks.fieldSource, defaultVisible: true },
   { id: 'deadline', label: ui.tasks.deadline, defaultVisible: true },
-  { id: 'project', label: ui.tasks.project, defaultVisible: true },
+  { id: 'project', label: ui.tasks.project, defaultVisible: false },
   { id: 'assignee', label: ui.tasks.assignee, defaultVisible: true },
   { id: 'comments', label: ui.tasks.comments, defaultVisible: true },
   { id: 'spent', label: ui.tasks.colSpent, defaultVisible: true },

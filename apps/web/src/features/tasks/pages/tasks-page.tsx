@@ -3,7 +3,7 @@ import { ui } from '@nodus/contracts';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { ViewSettings } from '../../../shared/views/view-settings.js';
-import { useTaskStages } from '../api/tasks-api.js';
+import { useTaskStages } from '../../../shared/api/task-stages.js';
 import { taskCardFields, taskListFields } from '../lib/task-fields.js';
 import { TaskKanban } from '../components/task-kanban.js';
 import { TaskList } from '../components/task-list.js';

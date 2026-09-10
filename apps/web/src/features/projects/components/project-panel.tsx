@@ -1,198 +1,134 @@
-import { ChartGantt, List, Lock, MessageSquare, SquareKanban, Users } from 'lucide-react';
-import { useState } from 'react';
-import { useNavigate } from '@tanstack/react-router';
-import type { TaskListItem } from '@nodus/contracts';
+import { Lock, MessageSquare, PanelRight, SquareKanban, List } from 'lucide-react';
+import { useCallback, useState } from 'react';
 import { ui } from '@nodus/contracts';
-import { Badge } from '@nodus/ui/components/badge';
-import { Button } from '@nodus/ui/components/button';
-import { Empty, EmptyDescription, EmptyTitle } from '@nodus/ui/components/empty';
-import { Skeleton } from '@nodus/ui/components/skeleton';
+import { NodeChip } from '@nodus/ui/components/node-chip';
 import { cn } from '@nodus/ui/lib/utils';
 
-import { formatDate } from '../../../shared/lib/format.js';
-import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
-import { DeadlineChip } from '../../../shared/ui/deadline-chip.js';
-import { useProjectDetail, useProjectTasks } from '../api/projects-api.js';
-import { ProjectGantt } from './project-gantt.js';
+import { DomainChain, type ChainNode } from '../../../shared/ui/domain-chain.js';
+import { ViewSettings } from '../../../shared/views/view-settings.js';
+import { useProjectDetail } from '../api/projects-api.js';
+import { projectKanbanCardFields, projectTaskListFields } from '../lib/project-task-fields.js';
+import { ProjectAboutDrawer } from './project-about-drawer.js';
+import { ProjectChat } from './project-chat.js';
+import { ProjectKanban } from './project-kanban.js';
+import { ProjectPanelSkeleton } from './project-panel-skeleton.js';
+import { ProjectTaskList } from './project-task-list.js';
 
-type View = 'list' | 'kanban' | 'gantt' | 'chat';
+type View = 'list' | 'kanban' | 'chat';
 
-const columnTone = (order: number): string => {
-  const tones = [
-    'bg-steel/80 text-cream',
-    'bg-steel/80 text-cream',
-    'bg-tealink/85 text-cream',
-    'bg-ochre/90 text-cream',
-    'bg-sage/85 text-cream',
-    'bg-rust/85 text-cream',
-  ];
-  return tones[Math.min(order, tones.length - 1)] ?? 'bg-steel/80 text-cream';
-};
+const views: { id: View; label: string; icon: typeof List }[] = [
+  { id: 'list', label: ui.projects.viewList, icon: List },
+  { id: 'kanban', label: ui.projects.viewKanban, icon: SquareKanban },
+  { id: 'chat', label: ui.projects.viewChat, icon: MessageSquare },
+];
 
-function ProjectKanban({ tasks }: { tasks: TaskListItem[] }) {
-  const stages = [...new Map(tasks.map((t) => [t.stage.id, t.stage])).values()].sort(
-    (a, b) => a.order - b.order,
-  );
-  return (
-    <div className="flex h-full gap-3 overflow-x-auto p-4">
-      {stages.map((stage) => {
-        const cards = tasks.filter((t) => t.stage.id === stage.id);
-        return (
-          <section key={stage.id} className="flex h-full w-72 shrink-0 flex-col">
-            <header
-              className={cn(
-                'mb-2 flex h-8 items-center justify-between rounded-lg px-3 text-sm font-semibold',
-                columnTone(stage.order),
-              )}
-            >
-              {stage.name}
-              <span className="text-xs font-normal opacity-70 tabular-nums">{cards.length}</span>
-            </header>
-            <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pb-2">
-              {cards.map((task) => (
-                <div
-                  key={task.id}
-                  className="paper-surface flex flex-col gap-2 rounded-xl border p-3 shadow-lg shadow-black/25"
-                >
-                  <span className="line-clamp-2 text-sm font-medium">{task.title}</span>
-                  <DeadlineChip deadline={task.deadline} />
-                  {task.assignee && (
-                    <PersonAvatar name={task.assignee.displayName} className="size-6" />
-                  )}
-                </div>
-              ))}
-            </div>
-          </section>
-        );
-      })}
-    </div>
-  );
-}
-
-/** Карточка проекта (нижний слайдер): паспорт + представления задач + чат. */
+/**
+ * Карточка проекта (нижний слайдер): полоса цепочки — само-узел
+ * «ПРОЕКТ · код» + чипы стадии и приватности + кнопка «О проекте»
+ * (вталкивающая колонка справа — пуш-механика карточки задачи, сумма ширин
+ * постоянна); ряд моно-вкладок представлений (Список / Канбан / Чат —
+ * БЕЗ Ганта: отдельный issue #39, обрубки запрещены) с шестерёнкой
+ * активного вида; контент — задачи проекта (те же сущности, плейбук §3.1):
+ * список канонической таблицей, канбан на общей оболочке борда
+ * (глобальная ось, без CRUD колонок), чат — канал проекта с тредами.
+ */
 export function ProjectPanel({ projectId }: { projectId: string }) {
   const { data: project, isLoading } = useProjectDetail(projectId);
-  const { data: tasks } = useProjectTasks(projectId);
   const [view, setView] = useState<View>('list');
-  const navigate = useNavigate();
+  const [aboutOpen, setAboutOpen] = useState(false);
+  // Панель «О проекте» монтируется раз и остаётся: колонка анимируется
+  // 0↔360px (плавный пуш контента), состояние не теряется.
+  const [aboutMounted, setAboutMounted] = useState(false);
+  const closeAbout = useCallback(() => setAboutOpen(false), []);
 
   if (isLoading || !project) {
-    return <Skeleton className="h-full w-full" />;
+    return <ProjectPanelSkeleton />;
   }
 
-  const items = tasks?.items ?? [];
-  const views: { id: View; label: string; icon: typeof List }[] = [
-    { id: 'list', label: ui.projects.viewList, icon: List },
-    { id: 'kanban', label: ui.projects.viewKanban, icon: SquareKanban },
-    { id: 'gantt', label: ui.projects.viewGantt, icon: ChartGantt },
-    { id: 'chat', label: ui.projects.viewChat, icon: MessageSquare },
+  // Само-узел — только «ТИП · КОД» (название один раз, в хроме слайдера).
+  const chainNodes: ChainNode[] = [
+    { caption: ui.projects.project, ref: project.code, active: true },
   ];
 
   return (
     <div className="flex h-full flex-col">
-      <div className="paper-surface shrink-0 border-b px-5 pt-4 pb-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="outline">{project.code}</Badge>
-          {project.stageName && <Badge variant="secondary">{project.stageName}</Badge>}
-          <Badge
-            variant="secondary"
-            className={
-              project.myRole === 'manager'
-                ? 'bg-success-soft text-success'
-                : 'bg-info-soft text-info'
-            }
-          >
-            {ui.projects.myRole[project.myRole]}
-          </Badge>
-          <Badge variant="secondary">
-            {project.privacy === 'closed' && <Lock data-icon="inline-start" />}
+      {/* Полоса цепочки: бордюр — структура (с первого кадра роста),
+          контент — fade */}
+      <div className="shrink-0 border-b border-border">
+        <div className="content-fade flex items-center gap-3 px-5 py-3">
+          <div className="min-w-0 flex-1 overflow-x-auto">
+            <DomainChain nodes={chainNodes} />
+          </div>
+          {project.stageName ? (
+            <NodeChip tone="info" className="shrink-0">
+              {project.stageName}
+            </NodeChip>
+          ) : null}
+          <NodeChip tone="muted" className="shrink-0">
+            {project.privacy === 'closed' ? <Lock className="size-3" /> : null}
             {ui.projects.privacy[project.privacy]}
-          </Badge>
-          <span className="ml-auto flex items-center gap-2 text-sm text-muted-foreground">
-            <Users className="size-4" />
-            {project.membersCount}
-            {project.manager && (
-              <>
-                ·<PersonAvatar name={project.manager.displayName} className="size-6" />
-                {project.manager.displayName}
-              </>
+          </NodeChip>
+          <button
+            type="button"
+            onClick={() => {
+              setAboutMounted(true);
+              setAboutOpen((v) => !v);
+            }}
+            aria-label={ui.projects.aboutProject}
+            title={ui.projects.aboutProject}
+            className={cn(
+              'shrink-0 rounded-lg p-2 transition-colors hover:bg-accent',
+              aboutOpen ? 'text-foreground' : 'text-muted-foreground',
             )}
-            {project.endDate && (
-              <>
-                · {ui.projects.endDate}: {formatDate(project.endDate)}
-              </>
-            )}
-          </span>
+          >
+            <PanelRight className="size-4" strokeWidth={1.75} />
+          </button>
         </div>
-        <h2 className="mt-2 text-xl font-semibold">{project.name}</h2>
-        <nav className="mt-3 flex items-center gap-1">
-          {views.map((v) => (
-            <button
-              key={v.id}
-              type="button"
-              onClick={() => setView(v.id)}
-              className={cn(
-                'flex h-8 items-center gap-2 rounded-lg px-3 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground',
-                view === v.id && 'bg-secondary text-secondary-foreground',
-              )}
-            >
-              <v.icon className="size-4" />
-              {v.label}
-            </button>
-          ))}
-        </nav>
       </div>
 
-      <div className="min-h-0 flex-1">
-        {view === 'list' && (
-          <div className="h-full overflow-y-auto p-4">
-            <div className="paper-surface overflow-hidden rounded-xl border">
-              {items.map((task) => (
-                <div
-                  key={task.id}
-                  className="flex items-center gap-4 border-b px-4 py-2.5 last:border-b-0"
-                >
-                  <span className="min-w-0 flex-1 truncate text-sm font-medium">{task.title}</span>
-                  <Badge variant="secondary" className="shrink-0">
-                    {task.stage.name}
-                  </Badge>
-                  <span className="w-44 shrink-0">
-                    <DeadlineChip deadline={task.deadline} />
-                  </span>
-                  {task.assignee ? (
-                    <PersonAvatar name={task.assignee.displayName} className="size-6" />
-                  ) : (
-                    <span className="size-6" />
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-        {view === 'kanban' && <ProjectKanban tasks={items} />}
-        {view === 'gantt' && <ProjectGantt tasks={items} />}
-        {view === 'chat' && (
-          <div className="flex h-full items-center justify-center">
-            {project.channelId ? (
-              <Button
-                onClick={() =>
-                  void navigate({
-                    to: '/chat/$conversationId',
-                    params: { conversationId: project.channelId ?? '' },
-                  })
-                }
-              >
-                <MessageSquare data-icon="inline-start" />
-                {ui.projects.openChannel}
-              </Button>
-            ) : (
-              <Empty className="text-foreground">
-                <EmptyTitle>{ui.projects.noChannel}</EmptyTitle>
-                <EmptyDescription>{ui.chat.channelOfProject}</EmptyDescription>
-              </Empty>
+      {/* Ряд вкладок представлений + шестерёнка активного вида */}
+      <div className="content-fade flex shrink-0 items-center gap-1 border-b border-border px-4">
+        {views.map((v) => (
+          <button
+            key={v.id}
+            type="button"
+            onClick={() => setView(v.id)}
+            className={cn(
+              'flex h-10 items-center gap-2 rounded-none border-b-2 px-3 font-mono text-[11px] tracking-[0.14em] uppercase transition-colors',
+              view === v.id
+                ? 'border-port text-foreground'
+                : 'border-transparent text-muted-foreground hover:text-foreground/80',
             )}
-          </div>
-        )}
+          >
+            <v.icon className="size-3.5" strokeWidth={1.75} />
+            {v.label}
+          </button>
+        ))}
+        <div className="ml-auto flex items-center gap-2">
+          {view === 'list' ? (
+            <ViewSettings viewKey="projects.tasks" defs={projectTaskListFields} />
+          ) : null}
+          {view === 'kanban' ? (
+            <ViewSettings viewKey="projects.kanban" defs={projectKanbanCardFields} />
+          ) : null}
+        </div>
+      </div>
+
+      {/* Контент + вталкивающая колонка «О проекте» (не оверлей) */}
+      <div className="grid min-h-0 flex-1" style={{ gridTemplateColumns: 'minmax(0,1fr) auto' }}>
+        <div className="content-fade min-h-0 overflow-hidden">
+          {view === 'list' ? <ProjectTaskList projectId={projectId} /> : null}
+          {view === 'kanban' ? <ProjectKanban projectId={projectId} /> : null}
+          {view === 'chat' ? <ProjectChat project={project} /> : null}
+        </div>
+        <div
+          className={cn(
+            'min-h-0 overflow-hidden transition-[width] duration-200 ease-out',
+            aboutOpen ? 'w-[360px]' : 'w-0',
+          )}
+        >
+          {aboutMounted ? <ProjectAboutDrawer project={project} onClose={closeAbout} /> : null}
+        </div>
       </div>
     </div>
   );

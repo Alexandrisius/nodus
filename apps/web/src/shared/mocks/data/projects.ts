@@ -22,7 +22,7 @@ export const demoProjects: ProjectListItem[] = [
     ],
     endDate: null,
     activityAt: isoAgo(0, 9, 30),
-    channelId: null,
+    channelId: cid(6),
   },
   {
     id: projectRefs.p2.id,
@@ -36,7 +36,7 @@ export const demoProjects: ProjectListItem[] = [
     membersPreview: [userRef(userIds.klimovich), userRef(userIds.akulich)],
     endDate: null,
     activityAt: isoAgo(1, 12, 0),
-    channelId: null,
+    channelId: cid(7),
   },
   {
     id: projectRefs.p3.id,
@@ -73,6 +73,6 @@ export const demoProjects: ProjectListItem[] = [
     ],
     endDate: isoDateIn(120),
     activityAt: isoAgo(0, 11, 45),
-    channelId: null,
+    channelId: cid(8),
   },
 ];

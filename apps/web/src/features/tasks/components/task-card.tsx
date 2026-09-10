@@ -18,7 +18,7 @@ import { TaskCardSkeleton } from './task-card-skeleton.js';
 import { TaskDiscussion } from './task-discussion.js';
 import { TaskFields } from './task-fields.js';
 import { TaskActionBar } from './task-stage-controls.js';
-import { TaskStatusBadge } from './task-status-badge.js';
+import { TaskStatusBadge } from '../../../shared/ui/task-status-badge.js';
 
 const chainCaption: Record<TaskChainNode['kind'], string> = {
   letter: ui.letters.letter,

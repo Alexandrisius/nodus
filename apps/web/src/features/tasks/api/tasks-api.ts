@@ -13,19 +13,20 @@ import type {
   TaskDetail,
   TaskListItem,
   TaskStage,
-  TaskStageWithCount,
 } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { toast } from 'sonner';
 
 import { useAuthStore } from '../../../shared/auth-store.js';
 import { api } from '../../../shared/api-client.js';
+import { taskStagesKey } from '../../../shared/api/task-stages.js';
 
 export const tasksKeys = {
   all: ['tasks'] as const,
   list: () => [...tasksKeys.all, 'list'] as const,
   listPages: () => [...tasksKeys.all, 'list-pages'] as const,
-  stages: () => [...tasksKeys.all, 'stages'] as const,
+  /** Общий каталог стадий — ключ из shared (потребители: задачи, проекты). */
+  stages: () => taskStagesKey,
   personalStages: () => [...tasksKeys.all, 'personal-stages'] as const,
   detail: (id: string) => [...tasksKeys.all, 'detail', id] as const,
   messages: (id: string) => [...tasksKeys.all, 'messages', id] as const,
@@ -45,14 +46,6 @@ export function useTasksPages() {
       ),
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.nextCursor,
-  });
-}
-
-/** Каталог стадий статус-схемы со счётчиками колонок (канбан-шапки). */
-export function useTaskStages() {
-  return useQuery({
-    queryKey: tasksKeys.stages(),
-    queryFn: () => api<TaskStageWithCount[]>('/tasks/stages'),
   });
 }
 

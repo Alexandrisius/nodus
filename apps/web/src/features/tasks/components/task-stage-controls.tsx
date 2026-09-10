@@ -9,7 +9,8 @@ import {
 } from '@nodus/ui/components/dropdown-menu';
 import { cn } from '@nodus/ui/lib/utils';
 
-import { useTaskStages, useUpdateTaskStage } from '../api/tasks-api.js';
+import { useUpdateTaskStage } from '../api/tasks-api.js';
+import { useTaskStages } from '../../../shared/api/task-stages.js';
 import { stageTone } from '../../../shared/ui/board/stage-tone.js';
 
 const btn =
