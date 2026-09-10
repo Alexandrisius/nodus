@@ -1,6 +1,8 @@
 import { Outlet, useNavigate, useParams } from '@tanstack/react-router';
+import { ui } from '@nodus/contracts';
 
 import { SliderPanel } from '../../../app/shell/slider-panel.js';
+import { useProjectDetail } from '../api/projects-api.js';
 import { ProjectPanel } from '../components/project-panel.js';
 
 /**
@@ -11,11 +13,13 @@ export function ProjectSliderPage() {
   const params = useParams({ strict: false }) as { projectId: string; taskId?: string };
   const navigate = useNavigate();
   const level = params.taskId ? 2 : 1;
+  const { data: project } = useProjectDetail(params.projectId);
 
   return (
     <>
       <SliderPanel
         level={level}
+        title={project?.name ?? ui.projects.title}
         onClose={() =>
           void navigate(
             params.taskId

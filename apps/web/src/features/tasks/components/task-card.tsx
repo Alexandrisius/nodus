@@ -111,6 +111,17 @@ export function TaskCard({ taskId }: { taskId: string }) {
           <div className="min-w-0 flex-1 overflow-x-auto">
             <DomainChain nodes={chainNodes} />
           </div>
+          {task.source === 'letter' ? (
+            <NodeChip tone="info" className="shrink-0">
+              <Mail className="size-3" />
+              {ui.tasks.instruction}
+            </NodeChip>
+          ) : task.source === 'chat_message' ? (
+            <NodeChip tone="info" className="shrink-0">
+              <MessageSquare className="size-3" />
+              {ui.tasks.fromChat}
+            </NodeChip>
+          ) : null}
           <button
             type="button"
             onClick={() => {
@@ -154,22 +165,9 @@ export function TaskCard({ taskId }: { taskId: string }) {
             @container — сетка полей перестраивается от ширины зоны (ресайз чата) */}
         <div className="relative flex min-h-0 flex-col border-r border-border @container">
           <div className="content-fade min-h-0 flex-1 overflow-y-auto p-6">
-            <div className="flex flex-wrap items-center gap-3">
-              <h2 className="min-w-0 flex-1 text-xl leading-snug font-semibold">{task.title}</h2>
-              {task.source === 'letter' ? (
-                <NodeChip tone="info">
-                  <Mail className="size-3" />
-                  {ui.tasks.instruction}
-                </NodeChip>
-              ) : task.source === 'chat_message' ? (
-                <NodeChip tone="info">
-                  <MessageSquare className="size-3" />
-                  {ui.tasks.fromChat}
-                </NodeChip>
-              ) : null}
-            </div>
-
-            <p className="mt-3 text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">
+            {/* Название — в хроме слайдера (вердикт владельца), в теле
+                не дублируется: тело начинается с описания */}
+            <p className="text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">
               {task.description}
             </p>
 
@@ -235,8 +233,10 @@ export function TaskCard({ taskId }: { taskId: string }) {
           </div>
 
           {/* Замоноличенный нижний бар: главные кнопки движения/завершения
-              всегда под рукой, не уезжают со скроллом (модель Битрикса) */}
-          <div className="shrink-0 border-t border-border px-5 py-3">
+              всегда под рукой, не уезжают со скроллом (модель Битрикса).
+              Высота h-16 = высоте композера чата: их верхние линии образуют
+              ОДНУ горизонталь через границу зон (вердикт владельца) */}
+          <div className="flex h-16 shrink-0 items-center border-t border-border px-5">
             <TaskActionBar task={task} />
           </div>
 

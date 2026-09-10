@@ -58,13 +58,18 @@ export const TaskDiscussion = memo(function TaskDiscussion({ taskId }: { taskId:
           })}
         </MessageGroup>
       </div>
-      <form onSubmit={onSubmit} className="flex items-end gap-2 border-t border-border bg-card p-3">
+      {/* Высота h-16 = высоте бара действий слева: верхние линии обоих
+          баров — одна горизонталь через границу зон (вердикт владельца) */}
+      <form
+        onSubmit={onSubmit}
+        className="flex h-16 shrink-0 items-center gap-2 border-t border-border bg-card px-3"
+      >
         <Textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder={ui.tasks.addComment}
           rows={2}
-          className="min-h-9 flex-1 resize-none"
+          className="max-h-14 min-h-9 flex-1 resize-none"
         />
         <SendHexButton disabled={!text.trim()} label={ui.tasks.send} />
       </form>

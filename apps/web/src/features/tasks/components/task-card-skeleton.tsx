@@ -16,7 +16,6 @@ export function TaskCardSkeleton({ chatW }: { chatW: number }) {
       >
         <div className="flex min-h-0 flex-col border-r border-border">
           <div className="min-h-0 flex-1 space-y-6 overflow-hidden p-6">
-            <Skeleton className="h-8 w-2/3" />
             <div className="space-y-2.5">
               <Skeleton className="h-4 w-full" />
               <Skeleton className="h-4 w-11/12" />
@@ -27,7 +26,7 @@ export function TaskCardSkeleton({ chatW }: { chatW: number }) {
               <Skeleton className="h-44 w-full min-w-72 max-w-[420px] flex-1" />
             </div>
           </div>
-          <div className="flex shrink-0 items-center gap-2 border-t border-border px-5 py-3">
+          <div className="flex h-16 shrink-0 items-center gap-2 border-t border-border px-5">
             <Skeleton className="h-7 w-28 rounded-md" />
             <Skeleton className="h-7 w-32 rounded-md" />
           </div>
@@ -36,7 +35,9 @@ export function TaskCardSkeleton({ chatW }: { chatW: number }) {
           <Skeleton className="h-14 w-3/4 self-start" />
           <Skeleton className="h-14 w-2/3 self-end" />
           <Skeleton className="h-14 w-3/4 self-start" />
-          <Skeleton className="mt-auto h-11 w-full" />
+          <div className="-mx-4 -mb-4 mt-auto flex h-16 shrink-0 items-center border-t border-border px-3">
+            <Skeleton className="h-9 w-full" />
+          </div>
         </div>
       </div>
     </div>

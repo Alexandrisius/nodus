@@ -17,7 +17,7 @@ export function HomeReader({
   onClose: () => void;
 }) {
   return (
-    <SliderPanel sourceRect={sourceRect} onClose={onClose}>
+    <SliderPanel sourceRect={sourceRect} onClose={onClose} title={item.title}>
       <article className="mx-auto h-full max-w-3xl overflow-y-auto px-8 py-8">
         <h2 className="text-2xl font-semibold text-foreground">{item.title}</h2>
         <div className="mt-3 flex items-center gap-2.5">

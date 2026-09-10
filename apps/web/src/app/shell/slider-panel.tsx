@@ -39,12 +39,16 @@ const CLOSE_EASE = 'cubic-bezier(0.5, 0, 0.9, 0.4)';
  *   click-catcher (клик мимо панели закрывает её).
  */
 export function SliderPanel({
+  title,
   level = 1,
   onClose,
   sourceRect,
   fadeContent = true,
   children,
 }: {
+  /** Главное название сущности — в хроме слайдера, на видном месте (вердикт
+   *  владельца: не внутри карточки, где сливается с описанием). Крошек нет. */
+  title?: string;
   level?: 1 | 2;
   onClose: () => void;
   sourceRect?: SourceRect;
@@ -171,8 +175,12 @@ export function SliderPanel({
           >
             <X />
           </Button>
-          {/* Хлебные крошки убраны (вердикт владельца): название сущности
-              живёт один раз — в заголовке карточки, дублирование запрещено. */}
+          {/* Хлебные крошки убраны (вердикт владельца); вместо них — главное
+              название сущности: на видном месте, один раз, в теле карточки
+              не дублируется. */}
+          {title ? (
+            <span className="min-w-0 truncate text-sm font-medium text-foreground">{title}</span>
+          ) : null}
         </header>
         <div
           className={cn(
