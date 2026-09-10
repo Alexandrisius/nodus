@@ -17,15 +17,22 @@
   `lib/employee-fields.tsx`: сотрудник, должность, подразделение, почта,
   руководитель — резолвится из того же списка, HR-статус скрыт по умолчанию).
 - **Карточка сотрудника** (`components/employee-card.tsx`, стек карточек
-  ADR-0009): полоса — аватар-якорь + presence-чип (имя — в хроме
-  слайдера, в теле не дублируется); поля-реестр общим каркасом `EntityFields`
-  (ключ `nodus-employee-fields-v1`): должность, подразделение, почта,
-  руководитель (переход в его карточку НАСЛОЕНИЕМ поверх — стек), HR-статус;
-  замоноличенный нижний бар h-16 — «Написать сообщение» (find-or-create
-  личного диалога: `POST /chat/conversations`, `startDirectBodySchema`, хук —
-  `shared/chat`). Полная карточка (контактный блок `UserCard`: телефон,
-  кабинет, ставка…) — с бэкендом M2 (#18).
-- Контракты: `UserListItem`, `PresenceEntry` (`@nodus/contracts`).
-- Эндпоинты (моки): `GET /directory/users?limit=50`, `GET /directory/presence`.
-- Открытие карточки — shared-element из rect узла графа/строки списка
-  (`lastSource` → `SliderPanel sourceRect`); закрытие сохраняет вид (`view`).
+  ADR-0009) — вкладки (вердикт владельца 2026-09-10, раунд 2; референс —
+  профиль Битрикс24): **Профиль** (полный `UserCard` полями-реестром
+  `EntityFields`, ключ `nodus-employee-fields-v1`: должность, подразделение,
+  почта, телефон, город, кабинет, удалёнка, ставка, пол, день рождения, дата
+  приёма, начало дня, руководитель — переход стеком, HR-статус + секция
+  «Подчинённые»), **Задачи** (ответственный — `GET /tasks?assigneeId=`) и
+  **Проекты** (`GET /projects?memberId=`) со счётчиками; связи открываются
+  карточками поверх (стек). Полоса — аватар-якорь + presence-чип + позиция;
+  нижний бар h-16 — «Написать сообщение» (find-or-create диалога,
+  `POST /chat/conversations`, хук — `shared/chat`).
+- Связи сотрудника — `shared/api/user-relations.ts` (`useAssigneeTasks`,
+  `useMemberProjects`): I6 запрещает фичам импортировать друг друга, поэтому
+  хуки на публичные list-ресурсы — в shared-слое.
+- Контракты: `UserListItem`, `UserCard` (полный профиль), `PresenceEntry`;
+  query `/tasks` (+`assigneeId`), `/projects` (+`memberId`).
+- Эндпоинты (моки): `GET /directory/users?limit=50`,
+  `GET /directory/users/:id` (UserCard), `GET /directory/presence`.
+- Открытие карточки — shared-element из rect узла графа/строки списка;
+  закрытие сохраняет вид (`view`).

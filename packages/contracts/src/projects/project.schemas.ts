@@ -34,6 +34,9 @@ export type ProjectListItem = z.infer<typeof projectListItemSchema>;
 export const listProjectsQuerySchema = cursorQuerySchema.extend({
   scope: z.enum(['mine', 'all']).default('mine'),
   search: z.string().trim().min(1).max(128).optional(),
+  /** Проекты сотрудника (вкладка «Проекты» карточки сотрудника): руководит
+   *  или участник. */
+  memberId: z.uuid().optional(),
 });
 
 export type ListProjectsQuery = z.infer<typeof listProjectsQuerySchema>;

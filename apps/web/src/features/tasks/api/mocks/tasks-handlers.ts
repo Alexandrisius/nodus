@@ -55,6 +55,7 @@ export const tasksHandlers = [
     const stageId = url.searchParams.get('stageId');
     const personalStageId = url.searchParams.get('personalStageId');
     const projectId = url.searchParams.get('projectId');
+    const assigneeId = url.searchParams.get('assigneeId');
     const search = url.searchParams.get('search')?.trim().toLowerCase() ?? '';
     const cursor = url.searchParams.get('cursor');
     const limit = Math.min(Number(url.searchParams.get('limit') ?? 50) || 50, 100);
@@ -64,6 +65,9 @@ export const tasksHandlers = [
     }
     if (projectId) {
       filtered = filtered.filter((t) => t.project?.id === projectId);
+    }
+    if (assigneeId) {
+      filtered = filtered.filter((t) => t.assignee?.id === assigneeId);
     }
     if (search) {
       filtered = filtered.filter(

@@ -312,7 +312,7 @@ export const ui = {
     genderMale: 'Мужской',
     genderFemale: 'Женский',
     fieldBirthDate: 'День рождения',
-    fieldHiredAt: 'Дата приёма на работу',
+    fieldHiredAt: 'Дата приёма',
     fieldWorkdayStart: 'Начало рабочего дня',
     subordinates: 'Подчинённые',
     remoteYes: 'да',
