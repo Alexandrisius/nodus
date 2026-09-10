@@ -8,8 +8,20 @@ import {
   reorderWithinStage,
 } from './kanban-board.js';
 
-const STAGE_A: TaskStage = { id: 'a', name: 'Новые', order: 0, systemState: 'backlog' };
-const STAGE_B: TaskStage = { id: 'b', name: 'В работе', order: 1, systemState: 'active' };
+const STAGE_A: TaskStage = {
+  id: 'a',
+  name: 'Новые',
+  order: 0,
+  systemState: 'backlog',
+  color: 'neutral',
+};
+const STAGE_B: TaskStage = {
+  id: 'b',
+  name: 'В работе',
+  order: 1,
+  systemState: 'active',
+  color: 'success',
+};
 
 const task = (id: string, stage: TaskStage): TaskListItem =>
   ({
@@ -17,6 +29,7 @@ const task = (id: string, stage: TaskStage): TaskListItem =>
     number: 1,
     title: id,
     stage,
+    personalStageId: null,
     priority: 'normal',
     deadline: null,
     creator: { id: 'u', displayName: 'U', avatarUrl: null },

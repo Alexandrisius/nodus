@@ -17,12 +17,19 @@ export type TaskPriority = z.infer<typeof taskPrioritySchema>;
 export const taskSourceSchema = z.enum(['manual', 'chat_message', 'letter']);
 export type TaskSource = z.infer<typeof taskSourceSchema>;
 
-/** Стадия статус-схемы = колонка канбана. */
+/** Цвет стадии — ключ палитры тонов темы (не hex: тема подменяет значения). */
+export const stageColorSchema = z.enum(['neutral', 'info', 'success', 'warning', 'danger']);
+export type StageColor = z.infer<typeof stageColorSchema>;
+
+/** Стадия workflow-схемы = колонка канбана (ADR-0008: схемы двух масштабов —
+ *  проектная и личная «Мой план»; у личной та же форма + привязка к
+ *  системному состоянию для встроенного автоперемещения). */
 export const taskStageSchema = z.object({
   id: z.uuid(),
   name: z.string().min(1),
   order: z.number().int().min(0),
   systemState: taskSystemStateSchema,
+  color: stageColorSchema,
 });
 
 export type TaskStage = z.infer<typeof taskStageSchema>;
@@ -49,6 +56,9 @@ export const taskListItemSchema = z.object({
   number: z.number().int().min(1),
   title: z.string().min(1),
   stage: taskStageSchema,
+  /** Размещение на личной доске «Мой план» текущего пользователя
+   *  (TaskPersonalPlacement, ADR-0008); null — ещё не раскладывалась. */
+  personalStageId: z.uuid().nullable(),
   priority: taskPrioritySchema,
   deadline: z.iso.datetime().nullable(),
   creator: userRefSchema,
@@ -109,15 +119,70 @@ export const createSubtaskBodySchema = z.object({
 
 export type CreateSubtaskBody = z.infer<typeof createSubtaskBodySchema>;
 
-/** DTO обновления задачи: перенос между стадиями (канбан, drag-and-drop).
- *  index — позиция внутри целевой колонки (порядок persistится, не «отщёлкивается»
- *  после refetch). Остальные поля — по мере появления экранов редактирования. */
-export const taskUpdateBodySchema = z.object({
-  stageId: z.uuid(),
-  index: z.number().int().min(0).optional(),
-});
+/** DTO обновления задачи: перенос между стадиями (канбан, drag-and-drop) —
+ *  глобальной (stageId, степпер/проектная доска) или личной (personalStageId,
+ *  «Мой план»). index — позиция внутри целевой колонки (порядок persistится,
+ *  не «отщёлкивается» после refetch). Хотя бы одна ось обязательна. */
+export const taskUpdateBodySchema = z
+  .object({
+    stageId: z.uuid().optional(),
+    personalStageId: z.uuid().optional(),
+    index: z.number().int().min(0).optional(),
+  })
+  .refine((v) => v.stageId !== undefined || v.personalStageId !== undefined, {
+    message: 'stageId or personalStageId required',
+  });
 
 export type TaskUpdateBody = z.infer<typeof taskUpdateBodySchema>;
+
+/** CRUD личных стадий «Моего плана» (личная схема пользователя, ADR-0008).
+ *  Удаление — DELETE /tasks/personal-stages/:id (последняя запрещена — 409);
+ *  задачи удаляемой колонки переезжают в первую колонку того же состояния. */
+export const personalStageCreateBodySchema = z.object({
+  name: z.string().trim().min(1).max(60),
+  color: stageColorSchema,
+  systemState: taskSystemStateSchema,
+});
+
+export type PersonalStageCreateBody = z.infer<typeof personalStageCreateBodySchema>;
+
+export const personalStageUpdateBodySchema = z
+  .object({
+    name: z.string().trim().min(1).max(60).optional(),
+    color: stageColorSchema.optional(),
+    systemState: taskSystemStateSchema.optional(),
+    order: z.number().int().min(0).optional(),
+  })
+  .refine((v) => Object.keys(v).length > 0, { message: 'empty update' });
+
+export type PersonalStageUpdateBody = z.infer<typeof personalStageUpdateBodySchema>;
+
+/** Ветка задачи для панели-навигатора: дерево от корневого предка,
+ *  вложенность любой глубины; текущая задача резолвится на клиенте по id. */
+export interface TaskBranchNode {
+  id: string;
+  number: number;
+  title: string;
+  stageName: string;
+  stageColor: StageColor;
+  systemState: TaskSystemState;
+  children: TaskBranchNode[];
+}
+
+export const taskBranchNodeSchema: z.ZodType<TaskBranchNode> = z.lazy(() =>
+  z.object({
+    id: z.uuid(),
+    number: z.number().int().min(1),
+    title: z.string().min(1),
+    stageName: z.string().min(1),
+    stageColor: stageColorSchema,
+    systemState: taskSystemStateSchema,
+    children: z.array(taskBranchNodeSchema),
+  }),
+);
+
+export const taskBranchSchema = z.object({ root: taskBranchNodeSchema });
+export type TaskBranch = z.infer<typeof taskBranchSchema>;
 
 export const listTasksQuerySchema = cursorQuerySchema.extend({
   /** 'assignee' | 'creator' | 'participant' — роли текущего пользователя. */
@@ -127,6 +192,8 @@ export const listTasksQuerySchema = cursorQuerySchema.extend({
   /** Фид колонки канбана: курсорная подгрузка порциями (industry-паттерн:
    *  колонки держат тысячи карточек, целиком не отдаются). */
   stageId: z.uuid().optional(),
+  /** Фид колонки личной доски «Мой план» (по TaskPersonalPlacement). */
+  personalStageId: z.uuid().optional(),
 });
 
 export type ListTasksQuery = z.infer<typeof listTasksQuerySchema>;

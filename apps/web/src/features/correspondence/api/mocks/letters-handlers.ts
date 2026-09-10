@@ -4,7 +4,12 @@ import { http, HttpResponse } from 'msw';
 
 import { demoLetters, letterDetailOf } from '../../../../shared/mocks/data/letters.js';
 import { isoIn } from '../../../../shared/mocks/data/dates.js';
-import { demoTasks, stageOnControl, tid } from '../../../../shared/mocks/data/tasks.js';
+import {
+  demoTasks,
+  personalAnalyzed,
+  stageOnControl,
+  tid,
+} from '../../../../shared/mocks/data/tasks.js';
 import { currentAuthUser, userRef } from '../../../../shared/mocks/data/users.js';
 
 let instructionSeq = 50;
@@ -40,6 +45,7 @@ export const lettersHandlers = [
       number: 200 + instructionSeq,
       title: `Поручение: ${letter.subject}`,
       stage: stageOnControl,
+      personalStageId: personalAnalyzed.id,
       priority: 'high',
       deadline: isoIn(7),
       creator: userRef(currentAuthUser.id),

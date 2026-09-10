@@ -29,6 +29,8 @@ export const ErrorCode = {
   AUTH_SESSION_INVALID: 'AUTH_SESSION_INVALID',
   /** Пользователь с таким email уже существует. */
   DIRECTORY_EMAIL_TAKEN: 'DIRECTORY_EMAIL_TAKEN',
+  /** Удаление единственной личной стадии «Моего плана» запрещено (ADR-0008). */
+  TASK_LAST_STAGE: 'TASK_LAST_STAGE',
 } as const;
 
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];

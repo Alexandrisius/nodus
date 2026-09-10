@@ -1,11 +1,13 @@
 import type { ChatMessage, TaskChainNode, TaskDetail, TaskListItem } from '@nodus/contracts';
 
 import { isoAgo } from './dates.js';
+import { personalNew } from './personal-stages.js';
 import { kjSubtask, tid } from './task-items.js';
 import { stageNew } from './task-stages.js';
 import { userIds, userRef } from './users.js';
 
 export * from './task-stages.js';
+export * from './personal-stages.js';
 export * from './task-items.js';
 
 export function makeSubtask(parent: TaskListItem, title: string): TaskListItem {
@@ -14,6 +16,8 @@ export function makeSubtask(parent: TaskListItem, title: string): TaskListItem {
     number: parent.number * 100 + ((demoSubtasks[parent.id]?.length ?? 0) + 1),
     title,
     stage: stageNew,
+    // Новая подзадача — в первую личную колонку состояния backlog (ADR-0008).
+    personalStageId: personalNew.id,
     priority: 'normal',
     deadline: null,
     creator: userRef(userIds.klimovich),

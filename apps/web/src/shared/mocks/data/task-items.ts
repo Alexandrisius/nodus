@@ -1,6 +1,7 @@
 import type { TaskListItem } from '@nodus/contracts';
 
 import { isoAgo, isoIn } from './dates.js';
+import { personalStageFor } from './personal-stages.js';
 import {
   stageDone,
   stageInProgress,
@@ -34,13 +35,14 @@ const projectRefs = {
 
 export { projectRefs };
 
-function mk(task: TaskListItem): TaskListItem {
-  return task;
+function mk(task: Omit<TaskListItem, 'personalStageId'>): TaskListItem {
+  // Личное размещение «Мой план» — из глобальной стадии (ADR-0008).
+  return { ...task, personalStageId: personalStageFor(task.stage) };
 }
 
 /** Подзадача задачи tid(2) — живёт и в общем списке (граф уровней), и в
  * детали родителя (`demoSubtasks`, см. tasks.ts). */
-export const kjSubtask: TaskListItem = {
+export const kjSubtask: TaskListItem = mk({
   id: tid(11),
   number: 111,
   title: 'Свести каркас с разделом КЖ',
@@ -58,7 +60,7 @@ export const kjSubtask: TaskListItem = {
   checklistTotal: 0,
   source: 'manual',
   updatedAt: isoAgo(1, 12),
-};
+});
 
 export const demoTasks: TaskListItem[] = [
   mk({

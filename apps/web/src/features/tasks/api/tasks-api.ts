@@ -1,8 +1,17 @@
 import { useCallback } from 'react';
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import type {
   ChatMessage,
   Paginated,
+  PersonalStageCreateBody,
+  PersonalStageUpdateBody,
+  TaskBranch,
   TaskDetail,
   TaskListItem,
   TaskStage,
@@ -19,8 +28,10 @@ export const tasksKeys = {
   list: () => [...tasksKeys.all, 'list'] as const,
   listPages: () => [...tasksKeys.all, 'list-pages'] as const,
   stages: () => [...tasksKeys.all, 'stages'] as const,
+  personalStages: () => [...tasksKeys.all, 'personal-stages'] as const,
   detail: (id: string) => [...tasksKeys.all, 'detail', id] as const,
   messages: (id: string) => [...tasksKeys.all, 'messages', id] as const,
+  branch: (id: string) => [...tasksKeys.all, 'branch', id] as const,
 };
 
 /** Список (таблица с деревом): курсорные страницы по 100, подгрузка sentinel-ом
@@ -47,10 +58,29 @@ export function useTaskStages() {
   });
 }
 
+/** Личная схема «Мой план» (ADR-0008): колонки личной доски со счётчиками. */
+export function usePersonalStages() {
+  return useQuery({
+    queryKey: tasksKeys.personalStages(),
+    queryFn: () => api<TaskStageWithCount[]>('/tasks/personal-stages'),
+  });
+}
+
+/** Ветка задачи для панели-навигатора: дерево от корневого предка. */
+export function useTaskBranch(id: string) {
+  return useQuery({
+    queryKey: tasksKeys.branch(id),
+    queryFn: () => api<TaskBranch>(`/tasks/${id}/branch`),
+  });
+}
+
 export function useTaskDetail(id: string) {
   return useQuery({
     queryKey: tasksKeys.detail(id),
     queryFn: () => api<TaskDetail>(`/tasks/${id}`),
+    // Смена задачи в навигаторе ветки: прежний контент остаётся, пока грузится
+    // новый — карточка не мигает скелетоном (плавность, I4).
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -105,6 +135,104 @@ export function useUpdateTaskStage() {
     onSettled: (_data, _error, vars) => {
       void queryClient.invalidateQueries({ queryKey: tasksKeys.list() });
       void queryClient.invalidateQueries({ queryKey: tasksKeys.detail(vars.taskId) });
+    },
+  });
+}
+
+/** Оптимистичный перенос по ЛИЧНОЙ оси «Мой план» (ADR-0008): глобальная
+ *  стадия задачи не меняется; в кэшах — personalStageId до ответа сервера. */
+export function useUpdateTaskPersonalStage() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      taskId,
+      personalStageId,
+      index,
+    }: {
+      taskId: string;
+      personalStageId: string;
+      index: number;
+    }) =>
+      api<TaskListItem>(`/tasks/${taskId}`, { method: 'PATCH', body: { personalStageId, index } }),
+
+    onMutate: async ({ taskId, personalStageId }) => {
+      await queryClient.cancelQueries({ queryKey: tasksKeys.list() });
+      const previous = queryClient.getQueryData<Paginated<TaskListItem>>(tasksKeys.list());
+      const previousDetail = queryClient.getQueryData<TaskDetail>(tasksKeys.detail(taskId));
+      queryClient.setQueryData<Paginated<TaskListItem>>(tasksKeys.list(), (old) =>
+        old
+          ? {
+              ...old,
+              items: old.items.map((t) =>
+                t.id === taskId
+                  ? { ...t, personalStageId, updatedAt: new Date().toISOString() }
+                  : t,
+              ),
+            }
+          : old,
+      );
+      queryClient.setQueryData<TaskDetail>(tasksKeys.detail(taskId), (old) =>
+        old ? { ...old, personalStageId, updatedAt: new Date().toISOString() } : old,
+      );
+      return { previous, previousDetail };
+    },
+
+    onError: (_error, vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(tasksKeys.list(), context.previous);
+      }
+      if (context?.previousDetail) {
+        queryClient.setQueryData(tasksKeys.detail(vars.taskId), context.previousDetail);
+      }
+      toast.error(ui.tasks.stageMoveError);
+    },
+
+    onSettled: (_data, _error, vars) => {
+      void queryClient.invalidateQueries({ queryKey: tasksKeys.list() });
+      void queryClient.invalidateQueries({ queryKey: tasksKeys.personalStages() });
+      void queryClient.invalidateQueries({ queryKey: tasksKeys.detail(vars.taskId) });
+    },
+  });
+}
+
+/** Создание личной колонки (личная схема пользователя, ADR-0008). */
+export function useCreatePersonalStage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: PersonalStageCreateBody) =>
+      api<TaskStage>('/tasks/personal-stages', { method: 'POST', body }),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: tasksKeys.personalStages() });
+    },
+  });
+}
+
+/** Переименование / цвет / состояние личной колонки. */
+export function useUpdatePersonalStage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ stageId, body }: { stageId: string; body: PersonalStageUpdateBody }) =>
+      api<TaskStage>(`/tasks/personal-stages/${stageId}`, { method: 'PATCH', body }),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: tasksKeys.personalStages() });
+    },
+  });
+}
+
+/** Удаление личной колонки: единственную нельзя (409 TASK_LAST_STAGE);
+ *  задачи удаляемой переезжают в первую колонку того же состояния. */
+export function useDeletePersonalStage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (stageId: string) =>
+      api<{ ok: boolean; movedToStageId: string }>(`/tasks/personal-stages/${stageId}`, {
+        method: 'DELETE',
+      }),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: tasksKeys.personalStages() });
+      void queryClient.invalidateQueries({ queryKey: tasksKeys.list() });
+      void queryClient.invalidateQueries({ queryKey: tasksKeys.listPages() });
     },
   });
 }

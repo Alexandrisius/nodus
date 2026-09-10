@@ -4,7 +4,7 @@ import { http, HttpResponse } from 'msw';
 
 import { demoConversations, demoMessages } from '../../../../shared/mocks/data/chat.js';
 import { isoIn } from '../../../../shared/mocks/data/dates.js';
-import { demoTasks, stageNew, tid } from '../../../../shared/mocks/data/tasks.js';
+import { demoTasks, personalNew, stageNew, tid } from '../../../../shared/mocks/data/tasks.js';
 import { currentAuthUser, userRef } from '../../../../shared/mocks/data/users.js';
 
 let chatTaskSeq = 60;
@@ -56,6 +56,7 @@ export const chatHandlers = [
       number: 300 + chatTaskSeq,
       title: message.text.slice(0, 80),
       stage: stageNew,
+      personalStageId: personalNew.id,
       priority: 'normal',
       deadline: isoIn(3),
       creator: userRef(currentAuthUser.id),

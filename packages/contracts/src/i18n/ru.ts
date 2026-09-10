@@ -16,6 +16,7 @@ export const errorMessages: Record<ErrorCode, string> = {
   [ErrorCode.AUTH_INVALID_CREDENTIALS]: 'Неверный email или пароль',
   [ErrorCode.AUTH_SESSION_INVALID]: 'Сессия завершена, войдите снова',
   [ErrorCode.DIRECTORY_EMAIL_TAKEN]: 'Пользователь с таким email уже существует',
+  [ErrorCode.TASK_LAST_STAGE]: 'Единственную стадию удалить нельзя',
 };
 
 /**
@@ -150,6 +151,22 @@ export const ui = {
     emptyColumn: 'Нет задач',
     dropHere: 'Отпустите задачу здесь',
     stageMoveError: 'Не удалось перенести задачу — вернули на прежнюю стадию',
+    addStage: 'Добавить стадию',
+    stageNamePlaceholder: 'Название колонки…',
+    renameStage: 'Переименовать',
+    deleteStage: 'Удалить стадию',
+    deleteStageNote: 'Задачи переедут в первую колонку того же состояния',
+    stageColor: 'Цвет',
+    stageStateLabel: 'Состояние задач в колонке',
+    stageStates: {
+      backlog: 'Новые',
+      active: 'В работе',
+      paused: 'Отложенные',
+      done: 'Завершённые',
+      closed: 'Закрытые',
+    },
+    branch: 'Ветка задачи',
+    branchPlaceholder: 'Быстрая подзадача текущей — Enter, чтобы создать',
   },
   letters: {
     title: 'Письма',

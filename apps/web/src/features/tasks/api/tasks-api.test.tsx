@@ -140,12 +140,14 @@ const STAGE_A = {
   name: 'Новые',
   order: 0,
   systemState: 'backlog',
+  color: 'neutral',
 } as const;
 const STAGE_B = {
   id: '20000000-0000-4000-8000-000000000003',
   name: 'В работе',
   order: 2,
   systemState: 'active',
+  color: 'success',
 } as const;
 
 function taskInStage(stage: typeof STAGE_A | typeof STAGE_B): TaskListItem {
@@ -154,6 +156,7 @@ function taskInStage(stage: typeof STAGE_A | typeof STAGE_B): TaskListItem {
     number: 101,
     title: 'Переносимая',
     stage: { ...stage },
+    personalStageId: null,
     priority: 'normal',
     deadline: null,
     creator: { id: 'u1', displayName: 'Тест Тест', avatarUrl: null },
