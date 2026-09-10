@@ -91,7 +91,13 @@ export function SliderPanel({
   useEffect(() => {
     stack.push(id);
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && stack[stack.length - 1] === id) requestCloseRef.current();
+      if (event.key !== 'Escape' || stack[stack.length - 1] !== id) return;
+      // Esc внутри открытого меню/поповера Radix закрывает МЕНЮ, не слайдер:
+      // этот слушатель на window видит то же событие ПОСЛЕ document-обработчиков
+      // Radix (баблинг document → window), поэтому отфильтровываем обработанное.
+      if (event.defaultPrevented) return;
+      if (document.querySelector('[data-radix-popper-content-wrapper]')) return;
+      requestCloseRef.current();
     };
     window.addEventListener('keydown', onKey);
     return () => {

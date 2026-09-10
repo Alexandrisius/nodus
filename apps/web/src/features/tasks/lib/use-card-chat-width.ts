@@ -27,13 +27,24 @@ export function useCardChatWidth() {
     event.preventDefault();
     const startX = event.clientX;
     const startW = widthRef.current;
+    let latest = startW;
+    let raf = 0;
     const onMove = (ev: globalThis.PointerEvent) => {
-      setChatW(clamp(startW + (startX - ev.clientX)));
+      latest = clamp(startW + (startX - ev.clientX));
+      // Не чаще одного рендера на кадр: pointermove может идти плотнее
+      // refresh rate — лишние setState = лишние relayout сетки (I4).
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        setChatW(latest);
+      });
     };
     const onUp = () => {
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
-      localStorage.setItem(STORE_KEY, String(widthRef.current));
+      if (raf) cancelAnimationFrame(raf);
+      setChatW(latest);
+      localStorage.setItem(STORE_KEY, String(latest));
     };
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);

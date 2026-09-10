@@ -1,4 +1,4 @@
-import { ListTree, Mail, MessageSquare, PanelRight, Plus } from 'lucide-react';
+import { Mail, MessageSquare, PanelRight, Plus, Waypoints } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import type { TaskChainNode } from '@nodus/contracts';
@@ -18,7 +18,7 @@ import { TaskAboutDrawer } from './task-about-drawer.js';
 import { TaskBranchDrawer } from './task-branch-drawer.js';
 import { TaskDiscussion } from './task-discussion.js';
 import { TaskFields } from './task-fields.js';
-import { TaskStageStepper } from './task-stage-stepper.js';
+import { TaskStageControls } from './task-stage-controls.js';
 import { TaskStatusBadge } from './task-status-badge.js';
 
 const chainCaption: Record<TaskChainNode['kind'], string> = {
@@ -71,7 +71,11 @@ export function TaskCard({ taskId }: { taskId: string }) {
         >
           <div className="space-y-6 p-6">
             <Skeleton className="h-8 w-2/3" />
-            <Skeleton className="h-10 w-full max-w-2xl" />
+            <div className="flex gap-2">
+              <Skeleton className="h-8 w-36 rounded-lg" />
+              <Skeleton className="h-8 w-28 rounded-lg" />
+              <Skeleton className="h-8 w-44 rounded-lg" />
+            </div>
             <div className="space-y-2.5">
               <Skeleton className="h-4 w-full" />
               <Skeleton className="h-4 w-11/12" />
@@ -130,7 +134,7 @@ export function TaskCard({ taskId }: { taskId: string }) {
               branchOpen ? 'text-foreground' : 'text-muted-foreground',
             )}
           >
-            <ListTree className="size-4" strokeWidth={1.75} />
+            <Waypoints className="size-4" strokeWidth={1.75} />
           </button>
           <div className="min-w-0 flex-1 overflow-x-auto">
             <DomainChain nodes={chainNodes} />
@@ -150,16 +154,22 @@ export function TaskCard({ taskId }: { taskId: string }) {
         </div>
       </div>
 
-      {/* 4 трека постоянно (иначе grid-template-columns не анимируется):
-          навигатор ветки — вталкивающая колонка 0↔300px, контент и
-          разделитель чата подвигаются вправо плавно, не оверлей. */}
+      {/* Треки БЕЗ transition: chatW меняется на каждый pointermove drag'а,
+          анимация трека = вечная догоняющая анимация и фризы (подтверждено:
+          react-resizable-panels — transitions только для программного
+          toggle, никогда при ручном ресайзе). Плавный пуш навигатора ветки
+          изолирован transition-[width] на самой колонке — drag чата его
+          не затрагивает. */}
       <div
-        className="relative grid min-h-0 flex-1 transition-[grid-template-columns] duration-200 ease-out"
-        style={{
-          gridTemplateColumns: `${branchOpen ? 300 : 0}px minmax(0,1fr) 6px ${chatW}px`,
-        }}
+        className="relative grid min-h-0 flex-1"
+        style={{ gridTemplateColumns: `auto minmax(0,1fr) 6px ${chatW}px` }}
       >
-        <div className="min-h-0 overflow-hidden">
+        <div
+          className={cn(
+            'min-h-0 overflow-hidden transition-[width] duration-200 ease-out',
+            branchOpen ? 'w-[300px]' : 'w-0',
+          )}
+        >
           {branchMounted ? (
             <TaskBranchDrawer taskId={taskId} onClose={() => setBranchOpen(false)} />
           ) : null}
@@ -183,7 +193,7 @@ export function TaskCard({ taskId }: { taskId: string }) {
           </div>
 
           <div className="mt-3">
-            <TaskStageStepper taskId={taskId} currentStageId={task.stage.id} />
+            <TaskStageControls task={task} />
           </div>
 
           <p className="mt-4 text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">
