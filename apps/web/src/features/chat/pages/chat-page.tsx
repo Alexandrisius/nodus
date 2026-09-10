@@ -1,18 +1,27 @@
-import { Outlet, useNavigate, useParams } from '@tanstack/react-router';
+import { useNavigate, useParams, useSearch } from '@tanstack/react-router';
 import { ui } from '@nodus/contracts';
-import { cn } from '@nodus/ui/lib/utils';
-import { Badge } from '@nodus/ui/components/badge';
 import { Empty, EmptyTitle } from '@nodus/ui/components/empty';
-import { Skeleton } from '@nodus/ui/components/skeleton';
 
-import { formatTime } from '../../../shared/lib/format.js';
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
+import { ConversationPane } from '../../../shared/chat/conversation-pane.js';
+import { ThreadFeed } from '../../../shared/chat/thread-feed.js';
+import { ThreadPane } from '../../../shared/chat/thread-pane.js';
 import { useConversations } from '../api/chat-api.js';
-import { ChatThread, conversationTitle } from '../components/chat-thread.js';
+import { ConversationList } from '../components/conversation-list.js';
+import { conversationSubtitle, conversationTitle } from '../lib/conversations.js';
 
-/** Мессенджер: список диалогов слева + тред справа (механика Телеграма). */
+/**
+ * Мессенджер: список бесед слева (секции Каналы/Групповые/Личные) + активная
+ * беседа справа. Каналы (в т.ч. каналы проектов) — лента новостей-тредов
+ * (вердикт владельца 2026-09-10): каждое сообщение — тред, «провалиться
+ * внутрь» = обычный чат; тред — search-параметр ?thread= (deep-link, не
+ * теряется при перезагрузке). Групповые/личные — обычная лента сообщений.
+ * Механика тредов и сообщений — shared/chat (тот же код рендерит вкладку
+ * «Чат» панели проекта).
+ */
 export function ChatPage() {
   const { conversationId } = useParams({ strict: false }) as { conversationId?: string };
+  const search = useSearch({ strict: false }) as { thread?: string };
   const { data, isLoading } = useConversations();
   const navigate = useNavigate();
 
@@ -20,67 +29,74 @@ export function ChatPage() {
 
   return (
     <div className="relative flex h-full">
-      <aside className="flex w-80 shrink-0 flex-col border-r border-cream/10 bg-background/55 backdrop-blur-sm">
+      <aside className="flex w-80 shrink-0 flex-col border-r border-border bg-sidebar">
         <header className="flex h-14 shrink-0 items-center px-4">
           <h1 className="text-lg font-semibold text-foreground">{ui.chat.title}</h1>
         </header>
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          {isLoading
-            ? [0, 1, 2, 3].map((i) => <Skeleton key={i} className="m-2 h-14" />)
-            : (data?.items ?? []).map((conversation) => (
-                <button
-                  key={conversation.id}
-                  type="button"
-                  onClick={() =>
-                    void navigate({
-                      to: '/chat/$conversationId',
-                      params: { conversationId: conversation.id },
-                    })
-                  }
-                  className={cn(
-                    'flex w-full items-center gap-3 px-3 py-2.5 text-left text-foreground/80 hover:bg-cream/10',
-                    conversation.id === conversationId &&
-                      'paper-card mx-1 w-[calc(100%-0.5rem)] rounded-lg text-card-foreground',
-                  )}
-                >
-                  <PersonAvatar name={conversationTitle(conversation)} className="size-10" />
-                  <span className="min-w-0 flex-1">
-                    <span className="flex items-baseline justify-between gap-2">
-                      <span className="truncate text-sm font-medium">
-                        {conversationTitle(conversation)}
-                      </span>
-                      {conversation.lastMessage && (
-                        <span className="shrink-0 text-xs text-muted-foreground">
-                          {formatTime(conversation.lastMessage.createdAt)}
-                        </span>
-                      )}
-                    </span>
-                    <span className="flex items-center justify-between gap-2">
-                      <span className="truncate text-xs text-muted-foreground">
-                        {conversation.lastMessage?.text ?? ui.common.empty}
-                      </span>
-                      {conversation.unreadCount > 0 && (
-                        <Badge variant="secondary" className="bg-rust text-cream">
-                          {conversation.unreadCount}
-                        </Badge>
-                      )}
-                    </span>
-                  </span>
-                </button>
-              ))}
-        </div>
+        <ConversationList
+          conversations={data?.items ?? []}
+          isLoading={isLoading}
+          activeId={conversationId}
+          onSelect={(conversation) =>
+            void navigate({
+              to: '/chat/$conversationId',
+              params: { conversationId: conversation.id },
+            })
+          }
+        />
       </aside>
 
       {active ? (
-        <ChatThread conversation={active} />
+        <div className="flex h-full min-w-0 flex-1 flex-col">
+          <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-4">
+            <PersonAvatar
+              name={conversationTitle(active)}
+              avatarUrl={active.avatarUrl}
+              className="size-9 shrink-0"
+            />
+            <div className="min-w-0">
+              <div className="truncate text-sm font-semibold">{conversationTitle(active)}</div>
+              <div className="truncate font-mono text-[10px] tracking-[0.12em] text-muted-foreground uppercase">
+                {conversationSubtitle(active)}
+              </div>
+            </div>
+          </header>
+          {active.type === 'project_channel' ? (
+            search.thread ? (
+              <ThreadPane
+                conversationId={active.id}
+                threadRootId={search.thread}
+                onBack={() =>
+                  void navigate({
+                    to: '/chat/$conversationId',
+                    params: { conversationId: active.id },
+                    search: {},
+                  })
+                }
+              />
+            ) : (
+              <ThreadFeed
+                conversationId={active.id}
+                onOpenThread={(rootId) =>
+                  void navigate({
+                    to: '/chat/$conversationId',
+                    params: { conversationId: active.id },
+                    search: { thread: rootId },
+                  })
+                }
+              />
+            )
+          ) : (
+            <ConversationPane conversationId={active.id} showAuthor={active.type !== 'direct'} />
+          )}
+        </div>
       ) : (
-        <div className="flex flex-1 items-center justify-center text-foreground">
+        <div className="flex flex-1 items-center justify-center">
           <Empty>
-            <EmptyTitle>{ui.chat.conversations}</EmptyTitle>
+            <EmptyTitle>{ui.chat.selectConversation}</EmptyTitle>
           </Empty>
         </div>
       )}
-      <Outlet />
     </div>
   );
 }

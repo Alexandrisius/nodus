@@ -269,6 +269,10 @@ export const ui = {
     replyPlaceholder: 'Ответить в обсуждении…',
     backToFeed: 'К ленте',
     feedEmpty: 'В канале пока нет сообщений',
+    selectConversation: 'Выберите беседу',
+    membersCountOne: 'участник',
+    membersCountFew: 'участника',
+    membersCountMany: 'участников',
   },
   employees: {
     title: 'Сотрудники',
