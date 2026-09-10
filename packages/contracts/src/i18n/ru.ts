@@ -151,6 +151,7 @@ export const ui = {
     emptyColumn: 'Нет задач',
     dropHere: 'Отпустите задачу здесь',
     stageMoveError: 'Не удалось перенести задачу — вернули на прежнюю стадию',
+    quickTaskPlaceholder: 'Новая задача — Enter, чтобы создать',
     addStage: 'Добавить стадию',
     stageNamePlaceholder: 'Название колонки…',
     renameStage: 'Переименовать',

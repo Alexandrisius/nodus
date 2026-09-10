@@ -119,6 +119,16 @@ export const createSubtaskBodySchema = z.object({
 
 export type CreateSubtaskBody = z.infer<typeof createSubtaskBodySchema>;
 
+/** Быстрое создание задачи из колонки «Моего плана» (плюсик в шапке): только
+ *  название + личная колонка; глобальная стадия подставляется по состоянию
+ *  колонки (первая стадия схемы того же systemState). */
+export const createTaskBodySchema = z.object({
+  title: z.string().trim().min(1).max(200),
+  personalStageId: z.uuid(),
+});
+
+export type CreateTaskBody = z.infer<typeof createTaskBodySchema>;
+
 /** DTO обновления задачи: перенос между стадиями (канбан, drag-and-drop) —
  *  глобальной (stageId, степпер/проектная доска) или личной (personalStageId,
  *  «Мой план»). index — позиция внутри целевой колонки (порядок persistится,

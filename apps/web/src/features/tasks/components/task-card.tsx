@@ -1,4 +1,4 @@
-import { Mail, MessageSquare, PanelLeft, PanelRight, Plus } from 'lucide-react';
+import { ListTree, Mail, MessageSquare, PanelRight, Plus } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import type { TaskChainNode } from '@nodus/contracts';
@@ -43,6 +43,9 @@ export function TaskCard({ taskId }: { taskId: string }) {
   const [subtaskTitle, setSubtaskTitle] = useState('');
   const [aboutOpen, setAboutOpen] = useState(false);
   const [branchOpen, setBranchOpen] = useState(false);
+  // Навигатор ветки монтируется раз и остаётся: колонка сетки анимируется
+  // 0↔300px (плавный пуш контента), состояние панели не теряется.
+  const [branchMounted, setBranchMounted] = useState(false);
   const { chatW, onDividerDown } = useCardChatWidth();
 
   function onAddSubtask(event: FormEvent) {
@@ -116,7 +119,10 @@ export function TaskCard({ taskId }: { taskId: string }) {
         <div className="content-fade flex items-center gap-3 px-5 py-3">
           <button
             type="button"
-            onClick={() => setBranchOpen((v) => !v)}
+            onClick={() => {
+              setBranchMounted(true);
+              setBranchOpen((v) => !v);
+            }}
             aria-label={ui.tasks.branch}
             title={ui.tasks.branch}
             className={cn(
@@ -124,7 +130,7 @@ export function TaskCard({ taskId }: { taskId: string }) {
               branchOpen ? 'text-foreground' : 'text-muted-foreground',
             )}
           >
-            <PanelLeft className="size-4" strokeWidth={1.75} />
+            <ListTree className="size-4" strokeWidth={1.75} />
           </button>
           <div className="min-w-0 flex-1 overflow-x-auto">
             <DomainChain nodes={chainNodes} />
@@ -144,10 +150,20 @@ export function TaskCard({ taskId }: { taskId: string }) {
         </div>
       </div>
 
+      {/* 4 трека постоянно (иначе grid-template-columns не анимируется):
+          навигатор ветки — вталкивающая колонка 0↔300px, контент и
+          разделитель чата подвигаются вправо плавно, не оверлей. */}
       <div
-        className="relative grid min-h-0 flex-1"
-        style={{ gridTemplateColumns: `minmax(0,1fr) 6px ${chatW}px` }}
+        className="relative grid min-h-0 flex-1 transition-[grid-template-columns] duration-200 ease-out"
+        style={{
+          gridTemplateColumns: `${branchOpen ? 300 : 0}px minmax(0,1fr) 6px ${chatW}px`,
+        }}
       >
+        <div className="min-h-0 overflow-hidden">
+          {branchMounted ? (
+            <TaskBranchDrawer taskId={taskId} onClose={() => setBranchOpen(false)} />
+          ) : null}
+        </div>
         {/* Левая зона: фон совпадает с панелью — весь контент проявляется fade;
             @container — сетка полей перестраивается от ширины зоны (ресайз чата) */}
         <div className="content-fade min-h-0 @container overflow-y-auto p-6">
@@ -251,10 +267,6 @@ export function TaskCard({ taskId }: { taskId: string }) {
             <TaskDiscussion taskId={taskId} />
           </div>
         </div>
-
-        {branchOpen ? (
-          <TaskBranchDrawer taskId={taskId} onClose={() => setBranchOpen(false)} />
-        ) : null}
 
         {aboutOpen ? <TaskAboutDrawer task={task} onClose={() => setAboutOpen(false)} /> : null}
       </div>

@@ -122,7 +122,7 @@ export function TaskBranchDrawer({ taskId, onClose }: { taskId: string; onClose:
   }
 
   return (
-    <div className="absolute inset-y-0 left-0 z-10 flex w-[300px] flex-col border-r border-border bg-card shadow-xl">
+    <div className="flex h-full w-[300px] flex-col border-r border-border bg-card">
       <div className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-2.5">
         <span className="font-mono text-[10px] tracking-[0.14em] text-muted-foreground uppercase">
           {ui.tasks.branch}

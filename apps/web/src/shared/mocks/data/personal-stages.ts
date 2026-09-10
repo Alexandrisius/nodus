@@ -107,6 +107,18 @@ export function autoMovePersonalPlacement(task: TaskListItem, stages: TaskStage[
   task.personalStageId = firstPersonalStageOfState(stages, task.stage.systemState).id;
 }
 
+/** Глобальная стадия для задачи, созданной из личной колонки: первая стадия
+ *  схемы того же системного состояния, fallback — «Новые». */
+export function globalStageForPersonal(column: TaskStage, stages: TaskStage[]): TaskStage {
+  return (
+    [...stages]
+      .sort((a, b) => a.order - b.order)
+      .find((s) => s.systemState === column.systemState) ??
+    stages[0] ??
+    stageNew
+  );
+}
+
 /** Удаление личной колонки (ADR-0008): единственную удалить нельзя; задачи
  *  переезжают в первую колонку того же состояния, fallback — первая доски. */
 export function deletePersonalStagePure(

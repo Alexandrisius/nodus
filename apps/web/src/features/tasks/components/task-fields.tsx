@@ -28,7 +28,7 @@ export function TaskFields({ task }: { task: TaskDetail }) {
   const navigate = useNavigate();
 
   return (
-    <div className="mx-auto mt-5 grid max-w-3xl grid-cols-1 gap-x-12 gap-y-0.5 @min-[640px]:grid-cols-2">
+    <div className="mx-auto mt-5 grid max-w-3xl grid-cols-1 gap-x-12 gap-y-0.5 @min-[880px]:grid-cols-2">
       <Field icon={<Flag className="size-3.5" />} label={ui.tasks.fieldPriority}>
         <NodeChip tone={priorityTone[task.priority]}>{ui.tasks.priority[task.priority]}</NodeChip>
       </Field>
@@ -97,14 +97,16 @@ export function TaskFields({ task }: { task: TaskDetail }) {
 
 function Field({ icon, label, children }: { icon: ReactNode; label: string; children: ReactNode }) {
   return (
-    <div className="-mx-2 flex items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-accent/40">
+    <div className="-mx-2 flex flex-wrap items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-accent/40">
       <span className="flex w-44 shrink-0 items-center gap-2 font-mono text-[11px] tracking-[0.12em] text-muted-foreground uppercase">
         <span aria-hidden className="shrink-0 opacity-70">
           {icon}
         </span>
         <span className="truncate">{label}</span>
       </span>
-      <span className="flex min-w-0 flex-1 items-center gap-2 text-sm">{children}</span>
+      {/* min-w: на предельно узкой зоне значение переносится под метку,
+          а не сжимается в ноль */}
+      <span className="flex min-w-[160px] flex-1 items-center gap-2 text-sm">{children}</span>
     </div>
   );
 }

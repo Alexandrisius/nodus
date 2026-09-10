@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { MoreHorizontal } from 'lucide-react';
+import { MoreHorizontal, Plus } from 'lucide-react';
 import { useDndContext, useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import type { ReactNode } from 'react';
@@ -42,6 +42,7 @@ export function TaskKanbanColumn({
   onRename,
   onRecolor,
   onDelete,
+  onCreateTask,
   children,
 }: {
   stage: TaskStageWithCount;
@@ -54,6 +55,8 @@ export function TaskKanbanColumn({
   onRename: (stageId: string, name: string) => void;
   onRecolor: (stageId: string, color: StageColor) => void;
   onDelete: (stageId: string) => void;
+  /** Быстрое создание задачи в колонку (плюсик в шапке, ClickUp/Битрикс). */
+  onCreateTask: (stageId: string, title: string) => void;
   children: ReactNode;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
@@ -63,6 +66,8 @@ export function TaskKanbanColumn({
   const sentinelRef = useRef<HTMLDivElement>(null);
   const [renaming, setRenaming] = useState(false);
   const [draftName, setDraftName] = useState(stage.name);
+  const [addingTask, setAddingTask] = useState(false);
+  const [draftTask, setDraftTask] = useState('');
   const tone = stageTone[stage.color];
 
   useEffect(() => {
@@ -83,6 +88,13 @@ export function TaskKanbanColumn({
     setRenaming(false);
     const name = draftName.trim();
     if (name && name !== stage.name) onRename(stage.id, name);
+  }
+
+  function commitTask() {
+    const title = draftTask.trim();
+    setAddingTask(false);
+    setDraftTask('');
+    if (title) onCreateTask(stage.id, title);
   }
 
   return (
@@ -125,10 +137,19 @@ export function TaskKanbanColumn({
         <span className="shrink-0 font-mono text-[11px] text-muted-foreground tabular-nums">
           {count}
         </span>
+        <button
+          type="button"
+          aria-label={ui.tasks.create}
+          title={ui.tasks.create}
+          onClick={() => setAddingTask(true)}
+          className="ml-auto shrink-0 rounded-md p-1 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:bg-accent hover:text-foreground focus-visible:opacity-100"
+        >
+          <Plus className="size-4" strokeWidth={1.75} />
+        </button>
         <DropdownMenu>
           <DropdownMenuTrigger
             aria-label={ui.tasks.stageActions}
-            className="ml-auto shrink-0 rounded-md p-1 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:bg-accent hover:text-foreground focus-visible:opacity-100 data-[state=open]:opacity-100"
+            className="shrink-0 rounded-md p-1 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:bg-accent hover:text-foreground focus-visible:opacity-100 data-[state=open]:opacity-100"
           >
             <MoreHorizontal className="size-4" strokeWidth={1.75} />
           </DropdownMenuTrigger>
@@ -175,6 +196,23 @@ export function TaskKanbanColumn({
           ref={scrollRef}
           className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-0.5 pt-1 pb-2"
         >
+          {addingTask ? (
+            <input
+              autoFocus
+              value={draftTask}
+              onChange={(e) => setDraftTask(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') commitTask();
+                if (e.key === 'Escape') {
+                  setAddingTask(false);
+                  setDraftTask('');
+                }
+              }}
+              onBlur={commitTask}
+              placeholder={ui.tasks.quickTaskPlaceholder}
+              className="h-9 shrink-0 rounded-lg border border-input bg-card px-2.5 text-sm outline-none focus:border-ring"
+            />
+          ) : null}
           {children}
           {count === 0 && !loadingMore ? (
             <span className="rounded-md border border-dashed border-border px-3 py-6 text-center font-mono text-[10px] tracking-[0.14em] text-muted-foreground/70 uppercase">

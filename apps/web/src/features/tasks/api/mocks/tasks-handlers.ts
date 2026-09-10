@@ -1,6 +1,7 @@
 import type { ChatMessage, TaskBranch, TaskBranchNode, TaskListItem } from '@nodus/contracts';
 import {
   ErrorCode,
+  createTaskBodySchema,
   personalStageCreateBodySchema,
   personalStageUpdateBodySchema,
   taskUpdateBodySchema,
@@ -15,6 +16,7 @@ import {
   demoSubtasks,
   demoTaskMessages,
   demoTasks,
+  globalStageForPersonal,
   makeSubtask,
   taskDetailOf,
 } from '../../../../shared/mocks/data/tasks.js';
@@ -85,6 +87,41 @@ export const tasksHandlers = [
       })),
     ),
   ),
+
+  /** Быстрое создание задачи из колонки «Моего плана» (плюсик в шапке):
+   *  глобальная стадия — первая стадия схемы того же системного состояния. */
+  http.post('/api/v1/tasks', async ({ request }) => {
+    const parsed = createTaskBodySchema.safeParse(await request.json());
+    if (!parsed.success)
+      return HttpResponse.json(
+        { code: ErrorCode.VALIDATION_FAILED, message: 'Invalid body' },
+        { status: 422 },
+      );
+    const column = demoPersonalStages.find((s) => s.id === parsed.data.personalStageId);
+    if (!column) return notFound('Stage not found');
+    const task: TaskListItem = {
+      id: crypto.randomUUID(),
+      number: Math.max(...demoTasks.map((t) => t.number)) + 1,
+      title: parsed.data.title,
+      stage: globalStageForPersonal(column, demoStages),
+      personalStageId: column.id,
+      priority: 'normal',
+      deadline: null,
+      creator: userRef(currentAuthUser.id),
+      assignee: userRef(currentAuthUser.id),
+      participants: [],
+      project: null,
+      parentId: null,
+      spentMinutes: 0,
+      commentsCount: 0,
+      checklistDone: 0,
+      checklistTotal: 0,
+      source: 'manual',
+      updatedAt: new Date().toISOString(),
+    };
+    demoTasks.push(task);
+    return HttpResponse.json(task, { status: 201 });
+  }),
 
   // Личная схема «Мой план» (ADR-0008): каталог колонок со счётчиками.
   // Маршруты personal-stages — ДО '/api/v1/tasks/:id' (:id захватил бы их).

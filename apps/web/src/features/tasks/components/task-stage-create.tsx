@@ -1,18 +1,17 @@
 import { useState } from 'react';
 import { Plus } from 'lucide-react';
-import type { PersonalStageCreateBody, StageColor, TaskSystemState } from '@nodus/contracts';
+import type { PersonalStageCreateBody, StageColor } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 
-import { Button } from '@nodus/ui/components/button';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { stageColorOrder, stageTone } from '../lib/stage-tone.js';
 
-const stateOrder: TaskSystemState[] = ['backlog', 'active', 'paused', 'done'];
-
-/** Создание личной колонки «Моего плана» (ADR-0008): имя + цвет + привязка к
- *  системному состоянию (обязательна — она делает доску живой без роботов).
- *  Раскрывается инлайн в конце ряда колонок, модалок нет. */
+/** Создание личной колонки «Моего плана» — компактно (референс ClickUp
+ *  «Add group»): маленькая ghost-кнопка в конце ряда → инлайн-форма
+ *  «точка цвета + название», Enter — создать, Esc/ blur — отмена.
+ *  Привязка к системному состоянию в UI не спрашивается (привязка живёт
+ *  в модели данных для workflow-схем после MVP): новая колонка — «в работе». */
 export function TaskStageCreate({
   onCreate,
   creating,
@@ -23,19 +22,17 @@ export function TaskStageCreate({
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
   const [color, setColor] = useState<StageColor>('neutral');
-  const [systemState, setSystemState] = useState<TaskSystemState>('active');
 
   function reset() {
     setOpen(false);
     setName('');
     setColor('neutral');
-    setSystemState('active');
   }
 
   function submit() {
     const trimmed = name.trim();
     if (!trimmed || creating) return;
-    onCreate({ name: trimmed, color, systemState });
+    onCreate({ name: trimmed, color, systemState: 'active' });
     reset();
   }
 
@@ -44,81 +41,63 @@ export function TaskStageCreate({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex h-full w-48 shrink-0 items-start justify-start rounded-lg border border-dashed border-border px-3 py-2 font-mono text-[11px] tracking-[0.12em] text-muted-foreground uppercase transition-colors hover:border-port/50 hover:text-foreground"
+        className="inline-flex h-7 shrink-0 items-center gap-1.5 self-start rounded-md border border-dashed border-border px-2.5 font-mono text-[10px] tracking-[0.12em] text-muted-foreground uppercase transition-colors hover:border-port/50 hover:text-foreground"
       >
-        <span className="inline-flex items-center gap-1.5">
-          <Plus className="size-3.5" strokeWidth={1.75} />
-          {ui.tasks.addStage}
-        </span>
+        <Plus className="size-3.5" strokeWidth={1.75} />
+        {ui.tasks.addStage}
       </button>
     );
   }
 
   return (
-    <div className="flex w-72 shrink-0 flex-col gap-3 rounded-lg border border-border bg-card p-3">
-      <input
-        autoFocus
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') submit();
-          if (e.key === 'Escape') reset();
-        }}
-        placeholder={ui.tasks.stageNamePlaceholder}
-        className="h-8 rounded-md border border-input bg-transparent px-2 text-sm outline-none focus:border-ring"
-      />
-      <div>
-        <p className="mb-1.5 font-mono text-[10px] tracking-[0.14em] text-muted-foreground uppercase">
-          {ui.tasks.stageColor}
-        </p>
-        <div className="flex gap-1.5">
-          {stageColorOrder.map((c) => (
-            <button
-              key={c}
-              type="button"
-              title={ui.tasks.stageColors[c]}
-              aria-label={ui.tasks.stageColors[c]}
-              onClick={() => setColor(c)}
-              className={cn(
-                'size-5 rounded-full transition-shadow',
-                stageTone[c].swatch,
-                color === c
-                  ? 'ring-2 ring-ring ring-offset-2 ring-offset-card'
-                  : 'opacity-60 hover:opacity-100',
-              )}
-            />
-          ))}
-        </div>
+    <div className="w-64 shrink-0 self-start rounded-lg border border-border bg-card p-2">
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          title={ui.tasks.stageColor}
+          aria-label={ui.tasks.stageColor}
+          onClick={() => {
+            const next =
+              stageColorOrder[(stageColorOrder.indexOf(color) + 1) % stageColorOrder.length];
+            setColor(next ?? 'neutral');
+          }}
+          className={cn(
+            'size-4 shrink-0 rounded-full transition-transform hover:scale-110',
+            stageTone[color].swatch,
+          )}
+        />
+        <input
+          autoFocus
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') submit();
+            if (e.key === 'Escape') reset();
+          }}
+          onBlur={() => {
+            if (!name.trim()) reset();
+          }}
+          placeholder={ui.tasks.stageNamePlaceholder}
+          className="h-7 min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+        />
       </div>
-      <div>
-        <p className="mb-1.5 font-mono text-[10px] tracking-[0.14em] text-muted-foreground uppercase">
-          {ui.tasks.stageStateLabel}
-        </p>
-        <div className="flex flex-wrap gap-1.5">
-          {stateOrder.map((state) => (
-            <button
-              key={state}
-              type="button"
-              onClick={() => setSystemState(state)}
-              className={cn(
-                'rounded-md border px-2 py-1 font-mono text-[10px] tracking-[0.1em] uppercase transition-colors',
-                systemState === state
-                  ? 'border-port/60 bg-accent text-foreground'
-                  : 'border-border text-muted-foreground hover:text-foreground',
-              )}
-            >
-              {ui.tasks.stageStates[state]}
-            </button>
-          ))}
-        </div>
-      </div>
-      <div className="flex gap-2 pt-1">
-        <Button size="sm" onClick={submit} disabled={!name.trim() || creating}>
-          {ui.tasks.create}
-        </Button>
-        <Button size="sm" variant="ghost" onClick={reset}>
-          {ui.common.cancel}
-        </Button>
+      <div className="mt-2 flex gap-1.5 pl-6">
+        {stageColorOrder.map((c) => (
+          <button
+            key={c}
+            type="button"
+            title={ui.tasks.stageColors[c]}
+            aria-label={ui.tasks.stageColors[c]}
+            onClick={() => setColor(c)}
+            className={cn(
+              'size-3.5 rounded-full transition-shadow',
+              stageTone[c].swatch,
+              color === c
+                ? 'ring-2 ring-ring ring-offset-1 ring-offset-card'
+                : 'opacity-50 hover:opacity-100',
+            )}
+          />
+        ))}
       </div>
     </div>
   );

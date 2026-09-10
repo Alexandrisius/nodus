@@ -22,6 +22,7 @@ import { api } from '../../../shared/api-client.js';
 import { useViewFields } from '../../../shared/views/use-view-fields.js';
 import {
   useCreatePersonalStage,
+  useCreateTask,
   useDeletePersonalStage,
   usePersonalStages,
   useUpdatePersonalStage,
@@ -60,6 +61,7 @@ export function TaskKanban() {
   const { data: stages } = usePersonalStages();
   const updatePersonalStage = useUpdateTaskPersonalStage();
   const createStage = useCreatePersonalStage();
+  const createTask = useCreateTask();
   const updateStageMeta = useUpdatePersonalStage();
   const deleteStage = useDeletePersonalStage();
   const { isVisible } = useViewFields('tasks.kanban', taskCardFields);
@@ -283,6 +285,27 @@ export function TaskKanban() {
               onRename={(stageId, name) => updateStageMeta.mutate({ stageId, body: { name } })}
               onRecolor={(stageId, color) => updateStageMeta.mutate({ stageId, body: { color } })}
               onDelete={(stageId) => deleteStage.mutate(stageId)}
+              onCreateTask={(stageId, title) =>
+                createTask.mutate(
+                  { title, personalStageId: stageId },
+                  {
+                    // Новая задача — в топ колонки борда сразу (без refetch).
+                    onSuccess: (task) => {
+                      setBoard((prev) => {
+                        const rest = prev ?? [];
+                        const firstOfColumn = rest.find((t) => t.personalStageId === stageId);
+                        if (!firstOfColumn) return [...rest, task];
+                        const at = rest.indexOf(firstOfColumn);
+                        return [...rest.slice(0, at), task, ...rest.slice(at)];
+                      });
+                      setCountDelta((prev) => ({
+                        ...prev,
+                        [stageId]: (prev[stageId] ?? 0) + 1,
+                      }));
+                    },
+                  },
+                )
+              }
             >
               {cards.map((task) => (
                 <TaskKanbanSortableCard

@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
+  CreateTaskBody,
   PersonalStageCreateBody,
   PersonalStageUpdateBody,
   TaskDetail,
@@ -99,6 +100,18 @@ export function useUpdatePersonalStage() {
       api<TaskStage>(`/tasks/personal-stages/${stageId}`, { method: 'PATCH', body }),
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: tasksKeys.personalStages() });
+    },
+  });
+}
+
+/** Быстрое создание задачи из колонки «Моего плана» (плюсик в шапке). */
+export function useCreateTask() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: CreateTaskBody) => api<TaskListItem>('/tasks', { method: 'POST', body }),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: tasksKeys.personalStages() });
+      void queryClient.invalidateQueries({ queryKey: tasksKeys.listPages() });
     },
   });
 }
