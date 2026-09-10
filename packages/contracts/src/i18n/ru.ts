@@ -257,9 +257,6 @@ export const ui = {
   },
   chat: {
     title: 'Мессенджер',
-    conversations: 'Чаты',
-    channels: 'Каналы',
-    direct: 'Личные',
     newMessage: 'Написать сообщение…',
     toTask: 'В задачу',
     edited: 'изменено',
@@ -268,7 +265,6 @@ export const ui = {
     channel: 'Канал',
     groupChat: 'Групповой чат',
     toTaskDone: 'Задача создана из сообщения',
-    groupChats: 'Групповые чаты',
     discussion: 'Обсуждение',
     repliesOne: 'ответ',
     repliesFew: 'ответа',

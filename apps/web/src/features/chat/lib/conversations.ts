@@ -3,24 +3,40 @@ import { ui } from '@nodus/contracts';
 
 import { plural } from '../../../shared/lib/format.js';
 
-/** Заголовок беседы: у канала/группы — название, у личного — имя собеседника. */
+/** Заголовок беседы: у канала/группы — название, у чата задачи — «№ · тема»,
+ *  у личного — имя собеседника. */
 export function conversationTitle(conversation: ConversationListItem): string {
+  if (conversation.type === 'task' && conversation.task) {
+    return `№ ${conversation.task.number} · ${conversation.task.title}`;
+  }
   return conversation.title ?? conversation.membersPreview[0]?.displayName ?? '';
 }
 
-/** Секции списка бесед (каналы → групповые → личные). */
-export const conversationSections = [
-  { key: 'project_channel', label: ui.chat.channels },
-  { key: 'group', label: ui.chat.groupChats },
-  { key: 'direct', label: ui.chat.direct },
-] as const;
+/** Единый список бесед по активности (вердикт владельца 2026-09-10, раунд 2):
+ *  БЕЗ секций-заголовков — типы перемешаны, свежие сверху; беседы без
+ *  сообщений — в конце (стабильно, в исходном порядке). */
+export function sortByActivity(conversations: ConversationListItem[]): ConversationListItem[] {
+  return [...conversations].sort((a, b) => {
+    const ta = a.lastMessage?.createdAt ?? null;
+    const tb = b.lastMessage?.createdAt ?? null;
+    if (ta === null && tb === null) return 0;
+    if (ta === null) return 1;
+    if (tb === null) return -1;
+    return tb.localeCompare(ta);
+  });
+}
 
 /** Подзаголовок активной беседы: тип + участники (русская деловая форма). */
 export function conversationSubtitle(conversation: ConversationListItem): string {
   if (conversation.type === 'project_channel') {
     return conversation.project
       ? `${ui.chat.channelOfProject} · ${conversation.project.name}`
-      : ui.chat.channelOfProject;
+      : ui.chat.channel;
+  }
+  if (conversation.type === 'task') {
+    return conversation.task
+      ? `${ui.chat.taskChat} · № ${conversation.task.number}`
+      : ui.chat.taskChat;
   }
   const members = conversation.membersPreview.length;
   if (conversation.type === 'group') {

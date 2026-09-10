@@ -1,14 +1,16 @@
 import type { ChatMessage, ConversationListItem } from '@nodus/contracts';
 
 import { isoAgo } from './dates.js';
-import { projectRefs } from './tasks.js';
+import { projectRefs, tid } from './tasks.js';
 import { userIds, userRef } from './users.js';
 
 export const cid = (n: number): string => `a0000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const mid = (n: number): string => `b0000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 
 /** Канал проекта создаётся АВТОМАТИЧЕСКИ при создании проекта (вердикт
- *  владельца 2026-09-10): канал есть у каждого проекта демо-набора. */
+ *  владельца 2026-09-10): канал есть у каждого проекта демо-набора.
+ *  Чаты задач (type=task) — обсуждения конкретных задач для вкладки
+ *  «Чаты задач» мессенджера (вердикт владельца 2026-09-10, раунд 2). */
 export const demoConversations: ConversationListItem[] = [
   {
     id: cid(1),
@@ -16,6 +18,7 @@ export const demoConversations: ConversationListItem[] = [
     title: 'Новости компании',
     avatarUrl: null,
     project: null,
+    task: null,
     membersPreview: [
       userRef(userIds.klimovich),
       userRef(userIds.shaiderova),
@@ -30,6 +33,7 @@ export const demoConversations: ConversationListItem[] = [
     title: projectRefs.p3.name,
     avatarUrl: null,
     project: projectRefs.p3,
+    task: null,
     membersPreview: [userRef(userIds.klevantovich), userRef(userIds.klimovich)],
     lastMessage: null,
     unreadCount: 0,
@@ -40,6 +44,7 @@ export const demoConversations: ConversationListItem[] = [
     title: projectRefs.p1.name,
     avatarUrl: null,
     project: projectRefs.p1,
+    task: null,
     membersPreview: [userRef(userIds.klimovich), userRef(userIds.shaiderova)],
     lastMessage: null,
     unreadCount: 1,
@@ -50,6 +55,7 @@ export const demoConversations: ConversationListItem[] = [
     title: projectRefs.p2.name,
     avatarUrl: null,
     project: projectRefs.p2,
+    task: null,
     membersPreview: [userRef(userIds.akulich), userRef(userIds.klimovich)],
     lastMessage: null,
     unreadCount: 0,
@@ -60,6 +66,7 @@ export const demoConversations: ConversationListItem[] = [
     title: projectRefs.p4.name,
     avatarUrl: null,
     project: projectRefs.p4,
+    task: null,
     membersPreview: [userRef(userIds.vinnichek), userRef(userIds.klimovich)],
     lastMessage: null,
     unreadCount: 3,
@@ -70,6 +77,7 @@ export const demoConversations: ConversationListItem[] = [
     title: 'BIM-команда',
     avatarUrl: null,
     project: null,
+    task: null,
     membersPreview: [userRef(userIds.klevantovich), userRef(userIds.akulich)],
     lastMessage: null,
     unreadCount: 0,
@@ -80,6 +88,7 @@ export const demoConversations: ConversationListItem[] = [
     title: null,
     avatarUrl: null,
     project: null,
+    task: null,
     membersPreview: [userRef(userIds.vinnichek)],
     lastMessage: null,
     unreadCount: 1,
@@ -90,7 +99,30 @@ export const demoConversations: ConversationListItem[] = [
     title: null,
     avatarUrl: null,
     project: null,
+    task: null,
     membersPreview: [userRef(userIds.polomar)],
+    lastMessage: null,
+    unreadCount: 0,
+  },
+  {
+    id: cid(9),
+    type: 'task',
+    title: null,
+    avatarUrl: null,
+    project: null,
+    task: { id: tid(5), number: 105, title: 'Подготовить ответ заказчику по замечаниям' },
+    membersPreview: [userRef(userIds.klimovich), userRef(userIds.vinnichek)],
+    lastMessage: null,
+    unreadCount: 1,
+  },
+  {
+    id: cid(10),
+    type: 'task',
+    title: null,
+    avatarUrl: null,
+    project: null,
+    task: { id: tid(2), number: 102, title: 'Разработать модель 3D по облаку точек' },
+    membersPreview: [userRef(userIds.klimovich), userRef(userIds.matorin)],
     lastMessage: null,
     unreadCount: 0,
   },
@@ -293,6 +325,29 @@ export const demoMessages: ChatMessage[] = [
     userIds.polomar,
     'Подписала у директора входящее от «СтройЗаказчика», передала вам на резолюцию.',
     isoAgo(0, 11, 55),
+  ),
+
+  // Чаты задач (вкладка «Чаты задач» мессенджера).
+  msg(
+    30,
+    9,
+    userIds.vinnichek,
+    'По замечаниям КЖ: черновик ответа посмотрела, два пункта надо раскрыть подробнее.',
+    isoAgo(0, 10, 5),
+  ),
+  msg(
+    31,
+    9,
+    userIds.klimovich,
+    'Принял, допишу узлы примыкания и верну на проверку сегодня.',
+    isoAgo(0, 10, 40),
+  ),
+  msg(
+    32,
+    10,
+    userIds.matorin,
+    'Облако по осям 4–7 загрузил в CDE, можно начинать сведение.',
+    isoAgo(1, 15, 20),
   ),
 ];
 

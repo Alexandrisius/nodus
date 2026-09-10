@@ -15,10 +15,13 @@ function repliesLabel(count: number): string {
 
 /**
  * Лента канала (вердикт владельца 2026-09-10): каждое сообщение канала —
- * новость-тред. Корневые сообщения — плоские карточки-посты (не пузыри):
- * автор, текст, вложения, реакции; в подвале — участники обсуждения
- * (авторы ответов, ≤3 аватаров), счётчик ответов и вход «Обсудить».
- * Композер внизу создаёт НОВЫЙ тред (корневой пост).
+ * новость-тред. Корневые сообщения — плоские карточки-посты (не пузыри)
+ * ОГРАНИЧЕННОЙ ширины (max-w-2xl, референс — каналы Битрикс24: пост не
+ * тянется на всю ширину, действия под постом — рядом, не на другом краю
+ * экрана): автор, текст, вложения, реакции; в подвале — участники обсуждения
+ * (авторы ответов, ≤3 аватаров), счётчик ответов (скрыт при нуле — «0
+ * ответов» шумит) и вход «Обсудить». Композер внизу создаёт НОВЫЙ тред
+ * (корневой пост).
  */
 export function ThreadFeed({
   conversationId,
@@ -63,6 +66,7 @@ export function ThreadFeed({
           <div className="flex flex-col gap-3">
             {roots.map((root) => {
               const replies = repliesByRoot.get(root.id) ?? [];
+              const repliesCount = root.threadRepliesCount || replies.length;
               const participants = [
                 ...new Map(replies.map((r) => [r.author.id, r.author])).values(),
               ];
@@ -72,7 +76,7 @@ export function ThreadFeed({
                   key={root.id}
                   type="button"
                   onClick={() => onOpenThread(root.id)}
-                  className="node-panel p-3.5 text-left transition-colors hover:border-input"
+                  className="node-panel w-full max-w-2xl p-3.5 text-left transition-colors hover:border-input"
                 >
                   <span className="flex items-center gap-2 text-sm">
                     <PersonAvatar name={root.author.displayName} className="size-7 shrink-0" />
@@ -106,10 +110,12 @@ export function ThreadFeed({
                         ))}
                       </span>
                     ) : null}
-                    <span className="font-mono text-[11px] text-muted-foreground tabular-nums">
-                      {repliesLabel(root.threadRepliesCount || replies.length)}
-                      {last ? ` · ${formatTime(last.createdAt)}` : ''}
-                    </span>
+                    {repliesCount > 0 ? (
+                      <span className="font-mono text-[11px] text-muted-foreground tabular-nums">
+                        {repliesLabel(repliesCount)}
+                        {last ? ` · ${formatTime(last.createdAt)}` : ''}
+                      </span>
+                    ) : null}
                     <span className="ml-auto inline-flex items-center gap-1 font-mono text-[10px] tracking-[0.12em] text-info uppercase">
                       {ui.chat.toThread}
                       <ArrowRight className="size-3" strokeWidth={1.75} />

@@ -76,10 +76,16 @@ function sectionsFor(pathname: string): Section[] {
   if (pathname.startsWith('/chat')) {
     return [
       {
-        label: ui.chat.conversations,
+        label: ui.chat.tabChats,
         to: '/chat',
         search: {},
-        isActive: () => true,
+        isActive: (s) => s.get('tab') !== 'tasks',
+      },
+      {
+        label: ui.chat.tabTaskChats,
+        to: '/chat',
+        search: { tab: 'tasks' },
+        isActive: (s) => s.get('tab') === 'tasks',
       },
     ];
   }
