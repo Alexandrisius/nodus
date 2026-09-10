@@ -4,7 +4,7 @@ import type { TaskListItem, TaskStage } from '@nodus/contracts';
 import {
   globalAxis,
   indexOfInStage,
-  isSameOrder,
+  isSamePlacement,
   moveTaskToStage,
   reorderWithinStage,
 } from './kanban-board.js';
@@ -83,11 +83,28 @@ describe('kanban-board: перестановки борда', () => {
     expect(indexOfInStage(board(), 'nope', globalAxis)).toBe(-1);
   });
 
-  it('isSameOrder: идентичный порядок не создаёт повода для setState', () => {
-    expect(isSameOrder(board(), [...board()])).toBe(true);
-    expect(isSameOrder(board(), moveTaskToStage(board(), 'a1', STAGE_A, 0, globalAxis))).toBe(true);
-    expect(isSameOrder(board(), moveTaskToStage(board(), 'a1', STAGE_B, 0, globalAxis))).toBe(
-      false,
-    );
+  it('isSamePlacement: идентичное размещение не создаёт повода для setState', () => {
+    expect(isSamePlacement(board(), [...board()], globalAxis)).toBe(true);
+    expect(
+      isSamePlacement(board(), moveTaskToStage(board(), 'a1', STAGE_A, 0, globalAxis), globalAxis),
+    ).toBe(true);
+    expect(
+      isSamePlacement(board(), moveTaskToStage(board(), 'a1', STAGE_B, 0, globalAxis), globalAxis),
+    ).toBe(false);
+  });
+
+  it('isSamePlacement: переезд в пустую колонку с конца массива — НЕ то же размещение (регрессия)', () => {
+    // b2 — последняя в плоском массиве; переезд в пустую C ставит её в конец
+    // снова: порядок id совпадает, но колонка другая — setState обязан пройти.
+    const STAGE_C: TaskStage = {
+      id: 'c',
+      name: 'Готово',
+      order: 2,
+      systemState: 'done',
+      color: 'neutral',
+    };
+    const moved = moveTaskToStage(board(), 'b2', STAGE_C, 0, globalAxis);
+    expect(moved.map((t) => t.id)).toEqual(board().map((t) => t.id));
+    expect(isSamePlacement(board(), moved, globalAxis)).toBe(false);
   });
 });

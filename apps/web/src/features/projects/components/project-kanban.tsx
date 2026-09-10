@@ -24,7 +24,7 @@ import { api } from '../../../shared/api-client.js';
 import { useTaskStages } from '../../../shared/api/task-stages.js';
 import {
   indexOfInStage,
-  isSameOrder,
+  isSamePlacement,
   moveTaskToStage,
   globalAxis,
   reorderWithinStage,
@@ -149,7 +149,7 @@ export function ProjectKanban({ projectId }: { projectId: string }) {
   };
 
   /** Живой переезд между колонками + предохранители цикла update depth
-   * (анти-осциллятор и гейт isSameOrder — механизмы в gotchas). */
+   * (анти-осциллятор и гейт isSamePlacement — механизмы в gotchas). */
   const onDragOver = (event: DragOverEvent) => {
     const { active, over } = event;
     if (!over || recentlyMoved.current) return;
@@ -168,7 +168,7 @@ export function ProjectKanban({ projectId }: { projectId: string }) {
     });
     setBoard((prev) => {
       const next = moveTaskToStage(prev ?? [], String(active.id), overStage, index, globalAxis);
-      return isSameOrder(prev ?? [], next) ? (prev ?? []) : next;
+      return isSamePlacement(prev ?? [], next, globalAxis) ? (prev ?? []) : next;
     });
   };
 

@@ -62,11 +62,19 @@ export function moveTaskToStage(
   return [...rest, moved];
 }
 
-/** Одинаковый ли порядок задач (по id) — предохранитель холостых setState:
- * идентичный результат перестановки не должен создавать новое состояние
- * (пустые витки измерение→onDragOver→setState — топливо цикла update depth). */
-export function isSameOrder(a: TaskListItem[], b: TaskListItem[]): boolean {
-  return a.length === b.length && a.every((t, i) => t.id === b[i]?.id);
+/** Одинаковое ли РАЗМЕЩЕНИЕ задач (порядок id + колонка каждой по оси) —
+ * предохранитель холостых setState: идентичный результат перестановки не
+ * должен создавать новое состояние (пустые витки измерение→onDragOver→
+ * setState — топливо цикла update depth). Сравнивать ТОЛЬКО порядок id
+ * нельзя (регрессионный тест): переезд между пустыми колонками ставит задачу
+ * в конец плоского массива оба раза — порядок id совпадает, гейт глотал
+ * setState, стадия в состоянии не обновлялась и персист уходил со старой
+ * колонкой (баг «дроп в пустую колонку не применяется», gotchas). */
+export function isSamePlacement(a: TaskListItem[], b: TaskListItem[], axis: BoardAxis): boolean {
+  return (
+    a.length === b.length &&
+    a.every((t, i) => t.id === b[i]?.id && axis.keyOf(t) === axis.keyOf(b[i]))
+  );
 }
 
 /** Перестановка внутри колонки (финиш drag над другой карточкой той же колонки). */

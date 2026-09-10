@@ -22,7 +22,7 @@ import { api } from '../../../shared/api-client.js';
 import { useViewFields } from '../../../shared/views/use-view-fields.js';
 import {
   indexOfInStage,
-  isSameOrder,
+  isSamePlacement,
   moveTaskToStage,
   personalAxis,
   reorderWithinStage,
@@ -158,8 +158,9 @@ export function TaskKanban() {
   /** Живой переезд между колонками: карточка встаёт в целевую колонку ещё
    * до дропа (индекс — от карточки под указателем, ниже/выше её центра).
    * Предохранители цикла update depth: (1) кадр после межколоночного переноса
-   * игнорируем (анти-осциллятор на границе колонок), (2) идентичный порядок
-   * не создаёт нового состояния (холостые витки измерение→setState). */
+   * игнорируем (анти-осциллятор на границе колонок), (2) идентичное РАЗМЕЩЕНИЕ
+   * не создаёт нового состояния (isSamePlacement: порядок id + колонка —
+   * холостые витки измерение→setState). */
   const onDragOver = (event: DragOverEvent) => {
     const { active, over } = event;
     if (!over || recentlyMoved.current) return;
@@ -178,7 +179,7 @@ export function TaskKanban() {
     });
     setBoard((prev) => {
       const next = moveTaskToStage(prev ?? [], String(active.id), overStage, index, personalAxis);
-      return isSameOrder(prev ?? [], next) ? (prev ?? []) : next;
+      return isSamePlacement(prev ?? [], next, personalAxis) ? (prev ?? []) : next;
     });
   };
 

@@ -6,6 +6,14 @@ import { closestCenter, pointerWithin, rectIntersection } from '@dnd-kit/core';
  * указатель внутри колонки → ближайшая карточка ВНУТРИ неё (колонки-пустышки
  * остаются сами); вне пересечений — кэш lastOverId, иначе сразу после
  * межколоночного переезда раскладка «прыгает» и over теряется.
+ *
+ * Активная карточка ИСКЛЮЧЕНА из кандидатов (gotchas, воспроизведено пробой):
+ * её droppable не отключается при drag (useSortable), а rect следует за
+ * указателем (sortable-трансформ); pointerWithin сортирует по среднему
+ * расстоянию до углов rect → самый маленький rect под указателем (сама
+ * карточка) затеняет секцию колонки, и дроп в пустую колонку «залипал» на
+ * ПЕРВОЙ пересечённой пустышке. Дроп «на себя» бессмыслен — исключаем из
+ * pointerWithin, rectIntersection и closestCenter внутри колонки.
  */
 export function makeKanbanCollision(args: {
   columnIds: () => string[];
@@ -15,17 +23,23 @@ export function makeKanbanCollision(args: {
 }): CollisionDetection {
   const { columnIds, childrenOf, lastOverId, recentlyMoved } = args;
   return (event): Collision[] => {
-    const pointer = pointerWithin(event);
-    const intersections = pointer.length > 0 ? pointer : rectIntersection(event);
+    const scoped = {
+      ...event,
+      droppableContainers: event.droppableContainers.filter(
+        (c) => String(c.id) !== String(event.active.id),
+      ),
+    };
+    const pointer = pointerWithin(scoped);
+    const intersections = pointer.length > 0 ? pointer : rectIntersection(scoped);
     let overId = intersections[0]?.id ?? null;
     if (overId != null) {
       const columns = columnIds();
       if (columns.includes(String(overId))) {
-        const children = childrenOf(String(overId));
+        const children = childrenOf(String(overId)).filter((id) => id !== String(event.active.id));
         if (children.length > 0) {
           const closest = closestCenter({
-            ...event,
-            droppableContainers: event.droppableContainers.filter(
+            ...scoped,
+            droppableContainers: scoped.droppableContainers.filter(
               (c) => String(c.id) !== String(overId) && children.includes(String(c.id)),
             ),
           });
