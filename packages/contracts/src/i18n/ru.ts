@@ -185,7 +185,6 @@ export const ui = {
   },
   letters: {
     title: 'Письма',
-    compose: 'Написать письмо',
     folderUnregistered: 'Незарегистрированные',
     folderIncoming: 'Входящие',
     folderOutgoing: 'Исходящие',
@@ -208,10 +207,15 @@ export const ui = {
     regDate: 'Дата регистрации',
     body: 'Текст письма',
     project: 'Проект',
+    fieldStatus: 'Статус',
+    deadline: 'Срок исполнения',
     summaryUnregistered: 'Незарегистрированных',
     registerDone: 'Письмо зарегистрировано',
     resolutionDone: 'Поручение создано',
     noNumber: 'без номера',
+    countOne: 'письмо',
+    countFew: 'письма',
+    countMany: 'писем',
     status: {
       unregistered: 'Не зарегистрировано',
       in_work: 'В работе',

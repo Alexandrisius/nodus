@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { LetterDetail, LetterListItem, Paginated, Resolution } from '@nodus/contracts';
+import { ui } from '@nodus/contracts';
+import { toast } from 'sonner';
 
 import { api } from '../../../shared/api-client.js';
 
@@ -25,12 +27,17 @@ export function useLetterDetail(id: string) {
   });
 }
 
-/** Резолюция → поручение (поток А). Пессимистична: юридически значимое действие. */
+/** Резолюция → поручение (поток А). Пессимистична: юридически значимое
+ *  действие (вердикт владельца 2026-09-10: оптимистичность — вместе с
+ *  боевым бэкендом корреспонденции). */
 export function useIssueResolution(letterId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (text: string) =>
       api<Resolution>(`/letters/${letterId}/resolutions`, { method: 'POST', body: { text } }),
+    onSuccess: () => {
+      toast.success(ui.letters.resolutionDone);
+    },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: lettersKeys.all });
       void queryClient.invalidateQueries({ queryKey: ['tasks'] });
@@ -43,6 +50,9 @@ export function useRegisterLetter() {
   return useMutation({
     mutationFn: (letterId: string) =>
       api<LetterListItem>(`/letters/${letterId}/register`, { method: 'POST' }),
+    onSuccess: () => {
+      toast.success(ui.letters.registerDone);
+    },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: lettersKeys.all });
     },

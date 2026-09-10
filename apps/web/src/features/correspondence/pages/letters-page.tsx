@@ -1,15 +1,17 @@
-import { MailOpen, PenLine } from 'lucide-react';
-import { Outlet, useNavigate, useSearch } from '@tanstack/react-router';
+import { Outlet, useSearch } from '@tanstack/react-router';
 import { ui } from '@nodus/contracts';
-import { Button } from '@nodus/ui/components/button';
-import { Empty, EmptyDescription, EmptyTitle } from '@nodus/ui/components/empty';
-import { Skeleton } from '@nodus/ui/components/skeleton';
+import { cn } from '@nodus/ui/lib/utils';
 
-import { formatDateTime } from '../../../shared/lib/format.js';
-import { useLettersList, useRegisterLetter, type LettersFolder } from '../api/letters-api.js';
-import { LetterStatusBadge } from '../components/letter-status-badge.js';
+import { plural } from '../../../shared/lib/format.js';
+import { ViewSettings } from '../../../shared/views/view-settings.js';
+import { useLettersList, type LettersFolder } from '../api/letters-api.js';
+import { letterJournalFields } from '../lib/letter-fields.js';
+import { LettersJournal } from '../components/letters-journal.js';
 
-/** Журнал писем: папки в топбаре; очередь «Незарегистрированные» — с регистрацией. */
+/** Письма: журнал по канону таблиц (shared/views) + папки-чипы в топбаре
+ *  (Входящие / Незарегистрированные / Исходящие — секции каркаса).
+ *  Шапка — живая сводка (писем в папке + счётчик очереди регистрации) и
+ *  шестерёнка представления активного журнала. */
 export function LettersPage() {
   const search = useSearch({ strict: false }) as { folder?: string };
   const folder: LettersFolder = (['unregistered', 'incoming', 'outgoing'] as const).includes(
@@ -18,74 +20,34 @@ export function LettersPage() {
     ? (search.folder as LettersFolder)
     : 'incoming';
 
-  const { data, isLoading } = useLettersList(folder);
-  const register = useRegisterLetter();
-  const navigate = useNavigate();
+  const { data } = useLettersList(folder);
+  // Очередь регистрации — всегда на виду у секретаря (тот же query-ключ при
+  // folder=unregistered: react-query дедуплицирует).
+  const { data: unregistered } = useLettersList('unregistered');
+  const count = data?.items.length ?? 0;
+  const unregCount = unregistered?.items.length ?? 0;
 
   return (
     <div className="relative flex h-full flex-col">
-      <header className="flex items-center justify-between px-5 pt-4 pb-2">
+      <header className="flex items-end justify-between px-6 pt-5 pb-3">
         <h1 className="text-xl font-semibold text-foreground">{ui.letters.title}</h1>
-        <Button size="sm">
-          <PenLine data-icon="inline-start" />
-          {ui.letters.compose}
-        </Button>
+        <div className="flex items-center gap-2">
+          <p className="font-mono text-[11px] tracking-[0.14em] text-muted-foreground uppercase select-none">
+            <span className="text-foreground tabular-nums">{count}</span>{' '}
+            {plural(count, [ui.letters.countOne, ui.letters.countFew, ui.letters.countMany])}
+            <span className="mx-2 text-border">·</span>
+            {ui.letters.summaryUnregistered}{' '}
+            <span
+              className={cn('tabular-nums', unregCount > 0 ? 'text-warning' : 'text-foreground')}
+            >
+              {unregCount}
+            </span>
+          </p>
+          <ViewSettings viewKey="letters.journal" defs={letterJournalFields} />
+        </div>
       </header>
-
-      <div className="min-h-0 flex-1 overflow-y-auto p-5">
-        {isLoading ? (
-          <div className="flex flex-col gap-2">
-            {[0, 1, 2].map((i) => (
-              <Skeleton key={i} className="h-16 w-full" />
-            ))}
-          </div>
-        ) : (data?.items ?? []).length === 0 ? (
-          <Empty className="text-foreground">
-            <EmptyTitle>{ui.common.empty}</EmptyTitle>
-            <EmptyDescription className="text-foreground/60">{ui.letters.title}</EmptyDescription>
-          </Empty>
-        ) : (
-          <div className="paper-surface overflow-hidden rounded-xl border">
-            {(data?.items ?? []).map((letter) => (
-              <div
-                key={letter.id}
-                className="flex items-center gap-4 border-b px-4 py-3 last:border-b-0 hover:bg-accent/50"
-              >
-                <button
-                  type="button"
-                  className="flex min-w-0 flex-1 items-center gap-4 text-left"
-                  onClick={() =>
-                    void navigate({ to: '/letters/$letterId', params: { letterId: letter.id } })
-                  }
-                >
-                  <MailOpen className="size-5 shrink-0 text-muted-foreground" />
-                  <span className="min-w-0 flex-1">
-                    <span className="flex items-center gap-2">
-                      <span className="truncate text-sm font-medium">{letter.correspondent}</span>
-                      <LetterStatusBadge status={letter.status} />
-                    </span>
-                    <span className="block truncate text-sm text-muted-foreground">
-                      {letter.subject}
-                    </span>
-                  </span>
-                  <span className="hidden w-40 shrink-0 text-right text-xs text-muted-foreground md:block">
-                    {letter.regNumber ?? formatDateTime(letter.receivedAt)}
-                  </span>
-                </button>
-                {folder === 'unregistered' && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={register.isPending}
-                    onClick={() => register.mutate(letter.id)}
-                  >
-                    {ui.letters.register}
-                  </Button>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
+      <div className="min-h-0 flex-1">
+        <LettersJournal folder={folder} />
       </div>
       <Outlet />
     </div>
