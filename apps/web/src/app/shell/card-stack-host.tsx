@@ -6,7 +6,7 @@ import { LetterCard } from '../../features/correspondence/components/letter-card
 import { useUsersList } from '../../features/directory/api/directory-api.js';
 import { EmployeeCard } from '../../features/directory/components/employee-card.js';
 import { useProjectDetail } from '../../features/projects/api/projects-api.js';
-import { ProjectPanel } from '../../features/projects/components/project-panel.js';
+import { ProjectCard } from '../../features/projects/components/project-card.js';
 import { useTaskDetail } from '../../features/tasks/api/tasks-api.js';
 import { TaskCard } from '../../features/tasks/components/task-card.js';
 import type { CardRef } from './card-stack.js';
@@ -49,8 +49,13 @@ function TaskEntry({ id, source, onClose }: EntryProps) {
 function ProjectEntry({ id, source, onClose }: EntryProps) {
   const { data: project } = useProjectDetail(id);
   return (
-    <SliderPanel title={project?.name ?? ui.projects.title} onClose={onClose} sourceRect={source}>
-      <ProjectPanel projectId={id} />
+    <SliderPanel
+      title={project?.name ?? ui.projects.title}
+      onClose={onClose}
+      sourceRect={source}
+      fadeContent={false}
+    >
+      <ProjectCard projectId={id} />
     </SliderPanel>
   );
 }

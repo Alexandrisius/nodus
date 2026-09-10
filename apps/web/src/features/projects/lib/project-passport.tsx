@@ -1,42 +1,27 @@
-import {
-  Activity,
-  CalendarClock,
-  Hash,
-  Lock,
-  Milestone,
-  User,
-  UserCog,
-  Users,
-  X,
-} from 'lucide-react';
-import { memo } from 'react';
+import { Activity, CalendarClock, Hash, Lock, Milestone, User, UserCog, Users } from 'lucide-react';
 import type { ProjectListItem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
-import { Button } from '@nodus/ui/components/button';
 import { NodeChip } from '@nodus/ui/components/node-chip';
-import { NodeLabel } from '@nodus/ui/components/node-label';
 
+import type { CardRef } from '../../../app/shell/card-stack.js';
 import { formatDate, formatDateTime } from '../../../shared/lib/format.js';
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
-import { EntityFields, type EntityFieldDef } from '../../../shared/ui/entity-fields.js';
-
-const VISIBILITY_KEY = 'nodus-project-fields-v1';
+import type { EntityFieldDef } from '../../../shared/ui/entity-fields.js';
 
 const monoValue = 'font-mono text-[12px] tabular-nums';
 
 /** Паспорт проекта — поля-реестром, не Badge-простыня (плейбук §3.4):
- *  общий каркас EntityFields, свои defs (код, стадия проекта — ОТДЕЛЬНАЯ
+ *  defs для общего каркаса EntityFields (код, стадия проекта — ОТДЕЛЬНАЯ
  *  сущность от стадий задач, справочник I15; моя роль, приватность,
- *  руководитель, сроки, участники, активность). Живёт во вталкивающей
- *  колонке «О проекте» (пуш-механика карточки задачи). */
-export const ProjectAboutDrawer = memo(function ProjectAboutDrawer({
-  project,
-  onClose,
-}: {
-  project: ProjectListItem;
-  onClose: () => void;
-}) {
-  const defs: EntityFieldDef[] = [
+ *  руководитель, сроки, участники, активность). Живут в левой зоне карточки
+ *  проекта (вердикт владельца 2026-09-10, раунд 2: поля и чат — вместе,
+ *  без выдвижной панели «О проекте»). Руководитель — переход в карточку
+ *  сотрудника стеком (openCard, ADR-0009). */
+export function projectPassportDefs(
+  project: ProjectListItem,
+  openCard: (ref: CardRef) => void,
+): EntityFieldDef[] {
+  return [
     {
       key: 'code',
       icon: <Hash className="size-3.5" />,
@@ -72,10 +57,14 @@ export const ProjectAboutDrawer = memo(function ProjectAboutDrawer({
       label: ui.projects.manager,
       render: () =>
         project.manager ? (
-          <>
-            <PersonAvatar name={project.manager.displayName} className="size-6" />
-            <span>{project.manager.displayName}</span>
-          </>
+          <button
+            type="button"
+            onClick={() => openCard({ kind: 'employee', id: project.manager?.id ?? '' })}
+            className="flex min-w-0 items-center gap-2 hover:underline"
+          >
+            <PersonAvatar name={project.manager.displayName} className="size-6 shrink-0" />
+            <span className="truncate">{project.manager.displayName}</span>
+          </button>
         ) : (
           ui.common.notSet
         ),
@@ -122,24 +111,4 @@ export const ProjectAboutDrawer = memo(function ProjectAboutDrawer({
       render: () => <span className={monoValue}>{formatDateTime(project.activityAt)}</span>,
     },
   ];
-
-  return (
-    <aside className="flex h-full w-[360px] flex-col overflow-y-auto border-l border-border bg-card">
-      <div className="flex shrink-0 items-center justify-between p-4 pb-0">
-        <NodeLabel label={ui.projects.aboutProject} />
-        <Button
-          variant="ghost"
-          size="icon"
-          className="hover:bg-accent"
-          onClick={onClose}
-          aria-label={ui.common.close}
-        >
-          <X />
-        </Button>
-      </div>
-      <div className="px-4 pb-4">
-        <EntityFields defs={defs} storageKey={VISIBILITY_KEY} />
-      </div>
-    </aside>
-  );
-});
+}
