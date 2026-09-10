@@ -1,12 +1,12 @@
 import { z } from 'zod';
 
 import { userRefSchema } from '../directory/user-ref.schema.js';
-import { projectRefSchema } from '../tasks/task.schemas.js';
+import { projectRefSchema, taskRefSchema } from '../tasks/task.schemas.js';
 import { cursorQuerySchema } from '../pagination/paginated.schema.js';
 
 /** Контракты модуля чата (chat.Conversation/Message). */
 
-export const conversationTypeSchema = z.enum(['direct', 'group', 'project_channel']);
+export const conversationTypeSchema = z.enum(['direct', 'group', 'project_channel', 'task']);
 export type ConversationType = z.infer<typeof conversationTypeSchema>;
 
 export const messageAttachmentSchema = z.object({
@@ -50,6 +50,8 @@ export const conversationListItemSchema = z.object({
   title: z.string().nullable(),
   avatarUrl: z.url().nullable(),
   project: projectRefSchema.nullable(),
+  /** Чат задачи (type=task): привязка к задаче для вкладки «Чаты задач». */
+  task: taskRefSchema.nullable(),
   membersPreview: z.array(userRefSchema),
   lastMessage: messageSchema.nullable(),
   unreadCount: z.number().int().min(0),

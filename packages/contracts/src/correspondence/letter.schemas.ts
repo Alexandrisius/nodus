@@ -68,3 +68,18 @@ export const listLettersQuerySchema = cursorQuerySchema.extend({
 });
 
 export type ListLettersQuery = z.infer<typeof listLettersQuerySchema>;
+
+/** Создание исходящего письма (почтовый клиент: «Написать письмо», «Ответить»). */
+export const createLetterBodySchema = z.object({
+  /** Получатель (контрагент) — свободный текст до справочника контрагентов. */
+  correspondent: z.string().trim().min(1).max(256),
+  subject: z.string().trim().min(1).max(512),
+  body: z.string().max(20000).default(''),
+  /** Выбранные файлы (имя+размер): загрузка файлов — с бэкендом хранилища. */
+  attachments: z
+    .array(z.object({ name: z.string().min(1).max(256), size: z.number().int().min(0) }))
+    .max(20)
+    .default([]),
+});
+
+export type CreateLetterBody = z.infer<typeof createLetterBodySchema>;

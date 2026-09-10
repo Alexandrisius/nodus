@@ -51,6 +51,15 @@ export const projectRefSchema = z.object({
 
 export type ProjectRef = z.infer<typeof projectRefSchema>;
 
+/** Ссылка на задачу (для связей из других модулей — чат задачи и пр.). */
+export const taskRefSchema = z.object({
+  id: z.uuid(),
+  number: z.number().int().min(1),
+  title: z.string().min(1),
+});
+
+export type TaskRef = z.infer<typeof taskRefSchema>;
+
 export const taskListItemSchema = z.object({
   id: z.uuid(),
   number: z.number().int().min(1),
@@ -213,6 +222,8 @@ export const listTasksQuerySchema = cursorQuerySchema.extend({
   personalStageId: z.uuid().optional(),
   /** Задачи проекта (список/канбан в карточке проекта). */
   projectId: z.uuid().optional(),
+  /** Задачи исполнителя (вкладка «Задачи» карточки сотрудника). */
+  assigneeId: z.uuid().optional(),
 });
 
 export type ListTasksQuery = z.infer<typeof listTasksQuerySchema>;
