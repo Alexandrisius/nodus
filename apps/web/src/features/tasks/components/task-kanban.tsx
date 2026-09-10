@@ -20,11 +20,18 @@ import { Skeleton } from '@nodus/ui/components/skeleton';
 
 import { api } from '../../../shared/api-client.js';
 import { useViewFields } from '../../../shared/views/use-view-fields.js';
-import { useTaskStages, useUpdateTaskStage } from '../api/tasks-api.js';
+import {
+  useCreatePersonalStage,
+  useDeletePersonalStage,
+  usePersonalStages,
+  useUpdatePersonalStage,
+  useUpdateTaskPersonalStage,
+} from '../api/personal-stages-api.js';
 import {
   indexOfInStage,
   isSameOrder,
   moveTaskToStage,
+  personalAxis,
   reorderWithinStage,
 } from '../lib/kanban-board.js';
 import { makeKanbanCollision } from '../lib/kanban-collision.js';
@@ -32,6 +39,7 @@ import { taskCardFields } from '../lib/task-fields.js';
 import { TaskKanbanCard } from './task-kanban-card.js';
 import { TaskKanbanColumn } from './task-kanban-column.js';
 import { TaskKanbanSortableCard } from './task-kanban-sortable-card.js';
+import { TaskStageCreate } from './task-stage-create.js';
 
 /** Канбан «Мой план» (ADR-0007): живая сортировка dnd-kit sortable — карточки
  * уступают место и переезжают между колонками ВО ВРЕМЯ переноса (onDragOver),
@@ -40,9 +48,20 @@ import { TaskKanbanSortableCard } from './task-kanban-sortable-card.js';
  * уже в целевой колонке), поэтому «обратного перелёта» при дропе нет.
  * Борд — локальное состояние, синхронизированное с query вне переноса
  * (официальный паттерн dnd-kit + React Query). */
+/** Канбан «Мой план» (ADR-0007 + ADR-0008): колонки — ЛИЧНЫЕ стадии
+ * пользователя (личная схема): цветные чипы, меню колонки (переименовать /
+ * цвет / удалить — единственную нельзя), создание в конце ряда. DnD переносит
+ * задачу по личной оси (personalStageId, глобальная стадия не трогается);
+ * живая сортировка dnd-kit — карточки уступают место ВО ВРЕМЯ переноса
+ * (onDragOver), финализация — персист колонки+индекса (PATCH, оптимистично).
+ * Борд — локальное состояние, синхронизированное с query вне переноса;
+ * структурная смена набора колонок (создание/удаление) перезагружает борд. */
 export function TaskKanban() {
-  const { data: stages } = useTaskStages();
-  const updateStage = useUpdateTaskStage();
+  const { data: stages } = usePersonalStages();
+  const updatePersonalStage = useUpdateTaskPersonalStage();
+  const createStage = useCreatePersonalStage();
+  const updateStageMeta = useUpdatePersonalStage();
+  const deleteStage = useDeletePersonalStage();
   const { isVisible } = useViewFields('tasks.kanban', taskCardFields);
 
   const [board, setBoard] = useState<TaskListItem[] | null>(null);
@@ -63,7 +82,7 @@ export function TaskKanban() {
     if (!stages || board) return;
     let alive = true;
     void Promise.all(
-      stages.map((s) => api<Paginated<TaskListItem>>(`/tasks?stageId=${s.id}&limit=30`)),
+      stages.map((s) => api<Paginated<TaskListItem>>(`/tasks?personalStageId=${s.id}&limit=30`)),
     ).then((pages) => {
       if (!alive) return;
       setBoard(pages.flatMap((p) => p.items));
@@ -84,15 +103,15 @@ export function TaskKanban() {
     if (cursor === null || cursor === undefined || loadingMoreRef.current[stageId]) return;
     setLoadingMore((prev) => ({ ...prev, [stageId]: true }));
     loadingMoreRef.current = { ...loadingMoreRef.current, [stageId]: true };
-    void api<Paginated<TaskListItem>>(`/tasks?stageId=${stageId}&limit=30&cursor=${cursor}`).then(
-      (page) => {
-        setBoard((prev) => [...(prev ?? []), ...page.items]);
-        setCursors((prev) => ({ ...prev, [stageId]: page.nextCursor }));
-        cursorsRef.current = { ...cursorsRef.current, [stageId]: page.nextCursor };
-        setLoadingMore((prev) => ({ ...prev, [stageId]: false }));
-        loadingMoreRef.current = { ...loadingMoreRef.current, [stageId]: false };
-      },
-    );
+    void api<Paginated<TaskListItem>>(
+      `/tasks?personalStageId=${stageId}&limit=30&cursor=${cursor}`,
+    ).then((page) => {
+      setBoard((prev) => [...(prev ?? []), ...page.items]);
+      setCursors((prev) => ({ ...prev, [stageId]: page.nextCursor }));
+      cursorsRef.current = { ...cursorsRef.current, [stageId]: page.nextCursor };
+      setLoadingMore((prev) => ({ ...prev, [stageId]: false }));
+      loadingMoreRef.current = { ...loadingMoreRef.current, [stageId]: false };
+    });
   }, []);
 
   const sensors = useSensors(
@@ -107,7 +126,8 @@ export function TaskKanban() {
   const stageById = useMemo(() => new Map(stageList.map((s) => [s.id, s] as const)), [stageList]);
   const numberById = useMemo(() => new Map(items.map((t) => [t.id, t.number] as const)), [items]);
   const childrenOf = useMemo(
-    () => (columnId: string) => items.filter((t) => t.stage.id === columnId).map((t) => t.id),
+    () => (columnId: string) =>
+      items.filter((t) => t.personalStageId === columnId).map((t) => t.id),
     [items],
   );
   const collision = useMemo(
@@ -122,7 +142,7 @@ export function TaskKanban() {
   );
 
   const stageOf = (id: UniqueIdentifier): TaskStage | undefined =>
-    items.find((t) => t.id === id)?.stage;
+    stageById.get(items.find((t) => t.id === id)?.personalStageId ?? '');
 
   const onDragStart = (event: DragStartEvent) => {
     snapshotRef.current = items;
@@ -155,7 +175,7 @@ export function TaskKanban() {
       recentlyMoved.current = false;
     });
     setBoard((prev) => {
-      const next = moveTaskToStage(prev ?? [], String(active.id), overStage, index);
+      const next = moveTaskToStage(prev ?? [], String(active.id), overStage, index, personalAxis);
       return isSameOrder(prev ?? [], next) ? (prev ?? []) : next;
     });
   };
@@ -167,22 +187,28 @@ export function TaskKanban() {
     const overId = String(event.over.id);
     // Финиш внутри колонки — перестановка; между колонками борд уже живой.
     const settled =
-      stageOf(overId)?.id === task.stage.id ? reorderWithinStage(items, task.id, overId) : items;
+      stageOf(overId)?.id === task.personalStageId
+        ? reorderWithinStage(items, task.id, overId, personalAxis)
+        : items;
     setBoard(settled);
-    const finalStage = settled.find((t) => t.id === task.id)?.stage;
+    const finalStage = stageById.get(settled.find((t) => t.id === task.id)?.personalStageId ?? '');
     if (!finalStage) return;
-    const index = indexOfInStage(settled, task.id);
+    const index = indexOfInStage(settled, task.id, personalAxis);
     const snapshot = snapshotRef.current ?? [];
     const before = snapshot.find((t) => t.id === task.id);
-    if (before?.stage.id === finalStage.id && indexOfInStage(snapshot, task.id) === index) return;
-    const fromId = task.stage.id;
+    if (
+      before?.personalStageId === finalStage.id &&
+      indexOfInStage(snapshot, task.id, personalAxis) === index
+    )
+      return;
+    const fromId = task.personalStageId ?? '';
     setCountDelta((prev) => ({
       ...prev,
       [finalStage.id]: (prev[finalStage.id] ?? 0) + 1,
       [fromId]: (prev[fromId] ?? 0) - 1,
     }));
-    updateStage.mutate(
-      { taskId: task.id, stageId: finalStage.id, index },
+    updatePersonalStage.mutate(
+      { taskId: task.id, personalStageId: finalStage.id, index },
       {
         onError: () =>
           setCountDelta((prev) => ({
@@ -198,6 +224,25 @@ export function TaskKanban() {
     setActiveTask(null);
     if (snapshotRef.current) setBoard(snapshotRef.current);
   };
+
+  /** Структурная смена набора колонок (создание/удаление личной стадии)
+   *  перезагружает борд: задачи удалённой колонки переехали на сервере,
+   *  локальный порядок пересобираем из фидов. Вне переноса drag. */
+  const stageSignature = stageList.map((s) => s.id).join('|');
+  const prevSignatureRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (prevSignatureRef.current === null) {
+      prevSignatureRef.current = stageSignature;
+      return;
+    }
+    if (prevSignatureRef.current !== stageSignature && !activeTask) {
+      prevSignatureRef.current = stageSignature;
+      setBoard(null);
+      setCursors({});
+      cursorsRef.current = {};
+      setCountDelta({});
+    }
+  }, [stageSignature, activeTask]);
 
   if (!stages || !board) {
     return (
@@ -224,7 +269,7 @@ export function TaskKanban() {
     >
       <div className="flex h-full gap-5 overflow-x-auto px-6 pt-1 pb-4">
         {stageList.map((stage) => {
-          const cards = items.filter((t) => t.stage.id === stage.id);
+          const cards = items.filter((t) => t.personalStageId === stage.id);
           return (
             <TaskKanbanColumn
               key={stage.id}
@@ -233,7 +278,11 @@ export function TaskKanban() {
               cardIds={cards.map((t) => t.id)}
               hasNext={cursors[stage.id] !== null && cursors[stage.id] !== undefined}
               loadingMore={Boolean(loadingMore[stage.id])}
+              canDelete={stageList.length > 1}
               onLoadMore={loadMore}
+              onRename={(stageId, name) => updateStageMeta.mutate({ stageId, body: { name } })}
+              onRecolor={(stageId, color) => updateStageMeta.mutate({ stageId, body: { color } })}
+              onDelete={(stageId) => deleteStage.mutate(stageId)}
             >
               {cards.map((task) => (
                 <TaskKanbanSortableCard
@@ -246,6 +295,10 @@ export function TaskKanban() {
             </TaskKanbanColumn>
           );
         })}
+        <TaskStageCreate
+          creating={createStage.isPending}
+          onCreate={(body) => createStage.mutate(body)}
+        />
       </div>
       <DragOverlay>
         {activeTask ? (

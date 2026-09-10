@@ -148,7 +148,12 @@ export const tasksHandlers = [
   }),
 
   http.get('/api/v1/tasks/:id', ({ params }) => {
-    const task = demoTasks.find((t) => t.id === params.id);
+    const task =
+      demoTasks.find((t) => t.id === params.id) ??
+      // Свежесозданные подзадачи живут в demoSubtasks (не в общем списке).
+      Object.values(demoSubtasks)
+        .flat()
+        .find((t) => t.id === params.id);
     if (!task) return notFound('Task not found');
     return HttpResponse.json(taskDetailOf(task));
   }),

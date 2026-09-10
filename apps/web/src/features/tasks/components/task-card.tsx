@@ -1,5 +1,5 @@
-import { Mail, MessageSquare, PanelRight, Plus } from 'lucide-react';
-import { useState, type FormEvent, type ReactNode } from 'react';
+import { Mail, MessageSquare, PanelLeft, PanelRight, Plus } from 'lucide-react';
+import { useState, type FormEvent } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import type { TaskChainNode } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
@@ -11,15 +11,13 @@ import { Separator } from '@nodus/ui/components/separator';
 import { Skeleton } from '@nodus/ui/components/skeleton';
 import { cn } from '@nodus/ui/lib/utils';
 
-import { formatDateTime, formatMinutes } from '../../../shared/lib/format.js';
-import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
-import { DeadlineChip } from '../../../shared/ui/deadline-chip.js';
 import { DomainChain, type ChainNode } from '../../../shared/ui/domain-chain.js';
 import { useAddSubtask, useTaskDetail } from '../api/tasks-api.js';
-import { priorityTone } from '../lib/task-fields.js';
 import { useCardChatWidth } from '../lib/use-card-chat-width.js';
 import { TaskAboutDrawer } from './task-about-drawer.js';
+import { TaskBranchDrawer } from './task-branch-drawer.js';
 import { TaskDiscussion } from './task-discussion.js';
+import { TaskFields } from './task-fields.js';
 import { TaskStageStepper } from './task-stage-stepper.js';
 import { TaskStatusBadge } from './task-status-badge.js';
 
@@ -30,19 +28,6 @@ const chainCaption: Record<TaskChainNode['kind'], string> = {
   task: ui.tasks.task,
   chat_message: ui.tasks.chatNode,
 };
-
-/** Строка «инспектора»: моно-метка слева, значение справа; плотно, в одну
- *  колонку, hairline-разделители — свойства читаются таблицей, не сеткой. */
-function Row({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="flex items-center gap-3 px-3 py-2">
-      <span className="w-36 shrink-0 font-mono text-[10px] tracking-[0.14em] text-muted-foreground uppercase">
-        {label}
-      </span>
-      <span className="flex min-w-0 flex-1 items-center gap-2 text-sm">{children}</span>
-    </div>
-  );
-}
 
 /**
  * Карточка задачи (универсальный слайдер-слой): шапка — доменная цепочка
@@ -57,6 +42,7 @@ export function TaskCard({ taskId }: { taskId: string }) {
   const navigate = useNavigate();
   const [subtaskTitle, setSubtaskTitle] = useState('');
   const [aboutOpen, setAboutOpen] = useState(false);
+  const [branchOpen, setBranchOpen] = useState(false);
   const { chatW, onDividerDown } = useCardChatWidth();
 
   function onAddSubtask(event: FormEvent) {
@@ -128,6 +114,18 @@ export function TaskCard({ taskId }: { taskId: string }) {
       {/* Полоса цепочки: бордюр — структура (с первого кадра роста), контент — fade */}
       <div className="shrink-0 border-b border-border">
         <div className="content-fade flex items-center gap-3 px-5 py-3">
+          <button
+            type="button"
+            onClick={() => setBranchOpen((v) => !v)}
+            aria-label={ui.tasks.branch}
+            title={ui.tasks.branch}
+            className={cn(
+              'shrink-0 rounded-lg p-2 transition-colors hover:bg-accent',
+              branchOpen ? 'text-foreground' : 'text-muted-foreground',
+            )}
+          >
+            <PanelLeft className="size-4" strokeWidth={1.75} />
+          </button>
           <div className="min-w-0 flex-1 overflow-x-auto">
             <DomainChain nodes={chainNodes} />
           </div>
@@ -150,8 +148,9 @@ export function TaskCard({ taskId }: { taskId: string }) {
         className="relative grid min-h-0 flex-1"
         style={{ gridTemplateColumns: `minmax(0,1fr) 6px ${chatW}px` }}
       >
-        {/* Левая зона: фон совпадает с панелью — весь контент проявляется fade */}
-        <div className="content-fade min-h-0 overflow-y-auto p-6">
+        {/* Левая зона: фон совпадает с панелью — весь контент проявляется fade;
+            @container — сетка полей перестраивается от ширины зоны (ресайз чата) */}
+        <div className="content-fade min-h-0 @container overflow-y-auto p-6">
           <div className="flex flex-wrap items-center gap-3">
             <h2 className="min-w-0 flex-1 truncate text-xl font-semibold">{task.title}</h2>
             {task.source === 'letter' ? (
@@ -175,83 +174,7 @@ export function TaskCard({ taskId }: { taskId: string }) {
             {task.description}
           </p>
 
-          <div className="mt-5 flex flex-wrap gap-6">
-            <div className="max-w-[420px] min-w-[280px] flex-1 divide-y divide-border/60 rounded-lg border border-border/60">
-              <Row label={ui.tasks.fieldPriority}>
-                <NodeChip tone={priorityTone[task.priority]}>
-                  {ui.tasks.priority[task.priority]}
-                </NodeChip>
-              </Row>
-              <Row label={ui.tasks.deadline}>
-                <DeadlineChip deadline={task.deadline} />
-              </Row>
-              <Row label={ui.tasks.assignee}>
-                {task.assignee ? (
-                  <>
-                    <PersonAvatar name={task.assignee.displayName} className="size-6" />
-                    <span className="truncate">{task.assignee.displayName}</span>
-                  </>
-                ) : (
-                  ui.common.notSet
-                )}
-              </Row>
-              <Row label={ui.tasks.creator}>
-                <PersonAvatar name={task.creator.displayName} className="size-6" />
-                <span className="truncate">{task.creator.displayName}</span>
-              </Row>
-            </div>
-
-            <div className="max-w-[420px] min-w-[280px] flex-1 divide-y divide-border/60 rounded-lg border border-border/60">
-              <Row label={ui.tasks.participants}>
-                {task.participants.length > 0 ? (
-                  <>
-                    <span className="flex shrink-0 -space-x-1.5">
-                      {task.participants.slice(0, 3).map((p) => (
-                        <PersonAvatar
-                          key={p.id}
-                          name={p.displayName}
-                          className="size-6 ring-2 ring-card"
-                        />
-                      ))}
-                    </span>
-                    <span className="truncate">
-                      {task.participants.map((p) => p.displayName).join(', ')}
-                    </span>
-                  </>
-                ) : (
-                  ui.common.notSet
-                )}
-              </Row>
-              <Row label={ui.tasks.project}>
-                {task.project ? (
-                  <button
-                    type="button"
-                    className="truncate font-mono text-[12px] text-info hover:underline"
-                    onClick={() =>
-                      void navigate({
-                        to: '/tasks/$taskId/project/$projectId',
-                        params: { taskId, projectId: task.project?.id ?? '' },
-                      })
-                    }
-                  >
-                    {task.project.name}
-                  </button>
-                ) : (
-                  ui.common.notSet
-                )}
-              </Row>
-              <Row label={ui.tasks.spent}>
-                <span className="font-mono text-[12px] tabular-nums">
-                  {formatMinutes(task.spentMinutes)}
-                </span>
-              </Row>
-              <Row label={ui.tasks.created}>
-                <span className="font-mono text-[12px] tabular-nums">
-                  {formatDateTime(task.createdAt)}
-                </span>
-              </Row>
-            </div>
-          </div>
+          <TaskFields task={task} />
 
           <Separator className="my-5" />
 
@@ -328,6 +251,10 @@ export function TaskCard({ taskId }: { taskId: string }) {
             <TaskDiscussion taskId={taskId} />
           </div>
         </div>
+
+        {branchOpen ? (
+          <TaskBranchDrawer taskId={taskId} onClose={() => setBranchOpen(false)} />
+        ) : null}
 
         {aboutOpen ? <TaskAboutDrawer task={task} onClose={() => setAboutOpen(false)} /> : null}
       </div>

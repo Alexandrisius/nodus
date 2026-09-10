@@ -154,9 +154,17 @@ export const ui = {
     addStage: 'Добавить стадию',
     stageNamePlaceholder: 'Название колонки…',
     renameStage: 'Переименовать',
+    stageActions: 'Действия стадии',
     deleteStage: 'Удалить стадию',
     deleteStageNote: 'Задачи переедут в первую колонку того же состояния',
     stageColor: 'Цвет',
+    stageColors: {
+      neutral: 'Нейтральный',
+      info: 'Синий',
+      success: 'Зелёный',
+      warning: 'Янтарный',
+      danger: 'Красный',
+    },
     stageStateLabel: 'Состояние задач в колонке',
     stageStates: {
       backlog: 'Новые',
