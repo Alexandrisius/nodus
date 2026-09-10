@@ -45,6 +45,8 @@ export const letterListItemSchema = z.object({
   correspondent: z.string().min(1),
   subject: z.string().min(1),
   status: letterStatusSchema,
+  /** Кому адресовано письмо (ответственный исполнитель в журнале). */
+  addressee: userRefSchema.nullable(),
   project: projectRefSchema.nullable(),
   deadline: z.iso.date().nullable(),
   receivedAt: z.iso.datetime(),

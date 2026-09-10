@@ -119,13 +119,20 @@ export const createSubtaskBodySchema = z.object({
 
 export type CreateSubtaskBody = z.infer<typeof createSubtaskBodySchema>;
 
-/** Быстрое создание задачи из колонки «Моего плана» (плюсик в шапке): только
- *  название + личная колонка; глобальная стадия подставляется по состоянию
- *  колонки (первая стадия схемы того же systemState). */
-export const createTaskBodySchema = z.object({
-  title: z.string().trim().min(1).max(200),
-  personalStageId: z.uuid(),
-});
+/** Быстрое создание задачи из колонки доски (плюсик в шапке): название +
+ *  колонка одной из осей — личная («Мой план»: глобальная стадия подставляется
+ *  по состоянию колонки) или глобальная (проектная доска: схема проекта).
+ *  projectId — для создания в колонку проектной доски. */
+export const createTaskBodySchema = z
+  .object({
+    title: z.string().trim().min(1).max(200),
+    personalStageId: z.uuid().optional(),
+    stageId: z.uuid().optional(),
+    projectId: z.uuid().optional(),
+  })
+  .refine((v) => v.personalStageId !== undefined || v.stageId !== undefined, {
+    message: 'personalStageId or stageId required',
+  });
 
 export type CreateTaskBody = z.infer<typeof createTaskBodySchema>;
 
@@ -204,6 +211,8 @@ export const listTasksQuerySchema = cursorQuerySchema.extend({
   stageId: z.uuid().optional(),
   /** Фид колонки личной доски «Мой план» (по TaskPersonalPlacement). */
   personalStageId: z.uuid().optional(),
+  /** Задачи проекта (список/канбан в карточке проекта). */
+  projectId: z.uuid().optional(),
 });
 
 export type ListTasksQuery = z.infer<typeof listTasksQuerySchema>;

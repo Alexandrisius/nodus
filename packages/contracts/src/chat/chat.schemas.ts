@@ -63,5 +63,23 @@ export const listConversationsQuerySchema = cursorQuerySchema.extend({
 
 export type ListConversationsQuery = z.infer<typeof listConversationsQuerySchema>;
 
-export const listMessagesQuerySchema = cursorQuerySchema;
+export const listMessagesQuerySchema = cursorQuerySchema.extend({
+  /** Тред канала: корневое сообщение + его ответы (ровно один уровень). */
+  threadRootId: z.uuid().optional(),
+});
 export type ListMessagesQuery = z.infer<typeof listMessagesQuerySchema>;
+
+/** Отправка сообщения: в тред канала — с threadRootId (корень + ответы). */
+export const sendMessageBodySchema = z.object({
+  text: z.string().trim().min(1).max(4000),
+  threadRootId: z.uuid().nullable().optional(),
+});
+
+export type SendMessageBody = z.infer<typeof sendMessageBodySchema>;
+
+/** «Написать сообщение» из карточки сотрудника: найти или создать личный диалог. */
+export const startDirectBodySchema = z.object({
+  userId: z.uuid(),
+});
+
+export type StartDirectBody = z.infer<typeof startDirectBodySchema>;
