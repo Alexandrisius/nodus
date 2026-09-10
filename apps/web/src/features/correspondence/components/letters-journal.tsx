@@ -1,9 +1,8 @@
-import { useNavigate } from '@tanstack/react-router';
-import type { LetterListItem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
+import type { LetterListItem } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 
-import { useShellStore } from '../../../app/shell/shell-store.js';
+import { useOpenCard } from '../../../app/shell/use-card-stack.js';
 import { DataTable } from '../../../shared/views/data-table.js';
 import { useLettersList, useRegisterLetter, type LettersFolder } from '../api/letters-api.js';
 import { letterJournalFields } from '../lib/letter-fields.js';
@@ -15,17 +14,10 @@ import { letterJournalFields } from '../lib/letter-fields.js';
 export function LettersJournal({ folder }: { folder: LettersFolder }) {
   const { data, isLoading } = useLettersList(folder);
   const register = useRegisterLetter();
-  const navigate = useNavigate();
-  const setLastSource = useShellStore((s) => s.setLastSource);
+  const openCard = useOpenCard();
 
   function openLetter(letter: LetterListItem, rowEl: HTMLElement) {
-    const rect = rowEl.getBoundingClientRect();
-    setLastSource({ x: rect.x, y: rect.y, width: rect.width, height: rect.height });
-    void navigate({
-      to: '/letters/$letterId',
-      params: { letterId: letter.id },
-      search: { folder },
-    });
+    openCard({ kind: 'letter', id: letter.id }, rowEl.getBoundingClientRect());
   }
 
   return (

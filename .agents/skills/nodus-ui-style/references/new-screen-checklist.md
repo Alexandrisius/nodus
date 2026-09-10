@@ -40,5 +40,5 @@
 
 - Шапка страницы модуля: `h1` + справа моно-сводка + `ViewSettings`.
 - Статусы — `NodeChip` по системному состоянию; приоритет — тон `priorityTone` из реестра полей.
-- Открытие сущности: `setLastSource(rect элемента)` → navigate; слайдер — `SliderPanel` + shared-element раскрытие (FLIP из rect источника); доменная цепочка — `DomainChain` в шапке карточки.
+- Открытие сущности: `openCard({ kind, id }, rect элемента)` из `use-card-stack.ts` (стек карточек, ADR-0009 — НЕ navigate на маршрут слайдера: маршрутов карточек нет); карточка — `SliderPanel` + shared-element раскрытие (FLIP из rect источника); доменная цепочка — `DomainChain` в шапке карточки.
 - Обсуждение сущности: Message/Bubble + `SendHexButton`; «О сущности» — правая колонка с секциями на `NodeLabel`.

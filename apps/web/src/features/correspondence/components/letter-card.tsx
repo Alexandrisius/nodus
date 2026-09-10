@@ -1,6 +1,5 @@
 import { ArrowRight, FileText } from 'lucide-react';
 import { useState } from 'react';
-import { useNavigate } from '@tanstack/react-router';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import { NodeChip } from '@nodus/ui/components/node-chip';
@@ -15,6 +14,7 @@ import {
   AttachmentTitle,
 } from '@nodus/ui/components/attachment';
 
+import { useOpenCard } from '../../../app/shell/use-card-stack.js';
 import { formatDateTime } from '../../../shared/lib/format.js';
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
 import { DomainChain, type ChainNode } from '../../../shared/ui/domain-chain.js';
@@ -36,7 +36,7 @@ export function LetterCard({ letterId }: { letterId: string }) {
   const issueResolution = useIssueResolution(letterId);
   const register = useRegisterLetter();
   const [text, setText] = useState('');
-  const navigate = useNavigate();
+  const openCard = useOpenCard();
 
   if (isLoading || !letter) {
     return <LetterCardSkeleton />;
@@ -49,7 +49,7 @@ export function LetterCard({ letterId }: { letterId: string }) {
       onSuccess: (resolution) => {
         setText('');
         if (resolution.taskId) {
-          void navigate({ to: '/tasks/$taskId', params: { taskId: resolution.taskId } });
+          openCard({ kind: 'task', id: resolution.taskId });
         }
       },
     });
@@ -131,12 +131,7 @@ export function LetterCard({ letterId }: { letterId: string }) {
                 {resolution.taskId ? (
                   <button
                     type="button"
-                    onClick={() =>
-                      void navigate({
-                        to: '/tasks/$taskId',
-                        params: { taskId: resolution.taskId ?? '' },
-                      })
-                    }
+                    onClick={() => openCard({ kind: 'task', id: resolution.taskId ?? '' })}
                     className="mt-1.5 inline-flex items-center gap-1 font-mono text-[11px] tracking-[0.08em] text-info uppercase hover:underline"
                   >
                     {ui.tasks.instruction}

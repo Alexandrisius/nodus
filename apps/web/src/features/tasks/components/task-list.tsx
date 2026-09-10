@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from '@tanstack/react-router';
 import { ui } from '@nodus/contracts';
 import { NodeLabel } from '@nodus/ui/components/node-label';
 import { Skeleton } from '@nodus/ui/components/skeleton';
 
-import { useShellStore } from '../../../app/shell/shell-store.js';
+import { useOpenCard } from '../../../app/shell/use-card-stack.js';
 import { ColumnResizer } from '../../../shared/views/column-resizer.js';
 import { useViewFields } from '../../../shared/views/use-view-fields.js';
 import { useTasksPages, usePrefetchTask } from '../api/tasks-api.js';
@@ -24,8 +23,7 @@ import { graphWidth, graphX, TaskListTree } from './task-list-graph.js';
  */
 export function TaskList() {
   const { data, isLoading, hasNextPage, isFetchingNextPage, fetchNextPage } = useTasksPages();
-  const navigate = useNavigate();
-  const setLastSource = useShellStore((s) => s.setLastSource);
+  const openCard = useOpenCard();
   const prefetch = usePrefetchTask();
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
   /** Каскадное построение графа: база = индекс первой раскрытой строки,
@@ -100,13 +98,7 @@ export function TaskList() {
   }
 
   function openTask(row: TaskRow, rowEl: HTMLElement) {
-    const rect = rowEl.getBoundingClientRect();
-    setLastSource({ x: rect.x, y: rect.y, width: rect.width, height: rect.height });
-    void navigate({
-      to: '/tasks/$taskId',
-      params: { taskId: row.task.id },
-      search: { view: 'list' },
-    });
+    openCard({ kind: 'task', id: row.task.id }, rowEl.getBoundingClientRect());
   }
 
   if (isLoading) {

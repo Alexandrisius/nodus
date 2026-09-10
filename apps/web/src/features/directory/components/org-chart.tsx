@@ -1,9 +1,8 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from '@tanstack/react-router';
 import type { UserListItem } from '@nodus/contracts';
 import { snapPx } from '@nodus/ui/components/node-edge';
 
-import { useShellStore } from '../../../app/shell/shell-store.js';
+import { useOpenCard } from '../../../app/shell/use-card-stack.js';
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
 
 interface NodePos {
@@ -37,7 +36,7 @@ interface Port {
  * руководителя до шины), отводы (вертикали к портам детей): наложения
  * сегментов дали бы градиент яркости из сложения полупрозрачных stroke.
  * Координаты прямых — snapPx (равномерная яркость hairline на любом зуме).
- * Клик по узлу — карточка сотрудника слайдером (shared-element из rect).
+ * Клик по узлу — карточка сотрудника в стеке (shared-element из rect).
  */
 export function OrgChart({ people }: { people: UserListItem[] }) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -45,8 +44,7 @@ export function OrgChart({ people }: { people: UserListItem[] }) {
   const nodeRefs = useRef(new Map<string, HTMLDivElement>());
   const [segments, setSegments] = useState<Segment[]>([]);
   const [ports, setPorts] = useState<Port[]>([]);
-  const navigate = useNavigate();
-  const setLastSource = useShellStore((s) => s.setLastSource);
+  const openCard = useOpenCard();
 
   useLayoutEffect(() => {
     const el = scrollRef.current;
@@ -144,9 +142,7 @@ export function OrgChart({ people }: { people: UserListItem[] }) {
   }, [people, childrenOf]);
 
   function openPerson(person: UserListItem, el: HTMLElement) {
-    const rect = el.getBoundingClientRect();
-    setLastSource({ x: rect.x, y: rect.y, width: rect.width, height: rect.height });
-    void navigate({ to: '/employees/$userId', params: { userId: person.id } });
+    openCard({ kind: 'employee', id: person.id }, el.getBoundingClientRect());
   }
 
   function renderPerson(person: UserListItem): React.ReactNode {

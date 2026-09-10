@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { CollisionDetection, Coordinates, UniqueIdentifier } from '@dnd-kit/core';
+import type { CollisionDetection, UniqueIdentifier } from '@dnd-kit/core';
 
 import { makeKanbanCollision } from './kanban-collision.js';
 
@@ -10,6 +10,11 @@ import { makeKanbanCollision } from './kanban-collision.js';
  * расстоянию до углов: мелкий rect выигрывает у секции колонки), и дроп
  * «залипал» на первой пересечённой пустышке.
  */
+
+interface Point {
+  x: number;
+  y: number;
+}
 
 interface Rect {
   top: number;
@@ -36,7 +41,7 @@ function container(id: string) {
 
 function makeEvent(args: {
   activeId: string;
-  pointer: Coordinates | null;
+  pointer: Point | null;
   containers: string[];
   rects: Record<string, Rect>;
   collisionRect?: Rect;

@@ -1,6 +1,5 @@
 import { Mail, MessageSquare, PanelRight, Plus, Waypoints } from 'lucide-react';
 import { useCallback, useRef, useState, type FormEvent } from 'react';
-import { useNavigate } from '@tanstack/react-router';
 import type { TaskChainNode } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { Checkbox } from '@nodus/ui/components/checkbox';
@@ -9,6 +8,7 @@ import { NodeChip } from '@nodus/ui/components/node-chip';
 import { NodeLabel } from '@nodus/ui/components/node-label';
 import { cn } from '@nodus/ui/lib/utils';
 
+import { useOpenCard } from '../../../app/shell/use-card-stack.js';
 import { DomainChain, type ChainNode } from '../../../shared/ui/domain-chain.js';
 import { useAddSubtask, useTaskDetail } from '../api/tasks-api.js';
 import { useCardChatWidth } from '../lib/use-card-chat-width.js';
@@ -42,7 +42,7 @@ const ABOUT_W = 360;
 export function TaskCard({ taskId }: { taskId: string }) {
   const { data: task, isLoading } = useTaskDetail(taskId);
   const addSubtask = useAddSubtask(taskId);
-  const navigate = useNavigate();
+  const openCard = useOpenCard();
   const [subtaskTitle, setSubtaskTitle] = useState('');
   const [aboutOpen, setAboutOpen] = useState(false);
   // Панель «О задаче» монтируется раз и остаётся: колонка анимируется
@@ -80,11 +80,7 @@ export function TaskCard({ taskId }: { taskId: string }) {
     active: i === task.chain.length - 1,
     onClick:
       node.kind === 'letter' && node.entityId
-        ? () =>
-            void navigate({
-              to: '/letters/$letterId',
-              params: { letterId: node.entityId ?? '' },
-            })
+        ? () => openCard({ kind: 'letter', id: node.entityId ?? '' })
         : undefined,
   }));
 
@@ -183,13 +179,7 @@ export function TaskCard({ taskId }: { taskId: string }) {
                 <button
                   key={subtask.id}
                   type="button"
-                  onClick={() =>
-                    void navigate({
-                      to: '/tasks/$taskId',
-                      params: { taskId: subtask.id },
-                      search: (prev) => prev,
-                    })
-                  }
+                  onClick={() => openCard({ kind: 'task', id: subtask.id })}
                   className="flex items-center gap-2 rounded-md px-1 py-1 text-left text-sm hover:bg-accent/50"
                 >
                   <span className="size-1.5 shrink-0 rounded-full bg-port" />

@@ -9,7 +9,6 @@ import {
 
 import { AppShell } from './shell/app-shell.js';
 import { useAuthStore } from '../shared/auth-store.js';
-import { TaskSliderPage } from '../features/tasks/pages/task-slider-page.js';
 
 const LoginPage = lazy(() =>
   import('../features/auth/login-page.js').then((m) => ({ default: m.LoginPage })),
@@ -20,28 +19,13 @@ const HomePage = lazy(() =>
 const TasksPage = lazy(() =>
   import('../features/tasks/pages/tasks-page.js').then((m) => ({ default: m.TasksPage })),
 );
-/* Слайдер задачи — НЕ lazy: центральный экран продукта (карточка открывается
- * из задач, писем, проектов, ленты). Ленивый чанк делал самое первое
- * открытие «замороженным» (ожидание компиляции/загрузки графа в момент клика);
- * включение в основной бандл переносит эту стоимость на начальную загрузку,
- * где уже есть загрузочное состояние, — первое открытие равно повторным. */
 const LettersPage = lazy(() =>
   import('../features/correspondence/pages/letters-page.js').then((m) => ({
     default: m.LettersPage,
   })),
 );
-const LettersSliderPage = lazy(() =>
-  import('../features/correspondence/pages/letters-slider-page.js').then((m) => ({
-    default: m.LettersSliderPage,
-  })),
-);
 const ProjectsPage = lazy(() =>
   import('../features/projects/pages/projects-page.js').then((m) => ({ default: m.ProjectsPage })),
-);
-const ProjectSliderPage = lazy(() =>
-  import('../features/projects/pages/project-slider-page.js').then((m) => ({
-    default: m.ProjectSliderPage,
-  })),
 );
 const ChatPage = lazy(() =>
   import('../features/chat/pages/chat-page.js').then((m) => ({ default: m.ChatPage })),
@@ -51,17 +35,23 @@ const EmployeesPage = lazy(() =>
     default: m.EmployeesPage,
   })),
 );
-const EmployeeSliderPage = lazy(() =>
-  import('../features/directory/pages/employee-slider-page.js').then((m) => ({
-    default: m.EmployeeSliderPage,
-  })),
-);
 
 /**
- * Роутер SPA (TanStack Router, code-splitting по модулям).
- * Слайдеры — вложенные маршруты: у каждого уровня стека свой URL (§10.2).
+ * Роутер SPA (TanStack Router, code-splitting по разделам).
+ * Карточки сущностей — НЕ маршруты: единый стек поверх любого раздела
+ * (ADR-0009, search `?cards=task:id,project:id`, хост CardStackHost в
+ * AppShell): все карточки одной геометрии, наслаиваются без ограничения
+ * глубины и комбинаторики вложенных роутов, закрытие верхней возвращает
+ * к прежней. Разделные search-параметры (папка писем, тред канала) живут
+ * рядом и при открытии карточки сохраняются.
  */
-const rootRoute = createRootRoute({ component: Outlet });
+const rootRoute = createRootRoute({
+  component: Outlet,
+  // Search свободной формы (разделные параметры + стек карточек): identity
+  // validateSearch даёт тип Record<string, unknown> для search-апдейтеров
+  // navigate и наследование параметров дочерними маршрутами.
+  validateSearch: (search: Record<string, unknown>) => search,
+});
 
 async function requireAnonymous(): Promise<void> {
   await useAuthStore.getState().bootstrap();
@@ -98,44 +88,17 @@ const tasksRoute = createRoute({
   path: '/tasks',
   component: TasksPage,
 });
-const taskSliderRoute = createRoute({
-  getParentRoute: () => tasksRoute,
-  path: '/$taskId',
-  component: TaskSliderPage,
-});
-const taskProjectSliderRoute = createRoute({
-  getParentRoute: () => taskSliderRoute,
-  path: '/project/$projectId',
-  component: ProjectSliderPage,
-});
 
 const lettersRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: '/letters',
   component: LettersPage,
 });
-const letterSliderRoute = createRoute({
-  getParentRoute: () => lettersRoute,
-  path: '/$letterId',
-  component: LettersSliderPage,
-});
 
 const projectsRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: '/projects',
   component: ProjectsPage,
-});
-const projectSliderRoute = createRoute({
-  getParentRoute: () => projectsRoute,
-  path: '/$projectId',
-  component: ProjectSliderPage,
-});
-/* Слайдер задачи поверх слайдера проекта (стек «Проект → Задача», §10.2):
- * открытие из списка/канбана проектной панели. */
-const projectTaskSliderRoute = createRoute({
-  getParentRoute: () => projectSliderRoute,
-  path: '/task/$taskId',
-  component: TaskSliderPage,
 });
 
 const chatRoute = createRoute({
@@ -154,22 +117,17 @@ const employeesRoute = createRoute({
   path: '/employees',
   component: EmployeesPage,
 });
-const employeeSliderRoute = createRoute({
-  getParentRoute: () => employeesRoute,
-  path: '/$userId',
-  component: EmployeeSliderPage,
-});
 
 const routeTree = rootRoute.addChildren([
   loginRoute,
   shellRoute.addChildren([
     homeRoute,
-    tasksRoute.addChildren([taskSliderRoute.addChildren([taskProjectSliderRoute])]),
-    lettersRoute.addChildren([letterSliderRoute]),
-    projectsRoute.addChildren([projectSliderRoute.addChildren([projectTaskSliderRoute])]),
+    tasksRoute,
+    lettersRoute,
+    projectsRoute,
     chatRoute,
     chatConversationRoute,
-    employeesRoute.addChildren([employeeSliderRoute]),
+    employeesRoute,
   ]),
 ]);
 

@@ -6,6 +6,7 @@ import { Toaster } from '@nodus/ui/components/sonner';
 import { TooltipProvider } from '@nodus/ui/components/tooltip';
 
 import { CircuitFrame } from './circuit-frame.js';
+import { CardStackHost } from './card-stack-host.js';
 import { CommandPalette } from './command-palette.js';
 import { LiveGraph } from './live-graph.js';
 import { NodeRail } from './node-rail.js';
@@ -67,6 +68,8 @@ export function AppShell() {
               <Outlet />
             </Suspense>
           </div>
+          {/* Стек карточек сущностей поверх раздела (ADR-0009, ?cards=) */}
+          <CardStackHost />
           {/* Правая полоса — под главной линией (обрезана ею, как в Битрикс24),
               поверх контента; скроллбар контента — у самого края окна за ней. */}
           <RightRail />

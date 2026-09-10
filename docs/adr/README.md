@@ -61,3 +61,4 @@ ADR — это **одно конкретное архитектурное реш
 | [0006](0006-openapi-from-code-standard-schema.md) | OpenAPI из кода: @nestjs/swagger + нативный Standard Schema (zod 4), /api/docs за JWT | Принят | 2026-09-02 |
 | [0007](0007-dnd-kit.md) | DnD канбана: @dnd-kit/core+sortable, живая сортировка (onDragOver), персист стадии+индекса | Принят | 2026-09-09 |
 | [0008](0008-workflow-schemes-two-scopes.md) | Двухосная модель стадий: workflow-схемы двух масштабов (проект / личный план) | Принят | 2026-09-10 |
+| [0009](0009-entity-card-stack.md) | Стек карточек сущностей: единая геометрия, наслоение, стек в URL (`?cards=`) | Принят | 2026-09-10 |

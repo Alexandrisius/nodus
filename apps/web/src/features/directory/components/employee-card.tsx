@@ -7,6 +7,7 @@ import { Button } from '@nodus/ui/components/button';
 import { NodeChip } from '@nodus/ui/components/node-chip';
 import { Skeleton } from '@nodus/ui/components/skeleton';
 
+import { useOpenCard } from '../../../app/shell/use-card-stack.js';
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
 import { EntityFields, type EntityFieldDef } from '../../../shared/ui/entity-fields.js';
 import { useStartDirectConversation } from '../../../shared/chat/api.js';
@@ -39,6 +40,7 @@ export function EmployeeCard({ userId }: { userId: string }) {
   const { data, isLoading } = useUsersList();
   const { data: presence } = usePresence();
   const startDirect = useStartDirectConversation();
+  const openCard = useOpenCard();
   const navigate = useNavigate();
 
   const items = useMemo(() => data?.items ?? [], [data]);
@@ -98,13 +100,7 @@ export function EmployeeCard({ userId }: { userId: string }) {
         manager ? (
           <button
             type="button"
-            onClick={() =>
-              void navigate({
-                to: '/employees/$userId',
-                params: { userId: manager.id },
-                search: (prev) => prev,
-              })
-            }
+            onClick={() => openCard({ kind: 'employee', id: manager.id })}
             className="flex min-w-0 items-center gap-2 hover:underline"
           >
             <PersonAvatar name={manager.displayName} className="size-6 shrink-0" />

@@ -11,11 +11,11 @@ import {
   Users,
 } from 'lucide-react';
 import { memo } from 'react';
-import { useNavigate } from '@tanstack/react-router';
 import type { TaskDetail, UserRef } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { NodeChip } from '@nodus/ui/components/node-chip';
 
+import { useOpenCard } from '../../../app/shell/use-card-stack.js';
 import { formatDateTime, formatMinutes } from '../../../shared/lib/format.js';
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
 import { DeadlineChip } from '../../../shared/ui/deadline-chip.js';
@@ -33,7 +33,7 @@ const VISIBILITY_KEY = 'nodus-task-fields-v1';
  *  Личная колонка «Моего плана» здесь НЕ показывается — она меняется
  *  только DnD на доске (модель Битрикса). */
 export const TaskFields = memo(function TaskFields({ task }: { task: TaskDetail }) {
-  const navigate = useNavigate();
+  const openCard = useOpenCard();
 
   const defs: EntityFieldDef[] = [
     {
@@ -85,12 +85,7 @@ export const TaskFields = memo(function TaskFields({ task }: { task: TaskDetail 
             type="button"
             title={task.project.name}
             className="truncate font-mono text-[12px] text-info hover:underline"
-            onClick={() =>
-              void navigate({
-                to: '/tasks/$taskId/project/$projectId',
-                params: { taskId: task.id, projectId: task.project?.id ?? '' },
-              })
-            }
+            onClick={() => openCard({ kind: 'project', id: task.project?.id ?? '' })}
           >
             {task.project.name}
           </button>

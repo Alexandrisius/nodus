@@ -1,5 +1,4 @@
 import { ArrowLeft, ListTodo } from 'lucide-react';
-import { useNavigate } from '@tanstack/react-router';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import { NodeLabel } from '@nodus/ui/components/node-label';
@@ -14,6 +13,7 @@ import {
   MessageScrollerViewport,
 } from '@nodus/ui/components/message-scroller';
 
+import { useOpenCard } from '../../app/shell/use-card-stack.js';
 import { useAuthStore } from '../auth-store.js';
 import { ChatComposer } from './chat-composer.js';
 import { ChatMessageAction, ChatMessageItem } from './chat-message.js';
@@ -39,7 +39,7 @@ export function ThreadPane({
   const send = useSendChatMessage(conversationId);
   const toTask = useMessageToTask();
   const me = useAuthStore((s) => s.user);
-  const navigate = useNavigate();
+  const openCard = useOpenCard();
 
   const items = data?.items ?? [];
   const root = items.find((m) => m.id === threadRootId);
@@ -89,11 +89,7 @@ export function ThreadPane({
                                 toTask.mutate(
                                   { conversationId, messageId: message.id },
                                   {
-                                    onSuccess: (task) =>
-                                      void navigate({
-                                        to: '/tasks/$taskId',
-                                        params: { taskId: task.id },
-                                      }),
+                                    onSuccess: (task) => openCard({ kind: 'task', id: task.id }),
                                   },
                                 )
                               }

@@ -20,14 +20,21 @@ const CLOSE_MS = 200;
 const CLOSE_EASE = 'cubic-bezier(0.5, 0, 0.9, 0.4)';
 
 /**
- * Детальная панель — общий слой карточки-сущности: во всю ширину с полями и
- * отступом сверху, чтобы каркас оставался виден; уровень 2 уходит глубже
- * вниз-вправо. Открытие — shared-element расширение (FLIP): панель стартует
- * точным rect'ом источника (строка/карточка, по которой кликнули) и за 430 мс
- * доезжает до своей геометрии — связь «кликнул здесь → открылось это» читается
- * без линий поверх контента; контент проявляется с задержкой 160 мс. Без
- * источника (прямая ссылка, палитра) — сдержанный scale-fade из центра.
- * Закрытие — обратное схлопывание в источник за CLOSE_MS.
+ * Детальная панель — общий слой карточки-сущности и ЕДИНСТВЕННАЯ геометрия
+ * карточек продукта (ADR-0009, вердикт владельца 2026-09-10): все сущности
+ * (задача, проект, письмо, сотрудник) открываются панелью ОДНОГО размера
+ * (inset-x-3, top-10, до низа) и НАСЛАИВАЮТСЯ друг на друга стеком (хост —
+ * CardStackHost, стек в `?cards=`): закрытие верхней возвращает к прежней,
+ * смонтированной под ней, — без дёргания геометрии и потери места.
+ * Уровней/смещений НЕТ (уровневые inset'ы ломали единство размеров).
+ *
+ * Открытие — shared-element расширение (FLIP): панель стартует точным rect'ом
+ * источника (строка/карточка, по которой кликнули) и за 430 мс доезжает до
+ * своей геометрии — связь «кликнул здесь → открылось это» читается без линий
+ * поверх контента; контент проявляется с задержкой 160 мс. Без источника
+ * (прямая ссылка, палитра, восстановление стека из URL) — сдержанный
+ * scale-fade из центра. Закрытие — обратное схлопывание в источник за
+ * CLOSE_MS.
  *
  * Хореография (канон, см. nodus-ui-style/references/circuit.md):
  * — анимация строго transform/opacity (композитор): не зависит от занятости
@@ -40,7 +47,6 @@ const CLOSE_EASE = 'cubic-bezier(0.5, 0, 0.9, 0.4)';
  */
 export function SliderPanel({
   title,
-  level = 1,
   onClose,
   sourceRect,
   fadeContent = true,
@@ -49,7 +55,6 @@ export function SliderPanel({
   /** Главное название сущности — в хроме слайдера, на видном месте (вердикт
    *  владельца: не внутри карточки, где сливается с описанием). Крошек нет. */
   title?: string;
-  level?: 1 | 2;
   onClose: () => void;
   sourceRect?: SourceRect;
   /** false — карточка сама управляет проявлением: её зональные фоны (тёмный
@@ -126,15 +131,13 @@ export function SliderPanel({
   }, []);
 
   /** FLIP-переменные раскрытия: геометрия панели детерминирована
-   *  (inset-x-3 top-10 / level2 inset-x-10 top-16), поэтому дельты считаются
-   *  без замеров; анимация — CSS @keyframes slider-expand (стартует с первого
-   *  кадра на любом окружении, в отличие от transition/WAAPI на маунте). */
+   *  (inset-x-3 top-10 — единая для всех сущностей, ADR-0009), поэтому
+   *  дельты считаются без замеров; анимация — CSS @keyframes slider-expand
+   *  (стартует с первого кадра на любом окружении, в отличие от
+   *  transition/WAAPI на маунте). */
   const flipStyle: CSSProperties | undefined = sourceRect
     ? (() => {
-        const dst =
-          level === 2
-            ? { x: 40, y: 64, w: window.innerWidth - 80, h: window.innerHeight - 64 }
-            : { x: 12, y: 40, w: window.innerWidth - 24, h: window.innerHeight - 40 };
+        const dst = { x: 12, y: 40, w: window.innerWidth - 24, h: window.innerHeight - 40 };
         return {
           '--flip-tx': `${sourceRect.x - dst.x}px`,
           '--flip-ty': `${sourceRect.y - dst.y}px`,
@@ -156,7 +159,6 @@ export function SliderPanel({
         style={flipStyle}
         className={cn(
           'slider-shadow absolute inset-x-3 bottom-0 top-10 z-20 flex flex-col rounded-t-xl border border-b-0 border-border bg-card text-card-foreground',
-          level === 2 && 'inset-x-10 top-16',
           sourceRect ? 'slider-expand' : 'slider-pop',
         )}
       >

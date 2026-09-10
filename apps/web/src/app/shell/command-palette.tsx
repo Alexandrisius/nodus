@@ -19,6 +19,7 @@ import { useProjectsList } from '../../features/projects/api/projects-api.js';
 import { useTasksSearch } from '../../features/tasks/api/tasks-api.js';
 import { PersonAvatar } from '../../shared/ui/person-avatar.js';
 import { useShellStore } from './shell-store.js';
+import { useOpenCard } from './use-card-stack.js';
 
 const actions = [
   { to: '/', label: ui.nav.home, icon: House },
@@ -29,11 +30,14 @@ const actions = [
   { to: '/employees', label: ui.nav.employees, icon: Users },
 ];
 
-/** Ctrl+K: умный поиск по всем сущностям портала (вау №4, §10.7). */
+/** Ctrl+K: умный поиск по всем сущностям портала (вау №4, §10.7).
+ *  Сущности открываются КАРТОЧКОЙ В СТЕКЕ поверх текущего раздела
+ *  (ADR-0009) — поиск не уводит со страницы; беседы — в мессенджер. */
 export function CommandPalette() {
   const open = useShellStore((s) => s.commandOpen);
   const setOpen = useShellStore((s) => s.setCommandOpen);
   const navigate = useNavigate();
+  const openCard = useOpenCard();
   const { data: users } = useUsersList();
   const { data: projects } = useProjectsList();
   const { data: chats } = useConversations();
@@ -100,7 +104,10 @@ export function CommandPalette() {
                         <CommandItem
                           key={task.id}
                           value={task.id}
-                          onSelect={() => go('/tasks/$taskId', { taskId: task.id })}
+                          onSelect={() => {
+                            setOpen(false);
+                            openCard({ kind: 'task', id: task.id });
+                          }}
                         >
                           <ListTodo data-icon="inline-start" />
                           {task.title}
@@ -116,7 +123,10 @@ export function CommandPalette() {
                         <CommandItem
                           key={letter.id}
                           value={letter.id}
-                          onSelect={() => go('/letters/$letterId', { letterId: letter.id })}
+                          onSelect={() => {
+                            setOpen(false);
+                            openCard({ kind: 'letter', id: letter.id });
+                          }}
                         >
                           <Mail data-icon="inline-start" />
                           {letter.subject}
@@ -132,7 +142,10 @@ export function CommandPalette() {
                         <CommandItem
                           key={project.id}
                           value={project.id}
-                          onSelect={() => go('/projects/$projectId', { projectId: project.id })}
+                          onSelect={() => {
+                            setOpen(false);
+                            openCard({ kind: 'project', id: project.id });
+                          }}
                         >
                           <FolderOpen data-icon="inline-start" />
                           {project.name}
@@ -168,7 +181,10 @@ export function CommandPalette() {
                         <CommandItem
                           key={person.id}
                           value={person.id}
-                          onSelect={() => go('/employees')}
+                          onSelect={() => {
+                            setOpen(false);
+                            openCard({ kind: 'employee', id: person.id });
+                          }}
                         >
                           <PersonAvatar name={person.displayName} className="size-6" />
                           {person.displayName}

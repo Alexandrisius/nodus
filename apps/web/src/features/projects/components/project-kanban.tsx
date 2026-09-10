@@ -14,12 +14,11 @@ import {
   type UniqueIdentifier,
 } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
-import { useNavigate } from '@tanstack/react-router';
 import type { Paginated, TaskListItem, TaskStage } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { Skeleton } from '@nodus/ui/components/skeleton';
 
-import { useShellStore } from '../../../app/shell/shell-store.js';
+import { useOpenCard } from '../../../app/shell/use-card-stack.js';
 import { api } from '../../../shared/api-client.js';
 import { useTaskStages } from '../../../shared/api/task-stages.js';
 import {
@@ -47,16 +46,15 @@ const FEED_LIMIT = 30;
  * оптимистично I4 с откатом снапшотом), но БЕЗ CRUD колонок: стадии проекта
  * правятся в редакторе схем, меню и создание стадий отключены. Quick-add
  * задачи в колонку — POST /tasks {title, stageId, projectId}.
- * Открытие карточки — универсальный слайдер задачи уровнем 2 поверх проекта
- * (вложенный роут /projects/$projectId/task/$taskId).
+ * Открытие карточки — карточка задачи ПОВЕРХ карточки проекта (стек,
+ * ADR-0009, shared-element из rect карточки).
  */
 export function ProjectKanban({ projectId }: { projectId: string }) {
   const { data: stages } = useTaskStages();
   const move = useMoveProjectTask();
   const create = useCreateProjectTask(projectId);
   const { isVisible } = useViewFields('projects.kanban', projectKanbanCardFields);
-  const navigate = useNavigate();
-  const setLastSource = useShellStore((s) => s.setLastSource);
+  const openCard = useOpenCard();
 
   const [board, setBoard] = useState<TaskListItem[] | null>(null);
   const [cursors, setCursors] = useState<Record<string, string | null>>({});
@@ -270,18 +268,7 @@ export function ProjectKanban({ projectId }: { projectId: string }) {
                       parentNumber={task.parentId ? numberById.get(task.parentId) : undefined}
                       isVisible={isVisible}
                       placeholder={placeholder}
-                      onOpen={(t, rect) => {
-                        setLastSource({
-                          x: rect.x,
-                          y: rect.y,
-                          width: rect.width,
-                          height: rect.height,
-                        });
-                        void navigate({
-                          to: '/projects/$projectId/task/$taskId',
-                          params: { projectId, taskId: t.id },
-                        });
-                      }}
+                      onOpen={(t, rect) => openCard({ kind: 'task', id: t.id }, rect)}
                     />
                   )}
                 </BoardSortableCard>

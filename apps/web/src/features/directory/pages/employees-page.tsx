@@ -1,10 +1,10 @@
 import { useMemo } from 'react';
-import { Outlet, useNavigate, useSearch } from '@tanstack/react-router';
+import { useSearch } from '@tanstack/react-router';
 import type { UserListItem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { Skeleton } from '@nodus/ui/components/skeleton';
 
-import { useShellStore } from '../../../app/shell/shell-store.js';
+import { useOpenCard } from '../../../app/shell/use-card-stack.js';
 import { plural } from '../../../shared/lib/format.js';
 import { DataTable } from '../../../shared/views/data-table.js';
 import { ViewSettings } from '../../../shared/views/view-settings.js';
@@ -17,27 +17,20 @@ import { employeeListFields } from '../lib/employee-fields.js';
  * (граф оргструктуры по грамматике контура: узлы node-панели, ортогональные
  * рёбра с портами) и «Список» (каноническая таблица shared/views, ключ
  * `employees.list`). Виды — вкладки топбара (search-параметр view).
- * Открытие карточки сотрудника — слайдер из rect источника.
+ * Открытие карточки сотрудника — стек карточек из rect источника.
  */
 export function EmployeesPage() {
   const search = useSearch({ strict: false }) as { view?: string };
   const view = search.view === 'list' ? 'list' : 'org';
   const { data, isLoading } = useUsersList();
-  const navigate = useNavigate();
-  const setLastSource = useShellStore((s) => s.setLastSource);
+  const openCard = useOpenCard();
 
   const items = useMemo(() => data?.items ?? [], [data]);
   const byId = useMemo(() => new Map(items.map((user) => [user.id, user] as const)), [items]);
   const defs = useMemo(() => employeeListFields(byId), [byId]);
 
   function openEmployee(user: UserListItem, rowEl: HTMLElement) {
-    const rect = rowEl.getBoundingClientRect();
-    setLastSource({ x: rect.x, y: rect.y, width: rect.width, height: rect.height });
-    void navigate({
-      to: '/employees/$userId',
-      params: { userId: user.id },
-      search: { view },
-    });
+    openCard({ kind: 'employee', id: user.id }, rowEl.getBoundingClientRect());
   }
 
   return (
@@ -80,7 +73,6 @@ export function EmployeesPage() {
           />
         )}
       </div>
-      <Outlet />
     </div>
   );
 }

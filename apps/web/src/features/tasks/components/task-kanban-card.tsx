@@ -1,13 +1,12 @@
-import { useNavigate } from '@tanstack/react-router';
 import type { TaskListItem } from '@nodus/contracts';
 
-import { useShellStore } from '../../../app/shell/shell-store.js';
+import { useOpenCard } from '../../../app/shell/use-card-stack.js';
 import { BoardTaskCard } from '../../../shared/ui/board/board-task-card.js';
 import { usePrefetchTask } from '../api/tasks-api.js';
 
 /** Карточка канбана «Мой план»: общая презентационная BoardTaskCard +
- *  доменное открытие — слайдер задачи с shared-element раскрытием из rect
- *  карточки (lastSource) и префетч детали/обсуждения по ховеру. */
+ *  доменное открытие — карточка задачи в стеке (shared-element раскрытие из
+ *  rect карточки) и префетч детали/обсуждения по ховеру. */
 export function TaskKanbanCard({
   task,
   parentNumber,
@@ -21,8 +20,7 @@ export function TaskKanbanCard({
   overlay?: boolean;
   placeholder?: boolean;
 }) {
-  const navigate = useNavigate();
-  const setLastSource = useShellStore((s) => s.setLastSource);
+  const openCard = useOpenCard();
   const prefetch = usePrefetchTask();
 
   return (
@@ -33,10 +31,7 @@ export function TaskKanbanCard({
       overlay={overlay}
       placeholder={placeholder}
       onHover={(t) => prefetch(t.id)}
-      onOpen={(t, rect) => {
-        setLastSource({ x: rect.x, y: rect.y, width: rect.width, height: rect.height });
-        void navigate({ to: '/tasks/$taskId', params: { taskId: t.id } });
-      }}
+      onOpen={(t, rect) => openCard({ kind: 'task', id: t.id }, rect)}
     />
   );
 }

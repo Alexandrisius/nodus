@@ -1,6 +1,5 @@
 import { memo, useState, type FormEvent } from 'react';
 import { ChevronDown, ChevronRight, Plus, X } from 'lucide-react';
-import { useNavigate } from '@tanstack/react-router';
 import type { TaskBranchNode } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 
@@ -8,14 +7,16 @@ import { Input } from '@nodus/ui/components/input';
 import { Skeleton } from '@nodus/ui/components/skeleton';
 import { cn } from '@nodus/ui/lib/utils';
 
+import { useOpenCard } from '../../../app/shell/use-card-stack.js';
 import { useAddSubtaskTo, useTaskBranch } from '../api/tasks-api.js';
 import { stageTone } from '../../../shared/ui/board/stage-tone.js';
 
 /** Панель-навигатор ветки задачи (референс — левая панель подзадач ClickUp):
  *  дерево от корневого предка с любой вложенностью; клик по строке открывает
- *  ту задачу в этом же слайдере (панель остаётся — навигация по ветке),
- *  текущая задача подсвечена; быстрое создание подзадачи — внизу (к текущей)
- *  или по «+» на строке (к этой строке). Выдвигается слева поверх контента. */
+ *  ту задачу НОВОЙ карточкой поверх (стек, ADR-0009 — закрытие вернёт к
+ *  текущей), текущая задача подсвечена; быстрое создание подзадачи — внизу
+ *  (к текущей) или по «+» на строке (к этой строке). Выдвигается слева поверх
+ *  контента. */
 export const TaskBranchDrawer = memo(function TaskBranchDrawer({
   taskId,
   onClose,
@@ -25,14 +26,14 @@ export const TaskBranchDrawer = memo(function TaskBranchDrawer({
 }) {
   const { data: branch } = useTaskBranch(taskId);
   const addSubtask = useAddSubtaskTo();
-  const navigate = useNavigate();
+  const openCard = useOpenCard();
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
   const [addingTo, setAddingTo] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
 
   function openTask(id: string) {
     if (id === taskId) return;
-    void navigate({ to: '/tasks/$taskId', params: { taskId: id }, search: (prev) => prev });
+    openCard({ kind: 'task', id });
   }
 
   function toggle(id: string) {

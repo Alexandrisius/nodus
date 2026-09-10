@@ -1,8 +1,7 @@
-import { Outlet, useNavigate } from '@tanstack/react-router';
 import type { ProjectListItem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 
-import { useShellStore } from '../../../app/shell/shell-store.js';
+import { useOpenCard } from '../../../app/shell/use-card-stack.js';
 import { plural } from '../../../shared/lib/format.js';
 import { DataTable } from '../../../shared/views/data-table.js';
 import { ViewSettings } from '../../../shared/views/view-settings.js';
@@ -13,21 +12,19 @@ import { projectListFields } from '../lib/project-fields.js';
  * Проекты: журнал канонической таблицей (shared/views, ключ `projects.list`) —
  * колонки-реестр `lib/project-fields.tsx`, видимость шестерёнкой, ширина
  * ручкой, память между сессиями. Шапка — живая сводка и шестерёнка
- * представления. Открытие — слайдер с shared-element раскрытием из rect
- * строки. Создание проекта — форма после MVP (мёртвых кнопок-обрубков нет).
+ * представления. Открытие — карточка проекта в стеке (shared-element
+ * раскрытие из rect строки). Создание проекта — форма после MVP
+ * (мёртвых кнопок-обрубков нет).
  */
 export function ProjectsPage() {
   const { data, isLoading } = useProjectsList();
-  const navigate = useNavigate();
-  const setLastSource = useShellStore((s) => s.setLastSource);
+  const openCard = useOpenCard();
 
   const items = data?.items ?? [];
   const managing = items.filter((p) => p.myRole === 'manager').length;
 
   function openProject(project: ProjectListItem, rowEl: HTMLElement) {
-    const rect = rowEl.getBoundingClientRect();
-    setLastSource({ x: rect.x, y: rect.y, width: rect.width, height: rect.height });
-    void navigate({ to: '/projects/$projectId', params: { projectId: project.id } });
+    openCard({ kind: 'project', id: project.id }, rowEl.getBoundingClientRect());
   }
 
   return (
@@ -59,7 +56,6 @@ export function ProjectsPage() {
           onOpenRow={openProject}
         />
       </div>
-      <Outlet />
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { Outlet, useSearch } from '@tanstack/react-router';
+import { useSearch } from '@tanstack/react-router';
 import { ui } from '@nodus/contracts';
 import { cn } from '@nodus/ui/lib/utils';
 
@@ -42,7 +42,6 @@ export function TasksPage() {
         </div>
       </header>
       <div className="min-h-0 flex-1">{view === 'list' ? <TaskList /> : <TaskKanban />}</div>
-      <Outlet />
     </div>
   );
 }
