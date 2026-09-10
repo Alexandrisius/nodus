@@ -154,6 +154,7 @@ export const ui = {
     stageComplete: 'Завершить задачу',
     stageCompleted: 'Завершена',
     stageReturn: 'Вернуть на доработку',
+    addField: 'Добавить поле',
     quickTaskPlaceholder: 'Новая задача — Enter, чтобы создать',
     addStage: 'Добавить стадию',
     stageNamePlaceholder: 'Название колонки…',

@@ -8,7 +8,6 @@ import { Input } from '@nodus/ui/components/input';
 import { NodeChip } from '@nodus/ui/components/node-chip';
 import { NodeLabel } from '@nodus/ui/components/node-label';
 import { Separator } from '@nodus/ui/components/separator';
-import { Skeleton } from '@nodus/ui/components/skeleton';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { DomainChain, type ChainNode } from '../../../shared/ui/domain-chain.js';
@@ -16,9 +15,10 @@ import { useAddSubtask, useTaskDetail } from '../api/tasks-api.js';
 import { useCardChatWidth } from '../lib/use-card-chat-width.js';
 import { TaskAboutDrawer } from './task-about-drawer.js';
 import { TaskBranchDrawer } from './task-branch-drawer.js';
+import { TaskCardSkeleton } from './task-card-skeleton.js';
 import { TaskDiscussion } from './task-discussion.js';
 import { TaskFields } from './task-fields.js';
-import { TaskStageControls } from './task-stage-controls.js';
+import { TaskActionBar } from './task-stage-controls.js';
 import { TaskStatusBadge } from './task-status-badge.js';
 
 const chainCaption: Record<TaskChainNode['kind'], string> = {
@@ -57,47 +57,7 @@ export function TaskCard({ taskId }: { taskId: string }) {
   }
 
   if (isLoading || !task) {
-    /* Скелетон по форме реальной раскладки (та же ширина чата — без скачка
-     * при подстановке данных): читается как «карточка прогружается», а не
-     * как единый тёмный прямоугольник. */
-    return (
-      <div className="flex h-full flex-col">
-        <div className="flex shrink-0 items-center border-b border-border px-5 py-3">
-          <Skeleton className="h-6 w-80" />
-        </div>
-        <div
-          className="grid min-h-0 flex-1"
-          style={{ gridTemplateColumns: `minmax(0,1fr) 6px ${chatW}px` }}
-        >
-          <div className="space-y-6 p-6">
-            <Skeleton className="h-8 w-2/3" />
-            <div className="flex gap-2">
-              <Skeleton className="h-8 w-36 rounded-lg" />
-              <Skeleton className="h-8 w-28 rounded-lg" />
-              <Skeleton className="h-8 w-44 rounded-lg" />
-            </div>
-            <div className="space-y-2.5">
-              <Skeleton className="h-4 w-full" />
-              <Skeleton className="h-4 w-11/12" />
-              <Skeleton className="h-4 w-4/5" />
-            </div>
-            <div className="flex flex-wrap gap-3">
-              <Skeleton className="h-44 w-full min-w-72 max-w-[420px] flex-1" />
-              <Skeleton className="h-44 w-full min-w-72 max-w-[420px] flex-1" />
-            </div>
-          </div>
-          <div className="relative">
-            <span className="absolute inset-y-0 left-1/2 w-px bg-border" />
-          </div>
-          <div className="flex min-h-0 flex-col gap-3 bg-background p-4">
-            <Skeleton className="h-14 w-3/4 self-start" />
-            <Skeleton className="h-14 w-2/3 self-end" />
-            <Skeleton className="h-14 w-3/4 self-start" />
-            <Skeleton className="mt-auto h-11 w-full" />
-          </div>
-        </div>
-      </div>
-    );
+    return <TaskCardSkeleton chatW={chatW} />;
   }
 
   const chainNodes: ChainNode[] = task.chain.map((node, i) => ({
@@ -174,90 +134,95 @@ export function TaskCard({ taskId }: { taskId: string }) {
             <TaskBranchDrawer taskId={taskId} onClose={() => setBranchOpen(false)} />
           ) : null}
         </div>
-        {/* Левая зона: фон совпадает с панелью — весь контент проявляется fade;
+        {/* Левая зона: скроллится только контент; нижний бар действий
+            замоноличен (не двигается скроллом — модель Битрикса).
             @container — сетка полей перестраивается от ширины зоны (ресайз чата) */}
-        <div className="content-fade min-h-0 @container overflow-y-auto p-6">
-          <div className="flex flex-wrap items-center gap-3">
-            <h2 className="min-w-0 flex-1 truncate text-xl font-semibold">{task.title}</h2>
-            {task.source === 'letter' ? (
-              <NodeChip tone="info">
-                <Mail className="size-3" />
-                {ui.tasks.instruction}
-              </NodeChip>
-            ) : task.source === 'chat_message' ? (
-              <NodeChip tone="info">
-                <MessageSquare className="size-3" />
-                {ui.tasks.fromChat}
-              </NodeChip>
+        <div className="flex min-h-0 flex-col @container">
+          <div className="content-fade min-h-0 flex-1 overflow-y-auto p-6">
+            <div className="flex flex-wrap items-center gap-3">
+              <h2 className="min-w-0 flex-1 truncate text-xl font-semibold">{task.title}</h2>
+              {task.source === 'letter' ? (
+                <NodeChip tone="info">
+                  <Mail className="size-3" />
+                  {ui.tasks.instruction}
+                </NodeChip>
+              ) : task.source === 'chat_message' ? (
+                <NodeChip tone="info">
+                  <MessageSquare className="size-3" />
+                  {ui.tasks.fromChat}
+                </NodeChip>
+              ) : null}
+            </div>
+
+            <p className="mt-3 text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">
+              {task.description}
+            </p>
+
+            <TaskFields task={task} />
+
+            <Separator className="my-5" />
+
+            <NodeLabel label={ui.tasks.subtasks} count={task.subtasks.length} />
+            <div className="mt-2.5 flex flex-col gap-1.5">
+              {task.subtasks.map((subtask) => (
+                <button
+                  key={subtask.id}
+                  type="button"
+                  onClick={() =>
+                    void navigate({
+                      to: '/tasks/$taskId',
+                      params: { taskId: subtask.id },
+                      search: (prev) => prev,
+                    })
+                  }
+                  className="flex items-center gap-2 rounded-md px-1 py-1 text-left text-sm hover:bg-accent/50"
+                >
+                  <span className="size-1.5 shrink-0 rounded-full bg-port" />
+                  <span className="min-w-0 flex-1 truncate">{subtask.title}</span>
+                  <TaskStatusBadge stage={subtask.stage} />
+                </button>
+              ))}
+            </div>
+            <form onSubmit={onAddSubtask} className="mt-2 flex items-center gap-2">
+              <Input
+                value={subtaskTitle}
+                onChange={(e) => setSubtaskTitle(e.target.value)}
+                placeholder={ui.tasks.subtaskPlaceholder}
+                className="h-8 text-sm"
+              />
+              <button
+                type="submit"
+                disabled={!subtaskTitle.trim()}
+                aria-label={ui.tasks.subtasks}
+                className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground disabled:opacity-40"
+              >
+                <Plus className="size-4" />
+              </button>
+            </form>
+
+            {task.checklist.length > 0 ? (
+              <>
+                <Separator className="my-5" />
+                <NodeLabel label={ui.tasks.checklist} count={task.checklist.length} />
+                <div className="mt-2.5 flex flex-col gap-2">
+                  {task.checklist.map((item) => (
+                    <label key={item.id} className="flex items-center gap-2 text-sm">
+                      <Checkbox checked={item.done} disabled />
+                      <span className={item.done ? 'text-muted-foreground line-through' : ''}>
+                        {item.text}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </>
             ) : null}
           </div>
 
-          <div className="mt-3">
-            <TaskStageControls task={task} />
+          {/* Замоноличенный нижний бар: главные кнопки движения/завершения
+              всегда под рукой, не уезжают со скроллом (модель Битрикса) */}
+          <div className="shrink-0 border-t border-border px-5 py-3">
+            <TaskActionBar task={task} />
           </div>
-
-          <p className="mt-4 text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">
-            {task.description}
-          </p>
-
-          <TaskFields task={task} />
-
-          <Separator className="my-5" />
-
-          <NodeLabel label={ui.tasks.subtasks} count={task.subtasks.length} />
-          <div className="mt-2.5 flex flex-col gap-1.5">
-            {task.subtasks.map((subtask) => (
-              <button
-                key={subtask.id}
-                type="button"
-                onClick={() =>
-                  void navigate({
-                    to: '/tasks/$taskId',
-                    params: { taskId: subtask.id },
-                    search: (prev) => prev,
-                  })
-                }
-                className="flex items-center gap-2 rounded-md px-1 py-1 text-left text-sm hover:bg-accent/50"
-              >
-                <span className="size-1.5 shrink-0 rounded-full bg-port" />
-                <span className="min-w-0 flex-1 truncate">{subtask.title}</span>
-                <TaskStatusBadge stage={subtask.stage} />
-              </button>
-            ))}
-          </div>
-          <form onSubmit={onAddSubtask} className="mt-2 flex items-center gap-2">
-            <Input
-              value={subtaskTitle}
-              onChange={(e) => setSubtaskTitle(e.target.value)}
-              placeholder={ui.tasks.subtaskPlaceholder}
-              className="h-8 text-sm"
-            />
-            <button
-              type="submit"
-              disabled={!subtaskTitle.trim()}
-              aria-label={ui.tasks.subtasks}
-              className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground disabled:opacity-40"
-            >
-              <Plus className="size-4" />
-            </button>
-          </form>
-
-          {task.checklist.length > 0 ? (
-            <>
-              <Separator className="my-5" />
-              <NodeLabel label={ui.tasks.checklist} count={task.checklist.length} />
-              <div className="mt-2.5 flex flex-col gap-2">
-                {task.checklist.map((item) => (
-                  <label key={item.id} className="flex items-center gap-2 text-sm">
-                    <Checkbox checked={item.done} disabled />
-                    <span className={item.done ? 'text-muted-foreground line-through' : ''}>
-                      {item.text}
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </>
-          ) : null}
         </div>
 
         <div
