@@ -10,7 +10,7 @@ import {
 import { cn } from '@nodus/ui/lib/utils';
 
 import { useTaskStages, useUpdateTaskStage } from '../api/tasks-api.js';
-import { stageTone } from '../lib/stage-tone.js';
+import { stageTone } from '../../../shared/ui/board/stage-tone.js';
 
 const btn =
   'inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition-colors disabled:opacity-40';

@@ -21,6 +21,15 @@ import { Skeleton } from '@nodus/ui/components/skeleton';
 import { api } from '../../../shared/api-client.js';
 import { useViewFields } from '../../../shared/views/use-view-fields.js';
 import {
+  indexOfInStage,
+  isSameOrder,
+  moveTaskToStage,
+  personalAxis,
+  reorderWithinStage,
+} from '../../../shared/lib/board/kanban-board.js';
+import { makeKanbanCollision } from '../../../shared/lib/board/kanban-collision.js';
+import { BoardSortableCard } from '../../../shared/ui/board/board-sortable-card.js';
+import {
   useCreatePersonalStage,
   useCreateTask,
   useDeletePersonalStage,
@@ -28,18 +37,9 @@ import {
   useUpdatePersonalStage,
   useUpdateTaskPersonalStage,
 } from '../api/personal-stages-api.js';
-import {
-  indexOfInStage,
-  isSameOrder,
-  moveTaskToStage,
-  personalAxis,
-  reorderWithinStage,
-} from '../lib/kanban-board.js';
-import { makeKanbanCollision } from '../lib/kanban-collision.js';
 import { taskCardFields } from '../lib/task-fields.js';
 import { TaskKanbanCard } from './task-kanban-card.js';
 import { TaskKanbanColumn } from './task-kanban-column.js';
-import { TaskKanbanSortableCard } from './task-kanban-sortable-card.js';
 import { TaskStageCreate } from './task-stage-create.js';
 
 /** Канбан «Мой план» (ADR-0007): живая сортировка dnd-kit sortable — карточки
@@ -308,12 +308,16 @@ export function TaskKanban() {
               }
             >
               {cards.map((task) => (
-                <TaskKanbanSortableCard
-                  key={task.id}
-                  task={task}
-                  parentNumber={task.parentId ? numberById.get(task.parentId) : undefined}
-                  isVisible={isVisible}
-                />
+                <BoardSortableCard key={task.id} id={task.id} stageId={task.stage.id}>
+                  {({ placeholder }) => (
+                    <TaskKanbanCard
+                      task={task}
+                      parentNumber={task.parentId ? numberById.get(task.parentId) : undefined}
+                      isVisible={isVisible}
+                      placeholder={placeholder}
+                    />
+                  )}
+                </BoardSortableCard>
               ))}
             </TaskKanbanColumn>
           );

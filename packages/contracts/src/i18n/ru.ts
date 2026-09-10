@@ -46,6 +46,7 @@ export const ui = {
     viewSettings: 'Настроить вид',
     viewFields: 'Отображаемые поля',
     resetView: 'Сбросить настройки',
+    addField: 'Добавить поле',
   },
   nav: {
     home: 'Главная',
@@ -155,7 +156,6 @@ export const ui = {
     stageComplete: 'Завершить задачу',
     stageCompleted: 'Завершена',
     stageReturn: 'Вернуть на доработку',
-    addField: 'Добавить поле',
     resizeChat: 'Изменить ширину обсуждения',
     quickTaskPlaceholder: 'Новая задача — Enter, чтобы создать',
     addStage: 'Добавить стадию',

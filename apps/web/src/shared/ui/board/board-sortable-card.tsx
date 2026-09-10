@@ -1,11 +1,8 @@
-import { memo, useEffect, useState } from 'react';
+import { memo, useEffect, useState, type ReactNode } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import type { TaskListItem } from '@nodus/contracts';
 
 import { cn } from '@nodus/ui/lib/utils';
-
-import { TaskKanbanCard } from './task-kanban-card.js';
 
 /** Карточка смонтирована хотя бы один кадр (официальный useMountStatus):
  * перемонтированная в чужую колонку ВО ВРЕМЯ drag карточка не должна стартовать
@@ -20,21 +17,23 @@ function useMountStatus(): boolean {
 }
 
 /**
- * Sortable-карточка канбана (ADR-0007): useSortable даёт живую сортировку
- * (трансформы уступания места соседями), призрак рисует DragOverlay.
- * Трансформ sortable — всегда (и у активного): он двигает полупрозрачный слот
- * к проекционной позиции; без него слот стоит и налезает на соседей.
+ * Sortable-обёртка карточки борда (ADR-0007, общая оболочка канбана):
+ * useSortable даёт живую сортировку (трансформы уступания места соседями),
+ * призрак рисует DragOverlay потребителя. Трансформ sortable — всегда (и у
+ * активного): он двигает полупрозрачный слот к проекционной позиции; без него
+ * слот стоит и налезает на соседей. Контент карточки — render-проп
+ * (placeholder — слот переносимой карточки, пунктир).
  * Сенсоры на активаторе: клик без движения — открытие слайдера
- * (distance-констрейнт PointerSensor).
+ * (distance-констрейнт PointerSensor задаёт потребитель борда).
  */
-export const TaskKanbanSortableCard = memo(function TaskKanbanSortableCard({
-  task,
-  parentNumber,
-  isVisible,
+export const BoardSortableCard = memo(function BoardSortableCard({
+  id,
+  stageId,
+  children,
 }: {
-  task: TaskListItem;
-  parentNumber?: number;
-  isVisible: (fieldId: string) => boolean;
+  id: string;
+  stageId: string;
+  children: (state: { placeholder: boolean }) => ReactNode;
 }) {
   const {
     setNodeRef,
@@ -44,7 +43,7 @@ export const TaskKanbanSortableCard = memo(function TaskKanbanSortableCard({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: task.id, data: { stageId: task.stage.id } });
+  } = useSortable({ id, data: { stageId } });
   const mounted = useMountStatus();
   const mountedWhileDragging = isDragging && !mounted;
 
@@ -62,12 +61,7 @@ export const TaskKanbanSortableCard = memo(function TaskKanbanSortableCard({
         {...listeners}
         {...attributes}
       >
-        <TaskKanbanCard
-          task={task}
-          parentNumber={parentNumber}
-          isVisible={isVisible}
-          placeholder={isDragging}
-        />
+        {children({ placeholder: isDragging })}
       </div>
     </div>
   );

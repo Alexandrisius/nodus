@@ -5,73 +5,37 @@ import {
   Flag,
   FolderKanban,
   Milestone,
-  Plus,
   Timer,
   User,
   UserPen,
   Users,
 } from 'lucide-react';
-import { memo, useState, type ReactNode } from 'react';
+import { memo } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import type { TaskDetail, UserRef } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { NodeChip } from '@nodus/ui/components/node-chip';
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from '@nodus/ui/components/dropdown-menu';
 
 import { formatDateTime, formatMinutes } from '../../../shared/lib/format.js';
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
 import { DeadlineChip } from '../../../shared/ui/deadline-chip.js';
+import { EntityFields, type EntityFieldDef } from '../../../shared/ui/entity-fields.js';
 import { priorityTone } from '../lib/task-fields.js';
 import { TaskStageField } from './task-stage-controls.js';
 
 const VISIBILITY_KEY = 'nodus-task-fields-v1';
 
-type FieldDef = {
-  key: string;
-  icon: ReactNode;
-  label: string;
-  render: () => ReactNode;
-};
-
-function readHidden(): string[] {
-  try {
-    const parsed: unknown = JSON.parse(localStorage.getItem(VISIBILITY_KEY) ?? '[]');
-    return Array.isArray(parsed) ? parsed.filter((k): k is string => typeof k === 'string') : [];
-  } catch {
-    return [];
-  }
-}
-
-/** Инспектор полей карточки (референс ClickUp, грамматика «Инструмента»):
- *  чистые строки «иконка + метка / значение» без табличных рамок.
- *  ПОЛЯ — РЕЕСТР дескрипторов, а не разметка: любое количество полей,
- *  видимость настраивается кнопкой «+ Поле» (persist localStorage);
- *  кастомные поля после MVP — те же дескрипторы, каталог из справочника
- *  (точка расширения I13/I15, не выдумываем заново на проде).
+/** Инспектор полей карточки задачи: реестр дескрипторов на общем каркасе
+ *  EntityFields (shared/ui/entity-fields.tsx — каркас общий с письмом,
+ *  проектом и сотрудником; здесь только доменные defs).
  *  Порядок: в 2-колоночной раскладке «Стадия» оказывается строго под
  *  «Проектом», «Наблюдатели» — под «Соисполнителями» (вердикт владельца).
  *  Личная колонка «Моего плана» здесь НЕ показывается — она меняется
- *  только DnD на доске (модель Битрикса).
- *  Сетка на container queries: узкая панель — 1 колонка, широкая — 2;
- *  зазор фиксирован, дальше растут боковые отступы (mx-auto). */
+ *  только DnD на доске (модель Битрикса). */
 export const TaskFields = memo(function TaskFields({ task }: { task: TaskDetail }) {
   const navigate = useNavigate();
-  const [hiddenKeys, setHiddenKeys] = useState<string[]>(readHidden);
 
-  function toggle(key: string) {
-    setHiddenKeys((prev) => {
-      const next = prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key];
-      localStorage.setItem(VISIBILITY_KEY, JSON.stringify(next));
-      return next;
-    });
-  }
-
-  const defs: FieldDef[] = [
+  const defs: EntityFieldDef[] = [
     {
       key: 'priority',
       icon: <Flag className="size-3.5" />,
@@ -172,53 +136,8 @@ export const TaskFields = memo(function TaskFields({ task }: { task: TaskDetail 
     },
   ];
 
-  const visible = defs.filter((d) => !hiddenKeys.includes(d.key));
-
-  return (
-    <div className="mx-auto mt-5 grid max-w-4xl grid-cols-1 gap-x-12 gap-y-0.5 @min-[880px]:grid-cols-2">
-      {visible.map((def) => (
-        <Field key={def.key} icon={def.icon} label={def.label}>
-          {def.render()}
-        </Field>
-      ))}
-      {/* Настройка видимости полей; каталог кастомных полей — после MVP */}
-      <DropdownMenu>
-        <DropdownMenuTrigger className="-mx-2 flex items-center gap-2 rounded-md px-2 py-2 text-left font-mono text-[11px] tracking-[0.12em] text-muted-foreground uppercase transition-colors hover:bg-accent/40 hover:text-foreground @min-[880px]:col-span-2">
-          <Plus className="size-3.5" strokeWidth={1.75} />
-          {ui.tasks.addField}
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-56">
-          {defs.map((def) => (
-            <DropdownMenuCheckboxItem
-              key={def.key}
-              checked={!hiddenKeys.includes(def.key)}
-              onCheckedChange={() => toggle(def.key)}
-              onSelect={(e) => e.preventDefault()}
-            >
-              {def.label}
-            </DropdownMenuCheckboxItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
-  );
+  return <EntityFields defs={defs} storageKey={VISIBILITY_KEY} />;
 });
-
-function Field({ icon, label, children }: { icon: ReactNode; label: string; children: ReactNode }) {
-  return (
-    <div className="-mx-2 flex flex-wrap items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-accent/40">
-      <span className="flex w-44 shrink-0 items-center gap-2 font-mono text-[11px] tracking-[0.12em] text-muted-foreground uppercase">
-        <span aria-hidden className="shrink-0 opacity-70">
-          {icon}
-        </span>
-        <span className="truncate">{label}</span>
-      </span>
-      {/* min-w: на предельно узкой зоне значение переносится под метку,
-          а не сжимается в ноль */}
-      <span className="flex min-w-[160px] flex-1 items-center gap-2 text-sm">{children}</span>
-    </div>
-  );
-}
 
 /** Люди НЕ сокращаются (вердикт владельца: места много): полное имя,
  *  не влезает — переносится. Truncate — только сверхдлинные названия

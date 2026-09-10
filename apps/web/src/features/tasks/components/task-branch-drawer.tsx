@@ -9,7 +9,7 @@ import { Skeleton } from '@nodus/ui/components/skeleton';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { useAddSubtaskTo, useTaskBranch } from '../api/tasks-api.js';
-import { stageTone } from '../lib/stage-tone.js';
+import { stageTone } from '../../../shared/ui/board/stage-tone.js';
 
 /** Панель-навигатор ветки задачи (референс — левая панель подзадач ClickUp):
  *  дерево от корневого предка с любой вложенностью; клик по строке открывает

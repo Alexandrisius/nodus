@@ -5,7 +5,7 @@ import { ui } from '@nodus/contracts';
 
 import { cn } from '@nodus/ui/lib/utils';
 
-import { stageColorOrder, stageTone } from '../lib/stage-tone.js';
+import { stageColorOrder, stageTone } from '../../../shared/ui/board/stage-tone.js';
 
 /** Создание личной колонки «Моего плана» — компактно (референс ClickUp
  *  «Add group»): маленькая ghost-кнопка в конце ряда → инлайн-форма
