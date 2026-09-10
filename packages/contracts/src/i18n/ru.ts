@@ -253,7 +253,6 @@ export const ui = {
     direct: 'Личные',
     newMessage: 'Написать сообщение…',
     toTask: 'В задачу',
-    reply: 'Ответить',
     edited: 'изменено',
     members: 'Участники',
     channelOfProject: 'Канал проекта',
