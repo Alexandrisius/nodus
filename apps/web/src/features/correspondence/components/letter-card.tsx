@@ -1,4 +1,4 @@
-import { ArrowRight, FileText } from 'lucide-react';
+import { ArrowRight, Building2, FileText, Reply } from 'lucide-react';
 import { useState } from 'react';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
@@ -21,21 +21,33 @@ import { DomainChain, type ChainNode } from '../../../shared/ui/domain-chain.js'
 import { useIssueResolution, useLetterDetail, useRegisterLetter } from '../api/letters-api.js';
 import { LetterFields } from './letter-fields.js';
 import { LetterCardSkeleton } from './letter-card-skeleton.js';
+import { LetterComposeDialog } from './letter-compose-dialog.js';
+import { LetterStatusBadge } from './letter-status-badge.js';
 import { LetterTypeIcon } from '../lib/letter-fields.js';
 
+/** Размер вложения: КБ до тысячи, дальше — МБ с десятыми. */
+function formatSize(size: number): string {
+  const kb = size / 1024;
+  if (kb < 1000) return `${Math.round(kb)} ${ui.letters.kb}`;
+  return `${(kb / 1024).toFixed(1)} МБ`;
+}
+
 /**
- * Карточка письма (поток А): документ — одна зона (тело → поля-реестр →
- * вложения → резолюции), контент max-w-4xl по центру; в хроме слайдера —
- * название (title), в полосе цепочки — само-узел «ПИСЬМО · рег.№» и чип
- * направления. Замоноличенный нижний бар h-16 (модель Битрикса): слева
- * «Зарегистрировать» (очередь), справа — композер резолюции «В поручение»
- * (пессимистичная мутация: юридически значимое действие).
+ * Карточка письма — почтовый клиент (вердикт владельца 2026-09-10, раунд 2):
+ * реальные письма с длинным текстом и пачкой приложений читаются удобно.
+ * Почтовая шапка (корреспондент-организация — квадратом с иконкой, кому,
+ * дата) → тело читательской колонкой max-w-3xl → вложения → реквизиты
+ * регистрации (поля-реестр EntityFields) → резолюции. «Ответить» — в полосе
+ * цепочки (входящие): композер исходящего с предзаполнением. Нижний бар h-16
+ * (модель Битрикса): «Зарегистрировать» (очередь) + композер резолюции
+ * «В поручение» (пессимистичная мутация — юридически значимое действие).
  */
 export function LetterCard({ letterId }: { letterId: string }) {
   const { data: letter, isLoading } = useLetterDetail(letterId);
   const issueResolution = useIssueResolution(letterId);
   const register = useRegisterLetter();
   const [text, setText] = useState('');
+  const [replyOpen, setReplyOpen] = useState(false);
   const openCard = useOpenCard();
 
   if (isLoading || !letter) {
@@ -66,7 +78,8 @@ export function LetterCard({ letterId }: { letterId: string }) {
 
   return (
     <div className="flex h-full flex-col">
-      {/* Полоса цепочки: бордюр — структура, контент — fade */}
+      {/* Полоса цепочки: бордюр — структура, контент — fade; действия письма
+          («Ответить») — справа, как у почтовых клиентов */}
       <div className="shrink-0 border-b border-border">
         <div className="content-fade flex items-center gap-3 px-5 py-3">
           <div className="min-w-0 flex-1 overflow-x-auto">
@@ -76,16 +89,54 @@ export function LetterCard({ letterId }: { letterId: string }) {
             <LetterTypeIcon letter={letter} />
             {letter.type === 'incoming' ? ui.letters.typeIncoming : ui.letters.typeOutgoing}
           </NodeChip>
+          {letter.type === 'incoming' ? (
+            <Button
+              variant="outline"
+              size="sm"
+              className="shrink-0"
+              onClick={() => setReplyOpen(true)}
+            >
+              <Reply data-icon="inline-start" />
+              {ui.letters.reply}
+            </Button>
+          ) : null}
         </div>
       </div>
 
-      <div className="content-fade min-h-0 flex-1 overflow-y-auto p-6">
+      <div className="content-fade min-h-0 flex-1 overflow-y-auto p-6 @container">
         <div className="mx-auto w-full max-w-4xl">
-          <p className="text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">
+          {/* Почтовая шапка: от кого / кому / когда (модель почтового клиента) */}
+          <div className="flex items-center gap-3">
+            <span className="node-panel flex size-10 shrink-0 items-center justify-center">
+              <Building2 className="size-4.5 text-muted-foreground" strokeWidth={1.5} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm font-semibold text-foreground">
+                {letter.correspondent}
+              </div>
+              <div className="mt-0.5 flex items-center gap-2 font-mono text-[11px] text-muted-foreground">
+                {letter.addressee ? (
+                  <>
+                    <PersonAvatar name={letter.addressee.displayName} className="size-4" />
+                    <span className="truncate">
+                      {letter.type === 'incoming' ? ui.letters.recipient : ui.letters.from}:{' '}
+                      {letter.addressee.displayName}
+                    </span>
+                    <span aria-hidden className="text-border">
+                      ·
+                    </span>
+                  </>
+                ) : null}
+                <span className="shrink-0 tabular-nums">{formatDateTime(letter.receivedAt)}</span>
+              </div>
+            </div>
+            <LetterStatusBadge status={letter.status} />
+          </div>
+
+          {/* Тело письма — читательская колонка */}
+          <p className="mt-5 max-w-3xl text-[15px] leading-relaxed whitespace-pre-wrap text-foreground/90">
             {letter.body}
           </p>
-
-          <LetterFields letter={letter} />
 
           {letter.attachments.length > 0 ? (
             <>
@@ -100,15 +151,22 @@ export function LetterCard({ letterId }: { letterId: string }) {
                     </AttachmentMedia>
                     <AttachmentContent>
                       <AttachmentTitle>{file.name}</AttachmentTitle>
-                      <AttachmentDescription>
-                        {Math.round(file.size / 1024)} {ui.letters.kb}
-                      </AttachmentDescription>
+                      <AttachmentDescription>{formatSize(file.size)}</AttachmentDescription>
                     </AttachmentContent>
                   </Attachment>
                 ))}
               </AttachmentGroup>
             </>
           ) : null}
+
+          {/* Реквизиты регистрации — поля-реестр (корреспондент/адресат/дата —
+              в почтовой шапке выше, без дублирования) */}
+          <div className="mt-8">
+            <NodeLabel label={ui.letters.requisites} />
+          </div>
+          <div className="mt-2.5">
+            <LetterFields letter={letter} />
+          </div>
 
           {/* Секции разделяются отступами, без висячих сепараторов (канон) */}
           <div className="mt-6">
@@ -174,6 +232,13 @@ export function LetterCard({ letterId }: { letterId: string }) {
           <ArrowRight data-icon="inline-end" />
         </Button>
       </div>
+
+      <LetterComposeDialog
+        open={replyOpen}
+        onOpenChange={setReplyOpen}
+        defaultCorrespondent={letter.correspondent}
+        defaultSubject={`Re: ${letter.subject}`}
+      />
     </div>
   );
 }

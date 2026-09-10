@@ -1,19 +1,9 @@
-import {
-  Building2,
-  CalendarCheck2,
-  CalendarClock,
-  CalendarDays,
-  FolderKanban,
-  Hash,
-  Milestone,
-  User,
-} from 'lucide-react';
+import { CalendarCheck2, CalendarClock, FolderKanban, Hash, Milestone } from 'lucide-react';
 import { memo } from 'react';
 import type { LetterDetail } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 
-import { formatDate, formatDateTime } from '../../../shared/lib/format.js';
-import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
+import { formatDate } from '../../../shared/lib/format.js';
 import { DeadlineChip } from '../../../shared/ui/deadline-chip.js';
 import { EntityFields, type EntityFieldDef } from '../../../shared/ui/entity-fields.js';
 import { LetterStatusBadge } from './letter-status-badge.js';
@@ -22,17 +12,13 @@ const VISIBILITY_KEY = 'nodus-letter-fields-v1';
 
 const monoValue = 'font-mono text-[12px] tabular-nums';
 
-/** Инспектор полей письма (общий каркас EntityFields, свои defs): реквизиты
- *  документа — корреспондент, номера и даты, статус, адресат, проект, срок.
- *  Видимость — кнопка «+ Поле» (persist localStorage, свой ключ сущности). */
+/** Реквизиты регистрации письма (общий каркас EntityFields, свои defs):
+ *  статус, рег. номер и дата, проект, срок. Корреспондент/адресат/время —
+ *  в почтовой шапке карточки (модель почтового клиента), здесь не дублируются
+ *  (вердикт владельца 2026-09-10, раунд 2). Видимость — кнопка «+ Поле»
+ *  (persist localStorage, свой ключ сущности). */
 export const LetterFields = memo(function LetterFields({ letter }: { letter: LetterDetail }) {
   const defs: EntityFieldDef[] = [
-    {
-      key: 'correspondent',
-      icon: <Building2 className="size-3.5" />,
-      label: ui.letters.correspondent,
-      render: () => <span>{letter.correspondent}</span>,
-    },
     {
       key: 'status',
       icon: <Milestone className="size-3.5" />,
@@ -53,26 +39,6 @@ export const LetterFields = memo(function LetterFields({ letter }: { letter: Let
       render: () =>
         letter.regDate ? (
           <span className={monoValue}>{formatDate(letter.regDate)}</span>
-        ) : (
-          ui.common.notSet
-        ),
-    },
-    {
-      key: 'receivedAt',
-      icon: <CalendarDays className="size-3.5" />,
-      label: ui.letters.receivedAt,
-      render: () => <span className={monoValue}>{formatDateTime(letter.receivedAt)}</span>,
-    },
-    {
-      key: 'addressee',
-      icon: <User className="size-3.5" />,
-      label: ui.letters.addressee,
-      render: () =>
-        letter.addressee ? (
-          <>
-            <PersonAvatar name={letter.addressee.displayName} className="size-6" />
-            <span>{letter.addressee.displayName}</span>
-          </>
         ) : (
           ui.common.notSet
         ),

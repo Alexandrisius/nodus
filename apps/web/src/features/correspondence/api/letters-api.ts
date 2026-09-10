@@ -1,5 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { LetterDetail, LetterListItem, Paginated, Resolution } from '@nodus/contracts';
+import type {
+  CreateLetterBody,
+  LetterDetail,
+  LetterListItem,
+  Paginated,
+  Resolution,
+} from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { toast } from 'sonner';
 
@@ -52,6 +58,22 @@ export function useRegisterLetter() {
       api<LetterListItem>(`/letters/${letterId}/register`, { method: 'POST' }),
     onSuccess: () => {
       toast.success(ui.letters.registerDone);
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: lettersKeys.all });
+    },
+  });
+}
+
+/** Создание исходящего письма (почтовый клиент): оптимистично — письмо сразу
+ *  встаёт в «Исходящие» и открывается карточкой; при ошибке — откат кэша. */
+export function useCreateLetter() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: CreateLetterBody) => api<LetterDetail>(`/letters`, { method: 'POST', body }),
+    onSuccess: (letter) => {
+      queryClient.setQueryData(lettersKeys.detail(letter.id), letter);
+      toast.success(ui.letters.sendDone);
     },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: lettersKeys.all });

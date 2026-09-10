@@ -1,8 +1,14 @@
-import type { LetterListItem, Resolution, TaskListItem } from '@nodus/contracts';
+import type { LetterAttachment, LetterListItem, Resolution, TaskListItem } from '@nodus/contracts';
+import { ErrorCode, createLetterBodySchema } from '@nodus/contracts';
 
 import { http, HttpResponse } from 'msw';
 
-import { demoLetters, letterDetailOf } from '../../../../shared/mocks/data/letters.js';
+import {
+  demoLetters,
+  letterDetailOf,
+  lid,
+  registerComposedLetter,
+} from '../../../../shared/mocks/data/letters.js';
 import { isoIn } from '../../../../shared/mocks/data/dates.js';
 import {
   demoTasks,
@@ -14,6 +20,8 @@ import { currentAuthUser, userRef } from '../../../../shared/mocks/data/users.js
 
 let instructionSeq = 50;
 let registerSeq = 130;
+let outgoingSeq = 90;
+let letterSeq = 20;
 
 export const lettersHandlers = [
   http.get('/api/v1/letters', ({ request }) => {
@@ -24,6 +32,41 @@ export const lettersHandlers = [
         : l.type === folder && l.status !== 'unregistered',
     );
     return HttpResponse.json({ items, nextCursor: null });
+  }),
+
+  /** Создание исходящего письма (почтовый клиент, createLetterBodySchema):
+   *  регистрируется сразу (Исх-2026/NN), статус «Исполнено» — отправлено. */
+  http.post('/api/v1/letters', async ({ request }) => {
+    const parsed = createLetterBodySchema.safeParse(await request.json());
+    if (!parsed.success)
+      return HttpResponse.json(
+        { code: ErrorCode.VALIDATION_FAILED, message: 'Invalid body' },
+        { status: 422 },
+      );
+    letterSeq += 1;
+    const letter: LetterListItem = {
+      id: lid(letterSeq),
+      type: 'outgoing',
+      regNumber: `Исх-2026/${outgoingSeq}`,
+      regDate: new Date().toISOString().slice(0, 10),
+      correspondent: parsed.data.correspondent,
+      subject: parsed.data.subject,
+      status: 'done',
+      addressee: userRef(currentAuthUser.id),
+      project: null,
+      deadline: null,
+      receivedAt: new Date().toISOString(),
+    };
+    outgoingSeq += 1;
+    const attachments: LetterAttachment[] = parsed.data.attachments.map((file) => ({
+      id: crypto.randomUUID(),
+      name: file.name,
+      size: file.size,
+      mime: `application/octet-stream`,
+    }));
+    registerComposedLetter(letter.id, { body: parsed.data.body, attachments });
+    demoLetters.unshift(letter);
+    return HttpResponse.json(letterDetailOf(letter), { status: 201 });
   }),
 
   http.get('/api/v1/letters/:id', ({ params }) => {
