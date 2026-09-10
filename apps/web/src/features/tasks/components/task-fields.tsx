@@ -3,6 +3,8 @@ import {
   CalendarPlus,
   Flag,
   FolderKanban,
+  Kanban,
+  Milestone,
   Timer,
   User,
   UserPen,
@@ -18,6 +20,7 @@ import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
 import { DeadlineChip } from '../../../shared/ui/deadline-chip.js';
 import { NodeChip } from '@nodus/ui/components/node-chip';
 import { priorityTone } from '../lib/task-fields.js';
+import { TaskPersonalStageField, TaskStageField } from './task-stage-controls.js';
 
 /** Инспектор полей карточки (референс ClickUp, грамматика «Инструмента»):
  *  чистые строки «иконка + метка / значение» без табличных рамок.
@@ -82,6 +85,12 @@ export function TaskFields({ task }: { task: TaskDetail }) {
         ) : (
           ui.common.notSet
         )}
+      </Field>
+      <Field icon={<Milestone className="size-3.5" />} label={ui.tasks.fieldStage}>
+        <TaskStageField task={task} />
+      </Field>
+      <Field icon={<Kanban className="size-3.5" />} label={ui.tasks.viewKanban}>
+        <TaskPersonalStageField task={task} />
       </Field>
       <Field icon={<Timer className="size-3.5" />} label={ui.tasks.spent}>
         <span className="font-mono text-[12px] tabular-nums">
