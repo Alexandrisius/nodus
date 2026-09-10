@@ -86,7 +86,7 @@ export function LetterComposeDialog({
               autoFocus
               value={correspondent}
               onChange={(e) => setCorrespondent(e.target.value)}
-              placeholder="ООО «Заказчик»"
+              placeholder={ui.letters.composeRecipientPlaceholder}
             />
           </label>
           <label className="flex flex-col gap-1.5">

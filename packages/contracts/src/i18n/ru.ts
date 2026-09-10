@@ -218,6 +218,7 @@ export const ui = {
     reply: 'Ответить',
     composeTitle: 'Новое исходящее письмо',
     recipient: 'Кому',
+    composeRecipientPlaceholder: 'ООО «Заказчик»',
     from: 'От',
     composeSubject: 'Тема письма',
     composeBody: 'Текст письма',
