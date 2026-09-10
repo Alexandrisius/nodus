@@ -30,20 +30,15 @@ function Section({
 }
 
 /**
- * Выдвижная дополнительная панель «О задаче» (справа поверх карточки):
- * файлы и медиа, ссылки, история + избранное. По умолчанию скрыта —
- * обсуждение всегда видно в своей колонке, а свойства достаются по кнопке.
+ * Выдвижная дополнительная панель «О задаче» — ВТАЛКИВАЮЩАЯ колонка справа
+ * (не оверлей: чат и композер остаются доступны, вердикт владельца; плавный
+ * пуш — transition-[width] на колонке-обёртке в task-card): файлы и медиа,
+ * ссылки, история + избранное. По умолчанию скрыта — обсуждение всегда
+ * видно в своей колонке, а свойства достаются по кнопке.
  */
 export function TaskAboutDrawer({ task, onClose }: { task: TaskDetail; onClose: () => void }) {
   const { data } = useTaskMessages(task.id);
   const [favorite, setFavorite] = useState(false);
-  const [closing, setClosing] = useState(false);
-
-  function requestClose() {
-    if (closing) return;
-    setClosing(true);
-    window.setTimeout(onClose, 180);
-  }
 
   const files = (data?.items ?? []).flatMap((m) => m.attachments);
   const links = [task.description, ...(data?.items ?? []).map((m) => m.text)].flatMap(
@@ -51,14 +46,7 @@ export function TaskAboutDrawer({ task, onClose }: { task: TaskDetail; onClose: 
   );
 
   return (
-    <aside
-      className={cn(
-        'absolute inset-y-0 right-0 z-10 flex w-[360px] flex-col gap-3 overflow-y-auto border-l border-border bg-card p-4 shadow-xl',
-        closing
-          ? 'animate-out slide-out-to-right duration-200'
-          : 'animate-in slide-in-from-right duration-200',
-      )}
-    >
+    <aside className="flex h-full w-[360px] flex-col gap-3 overflow-y-auto border-l border-border bg-card p-4">
       <div className="flex shrink-0 items-center justify-between">
         <NodeLabel label={ui.tasks.aboutTask} />
         <div className="flex items-center gap-1">
@@ -77,7 +65,7 @@ export function TaskAboutDrawer({ task, onClose }: { task: TaskDetail; onClose: 
             variant="ghost"
             size="icon"
             className="hover:bg-accent"
-            onClick={requestClose}
+            onClick={onClose}
             aria-label={ui.common.close}
           >
             <X />

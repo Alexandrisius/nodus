@@ -20,6 +20,10 @@ export function useCardChatWidth() {
     const stored = Number(localStorage.getItem(STORE_KEY));
     return Number.isFinite(stored) && stored >= MIN_W ? clamp(stored) : DEFAULT_W;
   });
+  /** Идёт ручной drag: пока true, transition на ширине чата СНЯТ —
+   *  transitions только для программных toggle (панель «О задаче»), никогда
+   *  при ручном ресайзе, иначе догоняющая анимация = фризы (gotchas). */
+  const [dragging, setDragging] = useState(false);
   const widthRef = useRef(chatW);
   widthRef.current = chatW;
 
@@ -29,6 +33,7 @@ export function useCardChatWidth() {
     const startW = widthRef.current;
     let latest = startW;
     let raf = 0;
+    setDragging(true);
     const onMove = (ev: globalThis.PointerEvent) => {
       latest = clamp(startW + (startX - ev.clientX));
       // Не чаще одного рендера на кадр: pointermove может идти плотнее
@@ -43,6 +48,7 @@ export function useCardChatWidth() {
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
       if (raf) cancelAnimationFrame(raf);
+      setDragging(false);
       setChatW(latest);
       localStorage.setItem(STORE_KEY, String(latest));
     };
@@ -50,5 +56,5 @@ export function useCardChatWidth() {
     window.addEventListener('pointerup', onUp);
   }, []);
 
-  return { chatW, onDividerDown };
+  return { chatW, onDividerDown, dragging };
 }

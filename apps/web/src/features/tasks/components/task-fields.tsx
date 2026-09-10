@@ -47,20 +47,6 @@ function readHidden(): string[] {
   }
 }
 
-function PeopleList({ people }: { people: UserRef[] }) {
-  if (people.length === 0) return <>{ui.common.notSet}</>;
-  return (
-    <>
-      <span className="flex shrink-0 -space-x-1.5">
-        {people.slice(0, 3).map((p) => (
-          <PersonAvatar key={p.id} name={p.displayName} className="size-6 ring-2 ring-card" />
-        ))}
-      </span>
-      <span className="truncate">{people.map((p) => p.displayName).join(', ')}</span>
-    </>
-  );
-}
-
 /** Инспектор полей карточки (референс ClickUp, грамматика «Инструмента»):
  *  чистые строки «иконка + метка / значение» без табличных рамок.
  *  ПОЛЯ — РЕЕСТР дескрипторов, а не разметка: любое количество полей,
@@ -108,7 +94,7 @@ export function TaskFields({ task }: { task: TaskDetail }) {
         task.assignee ? (
           <>
             <PersonAvatar name={task.assignee.displayName} className="size-6" />
-            <span className="truncate">{task.assignee.displayName}</span>
+            <span>{task.assignee.displayName}</span>
           </>
         ) : (
           ui.common.notSet
@@ -121,7 +107,7 @@ export function TaskFields({ task }: { task: TaskDetail }) {
       render: () => (
         <>
           <PersonAvatar name={task.creator.displayName} className="size-6" />
-          <span className="truncate">{task.creator.displayName}</span>
+          <span>{task.creator.displayName}</span>
         </>
       ),
     },
@@ -133,6 +119,7 @@ export function TaskFields({ task }: { task: TaskDetail }) {
         task.project ? (
           <button
             type="button"
+            title={task.project.name}
             className="truncate font-mono text-[12px] text-info hover:underline"
             onClick={() =>
               void navigate({
@@ -188,7 +175,7 @@ export function TaskFields({ task }: { task: TaskDetail }) {
   const visible = defs.filter((d) => !hiddenKeys.includes(d.key));
 
   return (
-    <div className="mx-auto mt-5 grid max-w-3xl grid-cols-1 gap-x-12 gap-y-0.5 @min-[880px]:grid-cols-2">
+    <div className="mx-auto mt-5 grid max-w-4xl grid-cols-1 gap-x-12 gap-y-0.5 @min-[880px]:grid-cols-2">
       {visible.map((def) => (
         <Field key={def.key} icon={def.icon} label={def.label}>
           {def.render()}
@@ -230,5 +217,22 @@ function Field({ icon, label, children }: { icon: ReactNode; label: string; chil
           а не сжимается в ноль */}
       <span className="flex min-w-[160px] flex-1 items-center gap-2 text-sm">{children}</span>
     </div>
+  );
+}
+
+/** Люди НЕ сокращаются (вердикт владельца: места много): полное имя,
+ *  не влезает — переносится. Truncate — только сверхдлинные названия
+ *  типа проектов (с title-тултипом). */
+function PeopleList({ people }: { people: UserRef[] }) {
+  if (people.length === 0) return <>{ui.common.notSet}</>;
+  return (
+    <>
+      <span className="flex shrink-0 -space-x-1.5">
+        {people.slice(0, 3).map((p) => (
+          <PersonAvatar key={p.id} name={p.displayName} className="size-6 ring-2 ring-card" />
+        ))}
+      </span>
+      <span>{people.map((p) => p.displayName).join(', ')}</span>
+    </>
   );
 }

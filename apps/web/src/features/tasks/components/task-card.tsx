@@ -42,11 +42,14 @@ export function TaskCard({ taskId }: { taskId: string }) {
   const navigate = useNavigate();
   const [subtaskTitle, setSubtaskTitle] = useState('');
   const [aboutOpen, setAboutOpen] = useState(false);
+  // Панель «О задаче» монтируется раз и остаётся: колонка анимируется
+  // 0↔360px (плавный пуш), состояние (избранное, скролл) не теряется.
+  const [aboutMounted, setAboutMounted] = useState(false);
   const [branchOpen, setBranchOpen] = useState(false);
   // Навигатор ветки монтируется раз и остаётся: колонка сетки анимируется
   // 0↔300px (плавный пуш контента), состояние панели не теряется.
   const [branchMounted, setBranchMounted] = useState(false);
-  const { chatW, onDividerDown } = useCardChatWidth();
+  const { chatW, onDividerDown, dragging } = useCardChatWidth();
 
   function onAddSubtask(event: FormEvent) {
     event.preventDefault();
@@ -101,7 +104,10 @@ export function TaskCard({ taskId }: { taskId: string }) {
           </div>
           <button
             type="button"
-            onClick={() => setAboutOpen((v) => !v)}
+            onClick={() => {
+              setAboutMounted(true);
+              setAboutOpen((v) => !v);
+            }}
             aria-label={ui.tasks.aboutTask}
             title={ui.tasks.aboutTask}
             className={cn(
@@ -122,7 +128,7 @@ export function TaskCard({ taskId }: { taskId: string }) {
           не затрагивает. */}
       <div
         className="relative grid min-h-0 flex-1"
-        style={{ gridTemplateColumns: `auto minmax(0,1fr) 6px ${chatW}px` }}
+        style={{ gridTemplateColumns: `auto minmax(0,1fr) 6px auto auto` }}
       >
         <div
           className={cn(
@@ -140,7 +146,7 @@ export function TaskCard({ taskId }: { taskId: string }) {
         <div className="flex min-h-0 flex-col @container">
           <div className="content-fade min-h-0 flex-1 overflow-y-auto p-6">
             <div className="flex flex-wrap items-center gap-3">
-              <h2 className="min-w-0 flex-1 truncate text-xl font-semibold">{task.title}</h2>
+              <h2 className="min-w-0 flex-1 text-xl leading-snug font-semibold">{task.title}</h2>
               {task.source === 'letter' ? (
                 <NodeChip tone="info">
                   <Mail className="size-3" />
@@ -236,14 +242,38 @@ export function TaskCard({ taskId }: { taskId: string }) {
 
         {/* Зона чата: тёмный фон — структура (виден с первого кадра роста,
             НЕ появляется вместе с контентом — иначе читается как смена цвета
-            в середине раскрытия); fade — только содержимое обсуждения. */}
-        <div className="min-h-0 bg-background">
-          <div className="content-fade h-full">
-            <TaskDiscussion taskId={taskId} />
+            в середине раскрытия); fade — только содержимое обсуждения.
+            При открытой «О задаче» СУЖАЕТСЯ на ширину панели (та же
+            duration/easing — синхронно с её ростом, сумма постоянна):
+            левая панель и разделитель НЕ двигаются (вердикт владельца). */}
+        <div
+          className={cn(
+            'min-h-0 overflow-hidden',
+            // transition — ТОЛЬКО для программного toggle «О задаче»;
+            // во время ручного drag — снят, иначе догоняющая анимация (gotchas)
+            !dragging && 'transition-[width] duration-200 ease-out',
+          )}
+          style={{ width: aboutOpen ? Math.max(chatW - 360, 280) : chatW }}
+        >
+          <div className="h-full w-full bg-background">
+            <div className="content-fade h-full">
+              <TaskDiscussion taskId={taskId} />
+            </div>
           </div>
         </div>
 
-        {aboutOpen ? <TaskAboutDrawer task={task} onClose={() => setAboutOpen(false)} /> : null}
+        {/* Панель «О задаче» — вталкивающая колонка справа (не оверлей:
+            чат и кнопка отправки остаются доступны — вердикт владельца) */}
+        <div
+          className={cn(
+            'min-h-0 overflow-hidden transition-[width] duration-200 ease-out',
+            aboutOpen ? 'w-[360px]' : 'w-0',
+          )}
+        >
+          {aboutMounted ? (
+            <TaskAboutDrawer task={task} onClose={() => setAboutOpen(false)} />
+          ) : null}
+        </div>
       </div>
     </div>
   );
