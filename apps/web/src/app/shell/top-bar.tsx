@@ -89,7 +89,13 @@ function sectionsFor(pathname: string): Section[] {
         label: ui.employees.structure,
         to: '/employees',
         search: {},
-        isActive: () => true,
+        isActive: (s) => (s.get('view') ?? 'org') === 'org',
+      },
+      {
+        label: ui.employees.viewList,
+        to: '/employees',
+        search: { view: 'list' },
+        isActive: (s) => s.get('view') === 'list',
       },
     ];
   }

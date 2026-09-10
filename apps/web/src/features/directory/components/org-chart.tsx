@@ -1,6 +1,9 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from '@tanstack/react-router';
 import type { UserListItem } from '@nodus/contracts';
+import { snapPx } from '@nodus/ui/components/node-edge';
 
+import { useShellStore } from '../../../app/shell/shell-store.js';
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
 
 interface NodePos {
@@ -9,13 +12,41 @@ interface NodePos {
   h: number;
 }
 
-/** Оргструктура: бумажные карточки рекурсивным деревом (дети под родителем)
- * и строгие ортогональные связи со скруглёнными углами. */
+/** Отступ конца отвода от края порта (порт r=3 закрывает конец линии). */
+const PORT_GAP = 4;
+const PORT_R = 3;
+
+interface Segment {
+  key: string;
+  d: string;
+}
+interface Port {
+  key: string;
+  x: number;
+  y: number;
+}
+
+/**
+ * Оргструктура компании по грамматике контура Nodus: узлы — плоские
+ * node-панели (аватар + имя + должность), связи — ортогональные рёбра 1px
+ * на токене --edge с портами r=3 у верхнего края карточки подчинённого
+ * (порты — только на целевом конце, как NodeEdge ports='end').
+ * КАЖДЫЙ СЕГМЕНТ — РОВНО ОДИН ШТРИХ (gotchas SVG-графа): на группу
+ * «руководитель → дети» рисуются НЕпересекающиеся пути — шина (одна
+ * горизонталь от первого ребёнка до последнего), ствол (одна вертикаль
+ * руководителя до шины), отводы (вертикали к портам детей): наложения
+ * сегментов дали бы градиент яркости из сложения полупрозрачных stroke.
+ * Координаты прямых — snapPx (равномерная яркость hairline на любом зуме).
+ * Клик по узлу — карточка сотрудника слайдером (shared-element из rect).
+ */
 export function OrgChart({ people }: { people: UserListItem[] }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const nodeRefs = useRef(new Map<string, HTMLDivElement>());
-  const [edges, setEdges] = useState<Array<{ d: string; key: string }>>([]);
+  const [segments, setSegments] = useState<Segment[]>([]);
+  const [ports, setPorts] = useState<Port[]>([]);
+  const navigate = useNavigate();
+  const setLastSource = useShellStore((s) => s.setLastSource);
 
   useLayoutEffect(() => {
     const el = scrollRef.current;
@@ -52,37 +83,71 @@ export function OrgChart({ people }: { people: UserListItem[] }) {
           h: rect.height,
         });
       }
-      const next: Array<{ d: string; key: string }> = [];
+      const nextSegments: Segment[] = [];
+      const nextPorts: Port[] = [];
       for (const person of people) {
-        if (!person.managerId) continue;
-        const from = pos.get(person.managerId);
-        const to = pos.get(person.id);
-        if (!from || !to) continue;
-        const y0 = from.y + from.h - 2;
-        const y1 = to.y + 2;
-        const midY = Math.round((y0 + y1) / 2);
-        const dx = to.x - from.x;
-        let d: string;
-        if (Math.abs(dx) < 1) {
-          d = `M ${from.x} ${y0} V ${y1}`;
-        } else {
-          const s = Math.sign(dx);
-          const r = Math.min(12, Math.abs(dx) / 2, midY - y0, y1 - midY);
-          d = `M ${from.x} ${y0} V ${midY - r} Q ${from.x} ${midY} ${from.x + s * r} ${midY} H ${
-            to.x - s * r
-          } Q ${to.x} ${midY} ${to.x} ${midY + r} V ${y1}`;
+        const children = childrenOf.get(person.id) ?? [];
+        const from = pos.get(person.id);
+        if (children.length === 0 || !from) continue;
+        const childPos = children
+          .map((child) => pos.get(child.id))
+          .filter((p): p is NodePos => p !== undefined);
+        if (childPos.length === 0) continue;
+        const y0 = from.y + from.h;
+        const y1 = Math.min(...childPos.map((p) => p.y));
+        const trunkX = snapPx(Math.round(from.x));
+        const only = childPos.length === 1 ? childPos[0] : undefined;
+        if (only && Math.abs(only.x - from.x) < 1) {
+          // Единственный ребёнок ровно под руководителем — одна вертикаль.
+          nextSegments.push({
+            key: `trunk-${person.id}`,
+            d: `M ${trunkX} ${y0} V ${y1 - PORT_GAP}`,
+          });
+          nextPorts.push({ key: `port-${children[0]?.id ?? person.id}`, x: trunkX, y: y1 - 1 });
+          continue;
         }
-        next.push({ d, key: person.id });
+        const busY = snapPx(Math.round((y0 + y1) / 2));
+        const xs = childPos.map((p) => Math.round(p.x));
+        const firstX = snapPx(Math.min(...xs, Math.round(from.x)));
+        const lastX = snapPx(Math.max(...xs, Math.round(from.x)));
+        // Шина — одна горизонталь; ствол — одна вертикаль до шины.
+        nextSegments.push({ key: `bus-${person.id}`, d: `M ${firstX} ${busY} H ${lastX}` });
+        nextSegments.push({ key: `trunk-${person.id}`, d: `M ${trunkX} ${y0} V ${busY}` });
+        // Отводы — отдельные вертикали к портам детей (T-стыки, без наложений).
+        for (const child of children) {
+          const to = pos.get(child.id);
+          if (!to) continue;
+          const x = snapPx(Math.round(to.x));
+          nextSegments.push({
+            key: `drop-${child.id}`,
+            d: `M ${x} ${busY} V ${to.y - PORT_GAP}`,
+          });
+          nextPorts.push({ key: `port-${child.id}`, x, y: to.y - 1 });
+        }
       }
-      setEdges((prev) =>
-        prev.length === next.length && prev.every((e, i) => e?.d === next[i]?.d) ? prev : next,
+      setSegments((prev) =>
+        prev.length === nextSegments.length && prev.every((s, i) => s.d === nextSegments[i]?.d)
+          ? prev
+          : nextSegments,
+      );
+      setPorts((prev) =>
+        prev.length === nextPorts.length &&
+        prev.every((p, i) => p.x === nextPorts[i]?.x && p.y === nextPorts[i]?.y)
+          ? prev
+          : nextPorts,
       );
     }
     measure();
     const observer = new ResizeObserver(measure);
     if (rootRef.current) observer.observe(rootRef.current);
     return () => observer.disconnect();
-  }, [people]);
+  }, [people, childrenOf]);
+
+  function openPerson(person: UserListItem, el: HTMLElement) {
+    const rect = el.getBoundingClientRect();
+    setLastSource({ x: rect.x, y: rect.y, width: rect.width, height: rect.height });
+    void navigate({ to: '/employees/$userId', params: { userId: person.id } });
+  }
 
   function renderPerson(person: UserListItem): React.ReactNode {
     const children = childrenOf.get(person.id) ?? [];
@@ -93,15 +158,26 @@ export function OrgChart({ people }: { people: UserListItem[] }) {
             if (node) nodeRefs.current.set(person.id, node);
             else nodeRefs.current.delete(person.id);
           }}
-          className="paper-card sketch-tilt flex items-center gap-2.5 px-3 py-2.5"
         >
-          <PersonAvatar name={person.displayName} className="size-8" />
-          <div>
-            <div className="text-sm font-semibold whitespace-nowrap">{person.displayName}</div>
-            <div className="text-[11px] whitespace-nowrap text-card-foreground/60">
-              {person.positionName}
-            </div>
-          </div>
+          <button
+            type="button"
+            onClick={(e) => openPerson(person, e.currentTarget)}
+            className="node-panel flex items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:border-input"
+          >
+            <PersonAvatar
+              name={person.displayName}
+              avatarUrl={person.avatarUrl}
+              className="size-8 shrink-0"
+            />
+            <span>
+              <span className="block text-sm font-medium whitespace-nowrap">
+                {person.displayName}
+              </span>
+              <span className="block text-xs text-muted-foreground whitespace-nowrap">
+                {person.positionName ?? ''}
+              </span>
+            </span>
+          </button>
         </div>
         {children.length > 0 && (
           <div className="flex items-start gap-4">{children.map(renderPerson)}</div>
@@ -111,18 +187,23 @@ export function OrgChart({ people }: { people: UserListItem[] }) {
   }
 
   return (
-    <div ref={scrollRef} className="h-full overflow-x-auto">
+    <div ref={scrollRef} className="h-full overflow-auto">
       <div ref={rootRef} className="relative w-max min-w-full py-6">
-        <svg className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden="true">
-          {edges.map((edge) => (
+        <svg
+          className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
+          aria-hidden="true"
+        >
+          {segments.map((segment) => (
             <path
-              key={edge.key}
-              d={edge.d}
+              key={segment.key}
+              d={segment.d}
               fill="none"
-              stroke="var(--foreground)"
-              strokeOpacity="0.5"
-              strokeWidth="1.5"
+              stroke="var(--edge)"
+              strokeWidth={1}
             />
+          ))}
+          {ports.map((port) => (
+            <circle key={port.key} cx={port.x} cy={port.y} r={PORT_R} fill="var(--port)" />
           ))}
         </svg>
         <div className="flex justify-center gap-6 px-6">{roots.map(renderPerson)}</div>

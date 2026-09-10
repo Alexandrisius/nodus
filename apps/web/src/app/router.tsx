@@ -46,8 +46,15 @@ const ProjectSliderPage = lazy(() =>
 const ChatPage = lazy(() =>
   import('../features/chat/pages/chat-page.js').then((m) => ({ default: m.ChatPage })),
 );
-const UsersPage = lazy(() =>
-  import('../features/directory/users-page.js').then((m) => ({ default: m.UsersPage })),
+const EmployeesPage = lazy(() =>
+  import('../features/directory/pages/employees-page.js').then((m) => ({
+    default: m.EmployeesPage,
+  })),
+);
+const EmployeeSliderPage = lazy(() =>
+  import('../features/directory/pages/employee-slider-page.js').then((m) => ({
+    default: m.EmployeeSliderPage,
+  })),
 );
 
 /**
@@ -145,7 +152,12 @@ const chatConversationRoute = createRoute({
 const employeesRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: '/employees',
-  component: UsersPage,
+  component: EmployeesPage,
+});
+const employeeSliderRoute = createRoute({
+  getParentRoute: () => employeesRoute,
+  path: '/$userId',
+  component: EmployeeSliderPage,
 });
 
 const routeTree = rootRoute.addChildren([
@@ -157,7 +169,7 @@ const routeTree = rootRoute.addChildren([
     projectsRoute.addChildren([projectSliderRoute.addChildren([projectTaskSliderRoute])]),
     chatRoute,
     chatConversationRoute,
-    employeesRoute,
+    employeesRoute.addChildren([employeeSliderRoute]),
   ]),
 ]);
 
