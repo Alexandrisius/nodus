@@ -23,7 +23,8 @@ const CLOSE_EASE = 'cubic-bezier(0.5, 0, 0.9, 0.4)';
  * Детальная панель — общий слой карточки-сущности и ЕДИНСТВЕННАЯ геометрия
  * карточек продукта (ADR-0009, вердикт владельца 2026-09-10): все сущности
  * (задача, проект, письмо, сотрудник) открываются панелью ОДНОГО размера
- * (inset-x-3, top-10, до низа) и НАСЛАИВАЮТСЯ друг на друга стеком (хост —
+ * (inset-x-3, top-10, bottom-2 — парящий лист со скруглением всех углов,
+ * пакет мягкости 12.09.2026) и НАСЛАИВАЮТСЯ друг на друга стеком (хост —
  * CardStackHost, стек в `?cards=`): закрытие верхней возвращает к прежней,
  * смонтированной под ней, — без дёргания геометрии и потери места.
  * Уровней/смещений НЕТ (уровневые inset'ы ломали единство размеров).
@@ -159,7 +160,7 @@ export function SliderPanel({
         aria-modal="true"
         style={flipStyle}
         className={cn(
-          'slider-shadow absolute inset-x-3 bottom-0 top-10 z-20 flex flex-col rounded-t-xl border border-b-0 border-border bg-card text-card-foreground',
+          'slider-shadow absolute inset-x-3 top-10 bottom-2 z-20 flex flex-col rounded-2xl border border-border bg-card text-card-foreground',
           sourceRect ? 'slider-expand' : 'slider-pop',
         )}
       >

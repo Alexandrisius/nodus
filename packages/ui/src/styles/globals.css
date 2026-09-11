@@ -202,7 +202,9 @@
   --sidebar-foreground: #43454a;
   --sidebar-primary: #16233a;
   --sidebar-primary-foreground: #fbfaf8;
-  --sidebar-accent: #dcd8cf;
+  /* Ховер/активный ряд рейки — тёплый почти-белый (реф команды: белая плашка
+     по серому шеллу; чистый #FFF не нужен — плашка мала, но блик ни к чему). */
+  --sidebar-accent: #f6f4f0;
   --sidebar-accent-foreground: #26272a;
   --sidebar-border: rgb(0 0 0 / 0.07);
   --sidebar-ring: #16233a;
@@ -217,12 +219,14 @@
   --slider-shadow: 0 26px 70px -18px rgb(22 35 58 / 0.25), 0 8px 26px -12px rgb(22 35 58 / 0.16);
 }
 
-/* Панель «инструмента»: плоская заливка, тонкий бордюр, радиус темы. */
+/* Панель «инструмента»: плоская заливка, тонкий бордюр, радиус поверхности
+   (14px — средняя ступень лестницы мягкости: контролы 8-10, поверхности 14,
+   рамы 18; пакет мягкости, вердикт владельца 12.09.2026). */
 @utility node-panel {
   background-color: var(--card);
   color: var(--card-foreground);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
 }
 
 /* Отрисовка ребра при появлении (pathLength=1 → dash в долях длины). */

@@ -63,10 +63,17 @@ export function AppShell() {
         <NodeRail />
         <div className="relative flex min-w-0 flex-1 flex-col">
           <TopBar />
-          <div id="content" className="relative min-h-0 flex-1">
-            <Suspense fallback={<ShellFallback />}>
-              <Outlet />
-            </Suspense>
+          <div id="content" className="relative flex min-h-0 flex-1 flex-col">
+            {/* Мягкая рама рабочей зоны (пакет мягкости, вердикт владельца
+                12.09.2026): журналы и страницы живут ВНУТРИ мягкой панели
+                (18px, отступы 8px, фон «лист») — ступень формы поверх ступеней
+                тона, как в рефах команды; справа без margins — шов скроллбара
+                у полосы коллег сохранён (globals, #content padding-right). */}
+            <div className="m-2 mr-0 min-h-0 flex-1 overflow-hidden rounded-2xl bg-card">
+              <Suspense fallback={<ShellFallback />}>
+                <Outlet />
+              </Suspense>
+            </div>
           </div>
           {/* Стек карточек сущностей поверх раздела (ADR-0009, ?cards=) */}
           <CardStackHost />

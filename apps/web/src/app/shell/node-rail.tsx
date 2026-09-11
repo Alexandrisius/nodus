@@ -145,7 +145,11 @@ export function NodeRail() {
                         'transition-[color,gap,padding,background-color] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]',
                         'text-sidebar-foreground/65 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground',
                         active && 'bg-sidebar-accent text-sidebar-accent-foreground',
-                        'mx-3',
+                        // Плашка ховера/активного ряда — ПРАВЕЕ графа: магистраль
+                        // и порты остаются на чистом фоне шелла (структура ≠
+                        // ховер, вердикт владельца 12.09.2026). В свёрнутой
+                        // рейке графа внутри нет — плашка как прежде.
+                        collapsed ? 'mx-3' : 'mr-3 ml-[52px]',
                         collapsed ? 'gap-0' : 'gap-3',
                       )}
                       style={{ paddingLeft: collapsed ? 11 : CONTENT_X }}
