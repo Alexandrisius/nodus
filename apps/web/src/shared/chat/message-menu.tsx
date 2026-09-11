@@ -4,24 +4,22 @@ import {
   Forward,
   Link2,
   ListTodo,
-  MoreHorizontal,
   Pencil,
   Pin,
   Reply,
   Star,
   Trash2,
 } from 'lucide-react';
-import { useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import type { ChatMessage } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@nodus/ui/components/dropdown-menu';
-import { cn } from '@nodus/ui/lib/utils';
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from '@nodus/ui/components/context-menu';
 import { toast } from 'sonner';
 
 import { useOpenCard } from '../../app/shell/use-card-stack.js';
@@ -66,10 +64,10 @@ const messageActionDefs: MessageActionDef[] = [
 ];
 
 /**
- * Контекстное меню сообщения: правый клик по сообщению + ховер-кнопка «⋯»
- * (children — render-prop, получает openMenu для кнопки; по координатам
- * клипа меню якорится к кнопке). Один DropdownMenu с «виртуальным»
- * триггером-якорем по координатам указателя.
+ * Контекстное меню сообщения — ТОЛЬКО правый клик по сообщению (вердикт
+ * владельца: никаких кнопок «⋯»). Radix ContextMenu — примитив ровно для
+ * этого: меню открывается У КУРСОРА и клампится в viewport самим Radix
+ * (свои сообщения у правого края — регрессия ручного якоря из валидации).
  */
 export function MessageMenu({
   message,
@@ -80,21 +78,17 @@ export function MessageMenu({
   message: ChatMessage;
   mine: boolean;
   conversationId: string;
-  children: (openMenu: (x: number, y: number) => void) => ReactNode;
+  children: ReactNode;
 }) {
-  const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState({ x: 0, y: 0 });
   const toTask = useMessageToTask();
   const openCard = useOpenCard();
 
-  function openMenu(x: number, y: number) {
-    setPos({ x, y });
-    setOpen(true);
-  }
-
   function run(action: MessageActionDef) {
     if (action.id === 'copy') {
-      void navigator.clipboard.writeText(message.text).then(() => toast.success(ui.chat.copied));
+      navigator.clipboard
+        .writeText(message.text)
+        .then(() => toast.success(ui.chat.copied))
+        .catch(() => toast.error(ui.common.copyError));
       return;
     }
     if (action.id === 'toTask') {
@@ -111,52 +105,24 @@ export function MessageMenu({
   const defs = messageActionDefs.filter((a) => !a.mineOnly || mine);
 
   return (
-    <DropdownMenu open={open} onOpenChange={setOpen} modal={false}>
-      <DropdownMenuTrigger asChild>
-        <span aria-hidden className="fixed z-0 size-0" style={{ left: pos.x, top: pos.y }} />
-      </DropdownMenuTrigger>
-      {/* Правый клик по сообщению — меню у указателя (модель мессенджеров). */}
-      <span
-        className="contents"
-        onContextMenu={(e) => {
-          e.preventDefault();
-          openMenu(e.clientX, e.clientY);
-        }}
-      >
-        {children(openMenu)}
-      </span>
-      <DropdownMenuContent align="start" side="bottom" className="w-56">
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <span className="block">{children}</span>
+      </ContextMenuTrigger>
+      <ContextMenuContent className="w-56">
         {defs.map((action, i) => (
           <span key={action.id}>
-            {action.danger && i > 0 ? <DropdownMenuSeparator /> : null}
-            <DropdownMenuItem
+            {action.danger && i > 0 ? <ContextMenuSeparator /> : null}
+            <ContextMenuItem
+              variant={action.danger ? 'destructive' : 'default'}
               onClick={() => run(action)}
-              className={cn(action.danger && 'text-destructive focus:text-destructive')}
             >
               <action.icon className="size-4" strokeWidth={1.75} />
               {action.label}
-            </DropdownMenuItem>
+            </ContextMenuItem>
           </span>
         ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
-/** Ховер-кнопка «⋯» для слота действий сообщения — открывает то же меню. */
-export function MessageMenuButton({ onOpen }: { onOpen: (x: number, y: number) => void }) {
-  return (
-    <button
-      type="button"
-      aria-label={ui.common.more}
-      title={ui.common.more}
-      onClick={(e) => {
-        const rect = e.currentTarget.getBoundingClientRect();
-        onOpen(rect.left, rect.bottom + 4);
-      }}
-      className="inline-flex items-center rounded-md px-1.5 py-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-    >
-      <MoreHorizontal className="size-4" strokeWidth={1.75} />
-    </button>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }

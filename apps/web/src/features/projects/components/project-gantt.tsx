@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import type { TaskListItem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
+import { Empty, EmptyTitle } from '@nodus/ui/components/empty';
 import { Skeleton } from '@nodus/ui/components/skeleton';
 import { cn } from '@nodus/ui/lib/utils';
 
@@ -87,9 +88,9 @@ export function ProjectGantt({ projectId }: { projectId: string }) {
   if (model.rows.length === 0) {
     return (
       <div className="flex h-full items-center justify-center">
-        <p className="rounded-md border border-dashed border-border px-3 py-6 font-mono text-[10px] tracking-[0.14em] text-muted-foreground/70 uppercase">
-          {ui.projects.ganttEmpty}
-        </p>
+        <Empty>
+          <EmptyTitle>{ui.projects.ganttEmpty}</EmptyTitle>
+        </Empty>
       </div>
     );
   }

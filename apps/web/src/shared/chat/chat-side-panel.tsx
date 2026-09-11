@@ -1,4 +1,4 @@
-import { FileText, Link2, X } from 'lucide-react';
+import { FileText, Link2, PanelRight, X } from 'lucide-react';
 import { useCallback, useState } from 'react';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
@@ -6,6 +6,10 @@ import { NodeLabel } from '@nodus/ui/components/node-label';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { useConversationMessages } from './api.js';
+
+/** Ширина вталкивающей панели беседы: контейнер уменьшает чат на неё
+ *  (до минимума — дальше панель выталкивает левую часть). */
+export const CHAT_PANEL_W = 300;
 
 function Section({
   icon: Icon,
@@ -29,8 +33,8 @@ function Section({
 
 /**
  * Состояние панели беседы: монтируется один раз при первом открытии и
- * остаётся (плавный translate, скролл не теряется) — тот же приём, что
- * у панели «О задаче».
+ * остаётся (плавный пуш ширины, скролл не теряется) — приём панели
+ * «О задаче».
  */
 export function useChatSidePanel() {
   const [open, setOpen] = useState(false);
@@ -44,15 +48,14 @@ export function useChatSidePanel() {
 }
 
 /**
- * ЗАКОН (вердикт владельца 2026-09-11, раунд 3): где чат — там правая
- * выдвижная панель с вложениями и ссылками беседы. Применяется во всех
- * пейнах shared/chat (беседа, лента канала, тред); в карточке задачи её
- * роль играет панель «О задаче» (те же секции + история и избранное).
- *
- * Панель — оверлей ПОВЕРХ зоны ленты (absolute inset-y-0 right-0): чат в
- * карточке может быть узким, вталкивание не оставило бы места сообщениям;
- * композер и шапка треда НЕ перекрываются — писать можно с открытой
- * панелью (дух вердикта о доступности композера из панели «О задаче»).
+ * ЗАКОН (вердикт владельца 2026-09-11): где чат — там правая панель с
+ * файлами и ссылками беседы. Канон — панель «О задаче»: ВТАЛКИВАЮЩАЯ
+ * колонка справа (не оверлей — композер и лента доступны), тоггл — кнопка
+ * СПРАВА ВВЕРХУ в шапке беседы (её рисует контейнер: страница мессенджера
+ * или колонка чата карточки). Панель двигает область чата; когда чат уже на
+ * минимальной ширине — выталкивает левую часть (auto-колонки grid).
+ * В карточке задачи её роль играет панель «О задаче» (те же секции +
+ * история и избранное).
  */
 export function ChatSidePanel({
   conversationId,
@@ -69,55 +72,76 @@ export function ChatSidePanel({
   const links = items.flatMap((m) => m.text.match(/https?:\/\/\S+/g) ?? []);
 
   return (
-    <aside
+    <div
       aria-hidden={!open}
       className={cn(
-        'absolute inset-y-0 right-0 z-10 flex w-72 flex-col gap-3 overflow-y-auto border-l border-border bg-card p-4 transition-transform duration-200 ease-out',
-        open ? 'translate-x-0' : 'translate-x-full',
+        'h-full shrink-0 overflow-hidden transition-[width] duration-200 ease-out',
+        open ? 'w-[300px]' : 'w-0',
       )}
     >
-      <div className="flex shrink-0 items-center justify-between">
-        <NodeLabel label={ui.chat.panelTitle} />
-        <Button
-          variant="ghost"
-          size="icon"
-          className="hover:bg-accent"
-          onClick={onClose}
-          aria-label={ui.common.close}
-        >
-          <X />
-        </Button>
-      </div>
+      <aside className="flex h-full w-[300px] flex-col gap-3 overflow-y-auto border-l border-border bg-card p-4">
+        <div className="flex shrink-0 items-center justify-between">
+          <NodeLabel label={ui.chat.panelTitle} />
+          <Button
+            variant="ghost"
+            size="icon"
+            className="hover:bg-accent"
+            onClick={onClose}
+            aria-label={ui.common.close}
+          >
+            <X />
+          </Button>
+        </div>
 
-      <Section icon={FileText} title={ui.chat.filesMedia}>
-        {files.length > 0 ? (
-          files.map((file) => (
-            <span key={file.id} className="truncate font-mono text-[12px] text-info">
-              {file.name}
-            </span>
-          ))
-        ) : (
-          <span className="text-sm text-muted-foreground">{ui.common.empty}</span>
-        )}
-      </Section>
+        <Section icon={FileText} title={ui.chat.filesMedia}>
+          {files.length > 0 ? (
+            files.map((file) => (
+              <span key={file.id} className="truncate font-mono text-[12px] text-info">
+                {file.name}
+              </span>
+            ))
+          ) : (
+            <span className="text-sm text-muted-foreground">{ui.common.empty}</span>
+          )}
+        </Section>
 
-      <Section icon={Link2} title={ui.chat.links}>
-        {links.length > 0 ? (
-          links.map((link) => (
-            <a
-              key={link}
-              href={link}
-              target="_blank"
-              rel="noreferrer"
-              className="truncate font-mono text-[12px] text-info hover:underline"
-            >
-              {link}
-            </a>
-          ))
-        ) : (
-          <span className="text-sm text-muted-foreground">{ui.common.empty}</span>
-        )}
-      </Section>
-    </aside>
+        <Section icon={Link2} title={ui.chat.links}>
+          {links.length > 0 ? (
+            links.map((link) => (
+              <a
+                key={link}
+                href={link}
+                target="_blank"
+                rel="noreferrer"
+                className="truncate font-mono text-[12px] text-info hover:underline"
+              >
+                {link}
+              </a>
+            ))
+          ) : (
+            <span className="text-sm text-muted-foreground">{ui.common.empty}</span>
+          )}
+        </Section>
+      </aside>
+    </div>
+  );
+}
+
+/** Кнопка тоггла панели беседы — для шапки беседы СПРАВА ВВЕРХУ (канон
+ *  кнопки «О задаче» в полосе карточки задачи). */
+export function ChatPanelToggle({ open, onToggle }: { open: boolean; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-label={ui.chat.panelTitle}
+      title={ui.chat.panelTitle}
+      className={cn(
+        'shrink-0 rounded-lg p-2 transition-colors hover:bg-accent',
+        open ? 'text-foreground' : 'text-muted-foreground',
+      )}
+    >
+      <PanelRight className="size-4" strokeWidth={1.75} />
+    </button>
   );
 }

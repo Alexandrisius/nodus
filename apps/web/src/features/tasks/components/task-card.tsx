@@ -10,7 +10,7 @@ import { cn } from '@nodus/ui/lib/utils';
 
 import { useOpenCard } from '../../../app/shell/use-card-stack.js';
 import { DomainChain, type ChainNode } from '../../../shared/ui/domain-chain.js';
-import { useChatWidth } from '../../../shared/ui/use-chat-width.js';
+import { useChatWidth, MIN_CHAT_WITH_PANEL } from '../../../shared/ui/use-chat-width.js';
 import { useAddSubtask, useTaskDetail } from '../api/tasks-api.js';
 import { TaskAboutDrawer } from './task-about-drawer.js';
 import { TaskBranchDrawer } from './task-branch-drawer.js';
@@ -259,7 +259,7 @@ export function TaskCard({ taskId }: { taskId: string }) {
             // во время ручного drag — снят, ширина идёт императивно (gotchas)
             !dragging && 'transition-[width] duration-200 ease-out',
           )}
-          style={{ width: Math.max(chatW - (aboutOpen ? ABOUT_W : 0), 280) }}
+          style={{ width: Math.max(chatW - (aboutOpen ? ABOUT_W : 0), MIN_CHAT_WITH_PANEL) }}
         >
           <div className="h-full w-full bg-background">
             <div className="content-fade h-full">

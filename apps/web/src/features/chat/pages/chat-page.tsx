@@ -6,6 +6,11 @@ import { Empty, EmptyTitle } from '@nodus/ui/components/empty';
 import { useOpenCard } from '../../../app/shell/use-card-stack.js';
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
 import { ConversationPane } from '../../../shared/chat/conversation-pane.js';
+import {
+  ChatPanelToggle,
+  ChatSidePanel,
+  useChatSidePanel,
+} from '../../../shared/chat/chat-side-panel.js';
 import { ThreadFeed } from '../../../shared/chat/thread-feed.js';
 import { ThreadPane } from '../../../shared/chat/thread-pane.js';
 import { useConversations } from '../api/chat-api.js';
@@ -32,6 +37,9 @@ export function ChatPage() {
   const { data, isLoading } = useConversations();
   const navigate = useNavigate();
   const openCard = useOpenCard();
+  // Панель беседы (закон: у каждого чата) — хостится контейнером страницы,
+  // тоггл — кнопка СПРАВА ВВЕРХУ шапки беседы (канон кнопки «О задаче»).
+  const panel = useChatSidePanel();
 
   const items = (data?.items ?? []).filter((c) =>
     tab === 'tasks' ? c.type === 'task' : c.type !== 'task',
@@ -70,45 +78,53 @@ export function ChatPage() {
                 {conversationSubtitle(active)}
               </div>
             </div>
-            {active.type === 'task' && active.task ? (
-              <button
-                type="button"
-                onClick={() => openCard({ kind: 'task', id: active.task?.id ?? '' })}
-                className="ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 font-mono text-[10px] tracking-[0.12em] text-muted-foreground uppercase transition-colors hover:border-input hover:text-foreground"
-              >
-                {ui.chat.openTask}
-                <SquareArrowOutUpRight className="size-3.5" strokeWidth={1.75} />
-              </button>
-            ) : null}
+            <div className="ml-auto flex shrink-0 items-center gap-2">
+              {active.type === 'task' && active.task ? (
+                <button
+                  type="button"
+                  onClick={() => openCard({ kind: 'task', id: active.task?.id ?? '' })}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 font-mono text-[10px] tracking-[0.12em] text-muted-foreground uppercase transition-colors hover:border-input hover:text-foreground"
+                >
+                  {ui.chat.openTask}
+                  <SquareArrowOutUpRight className="size-3.5" strokeWidth={1.75} />
+                </button>
+              ) : null}
+              <ChatPanelToggle open={panel.open} onToggle={panel.toggle} />
+            </div>
           </header>
-          {active.type === 'project_channel' ? (
-            search.thread ? (
-              <ThreadPane
-                conversationId={active.id}
-                threadRootId={search.thread}
-                onBack={() =>
-                  void navigate({
-                    to: '/chat/$conversationId',
-                    params: { conversationId: active.id },
-                    search: tab === 'chats' ? {} : { tab },
-                  })
-                }
-              />
+          <div className="flex min-h-0 flex-1">
+            {active.type === 'project_channel' ? (
+              search.thread ? (
+                <ThreadPane
+                  conversationId={active.id}
+                  threadRootId={search.thread}
+                  onBack={() =>
+                    void navigate({
+                      to: '/chat/$conversationId',
+                      params: { conversationId: active.id },
+                      search: tab === 'chats' ? {} : { tab },
+                    })
+                  }
+                />
+              ) : (
+                <ThreadFeed
+                  conversationId={active.id}
+                  onOpenThread={(rootId) =>
+                    void navigate({
+                      to: '/chat/$conversationId',
+                      params: { conversationId: active.id },
+                      search: tab === 'chats' ? { thread: rootId } : { tab, thread: rootId },
+                    })
+                  }
+                />
+              )
             ) : (
-              <ThreadFeed
-                conversationId={active.id}
-                onOpenThread={(rootId) =>
-                  void navigate({
-                    to: '/chat/$conversationId',
-                    params: { conversationId: active.id },
-                    search: tab === 'chats' ? { thread: rootId } : { tab, thread: rootId },
-                  })
-                }
-              />
-            )
-          ) : (
-            <ConversationPane conversationId={active.id} showAuthor={active.type !== 'direct'} />
-          )}
+              <ConversationPane conversationId={active.id} showAuthor={active.type !== 'direct'} />
+            )}
+            {panel.mounted ? (
+              <ChatSidePanel conversationId={active.id} open={panel.open} onClose={panel.close} />
+            ) : null}
+          </div>
         </div>
       ) : (
         <div className="flex flex-1 items-center justify-center">

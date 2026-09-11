@@ -1,5 +1,5 @@
 import { FileText } from 'lucide-react';
-import { memo, type ReactNode } from 'react';
+import { memo } from 'react';
 import type { ChatMessage } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { cn } from '@nodus/ui/lib/utils';
@@ -61,19 +61,18 @@ export function MessageAttachments({ message }: { message: ChatMessage }) {
  * Сообщение чата по канону «Инструмента» (Message/Bubble-примитивы, как
  * обсуждение задачи): свои — справа (primary-пузырь, без аватара), чужие —
  * слева (аватар + outline-пузырь); автор и время — моно-хедер; реакции и
- * вложения — под пузырём; ховер-действия — слот потребителя.
+ * вложения — под пузырём; действия над сообщением — контекстное меню по
+ * правому клику (MessageMenu, без кнопок на сообщении — вердикт владельца).
  */
 export const ChatMessageItem = memo(function ChatMessageItem({
   message,
   mine,
   showAuthor = true,
-  actions,
 }: {
   message: ChatMessage;
   mine: boolean;
   /** В личных диалогах имя автора можно опустить. */
   showAuthor?: boolean;
-  actions?: ReactNode;
 }) {
   return (
     <Message align={mine ? 'end' : 'start'} className="group/msg">
@@ -95,11 +94,6 @@ export const ChatMessageItem = memo(function ChatMessageItem({
         </Bubble>
         <MessageReactions message={message} />
         <MessageAttachments message={message} />
-        {actions ? (
-          <span className="flex opacity-0 transition-opacity group-hover/msg:opacity-100 focus-within:opacity-100">
-            {actions}
-          </span>
-        ) : null}
       </MessageContent>
     </Message>
   );

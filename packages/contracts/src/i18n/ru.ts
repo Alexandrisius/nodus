@@ -48,6 +48,7 @@ export const ui = {
     resetView: 'Сбросить настройки',
     addField: 'Добавить поле',
     resizePanel: 'Изменить ширину панели',
+    copyError: 'Не удалось скопировать',
   },
   nav: {
     home: 'Главная',

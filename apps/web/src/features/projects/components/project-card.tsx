@@ -2,11 +2,18 @@ import { List, Lock, SquareKanban } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { ui } from '@nodus/contracts';
 import { NodeChip } from '@nodus/ui/components/node-chip';
+import { NodeLabel } from '@nodus/ui/components/node-label';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { useOpenCard } from '../../../app/shell/use-card-stack.js';
+import {
+  CHAT_PANEL_W,
+  ChatPanelToggle,
+  ChatSidePanel,
+  useChatSidePanel,
+} from '../../../shared/chat/chat-side-panel.js';
 import { EntityFields } from '../../../shared/ui/entity-fields.js';
-import { useChatWidth } from '../../../shared/ui/use-chat-width.js';
+import { MIN_CHAT_WITH_PANEL, useChatWidth } from '../../../shared/ui/use-chat-width.js';
 import { ViewSettings } from '../../../shared/views/view-settings.js';
 import { useProjectDetail } from '../api/projects-api.js';
 import { projectPassportDefs } from '../lib/project-passport.js';
@@ -52,6 +59,9 @@ export function ProjectCard({ projectId }: { projectId: string }) {
   const openCard = useOpenCard();
   const chatRef = useRef<HTMLDivElement>(null);
   const { chatW, onDividerDown, dragging } = useChatWidth(chatRef);
+  // Панель беседы канала (закон чата): тоггл — в шапке колонки справа вверху,
+  // панель вталкивающая (двигает чат; на минимуме — выталкивает левую зону).
+  const panel = useChatSidePanel();
 
   if (isLoading || !project) {
     return <ProjectCardSkeleton chatW={chatW} />;
@@ -59,9 +69,14 @@ export function ProjectCard({ projectId }: { projectId: string }) {
 
   return (
     <div className="flex h-full flex-col">
-      {/* Левая зона (вкладки) и правая колонка обсуждения — вертикальная
-          граница структурная (анатомия карточки задачи). */}
-      <div className="grid min-h-0 flex-1" style={{ gridTemplateColumns: 'minmax(0,1fr) auto' }}>
+      {/* Левая зона (вкладки), колонка обсуждения и вталкивающая панель
+          беседы — auto-колонки grid: панель двигает чат, на минимуме чата —
+          выталкивает левую зону (вердикт владельца). */}
+      <div
+        className="grid min-h-0 flex-1"
+        style={{ gridTemplateColumns: 'minmax(0,1fr) auto auto' }}
+      >
+        {' '}
         <div className="relative flex min-h-0 flex-col border-r border-border @container">
           {/* Таб-бар: вкладки слева; справа — вид задач (на вкладке «Задачи»),
               шестерёнка и чипы стадии/приватности проекта */}
@@ -159,20 +174,42 @@ export function ProjectCard({ projectId }: { projectId: string }) {
             <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-port/60 opacity-0 transition-opacity group-hover:opacity-100" />
           </div>
         </div>
-
         {/* Колонка обсуждения (канал проекта): фон — структура с первого
-            кадра роста; fade — только содержимое. */}
+            кадра роста; fade — только содержимое. Шапка колонки (h-10 — на
+            одной горизонтали с таб-баром): название канала + тоггл панели
+            СПРАВА ВВЕРХУ (канон кнопки «О задаче»). */}
         <div
           ref={chatRef}
           className={cn('min-h-0 overflow-hidden', !dragging && 'transition-[width] duration-200')}
-          style={{ width: chatW }}
+          style={{
+            width: Math.max(
+              chatW - (panel.open && project.channelId ? CHAT_PANEL_W : 0),
+              MIN_CHAT_WITH_PANEL,
+            ),
+          }}
         >
-          <div className="h-full w-full bg-background">
-            <div className="content-fade h-full">
+          <div className="flex h-full w-full flex-col bg-background">
+            <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border pr-2 pl-4">
+              <NodeLabel label={ui.chat.channelOfProject} className="truncate" />
+              <div className="ml-auto">
+                {project.channelId ? (
+                  <ChatPanelToggle open={panel.open} onToggle={panel.toggle} />
+                ) : null}
+              </div>
+            </div>
+            <div className="content-fade min-h-0 flex-1">
               <ProjectChat project={project} />
             </div>
           </div>
         </div>
+        {/* Панель беседы — вталкивающая колонка справа (канон «О задаче») */}
+        {panel.mounted && project.channelId ? (
+          <ChatSidePanel
+            conversationId={project.channelId}
+            open={panel.open}
+            onClose={panel.close}
+          />
+        ) : null}
       </div>
     </div>
   );

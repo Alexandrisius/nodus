@@ -9,15 +9,23 @@ import { cn } from '@nodus/ui/lib/utils';
 import { useOpenCard } from '../../../app/shell/use-card-stack.js';
 import { useAssigneeTasks, useMemberProjects } from '../../../shared/api/user-relations.js';
 import { useDirectConversation } from '../../../shared/chat/api.js';
+import {
+  CHAT_PANEL_W,
+  ChatPanelToggle,
+  ChatSidePanel,
+  useChatSidePanel,
+} from '../../../shared/chat/chat-side-panel.js';
 import { ConversationPane } from '../../../shared/chat/conversation-pane.js';
 import { EntityFields } from '../../../shared/ui/entity-fields.js';
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
-import { useChatWidth } from '../../../shared/ui/use-chat-width.js';
+import { MIN_CHAT_WITH_PANEL, useChatWidth } from '../../../shared/ui/use-chat-width.js';
 import { DataTable } from '../../../shared/views/data-table.js';
 import { projectListFields } from '../../../shared/views/project-table-fields.js';
 import { makeTaskTableFields } from '../../../shared/views/task-table-fields.js';
+import { ViewSettings } from '../../../shared/views/view-settings.js';
 import { usePresence, useUserCard, useUsersList } from '../api/directory-api.js';
 import { employeeProfileDefs } from '../lib/employee-profile-fields.js';
+import { EmployeeCardSkeleton } from './employee-card-skeleton.js';
 
 const VISIBILITY_KEY = 'nodus-employee-fields-v1';
 
@@ -62,6 +70,9 @@ export function EmployeeCard({ userId }: { userId: string }) {
   const [tab, setTab] = useState<EmployeeTab>('profile');
   const chatRef = useRef<HTMLDivElement>(null);
   const { chatW, onDividerDown, dragging } = useChatWidth(chatRef);
+  // Панель беседы (закон чата): тоггл — в шапке колонки справа вверху,
+  // панель вталкивающая (двигает чат; на минимуме — выталкивает левую зону).
+  const panel = useChatSidePanel();
 
   const items = useMemo(() => usersData?.items ?? [], [usersData]);
   const listItem = items.find((u) => u.id === userId);
@@ -120,11 +131,17 @@ export function EmployeeCard({ userId }: { userId: string }) {
         </div>
       </div>
 
-      {/* Левая зона (вкладки) и правая колонка личного диалога — вертикальная
-          граница структурная, зона чата — фон с первого кадра раскрытия. */}
-      <div className="grid min-h-0 flex-1" style={{ gridTemplateColumns: 'minmax(0,1fr) auto' }}>
+      {/* Левая зона (вкладки), колонка личного диалога и вталкивающая
+          панель беседы — auto-колонки grid: панель двигает чат, на минимуме
+          чата — выталкивает левую зону (вердикт владельца). */}
+      <div
+        className="grid min-h-0 flex-1"
+        style={{ gridTemplateColumns: 'minmax(0,1fr) auto auto' }}
+      >
         <div className="relative flex min-h-0 flex-col border-r border-border @container">
-          {/* Вкладки карточки (модель профиля Битрикс24, моно-ряд) */}
+          {/* Вкладки карточки (модель профиля Битрикс24, моно-ряд); справа —
+              шестерёнка отображаемых полей активной вкладки (стандарт
+              журналов, как в карточке проекта) */}
           <div className="content-fade flex shrink-0 items-center gap-1 border-b border-border px-4">
             {tabs.map((t) => (
               <button
@@ -147,6 +164,14 @@ export function EmployeeCard({ userId }: { userId: string }) {
                 ) : null}
               </button>
             ))}
+            <div className="ml-auto flex items-center gap-2">
+              {tab === 'tasks' ? (
+                <ViewSettings viewKey="directory.tasks" defs={employeeTaskTableFields} />
+              ) : null}
+              {tab === 'projects' ? (
+                <ViewSettings viewKey="directory.projects" defs={projectListFields} />
+              ) : null}
+            </div>
           </div>
 
           <div className="content-fade min-h-0 flex-1 overflow-hidden">
@@ -226,15 +251,34 @@ export function EmployeeCard({ userId }: { userId: string }) {
           </div>
         </div>
 
-        {/* Колонка личного диалога: фон — структура с первого кадра; fade —
-            только содержимое. */}
+        {/* Колонка личного диалога: фон — структура с первого кадра. Шапка
+            колонки (h-10 — на одной горизонтали с таб-баром): собеседник +
+            тоггл панели СПРАВА ВВЕРХУ (канон кнопки «О задаче»). */}
         <div
           ref={chatRef}
           className={cn('min-h-0 overflow-hidden', !dragging && 'transition-[width] duration-200')}
-          style={{ width: chatW }}
+          style={{
+            width: Math.max(
+              chatW - (panel.open && directQuery.data ? CHAT_PANEL_W : 0),
+              MIN_CHAT_WITH_PANEL,
+            ),
+          }}
         >
-          <div className="h-full w-full bg-background">
-            <div className="content-fade h-full">
+          <div className="flex h-full w-full flex-col bg-background">
+            <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border pr-2 pl-4">
+              <PersonAvatar
+                name={card.displayName}
+                avatarUrl={card.avatarUrl}
+                className="size-6 shrink-0"
+              />
+              <span className="min-w-0 truncate text-sm font-medium">{card.displayName}</span>
+              <div className="ml-auto">
+                {directQuery.data ? (
+                  <ChatPanelToggle open={panel.open} onToggle={panel.toggle} />
+                ) : null}
+              </div>
+            </div>
+            <div className="content-fade min-h-0 flex-1">
               {directQuery.data ? (
                 <ConversationPane
                   conversationId={directQuery.data.id}
@@ -251,40 +295,15 @@ export function EmployeeCard({ userId }: { userId: string }) {
             </div>
           </div>
         </div>
-      </div>
-    </div>
-  );
-}
 
-/** Скелетон карточки сотрудника зеркалит анатомию с колонкой чата. */
-function EmployeeCardSkeleton({ chatW }: { chatW: number }) {
-  return (
-    <div className="flex h-full flex-col">
-      <div className="flex shrink-0 items-center gap-3 border-b border-border px-5 py-3">
-        <Skeleton className="size-10 rounded-full" />
-        <Skeleton className="h-6 w-24 rounded-full" />
-        <Skeleton className="h-4 w-40" />
-      </div>
-      <div className="grid min-h-0 flex-1" style={{ gridTemplateColumns: 'minmax(0,1fr) auto' }}>
-        <div className="flex min-h-0 flex-col border-r border-border">
-          <div className="flex shrink-0 items-center gap-2 border-b border-border px-4 py-2.5">
-            <Skeleton className="h-5 w-20" />
-            <Skeleton className="h-5 w-20" />
-            <Skeleton className="h-5 w-20" />
-          </div>
-          <div className="min-h-0 flex-1 space-y-4 p-6">
-            {[0, 1, 2, 3, 4, 5].map((i) => (
-              <Skeleton key={i} className="h-4 w-2/3" />
-            ))}
-          </div>
-        </div>
-        <div className="min-h-0 overflow-hidden" style={{ width: chatW }}>
-          <div className="flex flex-col gap-3 p-4">
-            {[0, 1, 2].map((i) => (
-              <Skeleton key={i} className="h-14 w-2/3" />
-            ))}
-          </div>
-        </div>
+        {/* Панель беседы — вталкивающая колонка справа (канон «О задаче») */}
+        {panel.mounted && directQuery.data ? (
+          <ChatSidePanel
+            conversationId={directQuery.data.id}
+            open={panel.open}
+            onClose={panel.close}
+          />
+        ) : null}
       </div>
     </div>
   );

@@ -1,5 +1,6 @@
 import { ListTodo, Megaphone, Users } from 'lucide-react';
 import type { ConversationListItem, ConversationType } from '@nodus/contracts';
+import { Empty, EmptyTitle } from '@nodus/ui/components/empty';
 import { NodeChip } from '@nodus/ui/components/node-chip';
 import { Skeleton } from '@nodus/ui/components/skeleton';
 import { cn } from '@nodus/ui/lib/utils';
@@ -51,9 +52,11 @@ export function ConversationList({
   const sorted = sortByActivity(conversations);
   if (sorted.length === 0) {
     return (
-      <p className="m-3 rounded-md border border-dashed border-border px-3 py-6 text-center font-mono text-[10px] tracking-[0.14em] text-muted-foreground/70 uppercase">
-        {emptyLabel}
-      </p>
+      <div className="flex flex-1 items-center justify-center p-3">
+        <Empty>
+          <EmptyTitle>{emptyLabel}</EmptyTitle>
+        </Empty>
+      </div>
     );
   }
 

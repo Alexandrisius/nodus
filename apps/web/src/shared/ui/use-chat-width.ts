@@ -6,6 +6,10 @@ const MIN_W = 420;
 /** Доля вьюпорта: чат может стать главным, но не выжать содержание целиком. */
 const MAX_RATIO = 0.66;
 
+/** Минимум ширины чата ПРИ ОТКРЫТОЙ правой панели: чат сужается до него,
+ *  дальше панель выталкивает левую часть (вердикт владельца). */
+export const MIN_CHAT_WITH_PANEL = 280;
+
 function clamp(width: number) {
   return Math.min(Math.max(width, MIN_W), Math.round(window.innerWidth * MAX_RATIO));
 }
