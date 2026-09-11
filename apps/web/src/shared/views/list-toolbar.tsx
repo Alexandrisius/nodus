@@ -68,7 +68,7 @@ export function ListToolbar<T>({
             <div
               className={cn(
                 'flex h-8 w-full min-w-0 items-center gap-1 rounded-lg border border-input bg-transparent pr-1 pl-2 transition-colors dark:bg-input/30',
-                'focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50',
+                'focus-within:border-ring focus-within:ring-1 focus-within:ring-ring/30',
               )}
             >
               <Search className="pointer-events-none size-3.5 shrink-0 text-muted-foreground" />

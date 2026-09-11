@@ -29,11 +29,11 @@ export function HomeNews({
   return (
     <section className="flex flex-col gap-4">
       {news.map((item) => (
-        <article key={item.id} className="node-panel">
+        <article key={item.id} className="node-panel transition-colors hover:bg-accent/60">
           <button
             type="button"
             onClick={(e) => handleOpen(item, e)}
-            className="block w-full p-5 text-left transition-colors hover:bg-accent/60"
+            className="block w-full p-5 text-left"
           >
             <div className="flex items-center gap-3">
               <PersonAvatar name={item.author.displayName} className="size-10" />

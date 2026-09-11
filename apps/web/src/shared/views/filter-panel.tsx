@@ -55,7 +55,7 @@ export function FilterPanel<T>({
             <div
               key={preset.id}
               className={cn(
-                'group flex items-center gap-1 rounded-md px-1.5 py-1 hover:bg-accent/60',
+                'group mx-1.5 flex items-center gap-1 rounded-md px-1.5 py-1 hover:bg-accent/60',
                 active && 'bg-accent',
               )}
             >
@@ -101,7 +101,7 @@ export function FilterPanel<T>({
         })}
         <div className="mt-1 border-t border-border px-1.5 pt-1.5">
           {naming ? (
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 px-1.5">
               <Input
                 autoFocus
                 value={presetName}
@@ -130,7 +130,7 @@ export function FilterPanel<T>({
             <button
               type="button"
               onClick={() => setNaming(true)}
-              className="flex w-full items-center gap-1.5 rounded-md px-1 py-1 text-left text-[13px] leading-5 text-muted-foreground hover:text-foreground"
+              className="flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-[13px] leading-5 text-muted-foreground hover:text-foreground"
             >
               <Plus className="size-3.5" strokeWidth={1.75} />
               {ui.filters.save}
