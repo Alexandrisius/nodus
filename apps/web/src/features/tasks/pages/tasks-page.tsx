@@ -54,7 +54,7 @@ function TasksSection({ view, overdueTotal }: { view: 'list' | 'kanban'; overdue
 
   return (
     <>
-      <div className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-6">
+      <div className="flex h-14 shrink-0 items-center gap-3 px-6">
         <h1 className="shrink-0 text-xl font-semibold text-foreground">{ui.tasks.title}</h1>
         <ListToolbar
           className="min-w-0 flex-1 px-0"

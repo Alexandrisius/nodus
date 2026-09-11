@@ -42,6 +42,12 @@ export function ListToolbar<T>({
   // Канон: мышь — открывает onClick (слой монтируется ПОСЛЕ события),
   // клавиатура (Tab/программный focus) — onFocus без указательного флага.
   const fromPointer = useRef(false);
+  // Зеркальный симметричный случай: панель уже открыта, повторный клик по
+  // якорю — pointerdown-outside дисмиссит её, а запланированный дисмисс
+  // добивает ПОСЛЕ нашего onClick (инверсия бэтчинга). Лечение канонично —
+  // onInteractOutside + preventDefault для целей внутри якоря (как Radix
+  // сам делает для триггера).
+  const anchorRef = useRef<HTMLDivElement>(null);
   const activeDefs = defs.filter((d) => isActiveFilter(toolbar.filters[d.id]));
 
   return (
@@ -54,6 +60,7 @@ export function ListToolbar<T>({
           {/* Поисковая строка: в фокусе (панель открыта) РАСШИРЯЕТСЯ ДО ШИРИНЫ
               панели фильтра — как в Битриксе (поле и окно одной ширины) */}
           <div
+            ref={anchorRef}
             className={cn(
               'relative min-w-0 shrink-0 transition-[width] duration-200',
               panelOpen ? 'w-[min(36rem,calc(100vw-3rem))]' : 'w-52',
@@ -94,6 +101,11 @@ export function ListToolbar<T>({
           className="w-[min(36rem,calc(100vw-2rem))] p-0"
           // Фокус остаётся в поисковой строке: печатать можно сразу (Битрикс).
           onOpenAutoFocus={(e) => e.preventDefault()}
+          // Клик по якорю (само поле) — НЕ «взаимодействие снаружи»
+          // (защита триггера, как внутри Radix для Trigger).
+          onInteractOutside={(e) => {
+            if (anchorRef.current?.contains(e.target as Node)) e.preventDefault();
+          }}
         >
           <FilterPanel toolbar={toolbar} defs={defs} builtinPresets={builtinPresets} />
         </PopoverContent>

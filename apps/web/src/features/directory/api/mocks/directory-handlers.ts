@@ -19,4 +19,9 @@ export const directoryHandlers = [
       return HttpResponse.json({ code: 'NOT_FOUND', message: 'User not found' }, { status: 404 });
     return HttpResponse.json(card);
   }),
+  /** Приглашение сотрудника (кнопка «Пригласить») — заготовка: принимает
+   *  email, полный поток (роль, подразделение, письмо-инвайт) — с бэкендом. */
+  http.post('/api/v1/directory/invitations', () =>
+    HttpResponse.json({ id: crypto.randomUUID() }, { status: 201 }),
+  ),
 ];

@@ -1,7 +1,9 @@
 import { useNavigate, useParams, useSearch } from '@tanstack/react-router';
-import { SquareArrowOutUpRight } from 'lucide-react';
+import { Search, SquareArrowOutUpRight, X } from 'lucide-react';
+import { useState } from 'react';
 import { ui } from '@nodus/contracts';
 import { Empty, EmptyTitle } from '@nodus/ui/components/empty';
+import { Input } from '@nodus/ui/components/input';
 
 import { useOpenCard } from '../../../app/shell/use-card-stack.js';
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
@@ -40,15 +42,46 @@ export function ChatPage() {
   // Панель беседы (закон: у каждого чата) — хостится контейнером страницы,
   // тоггл — кнопка СПРАВА ВВЕРХУ шапки беседы (канон кнопки «О задаче»).
   const panel = useChatSidePanel();
+  // Локальный поиск по списку бесед (модель Битрикс24: «Найти сотрудника
+  // или чат»): подстрока по названию и подписи (последнее сообщение).
+  const [query, setQuery] = useState('');
 
-  const items = (data?.items ?? []).filter((c) =>
-    tab === 'tasks' ? c.type === 'task' : c.type !== 'task',
-  );
+  const q = query.trim().toLowerCase();
+  const items = (data?.items ?? [])
+    .filter((c) => (tab === 'tasks' ? c.type === 'task' : c.type !== 'task'))
+    .filter(
+      (c) =>
+        !q ||
+        conversationTitle(c).toLowerCase().includes(q) ||
+        conversationSubtitle(c).toLowerCase().includes(q),
+    );
   const active = data?.items.find((c) => c.id === conversationId);
 
   return (
     <div className="relative flex h-full">
       <aside className="flex w-80 shrink-0 flex-col border-r border-border bg-sidebar">
+        <div className="shrink-0 border-b border-border p-2">
+          <div className="relative">
+            <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={ui.common.searchPlaceholder}
+              aria-label={ui.common.search}
+              className="h-8 pr-7 pl-8 text-sm"
+            />
+            {query ? (
+              <button
+                type="button"
+                onClick={() => setQuery('')}
+                aria-label={ui.filters.reset}
+                className="absolute top-1/2 right-1.5 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground"
+              >
+                <X className="size-3.5" strokeWidth={1.75} />
+              </button>
+            ) : null}
+          </div>
+        </div>
         <ConversationList
           conversations={items}
           isLoading={isLoading}

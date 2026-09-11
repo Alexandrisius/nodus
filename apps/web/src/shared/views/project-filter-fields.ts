@@ -12,8 +12,8 @@ export const projectSearchText = (p: ProjectListItem) => `${p.code} ${p.name}`;
 /** Встроенные пресеты проектов (левая колонка панели фильтра). */
 export const projectBuiltinPresets: FilterPreset[] = [
   { id: 'managing', name: ui.projects.presetManaging, state: { myRole: 'manager' } },
-  { id: 'open', name: ui.projects.privacy.open, state: { privacy: 'open' } },
-  { id: 'closed', name: ui.projects.privacy.closed, state: { privacy: 'closed' } },
+  { id: 'open', name: ui.projects.presetOpen, state: { privacy: 'open' } },
+  { id: 'closed', name: ui.projects.presetClosed, state: { privacy: 'closed' } },
 ];
 
 function endDateMatch(item: ProjectListItem, value: FilterValue): boolean {
@@ -50,7 +50,11 @@ export function useProjectFilterDefs(): FilterFieldDef<ProjectListItem>[] {
         id: 'manager',
         label: ui.projects.manager,
         type: 'person' as const,
-        options: (users?.items ?? []).map((u) => ({ value: u.id, label: u.displayName })),
+        options: (users?.items ?? []).map((u) => ({
+          value: u.id,
+          label: u.displayName,
+          avatarUrl: u.avatarUrl ?? null,
+        })),
         match: (p: ProjectListItem, v: FilterValue) => p.manager?.id === v,
       },
       {

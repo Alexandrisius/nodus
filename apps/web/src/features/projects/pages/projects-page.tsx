@@ -3,7 +3,6 @@ import type { ProjectListItem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 
 import { useOpenCard } from '../../../app/shell/use-card-stack.js';
-import { plural } from '../../../shared/lib/format.js';
 import { DataTable } from '../../../shared/views/data-table.js';
 import { ListToolbar } from '../../../shared/views/list-toolbar.js';
 import type { ActiveListFilter } from '../../../shared/views/list-filters.js';
@@ -50,16 +49,13 @@ export function ProjectsPage() {
 
   return (
     <div className="relative flex h-full flex-col">
-      <div className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-6">
-        <h1 className="shrink-0 text-xl font-semibold text-foreground">{ui.projects.title}</h1>
-        <span className="shrink-0 font-mono text-[11px] tracking-[0.14em] text-muted-foreground uppercase select-none">
-          <span className="text-foreground tabular-nums">{items.length}</span>{' '}
-          {plural(items.length, [
-            ui.projects.countOne,
-            ui.projects.countFew,
-            ui.projects.countMany,
-          ])}
-        </span>
+      <div className="flex h-14 shrink-0 items-center gap-3 px-6">
+        <h1 className="shrink-0 text-xl font-semibold text-foreground">
+          {ui.projects.title}
+          <span className="ml-2 align-middle font-mono text-sm font-normal text-muted-foreground tabular-nums">
+            {items.length}
+          </span>
+        </h1>
         <ListToolbar
           className="min-w-0 flex-1 px-0"
           toolbar={toolbar}

@@ -3,15 +3,9 @@ import { useState } from 'react';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import { Input } from '@nodus/ui/components/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@nodus/ui/components/select';
 import { cn } from '@nodus/ui/lib/utils';
 
+import { FilterCombobox } from './filter-combobox.js';
 import type { FilterFieldDef, FilterValue } from './list-filters.js';
 import { sameFilterState } from './list-filters.js';
 import type { FilterPreset, ListToolbarState } from './use-list-toolbar.js';
@@ -58,14 +52,14 @@ export function FilterPanel<T>({
           return (
             <div
               key={preset.id}
-              className="group flex items-center gap-0.5 rounded-md px-1.5 py-0.5 hover:bg-accent/50"
+              className="group flex items-center gap-1 rounded-md px-1.5 py-1 hover:bg-accent/50"
             >
               <button
                 type="button"
                 onClick={() => toolbar.setFilters(preset.state)}
                 title={preset.name}
                 className={cn(
-                  'min-w-0 flex-1 truncate text-left text-sm',
+                  'min-w-0 flex-1 truncate text-left text-sm leading-5',
                   active ? 'font-medium text-port' : 'text-secondary-foreground',
                 )}
               >
@@ -131,7 +125,7 @@ export function FilterPanel<T>({
             <button
               type="button"
               onClick={() => setNaming(true)}
-              className="flex w-full items-center gap-1.5 rounded-md px-1 py-1 text-left text-sm text-muted-foreground hover:text-foreground"
+              className="flex w-full items-center gap-1.5 rounded-md px-1 py-1 text-left text-sm leading-5 text-muted-foreground hover:text-foreground"
             >
               <Plus className="size-3.5" strokeWidth={1.75} />
               {ui.filters.save}
@@ -160,7 +154,8 @@ export function FilterPanel<T>({
   );
 }
 
-/** Контрол одного поля фильтра по его типу. */
+/** Контрол одного поля фильтра по его типу: справочники — комбобокс с
+ *  подсказками (модель Битрикс24), даты — диапазон, строка — инпут. */
 function FilterFieldControl<T>({
   def,
   value,
@@ -171,25 +166,15 @@ function FilterFieldControl<T>({
   onChange: (v: FilterValue) => void;
 }) {
   if (def.type === 'select' || def.type === 'person') {
-    const options = def.options ?? [];
     return (
       <label className="flex items-center gap-2">
         <span className="w-28 shrink-0 text-xs text-muted-foreground">{def.label}</span>
-        <Select
-          value={typeof value === 'string' ? value : ''}
-          onValueChange={(v) => onChange(v === '' ? undefined : v)}
-        >
-          <SelectTrigger className="h-8 flex-1 text-sm" aria-label={def.label}>
-            <SelectValue placeholder={ui.filters.any} />
-          </SelectTrigger>
-          <SelectContent>
-            {options.map((o) => (
-              <SelectItem key={o.value} value={o.value}>
-                {o.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <FilterCombobox
+          options={def.options ?? []}
+          value={typeof value === 'string' ? value : undefined}
+          onChange={(v) => onChange(v)}
+          ariaLabel={def.label}
+        />
       </label>
     );
   }

@@ -1,11 +1,12 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useSearch } from '@tanstack/react-router';
+import { UserPlus } from 'lucide-react';
 import type { UserListItem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
+import { Button } from '@nodus/ui/components/button';
 import { Skeleton } from '@nodus/ui/components/skeleton';
 
 import { useOpenCard } from '../../../app/shell/use-card-stack.js';
-import { plural } from '../../../shared/lib/format.js';
 import { DataTable } from '../../../shared/views/data-table.js';
 import {
   employeeSearchText,
@@ -16,6 +17,7 @@ import type { ActiveListFilter } from '../../../shared/views/list-filters.js';
 import { useFilteredList, useListToolbar } from '../../../shared/views/use-list-toolbar.js';
 import { ViewSettings } from '../../../shared/views/view-settings.js';
 import { useUsersList } from '../api/directory-api.js';
+import { InviteDialog } from '../components/invite-dialog.js';
 import { OrgChart } from '../components/org-chart.js';
 import { employeeListFields } from '../lib/employee-fields.js';
 
@@ -33,6 +35,7 @@ export function EmployeesPage() {
   const view = search.view === 'list' ? 'list' : 'org';
   const { data, isLoading } = useUsersList();
   const openCard = useOpenCard();
+  const [inviteOpen, setInviteOpen] = useState(false);
   const toolbar = useListToolbar('employees.list');
   const filterDefs = useEmployeeFilterDefs();
   const filter = useMemo<ActiveListFilter<UserListItem>>(
@@ -56,16 +59,13 @@ export function EmployeesPage() {
 
   return (
     <div className="relative flex h-full flex-col">
-      <div className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-6">
-        <h1 className="shrink-0 text-xl font-semibold text-foreground">{ui.employees.title}</h1>
-        <span className="shrink-0 font-mono text-[11px] tracking-[0.14em] text-muted-foreground uppercase select-none">
-          <span className="text-foreground tabular-nums">{items.length}</span>{' '}
-          {plural(items.length, [
-            ui.employees.countOne,
-            ui.employees.countFew,
-            ui.employees.countMany,
-          ])}
-        </span>
+      <div className="flex h-14 shrink-0 items-center gap-3 px-6">
+        <h1 className="shrink-0 text-xl font-semibold text-foreground">
+          {ui.employees.title}
+          <span className="ml-2 align-middle font-mono text-sm font-normal text-muted-foreground tabular-nums">
+            {items.length}
+          </span>
+        </h1>
         {view === 'list' ? (
           <ListToolbar
             className="min-w-0 flex-1 px-0"
@@ -73,7 +73,13 @@ export function EmployeesPage() {
             defs={filterDefs}
             right={<ViewSettings viewKey="employees.list" defs={defs} />}
           />
-        ) : null}
+        ) : (
+          <span className="flex-1" />
+        )}
+        <Button size="sm" onClick={() => setInviteOpen(true)}>
+          <UserPlus data-icon="inline-start" />
+          {ui.employees.invite}
+        </Button>
       </div>
       <div className="min-h-0 flex-1">
         {view === 'org' ? (
@@ -99,6 +105,7 @@ export function EmployeesPage() {
           />
         )}
       </div>
+      <InviteDialog open={inviteOpen} onOpenChange={setInviteOpen} />
     </div>
   );
 }

@@ -16,6 +16,8 @@ export type FilterState = Record<string, FilterValue>;
 export interface FilterOption {
   value: string;
   label: string;
+  /** Аватар для person-опций (комбобокс показывает с фото, как в Битриксе). */
+  avatarUrl?: string | null;
 }
 
 export type FilterFieldType = 'select' | 'person' | 'dateRange' | 'text';

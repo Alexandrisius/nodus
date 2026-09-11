@@ -56,7 +56,11 @@ export function useTaskFilterDefs({
   const meId = useAuthStore((s) => s.user?.id);
 
   return useMemo(() => {
-    const people = (users?.items ?? []).map((u) => ({ value: u.id, label: u.displayName }));
+    const people = (users?.items ?? []).map((u) => ({
+      value: u.id,
+      label: u.displayName,
+      avatarUrl: u.avatarUrl ?? null,
+    }));
     const defs: FilterFieldDef<TaskListItem>[] = [
       {
         id: 'stage',
