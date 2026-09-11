@@ -41,8 +41,10 @@ export function ProjectTasksTab({ projectId }: { projectId: string }) {
 
   return (
     <div className="flex h-full flex-col">
+      {/* БЕЗ border-b (канон раунда 6 + вердикт владельца 12.09.2026): линия
+          под тулбаром читалась «полоской под поиском»; вкладки-списки
+          карточек и журналы — одинаково без неё. */}
       <ListToolbar
-        className="border-b border-border"
         toolbar={toolbar}
         defs={defs}
         builtinPresets={taskBuiltinPresets}

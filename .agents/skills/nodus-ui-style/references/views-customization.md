@@ -68,8 +68,8 @@ const rows = useFilteredList(items, filter);               // или проп fi
 
 // Страница: шапка ОДНОЙ строкой h-14 (заголовок + счётчик + тулбар flex-1 + шестерёнка)
 <ListToolbar className="min-w-0 flex-1 px-0" toolbar={toolbar} defs={defs} builtinPresets={taskBuiltinPresets} right={<ViewSettings …/>} />
-// Карточка (вкладка): тулбар с нижней границей
-<ListToolbar className="border-b border-border" toolbar={toolbar} defs={defs} builtinPresets={…} left={<ViewToggle …/>} right={<ViewSettings …/>} />
+// Карточка (вкладка): тот же тулбар БЕЗ нижней границы (left — переключатель вида)
+<ListToolbar toolbar={toolbar} defs={defs} builtinPresets={…} left={<ViewToggle …/>} right={<ViewSettings …/>} />
 ```
 
 - **Реестр фильтруемых полей** — `shared/views/<entity>-filter-fields.ts`: `FilterFieldDef<T> = { id, label, type, options?, hidden?, match }` — чистый предикат (unit-тесты `list-filters.test.ts`); `hidden: true` — служебные поля (в панель не выводятся; напр. `overdue` задач: его используют пресет «Просрочены» и счётчик-чип в шапке журнала, клик по которому включает фильтр — модель Битрикс24). Справочники опций — shared-хуки (`shared/api/users-list`, `projects-list`, `task-stages` — единые ключи кэша, I6).
@@ -78,7 +78,7 @@ const rows = useFilteredList(items, filter);               // или проп fi
 - **Два поиска не конкурируют:** глобальный «Умный поиск» — лупа в правой группе топбара (Ctrl+K, палитра прежняя); большого поля в центре топбара НЕТ.
 - **Панель из фокуса, не из триггера:** Popover с `PopoverAnchor` (НЕ Trigger — клик по полю не должен тогглить), `open` управляем onFocus (клавиатура) + onClick (мышь; указательный гард), `onOpenAutoFocus` отменён (фокус остаётся в поле — печатать можно сразу), `onInteractOutside` с preventDefault для целей внутри якоря (иначе повторный клик по полю при открытой панели дисмиссит её с инверсией бэтчинга — gotchas).
 - **Поля-справочники — комбобоксы** (`filter-combobox.tsx`): ввод фильтрует варианты, person — с аватарами; НЕ сырые `<Select>` (вердикт: «не тупо выпадающий список»).
-- **Шапка страницы — без border-b** (полоска под поиском — вердикт), счётчик — голым числом у заголовка.
+- **Шапка страницы и строка инструментов вкладки-списка карточки — БЕЗ border-b** (полоска под поиском — вердикт; сегмент линии справа от поля, сжимающегося после закрытия панели фильтра, читался «полоской» — вердикт 12.09.2026), счётчик — голым числом у заголовка.
 
 ### Карточки канбана
 

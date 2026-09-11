@@ -48,8 +48,11 @@ export function EmployeeTasksTab({
 
   return (
     <div className="flex h-full flex-col">
+      {/* БЕЗ border-b (канон раунда 6 + вердикт владельца 12.09.2026): линия
+          под тулбаром читалась «полоской под поиском» — сегмент справа от
+          поля, сжимающегося после закрытия панели фильтра. Журналы и
+          вкладки-списки карточек выглядят ОДИНАКОВО. */}
       <ListToolbar
-        className="border-b border-border"
         toolbar={toolbar}
         defs={defs}
         builtinPresets={taskBuiltinPresets}
@@ -90,8 +93,8 @@ export function EmployeeProjectsTab({
 
   return (
     <div className="flex h-full flex-col">
+      {/* БЕЗ border-b — канон единой строки инструментов (см. задачи выше). */}
       <ListToolbar
-        className="border-b border-border"
         toolbar={toolbar}
         defs={defs}
         builtinPresets={projectBuiltinPresets}
