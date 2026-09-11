@@ -59,7 +59,10 @@ export function ChatPage() {
 
   return (
     <div className="relative flex h-full">
-      <aside className="flex w-80 shrink-0 flex-col border-r border-border bg-sidebar">
+      {/* Список бесед — ступень ВНУТРИ мягкой рамы (bg-muted), не токен шелла:
+          bg-sidebar в раме давал «чёрный список против светлой зоны»
+          (вердикт владельца 12.09.2026, обе темы). */}
+      <aside className="flex w-80 shrink-0 flex-col border-r border-border bg-muted">
         {/* Шапка списка бесед — ВЫСОТОЙ h-14, как шапка беседы справа:
             горизонтальные линии двух зон совпадают (вердикт владельца
             12.09.2026: линии не совпадали — 48px против 56px). */}

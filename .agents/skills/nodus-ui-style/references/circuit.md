@@ -8,7 +8,7 @@
 
 | Атрибут | Где | Что даёт |
 |---|---|---|
-| `data-topbar` | шапка | ось = bottom шапки; правый край = `clientWidth` |
+| `data-topbar` | шапка | ось = bottom шапки; правый край оси = шов полосы коллег (`data-right-rail`) |
 | `data-module-port` (+`data-active`) | пункты рейки | порты модулей (PORT_X=42) |
 | `data-tab-port` (+`data-active`) | вкладки топбара | точки вкладок |
 | `data-left-node` | шов схлопнутого меню | якорь; точку 5px рисует оверлей контура (svg-круг, не DOM рейки — overflow-hidden срезал бы половину) |

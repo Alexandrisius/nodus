@@ -85,7 +85,7 @@ export function ConversationList({
               {TypeIcon ? (
                 <span
                   aria-hidden
-                  className="absolute -right-0.5 -bottom-0.5 rounded-full bg-sidebar p-0.5 text-muted-foreground"
+                  className="absolute -right-0.5 -bottom-0.5 rounded-full bg-muted p-0.5 text-muted-foreground"
                 >
                   <TypeIcon className="size-3" strokeWidth={1.75} />
                 </span>

@@ -10,7 +10,6 @@ import { CardStackHost } from './card-stack-host.js';
 import { CommandPalette } from './command-palette.js';
 import { LiveGraph } from './live-graph.js';
 import { NodeRail } from './node-rail.js';
-import { ProfileCorner } from './profile-corner.js';
 import { RightRail } from './right-rail.js';
 import { useShellStore } from './shell-store.js';
 import { TopBar } from './top-bar.js';
@@ -62,7 +61,7 @@ export function AppShell() {
       <div className="flex h-screen overflow-hidden bg-background">
         {stressMode ? <LiveGraph /> : null}
         <NodeRail />
-        <div className="relative flex min-w-0 flex-1 flex-col pr-12">
+        <div className="relative flex min-w-0 flex-1 flex-col pr-10">
           {/* Мягкая рама: топбар + рабочая зона ОДНОЙ мягкой панелью (18px,
               отступы 8px, фон «лист») — ступень формы поверх ступеней тона,
               как в рефах команды (пакет мягкости, вердикт владельца
@@ -79,14 +78,9 @@ export function AppShell() {
           </div>
           {/* Стек карточек сущностей поверх раздела (ADR-0009, ?cards=) */}
           <CardStackHost />
-          {/* Правая полоса — под главной линией (обрезана ею, как в Битрикс24),
-              поверх контента, в кармане 40px. */}
+          {/* Правая полоса коллег — полной высоты вровень с правым краем
+              (вердикт владельца 12.09.2026); ось контура стыкуется с её швом. */}
           <RightRail />
-          {/* Статичный угол профиля — вне мягкой рамы, над полосой коллег
-              (высота до оси контура: 8px отступ рамы + топбар 56px). */}
-          <div className="absolute top-0 right-2 z-30 flex h-16 w-10 items-center justify-center">
-            <ProfileCorner />
-          </div>
         </div>
       </div>
       <CircuitFrame />

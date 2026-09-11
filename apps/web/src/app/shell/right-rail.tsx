@@ -63,10 +63,14 @@ export function RightRail() {
 
   return (
     <aside
+      data-right-rail
       onMouseEnter={dwellStart}
       onMouseLeave={dwellStop}
       className={cn(
-        'absolute top-16 right-2 bottom-0 z-20 flex flex-col border-l border-sidebar-border bg-sidebar transition-[width] duration-300 ease-out',
+        // Полная высота вровень с правым краем вьюпорта (вердикт владельца
+        // 12.09.2026: «полоску сотрудников до самого верха»); ось контура
+        // заканчивается на её шве (data-right-rail в circuit-geometry).
+        'absolute inset-y-0 right-0 z-20 flex flex-col border-l border-sidebar-border bg-sidebar transition-[width] duration-300 ease-out',
         edgeOpen ? 'w-60' : 'w-10',
       )}
     >

@@ -4,7 +4,6 @@ import { ui } from '@nodus/contracts';
 import { NodeLabel } from '@nodus/ui/components/node-label';
 import { Skeleton } from '@nodus/ui/components/skeleton';
 
-import { useAuthStore } from '../../../shared/auth-store.js';
 import type { SourceRect } from '../../../app/shell/slider-panel.js';
 import { useHomeSummary } from '../api/home-api.js';
 import { HomeBirthdays } from '../components/home-birthdays.js';
@@ -18,36 +17,15 @@ import { HomeTopOvertime } from '../components/home-top-overtime.js';
  * моно-метки, ридер новости — слайдер с раскрытием из карточки. */
 export function HomePage() {
   const { data, isLoading } = useHomeSummary();
-  const me = useAuthStore((s) => s.user);
   const [reader, setReader] = useState<{
     item: CompanyNewsItem;
     source?: SourceRect;
   } | null>(null);
 
-  const hour = new Date().getHours();
-  const greet =
-    hour >= 5 && hour < 11
-      ? ui.home.greetMorning
-      : hour >= 11 && hour < 17
-        ? ui.home.greetAfternoon
-        : ui.home.greetEvening;
-  const today = new Intl.DateTimeFormat('ru-RU', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-  }).format(new Date());
-
   return (
     <div className="relative h-full overflow-y-auto">
-      <header className="px-6 pt-6 pb-1">
-        <h1 className="text-xl font-semibold text-foreground">
-          {greet}, {me?.displayName.split(' ')[0]}
-        </h1>
-        <p className="mt-0.5 font-mono text-[12px] tracking-[0.08em] text-muted-foreground first-letter:uppercase">
-          {today}
-        </p>
-      </header>
-
+      {/* Приветствие — в полосе топбара (HomeGreeting), лента начинается
+          выше (вердикт владельца 12.09.2026). */}
       {isLoading || !data ? (
         <div className="flex flex-col gap-6 p-6">
           <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">

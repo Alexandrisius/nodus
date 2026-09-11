@@ -164,19 +164,22 @@
  * Цвет — только в слоях данных и статусов (chart-*, семантика, идентичность).
  */
 [data-theme='light'] {
-  --background: #f2f0eb;
+  /* Ступени — НЕЙТРАЛЬНО-тёплые (жёлтый подтон урезан вдвое, вердикт
+     владельца 12.09.2026: «список чатов желтоватый, каша»): серый шелл →
+     бумажный холст → лист, без бежевой грязи на средних ступенях. */
+  --background: #f4f2f0;
   --foreground: #26272a;
-  --card: #fbfaf8;
+  --card: #fbfaf9;
   --card-foreground: #26272a;
-  --popover: #fbfaf8;
+  --popover: #fbfaf9;
   --popover-foreground: #26272a;
   --primary: #16233a;
   --primary-foreground: #fbfaf8;
-  --secondary: #e9e6df;
+  --secondary: #edebe8;
   --secondary-foreground: #43454a;
-  --muted: #e9e6df;
+  --muted: #edebe8;
   --muted-foreground: #6b6d72;
-  --accent: #e2dfd7;
+  --accent: #e7e5e1;
   --accent-foreground: #26272a;
   --destructive: #c0392b;
   --destructive-foreground: #fbfaf8;
@@ -198,13 +201,13 @@
   --chart-4: #cc79a7;
   --chart-5: #56b4e9;
   --chart-6: #d55e00;
-  --sidebar: #e8e5de;
+  --sidebar: #eceae7;
   --sidebar-foreground: #43454a;
   --sidebar-primary: #16233a;
   --sidebar-primary-foreground: #fbfaf8;
   /* Ховер/активный ряд рейки — тёплый почти-белый (реф команды: белая плашка
      по серому шеллу; чистый #FFF не нужен — плашка мала, но блик ни к чему). */
-  --sidebar-accent: #f6f4f0;
+  --sidebar-accent: #f7f6f4;
   --sidebar-accent-foreground: #26272a;
   --sidebar-border: rgb(0 0 0 / 0.07);
   --sidebar-ring: #16233a;
