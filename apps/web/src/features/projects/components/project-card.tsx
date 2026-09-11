@@ -52,6 +52,9 @@ export function ProjectCard({ projectId }: { projectId: string }) {
   // панель — внутри колонки чата (анимируется ОДНА ширина — левая зона не
   // дёргается); лента не уже 360 при открытой панели.
   const panel = useChatSidePanel();
+  // Открытый тред канала — состояние карточки: область панели беседы
+  // («Этот тред») и ChannelView читают его из одного места (#42).
+  const [threadId, setThreadId] = useState<string | null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
   const { chatW, onDividerDown, dragging } = useChatWidth(
     chatRef,
@@ -141,13 +144,19 @@ export function ProjectCard({ projectId }: { projectId: string }) {
         >
           <div className="flex h-full w-full bg-background">
             <div className="content-fade min-h-0 min-w-0 flex-1">
-              <ProjectChat project={project} />
+              <ProjectChat
+                project={project}
+                threadId={threadId}
+                onOpenThread={setThreadId}
+                onCloseThread={() => setThreadId(null)}
+              />
             </div>
             {panel.mounted && project.channelId ? (
               <ChatSidePanel
                 conversationId={project.channelId}
                 open={panel.open}
                 onClose={panel.close}
+                threadRootId={threadId}
               />
             ) : null}
           </div>

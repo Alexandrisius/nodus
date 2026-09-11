@@ -1,5 +1,5 @@
 import { ArrowRight } from 'lucide-react';
-import { useMemo } from 'react';
+import { memo, useMemo } from 'react';
 import { ui } from '@nodus/contracts';
 import { Empty, EmptyTitle } from '@nodus/ui/components/empty';
 import { Skeleton } from '@nodus/ui/components/skeleton';
@@ -27,7 +27,7 @@ function repliesLabel(count: number): string {
  * (корневой пост). Правый клик по посту — контекстное меню сообщения.
  * Правая панель беседы — у контейнера (шапка беседы), не у ленты.
  */
-export function ThreadFeed({
+export const ThreadFeed = memo(function ThreadFeed({
   conversationId,
   onOpenThread,
 }: {
@@ -56,7 +56,7 @@ export function ThreadFeed({
 
   return (
     <div className="flex h-full min-w-0 flex-1 flex-col">
-      <div className="min-h-0 flex-1 overflow-y-auto p-4">
+      <div data-feed-scroll className="min-h-0 flex-1 overflow-y-auto p-4">
         {isLoading ? (
           <div className="flex flex-col gap-3">
             {[0, 1, 2].map((i) => (
@@ -87,6 +87,7 @@ export function ThreadFeed({
                 >
                   <button
                     type="button"
+                    data-thread-source={root.id}
                     onClick={() => onOpenThread(root.id)}
                     className="node-panel w-full max-w-2xl p-3.5 text-left transition-colors hover:border-input"
                   >
@@ -148,4 +149,4 @@ export function ThreadFeed({
       />
     </div>
   );
-}
+});

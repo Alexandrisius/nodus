@@ -57,6 +57,20 @@ export function pathLength(points: NodeEdgePoint[]): number {
 const PULSE_SPEED = 400;
 const DRAW_SPEED = 1200;
 
+/** Длительности рисовки и пробега пульса (сек) из длины маршрута: скорость
+ * постоянна, caps — верхняя граница для сверхдлинных маршрутов (вспышка
+ * треда на широкоформатном мониторе). ЕДИНСТВЕННЫЙ источник формул: обёртки
+ * затухания (flashFadeMs) считают из неё, а не дублируют скорости. */
+export function edgeDurations(
+  len: number,
+  caps?: { draw?: number; pulse?: number },
+): { draw: number; pulse: number } {
+  return {
+    draw: Math.min(Math.max(len / DRAW_SPEED, 0.15), caps?.draw ?? Number.POSITIVE_INFINITY),
+    pulse: Math.min(Math.max(len / PULSE_SPEED, 0.3), caps?.pulse ?? Number.POSITIVE_INFINITY),
+  };
+}
+
 function useReducedMotion(): boolean {
   const [reduced, setReduced] = useState(
     () =>
@@ -86,6 +100,8 @@ function NodeEdge({
   drawOn = false,
   ports = 'both',
   elbow = 8,
+  drawCapS,
+  pulseCapS,
   className,
 }: {
   points: NodeEdgePoint[];
@@ -97,6 +113,11 @@ function NodeEdge({
   /** Порты-точки: на обоих концах, только в целевом или без точек. */
   ports?: 'both' | 'end' | 'none';
   elbow?: number;
+  /** Верхняя граница длительности рисовки (сек): на длинных маршрутах
+   *  скорость растёт — вспышка остаётся читаемой (thread-flash, circuit.md). */
+  drawCapS?: number;
+  /** Верхняя граница длительности пробега пульса (сек), см. drawCapS. */
+  pulseCapS?: number;
   className?: string;
 }) {
   const d = useMemo(() => orthPath(points, elbow), [points, elbow]);
@@ -107,9 +128,13 @@ function NodeEdge({
   const end = points[points.length - 1];
   if (!start || !end) return null;
   const animate = drawOn && !reduced;
-  // Длительности из длины маршрута — скорость вспышки одинакова на всех путях.
-  const drawDur = Math.max(len / DRAW_SPEED, 0.15);
-  const pulseDur = Math.max(len / PULSE_SPEED, 0.3);
+  // Длительности — из edgeDurations: скорость вспышки одинакова на всех
+  // путях; caps — исключение для сверхдлинных маршрутов (широкоформатный
+  // монитор: импульс быстрее, но не «теряется»).
+  const { draw: drawDur, pulse: pulseDur } = edgeDurations(len, {
+    draw: drawCapS,
+    pulse: pulseCapS,
+  });
   return (
     <svg
       aria-hidden="true"

@@ -136,37 +136,39 @@ export function EmployeeCard({ userId }: { userId: string }) {
         </div>
       </div>
 
+      {/* Вкладки карточки (модель профиля Битрикс24, моно-ряд) — ПОЛНАЯ
+          ШИРИНА над зонами (модель карточки проекта): горизонтальная линия
+          таб-бара не обрывается на колонке чата (вердикт владельца
+          12.09.2026: линии не совпадали). Органы списков (поиск, фильтр,
+          шестерёнка) — в строке инструментов вкладки (единый стандарт). */}
+      <div className="content-fade flex shrink-0 items-center gap-1 border-b border-border px-4">
+        {tabs.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => setTab(t.id)}
+            aria-current={tab === t.id}
+            className={cn(
+              'flex h-10 items-center gap-2 rounded-none border-b-2 px-3 font-mono text-[11px] tracking-[0.14em] uppercase transition-colors',
+              tab === t.id
+                ? 'border-port text-foreground'
+                : 'border-transparent text-muted-foreground hover:text-foreground/80',
+            )}
+          >
+            {t.label}
+            {t.count !== undefined ? (
+              <span className="font-mono text-[10px] text-muted-foreground tabular-nums">
+                {t.count}
+              </span>
+            ) : null}
+          </button>
+        ))}
+      </div>
+
       {/* Левая зона (вкладки) и колонка личного диалога — вертикальная
           граница структурная, зона чата — фон с первого кадра раскрытия. */}
       <div className="grid min-h-0 flex-1" style={{ gridTemplateColumns: 'minmax(0,1fr) auto' }}>
         <div className="relative flex min-h-0 flex-col border-r border-border @container">
-          {/* Вкладки карточки (модель профиля Битрикс24, моно-ряд) — ТОЛЬКО
-              вкладки; органы списков (поиск, фильтр, шестерёнка) — в строке
-              инструментов вкладки (единый стандарт, вердикт владельца) */}
-          <div className="content-fade flex shrink-0 items-center gap-1 border-b border-border px-4">
-            {tabs.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => setTab(t.id)}
-                aria-current={tab === t.id}
-                className={cn(
-                  'flex h-10 items-center gap-2 rounded-none border-b-2 px-3 font-mono text-[11px] tracking-[0.14em] uppercase transition-colors',
-                  tab === t.id
-                    ? 'border-port text-foreground'
-                    : 'border-transparent text-muted-foreground hover:text-foreground/80',
-                )}
-              >
-                {t.label}
-                {t.count !== undefined ? (
-                  <span className="font-mono text-[10px] text-muted-foreground tabular-nums">
-                    {t.count}
-                  </span>
-                ) : null}
-              </button>
-            ))}
-          </div>
-
           <div className="content-fade min-h-0 flex-1 overflow-hidden">
             {tab === 'profile' ? (
               <div className="h-full overflow-y-auto p-6">

@@ -1,4 +1,5 @@
-import { ArrowLeft } from 'lucide-react';
+import { memo } from 'react';
+import { ArrowLeft, X } from 'lucide-react';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import { NodeLabel } from '@nodus/ui/components/node-label';
@@ -21,20 +22,26 @@ import { useSendChatMessage, useThreadMessages } from './api.js';
 
 /**
  * Тред канала (вердикт владельца): «провалиться внутрь — обычный чат».
- * Шапка — возврат к ленте + моно-метка «Обсуждение»; корневой пост отделён
- * штриховой линией, ответы — обычные сообщения с контекстным меню по правому
- * клику; композер отправляет с threadRootId (уведомления — только участники
- * треда и наблюдатели проекта, бэкенд-механика M13). Правая панель беседы —
- * у контейнера (шапка беседы), не у пейна.
+ * Шапка — моно-метка «Обсуждение»; корневой пост отделён штриховой линией,
+ * ответы — обычные сообщения с контекстным меню по правому клику; композер
+ * отправляет с threadRootId (уведомления — только участники треда и
+ * наблюдатели проекта, бэкенд-механика M13). Правая панель беседы — у
+ * контейнера (шапка беседы), не у пейна.
+ *
+ * Два варианта шапки (окно треда, #42): 'drill' — тред ЗАМЕНИЛ ленту (узкая
+ * зона, карточки): кнопка «К ленте»; 'side' — тред окном РАДОМ с лентой
+ * (Slack-паттерн): крестик закрытия, лента остаётся видимой.
  */
-export function ThreadPane({
+export const ThreadPane = memo(function ThreadPane({
   conversationId,
   threadRootId,
-  onBack,
+  variant = 'drill',
+  onClose,
 }: {
   conversationId: string;
   threadRootId: string;
-  onBack: () => void;
+  variant?: 'drill' | 'side';
+  onClose: () => void;
 }) {
   const { data, isLoading } = useThreadMessages(conversationId, threadRootId);
   const send = useSendChatMessage(conversationId);
@@ -47,10 +54,23 @@ export function ThreadPane({
   return (
     <div className="flex h-full min-w-0 flex-1 flex-col">
       <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-3">
-        <Button variant="ghost" size="icon" aria-label={ui.chat.backToFeed} onClick={onBack}>
-          <ArrowLeft />
-        </Button>
+        {variant === 'drill' ? (
+          <Button variant="ghost" size="icon" aria-label={ui.chat.backToFeed} onClick={onClose}>
+            <ArrowLeft />
+          </Button>
+        ) : null}
         <NodeLabel label={ui.chat.discussion} count={replies.length} />
+        {variant === 'side' ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="ml-auto hover:bg-accent"
+            aria-label={ui.common.close}
+            onClick={onClose}
+          >
+            <X />
+          </Button>
+        ) : null}
       </header>
       <MessageScrollerProvider>
         <MessageScroller className="min-h-0 flex-1 bg-background">
@@ -102,4 +122,4 @@ export function ThreadPane({
       />
     </div>
   );
-}
+});

@@ -1,10 +1,11 @@
 import { FileText, Link2, PanelRight, X } from 'lucide-react';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import { NodeLabel } from '@nodus/ui/components/node-label';
 import { cn } from '@nodus/ui/lib/utils';
 
+import { threadScopeMessages } from './channel-layout.js';
 import { useConversationMessages } from './api.js';
 
 /** Ширина вталкивающей панели беседы: контейнер уменьшает чат на неё. */
@@ -60,24 +61,40 @@ export function useChatSidePanel() {
  * минимальной ширине — выталкивает левую часть (auto-колонки grid).
  * В карточке задачи её роль играет панель «О задаче» (те же секции +
  * история и избранное).
+ *
+ * Панель — ОДНА на беседу (хостится контейнером), НЕ на зону: окно треда
+ * рядом с лентой (#42) не умножает правых панелей (research OpenClaw:
+ * несколько rail'ов съедают ширину ленты и множат границы ресайза). При
+ * открытом треде — переключатель области «Вся беседа / Этот тред» (канон
+ * пресетов: 13px, зона bg-muted/40, активный bg-accent): файлы/ссылки
+ * фильтруются по корню треда и его ответам.
  */
 export function ChatSidePanel({
   conversationId,
   open,
   onClose,
+  threadRootId = null,
 }: {
   conversationId: string;
   open: boolean;
   onClose: () => void;
+  threadRootId?: string | null;
 }) {
   const { data } = useConversationMessages(conversationId);
+  const [scope, setScope] = useState<'all' | 'thread'>('all');
+  useEffect(() => {
+    if (!threadRootId) setScope('all');
+  }, [threadRootId]);
   const items = data?.items ?? [];
-  const files = items.flatMap((m) => m.attachments);
-  const links = items.flatMap((m) => m.text.match(/https?:\/\/\S+/g) ?? []);
+  const scoped =
+    threadRootId && scope === 'thread' ? threadScopeMessages(items, threadRootId) : items;
+  const files = scoped.flatMap((m) => m.attachments);
+  const links = scoped.flatMap((m) => m.text.match(/https?:\/\/\S+/g) ?? []);
 
   return (
     <div
       aria-hidden={!open}
+      inert={!open}
       className={cn(
         'h-full shrink-0 overflow-hidden transition-[width] duration-200 ease-out',
         open ? 'w-[300px]' : 'w-0',
@@ -96,6 +113,27 @@ export function ChatSidePanel({
             <X />
           </Button>
         </div>
+
+        {threadRootId ? (
+          <div className="flex shrink-0 gap-1 rounded-lg bg-muted/40 p-1">
+            {(['all', 'thread'] as const).map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setScope(s)}
+                aria-pressed={scope === s}
+                className={cn(
+                  'flex-1 rounded-md px-2 py-1 text-[13px] transition-colors',
+                  scope === s
+                    ? 'bg-accent text-foreground'
+                    : 'text-muted-foreground hover:text-foreground',
+                )}
+              >
+                {s === 'all' ? ui.chat.scopeAll : ui.chat.scopeThread}
+              </button>
+            ))}
+          </div>
+        ) : null}
 
         <Section icon={FileText} title={ui.chat.filesMedia}>
           {files.length > 0 ? (

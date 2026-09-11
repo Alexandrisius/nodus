@@ -346,6 +346,8 @@ export const ui = {
     filesMedia: 'Файлы и медиа',
     links: 'Ссылки',
     panelTitle: 'Панель беседы',
+    scopeAll: 'Вся беседа',
+    scopeThread: 'Этот тред',
     copied: 'Скопировано',
     actionSoon: 'Появится с запуском сервера сообщений',
     menu: {

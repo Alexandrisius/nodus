@@ -1,18 +1,26 @@
-import { useState } from 'react';
 import type { ProjectListItem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { Empty, EmptyDescription, EmptyTitle } from '@nodus/ui/components/empty';
 
-import { ThreadFeed } from '../../../shared/chat/thread-feed.js';
-import { ThreadPane } from '../../../shared/chat/thread-pane.js';
+import { ChannelView } from '../../../shared/chat/channel-view.js';
 
 /** Вкладка «Чат» панели проекта: канал проекта в мессенджере (создаётся
- *  автоматически, вердикт владельца 2026-09-10) — лента новостей-тредов;
- *  «провалиться внутрь» = обычный чат (ThreadPane, тот же механизм shared/chat,
- *  что и в мессенджере — без отдельной реализации, плейбук §3.6). */
-export function ProjectChat({ project }: { project: ProjectListItem }) {
-  const [threadId, setThreadId] = useState<string | null>(null);
-
+ *  автоматически, вердикт владельца 2026-09-10) — лента новостей-тредов с
+ *  окном треда рядом (тот же shared-компонент, что в мессенджере, #42:
+ *  широкая колонка — две зоны, узкая — drill-down с «К ленте»). Состояние
+ *  открытого треда — у карточки: область панели беседы («Этот тред») живёт
+ *  там же. */
+export function ProjectChat({
+  project,
+  threadId,
+  onOpenThread,
+  onCloseThread,
+}: {
+  project: ProjectListItem;
+  threadId: string | null;
+  onOpenThread: (rootId: string) => void;
+  onCloseThread: () => void;
+}) {
   if (!project.channelId) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -24,13 +32,12 @@ export function ProjectChat({ project }: { project: ProjectListItem }) {
     );
   }
 
-  return threadId ? (
-    <ThreadPane
+  return (
+    <ChannelView
       conversationId={project.channelId}
       threadRootId={threadId}
-      onBack={() => setThreadId(null)}
+      onOpenThread={onOpenThread}
+      onCloseThread={onCloseThread}
     />
-  ) : (
-    <ThreadFeed conversationId={project.channelId} onOpenThread={setThreadId} />
   );
 }
