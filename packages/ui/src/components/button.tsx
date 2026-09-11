@@ -10,7 +10,10 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          'bg-primary text-primary-foreground shadow-[2px_3px_0_rgb(14_27_21/0.3)] hover:bg-primary/80',
+          // БЕЗ тени: канон «Плоско» (SKILL.md §3) + Exa-research 12.09.2026 —
+          // жёсткие offset-тени без blur — признак нео-брутализма, для
+          // enterprise B2B противопоказаны; элевация кнопки — заливкой.
+          'bg-primary text-primary-foreground hover:bg-primary/80',
         outline:
           'border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50',
         secondary:
