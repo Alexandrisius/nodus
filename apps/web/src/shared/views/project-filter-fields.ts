@@ -4,9 +4,17 @@ import { ui } from '@nodus/contracts';
 
 import { useUsersList } from '../api/users-list.js';
 import type { FilterFieldDef, FilterValue } from './list-filters.js';
+import type { FilterPreset } from './use-list-toolbar.js';
 
 /** Поисковая строка проекта: код + название. */
 export const projectSearchText = (p: ProjectListItem) => `${p.code} ${p.name}`;
+
+/** Встроенные пресеты проектов (левая колонка панели фильтра). */
+export const projectBuiltinPresets: FilterPreset[] = [
+  { id: 'managing', name: ui.projects.presetManaging, state: { myRole: 'manager' } },
+  { id: 'open', name: ui.projects.privacy.open, state: { privacy: 'open' } },
+  { id: 'closed', name: ui.projects.privacy.closed, state: { privacy: 'closed' } },
+];
 
 function endDateMatch(item: ProjectListItem, value: FilterValue): boolean {
   if (typeof value !== 'object' || value === undefined) return true;

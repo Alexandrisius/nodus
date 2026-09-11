@@ -103,7 +103,7 @@ export function ProjectGantt({ projectId }: { projectId: string }) {
       <div className="w-max min-w-full">
         {/* Шкала: месяцы (на границах) + дни; колонка названий sticky. */}
         <div className="flex border-b border-border">
-          <div className="sticky left-0 z-10 shrink-0 bg-background" style={{ width: TITLE_W }} />
+          <div className="sticky left-0 z-10 shrink-0 bg-card" style={{ width: TITLE_W }} />
           <div className="relative" style={{ width: chartW }}>
             <div className="flex">
               {model.days.map((day, i) => {
@@ -160,7 +160,7 @@ export function ProjectGantt({ projectId }: { projectId: string }) {
           {model.rows.map(({ task, startDay, endDay, overdue }) => (
             <div key={task.id} className="group flex h-10 items-center border-b border-border/50">
               <div
-                className="sticky left-0 z-10 flex shrink-0 items-center gap-2 self-stretch bg-background pr-3 group-hover:bg-accent/40"
+                className="sticky left-0 z-10 flex shrink-0 items-center gap-2 self-stretch bg-card pr-3 group-hover:bg-accent/40"
                 style={{ width: TITLE_W }}
               >
                 <span className="shrink-0 font-mono text-[10px] text-muted-foreground tabular-nums">

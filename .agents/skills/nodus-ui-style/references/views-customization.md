@@ -56,24 +56,27 @@ const { visibleFields, isVisible, toggleField, setWidth, reset } = useViewFields
 
 DropdownMenu с чекбоксами (`onSelect={e => e.preventDefault()}` — иначе меню закрывается после первого пункта!) + «Сбросить настройки». Поле `locked` — disabled. Живёт в правом конце строки инструментов (`ListToolbar`), НЕ в таб-баре карточки и не в шапке страницы.
 
-## Строка инструментов списка (`ListToolbar`, раунд 4)
+## Строка инструментов списка (`ListToolbar`, раунды 4–5)
 
-У КАЖДОГО журнала и вкладки-списка — один компонент: локальный поиск (placeholder называет зону), фильтр с пресетами, чипы активных, слоты `left` (переключатель вида) / `right` (шестерёнка):
+У КАЖДОГО журнала и вкладки-списка — один компонент. Модель Битрикс24: ОДНА поисковая строка (placeholder — короткий «Поиск…»; в фокусе поле РАСШИРЯЕТСЯ w-52→w-80), из которой выезжает панель фильтра — **отдельной кнопки «Фильтр» НЕТ**. Панель (`filter-panel.tsx`): слева колонка пресетов (встроенные реестра + сохранённые; клик применяет, активный подсвечен `sameFilterState`, «скрепка» = pinnedId в `nodus-list-filters-v1:<viewKey>`; свои удаляются), справа поля по атрибутам (мгновенное применение), «Сбросить». Чипы активных фильтров — в строке; слоты `left` (вид) / `right` (счётчики, шестерёнка).
 
 ```tsx
-const toolbar = useListToolbar('projects.tasks');          // память nodus-list-filters-v1:<viewKey>
-const defs = useTaskFilterDefs({ projectVisible: false }); // реестр фильтруемых полей
+const toolbar = useListToolbar('projects.tasks', taskBuiltinPresets); // встроенные пресеты — вторым аргументом
+const defs = useTaskFilterDefs({ projectVisible: false }); // реестр полей
 const filter = useMemo(() => ({ defs, state: toolbar.filters, query: toolbar.query, searchText: taskSearchText }), [...]);
 const rows = useFilteredList(items, filter);               // или проп filter в TaskList/TaskKanban
 
-<ListToolbar toolbar={toolbar} defs={defs} searchPlaceholder={ui.tasks.searchInProject}
-  left={<ViewToggle …/>} right={<ViewSettings viewKey={…} defs={…} />} />
+// Страница: шапка ОДНОЙ строкой h-14 (заголовок + счётчик + тулбар flex-1 + шестерёнка)
+<ListToolbar className="min-w-0 flex-1 px-0" toolbar={toolbar} defs={defs} builtinPresets={taskBuiltinPresets} right={<ViewSettings …/>} />
+// Карточка (вкладка): тулбар с нижней границей
+<ListToolbar className="border-b border-border" toolbar={toolbar} defs={defs} builtinPresets={…} left={<ViewToggle …/>} right={<ViewSettings …/>} />
 ```
 
-- **Реестр фильтруемых полей** — `shared/views/<entity>-filter-fields.ts`: `FilterFieldDef<T> = { id, label, type: 'select'|'person'|'dateRange'|'text', options?, match(item, value) }` — чистый предикат (unit-тесты `list-filters.test.ts`); справочники опций — shared-хуки (`shared/api/users-list`, `projects-list`, `task-stages` — единые ключи кэша, I6).
-- **Фильтрация** — `applyListFilters` (подстрока запроса по `searchText` + AND активных полей); запрос эфемерен (не персистится), фильтры и пресеты — localStorage; пресет со «скрепкой» (pinned) применяется по умолчанию при открытии списка.
+- **Реестр фильтруемых полей** — `shared/views/<entity>-filter-fields.ts`: `FilterFieldDef<T> = { id, label, type, options?, hidden?, match }` — чистый предикат (unit-тесты `list-filters.test.ts`); `hidden: true` — служебные поля (в панель не выводятся; напр. `overdue` задач: его используют пресет «Просрочены» и счётчик-чип в шапке журнала, клик по которому включает фильтр — модель Битрикс24). Справочники опций — shared-хуки (`shared/api/users-list`, `projects-list`, `task-stages` — единые ключи кэша, I6).
+- **Фильтрация** — `applyListFilters` (подстрока запроса по `searchText` + AND активных полей); запрос эфемерен (не персистится), фильтры и пресеты — localStorage; закреплённый пресет (встроенный или свой) применяется по умолчанию при открытии списка.
 - **Канбан:** фильтр сужает только отображение; шапки «n из m» (проп `total` BoardColumn); DnD при активном фильтре выключен (`disabled` BoardSortableCard — перестановка по урезанному набору дала бы ложные индексы).
 - **Два поиска не конкурируют:** глобальный «Умный поиск» — лупа в правой группе топбара (Ctrl+K, палитра прежняя); большого поля в центре топбара НЕТ.
+- **Панель из фокуса, не из триггера:** Popover с `PopoverAnchor` (НЕ Trigger — клик по полю не должен тогглить), `open` управляем onFocus, `onOpenAutoFocus` отменён (фокус остаётся в поле — печатать можно сразу).
 
 ### Карточки канбана
 

@@ -56,25 +56,25 @@ export function EmployeesPage() {
 
   return (
     <div className="relative flex h-full flex-col">
-      <header className="flex items-end justify-between px-6 pt-5 pb-3">
-        <h1 className="text-xl font-semibold text-foreground">{ui.employees.title}</h1>
-        <p className="font-mono text-[11px] tracking-[0.14em] text-muted-foreground uppercase select-none">
+      <div className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-6">
+        <h1 className="shrink-0 text-xl font-semibold text-foreground">{ui.employees.title}</h1>
+        <span className="shrink-0 font-mono text-[11px] tracking-[0.14em] text-muted-foreground uppercase select-none">
           <span className="text-foreground tabular-nums">{items.length}</span>{' '}
           {plural(items.length, [
             ui.employees.countOne,
             ui.employees.countFew,
             ui.employees.countMany,
           ])}
-        </p>
-      </header>
-      {view === 'list' ? (
-        <ListToolbar
-          toolbar={toolbar}
-          defs={filterDefs}
-          searchPlaceholder={ui.employees.searchInList}
-          right={<ViewSettings viewKey="employees.list" defs={defs} />}
-        />
-      ) : null}
+        </span>
+        {view === 'list' ? (
+          <ListToolbar
+            className="min-w-0 flex-1 px-0"
+            toolbar={toolbar}
+            defs={filterDefs}
+            right={<ViewSettings viewKey="employees.list" defs={defs} />}
+          />
+        ) : null}
+      </div>
       <div className="min-h-0 flex-1">
         {view === 'org' ? (
           isLoading ? (

@@ -7,9 +7,27 @@ import { useTaskStages } from '../api/task-stages.js';
 import { useUsersList } from '../api/users-list.js';
 import { useAuthStore } from '../auth-store.js';
 import type { FilterFieldDef, FilterValue } from './list-filters.js';
+import type { FilterPreset } from './use-list-toolbar.js';
 
 /** Поисковая строка задачи: номер + название (подстрока, без регистра). */
 export const taskSearchText = (t: TaskListItem) => `${t.number} ${t.title}`;
+
+/** Просрочена: дедлайн в прошлом и задача не завершена/не закрыта. */
+export function isTaskOverdue(t: TaskListItem, now: number): boolean {
+  if (!t.deadline) return false;
+  if (t.stage.systemState === 'done' || t.stage.systemState === 'closed') return false;
+  return new Date(t.deadline).getTime() < now;
+}
+
+/** Встроенные пресеты задач (левая колонка панели, модель Битрикс24):
+ *  быстрое применение кликом; «скрепка» — любой пресет по умолчанию. */
+export const taskBuiltinPresets: FilterPreset[] = [
+  { id: 'active', name: ui.tasks.stageStates.active, state: { systemState: 'active' } },
+  { id: 'mine-assignee', name: ui.tasks.roles.assignee, state: { role: 'assignee' } },
+  { id: 'mine-creator', name: ui.tasks.roles.creator, state: { role: 'creator' } },
+  { id: 'overdue', name: ui.tasks.presetOverdue, state: { overdue: 'yes' } },
+  { id: 'done', name: ui.tasks.stageStates.done, state: { systemState: 'done' } },
+];
 
 /** Крайний срок в диапазоне дат (ISO-дата срезается до YYYY-MM-DD). */
 function deadlineMatch(item: TaskListItem, value: FilterValue): boolean {
@@ -48,6 +66,13 @@ export function useTaskFilterDefs({
         match: (t, v) => t.stage.id === v,
       },
       {
+        id: 'systemState',
+        label: ui.tasks.systemState,
+        type: 'select',
+        options: Object.entries(ui.tasks.stageStates).map(([value, label]) => ({ value, label })),
+        match: (t, v) => t.stage.systemState === v,
+      },
+      {
         id: 'role',
         label: ui.tasks.roleLabel,
         type: 'select',
@@ -84,6 +109,16 @@ export function useTaskFilterDefs({
         label: ui.tasks.deadline,
         type: 'dateRange',
         match: deadlineMatch,
+      },
+      {
+        // Скрытое служебное поле: в панель не выводится; используется пресетом
+        // «Просрочены» и счётчиком просрочки в шапке журнала задач.
+        id: 'overdue',
+        label: ui.tasks.overdueField,
+        type: 'select',
+        hidden: true,
+        options: [{ value: 'yes', label: ui.filters.yes }],
+        match: (t, v) => v !== 'yes' || isTaskOverdue(t, Date.now()),
       },
     ];
     if (assigneeVisible) {

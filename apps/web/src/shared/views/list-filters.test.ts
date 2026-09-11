@@ -6,9 +6,10 @@ import {
   applyListFilters,
   filterValueLabel,
   isActiveFilter,
+  sameFilterState,
   type FilterFieldDef,
 } from './list-filters.js';
-import { taskSearchText } from './task-filter-fields.js';
+import { isTaskOverdue, taskSearchText } from './task-filter-fields.js';
 
 /** Минимальная задача для матчеров (поля вне матчей не используются). */
 function task(patch: Partial<TaskListItem>): TaskListItem {
@@ -142,5 +143,67 @@ describe('applyListFilters: запрос + поля', () => {
     expect(
       applyListFilters(items, [stageDef], { stage: undefined }, '', taskSearchText),
     ).toHaveLength(3);
+  });
+});
+
+describe('sameFilterState: подсветка активного пресета', () => {
+  it('одинаковые активные значения — равны, порядок ключей не важен', () => {
+    expect(sameFilterState({ stage: 'a', role: 'r' }, { role: 'r', stage: 'a' })).toBe(true);
+  });
+
+  it('пустые значения игнорируются', () => {
+    expect(sameFilterState({ stage: 'a', role: '' }, { stage: 'a' })).toBe(true);
+    expect(sameFilterState({}, { stage: undefined })).toBe(true);
+  });
+
+  it('разные значения или наборы — не равны', () => {
+    expect(sameFilterState({ stage: 'a' }, { stage: 'b' })).toBe(false);
+    expect(sameFilterState({ stage: 'a' }, { stage: 'a', role: 'r' })).toBe(false);
+  });
+
+  it('диапазоны дат сравниваются по from/to', () => {
+    expect(
+      sameFilterState(
+        { deadline: { from: '2026-09-01', to: '2026-09-30' } },
+        { deadline: { from: '2026-09-01', to: '2026-09-30' } },
+      ),
+    ).toBe(true);
+    expect(
+      sameFilterState({ deadline: { from: '2026-09-01' } }, { deadline: { to: '2026-09-01' } }),
+    ).toBe(false);
+  });
+});
+
+describe('isTaskOverdue: просрочка задачи', () => {
+  const now = new Date('2026-09-11T12:00:00Z').getTime();
+
+  it('дедлайн в прошлом и не завершена — просрочена', () => {
+    expect(isTaskOverdue(task({ deadline: '2026-09-10T18:00:00Z' }), now)).toBe(true);
+  });
+
+  it('дедлайн в будущем — не просрочена', () => {
+    expect(isTaskOverdue(task({ deadline: '2026-09-13T18:00:00Z' }), now)).toBe(false);
+  });
+
+  it('без дедлайна — не просрочена', () => {
+    expect(isTaskOverdue(task({ deadline: null }), now)).toBe(false);
+  });
+
+  it('завершённая с дедлайном в прошлом — НЕ просрочена', () => {
+    expect(
+      isTaskOverdue(
+        task({
+          deadline: '2026-09-01T18:00:00Z',
+          stage: {
+            id: 'st-done',
+            name: 'Завершена',
+            order: 5,
+            systemState: 'done',
+            color: 'success',
+          },
+        }),
+        now,
+      ),
+    ).toBe(false);
   });
 });

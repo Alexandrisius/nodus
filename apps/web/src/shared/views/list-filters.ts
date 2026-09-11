@@ -29,6 +29,9 @@ export interface FilterFieldDef<T> {
   options?: FilterOption[];
   /** Плейсхолдер для text. */
   placeholder?: string;
+  /** Скрытое поле: в панель не выводится (служебные — пресеты/счётчики),
+   *  но участвует в фильтрации и чипах (напр. «Просроченные»). */
+  hidden?: boolean;
   /** Совпадение элемента со значением фильтра (unit-тестируется). */
   match: (item: T, value: FilterValue) => boolean;
 }
@@ -90,4 +93,21 @@ export interface ActiveListFilter<T> {
 export function isFilteringActive<T>(filter: ActiveListFilter<T> | undefined): boolean {
   if (!filter) return false;
   return filter.query.trim() !== '' || activeFiltersCount(filter.defs, filter.state) > 0;
+}
+
+/** Одинаковые состояния фильтров (для подсветки активного пресета):
+ *  сравнение по активным значениям, порядок ключей не важен. */
+export function sameFilterState(a: FilterState, b: FilterState): boolean {
+  const keysOf = (s: FilterState) => Object.keys(s).filter((k) => isActiveFilter(s[k]));
+  const aKeys = keysOf(a);
+  const bKeys = keysOf(b);
+  if (aKeys.length !== bKeys.length) return false;
+  return aKeys.every((k) => {
+    const av = a[k];
+    const bv = b[k];
+    if (typeof av === 'object' && typeof bv === 'object' && av && bv) {
+      return (av.from ?? '') === (bv.from ?? '') && (av.to ?? '') === (bv.to ?? '');
+    }
+    return av === bv;
+  });
 }

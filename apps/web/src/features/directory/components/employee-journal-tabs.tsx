@@ -8,11 +8,16 @@ import { ListToolbar } from '../../../shared/views/list-toolbar.js';
 import type { ActiveListFilter } from '../../../shared/views/list-filters.js';
 import { useFilteredList, useListToolbar } from '../../../shared/views/use-list-toolbar.js';
 import {
+  projectBuiltinPresets,
   projectSearchText,
   useProjectFilterDefs,
 } from '../../../shared/views/project-filter-fields.js';
 import { projectListFields } from '../../../shared/views/project-table-fields.js';
-import { taskSearchText, useTaskFilterDefs } from '../../../shared/views/task-filter-fields.js';
+import {
+  taskBuiltinPresets,
+  taskSearchText,
+  useTaskFilterDefs,
+} from '../../../shared/views/task-filter-fields.js';
 import { makeTaskTableFields } from '../../../shared/views/task-table-fields.js';
 import { ViewSettings } from '../../../shared/views/view-settings.js';
 
@@ -33,7 +38,7 @@ export function EmployeeTasksTab({
   isLoading: boolean;
 }) {
   const openCard = useOpenCard();
-  const toolbar = useListToolbar('directory.tasks');
+  const toolbar = useListToolbar('directory.tasks', taskBuiltinPresets);
   const defs = useTaskFilterDefs({ projectVisible: true, assigneeVisible: false });
   const filter = useMemo<ActiveListFilter<TaskListItem>>(
     () => ({ defs, state: toolbar.filters, query: toolbar.query, searchText: taskSearchText }),
@@ -44,9 +49,10 @@ export function EmployeeTasksTab({
   return (
     <div className="flex h-full flex-col">
       <ListToolbar
+        className="border-b border-border"
         toolbar={toolbar}
         defs={defs}
-        searchPlaceholder={ui.tasks.searchInAssignee}
+        builtinPresets={taskBuiltinPresets}
         right={<ViewSettings viewKey="directory.tasks" defs={employeeTaskTableFields} />}
       />
       <div className="min-h-0 flex-1">
@@ -74,7 +80,7 @@ export function EmployeeProjectsTab({
   isLoading: boolean;
 }) {
   const openCard = useOpenCard();
-  const toolbar = useListToolbar('directory.projects');
+  const toolbar = useListToolbar('directory.projects', projectBuiltinPresets);
   const defs = useProjectFilterDefs();
   const filter = useMemo<ActiveListFilter<ProjectListItem>>(
     () => ({ defs, state: toolbar.filters, query: toolbar.query, searchText: projectSearchText }),
@@ -85,9 +91,10 @@ export function EmployeeProjectsTab({
   return (
     <div className="flex h-full flex-col">
       <ListToolbar
+        className="border-b border-border"
         toolbar={toolbar}
         defs={defs}
-        searchPlaceholder={ui.employees.searchProjects}
+        builtinPresets={projectBuiltinPresets}
         right={<ViewSettings viewKey="directory.projects" defs={projectListFields} />}
       />
       <div className="min-h-0 flex-1">

@@ -7,7 +7,11 @@ import { cn } from '@nodus/ui/lib/utils';
 import { ListToolbar } from '../../../shared/views/list-toolbar.js';
 import type { ActiveListFilter } from '../../../shared/views/list-filters.js';
 import { useListToolbar } from '../../../shared/views/use-list-toolbar.js';
-import { taskSearchText, useTaskFilterDefs } from '../../../shared/views/task-filter-fields.js';
+import {
+  taskBuiltinPresets,
+  taskSearchText,
+  useTaskFilterDefs,
+} from '../../../shared/views/task-filter-fields.js';
 import { ViewSettings } from '../../../shared/views/view-settings.js';
 import { ProjectKanban, projectKanbanCardFields } from './project-kanban.js';
 import { ProjectTaskList, projectTaskTableFields } from './project-task-list.js';
@@ -28,7 +32,7 @@ const tasksViews: { id: TasksView; label: string; icon: typeof List }[] = [
  */
 export function ProjectTasksTab({ projectId }: { projectId: string }) {
   const [view, setView] = useState<TasksView>('list');
-  const toolbar = useListToolbar('projects.tasks');
+  const toolbar = useListToolbar('projects.tasks', taskBuiltinPresets);
   const defs = useTaskFilterDefs({ projectVisible: false });
   const filter = useMemo<ActiveListFilter<TaskListItem>>(
     () => ({ defs, state: toolbar.filters, query: toolbar.query, searchText: taskSearchText }),
@@ -38,9 +42,10 @@ export function ProjectTasksTab({ projectId }: { projectId: string }) {
   return (
     <div className="flex h-full flex-col">
       <ListToolbar
+        className="border-b border-border"
         toolbar={toolbar}
         defs={defs}
-        searchPlaceholder={ui.tasks.searchInProject}
+        builtinPresets={taskBuiltinPresets}
         left={
           <div className="flex items-center rounded-lg border border-border p-0.5">
             {tasksViews.map((v) => (

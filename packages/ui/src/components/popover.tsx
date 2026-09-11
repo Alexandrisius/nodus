@@ -16,6 +16,12 @@ function PopoverTrigger({ ...props }: React.ComponentProps<typeof PopoverPrimiti
   return <PopoverPrimitive.Trigger data-slot="popover-trigger" {...props} />;
 }
 
+/** Якорь без поведения триггера: панель открывается управляемо (фокус в
+ *  поисковой строке фильтра — модель Битрикс24, клик НЕ тогглит). */
+function PopoverAnchor({ ...props }: React.ComponentProps<typeof PopoverPrimitive.Anchor>) {
+  return <PopoverPrimitive.Anchor data-slot="popover-anchor" {...props} />;
+}
+
 function PopoverContent({
   className,
   align = 'start',
@@ -38,4 +44,4 @@ function PopoverContent({
   );
 }
 
-export { Popover, PopoverTrigger, PopoverContent };
+export { Popover, PopoverTrigger, PopoverAnchor, PopoverContent };
