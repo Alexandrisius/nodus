@@ -126,6 +126,18 @@ export function CircuitFrame() {
         <path d={framePath(geo)} fill="none" stroke="var(--foreground)" strokeWidth="1" />
       </svg>
       <svg className="absolute inset-0 h-full w-full overflow-visible">
+        {/* Узел бокового шва схлопнутой рейки — точка 5px (r2 + stroke1) на
+            оси в месте стыка: рисуется здесь, а не в DOM рейки, иначе
+            overflow-hidden рейки срезает половину точки («сплющивает»). */}
+        {geo.leftNode ? (
+          <circle
+            cx={snapPx(geo.leftNode.x + 0.5)}
+            cy={snapPx(geo.leftNode.y + 0.5)}
+            r="2"
+            fill="var(--sidebar)"
+            stroke="var(--edge)"
+          />
+        ) : null}
         {geo.tabs.map((t) => (
           <circle
             key={t.x}

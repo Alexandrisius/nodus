@@ -109,15 +109,12 @@ export function NodeRail() {
         </span>
       </div>
 
-      {/* Узел контура на боковом шве схлопнутой рейки — размер точек вкладок. */}
+      {/* Якорь узла бокового шва схлопнутой рейки. САМА точка рисуется
+          оверлеем контура (svg-круг в circuit-frame — как точки вкладок):
+          DOM-точка внутри рейки резалась напополам её overflow-hidden и
+          выглядела «сплющенной» (вердикт владельца 12.09.2026). */}
       {collapsed && (
-        <>
-          <span data-left-node aria-hidden className="absolute top-[55px] right-0 size-px" />
-          <span
-            aria-hidden
-            className="absolute top-[53.5px] -right-[2.5px] z-10 size-[5px] rounded-full border border-edge bg-sidebar"
-          />
-        </>
+        <span data-left-node aria-hidden className="absolute top-[55px] right-0 size-px" />
       )}
 
       <nav className="flex flex-1 flex-col gap-4 overflow-y-auto py-3">
