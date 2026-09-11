@@ -35,6 +35,31 @@ export function useOpenCard(): (ref: CardRef, sourceRect?: SourceRect) => void {
   );
 }
 
+/** Заменить ВЕРХНЮЮ карточку стека БЕЗ новой записи истории и без ремаунта
+ *  панели — режим «Навигация» левой панели ветки (ClickUp-навигатор): клики
+ *  по связанным задачам (панель, поля «Подзадачи»/«Связи») меняют содержимое
+ *  той же карточки, стек не растёт — один Escape закрывает всю сессию.
+ *  Внешние переходы (ссылка из чата, поиск) — через useOpenCard (поверх). */
+export function useReplaceTopCard(): (ref: CardRef) => void {
+  const navigate = useNavigate();
+  return useCallback(
+    (ref: CardRef) => {
+      void navigate({
+        to: '.',
+        replace: true,
+        search: (prev) => {
+          const stack = parseCardStack(prev.cards);
+          if (stack.length === 0) return prev;
+          const top = stack[stack.length - 1];
+          if (top && sameCard(top, ref)) return prev;
+          return { ...prev, cards: serializeCardStack([...stack.slice(0, -1), ref]) };
+        },
+      });
+    },
+    [navigate],
+  );
+}
+
 /** Закрыть верхнюю карточку стека (replace: закрытие не плодит записи истории). */
 export function useCloseCard(): () => void {
   const navigate = useNavigate();

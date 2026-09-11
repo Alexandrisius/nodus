@@ -109,12 +109,10 @@ export function CardStackHost() {
   const stack = useCardStack();
   const closeCard = useCloseCard();
   return stack.map((cardRef, index) => (
-    // index в ключе: одна сущность может встречаться в стеке дважды
-    // (цепочка задача → подзадача); стек меняется только с вершины.
-    <CardStackEntry
-      key={`${cardRef.kind}:${cardRef.id}:${index}`}
-      cardRef={cardRef}
-      onClose={closeCard}
-    />
+    // index+kind в ключе (без id): одна сущность может встречаться в стеке
+    // дважды (цепочка задача → подзадача); замена верхней (режим «Навигация»
+    // ветки, useReplaceTopCard) подменяет id БЕЗ ремаунта панели — карточка
+    // стоит на месте, меняется только содержимое.
+    <CardStackEntry key={`${index}:${cardRef.kind}`} cardRef={cardRef} onClose={closeCard} />
   ));
 }

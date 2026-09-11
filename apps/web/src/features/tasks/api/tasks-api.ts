@@ -12,6 +12,7 @@ import type {
   TaskBranch,
   TaskDetail,
   TaskListItem,
+  TaskRelation,
   TaskStage,
 } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
@@ -31,6 +32,7 @@ export const tasksKeys = {
   detail: (id: string) => [...tasksKeys.all, 'detail', id] as const,
   messages: (id: string) => [...tasksKeys.all, 'messages', id] as const,
   branch: (id: string) => [...tasksKeys.all, 'branch', id] as const,
+  relations: (id: string) => [...tasksKeys.all, 'relations', id] as const,
 };
 
 /** Список (таблица с деревом): курсорные страницы по 100, подгрузка sentinel-ом
@@ -54,6 +56,15 @@ export function useTaskBranch(id: string) {
   return useQuery({
     queryKey: tasksKeys.branch(id),
     queryFn: () => api<TaskBranch>(`/tasks/${id}/branch`),
+  });
+}
+
+/** Связи задачи (поле «Отношения», вкладка «Связи» навигатора) — заготовка
+ *  под зависимости Ганта (#39); пока список пуст. */
+export function useTaskRelations(id: string) {
+  return useQuery({
+    queryKey: tasksKeys.relations(id),
+    queryFn: () => api<Paginated<TaskRelation>>(`/tasks/${id}/relations`),
   });
 }
 

@@ -1,39 +1,55 @@
 import { memo, useState, type FormEvent } from 'react';
-import { ChevronDown, ChevronRight, Plus, X } from 'lucide-react';
-import type { TaskBranchNode } from '@nodus/contracts';
+import { ArrowLeft, ChevronDown, ChevronRight, Plus, X } from 'lucide-react';
+import type { TaskBranchNode, TaskRelation } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 
+import { Empty, EmptyTitle } from '@nodus/ui/components/empty';
 import { Input } from '@nodus/ui/components/input';
 import { Skeleton } from '@nodus/ui/components/skeleton';
 import { cn } from '@nodus/ui/lib/utils';
 
-import { useOpenCard } from '../../../app/shell/use-card-stack.js';
-import { useAddSubtaskTo, useTaskBranch } from '../api/tasks-api.js';
+import { useAddSubtaskTo, useTaskBranch, useTaskRelations } from '../api/tasks-api.js';
 import { stageTone } from '../../../shared/ui/board/stage-tone.js';
 
-/** Панель-навигатор ветки задачи (референс — левая панель подзадач ClickUp):
- *  дерево от корневого предка с любой вложенностью; клик по строке открывает
- *  ту задачу НОВОЙ карточкой поверх (стек, ADR-0009 — закрытие вернёт к
- *  текущей), текущая задача подсвечена; быстрое создание подзадачи — внизу
- *  (к текущей) или по «+» на строке (к этой строке). Выдвигается слева поверх
- *  контента. */
+type BranchTab = 'subtasks' | 'relations';
+
+/** Панель-навигатор — левый «центр навигации» карточки задачи (ClickUp +
+ *  вердикт владельца 2026-09-11). Вкладка «Подзадачи» — дерево от корня
+ *  СТАРТОВОЙ задачи сессии (rootId неизменен: карта стабильна, не прыгает
+ *  при переходах), вкладка «Связи» — связи просматриваемой задачи (поле
+ *  «Отношения», заготовка под зависимости Ганта #39).
+ *  Клик по строке — ЗАМЕНА содержимого карточки через onNavigate (стек
+ *  карточек НЕ растёт, панель не закрывается, один Escape закрывает всю
+ *  сессию); «←» в шапке — шаг назад по переходам. Подсветка —
+ *  просматриваемая задача. Быстрое создание подзадачи — внизу (к текущей)
+ *  или по «+» на строке (к этой строке). */
 export const TaskBranchDrawer = memo(function TaskBranchDrawer({
-  taskId,
+  rootId,
+  currentId,
+  canBack,
+  onBack,
+  onNavigate,
   onClose,
 }: {
-  taskId: string;
+  /** Корень сессии навигации (стартовая задача карточки) — дерево от него. */
+  rootId: string;
+  /** Просматриваемая задача — подсветка строки и источник вкладки «Связи». */
+  currentId: string;
+  canBack: boolean;
+  onBack: () => void;
+  onNavigate: (id: string) => void;
   onClose: () => void;
 }) {
-  const { data: branch } = useTaskBranch(taskId);
+  const { data: branch } = useTaskBranch(rootId);
   const addSubtask = useAddSubtaskTo();
-  const openCard = useOpenCard();
+  const [tab, setTab] = useState<BranchTab>('subtasks');
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
   const [addingTo, setAddingTo] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
 
   function openTask(id: string) {
-    if (id === taskId) return;
-    openCard({ kind: 'task', id });
+    if (id === currentId) return;
+    onNavigate(id);
   }
 
   function toggle(id: string) {
@@ -56,7 +72,7 @@ export const TaskBranchDrawer = memo(function TaskBranchDrawer({
   function renderNode(node: TaskBranchNode, depth: number): React.ReactNode {
     const hasChildren = node.children.length > 0;
     const isCollapsed = collapsed.has(node.id);
-    const isCurrent = node.id === taskId;
+    const isCurrent = node.id === currentId;
     return (
       <div key={node.id}>
         <div
@@ -128,52 +144,130 @@ export const TaskBranchDrawer = memo(function TaskBranchDrawer({
     );
   }
 
+  const tabs: { id: BranchTab; label: string }[] = [
+    { id: 'subtasks', label: ui.tasks.subtasks },
+    { id: 'relations', label: ui.tasks.branchRelations },
+  ];
+
   return (
     <div className="flex h-full w-[300px] flex-col border-r border-border bg-card">
-      <div className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-2.5">
-        <span className="font-mono text-[10px] tracking-[0.14em] text-muted-foreground uppercase">
-          {ui.tasks.branch}
-        </span>
+      {/* Шапка: «←» — шаг назад по переходам сессии; вкладки; закрытие */}
+      <div className="flex h-10 shrink-0 items-center gap-1 border-b border-border pr-2 pl-1.5">
+        <button
+          type="button"
+          onClick={onBack}
+          disabled={!canBack}
+          aria-label={ui.tasks.navBack}
+          title={ui.tasks.navBack}
+          className="shrink-0 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
+        >
+          <ArrowLeft className="size-4" strokeWidth={1.75} />
+        </button>
+        {tabs.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => setTab(t.id)}
+            aria-current={tab === t.id}
+            className={cn(
+              'h-10 rounded-none border-b-2 px-2.5 font-mono text-[11px] tracking-[0.14em] uppercase transition-colors',
+              tab === t.id
+                ? 'border-port text-foreground'
+                : 'border-transparent text-muted-foreground hover:text-foreground/80',
+            )}
+          >
+            {t.label}
+          </button>
+        ))}
         <button
           type="button"
           onClick={onClose}
           aria-label={ui.common.close}
-          className="ml-auto rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          className="ml-auto shrink-0 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         >
           <X className="size-4" strokeWidth={1.75} />
         </button>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto p-2">
-        {branch ? (
-          renderNode(branch.root, 0)
-        ) : (
-          <div className="flex flex-col gap-2 p-1">
-            <Skeleton className="h-6 w-full" />
-            <Skeleton className="h-6 w-4/5" />
-            <Skeleton className="h-6 w-3/5" />
+      {tab === 'subtasks' ? (
+        <>
+          <div className="min-h-0 flex-1 overflow-y-auto p-2">
+            {branch ? (
+              renderNode(branch.root, 0)
+            ) : (
+              <div className="flex flex-col gap-2 p-1">
+                <Skeleton className="h-6 w-full" />
+                <Skeleton className="h-6 w-4/5" />
+                <Skeleton className="h-6 w-3/5" />
+              </div>
+            )}
           </div>
-        )}
-      </div>
-      <form
-        className="shrink-0 border-t border-border p-2"
-        onSubmit={(e: FormEvent) => {
-          e.preventDefault();
-          submitSubtask(taskId);
-        }}
-      >
-        <Input
-          value={addingTo === null ? draft : ''}
-          onChange={(e) => {
-            setAddingTo(null);
-            setDraft(e.target.value);
-          }}
-          placeholder={ui.tasks.branchPlaceholder}
-          className="h-8 text-sm"
-        />
-      </form>
+          <form
+            className="shrink-0 border-t border-border p-2"
+            onSubmit={(e: FormEvent) => {
+              e.preventDefault();
+              submitSubtask(currentId);
+            }}
+          >
+            <Input
+              value={addingTo === null ? draft : ''}
+              onChange={(e) => {
+                setAddingTo(null);
+                setDraft(e.target.value);
+              }}
+              placeholder={ui.tasks.branchPlaceholder}
+              className="h-8 text-sm"
+            />
+          </form>
+        </>
+      ) : (
+        <RelationsTab currentId={currentId} onNavigate={onNavigate} />
+      )}
     </div>
   );
 });
+
+/** Вкладка «Связи»: связи просматриваемой задачи (поле «Отношения»).
+ *  Клик — переход заменой (та же карточка). Пока данных нет — Empty. */
+function RelationsTab({
+  currentId,
+  onNavigate,
+}: {
+  currentId: string;
+  onNavigate: (id: string) => void;
+}) {
+  const { data, isLoading } = useTaskRelations(currentId);
+  const items = data?.items ?? [];
+  return (
+    <div className="min-h-0 flex-1 overflow-y-auto p-2">
+      {isLoading ? (
+        <div className="flex flex-col gap-2 p-1">
+          <Skeleton className="h-6 w-full" />
+          <Skeleton className="h-6 w-4/5" />
+        </div>
+      ) : items.length === 0 ? (
+        <div className="flex h-full items-center justify-center">
+          <Empty>
+            <EmptyTitle>{ui.tasks.relationsEmpty}</EmptyTitle>
+          </Empty>
+        </div>
+      ) : (
+        items.map((relation: TaskRelation) => (
+          <button
+            key={relation.id}
+            type="button"
+            onClick={() => onNavigate(relation.task.id)}
+            className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-sm text-secondary-foreground transition-colors hover:bg-accent/50"
+          >
+            <span className="min-w-0 flex-1 truncate">{relation.task.title}</span>
+            <span className="shrink-0 font-mono text-[10px] text-muted-foreground tabular-nums">
+              {relation.task.number}
+            </span>
+          </button>
+        ))
+      )}
+    </div>
+  );
+}
 
 function InlineAdd({
   depth,

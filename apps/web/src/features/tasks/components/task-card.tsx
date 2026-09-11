@@ -8,7 +8,7 @@ import { NodeChip } from '@nodus/ui/components/node-chip';
 import { NodeLabel } from '@nodus/ui/components/node-label';
 import { cn } from '@nodus/ui/lib/utils';
 
-import { useOpenCard } from '../../../app/shell/use-card-stack.js';
+import { useOpenCard, useReplaceTopCard } from '../../../app/shell/use-card-stack.js';
 import { DomainChain, type ChainNode } from '../../../shared/ui/domain-chain.js';
 import { useChatWidth, MIN_CHAT_WITH_PANEL } from '../../../shared/ui/use-chat-width.js';
 import { useAddSubtask, useTaskDetail } from '../api/tasks-api.js';
@@ -52,6 +52,36 @@ export function TaskCard({ taskId }: { taskId: string }) {
   // Навигатор ветки монтируется раз и остаётся: колонка сетки анимируется
   // 0↔300px (плавный пуш контента), состояние панели не теряется.
   const [branchMounted, setBranchMounted] = useState(false);
+  const replaceTopCard = useReplaceTopCard();
+  // Сессия навигации ветки (режим «Навигация», вердикт владельца 2026-09-11):
+  // корень — СТАРТОВАЯ задача карточки (неизменен — карта дерева стабильна);
+  // history — переходы для «←» в навигаторе. Замена верхней карточки стека
+  // (без ремаунта панели): стек не растёт, один Escape закрывает всё.
+  const [rootId] = useState(taskId);
+  const [history, setHistory] = useState<string[]>([]);
+
+  /** Переход к связанной задаче ЗАМЕНОЙ содержимого: из навигатора ветки и
+   *  полей «Подзадачи»/«Связи». Панель автооткрывается — видно, куда пришли. */
+  const navigateInCard = useCallback(
+    (id: string) => {
+      if (id === taskId) return;
+      setHistory((h) => [...h, taskId]);
+      setBranchMounted(true);
+      setBranchOpen(true);
+      replaceTopCard({ kind: 'task', id });
+    },
+    [taskId, replaceTopCard],
+  );
+
+  /** «←» навигатора: шаг назад по переходам сессии (тоже заменой). */
+  const navigateBack = useCallback(() => {
+    setHistory((h) => {
+      const prev = h[h.length - 1];
+      if (!prev) return h;
+      replaceTopCard({ kind: 'task', id: prev });
+      return h.slice(0, -1);
+    });
+  }, [replaceTopCard]);
   const chatRef = useRef<HTMLDivElement>(null);
   const { chatW, onDividerDown, dragging } = useChatWidth(chatRef, aboutOpen ? ABOUT_W : 0);
   // Стабильные колбэки: дочерние панели мемоизированы, инлайн-стрелки
@@ -150,7 +180,16 @@ export function TaskCard({ taskId }: { taskId: string }) {
             branchOpen ? 'w-[300px]' : 'w-0',
           )}
         >
-          {branchMounted ? <TaskBranchDrawer taskId={taskId} onClose={closeBranch} /> : null}
+          {branchMounted ? (
+            <TaskBranchDrawer
+              rootId={rootId}
+              currentId={taskId}
+              canBack={history.length > 0}
+              onBack={navigateBack}
+              onNavigate={navigateInCard}
+              onClose={closeBranch}
+            />
+          ) : null}
         </div>
         {/* Левая зона: скроллится только контент; нижний бар действий
             замоноличен (не двигается скроллом — модель Битрикса).
@@ -179,7 +218,7 @@ export function TaskCard({ taskId }: { taskId: string }) {
                 <button
                   key={subtask.id}
                   type="button"
-                  onClick={() => openCard({ kind: 'task', id: subtask.id })}
+                  onClick={() => navigateInCard(subtask.id)}
                   className="flex items-center gap-2 rounded-md px-1 py-1 text-left text-sm hover:bg-accent/50"
                 >
                   <span className="size-1.5 shrink-0 rounded-full bg-port" />

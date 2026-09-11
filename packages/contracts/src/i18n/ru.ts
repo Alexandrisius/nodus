@@ -181,6 +181,9 @@ export const ui = {
     },
     branch: 'Ветка задачи',
     branchPlaceholder: 'Быстрая подзадача текущей — Enter, чтобы создать',
+    branchRelations: 'Связи',
+    relationsEmpty: 'Связей нет',
+    navBack: 'Назад к предыдущей задаче',
   },
   letters: {
     title: 'Письма',

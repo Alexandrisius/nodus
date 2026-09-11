@@ -78,7 +78,13 @@ export function ConversationPane({
           <MessageScrollerButton />
         </MessageScroller>
       </MessageScrollerProvider>
-      <ChatComposer placeholder={composerPlaceholder} onSend={(text) => send.mutate({ text })} />
+      {/* key по conversationId: черновик композера НЕ переезжает в другую
+          беседу при замене содержимого карточки (режим «Навигация» ветки) */}
+      <ChatComposer
+        key={conversationId}
+        placeholder={composerPlaceholder}
+        onSend={(text) => send.mutate({ text })}
+      />
     </div>
   );
 }

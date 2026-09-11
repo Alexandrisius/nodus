@@ -210,6 +210,20 @@ export const taskBranchNodeSchema: z.ZodType<TaskBranchNode> = z.lazy(() =>
 export const taskBranchSchema = z.object({ root: taskBranchNodeSchema });
 export type TaskBranch = z.infer<typeof taskBranchSchema>;
 
+/** Связь задачи (поле «Отношения», вкладка «Связи» навигатора ветки). Типы —
+ *  задел под зависимости Ганта (#39): precedes — предшествует (finish-to-start);
+ *  сейчас список пуст, вкладка показывает Empty. */
+export const taskRelationKindSchema = z.enum(['relates', 'blocks', 'precedes', 'duplicates']);
+export type TaskRelationKind = z.infer<typeof taskRelationKindSchema>;
+
+export const taskRelationSchema = z.object({
+  id: z.uuid(),
+  kind: taskRelationKindSchema,
+  /** Связанная задача (target перехода). */
+  task: taskRefSchema,
+});
+export type TaskRelation = z.infer<typeof taskRelationSchema>;
+
 export const listTasksQuerySchema = cursorQuerySchema.extend({
   /** 'assignee' | 'creator' | 'participant' — роли текущего пользователя. */
   scope: z.enum(['mine', 'all']).default('mine'),

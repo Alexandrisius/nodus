@@ -1,4 +1,11 @@
-import type { ChatMessage, TaskBranch, TaskBranchNode, TaskListItem } from '@nodus/contracts';
+import type {
+  ChatMessage,
+  Paginated,
+  TaskBranch,
+  TaskBranchNode,
+  TaskListItem,
+  TaskRelation,
+} from '@nodus/contracts';
 import {
   ErrorCode,
   createTaskBodySchema,
@@ -237,6 +244,12 @@ export const tasksHandlers = [
     }
     return HttpResponse.json({ root: branchNodeOf(root) } satisfies TaskBranch);
   }),
+
+  /** Связи задачи (поле «Отношения», вкладка «Связи» навигатора ветки) —
+   *  заготовка под зависимости Ганта (#39): пока пусто, вкладка — Empty. */
+  http.get('/api/v1/tasks/:id/relations', () =>
+    HttpResponse.json({ items: [], nextCursor: null } satisfies Paginated<TaskRelation>),
+  ),
 
   http.get('/api/v1/tasks/:id/messages', ({ params }) =>
     HttpResponse.json({
