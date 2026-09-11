@@ -20,13 +20,14 @@ interface FlowNode {
   y: number;
 }
 
-/** Узлы — стадии workflow проекта (имена — из i18n колонок канбана). */
+/** Узлы — стадии workflow проекта (имена — из i18n колонок канбана).
+ *  Зазор 104px между узлами — под подпись перехода (моно 9px uppercase). */
 const flowNodes: FlowNode[] = [
   { id: 'new', label: ui.tasks.colNew, color: 'neutral', x: 0, y: 140 },
-  { id: 'work', label: ui.tasks.colInProgress, color: 'info', x: 220, y: 140 },
-  { id: 'review', label: ui.tasks.colOnControl, color: 'warning', x: 440, y: 140 },
-  { id: 'done', label: ui.tasks.colDone, color: 'success', x: 660, y: 140 },
-  { id: 'paused', label: ui.tasks.colPostponed, color: 'neutral', x: 220, y: 310 },
+  { id: 'work', label: ui.tasks.colInProgress, color: 'info', x: 280, y: 140 },
+  { id: 'review', label: ui.tasks.colOnControl, color: 'warning', x: 560, y: 140 },
+  { id: 'done', label: ui.tasks.colDone, color: 'success', x: 840, y: 140 },
+  { id: 'paused', label: ui.tasks.colPostponed, color: 'neutral', x: 280, y: 310 },
 ];
 
 const midY = (n: FlowNode) => n.y + NODE_H / 2;
@@ -93,7 +94,7 @@ const flowEdges: FlowEdge[] = (() => {
         [nWork.x + 170, bottomY(nWork)],
       ],
       label: ui.projects.flow.returnBack,
-      labelAt: [nReview.x + 88 - 70, 262],
+      labelAt: [(nReview.x + 88 + nWork.x + 170) / 2, 278],
     },
     {
       id: 'postpone',
@@ -102,7 +103,7 @@ const flowEdges: FlowEdge[] = (() => {
         [nPaused.x + 70, nPaused.y],
       ],
       label: ui.projects.flow.postpone,
-      labelAt: [nWork.x + 78, 250],
+      labelAt: [nWork.x + 70, 236],
     },
     {
       id: 'resume',
@@ -111,7 +112,7 @@ const flowEdges: FlowEdge[] = (() => {
         [nWork.x + 130, bottomY(nWork)],
       ],
       label: ui.projects.flow.resume,
-      labelAt: [nWork.x + 138, 250],
+      labelAt: [nWork.x + 130, 266],
     },
   ];
 })();
@@ -178,9 +179,9 @@ export function ProjectFlow({ projectId }: { projectId: string }) {
 
   return (
     <div className="h-full overflow-auto p-5">
-      <div className="relative" style={{ width: 836, height: 390 }}>
+      <div className="relative mx-auto" style={{ width: 1016, height: 390 }}>
         {/* Рёбра — SVG-подложка: порты у источников, стрелки у целей. */}
-        <svg aria-hidden className="absolute inset-0" width={836} height={390}>
+        <svg aria-hidden className="absolute inset-0" width={1016} height={390}>
           <defs>
             <marker
               id="project-flow-arrow"
