@@ -62,7 +62,7 @@ export function ListToolbar<T>({
             ref={anchorRef}
             className={cn(
               'relative min-w-0 shrink-0 transition-[width] duration-200',
-              panelOpen ? 'w-[min(36rem,calc(100vw-3rem))]' : 'w-80',
+              panelOpen ? 'w-[min(36rem,calc(100vw-3rem))]' : 'w-[28rem]',
             )}
           >
             <div
@@ -73,16 +73,16 @@ export function ListToolbar<T>({
             >
               <Search className="pointer-events-none size-3.5 shrink-0 text-muted-foreground" />
               {/* Чипы активных фильтров — ВНУТРИ поля (модель Битрикс24);
-                  суммарно ≤ 70% ширины поля (вердикт владельца), значение —
+                  суммарно ≤ 80% ширины поля (вердикт владельца), значение —
                   с truncate, остальное место — тексту запроса */}
-              <div className="flex max-w-[70%] shrink-0 items-center gap-1 overflow-hidden">
+              <div className="flex max-w-[80%] shrink-0 items-center gap-1 overflow-hidden">
                 {activeDefs.map((def) => (
                   <span
                     key={def.id}
                     className="flex shrink-0 items-center gap-1 rounded-md bg-accent px-1.5 py-0.5 text-xs whitespace-nowrap text-foreground"
                   >
                     <span
-                      className="max-w-32 truncate"
+                      className="max-w-40 truncate"
                       title={`${def.label}: ${filterValueLabel(def, toolbar.filters[def.id])}`}
                     >
                       {def.label}: {filterValueLabel(def, toolbar.filters[def.id])}
