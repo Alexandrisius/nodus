@@ -82,8 +82,9 @@ export function AppShell() {
           {/* Правая полоса — под главной линией (обрезана ею, как в Битрикс24),
               поверх контента, в кармане 40px. */}
           <RightRail />
-          {/* Статичный угол профиля — вне мягкой рамы, над полосой коллег. */}
-          <div className="absolute top-0 right-2 z-30 flex h-14 w-10 items-center justify-center">
+          {/* Статичный угол профиля — вне мягкой рамы, над полосой коллег
+              (высота до оси контура: 8px отступ рамы + топбар 56px). */}
+          <div className="absolute top-0 right-2 z-30 flex h-16 w-10 items-center justify-center">
             <ProfileCorner />
           </div>
         </div>

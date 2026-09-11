@@ -118,8 +118,12 @@ export function TopBar() {
 
   const search = new URLSearchParams(searchStr);
 
+  // Фон НЕ красим: топбар живёт ВНУТРИ мягкой рамы и наследует её «лист» —
+  // собственная заливка bg-background прятала верхнюю ступень рамы
+  // (вердикт владельца 12.09.2026: «верх мягкой карточки не виден из-за
+  // чёрного хэдера»).
   return (
-    <header data-topbar className="flex h-14 shrink-0 items-center gap-3 bg-background px-4">
+    <header data-topbar className="flex h-14 shrink-0 items-center gap-3 px-4">
       <nav className="flex h-full min-w-0 flex-1 items-center">
         {sectionsFor(pathname).map((section) => (
           <Link
