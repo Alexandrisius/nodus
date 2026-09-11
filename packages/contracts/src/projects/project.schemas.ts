@@ -11,10 +11,16 @@ export type ProjectPrivacy = z.infer<typeof projectPrivacySchema>;
 export const projectRoleSchema = z.enum(['manager', 'member']);
 export type ProjectRole = z.infer<typeof projectRoleSchema>;
 
+/** Цвет-идентичность проекта (маркер-плитка в журналах и ссылках). Ключи,
+ *  не hex (I15): тон разрешается в categorical-токены --chart-* своей темы. */
+export const projectColorSchema = z.enum(['blue', 'green', 'amber', 'pink', 'sky', 'terra']);
+export type ProjectColor = z.infer<typeof projectColorSchema>;
+
 export const projectListItemSchema = z.object({
   id: z.uuid(),
   code: z.string().min(1),
   name: z.string().min(1),
+  color: projectColorSchema,
   manager: userRefSchema.nullable(),
   myRole: projectRoleSchema,
   privacy: projectPrivacySchema,

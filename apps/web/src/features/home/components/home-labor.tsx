@@ -37,8 +37,8 @@ export function HomeLabor({ weeks }: { weeks: LaborWeek[] }) {
                 y={y}
                 width={bw}
                 height={h}
-                fill="var(--foreground)"
-                fillOpacity="0.16"
+                fill="var(--chart-1)"
+                fillOpacity="0.85"
                 rx="2"
               />
               <text

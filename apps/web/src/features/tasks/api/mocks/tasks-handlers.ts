@@ -137,7 +137,9 @@ export const tasksHandlers = [
       creator: userRef(currentAuthUser.id),
       assignee: userRef(currentAuthUser.id),
       participants: [],
-      project: project ? { id: project.id, code: project.code, name: project.name } : null,
+      project: project
+        ? { id: project.id, code: project.code, name: project.name, color: project.color }
+        : null,
       parentId: null,
       spentMinutes: 0,
       commentsCount: 0,

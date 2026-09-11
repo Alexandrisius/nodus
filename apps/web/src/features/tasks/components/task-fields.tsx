@@ -20,6 +20,7 @@ import { formatDateTime, formatMinutes } from '../../../shared/lib/format.js';
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
 import { DeadlineChip } from '../../../shared/ui/deadline-chip.js';
 import { EntityFields, type EntityFieldDef } from '../../../shared/ui/entity-fields.js';
+import { identityTone } from '../../../shared/ui/identity-tone.js';
 import { priorityTone } from '../../../shared/views/task-table-fields.js';
 import { TaskStageField } from './task-stage-controls.js';
 
@@ -84,10 +85,14 @@ export const TaskFields = memo(function TaskFields({ task }: { task: TaskDetail 
           <button
             type="button"
             title={task.project.name}
-            className="truncate font-mono text-[12px] text-info hover:underline"
+            className="flex min-w-0 items-center gap-1.5 font-mono text-[12px] text-info hover:underline"
             onClick={() => openCard({ kind: 'project', id: task.project?.id ?? '' })}
           >
-            {task.project.name}
+            <span
+              aria-hidden
+              className={`size-1.5 shrink-0 rounded-full ${identityTone[task.project.color].dot}`}
+            />
+            <span className="truncate">{task.project.name}</span>
           </button>
         ) : (
           ui.common.notSet

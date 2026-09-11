@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { userRefSchema } from '../directory/user-ref.schema.js';
 import { cursorQuerySchema } from '../pagination/paginated.schema.js';
+import { projectColorSchema } from '../projects/project.schemas.js';
 
 /**
  * Контракты модуля задач (tasks.Task). Системное состояние — скрытое (I15),
@@ -47,6 +48,7 @@ export const projectRefSchema = z.object({
   id: z.uuid(),
   code: z.string().min(1),
   name: z.string().min(1),
+  color: projectColorSchema,
 });
 
 export type ProjectRef = z.infer<typeof projectRefSchema>;

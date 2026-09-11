@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ui } from '@nodus/contracts';
 
+import { ProjectIdentityIcon } from '../../shared/ui/project-identity-icon.js';
 import { useLetterDetail } from '../../features/correspondence/api/letters-api.js';
 import { LetterCard } from '../../features/correspondence/components/letter-card.js';
 import { useUsersList } from '../../features/directory/api/directory-api.js';
@@ -50,7 +51,16 @@ function ProjectEntry({ id, source, onClose }: EntryProps) {
   const { data: project } = useProjectDetail(id);
   return (
     <SliderPanel
-      title={project?.name ?? ui.projects.title}
+      title={
+        project ? (
+          <span className="flex min-w-0 items-center gap-2">
+            <ProjectIdentityIcon color={project.color} />
+            <span className="truncate">{project.name}</span>
+          </span>
+        ) : (
+          ui.projects.title
+        )
+      }
       onClose={onClose}
       sourceRect={source}
       fadeContent={false}

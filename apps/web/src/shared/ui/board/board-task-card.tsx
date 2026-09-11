@@ -6,6 +6,7 @@ import { cn } from '@nodus/ui/lib/utils';
 import { formatMinutes } from '../../lib/format.js';
 import { PersonAvatar } from '../person-avatar.js';
 import { DeadlineChip } from '../deadline-chip.js';
+import { identityTone } from '../identity-tone.js';
 
 /** Карточка задачи канбан-доски (общая оболочка борда, второй потребитель —
  *  проектная доска): node-панель; отображаемые поля настраиваются шестерёнкой
@@ -72,7 +73,13 @@ export function BoardTaskCard({
       <span className="line-clamp-2 text-sm font-medium">{task.title}</span>
       {isVisible('deadline') ? <DeadlineChip deadline={task.deadline} /> : null}
       {isVisible('project') && task.project ? (
-        <span className="truncate font-mono text-[11px] text-info/80">{task.project.name}</span>
+        <span className="flex min-w-0 items-center gap-1.5 font-mono text-[11px] text-info/80">
+          <span
+            aria-hidden
+            className={`size-1.5 shrink-0 rounded-full ${identityTone[task.project.color].dot}`}
+          />
+          <span className="truncate">{task.project.name}</span>
+        </span>
       ) : null}
       {showFooter ? (
         <span className="flex items-center gap-2 text-xs text-muted-foreground">

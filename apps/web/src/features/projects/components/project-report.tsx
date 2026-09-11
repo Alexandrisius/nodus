@@ -7,6 +7,7 @@ import { cn } from '@nodus/ui/lib/utils';
 
 import { formatMinutes } from '../../../shared/lib/format.js';
 import { stageTone } from '../../../shared/ui/board/stage-tone.js';
+import { chartRowTone } from '../../../shared/ui/identity-tone.js';
 import { useProjectTaskPages } from '../api/projects-api.js';
 
 function isDone(task: TaskListItem): boolean {
@@ -159,13 +160,13 @@ export function ProjectReport({ projectId }: { projectId: string }) {
               {model.assignees.length === 0 ? (
                 <p className="text-sm text-muted-foreground">{ui.common.empty}</p>
               ) : (
-                model.assignees.map((assignee) => (
+                model.assignees.map((assignee, i) => (
                   <BarRow
                     key={assignee.name}
                     label={assignee.name}
                     value={assignee.count}
                     max={maxAssignee}
-                    barClass="bg-info"
+                    barClass={chartRowTone(i)}
                   />
                 ))
               )}

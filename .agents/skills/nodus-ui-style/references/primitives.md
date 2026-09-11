@@ -83,6 +83,19 @@ UPPERCASE 11px, tracking 0.16em, muted; счётчик — `text-foreground tabu
 
 Детерминированный тон из графитовой палитры по имени (одинаковый в обеих темах); инициалы — 2 первые буквы слов.
 
+### ProjectIdentityIcon — цветной маркер-идентичность проекта
+
+```tsx
+import { ProjectIdentityIcon } from '../ui/project-identity-icon.js';
+import { identityTone, chartRowTone } from '../ui/identity-tone.js';
+
+<ProjectIdentityIcon color={project.color} />            // плитка size-5 (size-6 в шапках)
+<span className={identityTone[color].dot} />             // точка-маркер в ссылках/канбане
+<div className={chartRowTone(rowIndex)} />               // тон ряда категориального графика
+```
+
+Цвет проекта — ключ `ProjectColor` (blue/green/amber/pink/sky/terra) из контрактов, тон — categorical-токены `--chart-*` своей темы: пастельная плитка с цветным глифом и hairline-бордюром того же тона. Цвет = идентификатор и данные, НЕ декор: в хром (кнопки, меню, контур) categorical-палитра не протекает.
+
 ### DeadlineChip — чип срока
 
 ```tsx

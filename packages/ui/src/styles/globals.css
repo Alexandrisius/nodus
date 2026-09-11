@@ -47,6 +47,7 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
+  --color-chart-6: var(--chart-6);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -106,11 +107,14 @@
   --danger-soft: #2c1a18;
   --info: #7a93b2;
   --info-soft: #1a2230;
-  --chart-1: #d9d9d6;
-  --chart-2: #8a8a8e;
-  --chart-3: #6fa287;
-  --chart-4: #c9a45b;
-  --chart-5: #7a93b2;
+  /* Categorical-палитра данных (графики, маркеры идентичности): осветлённые
+   * тона Okabe-Ito (colorblind-safe) под тёмный холст; в хром UI не протекает. */
+  --chart-1: #64a4e0;
+  --chart-2: #5fbf8f;
+  --chart-3: #e0b054;
+  --chart-4: #d795bc;
+  --chart-5: #8cc8ea;
+  --chart-6: #e08a66;
   --sidebar: #0c0c0e;
   --sidebar-foreground: #c9c9c6;
   --sidebar-primary: #e8e8e6;
@@ -146,60 +150,67 @@
 }
 
 /*
- * Светлая тема «Инструмент» — не инверсия, а пересборка: фон — холодная
- * «калька» (не слепящий белый), текст и порты — тушь, связи и свечение —
- * тёмные зеркально к тёмной теме. Граф фона (будущий) здесь читается как
- * чертёж на кальке, в тёмной — как созвездия.
+ * Светлая тема «Инструмент» — ОТДЕЛЬНЫЙ дизайн, не инверсия тёмной (вердикт
+ * команды владельца 2026-09-11, реф docs/mvp/ref/node-based UI/реф_белая
+ * тема_*.png): три ступени поверхностей (светло-серый шелл → тёплый светлый
+ * холст → БЕЛЫЕ карточки), hairline-бордюры (структуру несут поверхности, не
+ * линии), элевация ступенью без теней (канон «плоско» жив). Фирменный navy
+ * #16233A — хирургический акцент: primary, фокус, чекбоксы, активный модуль;
+ * контур и порты — «чертёжный синий» (navy с alpha): чертёж на кальке.
+ * Цвет — только в слоях данных и статусов (chart-*, семантика, идентичность).
  */
 [data-theme='light'] {
-  --background: #f2f2f0;
-  --foreground: #1c1c1f;
-  --card: #fafaf9;
-  --card-foreground: #1c1c1f;
-  --popover: #fafaf9;
-  --popover-foreground: #1c1c1f;
-  --primary: #1c1c1f;
-  --primary-foreground: #f4f4f2;
-  --secondary: #e8e8e5;
-  --secondary-foreground: #3f3f44;
-  --muted: #e9e9e6;
-  --muted-foreground: #68686e;
-  --accent: #e6e6e3;
-  --accent-foreground: #1c1c1f;
-  --destructive: #b03a2e;
-  --destructive-foreground: #f7f3f1;
-  --border: rgb(0 0 0 / 0.1);
-  --input: rgb(0 0 0 / 0.16);
-  --ring: #3f3f44;
-  --success: #3e7056;
-  --success-soft: #dfe9e2;
-  --warning: #8a6a1f;
-  --warning-soft: #f0e8d2;
-  --danger: #b03a2e;
-  --danger-soft: #f3deda;
-  --info: #46648a;
-  --info-soft: #dfe7f0;
-  --chart-1: #3f3f44;
-  --chart-2: #68686e;
-  --chart-3: #3e7056;
-  --chart-4: #8a6a1f;
-  --chart-5: #46648a;
-  --sidebar: #e9e9e6;
-  --sidebar-foreground: #3f3f44;
-  --sidebar-primary: #1c1c1f;
-  --sidebar-primary-foreground: #f4f4f2;
-  --sidebar-accent: #dfdfdb;
-  --sidebar-accent-foreground: #1c1c1f;
-  --sidebar-border: rgb(0 0 0 / 0.08);
-  --sidebar-ring: #3f3f44;
+  --background: #f6f5f2;
+  --foreground: #1b1c1e;
+  --card: #ffffff;
+  --card-foreground: #1b1c1e;
+  --popover: #ffffff;
+  --popover-foreground: #1b1c1e;
+  --primary: #16233a;
+  --primary-foreground: #ffffff;
+  --secondary: #edece8;
+  --secondary-foreground: #43454a;
+  --muted: #edece8;
+  --muted-foreground: #6b6d72;
+  --accent: #e7e5df;
+  --accent-foreground: #1b1c1e;
+  --destructive: #c0392b;
+  --destructive-foreground: #ffffff;
+  --border: rgb(0 0 0 / 0.07);
+  --input: rgb(0 0 0 / 0.13);
+  --ring: #16233a;
+  --success: #2e7d57;
+  --success-soft: #e2f0e8;
+  --warning: #8f6a10;
+  --warning-soft: #f6ecd2;
+  --danger: #c0392b;
+  --danger-soft: #f9e3df;
+  --info: #3d6ba6;
+  --info-soft: #e2eaf4;
+  /* Categorical-палитра данных: Okabe-Ito (colorblind-safe) на белом холсте. */
+  --chart-1: #0072b2;
+  --chart-2: #009e73;
+  --chart-3: #e69f00;
+  --chart-4: #cc79a7;
+  --chart-5: #56b4e9;
+  --chart-6: #d55e00;
+  --sidebar: #efeeea;
+  --sidebar-foreground: #43454a;
+  --sidebar-primary: #16233a;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e4e2dc;
+  --sidebar-accent-foreground: #1b1c1e;
+  --sidebar-border: rgb(0 0 0 / 0.06);
+  --sidebar-ring: #16233a;
 
-  --edge: rgb(0 0 0 / 0.26);
-  --port: #3f3f44;
-  --glow: rgb(0 0 0 / 0.22);
-  --scrollbar: rgb(0 0 0 / 0.12);
+  /* Контур: чертёжный синий (navy с alpha) вместо чёрной «проволоки». */
+  --edge: rgb(22 35 58 / 0.3);
+  --port: #16233a;
+  --glow: rgb(22 35 58 / 0.26);
+  --scrollbar: rgb(0 0 0 / 0.14);
 
   /* Тень слайдера, светлая тема: мягче и светлее, но с читаемой глубиной. */
-  --slider-shadow: 0 26px 70px -18px rgb(0 0 0 / 0.32), 0 8px 26px -12px rgb(0 0 0 / 0.18);
+  --slider-shadow: 0 26px 70px -18px rgb(22 35 58 / 0.25), 0 8px 26px -12px rgb(22 35 58 / 0.16);
 }
 
 /* Панель «инструмента»: плоская заливка, тонкий бордюр, радиус темы. */

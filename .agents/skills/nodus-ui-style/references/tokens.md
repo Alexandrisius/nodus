@@ -21,18 +21,22 @@
 
 ## Светлая (`[data-theme='light']`)
 
-Пересборка, **не инверсия**: фон — «калька», порты/связи/свечение — тёмные зеркально; `color-scheme: light`.
+Отдельный дизайн, НЕ инверсия (вердикт команды владельца 2026-09-11, реф `docs/mvp/ref/node-based UI/реф_белая тема_*.png`): три ступени поверхностей (светло-серый шелл → тёплый светлый холст → БЕЛЫЕ карточки), hairline-бордюры, элевация ступенью без теней; фирменный navy `#16233A` — хирургический акцент (primary, фокус, чекбоксы, активный модуль); контур/порты — «чертёжный синий» (navy с alpha).
 
 | Токен | Значение |
 |---|---|
-| `--background` / `--card` | `#F2F2F0` / `#FAFAF9` |
-| `--foreground` / `--muted-foreground` | `#1C1C1F` / `#68686E` |
-| `--primary` / `--primary-foreground` | `#1C1C1F` / `#F4F4F2` |
-| `--border` / `--input` | black/10% / black/16% |
-| `--success` `#3E7056` · `--warning` `#8A6A1F` · `--danger` `#B03A2E` · `--info` `#46648A` (+`-soft`) |
-| `--sidebar` | `#E9E9E6` |
-| `--edge` / `--port` / `--glow` | black/26% / `#3F3F44` / black/22% |
-| `--scrollbar` | black/12% |
+| `--background` / `--card` | `#F6F5F2` / `#FFFFFF` |
+| `--sidebar` / `--secondary`,`--muted` / `--accent` | `#EFEEEA` / `#EDECE8` / `#E7E5DF` |
+| `--foreground` / `--muted-foreground` | `#1B1C1E` / `#6B6D72` |
+| `--primary` / `--primary-foreground` | `#16233A` (navy) / `#FFFFFF` |
+| `--border` / `--input` | black/7% / black/13% |
+| `--success` `#2E7D57` · `--warning` `#8F6A10` · `--danger` `#C0392B` · `--info` `#3D6BA6` (+`-soft` пастель) |
+| `--edge` / `--port` / `--glow` | navy/30% / `#16233A` / navy/26% |
+| `--scrollbar` | black/14% |
+
+## Categorical-палитра данных (`--chart-1..6`)
+
+Цвет = смысл: графики и маркеры идентичности (плитки проектов), в хром UI не протекает. База — Okabe-Ito (colorblind-safe): светлая — оригиналы (`#0072B2`, `#009E73`, `#E69F00`, `#CC79A7`, `#56B4E9`, `#D55E00`); тёмная — осветлённые производные (`#64A4E0`, `#5FBF8F`, `#E0B054`, `#D795BC`, `#8CC8EA`, `#E08A66`). Потребители: `identityTone`/`chartRowTone` (`shared/ui/identity-tone.ts`), SVG-бары через `var(--chart-N)`.
 
 ## Типографика
 

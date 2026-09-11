@@ -5,6 +5,7 @@ import { NodeChip } from '@nodus/ui/components/node-chip';
 
 import { formatDateTime, formatMinutes } from '../lib/format.js';
 import { DeadlineChip } from '../ui/deadline-chip.js';
+import { identityTone } from '../ui/identity-tone.js';
 import { PersonAvatar } from '../ui/person-avatar.js';
 import { TaskStatusBadge } from '../ui/task-status-badge.js';
 import type { DataTableField } from './data-table.js';
@@ -102,7 +103,13 @@ export function makeTaskTableFields({
       minWidth: 120,
       render: (task) =>
         task.project ? (
-          <span className="truncate font-mono text-[11px] text-info/80">{task.project.name}</span>
+          <>
+            <span
+              aria-hidden
+              className={`size-1.5 shrink-0 rounded-full ${identityTone[task.project.color].dot}`}
+            />
+            <span className="truncate font-mono text-[11px] text-info/80">{task.project.name}</span>
+          </>
         ) : (
           <span className={monoCell}>—</span>
         ),

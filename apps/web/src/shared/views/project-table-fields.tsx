@@ -6,6 +6,7 @@ import { NodeChip } from '@nodus/ui/components/node-chip';
 
 import { formatDate, formatDateTimeShort } from '../lib/format.js';
 import { PersonAvatar } from '../ui/person-avatar.js';
+import { ProjectIdentityIcon } from '../ui/project-identity-icon.js';
 import type { DataTableField } from './data-table.js';
 
 const monoCell = 'font-mono text-[11px] text-muted-foreground tabular-nums';
@@ -63,7 +64,12 @@ export const projectListFields: DataTableField<ProjectListItem>[] = [
     minWidth: 160,
     maxWidth: 640,
     locked: true,
-    render: (project) => <span className="truncate text-sm font-medium">{project.name}</span>,
+    render: (project) => (
+      <>
+        <ProjectIdentityIcon color={project.color} />
+        <span className="truncate text-sm font-medium">{project.name}</span>
+      </>
+    ),
   },
   {
     id: 'myRole',
