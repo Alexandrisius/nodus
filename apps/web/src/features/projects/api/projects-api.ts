@@ -11,18 +11,15 @@ import { toast } from 'sonner';
 
 import { api } from '../../../shared/api-client.js';
 
+// Канонический хук справочника проектов — shared (единый ключ/кэш);
+// реэкспорт для обратной совместимости импортов фичи.
+export { useProjectsList } from '../../../shared/api/projects-list.js';
+
 export const projectsKeys = {
   all: ['projects'] as const,
   list: () => [...projectsKeys.all, 'list'] as const,
   detail: (id: string) => [...projectsKeys.all, 'detail', id] as const,
 };
-
-export function useProjectsList() {
-  return useQuery({
-    queryKey: projectsKeys.list(),
-    queryFn: () => api<Paginated<ProjectListItem>>('/projects'),
-  });
-}
 
 export function useProjectDetail(id: string) {
   return useQuery({

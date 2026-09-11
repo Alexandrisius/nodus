@@ -32,6 +32,8 @@ import { makeKanbanCollision } from '../../../shared/lib/board/kanban-collision.
 import { BoardColumn } from '../../../shared/ui/board/board-column.js';
 import { BoardSortableCard } from '../../../shared/ui/board/board-sortable-card.js';
 import { BoardTaskCard } from '../../../shared/ui/board/board-task-card.js';
+import { isFilteringActive, type ActiveListFilter } from '../../../shared/views/list-filters.js';
+import { useFilteredList } from '../../../shared/views/use-list-toolbar.js';
 import { useViewFields } from '../../../shared/views/use-view-fields.js';
 import { makeTaskCardFields } from '../../../shared/views/task-card-fields.js';
 import { useCreateProjectTask, useMoveProjectTask } from '../api/projects-api.js';
@@ -52,7 +54,13 @@ const FEED_LIMIT = 30;
  * Открытие карточки — карточка задачи ПОВЕРХ карточки проекта (стек,
  * ADR-0009, shared-element из rect карточки).
  */
-export function ProjectKanban({ projectId }: { projectId: string }) {
+export function ProjectKanban({
+  projectId,
+  filter,
+}: {
+  projectId: string;
+  filter?: ActiveListFilter<TaskListItem>;
+}) {
   const { data: stages } = useTaskStages();
   const move = useMoveProjectTask();
   const create = useCreateProjectTask(projectId);
@@ -120,6 +128,10 @@ export function ProjectKanban({ projectId }: { projectId: string }) {
   );
 
   const items = board ?? [];
+  // Локальный фильтр строки инструментов: сужает ТОЛЬКО отображение (DnD-логика
+  // — по полному борду); при активном фильтре drag выключен, шапки — «n из m».
+  const visibleItems = useFilteredList(items, filter);
+  const filtering = isFilteringActive(filter);
   const stageList = useMemo(() => [...(stages ?? [])].sort((a, b) => a.order - b.order), [stages]);
   const stageById = useMemo(() => new Map(stageList.map((s) => [s.id, s] as const)), [stageList]);
   const numberById = useMemo(() => new Map(items.map((t) => [t.id, t.number] as const)), [items]);
@@ -230,12 +242,14 @@ export function ProjectKanban({ projectId }: { projectId: string }) {
     >
       <div className="flex h-full gap-5 overflow-x-auto px-6 pt-3 pb-4">
         {stageList.map((stage) => {
-          const cards = items.filter((t) => t.stage.id === stage.id);
+          const totalCards = items.filter((t) => t.stage.id === stage.id).length;
+          const cards = visibleItems.filter((t) => t.stage.id === stage.id);
           return (
             <BoardColumn
               key={stage.id}
               stage={stage}
               count={cards.length}
+              total={filtering ? totalCards : undefined}
               cardIds={cards.map((t) => t.id)}
               hasNext={cursors[stage.id] !== null && cursors[stage.id] !== undefined}
               loadingMore={Boolean(loadingMore[stage.id])}
@@ -264,7 +278,12 @@ export function ProjectKanban({ projectId }: { projectId: string }) {
               }}
             >
               {cards.map((task) => (
-                <BoardSortableCard key={task.id} id={task.id} stageId={task.stage.id}>
+                <BoardSortableCard
+                  key={task.id}
+                  id={task.id}
+                  stageId={task.stage.id}
+                  disabled={filtering}
+                >
                   {({ placeholder }) => (
                     <BoardTaskCard
                       task={task}

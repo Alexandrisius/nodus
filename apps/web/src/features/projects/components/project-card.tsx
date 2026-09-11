@@ -1,7 +1,5 @@
-import { List, Lock, SquareKanban } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { ui } from '@nodus/contracts';
-import { NodeChip } from '@nodus/ui/components/node-chip';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { useOpenCard } from '../../../app/shell/use-card-stack.js';
@@ -13,24 +11,16 @@ import {
 } from '../../../shared/chat/chat-side-panel.js';
 import { EntityFields } from '../../../shared/ui/entity-fields.js';
 import { useChatWidth } from '../../../shared/ui/use-chat-width.js';
-import { ViewSettings } from '../../../shared/views/view-settings.js';
 import { useProjectDetail } from '../api/projects-api.js';
 import { projectPassportDefs } from '../lib/project-passport.js';
 import { ProjectCardSkeleton } from './project-card-skeleton.js';
 import { ProjectChat } from './project-chat.js';
 import { ProjectFlow } from './project-flow.js';
 import { ProjectGantt } from './project-gantt.js';
-import { ProjectKanban, projectKanbanCardFields } from './project-kanban.js';
 import { ProjectReport } from './project-report.js';
-import { ProjectTaskList, projectTaskTableFields } from './project-task-list.js';
+import { ProjectTasksTab } from './project-tasks-tab.js';
 
 type ProjectTab = 'tasks' | 'gantt' | 'report' | 'flow' | 'about';
-type TasksView = 'list' | 'kanban';
-
-const tasksViews: { id: TasksView; label: string; icon: typeof List }[] = [
-  { id: 'list', label: ui.projects.viewList, icon: List },
-  { id: 'kanban', label: ui.projects.viewKanban, icon: SquareKanban },
-];
 
 const projectTabs: { id: ProjectTab; label: string }[] = [
   { id: 'tasks', label: ui.tasks.title },
@@ -42,19 +32,20 @@ const projectTabs: { id: ProjectTab; label: string }[] = [
 
 /**
  * Карточка проекта — анатомия карточки задачи (вердикт владельца 2026-09-11,
- * раунд 3): мини-граф цепочки убран, горизонтальных зон «поля над задачами»
- * больше нет — ЛЕВАЯ зона = вкладки на всю высоту: **Задачи** (главная,
- * Список/Канбан с шестерёнкой), **Гант**, **Отчёт**, **Схема** (витрины
- * будущих модулей), **О проекте** (паспорт полями-реестром). Чипы стадии и
- * приватности живут в таб-баре справа. ПРАВАЯ колонка — канал проекта,
- * виден всегда; перегородка тянется с памятью (общая на все карточки),
- * панель беседы — из shared/chat. Зона чата — структурный фон с первого
- * кадра раскрытия (fadeContent=false у слайдера).
+ * раунд 3+4): мини-граф цепочки убран, горизонтальных зон «поля над задачами»
+ * нет — ЛЕВАЯ зона = вкладки на всю высоту: **Задачи** (главная: строка
+ * инструментов Список/Канбан + локальный поиск + фильтр + шестерёнка — в
+ * зоне задач, не в таб-баре), **Гант**, **Отчёт**, **Схема** (витрины),
+ * **О проекте** (паспорт полями-реестром; приватность — полем здесь, чипов
+ * стадии/приватности в таб-баре НЕТ). Таб-бар — только вкладки и кнопка
+ * панели беседы справа. ПРАВАЯ колонка — канал проекта, виден всегда;
+ * перегородка тянется с памятью (общая на все карточки), панель беседы —
+ * из shared/chat. Зона чата — структурный фон с первого кадра раскрытия
+ * (fadeContent=false у слайдера).
  */
 export function ProjectCard({ projectId }: { projectId: string }) {
   const { data: project, isLoading } = useProjectDetail(projectId);
   const [tab, setTab] = useState<ProjectTab>('tasks');
-  const [tasksView, setTasksView] = useState<TasksView>('list');
   const openCard = useOpenCard();
   // Панель беседы (закон чата): тоггл — в таб-баре КАРТОЧКИ справа вверху
   // (как кнопка «О задаче» в полосе карточки задачи — шапки у чата НЕТ);
@@ -76,9 +67,11 @@ export function ProjectCard({ projectId }: { projectId: string }) {
   return (
     <div className="flex h-full flex-col">
       {/* Таб-бар КАРТОЧКИ на всю ширину (как полоса цепочки у задачи):
-          вкладки слева; справа — вид задач (на вкладке «Задачи»), шестерёнка,
-          чипы стадии/приватности и КНОПКА ПАНЕЛИ БЕСЕДЫ — крайняя справа
-          вверху (канон кнопки «О задаче»; шапки у чата НЕТ — вердикт). */}
+          ТОЛЬКО вкладки слева и КНОПКА ПАНЕЛИ БЕСЕДЫ — крайняя справа
+          (канон кнопки «О задаче»). Органы списка (вид, поиск, фильтр,
+          шестерёнка) — в строке инструментов вкладки; чипов стадии/
+          приватности НЕТ (приватность — полем в «О проекте», стадия
+          удалена как сущность — вердикт владельца). */}
       <div className="content-fade flex shrink-0 items-center gap-1 overflow-x-auto border-b border-border px-4">
         {projectTabs.map((t) => (
           <button
@@ -97,43 +90,6 @@ export function ProjectCard({ projectId }: { projectId: string }) {
           </button>
         ))}
         <div className="ml-auto flex shrink-0 items-center gap-2">
-          {tab === 'tasks' ? (
-            <>
-              <div className="flex items-center rounded-lg border border-border p-0.5">
-                {tasksViews.map((v) => (
-                  <button
-                    key={v.id}
-                    type="button"
-                    onClick={() => setTasksView(v.id)}
-                    aria-pressed={tasksView === v.id}
-                    title={v.label}
-                    aria-label={v.label}
-                    className={cn(
-                      'flex size-6 items-center justify-center rounded-md transition-colors',
-                      tasksView === v.id
-                        ? 'bg-accent text-foreground'
-                        : 'text-muted-foreground hover:text-foreground/80',
-                    )}
-                  >
-                    <v.icon className="size-3.5" strokeWidth={1.75} />
-                  </button>
-                ))}
-              </div>
-              <ViewSettings
-                viewKey={tasksView === 'list' ? 'projects.tasks' : 'projects.kanban'}
-                defs={tasksView === 'list' ? projectTaskTableFields : projectKanbanCardFields}
-              />
-            </>
-          ) : null}
-          {project.stageName ? (
-            <NodeChip tone="info" className="shrink-0">
-              {project.stageName}
-            </NodeChip>
-          ) : null}
-          <NodeChip tone="muted" className="shrink-0">
-            {project.privacy === 'closed' ? <Lock className="size-3" /> : null}
-            {ui.projects.privacy[project.privacy]}
-          </NodeChip>
           {project.channelId ? <ChatPanelToggle open={panel.open} onToggle={panel.toggle} /> : null}
         </div>
       </div>
@@ -143,13 +99,7 @@ export function ProjectCard({ projectId }: { projectId: string }) {
       <div className="grid min-h-0 flex-1" style={{ gridTemplateColumns: 'minmax(0,1fr) auto' }}>
         <div className="relative flex min-h-0 flex-col border-r border-border @container">
           <div className="content-fade min-h-0 flex-1 overflow-hidden">
-            {tab === 'tasks' ? (
-              tasksView === 'list' ? (
-                <ProjectTaskList projectId={projectId} />
-              ) : (
-                <ProjectKanban projectId={projectId} />
-              )
-            ) : null}
+            {tab === 'tasks' ? <ProjectTasksTab projectId={projectId} /> : null}
             {tab === 'gantt' ? <ProjectGantt projectId={projectId} /> : null}
             {tab === 'report' ? <ProjectReport projectId={projectId} /> : null}
             {tab === 'flow' ? <ProjectFlow projectId={projectId} /> : null}

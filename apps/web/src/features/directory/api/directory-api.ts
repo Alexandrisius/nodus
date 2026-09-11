@@ -1,7 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
-import type { Paginated, PresenceEntry, UserCard, UserListItem } from '@nodus/contracts';
+import type { PresenceEntry, UserCard } from '@nodus/contracts';
 
 import { api } from '../../../shared/api-client.js';
+
+// Канонический хук справочника людей — shared (единый ключ/кэш); реэкспорт
+// для обратной совместимости импортов фичи.
+export { useUsersList } from '../../../shared/api/users-list.js';
 
 export const directoryKeys = {
   all: ['directory'] as const,
@@ -9,13 +13,6 @@ export const directoryKeys = {
   userCard: (id: string) => [...directoryKeys.all, 'user', id] as const,
   presence: () => [...directoryKeys.all, 'presence'] as const,
 };
-
-export function useUsersList() {
-  return useQuery({
-    queryKey: directoryKeys.users(),
-    queryFn: () => api<Paginated<UserListItem>>('/directory/users?limit=50'),
-  });
-}
 
 /** Полная карточка сотрудника (UserCard) — вкладка «Профиль». */
 export function useUserCard(id: string) {

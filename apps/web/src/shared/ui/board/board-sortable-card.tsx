@@ -29,10 +29,14 @@ function useMountStatus(): boolean {
 export const BoardSortableCard = memo(function BoardSortableCard({
   id,
   stageId,
+  disabled = false,
   children,
 }: {
   id: string;
   stageId: string;
+  /** Отключить drag (активный фильтр списка: перестановка по урезанному
+   *  набору давала бы ложные индексы — фильтрация только сужает обзор). */
+  disabled?: boolean;
   children: (state: { placeholder: boolean }) => ReactNode;
 }) {
   const {
@@ -43,7 +47,7 @@ export const BoardSortableCard = memo(function BoardSortableCard({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id, data: { stageId } });
+  } = useSortable({ id, data: { stageId }, disabled });
   const mounted = useMountStatus();
   const mountedWhileDragging = isDragging && !mounted;
 
@@ -57,9 +61,9 @@ export const BoardSortableCard = memo(function BoardSortableCard({
     >
       <div
         ref={setActivatorNodeRef}
-        className={cn('cursor-grab', isDragging && 'opacity-40')}
-        {...listeners}
-        {...attributes}
+        className={cn(disabled ? 'cursor-default' : 'cursor-grab', isDragging && 'opacity-40')}
+        {...(disabled ? {} : listeners)}
+        {...(disabled ? {} : attributes)}
       >
         {children({ placeholder: isDragging })}
       </div>

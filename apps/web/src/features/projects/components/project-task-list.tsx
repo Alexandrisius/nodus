@@ -1,6 +1,9 @@
 import { useOpenCard } from '../../../app/shell/use-card-stack.js';
 import { DataTable } from '../../../shared/views/data-table.js';
+import type { ActiveListFilter } from '../../../shared/views/list-filters.js';
+import { useFilteredList } from '../../../shared/views/use-list-toolbar.js';
 import { makeTaskTableFields } from '../../../shared/views/task-table-fields.js';
+import type { TaskListItem } from '@nodus/contracts';
 import { useProjectTaskPages } from '../api/projects-api.js';
 
 /** Реестр — module-константа (стабильная идентичность для useViewFields);
@@ -11,18 +14,25 @@ export const projectTaskTableFields = makeTaskTableFields({ projectVisible: fals
  *  §3.3) канонической таблицей на общей машине shared/views — свой ключ
  *  вида `projects.tasks` (отдельная память колонок от журнала задач).
  *  Открытие — карточка задачи ПОВЕРХ карточки проекта (стек, ADR-0009). */
-export function ProjectTaskList({ projectId }: { projectId: string }) {
+export function ProjectTaskList({
+  projectId,
+  filter,
+}: {
+  projectId: string;
+  filter?: ActiveListFilter<TaskListItem>;
+}) {
   const { data, isLoading, hasNextPage, isFetchingNextPage, fetchNextPage } =
     useProjectTaskPages(projectId);
   const openCard = useOpenCard();
 
   const items = data?.pages.flatMap((p) => p.items) ?? [];
+  const rows = useFilteredList(items, filter);
 
   return (
     <DataTable
       viewKey="projects.tasks"
       defs={projectTaskTableFields}
-      rows={items}
+      rows={rows}
       rowKey={(task) => task.id}
       isLoading={isLoading}
       hasNextPage={hasNextPage}

@@ -29,6 +29,7 @@ import { stageColorOrder, stageTone } from '../../../shared/ui/board/stage-tone.
 export function TaskKanbanColumn({
   stage,
   count,
+  total,
   cardIds,
   hasNext,
   loadingMore,
@@ -42,6 +43,8 @@ export function TaskKanbanColumn({
 }: {
   stage: TaskStageWithCount;
   count: number;
+  /** Общий счётчик без фильтра (шапка «n из m» при активном фильтре). */
+  total?: number;
   cardIds: string[];
   hasNext: boolean;
   loadingMore: boolean;
@@ -67,6 +70,7 @@ export function TaskKanbanColumn({
     <BoardColumn
       stage={stage}
       count={count}
+      total={total}
       cardIds={cardIds}
       hasNext={hasNext}
       loadingMore={loadingMore}

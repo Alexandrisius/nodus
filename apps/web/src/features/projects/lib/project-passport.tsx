@@ -1,4 +1,4 @@
-import { Activity, CalendarClock, Hash, Lock, Milestone, User, UserCog, Users } from 'lucide-react';
+import { Activity, CalendarClock, Hash, Lock, User, UserCog, Users } from 'lucide-react';
 import type { ProjectListItem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { NodeChip } from '@nodus/ui/components/node-chip';
@@ -11,12 +11,11 @@ import type { EntityFieldDef } from '../../../shared/ui/entity-fields.js';
 const monoValue = 'font-mono text-[12px] tabular-nums';
 
 /** Паспорт проекта — поля-реестром, не Badge-простыня (плейбук §3.4):
- *  defs для общего каркаса EntityFields (код, стадия проекта — ОТДЕЛЬНАЯ
- *  сущность от стадий задач, справочник I15; моя роль, приватность,
- *  руководитель, сроки, участники, активность). Живут в левой зоне карточки
- *  проекта (вердикт владельца 2026-09-10, раунд 2: поля и чат — вместе,
- *  без выдвижной панели «О проекте»). Руководитель — переход в карточку
- *  сотрудника стеком (openCard, ADR-0009). */
+ *  defs для общего каркаса EntityFields (код, моя роль, приватность,
+ *  руководитель, сроки, участники, активность; стадия проекта удалена —
+ *  вердикт владельца 2026-09-11, справочник переоценим на бэкенде). Живут
+ *  во вкладке «О проекте» левой зоны карточки. Руководитель — переход в
+ *  карточку сотрудника стеком (openCard, ADR-0009). */
 export function projectPassportDefs(
   project: ProjectListItem,
   openCard: (ref: CardRef) => void,
@@ -27,13 +26,6 @@ export function projectPassportDefs(
       icon: <Hash className="size-3.5" />,
       label: ui.projects.fieldCode,
       render: () => <span className={monoValue}>{project.code}</span>,
-    },
-    {
-      key: 'stage',
-      icon: <Milestone className="size-3.5" />,
-      label: ui.projects.stage,
-      render: () =>
-        project.stageName ? <NodeChip tone="info">{project.stageName}</NodeChip> : ui.common.notSet,
     },
     {
       key: 'myRole',

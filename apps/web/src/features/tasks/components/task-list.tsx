@@ -5,8 +5,11 @@ import { Skeleton } from '@nodus/ui/components/skeleton';
 
 import { useOpenCard } from '../../../app/shell/use-card-stack.js';
 import { ColumnResizer } from '../../../shared/views/column-resizer.js';
+import type { ActiveListFilter } from '../../../shared/views/list-filters.js';
+import { useFilteredList } from '../../../shared/views/use-list-toolbar.js';
 import { useViewFields } from '../../../shared/views/use-view-fields.js';
 import { useTasksPages, usePrefetchTask } from '../api/tasks-api.js';
+import type { TaskListItem } from '@nodus/contracts';
 import { taskListFields } from '../lib/task-fields.js';
 import { buildTaskRows, filterVisibleRows, type TaskRow } from '../lib/task-tree.js';
 import { graphWidth, graphX, TaskListTree } from './task-list-graph.js';
@@ -21,7 +24,7 @@ import { graphWidth, graphX, TaskListTree } from './task-list-graph.js';
  * горизонтальный скролл. Настройки — шестерёнка в шапке страницы, ширина —
  * ручкой на грани хедера, с памятью между сессиями.
  */
-export function TaskList() {
+export function TaskList({ filter }: { filter?: ActiveListFilter<TaskListItem> }) {
   const { data, isLoading, hasNextPage, isFetchingNextPage, fetchNextPage } = useTasksPages();
   const openCard = useOpenCard();
   const prefetch = usePrefetchTask();
@@ -34,7 +37,11 @@ export function TaskList() {
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   const items = useMemo(() => data?.pages.flatMap((p) => p.items) ?? [], [data]);
-  const rows = useMemo(() => buildTaskRows(items), [items]);
+  // Локальный фильтр строки инструментов: сужает загруженное (дерево строится
+  // из видимого; родитель вне фильтра отображается корнем — ограничение
+  // клиентской фильтрации дерева, до серверной).
+  const filtered = useFilteredList(items, filter);
+  const rows = useMemo(() => buildTaskRows(filtered), [filtered]);
   const visible = useMemo(() => filterVisibleRows(rows, collapsed), [rows, collapsed]);
 
   // Бесконечная подгрузка страниц: sentinel у дна скролл-контейнера таблицы

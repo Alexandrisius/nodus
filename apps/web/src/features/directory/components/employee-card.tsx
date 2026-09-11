@@ -19,19 +19,12 @@ import { ConversationPane } from '../../../shared/chat/conversation-pane.js';
 import { EntityFields } from '../../../shared/ui/entity-fields.js';
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
 import { useChatWidth } from '../../../shared/ui/use-chat-width.js';
-import { DataTable } from '../../../shared/views/data-table.js';
-import { projectListFields } from '../../../shared/views/project-table-fields.js';
-import { makeTaskTableFields } from '../../../shared/views/task-table-fields.js';
-import { ViewSettings } from '../../../shared/views/view-settings.js';
 import { usePresence, useUserCard, useUsersList } from '../api/directory-api.js';
 import { employeeProfileDefs } from '../lib/employee-profile-fields.js';
 import { EmployeeCardSkeleton } from './employee-card-skeleton.js';
+import { EmployeeProjectsTab, EmployeeTasksTab } from './employee-journal-tabs.js';
 
 const VISIBILITY_KEY = 'nodus-employee-fields-v1';
-
-/** Реестры таблиц — module-константы (стабильная идентичность для
- *  useViewFields); память колонок — своя на карточку сотрудника. */
-const employeeTaskTableFields = makeTaskTableFields();
 
 const presenceTone: Record<PresenceStatus, 'success' | 'warning' | 'muted'> = {
   online: 'success',
@@ -147,9 +140,9 @@ export function EmployeeCard({ userId }: { userId: string }) {
           граница структурная, зона чата — фон с первого кадра раскрытия. */}
       <div className="grid min-h-0 flex-1" style={{ gridTemplateColumns: 'minmax(0,1fr) auto' }}>
         <div className="relative flex min-h-0 flex-col border-r border-border @container">
-          {/* Вкладки карточки (модель профиля Битрикс24, моно-ряд); справа —
-              шестерёнка отображаемых полей активной вкладки (стандарт
-              журналов, как в карточке проекта) */}
+          {/* Вкладки карточки (модель профиля Битрикс24, моно-ряд) — ТОЛЬКО
+              вкладки; органы списков (поиск, фильтр, шестерёнка) — в строке
+              инструментов вкладки (единый стандарт, вердикт владельца) */}
           <div className="content-fade flex shrink-0 items-center gap-1 border-b border-border px-4">
             {tabs.map((t) => (
               <button
@@ -172,14 +165,6 @@ export function EmployeeCard({ userId }: { userId: string }) {
                 ) : null}
               </button>
             ))}
-            <div className="ml-auto flex items-center gap-2">
-              {tab === 'tasks' ? (
-                <ViewSettings viewKey="directory.tasks" defs={employeeTaskTableFields} />
-              ) : null}
-              {tab === 'projects' ? (
-                <ViewSettings viewKey="directory.projects" defs={projectListFields} />
-              ) : null}
-            </div>
           </div>
 
           <div className="content-fade min-h-0 flex-1 overflow-hidden">
@@ -217,31 +202,11 @@ export function EmployeeCard({ userId }: { userId: string }) {
             ) : null}
 
             {tab === 'tasks' ? (
-              <DataTable
-                viewKey="directory.tasks"
-                defs={employeeTaskTableFields}
-                rows={tasks}
-                rowKey={(task) => task.id}
-                isLoading={tasksQuery.isLoading}
-                emptyTitle={ui.employees.noTasks}
-                onOpenRow={(task, rowEl) =>
-                  openCard({ kind: 'task', id: task.id }, rowEl.getBoundingClientRect())
-                }
-              />
+              <EmployeeTasksTab tasks={tasks} isLoading={tasksQuery.isLoading} />
             ) : null}
 
             {tab === 'projects' ? (
-              <DataTable
-                viewKey="directory.projects"
-                defs={projectListFields}
-                rows={projects}
-                rowKey={(project) => project.id}
-                isLoading={projectsQuery.isLoading}
-                emptyTitle={ui.employees.noProjects}
-                onOpenRow={(project, rowEl) =>
-                  openCard({ kind: 'project', id: project.id }, rowEl.getBoundingClientRect())
-                }
-              />
+              <EmployeeProjectsTab projects={projects} isLoading={projectsQuery.isLoading} />
             ) : null}
           </div>
 

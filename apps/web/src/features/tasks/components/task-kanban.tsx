@@ -19,6 +19,8 @@ import type { Paginated, TaskListItem, TaskStage } from '@nodus/contracts';
 import { Skeleton } from '@nodus/ui/components/skeleton';
 
 import { api } from '../../../shared/api-client.js';
+import { isFilteringActive, type ActiveListFilter } from '../../../shared/views/list-filters.js';
+import { useFilteredList } from '../../../shared/views/use-list-toolbar.js';
 import { useViewFields } from '../../../shared/views/use-view-fields.js';
 import { makeTaskCardFields } from '../../../shared/views/task-card-fields.js';
 import {
@@ -60,7 +62,7 @@ const taskCardFields = makeTaskCardFields();
  * (onDragOver), финализация — персист колонки+индекса (PATCH, оптимистично).
  * Борд — локальное состояние, синхронизированное с query вне переноса;
  * структурная смена набора колонок (создание/удаление) перезагружает борд. */
-export function TaskKanban() {
+export function TaskKanban({ filter }: { filter?: ActiveListFilter<TaskListItem> }) {
   const { data: stages } = usePersonalStages();
   const updatePersonalStage = useUpdateTaskPersonalStage();
   const createStage = useCreatePersonalStage();
@@ -127,6 +129,11 @@ export function TaskKanban() {
   );
 
   const items = board ?? [];
+  // Локальный фильтр строки инструментов: сужает ТОЛЬКО отображение (DnD-логика
+  // идёт по полному борду); при активном фильтре drag выключен — перестановка
+  // по урезанному набору давала бы ложные индексы; шапки — «n из m».
+  const visibleItems = useFilteredList(items, filter);
+  const filtering = isFilteringActive(filter);
   const stageList = useMemo(() => [...(stages ?? [])].sort((a, b) => a.order - b.order), [stages]);
   const stageById = useMemo(() => new Map(stageList.map((s) => [s.id, s] as const)), [stageList]);
   const numberById = useMemo(() => new Map(items.map((t) => [t.id, t.number] as const)), [items]);
@@ -275,12 +282,14 @@ export function TaskKanban() {
     >
       <div className="flex h-full gap-5 overflow-x-auto px-6 pt-1 pb-4">
         {stageList.map((stage) => {
-          const cards = items.filter((t) => t.personalStageId === stage.id);
+          const cards = visibleItems.filter((t) => t.personalStageId === stage.id);
+          const totalCount = stage.count + (countDelta[stage.id] ?? 0);
           return (
             <TaskKanbanColumn
               key={stage.id}
               stage={stage}
-              count={stage.count + (countDelta[stage.id] ?? 0)}
+              count={filtering ? cards.length : totalCount}
+              total={filtering ? totalCount : undefined}
               cardIds={cards.map((t) => t.id)}
               hasNext={cursors[stage.id] !== null && cursors[stage.id] !== undefined}
               loadingMore={Boolean(loadingMore[stage.id])}
@@ -312,7 +321,12 @@ export function TaskKanban() {
               }
             >
               {cards.map((task) => (
-                <BoardSortableCard key={task.id} id={task.id} stageId={task.stage.id}>
+                <BoardSortableCard
+                  key={task.id}
+                  id={task.id}
+                  stageId={task.stage.id}
+                  disabled={filtering}
+                >
                   {({ placeholder }) => (
                     <TaskKanbanCard
                       task={task}

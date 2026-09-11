@@ -15,8 +15,6 @@ export const projectListItemSchema = z.object({
   id: z.uuid(),
   code: z.string().min(1),
   name: z.string().min(1),
-  /** Стадия проекта (справочник, I15) — денормализованное название. */
-  stageName: z.string().nullable(),
   manager: userRefSchema.nullable(),
   myRole: projectRoleSchema,
   privacy: projectPrivacySchema,

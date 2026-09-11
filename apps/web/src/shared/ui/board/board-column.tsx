@@ -3,6 +3,7 @@ import { Plus } from 'lucide-react';
 import { useDndContext, useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import type { StageColor } from '@nodus/contracts';
+import { ui } from '@nodus/contracts';
 import { Skeleton } from '@nodus/ui/components/skeleton';
 import { cn } from '@nodus/ui/lib/utils';
 
@@ -29,6 +30,7 @@ export interface BoardColumnStage {
 export function BoardColumn({
   stage,
   count,
+  total,
   cardIds,
   hasNext,
   loadingMore,
@@ -42,6 +44,8 @@ export function BoardColumn({
 }: {
   stage: BoardColumnStage;
   count: number;
+  /** Общий счётчик без фильтра: при активном фильтре шапка — «n из m». */
+  total?: number;
   cardIds: string[];
   hasNext: boolean;
   loadingMore: boolean;
@@ -113,7 +117,7 @@ export function BoardColumn({
           </span>
         )}
         <span className="shrink-0 font-mono text-[11px] text-muted-foreground tabular-nums">
-          {count}
+          {total !== undefined && total !== count ? `${count} ${ui.common.of} ${total}` : count}
         </span>
         {quickAdd ? (
           <button

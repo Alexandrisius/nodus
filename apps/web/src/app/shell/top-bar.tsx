@@ -108,8 +108,10 @@ function sectionsFor(pathname: string): Section[] {
   return [];
 }
 
-/** Топбар «инструмента»: моно-вкладки раздела с портом на оси, поиск Ctrl+K,
- * уведомления, тумблер темы (тёмная/светлая), профиль. */
+/** Топбар «инструмента»: моно-вкладки раздела с портом на оси; глобальный
+ *  «Умный поиск» — ЛУПА в правой группе (модель позднего Битрикс24: не
+ *  конкурирует с локальным поиском списков за глаза; Ctrl+K работает),
+ *  уведомления, тумблер темы (тёмная/светлая), профиль. */
 export function TopBar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const searchStr = useRouterState({ select: (s) => s.location.searchStr });
@@ -143,19 +145,20 @@ export function TopBar() {
         ))}
       </nav>
 
-      <button
-        type="button"
-        onClick={() => setCommandOpen(true)}
-        className="flex h-9 w-96 max-w-[38vw] shrink-0 items-center gap-2 rounded-md border border-border bg-card px-3 text-sm text-muted-foreground transition-colors hover:border-input"
-      >
-        <Search className="size-4" />
-        <span className="flex-1 truncate text-left">{ui.topbar.smartSearch}</span>
-        <kbd className="rounded border border-border px-1.5 py-0.5 font-mono text-[10px] leading-none">
-          {ui.topbar.searchHint}
-        </kbd>
-      </button>
-
       <div className="flex min-w-0 flex-1 items-center justify-end gap-3">
+        {/* Глобальный «Умный поиск» — лупа (та же палитра Ctrl+K); большого
+            поля в центре нет — не путается с локальным поиском списков */}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setCommandOpen(true)}
+          aria-label={`${ui.topbar.smartSearch} (${ui.topbar.searchHint})`}
+          title={`${ui.topbar.smartSearch} (${ui.topbar.searchHint})`}
+          className="text-muted-foreground hover:bg-accent hover:text-foreground"
+        >
+          <Search />
+        </Button>
+
         <span className="flex h-9 items-center rounded-md border border-border px-2.5 font-mono text-[11px] font-medium tracking-wider text-muted-foreground">
           RU
         </span>

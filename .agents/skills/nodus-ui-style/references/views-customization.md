@@ -54,7 +54,26 @@ const { visibleFields, isVisible, toggleField, setWidth, reset } = useViewFields
 <ViewSettings viewKey="tasks.list" defs={taskListFields} />
 ```
 
-DropdownMenu с чекбоксами (`onSelect={e => e.preventDefault()}` — иначе меню закрывается после первого пункта!) + «Сбросить настройки». Поле `locked` — disabled. В шапке страницы по активному виду: `viewKey={view === 'list' ? 'tasks.list' : 'tasks.kanban'}`.
+DropdownMenu с чекбоксами (`onSelect={e => e.preventDefault()}` — иначе меню закрывается после первого пункта!) + «Сбросить настройки». Поле `locked` — disabled. Живёт в правом конце строки инструментов (`ListToolbar`), НЕ в таб-баре карточки и не в шапке страницы.
+
+## Строка инструментов списка (`ListToolbar`, раунд 4)
+
+У КАЖДОГО журнала и вкладки-списка — один компонент: локальный поиск (placeholder называет зону), фильтр с пресетами, чипы активных, слоты `left` (переключатель вида) / `right` (шестерёнка):
+
+```tsx
+const toolbar = useListToolbar('projects.tasks');          // память nodus-list-filters-v1:<viewKey>
+const defs = useTaskFilterDefs({ projectVisible: false }); // реестр фильтруемых полей
+const filter = useMemo(() => ({ defs, state: toolbar.filters, query: toolbar.query, searchText: taskSearchText }), [...]);
+const rows = useFilteredList(items, filter);               // или проп filter в TaskList/TaskKanban
+
+<ListToolbar toolbar={toolbar} defs={defs} searchPlaceholder={ui.tasks.searchInProject}
+  left={<ViewToggle …/>} right={<ViewSettings viewKey={…} defs={…} />} />
+```
+
+- **Реестр фильтруемых полей** — `shared/views/<entity>-filter-fields.ts`: `FilterFieldDef<T> = { id, label, type: 'select'|'person'|'dateRange'|'text', options?, match(item, value) }` — чистый предикат (unit-тесты `list-filters.test.ts`); справочники опций — shared-хуки (`shared/api/users-list`, `projects-list`, `task-stages` — единые ключи кэша, I6).
+- **Фильтрация** — `applyListFilters` (подстрока запроса по `searchText` + AND активных полей); запрос эфемерен (не персистится), фильтры и пресеты — localStorage; пресет со «скрепкой» (pinned) применяется по умолчанию при открытии списка.
+- **Канбан:** фильтр сужает только отображение; шапки «n из m» (проп `total` BoardColumn); DnD при активном фильтре выключен (`disabled` BoardSortableCard — перестановка по урезанному набору дала бы ложные индексы).
+- **Два поиска не конкурируют:** глобальный «Умный поиск» — лупа в правой группе топбара (Ctrl+K, палитра прежняя); большого поля в центре топбара НЕТ.
 
 ### Карточки канбана
 

@@ -66,21 +66,6 @@ export const projectListFields: DataTableField<ProjectListItem>[] = [
     render: (project) => <span className="truncate text-sm font-medium">{project.name}</span>,
   },
   {
-    id: 'stage',
-    label: ui.projects.stage,
-    defaultVisible: true,
-    defaultWidth: 140,
-    minWidth: 100,
-    render: (project) =>
-      project.stageName ? (
-        <NodeChip tone="info" className="shrink-0">
-          {project.stageName}
-        </NodeChip>
-      ) : (
-        <span className="text-xs text-muted-foreground">{ui.common.notSet}</span>
-      ),
-  },
-  {
     id: 'myRole',
     label: ui.projects.myRoleLabel,
     defaultVisible: true,
