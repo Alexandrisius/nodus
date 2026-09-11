@@ -1,12 +1,13 @@
 import type { ReactNode } from 'react';
 import { Mail, MessageSquare } from 'lucide-react';
-import type { TaskListItem, TaskPriority, UserRef } from '@nodus/contracts';
+import type { TaskListItem, UserRef } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { NodeChip } from '@nodus/ui/components/node-chip';
 
 import { formatDateTime, formatMinutes } from '../../../shared/lib/format.js';
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
 import { DeadlineChip } from '../../../shared/ui/deadline-chip.js';
+import { priorityTone } from '../../../shared/views/task-table-fields.js';
 import type { FieldDef } from '../../../shared/views/use-view-fields.js';
 import { TaskStatusBadge } from '../../../shared/ui/task-status-badge.js';
 
@@ -19,13 +20,6 @@ export interface CellContext {
 export interface ListFieldDef extends FieldDef {
   render: (task: TaskListItem, ctx: CellContext) => ReactNode;
 }
-
-export const priorityTone: Record<TaskPriority, 'muted' | 'warning' | 'danger'> = {
-  low: 'muted',
-  normal: 'muted',
-  high: 'warning',
-  urgent: 'danger',
-};
 
 function SourceIcon({ task }: { task: TaskListItem }) {
   if (task.source === 'letter')
@@ -167,19 +161,4 @@ export const taskListFields: ListFieldDef[] = [
     minWidth: 112,
     render: (task) => <span className={monoCell}>{formatDateTime(task.updatedAt)}</span>,
   },
-];
-
-/**
- * Реестр полей карточки канбана (видимость блоков; ширина не применяется —
- * колонка канбана фиксированной ширины).
- */
-export const taskCardFields: FieldDef[] = [
-  { id: 'parent', label: ui.tasks.subtaskOf, defaultVisible: true },
-  { id: 'number', label: ui.tasks.fieldNumber, defaultVisible: true },
-  { id: 'source', label: ui.tasks.fieldSource, defaultVisible: true },
-  { id: 'deadline', label: ui.tasks.deadline, defaultVisible: true },
-  { id: 'project', label: ui.tasks.project, defaultVisible: true },
-  { id: 'assignee', label: ui.tasks.assignee, defaultVisible: true },
-  { id: 'comments', label: ui.tasks.comments, defaultVisible: true },
-  { id: 'spent', label: ui.tasks.colSpent, defaultVisible: true },
 ];

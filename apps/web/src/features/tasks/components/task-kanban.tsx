@@ -20,6 +20,7 @@ import { Skeleton } from '@nodus/ui/components/skeleton';
 
 import { api } from '../../../shared/api-client.js';
 import { useViewFields } from '../../../shared/views/use-view-fields.js';
+import { makeTaskCardFields } from '../../../shared/views/task-card-fields.js';
 import {
   indexOfInStage,
   isSamePlacement,
@@ -37,10 +38,12 @@ import {
   useUpdatePersonalStage,
   useUpdateTaskPersonalStage,
 } from '../api/personal-stages-api.js';
-import { taskCardFields } from '../lib/task-fields.js';
 import { TaskKanbanCard } from './task-kanban-card.js';
 import { TaskKanbanColumn } from './task-kanban-column.js';
 import { TaskStageCreate } from './task-stage-create.js';
+
+/** Реестр блоков карточки канбана — module-константа (стабильная идентичность). */
+const taskCardFields = makeTaskCardFields();
 
 /** Канбан «Мой план» (ADR-0007): живая сортировка dnd-kit sortable — карточки
  * уступают место и переезжают между колонками ВО ВРЕМЯ переноса (onDragOver),

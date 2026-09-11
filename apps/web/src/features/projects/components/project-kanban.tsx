@@ -33,8 +33,11 @@ import { BoardColumn } from '../../../shared/ui/board/board-column.js';
 import { BoardSortableCard } from '../../../shared/ui/board/board-sortable-card.js';
 import { BoardTaskCard } from '../../../shared/ui/board/board-task-card.js';
 import { useViewFields } from '../../../shared/views/use-view-fields.js';
+import { makeTaskCardFields } from '../../../shared/views/task-card-fields.js';
 import { useCreateProjectTask, useMoveProjectTask } from '../api/projects-api.js';
-import { projectKanbanCardFields } from '../lib/project-task-fields.js';
+
+/** Реестр — module-константа; «Проект» скрыт по умолчанию (контекст очевиден). */
+export const projectKanbanCardFields = makeTaskCardFields({ projectVisible: false });
 
 const FEED_LIMIT = 30;
 

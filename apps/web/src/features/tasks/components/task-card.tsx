@@ -10,8 +10,8 @@ import { cn } from '@nodus/ui/lib/utils';
 
 import { useOpenCard } from '../../../app/shell/use-card-stack.js';
 import { DomainChain, type ChainNode } from '../../../shared/ui/domain-chain.js';
+import { useChatWidth } from '../../../shared/ui/use-chat-width.js';
 import { useAddSubtask, useTaskDetail } from '../api/tasks-api.js';
-import { useCardChatWidth } from '../lib/use-card-chat-width.js';
 import { TaskAboutDrawer } from './task-about-drawer.js';
 import { TaskBranchDrawer } from './task-branch-drawer.js';
 import { TaskCardSkeleton } from './task-card-skeleton.js';
@@ -53,7 +53,7 @@ export function TaskCard({ taskId }: { taskId: string }) {
   // 0↔300px (плавный пуш контента), состояние панели не теряется.
   const [branchMounted, setBranchMounted] = useState(false);
   const chatRef = useRef<HTMLDivElement>(null);
-  const { chatW, onDividerDown, dragging } = useCardChatWidth(chatRef, aboutOpen ? ABOUT_W : 0);
+  const { chatW, onDividerDown, dragging } = useChatWidth(chatRef, aboutOpen ? ABOUT_W : 0);
   // Стабильные колбэки: дочерние панели мемоизированы, инлайн-стрелки
   // ломали бы memo на каждом рендере.
   const closeBranch = useCallback(() => setBranchOpen(false), []);
@@ -237,8 +237,8 @@ export function TaskCard({ taskId }: { taskId: string }) {
             onPointerDown={onDividerDown}
             role="separator"
             aria-orientation="vertical"
-            aria-label={ui.tasks.resizeChat}
-            title={ui.tasks.resizeChat}
+            aria-label={ui.common.resizePanel}
+            title={ui.common.resizePanel}
             className="group absolute top-0 right-0 z-10 h-full w-3 translate-x-1/2 cursor-col-resize"
           >
             <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-port/60 opacity-0 transition-opacity group-hover:opacity-100" />

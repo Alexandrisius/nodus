@@ -1,5 +1,5 @@
 import type { ChatMessage, ConversationListItem, TaskListItem } from '@nodus/contracts';
-import { ErrorCode, sendMessageBodySchema, startDirectBodySchema } from '@nodus/contracts';
+import { ErrorCode, sendMessageBodySchema } from '@nodus/contracts';
 
 import { http, HttpResponse } from 'msw';
 
@@ -19,20 +19,20 @@ export const chatHandlers = [
     HttpResponse.json({ items: demoConversations, nextCursor: null }),
   ),
 
-  /** «Написать сообщение» из карточки сотрудника: найти или создать диалог
-   * (startDirectBodySchema — идемпотентно по участнику). */
-  http.post('/api/v1/chat/conversations', async ({ request }) => {
-    const parsed = startDirectBodySchema.safeParse(await request.json());
-    if (!parsed.success)
-      return HttpResponse.json(
-        { code: ErrorCode.VALIDATION_FAILED, message: 'Invalid body' },
-        { status: 422 },
-      );
+  /** Личный диалог с сотрудником (карточка сотрудника — чат всегда справа):
+   * find-or-create по участнику (идемпотентно); диалог с собой — «заметки
+   * для себя» (модель «Избранного» мессенджеров). */
+  http.get('/api/v1/chat/conversations/direct/:userId', ({ params }) => {
+    const userId = String(params.userId);
     const existing = demoConversations.find(
-      (c) => c.type === 'direct' && c.membersPreview.some((m) => m.id === parsed.data.userId),
+      (c) =>
+        c.type === 'direct' &&
+        (userId === currentAuthUser.id
+          ? c.membersPreview.length === 1 && c.membersPreview[0]?.id === currentAuthUser.id
+          : c.membersPreview.some((m) => m.id === userId)),
     );
     if (existing) return HttpResponse.json(existing);
-    const person = demoUserListItems.find((u) => u.id === parsed.data.userId);
+    const person = demoUserListItems.find((u) => u.id === userId);
     if (!person)
       return HttpResponse.json(
         { code: ErrorCode.NOT_FOUND, message: 'User not found' },

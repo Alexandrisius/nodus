@@ -1,4 +1,4 @@
-import { ArrowLeft, ListTodo } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import { NodeLabel } from '@nodus/ui/components/node-label';
@@ -13,18 +13,20 @@ import {
   MessageScrollerViewport,
 } from '@nodus/ui/components/message-scroller';
 
-import { useOpenCard } from '../../app/shell/use-card-stack.js';
 import { useAuthStore } from '../auth-store.js';
 import { ChatComposer } from './chat-composer.js';
-import { ChatMessageAction, ChatMessageItem } from './chat-message.js';
-import { useMessageToTask, useSendChatMessage, useThreadMessages } from './api.js';
+import { ChatMessageItem } from './chat-message.js';
+import { ChatSidePanel, useChatSidePanel } from './chat-side-panel.js';
+import { MessageMenu, MessageMenuButton } from './message-menu.js';
+import { useSendChatMessage, useThreadMessages } from './api.js';
 
 /**
  * Тред канала (вердикт владельца): «провалиться внутрь — обычный чат».
  * Шапка — возврат к ленте + моно-метка «Обсуждение»; корневой пост отделён
- * штриховой линией, ответы — обычные сообщения; композер отправляет с
- * threadRootId (уведомления — только участники треда и наблюдатели проекта,
- * бэкенд-механика M13).
+ * штриховой линией, ответы — обычные сообщения с контекстным меню (правый
+ * клик / «⋯»); композер отправляет с threadRootId (уведомления — только
+ * участники треда и наблюдатели проекта, бэкенд-механика M13). Правая
+ * панель беседы — закон для каждого чата (файлы/ссылки всего канала).
  */
 export function ThreadPane({
   conversationId,
@@ -37,9 +39,8 @@ export function ThreadPane({
 }) {
   const { data, isLoading } = useThreadMessages(conversationId, threadRootId);
   const send = useSendChatMessage(conversationId);
-  const toTask = useMessageToTask();
   const me = useAuthStore((s) => s.user);
-  const openCard = useOpenCard();
+  const panel = useChatSidePanel();
 
   const items = data?.items ?? [];
   const root = items.find((m) => m.id === threadRootId);
@@ -53,62 +54,77 @@ export function ThreadPane({
         </Button>
         <NodeLabel label={ui.chat.discussion} count={replies.length} />
       </header>
-      <MessageScrollerProvider>
-        <MessageScroller className="min-h-0 flex-1 bg-background">
-          <MessageScrollerViewport>
-            <MessageScrollerContent className="p-4">
-              {isLoading ? (
-                <MessageGroup>
-                  {[0, 1, 2].map((i) => (
-                    <Skeleton key={i} className="h-14 w-2/3" />
-                  ))}
-                </MessageGroup>
-              ) : (
-                <MessageGroup>
-                  {root ? (
-                    <MessageScrollerItem>
-                      <ChatMessageItem message={root} mine={root.author.id === me?.id} />
-                      <span
-                        aria-hidden
-                        className="mt-3 block border-b border-dashed border-border"
-                      />
-                    </MessageScrollerItem>
-                  ) : null}
-                  {replies.map((message) => {
-                    const mine = message.author.id === me?.id;
-                    return (
-                      <MessageScrollerItem key={message.id}>
-                        <ChatMessageItem
-                          message={message}
-                          mine={mine}
-                          actions={
-                            <ChatMessageAction
-                              label={ui.chat.toTask}
-                              icon={<ListTodo className="size-3" />}
-                              onClick={() =>
-                                toTask.mutate(
-                                  { conversationId, messageId: message.id },
-                                  {
-                                    onSuccess: (task) => openCard({ kind: 'task', id: task.id }),
-                                  },
-                                )
-                              }
+      {/* Якорь панели беседы — только зона ленты: композер не перекрывается. */}
+      <div className="relative min-h-0 flex-1">
+        <MessageScrollerProvider>
+          <MessageScroller className="h-full bg-background">
+            <MessageScrollerViewport>
+              <MessageScrollerContent className="p-4">
+                {isLoading ? (
+                  <MessageGroup>
+                    {[0, 1, 2].map((i) => (
+                      <Skeleton key={i} className="h-14 w-2/3" />
+                    ))}
+                  </MessageGroup>
+                ) : (
+                  <MessageGroup>
+                    {root ? (
+                      <MessageScrollerItem>
+                        <MessageMenu
+                          message={root}
+                          mine={root.author.id === me?.id}
+                          conversationId={conversationId}
+                        >
+                          {(openMenu) => (
+                            <ChatMessageItem
+                              message={root}
+                              mine={root.author.id === me?.id}
+                              actions={<MessageMenuButton onOpen={openMenu} />}
                             />
-                          }
+                          )}
+                        </MessageMenu>
+                        <span
+                          aria-hidden
+                          className="mt-3 block border-b border-dashed border-border"
                         />
                       </MessageScrollerItem>
-                    );
-                  })}
-                </MessageGroup>
-              )}
-            </MessageScrollerContent>
-          </MessageScrollerViewport>
-          <MessageScrollerButton />
-        </MessageScroller>
-      </MessageScrollerProvider>
+                    ) : null}
+                    {replies.map((message) => {
+                      const mine = message.author.id === me?.id;
+                      return (
+                        <MessageScrollerItem key={message.id}>
+                          <MessageMenu
+                            message={message}
+                            mine={mine}
+                            conversationId={conversationId}
+                          >
+                            {(openMenu) => (
+                              <ChatMessageItem
+                                message={message}
+                                mine={mine}
+                                actions={<MessageMenuButton onOpen={openMenu} />}
+                              />
+                            )}
+                          </MessageMenu>
+                        </MessageScrollerItem>
+                      );
+                    })}
+                  </MessageGroup>
+                )}
+              </MessageScrollerContent>
+            </MessageScrollerViewport>
+            <MessageScrollerButton />
+          </MessageScroller>
+        </MessageScrollerProvider>
+        {panel.mounted ? (
+          <ChatSidePanel conversationId={conversationId} open={panel.open} onClose={panel.close} />
+        ) : null}
+      </div>
       <ChatComposer
         placeholder={ui.chat.replyPlaceholder}
         onSend={(text) => send.mutate({ text, threadRootId })}
+        onTogglePanel={panel.toggle}
+        panelOpen={panel.open}
       />
     </div>
   );

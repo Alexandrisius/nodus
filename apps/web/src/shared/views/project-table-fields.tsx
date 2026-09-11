@@ -4,9 +4,9 @@ import type { ProjectListItem, UserRef } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { NodeChip } from '@nodus/ui/components/node-chip';
 
-import { formatDate, formatDateTimeShort } from '../../../shared/lib/format.js';
-import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
-import type { DataTableField } from '../../../shared/views/data-table.js';
+import { formatDate, formatDateTimeShort } from '../lib/format.js';
+import { PersonAvatar } from '../ui/person-avatar.js';
+import type { DataTableField } from './data-table.js';
 
 const monoCell = 'font-mono text-[11px] text-muted-foreground tabular-nums';
 
@@ -40,8 +40,10 @@ export function ProjectPrivacyChip({ project }: { project: ProjectListItem }) {
 }
 
 /**
- * Реестр колонок списка проектов (ключ вида `projects.list`): новое поле
- * модуля = +1 запись здесь (shared/views, шестерёнка + ручка ресайза).
+ * ЕДИНЫЙ реестр колонок списка проектов (стандарт владельца, раунд 3):
+ * журнал проектов (viewKey `projects.list`) и проекты сотрудника в его
+ * карточке (свой viewKey) — реестр один, память колонок раздельная.
+ * Новое поле модуля = +1 запись здесь (шестерёнка + ручка ресайза).
  */
 export const projectListFields: DataTableField<ProjectListItem>[] = [
   {

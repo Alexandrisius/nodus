@@ -11,9 +11,10 @@ function clamp(width: number) {
 }
 
 /**
- * Ширина колонки обсуждения в карточке: тянется за разделитель мышью
- * (как сплит в IDE), сохраняется в localStorage — каждый настраивает баланс
- * «содержание/чат» под себя, дефолт 680px.
+ * Ширина колонки чата в карточке сущности (задача/проект/сотрудник —
+ * закон: где чат, там перегородка двигается с памятью): тянется за
+ * разделитель мышью (как сплит в IDE), сохраняется в localStorage — общая
+ * память на все карточки портала, дефолт 680px.
  *
  * Drag — ИМПЕРАТИВНО (el.style.width напрямую), БЕЗ setState на каждый кадр:
  * React не рендерит карточку во время тяги (дерево сообщений/полей не
@@ -25,7 +26,7 @@ function clamp(width: number) {
  * @param chatRef — колонка чата, которой drag выставляет ширину напрямую;
  * @param shrink — сколько px временно съедает открытая панель «О задаче».
  */
-export function useCardChatWidth(chatRef: RefObject<HTMLDivElement | null>, shrink = 0) {
+export function useChatWidth(chatRef: RefObject<HTMLDivElement | null>, shrink = 0) {
   const [chatW, setChatW] = useState(() => {
     const stored = Number(localStorage.getItem(STORE_KEY));
     return Number.isFinite(stored) && stored >= MIN_W ? clamp(stored) : DEFAULT_W;

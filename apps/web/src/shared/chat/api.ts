@@ -57,15 +57,13 @@ export function useMessageToTask() {
   });
 }
 
-/** «Написать сообщение» из карточки сотрудника: найти или создать диалог. */
-export function useStartDirectConversation() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (userId: string) =>
-      api<ConversationListItem>('/chat/conversations', { method: 'POST', body: { userId } }),
-    onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: chatKeys.conversations() });
-    },
+/** Личный диалог с сотрудником (карточка сотрудника — чат всегда справа):
+ *  find-or-create на стороне API, клиент читает как query. */
+export function useDirectConversation(userId: string) {
+  return useQuery({
+    queryKey: [...chatKeys.conversations(), 'direct', userId] as const,
+    queryFn: () => api<ConversationListItem>(`/chat/conversations/direct/${userId}`),
+    enabled: userId.length > 0,
   });
 }
 

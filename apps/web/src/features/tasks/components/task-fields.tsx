@@ -20,7 +20,7 @@ import { formatDateTime, formatMinutes } from '../../../shared/lib/format.js';
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
 import { DeadlineChip } from '../../../shared/ui/deadline-chip.js';
 import { EntityFields, type EntityFieldDef } from '../../../shared/ui/entity-fields.js';
-import { priorityTone } from '../lib/task-fields.js';
+import { priorityTone } from '../../../shared/views/task-table-fields.js';
 import { TaskStageField } from './task-stage-controls.js';
 
 const VISIBILITY_KEY = 'nodus-task-fields-v1';

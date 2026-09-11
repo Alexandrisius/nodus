@@ -4,9 +4,9 @@ import { ui } from '@nodus/contracts';
 import { useOpenCard } from '../../../app/shell/use-card-stack.js';
 import { plural } from '../../../shared/lib/format.js';
 import { DataTable } from '../../../shared/views/data-table.js';
+import { projectListFields } from '../../../shared/views/project-table-fields.js';
 import { ViewSettings } from '../../../shared/views/view-settings.js';
 import { useProjectsList } from '../api/projects-api.js';
-import { projectListFields } from '../lib/project-fields.js';
 
 /**
  * Проекты: журнал канонической таблицей (shared/views, ключ `projects.list`) —

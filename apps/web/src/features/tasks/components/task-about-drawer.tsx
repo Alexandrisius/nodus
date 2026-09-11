@@ -79,7 +79,7 @@ export const TaskAboutDrawer = memo(function TaskAboutDrawer({
         </div>
       </div>
 
-      <Section icon={FileText} title={ui.tasks.filesMedia}>
+      <Section icon={FileText} title={ui.chat.filesMedia}>
         {files.length > 0 ? (
           files.map((file) => (
             <span key={file.id} className="truncate font-mono text-[12px] text-info">
@@ -91,7 +91,7 @@ export const TaskAboutDrawer = memo(function TaskAboutDrawer({
         )}
       </Section>
 
-      <Section icon={Link2} title={ui.tasks.links}>
+      <Section icon={Link2} title={ui.chat.links}>
         {links.length > 0 ? (
           links.map((link) => (
             <a

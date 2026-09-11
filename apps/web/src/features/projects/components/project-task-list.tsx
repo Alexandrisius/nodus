@@ -1,7 +1,11 @@
 import { useOpenCard } from '../../../app/shell/use-card-stack.js';
 import { DataTable } from '../../../shared/views/data-table.js';
+import { makeTaskTableFields } from '../../../shared/views/task-table-fields.js';
 import { useProjectTaskPages } from '../api/projects-api.js';
-import { projectTaskListFields } from '../lib/project-task-fields.js';
+
+/** Реестр — module-константа (стабильная идентичность для useViewFields);
+ *  «Проект» по умолчанию скрыт: список открыт в контексте проекта. */
+export const projectTaskTableFields = makeTaskTableFields({ projectVisible: false });
 
 /** Вид «Список» карточки проекта: те же задачи (фильтр projectId, плейбук
  *  §3.3) канонической таблицей на общей машине shared/views — свой ключ
@@ -17,7 +21,7 @@ export function ProjectTaskList({ projectId }: { projectId: string }) {
   return (
     <DataTable
       viewKey="projects.tasks"
-      defs={projectTaskListFields}
+      defs={projectTaskTableFields}
       rows={items}
       rowKey={(task) => task.id}
       isLoading={isLoading}

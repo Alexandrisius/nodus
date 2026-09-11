@@ -57,28 +57,6 @@ export function MessageAttachments({ message }: { message: ChatMessage }) {
   );
 }
 
-/** Ховер-действие сообщения («В задачу», «Обсудить») — моно-кнопка. */
-export function ChatMessageAction({
-  label,
-  onClick,
-  icon,
-}: {
-  label: string;
-  onClick: () => void;
-  icon?: ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 font-mono text-[10px] tracking-[0.12em] text-muted-foreground uppercase transition-colors hover:bg-accent hover:text-foreground"
-    >
-      {icon}
-      {label}
-    </button>
-  );
-}
-
 /**
  * Сообщение чата по канону «Инструмента» (Message/Bubble-примитивы, как
  * обсуждение задачи): свои — справа (primary-пузырь, без аватара), чужие —
