@@ -2,18 +2,17 @@ import { List, Lock, SquareKanban } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { ui } from '@nodus/contracts';
 import { NodeChip } from '@nodus/ui/components/node-chip';
-import { NodeLabel } from '@nodus/ui/components/node-label';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { useOpenCard } from '../../../app/shell/use-card-stack.js';
 import {
-  CHAT_PANEL_W,
   ChatPanelToggle,
   ChatSidePanel,
+  MIN_COLUMN_WITH_PANEL,
   useChatSidePanel,
 } from '../../../shared/chat/chat-side-panel.js';
 import { EntityFields } from '../../../shared/ui/entity-fields.js';
-import { MIN_CHAT_WITH_PANEL, useChatWidth } from '../../../shared/ui/use-chat-width.js';
+import { useChatWidth } from '../../../shared/ui/use-chat-width.js';
 import { ViewSettings } from '../../../shared/views/view-settings.js';
 import { useProjectDetail } from '../api/projects-api.js';
 import { projectPassportDefs } from '../lib/project-passport.js';
@@ -57,11 +56,18 @@ export function ProjectCard({ projectId }: { projectId: string }) {
   const [tab, setTab] = useState<ProjectTab>('tasks');
   const [tasksView, setTasksView] = useState<TasksView>('list');
   const openCard = useOpenCard();
-  const chatRef = useRef<HTMLDivElement>(null);
-  const { chatW, onDividerDown, dragging } = useChatWidth(chatRef);
-  // Панель беседы канала (закон чата): тоггл — в шапке колонки справа вверху,
-  // панель вталкивающая (двигает чат; на минимуме — выталкивает левую зону).
+  // Панель беседы (закон чата): тоггл — в таб-баре КАРТОЧКИ справа вверху
+  // (как кнопка «О задаче» в полосе карточки задачи — шапки у чата НЕТ);
+  // панель — внутри колонки чата (анимируется ОДНА ширина — левая зона не
+  // дёргается); лента не уже 360 при открытой панели.
   const panel = useChatSidePanel();
+  const chatRef = useRef<HTMLDivElement>(null);
+  const { chatW, onDividerDown, dragging } = useChatWidth(
+    chatRef,
+    0,
+    panel.open ? MIN_COLUMN_WITH_PANEL : undefined,
+  );
+  const columnW = panel.open ? Math.max(chatW, MIN_COLUMN_WITH_PANEL) : chatW;
 
   if (isLoading || !project) {
     return <ProjectCardSkeleton chatW={chatW} />;
@@ -69,75 +75,73 @@ export function ProjectCard({ projectId }: { projectId: string }) {
 
   return (
     <div className="flex h-full flex-col">
-      {/* Левая зона (вкладки), колонка обсуждения и вталкивающая панель
-          беседы — auto-колонки grid: панель двигает чат, на минимуме чата —
-          выталкивает левую зону (вердикт владельца). */}
-      <div
-        className="grid min-h-0 flex-1"
-        style={{ gridTemplateColumns: 'minmax(0,1fr) auto auto' }}
-      >
-        {' '}
-        <div className="relative flex min-h-0 flex-col border-r border-border @container">
-          {/* Таб-бар: вкладки слева; справа — вид задач (на вкладке «Задачи»),
-              шестерёнка и чипы стадии/приватности проекта */}
-          <div className="content-fade flex shrink-0 items-center gap-1 overflow-x-auto border-b border-border px-4">
-            {projectTabs.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => setTab(t.id)}
-                aria-current={tab === t.id}
-                className={cn(
-                  'flex h-10 shrink-0 items-center gap-2 rounded-none border-b-2 px-3 font-mono text-[11px] tracking-[0.14em] uppercase transition-colors',
-                  tab === t.id
-                    ? 'border-port text-foreground'
-                    : 'border-transparent text-muted-foreground hover:text-foreground/80',
-                )}
-              >
-                {t.label}
-              </button>
-            ))}
-            <div className="ml-auto flex shrink-0 items-center gap-2">
-              {tab === 'tasks' ? (
-                <>
-                  <div className="flex items-center rounded-lg border border-border p-0.5">
-                    {tasksViews.map((v) => (
-                      <button
-                        key={v.id}
-                        type="button"
-                        onClick={() => setTasksView(v.id)}
-                        aria-pressed={tasksView === v.id}
-                        title={v.label}
-                        aria-label={v.label}
-                        className={cn(
-                          'flex size-6 items-center justify-center rounded-md transition-colors',
-                          tasksView === v.id
-                            ? 'bg-accent text-foreground'
-                            : 'text-muted-foreground hover:text-foreground/80',
-                        )}
-                      >
-                        <v.icon className="size-3.5" strokeWidth={1.75} />
-                      </button>
-                    ))}
-                  </div>
-                  <ViewSettings
-                    viewKey={tasksView === 'list' ? 'projects.tasks' : 'projects.kanban'}
-                    defs={tasksView === 'list' ? projectTaskTableFields : projectKanbanCardFields}
-                  />
-                </>
-              ) : null}
-              {project.stageName ? (
-                <NodeChip tone="info" className="shrink-0">
-                  {project.stageName}
-                </NodeChip>
-              ) : null}
-              <NodeChip tone="muted" className="shrink-0">
-                {project.privacy === 'closed' ? <Lock className="size-3" /> : null}
-                {ui.projects.privacy[project.privacy]}
-              </NodeChip>
-            </div>
-          </div>
+      {/* Таб-бар КАРТОЧКИ на всю ширину (как полоса цепочки у задачи):
+          вкладки слева; справа — вид задач (на вкладке «Задачи»), шестерёнка,
+          чипы стадии/приватности и КНОПКА ПАНЕЛИ БЕСЕДЫ — крайняя справа
+          вверху (канон кнопки «О задаче»; шапки у чата НЕТ — вердикт). */}
+      <div className="content-fade flex shrink-0 items-center gap-1 overflow-x-auto border-b border-border px-4">
+        {projectTabs.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => setTab(t.id)}
+            aria-current={tab === t.id}
+            className={cn(
+              'flex h-10 shrink-0 items-center gap-2 rounded-none border-b-2 px-3 font-mono text-[11px] tracking-[0.14em] uppercase transition-colors',
+              tab === t.id
+                ? 'border-port text-foreground'
+                : 'border-transparent text-muted-foreground hover:text-foreground/80',
+            )}
+          >
+            {t.label}
+          </button>
+        ))}
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          {tab === 'tasks' ? (
+            <>
+              <div className="flex items-center rounded-lg border border-border p-0.5">
+                {tasksViews.map((v) => (
+                  <button
+                    key={v.id}
+                    type="button"
+                    onClick={() => setTasksView(v.id)}
+                    aria-pressed={tasksView === v.id}
+                    title={v.label}
+                    aria-label={v.label}
+                    className={cn(
+                      'flex size-6 items-center justify-center rounded-md transition-colors',
+                      tasksView === v.id
+                        ? 'bg-accent text-foreground'
+                        : 'text-muted-foreground hover:text-foreground/80',
+                    )}
+                  >
+                    <v.icon className="size-3.5" strokeWidth={1.75} />
+                  </button>
+                ))}
+              </div>
+              <ViewSettings
+                viewKey={tasksView === 'list' ? 'projects.tasks' : 'projects.kanban'}
+                defs={tasksView === 'list' ? projectTaskTableFields : projectKanbanCardFields}
+              />
+            </>
+          ) : null}
+          {project.stageName ? (
+            <NodeChip tone="info" className="shrink-0">
+              {project.stageName}
+            </NodeChip>
+          ) : null}
+          <NodeChip tone="muted" className="shrink-0">
+            {project.privacy === 'closed' ? <Lock className="size-3" /> : null}
+            {ui.projects.privacy[project.privacy]}
+          </NodeChip>
+          {project.channelId ? <ChatPanelToggle open={panel.open} onToggle={panel.toggle} /> : null}
+        </div>
+      </div>
 
+      {/* Левая зона (контент вкладки) и колонка обсуждения — вертикальная
+          граница структурная (анатомия карточки задачи). */}
+      <div className="grid min-h-0 flex-1" style={{ gridTemplateColumns: 'minmax(0,1fr) auto' }}>
+        <div className="relative flex min-h-0 flex-col border-r border-border @container">
           <div className="content-fade min-h-0 flex-1 overflow-hidden">
             {tab === 'tasks' ? (
               tasksView === 'list' ? (
@@ -174,42 +178,30 @@ export function ProjectCard({ projectId }: { projectId: string }) {
             <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-port/60 opacity-0 transition-opacity group-hover:opacity-100" />
           </div>
         </div>
+
         {/* Колонка обсуждения (канал проекта): фон — структура с первого
-            кадра роста; fade — только содержимое. Шапка колонки (h-10 — на
-            одной горизонтали с таб-баром): название канала + тоггл панели
-            СПРАВА ВВЕРХУ (канон кнопки «О задаче»). */}
+            кадра роста. Панель беседы — ВНУТРИ колонки справа: анимируется
+            ОДНА ширина колонки (левая зона не дёргается); лента не уже
+            360px при открытой панели (колонка ≥ 660 — тогда панель
+            выталкивает левую зону, по правилу владельца). */}
         <div
           ref={chatRef}
           className={cn('min-h-0 overflow-hidden', !dragging && 'transition-[width] duration-200')}
-          style={{
-            width: Math.max(
-              chatW - (panel.open && project.channelId ? CHAT_PANEL_W : 0),
-              MIN_CHAT_WITH_PANEL,
-            ),
-          }}
+          style={{ width: columnW }}
         >
-          <div className="flex h-full w-full flex-col bg-background">
-            <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border pr-2 pl-4">
-              <NodeLabel label={ui.chat.channelOfProject} className="truncate" />
-              <div className="ml-auto">
-                {project.channelId ? (
-                  <ChatPanelToggle open={panel.open} onToggle={panel.toggle} />
-                ) : null}
-              </div>
-            </div>
-            <div className="content-fade min-h-0 flex-1">
+          <div className="flex h-full w-full bg-background">
+            <div className="content-fade min-h-0 min-w-0 flex-1">
               <ProjectChat project={project} />
             </div>
+            {panel.mounted && project.channelId ? (
+              <ChatSidePanel
+                conversationId={project.channelId}
+                open={panel.open}
+                onClose={panel.close}
+              />
+            ) : null}
           </div>
         </div>
-        {/* Панель беседы — вталкивающая колонка справа (канон «О задаче») */}
-        {panel.mounted && project.channelId ? (
-          <ChatSidePanel
-            conversationId={project.channelId}
-            open={panel.open}
-            onClose={panel.close}
-          />
-        ) : null}
       </div>
     </div>
   );

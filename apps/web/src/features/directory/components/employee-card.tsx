@@ -10,15 +10,15 @@ import { useOpenCard } from '../../../app/shell/use-card-stack.js';
 import { useAssigneeTasks, useMemberProjects } from '../../../shared/api/user-relations.js';
 import { useDirectConversation } from '../../../shared/chat/api.js';
 import {
-  CHAT_PANEL_W,
   ChatPanelToggle,
   ChatSidePanel,
+  MIN_COLUMN_WITH_PANEL,
   useChatSidePanel,
 } from '../../../shared/chat/chat-side-panel.js';
 import { ConversationPane } from '../../../shared/chat/conversation-pane.js';
 import { EntityFields } from '../../../shared/ui/entity-fields.js';
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
-import { MIN_CHAT_WITH_PANEL, useChatWidth } from '../../../shared/ui/use-chat-width.js';
+import { useChatWidth } from '../../../shared/ui/use-chat-width.js';
 import { DataTable } from '../../../shared/views/data-table.js';
 import { projectListFields } from '../../../shared/views/project-table-fields.js';
 import { makeTaskTableFields } from '../../../shared/views/task-table-fields.js';
@@ -68,11 +68,18 @@ export function EmployeeCard({ userId }: { userId: string }) {
   const directQuery = useDirectConversation(userId);
   const openCard = useOpenCard();
   const [tab, setTab] = useState<EmployeeTab>('profile');
-  const chatRef = useRef<HTMLDivElement>(null);
-  const { chatW, onDividerDown, dragging } = useChatWidth(chatRef);
-  // Панель беседы (закон чата): тоггл — в шапке колонки справа вверху,
-  // панель вталкивающая (двигает чат; на минимуме — выталкивает левую зону).
+  // Панель беседы (закон чата): тоггл — в полосе КАРТОЧКИ справа вверху
+  // (как кнопка «О задаче» — шапки у чата с именем/аватаром НЕТ, вердикт);
+  // панель — внутри колонки чата (одна анимируемая ширина — левая зона не
+  // дёргается); лента не уже 360 при открытой панели.
   const panel = useChatSidePanel();
+  const chatRef = useRef<HTMLDivElement>(null);
+  const { chatW, onDividerDown, dragging } = useChatWidth(
+    chatRef,
+    0,
+    panel.open ? MIN_COLUMN_WITH_PANEL : undefined,
+  );
+  const columnW = panel.open ? Math.max(chatW, MIN_COLUMN_WITH_PANEL) : chatW;
 
   const items = useMemo(() => usersData?.items ?? [], [usersData]);
   const listItem = items.find((u) => u.id === userId);
@@ -128,16 +135,17 @@ export function EmployeeCard({ userId }: { userId: string }) {
             {listItem.positionName ?? ''}
             {listItem.departmentName ? ` · ${listItem.departmentName}` : ''}
           </span>
+          <div className="ml-auto flex shrink-0 items-center">
+            {directQuery.data ? (
+              <ChatPanelToggle open={panel.open} onToggle={panel.toggle} />
+            ) : null}
+          </div>
         </div>
       </div>
 
-      {/* Левая зона (вкладки), колонка личного диалога и вталкивающая
-          панель беседы — auto-колонки grid: панель двигает чат, на минимуме
-          чата — выталкивает левую зону (вердикт владельца). */}
-      <div
-        className="grid min-h-0 flex-1"
-        style={{ gridTemplateColumns: 'minmax(0,1fr) auto auto' }}
-      >
+      {/* Левая зона (вкладки) и колонка личного диалога — вертикальная
+          граница структурная, зона чата — фон с первого кадра раскрытия. */}
+      <div className="grid min-h-0 flex-1" style={{ gridTemplateColumns: 'minmax(0,1fr) auto' }}>
         <div className="relative flex min-h-0 flex-col border-r border-border @container">
           {/* Вкладки карточки (модель профиля Битрикс24, моно-ряд); справа —
               шестерёнка отображаемых полей активной вкладки (стандарт
@@ -251,34 +259,17 @@ export function EmployeeCard({ userId }: { userId: string }) {
           </div>
         </div>
 
-        {/* Колонка личного диалога: фон — структура с первого кадра. Шапка
-            колонки (h-10 — на одной горизонтали с таб-баром): собеседник +
-            тоггл панели СПРАВА ВВЕРХУ (канон кнопки «О задаче»). */}
+        {/* Колонка личного диалога: фон — структура с первого кадра; шапки
+            у чата НЕТ (собеседник и так в хроме карточки — вердикт). Панель
+            беседы — ВНУТРИ колонки справа: одна анимируемая ширина (левая
+            зона не дёргается); лента не уже 360px при открытой панели. */}
         <div
           ref={chatRef}
           className={cn('min-h-0 overflow-hidden', !dragging && 'transition-[width] duration-200')}
-          style={{
-            width: Math.max(
-              chatW - (panel.open && directQuery.data ? CHAT_PANEL_W : 0),
-              MIN_CHAT_WITH_PANEL,
-            ),
-          }}
+          style={{ width: columnW }}
         >
-          <div className="flex h-full w-full flex-col bg-background">
-            <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border pr-2 pl-4">
-              <PersonAvatar
-                name={card.displayName}
-                avatarUrl={card.avatarUrl}
-                className="size-6 shrink-0"
-              />
-              <span className="min-w-0 truncate text-sm font-medium">{card.displayName}</span>
-              <div className="ml-auto">
-                {directQuery.data ? (
-                  <ChatPanelToggle open={panel.open} onToggle={panel.toggle} />
-                ) : null}
-              </div>
-            </div>
-            <div className="content-fade min-h-0 flex-1">
+          <div className="flex h-full w-full bg-background">
+            <div className="content-fade min-h-0 min-w-0 flex-1">
               {directQuery.data ? (
                 <ConversationPane
                   conversationId={directQuery.data.id}
@@ -293,17 +284,15 @@ export function EmployeeCard({ userId }: { userId: string }) {
                 </div>
               )}
             </div>
+            {panel.mounted && directQuery.data ? (
+              <ChatSidePanel
+                conversationId={directQuery.data.id}
+                open={panel.open}
+                onClose={panel.close}
+              />
+            ) : null}
           </div>
         </div>
-
-        {/* Панель беседы — вталкивающая колонка справа (канон «О задаче») */}
-        {panel.mounted && directQuery.data ? (
-          <ChatSidePanel
-            conversationId={directQuery.data.id}
-            open={panel.open}
-            onClose={panel.close}
-          />
-        ) : null}
       </div>
     </div>
   );

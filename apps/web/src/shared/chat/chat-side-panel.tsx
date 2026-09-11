@@ -7,9 +7,13 @@ import { cn } from '@nodus/ui/lib/utils';
 
 import { useConversationMessages } from './api.js';
 
-/** Ширина вталкивающей панели беседы: контейнер уменьшает чат на неё
- *  (до минимума — дальше панель выталкивает левую часть). */
+/** Ширина вталкивающей панели беседы: контейнер уменьшает чат на неё. */
 export const CHAT_PANEL_W = 300;
+
+/** Минимум ЛЕНТЫ при открытой панели (вердикт владельца: 280 — «слишком
+ *  малая») и соответствующий минимум всей колонки чата. */
+export const MIN_FEED_WITH_PANEL = 360;
+export const MIN_COLUMN_WITH_PANEL = MIN_FEED_WITH_PANEL + CHAT_PANEL_W;
 
 function Section({
   icon: Icon,
