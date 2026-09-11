@@ -77,6 +77,7 @@ function EmployeeEntry({ id, source, onClose }: EntryProps) {
       title={user?.displayName ?? ui.employees.title}
       onClose={onClose}
       sourceRect={source}
+      fadeContent={false}
     >
       <EmployeeCard userId={id} />
     </SliderPanel>

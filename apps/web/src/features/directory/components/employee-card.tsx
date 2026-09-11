@@ -1,9 +1,6 @@
-import { MessageSquare } from 'lucide-react';
-import { useMemo, useState } from 'react';
-import { useNavigate } from '@tanstack/react-router';
+import { useMemo, useRef, useState } from 'react';
 import type { PresenceStatus } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
-import { Button } from '@nodus/ui/components/button';
 import { NodeChip } from '@nodus/ui/components/node-chip';
 import { NodeLabel } from '@nodus/ui/components/node-label';
 import { Skeleton } from '@nodus/ui/components/skeleton';
@@ -11,15 +8,22 @@ import { cn } from '@nodus/ui/lib/utils';
 
 import { useOpenCard } from '../../../app/shell/use-card-stack.js';
 import { useAssigneeTasks, useMemberProjects } from '../../../shared/api/user-relations.js';
-import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
-import { TaskStatusBadge } from '../../../shared/ui/task-status-badge.js';
-import { DeadlineChip } from '../../../shared/ui/deadline-chip.js';
+import { useDirectConversation } from '../../../shared/chat/api.js';
+import { ConversationPane } from '../../../shared/chat/conversation-pane.js';
 import { EntityFields } from '../../../shared/ui/entity-fields.js';
-import { useStartDirectConversation } from '../../../shared/chat/api.js';
+import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
+import { useChatWidth } from '../../../shared/ui/use-chat-width.js';
+import { DataTable } from '../../../shared/views/data-table.js';
+import { projectListFields } from '../../../shared/views/project-table-fields.js';
+import { makeTaskTableFields } from '../../../shared/views/task-table-fields.js';
 import { usePresence, useUserCard, useUsersList } from '../api/directory-api.js';
 import { employeeProfileDefs } from '../lib/employee-profile-fields.js';
 
 const VISIBILITY_KEY = 'nodus-employee-fields-v1';
+
+/** Реестры таблиц — module-константы (стабильная идентичность для
+ *  useViewFields); память колонок — своя на карточку сотрудника. */
+const employeeTaskTableFields = makeTaskTableFields();
 
 const presenceTone: Record<PresenceStatus, 'success' | 'warning' | 'muted'> = {
   online: 'success',
@@ -36,15 +40,16 @@ function presenceLabel(status: PresenceStatus): string {
 type EmployeeTab = 'profile' | 'tasks' | 'projects';
 
 /**
- * Карточка сотрудника (стек карточек, ADR-0009): полоса — аватар-якорь +
- * presence-чип и позиция (имя — в хроме слайдера, в теле не дублируется);
- * вкладки (вердикт владельца 2026-09-10, раунд 2 — от сотрудника ведётся
- * анализ портала, референс — профиль Битрикс24): **Профиль** (поля-реестр
- * полного UserCard — defs в `lib/employee-profile-fields.tsx` — + секция
- * «Подчинённые», переходы стеком), **Задачи** (ответственный — `GET
- * /tasks?assigneeId=`, открытие стеком), **Проекты** (руководит/участвует —
- * `GET /projects?memberId=`). Нижний бар h-16 — «Написать сообщение»
- * (find-or-create личного диалога).
+ * Карточка сотрудника (стек карточек, ADR-0009) — анатомия карточки задачи
+ * (вердикт владельца 2026-09-11, раунд 3): полоса — аватар-якорь + presence-
+ * чип и позиция (имя — в хроме слайдера); ЛЕВАЯ зона — вкладки на всю
+ * высоту: **Профиль** (поля-реестр полного UserCard + «Подчинённые»),
+ * **Задачи** и **Проекты** — ПОЛНОЦЕННЫЕ журналы на shared-реестрах (все
+ * поля + шестерёнка + ресайз колонок, как в модулях — «модули не отличаются»);
+ * ПРАВАЯ колонка — личный диалог с сотрудником, виден ВСЕГДА (find-or-create,
+ * контекстное меню и панель беседы — из shared/chat), перегородка тянется
+ * с памятью (общая для всех карточек). Кнопки «Написать сообщение» больше
+ * нет — чат уже здесь.
  */
 export function EmployeeCard({ userId }: { userId: string }) {
   const { data: card, isLoading } = useUserCard(userId);
@@ -52,10 +57,11 @@ export function EmployeeCard({ userId }: { userId: string }) {
   const { data: presence } = usePresence();
   const tasksQuery = useAssigneeTasks(userId);
   const projectsQuery = useMemberProjects(userId);
-  const startDirect = useStartDirectConversation();
+  const directQuery = useDirectConversation(userId);
   const openCard = useOpenCard();
-  const navigate = useNavigate();
   const [tab, setTab] = useState<EmployeeTab>('profile');
+  const chatRef = useRef<HTMLDivElement>(null);
+  const { chatW, onDividerDown, dragging } = useChatWidth(chatRef);
 
   const items = useMemo(() => usersData?.items ?? [], [usersData]);
   const listItem = items.find((u) => u.id === userId);
@@ -67,7 +73,7 @@ export function EmployeeCard({ userId }: { userId: string }) {
     presence?.find((p) => p.user.id === userId)?.status ?? 'offline';
 
   if (isLoading || !card || !listItem) {
-    return <EmployeeCardSkeleton />;
+    return <EmployeeCardSkeleton chatW={chatW} />;
   }
 
   const tabs: { id: EmployeeTab; label: string; count?: number }[] = [
@@ -114,160 +120,144 @@ export function EmployeeCard({ userId }: { userId: string }) {
         </div>
       </div>
 
-      {/* Вкладки карточки (модель профиля Битрикс24, моно-ряд как у проекта) */}
-      <div className="content-fade flex shrink-0 items-center gap-1 border-b border-border px-4">
-        {tabs.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => setTab(t.id)}
-            aria-current={tab === t.id}
-            className={cn(
-              'flex h-10 items-center gap-2 rounded-none border-b-2 px-3 font-mono text-[11px] tracking-[0.14em] uppercase transition-colors',
-              tab === t.id
-                ? 'border-port text-foreground'
-                : 'border-transparent text-muted-foreground hover:text-foreground/80',
-            )}
-          >
-            {t.label}
-            {t.count !== undefined ? (
-              <span className="font-mono text-[10px] text-muted-foreground tabular-nums">
-                {t.count}
-              </span>
-            ) : null}
-          </button>
-        ))}
-      </div>
-
-      <div className="content-fade min-h-0 flex-1 overflow-y-auto p-6 @container">
-        <div className="mx-auto w-full max-w-4xl">
-          {tab === 'profile' ? (
-            <>
-              <EntityFields
-                defs={employeeProfileDefs({ card, listItem, manager, openCard })}
-                storageKey={VISIBILITY_KEY}
-              />
-              <div className="mt-8">
-                <NodeLabel label={ui.employees.subordinates} count={subordinates.length} />
-              </div>
-              <div className="mt-2.5 flex flex-col gap-1">
-                {subordinates.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">{ui.common.empty}</p>
+      {/* Левая зона (вкладки) и правая колонка личного диалога — вертикальная
+          граница структурная, зона чата — фон с первого кадра раскрытия. */}
+      <div className="grid min-h-0 flex-1" style={{ gridTemplateColumns: 'minmax(0,1fr) auto' }}>
+        <div className="relative flex min-h-0 flex-col border-r border-border @container">
+          {/* Вкладки карточки (модель профиля Битрикс24, моно-ряд) */}
+          <div className="content-fade flex shrink-0 items-center gap-1 border-b border-border px-4">
+            {tabs.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setTab(t.id)}
+                aria-current={tab === t.id}
+                className={cn(
+                  'flex h-10 items-center gap-2 rounded-none border-b-2 px-3 font-mono text-[11px] tracking-[0.14em] uppercase transition-colors',
+                  tab === t.id
+                    ? 'border-port text-foreground'
+                    : 'border-transparent text-muted-foreground hover:text-foreground/80',
+                )}
+              >
+                {t.label}
+                {t.count !== undefined ? (
+                  <span className="font-mono text-[10px] text-muted-foreground tabular-nums">
+                    {t.count}
+                  </span>
                 ) : null}
-                {subordinates.map((person) => (
-                  <button
-                    key={person.id}
-                    type="button"
-                    onClick={() => openCard({ kind: 'employee', id: person.id })}
-                    className="flex items-center gap-2.5 rounded-md px-1 py-1.5 text-left text-sm hover:bg-accent/50"
-                  >
-                    <PersonAvatar name={person.displayName} className="size-7 shrink-0" />
-                    <span className="min-w-0 flex-1 truncate">{person.displayName}</span>
-                    <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
-                      {person.positionName ?? ''}
-                    </span>
-                  </button>
-                ))}
+              </button>
+            ))}
+          </div>
+
+          <div className="content-fade min-h-0 flex-1 overflow-hidden">
+            {tab === 'profile' ? (
+              <div className="h-full overflow-y-auto p-6">
+                <div className="mx-auto w-full max-w-4xl">
+                  <EntityFields
+                    defs={employeeProfileDefs({ card, listItem, manager, openCard })}
+                    storageKey={VISIBILITY_KEY}
+                  />
+                  <div className="mt-8">
+                    <NodeLabel label={ui.employees.subordinates} count={subordinates.length} />
+                  </div>
+                  <div className="mt-2.5 flex flex-col gap-1">
+                    {subordinates.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">{ui.common.empty}</p>
+                    ) : null}
+                    {subordinates.map((person) => (
+                      <button
+                        key={person.id}
+                        type="button"
+                        onClick={() => openCard({ kind: 'employee', id: person.id })}
+                        className="flex items-center gap-2.5 rounded-md px-1 py-1.5 text-left text-sm hover:bg-accent/50"
+                      >
+                        <PersonAvatar name={person.displayName} className="size-7 shrink-0" />
+                        <span className="min-w-0 flex-1 truncate">{person.displayName}</span>
+                        <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
+                          {person.positionName ?? ''}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
-            </>
-          ) : null}
+            ) : null}
 
-          {tab === 'tasks' ? (
-            <div className="flex flex-col gap-1">
-              {tasksQuery.isLoading ? (
-                [0, 1, 2].map((i) => <Skeleton key={i} className="h-10 w-full" />)
-              ) : tasks.length === 0 ? (
-                <p className="text-sm text-muted-foreground">{ui.employees.noTasks}</p>
-              ) : (
-                tasks.map((task) => (
-                  <button
-                    key={task.id}
-                    type="button"
-                    onClick={(e) =>
-                      openCard(
-                        { kind: 'task', id: task.id },
-                        e.currentTarget.getBoundingClientRect(),
-                      )
-                    }
-                    className="flex items-center gap-3 rounded-md px-1 py-2 text-left text-sm hover:bg-accent/50"
-                  >
-                    <span className="shrink-0 font-mono text-[11px] text-muted-foreground tabular-nums">
-                      № {task.number}
-                    </span>
-                    <span className="min-w-0 flex-1 truncate font-medium">{task.title}</span>
-                    <DeadlineChip deadline={task.deadline} />
-                    <TaskStatusBadge stage={task.stage} />
-                  </button>
-                ))
-              )}
-            </div>
-          ) : null}
+            {tab === 'tasks' ? (
+              <DataTable
+                viewKey="directory.tasks"
+                defs={employeeTaskTableFields}
+                rows={tasks}
+                rowKey={(task) => task.id}
+                isLoading={tasksQuery.isLoading}
+                emptyTitle={ui.employees.noTasks}
+                onOpenRow={(task, rowEl) =>
+                  openCard({ kind: 'task', id: task.id }, rowEl.getBoundingClientRect())
+                }
+              />
+            ) : null}
 
-          {tab === 'projects' ? (
-            <div className="flex flex-col gap-1">
-              {projectsQuery.isLoading ? (
-                [0, 1].map((i) => <Skeleton key={i} className="h-10 w-full" />)
-              ) : projects.length === 0 ? (
-                <p className="text-sm text-muted-foreground">{ui.employees.noProjects}</p>
-              ) : (
-                projects.map((project) => (
-                  <button
-                    key={project.id}
-                    type="button"
-                    onClick={(e) =>
-                      openCard(
-                        { kind: 'project', id: project.id },
-                        e.currentTarget.getBoundingClientRect(),
-                      )
-                    }
-                    className="flex items-center gap-3 rounded-md px-1 py-2 text-left text-sm hover:bg-accent/50"
-                  >
-                    <span className="shrink-0 font-mono text-[11px] text-info tabular-nums">
-                      {project.code}
-                    </span>
-                    <span className="min-w-0 flex-1 truncate font-medium">{project.name}</span>
-                    {project.manager?.id === userId ? (
-                      <NodeChip tone="success" className="shrink-0">
-                        {ui.projects.myRole.manager}
-                      </NodeChip>
-                    ) : null}
-                    {project.stageName ? (
-                      <NodeChip tone="muted" className="shrink-0">
-                        {project.stageName}
-                      </NodeChip>
-                    ) : null}
-                  </button>
-                ))
-              )}
-            </div>
-          ) : null}
+            {tab === 'projects' ? (
+              <DataTable
+                viewKey="directory.projects"
+                defs={projectListFields}
+                rows={projects}
+                rowKey={(project) => project.id}
+                isLoading={projectsQuery.isLoading}
+                emptyTitle={ui.employees.noProjects}
+                onOpenRow={(project, rowEl) =>
+                  openCard({ kind: 'project', id: project.id }, rowEl.getBoundingClientRect())
+                }
+              />
+            ) : null}
+          </div>
+
+          {/* Ручка ресайза чата: невидимый оверлей ПОВЕРХ структурной границы
+              (канон карточки задачи, память общая на все карточки) */}
+          <div
+            onPointerDown={onDividerDown}
+            role="separator"
+            aria-orientation="vertical"
+            aria-label={ui.common.resizePanel}
+            title={ui.common.resizePanel}
+            className="group absolute top-0 right-0 z-10 h-full w-3 translate-x-1/2 cursor-col-resize"
+          >
+            <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-port/60 opacity-0 transition-opacity group-hover:opacity-100" />
+          </div>
         </div>
-      </div>
 
-      <div className="flex h-16 shrink-0 items-center gap-2 border-t border-border px-5">
-        <Button
-          size="sm"
-          disabled={startDirect.isPending}
-          onClick={() =>
-            startDirect.mutate(card.id, {
-              onSuccess: (conversation) =>
-                void navigate({
-                  to: '/chat/$conversationId',
-                  params: { conversationId: conversation.id },
-                }),
-            })
-          }
+        {/* Колонка личного диалога: фон — структура с первого кадра; fade —
+            только содержимое. */}
+        <div
+          ref={chatRef}
+          className={cn('min-h-0 overflow-hidden', !dragging && 'transition-[width] duration-200')}
+          style={{ width: chatW }}
         >
-          <MessageSquare data-icon="inline-start" />
-          {ui.employees.writeMessage}
-        </Button>
+          <div className="h-full w-full bg-background">
+            <div className="content-fade h-full">
+              {directQuery.data ? (
+                <ConversationPane
+                  conversationId={directQuery.data.id}
+                  showAuthor={false}
+                  emptyLabel={ui.chat.directEmpty}
+                />
+              ) : (
+                <div className="flex flex-col gap-3 p-4">
+                  {[0, 1, 2].map((i) => (
+                    <Skeleton key={i} className="h-14 w-2/3" />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
-/** Скелетон карточки сотрудника зеркалит анатомию с вкладками. */
-function EmployeeCardSkeleton() {
+/** Скелетон карточки сотрудника зеркалит анатомию с колонкой чата. */
+function EmployeeCardSkeleton({ chatW }: { chatW: number }) {
   return (
     <div className="flex h-full flex-col">
       <div className="flex shrink-0 items-center gap-3 border-b border-border px-5 py-3">
@@ -275,18 +265,26 @@ function EmployeeCardSkeleton() {
         <Skeleton className="h-6 w-24 rounded-full" />
         <Skeleton className="h-4 w-40" />
       </div>
-      <div className="flex shrink-0 items-center gap-2 border-b border-border px-4 py-2.5">
-        <Skeleton className="h-5 w-20" />
-        <Skeleton className="h-5 w-20" />
-        <Skeleton className="h-5 w-20" />
-      </div>
-      <div className="min-h-0 flex-1 space-y-4 p-6">
-        {[0, 1, 2, 3, 4, 5].map((i) => (
-          <Skeleton key={i} className="h-4 w-2/3" />
-        ))}
-      </div>
-      <div className="flex h-16 shrink-0 items-center border-t border-border px-5">
-        <Skeleton className="h-7 w-44 rounded-md" />
+      <div className="grid min-h-0 flex-1" style={{ gridTemplateColumns: 'minmax(0,1fr) auto' }}>
+        <div className="flex min-h-0 flex-col border-r border-border">
+          <div className="flex shrink-0 items-center gap-2 border-b border-border px-4 py-2.5">
+            <Skeleton className="h-5 w-20" />
+            <Skeleton className="h-5 w-20" />
+            <Skeleton className="h-5 w-20" />
+          </div>
+          <div className="min-h-0 flex-1 space-y-4 p-6">
+            {[0, 1, 2, 3, 4, 5].map((i) => (
+              <Skeleton key={i} className="h-4 w-2/3" />
+            ))}
+          </div>
+        </div>
+        <div className="min-h-0 overflow-hidden" style={{ width: chatW }}>
+          <div className="flex flex-col gap-3 p-4">
+            {[0, 1, 2].map((i) => (
+              <Skeleton key={i} className="h-14 w-2/3" />
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
