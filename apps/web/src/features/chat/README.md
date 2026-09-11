@@ -22,22 +22,34 @@ M13, в концепте не реализуется). Канал проекта
 обсуждения карточки проекта рендерит тот же механизм из `shared/chat`).
 
 Групповые/личные/задачи — обычная лента сообщений (MessageScroller +
-Bubble-примитивы как в обсуждении задачи); «В задачу» из сообщения — поток Б
-(оптимистично).
+Bubble-примитивы как в обсуждении задачи).
 
-- **Механика чата — в `shared/chat/`** (два потребителя: мессенджер и
-  карточка проекта; I6 — фичи друг друга не импортируют): `api.ts` (ключи,
-  сообщения беседы/треда, оптимистичная отправка с `threadRootId` и
-  счётчиком корня, «В задачу», find-or-create личного диалога),
-  `conversation-pane.tsx`, `thread-feed.tsx`, `thread-pane.tsx`,
-  `chat-message.tsx`, `chat-composer.tsx` (бар h-16 — канон нижних баров,
-  SendHexButton).
+**Законы раунда 3 (вердикт владельца 2026-09-11):**
+
+- **Правая выдвижная панель беседы — в каждом чате** (`shared/chat/chat-side-panel.tsx`:
+  файлы/медиа и ссылки из сообщений беседы; оверлей поверх зоны ленты —
+  композер не перекрывается; тоггл — кнопка в композере). В карточке задачи
+  её роль играет панель «О задаче» (те же секции + история/избранное).
+- **Контекстное меню сообщения** (`shared/chat/message-menu.tsx`): правый
+  клик + ховер-кнопка «⋯»; реестр действий — ЗАГОТОВКА под бэкенд чата
+  (работают «Копировать» и «Создать задачу» — поток Б; остальные — stub с
+  тостом `actionSoon`; «Редактировать»/«Удалить» — только свои). Кнопки
+  «В задачу» отдельно больше нет — она пункт меню.
+
+- **Механика чата — в `shared/chat/`** (потребители: мессенджер, карточка
+  проекта, карточка сотрудника; I6 — фичи друг друга не импортируют):
+  `api.ts` (ключи, сообщения беседы/треда, оптимистичная отправка с
+  `threadRootId` и счётчиком корня, «В задачу», `useDirectConversation` —
+  find-or-create личного диалога), `conversation-pane.tsx`, `thread-feed.tsx`,
+  `thread-pane.tsx`, `chat-message.tsx`, `chat-composer.tsx` (бар h-16 —
+  канон нижних баров, SendHexButton + кнопка панели беседы),
+  `chat-side-panel.tsx`, `message-menu.tsx`.
 - Контракты: `ConversationListItem` (`type` + `'task'`, `task: TaskRef`),
   `ChatMessage` (`threadRootId`, `threadRepliesCount`),
-  `sendMessageBodySchema`, `listMessagesQuerySchema` (+`threadRootId`),
-  `startDirectBodySchema`.
-- Эндпоинты (моки): `GET /chat/conversations`, `POST /chat/conversations`
-  (find-or-create диалога — «Написать сообщение» из карточки сотрудника),
+  `sendMessageBodySchema`, `listMessagesQuerySchema` (+`threadRootId`).
+- Эндпоинты (моки): `GET /chat/conversations`,
+  `GET /chat/conversations/direct/:userId` (find-or-create диалога — чат
+  карточки сотрудника; диалог с собой — «заметки для себя»),
   `GET|POST /chat/conversations/:id/messages` (+`?threadRootId=` — корень
   первым, POST в тред инкрементирует счётчик корня),
   `POST /chat/conversations/:id/messages/:messageId/to-task`.

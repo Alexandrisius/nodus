@@ -35,11 +35,15 @@ systemState (моки эмулируют автоперемещение при �
   `GET|POST /tasks/:id/messages`, `PATCH /tasks/:id` (stageId|personalStageId
   - index), `POST /tasks/:id/subtasks`.
 - **Кастомизация представлений** (инфраструктура `shared/views`, все модули):
-  реестры полей — `lib/task-fields.tsx` (`taskListFields`, `taskCardFields`);
-  видимость полей — шестерёнка в шапке страницы; ширина колонок списка —
-  ручкой на грани хедера (`ColumnResizer`); пресеты персистятся в
-  localStorage (`nodus-views-v1`, схема — contracts `viewPresetSchema`,
-  на проде — API персонализации).
+  реестр списка-дерева — `lib/task-fields.tsx` (`taskListFields`, с контекстом
+  ветки); реестры плоских таблиц задач/проектов и блоков карточки канбана —
+  ЕДИНЫЕ в shared (`shared/views/task-table-fields.ts` `makeTaskTableFields`,
+  `task-card-fields.ts` `makeTaskCardFields`, `project-table-fields.tsx`
+  `projectListFields`; потребители: задачи проекта, карточка сотрудника —
+  «модули не отличаются», вердикт раунда 3); видимость полей — шестерёнка в
+  шапке страницы; ширина колонок — ручкой на грани хедера (`ColumnResizer`);
+  пресеты персистятся в localStorage (`nodus-views-v1`, схема — contracts
+  `viewPresetSchema`, на проде — API персонализации).
 - Граф списка: `lib/task-tree.ts` (дерево → строки с геометрией связей),
   `components/task-list-graph.tsx` (единый SVG-оверлей поверх строк:
   непрерывные рёбра без зазоров, каскадное построение от родителя к подзадачам

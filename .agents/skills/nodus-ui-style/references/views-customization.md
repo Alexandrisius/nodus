@@ -1,6 +1,8 @@
 # Таблицы и кастомизация представлений (`shared/views`)
 
-Инфраструктура всех модулей: `apps/web/src/shared/views/` (`view-store.ts`, `use-view-fields.ts`, `view-settings.tsx`, `column-resizer.tsx`). Эталон применения — `features/tasks` (реестр `lib/task-fields.tsx`, список, канбан).
+Инфраструктура всех модулей: `apps/web/src/shared/views/` (`view-store.ts`, `use-view-fields.ts`, `view-settings.tsx`, `column-resizer.tsx`, `data-table.tsx`). Эталон применения — `features/tasks` (дерево-реестр `lib/task-fields.tsx`, список, канбан).
+
+**Единые доменные реестры (стандарт владельца, раунд 3 — «модули не отличаются»):** плоские таблицы задач/проектов и блоки карточки канбана объявлены ОДИН раз в shared — `task-table-fields.tsx` (`makeTaskTableFields({ projectVisible })`), `task-card-fields.ts` (`makeTaskCardFields({ projectVisible })`), `project-table-fields.tsx` (`projectListFields`). Потребители берут фабрику/реестр и СВОЙ viewKey (память раздельная: `tasks.list`, `projects.tasks`, `directory.tasks`…). Реестры — module-константы (стабильная идентичность для `useViewFields`). Новое поле сущности = +1 запись в shared-реестре (+ дерево-реестр задач при необходимости).
 
 ## Модель таблицы (AG Grid / Excel / Битрикс — утверждено research)
 
