@@ -10,6 +10,7 @@ import { CardStackHost } from './card-stack-host.js';
 import { CommandPalette } from './command-palette.js';
 import { LiveGraph } from './live-graph.js';
 import { NodeRail } from './node-rail.js';
+import { ProfileCorner } from './profile-corner.js';
 import { RightRail } from './right-rail.js';
 import { useShellStore } from './shell-store.js';
 import { TopBar } from './top-bar.js';
@@ -61,15 +62,16 @@ export function AppShell() {
       <div className="flex h-screen overflow-hidden bg-background">
         {stressMode ? <LiveGraph /> : null}
         <NodeRail />
-        <div className="relative flex min-w-0 flex-1 flex-col">
-          <TopBar />
-          <div id="content" className="relative flex min-h-0 flex-1 flex-col">
-            {/* Мягкая рама рабочей зоны (пакет мягкости, вердикт владельца
-                12.09.2026): журналы и страницы живут ВНУТРИ мягкой панели
-                (18px, отступы 8px, фон «лист») — ступень формы поверх ступеней
-                тона, как в рефах команды; справа без margins — шов скроллбара
-                у полосы коллег сохранён (globals, #content padding-right). */}
-            <div className="m-2 mr-0 min-h-0 flex-1 overflow-hidden rounded-2xl bg-card">
+        <div className="relative flex min-w-0 flex-1 flex-col pr-12">
+          {/* Мягкая рама: топбар + рабочая зона ОДНОЙ мягкой панелью (18px,
+              отступы 8px, фон «лист») — ступень формы поверх ступеней тона,
+              как в рефах команды (пакет мягкости, вердикт владельца
+              12.09.2026). Справа остаётся карман 40px — статичная служебная
+              колонка: угол профиля над полосой коллег; скроллбар страниц —
+              у правого края рамы, в 8px от полосы (dwell не конкурирует). */}
+          <div className="m-2 flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl bg-card">
+            <TopBar />
+            <div id="content" className="relative flex min-h-0 flex-1 flex-col">
               <Suspense fallback={<ShellFallback />}>
                 <Outlet />
               </Suspense>
@@ -78,8 +80,12 @@ export function AppShell() {
           {/* Стек карточек сущностей поверх раздела (ADR-0009, ?cards=) */}
           <CardStackHost />
           {/* Правая полоса — под главной линией (обрезана ею, как в Битрикс24),
-              поверх контента; скроллбар контента — у самого края окна за ней. */}
+              поверх контента, в кармане 40px. */}
           <RightRail />
+          {/* Статичный угол профиля — вне мягкой рамы, над полосой коллег. */}
+          <div className="absolute top-0 right-2 z-30 flex h-14 w-10 items-center justify-center">
+            <ProfileCorner />
+          </div>
         </div>
       </div>
       <CircuitFrame />

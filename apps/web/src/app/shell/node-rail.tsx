@@ -152,7 +152,9 @@ export function NodeRail() {
                         collapsed ? 'mx-3' : 'mr-3 ml-[52px]',
                         collapsed ? 'gap-0' : 'gap-3',
                       )}
-                      style={{ paddingLeft: collapsed ? 11 : CONTENT_X }}
+                      // Развёрнутая: плашка с 52px, иконка 52+8=60 — каноническая
+                      // ось CONTENT_X (плашка не сдвигает контент, вердикт 12.09.2026).
+                      style={{ paddingLeft: collapsed ? 11 : 8 }}
                     >
                       <item.icon className="size-[18px] shrink-0" strokeWidth={1.75} />
                       <span

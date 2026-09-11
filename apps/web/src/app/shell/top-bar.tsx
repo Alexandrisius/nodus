@@ -1,20 +1,15 @@
-import { Bell, LogOut, Moon, Search, Sun } from 'lucide-react';
+import { Bell, Moon, Search, Sun } from 'lucide-react';
 import { Link, useRouterState } from '@tanstack/react-router';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@nodus/ui/components/dropdown-menu';
 import { cn } from '@nodus/ui/lib/utils';
 
-import { useAuthStore } from '../../shared/auth-store.js';
-import { PersonAvatar } from '../../shared/ui/person-avatar.js';
 import { useShellStore } from './shell-store.js';
 
 interface Section {
@@ -111,12 +106,12 @@ function sectionsFor(pathname: string): Section[] {
 /** Топбар «инструмента»: моно-вкладки раздела с портом на оси; глобальный
  *  «Умный поиск» — ЛУПА в правой группе (модель позднего Битрикс24: не
  *  конкурирует с локальным поиском списков за глаза; Ctrl+K работает),
- *  уведомления, тумблер темы (тёмная/светлая), профиль. */
+ *  уведомления, тумблер темы (тёмная/светлая). Профиль — в статичном углу
+ *  шелла (ProfileCorner), вне мягкой рамы. */
 export function TopBar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const searchStr = useRouterState({ select: (s) => s.location.searchStr });
-  const user = useAuthStore((s) => s.user);
-  const logout = useAuthStore((s) => s.logout);
+
   const theme = useShellStore((s) => s.theme);
   const toggleTheme = useShellStore((s) => s.toggleTheme);
   const setCommandOpen = useShellStore((s) => s.setCommandOpen);
@@ -192,28 +187,6 @@ export function TopBar() {
             <div className="px-3 py-6 text-center text-sm text-muted-foreground">
               {ui.topbar.notificationsEmpty}
             </div>
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              aria-label={ui.topbar.profile}
-              className="-mr-2.5 flex items-center gap-2 rounded-md p-1 hover:bg-accent"
-            >
-              <PersonAvatar name={user?.displayName ?? ''} className="size-8" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>{user?.displayName}</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              <DropdownMenuItem onClick={() => void logout()}>
-                <LogOut data-icon="inline-start" />
-                {ui.topbar.logout}
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

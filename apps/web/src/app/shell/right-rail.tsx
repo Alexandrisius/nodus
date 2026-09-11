@@ -66,7 +66,7 @@ export function RightRail() {
       onMouseEnter={dwellStart}
       onMouseLeave={dwellStop}
       className={cn(
-        'absolute top-14 right-1.5 bottom-0 z-20 flex flex-col border-l border-sidebar-border bg-sidebar transition-[width] duration-300 ease-out',
+        'absolute top-14 right-2 bottom-0 z-20 flex flex-col border-l border-sidebar-border bg-sidebar transition-[width] duration-300 ease-out',
         edgeOpen ? 'w-60' : 'w-10',
       )}
     >

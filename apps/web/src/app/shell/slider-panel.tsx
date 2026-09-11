@@ -160,7 +160,7 @@ export function SliderPanel({
         aria-modal="true"
         style={flipStyle}
         className={cn(
-          'slider-shadow absolute inset-x-3 top-10 bottom-2 z-20 flex flex-col rounded-2xl border border-border bg-card text-card-foreground',
+          'slider-shadow absolute inset-x-3 top-10 bottom-2 z-20 flex flex-col overflow-hidden rounded-2xl border border-border bg-card text-card-foreground',
           sourceRect ? 'slider-expand' : 'slider-pop',
         )}
       >
