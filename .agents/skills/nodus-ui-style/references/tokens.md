@@ -25,11 +25,11 @@
 
 | Токен | Значение |
 |---|---|
-| `--background` / `--card` | `#F6F5F2` / `#FFFFFF` |
+| `--background` / `--card` | `#FBFAF8` / `#FFFFFF` |
 | `--sidebar` / `--secondary`,`--muted` / `--accent` | `#EFEEEA` / `#EDECE8` / `#E7E5DF` |
 | `--foreground` / `--muted-foreground` | `#1B1C1E` / `#6B6D72` |
 | `--primary` / `--primary-foreground` | `#16233A` (navy) / `#FFFFFF` |
-| `--border` / `--input` | black/7% / black/13% |
+| `--border` / `--input` | black/8% / black/13% |
 | `--success` `#2E7D57` · `--warning` `#8F6A10` · `--danger` `#C0392B` · `--info` `#3D6BA6` (+`-soft` пастель) |
 | `--edge` / `--port` / `--glow` | navy/30% / `#16233A` / navy/26% |
 | `--scrollbar` | black/14% |
@@ -57,7 +57,7 @@
 
 ## Запреты стиля (grep-контроль DoD)
 
-`paper-`, `crayon`, `sketch`, `texture-`, `bg-rust`, `text-ochre`, `text-cream`, `bg-sage`, `bg-steel`, `bg-tealink`, `border-pencil`, `bg-cream`, rose-цвета, хардкод-цвета в классах (`bg-[#...]` разрешён только внутри токенов globals.css), тени/градиенты/текстуры, translate-«приподнимание» карточек при ховере (ховер — только цвет: `hover:border-input`, `hover:bg-accent/40`).
+`paper-`, `crayon`, `sketch`, `texture-`, `bg-rust`, `text-ochre`, `text-cream`, `bg-sage`, `bg-steel`, `bg-tealink`, `border-pencil`, `bg-cream`, rose-цвета, хардкод-цвета в классах (`bg-[#...]` разрешён только внутри токенов globals.css), тени/градиенты/текстуры, translate-«приподнимание» карточек при ховере (ховер — только цвет: `hover:border-input`, `hover:bg-accent/40`; ховер ЦЕЛОЙ карточки на холсте — `/60`, иначе сливается с холстом), толстые фокус-ринги (фокус = `border-ring` + `ring-1 ring-ring/30`, вердикт владельца 11.09.2026).
 
 ## Фон-граф (утверждённая концепция, реализация — отдельной итерацией)
 

@@ -33,7 +33,7 @@ export function HomeNews({
           <button
             type="button"
             onClick={(e) => handleOpen(item, e)}
-            className="block w-full p-5 text-left transition-colors hover:bg-accent/40"
+            className="block w-full p-5 text-left transition-colors hover:bg-accent/60"
           >
             <div className="flex items-center gap-3">
               <PersonAvatar name={item.author.displayName} className="size-10" />

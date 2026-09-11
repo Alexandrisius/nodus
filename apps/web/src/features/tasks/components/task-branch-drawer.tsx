@@ -1,4 +1,4 @@
-import { memo, useState, type FormEvent } from 'react';
+import { memo, useState } from 'react';
 import { ArrowLeft, ChevronDown, ChevronRight, Plus, X } from 'lucide-react';
 import type { TaskBranchNode, TaskRelation } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
@@ -201,23 +201,6 @@ export const TaskBranchDrawer = memo(function TaskBranchDrawer({
               </div>
             )}
           </div>
-          <form
-            className="shrink-0 border-t border-border p-2"
-            onSubmit={(e: FormEvent) => {
-              e.preventDefault();
-              submitSubtask(currentId);
-            }}
-          >
-            <Input
-              value={addingTo === null ? draft : ''}
-              onChange={(e) => {
-                setAddingTo(null);
-                setDraft(e.target.value);
-              }}
-              placeholder={ui.tasks.branchPlaceholder}
-              className="h-8 text-sm"
-            />
-          </form>
         </>
       ) : (
         <RelationsTab currentId={currentId} onNavigate={onNavigate} />

@@ -184,7 +184,7 @@ export function TopBar() {
               className="relative text-muted-foreground hover:bg-accent hover:text-foreground"
             >
               <Bell />
-              <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-primary" />
+              <span className="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-primary ring-2 ring-background" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-72">

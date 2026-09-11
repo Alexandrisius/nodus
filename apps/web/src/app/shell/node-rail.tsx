@@ -82,22 +82,31 @@ export function NodeRail() {
     <aside
       data-rail
       className={cn(
-        'relative flex h-full shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-[width] duration-200',
+        'relative flex h-full shrink-0 flex-col overflow-hidden border-r border-sidebar-border bg-sidebar text-sidebar-foreground',
+        'transition-[width] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]',
         collapsed ? 'w-16' : 'w-60',
       )}
     >
+      {/* Логотип — оптически по центру рейки (вердикт владельца 11.09.2026);
+          порт контура измеряется из DOM, центровка геометрию не ломает. */}
       <div
         className={cn(
-          'flex h-14 shrink-0 items-center gap-2.5 px-4',
-          collapsed && 'justify-center px-0',
+          'flex h-14 shrink-0 items-center justify-center px-4',
+          'transition-[gap] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]',
+          collapsed ? 'gap-0 px-0' : 'gap-2.5',
         )}
       >
         <span data-logo-port className="flex shrink-0">
-          <LogoIcon className="size-8 text-foreground" />
+          <LogoIcon className="size-9 text-foreground" />
         </span>
-        {!collapsed && (
-          <LogoWordmark className="text-lg tracking-[0.18em] text-foreground uppercase" />
-        )}
+        <span
+          className={cn(
+            'overflow-hidden whitespace-nowrap transition-[max-width,opacity] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]',
+            collapsed ? 'max-w-0 opacity-0' : 'max-w-44 opacity-100',
+          )}
+        >
+          <LogoWordmark className="text-xl tracking-[0.18em] text-foreground uppercase" />
+        </span>
       </div>
 
       {/* Узел контура на боковом шве схлопнутой рейки — размер точек вкладок. */}
@@ -115,14 +124,19 @@ export function NodeRail() {
         {sections.map((section) => {
           return (
             <div key={section.title} className="flex flex-col gap-0.5">
-              {!collapsed && (
-                <span
-                  className="pb-1 font-mono text-[11px] font-medium tracking-[0.16em] text-sidebar-foreground/40 uppercase"
-                  style={{ paddingLeft: CONTENT_X }}
-                >
-                  {section.title}
-                </span>
-              )}
+              {/* Метки секций и подписи рядов не демонтируются при сворачивании,
+                  а гасятся кросс-фейдом (max-width/opacity) — рейка скользит
+                  без рывков и обрезания текста на полуслове (вердикт владельца). */}
+              <span
+                className={cn(
+                  'block overflow-hidden whitespace-nowrap font-mono text-[11px] font-medium tracking-[0.16em] text-sidebar-foreground/40 uppercase',
+                  'transition-[max-height,opacity,padding] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]',
+                  collapsed ? 'max-h-0 pb-0 opacity-0' : 'max-h-6 pb-1 opacity-100',
+                )}
+                style={{ paddingLeft: CONTENT_X }}
+              >
+                {section.title}
+              </span>
               <div className="relative flex flex-col gap-0.5">
                 {section.items.map((item) => {
                   const active = isActive(item);
@@ -130,22 +144,41 @@ export function NodeRail() {
                     <Link
                       to={item.to}
                       className={cn(
-                        'relative flex h-10 items-center gap-3 rounded-md text-sm font-medium transition-colors',
+                        'relative flex h-10 items-center overflow-hidden rounded-md text-sm font-medium',
+                        'transition-[color,gap,padding,background-color] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]',
                         'text-sidebar-foreground/65 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground',
                         active && 'bg-sidebar-accent text-sidebar-accent-foreground',
-                        collapsed ? 'mx-3 justify-center' : 'mx-3',
+                        'mx-3',
+                        collapsed ? 'gap-0' : 'gap-3',
                       )}
-                      style={collapsed ? undefined : { paddingLeft: CONTENT_X }}
+                      style={{ paddingLeft: collapsed ? 11 : CONTENT_X }}
                     >
                       <item.icon className="size-[18px] shrink-0" strokeWidth={1.75} />
-                      {!collapsed && <span className="truncate">{item.label}</span>}
-                      {!collapsed && item.badge ? (
-                        <span className="ml-auto pr-2.5 font-mono text-[11px] text-muted-foreground/80 tabular-nums">
-                          {item.badge}
-                        </span>
-                      ) : null}
-                      {collapsed && item.badge ? (
-                        <span className="absolute top-0.5 right-0.5 rounded bg-secondary px-1 py-0.5 font-mono text-[10px] leading-none text-muted-foreground tabular-nums">
+                      <span
+                        className={cn(
+                          'truncate transition-[max-width,opacity] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]',
+                          collapsed ? 'max-w-0 opacity-0' : 'max-w-40 opacity-100',
+                        )}
+                      >
+                        {item.label}
+                      </span>
+                      <span
+                        className={cn(
+                          'ml-auto pr-2.5 font-mono text-[11px] text-muted-foreground/80 tabular-nums',
+                          'transition-[max-width,opacity,padding] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]',
+                          collapsed ? 'max-w-0 opacity-0 pr-0' : 'max-w-12 opacity-100',
+                        )}
+                      >
+                        {item.badge ?? ''}
+                      </span>
+                      {item.badge ? (
+                        <span
+                          className={cn(
+                            'absolute top-0.5 right-0.5 rounded bg-secondary px-1 py-0.5 font-mono text-[10px] leading-none text-muted-foreground tabular-nums',
+                            'transition-opacity duration-300',
+                            collapsed ? 'opacity-100' : 'opacity-0',
+                          )}
+                        >
                           {item.badge}
                         </span>
                       ) : null}
