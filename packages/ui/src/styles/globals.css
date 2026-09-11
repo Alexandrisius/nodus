@@ -152,32 +152,36 @@
 /*
  * Светлая тема «Инструмент» — ОТДЕЛЬНЫЙ дизайн, не инверсия тёмной (вердикт
  * команды владельца 2026-09-11, реф docs/mvp/ref/node-based UI/реф_белая
- * тема_*.png): три ступени поверхностей (светло-серый шелл → тёплый светлый
- * холст → БЕЛЫЕ карточки), hairline-бордюры (структуру несут поверхности, не
- * линии), элевация ступенью без теней (канон «плоско» жив). Фирменный navy
- * #16233A — хирургический акцент: primary, фокус, чекбоксы, активный модуль;
- * контур и порты — «чертёжный синий» (navy с alpha): чертёж на кальке.
+ * тема_*.png): три ЧИТАЕМЫЕ ступени поверхностей (тёплый серый шелл → бумажный
+ * холст → «лист» #fbfaf8), hairline-бордюры (структуру несут поверхности, не
+ * линии), элевация ступенью без теней (канон «плоско» жив). ЧИСТОГО БЕЛОГО
+ * НЕТ вовсе (аудит 12.09.2026, Exa-research: большие площади #FFFFFF — блик
+ * и «однотонная белизна»; off-white с тёплым подтоном — комфорт для долгих
+ * экранов; ступени MD3 — тоном поверхности): белый из рефов команды взят как
+ * ОБРАМЛЁННЫЙ «лист» на углублённом холсте, а не как поле вьюпорта. Фирменный
+ * navy #16233A — хирургический акцент: primary, фокус, чекбоксы, активный
+ * модуль; контур и порты — «чертёжный синий» (navy с alpha): чертёж на кальке.
  * Цвет — только в слоях данных и статусов (chart-*, семантика, идентичность).
  */
 [data-theme='light'] {
-  --background: #fbfaf8;
-  --foreground: #1b1c1e;
-  --card: #ffffff;
-  --card-foreground: #1b1c1e;
-  --popover: #ffffff;
-  --popover-foreground: #1b1c1e;
+  --background: #f2f0eb;
+  --foreground: #26272a;
+  --card: #fbfaf8;
+  --card-foreground: #26272a;
+  --popover: #fbfaf8;
+  --popover-foreground: #26272a;
   --primary: #16233a;
-  --primary-foreground: #ffffff;
-  --secondary: #edece8;
+  --primary-foreground: #fbfaf8;
+  --secondary: #e9e6df;
   --secondary-foreground: #43454a;
-  --muted: #edece8;
+  --muted: #e9e6df;
   --muted-foreground: #6b6d72;
-  --accent: #e7e5df;
-  --accent-foreground: #1b1c1e;
+  --accent: #e2dfd7;
+  --accent-foreground: #26272a;
   --destructive: #c0392b;
-  --destructive-foreground: #ffffff;
-  --border: rgb(0 0 0 / 0.08);
-  --input: rgb(0 0 0 / 0.13);
+  --destructive-foreground: #fbfaf8;
+  --border: rgb(0 0 0 / 0.09);
+  --input: rgb(0 0 0 / 0.14);
   --ring: #16233a;
   --success: #2e7d57;
   --success-soft: #e2f0e8;
@@ -194,13 +198,13 @@
   --chart-4: #cc79a7;
   --chart-5: #56b4e9;
   --chart-6: #d55e00;
-  --sidebar: #efeeea;
+  --sidebar: #e8e5de;
   --sidebar-foreground: #43454a;
   --sidebar-primary: #16233a;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #e4e2dc;
-  --sidebar-accent-foreground: #1b1c1e;
-  --sidebar-border: rgb(0 0 0 / 0.06);
+  --sidebar-primary-foreground: #fbfaf8;
+  --sidebar-accent: #dcd8cf;
+  --sidebar-accent-foreground: #26272a;
+  --sidebar-border: rgb(0 0 0 / 0.07);
   --sidebar-ring: #16233a;
 
   /* Контур: чертёжный синий (navy с alpha) вместо чёрной «проволоки». */
