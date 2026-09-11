@@ -78,10 +78,3 @@ export const sendMessageBodySchema = z.object({
 });
 
 export type SendMessageBody = z.infer<typeof sendMessageBodySchema>;
-
-/** «Написать сообщение» из карточки сотрудника: найти или создать личный диалог. */
-export const startDirectBodySchema = z.object({
-  userId: z.uuid(),
-});
-
-export type StartDirectBody = z.infer<typeof startDirectBodySchema>;
