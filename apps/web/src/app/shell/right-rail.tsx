@@ -119,7 +119,10 @@ export function RightRail() {
       <div
         inert={!edgeOpen}
         className={cn(
-          'slider-shadow absolute inset-y-0 right-0 z-30 flex w-60 flex-col border-l border-sidebar-border bg-card transition-transform duration-200 ease-out',
+          // БЕЗ slider-shadow: глубокая тень поверх контента рамы читалась
+          // «разлитыми пятнами» слева от панели (вердикт владельца
+          // 12.09.2026); отделение — бордюром, как у зон рамы.
+          'absolute inset-y-0 right-0 z-30 flex w-60 flex-col border-l border-sidebar-border bg-card transition-transform duration-200 ease-out',
           edgeOpen ? 'translate-x-0' : 'pointer-events-none translate-x-full',
         )}
       >
