@@ -51,10 +51,10 @@ export function measureCircuit(pathname = '/'): CircuitGeometry | null {
   }));
   const leftEl = document.querySelector<HTMLElement>('[data-left-node]');
   const leftNode = leftEl ? centerOf(leftEl) : null;
-  // Ось заканчивается на шве полосы коллег (полная высота, вердикт
-  // 12.09.2026) — зеркально стыку с левой рейкой; dwell-раскрытие полосы
-  // перемеряется циклом width-transition.
-  const railEl = document.querySelector<HTMLElement>('[data-right-rail]');
+  // Ось заканчивается на правом крае мягкой рамы (полоса коллег живёт ВНУТРИ
+  // рамы под осью, вердикт 12.09.2026); dwell-раскрытие полосы — оверлей и
+  // геометрию оси не меняет.
+  const frameEl = document.querySelector<HTMLElement>('[data-soft-frame]');
   const lastY = modules.length ? Math.max(...modules.map((m) => m.port.y)) : axisY;
   // Схлопнутая рейка: стык — правый край узла бокового шва (точка 5px);
   // «виртуальный» активный модуль опирает вспышки на ось (портов внутри
@@ -69,7 +69,9 @@ export function measureCircuit(pathname = '/'): CircuitGeometry | null {
     modules: leftNode ? [{ to: pathname, active: true, port: junction }] : modules,
     tabs,
     leftNode,
-    rightEdge: railEl ? railEl.getBoundingClientRect().left : document.documentElement.clientWidth,
+    rightEdge: frameEl
+      ? frameEl.getBoundingClientRect().right
+      : document.documentElement.clientWidth,
     // Шина заканчивается в точке отхода последнего отвода (порт-10) — без хвоста.
     spineEndY: leftNode ? axisY : modules.length ? lastY - 10 : axisY,
   };

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
+import type { PresenceEntry } from '@nodus/contracts';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { useConversations } from '../../features/chat/api/chat-api.js';
@@ -12,15 +13,49 @@ const dotColor: Record<string, string> = {
   offline: 'bg-foreground/30',
 };
 
+function ColleagueRow({
+  entry,
+  withName,
+  onOpen,
+}: {
+  entry: PresenceEntry;
+  withName: boolean;
+  onOpen: (userId: string) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(entry.user.id)}
+      className="flex w-full shrink-0 items-center gap-2.5 rounded-md px-1.5 py-1 text-left hover:bg-accent"
+    >
+      <span className="relative shrink-0">
+        <PersonAvatar
+          name={entry.user.displayName}
+          avatarUrl={entry.user.avatarUrl}
+          className="size-7"
+        />
+        <span
+          className={cn(
+            'absolute -right-0.5 -bottom-0.5 size-2 rounded-full border-2 border-card',
+            dotColor[entry.status],
+          )}
+        />
+      </span>
+      {withName ? (
+        <span className="truncate text-[13px] text-foreground">{entry.user.displayName}</span>
+      ) : null}
+    </button>
+  );
+}
+
 /**
- * Правая полоса коллег (каркас §10.2): узкая полоса 40px под главной линией
- * (обрезана ею, как в Битрикс24), поверх контента; скроллбар контента — у
- * левого шва полосы. Плавно раскрывается до панели с полными именами, когда
- * курсор задержался над зоной полосы ≥ 800 мс (задержка гасит ложные
- * срабатывания при пролёте курсора); закрывается, когда курсор покидает
- * панель. Ручного сворачивания нет — полоса и есть минимальное состояние.
- * Список — компактный (сотни людей), прокрутка колёсиком без видимого
- * скроллбара. Клик по коллеге — быстрый переход в чат.
+ * Полоса коллег (каркас §10.2, вердикт владельца 12.09.2026): колонка 40px
+ * ВНУТРИ мягкой рамы, на её фоне, ОБРЕЗАННАЯ СВЕРХУ осью контура (начинается
+ * под главной линией, под аватаркой профиля); мягкая зона при этом идёт до
+ * самого края экрана с обычным зазором 8px. Раскрытие по dwell ≥ 800 мс —
+ * оверлейная панель 240px под аватаркой профиля (контент не переживает
+ * reflow); клик по коллеге — быстрый переход в чат. Список компактный,
+ * прокрутка колёсиком без видимого скроллбара.
  */
 export function RightRail() {
   const { data } = usePresence();
@@ -61,56 +96,40 @@ export function RightRail() {
     else void navigate({ to: '/chat' });
   }
 
+  const online = (data ?? []).filter((p) => p.status !== 'offline');
+
   return (
     <aside
-      data-right-rail
       onMouseEnter={dwellStart}
       onMouseLeave={dwellStop}
-      className={cn(
-        // Полная высота вровень с правым краем вьюпорта (вердикт владельца
-        // 12.09.2026: «полоску сотрудников до самого верха»); ось контура
-        // заканчивается на её шве (data-right-rail в circuit-geometry).
-        'absolute inset-y-0 right-0 z-20 flex flex-col border-l border-sidebar-border bg-sidebar transition-[width] duration-300 ease-out',
-        edgeOpen ? 'w-60' : 'w-10',
-      )}
+      className="relative flex w-10 shrink-0 flex-col border-l border-sidebar-border"
     >
-      <div className="flex h-full min-h-0 flex-col overflow-hidden">
+      <div
+        data-no-scrollbar
+        className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto pt-2 pb-1"
+      >
+        {online.map((entry) => (
+          <ColleagueRow key={entry.user.id} entry={entry} withName={false} onOpen={openChat} />
+        ))}
+      </div>
+      {/* Раскрытие — ПЛАВНОЕ (вердикт владельца 12.09.2026: «резко
+          выпрыгивает»): панель смонтирована всегда и выезжает transform'ом
+          из-за правого края рамы (обрезается её overflow-hidden); inert
+          выключает её из фокуса/a11y в свёрнутом состоянии. */}
+      <div
+        inert={!edgeOpen}
+        className={cn(
+          'slider-shadow absolute inset-y-0 right-0 z-30 flex w-60 flex-col border-l border-sidebar-border bg-card transition-transform duration-200 ease-out',
+          edgeOpen ? 'translate-x-0' : 'pointer-events-none translate-x-full',
+        )}
+      >
         <div
           data-no-scrollbar
           className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto pt-2 pb-1"
         >
-          {data
-            ?.filter((p) => p.status !== 'offline')
-            .map((entry) => (
-              <button
-                key={entry.user.id}
-                type="button"
-                onClick={() => openChat(entry.user.id)}
-                className="flex w-full shrink-0 items-center gap-2.5 rounded-md px-1.5 py-1 text-left hover:bg-sidebar-accent"
-              >
-                <span className="relative shrink-0">
-                  <PersonAvatar
-                    name={entry.user.displayName}
-                    avatarUrl={entry.user.avatarUrl}
-                    className="size-7"
-                  />
-                  <span
-                    className={cn(
-                      'absolute -right-0.5 -bottom-0.5 size-2 rounded-full border-2 border-sidebar',
-                      dotColor[entry.status],
-                    )}
-                  />
-                </span>
-                <span
-                  className={cn(
-                    'truncate text-[13px] text-sidebar-foreground transition-opacity delay-75 duration-200',
-                    edgeOpen ? 'opacity-100' : 'opacity-0',
-                  )}
-                >
-                  {entry.user.displayName}
-                </span>
-              </button>
-            ))}
+          {online.map((entry) => (
+            <ColleagueRow key={entry.user.id} entry={entry} withName onOpen={openChat} />
+          ))}
         </div>
       </div>
     </aside>

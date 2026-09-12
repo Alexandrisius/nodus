@@ -61,26 +61,31 @@ export function AppShell() {
       <div className="flex h-screen overflow-hidden bg-background">
         {stressMode ? <LiveGraph /> : null}
         <NodeRail />
-        <div className="relative flex min-w-0 flex-1 flex-col pr-10">
+        <div className="relative flex min-w-0 flex-1 flex-col">
           {/* Мягкая рама: топбар + рабочая зона ОДНОЙ мягкой панелью (18px,
               отступы 8px, фон «лист») — ступень формы поверх ступеней тона,
               как в рефах команды (пакет мягкости, вердикт владельца
               12.09.2026). Справа остаётся карман 40px — статичная служебная
               колонка: угол профиля над полосой коллег; скроллбар страниц —
               у правого края рамы, в 8px от полосы (dwell не конкурирует). */}
-          <div className="m-2 flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl bg-card">
+          <div
+            className="m-2 flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl bg-card"
+            data-soft-frame
+          >
             <TopBar />
-            <div id="content" className="relative flex min-h-0 flex-1 flex-col">
-              <Suspense fallback={<ShellFallback />}>
-                <Outlet />
-              </Suspense>
+            <div className="relative flex min-h-0 flex-1">
+              <div id="content" className="relative flex min-h-0 flex-1 flex-col">
+                <Suspense fallback={<ShellFallback />}>
+                  <Outlet />
+                </Suspense>
+              </div>
+              {/* Полоса коллег — ВНУТРИ рамы под осью контура (вердикт
+                  12.09.2026): мягкая зона до края экрана с зазором 8px. */}
+              <RightRail />
             </div>
           </div>
           {/* Стек карточек сущностей поверх раздела (ADR-0009, ?cards=) */}
           <CardStackHost />
-          {/* Правая полоса коллег — полной высоты вровень с правым краем
-              (вердикт владельца 12.09.2026); ось контура стыкуется с её швом. */}
-          <RightRail />
         </div>
       </div>
       <CircuitFrame />
