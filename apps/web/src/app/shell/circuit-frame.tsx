@@ -138,6 +138,18 @@ export function CircuitFrame() {
             stroke="var(--edge)"
           />
         ) : null}
+        {/* Терминальная точка модуля БЕЗ подмодулей (Главная развёрнутая):
+            шина заканчивается узлом на линии шапки — плоского среза нет
+            (вердикт 14.09.2026 вечером: ничего не торчит). */}
+        {geo.terminus ? (
+          <circle
+            cx={snapPx(geo.terminus.x + 0.5)}
+            cy={snapPx(geo.terminus.y + 0.5)}
+            r="2"
+            fill="var(--sidebar)"
+            stroke="var(--edge)"
+          />
+        ) : null}
         {geo.tabs.map((t) => (
           <circle
             key={t.x}
