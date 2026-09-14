@@ -1,5 +1,5 @@
 import type { ChatMessage, ConversationListItem, TaskListItem } from '@nodus/contracts';
-import { ErrorCode, sendMessageBodySchema } from '@nodus/contracts';
+import { conversationUpdateBodySchema, ErrorCode, sendMessageBodySchema } from '@nodus/contracts';
 
 import { http, HttpResponse } from 'msw';
 
@@ -14,9 +14,15 @@ import {
 
 let chatTaskSeq = 60;
 
+/** Скрытые из списка беседы (ПКМ-меню «Скрыть»: история сохраняется, I15). */
+const hiddenConversations = new Set<string>();
+
 export const chatHandlers = [
   http.get('/api/v1/chat/conversations', () =>
-    HttpResponse.json({ items: demoConversations, nextCursor: null }),
+    HttpResponse.json({
+      items: demoConversations.filter((c) => !hiddenConversations.has(c.id)),
+      nextCursor: null,
+    }),
   ),
 
   /** Личный диалог с сотрудником (карточка сотрудника — чат всегда справа):
@@ -48,6 +54,9 @@ export const chatHandlers = [
       membersPreview: [userRef(person.id)],
       lastMessage: null,
       unreadCount: 0,
+      pinned: false,
+      muted: false,
+      snoozed: false,
     };
     demoConversations.push(conversation);
     return HttpResponse.json(conversation, { status: 201 });
@@ -117,7 +126,33 @@ export const chatHandlers = [
     }
     const conversation = demoConversations.find((c) => c.id === params.id);
     if (conversation && !threadRootId) conversation.lastMessage = message;
+    // Новое сообщение снимает «Посмотреть позже»: счётчик снова виден.
+    if (conversation) conversation.snoozed = false;
     return HttpResponse.json(message, { status: 201 });
+  }),
+
+  /** Контекстное меню беседы (ПКМ, реф Битрикс24, вердикт 14.09.2026):
+   *  закрепить / звук / «посмотреть позже» / скрыть из списка. */
+  http.patch('/api/v1/chat/conversations/:id', async ({ params, request }) => {
+    const parsed = conversationUpdateBodySchema.safeParse(await request.json());
+    if (!parsed.success)
+      return HttpResponse.json(
+        { code: ErrorCode.VALIDATION_FAILED, message: 'Invalid body' },
+        { status: 422 },
+      );
+    const conversation = demoConversations.find((c) => c.id === params.id);
+    if (!conversation)
+      return HttpResponse.json(
+        { code: ErrorCode.NOT_FOUND, message: 'Conversation not found' },
+        { status: 404 },
+      );
+    const { hidden, ...flags } = parsed.data;
+    Object.assign(conversation, flags);
+    if (hidden !== undefined) {
+      if (hidden) hiddenConversations.add(conversation.id);
+      else hiddenConversations.delete(conversation.id);
+    }
+    return HttpResponse.json(conversation);
   }),
 
   /** Поток Б: сообщение → задача с предзаполненным описанием и ссылкой на переписку. */

@@ -11,7 +11,10 @@ const mid = (n: number): string => `b0000000-0000-4000-8000-${String(n).padStart
  *  владельца 2026-09-10): канал есть у каждого проекта демо-набора.
  *  Чаты задач (type=task) — обсуждения конкретных задач для вкладки
  *  «Чаты задач» мессенджера (вердикт владельца 2026-09-10, раунд 2). */
-export const demoConversations: ConversationListItem[] = [
+/** Флаги состояния беседы (закреплена/звук/«посмотреть позже») добавляются
+ *  map-ом: демо-литералы чистые, моки-обработчики ПКМ-меню правят флаги
+ *  inplace (контекстное меню беседы, реф Битрикс24, вердикт 14.09.2026). */
+const rawConversations: Omit<ConversationListItem, 'pinned' | 'muted' | 'snoozed'>[] = [
   {
     id: cid(1),
     type: 'project_channel',
@@ -127,6 +130,19 @@ export const demoConversations: ConversationListItem[] = [
     unreadCount: 0,
   },
 ];
+
+export const demoConversations: ConversationListItem[] = rawConversations.map((c) => ({
+  ...c,
+  pinned: false,
+  muted: false,
+  snoozed: false,
+}));
+
+// Демо-состояния контекстного меню: канал закреплён, группа без звука.
+const pinnedDemo = demoConversations.find((c) => c.id === cid(1));
+if (pinnedDemo) pinnedDemo.pinned = true;
+const mutedDemo = demoConversations.find((c) => c.id === cid(3));
+if (mutedDemo) mutedDemo.muted = true;
 
 function msg(
   n: number,

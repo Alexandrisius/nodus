@@ -30,10 +30,12 @@ export function conversationTitle(
 }
 
 /** Единый список бесед по активности (вердикт владельца 2026-09-10, раунд 2):
- *  БЕЗ секций-заголовков — типы перемешаны, свежие сверху; беседы без
- *  сообщений — в конце (стабильно, в исходном порядке). */
+ *  БЕЗ секций-заголовков — типы перемешаны, свежие сверху; закреплённые
+ *  (ПКМ-меню, реф Битрикс24) — ВСЕГДА сверху, между собой по активности;
+ *  беседы без сообщений — в конце (стабильно, в исходном порядке). */
 export function sortByActivity(conversations: ConversationListItem[]): ConversationListItem[] {
   return [...conversations].sort((a, b) => {
+    if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
     const ta = a.lastMessage?.createdAt ?? null;
     const tb = b.lastMessage?.createdAt ?? null;
     if (ta === null && tb === null) return 0;

@@ -68,9 +68,29 @@ export const conversationListItemSchema = z.object({
   membersPreview: z.array(userRefSchema),
   lastMessage: messageSchema.nullable(),
   unreadCount: z.number().int().min(0),
+  /** Закреплена (контекстное меню беседы, реф Битрикс24): закреплённые — сверху. */
+  pinned: z.boolean(),
+  /** Звук выключен (уведомления копятся без звука; глиф на строке). */
+  muted: z.boolean(),
+  /** «Посмотреть позже»: счётчик непрочитанных скрыт до НОВОГО сообщения. */
+  snoozed: z.boolean(),
 });
 
 export type ConversationListItem = z.infer<typeof conversationListItemSchema>;
+
+/** Правка состояния беседы из контекстного меню (ПКМ, реф Битрикс24):
+ *  закрепить/звук/«посмотреть позже»/скрыть из списка. */
+export const conversationUpdateBodySchema = z
+  .object({
+    pinned: z.boolean().optional(),
+    muted: z.boolean().optional(),
+    snoozed: z.boolean().optional(),
+    /** Скрыть из списка (архив беседы: история сохраняется, I15). */
+    hidden: z.boolean().optional(),
+  })
+  .refine((v) => Object.keys(v).length > 0, { message: 'empty update' });
+
+export type ConversationUpdateBody = z.infer<typeof conversationUpdateBodySchema>;
 
 export const listConversationsQuerySchema = cursorQuerySchema.extend({
   search: z.string().trim().min(1).max(128).optional(),

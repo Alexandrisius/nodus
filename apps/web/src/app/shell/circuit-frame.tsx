@@ -23,10 +23,11 @@ function focusSig(f: CircuitFocus | null): string {
  * (контур ЗАМЕНЯЕТ бордюр и сливается с классической разметкой) — плюс шина
  * рейки с локтевыми отводами к портам модулей единым блоком и засечки вверх
  * к точкам вкладок (точка — у самого пункта, на оси точек нет). Вспышка —
- * один пульс к активному подменю, только на СМЕНУ фокуса (не на движение
- * панелей и не на resize). Геометрия — измерение DOM по data-атрибутам;
- * пересчёт на resize, скролл навигатора и покадрово во время transition
- * ширины панелей.
+ * один пульс к активному подменю, только на СМЕНУ фокуса: на сворачивание/
+ * разворачивание панелей ЗАПРЕЩЕНА флагом width-transition (вердикт владельца
+ * 14.09.2026: пульс на переходной геометрии улетал поверх рейки). Геометрия —
+ * измерение DOM по data-атрибутам; пересчёт на resize, скролл навигатора и
+ * покадрово во время transition ширины панелей.
  */
 export function CircuitFrame() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -40,6 +41,12 @@ export function CircuitFrame() {
   } | null>(null);
   const [pulseRun, setPulseRun] = useState(0);
   const prevFocus = useRef<CircuitFocus | null>(null);
+  /** Ширина панелей в transition (свёртывание/развёртывание рейки, служебная
+   *  полоса): вспышка в это время ЗАПРЕЩЕНА (вердикт владельца 14.09.2026:
+   *  «вспышка вылетает непонятно куда, накладывается на левую панель») —
+   *  измеряемый фокус на переходной геометрии мигает сигнатурой, и пульс
+   *  рисовался на ломаных точках. Пока moving — фокус только запоминается. */
+  const moving = useRef(false);
 
   const pulseTimer = useRef(0);
 
@@ -66,6 +73,7 @@ export function CircuitFrame() {
     // гаснет по transitionend посторонних анимаций раньше окончания движения.
     const onTransitionRun = (e: TransitionEvent) => {
       if (e.propertyName !== 'width' || loop) return;
+      moving.current = true;
       const tick = () => {
         setGeo(measureCircuit(pathname));
         loop = requestAnimationFrame(tick);
@@ -76,6 +84,7 @@ export function CircuitFrame() {
       if (e.propertyName !== 'width') return;
       cancelAnimationFrame(loop);
       loop = 0;
+      moving.current = false;
       remeasure();
     };
     remeasure();
@@ -100,8 +109,15 @@ export function CircuitFrame() {
     if (!geo) return;
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-    // Вспышка навигации — только на смену фокуса (не на движение панелей)
+    // Вспышка навигации — только на смену фокуса (не на движение панелей):
+    // пока ширина панелей в transition, фокус лишь запоминается — пульс на
+    // переходной геометрии улетал «непонятно куда» поверх рейки (вердикт
+    // владельца 14.09.2026).
     const next = currentFocus(geo);
+    if (moving.current) {
+      prevFocus.current = next;
+      return;
+    }
     if (!reduced && focusSig(next) !== focusSig(prevFocus.current)) {
       const p = transitionPulse(geo, prevFocus.current);
       if (p) firePulse(p.points, p.dot);
