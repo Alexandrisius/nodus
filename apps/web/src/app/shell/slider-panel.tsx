@@ -4,6 +4,9 @@ import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import { cn } from '@nodus/ui/lib/utils';
 
+import { EDGE_W_COLLAPSED, EDGE_W_EXPANDED } from './right-rail.js';
+import { useShellStore } from './shell-store.js';
+
 /** Стек слайдеров: ESC закрывает только верхнюю панель (§10.2). */
 const stack: string[] = [];
 
@@ -23,9 +26,11 @@ const CLOSE_EASE = 'cubic-bezier(0.5, 0, 0.9, 0.4)';
  * Детальная панель — общий слой карточки-сущности и ЕДИНСТВЕННАЯ геометрия
  * карточек продукта (ADR-0009, вердикт владельца 2026-09-10): все сущности
  * (задача, проект, письмо, сотрудник) открываются панелью ОДНОГО размера
- * (inset-2 — тот же прямоугольник, что мягкая рама: парящий лист от самого
- * верха со скруглением всех углов, пакет мягкости, вердикт владельца
- * 12.09.2026: «карточка не до самого верха») и НАСЛАИВАЮТСЯ друг на друга
+ * (inset-2 внутри хоста: парящий лист от самого верха со скруглением всех
+ * углов, пакет мягкости, вердикт владельца 12.09.2026: «карточка не до
+ * самого верха»; правый край хоста = левый край служебной полосы — карточка
+ * НЕ накрывает полосу и сужается вместе с мягкой рамой при её раскрытии,
+ * план R4) и НАСЛАИВАЮТСЯ друг на друга
  * стеком (хост —
  * CardStackHost, стек в `?cards=`): закрытие верхней возвращает к прежней,
  * смонтированной под ней, — без дёргания геометрии и потери места.
@@ -74,6 +79,12 @@ export function SliderPanel({
   const closingRef = useRef(false);
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
+  // Правый край карточки = правый край мягкой рамы = левый край служебной
+  // полосы (план R4): полоса ЗА пределами рамы, карточка её не накрывает и
+  // сужается синхронно с рамой при dwell-раскрытии (transition-[right] той
+  // же длительности, что transition-[width] полосы).
+  const edgeOpen = useShellStore((s) => s.edgeOpen);
+  const stripW = edgeOpen ? EDGE_W_EXPANDED : EDGE_W_COLLAPSED;
 
   function requestClose() {
     if (closingRef.current) return;
@@ -134,14 +145,19 @@ export function SliderPanel({
     };
   }, []);
 
-  /** FLIP-переменные раскрытия: геометрия панели детерминирована
-   *  (inset-2 — единая для всех сущностей, ADR-0009), поэтому
-   *  дельты считаются без замеров; анимация — CSS @keyframes slider-expand
-   *  (стартует с первого кадра на любом окружении, в отличие от
+  /** FLIP-переменные раскрытия: геометрия панели детерминирована (inset-2
+   *  внутри хоста, чей правый край = левый край служебной полосы, ADR-0009 +
+   *  план R4), поэтому дельты считаются без замеров; анимация — CSS @keyframes
+   *  slider-expand (стартует с первого кадра на любом окружении, в отличие от
    *  transition/WAAPI на маунте). */
   const flipStyle: CSSProperties | undefined = sourceRect
     ? (() => {
-        const dst = { x: 12, y: 40, w: window.innerWidth - 24, h: window.innerHeight - 40 };
+        const dst = {
+          x: 8,
+          y: 8,
+          w: window.innerWidth - stripW - 16,
+          h: window.innerHeight - 16,
+        };
         return {
           '--flip-tx': `${sourceRect.x - dst.x}px`,
           '--flip-ty': `${sourceRect.y - dst.y}px`,
@@ -152,7 +168,10 @@ export function SliderPanel({
     : undefined;
 
   return (
-    <div className="fixed inset-0 z-50">
+    <div
+      className="fixed inset-y-0 left-0 z-50 transition-[right] duration-200 ease-out"
+      style={{ right: stripW }}
+    >
       {/* Прозрачный click-catcher вместо затемняющего задника: страница за
           панелью цвета не меняет; клик мимо панели закрывает её. */}
       <div className="absolute inset-0" onClick={requestClose} aria-hidden="true" />

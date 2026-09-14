@@ -26,6 +26,10 @@ const Toaster = ({ ...props }: ToasterProps) => {
       }}
       style={
         {
+          // Лестница z шелла: контент 0–40 · слайдеры 50 · служебная колонка
+          // 60 · оверлей-порталы и тосты 70 (вердикт 14.09.2026: меню профиля
+          // просвечивало аватарками колонки).
+          zIndex: 70,
           '--normal-bg': 'var(--popover)',
           '--normal-text': 'var(--popover-foreground)',
           '--normal-border': 'var(--border)',

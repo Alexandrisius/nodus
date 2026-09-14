@@ -90,6 +90,7 @@ export const ui = {
     notifications: 'Уведомления',
     notificationsEmpty: 'Новых уведомлений нет',
     profile: 'Профиль',
+    myProfile: 'Мой профиль',
     logout: 'Выйти',
     themeToLight: 'Светлая тема',
     themeToDark: 'Тёмная тема',

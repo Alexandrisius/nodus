@@ -61,31 +61,30 @@ export function AppShell() {
       <div className="flex h-screen overflow-hidden bg-background">
         {stressMode ? <LiveGraph /> : null}
         <NodeRail />
-        <div className="relative flex min-w-0 flex-1 flex-col">
+        <div className="relative flex min-w-0 flex-1">
           {/* Мягкая рама: топбар + рабочая зона ОДНОЙ мягкой панелью (18px,
-              отступы 8px, фон «лист») — ступень формы поверх ступеней тона,
-              как в рефах команды (пакет мягкости, вердикт владельца
-              12.09.2026). Справа остаётся карман 40px — статичная служебная
-              колонка: угол профиля над полосой коллег; скроллбар страниц —
-              у правого края рамы, в 8px от полосы (dwell не конкурирует). */}
-          <div
-            className="m-2 flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl bg-card"
-            data-soft-frame
-          >
-            <TopBar />
-            <div className="relative flex min-h-0 flex-1">
+              фон «лист»). Служебная полоса (профиль + коллеги) — ЗА пределами
+              рамы, в правом периметре (план владельца 14.09.2026, R4): у рамы
+              нет правого отступа, её правый край = левый край полосы; щель
+              периметра 8px — справа от полосы (mr-2 полосы). Раскрытие полосы
+              РЕФЛОУ: рама (flex-1) сужается влево синхронно с ростом ширины
+              полосы; скроллбар страниц — у правого шва рамы. */}
+          <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+            <div
+              className="mt-2 mb-2 ml-2 flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl bg-card"
+              data-soft-frame
+            >
+              <TopBar />
               <div id="content" className="relative flex min-h-0 flex-1 flex-col">
                 <Suspense fallback={<ShellFallback />}>
                   <Outlet />
                 </Suspense>
               </div>
-              {/* Полоса коллег — ВНУТРИ рамы под осью контура (вердикт
-                  12.09.2026): мягкая зона до края экрана с зазором 8px. */}
-              <RightRail />
             </div>
+            {/* Стек карточек сущностей поверх раздела (ADR-0009, ?cards=) */}
+            <CardStackHost />
           </div>
-          {/* Стек карточек сущностей поверх раздела (ADR-0009, ?cards=) */}
-          <CardStackHost />
+          <RightRail />
         </div>
       </div>
       <CircuitFrame />

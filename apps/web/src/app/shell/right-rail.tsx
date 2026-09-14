@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import type { PresenceEntry } from '@nodus/contracts';
 import { cn } from '@nodus/ui/lib/utils';
@@ -6,6 +6,8 @@ import { cn } from '@nodus/ui/lib/utils';
 import { useConversations } from '../../features/chat/api/chat-api.js';
 import { usePresence } from '../../features/directory/api/directory-api.js';
 import { PersonAvatar } from '../../shared/ui/person-avatar.js';
+import { ProfileMenu } from './profile-menu.js';
+import { useShellStore } from './shell-store.js';
 
 const dotColor: Record<string, string> = {
   online: 'bg-success',
@@ -13,13 +15,19 @@ const dotColor: Record<string, string> = {
   offline: 'bg-foreground/30',
 };
 
+/** Ширина полосы: свёрнутая / раскрытая (240 − 20% ≈ 192, план R4).
+ *  Экспортируется для карточек-слайдеров: их правый край = правый край
+ *  мягкой рамы = левый край полосы (единая геометрия шелла). */
+export const EDGE_W_COLLAPSED = 40;
+export const EDGE_W_EXPANDED = 192;
+
 function ColleagueRow({
   entry,
-  withName,
+  expanded,
   onOpen,
 }: {
   entry: PresenceEntry;
-  withName: boolean;
+  expanded: boolean;
   onOpen: (userId: string) => void;
 }) {
   return (
@@ -36,32 +44,46 @@ function ColleagueRow({
         />
         <span
           className={cn(
-            'absolute -right-0.5 -bottom-0.5 size-2 rounded-full border-2 border-card',
+            // Полоса живёт на тоне периметра (вне мягкой рамы) — ореол
+            // точки статуса в тон периметра, не «листа».
+            'absolute -right-0.5 -bottom-0.5 size-2 rounded-full border-2 border-background',
             dotColor[entry.status],
           )}
         />
       </span>
-      {withName ? (
-        <span className="truncate text-[13px] text-foreground">{entry.user.displayName}</span>
-      ) : null}
+      {/* Имя — кросс-фейд max-width/opacity, как строки рейки: рефлоу
+          ширины полосы идёт без рывков и обрезания текста на полуслове. */}
+      <span
+        className={cn(
+          'overflow-hidden truncate whitespace-nowrap text-[13px] text-foreground',
+          'transition-[max-width,opacity] duration-200 ease-out',
+          expanded ? 'max-w-40 opacity-100' : 'max-w-0 opacity-0',
+        )}
+      >
+        {entry.user.displayName}
+      </span>
     </button>
   );
 }
 
 /**
- * Полоса коллег (каркас §10.2, вердикт владельца 12.09.2026): колонка 40px
- * ВНУТРИ мягкой рамы, на её фоне, ОБРЕЗАННАЯ СВЕРХУ осью контура (начинается
- * под главной линией, под аватаркой профиля); мягкая зона при этом идёт до
- * самого края экрана с обычным зазором 8px. Раскрытие по dwell ≥ 800 мс —
- * оверлейная панель 240px под аватаркой профиля (контент не переживает
- * reflow); клик по коллеге — быстрый переход в чат. Список компактный,
- * прокрутка колёсиком без видимого скроллбара.
+ * Служебная полоса (план владельца 14.09.2026, R3/R4/R8/R9): главный профиль
+ * и аватарки коллег живут ЗА ПРЕДЕЛАМИ мягкой рамы — в правом периметре, на
+ * его тоне и БЕЗ вертикальных границ (структуру несёт ступень тона рамы).
+ * Раскрытие по dwell ≥ 800 мс — РЕФЛОУ: ширина полосы анимируется 40 → 192px,
+ * мягкая рама (flex-сосед) сужается влево синхронно; карточки сущностей
+ * держат правый край по раме (slider-panel). Контур перемеряется покадрово
+ * существующим слушателем transition width (circuit-frame). Триггер dwell —
+ * ТОЛЬКО список: наведение на аватарку профиля полосу не раскрывает (R8).
+ * В раскрытом виде строка профиля подписана «Мой профиль» (ProfileMenu).
+ * Профиль — size-7 по центру полосы, точно над аватарками коллег (R3).
  */
 export function RightRail() {
   const { data } = usePresence();
   const { data: chats } = useConversations();
   const navigate = useNavigate();
-  const [edgeOpen, setEdgeOpen] = useState(false);
+  const edgeOpen = useShellStore((s) => s.edgeOpen);
+  const setEdgeOpen = useShellStore((s) => s.setEdgeOpen);
   const dwellTimer = useRef<number | null>(null);
 
   function dwellStart() {
@@ -100,38 +122,28 @@ export function RightRail() {
 
   return (
     <aside
-      onMouseEnter={dwellStart}
-      onMouseLeave={dwellStop}
-      className="relative flex w-10 shrink-0 flex-col border-l border-sidebar-border"
+      className={cn(
+        // mr-2 — щель периметра справа от полосы (8px до края вьюпорта).
+        'relative mr-2 flex shrink-0 flex-col pt-2 transition-[width] duration-200 ease-out',
+        edgeOpen ? 'w-48' : 'w-10',
+      )}
     >
-      <div
-        data-no-scrollbar
-        className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto pt-2 pb-1"
-      >
-        {online.map((entry) => (
-          <ColleagueRow key={entry.user.id} entry={entry} withName={false} onOpen={openChat} />
-        ))}
+      {/* Ячейка профиля: h-14 + pt-2 полосы → центр аватарки y=36, ровно
+          центр топбара рамы; ВНЕ зоны dwell (R8). */}
+      <div className="flex h-14 shrink-0 items-center">
+        <ProfileMenu expanded={edgeOpen} />
       </div>
-      {/* Раскрытие — ПЛАВНОЕ (вердикт владельца 12.09.2026: «резко
-          выпрыгивает»): панель смонтирована всегда и выезжает transform'ом
-          из-за правого края рамы (обрезается её overflow-hidden); inert
-          выключает её из фокуса/a11y в свёрнутом состоянии. */}
       <div
-        inert={!edgeOpen}
-        className={cn(
-          // БЕЗ slider-shadow: глубокая тень поверх контента рамы читалась
-          // «разлитыми пятнами» слева от панели (вердикт владельца
-          // 12.09.2026); отделение — бордюром, как у зон рамы.
-          'absolute inset-y-0 right-0 z-30 flex w-60 flex-col border-l border-sidebar-border bg-card transition-transform duration-200 ease-out',
-          edgeOpen ? 'translate-x-0' : 'pointer-events-none translate-x-full',
-        )}
+        onMouseEnter={dwellStart}
+        onMouseLeave={dwellStop}
+        className="flex min-h-0 flex-1 flex-col"
       >
         <div
           data-no-scrollbar
-          className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto pt-2 pb-1"
+          className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto pt-1 pb-1"
         >
           {online.map((entry) => (
-            <ColleagueRow key={entry.user.id} entry={entry} withName onOpen={openChat} />
+            <ColleagueRow key={entry.user.id} entry={entry} expanded={edgeOpen} onOpen={openChat} />
           ))}
         </div>
       </div>

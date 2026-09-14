@@ -13,8 +13,11 @@ export interface CircuitGeometry {
   tabs: { active: boolean; x: number; label: string }[];
   /** Узел схлопнутой левой рейки (точка на её боковом шве; null — рейка развёрнута). */
   leftNode: NodeEdgePoint | null;
-  /** Правый край = шов полосы коллег (`data-right-rail`, полная высота):
-   * ось стыкуется с полосой, не пересекая её (вердикт 12.09.2026). */
+  /** Правый край = правый край мягкой рамы (`data-soft-frame`): служебная
+   * полоса живёт ЗА пределами рамы (план R4/R5), ось доходит только до
+   * границы мягкой области и не пересекает зону аватарок. При dwell-
+   * раскрытии полосы рама сужается — ось следует за её краем (пересчёт
+   * покадрово, слушатель transition width в circuit-frame). */
   rightEdge: number;
   /** Низ шины рейки (центр последнего модуля). */
   spineEndY: number;
@@ -51,9 +54,10 @@ export function measureCircuit(pathname = '/'): CircuitGeometry | null {
   }));
   const leftEl = document.querySelector<HTMLElement>('[data-left-node]');
   const leftNode = leftEl ? centerOf(leftEl) : null;
-  // Ось заканчивается на правом крае мягкой рамы (полоса коллег живёт ВНУТРИ
-  // рамы под осью, вердикт 12.09.2026); dwell-раскрытие полосы — оверлей и
-  // геометрию оси не меняет.
+  // Ось заканчивается на правом крае мягкой рамы: служебная полоса (профиль +
+  // коллеги) живёт ЗА пределами рамы в правом периметре (план R4/R5) — связь
+  // не пересекает зону аватарок; dwell-раскрытие полосы сужает раму, и ось
+  // идёт за её краем покадрово.
   const frameEl = document.querySelector<HTMLElement>('[data-soft-frame]');
   const lastY = modules.length ? Math.max(...modules.map((m) => m.port.y)) : axisY;
   // Схлопнутая рейка: стык — правый край узла бокового шва (точка 5px);

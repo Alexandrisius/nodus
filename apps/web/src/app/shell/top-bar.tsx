@@ -1,20 +1,15 @@
-import { Bell, LogOut, Moon, Search, Sun } from 'lucide-react';
+import { Bell, Moon, Search, Sun } from 'lucide-react';
 import { Link, useRouterState } from '@tanstack/react-router';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@nodus/ui/components/dropdown-menu';
 import { cn } from '@nodus/ui/lib/utils';
 
-import { useAuthStore } from '../../shared/auth-store.js';
-import { PersonAvatar } from '../../shared/ui/person-avatar.js';
 import { HomeGreeting } from '../../features/home/components/home-greeting.js';
 import { useShellStore } from './shell-store.js';
 
@@ -112,13 +107,11 @@ function sectionsFor(pathname: string): Section[] {
 /** Топбар «инструмента»: моно-вкладки раздела с портом на оси; глобальный
  *  «Умный поиск» — ЛУПА в правой группе (модель позднего Битрикс24: не
  *  конкурирует с локальным поиском списков за глаза; Ctrl+K работает),
- *  уведомления, тумблер темы (тёмная/светлая). Профиль — в статичном углу
- *  шелла (ProfileCorner), вне мягкой рамы. */
+ *  уведомления, тумблер темы (тёмная/светлая). Профиль — ВЕРХ служебной
+ *  полосы за пределами мягкой рамы (ProfileMenu, план R3/R4). */
 export function TopBar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const searchStr = useRouterState({ select: (s) => s.location.searchStr });
-  const user = useAuthStore((s) => s.user);
-  const logout = useAuthStore((s) => s.logout);
 
   const theme = useShellStore((s) => s.theme);
   const toggleTheme = useShellStore((s) => s.toggleTheme);
@@ -206,31 +199,6 @@ export function TopBar() {
             <div className="px-3 py-6 text-center text-sm text-muted-foreground">
               {ui.topbar.notificationsEmpty}
             </div>
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        {/* Профиль — ВНУТРИ мягкой зоны, в правом конце топбара (вердикт
-            владельца 12.09.2026: статичный угол «вышел гавнищем», аватарка
-            возвращается в мягкую зону; полоса коллег — до самого верха). */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              aria-label={ui.topbar.profile}
-              className="-mr-2.5 flex items-center gap-2 rounded-md p-1 hover:bg-accent"
-            >
-              <PersonAvatar name={user?.displayName ?? ''} className="size-8" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>{user?.displayName}</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              <DropdownMenuItem onClick={() => void logout()}>
-                <LogOut data-icon="inline-start" />
-                {ui.topbar.logout}
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
