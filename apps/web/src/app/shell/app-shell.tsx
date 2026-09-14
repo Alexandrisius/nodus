@@ -8,6 +8,7 @@ import { TooltipProvider } from '@nodus/ui/components/tooltip';
 import { CircuitFrame } from './circuit-frame.js';
 import { CardStackHost } from './card-stack-host.js';
 import { CommandPalette } from './command-palette.js';
+import { EdgeScrollbar } from './edge-scrollbar.js';
 import { LiveGraph } from './live-graph.js';
 import { NodeRail } from './node-rail.js';
 import { RightRail } from './right-rail.js';
@@ -88,6 +89,7 @@ export function AppShell() {
         </div>
       </div>
       <CircuitFrame />
+      <EdgeScrollbar />
       <CommandPalette />
       <Toaster richColors theme={theme} />
     </TooltipProvider>
