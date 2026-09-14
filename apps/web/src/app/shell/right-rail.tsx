@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { ChevronsLeft, ChevronsRight } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import type { PresenceEntry } from '@nodus/contracts';
@@ -96,19 +96,22 @@ function NotesRow({ expanded, onOpen }: { expanded: boolean; onOpen: () => void 
 }
 
 /**
- * Служебная полоса (план владельца 14.09.2026, R3/R4/R8/R9): главный профиль
- * и аватарки коллег живут ЗА ПРЕДЕЛАМИ мягкой рамы — в правом периметре, на
- * его тоне и БЕЗ вертикальных границ (структуру несёт ступень тона рамы).
- * Раскрытие по dwell ≥ 800 мс — РЕФЛОУ: ширина полосы анимируется 40 → 192px,
- * мягкая рама (flex-сосед) сужается влево синхронно; карточки сущностей
- * держат правый край по раме (slider-panel). Контур перемеряется покадрово
- * существующим слушателем transition width (circuit-frame). Триггер dwell —
- * ТОЛЬКО список: наведение на аватарку профиля полосу не раскрывает (R8).
- * В раскрытом виде строка профиля подписана «Мой профиль» (ProfileMenu).
- * Профиль — size-7 по центру полосы, точно над аватарками коллег (R3).
- * Список: «Заметки» (сообщения себе, закладка вместо своей аватарки —
- * профиль не дублируется в коллегах, модель Битрикс24) и коллеги ПО
- * АКТИВНОСТИ диалогов (R2); клик по коллеге — быстрый переход в чат.
+ * Служебная полоса (план владельца 14.09.2026, R3/R4/R9 + вердикт 14.09
+ * вечером): главный профиль и аватарки коллег живут ЗА ПРЕДЕЛАМИ мягкой
+ * рамы — в правом периметре, на его тоне и БЕЗ вертикальных границ
+ * (структуру несёт ступень тона рамы). Раскрытие — КНОПКОЙ-шевронами внизу
+ * полосы (как сворачивание левой рейки; вердикт владельца: без авто-
+ * раскрытия по наведению — пользователь сам решает, видеть список всегда
+ * или только аватарки; выбор персистится в nodus-shell-v1). Раскрытие —
+ * РЕФЛОУ: ширина полосы анимируется 40 → 192px, мягкая рама (flex-сосед)
+ * сужается влево синхронно; карточки сущностей держат правый край по раме
+ * (slider-panel). Контур перемеряется покадрово существующим слушателем
+ * transition width (circuit-frame). В раскрытом виде строка профиля
+ * подписана «Мой профиль» (ProfileMenu). Профиль — size-7 по центру полосы,
+ * точно над аватарками коллег (R3). Список: «Заметки» (сообщения себе,
+ * закладка вместо своей аватарки — профиль не дублируется в коллегах,
+ * модель Битрикс24) и коллеги ПО АКТИВНОСТИ диалогов (R2); клик по коллеге —
+ * быстрый переход в чат.
  */
 export function RightRail() {
   const { data } = usePresence();
@@ -120,30 +123,6 @@ export function RightRail() {
   const queryClient = useQueryClient();
   const edgeOpen = useShellStore((s) => s.edgeOpen);
   const setEdgeOpen = useShellStore((s) => s.setEdgeOpen);
-  const dwellTimer = useRef<number | null>(null);
-
-  function dwellStart() {
-    if (dwellTimer.current !== null) return;
-    dwellTimer.current = window.setTimeout(() => {
-      dwellTimer.current = null;
-      setEdgeOpen(true);
-    }, 800);
-  }
-
-  function dwellStop() {
-    if (dwellTimer.current !== null) {
-      clearTimeout(dwellTimer.current);
-      dwellTimer.current = null;
-    }
-    setEdgeOpen(false);
-  }
-
-  useEffect(
-    () => () => {
-      if (dwellTimer.current !== null) clearTimeout(dwellTimer.current);
-    },
-    [],
-  );
 
   function openChat(userId: string) {
     const direct = (chats?.items ?? []).find(
@@ -193,15 +172,11 @@ export function RightRail() {
       )}
     >
       {/* Ячейка профиля: h-14 + pt-2 полосы → центр аватарки y=36, ровно
-          центр топбара рамы; ВНЕ зоны dwell (R8). */}
+          центр топбара рамы. */}
       <div className="flex h-14 shrink-0 items-center">
         <ProfileMenu expanded={edgeOpen} />
       </div>
-      <div
-        onMouseEnter={dwellStart}
-        onMouseLeave={dwellStop}
-        className="flex min-h-0 flex-1 flex-col"
-      >
+      <div className="flex min-h-0 flex-1 flex-col">
         <div
           data-no-scrollbar
           className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto pt-1 pb-1"
@@ -211,6 +186,19 @@ export function RightRail() {
             <ColleagueRow key={entry.user.id} entry={entry} expanded={edgeOpen} onOpen={openChat} />
           ))}
         </div>
+      </div>
+      {/* Кнопка раскрытия/сворачивания — ВНИЗУ полосы, шевронами, как у левой
+          рейки (вердикт владельца 14.09.2026: пользователь сам выбирает режим;
+          зеркально рейке: раскрытие растёт ВЛЕВО — ChevronsLeft). */}
+      <div className="shrink-0 p-1">
+        <button
+          type="button"
+          onClick={() => setEdgeOpen(!edgeOpen)}
+          aria-label={edgeOpen ? ui.edge.collapse : ui.edge.expand}
+          className="flex h-8 w-full items-center justify-center rounded-md text-muted-foreground/50 hover:bg-accent hover:text-foreground"
+        >
+          {edgeOpen ? <ChevronsRight className="size-4" /> : <ChevronsLeft className="size-4" />}
+        </button>
       </div>
     </aside>
   );

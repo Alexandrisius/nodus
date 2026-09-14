@@ -95,6 +95,10 @@ export const ui = {
     themeToLight: 'Светлая тема',
     themeToDark: 'Тёмная тема',
   },
+  edge: {
+    expand: 'Развернуть список сотрудников',
+    collapse: 'Свернуть список сотрудников',
+  },
   auth: {
     title: 'Nodus',
     subtitle: 'Вход в корпоративный портал',

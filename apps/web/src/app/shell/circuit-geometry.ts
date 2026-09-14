@@ -15,8 +15,8 @@ export interface CircuitGeometry {
   leftNode: NodeEdgePoint | null;
   /** Правый край = правый край мягкой рамы (`data-soft-frame`): служебная
    * полоса живёт ЗА пределами рамы (план R4/R5), ось доходит только до
-   * границы мягкой области и не пересекает зону аватарок. При dwell-
-   * раскрытии полосы рама сужается — ось следует за её краем (пересчёт
+   * границы мягкой области и не пересекает зону аватарок. При раскрытии
+   * полосы рама сужается — ось следует за её краем (пересчёт
    * покадрово, слушатель transition width в circuit-frame). */
   rightEdge: number;
   /** Низ шины рейки (центр последнего модуля). */
@@ -56,7 +56,7 @@ export function measureCircuit(pathname = '/'): CircuitGeometry | null {
   const leftNode = leftEl ? centerOf(leftEl) : null;
   // Ось заканчивается на правом крае мягкой рамы: служебная полоса (профиль +
   // коллеги) живёт ЗА пределами рамы в правом периметре (план R4/R5) — связь
-  // не пересекает зону аватарок; dwell-раскрытие полосы сужает раму, и ось
+  // не пересекает зону аватарок; раскрытие полосы (кнопка-шевроны) сужает раму, и ось
   // идёт за её краем покадрово.
   const frameEl = document.querySelector<HTMLElement>('[data-soft-frame]');
   const lastY = modules.length ? Math.max(...modules.map((m) => m.port.y)) : axisY;

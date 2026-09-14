@@ -81,7 +81,7 @@ export function SliderPanel({
   closeRef.current = onClose;
   // Правый край карточки = правый край мягкой рамы = левый край служебной
   // полосы (план R4): полоса ЗА пределами рамы, карточка её не накрывает и
-  // сужается синхронно с рамой при dwell-раскрытии (transition-[right] той
+  // сужается синхронно с рамой при раскрытии полосы кнопкой (transition-[right] той
   // же длительности, что transition-[width] полосы).
   const edgeOpen = useShellStore((s) => s.edgeOpen);
   const stripW = edgeOpen ? EDGE_W_EXPANDED : EDGE_W_COLLAPSED;

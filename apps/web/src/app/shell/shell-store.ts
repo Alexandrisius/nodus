@@ -10,7 +10,9 @@ interface ShellState {
   menuCollapsed: boolean;
   theme: ThemeId;
   commandOpen: boolean;
-  /** Служебная полоса справа раскрыта (dwell). Живёт в сторе, а не в полосе:
+  /** Служебная полоса справа раскрыта (кнопка-шевроны внизу полосы, вердикт
+   *  владельца 14.09.2026: без авто-раскрытия по наведению). Живёт в сторе,
+   *  а не в полосе:
    *  ширина полосы меняет геометрию карточек-слайдеров (правый край карточки
    *  = правый край мягкой рамы, план R4) — состояние нужно двум компонентам. */
   edgeOpen: boolean;
@@ -39,6 +41,9 @@ export const useShellStore = create<ShellState>()(
       setEdgeOpen: (edgeOpen) => set({ edgeOpen }),
       setLastSource: (lastSource) => set({ lastSource }),
     }),
-    { name: 'nodus-shell-v1', partialize: (state) => ({ theme: state.theme }) },
+    {
+      name: 'nodus-shell-v1',
+      partialize: (state) => ({ theme: state.theme, edgeOpen: state.edgeOpen }),
+    },
   ),
 );
