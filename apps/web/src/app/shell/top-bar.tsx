@@ -11,6 +11,7 @@ import {
 import { cn } from '@nodus/ui/lib/utils';
 
 import { HomeGreeting } from '../../features/home/components/home-greeting.js';
+import { ProfileMenu } from './profile-menu.js';
 import { useShellStore } from './shell-store.js';
 
 interface Section {
@@ -210,6 +211,10 @@ export function TopBar() {
             </div>
           </DropdownMenuContent>
         </DropdownMenu>
+
+        {/* Профиль — правый верх мягкой рамы, справа от уведомлений (вердикт
+            владельца 15.09.2026: служебная полоса — только аватарки коллег). */}
+        <ProfileMenu />
       </div>
     </header>
   );

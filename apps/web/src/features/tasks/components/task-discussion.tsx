@@ -1,78 +1,106 @@
-import { memo, useState, type FormEvent } from 'react';
+import { Fragment, memo, useMemo } from 'react';
 import { ui } from '@nodus/contracts';
-import { Textarea } from '@nodus/ui/components/textarea';
-import { Message, MessageContent, MessageGroup, MessageHeader } from '@nodus/ui/components/message';
-import { Bubble, BubbleContent } from '@nodus/ui/components/bubble';
-import { Attachment, AttachmentGroup, AttachmentTitle } from '@nodus/ui/components/attachment';
+import {
+  MessageScroller,
+  MessageScrollerButton,
+  MessageScrollerContent,
+  MessageScrollerItem,
+  MessageScrollerProvider,
+  MessageScrollerViewport,
+} from '@nodus/ui/components/message-scroller';
+import { Empty, EmptyTitle } from '@nodus/ui/components/empty';
+import { MessageGroup } from '@nodus/ui/components/message';
+import { Skeleton } from '@nodus/ui/components/skeleton';
 
-import { formatTime } from '../../../shared/lib/format.js';
 import { useAuthStore } from '../../../shared/auth-store.js';
-import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
-import { SendHexButton } from '../../../shared/ui/send-hex-button.js';
+import { ChatComposer } from '../../../shared/chat/chat-composer.js';
+import { ChatMessageItem } from '../../../shared/chat/chat-message.js';
+import { DayChip } from '../../../shared/chat/day-chip.js';
+import {
+  buildMessageRuns,
+  formatDayLabel,
+  startsNewDay,
+} from '../../../shared/chat/message-groups.js';
 import { useSendTaskMessage, useTaskMessages } from '../api/tasks-api.js';
 
-/** Обсуждение задачи — центр карточки: тёмный тред + оптимистичная отправка. */
+/**
+ * Обсуждение задачи — центр карточки: ТА ЖЕ анатомия чата, что в мессенджере
+ * (вердикт владельца 14.09.2026: «все чаты в едином стиле»): серии одного
+ * автора (имя — чужое и только первое, аватар и хвостик — у последнего),
+ * дата-чипы при смене дня, зона bg-chat-zone, MessageScroller с кнопкой
+ * «вниз» и общий композер (скрепка/смайл/микрофон, вечный курсор, Enter —
+ * отправить). Контракт сообщений — общий ChatMessage.
+ */
 export const TaskDiscussion = memo(function TaskDiscussion({ taskId }: { taskId: string }) {
-  const { data } = useTaskMessages(taskId);
+  const { data, isLoading } = useTaskMessages(taskId);
   const send = useSendTaskMessage(taskId);
   const me = useAuthStore((s) => s.user);
-  const [text, setText] = useState('');
 
-  function onSubmit(event: FormEvent) {
-    event.preventDefault();
-    const trimmed = text.trim();
-    if (!trimmed || send.isPending) return;
-    setText('');
-    send.mutate(trimmed);
-  }
+  const items = data?.items ?? [];
+  const runs = useMemo(() => buildMessageRuns(items, me?.id), [items, me?.id]);
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="min-h-0 flex-1 overflow-y-auto p-4">
-        <MessageGroup>
-          {(data?.items ?? []).map((message) => {
-            const mine = message.author.id === me?.id;
-            return (
-              <Message key={message.id} align={mine ? 'end' : 'start'}>
-                {!mine && <PersonAvatar name={message.author.displayName} className="size-7" />}
-                <MessageContent>
-                  <MessageHeader className="gap-1">
-                    <span className="text-foreground">{message.author.displayName}</span>
-                    <span className="font-mono text-[11px]">{formatTime(message.createdAt)}</span>
-                  </MessageHeader>
-                  <Bubble variant={mine ? 'default' : 'outline'}>
-                    <BubbleContent className="whitespace-pre-wrap">{message.text}</BubbleContent>
-                  </Bubble>
-                  {message.attachments.length > 0 && (
-                    <AttachmentGroup>
-                      {message.attachments.map((file) => (
-                        <Attachment key={file.id}>
-                          <AttachmentTitle>{file.name}</AttachmentTitle>
-                        </Attachment>
-                      ))}
-                    </AttachmentGroup>
-                  )}
-                </MessageContent>
-              </Message>
-            );
-          })}
-        </MessageGroup>
-      </div>
-      {/* Высота h-16 = высоте бара действий слева: верхние линии обоих
-          баров — одна горизонталь через границу зон (вердикт владельца) */}
-      <form
-        onSubmit={onSubmit}
-        className="flex h-16 shrink-0 items-center gap-2 border-t border-border bg-card px-3"
-      >
-        <Textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder={ui.tasks.addComment}
-          rows={2}
-          className="max-h-14 min-h-9 flex-1 resize-none"
-        />
-        <SendHexButton disabled={!text.trim()} label={ui.tasks.send} />
-      </form>
+    <div className="flex h-full min-w-0 flex-1 flex-col">
+      <MessageScrollerProvider>
+        <MessageScroller className="min-h-0 flex-1 bg-chat-zone">
+          <MessageScrollerViewport>
+            <MessageScrollerContent className="p-4">
+              {isLoading ? (
+                <MessageGroup>
+                  {[0, 1, 2].map((i) => (
+                    <Skeleton key={i} className="h-14 w-2/3" />
+                  ))}
+                </MessageGroup>
+              ) : items.length === 0 ? (
+                <div className="flex h-full items-center justify-center">
+                  <Empty>
+                    <EmptyTitle>{ui.tasks.discussionEmpty}</EmptyTitle>
+                  </Empty>
+                </div>
+              ) : (
+                <MessageGroup className="gap-3">
+                  {runs.map((run, runIndex) => {
+                    const prevRun = runIndex === 0 ? undefined : runs[runIndex - 1];
+                    const { first, last } = run;
+                    return (
+                      <Fragment key={first.id}>
+                        {startsNewDay(prevRun?.last, first) ? (
+                          <MessageScrollerItem>
+                            <DayChip label={formatDayLabel(first.createdAt)} />
+                          </MessageScrollerItem>
+                        ) : null}
+                        <div className="flex min-w-0 flex-col gap-0.5">
+                          {run.items.map((message) => (
+                            <MessageScrollerItem key={message.id}>
+                              <ChatMessageItem
+                                message={message}
+                                mine={run.mine}
+                                showName={!run.mine && message.id === first.id}
+                                showAvatar={message.id === last.id}
+                                tail={message.id === last.id}
+                              />
+                            </MessageScrollerItem>
+                          ))}
+                        </div>
+                      </Fragment>
+                    );
+                  })}
+                </MessageGroup>
+              )}
+            </MessageScrollerContent>
+          </MessageScrollerViewport>
+          <MessageScrollerButton />
+        </MessageScroller>
+      </MessageScrollerProvider>
+      {/* В покое высота h-16 = высоте бара действий слева: верхние линии обоих
+          баров — одна горизонталь через границу зон (вердикт владельца);
+          при росте текста композер расширяется вверх, как в мессенджере. */}
+      <ChatComposer
+        key={taskId}
+        placeholder={ui.tasks.addComment}
+        onSend={(text) => send.mutate(text)}
+        focusId={`task:${taskId}`}
+      />
     </div>
   );
 });

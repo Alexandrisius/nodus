@@ -52,75 +52,82 @@ export function ChatWorkspace({
   const panel = useChatSidePanel();
 
   return (
-    <div className="flex h-full min-w-0 flex-1 flex-col">
-      <header
-        className={cn(
-          'flex shrink-0 items-center gap-3 border-b border-border px-4',
-          compact ? 'h-12' : 'h-14',
-        )}
-      >
-        {compact ? (
-          <div className="truncate font-mono text-[10px] tracking-[0.12em] text-muted-foreground uppercase">
-            {conversationSubtitle(conversation)}
-          </div>
-        ) : (
-          <>
-            {isNotesConversation(conversation, meId) ? (
-              <NotesGlyph className="size-9 shrink-0" />
-            ) : (
-              <PersonAvatar
-                name={conversationTitle(conversation, meId)}
-                avatarUrl={conversation.avatarUrl}
-                className="size-9 shrink-0"
-              />
-            )}
-            <div className="min-w-0">
-              <div className="truncate text-sm font-semibold">
-                {conversationTitle(conversation, meId)}
-              </div>
-              <div className="truncate font-mono text-[10px] tracking-[0.12em] text-muted-foreground uppercase">
-                {conversationSubtitle(conversation)}
-              </div>
+    // Панель беседы — ПОЛНОВЫСОТНЫЙ сиблинг всей рабочей области (вердикт
+    // владельца 15.09.2026, рефы Битрикс24): занимает ВЕРХНИЙ БАР тоже, её
+    // шапка (название + крестик у края) продолжает бар, тоггл уезжает влево.
+    <div className="flex h-full min-w-0 flex-1">
+      <div className="flex h-full min-w-0 flex-1 flex-col">
+        <header
+          className={cn(
+            'flex shrink-0 items-center gap-3 border-b border-border px-4',
+            compact ? 'h-12' : 'h-14',
+          )}
+        >
+          {compact ? (
+            <div className="truncate font-mono text-[10px] tracking-[0.12em] text-muted-foreground uppercase">
+              {conversationSubtitle(conversation)}
             </div>
-          </>
-        )}
-        <div className="ml-auto flex shrink-0 items-center gap-2">
-          {conversation.type === 'task' && conversation.task ? (
-            <button
-              type="button"
-              onClick={() => openCard({ kind: 'task', id: conversation.task?.id ?? '' })}
-              className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 font-mono text-[10px] tracking-[0.12em] text-muted-foreground uppercase transition-colors hover:border-input hover:text-foreground"
-            >
-              {ui.chat.openTask}
-              <SquareArrowOutUpRight className="size-3.5" strokeWidth={1.75} />
-            </button>
-          ) : null}
-          <ChatPanelToggle open={panel.open} onToggle={panel.toggle} />
+          ) : (
+            <>
+              {isNotesConversation(conversation, meId) ? (
+                <NotesGlyph className="size-9 shrink-0" />
+              ) : (
+                <PersonAvatar
+                  name={conversationTitle(conversation, meId)}
+                  avatarUrl={conversation.avatarUrl}
+                  className="size-9 shrink-0"
+                />
+              )}
+              <div className="min-w-0">
+                <div className="truncate text-sm font-semibold">
+                  {conversationTitle(conversation, meId)}
+                </div>
+                <div className="truncate font-mono text-[10px] tracking-[0.12em] text-muted-foreground uppercase">
+                  {conversationSubtitle(conversation)}
+                </div>
+              </div>
+            </>
+          )}
+          <div className="ml-auto flex shrink-0 items-center gap-2">
+            {conversation.type === 'task' && conversation.task ? (
+              <button
+                type="button"
+                onClick={() => openCard({ kind: 'task', id: conversation.task?.id ?? '' })}
+                className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 font-mono text-[10px] tracking-[0.12em] text-muted-foreground uppercase transition-colors hover:border-input hover:text-foreground"
+              >
+                {ui.chat.openTask}
+                <SquareArrowOutUpRight className="size-3.5" strokeWidth={1.75} />
+              </button>
+            ) : null}
+            <ChatPanelToggle open={panel.open} onToggle={panel.toggle} />
+          </div>
+        </header>
+        <div className="flex min-h-0 flex-1">
+          {conversation.type === 'project_channel' ? (
+            <ChannelView
+              conversationId={conversation.id}
+              threadRootId={threadRootId}
+              onOpenThread={onOpenThread}
+              onCloseThread={onCloseThread}
+            />
+          ) : (
+            <ConversationPane
+              conversationId={conversation.id}
+              showAuthor={conversation.type !== 'direct'}
+            />
+          )}
         </div>
-      </header>
-      <div className="flex min-h-0 flex-1">
-        {conversation.type === 'project_channel' ? (
-          <ChannelView
-            conversationId={conversation.id}
-            threadRootId={threadRootId}
-            onOpenThread={onOpenThread}
-            onCloseThread={onCloseThread}
-          />
-        ) : (
-          <ConversationPane
-            conversationId={conversation.id}
-            showAuthor={conversation.type !== 'direct'}
-          />
-        )}
-        {panel.mounted ? (
-          <ChatSidePanel
-            conversationId={conversation.id}
-            open={panel.open}
-            onClose={panel.close}
-            threadRootId={threadRootId}
-          />
-        ) : null}
       </div>
+      {panel.mounted ? (
+        <ChatSidePanel
+          conversationId={conversation.id}
+          open={panel.open}
+          onClose={panel.close}
+          title={conversation.type === 'project_channel' ? ui.chat.aboutChannel : ui.chat.aboutChat}
+          headerClass={compact ? 'h-12' : 'h-14'}
+          threadRootId={threadRootId}
+        />
+      ) : null}
     </div>
   );
 }

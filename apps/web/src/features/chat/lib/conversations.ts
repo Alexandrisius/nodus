@@ -45,17 +45,15 @@ export function sortByActivity(conversations: ConversationListItem[]): Conversat
   });
 }
 
-/** Подзаголовок активной беседы: тип + участники (русская деловая форма). */
+/** Подзаголовок активной беседы: тип + участники (русская деловая форма).
+ *  Название ПРОЕКТА и номер задачи НЕ повторяем: они уже в заголовке строки
+ *  (вердикт владельца 15.09.2026: «дублирование названий проекта в чатах»). */
 export function conversationSubtitle(conversation: ConversationListItem): string {
   if (conversation.type === 'project_channel') {
-    return conversation.project
-      ? `${ui.chat.channelOfProject} · ${conversation.project.name}`
-      : ui.chat.channel;
+    return ui.chat.channelOfProject;
   }
   if (conversation.type === 'task') {
-    return conversation.task
-      ? `${ui.chat.taskChat} · № ${conversation.task.number}`
-      : ui.chat.taskChat;
+    return ui.chat.taskChat;
   }
   const members = conversation.membersPreview.length;
   if (conversation.type === 'group') {

@@ -108,6 +108,20 @@ const rawConversations: Omit<ConversationListItem, 'pinned' | 'muted' | 'snoozed
     unreadCount: 0,
   },
   {
+    // «Заметки» — диалог с собой (модель Битрикс24): живёт в списке бесед
+    // мессенджера и в экспресс-ленте правой полосы ПОСТОЯННО (вердикт
+    // владельца 15.09.2026: «заметки пропали даже в мессенджере»).
+    id: cid(11),
+    type: 'direct',
+    title: null,
+    avatarUrl: null,
+    project: null,
+    task: null,
+    membersPreview: [userRef(userIds.klimovich)],
+    lastMessage: null,
+    unreadCount: 0,
+  },
+  {
     id: cid(9),
     type: 'task',
     title: null,

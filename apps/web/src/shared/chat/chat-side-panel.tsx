@@ -68,16 +68,29 @@ export function useChatSidePanel() {
  * открытом треде — переключатель области «Вся беседа / Этот тред» (канон
  * пресетов: 13px, зона bg-muted/40, активный bg-accent): файлы/ссылки
  * фильтруются по корню треда и его ответам.
+ *
+ * ГЕОМЕТРИЯ (вердикт владельца 15.09.2026, рефы Битрикс24): панель —
+ * ПОЛНОВЫСОТНАЯ колонка-сиблинг всего контента хоста: занимает ВЕРХНИЙ БАР
+ * тоже. Её верхняя строка (высотой в бар хоста, `headerClass`) = название
+ * панели («О чате»/«О канале»/«О проекте») СЛЕВА + крестик У САМОГО КРАЯ
+ * справа; никаких внутренних перегородок в баре. Кнопка-тоггл остаётся в
+ * баре беседы и уезжает ВЛЕВО при раскрытии (бар хоста сужается панелью).
  */
 export function ChatSidePanel({
   conversationId,
   open,
   onClose,
+  title,
+  headerClass = 'h-14',
   threadRootId = null,
 }: {
   conversationId: string;
   open: boolean;
   onClose: () => void;
+  title: string;
+  /** Высота верхней строки панели = высота верхнего бара хоста (линии
+   *  border-b продолжаются друг в друга). */
+  headerClass?: string;
   threadRootId?: string | null;
 }) {
   const { data } = useConversationMessages(conversationId);
@@ -100,77 +113,87 @@ export function ChatSidePanel({
         open ? 'w-[300px]' : 'w-0',
       )}
     >
-      <aside className="flex h-full w-[300px] flex-col gap-3 overflow-y-auto border-l border-border bg-card p-4">
-        <div className="flex shrink-0 items-center justify-between">
-          <NodeLabel label={ui.chat.panelTitle} />
+      <aside className="flex h-full w-[300px] flex-col border-l border-border bg-card">
+        {/* Верхняя строка панели — НА УРОВНЕ бара хоста: название слева,
+            крестик у самого правого края (реф Битрикс24, вердикт владельца
+            15.09.2026); border-b продолжает линию бара хоста. */}
+        <div
+          className={cn(
+            'flex shrink-0 items-center gap-2 border-b border-border px-3',
+            headerClass,
+          )}
+        >
+          <NodeLabel label={title} />
           <Button
             variant="ghost"
             size="icon"
-            className="hover:bg-accent"
+            className="ml-auto shrink-0 hover:bg-accent"
             onClick={onClose}
             aria-label={ui.common.close}
           >
             <X />
           </Button>
         </div>
+        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
+          {threadRootId ? (
+            <div className="flex shrink-0 gap-1 rounded-lg bg-muted/40 p-1">
+              {(['all', 'thread'] as const).map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setScope(s)}
+                  aria-pressed={scope === s}
+                  className={cn(
+                    'flex-1 rounded-md px-2 py-1 text-[13px] transition-colors',
+                    scope === s
+                      ? 'bg-accent text-foreground'
+                      : 'text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  {s === 'all' ? ui.chat.scopeAll : ui.chat.scopeThread}
+                </button>
+              ))}
+            </div>
+          ) : null}
 
-        {threadRootId ? (
-          <div className="flex shrink-0 gap-1 rounded-lg bg-muted/40 p-1">
-            {(['all', 'thread'] as const).map((s) => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => setScope(s)}
-                aria-pressed={scope === s}
-                className={cn(
-                  'flex-1 rounded-md px-2 py-1 text-[13px] transition-colors',
-                  scope === s
-                    ? 'bg-accent text-foreground'
-                    : 'text-muted-foreground hover:text-foreground',
-                )}
-              >
-                {s === 'all' ? ui.chat.scopeAll : ui.chat.scopeThread}
-              </button>
-            ))}
-          </div>
-        ) : null}
+          <Section icon={FileText} title={ui.chat.filesMedia}>
+            {files.length > 0 ? (
+              files.map((file) => (
+                <span key={file.id} className="truncate font-mono text-[12px] text-info">
+                  {file.name}
+                </span>
+              ))
+            ) : (
+              <span className="text-sm text-muted-foreground">{ui.common.empty}</span>
+            )}
+          </Section>
 
-        <Section icon={FileText} title={ui.chat.filesMedia}>
-          {files.length > 0 ? (
-            files.map((file) => (
-              <span key={file.id} className="truncate font-mono text-[12px] text-info">
-                {file.name}
-              </span>
-            ))
-          ) : (
-            <span className="text-sm text-muted-foreground">{ui.common.empty}</span>
-          )}
-        </Section>
-
-        <Section icon={Link2} title={ui.chat.links}>
-          {links.length > 0 ? (
-            links.map((link) => (
-              <a
-                key={link}
-                href={link}
-                target="_blank"
-                rel="noreferrer"
-                className="truncate font-mono text-[12px] text-info hover:underline"
-              >
-                {link}
-              </a>
-            ))
-          ) : (
-            <span className="text-sm text-muted-foreground">{ui.common.empty}</span>
-          )}
-        </Section>
+          <Section icon={Link2} title={ui.chat.links}>
+            {links.length > 0 ? (
+              links.map((link) => (
+                <a
+                  key={link}
+                  href={link}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="truncate font-mono text-[12px] text-info hover:underline"
+                >
+                  {link}
+                </a>
+              ))
+            ) : (
+              <span className="text-sm text-muted-foreground">{ui.common.empty}</span>
+            )}
+          </Section>
+        </div>
       </aside>
     </div>
   );
 }
 
 /** Кнопка тоггла панели беседы — для шапки беседы СПРАВА ВВЕРХУ (канон
- *  кнопки «О задаче» в полосе карточки задачи). */
+ *  кнопки «О задаче» в полосе карточки задачи). При открытой панели уезжает
+ *  влево: панель занимает её место в баре (вердикт владельца 15.09.2026). */
 export function ChatPanelToggle({ open, onToggle }: { open: boolean; onToggle: () => void }) {
   return (
     <button

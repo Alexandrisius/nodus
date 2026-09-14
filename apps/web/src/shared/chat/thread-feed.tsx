@@ -117,7 +117,10 @@ export const ThreadFeed = memo(function ThreadFeed({
                         {formatTime(root.createdAt)}
                       </span>
                     </span>
-                    <span className="-mx-3.5 -mb-3.5 mt-3 flex items-center gap-2 rounded-b-[13px] border-t border-border/60 bg-muted/40 px-3.5 py-2">
+                    <span
+                      data-thread-port
+                      className="-mx-3.5 -mb-3.5 mt-3 flex items-center gap-2 rounded-b-[13px] border-t border-border/60 bg-muted/40 px-3.5 py-2"
+                    >
                       {participants.length > 0 ? (
                         <span className="flex shrink-0 -space-x-1.5">
                           {participants.slice(0, 3).map((p) => (

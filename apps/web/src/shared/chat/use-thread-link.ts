@@ -77,9 +77,13 @@ export function useThreadLink({
     if (!sourceEl || !feedEl) return null;
     const sRect = sourceEl.getBoundingClientRect();
     const fRect = feedEl.getBoundingClientRect();
+    // Порт — середина полосы «Обсудить» (data-thread-port), видимость/pinned —
+    // по всей карточке (вердикт владельца 14.09.2026, повторно 15.09.2026).
+    const portEl = sourceEl.querySelector('[data-thread-port]');
+    const pRect = (portEl ?? sourceEl).getBoundingClientRect();
     // Источник — ось строки действий поста или кромка ленты (pinned): связь
     // не прячется при скролле, а обрывается на кромке (вердикт владельца).
-    const src = threadLinkSource(sRect, fRect);
+    const src = threadLinkSource(sRect, fRect, pRect);
     const cRect = container.getBoundingClientRect();
     // portX — viewport-АБСОЛЮТНЫЙ левый край окна треда: локальным его
     // делает threadLinkPoints (двойной вычет однажды увёл порт в середину

@@ -68,100 +68,112 @@ export function ProjectCard({ projectId }: { projectId: string }) {
   }
 
   return (
-    <div className="flex h-full flex-col">
-      {/* Таб-бар КАРТОЧКИ на всю ширину (как полоса цепочки у задачи):
+    // Панель беседы — ПОЛНОВЫСОТНЫЙ сиблинг всей карточки (вердикт владельца
+    // 15.09.2026, рефы Битрикс24): занимает таб-бар тоже, её шапка
+    // (название + крестик у края) продолжает линию таб-бара.
+    <div className="flex h-full min-w-0">
+      <div className="flex h-full min-w-0 flex-1 flex-col">
+        {/* Таб-бар КАРТОЧКИ на всю ширину (как полоса цепочки у задачи):
           ТОЛЬКО вкладки слева и КНОПКА ПАНЕЛИ БЕСЕДЫ — крайняя справа
           (канон кнопки «О задаче»). Органы списка (вид, поиск, фильтр,
           шестерёнка) — в строке инструментов вкладки; чипов стадии/
           приватности НЕТ (приватность — полем в «О проекте», стадия
           удалена как сущность — вердикт владельца). */}
-      <div className="content-fade flex shrink-0 items-center gap-1 overflow-x-auto border-b border-border px-4">
-        {projectTabs.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => setTab(t.id)}
-            aria-current={tab === t.id}
-            className={cn(
-              'flex h-10 shrink-0 items-center gap-2 rounded-none border-b-2 px-3 font-mono text-[11px] tracking-[0.14em] uppercase transition-colors',
-              tab === t.id
-                ? 'border-port text-foreground'
-                : 'border-transparent text-muted-foreground hover:text-foreground/80',
-            )}
-          >
-            {t.label}
-          </button>
-        ))}
-        <div className="ml-auto flex shrink-0 items-center gap-2">
-          {project.channelId ? <ChatPanelToggle open={panel.open} onToggle={panel.toggle} /> : null}
-        </div>
-      </div>
-
-      {/* Левая зона (контент вкладки) и колонка обсуждения — вертикальная
-          граница структурная (анатомия карточки задачи). */}
-      <div className="grid min-h-0 flex-1" style={{ gridTemplateColumns: 'minmax(0,1fr) auto' }}>
-        <div className="relative flex min-h-0 flex-col border-r border-border @container">
-          <div className="content-fade min-h-0 flex-1 overflow-hidden">
-            {tab === 'tasks' ? <ProjectTasksTab projectId={projectId} /> : null}
-            {tab === 'gantt' ? <ProjectGantt projectId={projectId} /> : null}
-            {tab === 'report' ? <ProjectReport projectId={projectId} /> : null}
-            {tab === 'flow' ? <ProjectFlow projectId={projectId} /> : null}
-            {tab === 'about' ? (
-              <div className="h-full overflow-y-auto p-6">
-                <div className="mx-auto w-full max-w-4xl">
-                  <EntityFields
-                    defs={projectPassportDefs(project, openCard)}
-                    storageKey="nodus-project-fields-v1"
-                  />
-                </div>
-              </div>
+        <div className="content-fade flex h-10 shrink-0 items-center gap-1 overflow-x-auto border-b border-border px-4">
+          {projectTabs.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setTab(t.id)}
+              aria-current={tab === t.id}
+              className={cn(
+                'flex h-10 shrink-0 items-center gap-2 rounded-none border-b-2 px-3 font-mono text-[11px] tracking-[0.14em] uppercase transition-colors',
+                tab === t.id
+                  ? 'border-port text-foreground'
+                  : 'border-transparent text-muted-foreground hover:text-foreground/80',
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+          <div className="ml-auto flex shrink-0 items-center gap-2">
+            {project.channelId ? (
+              <ChatPanelToggle open={panel.open} onToggle={panel.toggle} />
             ) : null}
           </div>
-
-          {/* Ручка ресайза чата: невидимый оверлей ПОВЕРХ структурной границы
-              (канон карточки задачи, память общая на все карточки) */}
-          <div
-            onPointerDown={onDividerDown}
-            role="separator"
-            aria-orientation="vertical"
-            aria-label={ui.common.resizePanel}
-            title={ui.common.resizePanel}
-            className="group absolute top-0 right-0 z-10 h-full w-3 translate-x-1/2 cursor-col-resize"
-          >
-            <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-port/60 opacity-0 transition-opacity group-hover:opacity-100" />
-          </div>
         </div>
 
-        {/* Колонка обсуждения (канал проекта): фон — структура с первого
+        {/* Левая зона (контент вкладки) и колонка обсуждения — вертикальная
+          граница структурная (анатомия карточки задачи). */}
+        <div className="grid min-h-0 flex-1" style={{ gridTemplateColumns: 'minmax(0,1fr) auto' }}>
+          <div className="relative flex min-h-0 flex-col border-r border-border @container">
+            <div className="content-fade min-h-0 flex-1 overflow-hidden">
+              {tab === 'tasks' ? <ProjectTasksTab projectId={projectId} /> : null}
+              {tab === 'gantt' ? <ProjectGantt projectId={projectId} /> : null}
+              {tab === 'report' ? <ProjectReport projectId={projectId} /> : null}
+              {tab === 'flow' ? <ProjectFlow projectId={projectId} /> : null}
+              {tab === 'about' ? (
+                <div className="h-full overflow-y-auto p-6">
+                  <div className="mx-auto w-full max-w-4xl">
+                    <EntityFields
+                      defs={projectPassportDefs(project, openCard)}
+                      storageKey="nodus-project-fields-v1"
+                    />
+                  </div>
+                </div>
+              ) : null}
+            </div>
+
+            {/* Ручка ресайза чата: невидимый оверлей ПОВЕРХ структурной границы
+              (канон карточки задачи, память общая на все карточки) */}
+            <div
+              onPointerDown={onDividerDown}
+              role="separator"
+              aria-orientation="vertical"
+              aria-label={ui.common.resizePanel}
+              title={ui.common.resizePanel}
+              className="group absolute top-0 right-0 z-10 h-full w-3 translate-x-1/2 cursor-col-resize"
+            >
+              <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-port/60 opacity-0 transition-opacity group-hover:opacity-100" />
+            </div>
+          </div>
+
+          {/* Колонка обсуждения (канал проекта): фон — структура с первого
             кадра роста. Панель беседы — ВНУТРИ колонки справа: анимируется
             ОДНА ширина колонки (левая зона не дёргается); лента не уже
             360px при открытой панели (колонка ≥ 660 — тогда панель
             выталкивает левую зону, по правилу владельца). */}
-        <div
-          ref={chatRef}
-          className={cn('min-h-0 overflow-hidden', !dragging && 'transition-[width] duration-200')}
-          style={{ width: columnW }}
-        >
-          <div className="flex h-full w-full bg-background">
-            <div className="content-fade min-h-0 min-w-0 flex-1">
-              <ProjectChat
-                project={project}
-                threadId={threadId}
-                onOpenThread={setThreadId}
-                onCloseThread={() => setThreadId(null)}
-              />
+          <div
+            ref={chatRef}
+            className={cn(
+              'min-h-0 overflow-hidden',
+              !dragging && 'transition-[width] duration-200',
+            )}
+            style={{ width: columnW }}
+          >
+            <div className="flex h-full w-full bg-background">
+              <div className="content-fade min-h-0 min-w-0 flex-1">
+                <ProjectChat
+                  project={project}
+                  threadId={threadId}
+                  onOpenThread={setThreadId}
+                  onCloseThread={() => setThreadId(null)}
+                />
+              </div>
             </div>
-            {panel.mounted && project.channelId ? (
-              <ChatSidePanel
-                conversationId={project.channelId}
-                open={panel.open}
-                onClose={panel.close}
-                threadRootId={threadId}
-              />
-            ) : null}
           </div>
         </div>
       </div>
+      {panel.mounted && project.channelId ? (
+        <ChatSidePanel
+          conversationId={project.channelId}
+          open={panel.open}
+          onClose={panel.close}
+          title={ui.chat.aboutProject}
+          headerClass="h-10"
+          threadRootId={threadId}
+        />
+      ) : null}
     </div>
   );
 }

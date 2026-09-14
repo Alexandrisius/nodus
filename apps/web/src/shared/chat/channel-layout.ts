@@ -39,9 +39,9 @@ export function threadMaxW(containerW: number): number {
 /**
  * Точки ребра связи/вспышки «пост → окно треда» в координатах контейнера
  * канала (грамматика контура: ортогональ, локоть скруглённый): правый край
- * поста на его вертикальной середине (threadLinkSource) → локоть в середине
- * зазора → порт левого края окна треда на оси его шапки. ВСЕ ВХОДЫ — viewport-
- * абсолютные координаты (source.x/y и portX = левый край окна треда);
+ * поста на середине его полосы «Обсудить» (threadLinkSource) → локоть в
+ * середине зазора → порт левого края окна треда на оси его шапки. ВСЕ ВХОДЫ —
+ * viewport-абсолютные координаты (source.x/y и portX = левый край окна треда);
  * локальными их делает только эта функция. Двойной вычет container.left
  * однажды увёл порт в середину ленты (вердикт валидатора #42; регрессионный
  * тест с container.left ≠ 0 проверяет ПОСЛЕДНЮЮ точку). При `pinned` (пост
@@ -96,10 +96,11 @@ export function threadScopeMessages<T extends { id: string; threadRootId: string
   return items.filter((m) => m.threadRootId === threadRootId || m.id === threadRootId);
 }
 
-/** Источник связи треда. Пост ВИДИМ ЦЕЛИКОМ — точка на ВЕРТИКАЛЬНОЙ СЕРЕДИНЕ
- *  его правого края (центрировка порта, вердикт владельца 14.09.2026: после
- *  рестайла карточки поста порт уехал к нижней полосе ответов — связь должна
- *  указывать на пост ЦЕЛИКОМ, а не на его подвал). Любая часть поста за краем
+/** Источник связи треда. Пост ВИДИМ ЦЕЛИКОМ — порт на вертикальной середине
+ *  его НИЖНЕЙ полосы «Обсудить» (вердикт владельца 14.09.2026: «центр не всей
+ *  новости, а нижней части, там где обсудить»; полоса помечена
+ *  `data-thread-port` в карточке поста; повторное применение 15.09.2026 —
+ *  правка потерялась при общем откате 14.09). Любая часть поста за краем
  *  ленты (частично скрыт или целиком) — `pinned`: связь не прячется при
  *  скролле (вердикт владельца: связь ПОКАЗЫВАЕТ, из какого поста открытый
  *  тред, и помогает найти пост), но линия ОБРЫВАЕТСЯ на верхней/нижней кромке
@@ -110,9 +111,10 @@ export function threadScopeMessages<T extends { id: string; threadRootId: string
 export function threadLinkSource(
   source: { top: number; bottom: number },
   feed: { top: number; bottom: number },
+  port: { top: number; bottom: number },
 ): { y: number; pinned: 'top' | 'bottom' | null } {
   if (source.top >= feed.top && source.bottom <= feed.bottom) {
-    return { y: Math.round((source.top + source.bottom) / 2), pinned: null };
+    return { y: Math.round((port.top + port.bottom) / 2), pinned: null };
   }
   return source.top < feed.top
     ? { y: feed.top, pinned: 'top' }

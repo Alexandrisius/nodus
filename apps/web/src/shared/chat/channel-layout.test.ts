@@ -115,19 +115,29 @@ describe('threadScopeMessages', () => {
 
 describe('threadLinkSource', () => {
   const feed = { top: 100, bottom: 800 };
-  it('пост видим целиком — порт на вертикальной середине поста, без pin', () => {
-    expect(threadLinkSource({ top: 200, bottom: 400 }, feed)).toEqual({ y: 300, pinned: null });
+  it('пост видим целиком — порт на середине полосы «Обсудить», без pin', () => {
+    expect(threadLinkSource({ top: 200, bottom: 400 }, feed, { top: 364, bottom: 400 })).toEqual({
+      y: 382,
+      pinned: null,
+    });
   });
   it('любая часть поста за краем — pinned: линия оборвётся на кромке без точки', () => {
-    expect(threadLinkSource({ top: -300, bottom: 150 }, feed)).toEqual({ y: 100, pinned: 'top' });
-    expect(threadLinkSource({ top: 750, bottom: 1000 }, feed)).toEqual({
+    expect(threadLinkSource({ top: -300, bottom: 150 }, feed, { top: 100, bottom: 150 })).toEqual({
+      y: 100,
+      pinned: 'top',
+    });
+    expect(threadLinkSource({ top: 750, bottom: 1000 }, feed, { top: 960, bottom: 1000 })).toEqual({
       y: 800,
       pinned: 'bottom',
     });
-    expect(threadLinkSource({ top: -300, bottom: -100 }, feed)).toEqual({ y: 100, pinned: 'top' });
-    expect(threadLinkSource({ top: 900, bottom: 1100 }, feed)).toEqual({
-      y: 800,
-      pinned: 'bottom',
-    });
+    expect(
+      threadLinkSource({ top: -300, bottom: -100 }, feed, { top: -140, bottom: -100 }),
+    ).toEqual({ y: 100, pinned: 'top' });
+    expect(threadLinkSource({ top: 900, bottom: 1100 }, feed, { top: 1060, bottom: 1100 })).toEqual(
+      {
+        y: 800,
+        pinned: 'bottom',
+      },
+    );
   });
 });

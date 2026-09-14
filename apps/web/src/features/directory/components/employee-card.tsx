@@ -102,165 +102,174 @@ export function EmployeeCard({ userId }: { userId: string }) {
   ];
 
   return (
-    <div className="flex h-full flex-col">
-      {/* Полоса: аватар-якорь + presence + позиция (имя — в хроме слайдера) */}
-      <div className="shrink-0 border-b border-border">
-        <div className="content-fade flex items-center gap-3 px-5 py-3">
-          <PersonAvatar
-            name={card.displayName}
-            avatarUrl={card.avatarUrl}
-            className="size-10 shrink-0"
-          />
-          <NodeChip tone={presenceTone[presenceStatus]} className="shrink-0">
-            <span
-              aria-hidden
-              className={
-                presenceStatus === 'online'
-                  ? 'size-1.5 rounded-full bg-success'
-                  : presenceStatus === 'away'
-                    ? 'size-1.5 rounded-full bg-warning'
-                    : 'size-1.5 rounded-full bg-muted-foreground'
-              }
+    // Панель беседы — ПОЛНОВЫСОТНЫЙ сиблинг всей карточки (вердикт владельца
+    // 15.09.2026, рефы Битрикс24): занимает верхнюю полосу карточки тоже.
+    <div className="flex h-full min-w-0">
+      <div className="flex h-full min-w-0 flex-1 flex-col">
+        {/* Полоса: аватар-якорь + presence + позиция (имя — в хроме слайдера) */}
+        <div className="shrink-0 border-b border-border">
+          <div className="content-fade flex h-16 items-center gap-3 px-5">
+            <PersonAvatar
+              name={card.displayName}
+              avatarUrl={card.avatarUrl}
+              className="size-10 shrink-0"
             />
-            {presenceLabel(presenceStatus)}
-          </NodeChip>
-          <span className="truncate font-mono text-[11px] text-muted-foreground">
-            {listItem.positionName ?? ''}
-            {listItem.departmentName ? ` · ${listItem.departmentName}` : ''}
-          </span>
-          <div className="ml-auto flex shrink-0 items-center">
-            {directQuery.data ? (
-              <ChatPanelToggle open={panel.open} onToggle={panel.toggle} />
-            ) : null}
+            <NodeChip tone={presenceTone[presenceStatus]} className="shrink-0">
+              <span
+                aria-hidden
+                className={
+                  presenceStatus === 'online'
+                    ? 'size-1.5 rounded-full bg-success'
+                    : presenceStatus === 'away'
+                      ? 'size-1.5 rounded-full bg-warning'
+                      : 'size-1.5 rounded-full bg-muted-foreground'
+                }
+              />
+              {presenceLabel(presenceStatus)}
+            </NodeChip>
+            <span className="truncate font-mono text-[11px] text-muted-foreground">
+              {listItem.positionName ?? ''}
+              {listItem.departmentName ? ` · ${listItem.departmentName}` : ''}
+            </span>
+            <div className="ml-auto flex shrink-0 items-center">
+              {directQuery.data ? (
+                <ChatPanelToggle open={panel.open} onToggle={panel.toggle} />
+              ) : null}
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Вкладки карточки (модель профиля Битрикс24, моно-ряд) — ПОЛНАЯ
+        {/* Вкладки карточки (модель профиля Битрикс24, моно-ряд) — ПОЛНАЯ
           ШИРИНА над зонами (модель карточки проекта): горизонтальная линия
           таб-бара не обрывается на колонке чата (вердикт владельца
           12.09.2026: линии не совпадали). Органы списков (поиск, фильтр,
           шестерёнка) — в строке инструментов вкладки (единый стандарт). */}
-      <div className="content-fade flex shrink-0 items-center gap-1 border-b border-border px-4">
-        {tabs.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => setTab(t.id)}
-            aria-current={tab === t.id}
-            className={cn(
-              'flex h-10 items-center gap-2 rounded-none border-b-2 px-3 font-mono text-[11px] tracking-[0.14em] uppercase transition-colors',
-              tab === t.id
-                ? 'border-port text-foreground'
-                : 'border-transparent text-muted-foreground hover:text-foreground/80',
-            )}
-          >
-            {t.label}
-            {t.count !== undefined ? (
-              <span className="font-mono text-[10px] text-muted-foreground tabular-nums">
-                {t.count}
-              </span>
-            ) : null}
-          </button>
-        ))}
-      </div>
-
-      {/* Левая зона (вкладки) и колонка личного диалога — вертикальная
-          граница структурная, зона чата — фон с первого кадра раскрытия. */}
-      <div className="grid min-h-0 flex-1" style={{ gridTemplateColumns: 'minmax(0,1fr) auto' }}>
-        <div className="relative flex min-h-0 flex-col border-r border-border @container">
-          <div className="content-fade min-h-0 flex-1 overflow-hidden">
-            {tab === 'profile' ? (
-              <div className="h-full overflow-y-auto p-6">
-                <div className="mx-auto w-full max-w-4xl">
-                  <EntityFields
-                    defs={employeeProfileDefs({ card, listItem, manager, openCard })}
-                    storageKey={VISIBILITY_KEY}
-                  />
-                  <div className="mt-8">
-                    <NodeLabel label={ui.employees.subordinates} count={subordinates.length} />
-                  </div>
-                  <div className="mt-2.5 flex flex-col gap-1">
-                    {subordinates.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">{ui.common.empty}</p>
-                    ) : null}
-                    {subordinates.map((person) => (
-                      <button
-                        key={person.id}
-                        type="button"
-                        onClick={() => openCard({ kind: 'employee', id: person.id })}
-                        className="flex items-center gap-2.5 rounded-md px-1 py-1.5 text-left text-sm hover:bg-accent/50"
-                      >
-                        <PersonAvatar name={person.displayName} className="size-7 shrink-0" />
-                        <span className="min-w-0 flex-1 truncate">{person.displayName}</span>
-                        <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
-                          {person.positionName ?? ''}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            ) : null}
-
-            {tab === 'tasks' ? (
-              <EmployeeTasksTab tasks={tasks} isLoading={tasksQuery.isLoading} />
-            ) : null}
-
-            {tab === 'projects' ? (
-              <EmployeeProjectsTab projects={projects} isLoading={projectsQuery.isLoading} />
-            ) : null}
-          </div>
-
-          {/* Ручка ресайза чата: невидимый оверлей ПОВЕРХ структурной границы
-              (канон карточки задачи, память общая на все карточки) */}
-          <div
-            onPointerDown={onDividerDown}
-            role="separator"
-            aria-orientation="vertical"
-            aria-label={ui.common.resizePanel}
-            title={ui.common.resizePanel}
-            className="group absolute top-0 right-0 z-10 h-full w-3 translate-x-1/2 cursor-col-resize"
-          >
-            <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-port/60 opacity-0 transition-opacity group-hover:opacity-100" />
-          </div>
+        <div className="content-fade flex shrink-0 items-center gap-1 border-b border-border px-4">
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setTab(t.id)}
+              aria-current={tab === t.id}
+              className={cn(
+                'flex h-10 items-center gap-2 rounded-none border-b-2 px-3 font-mono text-[11px] tracking-[0.14em] uppercase transition-colors',
+                tab === t.id
+                  ? 'border-port text-foreground'
+                  : 'border-transparent text-muted-foreground hover:text-foreground/80',
+              )}
+            >
+              {t.label}
+              {t.count !== undefined ? (
+                <span className="font-mono text-[10px] text-muted-foreground tabular-nums">
+                  {t.count}
+                </span>
+              ) : null}
+            </button>
+          ))}
         </div>
 
-        {/* Колонка личного диалога: фон — структура с первого кадра; шапки
+        {/* Левая зона (вкладки) и колонка личного диалога — вертикальная
+          граница структурная, зона чата — фон с первого кадра раскрытия. */}
+        <div className="grid min-h-0 flex-1" style={{ gridTemplateColumns: 'minmax(0,1fr) auto' }}>
+          <div className="relative flex min-h-0 flex-col border-r border-border @container">
+            <div className="content-fade min-h-0 flex-1 overflow-hidden">
+              {tab === 'profile' ? (
+                <div className="h-full overflow-y-auto p-6">
+                  <div className="mx-auto w-full max-w-4xl">
+                    <EntityFields
+                      defs={employeeProfileDefs({ card, listItem, manager, openCard })}
+                      storageKey={VISIBILITY_KEY}
+                    />
+                    <div className="mt-8">
+                      <NodeLabel label={ui.employees.subordinates} count={subordinates.length} />
+                    </div>
+                    <div className="mt-2.5 flex flex-col gap-1">
+                      {subordinates.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">{ui.common.empty}</p>
+                      ) : null}
+                      {subordinates.map((person) => (
+                        <button
+                          key={person.id}
+                          type="button"
+                          onClick={() => openCard({ kind: 'employee', id: person.id })}
+                          className="flex items-center gap-2.5 rounded-md px-1 py-1.5 text-left text-sm hover:bg-accent/50"
+                        >
+                          <PersonAvatar name={person.displayName} className="size-7 shrink-0" />
+                          <span className="min-w-0 flex-1 truncate">{person.displayName}</span>
+                          <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
+                            {person.positionName ?? ''}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              {tab === 'tasks' ? (
+                <EmployeeTasksTab tasks={tasks} isLoading={tasksQuery.isLoading} />
+              ) : null}
+
+              {tab === 'projects' ? (
+                <EmployeeProjectsTab projects={projects} isLoading={projectsQuery.isLoading} />
+              ) : null}
+            </div>
+
+            {/* Ручка ресайза чата: невидимый оверлей ПОВЕРХ структурной границы
+              (канон карточки задачи, память общая на все карточки) */}
+            <div
+              onPointerDown={onDividerDown}
+              role="separator"
+              aria-orientation="vertical"
+              aria-label={ui.common.resizePanel}
+              title={ui.common.resizePanel}
+              className="group absolute top-0 right-0 z-10 h-full w-3 translate-x-1/2 cursor-col-resize"
+            >
+              <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-port/60 opacity-0 transition-opacity group-hover:opacity-100" />
+            </div>
+          </div>
+
+          {/* Колонка личного диалога: фон — структура с первого кадра; шапки
             у чата НЕТ (собеседник и так в хроме карточки — вердикт). Панель
             беседы — ВНУТРИ колонки справа: одна анимируемая ширина (левая
             зона не дёргается); лента не уже 360px при открытой панели. */}
-        <div
-          ref={chatRef}
-          className={cn('min-h-0 overflow-hidden', !dragging && 'transition-[width] duration-200')}
-          style={{ width: columnW }}
-        >
-          <div className="flex h-full w-full bg-background">
-            <div className="content-fade min-h-0 min-w-0 flex-1">
-              {directQuery.data ? (
-                <ConversationPane
-                  conversationId={directQuery.data.id}
-                  showAuthor={false}
-                  emptyLabel={ui.chat.directEmpty}
-                />
-              ) : (
-                <div className="flex flex-col gap-3 p-4">
-                  {[0, 1, 2].map((i) => (
-                    <Skeleton key={i} className="h-14 w-2/3" />
-                  ))}
-                </div>
-              )}
+          <div
+            ref={chatRef}
+            className={cn(
+              'min-h-0 overflow-hidden',
+              !dragging && 'transition-[width] duration-200',
+            )}
+            style={{ width: columnW }}
+          >
+            <div className="flex h-full w-full bg-background">
+              <div className="content-fade min-h-0 min-w-0 flex-1">
+                {directQuery.data ? (
+                  <ConversationPane
+                    conversationId={directQuery.data.id}
+                    showAuthor={false}
+                    emptyLabel={ui.chat.directEmpty}
+                  />
+                ) : (
+                  <div className="flex flex-col gap-3 p-4">
+                    {[0, 1, 2].map((i) => (
+                      <Skeleton key={i} className="h-14 w-2/3" />
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
-            {panel.mounted && directQuery.data ? (
-              <ChatSidePanel
-                conversationId={directQuery.data.id}
-                open={panel.open}
-                onClose={panel.close}
-              />
-            ) : null}
           </div>
         </div>
       </div>
+      {panel.mounted && directQuery.data ? (
+        <ChatSidePanel
+          conversationId={directQuery.data.id}
+          open={panel.open}
+          onClose={panel.close}
+          title={ui.chat.aboutChat}
+          headerClass="h-16"
+        />
+      ) : null}
     </div>
   );
 }

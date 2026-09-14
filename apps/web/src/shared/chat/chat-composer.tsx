@@ -67,54 +67,72 @@ export function ChatComposer({
     <form
       onSubmit={onSubmit}
       className={cn(
-        'flex h-16 shrink-0 items-center gap-1 border-t border-border bg-card px-3',
+        // Высота НЕ фиксирована: композер растёт с текстом (вердикт владельца
+        // 15.09.2026, модель Битрикс24): min-h-16 держит канон нижних баров в
+        // покое, py-2 + рост поля расширяют бар вверх, лента ужимается.
+        'flex min-h-16 shrink-0 items-end gap-2 border-t border-border bg-card px-3 py-2',
         className,
       )}
     >
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        className="shrink-0 text-muted-foreground"
-        aria-label={ui.chat.attachFile}
-        title={ui.chat.attachFile}
-      >
-        <Paperclip />
-      </Button>
-      {/* autoFocus: вход в чат = курсор сразу в композере (вердикт владельца
-          14.09.2026: «не тыкаться мышкой»); key по conversationId в пейнах
-          ремоунтит композер — фокус возвращается при каждой смене беседы.
-          focus-visible без кольца и смены бордюра: контур поля статичен. */}
-      <Textarea
-        ref={inputRef}
-        autoFocus
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        onKeyDown={onKeyDown}
-        placeholder={placeholder}
-        rows={2}
-        className="max-h-14 min-h-9 flex-1 resize-none focus-visible:border-input focus-visible:ring-0"
-      />
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        className="shrink-0 text-muted-foreground"
-        aria-label={ui.chat.emoji}
-        title={ui.chat.emoji}
-      >
-        <Smile />
-      </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        className="shrink-0 text-muted-foreground"
-        aria-label={ui.chat.voice}
-        title={ui.chat.voice}
-      >
-        <Mic />
-      </Button>
+      {/* Единая поверхность композера (вердикт владельца 15.09.2026 + research:
+          Битрикс24 «tools in the reply field», Discord/Slack — иконки ВНУТРИ
+          контейнера ввода): скрепка слева и смайл/микрофон справа ЖИВУТ
+          ВНУТРИ поля, поле от края до края, отправка — отдельно справа.
+          При росте поля скрепка держится ВЕРХА, правые иконки — НИЗА
+          (хореография Битрикс24, вердикт владельца 15.09.2026). Контур поля
+          статичен (при фокусе не подсвечивается). */}
+      <span className="flex min-w-0 flex-1 items-stretch gap-0.5 rounded-xl border border-input px-1 py-1">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-xs"
+          className="shrink-0 self-start text-muted-foreground"
+          aria-label={ui.chat.attachFile}
+          title={ui.chat.attachFile}
+        >
+          <Paperclip />
+        </Button>
+        {/* autoFocus: вход в чат = курсор сразу в композере (вердикт владельца
+            14.09.2026: «не тыкаться мышкой»); key по conversationId в пейнах
+            ремоунтит композер — фокус возвращается при каждой смене беседы.
+            rows=1 + field-sizing-content: в покое ОДНА строка (текст и
+            плейсхолдер по центру высоты), при вводе растёт до 45vh
+            (≈половина окна — вердикт владельца 15.09.2026: «чтобы не
+            появлялся вертикальный скролл»; безлимита нет: черновик на сотни
+            строк не должен вытеснять ленту), дальше — скролл внутри поля. */}
+        <Textarea
+          ref={inputRef}
+          autoFocus
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={onKeyDown}
+          placeholder={placeholder}
+          rows={1}
+          className="max-h-[45vh] min-h-7 flex-1 resize-none rounded-lg border-0 bg-transparent px-1.5 py-1 shadow-none ring-0 focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent"
+        />
+        <span className="flex shrink-0 items-end gap-0.5 self-end">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            className="shrink-0 text-muted-foreground"
+            aria-label={ui.chat.emoji}
+            title={ui.chat.emoji}
+          >
+            <Smile />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            className="shrink-0 text-muted-foreground"
+            aria-label={ui.chat.voice}
+            title={ui.chat.voice}
+          >
+            <Mic />
+          </Button>
+        </span>
+      </span>
       <SendHexButton disabled={!text.trim()} label={ui.tasks.send} />
     </form>
   );
