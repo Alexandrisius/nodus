@@ -4,6 +4,7 @@ import { Textarea } from '@nodus/ui/components/textarea';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { SendHexButton } from '../ui/send-hex-button.js';
+import { isSendShortcut } from './send-keys.js';
 
 /** Композер сообщений (единый для чатов, тредов и обсуждений): бар h-16 —
  *  канон нижних баров карточки (верхние линии всех баров — одна горизонталь),
@@ -19,12 +20,24 @@ export function ChatComposer({
 }) {
   const [text, setText] = useState('');
 
-  function onSubmit(event: FormEvent) {
-    event.preventDefault();
+  function send() {
     const trimmed = text.trim();
     if (!trimmed) return;
     setText('');
     onSend(trimmed);
+  }
+
+  function onSubmit(event: FormEvent) {
+    event.preventDefault();
+    send();
+  }
+
+  // Классика мессенджеров (вердикт владельца 14.09.2026): Enter — отправить,
+  // Shift+Enter / Ctrl+Enter — перенос строки.
+  function onKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (!isSendShortcut(event.key, event.shiftKey, event.ctrlKey)) return;
+    event.preventDefault();
+    send();
   }
 
   return (
@@ -38,6 +51,7 @@ export function ChatComposer({
       <Textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
+        onKeyDown={onKeyDown}
         placeholder={placeholder}
         rows={2}
         className="max-h-14 min-h-9 flex-1 resize-none"

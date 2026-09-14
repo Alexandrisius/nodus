@@ -7,11 +7,12 @@ import { Input } from '@nodus/ui/components/input';
 
 import { useAuthStore } from '../../../shared/auth-store.js';
 import { useConversations } from '../api/chat-api.js';
+import { ChatSettings } from '../components/chat-settings.js';
 import { ChatWorkspace } from '../components/chat-workspace.js';
 import { ConversationList } from '../components/conversation-list.js';
 import { conversationSubtitle, conversationTitle } from '../lib/conversations.js';
 
-type ChatTab = 'chats' | 'tasks';
+type ChatTab = 'chats' | 'tasks' | 'settings';
 
 /**
  * Мессенджер: слева — ЕДИНЫЙ список бесед по активности без секций
@@ -32,7 +33,8 @@ type ChatTab = 'chats' | 'tasks';
 export function ChatPage() {
   const { conversationId } = useParams({ strict: false }) as { conversationId?: string };
   const search = useSearch({ strict: false }) as { thread?: string; tab?: string };
-  const tab: ChatTab = search.tab === 'tasks' ? 'tasks' : 'chats';
+  const tab: ChatTab =
+    search.tab === 'tasks' ? 'tasks' : search.tab === 'settings' ? 'settings' : 'chats';
   const { data, isLoading } = useConversations();
   const meId = useAuthStore((s) => s.user?.id);
   const navigate = useNavigate();
@@ -50,6 +52,16 @@ export function ChatPage() {
         conversationSubtitle(c).toLowerCase().includes(q),
     );
   const active = data?.items.find((c) => c.id === conversationId);
+
+  // Подмодуль «Настройка» (вердикт владельца 14.09.2026, модель Битрикс24):
+  // отдельная страница мессенджера без списка бесед.
+  if (tab === 'settings') {
+    return (
+      <div className="relative flex h-full flex-col">
+        <ChatSettings />
+      </div>
+    );
+  }
 
   return (
     <div className="relative flex h-full">

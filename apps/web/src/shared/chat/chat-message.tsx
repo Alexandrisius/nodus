@@ -14,6 +14,7 @@ import {
 } from '@nodus/ui/components/attachment';
 
 import { formatTime } from '../lib/format.js';
+import { useChatPrefs } from './chat-prefs.js';
 import { PersonAvatar } from '../ui/person-avatar.js';
 
 /** Реакции сообщения: плоские моно-чипы на токенах (моя — info). */
@@ -59,8 +60,11 @@ export function MessageAttachments({ message }: { message: ChatMessage }) {
 
 /**
  * Сообщение чата по канону «Инструмента» (Message/Bubble-примитивы, как
- * обсуждение задачи): свои — справа (primary-пузырь, без аватара), чужие —
- * слева (аватар + outline-пузырь); автор и время — моно-хедер; реакции и
+ * обсуждение задачи): выравнивание — НАСТРОЙКА пользователя (вердикт
+ * владельца 14.09.2026, модель Телеграма/Битрикс24, `chat-prefs.ts`):
+ * 'one' (дефолт) — все сообщения с одной стороны, свои с аватаром рядом с
+ * собеседником (широкую ленту с пузырями по разным краям неудобно читать);
+ * 'both' — классика: свои справа (primary-пузырь), чужие слева. Реакции и
  * вложения — под пузырём; действия над сообщением — контекстное меню по
  * правому клику (MessageMenu, без кнопок на сообщении — вердикт владельца).
  */
@@ -74,9 +78,13 @@ export const ChatMessageItem = memo(function ChatMessageItem({
   /** В личных диалогах имя автора можно опустить. */
   showAuthor?: boolean;
 }) {
+  const align = useChatPrefs((s) => s.align);
+  const oneSide = align === 'one';
   return (
-    <Message align={mine ? 'end' : 'start'} className="group/msg">
-      {!mine ? <PersonAvatar name={message.author.displayName} className="size-7" /> : null}
+    <Message align={mine && !oneSide ? 'end' : 'start'} className="group/msg">
+      {!mine || oneSide ? (
+        <PersonAvatar name={message.author.displayName} className="size-7" />
+      ) : null}
       <MessageContent>
         <MessageHeader className="gap-1.5">
           {showAuthor || mine ? (

@@ -340,6 +340,13 @@ export const ui = {
     feedEmpty: 'В канале пока нет сообщений',
     directEmpty: 'Сообщений пока нет — напишите первое',
     notes: 'Заметки',
+    tabSettings: 'Настройка',
+    settingsAppearance: 'Оформление',
+    alignTitle: 'Выравнивание сообщений',
+    alignBoth: 'По обе стороны',
+    alignOne: 'С одной стороны',
+    alignHint:
+      'Своё сообщение можно держать напротив собеседника (классика) или вместе с ним с одной стороны — как удобнее читать.',
     selectConversation: 'Выберите беседу',
     membersCountOne: 'участник',
     membersCountFew: 'участника',

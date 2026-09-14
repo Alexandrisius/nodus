@@ -75,13 +75,22 @@ function sectionsFor(pathname: string): Section[] {
         label: ui.chat.tabChats,
         to: '/chat',
         search: {},
-        isActive: (s) => s.get('tab') !== 'tasks',
+        isActive: (s) => {
+          const tab = s.get('tab');
+          return tab !== 'tasks' && tab !== 'settings';
+        },
       },
       {
         label: ui.chat.tabTaskChats,
         to: '/chat',
         search: { tab: 'tasks' },
         isActive: (s) => s.get('tab') === 'tasks',
+      },
+      {
+        label: ui.chat.tabSettings,
+        to: '/chat',
+        search: { tab: 'settings' },
+        isActive: (s) => s.get('tab') === 'settings',
       },
     ];
   }
