@@ -64,11 +64,12 @@ export function measureCircuit(pathname = '/'): CircuitGeometry | null {
   }));
   const leftEl = document.querySelector<HTMLElement>('[data-left-node]');
   const leftNode = leftEl ? centerOf(leftEl) : null;
-  // Ось заканчивается на правом крае мягкой рамы: служебная полоса (профиль +
+  // Правый край оси = правый край мягкой рамы: служебная полоса (профиль +
   // коллеги) живёт ЗА пределами рамы в правом периметре (план R4/R5) — связь
-  // не пересекает зону аватарок; раскрытие полосы (кнопка-шевроны) сужает раму, и ось
-  // идёт за её краем покадрово.
+  // не пересекает зону аватарок; раскрытие полосы (кнопка-шевроны) сужает
+  // раму, и ось идёт за её краем покадрово.
   const frameEl = document.querySelector<HTMLElement>('[data-soft-frame]');
+  const frameRect = frameEl?.getBoundingClientRect();
   const lastY = modules.length ? Math.max(...modules.map((m) => m.port.y)) : axisY;
   // Схлопнутая рейка: стык — правый край узла бокового шва (точка 5px);
   // «виртуальный» активный модуль опирает вспышки на ось (портов внутри
@@ -83,15 +84,15 @@ export function measureCircuit(pathname = '/'): CircuitGeometry | null {
     modules: leftNode ? [{ to: pathname, active: true, port: junction }] : modules,
     tabs,
     leftNode,
-    rightEdge: frameEl
-      ? frameEl.getBoundingClientRect().right
-      : document.documentElement.clientWidth,
+    rightEdge: frameRect ? frameRect.right : document.documentElement.clientWidth,
     // Мессенджер: ось = ещё и верхняя граница окна чата — на всю ширину рамы;
     // остальные модули: связь до последнего подмодуля (вердикт 14.09.2026).
     axisFull: pathname.startsWith('/chat'),
-    // Главная (подмодулей нет): шина заканчивается терминальной точкой на
-    // линии шапки; у схлопнутой рейки эту роль играет её узел бокового шва.
-    terminus: !leftNode && tabs.length === 0 ? junction : null,
+    // Главная (подмодулей нет): связь доводится до ЛЕВОГО КРАЯ мягкой области
+    // и заканчивается на нём терминальной точкой (вердикт владельца вечером
+    // 14.09.2026: «довести связь до мягкой области и там в точку
+    // законнектиться»); у схлопнутой рейки эту роль играет её узел шва.
+    terminus: !leftNode && tabs.length === 0 ? { x: frameRect?.left ?? 0, y: axisY } : null,
     // Шина заканчивается в точке отхода последнего отвода (порт-10) — без хвоста.
     spineEndY: leftNode ? axisY : modules.length ? lastY - 10 : axisY,
   };
@@ -106,8 +107,9 @@ export function measureCircuit(pathname = '/'): CircuitGeometry | null {
  * остальных вкладок — чистые вертикали, стоящие НА оси (низ засечки внутри
  * строки оси — шва не видно). ИСКЛЮЧЕНИЕ — мессенджер (`axisFull`): там ось
  * одновременно верхняя граница окна чата и идёт до правого края рамы.
- * Модуль без подмодулей (Главная): шина заканчивается терминальной точкой
- * (geo.terminus рисует circuit-frame). Отводы модулей — локтями. */
+ * Модуль без подмодулей (Главная): связь доводится до ЛЕВОГО КРАЯ мягкой
+ * области и заканчивается на нём терминальной точкой (geo.terminus рисует
+ * circuit-frame; вердикт владельца вечером 14.09.2026). Отводы модулей — локтями. */
 export function framePath(g: CircuitGeometry): string {
   // Прямые сегменты — по снапнутым координатам (см. snapPx): одинаковая
   // чёткость/яркость всех линий на любом DPR/зуме.
@@ -128,12 +130,17 @@ export function framePath(g: CircuitGeometry): string {
     points.push({ x: jx, y: ay }, { x: axisEnd, y: ay });
     if (!g.axisFull) points.push({ x: lastX, y: tickY });
     parts.push(orthPath(points, 8));
-    // Засечки остальных подмодулей — вертикали на оси (в мессенджере — всех).
+    // Засечки остальных подмодулей — локти с коротким подходом СЛЕВА ПО ОСИ:
+    // угол входа вертикали в ось скруглён (радиус 6), как локти вспышки;
+    // голая вертикаль на оси читалась «прямоугольным углом» рядом со
+    // скруглением вспышки (вердикт владельца вечером 14.09.2026). Подход
+    // сливается с осью (та же линия) и отдельно не виден.
     for (const tx of tabsX) {
       if (!g.axisFull && tx === lastX) continue;
       parts.push(
         orthPath(
           [
+            { x: tx - 10, y: ay },
             { x: tx, y: ay },
             { x: tx, y: tickY },
           ],
@@ -141,18 +148,15 @@ export function framePath(g: CircuitGeometry): string {
         ),
       );
     }
-  } else if (spineStartY !== ay) {
-    // Подмодулей нет: шина поднимается до линии шапки — конец увенчивает
-    // терминальная точка (terminus), плоского среза не остаётся.
-    parts.push(
-      orthPath(
-        [
-          { x: jx, y: spineStartY },
-          { x: jx, y: ay },
-        ],
-        8,
-      ),
-    );
+  } else {
+    // Подмодулей нет (Главная): шина поднимается до линии шапки, и связь
+    // доводится до ЛЕВОГО КРАЯ мягкой области, где заканчивается терминальной
+    // точкой (geo.terminus рисует circuit-frame) — плоского среза нет.
+    const points: NodeEdgePoint[] = [];
+    if (spineStartY !== ay) points.push({ x: jx, y: spineStartY });
+    points.push({ x: jx, y: ay });
+    if (g.terminus) points.push({ x: snapPx(g.terminus.x), y: ay });
+    parts.push(orthPath(points, 8));
   }
   for (const m of g.modules) {
     // Отвод рисуем, только если порт вынесен от шины (у схлопнутой рейки
