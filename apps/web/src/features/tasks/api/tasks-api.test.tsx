@@ -94,6 +94,7 @@ describe('useSendTaskMessage: оптимистичность (I4)', () => {
       reactions: [],
       attachments: [],
       editedAt: null,
+      readAt: null,
       createdAt: new Date().toISOString(),
     };
     await act(async () => gate.resolve(jsonResponse(201, server)));

@@ -109,6 +109,7 @@ export const demoTaskMessages: ChatMessage[] = [
     reactions: [],
     attachments: [],
     editedAt: null,
+    readAt: null,
     createdAt: isoAgo(2, 9, 12),
   },
   {
@@ -122,6 +123,7 @@ export const demoTaskMessages: ChatMessage[] = [
     reactions: [{ emoji: '👍', count: 1, mine: false }],
     attachments: [],
     editedAt: null,
+    readAt: isoAgo(2, 9, 41),
     createdAt: isoAgo(2, 9, 40),
   },
   {
@@ -142,6 +144,7 @@ export const demoTaskMessages: ChatMessage[] = [
       },
     ],
     editedAt: null,
+    readAt: null,
     createdAt: isoAgo(1, 14, 5),
   },
 ];

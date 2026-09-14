@@ -147,6 +147,7 @@ function msg(
     reactions: [],
     attachments: [],
     editedAt: null,
+    readAt: author === userIds.klimovich ? createdAt : null,
     createdAt,
     ...extra,
   };

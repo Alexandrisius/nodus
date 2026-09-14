@@ -103,6 +103,7 @@ export function useSendChatMessage(conversationId: string) {
         reactions: [],
         attachments: [],
         editedAt: null,
+        readAt: null,
         createdAt: new Date().toISOString(),
       };
 
@@ -153,6 +154,11 @@ export function useSendChatMessage(conversationId: string) {
             }
           : old,
       );
+      // Собеседник «прочитывает» сообщение спустя пару секунд (мокап): одна
+      // отложенная инвалидация переключает галочки sent→read без polling.
+      window.setTimeout(() => {
+        void queryClient.invalidateQueries({ queryKey: chatKeys.messages(conversationId) });
+      }, 2500);
     },
 
     onSettled: () => {

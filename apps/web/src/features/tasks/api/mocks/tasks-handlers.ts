@@ -325,6 +325,7 @@ export const tasksHandlers = [
       reactions: [],
       attachments: [],
       editedAt: null,
+      readAt: null,
       createdAt: new Date().toISOString(),
     };
     demoTaskMessages.push(message);

@@ -38,6 +38,9 @@ export const messageSchema = z.object({
   reactions: z.array(messageReactionSchema),
   attachments: z.array(messageAttachmentSchema),
   editedAt: z.iso.datetime().nullable(),
+  /** Метка прочтения: когда собеседник прочитал сообщение (галочки «sent/read»
+   *  у своих сообщений); null — отправлено, ещё не прочитано. */
+  readAt: z.iso.datetime().nullable(),
   createdAt: z.iso.datetime(),
 });
 

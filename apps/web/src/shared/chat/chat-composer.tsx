@@ -48,7 +48,11 @@ export function ChatComposer({
         className,
       )}
     >
+      {/* autoFocus: вход в чат = курсор сразу в композере (вердикт владельца
+          14.09.2026: «не тыкаться мышкой»); key по conversationId в пейнах
+          ремоунтит композер — фокус возвращается при каждой смене беседы. */}
       <Textarea
+        autoFocus
         value={text}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={onKeyDown}

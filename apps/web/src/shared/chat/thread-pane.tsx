@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { Fragment, memo, useMemo } from 'react';
 import { ArrowLeft, X } from 'lucide-react';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
@@ -17,14 +17,19 @@ import {
 import { useAuthStore } from '../auth-store.js';
 import { ChatComposer } from './chat-composer.js';
 import { ChatMessageItem } from './chat-message.js';
+import { DayChip } from './day-chip.js';
+import { buildMessageRuns, formatDayLabel, startsNewDay } from './message-groups.js';
 import { MessageMenu } from './message-menu.js';
 import { useSendChatMessage, useThreadMessages } from './api.js';
 
 /**
  * Тред канала (вердикт владельца): «провалиться внутрь — обычный чат».
- * Шапка — моно-метка «Обсуждение»; корневой пост отделён штриховой линией,
- * ответы — обычные сообщения с контекстным меню по правому клику; композер
- * отправляет с threadRootId (уведомления — только участники треда и
+ * Шапка — моно-метка «Обсуждение»; корневой пост отделён штриховой линией и
+ * живёт собственной серией из одного сообщения (имя/аватар/хвостик — полный
+ * набор); ответы — разговорная лента с сериями одного автора (план
+ * docs/mvp/chat-messages-plan.md): имя только чужое и только у первого
+ * сообщения серии, аватар и хвостик у последнего, дата-чипы при смене дня.
+ * Композер отправляет с threadRootId (уведомления — только участники треда и
  * наблюдатели проекта, бэкенд-механика M13). Правая панель беседы — у
  * контейнера (шапка беседы), не у пейна.
  *
@@ -50,6 +55,8 @@ export const ThreadPane = memo(function ThreadPane({
   const items = data?.items ?? [];
   const root = items.find((m) => m.id === threadRootId);
   const replies = items.filter((m) => m.id !== threadRootId);
+  const runs = useMemo(() => buildMessageRuns(replies, me?.id), [replies, me?.id]);
+  const rootMine = root ? root.author.id === me?.id : false;
 
   return (
     <div className="flex h-full min-w-0 flex-1 flex-col">
@@ -83,15 +90,17 @@ export const ThreadPane = memo(function ThreadPane({
                   ))}
                 </MessageGroup>
               ) : (
-                <MessageGroup>
+                <MessageGroup className="gap-3">
                   {root ? (
                     <MessageScrollerItem>
-                      <MessageMenu
-                        message={root}
-                        mine={root.author.id === me?.id}
-                        conversationId={conversationId}
-                      >
-                        <ChatMessageItem message={root} mine={root.author.id === me?.id} />
+                      <MessageMenu message={root} mine={rootMine} conversationId={conversationId}>
+                        <ChatMessageItem
+                          message={root}
+                          mine={rootMine}
+                          showName={!rootMine}
+                          showAvatar
+                          tail
+                        />
                       </MessageMenu>
                       <span
                         aria-hidden
@@ -99,14 +108,36 @@ export const ThreadPane = memo(function ThreadPane({
                       />
                     </MessageScrollerItem>
                   ) : null}
-                  {replies.map((message) => {
-                    const mine = message.author.id === me?.id;
+                  {runs.map((run, runIndex) => {
+                    const prevLast = runIndex === 0 ? root : runs[runIndex - 1]?.last;
+                    const { first, last } = run;
                     return (
-                      <MessageScrollerItem key={message.id}>
-                        <MessageMenu message={message} mine={mine} conversationId={conversationId}>
-                          <ChatMessageItem message={message} mine={mine} />
-                        </MessageMenu>
-                      </MessageScrollerItem>
+                      <Fragment key={first.id}>
+                        {startsNewDay(prevLast, first) ? (
+                          <MessageScrollerItem>
+                            <DayChip label={formatDayLabel(first.createdAt)} />
+                          </MessageScrollerItem>
+                        ) : null}
+                        <div className="flex min-w-0 flex-col gap-0.5">
+                          {run.items.map((message) => (
+                            <MessageScrollerItem key={message.id}>
+                              <MessageMenu
+                                message={message}
+                                mine={run.mine}
+                                conversationId={conversationId}
+                              >
+                                <ChatMessageItem
+                                  message={message}
+                                  mine={run.mine}
+                                  showName={!run.mine && message.id === first.id}
+                                  showAvatar={message.id === last.id}
+                                  tail={message.id === last.id}
+                                />
+                              </MessageMenu>
+                            </MessageScrollerItem>
+                          ))}
+                        </div>
+                      </Fragment>
                     );
                   })}
                 </MessageGroup>

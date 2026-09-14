@@ -58,6 +58,19 @@ export const chatHandlers = [
   http.get('/api/v1/chat/conversations/:id/messages', ({ params, request }) => {
     const threadRootId = new URL(request.url).searchParams.get('threadRootId');
     const all = demoMessages.filter((m) => m.conversationId === params.id);
+    // Симуляция прочтения (мокап до бэкенда): своё сообщение собеседник
+    // «прочитывает» через ~2 с после отправки — галочки sent→read без polling:
+    // клиент делает отложенную инвалидацию после отправки (useSendChatMessage).
+    const now = Date.now();
+    for (const m of all) {
+      if (
+        m.readAt === null &&
+        m.author.id === currentAuthUser.id &&
+        now - Date.parse(m.createdAt) > 2000
+      ) {
+        m.readAt = m.createdAt;
+      }
+    }
     const items = threadRootId
       ? [
           ...all.filter((m) => m.id === threadRootId),
@@ -94,6 +107,7 @@ export const chatHandlers = [
       reactions: [],
       attachments: [],
       editedAt: null,
+      readAt: null,
       createdAt: new Date().toISOString(),
     };
     demoMessages.push(message);
