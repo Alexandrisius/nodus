@@ -14,6 +14,16 @@ export const messageAttachmentSchema = z.object({
   name: z.string().min(1),
   size: z.number().int().min(0),
   mime: z.string().min(1),
+  /** Явный вид (НЕ выводить из mime: mime — для иконки и валидации):
+   *  image — галерея, file — чип. */
+  kind: z.enum(['image', 'file']),
+  /** Адрес оригинала (в проде — MinIO через StorageDriver, I13). */
+  url: z.string().nullable(),
+  /** Превью для галереи (null у файлов). */
+  thumbnailUrl: z.string().nullable(),
+  /** Габариты изображения: резерв бокса до загрузки (лента без сдвига). */
+  width: z.number().int().min(0).nullable(),
+  height: z.number().int().min(0).nullable(),
 });
 
 export type MessageAttachment = z.infer<typeof messageAttachmentSchema>;

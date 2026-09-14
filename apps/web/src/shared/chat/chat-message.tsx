@@ -1,4 +1,3 @@
-import { FileText } from 'lucide-react';
 import { memo } from 'react';
 import type { ChatMessage } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
@@ -10,15 +9,9 @@ import {
   MessageHeader,
 } from '@nodus/ui/components/message';
 import { Bubble, BubbleContent } from '@nodus/ui/components/bubble';
-import {
-  Attachment,
-  AttachmentContent,
-  AttachmentGroup,
-  AttachmentMedia,
-  AttachmentTitle,
-} from '@nodus/ui/components/attachment';
 
 import { formatTime } from '../lib/format.js';
+import { MessageAttachments } from './attachments.js';
 import { BubbleTail } from './bubble-tail.js';
 import { useChatPrefs } from './chat-prefs.js';
 import { PersonAvatar } from '../ui/person-avatar.js';
@@ -43,25 +36,6 @@ export function MessageReactions({ message }: { message: ChatMessage }) {
         </span>
       ))}
     </span>
-  );
-}
-
-/** Вложения сообщения: Attachment-примитивы (файл + размер не дублируем). */
-export function MessageAttachments({ message }: { message: ChatMessage }) {
-  if (message.attachments.length === 0) return null;
-  return (
-    <AttachmentGroup className="flex-wrap">
-      {message.attachments.map((file) => (
-        <Attachment key={file.id}>
-          <AttachmentMedia>
-            <FileText />
-          </AttachmentMedia>
-          <AttachmentContent>
-            <AttachmentTitle>{file.name}</AttachmentTitle>
-          </AttachmentContent>
-        </Attachment>
-      ))}
-    </AttachmentGroup>
   );
 }
 
@@ -155,11 +129,13 @@ export const ChatMessageItem = memo(function ChatMessageItem({
               tail && (atEnd ? 'rounded-br-none' : 'rounded-bl-none'),
             )}
           >
+            {/* Вложения — ВЫШЕ текста (грамматика Битрикс24, план
+                chat-attachments-plan): галерея/чипы сверху, затем текст. */}
+            {message.attachments.length > 0 ? <MessageAttachments message={message} /> : null}
             <span className="flex items-end gap-2">
               <span className="whitespace-pre-wrap break-words">{message.text}</span>
               {hasExtra ? null : timeRow}
             </span>
-            {message.attachments.length > 0 ? <MessageAttachments message={message} /> : null}
             {/* Нижняя строка пузыря: реакции СЛЕВА + время СПРАВА в ОДНОЙ
                 строке (вердикт владельца 14.09.2026: «реакции в самом низу,
                 не раздувать высоту»; реф Битрикс24). */}

@@ -8,7 +8,8 @@ import { useAuthStore } from '../auth-store.js';
 import { formatTime, plural } from '../lib/format.js';
 import { PersonAvatar } from '../ui/person-avatar.js';
 import { ChatComposer } from './chat-composer.js';
-import { MessageAttachments, MessageReactions } from './chat-message.js';
+import { MessageAttachments } from './attachments.js';
+import { MessageReactions } from './chat-message.js';
 import { MessageMenu } from './message-menu.js';
 import { useConversationMessages, useSendChatMessage } from './api.js';
 
@@ -21,11 +22,12 @@ function repliesLabel(count: number): string {
  * новость-тред. Корневые сообщения — плоские карточки-посты (не пузыри)
  * ОГРАНИЧЕННОЙ ширины (max-w-2xl, референс — каналы Битрикс24: пост не
  * тянется на всю ширину, действия под постом — рядом, не на другом краю
- * экрана): автор, текст, вложения, реакции; в подвале — участники обсуждения
- * (авторы ответов, ≤3 аватаров), счётчик ответов (скрыт при нуле — «0
- * ответов» шумит) и вход «Обсудить». Композер внизу создаёт НОВЫЙ тред
- * (корневой пост). Правый клик по посту — контекстное меню сообщения.
- * Правая панель беседы — у контейнера (шапка беседы), не у ленты.
+ * экрана). Грамматика поста (рефы владельца 14.09.2026): автор сверху;
+ * вложения (галерея/чипы) ВЫШЕ текста; реакции + время одной строкой внизу;
+ * ответы — отдельной тонированной полосой с аватарами участников и счётчиком
+ * (скрыт при нуле — «0 ответов» шумит) и входом «Обсудить». Композер внизу
+ * создаёт НОВЫЙ тред (корневой пост). Правый клик по посту — контекстное меню
+ * сообщения. Правая панель беседы — у контейнера (шапка беседы), не у ленты.
  */
 export const ThreadFeed = memo(function ThreadFeed({
   conversationId,
@@ -96,31 +98,33 @@ export const ThreadFeed = memo(function ThreadFeed({
                       <span className="min-w-0 truncate font-medium">
                         {root.author.displayName}
                       </span>
-                      <span className="ml-auto shrink-0 font-mono text-[11px] text-muted-foreground tabular-nums">
-                        {formatTime(root.createdAt)}
-                      </span>
                     </span>
-                    <span className="mt-2 block text-sm leading-relaxed whitespace-pre-wrap">
-                      {root.text}
-                    </span>
+                    {/* Грамматика поста Битрикс24 (рефы владельца 14.09.2026):
+                        вложения ВЫШЕ текста; реакции + время одной строкой
+                        внизу; ответы — отдельной тонированной полосой
+                        («N комментариев»), как у Битрикс. */}
                     {root.attachments.length > 0 ? (
                       <span className="mt-2 block">
                         <MessageAttachments message={root} />
                       </span>
                     ) : null}
-                    {root.reactions.length > 0 ? (
-                      <span className="mt-2 block">
-                        <MessageReactions message={root} />
+                    <span className="mt-2 block text-sm leading-relaxed whitespace-pre-wrap">
+                      {root.text}
+                    </span>
+                    <span className="mt-2 flex items-center gap-2">
+                      <MessageReactions message={root} />
+                      <span className="ml-auto shrink-0 font-mono text-[11px] text-muted-foreground tabular-nums">
+                        {formatTime(root.createdAt)}
                       </span>
-                    ) : null}
-                    <span className="mt-2.5 flex items-center gap-2">
+                    </span>
+                    <span className="-mx-3.5 -mb-3.5 mt-3 flex items-center gap-2 rounded-b-[13px] border-t border-border/60 bg-muted/40 px-3.5 py-2">
                       {participants.length > 0 ? (
                         <span className="flex shrink-0 -space-x-1.5">
                           {participants.slice(0, 3).map((p) => (
                             <PersonAvatar
                               key={p.id}
                               name={p.displayName}
-                              className="size-5 ring-2 ring-card"
+                              className="size-5 ring-2 ring-muted"
                             />
                           ))}
                         </span>

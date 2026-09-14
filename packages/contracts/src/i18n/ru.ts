@@ -328,6 +328,7 @@ export const ui = {
     yesterday: 'Вчера',
     sent: 'отправлено',
     read: 'прочитано',
+    download: 'Скачать',
     members: 'Участники',
     channelOfProject: 'Канал проекта',
     channel: 'Канал',

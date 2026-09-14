@@ -1,3 +1,11 @@
+/** Размер файла человеком (чип вложения): «367 КБ», «2,4 МБ». */
+export function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} Б`;
+  const kb = bytes / 1024;
+  if (kb < 1024) return `${Math.round(kb)} КБ`;
+  return `${(kb / 1024).toFixed(1).replace('.', ',')} МБ`;
+}
+
 /** Часы:минуты для трудозатрат (I14): 95 → «1:35». */
 export function formatMinutes(total: number): string {
   const h = Math.floor(total / 60);
