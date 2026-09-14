@@ -82,7 +82,7 @@ export function NodeRail() {
     <aside
       data-rail
       className={cn(
-        'relative flex h-full shrink-0 flex-col overflow-hidden border-r border-sidebar-border bg-sidebar text-sidebar-foreground',
+        'relative flex h-full shrink-0 flex-col overflow-hidden bg-sidebar text-sidebar-foreground',
         'transition-[width] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]',
         collapsed ? 'w-16' : 'w-60',
       )}
@@ -112,11 +112,13 @@ export function NodeRail() {
       {/* Якорь узла бокового шва схлопнутой рейки. САМА точка рисуется
           оверлеем контура (svg-круг в circuit-frame — как точки вкладок):
           DOM-точка внутри рейки резалась напополам её overflow-hidden и
-          выглядела «сплющенной» (вердикт владельца 12.09.2026). Центр якоря —
-          НА оси контура: 8px отступ рамы + топбар 56px = 64px (точка
-          «съезжала», пока якорь жил на старых 56px). */}
+          выглядела «сплющенной» (вердикт владельца 12.09.2026). Рейка БЕЗ
+          вертикальной границы и в один тон с периметром (воздушность, план
+          R1): узел сидит на ЛЕВОМ КРАЕ мягкой области (8px за рейкой) —
+          связь опирается на границу мягкой зоны. Центр якоря — НА оси
+          контура: 8px отступ рамы + топбар 56px = 64px. */}
       {collapsed && (
-        <span data-left-node aria-hidden className="absolute top-[63px] right-0 size-px" />
+        <span data-left-node aria-hidden className="absolute top-[63px] -right-[8.5px] size-px" />
       )}
 
       <nav className="flex flex-1 flex-col gap-4 overflow-y-auto py-3">

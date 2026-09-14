@@ -115,7 +115,11 @@
   --chart-4: #d795bc;
   --chart-5: #8cc8ea;
   --chart-6: #e08a66;
-  --sidebar: #0c0c0e;
+  /* Тон рейки = тон периметра (воздушность, вердикт владельца 13.09.2026,
+     план R1): левая сторона портала — одна подложка с периметром, как в рефе
+     «Задачи_Светлая тема»; структуру рейки несут плашки (sidebar-accent),
+     а не ступень тона. */
+  --sidebar: #0a0a0b;
   --sidebar-foreground: #c9c9c6;
   --sidebar-primary: #e8e8e6;
   --sidebar-primary-foreground: #0a0a0b;
@@ -201,7 +205,9 @@
   --chart-4: #cc79a7;
   --chart-5: #56b4e9;
   --chart-6: #d55e00;
-  --sidebar: #eceae7;
+  /* Тон рейки = тон периметра (воздушность, вердикт владельца 13.09.2026,
+     план R1): одна подложка слева и по периметру в обеих темах. */
+  --sidebar: #f4f2f0;
   --sidebar-foreground: #43454a;
   --sidebar-primary: #16233a;
   --sidebar-primary-foreground: #fbfaf8;
