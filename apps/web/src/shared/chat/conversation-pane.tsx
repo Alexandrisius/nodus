@@ -114,6 +114,7 @@ export function ConversationPane({
         key={conversationId}
         placeholder={composerPlaceholder}
         onSend={(text) => send.mutate({ text })}
+        focusId={`conversation:${conversationId}`}
       />
     </div>
   );

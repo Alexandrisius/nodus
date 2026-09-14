@@ -150,6 +150,7 @@ export const ThreadFeed = memo(function ThreadFeed({
       <ChatComposer
         placeholder={ui.chat.newPostPlaceholder}
         onSend={(text) => send.mutate({ text })}
+        focusId={`feed:${conversationId}`}
       />
     </div>
   );

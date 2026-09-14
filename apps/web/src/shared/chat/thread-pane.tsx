@@ -150,6 +150,7 @@ export const ThreadPane = memo(function ThreadPane({
       <ChatComposer
         placeholder={ui.chat.replyPlaceholder}
         onSend={(text) => send.mutate({ text, threadRootId })}
+        focusId={`thread:${threadRootId}`}
       />
     </div>
   );

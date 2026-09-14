@@ -115,8 +115,8 @@ describe('threadScopeMessages', () => {
 
 describe('threadLinkSource', () => {
   const feed = { top: 100, bottom: 800 };
-  it('пост видим целиком — ось его строки действий, без pin', () => {
-    expect(threadLinkSource({ top: 200, bottom: 400 }, feed)).toEqual({ y: 376, pinned: null });
+  it('пост видим целиком — порт на вертикальной середине поста, без pin', () => {
+    expect(threadLinkSource({ top: 200, bottom: 400 }, feed)).toEqual({ y: 300, pinned: null });
   });
   it('любая часть поста за краем — pinned: линия оборвётся на кромке без точки', () => {
     expect(threadLinkSource({ top: -300, bottom: 150 }, feed)).toEqual({ y: 100, pinned: 'top' });
