@@ -5,9 +5,11 @@ import { NodeChip } from '@nodus/ui/components/node-chip';
 import { Skeleton } from '@nodus/ui/components/skeleton';
 import { cn } from '@nodus/ui/lib/utils';
 
+import { useAuthStore } from '../../../shared/auth-store.js';
 import { formatTime } from '../../../shared/lib/format.js';
+import { NotesGlyph } from '../../../shared/ui/notes-glyph.js';
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
-import { conversationTitle, sortByActivity } from '../lib/conversations.js';
+import { conversationTitle, isNotesConversation, sortByActivity } from '../lib/conversations.js';
 
 /** Маркер типа беседы на аватаре (список единый, без секций — тип читается
  *  глифом): канал — мегафон, группа — участники, чат задачи — список;
@@ -39,6 +41,8 @@ export function ConversationList({
   emptyLabel?: string;
   onSelect: (conversation: ConversationListItem) => void;
 }) {
+  const meId = useAuthStore((s) => s.user?.id);
+
   if (isLoading) {
     return (
       <div className="flex flex-col gap-2 p-3">
@@ -77,11 +81,15 @@ export function ConversationList({
             )}
           >
             <span className="relative shrink-0">
-              <PersonAvatar
-                name={conversationTitle(conversation)}
-                avatarUrl={conversation.avatarUrl}
-                className="size-9"
-              />
+              {isNotesConversation(conversation, meId) ? (
+                <NotesGlyph className="size-9" />
+              ) : (
+                <PersonAvatar
+                  name={conversationTitle(conversation, meId)}
+                  avatarUrl={conversation.avatarUrl}
+                  className="size-9"
+                />
+              )}
               {TypeIcon ? (
                 <span
                   aria-hidden
@@ -94,7 +102,7 @@ export function ConversationList({
             <span className="min-w-0 flex-1">
               <span className="flex items-baseline justify-between gap-2">
                 <span className="truncate text-sm font-medium">
-                  {conversationTitle(conversation)}
+                  {conversationTitle(conversation, meId)}
                 </span>
                 {conversation.lastMessage ? (
                   <span className="shrink-0 font-mono text-[10px] text-muted-foreground tabular-nums">

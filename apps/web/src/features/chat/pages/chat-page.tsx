@@ -6,6 +6,8 @@ import { Empty, EmptyTitle } from '@nodus/ui/components/empty';
 import { Input } from '@nodus/ui/components/input';
 
 import { useOpenCard } from '../../../app/shell/use-card-stack.js';
+import { useAuthStore } from '../../../shared/auth-store.js';
+import { NotesGlyph } from '../../../shared/ui/notes-glyph.js';
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
 import { ConversationPane } from '../../../shared/chat/conversation-pane.js';
 import {
@@ -16,7 +18,11 @@ import {
 import { ChannelView } from '../../../shared/chat/channel-view.js';
 import { useConversations } from '../api/chat-api.js';
 import { ConversationList } from '../components/conversation-list.js';
-import { conversationSubtitle, conversationTitle } from '../lib/conversations.js';
+import {
+  conversationSubtitle,
+  conversationTitle,
+  isNotesConversation,
+} from '../lib/conversations.js';
 
 type ChatTab = 'chats' | 'tasks';
 
@@ -37,6 +43,7 @@ export function ChatPage() {
   const search = useSearch({ strict: false }) as { thread?: string; tab?: string };
   const tab: ChatTab = search.tab === 'tasks' ? 'tasks' : 'chats';
   const { data, isLoading } = useConversations();
+  const meId = useAuthStore((s) => s.user?.id);
   const navigate = useNavigate();
   const openCard = useOpenCard();
   // Панель беседы (закон: у каждого чата) — хостится контейнером страницы,
@@ -52,7 +59,7 @@ export function ChatPage() {
     .filter(
       (c) =>
         !q ||
-        conversationTitle(c).toLowerCase().includes(q) ||
+        conversationTitle(c, meId).toLowerCase().includes(q) ||
         conversationSubtitle(c).toLowerCase().includes(q),
     );
   const active = data?.items.find((c) => c.id === conversationId);
@@ -106,13 +113,19 @@ export function ChatPage() {
       {active ? (
         <div className="flex h-full min-w-0 flex-1 flex-col">
           <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-4">
-            <PersonAvatar
-              name={conversationTitle(active)}
-              avatarUrl={active.avatarUrl}
-              className="size-9 shrink-0"
-            />
+            {isNotesConversation(active, meId) ? (
+              <NotesGlyph className="size-9 shrink-0" />
+            ) : (
+              <PersonAvatar
+                name={conversationTitle(active, meId)}
+                avatarUrl={active.avatarUrl}
+                className="size-9 shrink-0"
+              />
+            )}
             <div className="min-w-0">
-              <div className="truncate text-sm font-semibold">{conversationTitle(active)}</div>
+              <div className="truncate text-sm font-semibold">
+                {conversationTitle(active, meId)}
+              </div>
               <div className="truncate font-mono text-[10px] tracking-[0.12em] text-muted-foreground uppercase">
                 {conversationSubtitle(active)}
               </div>

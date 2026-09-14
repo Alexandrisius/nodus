@@ -335,6 +335,7 @@ export const ui = {
     backToFeed: 'К ленте',
     feedEmpty: 'В канале пока нет сообщений',
     directEmpty: 'Сообщений пока нет — напишите первое',
+    notes: 'Заметки',
     selectConversation: 'Выберите беседу',
     membersCountOne: 'участник',
     membersCountFew: 'участника',

@@ -3,12 +3,29 @@ import { ui } from '@nodus/contracts';
 
 import { plural } from '../../../shared/lib/format.js';
 
+/** Диалог с самим собой — «Заметки» (модель Битрикс24, вердикт владельца
+ *  13.09.2026): единственный участник = текущий пользователь. */
+export function isNotesConversation(
+  conversation: ConversationListItem,
+  meId: string | null | undefined,
+): boolean {
+  return (
+    conversation.type === 'direct' &&
+    conversation.membersPreview.length === 1 &&
+    conversation.membersPreview[0]?.id === meId
+  );
+}
+
 /** Заголовок беседы: у канала/группы — название, у чата задачи — «№ · тема»,
- *  у личного — имя собеседника. */
-export function conversationTitle(conversation: ConversationListItem): string {
+ *  у личного — имя собеседника, у диалога с собой — «Заметки». */
+export function conversationTitle(
+  conversation: ConversationListItem,
+  meId?: string | null,
+): string {
   if (conversation.type === 'task' && conversation.task) {
     return `№ ${conversation.task.number} · ${conversation.task.title}`;
   }
+  if (isNotesConversation(conversation, meId)) return ui.chat.notes;
   return conversation.title ?? conversation.membersPreview[0]?.displayName ?? '';
 }
 
