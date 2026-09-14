@@ -1,15 +1,22 @@
 import { useEffect, useState } from 'react';
 import { ui } from '@nodus/contracts';
+import { Skeleton } from '@nodus/ui/components/skeleton';
 
 import { ProjectIdentityIcon } from '../../shared/ui/project-identity-icon.js';
 import { useLetterDetail } from '../../features/correspondence/api/letters-api.js';
 import { LetterCard } from '../../features/correspondence/components/letter-card.js';
+import { useConversations } from '../../features/chat/api/chat-api.js';
+import { ChatWorkspace } from '../../features/chat/components/chat-workspace.js';
+import { conversationTitle, isNotesConversation } from '../../features/chat/lib/conversations.js';
 import { useUsersList } from '../../features/directory/api/directory-api.js';
 import { EmployeeCard } from '../../features/directory/components/employee-card.js';
 import { useProjectDetail } from '../../features/projects/api/projects-api.js';
 import { ProjectCard } from '../../features/projects/components/project-card.js';
 import { useTaskDetail } from '../../features/tasks/api/tasks-api.js';
 import { TaskCard } from '../../features/tasks/components/task-card.js';
+import { useAuthStore } from '../../shared/auth-store.js';
+import { NotesGlyph } from '../../shared/ui/notes-glyph.js';
+import { PersonAvatar } from '../../shared/ui/person-avatar.js';
 import type { CardRef } from './card-stack.js';
 import { SliderPanel, type SourceRect } from './slider-panel.js';
 import { useShellStore } from './shell-store.js';
@@ -94,6 +101,57 @@ function EmployeeEntry({ id, source, onClose }: EntryProps) {
   );
 }
 
+/** Беседа — полноправная сущность стека (ADR-0009, вердикт владельца
+ *  14.09.2026): чат открывается ПОВЕРХ текущей карточки (задачи и т.п.),
+ *  не закрывая её; Esc снимает чат и возвращает к задаче с состоянием.
+ *  Треды карточки — локальное состояние (search маршрута не трогаем). */
+function ChatEntry({ id, source, onClose }: EntryProps) {
+  const { data, isLoading, isFetching } = useConversations();
+  const meId = useAuthStore((s) => s.user?.id);
+  const [threadRootId, setThreadRootId] = useState<string | null>(null);
+  const conversation = data?.items.find((c) => c.id === id);
+  return (
+    <SliderPanel
+      title={
+        conversation ? (
+          <span className="flex min-w-0 items-center gap-2">
+            {isNotesConversation(conversation, meId) ? (
+              <NotesGlyph className="size-6 shrink-0" />
+            ) : (
+              <PersonAvatar
+                name={conversationTitle(conversation, meId)}
+                avatarUrl={conversation.avatarUrl}
+                className="size-6 shrink-0"
+              />
+            )}
+            <span className="truncate">{conversationTitle(conversation, meId)}</span>
+          </span>
+        ) : (
+          ui.chat.notes
+        )
+      }
+      onClose={onClose}
+      sourceRect={source}
+      fadeContent={false}
+    >
+      {conversation ? (
+        <ChatWorkspace
+          conversation={conversation}
+          compact
+          threadRootId={threadRootId}
+          onOpenThread={setThreadRootId}
+          onCloseThread={() => setThreadRootId(null)}
+        />
+      ) : isLoading || isFetching ? (
+        <div className="flex h-full flex-col gap-3 p-4">
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="w-full flex-1" />
+        </div>
+      ) : null}
+    </SliderPanel>
+  );
+}
+
 /** Один слайдер стека: rect источника потребляется на маунте (FLIP-раскрытие
  *  из строки/карточки, по которой кликнули); восстановленные из URL (F5,
  *  прямая ссылка) раскрываются сдержанным scale-fade. */
@@ -112,6 +170,8 @@ function CardStackEntry({ cardRef, onClose }: { cardRef: CardRef; onClose: () =>
       return <LetterEntry id={cardRef.id} source={source} onClose={onClose} />;
     case 'employee':
       return <EmployeeEntry id={cardRef.id} source={source} onClose={onClose} />;
+    case 'chat':
+      return <ChatEntry id={cardRef.id} source={source} onClose={onClose} />;
   }
 }
 

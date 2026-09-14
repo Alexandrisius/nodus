@@ -1,22 +1,24 @@
 /**
  * Стек карточек сущностей (ADR-0009) — типы и (де)сериализация URL.
  *
- * КАНОН: все карточки сущностей (задача, проект, письмо, сотрудник) —
+ * КАНОН: все карточки сущностей (задача, проект, письмо, сотрудник, беседа) —
  * ОДНОЙ геометрии (единый SliderPanel без уровней) и наслаиваются друг на
  * друга: открытие из карточки кладёт новую ПОВЕРХ, закрытие верхней
  * возвращает к предыдущей (та живая, состояние сохранено). Стек отражён в
  * search-параметре `?cards=task:<id>,project:<id>` — deep-link, восстановление
- * после F5, «назад» браузера = снять верхнюю карточку.
+ * после F5, «назад» браузера = снять верхнюю карточку. Беседа — тоже
+ * сущность (вердикт владельца 14.09.2026: «уточнить в чате, не закрывая
+ * карточку задачи»): вид `chat:<conversationId>`.
  */
 
-export type CardKind = 'task' | 'project' | 'letter' | 'employee';
+export type CardKind = 'task' | 'project' | 'letter' | 'employee' | 'chat';
 
 export interface CardRef {
   kind: CardKind;
   id: string;
 }
 
-const KINDS: readonly string[] = ['task', 'project', 'letter', 'employee'];
+const KINDS: readonly string[] = ['task', 'project', 'letter', 'employee', 'chat'];
 
 /** «task:<id>» — компактная форма в URL. */
 export function cardRefToString(ref: CardRef): string {

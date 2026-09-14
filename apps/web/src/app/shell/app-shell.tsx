@@ -72,7 +72,7 @@ export function AppShell() {
               полосы; скроллбар страниц — у правого шва рамы. */}
           <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
             <div
-              className="mt-2 mb-2 ml-2 flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl bg-card"
+              className="frame-shadow mt-2 mb-2 ml-2 flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl bg-card"
               data-soft-frame
             >
               <TopBar />

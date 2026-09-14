@@ -1,28 +1,15 @@
 import { useNavigate, useParams, useSearch } from '@tanstack/react-router';
-import { Search, SquareArrowOutUpRight, X } from 'lucide-react';
+import { Search, X } from 'lucide-react';
 import { useState } from 'react';
 import { ui } from '@nodus/contracts';
 import { Empty, EmptyTitle } from '@nodus/ui/components/empty';
 import { Input } from '@nodus/ui/components/input';
 
-import { useOpenCard } from '../../../app/shell/use-card-stack.js';
 import { useAuthStore } from '../../../shared/auth-store.js';
-import { NotesGlyph } from '../../../shared/ui/notes-glyph.js';
-import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
-import { ConversationPane } from '../../../shared/chat/conversation-pane.js';
-import {
-  ChatPanelToggle,
-  ChatSidePanel,
-  useChatSidePanel,
-} from '../../../shared/chat/chat-side-panel.js';
-import { ChannelView } from '../../../shared/chat/channel-view.js';
 import { useConversations } from '../api/chat-api.js';
+import { ChatWorkspace } from '../components/chat-workspace.js';
 import { ConversationList } from '../components/conversation-list.js';
-import {
-  conversationSubtitle,
-  conversationTitle,
-  isNotesConversation,
-} from '../lib/conversations.js';
+import { conversationSubtitle, conversationTitle } from '../lib/conversations.js';
 
 type ChatTab = 'chats' | 'tasks';
 
@@ -37,6 +24,10 @@ type ChatTab = 'chats' | 'tasks';
  * drill-down с «К ленте»), механика — shared/chat/channel-view; тред —
  * search-параметр ?thread= (deep-link). Механика тредов и сообщений —
  * shared/chat (тот же код рендерит колонку обсуждения карточки проекта).
+ *
+ * Беседа живёт ещё и КАРТОЧКОЙ стека (`chat:<id>`, ADR-0009 + вердикт
+ * 14.09.2026: чат поверх карточки задачи из правой полосы) — ту же рабочую
+ * область рендерит ChatWorkspace; страница — полный режим со списком бесед.
  */
 export function ChatPage() {
   const { conversationId } = useParams({ strict: false }) as { conversationId?: string };
@@ -45,10 +36,6 @@ export function ChatPage() {
   const { data, isLoading } = useConversations();
   const meId = useAuthStore((s) => s.user?.id);
   const navigate = useNavigate();
-  const openCard = useOpenCard();
-  // Панель беседы (закон: у каждого чата) — хостится контейнером страницы,
-  // тоггл — кнопка СПРАВА ВВЕРХУ шапки беседы (канон кнопки «О задаче»).
-  const panel = useChatSidePanel();
   // Локальный поиск по списку бесед (модель Битрикс24: «Найти сотрудника
   // или чат»): подстрока по названию и подписи (последнее сообщение).
   const [query, setQuery] = useState('');
@@ -66,10 +53,11 @@ export function ChatPage() {
 
   return (
     <div className="relative flex h-full">
-      {/* Список бесед — ступень ВНУТРИ мягкой рамы (bg-muted), не токен шелла:
-          bg-sidebar в раме давал «чёрный список против светлой зоны»
-          (вердикт владельца 12.09.2026, обе темы). */}
-      <aside className="flex w-80 shrink-0 flex-col border-r border-border bg-muted">
+      {/* Список бесед — на тоне панели (`card`), как весь хром мессенджера:
+          отдельная бежевая ступень колонки давала «зоопарк оттенков» в
+          светлой теме (вердикт владельца 14.09.2026); зону от списка
+          отделяет hairline border-r. */}
+      <aside className="flex w-80 shrink-0 flex-col border-r border-border bg-card">
         {/* Шапка списка бесед — ВЫСОТОЙ h-14, как шапка беседы справа:
             горизонтальные линии двух зон совпадают (вердикт владельца
             12.09.2026: линии не совпадали — 48px против 56px). */}
@@ -111,76 +99,28 @@ export function ChatPage() {
       </aside>
 
       {active ? (
-        <div className="flex h-full min-w-0 flex-1 flex-col">
-          <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-4">
-            {isNotesConversation(active, meId) ? (
-              <NotesGlyph className="size-9 shrink-0" />
-            ) : (
-              <PersonAvatar
-                name={conversationTitle(active, meId)}
-                avatarUrl={active.avatarUrl}
-                className="size-9 shrink-0"
-              />
-            )}
-            <div className="min-w-0">
-              <div className="truncate text-sm font-semibold">
-                {conversationTitle(active, meId)}
-              </div>
-              <div className="truncate font-mono text-[10px] tracking-[0.12em] text-muted-foreground uppercase">
-                {conversationSubtitle(active)}
-              </div>
-            </div>
-            <div className="ml-auto flex shrink-0 items-center gap-2">
-              {active.type === 'task' && active.task ? (
-                <button
-                  type="button"
-                  onClick={() => openCard({ kind: 'task', id: active.task?.id ?? '' })}
-                  className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 font-mono text-[10px] tracking-[0.12em] text-muted-foreground uppercase transition-colors hover:border-input hover:text-foreground"
-                >
-                  {ui.chat.openTask}
-                  <SquareArrowOutUpRight className="size-3.5" strokeWidth={1.75} />
-                </button>
-              ) : null}
-              <ChatPanelToggle open={panel.open} onToggle={panel.toggle} />
-            </div>
-          </header>
-          <div className="flex min-h-0 flex-1">
-            {active.type === 'project_channel' ? (
-              <ChannelView
-                conversationId={active.id}
-                threadRootId={search.thread ?? null}
-                onOpenThread={(rootId) =>
-                  void navigate({
-                    to: '/chat/$conversationId',
-                    params: { conversationId: active.id },
-                    // Функциональная форма: посторонние search-параметры
-                    // (стек карточек ?cards=) СОХРАНЯЮТСЯ — закрытие треда
-                    // не размонтирует карточку поверх (вердикт валидатора
-                    // #42: navigate c объектом затирает search целиком).
-                    search: (prev) => ({ ...prev, thread: rootId }),
-                  })
-                }
-                onCloseThread={() =>
-                  void navigate({
-                    to: '/chat/$conversationId',
-                    params: { conversationId: active.id },
-                    search: (prev) => ({ ...prev, thread: undefined }),
-                  })
-                }
-              />
-            ) : (
-              <ConversationPane conversationId={active.id} showAuthor={active.type !== 'direct'} />
-            )}
-            {panel.mounted ? (
-              <ChatSidePanel
-                conversationId={active.id}
-                open={panel.open}
-                onClose={panel.close}
-                threadRootId={search.thread ?? null}
-              />
-            ) : null}
-          </div>
-        </div>
+        <ChatWorkspace
+          conversation={active}
+          threadRootId={search.thread ?? null}
+          onOpenThread={(rootId) =>
+            void navigate({
+              to: '/chat/$conversationId',
+              params: { conversationId: active.id },
+              // Функциональная форма: посторонние search-параметры
+              // (стек карточек ?cards=) СОХРАНЯЮТСЯ — закрытие треда
+              // не размонтирует карточку поверх (вердикт валидатора
+              // #42: navigate c объектом затирает search целиком).
+              search: (prev) => ({ ...prev, thread: rootId }),
+            })
+          }
+          onCloseThread={() =>
+            void navigate({
+              to: '/chat/$conversationId',
+              params: { conversationId: active.id },
+              search: (prev) => ({ ...prev, thread: undefined }),
+            })
+          }
+        />
       ) : (
         <div className="flex flex-1 items-center justify-center">
           <Empty>

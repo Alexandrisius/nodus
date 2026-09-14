@@ -44,7 +44,7 @@ export function ConversationPane({
   return (
     <div className="flex h-full min-w-0 flex-1 flex-col">
       <MessageScrollerProvider>
-        <MessageScroller className="min-h-0 flex-1 bg-background">
+        <MessageScroller className="min-h-0 flex-1 bg-chat-zone">
           <MessageScrollerViewport>
             <MessageScrollerContent className="p-4">
               {isLoading ? (

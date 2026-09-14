@@ -73,7 +73,7 @@ export const ThreadPane = memo(function ThreadPane({
         ) : null}
       </header>
       <MessageScrollerProvider>
-        <MessageScroller className="min-h-0 flex-1 bg-background">
+        <MessageScroller className="min-h-0 flex-1 bg-chat-zone">
           <MessageScrollerViewport>
             <MessageScrollerContent className="p-4">
               {isLoading ? (

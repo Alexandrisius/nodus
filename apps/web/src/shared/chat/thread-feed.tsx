@@ -56,7 +56,7 @@ export const ThreadFeed = memo(function ThreadFeed({
 
   return (
     <div className="flex h-full min-w-0 flex-1 flex-col">
-      <div data-feed-scroll className="min-h-0 flex-1 overflow-y-auto p-4">
+      <div data-feed-scroll className="min-h-0 flex-1 overflow-y-auto bg-chat-zone p-4">
         {isLoading ? (
           <div className="flex flex-col gap-3">
             {[0, 1, 2].map((i) => (

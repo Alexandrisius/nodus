@@ -13,6 +13,7 @@ import { NotesGlyph } from '../../shared/ui/notes-glyph.js';
 import { PersonAvatar } from '../../shared/ui/person-avatar.js';
 import { ProfileMenu } from './profile-menu.js';
 import { useShellStore } from './shell-store.js';
+import { useCardStack, useOpenCard, useReplaceTopCard } from './use-card-stack.js';
 
 const dotColor: Record<string, string> = {
   online: 'bg-success',
@@ -123,23 +124,37 @@ export function RightRail() {
   const queryClient = useQueryClient();
   const edgeOpen = useShellStore((s) => s.edgeOpen);
   const setEdgeOpen = useShellStore((s) => s.setEdgeOpen);
+  const stack = useCardStack();
+  const openCard = useOpenCard();
+  const replaceTop = useReplaceTopCard();
+
+  // Чат — КАРТОЧКОЙ поверх текущего стека (вердикт владельца 14.09.2026:
+  // «уточнить в чате, не закрывая карточку задачи»): клик по коллеге при
+  // открытой чат-карточке ПОДМЕНЯЕТ её (стек не растёт от перебора
+  // собеседников), иначе кладёт поверх; прямой беседы нет — уходим в
+  // мессенджер-страницу (полный режим).
+  function showChat(conversationId: string) {
+    const ref = { kind: 'chat' as const, id: conversationId };
+    const top = stack[stack.length - 1];
+    if (top?.kind === 'chat') replaceTop(ref);
+    else openCard(ref);
+  }
 
   function openChat(userId: string) {
     const direct = (chats?.items ?? []).find(
       (c) => c.type === 'direct' && c.membersPreview.some((m) => m.id === userId),
     );
-    if (direct)
-      void navigate({ to: '/chat/$conversationId', params: { conversationId: direct.id } });
+    if (direct) showChat(direct.id);
     else void navigate({ to: '/chat' });
   }
 
   function openNotes() {
     const id = notes.data?.id;
     // Диалог с собой мог быть создан find-or-create только что: список бесед
-    // мессенджера (staleTime 30s) иначе не увидит активную беседу — страница
-    // откроется пустой. Инвалидация списка — до перехода (план R10).
+    // (staleTime 30s) иначе не найдёт беседу для карточки — инвалидация ДО
+    // открытия; карточка переживёт рефетч скелетоном (план R10).
     void queryClient.invalidateQueries({ queryKey: chatKeys.conversations() });
-    if (id) void navigate({ to: '/chat/$conversationId', params: { conversationId: id } });
+    if (id) showChat(id);
     else void navigate({ to: '/chat' });
   }
 

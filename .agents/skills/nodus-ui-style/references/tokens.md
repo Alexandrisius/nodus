@@ -13,7 +13,10 @@
 | `--primary` / `--primary-foreground` | `#E8E8E6` / `#0A0A0B` | действие — белая кнопка |
 | `--border` / `--input` | white/9% / white/14% | бордюры hairline |
 | `--success` `#6FA287` · `--warning` `#C9A45B` · `--danger` `#C8584A` · `--info` `#7A93B2` | семантика приглушённая холодная (+`-soft` пары) |
-| `--sidebar` | `#0C0C0E` | рейка/полоса (темнее фона) |
+| `--sidebar` | `#0A0A0B` | рейка/полоса = тон периметра (воздушность, план R1) |
+| `--chat-zone` | `#050506` | углубление ленты чата (каналы/личные/треды — один токен) |
+| `--frame-shadow` | чёрная мягкая | контур мягкой рамы на периметре (тень, не линия) |
+| `--slider-shadow` | направленная влево-вниз | тень карточки: БЕЗ разлива вправо на полосу |
 | `--edge` | white/28% | линия связи |
 | `--port` | `#D9D9D6` | точка-порт |
 | `--glow` | white/65% | свечение активного (drop-shadow) |
@@ -25,8 +28,9 @@
 
 | Токен | Значение |
 |---|---|
-| `--background` / `--card` | `#FBFAF8` / `#FFFFFF` |
-| `--sidebar` / `--secondary`,`--muted` / `--accent` | `#EFEEEA` / `#EDECE8` / `#E7E5DF` |
+| `--background` / `--card` | `#F4F2F0` / `#FBFAF9` |
+| `--sidebar` / `--secondary`,`--muted` / `--accent` | `#F4F2F0` / `#EDEBE8` / `#E7E5E1` |
+| `--chat-zone` / `--frame-shadow` | `#EDEBE8` / navy-мягкая | углубление ленты чата; контур мягкой рамы (реф «реф_белая тема_1.png»: панель читается тенью) |
 | `--foreground` / `--muted-foreground` | `#1B1C1E` / `#6B6D72` |
 | `--primary` / `--primary-foreground` | `#16233A` (navy) / `#FFFFFF` |
 | `--border` / `--input` | black/8% / black/13% |
