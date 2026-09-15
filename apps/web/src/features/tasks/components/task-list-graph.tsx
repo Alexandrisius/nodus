@@ -1,5 +1,6 @@
 import { orthPath, snapPx } from '@nodus/ui/components/node-edge';
 
+import { LEADING_COL_W } from '../../../shared/views/row-menu.js';
 import type { TaskRow } from '../lib/task-tree.js';
 
 /** Геометрия колонки графа: порт уровня d на x = 14 + d·16, локти r=6. */
@@ -14,6 +15,10 @@ const ELBOW = 6;
  *  заходят под порт и не торчат из-под него. */
 const PORT_GAP = 8;
 const LEAF_GAP = 3;
+/** X начала колонки графа внутри строки: px-4 (16) + ведущая колонка
+ *  (выбор+меню, вердикт 15.09.2026) + gap-3 (12) — оверлей сдвигается за ней
+ *  (урок: добавление колонки ПЕРЕД графовой требует сдвига оверлея). */
+const GRAPH_LEFT = 16 + LEADING_COL_W + 12;
 
 const midY = (index: number) => index * ROW_H + MID;
 
@@ -94,7 +99,8 @@ export function TaskListTree({
       width={width}
       height={height}
       viewBox={`0 0 ${width} ${height}`}
-      className="pointer-events-none absolute top-0 left-4 text-edge"
+      className="pointer-events-none absolute top-0 text-edge"
+      style={{ left: GRAPH_LEFT }}
     >
       {edges.map((edge, i) => {
         const animated = edge.delayIndex >= revealBase;

@@ -38,19 +38,16 @@ function Section({
 }
 
 /**
- * Состояние панели беседы: монтируется один раз при первом открытии и
- * остаётся (плавный пуш ширины, скролл не теряется) — приём панели
- * «О задаче».
+ * Состояние панели беседы: обёртка монтируется СРАЗУ и ПОСТОЯННО (w-0), а
+ * контент — лениво на первом открытии и далее остаётся (приём обёртки
+ * панели «О задаче»: первый тоггл не платит маунтом панели и данных в
+ * кадрах анимации — рывка нет, баг-вердикт владельца 15.09.2026).
  */
 export function useChatSidePanel() {
   const [open, setOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
-  const toggle = useCallback(() => {
-    setMounted(true);
-    setOpen((v) => !v);
-  }, []);
+  const toggle = useCallback(() => setOpen((v) => !v), []);
   const close = useCallback(() => setOpen(false), []);
-  return { open, mounted, toggle, close };
+  return { open, toggle, close };
 }
 
 /**
@@ -104,6 +101,14 @@ export function ChatSidePanel({
   // Плавное ПЕРВОЕ открытие: монтируемся в покое (w-0), класс раскрытия —
   // после двух кадров (useFrameReady), transition идёт с первого кадра.
   const ready = useFrameReady();
+  // Контент — ЛЕНИВО на первом открытии и далее постоянно (скролл/состояние
+  // не теряются): обёртка уже стоит в DOM с w-0, тяжёлый маунт секций не
+  // попадает в кадры width-анимации первого тоггла (рывок ровно один раз,
+  // баг-вердикт владельца 15.09.2026 — приём обёртки панели «О задаче»).
+  const [contentMounted, setContentMounted] = useState(false);
+  useEffect(() => {
+    if (open) setContentMounted(true);
+  }, [open]);
   useEffect(() => {
     if (!threadRootId) setScope('all');
   }, [threadRootId]);
@@ -144,56 +149,60 @@ export function ChatSidePanel({
           </Button>
         </div>
         <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
-          {threadRootId ? (
-            <div className="flex shrink-0 gap-1 rounded-lg bg-muted/40 p-1">
-              {(['all', 'thread'] as const).map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => setScope(s)}
-                  aria-pressed={scope === s}
-                  className={cn(
-                    'flex-1 rounded-md px-2 py-1 text-[13px] transition-colors',
-                    scope === s
-                      ? 'bg-accent text-foreground'
-                      : 'text-muted-foreground hover:text-foreground',
-                  )}
-                >
-                  {s === 'all' ? ui.chat.scopeAll : ui.chat.scopeThread}
-                </button>
-              ))}
-            </div>
+          {contentMounted ? (
+            <>
+              {threadRootId ? (
+                <div className="flex shrink-0 gap-1 rounded-lg bg-muted/40 p-1">
+                  {(['all', 'thread'] as const).map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => setScope(s)}
+                      aria-pressed={scope === s}
+                      className={cn(
+                        'flex-1 rounded-md px-2 py-1 text-[13px] transition-colors',
+                        scope === s
+                          ? 'bg-accent text-foreground'
+                          : 'text-muted-foreground hover:text-foreground',
+                      )}
+                    >
+                      {s === 'all' ? ui.chat.scopeAll : ui.chat.scopeThread}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+
+              <Section icon={FileText} title={ui.chat.filesMedia}>
+                {files.length > 0 ? (
+                  files.map((file) => (
+                    <span key={file.id} className="truncate font-mono text-[12px] text-info">
+                      {file.name}
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-sm text-muted-foreground">{ui.common.empty}</span>
+                )}
+              </Section>
+
+              <Section icon={Link2} title={ui.chat.links}>
+                {links.length > 0 ? (
+                  links.map((link) => (
+                    <a
+                      key={link}
+                      href={link}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="truncate font-mono text-[12px] text-info hover:underline"
+                    >
+                      {link}
+                    </a>
+                  ))
+                ) : (
+                  <span className="text-sm text-muted-foreground">{ui.common.empty}</span>
+                )}
+              </Section>
+            </>
           ) : null}
-
-          <Section icon={FileText} title={ui.chat.filesMedia}>
-            {files.length > 0 ? (
-              files.map((file) => (
-                <span key={file.id} className="truncate font-mono text-[12px] text-info">
-                  {file.name}
-                </span>
-              ))
-            ) : (
-              <span className="text-sm text-muted-foreground">{ui.common.empty}</span>
-            )}
-          </Section>
-
-          <Section icon={Link2} title={ui.chat.links}>
-            {links.length > 0 ? (
-              links.map((link) => (
-                <a
-                  key={link}
-                  href={link}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="truncate font-mono text-[12px] text-info hover:underline"
-                >
-                  {link}
-                </a>
-              ))
-            ) : (
-              <span className="text-sm text-muted-foreground">{ui.common.empty}</span>
-            )}
-          </Section>
         </div>
       </aside>
     </div>

@@ -20,11 +20,14 @@ export function FilterCombobox({
   value,
   onChange,
   ariaLabel,
+  placeholder,
 }: {
   options: FilterOption[];
   value: string | undefined;
   onChange: (v: string | undefined) => void;
   ariaLabel: string;
+  /** Пустое значение (дефолт — «Все» фильтров). */
+  placeholder?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
@@ -69,7 +72,7 @@ export function FilterCombobox({
               fromPointer.current = false;
               setOpen(true);
             }}
-            placeholder={ui.filters.any}
+            placeholder={placeholder ?? ui.filters.any}
             aria-label={ariaLabel}
             className={cn('h-8 w-full text-sm', selected && !open ? 'pr-7' : '')}
           />

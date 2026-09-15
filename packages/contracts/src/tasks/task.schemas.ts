@@ -130,22 +130,48 @@ export const createSubtaskBodySchema = z.object({
 
 export type CreateSubtaskBody = z.infer<typeof createSubtaskBodySchema>;
 
-/** Быстрое создание задачи из колонки доски (плюсик в шапке): название +
- *  колонка одной из осей — личная («Мой план»: глобальная стадия подставляется
+/** Быстрое создание задачи: из колонки доски (плюсик в шапке — название +
+ *  колонка одной из осей) и из ЭКСПРЕСС-ФОРМЫ (вердикт владельца 15.09.2026,
+ *  модель Битрикс24: название, описание, ответственный, крайний срок,
+ *  проект, чек-лист). Личная ось («Мой план»: глобальная стадия подставляется
  *  по состоянию колонки) или глобальная (проектная доска: схема проекта).
- *  projectId — для создания в колонку проектной доски. */
+ *  projectId — для создания в колонку проектной доски / привязки к проекту. */
 export const createTaskBodySchema = z
   .object({
     title: z.string().trim().min(1).max(200),
     personalStageId: z.uuid().optional(),
     stageId: z.uuid().optional(),
     projectId: z.uuid().optional(),
+    /** Экспресс-форма (все поля опциональны — канбан-плюсик их не шлёт). */
+    description: z.string().trim().max(5000).optional(),
+    assigneeId: z.uuid().optional(),
+    deadline: z.iso.datetime().optional(),
+    /** Пункты чек-листа текстами; на детали задачи разворачиваются в
+     *  ChecklistItem[]. */
+    checklist: z.array(z.string().trim().min(1).max(300)).max(100).optional(),
   })
   .refine((v) => v.personalStageId !== undefined || v.stageId !== undefined, {
     message: 'personalStageId or stageId required',
   });
 
 export type CreateTaskBody = z.infer<typeof createTaskBodySchema>;
+
+/** Добавление пункта чек-листа в карточке задачи. */
+export const checklistItemCreateBodySchema = z.object({
+  text: z.string().trim().min(1).max(300),
+});
+
+export type ChecklistItemCreateBody = z.infer<typeof checklistItemCreateBodySchema>;
+
+/** Обновление пункта чек-листа (отметка выполнения / правка текста). */
+export const checklistItemUpdateBodySchema = z
+  .object({
+    done: z.boolean().optional(),
+    text: z.string().trim().min(1).max(300).optional(),
+  })
+  .refine((v) => Object.keys(v).length > 0, { message: 'empty update' });
+
+export type ChecklistItemUpdateBody = z.infer<typeof checklistItemUpdateBodySchema>;
 
 /** DTO обновления задачи: перенос между стадиями (канбан, drag-and-drop) —
  *  глобальной (stageId, степпер/проектная доска) или личной (personalStageId,

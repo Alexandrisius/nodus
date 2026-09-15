@@ -20,20 +20,11 @@ import { toast } from 'sonner';
 
 import { useAuthStore } from '../../../shared/auth-store.js';
 import { api } from '../../../shared/api-client.js';
-import { taskStagesKey } from '../../../shared/api/task-stages.js';
+import { tasksKeys } from '../../../shared/api/tasks-keys.js';
 
-export const tasksKeys = {
-  all: ['tasks'] as const,
-  list: () => [...tasksKeys.all, 'list'] as const,
-  listPages: () => [...tasksKeys.all, 'list-pages'] as const,
-  /** Общий каталог стадий — ключ из shared (потребители: задачи, проекты). */
-  stages: () => taskStagesKey,
-  personalStages: () => [...tasksKeys.all, 'personal-stages'] as const,
-  detail: (id: string) => [...tasksKeys.all, 'detail', id] as const,
-  messages: (id: string) => [...tasksKeys.all, 'messages', id] as const,
-  branch: (id: string) => [...tasksKeys.all, 'branch', id] as const,
-  relations: (id: string) => [...tasksKeys.all, 'relations', id] as const,
-};
+// Ключи кэша — canonical в shared/api/tasks-keys (общие компоненты создания
+// в shared/tasks тоже ими пользуются); реэкспорт для потребителей фичи.
+export { tasksKeys } from '../../../shared/api/tasks-keys.js';
 
 /** Список (таблица с деревом): курсорные страницы по 100, подгрузка sentinel-ом
  * у dna контейнера (industry-паттерн: целиком на клиент крупные списки не

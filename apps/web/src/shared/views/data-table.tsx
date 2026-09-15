@@ -1,11 +1,15 @@
 import { useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { NodeLabel } from '@nodus/ui/components/node-label';
 import { Skeleton } from '@nodus/ui/components/skeleton';
+import { Checkbox } from '@nodus/ui/components/checkbox';
 import { Empty, EmptyTitle } from '@nodus/ui/components/empty';
 import { ui } from '@nodus/contracts';
 
 import { ColumnResizer } from './column-resizer.js';
+import { LEADING_COL_W, RowMenu, type RowMenuItem } from './row-menu.js';
+import { useRowSelection } from './use-row-selection.js';
 import { useViewFields, type FieldDef } from './use-view-fields.js';
+import { cn } from '@nodus/ui/lib/utils';
 
 /** Колонка канонической таблицы: поле реестра + рендер ячейки. */
 export interface DataTableField<T> extends FieldDef {
@@ -26,6 +30,10 @@ export interface DataTableField<T> extends FieldDef {
  *   пресет переживает reload (nodus-views-v1);
  * — строка — role=button + Enter/Space (вложенных кнопок в кнопке нет:
  *   ячейка действий — span со stopPropagation);
+ * — ВЕДУЩАЯ колонка (вердикт владельца 15.09.2026, модель Битрикс24):
+ *   чекбокс множественного выбора (хедер — «выбрать все» с indeterminate,
+ *   выбранная строка — тон accent) + «шашка» контекстного меню строки
+ *   (только реальные действия); не ресайзится и не прячется шестерёнкой;
  * — опциональная бесконечная подгрузка sentinel-ом (IntersectionObserver,
  *   root — скролл-контейнер таблицы).
  */
@@ -41,6 +49,7 @@ export function DataTable<T>({
   isFetchingNextPage = false,
   onLoadMore,
   actions,
+  rowMenu,
   emptyTitle = ui.common.empty,
 }: {
   viewKey: string;
@@ -57,11 +66,15 @@ export function DataTable<T>({
   onLoadMore?: () => void;
   /** Ячейка действий строки (доп. auto-колонка; клики не всплывают до строки). */
   actions?: (row: T) => ReactNode;
+  /** Пункты контекстного меню строки («шашка» в ведущей ячейке). */
+  rowMenu?: (row: T) => RowMenuItem[];
   emptyTitle?: string;
 }) {
   const { visibleFields, setWidth } = useViewFields(viewKey, defs);
   const containerRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const rowKeys = useMemo(() => rows.map(rowKey), [rows, rowKey]);
+  const { selected, toggle, toggleAll, headerChecked } = useRowSelection(rowKeys);
 
   useEffect(() => {
     const sentinel = sentinelRef.current;
@@ -78,21 +91,22 @@ export function DataTable<T>({
   }, [hasNextPage, isFetchingNextPage, onLoadMore]);
 
   const gridTemplateColumns = useMemo(() => {
-    const tracks = visibleFields.map((f) => `${f.width ?? 120}px`);
+    const tracks = [`${LEADING_COL_W}px`, ...visibleFields.map((f) => `${f.width ?? 120}px`)];
     if (actions) tracks.push('auto');
     return tracks.join(' ');
   }, [visibleFields, actions]);
 
   /** Автоподбор ширины по контенту (двойной клик на ручке, как в Excel):
    * суммирует контентные ширины детей ячеек колонки (scrollWidth самой
-   * ячейки не подходит — он не меньше её текущей ширины) + дыхание. */
+   * ячейки не подходит — он не меньше её текущей ширины) + дыхание.
+   * Индекс сдвинут на ведущую колонку (выбор + меню). */
   function autoFitColumn(fieldIndex: number, fieldId: string, minWidth: number, maxWidth: number) {
     const container = containerRef.current;
     if (!container) return;
     const CELL_GAP = 8;
     let max = 0;
     for (const row of container.children) {
-      const cell = row.children[fieldIndex] as HTMLElement | undefined;
+      const cell = row.children[fieldIndex + 1] as HTMLElement | undefined;
       if (!cell) continue;
       let content = 0;
       for (const child of cell.children) {
@@ -132,6 +146,14 @@ export function DataTable<T>({
         className="sticky top-0 z-10 grid w-max min-w-full items-center gap-3 border-b border-border bg-card px-4 py-2"
         style={{ gridTemplateColumns }}
       >
+        {/* «Выбрать все» (модель Битрикс24): indeterminate при частичном. */}
+        <span className="flex items-center">
+          <Checkbox
+            checked={headerChecked}
+            onCheckedChange={toggleAll}
+            aria-label={ui.common.selectAll}
+          />
+        </span>
         {visibleFields.map((field, index) => (
           <span key={field.id} className="relative flex min-w-0 items-center">
             <NodeLabel label={field.label} className="truncate" />
@@ -150,38 +172,59 @@ export function DataTable<T>({
         ))}
         {actions ? <span /> : null}
       </div>
-      {rows.map((row) => (
-        <div
-          key={rowKey(row)}
-          role="button"
-          tabIndex={0}
-          onClick={(e) => onOpenRow(row, e.currentTarget)}
-          onPointerEnter={() => onHoverRow?.(row)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              onOpenRow(row, e.currentTarget);
-            }
-          }}
-          className="grid h-12 w-max min-w-full cursor-pointer items-stretch gap-3 border-b border-border/60 px-4 transition-colors last:border-b-0 hover:bg-accent/40 focus-visible:outline-2 focus-visible:outline-ring"
-          style={{ gridTemplateColumns }}
-        >
-          {visibleFields.map((field) => (
-            <span key={field.id} className="flex min-w-0 items-center gap-2 overflow-hidden">
-              {field.render(row)}
-            </span>
-          ))}
-          {actions ? (
+      {rows.map((row) => {
+        const key = rowKey(row);
+        const isSelected = selected.has(key);
+        return (
+          <div
+            key={key}
+            role="button"
+            tabIndex={0}
+            onClick={(e) => onOpenRow(row, e.currentTarget)}
+            onPointerEnter={() => onHoverRow?.(row)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onOpenRow(row, e.currentTarget);
+              }
+            }}
+            className={cn(
+              'grid h-12 w-max min-w-full cursor-pointer items-stretch gap-3 border-b border-border/60 px-4 transition-colors last:border-b-0 hover:bg-accent/40 focus-visible:outline-2 focus-visible:outline-ring',
+              isSelected && 'bg-accent/50',
+            )}
+            style={{ gridTemplateColumns }}
+          >
+            {/* Ведущая ячейка: чекбокс выбора + «шашка» меню (клики не
+              всплывают до строки — открытие карточки не срабатывает). */}
             <span
-              className="flex items-center"
+              className="flex items-center gap-1"
               onClick={(e) => e.stopPropagation()}
               onKeyDown={(e) => e.stopPropagation()}
             >
-              {actions(row)}
+              <Checkbox
+                checked={isSelected}
+                onCheckedChange={() => toggle(key)}
+                aria-label={ui.common.selectRow}
+              />
+              <RowMenu items={rowMenu?.(row) ?? []} />
             </span>
-          ) : null}
-        </div>
-      ))}
+            {visibleFields.map((field) => (
+              <span key={field.id} className="flex min-w-0 items-center gap-2 overflow-hidden">
+                {field.render(row)}
+              </span>
+            ))}
+            {actions ? (
+              <span
+                className="flex items-center"
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => e.stopPropagation()}
+              >
+                {actions(row)}
+              </span>
+            ) : null}
+          </div>
+        );
+      })}
       {hasNextPage ? (
         <div ref={sentinelRef} className="flex justify-center py-3">
           {isFetchingNextPage ? <Skeleton className="h-8 w-48" /> : <span className="h-1" />}

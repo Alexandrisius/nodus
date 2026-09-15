@@ -102,15 +102,13 @@ export function ChatWorkspace({
           )}
         </div>
       </div>
-      {panel.mounted ? (
-        <ChatSidePanel
-          conversationId={conversation.id}
-          open={panel.open}
-          onClose={panel.close}
-          title={conversation.type === 'project_channel' ? ui.chat.aboutChannel : ui.chat.aboutChat}
-          threadRootId={threadRootId}
-        />
-      ) : null}
+      <ChatSidePanel
+        conversationId={conversation.id}
+        open={panel.open}
+        onClose={panel.close}
+        title={conversation.type === 'project_channel' ? ui.chat.aboutChannel : ui.chat.aboutChat}
+        threadRootId={threadRootId}
+      />
     </div>
   );
 }

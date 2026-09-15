@@ -4,7 +4,6 @@ import { MailPlus } from 'lucide-react';
 import type { LetterListItem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
-import { cn } from '@nodus/ui/lib/utils';
 
 import { ListToolbar } from '../../../shared/views/list-toolbar.js';
 import type { ActiveListFilter } from '../../../shared/views/list-filters.js';
@@ -24,8 +23,9 @@ import { LettersJournal } from '../components/letters-journal.js';
  *  (Входящие / Незарегистрированные / Исходящие — секции каркаса).
  *  Шапка — ОДНА строка: заголовок со счётчиком, строка инструментов (поиск
  *  с панелью фильтра — модель Битрикс24: пресеты «В работе»/«Просрочено»,
- *  поля статус/адресат/корреспондент/срок), чип очереди регистрации (всегда
- *  на виду у секретаря), «Написать письмо» и шестерёнка представления. */
+ *  поля статус/адресат/корреспондент/срок), «Написать письмо» и шестерёнка
+ *  представления. Плашки-счётчика очереди в шапке НЕТ (вердикт владельца
+ *  15.09.2026): очередь живёт своей папкой в топбаре, дубль не нужен. */
 export function LettersPage() {
   const search = useSearch({ strict: false }) as { folder?: string };
   const folder: LettersFolder = (['unregistered', 'incoming', 'outgoing'] as const).includes(
@@ -35,11 +35,7 @@ export function LettersPage() {
     : 'incoming';
 
   const { data } = useLettersList(folder);
-  // Очередь регистрации — всегда на виду у секретаря (тот же query-ключ при
-  // folder=unregistered: react-query дедуплицирует).
-  const { data: unregistered } = useLettersList('unregistered');
   const count = data?.items.length ?? 0;
-  const unregCount = unregistered?.items.length ?? 0;
   const [composeOpen, setComposeOpen] = useState(false);
   const toolbar = useListToolbar('letters.journal', letterBuiltinPresets);
   const defs = useLetterFilterDefs();
@@ -62,26 +58,13 @@ export function LettersPage() {
           toolbar={toolbar}
           defs={defs}
           builtinPresets={letterBuiltinPresets}
-          right={
-            <>
-              {unregCount > 0 ? (
-                <span
-                  className={cn(
-                    'flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 font-mono text-[11px] tracking-[0.12em] uppercase',
-                    'bg-warning/15 text-warning',
-                  )}
-                >
-                  <span className="font-semibold tabular-nums">{unregCount}</span>
-                  {ui.letters.summaryUnregistered}
-                </span>
-              ) : null}
-              <Button size="sm" onClick={() => setComposeOpen(true)}>
-                <MailPlus data-icon="inline-start" />
-                {ui.letters.compose}
-              </Button>
-              <ViewSettings viewKey="letters.journal" defs={letterJournalFields} />
-            </>
+          left={
+            <Button onClick={() => setComposeOpen(true)}>
+              <MailPlus data-icon="inline-start" />
+              {ui.common.create}
+            </Button>
           }
+          right={<ViewSettings viewKey="letters.journal" defs={letterJournalFields} />}
         />
       </div>
       <div className="min-h-0 flex-1">

@@ -2,7 +2,6 @@ import { Mail, MessageSquare, PanelRight, Plus, Waypoints } from 'lucide-react';
 import { useCallback, useRef, useState, type FormEvent } from 'react';
 import type { TaskChainNode } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
-import { Checkbox } from '@nodus/ui/components/checkbox';
 import { Input } from '@nodus/ui/components/input';
 import { NodeChip } from '@nodus/ui/components/node-chip';
 import { NodeLabel } from '@nodus/ui/components/node-label';
@@ -15,6 +14,7 @@ import { useAddSubtask, useTaskDetail } from '../api/tasks-api.js';
 import { TaskAboutDrawer } from './task-about-drawer.js';
 import { TaskBranchDrawer } from './task-branch-drawer.js';
 import { TaskCardSkeleton } from './task-card-skeleton.js';
+import { TaskChecklist } from './task-checklist.js';
 import { TaskDiscussion } from './task-discussion.js';
 import { TaskFields } from './task-fields.js';
 import { TaskActionBar } from './task-stage-controls.js';
@@ -217,6 +217,10 @@ export function TaskCard({ taskId }: { taskId: string }) {
 
               <TaskFields task={task} />
 
+              {/* Чек-лист — сразу после полей, ДО подзадач (вердикт владельца
+                15.09.2026: «чек-листам нужно выделить важное место»). */}
+              <TaskChecklist task={task} />
+
               {/* Секции разделяются отступами, без висячих линий-сепараторов
                 (вердикт владельца: линия не доходила до границы зоны) */}
               <div className="mt-6">
@@ -252,22 +256,6 @@ export function TaskCard({ taskId }: { taskId: string }) {
                   <Plus className="size-4" />
                 </button>
               </form>
-
-              {task.checklist.length > 0 ? (
-                <div className="mt-6">
-                  <NodeLabel label={ui.tasks.checklist} count={task.checklist.length} />
-                  <div className="mt-2.5 flex flex-col gap-2">
-                    {task.checklist.map((item) => (
-                      <label key={item.id} className="flex items-center gap-2 text-sm">
-                        <Checkbox checked={item.done} disabled />
-                        <span className={item.done ? 'text-muted-foreground line-through' : ''}>
-                          {item.text}
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
             </div>
 
             {/* Замоноличенный нижний бар: главные кнопки движения/завершения

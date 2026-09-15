@@ -1,7 +1,9 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useSearch } from '@tanstack/react-router';
+import { Plus } from 'lucide-react';
 import type { TaskListItem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
+import { Button } from '@nodus/ui/components/button';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { ListToolbar } from '../../../shared/views/list-toolbar.js';
@@ -18,6 +20,7 @@ import {
 import { taskListFields } from '../lib/task-fields.js';
 import { TaskKanban } from '../components/task-kanban.js';
 import { TaskList } from '../components/task-list.js';
+import { TaskQuickCreate } from '../../../shared/tasks/task-quick-create.js';
 
 /** Реестр блоков карточки канбана — module-константа (стабильная идентичность). */
 const taskCardFields = makeTaskCardFields();
@@ -51,6 +54,7 @@ function TasksSection({ view, overdueTotal }: { view: 'list' | 'kanban'; overdue
     [defs, toolbar.filters, toolbar.query],
   );
   const overdueActive = toolbar.filters.overdue === 'yes';
+  const [createOpen, setCreateOpen] = useState(false);
 
   return (
     <>
@@ -61,6 +65,15 @@ function TasksSection({ view, overdueTotal }: { view: 'list' | 'kanban'; overdue
           toolbar={toolbar}
           defs={defs}
           builtinPresets={taskBuiltinPresets}
+          left={
+            // Закон кнопки создания (вердикт 15.09.2026): label всегда
+            // «Создать» (без уточнения — кнопка не раздувается), высота =
+            // поисковой строке (h-8, size default).
+            <Button onClick={() => setCreateOpen(true)}>
+              <Plus data-icon="inline-start" />
+              {ui.common.create}
+            </Button>
+          }
           right={
             <>
               {overdueTotal > 0 ? (
@@ -91,6 +104,7 @@ function TasksSection({ view, overdueTotal }: { view: 'list' | 'kanban'; overdue
       <div className="min-h-0 flex-1">
         {view === 'list' ? <TaskList filter={filter} /> : <TaskKanban filter={filter} />}
       </div>
+      <TaskQuickCreate open={createOpen} onOpenChange={setCreateOpen} />
     </>
   );
 }

@@ -1,8 +1,10 @@
+import { Link2, SquareArrowOutUpRight, Check } from 'lucide-react';
 import { ui } from '@nodus/contracts';
 import type { LetterListItem } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 
 import { useOpenCard } from '../../../app/shell/use-card-stack.js';
+import { copyCardLink } from '../../../shared/lib/card-link.js';
 import { DataTable } from '../../../shared/views/data-table.js';
 import type { ActiveListFilter } from '../../../shared/views/list-filters.js';
 import { useFilteredList } from '../../../shared/views/use-list-toolbar.js';
@@ -39,6 +41,32 @@ export function LettersJournal({
       isLoading={isLoading}
       onOpenRow={openLetter}
       emptyTitle={ui.common.empty}
+      rowMenu={(letter) => [
+        {
+          id: 'open',
+          icon: <SquareArrowOutUpRight className="size-3.5" />,
+          label: ui.common.open,
+          onSelect: () => openCard({ kind: 'letter', id: letter.id }),
+        },
+        // Экспресс-регистрация из меню — только в очереди незарегистрированных
+        // (дублирует инлайн-кнопку действия — оба пути реальны, поток А).
+        ...(folder === 'unregistered' && letter.status === 'unregistered'
+          ? [
+              {
+                id: 'register',
+                icon: <Check className="size-3.5" />,
+                label: ui.letters.register,
+                onSelect: () => register.mutate(letter.id),
+              },
+            ]
+          : []),
+        {
+          id: 'copy',
+          icon: <Link2 className="size-3.5" />,
+          label: ui.common.copyLink,
+          onSelect: () => void copyCardLink({ kind: 'letter', id: letter.id }),
+        },
+      ]}
       actions={
         folder === 'unregistered'
           ? (letter) =>

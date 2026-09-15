@@ -164,7 +164,7 @@ export function ProjectCard({ projectId }: { projectId: string }) {
           </div>
         </div>
       </div>
-      {panel.mounted && project.channelId ? (
+      {project.channelId ? (
         <ChatSidePanel
           conversationId={project.channelId}
           open={panel.open}

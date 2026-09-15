@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react';
 import { useSearch } from '@tanstack/react-router';
-import { UserPlus } from 'lucide-react';
+import { Link2, SquareArrowOutUpRight, UserPlus } from 'lucide-react';
 import type { UserListItem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import { Skeleton } from '@nodus/ui/components/skeleton';
 
 import { useOpenCard } from '../../../app/shell/use-card-stack.js';
+import { copyCardLink } from '../../../shared/lib/card-link.js';
 import { DataTable } from '../../../shared/views/data-table.js';
 import {
   employeeSearchText,
@@ -71,15 +72,26 @@ export function EmployeesPage() {
             className="min-w-0 flex-1 px-0"
             toolbar={toolbar}
             defs={filterDefs}
+            left={
+              <Button onClick={() => setInviteOpen(true)}>
+                <UserPlus data-icon="inline-start" />
+                {ui.common.create}
+              </Button>
+            }
             right={<ViewSettings viewKey="employees.list" defs={defs} />}
           />
         ) : (
-          <span className="flex-1" />
+          <>
+            {/* Закон кнопки создания (вердикт 15.09.2026): первый элемент
+                строки инструментов слева от поиска; в виде «Структура» поиска
+                нет — кнопка сразу после заголовка (та же левая позиция). */}
+            <Button onClick={() => setInviteOpen(true)}>
+              <UserPlus data-icon="inline-start" />
+              {ui.common.create}
+            </Button>
+            <span className="flex-1" />
+          </>
         )}
-        <Button size="sm" onClick={() => setInviteOpen(true)}>
-          <UserPlus data-icon="inline-start" />
-          {ui.employees.invite}
-        </Button>
       </div>
       <div className="min-h-0 flex-1">
         {view === 'org' ? (
@@ -102,6 +114,20 @@ export function EmployeesPage() {
             rowKey={(user) => user.id}
             isLoading={isLoading}
             onOpenRow={openEmployee}
+            rowMenu={(user) => [
+              {
+                id: 'open',
+                icon: <SquareArrowOutUpRight className="size-3.5" />,
+                label: ui.common.open,
+                onSelect: () => openCard({ kind: 'employee', id: user.id }),
+              },
+              {
+                id: 'copy',
+                icon: <Link2 className="size-3.5" />,
+                label: ui.common.copyLink,
+                onSelect: () => void copyCardLink({ kind: 'employee', id: user.id }),
+              },
+            ]}
           />
         )}
       </div>

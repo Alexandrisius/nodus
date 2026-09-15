@@ -23,6 +23,7 @@ import {
   demoSubtasks,
   demoTaskMessages,
   demoTasks,
+  detailsExtra,
   globalStageForPersonal,
   makeSubtask,
   taskDetailOf,
@@ -30,6 +31,7 @@ import {
 import { demoProjects } from '../../../../shared/mocks/data/projects.js';
 import { demoStages } from '../../../../shared/mocks/data/task-stages.js';
 import { currentAuthUser, userRef } from '../../../../shared/mocks/data/users.js';
+import { tasksChecklistHandlers } from './tasks-checklist-handlers.js';
 
 function notFound(message: string) {
   return HttpResponse.json({ code: ErrorCode.NOT_FOUND, message }, { status: 404 });
@@ -56,6 +58,10 @@ function branchNodeOf(task: TaskListItem): TaskBranchNode {
   };
 }
 
+/** MSW-маршруты домена задач (315 строк — допустимый превыш 300 с
+ *  обоснованием по I5: единый модуль маршрутов одного домена, чек-лист
+ *  вынесен в tasks-checklist-handlers; дальнейший рост — сплит по
+ *  субдоменам: messages, personal-stages). */
 export const tasksHandlers = [
   http.get('/api/v1/tasks', ({ request }) => {
     const url = new URL(request.url);
@@ -126,6 +132,21 @@ export const tasksHandlers = [
       ? globalStageForPersonal(personalColumn, demoStages)
       : demoStages.find((s) => s.id === parsed.data.stageId);
     if (!stage) return notFound('Stage not found');
+    const checklist = (parsed.data.checklist ?? []).map((text) => ({
+      id: crypto.randomUUID(),
+      text,
+      done: false,
+    }));
+    // Ответственный экспресс-формы; неизвестный id — текущий (userRef кидает
+    // на чужом id, мок держим мягким).
+    let assignee = userRef(currentAuthUser.id);
+    if (parsed.data.assigneeId) {
+      try {
+        assignee = userRef(parsed.data.assigneeId);
+      } catch {
+        /* fallback — текущий пользователь */
+      }
+    }
     const task: TaskListItem = {
       id: crypto.randomUUID(),
       number: Math.max(...demoTasks.map((t) => t.number)) + 1,
@@ -133,9 +154,9 @@ export const tasksHandlers = [
       stage,
       personalStageId: personalColumn?.id ?? null,
       priority: 'normal',
-      deadline: null,
+      deadline: parsed.data.deadline ?? null,
       creator: userRef(currentAuthUser.id),
-      assignee: userRef(currentAuthUser.id),
+      assignee,
       participants: [],
       project: project
         ? { id: project.id, code: project.code, name: project.name, color: project.color }
@@ -144,13 +165,24 @@ export const tasksHandlers = [
       spentMinutes: 0,
       commentsCount: 0,
       checklistDone: 0,
-      checklistTotal: 0,
+      checklistTotal: checklist.length,
       source: 'manual',
       updatedAt: new Date().toISOString(),
     };
     demoTasks.push(task);
+    // Деталь (описание/чек-лист экспресс-формы) — карточка видит их сразу.
+    detailsExtra[task.id] = {
+      description: parsed.data.description?.trim() || 'Описание уточняется постановщиком.',
+      observers: [],
+      checklist,
+      createdAt: task.updatedAt,
+    };
     return HttpResponse.json(task, { status: 201 });
   }),
+
+  /** Пункты чек-листа карточки (вердикт владельца 15.09.2026: чек-листу —
+   *  важное место) — вынесены в tasks-checklist-handlers (I5). */
+  ...tasksChecklistHandlers,
 
   // Личная схема «Мой план» (ADR-0008): каталог колонок со счётчиками.
   // Маршруты personal-stages — ДО '/api/v1/tasks/:id' (:id захватил бы их).

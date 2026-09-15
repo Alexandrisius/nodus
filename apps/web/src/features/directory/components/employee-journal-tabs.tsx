@@ -1,6 +1,8 @@
 import { useMemo } from 'react';
+import { Plus } from 'lucide-react';
 import type { ProjectListItem, TaskListItem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
+import { Button } from '@nodus/ui/components/button';
 
 import { useOpenCard } from '../../../app/shell/use-card-stack.js';
 import { DataTable } from '../../../shared/views/data-table.js';
@@ -33,9 +35,12 @@ const employeeTaskTableFields = makeTaskTableFields();
 export function EmployeeTasksTab({
   tasks,
   isLoading,
+  onCreateTask,
 }: {
   tasks: TaskListItem[];
   isLoading: boolean;
+  /** «Создать» — экспресс-форма с исполнителем=сотрудник (вердикт 15.09.2026). */
+  onCreateTask: () => void;
 }) {
   const openCard = useOpenCard();
   const toolbar = useListToolbar('directory.tasks', taskBuiltinPresets);
@@ -56,6 +61,14 @@ export function EmployeeTasksTab({
         toolbar={toolbar}
         defs={defs}
         builtinPresets={taskBuiltinPresets}
+        left={
+          // Закон кнопки создания (вердикт 15.09.2026): слева от поиска,
+          // label «Создать», h-8 — и во вкладках карточек тоже.
+          <Button onClick={onCreateTask}>
+            <Plus data-icon="inline-start" />
+            {ui.common.create}
+          </Button>
+        }
         right={<ViewSettings viewKey="directory.tasks" defs={employeeTaskTableFields} />}
       />
       <div className="min-h-0 flex-1">

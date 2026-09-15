@@ -1,12 +1,10 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type {
-  CreateTaskBody,
   PersonalStageCreateBody,
   PersonalStageUpdateBody,
   TaskDetail,
   TaskListItem,
   TaskStage,
-  TaskStageWithCount,
   Paginated,
 } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
@@ -15,13 +13,9 @@ import { toast } from 'sonner';
 import { api } from '../../../shared/api-client.js';
 import { tasksKeys } from './tasks-api.js';
 
-/** Личная схема «Мой план» (ADR-0008): колонки личной доски со счётчиками. */
-export function usePersonalStages() {
-  return useQuery({
-    queryKey: tasksKeys.personalStages(),
-    queryFn: () => api<TaskStageWithCount[]>('/tasks/personal-stages'),
-  });
-}
+// usePersonalStages/useCreateTask — canonical в shared/api/task-create
+// (общая экспресс-форма shared/tasks); реэкспорт для потребителей фичи.
+export { useCreateTask, usePersonalStages } from '../../../shared/api/task-create.js';
 
 /** Оптимистичный перенос по ЛИЧНОЙ оси «Мой план» (ADR-0008): глобальная
  *  стадия задачи не меняется; в кэшах — personalStageId до ответа сервера. */
@@ -100,18 +94,6 @@ export function useUpdatePersonalStage() {
       api<TaskStage>(`/tasks/personal-stages/${stageId}`, { method: 'PATCH', body }),
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: tasksKeys.personalStages() });
-    },
-  });
-}
-
-/** Быстрое создание задачи из колонки «Моего плана» (плюсик в шапке). */
-export function useCreateTask() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (body: CreateTaskBody) => api<TaskListItem>('/tasks', { method: 'POST', body }),
-    onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: tasksKeys.personalStages() });
-      void queryClient.invalidateQueries({ queryKey: tasksKeys.listPages() });
     },
   });
 }

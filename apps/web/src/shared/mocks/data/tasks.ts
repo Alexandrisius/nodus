@@ -68,7 +68,9 @@ function chainOf(task: TaskListItem): TaskChainNode[] {
   return [self];
 }
 
-const detailsExtra: Record<
+/** Детали задач поверх списочного элемента (описание, наблюдатели, чек-лист).
+ *  Экспорт — хендлерам создания/чек-листа: записи пополняются в рантайме. */
+export const detailsExtra: Record<
   string,
   Pick<TaskDetail, 'description' | 'observers' | 'checklist' | 'createdAt'>
 > = {
