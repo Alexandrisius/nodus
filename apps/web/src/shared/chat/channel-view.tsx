@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState, useEffect } from 'react';
+import type { ReactNode } from 'react';
 import { ui } from '@nodus/contracts';
 import { cn } from '@nodus/ui/lib/utils';
 
@@ -11,39 +12,49 @@ import {
   threadMaxW,
   threadWidth,
 } from './channel-layout.js';
-import { ThreadLink } from './thread-link.js';
 import { ThreadFeed } from './thread-feed.js';
 import { ThreadPane } from './thread-pane.js';
-import { useThreadLink } from './use-thread-link.js';
 
 /**
- * Канал (новости компании / канал проекта) как ДВЕ ЗОНЫ (вердикт владельца
- * 11.09.2026, #42; research — Slack «Weaving Threads»: тред — отдельная
- * панель, не оверлей и не замена ленты): лента постов-тредов слева + окно
- * треда справа с собственным композером. Перегородка тянется мышью с памятью
- * (`nodus-thread-w-v1`, императивный drag по канону use-chat-width); открытие
- * треда — вталкивание окна шириной (transition-[width], как панель «О
- * задаче»). Узкая зона (< 640px: лента 320 + тред 320) — фолбэк drill-down:
- * тред заменяет ленту с кнопкой «К ленте» (прежнее поведение, карточки).
- * Посты ленты сжимаются с лентой (w-full max-w-2xl): перегородка ходит влево
- * до минимума ленты 320 (вердикт владельца).
+ * Канал (новости компании / канал проекта): лента постов-тредов + окно треда
+ * (вердикт владельца 11.09.2026, #42; research — Slack «Weaving Threads»:
+ * тред — отдельная панель, не оверлей и не замена ленты). Окно треда —
+ * ПОЛНОВЫСОТНАЯ колонка-сиблинг (вердикт владельца 15.09.2026, приём панели
+ * беседы): её бар стоит НА ЛИНИИ баров хоста (`threadBarClass`: мессенджер
+ * h-14, проект h-10), крестик — у правого края колонки; бар беседы (`header`)
+ * живёт в колонке ленты и сжимается вместе с ней — тоггл панели на его
+ * правом краю. Перегородка тянется мышью с памятью (`nodus-thread-w-v1`,
+ * императивный drag по канону use-chat-width); открытие — вталкивание окна
+ * шириной (transition-[width], как панель «О задаче»). Узкая зона (< 640px:
+ * лента 320 + тред 320) — фолбэк drill-down: тред заменяет ленту с кнопкой
+ * «К ленте» (бар беседы остаётся). Посты ленты сжимаются с лентой
+ * (w-full max-w-2xl).
  *
- * Связь «пост → тред» и вспышка — use-thread-link.ts (грамматика —
- * circuit.md): статичное ребро с портами на обоих концах (структура),
- * вспышка-импульс по нему на смену открытого треда (событие). Панель беседы
- * — ОДНА на беседу у контейнера страницы/карточки (не дублируется на зону
- * треда), при открытом треде — области «Вся беседа / Этот тред».
+ * СВЯЗИ «пост → тред» НЕТ (вердикт владельца 15.09.2026): грамматика
+ * контура — для ПОСТОЯННОЙ структуры (рейка, вкладки, рамка), а пост —
+ * движущийся контент (скролл/подгрузка ломали замер); бары — запретная зона
+ * для связей. Семантику «к какому посту тред» несёт корневой пост внутри
+ * окна. Панель беседы — ОДНА на беседу у контейнера страницы/карточки,
+ * при открытом треде — области «Вся беседа / Этот тред».
  */
 export function ChannelView({
   conversationId,
   threadRootId,
   onOpenThread,
   onCloseThread,
+  header,
+  threadBarClass = 'h-14',
 }: {
   conversationId: string;
   threadRootId: string | null;
   onOpenThread: (rootId: string) => void;
   onCloseThread: () => void;
+  /** Бар беседы — рендерится в колонке ленты (сжимается вместе с ней при
+   *  открытии треда); у карточки проекта своего бара нет — не передаётся. */
+  header?: ReactNode;
+  /** Высота бара треда = высота бара хоста (линии border-b продолжаются
+   *  друг в друга — канон панели беседы). */
+  threadBarClass?: string;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const paneRef = useRef<HTMLDivElement>(null);
@@ -72,24 +83,15 @@ export function ChannelView({
     paneRef,
   });
 
-  // Окно монтируется при первом открытии и остаётся (плавный пуш ширины,
-  // скролл ленты не теряется) — приём панели «О задаче».
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => {
-    if (threadRootId) setMounted(true);
-  }, [threadRootId]);
-
+  // Обёртка окна монтируется СРАЗУ и ПОСТОЯННО (w-0), контент — при открытии
+  // (приём панели беседы, баг-вердикт 15.09.2026: «окно треда после
+  // перезагрузки первый раз появляется резко»): свежий элемент, рождённый
+  // в целевой ширине, transition не даёт — обёртка обязана СТОЯТЬ в DOM в
+  // покое до первого открытия, тогда transition идёт с первого кадра даже
+  // после Ctrl+R. Скролл ленты при открытии/закрытии не теряется.
   const open = threadRootId !== null;
   const side = open && isSideBySide(containerW);
   const effW = threadWidth(width, containerW || THREAD_MAX_W);
-
-  const { link, flash, flashRun } = useThreadLink({
-    containerRef,
-    paneRef,
-    threadRootId,
-    side,
-    containerW,
-  });
 
   // Esc закрывает тред (критерий приёмки #42). Radix-меню/поповеры съедают
   // Esc сами (defaultPrevented + popper-обёртка в DOM) — приём SliderPanel.
@@ -120,70 +122,68 @@ export function ChannelView({
   return (
     <div ref={containerRef} className="relative flex h-full min-w-0 flex-1">
       {open && !side ? (
-        <ThreadPane
-          conversationId={conversationId}
-          threadRootId={threadRootId}
-          variant="drill"
-          onClose={onCloseThread}
-        />
+        <div className="flex h-full min-w-0 flex-1 flex-col">
+          {header}
+          <ThreadPane
+            conversationId={conversationId}
+            threadRootId={threadRootId}
+            variant="drill"
+            onClose={onCloseThread}
+          />
+        </div>
       ) : (
         <>
-          <div className="min-h-0 min-w-0 flex-1">
-            <ThreadFeed conversationId={conversationId} onOpenThread={onOpenThread} />
+          {/* Колонка ленты: бар беседы живёт ЗДЕСЬ и сжимается вместе с
+              лентой при открытии треда — тоггл панели на его правом краю
+              (вердикт владельца 15.09.2026). */}
+          <div className="flex h-full min-w-0 flex-1 flex-col">
+            {header}
+            <div className="min-h-0 min-w-0 flex-1">
+              <ThreadFeed conversationId={conversationId} onOpenThread={onOpenThread} />
+            </div>
           </div>
-          {mounted ? (
-            <>
-              {/* Структурная линия между зонами; ручка — невидимый оверлей
-                  w-3 поверх (канон перегородки карточки). aria-hidden на
-                  контейнере НЕ ставим: он вырезал бы ручку role=separator
-                  из дерева доступности. */}
+          {/* Обёртка окна и перегородка — ВСЕГДА в DOM (w-0 в покое, см.
+              комментарий выше: первое открытие после перезагрузки плавное);
+              aria-hidden на контейнере НЕ ставим: он вырезал бы ручку
+              role=separator из дерева доступности. */}
+          <div
+            className={cn(
+              'relative w-px shrink-0 bg-border transition-opacity',
+              !open && 'opacity-0',
+            )}
+          >
+            {open ? (
               <div
-                className={cn(
-                  'relative w-px shrink-0 bg-border transition-opacity',
-                  !open && 'opacity-0',
-                )}
-              >
-                {open ? (
-                  <div
-                    onPointerDown={onDividerDown}
-                    role="separator"
-                    aria-orientation="vertical"
-                    aria-label={ui.common.resizePanel}
-                    title={ui.common.resizePanel}
-                    className="absolute top-0 -left-1.5 z-10 h-full w-3 cursor-col-resize"
-                  />
-                ) : null}
-              </div>
-              <div
-                ref={paneRef}
-                aria-hidden={!open}
-                className={cn(
-                  'h-full shrink-0 overflow-hidden',
-                  !dragging && 'transition-[width] duration-200 ease-out',
-                )}
-                style={{ width: open ? effW : 0 }}
-              >
-                <div className="h-full" style={{ width: dragging ? '100%' : effW }}>
-                  {open ? (
-                    <ThreadPane
-                      conversationId={conversationId}
-                      threadRootId={threadRootId}
-                      variant="side"
-                      onClose={onCloseThread}
-                    />
-                  ) : null}
-                </div>
-              </div>
-            </>
-          ) : null}
-          {link ? (
-            <ThreadLink
-              points={link.points}
-              pinned={link.pinned}
-              flash={flash}
-              flashRun={flashRun}
-            />
-          ) : null}
+                onPointerDown={onDividerDown}
+                role="separator"
+                aria-orientation="vertical"
+                aria-label={ui.common.resizePanel}
+                title={ui.common.resizePanel}
+                className="absolute top-0 -left-1.5 z-10 h-full w-3 cursor-col-resize"
+              />
+            ) : null}
+          </div>
+          <div
+            ref={paneRef}
+            aria-hidden={!open}
+            className={cn(
+              'h-full shrink-0 overflow-hidden',
+              !dragging && 'transition-[width] duration-200 ease-out',
+            )}
+            style={{ width: open ? effW : 0 }}
+          >
+            <div className="h-full" style={{ width: dragging ? '100%' : effW }}>
+              {open ? (
+                <ThreadPane
+                  conversationId={conversationId}
+                  threadRootId={threadRootId}
+                  variant="side"
+                  barClass={threadBarClass}
+                  onClose={onCloseThread}
+                />
+              ) : null}
+            </div>
+          </div>
         </>
       )}
     </div>

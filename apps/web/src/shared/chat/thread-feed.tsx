@@ -58,7 +58,7 @@ export const ThreadFeed = memo(function ThreadFeed({
 
   return (
     <div className="flex h-full min-w-0 flex-1 flex-col">
-      <div data-feed-scroll className="min-h-0 flex-1 overflow-y-auto bg-chat-zone p-4">
+      <div className="min-h-0 flex-1 overflow-y-auto bg-chat-zone p-4">
         {isLoading ? (
           <div className="flex flex-col gap-3">
             {[0, 1, 2].map((i) => (
@@ -89,7 +89,6 @@ export const ThreadFeed = memo(function ThreadFeed({
                 >
                   <button
                     type="button"
-                    data-thread-source={root.id}
                     onClick={() => onOpenThread(root.id)}
                     className="node-panel w-full max-w-2xl p-3.5 text-left transition-colors hover:border-input"
                   >
@@ -117,10 +116,7 @@ export const ThreadFeed = memo(function ThreadFeed({
                         {formatTime(root.createdAt)}
                       </span>
                     </span>
-                    <span
-                      data-thread-port
-                      className="-mx-3.5 -mb-3.5 mt-3 flex items-center gap-2 rounded-b-[13px] border-t border-border/60 bg-muted/40 px-3.5 py-2"
-                    >
+                    <span className="-mx-3.5 -mb-3.5 mt-3 flex items-center gap-2 rounded-b-[13px] border-t border-border/60 bg-muted/40 px-3.5 py-2">
                       {participants.length > 0 ? (
                         <span className="flex shrink-0 -space-x-1.5">
                           {participants.slice(0, 3).map((p) => (

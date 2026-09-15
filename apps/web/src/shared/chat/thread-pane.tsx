@@ -5,6 +5,7 @@ import { Button } from '@nodus/ui/components/button';
 import { NodeLabel } from '@nodus/ui/components/node-label';
 import { Skeleton } from '@nodus/ui/components/skeleton';
 import { MessageGroup } from '@nodus/ui/components/message';
+import { cn } from '@nodus/ui/lib/utils';
 import {
   MessageScroller,
   MessageScrollerButton,
@@ -34,18 +35,25 @@ import { useSendChatMessage, useThreadMessages } from './api.js';
  * контейнера (шапка беседы), не у пейна.
  *
  * Два варианта шапки (окно треда, #42): 'drill' — тред ЗАМЕНИЛ ленту (узкая
- * зона, карточки): кнопка «К ленте»; 'side' — тред окном РАДОМ с лентой
- * (Slack-паттерн): крестик закрытия, лента остаётся видимой.
+ * зона, карточки): кнопка «К ленте»; 'side' — тред ПОЛНОВЫСОТНЫМ окном РАДОМ
+ * с лентой (Slack-паттерн, вердикт владельца 15.09.2026): его бар стоит НА
+ * ЛИНИИ баров хоста (высота — `barClass`: мессенджер h-14, проект h-10),
+ * крестик — у ПРАВОГО КРАЯ колонки треда (закон колонки, как у панели
+ * беседы), лента остаётся видимой.
  */
 export const ThreadPane = memo(function ThreadPane({
   conversationId,
   threadRootId,
   variant = 'drill',
+  barClass = 'h-12',
   onClose,
 }: {
   conversationId: string;
   threadRootId: string;
   variant?: 'drill' | 'side';
+  /** Высота бара треда = высота бара хоста (линии border-b продолжаются
+   *  друг в друга — канон панели беседы, `headerClass`). */
+  barClass?: string;
   onClose: () => void;
 }) {
   const { data, isLoading } = useThreadMessages(conversationId, threadRootId);
@@ -60,7 +68,9 @@ export const ThreadPane = memo(function ThreadPane({
 
   return (
     <div className="flex h-full min-w-0 flex-1 flex-col">
-      <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-3">
+      <header
+        className={cn('flex shrink-0 items-center gap-2 border-b border-border px-3', barClass)}
+      >
         {variant === 'drill' ? (
           <Button variant="ghost" size="icon" aria-label={ui.chat.backToFeed} onClick={onClose}>
             <ArrowLeft />

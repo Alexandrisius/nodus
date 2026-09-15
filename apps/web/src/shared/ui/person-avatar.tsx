@@ -30,17 +30,21 @@ export function PersonAvatar({
   name,
   avatarUrl,
   className,
+  fallbackClass,
 }: {
   name: string;
   avatarUrl?: string | null;
   className?: string;
+  /** Кегль инициалов-заглушки (по умолчанию text-xs): для большого фото
+   *  профиля — крупнее (например, text-4xl). */
+  fallbackClass?: string;
 }) {
   const tone = toneOf(name);
   return (
     <Avatar className={cn('size-8 ring-1 ring-border', className)}>
       {avatarUrl ? <AvatarImage src={avatarUrl} alt={name} /> : null}
       <AvatarFallback
-        className="text-xs font-semibold"
+        className={cn('text-xs font-semibold', fallbackClass)}
         style={{ backgroundColor: tone.bg, color: tone.fg }}
       >
         {initialsOf(name)}

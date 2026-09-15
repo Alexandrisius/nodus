@@ -13,8 +13,6 @@ export function ProjectCardSkeleton({ chatW }: { chatW: number }) {
             <Skeleton className="h-5 w-16" />
             <Skeleton className="h-5 w-16" />
             <Skeleton className="h-5 w-16" />
-            <Skeleton className="ml-auto h-6 w-24 rounded-full" />
-            <Skeleton className="h-6 w-20 rounded-full" />
           </div>
           <div className="min-h-0 flex-1 p-4">
             <div className="flex flex-col gap-2">

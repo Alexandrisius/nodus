@@ -26,8 +26,11 @@ function metrics(el: HTMLElement) {
  * (самый большой прокручиваемый элемент внутри #content; узкие панели вроде
  * списка бесед и колонок канбана не подходят по площади), слушает его scroll
  * и ResizeObserver контента; прокрутка любой другой подходящей области
- * внутри #content усыновляет её на лету. Drag ползунка и клик по треку пишут
- * scrollTop усыновлённого скроллера.
+ * внутри #content усыновляет её на лету. Догрузка данных без скролла/resize
+ * ловится MutationObserver'ом на #content с rAF-гейтом — усыновление до
+ * ближайшего кадра, иначе родной скроллбар успевает показаться на краю
+ * скроллера и «перепрыгнуть» в щель (баг-вердикт 15.09.2026, gotchas).
+ * Drag ползунка и клик по треку пишут scrollTop усыновлённого скроллера.
  */
 export function EdgeScrollbar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -84,7 +87,10 @@ export function EdgeScrollbar() {
 
   /** Главный скроллер страницы: самый большой по площади прокручиваемый
    *  элемент внутри #content (узкие панели — список бесед, колонки канбана —
-   *  не «страница» и ползунка периметра не получают). */
+   *  не «страница» и ползунка периметра не получают). Кандидаты — по
+   *  классам-признакам скроллеров (prefilter: полный обход поддерева с
+   *  getComputedStyle на каждый DOM-чих дорог — MutationObserver ниже зовёт
+   *  pick на догрузку данных чуть не покадрово). */
   const pick = useCallback(() => {
     const content = document.getElementById('content');
     if (!content) {
@@ -94,7 +100,10 @@ export function EdgeScrollbar() {
     const cr = content.getBoundingClientRect();
     let best: HTMLElement | null = null;
     let bestArea = 0;
-    for (const el of content.querySelectorAll<HTMLElement>('*')) {
+    const candidates = content.querySelectorAll<HTMLElement>(
+      '.overflow-y-auto, .overflow-y-scroll, .overflow-auto, .overflow-scroll, [data-edge-scroll]',
+    );
+    for (const el of candidates) {
       if (!/(auto|scroll)/.test(getComputedStyle(el).overflowY)) continue;
       if (!metrics(el).overflow) continue;
       const r = el.getBoundingClientRect();
@@ -141,6 +150,31 @@ export function EdgeScrollbar() {
       window.removeEventListener('resize', sync);
     };
   }, [pathname, searchStr, pick, sync]);
+
+  // Догрузка данных растит контент БЕЗ скролла и resize окна: следим за DOM
+  // #content, иначе между ростом и таймерным pick() РОДНОЙ скроллбар успевает
+  // показаться на краю скроллера (слева от служебной полосы), а после
+  // усыновления «перепрыгивает» в щель периметра — дёргается весь UI
+  // (баг-вердикт владельца 15.09.2026, главная: скелетон короткий —
+  // переполнение приходит с данными). rAF-гейт: мутация → усыновление до
+  // ближайшего кадра — родной скроллбар не рисуется ни разу.
+  useEffect(() => {
+    const content = document.getElementById('content');
+    if (!content) return;
+    let raf = 0;
+    const mo = new MutationObserver(() => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        pick();
+      });
+    });
+    mo.observe(content, { childList: true, subtree: true });
+    return () => {
+      mo.disconnect();
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, [pick]);
 
   useEffect(() => () => roRef.current?.disconnect(), []);
 

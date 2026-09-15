@@ -143,7 +143,7 @@ export function TaskCard({ taskId }: { taskId: string }) {
             >
               <Waypoints className="size-4" strokeWidth={1.75} />
             </button>
-            <div className="min-w-0 flex-1 overflow-x-auto">
+            <div className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden">
               <DomainChain nodes={chainNodes} />
             </div>
             {task.source === 'letter' ? (

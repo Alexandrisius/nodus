@@ -82,7 +82,7 @@ export function LetterCard({ letterId }: { letterId: string }) {
           («Ответить») — справа, как у почтовых клиентов */}
       <div className="shrink-0 border-b border-border">
         <div className="content-fade flex items-center gap-3 px-5 py-3">
-          <div className="min-w-0 flex-1 overflow-x-auto">
+          <div className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden">
             <DomainChain nodes={chainNodes} />
           </div>
           <NodeChip tone="muted" className="shrink-0">

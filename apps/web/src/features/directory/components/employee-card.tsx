@@ -1,12 +1,8 @@
 import { useMemo, useRef, useState } from 'react';
-import type { PresenceStatus } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
-import { NodeChip } from '@nodus/ui/components/node-chip';
-import { NodeLabel } from '@nodus/ui/components/node-label';
 import { Skeleton } from '@nodus/ui/components/skeleton';
 import { cn } from '@nodus/ui/lib/utils';
 
-import { useOpenCard } from '../../../app/shell/use-card-stack.js';
 import { useAssigneeTasks, useMemberProjects } from '../../../shared/api/user-relations.js';
 import { useDirectConversation } from '../../../shared/chat/api.js';
 import {
@@ -19,47 +15,31 @@ import {
 } from '../../../shared/chat/chat-side-panel.js';
 import { ConversationPane } from '../../../shared/chat/conversation-pane.js';
 import { TaskQuickCreate } from '../../../shared/tasks/task-quick-create.js';
-import { EntityFields } from '../../../shared/ui/entity-fields.js';
-import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
 import { useChatWidth } from '../../../shared/ui/use-chat-width.js';
 import { usePresence, useUserCard, useUsersList } from '../api/directory-api.js';
-import { employeeProfileDefs } from '../lib/employee-profile-fields.js';
 import { EmployeeCardSkeleton } from './employee-card-skeleton.js';
 import { EmployeeProjectsTab, EmployeeTasksTab } from './employee-journal-tabs.js';
-
-const VISIBILITY_KEY = 'nodus-employee-fields-v1';
-
-const presenceTone: Record<PresenceStatus, 'success' | 'warning' | 'muted'> = {
-  online: 'success',
-  away: 'warning',
-  offline: 'muted',
-};
-
-function presenceLabel(status: PresenceStatus): string {
-  if (status === 'online') return ui.common.online;
-  if (status === 'away') return ui.common.away;
-  return ui.common.offline;
-}
+import { EmployeeProfileTab } from './employee-profile-tab.js';
 
 type EmployeeTab = 'profile' | 'tasks' | 'projects';
 
 /**
- * Карточка сотрудника (стек карточек, ADR-0009) — анатомия карточки задачи
- * (вердикт владельца 2026-09-11, раунд 3): ОБЩИЙ бар карточки h-16 —
- * аватар-якорь + presence-чип + позиция + тоггл панели беседы справа (имя —
- * в хроме слайдера); под ним чат начинается СРАЗУ (вердикт 15.09.2026:
- * пустого промежуточного бара нет — вкладки только в левой зоне);
- * ЛЕВАЯ зона — вкладки на всю высоту: **Профиль** (поля-реестр полного
- * UserCard + «Подчинённые»), **Задачи** и **Проекты** — ПОЛНОЦЕННЫЕ журналы
- * на shared-реестрах (все поля + шестерёнка + ресайз колонок, как в модулях —
+ * Карточка сотрудника (стек карточек, ADR-0009) — анатомия карточки проекта
+ * (вердикт владельца 15.09.2026): ЕДИНЫЙ бар h-10 на всю карточку — вкладки
+ * (**Профиль**, **Задачи**, **Проекты**) слева + тоггл панели беседы справа;
+ * общего бара h-16 с аватаром НЕТ (его инфа дублировала поля карточки, имя —
+ * в хроме слайдера, полезная высота — данным; фотография — БОЛЬШАЯ, во
+ * вкладке «Профиль», модель Битрикс24). ЛЕВАЯ зона — контент вкладок на всю
+ * высоту: «Профиль» (большое фото + поля-реестр полного UserCard +
+ * «Подчинённые»), «Задачи» и «Проекты» — ПОЛНОЦЕННЫЕ журналы на
+ * shared-реестрах (все поля + шестерёнка + ресайз колонок, как в модулях —
  * «модули не отличаются»); «Задачи» — с кнопкой «Создать» слева от поиска
  * (закон кнопки создания; экспресс-форма shared/tasks, исполнитель = сам
  * сотрудник). ПРАВАЯ колонка — личный диалог, виден ВСЕГДА (find-or-create,
  * контекстное меню и панель беседы — из shared/chat); панель беседы занимает
  * ширину ЗА СЧЁТ ЧАТА (чат сужается на её ширину, левая зона не двигается —
- * закон панели «О задаче», вердикт 15.09.2026); перегородка тянется с
- * памятью (общая для всех карточек). Кнопки «Написать сообщение» больше нет
- * — чат уже здесь.
+ * закон панели «О задаче»); перегородка тянется с памятью (общая для всех
+ * карточек). Кнопки «Написать сообщение» нет — чат уже здесь.
  */
 export function EmployeeCard({ userId }: { userId: string }) {
   const { data: card, isLoading } = useUserCard(userId);
@@ -68,11 +48,10 @@ export function EmployeeCard({ userId }: { userId: string }) {
   const tasksQuery = useAssigneeTasks(userId);
   const projectsQuery = useMemberProjects(userId);
   const directQuery = useDirectConversation(userId);
-  const openCard = useOpenCard();
   const [tab, setTab] = useState<EmployeeTab>('profile');
-  // Панель беседы (закон чата): тоггл — в полосе КАРТОЧКИ справа вверху
-  // (как кнопка «О задаче» — шапки у чата с именем/аватаром НЕТ, вердикт);
-  // панель — внутри колонки чата (одна анимируемая ширина — левая зона не
+  // Панель беседы (закон чата): тоггл — в ЕДИНОМ баре карточки справа (канон
+  // кнопки «О задаче» — шапки у чата с именем/аватаром НЕТ, вердикт);
+  // панель — полновысотный сиблинг, ширина — ЗА СЧЁТ ЧАТА (левая зона не
   // дёргается); лента не уже 360 при открытой панели.
   const panel = useChatSidePanel();
   // Экспресс-форма задачи ИЗ КАРТОЧКИ сотрудника (вердикт владельца
@@ -96,8 +75,7 @@ export function EmployeeCard({ userId }: { userId: string }) {
   const subordinates = useMemo(() => items.filter((u) => u.managerId === userId), [items, userId]);
   const tasks = tasksQuery.data?.items ?? [];
   const projects = projectsQuery.data?.items ?? [];
-  const presenceStatus: PresenceStatus =
-    presence?.find((p) => p.user.id === userId)?.status ?? 'offline';
+  const presenceStatus = presence?.find((p) => p.user.id === userId)?.status ?? 'offline';
 
   if (isLoading || !card || !listItem) {
     return <EmployeeCardSkeleton chatW={chatW} />;
@@ -119,108 +97,55 @@ export function EmployeeCard({ userId }: { userId: string }) {
 
   return (
     // Панель беседы — ПОЛНОВЫСОТНЫЙ сиблинг всей карточки (вердикт владельца
-    // 15.09.2026, рефы Битрикс24): занимает верхнюю полосу карточки тоже.
+    // 15.09.2026, рефы Битрикс24): занимает единый бар карточки тоже.
     <div className="flex h-full min-w-0">
       <div className="flex h-full min-w-0 flex-1 flex-col">
-        {/* ОБЩИЙ бар карточки (как в карточке задачи): аватар-якорь + presence
-          + позиция + тоггл панели беседы справа; под ним чат начинается СРАЗУ
-          (вердикт владельца 15.09.2026: промежуточный пустой бар над чатом
-          убран — вкладки живут только в левой зоне). */}
-        <div className="shrink-0 border-b border-border">
-          <div className="content-fade flex h-16 items-center gap-3 px-5">
-            <PersonAvatar
-              name={card.displayName}
-              avatarUrl={card.avatarUrl}
-              className="size-10 shrink-0"
-            />
-            <NodeChip tone={presenceTone[presenceStatus]} className="shrink-0">
-              <span
-                aria-hidden
-                className={
-                  presenceStatus === 'online'
-                    ? 'size-1.5 rounded-full bg-success'
-                    : presenceStatus === 'away'
-                      ? 'size-1.5 rounded-full bg-warning'
-                      : 'size-1.5 rounded-full bg-muted-foreground'
-                }
-              />
-              {presenceLabel(presenceStatus)}
-            </NodeChip>
-            <span className="truncate font-mono text-[11px] text-muted-foreground">
-              {listItem.positionName ?? ''}
-              {listItem.departmentName ? ` · ${listItem.departmentName}` : ''}
-            </span>
-            <div className="ml-auto flex shrink-0 items-center">
-              {directQuery.data ? (
-                <ChatPanelToggle open={panel.open} onToggle={panel.toggle} />
+        {/* ЕДИНЫЙ бар карточки (h-10, как у карточки проекта): вкладки слева,
+          тоггл панели беседы — крайний справа (вердикт владельца 15.09.2026:
+          общий бар с аватаром удалён — дублирующая инфа, полезная высота —
+          данным левой зоны). */}
+        <div className="content-fade flex h-10 shrink-0 items-center gap-1 overflow-x-auto overflow-y-hidden border-b border-border px-4">
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setTab(t.id)}
+              aria-current={tab === t.id}
+              className={cn(
+                'flex h-10 shrink-0 items-center gap-2 rounded-none border-b-2 px-3 font-mono text-[11px] tracking-[0.14em] uppercase transition-colors',
+                tab === t.id
+                  ? 'border-port text-foreground'
+                  : 'border-transparent text-muted-foreground hover:text-foreground/80',
+              )}
+            >
+              {t.label}
+              {t.count !== undefined ? (
+                <span className="font-mono text-[10px] text-muted-foreground tabular-nums">
+                  {t.count}
+                </span>
               ) : null}
-            </div>
+            </button>
+          ))}
+          <div className="ml-auto flex shrink-0 items-center">
+            {directQuery.data ? (
+              <ChatPanelToggle open={panel.open} onToggle={panel.toggle} />
+            ) : null}
           </div>
         </div>
 
-        {/* Левая зона (вкладки + контент) и колонка личного диалога:
+        {/* Левая зона (контент вкладки) и колонка личного диалога:
           вертикальная граница структурная, зона чата — фон с первого кадра. */}
         <div className="grid min-h-0 flex-1" style={{ gridTemplateColumns: 'minmax(0,1fr) auto' }}>
           <div className="relative flex min-h-0 flex-col border-r border-border @container">
-            {/* Вкладки карточки (модель профиля Битрикс24, моно-ряд) — ТОЛЬКО в
-              левой зоне: чат начинается выше, под общим баром (вердикт
-              15.09.2026). Органы списков — в строке инструментов вкладки. */}
-            <div className="content-fade flex shrink-0 items-center gap-1 border-b border-border px-4">
-              {tabs.map((t) => (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => setTab(t.id)}
-                  aria-current={tab === t.id}
-                  className={cn(
-                    'flex h-10 items-center gap-2 rounded-none border-b-2 px-3 font-mono text-[11px] tracking-[0.14em] uppercase transition-colors',
-                    tab === t.id
-                      ? 'border-port text-foreground'
-                      : 'border-transparent text-muted-foreground hover:text-foreground/80',
-                  )}
-                >
-                  {t.label}
-                  {t.count !== undefined ? (
-                    <span className="font-mono text-[10px] text-muted-foreground tabular-nums">
-                      {t.count}
-                    </span>
-                  ) : null}
-                </button>
-              ))}
-            </div>
-
             <div className="content-fade min-h-0 flex-1 overflow-hidden">
               {tab === 'profile' ? (
-                <div className="h-full overflow-y-auto p-6">
-                  <div className="mx-auto w-full max-w-4xl">
-                    <EntityFields
-                      defs={employeeProfileDefs({ card, listItem, manager, openCard })}
-                      storageKey={VISIBILITY_KEY}
-                    />
-                    <div className="mt-8">
-                      <NodeLabel label={ui.employees.subordinates} count={subordinates.length} />
-                    </div>
-                    <div className="mt-2.5 flex flex-col gap-1">
-                      {subordinates.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">{ui.common.empty}</p>
-                      ) : null}
-                      {subordinates.map((person) => (
-                        <button
-                          key={person.id}
-                          type="button"
-                          onClick={() => openCard({ kind: 'employee', id: person.id })}
-                          className="flex items-center gap-2.5 rounded-md px-1 py-1.5 text-left text-sm hover:bg-accent/50"
-                        >
-                          <PersonAvatar name={person.displayName} className="size-7 shrink-0" />
-                          <span className="min-w-0 flex-1 truncate">{person.displayName}</span>
-                          <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
-                            {person.positionName ?? ''}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
+                <EmployeeProfileTab
+                  card={card}
+                  listItem={listItem}
+                  manager={manager}
+                  subordinates={subordinates}
+                  presenceStatus={presenceStatus}
+                />
               ) : null}
 
               {tab === 'tasks' ? (
@@ -250,11 +175,10 @@ export function EmployeeCard({ userId }: { userId: string }) {
             </div>
           </div>
 
-          {/* Колонка личного диалога — начинается СРАЗУ под общим баром
-            (пустого промежуточного бара нет, вердикт 15.09.2026): фон —
-            структура с первого кадра; шапки у чата НЕТ. Панель беседы —
-            полновысотный сиблинг СПРАВА от всей карточки, её ширина — ЗА
-            СЧЁТ ЧАТА (chat сужается, левая зона не двигается — см. columnW). */}
+          {/* Колонка личного диалога: фон — структура с первого кадра; шапки
+            у чата НЕТ. Панель беседы — полновысотный сиблинг СПРАВА от всей
+            карточки, её ширина — ЗА СЧЁТ ЧАТА (чат сужается, левая зона не
+            двигается — см. columnW). */}
           <div
             ref={chatRef}
             className={cn(
@@ -292,7 +216,7 @@ export function EmployeeCard({ userId }: { userId: string }) {
           open={panel.open}
           onClose={panel.close}
           title={ui.chat.aboutChat}
-          headerClass="h-16"
+          headerClass="h-10"
         />
       ) : null}
       <TaskQuickCreate open={createOpen} onOpenChange={setCreateOpen} defaultAssigneeId={userId} />
