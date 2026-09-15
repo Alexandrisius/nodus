@@ -4,8 +4,22 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="theme-color" content="#16233A" />
+    <meta name="theme-color" content="#f4f2f0" />
     <title>Nodus</title>
+    <!-- Дефолт — СВЕТЛАЯ тема (вердикт владельца 15.09.2026): она в :root
+         без атрибута, первый визит отрисовывается сразу светлой. Persisted-
+         выбор тёмной (zustand persist, ключ nodus-shell-v1) ставим до первой
+         отрисовки — без вспышки светлой у вернувшегося «тёмного» пользователя. -->
+    <script>
+      try {
+        var shellState = JSON.parse(localStorage.getItem('nodus-shell-v1'));
+        if (shellState && shellState.state && shellState.state.theme === 'dark') {
+          document.documentElement.dataset.theme = 'dark';
+        }
+      } catch {
+        /* битый/пустой persist — дефолтная светлая */
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

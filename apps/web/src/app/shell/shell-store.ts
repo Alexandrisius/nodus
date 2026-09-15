@@ -3,7 +3,8 @@ import { persist } from 'zustand/middleware';
 
 import type { SourceRect } from './slider-panel.js';
 
-/** Продуктовые темы «Инструмента»: тёмная (дефолт) и светлая. */
+/** Продуктовые темы «Инструмента»: светлая (ДЕФОЛТ — вердикт владельца
+ * 15.09.2026, живёт в :root без атрибута) и тёмная (data-theme='dark'). */
 export type ThemeId = 'dark' | 'light';
 
 interface ShellState {
@@ -31,7 +32,7 @@ export const useShellStore = create<ShellState>()(
   persist(
     (set) => ({
       menuCollapsed: false,
-      theme: 'dark',
+      theme: 'light',
       commandOpen: false,
       edgeOpen: false,
       lastSource: null,

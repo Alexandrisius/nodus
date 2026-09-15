@@ -1,6 +1,6 @@
 import { orthPath, snapPx, type NodeEdgePoint } from '@nodus/ui/components/node-edge';
 
-import { RAIL_TRUNK_X } from './node-rail.js';
+import { RAIL_TRUNK_X, MODULE_PORT_R } from './node-rail.js';
 
 /** Custom-событие «перемерь контур»: его шлёт хром, который меняется БЕЗ
  *  route/resize (вкладки фулскрин-карточки мессенджера — `MessengerTabs`),
@@ -223,7 +223,11 @@ export function framePath(g: CircuitGeometry): string {
         [
           { x: jx, y: py - 10 },
           { x: jx, y: py },
-          { x: m.port.x - 4, y: py },
+          // Конец — В КРОМКЕ круга порта (кольцо бордюра 1px: r − 0.5…r):
+          // не внутри (прозрачная сердцевина линию покажет) и не с зазором;
+          // кромка и линия одного тона (--edge) — шов невидим (вердикт
+          // владельца 15.09.2026).
+          { x: m.port.x - (MODULE_PORT_R - 0.5), y: py },
         ],
         8,
       ),

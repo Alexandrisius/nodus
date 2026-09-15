@@ -36,7 +36,10 @@ export function AppShell() {
 
   useEffect(() => {
     const root = document.documentElement;
-    if (theme === 'dark') delete root.dataset.theme;
+    // Дефолт — СВЕТЛАЯ (вердикт владельца 15.09.2026): она в :root без
+    // атрибута; тёмная включается data-theme='dark' (до первой отрисовки
+    // persisted-выбор ставит inline-скрипт index.html — без вспышки).
+    if (theme === 'light') delete root.dataset.theme;
     else root.dataset.theme = theme;
   }, [theme]);
 
