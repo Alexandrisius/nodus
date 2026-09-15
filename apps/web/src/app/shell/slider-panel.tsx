@@ -22,6 +22,12 @@ export interface SourceRect {
 
 const CLOSE_MS = 200;
 const CLOSE_EASE = 'cubic-bezier(0.5, 0, 0.9, 0.4)';
+/** Фаза 1 закрытия: контент гаснет за 100 мс, и ТОЛЬКО потом (фаза 2)
+ *  оболочка схлопывается в источник (delay в анимации). Мгновенное скрытие
+ *  контента одним кадром давало «вспышку на весь экран», а схлопывание с
+ *  живым текстом — «отпечаток» текста поверх страницы (баг-вердикты
+ *  владельца 15.09.2026). */
+const CONTENT_FADE_MS = 100;
 
 /**
  * Детальная панель — общий слой карточки-сущности и ЕДИНСТВЕННАЯ геометрия
@@ -122,7 +128,7 @@ export function SliderPanel({
         { transform: 'none', opacity: 1 },
         { transform: to, opacity: 0.35 },
       ],
-      { duration: CLOSE_MS, easing: CLOSE_EASE },
+      { duration: CLOSE_MS, delay: CONTENT_FADE_MS, easing: CLOSE_EASE, fill: 'both' },
     );
     anim.onfinish = () => closeRef.current();
   }
@@ -212,8 +218,14 @@ export function SliderPanel({
             // (ось шины на headerRect.bottom, 0.32 opacity) ровно как в
             // топбаре шелла: карточка-мессенджер выглядит как страница.
             'flex h-12 shrink-0 items-center gap-2 px-3',
+            '*:transition-opacity *:duration-100',
             !cardTopbar && 'border-b border-border',
             sourceRect && !closing && 'content-fade',
+            // Фаза 1 закрытия: контент ГАСНЕТ за 100 мс (не мгновенно — одним
+            // кадром это читалось «вспышкой на весь экран»), затем оболочка
+            // схлопывается в источник (баг-вердикты владельца 15.09.2026:
+            // «текст отпечатывается на главной» → «теперь вспышка»).
+            closing && '*:opacity-0',
           )}
         >
           <Button
@@ -236,8 +248,10 @@ export function SliderPanel({
         </header>
         <div
           className={cn(
-            'min-h-0 flex-1 overflow-hidden',
+            'min-h-0 flex-1 overflow-hidden transition-opacity duration-100',
             fadeContent && sourceRect && !closing && 'content-fade',
+            // Фаза 1 закрытия: тело гаснет за 100 мс (см. хром выше).
+            closing && 'opacity-0',
           )}
         >
           {contentMounted ? children : null}
