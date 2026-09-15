@@ -21,12 +21,12 @@
   },
   "devDependencies": {
     "@nodus/config": "workspace:*",
-    "@types/node": "^24.13.3",
-    "eslint": "^10.9.1",
+    "@types/node": "^26.5.1",
+    "eslint": "^10.10.0",
     "husky": "^9.1.7",
-    "lint-staged": "^17.4.1",
+    "lint-staged": "^17.5.1",
     "prettier": "^3.9.6",
     "turbo": "^2.10.12",
-    "typescript": "~5.9.3"
+    "typescript": "~7.0.2"
   }
 }
