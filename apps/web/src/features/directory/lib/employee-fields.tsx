@@ -52,6 +52,7 @@ export function employeeListFields(
           <span className="truncate text-sm font-medium">{user.displayName}</span>
         </>
       ),
+      sortValue: (user) => user.displayName,
     },
     {
       id: 'positionName',
@@ -65,6 +66,7 @@ export function employeeListFields(
         ) : (
           <span className="text-xs text-muted-foreground">{ui.common.notSet}</span>
         ),
+      sortValue: (user) => user.positionName,
     },
     {
       id: 'departmentName',
@@ -78,6 +80,7 @@ export function employeeListFields(
         ) : (
           <span className="text-xs text-muted-foreground">{ui.common.notSet}</span>
         ),
+      sortValue: (user) => user.departmentName,
     },
     {
       id: 'email',
@@ -88,6 +91,7 @@ export function employeeListFields(
       render: (user) => (
         <span className="truncate font-mono text-[11px] text-muted-foreground">{user.email}</span>
       ),
+      sortValue: (user) => user.email,
     },
     {
       id: 'manager',
@@ -97,6 +101,8 @@ export function employeeListFields(
       minWidth: 110,
       render: (user) =>
         personCell(user.managerId ? (byId.get(user.managerId)?.displayName ?? null) : null),
+      sortValue: (user) =>
+        user.managerId ? (byId.get(user.managerId)?.displayName ?? null) : null,
     },
     {
       id: 'status',
@@ -105,6 +111,7 @@ export function employeeListFields(
       defaultWidth: 124,
       minWidth: 104,
       render: (user) => <UserStatusChip status={user.status} />,
+      sortValue: (user) => user.status,
     },
   ];
 }

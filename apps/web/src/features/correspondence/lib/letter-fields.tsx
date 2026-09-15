@@ -55,6 +55,7 @@ export const letterJournalFields: DataTableField<LetterListItem>[] = [
         )}
       </>
     ),
+    sortValue: (letter) => letter.regNumber,
   },
   {
     id: 'correspondent',
@@ -63,6 +64,7 @@ export const letterJournalFields: DataTableField<LetterListItem>[] = [
     defaultWidth: 260,
     minWidth: 140,
     render: (letter) => <span className="truncate text-sm">{letter.correspondent}</span>,
+    sortValue: (letter) => letter.correspondent,
   },
   {
     id: 'subject',
@@ -73,6 +75,7 @@ export const letterJournalFields: DataTableField<LetterListItem>[] = [
     maxWidth: 640,
     locked: true,
     render: (letter) => <span className="truncate text-sm font-medium">{letter.subject}</span>,
+    sortValue: (letter) => letter.subject,
   },
   {
     id: 'status',
@@ -81,6 +84,7 @@ export const letterJournalFields: DataTableField<LetterListItem>[] = [
     defaultWidth: 176,
     minWidth: 152,
     render: (letter) => <LetterStatusBadge status={letter.status} />,
+    sortValue: (letter) => letter.status,
   },
   {
     id: 'addressee',
@@ -89,6 +93,7 @@ export const letterJournalFields: DataTableField<LetterListItem>[] = [
     defaultWidth: 200,
     minWidth: 110,
     render: personCell,
+    sortValue: (letter) => letter.addressee?.displayName ?? null,
   },
   {
     id: 'receivedAt',
@@ -97,6 +102,7 @@ export const letterJournalFields: DataTableField<LetterListItem>[] = [
     defaultWidth: 152,
     minWidth: 128,
     render: (letter) => <span className={monoCell}>{formatDateTimeShort(letter.receivedAt)}</span>,
+    sortValue: (letter) => letter.receivedAt,
   },
   {
     id: 'project',
@@ -110,6 +116,7 @@ export const letterJournalFields: DataTableField<LetterListItem>[] = [
       ) : (
         <span className={monoCell}>—</span>
       ),
+    sortValue: (letter) => letter.project?.name ?? null,
   },
   {
     id: 'deadline',
@@ -118,6 +125,7 @@ export const letterJournalFields: DataTableField<LetterListItem>[] = [
     defaultWidth: 172,
     minWidth: 140,
     render: (letter) => <DeadlineChip deadline={letter.deadline} />,
+    sortValue: (letter) => letter.deadline,
   },
   {
     id: 'regDate',
@@ -131,5 +139,6 @@ export const letterJournalFields: DataTableField<LetterListItem>[] = [
       ) : (
         <span className={monoCell}>—</span>
       ),
+    sortValue: (letter) => letter.regDate,
   },
 ];

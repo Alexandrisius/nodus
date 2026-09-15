@@ -19,6 +19,8 @@ export interface CellContext {
 
 export interface ListFieldDef extends FieldDef {
   render: (task: TaskListItem, ctx: CellContext) => ReactNode;
+  /** Значение для сортировки (концепт #4): задано → заголовок кликабелен (↑/↓). */
+  sortValue?: (task: TaskListItem) => string | number | null;
 }
 
 function SourceIcon({ task }: { task: TaskListItem }) {
@@ -57,6 +59,7 @@ export const taskListFields: ListFieldDef[] = [
     minWidth: 48,
     maxWidth: 96,
     render: (task) => <span className={monoCell}>{task.number}</span>,
+    sortValue: (task) => task.number,
   },
   {
     id: 'title',
@@ -77,6 +80,7 @@ export const taskListFields: ListFieldDef[] = [
         ) : null}
       </>
     ),
+    sortValue: (task) => task.title,
   },
   {
     id: 'stage',
@@ -85,6 +89,8 @@ export const taskListFields: ListFieldDef[] = [
     defaultWidth: 128,
     minWidth: 116,
     render: (task) => <TaskStatusBadge stage={task.stage} />,
+    // order стадии — сортировка по ходу workflow, а не по алфавиту.
+    sortValue: (task) => task.stage.order,
   },
   {
     id: 'deadline',
@@ -93,6 +99,7 @@ export const taskListFields: ListFieldDef[] = [
     defaultWidth: 172,
     minWidth: 140,
     render: (task) => <DeadlineChip deadline={task.deadline} />,
+    sortValue: (task) => task.deadline,
   },
   {
     id: 'assignee',
@@ -101,6 +108,7 @@ export const taskListFields: ListFieldDef[] = [
     defaultWidth: 160,
     minWidth: 110,
     render: (task) => personCell(task.assignee),
+    sortValue: (task) => task.assignee?.displayName ?? null,
   },
   {
     id: 'creator',
@@ -109,6 +117,7 @@ export const taskListFields: ListFieldDef[] = [
     defaultWidth: 160,
     minWidth: 110,
     render: (task) => personCell(task.creator),
+    sortValue: (task) => task.creator?.displayName ?? null,
   },
   {
     id: 'project',
@@ -122,6 +131,7 @@ export const taskListFields: ListFieldDef[] = [
       ) : (
         <span className={monoCell}>—</span>
       ),
+    sortValue: (task) => task.project?.name ?? null,
   },
   {
     id: 'priority',
@@ -132,6 +142,8 @@ export const taskListFields: ListFieldDef[] = [
     render: (task) => (
       <NodeChip tone={priorityTone[task.priority]}>{ui.tasks.priority[task.priority]}</NodeChip>
     ),
+    // Числом — порядок важности, а не алфавит кода.
+    sortValue: (task) => ({ low: 0, normal: 1, high: 2, urgent: 3 })[task.priority],
   },
   {
     id: 'comments',
@@ -140,6 +152,7 @@ export const taskListFields: ListFieldDef[] = [
     defaultWidth: 60,
     minWidth: 48,
     render: (task) => <span className={monoCell}>{task.commentsCount}</span>,
+    sortValue: (task) => task.commentsCount,
   },
   {
     id: 'spent',
@@ -152,6 +165,7 @@ export const taskListFields: ListFieldDef[] = [
         {task.spentMinutes > 0 ? formatMinutes(task.spentMinutes) : '—'}
       </span>
     ),
+    sortValue: (task) => task.spentMinutes,
   },
   {
     id: 'updated',
@@ -160,5 +174,6 @@ export const taskListFields: ListFieldDef[] = [
     defaultWidth: 140,
     minWidth: 112,
     render: (task) => <span className={monoCell}>{formatDateTime(task.updatedAt)}</span>,
+    sortValue: (task) => task.updatedAt,
   },
 ];

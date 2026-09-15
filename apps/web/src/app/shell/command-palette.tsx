@@ -22,7 +22,7 @@ import { useShellStore } from './shell-store.js';
 import { useOpenCard } from './use-card-stack.js';
 
 const actions = [
-  { to: '/', label: ui.nav.home, icon: House },
+  { to: '/home', label: ui.nav.home, icon: House },
   { to: '/tasks', label: ui.nav.tasks, icon: ListTodo },
   { to: '/letters', label: ui.nav.letters, icon: Mail },
   { to: '/projects', label: ui.nav.projects, icon: FolderOpen },

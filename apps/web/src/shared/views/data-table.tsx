@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, type ReactNode } from 'react';
-import { NodeLabel } from '@nodus/ui/components/node-label';
 import { Skeleton } from '@nodus/ui/components/skeleton';
 import { Checkbox } from '@nodus/ui/components/checkbox';
 import { Empty, EmptyTitle } from '@nodus/ui/components/empty';
 import { ui } from '@nodus/contracts';
 
-import { ColumnResizer } from './column-resizer.js';
+import { DataTableHeader } from './data-table-header.js';
 import { LEADING_COL_W, RowMenu, type RowMenuItem } from './row-menu.js';
+import { sortRows } from './sort-rows.js';
 import { useRowSelection } from './use-row-selection.js';
 import { useViewFields, type FieldDef } from './use-view-fields.js';
 import { cn } from '@nodus/ui/lib/utils';
@@ -14,6 +14,9 @@ import { cn } from '@nodus/ui/lib/utils';
 /** Колонка канонической таблицы: поле реестра + рендер ячейки. */
 export interface DataTableField<T> extends FieldDef {
   render: (row: T) => ReactNode;
+  /** Значение для сортировки (концепт #4): задано → заголовок кликабелен
+   *  (↑/↓); на бэке id поля = имя параметра `?sort=field:dir`. */
+  sortValue?: (row: T) => string | number | null;
 }
 
 /**
@@ -28,6 +31,9 @@ export interface DataTableField<T> extends FieldDef {
  *   dblclick — автоподбор по контенту (сумма scrollWidth ДЕТЕЙ ячеек);
  * — видимость/ширина колонок — шестерёнка ViewSettings того же viewKey,
  *   пресет переживает reload (nodus-views-v1);
+ * — ПОРЯДОК колонок — dnd за заголовок (живой черновик: колонка едет целиком,
+ *   коммит на drop), СОРТИРОВКА — клик по заголовку ↑/↓ (одна колонка,
+ *   стабильная: тай-брейк по rowKey); обе — в пресет вида (концепт #4);
  * — строка — role=button + Enter/Space (вложенных кнопок в кнопке нет:
  *   ячейка действий — span со stopPropagation);
  * — ВЕДУЩАЯ колонка (вердикт владельца 15.09.2026, модель Битрикс24):
@@ -70,11 +76,30 @@ export function DataTable<T>({
   rowMenu?: (row: T) => RowMenuItem[];
   emptyTitle?: string;
 }) {
-  const { visibleFields, setWidth } = useViewFields(viewKey, defs);
+  const { fields, visibleFields, sort, setWidth, setOrder, cycleSort } = useViewFields(
+    viewKey,
+    defs,
+  );
   const containerRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
-  const rowKeys = useMemo(() => rows.map(rowKey), [rows, rowKey]);
+
+  // Сортировка строк (клиентская, концепт #4; ?sort= на бэке — отдельный
+  // issue): стабильная, null — в конец (sort-rows).
+  const sortedRows = useMemo(() => sortRows(rows, sort, defs, rowKey), [rows, sort, defs, rowKey]);
+
+  const rowKeys = useMemo(() => sortedRows.map(rowKey), [sortedRows, rowKey]);
   const { selected, toggle, toggleAll, headerChecked } = useRowSelection(rowKeys);
+
+  /** Коммит порядка на отпускании drag: видимые в новом + скрытые следом
+   *  (их место сохраняется), видимость передаётся ТЕКУЩАЯ — applyOrder её
+   *  не насилует (урок воскресающих скрытых полей, view-store). */
+  const commitOrder = (ids: string[]) =>
+    setOrder(
+      [...ids, ...fields.filter((f) => !f.visible).map((f) => f.id)].map((id) => ({
+        id,
+        visible: fields.find((f) => f.id === id)?.visible ?? true,
+      })),
+    );
 
   useEffect(() => {
     const sentinel = sentinelRef.current;
@@ -142,37 +167,19 @@ export function DataTable<T>({
 
   return (
     <div ref={containerRef} className="h-full overflow-auto">
-      <div
-        className="sticky top-0 z-10 grid w-max min-w-full items-center gap-3 border-b border-border bg-card px-4 py-2"
+      <DataTableHeader
+        fields={visibleFields}
+        sort={sort}
+        headerChecked={headerChecked}
+        hasActions={actions !== undefined}
         style={{ gridTemplateColumns }}
-      >
-        {/* «Выбрать все» (модель Битрикс24): indeterminate при частичном. */}
-        <span className="flex items-center">
-          <Checkbox
-            checked={headerChecked}
-            onCheckedChange={toggleAll}
-            aria-label={ui.common.selectAll}
-          />
-        </span>
-        {visibleFields.map((field, index) => (
-          <span key={field.id} className="relative flex min-w-0 items-center">
-            <NodeLabel label={field.label} className="truncate" />
-            {field.width !== undefined && index < visibleFields.length - 1 ? (
-              <ColumnResizer
-                width={field.width}
-                minWidth={field.minWidth ?? 48}
-                maxWidth={field.maxWidth ?? 640}
-                onResize={(w) => setWidth(field.id, w)}
-                onAutoFit={() =>
-                  autoFitColumn(index, field.id, field.minWidth ?? 48, field.maxWidth ?? 640)
-                }
-              />
-            ) : null}
-          </span>
-        ))}
-        {actions ? <span /> : null}
-      </div>
-      {rows.map((row) => {
+        onToggleAll={toggleAll}
+        onResize={(fieldId, w) => setWidth(fieldId, w)}
+        onAutoFit={autoFitColumn}
+        onCycleSort={cycleSort}
+        onReorder={commitOrder}
+      />
+      {sortedRows.map((row) => {
         const key = rowKey(row);
         const isSelected = selected.has(key);
         return (
@@ -209,7 +216,11 @@ export function DataTable<T>({
               <RowMenu items={rowMenu?.(row) ?? []} />
             </span>
             {visibleFields.map((field) => (
-              <span key={field.id} className="flex min-w-0 items-center gap-2 overflow-hidden">
+              <span
+                key={field.id}
+                data-cell-field={field.id}
+                className="flex min-w-0 items-center gap-2 overflow-hidden"
+              >
                 {field.render(row)}
               </span>
             ))}

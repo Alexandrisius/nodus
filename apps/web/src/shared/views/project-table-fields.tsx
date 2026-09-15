@@ -55,6 +55,7 @@ export const projectListFields: DataTableField<ProjectListItem>[] = [
     minWidth: 64,
     maxWidth: 140,
     render: (project) => <span className="font-mono text-[11px] tabular-nums">{project.code}</span>,
+    sortValue: (project) => project.code,
   },
   {
     id: 'name',
@@ -70,6 +71,7 @@ export const projectListFields: DataTableField<ProjectListItem>[] = [
         <span className="truncate text-sm font-medium">{project.name}</span>
       </>
     ),
+    sortValue: (project) => project.name,
   },
   {
     id: 'myRole',
@@ -78,6 +80,7 @@ export const projectListFields: DataTableField<ProjectListItem>[] = [
     defaultWidth: 208,
     minWidth: 168,
     render: (project) => <ProjectRoleChip project={project} />,
+    sortValue: (project) => project.myRole,
   },
   {
     id: 'manager',
@@ -86,6 +89,7 @@ export const projectListFields: DataTableField<ProjectListItem>[] = [
     defaultWidth: 170,
     minWidth: 110,
     render: (project) => personCell(project.manager),
+    sortValue: (project) => project.manager?.displayName ?? null,
   },
   {
     id: 'members',
@@ -107,6 +111,7 @@ export const projectListFields: DataTableField<ProjectListItem>[] = [
         <span className={monoCell}>{project.membersCount}</span>
       </>
     ),
+    sortValue: (project) => project.membersCount,
   },
   {
     id: 'privacy',
@@ -115,6 +120,7 @@ export const projectListFields: DataTableField<ProjectListItem>[] = [
     defaultWidth: 124,
     minWidth: 104,
     render: (project) => <ProjectPrivacyChip project={project} />,
+    sortValue: (project) => project.privacy,
   },
   {
     id: 'endDate',
@@ -128,6 +134,7 @@ export const projectListFields: DataTableField<ProjectListItem>[] = [
       ) : (
         <span className={monoCell}>—</span>
       ),
+    sortValue: (project) => project.endDate,
   },
   {
     id: 'activityAt',
@@ -138,5 +145,6 @@ export const projectListFields: DataTableField<ProjectListItem>[] = [
     render: (project) => (
       <span className={monoCell}>{formatDateTimeShort(project.activityAt)}</span>
     ),
+    sortValue: (project) => project.activityAt,
   },
 ];

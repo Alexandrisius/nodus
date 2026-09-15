@@ -8,6 +8,9 @@ import {
 } from '@tanstack/react-router';
 
 import { AppShell } from './shell/app-shell.js';
+import { NAV_MODULES } from './shell/nav-registry.js';
+import { resolveHidden, resolveOrder } from './shell/ui-prefs.js';
+import { useUiPrefsStore } from './shell/ui-prefs-store.js';
 import { useAuthStore } from '../shared/auth-store.js';
 
 const LoginPage = lazy(() =>
@@ -81,7 +84,36 @@ const shellRoute = createRoute({
   beforeLoad: requireAuth,
 });
 
-const homeRoute = createRoute({ getParentRoute: () => shellRoute, path: '/', component: HomePage });
+const homeRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/home',
+  component: HomePage,
+});
+
+/**
+ * Стартовая переадресация (концепт «Персональный порядок», #4): корень не
+ * рендерит раздел, а ЗАМЕЩАЮЩЕ (replace — «/» не оседает в истории) ведёт
+ * на ПЕРВЫЙ модуль личного порядка рейки. У каждого раздела — канонический
+ * адрес (Главная — '/home'): иначе сдвинутая с первого места Главная стала
+ * бы недостижимой (best practice, подтверждено research — gotchas).
+ * localStorage читается синхронно (вспышки нет); когда настройки переедут
+ * на API, beforeLoad обязан ДОЖДАТЬСЯ их загрузки (gotchas).
+ */
+const indexRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/',
+  beforeLoad: () => {
+    const { personal, company } = useUiPrefsStore.getState();
+    const ids = NAV_MODULES.map((m) => m.id);
+    const order = resolveOrder(ids, personal.navOrder, company.navOrder);
+    const hidden = resolveHidden(ids, personal.navHidden, company.navHidden);
+    // Стартовый экран — первый ВИДИМЫЙ модуль (скрытый «с верху» не считается).
+    const firstId = order.find((id) => !hidden.includes(id));
+    const first = NAV_MODULES.find((m) => m.id === firstId);
+    throw redirect({ to: first?.to ?? '/home', replace: true });
+  },
+  component: () => null,
+});
 
 const tasksRoute = createRoute({
   getParentRoute: () => shellRoute,
@@ -121,6 +153,7 @@ const employeesRoute = createRoute({
 const routeTree = rootRoute.addChildren([
   loginRoute,
   shellRoute.addChildren([
+    indexRoute,
     homeRoute,
     tasksRoute,
     lettersRoute,

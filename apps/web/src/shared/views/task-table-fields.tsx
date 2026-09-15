@@ -52,6 +52,7 @@ export function makeTaskTableFields({
       minWidth: 48,
       maxWidth: 96,
       render: (task) => <span className={monoCell}>{task.number}</span>,
+      sortValue: (task) => task.number,
     },
     {
       id: 'title',
@@ -62,6 +63,7 @@ export function makeTaskTableFields({
       maxWidth: 640,
       locked: true,
       render: (task) => <span className="truncate text-sm font-medium">{task.title}</span>,
+      sortValue: (task) => task.title,
     },
     {
       id: 'stage',
@@ -70,6 +72,8 @@ export function makeTaskTableFields({
       defaultWidth: 128,
       minWidth: 116,
       render: (task) => <TaskStatusBadge stage={task.stage} />,
+      // order стадии — сортировка по ходу workflow, а не по алфавиту.
+      sortValue: (task) => task.stage.order,
     },
     {
       id: 'deadline',
@@ -78,6 +82,7 @@ export function makeTaskTableFields({
       defaultWidth: 172,
       minWidth: 140,
       render: (task) => <DeadlineChip deadline={task.deadline} />,
+      sortValue: (task) => task.deadline,
     },
     {
       id: 'assignee',
@@ -86,6 +91,7 @@ export function makeTaskTableFields({
       defaultWidth: 160,
       minWidth: 110,
       render: (task) => personCell(task.assignee),
+      sortValue: (task) => task.assignee?.displayName ?? null,
     },
     {
       id: 'creator',
@@ -94,6 +100,7 @@ export function makeTaskTableFields({
       defaultWidth: 160,
       minWidth: 110,
       render: (task) => personCell(task.creator),
+      sortValue: (task) => task.creator?.displayName ?? null,
     },
     {
       id: 'project',
@@ -113,6 +120,7 @@ export function makeTaskTableFields({
         ) : (
           <span className={monoCell}>—</span>
         ),
+      sortValue: (task) => task.project?.name ?? null,
     },
     {
       id: 'priority',
@@ -123,6 +131,8 @@ export function makeTaskTableFields({
       render: (task) => (
         <NodeChip tone={priorityTone[task.priority]}>{ui.tasks.priority[task.priority]}</NodeChip>
       ),
+      // Числом — порядок важности, а не алфавит кода.
+      sortValue: (task) => ({ low: 0, normal: 1, high: 2, urgent: 3 })[task.priority],
     },
     {
       id: 'comments',
@@ -131,6 +141,7 @@ export function makeTaskTableFields({
       defaultWidth: 60,
       minWidth: 48,
       render: (task) => <span className={monoCell}>{task.commentsCount}</span>,
+      sortValue: (task) => task.commentsCount,
     },
     {
       id: 'spent',
@@ -143,6 +154,7 @@ export function makeTaskTableFields({
           {task.spentMinutes > 0 ? formatMinutes(task.spentMinutes) : '—'}
         </span>
       ),
+      sortValue: (task) => task.spentMinutes,
     },
     {
       id: 'updated',
@@ -151,6 +163,7 @@ export function makeTaskTableFields({
       defaultWidth: 140,
       minWidth: 112,
       render: (task) => <span className={monoCell}>{formatDateTime(task.updatedAt)}</span>,
+      sortValue: (task) => task.updatedAt,
     },
   ];
 }

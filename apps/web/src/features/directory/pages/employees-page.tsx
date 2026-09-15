@@ -75,7 +75,7 @@ export function EmployeesPage() {
             left={
               <Button onClick={() => setInviteOpen(true)}>
                 <UserPlus data-icon="inline-start" />
-                {ui.common.create}
+                {ui.employees.invite}
               </Button>
             }
             right={<ViewSettings viewKey="employees.list" defs={defs} />}
@@ -84,10 +84,12 @@ export function EmployeesPage() {
           <>
             {/* Закон кнопки создания (вердикт 15.09.2026): первый элемент
                 строки инструментов слева от поиска; в виде «Структура» поиска
-                нет — кнопка сразу после заголовка (та же левая позиция). */}
+                нет — кнопка сразу после заголовка (та же левая позиция).
+                Метка — «Пригласить» (вердикт 15.09.2026: сотрудников
+                приглашают, не создают). */}
             <Button onClick={() => setInviteOpen(true)}>
               <UserPlus data-icon="inline-start" />
-              {ui.common.create}
+              {ui.employees.invite}
             </Button>
             <span className="flex-1" />
           </>

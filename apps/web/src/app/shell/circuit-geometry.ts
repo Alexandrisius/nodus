@@ -276,8 +276,21 @@ export function transitionPulse(
       dot: true,
     };
   }
-  // Главная — без вспышки (решение владельца).
-  if (active.to === '/') return null;
+  // Главная: вспышка идёт до ТЕРМИНАЛЬНОЙ точки на левом краю мягкой области
+  // (вердикт владельца 15.09.2026 — заменил «Главная без вспышки»: вспышка
+  // есть и доходит до мягкой карточки, а не обрывается на стыке).
+  if (active.to === '/home') {
+    const endX = g.terminus ? g.terminus.x : g.junction.x + 24;
+    return {
+      points: [
+        { x: active.port.x, y: snapPx(active.port.y) },
+        { x: snapPx(g.junction.x), y: snapPx(active.port.y) },
+        { x: snapPx(g.junction.x), y: snapPx(g.axisY) },
+        { x: snapPx(endX), y: snapPx(g.axisY) },
+      ],
+      dot: g.terminus !== null,
+    };
+  }
   // Модуль без вкладок: от порта по шине, за стык и затухание на оси без точки.
   return {
     points: [

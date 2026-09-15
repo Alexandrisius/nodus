@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link2, SquareArrowOutUpRight } from 'lucide-react';
 import { ui } from '@nodus/contracts';
-import { NodeLabel } from '@nodus/ui/components/node-label';
 import { Skeleton } from '@nodus/ui/components/skeleton';
 import { Checkbox } from '@nodus/ui/components/checkbox';
 
 import { useOpenCard } from '../../../app/shell/use-card-stack.js';
 import { copyCardLink } from '../../../shared/lib/card-link.js';
-import { ColumnResizer } from '../../../shared/views/column-resizer.js';
+import { DataTableHeader } from '../../../shared/views/data-table-header.js';
 import { LEADING_COL_W, RowMenu, type RowMenuItem } from '../../../shared/views/row-menu.js';
+import { sortRows } from '../../../shared/views/sort-rows.js';
 import { useRowSelection } from '../../../shared/views/use-row-selection.js';
 import type { ActiveListFilter } from '../../../shared/views/list-filters.js';
 import { useFilteredList } from '../../../shared/views/use-list-toolbar.js';
@@ -38,7 +38,10 @@ export function TaskList({ filter }: { filter?: ActiveListFilter<TaskListItem> }
   /** Каскадное построение графа: база = индекс первой раскрытой строки,
    *  key перезапускает draw-on только нового раскрытия. */
   const [reveal, setReveal] = useState({ base: 0, key: 1 });
-  const { visibleFields, setWidth } = useViewFields('tasks.list', taskListFields);
+  const { fields, visibleFields, sort, setWidth, setOrder, cycleSort } = useViewFields(
+    'tasks.list',
+    taskListFields,
+  );
   const containerRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
@@ -47,12 +50,28 @@ export function TaskList({ filter }: { filter?: ActiveListFilter<TaskListItem> }
   // из видимого; родитель вне фильтра отображается корнем — ограничение
   // клиентской фильтрации дерева, до серверной).
   const filtered = useFilteredList(items, filter);
-  const rows = useMemo(() => buildTaskRows(filtered), [filtered]);
+  // Сортировка (концепт #4): ПЛОСКИЙ список до построения дерева — получается
+  // сортировка СИБЛИНГОВ внутри веток, структура дерева не ломается.
+  const sorted = useMemo(
+    () => sortRows(filtered, sort, taskListFields, (t) => t.id),
+    [filtered, sort],
+  );
+  const rows = useMemo(() => buildTaskRows(sorted), [sorted]);
   const visible = useMemo(() => filterVisibleRows(rows, collapsed), [rows, collapsed]);
   // Множественный выбор строк (модель Битрикс24, вердикт 15.09.2026):
   // та же механика, что в DataTable (useRowSelection + ведущая колонка).
   const visibleKeys = useMemo(() => visible.map((row) => row.task.id), [visible]);
   const { selected, toggle, toggleAll, headerChecked } = useRowSelection(visibleKeys);
+
+  /** Коммит порядка на отпускании drag: видимые в новом + скрытые следом,
+   *  видимость — текущая (applyOrder её не насилует, view-store). */
+  const commitOrder = (ids: string[]) =>
+    setOrder(
+      [...ids, ...fields.filter((f) => !f.visible).map((f) => f.id)].map((id) => ({
+        id,
+        visible: fields.find((f) => f.id === id)?.visible ?? true,
+      })),
+    );
 
   // Бесконечная подгрузка страниц: sentinel у дна скролл-контейнера таблицы
   // (IntersectionObserver с root=контейнер), как в битриксовском журнале.
@@ -150,35 +169,19 @@ export function TaskList({ filter }: { filter?: ActiveListFilter<TaskListItem> }
 
   return (
     <div ref={containerRef} className="h-full overflow-auto">
-      <div
-        className="sticky top-0 z-10 grid w-max min-w-full items-center gap-3 border-b border-border bg-card px-4 py-2"
+      <DataTableHeader
+        fields={visibleFields}
+        sort={sort}
+        headerChecked={headerChecked}
+        hasActions={false}
         style={{ gridTemplateColumns }}
-      >
-        <span className="flex items-center">
-          <Checkbox
-            checked={headerChecked}
-            onCheckedChange={toggleAll}
-            aria-label={ui.common.selectAll}
-          />
-        </span>
-        <span />
-        {visibleFields.map((field, index) => (
-          <span key={field.id} className="relative flex min-w-0 items-center">
-            <NodeLabel label={field.label} className="truncate" />
-            {field.width !== undefined && index < visibleFields.length - 1 ? (
-              <ColumnResizer
-                width={field.width}
-                minWidth={field.minWidth ?? 48}
-                maxWidth={field.maxWidth ?? 640}
-                onResize={(w) => setWidth(field.id, w)}
-                onAutoFit={() =>
-                  autoFitColumn(index, field.id, field.minWidth ?? 48, field.maxWidth ?? 640)
-                }
-              />
-            ) : null}
-          </span>
-        ))}
-      </div>
+        afterLeading={<span />}
+        onToggleAll={toggleAll}
+        onResize={(fieldId, w) => setWidth(fieldId, w)}
+        onAutoFit={autoFitColumn}
+        onCycleSort={cycleSort}
+        onReorder={commitOrder}
+      />
       <div className="relative">
         {visible.map((row) => {
           const { task } = row;
@@ -249,7 +252,11 @@ export function TaskList({ filter }: { filter?: ActiveListFilter<TaskListItem> }
                 ) : null}
               </div>
               {visibleFields.map((field) => (
-                <span key={field.id} className="flex min-w-0 items-center gap-2 overflow-hidden">
+                <span
+                  key={field.id}
+                  data-cell-field={field.id}
+                  className="flex min-w-0 items-center gap-2 overflow-hidden"
+                >
                   {field.render(task, { branchCollapsed, childCount: row.childCount })}
                 </span>
               ))}

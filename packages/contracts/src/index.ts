@@ -19,3 +19,4 @@ export * from './projects/project.schemas.js';
 export * from './correspondence/letter.schemas.js';
 export * from './chat/chat.schemas.js';
 export * from './views/view-preset.schemas.js';
+export * from './views/ui-preferences.schemas.js';

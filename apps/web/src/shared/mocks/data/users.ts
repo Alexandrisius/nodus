@@ -1,3 +1,4 @@
+import { Permission } from '@nodus/contracts';
 import type { AuthUser, PresenceEntry, UserCard, UserListItem, UserRef } from '@nodus/contracts';
 
 /** Демо-справочник сотрудников (ПассатПроект, 10 человек для концепта). */
@@ -226,7 +227,14 @@ export const currentAuthUser: AuthUser = {
   id: me.id,
   email: me.email,
   displayName: me.displayName,
-  permissions: ['task.create', 'task.update', 'letter.register', 'resolution.issue'],
+  // Мок-концепт: текущий пользователь — админ, галочка «Для всех» видна (#4).
+  permissions: [
+    'task.create',
+    'task.update',
+    'letter.register',
+    'resolution.issue',
+    Permission.SETTINGS_UI_DEFAULTS,
+  ],
 };
 
 export const demoPresence: PresenceEntry[] = [
