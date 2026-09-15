@@ -37,18 +37,19 @@ describe('card-stack: (де)сериализация стека карточек
     expect(parseCardStack(['task:t1'])).toEqual([]);
   });
 
-  it('беседа — сущность стека: chat:<id> сериализуется и восстанавливается', () => {
-    expect(parseCardStack('task:t1,chat:c1')).toEqual([
+  it('мессенджер — сущность стека: messenger:<id> сериализуется и восстанавливается', () => {
+    expect(parseCardStack('task:t1,messenger:c1')).toEqual([
       { kind: 'task', id: 't1' },
-      { kind: 'chat', id: 'c1' },
+      { kind: 'messenger', id: 'c1' },
     ]);
     expect(
       serializeCardStack([
         { kind: 'task', id: 't1' },
-        { kind: 'chat', id: 'c1' },
+        { kind: 'messenger', id: 'c1' },
       ]),
-    ).toBe('task:t1,chat:c1');
-    expect(cardRefFromString('chat:')).toBeNull();
+    ).toBe('task:t1,messenger:c1');
+    expect(cardRefFromString('messenger:')).toBeNull();
+    expect(cardRefFromString('chat:c1')).toBeNull();
   });
 
   it('serializeCardStack: пустой стек → undefined (параметр уходит из URL)', () => {

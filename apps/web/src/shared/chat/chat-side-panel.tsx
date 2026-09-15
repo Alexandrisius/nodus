@@ -7,6 +7,7 @@ import { cn } from '@nodus/ui/lib/utils';
 
 import { threadScopeMessages } from './channel-layout.js';
 import { useConversationMessages } from './api.js';
+import { useFrameReady } from '../ui/use-frame-ready.js';
 
 /** Ширина вталкивающей панели беседы: контейнер уменьшает чат на неё. */
 export const CHAT_PANEL_W = 300;
@@ -75,6 +76,11 @@ export function useChatSidePanel() {
  * панели («О чате»/«О канале»/«О проекте») СЛЕВА + крестик У САМОГО КРАЯ
  * справа; никаких внутренних перегородок в баре. Кнопка-тоггл остаётся в
  * баре беседы и уезжает ВЛЕВО при раскрытии (бар хоста сужается панелью).
+ *
+ * ПЕРВОЕ открытие — ПЛАВНОЕ (баг-вердикт владельца 15.09.2026): панель
+ * монтируется в момент первого открытия, свежему элементу transition идти
+ * неоткуда — появлялась рывком. Монтируем в покое (w-0) и раскрываем классом
+ * ПОСЛЕ двух кадров (`useFrameReady`) — transition стартует с первого кадра.
  */
 export function ChatSidePanel({
   conversationId,
@@ -95,6 +101,9 @@ export function ChatSidePanel({
 }) {
   const { data } = useConversationMessages(conversationId);
   const [scope, setScope] = useState<'all' | 'thread'>('all');
+  // Плавное ПЕРВОЕ открытие: монтируемся в покое (w-0), класс раскрытия —
+  // после двух кадров (useFrameReady), transition идёт с первого кадра.
+  const ready = useFrameReady();
   useEffect(() => {
     if (!threadRootId) setScope('all');
   }, [threadRootId]);
@@ -110,7 +119,7 @@ export function ChatSidePanel({
       inert={!open}
       className={cn(
         'h-full shrink-0 overflow-hidden transition-[width] duration-200 ease-out',
-        open ? 'w-[300px]' : 'w-0',
+        open && ready ? 'w-[300px]' : 'w-0',
       )}
     >
       <aside className="flex h-full w-[300px] flex-col border-l border-border bg-card">

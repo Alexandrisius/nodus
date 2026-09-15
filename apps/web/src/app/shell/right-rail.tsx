@@ -12,7 +12,9 @@ import {
 import { useAuthStore } from '../../shared/auth-store.js';
 import { NotesGlyph } from '../../shared/ui/notes-glyph.js';
 import { PersonAvatar } from '../../shared/ui/person-avatar.js';
+import { useRailHidden } from './rail-visibility.js';
 import { useShellStore } from './shell-store.js';
+import type { SourceRect } from './slider-panel.js';
 import { useCardStack, useOpenCard, useReplaceTopCard } from './use-card-stack.js';
 
 /** Ширина полосы: свёрнутая / раскрытая. Раскрытая 216px = 192 + ~12%
@@ -34,7 +36,7 @@ function ChatRailRow({
   conversation: ConversationListItem;
   meId: string | null | undefined;
   expanded: boolean;
-  onOpen: (conversationId: string) => void;
+  onOpen: (conversationId: string, sourceRect: SourceRect) => void;
 }) {
   const notes = isNotesConversation(conversation, meId);
   const unread = conversation.unreadCount > 0 && !conversation.snoozed;
@@ -49,7 +51,7 @@ function ChatRailRow({
   return (
     <button
       type="button"
-      onClick={() => onOpen(conversation.id)}
+      onClick={(event) => onOpen(conversation.id, event.currentTarget.getBoundingClientRect())}
       className="flex w-full shrink-0 items-center gap-2.5 rounded-md px-1.5 py-1 text-left hover:bg-accent"
     >
       <span className="relative shrink-0">
@@ -100,14 +102,19 @@ function ChatRailRow({
  * любые последние чаты поверх окон», модель правой панели Битрикс24): ВСЕ
  * беседы мессенджера КРОМЕ чатов задач (их будут тысячи), порядок — как в
  * списке мессенджера (sortByActivity: закреплённые сверху, затем по
- * активности), непрочитанные — счётчиком (свёрнуто — точкой). Клик — чат
- * КАРТОЧКОЙ поверх текущего стека (открытую чат-карточку подменяет, стек не
- * растёт). Свой СКРЫТЫЙ скролл (data-no-scrollbar, как в Битрикс: скроллбар
+ * активности), непрочитанные — счётчиком на аватарке. Клик — ПОЛНОЭКРАННАЯ
+ * карточка мессенджера (`messenger:<id>`, план messenger-fullscreen, модель
+ * Битрикс24) поверх текущего стека: открытую мессенджер-карточку ПОДМЕНЯЕТ
+ * (стек не растёт); пока она вершина — полоса НАКРЫТА карточкой (inset-2:
+ * дубль списка невидим и недоступен; скрывать полосу шеллом нельзя — карточки
+ * под верхней поехали бы на 40px во время раскрытия, баг-вердикт владельца
+ * 15.09.2026); на самом модуле мессенджер (/chat) полоса скрыта — правило
+ * `useRailHidden`. Свой СКРЫТЫЙ скролл (data-no-scrollbar, как в Битрикс: скроллбар
  * мини-панели не показывается). Профиль — в топбаре мягкой рамы справа от
  * уведомлений (ProfileMenu, вердикт 15.09.2026). Полоса живёт ЗА ПРЕДЕЛАМИ
  * мягкой рамы — в правом периметре, на его тоне и БЕЗ вертикальных границ
  * (план R3/R4). Раскрытие — КНОПКОЙ-шевронами внизу (без авто-раскрытия по
- * наведению; персистится в nodus-shell-v1): РЕФЛОУ 40 → 192px, мягкая рама
+ * наведению; персистится в nodus-shell-v1): РЕФЛОУ 40 ⇄ 216px, мягкая рама
  * сужается влево синхронно; карточки держат правый край по раме
  * (slider-panel); контур перемеряется слушателем transition width
  * (circuit-frame).
@@ -120,19 +127,17 @@ export function RightRail() {
   const stack = useCardStack();
   const openCard = useOpenCard();
   const replaceTop = useReplaceTopCard();
+  const hidden = useRailHidden();
 
-  // Чат — КАРТОЧКОЙ поверх текущего стека (вердикт владельца 2026-09-14:
-  // «уточнить в чате, не закрывая карточку задачи»): клик при открытой
-  // чат-карточке ПОДМЕНЯЕТ её, иначе кладёт поверх.
-  function showChat(conversationId: string) {
-    const ref = { kind: 'chat' as const, id: conversationId };
+  // Клик по беседе — ПОЛНОЭКРАННАЯ карточка мессенджера поверх текущего стека
+  // (план messenger-fullscreen, модель Битрикс24): карточка мессенджера уже
+  // открыта — ПОДМЕНЯЕМ беседу без ремаунта панели (стек не растёт), иначе
+  // кладём поверх (раскрытие из rect аватарки — shared-element).
+  function showChat(conversationId: string, sourceRect: SourceRect) {
+    const ref = { kind: 'messenger' as const, id: conversationId };
     const top = stack[stack.length - 1];
-    if (top?.kind === 'chat') replaceTop(ref);
-    else openCard(ref);
-  }
-
-  function openChat(conversationId: string) {
-    showChat(conversationId);
+    if (top?.kind === 'messenger') replaceTop(ref);
+    else openCard(ref, sourceRect);
   }
 
   // Экспресс-лента: все беседы КРОМЕ чатов задач; закреплённые сверху, затем
@@ -141,10 +146,14 @@ export function RightRail() {
 
   return (
     <aside
+      aria-hidden={hidden || undefined}
       className={cn(
-        // mr-2 — щель периметра справа от полосы (8px до края вьюпорта).
-        'relative mr-2 flex shrink-0 flex-col pt-2 transition-[width] duration-200 ease-out',
-        edgeOpen ? 'w-54' : 'w-10',
+        // mr-2 — щель периметра справа от полосы (8px до края вьюпорта); при
+        // скрытии колонка ужимается в w-0, щель остаётся — рама расширяется до
+        // края периметра без скачка отступов (модуль мессенджер / фулскрин-
+        // карточка мессенджера — useRailHidden, план messenger-fullscreen).
+        'relative mr-2 flex shrink-0 flex-col pt-2 transition-[width,opacity] duration-200 ease-out',
+        hidden ? 'pointer-events-none w-0 overflow-hidden opacity-0' : edgeOpen ? 'w-54' : 'w-10',
       )}
     >
       <div className="flex min-h-0 flex-1 flex-col">
@@ -158,7 +167,7 @@ export function RightRail() {
               conversation={conversation}
               meId={me?.id}
               expanded={edgeOpen}
-              onOpen={openChat}
+              onOpen={showChat}
             />
           ))}
         </div>

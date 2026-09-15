@@ -4,6 +4,7 @@ import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import { cn } from '@nodus/ui/lib/utils';
 
+import { useRailHidden } from './rail-visibility.js';
 import { EDGE_W_COLLAPSED, EDGE_W_EXPANDED } from './right-rail.js';
 import { useShellStore } from './shell-store.js';
 
@@ -55,6 +56,9 @@ const CLOSE_EASE = 'cubic-bezier(0.5, 0, 0.9, 0.4)';
  */
 export function SliderPanel({
   title,
+  headerContent,
+  cardTopbar = false,
+  fullscreen = false,
   onClose,
   sourceRect,
   fadeContent = true,
@@ -64,6 +68,18 @@ export function SliderPanel({
    *  владельца: не внутри карточки, где сливается с описанием). Крошек нет.
    *  ReactNode — чтобы нести маркер-идентичность сущности рядом с именем. */
   title?: ReactNode;
+  /** Замена заголовка в хроме (полноэкранная карточка мессенджера: вкладки
+   *  Чаты/Чаты задач/Настройка с портами `data-tab-port` вместо названия). */
+  headerContent?: ReactNode;
+  /** true — хедер помечается `data-card-topbar`: контур измеряет его вместо
+   *  топбара шелла (режим карточки, план messenger-fullscreen). */
+  cardTopbar?: boolean;
+  /** true — ПОЛНОЭКРАННАЯ геометрия (карточка мессенджера, план
+   *  messenger-fullscreen): правый край = край периметра (stripW=0) независимо
+   *  от полосы. Полоса при этом НЕ скрывается шеллом — карточка накрывает её
+   *  сама, и карточки ПОД ней не меняют геометрию (баг-вердикт владельца
+   *  15.09.2026: расширение нижней карточки во время раскрытия верхней). */
+  fullscreen?: boolean;
   onClose: () => void;
   sourceRect?: SourceRect;
   /** false — карточка сама управляет проявлением: её зональные фоны (тёмный
@@ -82,9 +98,13 @@ export function SliderPanel({
   // Правый край карточки = правый край мягкой рамы = левый край служебной
   // полосы (план R4): полоса ЗА пределами рамы, карточка её не накрывает и
   // сужается синхронно с рамой при раскрытии полосы кнопкой (transition-[right] той
-  // же длительности, что transition-[width] полосы).
+  // же длительности, что transition-[width] полосы). На модуле мессенджер
+  // полоса скрыта (useRailHidden) — stripW=0; фулскрин-карточка мессенджера
+  // (fullscreen) доходит до края периметра всегда: inset-2 даёт те же 8px,
+  // что у рамы, и накрывает полосу собой (план messenger-fullscreen).
   const edgeOpen = useShellStore((s) => s.edgeOpen);
-  const stripW = edgeOpen ? EDGE_W_EXPANDED : EDGE_W_COLLAPSED;
+  const railHidden = useRailHidden();
+  const stripW = fullscreen || railHidden ? 0 : edgeOpen ? EDGE_W_EXPANDED : EDGE_W_COLLAPSED;
 
   function requestClose() {
     if (closingRef.current) return;
@@ -186,8 +206,13 @@ export function SliderPanel({
         )}
       >
         <header
+          data-card-topbar={cardTopbar ? 'true' : undefined}
           className={cn(
-            'flex h-12 shrink-0 items-center gap-2 border-b border-border px-3',
+            // cardTopbar: бордюра НЕТ — нижнюю линию хедера рисует контур
+            // (ось шины на headerRect.bottom, 0.32 opacity) ровно как в
+            // топбаре шелла: карточка-мессенджер выглядит как страница.
+            'flex h-12 shrink-0 items-center gap-2 px-3',
+            !cardTopbar && 'border-b border-border',
             sourceRect && !closing && 'content-fade',
           )}
         >
@@ -202,10 +227,12 @@ export function SliderPanel({
           </Button>
           {/* Хлебные крошки убраны (вердикт владельца); вместо них — главное
               название сущности: на видном месте, один раз, в теле карточки
-              не дублируется. */}
-          {title ? (
-            <span className="min-w-0 truncate text-sm font-medium text-foreground">{title}</span>
-          ) : null}
+              не дублируется. Фулскрин-карточка мессенджера — вместо названия
+              вкладки-порты (headerContent). */}
+          {headerContent ??
+            (title ? (
+              <span className="min-w-0 truncate text-sm font-medium text-foreground">{title}</span>
+            ) : null)}
         </header>
         <div
           className={cn(

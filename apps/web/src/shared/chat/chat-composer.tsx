@@ -1,5 +1,5 @@
 import { Mic, Paperclip, Smile } from 'lucide-react';
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import { Textarea } from '@nodus/ui/components/textarea';
@@ -42,6 +42,23 @@ export function ChatComposer({
     registerComposer(focusId, el);
     return () => unregisterComposer(focusId, el);
   }, [focusId]);
+
+  // Хореография Битрикс24 (скрепка вверху, смайл/микрофон внизу) — ТОЛЬКО
+  // когда поле РАСТЁТ (больше одной строки). В покое (одна строка) обе
+  // группы иконок — ПО ЦЕНТРУ высоты строки (баг-вердикт владельца
+  // 15.09.2026: скрепка из-за self-start сидела выше центра).
+  const [grown, setGrown] = useState(false);
+  const baseHeight = useRef(0);
+  useLayoutEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => {
+      if (baseHeight.current === 0) baseHeight.current = el.clientHeight;
+      setGrown(el.clientHeight > baseHeight.current + 4);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   function send() {
     const trimmed = text.trim();
@@ -86,7 +103,7 @@ export function ChatComposer({
           type="button"
           variant="ghost"
           size="icon-xs"
-          className="shrink-0 self-start text-muted-foreground"
+          className={cn('shrink-0 text-muted-foreground', grown ? 'self-start' : 'self-center')}
           aria-label={ui.chat.attachFile}
           title={ui.chat.attachFile}
         >
@@ -110,7 +127,7 @@ export function ChatComposer({
           rows={1}
           className="max-h-[45vh] min-h-7 flex-1 resize-none rounded-lg border-0 bg-transparent px-1.5 py-1 shadow-none ring-0 focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent"
         />
-        <span className="flex shrink-0 items-end gap-0.5 self-end">
+        <span className={cn('flex shrink-0 items-end gap-0.5', grown ? 'self-end' : 'self-center')}>
           <Button
             type="button"
             variant="ghost"

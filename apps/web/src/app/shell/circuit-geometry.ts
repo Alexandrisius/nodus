@@ -2,6 +2,11 @@ import { orthPath, snapPx, type NodeEdgePoint } from '@nodus/ui/components/node-
 
 import { RAIL_TRUNK_X } from './node-rail.js';
 
+/** Custom-событие «перемерь контур»: его шлёт хром, который меняется БЕЗ
+ *  route/resize (вкладки фулскрин-карточки мессенджера — `MessengerTabs`),
+ *  после коммита нового `data-active` в DOM. */
+export const CIRCUIT_REMEASURE = 'nodus:circuit-remeasure';
+
 /** Измеренная геометрия контура: порты из DOM по data-атрибутам. */
 export interface CircuitGeometry {
   /** Стык шины рейки и оси шапки (корень контура). */
@@ -31,6 +36,12 @@ export interface CircuitGeometry {
   terminus: NodeEdgePoint | null;
   /** Низ шины рейки (центр последнего модуля). */
   spineEndY: number;
+  /** Режим ПОЛНОЭКРАННОЙ карточки мессенджера (план messenger-fullscreen):
+   *  геометрия измерена по хедеру карточки (`data-card-topbar`), а не шелла;
+   *  шина — урезанная (как у схлопнутой левой рейки): от точки на левой
+   *  границе карточки по оси до её правого края. Контур рисуется ПОверх
+   *  карточки (z-[60] > z-50 слайдера), узел-точка — на тоне карточки. */
+  cardMode: boolean;
 }
 
 /** Фокус навигации: активный модуль и вкладка (для вспышки-перехода). */
@@ -47,8 +58,11 @@ function centerOf(el: Element): NodeEdgePoint {
   return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
 }
 
-/** Измерение контура из живого DOM. Возвращает null, если каркас не смонтирован. */
-export function measureCircuit(pathname = '/'): CircuitGeometry | null {
+/** Измерение контура из живого DOM. Возвращает null, если каркас не смонтирован.
+ *  `cardMode` — вершина стека карточек: полноэкранная карточка мессенджера
+ *  (шина шелла под ней невидима — измеряется контур самой карточки). */
+export function measureCircuit(pathname = '/', cardMode = false): CircuitGeometry | null {
+  if (cardMode) return measureCardCircuit(pathname);
   const header = document.querySelector<HTMLElement>('[data-topbar]');
   if (!header) return null;
   const axisY = header.getBoundingClientRect().bottom;
@@ -95,6 +109,47 @@ export function measureCircuit(pathname = '/'): CircuitGeometry | null {
     terminus: !leftNode && tabs.length === 0 ? { x: frameRect?.left ?? 0, y: axisY } : null,
     // Шина заканчивается в точке отхода последнего отвода (порт-10) — без хвоста.
     spineEndY: leftNode ? axisY : modules.length ? lastY - 10 : axisY,
+    cardMode: false,
+  };
+}
+
+/**
+ * Контур ПОЛНОЭКРАННОЙ карточки мессенджера (план messenger-fullscreen,
+ * вердикт владельца 15.09.2026; реф — урезанная шина схлопнутой левой рейки):
+ * левый узел-точка — на левой границе мягкой области карточки на оси вкладок;
+ * ось идёт до правого края карточки (`axisFull`: в мессенджере она же верхняя
+ * граница окна чата); засечки вверх — к точкам вкладок хедера карточки
+ * (`data-tab-port` внутри `data-card-topbar`). Вкладки — локальное состояние
+ * карточки (не URL): перемер по custom-событию `CIRCUIT_REMEASURE`.
+ * null, пока хедер карточки не смонтирован.
+ */
+function measureCardCircuit(pathname: string): CircuitGeometry | null {
+  const header = document.querySelector<HTMLElement>('[data-card-topbar]');
+  const card = header?.closest<HTMLElement>('[role="dialog"]');
+  if (!header || !card) return null;
+  const axisY = header.getBoundingClientRect().bottom;
+  const cardRect = card.getBoundingClientRect();
+  const leftNode: NodeEdgePoint = { x: cardRect.left, y: axisY };
+  // Виртуальный активный модуль опирает вспышки на ось (портов рейки под
+  // карточкой нет) — приём схлопнутой рейки; to — реальный маршрут, чтобы
+  // сигнатура фокуса не дёргалась.
+  const junction: NodeEdgePoint = { x: leftNode.x + 2.5, y: axisY };
+  const tabs = [...header.querySelectorAll<HTMLElement>('[data-tab-port]')].map((el) => ({
+    active: el.dataset.active === 'true',
+    x: centerOf(el).x,
+    label: el.textContent?.trim() ?? '',
+  }));
+  return {
+    junction,
+    axisY,
+    modules: [{ to: pathname, active: true, port: junction }],
+    tabs,
+    leftNode,
+    rightEdge: cardRect.right,
+    axisFull: true,
+    terminus: null,
+    spineEndY: axisY,
+    cardMode: true,
   };
 }
 

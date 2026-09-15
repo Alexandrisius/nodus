@@ -1,22 +1,17 @@
 import { useEffect, useState } from 'react';
 import { ui } from '@nodus/contracts';
-import { Skeleton } from '@nodus/ui/components/skeleton';
 
 import { ProjectIdentityIcon } from '../../shared/ui/project-identity-icon.js';
 import { useLetterDetail } from '../../features/correspondence/api/letters-api.js';
 import { LetterCard } from '../../features/correspondence/components/letter-card.js';
-import { useConversations } from '../../features/chat/api/chat-api.js';
-import { ChatWorkspace } from '../../features/chat/components/chat-workspace.js';
-import { conversationTitle, isNotesConversation } from '../../features/chat/lib/conversations.js';
+import { MessengerBody, type ChatTab } from '../../features/chat/components/messenger-body.js';
+import { MessengerTabs } from '../../features/chat/components/messenger-tabs.js';
 import { useUsersList } from '../../features/directory/api/directory-api.js';
 import { EmployeeCard } from '../../features/directory/components/employee-card.js';
 import { useProjectDetail } from '../../features/projects/api/projects-api.js';
 import { ProjectCard } from '../../features/projects/components/project-card.js';
 import { useTaskDetail } from '../../features/tasks/api/tasks-api.js';
 import { TaskCard } from '../../features/tasks/components/task-card.js';
-import { useAuthStore } from '../../shared/auth-store.js';
-import { NotesGlyph } from '../../shared/ui/notes-glyph.js';
-import { PersonAvatar } from '../../shared/ui/person-avatar.js';
 import type { CardRef } from './card-stack.js';
 import { SliderPanel, type SourceRect } from './slider-panel.js';
 import { useShellStore } from './shell-store.js';
@@ -101,53 +96,45 @@ function EmployeeEntry({ id, source, onClose }: EntryProps) {
   );
 }
 
-/** Беседа — полноправная сущность стека (ADR-0009, вердикт владельца
- *  14.09.2026): чат открывается ПОВЕРХ текущей карточки (задачи и т.п.),
- *  не закрывая её; Esc снимает чат и возвращает к задаче с состоянием.
- *  Треды карточки — локальное состояние (search маршрута не трогаем). */
-function ChatEntry({ id, source, onClose }: EntryProps) {
-  const { data, isLoading, isFetching } = useConversations();
-  const meId = useAuthStore((s) => s.user?.id);
+/** Мессенджер — ПОЛНОЭКРАННАЯ карточка стека (ADR-0009 + план
+ *  `docs/mvp/messenger-fullscreen-plan.md`, вердикт владельца 15.09.2026,
+ *  модель Битрикс24): клик по беседе в служебной полосе открывает
+ *  полноценный мессенджер (вкладки Чаты/Чаты задач/Настройка, список бесед,
+ *  весь функционал — единое тело `MessengerBody` со страницей /chat) ПОВЕРХ
+ *  текущей карточки; полоса под карточкой НАКРЫТА ею (inset-2 периметра —
+ *  дубль списка невидим и недоступен; скрывать полосу шеллом НЕЛЬЗЯ: карточки
+ *  под верхней поехали бы на 40px во время раскрытия — баг-вердикт владельца
+ *  15.09.2026), закрытие (X/Esc) возвращает к предыдущей сущности с её
+ *  состоянием. id — беседа, выбранная при открытии; подмена верхней
+ *  карточки (клик по другой беседе полосы) меняет id БЕЗ ремаунта панели —
+ *  синхронизация эффектом. Вкладка и тред — локальное состояние (чужие
+ *  маршруту search-параметры не пишем). */
+function MessengerEntry({ id, source, onClose }: EntryProps) {
+  const [conversationId, setConversationId] = useState(id);
+  const [tab, setTab] = useState<ChatTab>('chats');
   const [threadRootId, setThreadRootId] = useState<string | null>(null);
-  const conversation = data?.items.find((c) => c.id === id);
+  // Подмена беседы (replaceTop): сброс треда — он принадлежал прежней беседе.
+  useEffect(() => {
+    setConversationId(id);
+    setThreadRootId(null);
+  }, [id]);
   return (
     <SliderPanel
-      title={
-        conversation ? (
-          <span className="flex min-w-0 items-center gap-2">
-            {isNotesConversation(conversation, meId) ? (
-              <NotesGlyph className="size-6 shrink-0" />
-            ) : (
-              <PersonAvatar
-                name={conversationTitle(conversation, meId)}
-                avatarUrl={conversation.avatarUrl}
-                className="size-6 shrink-0"
-              />
-            )}
-            <span className="truncate">{conversationTitle(conversation, meId)}</span>
-          </span>
-        ) : (
-          ui.chat.notes
-        )
-      }
+      cardTopbar
+      fullscreen
+      headerContent={<MessengerTabs tab={tab} onChange={setTab} />}
       onClose={onClose}
       sourceRect={source}
       fadeContent={false}
     >
-      {conversation ? (
-        <ChatWorkspace
-          conversation={conversation}
-          compact
-          threadRootId={threadRootId}
-          onOpenThread={setThreadRootId}
-          onCloseThread={() => setThreadRootId(null)}
-        />
-      ) : isLoading || isFetching ? (
-        <div className="flex h-full flex-col gap-3 p-4">
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="w-full flex-1" />
-        </div>
-      ) : null}
+      <MessengerBody
+        tab={tab}
+        conversationId={conversationId}
+        onSelectConversation={setConversationId}
+        threadRootId={threadRootId}
+        onOpenThread={setThreadRootId}
+        onCloseThread={() => setThreadRootId(null)}
+      />
     </SliderPanel>
   );
 }
@@ -170,8 +157,8 @@ function CardStackEntry({ cardRef, onClose }: { cardRef: CardRef; onClose: () =>
       return <LetterEntry id={cardRef.id} source={source} onClose={onClose} />;
     case 'employee':
       return <EmployeeEntry id={cardRef.id} source={source} onClose={onClose} />;
-    case 'chat':
-      return <ChatEntry id={cardRef.id} source={source} onClose={onClose} />;
+    case 'messenger':
+      return <MessengerEntry id={cardRef.id} source={source} onClose={onClose} />;
   }
 }
 

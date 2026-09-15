@@ -1,8 +1,11 @@
-import { useCallback, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useRouterState } from '@tanstack/react-router';
 import { NodeEdge, pathLength, snapPx, type NodeEdgePoint } from '@nodus/ui/components/node-edge';
+import { cn } from '@nodus/ui/lib/utils';
 
+import { parseCardStack } from './card-stack.js';
 import {
+  CIRCUIT_REMEASURE,
   currentFocus,
   framePath,
   measureCircuit,
@@ -17,6 +20,11 @@ function focusSig(f: CircuitFocus | null): string {
   return f ? `${f.moduleTo}|${f.tabLabel ?? ''}` : '';
 }
 
+/** Отсрочка первого замера в режиме карточки: `slider-expand` (430 мс)
+ *  трансформирует всю карточку вместе с хедером — rect'ы переходные;
+ *  контур появляется одним кадром на осевшей геометрии. */
+const CARD_SETTLE_MS = 480;
+
 /**
  * Перманентный контур Nodus (реф node-based UI): единая связь слева направо —
  * стык (круглое сопряжение, без точки) → ось шапки до самого правого края
@@ -28,11 +36,25 @@ function focusSig(f: CircuitFocus | null): string {
  * 14.09.2026: пульс на переходной геометрии улетал поверх рейки). Геометрия —
  * измерение DOM по data-атрибутам; пересчёт на resize, скролл навигатора и
  * покадрово во время transition ширины панелей.
+ *
+ * РЕЖИМ КАРТОЧКИ (план messenger-fullscreen): вершина стека — полноэкранная
+ * карточка мессенджера → контур измеряется по её хедеру (`data-card-topbar`)
+ * и рисуется ПОверх карточки (z-[60]); шина — урезанная, как у схлопнутой
+ * рейки: узел-точка на левой границе карточки, ось до её правого края,
+ * засечки к вкладкам карточки; первый замер — после оседания FLIP-раскрытия
+ * (CARD_SETTLE_MS), перемер на смену вкладок — по событию CIRCUIT_REMEASURE.
  */
 export function CircuitFrame() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const searchStr = useRouterState({ select: (s) => s.location.searchStr });
   const menuCollapsed = useShellStore((s) => s.menuCollapsed);
+  // Режим ПОЛНОЭКРАННОЙ карточки мессенджера (план messenger-fullscreen):
+  // вершина стека — `messenger:<id>` → контур измеряется по хедеру карточки
+  // и рисуется ПОверх неё (z-[60]); шина шелла под карточкой невидима.
+  const cardMode = useMemo(() => {
+    const stack = parseCardStack(new URLSearchParams(searchStr).get('cards'));
+    return stack[stack.length - 1]?.kind === 'messenger';
+  }, [searchStr]);
   const [geo, setGeo] = useState<CircuitGeometry | null>(null);
   const [pulse, setPulse] = useState<{
     points: NodeEdgePoint[];
@@ -47,6 +69,9 @@ export function CircuitFrame() {
    *  измеряемый фокус на переходной геометрии мигает сигнатурой, и пульс
    *  рисовался на ломаных точках. Пока moving — фокус только запоминается. */
   const moving = useRef(false);
+  /** Раскрытие фулскрин-карточки (FLIP-анимация): замеры глушатся до оседания
+   *  (CARD_SETTLE_MS) — геометрия хедера в transform-переходе «плавает». */
+  const settling = useRef(false);
 
   const pulseTimer = useRef(0);
 
@@ -64,10 +89,25 @@ export function CircuitFrame() {
   useLayoutEffect(() => {
     let raf = 0;
     let loop = 0;
+    let settle = 0;
+    const applyGeo = () => {
+      if (settling.current) return;
+      setGeo(measureCircuit(pathname, cardMode));
+    };
     const remeasure = () => {
       cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(() => setGeo(measureCircuit(pathname)));
+      raf = requestAnimationFrame(applyGeo);
     };
+    // Режим карточки включается: контур гаснет (шина шелла уходит под карточку)
+    // и возвращается одним замером, когда FLIP-раскрытие осело.
+    settling.current = cardMode;
+    if (cardMode) {
+      setGeo(null);
+      settle = window.setTimeout(() => {
+        settling.current = false;
+        remeasure();
+      }, CARD_SETTLE_MS);
+    }
     // Плавный пересчёт КАЖДЫЙ КАДР во время transition ШИРИНЫ панелей —
     // контур идёт за панелью без ступенек. Фильтр propertyName: иначе цикл
     // гаснет по transitionend посторонних анимаций раньше окончания движения.
@@ -75,7 +115,7 @@ export function CircuitFrame() {
       if (e.propertyName !== 'width' || loop) return;
       moving.current = true;
       const tick = () => {
-        setGeo(measureCircuit(pathname));
+        applyGeo();
         loop = requestAnimationFrame(tick);
       };
       loop = requestAnimationFrame(tick);
@@ -94,16 +134,21 @@ export function CircuitFrame() {
     document.addEventListener('transitionend', onTransitionEnd, true);
     document.addEventListener('transitioncancel', onTransitionEnd, true);
     document.addEventListener('scroll', remeasure, { capture: true, passive: true });
+    // Вкладки фулскрин-карточки — локальное состояние (не маршрут): хром шлёт
+    // CIRCUIT_REMEASURE после коммита data-active — перемер и вспышка фокуса.
+    window.addEventListener(CIRCUIT_REMEASURE, remeasure);
     return () => {
       cancelAnimationFrame(raf);
       cancelAnimationFrame(loop);
+      window.clearTimeout(settle);
       ro.disconnect();
       document.removeEventListener('transitionrun', onTransitionRun, true);
       document.removeEventListener('transitionend', onTransitionEnd, true);
       document.removeEventListener('transitioncancel', onTransitionEnd, true);
       document.removeEventListener('scroll', remeasure, { capture: true });
+      window.removeEventListener(CIRCUIT_REMEASURE, remeasure);
     };
-  }, [pathname, searchStr, menuCollapsed]);
+  }, [pathname, searchStr, menuCollapsed, cardMode]);
 
   useLayoutEffect(() => {
     if (!geo) return;
@@ -127,7 +172,12 @@ export function CircuitFrame() {
 
   if (!geo) return null;
   return (
-    <div className="pointer-events-none fixed inset-0 z-30" aria-hidden>
+    // Режим карточки: контур ПОверх фулскрин-карточки (z-50 слайдера), но под
+    // оверлей-порталами (z-70+: меню, поповеры, лайтбокс) — лестница z канона.
+    <div
+      className={cn('pointer-events-none fixed inset-0', geo.cardMode ? 'z-[60]' : 'z-30')}
+      aria-hidden
+    >
       <svg
         className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
         style={{ opacity: 0.32, willChange: 'opacity' }}
@@ -150,7 +200,9 @@ export function CircuitFrame() {
             cx={snapPx(geo.leftNode.x + 0.5)}
             cy={snapPx(geo.leftNode.y + 0.5)}
             r="2"
-            fill="var(--sidebar)"
+            // Режим карточки: узел сидит на границе карточки — тон карточки
+            // (тон периметра/рейки читался бы чужой заплатой).
+            fill={geo.cardMode ? 'var(--card)' : 'var(--sidebar)'}
             stroke="var(--edge)"
           />
         ) : null}
