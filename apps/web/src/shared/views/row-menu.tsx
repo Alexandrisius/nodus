@@ -1,0 +1,65 @@
+import { Menu } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { ui } from '@nodus/contracts';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@nodus/ui/components/dropdown-menu';
+import { cn } from '@nodus/ui/lib/utils';
+
+/** Ширина ведущей колонки журнала (чекбокс выбора + «шашка» меню) —
+ *  общая константа DataTable и TaskList: колонки двух таблиц совпадают. */
+export const LEADING_COL_W = 48;
+
+/** Пункт контекстного меню строки журнала. Только РЕАЛЬНЫЕ действия
+ *  (заглушек в меню нет — канон): открыть, скопировать ссылку, доменные
+ *  мутации вроде «Зарегистрировать» у писем очереди. */
+export interface RowMenuItem {
+  id: string;
+  icon?: ReactNode;
+  label: string;
+  danger?: boolean;
+  onSelect: () => void;
+}
+
+/**
+ * «Шашка» строки журнала (три горизонтальные полоски, модель Битрикс24,
+ * вердикт владельца 15.09.2026): кнопка контекстного меню сущности в
+ * ведущей ячейке строки (рядом с чекбоксом выбора). Меню — DropdownMenu
+ * по клику (не ПКМ: журналы — планшетный сценарий тоже). Клики не всплывают
+ * до строки (открытие карточки) — остановка на обёртке и триггере.
+ * Потребители: DataTable и TaskList — одна механика во всех списках.
+ */
+export function RowMenu({ items }: { items: RowMenuItem[] }) {
+  if (items.length === 0) return null;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label={ui.common.rowMenu}
+          title={ui.common.rowMenu}
+          onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+          className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        >
+          <Menu className="size-3.5" strokeWidth={1.75} />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="min-w-44" onClick={(e) => e.stopPropagation()}>
+        {items.map((item) => (
+          <DropdownMenuItem
+            key={item.id}
+            onSelect={item.onSelect}
+            className={cn(item.danger && 'text-destructive focus:text-destructive')}
+          >
+            {item.icon}
+            {item.label}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}

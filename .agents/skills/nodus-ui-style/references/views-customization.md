@@ -1,0 +1,112 @@
+# Таблицы и кастомизация представлений (`shared/views`)
+
+Инфраструктура всех модулей: `apps/web/src/shared/views/` (`view-store.ts`, `use-view-fields.ts` (в т.ч. `commitOrder`), `view-settings.tsx`, `column-resizer.tsx`, `data-table.tsx`, `data-table-header.tsx`, `sort-rows.ts`, `use-autofit-column.ts`, `use-infinite-sentinel.ts`, `card-row-menu.tsx`, `row-menu.tsx`). Эталон применения — `features/tasks` (дерево-реестр `lib/task-fields.tsx`, список, канбан). Ячейки-общалки: `shared/ui/person-cell.tsx` (`PersonCell`, `monoCell`).
+
+**Единые доменные реестры (стандарт владельца, раунд 3 — «модули не отличаются»):** плоские таблицы задач/проектов и блоки карточки канбана объявлены ОДИН раз в shared — `task-table-fields.tsx` (`makeTaskTableFields({ projectVisible })`), `task-card-fields.ts` (`makeTaskCardFields({ projectVisible })`), `project-table-fields.tsx` (`projectListFields`). Потребители берут фабрику/реестр и СВОЙ viewKey (память раздельная: `tasks.list`, `projects.tasks`, `directory.tasks`, `directory.employees`… — неймспейс всегда `<module>.<view>`, аудит #45). Реестры — module-константы (стабильная идентичность для `useViewFields`). Новое поле сущности = +1 запись в shared-реестре (+ дерево-реестр задач при необходимости).
+
+## Модель таблицы (AG Grid / Excel / Битрикс — утверждено research)
+
+1. **Все колонки — фиксированные px-треки** (включая «Название»!). **fr запрещён**: резиновая колонка компенсирует дельту ресайза — ручка отрывается от курсора, колонка «растёт не туда» (gotchas).
+2. Контейнер: `h-full overflow-auto`; хедер и строки — **единый grid** `w-max min-w-full` с одинаковым `gridTemplateColumns` (колонка графа 54px + поля). Пустое место — справа; переполнение — горизонтальный скролл.
+3. **Ресайз** (`ColumnResizer` на грани хедера, у всех колонок КРОМЕ последней видимой): drag меняет только свою колонку (соседние сдвигаются, ширины не меняют — это стандарт), clamp `minWidth..maxWidth`; ручка следует за курсором 1:1.
+   - `minWidth` — под осмысленный контент поля (контент нельзя «спрятать»);
+   - `maxWidth` — 640 дефолт (нельзя «растянуть навсегда»);
+   - **dblclick = автоподбор по контенту** (Excel): сумма `scrollWidth` ДЕТЕЙ ячеек + gaps + 24px (scrollWidth самой ячейки ≥ clientWidth — вернёт ширину трека, не использовать).
+4. **Сужение** — контент обрезается аккуратно: ячейки `min-w-0 overflow-hidden`, текст `truncate` (не «исчезает молча»).
+5. **Строка** — `role="row" tabIndex={0}` + Enter/Space, ячейки `role="cell"` (табличная семантика, аудит #45: `role="button"` на строке и `aria-sort` на span-кнопке — невалидный ARIA). Кликабельная КАРТОЧКА с интерактивами внутри (пост канала) — НЕ `<button>` и не гнездить кнопки: `div[role=button]` + гарда `closest('button,a,input,[role=button]') !== currentTarget` (урок thread-feed: вложенный клик открывал лайтбокс И тред — gotchas).
+6. Хедер sticky `top-0 z-10 bg-card` (НЕ `bg-background` — «чёрные заплаты», вердикт); ячейки хедера — `role="columnheader"` (единственная роль, где валиден `aria-sort`); `NodeLabel` заголовки; шестерёнка — в шапке страницы модуля (контент — по активному виду).
+7. **ВЕДУЩАЯ колонка 48px** (`LEADING_COL_W`, вердикт владельца 15.09.2026, модель Битрикс24) — у DataTable и TaskList одинаковая, всегда первая, не ресайзится и не прячется шестерёнкой: **чекбокс множественного выбора** (хедер — «выбрать все» с indeterminate, выбранная строка — тон `bg-accent/50`; механика — `useRowSelection`, выбор переживает фильтры/подгрузку) + **«шашка» контекстного меню строки** (`RowMenu`, DropdownMenu по клику; только РЕАЛЬНЫЕ действия: «Открыть», «Копировать ссылку» — deep-link `?cards=kind:id` через `copyCardLink`, доменные вроде «Зарегистрировать» у очереди писем). Клики ячейки не всплывают до строки (stopPropagation). Групповые действия по выбору — будущее, осознанно не рисуем.
+8. **ЗАКОН КНОПКИ СОЗДАНИЯ (вердикт владельца 15.09.2026):** кнопка создания сущности модуля — ПЕРВЫЙ элемент строки инструментов, СЛЕВА от поисковой строки (слот `left` `ListToolbar`), во всех модулях одинаково; label — «Создать» (`ui.common.create`, без уточнения — кнопка не раздувается; ИСКЛЮЧЕНИЕ по вердикту владельца: модуль «Сотрудники» — **«Пригласить»** `ui.employees.invite`, сотрудников приглашают, не создают), высота = высоте поисковой строки (h-8, Button size default); в виде без поиска — сразу после заголовка. Кнопке без окна создания быть показанной только по прямому вердикту владельца (пример: «Создать проект» до окна создания проекта).
+9. **ПОРЯДОК КОЛОНОК drag + СОРТИРОВКА кликом (концепт #4, вердикты владельца, единая машина `DataTableHeader` — у DataTable и дерева-графа журнала задач одна, слот `afterLeading` под колонку графа):** ПОРЯДОК — модель Битрикс24: заголовок И ДАННЫЕ колонки едут ВМЕСТЕ 1:1 за курсором, строго по ГОРИЗОНТАЛИ; соседние разъезжаются трансформами, показывая место посадки; порядок фиксируется ОДИН раз на отпускании (видимые в новом + скрытые следом). Реализация — РУЧНОЙ pointer-drag в `DataTableHeader` (порог 6px отделяет клик от drag; императивные `translate3d(x,0,0)` на `[data-header-field]`+`[data-cell-field]`, БЕЗ перерисовок React покадрово — урок лагов dnd-подхода, gotchas); транзишены разъезда соседей — класс `nodus-coldrag` на скролл-контейнере на время drag. **Посадка — курсор против ТЕКУЩИХ (сдвинутых) середин соседей (механика исходников AG Grid `calculateValidMoves`+`constrainDirection`, финальные вердикты владельца): сдвиг соседа — от прошлой посадки, обратный порог уезжает на всю ширину перетаскиваемой (адаптивный гистерезис: широкую вернуть — только сильным ходом, узкую — компактно; мёртвая зона = ширине активной, осцилляции нет; пороги по статичному layout).** Отвергнутые владельцем варианты: центр-на-центр, край трека, край данных, фикс-гистерезис 20px (gotchas). СОРТИРОВКА: клик по заголовку поля с `sortValue` — цикл ↑/↓ (одна колонка, двухстадийная, стрелка у лейбла; клавиатурно Enter/Space, `aria-sort`). `sortValue` в реестре = значение сортировки (даты — ISO-строки, stage — `stage.order`, приоритет — числом); id поля = будущее имя `?sort=field:dir` (серверная сортировка — отдельный issue). Сортировка — `sort-rows.ts` (стабильная: тай-брейк по rowKey, null в конец); для дерева задач сортируется ПЛОСКИЙ список до `buildTaskRows` — сортировка сиблингов внутри веток, структура не ломается. Сорт живёт в пресете (`sorts` `nodus-views-v1`), `reset` вида чистит и его.
+
+
+## Кастомизация представлений
+
+### Реестр полей модуля (новое поле = +1 строка)
+
+```tsx
+// features/<module>/lib/<module>-fields.tsx
+export const taskListFields: ListFieldDef[] = [
+  {
+    id: 'stage',
+    label: ui.tasks.fieldStage,   // i18n из contracts
+    defaultVisible: true,
+    defaultWidth: 128,
+    minWidth: 116,                // под самый длинный чип
+    locked: false,                // title — locked: true (нельзя скрыть)
+    render: (task, ctx) => <TaskStatusBadge stage={task.stage} />,
+  },
+  // …
+];
+export const taskCardFields: FieldDef[] = [ /* поля карточки канбана, без ширин */ ];
+```
+
+`FieldDef`: `id, label, defaultVisible, defaultWidth?, minWidth?, maxWidth?, flex? (устар., не использовать), locked?`; `ListFieldDef` добавляет `render(task, ctx)`.
+
+### Хук и пресет
+
+```tsx
+const { visibleFields, isVisible, toggleField, setWidth, reset } = useViewFields('tasks.list', taskListFields);
+```
+
+- Пресет — zustand persist `nodus-views-v1` (схема — contracts `viewPresetSchema`; на проде то же DTO — API персонализации). Слияние реестр⊕сохранённое: новые поля модуля подхватываются дефолтами, неизвестные ключи отбрасываются (без миграций).
+- Ширина таблицы: `visibleFields.map(f => `${f.width ?? 120}px`).join(' ')` — и хедеру, и строкам.
+
+### Шестерёнка (`ViewSettings`)
+
+```tsx
+<ViewSettings viewKey="tasks.list" defs={taskListFields} />
+```
+
+DropdownMenu с чекбоксами (`onSelect={e => e.preventDefault()}` — иначе меню закрывается после первого пункта!) + «Сбросить настройки». Поле `locked` — disabled. Живёт в правом конце строки инструментов (`ListToolbar`), НЕ в таб-баре карточки и не в шапке страницы.
+
+## Строка инструментов списка (`ListToolbar`, раунды 4–5)
+
+У КАЖДОГО журнала и вкладки-списка — один компонент. Модель Битрикс24: ОДНА поисковая строка (placeholder — короткий «Поиск…»; базовая ширина w-[28rem], в фокусе поле РАСШИРЯЕТСЯ до ширины панели ~1.3x), **чипы применённых фильтров — ВНУТРИ поля слева** (≤ 80% ширины поля, значение truncate + title), из неё выезжает панель фильтра — **отдельной кнопки «Фильтр» НЕТ**. Панель (`filter-panel.tsx`): слева колонка пресетов (встроенные реестра + сохранённые; клик применяет, активный подсвечен `sameFilterState`, «скрепка» = pinnedId в `nodus-list-filters-v1:<viewKey>`; свои удаляются), справа поля по атрибутам (мгновенное применение), «Сбросить». Слоты `left` (вид) / `right` (счётчики, шестерёнка).
+
+```tsx
+const toolbar = useListToolbar('projects.tasks', taskBuiltinPresets); // встроенные пресеты — вторым аргументом
+const defs = useTaskFilterDefs({ projectVisible: false }); // реестр полей
+const filter = useMemo(() => ({ defs, state: toolbar.filters, query: toolbar.query, searchText: taskSearchText }), [...]);
+const rows = useFilteredList(items, filter);               // или проп filter в TaskList/TaskKanban
+
+// Страница: шапка ОДНОЙ строкой h-14 (заголовок + счётчик + тулбар flex-1 + шестерёнка)
+<ListToolbar className="min-w-0 flex-1 px-0" toolbar={toolbar} defs={defs} builtinPresets={taskBuiltinPresets} right={<ViewSettings …/>} />
+// Карточка (вкладка): тот же тулбар БЕЗ нижней границы (left — переключатель вида)
+<ListToolbar toolbar={toolbar} defs={defs} builtinPresets={…} left={<ViewToggle …/>} right={<ViewSettings …/>} />
+```
+
+- **Реестр фильтруемых полей** — `shared/views/<entity>-filter-fields.ts`: `FilterFieldDef<T> = { id, label, type, options?, hidden?, match }` — чистый предикат (unit-тесты `list-filters.test.ts`); `hidden: true` — служебные поля (в панель не выводятся; напр. `overdue` задач: его используют пресет «Просрочены» и счётчик-чип в шапке журнала, клик по которому включает фильтр — модель Битрикс24). Справочники опций — shared-хуки (`shared/api/users-list`, `projects-list`, `task-stages` — единые ключи кэша, I6).
+- **Фильтрация** — `applyListFilters` (подстрока запроса по `searchText` + AND активных полей); запрос эфемерен (не персистится), фильтры и пресеты — localStorage; закреплённый пресет (встроенный или свой) применяется по умолчанию при открытии списка.
+- **Канбан:** фильтр сужает только отображение; шапки «n из m» (проп `total` BoardColumn); DnD при активном фильтре выключен (`disabled` BoardSortableCard — перестановка по урезанному набору дала бы ложные индексы).
+- **Два поиска не конкурируют:** глобальный «Умный поиск» — лупа в правой группе топбара (Ctrl+K, палитра прежняя); большого поля в центре топбара НЕТ.
+- **Панель из фокуса, не из триггера:** Popover с `PopoverAnchor` (НЕ Trigger — клик по полю не должен тогглить), `open` управляем onFocus (клавиатура) + onClick (мышь; указательный гард), `onOpenAutoFocus` отменён (фокус остаётся в поле — печатать можно сразу), `onInteractOutside` с preventDefault для целей внутри якоря (иначе повторный клик по полю при открытой панели дисмиссит её с инверсией бэтчинга — gotchas).
+- **Поля-справочники — комбобоксы** (`filter-combobox.tsx`): ввод фильтрует варианты, person — с аватарами; НЕ сырые `<Select>` (вердикт: «не тупо выпадающий список»).
+- **Шапка страницы и строка инструментов вкладки-списка карточки — БЕЗ border-b** (полоска под поиском — вердикт; сегмент линии справа от поля, сжимающегося после закрытия панели фильтра, читался «полоской» — вердикт 12.09.2026), счётчик — голым числом у заголовка.
+
+### Карточки канбана
+
+Реестр блоков (`taskCardFields`), видимость через `isVisible(id)` из `useViewFields('tasks.kanban', …)` в родителе канбана, прокинуть предикат в карточку; группа-футер скрывается, если все её поля выключены.
+
+## Канбан: drag-and-drop (ADR-0007, @dnd-kit/core+sortable)
+
+**Каркас доски — ЕДИНЫЙ движок `shared/ui/board/use-kanban-board.ts` + `kanban-skeleton.tsx` (аудит #45):** борд-состояние, первые страницы колонок через React Query (`tasksKeys.kanban(scope)` — инвалидации мутаций переносят доску: перенос степпером из карточки виден на доске), sentinel-подгрузка `loadMore`, dnd-жизнь (ниже), `insertNewTask`; фича — колонка/карточка/конфиг оси (`globalAxis`/`personalAxis`), `feedUrl`, мутация переноса и экстры (CRUD колонок задач, quick-add проекта, countDelta). Новая доска = конфиг движка, не копия ~300 строк.
+
+- Колонка = `SortableContext` (verticalListSortingStrategy) + `useDroppable` (id = stage.id; пустая колонка видима, принимает перенос, моно-подсказка).
+- Карточка = `useSortable`; трансформ sortable применяется ВСЕГДА (и у активного): он двигает полупрозрачный слот к проекционной позиции; призрак — `DragOverlay` (карточка в стиле активного узла: border-input + свечение).
+- Живой переезд между колонками — в `onDragOver` (индекс от карточки под указателем, ниже/выше центра); финиш — персист стадии+индекса (`PATCH`, оптимистично I4, откат+тост); Esc — откат к снапшоту dragStart; борд — локальное состояние, синхронизированное с query вне переноса.
+- Collision — официальная multi-container стратегия (`shared/lib/board/kanban-collision.ts`: pointerWithin → closestCenter внутри колонки, кэш lastOverId).
+- **Плавность (обязательно):** `measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}` — живой переезд меняет раскладку во время drag, дефолтные замеры устаревают → фризы/джиттер на границах; карточка, перемонтированная в чужую колонку во время drag, первый кадр без transition (useMountStatus), иначе скачок с неверных координат; подсветка колонки — `over === stage.id ИЛИ over ∈ cardIds` через `useDndContext()` (collision резолвит over в карточку, а не в колонку — без этого подсветка теряется).
+- **Предохранители цикла update depth (обязательны):** анти-осциллятор (кадр после межколоночного переноса игнорируем, сброс rAF-ом) и гейт `isSamePlacement` (идентичное РАЗМЕЩЕНИЕ не создаёт setState) — механизмы в `docs/gotchas.md`.
+- Сенсоры: PointerSensor `distance: 6` (клик без движения = слайдер), TouchSensor delay 200, KeyboardSensor `sortableKeyboardCoordinates`.
+- Перестановки борда — чистые функции с тестами: `shared/lib/board/kanban-board.ts`.
+- **Виртуализация колонок (фаза 2, отдельная сессия — дизайн и приёмка в issue #36):** фризы на объёме = reflow от реальной перестановки DOM-узла между колонками (∝ смонтированным карточкам; внутри колонки transform'ы — 0 longtasks); memo/MeasuringStrategy не помогают (замерено). Паттерн: useVirtualizer на скролл-контейнер колонки (measureElement — высоты переменные из-за динамических полей!), SortableContext с ПОЛНЫМ списком id, useDroppable колонки merged-ref, DragOverlay clone-feedback (source-слот может размонтироваться), индекс вставки ниже смонтированного окна — из offset'ов виртуализатора (pointer y → индекс), autoScroll домонтирует офскрин-цели (~1 кадр). Скрытые карточки не «доезжают»: рендер окна читает порядок из состояния — «момента схождения» нет; скролл с зажатой карточкой = тики домонтажа overscan, не reflow колонки.
+
+## Дерево-граф вложенности (список задач)
+
+`lib/task-tree.ts` → `components/task-list-graph.tsx` (SVG per row):
+
+- `buildTaskRows(items)` — DFS: корни в исходном порядке, дети за родителем; строка = `{ task, depth, passThrough[], elbowFrom, isLast, hasChildren, childCount }`.
+- **Сквозная вертикаль уровня d живёт, пока предок d+1 НЕ последний** (`ancestorIsLast[d+1] === false`) — ошибка здесь рисует «хвост» у последнего потомка.
+- Локоть — `orthPath(points, 6)`; порт уровня d на `x = 14 + d·16`; каскадная отрисовка локтей (`node-edge-draw`, delay `(delayIndex − revealBase) * 28ms`, cap 700ms); ховер строки подсвечивает сегмент (`currentColor` + `group-hover/row`).
+- **Сворачивание** («как папки в проводнике»): порт родителя — кнопка «−»/«+» (r=7), `filterVisibleRows(rows, collapsed)`, у свёрнутой — счётчик `+N` (childCount — все потомки).

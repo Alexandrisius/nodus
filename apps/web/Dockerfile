@@ -10,6 +10,8 @@ RUN turbo prune @nodus/web --docker
 # --- Стадия 2: установка зависимостей и сборка SPA ---
 FROM node:24-alpine AS builder
 WORKDIR /app
+# Демо-сборка по умолчанию на моках (ADR-0001); боевой режим — NODUS_WEB_MOCK=false
+ARG VITE_API_MOCK=true
 RUN npm install --global pnpm@10
 COPY --from=pruner /app/out/json/ .
 RUN pnpm install --frozen-lockfile

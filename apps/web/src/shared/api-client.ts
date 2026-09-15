@@ -3,7 +3,12 @@ import { useAuthStore } from './auth-store.js';
 /**
  * HTTP-клиент SPA: Bearer access-токен из auth-store, единый повтор
  * запроса после прозрачного refresh (cookie httpOnly — JS её не видит).
- * Ошибки API — единый формат { code, message, details?, traceId }.
+ * Ошибки API — единый формат { code, message, details?, traceId }
+ * (traceId — корреляция с серверными логами, I7).
+ * Каждая мутация идемпотентна (I7): POST/PATCH/DELETE автоматически несут
+ * заголовок Idempotency-Key (uuid на ВЫЗОВ api) — повтор после refresh идёт
+ * с ТЕМ ЖЕ ключом, бэкенд дедуплицирует ретраи/двойные клики. MSW-хендлеры
+ * заголовок игнорируют.
  */
 export class ApiError extends Error {
   constructor(
@@ -11,6 +16,7 @@ export class ApiError extends Error {
     message: string,
     readonly status: number,
     readonly details?: Record<string, unknown>,
+    readonly traceId?: string,
   ) {
     super(message);
     this.name = 'ApiError';
@@ -22,7 +28,13 @@ interface RequestOptions {
   body?: unknown;
   /** false — без Bearer (login/refresh). */
   auth?: boolean;
+  /** Явный ключ идемпотентности — когда один ЛОГИЧЕСКИЙ запрос шлётся
+   *  несколькими вызовами (ручной retry той же операции). По умолчанию
+   *  генерируется на вызов. */
+  idempotencyKey?: string;
 }
+
+const MUTATION_METHODS = new Set(['POST', 'PATCH', 'DELETE']);
 
 async function rawRequest(path: string, options: RequestOptions): Promise<Response> {
   const { accessToken } = useAuthStore.getState();
@@ -32,6 +44,9 @@ async function rawRequest(path: string, options: RequestOptions): Promise<Respon
   }
   if (options.body !== undefined) {
     headers['content-type'] = 'application/json';
+  }
+  if (MUTATION_METHODS.has(options.method ?? 'GET')) {
+    headers['Idempotency-Key'] = options.idempotencyKey ?? crypto.randomUUID();
   }
   return fetch(`/api/v1${path}`, {
     method: options.method ?? 'GET',
@@ -57,12 +72,14 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
       code?: string;
       message?: string;
       details?: Record<string, unknown>;
+      traceId?: string;
     } | null;
     throw new ApiError(
       errorBody?.code ?? 'INTERNAL_ERROR',
       errorBody?.message ?? `HTTP ${response.status}`,
       response.status,
       errorBody?.details,
+      errorBody?.traceId,
     );
   }
   if (response.status === 204) {

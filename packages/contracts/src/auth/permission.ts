@@ -24,6 +24,8 @@ export const Permission = {
   CORRESPONDENCE_CREATE: 'correspondence.create',
   /** Архивация корреспонденции. */
   CORRESPONDENCE_ARCHIVE: 'correspondence.archive',
+  /** Общие настройки UI компании (порядок модулей/вкладок «Для всех») — admin. */
+  SETTINGS_UI_DEFAULTS: 'settings.uiDefaults',
 } as const;
 
 export type Permission = (typeof Permission)[keyof typeof Permission];

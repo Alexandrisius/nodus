@@ -1,0 +1,414 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+@import '@fontsource-variable/onest';
+@import '@fontsource-variable/jetbrains-mono';
+/* Легаси-темы «Тушь»/«Бумага» и «бумажные» утилиты — для экранов фич до их
+ * переписывания (M4–M6) и dev-превью тем. В новом коде запрещены (DoD #4). */
+@import './legacy-themes.css';
+
+@source '../';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-sans: 'Onest Variable', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, 'Cascadia Mono', monospace;
+
+  --color-background: var(--background);
+  --color-chat-zone: var(--chat-zone);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-chart-6: var(--chart-6);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-edge: var(--edge);
+  --color-port: var(--port);
+  --color-glow: var(--glow);
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/*
+ * Тема — данные (§10.3 ux-principles): компоненты используют только
+ * семантические токены; вариант оформления = подмена набора переменных.
+ *
+ * Продуктовая тема — «Инструмент» (реф docs/mvp/ref/node-based UI/1.png):
+ * плоский фон, тонкие бордюры, моно-метки (JetBrains Mono), ортогональные
+ * связи с портами (--edge/--port/--glow). Плоско: без текстур, градиентов,
+ * «рисованности». ДЕФОЛТ — СВЕТЛАЯ (вердикт владельца 15.09.2026): она в
+ * :root без атрибута — первый визит открывается сразу светлой, без вспышки
+ * тёмной; тёмная — [data-theme='dark'] (persisted-выбор подхватывает
+ * inline-скрипт index.html до первой отрисовки).
+ *
+ * Светлая тема «Инструмент» — ОТДЕЛЬНЫЙ дизайн, не инверсия тёмной (вердикт
+ * команды владельца 2026-09-11, реф docs/mvp/ref/node-based UI/реф_белая
+ * тема_*.png): три ЧИТАЕМЫЕ ступени поверхностей (тёплый серый шелл → бумажный
+ * холст → «лист» #fbfaf8), hairline-бордюры (структуру несут поверхности, не
+ * линии), элевация ступенью без теней (канон «плоско» жив). ЧИСТОГО БЕЛОГО
+ * НЕТ вовсе (аудит 12.09.2026, Exa-research: большие площади #FFFFFF — блик
+ * и «однотонная белизна»; off-white с тёплым подтоном — комфорт для долгих
+ * экранов; ступени MD3 — тоном поверхности): белый из рефов команды взят как
+ * ОБРАМЛЁННЫЙ «лист» на углублённом холсте, а не как поле вьюпорта. Фирменный
+ * navy #16233A — хирургический акцент: primary, фокус, чекбоксы, активный
+ * модуль; контур и порты — «чертёжный синий» (navy с alpha): чертёж на кальке.
+ * Цвет — только в слоях данных и статусов (chart-*, семантика, идентичность).
+ */
+:root {
+  --radius: 0.625rem;
+  /* Ступени — НЕЙТРАЛЬНО-тёплые (жёлтый подтон урезан вдвое, вердикт
+     владельца 12.09.2026: «список чатов желтоватый, каша»): серый шелл →
+     бумажный холст → лист, без бежевой грязи на средних ступенях. */
+  --background: #f4f2f0;
+  /* Тёмная зона чата — ступень «углубления» под лентой (общая с тёмной темой
+     по смыслу: каналы и личные чаты красятся ОДНИМ токеном, вердикт
+     14.09.2026: «фон каналов один, чатов другой — зоопарк»); значение =
+     ступень muted, но семантически отдельный токен зоны. */
+  --chat-zone: #edebe8;
+  /* Мягкая рама в светлой теме почти сливалась с периметром — контур панели
+     даёт мягкая тень, как в рефе «реф_белая тема_1.png» (вердикт 14.09.2026). */
+  --frame-shadow: 0 24px 70px -30px rgb(22 35 58 / 0.3), 0 6px 22px -10px rgb(22 35 58 / 0.12);
+  --foreground: #26272a;
+  --card: #fbfaf9;
+  --card-foreground: #26272a;
+  --popover: #fbfaf9;
+  --popover-foreground: #26272a;
+  --primary: #16233a;
+  --primary-foreground: #fbfaf8;
+  --secondary: #edebe8;
+  --secondary-foreground: #43454a;
+  --muted: #edebe8;
+  --muted-foreground: #6b6d72;
+  --accent: #e7e5e1;
+  --accent-foreground: #26272a;
+  --destructive: #c0392b;
+  --destructive-foreground: #fbfaf8;
+  --border: rgb(0 0 0 / 0.09);
+  --input: rgb(0 0 0 / 0.14);
+  --ring: #16233a;
+  --success: #2e7d57;
+  --success-soft: #e2f0e8;
+  --warning: #8f6a10;
+  --warning-soft: #f6ecd2;
+  --danger: #c0392b;
+  --danger-soft: #f9e3df;
+  --info: #3d6ba6;
+  --info-soft: #e2eaf4;
+  /* Categorical-палитра данных: Okabe-Ito (colorblind-safe) на белом холсте. */
+  --chart-1: #0072b2;
+  --chart-2: #009e73;
+  --chart-3: #e69f00;
+  --chart-4: #cc79a7;
+  --chart-5: #56b4e9;
+  --chart-6: #d55e00;
+  /* Тон рейки = тон периметра (воздушность, вердикт владельца 13.09.2026,
+     план R1): одна подложка слева и по периметру в обеих темах; структуру
+     рейки несут плашки (sidebar-accent), а не ступень тона. */
+  --sidebar: #f4f2f0;
+  --sidebar-foreground: #43454a;
+  --sidebar-primary: #16233a;
+  --sidebar-primary-foreground: #fbfaf8;
+  /* Ховер/активный ряд рейки — тёплый почти-белый (реф команды: белая плашка
+     по серому шеллу; чистый #FFF не нужен — плашка мала, но блик ни к чему). */
+  --sidebar-accent: #f7f6f4;
+  --sidebar-accent-foreground: #26272a;
+  --sidebar-border: rgb(0 0 0 / 0.07);
+  --sidebar-ring: #16233a;
+
+  /* Контур: чертёжный синий (navy с alpha) вместо чёрной «проволоки». */
+  --edge: rgb(22 35 58 / 0.3);
+  --port: #16233a;
+  --glow: rgb(22 35 58 / 0.26);
+
+  /* Тень слайдера: мягче и светлее, но с читаемой глубиной. */
+  --slider-shadow:
+    -20px 26px 70px -18px rgb(22 35 58 / 0.25), -4px 8px 26px -12px rgb(22 35 58 / 0.16);
+
+  /* Едва заметный скроллбар (тон темы). */
+  --scrollbar: rgb(0 0 0 / 0.14);
+
+  /* Временно: константы легаси-палитры — нужны «бумажным» утилитам экранов
+   * фич до их переписывания (M4–M6); в новом коде не использовать. */
+  --rust: #b0512c;
+  --ochre: #c9973b;
+  --tealink: #4e7e80;
+  --sage: #7c8a6e;
+  --steel: #5b7f9d;
+  --cream: #f7ecca;
+  --paper: #e8d5a9;
+  --pencil: #35332a;
+  --card-line: rgb(53 51 42 / 0.7);
+  --sketch-line: rgb(53 51 42 / 0.4);
+}
+
+/*
+ * Тёмная тема «Инструмент» — opt-in (data-theme='dark'): near-black плоский
+ * фон, осветлённая categorical-палитра Okabe-Ito под тёмный холст.
+ * Тени — NONE (вердикт владельца 14.09.2026: «неровные границы, будто разлитая
+ * жидкость»; Exa-research: Material M3 — элевация тоном поверхности, Atlassian —
+ * «dark mode relies on different surface colors», чек-лист тёмного режима —
+ * «тень идея светлой темы, в тёмной заменяется, не сохраняется»: чёрная тень
+ * на почти чёрном невидима, а осветлённая читается свечением-пятном); глубину
+ * держат ступени тона + hairline-бордюры.
+ */
+[data-theme='dark'] {
+  --background: #0a0a0b;
+  /* Тёмная зона чата — ГЛУБЖЕ периметра (вердикт 14.09.2026: зона чата сливалась
+     с периметром в один тон — граница карточки/рамы исчезала): структура —
+     ступенями тона, не линиями. */
+  --chat-zone: #050506;
+  --frame-shadow: none;
+  --foreground: #e8e8e6;
+  --card: #121214;
+  --card-foreground: #e8e8e6;
+  --popover: #121214;
+  --popover-foreground: #e8e8e6;
+  --primary: #e8e8e6;
+  --primary-foreground: #0a0a0b;
+  --secondary: #17171a;
+  --secondary-foreground: #c9c9c6;
+  --muted: #141416;
+  --muted-foreground: #8a8a8e;
+  --accent: #1b1b1f;
+  --accent-foreground: #e8e8e6;
+  --destructive: #c8584a;
+  --destructive-foreground: #0a0a0b;
+  --border: rgb(255 255 255 / 0.09);
+  --input: rgb(255 255 255 / 0.14);
+  --ring: #d9d9d6;
+  --success: #6fa287;
+  --success-soft: #1c2b24;
+  --warning: #c9a45b;
+  --warning-soft: #2b2518;
+  --danger: #c8584a;
+  --danger-soft: #2c1a18;
+  --info: #7a93b2;
+  --info-soft: #1a2230;
+  /* Categorical-палитра данных: осветлённые тона Okabe-Ito под тёмный холст. */
+  --chart-1: #64a4e0;
+  --chart-2: #5fbf8f;
+  --chart-3: #e0b054;
+  --chart-4: #d795bc;
+  --chart-5: #8cc8ea;
+  --chart-6: #e08a66;
+  --sidebar: #0a0a0b;
+  --sidebar-foreground: #c9c9c6;
+  --sidebar-primary: #e8e8e6;
+  --sidebar-primary-foreground: #0a0a0b;
+  --sidebar-accent: #1a1a1e;
+  --sidebar-accent-foreground: #e8e8e6;
+  --sidebar-border: rgb(255 255 255 / 0.07);
+  --sidebar-ring: #d9d9d6;
+  --edge: rgb(255 255 255 / 0.28);
+  --port: #d9d9d6;
+  --glow: rgb(255 255 255 / 0.65);
+  --slider-shadow: none;
+  --scrollbar: rgb(255 255 255 / 0.1);
+}
+
+/* Панель «инструмента»: плоская заливка, тонкий бордюр, радиус поверхности
+   (14px — средняя ступень лестницы мягкости: контролы 8-10, поверхности 14,
+   рамы 18; пакет мягкости, вердикт владельца 12.09.2026). */
+@utility node-panel {
+  background-color: var(--card);
+  color: var(--card-foreground);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+}
+
+/* Мягкая рама шелла: контур панели на периметре — мягкая тень (реф
+   «реф_белая тема_1.png»: белая панель на сером читается тенью, не линией;
+   вердикт владельца 14.09.2026). Структура — ступенями тона и формы. */
+@utility frame-shadow {
+  box-shadow: var(--frame-shadow);
+}
+
+/* Отрисовка ребра при появлении (pathLength=1 → dash в долях длины). */
+@utility node-edge-draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: node-edge-draw 0.45s ease-out forwards;
+}
+@keyframes node-edge-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Док-ребро слайдера: виден в момент стыковки (панель стартует с задержкой
+ * 150 мс — источник ребра читается до того, как панель его накроет), затем
+ * быстро растворяется, не оставляя «висящей» линии поверх контента. */
+@utility dock-edge-fade {
+  animation: dock-edge-fade 1s ease-out forwards;
+}
+@keyframes dock-edge-fade {
+  0%,
+  55% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Раскрытие слайдера из источника (FLIP на маунте): CSS @keyframes с
+ * CSS-переменными — единственно надёжный механизм для свежего элемента
+ * (transition и WAAPI из layout-effect в части окружений не стартуют с
+ * первого кадра: владелец видел «появилась сразу», headless — нет).
+ * Keyframes — СТРОГО transform/opacity: только они выполняются композитором
+ * и не зависят от занятости main thread (маунт контента панели); morph
+ * border-radius и любые paint/layout-свойства в keyframes запрещены —
+ * декомпозитят всю анимацию (web.dev, animations-overview). */
+@utility slider-expand {
+  transform-origin: top left;
+  /* Слой промоутирован ДО первого кадра анимации: первый запуск без фриза
+   * (без will-change браузер создаёт композитный слой на старте анимации). */
+  will-change: transform;
+  animation: slider-expand 430ms cubic-bezier(0.3, 1.16, 0.45, 1) both;
+}
+@keyframes slider-expand {
+  from {
+    transform: translate(var(--flip-tx), var(--flip-ty)) scale(var(--flip-sx), var(--flip-sy));
+  }
+  to {
+    transform: none;
+  }
+}
+
+/* Раскрытие без источника (прямая ссылка, палитра): сдержанный scale-fade. */
+@utility slider-pop {
+  animation: slider-pop 220ms ease-out both;
+}
+@keyframes slider-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.965);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Тень слайдера — ЗАМЕНА затемняющего задника (канон: фон за открытой
+ * карточкой цвета не меняет, референс — слайдер Битрикс24 без димминга).
+ * Модальность дают тень + прозрачный click-catcher, не смена цвета страницы. */
+@utility slider-shadow {
+  box-shadow: var(--slider-shadow);
+}
+
+/* Контент панели наливается после формы (задержка 160 мс). */
+@utility content-fade {
+  animation: soft-fade 200ms ease-out 160ms both;
+}
+@keyframes soft-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  :root {
+    color-scheme: light;
+  }
+  [data-theme='dark'] {
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-background text-foreground font-sans text-[14px];
+  }
+  /* Едва заметный скроллбар (3px), не спорящий с контуром связи. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 3px;
+    height: 3px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: var(--scrollbar);
+    border-radius: 2px;
+  }
+  /* Скроллбар контентной колонки — у левого шва полосы коллег ВНУТРИ мягкой
+     рамы (полоса — колонка рамы под осью контура, пакет мягкости, вердикт
+     12.09.2026). */
+  /* Зоны со скрытым скроллбаром (служебная полоса и т.п.) — прокрутка колёсиком. */
+  [data-no-scrollbar] {
+    scrollbar-width: none;
+  }
+  [data-no-scrollbar]::-webkit-scrollbar {
+    display: none;
+  }
+  /* Главный скроллер страницы, усыновлённый ползунком периметра
+     (edge-scrollbar): нативный ВЕРТИКАЛЬНЫЙ скроллбар скрыт — ползунок живёт
+     в щели справа от служебной полосы, трек на всю высоту экрана (вердикт
+     владельца 14.09.2026 ночью). Горизонтальный скроллбар широких таблиц в
+     webkit сохранён; в Firefox scrollbar-width прячет оба — целевые браузеры
+     компании Chromium, осознанно. */
+  [data-edge-scroll] {
+    scrollbar-width: none;
+  }
+  [data-edge-scroll]::-webkit-scrollbar:vertical {
+    display: none;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}

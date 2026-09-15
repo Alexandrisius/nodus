@@ -1,3 +1,4 @@
+import { lazy } from 'react';
 import {
   createRootRoute,
   createRoute,
@@ -6,16 +7,58 @@ import {
   redirect,
 } from '@tanstack/react-router';
 
-import { LoginPage } from '../features/auth/login-page.js';
+import { AppShell } from './shell/app-shell.js';
+import { NAV_MODULES } from './shell/nav-registry.js';
+import { NotFoundScreen, RouterErrorScreen } from './shell/system-screens.js';
+import { resolveHidden, resolveOrder } from './shell/ui-prefs.js';
+import { useUiPrefsStore } from './shell/ui-prefs-store.js';
 import { useAuthStore } from '../shared/auth-store.js';
-import { UsersPage } from '../features/directory/users-page.js';
+
+const LoginPage = lazy(() =>
+  import('../features/auth/pages/login-page.js').then((m) => ({ default: m.LoginPage })),
+);
+const HomePage = lazy(() =>
+  import('../features/home/pages/home-page.js').then((m) => ({ default: m.HomePage })),
+);
+const TasksPage = lazy(() =>
+  import('../features/tasks/pages/tasks-page.js').then((m) => ({ default: m.TasksPage })),
+);
+const LettersPage = lazy(() =>
+  import('../features/correspondence/pages/letters-page.js').then((m) => ({
+    default: m.LettersPage,
+  })),
+);
+const ProjectsPage = lazy(() =>
+  import('../features/projects/pages/projects-page.js').then((m) => ({ default: m.ProjectsPage })),
+);
+const ChatPage = lazy(() =>
+  import('../features/chat/pages/chat-page.js').then((m) => ({ default: m.ChatPage })),
+);
+const EmployeesPage = lazy(() =>
+  import('../features/directory/pages/employees-page.js').then((m) => ({
+    default: m.EmployeesPage,
+  })),
+);
 
 /**
- * Роутер SPA (TanStack Router, code-based — файловая маршрутизация при росте).
- * Защита — beforeLoad по auth-store: анонима отправляем на /login,
- * аутентифицированного с /login — на главную. Каркас минимален до M3 (#4).
+ * Роутер SPA (TanStack Router, code-splitting по разделам).
+ * Карточки сущностей — НЕ маршруты: единый стек поверх любого раздела
+ * (ADR-0009, search `?cards=task:id,project:id`, хост CardStackHost в
+ * AppShell): все карточки одной геометрии, наслаиваются без ограничения
+ * глубины и комбинаторики вложенных роутов, закрытие верхней возвращает
+ * к прежней. Разделные search-параметры (папка писем, тред канала) живут
+ * рядом и при открытии карточки сохраняются.
  */
-const rootRoute = createRootRoute({ component: Outlet });
+const rootRoute = createRootRoute({
+  component: Outlet,
+  // Системные экраны — русские, с выходом на главную (аудит #45).
+  errorComponent: RouterErrorScreen,
+  notFoundComponent: NotFoundScreen,
+  // Search свободной формы (разделные параметры + стек карточек): identity
+  // validateSearch даёт тип Record<string, unknown> для search-апдейтеров
+  // navigate и наследование параметров дочерними маршрутами.
+  validateSearch: (search: Record<string, unknown>) => search,
+});
 
 async function requireAnonymous(): Promise<void> {
   await useAuthStore.getState().bootstrap();
@@ -38,14 +81,92 @@ const loginRoute = createRoute({
   beforeLoad: requireAnonymous,
 });
 
-const indexRoute = createRoute({
+const shellRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/',
-  component: UsersPage,
+  id: 'shell',
+  component: AppShell,
   beforeLoad: requireAuth,
 });
 
-const routeTree = rootRoute.addChildren([loginRoute, indexRoute]);
+const homeRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/home',
+  component: HomePage,
+});
+
+/**
+ * Стартовая переадресация (концепт «Персональный порядок», #4): корень не
+ * рендерит раздел, а ЗАМЕЩАЮЩЕ (replace — «/» не оседает в истории) ведёт
+ * на ПЕРВЫЙ модуль личного порядка рейки. У каждого раздела — канонический
+ * адрес (Главная — '/home'): иначе сдвинутая с первого места Главная стала
+ * бы недостижимой (best practice, подтверждено research — gotchas).
+ * localStorage читается синхронно (вспышки нет); когда настройки переедут
+ * на API, beforeLoad обязан ДОЖДАТЬСЯ их загрузки (gotchas).
+ */
+const indexRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/',
+  beforeLoad: () => {
+    const { personal, company } = useUiPrefsStore.getState();
+    const ids = NAV_MODULES.map((m) => m.id);
+    const order = resolveOrder(ids, personal.navOrder, company.navOrder);
+    const hidden = resolveHidden(ids, personal.navHidden, company.navHidden);
+    // Стартовый экран — первый ВИДИМЫЙ модуль (скрытый «с верху» не считается).
+    const firstId = order.find((id) => !hidden.includes(id));
+    const first = NAV_MODULES.find((m) => m.id === firstId);
+    throw redirect({ to: first?.to ?? '/home', replace: true });
+  },
+  component: () => null,
+});
+
+const tasksRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/tasks',
+  component: TasksPage,
+});
+
+const lettersRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/letters',
+  component: LettersPage,
+});
+
+const projectsRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/projects',
+  component: ProjectsPage,
+});
+
+const chatRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/chat',
+  component: ChatPage,
+});
+const chatConversationRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/chat/$conversationId',
+  component: ChatPage,
+});
+
+const employeesRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/employees',
+  component: EmployeesPage,
+});
+
+const routeTree = rootRoute.addChildren([
+  loginRoute,
+  shellRoute.addChildren([
+    indexRoute,
+    homeRoute,
+    tasksRoute,
+    lettersRoute,
+    projectsRoute,
+    chatRoute,
+    chatConversationRoute,
+    employeesRoute,
+  ]),
+]);
 
 export const router = createRouter({ routeTree });
 

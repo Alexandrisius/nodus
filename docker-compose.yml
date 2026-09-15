@@ -9,6 +9,9 @@ services:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
+      args:
+        # Демо для руководства — концепт на моках; боевой режим — false в .env
+        VITE_API_MOCK: '${NODUS_WEB_MOCK:-true}'
     container_name: nodus_web
     restart: unless-stopped
     ports:

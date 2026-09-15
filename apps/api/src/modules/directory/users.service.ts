@@ -69,6 +69,7 @@ function toListItem(row: UserListRow): UserListItem {
     status: row.status,
     avatarUrl: row.avatarUrl,
     email: row.email,
+    managerId: row.managerId,
     positionName: row.position?.name ?? null,
     departmentName: row.department?.name ?? null,
   };

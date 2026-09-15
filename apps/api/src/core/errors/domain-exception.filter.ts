@@ -26,6 +26,8 @@ const CODE_TO_STATUS: Record<ErrorCode, number> = {
   [ErrorCode.AUTH_INVALID_CREDENTIALS]: HttpStatus.UNAUTHORIZED,
   [ErrorCode.AUTH_SESSION_INVALID]: HttpStatus.UNAUTHORIZED,
   [ErrorCode.DIRECTORY_EMAIL_TAKEN]: HttpStatus.CONFLICT,
+  // Удаление единственной личной стадии «Моего плана» — конфликт состояния.
+  [ErrorCode.TASK_LAST_STAGE]: HttpStatus.CONFLICT,
 };
 
 /** Код для HTTP-исключений Nest/Fastify (400 у нас — всегда валидация входа). */

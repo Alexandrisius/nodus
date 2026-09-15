@@ -14,8 +14,10 @@ overrides:
 # esbuild (транспиляция Vite/Vitest) и unrs-resolver (резолвер
 # eslint-import-resolver-typescript) скачивают платформенные бинарники install-скриптами.
 # prisma/@prisma/engines — CLI миграций и генерация клиента (Prisma 7).
+# msw — postinstall без побочных эффектов (нужен, чтобы install не падал предупреждением).
 allowBuilds:
   '@prisma/engines': true
+  msw: true
   argon2: true
   '@swc/core': true
   esbuild: true
