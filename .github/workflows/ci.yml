@@ -209,6 +209,9 @@ jobs:
           fi
 
       - name: E2E-тесты
-        run: pnpm --filter @nodus/e2e test
+        # Только критичный путь (DoD): логин. graph-stress.spec — perf-харнесс
+        # для локального прогона против dev-сервера (NODUS_DEV_URL), в
+        # блокирующий CI не входит (канон: perf-замеры — отдельный прогон).
+        run: pnpm --filter @nodus/e2e test specs/auth.spec.ts
         env:
           NODUS_BASE_URL: http://localhost:4173
