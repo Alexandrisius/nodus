@@ -22,7 +22,7 @@ import {
 } from '@nodus/ui/components/context-menu';
 import { toast } from 'sonner';
 
-import { useOpenCard } from '../../app/shell/use-card-stack.js';
+import { openCardViaBridge } from '../lib/card-bridge.js';
 import { useMessageToTask } from './api.js';
 
 /**
@@ -81,7 +81,6 @@ export function MessageMenu({
   children: ReactNode;
 }) {
   const toTask = useMessageToTask();
-  const openCard = useOpenCard();
 
   function run(action: MessageActionDef) {
     if (action.id === 'copy') {
@@ -94,7 +93,7 @@ export function MessageMenu({
     if (action.id === 'toTask') {
       toTask.mutate(
         { conversationId, messageId: message.id },
-        { onSuccess: (task) => openCard({ kind: 'task', id: task.id }) },
+        { onSuccess: (task) => openCardViaBridge({ kind: 'task', id: task.id }) },
       );
       return;
     }

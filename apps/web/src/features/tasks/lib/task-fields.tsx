@@ -1,12 +1,12 @@
 import type { ReactNode } from 'react';
 import { Mail, MessageSquare } from 'lucide-react';
-import type { TaskListItem, UserRef } from '@nodus/contracts';
+import type { TaskListItem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { NodeChip } from '@nodus/ui/components/node-chip';
 
 import { formatDateTime, formatMinutes } from '../../../shared/lib/format.js';
-import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
 import { DeadlineChip } from '../../../shared/ui/deadline-chip.js';
+import { monoCell, PersonCell } from '../../../shared/ui/person-cell.js';
 import { priorityTone } from '../../../shared/views/task-table-fields.js';
 import type { FieldDef } from '../../../shared/views/use-view-fields.js';
 import { TaskStatusBadge } from '../../../shared/ui/task-status-badge.js';
@@ -32,18 +32,6 @@ function SourceIcon({ task }: { task: TaskListItem }) {
     );
   return null;
 }
-
-function personCell(user: UserRef | null): ReactNode {
-  if (!user) return <span className="text-xs text-muted-foreground">{ui.common.notSet}</span>;
-  return (
-    <>
-      <PersonAvatar name={user.displayName} className="size-6 shrink-0" />
-      <span className="truncate">{user.displayName}</span>
-    </>
-  );
-}
-
-const monoCell = 'font-mono text-[11px] text-muted-foreground tabular-nums';
 
 /**
  * Реестр колонок списка задач (кастомизация представлений): видимость и
@@ -107,7 +95,7 @@ export const taskListFields: ListFieldDef[] = [
     defaultVisible: true,
     defaultWidth: 160,
     minWidth: 110,
-    render: (task) => personCell(task.assignee),
+    render: (task) => <PersonCell user={task.assignee} />,
     sortValue: (task) => task.assignee?.displayName ?? null,
   },
   {
@@ -116,7 +104,7 @@ export const taskListFields: ListFieldDef[] = [
     defaultVisible: false,
     defaultWidth: 160,
     minWidth: 110,
-    render: (task) => personCell(task.creator),
+    render: (task) => <PersonCell user={task.creator} />,
     sortValue: (task) => task.creator?.displayName ?? null,
   },
   {

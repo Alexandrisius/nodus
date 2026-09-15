@@ -5,6 +5,7 @@ import { Skeleton } from '@nodus/ui/components/skeleton';
 import { Toaster } from '@nodus/ui/components/sonner';
 import { TooltipProvider } from '@nodus/ui/components/tooltip';
 
+import { registerCardBridge } from '../../shared/lib/card-bridge.js';
 import { CircuitFrame } from './circuit-frame.js';
 import { CardStackHost } from './card-stack-host.js';
 import { CommandPalette } from './command-palette.js';
@@ -14,6 +15,7 @@ import { NodeRail } from './node-rail.js';
 import { RightRail } from './right-rail.js';
 import { useShellStore } from './shell-store.js';
 import { TopBar } from './top-bar.js';
+import { useOpenCard } from './use-card-stack.js';
 
 function ShellFallback() {
   return (
@@ -30,9 +32,17 @@ function ShellFallback() {
  * для будущей итерации живого фона, тест graph-stress). */
 export function AppShell() {
   const theme = useShellStore((s) => s.theme);
+  const openCard = useOpenCard();
   const stressMode =
     typeof window !== 'undefined' &&
     Number(new URLSearchParams(window.location.search).get('stress') ?? 0) >= 1000;
+
+  // Мост shared→стек карточек (порт-адаптер, card-bridge.ts): shared-слой
+  // открывает карточки, не импортируя каркас (направление слоёв, аудит #45).
+  useEffect(
+    () => registerCardBridge((ref) => openCard(ref as Parameters<typeof openCard>[0])),
+    [openCard],
+  );
 
   useEffect(() => {
     const root = document.documentElement;

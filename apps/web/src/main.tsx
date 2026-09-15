@@ -8,7 +8,7 @@ import { App } from './app/app';
 /** MSW (ADR-0001): воркер стартует ДО рендера, только при VITE_API_MOCK=true. */
 async function enableMocking(): Promise<void> {
   if (import.meta.env.VITE_API_MOCK !== 'true') return;
-  const { worker } = await import('./shared/mocks/browser.js');
+  const { worker } = await import('./app/msw-browser.js');
   // Шумим только по нашим /api/*: посторонние запросы (антивирус, devtools)
   // молча пропускаем — иначе консоль засорена предупреждениями «нет хендлера».
   await worker.start({

@@ -1,4 +1,5 @@
 import { useCallback, useRef } from 'react';
+import { ui } from '@nodus/contracts';
 import { cn } from '@nodus/ui/lib/utils';
 
 /**
@@ -6,6 +7,8 @@ import { cn } from '@nodus/ui/lib/utils';
  * AG Grid/Excel: drag меняет только свою колонку в пределах min/max, двойной
  * клик — автоподбор ширины по контенту. Значение пишется в пресет вида и
  * переживает сессии. Без зависимостей: pointer capture + window listeners.
+ * Клавиатура (ARIA Window Splitter, аудит #45): ←/→ — шаг 8px, Enter —
+ * автоподбор; aria-valuenow — текущая ширина.
  */
 export function ColumnResizer({
   width,
@@ -53,14 +56,26 @@ export function ColumnResizer({
     <span
       role="separator"
       aria-orientation="vertical"
+      aria-label={ui.common.resizeColumn}
+      aria-valuenow={Math.round(width)}
+      aria-valuemin={minWidth}
+      aria-valuemax={maxWidth}
+      tabIndex={0}
       onPointerDown={onPointerDown}
       onDoubleClick={(e) => {
         e.stopPropagation();
         onAutoFit?.();
       }}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === 'ArrowLeft') onResize(clamp(width - 8));
+        if (e.key === 'ArrowRight') onResize(clamp(width + 8));
+        if (e.key === 'Enter') onAutoFit?.();
+      }}
       className={cn(
         'absolute top-0 right-0 z-10 h-full w-2 cursor-col-resize touch-none',
         'after:absolute after:top-1/4 after:right-0.5 after:h-1/2 after:w-px after:bg-border after:transition-colors hover:after:bg-input',
+        'focus-visible:outline-2 focus-visible:outline-ring',
       )}
     />
   );

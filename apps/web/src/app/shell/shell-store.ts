@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
+import { shellEnvelopeSchema, zodPersistMerge } from '../../shared/lib/persist-zod.js';
 import type { SourceRect } from './slider-panel.js';
 
 /** Продуктовые темы «Инструмента»: светлая (ДЕФОЛТ — вердикт владельца
@@ -44,7 +45,9 @@ export const useShellStore = create<ShellState>()(
     }),
     {
       name: 'nodus-shell-v1',
+      version: 1,
       partialize: (state) => ({ theme: state.theme, edgeOpen: state.edgeOpen }),
+      merge: zodPersistMerge<ShellState>(shellEnvelopeSchema),
     },
   ),
 );

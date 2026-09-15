@@ -17,7 +17,11 @@ const monoValue = 'font-mono text-[12px] tabular-nums';
  *  в почтовой шапке карточки (модель почтового клиента), здесь не дублируются
  *  (вердикт владельца 2026-09-10, раунд 2). Видимость — кнопка «+ Поле»
  *  (persist localStorage, свой ключ сущности). */
-export const LetterFields = memo(function LetterFields({ letter }: { letter: LetterDetail }) {
+export const LetterRequisites = memo(function LetterRequisites({
+  letter,
+}: {
+  letter: LetterDetail;
+}) {
   const defs: EntityFieldDef[] = [
     {
       key: 'status',

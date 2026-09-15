@@ -1,4 +1,4 @@
-import { memo, useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
@@ -25,8 +25,12 @@ function useMountStatus(): boolean {
  * (placeholder — слот переносимой карточки, пунктир).
  * Сенсоры на активаторе: клик без движения — открытие слайдера
  * (distance-констрейнт PointerSensor задаёт потребитель борда).
+ * БЕЗ memo (аудит #45): render-проп — новая стрелка на каждый рендер борда,
+ * shallow-compare всегда false — мёртвый memo («мемо ради мемо»); оживление
+ * = стабильные пропы вместо render-пропа, а во время drag карточку всё равно
+ * перерисовывает контекст useSortable — выгоды нет, честнее без обёртки.
  */
-export const BoardSortableCard = memo(function BoardSortableCard({
+export function BoardSortableCard({
   id,
   stageId,
   disabled = false,
@@ -69,4 +73,4 @@ export const BoardSortableCard = memo(function BoardSortableCard({
       </div>
     </div>
   );
-});
+}

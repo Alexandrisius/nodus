@@ -141,3 +141,10 @@ export const updateMyProfileSchema = userProfileSchema
   .partial();
 
 export type UpdateMyProfileDto = z.infer<typeof updateMyProfileSchema>;
+
+/** Приглашение сотрудника (кнопка «Пригласить»): минимум — рабочая почта;
+ *  роль/подразделение/письмо-инвайт — полный поток с бэкендом. */
+export const createInvitationSchema = z.object({
+  email: z.email(),
+});
+export type CreateInvitationDto = z.infer<typeof createInvitationSchema>;

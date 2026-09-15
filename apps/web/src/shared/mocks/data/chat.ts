@@ -1,3 +1,6 @@
+// I5-обоснование: плоский мок-набор сообщений/бесед (данные, не god-object) —
+// одна ответственность «демо-контент чата», деление на файлы только дробило
+// бы связанные сценарии (треды отсылаются к сообщениям бесед).
 import type { ChatMessage, ConversationListItem } from '@nodus/contracts';
 
 import { isoAgo } from './dates.js';

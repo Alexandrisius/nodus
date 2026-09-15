@@ -5,9 +5,9 @@ import { Button } from '@nodus/ui/components/button';
 import { Field, FieldGroup, FieldLabel } from '@nodus/ui/components/field';
 import { Input } from '@nodus/ui/components/input';
 
-import { LogoIcon } from '../../app/shell/logo-icon.js';
-import { ApiError } from '../../shared/api-client.js';
-import { useAuthStore } from '../../shared/auth-store.js';
+import { LogoIcon } from '../../../app/shell/logo-icon.js';
+import { ApiError } from '../../../shared/api-client.js';
+import { useAuthStore } from '../../../shared/auth-store.js';
 
 /** Страница входа в теме «Инструмент»: плоский фон, панель-нода (M3, issue #4). */
 export function LoginPage() {

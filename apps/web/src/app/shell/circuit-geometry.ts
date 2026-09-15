@@ -280,7 +280,10 @@ export function transitionPulse(
   // (вердикт владельца 15.09.2026 — заменил «Главная без вспышки»: вспышка
   // есть и доходит до мягкой карточки, а не обрывается на стыке).
   if (active.to === '/home') {
-    const endX = g.terminus ? g.terminus.x : g.junction.x + 24;
+    // СХЛОПНУТАЯ рейка (terminus null): связи на Главной нет — вспышка
+    // ЗАПРЕЩЕНА вместе с узлом-точкой (баг-вердикт 15.09.2026).
+    if (!g.terminus) return null;
+    const endX = g.terminus.x;
     return {
       points: [
         { x: active.port.x, y: snapPx(active.port.y) },

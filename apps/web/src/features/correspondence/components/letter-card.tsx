@@ -15,22 +15,15 @@ import {
 } from '@nodus/ui/components/attachment';
 
 import { useOpenCard } from '../../../app/shell/use-card-stack.js';
-import { formatDateTime } from '../../../shared/lib/format.js';
+import { formatBytes, formatDateTime } from '../../../shared/lib/format.js';
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
 import { DomainChain, type ChainNode } from '../../../shared/ui/domain-chain.js';
 import { useIssueResolution, useLetterDetail, useRegisterLetter } from '../api/letters-api.js';
-import { LetterFields } from './letter-fields.js';
+import { LetterRequisites } from './letter-requisites.js';
 import { LetterCardSkeleton } from './letter-card-skeleton.js';
 import { LetterComposeDialog } from './letter-compose-dialog.js';
 import { LetterStatusBadge } from './letter-status-badge.js';
 import { LetterTypeIcon } from '../lib/letter-fields.js';
-
-/** Размер вложения: КБ до тысячи, дальше — МБ с десятыми. */
-function formatSize(size: number): string {
-  const kb = size / 1024;
-  if (kb < 1000) return `${Math.round(kb)} ${ui.letters.kb}`;
-  return `${(kb / 1024).toFixed(1)} МБ`;
-}
 
 /**
  * Карточка письма — почтовый клиент (вердикт владельца 2026-09-10, раунд 2):
@@ -151,7 +144,7 @@ export function LetterCard({ letterId }: { letterId: string }) {
                     </AttachmentMedia>
                     <AttachmentContent>
                       <AttachmentTitle>{file.name}</AttachmentTitle>
-                      <AttachmentDescription>{formatSize(file.size)}</AttachmentDescription>
+                      <AttachmentDescription>{formatBytes(file.size)}</AttachmentDescription>
                     </AttachmentContent>
                   </Attachment>
                 ))}
@@ -165,7 +158,7 @@ export function LetterCard({ letterId }: { letterId: string }) {
             <NodeLabel label={ui.letters.requisites} />
           </div>
           <div className="mt-2.5">
-            <LetterFields letter={letter} />
+            <LetterRequisites letter={letter} />
           </div>
 
           {/* Секции разделяются отступами, без висячих сепараторов (канон) */}

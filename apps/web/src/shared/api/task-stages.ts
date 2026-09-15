@@ -13,5 +13,8 @@ export function useTaskStages() {
   return useQuery({
     queryKey: taskStagesKey,
     queryFn: () => api<TaskStageWithCount[]>('/tasks/stages'),
+    // Справочник: редко меняется в сессии — без staleTime каждый маунт доски
+    // переспрашивал стадии (аудит #45: 301 запрос на 50 переключений вида).
+    staleTime: 60_000,
   });
 }

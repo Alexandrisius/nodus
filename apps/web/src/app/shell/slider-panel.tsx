@@ -4,6 +4,7 @@ import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import { cn } from '@nodus/ui/lib/utils';
 
+import { inputModality } from '../../shared/lib/input-modality.js';
 import { useRailHidden } from './rail-visibility.js';
 import { EDGE_W_COLLAPSED, EDGE_W_EXPANDED } from './right-rail.js';
 import { useShellStore } from './shell-store.js';
@@ -97,6 +98,7 @@ export function SliderPanel({
 }) {
   const id = useId();
   const panelRef = useRef<HTMLElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
   const [closing, setClosing] = useState(false);
   const closingRef = useRef(false);
   const closeRef = useRef(onClose);
@@ -138,8 +140,37 @@ export function SliderPanel({
 
   useEffect(() => {
     stack.push(id);
+    // Доступность (аудит #45): запоминаем фокус-триггер для возврата,
+    // стартовый фокус — на «Закрыть», Tab циклирует внутри панели (trap).
+    // Возврат фокуса — ТОЛЬКО при открытии КЛАВИАТУРОЙ (input-modality):
+    // иначе строка-источник после Esc получает focus-visible рамку —
+    // мышевому пользователю читалось «жирной толстой рамкой» (баг-вердикт
+    // 15.09.2026); клавиатурному пользователю возврат обязателен (a11y).
+    const openedVia = inputModality();
+    const previouslyFocused =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || stack[stack.length - 1] !== id) return;
+      if (stack[stack.length - 1] !== id) return;
+      if (event.key === 'Tab') {
+        const el = panelRef.current;
+        if (!el) return;
+        const focusables = el.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+        );
+        if (focusables.length === 0) return;
+        const first = focusables[0]!;
+        const last = focusables[focusables.length - 1]!;
+        const active = document.activeElement;
+        if (event.shiftKey && (active === first || !el.contains(active))) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && (active === last || !el.contains(active))) {
+          event.preventDefault();
+          first.focus();
+        }
+        return;
+      }
+      if (event.key !== 'Escape') return;
       // Esc внутри открытого меню/поповера Radix закрывает МЕНЮ, не слайдер:
       // этот слушатель на window видит то же событие ПОСЛЕ document-обработчиков
       // Radix (баблинг document → window), поэтому отфильтровываем обработанное.
@@ -148,10 +179,12 @@ export function SliderPanel({
       requestCloseRef.current();
     };
     window.addEventListener('keydown', onKey);
+    closeButtonRef.current?.focus();
     return () => {
       const index = stack.indexOf(id);
       if (index >= 0) stack.splice(index, 1);
       window.removeEventListener('keydown', onKey);
+      if (openedVia === 'keyboard') previouslyFocused?.focus();
     };
   }, [id]);
 
@@ -205,6 +238,7 @@ export function SliderPanel({
         ref={panelRef}
         role="dialog"
         aria-modal="true"
+        aria-labelledby={title && !headerContent ? `${id}-title` : undefined}
         style={flipStyle}
         className={cn(
           'slider-shadow absolute inset-2 z-20 flex flex-col overflow-hidden rounded-2xl border border-border bg-card text-card-foreground',
@@ -229,6 +263,7 @@ export function SliderPanel({
           )}
         >
           <Button
+            ref={closeButtonRef}
             variant="ghost"
             size="icon"
             className="shrink-0 hover:bg-accent"
@@ -243,7 +278,12 @@ export function SliderPanel({
               вкладки-порты (headerContent). */}
           {headerContent ??
             (title ? (
-              <span className="min-w-0 truncate text-sm font-medium text-foreground">{title}</span>
+              <span
+                id={`${id}-title`}
+                className="min-w-0 truncate text-sm font-medium text-foreground"
+              >
+                {title}
+              </span>
             ) : null)}
         </header>
         <div

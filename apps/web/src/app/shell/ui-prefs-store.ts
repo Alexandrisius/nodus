@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { UiPreferences } from '@nodus/contracts';
 
+import { uiPrefsEnvelopeSchema, zodPersistMerge } from '../../shared/lib/persist-zod.js';
+
 /**
  * Персонализация навигации (концепт «Персональный порядок», #4): ЛИЧНЫЙ и
  * ОБЩИЙ (компания, «Применить порядок для всех» админа) скоупы одним DTO
@@ -32,6 +34,10 @@ export const useUiPrefsStore = create<UiPrefsState>()(
         ),
       resetPersonal: () => set({ personal: {} }),
     }),
-    { name: 'nodus-ui-prefs-v1' },
+    {
+      name: 'nodus-ui-prefs-v1',
+      version: 1,
+      merge: zodPersistMerge<UiPrefsState>(uiPrefsEnvelopeSchema),
+    },
   ),
 );

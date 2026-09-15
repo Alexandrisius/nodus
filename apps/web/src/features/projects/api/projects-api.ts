@@ -10,6 +10,7 @@ import { ui } from '@nodus/contracts';
 import { toast } from 'sonner';
 
 import { api } from '../../../shared/api-client.js';
+import { tasksKeys } from '../../../shared/api/tasks-keys.js';
 
 // Канонический хук справочника проектов — shared (единый ключ/кэш);
 // реэкспорт для обратной совместимости импортов фичи.
@@ -35,7 +36,7 @@ export function useProjectDetail(id: string) {
  *  (плейбук §3.1 — один канбан и один список задач, а не два). */
 export function useProjectTaskPages(projectId: string) {
   return useInfiniteQuery({
-    queryKey: ['tasks', 'list-pages', { projectId }] as const,
+    queryKey: tasksKeys.listPages({ projectId }),
     queryFn: ({ pageParam }) =>
       api<Paginated<TaskListItem>>(
         `/tasks?projectId=${projectId}&limit=100${pageParam ? `&cursor=${pageParam}` : ''}`,
@@ -58,7 +59,7 @@ export function useMoveProjectTask() {
       toast.error(ui.tasks.stageMoveError);
     },
     onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      void queryClient.invalidateQueries({ queryKey: tasksKeys.all });
     },
   });
 }
@@ -71,7 +72,7 @@ export function useCreateProjectTask(projectId: string) {
     mutationFn: ({ title, stageId }: { title: string; stageId: string }) =>
       api<TaskListItem>('/tasks', { method: 'POST', body: { title, stageId, projectId } }),
     onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      void queryClient.invalidateQueries({ queryKey: tasksKeys.all });
     },
   });
 }

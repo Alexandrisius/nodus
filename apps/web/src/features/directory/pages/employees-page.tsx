@@ -1,13 +1,12 @@
 import { useMemo, useState } from 'react';
 import { useSearch } from '@tanstack/react-router';
-import { Link2, SquareArrowOutUpRight, UserPlus } from 'lucide-react';
+import { UserPlus } from 'lucide-react';
 import type { UserListItem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import { Skeleton } from '@nodus/ui/components/skeleton';
 
 import { useOpenCard } from '../../../app/shell/use-card-stack.js';
-import { copyCardLink } from '../../../shared/lib/card-link.js';
 import { DataTable } from '../../../shared/views/data-table.js';
 import {
   employeeSearchText,
@@ -21,12 +20,13 @@ import { useUsersList } from '../api/directory-api.js';
 import { InviteDialog } from '../components/invite-dialog.js';
 import { OrgChart } from '../components/org-chart.js';
 import { employeeListFields } from '../lib/employee-fields.js';
+import { makeCardRowMenuItems } from '../../../shared/views/card-row-menu.js';
 
 /**
  * Сотрудники: два вида (вердикт владельца 2026-09-10) — «Структура»
  * (граф оргструктуры по грамматике контура: узлы node-панели, ортогональные
  * рёбра с портами) и «Список» (каноническая таблица shared/views, ключ
- * `employees.list`; строка инструментов — поиск по людям + фильтр по
+ * `directory.employees`; строка инструментов — поиск по людям + фильтр по
  * подразделению/должности с пресетами + шестерёнка). Виды — вкладки топбара
  * (search-параметр view). Открытие карточки сотрудника — стек карточек из
  * rect источника.
@@ -37,7 +37,7 @@ export function EmployeesPage() {
   const { data, isLoading } = useUsersList();
   const openCard = useOpenCard();
   const [inviteOpen, setInviteOpen] = useState(false);
-  const toolbar = useListToolbar('employees.list');
+  const toolbar = useListToolbar('directory.employees');
   const filterDefs = useEmployeeFilterDefs();
   const filter = useMemo<ActiveListFilter<UserListItem>>(
     () => ({
@@ -78,7 +78,7 @@ export function EmployeesPage() {
                 {ui.employees.invite}
               </Button>
             }
-            right={<ViewSettings viewKey="employees.list" defs={defs} />}
+            right={<ViewSettings viewKey="directory.employees" defs={defs} />}
           />
         ) : (
           <>
@@ -110,26 +110,13 @@ export function EmployeesPage() {
           )
         ) : (
           <DataTable
-            viewKey="employees.list"
+            viewKey="directory.employees"
             defs={defs}
             rows={rows}
             rowKey={(user) => user.id}
             isLoading={isLoading}
             onOpenRow={openEmployee}
-            rowMenu={(user) => [
-              {
-                id: 'open',
-                icon: <SquareArrowOutUpRight className="size-3.5" />,
-                label: ui.common.open,
-                onSelect: () => openCard({ kind: 'employee', id: user.id }),
-              },
-              {
-                id: 'copy',
-                icon: <Link2 className="size-3.5" />,
-                label: ui.common.copyLink,
-                onSelect: () => void copyCardLink({ kind: 'employee', id: user.id }),
-              },
-            ]}
+            rowMenu={(user) => makeCardRowMenuItems({ kind: 'employee', id: user.id }, openCard)}
           />
         )}
       </div>

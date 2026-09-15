@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { ViewFieldPrefs, ViewSort } from '@nodus/contracts';
 
+import { viewsEnvelopeSchema, zodPersistMerge } from '../lib/persist-zod.js';
+
 /**
  * Персональные настройки представлений всех модулей (схема — contracts
  * viewPresetSchema; на проде — API персонализации, §10.5). Ключ вида:
@@ -76,7 +78,9 @@ export const useViewStore = create<ViewState>()(
     }),
     {
       name: 'nodus-views-v1',
+      version: 1,
       partialize: (state) => ({ views: state.views, sorts: state.sorts }),
+      merge: zodPersistMerge<ViewState>(viewsEnvelopeSchema),
     },
   ),
 );

@@ -9,12 +9,13 @@ import {
 
 import { AppShell } from './shell/app-shell.js';
 import { NAV_MODULES } from './shell/nav-registry.js';
+import { NotFoundScreen, RouterErrorScreen } from './shell/system-screens.js';
 import { resolveHidden, resolveOrder } from './shell/ui-prefs.js';
 import { useUiPrefsStore } from './shell/ui-prefs-store.js';
 import { useAuthStore } from '../shared/auth-store.js';
 
 const LoginPage = lazy(() =>
-  import('../features/auth/login-page.js').then((m) => ({ default: m.LoginPage })),
+  import('../features/auth/pages/login-page.js').then((m) => ({ default: m.LoginPage })),
 );
 const HomePage = lazy(() =>
   import('../features/home/pages/home-page.js').then((m) => ({ default: m.HomePage })),
@@ -50,6 +51,9 @@ const EmployeesPage = lazy(() =>
  */
 const rootRoute = createRootRoute({
   component: Outlet,
+  // Системные экраны — русские, с выходом на главную (аудит #45).
+  errorComponent: RouterErrorScreen,
+  notFoundComponent: NotFoundScreen,
   // Search свободной формы (разделные параметры + стек карточек): identity
   // validateSearch даёт тип Record<string, unknown> для search-апдейтеров
   // navigate и наследование параметров дочерними маршрутами.

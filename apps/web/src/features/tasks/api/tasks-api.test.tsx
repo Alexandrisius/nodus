@@ -3,6 +3,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import {
   QueryClient,
   QueryClientProvider,
+  type InfiniteData,
   type QueryClientProviderProps,
 } from '@tanstack/react-query';
 import { createElement, type ReactNode } from 'react';
@@ -178,7 +179,10 @@ describe('useUpdateTaskStage: оптимистичность переноса (I
   it('стадия в кэше меняется ДО ответа сервера; ошибка → откат', async () => {
     const client = new QueryClient();
     client.setQueryData(tasksKeys.stages(), [STAGE_A, STAGE_B]);
-    client.setQueryData(tasksKeys.list(), { items: [taskInStage(STAGE_A)], nextCursor: null });
+    client.setQueryData(tasksKeys.listPages(), {
+      pages: [{ items: [taskInStage(STAGE_A)], nextCursor: null }],
+      pageParams: [null],
+    });
     const gate = deferred<Response>();
     vi.stubGlobal(
       'fetch',
@@ -192,15 +196,19 @@ describe('useUpdateTaskStage: оптимистичность переноса (I
       result.current.mutate({ taskId: TASK_ID, stageId: STAGE_B.id, index: 0 });
     });
 
-    const optimistic = client.getQueryData<Paginated<TaskListItem>>(tasksKeys.list());
-    expect(optimistic?.items[0]?.stage.id).toBe(STAGE_B.id);
+    const optimistic = client.getQueryData<InfiniteData<Paginated<TaskListItem>>>(
+      tasksKeys.listPages(),
+    );
+    expect(optimistic?.pages[0]?.items[0]?.stage.id).toBe(STAGE_B.id);
 
     await act(async () => {
       gate.resolve(jsonResponse(500, { code: 'INTERNAL_ERROR', message: 'x' }));
     });
     await waitFor(() => {
-      const rolled = client.getQueryData<Paginated<TaskListItem>>(tasksKeys.list());
-      expect(rolled?.items[0]?.stage.id).toBe(STAGE_A.id);
+      const rolled = client.getQueryData<InfiniteData<Paginated<TaskListItem>>>(
+        tasksKeys.listPages(),
+      );
+      expect(rolled?.pages[0]?.items[0]?.stage.id).toBe(STAGE_A.id);
     });
   });
 });

@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
+import { chatPrefsEnvelopeSchema, zodPersistMerge } from '../lib/persist-zod.js';
+
 /** Выравнивание сообщений ленты (вердикт владельца 14.09.2026, модель
  *  Телеграма/Битрикс24): 'one' — все сообщения с одной стороны (свои рядом
  *  с собеседником, дефолт: широкая лента с пузырями по разным краям
@@ -22,6 +24,10 @@ export const useChatPrefs = create<ChatPrefsState>()(
       align: 'one',
       setAlign: (align) => set({ align }),
     }),
-    { name: 'nodus-chat-prefs-v1' },
+    {
+      name: 'nodus-chat-prefs-v1',
+      version: 1,
+      merge: zodPersistMerge<ChatPrefsState>(chatPrefsEnvelopeSchema),
+    },
   ),
 );

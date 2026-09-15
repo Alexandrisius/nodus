@@ -11,10 +11,9 @@
 ```
 <name>/
 ├── <name>.module.ts        # NestJS-модуль: wiring, без логики
-├── <name>.controller.ts    # только HTTP: маршруты, DTO, OpenAPI-декораторы. Без бизнес-логики
+├── <name>.controller.ts    # только HTTP: маршруты, DTO (типы из zod-схем contracts), OpenAPI-декораторы. Без бизнес-логики
 ├── <name>.service.ts       # бизнес-логика, транзакции, оркестрация
 ├── <name>.repository.ts    # ЕДИНСТВЕННАЯ точка доступа модуля к своим таблицам (Prisma)
-├── dto/                    # request/response DTO — из zod-схем @nodus/contracts
 ├── events/                 # публикация доменных событий и обработчики чужих событий
 └── README.md
 ```
@@ -92,20 +91,24 @@ list(@Query({ schema: listUsersQuerySchema, pipes: [new ZodValidationPipe(listUs
 ├── api/          # query keys factory + хуки TanStack Query + мутации (optimistic)
 ├── components/   # UI-компоненты фичи (глупые, на props)
 ├── pages/        # страницы (роутинг, композиция)
-├── model/        # локальное состояние (Zustand), селекторы, типы фичи
+├── model/        # локальное состояние (Zustand) — ПО НЕОБХОДИМОСТИ: у большинства фич сторы живут рядом с потребителями (shared/, app/shell)
 └── README.md
 ```
 
 Правила:
 
 - **Query keys — только через factory** (`tasksKeys.list(filter)`, `tasksKeys.detail(id)`) в `api/`: инвалидация и оптимистичные апдейты опираются на них, руками строки ключей не пишутся.
+- **Направление слоёв web (аудит #45):** `app` (композиция) → `features` → `shared`; линтером режутся `shared → features` и `shared → app` (eslint-boundaries). `features → shared` — свободно. `features → app` — ТОЛЬКО публичное API каркаса: `use-card-stack.ts` / `card-stack.ts` (стек карточек), `slider-panel.ts` (типы/панель), `circuit-geometry.ts` (CIRCUIT_REMEASURE), `nav-registry.ts`, `logo-icon.ts`; всё остальное из `app/shell` фичам запрещено (линтером не выражается — ревью). Shared-слою карточки открывает мост `shared/lib/card-bridge.ts` (порт-адаптер: app-shell регистрирует реализацию).
 - **Оптимистичная мутация — единый паттерн** (I4). Отклонение (пессимистичная мутация) — только с обоснованием в README фичи (юридически значимые действия):
   - `onMutate`: `cancelQueries` затронутых ключей → снапшот кэша → `setQueryData`: вставка временной записи с `id: temp-<uuid>` и флагом pending. Вставка — **только в те кэши списков, чьим фильтрам запись удовлетворяет**; в infinite-кэш — в первую страницу.
   - `onError`: откат по снапшоту + toast (строка из i18n).
   - `onSuccess`: замена временной записи серверным DTO (дубль на сервере не создаётся — запрос идёт с `Idempotency-Key`).
   - `onSettled`: инвалидация затронутых ключей.
   - Детерминированный тест: ответ сервера обёрнут в контролируемый deferred; assert — запись в кэше до resolve; затем reject → assert отката.
-- **Данные — только через хуки `api/`.** Компоненты не дёргают fetch/axios напрямую. Формы — react-hook-form + zod-схема из `@nodus/contracts` (одна схема на фронт и бэк).
+- **Данные — только через хуки `api/`.** Компоненты не дёргают fetch/axios напрямую.
+- **HTTP-контур — единый `shared/api-client.ts` (аудит #45, канон для бэк-фазы):** единственный `fetch` в проекте. Access-токен — только в памяти (`shared/auth-store.ts`, не localStorage), refresh — httpOnly-cookie `nodus_refresh`; 401 → один прозрачный refresh с дедупом параллельных вызовов (`refreshInFlight`) → повтор запроса. Ошибки — `ApiError { code, message, status, details?, traceId? }` из единого envelope `{ code, message, details?, traceId }`. Каждая мутация (POST/PATCH/DELETE) автоматически несёт `Idempotency-Key: <uuid на вызов>` (I7); ручной retry той же операции передаёт явный `idempotencyKey`. MSW включается флагом `VITE_API_MOCK` (единая точка замены моков на живой API); хендлеры валидируют тела zod-схемами contracts.
+- **persist-сторы — с zod-валидацией rehydrate (I7):** zustand `persist` + `merge: zodPersistMerge(envelopeSchema)` (`shared/lib/persist-zod.ts`) + `version` (смена формы состояния = bump версии, сохранённое отбрасывается); ключи `nodus-*-v1`. Известное ограничение: вкладки одного браузера не синхронизируются (storage-event не слушается; последняя пишущая побеждает) — снятие ограничения при переезде настроек на API.
+- **Формы — честный канон (аудит #45, вердикт владельца):** простые формы (1–3 поля, локальная валидация) — контролируемые компоненты на `useState` + zod-схема из `@nodus/contracts` для валидации значений; тяжёж react-hook-form без серверной валидации не окупается — RHF-зависимости НЕ держим «про запас». **react-hook-form + zodResolver возвращается с первой формой под серверную валидацию** (ошибки полей с бэка, wizard-многошаговость): тогда — единый паттерн RHF + zod-схема contracts (одна схема на фронт и бэк), зависимости добавляются в том же issue.
 - **Моки MSW** — хендлеры фичи в `api/mocks/`, данные соответствуют контрактам (ADR-0001); мок ≠ контракту = баг.
 - **UI-примитивы — из `@nodus/ui`**, не из локальных копий; токены темы не зашивать в компоненты (см. `docs/product/ux-principles.md`).
 - React-нюансы (производительность, композиция) — навыки `react-best-practices` и `react-composition-patterns`, вызывать при работе с компонентами.

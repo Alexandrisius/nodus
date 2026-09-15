@@ -1,5 +1,5 @@
 import { Paperclip, Send, X } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import { Dialog, DialogContent, DialogTitle } from '@nodus/ui/components/dialog';
@@ -8,6 +8,7 @@ import { NodeLabel } from '@nodus/ui/components/node-label';
 import { Textarea } from '@nodus/ui/components/textarea';
 
 import { useOpenCard } from '../../../app/shell/use-card-stack.js';
+import { formatBytes } from '../../../shared/lib/format.js';
 import { useCreateLetter } from '../api/letters-api.js';
 
 interface DraftFile {
@@ -41,15 +42,18 @@ export function LetterComposeDialog({
   const [files, setFiles] = useState<DraftFile[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Предзаполнение при каждом открытии (ответ на другое письмо).
-  useEffect(() => {
+  // Предзаполнение при каждом открытии — ответ на другое письмо
+  // (рендер-тайм сброс по переходу open, канон React, аудит #45).
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (prevOpen !== open) {
+    setPrevOpen(open);
     if (open) {
       setCorrespondent(defaultCorrespondent);
       setSubject(defaultSubject);
       setBody('');
       setFiles([]);
     }
-  }, [open, defaultCorrespondent, defaultSubject]);
+  }
 
   const valid = correspondent.trim().length > 0 && subject.trim().length > 0;
 
@@ -142,7 +146,7 @@ export function LetterComposeDialog({
                     <Paperclip className="size-3.5 shrink-0 text-muted-foreground" />
                     <span className="min-w-0 flex-1 truncate">{file.name}</span>
                     <span className="shrink-0 font-mono text-[10px] text-muted-foreground tabular-nums">
-                      {Math.round(file.size / 1024)} {ui.letters.kb}
+                      {formatBytes(file.size)}
                     </span>
                     <button
                       type="button"

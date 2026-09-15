@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import type {
   PersonalStageCreateBody,
   PersonalStageUpdateBody,
@@ -11,7 +11,7 @@ import { ui } from '@nodus/contracts';
 import { toast } from 'sonner';
 
 import { api } from '../../../shared/api-client.js';
-import { tasksKeys } from './tasks-api.js';
+import { mapTaskInPages, tasksKeys } from './tasks-api.js';
 
 // usePersonalStages/useCreateTask — canonical в shared/api/task-create
 // (общая экспресс-форма shared/tasks); реэкспорт для потребителей фичи.
@@ -35,20 +35,19 @@ export function useUpdateTaskPersonalStage() {
       api<TaskListItem>(`/tasks/${taskId}`, { method: 'PATCH', body: { personalStageId, index } }),
 
     onMutate: async ({ taskId, personalStageId }) => {
-      await queryClient.cancelQueries({ queryKey: tasksKeys.list() });
-      const previous = queryClient.getQueryData<Paginated<TaskListItem>>(tasksKeys.list());
+      await queryClient.cancelQueries({ queryKey: tasksKeys.listPages() });
+      const previous = queryClient.getQueryData<InfiniteData<Paginated<TaskListItem>>>(
+        tasksKeys.listPages(),
+      );
       const previousDetail = queryClient.getQueryData<TaskDetail>(tasksKeys.detail(taskId));
-      queryClient.setQueryData<Paginated<TaskListItem>>(tasksKeys.list(), (old) =>
-        old
-          ? {
-              ...old,
-              items: old.items.map((t) =>
-                t.id === taskId
-                  ? { ...t, personalStageId, updatedAt: new Date().toISOString() }
-                  : t,
-              ),
-            }
-          : old,
+      queryClient.setQueryData<InfiniteData<Paginated<TaskListItem>>>(
+        tasksKeys.listPages(),
+        (old) =>
+          mapTaskInPages(old, taskId, (t) => ({
+            ...t,
+            personalStageId,
+            updatedAt: new Date().toISOString(),
+          })),
       );
       queryClient.setQueryData<TaskDetail>(tasksKeys.detail(taskId), (old) =>
         old ? { ...old, personalStageId, updatedAt: new Date().toISOString() } : old,
@@ -58,7 +57,7 @@ export function useUpdateTaskPersonalStage() {
 
     onError: (_error, vars, context) => {
       if (context?.previous) {
-        queryClient.setQueryData(tasksKeys.list(), context.previous);
+        queryClient.setQueryData(tasksKeys.listPages(), context.previous);
       }
       if (context?.previousDetail) {
         queryClient.setQueryData(tasksKeys.detail(vars.taskId), context.previousDetail);
@@ -67,7 +66,8 @@ export function useUpdateTaskPersonalStage() {
     },
 
     onSettled: (_data, _error, vars) => {
-      void queryClient.invalidateQueries({ queryKey: tasksKeys.list() });
+      void queryClient.invalidateQueries({ queryKey: tasksKeys.listPages() });
+      void queryClient.invalidateQueries({ queryKey: tasksKeys.kanbanAll() });
       void queryClient.invalidateQueries({ queryKey: tasksKeys.personalStages() });
       void queryClient.invalidateQueries({ queryKey: tasksKeys.detail(vars.taskId) });
     },
@@ -109,7 +109,7 @@ export function useDeletePersonalStage() {
       }),
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: tasksKeys.personalStages() });
-      void queryClient.invalidateQueries({ queryKey: tasksKeys.list() });
+      void queryClient.invalidateQueries({ queryKey: tasksKeys.kanbanAll() });
       void queryClient.invalidateQueries({ queryKey: tasksKeys.listPages() });
     },
   });

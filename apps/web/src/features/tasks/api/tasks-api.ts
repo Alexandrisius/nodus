@@ -5,6 +5,7 @@ import {
   useMutation,
   useQuery,
   useQueryClient,
+  type InfiniteData,
 } from '@tanstack/react-query';
 import type {
   ChatMessage,
@@ -20,11 +21,12 @@ import { toast } from 'sonner';
 
 import { useAuthStore } from '../../../shared/auth-store.js';
 import { api } from '../../../shared/api-client.js';
-import { tasksKeys } from '../../../shared/api/tasks-keys.js';
+import { mapTaskInPages, tasksKeys } from '../../../shared/api/tasks-keys.js';
 
-// Ключи кэша — canonical в shared/api/tasks-keys (общие компоненты создания
-// в shared/tasks тоже ими пользуются); реэкспорт для потребителей фичи.
-export { tasksKeys } from '../../../shared/api/tasks-keys.js';
+// Ключи кэша и помощник страниц — canonical в shared/api/tasks-keys (общие
+// компоненты создания в shared/tasks тоже ими пользуются); реэкспорт для
+// потребителей фичи.
+export { mapTaskInPages, tasksKeys } from '../../../shared/api/tasks-keys.js';
 
 /** Список (таблица с деревом): курсорные страницы по 100, подгрузка sentinel-ом
  * у dna контейнера (industry-паттерн: целиком на клиент крупные списки не
@@ -86,21 +88,25 @@ export function useUpdateTaskStage() {
       api<TaskListItem>(`/tasks/${taskId}`, { method: 'PATCH', body: { stageId, index } }),
 
     onMutate: async ({ taskId, stageId }) => {
-      await queryClient.cancelQueries({ queryKey: tasksKeys.list() });
-      const previous = queryClient.getQueryData<Paginated<TaskListItem>>(tasksKeys.list());
+      await queryClient.cancelQueries({ queryKey: tasksKeys.listPages() });
+      const previous = queryClient.getQueryData<InfiniteData<Paginated<TaskListItem>>>(
+        tasksKeys.listPages(),
+      );
       const previousDetail = queryClient.getQueryData<TaskDetail>(tasksKeys.detail(taskId));
       const stage = queryClient
         .getQueryData<TaskStage[]>(tasksKeys.stages())
         ?.find((s) => s.id === stageId);
-      queryClient.setQueryData<Paginated<TaskListItem>>(tasksKeys.list(), (old) => {
-        if (!old || !stage) return old;
-        return {
-          ...old,
-          items: old.items.map((t) =>
-            t.id === taskId ? { ...t, stage, updatedAt: new Date().toISOString() } : t,
-          ),
-        };
-      });
+      queryClient.setQueryData<InfiniteData<Paginated<TaskListItem>>>(
+        tasksKeys.listPages(),
+        (old) =>
+          stage
+            ? mapTaskInPages(old, taskId, (t) => ({
+                ...t,
+                stage,
+                updatedAt: new Date().toISOString(),
+              }))
+            : old,
+      );
       queryClient.setQueryData<TaskDetail>(tasksKeys.detail(taskId), (old) =>
         old && stage ? { ...old, stage, updatedAt: new Date().toISOString() } : old,
       );
@@ -109,7 +115,7 @@ export function useUpdateTaskStage() {
 
     onError: (_error, vars, context) => {
       if (context?.previous) {
-        queryClient.setQueryData(tasksKeys.list(), context.previous);
+        queryClient.setQueryData(tasksKeys.listPages(), context.previous);
       }
       if (context?.previousDetail) {
         queryClient.setQueryData(tasksKeys.detail(vars.taskId), context.previousDetail);
@@ -118,7 +124,8 @@ export function useUpdateTaskStage() {
     },
 
     onSettled: (_data, _error, vars) => {
-      void queryClient.invalidateQueries({ queryKey: tasksKeys.list() });
+      void queryClient.invalidateQueries({ queryKey: tasksKeys.listPages() });
+      void queryClient.invalidateQueries({ queryKey: tasksKeys.kanbanAll() });
       void queryClient.invalidateQueries({ queryKey: tasksKeys.detail(vars.taskId) });
     },
   });
@@ -148,7 +155,7 @@ export function usePrefetchTask() {
  * industry-паттерн: клиент не держит весь список ради поиска. */
 export function useTasksSearch(q: string) {
   return useQuery({
-    queryKey: [...tasksKeys.all, 'search', q] as const,
+    queryKey: tasksKeys.search(q),
     queryFn: () => api<Paginated<TaskListItem>>(`/tasks?search=${encodeURIComponent(q)}&limit=20`),
     enabled: q.length > 0,
   });

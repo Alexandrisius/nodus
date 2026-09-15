@@ -1,5 +1,5 @@
 import { FolderOpen, House, ListTodo, Mail, MessageSquare, Sparkles, Users } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { ui } from '@nodus/contracts';
 import {
@@ -47,9 +47,13 @@ export function CommandPalette() {
   const [query, setQuery] = useState('');
   const { data: tasks } = useTasksSearch(query.trim());
 
-  useEffect(() => {
+  // Сброс запроса при закрытии — во время рендера (канон React «adjust state
+  // during render»: без лишнего кадра со старым состоянием, аудит #45).
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (prevOpen !== open) {
+    setPrevOpen(open);
     if (!open) setQuery('');
-  }, [open]);
+  }
 
   const q = query.trim().toLowerCase();
   const stems = q

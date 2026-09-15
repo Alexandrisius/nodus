@@ -73,6 +73,25 @@ export function useViewFields<T extends FieldDef>(viewKey: string, defs: T[]) {
     [sort, setSort, viewKey],
   );
 
+  /** Коммит порядка колонок на отпускании drag (одна механика DataTable и
+   *  TaskList, аудит #45 — была дословной копией в обоих): видимые в новом
+   *  порядке + скрытые следом (их место сохраняется), видимость передаётся
+   *  ТЕКУЩАЯ — applyOrder её не насилует (урок воскресающих скрытых полей,
+   *  view-store). */
+  const commitOrder = useCallback(
+    (ids: string[]) => {
+      const byId = new Map(fields.map((f) => [f.id, f.visible] as const));
+      applyOrder(
+        viewKey,
+        [...ids, ...fields.filter((f) => !f.visible).map((f) => f.id)].map((id) => ({
+          id,
+          visible: byId.get(id) ?? true,
+        })),
+      );
+    },
+    [applyOrder, viewKey, fields],
+  );
+
   return {
     fields,
     visibleFields: useMemo(() => fields.filter((f) => f.visible), [fields]),
@@ -86,6 +105,7 @@ export function useViewFields<T extends FieldDef>(viewKey: string, defs: T[]) {
     toggleField: (id: string, visible: boolean) => setFieldVisible(viewKey, id, visible),
     setWidth: (id: string, width: number) => setFieldWidth(viewKey, id, width),
     setOrder: (entries: { id: string; visible: boolean }[]) => applyOrder(viewKey, entries),
+    commitOrder,
     cycleSort,
     reset: () => resetView(viewKey),
   };

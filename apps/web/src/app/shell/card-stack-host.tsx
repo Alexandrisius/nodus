@@ -113,11 +113,14 @@ function MessengerEntry({ id, source, onClose }: EntryProps) {
   const [conversationId, setConversationId] = useState(id);
   const [tab, setTab] = useState<ChatTab>('chats');
   const [threadRootId, setThreadRootId] = useState<string | null>(null);
-  // Подмена беседы (replaceTop): сброс треда — он принадлежал прежней беседе.
-  useEffect(() => {
+  // Подмена беседы (replaceTop): сброс треда — он принадлежал прежней беседе
+  // (рендер-тайм сброс по смене id, канон React, аудит #45).
+  const [prevId, setPrevId] = useState(id);
+  if (prevId !== id) {
+    setPrevId(id);
     setConversationId(id);
     setThreadRootId(null);
-  }, [id]);
+  }
   return (
     <SliderPanel
       cardTopbar

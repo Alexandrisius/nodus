@@ -1,16 +1,13 @@
-import type { ReactNode } from 'react';
-import type { TaskListItem, TaskPriority, UserRef } from '@nodus/contracts';
+import type { TaskListItem, TaskPriority } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { NodeChip } from '@nodus/ui/components/node-chip';
 
 import { formatDateTime, formatMinutes } from '../lib/format.js';
 import { DeadlineChip } from '../ui/deadline-chip.js';
 import { identityTone } from '../ui/identity-tone.js';
-import { PersonAvatar } from '../ui/person-avatar.js';
+import { monoCell, PersonCell } from '../ui/person-cell.js';
 import { TaskStatusBadge } from '../ui/task-status-badge.js';
 import type { DataTableField } from './data-table.js';
-
-const monoCell = 'font-mono text-[11px] text-muted-foreground tabular-nums';
 
 export const priorityTone: Record<TaskPriority, 'muted' | 'warning' | 'danger'> = {
   low: 'muted',
@@ -18,16 +15,6 @@ export const priorityTone: Record<TaskPriority, 'muted' | 'warning' | 'danger'> 
   high: 'warning',
   urgent: 'danger',
 };
-
-function personCell(user: UserRef | null): ReactNode {
-  if (!user) return <span className="text-xs text-muted-foreground">{ui.common.notSet}</span>;
-  return (
-    <>
-      <PersonAvatar name={user.displayName} className="size-6 shrink-0" />
-      <span className="truncate">{user.displayName}</span>
-    </>
-  );
-}
 
 /**
  * ЕДИНЫЙ реестр колонок плоского списка задач (стандарт владельца, раунд 3:
@@ -90,7 +77,7 @@ export function makeTaskTableFields({
       defaultVisible: true,
       defaultWidth: 160,
       minWidth: 110,
-      render: (task) => personCell(task.assignee),
+      render: (task) => <PersonCell user={task.assignee} />,
       sortValue: (task) => task.assignee?.displayName ?? null,
     },
     {
@@ -99,7 +86,7 @@ export function makeTaskTableFields({
       defaultVisible: false,
       defaultWidth: 160,
       minWidth: 110,
-      render: (task) => personCell(task.creator),
+      render: (task) => <PersonCell user={task.creator} />,
       sortValue: (task) => task.creator?.displayName ?? null,
     },
     {

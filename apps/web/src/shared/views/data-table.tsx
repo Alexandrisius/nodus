@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, type ReactNode } from 'react';
+import { useMemo, useRef, type ReactNode } from 'react';
 import { Skeleton } from '@nodus/ui/components/skeleton';
 import { Checkbox } from '@nodus/ui/components/checkbox';
 import { Empty, EmptyTitle } from '@nodus/ui/components/empty';
@@ -7,6 +7,8 @@ import { ui } from '@nodus/contracts';
 import { DataTableHeader } from './data-table-header.js';
 import { LEADING_COL_W, RowMenu, type RowMenuItem } from './row-menu.js';
 import { sortRows } from './sort-rows.js';
+import { useAutoFitColumn } from './use-autofit-column.js';
+import { useInfiniteSentinel } from './use-infinite-sentinel.js';
 import { useRowSelection } from './use-row-selection.js';
 import { useViewFields, type FieldDef } from './use-view-fields.js';
 import { cn } from '@nodus/ui/lib/utils';
@@ -76,10 +78,7 @@ export function DataTable<T>({
   rowMenu?: (row: T) => RowMenuItem[];
   emptyTitle?: string;
 }) {
-  const { fields, visibleFields, sort, setWidth, setOrder, cycleSort } = useViewFields(
-    viewKey,
-    defs,
-  );
+  const { visibleFields, sort, setWidth, cycleSort, commitOrder } = useViewFields(viewKey, defs);
   const containerRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
@@ -90,30 +89,8 @@ export function DataTable<T>({
   const rowKeys = useMemo(() => sortedRows.map(rowKey), [sortedRows, rowKey]);
   const { selected, toggle, toggleAll, headerChecked } = useRowSelection(rowKeys);
 
-  /** Коммит порядка на отпускании drag: видимые в новом + скрытые следом
-   *  (их место сохраняется), видимость передаётся ТЕКУЩАЯ — applyOrder её
-   *  не насилует (урок воскресающих скрытых полей, view-store). */
-  const commitOrder = (ids: string[]) =>
-    setOrder(
-      [...ids, ...fields.filter((f) => !f.visible).map((f) => f.id)].map((id) => ({
-        id,
-        visible: fields.find((f) => f.id === id)?.visible ?? true,
-      })),
-    );
-
-  useEffect(() => {
-    const sentinel = sentinelRef.current;
-    const root = containerRef.current;
-    if (!sentinel || !root || !hasNextPage || isFetchingNextPage || !onLoadMore) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((e) => e.isIntersecting)) onLoadMore();
-      },
-      { root },
-    );
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [hasNextPage, isFetchingNextPage, onLoadMore]);
+  // Бесконечная подгрузка страниц: sentinel у дна контейнера (shared-хук).
+  useInfiniteSentinel(containerRef, sentinelRef, { hasNextPage, isFetchingNextPage, onLoadMore });
 
   const gridTemplateColumns = useMemo(() => {
     const tracks = [`${LEADING_COL_W}px`, ...visibleFields.map((f) => `${f.width ?? 120}px`)];
@@ -121,29 +98,9 @@ export function DataTable<T>({
     return tracks.join(' ');
   }, [visibleFields, actions]);
 
-  /** Автоподбор ширины по контенту (двойной клик на ручке, как в Excel):
-   * суммирует контентные ширины детей ячеек колонки (scrollWidth самой
-   * ячейки не подходит — он не меньше её текущей ширины) + дыхание.
-   * Индекс сдвинут на ведущую колонку (выбор + меню). */
-  function autoFitColumn(fieldIndex: number, fieldId: string, minWidth: number, maxWidth: number) {
-    const container = containerRef.current;
-    if (!container) return;
-    const CELL_GAP = 8;
-    let max = 0;
-    for (const row of container.children) {
-      const cell = row.children[fieldIndex + 1] as HTMLElement | undefined;
-      if (!cell) continue;
-      let content = 0;
-      for (const child of cell.children) {
-        content += (child as HTMLElement).scrollWidth;
-      }
-      content += Math.max(0, cell.children.length - 1) * CELL_GAP;
-      max = Math.max(max, content);
-    }
-    if (max > 0) {
-      setWidth(fieldId, Math.min(maxWidth, Math.max(minWidth, Math.ceil(max) + 24)));
-    }
-  }
+  /** Автоподбор ширины (двойной клик на ручке): shared-хук, сдвиг на
+   *  ведущую колонку (выбор + меню). */
+  const autoFitColumn = useAutoFitColumn(containerRef, 1, setWidth);
 
   if (isLoading) {
     return (
@@ -166,7 +123,9 @@ export function DataTable<T>({
   }
 
   return (
-    <div ref={containerRef} className="h-full overflow-auto">
+    // Семантика таблицы (аудит #45: div-grid без ролей; aria-sort жил на
+    // span-кнопке — невалидно). Роли: table/row/columnheader(в хедере)/cell.
+    <div ref={containerRef} role="table" aria-label={emptyTitle} className="h-full overflow-auto">
       <DataTableHeader
         fields={visibleFields}
         sort={sort}
@@ -185,7 +144,7 @@ export function DataTable<T>({
         return (
           <div
             key={key}
-            role="button"
+            role="row"
             tabIndex={0}
             onClick={(e) => onOpenRow(row, e.currentTarget)}
             onPointerEnter={() => onHoverRow?.(row)}
@@ -196,7 +155,7 @@ export function DataTable<T>({
               }
             }}
             className={cn(
-              'grid h-12 w-max min-w-full cursor-pointer items-stretch gap-3 border-b border-border/60 px-4 transition-colors last:border-b-0 hover:bg-accent/40 focus-visible:outline-2 focus-visible:outline-ring',
+              'grid h-12 w-max min-w-full cursor-pointer items-stretch gap-3 border-b border-border/60 px-4 transition-colors [content-visibility:auto] [contain-intrinsic-size:auto_48px] last:border-b-0 hover:bg-accent/40 focus-visible:outline-2 focus-visible:outline-ring',
               isSelected && 'bg-accent/50',
             )}
             style={{ gridTemplateColumns }}
@@ -204,6 +163,7 @@ export function DataTable<T>({
             {/* Ведущая ячейка: чекбокс выбора + «шашка» меню (клики не
               всплывают до строки — открытие карточки не срабатывает). */}
             <span
+              role="cell"
               className="flex items-center gap-1"
               onClick={(e) => e.stopPropagation()}
               onKeyDown={(e) => e.stopPropagation()}
@@ -218,6 +178,7 @@ export function DataTable<T>({
             {visibleFields.map((field) => (
               <span
                 key={field.id}
+                role="cell"
                 data-cell-field={field.id}
                 className="flex min-w-0 items-center gap-2 overflow-hidden"
               >
@@ -226,6 +187,7 @@ export function DataTable<T>({
             ))}
             {actions ? (
               <span
+                role="cell"
                 className="flex items-center"
                 onClick={(e) => e.stopPropagation()}
                 onKeyDown={(e) => e.stopPropagation()}

@@ -87,10 +87,33 @@ export const ThreadFeed = memo(function ThreadFeed({
                   mine={root.author.id === me?.id}
                   conversationId={conversationId}
                 >
-                  <button
-                    type="button"
-                    onClick={() => onOpenThread(root.id)}
-                    className="node-panel w-full max-w-2xl p-3.5 text-left transition-colors hover:border-input"
+                  {/* Пост — НЕ <button>: внутри живут интерактивы (плитки
+                      галереи, реакции, чипы файлов) — вложенные кнопки
+                      невалидны (hydration-ошибка, аудит #45) и клик по
+                      вложению открывал бы И лайтбокс, И тред. Кликабельная
+                      карточка: div+role с клавиатурой; клики по вложенным
+                      контролам отсекаются гардой. */}
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={(e) => {
+                      // Гарда кликов по ВЛОЖЕННЫМ интерактивам (плитки, реакции,
+                      // чипы): closest цепляет и САМУ карточку (role=button) —
+                      // сравниваем с currentTarget, иначе тред не открывался
+                      // вообще (баг-вердикт 15.09.2026 после аудита #45).
+                      const interactive = (e.target as HTMLElement).closest(
+                        'button, a, input, [role="button"]',
+                      );
+                      if (interactive && interactive !== e.currentTarget) return;
+                      onOpenThread(root.id);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
+                        e.preventDefault();
+                        onOpenThread(root.id);
+                      }
+                    }}
+                    className="node-panel w-full max-w-2xl cursor-pointer p-3.5 text-left transition-colors hover:border-input"
                   >
                     <span className="flex items-center gap-2 text-sm">
                       <PersonAvatar name={root.author.displayName} className="size-7 shrink-0" />
@@ -139,7 +162,7 @@ export const ThreadFeed = memo(function ThreadFeed({
                         <ArrowRight className="size-3" strokeWidth={1.75} />
                       </span>
                     </span>
-                  </button>
+                  </div>
                 </MessageMenu>
               );
             })}

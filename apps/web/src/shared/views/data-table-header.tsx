@@ -223,6 +223,7 @@ export function DataTableHeader({
   return (
     <div
       ref={headerRef}
+      role="row"
       className="sticky top-0 z-10 grid w-max min-w-full items-center gap-3 border-b border-border bg-card px-4 py-2"
       style={style}
     >
@@ -233,7 +234,7 @@ export function DataTableHeader({
         .nodus-coldrag [data-dragging-col] { transition: none; position: relative; z-index: 5; }
       `}</style>
       {/* «Выбрать все» (модель Битрикс24): indeterminate при частичном. */}
-      <span className="flex items-center">
+      <span role="columnheader" className="flex items-center">
         <Checkbox
           checked={headerChecked}
           onCheckedChange={onToggleAll}
@@ -245,10 +246,13 @@ export function DataTableHeader({
         const sorted = sort?.field === field.id ? sort.dir : undefined;
         const sortable = field.sortValue !== undefined;
         return (
+          // columnheader: единственная роль, где aria-sort валиден (аудит
+          // #45 — был span role=button, невалидный ARIA). Клик/Enter —
+          // сортировка, pointer-drag — порядок (data-table-header).
           <span
             key={field.id}
             data-header-field={field.id}
-            role={sortable ? 'button' : undefined}
+            role="columnheader"
             tabIndex={sortable ? 0 : undefined}
             aria-sort={sorted ? (sorted === 'asc' ? 'ascending' : 'descending') : undefined}
             onPointerDown={(e) => onHeaderPointerDown(e, field, index)}

@@ -11,6 +11,8 @@ export function usePersonalStages() {
   return useQuery({
     queryKey: tasksKeys.personalStages(),
     queryFn: () => api<TaskStageWithCount[]>('/tasks/personal-stages'),
+    // Справочник личной схемы: см. useTaskStages (staleTime, аудит #45).
+    staleTime: 60_000,
   });
 }
 

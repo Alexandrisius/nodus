@@ -10,6 +10,7 @@ import { ui } from '@nodus/contracts';
 import { toast } from 'sonner';
 
 import { api } from '../../../shared/api-client.js';
+import { tasksKeys } from '../../../shared/api/tasks-keys.js';
 
 export type LettersFolder = 'unregistered' | 'incoming' | 'outgoing';
 
@@ -46,7 +47,7 @@ export function useIssueResolution(letterId: string) {
     },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: lettersKeys.all });
-      void queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      void queryClient.invalidateQueries({ queryKey: tasksKeys.all });
     },
   });
 }

@@ -194,8 +194,11 @@ export function CircuitFrame() {
       <svg className="absolute inset-0 h-full w-full overflow-visible">
         {/* Узел бокового шва схлопнутой рейки — точка 5px (r2 + stroke1) на
             оси в месте стыка: рисуется здесь, а не в DOM рейки, иначе
-            overflow-hidden рейки срезает половину точки («сплющивает»). */}
-        {geo.leftNode ? (
+            overflow-hidden рейки срезает половину точки («сплющивает»).
+            ТОЛЬКО при наличии вкладок (баг-вердикт 15.09.2026: на Главной со
+            схлопнутой рейкой связи нет — точка-сирота и вспышка запрещены;
+            на модулях с подмодулями узел и связи остаются). */}
+        {geo.leftNode && geo.tabs.length > 0 ? (
           <circle
             cx={snapPx(geo.leftNode.x + 0.5)}
             cy={snapPx(geo.leftNode.y + 0.5)}

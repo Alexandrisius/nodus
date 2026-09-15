@@ -3,12 +3,10 @@ import type { LetterListItem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 
 import { formatDate, formatDateTimeShort } from '../../../shared/lib/format.js';
-import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
 import { DeadlineChip } from '../../../shared/ui/deadline-chip.js';
+import { monoCell, PersonCell } from '../../../shared/ui/person-cell.js';
 import type { DataTableField } from '../../../shared/views/data-table.js';
 import { LetterStatusBadge } from '../components/letter-status-badge.js';
-
-const monoCell = 'font-mono text-[11px] text-muted-foreground tabular-nums';
 
 /** Направление письма: входящее — к нам (стрелка вниз-влево), исходящее — от нас. */
 export function LetterTypeIcon({ letter }: { letter: LetterListItem }) {
@@ -19,17 +17,6 @@ export function LetterTypeIcon({ letter }: { letter: LetterListItem }) {
     />
   ) : (
     <ArrowUpRight className="size-3.5 shrink-0 text-info/70" aria-label={ui.letters.typeOutgoing} />
-  );
-}
-
-function personCell(letter: LetterListItem) {
-  if (!letter.addressee)
-    return <span className="text-xs text-muted-foreground">{ui.common.notSet}</span>;
-  return (
-    <>
-      <PersonAvatar name={letter.addressee.displayName} className="size-6 shrink-0" />
-      <span className="truncate">{letter.addressee.displayName}</span>
-    </>
   );
 }
 
@@ -92,7 +79,7 @@ export const letterJournalFields: DataTableField<LetterListItem>[] = [
     defaultVisible: true,
     defaultWidth: 200,
     minWidth: 110,
-    render: personCell,
+    render: (letter) => <PersonCell user={letter.addressee} />,
     sortValue: (letter) => letter.addressee?.displayName ?? null,
   },
   {

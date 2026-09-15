@@ -1,5 +1,5 @@
 import { FolderOpen, Plus, Search, X } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ui } from '@nodus/contracts';
 import { Input } from '@nodus/ui/components/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@nodus/ui/components/popover';
@@ -30,9 +30,12 @@ export function ProjectPicker({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
 
-  useEffect(() => {
+  // Сброс запроса при закрытии — во время рендера (канон React, аудит #45).
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (prevOpen !== open) {
+    setPrevOpen(open);
     if (!open) setQuery('');
-  }, [open]);
+  }
 
   const items = useMemo(() => data?.items ?? [], [data]);
   const selected = items.find((p) => p.id === value);

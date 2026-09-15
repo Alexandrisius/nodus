@@ -220,10 +220,11 @@ export function EdgeScrollbar() {
 
   if (!view.visible) return null;
   return (
+    // Визуальный дублёр скроллбара (скин над реальным скроллером #content):
+    // role="scrollbar" без полного ARIA-виджета — дезинформация для СЧ
+    // (аудит #45); скролл доступен нативно на самой области — прячем декор.
     <div
-      role="scrollbar"
-      aria-orientation="vertical"
-      aria-controls="content"
+      aria-hidden="true"
       className="fixed inset-y-0 right-0 z-40"
       style={{ width: TRACK_W }}
       onPointerDown={onTrackDown}

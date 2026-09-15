@@ -1,9 +1,9 @@
-import type { ReactNode } from 'react';
 import type { UserListItem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { NodeChip } from '@nodus/ui/components/node-chip';
 
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
+import { PersonCell } from '../../../shared/ui/person-cell.js';
 import type { DataTableField } from '../../../shared/views/data-table.js';
 
 /** HR-статус сотрудника (справочник, I15): работает / уволен. */
@@ -15,18 +15,8 @@ export function UserStatusChip({ status }: { status: UserListItem['status'] }) {
   );
 }
 
-function personCell(name: string | null): ReactNode {
-  if (!name) return <span className="text-xs text-muted-foreground">{ui.common.notSet}</span>;
-  return (
-    <>
-      <PersonAvatar name={name} className="size-6 shrink-0" />
-      <span className="truncate">{name}</span>
-    </>
-  );
-}
-
 /**
- * Реестр колонок списка сотрудников (ключ вида `employees.list`): новое
+ * Реестр колонок списка сотрудников (ключ вида `directory.employees`): новое
  * поле = +1 запись (shared/views, шестерёнка + ручка ресайза). Руководитель
  * резолвится из того же списка (managerId → displayName).
  */
@@ -99,8 +89,11 @@ export function employeeListFields(
       defaultVisible: true,
       defaultWidth: 200,
       minWidth: 110,
-      render: (user) =>
-        personCell(user.managerId ? (byId.get(user.managerId)?.displayName ?? null) : null),
+      render: (user) => (
+        <PersonCell
+          user={user.managerId ? (byId.get(user.managerId)?.displayName ?? null) : null}
+        />
+      ),
       sortValue: (user) =>
         user.managerId ? (byId.get(user.managerId)?.displayName ?? null) : null,
     },

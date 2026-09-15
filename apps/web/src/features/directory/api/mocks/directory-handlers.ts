@@ -1,4 +1,5 @@
 import { http, HttpResponse } from 'msw';
+import { createInvitationSchema } from '@nodus/contracts';
 
 import {
   demoPresence,
@@ -21,7 +22,13 @@ export const directoryHandlers = [
   }),
   /** Приглашение сотрудника (кнопка «Пригласить») — заготовка: принимает
    *  email, полный поток (роль, подразделение, письмо-инвайт) — с бэкендом. */
-  http.post('/api/v1/directory/invitations', () =>
-    HttpResponse.json({ id: crypto.randomUUID() }, { status: 201 }),
-  ),
+  http.post('/api/v1/directory/invitations', async ({ request }) => {
+    const parsed = createInvitationSchema.safeParse(await request.json());
+    if (!parsed.success)
+      return HttpResponse.json(
+        { code: 'VALIDATION_FAILED', message: 'Invalid email' },
+        { status: 400 },
+      );
+    return HttpResponse.json({ id: crypto.randomUUID() }, { status: 201 });
+  }),
 ];

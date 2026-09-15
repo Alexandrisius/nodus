@@ -1,11 +1,10 @@
 import { useMemo } from 'react';
-import { Link2, Plus, SquareArrowOutUpRight } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import type { ProjectListItem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 
 import { useOpenCard } from '../../../app/shell/use-card-stack.js';
-import { copyCardLink } from '../../../shared/lib/card-link.js';
 import { DataTable } from '../../../shared/views/data-table.js';
 import { ListToolbar } from '../../../shared/views/list-toolbar.js';
 import type { ActiveListFilter } from '../../../shared/views/list-filters.js';
@@ -18,6 +17,7 @@ import {
 import { projectListFields } from '../../../shared/views/project-table-fields.js';
 import { ViewSettings } from '../../../shared/views/view-settings.js';
 import { useProjectsList } from '../api/projects-api.js';
+import { makeCardRowMenuItems } from '../../../shared/views/card-row-menu.js';
 
 /**
  * Проекты: журнал канонической таблицей (shared/views, ключ `projects.list`) —
@@ -85,20 +85,7 @@ export function ProjectsPage() {
           rowKey={(project) => project.id}
           isLoading={isLoading}
           onOpenRow={openProject}
-          rowMenu={(project) => [
-            {
-              id: 'open',
-              icon: <SquareArrowOutUpRight className="size-3.5" />,
-              label: ui.common.open,
-              onSelect: () => openCard({ kind: 'project', id: project.id }),
-            },
-            {
-              id: 'copy',
-              icon: <Link2 className="size-3.5" />,
-              label: ui.common.copyLink,
-              onSelect: () => void copyCardLink({ kind: 'project', id: project.id }),
-            },
-          ]}
+          rowMenu={(project) => makeCardRowMenuItems({ kind: 'project', id: project.id }, openCard)}
         />
       </div>
     </div>

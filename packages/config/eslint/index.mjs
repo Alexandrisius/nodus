@@ -6,7 +6,11 @@ import eslintConfigPrettier from 'eslint-config-prettier';
 import { nodusInternal } from './nodus-internal.mjs';
 
 /**
- * Границы модулей (I3, I6): backend-модули и web-фичи не импортируют друг друга.
+ * Границы модулей (I3, I6): backend-модули и web-фичи не импортируют друг друга;
+ * слои web направлены вниз: app (композиция) → features → shared (shared не
+ * импортирует features/app никогда — аудит #45: до правил агрегат моков жил
+ * в shared и тянул все фичи; features→app — только публичное API каркаса,
+ * patterns.md, линтером не выражается).
  * Паттерны — относительно cwd запуска ESLint (корень репо или tests/lint/fixtures).
  */
 const boundariesConfig = {
@@ -16,6 +20,8 @@ const boundariesConfig = {
     'boundaries/elements': [
       { type: 'api-module', pattern: 'apps/api/src/modules/*', capture: ['module'] },
       { type: 'web-feature', pattern: 'apps/web/src/features/*', capture: ['feature'] },
+      { type: 'web-app', pattern: 'apps/web/src/app/*', capture: [] },
+      { type: 'web-shared', pattern: 'apps/web/src/shared/*', capture: [] },
     ],
     'import/resolver': {
       typescript: { alwaysTryTypes: true },
@@ -52,6 +58,18 @@ const boundariesConfig = {
             },
             message:
               'Cross-feature импорт запрещён (I3, I6): общее — только @nodus/contracts и @nodus/ui',
+          },
+          {
+            from: { element: { type: 'web-shared' } },
+            disallow: { to: { element: { type: 'web-feature' } } },
+            message:
+              'Shared не импортирует features (направление слоёв: app → features → shared, аудит #45)',
+          },
+          {
+            from: { element: { type: 'web-shared' } },
+            disallow: { to: { element: { type: 'web-app' } } },
+            message:
+              'Shared не импортирует app (направление слоёв: app → features → shared, аудит #45)',
           },
         ],
       },

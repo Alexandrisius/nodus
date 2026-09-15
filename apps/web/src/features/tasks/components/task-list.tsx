@@ -1,14 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link2, SquareArrowOutUpRight } from 'lucide-react';
+import { useMemo, useRef, useState } from 'react';
 import { ui } from '@nodus/contracts';
 import { Skeleton } from '@nodus/ui/components/skeleton';
 import { Checkbox } from '@nodus/ui/components/checkbox';
 
 import { useOpenCard } from '../../../app/shell/use-card-stack.js';
-import { copyCardLink } from '../../../shared/lib/card-link.js';
 import { DataTableHeader } from '../../../shared/views/data-table-header.js';
 import { LEADING_COL_W, RowMenu, type RowMenuItem } from '../../../shared/views/row-menu.js';
 import { sortRows } from '../../../shared/views/sort-rows.js';
+import { useAutoFitColumn } from '../../../shared/views/use-autofit-column.js';
+import { useInfiniteSentinel } from '../../../shared/views/use-infinite-sentinel.js';
 import { useRowSelection } from '../../../shared/views/use-row-selection.js';
 import type { ActiveListFilter } from '../../../shared/views/list-filters.js';
 import { useFilteredList } from '../../../shared/views/use-list-toolbar.js';
@@ -19,6 +19,7 @@ import { taskListFields } from '../lib/task-fields.js';
 import { buildTaskRows, filterVisibleRows, type TaskRow } from '../lib/task-tree.js';
 import { graphWidth, graphX, TaskListTree } from './task-list-graph.js';
 import { cn } from '@nodus/ui/lib/utils';
+import { makeCardRowMenuItems } from '../../../shared/views/card-row-menu.js';
 
 /**
  * Список задач (вид «Список»): иерархия со сворачиванием веток, как папки в
@@ -38,7 +39,7 @@ export function TaskList({ filter }: { filter?: ActiveListFilter<TaskListItem> }
   /** Каскадное построение графа: база = индекс первой раскрытой строки,
    *  key перезапускает draw-on только нового раскрытия. */
   const [reveal, setReveal] = useState({ base: 0, key: 1 });
-  const { fields, visibleFields, sort, setWidth, setOrder, cycleSort } = useViewFields(
+  const { visibleFields, sort, setWidth, cycleSort, commitOrder } = useViewFields(
     'tasks.list',
     taskListFields,
   );
@@ -63,31 +64,13 @@ export function TaskList({ filter }: { filter?: ActiveListFilter<TaskListItem> }
   const visibleKeys = useMemo(() => visible.map((row) => row.task.id), [visible]);
   const { selected, toggle, toggleAll, headerChecked } = useRowSelection(visibleKeys);
 
-  /** Коммит порядка на отпускании drag: видимые в новом + скрытые следом,
-   *  видимость — текущая (applyOrder её не насилует, view-store). */
-  const commitOrder = (ids: string[]) =>
-    setOrder(
-      [...ids, ...fields.filter((f) => !f.visible).map((f) => f.id)].map((id) => ({
-        id,
-        visible: fields.find((f) => f.id === id)?.visible ?? true,
-      })),
-    );
-
   // Бесконечная подгрузка страниц: sentinel у дна скролл-контейнера таблицы
-  // (IntersectionObserver с root=контейнер), как в битриксовском журнале.
-  useEffect(() => {
-    const sentinel = sentinelRef.current;
-    const root = containerRef.current;
-    if (!sentinel || !root || !hasNextPage || isFetchingNextPage) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((e) => e.isIntersecting)) void fetchNextPage();
-      },
-      { root },
-    );
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+  // (shared-хук, модель битриксовского журнала).
+  useInfiniteSentinel(containerRef, sentinelRef, {
+    hasNextPage,
+    isFetchingNextPage,
+    onLoadMore: fetchNextPage ? () => void fetchNextPage() : undefined,
+  });
 
   const gridTemplateColumns = useMemo(() => {
     const maxDepth = visible.reduce((max, row) => Math.max(max, row.depth), 0);
@@ -110,51 +93,18 @@ export function TaskList({ filter }: { filter?: ActiveListFilter<TaskListItem> }
     }
   }
 
-  /** Автоподбор ширины по контенту (двойной клик на ручке, как в Excel):
-   * суммирует контентные ширины детей ячеек колонки (scrollWidth самой
-   * ячейки не подходит — он не меньше её текущей ширины) + дыхание.
-   * Индекс сдвинут на ведущую колонку (выбор+меню) и колонку графа. */
-  function autoFitColumn(fieldIndex: number, fieldId: string, minWidth: number, maxWidth: number) {
-    const container = containerRef.current;
-    if (!container) return;
-    const CELL_GAP = 8;
-    let max = 0;
-    for (const row of container.children) {
-      const cell = row.children[fieldIndex + 2] as HTMLElement | undefined;
-      if (!cell) continue;
-      let content = 0;
-      for (const child of cell.children) {
-        content += (child as HTMLElement).scrollWidth;
-      }
-      content += Math.max(0, cell.children.length - 1) * CELL_GAP;
-      max = Math.max(max, content);
-    }
-    if (max > 0) {
-      setWidth(fieldId, Math.min(maxWidth, Math.max(minWidth, Math.ceil(max) + 24)));
-    }
-  }
+  /** Автоподбор ширины (двойной клик на ручке): shared-хук, сдвиг на
+   *  ведущую колонку (выбор+меню) и колонку графа. */
+  const autoFitColumn = useAutoFitColumn(containerRef, 2, setWidth);
 
   function openTask(row: TaskRow, rowEl: HTMLElement) {
     openCard({ kind: 'task', id: row.task.id }, rowEl.getBoundingClientRect());
   }
 
-  /** Меню строки («шашка», модель Битрикс24): только реальные действия —
-   *  открытие карточки и deep-link в стек (ADR-0009). */
+  /** Меню строки («шашка», модель Битрикс24): стандартная пара — открытие
+   *  карточки и deep-link в стек (ADR-0009, shared/views/card-row-menu). */
   function taskRowMenu(row: TaskRow): RowMenuItem[] {
-    return [
-      {
-        id: 'open',
-        icon: <SquareArrowOutUpRight className="size-3.5" />,
-        label: ui.common.open,
-        onSelect: () => openCard({ kind: 'task', id: row.task.id }),
-      },
-      {
-        id: 'copy',
-        icon: <Link2 className="size-3.5" />,
-        label: ui.common.copyLink,
-        onSelect: () => void copyCardLink({ kind: 'task', id: row.task.id }),
-      },
-    ];
+    return makeCardRowMenuItems({ kind: 'task', id: row.task.id }, (ref) => openCard(ref));
   }
 
   if (isLoading) {
@@ -168,7 +118,12 @@ export function TaskList({ filter }: { filter?: ActiveListFilter<TaskListItem> }
   }
 
   return (
-    <div ref={containerRef} className="h-full overflow-auto">
+    <div
+      ref={containerRef}
+      role="table"
+      aria-label={ui.tasks.title}
+      className="h-full overflow-auto"
+    >
       <DataTableHeader
         fields={visibleFields}
         sort={sort}
@@ -190,7 +145,7 @@ export function TaskList({ filter }: { filter?: ActiveListFilter<TaskListItem> }
           return (
             <div
               key={task.id}
-              role="button"
+              role="row"
               tabIndex={0}
               onClick={(e) => openTask(row, e.currentTarget)}
               onPointerEnter={() => prefetch(task.id)}
@@ -201,7 +156,7 @@ export function TaskList({ filter }: { filter?: ActiveListFilter<TaskListItem> }
                 }
               }}
               className={cn(
-                'group/row grid h-12 w-max min-w-full cursor-pointer items-stretch gap-3 border-b border-border/60 px-4 transition-colors last:border-b-0 hover:bg-accent/40 focus-visible:outline-2 focus-visible:outline-ring',
+                'group/row grid h-12 w-max min-w-full cursor-pointer items-stretch gap-3 border-b border-border/60 px-4 transition-colors [content-visibility:auto] [contain-intrinsic-size:auto_48px] last:border-b-0 hover:bg-accent/40 focus-visible:outline-2 focus-visible:outline-ring',
                 isSelected && 'bg-accent/50',
               )}
               style={{ gridTemplateColumns }}
@@ -209,6 +164,7 @@ export function TaskList({ filter }: { filter?: ActiveListFilter<TaskListItem> }
               {/* Ведущая ячейка (выбор + «шашка»): клики не всплывают
                   до строки — ветку/карточку не открывает. */}
               <span
+                role="cell"
                 className="flex items-center gap-1"
                 onClick={(e) => e.stopPropagation()}
                 onKeyDown={(e) => e.stopPropagation()}
@@ -220,7 +176,7 @@ export function TaskList({ filter }: { filter?: ActiveListFilter<TaskListItem> }
                 />
                 <RowMenu items={taskRowMenu(row)} />
               </span>
-              <div className="relative">
+              <div role="cell" className="relative">
                 {row.hasChildren ? (
                   <button
                     type="button"
@@ -254,6 +210,7 @@ export function TaskList({ filter }: { filter?: ActiveListFilter<TaskListItem> }
               {visibleFields.map((field) => (
                 <span
                   key={field.id}
+                  role="cell"
                   data-cell-field={field.id}
                   className="flex min-w-0 items-center gap-2 overflow-hidden"
                 >

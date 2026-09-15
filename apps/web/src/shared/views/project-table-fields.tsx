@@ -1,25 +1,13 @@
 import { Lock } from 'lucide-react';
-import type { ReactNode } from 'react';
-import type { ProjectListItem, UserRef } from '@nodus/contracts';
+import type { ProjectListItem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { NodeChip } from '@nodus/ui/components/node-chip';
 
 import { formatDate, formatDateTimeShort } from '../lib/format.js';
 import { PersonAvatar } from '../ui/person-avatar.js';
+import { monoCell, PersonCell } from '../ui/person-cell.js';
 import { ProjectIdentityIcon } from '../ui/project-identity-icon.js';
 import type { DataTableField } from './data-table.js';
-
-const monoCell = 'font-mono text-[11px] text-muted-foreground tabular-nums';
-
-function personCell(manager: UserRef | null): ReactNode {
-  if (!manager) return <span className="text-xs text-muted-foreground">{ui.common.notSet}</span>;
-  return (
-    <>
-      <PersonAvatar name={manager.displayName} className="size-6 shrink-0" />
-      <span className="truncate">{manager.displayName}</span>
-    </>
-  );
-}
 
 /** Роль текущего пользователя — чип: руководитель — success, участник — muted. */
 export function ProjectRoleChip({ project }: { project: ProjectListItem }) {
@@ -88,7 +76,7 @@ export const projectListFields: DataTableField<ProjectListItem>[] = [
     defaultVisible: true,
     defaultWidth: 170,
     minWidth: 110,
-    render: (project) => personCell(project.manager),
+    render: (project) => <PersonCell user={project.manager} />,
     sortValue: (project) => project.manager?.displayName ?? null,
   },
   {

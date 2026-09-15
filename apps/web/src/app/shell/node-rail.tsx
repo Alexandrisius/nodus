@@ -1,13 +1,4 @@
-import { useEffect, useState } from 'react';
-import {
-  closestCenter,
-  DndContext,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragOverEvent,
-} from '@dnd-kit/core';
-import { arrayMove, SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { useState } from 'react';
 import {
   ArrowUpDown,
   ChevronsLeft,
@@ -18,8 +9,6 @@ import {
 } from 'lucide-react';
 import { useRouterState } from '@tanstack/react-router';
 import { Permission, ui } from '@nodus/contracts';
-import { Button } from '@nodus/ui/components/button';
-import { Checkbox } from '@nodus/ui/components/checkbox';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,15 +22,14 @@ import { useHomeSummary } from '../../features/home/api/home-api.js';
 import { useAuthStore } from '../../shared/auth-store.js';
 import { CIRCUIT_REMEASURE } from './circuit-geometry.js';
 import { NAV_MODULES, type NavModuleDef } from './nav-registry.js';
+import { RailCustomizeMode } from './node-rail-customize.js';
 import {
   HIDDEN_SENTINEL,
   HiddenDividerRow,
-  HiddenSentinelRow,
   PORT,
   RailPort,
   RailRowLink,
   ShowHiddenToggle,
-  SortableRailRow,
 } from './node-rail-rows.js';
 import { resolveHidden, resolveOrder } from './ui-prefs.js';
 import { useUiPrefsStore } from './ui-prefs-store.js';
@@ -98,16 +86,17 @@ export function NodeRail() {
     .map(byId)
     .filter(defined);
 
-  // Режим настройки: черновик [видимые…, СЕПАРАТОР, скрытые…] + скоуп.
+  // Режим настройки (node-rail-customize.tsx): черновик собирается на старте.
   const [customizing, setCustomizing] = useState(false);
-  const [draft, setDraft] = useState<string[]>([]);
-  const [forAll, setForAll] = useState(false);
   // «Показать всё ▾» — раскрытые скрытые модули в обычном режиме; после
   // любого действия (навигация) сворачивается обратно (модель Битрикс24).
+  // Рендер-тайм сброс по смене пути (канон React, аудит #45).
   const [showHidden, setShowHidden] = useState(false);
-  useEffect(() => setShowHidden(false), [pathname]);
-
-  const sensors = useSensors(useSensor(PointerSensor));
+  const [prevPath, setPrevPath] = useState(pathname);
+  if (prevPath !== pathname) {
+    setPrevPath(pathname);
+    setShowHidden(false);
+  }
 
   const badges = (m: NavModuleDef): number | undefined => {
     if (m.badge === 'tasks') {
@@ -129,23 +118,7 @@ export function NodeRail() {
 
   const startCustomize = () => {
     if (collapsed) toggle();
-    setDraft([
-      ...visibleModules.map((m) => m.id),
-      HIDDEN_SENTINEL,
-      ...hiddenModules.map((m) => m.id),
-    ]);
-    setForAll(false);
     setCustomizing(true);
-    remeasure();
-  };
-  const applyCustomize = () => {
-    const sentIdx = draft.indexOf(HIDDEN_SENTINEL);
-    applyNav(
-      draft.filter((id) => id !== HIDDEN_SENTINEL),
-      draft.slice(sentIdx + 1),
-      forAll,
-    );
-    setCustomizing(false);
     remeasure();
   };
   // Отмена: порядок откатывается вместе с КОНТУРОМ — без перемера линия
@@ -153,20 +126,6 @@ export function NodeRail() {
   // связь изменилась»); rAF-перемер читает DOM уже после коммита React.
   const cancelCustomize = () => {
     setCustomizing(false);
-    remeasure();
-  };
-  const onDragOver = ({ active, over }: DragOverEvent) => {
-    if (!over || active.id === over.id) return;
-    setDraft((d) => {
-      const from = d.indexOf(String(active.id));
-      const to = d.indexOf(String(over.id));
-      if (from < 0 || to < 0 || from === to) return d;
-      const next = arrayMove(d, from, to);
-      // Минимум один видимый модуль: сепаратор первым стать не может.
-      if (next.indexOf(HIDDEN_SENTINEL) === 0) return d;
-      return next;
-    });
-    // Порты следуют за слотами сразу; вспышки нет — фокус не меняется.
     remeasure();
   };
 
@@ -206,65 +165,23 @@ export function NodeRail() {
 
       <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto py-3">
         {customizing ? (
-          <>
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragOver={onDragOver}
-            >
-              <SortableContext items={draft} strategy={verticalListSortingStrategy}>
-                <div className="relative flex flex-col gap-0.5">
-                  {draft.map((id) => {
-                    if (id === HIDDEN_SENTINEL) return <HiddenSentinelRow key={id} />;
-                    const m = byId(id);
-                    if (!m) return null;
-                    return (
-                      <SortableRailRow
-                        key={id}
-                        module={m}
-                        badge={badges(m)}
-                        dimmed={draft.indexOf(id) > draft.indexOf(HIDDEN_SENTINEL)}
-                      />
-                    );
-                  })}
-                  {/* Порты следуют черновику (слот сепаратора учтён в индексах). */}
-                  {draft
-                    .filter((id) => id !== HIDDEN_SENTINEL)
-                    .map((id) => {
-                      const m = byId(id);
-                      if (!m) return null;
-                      return (
-                        <RailPort
-                          key={id}
-                          module={m}
-                          index={draft.indexOf(id)}
-                          active={isActive(m)}
-                        />
-                      );
-                    })}
-                </div>
-              </SortableContext>
-            </DndContext>
-            {/* Подтверждение — НА МЕСТЕ ряда «Настройки», сразу после списка
-                (вердикт 15.09.2026: не в подвале рейки — команда и её
-                подтверждение держатся вместе даже при коротком списке). */}
-            <div className="mx-3 mt-2 flex flex-col gap-2 border-t border-sidebar-foreground/10 pt-2">
-              {canForAll ? (
-                <label className="flex cursor-pointer items-center gap-2 text-xs text-sidebar-foreground/70">
-                  <Checkbox checked={forAll} onCheckedChange={(v) => setForAll(v === true)} />
-                  {ui.nav.customizeForAll}
-                </label>
-              ) : null}
-              <div className="flex gap-2">
-                <Button size="sm" className="flex-1" onClick={applyCustomize}>
-                  {ui.nav.customizeDone}
-                </Button>
-                <Button size="sm" variant="outline" className="flex-1" onClick={cancelCustomize}>
-                  {ui.common.cancel}
-                </Button>
-              </div>
-            </div>
-          </>
+          <RailCustomizeMode
+            initialDraft={[
+              ...visibleModules.map((m) => m.id),
+              HIDDEN_SENTINEL,
+              ...hiddenModules.map((m) => m.id),
+            ]}
+            canForAll={canForAll}
+            badges={badges}
+            isActive={isActive}
+            byId={byId}
+            onApply={(order, hidden, forAll) => {
+              applyNav(order, hidden, forAll);
+              setCustomizing(false);
+              remeasure();
+            }}
+            onCancel={cancelCustomize}
+          />
         ) : (
           <div className="relative flex flex-col gap-0.5">
             {visibleModules.map((m) => (

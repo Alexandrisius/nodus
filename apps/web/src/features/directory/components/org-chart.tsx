@@ -151,8 +151,13 @@ export function OrgChart({ people }: { people: UserListItem[] }) {
       <div key={person.id} className="flex flex-col items-center gap-10">
         <div
           ref={(node) => {
-            if (node) nodeRefs.current.set(person.id, node);
-            else nodeRefs.current.delete(person.id);
+            // React 19 канон: cleanup-return вместо вызова с null
+            // (null-вызовы ref-колбэков — кандидат на депрекацию).
+            if (!node) return;
+            nodeRefs.current.set(person.id, node);
+            return () => {
+              nodeRefs.current.delete(person.id);
+            };
           }}
         >
           <button

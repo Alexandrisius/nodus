@@ -4,6 +4,7 @@ import { ui } from '@nodus/contracts';
 import { toast } from 'sonner';
 
 import { api } from '../api-client.js';
+import { tasksKeys } from '../api/tasks-keys.js';
 import { useAuthStore } from '../auth-store.js';
 
 /**
@@ -17,6 +18,8 @@ export const chatKeys = {
   messages: (id: string) => [...chatKeys.all, 'messages', id] as const,
   thread: (id: string, rootId: string) =>
     [...chatKeys.all, 'messages', id, 'thread', rootId] as const,
+  /** Личка с пользователем (открыть/создать direct по сотруднику). */
+  direct: (userId: string) => [...chatKeys.conversations(), 'direct', userId] as const,
 };
 
 export function useConversationMessages(id: string) {
@@ -52,7 +55,7 @@ export function useMessageToTask() {
       toast.success(ui.chat.toTaskDone);
     },
     onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      void queryClient.invalidateQueries({ queryKey: tasksKeys.all });
     },
   });
 }
@@ -61,7 +64,7 @@ export function useMessageToTask() {
  *  find-or-create на стороне API, клиент читает как query. */
 export function useDirectConversation(userId: string) {
   return useQuery({
-    queryKey: [...chatKeys.conversations(), 'direct', userId] as const,
+    queryKey: chatKeys.direct(userId),
     queryFn: () => api<ConversationListItem>(`/chat/conversations/direct/${userId}`),
     enabled: userId.length > 0,
   });
@@ -156,6 +159,10 @@ export function useSendChatMessage(conversationId: string) {
       );
       // Собеседник «прочитывает» сообщение спустя пару секунд (мокап): одна
       // отложенная инвалидация переключает галочки sent→read без polling.
+      // Удаляется ВМЕСТЕ с мок-логикой read-receipt при подключении бэкенда:
+      // прочтение придёт событием WS message.read, таймер не нужен (аудит
+      // #45: таймер без clear — при размонтировании инвалидация уходила бы
+      // в неактуальный ключ; терпимо до API, не тащим в прод).
       window.setTimeout(() => {
         void queryClient.invalidateQueries({ queryKey: chatKeys.messages(conversationId) });
       }, 2500);

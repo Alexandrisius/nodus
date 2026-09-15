@@ -1,5 +1,5 @@
 import { ListChecks, Plus } from 'lucide-react';
-import { useEffect, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import { Dialog, DialogContent, DialogTitle } from '@nodus/ui/components/dialog';
@@ -59,8 +59,11 @@ export function TaskQuickCreate({
   const [checklist, setChecklist] = useState<DraftChecklistItem[]>([]);
   const [checklistOpen, setChecklistOpen] = useState(false);
 
-  // Чистая форма при каждом открытии; ответственный — defaultAssigneeId или я.
-  useEffect(() => {
+  // Чистая форма при каждом открытии (рендер-тайм сброс по переходу open,
+  // канон React, аудит #45); ответственный — defaultAssigneeId или я.
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (prevOpen !== open) {
+    setPrevOpen(open);
     if (open) {
       setTitle('');
       setDescriptionOpen(false);
@@ -71,7 +74,7 @@ export function TaskQuickCreate({
       setChecklist([]);
       setChecklistOpen(false);
     }
-  }, [open, meId, defaultAssigneeId]);
+  }
 
   const valid = title.trim().length > 0;
 

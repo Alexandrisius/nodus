@@ -53,7 +53,7 @@ UPPERCASE 11px, tracking 0.16em, muted; счётчик — `text-foreground tabu
 
 ### `node-panel` (CSS-утилита)
 
-Плоская панель: `bg-card`, `border: 1px var(--border)`, `radius-lg`. Класс — `className="node-panel"`.
+Плоская панель: `bg-card`, `border: 1px var(--border)`, **`radius-xl` 14px** (лестница мягкости — токены). Класс — `className="node-panel"`.
 
 ### Анимационные утилиты (globals.css)
 
@@ -134,6 +134,27 @@ const nodes: ChainNode[] = task.chain.map((node, i) => ({
 ```
 
 Шапка карточки сущности: Письмо → Резолюция → Поручение → Задача (реф `03-domain-chain.png`); узлы-плашки, рёбра с портами по концам (CSS, центровка трансформами). Хлебных крошек в хроме слайдера НЕТ (убраны по вердикту владельца — только X закрытия).
+
+### PersonCell — ячейка «человек» таблиц/реестров
+
+```tsx
+import { PersonCell, monoCell } from '../../../shared/ui/person-cell.js';
+render: (task) => <PersonCell user={task.assignee} />,   // UserRef | string | null
+```
+
+Аватар + имя либо «Не задано» (i18n); `monoCell` — единый моно-стиль текстовых ячеек (даты, номера). Локальные копии запрещены (аудит #45 — было 5).
+
+### DateTimePicker — датапикер срока (`shared/ui/date-time-picker.tsx`)
+
+Компактный дедлайн-пикер (месяц-грид `date-time-grid.ts` — чистая логика с тестом, быстрые варианты «Сегодня/Завтра/Конец недели…», время HH:mm). Потребитель — экспресс-форма задачи; сброс состояния при открытии — рендер-тайм (канон, patterns.md).
+
+### ProjectPicker — комбобокс проекта (`shared/ui/project-picker.tsx`)
+
+Поиск по названию/коду с `ProjectIdentityIcon`, значение — projectId; потребитель — экспресс-форма задачи и фильтры. Сброс запроса при закрытии — рендер-тайм.
+
+### NotesGlyph — маркер «Заметок» (`shared/ui/notes-glyph.tsx`)
+
+Глиф сид-диалога с собой в списках бесед/полосе (модель Битрикс24: «Заметки» не дублируют профиль в списке, мок `cid(11)`).
 
 ## shadcn-компоненты в новом UI
 

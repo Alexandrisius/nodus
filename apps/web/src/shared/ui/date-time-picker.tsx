@@ -1,5 +1,5 @@
 import { Calendar, ChevronLeft, ChevronRight, X } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ui } from '@nodus/contracts';
 import { Input } from '@nodus/ui/components/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@nodus/ui/components/popover';
@@ -63,10 +63,13 @@ export function DateTimePicker({
   const [timeStr, setTimeStr] = useState('17:00');
 
   // При каждом открытии — вид на месяц значения (или текущий), время значения.
-  useEffect(() => {
+  // Сброс во время рендера по переходу open (канон React, аудит #45).
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (prevOpen !== open) {
+    setPrevOpen(open);
     if (open) {
-      setNow(new Date());
       const base = value ?? new Date();
+      setNow(new Date());
       setView({ year: base.getFullYear(), month: base.getMonth() });
       setTimeStr(
         value
@@ -74,7 +77,7 @@ export function DateTimePicker({
           : '17:00',
       );
     }
-  }, [open, value]);
+  }
 
   const cells = useMemo(() => monthGridCells(view.year, view.month), [view]);
 

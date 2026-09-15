@@ -1,9 +1,14 @@
-/** Размер файла человеком (чип вложения): «367 КБ», «2,4 МБ». */
+import { ui } from '@nodus/contracts';
+
+/** Размер файла человеком (чип вложения): «367 КБ», «2,4 МБ».
+ *  Единицы — из i18n (I15); ЕДИНЫЙ порог КБ/МБ на весь продукт (аудит #45:
+ *  локальный formatSize письма делил по 1000 — один файл показывал разный
+ *  размер в чате и в письме). */
 export function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} Б`;
+  if (bytes < 1024) return `${bytes} ${ui.common.sizeB}`;
   const kb = bytes / 1024;
-  if (kb < 1024) return `${Math.round(kb)} КБ`;
-  return `${(kb / 1024).toFixed(1).replace('.', ',')} МБ`;
+  if (kb < 1024) return `${Math.round(kb)} ${ui.common.sizeKb}`;
+  return `${(kb / 1024).toFixed(1).replace('.', ',')} ${ui.common.sizeMb}`;
 }
 
 /** Часы:минуты для трудозатрат (I14): 95 → «1:35». */
