@@ -25,9 +25,11 @@ import { ThreadPane } from './thread-pane.js';
  * живёт в колонке ленты и сжимается вместе с ней — тоггл панели на его
  * правом краю. Перегородка тянется мышью с памятью (`nodus-thread-w-v1`,
  * императивный drag по канону use-chat-width); открытие — вталкивание окна
- * шириной (transition-[width], как панель «О задаче»). Узкая зона (< 640px:
- * лента 320 + тред 320) — фолбэк drill-down: тред заменяет ленту с кнопкой
- * «К ленте» (бар беседы остаётся). Посты ленты сжимаются с лентой
+ * шириной (transition-[width], как панель «О задаче»); transition — ТОЛЬКО
+ * на toggle: при внешнем resize контейнера окно следует 1:1 (гейт
+ * containerMoving, issue #65 — иначе «гармошка»/пружина ленты). Узкая зона
+ * (< 640px: лента 320 + тред 320) — фолбэк drill-down: тред заменяет ленту с
+ * кнопкой «К ленте» (бар беседы остаётся). Посты ленты сжимаются с лентой
  * (w-full max-w-2xl).
  *
  * СВЯЗИ «пост → тред» НЕТ (вердикт владельца 15.09.2026): грамматика
@@ -59,14 +61,33 @@ export function ChannelView({
   const containerRef = useRef<HTMLDivElement>(null);
   const paneRef = useRef<HTMLDivElement>(null);
   const [containerW, setContainerW] = useState(0);
+  // Контейнер меняет ширину ИЗВНЕ (drag колонки чата, рефлоу рельсы, окно
+  // браузера): в это время цель ширины окна перевязывается ре-рендером
+  // КАЖДЫЙ кадр (threadWidth клампится контейнером), и transition на окне
+  // отстаёт eased-шагами — лента-пружина забирает дефицит ниже своего
+  // минимума, а контент окна клипится переходящим краем рывками («гармошка»,
+  // баг-репорт 21.09.2026, issue #65). Канон переходов: transition — только
+  // для toggle (открытие/закрытие окна), resize контейнера окно отрабатывает
+  // 1:1 без анимации. Пометка живёт до оседания ресайза (~150мс тишины RO).
+  const [containerMoving, setContainerMoving] = useState(false);
+  const settleTimer = useRef(0);
 
   useLayoutEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    setContainerW(el.clientWidth);
-    const ro = new ResizeObserver(() => setContainerW(el.clientWidth));
+    const onResize = () => {
+      setContainerW(el.clientWidth);
+      setContainerMoving(true);
+      window.clearTimeout(settleTimer.current);
+      settleTimer.current = window.setTimeout(() => setContainerMoving(false), 150);
+    };
+    onResize();
+    const ro = new ResizeObserver(onResize);
     ro.observe(el);
-    return () => ro.disconnect();
+    return () => {
+      ro.disconnect();
+      window.clearTimeout(settleTimer.current);
+    };
   }, []);
 
   // Живой верхний предел ширины окна: потолок THREAD_MAX_W, пол — минимум
@@ -168,7 +189,10 @@ export function ChannelView({
             aria-hidden={!open}
             className={cn(
               'h-full shrink-0 overflow-hidden',
-              !dragging && 'transition-[width] duration-200 ease-out',
+              // transition — только для toggle открытия/закрытия и drag-
+              // коммита; пока контейнер меняет ширину (containerMoving) —
+              // окно следует 1:1 (issue #65: с transition — «гармошка»).
+              !dragging && !containerMoving && 'transition-[width] duration-200 ease-out',
             )}
             style={{ width: open ? effW : 0 }}
           >
