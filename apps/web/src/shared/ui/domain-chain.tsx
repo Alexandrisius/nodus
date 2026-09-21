@@ -21,8 +21,8 @@ export interface ChainNode {
 function ChainEdge() {
   return (
     <span aria-hidden className="relative mx-1 h-px w-7 shrink-0 self-center bg-edge">
-      <span className="absolute top-1/2 left-0 size-[5px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-port" />
-      <span className="absolute top-1/2 right-0 size-[5px] translate-x-1/2 -translate-y-1/2 rounded-full bg-port" />
+      <span className="absolute top-1/2 left-0 size-[0.3125rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-port" />
+      <span className="absolute top-1/2 right-0 size-[0.3125rem] translate-x-1/2 -translate-y-1/2 rounded-full bg-port" />
     </span>
   );
 }
@@ -39,14 +39,14 @@ export function DomainChain({ nodes, className }: { nodes: ChainNode[]; classNam
       {nodes.map((node, i) => {
         const content = (
           <>
-            <span className="block truncate font-mono text-[10px] tracking-[0.14em] text-muted-foreground uppercase">
+            <span className="block truncate text-label-sm font-semibold tracking-wide text-muted-foreground uppercase">
               {node.caption} · {node.ref}
             </span>
             {node.label ? (
-              <span className="mt-0.5 block truncate text-[13px] leading-snug font-medium">
+              <span className="mt-0.5 block truncate text-body-xs leading-snug font-medium">
                 {node.label}
                 {node.state ? (
-                  <span className="ml-1.5 font-mono text-[10px] font-normal text-success">
+                  <span className="ml-1.5 font-mono text-label-sm font-normal text-success">
                     {node.state}
                   </span>
                 ) : null}

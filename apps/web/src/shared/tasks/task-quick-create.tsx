@@ -107,7 +107,7 @@ export function TaskQuickCreate({
           НЕ наползает на поле (вердикт владельца 15.09.2026: «уехала»);
           полю — pr-10 под него. */}
       <DialogContent
-        className="max-w-lg gap-0 overflow-hidden p-0 [&_[data-slot=dialog-close]]:top-[22px] [&_[data-slot=dialog-close]]:right-4"
+        className="max-w-lg gap-0 overflow-hidden p-0 [&_[data-slot=dialog-close]]:top-[1.375rem] [&_[data-slot=dialog-close]]:right-4"
         aria-describedby={undefined}
         // Esc закрывает ЛИСТ чек-листа, а не всю форму (вердикт владельца
         // 15.09.2026): официальный гейт Radix — preventDefault на уровне
@@ -130,7 +130,7 @@ export function TaskQuickCreate({
               onChange={(e) => setTitle(e.target.value)}
               placeholder={ui.tasks.titlePlaceholder}
               aria-label={ui.tasks.titlePlaceholder}
-              className="h-10 w-[calc(100%-2.5rem)] text-base"
+              className="h-9 w-[calc(100%-2.5rem)] text-body-lg"
               autoFocus
             />
             {descriptionOpen ? (
@@ -184,7 +184,7 @@ export function TaskQuickCreate({
               >
                 <ListChecks className="size-3.5" strokeWidth={1.75} />
                 {checklist.length > 0 ? (
-                  <span className="font-mono text-[11px] tabular-nums">{checklist.length}</span>
+                  <span className="font-mono text-label-sm tabular-nums">{checklist.length}</span>
                 ) : null}
                 {ui.tasks.checklist}
               </button>

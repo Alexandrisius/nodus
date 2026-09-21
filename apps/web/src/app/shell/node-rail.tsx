@@ -33,12 +33,13 @@ import {
 } from './node-rail-rows.js';
 import { resolveHidden, resolveOrder } from './ui-prefs.js';
 import { useUiPrefsStore } from './ui-prefs-store.js';
+import { uiPx } from '../../shared/ui/ui-scale.js';
 import { useShellStore } from './shell-store.js';
 import { LogoIcon } from './logo-icon.js';
 import { LogoWordmark } from './logo-wordmark.js';
 
 /** Ось шины в px от левого края рейки (импортируется circuit-geometry). */
-export const RAIL_TRUNK_X = 24;
+export const RAIL_TRUNK_X = uiPx(24);
 /** Радиус порта — конец отвода магистрали прячется ПОД кромку круга. */
 export const MODULE_PORT_R = PORT / 2;
 
@@ -160,7 +161,11 @@ export function NodeRail() {
 
       {/* Якорь узла бокового шва схлопнутой рейки (канон — в git-истории). */}
       {collapsed && !customizing && (
-        <span data-left-node aria-hidden className="absolute top-[63px] -right-[8.5px] size-px" />
+        <span
+          data-left-node
+          aria-hidden
+          className="absolute top-[3.9375rem] -right-[0.53125rem] size-px"
+        />
       )}
 
       <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto py-3">
@@ -229,12 +234,12 @@ export function NodeRail() {
                   type="button"
                   aria-label={ui.nav.settings}
                   className={cn(
-                    'relative mt-2 flex h-10 shrink-0 items-center overflow-hidden rounded-md text-sm font-medium',
+                    'relative mt-2 flex h-8 shrink-0 items-center overflow-hidden rounded-md text-sm font-medium',
                     'text-sidebar-foreground/65 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground',
-                    collapsed ? 'mx-3 justify-center' : 'mr-3 ml-[52px] gap-3 pl-2',
+                    collapsed ? 'mx-3 justify-center' : 'mr-3 ml-[3.25rem] gap-3 pl-2',
                   )}
                 >
-                  <Settings2 className="size-[18px] shrink-0" strokeWidth={1.75} />
+                  <Settings2 className="size-[1.125rem] shrink-0" strokeWidth={1.75} />
                   {collapsed ? null : ui.nav.settings}
                 </button>
               </DropdownMenuTrigger>

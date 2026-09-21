@@ -8,13 +8,14 @@ import { cn } from '@nodus/ui/lib/utils';
 import { threadScopeMessages } from './channel-layout.js';
 import { useConversationMessages } from './api.js';
 import { useFrameReady } from '../ui/use-frame-ready.js';
+import { uiPx } from '../ui/ui-scale.js';
 
 /** Ширина вталкивающей панели беседы: контейнер уменьшает чат на неё. */
-export const CHAT_PANEL_W = 300;
+export const CHAT_PANEL_W = uiPx(300);
 
 /** Минимум ЛЕНТЫ при открытой панели (вердикт владельца: 280 — «слишком
  *  малая») и соответствующий минимум всей колонки чата. */
-export const MIN_FEED_WITH_PANEL = 360;
+export const MIN_FEED_WITH_PANEL = uiPx(360);
 export const MIN_COLUMN_WITH_PANEL = MIN_FEED_WITH_PANEL + CHAT_PANEL_W;
 
 function Section({
@@ -124,10 +125,10 @@ export function ChatSidePanel({
       inert={!open}
       className={cn(
         'h-full shrink-0 overflow-hidden transition-[width] duration-200 ease-out',
-        open && ready ? 'w-[300px]' : 'w-0',
+        open && ready ? 'w-[18.75rem]' : 'w-0',
       )}
     >
-      <aside className="flex h-full w-[300px] flex-col border-l border-border bg-card">
+      <aside className="flex h-full w-[18.75rem] flex-col border-l border-border bg-card">
         {/* Верхняя строка панели — НА УРОВНЕ бара хоста: название слева,
             крестик у самого правого края (реф Битрикс24, вердикт владельца
             15.09.2026); border-b продолжает линию бара хоста. */}
@@ -160,7 +161,7 @@ export function ChatSidePanel({
                       onClick={() => setScope(s)}
                       aria-pressed={scope === s}
                       className={cn(
-                        'flex-1 rounded-md px-2 py-1 text-[13px] transition-colors',
+                        'flex-1 rounded-md px-2 py-1 text-body-xs transition-colors',
                         scope === s
                           ? 'bg-accent text-foreground'
                           : 'text-muted-foreground hover:text-foreground',
@@ -175,7 +176,7 @@ export function ChatSidePanel({
               <Section icon={FileText} title={ui.chat.filesMedia}>
                 {files.length > 0 ? (
                   files.map((file) => (
-                    <span key={file.id} className="truncate font-mono text-[12px] text-info">
+                    <span key={file.id} className="truncate text-sm text-info">
                       {file.name}
                     </span>
                   ))
@@ -192,7 +193,7 @@ export function ChatSidePanel({
                       href={link}
                       target="_blank"
                       rel="noreferrer"
-                      className="truncate font-mono text-[12px] text-info hover:underline"
+                      className="truncate text-sm text-info hover:underline"
                     >
                       {link}
                     </a>

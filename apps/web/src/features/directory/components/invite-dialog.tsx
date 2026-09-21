@@ -70,7 +70,7 @@ export function InviteDialog({
             placeholder={ui.employees.inviteEmailPlaceholder}
             aria-label={ui.employees.inviteTitle}
             aria-invalid={error !== null}
-            className="h-9 text-sm"
+            className="h-8 text-sm"
           />
           {error ? <span className="text-xs text-destructive">{error}</span> : null}
           <Button type="submit" disabled={!email.trim() || pending}>

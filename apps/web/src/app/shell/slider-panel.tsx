@@ -7,6 +7,7 @@ import { cn } from '@nodus/ui/lib/utils';
 import { inputModality } from '../../shared/lib/input-modality.js';
 import { useRailHidden } from './rail-visibility.js';
 import { EDGE_W_COLLAPSED, EDGE_W_EXPANDED } from './right-rail.js';
+import { uiPx } from '../../shared/ui/ui-scale.js';
 import { useShellStore } from './shell-store.js';
 
 /** Стек слайдеров: ESC закрывает только верхнюю панель (§10.2). */
@@ -212,10 +213,10 @@ export function SliderPanel({
   const flipStyle: CSSProperties | undefined = sourceRect
     ? (() => {
         const dst = {
-          x: 8,
-          y: 8,
-          w: window.innerWidth - stripW - 16,
-          h: window.innerHeight - 16,
+          x: uiPx(8),
+          y: uiPx(8),
+          w: window.innerWidth - stripW - uiPx(16),
+          h: window.innerHeight - uiPx(16),
         };
         return {
           '--flip-tx': `${sourceRect.x - dst.x}px`,
@@ -275,12 +276,14 @@ export function SliderPanel({
           {/* Хлебные крошки убраны (вердикт владельца); вместо них — главное
               название сущности: на видном месте, один раз, в теле карточки
               не дублируется. Фулскрин-карточка мессенджера — вместо названия
-              вкладки-порты (headerContent). */}
+              вкладки-порты (headerContent). Кегль титула 18px/600 — по замеру
+              Битрикс24 (ambient-проба владельца 21.09.2026: титул задачи
+              21px/600; наш хедер плотнее (h-12) — та же роль в нашем масштабе). */}
           {headerContent ??
             (title ? (
               <span
                 id={`${id}-title`}
-                className="min-w-0 truncate text-sm font-medium text-foreground"
+                className="min-w-0 truncate text-lg font-semibold text-foreground"
               >
                 {title}
               </span>

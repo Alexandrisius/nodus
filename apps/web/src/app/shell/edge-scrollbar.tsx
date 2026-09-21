@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouterState } from '@tanstack/react-router';
 import { cn } from '@nodus/ui/lib/utils';
+import { uiPx } from '../../shared/ui/ui-scale.js';
 
-const THUMB_MIN = 40;
-const TRACK_W = 8; // щель периметра справа (mr-2 служебной полосы)
-const THUMB_W = 4;
+const THUMB_MIN = uiPx(40);
+const TRACK_W = uiPx(8); // щель периметра справа (mr-2 служебной полосы)
+const THUMB_W = uiPx(4);
 
 function metrics(el: HTMLElement) {
   const total = el.scrollHeight;

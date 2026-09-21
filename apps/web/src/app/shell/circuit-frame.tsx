@@ -9,7 +9,6 @@ import {
   currentFocus,
   framePath,
   measureCircuit,
-  TICK,
   transitionPulse,
   type CircuitFocus,
   type CircuitGeometry,
@@ -225,7 +224,7 @@ export function CircuitFrame() {
           <circle
             key={t.x}
             cx={snapPx(t.x)}
-            cy={snapPx(geo.axisY - TICK)}
+            cy={snapPx(geo.tabY)}
             r="2.5"
             fill={t.active ? 'var(--port)' : 'var(--background)'}
             stroke={t.active ? 'var(--port)' : 'var(--edge)'}

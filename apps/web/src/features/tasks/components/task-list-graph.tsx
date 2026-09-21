@@ -1,14 +1,15 @@
 import { orthPath, snapPx } from '@nodus/ui/components/node-edge';
 
 import { LEADING_COL_W } from '../../../shared/views/row-menu.js';
+import { uiPx } from '../../../shared/ui/ui-scale.js';
 import type { TaskRow } from '../lib/task-tree.js';
 
 /** Геометрия колонки графа: порт уровня d на x = 14 + d·16, локти r=6. */
-export const graphX = (depth: number) => 14 + depth * 16;
+export const graphX = (depth: number) => uiPx(14 + depth * 16);
 /** Ширина колонки графа под максимальную видимую вложенность (универсально
  *  для любой глубины: колонка растёт вместе с деревом, таблица скроллится). */
-export const graphWidth = (maxDepth: number) => graphX(maxDepth) + 24;
-export const ROW_H = 48;
+export const graphWidth = (maxDepth: number) => graphX(maxDepth) + uiPx(24);
+export const ROW_H = uiPx(48);
 const MID = ROW_H / 2;
 const ELBOW = 6;
 /** Отступ ребра от края кружка порта (r=7 у веток, r=3 у листьев): линии не
@@ -18,7 +19,7 @@ const LEAF_GAP = 3;
 /** X начала колонки графа внутри строки: px-4 (16) + ведущая колонка
  *  (выбор+меню, вердикт 15.09.2026) + gap-3 (12) — оверлей сдвигается за ней
  *  (урок: добавление колонки ПЕРЕД графовой требует сдвига оверлея). */
-const GRAPH_LEFT = 16 + LEADING_COL_W + 12;
+const GRAPH_LEFT = uiPx(16) + LEADING_COL_W + uiPx(12);
 
 const midY = (index: number) => index * ROW_H + MID;
 

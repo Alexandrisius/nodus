@@ -96,7 +96,7 @@ export function TaskKanbanColumn({
                 setRenaming(false);
               }
             }}
-            className="h-7 min-w-0 flex-1 rounded-md border border-input bg-transparent px-2 font-mono text-[11px] tracking-[0.12em] uppercase outline-none focus:border-ring"
+            className="h-7 min-w-0 flex-1 rounded-md border border-input bg-transparent px-2 text-xs font-medium outline-none focus:border-ring"
           />
         ) : undefined
       }
@@ -140,7 +140,7 @@ export function TaskKanbanColumn({
             >
               {ui.tasks.deleteStage}
             </DropdownMenuItem>
-            <p className="px-2 py-1.5 text-[11px] leading-snug text-muted-foreground">
+            <p className="px-2 py-1.5 text-label leading-snug text-muted-foreground">
               {ui.tasks.deleteStageNote}
             </p>
           </DropdownMenuContent>

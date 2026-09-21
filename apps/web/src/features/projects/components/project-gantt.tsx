@@ -7,9 +7,10 @@ import { cn } from '@nodus/ui/lib/utils';
 
 import { stageTone } from '../../../shared/ui/board/stage-tone.js';
 import { useProjectTaskPages } from '../api/projects-api.js';
+import { uiPx } from '../../../shared/ui/ui-scale.js';
 
-const DAY_W = 30;
-const TITLE_W = 240;
+const DAY_W = uiPx(30);
+const TITLE_W = uiPx(240);
 const DAY_MS = 86_400_000;
 /** Окно шкалы: запас до первого бара и после последнего дедлайна. */
 const PAD_BEFORE = 2;
@@ -79,7 +80,7 @@ export function ProjectGantt({ projectId }: { projectId: string }) {
     return (
       <div className="flex flex-col gap-2 p-4">
         {[0, 1, 2, 3].map((i) => (
-          <Skeleton key={i} className="h-9 w-full" />
+          <Skeleton key={i} className="h-10 w-full" />
         ))}
       </div>
     );
@@ -114,7 +115,7 @@ export function ProjectGantt({ projectId }: { projectId: string }) {
                 return (
                   <span
                     key={day}
-                    className="block shrink-0 font-mono text-[9px] text-muted-foreground uppercase"
+                    className="block shrink-0 font-mono text-label-xs text-muted-foreground uppercase"
                     style={{ width: DAY_W }}
                   >
                     {monthStart ? monthFmt.format(date) : ''}
@@ -131,7 +132,7 @@ export function ProjectGantt({ projectId }: { projectId: string }) {
                   <span
                     key={day}
                     className={cn(
-                      'block shrink-0 text-center font-mono text-[10px] tabular-nums',
+                      'block shrink-0 text-center font-mono text-label-sm tabular-nums',
                       isToday
                         ? 'font-semibold text-port'
                         : weekend
@@ -163,7 +164,7 @@ export function ProjectGantt({ projectId }: { projectId: string }) {
                 className="sticky left-0 z-10 flex shrink-0 items-center gap-2 self-stretch bg-card pr-3 group-hover:bg-accent/40"
                 style={{ width: TITLE_W }}
               >
-                <span className="shrink-0 font-mono text-[10px] text-muted-foreground tabular-nums">
+                <span className="shrink-0 font-mono text-label-sm text-muted-foreground tabular-nums">
                   {task.number}
                 </span>
                 <span className="truncate text-sm">{task.title}</span>

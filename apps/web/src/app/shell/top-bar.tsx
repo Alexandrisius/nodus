@@ -55,7 +55,7 @@ export function TopBar() {
               data-tab-port
               data-active={tab.isActive(search) ? 'true' : undefined}
               className={cn(
-                'relative flex h-full items-center px-4 font-mono text-[12px] font-medium tracking-[0.14em] uppercase transition-colors',
+                'relative flex h-full items-center px-4 text-sm font-medium transition-colors',
                 tab.isActive(search)
                   ? 'text-foreground'
                   : 'text-muted-foreground hover:text-foreground/80',
@@ -81,7 +81,7 @@ export function TopBar() {
           <Search />
         </Button>
 
-        <span className="flex h-9 items-center rounded-md border border-border px-2.5 font-mono text-[11px] font-medium tracking-wider text-muted-foreground">
+        <span className="flex h-8 items-center rounded-md border border-border px-2.5 font-mono text-label font-medium tracking-wider text-muted-foreground">
           RU
         </span>
 

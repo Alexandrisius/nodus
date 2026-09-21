@@ -77,7 +77,7 @@ export const useViewStore = create<ViewState>()(
         }),
     }),
     {
-      name: 'nodus-views-v1',
+      name: 'nodus-views-v2',
       version: 1,
       partialize: (state) => ({ views: state.views, sorts: state.sorts }),
       merge: zodPersistMerge<ViewState>(viewsEnvelopeSchema),

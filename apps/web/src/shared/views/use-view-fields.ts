@@ -2,6 +2,7 @@ import { useCallback, useMemo } from 'react';
 import type { ViewSort } from '@nodus/contracts';
 
 import { useViewStore } from './view-store.js';
+import { uiPx } from '../ui/ui-scale.js';
 
 /** Поле представления из реестра модуля: новое поле = +1 строка реестра. */
 export interface FieldDef {
@@ -50,7 +51,7 @@ export function useViewFields<T extends FieldDef>(viewKey: string, defs: T[]) {
         field: {
           ...d,
           visible: prefs?.visible ?? d.defaultVisible,
-          width: prefs?.width ?? d.defaultWidth,
+          width: prefs?.width ?? (d.defaultWidth === undefined ? undefined : uiPx(d.defaultWidth)),
         } as ViewField<T>,
         orderKey: prefs?.order ?? 10_000 + registryIndex,
         registryIndex,

@@ -12,6 +12,7 @@ import {
 import { useAuthStore } from '../../shared/auth-store.js';
 import { NotesGlyph } from '../../shared/ui/notes-glyph.js';
 import { PersonAvatar } from '../../shared/ui/person-avatar.js';
+import { uiPx } from '../../shared/ui/ui-scale.js';
 import { useRailHidden } from './rail-visibility.js';
 import { useShellStore } from './shell-store.js';
 import type { SourceRect } from './slider-panel.js';
@@ -21,8 +22,10 @@ import { useCardStack, useOpenCard, useReplaceTopCard } from './use-card-stack.j
  *  (вердикт владельца 15.09.2026: «увеличь ширину выдвижения на 10–15%»).
  *  Экспортируется для карточек-слайдеров: их правый край = правый край
  *  мягкой рамы = левый край полосы (единая геометрия шелла). */
-export const EDGE_W_COLLAPSED = 40;
-export const EDGE_W_EXPANDED = 216;
+export const EDGE_W_COLLAPSED = uiPx(40);
+/** Ширина развёрнутой рейки — по замеру Битрикс24 (ambient-проба владельца
+ *  21.09.2026: nav главного меню = 240px). */
+export const EDGE_W_EXPANDED = uiPx(192);
 
 /** Маркеры типа беседы на аватарках полосы УБРАНЫ (вердикт владельца
  *  15.09.2026: «закрывают почти 30 процентов аватарки»); тип читается
@@ -72,7 +75,7 @@ function ChatRailRow({
         {unread ? (
           <span
             aria-label={`${conversation.unreadCount} ${ui.chat.unreadHint}`}
-            className="absolute -right-0.5 -bottom-0.5 min-w-[11px] rounded-full bg-destructive px-[2px] text-center font-mono text-[8px] leading-[11px] font-medium text-destructive-foreground tabular-nums"
+            className="absolute -right-0.5 -bottom-0.5 min-w-[0.6875rem] rounded-full bg-destructive px-[0.125rem] text-center font-mono text-badge leading-[0.6875rem] font-medium text-destructive-foreground tabular-nums"
           >
             {conversation.unreadCount}
           </span>
@@ -85,7 +88,7 @@ function ChatRailRow({
       <span
         onMouseEnter={clippedTitle}
         className={cn(
-          'overflow-hidden truncate whitespace-nowrap text-[11px] text-foreground',
+          'overflow-hidden truncate whitespace-nowrap text-label text-foreground',
           'transition-[max-width,opacity] duration-200 ease-out',
           expanded ? 'max-w-44 opacity-100' : 'max-w-0 opacity-0',
         )}

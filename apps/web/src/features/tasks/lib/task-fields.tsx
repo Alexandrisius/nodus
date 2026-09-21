@@ -62,7 +62,7 @@ export const taskListFields: ListFieldDef[] = [
         <SourceIcon task={task} />
         <span className="truncate text-sm font-medium">{task.title}</span>
         {ctx.branchCollapsed && (ctx.childCount ?? 0) > 0 ? (
-          <span className="shrink-0 font-mono text-[10px] text-muted-foreground tabular-nums">
+          <span className="shrink-0 font-mono text-label-sm text-muted-foreground tabular-nums">
             +{ctx.childCount}
           </span>
         ) : null}
@@ -115,7 +115,7 @@ export const taskListFields: ListFieldDef[] = [
     minWidth: 120,
     render: (task) =>
       task.project ? (
-        <span className="truncate font-mono text-[11px] text-info/80">{task.project.name}</span>
+        <span className="truncate text-body-xs text-info/80">{task.project.name}</span>
       ) : (
         <span className={monoCell}>—</span>
       ),

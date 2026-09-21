@@ -1,14 +1,16 @@
 import { useCallback, useRef, useState, type PointerEvent, type RefObject } from 'react';
 
-const STORE_KEY = 'nodus-card-chat-w-v1';
-const DEFAULT_W = 680;
-const MIN_W = 420;
+import { uiPx } from './ui-scale.js';
+
+const STORE_KEY = 'nodus-card-chat-w-v2';
+const DEFAULT_W = uiPx(680);
+const MIN_W = uiPx(420);
 /** Доля вьюпорта: чат может стать главным, но не выжать содержание целиком. */
 const MAX_RATIO = 0.66;
 
 /** Минимум ширины чата ПРИ ОТКРЫТОЙ правой панели «О задаче» (карточка
  *  задачи): чат сужается до него, дальше панель выталкивает левую часть. */
-export const MIN_CHAT_WITH_PANEL = 280;
+export const MIN_CHAT_WITH_PANEL = uiPx(280);
 
 function clamp(width: number) {
   return Math.min(Math.max(width, MIN_W), Math.round(window.innerWidth * MAX_RATIO));
@@ -32,7 +34,11 @@ function clamp(width: number) {
  * @param floor — нижний порог ширины колонки при drag (карточки с панелью
  *  беседы: не дать сузить колонку ниже «лента 360 + панель 300»).
  */
-export function useChatWidth(chatRef: RefObject<HTMLDivElement | null>, shrink = 0, floor = 280) {
+export function useChatWidth(
+  chatRef: RefObject<HTMLDivElement | null>,
+  shrink = 0,
+  floor = MIN_CHAT_WITH_PANEL,
+) {
   const [chatW, setChatW] = useState(() => {
     const stored = Number(localStorage.getItem(STORE_KEY));
     return Number.isFinite(stored) && stored >= MIN_W ? clamp(stored) : DEFAULT_W;

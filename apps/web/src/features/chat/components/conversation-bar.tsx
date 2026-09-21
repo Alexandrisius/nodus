@@ -47,7 +47,7 @@ export function ConversationBar({
         <div className="truncate text-sm font-semibold">
           {conversationTitle(conversation, meId)}
         </div>
-        <div className="truncate font-mono text-[10px] tracking-[0.12em] text-muted-foreground uppercase">
+        <div className="truncate text-xs font-medium text-muted-foreground">
           {conversationSubtitle(conversation)}
         </div>
       </div>
@@ -56,7 +56,7 @@ export function ConversationBar({
           <button
             type="button"
             onClick={() => openCard({ kind: 'task', id: conversation.task?.id ?? '' })}
-            className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 font-mono text-[10px] tracking-[0.12em] text-muted-foreground uppercase transition-colors hover:border-input hover:text-foreground"
+            className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-input hover:text-foreground"
           >
             {ui.chat.openTask}
             <SquareArrowOutUpRight className="size-3.5" strokeWidth={1.75} />

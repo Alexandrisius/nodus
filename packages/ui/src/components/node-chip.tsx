@@ -10,7 +10,8 @@ const tones = {
   info: 'border-info/40 text-info',
 } as const;
 
-/** Моно-чип «инструмента»: ключ сущности (ПП-142), статус, счётчик. */
+/** Чип статуса/значения: SANS 11px (раунд 2 #60: статусы — слова, не код;
+ * моно оставлен только данным-ключам через className font-mono). */
 function NodeChip({
   tone = 'muted',
   className,
@@ -23,7 +24,7 @@ function NodeChip({
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1 rounded border px-1.5 py-0.5 font-mono text-[11px] leading-none font-medium tracking-[0.08em] tabular-nums select-none',
+        'inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-label-sm leading-none font-medium tabular-nums select-none',
         tones[tone],
         className,
       )}

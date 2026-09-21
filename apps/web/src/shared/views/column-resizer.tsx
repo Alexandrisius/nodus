@@ -1,6 +1,7 @@
 import { useCallback, useRef } from 'react';
 import { ui } from '@nodus/contracts';
 import { cn } from '@nodus/ui/lib/utils';
+import { uiPx } from '../ui/ui-scale.js';
 
 /**
  * Ручка регулировки ширины колонки (правая грань хедера таблицы), модель
@@ -13,7 +14,7 @@ import { cn } from '@nodus/ui/lib/utils';
 export function ColumnResizer({
   width,
   minWidth,
-  maxWidth = 640,
+  maxWidth = uiPx(640),
   onResize,
   onAutoFit,
 }: {
@@ -68,8 +69,8 @@ export function ColumnResizer({
       }}
       onKeyDown={(e) => {
         e.stopPropagation();
-        if (e.key === 'ArrowLeft') onResize(clamp(width - 8));
-        if (e.key === 'ArrowRight') onResize(clamp(width + 8));
+        if (e.key === 'ArrowLeft') onResize(clamp(width - uiPx(8)));
+        if (e.key === 'ArrowRight') onResize(clamp(width + uiPx(8)));
         if (e.key === 'Enter') onAutoFit?.();
       }}
       className={cn(

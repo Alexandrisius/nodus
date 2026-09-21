@@ -3,6 +3,7 @@ import type { MessageAttachment } from '@nodus/contracts';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { ImageLightbox } from './image-lightbox.js';
+import { uiPx } from '../ui/ui-scale.js';
 
 /**
  * Раскладка галереи изображений (plan chat-attachments-plan.md; research:
@@ -18,8 +19,8 @@ export function galleryRows(images: MessageAttachment[]): MessageAttachment[][] 
   return rows;
 }
 
-const ROW_HEIGHT = 150;
-const SINGLE_MAX_HEIGHT = 340;
+const ROW_HEIGHT = uiPx(150);
+const SINGLE_MAX_HEIGHT = uiPx(340);
 
 function GalleryTile({
   image,

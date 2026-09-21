@@ -2,13 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { snapPx } from '@nodus/ui/components/node-edge';
 
 import type { CircuitGeometry } from './circuit-geometry.js';
-import { currentFocus, framePath, transitionPulse, TICK } from './circuit-geometry.js';
+import { currentFocus, framePath, transitionPulse } from './circuit-geometry.js';
 
 /** Базовая геометрия контура: рейка развёрнута, два модуля, две вкладки. */
 function geo(overrides: Partial<CircuitGeometry> = {}): CircuitGeometry {
   return {
     junction: { x: 24, y: 64 },
     axisY: 64,
+    tabY: 54,
     modules: [
       { to: '/home', active: false, port: { x: 60, y: 100 } },
       { to: '/tasks', active: true, port: { x: 60, y: 140 } },
@@ -49,7 +50,7 @@ describe('transitionPulse (вспышка контура)', () => {
     expect(pulse?.dot).toBe(true);
     const last = pulse?.points.at(-1);
     expect(last?.x).toBe(snapPx(300));
-    expect(last?.y).toBe(snapPx(64 - TICK));
+    expect(last?.y).toBe(snapPx(54));
   });
 
   it('Главная без вкладок — пульс до ТЕРМИНАЛЬНОЙ точки (вердикт 15.09.2026)', () => {

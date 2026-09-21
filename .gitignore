@@ -42,3 +42,4 @@ temp/
 *.tmp
 
 tests/e2e/shots/
+tests/e2e/shots-*/

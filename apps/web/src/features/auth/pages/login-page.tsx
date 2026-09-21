@@ -39,7 +39,7 @@ export function LoginPage() {
         <div className="flex flex-col items-center gap-2">
           <LogoIcon className="size-12 text-foreground" />
           <h1 className="text-2xl font-semibold tracking-wide">{ui.auth.title}</h1>
-          <p className="font-mono text-[11px] tracking-[0.16em] text-muted-foreground uppercase">
+          <p className="font-mono text-label-sm tracking-[0.16em] text-muted-foreground uppercase">
             {ui.auth.subtitle}
           </p>
         </div>

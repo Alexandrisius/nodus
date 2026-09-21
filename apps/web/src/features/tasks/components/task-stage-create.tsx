@@ -41,7 +41,7 @@ export function TaskStageCreate({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex h-7 shrink-0 items-center gap-1.5 self-start rounded-md border border-dashed border-border px-2.5 font-mono text-[10px] tracking-[0.12em] text-muted-foreground uppercase transition-colors hover:border-port/50 hover:text-foreground"
+        className="inline-flex h-7 shrink-0 items-center gap-1.5 self-start rounded-md border border-dashed border-border px-2.5 text-xs font-medium text-muted-foreground transition-colors hover:border-port/50 hover:text-foreground"
       >
         <Plus className="size-3.5" strokeWidth={1.75} />
         {ui.tasks.addStage}

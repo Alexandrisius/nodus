@@ -23,14 +23,14 @@ export function HomeReader({
         <div className="mt-3 flex items-center gap-2.5">
           <PersonAvatar name={item.author.displayName} className="size-8" />
           <span className="text-sm font-medium">{item.author.displayName}</span>
-          <span className="font-mono text-[11px] tracking-[0.08em] text-muted-foreground first-letter:uppercase">
+          <span className="text-xs text-muted-foreground first-letter:uppercase">
             {df.format(new Date(item.publishedAt))}
           </span>
         </div>
         <p className="mt-6 text-sm leading-relaxed whitespace-pre-wrap text-foreground/85">
           {item.text}
         </p>
-        <div className="mt-8 flex items-center gap-5 border-t border-border pt-4 font-mono text-[11px] text-muted-foreground tabular-nums">
+        <div className="mt-8 flex items-center gap-5 border-t border-border pt-4 font-mono text-label-sm text-muted-foreground tabular-nums">
           <span className="flex items-center gap-1.5">
             <ThumbsUp className="size-3.5" strokeWidth={1.75} />
             {item.likesCount}

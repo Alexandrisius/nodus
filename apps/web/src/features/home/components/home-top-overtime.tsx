@@ -18,7 +18,7 @@ export function HomeTopOvertime({ entries }: { entries: OvertimeEntry[] }) {
             <div className="min-w-0 flex-1">
               <div className="flex items-baseline justify-between gap-2 text-sm">
                 <span className="truncate font-medium">{entry.user.displayName}</span>
-                <span className="shrink-0 font-mono text-[11px] text-muted-foreground tabular-nums">
+                <span className="shrink-0 font-mono text-label-sm text-muted-foreground tabular-nums">
                   {entry.hours} {ui.home.hoursShort}
                 </span>
               </div>

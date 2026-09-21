@@ -40,7 +40,7 @@ export function HomePage() {
           <HomeStats stats={data.stats} />
           <div>
             <NodeLabel label={ui.home.newsTitle} className="px-1" />
-            <div className="mt-4 grid grid-cols-[minmax(0,1fr)_340px] items-start gap-6">
+            <div className="mt-4 grid grid-cols-[minmax(0,1fr)_21.25rem] items-start gap-6">
               <HomeNews news={data.news} onOpen={(item, source) => setReader({ item, source })} />
               <div className="flex flex-col gap-5">
                 <HomeLabor weeks={data.labor.weeks} />

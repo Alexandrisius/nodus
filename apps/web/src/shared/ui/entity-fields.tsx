@@ -57,13 +57,13 @@ export function FieldRow({
 }) {
   return (
     <div className="-mx-2 flex flex-wrap items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-accent/40">
-      <span className="flex w-44 shrink-0 items-center gap-2 font-mono text-[11px] tracking-[0.12em] text-muted-foreground uppercase">
+      <span className="flex w-44 shrink-0 items-center gap-2 text-xs font-medium text-muted-foreground">
         <span aria-hidden className="shrink-0 opacity-70">
           {icon}
         </span>
         <span className="truncate">{label}</span>
       </span>
-      <span className="flex min-w-[160px] flex-1 items-center gap-2 text-sm">{children}</span>
+      <span className="flex min-w-[10rem] flex-1 items-center gap-2 text-sm">{children}</span>
     </div>
   );
 }
@@ -81,14 +81,14 @@ export function EntityFields({ defs, storageKey }: { defs: EntityFieldDef[]; sto
   const visible = defs.filter((d) => !hiddenKeys.includes(d.key));
 
   return (
-    <div className="mx-auto mt-5 grid max-w-4xl grid-cols-1 gap-x-12 gap-y-0.5 @min-[880px]:grid-cols-2">
+    <div className="mx-auto mt-5 grid max-w-4xl grid-cols-1 gap-x-12 gap-y-0.5 @min-[55rem]:grid-cols-2">
       {visible.map((def) => (
         <FieldRow key={def.key} icon={def.icon} label={def.label}>
           {def.render()}
         </FieldRow>
       ))}
       <DropdownMenu>
-        <DropdownMenuTrigger className="-mx-2 flex items-center gap-2 rounded-md px-2 py-2 text-left font-mono text-[11px] tracking-[0.12em] text-muted-foreground uppercase transition-colors hover:bg-accent/40 hover:text-foreground @min-[880px]:col-span-2">
+        <DropdownMenuTrigger className="-mx-2 flex items-center gap-2 rounded-md px-2 py-2 text-left text-xs font-medium text-muted-foreground transition-colors hover:bg-accent/40 hover:text-foreground @min-[55rem]:col-span-2">
           <Plus className="size-3.5" strokeWidth={1.75} />
           {ui.common.addField}
         </DropdownMenuTrigger>

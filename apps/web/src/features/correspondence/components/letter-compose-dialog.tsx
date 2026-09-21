@@ -78,12 +78,12 @@ export function LetterComposeDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl bg-card">
-        <DialogTitle className="font-mono text-[11px] tracking-[0.14em] text-muted-foreground uppercase">
+        <DialogTitle className="text-base font-semibold text-foreground">
           {ui.letters.composeTitle}
         </DialogTitle>
         <div className="mt-2 flex flex-col gap-3">
           <label className="flex flex-col gap-1.5">
-            <span className="font-mono text-[10px] tracking-[0.12em] text-muted-foreground uppercase">
+            <span className="text-xs font-medium text-muted-foreground">
               {ui.letters.recipient}
             </span>
             <Input
@@ -94,13 +94,13 @@ export function LetterComposeDialog({
             />
           </label>
           <label className="flex flex-col gap-1.5">
-            <span className="font-mono text-[10px] tracking-[0.12em] text-muted-foreground uppercase">
+            <span className="text-xs font-medium text-muted-foreground">
               {ui.letters.composeSubject}
             </span>
             <Input value={subject} onChange={(e) => setSubject(e.target.value)} />
           </label>
           <label className="flex flex-col gap-1.5">
-            <span className="font-mono text-[10px] tracking-[0.12em] text-muted-foreground uppercase">
+            <span className="text-xs font-medium text-muted-foreground">
               {ui.letters.composeBody}
             </span>
             <Textarea
@@ -145,7 +145,7 @@ export function LetterComposeDialog({
                   >
                     <Paperclip className="size-3.5 shrink-0 text-muted-foreground" />
                     <span className="min-w-0 flex-1 truncate">{file.name}</span>
-                    <span className="shrink-0 font-mono text-[10px] text-muted-foreground tabular-nums">
+                    <span className="shrink-0 font-mono text-label-sm text-muted-foreground tabular-nums">
                       {formatBytes(file.size)}
                     </span>
                     <button

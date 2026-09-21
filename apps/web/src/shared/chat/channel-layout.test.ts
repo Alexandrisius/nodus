@@ -5,6 +5,7 @@ import {
   MIN_FEED_W,
   MIN_SIDE_BY_SIDE,
   MIN_THREAD_W,
+  THREAD_DEFAULT_W,
   THREAD_MAX_W,
   threadMaxW,
   threadScopeMessages,
@@ -20,9 +21,11 @@ describe('isSideBySide', () => {
 
 describe('threadWidth', () => {
   it('память пользователя, но лента не уже минимума', () => {
-    expect(threadWidth(440, MIN_SIDE_BY_SIDE)).toBe(320);
-    expect(threadWidth(440, 1200)).toBe(440);
-    expect(threadWidth(900, 1200)).toBe(880);
+    expect(threadWidth(THREAD_DEFAULT_W, MIN_SIDE_BY_SIDE)).toBe(MIN_THREAD_W);
+    expect(threadWidth(THREAD_DEFAULT_W, MIN_SIDE_BY_SIDE * 2)).toBe(THREAD_DEFAULT_W);
+    expect(threadWidth(MIN_SIDE_BY_SIDE * 2, MIN_SIDE_BY_SIDE * 2)).toBe(
+      MIN_SIDE_BY_SIDE * 2 - MIN_FEED_W,
+    );
   });
 });
 

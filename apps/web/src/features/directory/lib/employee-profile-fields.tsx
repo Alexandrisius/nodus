@@ -20,7 +20,7 @@ import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
 import type { EntityFieldDef } from '../../../shared/ui/entity-fields.js';
 import { UserStatusChip } from './employee-fields.js';
 
-const monoValue = 'font-mono text-[12px] tabular-nums';
+const monoValue = 'font-mono text-label-sm tabular-nums';
 
 /** Поля-реестр вкладки «Профиль» карточки сотрудника (полный UserCard):
  *  должность/подразделение (имена — из списка, id-справочники — с бэкендом
@@ -48,7 +48,7 @@ export function employeeProfileDefs(args: {
       label: ui.employees.department,
       render: () =>
         listItem.departmentName ? (
-          <span className="font-mono text-[12px] text-info">{listItem.departmentName}</span>
+          <span className="text-sm text-info">{listItem.departmentName}</span>
         ) : (
           ui.common.notSet
         ),
@@ -57,7 +57,7 @@ export function employeeProfileDefs(args: {
       key: 'email',
       icon: <Mail className="size-3.5" />,
       label: ui.employees.email,
-      render: () => <span className="font-mono text-[12px]">{card.email}</span>,
+      render: () => <span className="text-sm">{card.email}</span>,
     },
     {
       key: 'phone',

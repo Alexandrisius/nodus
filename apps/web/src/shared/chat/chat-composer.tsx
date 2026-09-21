@@ -86,8 +86,11 @@ export function ChatComposer({
       className={cn(
         // Высота НЕ фиксирована: композер растёт с текстом (вердикт владельца
         // 15.09.2026, модель Битрикс24): min-h-16 держит канон нижних баров в
-        // покое, py-2 + рост поля расширяют бар вверх, лента ужимается.
-        'flex min-h-16 shrink-0 items-end gap-2 border-t border-border bg-card px-3 py-2',
+        // покое, рост поля расширяет бар вверх, лента ужимается. items-center:
+        // поле, отправка и CTA-бар задачи — ОДНА горизонталь и одна высота
+        // 40px в покое (вердикт владельца 20.09.2026: «строка ввода ниже
+        // кнопок, выглядит непрофессионально»).
+        'flex min-h-16 shrink-0 items-center gap-2 border-t border-border bg-card px-3 py-2',
         className,
       )}
     >
@@ -98,7 +101,9 @@ export function ChatComposer({
           При росте поля скрепка держится ВЕРХА, правые иконки — НИЗА
           (хореография Битрикс24, вердикт владельца 15.09.2026). Контур поля
           статичен (при фокусе не подсвечивается). */}
-      <span className="flex min-w-0 flex-1 items-stretch gap-0.5 rounded-xl border border-input px-1 py-1">
+      {/* min-h-8 + py-0.5: в покое поверхность поля = 40px — высота SendHex и
+          CTA-кнопок (единая сетка контролов, #60 раунд 2). */}
+      <span className="flex min-h-8 min-w-0 flex-1 items-stretch gap-0.5 rounded-xl border border-input px-1 py-0.5">
         <Button
           type="button"
           variant="ghost"
@@ -125,7 +130,7 @@ export function ChatComposer({
           onKeyDown={onKeyDown}
           placeholder={placeholder}
           rows={1}
-          className="max-h-[45vh] min-h-7 flex-1 resize-none rounded-lg border-0 bg-transparent px-1.5 py-1 shadow-none ring-0 focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent"
+          className="max-h-[45vh] min-h-6 flex-1 resize-none rounded-lg border-0 bg-transparent px-1.5 py-1 shadow-none ring-0 focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent"
         />
         <span className={cn('flex shrink-0 items-end gap-0.5', grown ? 'self-end' : 'self-center')}>
           <Button

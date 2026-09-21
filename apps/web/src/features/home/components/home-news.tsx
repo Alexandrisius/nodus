@@ -39,19 +39,19 @@ export function HomeNews({
               <PersonAvatar name={item.author.displayName} className="size-10" />
               <div className="min-w-0">
                 <div className="truncate text-sm font-semibold">{item.author.displayName}</div>
-                <div className="font-mono text-[11px] tracking-[0.08em] text-muted-foreground first-letter:uppercase">
+                <div className="text-xs text-muted-foreground first-letter:uppercase">
                   {df.format(new Date(item.publishedAt))}
                 </div>
               </div>
             </div>
             <h3 className="mt-3 text-base font-semibold">{item.title}</h3>
             <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{item.text}</p>
-            <span className="mt-3 inline-flex items-center gap-1.5 font-mono text-[11px] font-medium tracking-[0.14em] text-foreground/80 uppercase">
+            <span className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-foreground/80">
               {ui.home.readMore}
               <ArrowRight className="size-3.5" strokeWidth={1.75} />
             </span>
           </button>
-          <div className="flex items-center gap-5 border-t border-border px-5 py-2.5 font-mono text-[11px] text-muted-foreground tabular-nums">
+          <div className="flex items-center gap-5 border-t border-border px-5 py-2.5 font-mono text-label-sm text-muted-foreground tabular-nums">
             <span className="flex items-center gap-1.5">
               <ThumbsUp className="size-3.5" strokeWidth={1.75} />
               {item.likesCount}

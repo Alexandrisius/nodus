@@ -8,10 +8,11 @@ import {
   DropdownMenuTrigger,
 } from '@nodus/ui/components/dropdown-menu';
 import { cn } from '@nodus/ui/lib/utils';
+import { uiPx } from '../ui/ui-scale.js';
 
 /** Ширина ведущей колонки журнала (чекбокс выбора + «шашка» меню) —
  *  общая константа DataTable и TaskList: колонки двух таблиц совпадают. */
-export const LEADING_COL_W = 48;
+export const LEADING_COL_W = uiPx(48);
 
 /** Пункт контекстного меню строки журнала. Только РЕАЛЬНЫЕ действия
  *  (заглушек в меню нет — канон): открыть, скопировать ссылку, доменные

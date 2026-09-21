@@ -6,21 +6,24 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@nodus/ui/components/to
 import { cn } from '@nodus/ui/lib/utils';
 
 import type { NavModuleDef } from './nav-registry.js';
+import { uiPx } from '../../shared/ui/ui-scale.js';
 
 /** Центр порта модуля (конец отвода). */
-const PORT_X = 42;
+const PORT_X = uiPx(42);
 /** Диаметр порта 7px (вердикт владельца 15.09.2026: 9px — «толстоваты»). */
 export const PORT = 7;
-/** Геометрия рядов: h-10 + gap-0.5 → шаг 42, центр первого ряда 20.
- *  (Ось контента ряда — 60px от левого края: плашка с 52px + иконка 8px.) */
-export const ROW_STRIDE = 42;
-export const ROW_CENTER = 20;
+/** Геометрия рядов: h-8 + gap-0.5 → шаг 34, центр первого ряда 16.
+ *  Ряд = высота контрола 40px при масштабе 1.25 (вердикт раунда 4:
+ *  ховер-плашка h-10=50px читалась «огромной» против сайдбаров enterprise
+ *  28-40px и нашей же сетки контролов). */
+export const ROW_STRIDE = uiPx(34);
+export const ROW_CENTER = uiPx(16);
 
 /** Маркер сепаратора «Скрытое» в черновике порядка (не id модуля). */
 export const HIDDEN_SENTINEL = '__hidden__';
 
 const monoLabel =
-  'font-mono text-[11px] tracking-[0.14em] text-sidebar-foreground/50 uppercase hover:text-sidebar-foreground';
+  'font-mono text-label-sm tracking-[0.14em] text-sidebar-foreground/50 uppercase hover:text-sidebar-foreground';
 
 /** Ряды левой рейки (вынесены из node-rail, I5): ссылка модуля, порт,
  *  сортируемый ряд режима настройки, сепаратор «Скрытое», кнопка
@@ -42,16 +45,16 @@ export function RailRowLink({
     <Link
       to={m.to}
       className={cn(
-        'relative flex h-10 items-center overflow-hidden rounded-md text-sm font-medium',
+        'relative flex h-8 items-center overflow-hidden rounded-md text-sm font-normal',
         'transition-[color,gap,padding,background-color] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]',
-        'text-sidebar-foreground/65 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground',
+        'text-sidebar-foreground/80 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground',
         active && 'bg-sidebar-accent text-sidebar-accent-foreground',
-        collapsed ? 'mx-3' : 'mr-3 ml-[52px]',
+        collapsed ? 'mx-3' : 'mr-3 ml-[3.25rem]',
         collapsed ? 'gap-0' : 'gap-3',
       )}
-      style={{ paddingLeft: collapsed ? 11 : 8 }}
+      style={{ paddingLeft: collapsed ? uiPx(11) : uiPx(8) }}
     >
-      <m.icon className="size-[18px] shrink-0" strokeWidth={1.75} />
+      <m.icon className="size-[1.125rem] shrink-0" strokeWidth={1.75} />
       <span
         className={cn(
           'truncate transition-[max-width,opacity] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]',
@@ -62,7 +65,7 @@ export function RailRowLink({
       </span>
       <span
         className={cn(
-          'ml-auto pr-2.5 font-mono text-[11px] text-muted-foreground/80 tabular-nums',
+          'ml-auto pr-2.5 font-mono text-label-sm text-muted-foreground/80 tabular-nums',
           'transition-[max-width,opacity,padding] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]',
           collapsed ? 'max-w-0 pr-0 opacity-0' : 'max-w-12 opacity-100',
         )}
@@ -72,7 +75,7 @@ export function RailRowLink({
       {badge ? (
         <span
           className={cn(
-            'absolute top-0.5 right-0.5 rounded bg-secondary px-1 py-0.5 font-mono text-[10px] leading-none text-muted-foreground tabular-nums',
+            'absolute top-0.5 right-0.5 rounded bg-secondary px-1 py-0.5 font-mono text-label-sm leading-none text-muted-foreground tabular-nums',
             'transition-opacity duration-300',
             collapsed ? 'opacity-100' : 'opacity-0',
           )}
@@ -141,7 +144,7 @@ export function SortableRailRow({
       {...listeners}
       aria-label={`${m.label} — ${ui.nav.dragToReorder}`}
       className={cn(
-        'relative mr-3 ml-[52px] flex h-10 cursor-grab items-center gap-3 overflow-hidden rounded-md pl-2 text-sm font-medium select-none',
+        'relative mr-3 ml-[3.25rem] flex h-8 cursor-grab items-center gap-3 overflow-hidden rounded-md pl-2 text-sm font-normal select-none',
         dimmed
           ? 'text-sidebar-foreground/40'
           : 'text-sidebar-foreground/80 hover:bg-sidebar-accent/70',
@@ -152,9 +155,9 @@ export function SortableRailRow({
         transition,
       }}
     >
-      <m.icon className="size-[18px] shrink-0" strokeWidth={1.75} />
+      <m.icon className="size-[1.125rem] shrink-0" strokeWidth={1.75} />
       <span className="max-w-40 truncate">{m.label}</span>
-      <span className="ml-auto pr-2.5 font-mono text-[11px] text-muted-foreground/80 tabular-nums">
+      <span className="ml-auto pr-2.5 font-mono text-label-sm text-muted-foreground/80 tabular-nums">
         {badge ?? ''}
       </span>
     </div>
@@ -166,9 +169,9 @@ export function SortableRailRow({
 export function HiddenSentinelRow() {
   const { setNodeRef } = useSortable({ id: HIDDEN_SENTINEL, disabled: true });
   return (
-    <div ref={setNodeRef} className="mx-3 flex h-10 items-center gap-2 select-none" aria-hidden>
+    <div ref={setNodeRef} className="mx-3 flex h-8 items-center gap-2 select-none" aria-hidden>
       <span className="h-px flex-1 bg-sidebar-foreground/15" />
-      <span className="font-mono text-[10px] tracking-[0.14em] text-sidebar-foreground/40 uppercase">
+      <span className="font-mono text-label-sm tracking-[0.14em] text-sidebar-foreground/40 uppercase">
         {ui.nav.hiddenSection}
       </span>
       <span className="h-px flex-1 bg-sidebar-foreground/15" />
@@ -181,7 +184,7 @@ export function HiddenDividerRow() {
   return (
     <div className="mx-3 my-1 flex items-center gap-2" aria-hidden>
       <span className="h-px flex-1 bg-sidebar-foreground/15" />
-      <span className="font-mono text-[10px] tracking-[0.14em] text-sidebar-foreground/40 uppercase">
+      <span className="font-mono text-label-sm tracking-[0.14em] text-sidebar-foreground/40 uppercase">
         {ui.nav.hiddenSection}
       </span>
       <span className="h-px flex-1 bg-sidebar-foreground/15" />
@@ -201,7 +204,7 @@ export function ShowHiddenToggle({
     <button
       type="button"
       onClick={onToggle}
-      className={cn('mr-3 ml-[52px] flex h-8 items-center gap-2 rounded-md pl-2', monoLabel)}
+      className={cn('mr-3 ml-[3.25rem] flex h-8 items-center gap-2 rounded-md pl-2', monoLabel)}
     >
       <ChevronDown className={cn('size-3 transition-transform', expanded && 'rotate-180')} />
       {ui.common.showAll}

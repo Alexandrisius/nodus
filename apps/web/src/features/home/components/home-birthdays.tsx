@@ -16,7 +16,7 @@ export function HomeBirthdays({ birthdays }: { birthdays: BirthdayEntry[] }) {
             <PersonAvatar name={entry.user.displayName} className="size-9" />
             <div className="min-w-0 text-sm">
               <div className="truncate font-medium">{entry.user.displayName}</div>
-              <div className="font-mono text-[11px] tracking-[0.08em] text-muted-foreground first-letter:uppercase">
+              <div className="text-xs text-muted-foreground first-letter:uppercase">
                 {entry.isToday ? ui.home.today : formatDate(entry.birthDate)}
               </div>
             </div>
