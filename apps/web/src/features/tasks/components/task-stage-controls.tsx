@@ -13,9 +13,10 @@ import { useUpdateTaskStage } from '../api/tasks-api.js';
 import { useTaskStages } from '../../../shared/api/task-stages.js';
 import { stageTone } from '../../../shared/ui/board/stage-tone.js';
 
-/* Главные CTA задачи — на ступень крупнее базовой сетки (жалоба владельца
- * 20.09.2026: «кнопки Завершить/В работу маленькие»; калибровка по Битрикс24:
- * h-9 = 45px при --ui-scale 1.25 против их ~40px основных кнопок). */
+/* Главные CTA задачи — ОДНОЙ высоты со вторичными: h-8 = 40px при --ui-scale
+ * 1.25 = основные кнопки Битрикс24 (замер владельца 20.09.2026); важность —
+ * заливкой, не размером (research Carbon/EUI; вердикт раунда 2: h-9=45px
+ * «чуть больше, чем надо»). */
 const btn =
   'inline-flex h-8 shrink-0 items-center gap-2 rounded-md px-3 text-sm font-medium transition-colors disabled:opacity-40';
 const valueChip =
