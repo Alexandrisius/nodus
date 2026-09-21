@@ -122,8 +122,8 @@ export const ui = {
     themeToDark: 'Тёмная тема',
   },
   edge: {
-    expand: 'Развернуть список сотрудников',
-    collapse: 'Свернуть список сотрудников',
+    expand: 'Развернуть список бесед',
+    collapse: 'Свернуть список бесед',
   },
   auth: {
     title: 'Nodus',

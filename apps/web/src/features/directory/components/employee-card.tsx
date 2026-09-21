@@ -5,17 +5,17 @@ import { cn } from '@nodus/ui/lib/utils';
 
 import { useAssigneeTasks, useMemberProjects } from '../../../shared/api/user-relations.js';
 import { useDirectConversation } from '../../../shared/chat/api.js';
+import { useRailShrink } from '../../../app/shell/right-rail.js';
 import {
   CHAT_PANEL_W,
   ChatPanelToggle,
   ChatSidePanel,
-  MIN_COLUMN_WITH_PANEL,
   MIN_FEED_WITH_PANEL,
   useChatSidePanel,
 } from '../../../shared/chat/chat-side-panel.js';
 import { ConversationPane } from '../../../shared/chat/conversation-pane.js';
 import { TaskQuickCreate } from '../../../shared/tasks/task-quick-create.js';
-import { useChatWidth } from '../../../shared/ui/use-chat-width.js';
+import { MIN_CHAT_W, useChatWidth } from '../../../shared/ui/use-chat-width.js';
 import { usePresence, useUserCard, useUsersList } from '../api/directory-api.js';
 import { EmployeeCardSkeleton } from './employee-card-skeleton.js';
 import { EmployeeProjectsTab, EmployeeTasksTab } from './employee-journal-tabs.js';
@@ -58,16 +58,15 @@ export function EmployeeCard({ userId }: { userId: string }) {
   // 15.09.2026, модель Битрикс24): исполнитель подставляется сам сотрудник.
   const [createOpen, setCreateOpen] = useState(false);
   const chatRef = useRef<HTMLDivElement>(null);
-  const { chatW, onDividerDown, dragging } = useChatWidth(
-    chatRef,
-    0,
-    panel.open ? MIN_COLUMN_WITH_PANEL : undefined,
-  );
-  // Панель беседы занимает ширину ЗА СЧЁТ ЧАТА (закон панели «О задаче»:
-  // левая зона и разделитель не двигаются, вердикт владельца 15.09.2026 —
-  // раньше панель толкала левую зону): чат сужается на её ширину, лента не
-  // уже 360 (MIN_COLUMN_WITH_PANEL в drag-минимуме выше).
-  const columnW = panel.open ? Math.max(chatW - CHAT_PANEL_W, MIN_FEED_WITH_PANEL) : chatW;
+  // КАНОН «чат — буфер сужений» (issue #63): панель беседы и раскрытие
+  // служебной полосы сужают КОЛОНКУ ДИАЛОГА до её минимума (лента 360 при
+  // панели, иначе drag-пол MIN_CHAT_W); после упора сужение двигает ЛЕВУЮ
+  // зону (без пола — жёсткий пол обрезал чат за краем карточки).
+  const railShrink = useRailShrink();
+  const shrink = railShrink + (panel.open ? CHAT_PANEL_W : 0);
+  const chatFloor = panel.open ? MIN_FEED_WITH_PANEL : MIN_CHAT_W;
+  const { chatW, onDividerDown, dragging } = useChatWidth(chatRef, shrink, chatFloor);
+  const columnW = Math.max(chatW - shrink, chatFloor);
 
   const items = useMemo(() => usersData?.items ?? [], [usersData]);
   const listItem = items.find((u) => u.id === userId);
@@ -78,7 +77,7 @@ export function EmployeeCard({ userId }: { userId: string }) {
   const presenceStatus = presence?.find((p) => p.user.id === userId)?.status ?? 'offline';
 
   if (isLoading || !card || !listItem) {
-    return <EmployeeCardSkeleton chatW={chatW} />;
+    return <EmployeeCardSkeleton chatW={columnW} />;
   }
 
   const tabs: { id: EmployeeTab; label: string; count?: number }[] = [

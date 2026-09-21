@@ -67,6 +67,7 @@ export function SliderPanel({
   headerContent,
   cardTopbar = false,
   fullscreen = false,
+  dormant = false,
   onClose,
   sourceRect,
   fadeContent = true,
@@ -88,6 +89,16 @@ export function SliderPanel({
    *  сама, и карточки ПОД ней не меняют геометрию (баг-вердикт владельца
    *  15.09.2026: расширение нижней карточки во время раскрытия верхней). */
   fullscreen?: boolean;
+  /** true — карточка СПИТ под верхними карточками стека (issue #63):
+   *  content-visibility:hidden на хосте — потомки пропускаются рендерингом
+   *  (layout/paint/style), состояние сохраняется (MDN: rendering state
+   *  preserved — скролл, вкладки, черновики целы), сам хост (fixed, insets)
+   *  продолжает дёшево следовать за полосой. Снимается по cardClosing —
+   *  окно гашения контента (CONTENT_FADE_MS) до схлопывания верхней
+   *  покрывает раскладку этой карточки до её проявления. Бонус a11y:
+   *  накрытые карточки выпадают из tab-order и find-in-page (MDN: skipped
+   *  contents not focusable). */
+  dormant?: boolean;
   onClose: () => void;
   sourceRect?: SourceRect;
   /** false — карточка сама управляет проявлением: её зональные фоны (тёмный
@@ -117,6 +128,10 @@ export function SliderPanel({
 
   function requestClose() {
     if (closingRef.current) return;
+    // Сигнал нижним карточкам и контуру шелла: верхняя пошла закрываться —
+    // они просыпаются ДО схлопывания (issue #63: lower cards отрисовываются
+    // в окне гашения контента, контур перемеряется под уходящей карточкой).
+    useShellStore.getState().setCardClosing(true);
     const el = panelRef.current;
     if (!sourceRect || !el) {
       closeRef.current();
@@ -185,6 +200,9 @@ export function SliderPanel({
       const index = stack.indexOf(id);
       if (index >= 0) stack.splice(index, 1);
       window.removeEventListener('keydown', onKey);
+      // Закрывающаяся карточка ушла из стека — нижние уже отрисованы, режим
+      // закрытия снимается (владелец сигнала — панель, которая его подняла).
+      useShellStore.getState().setCardClosing(false);
       if (openedVia === 'keyboard') previouslyFocused?.focus();
     };
   }, [id]);
@@ -230,7 +248,7 @@ export function SliderPanel({
   return (
     <div
       className="fixed inset-y-0 left-0 z-50 transition-[right] duration-200 ease-out"
-      style={{ right: stripW }}
+      style={{ right: stripW, contentVisibility: dormant ? 'hidden' : 'visible' }}
     >
       {/* Прозрачный click-catcher вместо затемняющего задника: страница за
           панелью цвета не меняет; клик мимо панели закрывает её. */}

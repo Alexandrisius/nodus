@@ -21,7 +21,9 @@ function focusSig(f: CircuitFocus | null): string {
 
 /** Отсрочка первого замера в режиме карточки: `slider-expand` (430 мс)
  *  трансформирует всю карточку вместе с хедером — rect'ы переходные;
- *  контур появляется одним кадром на осевшей геометрии. */
+ *  контур появляется одним кадром на осевшей геометрии. Она же — задержка
+ *  засыпания под НЕфулскрин-карточкой (issue #63): пока кадр раскрытия
+ *  дорисовывается, старый контур шелла ещё корректен. */
 const CARD_SETTLE_MS = 480;
 
 /**
@@ -47,13 +49,23 @@ export function CircuitFrame() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const searchStr = useRouterState({ select: (s) => s.location.searchStr });
   const menuCollapsed = useShellStore((s) => s.menuCollapsed);
-  // Режим ПОЛНОЭКРАННОЙ карточки мессенджера (план messenger-fullscreen):
-  // вершина стека — `messenger:<id>` → контур измеряется по хедеру карточки
-  // и рисуется ПОверх неё (z-[60]); шина шелла под карточкой невидима.
-  const cardMode = useMemo(() => {
+  // Верхняя карточка стека начала закрываться (SliderPanel.requestClose):
+  // сигнал пробуждения контура и нижних карточек ДО схлопывания (issue #63).
+  const cardClosing = useShellStore((s) => s.cardClosing);
+  // Вершина стека (?cards=): ЛЮБАЯ карточка накрывает мягкую раму целиком
+  // (inset-2 = прямоугольник рамы); фулскрин-мессенджер — до края периметра.
+  const topKind = useMemo(() => {
     const stack = parseCardStack(new URLSearchParams(searchStr).get('cards'));
-    return stack[stack.length - 1]?.kind === 'messenger';
+    return stack[stack.length - 1]?.kind;
   }, [searchStr]);
+  const cardMode = topKind === 'messenger';
+  // Режим КАРТОЧКИ «живьём»: выключается СРАЗУ по cardClosing — схлопывающаяся
+  // карточка уже открывает шелл, контур обязан быть на месте к первому кадру
+  // открытия (issue #63); сам cardMode (по ?cards=) сойдёт лишь после unmount.
+  const cardModeLive = cardMode && !cardClosing;
+  // Контур шелла НЕВИДИМ: любая верхняя карточка (не в фазе закрытия) накрывает
+  // раму — измерять и тем более мерить покадрово нечего (сон, issue #63).
+  const covered = topKind !== undefined && !cardClosing;
   const [geo, setGeo] = useState<CircuitGeometry | null>(null);
   const [pulse, setPulse] = useState<{
     points: NodeEdgePoint[];
@@ -86,12 +98,29 @@ export function CircuitFrame() {
   }, []);
 
   useLayoutEffect(() => {
+    // СОН под НЕфулскрин-карточкой (issue #63): карточка накрывает мягкую раму
+    // целиком — контур невидим, а рефлоу полосы под ней крутил покадровый
+    // forced-layout (measureCircuit = чтение rect'ов) + SVG-ре-рендер. Спим:
+    // один замер (сквозь FLIP/scale-fade раскрытия контур ещё у места),
+    // geo=null после оседания, слушателей НЕТ. Пробуждение — cardClosing
+    // (covered → false): эффект перезапускается рабочим режимом и перемеряет
+    // шелл ДО схлопывания карточки, открывая его контуром.
+    if (covered && !cardModeLive) {
+      settling.current = false;
+      let settle = 0;
+      const raf = requestAnimationFrame(() => setGeo(measureCircuit(pathname, false)));
+      settle = window.setTimeout(() => setGeo(null), CARD_SETTLE_MS);
+      return () => {
+        cancelAnimationFrame(raf);
+        window.clearTimeout(settle);
+      };
+    }
     let raf = 0;
     let loop = 0;
     let settle = 0;
     const applyGeo = () => {
       if (settling.current) return;
-      setGeo(measureCircuit(pathname, cardMode));
+      setGeo(measureCircuit(pathname, cardModeLive));
     };
     const remeasure = () => {
       cancelAnimationFrame(raf);
@@ -99,8 +128,8 @@ export function CircuitFrame() {
     };
     // Режим карточки включается: контур гаснет (шина шелла уходит под карточку)
     // и возвращается одним замером, когда FLIP-раскрытие осело.
-    settling.current = cardMode;
-    if (cardMode) {
+    settling.current = cardModeLive;
+    if (cardModeLive) {
       setGeo(null);
       settle = window.setTimeout(() => {
         settling.current = false;
@@ -147,7 +176,10 @@ export function CircuitFrame() {
       document.removeEventListener('scroll', remeasure, { capture: true });
       window.removeEventListener(CIRCUIT_REMEASURE, remeasure);
     };
-  }, [pathname, searchStr, menuCollapsed, cardMode]);
+    // searchStr в deps НЕ входит намеренно: замеры зависят только от режимов
+    // (cardModeLive/covered) — подмена вершины стека (replaceTop, та же kinds)
+    // не перезапускает режим карточки и не гасит контур на CARD_SETTLE_MS.
+  }, [pathname, menuCollapsed, cardModeLive, covered]);
 
   useLayoutEffect(() => {
     if (!geo) return;

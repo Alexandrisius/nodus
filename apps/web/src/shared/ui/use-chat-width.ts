@@ -4,7 +4,11 @@ import { uiPx } from './ui-scale.js';
 
 const STORE_KEY = 'nodus-card-chat-w-v2';
 const DEFAULT_W = uiPx(680);
-const MIN_W = uiPx(420);
+/** Пол колонки чата при drag (без панелей): экспортирован для рендер-формулы
+ *  «чат — буфер сужений»: рефлоу рельсы сужает чат до этого пола, дальше
+ *  сужение выталкивает левую зону карточки (канон, issue #63). */
+export const MIN_CHAT_W = uiPx(420);
+const MIN_W = MIN_CHAT_W;
 /** Доля вьюпорта: чат может стать главным, но не выжать содержание целиком. */
 const MAX_RATIO = 0.66;
 
