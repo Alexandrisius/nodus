@@ -48,7 +48,7 @@ export function BoardTaskCard({
       )}
     >
       {isVisible('parent') && parentNumber !== undefined ? (
-        <span className="flex items-center gap-1.5 font-mono text-[10px] tracking-[0.08em] text-muted-foreground uppercase">
+        <span className="flex items-center gap-1.5 text-label-sm font-medium tracking-wide text-muted-foreground uppercase">
           <CornerDownRight className="size-3" />
           {ui.tasks.subtaskOf} · {parentNumber}
         </span>
@@ -56,7 +56,7 @@ export function BoardTaskCard({
       {isVisible('number') || isVisible('source') ? (
         <span className="flex items-center justify-between gap-2">
           {isVisible('number') ? (
-            <span className="font-mono text-[11px] text-muted-foreground tabular-nums">
+            <span className="font-mono text-label-sm text-muted-foreground tabular-nums">
               № {task.number}
             </span>
           ) : (
@@ -73,7 +73,7 @@ export function BoardTaskCard({
       <span className="line-clamp-2 text-sm font-medium">{task.title}</span>
       {isVisible('deadline') ? <DeadlineChip deadline={task.deadline} /> : null}
       {isVisible('project') && task.project ? (
-        <span className="flex min-w-0 items-center gap-1.5 font-mono text-[11px] text-info/80">
+        <span className="flex min-w-0 items-center gap-1.5 text-body-xs text-info/80">
           <span
             aria-hidden
             className={`size-1.5 shrink-0 rounded-full ${identityTone[task.project.color].dot}`}
@@ -87,7 +87,7 @@ export function BoardTaskCard({
             <PersonAvatar name={task.assignee.displayName} className="size-6" />
           ) : null}
           {isVisible('comments') ? (
-            <span className="ml-auto inline-flex items-center gap-1 font-mono text-[11px] tabular-nums">
+            <span className="ml-auto inline-flex items-center gap-1 font-mono text-label-sm tabular-nums">
               <MessageSquare className="size-3.5" />
               {task.commentsCount}
             </span>
@@ -95,7 +95,7 @@ export function BoardTaskCard({
             <span className="ml-auto" />
           )}
           {isVisible('spent') && task.spentMinutes > 0 ? (
-            <span className="font-mono text-[11px] tabular-nums">
+            <span className="font-mono text-label-sm tabular-nums">
               {formatMinutes(task.spentMinutes)}
             </span>
           ) : null}

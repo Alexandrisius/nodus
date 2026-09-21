@@ -36,7 +36,7 @@ export const letterJournalFields: DataTableField<LetterListItem>[] = [
       <>
         <LetterTypeIcon letter={letter} />
         {letter.regNumber ? (
-          <span className="font-mono text-[11px] tabular-nums">{letter.regNumber}</span>
+          <span className="font-mono text-label-sm tabular-nums">{letter.regNumber}</span>
         ) : (
           <span className={monoCell}>—</span>
         )}
@@ -99,7 +99,7 @@ export const letterJournalFields: DataTableField<LetterListItem>[] = [
     minWidth: 120,
     render: (letter) =>
       letter.project ? (
-        <span className="truncate font-mono text-[11px] text-info/80">{letter.project.name}</span>
+        <span className="truncate text-body-xs text-info/80">{letter.project.name}</span>
       ) : (
         <span className={monoCell}>—</span>
       ),

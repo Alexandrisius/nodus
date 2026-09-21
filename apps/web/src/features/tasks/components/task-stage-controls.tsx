@@ -13,10 +13,13 @@ import { useUpdateTaskStage } from '../api/tasks-api.js';
 import { useTaskStages } from '../../../shared/api/task-stages.js';
 import { stageTone } from '../../../shared/ui/board/stage-tone.js';
 
+/* Главные CTA задачи — на ступень крупнее базовой сетки (жалоба владельца
+ * 20.09.2026: «кнопки Завершить/В работу маленькие»; калибровка по Битрикс24:
+ * h-9 = 45px при --ui-scale 1.25 против их ~40px основных кнопок). */
 const btn =
-  'inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition-colors disabled:opacity-40';
+  'inline-flex h-8 shrink-0 items-center gap-2 rounded-md px-3 text-sm font-medium transition-colors disabled:opacity-40';
 const valueChip =
-  'inline-flex h-6 max-w-full cursor-pointer items-center gap-1.5 rounded border px-1.5 font-mono text-[11px] font-medium tracking-[0.08em] transition-colors hover:brightness-125 data-[state=open]:brightness-125';
+  'inline-flex h-6 max-w-full cursor-pointer items-center gap-1.5 rounded border px-1.5 font-mono text-label font-medium tracking-[0.08em] transition-colors hover:brightness-125 data-[state=open]:brightness-125';
 
 /**
  * Замоноличенный нижний бар действий задачи (модель Битрикса: бар не
@@ -34,7 +37,7 @@ export function TaskActionBar({ task }: { task: TaskDetail }) {
   const move = useUpdateTaskStage();
 
   if (!stages) {
-    return <div className="h-7" aria-hidden />;
+    return <div className="h-8" aria-hidden />;
   }
 
   const idx = stages.findIndex((s) => s.id === task.stage.id);
@@ -70,7 +73,7 @@ export function TaskActionBar({ task }: { task: TaskDetail }) {
           onClick={() => move.mutate({ taskId: task.id, stageId: prev.id, index: 0 })}
           className={cn(btn, 'text-muted-foreground hover:bg-accent hover:text-foreground')}
         >
-          <Undo2 className="size-3" strokeWidth={1.75} />
+          <Undo2 className="size-4" strokeWidth={1.75} />
           <span className="max-w-36 truncate">{prev.name}</span>
         </button>
       ) : null}
@@ -83,13 +86,13 @@ export function TaskActionBar({ task }: { task: TaskDetail }) {
         >
           {final ? (
             <>
-              <Check className="size-3.5" strokeWidth={2} />
+              <Check className="size-4" strokeWidth={2} />
               {ui.tasks.stageComplete}
             </>
           ) : (
             <>
               <span className="max-w-36 truncate">{next.name}</span>
-              <ArrowRight className="size-3" strokeWidth={1.75} />
+              <ArrowRight className="size-4" strokeWidth={1.75} />
             </>
           )}
         </button>
@@ -103,18 +106,18 @@ export function TaskActionBar({ task }: { task: TaskDetail }) {
           onClick={() => move.mutate({ taskId: task.id, stageId: doneStage.id, index: 0 })}
           className={cn(btn, 'border border-success/50 text-success hover:bg-success-soft/40')}
         >
-          <Check className="size-3.5" strokeWidth={2} />
+          <Check className="size-4" strokeWidth={2} />
           {ui.tasks.stageComplete}
         </button>
       ) : null}
       {done ? (
         <span
           className={cn(
-            'inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium',
+            'inline-flex h-8 shrink-0 items-center gap-2 rounded-md border px-3 text-sm font-medium',
             stageTone.success.chip,
           )}
         >
-          <Check className="size-3.5" strokeWidth={2} />
+          <Check className="size-4" strokeWidth={2} />
           {ui.tasks.stageCompleted}
         </span>
       ) : null}

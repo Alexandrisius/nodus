@@ -117,7 +117,9 @@ export function ProjectPicker({
                 className="min-w-0 flex-1 truncate text-sm"
                 title={`${project.code} — ${project.name}`}
               >
-                <span className="font-mono text-[11px] text-muted-foreground">{project.code}</span>{' '}
+                <span className="font-mono text-label-sm text-muted-foreground">
+                  {project.code}
+                </span>{' '}
                 {project.name}
               </span>
             </button>

@@ -26,7 +26,7 @@ export function MessageReactions({ message }: { message: ChatMessage }) {
         <span
           key={reaction.emoji}
           className={cn(
-            'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-[11px] tabular-nums',
+            'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-label-sm tabular-nums',
             reaction.mine
               ? 'border-info/40 bg-info-soft/60 text-info'
               : 'border-border bg-accent/40 text-muted-foreground',
@@ -84,7 +84,7 @@ export const ChatMessageItem = memo(function ChatMessageItem({
   const timeRow = (
     <span
       className={cn(
-        'flex shrink-0 items-center gap-1 font-mono text-[10px] leading-4 tabular-nums',
+        'flex shrink-0 items-center gap-1 font-mono text-label-sm leading-4 tabular-nums',
         mine ? 'text-primary-foreground/70' : 'text-muted-foreground',
       )}
     >
@@ -105,7 +105,7 @@ export const ChatMessageItem = memo(function ChatMessageItem({
       <MessageContent>
         {showName ? (
           <MessageHeader>
-            <span className="text-[13px] font-semibold text-foreground">
+            <span className="text-body-xs font-semibold text-foreground">
               {message.author.displayName}
             </span>
           </MessageHeader>

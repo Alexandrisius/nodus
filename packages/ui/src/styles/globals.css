@@ -11,6 +11,52 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Семантическая лестница размеров текста (issue #60, раунд 2: вердикт
+ * владельца «шрифт везде слишком огромный», «два шрифта, второй огромный»).
+ * Типографика ФИКСИРОВАНА в px и НЕ зависит от --ui-scale: плотность
+ * интерфейса (контролы, отступы — rem) и типографика регулируются НЕЗАВИСИМО,
+ * как density у Material/Fluent: масштаб меняет геометрию контролов, а
+ * лестница текста остаётся (enterprise-канон, research Exa 20.09.2026:
+ * плотные B2B-порталы — body 14, метки/заголовки 12, плотный контент 13,
+ * лестница 11/12/13/14/16/20/24). Один шрифт (Onest) на весь интерфейс;
+ * JetBrains Mono — ТОЛЬКО данные (номера, коды, время, счётчики: табличное
+ * выравнивание), НЕ метки — паттерн Битрикс24: метка мельче и серая, значение
+ * крупнее и чёрное, ОДНА гарнитура. UPPERCASE sans semibold — заголовки
+ * таблиц/секций и статус-чипы; метки полей — sentence case, как значения,
+ * но мельче и серее. Утилиты: text-label-xs/-sm, text-label, text-label-lg,
+ * text-body-xs/-lg, text-stat, text-badge + переопределённая кор-лестница
+ * Tailwind (иначе rem «раздувается» масштабом). */
+@theme {
+  --text-label-xs: 11px; /* микро-метки: дни Ганта, рёбра схемы */
+  --text-label-xs--line-height: 16px;
+  --text-label-sm: 12px; /* моно-данные (№, время, счётчики), статус-чипы */
+  --text-label-sm--line-height: 16px;
+  --text-label: 13px; /* метки полей, заголовки таблиц/секций, моно-коды */
+  --text-label--line-height: 18px;
+  --text-label-lg: 14px; /* акцентные метки, счётчики у заголовков страниц */
+  --text-label-lg--line-height: 20px;
+  --text-badge: 10px; /* микро-бейдж непрочитанных */
+  --text-badge--line-height: 12px;
+  --text-body-xs: 14px; /* плотный контент: ячейки таблиц */
+  --text-body-xs--line-height: 20px;
+  --text-body-lg: 16px; /* акцентированный контент: названия карточек */
+  --text-body-lg--line-height: 24px;
+  --text-stat: 28px; /* статистические цифры дашбордов */
+  --text-stat--line-height: 32px;
+  --text-xs: 13px; /* кор-лестница Tailwind в px: вторичный текст/метки */
+  --text-xs--line-height: 18px;
+  --text-sm: 15px; /* body: значения, кнопки, сообщения, навигация */
+  --text-sm--line-height: 22px;
+  --text-base: 16px; /* заголовки панелей/диалогов */
+  --text-base--line-height: 24px;
+  --text-lg: 18px;
+  --text-lg--line-height: 26px;
+  --text-xl: 20px; /* заголовки страниц */
+  --text-xl--line-height: 28px;
+  --text-2xl: 24px; /* крупные KPI, вход */
+  --text-2xl--line-height: 32px;
+}
+
 @theme inline {
   --font-sans: 'Onest Variable', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono Variable', ui-monospace, 'Cascadia Mono', monospace;
@@ -96,6 +142,17 @@
  * Цвет — только в слоях данных и статусов (chart-*, семантика, идентичность).
  */
 :root {
+  /* Глобальный масштаб интерфейса (issue #60, ADR-предложение «Масштаб
+     интерфейса»): множитель корневого шрифта — все rem-утилиты Tailwind
+     (spacing, text, radius) масштабируются одним рычагом. Дискретные шаги
+     (0.9 / 1.0 / 1.125 / 1.25): непрерывные значения дают артефакты
+     округления пикселей (research: Display Scale Strategy). Дефолт 1.25 —
+     калибровка владельца по Битрикс24 (кнопки 40px, контент ~17.5px);
+     100% (не px!) сохраняет уважение к настройке шрифта браузера (WCAG).
+     Персональная настройка масштаба — follow-up issue: запись переменной
+     на <html> из ui-prefs-store. JS-геометрия читает масштаб из этой
+     переменной (shared/ui/ui-scale.ts). */
+  --ui-scale: 1.25;
   --radius: 0.625rem;
   /* Ступени — НЕЙТРАЛЬНО-тёплые (жёлтый подтон урезан вдвое, вердикт
      владельца 12.09.2026: «список чатов желтоватый, каша»): серый шелл →
@@ -355,6 +412,12 @@
   * {
     @apply border-border outline-ring/50;
   }
+  /* Масштаб интерфейса: rem-основа всех утилит растёт множителем --ui-scale
+     (см. :root). Не «перезаписывает» настройку шрифта браузера, а умножает
+     её (100% = пользовательский дефолт). */
+  html {
+    font-size: calc(100% * var(--ui-scale));
+  }
   :root {
     color-scheme: light;
   }
@@ -362,7 +425,7 @@
     color-scheme: dark;
   }
   body {
-    @apply bg-background text-foreground font-sans text-[14px];
+    @apply bg-background text-foreground font-sans text-sm;
   }
   /* Едва заметный скроллбар (3px), не спорящий с контуром связи. */
   * {

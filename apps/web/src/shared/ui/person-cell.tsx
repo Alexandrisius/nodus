@@ -6,7 +6,7 @@ import { PersonAvatar } from './person-avatar.js';
 
 /** Моно-стиль текстовых ячеек таблиц (даты, номера): единая константа
  *  (аудит #45 — 4 копии в реестрах полей). */
-export const monoCell = 'font-mono text-[11px] text-muted-foreground tabular-nums';
+export const monoCell = 'font-mono text-label-sm text-muted-foreground tabular-nums';
 
 /** Ячейка «человек» таблиц/реестров: аватар + имя либо «Не задано»
  *  (аудит #45 — 5 дословных копий personCell в реестрах полей). */

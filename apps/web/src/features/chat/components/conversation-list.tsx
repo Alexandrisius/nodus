@@ -132,7 +132,7 @@ export function ConversationList({
                     ) : null}
                   </span>
                   {conversation.lastMessage ? (
-                    <span className="shrink-0 font-mono text-[10px] text-muted-foreground tabular-nums">
+                    <span className="shrink-0 font-mono text-label-sm text-muted-foreground tabular-nums">
                       {formatTime(conversation.lastMessage.createdAt)}
                     </span>
                   ) : null}

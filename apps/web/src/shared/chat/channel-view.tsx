@@ -76,7 +76,7 @@ export function ChannelView({
   // первом пикселе (вердикт валидатора #42).
   const maxW = containerW ? threadMaxW(containerW) : THREAD_MAX_W;
   const { width, onDividerDown, dragging } = usePaneWidth({
-    storeKey: 'nodus-thread-w-v1',
+    storeKey: 'nodus-thread-w-v2',
     defaultW: THREAD_DEFAULT_W,
     minW: MIN_THREAD_W,
     maxW,

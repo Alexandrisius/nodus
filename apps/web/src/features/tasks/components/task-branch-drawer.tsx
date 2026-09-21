@@ -113,7 +113,7 @@ export const TaskBranchDrawer = memo(function TaskBranchDrawer({
           >
             {node.title}
           </button>
-          <span className="shrink-0 font-mono text-[10px] text-muted-foreground tabular-nums">
+          <span className="shrink-0 font-mono text-label-sm text-muted-foreground tabular-nums">
             {node.number}
           </span>
           <button
@@ -150,7 +150,7 @@ export const TaskBranchDrawer = memo(function TaskBranchDrawer({
   ];
 
   return (
-    <div className="flex h-full w-[300px] flex-col border-r border-border bg-card">
+    <div className="flex h-full w-[18.75rem] flex-col border-r border-border bg-card">
       {/* Шапка: «←» — шаг назад по переходам сессии; вкладки; закрытие */}
       <div className="flex h-10 shrink-0 items-center gap-1 border-b border-border pr-2 pl-1.5">
         <button
@@ -170,7 +170,7 @@ export const TaskBranchDrawer = memo(function TaskBranchDrawer({
             onClick={() => setTab(t.id)}
             aria-current={tab === t.id}
             className={cn(
-              'h-10 rounded-none border-b-2 px-2.5 font-mono text-[11px] tracking-[0.14em] uppercase transition-colors',
+              'h-10 rounded-none border-b-2 px-2.5 text-body-xs font-medium transition-colors',
               tab === t.id
                 ? 'border-port text-foreground'
                 : 'border-transparent text-muted-foreground hover:text-foreground/80',
@@ -242,7 +242,7 @@ function RelationsTab({
             className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-sm text-secondary-foreground transition-colors hover:bg-accent/50"
           >
             <span className="min-w-0 flex-1 truncate">{relation.task.title}</span>
-            <span className="shrink-0 font-mono text-[10px] text-muted-foreground tabular-nums">
+            <span className="shrink-0 font-mono text-label-sm text-muted-foreground tabular-nums">
               {relation.task.number}
             </span>
           </button>

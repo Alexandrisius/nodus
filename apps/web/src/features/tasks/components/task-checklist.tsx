@@ -32,7 +32,7 @@ export function TaskChecklist({ task }: { task: TaskDetail }) {
       <div className="flex items-center gap-3">
         <NodeLabel label={ui.tasks.checklist} count={task.checklist.length} />
         {task.checklistTotal > 0 ? (
-          <span className="font-mono text-[11px] text-muted-foreground tabular-nums">
+          <span className="font-mono text-label-sm text-muted-foreground tabular-nums">
             {task.checklistDone}/{task.checklistTotal} {ui.tasks.checklistDoneLabel}
           </span>
         ) : null}

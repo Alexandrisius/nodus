@@ -9,6 +9,7 @@ import { cn } from '@nodus/ui/lib/utils';
 
 import { ColumnResizer } from './column-resizer.js';
 import type { FieldDef, ViewField } from './use-view-fields.js';
+import { uiPx } from '../ui/ui-scale.js';
 
 /** Поле хедера: структурный минимум (render ячейки хедеру не нужен) —
  *  подходят и DataTableField, и реестр дерева-графа журнала задач. */
@@ -277,11 +278,16 @@ export function DataTableHeader({
             {field.width !== undefined && index < fields.length - 1 ? (
               <ColumnResizer
                 width={field.width}
-                minWidth={field.minWidth ?? 48}
-                maxWidth={field.maxWidth ?? 640}
+                minWidth={uiPx(field.minWidth ?? 48)}
+                maxWidth={uiPx(field.maxWidth ?? 640)}
                 onResize={(w) => onResize(field.id, w)}
                 onAutoFit={() =>
-                  onAutoFit(index, field.id, field.minWidth ?? 48, field.maxWidth ?? 640)
+                  onAutoFit(
+                    index,
+                    field.id,
+                    uiPx(field.minWidth ?? 48),
+                    uiPx(field.maxWidth ?? 640),
+                  )
                 }
               />
             ) : null}

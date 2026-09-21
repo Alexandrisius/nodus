@@ -42,7 +42,9 @@ export const projectListFields: DataTableField<ProjectListItem>[] = [
     defaultWidth: 88,
     minWidth: 64,
     maxWidth: 140,
-    render: (project) => <span className="font-mono text-[11px] tabular-nums">{project.code}</span>,
+    render: (project) => (
+      <span className="font-mono text-label-sm tabular-nums">{project.code}</span>
+    ),
     sortValue: (project) => project.code,
   },
   {

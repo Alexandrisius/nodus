@@ -57,7 +57,7 @@ export function ListToolbar<T>({
   const activeDefs = defs.filter((d) => isActiveFilter(toolbar.filters[d.id]));
 
   return (
-    <div className={cn('flex h-11 shrink-0 items-center gap-2 px-4', className)}>
+    <div className={cn('flex h-10 shrink-0 items-center gap-2 px-4', className)}>
       {left}
       <Popover open={panelOpen} onOpenChange={setPanelOpen}>
         <PopoverAnchor asChild>

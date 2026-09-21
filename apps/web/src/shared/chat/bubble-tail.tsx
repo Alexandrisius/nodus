@@ -33,10 +33,11 @@ export function BubbleTail({
   return (
     <svg
       aria-hidden
-      width="20"
-      height="20"
       viewBox="0 0 20 20"
-      className={cn('absolute bottom-0', side === 'left' ? '-left-[12px]' : '-right-[12px]')}
+      className={cn(
+        'absolute bottom-0 size-[1.25rem]',
+        side === 'left' ? '-left-[0.75rem]' : '-right-[0.75rem]',
+      )}
     >
       <path d={PATHS[side]} className={variant === 'card' ? 'fill-card' : 'fill-primary'} />
     </svg>

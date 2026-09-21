@@ -64,7 +64,7 @@ export function FilterPanel<T>({
                 onClick={() => toolbar.setFilters(preset.state)}
                 title={preset.name}
                 className={cn(
-                  'min-w-0 flex-1 truncate text-left text-[13px] leading-5',
+                  'min-w-0 flex-1 truncate text-left text-body-xs leading-5',
                   active ? 'font-medium text-foreground' : 'text-secondary-foreground',
                 )}
               >
@@ -130,7 +130,7 @@ export function FilterPanel<T>({
             <button
               type="button"
               onClick={() => setNaming(true)}
-              className="flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-[13px] leading-5 text-muted-foreground hover:text-foreground"
+              className="flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-body-xs leading-5 text-muted-foreground hover:text-foreground"
             >
               <Plus className="size-3.5" strokeWidth={1.75} />
               {ui.filters.save}
@@ -173,7 +173,7 @@ function FilterFieldControl<T>({
   if (def.type === 'select' || def.type === 'person') {
     return (
       <label className="flex items-center gap-2">
-        <span className="w-28 shrink-0 text-[13px] text-muted-foreground">{def.label}</span>
+        <span className="w-28 shrink-0 text-body-xs text-muted-foreground">{def.label}</span>
         <FilterCombobox
           options={def.options ?? []}
           value={typeof value === 'string' ? value : undefined}
@@ -187,7 +187,7 @@ function FilterFieldControl<T>({
     const range = typeof value === 'object' && value !== undefined ? value : {};
     return (
       <div className="flex items-center gap-2">
-        <span className="w-28 shrink-0 text-[13px] text-muted-foreground">{def.label}</span>
+        <span className="w-28 shrink-0 text-body-xs text-muted-foreground">{def.label}</span>
         <Input
           type="date"
           aria-label={`${def.label}: ${ui.filters.dateFrom}`}
@@ -207,7 +207,7 @@ function FilterFieldControl<T>({
   }
   return (
     <label className="flex items-center gap-2">
-      <span className="w-28 shrink-0 text-[13px] text-muted-foreground">{def.label}</span>
+      <span className="w-28 shrink-0 text-body-xs text-muted-foreground">{def.label}</span>
       <Input
         value={typeof value === 'string' ? value : ''}
         onChange={(e) => onChange(e.target.value || undefined)}

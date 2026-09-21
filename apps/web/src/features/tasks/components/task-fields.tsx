@@ -85,7 +85,7 @@ export const TaskFields = memo(function TaskFields({ task }: { task: TaskDetail 
           <button
             type="button"
             title={task.project.name}
-            className="flex min-w-0 items-center gap-1.5 font-mono text-[12px] text-info hover:underline"
+            className="flex min-w-0 items-center gap-1.5 text-sm text-info hover:underline"
             onClick={() => openCard({ kind: 'project', id: task.project?.id ?? '' })}
           >
             <span
@@ -121,7 +121,7 @@ export const TaskFields = memo(function TaskFields({ task }: { task: TaskDetail 
       icon: <Timer className="size-3.5" />,
       label: ui.tasks.spent,
       render: () => (
-        <span className="font-mono text-[12px] tabular-nums">
+        <span className="font-mono text-label-sm tabular-nums">
           {formatMinutes(task.spentMinutes)}
         </span>
       ),
@@ -131,7 +131,9 @@ export const TaskFields = memo(function TaskFields({ task }: { task: TaskDetail 
       icon: <CalendarPlus className="size-3.5" />,
       label: ui.tasks.created,
       render: () => (
-        <span className="font-mono text-[12px] tabular-nums">{formatDateTime(task.createdAt)}</span>
+        <span className="font-mono text-label-sm tabular-nums">
+          {formatDateTime(task.createdAt)}
+        </span>
       ),
     },
   ];

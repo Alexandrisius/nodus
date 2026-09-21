@@ -66,7 +66,7 @@ export function employeeListFields(
       minWidth: 120,
       render: (user) =>
         user.departmentName ? (
-          <span className="truncate font-mono text-[11px] text-info/80">{user.departmentName}</span>
+          <span className="truncate text-body-xs text-info/80">{user.departmentName}</span>
         ) : (
           <span className="text-xs text-muted-foreground">{ui.common.notSet}</span>
         ),
@@ -79,7 +79,7 @@ export function employeeListFields(
       defaultWidth: 240,
       minWidth: 160,
       render: (user) => (
-        <span className="truncate font-mono text-[11px] text-muted-foreground">{user.email}</span>
+        <span className="truncate text-xs text-muted-foreground">{user.email}</span>
       ),
       sortValue: (user) => user.email,
     },

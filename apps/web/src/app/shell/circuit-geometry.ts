@@ -13,6 +13,10 @@ export interface CircuitGeometry {
   junction: NodeEdgePoint;
   /** Y оси бордюра шапки. */
   axisY: number;
+  /** Y точек подмодулей: СРАЗУ под названием вкладки (центр топбара + половина
+   *  строки подписи + зазор), НЕ фикс-отступ от оси — вердикт раунда 3:
+   *  «большой отступ между точкой прихода связи и названием подмодуля». */
+  tabY: number;
   modules: { to: string; active: boolean; port: NodeEdgePoint }[];
   /** Центры вкладок топбара (x), активность, подпись (идентичность вкладки). */
   tabs: { active: boolean; x: number; label: string }[];
@@ -65,7 +69,9 @@ export function measureCircuit(pathname = '/', cardMode = false): CircuitGeometr
   if (cardMode) return measureCardCircuit(pathname);
   const header = document.querySelector<HTMLElement>('[data-topbar]');
   if (!header) return null;
-  const axisY = header.getBoundingClientRect().bottom;
+  const headerRect = header.getBoundingClientRect();
+  const axisY = headerRect.bottom;
+  const tabY = snapPx(axisY - headerRect.height / 2 + TAB_DOT_DY);
   const modules = [...document.querySelectorAll<HTMLElement>('[data-module-port]')].map((el) => ({
     to: el.dataset.modulePort ?? '',
     active: el.dataset.active === 'true',
@@ -95,6 +101,7 @@ export function measureCircuit(pathname = '/', cardMode = false): CircuitGeometr
   return {
     junction,
     axisY,
+    tabY,
     modules: leftNode ? [{ to: pathname, active: true, port: junction }] : modules,
     tabs,
     leftNode,
@@ -127,7 +134,9 @@ function measureCardCircuit(pathname: string): CircuitGeometry | null {
   const header = document.querySelector<HTMLElement>('[data-card-topbar]');
   const card = header?.closest<HTMLElement>('[role="dialog"]');
   if (!header || !card) return null;
-  const axisY = header.getBoundingClientRect().bottom;
+  const headerRect = header.getBoundingClientRect();
+  const axisY = headerRect.bottom;
+  const tabY = snapPx(axisY - headerRect.height / 2 + TAB_DOT_DY);
   const cardRect = card.getBoundingClientRect();
   const leftNode: NodeEdgePoint = { x: cardRect.left, y: axisY };
   // Виртуальный активный модуль опирает вспышки на ось (портов рейки под
@@ -142,6 +151,7 @@ function measureCardCircuit(pathname: string): CircuitGeometry | null {
   return {
     junction,
     axisY,
+    tabY,
     modules: [{ to: pathname, active: true, port: junction }],
     tabs,
     leftNode,
@@ -170,7 +180,7 @@ export function framePath(g: CircuitGeometry): string {
   // чёткость/яркость всех линий на любом DPR/зуме.
   const jx = snapPx(g.junction.x);
   const ay = snapPx(g.axisY);
-  const tickY = snapPx(g.axisY - TICK);
+  const tickY = snapPx(g.tabY);
   const parts: string[] = [];
   const spineStartY = g.leftNode ? ay : g.modules.length > 0 ? snapPx(g.spineEndY) : ay;
   const tabsX = g.tabs.map((t) => snapPx(t.x));
@@ -236,8 +246,11 @@ export function framePath(g: CircuitGeometry): string {
   return parts.filter(Boolean).join(' ');
 }
 
-/** Длина засечки-ответвления вкладки (точка — у самого пункта, не на оси). */
-export const TICK = 12;
+/** Смещение точки подмодуля ОТ ЦЕНТРА топбара вниз: половина строки подписи
+ *  вкладки (16px/24px → 12px) + зазор 6px — точка сидит сразу под названием,
+ *  а не в фикс-отступе от оси (вердикт раунда 3 #60). px фиксирован, как
+ *  типографика: масштаб меняет высоту топбара, но не близость точки к тексту. */
+export const TAB_DOT_DY = 18;
 
 /** Текущий фокус навигации (активные модуль и вкладка). */
 export function currentFocus(g: CircuitGeometry): CircuitFocus | null {
@@ -271,7 +284,7 @@ export function transitionPulse(
         { x: snapPx(g.junction.x), y: snapPx(active.port.y) },
         { x: snapPx(g.junction.x), y: snapPx(g.axisY) },
         { x: snapPx(activeTab.x), y: snapPx(g.axisY) },
-        { x: snapPx(activeTab.x), y: snapPx(g.axisY - TICK) },
+        { x: snapPx(activeTab.x), y: snapPx(g.tabY) },
       ],
       dot: true,
     };

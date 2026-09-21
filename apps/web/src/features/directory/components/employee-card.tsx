@@ -112,7 +112,7 @@ export function EmployeeCard({ userId }: { userId: string }) {
               onClick={() => setTab(t.id)}
               aria-current={tab === t.id}
               className={cn(
-                'flex h-10 shrink-0 items-center gap-2 rounded-none border-b-2 px-3 font-mono text-[11px] tracking-[0.14em] uppercase transition-colors',
+                'flex h-10 shrink-0 items-center gap-2 rounded-none border-b-2 px-3 text-body-xs font-medium transition-colors',
                 tab === t.id
                   ? 'border-port text-foreground'
                   : 'border-transparent text-muted-foreground hover:text-foreground/80',
@@ -120,7 +120,7 @@ export function EmployeeCard({ userId }: { userId: string }) {
             >
               {t.label}
               {t.count !== undefined ? (
-                <span className="font-mono text-[10px] text-muted-foreground tabular-nums">
+                <span className="font-mono text-label-sm text-muted-foreground tabular-nums">
                   {t.count}
                 </span>
               ) : null}

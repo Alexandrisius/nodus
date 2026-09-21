@@ -57,7 +57,7 @@ export const TaskAboutDrawer = memo(function TaskAboutDrawer({
     // верхняя строка (название слева, избранное и крестик У КРАЯ справа) —
     // на высоте бара, border-b продолжает линию бара; внутренних перегородок
     // нет, единственная вертикаль — структурная левая граница колонки.
-    <aside className="flex h-full w-[360px] flex-col border-l border-border bg-card">
+    <aside className="flex h-full w-[22.5rem] flex-col border-l border-border bg-card">
       <div className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-3">
         <NodeLabel label={ui.tasks.aboutTask} />
         <div className="ml-auto flex shrink-0 items-center gap-1">
@@ -87,7 +87,7 @@ export const TaskAboutDrawer = memo(function TaskAboutDrawer({
         <Section icon={FileText} title={ui.chat.filesMedia}>
           {files.length > 0 ? (
             files.map((file) => (
-              <span key={file.id} className="truncate font-mono text-[12px] text-info">
+              <span key={file.id} className="truncate text-sm text-info">
                 {file.name}
               </span>
             ))
@@ -104,7 +104,7 @@ export const TaskAboutDrawer = memo(function TaskAboutDrawer({
                 href={link}
                 target="_blank"
                 rel="noreferrer"
-                className="truncate font-mono text-[12px] text-info hover:underline"
+                className="truncate text-sm text-info hover:underline"
               >
                 {link}
               </a>
@@ -117,11 +117,15 @@ export const TaskAboutDrawer = memo(function TaskAboutDrawer({
         <Section icon={History} title={ui.tasks.history}>
           <span className="flex justify-between gap-2 text-sm">
             <span className="text-muted-foreground">{ui.tasks.created}</span>
-            <span className="shrink-0 font-mono text-[11px]">{formatDateTime(task.createdAt)}</span>
+            <span className="shrink-0 font-mono text-label-sm text-muted-foreground">
+              {formatDateTime(task.createdAt)}
+            </span>
           </span>
           <span className="flex justify-between gap-2 text-sm">
             <span className="text-muted-foreground">{ui.tasks.updated}</span>
-            <span className="shrink-0 font-mono text-[11px]">{formatDateTime(task.updatedAt)}</span>
+            <span className="shrink-0 font-mono text-label-sm text-muted-foreground">
+              {formatDateTime(task.updatedAt)}
+            </span>
           </span>
         </Section>
       </div>

@@ -22,7 +22,7 @@ function NodeCard({
   return (
     <section className={cn('node-panel', className)}>
       {label ? (
-        <header className="flex h-11 items-center justify-between gap-3 border-b border-border px-4">
+        <header className="flex h-10 items-center justify-between gap-3 border-b border-border px-4">
           <NodeLabel label={label} count={count} />
           {actions}
         </header>

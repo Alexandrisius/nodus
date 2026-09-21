@@ -8,7 +8,7 @@ import { formatDate, formatDateTime } from '../../../shared/lib/format.js';
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
 import type { EntityFieldDef } from '../../../shared/ui/entity-fields.js';
 
-const monoValue = 'font-mono text-[12px] tabular-nums';
+const monoValue = 'font-mono text-label-sm tabular-nums';
 
 /** Паспорт проекта — поля-реестром, не Badge-простыня (плейбук §3.4):
  *  defs для общего каркаса EntityFields (код, моя роль, приватность,

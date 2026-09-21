@@ -39,7 +39,7 @@ export function MessengerTabs({
           data-active={tab === t.id ? 'true' : undefined}
           onClick={() => onChange(t.id as ChatTab)}
           className={cn(
-            'relative flex h-full items-center px-4 font-mono text-[12px] font-medium tracking-[0.14em] uppercase transition-colors',
+            'relative flex h-full items-center px-4 text-sm font-medium transition-colors',
             tab === t.id ? 'text-foreground' : 'text-muted-foreground hover:text-foreground/80',
           )}
         >

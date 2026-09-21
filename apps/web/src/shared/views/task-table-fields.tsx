@@ -102,7 +102,7 @@ export function makeTaskTableFields({
               aria-hidden
               className={`size-1.5 shrink-0 rounded-full ${identityTone[task.project.color].dot}`}
             />
-            <span className="truncate font-mono text-[11px] text-info/80">{task.project.name}</span>
+            <span className="truncate text-body-xs text-info/80">{task.project.name}</span>
           </>
         ) : (
           <span className={monoCell}>—</span>

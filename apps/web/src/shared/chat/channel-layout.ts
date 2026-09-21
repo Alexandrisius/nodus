@@ -1,13 +1,15 @@
+import { uiPx } from '../ui/ui-scale.js';
+
 /** Минимум ЛЕНТЫ канала при открытом окне треда: посты сжимаются (w-full
  *  max-w-2xl), вердикт владельца 11.09.2026 — перегородка должна ходить
  *  влево дальше прежних 360, сообщения канала при этом сжимаются. */
-export const MIN_FEED_W = 320;
+export const MIN_FEED_W = uiPx(320);
 /** Минимум окна треда: корневой пост + ответы читаемы (композер h-16). */
-export const MIN_THREAD_W = 320;
+export const MIN_THREAD_W = uiPx(320);
 /** Порог двух зон: уже — drill-down (тред заменяет ленту, «К ленте»). */
 export const MIN_SIDE_BY_SIDE = MIN_FEED_W + MIN_THREAD_W;
-export const THREAD_DEFAULT_W = 440;
-export const THREAD_MAX_W = 720;
+export const THREAD_DEFAULT_W = uiPx(440);
+export const THREAD_MAX_W = uiPx(720);
 
 /** Две зоны (лента + окно треда) помещаются при данной ширине контейнера. */
 export function isSideBySide(containerW: number): boolean {

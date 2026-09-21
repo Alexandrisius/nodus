@@ -152,7 +152,7 @@ export function DateTimePicker({
               {ui.common.weekdaysShort.map((d) => (
                 <span
                   key={d}
-                  className="flex h-7 items-center justify-center font-mono text-[10px] tracking-[0.08em] text-muted-foreground uppercase"
+                  className="flex h-7 items-center justify-center text-label-sm font-semibold tracking-wide text-muted-foreground uppercase"
                 >
                   {d}
                 </span>
@@ -180,7 +180,7 @@ export function DateTimePicker({
               })}
             </div>
             <div className="mt-2 flex items-center gap-2 border-t border-border pt-2">
-              <span className="font-mono text-[10px] tracking-[0.12em] text-muted-foreground uppercase">
+              <span className="text-xs font-medium text-muted-foreground">
                 {ui.common.timeLabel}
               </span>
               <Input
@@ -202,7 +202,7 @@ export function DateTimePicker({
                   className="rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-accent"
                 >
                   <span className="block text-sm">{q.label}</span>
-                  <span className="block text-[11px] text-muted-foreground first-letter:uppercase">
+                  <span className="block text-label text-muted-foreground first-letter:uppercase">
                     {weekdayDayFmt.format(date)}
                   </span>
                 </button>

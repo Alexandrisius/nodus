@@ -73,7 +73,7 @@ export function EmployeeProfileTab({
               {presenceLabel(presenceStatus)}
             </NodeChip>
           </div>
-          <div className="min-w-0 flex-1 basis-[480px]">
+          <div className="min-w-0 flex-1 basis-[30rem]">
             <EntityFields
               defs={employeeProfileDefs({ card, listItem, manager, openCard })}
               storageKey={VISIBILITY_KEY}
@@ -96,7 +96,7 @@ export function EmployeeProfileTab({
             >
               <PersonAvatar name={person.displayName} className="size-7 shrink-0" />
               <span className="min-w-0 flex-1 truncate">{person.displayName}</span>
-              <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
+              <span className="shrink-0 text-xs text-muted-foreground">
                 {person.positionName ?? ''}
               </span>
             </button>

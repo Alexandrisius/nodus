@@ -6,7 +6,7 @@
 export function DayChip({ label }: { label: string }) {
   return (
     <div role="separator" aria-label={label} className="flex justify-center">
-      <span className="rounded-full bg-muted/40 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
+      <span className="rounded-full bg-muted/40 px-2 py-0.5 font-mono text-label-sm uppercase tracking-wide text-muted-foreground">
         {label}
       </span>
     </div>

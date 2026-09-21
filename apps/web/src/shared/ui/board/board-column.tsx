@@ -108,7 +108,7 @@ export function BoardColumn({
         {chipOverride ?? (
           <span
             className={cn(
-              'inline-flex max-w-full items-center gap-1.5 rounded-md border px-2 py-1 font-mono text-[11px] tracking-[0.12em] uppercase select-none',
+              'inline-flex max-w-full items-center gap-1.5 rounded-md border px-2 py-1 text-label-sm font-semibold tracking-wide uppercase select-none',
               tone.chip,
             )}
           >
@@ -116,7 +116,7 @@ export function BoardColumn({
             <span className="truncate">{stage.name}</span>
           </span>
         )}
-        <span className="shrink-0 font-mono text-[11px] text-muted-foreground tabular-nums">
+        <span className="shrink-0 font-mono text-label-sm text-muted-foreground tabular-nums">
           {total !== undefined && total !== count ? `${count} ${ui.common.of} ${total}` : count}
         </span>
         {quickAdd ? (
@@ -151,12 +151,12 @@ export function BoardColumn({
               }}
               onBlur={commitDraft}
               placeholder={quickAdd.placeholder}
-              className="h-9 shrink-0 rounded-lg border border-input bg-card px-2.5 text-sm outline-none focus:border-ring"
+              className="h-8 shrink-0 rounded-lg border border-input bg-card px-2.5 text-sm outline-none focus:border-ring"
             />
           ) : null}
           {children}
           {count === 0 && !loadingMore ? (
-            <span className="rounded-md border border-dashed border-border px-3 py-6 text-center font-mono text-[10px] tracking-[0.14em] text-muted-foreground/70 uppercase">
+            <span className="rounded-md border border-dashed border-border px-3 py-6 text-center text-xs text-muted-foreground/70">
               {overInColumn ? dropLabel : emptyLabel}
             </span>
           ) : null}

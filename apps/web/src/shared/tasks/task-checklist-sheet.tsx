@@ -53,11 +53,11 @@ export function TaskChecklistSheet({
       // Битриксе): края прижаты к диалогу, скругление только сверху.
       className="absolute inset-x-0 top-12 bottom-0 z-10 flex flex-col rounded-t-xl border-t border-border bg-popover shadow-[0_-16px_50px_-20px_rgb(22_35_58/0.35)]"
     >
-      <div className="flex h-11 shrink-0 items-center gap-2 border-b border-border px-3">
+      <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border px-3">
         <ListChecks className="size-4 text-muted-foreground" strokeWidth={1.75} />
         <NodeLabel label={ui.tasks.checklist} count={items.length} />
         {items.length > 0 ? (
-          <span className="font-mono text-[11px] text-muted-foreground tabular-nums">
+          <span className="font-mono text-label-sm text-muted-foreground tabular-nums">
             0/{items.length} {ui.tasks.checklistDoneLabel}
           </span>
         ) : null}

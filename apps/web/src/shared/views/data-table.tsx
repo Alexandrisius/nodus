@@ -11,6 +11,7 @@ import { useAutoFitColumn } from './use-autofit-column.js';
 import { useInfiniteSentinel } from './use-infinite-sentinel.js';
 import { useRowSelection } from './use-row-selection.js';
 import { useViewFields, type FieldDef } from './use-view-fields.js';
+import { uiPx } from '../ui/ui-scale.js';
 import { cn } from '@nodus/ui/lib/utils';
 
 /** Колонка канонической таблицы: поле реестра + рендер ячейки. */
@@ -93,7 +94,7 @@ export function DataTable<T>({
   useInfiniteSentinel(containerRef, sentinelRef, { hasNextPage, isFetchingNextPage, onLoadMore });
 
   const gridTemplateColumns = useMemo(() => {
-    const tracks = [`${LEADING_COL_W}px`, ...visibleFields.map((f) => `${f.width ?? 120}px`)];
+    const tracks = [`${LEADING_COL_W}px`, ...visibleFields.map((f) => `${f.width ?? uiPx(120)}px`)];
     if (actions) tracks.push('auto');
     return tracks.join(' ');
   }, [visibleFields, actions]);
@@ -155,7 +156,7 @@ export function DataTable<T>({
               }
             }}
             className={cn(
-              'grid h-12 w-max min-w-full cursor-pointer items-stretch gap-3 border-b border-border/60 px-4 transition-colors [content-visibility:auto] [contain-intrinsic-size:auto_48px] last:border-b-0 hover:bg-accent/40 focus-visible:outline-2 focus-visible:outline-ring',
+              'grid h-12 w-max min-w-full cursor-pointer items-stretch gap-3 border-b border-border/60 px-4 transition-colors [content-visibility:auto] [contain-intrinsic-size:auto_3rem] last:border-b-0 hover:bg-accent/40 focus-visible:outline-2 focus-visible:outline-ring',
               isSelected && 'bg-accent/50',
             )}
             style={{ gridTemplateColumns }}

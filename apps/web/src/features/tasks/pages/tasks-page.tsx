@@ -83,7 +83,7 @@ function TasksSection({ view, overdueTotal }: { view: 'list' | 'kanban'; overdue
                   aria-pressed={overdueActive}
                   title={ui.tasks.showOverdue}
                   className={cn(
-                    'flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 font-mono text-[11px] tracking-[0.12em] uppercase transition-colors',
+                    'flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-label-sm font-semibold tracking-wide uppercase transition-colors',
                     overdueActive
                       ? 'bg-danger/15 text-danger'
                       : 'text-danger/80 hover:bg-danger/10',

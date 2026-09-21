@@ -107,7 +107,7 @@ export function LetterCard({ letterId }: { letterId: string }) {
               <div className="truncate text-sm font-semibold text-foreground">
                 {letter.correspondent}
               </div>
-              <div className="mt-0.5 flex items-center gap-2 font-mono text-[11px] text-muted-foreground">
+              <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
                 {letter.addressee ? (
                   <>
                     <PersonAvatar name={letter.addressee.displayName} className="size-4" />
@@ -127,7 +127,7 @@ export function LetterCard({ letterId }: { letterId: string }) {
           </div>
 
           {/* Тело письма — читательская колонка */}
-          <p className="mt-5 max-w-3xl text-[15px] leading-relaxed whitespace-pre-wrap text-foreground/90">
+          <p className="mt-5 max-w-3xl text-body-lg leading-relaxed whitespace-pre-wrap text-foreground/90">
             {letter.body}
           </p>
 
@@ -174,7 +174,7 @@ export function LetterCard({ letterId }: { letterId: string }) {
                 <div className="flex items-center gap-2 text-sm">
                   <PersonAvatar name={resolution.author.displayName} className="size-6" />
                   <span className="font-medium">{resolution.author.displayName}</span>
-                  <span className="ml-auto font-mono text-[11px] text-muted-foreground tabular-nums">
+                  <span className="ml-auto font-mono text-label-sm text-muted-foreground tabular-nums">
                     {formatDateTime(resolution.createdAt)}
                   </span>
                 </div>
@@ -183,7 +183,7 @@ export function LetterCard({ letterId }: { letterId: string }) {
                   <button
                     type="button"
                     onClick={() => openCard({ kind: 'task', id: resolution.taskId ?? '' })}
-                    className="mt-1.5 inline-flex items-center gap-1 font-mono text-[11px] tracking-[0.08em] text-info uppercase hover:underline"
+                    className="mt-1.5 inline-flex items-center gap-1 text-xs font-medium text-info hover:underline"
                   >
                     {ui.tasks.instruction}
                     <ArrowRight className="size-3" strokeWidth={1.75} />

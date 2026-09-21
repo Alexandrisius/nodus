@@ -135,11 +135,11 @@ export const ThreadFeed = memo(function ThreadFeed({
                     </span>
                     <span className="mt-2 flex items-center gap-2">
                       <MessageReactions message={root} />
-                      <span className="ml-auto shrink-0 font-mono text-[11px] text-muted-foreground tabular-nums">
+                      <span className="ml-auto shrink-0 font-mono text-label-sm text-muted-foreground tabular-nums">
                         {formatTime(root.createdAt)}
                       </span>
                     </span>
-                    <span className="-mx-3.5 -mb-3.5 mt-3 flex items-center gap-2 rounded-b-[13px] border-t border-border/60 bg-muted/40 px-3.5 py-2">
+                    <span className="-mx-3.5 -mb-3.5 mt-3 flex items-center gap-2 rounded-b-[0.8125rem] border-t border-border/60 bg-muted/40 px-3.5 py-2">
                       {participants.length > 0 ? (
                         <span className="flex shrink-0 -space-x-1.5">
                           {participants.slice(0, 3).map((p) => (
@@ -152,12 +152,12 @@ export const ThreadFeed = memo(function ThreadFeed({
                         </span>
                       ) : null}
                       {repliesCount > 0 ? (
-                        <span className="font-mono text-[11px] text-muted-foreground tabular-nums">
+                        <span className="font-mono text-label-sm text-muted-foreground tabular-nums">
                           {repliesLabel(repliesCount)}
                           {last ? ` · ${formatTime(last.createdAt)}` : ''}
                         </span>
                       ) : null}
-                      <span className="ml-auto inline-flex items-center gap-1 font-mono text-[10px] tracking-[0.12em] text-info uppercase">
+                      <span className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-info">
                         {ui.chat.toThread}
                         <ArrowRight className="size-3" strokeWidth={1.75} />
                       </span>

@@ -10,6 +10,7 @@ import { cn } from '@nodus/ui/lib/utils';
 import { useOpenCard, useReplaceTopCard } from '../../../app/shell/use-card-stack.js';
 import { DomainChain, type ChainNode } from '../../../shared/ui/domain-chain.js';
 import { useChatWidth, MIN_CHAT_WITH_PANEL } from '../../../shared/ui/use-chat-width.js';
+import { uiPx } from '../../../shared/ui/ui-scale.js';
 import { useAddSubtask, useTaskDetail } from '../api/tasks-api.js';
 import { TaskAboutDrawer } from './task-about-drawer.js';
 import { TaskBranchDrawer } from './task-branch-drawer.js';
@@ -31,7 +32,7 @@ const chainCaption: Record<TaskChainNode['kind'], string> = {
 /** Ширина панели «О задаче»: на неё же СУЖАЕТСЯ чат (сумма постоянна, левая
  *  зона и разделитель НЕ двигаются — вердикт владельца; панель при этом
  *  полновысотная и занимает верхний бар, геометрия Битрикс24 15.09.2026). */
-const ABOUT_W = 360;
+const ABOUT_W = uiPx(360);
 
 /**
  * Карточка задачи (универсальный слайдер-слой): шапка — доменная цепочка
@@ -186,7 +187,7 @@ export function TaskCard({ taskId }: { taskId: string }) {
           <div
             className={cn(
               'min-h-0 overflow-hidden transition-[width] duration-200 ease-out',
-              branchOpen ? 'w-[300px]' : 'w-0',
+              branchOpen ? 'w-[18.75rem]' : 'w-0',
             )}
           >
             {branchMounted ? (
@@ -311,7 +312,7 @@ export function TaskCard({ taskId }: { taskId: string }) {
       <div
         className={cn(
           'h-full shrink-0 overflow-hidden transition-[width] duration-200 ease-out',
-          aboutOpen ? 'w-[360px]' : 'w-0',
+          aboutOpen ? 'w-[22.5rem]' : 'w-0',
         )}
       >
         {aboutMounted ? <TaskAboutDrawer task={task} onClose={closeAbout} /> : null}

@@ -33,7 +33,7 @@ export function LetterCardSkeleton() {
         </div>
       </div>
       <div className="flex h-16 shrink-0 items-center gap-2 border-t border-border px-5">
-        <Skeleton className="h-9 flex-1" />
+        <Skeleton className="h-8 flex-1" />
         <Skeleton className="h-7 w-32 shrink-0 rounded-md" />
       </div>
     </div>

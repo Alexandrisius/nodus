@@ -50,7 +50,7 @@ function BarRow({
           style={{ width: `${max > 0 ? Math.max((value / max) * 100, value > 0 ? 3 : 0) : 0}%` }}
         />
       </span>
-      <span className="w-10 shrink-0 text-right font-mono text-[11px] text-muted-foreground tabular-nums">
+      <span className="w-10 shrink-0 text-right font-mono text-label-sm text-muted-foreground tabular-nums">
         {value}
       </span>
     </div>
@@ -127,7 +127,7 @@ export function ProjectReport({ projectId }: { projectId: string }) {
   return (
     <div className="h-full overflow-y-auto p-4">
       <div className="mx-auto flex w-full max-w-4xl flex-col gap-3">
-        <div className="grid grid-cols-2 gap-3 @min-[720px]:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 @min-[45rem]:grid-cols-4">
           <KpiTile label={ui.projects.report.total} value={String(model.total)} />
           <KpiTile label={ui.projects.report.active} value={String(model.active)} />
           <KpiTile label={ui.projects.report.done} value={String(model.done)} />
@@ -138,7 +138,7 @@ export function ProjectReport({ projectId }: { projectId: string }) {
           />
         </div>
 
-        <div className="grid gap-3 @min-[720px]:grid-cols-2">
+        <div className="grid gap-3 @min-[45rem]:grid-cols-2">
           <section className="node-panel p-4">
             <NodeLabel label={ui.projects.report.byStage} />
             <div className="mt-3 flex flex-col gap-2.5">

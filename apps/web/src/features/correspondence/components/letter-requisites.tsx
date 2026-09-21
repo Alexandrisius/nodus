@@ -10,7 +10,7 @@ import { LetterStatusBadge } from './letter-status-badge.js';
 
 const VISIBILITY_KEY = 'nodus-letter-fields-v1';
 
-const monoValue = 'font-mono text-[12px] tabular-nums';
+const monoValue = 'font-mono text-label-sm tabular-nums';
 
 /** Реквизиты регистрации письма (общий каркас EntityFields, свои defs):
  *  статус, рег. номер и дата, проект, срок. Корреспондент/адресат/время —
@@ -53,7 +53,7 @@ export const LetterRequisites = memo(function LetterRequisites({
       label: ui.letters.project,
       render: () =>
         letter.project ? (
-          <span className="font-mono text-[12px] text-info">{letter.project.name}</span>
+          <span className="text-sm text-info">{letter.project.name}</span>
         ) : (
           ui.common.notSet
         ),

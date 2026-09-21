@@ -25,12 +25,10 @@ export function HomeGreeting() {
 
   return (
     <div className="flex min-w-0 items-baseline gap-3">
-      <h1 className="truncate text-[15px] font-semibold text-foreground">
+      <h1 className="truncate text-lg font-semibold text-foreground">
         {greet}, {me?.displayName.split(' ')[0]}
       </h1>
-      <span className="truncate font-mono text-[11px] tracking-[0.08em] text-muted-foreground first-letter:uppercase">
-        {today}
-      </span>
+      <span className="truncate text-xs text-muted-foreground first-letter:uppercase">{today}</span>
     </div>
   );
 }

@@ -13,6 +13,7 @@ import { useRowSelection } from '../../../shared/views/use-row-selection.js';
 import type { ActiveListFilter } from '../../../shared/views/list-filters.js';
 import { useFilteredList } from '../../../shared/views/use-list-toolbar.js';
 import { useViewFields } from '../../../shared/views/use-view-fields.js';
+import { uiPx } from '../../../shared/ui/ui-scale.js';
 import { useTasksPages, usePrefetchTask } from '../api/tasks-api.js';
 import type { TaskListItem } from '@nodus/contracts';
 import { taskListFields } from '../lib/task-fields.js';
@@ -74,7 +75,7 @@ export function TaskList({ filter }: { filter?: ActiveListFilter<TaskListItem> }
 
   const gridTemplateColumns = useMemo(() => {
     const maxDepth = visible.reduce((max, row) => Math.max(max, row.depth), 0);
-    return `${LEADING_COL_W}px ${graphWidth(maxDepth)}px ${visibleFields.map((f) => `${f.width ?? 120}px`).join(' ')}`;
+    return `${LEADING_COL_W}px ${graphWidth(maxDepth)}px ${visibleFields.map((f) => `${f.width ?? uiPx(120)}px`).join(' ')}`;
   }, [visibleFields, visible]);
 
   function toggleBranch(taskId: string) {
@@ -156,7 +157,7 @@ export function TaskList({ filter }: { filter?: ActiveListFilter<TaskListItem> }
                 }
               }}
               className={cn(
-                'group/row grid h-12 w-max min-w-full cursor-pointer items-stretch gap-3 border-b border-border/60 px-4 transition-colors [content-visibility:auto] [contain-intrinsic-size:auto_48px] last:border-b-0 hover:bg-accent/40 focus-visible:outline-2 focus-visible:outline-ring',
+                'group/row grid h-12 w-max min-w-full cursor-pointer items-stretch gap-3 border-b border-border/60 px-4 transition-colors [content-visibility:auto] [contain-intrinsic-size:auto_3rem] last:border-b-0 hover:bg-accent/40 focus-visible:outline-2 focus-visible:outline-ring',
                 isSelected && 'bg-accent/50',
               )}
               style={{ gridTemplateColumns }}

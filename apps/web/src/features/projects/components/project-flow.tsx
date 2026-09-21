@@ -7,10 +7,11 @@ import { cn } from '@nodus/ui/lib/utils';
 
 import { stageTone } from '../../../shared/ui/board/stage-tone.js';
 import { useProjectTaskPages } from '../api/projects-api.js';
+import { uiPx } from '../../../shared/ui/ui-scale.js';
 
 /** Геометрия узла схемы (px): карточка w-44 (176) × ~64. */
-const NODE_W = 176;
-const NODE_H = 64;
+const NODE_W = uiPx(176);
+const NODE_H = uiPx(64);
 
 interface FlowNode {
   id: string;
@@ -23,11 +24,11 @@ interface FlowNode {
 /** Узлы — стадии workflow проекта (имена — из i18n колонок канбана).
  *  Зазор 104px между узлами — под подпись перехода (моно 9px uppercase). */
 const flowNodes: FlowNode[] = [
-  { id: 'new', label: ui.tasks.colNew, color: 'neutral', x: 0, y: 140 },
-  { id: 'work', label: ui.tasks.colInProgress, color: 'info', x: 280, y: 140 },
-  { id: 'review', label: ui.tasks.colOnControl, color: 'warning', x: 560, y: 140 },
-  { id: 'done', label: ui.tasks.colDone, color: 'success', x: 840, y: 140 },
-  { id: 'paused', label: ui.tasks.colPostponed, color: 'neutral', x: 280, y: 310 },
+  { id: 'new', label: ui.tasks.colNew, color: 'neutral', x: 0, y: uiPx(140) },
+  { id: 'work', label: ui.tasks.colInProgress, color: 'info', x: uiPx(280), y: uiPx(140) },
+  { id: 'review', label: ui.tasks.colOnControl, color: 'warning', x: uiPx(560), y: uiPx(140) },
+  { id: 'done', label: ui.tasks.colDone, color: 'success', x: uiPx(840), y: uiPx(140) },
+  { id: 'paused', label: ui.tasks.colPostponed, color: 'neutral', x: uiPx(280), y: uiPx(310) },
 ];
 
 const midY = (n: FlowNode) => n.y + NODE_H / 2;
@@ -65,7 +66,7 @@ const flowEdges: FlowEdge[] = (() => {
         [nWork.x, midY(nWork)],
       ],
       label: ui.projects.flow.takeToWork,
-      labelAt: [(nNew.x + NODE_W + nWork.x) / 2, midY(nNew) - 12],
+      labelAt: [(nNew.x + NODE_W + nWork.x) / 2, midY(nNew) - uiPx(12)],
     },
     {
       id: 'review',
@@ -74,7 +75,7 @@ const flowEdges: FlowEdge[] = (() => {
         [nReview.x, midY(nReview)],
       ],
       label: ui.projects.flow.toReview,
-      labelAt: [(nWork.x + NODE_W + nReview.x) / 2, midY(nWork) - 12],
+      labelAt: [(nWork.x + NODE_W + nReview.x) / 2, midY(nWork) - uiPx(12)],
     },
     {
       id: 'approve',
@@ -83,36 +84,36 @@ const flowEdges: FlowEdge[] = (() => {
         [nDone.x, midY(nDone)],
       ],
       label: ui.projects.flow.approve,
-      labelAt: [(nReview.x + NODE_W + nDone.x) / 2, midY(nReview) - 12],
+      labelAt: [(nReview.x + NODE_W + nDone.x) / 2, midY(nReview) - uiPx(12)],
     },
     {
       id: 'return',
       points: [
-        [nReview.x + 88, bottomY(nReview)],
-        [nReview.x + 88, 262],
-        [nWork.x + 170, 262],
-        [nWork.x + 170, bottomY(nWork)],
+        [nReview.x + uiPx(88), bottomY(nReview)],
+        [nReview.x + uiPx(88), uiPx(262)],
+        [nWork.x + uiPx(170), uiPx(262)],
+        [nWork.x + uiPx(170), bottomY(nWork)],
       ],
       label: ui.projects.flow.returnBack,
-      labelAt: [(nReview.x + 88 + nWork.x + 170) / 2, 278],
+      labelAt: [(nReview.x + uiPx(88) + nWork.x + uiPx(170)) / 2, uiPx(278)],
     },
     {
       id: 'postpone',
       points: [
-        [nWork.x + 70, bottomY(nWork)],
-        [nPaused.x + 70, nPaused.y],
+        [nWork.x + uiPx(70), bottomY(nWork)],
+        [nPaused.x + uiPx(70), nPaused.y],
       ],
       label: ui.projects.flow.postpone,
-      labelAt: [nWork.x + 70, 236],
+      labelAt: [nWork.x + uiPx(70), uiPx(236)],
     },
     {
       id: 'resume',
       points: [
-        [nPaused.x + 130, nPaused.y],
-        [nWork.x + 130, bottomY(nWork)],
+        [nPaused.x + uiPx(130), nPaused.y],
+        [nWork.x + uiPx(130), bottomY(nWork)],
       ],
       label: ui.projects.flow.resume,
-      labelAt: [nWork.x + 130, 266],
+      labelAt: [nWork.x + uiPx(130), uiPx(266)],
     },
   ];
 })();
@@ -172,16 +173,16 @@ export function ProjectFlow({ projectId }: { projectId: string }) {
   if (isLoading) {
     return (
       <div className="p-4">
-        <Skeleton className="h-[420px] w-full max-w-4xl" />
+        <Skeleton className="h-[26.25rem] w-full max-w-4xl" />
       </div>
     );
   }
 
   return (
     <div className="h-full overflow-auto p-5">
-      <div className="relative mx-auto" style={{ width: 1016, height: 390 }}>
+      <div className="relative mx-auto" style={{ width: uiPx(1016), height: uiPx(390) }}>
         {/* Рёбра — SVG-подложка: порты у источников, стрелки у целей. */}
-        <svg aria-hidden className="absolute inset-0" width={1016} height={390}>
+        <svg aria-hidden className="absolute inset-0" width={uiPx(1016)} height={uiPx(390)}>
           <defs>
             <marker
               id="project-flow-arrow"
@@ -215,7 +216,7 @@ export function ProjectFlow({ projectId }: { projectId: string }) {
         {flowEdges.map((edge) => (
           <span
             key={`${edge.id}-label`}
-            className="absolute -translate-x-1/2 -translate-y-1/2 bg-background px-1 font-mono text-[9px] tracking-[0.1em] whitespace-nowrap text-muted-foreground uppercase"
+            className="absolute -translate-x-1/2 -translate-y-1/2 bg-background px-1 font-mono text-label-xs tracking-[0.1em] whitespace-nowrap text-muted-foreground uppercase"
             style={{ left: edge.labelAt[0], top: edge.labelAt[1] }}
           >
             {edge.label}
@@ -227,7 +228,7 @@ export function ProjectFlow({ projectId }: { projectId: string }) {
             <div className="flex items-center gap-2">
               <span aria-hidden className={cn('size-2 rounded-full', stageTone[n.color].dot)} />
               <span className="truncate text-sm font-medium">{n.label}</span>
-              <span className="ml-auto font-mono text-[11px] text-muted-foreground tabular-nums">
+              <span className="ml-auto font-mono text-label-sm text-muted-foreground tabular-nums">
                 {counts[n.id] ?? 0}
               </span>
             </div>

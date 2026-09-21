@@ -108,7 +108,7 @@ describe('view-store: порядок колонок и видимость', () =
 
   it('rehydrate: битый вид отбрасывается, соседний выживает', async () => {
     localStorage.setItem(
-      'nodus-views-v1',
+      'nodus-views-v2',
       JSON.stringify({
         state: {
           views: {

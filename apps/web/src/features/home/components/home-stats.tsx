@@ -9,11 +9,9 @@ function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string
     <div className="node-panel p-4">
       <div className="flex items-center gap-2 text-muted-foreground">
         {icon}
-        <span className="font-mono text-[11px] font-medium tracking-[0.14em] uppercase">
-          {label}
-        </span>
+        <span className="text-label font-semibold tracking-[0.08em] uppercase">{label}</span>
       </div>
-      <div className="mt-3 font-mono text-[28px] leading-none font-semibold text-foreground tabular-nums">
+      <div className="mt-3 font-mono text-stat leading-none font-semibold text-foreground tabular-nums">
         {value}
       </div>
     </div>
