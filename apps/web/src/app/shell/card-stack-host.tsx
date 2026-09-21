@@ -33,9 +33,12 @@ interface EntryProps {
   id: string;
   source: SourceRect | undefined;
   onClose: () => void;
+  /** Карточка спит под верхними (content-visibility, issue #63): рендеринг
+   *  её поддерева пропускается, состояние сохраняется. */
+  dormant: boolean;
 }
 
-function TaskEntry({ id, source, onClose }: EntryProps) {
+function TaskEntry({ id, source, onClose, dormant }: EntryProps) {
   const { data: task } = useTaskDetail(id);
   return (
     <SliderPanel
@@ -43,13 +46,14 @@ function TaskEntry({ id, source, onClose }: EntryProps) {
       onClose={onClose}
       sourceRect={source}
       fadeContent={false}
+      dormant={dormant}
     >
       <TaskCard taskId={id} />
     </SliderPanel>
   );
 }
 
-function ProjectEntry({ id, source, onClose }: EntryProps) {
+function ProjectEntry({ id, source, onClose, dormant }: EntryProps) {
   const { data: project } = useProjectDetail(id);
   return (
     <SliderPanel
@@ -66,22 +70,28 @@ function ProjectEntry({ id, source, onClose }: EntryProps) {
       onClose={onClose}
       sourceRect={source}
       fadeContent={false}
+      dormant={dormant}
     >
       <ProjectCard projectId={id} />
     </SliderPanel>
   );
 }
 
-function LetterEntry({ id, source, onClose }: EntryProps) {
+function LetterEntry({ id, source, onClose, dormant }: EntryProps) {
   const { data: letter } = useLetterDetail(id);
   return (
-    <SliderPanel title={letter?.subject ?? ui.letters.letter} onClose={onClose} sourceRect={source}>
+    <SliderPanel
+      title={letter?.subject ?? ui.letters.letter}
+      onClose={onClose}
+      sourceRect={source}
+      dormant={dormant}
+    >
       <LetterCard letterId={id} />
     </SliderPanel>
   );
 }
 
-function EmployeeEntry({ id, source, onClose }: EntryProps) {
+function EmployeeEntry({ id, source, onClose, dormant }: EntryProps) {
   const { data } = useUsersList();
   const user = data?.items.find((u) => u.id === id);
   return (
@@ -90,6 +100,7 @@ function EmployeeEntry({ id, source, onClose }: EntryProps) {
       onClose={onClose}
       sourceRect={source}
       fadeContent={false}
+      dormant={dormant}
     >
       <EmployeeCard userId={id} />
     </SliderPanel>
@@ -109,7 +120,7 @@ function EmployeeEntry({ id, source, onClose }: EntryProps) {
  *  карточки (клик по другой беседе полосы) меняет id БЕЗ ремаунта панели —
  *  синхронизация эффектом. Вкладка и тред — локальное состояние (чужие
  *  маршруту search-параметры не пишем). */
-function MessengerEntry({ id, source, onClose }: EntryProps) {
+function MessengerEntry({ id, source, onClose, dormant }: EntryProps) {
   const [conversationId, setConversationId] = useState(id);
   const [tab, setTab] = useState<ChatTab>('chats');
   const [threadRootId, setThreadRootId] = useState<string | null>(null);
@@ -129,6 +140,7 @@ function MessengerEntry({ id, source, onClose }: EntryProps) {
       onClose={onClose}
       sourceRect={source}
       fadeContent={false}
+      dormant={dormant}
     >
       <MessengerBody
         tab={tab}
@@ -145,7 +157,15 @@ function MessengerEntry({ id, source, onClose }: EntryProps) {
 /** Один слайдер стека: rect источника потребляется на маунте (FLIP-раскрытие
  *  из строки/карточки, по которой кликнули); восстановленные из URL (F5,
  *  прямая ссылка) раскрываются сдержанным scale-fade. */
-function CardStackEntry({ cardRef, onClose }: { cardRef: CardRef; onClose: () => void }) {
+function CardStackEntry({
+  cardRef,
+  dormant,
+  onClose,
+}: {
+  cardRef: CardRef;
+  dormant: boolean;
+  onClose: () => void;
+}) {
   const [source] = useState(() => useShellStore.getState().lastSource ?? undefined);
   useEffect(() => {
     useShellStore.getState().setLastSource(null);
@@ -153,26 +173,40 @@ function CardStackEntry({ cardRef, onClose }: { cardRef: CardRef; onClose: () =>
 
   switch (cardRef.kind) {
     case 'task':
-      return <TaskEntry id={cardRef.id} source={source} onClose={onClose} />;
+      return <TaskEntry id={cardRef.id} source={source} onClose={onClose} dormant={dormant} />;
     case 'project':
-      return <ProjectEntry id={cardRef.id} source={source} onClose={onClose} />;
+      return <ProjectEntry id={cardRef.id} source={source} onClose={onClose} dormant={dormant} />;
     case 'letter':
-      return <LetterEntry id={cardRef.id} source={source} onClose={onClose} />;
+      return <LetterEntry id={cardRef.id} source={source} onClose={onClose} dormant={dormant} />;
     case 'employee':
-      return <EmployeeEntry id={cardRef.id} source={source} onClose={onClose} />;
+      return <EmployeeEntry id={cardRef.id} source={source} onClose={onClose} dormant={dormant} />;
     case 'messenger':
-      return <MessengerEntry id={cardRef.id} source={source} onClose={onClose} />;
+      return <MessengerEntry id={cardRef.id} source={source} onClose={onClose} dormant={dormant} />;
   }
 }
 
 export function CardStackHost() {
   const stack = useCardStack();
   const closeCard = useCloseCard();
+  // DORMANCY нижних карточек (issue #63): у стека уровней/смещений нет — всё
+  // кроме верхней полностью накрыто, но его тяжёлое поддерево (чаты, таблицы)
+  // продолжало перекладываться на каждый кадр width-перехода полосы.
+  // content-visibility:hidden на хосте отключает рендеринг накрытых
+  // карточек; пробуждение — на один шаг глубже (`cardClosing`): верхняя
+  // начала закрываться → нижняя отрисовывается в окне гашения контента
+  // (CONTENT_FADE_MS) ДО схлопывания верхней — «провала» на фон нет.
+  const cardClosing = useShellStore((s) => s.cardClosing);
+  const revealFrom = stack.length - 1 - (cardClosing ? 1 : 0);
   return stack.map((cardRef, index) => (
     // index+kind в ключе (без id): одна сущность может встречаться в стеке
     // дважды (цепочка задача → подзадача); замена верхней (режим «Навигация»
     // ветки, useReplaceTopCard) подменяет id БЕЗ ремаунта панели — карточка
     // стоит на месте, меняется только содержимое.
-    <CardStackEntry key={`${index}:${cardRef.kind}`} cardRef={cardRef} onClose={closeCard} />
+    <CardStackEntry
+      key={`${index}:${cardRef.kind}`}
+      cardRef={cardRef}
+      dormant={index < revealFrom}
+      onClose={closeCard}
+    />
   ));
 }

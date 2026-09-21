@@ -3,14 +3,16 @@ import { ui } from '@nodus/contracts';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { useOpenCard } from '../../../app/shell/use-card-stack.js';
+import { useRailShrink } from '../../../app/shell/right-rail.js';
 import {
+  CHAT_PANEL_W,
   ChatPanelToggle,
   ChatSidePanel,
-  MIN_COLUMN_WITH_PANEL,
+  MIN_FEED_WITH_PANEL,
   useChatSidePanel,
 } from '../../../shared/chat/chat-side-panel.js';
 import { EntityFields } from '../../../shared/ui/entity-fields.js';
-import { useChatWidth } from '../../../shared/ui/use-chat-width.js';
+import { MIN_CHAT_W, useChatWidth } from '../../../shared/ui/use-chat-width.js';
 import { useProjectDetail } from '../api/projects-api.js';
 import { projectPassportDefs } from '../lib/project-passport.js';
 import { ProjectCardSkeleton } from './project-card-skeleton.js';
@@ -51,22 +53,25 @@ export function ProjectCard({ projectId }: { projectId: string }) {
   const openCard = useOpenCard();
   // Панель беседы (закон чата): тоггл — в баре ленты канала на правом краю
   // ЛЕНТЫ (закон мессенджера — шапки с названием у самого чата НЕТ);
-  // панель — внутри колонки чата (анимируется ОДНА ширина — левая зона не
-  // дёргается); лента не уже 360 при открытой панели.
+  // панель сужает КОЛОНКУ ЧАТА (канон «чат — буфер сужений»): левая зона
+  // не дёргается; лента не уже 360 при открытой панели.
   const panel = useChatSidePanel();
   // Открытый тред канала — состояние карточки: область панели беседы
   // («Этот тред») и ChannelView читают его из одного места (#42).
   const [threadId, setThreadId] = useState<string | null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
-  const { chatW, onDividerDown, dragging } = useChatWidth(
-    chatRef,
-    0,
-    panel.open ? MIN_COLUMN_WITH_PANEL : undefined,
-  );
-  const columnW = panel.open ? Math.max(chatW, MIN_COLUMN_WITH_PANEL) : chatW;
+  // КАНОН «чат — буфер сужений» (issue #63): панель беседы и раскрытие
+  // служебной полосы сужают КОЛОНКУ ЧАТА до её минимума (лента 360 при
+  // панели, иначе drag-пол MIN_CHAT_W); после упора сужение двигает ЛЕВУЮ
+  // зону (без пола — жёсткий пол обрезал чат за краем карточки).
+  const railShrink = useRailShrink();
+  const shrink = railShrink + (panel.open ? CHAT_PANEL_W : 0);
+  const chatFloor = panel.open ? MIN_FEED_WITH_PANEL : MIN_CHAT_W;
+  const { chatW, onDividerDown, dragging } = useChatWidth(chatRef, shrink, chatFloor);
+  const columnW = Math.max(chatW - shrink, chatFloor);
 
   if (isLoading || !project) {
-    return <ProjectCardSkeleton chatW={chatW} />;
+    return <ProjectCardSkeleton chatW={columnW} />;
   }
 
   // Бар ленты канала: тоггл панели беседы на ПРАВОМ КРАЮ ЛЕНТЫ (закон
@@ -154,10 +159,10 @@ export function ProjectCard({ projectId }: { projectId: string }) {
       {/* Колонка обсуждения (канал проекта) — ПОЛНОВЫСОТНЫЙ сиблинг: окно
         треда внутри поднимается до верха карточки (ступеньки нет), его бар
         на линии таб-бара; бар ленты (`chatBar`) несёт тоггл панели и
-        продолжает линию border-b. Панель беседы — ВНУТРИ колонки справа:
-        анимируется ОДНА ширина колонки (левая зона не дёргается); лента не
-        уже 360px при открытой панели (колонка ≥ 660 — тогда панель
-        выталкивает левую зону, по правилу владельца). */}
+        продолжает линию border-b. БУФЕР СУЖЕНИЙ (issue #63): панель беседы и
+        раскрытие рельсы сужают ЭТУ колонку (columnW, те же 200мс ease-out,
+        что у панели) — левая зона стоит; пол — лента 360 при панели (иначе
+        drag-пол), после упора сужение двигает левую зону. */}
       <div
         ref={chatRef}
         className={cn(

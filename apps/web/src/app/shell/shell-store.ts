@@ -18,12 +18,19 @@ interface ShellState {
    *  ширина полосы меняет геометрию карточек-слайдеров (правый край карточки
    *  = правый край мягкой рамы, план R4) — состояние нужно двум компонентам. */
   edgeOpen: boolean;
+  /** Верхняя карточка стека ЗАКРЫВАЕТСЯ (фаза гашения + схлопывание,
+   *  requestClose → unmount, issue #63): сигнал для нижних карточек
+   *  (проснуться из content-visibility-сна и отрисоваться ДО схлопывания
+   *  верхней) и контура шелла (перемериться и проснуться под уходящей
+   *  карточкой). Сбрасывается unmount-очисткой закрывающейся панели. */
+  cardClosing: boolean;
   /** Rect источника, от которого раскрылся слайдер (shared-element); null — scale-fade. */
   lastSource: SourceRect | null;
   toggleMenu: () => void;
   toggleTheme: () => void;
   setCommandOpen: (open: boolean) => void;
   setEdgeOpen: (open: boolean) => void;
+  setCardClosing: (closing: boolean) => void;
   setLastSource: (source: SourceRect | null) => void;
 }
 
@@ -36,11 +43,13 @@ export const useShellStore = create<ShellState>()(
       theme: 'light',
       commandOpen: false,
       edgeOpen: false,
+      cardClosing: false,
       lastSource: null,
       toggleMenu: () => set((s) => ({ menuCollapsed: !s.menuCollapsed })),
       toggleTheme: () => set((s) => ({ theme: s.theme === 'dark' ? 'light' : 'dark' })),
       setCommandOpen: (commandOpen) => set({ commandOpen }),
       setEdgeOpen: (edgeOpen) => set({ edgeOpen }),
+      setCardClosing: (cardClosing) => set({ cardClosing }),
       setLastSource: (lastSource) => set({ lastSource }),
     }),
     {

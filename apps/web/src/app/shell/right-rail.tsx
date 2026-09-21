@@ -18,14 +18,27 @@ import { useShellStore } from './shell-store.js';
 import type { SourceRect } from './slider-panel.js';
 import { useCardStack, useOpenCard, useReplaceTopCard } from './use-card-stack.js';
 
-/** Ширина полосы: свёрнутая / раскрытая. Раскрытая 216px = 192 + ~12%
- *  (вердикт владельца 15.09.2026: «увеличь ширину выдвижения на 10–15%»).
+/** Ширина полосы: свёрнутая / раскрытая.
  *  Экспортируется для карточек-слайдеров: их правый край = правый край
  *  мягкой рамы = левый край полосы (единая геометрия шелла). */
 export const EDGE_W_COLLAPSED = uiPx(40);
 /** Ширина развёрнутой рейки — по замеру Битрикс24 (ambient-проба владельца
  *  21.09.2026: nav главного меню = 240px). */
 export const EDGE_W_EXPANDED = uiPx(192);
+/** На сколько СУЖАЕТСЯ карточка раскрытием полосы: ровно столько чат
+ *  карточки отдаёт шириной (канон «чат — буфер сужений», левая зона стоит). */
+export const EDGE_W_DELTA = EDGE_W_EXPANDED - EDGE_W_COLLAPSED;
+
+/** Стоящее сужение карточки раскрытой полосой: столько px колонка
+ *  обсуждения карточки отдаёт шириной при раскрытии рельсы (канон «чат —
+ *  буфер сужений», issue #63: левая зона карточки стоит, ест только после
+ *  упора чата в пол). 0 при скрытой полосе (/chat — карточка там шире на
+ *  свёрнутую полосу, сужать нечего) — та же логика stripW в SliderPanel. */
+export function useRailShrink(): number {
+  const edgeOpen = useShellStore((s) => s.edgeOpen);
+  const railHidden = useRailHidden();
+  return edgeOpen && !railHidden ? EDGE_W_DELTA : 0;
+}
 
 /** Маркеры типа беседы на аватарках полосы УБРАНЫ (вердикт владельца
  *  15.09.2026: «закрывают почти 30 процентов аватарки»); тип читается
@@ -83,8 +96,7 @@ function ChatRailRow({
       </span>
       {/* Название — кросс-фейд max-width/opacity, как строки рейки: рефлоу
           ширины полосы идёт без рывков и обрезания текста на полуслове.
-          Кегль 11px — компактнее списка мессенджера (вердикт владельца
-          15.09.2026: «огромные буквы» при 13px, затем «ещё меньше» при 12px). */}
+          text-label 13px — плотная метка (типографика #60). */}
       <span
         onMouseEnter={clippedTitle}
         className={cn(
@@ -117,10 +129,10 @@ function ChatRailRow({
  * уведомлений (ProfileMenu, вердикт 15.09.2026). Полоса живёт ЗА ПРЕДЕЛАМИ
  * мягкой рамы — в правом периметре, на его тоне и БЕЗ вертикальных границ
  * (план R3/R4). Раскрытие — КНОПКОЙ-шевронами внизу (без авто-раскрытия по
- * наведению; персистится в nodus-shell-v1): РЕФЛОУ 40 ⇄ 216px, мягкая рама
- * сужается влево синхронно; карточки держат правый край по раме
- * (slider-panel); контур перемеряется слушателем transition width
- * (circuit-frame).
+ * наведению; персистится в nodus-shell-v1): РЕФЛОУ 40 ⇄ 192 дизайн-px (240
+ * при масштабе 1.25), мягкая рама сужается влево синхронно; карточки держат
+ * правый край по раме (slider-panel), сузившуюся ширину отдавая ЧАТОМ (канон
+ * «чат — буфер сужений»); контур под карточкой спит (circuit-frame).
  */
 export function RightRail() {
   const { data } = useConversations();
@@ -156,7 +168,7 @@ export function RightRail() {
         // края периметра без скачка отступов (модуль мессенджер / фулскрин-
         // карточка мессенджера — useRailHidden, план messenger-fullscreen).
         'relative mr-2 flex shrink-0 flex-col pt-2 transition-[width,opacity] duration-200 ease-out',
-        hidden ? 'pointer-events-none w-0 overflow-hidden opacity-0' : edgeOpen ? 'w-54' : 'w-10',
+        hidden ? 'pointer-events-none w-0 overflow-hidden opacity-0' : edgeOpen ? 'w-48' : 'w-10',
       )}
     >
       <div className="flex min-h-0 flex-1 flex-col">

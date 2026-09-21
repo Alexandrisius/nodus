@@ -8,8 +8,13 @@ import { NodeLabel } from '@nodus/ui/components/node-label';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { useOpenCard, useReplaceTopCard } from '../../../app/shell/use-card-stack.js';
+import { useRailShrink } from '../../../app/shell/right-rail.js';
 import { DomainChain, type ChainNode } from '../../../shared/ui/domain-chain.js';
-import { useChatWidth, MIN_CHAT_WITH_PANEL } from '../../../shared/ui/use-chat-width.js';
+import {
+  useChatWidth,
+  MIN_CHAT_WITH_PANEL,
+  MIN_CHAT_W,
+} from '../../../shared/ui/use-chat-width.js';
 import { uiPx } from '../../../shared/ui/ui-scale.js';
 import { useAddSubtask, useTaskDetail } from '../api/tasks-api.js';
 import { TaskAboutDrawer } from './task-about-drawer.js';
@@ -33,6 +38,10 @@ const chainCaption: Record<TaskChainNode['kind'], string> = {
  *  зона и разделитель НЕ двигаются — вердикт владельца; панель при этом
  *  полновысотная и занимает верхний бар, геометрия Битрикс24 15.09.2026). */
 const ABOUT_W = uiPx(360);
+/** Ширина навигатора ветки — тоже за счёт ЧАТА (канон «чат — буфер сужений»,
+ *  issue #63: любое сужение ряда — рельса, ветка, «О задаче» — сначала ест
+ *  колонку обсуждения до её пола; дальше движется ЛЕВАЯ зона). */
+const BRANCH_W = uiPx(300);
 
 /**
  * Карточка задачи (универсальный слайдер-слой): шапка — доменная цепочка
@@ -86,10 +95,20 @@ export function TaskCard({ taskId }: { taskId: string }) {
     });
   }, [replaceTopCard]);
   const chatRef = useRef<HTMLDivElement>(null);
-  // При открытой «О задаче» чат СУЖАЕТСЯ на ширину панели (сумма постоянна,
-  // левая зона и разделитель не двигаются — вердикт владельца); панель при
-  // этом полновысотный сиблинг вне сетки (геометрия Битрикс24, 15.09.2026).
-  const { chatW, onDividerDown, dragging } = useChatWidth(chatRef, aboutOpen ? ABOUT_W : 0);
+  // КАНОН «чат — буфер сужений» (issue #63, вердикт владельца 21.09.2026):
+  // ЛЮБОЕ стоящее сужение ряда — рельса, навигатор ветки, «О задаче» — сначала
+  // съедает колонку обсуждения ДО ЕЁ МИНИМУМА (общий пол = drag-минимум
+  // MIN_CHAT_W; глубже — только временное исключение открытой «О задаче»
+  // MIN_CHAT_WITH_PANEL); после упора чата двигается ЛЕВАЯ зона (без пола:
+  // жёсткий пол выталкивал чат за край карточки — обрезка ниже минимума).
+  // Рендер-ширина и drag-формула хука ходят по ОДНОМУ shrink и ОДНОМУ полу,
+  // transition колонки — те же 200мс ease-out, что у рельсы/панелей: сумма
+  // «ряд − чат» постоянна покадрово, граница зон не дёргается.
+  const railShrink = useRailShrink();
+  const shrink = (aboutOpen ? ABOUT_W : 0) + (branchOpen ? BRANCH_W : 0) + railShrink;
+  const chatFloor = aboutOpen ? MIN_CHAT_WITH_PANEL : MIN_CHAT_W;
+  const { chatW, onDividerDown, dragging } = useChatWidth(chatRef, shrink, chatFloor);
+  const chatColumnW = Math.max(chatW - shrink, chatFloor);
   // Стабильные колбэки: дочерние панели мемоизированы, инлайн-стрелки
   // ломали бы memo на каждом рендере.
   const closeBranch = useCallback(() => setBranchOpen(false), []);
@@ -104,7 +123,7 @@ export function TaskCard({ taskId }: { taskId: string }) {
   }
 
   if (isLoading || !task) {
-    return <TaskCardSkeleton chatW={chatW} />;
+    return <TaskCardSkeleton chatW={chatColumnW} />;
   }
 
   const chainNodes: ChainNode[] = task.chain.map((node, i) => ({
@@ -179,10 +198,12 @@ export function TaskCard({ taskId }: { taskId: string }) {
         {/* Треки БЕЗ transition и БЕЗ setState на кадр: во время drag ширина
           чата выставляется императивно (el.style.width в rAF), React не
           рендерит карточку (gotchas: transition при ручном ресайзе = фризы).
-          Пуш панелей изолирован transition-[width] на их колонках. */}
+          Пуш панелей изолирован transition-[width] на их колонках. Левый
+          трек minmax(0,1fr) — БЕЗ пола: после упора чата в свой минимум
+          дальнейшее сужение двигает ЛЕВУЮ зону (вердикт владельца 21.09). */}
         <div
           className="relative grid min-h-0 flex-1"
-          style={{ gridTemplateColumns: `auto minmax(0,1fr) auto` }}
+          style={{ gridTemplateColumns: 'auto minmax(0,1fr) auto' }}
         >
           <div
             className={cn(
@@ -285,9 +306,11 @@ export function TaskCard({ taskId }: { taskId: string }) {
           {/* Зона чата: тёмный фон — структура (виден с первого кадра роста,
             НЕ появляется вместе с контентом — иначе читается как смена цвета
             в середине раскрытия); fade — только содержимое обсуждения.
-            При открытой «О задаче» СУЖАЕТСЯ на ширину панели (та же
-            duration/easing — синхронно с её ростом, сумма постоянна):
-            левая зона и разделитель НЕ двигаются (вердикт владельца). */}
+            БУФЕР СУЖЕНИЙ (issue #63): рельса/ветка/«О задаче» сужают ЭТУ
+            колонку (chatColumnW, те же 200мс ease-out, что у источника
+            сужения) — левая зона и разделитель стоят на месте; после упора
+            чата в его минимум (MIN_CHAT_W, при «О задаче» —
+            MIN_CHAT_WITH_PANEL) сужение двигает левую зону. */}
           <div
             ref={chatRef}
             className={cn(
@@ -296,7 +319,7 @@ export function TaskCard({ taskId }: { taskId: string }) {
               // во время ручного drag — снят, ширина идёт императивно (gotchas)
               !dragging && 'transition-[width] duration-200 ease-out',
             )}
-            style={{ width: Math.max(chatW - (aboutOpen ? ABOUT_W : 0), MIN_CHAT_WITH_PANEL) }}
+            style={{ width: chatColumnW }}
           >
             <div className="h-full w-full bg-background">
               <div className="content-fade h-full">
