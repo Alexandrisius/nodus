@@ -11,6 +11,7 @@ function conv(id: string, at: string | null, pinned = false): ConversationListIt
     avatarUrl: null,
     project: null,
     task: null,
+    letter: null,
     membersPreview: [],
     lastMessage: at
       ? {

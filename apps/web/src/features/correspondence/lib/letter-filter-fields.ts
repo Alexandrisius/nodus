@@ -5,38 +5,49 @@ import { ui } from '@nodus/contracts';
 import { useUsersList } from '../../../shared/api/users-list.js';
 import type { FilterFieldDef, FilterValue } from '../../../shared/views/list-filters.js';
 import type { FilterPreset } from '../../../shared/views/use-list-toolbar.js';
+import { documentStateOf } from './letter-document.js';
 
-/** Поисковая строка письма: рег. номер + тема + корреспондент. */
+/** Поисковая строка письма: рег. номер + тема + контрагент. */
 export const letterSearchText = (l: LetterListItem) =>
-  `${l.regNumber ?? ''} ${l.subject} ${l.correspondent}`;
+  `${l.registration?.regNumber ?? ''} ${l.subject} ${l.counterparty.name}`;
 
-/** Встроенные пресеты писем (левая колонка панели фильтра). */
-export const letterBuiltinPresets: FilterPreset[] = [
-  { id: 'in-work', name: ui.letters.status.in_work, state: { status: 'in_work' } },
-  { id: 'overdue', name: ui.letters.status.overdue, state: { status: 'overdue' } },
+/** Пресеты почтового списка: «К регистрации» — очередь секретаря
+ *  (незарегистрированные входящие; отдельной папки нет — модель v2). */
+export const mailBuiltinPresets: FilterPreset[] = [
+  { id: 'to-register', name: ui.letters.presetToRegister, state: { toRegister: 'yes' } },
+];
+
+/** Пресеты Журнала корреспонденции: документные состояния. */
+export const registryBuiltinPresets: FilterPreset[] = [
+  { id: 'in-work', name: ui.letters.presetInWork, state: { docState: 'in_work' } },
+  { id: 'overdue', name: ui.letters.presetOverdue, state: { docState: 'overdue' } },
+  { id: 'archived', name: ui.letters.presetArchived, state: { docState: 'archived' } },
 ];
 
 function deadlineMatch(item: LetterListItem, value: FilterValue): boolean {
   if (typeof value !== 'object' || value === undefined) return true;
-  if (!item.deadline) return false;
-  if (value.from && item.deadline < value.from) return false;
-  if (value.to && item.deadline > value.to) return false;
+  const deadline = item.registration?.deadline ?? null;
+  if (!deadline) return false;
+  if (value.from && deadline < value.from) return false;
+  if (value.to && deadline > value.to) return false;
   return true;
 }
 
-/** Реестр фильтруемых полей писем (стандарт списков): статус, адресат,
- *  корреспондент (подстрока), срок исполнения. */
-export function useLetterFilterDefs(): FilterFieldDef<LetterListItem>[] {
+/** Реестр фильтруемых полей писем (стандарт списков): почтовый вид —
+ *  «К регистрации» (скрытое поле пресета), канал, контрагент, ответственный,
+ *  срок; журнал — состояние документа вместо регистрации/канала. */
+export function useLetterFilterDefs(mode: 'mail' | 'registry'): FilterFieldDef<LetterListItem>[] {
   const { data: users } = useUsersList();
 
-  return useMemo(
-    () => [
+  return useMemo(() => {
+    const common: FilterFieldDef<LetterListItem>[] = [
       {
-        id: 'status',
-        label: ui.letters.fieldStatus,
-        type: 'select' as const,
-        options: Object.entries(ui.letters.status).map(([value, label]) => ({ value, label })),
-        match: (l: LetterListItem, v: FilterValue) => l.status === v,
+        id: 'counterparty',
+        label: ui.letters.counterparty,
+        type: 'text' as const,
+        placeholder: ui.letters.counterparty,
+        match: (l: LetterListItem, v: FilterValue) =>
+          typeof v !== 'string' || l.counterparty.name.toLowerCase().includes(v.toLowerCase()),
       },
       {
         id: 'addressee',
@@ -47,15 +58,7 @@ export function useLetterFilterDefs(): FilterFieldDef<LetterListItem>[] {
           label: u.displayName,
           avatarUrl: u.avatarUrl ?? null,
         })),
-        match: (l: LetterListItem, v: FilterValue) => l.addressee?.id === v,
-      },
-      {
-        id: 'correspondent',
-        label: ui.letters.correspondent,
-        type: 'text' as const,
-        placeholder: ui.letters.correspondent,
-        match: (l: LetterListItem, v: FilterValue) =>
-          typeof v !== 'string' || l.correspondent.toLowerCase().includes(v.toLowerCase()),
+        match: (l: LetterListItem, v: FilterValue) => l.registration?.addressee?.id === v,
       },
       {
         id: 'deadline',
@@ -63,7 +66,46 @@ export function useLetterFilterDefs(): FilterFieldDef<LetterListItem>[] {
         type: 'dateRange' as const,
         match: deadlineMatch,
       },
-    ],
-    [users],
-  );
+    ];
+
+    if (mode === 'registry') {
+      return [
+        {
+          id: 'docState',
+          label: ui.letters.fieldStatus,
+          type: 'select' as const,
+          options: [
+            { value: 'in_work', label: ui.letters.documentStatus.in_work },
+            { value: 'overdue', label: ui.letters.overdue },
+            { value: 'executed', label: ui.letters.documentStatus.executed },
+            { value: 'archived', label: ui.letters.documentStatus.archived },
+          ],
+          match: (l: LetterListItem, v: FilterValue) => documentStateOf(l) === v,
+        },
+        ...common,
+      ];
+    }
+
+    return [
+      {
+        // Служебное поле пресета «К регистрации» (hidden — как «Просроченные»
+        // в задачах): в панель фильтра не выводится, чип — в строке поиска.
+        id: 'toRegister',
+        label: ui.letters.presetToRegister,
+        type: 'select' as const,
+        hidden: true,
+        options: [{ value: 'yes', label: ui.filters.yes }],
+        match: (l: LetterListItem, v: FilterValue) =>
+          v !== 'yes' || (l.type === 'incoming' && l.registration === null),
+      },
+      {
+        id: 'channel',
+        label: ui.letters.channel,
+        type: 'select' as const,
+        options: Object.entries(ui.letters.channels).map(([value, label]) => ({ value, label })),
+        match: (l: LetterListItem, v: FilterValue) => l.receiveChannel === v,
+      },
+      ...common,
+    ];
+  }, [users, mode]);
 }

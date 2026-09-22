@@ -28,6 +28,11 @@ const LettersPage = lazy(() =>
     default: m.LettersPage,
   })),
 );
+const CounterpartiesPage = lazy(() =>
+  import('../features/counterparties/pages/counterparties-page.js').then((m) => ({
+    default: m.CounterpartiesPage,
+  })),
+);
 const ProjectsPage = lazy(() =>
   import('../features/projects/pages/projects-page.js').then((m) => ({ default: m.ProjectsPage })),
 );
@@ -131,6 +136,12 @@ const lettersRoute = createRoute({
   component: LettersPage,
 });
 
+const counterpartiesRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/counterparties',
+  component: CounterpartiesPage,
+});
+
 const projectsRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: '/projects',
@@ -161,6 +172,7 @@ const routeTree = rootRoute.addChildren([
     homeRoute,
     tasksRoute,
     lettersRoute,
+    counterpartiesRoute,
     projectsRoute,
     chatRoute,
     chatConversationRoute,

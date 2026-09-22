@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react';
 import { ui } from '@nodus/contracts';
 
 import { ProjectIdentityIcon } from '../../shared/ui/project-identity-icon.js';
+import { useCounterpartyCard } from '../../shared/counterparties/api.js';
 import { useLetterDetail } from '../../features/correspondence/api/letters-api.js';
 import { LetterCard } from '../../features/correspondence/components/letter-card.js';
+import { CounterpartyCard } from '../../features/counterparties/components/counterparty-card.js';
 import { MessengerBody, type ChatTab } from '../../features/chat/components/messenger-body.js';
 import { MessengerTabs } from '../../features/chat/components/messenger-tabs.js';
 import { useUsersList } from '../../features/directory/api/directory-api.js';
@@ -107,6 +109,20 @@ function EmployeeEntry({ id, source, onClose, dormant }: EntryProps) {
   );
 }
 
+function CounterpartyEntry({ id, source, onClose, dormant }: EntryProps) {
+  const { data: card } = useCounterpartyCard(id);
+  return (
+    <SliderPanel
+      title={card?.shortName ?? ui.counterparties.counterparty}
+      onClose={onClose}
+      sourceRect={source}
+      dormant={dormant}
+    >
+      <CounterpartyCard counterpartyId={id} />
+    </SliderPanel>
+  );
+}
+
 /** Мессенджер — ПОЛНОЭКРАННАЯ карточка стека (ADR-0009 + план
  *  `docs/mvp/messenger-fullscreen-plan.md`, вердикт владельца 15.09.2026,
  *  модель Битрикс24): клик по беседе в служебной полосе открывает
@@ -180,6 +196,10 @@ function CardStackEntry({
       return <LetterEntry id={cardRef.id} source={source} onClose={onClose} dormant={dormant} />;
     case 'employee':
       return <EmployeeEntry id={cardRef.id} source={source} onClose={onClose} dormant={dormant} />;
+    case 'counterparty':
+      return (
+        <CounterpartyEntry id={cardRef.id} source={source} onClose={onClose} dormant={dormant} />
+      );
     case 'messenger':
       return <MessengerEntry id={cardRef.id} source={source} onClose={onClose} dormant={dormant} />;
   }

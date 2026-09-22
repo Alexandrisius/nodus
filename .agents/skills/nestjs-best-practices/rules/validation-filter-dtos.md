@@ -424,7 +424,7 @@ import { dateRangeFilterSchema } from '../common/date-range-filter.schema';
 export const getLettersFilterSchema = cursorPaginationSchema
   .merge(dateRangeFilterSchema)
   .extend({
-    correspondentId: z.string().uuid().optional(), // dictionary: correspondents
+    counterpartyId: z.string().uuid().optional(),  // dictionary: counterparties
     letterTypeId: z.string().uuid().optional(),    // dictionary: letter types (I15)
     search: z.string().trim().min(3).max(200).optional(),
   });

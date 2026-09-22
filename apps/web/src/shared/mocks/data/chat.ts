@@ -3,12 +3,15 @@
 // бы связанные сценарии (треды отсылаются к сообщениям бесед).
 import type { ChatMessage, ConversationListItem } from '@nodus/contracts';
 
+import { letterMessages, rawLetterConversations } from './chat-letters.js';
 import { isoAgo } from './dates.js';
 import { projectRefs, tid } from './tasks.js';
 import { userIds, userRef } from './users.js';
 
-export const cid = (n: number): string => `a0000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
-const mid = (n: number): string => `b0000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+// Реэкспорт cid для потребителей (projects.ts, letters.ts) — исторически
+// импортируется отсюда; определение — в chat-ids.ts (против цикла импортов).
+export { cid } from './chat-ids.js';
+import { cid, mid } from './chat-ids.js';
 
 /** Канал проекта создаётся АВТОМАТИЧЕСКИ при создании проекта (вердикт
  *  владельца 2026-09-10): канал есть у каждого проекта демо-набора.
@@ -25,6 +28,7 @@ const rawConversations: Omit<ConversationListItem, 'pinned' | 'muted' | 'snoozed
     avatarUrl: null,
     project: null,
     task: null,
+    letter: null,
     membersPreview: [
       userRef(userIds.klimovich),
       userRef(userIds.shaiderova),
@@ -40,6 +44,7 @@ const rawConversations: Omit<ConversationListItem, 'pinned' | 'muted' | 'snoozed
     avatarUrl: null,
     project: projectRefs.p3,
     task: null,
+    letter: null,
     membersPreview: [userRef(userIds.klevantovich), userRef(userIds.klimovich)],
     lastMessage: null,
     unreadCount: 0,
@@ -51,6 +56,7 @@ const rawConversations: Omit<ConversationListItem, 'pinned' | 'muted' | 'snoozed
     avatarUrl: null,
     project: projectRefs.p1,
     task: null,
+    letter: null,
     membersPreview: [userRef(userIds.klimovich), userRef(userIds.shaiderova)],
     lastMessage: null,
     unreadCount: 1,
@@ -62,6 +68,7 @@ const rawConversations: Omit<ConversationListItem, 'pinned' | 'muted' | 'snoozed
     avatarUrl: null,
     project: projectRefs.p2,
     task: null,
+    letter: null,
     membersPreview: [userRef(userIds.akulich), userRef(userIds.klimovich)],
     lastMessage: null,
     unreadCount: 0,
@@ -73,6 +80,7 @@ const rawConversations: Omit<ConversationListItem, 'pinned' | 'muted' | 'snoozed
     avatarUrl: null,
     project: projectRefs.p4,
     task: null,
+    letter: null,
     membersPreview: [userRef(userIds.vinnichek), userRef(userIds.klimovich)],
     lastMessage: null,
     unreadCount: 3,
@@ -84,6 +92,7 @@ const rawConversations: Omit<ConversationListItem, 'pinned' | 'muted' | 'snoozed
     avatarUrl: null,
     project: null,
     task: null,
+    letter: null,
     membersPreview: [userRef(userIds.klevantovich), userRef(userIds.akulich)],
     lastMessage: null,
     unreadCount: 0,
@@ -95,6 +104,7 @@ const rawConversations: Omit<ConversationListItem, 'pinned' | 'muted' | 'snoozed
     avatarUrl: null,
     project: null,
     task: null,
+    letter: null,
     membersPreview: [userRef(userIds.vinnichek)],
     lastMessage: null,
     unreadCount: 1,
@@ -106,6 +116,7 @@ const rawConversations: Omit<ConversationListItem, 'pinned' | 'muted' | 'snoozed
     avatarUrl: null,
     project: null,
     task: null,
+    letter: null,
     membersPreview: [userRef(userIds.polomar)],
     lastMessage: null,
     unreadCount: 0,
@@ -120,6 +131,7 @@ const rawConversations: Omit<ConversationListItem, 'pinned' | 'muted' | 'snoozed
     avatarUrl: null,
     project: null,
     task: null,
+    letter: null,
     membersPreview: [userRef(userIds.klimovich)],
     lastMessage: null,
     unreadCount: 0,
@@ -131,6 +143,7 @@ const rawConversations: Omit<ConversationListItem, 'pinned' | 'muted' | 'snoozed
     avatarUrl: null,
     project: null,
     task: { id: tid(5), number: 105, title: 'Подготовить ответ заказчику по замечаниям' },
+    letter: null,
     membersPreview: [userRef(userIds.klimovich), userRef(userIds.vinnichek)],
     lastMessage: null,
     unreadCount: 1,
@@ -142,18 +155,19 @@ const rawConversations: Omit<ConversationListItem, 'pinned' | 'muted' | 'snoozed
     avatarUrl: null,
     project: null,
     task: { id: tid(2), number: 102, title: 'Разработать модель 3D по облаку точек' },
+    letter: null,
     membersPreview: [userRef(userIds.klimovich), userRef(userIds.matorin)],
     lastMessage: null,
     unreadCount: 0,
   },
 ];
 
-export const demoConversations: ConversationListItem[] = rawConversations.map((c) => ({
-  ...c,
-  pinned: false,
-  muted: false,
-  snoozed: false,
-}));
+/** Беседы писем (chat-letters.ts) доливаются в общий список: флаги состояния
+ *  (ПКМ-меню) у них те же, lastMessage считается общим циклом ниже. */
+export const demoConversations: ConversationListItem[] = [
+  ...rawConversations,
+  ...rawLetterConversations,
+].map((c) => ({ ...c, pinned: false, muted: false, snoozed: false }));
 
 // Демо-состояния контекстного меню: канал закреплён, группа без звука.
 const pinnedDemo = demoConversations.find((c) => c.id === cid(1));
@@ -187,8 +201,9 @@ function msg(
 }
 
 /** Лента канала = корневые сообщения (новости-треды); ответы ссылаются на
- *  корень (threadRootId), threadRepliesCount корня = число ответов. */
-export const demoMessages: ChatMessage[] = [
+ *  корень (threadRootId), threadRepliesCount корня = число ответов.
+ *  Сообщения чатов писем — в chat-letters.ts (один стор ленты). */
+const channelMessages: ChatMessage[] = [
   msg(
     1,
     1,
@@ -321,7 +336,7 @@ export const demoMessages: ChatMessage[] = [
     15,
     8,
     userIds.vinnichek,
-    'По письму Вх-2026/118 (замечания КЖ): собираем ответ заказчику, срок до конца недели.',
+    'По письму Вх-2026/115 (замечания КЖ): собираем ответ заказчику, срок до конца недели.',
     isoAgo(2, 9, 30),
     {
       threadRepliesCount: 2,
@@ -428,6 +443,10 @@ export const demoMessages: ChatMessage[] = [
     isoAgo(1, 15, 20),
   ),
 ];
+
+/** Единый стор ленты: сообщения каналов/личных/задач + чаты писем
+ *  (chat-letters.ts) —ConversationPane и мессенджер читают один массив. */
+export const demoMessages: ChatMessage[] = [...channelMessages, ...letterMessages];
 
 for (const conversation of demoConversations) {
   const last = [...demoMessages]

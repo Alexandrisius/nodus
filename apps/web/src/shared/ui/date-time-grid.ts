@@ -51,3 +51,10 @@ export function parseTime(value: string): { hours: number; minutes: number } | n
   if (!m) return null;
   return { hours: Number(m[1]), minutes: Number(m[2]) };
 }
+
+/** Локальная дата в «yyyy-mm-dd» (для date-полей контрактов): DateTimePicker
+ *  отдаёт Date с временем, а РКК/поручения хранят срок датой. */
+export function localDateStr(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}

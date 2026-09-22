@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { counterpartyRefSchema } from '../counterparties/counterparty.schemas.js';
 import { userRefSchema } from '../directory/user-ref.schema.js';
 import { cursorQuerySchema } from '../pagination/paginated.schema.js';
 
@@ -27,6 +28,9 @@ export const projectListItemSchema = z.object({
   membersCount: z.number().int().min(0),
   membersPreview: z.array(userRefSchema),
   endDate: z.iso.date().nullable(),
+  /** Заказчик проекта — контрагент из справочника (модель v2 корреспонденции,
+   *  вердикт владельца 22.09.2026). */
+  client: counterpartyRefSchema.nullable(),
   /** Последняя активность (для сортировки списка). */
   activityAt: z.iso.datetime(),
   /** Канал проекта в мессенджере, если создан. */

@@ -2,11 +2,9 @@ import { useQuery } from '@tanstack/react-query';
 import type { HomeSummary } from '@nodus/contracts';
 
 import { api } from '../../../shared/api-client.js';
+import { homeKeys } from '../../../shared/api/home-keys.js';
 
-export const homeKeys = {
-  all: ['home'] as const,
-  summary: () => [...homeKeys.all, 'summary'] as const,
-};
+export { homeKeys };
 
 export function useHomeSummary() {
   return useQuery({

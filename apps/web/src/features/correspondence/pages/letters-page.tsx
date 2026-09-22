@@ -11,34 +11,41 @@ import { useListToolbar } from '../../../shared/views/use-list-toolbar.js';
 import { ViewSettings } from '../../../shared/views/view-settings.js';
 import { useLettersList, type LettersFolder } from '../api/letters-api.js';
 import {
-  letterBuiltinPresets,
+  mailBuiltinPresets,
   letterSearchText,
+  registryBuiltinPresets,
   useLetterFilterDefs,
 } from '../lib/letter-filter-fields.js';
-import { letterJournalFields } from '../lib/letter-fields.js';
+import { letterMailFields } from '../lib/letter-fields.js';
+import { letterRegistryFields } from '../lib/registry-fields.js';
 import { LetterComposeDialog } from '../components/letter-compose-dialog.js';
-import { LettersJournal } from '../components/letters-journal.js';
+import { LettersTable } from '../components/letters-table.js';
+import { MailboxSwitcher } from '../components/mailbox-switcher.js';
+import { RegistryTable } from '../components/registry-table.js';
 
-/** Письма: журнал по канону таблиц (shared/views) + папки-чипы в топбаре
- *  (Входящие / Незарегистрированные / Исходящие — секции каркаса).
- *  Шапка — ОДНА строка: заголовок со счётчиком, строка инструментов (поиск
- *  с панелью фильтра — модель Битрикс24: пресеты «В работе»/«Просрочено»,
- *  поля статус/адресат/корреспондент/срок), «Написать письмо» и шестерёнка
- *  представления. Плашки-счётчика очереди в шапке НЕТ (вердикт владельца
- *  15.09.2026): очередь живёт своей папкой в топбаре, дубль не нужен. */
+/** Корреспонденция (модель v2): папки Входящие / Отправленные — почтовый
+ *  слой (незарегистрированные входящие — их часть, пресет «К регистрации»);
+ *  Журнал — отдельный вид-реестр ТОЛЬКО документов (Вх/Исх). Шапка — ОДНА
+ *  строка h-14: заголовок со счётчиком, переключатель ящиков «Общий / Личная»
+ *  (задел направления), строка инструментов (поиск + панель фильтра,
+ *  пресеты вида), «Написать письмо» и шестерёнка представления. */
 export function LettersPage() {
   const search = useSearch({ strict: false }) as { folder?: string };
-  const folder: LettersFolder = (['unregistered', 'incoming', 'outgoing'] as const).includes(
+  const folder: LettersFolder = (['incoming', 'outgoing', 'registry'] as const).includes(
     search.folder as LettersFolder,
   )
     ? (search.folder as LettersFolder)
     : 'incoming';
+  const registry = folder === 'registry';
 
   const { data } = useLettersList(folder);
   const count = data?.items.length ?? 0;
   const [composeOpen, setComposeOpen] = useState(false);
-  const toolbar = useListToolbar('letters.journal', letterBuiltinPresets);
-  const defs = useLetterFilterDefs();
+
+  const viewKey = registry ? 'letters.registry' : 'letters.mail';
+  const presets = registry ? registryBuiltinPresets : mailBuiltinPresets;
+  const toolbar = useListToolbar(viewKey, presets);
+  const defs = useLetterFilterDefs(registry ? 'registry' : 'mail');
   const filter = useMemo<ActiveListFilter<LetterListItem>>(
     () => ({ defs, state: toolbar.filters, query: toolbar.query, searchText: letterSearchText }),
     [defs, toolbar.filters, toolbar.query],
@@ -53,22 +60,32 @@ export function LettersPage() {
             {count}
           </span>
         </h1>
+        <MailboxSwitcher />
         <ListToolbar
           className="min-w-0 flex-1 px-0"
           toolbar={toolbar}
           defs={defs}
-          builtinPresets={letterBuiltinPresets}
+          builtinPresets={presets}
           left={
             <Button onClick={() => setComposeOpen(true)}>
               <MailPlus data-icon="inline-start" />
-              {ui.common.create}
+              {ui.letters.compose}
             </Button>
           }
-          right={<ViewSettings viewKey="letters.journal" defs={letterJournalFields} />}
+          right={
+            <ViewSettings
+              viewKey={viewKey}
+              defs={registry ? letterRegistryFields : letterMailFields}
+            />
+          }
         />
       </div>
       <div className="min-h-0 flex-1">
-        <LettersJournal folder={folder} filter={filter} />
+        {registry ? (
+          <RegistryTable filter={filter} />
+        ) : (
+          <LettersTable folder={folder} filter={filter} />
+        )}
       </div>
       <LetterComposeDialog open={composeOpen} onOpenChange={setComposeOpen} />
     </div>

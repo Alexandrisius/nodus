@@ -15,14 +15,21 @@
  * мессенджер-карточки меняет беседу без ремаунта панели.
  */
 
-export type CardKind = 'task' | 'project' | 'letter' | 'employee' | 'messenger';
+export type CardKind = 'task' | 'project' | 'letter' | 'employee' | 'counterparty' | 'messenger';
 
 export interface CardRef {
   kind: CardKind;
   id: string;
 }
 
-const KINDS: readonly string[] = ['task', 'project', 'letter', 'employee', 'messenger'];
+const KINDS: readonly string[] = [
+  'task',
+  'project',
+  'letter',
+  'employee',
+  'counterparty',
+  'messenger',
+];
 
 /** «task:<id>» — компактная форма в URL. */
 export function cardRefToString(ref: CardRef): string {

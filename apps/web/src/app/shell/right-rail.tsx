@@ -157,7 +157,9 @@ export function RightRail() {
 
   // Экспресс-лента: все беседы КРОМЕ чатов задач; закреплённые сверху, затем
   // по активности (та же сортировка, что список мессенджера).
-  const chats = sortByActivity((data?.items ?? []).filter((c) => c.type !== 'task'));
+  const chats = sortByActivity(
+    (data?.items ?? []).filter((c) => c.type !== 'task' && c.type !== 'letter'),
+  );
 
   return (
     <aside

@@ -1,12 +1,19 @@
 import { z } from 'zod';
 
+import { letterRefSchema } from '../correspondence/letter.schemas.js';
 import { userRefSchema } from '../directory/user-ref.schema.js';
 import { projectRefSchema, taskRefSchema } from '../tasks/task.schemas.js';
 import { cursorQuerySchema } from '../pagination/paginated.schema.js';
 
 /** Контракты модуля чата (chat.Conversation/Message). */
 
-export const conversationTypeSchema = z.enum(['direct', 'group', 'project_channel', 'task']);
+export const conversationTypeSchema = z.enum([
+  'direct',
+  'group',
+  'project_channel',
+  'task',
+  'letter',
+]);
 export type ConversationType = z.infer<typeof conversationTypeSchema>;
 
 export const messageAttachmentSchema = z.object({
@@ -65,6 +72,9 @@ export const conversationListItemSchema = z.object({
   project: projectRefSchema.nullable(),
   /** Чат задачи (type=task): привязка к задаче для вкладки «Чаты задач». */
   task: taskRefSchema.nullable(),
+  /** Чат письма (type=letter): привязка к письму; участники — только
+   *  внутренние сотрудники (обсуждение наружу не уходит). */
+  letter: letterRefSchema.nullable(),
   membersPreview: z.array(userRefSchema),
   lastMessage: messageSchema.nullable(),
   unreadCount: z.number().int().min(0),

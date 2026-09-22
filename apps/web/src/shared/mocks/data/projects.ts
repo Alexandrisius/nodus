@@ -1,6 +1,7 @@
 import type { ProjectListItem } from '@nodus/contracts';
 
 import { cid } from './chat.js';
+import { counterpartyIds, counterpartyRefById } from './counterparties.js';
 import { isoAgo, isoDateIn } from './dates.js';
 import { projectRefs } from './tasks.js';
 import { userIds, userRef } from './users.js';
@@ -21,6 +22,7 @@ export const demoProjects: ProjectListItem[] = [
       userRef(userIds.akulich),
     ],
     endDate: null,
+    client: null,
     activityAt: isoAgo(0, 9, 30),
     channelId: cid(6),
   },
@@ -35,6 +37,7 @@ export const demoProjects: ProjectListItem[] = [
     membersCount: 4,
     membersPreview: [userRef(userIds.klimovich), userRef(userIds.akulich)],
     endDate: null,
+    client: null,
     activityAt: isoAgo(1, 12, 0),
     channelId: cid(7),
   },
@@ -53,6 +56,7 @@ export const demoProjects: ProjectListItem[] = [
       userRef(userIds.matorin),
     ],
     endDate: null,
+    client: null,
     activityAt: isoAgo(2, 8, 25),
     channelId: cid(2),
   },
@@ -72,6 +76,7 @@ export const demoProjects: ProjectListItem[] = [
       userRef(userIds.matorin),
     ],
     endDate: isoDateIn(120),
+    client: counterpartyRefById(counterpartyIds.galurgiya) ?? null,
     activityAt: isoAgo(0, 11, 45),
     channelId: cid(8),
   },

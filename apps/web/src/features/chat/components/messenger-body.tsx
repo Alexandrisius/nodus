@@ -49,7 +49,13 @@ export function MessengerBody({
 
   const q = query.trim().toLowerCase();
   const items = (data?.items ?? [])
-    .filter((c) => (tab === 'tasks' ? c.type === 'task' : c.type !== 'task'))
+    // Вкладка «Чаты задач и писем» — обсуждения сущностей (задачи + письма);
+    // основная вкладка — люди и каналы (модель v2 корреспонденции, #69).
+    .filter((c) =>
+      tab === 'tasks'
+        ? c.type === 'task' || c.type === 'letter'
+        : c.type !== 'task' && c.type !== 'letter',
+    )
     .filter(
       (c) =>
         !q ||

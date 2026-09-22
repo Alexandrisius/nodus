@@ -17,13 +17,18 @@ export function isNotesConversation(
 }
 
 /** Заголовок беседы: у канала/группы — название, у чата задачи — «№ · тема»,
- *  у личного — имя собеседника, у диалога с собой — «Заметки». */
+ *  у чата письма — «рег.№ · тема» (без номера — тема), у личного — имя
+ *  собеседника, у диалога с собой — «Заметки». */
 export function conversationTitle(
   conversation: ConversationListItem,
   meId?: string | null,
 ): string {
   if (conversation.type === 'task' && conversation.task) {
     return `№ ${conversation.task.number} · ${conversation.task.title}`;
+  }
+  if (conversation.type === 'letter' && conversation.letter) {
+    const ref = conversation.letter.regNumber;
+    return ref ? `${ref} · ${conversation.letter.subject}` : conversation.letter.subject;
   }
   if (isNotesConversation(conversation, meId)) return ui.chat.notes;
   return conversation.title ?? conversation.membersPreview[0]?.displayName ?? '';
@@ -54,6 +59,9 @@ export function conversationSubtitle(conversation: ConversationListItem): string
   }
   if (conversation.type === 'task') {
     return ui.chat.taskChat;
+  }
+  if (conversation.type === 'letter') {
+    return ui.chat.letterChat;
   }
   const members = conversation.membersPreview.length;
   if (conversation.type === 'group') {
