@@ -28,8 +28,10 @@ function buildSummary(): HomeSummary {
   return {
     tasks: { overdue, today, weekCount: week.length },
     letters: {
-      unregisteredCount: demoLetters.filter((l) => l.status === 'unregistered').length,
-      recent: demoLetters.filter((l) => l.status !== 'unregistered').slice(0, 4),
+      // «К регистрации»: входящие письма без регистрации (пресет секретаря,
+      // модель v2 — отдельной папки «Незарегистрированные» нет).
+      unregisteredCount: demoLetters.filter((l) => l.type === 'incoming' && !l.registration).length,
+      recent: demoLetters.filter((l) => l.registration).slice(0, 4),
     },
     birthdays: demoBirthdays,
     stats: demoStats,

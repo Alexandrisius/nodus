@@ -42,7 +42,6 @@ export function CommandPalette() {
   const { data: projects } = useProjectsList();
   const { data: chats } = useConversations();
   const { data: incoming } = useLettersList('incoming');
-  const { data: unregistered } = useLettersList('unregistered');
   const { data: outgoing } = useLettersList('outgoing');
   const [query, setQuery] = useState('');
   const { data: tasks } = useTasksSearch(query.trim());
@@ -64,11 +63,9 @@ export function CommandPalette() {
     const t = text.toLowerCase();
     return t.includes(q) || (stems.length > 0 && stems.every((s) => t.includes(s)));
   };
-  const letters = [
-    ...(unregistered?.items ?? []),
-    ...(incoming?.items ?? []),
-    ...(outgoing?.items ?? []),
-  ];
+  // Входящие (включая незарегистрированные) + отправленные — всё, что ищет
+  // палитра; журнал — подмножество (модель v2, #69).
+  const letters = [...(incoming?.items ?? []), ...(outgoing?.items ?? [])];
 
   function go(to: string, params?: Record<string, string>) {
     setOpen(false);
@@ -119,10 +116,10 @@ export function CommandPalette() {
                       ))}
                   </CommandGroup>
                 )}
-                {letters.filter((l) => has(l.subject) || has(l.correspondent)).length > 0 && (
+                {letters.filter((l) => has(l.subject) || has(l.counterparty.name)).length > 0 && (
                   <CommandGroup heading={ui.nav.letters}>
                     {letters
-                      .filter((l) => has(l.subject) || has(l.correspondent))
+                      .filter((l) => has(l.subject) || has(l.counterparty.name))
                       .map((letter) => (
                         <CommandItem
                           key={letter.id}

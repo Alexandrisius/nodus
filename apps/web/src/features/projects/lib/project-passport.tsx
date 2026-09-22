@@ -1,4 +1,4 @@
-import { Activity, CalendarClock, Hash, Lock, User, UserCog, Users } from 'lucide-react';
+import { Activity, Building2, CalendarClock, Hash, Lock, User, UserCog, Users } from 'lucide-react';
 import type { ProjectListItem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { NodeChip } from '@nodus/ui/components/node-chip';
@@ -56,6 +56,25 @@ export function projectPassportDefs(
           >
             <PersonAvatar name={project.manager.displayName} className="size-6 shrink-0" />
             <span className="truncate">{project.manager.displayName}</span>
+          </button>
+        ) : (
+          ui.common.notSet
+        ),
+    },
+    {
+      // Заказчик — контрагент из справочника (модель v2 корреспонденции,
+      // вердикт владельца 22.09.2026); клик — карточка контрагента стеком.
+      key: 'client',
+      icon: <Building2 className="size-3.5" />,
+      label: ui.projects.client,
+      render: () =>
+        project.client ? (
+          <button
+            type="button"
+            onClick={() => openCard({ kind: 'counterparty', id: project.client?.id ?? '' })}
+            className="min-w-0 truncate hover:underline"
+          >
+            {project.client.name}
           </button>
         ) : (
           ui.common.notSet

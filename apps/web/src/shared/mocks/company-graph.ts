@@ -40,8 +40,9 @@ export function buildCompanyGraph(): CompanyGraph {
   }
   for (const l of demoLetters) {
     const li = add(`l:${l.id}`, 'letter', 2.4);
-    link(li, add(`e:${l.correspondent}`, 'external', 2.8));
-    if (l.project) link(li, add(`p:${l.project.id}`, 'project', 4.6));
+    // Корреспондент — ссылка на контрагента (внешний узел по id справочника).
+    link(li, add(`e:${l.counterparty.id}`, 'external', 2.8));
+    if (l.registration?.project) link(li, add(`p:${l.registration.project.id}`, 'project', 4.6));
   }
   for (const c of demoConversations) {
     const ci = add(`c:${c.id}`, 'channel', 3.2);

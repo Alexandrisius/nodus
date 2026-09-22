@@ -1,4 +1,5 @@
 import {
+  Building2,
   FolderOpen,
   House,
   ListTodo,
@@ -71,6 +72,9 @@ export const NAV_MODULES: NavModuleDef[] = [
     label: ui.nav.letters,
     icon: Mail,
     badge: 'letters',
+    // Папки почты + журнал документов (модель v2, вердикты 22.09.2026):
+    // «Незарегистрированные» — НЕ папка, а пресет-фильтр «К регистрации»
+    // во «Входящих»; журнал — реестр только документов (Вх/Исх).
     tabs: [
       {
         id: 'incoming',
@@ -79,18 +83,25 @@ export const NAV_MODULES: NavModuleDef[] = [
         isActive: (s) => (s.get('folder') ?? 'incoming') === 'incoming',
       },
       {
-        id: 'unregistered',
-        label: ui.letters.folderUnregistered,
-        search: { folder: 'unregistered' },
-        isActive: (s) => s.get('folder') === 'unregistered',
-      },
-      {
         id: 'outgoing',
         label: ui.letters.folderOutgoing,
         search: { folder: 'outgoing' },
         isActive: (s) => s.get('folder') === 'outgoing',
       },
+      {
+        id: 'registry',
+        label: ui.letters.folderRegistry,
+        search: { folder: 'registry' },
+        isActive: (s) => s.get('folder') === 'registry',
+      },
     ],
+  },
+  {
+    id: 'counterparties',
+    to: '/counterparties',
+    label: ui.nav.counterparties,
+    icon: Building2,
+    tabs: [{ id: 'list', label: ui.counterparties.viewList, search: {}, isActive: () => true }],
   },
   {
     id: 'projects',

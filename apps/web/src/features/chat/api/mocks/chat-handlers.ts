@@ -51,6 +51,7 @@ export const chatHandlers = [
       avatarUrl: null,
       project: null,
       task: null,
+      letter: null,
       membersPreview: [userRef(person.id)],
       lastMessage: null,
       unreadCount: 0,

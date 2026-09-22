@@ -1,5 +1,7 @@
 import { ErrorCode } from '../errors/error-codes.js';
 
+import { counterpartiesStrings, lettersStrings } from './ru-correspondence.js';
+
 /**
  * Русские UI-строки для системных кодов ошибок (I15: `message` в ответе —
  * английский технический, пользователю показываем строку по `code`).
@@ -23,8 +25,8 @@ export const errorMessages: Record<ErrorCode, string> = {
  * Русские UI-строки портала (I15: компоненты не содержат хард-строк).
  * Терминология — русская деловая (ux-principles.md): без англицизмов.
  * I5-обоснование: плоский словарь строк по модулям (данные, не god-object);
- * деление на файлы по модулям дробит единую точку терминологии — словарь
- * читается и ревьюится целиком (404 строки при 400+ ключах — норма словаря).
+ * единая точка терминологии — объект `ui`; доменные части свыше лимита строк
+ * выносятся в соседние файлы-словари (ru-correspondence.ts) и собираются здесь.
  */
 export const ui = {
   common: {
@@ -95,7 +97,8 @@ export const ui = {
   nav: {
     home: 'Главная',
     tasks: 'Задачи',
-    letters: 'Письма',
+    letters: 'Корреспонденция',
+    counterparties: 'Контрагенты',
     projects: 'Проекты',
     chat: 'Мессенджер',
     employees: 'Сотрудники',
@@ -248,52 +251,8 @@ export const ui = {
     relationsEmpty: 'Связей нет',
     navBack: 'Назад к предыдущей задаче',
   },
-  letters: {
-    title: 'Письма',
-    folderUnregistered: 'Незарегистрированные',
-    folderIncoming: 'Входящие',
-    folderOutgoing: 'Исходящие',
-    register: 'Зарегистрировать',
-    toInstruction: 'В поручение',
-    resolution: 'Резолюция',
-    resolutionPlaceholder: 'Текст резолюции: кому, что сделать, срок…',
-    regNumber: 'Рег. №',
-    correspondent: 'Корреспонент',
-    subject: 'Тема',
-    receivedAt: 'Получено',
-    attachments: 'Вложения',
-    resolutions: 'Резолюции',
-    requisites: 'Реквизиты',
-    letter: 'Письмо',
-    typeIncoming: 'Входящее',
-    typeOutgoing: 'Исходящее',
-    addressee: 'Кому адресовано',
-    responsible: 'Ответственный',
-    regDate: 'Дата регистрации',
-    project: 'Проект',
-    fieldStatus: 'Статус',
-    deadline: 'Срок исполнения',
-    registerDone: 'Письмо зарегистрировано',
-    resolutionDone: 'Поручение создано',
-    noNumber: 'без номера',
-    compose: 'Написать письмо',
-    reply: 'Ответить',
-    composeTitle: 'Новое исходящее письмо',
-    recipient: 'Кому',
-    composeRecipientPlaceholder: 'ООО «Заказчик»',
-    from: 'От',
-    composeSubject: 'Тема письма',
-    composeBody: 'Текст письма',
-    composeAttachments: 'Прикрепить файлы',
-    send: 'Отправить',
-    sendDone: 'Исходящее письмо создано',
-    status: {
-      unregistered: 'Не зарегистрировано',
-      in_work: 'В работе',
-      done: 'Исполнено',
-      overdue: 'Просрочено',
-    },
-  },
+  letters: lettersStrings,
+  counterparties: counterpartiesStrings,
   projects: {
     title: 'Проекты',
     createProject: 'Создать проект',
@@ -311,6 +270,7 @@ export const ui = {
     fieldCode: 'Код',
     fieldName: 'Название',
     manager: 'Руководитель',
+    client: 'Заказчик',
     privacyLabel: 'Приватность',
     project: 'Проект',
     myRoleLabel: 'Моя роль',
@@ -392,9 +352,11 @@ export const ui = {
     membersCountFew: 'участника',
     membersCountMany: 'участников',
     tabChats: 'Чаты',
-    tabTaskChats: 'Чаты задач',
+    tabTaskChats: 'Чаты задач и писем',
     taskChat: 'Чат задачи',
+    letterChat: 'Чат письма',
     openTask: 'Открыть задачу',
+    openLetter: 'Открыть письмо',
     taskChatsEmpty: 'Нет активных обсуждений задач',
     filesMedia: 'Файлы и медиа',
     links: 'Ссылки',

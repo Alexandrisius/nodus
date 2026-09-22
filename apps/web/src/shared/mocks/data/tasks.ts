@@ -1,10 +1,12 @@
 import type { ChatMessage, TaskChainNode, TaskDetail, TaskListItem } from '@nodus/contracts';
 
+import type { ProjectRef } from '@nodus/contracts';
+
 import { isoAgo } from './dates.js';
-import { personalNew } from './personal-stages.js';
+import { personalNew, personalStageFor } from './personal-stages.js';
 import { kjSubtask, tid } from './task-items.js';
 import { stageNew } from './task-stages.js';
-import { userIds, userRef } from './users.js';
+import { currentAuthUser, userIds, userRef } from './users.js';
 
 export * from './task-stages.js';
 export * from './personal-stages.js';
@@ -38,30 +40,88 @@ export const demoSubtasks: Record<string, TaskListItem[]> = {
   [tid(2)]: [kjSubtask],
 };
 
-/** Доменная цепочка задачи tid(5): честная связь с письмом lid(3)
- * («Замечания по разделу КЖ», Вх-2026/118) — его резолюция породила задачу. */
-const LETTER_ID_3 = '80000000-0000-4000-8000-000000000003'; // lid(3), см. letters.ts
+/** Задача-поручение из резолюции письма (модель v2): чистый конструктор —
+ *  мок-хендлер POST /letters/:id/resolutions и unit-тесты ходят через него.
+ *  Срок поручения — дата (yyyy-mm-dd), в задаче становится дедлайном 18:00
+ *  локального дня. */
+export function makeInstructionTask(opts: {
+  id: string;
+  number: number;
+  title: string;
+  assigneeId: string;
+  deadline: string | null;
+  project: ProjectRef | null;
+}): TaskListItem {
+  return {
+    id: opts.id,
+    number: opts.number,
+    title: opts.title,
+    stage: stageNew,
+    personalStageId: personalStageFor(stageNew),
+    priority: 'normal',
+    deadline: opts.deadline ? new Date(`${opts.deadline}T18:00:00`).toISOString() : null,
+    creator: userRef(currentAuthUser.id),
+    assignee: userRef(opts.assigneeId),
+    participants: [],
+    project: opts.project,
+    parentId: null,
+    spentMinutes: 0,
+    commentsCount: 0,
+    checklistDone: 0,
+    checklistTotal: 0,
+    source: 'letter',
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+/** Задачи-поручения из письма lid(3) («Замечания по разделу КЖ», Вх-2026/115):
+ *  резолюция Р-57 породила три поручения разным людям (tid 5/12/13). */
+const LETTER_ID_3 = '80000000-0000-4000-8000-000000000003'; // lid(3), см. letter-bodies.ts
+const LETTER_3_NODE: TaskChainNode = {
+  kind: 'letter',
+  ref: 'Вх-2026/115',
+  label: 'Замечания по разделу КЖ главного корпуса',
+  entityId: LETTER_ID_3,
+};
+const RESOLUTION_57_NODE: TaskChainNode = {
+  kind: 'resolution',
+  ref: 'Р-57',
+  label: 'Устранить замечания по КЖ, срок — до конца недели',
+};
+
+/** Префиксы доменных цепочек задач-поручений (Письмо → Резолюция → Поручение):
+ *  сид демо-набора здесь, рантим-пополнение — мок-хендлером резолюций
+ *  (POST /letters/:id/resolutions). */
+export const letterChainPrefix: Record<string, TaskChainNode[]> = {
+  [tid(5)]: [
+    LETTER_3_NODE,
+    RESOLUTION_57_NODE,
+    {
+      kind: 'instruction',
+      ref: 'ПП-57',
+      label: 'Подготовить ответ заказчику по замечаниям, скорректировать комплект КЖ',
+    },
+  ],
+  [tid(12)]: [
+    LETTER_3_NODE,
+    RESOLUTION_57_NODE,
+    {
+      kind: 'instruction',
+      ref: 'ПП-58',
+      label: 'Уточнить анкеровку арматуры в узлах КЖ-14 и КЖ-18',
+    },
+  ],
+  [tid(13)]: [
+    LETTER_3_NODE,
+    RESOLUTION_57_NODE,
+    { kind: 'instruction', ref: 'ПП-59', label: 'Проверить ведомость расхода стали по маркам' },
+  ],
+};
 
 function chainOf(task: TaskListItem): TaskChainNode[] {
   const self: TaskChainNode = { kind: 'task', ref: `№ ${task.number}`, label: task.title };
-  if (task.id === tid(5)) {
-    return [
-      {
-        kind: 'letter',
-        ref: 'Вх-2026/118',
-        label: 'Замечания по разделу КЖ главного корпуса',
-        entityId: LETTER_ID_3,
-      },
-      {
-        kind: 'resolution',
-        ref: 'Р-57',
-        label: 'Подготовить ответ заказчику по замечаниям',
-        state: 'Согласовано',
-      },
-      { kind: 'instruction', ref: 'ПП-57', label: 'Поручение по письму Вх-2026/118' },
-      self,
-    ];
-  }
+  const letterPrefix = letterChainPrefix[task.id];
+  if (letterPrefix) return [...letterPrefix, self];
   if (task.source === 'chat_message') {
     return [{ kind: 'chat_message', ref: 'Чат', label: 'Задача из сообщения' }, self];
   }

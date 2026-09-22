@@ -1,15 +1,17 @@
-import { ArrowDownLeft, ArrowUpRight } from 'lucide-react';
-import type { LetterListItem } from '@nodus/contracts';
+import { ArrowDownLeft, ArrowUpRight, CalendarClock } from 'lucide-react';
+import type { LetterListItem, LetterType } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
+import { cn } from '@nodus/ui/lib/utils';
 
 import { formatDate, formatDateTimeShort } from '../../../shared/lib/format.js';
-import { DeadlineChip } from '../../../shared/ui/deadline-chip.js';
 import { monoCell, PersonCell } from '../../../shared/ui/person-cell.js';
 import type { DataTableField } from '../../../shared/views/data-table.js';
-import { LetterStatusBadge } from '../components/letter-status-badge.js';
+import { ChannelChip } from '../components/channel-chip.js';
+import { DocumentStatusBadge } from '../components/document-status-badge.js';
+import { documentStateOf, todayStr } from './letter-document.js';
 
 /** Направление письма: входящее — к нам (стрелка вниз-влево), исходящее — от нас. */
-export function LetterTypeIcon({ letter }: { letter: LetterListItem }) {
+export function LetterTypeIcon({ letter }: { letter: { type: LetterType } }) {
   return letter.type === 'incoming' ? (
     <ArrowDownLeft
       className="size-3.5 shrink-0 text-info/70"
@@ -20,38 +22,77 @@ export function LetterTypeIcon({ letter }: { letter: LetterListItem }) {
   );
 }
 
+/** Чип срока исполнения документа (дата без времени): просрочен — красный,
+ *  сегодня — оранжевый (тон как у DeadlineChip задач, но формат даты). */
+export function LetterDeadlineChip({ deadline }: { deadline: string | null }) {
+  if (!deadline) {
+    return <span className="text-xs text-muted-foreground">{ui.common.noDeadline}</span>;
+  }
+  const overdue = deadline < todayStr();
+  const today = deadline === todayStr();
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium tabular-nums',
+        overdue ? 'bg-danger-soft text-danger' : 'bg-muted text-muted-foreground',
+        !overdue && today && 'bg-warning-soft text-warning',
+      )}
+    >
+      <CalendarClock className="size-3.5" />
+      {formatDate(deadline)}
+    </span>
+  );
+}
+
+/** Ячейка рег.№: чип направления + номер моно (данные — моно, канон
+ *  типографики) или прочерк у письма без регистрации. */
+function RegNumberCell({ letter }: { letter: LetterListItem }) {
+  return (
+    <>
+      <LetterTypeIcon letter={letter} />
+      {letter.registration ? (
+        <span className="font-mono text-label-sm tabular-nums">
+          {letter.registration.regNumber}
+        </span>
+      ) : (
+        <span className={monoCell}>—</span>
+      )}
+    </>
+  );
+}
+
 /**
- * Реестр колонок журнала писем (кастомизация представлений shared/views,
- * ключ вида `letters.journal`): новое поле модуля = +1 запись здесь.
- * minWidth — под осмысленный контент (самый длинный чип статуса ~150px).
+ * Реестр колонок почтового списка (Входящие/Отправленные), ключ вида
+ * `letters.mail`: новое поле модуля = +1 запись здесь. minWidth — под
+ * осмысленный контент (самый длинный чип статуса ~150px).
  */
-export const letterJournalFields: DataTableField<LetterListItem>[] = [
+export const letterMailFields: DataTableField<LetterListItem>[] = [
   {
     id: 'regNumber',
     label: ui.letters.regNumber,
     defaultVisible: true,
     defaultWidth: 152,
     minWidth: 112,
-    render: (letter) => (
-      <>
-        <LetterTypeIcon letter={letter} />
-        {letter.regNumber ? (
-          <span className="font-mono text-label-sm tabular-nums">{letter.regNumber}</span>
-        ) : (
-          <span className={monoCell}>—</span>
-        )}
-      </>
-    ),
-    sortValue: (letter) => letter.regNumber,
+    render: (letter) => <RegNumberCell letter={letter} />,
+    sortValue: (letter) => letter.registration?.regNumber ?? null,
   },
   {
-    id: 'correspondent',
-    label: ui.letters.correspondent,
+    id: 'channel',
+    label: ui.letters.channel,
     defaultVisible: true,
-    defaultWidth: 260,
+    defaultWidth: 128,
+    minWidth: 104,
+    render: (letter) => <ChannelChip channel={letter.receiveChannel} />,
+    sortValue: (letter) => letter.receiveChannel,
+  },
+  {
+    id: 'counterparty',
+    label: ui.letters.counterparty,
+    defaultVisible: true,
+    defaultWidth: 240,
     minWidth: 140,
-    render: (letter) => <span className="truncate text-sm">{letter.correspondent}</span>,
-    sortValue: (letter) => letter.correspondent,
+    render: (letter) => <span className="truncate text-sm">{letter.counterparty.name}</span>,
+    sortValue: (letter) => letter.counterparty.name,
   },
   {
     id: 'subject',
@@ -65,13 +106,13 @@ export const letterJournalFields: DataTableField<LetterListItem>[] = [
     sortValue: (letter) => letter.subject,
   },
   {
-    id: 'status',
+    id: 'documentStatus',
     label: ui.letters.fieldStatus,
     defaultVisible: true,
-    defaultWidth: 176,
-    minWidth: 152,
-    render: (letter) => <LetterStatusBadge status={letter.status} />,
-    sortValue: (letter) => letter.status,
+    defaultWidth: 160,
+    minWidth: 128,
+    render: (letter) => <DocumentStatusBadge letter={letter} />,
+    sortValue: (letter) => documentStateOf(letter),
   },
   {
     id: 'addressee',
@@ -79,17 +120,17 @@ export const letterJournalFields: DataTableField<LetterListItem>[] = [
     defaultVisible: true,
     defaultWidth: 200,
     minWidth: 110,
-    render: (letter) => <PersonCell user={letter.addressee} />,
-    sortValue: (letter) => letter.addressee?.displayName ?? null,
+    render: (letter) => <PersonCell user={letter.registration?.addressee} />,
+    sortValue: (letter) => letter.registration?.addressee?.displayName ?? null,
   },
   {
-    id: 'receivedAt',
-    label: ui.letters.receivedAt,
+    id: 'date',
+    label: ui.letters.date,
     defaultVisible: true,
     defaultWidth: 152,
     minWidth: 128,
-    render: (letter) => <span className={monoCell}>{formatDateTimeShort(letter.receivedAt)}</span>,
-    sortValue: (letter) => letter.receivedAt,
+    render: (letter) => <span className={monoCell}>{formatDateTimeShort(letter.date)}</span>,
+    sortValue: (letter) => letter.date,
   },
   {
     id: 'project',
@@ -98,12 +139,14 @@ export const letterJournalFields: DataTableField<LetterListItem>[] = [
     defaultWidth: 180,
     minWidth: 120,
     render: (letter) =>
-      letter.project ? (
-        <span className="truncate text-body-xs text-info/80">{letter.project.name}</span>
+      letter.registration?.project ? (
+        <span className="truncate text-body-xs text-info/80">
+          {letter.registration.project.name}
+        </span>
       ) : (
         <span className={monoCell}>—</span>
       ),
-    sortValue: (letter) => letter.project?.name ?? null,
+    sortValue: (letter) => letter.registration?.project?.name ?? null,
   },
   {
     id: 'deadline',
@@ -111,8 +154,8 @@ export const letterJournalFields: DataTableField<LetterListItem>[] = [
     defaultVisible: false,
     defaultWidth: 172,
     minWidth: 140,
-    render: (letter) => <DeadlineChip deadline={letter.deadline} />,
-    sortValue: (letter) => letter.deadline,
+    render: (letter) => <LetterDeadlineChip deadline={letter.registration?.deadline ?? null} />,
+    sortValue: (letter) => letter.registration?.deadline ?? null,
   },
   {
     id: 'regDate',
@@ -121,11 +164,11 @@ export const letterJournalFields: DataTableField<LetterListItem>[] = [
     defaultWidth: 132,
     minWidth: 108,
     render: (letter) =>
-      letter.regDate ? (
-        <span className={monoCell}>{formatDate(letter.regDate)}</span>
+      letter.registration ? (
+        <span className={monoCell}>{formatDate(letter.registration.regDate)}</span>
       ) : (
         <span className={monoCell}>—</span>
       ),
-    sortValue: (letter) => letter.regDate,
+    sortValue: (letter) => letter.registration?.regDate ?? null,
   },
 ];

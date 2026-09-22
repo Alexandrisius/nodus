@@ -14,6 +14,7 @@ import { formatTime } from '../lib/format.js';
 import { MessageAttachments } from './attachments.js';
 import { BubbleTail } from './bubble-tail.js';
 import { useChatPrefs } from './chat-prefs.js';
+import { MessageText } from './message-text.js';
 import { PersonAvatar } from '../ui/person-avatar.js';
 import { ReadTicks } from './read-ticks.js';
 
@@ -133,7 +134,7 @@ export const ChatMessageItem = memo(function ChatMessageItem({
                 chat-attachments-plan): галерея/чипы сверху, затем текст. */}
             {message.attachments.length > 0 ? <MessageAttachments message={message} /> : null}
             <span className="flex items-end gap-2">
-              <span className="whitespace-pre-wrap break-words">{message.text}</span>
+              <MessageText text={message.text} />
               {hasExtra ? null : timeRow}
             </span>
             {/* Нижняя строка пузыря: реакции СЛЕВА + время СПРАВА в ОДНОЙ
