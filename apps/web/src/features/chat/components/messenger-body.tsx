@@ -15,7 +15,7 @@ export type ChatTab = 'chats' | 'tasks' | 'settings';
 
 /**
  * ТЕЛО мессенджера — ЕДИНЫЙ код для страницы `/chat` И полноэкранной карточки
- * `messenger:<id>` (стек ADR-0009, план `docs/mvp/messenger-fullscreen-plan.md`,
+ * `messenger:<id>` (стек ADR-0009, план `docs/mvp/archive/messenger-fullscreen-plan.md`,
  * урок «чаты в задачах»: один код — ноль дублей, всё меняется одним проходом).
  *
  * Состав: список бесед с локальным поиском (модель Битрикс24 «Найти сотрудника

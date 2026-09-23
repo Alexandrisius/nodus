@@ -5,7 +5,7 @@ import { MessengerBody, type ChatTab } from '../components/messenger-body.js';
 /**
  * Мессенджер — маршрутная обёртка над ЕДИНЫМ телом `MessengerBody` (то же
  * тело рендерит полноэкранная карточка `messenger:<id>` стека — план
- * `docs/mvp/messenger-fullscreen-plan.md`, ноль дублей). Страница владеет
+ * `docs/mvp/archive/messenger-fullscreen-plan.md`, ноль дублей). Страница владеет
  * состоянием через маршрут: беседа — параметр `/chat/$conversationId`,
  * вкладки «Чаты» / «Чаты задач» / «Настройка» — в топбаре шелла по канону
  * каркаса (search `?tab=`), тред — search `?thread=` (deep-link).

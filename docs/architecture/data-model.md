@@ -6,7 +6,7 @@
 
 ## Сущности
 
-- **User** (id, email, ФИО, должность, отдел→Department, роль, настройки уведомлений, аватар, presence-статус)
+- **User** (id, email, ФИО, должность, отдел→Department, роль, настройки уведомлений, аватар; presence-статус — НЕ в БД: эфемерный, TTL-ключи Redis, живёт в WS-gateway)
 - **Department** (дерево: parent_id)
 - **Project** (код, название, стадия, руководитель, даты, chat_channel_id, статус) — **ProjectMember** (project_id, user_id, роль в проекте)
 - **ProjectGroup** (название, parent_id?) — портфели/программы: дерево группировки проектов (по заказчикам, типам объектов, годам)
@@ -16,8 +16,8 @@
 - **TaskPersonalPlacement** (task_id × user_id → stage_id личной схемы пользователя, порядок в колонке) — размещение задачи на личной доске «Мой план» (ADR-0008); встроенное автоперемещение: смена системного состояния → переезд в первую личную колонку этого состояния; событие `task.personal_stage_changed`
 - **ChecklistItem**, **TimeEntry** (task_id, user_id, минуты, дата, способ: timer|manual, комментарий)
 - **TaskResult** (task_id, текст результата, закреплённые сообщения: message_id[], автор, created_at) — результат задачи; в V3 дополняется ИИ-выжимкой обсуждения
-- **Conversation** (тип: direct|group|project_channel; project_id?; title) — **ConversationMember** (роль, last_read_message_id, mute)
-- **Message** (conversation_id, автор, текст, reply_to?, **thread_root_id?** (тред — ровно один уровень вложенности), topic_id?, клиентский ID для идемпотентности, edited_at, deleted_at) — **MessageReaction**, **MessageAttachment**, **PinnedMessage**, **ThreadParticipant** (thread_root_id, user_id, источник подписки: автор|ответил|наблюдатель, mute) — уведомления о треде только участникам
+- **Conversation** (тип: direct|group|project_channel|task; project_id?; task_id?; title) — **ConversationMember** (роль, last_read_seq — монотонный номер сообщения, mute, pinned, snoozed, hidden)
+- **Message** (conversation_id, автор, текст, reply_to?, **thread_root_id?** (тред — ровно один уровень вложенности), topic_id?, клиентский ID для идемпотентности (уникален в паре с автором), seq — монотонный bigserial: порядок, курсор пагинации, якорь прочитанности, edited_at, deleted_at) — **MessageReaction**, **MessageAttachment**, **PinnedMessage**, **ThreadParticipant** (thread_root_id, user_id, источник подписки: автор|ответил|наблюдатель, mute) — уведомления о треде только участникам
 - **Letter** (тип: incoming|outgoing; рег. номер, дата рег., от/кому, тема, тело, message_id оригинала письма, статус, проект?, срок исполнения?) — **LetterAttachment**, **Resolution** (letter_id, текст резолюции, автор, → task_id созданного поручения)
 - **WorkflowDefinition** (код, название, JSON-схема шагов) — **WorkflowInstance** (объект-связка, текущий шаг, история действий, статус, дедлайны шагов)
 - **FileObject** (бакет-ключ, имя, mime, размер, владелец, контекст: task|letter|project|message + id) — **FileVersion** (версия, ключ, автор, preview_key?)
@@ -34,9 +34,9 @@
 
 ## Правила схемы
 
-- Суррогатные UUID PK; `created_at/updated_at` везде; FK с onDelete явно.
+- Суррогатные UUID PK; `created_at/updated_at` везде; FK с onDelete явно — **но только внутри одного модуля**: между таблицами разных модулей — plain UUID без FK-констрейнта (изоляция модулей, I3; связь живёт на уровне приложения и событий).
 - Мягкое удаление только там, где есть бизнес-смысл (сообщения, файлы).
 - Индексы под запросы списков и FTS — с первой миграции.
 - Классификаторы сущностей (тип объекта, тип проекта, вид работ) — обязательные кастомные поля (I14); перечень утверждается владельцем.
-- Таблица `messages` партиционируется по месяцам сразу (дешевле сейчас, чем мигрировать 100 млн строк потом).
+- Таблица `messages` партиционируется по месяцам **по триггеру** — при достижении десятков миллионов строк (контроль перед пилотом при росте объёма). До того — обычная таблица; курсор пагинации по `seq` и временные фильтры закладываются с первой миграции, чтобы будущий переезд на партиции не менял контракты.
 - Миграции задним числом не изменяются — только новые миграции.
