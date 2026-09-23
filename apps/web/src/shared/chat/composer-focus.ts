@@ -12,6 +12,12 @@
  *   клавиатурной навигации (модальность отслеживается pointerdown/keydown);
  * - несвёрнутая селекция текста фокус НЕ возвращает — выделение и копирование
  *   текста сообщения важнее мигающего курсора;
+ * - открытый оверлей-слой (диалог, поповер, меню, селект — role на контенте
+ *   Radix) владеет фокусом: пока `activeElement` внутри слоя, курсор НЕ
+ *   возвращается — иначе DismissableLayer закроет панель по focusOutside
+ *   (баг #71: пикер даты в карточке регистрации вспыхивал и пропадал).
+ *   Канон сохраняется: после закрытия слоя автофокус Radix возвращает фокус
+ *   на триггер, focusin-гард планирует steal уже вне слоя;
  * - фокус возвращается с preventScroll — лента не прыгает при возврате;
  * - анрегистр активного композера (закрыли тред) передаёт курсор ранее
  *   зарегистрированному (ленте канала) — «закрыл тред → мигает канал».
@@ -21,6 +27,11 @@ let activeId: string | null = null;
 let modality: 'pointer' | 'key' | 'other' = 'other';
 let installed = false;
 
+/** Роли Radix-контента оверлей-слоёв (dialog/popover → role=dialog,
+ *  dropdown/context-menu → role=menu, select → role=listbox; DOM-проба #71). */
+const OVERLAY_LAYER_SELECTOR =
+  '[role="dialog"],[role="alertdialog"],[role="menu"],[role="listbox"]';
+
 function isEditable(el: Element | null): el is HTMLElement {
   return (
     el instanceof HTMLElement &&
@@ -28,10 +39,15 @@ function isEditable(el: Element | null): el is HTMLElement {
   );
 }
 
+function insideOverlayLayer(el: Element | null): boolean {
+  return el instanceof Element && el.closest(OVERLAY_LAYER_SELECTOR) !== null;
+}
+
 function stealFocus(): void {
   const el = activeId ? registry.get(activeId) : undefined;
   if (!el || document.activeElement === el) return;
   if (isEditable(document.activeElement)) return;
+  if (insideOverlayLayer(document.activeElement)) return;
   const selection = window.getSelection();
   if (selection && !selection.isCollapsed) return;
   el.focus({ preventScroll: true });
