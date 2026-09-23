@@ -98,6 +98,7 @@ export const ui = {
     home: 'Главная',
     tasks: 'Задачи',
     letters: 'Корреспонденция',
+    crm: 'CRM',
     counterparties: 'Контрагенты',
     projects: 'Проекты',
     chat: 'Мессенджер',

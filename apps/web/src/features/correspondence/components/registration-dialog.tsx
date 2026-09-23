@@ -200,7 +200,7 @@ export function RegistrationDialog({
           </div>
         </div>
 
-        <div className="mt-4 flex items-center justify-end gap-2 border-t border-border pt-4">
+        <div className="flex items-center justify-end gap-2">
           <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
             {ui.common.cancel}
           </Button>

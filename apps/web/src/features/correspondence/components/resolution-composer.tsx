@@ -163,7 +163,7 @@ export function ResolutionComposer({
           </div>
         </div>
 
-        <div className="mt-4 flex items-center justify-between gap-2 border-t border-border pt-4">
+        <div className="flex items-center justify-between gap-2">
           {/* Аватар автора резолюции — текущий пользователь (расписывает адресат) */}
           <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
             {letter?.registration?.addressee ? (

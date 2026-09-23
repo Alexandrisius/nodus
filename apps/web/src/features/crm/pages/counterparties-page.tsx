@@ -15,9 +15,10 @@ import { makeCardRowMenuItems } from '../../../shared/views/card-row-menu.js';
 import { counterpartyFields } from '../lib/counterparty-fields.js';
 import { CounterpartyCreateDialog } from '../components/counterparty-create-dialog.js';
 
-/** Контрагенты — справочник внешних организаций (заказчики, подрядчики,
- *  поставщики, госорганы; НЕ CRM). Реестр — каноническая таблица shared/views
- *  (ключ `counterparties.list`), поиск по названию/УНП, карточка — в стеке. */
+/** Контрагенты — вкладка раздела CRM (#83): справочник внешних организаций
+ *  (заказчики, подрядчики, поставщики, госорганы). Реестр — каноническая
+ *  таблица shared/views (ключ `counterparties.list`), поиск по названию/УНП,
+ *  карточка — в стеке. */
 export function CounterpartiesPage() {
   const { data, isLoading } = useCounterpartiesList();
   const openCard = useOpenCard();

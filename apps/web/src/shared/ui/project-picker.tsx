@@ -132,7 +132,7 @@ export function ProjectPicker({
         </div>
         {/* «Создать проект» — НА БУДУЩЕЕ (вердикт владельца 15.09.2026: кнопка
             нужна в окне; окна создания проекта пока нет — действия нет). */}
-        <div className="border-t border-border p-1.5">
+        <div className="p-1.5">
           <button
             type="button"
             className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"

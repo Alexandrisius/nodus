@@ -179,7 +179,7 @@ export function DateTimePicker({
                 );
               })}
             </div>
-            <div className="mt-2 flex items-center gap-2 border-t border-border pt-2">
+            <div className="mt-2 flex items-center gap-2">
               <span className="text-xs font-medium text-muted-foreground">
                 {ui.common.timeLabel}
               </span>
