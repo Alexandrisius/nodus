@@ -190,7 +190,7 @@ jobs:
           timeout 30 bash -c 'until curl -fsS http://127.0.0.1:4173 > /dev/null; do sleep 1; done' || { echo '--- Web log ---'; cat /tmp/nodus-web.log; exit 1; }
 
       - name: Кэш браузеров Playwright
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         id: playwright-cache
         with:
           path: ~/.cache/ms-playwright
