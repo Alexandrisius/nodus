@@ -5,7 +5,7 @@ import { Button } from '@nodus/ui/components/button';
 export function SendHexButton({ disabled, label }: { disabled?: boolean; label: string }) {
   return (
     <Button type="submit" size="icon" disabled={disabled} aria-label={label}>
-      {/* Знак из мастера docs/mvp/logo/Nodus_иконка.svg (гексагон + три балки
+      {/* Знак из мастера docs/design/logo/Nodus_иконка.svg (гексагон + три балки
           120° по вершинам + узлы на общей окружности) с оптикой мелких
           размеров: штрих и узлы толще пропорций мастера, балки выходят прямо
           из вершин (висячий зазор мастера в ~1px здесь рассыпается), марка

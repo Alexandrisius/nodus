@@ -42,7 +42,7 @@ export function MessageReactions({ message }: { message: ChatMessage }) {
 
 /**
  * Сообщение чата по канону Битрикс24/Телеграм (вердикт владельца 14.09.2026,
- * план docs/mvp/chat-messages-plan.md): лента grouped на серии одного автора
+ * план docs/mvp/archive/chat-messages-plan.md): лента grouped на серии одного автора
  * (`message-groups.ts`), и серия распределяет атрибуты —
  * - имя (`showName`): только чужое и только над ПЕРВЫМ пузырём серии;
  * - аватар (`showAvatar`): один на серию, у ПОСЛЕДНЕГО сообщения, внизу

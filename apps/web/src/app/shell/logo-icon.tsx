@@ -1,4 +1,4 @@
-/** Иконка продукта Nodus: гексагональный узел с тремя балками (мастер docs/mvp/logo/Nodus_иконка.svg). */
+/** Иконка продукта Nodus: гексагональный узел с тремя балками (мастер docs/design/logo/Nodus_иконка.svg). */
 export function LogoIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 64 64" className={className} aria-hidden="true">

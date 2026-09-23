@@ -124,7 +124,7 @@ function CounterpartyEntry({ id, source, onClose, dormant }: EntryProps) {
 }
 
 /** Мессенджер — ПОЛНОЭКРАННАЯ карточка стека (ADR-0009 + план
- *  `docs/mvp/messenger-fullscreen-plan.md`, вердикт владельца 15.09.2026,
+ *  `docs/mvp/archive/messenger-fullscreen-plan.md`, вердикт владельца 15.09.2026,
  *  модель Битрикс24): клик по беседе в служебной полосе открывает
  *  полноценный мессенджер (вкладки Чаты/Чаты задач/Настройка, список бесед,
  *  весь функционал — единое тело `MessengerBody` со страницей /chat) ПОВЕРХ
