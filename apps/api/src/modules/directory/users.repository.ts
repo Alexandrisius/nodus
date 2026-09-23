@@ -17,6 +17,8 @@ const userListSelect = {
   avatarUrl: true,
   email: true,
   managerId: true,
+  departmentId: true,
+  legalDepartmentId: true,
   position: { select: { name: true } },
   department: { select: { name: true } },
 } satisfies Prisma.UserSelect;
@@ -44,9 +46,18 @@ export class UsersRepository {
     limit = DEFAULT_LIMIT,
   ): Promise<{ items: UserListRow[]; nextCursor: string | null }> {
     const take = Math.min(limit, MAX_LIMIT);
+    // Фильтр по подразделению — kind-осознанный (семантика контракта, #84):
+    // принадлежность в ТОЙ структуре, к которой относится само подразделение.
+    const department = filter.departmentId
+      ? await this.prisma.department.findUnique({
+          where: { id: filter.departmentId },
+          select: { kind: true },
+        })
+      : null;
+    const membershipColumn = department?.kind === 'legal' ? 'legalDepartmentId' : 'departmentId';
     const where: Prisma.UserWhereInput = {
       ...(filter.status ? { status: filter.status } : {}),
-      ...(filter.departmentId ? { departmentId: filter.departmentId } : {}),
+      ...(filter.departmentId ? { [membershipColumn]: filter.departmentId } : {}),
       ...(filter.search
         ? {
             OR: [

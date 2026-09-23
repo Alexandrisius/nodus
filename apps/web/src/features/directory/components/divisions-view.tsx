@@ -1,0 +1,171 @@
+import { ChevronDown, ChevronUp, Folder, Users } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { DepartmentNode } from '@nodus/contracts';
+import { ui } from '@nodus/contracts';
+import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
+import { cn } from '@nodus/ui/lib/utils';
+
+import { filterTreeByName, totalEmployees } from '../lib/department-tree.js';
+import { useTreeEdges, type TreeLink } from '../lib/use-tree-edges.js';
+
+/**
+ * Вид «Подразделения» (#84, референс — дерево карточек отделов Битрикса):
+ * канвас дерева карточек-подразделений в грамматике контура (node-панели,
+ * ортогональные рёбра use-tree-edges, snapPx). Карточка = подразделение
+ * (название, руководитель, счётчики сотрудников с подподразделами и подотделов),
+ * клик — правая панель подразделения; шеврон — свернуть/развернуть подотделы
+ * (дефолт: свёрнуто от 3-го уровня — сотни людей не бывают на канвасе ВООБЩЕ).
+ * Поиск фильтрует ветки, «найти меня» раскрывает путь и скроллит к подразделению
+ * текущего пользователя. Рёбра следуют только за РАСКРЫТЫМИ узлами.
+ */
+export function DivisionsView({
+  roots,
+  selectedId,
+  onSelect,
+  query,
+}: {
+  roots: DepartmentNode[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+  query: string;
+}) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const nodeRefs = useRef(new Map<string, HTMLDivElement>());
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
+
+  const searching = query.trim().length > 0;
+  const visible = useMemo(() => filterTreeByName(roots, query), [roots, query]);
+
+  // Дефолт свёрнутости — узлы глубже 2-го уровня (корень + отделы видны сразу).
+  useEffect(() => {
+    const deep = new Set<string>();
+    const walk = (nodes: DepartmentNode[], depth: number) => {
+      for (const node of nodes) {
+        if (depth >= 2 && node.children.length > 0) deep.add(node.id);
+        walk(node.children, depth + 1);
+      }
+    };
+    walk(roots, 0);
+    setCollapsed(deep);
+  }, [roots]);
+
+  const links = useMemo(() => {
+    const list: TreeLink[] = [];
+    const walk = (nodes: DepartmentNode[]) => {
+      for (const node of nodes) {
+        if (searching || !collapsed.has(node.id)) {
+          for (const child of node.children) list.push({ parent: node.id, child: child.id });
+        }
+        walk(node.children);
+      }
+    };
+    walk(visible);
+    return list;
+  }, [visible, collapsed, searching]);
+
+  const { segments, ports, portRadius } = useTreeEdges(rootRef, nodeRefs, links);
+
+  function toggle(node: DepartmentNode) {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(node.id)) next.delete(node.id);
+      else next.add(node.id);
+      return next;
+    });
+  }
+
+  function renderNode(node: DepartmentNode): React.ReactNode {
+    const open = searching || !collapsed.has(node.id);
+    const total = totalEmployees(node);
+    return (
+      <div key={node.id} className="flex flex-col items-center gap-10">
+        <div
+          ref={(el) => {
+            if (!el) return;
+            nodeRefs.current.set(node.id, el);
+            return () => {
+              nodeRefs.current.delete(node.id);
+            };
+          }}
+          role="button"
+          tabIndex={0}
+          onClick={() => onSelect(node.id)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              onSelect(node.id);
+            }
+          }}
+          className={cn(
+            'node-panel w-60 cursor-pointer px-3 py-2.5 text-left transition-colors hover:border-input',
+            selectedId === node.id && 'border-input bg-accent/40',
+          )}
+        >
+          <span className="flex items-center gap-2">
+            <span className="min-w-0 flex-1 truncate text-sm font-medium">{node.name}</span>
+            {node.children.length > 0 && (
+              <button
+                type="button"
+                aria-label={open ? ui.employees.collapseDepartment : ui.employees.expandDepartment}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggle(node);
+                }}
+                className="shrink-0 rounded p-0.5 text-muted-foreground transition-colors hover:text-foreground"
+              >
+                {open ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+              </button>
+            )}
+          </span>
+          {node.headName && (
+            <span className="mt-1.5 flex items-center gap-1.5">
+              <PersonAvatar name={node.headName} avatarUrl={null} className="size-5 shrink-0" />
+              <span className="truncate text-xs text-muted-foreground">{node.headName}</span>
+            </span>
+          )}
+          <span className="mt-2 flex items-center gap-3 font-mono text-label-sm text-muted-foreground tabular-nums">
+            <span className="flex items-center gap-1">
+              <Users className="size-3.5" strokeWidth={1.75} />
+              {total}
+            </span>
+            {node.children.length > 0 && (
+              <span className="flex items-center gap-1">
+                <Folder className="size-3.5" strokeWidth={1.75} />
+                {node.children.length}
+              </span>
+            )}
+          </span>
+        </div>
+        {open && node.children.length > 0 && (
+          <div className="flex items-start gap-4">{node.children.map(renderNode)}</div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div ref={scrollRef} className="h-full overflow-auto">
+      <div ref={rootRef} className="relative w-max min-w-full py-6">
+        <svg
+          className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
+          aria-hidden="true"
+        >
+          {segments.map((segment) => (
+            <path
+              key={segment.key}
+              d={segment.d}
+              fill="none"
+              stroke="var(--edge)"
+              strokeWidth={1}
+            />
+          ))}
+          {ports.map((port) => (
+            <circle key={port.key} cx={port.x} cy={port.y} r={portRadius} fill="var(--port)" />
+          ))}
+        </svg>
+        <div className="flex justify-center gap-6 px-6">{visible.map(renderNode)}</div>
+      </div>
+    </div>
+  );
+}
