@@ -1,7 +1,6 @@
 {
   "extends": "@nodus/config/tsconfig/react.json",
   "compilerOptions": {
-    "baseUrl": ".",
     "paths": {
       "#components/*": ["./src/components/*"],
       "#lib/*": ["./src/lib/*"],

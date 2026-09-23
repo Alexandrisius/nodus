@@ -7,6 +7,10 @@ updates:
       interval: 'weekly'
       day: 'monday'
     open-pull-requests-limit: 10
+    ignore:
+      # TS 7 — миграция инструментария, не патч-бамп; отложена до «после запуска» (#75)
+      - dependency-name: 'typescript'
+        update-types: ['version-update:semver-major']
     groups:
       production-dependencies:
         dependency-type: 'production'
