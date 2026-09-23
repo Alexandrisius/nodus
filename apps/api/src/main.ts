@@ -1,9 +1,10 @@
 import 'reflect-metadata';
 import { randomUUID } from 'node:crypto';
-import fastifyCookie from '@fastify/cookie';
-import fastifyRateLimit from '@fastify/rate-limit';
+import fastifyCookie, { type FastifyCookieOptions } from '@fastify/cookie';
+import fastifyRateLimit, { type RateLimitPluginOptions } from '@fastify/rate-limit';
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
+import type { FastifyPluginCallback } from 'fastify';
 import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module.js';
 import { validateEnv } from './core/config/env.schema.js';
@@ -30,13 +31,13 @@ async function bootstrap(): Promise<void> {
   setupOpenApi(app, (token) => tokenService.verifyAccessToken(token));
 
   // Refresh-токен — в httpOnly-cookie (auth.controller).
-  await app.register(fastifyCookie);
+  await app.register(fastifyCookie as FastifyPluginCallback<FastifyCookieOptions>);
 
   // Базовый rate limit (защита от флода); брутфорс login ограничен пер-аккаунтным
   // счётчиком неудач в AuthService (Redis) — плагин считает по IP до парсинга
   // тела, что за NAT ложно блокирует весь офис. В тестах выключен.
   if (env.NODE_ENV !== 'test') {
-    await app.register(fastifyRateLimit, {
+    await app.register(fastifyRateLimit as FastifyPluginCallback<RateLimitPluginOptions>, {
       global: true,
       max: 300,
       timeWindow: '1 minute',

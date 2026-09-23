@@ -1,8 +1,9 @@
 import 'reflect-metadata';
 import { execSync } from 'node:child_process';
-import fastifyCookie from '@fastify/cookie';
+import fastifyCookie, { type FastifyCookieOptions } from '@fastify/cookie';
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
+import type { FastifyPluginCallback } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import {
@@ -60,7 +61,7 @@ describe('auth + directory (integration)', () => {
     app = await NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter(), {
       logger: false,
     });
-    await app.register(fastifyCookie);
+    await app.register(fastifyCookie as FastifyPluginCallback<FastifyCookieOptions>);
     app.setGlobalPrefix('api/v1');
     await app.listen(0, '127.0.0.1');
     const address = app.getHttpServer().address() as { port: number };
