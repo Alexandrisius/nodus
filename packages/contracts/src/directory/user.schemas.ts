@@ -84,6 +84,10 @@ export const userListItemSchema = z.object({
   departmentName: z.string().nullable(),
   email: z.email(),
   managerId: z.uuid().nullable(),
+  /** Управленческое подразделение (#84: вид «Подразделения», панель подразделения). */
+  departmentId: z.uuid().nullable(),
+  /** Юридическое подразделение (по трудовой) — вид «Подразделения» в режиме legal. */
+  legalDepartmentId: z.uuid().nullable(),
 });
 
 export type UserListItem = z.infer<typeof userListItemSchema>;
@@ -91,6 +95,9 @@ export type UserListItem = z.infer<typeof userListItemSchema>;
 export const listUsersQuerySchema = cursorQuerySchema.extend({
   /** Поиск по ФИО и email (substring, case-insensitive). */
   search: z.string().trim().min(1).max(128).optional(),
+  /** Фильтр по подразделению: принадлежность в ТОЙ структуре, к которой относится
+   *  само подразделение (management → departmentId, legal → legalDepartmentId;
+   *  kind сервер берёт из подразделения) — семантика панели подразделения (#84). */
   departmentId: z.uuid().optional(),
   status: userStatusSchema.optional(),
 });

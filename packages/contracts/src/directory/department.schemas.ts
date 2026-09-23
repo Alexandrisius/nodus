@@ -41,6 +41,17 @@ export interface DepartmentNode extends Department {
   children: DepartmentNode[];
 }
 
+/**
+ * Запрос дерева оргструктуры (UI «Подразделения», #84): какая из пары
+ * структур (kind) нужна; ответ — лес корней DepartmentNode (children рекурсивно).
+ * Бэкенд: GET /api/v1/directory/departments?kind=…
+ */
+export const departmentTreeQuerySchema = z.object({
+  kind: orgUnitKindSchema.default('management'),
+});
+
+export type DepartmentTreeQuery = z.infer<typeof departmentTreeQuerySchema>;
+
 export const createDepartmentSchema = z.object({
   name: z.string().trim().min(1).max(256),
   kind: orgUnitKindSchema.default('management'),

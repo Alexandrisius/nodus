@@ -1,0 +1,117 @@
+import type { Department, DepartmentNode, OrgUnitKind, UserListItem } from '@nodus/contracts';
+
+import { departmentIds } from './org-ids.js';
+import { userIds } from './users.js';
+
+/**
+ * Демо-оргструктура (#84, модель M2 #18): ДВЕ структуры расходятся, как в жизни
+ * ПассатПроекта. Управленческая: ПассатПроект → [Проектное → BIM-отдел,
+ * Административное]; руководитель BIM-отдела подчиняется НАПРЯМУЮ директору,
+ * минуя «Проектное» (гибкий managerId, требование 1 #18 — подчинённость не
+ * совпадает с деревом подразделений). Юридическая: все инженеры по трудовой —
+ * «инженеры-проектировщики» в «Группе ГИПов» (требование 3 #18), иерархия
+ * помощников ГИПа живёт внутри группы через managerId (Клевантович → Воронина).
+ */
+export const demoDepartments: Department[] = [
+  {
+    id: departmentIds.company,
+    name: 'ПассатПроект',
+    kind: 'management',
+    parentId: null,
+    headId: userIds.shaiderova,
+    deputyId: null,
+    sortOrder: 0,
+    isActive: true,
+  },
+  {
+    id: departmentIds.project,
+    name: 'Проектное',
+    kind: 'management',
+    parentId: departmentIds.company,
+    headId: userIds.vinnichek,
+    deputyId: userIds.kuralenya,
+    sortOrder: 0,
+    isActive: true,
+  },
+  {
+    id: departmentIds.bim,
+    name: 'BIM-отдел',
+    kind: 'management',
+    parentId: departmentIds.project,
+    headId: userIds.klimovich,
+    deputyId: userIds.klevantovich,
+    sortOrder: 0,
+    isActive: true,
+  },
+  {
+    id: departmentIds.admin,
+    name: 'Административное',
+    kind: 'management',
+    parentId: departmentIds.company,
+    headId: userIds.karpovich,
+    deputyId: null,
+    sortOrder: 1,
+    isActive: true,
+  },
+  {
+    id: departmentIds.legalCompany,
+    name: 'ПассатПроект',
+    kind: 'legal',
+    parentId: null,
+    headId: userIds.shaiderova,
+    deputyId: null,
+    sortOrder: 0,
+    isActive: true,
+  },
+  {
+    id: departmentIds.legalGip,
+    name: 'Группа ГИПов',
+    kind: 'legal',
+    parentId: departmentIds.legalCompany,
+    headId: userIds.klevantovich,
+    deputyId: userIds.klimovich,
+    sortOrder: 0,
+    isActive: true,
+  },
+];
+
+/** Принадлежность сотрудника структуре: management → departmentId, legal → legalDepartmentId. */
+export function departmentOfUser(user: UserListItem, kind: OrgUnitKind): string | null {
+  return kind === 'management' ? user.departmentId : user.legalDepartmentId;
+}
+
+/**
+ * Лес корней DepartmentNode для вида (контракт GET /directory/departments?kind=):
+ * children рекурсивно по parentId (сортировка sortOrder), memberCount —
+ * НЕ-рекурсивно (прикреплённые к подразделению), денормализованные имена
+ * руководителя/зама — для UI без второго запроса.
+ */
+export function buildDepartmentTree(
+  kind: OrgUnitKind,
+  users: UserListItem[],
+  source: Department[] = demoDepartments,
+): DepartmentNode[] {
+  const ofKind = source.filter((d) => d.kind === kind && d.isActive);
+  const nameOf = (id: string | null): string | null =>
+    id === null ? null : (users.find((u) => u.id === id)?.displayName ?? null);
+
+  function node(department: Department): DepartmentNode {
+    const children = ofKind
+      .filter((d) => d.parentId === department.id)
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map(node);
+    return {
+      ...department,
+      headName: nameOf(department.headId),
+      deputyName: nameOf(department.deputyId),
+      memberCount: users.filter((u) => departmentOfUser(u, kind) === department.id).length,
+      children,
+    };
+  }
+
+  const ids = new Set(ofKind.map((d) => d.id));
+  return ofKind
+    .filter((d) => d.parentId === null || !ids.has(d.parentId))
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .map(node);
+}

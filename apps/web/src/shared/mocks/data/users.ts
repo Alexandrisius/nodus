@@ -1,6 +1,8 @@
 import { Permission } from '@nodus/contracts';
 import type { AuthUser, PresenceEntry, UserCard, UserListItem, UserRef } from '@nodus/contracts';
 
+import { departmentIds } from './org-ids.js';
+
 /** Демо-справочник сотрудников (ПассатПроект, 10 человек для концепта). */
 
 const uid = (n: number): string => `10000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
@@ -24,6 +26,8 @@ function mk(
   positionName: string,
   departmentName: string,
   manager: number | null,
+  department: keyof typeof departmentIds,
+  legalDepartment: keyof typeof departmentIds,
 ): UserListItem {
   const email = `user${n}@passatproekt.by`;
   return {
@@ -35,20 +39,26 @@ function mk(
     departmentName,
     email,
     managerId: manager === null ? null : uid(manager),
+    departmentId: departmentIds[department],
+    legalDepartmentId: departmentIds[legalDepartment],
   };
 }
 
+/** Демо-принадлежность и подчинённость (#84): управленчески инженерный состав
+ *  сидит в BIM-отделе/Проектном, юридически по трудовой — в «Группе ГИПов»;
+ *  Воронина — помощник ГИПа Клевантовича (managerId 3) при управленческом
+ *  руководителе Климовиче: иерархия внутри юргруппы без фиктивных отделов. */
 export const demoUserListItems: UserListItem[] = [
-  mk(1, 'Александр Климович', 'БИМ-менеджер', 'BIM-отдел', 7),
-  mk(2, 'Екатерина Поломар', 'Инженер-проектировщик', 'BIM-отдел', 1),
-  mk(3, 'Денис Клевантович', 'Главный специалист BIM', 'BIM-отдел', 1),
-  mk(4, 'Алина Воронина', 'Инженер-проектировщик', 'BIM-отдел', 1),
-  mk(5, 'Артём Маторин', 'Инженер-проектировщик', 'BIM-отдел', 1),
-  mk(6, 'Ольга Карпович', 'Специалист по кадрам', 'Отдел кадров', 7),
-  mk(7, 'Валерия Шайдерова', 'Директор', 'Руководство', null),
-  mk(8, 'Андрей Кураленя', 'Инженер-проектировщик', 'Архитектурный отдел', 9),
-  mk(9, 'Полина Винничек', 'Главный архитектор', 'Архитектурный отдел', 7),
-  mk(10, 'Михаил Акулич', 'Инженер-проектировщик', 'Архитектурный отдел', 9),
+  mk(1, 'Александр Климович', 'БИМ-менеджер', 'BIM-отдел', 7, 'bim', 'legalGip'),
+  mk(2, 'Екатерина Поломар', 'Инженер-проектировщик', 'BIM-отдел', 1, 'bim', 'legalGip'),
+  mk(3, 'Денис Клевантович', 'Главный специалист BIM', 'BIM-отдел', 1, 'bim', 'legalGip'),
+  mk(4, 'Алина Воронина', 'Инженер-проектировщик', 'BIM-отдел', 3, 'bim', 'legalGip'),
+  mk(5, 'Артём Маторин', 'Инженер-проектировщик', 'BIM-отдел', 1, 'bim', 'legalGip'),
+  mk(6, 'Ольга Карпович', 'Специалист по кадрам', 'Административное', 7, 'admin', 'legalCompany'),
+  mk(7, 'Валерия Шайдерова', 'Директор', 'ПассатПроект', null, 'company', 'legalCompany'),
+  mk(8, 'Андрей Кураленя', 'Инженер-проектировщик', 'Проектное', 9, 'project', 'legalGip'),
+  mk(9, 'Полина Винничек', 'Главный архитектор', 'Проектное', 7, 'project', 'legalGip'),
+  mk(10, 'Михаил Акулич', 'Инженер-проектировщик', 'Проектное', 9, 'project', 'legalGip'),
 ];
 
 /** Профильные поля карточки (контактный блок UserCard, модель M2 #18):
@@ -202,9 +212,9 @@ export const demoUserCards: UserCard[] = demoUserListItems.map((item) => {
     status: item.status,
     ...splitName(item.displayName),
     managerId: item.managerId,
-    departmentId: null,
+    departmentId: item.departmentId,
     positionId: null,
-    legalDepartmentId: null,
+    legalDepartmentId: item.legalDepartmentId,
     legalPositionId: null,
     ...profile,
     avatarUrl: item.avatarUrl,

@@ -156,11 +156,19 @@ export const NAV_MODULES: NavModuleDef[] = [
     label: ui.nav.employees,
     icon: Users,
     tabs: [
+      // #84: «Подразделения» (дерево + панель) — дефолт вместо графа людей:
+      // сотни карточек сотрудников непросматриваемы (вердикт владельца 23.09).
       {
-        id: 'org',
-        label: ui.employees.structure,
+        id: 'divisions',
+        label: ui.employees.viewDivisions,
         search: {},
-        isActive: (s) => (s.get('view') ?? 'org') === 'org',
+        isActive: (s) => (s.get('view') ?? 'divisions') === 'divisions',
+      },
+      {
+        id: 'subordination',
+        label: ui.employees.viewSubordination,
+        search: { view: 'subordination' },
+        isActive: (s) => s.get('view') === 'subordination',
       },
       {
         id: 'list',
