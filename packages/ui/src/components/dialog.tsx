@@ -90,7 +90,9 @@ function DialogFooter({
     <div
       data-slot="dialog-footer"
       className={cn(
-        '-mx-4 -mb-4 flex flex-col-reverse gap-2 rounded-b-xl border-t bg-muted/50 p-4 sm:flex-row sm:justify-end',
+        // Вердикт владельца 24.09: без горизонтального разделителя и
+        // тонированной полосы — кнопки следуют за полями через отступ сетки.
+        'flex flex-col-reverse gap-2 sm:flex-row sm:justify-end',
         className,
       )}
       {...props}

@@ -97,11 +97,21 @@ export const NAV_MODULES: NavModuleDef[] = [
     ],
   },
   {
-    id: 'counterparties',
-    to: '/counterparties',
-    label: ui.nav.counterparties,
+    id: 'crm',
+    to: '/crm',
+    label: ui.nav.crm,
     icon: Building2,
-    tabs: [{ id: 'list', label: ui.counterparties.viewList, search: {}, isActive: () => true }],
+    // Дом master-данных внешних организаций (#83, вердикт владельца 23.09):
+    // рейка без зоопарка — сегодня одна вкладка, договоры и тендеры нарастут
+    // вкладками по вхождению тендерно-договорного контура в план (V2).
+    tabs: [
+      {
+        id: 'counterparties',
+        label: ui.nav.counterparties,
+        search: {},
+        isActive: () => true,
+      },
+    ],
   },
   {
     id: 'projects',

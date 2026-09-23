@@ -190,7 +190,7 @@ export function TaskQuickCreate({
               </button>
             </div>
           </div>
-          <div className="flex h-12 shrink-0 items-center gap-2 border-t border-border px-4">
+          <div className="flex h-12 shrink-0 items-center gap-2 px-4">
             <Button size="sm" type="submit" disabled={!valid || create.isPending}>
               {ui.common.create}
             </Button>

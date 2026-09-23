@@ -5,7 +5,7 @@ import { ProjectIdentityIcon } from '../../shared/ui/project-identity-icon.js';
 import { useCounterpartyCard } from '../../shared/counterparties/api.js';
 import { useLetterDetail } from '../../features/correspondence/api/letters-api.js';
 import { LetterCard } from '../../features/correspondence/components/letter-card.js';
-import { CounterpartyCard } from '../../features/counterparties/components/counterparty-card.js';
+import { CounterpartyCard } from '../../features/crm/components/counterparty-card.js';
 import { MessengerBody, type ChatTab } from '../../features/chat/components/messenger-body.js';
 import { MessengerTabs } from '../../features/chat/components/messenger-tabs.js';
 import { useUsersList } from '../../features/directory/api/directory-api.js';
