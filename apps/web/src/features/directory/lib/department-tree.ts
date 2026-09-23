@@ -18,16 +18,6 @@ export function findDepartment(roots: DepartmentNode[], id: string): DepartmentN
   return null;
 }
 
-/** Путь id от корня до подразделения (раскрытие коллапсов, «найти меня»). */
-export function pathToDepartment(roots: DepartmentNode[], id: string): string[] | null {
-  for (const node of roots) {
-    if (node.id === id) return [node.id];
-    const inner = pathToDepartment(node.children, id);
-    if (inner) return [node.id, ...inner];
-  }
-  return null;
-}
-
 /** Поиск по названию: ветки без совпадений выпадают, совпавший узел остаётся
  *  с поддеревом целиком (контекст важнее точечной подсветки). */
 export function filterTreeByName(roots: DepartmentNode[], query: string): DepartmentNode[] {

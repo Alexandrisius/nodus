@@ -46,7 +46,9 @@ export const directoryHandlers = [
     const url = new URL(request.url);
     const query = departmentTreeQuerySchema.safeParse(Object.fromEntries(url.searchParams));
     const kind = query.success ? query.data.kind : 'management';
-    return HttpResponse.json(buildDepartmentTree(kind, demoUserListItems));
+    // Дерево — из concept-state (departmentState), иначе POST/PATCH теряются
+    // на рефетче после оптимистичной мутации (валидация 24.09).
+    return HttpResponse.json(buildDepartmentTree(kind, demoUserListItems, departmentState));
   }),
   http.post('/api/v1/directory/departments', async ({ request }) => {
     const parsed = createDepartmentSchema.safeParse(await request.json());

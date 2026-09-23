@@ -86,8 +86,12 @@ export function departmentOfUser(user: UserListItem, kind: OrgUnitKind): string 
  * НЕ-рекурсивно (прикреплённые к подразделению), денормализованные имена
  * руководителя/зама — для UI без второго запроса.
  */
-export function buildDepartmentTree(kind: OrgUnitKind, users: UserListItem[]): DepartmentNode[] {
-  const ofKind = demoDepartments.filter((d) => d.kind === kind && d.isActive);
+export function buildDepartmentTree(
+  kind: OrgUnitKind,
+  users: UserListItem[],
+  source: Department[] = demoDepartments,
+): DepartmentNode[] {
+  const ofKind = source.filter((d) => d.kind === kind && d.isActive);
   const nameOf = (id: string | null): string | null =>
     id === null ? null : (users.find((u) => u.id === id)?.displayName ?? null);
 

@@ -130,7 +130,11 @@ export function DepartmentPanel({
               </div>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon-sm" aria-label={ui.nav.settings}>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={ui.employees.departmentActions}
+                  >
                     <MoreHorizontal className="size-4" />
                   </Button>
                 </DropdownMenuTrigger>

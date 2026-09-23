@@ -15,8 +15,7 @@ import { useTreeEdges, type TreeLink } from '../lib/use-tree-edges.js';
  * (название, руководитель, счётчики сотрудников с подподразделами и подотделов),
  * клик — правая панель подразделения; шеврон — свернуть/развернуть подотделы
  * (дефолт: свёрнуто от 3-го уровня — сотни людей не бывают на канвасе ВООБЩЕ).
- * Поиск фильтрует ветки, «найти меня» раскрывает путь и скроллит к подразделению
- * текущего пользователя. Рёбра следуют только за РАСКРЫТЫМИ узлами.
+ * Поиск фильтрует ветки. Рёбра следуют только за РАСКРЫТЫМИ узлами.
  */
 export function DivisionsView({
   roots,
@@ -29,7 +28,6 @@ export function DivisionsView({
   onSelect: (id: string) => void;
   query: string;
 }) {
-  const scrollRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const nodeRefs = useRef(new Map<string, HTMLDivElement>());
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
@@ -80,6 +78,9 @@ export function DivisionsView({
     const total = totalEmployees(node);
     return (
       <div key={node.id} className="flex flex-col items-center gap-10">
+        {/* Карточка — контейнер node-panel; кликабельная область и шеврон —
+            СОСЕДНИЕ кнопки (не вложенные: интерактив внутри role=button
+            нарушает ARIA, замечание валидации 24.09). */}
         <div
           ref={(el) => {
             if (!el) return;
@@ -88,54 +89,46 @@ export function DivisionsView({
               nodeRefs.current.delete(node.id);
             };
           }}
-          role="button"
-          tabIndex={0}
-          onClick={() => onSelect(node.id)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              onSelect(node.id);
-            }
-          }}
           className={cn(
-            'node-panel w-60 cursor-pointer px-3 py-2.5 text-left transition-colors hover:border-input',
+            'node-panel relative w-60 transition-colors hover:border-input',
             selectedId === node.id && 'border-input bg-accent/40',
           )}
         >
-          <span className="flex items-center gap-2">
-            <span className="min-w-0 flex-1 truncate text-sm font-medium">{node.name}</span>
-            {node.children.length > 0 && (
-              <button
-                type="button"
-                aria-label={open ? ui.employees.collapseDepartment : ui.employees.expandDepartment}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  toggle(node);
-                }}
-                className="shrink-0 rounded p-0.5 text-muted-foreground transition-colors hover:text-foreground"
-              >
-                {open ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
-              </button>
-            )}
-          </span>
-          {node.headName && (
-            <span className="mt-1.5 flex items-center gap-1.5">
-              <PersonAvatar name={node.headName} avatarUrl={null} className="size-5 shrink-0" />
-              <span className="truncate text-xs text-muted-foreground">{node.headName}</span>
-            </span>
-          )}
-          <span className="mt-2 flex items-center gap-3 font-mono text-label-sm text-muted-foreground tabular-nums">
-            <span className="flex items-center gap-1">
-              <Users className="size-3.5" strokeWidth={1.75} />
-              {total}
-            </span>
-            {node.children.length > 0 && (
-              <span className="flex items-center gap-1">
-                <Folder className="size-3.5" strokeWidth={1.75} />
-                {node.children.length}
+          <button
+            type="button"
+            onClick={() => onSelect(node.id)}
+            className="block w-full px-3 py-2.5 pr-9 text-left"
+          >
+            <span className="block truncate text-sm font-medium">{node.name}</span>
+            {node.headName && (
+              <span className="mt-1.5 flex items-center gap-1.5">
+                <PersonAvatar name={node.headName} avatarUrl={null} className="size-5 shrink-0" />
+                <span className="truncate text-xs text-muted-foreground">{node.headName}</span>
               </span>
             )}
-          </span>
+            <span className="mt-2 flex items-center gap-3 font-mono text-label-sm text-muted-foreground tabular-nums">
+              <span className="flex items-center gap-1">
+                <Users className="size-3.5" strokeWidth={1.75} />
+                {total}
+              </span>
+              {node.children.length > 0 && (
+                <span className="flex items-center gap-1">
+                  <Folder className="size-3.5" strokeWidth={1.75} />
+                  {node.children.length}
+                </span>
+              )}
+            </span>
+          </button>
+          {node.children.length > 0 && (
+            <button
+              type="button"
+              aria-label={open ? ui.employees.collapseDepartment : ui.employees.expandDepartment}
+              onClick={() => toggle(node)}
+              className="absolute top-2 right-1.5 rounded p-0.5 text-muted-foreground transition-colors hover:text-foreground"
+            >
+              {open ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+            </button>
+          )}
         </div>
         {open && node.children.length > 0 && (
           <div className="flex items-start gap-4">{node.children.map(renderNode)}</div>
@@ -145,7 +138,7 @@ export function DivisionsView({
   }
 
   return (
-    <div ref={scrollRef} className="h-full overflow-auto">
+    <div className="h-full overflow-auto">
       <div ref={rootRef} className="relative w-max min-w-full py-6">
         <svg
           className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"

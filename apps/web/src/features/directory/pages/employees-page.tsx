@@ -110,7 +110,8 @@ export function EmployeesPage() {
     <div ref={rootRef} className="relative flex h-full flex-col">
       <div
         // Резерв ТОЛЬКО шапки: её инструменты не прячутся под панель, а канвас
-        // остаётся во всю ширину — структура не двигается (вердикт 24.09).
+        // остаётся во всю ширину — структура не двигается, панель перекрывает
+        // её поверх (вердикт 24.09).
         style={{ paddingRight: selectedNode ? 424 : 24 }}
         className="flex h-14 shrink-0 items-center gap-3 pl-6 transition-[padding] duration-200 ease-out"
       >

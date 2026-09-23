@@ -391,6 +391,7 @@ export const ui = {
     panelHead: 'Руководитель',
     panelDeputy: 'Заместитель',
     panelMembers: 'Сотрудники подразделения',
+    departmentActions: 'Действия с подразделением',
     panelReports: 'Подчинённые руководителя',
     emptyDepartment: 'В подразделении пока никто не состоит',
     createDepartment: 'Создать подразделение',

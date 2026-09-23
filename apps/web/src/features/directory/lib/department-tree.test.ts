@@ -7,7 +7,6 @@ import {
   hiddenReportsCount,
   insertDepartment,
   patchDepartment,
-  pathToDepartment,
   totalEmployees,
 } from './department-tree.js';
 
@@ -50,15 +49,6 @@ describe('totalEmployees', () => {
     const root = tree()[0];
     if (!root) throw new Error('нет корня');
     expect(totalEmployees(root)).toBe(11);
-  });
-});
-
-describe('pathToDepartment', () => {
-  it('ведёт от корня до вложенного узла', () => {
-    expect(pathToDepartment(tree(), 'c')).toEqual(['a', 'b', 'c']);
-  });
-  it('вне дерева — null', () => {
-    expect(pathToDepartment(tree(), 'z')).toBeNull();
   });
 });
 
