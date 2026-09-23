@@ -51,7 +51,7 @@ export function HomeNews({
               <ArrowRight className="size-3.5" strokeWidth={1.75} />
             </span>
           </button>
-          <div className="flex items-center gap-5 border-t border-border px-5 py-2.5 font-mono text-label-sm text-muted-foreground tabular-nums">
+          <div className="flex items-center gap-5 px-5 py-2.5 font-mono text-label-sm text-muted-foreground tabular-nums">
             <span className="flex items-center gap-1.5">
               <ThumbsUp className="size-3.5" strokeWidth={1.75} />
               {item.likesCount}

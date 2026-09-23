@@ -30,7 +30,7 @@ export function HomeReader({
         <p className="mt-6 text-sm leading-relaxed whitespace-pre-wrap text-foreground/85">
           {item.text}
         </p>
-        <div className="mt-8 flex items-center gap-5 border-t border-border pt-4 font-mono text-label-sm text-muted-foreground tabular-nums">
+        <div className="mt-8 flex items-center gap-5 font-mono text-label-sm text-muted-foreground tabular-nums">
           <span className="flex items-center gap-1.5">
             <ThumbsUp className="size-3.5" strokeWidth={1.75} />
             {item.likesCount}

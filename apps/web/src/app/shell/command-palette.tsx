@@ -200,7 +200,7 @@ export function CommandPalette() {
             )}
           </CommandList>
         </Command>
-        <p className="flex items-center gap-1.5 border-t px-3 py-2 text-xs text-muted-foreground">
+        <p className="flex items-center gap-1.5 px-3 py-2 text-xs text-muted-foreground">
           <Sparkles className="size-3.5" />
           {ui.topbar.smartSearchHint}
         </p>

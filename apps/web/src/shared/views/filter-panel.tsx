@@ -99,7 +99,7 @@ export function FilterPanel<T>({
             </div>
           );
         })}
-        <div className="mt-1 border-t border-border px-1.5 pt-1.5">
+        <div className="mt-1 px-1.5 pt-1.5">
           {naming ? (
             <div className="flex items-center gap-1 px-1.5">
               <Input
@@ -149,7 +149,7 @@ export function FilterPanel<T>({
             onChange={(v) => toolbar.setFilter(def.id, v)}
           />
         ))}
-        <div className="flex items-center border-t border-border pt-2.5">
+        <div className="flex items-center pt-2.5">
           <Button variant="ghost" size="sm" className="h-7" onClick={toolbar.resetAll}>
             {ui.filters.reset}
           </Button>
