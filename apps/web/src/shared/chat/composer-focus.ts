@@ -115,3 +115,34 @@ export function unregisterComposer(id: string, el: HTMLTextAreaElement): void {
   const next = activeId ? registry.get(activeId) : undefined;
   if (next) next.focus({ preventScroll: true });
 }
+
+/** Явная передача курсора конкретному композеру (действия «Ответить»/
+ *  «Редактировать» из контекстного меню — канон Telegram: фокус в поле). */
+export function focusComposer(id: string): void {
+  registry.get(id)?.focus({ preventScroll: true });
+}
+
+/** Композер scope смонтирован сейчас (диалог пересылки решает: фокусировать
+ *  открытый чат-приёмник или открывать его маршрутом/карточкой). */
+export function hasComposer(id: string): boolean {
+  return registry.has(id);
+}
+
+/** Фокус в композер ПОСЛЕ закрытия оверлей-слоя (пункты контекстного меню
+ *  «Ответить»/«Редактировать»): Radix возвращает фокус триггеру на размонтаже
+ *  контента (после exit-анимации) — немедленный focus перетирается (баг-
+ *  вердикт 24.09: «после Редактировать курсор не в поле»). Ждём кадров, пока
+ *  activeElement вне редактируемых и вне оверлей-слоёв, тогда фокусим. */
+export function focusComposerWhenFree(id: string, deadlineMs = 600): void {
+  const started = performance.now();
+  function tick() {
+    const el = registry.get(id);
+    if (!el || document.activeElement === el) return;
+    if (isEditable(document.activeElement) || insideOverlayLayer(document.activeElement)) {
+      if (performance.now() - started < deadlineMs) requestAnimationFrame(tick);
+      return;
+    }
+    el.focus({ preventScroll: true });
+  }
+  requestAnimationFrame(tick);
+}

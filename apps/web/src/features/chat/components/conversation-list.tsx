@@ -1,5 +1,5 @@
-import { BellOff, Clock, ListTodo, Megaphone, Pin, Users } from 'lucide-react';
-import type { ConversationListItem, ConversationType } from '@nodus/contracts';
+import { BellOff, Clock, Pin } from 'lucide-react';
+import type { ConversationListItem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { Empty, EmptyTitle } from '@nodus/ui/components/empty';
 import { NodeChip } from '@nodus/ui/components/node-chip';
@@ -8,19 +8,10 @@ import { cn } from '@nodus/ui/lib/utils';
 
 import { useAuthStore } from '../../../shared/auth-store.js';
 import { formatTime } from '../../../shared/lib/format.js';
-import { NotesGlyph } from '../../../shared/ui/notes-glyph.js';
-import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
-import { conversationTitle, isNotesConversation, sortByActivity } from '../lib/conversations.js';
+import { selectConversationDraftText, useChatDrafts } from '../../../shared/chat/chat-drafts.js';
+import { ConversationAvatar } from '../../../shared/chat/conversation-avatar.js';
+import { conversationTitle, sortByActivity } from '../lib/conversations.js';
 import { ConversationMenu } from './conversation-menu.js';
-
-/** Маркер типа беседы на аватаре (список единый, без секций — тип читается
- *  глифом): канал — мегафон, группа — участники, чат задачи — список;
- *  личные — без маркера (аватар собеседника сам по себе). */
-const typeIcon: Partial<Record<ConversationType, typeof Megaphone>> = {
-  project_channel: Megaphone,
-  group: Users,
-  task: ListTodo,
-};
 
 /**
  * Список бесед мессенджера (механика Телеграма, грамматика «Инструмента»):
@@ -28,7 +19,34 @@ const typeIcon: Partial<Record<ConversationType, typeof Megaphone>> = {
  * 2026-09-10, раунд 2: чаты перемешиваются по свежести) — тип строки читается
  * маркером на аватаре; непрочитанные — чип danger, время и превью —
  * моно/усечённые. Активная беседа — плоская заливка (без теней).
+ * Превью строки (#87): черновик важнее последнего сообщения (модель
+ * Telegram/Slack «Черновик: …»), надгробие — «Сообщение удалено».
  */
+
+/** Превью последней строки беседы — per-row подписка на черновик (селектор
+ *  возвращает примитив: строка перерисовывается только на СВОЙ черновик). */
+function RowPreview({ conversation }: { conversation: ConversationListItem }) {
+  const draftText = useChatDrafts((s) => selectConversationDraftText(s.drafts, conversation.id));
+  if (draftText) {
+    return (
+      <span className="truncate text-xs text-muted-foreground italic">
+        {ui.chat.draftLabel}: {draftText}
+      </span>
+    );
+  }
+  const last = conversation.lastMessage;
+  const text = last
+    ? last.deletedAt
+      ? ui.chat.deletedPlaceholder
+      : last.text ||
+        (last.attachments[0]?.kind === 'image'
+          ? ui.chat.quotePhoto
+          : last.attachments[0]
+            ? ui.chat.quoteFile
+            : '')
+    : '';
+  return <span className="truncate text-xs text-muted-foreground">{text}</span>;
+}
 export function ConversationList({
   conversations,
   isLoading,
@@ -70,7 +88,6 @@ export function ConversationList({
     <div className="min-h-0 flex-1 overflow-y-auto" data-no-scrollbar>
       {sorted.map((conversation) => {
         const active = conversation.id === activeId;
-        const TypeIcon = typeIcon[conversation.type];
         return (
           <ConversationMenu key={conversation.id} conversation={conversation}>
             <button
@@ -82,25 +99,7 @@ export function ConversationList({
                 active && 'bg-accent/60 hover:bg-accent/60',
               )}
             >
-              <span className="relative shrink-0">
-                {isNotesConversation(conversation, meId) ? (
-                  <NotesGlyph className="size-9" />
-                ) : (
-                  <PersonAvatar
-                    name={conversationTitle(conversation, meId)}
-                    avatarUrl={conversation.avatarUrl}
-                    className="size-9"
-                  />
-                )}
-                {TypeIcon ? (
-                  <span
-                    aria-hidden
-                    className="absolute -right-0.5 -bottom-0.5 rounded-full bg-muted p-0.5 text-muted-foreground"
-                  >
-                    <TypeIcon className="size-3" strokeWidth={1.75} />
-                  </span>
-                ) : null}
-              </span>
+              <ConversationAvatar conversation={conversation} meId={meId} className="size-9" />
               <span className="min-w-0 flex-1">
                 <span className="flex items-baseline justify-between gap-2">
                   <span className="flex min-w-0 items-center gap-1">
@@ -138,9 +137,7 @@ export function ConversationList({
                   ) : null}
                 </span>
                 <span className="mt-0.5 flex items-center justify-between gap-2">
-                  <span className="truncate text-xs text-muted-foreground">
-                    {conversation.lastMessage?.text ?? ''}
-                  </span>
+                  <RowPreview conversation={conversation} />
                   {/* «Посмотреть позже» прячет счётчик до нового сообщения. */}
                   {conversation.unreadCount > 0 && !conversation.snoozed ? (
                     <NodeChip tone="danger" className="shrink-0">

@@ -1,5 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { ChatMessage, ConversationListItem, Paginated, TaskListItem } from '@nodus/contracts';
+import type {
+  ChatMessage,
+  ConversationListItem,
+  MessageAttachment,
+  Paginated,
+  ReplyPreview,
+  TaskListItem,
+} from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { toast } from 'sonner';
 
@@ -18,6 +25,8 @@ export const chatKeys = {
   messages: (id: string) => [...chatKeys.all, 'messages', id] as const,
   thread: (id: string, rootId: string) =>
     [...chatKeys.all, 'messages', id, 'thread', rootId] as const,
+  /** Закрепы беседы (A3): лента закрепов снапшотами. */
+  pins: (id: string) => [...chatKeys.all, 'pins', id] as const,
   /** Личка с пользователем (открыть/создать direct по сотруднику). */
   direct: (userId: string) => [...chatKeys.conversations(), 'direct', userId] as const,
 };
@@ -27,6 +36,15 @@ export function useConversationMessages(id: string) {
     queryKey: chatKeys.messages(id),
     queryFn: () => api<Paginated<ChatMessage>>(`/chat/conversations/${id}/messages`),
     enabled: id.length > 0,
+  });
+}
+
+/** Список бесед мессенджера (переехал в shared, #87: диалог пересылки —
+ *  shared-слой; features/chat/api/chat-api.ts реэкспортирует). */
+export function useConversations() {
+  return useQuery({
+    queryKey: chatKeys.conversations(),
+    queryFn: () => api<Paginated<ConversationListItem>>('/chat/conversations'),
   });
 }
 
@@ -72,16 +90,35 @@ export function useDirectConversation(userId: string) {
 
 /** Оптимистичная отправка (I4): мгновенно в кэш ленты/треда, откат при
  *  ошибке. Ответ в тред дополнительно инкрементирует счётчик корня в кэше
- *  ленты (карточка треда обновляется до ответа сервера). */
+ *  ленты (карточка треда обновляется до ответа сервера). Payload линии A
+ *  (#87): вложения (attachmentIds + превью для temp-сообщения), ответ-цитата
+ *  (replyToId/quoteText + клиентский снапшот для temp). */
+export interface SendChatVars {
+  text: string;
+  threadRootId?: string | null;
+  replyToId?: string | null;
+  quoteText?: string | null;
+  attachmentIds?: string[];
+  /** Превью для оптимистичного temp-сообщения (готовые загрузки/цитата). */
+  attachments?: MessageAttachment[];
+  reply?: ReplyPreview | null;
+}
+
 export function useSendChatMessage(conversationId: string) {
   const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user);
 
   return useMutation({
-    mutationFn: (vars: { text: string; threadRootId?: string | null }) =>
+    mutationFn: (vars: SendChatVars) =>
       api<ChatMessage>(`/chat/conversations/${conversationId}/messages`, {
         method: 'POST',
-        body: { text: vars.text, threadRootId: vars.threadRootId ?? null },
+        body: {
+          text: vars.text,
+          attachmentIds: vars.attachmentIds,
+          replyToId: vars.replyToId ?? null,
+          quoteText: vars.quoteText ?? null,
+          threadRootId: vars.threadRootId ?? null,
+        },
       }),
 
     onMutate: async (vars) => {
@@ -100,11 +137,15 @@ export function useSendChatMessage(conversationId: string) {
         conversationId,
         author: { id: user?.id ?? '', displayName: user?.displayName ?? '', avatarUrl: null },
         text: vars.text,
-        replyToId: null,
+        replyToId: vars.replyToId ?? null,
+        reply: vars.reply ?? null,
+        deletedAt: null,
+        pinned: false,
+        forwardedFrom: null,
         threadRootId: vars.threadRootId ?? null,
         threadRepliesCount: 0,
         reactions: [],
-        attachments: [],
+        attachments: vars.attachments ?? [],
         editedAt: null,
         readAt: null,
         createdAt: new Date().toISOString(),

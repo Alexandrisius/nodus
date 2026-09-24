@@ -6,6 +6,7 @@ import { Toaster } from '@nodus/ui/components/sonner';
 import { TooltipProvider } from '@nodus/ui/components/tooltip';
 
 import { registerCardBridge } from '../../shared/lib/card-bridge.js';
+import { ChatDialogHosts } from '../../shared/chat/dialog-hosts.js';
 import { CircuitFrame } from './circuit-frame.js';
 import { CardStackHost } from './card-stack-host.js';
 import { CommandPalette } from './command-palette.js';
@@ -104,6 +105,7 @@ export function AppShell() {
       <CircuitFrame />
       <EdgeScrollbar />
       <CommandPalette />
+      <ChatDialogHosts />
       <Toaster richColors theme={theme} />
     </TooltipProvider>
   );

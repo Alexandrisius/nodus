@@ -39,6 +39,41 @@ export const chatPrefsEnvelopeSchema = z.object({
   align: z.enum(['one', 'both']).catch('one'),
 });
 
+/** Черновики композера (#87): текст + сериализуемый контекст reply/edit.
+ *  Вложения НЕ персистятся (канон research: файлы черновика не переживают
+ *  reload ни у кого) — partialize стора их отсекает. Сломанный черновик
+ *  беседы отбрасывается, соседние живут. */
+const chatDraftSchema = z.object({
+  text: z.string().catch(''),
+  reply: z
+    .object({
+      messageId: z.string(),
+      author: z.object({
+        id: z.string(),
+        displayName: z.string(),
+        avatarUrl: z.string().nullable(),
+      }),
+      snippet: z.string(),
+      quoteText: z.string().nullable(),
+      attachmentKind: z.enum(['image', 'file']).nullable(),
+      inThread: z.string().nullable(),
+    })
+    .nullable()
+    .catch(null),
+  edit: z
+    .object({
+      messageId: z.string(),
+      originalText: z.string(),
+    })
+    .nullable()
+    .catch(null),
+  preEditText: z.string().nullable().catch(null),
+});
+
+export const chatDraftsEnvelopeSchema = z.object({
+  drafts: z.record(z.string(), chatDraftSchema).catch({}),
+});
+
 /**
  * Фабрика merge-функции zustand persist: сохранённое состояние пропускается
  * через envelope-схему; невалидное целиком (не объект) → текущий дефолт.

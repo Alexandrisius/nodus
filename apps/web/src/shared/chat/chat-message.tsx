@@ -11,10 +11,14 @@ import {
 import { Bubble, BubbleContent } from '@nodus/ui/components/bubble';
 
 import { formatTime } from '../lib/format.js';
+import { openCardViaBridge } from '../lib/card-bridge.js';
 import { MessageAttachments } from './attachments.js';
 import { BubbleTail } from './bubble-tail.js';
 import { useChatPrefs } from './chat-prefs.js';
+import { useJumpStore } from './jump-store.js';
+import { ForwardedHeader, ReplyHeader } from './message-headers.js';
 import { MessageText } from './message-text.js';
+import { MessageTombstone } from './tombstone.js';
 import { PersonAvatar } from '../ui/person-avatar.js';
 import { ReadTicks } from './read-ticks.js';
 
@@ -77,6 +81,38 @@ export const ChatMessageItem = memo(function ChatMessageItem({
 }) {
   const align = useChatPrefs((s) => s.align);
   const atEnd = mine && align === 'both';
+
+  // Надгробие (A5): placeholder вместо пузыря — без автора, времени и
+  // действий; серия сообщений разрывается (message-groups: отдельный run).
+  if (message.deletedAt) {
+    return (
+      <Message align={atEnd ? 'end' : 'start'}>
+        <span aria-hidden className="w-8 shrink-0" />
+        <MessageContent>
+          <MessageTombstone mine={mine} />
+        </MessageContent>
+      </Message>
+    );
+  }
+
+  /** Клик по цитате — прыжок к оригиналу в ТОМ ЖЕ контексте (лента/тред:
+   *  ответ не пересекает тред — threadRootId текущего сообщения). */
+  function jumpToReply(replyId: string) {
+    useJumpStore.getState().request(message.conversationId, replyId, message.threadRootId);
+  }
+
+  /** Клик по «Переслано от» — к оригиналу; чужая беседа открывается
+   *  фулскрин-карточкой мессенджера (стек ADR-0009), отложенный jump-запрос
+   *  подбирает её лента (jump-store живёт до consume/ttl). */
+  function jumpToForwardSource() {
+    const from = message.forwardedFrom;
+    if (!from) return;
+    if (from.conversationId !== message.conversationId) {
+      openCardViaBridge({ kind: 'messenger', id: from.conversationId });
+    }
+    useJumpStore.getState().request(from.conversationId, from.messageId, from.threadRootId);
+  }
+
   // Чужой пузырь — вариант card: БЕЗ рамки, контур ступенью тона поверх зоны
   // (вердикт владельца 14.09.2026, рефы Битрикс24; рамка + SVG-обводка хвоста
   // давали артефакты стыка — пузыри и хвост теперь только заливками).
@@ -130,6 +166,22 @@ export const ChatMessageItem = memo(function ChatMessageItem({
               tail && (atEnd ? 'rounded-br-none' : 'rounded-bl-none'),
             )}
           >
+            {/* Атрибуция пересылки — самая верхняя строка пузыря (канон
+                Telegram lng_forwarded). */}
+            {message.forwardedFrom ? (
+              <ForwardedHeader from={message.forwardedFrom} onClick={jumpToForwardSource} />
+            ) : null}
+            {/* Цитата ответа (A2): замороженный снапшот — клик ведёт к
+                оригиналу (актуальная версия + «изменено» там же). */}
+            {message.reply ? (
+              <ReplyHeader
+                reply={message.reply}
+                onClick={() => {
+                  const reply = message.reply;
+                  if (reply) jumpToReply(reply.id);
+                }}
+              />
+            ) : null}
             {/* Вложения — ВЫШЕ текста (грамматика Битрикс24, план
                 chat-attachments-plan): галерея/чипы сверху, затем текст. */}
             {message.attachments.length > 0 ? <MessageAttachments message={message} /> : null}

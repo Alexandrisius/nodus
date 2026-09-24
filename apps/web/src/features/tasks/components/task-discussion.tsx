@@ -98,7 +98,7 @@ export const TaskDiscussion = memo(function TaskDiscussion({ taskId }: { taskId:
       <ChatComposer
         key={taskId}
         placeholder={ui.tasks.addComment}
-        onSend={(text) => send.mutate(text)}
+        onSubmit={(submit) => send.mutate(submit.text)}
         focusId={`task:${taskId}`}
       />
     </div>
