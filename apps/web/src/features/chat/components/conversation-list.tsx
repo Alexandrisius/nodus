@@ -1,4 +1,5 @@
 import { BellOff, Clock, Pin } from 'lucide-react';
+import { Fragment } from 'react';
 import type { ConversationListItem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { Empty, EmptyTitle } from '@nodus/ui/components/empty';
@@ -21,6 +22,9 @@ import { ConversationMenu } from './conversation-menu.js';
  * моно/усечённые. Активная беседа — плоская заливка (без теней).
  * Превью строки (#87): черновик важнее последнего сообщения (модель
  * Telegram/Slack «Черновик: …»), надгробие — «Сообщение удалено».
+ * Закреплённые беседы (#96, вердикт владельца 24.09.2026, реф Битрикс24) —
+ * ведущая группа сверху, обрамлённая hairline-рамкой со скруглением
+ * (без заголовка-секции и без заливки).
  */
 
 /** Превью последней строки беседы — per-row подписка на черновик (селектор
@@ -102,72 +106,145 @@ export function ConversationList({
     );
   }
 
-  return (
-    <div className="min-h-0 flex-1 overflow-y-auto" data-no-scrollbar>
-      {sorted.map((conversation) => {
-        const active = conversation.id === activeId;
-        return (
-          <ConversationMenu key={conversation.id} conversation={conversation}>
-            <button
-              type="button"
-              onClick={() => onSelect(conversation)}
-              aria-current={active}
-              className={cn(
-                'flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-accent/40',
-                active && 'bg-accent/60 hover:bg-accent/60',
-              )}
-            >
-              <ConversationAvatar conversation={conversation} meId={meId} className="size-9" />
-              <span className="min-w-0 flex-1">
-                <span className="flex items-baseline justify-between gap-2">
-                  <span className="flex min-w-0 items-center gap-1">
-                    <span className="truncate text-sm font-medium">
-                      {conversationTitle(conversation, meId)}
-                    </span>
-                    {/* Состояния из ПКМ-меню (реф Битрикс24): закреп, без
+  // Рамка закреплённых ЧАТОВ (#96, вердикт владельца 24.09.2026, реф
+  // Битрикс24): закреплённые идут ВЕДУЩЕЙ группой (sortByActivity: pinned —
+  // первыми), и именно эта группа обрамляется hairline-рамкой (без заливки).
+  // Механика и сортировка закрепов не меняются — группировка ЧИСТО визуальная;
+  // нет закреплённых — нет и рамки. Это НЕ пин-бар сообщений (pin-bar.tsx):
+  // закреплённые сообщения живут отдельным механизмом и здесь не участвуют.
+  let pinnedCount = 0;
+  while (pinnedCount < sorted.length && sorted[pinnedCount]?.pinned) pinnedCount += 1;
+  const pinnedRows = sorted.slice(0, pinnedCount);
+
+  function renderRow(conversation: ConversationListItem, inPinnedArea = false) {
+    const active = conversation.id === activeId;
+    return (
+      <ConversationMenu key={conversation.id} conversation={conversation}>
+        <button
+          type="button"
+          data-row
+          onClick={() => onSelect(conversation)}
+          aria-current={active}
+          className={cn(
+            // МЯГКИЙ ховер у ВСЕХ строк (вердикт владельца 24.09.2026: подсветка
+            // не должна быть прямоугольной).
+            // ГЕОМЕТРИЯ подсветки (вердикт владельца 24.09.2026): у закреплённых
+            // ховер = РОВНО внутренняя область рамки (без внутренних зазоров),
+            // у остальных — с тем же боковым зазором 5px (mx-1), что и у рамки:
+            // все подсветки списка стоят на одной вертикали. Ритм текста единый
+            // (mx + border + px = 1rem обычной строки px-4): аватары и время
+            // вне рамки и внутри — на одной вертикали на любом шаге --ui-scale.
+            'flex items-center gap-3 rounded-lg py-2.5 text-left transition-colors hover:bg-accent/40',
+            inPinnedArea
+              ? 'w-full rounded-[calc(var(--radius-xl)-1px)] px-[calc(0.75rem-1px)]'
+              : // Ширина = 100% минус боковые поля 5px: кнопка — inline-level
+                // элемент (w-auto сжимается по контенту — баг-вердикт владельца
+                // 24.09), а w-full поверх полей давал «100% + поля» и
+                // горизонтальное переполнение списка.
+                'mx-1 w-[calc(100%-0.5rem)] px-3',
+            active && 'bg-accent/60 hover:bg-accent/60',
+          )}
+        >
+          <ConversationAvatar conversation={conversation} meId={meId} className="size-9" />
+          <span className="min-w-0 flex-1">
+            <span className="flex items-baseline justify-between gap-2">
+              <span className="flex min-w-0 items-center gap-1">
+                <span className="truncate text-sm font-medium">
+                  {conversationTitle(conversation, meId)}
+                </span>
+                {/* Состояния из ПКМ-меню (реф Битрикс24): закреп, без
                       звука, «посмотреть позже». */}
-                    {conversation.pinned ? (
-                      <Pin
-                        aria-label={ui.chat.convMenuPin}
-                        className="size-3 shrink-0 text-muted-foreground"
-                        strokeWidth={1.75}
-                      />
-                    ) : null}
-                    {conversation.muted ? (
-                      <BellOff
-                        aria-label={ui.chat.convMenuMute}
-                        className="size-3 shrink-0 text-muted-foreground"
-                        strokeWidth={1.75}
-                      />
-                    ) : null}
-                    {conversation.snoozed ? (
-                      <Clock
-                        aria-label={ui.chat.convMenuViewLater}
-                        className="size-3 shrink-0 text-muted-foreground"
-                        strokeWidth={1.75}
-                      />
-                    ) : null}
-                  </span>
-                  {conversation.lastMessage ? (
-                    <span className="shrink-0 font-mono text-label-sm text-muted-foreground tabular-nums">
-                      {formatTime(conversation.lastMessage.createdAt)}
-                    </span>
-                  ) : null}
-                </span>
-                <span className="mt-0.5 flex items-center justify-between gap-2">
-                  <RowPreview conversation={conversation} />
-                  {/* «Посмотреть позже» прячет счётчик до нового сообщения. */}
-                  {conversation.unreadCount > 0 && !conversation.snoozed ? (
-                    <NodeChip tone="danger" className="shrink-0">
-                      {conversation.unreadCount}
-                    </NodeChip>
-                  ) : null}
-                </span>
+                {conversation.pinned ? (
+                  <Pin
+                    aria-label={ui.chat.convMenuPin}
+                    className="size-3 shrink-0 text-muted-foreground"
+                    strokeWidth={1.75}
+                  />
+                ) : null}
+                {conversation.muted ? (
+                  <BellOff
+                    aria-label={ui.chat.convMenuMute}
+                    className="size-3 shrink-0 text-muted-foreground"
+                    strokeWidth={1.75}
+                  />
+                ) : null}
+                {conversation.snoozed ? (
+                  <Clock
+                    aria-label={ui.chat.convMenuViewLater}
+                    className="size-3 shrink-0 text-muted-foreground"
+                    strokeWidth={1.75}
+                  />
+                ) : null}
               </span>
-            </button>
-          </ConversationMenu>
-        );
-      })}
+              {conversation.lastMessage ? (
+                <span className="shrink-0 font-mono text-label-sm text-muted-foreground tabular-nums">
+                  {formatTime(conversation.lastMessage.createdAt)}
+                </span>
+              ) : null}
+            </span>
+            <span className="mt-0.5 flex items-center justify-between gap-2">
+              <RowPreview conversation={conversation} />
+              {/* «Посмотреть позже» прячет счётчик до нового сообщения. */}
+              {conversation.unreadCount > 0 && !conversation.snoozed ? (
+                <NodeChip tone="danger" className="shrink-0">
+                  {conversation.unreadCount}
+                </NodeChip>
+              ) : null}
+            </span>
+          </span>
+        </button>
+      </ConversationMenu>
+    );
+  }
+
+  return (
+    <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto" data-no-scrollbar>
+      {/* overflow-x-hidden: горизонтального скролла в списке быть не должно
+          (вертикальный скроллер по CSS Overflow вычисляет вторую ось в auto —
+          gotchas); источник переполнения убран (строки без w-full поверх
+          полей), скрытие — страховка. */}
+      {/* Область закреплённых (вердикт владельца 24.09.2026, реф Битрикс24):
+          ТОЛЬКО РАМКА — hairline-граница со скруглением (заливки нет) — вокруг
+          ведущей группы закреплённых строк; рамка смещена от наружных границ
+          списка ОДИНАКОВО (mx-1 и mt-1 = 5px со всех сторон, вердикт владельца:
+          «зазоры сверху такие же, как слева и справа»). Паддинга у рамки НЕТ:
+          ховер строки занимает ровно её внутреннюю область (вердикт: «без
+          внутренних зазоров при выделении»), скругление строки = внутренний
+          радиус рамки. Строки внутри — на общем ритме текста списка, с мягким
+          ховером и СЕПАРАТОРАМИ между строками, как в остальном списке. */}
+      {pinnedRows.length > 0 ? (
+        <div
+          data-slot="pinned-chats"
+          className="mx-1 mt-1 mb-2 flex flex-col rounded-xl border border-border"
+        >
+          {pinnedRows.map((conversation, index) => (
+            <Fragment key={conversation.id}>
+              {index > 0 ? (
+                <div
+                  aria-hidden
+                  data-sep
+                  className="mx-[calc(0.75rem-1px)] border-t border-border/60"
+                />
+              ) : null}
+              {renderRow(conversation, true)}
+            </Fragment>
+          ))}
+        </div>
+      ) : null}
+      {/* Сепараторы между строками (реф Битрикс24, вердикт владельца
+          24.09.2026): hairline НЕ на всю ширину колонки — по бокам отступ
+          mx-4 (по началу текста строк), поэтому линии читаются разделителями
+          строк, а не границами колонки. При ховере строки СОСЕДНИЕ сепараторы
+          исчезают (data-row/data-sep + globals.css: подсветка «поглощает»
+          разделитель, как в Битриксе). */}
+      {sorted.slice(pinnedCount).map((conversation, index) => (
+        <Fragment key={conversation.id}>
+          {index > 0 ? (
+            <div aria-hidden data-sep className="mx-4 border-t border-border/60" />
+          ) : null}
+          {renderRow(conversation)}
+        </Fragment>
+      ))}
     </div>
   );
 }

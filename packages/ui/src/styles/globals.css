@@ -499,3 +499,14 @@
     background-color: color-mix(in srgb, var(--info) 12%, transparent);
   }
 }
+
+/* Сепараторы списка бесед (список бесед мессенджера, #96; канон Битрикс24):
+   при ховере строки СОСЕДНИЕ сепараторы исчезают — подсветка «поглощает»
+   разделитель (вердикт владельца 24.09.2026: «наводишь курсор — сепаратора
+   не видно вообще»). Структура списка плоская: button[data-row] и
+   div[data-sep] — соседи; visibility (не display) держит геометрию строк.
+   :has() — Baseline 2023 (Chrome 105+/FF 121+/Safari 15.4+). */
+[data-row]:hover + [data-sep],
+[data-sep]:has(+ [data-row]:hover) {
+  visibility: hidden;
+}

@@ -20,7 +20,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@nodus/ui/components/select';
-import { Switch } from '@nodus/ui/components/switch';
 import { Textarea } from '@nodus/ui/components/textarea';
 import { cn } from '@nodus/ui/lib/utils';
 import { toast } from 'sonner';
@@ -33,11 +32,15 @@ import { useCreateConversation } from '../api/chat-api.js';
 /**
  * Создание группового чата/канала (#91, референс окна «Создание чата»
  * Bitrix24): название + аватарка-плейсхолдер, участники («человек или целый
- * отдел»), сворачиваемые «Настройки чата» (тип закрытый/открытый,
- * автоудаление, описание) и «Права доступа» (владелец, модераторы, матрица
- * минимальных ролей — контракт conversationPermissionsSchema). Аватарка и
- * модераторы — заглушки до сервера файлов и прав (toast-заготовка, как
- * «Опрос» линии A); создание живое на моках: беседа встаёт в список первой.
+ * отдел»), сворачиваемые «Настройки чата» (тип закрытый/открытый, описание)
+ * и «Права доступа» (владелец, модераторы, матрица минимальных ролей —
+ * контракт conversationPermissionsSchema). Аватарка и модераторы — заглушки до
+ * сервера файлов и прав (toast-заготовка, как «Опрос» линии A); создание живое
+ * на моках: беседа встаёт в список первой.
+ * АВТОУДАЛЕНИЯ СООБЩЕНИЙ ЗДЕСЬ НЕТ (решение владельца 24.09.2026, #96):
+ * переключатель не чинили, а фичу убрали целиком — вместе с полем контракта и
+ * i18n-строкой; TTL сообщений в продукте не появится без нового решения
+ * владельца.
  * I5-обоснование размера (>300): файл — полная сборка окна Bitrix24 (шапка +
  * участники + две сворачиваемые секции с матрицей прав); дробление
  * преждевременно до прихода серверных прав (#58), секции уже вынесены в
@@ -171,7 +174,6 @@ export function ChatCreateDialog({
   const [visibility, setVisibility] = useState<'closed' | 'open'>(
     kind === 'group' ? 'closed' : 'open',
   );
-  const [autoDelete, setAutoDelete] = useState(false);
   const [description, setDescription] = useState('');
   const [permissions, setPermissions] = useState(DEFAULT_PERMISSIONS);
   const [pickQuery, setPickQuery] = useState('');
@@ -195,7 +197,6 @@ export function ChatCreateDialog({
         title: name,
         description: description.trim() || undefined,
         visibility,
-        autoDeleteMessages: autoDelete || undefined,
         memberIds,
         permissions,
       },
@@ -342,10 +343,6 @@ export function ChatCreateDialog({
             ) : (
               <span className="text-xs text-muted-foreground">{ui.chat.channelOpenHint}</span>
             )}
-            <label className="flex items-center gap-2.5">
-              <Switch checked={autoDelete} onCheckedChange={setAutoDelete} />
-              <span className="text-sm font-medium">{ui.chat.autoDelete}</span>
-            </label>
             <label className="flex flex-col gap-1.5">
               <span className="text-xs font-medium text-muted-foreground">
                 {ui.chat.descriptionLabel}

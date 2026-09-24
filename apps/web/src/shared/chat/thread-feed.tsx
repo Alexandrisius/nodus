@@ -14,6 +14,7 @@ import { ChatMessageItem } from './chat-message.js';
 import { useChatDrafts } from './chat-drafts.js';
 import { MessageAttachments } from './attachments.js';
 import { MessageReactions } from './chat-message.js';
+import { MessageMeta } from './message-meta.js';
 import { addFiles } from './composer-files.js';
 import { toSendVars } from './composer-submit.js';
 import { focusComposer } from './composer-focus.js';
@@ -35,7 +36,8 @@ function repliesLabel(count: number): string {
  * новость-тред. Корневые сообщения — плоские карточки-посты (не пузыри)
  * ОГРАНИЧЕННОЙ ширины (max-w-2xl, референс — каналы Битрикс24). Грамматика
  * поста (рефы владельца 14.09.2026): автор сверху; вложения ВЫШЕ текста;
- * реакции + время одной строкой внизу; ответы — отдельной тонированной
+ * реакции + мета (пин/«изменено»/время — ОБЩИЙ компонент с пузырём чата,
+ * `message-meta.tsx`, #96) одной строкой внизу; ответы — отдельной тонированной
  * полосой с аватарами участников и счётчиком и входом «Обсудить».
  * Обвязка линии A (#87): пин-бар ленты (клик по закрепленному ответу треда
  * открывает окно), режим селекта постов, drop-зона файлов, DOM-jump к посту
@@ -216,13 +218,22 @@ export const ThreadFeed = memo(function ThreadFeed({
                           <span className="mt-2 block text-sm leading-relaxed whitespace-pre-wrap">
                             {root.text}
                           </span>
-                          <span className="mt-2 flex items-center gap-2">
+                          {/* Мета поста — ТА ЖЕ композиция и те же зазоры, что в
+                              пузыре чата (#96, message-meta.tsx): пин →
+                              «изменено» → время, микро-кегль 10px, плотный
+                              зазор над строкой (3px — как шаг стека пузыря,
+                              вердикт владельца 24.09.2026: время постов должно
+                              читаться как в сообщениях чатов). До #96 пост
+                              рисовал только время — закреп и правка на карточке
+                              терялись (в окне треда тот же корень рендерится
+                              пузырём с полной метой — рассинхрон). Галочек
+                              прочтения на постах НЕТ (семантика прочтения
+                              каналов — отдельная тема, #96 «не входит»). */}
+                          <span className="mt-[3px] flex items-end gap-2">
                             <MessageReactions message={root} />
-                            <span className="ml-auto shrink-0 font-mono text-label-sm text-muted-foreground tabular-nums">
-                              {formatTime(root.createdAt)}
-                            </span>
+                            <MessageMeta message={root} className="ml-auto" />
                           </span>
-                          <span className="-mx-3.5 -mb-3.5 mt-3 flex items-center gap-2 rounded-b-[0.8125rem] border-t border-border/60 bg-muted/40 px-3.5 py-2">
+                          <span className="-mx-3.5 -mb-3.5 mt-[6px] flex items-center gap-2 rounded-b-[0.8125rem] border-t border-border/60 bg-muted/40 px-3.5 py-2">
                             {participants.length > 0 ? (
                               <span className="flex shrink-0 -space-x-1.5">
                                 {participants.slice(0, 3).map((p) => (
