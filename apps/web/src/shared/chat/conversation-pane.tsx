@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useMemo } from 'react';
+import { Fragment, useCallback, useMemo, useRef } from 'react';
 import { ui } from '@nodus/contracts';
 import {
   MessageScroller,
@@ -14,6 +14,7 @@ import { Skeleton } from '@nodus/ui/components/skeleton';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { useAuthStore } from '../auth-store.js';
+import { chatAttachmentsEnabled } from './attachments-gate.js';
 import { useConversationMessages, useSendChatMessage } from './api.js';
 import { ChatComposer, type ComposerSubmit } from './chat-composer.js';
 import { ChatMessageItem } from './chat-message.js';
@@ -60,6 +61,9 @@ export function ConversationPane({
   const items = data?.items ?? [];
   const runs = useMemo(() => buildMessageRuns(items, me?.id), [items, me?.id]);
   const selection = useFeedSelection(scope, items, me?.id);
+  // Viewport ленты — цель прыжка (scroll-jump): «видно/не видно» и скролл
+  // ВНУТРИ контейнера без отрыва низа (вердикт 25.09).
+  const viewportRef = useRef<HTMLDivElement>(null);
 
   const lastMine = useCallback(
     () => [...items].reverse().find((m) => m.author.id === me?.id && !m.deletedAt),
@@ -88,6 +92,7 @@ export function ConversationPane({
       <PinBar conversationId={conversationId} />
       <FeedDropzone
         className="flex min-h-0 flex-1 flex-col"
+        disabled={!chatAttachmentsEnabled()}
         onFiles={(files) => addFiles(scope, files)}
       >
         <MessageScrollerProvider autoScroll>
@@ -96,9 +101,10 @@ export function ConversationPane({
             conversationId={conversationId}
             threadRootId={null}
             itemCount={items.length}
+            containerRef={viewportRef}
           />
           <MessageScroller className="min-h-0 flex-1 bg-chat-zone">
-            <MessageScrollerViewport>
+            <MessageScrollerViewport ref={viewportRef}>
               <MessageScrollerContent
                 className={cn('p-4', selection.selectionActive && 'select-none')}
               >

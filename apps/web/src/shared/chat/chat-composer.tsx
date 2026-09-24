@@ -9,6 +9,7 @@ import {
   type KeyboardEvent,
   type RefObject,
 } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import { Textarea } from '@nodus/ui/components/textarea';
@@ -16,6 +17,7 @@ import { cn } from '@nodus/ui/lib/utils';
 import { toast } from 'sonner';
 
 import { SendHexIcon } from '../ui/send-hex-icon.js';
+import { chatAttachmentsEnabled } from './attachments-gate.js';
 import {
   EMPTY_DRAFT,
   useChatDrafts,
@@ -28,10 +30,11 @@ import { ComposerBanner } from './composer-banner.js';
 import { ComposerClipMenu } from './composer-clip-menu.js';
 import { addFiles } from './composer-files.js';
 import { registerComposer, unregisterComposer } from './composer-focus.js';
-import { dropDraftSync, flushDraftSync, scheduleDraftSync } from './draft-sync.js';
+import { flushDraftSync } from './draft-sync.js';
 import { ForwardBanner } from './forward-banner.js';
 import { useForwardPending } from './forward-pending.js';
 import { useJumpStore } from './jump-store.js';
+import { chatKeys } from './api.js';
 import { useForwardMessages } from './message-mutations.js';
 import { isSendShortcut } from './send-keys.js';
 import { useScrollEndStore } from './scroll-end-store.js';
@@ -110,7 +113,7 @@ export function ChatComposer({
   focusId,
   conversationId,
   onSubmit,
-  attachmentsEnabled = false,
+  attachmentsEnabled: attachmentsEnabledProp = false,
   onEditLast,
   selection = null,
   className,
@@ -131,6 +134,10 @@ export function ChatComposer({
 }) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const islandRef = useRef<HTMLSpanElement>(null);
+
+  // Гейт вложений (вердикт 25.09, до #57): запрос хоста действует только в
+  // мок-режиме домена chat; в живом — скрепка/вставка выключены с подсказкой.
+  const attachmentsEnabled = attachmentsEnabledProp && chatAttachmentsEnabled();
 
   const draft = useChatDrafts((s) => s.drafts[focusId] ?? EMPTY_DRAFT);
   const setText = useChatDrafts((s) => s.setText);
@@ -170,13 +177,25 @@ export function ChatComposer({
     return () => unregisterComposer(focusId, el);
   }, [focusId]);
 
-  // Черновик на сервер БЕЗ спама каждым символом (контракт #91): debounce
-  // 1000 мс после паузы набора; переключение беседы (размонтирование) и
-  // скрытие вкладки — flush; тредовые scope синхронизация пропускает.
+  // Черновик — ТОЛЬКО на уходе из беседы (вердикт владельца 25.09:
+  // «онлайн-трансляция набранного текста не нужна»): во время набора сервер
+  // молчит (метки/подъёма в списке во время набора нет); PUT — при
+  // переключении беседы/размонтировании и при скрытии вкладки/закрытии
+  // страницы (слушатели ухода ставятся при инициализации draft-sync). Режим
+  // правки черновик не пишет вовсе. Флуш ПРЕДЫДУЩЕЙ беседы: React вызывает
+  // ПРЕДЫДУЩИЙ cleanup и при смене focusId (композер переиспользуется при
+  // переключении бесед внутри мессенджера), и при размонтировании — оба
+  // случая = «ушёл из беседы». Инвалидация списка — ТОЛЬКО после завершения
+  // PUT: одновременный refetch обгонял PUT и приходил без метки (дефект
+  // приёмки 25.09 «метка появляется только при выходе из модуля»).
+  const queryClient = useQueryClient();
   useEffect(() => {
-    scheduleDraftSync(focusId, text);
-  }, [text, focusId]);
-  useEffect(() => () => flushDraftSync(focusId), [focusId]);
+    return () => {
+      void flushDraftSync(focusId).then((sent) => {
+        if (sent) void queryClient.invalidateQueries({ queryKey: chatKeys.conversations() });
+      });
+    };
+  }, [focusId, queryClient]);
 
   const uploading = draft.attachments.some((a) => a.status === 'uploading');
   const readyAttachments = draft.attachments.filter((a) => a.status === 'ready' && a.attachment);
@@ -216,7 +235,6 @@ export function ChatComposer({
           onSuccess: () => {
             useForwardPending.getState().clear(focusId);
             store.setText(focusId, '');
-            dropDraftSync(focusId);
             toast.success(ui.chat.forwardDone);
           },
         },
@@ -233,9 +251,6 @@ export function ChatComposer({
     // Своё сообщение видно с любой позиции скролла (вердикт 24.09).
     useScrollEndStore.getState().request(focusId);
     store.clear(focusId);
-    // Сервер гасит черновик в транзакции отправки — клиент снимает
-    // несостоявшийся PUT, чтобы не «воскресить» черновик (tdesktop#26236).
-    dropDraftSync(focusId);
   }
 
   function onSubmitForm(event: FormEvent) {
@@ -283,9 +298,14 @@ export function ChatComposer({
   }
 
   function onPaste(event: ClipboardEvent<HTMLTextAreaElement>) {
-    if (!attachmentsEnabled) return;
     const files = Array.from(event.clipboardData.files);
     if (files.length === 0) return;
+    // Гейт живого режима (вердикт 25.09): файлы не принимаются, вместо
+    // ошибки — вежливая подсказка (та же, что на выключенной скрепке).
+    if (!attachmentsEnabled) {
+      toast(chatAttachmentsEnabled() ? ui.chat.attachFile : ui.chat.attachmentsUnavailable);
+      return;
+    }
     event.preventDefault();
     addFiles(focusId, files);
   }
@@ -357,8 +377,14 @@ export function ChatComposer({
                   variant="ghost"
                   size="icon"
                   className={cn('shrink-0 text-muted-foreground', align)}
-                  aria-label={ui.chat.attachFile}
-                  title={ui.chat.attachFile}
+                  // Живой режим до хранилища файлов (вердикт 25.09): скрепка на
+                  // месте, но с подсказкой вместо ошибки загрузки.
+                  aria-label={
+                    attachmentsEnabledProp ? ui.chat.attachmentsUnavailable : ui.chat.attachFile
+                  }
+                  title={
+                    attachmentsEnabledProp ? ui.chat.attachmentsUnavailable : ui.chat.attachFile
+                  }
                   disabled
                 >
                   <Paperclip strokeWidth={1.75} />

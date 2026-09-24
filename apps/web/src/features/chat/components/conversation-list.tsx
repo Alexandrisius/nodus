@@ -9,7 +9,6 @@ import { cn } from '@nodus/ui/lib/utils';
 
 import { useAuthStore } from '../../../shared/auth-store.js';
 import { formatTime } from '../../../shared/lib/format.js';
-import { selectConversationDraftText, useChatDrafts } from '../../../shared/chat/chat-drafts.js';
 import { ConversationAvatar } from '../../../shared/chat/conversation-avatar.js';
 import { conversationTitle, sortByActivity } from '../lib/conversations.js';
 import { ConversationMenu } from './conversation-menu.js';
@@ -27,14 +26,14 @@ import { ConversationMenu } from './conversation-menu.js';
  * (без заголовка-секции и без заливки).
  */
 
-/** Превью последней строки беседы — per-row подписка на черновик (селектор
- *  возвращает примитив: строка перерисовывается только на СВОЙ черновик).
- *  Черновик — КРАСНЫМ (реф Telegram/Bitrix24, вердикт владельца 24.09, #91):
- *  «Черновик: текст» вместо превью последнего сообщения; серверный draft
- *  беседы — догоняющая метка с других устройств (локальный первичнее). */
+/** Превью последней строки беседы. Черновик — КРАСНЫМ (реф
+ *  Telegram/Bitrix24, вердикт владельца 24.09, #91): «Черновик: текст» вместо
+ *  превью последнего сообщения. Источник — ТОЛЬКО серверный draft беседы
+ *  (вердикт 25.09: во время набора в списке ничего не меняется; метка
+ *  появляется после ухода из чата, когда клиент фиксирует черновик на
+ *  сервере). */
 function RowPreview({ conversation }: { conversation: ConversationListItem }) {
-  const draftText = useChatDrafts((s) => selectConversationDraftText(s.drafts, conversation.id));
-  const preview = draftText || conversation.draft?.text || '';
+  const preview = conversation.draft?.text || '';
   if (preview) {
     return (
       <span className="truncate text-xs font-medium text-destructive">
@@ -70,19 +69,10 @@ export function ConversationList({
   onSelect: (conversation: ConversationListItem) => void;
 }) {
   const meId = useAuthStore((s) => s.user?.id);
-  // Черновики для сортировки: сигнатура = набор ключей с текстом (примитив —
-  // перерисовка списка только на ПОЯВЛЕНИЕ/исчезновение черновика, не на набор).
-  const draftSignature = useChatDrafts((s) =>
-    Object.entries(s.drafts)
-      .filter(([, draft]) => draft.text)
-      .map(([key]) => key)
-      .join('|'),
-  );
-  // Серверный draft беседы тоже поднимает её (контракт #91: метка с других
-  // устройств), локальная сигнатура — первичнее и мгновенная.
+  // Подъём беседы с черновиком (сортировка) — ТОЛЬКО от серверного draft
+  // (вердикт 25.09: во время набора список живёт своей жизнью; беседа
+  // поднимается после ухода из чата, когда черновик зафиксирован сервером).
   const hasDraft = (conversationId: string) =>
-    draftSignature.includes(`conversation:${conversationId}`) ||
-    draftSignature.includes(`feed:${conversationId}`) ||
     conversations.some((c) => c.id === conversationId && c.draft?.text);
 
   if (isLoading) {

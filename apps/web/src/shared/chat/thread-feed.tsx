@@ -8,6 +8,7 @@ import { cn } from '@nodus/ui/lib/utils';
 import { useAuthStore } from '../auth-store.js';
 import { formatTime, plural } from '../lib/format.js';
 import { PersonAvatar } from '../ui/person-avatar.js';
+import { chatAttachmentsEnabled } from './attachments-gate.js';
 import { useConversationMessages, useSendChatMessage } from './api.js';
 import { ChatComposer, type ComposerSubmit } from './chat-composer.js';
 import { ChatMessageItem } from './chat-message.js';
@@ -24,7 +25,7 @@ import { useEditMessage } from './message-mutations.js';
 import { MessageMenu } from './message-menu.js';
 import { MessageRow } from './message-row.js';
 import { PinBar } from './pin-bar.js';
-import { useDomJumpResponder } from './use-dom-jump.js';
+import { useJumpResponder } from './use-jump-responder.js';
 import { selectionComposerProps, useFeedSelection } from './use-feed-selection.js';
 import { useConversations } from './api.js';
 import { canPostFeed } from './conversations.js';
@@ -97,10 +98,11 @@ export const ThreadFeed = memo(function ThreadFeed({
   }, [items]);
 
   const selection = useFeedSelection(scope, roots, me?.id);
-  useDomJumpResponder(feedRef, {
+  useJumpResponder({
     conversationId,
     threadRootId: null,
     itemCount: roots.length,
+    containerRef: feedRef,
   });
 
   const lastMine = useCallback(
@@ -130,6 +132,7 @@ export const ThreadFeed = memo(function ThreadFeed({
       <PinBar conversationId={conversationId} onOpenThread={onOpenThread} />
       <FeedDropzone
         className="flex min-h-0 flex-1 flex-col"
+        disabled={!chatAttachmentsEnabled()}
         onFiles={(files) => addFiles(scope, files)}
       >
         <div

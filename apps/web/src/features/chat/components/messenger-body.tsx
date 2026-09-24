@@ -16,6 +16,7 @@ import { api } from '../../../shared/api-client.js';
 import { useAuthStore } from '../../../shared/auth-store.js';
 import { useUsersList } from '../../../shared/api/users-list.js';
 import { chatKeys } from '../../../shared/chat/api.js';
+import { ChatHostNavigationContext } from '../../../shared/chat/chat-host.js';
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
 import { TaskQuickCreate } from '../../../shared/tasks/task-quick-create.js';
 import { useConversations } from '../api/chat-api.js';
@@ -46,6 +47,7 @@ export function MessengerBody({
   tab,
   conversationId,
   onSelectConversation,
+  onOpenConversation,
   threadRootId,
   onOpenThread,
   onCloseThread,
@@ -53,6 +55,11 @@ export function MessengerBody({
   tab: ChatTab;
   conversationId?: string;
   onSelectConversation: (conversationId: string) => void;
+  /** Внутренняя навигация к беседе С ТРЕДОМ ОДНИМ действием (вердикт 25.09:
+   *  переход по пересланному внутри мессенджера). Хост владеет способом:
+   *  страница — один navigate, карточка — локальное состояние; по умолчанию —
+   *  композиция onSelectConversation + onOpenThread (два шага). */
+  onOpenConversation?: (conversationId: string, threadRootId: string | null) => void;
   threadRootId: string | null;
   onOpenThread: (rootId: string) => void;
   onCloseThread: () => void;
@@ -122,6 +129,22 @@ export function MessengerBody({
     );
   const active = data?.items.find((c) => c.id === conversationId);
 
+  // Внутренняя навигация мессенджера (вердикт 25.09): переход по пересланному
+  // ведёт беседу ВНУТРИ хозяина — слайдер из мессенджера не вызывается.
+  // Значение стабильно между внутренними перерисовками (поиск, выбор треда):
+  // иначе контекст перемонтировал бы memo-сообщения на каждый ввод символа.
+  const hostNavigation = useMemo(
+    () => ({
+      openConversation:
+        onOpenConversation ??
+        ((targetId: string, threadId: string | null) => {
+          onSelectConversation(targetId);
+          if (threadId) onOpenThread(threadId);
+        }),
+    }),
+    [onOpenConversation, onSelectConversation, onOpenThread],
+  );
+
   // Подмодуль «Настройка» (вердикт владельца 14.09.2026, модель Битрикс24):
   // отдельная страница мессенджера без списка бесед.
   if (tab === 'settings') {
@@ -133,148 +156,150 @@ export function MessengerBody({
   }
 
   return (
-    <div className="relative flex h-full">
-      {/* Список бесед — на тоне панели (`card`), как весь хром мессенджера:
+    <ChatHostNavigationContext.Provider value={hostNavigation}>
+      <div className="relative flex h-full">
+        {/* Список бесед — на тоне панели (`card`), как весь хром мессенджера:
           отдельная бежевая ступень колонки давала «зоопарк оттенков» в
           светлой теме (вердикт владельца 14.09.2026); зону от списка
           отделяет hairline border-r. */}
-      <aside className="flex w-80 shrink-0 flex-col border-r border-border bg-card">
-        {/* Шапка списка бесед — ВЫСОТОЙ h-14, как шапка беседы справа:
+        <aside className="flex w-80 shrink-0 flex-col border-r border-border bg-card">
+          {/* Шапка списка бесед — ВЫСОТОЙ h-14, как шапка беседы справа:
             горизонтальные линии двух зон совпадают (вердикт владельца
             12.09.2026: линии не совпадали — 48px против 56px). */}
-        <div className="flex h-14 shrink-0 items-center border-b border-border px-2">
-          <div className="relative min-w-0 flex-1">
-            <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={ui.common.searchPlaceholder}
-              aria-label={ui.common.search}
-              className="h-8 pr-7 pl-8 text-sm"
-            />
-            {query ? (
-              <button
-                type="button"
-                onClick={() => setQuery('')}
-                aria-label={ui.filters.reset}
-                className="absolute top-1/2 right-1.5 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground"
-              >
-                <X className="size-3.5" strokeWidth={1.75} />
-              </button>
-            ) : null}
-          </div>
-          {/* Кнопка СПРАВА от поиска — СВОЯ у каждой вкладки (#96, вердикт
+          <div className="flex h-14 shrink-0 items-center border-b border-border px-2">
+            <div className="relative min-w-0 flex-1">
+              <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={ui.common.searchPlaceholder}
+                aria-label={ui.common.search}
+                className="h-8 pr-7 pl-8 text-sm"
+              />
+              {query ? (
+                <button
+                  type="button"
+                  onClick={() => setQuery('')}
+                  aria-label={ui.filters.reset}
+                  className="absolute top-1/2 right-1.5 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="size-3.5" strokeWidth={1.75} />
+                </button>
+              ) : null}
+            </div>
+            {/* Кнопка СПРАВА от поиска — СВОЯ у каждой вкладки (#96, вердикт
               владельца 24.09.2026): на «Чатах» попап команд «Групповой чат»/
               «Канал» (реф Bitrix24, #91; команда открывает окно настройки
               чата), на «Чатах задач и писем» — создание ЗАДАЧИ (обсуждения
               сущностей рождаются с сущностью, попап мессенджера там неуместен).
               Вкладка «Настройка» уходит выше и кнопки не имеет. */}
-          {tab === 'chats' ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="ml-1.5 shrink-0 text-muted-foreground hover:bg-accent hover:text-foreground"
-                  aria-label={ui.chat.createChat}
-                  title={ui.chat.createChat}
-                >
-                  <SquarePen className="size-4" strokeWidth={1.75} />
-                </Button>
-              </DropdownMenuTrigger>
-              {/* Попап команд: ЛЕВАЯ кромка попапа = левая кромка кнопки
+            {tab === 'chats' ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="ml-1.5 shrink-0 text-muted-foreground hover:bg-accent hover:text-foreground"
+                    aria-label={ui.chat.createChat}
+                    title={ui.chat.createChat}
+                  >
+                    <SquarePen className="size-4" strokeWidth={1.75} />
+                  </Button>
+                </DropdownMenuTrigger>
+                {/* Попап команд: ЛЕВАЯ кромка попапа = левая кромка кнопки
                   (вердикт владельца 24.09: align start без смещения). */}
-              <DropdownMenuContent align="start" className="w-56">
-                <DropdownMenuItem onClick={() => setCreateKind('group')}>
-                  <Users className="size-4" strokeWidth={1.75} />
-                  {ui.chat.createGroupChat}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setCreateKind('project_channel')}>
-                  <Megaphone className="size-4" strokeWidth={1.75} />
-                  {ui.chat.createChannel}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ) : (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="ml-1.5 shrink-0 text-muted-foreground hover:bg-accent hover:text-foreground"
-              aria-label={ui.tasks.createTask}
-              title={ui.tasks.createTask}
-              onClick={() => setCreateTaskOpen(true)}
-            >
-              <Plus className="size-4" strokeWidth={1.75} />
-            </Button>
-          )}
-        </div>
-        {createKind ? (
-          <ChatCreateDialog
-            kind={createKind}
-            onCreated={(conversationId) => {
-              setCreateKind(null);
-              onSelectConversation(conversationId);
-            }}
-            onClose={() => setCreateKind(null)}
-          />
-        ) : null}
-        {/* Экспресс-форма задачи (#96) — общий компонент shared/tasks: создаёт
+                <DropdownMenuContent align="start" className="w-56">
+                  <DropdownMenuItem onClick={() => setCreateKind('group')}>
+                    <Users className="size-4" strokeWidth={1.75} />
+                    {ui.chat.createGroupChat}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setCreateKind('project_channel')}>
+                    <Megaphone className="size-4" strokeWidth={1.75} />
+                    {ui.chat.createChannel}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="ml-1.5 shrink-0 text-muted-foreground hover:bg-accent hover:text-foreground"
+                aria-label={ui.tasks.createTask}
+                title={ui.tasks.createTask}
+                onClick={() => setCreateTaskOpen(true)}
+              >
+                <Plus className="size-4" strokeWidth={1.75} />
+              </Button>
+            )}
+          </div>
+          {createKind ? (
+            <ChatCreateDialog
+              kind={createKind}
+              onCreated={(conversationId) => {
+                setCreateKind(null);
+                onSelectConversation(conversationId);
+              }}
+              onClose={() => setCreateKind(null)}
+            />
+          ) : null}
+          {/* Экспресс-форма задачи (#96) — общий компонент shared/tasks: создаёт
             задачу, тостом подтверждает и закрывается; её чат задачи появится
             во вкладке вместе с сущностью (обсуждения — от сущностей, не от
             мессенджера). */}
-        {tab === 'tasks' ? (
-          <TaskQuickCreate open={createTaskOpen} onOpenChange={setCreateTaskOpen} />
-        ) : null}
-        {peopleMatches.length > 0 ? (
-          // Секция людей над списком бесед: та же геометрия строк (мягкий
-          // ховер, rounded-lg), подпись «Написать» справа.
-          <div className="flex flex-col pb-1">
-            <div className="px-4 pt-3 pb-1 text-label-sm text-muted-foreground">
-              {ui.chat.searchPeopleSection}
-            </div>
-            {peopleMatches.map((person: UserListItem) => (
-              <button
-                key={person.id}
-                type="button"
-                onClick={() => void openDirectChat(person.id)}
-                className="mx-1 flex w-[calc(100%-0.625rem)] items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-accent/40"
-              >
-                <PersonAvatar name={person.displayName} className="size-9" />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium">{person.displayName}</span>
-                  <span className="block truncate text-label-sm text-muted-foreground">
-                    {ui.chat.searchPeopleHint}
+          {tab === 'tasks' ? (
+            <TaskQuickCreate open={createTaskOpen} onOpenChange={setCreateTaskOpen} />
+          ) : null}
+          {peopleMatches.length > 0 ? (
+            // Секция людей над списком бесед: та же геометрия строк (мягкий
+            // ховер, rounded-lg), подпись «Написать» справа.
+            <div className="flex flex-col pb-1">
+              <div className="px-4 pt-3 pb-1 text-label-sm text-muted-foreground">
+                {ui.chat.searchPeopleSection}
+              </div>
+              {peopleMatches.map((person: UserListItem) => (
+                <button
+                  key={person.id}
+                  type="button"
+                  onClick={() => void openDirectChat(person.id)}
+                  className="mx-1 flex w-[calc(100%-0.625rem)] items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-accent/40"
+                >
+                  <PersonAvatar name={person.displayName} className="size-9" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium">{person.displayName}</span>
+                    <span className="block truncate text-label-sm text-muted-foreground">
+                      {ui.chat.searchPeopleHint}
+                    </span>
                   </span>
-                </span>
-              </button>
-            ))}
-          </div>
-        ) : null}
-        <ConversationList
-          conversations={items}
-          isLoading={isLoading}
-          activeId={conversationId}
-          emptyLabel={tab === 'tasks' ? ui.chat.taskChatsEmpty : ui.common.empty}
-          onSelect={(conversation) => onSelectConversation(conversation.id)}
-        />
-      </aside>
+                </button>
+              ))}
+            </div>
+          ) : null}
+          <ConversationList
+            conversations={items}
+            isLoading={isLoading}
+            activeId={conversationId}
+            emptyLabel={tab === 'tasks' ? ui.chat.taskChatsEmpty : ui.common.empty}
+            onSelect={(conversation) => onSelectConversation(conversation.id)}
+          />
+        </aside>
 
-      {active ? (
-        <ChatWorkspace
-          conversation={active}
-          threadRootId={threadRootId}
-          onOpenThread={onOpenThread}
-          onCloseThread={onCloseThread}
-        />
-      ) : (
-        <div className="flex flex-1 items-center justify-center">
-          <Empty>
-            <EmptyTitle>{ui.chat.selectConversation}</EmptyTitle>
-          </Empty>
-        </div>
-      )}
-    </div>
+        {active ? (
+          <ChatWorkspace
+            conversation={active}
+            threadRootId={threadRootId}
+            onOpenThread={onOpenThread}
+            onCloseThread={onCloseThread}
+          />
+        ) : (
+          <div className="flex flex-1 items-center justify-center">
+            <Empty>
+              <EmptyTitle>{ui.chat.selectConversation}</EmptyTitle>
+            </Empty>
+          </div>
+        )}
+      </div>
+    </ChatHostNavigationContext.Provider>
   );
 }

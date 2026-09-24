@@ -28,6 +28,16 @@ export function ChatPage() {
           search: tab === 'chats' ? {} : { tab },
         })
       }
+      // Внутренняя навигация мессенджера (вердикт 25.09): переход к беседе
+      // источника пересылки с тредом — ОДИН navigate (последовательность
+      // onSelect+openThread писала в params устаревший conversationId).
+      onOpenConversation={(id, threadRootId) =>
+        void navigate({
+          to: '/chat/$conversationId',
+          params: { conversationId: id },
+          search: (prev) => ({ ...prev, thread: threadRootId ?? undefined }),
+        })
+      }
       threadRootId={search.thread ?? null}
       onOpenThread={(rootId) =>
         void navigate({

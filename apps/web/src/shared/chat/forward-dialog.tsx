@@ -7,14 +7,25 @@ import { Input } from '@nodus/ui/components/input';
 import { cn } from '@nodus/ui/lib/utils';
 import { useNavigate } from '@tanstack/react-router';
 
-import { openCardViaBridge } from '../lib/card-bridge.js';
+import { openCardViaBridge, replaceTopMessengerCard } from '../lib/card-bridge.js';
 import { useAuthStore } from '../auth-store.js';
 import { useConversations, useConversationMessages } from './api.js';
-import { focusComposer, hasComposer } from './composer-focus.js';
+import { focusComposer, hasVisibleComposer } from './composer-focus.js';
 import { ConversationAvatar } from './conversation-avatar.js';
 import { conversationSubtitle, conversationTitle, sortByActivity } from './conversations.js';
 import { useForwardDialog, type ForwardRequest } from './dialog-stores.js';
-import { forwardFromLabel, forwardScopeKey, useForwardPending } from './forward-pending.js';
+import {
+  forwardFromLabel,
+  forwardScopeKey,
+  useForwardPending,
+  type ForwardPending,
+} from './forward-pending.js';
+import {
+  hasCardsInSearch,
+  resolveForwardRoute,
+  topCardIsMessengerInSearch,
+} from './forward-navigation.js';
+import { stageMessengerThread } from './messenger-nav.js';
 import { ThreadLevel } from './forward-thread-picker.js';
 import { useSelectionStore } from './selection-store.js';
 
@@ -81,32 +92,47 @@ function ForwardBody({ request, onDone }: { request: ForwardRequest; onDone: () 
   );
 
   /** Получатель выбран: бар пересылки в его композер, селект снят, диалог
-   *  закрыт и «провал» в приёмник: открытый композер — фокус; страница
-   *  мессенджера — маршрут (тред — search ?thread=); иначе — полноэкранная
-   *  карточка мессенджера поверх текущей (мост стека, ADR-0009). */
+   *  закрыт и «провал» к приёмнику. Маршрутизация результата — ВИДИМАЯ
+   *  (вердикт 25.09, forward-navigation): верхняя карточка-мессенджер —
+   *  замена её содержимого (пристоян тред через messenger-nav); страница
+   *  /chat без накрытого стека — маршрут; видимый композер приёмника —
+   *  фокус в него (бар уже в нём); иначе — карточка мессенджера поверх
+   *  сущности. Действий под слайдером НЕТ. */
   function finalize(conversation: ConversationListItem, threadRootId: string | null) {
     const scopeKey = forwardScopeKey(conversation, threadRootId);
-    useForwardPending.getState().set({
+    const pending: ForwardPending = {
       scopeKey,
       conversationId: conversation.id,
       threadRootId,
       sourceConversationId: request.sourceConversationId,
       messageIds: request.messageIds,
       fromLabel,
-    });
+    };
+    useForwardPending.getState().set(pending);
     useSelectionStore.getState().exit();
     onDone();
     window.setTimeout(() => {
-      if (hasComposer(scopeKey)) {
-        focusComposer(scopeKey);
+      const route = resolveForwardRoute({
+        topCardIsMessenger: topCardIsMessengerInSearch(window.location.search),
+        hasCards: hasCardsInSearch(window.location.search),
+        onChatPage: window.location.pathname.startsWith('/chat'),
+        composerVisible: hasVisibleComposer(scopeKey),
+      });
+      if (route === 'replace-messenger') {
+        stageMessengerThread(conversation.id, threadRootId);
+        replaceTopMessengerCard({ conversationId: conversation.id, threadRootId });
         return;
       }
-      if (window.location.pathname.startsWith('/chat')) {
+      if (route === 'navigate-chat') {
         void navigate({
           to: '/chat/$conversationId',
           params: { conversationId: conversation.id },
           search: (prev) => ({ ...prev, thread: threadRootId ?? undefined }),
         });
+        return;
+      }
+      if (route === 'focus-composer') {
+        focusComposer(scopeKey);
         return;
       }
       openCardViaBridge({ kind: 'messenger', id: conversation.id });

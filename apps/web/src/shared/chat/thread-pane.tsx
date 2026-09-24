@@ -1,4 +1,4 @@
-import { Fragment, memo, useCallback, useMemo } from 'react';
+import { Fragment, memo, useCallback, useMemo, useRef } from 'react';
 import { ArrowLeft, X } from 'lucide-react';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
@@ -16,6 +16,7 @@ import {
 } from '@nodus/ui/components/message-scroller';
 
 import { useAuthStore } from '../auth-store.js';
+import { chatAttachmentsEnabled } from './attachments-gate.js';
 import { useSendChatMessage, useThreadMessages } from './api.js';
 import { ChatComposer, type ComposerSubmit } from './chat-composer.js';
 import { ChatMessageItem } from './chat-message.js';
@@ -75,6 +76,8 @@ export const ThreadPane = memo(function ThreadPane({
   const runs = useMemo(() => buildMessageRuns(replies, me?.id), [replies, me?.id]);
   const rootMine = root ? root.author.id === me?.id : false;
   const selection = useFeedSelection(scope, items, me?.id);
+  // Viewport окна треда — цель прыжка (scroll-jump, вердикт 25.09).
+  const viewportRef = useRef<HTMLDivElement>(null);
 
   const lastMine = useCallback(
     () => [...items].reverse().find((m) => m.author.id === me?.id && !m.deletedAt),
@@ -158,6 +161,7 @@ export const ThreadPane = memo(function ThreadPane({
       </header>
       <FeedDropzone
         className="flex min-h-0 flex-1 flex-col"
+        disabled={!chatAttachmentsEnabled()}
         onFiles={(files) => addFiles(scope, files)}
       >
         <MessageScrollerProvider autoScroll>
@@ -166,9 +170,10 @@ export const ThreadPane = memo(function ThreadPane({
             conversationId={conversationId}
             threadRootId={threadRootId}
             itemCount={items.length}
+            containerRef={viewportRef}
           />
           <MessageScroller className="min-h-0 flex-1 bg-chat-zone">
-            <MessageScrollerViewport>
+            <MessageScrollerViewport ref={viewportRef}>
               <MessageScrollerContent
                 className={cn('p-4', selection.selectionActive && 'select-none')}
               >

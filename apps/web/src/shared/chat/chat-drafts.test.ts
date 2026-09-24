@@ -1,7 +1,7 @@
 import type { ChatMessage } from '@nodus/contracts';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { EMPTY_DRAFT, selectConversationDraftText, useChatDrafts } from './chat-drafts.js';
+import { EMPTY_DRAFT, useChatDrafts } from './chat-drafts.js';
 
 const CONV = '11111111-1111-4111-8111-111111111111';
 const KEY = `conversation:${CONV}`;
@@ -96,20 +96,5 @@ describe('chat-drafts — режимы композера (A2/A4, #87)', () => {
     store.setReply(KEY, msg('m1', 'оригинал'));
     store.clear(KEY);
     expect(useChatDrafts.getState().drafts[KEY] ?? EMPTY_DRAFT).toEqual(EMPTY_DRAFT);
-  });
-
-  it('selectConversationDraftText: лента или канал (feed), приоритет у conversation', () => {
-    useChatDrafts.setState({
-      drafts: {
-        [`conversation:${CONV}`]: { ...EMPTY_DRAFT, text: 'личная' },
-        [`feed:${CONV}`]: { ...EMPTY_DRAFT, text: 'канал' },
-      },
-    });
-    expect(selectConversationDraftText(useChatDrafts.getState().drafts, CONV)).toBe('личная');
-    useChatDrafts.setState({
-      drafts: { [`feed:${CONV}`]: { ...EMPTY_DRAFT, text: 'канал' } },
-    });
-    expect(selectConversationDraftText(useChatDrafts.getState().drafts, CONV)).toBe('канал');
-    expect(selectConversationDraftText(useChatDrafts.getState().drafts, 'other')).toBe('');
   });
 });

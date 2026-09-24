@@ -9,13 +9,17 @@ import { cn } from '@nodus/ui/lib/utils';
  * классического бага dragleave на детях — счётчик enter/leave (research).
  * Пунктирная рама — разрешённый affordance переноса (исключение канона
  * «пустые состояния без пунктира», как drop-зона канбана).
+ * disabled (вердикт 25.09, гейт вложений в live-режиме): зона не активируется
+ * вовсе — ни оверлея, ни приёма.
  */
 export function FeedDropzone({
   onFiles,
+  disabled = false,
   className,
   children,
 }: {
   onFiles: (files: File[]) => void;
+  disabled?: boolean;
   className?: string;
   children: ReactNode;
 }) {
@@ -23,6 +27,7 @@ export function FeedDropzone({
   const depth = useRef(0);
 
   function hasFiles(event: DragEvent): boolean {
+    if (disabled) return false;
     return event.dataTransfer?.types.includes('Files') ?? false;
   }
 

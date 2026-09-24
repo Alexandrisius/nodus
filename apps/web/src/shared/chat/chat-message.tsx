@@ -8,6 +8,7 @@ import { openCardViaBridge } from '../lib/card-bridge.js';
 import { MessageAttachments } from './attachments.js';
 import { BubbleTail } from './bubble-tail.js';
 import { useChatPrefs } from './chat-prefs.js';
+import { useChatHostNavigation } from './chat-host.js';
 import { useJumpStore } from './jump-store.js';
 import { ForwardedHeader, ReplyHeader } from './message-headers.js';
 import { MessageMeta } from './message-meta.js';
@@ -78,6 +79,10 @@ export const ChatMessageItem = memo(function ChatMessageItem({
 }) {
   const align = useChatPrefs((s) => s.align);
   const atEnd = mine && align === 'both';
+  // Хозяин чата (вердикт 25.09): мессенджер навигирует внутренне, у чатов
+  // карточек сущностей контекста нет — их переход к чужой беседе идёт
+  // карточкой мессенджера (слайдер поверх сущности).
+  const host = useChatHostNavigation();
 
   // Надгробие (A5): placeholder вместо пузыря — без автора, времени и
   // действий; серия сообщений разрывается (message-groups: отдельный run).
@@ -98,14 +103,18 @@ export const ChatMessageItem = memo(function ChatMessageItem({
     useJumpStore.getState().request(message.conversationId, replyId, message.threadRootId);
   }
 
-  /** Клик по «Переслано от» — к оригиналу; чужая беседа открывается
-   *  фулскрин-карточкой мессенджера (стек ADR-0009), отложенный jump-запрос
-   *  подбирает её лента (jump-store живёт до consume/ttl). */
+  /** Клик по «Переслано от» — к оригиналу. В мессенджере (страница/карточка)
+   *  навигация ВНУТРИ него: переключиться на беседу-источник/тред — слайдер
+   *  не открывается (вердикт 25.09); в карточке слайдера это замена её
+   *  содержимого (без вложенных слайдеров). Чат карточки сущности открывает
+   *  мессенджер-карточку поверх (легитимная роль слайдера). Далее jump-запрос
+   *  подбирает лента целевой беседы (переживает навигацию, jump-store). */
   function jumpToForwardSource() {
     const from = message.forwardedFrom;
     if (!from) return;
     if (from.conversationId !== message.conversationId) {
-      openCardViaBridge({ kind: 'messenger', id: from.conversationId });
+      if (host) host.openConversation(from.conversationId, from.threadRootId);
+      else openCardViaBridge({ kind: 'messenger', id: from.conversationId });
     }
     useJumpStore.getState().request(from.conversationId, from.messageId, from.threadRootId);
   }

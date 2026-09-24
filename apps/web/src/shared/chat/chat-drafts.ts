@@ -195,13 +195,3 @@ export const useChatDrafts = create<DraftsState>()(
     },
   ),
 );
-
-/** Черновик беседы для индикатора в списке: текст ленты или канала (feed). */
-export function selectConversationDraftText(
-  drafts: Record<string, ChatDraft>,
-  conversationId: string,
-): string {
-  return (
-    drafts[`conversation:${conversationId}`]?.text || drafts[`feed:${conversationId}`]?.text || ''
-  );
-}
