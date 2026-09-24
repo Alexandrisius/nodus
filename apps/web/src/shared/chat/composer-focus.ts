@@ -29,8 +29,7 @@ let installed = false;
 
 /** Роли Radix-контента оверлей-слоёв (dialog/popover → role=dialog,
  *  dropdown/context-menu → role=menu, select → role=listbox; DOM-проба #71). */
-const OVERLAY_LAYER_SELECTOR =
-  '[role="dialog"],[role="alertdialog"],[role="menu"],[role="listbox"]';
+const OVERLAY_LAYER_ROLES = new Set(['dialog', 'alertdialog', 'menu', 'listbox']);
 
 function isEditable(el: Element | null): el is HTMLElement {
   return (
@@ -39,15 +38,34 @@ function isEditable(el: Element | null): el is HTMLElement {
   );
 }
 
-function insideOverlayLayer(el: Element | null): boolean {
-  return el instanceof Element && el.closest(OVERLAY_LAYER_SELECTOR) !== null;
+/**
+ * Активный элемент живёт в открытом оверлей-слое (диалог, поповер, меню,
+ * селект), который владеет фокусом, пока слой открыт (#71: иначе
+ * DismissableLayer закроет панель по focusOutside). Слои-ПРЕДКИ, содержащие
+ * сам композер, слоем НЕ считаются (вердикт 25.09): карточка-слайдер — тоже
+ * role="dialog", но это ПОСТОЯННОЕ вместилище чата, а не всплывающий слой —
+ * её «владение» фокусом никогда не кончается, и без этой поправки возврат
+ * курсора в композер слайдера («Ответить»/«Редактировать», обычные клики)
+ * блокировался навсегда. Проверяется вся цепочка предков: первый слой,
+ * НЕ содержащий композер, — конкурирующий владелец (портал Radix поверх
+ * слайдера, диалог поверх страницы).
+ */
+function insideOverlayLayer(el: Element | null, composer: Element | null = null): boolean {
+  let node: Element | null = el;
+  while (node instanceof Element) {
+    if (node.hasAttribute('role') && OVERLAY_LAYER_ROLES.has(node.getAttribute('role') ?? '')) {
+      if (!(composer && node.contains(composer))) return true;
+    }
+    node = node.parentElement;
+  }
+  return false;
 }
 
 function stealFocus(): void {
   const el = activeId ? registry.get(activeId) : undefined;
   if (!el || document.activeElement === el) return;
   if (isEditable(document.activeElement)) return;
-  if (insideOverlayLayer(document.activeElement)) return;
+  if (insideOverlayLayer(document.activeElement, el)) return;
   const selection = window.getSelection();
   if (selection && !selection.isCollapsed) return;
   el.focus({ preventScroll: true });
@@ -122,10 +140,14 @@ export function focusComposer(id: string): void {
   registry.get(id)?.focus({ preventScroll: true });
 }
 
-/** Композер scope смонтирован сейчас (диалог пересылки решает: фокусировать
- *  открытый чат-приёмник или открывать его маршрутом/карточкой). */
-export function hasComposer(id: string): boolean {
-  return registry.has(id);
+/** Композер scope смонтирован И ВИДЕН (вердикт 25.09: фокус/действия «за
+ *  спиной» накрытых карточек запрещены — dormant-карточка под слайдером
+ *  держит композер в DOM, но content-visibility:hidden выводит его из
+ *  рендеринга; checkVisibility() это видит, старые движки — fallback «виден»). */
+export function hasVisibleComposer(id: string): boolean {
+  const el = registry.get(id);
+  if (!el) return false;
+  return typeof el.checkVisibility === 'function' ? el.checkVisibility() : true;
 }
 
 /** Курсор в композер БЕСЕДЫ после закрытия глобальных диалогов (пересылка,
@@ -144,13 +166,15 @@ export function focusConversationComposerWhenFree(conversationId: string, deadli
  *  «Ответить»/«Редактировать»): Radix возвращает фокус триггеру на размонтаже
  *  контента (после exit-анимации) — немедленный focus перетирается (баг-
  *  вердикт 24.09: «после Редактировать курсор не в поле»). Ждём кадров, пока
- *  activeElement вне редактируемых и вне оверлей-слоёв, тогда фокусим. */
+ *  activeElement вне редактируемых и вне оверлей-слоёв, тогда фокусим.
+ *  Постоянные вместилища композера (карточка-слайдер, role="dialog") ожидание
+ *  не держат — см. insideOverlayLayer (вердикт 25.09). */
 export function focusComposerWhenFree(id: string, deadlineMs = 600): void {
   const started = performance.now();
   function tick() {
     const el = registry.get(id);
     if (!el || document.activeElement === el) return;
-    if (isEditable(document.activeElement) || insideOverlayLayer(document.activeElement)) {
+    if (isEditable(document.activeElement) || insideOverlayLayer(document.activeElement, el)) {
       if (performance.now() - started < deadlineMs) requestAnimationFrame(tick);
       return;
     }

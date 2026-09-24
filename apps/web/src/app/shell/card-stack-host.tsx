@@ -10,6 +10,7 @@ import { MessengerBody, type ChatTab } from '../../features/chat/components/mess
 import { MessengerTabs } from '../../features/chat/components/messenger-tabs.js';
 import { useUsersList } from '../../features/directory/api/directory-api.js';
 import { EmployeeCard } from '../../features/directory/components/employee-card.js';
+import { takeMessengerThread } from '../../shared/chat/messenger-nav.js';
 import { useProjectDetail } from '../../features/projects/api/projects-api.js';
 import { ProjectCard } from '../../features/projects/components/project-card.js';
 import { useTaskDetail } from '../../features/tasks/api/tasks-api.js';
@@ -133,20 +134,23 @@ function CounterpartyEntry({ id, source, onClose, dormant }: EntryProps) {
  *  под верхней поехали бы на 40px во время раскрытия — баг-вердикт владельца
  *  15.09.2026), закрытие (X/Esc) возвращает к предыдущей сущности с её
  *  состоянием. id — беседа, выбранная при открытии; подмена верхней
- *  карточки (клик по другой беседе полосы) меняет id БЕЗ ремаунта панели —
- *  синхронизация эффектом. Вкладка и тред — локальное состояние (чужие
- *  маршруту search-параметры не пишем). */
+ *  карточки (клик по другой беседе полосы, переход по пересланному —
+ *  `replaceTopMessengerCard`, вердикт 25.09) меняет id БЕЗ ремаунта панели —
+ *  синхронизация эффектом; пристоенный тред подмены потребляется тут же
+ *  (messenger-nav). Вкладка и тред — локальное состояние (чужие маршруту
+ *  search-параметры не пишем). */
 function MessengerEntry({ id, source, onClose, dormant }: EntryProps) {
   const [conversationId, setConversationId] = useState(id);
   const [tab, setTab] = useState<ChatTab>('chats');
   const [threadRootId, setThreadRootId] = useState<string | null>(null);
   // Подмена беседы (replaceTop): сброс треда — он принадлежал прежней беседе
-  // (рендер-тайм сброс по смене id, канон React, аудит #45).
+  // (рендер-тайм сброс по смене id, канон React, аудит #45); пристоенный тред
+  // подмены (переход по пересланному в тред канала) — наоборот, открывается.
   const [prevId, setPrevId] = useState(id);
   if (prevId !== id) {
     setPrevId(id);
     setConversationId(id);
-    setThreadRootId(null);
+    setThreadRootId(takeMessengerThread(id));
   }
   return (
     <SliderPanel
@@ -162,6 +166,13 @@ function MessengerEntry({ id, source, onClose, dormant }: EntryProps) {
         tab={tab}
         conversationId={conversationId}
         onSelectConversation={setConversationId}
+        // Внутренняя навигация мессенджера (вердикт 25.09): переход к беседе-
+        // источнику пересылки ЗАМЕНЯЕТ содержимое слайдера (без вложенных
+        // слайдеров и без невидимых действий под ним).
+        onOpenConversation={(targetId, targetThread) => {
+          setConversationId(targetId);
+          setThreadRootId(targetThread);
+        }}
         threadRootId={threadRootId}
         onOpenThread={setThreadRootId}
         onCloseThread={() => setThreadRootId(null)}

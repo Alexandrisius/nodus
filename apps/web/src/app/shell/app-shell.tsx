@@ -5,7 +5,8 @@ import { Skeleton } from '@nodus/ui/components/skeleton';
 import { Toaster } from '@nodus/ui/components/sonner';
 import { TooltipProvider } from '@nodus/ui/components/tooltip';
 
-import { registerCardBridge } from '../../shared/lib/card-bridge.js';
+import { registerCardBridge, registerReplaceTopMessenger } from '../../shared/lib/card-bridge.js';
+import { stageMessengerThread } from '../../shared/chat/messenger-nav.js';
 import { ChatDialogHosts } from '../../shared/chat/dialog-hosts.js';
 import { CircuitFrame } from './circuit-frame.js';
 import { CardStackHost } from './card-stack-host.js';
@@ -16,7 +17,7 @@ import { NodeRail } from './node-rail.js';
 import { RightRail } from './right-rail.js';
 import { useShellStore } from './shell-store.js';
 import { TopBar } from './top-bar.js';
-import { useOpenCard } from './use-card-stack.js';
+import { useCardStack, useOpenCard, useReplaceTopCard } from './use-card-stack.js';
 
 function ShellFallback() {
   return (
@@ -34,6 +35,8 @@ function ShellFallback() {
 export function AppShell() {
   const theme = useShellStore((s) => s.theme);
   const openCard = useOpenCard();
+  const cardStack = useCardStack();
+  const replaceTopCard = useReplaceTopCard();
   const stressMode =
     typeof window !== 'undefined' &&
     Number(new URLSearchParams(window.location.search).get('stress') ?? 0) >= 1000;
@@ -43,6 +46,21 @@ export function AppShell() {
   useEffect(
     () => registerCardBridge((ref) => openCard(ref as Parameters<typeof openCard>[0])),
     [openCard],
+  );
+
+  // Подмена верхней мессенджер-карточки (вердикт 25.09, п.4): переход к
+  // беседе-приёмнику пересылки происходит ВНУТРИ открытого слайдера (замена
+  // id без ремаунта, useReplaceTopCard); тред приёмника — через messenger-nav.
+  useEffect(
+    () =>
+      registerReplaceTopMessenger(({ conversationId, threadRootId }) => {
+        const top = cardStack[cardStack.length - 1];
+        if (!top || top.kind !== 'messenger') return false;
+        stageMessengerThread(conversationId, threadRootId);
+        replaceTopCard({ kind: 'messenger', id: conversationId });
+        return true;
+      }),
+    [cardStack, replaceTopCard],
   );
 
   useEffect(() => {
