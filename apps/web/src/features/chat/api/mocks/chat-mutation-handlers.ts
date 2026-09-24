@@ -86,6 +86,8 @@ export const chatMutationHandlers = [
     const message = findMessage(params.id, params.messageId);
     if (!message || message.deletedAt) return notFound();
     if (message.author.id !== getMockActor().id) return forbidden();
+    // Паритет с бэком (#111): пересланную копию не правит даже переславший.
+    if (message.forwardedFrom) return forbidden('Forwarded messages cannot be edited');
     if (message.text !== parsed.data.text) {
       message.text = parsed.data.text;
       message.editedAt = new Date().toISOString();

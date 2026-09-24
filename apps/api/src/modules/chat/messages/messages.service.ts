@@ -273,6 +273,12 @@ export class MessagesService {
       if (message.authorId !== userId) {
         throw DomainException.forbidden('Only author can modify this message');
       }
+      // Пересланную копию не правит даже переславший (#111, I8): текст под
+      // атрибуцией «Переслано от» принадлежит оригинальному автору — правка
+      // позволила бы исказить чужие слова (модель Telegram: только удаление).
+      if (message.fwdMessageId) {
+        throw DomainException.forbidden('Forwarded messages cannot be edited');
+      }
       let updated = message;
       if (message.text !== text) {
         updated = await this.repo.updateEditText(conversationId, messageId, userId, text, tx);

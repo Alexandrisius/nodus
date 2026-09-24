@@ -1,3 +1,4 @@
+// >300 строк — обоснование (I5): полный контракт send/edit/delete/batch сервиса одного агрегата.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CHAT_EVENTS, ErrorCode, type SendMessageBody } from '@nodus/contracts';
 
@@ -305,6 +306,25 @@ describe('MessagesService', () => {
         message: 'Only author can modify this message',
       });
       expect(repo.updateEditText).not.toHaveBeenCalled();
+    });
+
+    it('пересланную копию не правит даже переславший (#111)', async () => {
+      conversations.findMembership.mockResolvedValue(makeMember({ userId: ME }));
+      repo.findByIdInConversation.mockResolvedValue(
+        makeMessage({
+          id: 'msg-fwd',
+          authorId: ME,
+          fwdMessageId: 'src-msg',
+          fwdConversationId: 'src-conv',
+          fwdAuthorId: PEER,
+        }),
+      );
+      await expect(service.edit(ME, CONV, 'msg-fwd', 'переписанное чужое')).rejects.toMatchObject({
+        code: ErrorCode.FORBIDDEN,
+        message: 'Forwarded messages cannot be edited',
+      });
+      expect(repo.updateEditText).not.toHaveBeenCalled();
+      expect(eventBus.emit).not.toHaveBeenCalled();
     });
 
     it('тот же текст → без UPDATE и без события', async () => {

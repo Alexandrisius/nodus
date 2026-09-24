@@ -254,7 +254,12 @@ export function MessageMenu({
         run: () => useDeleteDialog.getState().ask(conversationId, [message.id]),
       },
     );
-    return items.filter((item) => !MINE_ONLY.has(item.id) || mine);
+    // Пересланную копию нельзя править даже автору пересылки (#111): текст
+    // принадлежит оригинальному автору; удалять свою копию — можно.
+    const editable = mine && !message.forwardedFrom;
+    return items.filter(
+      (item) => !MINE_ONLY.has(item.id) || (item.id === 'edit' ? editable : mine),
+    );
   }
 
   const items = selectionActive ? selectionItems() : normalItems();

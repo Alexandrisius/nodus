@@ -106,7 +106,8 @@ export const ThreadFeed = memo(function ThreadFeed({
   });
 
   const lastMine = useCallback(
-    () => [...roots].reverse().find((m) => m.author.id === me?.id && !m.deletedAt),
+    () =>
+      [...roots].reverse().find((m) => m.author.id === me?.id && !m.deletedAt && !m.forwardedFrom),
     [roots, me?.id],
   );
 
