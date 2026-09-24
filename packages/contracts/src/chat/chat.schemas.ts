@@ -177,6 +177,11 @@ export const conversationListItemSchema = z.object({
   /** Для direct — вычисляется из имён участников на клиенте/сервере. */
   title: z.string().nullable(),
   avatarUrl: z.url().nullable(),
+  /** Роль текущего пользователя в беседе (бэкенд #58): UI прячет недоступное,
+   *  сравнивая myRole с матрицей permissions (модель Bitrix24 restrictions). */
+  myRole: conversationMemberRoleSchema,
+  /** Матрица прав беседы (минимальные роли; дефолты — см. схему матрицы). */
+  permissions: conversationPermissionsSchema,
   /** Черновик текущего пользователя (null — нет): метка «Черновик: …» и
    *  подъём беседы в списке на других устройствах; локальный черновик
    *  клиента первичнее (мгновенный), серверный — догоняет (контракт #91). */

@@ -266,3 +266,216 @@ model Session {
   @@index([userId, revokedAt])
   @@map("sessions")
 }
+
+// ===== Модуль chat (issue #58, эпик M6) =====
+
+/// Беседа. type/visibility/роли — системные константы (TEXT, не pg enum, I15).
+/// Привязки к сущностям других модулей (project/task/letter, author_id, user_*)
+/// — plain UUID без FK: связь живёт на уровне приложения и событий (I3).
+/// Пару direct-беседы охраняет частичный уникальный индекс
+/// (user_min, user_max) WHERE type='direct' + CHECK user_min <= user_max
+/// («диалог с собой» разрешён) — ДDL в миграции (Prisma не декларирует).
+model Conversation {
+  id       String  @id @default(uuid()) @db.Uuid
+  /// direct | group | project_channel | task | letter.
+  type     String
+  title    String?
+  description String?
+  /// closed | open (null у direct/task/letter).
+  visibility String?
+  projectId String? @map("project_id") @db.Uuid
+  taskId    String? @map("task_id") @db.Uuid
+  letterId  String? @map("letter_id") @db.Uuid
+  /// Матрица прав беседы: {changeInfo,addMembers,removeMembers,post,manageSettings}
+  /// → минимальная роль (owner>admin>member); дефолты — contracts.
+  permissions Json
+  /// Счётчик порядка сообщений: seq сообщений = last_seq после инкремента
+  /// В ТОЙ ЖЕ транзакции отправки. Лок этой строки сериализует вставки беседы
+  /// → порядок seq == порядок коммита (глобальный bigserial этого не даёт:
+  /// значение выделяется до коммита, конкурентные транзакции коммитятся вне
+  /// порядка seq — курсор «всё после N» навсегда пропускает поздние вставки
+  /// с меньшим seq; postgres.org/docs/functions-sequence + Sequin).
+  lastSeq   BigInt  @default(0) @map("last_seq")
+  /// Момент последнего корневого сообщения — ось курсора списка бесед.
+  lastMessageAt DateTime? @map("last_message_at") @db.Timestamptz()
+  /// Инициатор создания (для direct — кто нашёл/создал).
+  createdBy String  @map("created_by") @db.Uuid
+  /// Нормализованная пара direct: min/max id участников (равны у «Заметок»).
+  userMin String? @map("user_min") @db.Uuid
+  userMax String? @map("user_max") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  members ConversationMember[]
+  messages Message[]
+  pins    ConversationPin[]
+  drafts  ConversationDraft[]
+
+  @@index([lastMessageAt(sort: Desc), id])
+  @@map("conversations")
+}
+
+/// Участие: роль, персональные настройки списка и якорь прочитанности.
+/// last_read_seq — watermark (монотонный GREATEST, не откатывается): unread =
+/// сообщения с seq > last_read_seq ИЛИ отредактированные после last_read_at.
+model ConversationMember {
+  conversationId String @map("conversation_id") @db.Uuid
+  userId   String  @map("user_id") @db.Uuid
+  /// owner | admin | member.
+  role     String
+  lastReadSeq BigInt @default(0) @map("last_read_seq")
+  /// Момент последнего продвижения курсора (для readAt и «правка → непрочитано»).
+  lastReadAt  DateTime? @map("last_read_at") @db.Timestamptz()
+  pinned   Boolean @default(false)
+  muted    Boolean @default(false)
+  /// «Посмотреть позже»: гасится своей отправкой/пересылкой (мок-семантика).
+  snoozed  Boolean @default(false)
+  /// Архив беседы (история сохраняется; возвращается только явным PATCH).
+  hidden   Boolean @default(false)
+  joinedAt DateTime @default(now()) @map("joined_at") @db.Timestamptz()
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@id([conversationId, userId])
+  @@index([userId])
+  @@map("conversation_members")
+}
+
+/// Сообщение. seq уникален в беседе (порядок/курсор/якорь прочтения).
+/// Идемпотентность в БД: unique(author_id, client_message_id); значение —
+/// Idempotency-Key запроса (+суффикс «:i» у копий пересылки) — crash-окно
+/// между Redis-реплеем и фиксацией закрывает БД (ADR-0005).
+model Message {
+  id             String   @id @default(uuid()) @db.Uuid
+  conversationId String   @map("conversation_id") @db.Uuid
+  seq            BigInt
+  authorId       String   @map("author_id") @db.Uuid
+  clientMessageId String  @map("client_message_id")
+  text           String   @default("")
+  replyToId      String?  @map("reply_to_id") @db.Uuid
+  /// Замороженный снапшот цитаты {authorId, text, quoteText, attachmentKind}:
+  /// правка оригинала снапшот не меняет (вердикт 24.09); удалённость оригинала
+  /// (deleted: true) вычисляется при чтении — «удаление сильнее заморозки».
+  replySnapshot  Json?    @map("reply_snapshot")
+  /// Тред ровно одного уровня: ссылка на корневое сообщение.
+  threadRootId   String?  @map("thread_root_id") @db.Uuid
+  /// Атрибуция пересылки (источник может быть удалён — переход решает сервис).
+  fwdConversationId String? @map("fwd_conversation_id") @db.Uuid
+  fwdMessageId      String? @map("fwd_message_id") @db.Uuid
+  fwdAuthorId       String? @map("fwd_author_id") @db.Uuid
+  fwdThreadRootId   String? @map("fwd_thread_root_id") @db.Uuid
+  editedAt     DateTime? @map("edited_at") @db.Timestamptz()
+  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz()
+  /// Бесследное удаление (никто не прочитал): строка остаётся ради
+  /// непрерывности seq, ссылок тредов/цитат/пинов и аудита, но исключается
+  /// из всех выдач. false у надгробия (видно как «Сообщение удалено»).
+  obliterated  Boolean   @default(false)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  replyTo  Message?  @relation("MessageReply", fields: [replyToId], references: [id], onDelete: Restrict)
+  replies  Message[] @relation("MessageReply")
+  threadRoot Message?  @relation("ThreadTree", fields: [threadRootId], references: [id], onDelete: Restrict)
+  threadReplies Message[] @relation("ThreadTree")
+  threadParticipants ThreadParticipant[] @relation("ThreadParticipants")
+  reactions    MessageReaction[]
+  messagePins  ConversationPin[]
+  attachments  MessageAttachment[]
+
+  @@unique([conversationId, seq])
+  @@unique([authorId, clientMessageId])
+  @@index([conversationId, seq(sort: Desc)])
+  @@index([threadRootId])
+  @@index([replyToId])
+  @@map("messages")
+}
+
+/// Реакция (toggle, контракт messageReactionToggleBodySchema): PK исключает
+/// дубль своей реакции тем же эмодзи.
+model MessageReaction {
+  messageId String @map("message_id") @db.Uuid
+  userId    String @map("user_id") @db.Uuid
+  emoji     String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@id([messageId, userId, emoji])
+  @@map("message_reactions")
+}
+
+/// Закреп: одно на сообщение (лента закрепов — GET /pins, свежие первыми).
+model ConversationPin {
+  conversationId String   @map("conversation_id") @db.Uuid
+  messageId      String   @unique @map("message_id") @db.Uuid
+  pinnedBy       String   @map("pinned_by") @db.Uuid
+  pinnedAt       DateTime @default(now()) @map("pinned_at") @db.Timestamptz()
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  message      Message      @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, pinnedAt(sort: Desc)])
+  @@map("conversation_pins")
+}
+
+/// Черновик: отдельная таблица (не поле участника) — горячая строка
+/// last_read_* не пухнет от TOAST-текста. revision монотонно растит сервер
+/// (last-write-wins между устройствами); пустой текст = удаление (мок-модель).
+model ConversationDraft {
+  conversationId String @map("conversation_id") @db.Uuid
+  userId   String  @map("user_id") @db.Uuid
+  text     String
+  revision Int     @default(0)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@id([conversationId, userId])
+  @@map("conversation_drafts")
+}
+
+/// Участник треда (уведомления треда — только участникам, core-flows поток Д):
+/// автор корня | ответивший | наблюдатель. Заполняется с первого ответа;
+/// потребитель — трек уведомлений (после M13).
+model ThreadParticipant {
+  threadRootId String @map("thread_root_id") @db.Uuid
+  userId       String @map("user_id") @db.Uuid
+  /// author | replier | watcher.
+  source       String
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  threadRoot Message @relation("ThreadParticipants", fields: [threadRootId], references: [id], onDelete: Cascade)
+
+  @@id([threadRootId, userId])
+  @@index([userId])
+  @@map("thread_participants")
+}
+
+/// Вложение сообщения (Ф6 — после #57: файлы/MinIO). Загруженное-но-не-
+/// отправленное живёт с message_id IS NULL у владельца; привязка при отправке
+/// ОДНОРАЗОВАЯ (мок-модель). file_id → сущность модуля files, plain UUID (I3).
+model MessageAttachment {
+  id         String  @id @default(uuid()) @db.Uuid
+  messageId  String? @map("message_id") @db.Uuid
+  fileId     String  @map("file_id") @db.Uuid
+  /// Кто загрузил (валидация одноразовой привязки).
+  ownerId    String  @map("owner_id") @db.Uuid
+  name       String
+  size       Int
+  mime       String
+  /// image | file — явный вид (НЕ выводится из mime; контракт).
+  kind       String
+  width      Int?
+  height     Int?
+  sortOrder  Int     @default(0) @map("sort_order")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  message Message? @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+  @@index([ownerId])
+  @@map("message_attachments")
+}

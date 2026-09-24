@@ -33,7 +33,7 @@ dictionary.item_created / updated / archived
 project.created / updated / stage_changed / member_added
 task.created / updated / status_changed / stage_changed / personal_stage_changed / assigned / completed / overdue
 task.time_logged
-chat.conversation_created / message_sent / message_edited / message_read / reaction_added / member_added / thread_created
+chat.conversation_created / member_added / message_sent / message_edited / message_deleted / message_read / message_pinned / message_unpinned / reaction_added / reaction_removed / thread_created
 correspondence.letter_received / letter_registered / letter_sent
 correspondence.resolution_issued            # → порождает task.created (source=letter)
 workflow.instance_started / step_completed / approved / rejected / escalated

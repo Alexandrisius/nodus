@@ -15,6 +15,7 @@ import { RedisModule } from './core/redis/redis.module.js';
 import { HealthModule } from './health/health.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { JwtAuthGuard } from './modules/auth/jwt-auth.guard.js';
+import { ChatModule } from './modules/chat/chat.module.js';
 import { DirectoryModule } from './modules/directory/directory.module.js';
 
 @Module({
@@ -28,6 +29,7 @@ import { DirectoryModule } from './modules/directory/directory.module.js';
     AuditModule,
     HealthModule,
     AuthModule,
+    ChatModule,
     DirectoryModule,
   ],
   providers: [
