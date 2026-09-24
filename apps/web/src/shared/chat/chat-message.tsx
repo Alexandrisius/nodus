@@ -1,4 +1,5 @@
 import { memo } from 'react';
+import { Pin } from 'lucide-react';
 import type { ChatMessage } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { cn } from '@nodus/ui/lib/utils';
@@ -117,16 +118,22 @@ export const ChatMessageItem = memo(function ChatMessageItem({
   // (вердикт владельца 14.09.2026, рефы Битрикс24; рамка + SVG-обводка хвоста
   // давали артефакты стыка — пузыри и хвост теперь только заливками).
   const variant = mine ? 'default' : 'card';
-  const hasExtra = message.reactions.length > 0 || message.attachments.length > 0;
-  const timeRow = (
+  // Мета-строка ПОД текстом (вердикт 24.09: время снизу и шрифтом поменьше,
+  // «изменено» там же — не расширяет пузырь ни вбок, ни в строку текста;
+  // значок пина на самом сообщении — модель Telegram): пин, «изменено»,
+  // время с галочками; реакции — слева в той же строке.
+  const metaRow = (
     <span
       className={cn(
-        'flex shrink-0 items-center gap-1 font-mono text-label-sm leading-4 tabular-nums',
+        'flex shrink-0 items-center gap-1.5 text-[11px] leading-4',
         mine ? 'text-primary-foreground/70' : 'text-muted-foreground',
       )}
     >
-      {message.editedAt ? <span>({ui.chat.edited})</span> : null}
-      <time dateTime={message.createdAt}>{formatTime(message.createdAt)}</time>
+      {message.pinned ? <Pin className="size-3" strokeWidth={1.75} /> : null}
+      {message.editedAt ? <span>{ui.chat.edited}</span> : null}
+      <time className="font-mono tabular-nums" dateTime={message.createdAt}>
+        {formatTime(message.createdAt)}
+      </time>
       {mine ? <ReadTicks read={message.readAt !== null} /> : null}
     </span>
   );
@@ -185,19 +192,13 @@ export const ChatMessageItem = memo(function ChatMessageItem({
             {/* Вложения — ВЫШЕ текста (грамматика Битрикс24, план
                 chat-attachments-plan): галерея/чипы сверху, затем текст. */}
             {message.attachments.length > 0 ? <MessageAttachments message={message} /> : null}
-            <span className="flex items-end gap-2">
-              <MessageText text={message.text} />
-              {hasExtra ? null : timeRow}
+            <MessageText text={message.text} />
+            {/* Нижняя строка пузыря: реакции СЛЕВА + мета (пин/изменено/
+                время/галочки) под текстом (вердикт 24.09). */}
+            <span className="flex items-center gap-2">
+              <MessageReactions message={message} />
+              {metaRow}
             </span>
-            {/* Нижняя строка пузыря: реакции СЛЕВА + время СПРАВА в ОДНОЙ
-                строке (вердикт владельца 14.09.2026: «реакции в самом низу,
-                не раздувать высоту»; реф Битрикс24). */}
-            {hasExtra ? (
-              <span className="flex items-center gap-2">
-                <MessageReactions message={message} />
-                <span className="ml-auto">{timeRow}</span>
-              </span>
-            ) : null}
           </BubbleContent>
           {/* Хвостик — ПОСЛЕ тела пузыря (вердикт владельца 14.09.2026:
               «вертикальная линия-разделитель»): если рисовать до BubbleContent,

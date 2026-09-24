@@ -314,12 +314,8 @@ export function usePinToggle(conversationId: string) {
       toast.error(ui.common.saveError);
     },
 
-    onSuccess: (_data, messageId) => {
-      toast(ui.chat.unpinned, {
-        action: { label: ui.chat.unpinUndo, onClick: () => pin.mutate(messageId) },
-      });
-    },
-
+    // Без тоста: открепление идёт через диалог подтверждения (вердикт
+    // 24.09) — он и есть страховка от случайного клика.
     onSettled: () => {
       void qc.invalidateQueries({ queryKey: chatKeys.pins(conversationId) });
       void qc.invalidateQueries({ queryKey: chatKeys.messages(conversationId) });

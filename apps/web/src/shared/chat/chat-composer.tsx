@@ -33,6 +33,7 @@ import { useForwardPending } from './forward-pending.js';
 import { useJumpStore } from './jump-store.js';
 import { useForwardMessages } from './message-mutations.js';
 import { isSendShortcut } from './send-keys.js';
+import { useScrollEndStore } from './scroll-end-store.js';
 import { SelectionToolbar } from './selection-island.js';
 
 /** Payload отправки композера (#87): текст + готовые вложения + контекст
@@ -210,6 +211,7 @@ export function ChatComposer({
           },
         },
       );
+      useScrollEndStore.getState().request(focusId);
       return;
     }
     onSubmit({
@@ -218,6 +220,8 @@ export function ChatComposer({
       reply: draft.reply,
       edit: null,
     });
+    // Своё сообщение видно с любой позиции скролла (вердикт 24.09).
+    useScrollEndStore.getState().request(focusId);
     store.clear(focusId);
   }
 

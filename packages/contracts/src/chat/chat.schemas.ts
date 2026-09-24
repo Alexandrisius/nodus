@@ -43,6 +43,18 @@ export const messageReactionSchema = z.object({
 
 export type MessageReaction = z.infer<typeof messageReactionSchema>;
 
+/** Задел ЛИНИИ РЕАКЦИЙ (вердикт 24.09: реакции в компании — необходимость;
+ *  контракт отображения уже выше: message.reactions c mine): toggle своей
+ *  реакции. Эндпоинт и пикер придут со своей линией — схема готова заранее,
+ *  чтобы без сюрпризов и переименований. */
+export const messageReactionToggleBodySchema = z.object({
+  emoji: z.string().min(1),
+  /** true — снять свою реакцию; по умолчанию поставить. */
+  remove: z.boolean().optional(),
+});
+
+export type MessageReactionToggleBody = z.infer<typeof messageReactionToggleBodySchema>;
+
 /** Данные цитаты-ответа — ЗАМОРОЖЕННЫЙ снапшот на момент отправки (вердикт
  *  владельца 24.09: «нужно видеть то, на что отвечал сотрудник»; правка
  *  оригинала цитату не меняет — переход показывает актуальную версию). */

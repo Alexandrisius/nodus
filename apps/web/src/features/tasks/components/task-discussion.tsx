@@ -14,6 +14,7 @@ import { Skeleton } from '@nodus/ui/components/skeleton';
 
 import { useAuthStore } from '../../../shared/auth-store.js';
 import { ChatComposer } from '../../../shared/chat/chat-composer.js';
+import { ScrollEndResponder } from '../../../shared/chat/scroll-end-responder.js';
 import { ChatMessageItem } from '../../../shared/chat/chat-message.js';
 import { DayChip } from '../../../shared/chat/day-chip.js';
 import {
@@ -41,7 +42,8 @@ export const TaskDiscussion = memo(function TaskDiscussion({ taskId }: { taskId:
 
   return (
     <div className="flex h-full min-w-0 flex-1 flex-col">
-      <MessageScrollerProvider>
+      <MessageScrollerProvider autoScroll>
+        <ScrollEndResponder scope={`task:${taskId}`} />
         <MessageScroller className="min-h-0 flex-1 bg-chat-zone">
           <MessageScrollerViewport>
             <MessageScrollerContent className="p-4">

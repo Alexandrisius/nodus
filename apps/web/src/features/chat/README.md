@@ -317,6 +317,24 @@ MAX_RATIO 0.66, `shared/ui/use-chat-width.ts`; при открытой пане�
 `forwardedFrom` в messageSchema; attachmentIds/replyToId/quoteText в
 sendMessageBody; editMessageBody; batchDelete; forwardMessagesBody
 (+threadRootId); messagePin; события chat.message_deleted / message_pinned /
-message_unpinned в каталоге. Оптимистичность мутаций — детерминированные
+message_unpinned в каталоге. ## Предусмотрено на следующие линии мессенджера (вердикт 24.09: «супер грамотный мессенджер без упрощений»)
+
+Закладки сделаны ЗАРАНЕЕ, чтобы линии входили без переименований и сюрпризов:
+
+- **Реакции**: контракт отображения уже в модели (`message.reactions` c `mine`),
+  чипы — нижний левый угол пузыря в мета-строке; задел toggle —
+  `messageReactionToggleBodySchema` (contracts); пикер и мутации — своей линией.
+- **Упоминания @**: у касающегося вас сообщения — кнопка-собачка справа,
+  прыжок к сообщению-источнику (механика jump-store готова).
+- **Сердечко-навигация**: кнопка перехода к СВОЕМУ сообщению, на которое
+  поставили реакцию (тот же jump-store).
+- **Стрелки цепочки реплаев**: навигация вверх/вниз по цепочке ответа в
+  диалоге (модель tdesktop) — расширением jump-store запросом «следующий/
+  предыдущий в цепочке».
+- **Недельный нейро-дайджест обсуждений** (инкубатор 24.09, зреет): суммаризация
+  недели со ссылками на головы тем; включение — чек-бокс настройки; ссылки —
+  jump-store, разметка тем — threadRootId/цепочки реплаев.
+
+Оптимистичность мутаций — детерминированные
 unit-тесты (`message-mutations.test.tsx`); чистая логика — selection-range,
 chat-drafts, upload-attachment (validateFiles), message-groups (надгробия).

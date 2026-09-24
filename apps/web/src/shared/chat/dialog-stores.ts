@@ -25,6 +25,24 @@ export const useForwardDialog = create<ForwardDialogState>((set) => ({
   close: () => set({ request: null }),
 }));
 
+export interface UnpinRequest {
+  conversationId: string;
+  messageId: string;
+}
+
+interface UnpinDialogState {
+  request: UnpinRequest | null;
+  ask: (conversationId: string, messageId: string) => void;
+  close: () => void;
+}
+
+/** Открепление — ТОЛЬКО через диалог подтверждения (вердикт 24.09). */
+export const useUnpinDialog = create<UnpinDialogState>((set) => ({
+  request: null,
+  ask: (conversationId, messageId) => set({ request: { conversationId, messageId } }),
+  close: () => set({ request: null }),
+}));
+
 export interface DeleteRequest {
   conversationId: string;
   messageIds: string[];

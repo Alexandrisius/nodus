@@ -8,7 +8,9 @@ import { cn } from '@nodus/ui/lib/utils';
 import { threadScopeMessages } from './channel-layout.js';
 import { useConversationMessages } from './api.js';
 import { useJumpStore } from './jump-store.js';
-import { usePins, usePinToggle } from './message-mutations.js';
+import { usePins } from './message-mutations.js';
+
+import { useUnpinDialog } from './dialog-stores.js';
 import { useFrameReady } from '../ui/use-frame-ready.js';
 import { uiPx } from '../ui/ui-scale.js';
 
@@ -52,7 +54,6 @@ function pinLabel(text: string, kind: 'image' | 'file' | null, deleted: boolean)
  *  Slack — панель; у нас оба входа: бар + секция). */
 function PinnedSection({ conversationId }: { conversationId: string }) {
   const { data: pins } = usePins(conversationId);
-  const { unpin } = usePinToggle(conversationId);
   return (
     <Section icon={Pin} title={ui.chat.pinnedSection}>
       {pins && pins.length > 0 ? (
@@ -79,7 +80,7 @@ function PinnedSection({ conversationId }: { conversationId: string }) {
               aria-label={ui.chat.unpin}
               title={ui.chat.unpin}
               className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-              onClick={() => unpin.mutate(pin.message.id)}
+              onClick={() => useUnpinDialog.getState().ask(conversationId, pin.message.id)}
             >
               <X className="size-3.5" strokeWidth={1.75} />
             </button>

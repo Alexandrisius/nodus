@@ -28,7 +28,7 @@ import { openCardViaBridge } from '../lib/card-bridge.js';
 import { useMessageToTask } from './api.js';
 import { useChatDrafts } from './chat-drafts.js';
 import { focusComposerWhenFree } from './composer-focus.js';
-import { useDeleteDialog, useForwardDialog } from './dialog-stores.js';
+import { useDeleteDialog, useForwardDialog, useUnpinDialog } from './dialog-stores.js';
 import { usePinToggle } from './message-mutations.js';
 import { useSelectionStore } from './selection-store.js';
 import { copyMessagesAsText } from './use-selection-keys.js';
@@ -209,7 +209,9 @@ export function MessageMenu({
         icon: Pin,
         label: message.pinned ? ui.chat.unpin : ui.chat.menu.pin,
         run: () =>
-          message.pinned ? pinToggle.unpin.mutate(message.id) : pinToggle.pin.mutate(message.id),
+          message.pinned
+            ? useUnpinDialog.getState().ask(conversationId, message.id)
+            : pinToggle.pin.mutate(message.id),
       },
       {
         id: 'copyLink',

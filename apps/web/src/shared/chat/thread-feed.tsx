@@ -1,5 +1,5 @@
 import { ArrowRight } from 'lucide-react';
-import { memo, useCallback, useMemo, useRef } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef } from 'react';
 import { ui } from '@nodus/contracts';
 import { Empty, EmptyTitle } from '@nodus/ui/components/empty';
 import { Skeleton } from '@nodus/ui/components/skeleton';
@@ -17,6 +17,7 @@ import { MessageReactions } from './chat-message.js';
 import { addFiles } from './composer-files.js';
 import { toSendVars } from './composer-submit.js';
 import { focusComposer } from './composer-focus.js';
+import { useScrollEndStore } from './scroll-end-store.js';
 import { FeedDropzone } from './feed-dropzone.js';
 import { useEditMessage } from './message-mutations.js';
 import { MessageMenu } from './message-menu.js';
@@ -60,6 +61,22 @@ export const ThreadFeed = memo(function ThreadFeed({
     () => items.filter((m) => m.threadRootId === null && m.replyToId === null),
     [items],
   );
+  // Лента канала — обычный div-скролл: stick к низу при новых постах (если
+  // пользователь у нижнего края) и ВСЕГДА при своей отправке/пересылке сюда
+  // (вердикт 24.09: своё сообщение видно с любой позиции скролла).
+  const scrollNonce = useScrollEndStore((s) => s.nonces[scope] ?? 0);
+  const scrollPrev = useRef({ count: 0, nonce: 0 });
+  useEffect(() => {
+    const el = feedRef.current;
+    if (!el) return;
+    const forced = scrollNonce !== scrollPrev.current.nonce;
+    const grew = roots.length > scrollPrev.current.count;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    scrollPrev.current = { count: roots.length, nonce: scrollNonce };
+    if (forced || (grew && nearBottom)) {
+      el.scrollTo({ top: el.scrollHeight, behavior: forced ? 'smooth' : 'auto' });
+    }
+  }, [roots.length, scrollNonce]);
   const repliesByRoot = useMemo(() => {
     const map = new Map<string, typeof items>();
     for (const message of items) {

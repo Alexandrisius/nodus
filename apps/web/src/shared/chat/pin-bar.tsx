@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, LayoutList, Pin, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, LayoutList, Pin, PinOff } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
@@ -6,7 +6,9 @@ import { Popover, PopoverContent, PopoverTrigger } from '@nodus/ui/components/po
 import { cn } from '@nodus/ui/lib/utils';
 
 import { formatTime } from '../lib/format.js';
-import { usePins, usePinToggle } from './message-mutations.js';
+import { usePins } from './message-mutations.js';
+
+import { useUnpinDialog } from './dialog-stores.js';
 import { useJumpStore } from './jump-store.js';
 
 /** Выдержка закрепа: текст или подпись медиа (канон Telegram: бар показывает
@@ -39,7 +41,7 @@ export function PinBar({
   onOpenThread?: (rootId: string) => void;
 }) {
   const { data: pins } = usePins(conversationId);
-  const { unpin } = usePinToggle(conversationId);
+  const ask = useUnpinDialog((s) => s.ask);
   const [index, setIndex] = useState(0);
 
   const count = pins?.length ?? 0;
@@ -163,7 +165,7 @@ export function PinBar({
                   </button>
                   <button
                     type="button"
-                    onClick={() => unpin.mutate(p.message.id)}
+                    onClick={() => ask(conversationId, p.message.id)}
                     aria-label={ui.chat.unpin}
                     title={ui.chat.unpin}
                     className={cn(
@@ -171,7 +173,7 @@ export function PinBar({
                       'hover:bg-accent hover:text-foreground',
                     )}
                   >
-                    <X className="size-3.5" strokeWidth={1.75} />
+                    <PinOff className="size-3.5" strokeWidth={1.75} />
                   </button>
                 </span>
               </li>
@@ -185,9 +187,9 @@ export function PinBar({
         className="shrink-0 text-muted-foreground"
         aria-label={ui.chat.unpin}
         title={ui.chat.unpin}
-        onClick={() => unpin.mutate(message.id)}
+        onClick={() => ask(conversationId, message.id)}
       >
-        <X />
+        <PinOff />
       </Button>
     </div>
   );

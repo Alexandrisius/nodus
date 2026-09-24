@@ -1,6 +1,7 @@
 import { DeleteDialogHost } from './delete-dialog.js';
 import { ForwardDialogHost } from './forward-dialog.js';
 import { SelectionQuoteBubble } from './selection-quote-bubble.js';
+import { UnpinDialogHost } from './unpin-dialog.js';
 
 /**
  * Единая точка монтирования глобальных диалогов чата (#87): пересылка и
@@ -15,6 +16,7 @@ export function ChatDialogHosts() {
     <>
       <ForwardDialogHost />
       <DeleteDialogHost />
+      <UnpinDialogHost />
       <SelectionQuoteBubble />
     </>
   );

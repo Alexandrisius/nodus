@@ -30,6 +30,7 @@ import { MessageMenu } from './message-menu.js';
 import { MessageRow } from './message-row.js';
 import { buildMessageRuns, formatDayLabel, startsNewDay } from './message-groups.js';
 import { selectionComposerProps, useFeedSelection } from './use-feed-selection.js';
+import { ScrollEndResponder } from './scroll-end-responder.js';
 import { JumpResponder } from './use-jump-responder.js';
 
 /**
@@ -159,7 +160,8 @@ export const ThreadPane = memo(function ThreadPane({
         className="flex min-h-0 flex-1 flex-col"
         onFiles={(files) => addFiles(scope, files)}
       >
-        <MessageScrollerProvider>
+        <MessageScrollerProvider autoScroll>
+          <ScrollEndResponder scope={scope} />
           <JumpResponder
             conversationId={conversationId}
             threadRootId={threadRootId}
