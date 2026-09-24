@@ -95,7 +95,6 @@ export const chatStrings = {
   chatTypeOpen: 'Открытый',
   chatTypeOpenHint:
     'Чат можно найти в общем списке, вступить в него может любой желающий. Подходит для взаимодействия между командами и адаптации новых сотрудников.',
-  autoDelete: 'Автоудаление сообщений',
   descriptionLabel: 'Описание',
   descriptionPlaceholder: 'Напишите, для чего создан чат и что в нём будет обсуждаться',
   permissionsSection: 'Права доступа',

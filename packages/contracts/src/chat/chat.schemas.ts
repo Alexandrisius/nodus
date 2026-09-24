@@ -224,14 +224,15 @@ export type ConversationUpdateBody = z.infer<typeof conversationUpdateBodySchema
  *  значения ставит сервер дефолтами). Аватарка группы/канала — НЕ полем
  *  создания: загрузка файла отдельным эндпоинтом после старта MinIO (#57),
  *  право загрузки — changeInfo; до того беседа живёт с детерминированной
- *  цветовой заглушкой из инициалов (модель Telegram/Bitrix24). */
+ *  цветовой заглушкой из инициалов (модель Telegram/Bitrix24).
+ *  АВТОУДАЛЕНИЯ/TTL СООБЩЕНИЙ В КОНТРАКТЕ НЕТ (решение владельца 24.09.2026,
+ *  #96): поле автоудаления удалено — логика в продукте не появится, и контракт
+ *  не должен провоцировать бэкенд строить её. */
 export const createConversationBodySchema = z.object({
   type: z.enum(['group', 'project_channel']),
   title: z.string().trim().min(1).max(128),
   description: z.string().trim().max(2000).optional(),
   visibility: z.enum(['closed', 'open']).optional(),
-  /** Автоудаление сообщений беседы (реф Bitrix24): фонд до политики хранения. */
-  autoDeleteMessages: z.boolean().optional(),
   /** Без создателя: сервер добавляет владельца первым участником (role=owner). */
   memberIds: z.array(z.uuid()).max(200).optional(),
   permissions: conversationPermissionsSchema.partial().optional(),

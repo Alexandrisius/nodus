@@ -1,4 +1,4 @@
-import { Megaphone, Search, SquarePen, Users, X } from 'lucide-react';
+import { Megaphone, Plus, Search, SquarePen, Users, X } from 'lucide-react';
 import { useState } from 'react';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
@@ -12,6 +12,7 @@ import { Empty, EmptyTitle } from '@nodus/ui/components/empty';
 import { Input } from '@nodus/ui/components/input';
 
 import { useAuthStore } from '../../../shared/auth-store.js';
+import { TaskQuickCreate } from '../../../shared/tasks/task-quick-create.js';
 import { useConversations } from '../api/chat-api.js';
 import { conversationSubtitle, conversationTitle } from '../lib/conversations.js';
 import { ChatCreateDialog, type CreateConversationKind } from './chat-create-dialog.js';
@@ -28,7 +29,9 @@ export type ChatTab = 'chats' | 'tasks' | 'settings';
  *
  * Состав: список бесед с локальным поиском (модель Битрикс24 «Найти сотрудника
  * или чат») + рабочая область активной беседы; вкладка «Настройка» — отдельная
- * страница без списка. Вкладки (Чаты / Чаты задач / Настройка) рендерит ХОСТ:
+ * страница без списка. Кнопка справа от поиска — СВОЯ у вкладки (#96):
+ * «Чаты» — создание группового чата/канала, «Чаты задач и писем» — создание
+ * задачи. Вкладки (Чаты / Чаты задач / Настройка) рендерит ХОСТ:
  * страница — в топбаре шелла (search `?tab=`), карточка — в своём хроме
  * (`MessengerTabs`, порты для контура). Хост владеет и выбором беседы/треда:
  * страница — через маршрут (deep-link), карточка — локальным состоянием.
@@ -57,6 +60,11 @@ export function MessengerBody({
   // Создание группового чата/канала (#91, реф Bitrix24: кнопка СПРАВА от
   // поиска с попапом команд; команда открывает окно настройки чата).
   const [createKind, setCreateKind] = useState<CreateConversationKind | null>(null);
+  // Создание задачи — кнопка СВОЕЙ вкладки (#96, вердикт владельца 24.09.2026):
+  // на «Чатах задач и писем» попапа чата/канала нет, там рождается ЗАДАЧА
+  // (чаты задач и писем — обсуждения сущностей: появляются вместе с сущностью,
+  // а не из попапа мессенджера) — экспресс-форма TaskQuickCreate.
+  const [createTaskOpen, setCreateTaskOpen] = useState(false);
 
   const q = query.trim().toLowerCase();
   const items = (data?.items ?? [])
@@ -116,35 +124,52 @@ export function MessengerBody({
               </button>
             ) : null}
           </div>
-          {/* Кнопка создания чата/канала — СПРАВА от поиска (реф Bitrix24,
-              вердикт владельца 24.09, #91): попап команд, команда открывает
-              окно настройки чата. */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="ml-1.5 shrink-0 text-muted-foreground hover:bg-accent hover:text-foreground"
-                aria-label={ui.chat.createChat}
-                title={ui.chat.createChat}
-              >
-                <SquarePen className="size-4" strokeWidth={1.75} />
-              </Button>
-            </DropdownMenuTrigger>
-            {/* Попап команд: ЛЕВАЯ кромка попапа = левая кромка кнопки
-                (вердикт владельца 24.09: align start без смещения). */}
-            <DropdownMenuContent align="start" className="w-56">
-              <DropdownMenuItem onClick={() => setCreateKind('group')}>
-                <Users className="size-4" strokeWidth={1.75} />
-                {ui.chat.createGroupChat}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setCreateKind('project_channel')}>
-                <Megaphone className="size-4" strokeWidth={1.75} />
-                {ui.chat.createChannel}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {/* Кнопка СПРАВА от поиска — СВОЯ у каждой вкладки (#96, вердикт
+              владельца 24.09.2026): на «Чатах» попап команд «Групповой чат»/
+              «Канал» (реф Bitrix24, #91; команда открывает окно настройки
+              чата), на «Чатах задач и писем» — создание ЗАДАЧИ (обсуждения
+              сущностей рождаются с сущностью, попап мессенджера там неуместен).
+              Вкладка «Настройка» уходит выше и кнопки не имеет. */}
+          {tab === 'chats' ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="ml-1.5 shrink-0 text-muted-foreground hover:bg-accent hover:text-foreground"
+                  aria-label={ui.chat.createChat}
+                  title={ui.chat.createChat}
+                >
+                  <SquarePen className="size-4" strokeWidth={1.75} />
+                </Button>
+              </DropdownMenuTrigger>
+              {/* Попап команд: ЛЕВАЯ кромка попапа = левая кромка кнопки
+                  (вердикт владельца 24.09: align start без смещения). */}
+              <DropdownMenuContent align="start" className="w-56">
+                <DropdownMenuItem onClick={() => setCreateKind('group')}>
+                  <Users className="size-4" strokeWidth={1.75} />
+                  {ui.chat.createGroupChat}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setCreateKind('project_channel')}>
+                  <Megaphone className="size-4" strokeWidth={1.75} />
+                  {ui.chat.createChannel}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="ml-1.5 shrink-0 text-muted-foreground hover:bg-accent hover:text-foreground"
+              aria-label={ui.tasks.createTask}
+              title={ui.tasks.createTask}
+              onClick={() => setCreateTaskOpen(true)}
+            >
+              <Plus className="size-4" strokeWidth={1.75} />
+            </Button>
+          )}
         </div>
         {createKind ? (
           <ChatCreateDialog
@@ -155,6 +180,13 @@ export function MessengerBody({
             }}
             onClose={() => setCreateKind(null)}
           />
+        ) : null}
+        {/* Экспресс-форма задачи (#96) — общий компонент shared/tasks: создаёт
+            задачу, тостом подтверждает и закрывается; её чат задачи появится
+            во вкладке вместе с сущностью (обсуждения — от сущностей, не от
+            мессенджера). */}
+        {tab === 'tasks' ? (
+          <TaskQuickCreate open={createTaskOpen} onOpenChange={setCreateTaskOpen} />
         ) : null}
         <ConversationList
           conversations={items}
