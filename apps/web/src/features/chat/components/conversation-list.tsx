@@ -24,13 +24,17 @@ import { ConversationMenu } from './conversation-menu.js';
  */
 
 /** Превью последней строки беседы — per-row подписка на черновик (селектор
- *  возвращает примитив: строка перерисовывается только на СВОЙ черновик). */
+ *  возвращает примитив: строка перерисовывается только на СВОЙ черновик).
+ *  Черновик — КРАСНЫМ (реф Telegram/Bitrix24, вердикт владельца 24.09, #91):
+ *  «Черновик: текст» вместо превью последнего сообщения; серверный draft
+ *  беседы — догоняющая метка с других устройств (локальный первичнее). */
 function RowPreview({ conversation }: { conversation: ConversationListItem }) {
   const draftText = useChatDrafts((s) => selectConversationDraftText(s.drafts, conversation.id));
-  if (draftText) {
+  const preview = draftText || conversation.draft?.text || '';
+  if (preview) {
     return (
-      <span className="truncate text-xs text-muted-foreground italic">
-        {ui.chat.draftLabel}: {draftText}
+      <span className="truncate text-xs font-medium text-destructive">
+        {ui.chat.draftLabel}: {preview}
       </span>
     );
   }
@@ -62,6 +66,17 @@ export function ConversationList({
   onSelect: (conversation: ConversationListItem) => void;
 }) {
   const meId = useAuthStore((s) => s.user?.id);
+  // Черновики для сортировки: сигнатура = набор ключей с текстом (примитив —
+  // перерисовка списка только на ПОЯВЛЕНИЕ/исчезновение черновика, не на набор).
+  const draftSignature = useChatDrafts((s) =>
+    Object.entries(s.drafts)
+      .filter(([, draft]) => draft.text)
+      .map(([key]) => key)
+      .join('|'),
+  );
+  const hasDraft = (conversationId: string) =>
+    draftSignature.includes(`conversation:${conversationId}`) ||
+    draftSignature.includes(`feed:${conversationId}`);
 
   if (isLoading) {
     return (
@@ -73,7 +88,7 @@ export function ConversationList({
     );
   }
 
-  const sorted = sortByActivity(conversations);
+  const sorted = sortByActivity(conversations, hasDraft);
   if (sorted.length === 0) {
     return (
       <div className="flex flex-1 items-center justify-center p-3">

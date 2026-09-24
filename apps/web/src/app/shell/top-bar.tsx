@@ -1,4 +1,5 @@
 import { Bell, Moon, Search, Sun } from 'lucide-react';
+import { useLayoutEffect } from 'react';
 import { Link, useRouterState } from '@tanstack/react-router';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
@@ -11,6 +12,7 @@ import {
 import { cn } from '@nodus/ui/lib/utils';
 
 import { HomeGreeting } from '../../features/home/components/home-greeting.js';
+import { CIRCUIT_REMEASURE } from './circuit-geometry.js';
 import { navModuleForPath } from './nav-registry.js';
 import { ProfileMenu } from './profile-menu.js';
 import { useShellStore } from './shell-store.js';
@@ -34,6 +36,14 @@ export function TopBar() {
 
   const search = new URLSearchParams(searchStr);
   const module = navModuleForPath(pathname);
+  // Вкладки топбара — search-параметры, а не маршрут: контур читает data-active
+  // из DOM и о смене подмодуля сам не узнаёт (deps замера — только режимы).
+  // Шлём перемер ПОСЛЕ коммита нового data-active (грамматика MessengerTabs),
+  // иначе точка фокуса и вспышка застревают на прежнем подмодуле (баг #91).
+  const activeTabId = module?.tabs.find((t) => t.isActive(search))?.id ?? null;
+  useLayoutEffect(() => {
+    window.dispatchEvent(new Event(CIRCUIT_REMEASURE));
+  }, [activeTabId, module?.id]);
 
   // Фон НЕ красим: топбар живёт ВНУТРИ мягкой рамы и наследует её «лист» —
   // собственная заливка bg-background прятала верхнюю ступень рамы

@@ -8,7 +8,12 @@ import { isoAgo } from './dates.js';
 import { lid } from './letter-bodies.js';
 import { userIds, userRef } from './users.js';
 
-type RawConversation = Omit<ConversationListItem, 'pinned' | 'muted' | 'snoozed'>;
+// draft/visibility/description доливаются map-ом в chat.ts (контракт #91):
+// демо-литералы писем о них не знают.
+type RawConversation = Omit<
+  ConversationListItem,
+  'pinned' | 'muted' | 'snoozed' | 'draft' | 'visibility' | 'description'
+>;
 
 /** Чаты писем (type=letter): обсуждение письма — только внутренние
  *  сотрудники (получатели/копии/адресат/позванные), наружу не уходит.

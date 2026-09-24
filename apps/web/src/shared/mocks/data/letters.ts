@@ -235,6 +235,9 @@ export function createLetterConversation(letter: LetterListItem, members: UserRe
     type: 'letter',
     title: null,
     avatarUrl: null,
+    draft: null,
+    visibility: null,
+    description: null,
     project: null,
     task: null,
     letter: {

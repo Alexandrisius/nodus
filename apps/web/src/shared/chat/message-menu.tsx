@@ -176,6 +176,9 @@ export function MessageMenu({
             .writeText(message.text)
             .then(() => toast.success(ui.chat.copied))
             .catch(() => toast.error(ui.common.copyError));
+          // «Вечный курсор» (баг #91): меню гасило фокус композера — возвращаем
+          // после освобождения оверлей-слоёв (канон #71).
+          focusComposerWhenFree(scope);
         },
       },
       {
@@ -208,22 +211,33 @@ export function MessageMenu({
         id: 'pin',
         icon: Pin,
         label: message.pinned ? ui.chat.unpin : ui.chat.menu.pin,
-        run: () =>
-          message.pinned
-            ? useUnpinDialog.getState().ask(conversationId, message.id)
-            : pinToggle.pin.mutate(message.id),
+        run: () => {
+          if (message.pinned) {
+            // Открепление — диалог: курсор вернёт dialog-hosts после закрытия.
+            useUnpinDialog.getState().ask(conversationId, message.id);
+            return;
+          }
+          pinToggle.pin.mutate(message.id);
+          focusComposerWhenFree(scope);
+        },
       },
       {
         id: 'copyLink',
         icon: Link2,
         label: ui.chat.menu.copyLink,
-        run: () => toast(ui.chat.actionSoon),
+        run: () => {
+          toast(ui.chat.actionSoon);
+          focusComposerWhenFree(scope);
+        },
       },
       {
         id: 'favorite',
         icon: Star,
         label: ui.chat.menu.favorite,
-        run: () => toast(ui.chat.actionSoon),
+        run: () => {
+          toast(ui.chat.actionSoon);
+          focusComposerWhenFree(scope);
+        },
       },
       {
         id: 'select',

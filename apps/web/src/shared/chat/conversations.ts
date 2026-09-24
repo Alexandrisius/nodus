@@ -43,10 +43,18 @@ export function conversationTitle(
 /** Единый список бесед по активности (вердикт владельца 2026-09-10, раунд 2):
  *  БЕЗ секций-заголовков — типы перемешаны, свежие сверху; закреплённые
  *  (ПКМ-меню, реф Битрикс24) — ВСЕГДА сверху, между собой по активности;
- *  беседы без сообщений — в конце (стабильно, в исходном порядке). */
-export function sortByActivity(conversations: ConversationListItem[]): ConversationListItem[] {
+ *  беседы без сообщений — в конце (стабильно, в исходном порядке).
+ *  Черновики (#91, реф Telegram/Bitrix24): беседа с черновиком поднимается
+ *  СРАЗУ за закреплёнными (закреп выше черновика — канон обоих мессенджеров);
+ *  hasDraft — клиентские черновики, серверный draft листа догоняет меткой. */
+export function sortByActivity(
+  conversations: ConversationListItem[],
+  hasDraft?: (conversationId: string) => boolean,
+): ConversationListItem[] {
+  const rank = (c: ConversationListItem) => (c.pinned ? 0 : (hasDraft?.(c.id) ?? false) ? 1 : 2);
   return [...conversations].sort((a, b) => {
-    if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+    const tier = rank(a) - rank(b);
+    if (tier !== 0) return tier;
     const ta = a.lastMessage?.createdAt ?? null;
     const tb = b.lastMessage?.createdAt ?? null;
     if (ta === null && tb === null) return 0;

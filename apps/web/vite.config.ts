@@ -21,10 +21,14 @@ export default defineConfig({
   plugins: [tailwindcss(), react()],
   server: {
     port: Number(process.env.NODUS_WEB_DEV_PORT ?? 5173),
+    // Канон одного dev-сервера (#91): без strictPort vite тихо уезжает на
+    // соседний порт, и владелец с агентами сидят на разных инстансах.
+    strictPort: true,
     proxy,
   },
   preview: {
     port: Number(process.env.NODUS_WEB_PREVIEW_PORT ?? 4173),
+    strictPort: true,
     proxy,
   },
 });

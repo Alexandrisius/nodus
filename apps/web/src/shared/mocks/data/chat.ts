@@ -21,7 +21,10 @@ import { cid, mid } from './chat-ids.js';
 /** Флаги состояния беседы (закреплена/звук/«посмотреть позже») добавляются
  *  map-ом: демо-литералы чистые, моки-обработчики ПКМ-меню правят флаги
  *  inplace (контекстное меню беседы, реф Битрикс24, вердикт 14.09.2026). */
-const rawConversations: Omit<ConversationListItem, 'pinned' | 'muted' | 'snoozed'>[] = [
+const rawConversations: Omit<
+  ConversationListItem,
+  'pinned' | 'muted' | 'snoozed' | 'draft' | 'visibility' | 'description'
+>[] = [
   {
     id: cid(1),
     type: 'project_channel',
@@ -168,7 +171,17 @@ const rawConversations: Omit<ConversationListItem, 'pinned' | 'muted' | 'snoozed
 export const demoConversations: ConversationListItem[] = [
   ...rawConversations,
   ...rawLetterConversations,
-].map((c) => ({ ...c, pinned: false, muted: false, snoozed: false }));
+].map((c) => ({
+  ...c,
+  pinned: false,
+  muted: false,
+  snoozed: false,
+  // Черновик — состояние пользователя (контракт #91): серверный мок пуст,
+  // живой черновик — в клиентском сторе, синхронизация PUT-ом с debounce.
+  draft: null,
+  visibility: c.type === 'project_channel' ? 'open' : c.type === 'group' ? 'closed' : null,
+  description: null,
+}));
 
 // Демо-состояния контекстного меню: канал закреплён, группа без звука.
 const pinnedDemo = demoConversations.find((c) => c.id === cid(1));
