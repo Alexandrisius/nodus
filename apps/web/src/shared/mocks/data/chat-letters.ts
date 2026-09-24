@@ -12,7 +12,7 @@ import { userIds, userRef } from './users.js';
 // демо-литералы писем о них не знают.
 type RawConversation = Omit<
   ConversationListItem,
-  'pinned' | 'muted' | 'snoozed' | 'draft' | 'visibility' | 'description'
+  'pinned' | 'muted' | 'snoozed' | 'draft' | 'visibility' | 'description' | 'myRole' | 'permissions'
 >;
 
 /** Чаты писем (type=letter): обсуждение письма — только внутренние

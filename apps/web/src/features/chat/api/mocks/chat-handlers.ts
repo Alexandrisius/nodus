@@ -17,11 +17,8 @@ import { http, HttpResponse } from 'msw';
 import { demoConversations, demoMessages } from '../../../../shared/mocks/data/chat.js';
 import { isoIn } from '../../../../shared/mocks/data/dates.js';
 import { demoTasks, personalNew, stageNew, tid } from '../../../../shared/mocks/data/tasks.js';
-import {
-  currentAuthUser,
-  demoUserListItems,
-  userRef,
-} from '../../../../shared/mocks/data/users.js';
+import { demoUserListItems, userRef } from '../../../../shared/mocks/data/users.js';
+import { actorUserRef, getMockActor } from '../../../../shared/mocks/mock-actor.js';
 import { chatMutationHandlers } from './chat-mutation-handlers.js';
 import { buildReplyPreview, uploadedAttachments } from './chat-mock-state.js';
 
@@ -43,11 +40,12 @@ const conversationHandlers = [
    * для себя» (модель «Избранного» мессенджеров). */
   http.get('/api/v1/chat/conversations/direct/:userId', ({ params }) => {
     const userId = String(params.userId);
+    const actorId = getMockActor().id;
     const existing = demoConversations.find(
       (c) =>
         c.type === 'direct' &&
-        (userId === currentAuthUser.id
-          ? c.membersPreview.length === 1 && c.membersPreview[0]?.id === currentAuthUser.id
+        (userId === actorId
+          ? c.membersPreview.length === 1 && c.membersPreview[0]?.id === actorId
           : c.membersPreview.some((m) => m.id === userId)),
     );
     if (existing) return HttpResponse.json(existing);
@@ -62,6 +60,14 @@ const conversationHandlers = [
       type: 'direct',
       title: null,
       avatarUrl: null,
+      myRole: 'member',
+      permissions: {
+        changeInfo: 'admin',
+        addMembers: 'member',
+        removeMembers: 'admin',
+        post: 'member',
+        manageSettings: 'owner',
+      },
       draft: null,
       visibility: null,
       description: null,
@@ -83,17 +89,14 @@ const conversationHandlers = [
    * (ровно один уровень, корень первым). */
   http.get('/api/v1/chat/conversations/:id/messages', ({ params, request }) => {
     const threadRootId = new URL(request.url).searchParams.get('threadRootId');
+    const actorId = getMockActor().id;
     const all = demoMessages.filter((m) => m.conversationId === params.id);
     // Симуляция прочтения (мокап до бэкенда): своё сообщение собеседник
     // «прочитывает» через ~2 с после отправки — галочки sent→read без polling:
     // клиент делает отложенную инвалидацию после отправки (useSendChatMessage).
     const now = Date.now();
     for (const m of all) {
-      if (
-        m.readAt === null &&
-        m.author.id === currentAuthUser.id &&
-        now - Date.parse(m.createdAt) > 2000
-      ) {
+      if (m.readAt === null && m.author.id === actorId && now - Date.parse(m.createdAt) > 2000) {
         m.readAt = m.createdAt;
       }
     }
@@ -131,7 +134,7 @@ const conversationHandlers = [
     const message: ChatMessage = {
       id: crypto.randomUUID(),
       conversationId: String(params.id),
-      author: userRef(currentAuthUser.id),
+      author: actorUserRef(),
       text: parsed.data.text,
       replyToId: parsed.data.replyToId ?? null,
       reply: parsed.data.replyToId
@@ -209,13 +212,21 @@ const conversationHandlers = [
       type: parsed.data.type,
       title: parsed.data.title,
       avatarUrl: null,
+      myRole: 'owner',
+      permissions: {
+        changeInfo: 'admin',
+        addMembers: 'member',
+        removeMembers: 'admin',
+        post: 'member',
+        manageSettings: 'owner',
+      },
       draft: null,
       visibility: parsed.data.visibility ?? 'closed',
       description: parsed.data.description ?? null,
       project: null,
       task: null,
       letter: null,
-      membersPreview: [userRef(currentAuthUser.id), ...members],
+      membersPreview: [actorUserRef(), ...members],
       lastMessage: null,
       unreadCount: 0,
       pinned: false,
@@ -267,8 +278,8 @@ const conversationHandlers = [
       personalStageId: personalNew.id,
       priority: 'normal',
       deadline: isoIn(3),
-      creator: userRef(currentAuthUser.id),
-      assignee: userRef(currentAuthUser.id),
+      creator: actorUserRef(),
+      assignee: actorUserRef(),
       participants: [message.author],
       project: conversation?.project ?? null,
       parentId: null,

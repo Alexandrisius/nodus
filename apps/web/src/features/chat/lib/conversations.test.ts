@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ConversationListItem } from '@nodus/contracts';
 
 import { sortByActivity } from './conversations.js';
+import { canPostFeed } from '../../../shared/chat/conversations.js';
 
 function conv(id: string, at: string | null, pinned = false): ConversationListItem {
   return {
@@ -9,6 +10,14 @@ function conv(id: string, at: string | null, pinned = false): ConversationListIt
     type: 'direct',
     title: id,
     avatarUrl: null,
+    myRole: 'member',
+    permissions: {
+      changeInfo: 'admin',
+      addMembers: 'member',
+      removeMembers: 'admin',
+      post: 'member',
+      manageSettings: 'owner',
+    },
     draft: null,
     visibility: null,
     description: null,
@@ -82,5 +91,37 @@ describe('sortByActivity — единый список бесед', () => {
       (id) => id === 'draft-old' || id === 'draft-empty',
     );
     expect(sorted.map((c) => c.id)).toEqual(['pin', 'draft-old', 'draft-empty', 'fresh']);
+  });
+});
+
+describe('canPostFeed (матрица прав канала)', () => {
+  const mk = (
+    myRole: 'owner' | 'admin' | 'member',
+    post: 'owner' | 'admin' | 'member',
+  ): ConversationListItem => ({
+    ...conv('c1', null),
+    type: 'project_channel',
+    myRole,
+    permissions: {
+      changeInfo: 'admin',
+      addMembers: 'member',
+      removeMembers: 'admin',
+      post,
+      manageSettings: 'owner',
+    },
+  });
+
+  it('post=member — пишут все роли', () => {
+    expect(canPostFeed(mk('member', 'member'))).toBe(true);
+    expect(canPostFeed(mk('owner', 'member'))).toBe(true);
+  });
+  it('post=admin — member не публикует, admin/owner публикуют', () => {
+    expect(canPostFeed(mk('member', 'admin'))).toBe(false);
+    expect(canPostFeed(mk('admin', 'admin'))).toBe(true);
+    expect(canPostFeed(mk('owner', 'admin'))).toBe(true);
+  });
+  it('post=owner — только владелец', () => {
+    expect(canPostFeed(mk('admin', 'owner'))).toBe(false);
+    expect(canPostFeed(mk('owner', 'owner'))).toBe(true);
   });
 });
