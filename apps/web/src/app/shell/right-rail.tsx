@@ -164,9 +164,14 @@ export function RightRail() {
       .map(([key]) => key)
       .join('|'),
   );
+  const railChats = (data?.items ?? []).filter((c) => c.type !== 'task' && c.type !== 'letter');
+  // Серверный draft тоже поднимает беседу (контракт #91), как в списке мессенджера.
   const chats = sortByActivity(
-    (data?.items ?? []).filter((c) => c.type !== 'task' && c.type !== 'letter'),
-    (id) => draftSignature.includes(`conversation:${id}`) || draftSignature.includes(`feed:${id}`),
+    railChats,
+    (id) =>
+      draftSignature.includes(`conversation:${id}`) ||
+      draftSignature.includes(`feed:${id}`) ||
+      railChats.some((c) => c.id === id && c.draft?.text),
   );
 
   return (

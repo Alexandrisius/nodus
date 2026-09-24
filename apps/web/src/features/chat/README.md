@@ -364,9 +364,10 @@ im.dialog — принята модель Bitrix24 как ближайшая к 
   действие (changeInfo — название+аватар+цвет ОДНИМ правом, как Bitrix24
   manage_ui; addMembers; removeMembers; post; manageSettings); дефолты сервера
   changeInfo=admin, addMembers=member, removeMembers=admin, post=member,
-  manageSettings=owner; проверка — на API-гуардах (I8), в ответе беседы —
-  вычисленные permissions текущего пользователя (модель Bitrix24 restrictions),
-  UI лишь прячет недоступное;
+  manageSettings=owner; проверка — на API-гуардах (I8); ТРЕБОВАНИЕ к бэкенду
+  (#58): в ответе беседы — вычисленные permissions текущего пользователя
+  (модель Bitrix24 restrictions; поля в контракте списка появятся вместе с
+  реальными правами), UI лишь прячет недоступное;
 - аватарка группы/канала: `avatarUrl` беседы + детерминированная цветная
   заглушка из инициалов по умолчанию (conversation-avatar); загрузка файла —
   отдельным эндпоинтом после старта MinIO (#57), право — changeInfo; серверные

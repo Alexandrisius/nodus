@@ -38,6 +38,10 @@ import { useCreateConversation } from '../api/chat-api.js';
  * минимальных ролей — контракт conversationPermissionsSchema). Аватарка и
  * модераторы — заглушки до сервера файлов и прав (toast-заготовка, как
  * «Опрос» линии A); создание живое на моках: беседа встаёт в список первой.
+ * I5-обоснование размера (>300): файл — полная сборка окна Bitrix24 (шапка +
+ * участники + две сворачиваемые секции с матрицей прав); дробление
+ * преждевременно до прихода серверных прав (#58), секции уже вынесены в
+ * локальные компоненты.
  */
 export type CreateConversationKind = 'group' | 'project_channel';
 
@@ -161,7 +165,12 @@ export function ChatCreateDialog({
 
   const [title, setTitle] = useState('');
   const [memberIds, setMemberIds] = useState<string[]>([]);
-  const [visibility, setVisibility] = useState<'closed' | 'open'>('closed');
+  // Канал всегда открытый (тип не выбирается — радиогруппа только у группы):
+  // состояние инициализируется по kind, чтобы UI не показывал одно, а отправлял
+  // другое (находка валидатора #91).
+  const [visibility, setVisibility] = useState<'closed' | 'open'>(
+    kind === 'group' ? 'closed' : 'open',
+  );
   const [autoDelete, setAutoDelete] = useState(false);
   const [description, setDescription] = useState('');
   const [permissions, setPermissions] = useState(DEFAULT_PERMISSIONS);
@@ -185,7 +194,7 @@ export function ChatCreateDialog({
         type: kind,
         title: name,
         description: description.trim() || undefined,
-        visibility: kind === 'group' ? visibility : 'open',
+        visibility,
         autoDeleteMessages: autoDelete || undefined,
         memberIds,
         permissions,
@@ -311,24 +320,28 @@ export function ChatCreateDialog({
           </div>
 
           <CreateSection title={ui.chat.chatSettingsSection}>
-            <div
-              role="radiogroup"
-              aria-label={ui.chat.chatTypeLabel}
-              className="flex flex-col gap-3"
-            >
-              <TypeRadio
-                checked={visibility === 'closed'}
-                title={ui.chat.chatTypeClosed}
-                hint={ui.chat.chatTypeClosedHint}
-                onSelect={() => setVisibility('closed')}
-              />
-              <TypeRadio
-                checked={visibility === 'open'}
-                title={ui.chat.chatTypeOpen}
-                hint={ui.chat.chatTypeOpenHint}
-                onSelect={() => setVisibility('open')}
-              />
-            </div>
+            {kind === 'group' ? (
+              <div
+                role="radiogroup"
+                aria-label={ui.chat.chatTypeLabel}
+                className="flex flex-col gap-3"
+              >
+                <TypeRadio
+                  checked={visibility === 'closed'}
+                  title={ui.chat.chatTypeClosed}
+                  hint={ui.chat.chatTypeClosedHint}
+                  onSelect={() => setVisibility('closed')}
+                />
+                <TypeRadio
+                  checked={visibility === 'open'}
+                  title={ui.chat.chatTypeOpen}
+                  hint={ui.chat.chatTypeOpenHint}
+                  onSelect={() => setVisibility('open')}
+                />
+              </div>
+            ) : (
+              <span className="text-xs text-muted-foreground">{ui.chat.channelOpenHint}</span>
+            )}
             <label className="flex items-center gap-2.5">
               <Switch checked={autoDelete} onCheckedChange={setAutoDelete} />
               <span className="text-sm font-medium">{ui.chat.autoDelete}</span>

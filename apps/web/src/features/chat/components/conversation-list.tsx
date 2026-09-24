@@ -74,9 +74,12 @@ export function ConversationList({
       .map(([key]) => key)
       .join('|'),
   );
+  // Серверный draft беседы тоже поднимает её (контракт #91: метка с других
+  // устройств), локальная сигнатура — первичнее и мгновенная.
   const hasDraft = (conversationId: string) =>
     draftSignature.includes(`conversation:${conversationId}`) ||
-    draftSignature.includes(`feed:${conversationId}`);
+    draftSignature.includes(`feed:${conversationId}`) ||
+    conversations.some((c) => c.id === conversationId && c.draft?.text);
 
   if (isLoading) {
     return (

@@ -70,4 +70,17 @@ describe('sortByActivity — единый список бесед', () => {
     ]);
     expect(sorted.map((c) => c.id)).toEqual(['pin-empty', 'plain']);
   });
+
+  it('черновики — сразу за закреплёнными, выше остальных (канон #91)', () => {
+    const sorted = sortByActivity(
+      [
+        conv('fresh', '2026-09-05T10:00:00Z'),
+        conv('draft-old', '2026-09-01T10:00:00Z'),
+        conv('pin', '2026-09-02T10:00:00Z', true),
+        conv('draft-empty', null),
+      ],
+      (id) => id === 'draft-old' || id === 'draft-empty',
+    );
+    expect(sorted.map((c) => c.id)).toEqual(['pin', 'draft-old', 'draft-empty', 'fresh']);
+  });
 });
