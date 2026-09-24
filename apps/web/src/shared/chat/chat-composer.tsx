@@ -170,6 +170,17 @@ export function ChatComposer({
 
   // «Вечный курсор»: монтаж — композер активный владелец; размонтаж (закрыли
   // тред) — курсор возвращается ранее зарегистрированному (ленте канала).
+  // Черновик восстановлен при смене беседы → каретка в КОНЕЦ текста при
+  // ближайшем фокусе (модель Telegram: продолжаешь писать с места остановки;
+  // вердикт 25.09 — каретка «у начала» заставляла переставлять её руками).
+  const caretToEndRef = useRef(false);
+  useEffect(() => {
+    const restored = (useChatDrafts.getState().drafts[focusId]?.text ?? '').length;
+    caretToEndRef.current = restored > 0;
+    const el = inputRef.current;
+    if (el && restored > 0) el.setSelectionRange(restored, restored);
+  }, [focusId]);
+
   useEffect(() => {
     const el = inputRef.current;
     if (!el) return;
@@ -397,6 +408,13 @@ export function ChatComposer({
                 ref={inputRef}
                 autoFocus
                 value={text}
+                onFocus={() => {
+                  const el = inputRef.current;
+                  if (caretToEndRef.current && el) {
+                    el.setSelectionRange(el.value.length, el.value.length);
+                  }
+                  caretToEndRef.current = false;
+                }}
                 onChange={(e) => setText(focusId, e.target.value)}
                 onKeyDown={onKeyDown}
                 onPaste={onPaste}

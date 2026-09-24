@@ -121,3 +121,37 @@ describe('ChatComposer — черновик при переключении бе
     );
   });
 });
+
+describe('ChatComposer — каретка в конец восстановленного черновика', () => {
+  it('смена focusId с непустым черновиком новой беседы → фокус ставит каретку в КОНЕЦ текста', async () => {
+    const client = new QueryClient();
+    useChatDrafts.setState({
+      drafts: {
+        [`conversation:${CONV_B}`]: {
+          text: 'продолжение с места остановки',
+          attachments: [],
+          reply: null,
+          edit: null,
+          preEditText: null,
+        },
+      },
+    });
+    const { view } = renderComposer(client, `conversation:${CONV_A}`, CONV_A);
+    view.rerender(
+      createElement(
+        QueryClientProvider,
+        { client },
+        createElement(ChatComposer, {
+          placeholder: 'Поле ввода',
+          focusId: `conversation:${CONV_B}`,
+          conversationId: CONV_B,
+          onSubmit: () => {},
+        }),
+      ),
+    );
+    const textarea = view.container.querySelector('textarea') as HTMLTextAreaElement;
+    fireEvent.focus(textarea);
+    expect(textarea.selectionStart).toBe('продолжение с места остановки'.length);
+    expect(textarea.selectionEnd).toBe('продолжение с места остановки'.length);
+  });
+});
