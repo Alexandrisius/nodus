@@ -257,7 +257,6 @@ export function MessageMenu({
           data-chat-message={message.id}
           data-chat-scope={scope}
           data-chat-conversation={conversationId}
-          data-chat-author={message.author.displayName}
         >
           {children}
         </span>

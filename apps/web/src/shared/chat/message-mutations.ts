@@ -337,8 +337,8 @@ export function useForwardMessages() {
     onSuccess: (_created, vars) => {
       void qc.invalidateQueries({ queryKey: chatKeys.messages(vars.targetId) });
       void qc.invalidateQueries({ queryKey: chatKeys.conversations() });
-      // Тост — один на операцию у инициатора (диалог пересылки): несколько
-      // получателей не должны давать стопку тостов.
+      // Тостов здесь нет: пересылка одиночная (вердикт 24.09); тост успеха —
+      // в композере-инициаторе (chat-composer).
     },
 
     onError: () => {

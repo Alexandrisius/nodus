@@ -32,6 +32,18 @@ export function useSelectionKeys(
     function onKeyDown(event: KeyboardEvent) {
       const store = useSelectionStore.getState();
       if (store.scope !== scope) return;
+      // Фокус в поле ввода или открытом оверлей-слое (диалог удаления и т.п.)
+      // — клавиши принадлежат им: Delete в поиске не должен открывать диалог
+      // удаления, Esc диалога не должен снимать селект (баг-находка
+      // валидатора 24.09).
+      const target = event.target instanceof Element ? event.target : null;
+      if (
+        target?.closest(
+          'input, textarea, [contenteditable="true"], [role="dialog"], [role="menu"], [role="listbox"]',
+        )
+      ) {
+        return;
+      }
       if (event.key === 'Escape') {
         event.preventDefault();
         store.exit();

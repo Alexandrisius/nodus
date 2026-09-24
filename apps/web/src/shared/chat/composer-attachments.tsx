@@ -27,7 +27,7 @@ function ProgressRing({ progress }: { progress: number }) {
   const r = 11;
   const c = 2 * Math.PI * r;
   return (
-    <svg viewBox="0 0 28 28" className="size-7" role="img" aria-label={ui.chat.uploadCancel}>
+    <svg viewBox="0 0 28 28" className="size-7" aria-hidden>
       <circle
         cx="14"
         cy="14"

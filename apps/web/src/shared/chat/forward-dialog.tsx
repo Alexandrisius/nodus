@@ -2,7 +2,7 @@ import { ChevronRight } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import type { ConversationListItem, ConversationType } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
-import { Dialog, DialogContent, DialogTitle } from '@nodus/ui/components/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@nodus/ui/components/dialog';
 import { Input } from '@nodus/ui/components/input';
 import { cn } from '@nodus/ui/lib/utils';
 import { useNavigate } from '@tanstack/react-router';
@@ -59,6 +59,7 @@ export function ForwardDialogHost() {
           при фильтре = баг): фильтр/поиск/шаг меняют СОДЕРЖИМОЕ списка, не
           габарит окна (баг-вердикт 24.09). */}
       <DialogContent className="flex h-[min(34rem,80vh)] w-full flex-col bg-card sm:max-w-lg [&_[data-slot=dialog-close]]:top-[18px]">
+        <DialogDescription className="sr-only">{ui.chat.forwardDescription}</DialogDescription>
         {request ? (
           <ForwardBody key={request.messageIds.join()} request={request} onDone={close} />
         ) : null}

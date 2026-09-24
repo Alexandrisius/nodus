@@ -150,10 +150,17 @@ export const useChatDrafts = create<DraftsState>()(
         })),
       removeAttachment: (key, localId) =>
         set((s) => ({
-          drafts: patchDraft(s.drafts, key, (d) => ({
-            ...d,
-            attachments: d.attachments.filter((a) => a.localId !== localId),
-          })),
+          drafts: patchDraft(s.drafts, key, (d) => {
+            // Превью снятого файла больше не показывается — blob-URL
+            // освобождается (находка валидатора 24.09; НЕ ревочим на clear:
+            // objectUrl живёт в превью отправленного сообщения мок-стора).
+            const gone = d.attachments.find((a) => a.localId === localId);
+            if (gone?.objectUrl) URL.revokeObjectURL(gone.objectUrl);
+            return {
+              ...d,
+              attachments: d.attachments.filter((a) => a.localId !== localId),
+            };
+          }),
         })),
       clear: (key) => set((s) => ({ drafts: patchDraft(s.drafts, key, () => EMPTY_DRAFT) })),
     }),

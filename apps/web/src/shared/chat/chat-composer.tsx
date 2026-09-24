@@ -176,8 +176,8 @@ export function ChatComposer({
   // правка — только с непустым текстом; загрузка вложений держит обе.
   const canSubmit = draft.edit
     ? text.trim().length > 0
-    : pending
-      ? !uploading
+    : pending // пересылка без вложений — загрузка трей не блокирует
+      ? true
       : hasContent && !uploading;
   // Telegram: отправки НЕТ до первого символа (на её месте микрофон);
   // бар пересылки кнопку показывает (комментарий опционален).

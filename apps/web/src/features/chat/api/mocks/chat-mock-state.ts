@@ -84,7 +84,10 @@ export function applyDeletion(message: ChatMessage): ChatMessage {
 /** Удаление БЕЗ СЛЕДА (никто не прочитал): сообщение исчезает из ленты. */
 export function removeMessage(messageId: string): void {
   const index = demoMessages.findIndex((m) => m.id === messageId);
-  if (index >= 0) demoMessages.splice(index, 1);
+  if (index < 0) return;
+  const [gone] = demoMessages.splice(index, 1);
+  if (!gone) return;
+  unpinById(gone.conversationId, gone.id);
   markRepliesDeleted(messageId);
 }
 
