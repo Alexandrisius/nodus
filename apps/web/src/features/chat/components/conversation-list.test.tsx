@@ -110,3 +110,18 @@ describe('ConversationList — сепараторы строк (#96, реф Би
     expect(outside[0]!.className).toContain('mx-1');
   });
 });
+
+describe('метка черновика в списке (вердикт 25.09, модель Telegram)', () => {
+  it('красным — только слово «Черновик», текст метки — обычным цветом', () => {
+    const withDraft: ConversationListItem = {
+      ...conv('d1'),
+      draft: { text: 'неотправленное сообщение', revision: 1, updatedAt: '2026-09-25T10:00:00Z' },
+    };
+    const view = renderList([withDraft]);
+    const label = view.getByText('Черновик:', { exact: false });
+    expect(label.className).toContain('text-destructive');
+    const text = view.getByText('неотправленное сообщение');
+    // Сам текст метки — НЕ красный (красным только слово).
+    expect(text.closest('span')?.className).not.toContain('text-destructive');
+  });
+});

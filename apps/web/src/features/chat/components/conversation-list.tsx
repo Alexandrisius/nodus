@@ -26,18 +26,17 @@ import { ConversationMenu } from './conversation-menu.js';
  * (без заголовка-секции и без заливки).
  */
 
-/** Превью последней строки беседы. Черновик — КРАСНЫМ (реф
- *  Telegram/Bitrix24, вердикт владельца 24.09, #91): «Черновик: текст» вместо
- *  превью последнего сообщения. Источник — ТОЛЬКО серверный draft беседы
- *  (вердикт 25.09: во время набора в списке ничего не меняется; метка
- *  появляется после ухода из чата, когда клиент фиксирует черновик на
- *  сервере). */
+/** Превью последней строки беседы. Черновик вместо превью последнего
+ *  сообщения (реф Telegram/Bitrix24, #91): КРАСНЫМ — только слово «Черновик»,
+ *  сам текст обычным цветом превью (вердикт 25.09, модель Telegram).
+ *  Источник — ТОЛЬКО серверный draft беседы (вердикт 25.09: во время набора
+ *  в списке ничего не меняется; метка появляется после ухода из чата). */
 function RowPreview({ conversation }: { conversation: ConversationListItem }) {
   const preview = conversation.draft?.text || '';
   if (preview) {
     return (
-      <span className="truncate text-xs font-medium text-destructive">
-        {ui.chat.draftLabel}: {preview}
+      <span className="truncate text-xs">
+        <span className="font-medium text-destructive">{ui.chat.draftLabel}:</span> {preview}
       </span>
     );
   }
