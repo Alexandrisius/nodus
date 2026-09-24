@@ -66,7 +66,8 @@ export function ConversationPane({
   const viewportRef = useRef<HTMLDivElement>(null);
 
   const lastMine = useCallback(
-    () => [...items].reverse().find((m) => m.author.id === me?.id && !m.deletedAt),
+    () =>
+      [...items].reverse().find((m) => m.author.id === me?.id && !m.deletedAt && !m.forwardedFrom),
     [items, me?.id],
   );
 
