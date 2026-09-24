@@ -1,7 +1,7 @@
 import type { ChatMessage, MessageAttachment, MessagePin, ReplyPreview } from '@nodus/contracts';
 
 import { demoConversations, demoMessages, demoPins } from '../../../../shared/mocks/data/chat.js';
-import { currentAuthUser, userRef } from '../../../../shared/mocks/data/users.js';
+import { actorUserRef } from '../../../../shared/mocks/mock-actor.js';
 
 /**
  * Состояние мок-домена чата для мутаций линии A (#87): загруженные вложения,
@@ -116,7 +116,7 @@ export function pinMessage(conversationId: string, messageId: string): MessagePi
   if (existing) return existing;
   const pin: MessagePin = {
     message,
-    pinnedBy: userRef(currentAuthUser.id),
+    pinnedBy: actorUserRef(),
     pinnedAt: new Date().toISOString(),
   };
   demoPins.unshift(pin);

@@ -9,7 +9,7 @@ import {
 import { http, HttpResponse } from 'msw';
 
 import { demoConversations, demoMessages } from '../../../../shared/mocks/data/chat.js';
-import { currentAuthUser, userRef } from '../../../../shared/mocks/data/users.js';
+import { actorUserRef, getMockActor } from '../../../../shared/mocks/mock-actor.js';
 import {
   applyDeletion,
   hasBeenRead,
@@ -85,7 +85,7 @@ export const chatMutationHandlers = [
     if (!parsed.success) return validationFailed();
     const message = findMessage(params.id, params.messageId);
     if (!message || message.deletedAt) return notFound();
-    if (message.author.id !== currentAuthUser.id) return forbidden();
+    if (message.author.id !== getMockActor().id) return forbidden();
     if (message.text !== parsed.data.text) {
       message.text = parsed.data.text;
       message.editedAt = new Date().toISOString();
@@ -98,7 +98,7 @@ export const chatMutationHandlers = [
   http.delete('/api/v1/chat/conversations/:id/messages/:messageId', ({ params }) => {
     const message = findMessage(params.id, params.messageId);
     if (!message || message.deletedAt) return notFound();
-    if (message.author.id !== currentAuthUser.id) return forbidden();
+    if (message.author.id !== getMockActor().id) return forbidden();
     const conversationId = String(params.id);
     if (hasBeenRead(message)) {
       applyDeletion(message);
@@ -121,7 +121,7 @@ export const chatMutationHandlers = [
     for (const id of parsed.data.messageIds) {
       const message = findMessage(params.id, id);
       if (!message || message.deletedAt) continue;
-      if (message.author.id !== currentAuthUser.id) continue;
+      if (message.author.id !== getMockActor().id) continue;
       if (hasBeenRead(message)) {
         tombstones.push(applyDeletion(message));
       } else {
@@ -170,7 +170,7 @@ export const chatMutationHandlers = [
       const comment: ChatMessage = {
         id: crypto.randomUUID(),
         conversationId: target.id,
-        author: userRef(currentAuthUser.id),
+        author: actorUserRef(),
         text: parsed.data.comment,
         replyToId: null,
         reply: null,
@@ -195,7 +195,7 @@ export const chatMutationHandlers = [
       const copy: ChatMessage = {
         id: crypto.randomUUID(),
         conversationId: target.id,
-        author: userRef(currentAuthUser.id),
+        author: actorUserRef(),
         text: source.text,
         replyToId: null,
         reply: null,

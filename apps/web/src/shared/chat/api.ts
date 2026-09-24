@@ -11,6 +11,7 @@ import { ui } from '@nodus/contracts';
 import { toast } from 'sonner';
 
 import { api } from '../api-client.js';
+import { isDomainMocked } from '../api/api-mock-config.js';
 import { tasksKeys } from '../api/tasks-keys.js';
 import { useAuthStore } from '../auth-store.js';
 
@@ -31,11 +32,23 @@ export const chatKeys = {
   direct: (userId: string) => [...chatKeys.conversations(), 'direct', userId] as const,
 };
 
+/** Живой чат (#48, до WS-шлюза): пока домен chat НЕ мокается, ленты
+ *  опрашиваются по интервалу (беседы реже, сообщения чаще). В мок-режиме
+ *  поллинг не нужен — данные статичны, фоновые табы не опрашиваются
+ *  (refetchIntervalInBackground: false — явно). */
+const LIVE_CHAT_POLL = { conversations: 10_000, messages: 5_000 } as const;
+
+function livePoll(intervalMs: number): number | false {
+  return isDomainMocked('chat') ? false : intervalMs;
+}
+
 export function useConversationMessages(id: string) {
   return useQuery({
     queryKey: chatKeys.messages(id),
     queryFn: () => api<Paginated<ChatMessage>>(`/chat/conversations/${id}/messages`),
     enabled: id.length > 0,
+    refetchInterval: livePoll(LIVE_CHAT_POLL.messages),
+    refetchIntervalInBackground: false,
   });
 }
 
@@ -45,6 +58,8 @@ export function useConversations() {
   return useQuery({
     queryKey: chatKeys.conversations(),
     queryFn: () => api<Paginated<ConversationListItem>>('/chat/conversations'),
+    refetchInterval: livePoll(LIVE_CHAT_POLL.conversations),
+    refetchIntervalInBackground: false,
   });
 }
 
@@ -57,6 +72,8 @@ export function useThreadMessages(conversationId: string, threadRootId: string) 
         `/chat/conversations/${conversationId}/messages?threadRootId=${threadRootId}`,
       ),
     enabled: conversationId.length > 0 && threadRootId.length > 0,
+    refetchInterval: livePoll(LIVE_CHAT_POLL.messages),
+    refetchIntervalInBackground: false,
   });
 }
 
@@ -102,16 +119,29 @@ export interface SendChatVars {
   /** Превью для оптимистичного temp-сообщения (готовые загрузки/цитата). */
   attachments?: MessageAttachment[];
   reply?: ReplyPreview | null;
+  /** Ключ идемпотентности = id оптимистичной записи (#48). Обычно НЕ передают:
+   *  mutate генерирует temp id на отправку; явно — в тестах и для повторов
+   *  ТОГО ЖЕ логического сообщения (двойной клик/ретрай после потери ответа
+   *  сойдутся на сервере в одну строку, client_message_id). */
+  tempId?: string;
+}
+
+interface SendChatMutationVars extends SendChatVars {
+  tempId: string;
 }
 
 export function useSendChatMessage(conversationId: string) {
   const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user);
 
-  return useMutation({
-    mutationFn: (vars: SendChatVars) =>
+  const mutation = useMutation({
+    mutationFn: (vars: SendChatMutationVars) =>
       api<ChatMessage>(`/chat/conversations/${conversationId}/messages`, {
         method: 'POST',
+        // Идемпотентность (#48): ключ = temp id оптимистичной записи —
+        // и повтор той же мутации, и прозрачный refresh внутри api()
+        // идут с ОДНИМ ключом (по умолчанию ключ — на вызов api()).
+        idempotencyKey: vars.tempId,
         body: {
           text: vars.text,
           attachmentIds: vars.attachmentIds,
@@ -133,7 +163,7 @@ export function useSendChatMessage(conversationId: string) {
         : undefined;
 
       const temp: ChatMessage = {
-        id: `temp-${crypto.randomUUID()}`,
+        id: vars.tempId,
         conversationId,
         author: { id: user?.id ?? '', displayName: user?.displayName ?? '', avatarUrl: null },
         text: vars.text,
@@ -198,15 +228,16 @@ export function useSendChatMessage(conversationId: string) {
             }
           : old,
       );
-      // Собеседник «прочитывает» сообщение спустя пару секунд (мокап): одна
-      // отложенная инвалидация переключает галочки sent→read без polling.
-      // Удаляется ВМЕСТЕ с мок-логикой read-receipt при подключении бэкенда:
-      // прочтение придёт событием WS message.read, таймер не нужен (аудит
-      // #45: таймер без clear — при размонтировании инвалидация уходила бы
-      // в неактуальный ключ; терпимо до API, не тащим в прод).
-      window.setTimeout(() => {
-        void queryClient.invalidateQueries({ queryKey: chatKeys.messages(conversationId) });
-      }, 2500);
+      if (isDomainMocked('chat')) {
+        // МОК-ЛОГИКА read-receipt (аудит #45): собеседник «прочитывает» через
+        // пару секунд (мокап) — одна отложенная инвалидация переключает
+        // галочки sent→read без polling. На живом API не нужна: readAt
+        // приходит с сервера опросом лент (livePoll выше); при WS-шлюзе (M13)
+        // прочтение придёт событием message.read и в моках.
+        window.setTimeout(() => {
+          void queryClient.invalidateQueries({ queryKey: chatKeys.messages(conversationId) });
+        }, 2500);
+      }
     },
 
     onSettled: () => {
@@ -215,4 +246,12 @@ export function useSendChatMessage(conversationId: string) {
       void queryClient.invalidateQueries({ queryKey: chatKeys.conversations() });
     },
   });
+
+  /** Отправка с temp id (#48): одна отправка = один temp id = один ключ
+   *  идемпотентности на все повторы этого сообщения. */
+  function mutate(vars: SendChatVars): void {
+    mutation.mutate({ ...vars, tempId: vars.tempId ?? crypto.randomUUID() });
+  }
+
+  return { ...mutation, mutate };
 }
