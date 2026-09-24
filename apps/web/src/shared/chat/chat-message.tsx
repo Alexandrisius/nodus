@@ -193,11 +193,12 @@ export const ChatMessageItem = memo(function ChatMessageItem({
                 chat-attachments-plan): галерея/чипы сверху, затем текст. */}
             {message.attachments.length > 0 ? <MessageAttachments message={message} /> : null}
             <MessageText text={message.text} />
-            {/* Нижняя строка пузыря: реакции СЛЕВА + мета (пин/изменено/
-                время/галочки) под текстом (вердикт 24.09). */}
+            {/* Нижняя строка пузыря ПОД текстом: реакции СЛЕВА, мета
+                (пин/изменено/время/галочки) — СПРАВА облака, как в Telegram
+                (вердикт 24.09: не сбоку текста, а снизу справа). */}
             <span className="flex items-center gap-2">
               <MessageReactions message={message} />
-              {metaRow}
+              <span className="ml-auto">{metaRow}</span>
             </span>
           </BubbleContent>
           {/* Хвостик — ПОСЛЕ тела пузыря (вердикт владельца 14.09.2026:
