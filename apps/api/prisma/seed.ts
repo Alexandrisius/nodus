@@ -262,10 +262,126 @@ async function main(): Promise<void> {
     data: { headId: admin.id },
   });
 
+  // --- Чат (M6, #58). Файл >300 строк: сид — декларативные данные, дробление бессмысленно. ---
+  // Фичефлаг `chat` (I10): модуль включён по умолчанию; выключение —
+  // setEnabled(false) админкой (отдельный issue) или напрямую в БД.
+  await prisma.featureFlag.upsert({
+    where: { key: 'chat' },
+    update: {},
+    create: { key: 'chat', enabled: true },
+  });
+
+  // Канал новостей компании (Ф4; вердикт владельца 24.09.2026: «Новости» —
+  // КАНАЛ: в каналах публикация в ленту — по правам (post=admin), в группах
+  // пишут все участники; обсуждение в тредах открыто всем). Все сотрудники —
+  // участники. Смена правила — правкой матрицы, не схемы.
+  const NEWS_CHANNEL_ID = '00000000-0000-4000-8000-000000000c01';
+  await prisma.conversation.upsert({
+    where: { id: NEWS_CHANNEL_ID },
+    // update чинит тип у существующих демо-БД (раньше сеялся как group).
+    update: { type: 'project_channel' },
+    create: {
+      id: NEWS_CHANNEL_ID,
+      type: 'project_channel',
+      title: 'Новости компании',
+      description: 'Официальные новости и объявления; обсуждение — в тредах постов.',
+      visibility: 'open',
+      permissions: {
+        changeInfo: 'admin',
+        addMembers: 'member',
+        removeMembers: 'admin',
+        post: 'admin',
+        manageSettings: 'owner',
+      },
+      createdBy: admin.id,
+      members: {
+        create: [
+          { userId: admin.id, role: 'owner' },
+          ...[director, gip, gipAssistant, bimManager, bimEngineer].map((u) => ({
+            userId: u.id,
+            role: 'member' as const,
+          })),
+        ],
+      },
+    },
+  });
+
+  // Демо-контент канала: детерминированные id (идемпотентный upsert).
+  const newsPosts: { id: string; seq: number; authorId: string; text: string }[] = [
+    {
+      id: '00000000-0000-4000-8000-000000000c11',
+      seq: 1,
+      authorId: director.id,
+      text: 'Коллеги, добрый день! С понедельника стартует internal-тест корпоративного портала: мессенджер открывается для пилотной группы. Пожелания складываем в треды под постами.',
+    },
+    {
+      id: '00000000-0000-4000-8000-000000000c12',
+      seq: 2,
+      authorId: admin.id,
+      text: 'Технический регламент: вложения до 100 МБ, одно сообщение — до 4000 символов. При сбое отправки сообщение повторяется автоматически и не задваивается.',
+    },
+    {
+      id: '00000000-0000-4000-8000-000000000c13',
+      seq: 3,
+      authorId: director.id,
+      text: 'Напоминаю: пятница — день аккуратного переноса активных переписок из Bitrix24. Каналы проектов появятся вместе с модулем проектов.',
+    },
+  ];
+  const newsReply = {
+    id: '00000000-0000-4000-8000-000000000c14',
+    seq: 4,
+    authorId: bimManager.id,
+    threadRootId: newsPosts[0]!.id,
+    text: 'От BIM-группы: готовы, вопросы по вложениям больших моделей соберём отдельно.',
+  };
+  for (const post of newsPosts) {
+    await prisma.message.upsert({
+      where: { id: post.id },
+      update: {},
+      create: {
+        id: post.id,
+        conversationId: NEWS_CHANNEL_ID,
+        seq: BigInt(post.seq),
+        authorId: post.authorId,
+        clientMessageId: `seed:news:${post.seq}`,
+        text: post.text,
+      },
+    });
+  }
+  await prisma.message.upsert({
+    where: { id: newsReply.id },
+    update: {},
+    create: {
+      id: newsReply.id,
+      conversationId: NEWS_CHANNEL_ID,
+      seq: BigInt(newsReply.seq),
+      authorId: newsReply.authorId,
+      clientMessageId: `seed:news:${newsReply.seq}`,
+      text: newsReply.text,
+      threadRootId: newsReply.threadRootId,
+    },
+  });
+  await prisma.threadParticipant.upsert({
+    where: { threadRootId_userId: { threadRootId: newsPosts[0]!.id, userId: director.id } },
+    update: {},
+    create: { threadRootId: newsPosts[0]!.id, userId: director.id, source: 'author' },
+  });
+  await prisma.threadParticipant.upsert({
+    where: { threadRootId_userId: { threadRootId: newsPosts[0]!.id, userId: bimManager.id } },
+    update: {},
+    create: { threadRootId: newsPosts[0]!.id, userId: bimManager.id, source: 'replier' },
+  });
+  // Курсор порядка и активность беседы — по факту засеянных сообщений.
+  await prisma.conversation.update({
+    where: { id: NEWS_CHANNEL_ID },
+    data: { lastSeq: 4n, lastMessageAt: new Date() },
+  });
+
   const users = await prisma.user.count();
   const departments = await prisma.department.count();
   console.log(`Seed OK: ${users} пользователей, ${departments} подразделений`);
   console.log('Вход: admin@nodus.by / (SEED_ADMIN_PASSWORD, по умолчанию Nodus!Admin2026)');
+  console.log('Чат: флаг chat включён; канал «Новости компании» + 4 демо-сообщения');
 }
 
 main()

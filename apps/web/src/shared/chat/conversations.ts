@@ -69,7 +69,8 @@ export function sortByActivity(
  *  (вердикт владельца 15.09.2026: «дублирование названий проекта в чатах»). */
 export function conversationSubtitle(conversation: ConversationListItem): string {
   if (conversation.type === 'project_channel') {
-    return ui.chat.channelOfProject;
+    // Канал без привязки к проекту (новости компании) — просто «Канал».
+    return conversation.project ? ui.chat.channelOfProject : ui.chat.channelGeneric;
   }
   if (conversation.type === 'task') {
     return ui.chat.taskChat;
@@ -86,4 +87,13 @@ export function conversationSubtitle(conversation: ConversationListItem): string
     ])}`;
   }
   return ui.common.online;
+}
+
+/** Иерархия ролей беседы (owner > admin > member). */
+const ROLE_RANK: Record<ConversationListItem['myRole'], number> = { member: 0, admin: 1, owner: 2 };
+
+/** Право публиковать КОРНЕВЫЕ посты в ленту канала/беседы (матрица прав,
+ *  #91/#58: ответы в тредах открыты всем участникам независимо от post). */
+export function canPostFeed(conversation: ConversationListItem): boolean {
+  return ROLE_RANK[conversation.myRole] >= ROLE_RANK[conversation.permissions.post];
 }

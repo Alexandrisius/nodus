@@ -26,6 +26,8 @@ import { MessageRow } from './message-row.js';
 import { PinBar } from './pin-bar.js';
 import { useDomJumpResponder } from './use-dom-jump.js';
 import { selectionComposerProps, useFeedSelection } from './use-feed-selection.js';
+import { useConversations } from './api.js';
+import { canPostFeed } from './conversations.js';
 
 function repliesLabel(count: number): string {
   return `${count} ${plural(count, [ui.chat.repliesOne, ui.chat.repliesFew, ui.chat.repliesMany])}`;
@@ -53,6 +55,10 @@ export const ThreadFeed = memo(function ThreadFeed({
 }) {
   const scope = `feed:${conversationId}`;
   const { data, isLoading } = useConversationMessages(conversationId);
+  // Право публикации в ленту (I8 на клиенте — только UX; сервер проверяет
+  // матрицу сам): без post композер ленты гасится, обсуждение — в тредах.
+  const { data: conversationsData } = useConversations();
+  const conversation = conversationsData?.items.find((c) => c.id === conversationId) ?? null;
   const send = useSendChatMessage(conversationId);
   const edit = useEditMessage(conversationId);
   const me = useAuthStore((s) => s.user);
@@ -266,15 +272,25 @@ export const ThreadFeed = memo(function ThreadFeed({
           )}
         </div>
       </FeedDropzone>
-      <ChatComposer
-        placeholder={ui.chat.newPostPlaceholder}
-        focusId={scope}
-        conversationId={conversationId}
-        attachmentsEnabled
-        onEditLast={handleEditLast}
-        selection={selectionComposerProps(conversationId, selection)}
-        onSubmit={handleSubmit}
-      />
+      {conversation === null || canPostFeed(conversation) ? (
+        <ChatComposer
+          placeholder={ui.chat.newPostPlaceholder}
+          focusId={scope}
+          conversationId={conversationId}
+          attachmentsEnabled
+          onEditLast={handleEditLast}
+          selection={selectionComposerProps(conversationId, selection)}
+          onSubmit={handleSubmit}
+        />
+      ) : (
+        // Островок композера в неактивном состоянии: та же геометрия/тень,
+        // объяснение вместо ввода (обсуждение в тредах остаётся доступным).
+        <div className="shrink-0 bg-chat-zone px-3 py-2">
+          <div className="flex w-full items-center rounded-2xl bg-card px-3 py-2.5 shadow-sm">
+            <span className="text-sm text-muted-foreground">{ui.chat.composerNoPostRights}</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 });

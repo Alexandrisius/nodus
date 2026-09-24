@@ -23,7 +23,7 @@ import { cid, mid } from './chat-ids.js';
  *  inplace (контекстное меню беседы, реф Битрикс24, вердикт 14.09.2026). */
 const rawConversations: Omit<
   ConversationListItem,
-  'pinned' | 'muted' | 'snoozed' | 'draft' | 'visibility' | 'description'
+  'pinned' | 'muted' | 'snoozed' | 'draft' | 'visibility' | 'description' | 'myRole' | 'permissions'
 >[] = [
   {
     id: cid(1),
@@ -173,6 +173,16 @@ export const demoConversations: ConversationListItem[] = [
   ...rawLetterConversations,
 ].map((c) => ({
   ...c,
+  // Роль текущего пользователя в демо-беседах: мок-юзер — участник
+  // (create-ответ в chat-handlers отдаёт owner); матрица — серверные дефолты.
+  myRole: 'member' as const,
+  permissions: {
+    changeInfo: 'admin',
+    addMembers: 'member',
+    removeMembers: 'admin',
+    post: 'member',
+    manageSettings: 'owner',
+  },
   pinned: false,
   muted: false,
   snoozed: false,

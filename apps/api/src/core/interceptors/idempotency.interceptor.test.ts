@@ -9,6 +9,7 @@ import { sha256Hex, stableStringify } from './stable-stringify.js';
 
 function createContext(options: {
   method?: string;
+  url?: string;
   body?: unknown;
   key?: string;
   statusCode?: number;
@@ -22,7 +23,7 @@ function createContext(options: {
     switchToHttp: () => ({
       getRequest: () => ({
         method: options.method ?? 'POST',
-        url: '/api/v1/tasks',
+        url: options.url ?? '/api/v1/tasks',
         headers: options.key ? { 'idempotency-key': options.key } : {},
         body: options.body ?? { title: 'Задача' },
       }),
@@ -66,6 +67,20 @@ beforeEach(() => {
 });
 
 describe('IdempotencyInterceptor', () => {
+  it('пути /api/v1/auth/* не кэшируются: TTL реплея 24ч >> жизни токена 15мин', async () => {
+    const { context, reply } = createContext({
+      url: '/api/v1/auth/login',
+      key: 'fixed-key',
+      body: { email: 'a@b.c', password: 'x' },
+    });
+    await expect(
+      lastValueFrom(await interceptor.intercept(context, createNext({ accessToken: 'jwt' }))),
+    ).resolves.toEqual({ accessToken: 'jwt' });
+    expect(redis.get).not.toHaveBeenCalled();
+    expect(redis.set).not.toHaveBeenCalled();
+    expect(reply.header).not.toHaveBeenCalled();
+  });
+
   it('GET-запросы проходят мимо механизма', async () => {
     const { context } = createContext({ method: 'GET', key: KEY });
     const next = createNext();

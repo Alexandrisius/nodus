@@ -24,6 +24,14 @@ const LOCK_POLL_MS = 100;
 
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
+/**
+ * Ответы auth не кэшируются: TTL реплея (24 ч) на порядки больше жизни
+ * access-токена (15 мин) — реплей логина/refresh спустя время отдал бы
+ * истёкший токен (найдено k6-прогоном #58). Повтор логина безопасен и без
+ * идемпотентности (api-client генерирует уникальный ключ на вызов).
+ */
+const IDEMPOTENCY_EXCLUDED_PREFIXES = ['/api/v1/auth/'];
+
 interface CachedResponse {
   body: unknown;
   bodyHash: string;
@@ -49,6 +57,10 @@ export class IdempotencyInterceptor implements NestInterceptor {
     const http = context.switchToHttp();
     const request = http.getRequest<FastifyRequest>();
     if (!MUTATING_METHODS.has(request.method)) {
+      return next.handle();
+    }
+    const path = request.url.split('?')[0] ?? request.url;
+    if (IDEMPOTENCY_EXCLUDED_PREFIXES.some((prefix) => path.startsWith(prefix))) {
       return next.handle();
     }
     const keyHeader = request.headers['idempotency-key'];

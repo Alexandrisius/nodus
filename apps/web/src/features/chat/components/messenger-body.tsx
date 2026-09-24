@@ -1,6 +1,7 @@
 import { Megaphone, Plus, Search, SquarePen, Users, X } from 'lucide-react';
-import { useState } from 'react';
-import { ui } from '@nodus/contracts';
+import { useMemo, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { ui, type ConversationListItem, type UserListItem } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import {
   DropdownMenu,
@@ -11,7 +12,11 @@ import {
 import { Empty, EmptyTitle } from '@nodus/ui/components/empty';
 import { Input } from '@nodus/ui/components/input';
 
+import { api } from '../../../shared/api-client.js';
 import { useAuthStore } from '../../../shared/auth-store.js';
+import { useUsersList } from '../../../shared/api/users-list.js';
+import { chatKeys } from '../../../shared/chat/api.js';
+import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
 import { TaskQuickCreate } from '../../../shared/tasks/task-quick-create.js';
 import { useConversations } from '../api/chat-api.js';
 import { conversationSubtitle, conversationTitle } from '../lib/conversations.js';
@@ -67,6 +72,40 @@ export function MessengerBody({
   const [createTaskOpen, setCreateTaskOpen] = useState(false);
 
   const q = query.trim().toLowerCase();
+
+  // Поиск как в Битриксе (вердикт владельца 24.09.2026): помимо бесед ищем
+  // ЛЮДЕЙ — клик по сотруднику открывает личный чат (find-or-create direct,
+  // бэкенд создаёт беседу при первом обращении). Кто уже есть в списке
+  // (личная беседа существует) — не дублируем строкой.
+  const { data: usersData } = useUsersList();
+  const queryClient = useQueryClient();
+  const directPeerIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const c of data?.items ?? []) {
+      if (c.type === 'direct') {
+        for (const m of c.membersPreview) ids.add(m.id);
+      }
+    }
+    return ids;
+  }, [data]);
+  const peopleMatches = useMemo(() => {
+    if (q.length < 2 || tab === 'tasks') return [];
+    return (usersData?.items ?? []).filter(
+      (u: UserListItem) =>
+        u.id !== meId && u.displayName.toLowerCase().includes(q) && !directPeerIds.has(u.id),
+    );
+  }, [q, tab, usersData, directPeerIds, meId]);
+  async function openDirectChat(userId: string): Promise<void> {
+    try {
+      const conversation = await api<ConversationListItem>(`/chat/conversations/direct/${userId}`);
+      await queryClient.invalidateQueries({ queryKey: chatKeys.conversations() });
+      setQuery('');
+      onSelectConversation(conversation.id);
+    } catch {
+      setQuery('');
+    }
+  }
+
   const items = (data?.items ?? [])
     // Вкладка «Чаты задач и писем» — обсуждения сущностей (задачи + письма);
     // основная вкладка — люди и каналы (модель v2 корреспонденции, #69).
@@ -187,6 +226,31 @@ export function MessengerBody({
             мессенджера). */}
         {tab === 'tasks' ? (
           <TaskQuickCreate open={createTaskOpen} onOpenChange={setCreateTaskOpen} />
+        ) : null}
+        {peopleMatches.length > 0 ? (
+          // Секция людей над списком бесед: та же геометрия строк (мягкий
+          // ховер, rounded-lg), подпись «Написать» справа.
+          <div className="flex flex-col pb-1">
+            <div className="px-4 pt-3 pb-1 text-label-sm text-muted-foreground">
+              {ui.chat.searchPeopleSection}
+            </div>
+            {peopleMatches.map((person: UserListItem) => (
+              <button
+                key={person.id}
+                type="button"
+                onClick={() => void openDirectChat(person.id)}
+                className="mx-1 flex w-[calc(100%-0.625rem)] items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-accent/40"
+              >
+                <PersonAvatar name={person.displayName} className="size-9" />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium">{person.displayName}</span>
+                  <span className="block truncate text-label-sm text-muted-foreground">
+                    {ui.chat.searchPeopleHint}
+                  </span>
+                </span>
+              </button>
+            ))}
+          </div>
         ) : null}
         <ConversationList
           conversations={items}
