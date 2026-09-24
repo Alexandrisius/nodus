@@ -475,3 +475,27 @@
     }
   }
 }
+
+/* Вспышка сообщения при прыжке к нему (клик по цитате/закрепу/«Переслано
+   от» — A2/A3/A7, #87): мгновенная подсветка + затухание ~2 с (research-канон:
+   css-tricks yellow-flash, Discord blurple-оверлей; Telegram — highlight цели).
+   Плоская заливка на токене info, без теней; prefers-reduced-motion —
+   статичная подсветка (класс снимает JS по таймеру FLASH_MS). */
+@utility message-flash {
+  animation: message-flash 2s ease-out forwards;
+  border-radius: var(--radius);
+}
+@keyframes message-flash {
+  from {
+    background-color: color-mix(in srgb, var(--info) 16%, transparent);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .message-flash {
+    animation: none;
+    background-color: color-mix(in srgb, var(--info) 12%, transparent);
+  }
+}

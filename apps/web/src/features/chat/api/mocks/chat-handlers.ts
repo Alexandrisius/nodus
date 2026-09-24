@@ -1,4 +1,9 @@
-import type { ChatMessage, ConversationListItem, TaskListItem } from '@nodus/contracts';
+import type {
+  ChatMessage,
+  ConversationListItem,
+  MessageAttachment,
+  TaskListItem,
+} from '@nodus/contracts';
 import { conversationUpdateBodySchema, ErrorCode, sendMessageBodySchema } from '@nodus/contracts';
 
 import { http, HttpResponse } from 'msw';
@@ -11,13 +16,15 @@ import {
   demoUserListItems,
   userRef,
 } from '../../../../shared/mocks/data/users.js';
+import { chatMutationHandlers } from './chat-mutation-handlers.js';
+import { buildReplyPreview, uploadedAttachments } from './chat-mock-state.js';
 
 let chatTaskSeq = 60;
 
 /** Скрытые из списка беседы (ПКМ-меню «Скрыть»: история сохраняется, I15). */
 const hiddenConversations = new Set<string>();
 
-export const chatHandlers = [
+const conversationHandlers = [
   http.get('/api/v1/chat/conversations', () =>
     HttpResponse.json({
       items: demoConversations.filter((c) => !hiddenConversations.has(c.id)),
@@ -91,7 +98,9 @@ export const chatHandlers = [
   }),
 
   /** Отправка сообщения (sendMessageBodySchema): в тред — с threadRootId,
-   * счётчик ответов корня растёт (лента канала читает его без загрузки треда). */
+   * счётчик ответов корня растёт (лента канала читает его без загрузки треда);
+   * ответ-цитата — replyToId (+quoteText частичной цитаты), снапшот frozen;
+   * вложения — attachmentIds загруженных через POST /chat/attachments (A1). */
   http.post('/api/v1/chat/conversations/:id/messages', async ({ params, request }) => {
     const parsed = sendMessageBodySchema.safeParse(await request.json());
     if (!parsed.success)
@@ -106,16 +115,26 @@ export const chatHandlers = [
         { status: 404 },
       );
     }
+    const attachments = (parsed.data.attachmentIds ?? [])
+      .map((attachmentId) => uploadedAttachments.get(attachmentId))
+      .filter((a): a is MessageAttachment => a !== undefined);
+    for (const attachment of attachments) uploadedAttachments.delete(attachment.id);
     const message: ChatMessage = {
       id: crypto.randomUUID(),
       conversationId: String(params.id),
       author: userRef(currentAuthUser.id),
       text: parsed.data.text,
-      replyToId: null,
+      replyToId: parsed.data.replyToId ?? null,
+      reply: parsed.data.replyToId
+        ? buildReplyPreview(parsed.data.replyToId, parsed.data.quoteText)
+        : null,
+      deletedAt: null,
+      pinned: false,
+      forwardedFrom: null,
       threadRootId,
       threadRepliesCount: 0,
       reactions: [],
-      attachments: [],
+      attachments,
       editedAt: null,
       readAt: null,
       createdAt: new Date().toISOString(),
@@ -190,3 +209,9 @@ export const chatHandlers = [
     return HttpResponse.json(task, { status: 201 });
   }),
 ];
+
+/** Единый агрегат мок-хендлеров чата: беседы/лента/отправка + мутации
+ *  сообщений линии A (chat-mutation-handlers.ts). Порядок важен: более
+ *  специфичные маршруты (:id/pins, :id/forward) MSW матчит по шаблону,
+ *  конфликтов с :id/messages нет. */
+export const chatHandlers = [...conversationHandlers, ...chatMutationHandlers];

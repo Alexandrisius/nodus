@@ -87,3 +87,78 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
   }
   return (await response.json()) as T;
 }
+
+interface UploadOptions {
+  /** Доля 0..1 — для индикатора прогресса (XHR upload.onprogress). */
+  onProgress?: (fraction: number) => void;
+  signal?: AbortSignal;
+  idempotencyKey?: string;
+}
+
+function xhrUpload<T>(path: string, form: FormData, options: UploadOptions): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `/api/v1${path}`);
+    const { accessToken } = useAuthStore.getState();
+    if (accessToken) xhr.setRequestHeader('authorization', `Bearer ${accessToken}`);
+    xhr.setRequestHeader('Idempotency-Key', options.idempotencyKey ?? crypto.randomUUID());
+    xhr.withCredentials = true; // refresh-cookie nodus_refresh
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) options.onProgress?.(event.loaded / event.total);
+    };
+    xhr.onload = () => {
+      if (xhr.status === 204) {
+        resolve(undefined as T);
+        return;
+      }
+      let body: unknown;
+      try {
+        body = JSON.parse(xhr.responseText);
+      } catch {
+        body = undefined; // не-JSON ответ (напр. обрыв соединения)
+      }
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(body as T);
+        return;
+      }
+      const errorBody = body as {
+        code?: string;
+        message?: string;
+        details?: Record<string, unknown>;
+        traceId?: string;
+      } | null;
+      reject(
+        new ApiError(
+          errorBody?.code ?? 'INTERNAL_ERROR',
+          errorBody?.message ?? `HTTP ${xhr.status}`,
+          xhr.status,
+          errorBody?.details,
+          errorBody?.traceId,
+        ),
+      );
+    };
+    xhr.onerror = () => reject(new ApiError('INTERNAL_ERROR', 'Network error', 0));
+    xhr.onabort = () => reject(new DOMException('Aborted', 'AbortError'));
+    options.signal?.addEventListener('abort', () => xhr.abort(), { once: true });
+    xhr.send(form);
+  });
+}
+
+/** Загрузка файла (multipart) — единый HTTP-контур проекта (patterns.md):
+ *  тот же auth/refresh/Idempotency-Key, но XHR ради событий прогресса
+ *  (fetch upload-progress не умеет). 401 → один прозрачный refresh и повтор. */
+export async function apiUpload<T>(
+  path: string,
+  form: FormData,
+  options: UploadOptions = {},
+): Promise<T> {
+  try {
+    return await xhrUpload<T>(path, form, options);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) {
+      const refreshed = await useAuthStore.getState().tryRefresh();
+      if (refreshed) return xhrUpload<T>(path, form, options);
+    }
+    throw error;
+  }
+}

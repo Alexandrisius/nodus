@@ -1,4 +1,4 @@
-import { FileText, Link2, PanelRight, X } from 'lucide-react';
+import { FileText, Link2, PanelRight, Pin, X } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
@@ -7,6 +7,10 @@ import { cn } from '@nodus/ui/lib/utils';
 
 import { threadScopeMessages } from './channel-layout.js';
 import { useConversationMessages } from './api.js';
+import { useJumpStore } from './jump-store.js';
+import { usePins } from './message-mutations.js';
+
+import { useUnpinDialog } from './dialog-stores.js';
 import { useFrameReady } from '../ui/use-frame-ready.js';
 import { uiPx } from '../ui/ui-scale.js';
 
@@ -35,6 +39,57 @@ function Section({
       </h4>
       <div className="mt-2.5 flex flex-col gap-2">{children}</div>
     </section>
+  );
+}
+
+/** Выдержка закрепа: текст / подпись медиа / placeholder удалённого. */
+function pinLabel(text: string, kind: 'image' | 'file' | null, deleted: boolean): string {
+  if (deleted) return ui.chat.deletedPlaceholder;
+  if (text) return text;
+  return kind === 'image' ? ui.chat.quotePhoto : kind === 'file' ? ui.chat.quoteFile : '';
+}
+
+/** Секция «Закреплённые» панели беседы (A3, #87): полный список закрепов —
+ *  дубль пин-бара ленты для обзора (Telegram — отдельная страница закрепов,
+ *  Slack — панель; у нас оба входа: бар + секция). */
+function PinnedSection({ conversationId }: { conversationId: string }) {
+  const { data: pins } = usePins(conversationId);
+  return (
+    <Section icon={Pin} title={ui.chat.pinnedSection}>
+      {pins && pins.length > 0 ? (
+        pins.map((pin) => (
+          <span key={pin.message.id} className="flex items-center gap-1.5">
+            <button
+              type="button"
+              title={ui.chat.pinGoTo}
+              className="min-w-0 flex-1 truncate text-left text-sm text-info hover:underline"
+              onClick={() =>
+                useJumpStore
+                  .getState()
+                  .request(conversationId, pin.message.id, pin.message.threadRootId)
+              }
+            >
+              {pinLabel(
+                pin.message.text,
+                pin.message.attachments[0]?.kind ?? null,
+                pin.message.deletedAt !== null,
+              )}
+            </button>
+            <button
+              type="button"
+              aria-label={ui.chat.unpin}
+              title={ui.chat.unpin}
+              className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              onClick={() => useUnpinDialog.getState().ask(conversationId, pin.message.id)}
+            >
+              <X className="size-3.5" strokeWidth={1.75} />
+            </button>
+          </span>
+        ))
+      ) : (
+        <span className="text-sm text-muted-foreground">{ui.chat.pinnedEmpty}</span>
+      )}
+    </Section>
   );
 }
 
@@ -172,6 +227,10 @@ export function ChatSidePanel({
                   ))}
                 </div>
               ) : null}
+
+              {/* Закреплённые (A3, #87): снапшоты закрепов беседы — «Перейти»
+                  (jump+вспышка в ленте) и снятие закрепа (undo-тост в хуке). */}
+              <PinnedSection conversationId={conversationId} />
 
               <Section icon={FileText} title={ui.chat.filesMedia}>
                 {files.length > 0 ? (

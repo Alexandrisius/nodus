@@ -8,8 +8,10 @@ import { ui } from '@nodus/contracts';
  * сообщения, аватар и хвостик пузыря — только у последнего. Серия рвётся
  * ТОЛЬКО по смене автора или смене календарного дня (UTC-дата `createdAt`);
  * временного порога внутри дня НЕТ. Реакции, вложения, правки, цитаты и
- * оптимистичные (pending) сообщения серию не рвут. Чистые функции —
- * детерминированные unit-тесты без DOM.
+ * оптимистичные (pending) сообщения серию не рвут. Надгробие удалённого
+ * сообщения (deletedAt, A5 #87) — ВСЕГДА отдельная серия: у placeholder нет
+ * ни автора, ни пузыря с хвостиком, группировка с соседями ломала бы рендер.
+ * Чистые функции — детерминированные unit-тесты без DOM.
  */
 export interface MessageRun {
   authorId: string;
@@ -27,7 +29,9 @@ export function buildMessageRuns(messages: ChatMessage[], meId?: string): Messag
   const runs: MessageRun[] = [];
   for (const message of messages) {
     const run = runs[runs.length - 1];
+    const groupable = message.deletedAt === null && run?.last.deletedAt === null;
     if (
+      groupable &&
       run &&
       run.authorId === message.author.id &&
       utcDay(run.last.createdAt) === utcDay(message.createdAt)

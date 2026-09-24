@@ -1,17 +1,12 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { ConversationListItem, ConversationUpdateBody, Paginated } from '@nodus/contracts';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import type { ConversationListItem, ConversationUpdateBody } from '@nodus/contracts';
 
 import { api } from '../../../shared/api-client.js';
 import { chatKeys } from '../../../shared/chat/api.js';
 
-/** Список бесед мессенджера. Сообщения/треды и «В задачу» — в shared/chat
- *  (второй потребитель — вкладка «Чат» панели проекта, I6). */
-export function useConversations() {
-  return useQuery({
-    queryKey: chatKeys.conversations(),
-    queryFn: () => api<Paginated<ConversationListItem>>('/chat/conversations'),
-  });
-}
+/** Список бесед переехал в shared/chat/api.ts (#87: второй потребитель —
+ *  диалог пересылки в shared-слое, I6); реэкспорт для импортов фичи. */
+export { useConversations } from '../../../shared/chat/api.js';
 
 /** Состояние беседы из контекстного меню (ПКМ, реф Битрикс24): закрепить /
  *  звук / «посмотреть позже» / скрыть. Оптимистично не работаем: список
