@@ -130,12 +130,62 @@ export const messagePinSchema = z.object({
 
 export type MessagePin = z.infer<typeof messagePinSchema>;
 
+/** Роль участника беседы (фундамент прав, #91 — исследование Bitrix24
+ *  im.dialog: role owner/manager/member + матрица manage_* прав). Проверка
+ *  прав — на API-гуардах (I8); UI лишь прячет недоступное по вычисленным
+ *  permissions в ответе (модель Bitrix24 restrictions). */
+export const conversationMemberRoleSchema = z.enum(['owner', 'admin', 'member']);
+export type ConversationMemberRole = z.infer<typeof conversationMemberRoleSchema>;
+
+/** Матрица прав беседы (фундамент, #91): минимальная роль для действия.
+ *  changeInfo покрывает название + аватарку + цвет (Bitrix24 manage_ui —
+ *  одним правом). Дефолты сервера: changeInfo=admin, addMembers=member,
+ *  removeMembers=admin, post=member, manageSettings=owner. */
+export const conversationPermissionsSchema = z.object({
+  changeInfo: conversationMemberRoleSchema,
+  addMembers: conversationMemberRoleSchema,
+  removeMembers: conversationMemberRoleSchema,
+  post: conversationMemberRoleSchema,
+  manageSettings: conversationMemberRoleSchema,
+});
+export type ConversationPermissions = z.infer<typeof conversationPermissionsSchema>;
+
+/** Черновик ТЕКУЩЕГО пользователя в беседе (контракт синхронизации, #91 —
+ *  исследование tdesktop/Telegram Core: клиент пишет локально мгновенно,
+ *  PUT — debounce 1000 мс после паузы набора + flush при переключении беседы
+ *  и visibilitychange:hidden; сервер ГАСИТ черновик в транзакции отправки
+ *  сообщения (урок tdesktop#26236 «воскресающих» черновиков); revision —
+ *  last-write-wins между устройствами владельца. */
+export const conversationDraftSchema = z.object({
+  text: z.string().max(4000),
+  revision: z.number().int().min(0),
+  updatedAt: z.iso.datetime(),
+});
+export type ConversationDraft = z.infer<typeof conversationDraftSchema>;
+
+/** Тело сохранения черновика (PUT /chat/conversations/:id/draft, #91):
+ *  пустой текст = очистка; revision опционален (сервер монотонно растит). */
+export const saveConversationDraftBodySchema = z.object({
+  text: z.string().max(4000),
+  revision: z.number().int().min(0).optional(),
+});
+export type SaveConversationDraftBody = z.infer<typeof saveConversationDraftBodySchema>;
+
 export const conversationListItemSchema = z.object({
   id: z.uuid(),
   type: conversationTypeSchema,
   /** Для direct — вычисляется из имён участников на клиенте/сервере. */
   title: z.string().nullable(),
   avatarUrl: z.url().nullable(),
+  /** Черновик текущего пользователя (null — нет): метка «Черновик: …» и
+   *  подъём беседы в списке на других устройствах; локальный черновик
+   *  клиента первичнее (мгновенный), серверный — догоняет (контракт #91). */
+  draft: conversationDraftSchema.nullable(),
+  /** Видимость группы/канала (null у direct/task/letter): закрытый — вне
+   *  общего списка, открытый — вступить может любой (реф Bitrix24, #91). */
+  visibility: z.enum(['closed', 'open']).nullable(),
+  /** Описание беседы (карточка «О чате», создание чата #91); null — нет. */
+  description: z.string().nullable(),
   project: projectRefSchema.nullable(),
   /** Чат задачи (type=task): привязка к задаче для вкладки «Чаты задач». */
   task: taskRefSchema.nullable(),
@@ -168,6 +218,25 @@ export const conversationUpdateBodySchema = z
   .refine((v) => Object.keys(v).length > 0, { message: 'empty update' });
 
 export type ConversationUpdateBody = z.infer<typeof conversationUpdateBodySchema>;
+
+/** Создание группового чата/канала (#91, референс окна «Создание чата»
+ *  Bitrix24): участники + настройки + матрица прав (частичная — остальные
+ *  значения ставит сервер дефолтами). Аватарка группы/канала — НЕ полем
+ *  создания: загрузка файла отдельным эндпоинтом после старта MinIO (#57),
+ *  право загрузки — changeInfo; до того беседа живёт с детерминированной
+ *  цветовой заглушкой из инициалов (модель Telegram/Bitrix24). */
+export const createConversationBodySchema = z.object({
+  type: z.enum(['group', 'project_channel']),
+  title: z.string().trim().min(1).max(128),
+  description: z.string().trim().max(2000).optional(),
+  visibility: z.enum(['closed', 'open']).optional(),
+  /** Автоудаление сообщений беседы (реф Bitrix24): фонд до политики хранения. */
+  autoDeleteMessages: z.boolean().optional(),
+  /** Без создателя: сервер добавляет владельца первым участником (role=owner). */
+  memberIds: z.array(z.uuid()).max(200).optional(),
+  permissions: conversationPermissionsSchema.partial().optional(),
+});
+export type CreateConversationBody = z.infer<typeof createConversationBodySchema>;
 
 export const listConversationsQuerySchema = cursorQuerySchema.extend({
   search: z.string().trim().min(1).max(128).optional(),

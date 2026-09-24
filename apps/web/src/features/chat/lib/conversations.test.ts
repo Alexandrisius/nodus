@@ -9,6 +9,9 @@ function conv(id: string, at: string | null, pinned = false): ConversationListIt
     type: 'direct',
     title: id,
     avatarUrl: null,
+    draft: null,
+    visibility: null,
+    description: null,
     project: null,
     task: null,
     letter: null,
@@ -66,5 +69,18 @@ describe('sortByActivity — единый список бесед', () => {
       conv('pin-empty', null, true),
     ]);
     expect(sorted.map((c) => c.id)).toEqual(['pin-empty', 'plain']);
+  });
+
+  it('черновики — сразу за закреплёнными, выше остальных (канон #91)', () => {
+    const sorted = sortByActivity(
+      [
+        conv('fresh', '2026-09-05T10:00:00Z'),
+        conv('draft-old', '2026-09-01T10:00:00Z'),
+        conv('pin', '2026-09-02T10:00:00Z', true),
+        conv('draft-empty', null),
+      ],
+      (id) => id === 'draft-old' || id === 'draft-empty',
+    );
+    expect(sorted.map((c) => c.id)).toEqual(['pin', 'draft-old', 'draft-empty', 'fresh']);
   });
 });

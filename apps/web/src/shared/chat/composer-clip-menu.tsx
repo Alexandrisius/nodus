@@ -78,14 +78,14 @@ export function ComposerClipMenu({
           {/* Просторные строки меню (gap/padding как в tdesktop): текст и
               значок дышат и оптически выровнены (баг-вердикт 24.09). */}
           <DropdownMenuItem
-            className="gap-2.5 px-2.5 py-2"
+            className="gap-2.5 rounded-xl px-2.5 py-2"
             onClick={() => photoInputRef.current?.click()}
           >
             <Image className="size-4" strokeWidth={1.75} />
             {ui.chat.attachPhoto}
           </DropdownMenuItem>
           <DropdownMenuItem
-            className="gap-2.5 px-2.5 py-2"
+            className="gap-2.5 rounded-xl px-2.5 py-2"
             onClick={() => fileInputRef.current?.click()}
           >
             <FileText className="size-4" strokeWidth={1.75} />
@@ -93,7 +93,10 @@ export function ComposerClipMenu({
           </DropdownMenuItem>
           {/* Опросы — заготовка без окна (вердикт 24.09): пункт и значок на
               месте, механика придёт со своим треком. */}
-          <DropdownMenuItem className="gap-2.5 px-2.5 py-2" onClick={() => toast(ui.chat.pollSoon)}>
+          <DropdownMenuItem
+            className="gap-2.5 rounded-xl px-2.5 py-2"
+            onClick={() => toast(ui.chat.pollSoon)}
+          >
             <ChartColumn className="size-4" strokeWidth={1.75} />
             {ui.chat.attachPoll}
           </DropdownMenuItem>

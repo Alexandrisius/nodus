@@ -77,7 +77,10 @@ export function measureCircuit(pathname = '/', cardMode = false): CircuitGeometr
     active: el.dataset.active === 'true',
     port: centerOf(el),
   }));
-  const tabs = [...document.querySelectorAll<HTMLElement>('[data-tab-port]')].map((el) => ({
+  // Вкладки — ТОЛЬКО из топбара шелла: глобальный запрос ловил порты вкладок
+  // закрывающейся фулскрин-карточки (на wake-замере она ещё в DOM) — после
+  // закрытия слайдера на основном окне оставались «отростки» засечек (баг #91).
+  const tabs = [...header.querySelectorAll<HTMLElement>('[data-tab-port]')].map((el) => ({
     active: el.dataset.active === 'true',
     x: centerOf(el).x,
     label: el.textContent?.trim() ?? '',

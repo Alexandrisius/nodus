@@ -4,7 +4,13 @@ import type {
   MessageAttachment,
   TaskListItem,
 } from '@nodus/contracts';
-import { conversationUpdateBodySchema, ErrorCode, sendMessageBodySchema } from '@nodus/contracts';
+import {
+  conversationUpdateBodySchema,
+  createConversationBodySchema,
+  ErrorCode,
+  saveConversationDraftBodySchema,
+  sendMessageBodySchema,
+} from '@nodus/contracts';
 
 import { http, HttpResponse } from 'msw';
 
@@ -56,6 +62,9 @@ const conversationHandlers = [
       type: 'direct',
       title: null,
       avatarUrl: null,
+      draft: null,
+      visibility: null,
+      description: null,
       project: null,
       task: null,
       letter: null,
@@ -147,8 +156,74 @@ const conversationHandlers = [
     const conversation = demoConversations.find((c) => c.id === params.id);
     if (conversation && !threadRootId) conversation.lastMessage = message;
     // Новое сообщение снимает «Посмотреть позже»: счётчик снова виден.
-    if (conversation) conversation.snoozed = false;
+    // Отправка ГАСИТ черновик (контракт #91, урок tdesktop#26236): сервер
+    // делает это в транзакции отправки, а не клиент по клику «Отправить».
+    if (conversation) {
+      conversation.snoozed = false;
+      conversation.draft = null;
+    }
     return HttpResponse.json(message, { status: 201 });
+  }),
+
+  /** Черновик пользователя (контракт #91): клиент шлёт PUT с debounce 1000 мс
+   *  после паузы набора + flush при переключении беседы и скрытии вкладки;
+   *  пустой текст = очистка. revision растёт монотонно (last-write-wins). */
+  http.put('/api/v1/chat/conversations/:id/draft', async ({ params, request }) => {
+    const parsed = saveConversationDraftBodySchema.safeParse(await request.json());
+    if (!parsed.success)
+      return HttpResponse.json(
+        { code: ErrorCode.VALIDATION_FAILED, message: 'Invalid body' },
+        { status: 422 },
+      );
+    const conversation = demoConversations.find((c) => c.id === params.id);
+    if (!conversation)
+      return HttpResponse.json(
+        { code: ErrorCode.NOT_FOUND, message: 'Conversation not found' },
+        { status: 404 },
+      );
+    conversation.draft = parsed.data.text
+      ? {
+          text: parsed.data.text,
+          revision: (conversation.draft?.revision ?? 0) + 1,
+          updatedAt: new Date().toISOString(),
+        }
+      : null;
+    return HttpResponse.json(conversation.draft);
+  }),
+
+  /** Создание группового чата/канала (#91, реф окна Bitrix24): владелец —
+   *  первый участник, матрица прав — дефолты сервера, аватарка — цветная
+   *  заглушка из инициалов до старта MinIO (#57, право загрузки changeInfo). */
+  http.post('/api/v1/chat/conversations', async ({ request }) => {
+    const parsed = createConversationBodySchema.safeParse(await request.json());
+    if (!parsed.success)
+      return HttpResponse.json(
+        { code: ErrorCode.VALIDATION_FAILED, message: 'Invalid body' },
+        { status: 422 },
+      );
+    const members = (parsed.data.memberIds ?? [])
+      .filter((id) => demoUserListItems.some((u) => u.id === id))
+      .map((id) => userRef(id));
+    const conversation: ConversationListItem = {
+      id: crypto.randomUUID(),
+      type: parsed.data.type,
+      title: parsed.data.title,
+      avatarUrl: null,
+      draft: null,
+      visibility: parsed.data.visibility ?? 'closed',
+      description: parsed.data.description ?? null,
+      project: null,
+      task: null,
+      letter: null,
+      membersPreview: [userRef(currentAuthUser.id), ...members],
+      lastMessage: null,
+      unreadCount: 0,
+      pinned: false,
+      muted: false,
+      snoozed: false,
+    };
+    demoConversations.unshift(conversation);
+    return HttpResponse.json(conversation, { status: 201 });
   }),
 
   /** Контекстное меню беседы (ПКМ, реф Битрикс24, вердикт 14.09.2026):

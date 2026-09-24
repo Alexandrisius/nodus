@@ -128,6 +128,18 @@ export function hasComposer(id: string): boolean {
   return registry.has(id);
 }
 
+/** Курсор в композер БЕСЕДЫ после закрытия глобальных диалогов (пересылка,
+ *  удаление, откреп — баг #91): диалог не знает scope ленты (feed/Conversation),
+ *  пробуем оба ключа зарегистрированных композеров беседы. */
+export function focusConversationComposerWhenFree(conversationId: string, deadlineMs = 600): void {
+  for (const key of [`conversation:${conversationId}`, `feed:${conversationId}`]) {
+    if (registry.has(key)) {
+      focusComposerWhenFree(key, deadlineMs);
+      return;
+    }
+  }
+}
+
 /** Фокус в композер ПОСЛЕ закрытия оверлей-слоя (пункты контекстного меню
  *  «Ответить»/«Редактировать»): Radix возвращает фокус триггеру на размонтаже
  *  контента (после exit-анимации) — немедленный focus перетирается (баг-

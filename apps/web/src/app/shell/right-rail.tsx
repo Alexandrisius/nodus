@@ -4,6 +4,7 @@ import { ui } from '@nodus/contracts';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { useConversations } from '../../features/chat/api/chat-api.js';
+import { useChatDrafts } from '../../shared/chat/chat-drafts.js';
 import {
   conversationTitle,
   isNotesConversation,
@@ -156,9 +157,21 @@ export function RightRail() {
   }
 
   // Экспресс-лента: все беседы КРОМЕ чатов задач; закреплённые сверху, затем
-  // по активности (та же сортировка, что список мессенджера).
+  // черновики, затем по активности (та же сортировка, что список мессенджера).
+  const draftSignature = useChatDrafts((s) =>
+    Object.entries(s.drafts)
+      .filter(([, draft]) => draft.text)
+      .map(([key]) => key)
+      .join('|'),
+  );
+  const railChats = (data?.items ?? []).filter((c) => c.type !== 'task' && c.type !== 'letter');
+  // Серверный draft тоже поднимает беседу (контракт #91), как в списке мессенджера.
   const chats = sortByActivity(
-    (data?.items ?? []).filter((c) => c.type !== 'task' && c.type !== 'letter'),
+    railChats,
+    (id) =>
+      draftSignature.includes(`conversation:${id}`) ||
+      draftSignature.includes(`feed:${id}`) ||
+      railChats.some((c) => c.id === id && c.draft?.text),
   );
 
   return (

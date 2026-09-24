@@ -28,6 +28,7 @@ import { ComposerBanner } from './composer-banner.js';
 import { ComposerClipMenu } from './composer-clip-menu.js';
 import { addFiles } from './composer-files.js';
 import { registerComposer, unregisterComposer } from './composer-focus.js';
+import { dropDraftSync, flushDraftSync, scheduleDraftSync } from './draft-sync.js';
 import { ForwardBanner } from './forward-banner.js';
 import { useForwardPending } from './forward-pending.js';
 import { useJumpStore } from './jump-store.js';
@@ -169,6 +170,14 @@ export function ChatComposer({
     return () => unregisterComposer(focusId, el);
   }, [focusId]);
 
+  // Черновик на сервер БЕЗ спама каждым символом (контракт #91): debounce
+  // 1000 мс после паузы набора; переключение беседы (размонтирование) и
+  // скрытие вкладки — flush; тредовые scope синхронизация пропускает.
+  useEffect(() => {
+    scheduleDraftSync(focusId, text);
+  }, [text, focusId]);
+  useEffect(() => () => flushDraftSync(focusId), [focusId]);
+
   const uploading = draft.attachments.some((a) => a.status === 'uploading');
   const readyAttachments = draft.attachments.filter((a) => a.status === 'ready' && a.attachment);
   const hasContent = text.trim().length > 0 || readyAttachments.length > 0;
@@ -207,6 +216,7 @@ export function ChatComposer({
           onSuccess: () => {
             useForwardPending.getState().clear(focusId);
             store.setText(focusId, '');
+            dropDraftSync(focusId);
             toast.success(ui.chat.forwardDone);
           },
         },
@@ -223,6 +233,9 @@ export function ChatComposer({
     // Своё сообщение видно с любой позиции скролла (вердикт 24.09).
     useScrollEndStore.getState().request(focusId);
     store.clear(focusId);
+    // Сервер гасит черновик в транзакции отправки — клиент снимает
+    // несостоявшийся PUT, чтобы не «воскресить» черновик (tdesktop#26236).
+    dropDraftSync(focusId);
   }
 
   function onSubmitForm(event: FormEvent) {

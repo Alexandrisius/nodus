@@ -1,12 +1,20 @@
-import { Search, X } from 'lucide-react';
+import { Megaphone, Search, SquarePen, Users, X } from 'lucide-react';
 import { useState } from 'react';
 import { ui } from '@nodus/contracts';
+import { Button } from '@nodus/ui/components/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@nodus/ui/components/dropdown-menu';
 import { Empty, EmptyTitle } from '@nodus/ui/components/empty';
 import { Input } from '@nodus/ui/components/input';
 
 import { useAuthStore } from '../../../shared/auth-store.js';
 import { useConversations } from '../api/chat-api.js';
 import { conversationSubtitle, conversationTitle } from '../lib/conversations.js';
+import { ChatCreateDialog, type CreateConversationKind } from './chat-create-dialog.js';
 import { ChatSettings } from './chat-settings.js';
 import { ChatWorkspace } from './chat-workspace.js';
 import { ConversationList } from './conversation-list.js';
@@ -46,6 +54,9 @@ export function MessengerBody({
   // Локальный поиск по списку бесед (модель Битрикс24: «Найти сотрудника
   // или чат»): подстрока по названию и подписи (последнее сообщение).
   const [query, setQuery] = useState('');
+  // Создание группового чата/канала (#91, реф Bitrix24: кнопка СПРАВА от
+  // поиска с попапом команд; команда открывает окно настройки чата).
+  const [createKind, setCreateKind] = useState<CreateConversationKind | null>(null);
 
   const q = query.trim().toLowerCase();
   const items = (data?.items ?? [])
@@ -105,7 +116,46 @@ export function MessengerBody({
               </button>
             ) : null}
           </div>
+          {/* Кнопка создания чата/канала — СПРАВА от поиска (реф Bitrix24,
+              вердикт владельца 24.09, #91): попап команд, команда открывает
+              окно настройки чата. */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="ml-1.5 shrink-0 text-muted-foreground hover:bg-accent hover:text-foreground"
+                aria-label={ui.chat.createChat}
+                title={ui.chat.createChat}
+              >
+                <SquarePen className="size-4" strokeWidth={1.75} />
+              </Button>
+            </DropdownMenuTrigger>
+            {/* Попап команд: ЛЕВАЯ кромка попапа = левая кромка кнопки
+                (вердикт владельца 24.09: align start без смещения). */}
+            <DropdownMenuContent align="start" className="w-56">
+              <DropdownMenuItem onClick={() => setCreateKind('group')}>
+                <Users className="size-4" strokeWidth={1.75} />
+                {ui.chat.createGroupChat}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setCreateKind('project_channel')}>
+                <Megaphone className="size-4" strokeWidth={1.75} />
+                {ui.chat.createChannel}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
+        {createKind ? (
+          <ChatCreateDialog
+            kind={createKind}
+            onCreated={(conversationId) => {
+              setCreateKind(null);
+              onSelectConversation(conversationId);
+            }}
+            onClose={() => setCreateKind(null)}
+          />
+        ) : null}
         <ConversationList
           conversations={items}
           isLoading={isLoading}

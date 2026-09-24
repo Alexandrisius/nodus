@@ -24,7 +24,7 @@ export class ApiError extends Error {
 }
 
 interface RequestOptions {
-  method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
   /** false — без Bearer (login/refresh). */
   auth?: boolean;
@@ -32,9 +32,11 @@ interface RequestOptions {
    *  несколькими вызовами (ручной retry той же операции). По умолчанию
    *  генерируется на вызов. */
   idempotencyKey?: string;
+  /** Отмена in-flight запроса (черновики: последняя попытка выигрывает, #91). */
+  signal?: AbortSignal;
 }
 
-const MUTATION_METHODS = new Set(['POST', 'PATCH', 'DELETE']);
+const MUTATION_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 async function rawRequest(path: string, options: RequestOptions): Promise<Response> {
   const { accessToken } = useAuthStore.getState();
@@ -53,6 +55,7 @@ async function rawRequest(path: string, options: RequestOptions): Promise<Respon
     headers,
     body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
     credentials: 'same-origin', // refresh-cookie nodus_refresh
+    signal: options.signal,
   });
 }
 
