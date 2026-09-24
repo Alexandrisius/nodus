@@ -4,10 +4,13 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
 import { App } from './app/app';
+import { getApiMockConfig } from './shared/api/api-mock-config.js';
 
-/** MSW (ADR-0001): воркер стартует ДО рендера, только при VITE_API_MOCK=true. */
+/** MSW (ADR-0001, #48): воркер стартует ДО рендера, только если есть
+ *  мокаемые домены: VITE_API_MOCK=true — демо целиком, список —
+ *  покомпонентный режим, false/пусто — живой API без воркера. */
 async function enableMocking(): Promise<void> {
-  if (import.meta.env.VITE_API_MOCK !== 'true') return;
+  if (!getApiMockConfig().enabled) return;
   const { worker } = await import('./app/msw-browser.js');
   // Шумим только по нашим /api/*: посторонние запросы (антивирус, devtools)
   // молча пропускаем — иначе консоль засорена предупреждениями «нет хендлера».

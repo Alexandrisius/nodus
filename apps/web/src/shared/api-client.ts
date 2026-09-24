@@ -60,13 +60,20 @@ async function rawRequest(path: string, options: RequestOptions): Promise<Respon
 }
 
 export async function api<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  let response = await rawRequest(path, options);
+  // Ключ идемпотентности резолвится ОДИН раз на логический вызов (#48):
+  // прозрачный refresh внутри api() повторяет запрос с тем же ключом
+  // (как и обещает шапка файла), иначе бэкенд не сведёт retry в одну мутацию.
+  const resolved =
+    MUTATION_METHODS.has(options.method ?? 'GET') && !options.idempotencyKey
+      ? { ...options, idempotencyKey: crypto.randomUUID() }
+      : options;
+  let response = await rawRequest(path, resolved);
 
   // Access протух → один прозрачный refresh и повтор (I4: без спиннеров).
-  if (response.status === 401 && options.auth !== false) {
+  if (response.status === 401 && resolved.auth !== false) {
     const refreshed = await useAuthStore.getState().tryRefresh();
     if (refreshed) {
-      response = await rawRequest(path, options);
+      response = await rawRequest(path, resolved);
     }
   }
 
