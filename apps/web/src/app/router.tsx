@@ -1,4 +1,4 @@
-import { lazy } from 'react';
+import { lazy, type ComponentType } from 'react';
 import {
   createRootRoute,
   createRoute,
@@ -14,32 +14,60 @@ import { resolveHidden, resolveOrder } from './shell/ui-prefs.js';
 import { useUiPrefsStore } from './shell/ui-prefs-store.js';
 import { useAuthStore } from '../shared/auth-store.js';
 
-const LoginPage = lazy(() =>
+/**
+ * Гибель lazy-чанка после деплоя (вкладка оставлена открытой через пересборку
+ * прода/рестарт dev): импорт чанка со старым именем даёт 404 и раздел «не
+ * открывается» (репорт владельца 24.09, #88). Guard: ошибка импорта → ОДИН
+ * reload страницы за сессионный флаг (против цикла), успешный импорт флаг
+ * снимает; повторный неуспех после reload — честная ошибка в экран роутера.
+ */
+const CHUNK_RELOAD_KEY = 'nodus-chunk-reload';
+function pageLoader(loader: () => Promise<{ default: ComponentType }>) {
+  return lazy(() =>
+    loader().then(
+      (m) => {
+        sessionStorage.removeItem(CHUNK_RELOAD_KEY);
+        return m;
+      },
+      (error: unknown) => {
+        if (!sessionStorage.getItem(CHUNK_RELOAD_KEY)) {
+          sessionStorage.setItem(CHUNK_RELOAD_KEY, '1');
+          window.location.reload();
+          return new Promise<never>(() => {});
+        }
+        sessionStorage.removeItem(CHUNK_RELOAD_KEY);
+        throw error;
+      },
+    ),
+  );
+}
+
+const LoginPage = pageLoader(() =>
   import('../features/auth/pages/login-page.js').then((m) => ({ default: m.LoginPage })),
 );
-const HomePage = lazy(() =>
+const HomePage = pageLoader(() =>
   import('../features/home/pages/home-page.js').then((m) => ({ default: m.HomePage })),
 );
-const TasksPage = lazy(() =>
+const TasksPage = pageLoader(() =>
   import('../features/tasks/pages/tasks-page.js').then((m) => ({ default: m.TasksPage })),
 );
-const LettersPage = lazy(() =>
+const LettersPage = pageLoader(() =>
   import('../features/correspondence/pages/letters-page.js').then((m) => ({
     default: m.LettersPage,
   })),
 );
-const CounterpartiesPage = lazy(() =>
+const CounterpartiesPage = pageLoader(() =>
   import('../features/crm/pages/counterparties-page.js').then((m) => ({
     default: m.CounterpartiesPage,
   })),
 );
-const ProjectsPage = lazy(() =>
+const ProjectsPage = pageLoader(() =>
   import('../features/projects/pages/projects-page.js').then((m) => ({ default: m.ProjectsPage })),
 );
-const ChatPage = lazy(() =>
+const ChatPage = pageLoader(() =>
   import('../features/chat/pages/chat-page.js').then((m) => ({ default: m.ChatPage })),
 );
-const EmployeesPage = lazy(() =>
+const EmployeesPage = pageLoader(() =>
   import('../features/directory/pages/employees-page.js').then((m) => ({
     default: m.EmployeesPage,
   })),
