@@ -62,6 +62,9 @@ export class ConversationItemMapper {
       membersPreview: preview,
       lastMessage,
       unreadCount: row.unread_count,
+      // Watermark текущего пользователя: якорь «первое непрочитанное» при
+      // открытии беседы (раунд 3) — seq > myLastReadSeq.
+      myLastReadSeq: Number(row.my_last_read_seq),
       pinned: row.pinned,
       muted: row.muted,
       snoozed: row.snoozed,

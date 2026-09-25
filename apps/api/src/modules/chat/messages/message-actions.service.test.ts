@@ -21,12 +21,15 @@ function makeService() {
     copyAttachments: vi.fn(),
     touchLastMessageAt: vi.fn(),
     countThreadReplies: vi.fn(),
-    upsertThreadParticipant: vi.fn(),
+    countAllThreadReplies: vi.fn(),
+    attachmentsFor: vi.fn(async () => []),
+    findByIdInConversation: vi.fn(),
     findForwardSources: vi.fn(async () => [
       { id: 'src-1', text: 'текст', deletedAt: null, authorId: 'a-1', threadRootId: null },
     ]),
   };
   const pins = { pinnedIds: vi.fn() };
+  const threadParticipants = { upsert: vi.fn() };
   const conversations = {
     findMembership: vi.fn(async () => ({ role: 'owner' })),
     findTypeAndPermissions: vi.fn(async () => ({
@@ -37,7 +40,7 @@ function makeService() {
     unsnooze: vi.fn(),
     revealHidden: vi.fn(),
   };
-  const mapper = { toDtos: vi.fn() };
+  const mapper = { toDtos: vi.fn(), toFreshDto: vi.fn() };
   const txRunner = { run: vi.fn((cb: (tx: string) => unknown) => cb(TX)) };
   const eventBus = { emit: vi.fn() };
   const userProfiles = { findRefs: vi.fn(async () => []) };
@@ -49,8 +52,9 @@ function makeService() {
     txRunner as never,
     eventBus as never,
     userProfiles as never,
+    threadParticipants as never,
   );
-  return { service, conversations };
+  return { service, conversations, messages, mapper };
 }
 
 describe('MessageActionsService.forward — раскрытие скрытой беседы (#103)', () => {
@@ -71,5 +75,42 @@ describe('MessageActionsService.forward — раскрытие скрытой б
     await service.forward(ME, TARGET, body, 'fwd-key');
     expect(conversations.unsnooze).toHaveBeenCalledWith(TARGET, ME, TX);
     expect(conversations.revealHidden).toHaveBeenCalledWith(TARGET, TX);
+  });
+});
+
+describe('MessageActionsService.forward — payload DTO (раунд 3)', () => {
+  it('профили читаются ПО соединению транзакции (tx), не общим пулом', async () => {
+    const { service, messages, mapper } = makeService();
+    messages.insertMessage.mockImplementation((async (input: { id: string; seq: bigint }) => ({
+      id: input.id,
+      conversationId: TARGET,
+      seq: input.seq,
+      authorId: ME,
+      clientMessageId: 'k:0',
+      text: 'текст',
+      replyToId: null,
+      replySnapshot: null,
+      threadRootId: null,
+      fwdConversationId: SOURCE,
+      fwdMessageId: 'src-1',
+      fwdAuthorId: 'a-1',
+      fwdThreadRootId: null,
+      editedAt: null,
+      deletedAt: null,
+      obliterated: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })) as never);
+    mapper.toFreshDto.mockResolvedValue({} as never);
+    await service.forward(
+      ME,
+      TARGET,
+      { sourceConversationId: SOURCE, messageIds: ['src-1'] },
+      'key-tx',
+    );
+    expect(mapper.toFreshDto).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ tx: TX }),
+    );
   });
 });

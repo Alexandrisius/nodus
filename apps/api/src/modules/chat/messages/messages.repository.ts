@@ -371,19 +371,47 @@ export class MessagesRepository {
     `);
   }
 
-  /** Одноразовая привязка загруженных вложений (неизвестные молча пропускаются). */
+  /** Одноразовая привязка загруженных вложений (неизвестные молча пропускаются).
+   *  Возвращает привязанные строки (порядок по sort_order) — они нужны для
+   *  DTO сообщения в payload события message_sent (раунд 3). */
   async claimAttachments(
     messageId: string,
     attachmentIds: string[],
     ownerId: string,
     tx: TransactionClient,
-  ): Promise<void> {
-    if (attachmentIds.length === 0) return;
+  ): Promise<
+    {
+      id: string;
+      name: string;
+      size: number;
+      mime: string;
+      kind: string;
+      width: number | null;
+      height: number | null;
+    }[]
+  > {
+    if (attachmentIds.length === 0) return [];
     await tx.$executeRaw(Prisma.sql`
       UPDATE message_attachments ma
       SET message_id = ${messageId}::uuid, sort_order = ord.ordinal - 1
       FROM unnest(${attachmentIds}::uuid[]) WITH ORDINALITY AS ord(id, ordinal)
       WHERE ma.id = ord.id AND ma.owner_id = ${ownerId}::uuid AND ma.message_id IS NULL
+    `);
+    return tx.$queryRaw<
+      {
+        id: string;
+        name: string;
+        size: number;
+        mime: string;
+        kind: string;
+        width: number | null;
+        height: number | null;
+      }[]
+    >(Prisma.sql`
+      SELECT id, name, size, mime, kind, width, height
+      FROM message_attachments
+      WHERE message_id = ${messageId}::uuid
+      ORDER BY sort_order ASC, id ASC
     `);
   }
 
@@ -407,8 +435,12 @@ export class MessagesRepository {
     `);
   }
 
-  /** Вложения сообщений (для маппера). */
-  async attachmentsFor(messageIds: string[]): Promise<
+  /** Вложения сообщений (для маппера; tx — чтение в транзакции отправки,
+   *  когда строка ещё не закоммичена — payload события, раунд 3). */
+  async attachmentsFor(
+    messageIds: string[],
+    tx?: TransactionClient,
+  ): Promise<
     {
       messageId: string;
       id: string;
@@ -422,7 +454,8 @@ export class MessagesRepository {
     }[]
   > {
     if (messageIds.length === 0) return [];
-    return this.prisma.$queryRaw(Prisma.sql`
+    const client = this.client(tx);
+    return client.$queryRaw(Prisma.sql`
       SELECT message_id AS "messageId", id, name, size, mime, kind, width, height, sort_order AS "sortOrder"
       FROM message_attachments
       WHERE message_id = ANY(${messageIds}::uuid[])
@@ -477,20 +510,6 @@ export class MessagesRepository {
       FROM messages
       WHERE thread_root_id = ANY(${rootIds}::uuid[]) AND deleted_at IS NULL AND NOT obliterated
       GROUP BY thread_root_id
-    `);
-  }
-
-  /** Участники треда (уведомления — только им; заполняется с первого ответа). */
-  async upsertThreadParticipant(
-    threadRootId: string,
-    userId: string,
-    source: 'author' | 'replier' | 'watcher',
-    tx: TransactionClient,
-  ): Promise<void> {
-    await tx.$executeRaw(Prisma.sql`
-      INSERT INTO thread_participants (thread_root_id, user_id, source)
-      VALUES (${threadRootId}::uuid, ${userId}::uuid, ${source})
-      ON CONFLICT DO NOTHING
     `);
   }
 

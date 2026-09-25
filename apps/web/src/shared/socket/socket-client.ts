@@ -6,7 +6,7 @@ import { isDomainMocked } from '../api/api-mock-config.js';
 import { useAuthStore } from '../auth-store.js';
 import { chatKeys } from '../chat/api.js';
 import { usePresenceStore } from './presence-store.js';
-import { applyRealtimeInvalidation } from './socket-invalidation.js';
+import { createRealtimeInvalidator, type RealtimeInvalidator } from './socket-invalidation.js';
 import { useSocketStatusStore } from './socket-status-store.js';
 import { useTypingStore } from './typing-store.js';
 import { wsDebugLog } from './ws-debug.js';
@@ -35,6 +35,8 @@ const DOMAIN_EVENTS = [
 ] as const;
 
 let socket: Socket | null = null;
+/** Инвалидатор доменных событий (батчер + локальное применение, раунд 3). */
+let invalidator: RealtimeInvalidator | null = null;
 
 /** Беседы, подписанные этим клиентом (пере-join после reconnect). */
 const joinedConversations = new Set<string>();
@@ -60,6 +62,7 @@ export function connectChatSocket(queryClient: QueryClient): void {
     },
   });
   socket = client;
+  invalidator = createRealtimeInvalidator(queryClient);
   const status = useSocketStatusStore.getState();
   const typing = useTypingStore.getState();
   const presence = usePresenceStore.getState();
@@ -72,6 +75,7 @@ export function connectChatSocket(queryClient: QueryClient): void {
     });
     // Reconnect: догон состояния (события разрыва пропущены — invalidate
     // всего чат-дерева ключей) + повторная подписка на активные беседы.
+    invalidator?.flush();
     void queryClient.invalidateQueries({ queryKey: chatKeys.all });
     for (const conversationId of joinedConversations) {
       emitJoin(conversationId);
@@ -114,14 +118,22 @@ export function connectChatSocket(queryClient: QueryClient): void {
     client.on(event, (raw: unknown) => {
       const parsed = realtimeEnvelopeSchema.safeParse(raw);
       if (parsed.success) {
-        applyRealtimeInvalidation(queryClient, parsed.data satisfies RealtimeEnvelope);
+        invalidator?.handle(parsed.data satisfies RealtimeEnvelope);
       }
     });
   }
   client.on(REALTIME_EVENTS.TYPING, (raw: unknown) => {
-    const payload = raw as { conversationId?: unknown; userId?: unknown };
+    const payload = raw as {
+      conversationId?: unknown;
+      userId?: unknown;
+      threadRootId?: unknown;
+    };
     if (typeof payload.conversationId === 'string' && typeof payload.userId === 'string') {
-      typing.touch(payload.conversationId, payload.userId);
+      typing.touch(
+        payload.conversationId,
+        payload.userId,
+        typeof payload.threadRootId === 'string' ? payload.threadRootId : null,
+      );
     }
   });
   client.on(REALTIME_EVENTS.PRESENCE_SNAPSHOT, (raw: unknown) => {
@@ -144,6 +156,8 @@ export function disconnectChatSocket(): void {
   }
   socket.disconnect();
   socket = null;
+  invalidator?.dispose();
+  invalidator = null;
   joinedConversations.clear();
   revertedToClassicUpgrade = false;
   useSocketStatusStore.getState().setConnected(false);

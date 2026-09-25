@@ -166,3 +166,82 @@ export function applyReadReceipt(conversationId: string, upToSeq: number): numbe
   }
   return upToSeq;
 }
+
+/** Наблюдатели трэдов (раунд 3): rootId → userId → watermark трэда. Мок-модель
+ *  минимальна: реплай в трэд делает наблюдателем, @упоминание — тоже,
+ *  кнопка «Следить» — toggle; квитанция из треда двигает watermark (точка). */
+export const threadWatchers = new Map<string, Map<string, number>>();
+
+/** Карта наблюдателей трэда (создаётся по необходимости). */
+export function threadWatchersOf(threadRootId: string): Map<string, number> {
+  let watchers = threadWatchers.get(threadRootId);
+  if (!watchers) {
+    watchers = new Map();
+    threadWatchers.set(threadRootId, watchers);
+  }
+  return watchers;
+}
+
+export function watchThreadMock(threadRootId: string, userId: string): boolean {
+  const watchers = threadWatchersOf(threadRootId);
+  if (watchers.has(userId)) {
+    watchers.delete(userId);
+    return false;
+  }
+  watchers.set(userId, 0);
+  return true;
+}
+
+/** Квитанция из треда: гасит «есть новые» (чужие ответы ≤ upToSeq прочитаны). */
+export function applyThreadReadReceipt(
+  threadRootId: string,
+  userId: string,
+  upToSeq: number,
+): void {
+  const watchers = threadWatchers.get(threadRootId);
+  if (!watchers?.has(userId)) return;
+  watchers.set(userId, Math.max(watchers.get(userId) ?? 0, upToSeq));
+}
+
+/** Состояния трэдов беседы для текущего пользователя (mock GET threads/state):
+ *  строка на каждый трэд, где он наблюдатель. */
+export function threadStatesMock(conversationId: string, userId: string) {
+  const items: { threadRootId: string; watched: boolean; unreadCount: number }[] = [];
+  for (const [threadRootId, watchers] of threadWatchers) {
+    const watermark = watchers.get(userId);
+    if (watermark === undefined) continue;
+    const root = demoMessages.find(
+      (m) => m.id === threadRootId && m.conversationId === conversationId,
+    );
+    if (!root) continue;
+    const unreadCount = demoMessages.filter(
+      (m) =>
+        m.threadRootId === threadRootId &&
+        !m.deletedAt &&
+        m.author.id !== userId &&
+        m.seq > watermark,
+    ).length;
+    items.push({ threadRootId, watched: true, unreadCount });
+  }
+  return items;
+}
+
+/** @упоминания мока (паритет серверу, раунд 3): токены @Имя против ФИО
+ *  демо-справочника (точное совпадение имени/фамилии/ФИО). */
+export function parseMentionIds(
+  text: string,
+  resolve: (token: string) => { id: string; displayName: string } | undefined,
+  authorId: string,
+): string[] {
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  for (const match of text.matchAll(/@([\p{L}\p{M}\p{N}._-]+)/gu)) {
+    const token = match[1];
+    if (!token) continue;
+    const person = resolve(token);
+    if (!person || person.id === authorId || seen.has(person.id)) continue;
+    seen.add(person.id);
+    ids.push(person.id);
+  }
+  return ids;
+}

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import {
@@ -8,11 +8,19 @@ import {
   type Paginated,
   type ReadConversationResult,
   type SendMessageBody,
+  type ThreadState,
 } from '@nodus/contracts';
 
 import { EventBus } from '../../../core/events/event-bus.js';
-import { TransactionRunner } from '../../../core/database/transaction-runner.js';
+import {
+  TransactionRunner,
+  type TransactionClient,
+} from '../../../core/database/transaction-runner.js';
 import { DomainException } from '../../../core/errors/domain-exception.js';
+import {
+  USER_PROFILE_READER,
+  type UserProfileReader,
+} from '../../../core/ports/user-profile.port.js';
 import { decodeCursor, encodeCursor } from '../../../core/pagination/cursor.util.js';
 import {
   ConversationsRepository,
@@ -20,7 +28,9 @@ import {
 } from '../conversations/conversations.repository.js';
 import { can, parsePermissions } from '../permissions.js';
 import { MessageDtoMapper } from './message-dto.mapper.js';
+import { parseMentionTokens } from './mentions.js';
 import { MessagesRepository, type MessageRow } from './messages.repository.js';
+import { ThreadParticipantsRepository } from './thread-participants.repository.js';
 import { buildReplySnapshot } from './reply-snapshot.js';
 
 const messageCursorSchema = z.object({ s: z.number().int().positive() });
@@ -55,6 +65,8 @@ export class MessagesService {
     private readonly mapper: MessageDtoMapper,
     private readonly txRunner: TransactionRunner,
     private readonly eventBus: EventBus,
+    @Inject(USER_PROFILE_READER) private readonly userProfiles: UserProfileReader,
+    private readonly threadParticipants: ThreadParticipantsRepository,
   ) {}
 
   // ===== Чтение =====
@@ -91,11 +103,16 @@ export class MessagesService {
    * Watermark двигается GREATEST-ом в своей транзакции; событие — только при
    * реальном изменении (дубликаты/повторы тихи). readAt — фактическое время
    * из строки, не момент эмита.
+   *
+   * threadRootId (раунд 3) — квитанция ИЗ ТРЕДА: сверх watermark беседы
+   * («увидел где угодно = просмотрено») двигает watermark трэда НАБЛЮДАТЕЛЯ
+   * (точка «есть новые» на посте гаснет); не-наблюдателю писать нечего.
    */
   async readConversation(
     userId: string,
     conversationId: string,
     upToSeq: number,
+    threadRootId?: string,
   ): Promise<ReadConversationResult> {
     return this.txRunner.run(async (tx) => {
       const membership = await this.conversations.findMembership(conversationId, userId, tx);
@@ -103,12 +120,22 @@ export class MessagesService {
       const lastSeq = await this.conversations.findLastSeq(conversationId, tx);
       if (lastSeq === null) throw DomainException.notFound('Conversation not found');
       const target = lastSeq < BigInt(upToSeq) ? lastSeq : BigInt(upToSeq);
+      if (threadRootId !== undefined) {
+        const root = await this.repo.findByIdInConversation(conversationId, threadRootId, tx);
+        if (!root || root.threadRootId !== null) {
+          throw DomainException.notFound('Thread root not found');
+        }
+      }
       const { advanced, lastReadAt } = await this.repo.advanceReadCursor(
         conversationId,
         userId,
         target,
         tx,
       );
+      if (threadRootId !== undefined) {
+        // Тихо: событие беседы ниже уже инвалидирует thread-state клиентам.
+        await this.threadParticipants.advanceReadCursor(threadRootId, userId, target, tx);
+      }
       if (advanced) {
         await this.eventBus.emit(
           tx,
@@ -142,6 +169,10 @@ export class MessagesService {
     idempotencyKey: string | undefined,
   ): Promise<SendResult> {
     const clientMessageId = idempotencyKey ?? randomUUID();
+    // @упоминания (раунд 3): справочник читаем ДО транзакции — текст известен
+    // заранее, а второе соединение пула внутри tx голодает его под пачкой
+    // параллельных отправок (repro chat-reliability).
+    const mentionMatches = await this.resolveMentionMatches(body.text);
     return this.txRunner.run(async (tx) => {
       const membership = await this.conversations.findMembership(conversationId, userId, tx);
       if (!membership) throw DomainException.notFound('Conversation not found');
@@ -184,16 +215,23 @@ export class MessagesService {
 
       // Снапшот цитаты (оригинал — только этой беседы: чужое не утекает).
       let replySnapshot: ReturnType<typeof buildReplySnapshot> | null = null;
+      let replyOriginalRow: MessageRow | null = null;
       if (body.replyToId) {
-        const original = await this.repo.findByIdInConversation(conversationId, body.replyToId, tx);
+        replyOriginalRow = await this.repo.findByIdInConversation(
+          conversationId,
+          body.replyToId,
+          tx,
+        );
         const originalAttachments =
-          original && !original.deletedAt ? await this.repo.attachmentsFor([original.id]) : [];
+          replyOriginalRow && !replyOriginalRow.deletedAt
+            ? await this.repo.attachmentsFor([replyOriginalRow.id], tx)
+            : [];
         replySnapshot = buildReplySnapshot(
-          original
+          replyOriginalRow
             ? {
-                authorId: original.authorId,
-                text: original.text,
-                deleted: original.deletedAt !== null,
+                authorId: replyOriginalRow.authorId,
+                text: replyOriginalRow.text,
+                deleted: replyOriginalRow.deletedAt !== null,
                 attachmentKind: (originalAttachments[0]?.kind as 'image' | 'file') ?? null,
               }
             : null,
@@ -230,7 +268,12 @@ export class MessagesService {
       }
 
       // Вложения одноразовые (мок); активность беседы — только корневые.
-      await this.repo.claimAttachments(inserted.id, body.attachmentIds ?? [], userId, tx);
+      const claimedAttachments = await this.repo.claimAttachments(
+        inserted.id,
+        body.attachmentIds ?? [],
+        userId,
+        tx,
+      );
       await this.conversations.clearDraft(conversationId, userId, tx);
       await this.conversations.unsnooze(conversationId, userId, tx);
       // Активность раскрывает беседу скрывшим её участникам (#103).
@@ -240,9 +283,13 @@ export class MessagesService {
       } else {
         // Автор корня — участник треда с момента первого ответа (уведомления).
         if (threadRoot && threadRoot.authorId !== userId) {
-          await this.repo.upsertThreadParticipant(threadRootId, threadRoot.authorId, 'author', tx);
+          await this.threadParticipants.upsert(threadRootId, threadRoot.authorId, 'author', tx);
         }
-        await this.repo.upsertThreadParticipant(threadRootId, userId, 'replier', tx);
+        await this.threadParticipants.upsert(threadRootId, userId, 'replier', tx);
+        // Свой ответ = «я видел тред до сюда» (модель Telegram): watermark
+        // трэда реплайера доходит до seq ответа — прежние чужие ответы не
+        // вспыхивают «непрочитанными» у только что подключившегося.
+        await this.threadParticipants.advanceReadCursor(threadRootId, userId, inserted.seq, tx);
         const priorReplies = await this.repo.countThreadReplies(threadRootId, inserted.id, tx);
         if (priorReplies === 0) {
           await this.eventBus.emit(
@@ -253,7 +300,20 @@ export class MessagesService {
           );
         }
       }
+      // @упоминания (раунд 3): упомянутые — наблюдатели трэда этого сообщения
+      // (для корневого — его будущего треда); соответствие решено до tx.
+      await this.addMentionWatchers(tx, threadRootId ?? inserted.id, mentionMatches, userId);
 
+      const members = await this.conversations.listMembers([conversationId], tx);
+      // Полный DTO в payload (раунд 3): клиенты применяют событие локально по
+      // seq без рефеча («буря рефечей»); собираем из данных транзакции.
+      const payloadMessage = await this.mapper.toFreshDto(inserted, {
+        viewerId: userId,
+        members,
+        replyOriginal: replyOriginalRow,
+        attachments: claimedAttachments,
+        tx,
+      });
       await this.eventBus.emit(
         tx,
         CHAT_EVENTS.MESSAGE_SENT,
@@ -264,15 +324,48 @@ export class MessagesService {
           authorId: userId,
           threadRootId,
           forwarded: false,
+          message: payloadMessage,
         },
         { actorId: userId, aggregateType: 'conversation', aggregateId: conversationId },
       );
-      return {
-        message: inserted,
-        members: await this.conversations.listMembers([conversationId], tx),
-        replayed: false,
-      };
+      return { message: inserted, members, replayed: false };
     });
+  }
+
+  /** @упоминания → наблюдатели трэда (раунд 3): соответствие токен→сотрудник
+   *  по справочнику (порт ADR-0012, резолв ДО транзакции — текст известен
+   *  заранее, второе соединение пула не занимается), приоритет ФИО > имя >
+   *  фамилия, ТОЧНОЕ совпадение без регистра; автора упоминание не добавляет
+   *  (он и так участник). Возвращает id точных совпадений. */
+  private async resolveMentionMatches(text: string): Promise<string[]> {
+    const tokens = parseMentionTokens(text);
+    if (tokens.length === 0) return [];
+    const lower = new Set(tokens.map((t) => t.toLowerCase()));
+    const matches = await this.userProfiles.findMentionMatches(tokens);
+    const mentioned: string[] = [];
+    const seen = new Set<string>();
+    for (const match of matches) {
+      const exact =
+        lower.has(match.displayName.toLowerCase()) ||
+        lower.has(match.firstName.toLowerCase()) ||
+        lower.has(match.lastName.toLowerCase());
+      if (!exact || seen.has(match.ref.id)) continue;
+      seen.add(match.ref.id);
+      mentioned.push(match.ref.id);
+    }
+    return mentioned;
+  }
+
+  private async addMentionWatchers(
+    tx: TransactionClient,
+    threadRootId: string,
+    mentionedIds: string[],
+    authorId: string,
+  ): Promise<void> {
+    for (const mentionedId of mentionedIds) {
+      if (mentionedId === authorId) continue;
+      await this.threadParticipants.upsert(threadRootId, mentionedId, 'mentioned', tx);
+    }
   }
 
   // ===== Правка =====
@@ -386,6 +479,50 @@ export class MessagesService {
         { actorId: userId, aggregateType: 'conversation', aggregateId: conversationId },
       );
       return { message: tombstone, obliterated, members };
+    });
+  }
+
+  // ===== Треды: наблюдение и состояния (раунд 3) =====
+
+  /**
+   * Состояния трэдов беседы для текущего пользователя: строка на каждый трэд,
+   * где он наблюдатель (автор корня / реплай / кнопка / @). Точка «есть новые»
+   * на посте и счётчик новым тоном — только по этим данным.
+   */
+  async threadStates(userId: string, conversationId: string): Promise<ThreadState[]> {
+    if (!(await this.conversations.findMembership(conversationId, userId))) {
+      throw DomainException.notFound('Conversation not found');
+    }
+    return this.threadParticipants.states(conversationId, userId);
+  }
+
+  /**
+   * Toggle наблюдения (кнопка «Следить/Перестать» в шапке окна треда):
+   * нет строки участия → добавить watcher; есть → снять наблюдение (строка
+   * удаляется целиком — реплай/@ добавят снова при следующем событии).
+   * Идемпотентность пары (пользователь, трэд) держит PK; повтор запроса с тем
+   * же Idempotency-Key возвращает первый результат (Redis-интерсептор).
+   */
+  async watchThread(
+    userId: string,
+    conversationId: string,
+    threadRootId: string,
+  ): Promise<{ watching: boolean }> {
+    return this.txRunner.run(async (tx) => {
+      if (!(await this.conversations.findMembership(conversationId, userId, tx))) {
+        throw DomainException.notFound('Conversation not found');
+      }
+      const root = await this.repo.findByIdInConversation(conversationId, threadRootId, tx);
+      if (!root || root.threadRootId !== null) {
+        throw DomainException.notFound('Thread root not found');
+      }
+      const watching = await this.threadParticipants.findLastRead(threadRootId, userId, tx);
+      if (watching === null) {
+        await this.threadParticipants.upsert(threadRootId, userId, 'watcher', tx);
+        return { watching: true };
+      }
+      await this.threadParticipants.delete(threadRootId, userId, tx);
+      return { watching: false };
     });
   }
 }

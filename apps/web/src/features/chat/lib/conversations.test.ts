@@ -48,6 +48,7 @@ function conv(id: string, at: string | null, pinned = false): ConversationListIt
         }
       : null,
     unreadCount: 0,
+    myLastReadSeq: 0,
     pinned,
     muted: false,
     snoozed: false,

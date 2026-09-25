@@ -40,6 +40,7 @@ const conv = (type: 'group' | 'direct'): ConversationListItem =>
     ],
     lastMessage: null,
     unreadCount: 0,
+    myLastReadSeq: 0,
     pinned: false,
     muted: false,
     snoozed: false,

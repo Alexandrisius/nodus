@@ -6,6 +6,8 @@ import type {
   Paginated,
   ReplyPreview,
   TaskListItem,
+  ThreadStateList,
+  ThreadWatchResult,
 } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { toast } from 'sonner';
@@ -29,6 +31,10 @@ export const chatKeys = {
     [...chatKeys.all, 'messages', id, 'thread', rootId] as const,
   /** Закрепы беседы (A3): лента закрепов снапшотами. */
   pins: (id: string) => [...chatKeys.all, 'pins', id] as const,
+  /** Состояния трэдов для текущего пользователя (раунд 3: точка «есть новые»
+   *  на посте, кнопка «Следить»); под префиксом messages(id) НЕ живёт —
+   *  инвалидация ленты его не трогает. */
+  threadStates: (id: string) => [...chatKeys.all, 'threadStates', id] as const,
   /** Личка с пользователем (открыть/создать direct по сотруднику). */
   direct: (userId: string) => [...chatKeys.conversations(), 'direct', userId] as const,
 };
@@ -80,6 +86,37 @@ export function useThreadMessages(conversationId: string, threadRootId: string) 
     enabled: conversationId.length > 0 && threadRootId.length > 0,
     refetchInterval: livePoll(LIVE_CHAT_POLL.messages, socketConnected),
     refetchIntervalInBackground: false,
+  });
+}
+
+/** Состояния трэдов для текущего пользователя (раунд 3): карта rootId →
+ *  { watched, unreadCount } — точка «есть новые» на счётчике ответов поста
+ *  и состояние кнопки «Следить» в шапке окна треда. */
+export function useThreadStates(conversationId: string) {
+  const socketConnected = useSocketStatusStore((s) => s.connected);
+  return useQuery({
+    queryKey: chatKeys.threadStates(conversationId),
+    queryFn: () => api<ThreadStateList>(`/chat/conversations/${conversationId}/threads/state`),
+    select: (data) => new Map(data.items.map((s) => [s.threadRootId, s])),
+    enabled: conversationId.length > 0,
+    refetchInterval: livePoll(LIVE_CHAT_POLL.conversations, socketConnected),
+    refetchIntervalInBackground: false,
+  });
+}
+
+/** Кнопка «Следить/Перестать» в шапке окна треда (toggle, идемпотентный). */
+export function useWatchThread(conversationId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (threadRootId: string) =>
+      api<ThreadWatchResult>(
+        `/chat/conversations/${conversationId}/threads/${threadRootId}/watch`,
+        { method: 'POST' },
+      ),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: chatKeys.threadStates(conversationId) });
+      void queryClient.invalidateQueries({ queryKey: chatKeys.conversations() });
+    },
   });
 }
 

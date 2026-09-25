@@ -17,12 +17,16 @@ import {
   paginatedSchema,
   readConversationBodySchema,
   readConversationResultSchema,
+  threadStateListSchema,
+  threadWatchResultSchema,
   type ChatMessage,
   type ForwardMessagesBody,
   type MessagePin,
   type MessageReactionToggleBody,
   type ReadConversationBody,
   type ReadConversationResult,
+  type ThreadStateList,
+  type ThreadWatchResult,
 } from '@nodus/contracts';
 
 import { Audit } from '../../../core/decorators/audit.decorator.js';
@@ -59,7 +63,8 @@ export class MessageActionsController {
   @HttpCode(200)
   @Audit({ action: 'chat.message_read_receipt', entity: 'conversation' })
   @ApiOperation({
-    summary: 'Квитанция просмотров: двигает watermark до upToSeq (GREATEST, кламп к last_seq)',
+    summary:
+      'Квитанция просмотров: watermark до upToSeq (GREATEST, кламп); threadRootId — квитанция из треда (гасит точку наблюдателя)',
   })
   @ApiOkResponse({ standardSchema: readConversationResultSchema })
   @ApiErrors(400, 401, 404)
@@ -73,7 +78,37 @@ export class MessageActionsController {
     })
     dto: ReadConversationBody,
   ): Promise<ReadConversationResult> {
-    return this.messages.readConversation(user.id, conversationId, dto.upToSeq);
+    return this.messages.readConversation(user.id, conversationId, dto.upToSeq, dto.threadRootId);
+  }
+
+  // ===== Треды: наблюдение и состояния (раунд 3) =====
+
+  @Get('threads/state')
+  @ApiOperation({
+    summary: 'Состояния трэдов для текущего пользователя (наблюдаемые + непрочитанные)',
+  })
+  @ApiOkResponse({ standardSchema: threadStateListSchema })
+  @ApiErrors(400, 401, 404)
+  threadStates(
+    @GetUser() user: { id: string },
+    @Param('id', new ZodValidationPipe(uuidSchema)) conversationId: string,
+  ): Promise<ThreadStateList> {
+    return this.messages.threadStates(user.id, conversationId).then((items) => ({ items }));
+  }
+
+  @Post('threads/:rootId/watch')
+  @HttpCode(200)
+  @Audit({ action: 'chat.thread_watch_toggle', entity: 'message' })
+  @ApiOperation({ summary: 'Toggle наблюдения за трэдом (кнопка «Следить»)' })
+  @ApiOkResponse({ standardSchema: threadWatchResultSchema })
+  @ApiErrors(400, 401, 404)
+  @ApiIdempotencyKey()
+  watchThread(
+    @GetUser() user: { id: string },
+    @Param('id', new ZodValidationPipe(uuidSchema)) conversationId: string,
+    @Param('rootId', new ZodValidationPipe(uuidSchema)) rootId: string,
+  ): Promise<ThreadWatchResult> {
+    return this.messages.watchThread(user.id, conversationId, rootId);
   }
 
   // ===== Закрепы =====

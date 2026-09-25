@@ -23,6 +23,7 @@ export interface ConversationListRow {
   draft_revision: number | null;
   draft_updated_at: Date | null;
   unread_count: number;
+  my_last_read_seq: bigint;
   lm_id: string | null;
   lm_seq: bigint | null;
   lm_author_id: string | null;
@@ -73,7 +74,7 @@ interface ListOpts {
 const LIST_SELECT = (userId: string): Prisma.Sql => Prisma.sql`
   SELECT
     c.id, c.type, c.title, c.description, c.visibility, c.permissions, c.last_message_at,
-    cm.role, cm.pinned, cm.muted, cm.snoozed,
+    cm.role, cm.pinned, cm.muted, cm.snoozed, cm.last_read_seq AS my_last_read_seq,
     d.text AS draft_text, d.revision AS draft_revision, d.updated_at AS draft_updated_at,
     (SELECT COUNT(*)::int FROM messages um
        WHERE um.conversation_id = c.id
@@ -81,7 +82,14 @@ const LIST_SELECT = (userId: string): Prisma.Sql => Prisma.sql`
          AND um.deleted_at IS NULL
          AND (um.seq > cm.last_read_seq
               OR (um.edited_at IS NOT NULL
-                  AND (cm.last_read_at IS NULL OR um.edited_at > cm.last_read_at)))) AS unread_count,
+                  AND (cm.last_read_at IS NULL OR um.edited_at > cm.last_read_at)))
+         AND (c.type <> 'project_channel'
+              OR um.thread_root_id IS NULL
+              OR EXISTS (
+                SELECT 1 FROM thread_participants tp
+                WHERE tp.thread_root_id = um.thread_root_id
+                  AND tp.user_id = ${userId}::uuid
+                  AND um.seq > tp.last_read_seq))) AS unread_count,
     lm.id AS lm_id, lm.seq AS lm_seq, lm.author_id AS lm_author_id, lm.text AS lm_text,
     lm.reply_to_id AS lm_reply_to_id, lm.reply_snapshot AS lm_reply_snapshot,
     lm.thread_root_id AS lm_thread_root_id,

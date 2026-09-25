@@ -13,6 +13,7 @@ import { MessagePinsRepository } from './messages/message-pins.repository.js';
 import { MessagesController } from './messages/messages.controller.js';
 import { MessagesRepository } from './messages/messages.repository.js';
 import { MessagesService } from './messages/messages.service.js';
+import { ThreadParticipantsRepository } from './messages/thread-participants.repository.js';
 
 /**
  * Модуль chat (M6, #58): беседы (direct/group/каналы), сообщения, треды,
@@ -29,6 +30,7 @@ import { MessagesService } from './messages/messages.service.js';
     ConversationsService,
     ConversationItemMapper,
     MessagesRepository,
+    ThreadParticipantsRepository,
     MessagesService,
     MessageActionsService,
     MessagePinsRepository,

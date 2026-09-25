@@ -378,13 +378,22 @@ describe.skipIf(!process.env.DATABASE_URL)('chat: сообщения (integratio
     const sentEvents = await eventsOf('chat.message_sent');
     expect(sentEvents).toHaveLength(1);
     expect(sentEvents[0]!.aggregateType).toBe('conversation');
-    expect(chatMessageSentPayloadSchema.parse(sentEvents[0]!.payload)).toEqual({
+    // Полный DTO сообщения в payload (раунд 3): живые клиенты применяют
+    // событие локально по seq («буря рефечей»).
+    const sentPayload = chatMessageSentPayloadSchema.parse(sentEvents[0]!.payload);
+    expect(sentPayload).toMatchObject({
       conversationId: conv,
       messageId: message.id,
       seq: 1,
       authorId: alice.id,
       threadRootId: null,
       forwarded: false,
+    });
+    expect(messageSchema.parse(sentPayload.message)).toMatchObject({
+      id: message.id,
+      seq: 1,
+      text: 'событийное сообщение',
+      author: { id: alice.id },
     });
 
     const editUrl = `/chat/conversations/${conv}/messages/${message.id}`;

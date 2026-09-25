@@ -68,8 +68,9 @@ export class MessagePinsRepository {
     return rows.length > 0;
   }
 
-  async findByMessage(messageId: string): Promise<PinRecord | null> {
-    const rows = await this.prisma.$queryRaw<PinRecord[]>(Prisma.sql`
+  async findByMessage(messageId: string, tx?: TransactionClient): Promise<PinRecord | null> {
+    const client = tx ?? this.prisma;
+    const rows = await client.$queryRaw<PinRecord[]>(Prisma.sql`
       SELECT conversation_id AS "conversationId", message_id AS "messageId",
              pinned_by AS "pinnedBy", pinned_at AS "pinnedAt"
       FROM conversation_pins WHERE message_id = ${messageId}::uuid LIMIT 1

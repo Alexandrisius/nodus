@@ -500,6 +500,30 @@
   }
 }
 
+/* Pill просмотров своего последнего сообщения (раунд 3 чата, модель
+   Битрикс24): ПЛАВАЮЩИЙ оверлей над композером — ничего не двигает в ленте
+   (flow-строка толкала сообщения). Появление — выезд снизу + fade: mount-
+   анимация через @starting-style (Baseline 2024, канон одноразовых mount-
+   анимаций); reduced-motion — без движения. */
+@utility views-pill {
+  opacity: 1;
+  translate: 0 0;
+  transition:
+    opacity 200ms ease-out,
+    translate 200ms ease-out;
+}
+@starting-style {
+  .views-pill {
+    opacity: 0;
+    translate: 0 6px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .views-pill {
+    transition: none;
+  }
+}
+
 /* Сепараторы списка бесед (список бесед мессенджера, #96; канон Битрикс24):
    при ховере строки СОСЕДНИЕ сепараторы исчезают — подсветка «поглощает»
    разделитель (вердикт владельца 24.09.2026: «наводишь курсор — сепаратора

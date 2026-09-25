@@ -1,6 +1,8 @@
 import type { InjectionToken } from '@nestjs/common';
 import type { UserRef } from '@nodus/contracts';
 
+import type { TransactionClient } from '../database/transaction-runner.js';
+
 /**
  * Порт чтения профиля сотрудника (ADR-0012): модулям нужны ФИО/аватар для
  * DTO (авторы сообщений, исполнители задач), но таблица users принадлежит
@@ -11,11 +13,22 @@ import type { UserRef } from '@nodus/contracts';
  * Появление порта = появление первого потребителя (ADR-0010: пустых портов нет).
  */
 export interface UserProfileReader {
-  /** Профили по id (без сортировочных гарантий); отсутствующие — пропущены. */
-  findRefs(userIds: string[]): Promise<UserRef[]>;
+  /** Профили по id (без сортировочных гарантий); отсутствующие — пропущены.
+   *  tx: чтение ВНУТРИ транзакции отправителя — по её соединению (иначе
+   *  параллельные отправки берут второе соединение пула и голодают его,
+   *  раунд 3: payload message_sent собирается в транзакции). */
+  findRefs(userIds: string[], tx?: TransactionClient): Promise<UserRef[]>;
 
   /** Подстрочный поиск по отображаемому имени (ILIKE, без курсора — объём ≤ штата). */
   searchByDisplayName(query: string, limit: number): Promise<UserRef[]>;
+
+  /** Кандидаты @упоминаний (раунд 3, chat): активные сотрудники, у которых
+   *  displayName / имя / фамилия ТОЧНО совпадает с одним из токенов (без
+   *  регистра). Соответствие «токен → сотрудник» решает потребитель по
+   *  приоритету ФИО > имя > фамилия. */
+  findMentionMatches(
+    tokens: string[],
+  ): Promise<{ ref: UserRef; displayName: string; firstName: string; lastName: string }[]>;
 }
 
 export const USER_PROFILE_READER: InjectionToken = 'USER_PROFILE_READER';

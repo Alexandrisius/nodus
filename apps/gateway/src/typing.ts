@@ -40,7 +40,10 @@ export class TypingThrottler {
     if (!socketConvRooms(socket).has(room)) {
       return false; // только в присоединённых беседах — членство уже проверено
     }
-    const key = `${userId}:${parsed.data.conversationId}`;
+    const threadRootId = parsed.data.threadRootId ?? null;
+    // Печать В ТРЕДЕ (раунд 3) — только комната беседы: индикатор живёт в
+    // шапке окна треда; в список бесед и шапки каналов не попадает.
+    const key = `${userId}:${parsed.data.conversationId}:${threadRootId ?? ''}`;
     const last = this.lastSentAt.get(key) ?? 0;
     if (now.getTime() - last < TYPING_THROTTLE_MS) {
       return false;
@@ -49,8 +52,12 @@ export class TypingThrottler {
     const event = {
       conversationId: parsed.data.conversationId,
       userId,
+      ...(threadRootId !== null ? { threadRootId } : {}),
     };
     socket.to(room).emit(REALTIME_EVENTS.TYPING, event);
+    if (threadRootId !== null) {
+      return true;
+    }
     // Список бесед остальных участников (не в комнате беседы): user-комнаты.
     // Ошибка PG здесь не должна ронять процесс (unhandledRejection): conv-
     // рассылка уже ушла, user-хвост догонит следующее событие после троттла.

@@ -11,6 +11,7 @@ import {
   USER_PROFILE_READER,
   type UserProfileReader,
 } from '../../../core/ports/user-profile.port.js';
+import type { TransactionClient } from '../../../core/database/transaction-runner.js';
 import type { MemberRow } from '../conversations/conversations.repository.js';
 import { MessagesRepository, type MessageRow, type ReactionRow } from './messages.repository.js';
 import { MessagePinsRepository } from './message-pins.repository.js';
@@ -120,6 +121,76 @@ export class MessageDtoMapper {
     const [dto] = await this.toDtos([row], ctx);
     if (!dto) throw new Error('toDto: empty page');
     return dto;
+  }
+
+  /**
+   * DTO ТОЛЬКО ЧТО вставленного сообщения (payload события message_sent,
+   * раунд 3 — «буря рефечей»): живые клиенты применяют его в кэш локально по
+   * seq. Собирается из данных транзакции отправки БЕЗ лишних запросов:
+   * реакции/закрепы/прочитавшие у новой строки невозможны (пусты), вложения
+   * переданы уже привязанными (claimAttachments). replyOriginal — строка
+   * оригинала цитаты, уже загруженная отправкой (null — оригинал утрачен).
+   * Профили читаются по соединению транзакции (tx) — иначе параллельные
+   * отправки голодают пул соединений (repro chat-reliability).
+   */
+  async toFreshDto(
+    row: MessageRow,
+    ctx: {
+      viewerId: string;
+      members: MemberRow[];
+      replyOriginal: MessageRow | null;
+      attachments: {
+        id: string;
+        name: string;
+        size: number;
+        mime: string;
+        kind: string;
+        width: number | null;
+        height: number | null;
+      }[];
+      tx?: TransactionClient;
+    },
+  ): Promise<ChatMessage> {
+    const ids = new Set<string>([row.authorId]);
+    const snapshot = (row.replySnapshot ?? null) as ReplySnapshotValue | null;
+    if (snapshot?.authorId) ids.add(snapshot.authorId);
+    if (row.fwdAuthorId) ids.add(row.fwdAuthorId);
+    const refs = new Map<string, UserRef>();
+    for (const ref of await this.userProfiles.findRefs([...ids], ctx.tx)) refs.set(ref.id, ref);
+
+    const originalById = row.replyToId
+      ? new Map(ctx.replyOriginal ? [[ctx.replyOriginal.id, ctx.replyOriginal]] : [])
+      : new Map<string, MessageRow>();
+    return {
+      id: row.id,
+      conversationId: row.conversationId,
+      seq: Number(row.seq),
+      author: refs.get(row.authorId) ?? fallbackRef(row.authorId),
+      text: row.text,
+      replyToId: row.replyToId,
+      reply: buildReplyPreview(row, refs, originalById),
+      threadRootId: row.threadRootId,
+      threadRepliesCount: 0,
+      reactions: [],
+      attachments: ctx.attachments.map((a) => ({
+        id: a.id,
+        name: a.name,
+        size: a.size,
+        mime: a.mime,
+        kind: a.kind as 'image' | 'file',
+        url: null,
+        thumbnailUrl: null,
+        width: a.width,
+        height: a.height,
+      })),
+      editedAt: null,
+      deletedAt: null,
+      pinned: false,
+      forwardedFrom: buildForwardedFrom(row, refs),
+      readAt: computeReadAt(row, ctx.members, ctx.viewerId),
+      readBy: [],
+      createdAt: row.createdAt.toISOString(),
+    };
   }
 
   private async loadRefs(

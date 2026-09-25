@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import type { UserRef } from '@nodus/contracts';
 
 import { PrismaService } from '../database/prisma.service.js';
+import type { TransactionClient } from '../database/transaction-runner.js';
 import type { UserProfileReader } from './user-profile.port.js';
 
 /** Минимум полей профиля для гидратации чужих DTO (ADR-0012). */
@@ -26,11 +27,12 @@ function toRef(row: UserRefRow): UserRef {
 export class UserProfileProvider implements UserProfileReader {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findRefs(userIds: string[]): Promise<UserRef[]> {
+  async findRefs(userIds: string[], tx?: TransactionClient): Promise<UserRef[]> {
     if (userIds.length === 0) return [];
     // Без фильтра статуса: деактивированные (уволенные) остаются в истории
     // сообщений/задач — их имена должны гидратироваться корректно.
-    const rows = await this.prisma.user.findMany({
+    // tx — чтение по соединению транзакции отправителя (раунд 3).
+    const rows = await (tx ?? this.prisma).user.findMany({
       where: { id: { in: userIds } },
       select: userRefSelect,
     });
@@ -45,5 +47,29 @@ export class UserProfileProvider implements UserProfileReader {
       orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }, { id: 'asc' }],
     });
     return rows.map(toRef);
+  }
+
+  async findMentionMatches(
+    tokens: string[],
+  ): Promise<{ ref: UserRef; displayName: string; firstName: string; lastName: string }[]> {
+    if (tokens.length === 0) return [];
+    const rows = await this.prisma.user.findMany({
+      where: {
+        status: 'active',
+        OR: [
+          { displayName: { in: tokens, mode: 'insensitive' } },
+          { firstName: { in: tokens, mode: 'insensitive' } },
+          { lastName: { in: tokens, mode: 'insensitive' } },
+        ],
+      },
+      select: { ...userRefSelect, firstName: true, lastName: true },
+      orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }, { id: 'asc' }],
+    });
+    return rows.map((row) => ({
+      ref: toRef(row),
+      displayName: row.displayName,
+      firstName: row.firstName,
+      lastName: row.lastName,
+    }));
   }
 }

@@ -23,11 +23,16 @@ import { actorUserRef, getMockActor } from '../../../../shared/mocks/mock-actor.
 import { chatMutationHandlers } from './chat-mutation-handlers.js';
 import {
   applyReadReceipt,
+  applyThreadReadReceipt,
   buildReplyPreview,
   hiddenConversations,
   nextMessageSeq,
+  parseMentionIds,
   revealHiddenConversation,
+  threadStatesMock,
+  threadWatchersOf,
   uploadedAttachments,
+  watchThreadMock,
 } from './chat-mock-state.js';
 
 let chatTaskSeq = 60;
@@ -82,6 +87,7 @@ const conversationHandlers = [
       membersPreview: [userRef(person.id)],
       lastMessage: null,
       unreadCount: 0,
+      myLastReadSeq: 0,
       pinned: false,
       muted: false,
       snoozed: false,
@@ -106,10 +112,10 @@ const conversationHandlers = [
     return HttpResponse.json({ items, nextCursor: null });
   }),
 
-  /** Квитанция просмотров (#102 раунд 2): seq самой новой видимой строки
-   *  вьюпорта; мок двигает просмотры СВОИХ сообщений до upToSeq (симуляция
-   *  собеседника «просматривает видимое по мере прокрутки», минимально —
-   *  по квитанции клиента). Идемпотентна: повтор — тот же результат. */
+  /** Квитанция просмотров (#102 раунд 2; threadRootId — раунд 3): seq самой
+   *  новой видимой строки вьюпорта; мок двигает просмотры СВОИХ сообщений до
+   *  upToSeq (симуляция собеседника «просматривает видимое по мере
+   *  прокрутки», минимально — по квитанции клиента). Идемпотентна. */
   http.post('/api/v1/chat/conversations/:id/read', async ({ params, request }) => {
     const parsed = readConversationBodySchema.safeParse(await request.json());
     if (!parsed.success)
@@ -117,13 +123,48 @@ const conversationHandlers = [
         { code: ErrorCode.VALIDATION_FAILED, message: 'Invalid body' },
         { status: 422 },
       );
-    const upToSeq = applyReadReceipt(String(params.id), parsed.data.upToSeq);
+    const conversationId = String(params.id);
+    if (parsed.data.threadRootId) {
+      const root = demoMessages.find(
+        (m) => m.id === parsed.data.threadRootId && m.conversationId === conversationId,
+      );
+      if (!root)
+        return HttpResponse.json(
+          { code: ErrorCode.NOT_FOUND, message: 'Thread root not found' },
+          { status: 404 },
+        );
+      applyThreadReadReceipt(parsed.data.threadRootId, getMockActor().id, parsed.data.upToSeq);
+    }
+    const upToSeq = applyReadReceipt(conversationId, parsed.data.upToSeq);
     if (upToSeq < 0)
       return HttpResponse.json(
         { code: ErrorCode.NOT_FOUND, message: 'Conversation not found' },
         { status: 404 },
       );
     return HttpResponse.json({ upToSeq });
+  }),
+
+  /** Состояния трэдов текущего пользователя (раунд 3): точка «есть новые» на
+   *  посте и кнопка «Следить» — только наблюдателям трэда. */
+  http.get('/api/v1/chat/conversations/:id/threads/state', ({ params }) =>
+    HttpResponse.json({
+      items: threadStatesMock(String(params.id), getMockActor().id),
+    }),
+  ),
+
+  /** Кнопка «Следить/Перестать» в шапке окна треда (toggle, раунд 3). */
+  http.post('/api/v1/chat/conversations/:id/threads/:rootId/watch', ({ params }) => {
+    const root = demoMessages.find(
+      (m) => m.id === String(params.rootId) && m.conversationId === String(params.id),
+    );
+    if (!root)
+      return HttpResponse.json(
+        { code: ErrorCode.NOT_FOUND, message: 'Thread root not found' },
+        { status: 404 },
+      );
+    return HttpResponse.json({
+      watching: watchThreadMock(String(params.rootId), getMockActor().id),
+    });
   }),
 
   /** Отправка сообщения (sendMessageBodySchema): в тред — с threadRootId,
@@ -176,6 +217,29 @@ const conversationHandlers = [
     if (threadRootId) {
       const root = demoMessages.find((m) => m.id === threadRootId);
       if (root) root.threadRepliesCount += 1;
+      // Ответ в трэд делает наблюдателем (паритет серверу, раунд 3).
+      const watchers = threadWatchersOf(threadRootId);
+      if (!watchers.has(getMockActor().id)) watchers.set(getMockActor().id, 0);
+    }
+    // @упоминания: упомянутые — наблюдатели трэда этого сообщения (паритет
+    // серверу: точное совпадение ФИО/имени/фамилии, без регистра).
+    const actorId = getMockActor().id;
+    const mentionIds = parseMentionIds(
+      parsed.data.text,
+      (token) => {
+        const lower = token.toLowerCase();
+        const person = demoUserListItems.find(
+          (u) =>
+            u.displayName.toLowerCase() === lower ||
+            u.displayName.toLowerCase().split(' ').includes(lower),
+        );
+        return person ? { id: person.id, displayName: person.displayName } : undefined;
+      },
+      actorId,
+    );
+    for (const mentionedId of mentionIds) {
+      const watchers = threadWatchersOf(threadRootId ?? message.id);
+      if (!watchers.has(mentionedId)) watchers.set(mentionedId, 0);
     }
     const conversation = demoConversations.find((c) => c.id === params.id);
     if (conversation && !threadRootId) conversation.lastMessage = message;
@@ -250,6 +314,7 @@ const conversationHandlers = [
       membersPreview: [actorUserRef(), ...members],
       lastMessage: null,
       unreadCount: 0,
+      myLastReadSeq: 0,
       pinned: false,
       muted: false,
       snoozed: false,

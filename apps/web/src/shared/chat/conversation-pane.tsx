@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useMemo, useRef } from 'react';
+import { Fragment, useCallback, useMemo, useRef, useState } from 'react';
 import { ui } from '@nodus/contracts';
 import {
   MessageScroller,
@@ -15,7 +15,7 @@ import { cn } from '@nodus/ui/lib/utils';
 
 import { useAuthStore } from '../auth-store.js';
 import { chatAttachmentsEnabled } from './attachments-gate.js';
-import { useConversationMessages, useSendChatMessage } from './api.js';
+import { useConversationMessages, useConversations, useSendChatMessage } from './api.js';
 import { ChatComposer, type ComposerSubmit } from './chat-composer.js';
 import { ChatMessageItem } from './chat-message.js';
 import { useChatDrafts } from './chat-drafts.js';
@@ -32,6 +32,7 @@ import { PinBar } from './pin-bar.js';
 import { ScrollEndResponder } from './scroll-end-responder.js';
 import { useFeedViewportRead } from './use-viewport-read.js';
 import { ConversationViewsLine } from './views-line.js';
+import { UnreadAnchor } from './use-unread-anchor.js';
 import { selectionComposerProps, useFeedSelection } from './use-feed-selection.js';
 import { JumpResponder } from './use-jump-responder.js';
 
@@ -42,6 +43,12 @@ import { JumpResponder } from './use-jump-responder.js';
  * сверху — полоса селекта (активен) или лента закрепов (пин-бар); drop-зона
  * файлов на ленте; jump-резидент (цитаты/закрепы/«Переслано от»); черновики
  * и вложения композера — в drafts-сторе per scope.
+ *
+ * Раунд 3: тело КЕИТСЯ по conversationId (свежий MessageScroller на каждую
+ * беседу — до этого переключение сохраняло позицию прокрутки прошлой) и
+ * открывается НА ПЕРВОМ НЕПРОЧИТАННОМ (UnreadAnchor + разделитель «Непрочитанные
+ * сообщения», модель Telegram); авто-догон включается только когда
+ * пользователь сам у низа (модальный autoScroll примитива).
  */
 export function ConversationPane({
   conversationId,
@@ -54,8 +61,38 @@ export function ConversationPane({
   composerPlaceholder?: string;
   emptyLabel?: string;
 }) {
+  return (
+    <div className="flex h-full min-w-0 flex-1 flex-col">
+      {/* Пин-бар остаётся НА МЕСТЕ и в селекте: батч-команды живёт в узком
+          островке композера (вердикт 24.09 — верх ленты не двигается). */}
+      <PinBar conversationId={conversationId} />
+      <ConversationBody
+        key={conversationId}
+        conversationId={conversationId}
+        showAuthor={showAuthor}
+        composerPlaceholder={composerPlaceholder}
+        emptyLabel={emptyLabel}
+      />
+    </div>
+  );
+}
+
+/** Лента + композер беседы; key={conversationId} = «открытие беседы». */
+function ConversationBody({
+  conversationId,
+  showAuthor,
+  composerPlaceholder,
+  emptyLabel,
+}: {
+  conversationId: string;
+  showAuthor: boolean;
+  composerPlaceholder: string;
+  emptyLabel: string;
+}) {
   const scope = `conversation:${conversationId}`;
   const { data, isLoading } = useConversationMessages(conversationId);
+  const { data: list } = useConversations();
+  const conversation = list?.items.find((c) => c.id === conversationId) ?? null;
   const send = useSendChatMessage(conversationId);
   const edit = useEditMessage(conversationId);
   const me = useAuthStore((s) => s.user);
@@ -69,6 +106,25 @@ export function ConversationPane({
   // Квитанции просмотров (#102 р.2): seq самой новой видимой строки ленты —
   // IO по строкам, root=скроллер (механика — use-viewport-read.ts).
   useFeedViewportRead(conversationId, viewportRef, items);
+
+  // Якорь «первое непрочитанное» (раунд 3): непрочитанные при открытии есть →
+  // авто-догон выключен, пока якорь не встал (иначе примитив дёрнул бы ленту
+  // в конец на первых данных). Снимается двойным rAF после якоря — после
+  // MutationObserver-прохода примитива; дальше модальный autoScroll: догон
+  // включается только фактом «пользователь у низа».
+  const [anchoring, setAnchoring] = useState((conversation?.unreadCount ?? 0) > 0);
+  const releaseAnchor = useCallback(() => {
+    requestAnimationFrame(() => requestAnimationFrame(() => setAnchoring(false)));
+  }, []);
+
+  // Разделитель непрочитанных: над серией, содержащей первое непрочитанное
+  // сообщение хвоста (грамматика дата-чипов); гаснет по мере продвижения
+  // watermark (myLastReadSeq живёт из списка бесед).
+  const myLastReadSeq = conversation?.myLastReadSeq ?? null;
+  const firstUnreadId = useMemo(() => {
+    if (myLastReadSeq === null || (conversation?.unreadCount ?? 0) === 0) return null;
+    return items.find((m) => m.seq > myLastReadSeq && !m.deletedAt)?.id ?? null;
+  }, [items, myLastReadSeq, conversation?.unreadCount]);
 
   const lastMine = useCallback(
     () =>
@@ -92,16 +148,19 @@ export function ConversationPane({
   }
 
   return (
-    <div className="flex h-full min-w-0 flex-1 flex-col">
-      {/* Пин-бар остаётся НА МЕСТЕ и в селекте: батч-команды живёт в узком
-          островке композера (вердикт 24.09 — верх ленты не двигается). */}
-      <PinBar conversationId={conversationId} />
+    <>
       <FeedDropzone
-        className="flex min-h-0 flex-1 flex-col"
+        className="relative flex min-h-0 flex-1 flex-col"
         disabled={!chatAttachmentsEnabled()}
         onFiles={(files) => addFiles(scope, files)}
       >
-        <MessageScrollerProvider autoScroll>
+        <MessageScrollerProvider autoScroll={!anchoring}>
+          <UnreadAnchor
+            items={items}
+            isLoading={isLoading}
+            anchorSeq={anchoring ? myLastReadSeq : null}
+            onAnchored={releaseAnchor}
+          />
           <ScrollEndResponder scope={scope} />
           <JumpResponder
             conversationId={conversationId}
@@ -131,11 +190,18 @@ export function ConversationPane({
                     {runs.map((run, runIndex) => {
                       const prevRun = runIndex === 0 ? undefined : runs[runIndex - 1];
                       const { first, last } = run;
+                      const unreadDividerHere =
+                        firstUnreadId !== null && run.items.some((m) => m.id === firstUnreadId);
                       return (
                         <Fragment key={first.id}>
                           {startsNewDay(prevRun?.last, first) ? (
                             <MessageScrollerItem>
                               <DayChip label={formatDayLabel(first.createdAt)} />
+                            </MessageScrollerItem>
+                          ) : null}
+                          {unreadDividerHere ? (
+                            <MessageScrollerItem>
+                              <DayChip label={ui.chat.unreadDivider} />
                             </MessageScrollerItem>
                           ) : null}
                           <div className="flex min-w-0 flex-col gap-0.5">
@@ -182,12 +248,13 @@ export function ConversationPane({
             <MessageScrollerButton />
           </MessageScroller>
         </MessageScrollerProvider>
+        {/* Pill просмотров своего последнего сообщения (#102 р.2 → раунд 3,
+          модель Битрикс24): плавающий оверлей над композером — ленту не
+          двигает (flow-строка толкала сообщения). */}
+        <ConversationViewsLine conversationId={conversationId} messages={items} />
       </FeedDropzone>
-      {/* Строка просмотров своего последнего сообщения (#102 р.2, модель
-          Битрикс24): над областью ввода, не под каждым сообщением. */}
-      <ConversationViewsLine conversationId={conversationId} messages={items} />
       {/* key по conversationId: автофокус композера при входе/смене беседы
-          (черновик при этом живёт в stores — не теряется, #87). */}
+        (черновик при этом живёт в stores — не теряется, #87). */}
       <ChatComposer
         key={conversationId}
         placeholder={composerPlaceholder}
@@ -198,6 +265,6 @@ export function ConversationPane({
         selection={selectionComposerProps(conversationId, selection)}
         onSubmit={handleSubmit}
       />
-    </div>
+    </>
   );
 }

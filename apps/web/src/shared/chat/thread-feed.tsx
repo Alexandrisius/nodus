@@ -29,7 +29,7 @@ import { PinBar } from './pin-bar.js';
 import { useJumpResponder } from './use-jump-responder.js';
 import { useFeedViewportRead } from './use-viewport-read.js';
 import { selectionComposerProps, useFeedSelection } from './use-feed-selection.js';
-import { useConversations } from './api.js';
+import { useConversations, useThreadStates } from './api.js';
 import { canPostFeed } from './conversations.js';
 // >300 строк — обоснование (I5): лента постов канала — единая карточка поста
 // (автор/вложения/текст/мета/реакции/читатели/полоса ответов) + пагинация и
@@ -65,6 +65,9 @@ export const ThreadFeed = memo(function ThreadFeed({
   // матрицу сам): без post композер ленты гасится, обсуждение — в тредах.
   const { data: conversationsData } = useConversations();
   const conversation = conversationsData?.items.find((c) => c.id === conversationId) ?? null;
+  // Состояния трэдов текущего пользователя (раунд 3): точка «есть новые» на
+  // счётчике ответов поста — только наблюдателям трэда.
+  const { data: threadStates } = useThreadStates(conversationId);
   const send = useSendChatMessage(conversationId);
   const edit = useEditMessage(conversationId);
   const me = useAuthStore((s) => s.user);
@@ -78,19 +81,22 @@ export const ThreadFeed = memo(function ThreadFeed({
   // Лента канала — обычный div-скролл: stick к низу при новых постах (если
   // пользователь у нижнего края) и ВСЕГДА при своей отправке/пересылке сюда
   // (вердикт 24.09: своё сообщение видно с любой позиции скролла).
-  const scrollNonce = useScrollEndStore((s) => s.nonces[scope] ?? 0);
+  const scrollRequest = useScrollEndStore((s) => s.requests[scope]);
   const scrollPrev = useRef({ count: 0, nonce: 0 });
   useEffect(() => {
     const el = feedRef.current;
     if (!el) return;
-    const forced = scrollNonce !== scrollPrev.current.nonce;
+    const forced = (scrollRequest?.nonce ?? 0) !== scrollPrev.current.nonce;
     const grew = roots.length > scrollPrev.current.count;
     const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-    scrollPrev.current = { count: roots.length, nonce: scrollNonce };
+    scrollPrev.current = { count: roots.length, nonce: scrollRequest?.nonce ?? 0 };
     if (forced || (grew && nearBottom)) {
-      el.scrollTo({ top: el.scrollHeight, behavior: forced ? 'smooth' : 'auto' });
+      el.scrollTo({
+        top: el.scrollHeight,
+        behavior: forced ? (scrollRequest?.behavior ?? 'smooth') : 'auto',
+      });
     }
-  }, [roots.length, scrollNonce]);
+  }, [roots.length, scrollRequest]);
   const repliesByRoot = useMemo(() => {
     const map = new Map<string, typeof items>();
     for (const message of items) {
@@ -140,7 +146,7 @@ export const ThreadFeed = memo(function ThreadFeed({
           композера (вердикт 24.09 — верх ленты не двигается). */}
       <PinBar conversationId={conversationId} onOpenThread={onOpenThread} />
       <FeedDropzone
-        className="flex min-h-0 flex-1 flex-col"
+        className="relative flex min-h-0 flex-1 flex-col"
         disabled={!chatAttachmentsEnabled()}
         onFiles={(files) => addFiles(scope, files)}
       >
@@ -270,7 +276,23 @@ export const ThreadFeed = memo(function ThreadFeed({
                               </span>
                             ) : null}
                             {repliesCount > 0 ? (
-                              <span className="font-mono text-label-sm text-muted-foreground tabular-nums">
+                              <span
+                                className={cn(
+                                  'flex items-center gap-1.5 font-mono text-label-sm tabular-nums',
+                                  // Точка «есть новые» + счётчик новым тоном —
+                                  // только наблюдателю трэда (раунд 3): иначе
+                                  // «кликнул канал, а нового ничего не видно».
+                                  threadStates?.get(root.id)?.unreadCount
+                                    ? 'text-info'
+                                    : 'text-muted-foreground',
+                                )}
+                              >
+                                {threadStates?.get(root.id)?.unreadCount ? (
+                                  <span
+                                    aria-label={ui.chat.threadUnreadHint}
+                                    className="size-1.5 shrink-0 rounded-full bg-info"
+                                  />
+                                ) : null}
                                 {repliesLabel(repliesCount)}
                                 {last ? ` · ${formatTime(last.createdAt)}` : ''}
                               </span>
@@ -289,9 +311,9 @@ export const ThreadFeed = memo(function ThreadFeed({
             </div>
           )}
         </div>
+        {/* Pill просмотров своего последнего поста (#102 р.2 → раунд 3). */}
+        <ConversationViewsLine conversationId={conversationId} messages={roots} />
       </FeedDropzone>
-      {/* Строка просмотров своего последнего поста (#102 р.2, модель Битрикс24). */}
-      <ConversationViewsLine conversationId={conversationId} messages={roots} />
       {conversation === null || canPostFeed(conversation) ? (
         <ChatComposer
           placeholder={ui.chat.newPostPlaceholder}

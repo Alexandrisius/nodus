@@ -447,8 +447,13 @@ model ConversationDraft {
 model ThreadParticipant {
   threadRootId String @map("thread_root_id") @db.Uuid
   userId       String @map("user_id") @db.Uuid
-  /// author | replier | watcher.
+  /// author | replier | watcher | mentioned (@-упоминание — тоже наблюдатель,
+  /// раунд 3).
   source       String
+  /// Watermark трэда (точка «есть новые» на посте, раунд 3): чужие ответы
+  /// с seq > lastReadSeq — непрочитанные; двигается квитанцией из треда
+  /// (POST /read c threadRootId), GREATEST — не откатывается.
+  lastReadSeq  BigInt   @default(0) @map("last_read_seq")
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz()
 
   threadRoot Message @relation("ThreadParticipants", fields: [threadRootId], references: [id], onDelete: Cascade)

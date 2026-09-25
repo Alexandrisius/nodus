@@ -31,7 +31,7 @@ import { ComposerAttachments } from './composer-attachments.js';
 import { ComposerBanner } from './composer-banner.js';
 import { ComposerClipMenu } from './composer-clip-menu.js';
 import { addFiles } from './composer-files.js';
-import { registerComposer, unregisterComposer } from './composer-focus.js';
+import { registerComposer, unregisterComposer, focusComposer } from './composer-focus.js';
 import { flushDraftSync } from './draft-sync.js';
 import { ForwardBanner } from './forward-banner.js';
 import { useForwardPending } from './forward-pending.js';
@@ -45,12 +45,26 @@ import { SelectionToolbar } from './selection-island.js';
 /** Payload отправки композера (#87): текст + готовые вложения + контекст
  *  ответа/правки. Хост решает: edit ≠ null → мутация правки; иначе — отправка
  *  (attachmentIds/replyToId из payload). Пересылка (бар ForwardBanner)
- *  обрабатывается ВНУТРИ композера: текст = комментарий к блоку. */
+ *  обрабатывается ВНУДРИ композера: текст = комментарий к блоку. */
 export interface ComposerSubmit {
   text: string;
   attachments: PendingAttachment[];
   reply: ReplyDraft | null;
   edit: EditDraft | null;
+}
+
+/** Лимит текста сообщения (контракт text.max(4000), спека): превалидация в
+ *  композере (раунд 3) — серверный 422 не должен съедать текст. */
+export const MESSAGE_TEXT_LIMIT = 4000;
+/** Счётчик виден, когда до лимита ближе этого порога. */
+export const MESSAGE_TEXT_COUNTER_FROM = 3500;
+
+/** Состояние превалидации длины (чистая функция — unit-тесты на границе). */
+export function messageLimitState(length: number): { over: boolean; counter: string | null } {
+  return {
+    over: length > MESSAGE_TEXT_LIMIT,
+    counter: length > MESSAGE_TEXT_COUNTER_FROM ? `${length} / ${MESSAGE_TEXT_LIMIT}` : null,
+  };
 }
 
 /** Режим мультивыбора ленты (A6): композер СХЛОПЫВАЕТСЯ в узкий островок
@@ -114,6 +128,7 @@ export function ChatComposer({
   placeholder,
   focusId,
   conversationId,
+  typingThreadRootId = null,
   onSubmit,
   attachmentsEnabled: attachmentsEnabledProp = false,
   onEditLast,
@@ -125,6 +140,8 @@ export function ChatComposer({
   focusId: string;
   /** Беседа — для прыжка по клику на бар ответа. */
   conversationId?: string;
+  /** Печать В ТРЕДЕ (раунд 3): индикатор — шапка окна треда, не список бесед. */
+  typingThreadRootId?: string | null;
   onSubmit: (submit: ComposerSubmit) => void;
   /** Полный режим (мессенджер): скрепка-меню, вставка файлов, ↑-правка. */
   attachmentsEnabled?: boolean;
@@ -228,16 +245,29 @@ export function ChatComposer({
   const uploading = draft.attachments.some((a) => a.status === 'uploading');
   const readyAttachments = draft.attachments.filter((a) => a.status === 'ready' && a.attachment);
   const hasContent = text.trim().length > 0 || readyAttachments.length > 0;
+  // Превалидация лимита (раунд 3): счётчик у черты, отправка заблокирована,
+  // текст НЕ теряется (остаётся в поле/черновике — серверного 422 нет).
+  const limit = messageLimitState(text.length);
   // Пересылка отправляется и без комментария (блок сам по себе ценен);
   // правка — только с непустым текстом; загрузка вложений держит обе.
   const canSubmit = draft.edit
-    ? text.trim().length > 0
+    ? text.trim().length > 0 && !limit.over
     : pending // пересылка без вложений — загрузка трей не блокирует
-      ? true
-      : hasContent && !uploading;
+      ? !limit.over
+      : hasContent && !uploading && !limit.over;
   // Telegram: отправки НЕТ до первого символа (на её месте микрофон);
   // бар пересылки кнопку показывает (комментарий опционален).
   const sendVisible = draft.edit ? text.trim().length > 0 : hasContent || pending !== null;
+
+  // Догон ленты (вердикт 24.09): одиночная своя отправка — ПЛАВНО; быстрая
+  // серия — мгновенно (smooth на каждую пачку = «дёргание», раунд 3).
+  const lastSendAt = useRef(0);
+  function requestScrollEnd(): void {
+    const now = Date.now();
+    const burst = now - lastSendAt.current < 1500;
+    lastSendAt.current = now;
+    useScrollEndStore.getState().request(focusId, burst ? 'auto' : 'smooth');
+  }
 
   function submit() {
     if (!canSubmit) return;
@@ -264,10 +294,13 @@ export function ChatComposer({
             useForwardPending.getState().clear(focusId);
             store.setText(focusId, '');
             toast.success(ui.chat.forwardDone);
+            // Догон и фокус приёмника — ПОСЛЕ успеха (раунд 3): раньше нонс
+            // ставился до ответа сервера и гасился о невставшие сообщения.
+            useScrollEndStore.getState().request(focusId, 'smooth');
+            focusComposer(focusId);
           },
         },
       );
-      useScrollEndStore.getState().request(focusId);
       return;
     }
     onSubmit({
@@ -277,7 +310,7 @@ export function ChatComposer({
       edit: null,
     });
     // Своё сообщение видно с любой позиции скролла (вердикт 24.09).
-    useScrollEndStore.getState().request(focusId);
+    requestScrollEnd();
     store.clear(focusId);
   }
 
@@ -391,6 +424,22 @@ export function ChatComposer({
             {attachmentsEnabled ? (
               <ComposerAttachments draftKey={focusId} items={draft.attachments} />
             ) : null}
+            {/* Превалидация лимита текста (раунд 3): счётчик у черты 4000,
+                при превышении — понятное сообщение; отправка заблокирована,
+                текст остаётся в поле/черновике (серверный 422 не наступает). */}
+            {limit.over ? (
+              <span
+                className="px-1.5 text-label-sm text-destructive"
+                role="status"
+                aria-live="polite"
+              >
+                {ui.chat.messageLimitHint}
+              </span>
+            ) : limit.counter !== null ? (
+              <span className="px-1.5 text-right font-mono text-label-sm text-muted-foreground tabular-nums">
+                {limit.counter}
+              </span>
+            ) : null}
             <span className="flex items-end gap-0.5">
               {attachmentsEnabled ? (
                 <ComposerClipMenu
@@ -435,7 +484,7 @@ export function ChatComposer({
                 onChange={(e) => {
                   setText(focusId, e.target.value);
                   if (conversationId && e.target.value.length > 0) {
-                    emitTyping(conversationId);
+                    emitTyping(conversationId, typingThreadRootId);
                   }
                 }}
                 onKeyDown={onKeyDown}

@@ -180,11 +180,15 @@ export const saveConversationDraftBodySchema = z.object({
 export type SaveConversationDraftBody = z.infer<typeof saveConversationDraftBodySchema>;
 
 /** Квитанция просмотров (POST /chat/conversations/:id/read, #102 раунд 2):
- *  просмотр = факт видимости в вьюпорте — клиент шлёт seq самой новой видимой
- *  строки (троттл ~500 мс при движении вперёд); сервер двигает watermark
- *  (GREATEST, кламп к last_seq беседы) и эмитит chat.message_read. */
+ *  просмотр = факт видимости вьюпортом всей строки (раунд 3) — клиент шлёт seq
+ *  самой новой видимой строки (троттл ~500 мс при движении вперёд); сервер
+ *  двигает watermark (GREATEST, кламп к last_seq) и эмитит chat.message_read.
+ *  threadRootId — квитанция ИЗ ТРЕДА: дополнительно двигает watermark трэда
+ *  наблюдателя (точка «есть новые» на посте гаснет), watermark беседы — как
+ *  обычно («увидел где угодно = просмотрено»). */
 export const readConversationBodySchema = z.object({
   upToSeq: z.number().int().positive(),
+  threadRootId: z.uuid().optional(),
 });
 export type ReadConversationBody = z.infer<typeof readConversationBodySchema>;
 
@@ -224,6 +228,9 @@ export const conversationListItemSchema = z.object({
   membersPreview: z.array(userRefSchema),
   lastMessage: messageSchema.nullable(),
   unreadCount: z.number().int().min(0),
+  /** Watermark прочтения ТЕКУЩЕГО пользователя в беседе (см. ниже): якорь
+   *  «открыть на первом непрочитанном» (seq > myLastReadSeq, раунд 3). */
+  myLastReadSeq: z.number().int().nonnegative(),
   /** Закреплена (контекстное меню беседы, реф Битрикс24): закреплённые — сверху. */
   pinned: z.boolean(),
   /** Звук выключен (уведомления копятся без звука; глиф на строке). */
@@ -339,3 +346,31 @@ export const forwardMessagesBodySchema = z.object({
 });
 
 export type ForwardMessagesBody = z.infer<typeof forwardMessagesBodySchema>;
+
+/** Состояние трэда для ТЕКУЩЕГО пользователя (раунд 3, «честная видимость
+ *  уведомлений»: счётчик трэда и точку «есть новые» видит только наблюдатель).
+ *  Наблюдатель = нажал «Следить», писал в трэде, отмечен @ или автор поста. */
+export const threadStateSchema = z.object({
+  threadRootId: z.uuid(),
+  /** Я наблюдатель этого трэда (кнопка «Следить» в шапке окна треда). */
+  watched: z.boolean(),
+  /** Непрочитанные чужие ответы с моего watermark трэда (0 у не-наблюдателей). */
+  unreadCount: z.number().int().min(0),
+});
+export type ThreadState = z.infer<typeof threadStateSchema>;
+
+/** GET /chat/conversations/:id/threads/state — снимок состояний всех трэдов
+ *  беседы, где текущий пользователь — наблюдатель (не пагинируется: объём
+ *  ограничен числом трэдов беседы у одного пользователя). */
+export const threadStateListSchema = z.object({
+  items: z.array(threadStateSchema),
+});
+export type ThreadStateList = z.infer<typeof threadStateListSchema>;
+
+/** POST /chat/conversations/:id/threads/:rootId/watch — toggle наблюдения
+ *  (идемпотентный: повтор с тем же Idempotency-Key возвращает первый результат).
+ *  Watching=false снимает наблюдение кнопкой (реплай/@ добавят снова). */
+export const threadWatchResultSchema = z.object({
+  watching: z.boolean(),
+});
+export type ThreadWatchResult = z.infer<typeof threadWatchResultSchema>;
