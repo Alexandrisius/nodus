@@ -7,7 +7,7 @@ import { expect, test } from '@playwright/test';
  */
 
 const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL ?? 'admin@nodus.by';
-const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD ?? 'Nodus!Admin2026';
+const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD ?? '';
 
 test.describe('логин (критичный путь)', () => {
   test('аноним → /login → вход → справочник → выход', async ({ page }) => {

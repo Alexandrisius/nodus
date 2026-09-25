@@ -26,14 +26,16 @@ import { Counter, Rate, Trend } from 'k6/metrics';
 
 const BASE_URL = __ENV.BASE_URL || 'http://host.docker.internal:3012';
 
-/** Сид-пользователи (пароли — из prisma/seed.ts; admin имеет свой). */
+/** Сид-пользователи (пароли — env: сид больше не имеет известных дефолтов). */
+const ADMIN_PASSWORD = __ENV.ADMIN_PASSWORD ?? '';
+const DEMO_PASSWORD = __ENV.DEMO_PASSWORD ?? '';
 const USERS = [
-  { email: 'admin@nodus.by', password: 'Nodus!Admin2026' },
-  { email: 'klimovich@nodus.by', password: 'Nodus!Demo2026' },
-  { email: 'vasilevich@nodus.by', password: 'Nodus!Demo2026' },
-  { email: 'ivanov@nodus.by', password: 'Nodus!Demo2026' },
-  { email: 'petrov@nodus.by', password: 'Nodus!Demo2026' },
-  { email: 'sidorova@nodus.by', password: 'Nodus!Demo2026' },
+  { email: 'admin@nodus.by', password: ADMIN_PASSWORD },
+  { email: 'klimovich@nodus.by', password: DEMO_PASSWORD },
+  { email: 'vasilevich@nodus.by', password: DEMO_PASSWORD },
+  { email: 'ivanov@nodus.by', password: DEMO_PASSWORD },
+  { email: 'petrov@nodus.by', password: DEMO_PASSWORD },
+  { email: 'sidorova@nodus.by', password: DEMO_PASSWORD },
 ];
 
 /** Группы = тегированные подметрики: p50/p95/p99 и fail-rate по эндпоинту. */

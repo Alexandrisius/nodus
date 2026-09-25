@@ -1,14 +1,18 @@
 /**
- * Сидинг (ADR-0002): демо-оргструктура ПассатПроект.
- * Идемпотентен (upsert по уникальным ключам): dev-БД сбрасывается свободно,
- * демо nodus.by — стабильные данные (те же upsert-ы, без deleteMany).
+ * Сидинг (ADR-0002): пилотная группа мессенджера — Группа BIM-технологий
+ * ПассатПроект (вердикт владельца 26.09.2026: 5 сотрудников + системный
+ * админ, БОЛЬШЕ сотрудников и отделов на пилоте нет).
+ * Идемпотентен (upsert по уникальным ключам): dev/CI-БД сеются свободно,
+ * прод nodus.by — стабильные данные.
  *
- * Демонстрирует модель эпика M2:
- * - двойная структура: BIM-группа управленчески отдельно, юридически — «Группа ГИПов»;
- * - гибкая связь: помощник ГИПа подчинён ГИПу (managerId) в пределах одной группы;
- * - у подразделений — руководитель (head) и заместитель (deputy).
+ * Пароли (гигиена 26.09: известных дефолтов в git больше нет):
+ * - SEED_ADMIN_PASSWORD / SEED_DEMO_PASSWORD — явная установка (обновит
+ *   пароль и у существующих записей — способ ротации стенда);
+ * - без env — случайный пароль на каждого НОВОГО пользователя с одноразовой
+ *   печатью ниже (существующие записи не перезаписываются).
  */
 import * as argon2 from 'argon2';
+import { randomBytes } from 'node:crypto';
 import { PrismaPg } from '@prisma/adapter-pg';
 
 import { PrismaClient } from '../src/generated/prisma/client.js';
@@ -38,6 +42,16 @@ const ALL_PERMISSIONS = [
   'correspondence.create',
   'correspondence.archive',
 ];
+
+/** Созданные этой прогоном учётки с паролями — печать в конце сида. */
+const createdCredentials: { email: string; password: string }[] = [];
+
+function newPassword(envValue: string | undefined, email: string): string {
+  if (envValue) return envValue;
+  const pass = `N-${randomBytes(9).toString('base64url')}`;
+  createdCredentials.push({ email, password: pass });
+  return pass;
+}
 
 async function main(): Promise<void> {
   // --- Роли (системные) ---
@@ -81,71 +95,113 @@ async function main(): Promise<void> {
     },
   });
 
-  // --- Должности ---
-  async function position(name: string, kind: 'management' | 'legal', sortOrder = 0) {
+  // --- Должности (management; юр-структуры на пилоте нет) ---
+  async function position(name: string, sortOrder = 0) {
     return prisma.position.upsert({
-      where: { name_kind: { name, kind } },
+      where: { name_kind: { name, kind: 'management' } },
       update: {},
-      create: { name, kind, sortOrder },
+      create: { name, kind: 'management', sortOrder },
     });
   }
 
-  const posDirector = await position('Директор', 'management');
-  const posGip = await position('Главный инженер проекта', 'management', 10);
-  const posGipAssistant = await position('Помощник ГИПа', 'management', 20);
-  const posBimManager = await position('BIM-менеджер', 'management', 30);
-  const posEngineer = await position('Инженер-проектировщик', 'management', 40);
+  const posHeadBim = await position('Руководитель группы BIM');
+  const posBimManager = await position('BIM-менеджер', 10);
+  const posBimMaster = await position('BIM-мастер', 20);
 
-  const posLegalEngineer = await position('Инженер-проектировщик', 'legal');
-  const posLegalLead = await position('Ведущий инженер-проектировщик', 'legal', 10);
-  const posLegalDirector = await position('Директор', 'legal', 20);
-
-  // --- Подразделения (upsert по детерминированному ключу: ищем по name+kind+parent) ---
-  async function department(
-    name: string,
-    kind: 'management' | 'legal',
-    parentId: string | null,
-    sortOrder = 0,
-  ) {
+  // --- Подразделения: компания → единственная пилотная группа ---
+  async function department(name: string, parentId: string | null, sortOrder = 0) {
     const existing = await prisma.department.findFirst({
-      where: { name, kind, parentId },
+      where: { name, kind: 'management', parentId },
     });
     if (existing) return existing;
-    return prisma.department.create({ data: { name, kind, parentId, sortOrder } });
+    return prisma.department.create({ data: { name, kind: 'management', parentId, sortOrder } });
   }
 
-  const root = await department('ПассатПроект', 'management', null);
-  const depAdmin = await department('Административное', 'management', root.id, 10);
-  const depProject = await department('Проектное', 'management', root.id, 20);
-  const depBim = await department('Группа BIM-технологий', 'management', depProject.id, 10);
-
-  const legalRoot = await department('ПассатПроект', 'legal', null);
-  const legalGip = await department('Группа ГИПов', 'legal', legalRoot.id, 10);
-  const legalAdmin = await department('Административное', 'legal', legalRoot.id, 20);
+  const company = await department('ПассатПроект', null);
+  const bimGroup = await department('Группа BIM-технологий', company.id, 10);
 
   // --- Пользователи ---
-  const adminPassword = process.env.SEED_ADMIN_PASSWORD ?? 'Nodus!Admin2026';
-  const demoPassword = process.env.SEED_DEMO_PASSWORD ?? 'Nodus!Demo2026';
+  const demoPasswordEnv = process.env.SEED_DEMO_PASSWORD; // стенды: единый пароль
+  const adminPassword = newPassword(process.env.SEED_ADMIN_PASSWORD, 'admin@nodus.by');
   const adminHash = await argon2.hash(adminPassword, ARGON2_OPTIONS);
-  const demoHash = await argon2.hash(demoPassword, ARGON2_OPTIONS);
 
+  const pilotHashes = new Map<string, string>();
+  const pilots: {
+    email: string;
+    lastName: string;
+    firstName: string;
+    middleName?: string;
+    positionId: string;
+    roleId: string;
+  }[] = [
+    {
+      email: 'a.klimovich@passatproekt.by',
+      lastName: 'Климович',
+      firstName: 'Александр',
+      middleName: 'Геннадьевич',
+      positionId: posHeadBim.id,
+      roleId: headRole.id,
+    },
+    {
+      email: 'a.matorin@passatproekt.by',
+      lastName: 'Маторин',
+      firstName: 'Артём',
+      middleName: 'Николаевич',
+      positionId: posBimManager.id,
+      roleId: employeeRole.id,
+    },
+    {
+      email: 'e.polomar@passatproekt.by',
+      lastName: 'Поломар',
+      firstName: 'Екатерина',
+      middleName: 'Александровна',
+      positionId: posBimMaster.id,
+      roleId: employeeRole.id,
+    },
+    {
+      email: 'd.klemantovich@passatproekt.by',
+      lastName: 'Клемантович',
+      firstName: 'Денис',
+      middleName: 'Теофанович',
+      positionId: posBimMaster.id,
+      roleId: employeeRole.id,
+    },
+    {
+      email: 'a.voronich@passatproekt.by',
+      lastName: 'Воронич',
+      firstName: 'Алина',
+      middleName: 'Николаевна',
+      positionId: posBimMaster.id,
+      roleId: employeeRole.id,
+    },
+  ];
+  for (const pilot of pilots) {
+    pilotHashes.set(
+      pilot.email,
+      await argon2.hash(newPassword(demoPasswordEnv, pilot.email), ARGON2_OPTIONS),
+    );
+  }
+
+  /**
+   * Upsert пользователя: пароль применяется к существующему ТОЛЬКО при явном
+   * env (ротация стенда); без env — только при создании.
+   */
   async function user(data: {
     email: string;
     passwordHash: string;
+    updatePassword: boolean;
     lastName: string;
     firstName: string;
     middleName?: string;
     departmentId?: string;
     positionId?: string;
-    legalDepartmentId?: string;
-    legalPositionId?: string;
     managerId?: string;
     roleId: string;
   }) {
     const displayName = [data.lastName, data.firstName, data.middleName].filter(Boolean).join(' ');
     const record = await prisma.user.upsert({
       where: { email: data.email },
-      update: {},
+      update: data.updatePassword ? { passwordHash: data.passwordHash } : {},
       create: {
         email: data.email,
         passwordHash: data.passwordHash,
@@ -155,8 +211,6 @@ async function main(): Promise<void> {
         displayName,
         departmentId: data.departmentId ?? null,
         positionId: data.positionId ?? null,
-        legalDepartmentId: data.legalDepartmentId ?? null,
-        legalPositionId: data.legalPositionId ?? null,
         managerId: data.managerId ?? null,
       },
     });
@@ -168,117 +222,45 @@ async function main(): Promise<void> {
     return record;
   }
 
+  // Системный админ (владелец): без отдела, полные права.
   const admin = await user({
     email: 'admin@nodus.by',
     passwordHash: adminHash,
+    updatePassword: Boolean(process.env.SEED_ADMIN_PASSWORD),
     lastName: 'Администратор',
     firstName: 'Системный',
-    departmentId: depAdmin.id,
-    positionId: posEngineer.id,
-    legalDepartmentId: legalAdmin.id,
-    legalPositionId: posLegalEngineer.id,
     roleId: adminRole.id,
   });
 
-  const director = await user({
-    email: 'vasilevich@nodus.by',
-    passwordHash: demoHash,
-    lastName: 'Василевич',
-    firstName: 'Евгений',
-    departmentId: root.id,
-    positionId: posDirector.id,
-    legalDepartmentId: legalRoot.id,
-    legalPositionId: posLegalDirector.id,
-    roleId: headRole.id,
-  });
+  // Пилотная группа: все в Группе BIM-технологий, у группы — руководитель.
+  const pilotRecords = [];
+  for (const pilot of pilots) {
+    pilotRecords.push(
+      await user({
+        ...pilot,
+        passwordHash: pilotHashes.get(pilot.email)!,
+        updatePassword: Boolean(demoPasswordEnv),
+        departmentId: bimGroup.id,
+      }),
+    );
+  }
+  const head = pilotRecords[0]!;
+  await prisma.department.update({ where: { id: bimGroup.id }, data: { headId: head.id } });
+  for (const member of pilotRecords.slice(1)) {
+    await prisma.user.update({ where: { id: member.id }, data: { managerId: head.id } });
+  }
 
-  const gip = await user({
-    email: 'ivanov@nodus.by',
-    passwordHash: demoHash,
-    lastName: 'Иванов',
-    firstName: 'Сергей',
-    middleName: 'Петрович',
-    departmentId: depProject.id,
-    positionId: posGip.id,
-    legalDepartmentId: legalGip.id,
-    legalPositionId: posLegalLead.id,
-    roleId: headRole.id,
-  });
-
-  // Гибкая связь эпика M2: помощник подчинён ГИПу в пределах одной группы —
-  // без фиктивного отдела «ГИП Иванов».
-  const gipAssistant = await user({
-    email: 'petrov@nodus.by',
-    passwordHash: demoHash,
-    lastName: 'Петров',
-    firstName: 'Андрей',
-    departmentId: depProject.id,
-    positionId: posGipAssistant.id,
-    legalDepartmentId: legalGip.id,
-    legalPositionId: posLegalEngineer.id,
-    managerId: gip.id,
-    roleId: employeeRole.id,
-  });
-
-  const bimManager = await user({
-    email: 'klimovich@nodus.by',
-    passwordHash: demoHash,
-    lastName: 'Климович',
-    firstName: 'Александр',
-    middleName: 'Геннадьевич',
-    departmentId: depBim.id,
-    positionId: posBimManager.id,
-    // Юридически — «Группа ГИПов», ведущий инженер-проектировщик (эпик M2).
-    legalDepartmentId: legalGip.id,
-    legalPositionId: posLegalLead.id,
-    roleId: headRole.id,
-  });
-
-  const bimEngineer = await user({
-    email: 'sidorova@nodus.by',
-    passwordHash: demoHash,
-    lastName: 'Сидорова',
-    firstName: 'Мария',
-    departmentId: depBim.id,
-    positionId: posEngineer.id,
-    legalDepartmentId: legalGip.id,
-    legalPositionId: posLegalEngineer.id,
-    managerId: bimManager.id,
-    roleId: employeeRole.id,
-  });
-
-  // --- Руководители и заместители подразделений (зам — эпик M2) ---
-  await prisma.department.update({ where: { id: root.id }, data: { headId: director.id } });
-  await prisma.department.update({
-    where: { id: depProject.id },
-    data: { headId: gip.id, deputyId: gipAssistant.id },
-  });
-  await prisma.department.update({
-    where: { id: depBim.id },
-    data: { headId: bimManager.id, deputyId: bimEngineer.id },
-  });
-  await prisma.department.update({
-    where: { id: depAdmin.id },
-    data: { headId: admin.id },
-  });
-
-  // --- Чат (M6, #58). Файл >300 строк: сид — декларативные данные, дробление бессмысленно. ---
-  // Фичефлаг `chat` (I10): модуль включён по умолчанию; выключение —
-  // setEnabled(false) админкой (отдельный issue) или напрямую в БД.
   await prisma.featureFlag.upsert({
     where: { key: 'chat' },
     update: {},
     create: { key: 'chat', enabled: true },
   });
 
-  // Канал новостей компании (Ф4; вердикт владельца 24.09.2026: «Новости» —
-  // КАНАЛ: в каналах публикация в ленту — по правам (post=admin), в группах
-  // пишут все участники; обсуждение в тредах открыто всем). Все сотрудники —
-  // участники. Смена правила — правкой матрицы, не схемы.
+  // Канал новостей компании (Ф4; вердикт 24.09: «Новости» — КАНАЛ, публикация
+  // post=admin, обсуждение в тредах всем). Участники — админ + пилотная группа.
   const NEWS_CHANNEL_ID = '00000000-0000-4000-8000-000000000c01';
   await prisma.conversation.upsert({
     where: { id: NEWS_CHANNEL_ID },
-    // update чинит тип у существующих демо-БД (раньше сеялся как group).
     update: { type: 'project_channel' },
     create: {
       id: NEWS_CHANNEL_ID,
@@ -297,43 +279,41 @@ async function main(): Promise<void> {
       members: {
         create: [
           { userId: admin.id, role: 'owner' },
-          ...[director, gip, gipAssistant, bimManager, bimEngineer].map((u) => ({
-            userId: u.id,
-            role: 'member' as const,
-          })),
+          ...pilotRecords.map((u) => ({ userId: u.id, role: 'member' as const })),
         ],
       },
     },
   });
+  // Существующим (пилот мог завестись раньше канала) досеиваем участие.
+  for (const member of pilotRecords) {
+    await prisma.conversationMember.upsert({
+      where: { conversationId_userId: { conversationId: NEWS_CHANNEL_ID, userId: member.id } },
+      update: {},
+      create: { conversationId: NEWS_CHANNEL_ID, userId: member.id, role: 'member' },
+    });
+  }
 
-  // Демо-контент канала: детерминированные id (идемпотентный upsert).
+  // Приветствие пилота (детерминированные id — идемпотентный upsert).
   const newsPosts: { id: string; seq: number; authorId: string; text: string }[] = [
     {
       id: '00000000-0000-4000-8000-000000000c11',
       seq: 1,
-      authorId: director.id,
-      text: 'Коллеги, добрый день! С понедельника стартует internal-тест корпоративного портала: мессенджер открывается для пилотной группы. Пожелания складываем в треды под постами.',
+      authorId: admin.id,
+      text: 'Коллеги, добрый день! Это пилот корпоративного мессенджера Нодус. Пишите друг другу, пробуйте треды, реакции и закрепы — замечания и пожелания оставляйте прямо здесь в тредах под этим постом.',
     },
     {
       id: '00000000-0000-4000-8000-000000000c12',
       seq: 2,
       authorId: admin.id,
-      text: 'Технический регламент: вложения до 100 МБ, одно сообщение — до 4000 символов. При сбое отправки сообщение повторяется автоматически и не задваивается.',
+      text: 'Регламент: одно сообщение — до 4000 символов, вложения до 100 МБ. Если отправка не удалась, сообщение повторится автоматически и не задвоится.',
     },
     {
       id: '00000000-0000-4000-8000-000000000c13',
       seq: 3,
-      authorId: director.id,
-      text: 'Напоминаю: пятница — день аккуратного переноса активных переписок из Bitrix24. Каналы проектов появятся вместе с модулем проектов.',
+      authorId: head.id,
+      text: 'От BIM-группы: все на связи. Вопросы по пилоту собираем в тредах, живые обсуждения — в наших чатах.',
     },
   ];
-  const newsReply = {
-    id: '00000000-0000-4000-8000-000000000c14',
-    seq: 4,
-    authorId: bimManager.id,
-    threadRootId: newsPosts[0]!.id,
-    text: 'От BIM-группы: готовы, вопросы по вложениям больших моделей соберём отдельно.',
-  };
   for (const post of newsPosts) {
     await prisma.message.upsert({
       where: { id: post.id },
@@ -348,40 +328,23 @@ async function main(): Promise<void> {
       },
     });
   }
-  await prisma.message.upsert({
-    where: { id: newsReply.id },
-    update: {},
-    create: {
-      id: newsReply.id,
-      conversationId: NEWS_CHANNEL_ID,
-      seq: BigInt(newsReply.seq),
-      authorId: newsReply.authorId,
-      clientMessageId: `seed:news:${newsReply.seq}`,
-      text: newsReply.text,
-      threadRootId: newsReply.threadRootId,
-    },
-  });
-  await prisma.threadParticipant.upsert({
-    where: { threadRootId_userId: { threadRootId: newsPosts[0]!.id, userId: director.id } },
-    update: {},
-    create: { threadRootId: newsPosts[0]!.id, userId: director.id, source: 'author' },
-  });
-  await prisma.threadParticipant.upsert({
-    where: { threadRootId_userId: { threadRootId: newsPosts[0]!.id, userId: bimManager.id } },
-    update: {},
-    create: { threadRootId: newsPosts[0]!.id, userId: bimManager.id, source: 'replier' },
-  });
-  // Курсор порядка и активность беседы — по факту засеянных сообщений.
   await prisma.conversation.update({
     where: { id: NEWS_CHANNEL_ID },
-    data: { lastSeq: 4n, lastMessageAt: new Date() },
+    data: { lastSeq: 3n, lastMessageAt: new Date() },
   });
 
   const users = await prisma.user.count();
   const departments = await prisma.department.count();
   console.log(`Seed OK: ${users} пользователей, ${departments} подразделений`);
-  console.log('Вход: admin@nodus.by / (SEED_ADMIN_PASSWORD, по умолчанию Nodus!Admin2026)');
-  console.log('Чат: флаг chat включён; канал «Новости компании» + 4 демо-сообщения');
+  console.log('Чат: флаг chat включён; канал «Новости компании» с приветствием пилоту');
+  if (createdCredentials.length > 0) {
+    console.log(
+      '--- Созданные учётки (пароли показать один раз, передать лично; смена при первом входе) ---',
+    );
+    for (const c of createdCredentials) console.log(`${c.email} -> ${c.password}`);
+  } else if (process.env.SEED_ADMIN_PASSWORD || demoPasswordEnv) {
+    console.log('Пароли: применены из SEED_*_PASSWORD (в т.ч. у существующих)');
+  }
 }
 
 main()

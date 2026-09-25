@@ -17,11 +17,11 @@ const LIVE = Boolean(process.env.E2E_LIVE_API);
 const BASE_URL = process.env.NODUS_BASE_URL ?? 'http://localhost:3000';
 const ADMIN = {
   email: process.env.E2E_ADMIN_EMAIL ?? 'admin@nodus.by',
-  password: process.env.E2E_ADMIN_PASSWORD ?? 'Nodus!Admin2026',
+  password: process.env.E2E_ADMIN_PASSWORD ?? '',
 };
 const PEER = {
-  email: process.env.E2E_SECOND_EMAIL ?? 'klimovich@nodus.by',
-  password: process.env.E2E_SECOND_PASSWORD ?? 'Nodus!Demo2026',
+  email: process.env.E2E_SECOND_EMAIL ?? 'a.klimovich@passatproekt.by',
+  password: process.env.E2E_SECOND_PASSWORD ?? '',
 };
 const RUN = Date.now().toString(36);
 const TITLE = `e2e-ws-${RUN}`;

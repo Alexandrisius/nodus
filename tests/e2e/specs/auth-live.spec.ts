@@ -10,7 +10,7 @@ import { expect, test } from '@playwright/test';
 
 const LIVE = Boolean(process.env.E2E_LIVE_API);
 const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL ?? 'admin@nodus.by';
-const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD ?? 'Nodus!Admin2026';
+const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD ?? '';
 
 test.describe('живой логин (#48)', () => {
   // Понятный пропуск вместо молчаливого: почему тест не выполнялся.

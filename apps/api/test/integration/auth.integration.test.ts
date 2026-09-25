@@ -27,8 +27,16 @@ import { ensureTestDatabase } from './test-db.js';
  * деактивация пользователя отзывает сессии событием directory.user.deactivated.
  */
 
-const ADMIN = { email: 'admin@nodus.by', password: 'Nodus!Admin2026' };
-const EMPLOYEE = { email: 'sidorova@nodus.by', password: 'Nodus!Demo2026' };
+// Креды тестового стенда (nodus_test): сид запускается с ними же ниже —
+// дефолты сида случайные (пароли прода больше не известны из git).
+const ADMIN = {
+  email: 'admin@nodus.by',
+  password: process.env.SEED_ADMIN_PASSWORD ?? 'test-admin-password',
+};
+const EMPLOYEE = {
+  email: 'sidorova@nodus.by',
+  password: process.env.SEED_DEMO_PASSWORD ?? 'test-demo-password',
+};
 
 function cookieOf(res: Response): string {
   const setCookie = res.headers.get('set-cookie') ?? '';
@@ -51,10 +59,16 @@ describe('auth + directory (integration)', () => {
   beforeAll(async () => {
     const testUrl = await ensureTestDatabase(process.cwd());
     process.env.DATABASE_URL = testUrl;
-    // Демо-данные в тестовую БД (идемпотентный seed).
+    // Демо-данные в тестовую БД (идемпотентный seed; пароли передаём явно —
+    // сид обновляет их у существующих записей, прогоны стабильны на любой БД).
     execSync('pnpm exec prisma db seed', {
       cwd: process.cwd(),
-      env: { ...process.env, DATABASE_URL: testUrl },
+      env: {
+        ...process.env,
+        DATABASE_URL: testUrl,
+        SEED_ADMIN_PASSWORD: ADMIN.password,
+        SEED_DEMO_PASSWORD: EMPLOYEE.password,
+      },
       stdio: 'inherit',
     });
 

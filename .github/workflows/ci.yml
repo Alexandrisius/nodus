@@ -185,6 +185,11 @@ jobs:
 
       - name: Миграции и сидинг тестовой БД
         run: pnpm --filter @nodus/api db:deploy && pnpm --filter @nodus/api db:seed
+        env:
+          # Креды e2e-стенда (только CI): сид без env генерирует случайные
+          # пароли — тесты ниже входят этими же значениями.
+          SEED_ADMIN_PASSWORD: ci-e2e-admin-2026
+          SEED_DEMO_PASSWORD: ci-e2e-demo-2026
 
       - name: Запуск API
         run: nohup node apps/api/dist/main.js > /tmp/nodus-api.log 2>&1 &
@@ -233,3 +238,6 @@ jobs:
         env:
           NODUS_BASE_URL: http://localhost:4173
           E2E_LIVE_API: '1'
+          # Креды e2e-стенда — те же, что SEED_*_PASSWORD на шаге сида выше.
+          E2E_ADMIN_PASSWORD: ci-e2e-admin-2026
+          E2E_SECOND_PASSWORD: ci-e2e-demo-2026
