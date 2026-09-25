@@ -6,6 +6,7 @@ import {
   type ChatMessage,
   type ListMessagesQuery,
   type Paginated,
+  type ReadConversationResult,
   type SendMessageBody,
 } from '@nodus/contracts';
 
@@ -41,9 +42,10 @@ export interface SendResult {
 // неразрывна; правка/удаление разделяют те же инварианты правила следа — единый сервис агрегата.
 /**
  * Ядро сообщений: отправка (seq + идемпотентность в БД + outbox в одной
- * транзакции), лента/треды курсором по seq с продвижением прочтения,
- * правка/удаление по правилу следа. Все мутации сообщений начинаются с
- * UPDATE conversations SET last_seq → транзакции беседы сериализуются.
+ * транзакции), лента/треды курсором по seq, квитанции просмотров (POST
+ * /read — watermark GREATEST), правка/удаление по правилу следа. Все
+ * мутации сообщений начинаются с UPDATE conversations SET last_seq →
+ * транзакции беседы сериализуются.
  */
 @Injectable()
 export class MessagesService {
@@ -57,7 +59,9 @@ export class MessagesService {
 
   // ===== Чтение =====
 
-  /** Страница ленты/треда (ASC в странице, курсор назад по seq) + продвижение прочтения. */
+  /** Страница ленты/треда (ASC в странице, курсор назад по seq). Курсор
+   *  прочтения НЕ двигает (#102 раунд 2): просмотр = видимость в вьюпорте,
+   *  квитанции — POST /read от клиента. */
   async list(
     userId: string,
     conversationId: string,
@@ -75,23 +79,36 @@ export class MessagesService {
     });
     const members = await this.conversations.listMembers([conversationId]);
     const items = await this.mapper.toDtos(rows, { viewerId: userId, members });
-    await this.advanceRead(userId, conversationId, rows);
     return {
       items,
       nextCursor: hasMore && rows.length > 0 ? encodeCursor({ s: Number(rows[0]!.seq) }) : null,
     };
   }
 
-  /** Продвижение watermark прочтения при выдаче (read-эндпоинта нет — мок-модель). */
-  private async advanceRead(
+  /**
+   * Квитанция просмотров (#102 раунд 2): клиент видел до upToSeq (клампится к
+   * last_seq беседы — фантомное «всё прочитано» с кривым клиентом невозможно).
+   * Watermark двигается GREATEST-ом в своей транзакции; событие — только при
+   * реальном изменении (дубликаты/повторы тихи). readAt — фактическое время
+   * из строки, не момент эмита.
+   */
+  async readConversation(
     userId: string,
     conversationId: string,
-    rows: MessageRow[],
-  ): Promise<void> {
-    const maxSeq = rows.reduce<bigint>((max, row) => (row.seq > max ? row.seq : max), 0n);
-    if (maxSeq === 0n) return;
-    await this.txRunner.run(async (tx) => {
-      const advanced = await this.repo.advanceReadCursor(conversationId, userId, maxSeq, tx);
+    upToSeq: number,
+  ): Promise<ReadConversationResult> {
+    return this.txRunner.run(async (tx) => {
+      const membership = await this.conversations.findMembership(conversationId, userId, tx);
+      if (!membership) throw DomainException.notFound('Conversation not found');
+      const lastSeq = await this.conversations.findLastSeq(conversationId, tx);
+      if (lastSeq === null) throw DomainException.notFound('Conversation not found');
+      const target = lastSeq < BigInt(upToSeq) ? lastSeq : BigInt(upToSeq);
+      const { advanced, lastReadAt } = await this.repo.advanceReadCursor(
+        conversationId,
+        userId,
+        target,
+        tx,
+      );
       if (advanced) {
         await this.eventBus.emit(
           tx,
@@ -99,12 +116,13 @@ export class MessagesService {
           {
             conversationId,
             userId,
-            upToSeq: Number(maxSeq),
-            readAt: new Date().toISOString(),
+            upToSeq: Number(target),
+            readAt: (lastReadAt ?? new Date()).toISOString(),
           },
           { actorId: userId, aggregateType: 'conversation', aggregateId: conversationId },
         );
       }
+      return { upToSeq: Number(target) };
     });
   }
 

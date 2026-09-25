@@ -6,7 +6,7 @@ import type { ChatMessage } from '@nodus/contracts';
 
 import { ChatMessageItem } from './chat-message.js';
 
-// MessageReaders читает кэш списка бесед (#102) — нужен QueryClient.
+// QueryClient остаётся: пузырь живёт в дереве с запросами ленты.
 const queryClient = new QueryClient();
 const renderMessage = (node: React.ReactElement) =>
   render(<QueryClientProvider client={queryClient}>{node}</QueryClientProvider>);
@@ -20,6 +20,7 @@ const renderMessage = (node: React.ReactElement) =>
 const message = (overrides: Partial<ChatMessage> = {}): ChatMessage => ({
   id: 'm1',
   conversationId: 'conv-1',
+  seq: 1,
   author: { id: 'a', displayName: 'Иван Петров', avatarUrl: null },
   text: 'текст сообщения',
   replyToId: null,

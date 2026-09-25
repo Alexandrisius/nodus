@@ -60,6 +60,18 @@ describe.skipIf(!process.env.DATABASE_URL)(
       return messageSchema.parse(await res.json());
     }
 
+    let readSeq = 0;
+
+    /** Квитанция просмотров (#102 р.2): GET ленты курсор НЕ двигает. */
+    async function readAs(user: ChatUser, upToSeq: number): Promise<void> {
+      readSeq += 1;
+      const res = await fx.api(user, 'POST', `/chat/conversations/${conversationId}/read`, {
+        body: { upToSeq },
+        key: `readby-${fx.runId}-r${readSeq}`,
+      });
+      expect(res.status).toBe(200);
+    }
+
     it('1 из 6 прочитал → readAt != null, readBy = [первый]; список растёт', async () => {
       const sent = await send('пост для readBy');
       expect(sent.readAt).toBeNull();
@@ -70,12 +82,12 @@ describe.skipIf(!process.env.DATABASE_URL)(
       expect(own.readAt).toBeNull();
       expect(own.readBy).toEqual([]);
 
-      await list(bob); // ПЕРВЫЙ прочитал
+      await readAs(bob, sent.seq); // ПЕРВЫЙ просмотрел
       own = (await list(alice)).find((m) => m.id === sent.id)!;
       expect(own.readAt).not.toBeNull(); // галочка сразу (критерий #102)
       expect(own.readBy.map((r) => r.id)).toEqual([bob.id]);
 
-      await list(carol); // второй прочитал — счётчик растёт
+      await readAs(carol, sent.seq); // второй просмотрел — счётчик растёт
       own = (await list(alice)).find((m) => m.id === sent.id)!;
       expect(own.readBy.map((r) => r.id)).toEqual([bob.id, carol.id]); // по времени прочтения
 
@@ -86,7 +98,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
 
     it('правка исключает прочитавших до перечитывания', async () => {
       const sent = await send('правка readBy');
-      await list(bob); // прочитал до правки
+      await readAs(bob, sent.seq); // прочитал до правки
       let own = (await list(alice)).find((m) => m.id === sent.id)!;
       expect(own.readBy.map((r) => r.id)).toEqual([bob.id]);
 
@@ -104,7 +116,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
       expect(own.readAt).toBeNull(); // «повторный пуш прочитавшим» (#41)
       expect(own.readBy).toEqual([]);
 
-      await list(carol); // перечитал после правки → единственный прочитавший
+      await readAs(carol, sent.seq); // перечитал после правки → единственный прочитавший
       own = (await list(alice)).find((m) => m.id === sent.id)!;
       expect(own.readBy.map((r) => r.id)).toEqual([carol.id]);
     });

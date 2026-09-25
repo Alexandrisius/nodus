@@ -9,13 +9,15 @@ import { usePresenceStore } from './presence-store.js';
 import { applyRealtimeInvalidation } from './socket-invalidation.js';
 import { useSocketStatusStore } from './socket-status-store.js';
 import { useTypingStore } from './typing-store.js';
+import { wsDebugLog } from './ws-debug.js';
 
 /**
  * Единственное WS-соединение приложения (#104): подключается после логина,
  * пока домен chat живой (мок-режим чата — без сокета, там нет живых данных).
  * Обработчики регистрируются ДО коннекта: первый батч пакетов (presence-
  * snapshot) приезжает вместе с CONNECT и диспатчится немедленно.
- * Состояние сокета тихое (без UI-индикаторов).
+ * Состояние сокета тихое (без UI-индикаторов); отладка — `?wsdebug=1`
+ * (точка-индикатор + console-журнал, раунд 2 #104).
  */
 
 const DOMAIN_EVENTS = [
@@ -37,6 +39,9 @@ let socket: Socket | null = null;
 /** Беседы, подписанные этим клиентом (пере-join после reconnect). */
 const joinedConversations = new Set<string>();
 
+/** Транспортный фолбэк уже включался (revert делаем один раз за сессию). */
+let revertedToClassicUpgrade = false;
+
 export function getChatSocket(): Socket | null {
   return socket;
 }
@@ -47,6 +52,9 @@ export function connectChatSocket(queryClient: QueryClient): void {
   }
   const client = io({
     // Тот же origin: vite dev / nginx прооксируют /socket.io на gateway.
+    // Websocket-first (раунд 2 #104): без предварительного polling-хендшейка —
+    // минус круг запросов через прокси до первого события.
+    transports: ['websocket', 'polling'],
     auth: (cb) => {
       cb({ token: useAuthStore.getState().accessToken });
     },
@@ -58,6 +66,10 @@ export function connectChatSocket(queryClient: QueryClient): void {
 
   client.on('connect', () => {
     status.setConnected(true);
+    wsDebugLog('connect', 'transport:', client.io.engine.transport.name);
+    client.io.engine.once('upgrade', () => {
+      wsDebugLog('upgrade →', client.io.engine.transport.name);
+    });
     // Reconnect: догон состояния (события разрыва пропущены — invalidate
     // всего чат-дерева ключей) + повторная подписка на активные беседы.
     void queryClient.invalidateQueries({ queryKey: chatKeys.all });
@@ -65,14 +77,36 @@ export function connectChatSocket(queryClient: QueryClient): void {
       emitJoin(conversationId);
     }
   });
-  client.on('disconnect', () => {
+  client.on('disconnect', (reason) => {
     status.setConnected(false);
+    wsDebugLog('disconnect:', reason);
   });
   client.on('connect_error', (error: Error) => {
+    // Ошибка подключения = соединения нет: статус вниз, чтобы поллинг-fallback
+    // ушёл в частый интервал (раньше залипал на редком 60-с опросе).
+    status.setConnected(false);
+    wsDebugLog('connect_error:', error.message, (error as { description?: unknown }).description);
     if (error.message === 'unauthorized') {
-      // Access-токен истёк: один прозрачный refresh — следующая попытка
-      // реконнекта возьмёт свежий токен (function-auth).
-      void useAuthStore.getState().tryRefresh();
+      // Access-токен истёк: прозрачный refresh и НЕМЕДЛЕННЫЙ повтор (не ждём
+      // бэкоффа) — function-auth возьмёт свежий токен уже в этой попытке.
+      // Мёртвый refresh (сессия закрыта) — повтор не нужен: иначе замкнутый
+      // клиент крутил бы хендшейк+refresh вхолостую (валидатор раунда 2).
+      void useAuthStore
+        .getState()
+        .tryRefresh()
+        .then((refreshed) => {
+          if (refreshed || useAuthStore.getState().status === 'authenticated') {
+            client.connect();
+          }
+        })
+        .catch(() => undefined);
+    } else if (!revertedToClassicUpgrade) {
+      // websocket-first в современных браузерах не фолбэчится на polling
+      // (докам Socket.IO): при транспортной ошибке один раз возвращаем
+      // классический порядок polling → upgrade — надёжность выше скорости.
+      revertedToClassicUpgrade = true;
+      client.io.opts.transports = ['polling', 'websocket'];
+      wsDebugLog('revert to classic upgrade (polling → websocket)');
     }
   });
 
@@ -111,6 +145,7 @@ export function disconnectChatSocket(): void {
   socket.disconnect();
   socket = null;
   joinedConversations.clear();
+  revertedToClassicUpgrade = false;
   useSocketStatusStore.getState().setConnected(false);
   useTypingStore.getState().reset();
   usePresenceStore.getState().reset();

@@ -132,3 +132,37 @@ export const hiddenConversations = new Set<string>();
 export function revealHiddenConversation(conversationId: string): void {
   hiddenConversations.delete(conversationId);
 }
+
+/**
+ * Квитанция просмотров (#102 раунд 2): просмотр = видимость в вьюпорте.
+ * Мок-модель: гасит unread беседы; собеседник «просматривает» то же видимое
+ * (минимальная симуляция по квитанции клиента — живого пира в моках нет):
+ * СВОИ сообщения с seq ≤ upToSeq получают readAt + первого не-автора в
+ * readBy (модель первого прочитавшего); после правки (readAt сброшен)
+ * повторный просмотр восстанавливает. Клиент делает отложенную инвалидацию
+ * после квитанции (use-viewport-read) — галочки переключаются без polling.
+ */
+/** Следующий seq беседы (мок-эквивалент allocateSeqs: 1..n по порядку). */
+export function nextMessageSeq(conversationId: string): number {
+  return (
+    Math.max(
+      0,
+      ...demoMessages.filter((m) => m.conversationId === conversationId).map((m) => m.seq),
+    ) + 1
+  );
+}
+
+export function applyReadReceipt(conversationId: string, upToSeq: number): number {
+  const conversation = demoConversations.find((c) => c.id === conversationId);
+  if (!conversation) return -1;
+  conversation.unreadCount = 0;
+  const now = new Date().toISOString();
+  for (const m of demoMessages) {
+    if (m.conversationId !== conversationId || m.deletedAt || m.seq > upToSeq) continue;
+    const reader = conversation.membersPreview.find((u) => u.id !== m.author.id);
+    if (!reader) continue; // «Заметки»: просмотров нет
+    if (m.readAt === null) m.readAt = now;
+    if (!m.readBy.some((u) => u.id === reader.id)) m.readBy = [...m.readBy, reader];
+  }
+  return upToSeq;
+}

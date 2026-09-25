@@ -9,6 +9,7 @@ import { registerCardBridge, registerReplaceTopMessenger } from '../../shared/li
 import { stageMessengerThread } from '../../shared/chat/messenger-nav.js';
 import { ChatDialogHosts } from '../../shared/chat/dialog-hosts.js';
 import { useChatSocket } from '../../shared/socket/use-chat-socket.js';
+import { WsDebugBadge } from '../../shared/socket/ws-debug-badge.js';
 import { CircuitFrame } from './circuit-frame.js';
 import { CardStackHost } from './card-stack-host.js';
 import { CommandPalette } from './command-palette.js';
@@ -125,6 +126,7 @@ export function AppShell() {
       </div>
       <CircuitFrame />
       <EdgeScrollbar />
+      <WsDebugBadge />
       <CommandPalette />
       <ChatDialogHosts />
       <Toaster richColors theme={theme} />

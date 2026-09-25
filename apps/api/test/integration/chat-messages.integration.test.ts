@@ -174,10 +174,14 @@ describe.skipIf(!process.env.DATABASE_URL)('chat: сообщения (integratio
     expect(row1.obliterated).toBe(true);
     expect(row1.deletedAt).not.toBeNull();
 
-    // Прочитанное получателем: 200 надгробие, в ленте остаётся с пустым текстом.
+    // Просмотренное получателем (квитанция видимости, #102 р.2): 200 надгробие.
     const conv2 = await makeGroup();
     const read = await send(alice, conv2, { text: 'уже прочитано' });
-    await feed(bob, conv2, '?limit=50');
+    const receipt = await fx.api(bob, 'POST', `/chat/conversations/${conv2}/read`, {
+      body: { upToSeq: read.seq },
+      key: `del-trace-${fx.runId}`,
+    });
+    expect(receipt.status).toBe(200);
     const del2 = await fx.api(alice, 'DELETE', `/chat/conversations/${conv2}/messages/${read.id}`);
     expect(del2.status).toBe(200);
     const tombstone = messageSchema.parse(await del2.json());
@@ -397,7 +401,12 @@ describe.skipIf(!process.env.DATABASE_URL)('chat: сообщения (integratio
       editedAt,
     });
 
-    await feed(bob, conv, '?limit=50'); // read-GET продвигает курсор → событие
+    // Квитанция просмотров (GET курсор больше не двигает, #102 р.2) → событие
+    const receipt = await fx.api(bob, 'POST', `/chat/conversations/${conv}/read`, {
+      body: { upToSeq: message.seq },
+      key: `read-${fx.runId}-${message.id}`,
+    });
+    expect(receipt.status).toBe(200);
     const readEvents = await eventsOf('chat.message_read');
     expect(readEvents).toHaveLength(1);
     expect(chatMessageReadPayloadSchema.parse(readEvents[0]!.payload)).toMatchObject({

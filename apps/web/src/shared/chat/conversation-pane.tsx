@@ -30,6 +30,8 @@ import { MessageRow } from './message-row.js';
 import { buildMessageRuns, formatDayLabel, startsNewDay } from './message-groups.js';
 import { PinBar } from './pin-bar.js';
 import { ScrollEndResponder } from './scroll-end-responder.js';
+import { useFeedViewportRead } from './use-viewport-read.js';
+import { ConversationViewsLine } from './views-line.js';
 import { selectionComposerProps, useFeedSelection } from './use-feed-selection.js';
 import { JumpResponder } from './use-jump-responder.js';
 
@@ -64,6 +66,9 @@ export function ConversationPane({
   // Viewport ленты — цель прыжка (scroll-jump): «видно/не видно» и скролл
   // ВНУТРИ контейнера без отрыва низа (вердикт 25.09).
   const viewportRef = useRef<HTMLDivElement>(null);
+  // Квитанции просмотров (#102 р.2): seq самой новой видимой строки ленты —
+  // IO по строкам, root=скроллер (механика — use-viewport-read.ts).
+  useFeedViewportRead(conversationId, viewportRef, items);
 
   const lastMine = useCallback(
     () =>
@@ -178,6 +183,9 @@ export function ConversationPane({
           </MessageScroller>
         </MessageScrollerProvider>
       </FeedDropzone>
+      {/* Строка просмотров своего последнего сообщения (#102 р.2, модель
+          Битрикс24): над областью ввода, не под каждым сообщением. */}
+      <ConversationViewsLine conversationId={conversationId} messages={items} />
       {/* key по conversationId: автофокус композера при входе/смене беседы
           (черновик при этом живёт в stores — не теряется, #87). */}
       <ChatComposer

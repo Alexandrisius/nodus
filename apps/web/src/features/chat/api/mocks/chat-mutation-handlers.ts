@@ -13,6 +13,7 @@ import { actorUserRef, getMockActor } from '../../../../shared/mocks/mock-actor.
 import {
   applyDeletion,
   hasBeenRead,
+  nextMessageSeq,
   pinMessage,
   pinsOf,
   refreshLastMessage,
@@ -169,11 +170,13 @@ export const chatMutationHandlers = [
 
     const created: ChatMessage[] = [];
     const stamp = (offset: number) => new Date(Date.now() + offset).toISOString();
+    let seq = nextMessageSeq(target.id);
     revealHiddenConversation(target.id); // пересылка — активность, раскрывает беседу (#103)
     if (parsed.data.comment) {
       const comment: ChatMessage = {
         id: crypto.randomUUID(),
         conversationId: target.id,
+        seq: seq++,
         author: actorUserRef(),
         text: parsed.data.comment,
         replyToId: null,
@@ -201,6 +204,7 @@ export const chatMutationHandlers = [
       const copy: ChatMessage = {
         id: crypto.randomUUID(),
         conversationId: target.id,
+        seq: seq++,
         author: actorUserRef(),
         text: source.text,
         replyToId: null,

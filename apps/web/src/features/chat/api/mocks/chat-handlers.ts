@@ -8,6 +8,7 @@ import {
   conversationUpdateBodySchema,
   createConversationBodySchema,
   ErrorCode,
+  readConversationBodySchema,
   saveConversationDraftBodySchema,
   sendMessageBodySchema,
 } from '@nodus/contracts';
@@ -21,8 +22,10 @@ import { demoUserListItems, userRef } from '../../../../shared/mocks/data/users.
 import { actorUserRef, getMockActor } from '../../../../shared/mocks/mock-actor.js';
 import { chatMutationHandlers } from './chat-mutation-handlers.js';
 import {
+  applyReadReceipt,
   buildReplyPreview,
   hiddenConversations,
+  nextMessageSeq,
   revealHiddenConversation,
   uploadedAttachments,
 } from './chat-mock-state.js';
@@ -88,28 +91,12 @@ const conversationHandlers = [
   }),
 
   /** Сообщения беседы; с threadRootId — тред канала: корень + ответы
-   * (ровно один уровень, корень первым). */
+   *  (ровно один уровень, корень первым). Просмотры (readAt/readBy) —
+   *  watermark-модель #102 раунд 2: двигаются ТОЛЬКО квитанциями
+   *  POST /read (applyReadReceipt), выдача ленты их не трогает. */
   http.get('/api/v1/chat/conversations/:id/messages', ({ params, request }) => {
     const threadRootId = new URL(request.url).searchParams.get('threadRootId');
-    const actorId = getMockActor().id;
     const all = demoMessages.filter((m) => m.conversationId === params.id);
-    // Симуляция прочтения (мокап до бэкенда): своё сообщение первый участник
-    // «прочитывает» через ~2 с после отправки — галочка + readBy (модель
-    // первого прочитавшего, #102) без polling: клиент делает отложенную
-    // инвалидацию после отправки (useSendChatMessage).
-    const now = Date.now();
-    for (const m of all) {
-      if (m.readAt === null && m.author.id === actorId && now - Date.parse(m.createdAt) > 2000) {
-        m.readAt = m.createdAt;
-      }
-      // readBy — вместе с readAt (сидовые и «прочитанные» сообщения: первым
-      // не-автором беседы; галочка #102 теперь по readBy, не по readAt).
-      if (m.readAt !== null && m.readBy.length === 0) {
-        const conversation = demoConversations.find((c) => c.id === m.conversationId);
-        const reader = conversation?.membersPreview.find((u) => u.id !== m.author.id);
-        if (reader) m.readBy = [reader];
-      }
-    }
     const items = threadRootId
       ? [
           ...all.filter((m) => m.id === threadRootId),
@@ -117,6 +104,26 @@ const conversationHandlers = [
         ]
       : all;
     return HttpResponse.json({ items, nextCursor: null });
+  }),
+
+  /** Квитанция просмотров (#102 раунд 2): seq самой новой видимой строки
+   *  вьюпорта; мок двигает просмотры СВОИХ сообщений до upToSeq (симуляция
+   *  собеседника «просматривает видимое по мере прокрутки», минимально —
+   *  по квитанции клиента). Идемпотентна: повтор — тот же результат. */
+  http.post('/api/v1/chat/conversations/:id/read', async ({ params, request }) => {
+    const parsed = readConversationBodySchema.safeParse(await request.json());
+    if (!parsed.success)
+      return HttpResponse.json(
+        { code: ErrorCode.VALIDATION_FAILED, message: 'Invalid body' },
+        { status: 422 },
+      );
+    const upToSeq = applyReadReceipt(String(params.id), parsed.data.upToSeq);
+    if (upToSeq < 0)
+      return HttpResponse.json(
+        { code: ErrorCode.NOT_FOUND, message: 'Conversation not found' },
+        { status: 404 },
+      );
+    return HttpResponse.json({ upToSeq });
   }),
 
   /** Отправка сообщения (sendMessageBodySchema): в тред — с threadRootId,
@@ -142,9 +149,11 @@ const conversationHandlers = [
       .filter((a): a is MessageAttachment => a !== undefined);
     for (const attachment of attachments) uploadedAttachments.delete(attachment.id);
     revealHiddenConversation(String(params.id)); // активность раскрывает беседу (#103)
+    const seq = nextMessageSeq(String(params.id));
     const message: ChatMessage = {
       id: crypto.randomUUID(),
       conversationId: String(params.id),
+      seq,
       author: actorUserRef(),
       text: parsed.data.text,
       replyToId: parsed.data.replyToId ?? null,

@@ -16,7 +16,7 @@ import { useChatDrafts } from './chat-drafts.js';
 import { MessageAttachments } from './attachments.js';
 import { MessageReactions } from './chat-message.js';
 import { MessageMeta } from './message-meta.js';
-import { MessageReaders } from './message-readers.js';
+import { ConversationViewsLine } from './views-line.js';
 import { addFiles } from './composer-files.js';
 import { toSendVars } from './composer-submit.js';
 import { focusComposer } from './composer-focus.js';
@@ -27,6 +27,7 @@ import { MessageMenu } from './message-menu.js';
 import { MessageRow } from './message-row.js';
 import { PinBar } from './pin-bar.js';
 import { useJumpResponder } from './use-jump-responder.js';
+import { useFeedViewportRead } from './use-viewport-read.js';
 import { selectionComposerProps, useFeedSelection } from './use-feed-selection.js';
 import { useConversations } from './api.js';
 import { canPostFeed } from './conversations.js';
@@ -108,6 +109,9 @@ export const ThreadFeed = memo(function ThreadFeed({
     itemCount: roots.length,
     containerRef: feedRef,
   });
+  // Квитанции просмотров (#102 р.2): лента канала — plain div без скроллера-
+  // примитива, свой IntersectionObserver по постам (root=скроллер).
+  useFeedViewportRead(conversationId, feedRef, roots);
 
   const lastMine = useCallback(
     () =>
@@ -241,9 +245,9 @@ export const ThreadFeed = memo(function ThreadFeed({
                               рисовал только время — закреп и правка на карточке
                               терялись (в окне треда тот же корень рендерится
                               пузырём с полной метой — рассинхрон). Галочки
-                              «прочитано» — у СВОИХ постов с #102 (модель
-                              Битрикс24: «открывает канал → у поста галочка и
-                              Прочитано 1»), строка прочитавших — под карточкой. */}
+                              «просмотрено» — у СВОИХ постов (#102, модель
+                              Битрикс24); строка просмотров — над композером
+                              ленты (views-line, раунд 2). */}
                           <span className="mt-[3px] flex items-end gap-2">
                             <MessageReactions message={root} />
                             <MessageMeta
@@ -253,7 +257,6 @@ export const ThreadFeed = memo(function ThreadFeed({
                               className="ml-auto"
                             />
                           </span>
-                          <MessageReaders message={root} className="mt-0.5" />
                           <span className="-mx-3.5 -mb-3.5 mt-[6px] flex items-center gap-2 rounded-b-[0.8125rem] border-t border-border/60 bg-muted/40 px-3.5 py-2">
                             {participants.length > 0 ? (
                               <span className="flex shrink-0 -space-x-1.5">
@@ -287,6 +290,8 @@ export const ThreadFeed = memo(function ThreadFeed({
           )}
         </div>
       </FeedDropzone>
+      {/* Строка просмотров своего последнего поста (#102 р.2, модель Битрикс24). */}
+      <ConversationViewsLine conversationId={conversationId} messages={roots} />
       {conversation === null || canPostFeed(conversation) ? (
         <ChatComposer
           placeholder={ui.chat.newPostPlaceholder}

@@ -83,6 +83,7 @@ describe('useSendTaskMessage: оптимистичность (I4)', () => {
     const server: ChatMessage = {
       id: '60000000-0000-4000-8000-000000000099',
       conversationId: TASK_ID,
+      seq: 1,
       author: {
         id: '10000000-0000-4000-8000-000000000001',
         displayName: 'Тест Тест',

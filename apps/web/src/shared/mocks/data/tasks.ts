@@ -163,6 +163,7 @@ export const demoTaskMessages: ChatMessage[] = [
   {
     id: mid(1),
     conversationId: tid(2),
+    seq: 1,
     author: userRef(userIds.klevantovich),
     text: 'Облако точек выгрузил, качество хорошее. Берись за каркас.',
     replyToId: null,
@@ -182,6 +183,7 @@ export const demoTaskMessages: ChatMessage[] = [
   {
     id: mid(2),
     conversationId: tid(2),
+    seq: 2,
     author: userRef(userIds.klimovich),
     text: 'Принял. К пятнице покажу колонны и балки.',
     replyToId: mid(1),
@@ -201,6 +203,7 @@ export const demoTaskMessages: ChatMessage[] = [
   {
     id: mid(3),
     conversationId: tid(2),
+    seq: 3,
     author: userRef(userIds.karpovich),
     text: 'Подскажите, по осям 4–7 расхождения с КЖ, приложила скрин.',
     replyToId: null,

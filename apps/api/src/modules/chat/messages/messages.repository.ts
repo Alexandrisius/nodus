@@ -282,15 +282,16 @@ export class MessagesRepository {
    * Продвижение watermark прочтения: seq монотонно (GREATEST — stale-устройство
    * не откатит), last_read_at обновляется и при догоне правок (иначе readAt
    * «повторного прочтения» после edit никогда не восстановится — курсор уже
-   * был впереди). Возвращает true, если строка менялась (→ событие).
+   * был впереди). Возвращает факт изменения и фактическое время прочтения
+   * (для payload события — не now() на эмите).
    */
   async advanceReadCursor(
     conversationId: string,
     userId: string,
     upToSeq: bigint,
     tx: TransactionClient,
-  ): Promise<boolean> {
-    const rows = await tx.$queryRaw<{ last_read_seq: bigint }[]>(Prisma.sql`
+  ): Promise<{ advanced: boolean; lastReadAt: Date | null }> {
+    const rows = await tx.$queryRaw<{ last_read_seq: bigint; last_read_at: Date }[]>(Prisma.sql`
       UPDATE conversation_members m
       SET last_read_seq = GREATEST(m.last_read_seq, ${upToSeq.toString()}::bigint),
           last_read_at = now(),
@@ -306,9 +307,9 @@ export class MessagesRepository {
                  AND msg.edited_at IS NOT NULL
                  AND msg.edited_at > m.last_read_at
              ))
-      RETURNING m.last_read_seq
+      RETURNING m.last_read_seq, m.last_read_at
     `);
-    return rows.length > 0;
+    return { advanced: rows.length > 0, lastReadAt: rows[0]?.last_read_at ?? null };
   }
 
   /** Правка текста (только автор, не надгробие — гарантирует сервис). */
@@ -407,9 +408,7 @@ export class MessagesRepository {
   }
 
   /** Вложения сообщений (для маппера). */
-  async attachmentsFor(
-    messageIds: string[],
-  ): Promise<
+  async attachmentsFor(messageIds: string[]): Promise<
     {
       messageId: string;
       id: string;

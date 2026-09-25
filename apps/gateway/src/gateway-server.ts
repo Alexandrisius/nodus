@@ -46,7 +46,7 @@ export function createGatewayServer(deps: GatewayDeps): GatewayServer {
 
   const io = new Server(httpServer);
   const verify: AccessTokenVerifier = createAccessTokenVerifier(deps.jwtSecret);
-  const typing = new TypingThrottler();
+  const typing = new TypingThrottler(io, deps.store);
   const presence = new PresenceTracker(deps.store, io);
 
   io.use(async (socket, next) => {
@@ -65,7 +65,7 @@ export function createGatewayServer(deps: GatewayDeps): GatewayServer {
     // PG-запросом) — незарегистрированное событие теряется безвозвратно.
     registerRoomHandlers(socket, deps.store);
     socket.on(REALTIME_EVENTS.TYPING, (payload: unknown) => {
-      typing.handle(socket, payload);
+      void typing.handle(socket, payload);
     });
     socket.on('disconnect', () => {
       presence.disconnect(socket);

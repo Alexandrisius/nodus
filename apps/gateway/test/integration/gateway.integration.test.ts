@@ -101,9 +101,7 @@ describe.skipIf(!process.env.DATABASE_URL || !process.env.REDIS_URL || !process.
      * connect, получает пакет слишком поздно (канон реального клиента:
      * обработчики вешаются при создании сокета).
      */
-    async function connectWithSnapshot(
-      userId: string,
-    ): Promise<{
+    async function connectWithSnapshot(userId: string): Promise<{
       socket: ClientSocket;
       snapshot: { entries: { user: { id: string }; status: string }[] };
     }> {
@@ -221,6 +219,25 @@ describe.skipIf(!process.env.DATABASE_URL || !process.env.REDIS_URL || !process.
       expect(payload.conversationId).toBe(testDb.conversationId);
       expect(payload.userId).toBe(testDb.users[0]!.id);
       await aliceSelf;
+    });
+
+    it('typing в списке чатов (#104 р.2): user-комната участника БЕЗ conv:join', async () => {
+      // Печатает users[1] (в предыдущем тесте не типил — троттл чист);
+      // users[0] подключён (user-комната), но новую беседу НЕ открывал —
+      // ровно состояние «список чатов».
+      const alice = await connect(testDb.users[0]!.id);
+      const bob = await connect(testDb.users[1]!.id);
+      await joinAck(bob, testDb.conversationId);
+
+      const aliceSees = new Promise<unknown>((resolve) => {
+        alice.once('chat.typing', resolve);
+      });
+
+      bob.emit('chat.typing', { conversationId: testDb.conversationId });
+
+      const payload = (await aliceSees) as { conversationId: string; userId: string };
+      expect(payload.conversationId).toBe(testDb.conversationId);
+      expect(payload.userId).toBe(testDb.users[1]!.id);
     });
 
     it('presence: snapshot при подключении, offline при разрыве последнего', async () => {

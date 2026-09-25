@@ -31,6 +31,7 @@ import { MessageMenu } from './message-menu.js';
 import { MessageRow } from './message-row.js';
 import { buildMessageRuns, formatDayLabel, startsNewDay } from './message-groups.js';
 import { selectionComposerProps, useFeedSelection } from './use-feed-selection.js';
+import { useFeedViewportRead } from './use-viewport-read.js';
 import { ScrollEndResponder } from './scroll-end-responder.js';
 import { JumpResponder } from './use-jump-responder.js';
 
@@ -78,6 +79,9 @@ export const ThreadPane = memo(function ThreadPane({
   const selection = useFeedSelection(scope, items, me?.id);
   // Viewport окна треда — цель прыжка (scroll-jump, вердикт 25.09).
   const viewportRef = useRef<HTMLDivElement>(null);
+  // Квитанции просмотров (#102 р.2): «увидел где угодно = просмотрено» —
+  // видимые строки треда двигают watermark беседы.
+  useFeedViewportRead(conversationId, viewportRef, items);
 
   const lastMine = useCallback(
     () =>

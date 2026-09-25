@@ -152,6 +152,7 @@ function msg(
   return {
     id: mid(n),
     conversationId: cid(conversation),
+    seq: n,
     author: userRef(author),
     text,
     replyToId: null,

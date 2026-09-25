@@ -175,6 +175,15 @@ export class ConversationsRepository {
     return rows[0] ?? null;
   }
 
+  /** Последний seq беседы — потолок клампа квитанций просмотров (#102 р.2). */
+  async findLastSeq(conversationId: string, tx?: TransactionClient): Promise<bigint | null> {
+    const client = this.client(tx);
+    const rows = await client.$queryRaw<{ last_seq: bigint }[]>(Prisma.sql`
+      SELECT last_seq FROM conversations WHERE id = ${conversationId}::uuid LIMIT 1
+    `);
+    return rows[0]?.last_seq ?? null;
+  }
+
   /**
    * Find-or-create direct: нормализованная пара (user_min <= user_max, равны
    * у «Заметок») + частичный уникальный индекс. Гонку закрывает ON CONFLICT:

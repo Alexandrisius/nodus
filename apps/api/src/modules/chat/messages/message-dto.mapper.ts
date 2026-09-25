@@ -80,6 +80,7 @@ export class MessageDtoMapper {
       return {
         id: row.id,
         conversationId: row.conversationId,
+        seq: Number(row.seq),
         author: refs.get(row.authorId) ?? fallbackRef(row.authorId),
         text: tombstone ? '' : row.text,
         replyToId: row.replyToId,

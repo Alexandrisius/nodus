@@ -91,6 +91,9 @@ export type ForwardedFrom = z.infer<typeof forwardedFromSchema>;
 export const messageSchema = z.object({
   id: z.uuid(),
   conversationId: z.uuid(),
+  /** Порядковый номер в беседе (монотонный): курсор квитанций просмотров
+   *  (POST /read { upToSeq } — seq самой новой видимой строки, #102 р.2). */
+  seq: z.number().int().positive(),
   author: userRefSchema,
   text: z.string(),
   replyToId: z.uuid().nullable(),
@@ -175,6 +178,22 @@ export const saveConversationDraftBodySchema = z.object({
   revision: z.number().int().min(0).optional(),
 });
 export type SaveConversationDraftBody = z.infer<typeof saveConversationDraftBodySchema>;
+
+/** Квитанция просмотров (POST /chat/conversations/:id/read, #102 раунд 2):
+ *  просмотр = факт видимости в вьюпорте — клиент шлёт seq самой новой видимой
+ *  строки (троттл ~500 мс при движении вперёд); сервер двигает watermark
+ *  (GREATEST, кламп к last_seq беседы) и эмитит chat.message_read. */
+export const readConversationBodySchema = z.object({
+  upToSeq: z.number().int().positive(),
+});
+export type ReadConversationBody = z.infer<typeof readConversationBodySchema>;
+
+export const readConversationResultSchema = z.object({
+  /** Клэмпнутый upToSeq запроса (min(upToSeq, last_seq)); НЕ текущий
+   *  watermark участника — при отставшей квитанции может быть меньше его. */
+  upToSeq: z.number().int().nonnegative(),
+});
+export type ReadConversationResult = z.infer<typeof readConversationResultSchema>;
 
 export const conversationListItemSchema = z.object({
   id: z.uuid(),

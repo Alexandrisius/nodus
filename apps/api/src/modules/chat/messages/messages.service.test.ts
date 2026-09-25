@@ -67,10 +67,12 @@ describe('MessagesService', () => {
     tombstone: vi.fn(),
     deletePinByMessage: vi.fn(),
     markRepliesDeleted: vi.fn(),
+    advanceReadCursor: vi.fn(),
   };
   const conversations = {
     findMembership: vi.fn(),
     findTypeAndPermissions: vi.fn(),
+    findLastSeq: vi.fn(),
     listMembers: vi.fn(),
     clearDraft: vi.fn(),
     unsnooze: vi.fn(),
@@ -431,6 +433,44 @@ describe('MessagesService', () => {
       expect(repo.tombstone).toHaveBeenCalledWith(CONV, 'own-read', false, TX);
       expect(repo.deletePinByMessage).toHaveBeenCalledTimes(2);
       expect(repo.markRepliesDeleted).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('readConversation (квитанции просмотров, #102 раунд 2)', () => {
+    it('не член беседы → NOT_FOUND', async () => {
+      conversations.findMembership.mockResolvedValue(null);
+      await expect(service.readConversation(ME, CONV, 5)).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND,
+      });
+    });
+
+    it('upToSeq выше last_seq → кламп к last_seq (фантомное «всё прочитано» невозможно)', async () => {
+      conversations.findLastSeq.mockResolvedValue(7n);
+      repo.advanceReadCursor.mockResolvedValue({ advanced: true, lastReadAt: null });
+      const result = await service.readConversation(ME, CONV, 999);
+      expect(result).toEqual({ upToSeq: 7 });
+      expect(repo.advanceReadCursor).toHaveBeenCalledWith(CONV, ME, 7n, TX);
+    });
+
+    it('курсор двинулся → событие MESSAGE_READ с upToSeq и readAt из строки', async () => {
+      conversations.findLastSeq.mockResolvedValue(10n);
+      const readAt = new Date('2026-09-25T10:00:00Z');
+      repo.advanceReadCursor.mockResolvedValue({ advanced: true, lastReadAt: readAt });
+      await service.readConversation(ME, CONV, 4);
+      expect(eventBus.emit).toHaveBeenCalledWith(
+        TX,
+        CHAT_EVENTS.MESSAGE_READ,
+        { conversationId: CONV, userId: ME, upToSeq: 4, readAt: readAt.toISOString() },
+        { actorId: ME, aggregateType: 'conversation', aggregateId: CONV },
+      );
+    });
+
+    it('повтор без движения (GREATEST ниже/равно, без правок) → БЕЗ события', async () => {
+      conversations.findLastSeq.mockResolvedValue(10n);
+      repo.advanceReadCursor.mockResolvedValue({ advanced: false, lastReadAt: null });
+      const result = await service.readConversation(ME, CONV, 4);
+      expect(result).toEqual({ upToSeq: 4 });
+      expect(eventBus.emit).not.toHaveBeenCalled();
     });
   });
 });

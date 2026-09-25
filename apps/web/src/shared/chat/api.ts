@@ -171,6 +171,7 @@ export function useSendChatMessage(conversationId: string) {
       const temp: ChatMessage = {
         id: vars.tempId,
         conversationId,
+        seq: 0, // плейсхолдер: реальный seq придёт с ответом сервера
         author: { id: user?.id ?? '', displayName: user?.displayName ?? '', avatarUrl: null },
         text: vars.text,
         replyToId: vars.replyToId ?? null,
@@ -235,16 +236,9 @@ export function useSendChatMessage(conversationId: string) {
             }
           : old,
       );
-      if (isDomainMocked('chat')) {
-        // МОК-ЛОГИКА read-receipt (аудит #45): собеседник «прочитывает» через
-        // пару секунд (мокап) — одна отложенная инвалидация переключает
-        // галочки sent→read без polling. На живом API не нужна: readAt
-        // приходит с сервера опросом лент (livePoll выше); при WS-шлюзе (M13)
-        // прочтение придёт событием message.read и в моках.
-        window.setTimeout(() => {
-          void queryClient.invalidateQueries({ queryKey: chatKeys.messages(conversationId) });
-        }, 2500);
-      }
+      // МОК-симуляция просмотров (#102 р.2) переехала с отправки на КВИТАНЦИЮ
+      // просмотра (use-viewport-read.ts): собеседник «просматривает» видимое
+      // по мере прокрутки — отложенный рефеч после собственной квитанции.
     },
 
     onSettled: () => {

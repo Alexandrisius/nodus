@@ -12,7 +12,6 @@ import { useChatHostNavigation } from './chat-host.js';
 import { useJumpStore } from './jump-store.js';
 import { ForwardedHeader, ReplyHeader } from './message-headers.js';
 import { MessageMeta } from './message-meta.js';
-import { MessageReaders } from './message-readers.js';
 import { MessageText } from './message-text.js';
 import { MessageTombstone } from './tombstone.js';
 import { PersonAvatar } from '../ui/person-avatar.js';
@@ -210,9 +209,6 @@ export const ChatMessageItem = memo(function ChatMessageItem({
               контур идёт одной линией. */}
           {tail ? <BubbleTail side={atEnd ? 'right' : 'left'} variant={variant} /> : null}
         </Bubble>
-        {/* Прочитавшие — ПОД пузырём у правого края (#102: в direct строки
-            нет, там только галочки меты; component сам скрывает пустое). */}
-        {mine ? <MessageReaders message={message} className="mr-2 justify-end" /> : null}
       </MessageContent>
     </Message>
   );

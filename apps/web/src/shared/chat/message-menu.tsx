@@ -1,6 +1,7 @@
 import {
   CheckSquare,
   Copy,
+  Eye,
   Forward,
   Link2,
   ListTodo,
@@ -31,6 +32,7 @@ import { focusComposerWhenFree } from './composer-focus.js';
 import { useDeleteDialog, useForwardDialog, useUnpinDialog } from './dialog-stores.js';
 import { usePinToggle } from './message-mutations.js';
 import { useSelectionStore } from './selection-store.js';
+import { ViewsPopup } from './views-line.js';
 import { copyMessagesAsText } from './use-selection-keys.js';
 
 /**
@@ -84,6 +86,8 @@ export function MessageMenu({
   const selectionActive = useSelectionStore((s) => s.scope === scope && s.ids.length > 0);
   const selectedIds = useSelectionStore((s) => (s.scope === scope ? s.ids : EMPTY_IDS));
   const [fragment, setFragment] = useState<string | null>(null);
+  /** Попап «Кто просмотрел» (#102 р.2): якорь — строка этого сообщения. */
+  const [viewersAnchor, setViewersAnchor] = useState<HTMLElement | null>(null);
   const triggerRef = useRef<HTMLSpanElement>(null);
 
   function captureSelection() {
@@ -197,6 +201,17 @@ export function MessageMenu({
         run: () => useForwardDialog.getState().open(conversationId, [message.id]),
       },
       {
+        id: 'whoViewed',
+        icon: Eye,
+        label: ui.chat.whoViewed,
+        run: () => {
+          // Попап раскрывается от строки сообщения (вверх); попап — оверлей-
+          // слой, каретку вернёт focusComposerWhenFree по закрытии.
+          const row = triggerRef.current?.closest('[data-message-id]') ?? null;
+          if (row instanceof HTMLElement) setViewersAnchor(row);
+        },
+      },
+      {
         id: 'toTask',
         icon: ListTodo,
         label: ui.chat.menu.createTask,
@@ -257,9 +272,14 @@ export function MessageMenu({
     // Пересланную копию нельзя править даже автору пересылки (#111): текст
     // принадлежит оригинальному автору; удалять свою копию — можно.
     const editable = mine && !message.forwardedFrom;
-    return items.filter(
-      (item) => !MINE_ONLY.has(item.id) || (item.id === 'edit' ? editable : mine),
-    );
+    // «Кто просмотрел»: только свои живые сообщения с непустым readBy
+    // (просмотры видит автор; пустой список показывать нечего).
+    const viewable = mine && !message.deletedAt && message.readBy.length > 0;
+    return items.filter((item) => {
+      if (item.id === 'edit') return editable;
+      if (item.id === 'whoViewed') return viewable;
+      return !MINE_ONLY.has(item.id) || mine;
+    });
   }
 
   const items = selectionActive ? selectionItems() : normalItems();
@@ -291,9 +311,17 @@ export function MessageMenu({
           </span>
         ))}
       </ContextMenuContent>
+      <ViewsPopup
+        anchor={viewersAnchor}
+        viewers={message.readBy}
+        onClose={() => {
+          setViewersAnchor(null);
+          focusComposerWhenFree(scope);
+        }}
+      />
     </ContextMenu>
   );
 }
 
 const EMPTY_IDS: string[] = [];
-const MINE_ONLY = new Set(['edit', 'delete']);
+const MINE_ONLY = new Set(['edit', 'delete', 'whoViewed']);

@@ -1,5 +1,6 @@
 import { Check, Mic, Paperclip, Smile } from 'lucide-react';
 import {
+  useCallback,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -182,12 +183,27 @@ export function ChatComposer({
     if (el && restored > 0) el.setSelectionRange(restored, restored);
   }, [focusId]);
 
-  useEffect(() => {
-    const el = inputRef.current;
-    if (!el) return;
-    registerComposer(focusId, el);
-    return () => unregisterComposer(focusId, el);
-  }, [focusId]);
+  // «Вечный курсор» — регистрация РЕФ-КОЛБЭКОМ, не эффектом на [focusId]
+  // (#104 раунд 2, баг «супер-курсора»): селект-режим РАЗМОНТИРУЕТ textarea
+  // (островок батч-команд), выход — монтирует НОВЫЙ элемент; эффект с deps
+  // [focusId] не перезапускался, registry хранил отсоединённый узел, focus()
+  // на нём молча не работал — после «Ответить»/«Редактировать» каретка
+  // умирала до смены беседы (ремаунт композера). Реф-колбэк честно
+  // пере-регистрирует КАЖДЫЙ монтаж textarea. (autoFocus нового элемента
+  // маскировал баг сразу после выхода из селекта.)
+  const registerInput = useCallback(
+    (el: HTMLTextAreaElement | null) => {
+      if (el) {
+        inputRef.current = el;
+        registerComposer(focusId, el);
+        return;
+      }
+      const prev = inputRef.current;
+      inputRef.current = null;
+      if (prev) unregisterComposer(focusId, prev);
+    },
+    [focusId],
+  );
 
   // Черновик — ТОЛЬКО на уходе из беседы (вердикт владельца 25.09:
   // «онлайн-трансляция набранного текста не нужна»): во время набора сервер
@@ -406,7 +422,7 @@ export function ChatComposer({
                   14.09.2026); rows=1 + field-sizing: рост до 45vh, дальше
                   скролл внутри поля (вердикт 15.09.2026). */}
               <Textarea
-                ref={inputRef}
+                ref={registerInput}
                 autoFocus
                 value={text}
                 onFocus={() => {

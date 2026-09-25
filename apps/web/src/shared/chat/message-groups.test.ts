@@ -6,6 +6,7 @@ import { buildMessageRuns, formatDayLabel, startsNewDay } from './message-groups
 const msg = (id: string, authorId: string, createdAt: string): ChatMessage => ({
   id,
   conversationId: 'conv-1',
+  seq: Number(id.replace(/\D/g, '')) || 1,
   author: { id: authorId, displayName: `Имя ${authorId}`, avatarUrl: null },
   text: `текст ${id}`,
   replyToId: null,

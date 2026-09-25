@@ -15,10 +15,14 @@ import {
   messageReactionToggleBodySchema,
   messageSchema,
   paginatedSchema,
+  readConversationBodySchema,
+  readConversationResultSchema,
   type ChatMessage,
   type ForwardMessagesBody,
   type MessagePin,
   type MessageReactionToggleBody,
+  type ReadConversationBody,
+  type ReadConversationResult,
 } from '@nodus/contracts';
 
 import { Audit } from '../../../core/decorators/audit.decorator.js';
@@ -29,12 +33,14 @@ import { ApiIdempotencyKey } from '../../../core/openapi/api-idempotency.decorat
 import { ZodValidationPipe } from '../../../core/pipes/zod-validation.pipe.js';
 import { MessageActionsService } from './message-actions.service.js';
 import { MessageDtoMapper } from './message-dto.mapper.js';
+import { MessagesService } from './messages.service.js';
 
 const uuidSchema = z.uuid();
 
 /**
  * Действия над сообщениями: закрепы (`/pins`, `/pin`), реакции (toggle),
- * пересылка (`/forward` — цель в пути, источник в теле).
+ * пересылка (`/forward` — цель в пути, источник в теле), квитанции просмотров
+ * (`/read` — видимость в вьюпорте, #102 раунд 2).
  */
 @ApiTags('chat')
 @ApiBearerAuth()
@@ -44,7 +50,31 @@ export class MessageActionsController {
   constructor(
     private readonly actions: MessageActionsService,
     private readonly mapper: MessageDtoMapper,
+    private readonly messages: MessagesService,
   ) {}
+
+  // ===== Квитанции просмотров =====
+
+  @Post('read')
+  @HttpCode(200)
+  @Audit({ action: 'chat.message_read_receipt', entity: 'conversation' })
+  @ApiOperation({
+    summary: 'Квитанция просмотров: двигает watermark до upToSeq (GREATEST, кламп к last_seq)',
+  })
+  @ApiOkResponse({ standardSchema: readConversationResultSchema })
+  @ApiErrors(400, 401, 404)
+  @ApiIdempotencyKey()
+  read(
+    @GetUser() user: { id: string },
+    @Param('id', new ZodValidationPipe(uuidSchema)) conversationId: string,
+    @Body({
+      schema: readConversationBodySchema,
+      pipes: [new ZodValidationPipe(readConversationBodySchema)],
+    })
+    dto: ReadConversationBody,
+  ): Promise<ReadConversationResult> {
+    return this.messages.readConversation(user.id, conversationId, dto.upToSeq);
+  }
 
   // ===== Закрепы =====
 

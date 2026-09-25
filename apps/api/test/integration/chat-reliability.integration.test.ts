@@ -3,7 +3,6 @@ import { chatMessageSentPayloadSchema, ErrorCode } from '@nodus/contracts';
 
 import { Prisma } from '../../src/generated/prisma/client.js';
 import { DomainException } from '../../src/core/errors/domain-exception.js';
-import { encodeCursor } from '../../src/core/pagination/cursor.util.js';
 import { ConversationsService } from '../../src/modules/chat/conversations/conversations.service.js';
 import { MessageActionsService } from '../../src/modules/chat/messages/message-actions.service.js';
 import {
@@ -207,7 +206,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
       ).toBe(before.lastSeq);
     });
 
-    it('курсор прочтения монотонен: stale-страница не откатывает watermark', async () => {
+    it('курсор прочтения монотонен: stale-квитанция не откатывает watermark', async () => {
       const { alice, bob } = fx.users;
       const conv = (await conversations.findOrCreateDirect(alice.id, bob.id)).item.id;
       await messages.send(alice.id, conv, { text: 'первое' }, `cursor-1-${fx.runId}`);
@@ -221,15 +220,19 @@ describe.skipIf(!process.env.DATABASE_URL)(
         return Number(rows[0]!.last_read_seq);
       };
 
-      await messages.list(bob.id, conv, { limit: 50 }); // свежая лента → курсор догнал
+      // GET ленты курсор НЕ двигает (#102 р.2: просмотр = видимость, не выдача).
+      await messages.list(bob.id, conv, { limit: 50 });
+      expect(await lastReadSeq()).toBe(0);
+
+      await messages.readConversation(bob.id, conv, 2); // квитанция до низа
       expect(await lastReadSeq()).toBe(2);
 
-      // «Отставшее устройство» перечитывает старую страницу — GREATEST держит.
-      await messages.list(bob.id, conv, { limit: 50, cursor: encodeCursor({ s: 1 }) });
+      // «Отставшее устройство» присылает старую квитанцию — GREATEST держит.
+      await messages.readConversation(bob.id, conv, 1);
       expect(await lastReadSeq()).toBe(2);
     });
 
-    it('правка → повторный unread у читателя → прочтение восстанавливает readAt', async () => {
+    it('правка → повторный unread у читателя → просмотр восстанавливает readAt', async () => {
       const { alice, bob } = fx.users;
       const conv = (await conversations.findOrCreateDirect(alice.id, bob.id)).item.id;
       const message = await messages.send(
@@ -238,13 +241,14 @@ describe.skipIf(!process.env.DATABASE_URL)(
         { text: 'черновик решения' },
         `edit-cycle-${fx.runId}`,
       );
+      const seq = Number(message.message.seq);
 
       const readAtOf = async () => {
         const feed = await messages.list(alice.id, conv, { limit: 50 });
         return feed.items.find((m) => m.id === message.message.id)!.readAt;
       };
 
-      await messages.list(bob.id, conv, { limit: 50 }); // B прочитал
+      await messages.readConversation(bob.id, conv, seq); // B просмотрел
       expect(await readAtOf()).not.toBeNull();
 
       await messages.edit(alice.id, conv, message.message.id, 'финальное решение');
@@ -254,8 +258,8 @@ describe.skipIf(!process.env.DATABASE_URL)(
       expect(listForBob.items.find((i) => i.id === conv)?.unreadCount).toBe(1);
       expect(await readAtOf()).toBeNull();
 
-      // B открывает беседу: unread гаснет, readAt восстановлен.
-      await messages.list(bob.id, conv, { limit: 50 });
+      // B повторно просматривает: unread гаснет, readAt восстановлен.
+      await messages.readConversation(bob.id, conv, seq);
       const listAfter = await conversations.list(bob.id, { limit: 100 });
       expect(listAfter.items.find((i) => i.id === conv)?.unreadCount).toBe(0);
       expect(await readAtOf()).not.toBeNull();

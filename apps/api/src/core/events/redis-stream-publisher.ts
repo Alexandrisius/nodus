@@ -8,8 +8,10 @@ import { CHAT_EVENTS_STREAM, type RealtimeEnvelope } from '@nodus/contracts';
 import { PrismaService } from '../database/prisma.service.js';
 import { REDIS_CLIENT } from '../redis/redis.module.js';
 
-/** Период опроса outbox: бюджет p95 доставки <200 мс (НФТ #104). */
-const POLL_INTERVAL_MS = 100;
+/** Период опроса outbox: бюджет p95 доставки <200 мс (НФТ #104); раунд 2 —
+ * 50 мс (вдвое лучше бюджет доставки «commit → браузер», владелец видел
+ * задержки; приборная правда была <200 мс, но запас не лишний). */
+const POLL_INTERVAL_MS = 50;
 /** Страница чтения: 500 сообщ/мин пик — с запасом на пачки правок/прочтений. */
 const BATCH_LIMIT = 200;
 /** Хвост стрима: история в стриме не нужна (клиент ресинхронизируется рефечем). */

@@ -2,8 +2,10 @@ import { expect, test, type Page } from '@playwright/test';
 
 /**
  * Живой чат между двумя сессиями (#104, критичный путь из AGENTS.md):
- * доставка сообщения <1 с через WS-шлюз, индикатор «печатает…», галочка
- * «прочитано» без перезагрузки, догон после разрыва сети.
+ * доставка сообщения <1 с через WS-шлюз, индикатор «печатает…», просмотр
+ * (галочка «просмотрено») без перезагрузки, догон после разрыва сети;
+ * раунд 2 (#102): просмотр = видимость в вьюпорте (прокрутка), удаление
+ * доставляется <1 с.
  *
  * Требует живой стек: api (прокси /api), gateway (прокси /socket.io) и
  * non-mock сборку web. Запуск:
@@ -46,6 +48,18 @@ async function apiLogin(email: string, password: string): Promise<AuthSession> {
 
 async function apiGet(token: string, path: string): Promise<Response> {
   return fetch(`${BASE_URL}/api/v1${path}`, { headers: { authorization: `Bearer ${token}` } });
+}
+
+function apiPost(token: string, path: string, body: unknown, key: string): Promise<Response> {
+  return fetch(`${BASE_URL}/api/v1${path}`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      authorization: `Bearer ${token}`,
+      'Idempotency-Key': key,
+    },
+    body: JSON.stringify(body),
+  });
 }
 
 test.describe('живой чат: две сессии (#104)', () => {
@@ -127,8 +141,9 @@ test.describe('живой чат: две сессии (#104)', () => {
     test.info().annotations.push({ type: 'latency', description: `delivery ${elapsed} ms` });
     expect(elapsed).toBeLessThan(1_000);
 
-    // Прочитано без F5: B открыл беседу → watermark → событие → галочки у A.
-    await expect(pageA.getByLabel('прочитано').first()).toBeVisible({ timeout: 10_000 });
+    // Просмотрено без F5 (#102 раунд 2: квитанция видимости → watermark →
+    // событие → галочки у A; низ беседы у B открыт — квитанция уходит сама).
+    await expect(pageA.getByLabel('просмотрено').first()).toBeVisible({ timeout: 10_000 });
 
     // Разрыв сети: B офлайн → A шлёт второе → B возвращается и догоняет.
     await contextB.setOffline(true);
@@ -142,5 +157,131 @@ test.describe('живой чат: две сессии (#104)', () => {
 
     await contextA.close();
     await contextB.close();
+  });
+
+  test('просмотр по вьюпорту (прокрутка) и удаление <1 c (#102/#104 раунд 2)', async ({
+    browser,
+  }) => {
+    // Длинная беседа: 2–3 сообщения влезают в вьюпорт целиком — «прокрутка
+    // вверх» без длинной ленты не существует (дефект прогона: B видел всё).
+    for (let i = 1; i <= 12; i += 1) {
+      const res = await apiPost(
+        admin.token,
+        `/chat/conversations/${conversationId}/messages`,
+        { text: `e2e-ws-${RUN}-fill-${i}` },
+        `e2e-ws-${RUN}-fill-${i}`,
+      );
+      expect(res.status).toBe(201);
+    }
+
+    const contextA = await browser.newContext();
+    const contextB = await browser.newContext();
+    const pageA = await contextA.newPage();
+    const pageB = await contextB.newPage();
+
+    await loginUi(pageA, ADMIN.email, ADMIN.password);
+    await loginUi(pageB, PEER.email, PEER.password);
+    await pageA.goto(`/chat/${conversationId}`);
+    await pageB.goto(`/chat/${conversationId}`);
+    await expect(pageA.getByText(TITLE).first()).toBeVisible();
+
+    // B прокручивает ленту ВВЕРХ КОЛЕСОМ (реальное намерение пользователя:
+    // программный scrollTop примитив MessageScroller считает «не-жестом» и
+    // автоскроллит обратно к низу — тогда тест теряет свой смысл).
+    const viewportB = pageB.locator('[data-slot="message-scroller-viewport"]');
+    const boxB = await viewportB.boundingBox();
+    await pageB.mouse.move(boxB!.x + boxB!.width / 2, boxB!.y + boxB!.height / 2);
+    await pageB.mouse.wheel(0, -10_000);
+    await pageB.waitForTimeout(300);
+
+    const msg3 = `e2e-ws-${RUN}-msg3`;
+    const composer = pageA.getByPlaceholder(/Написать сообщение/i);
+    await composer.click();
+    await composer.fill(msg3);
+    await composer.press('Enter');
+
+    // Сообщение видно у A, но не у B (ниже вьюпорта). Текст ищем В ЛЕНТЕ:
+    // превью последнего сообщения в списке бесед содержит тот же текст.
+    const feedB = pageB.locator('[data-slot="message-scroller-viewport"]');
+    await expect(pageA.getByText(msg3).first()).toBeVisible({ timeout: 5_000 });
+    await expect(feedB.getByText(msg3)).toBeHidden();
+    // …и НЕ просмотрено: квитанция видимости не уходила (старая модель —
+    // «выдача ленты двигает курсор» — прочла бы мгновенно; окно 1.5 с).
+    await pageA.waitForTimeout(1_500);
+    const rowA = pageA.locator('[data-message-id]', { hasText: msg3 }).first();
+    await expect(rowA.getByLabel('отправлено')).toBeVisible();
+    await expect(rowA.getByLabel('просмотрено')).toBeHidden();
+
+    // B возвращается вниз: сообщение видно → квитанция → «просмотрено» у A.
+    await pageB.mouse.wheel(0, 10_000);
+    await pageB.waitForTimeout(300);
+    await expect(feedB.getByText(msg3).first()).toBeVisible({ timeout: 5_000 });
+    await expect(rowA.getByLabel('просмотрено')).toBeVisible({ timeout: 10_000 });
+
+    // Удаление доставляется <1 c: A удаляет (прочитано → надгробие) — текст
+    // у B пропадает через WS-инвалидацию без перезагрузки.
+    const list = await apiGet(admin.token, `/chat/conversations/${conversationId}/messages`);
+    const { items } = (await list.json()) as { items: { id: string; text?: string }[] };
+    const target = items.find((m) => m.text === msg3);
+    expect(target, 'сообщение прогона в ленте').toBeTruthy();
+    const started = Date.now();
+    const deleted = await fetch(
+      `${BASE_URL}/api/v1/chat/conversations/${conversationId}/messages/${target!.id}`,
+      {
+        method: 'DELETE',
+        headers: { authorization: `Bearer ${admin.token}`, 'Idempotency-Key': `e2e-ws-${RUN}-del` },
+      },
+    );
+    expect(deleted.status).toBe(200); // прочитано → надгробие
+    await expect(feedB.getByText(msg3)).toBeHidden({ timeout: 5_000 });
+    const elapsed = Date.now() - started;
+    test.info().annotations.push({ type: 'latency', description: `delete delivery ${elapsed} ms` });
+    expect(elapsed).toBeLessThan(1_000);
+
+    await contextA.close();
+    await contextB.close();
+  });
+
+  test('«супер-курсор» переживает селект-режим (#104 раунд 2)', async ({ browser }) => {
+    // Своё свежее сообщение (низ ленты): тест самодостаточен — не зависит
+    // от сообщений предыдущих тестов.
+    const seedText = `e2e-ws-${RUN}-caret-seed`;
+    const seeded = await apiPost(
+      admin.token,
+      `/chat/conversations/${conversationId}/messages`,
+      { text: seedText },
+      `e2e-ws-${RUN}-caret-seed`,
+    );
+    expect(seeded.status).toBe(201);
+
+    const contextA = await browser.newContext();
+    const pageA = await contextA.newPage();
+    await loginUi(pageA, ADMIN.email, ADMIN.password);
+    await pageA.goto(`/chat/${conversationId}`);
+    const composer = pageA.getByPlaceholder(/Написать сообщение/i);
+    await expect(composer).toBeVisible();
+
+    // Селект-режим размонтирует textarea (островок батч-команд), выход
+    // монтирует НОВЫЙ узел — каретка обязана выжить: «Ответить» из ПКМ-меню
+    // и ввод с клавиатуры попадают в композер без клика мышью (репро 25.09).
+    // ПКМ по ТЕКСТУ сообщения: центр строки своего сообщения — пустое место
+    // слева от пузыря, до триггера меню событие не доходит.
+    const feedA = pageA.locator('[data-slot="message-scroller-viewport"]');
+    await feedA.getByText(seedText).click({ button: 'right' });
+    await pageA.getByRole('menuitem', { name: 'Выбрать' }).click();
+    await expect(pageA.getByRole('button', { name: /снять выделение/i })).toBeVisible();
+
+    await pageA.getByRole('button', { name: /снять выделение/i }).click();
+    await expect(composer).toBeVisible({ timeout: 3_000 }); // фаза exit → normal
+
+    await feedA.getByText(seedText).click({ button: 'right' });
+    await pageA.getByRole('menuitem', { name: 'Ответить' }).click();
+    const typed = `e2e-ws-${RUN}-caret`;
+    // Каретка обязана вернуться сама (focusComposerWhenFree меню) — без клика.
+    await expect(composer).toBeFocused({ timeout: 3_000 });
+    await pageA.keyboard.type(typed);
+    await expect(composer).toHaveValue(new RegExp(`${typed}$`));
+
+    await contextA.close();
   });
 });
