@@ -18,6 +18,9 @@ const envSchema = z.object({
   REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().min(1).default(30),
   /** Secure-флаг refresh-cookie; по умолчанию — NODE_ENV=production. */
   COOKIE_SECURE: z.stringbool().optional(),
+  /** Общий IP-rate-limit (запросов/мин); нагрузочные прогоны k6 идут с
+   *  одного IP и поднимают планку (по умолчанию 300 — см. main.ts). */
+  RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(300),
 });
 
 export type Env = z.infer<typeof envSchema>;

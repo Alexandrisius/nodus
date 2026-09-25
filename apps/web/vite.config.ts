@@ -6,17 +6,21 @@ import { defineConfig, loadEnv } from 'vite';
 // dev — прокси Vite, preview (e2e в CI) — тот же прокси, docker — прокси nginx (infra/nginx/web.conf).
 // Цель /api-прокси: NODUS_API_DEV_TARGET из корневого .env — живой api для
 // dev-приёмки (например, локальный инстанс ветки на :3011); по умолчанию —
-// NODUS_API_PORT (docker-стек, 3001).
+// NODUS_API_PORT (docker-стек, 3001). Цель /socket.io (#104): симметрично —
+// NODUS_GATEWAY_DEV_TARGET (dev-gateway ветки, например :3012), иначе хост-порт
+// docker-gateway (NODUS_GATEWAY_PORT, 3002).
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '../../', '');
   const apiTarget = env.NODUS_API_DEV_TARGET ?? `http://localhost:${env.NODUS_API_PORT ?? 3001}`;
+  const gatewayTarget =
+    env.NODUS_GATEWAY_DEV_TARGET ?? `http://localhost:${env.NODUS_GATEWAY_PORT ?? 3002}`;
   const proxy = {
     '/api': {
       target: apiTarget,
       changeOrigin: true,
     },
     '/socket.io': {
-      target: `http://localhost:${env.NODUS_GATEWAY_PORT ?? 3002}`,
+      target: gatewayTarget,
       ws: true,
     },
   };

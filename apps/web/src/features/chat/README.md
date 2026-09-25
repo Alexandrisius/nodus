@@ -274,6 +274,26 @@ MAX_RATIO 0.66, `shared/ui/use-chat-width.ts`; при открытой пане�
   `useConversations`, тело мессенджера (`components/messenger-body.tsx`) и
   вкладки карточки (`components/messenger-tabs.tsx`).
 
+## Realtime (#104): WS-доставка вместо опроса
+
+- **Клиент** — `shared/socket/` (вынос в shared — два потребителя чата):
+  соединение живёт с сессией (`useChatSocket` в шелле), токен — function-auth
+  из auth-store (свежий на каждую попытку reconnect); обработчики вешаются
+  ДО коннекта; статус сокета тихий. Активная беседа подписывается комнатой
+  (`useConvRoom` → `conv:join/leave`).
+- **События применяются ТОЛЬКО как инвалидации** (`socket-invalidation.ts` →
+  точные ключи chatKeys; сервер — единственная истина), локальной мутации
+  кэша по WS-событиям нет. Reconnect → инвалидация всего чат-дерева +
+  повторный join.
+- **Поллинг — fallback** (`shared/chat/api.ts` livePoll): сокет жив → 60 с,
+  разрыв → прежние 5/10 с; в мок-режиме chat сокет не поднимается.
+- **«Печатает…»**: композер эмитит `chat.typing` (троттл 2 с, typing-emitter),
+  gateway троттлит 3 с; индикатор — подзаголовок шапки беседы
+  (`conversation-bar.tsx`: direct «печатает…», группа «Имя печатает…»,
+  TTL 4 с в typing-store, свой набор не показывается). Статус собеседника
+  direct-беседы — «онлайн/не в сети» из presence-стора (WS presence;
+  справочник сотрудников берёт статус оттуда же — `useEmployeePresence`).
+
 ## Линия A (#87): действия над сообщениями — UI на моках
 
 Реестр контекстного меню сообщения (`shared/chat/message-menu.tsx`, вердикт

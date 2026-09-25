@@ -14,6 +14,7 @@ import { api } from '../api-client.js';
 import { isDomainMocked } from '../api/api-mock-config.js';
 import { tasksKeys } from '../api/tasks-keys.js';
 import { useAuthStore } from '../auth-store.js';
+import { useSocketStatusStore } from '../socket/socket-status-store.js';
 
 /**
  * API-слой чата в shared (два потребителя — мессенджер и вкладка «Чат»
@@ -32,22 +33,25 @@ export const chatKeys = {
   direct: (userId: string) => [...chatKeys.conversations(), 'direct', userId] as const,
 };
 
-/** Живой чат (#48, до WS-шлюза): пока домен chat НЕ мокается, ленты
- *  опрашиваются по интервалу (беседы реже, сообщения чаще). В мок-режиме
- *  поллинг не нужен — данные статичны, фоновые табы не опрашиваются
- *  (refetchIntervalInBackground: false — явно). */
+/** Живой чат: до WS-шлюза (#48) ленты опрашивались часто (5/10 с); с #104
+ *  основной путь — WS-события → инвалидации, опрос остаётся fallback:
+ *  редкий при живом сокете (60 с), частый — без него (разрыв). В мок-режиме
+ *  поллинг не нужен — данные статичны; фоновые табы не опрашиваются. */
 const LIVE_CHAT_POLL = { conversations: 10_000, messages: 5_000 } as const;
+const SOCKET_POLL_FALLBACK_MS = 60_000;
 
-function livePoll(intervalMs: number): number | false {
-  return isDomainMocked('chat') ? false : intervalMs;
+function livePoll(intervalMs: number, socketConnected: boolean): number | false {
+  if (isDomainMocked('chat')) return false;
+  return socketConnected ? SOCKET_POLL_FALLBACK_MS : intervalMs;
 }
 
 export function useConversationMessages(id: string) {
+  const socketConnected = useSocketStatusStore((s) => s.connected);
   return useQuery({
     queryKey: chatKeys.messages(id),
     queryFn: () => api<Paginated<ChatMessage>>(`/chat/conversations/${id}/messages`),
     enabled: id.length > 0,
-    refetchInterval: livePoll(LIVE_CHAT_POLL.messages),
+    refetchInterval: livePoll(LIVE_CHAT_POLL.messages, socketConnected),
     refetchIntervalInBackground: false,
   });
 }
@@ -55,16 +59,18 @@ export function useConversationMessages(id: string) {
 /** Список бесед мессенджера (переехал в shared, #87: диалог пересылки —
  *  shared-слой; features/chat/api/chat-api.ts реэкспортирует). */
 export function useConversations() {
+  const socketConnected = useSocketStatusStore((s) => s.connected);
   return useQuery({
     queryKey: chatKeys.conversations(),
     queryFn: () => api<Paginated<ConversationListItem>>('/chat/conversations'),
-    refetchInterval: livePoll(LIVE_CHAT_POLL.conversations),
+    refetchInterval: livePoll(LIVE_CHAT_POLL.conversations, socketConnected),
     refetchIntervalInBackground: false,
   });
 }
 
 /** Тред канала: корневое сообщение + ответы (ровно один уровень). */
 export function useThreadMessages(conversationId: string, threadRootId: string) {
+  const socketConnected = useSocketStatusStore((s) => s.connected);
   return useQuery({
     queryKey: chatKeys.thread(conversationId, threadRootId),
     queryFn: () =>
@@ -72,7 +78,7 @@ export function useThreadMessages(conversationId: string, threadRootId: string) 
         `/chat/conversations/${conversationId}/messages?threadRootId=${threadRootId}`,
       ),
     enabled: conversationId.length > 0 && threadRootId.length > 0,
-    refetchInterval: livePoll(LIVE_CHAT_POLL.messages),
+    refetchInterval: livePoll(LIVE_CHAT_POLL.messages, socketConnected),
     refetchIntervalInBackground: false,
   });
 }

@@ -1,15 +1,77 @@
 # apps/gateway — @nodus/gateway
 
-WebSocket-gateway портала (I1: отдельный процесс): Socket.IO — auth, presence, fanout событий в реальном времени.
+WebSocket-gateway портала (I1: отдельный процесс): Socket.IO — auth-хендшейк,
+комнаты бесед, fanout доменных событий чата из Redis Stream, «печатает…»,
+presence. Спека — issue #104 (трек M13).
 
 ## Запуск
 
 - `pnpm dev` — `node --watch src/main.ts` (Node 24 исполняет TS напрямую, type stripping; поэтому относительные импорты — с `.ts`-расширением, tsc переписывает их на `.js` при сборке через `rewriteRelativeImportExtensions`).
 - `pnpm build && pnpm start` — прод-режим из `dist/`.
 - Порт: `GATEWAY_PORT` (по умолчанию 3002); проверка живости — `GET /health`.
+- Env (zod на старте): `JWT_SECRET` (тот же, что у apps/api), `REDIS_URL`, `DATABASE_URL`. В docker-compose переменные пробрасываются сервису.
 
-## Лимиты
+## Архитектура
 
-- Stateless: горизонтальное масштабирование — через Redis-адаптер Socket.IO (к пилоту).
-- Доступ из браузера — один origin с web (nginx/vite проксируют `/socket.io`), свой CORS не настраивается.
-- Auth хендшейка и структурное логирование — вместе с core-механизмами (issue #2/#3).
+- **Fanout**: api после коммита пишет `chat.*` в outbox (`events`); издатель
+  `RedisStreamPublisher` (apps/api, `core/events`) публикует их в Redis Stream
+  `nodus:chat:events` (опрос по монотонному `events.seq`, ~100 мс — бюджет
+  p95 доставки < 200 мс). Gateway — consumer group `nodus:gateway` (XREADGROUP
+  BLOCK), рассылает envelope **`{ type, payload, seq, ts }`** (канон
+  api-conventions.md; seq = events.seq, глобальный порядок) по комнатам из
+  payload. Группа создаётся на `$` — историю не ретранслируем: клиент,
+  пропустивший события, ресинхронизируется рефечем (сервер — истина).
+- **READ-ONLY Postgres — осознанное исключение I3/I6** (зафиксировано спекой
+  #104): gateway не тянет Nest/Prisma ради двух SELECT — `isMember` для
+  подписки на комнату и `display_name/avatar_url` для presence-entries (кэш
+  60 с). Пишет в чужие таблицы никогда.
+- **Stateless, но пилот — один инстанс**: горизонтальное масштабирование —
+  Redis-адаптер Socket.IO (задел; consumer group уже разделяемая). Доступ из
+  браузера — один origin с web (nginx/vite проксируют `/socket.io`), свой
+  CORS не настраивается.
+
+## Протокол (клиент ↔ gateway)
+
+| Направление     | Событие                               | Payload                                                                                                                                  |
+| --------------- | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| клиент → сервер | `conv:join`                           | `{conversationId}` + ack `{ok, error?}` — подписка на комнату беседы (только член; `bad_request`/`forbidden`/`room_limit`/`unavailable`) |
+| клиент → сервер | `conv:leave`                          | `{conversationId}`                                                                                                                       |
+| клиент → сервер | `chat.typing`                         | `{conversationId}` — троттл ~3 с на пользователя-беседу                                                                                  |
+| сервер → клиент | `chat.*` (каталог api-conventions.md) | envelope `{type, payload, seq, ts}`                                                                                                      |
+| сервер → клиент | `chat.typing`                         | `{conversationId, userId}` — кроме сокетов автора                                                                                        |
+| сервер → клиент | `presence.snapshot`                   | `{entries: PresenceEntry[]}` — подключившемуся                                                                                           |
+| сервер → клиент | `presence.updated`                    | `PresenceEntry` — всем (комната `presence`)                                                                                              |
+
+Комнаты: `conv:{conversationId}` — join только членам, потолок 50/сокет;
+`user:{userId}` — автоматически после auth; `presence` — все аутентифицированные.
+
+Роутинг событий: беседа → `conv:{id}`; `message_sent/edited/deleted` → плюс
+user-комнаты участников (список бесед); `message_read` → `conv:{id}` +
+`user:{reader}`; `conversation_created/member_added` → user-комнаты затронутых.
+Клиент применяет события **только как сигнал к рефечу** (invalidateQueries) —
+локального применения состояний нет; порядок seq может нарушаться поздними
+коммитами транзакций api — это безопасно.
+
+## Известные границы (заделы)
+
+- **Reconnect-догрузка по seq**: клиент хранит seq (в envelope), но REST-эндпоинт
+  `/events?after_seq=` ещё не нужен — после reconnect клиент инвалидирует всё
+  чат-дерево ключей и рефечит. Появится при масштабировании истории.
+- **Auth**: stateless HS256 (тот же формат, что apps/api); сессии (sid) не
+  проверяются — отозванная сессия живёт ≤ TTL access-токена (15 мин).
+- **Presence**: только online/offline (away в контракте — задел); эфемерно,
+  в БД не хранится. Снимок приходит подключению, обновления — всем.
+- Структурное логирование (pino) — вместе с core-механизмами (issue #2/#3).
+
+## Тесты
+
+- Unit (`pnpm test`): auth-верификатор, троттл typing, роутинг fanout,
+  presence-переходы, conv:join/leave (членство, потолок, идемпотентность).
+- Integration (`pnpm test:integration`, живые PG/Redis): собственный контур —
+  БД `nodus_gateway_test` с минимальным срезом читаемых таблиц; socket.io-client
+  против живого сервера; публикация в стрим XADD-ом contract-ного envelope.
+  api-сторона публикации покрыта apps/api/test/integration/chat-realtime-fanout.
+- Нагрузка: `perf/ws-spike.js` (спайк raw engine.io-фрейминга для k6) и
+  `perf/chat-ws-load.js` (50 соединений, 500 сообщ/мин, порог p95 < 200 мс,
+  10 минут; `docker run --rm grafana/k6:0.58.0`, из репо
+  `MSYS_NO_PATHCONV=1`, api/gateway доступны как `host.docker.internal`).

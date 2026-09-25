@@ -2,8 +2,11 @@
 
 Беседы (direct/group/project_channel/task/letter), сообщения, треды, реакции,
 закрепы, прочитанность, пересылка. REST-контур под готовый контракт UI
-(`packages/contracts/src/chat/chat.schemas.ts`); realtime (WS-gateway) — трек
-M13, до него клиент живёт refetch-циклом. Модуль за фичефлагом `chat` (I10).
+(`packages/contracts/src/chat/chat.schemas.ts`). Realtime — WS-gateway (#104,
+M13): события `chat.*` публикуются в Redis Stream `nodus:chat:events`
+издателем `core/events/redis-stream-publisher` (опрос outbox по монотонному
+`events.seq` ~100 мс); клиент применяет их только как инвалидации. Модуль за
+фичефлагом `chat` (I10).
 
 ## Ключевые решения (почему так)
 
@@ -66,8 +69,9 @@ SET last_seq = last_seq + n RETURNING` в транзакции отправки 
 
 Вне контура до смежных треков: `POST .../to-task` (трек задач), вложения
 `POST /chat/attachments` (после #57 — MinIO/StorageDriver; таблица и
-одноразовая привязка `attachmentIds` уже готовы), автоканалы проектов,
-WS/presence/typing (M13). TTL/автоудаление сообщений — вне продукта навсегда
+одноразовая привязка `attachmentIds` уже готовы), автоканалы проектов.
+Realtime-доставка/typing/presence — WS-gateway (#104, `apps/gateway`).
+TTL/автоудаление сообщений — вне продукта навсегда
 (решение владельца 24.09, #96).
 
 ## События (outbox, I9; каталог — api-conventions.md, схемы — contracts)

@@ -17,6 +17,7 @@ import { cn } from '@nodus/ui/lib/utils';
 import { toast } from 'sonner';
 
 import { SendHexIcon } from '../ui/send-hex-icon.js';
+import { emitTyping } from '../socket/typing-emitter.js';
 import { chatAttachmentsEnabled } from './attachments-gate.js';
 import {
   EMPTY_DRAFT,
@@ -415,7 +416,12 @@ export function ChatComposer({
                   }
                   caretToEndRef.current = false;
                 }}
-                onChange={(e) => setText(focusId, e.target.value)}
+                onChange={(e) => {
+                  setText(focusId, e.target.value);
+                  if (conversationId && e.target.value.length > 0) {
+                    emitTyping(conversationId);
+                  }
+                }}
                 onKeyDown={onKeyDown}
                 onPaste={onPaste}
                 placeholder={placeholder}
