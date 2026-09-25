@@ -19,6 +19,9 @@ model Event {
   id            String    @id @default(uuid()) @db.Uuid
   /// Имя из каталога событий (api-conventions.md), например `task.created`.
   type          String
+  /// Глобальный монотонный порядок события (sequence БД); источник seq
+  /// WS-envelope realtime-доставки (#104). Присваивается БД, не клиентом.
+  seq           BigInt    @unique @default(autoincrement())
   actorId       String?   @map("actor_id") @db.Uuid
   aggregateType String?   @map("aggregate_type")
   aggregateId   String?   @map("aggregate_id") @db.Uuid

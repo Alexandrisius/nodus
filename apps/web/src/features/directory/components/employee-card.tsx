@@ -16,7 +16,7 @@ import {
 import { ConversationPane } from '../../../shared/chat/conversation-pane.js';
 import { TaskQuickCreate } from '../../../shared/tasks/task-quick-create.js';
 import { MIN_CHAT_W, useChatWidth } from '../../../shared/ui/use-chat-width.js';
-import { usePresence, useUserCard, useUsersList } from '../api/directory-api.js';
+import { useEmployeePresence, useUserCard, useUsersList } from '../api/directory-api.js';
 import { EmployeeCardSkeleton } from './employee-card-skeleton.js';
 import { EmployeeProjectsTab, EmployeeTasksTab } from './employee-journal-tabs.js';
 import { EmployeeProfileTab } from './employee-profile-tab.js';
@@ -44,7 +44,6 @@ type EmployeeTab = 'profile' | 'tasks' | 'projects';
 export function EmployeeCard({ userId }: { userId: string }) {
   const { data: card, isLoading } = useUserCard(userId);
   const { data: usersData } = useUsersList();
-  const { data: presence } = usePresence();
   const tasksQuery = useAssigneeTasks(userId);
   const projectsQuery = useMemberProjects(userId);
   const directQuery = useDirectConversation(userId);
@@ -74,7 +73,7 @@ export function EmployeeCard({ userId }: { userId: string }) {
   const subordinates = useMemo(() => items.filter((u) => u.managerId === userId), [items, userId]);
   const tasks = tasksQuery.data?.items ?? [];
   const projects = projectsQuery.data?.items ?? [];
-  const presenceStatus = presence?.find((p) => p.user.id === userId)?.status ?? 'offline';
+  const presenceStatus = useEmployeePresence(userId);
 
   if (isLoading || !card || !listItem) {
     return <EmployeeCardSkeleton chatW={columnW} />;

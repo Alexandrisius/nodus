@@ -10,6 +10,7 @@ export * from './directory/position.schemas.js';
 export * from './directory/role.schemas.js';
 export * from './events/domain-event.js';
 export * from './events/chat-events.js';
+export * from './events/realtime.js';
 export * from './pagination/paginated.schema.js';
 export * from './i18n/ru.js';
 export * from './directory/user-ref.schema.js';

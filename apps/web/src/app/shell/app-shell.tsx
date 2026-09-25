@@ -8,6 +8,7 @@ import { TooltipProvider } from '@nodus/ui/components/tooltip';
 import { registerCardBridge, registerReplaceTopMessenger } from '../../shared/lib/card-bridge.js';
 import { stageMessengerThread } from '../../shared/chat/messenger-nav.js';
 import { ChatDialogHosts } from '../../shared/chat/dialog-hosts.js';
+import { useChatSocket } from '../../shared/socket/use-chat-socket.js';
 import { CircuitFrame } from './circuit-frame.js';
 import { CardStackHost } from './card-stack-host.js';
 import { CommandPalette } from './command-palette.js';
@@ -37,6 +38,8 @@ export function AppShell() {
   const openCard = useOpenCard();
   const cardStack = useCardStack();
   const replaceTopCard = useReplaceTopCard();
+  // WS чата (#104): живёт с сессией, тихий статус; поллинг — fallback.
+  useChatSocket();
   const stressMode =
     typeof window !== 'undefined' &&
     Number(new URLSearchParams(window.location.search).get('stress') ?? 0) >= 1000;

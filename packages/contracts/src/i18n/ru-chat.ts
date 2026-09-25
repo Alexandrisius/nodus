@@ -6,6 +6,10 @@ export const chatStrings = {
   yesterday: 'Вчера',
   sent: 'отправлено',
   read: 'прочитано',
+  /** Realtime (#104): индикатор набора в подзаголовке беседы. */
+  typing: 'печатает…',
+  /** Статус собеседника в direct-беседе (WS presence). */
+  offline: 'не в сети',
   download: 'Скачать',
   attachFile: 'Прикрепить файл',
   emoji: 'Эмодзи',

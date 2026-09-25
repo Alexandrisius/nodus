@@ -4,6 +4,7 @@ import { ui } from '@nodus/contracts';
 import { ChatSidePanel, useChatSidePanel } from '../../../shared/chat/chat-side-panel.js';
 import { ChannelView } from '../../../shared/chat/channel-view.js';
 import { ConversationPane } from '../../../shared/chat/conversation-pane.js';
+import { useConvRoom } from '../../../shared/socket/use-conv-room.js';
 import { ConversationBar } from './conversation-bar.js';
 
 /**
@@ -31,6 +32,8 @@ export function ChatWorkspace({
   // Панель беседы (закон: у каждого чата) — хостится рабочей областью;
   // тоггл — кнопка СПРАВА ВВЕРХУ бара беседы (канон кнопки «О задаче»).
   const panel = useChatSidePanel();
+  // Подписка на комнату беседы (#104): мгновенные события и typing.
+  useConvRoom(conversation.id);
   const bar = (
     <ConversationBar
       conversation={conversation}

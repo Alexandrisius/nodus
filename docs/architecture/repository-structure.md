@@ -24,7 +24,7 @@ nodus/
 │   │       │       ├── model/      # локальное состояние, селекторы
 │   │       │       └── README.md   # назначение, контракты, события, лимиты
 │   │       ├── shared/        # переиспользуемое: lib, hooks, ui-kit re-export
-│   │       └── ws/            # WebSocket-клиент, синхронизация, офлайн-очередь
+│   │       └── socket/        # WS-клиент чата (#104): соединение, инвалидации, typing/presence
 │   ├── api/                   # NestJS backend (Fastify)
 │   │   ├── prisma/            # schema.prisma, миграции (задним числом не меняются), seed dev-БД
 │   │   └── src/

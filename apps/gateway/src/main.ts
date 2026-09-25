@@ -1,32 +1,42 @@
-import { createServer } from 'node:http';
-import { Server } from 'socket.io';
+import { Redis } from 'ioredis';
 // Импорт с .ts-расширением осознанно: dev-режим запускает исходники напрямую
 // (Node 24 type stripping), а tsc при сборке переписывает расширение на .js
 // (rewriteRelativeImportExtensions).
-import { buildHealthPayload } from './health-payload.ts';
+import { loadGatewayConfig } from './config.ts';
+import { createGatewayServer } from './gateway-server.ts';
+import { PgMembershipStore } from './membership.ts';
 
-const port = Number(process.env.GATEWAY_PORT ?? 3002);
+const config = loadGatewayConfig();
+const store = new PgMembershipStore(config.DATABASE_URL);
+const redis = new Redis(config.REDIS_URL, { maxRetriesPerRequest: null });
+const gateway = createGatewayServer({ jwtSecret: config.JWT_SECRET, store, redis });
 
-const httpServer = createServer((req, res) => {
-  if (req.url === '/health') {
-    res.writeHead(200, { 'content-type': 'application/json' });
-    res.end(JSON.stringify(buildHealthPayload()));
+gateway.httpServer.listen(config.GATEWAY_PORT, '0.0.0.0', () => {
+  void gateway
+    .startFanout()
+    .then(() => {
+      console.log(`gateway: слушает порт ${config.GATEWAY_PORT}, fanout активен`);
+    })
+    .catch((error: unknown) => {
+      console.error('gateway: fanout не стартовал:', error);
+      process.exitCode = 1;
+    });
+});
+
+let shuttingDown = false;
+async function shutdown(signal: string): Promise<void> {
+  if (shuttingDown) {
     return;
   }
-  res.writeHead(404);
-  res.end();
+  shuttingDown = true;
+  console.log(`gateway: ${signal}, останавливаюсь`);
+  await gateway.close();
+  redis.disconnect();
+  await store.close();
+}
+process.on('SIGTERM', () => {
+  void shutdown('SIGTERM');
 });
-
-const io = new Server(httpServer);
-
-io.on('connection', (socket) => {
-  // TODO(core): структурное логирование (pino) и auth хендшейка — issue #2/#3.
-  console.log(`gateway: подключение ${socket.id}`);
-  socket.on('disconnect', (reason: string) => {
-    console.log(`gateway: отключение ${socket.id} (${reason})`);
-  });
-});
-
-httpServer.listen(port, '0.0.0.0', () => {
-  console.log(`gateway: слушает порт ${port}`);
+process.on('SIGINT', () => {
+  void shutdown('SIGINT');
 });

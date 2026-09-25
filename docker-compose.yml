@@ -57,8 +57,18 @@ services:
     restart: unless-stopped
     environment:
       GATEWAY_PORT: '3002'
+      # WS-gateway (#104): HS256 тех же access-токенов, READ-ONLY Postgres
+      # (членство/профили), consumer Redis Stream событий чата.
+      JWT_SECRET: ${JWT_SECRET:?задайте в .env}
+      DATABASE_URL: postgresql://${POSTGRES_USER:?задайте в .env}:${POSTGRES_PASSWORD:?задайте в .env}@nodus_postgres:5432/${POSTGRES_DB:?задайте в .env}
+      REDIS_URL: redis://nodus_redis:6379
     ports:
       - '${NODUS_GATEWAY_PORT:-3002}:3002'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     healthcheck:
       # 127.0.0.1, не localhost: в alpine localhost резолвится в ::1, а сервис слушает IPv4.
       test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:3002/health']

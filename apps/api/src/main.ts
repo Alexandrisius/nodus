@@ -39,7 +39,7 @@ async function bootstrap(): Promise<void> {
   if (env.NODE_ENV !== 'test') {
     await app.register(fastifyRateLimit as FastifyPluginCallback<RateLimitPluginOptions>, {
       global: true,
-      max: 300,
+      max: env.RATE_LIMIT_MAX,
       timeWindow: '1 minute',
       keyGenerator: (request) => request.ip,
       errorResponseBuilder: (request, context) => ({
