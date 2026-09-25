@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { messageSchema } from '../chat/chat.schemas.js';
+
 /**
  * Каталог доменных событий модуля chat (I9: каждое событие — в `events`
  * через outbox; префикс = модуль-владелец в ед. числе; каталог только
@@ -48,6 +50,11 @@ export const chatMessageSentPayloadSchema = z.object({
   threadRootId: z.uuid().nullable(),
   /** Копия пересылки (атрибуция — в сообщении, не в событии). */
   forwarded: z.boolean(),
+  /** Полный DTO нового сообщения (раунд 3, «буря рефечей»): живые клиенты
+   *  применяют его в кэш ЛОКАЛЬНО по seq (канон Telegram: событие несёт
+   *  сообщение; дыра в seq/правка/удаление — рефеч). Поле заполнено всегда;
+   *  optional — толерантность к старым записям events-лога. */
+  message: messageSchema.optional(),
 });
 export type ChatMessageSentPayload = z.infer<typeof chatMessageSentPayloadSchema>;
 

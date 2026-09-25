@@ -132,3 +132,116 @@ export const hiddenConversations = new Set<string>();
 export function revealHiddenConversation(conversationId: string): void {
   hiddenConversations.delete(conversationId);
 }
+
+/**
+ * Квитанция просмотров (#102 раунд 2): просмотр = видимость в вьюпорте.
+ * Мок-модель: гасит unread беседы; собеседник «просматривает» то же видимое
+ * (минимальная симуляция по квитанции клиента — живого пира в моках нет):
+ * СВОИ сообщения с seq ≤ upToSeq получают readAt + первого не-автора в
+ * readBy (модель первого прочитавшего); после правки (readAt сброшен)
+ * повторный просмотр восстанавливает. Клиент делает отложенную инвалидацию
+ * после квитанции (use-viewport-read) — галочки переключаются без polling.
+ */
+/** Следующий seq беседы (мок-эквивалент allocateSeqs: 1..n по порядку). */
+export function nextMessageSeq(conversationId: string): number {
+  return (
+    Math.max(
+      0,
+      ...demoMessages.filter((m) => m.conversationId === conversationId).map((m) => m.seq),
+    ) + 1
+  );
+}
+
+export function applyReadReceipt(conversationId: string, upToSeq: number): number {
+  const conversation = demoConversations.find((c) => c.id === conversationId);
+  if (!conversation) return -1;
+  conversation.unreadCount = 0;
+  const now = new Date().toISOString();
+  for (const m of demoMessages) {
+    if (m.conversationId !== conversationId || m.deletedAt || m.seq > upToSeq) continue;
+    const reader = conversation.membersPreview.find((u) => u.id !== m.author.id);
+    if (!reader) continue; // «Заметки»: просмотров нет
+    if (m.readAt === null) m.readAt = now;
+    if (!m.readBy.some((u) => u.id === reader.id)) m.readBy = [...m.readBy, reader];
+  }
+  return upToSeq;
+}
+
+/** Наблюдатели трэдов (раунд 3): rootId → userId → watermark трэда. Мок-модель
+ *  минимальна: реплай в трэд делает наблюдателем, @упоминание — тоже,
+ *  кнопка «Следить» — toggle; квитанция из треда двигает watermark (точка). */
+export const threadWatchers = new Map<string, Map<string, number>>();
+
+/** Карта наблюдателей трэда (создаётся по необходимости). */
+export function threadWatchersOf(threadRootId: string): Map<string, number> {
+  let watchers = threadWatchers.get(threadRootId);
+  if (!watchers) {
+    watchers = new Map();
+    threadWatchers.set(threadRootId, watchers);
+  }
+  return watchers;
+}
+
+export function watchThreadMock(threadRootId: string, userId: string): boolean {
+  const watchers = threadWatchersOf(threadRootId);
+  if (watchers.has(userId)) {
+    watchers.delete(userId);
+    return false;
+  }
+  watchers.set(userId, 0);
+  return true;
+}
+
+/** Квитанция из треда: гасит «есть новые» (чужие ответы ≤ upToSeq прочитаны). */
+export function applyThreadReadReceipt(
+  threadRootId: string,
+  userId: string,
+  upToSeq: number,
+): void {
+  const watchers = threadWatchers.get(threadRootId);
+  if (!watchers?.has(userId)) return;
+  watchers.set(userId, Math.max(watchers.get(userId) ?? 0, upToSeq));
+}
+
+/** Состояния трэдов беседы для текущего пользователя (mock GET threads/state):
+ *  строка на каждый трэд, где он наблюдатель. */
+export function threadStatesMock(conversationId: string, userId: string) {
+  const items: { threadRootId: string; watched: boolean; unreadCount: number }[] = [];
+  for (const [threadRootId, watchers] of threadWatchers) {
+    const watermark = watchers.get(userId);
+    if (watermark === undefined) continue;
+    const root = demoMessages.find(
+      (m) => m.id === threadRootId && m.conversationId === conversationId,
+    );
+    if (!root) continue;
+    const unreadCount = demoMessages.filter(
+      (m) =>
+        m.threadRootId === threadRootId &&
+        !m.deletedAt &&
+        m.author.id !== userId &&
+        m.seq > watermark,
+    ).length;
+    items.push({ threadRootId, watched: true, unreadCount });
+  }
+  return items;
+}
+
+/** @упоминания мока (паритет серверу, раунд 3): токены @Имя против ФИО
+ *  демо-справочника (точное совпадение имени/фамилии/ФИО). */
+export function parseMentionIds(
+  text: string,
+  resolve: (token: string) => { id: string; displayName: string } | undefined,
+  authorId: string,
+): string[] {
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  for (const match of text.matchAll(/@([\p{L}\p{M}\p{N}._-]+)/gu)) {
+    const token = match[1];
+    if (!token) continue;
+    const person = resolve(token);
+    if (!person || person.id === authorId || seen.has(person.id)) continue;
+    seen.add(person.id);
+    ids.push(person.id);
+  }
+  return ids;
+}

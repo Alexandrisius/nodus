@@ -33,13 +33,71 @@ export function isMessageFullyVisible(el: HTMLElement, container: HTMLElement): 
  */
 export function revealMessage(el: HTMLElement, container: HTMLElement): RevealOutcome {
   if (isMessageFullyVisible(el, container)) return 'visible';
-  const c = container.getBoundingClientRect();
-  const r = el.getBoundingClientRect();
-  const targetTop = r.top - c.top + container.scrollTop;
-  // Центрирование: верх цели на (высота области − высота цели) / 2 сверху.
-  const desired = targetTop - (container.clientHeight - r.height) / 2;
-  const max = Math.max(0, container.scrollHeight - container.clientHeight);
-  const top = Math.min(Math.max(desired, 0), max);
-  container.scrollTo({ top, behavior: 'smooth' });
+  scrollMessageIntoView(el, container, { align: 'center', behavior: 'smooth' });
   return 'scrolled';
+}
+
+/**
+ * Программный скролл к сообщению ВНУТРИ контейнера с клампом [0, maxScroll]
+ * (раунд 4). Канон для ВСЕХ якорных скроллов чата (якорь непрочитанных,
+ * jump-цель открытия, стрелка «вниз»): примитивный scrollToMessage при
+ * align:start/center ДОРАЩИВАЕТ спейсер ПОД контентом, когда цель в последнем
+ * экране, — между последним пузырём и композером вырастает пустота, которая
+ * не смывается обычной прокруткой (вердикт владельца раунда 4: «огромный
+ * зазор под Просмотрено»). Кламп держит низ ленты прижатым к низу области.
+ *
+ * Settle-коррекция: строки ленты несут content-visibility:auto — размеры
+ * строк ВНЕ вьюпорта оценочные (contain-intrinsic-size), поэтому первый
+ * scrollTo садится по оценочной геометрии и может промахнуться; короткая
+ * rAF-петля (~0.5 c) доводит scrollTop по живой геометрии цели и гаснет.
+ * Пользовательский скролл (колесо/тач) прерывает коррекцию немедленно.
+ */
+export function scrollMessageIntoView(
+  el: HTMLElement,
+  container: HTMLElement,
+  options: { align: 'start' | 'center'; margin?: number; behavior?: ScrollBehavior },
+): void {
+  const desiredTop = () => {
+    const c = container.getBoundingClientRect();
+    const r = el.getBoundingClientRect();
+    const targetTop = r.top - c.top + container.scrollTop;
+    const desired =
+      options.align === 'start'
+        ? targetTop - (options.margin ?? 0)
+        : targetTop - (container.clientHeight - r.height) / 2;
+    const max = Math.max(0, container.scrollHeight - container.clientHeight);
+    return Math.min(Math.max(desired, 0), max);
+  };
+  container.scrollTo({ top: desiredTop(), behavior: options.behavior ?? 'auto' });
+  if (options.behavior === 'smooth') return; // плавный сам доедет; коррекция не нужна
+
+  let frames = 0;
+  let stopped = false;
+  const stop = () => {
+    stopped = true;
+    container.removeEventListener('wheel', stop);
+    container.removeEventListener('touchstart', stop);
+  };
+  container.addEventListener('wheel', stop, { passive: true });
+  container.addEventListener('touchstart', stop, { passive: true });
+  const tick = () => {
+    if (stopped || frames > 30) {
+      stop();
+      return;
+    }
+    frames += 1;
+    const c = container.getBoundingClientRect();
+    const r = el.getBoundingClientRect();
+    const want =
+      options.align === 'start'
+        ? c.top + (options.margin ?? 0)
+        : c.top + (container.clientHeight - r.height) / 2;
+    const delta = r.top - want;
+    if (Math.abs(delta) > 2) {
+      const max = Math.max(0, container.scrollHeight - container.clientHeight);
+      container.scrollTop = Math.min(Math.max(container.scrollTop + delta, 0), max);
+    }
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
 }

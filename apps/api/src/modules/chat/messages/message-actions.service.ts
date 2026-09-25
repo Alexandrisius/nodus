@@ -23,6 +23,7 @@ import { can, parsePermissions } from '../permissions.js';
 import { MessageDtoMapper } from './message-dto.mapper.js';
 import { MessagePinsRepository, type PinRecord } from './message-pins.repository.js';
 import { MessagesRepository, type MessageRow } from './messages.repository.js';
+import { ThreadParticipantsRepository } from './thread-participants.repository.js';
 
 /**
  * Действия над сообщениями: закрепы (лента закрепов), реакции (toggle),
@@ -38,6 +39,7 @@ export class MessageActionsService {
     private readonly txRunner: TransactionRunner,
     private readonly eventBus: EventBus,
     @Inject(USER_PROFILE_READER) private readonly userProfiles: UserProfileReader,
+    private readonly threadParticipants: ThreadParticipantsRepository,
   ) {}
 
   // ===== Закрепы =====
@@ -87,7 +89,8 @@ export class MessageActionsService {
       const created = await this.pins.pin(conversationId, messageId, userId, tx);
       const pin = created
         ? { conversationId, messageId, pinnedBy: userId, pinnedAt: new Date() }
-        : ((await this.pins.findByMessage(messageId)) ?? {
+        : // tx — чтение по соединению транзакции (правило пула, раунд 3).
+          ((await this.pins.findByMessage(messageId, tx)) ?? {
             conversationId,
             messageId,
             pinnedBy: userId,
@@ -101,7 +104,7 @@ export class MessageActionsService {
           { actorId: userId, aggregateType: 'conversation', aggregateId: conversationId },
         );
       }
-      const [pinnedByRef] = await this.userProfiles.findRefs([pin.pinnedBy]);
+      const [pinnedByRef] = await this.userProfiles.findRefs([pin.pinnedBy], tx);
       return {
         pin,
         message,
@@ -290,9 +293,9 @@ export class MessageActionsService {
           tx,
         );
         if (root) {
-          await this.messages.upsertThreadParticipant(threadRootId, root.authorId, 'author', tx);
+          await this.threadParticipants.upsert(threadRootId, root.authorId, 'author', tx);
         }
-        await this.messages.upsertThreadParticipant(threadRootId, userId, 'replier', tx);
+        await this.threadParticipants.upsert(threadRootId, userId, 'replier', tx);
         if (priorThreadReplies === 0) {
           await this.eventBus.emit(
             tx,
@@ -308,7 +311,30 @@ export class MessageActionsService {
       // Пересылка — активность: раскрывает беседу скрывшим её участникам (#103).
       await this.conversations.revealHidden(targetConversationId, tx);
 
+      const members = await this.conversations.listMembers([targetConversationId], tx);
+      // Вложения копий одним батчем (для payload DTO, раунд 3).
+      const copyAttachments = await this.messages.attachmentsFor(
+        created.map((row) => row.id),
+        tx,
+      );
+      const attachmentsByMessage = new Map<string, typeof copyAttachments>();
+      for (const attachment of copyAttachments) {
+        const list = attachmentsByMessage.get(attachment.messageId) ?? [];
+        list.push(attachment);
+        attachmentsByMessage.set(attachment.messageId, list);
+      }
       for (const row of created) {
+        // Полный DTO в payload (раунд 3): клиенты применяют локально по seq.
+        // Профили — по соединению транзакции (tx): чтение мимо tx-клиента
+        // занимает второе соединение пула и под бурстом взаимоблокирует
+        // отправителей (repro-класс chat-reliability, замечание валидатора).
+        const payloadMessage = await this.mapper.toFreshDto(row, {
+          viewerId: userId,
+          members,
+          replyOriginal: null,
+          attachments: attachmentsByMessage.get(row.id) ?? [],
+          tx,
+        });
         await this.eventBus.emit(
           tx,
           CHAT_EVENTS.MESSAGE_SENT,
@@ -319,14 +345,12 @@ export class MessageActionsService {
             authorId: userId,
             threadRootId,
             forwarded: row.clientMessageId !== `${baseKey}:c`,
+            message: payloadMessage,
           },
           { actorId: userId, aggregateType: 'conversation', aggregateId: targetConversationId },
         );
       }
-      return {
-        rows: created,
-        members: await this.conversations.listMembers([targetConversationId], tx),
-      };
+      return { rows: created, members };
     });
   }
 }

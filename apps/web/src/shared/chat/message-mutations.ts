@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { api } from '../api-client.js';
 import { useAuthStore } from '../auth-store.js';
 import { chatKeys } from './api.js';
+import { useScrollEndStore } from './scroll-end-store.js';
 
 /**
  * Мутации сообщений линии A (#87): правка, удаление (одиночное/пакетное),
@@ -337,6 +338,14 @@ export function useForwardMessages() {
     onSuccess: (_created, vars) => {
       void qc.invalidateQueries({ queryKey: chatKeys.messages(vars.targetId) });
       void qc.invalidateQueries({ queryKey: chatKeys.conversations() });
+      // Догон ленты приёмника к низу для отправителя (раунд 4): батч из
+      // мультиселекта идёт через эту мутацию МИМО композера (у одиночной
+      // пересылки догон просит композер) — без запроса отправитель оставался
+      // без прокрутки к своему новому сообщению (вердикт раунда 4).
+      const scope = vars.body.threadRootId
+        ? `thread:${vars.body.threadRootId}`
+        : `conversation:${vars.targetId}`;
+      useScrollEndStore.getState().request(scope, 'smooth');
       // Тостов здесь нет: пересылка одиночная (вердикт 24.09); тост успеха —
       // в композере-инициаторе (chat-composer).
     },

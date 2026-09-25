@@ -6,6 +6,8 @@ import type {
   Paginated,
   ReplyPreview,
   TaskListItem,
+  ThreadStateList,
+  ThreadWatchResult,
 } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { toast } from 'sonner';
@@ -29,6 +31,10 @@ export const chatKeys = {
     [...chatKeys.all, 'messages', id, 'thread', rootId] as const,
   /** Закрепы беседы (A3): лента закрепов снапшотами. */
   pins: (id: string) => [...chatKeys.all, 'pins', id] as const,
+  /** Состояния трэдов для текущего пользователя (раунд 3: точка «есть новые»
+   *  на посте, кнопка «Следить»); под префиксом messages(id) НЕ живёт —
+   *  инвалидация ленты его не трогает. */
+  threadStates: (id: string) => [...chatKeys.all, 'threadStates', id] as const,
   /** Личка с пользователем (открыть/создать direct по сотруднику). */
   direct: (userId: string) => [...chatKeys.conversations(), 'direct', userId] as const,
 };
@@ -49,7 +55,9 @@ export function useConversationMessages(id: string) {
   const socketConnected = useSocketStatusStore((s) => s.connected);
   return useQuery({
     queryKey: chatKeys.messages(id),
-    queryFn: () => api<Paginated<ChatMessage>>(`/chat/conversations/${id}/messages`),
+    // limit=100 — максимум контракта (раунд 4: страница 50 резала историю,
+    // «старые сообщения пропадали»; полноценная догрузка при прокрутке — #117).
+    queryFn: () => api<Paginated<ChatMessage>>(`/chat/conversations/${id}/messages?limit=100`),
     enabled: id.length > 0,
     refetchInterval: livePoll(LIVE_CHAT_POLL.messages, socketConnected),
     refetchIntervalInBackground: false,
@@ -75,11 +83,42 @@ export function useThreadMessages(conversationId: string, threadRootId: string) 
     queryKey: chatKeys.thread(conversationId, threadRootId),
     queryFn: () =>
       api<Paginated<ChatMessage>>(
-        `/chat/conversations/${conversationId}/messages?threadRootId=${threadRootId}`,
+        `/chat/conversations/${conversationId}/messages?threadRootId=${threadRootId}&limit=100`,
       ),
     enabled: conversationId.length > 0 && threadRootId.length > 0,
     refetchInterval: livePoll(LIVE_CHAT_POLL.messages, socketConnected),
     refetchIntervalInBackground: false,
+  });
+}
+
+/** Состояния трэдов для текущего пользователя (раунд 3): карта rootId →
+ *  { watched, unreadCount } — точка «есть новые» на счётчике ответов поста
+ *  и состояние кнопки «Следить» в шапке окна треда. */
+export function useThreadStates(conversationId: string) {
+  const socketConnected = useSocketStatusStore((s) => s.connected);
+  return useQuery({
+    queryKey: chatKeys.threadStates(conversationId),
+    queryFn: () => api<ThreadStateList>(`/chat/conversations/${conversationId}/threads/state`),
+    select: (data) => new Map(data.items.map((s) => [s.threadRootId, s])),
+    enabled: conversationId.length > 0,
+    refetchInterval: livePoll(LIVE_CHAT_POLL.conversations, socketConnected),
+    refetchIntervalInBackground: false,
+  });
+}
+
+/** Кнопка «Следить/Перестать» в шапке окна треда (toggle, идемпотентный). */
+export function useWatchThread(conversationId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (threadRootId: string) =>
+      api<ThreadWatchResult>(
+        `/chat/conversations/${conversationId}/threads/${threadRootId}/watch`,
+        { method: 'POST' },
+      ),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: chatKeys.threadStates(conversationId) });
+      void queryClient.invalidateQueries({ queryKey: chatKeys.conversations() });
+    },
   });
 }
 
@@ -171,6 +210,7 @@ export function useSendChatMessage(conversationId: string) {
       const temp: ChatMessage = {
         id: vars.tempId,
         conversationId,
+        seq: 0, // плейсхолдер: реальный seq придёт с ответом сервера
         author: { id: user?.id ?? '', displayName: user?.displayName ?? '', avatarUrl: null },
         text: vars.text,
         replyToId: vars.replyToId ?? null,
@@ -235,16 +275,9 @@ export function useSendChatMessage(conversationId: string) {
             }
           : old,
       );
-      if (isDomainMocked('chat')) {
-        // МОК-ЛОГИКА read-receipt (аудит #45): собеседник «прочитывает» через
-        // пару секунд (мокап) — одна отложенная инвалидация переключает
-        // галочки sent→read без polling. На живом API не нужна: readAt
-        // приходит с сервера опросом лент (livePoll выше); при WS-шлюзе (M13)
-        // прочтение придёт событием message.read и в моках.
-        window.setTimeout(() => {
-          void queryClient.invalidateQueries({ queryKey: chatKeys.messages(conversationId) });
-        }, 2500);
-      }
+      // МОК-симуляция просмотров (#102 р.2) переехала с отправки на КВИТАНЦИЮ
+      // просмотра (use-viewport-read.ts): собеседник «просматривает» видимое
+      // по мере прокрутки — отложенный рефеч после собственной квитанции.
     },
 
     onSettled: () => {

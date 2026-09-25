@@ -1,6 +1,7 @@
 import {
   CheckSquare,
   Copy,
+  Eye,
   Forward,
   Link2,
   ListTodo,
@@ -13,18 +14,23 @@ import {
   X,
 } from 'lucide-react';
 import { useRef, useState, type ReactNode } from 'react';
-import type { ChatMessage } from '@nodus/contracts';
+import type { ChatMessage, UserRef } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuSeparator,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from '@nodus/ui/components/context-menu';
 import { toast } from 'sonner';
 
 import { openCardViaBridge } from '../lib/card-bridge.js';
+import { shortPersonName } from '../lib/format.js';
+import { PersonAvatar } from '../ui/person-avatar.js';
 import { useMessageToTask } from './api.js';
 import { useChatDrafts } from './chat-drafts.js';
 import { focusComposerWhenFree } from './composer-focus.js';
@@ -46,6 +52,13 @@ import { copyMessagesAsText } from './use-selection-keys.js';
  * пункт появляется, когда контекстное меню открыто с несвёрнутым выделением
  * текста внутри этого сообщения (захват — в capture-фазе contextmenu, до
  * открытия меню; «вечный курсор» селекцию не сбрасывает — канон #71).
+ *
+ * «Кто просмотрел» (раунд 4, спека владельца): ПОДМЕНЮ в группе
+ * недеструктивных команд, сразу над «Удалить» — список посмотревших
+ * (аватар + ФИО, max-h-56 со скроллом) из message.readBy. Прежний пункт с
+ * попапом «мгновенно пропадал» (война фокуса с «вечным курсором»): подменю —
+ * часть слоя меню, фокус не воюет. Попап у счётчика «и ещё N» в pill'е
+ * просмотров (views-line) не тронут.
  */
 
 interface Item {
@@ -56,6 +69,9 @@ interface Item {
   separatorBefore?: boolean;
   run: () => void;
 }
+// >300 строк — обоснование (I5): реестр действий + подменю «Кто просмотрел»
+// (раунд 4) — единая структура ОДНОГО меню (порядок пунктов зафиксирован
+// вердиктом); вынос подменю размывал бы условие вставки «над "Удалить"».
 
 export function MessageMenu({
   message,
@@ -143,7 +159,7 @@ export function MessageMenu({
     ];
   }
 
-  function normalItems(): Item[] {
+  function normalItems(): { items: Item[]; showViewers: boolean } {
     const items: Item[] = [
       {
         id: 'reply',
@@ -257,12 +273,21 @@ export function MessageMenu({
     // Пересланную копию нельзя править даже автору пересылки (#111): текст
     // принадлежит оригинальному автору; удалять свою копию — можно.
     const editable = mine && !message.forwardedFrom;
-    return items.filter(
-      (item) => !MINE_ONLY.has(item.id) || (item.id === 'edit' ? editable : mine),
-    );
+    return {
+      items: items.filter((item) => {
+        if (item.id === 'edit') return editable;
+        return !MINE_ONLY.has(item.id) || mine;
+      }),
+      // «Кто просмотрел» — подменю (раунд 4): только свои живые сообщения с
+      // непустым readBy (просмотры видит автор; пустой список показывать
+      // нечего). Вставляется над «Удалить» (недеструктивная группа).
+      showViewers: mine && !message.deletedAt && message.readBy.length > 0,
+    };
   }
 
-  const items = selectionActive ? selectionItems() : normalItems();
+  const selection = selectionActive
+    ? { items: selectionItems(), showViewers: false }
+    : normalItems();
 
   return (
     <ContextMenu>
@@ -281,8 +306,13 @@ export function MessageMenu({
         </span>
       </ContextMenuTrigger>
       <ContextMenuContent className="w-56">
-        {items.map((item) => (
+        {selection.items.map((item) => (
           <span key={item.id}>
+            {/* Подменю «Кто просмотрел» — над «Удалить», до сепаратора
+                деструктивной группы (раунд 4, спека владельца). */}
+            {item.id === 'delete' && selection.showViewers ? (
+              <ViewersSubmenu viewers={message.readBy} />
+            ) : null}
             {item.separatorBefore ? <ContextMenuSeparator /> : null}
             <ContextMenuItem variant={item.danger ? 'destructive' : 'default'} onClick={item.run}>
               <item.icon className="size-4" strokeWidth={1.75} />
@@ -292,6 +322,36 @@ export function MessageMenu({
         ))}
       </ContextMenuContent>
     </ContextMenu>
+  );
+}
+
+/** Список посмотревших в подменю «Кто просмотрел»: та же композиция строк,
+ *  что в попапе pill'а просмотров (views-line) — аватар + ФИО, скролл для
+ *  длинных списков. Часть слоя меню: не воюет с «вечным курсором». */
+function ViewersSubmenu({ viewers }: { viewers: readonly UserRef[] }) {
+  return (
+    <ContextMenuSub>
+      <ContextMenuSubTrigger>
+        <Eye className="size-4" strokeWidth={1.75} />
+        {ui.chat.whoViewed}
+      </ContextMenuSubTrigger>
+      <ContextMenuSubContent className="w-max min-w-44 p-1">
+        <div data-slot="views-submenu-list" className="max-h-56 overflow-y-auto px-0.5">
+          {viewers.map((viewer) => (
+            <span key={viewer.id} className="flex items-center gap-2 rounded-lg px-1.5 py-1.5">
+              <PersonAvatar
+                name={viewer.displayName}
+                avatarUrl={viewer.avatarUrl}
+                className="size-6 shrink-0"
+              />
+              <span className="min-w-0 truncate text-sm">
+                {shortPersonName(viewer.displayName)}
+              </span>
+            </span>
+          ))}
+        </div>
+      </ContextMenuSubContent>
+    </ContextMenuSub>
   );
 }
 

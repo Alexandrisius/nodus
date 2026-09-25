@@ -13,10 +13,12 @@ import { actorUserRef, getMockActor } from '../../../../shared/mocks/mock-actor.
 import {
   applyDeletion,
   hasBeenRead,
+  nextMessageSeq,
   pinMessage,
   pinsOf,
   refreshLastMessage,
   removeMessage,
+  threadWatchersOf,
   unpinById,
   uploadedAttachments,
   revealHiddenConversation,
@@ -169,11 +171,13 @@ export const chatMutationHandlers = [
 
     const created: ChatMessage[] = [];
     const stamp = (offset: number) => new Date(Date.now() + offset).toISOString();
+    let seq = nextMessageSeq(target.id);
     revealHiddenConversation(target.id); // пересылка — активность, раскрывает беседу (#103)
     if (parsed.data.comment) {
       const comment: ChatMessage = {
         id: crypto.randomUUID(),
         conversationId: target.id,
+        seq: seq++,
         author: actorUserRef(),
         text: parsed.data.comment,
         replyToId: null,
@@ -201,6 +205,7 @@ export const chatMutationHandlers = [
       const copy: ChatMessage = {
         id: crypto.randomUUID(),
         conversationId: target.id,
+        seq: seq++,
         author: actorUserRef(),
         text: source.text,
         replyToId: null,
@@ -228,6 +233,11 @@ export const chatMutationHandlers = [
     });
     if (created.length === 0) return notFound('No messages to forward');
     demoMessages.push(...created);
+    if (threadRootId && root) {
+      // Пересылка в тред — участие (паритет серверу, раунд 3).
+      const watchers = threadWatchersOf(threadRootId);
+      if (!watchers.has(getMockActor().id)) watchers.set(getMockActor().id, 0);
+    }
     const lastCreated = created[created.length - 1];
     if (!threadRootId && lastCreated) target.lastMessage = lastCreated;
     target.snoozed = false;

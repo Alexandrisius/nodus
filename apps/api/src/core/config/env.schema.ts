@@ -18,9 +18,11 @@ const envSchema = z.object({
   REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().min(1).default(30),
   /** Secure-флаг refresh-cookie; по умолчанию — NODE_ENV=production. */
   COOKIE_SECURE: z.stringbool().optional(),
-  /** Общий IP-rate-limit (запросов/мин); нагрузочные прогоны k6 идут с
-   *  одного IP и поднимают планку (по умолчанию 300 — см. main.ts). */
-  RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(300),
+  /** Общий IP-rate-limit (запросов/мин). Дефолт 3000: офис за NAT — один IP
+   *  на ~170 человек, каждое WS-событие = рефеч; 300/мин душили бы пилот
+   *  (вердикт владельца 25.09, раунд 2 #104). Брутфорс-логин защищён отдельно
+   *  (Redis-счётчик AuthService), k6 поднимает планку выше через env. */
+  RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(3000),
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -250,6 +250,7 @@ export function useSendTaskMessage(taskId: string) {
       const temp: ChatMessage = {
         id: `temp-${crypto.randomUUID()}`,
         conversationId: taskId,
+        seq: 0, // плейсхолдер: реальный seq придёт с ответом сервера
         author: { id: user?.id ?? '', displayName: user?.displayName ?? '', avatarUrl: null },
         text,
         replyToId: null,

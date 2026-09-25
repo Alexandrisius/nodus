@@ -9,6 +9,7 @@ const KEY = `conversation:${CONV}`;
 const msg = (id: string, text: string, threadRootId: string | null = null): ChatMessage => ({
   id,
   conversationId: CONV,
+  seq: 1,
   author: { id: 'a1', displayName: 'Иванов И.И.', avatarUrl: null },
   text,
   replyToId: null,

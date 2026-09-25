@@ -1,5 +1,6 @@
 import { api } from '../api-client.js';
 import { useChatDrafts } from './chat-drafts.js';
+import { MESSAGE_TEXT_LIMIT } from './chat-composer.js';
 
 /**
  * Серверная синхронизация черновика — ТОЛЬКО НА УХОДЕ из беседы (вердикт
@@ -61,13 +62,15 @@ async function putDraft(conversationId: string, text: string): Promise<void> {
 }
 
 /** Что отправлять при уходе из scope: null — отправки нет (не беседа, режим
- *  правки, либо текст не менялся с последней отправки — дедуп). */
+ *  правки, текст сверх лимита (PUT упал бы 422 — раунд 3; черновик живёт
+ *  локально до усечения), либо текст не менялся с последней отправки — дедуп). */
 function flushPlan(scopeKey: string): { conversationId: string; text: string } | null {
   const conversationId = scopeConversationId(scopeKey);
   if (!conversationId) return null;
   const draft = useChatDrafts.getState().drafts[scopeKey];
   if (draft?.edit) return null;
   const text = draft?.text ?? '';
+  if (text.length > MESSAGE_TEXT_LIMIT) return null;
   if (text === (lastSent.get(conversationId) ?? '')) return null;
   return { conversationId, text };
 }

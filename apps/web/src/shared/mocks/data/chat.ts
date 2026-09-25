@@ -23,7 +23,15 @@ import { cid, mid } from './chat-ids.js';
  *  inplace (контекстное меню беседы, реф Битрикс24, вердикт 14.09.2026). */
 const rawConversations: Omit<
   ConversationListItem,
-  'pinned' | 'muted' | 'snoozed' | 'draft' | 'visibility' | 'description' | 'myRole' | 'permissions'
+  | 'pinned'
+  | 'muted'
+  | 'snoozed'
+  | 'draft'
+  | 'visibility'
+  | 'description'
+  | 'myRole'
+  | 'permissions'
+  | 'myLastReadSeq'
 >[] = [
   {
     id: cid(1),
@@ -191,6 +199,9 @@ export const demoConversations: ConversationListItem[] = [
   draft: null,
   visibility: c.type === 'project_channel' ? 'open' : c.type === 'group' ? 'closed' : null,
   description: null,
+  // Watermark текущего пользователя (раунд 3, якорь «первое непрочитанное»):
+  // считается ПОСЛЕ сборки сообщений (цикл под demoMessages).
+  myLastReadSeq: 0,
 }));
 
 // Демо-состояния контекстного меню: канал закреплён, группа без звука.
@@ -208,6 +219,23 @@ for (const conversation of demoConversations) {
     .reverse()
     .find((m) => m.conversationId === conversation.id && m.threadRootId === null);
   conversation.lastMessage = last ?? null;
+}
+
+// Watermark демо-пользователя: ровно unreadCount чужих корневых сообщений
+// остаются выше watermark (первое непрочитанное = якорь открытия беседы).
+for (const conversation of demoConversations) {
+  const rootsByOthers = demoMessages
+    .filter(
+      (m) =>
+        m.conversationId === conversation.id &&
+        m.threadRootId === null &&
+        !m.deletedAt &&
+        m.author.id !== userIds.klimovich,
+    )
+    .sort((a, b) => a.seq - b.seq);
+  const unread = rootsByOthers.slice(Math.max(0, rootsByOthers.length - conversation.unreadCount));
+  const watermark = unread.length > 0 ? unread[0]!.seq - 1 : Number.MAX_SAFE_INTEGER;
+  conversation.myLastReadSeq = Math.max(0, watermark);
 }
 
 /** Закрепы сообщений (демо A3). Снапшот — ССЫЛКА на объект сообщения в

@@ -36,16 +36,22 @@ export const REALTIME_EVENTS = {
   PRESENCE_SNAPSHOT: 'presence.snapshot',
 } as const;
 
-/** Клиент → gateway: «печатаю в беседе» (gateway троттлит ~3 с на пользователя). */
+/** Клиент → gateway: «печатаю в беседе» (gateway троттлит ~3 с на пользователя).
+ *  threadRootId — печать В ТРЕДЕ (раунд 3): индикатор живёт только в шапке
+ *  окна треда, в список бесед и шапку канала не попадает. */
 export const chatTypingEmitSchema = z.object({
   conversationId: z.uuid(),
+  threadRootId: z.uuid().nullable().optional(),
 });
 export type ChatTypingEmit = z.infer<typeof chatTypingEmitSchema>;
 
-/** Gateway → комната беседы: «участник печатает» (кроме сокетов автора). */
+/** Gateway → комната беседы: «участник печатает» (кроме сокетов автора).
+ *  threadRootId ≠ null — печать в треде (получатель показывает в шапке окна
+ *  треда; строчные превью и шапки бесед его игнорируют). */
 export const chatTypingPayloadSchema = z.object({
   conversationId: z.uuid(),
   userId: z.uuid(),
+  threadRootId: z.uuid().nullable().optional(),
 });
 export type ChatTypingPayload = z.infer<typeof chatTypingPayloadSchema>;
 

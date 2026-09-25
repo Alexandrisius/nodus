@@ -44,6 +44,7 @@ function deferred<T>() {
 const message = (overrides: Partial<ChatMessage> = {}): ChatMessage => ({
   id: M1,
   conversationId: CONV,
+  seq: 1,
   author: { id: 'me', displayName: 'Я', avatarUrl: null },
   text: 'исходный текст',
   replyToId: null,

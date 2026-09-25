@@ -1,5 +1,5 @@
 import { Fragment, memo, useCallback, useMemo, useRef } from 'react';
-import { ArrowLeft, X } from 'lucide-react';
+import { ArrowLeft, Eye, EyeOff, X } from 'lucide-react';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import { NodeLabel } from '@nodus/ui/components/node-label';
@@ -17,7 +17,7 @@ import {
 
 import { useAuthStore } from '../auth-store.js';
 import { chatAttachmentsEnabled } from './attachments-gate.js';
-import { useSendChatMessage, useThreadMessages } from './api.js';
+import { useSendChatMessage, useThreadMessages, useThreadStates, useWatchThread } from './api.js';
 import { ChatComposer, type ComposerSubmit } from './chat-composer.js';
 import { ChatMessageItem } from './chat-message.js';
 import { useChatDrafts } from './chat-drafts.js';
@@ -31,8 +31,24 @@ import { MessageMenu } from './message-menu.js';
 import { MessageRow } from './message-row.js';
 import { buildMessageRuns, formatDayLabel, startsNewDay } from './message-groups.js';
 import { selectionComposerProps, useFeedSelection } from './use-feed-selection.js';
+import { useFeedViewportRead } from './use-viewport-read.js';
+import { ConversationViewsLine } from './views-line.js';
+import { useConversations } from './api.js';
+import { typingKey, useTypingStore } from '../socket/typing-store.js';
 import { ScrollEndResponder } from './scroll-end-responder.js';
 import { JumpResponder } from './use-jump-responder.js';
+
+/** «печатает в обсуждении…» — по typing-записи ТРЕДА (ключ conv:root). */
+function useThreadTyping(conversationId: string, threadRootId: string): string | null {
+  const meId = useAuthStore((s) => s.user?.id);
+  const typing = useTypingStore((s) => s.entries[typingKey(conversationId, threadRootId)] ?? null);
+  const { data } = useConversations();
+  if (!typing || typing.expiresAt <= Date.now() || typing.userId === meId) return null;
+  const name = data?.items
+    .find((c) => c.id === conversationId)
+    ?.membersPreview.find((m) => m.id === typing.userId)?.displayName;
+  return name ? `${name} ${ui.chat.typingThread}` : ui.chat.typingThread;
+}
 
 /**
  * Тред канала (вердикт владельца): «провалиться внутрь — обычный чат».
@@ -69,6 +85,12 @@ export const ThreadPane = memo(function ThreadPane({
   const send = useSendChatMessage(conversationId);
   const edit = useEditMessage(conversationId);
   const me = useAuthStore((s) => s.user);
+  // Наблюдение и точка «есть новые» (раунд 3): состояния трэдов текущего
+  // пользователя — кнопка «Следить» и индикатор чужой печати в шапке окна.
+  const { data: threadStates } = useThreadStates(conversationId);
+  const watched = threadStates?.get(threadRootId)?.watched ?? false;
+  const watch = useWatchThread(conversationId);
+  const typingLabel = useThreadTyping(conversationId, threadRootId);
 
   const items = data?.items ?? [];
   const root = items.find((m) => m.id === threadRootId);
@@ -78,6 +100,9 @@ export const ThreadPane = memo(function ThreadPane({
   const selection = useFeedSelection(scope, items, me?.id);
   // Viewport окна треда — цель прыжка (scroll-jump, вердикт 25.09).
   const viewportRef = useRef<HTMLDivElement>(null);
+  // Квитанции просмотров (#102 р.2): watermark беседы («увидел где угодно»)
+  // И трэда (threadRootId — гасит точку «есть новые», раунд 3).
+  useFeedViewportRead(conversationId, viewportRef, items, threadRootId);
 
   const lastMine = useCallback(
     () =>
@@ -148,20 +173,43 @@ export const ThreadPane = memo(function ThreadPane({
           </Button>
         ) : null}
         <NodeLabel label={ui.chat.discussion} count={replies.length} />
-        {variant === 'side' ? (
+        {typingLabel ? (
+          <span className="min-w-0 truncate text-xs italic text-info">{typingLabel}</span>
+        ) : null}
+        <span className="ml-auto flex items-center gap-1">
+          {/* «Следить/Перестать» (раунд 3): уведомления и счётчик трэда —
+              только наблюдателям (кнопка / реплай / @ / автор поста). */}
           <Button
             variant="ghost"
-            size="icon"
-            className="ml-auto hover:bg-accent"
-            aria-label={ui.common.close}
-            onClick={onClose}
+            size="sm"
+            className="h-8 gap-1.5 px-2 text-muted-foreground"
+            aria-label={watched ? ui.chat.unwatchThread : ui.chat.watchThread}
+            title={watched ? ui.chat.unwatchThread : ui.chat.watchThread}
+            disabled={watch.isPending}
+            onClick={() => watch.mutate(threadRootId)}
           >
-            <X />
+            {watched ? (
+              <EyeOff className="size-4" strokeWidth={1.75} />
+            ) : (
+              <Eye className="size-4" strokeWidth={1.75} />
+            )}
+            <span className="text-xs">{watched ? ui.chat.unwatchThread : ui.chat.watchThread}</span>
           </Button>
-        ) : null}
+          {variant === 'side' ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="hover:bg-accent"
+              aria-label={ui.common.close}
+              onClick={onClose}
+            >
+              <X />
+            </Button>
+          ) : null}
+        </span>
       </header>
       <FeedDropzone
-        className="flex min-h-0 flex-1 flex-col"
+        className="relative flex min-h-0 flex-1 flex-col"
         disabled={!chatAttachmentsEnabled()}
         onFiles={(files) => addFiles(scope, files)}
       >
@@ -176,7 +224,7 @@ export const ThreadPane = memo(function ThreadPane({
           <MessageScroller className="min-h-0 flex-1 bg-chat-zone">
             <MessageScrollerViewport ref={viewportRef}>
               <MessageScrollerContent
-                className={cn('p-4', selection.selectionActive && 'select-none')}
+                className={cn('px-4 pt-4 pb-0', selection.selectionActive && 'select-none')}
               >
                 {isLoading ? (
                   <MessageGroup>
@@ -195,6 +243,7 @@ export const ThreadPane = memo(function ThreadPane({
                         />
                       </MessageScrollerItem>
                     ) : null}
+
                     {runs.map((run, runIndex) => {
                       const prevLast = runIndex === 0 ? root : runs[runIndex - 1]?.last;
                       const { first, last } = run;
@@ -207,14 +256,21 @@ export const ThreadPane = memo(function ThreadPane({
                           ) : null}
                           <div className="flex min-w-0 flex-col gap-0.5">
                             {run.items.map((message) => (
-                              <MessageScrollerItem key={message.id} messageId={message.id}>
-                                {renderMessage(message, run.mine, first.id, last.id)}
-                              </MessageScrollerItem>
+                              <Fragment key={message.id}>
+                                <MessageScrollerItem messageId={message.id}>
+                                  {renderMessage(message, run.mine, first.id, last.id)}
+                                </MessageScrollerItem>
+                              </Fragment>
                             ))}
                           </div>
                         </Fragment>
                       );
                     })}
+                    <ConversationViewsLine
+                      conversationId={conversationId}
+                      messages={items}
+                      className="-mt-2"
+                    />
                   </MessageGroup>
                 )}
               </MessageScrollerContent>
@@ -227,6 +283,7 @@ export const ThreadPane = memo(function ThreadPane({
         placeholder={ui.chat.replyPlaceholder}
         focusId={scope}
         conversationId={conversationId}
+        typingThreadRootId={threadRootId}
         attachmentsEnabled
         onEditLast={handleEditLast}
         selection={selectionComposerProps(conversationId, selection)}

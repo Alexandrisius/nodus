@@ -29,6 +29,7 @@ function conv(id: string, at: string | null, pinned = false): ConversationListIt
       ? {
           id: `m-${id}`,
           conversationId: id,
+          seq: 1,
           author: { id: 'u', displayName: 'U', avatarUrl: null },
           text: 'x',
           replyToId: null,
@@ -47,6 +48,7 @@ function conv(id: string, at: string | null, pinned = false): ConversationListIt
         }
       : null,
     unreadCount: 0,
+    myLastReadSeq: 0,
     pinned,
     muted: false,
     snoozed: false,

@@ -52,6 +52,9 @@ function makeMember(overrides: Partial<MemberRow> = {}): MemberRow {
   };
 }
 
+/** Сентинел DTO свежего сообщения (payload события, раунд 3). */
+const FRESH_DTO = { id: 'msg-new', sentinel: true } as never;
+
 describe('MessagesService', () => {
   const repo = {
     findExisting: vi.fn(),
@@ -60,25 +63,38 @@ describe('MessagesService', () => {
     insertMessage: vi.fn(),
     claimAttachments: vi.fn(),
     touchLastMessageAt: vi.fn(),
-    upsertThreadParticipant: vi.fn(),
     countThreadReplies: vi.fn(),
     attachmentsFor: vi.fn(),
     updateEditText: vi.fn(),
     tombstone: vi.fn(),
     deletePinByMessage: vi.fn(),
     markRepliesDeleted: vi.fn(),
+    advanceReadCursor: vi.fn(),
   };
   const conversations = {
     findMembership: vi.fn(),
     findTypeAndPermissions: vi.fn(),
+    findLastSeq: vi.fn(),
     listMembers: vi.fn(),
     clearDraft: vi.fn(),
     unsnooze: vi.fn(),
     revealHidden: vi.fn(),
   };
-  const mapper = { toDtos: vi.fn() };
+  const mapper = { toDtos: vi.fn(), toFreshDto: vi.fn() };
+  const threadParticipants = {
+    upsert: vi.fn(),
+    delete: vi.fn(),
+    findLastRead: vi.fn(),
+    advanceReadCursor: vi.fn(),
+    states: vi.fn(),
+  };
   const txRunner = { run: vi.fn((cb: (tx: string) => unknown) => cb(TX)) };
   const eventBus = { emit: vi.fn() };
+  const userProfiles = {
+    findRefs: vi.fn(),
+    searchByDisplayName: vi.fn(),
+    findMentionMatches: vi.fn(),
+  };
   let service: MessagesService;
 
   beforeEach(() => {
@@ -91,6 +107,7 @@ describe('MessagesService', () => {
     });
     conversations.listMembers.mockResolvedValue([]);
     repo.findExisting.mockResolvedValue(null);
+    mapper.toFreshDto.mockResolvedValue(FRESH_DTO);
     repo.findByIdInConversation.mockResolvedValue(null);
     repo.allocateSeqs.mockResolvedValue(7n);
     repo.insertMessage.mockResolvedValue(makeMessage({ id: 'msg-new', seq: 7n }));
@@ -103,6 +120,8 @@ describe('MessagesService', () => {
       mapper as never,
       txRunner as never,
       eventBus as never,
+      userProfiles as never,
+      threadParticipants as never,
     );
   });
 
@@ -166,8 +185,8 @@ describe('MessagesService', () => {
       expect(ok.replayed).toBe(false);
       expect(repo.touchLastMessageAt).not.toHaveBeenCalled();
       // Автор корня (PEER) — участник 'author' с первого ответа; отвечающий — 'replier'.
-      expect(repo.upsertThreadParticipant).toHaveBeenCalledWith('root-1', PEER, 'author', TX);
-      expect(repo.upsertThreadParticipant).toHaveBeenCalledWith('root-1', ME, 'replier', TX);
+      expect(threadParticipants.upsert).toHaveBeenCalledWith('root-1', PEER, 'author', TX);
+      expect(threadParticipants.upsert).toHaveBeenCalledWith('root-1', ME, 'replier', TX);
       expect(eventBus.emit).toHaveBeenCalledTimes(1); // только MESSAGE_SENT, без THREAD_CREATED
       expect(eventBus.emit).toHaveBeenCalledWith(
         TX,
@@ -241,6 +260,8 @@ describe('MessagesService', () => {
       );
 
       await service.send(ME, CONV, { text: 'Ответ', replyToId: 'orig-2' }, 'key-4');
+      // Вложения оригинала читаются ПО соединению транзакции (правило пула).
+      expect(repo.attachmentsFor).toHaveBeenCalledWith(['orig-2'], TX);
 
       expect(repo.insertMessage).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -279,7 +300,7 @@ describe('MessagesService', () => {
       // Активность раскрывает беседу скрывшим участникам — той же tx (#103).
       expect(conversations.revealHidden).toHaveBeenCalledWith(CONV, TX);
       expect(repo.touchLastMessageAt).toHaveBeenCalledWith(CONV, TX);
-      expect(repo.upsertThreadParticipant).not.toHaveBeenCalled();
+      expect(threadParticipants.upsert).not.toHaveBeenCalled();
       expect(eventBus.emit).toHaveBeenCalledWith(
         TX,
         CHAT_EVENTS.MESSAGE_SENT,
@@ -290,6 +311,8 @@ describe('MessagesService', () => {
           authorId: ME,
           threadRootId: null,
           forwarded: false,
+          // Полный DTO в payload (раунд 3): локальное применение по seq.
+          message: FRESH_DTO,
         },
         expect.objectContaining({ actorId: ME, aggregateType: 'conversation', aggregateId: CONV }),
       );
@@ -431,6 +454,44 @@ describe('MessagesService', () => {
       expect(repo.tombstone).toHaveBeenCalledWith(CONV, 'own-read', false, TX);
       expect(repo.deletePinByMessage).toHaveBeenCalledTimes(2);
       expect(repo.markRepliesDeleted).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('readConversation (квитанции просмотров, #102 раунд 2)', () => {
+    it('не член беседы → NOT_FOUND', async () => {
+      conversations.findMembership.mockResolvedValue(null);
+      await expect(service.readConversation(ME, CONV, 5)).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND,
+      });
+    });
+
+    it('upToSeq выше last_seq → кламп к last_seq (фантомное «всё прочитано» невозможно)', async () => {
+      conversations.findLastSeq.mockResolvedValue(7n);
+      repo.advanceReadCursor.mockResolvedValue({ advanced: true, lastReadAt: null });
+      const result = await service.readConversation(ME, CONV, 999);
+      expect(result).toEqual({ upToSeq: 7 });
+      expect(repo.advanceReadCursor).toHaveBeenCalledWith(CONV, ME, 7n, TX);
+    });
+
+    it('курсор двинулся → событие MESSAGE_READ с upToSeq и readAt из строки', async () => {
+      conversations.findLastSeq.mockResolvedValue(10n);
+      const readAt = new Date('2026-09-25T10:00:00Z');
+      repo.advanceReadCursor.mockResolvedValue({ advanced: true, lastReadAt: readAt });
+      await service.readConversation(ME, CONV, 4);
+      expect(eventBus.emit).toHaveBeenCalledWith(
+        TX,
+        CHAT_EVENTS.MESSAGE_READ,
+        { conversationId: CONV, userId: ME, upToSeq: 4, readAt: readAt.toISOString() },
+        { actorId: ME, aggregateType: 'conversation', aggregateId: CONV },
+      );
+    });
+
+    it('повтор без движения (GREATEST ниже/равно, без правок) → БЕЗ события', async () => {
+      conversations.findLastSeq.mockResolvedValue(10n);
+      repo.advanceReadCursor.mockResolvedValue({ advanced: false, lastReadAt: null });
+      const result = await service.readConversation(ME, CONV, 4);
+      expect(result).toEqual({ upToSeq: 4 });
+      expect(eventBus.emit).not.toHaveBeenCalled();
     });
   });
 });

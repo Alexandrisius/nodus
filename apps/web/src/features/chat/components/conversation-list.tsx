@@ -10,6 +10,7 @@ import { cn } from '@nodus/ui/lib/utils';
 import { useAuthStore } from '../../../shared/auth-store.js';
 import { formatTime } from '../../../shared/lib/format.js';
 import { ConversationAvatar } from '../../../shared/chat/conversation-avatar.js';
+import { useTypingStore } from '../../../shared/socket/typing-store.js';
 import { conversationTitle, sortByActivity } from '../lib/conversations.js';
 import { ConversationMenu } from './conversation-menu.js';
 
@@ -19,8 +20,9 @@ import { ConversationMenu } from './conversation-menu.js';
  * 2026-09-10, раунд 2: чаты перемешиваются по свежести) — тип строки читается
  * маркером на аватаре; непрочитанные — чип danger, время и превью —
  * моно/усечённые. Активная беседа — плоская заливка (без теней).
- * Превью строки (#87): черновик важнее последнего сообщения (модель
- * Telegram/Slack «Черновик: …»), надгробие — «Сообщение удалено».
+ * Превью строки (#87): «печатает…» (эфемерно, Telegram-модель) → черновик
+ * важнее последнего сообщения (модель Telegram/Slack «Черновик: …»),
+ * надгробие — «Сообщение удалено».
  * Закреплённые беседы (#96, вердикт владельца 24.09.2026, реф Битрикс24) —
  * ведущая группа сверху, обрамлённая hairline-рамкой со скруглением
  * (без заголовка-секции и без заливки).
@@ -30,8 +32,20 @@ import { ConversationMenu } from './conversation-menu.js';
  *  сообщения (реф Telegram/Bitrix24, #91): КРАСНЫМ — только слово «Черновик»,
  *  сам текст обычным цветом превью (вердикт 25.09, модель Telegram).
  *  Источник — ТОЛЬКО серверный draft беседы (вердикт 25.09: во время набора
- *  в списке ничего не меняется; метка появляется после ухода из чата). */
+ *  в списке ничего не меняется; метка появляется после ухода из чата).
+ *  «Печатает…» (#104 раунд 2, модель Telegram: и в шапке, и в списке) —
+ *  ВЫШЕ превью и черновика на время TTL; direct — «печатает…», группы/
+ *  каналы — «Имя печатает…»; своя печать не показывается. */
 function RowPreview({ conversation }: { conversation: ConversationListItem }) {
+  const meId = useAuthStore((s) => s.user?.id);
+  const typing = useTypingStore((s) => s.entries[conversation.id] ?? null);
+  const typingAlive = typing !== null && typing.expiresAt > Date.now() && typing.userId !== meId;
+  if (typingAlive) {
+    const name = conversation.membersPreview.find((m) => m.id === typing.userId)?.displayName;
+    const label =
+      conversation.type === 'direct' || !name ? ui.chat.typing : `${name} ${ui.chat.typing}`;
+    return <span className="truncate text-xs italic text-info">{label}</span>;
+  }
   const preview = conversation.draft?.text || '';
   if (preview) {
     return (

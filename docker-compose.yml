@@ -30,6 +30,9 @@ services:
     environment:
       API_PORT: '3001'
       NODE_ENV: 'production'
+      # IP-rate-limit пробрасывается из .env (дефолт приложения 3000/мин — офис
+      # за NAT; k6-прогоны поднимают планку). Не задан — код берёт свой дефолт.
+      RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-3000}
       DATABASE_URL: postgresql://${POSTGRES_USER:?задайте в .env}:${POSTGRES_PASSWORD:?задайте в .env}@nodus_postgres:5432/${POSTGRES_DB:?задайте в .env}
       REDIS_URL: redis://nodus_redis:6379
       JWT_SECRET: ${JWT_SECRET:?задайте в .env}

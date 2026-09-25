@@ -30,6 +30,7 @@ function makeListRow(overrides: Partial<ConversationListRow> = {}): Conversation
     draft_revision: null,
     draft_updated_at: null,
     unread_count: 0,
+    my_last_read_seq: 0n,
     lm_id: null,
     lm_seq: null,
     lm_author_id: null,
@@ -62,7 +63,11 @@ describe('ConversationsService', () => {
   const items = { toItem: vi.fn() };
   const txRunner = { run: vi.fn((cb: (tx: string) => unknown) => cb(TX)) };
   const eventBus = { emit: vi.fn() };
-  const userProfiles = { findRefs: vi.fn(), searchByDisplayName: vi.fn() };
+  const userProfiles = {
+    findRefs: vi.fn(),
+    searchByDisplayName: vi.fn(),
+    findMentionMatches: vi.fn(),
+  };
 
   let service: ConversationsService;
 

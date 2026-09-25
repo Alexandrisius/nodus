@@ -109,10 +109,17 @@ describe.skipIf(!process.env.DATABASE_URL)('chat: беседы (integration)', (
     expect((await getItem(carol, group.id)).unreadCount).toBe(1);
     expect((await getItem(alice, group.id)).unreadCount).toBe(0); // автор не считает себя
 
-    // Получатель открыл ленту → курсор прочтения догнал → unread 0.
+    // Получатель просмотрел (квитанция видимости, #102 р.2): выдача ленты
+    // курсор больше не двигает.
     const feed = await fx.api(bob, 'GET', `/chat/conversations/${group.id}/messages`);
     const page = paginatedSchema(messageSchema).parse(await feed.json());
     expect(page.items.map((m) => m.id)).toContain(message.id);
+    expect((await getItem(bob, group.id)).unreadCount).toBe(1); // без квитанции живёт
+    const receipt = await fx.api(bob, 'POST', `/chat/conversations/${group.id}/read`, {
+      body: { upToSeq: page.items.at(-1)!.seq },
+      key: `unread-${fx.runId}-r1`,
+    });
+    expect(receipt.status).toBe(200);
     expect((await getItem(bob, group.id)).unreadCount).toBe(0);
     expect((await getItem(carol, group.id)).unreadCount).toBe(1); // не читал — не погасло
   });

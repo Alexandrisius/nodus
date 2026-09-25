@@ -1,3 +1,5 @@
+import { wsDebugEnabled } from '../socket/ws-debug.js';
+
 /**
  * «Вечный курсор» композера (канон Телеграм, вердикт владельца 14.09.2026):
  * пока открыт чат/канал/тред — мигающий курсор живёт в его композере; обычные
@@ -20,7 +22,7 @@
  *   на триггер, focusin-гард планирует steal уже вне слоя;
  * - фокус возвращается с preventScroll — лента не прыгает при возврате;
  * - анрегистр активного композера (закрыли тред) передаёт курсор ранее
- *   зарегистрированному (ленте канала) — «закрыл тред → мигает канал».
+ *  зарегистрированному (ленте канала) — «закрыл тред → мигает канал».
  */
 const registry = new Map<string, HTMLTextAreaElement>();
 let activeId: string | null = null;
@@ -35,6 +37,25 @@ function isEditable(el: Element | null): el is HTMLElement {
   return (
     el instanceof HTMLElement &&
     (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)
+  );
+}
+
+/** Диагностика «супер-курсора» (#104 раунд 2): при ?wsdebug=1 каждый ранний
+ *  выход stealFocus объясняет себя — застрявший гард виден в console сразу. */
+function debugSkip(guard: string): void {
+  if (!wsDebugEnabled) return;
+  const selection = window.getSelection();
+  console.log(
+    '[ws] stealFocus skip:',
+    guard,
+    '| activeElement:',
+    document.activeElement?.constructor.name,
+    document.activeElement?.tagName,
+    document.activeElement?.getAttribute?.('data-slot') ?? '',
+    '| selection collapsed:',
+    selection?.isCollapsed ?? 'n/a',
+    '| modality:',
+    modality,
   );
 }
 
@@ -63,11 +84,23 @@ function insideOverlayLayer(el: Element | null, composer: Element | null = null)
 
 function stealFocus(): void {
   const el = activeId ? registry.get(activeId) : undefined;
-  if (!el || document.activeElement === el) return;
-  if (isEditable(document.activeElement)) return;
-  if (insideOverlayLayer(document.activeElement, el)) return;
+  if (!el || document.activeElement === el) {
+    if (!el) debugSkip('no-active-composer');
+    return;
+  }
+  if (isEditable(document.activeElement)) {
+    debugSkip('editable-active-element');
+    return;
+  }
+  if (insideOverlayLayer(document.activeElement, el)) {
+    debugSkip('overlay-layer');
+    return;
+  }
   const selection = window.getSelection();
-  if (selection && !selection.isCollapsed) return;
+  if (selection && !selection.isCollapsed) {
+    debugSkip('text-selection');
+    return;
+  }
   el.focus({ preventScroll: true });
 }
 
@@ -97,10 +130,13 @@ function install(): void {
       }
       return;
     }
+    if (modality !== 'pointer') return;
     // Клик по кнопке фокусирует её — возвращаем курсор сразу (селекции на
     // кнопках не бывает; пустое место и карточки обрабатывает click ниже).
-    if (modality !== 'pointer') return;
-    if (target instanceof HTMLElement && target.closest('button')) {
+    // Страховка (#104 р.2): фокус может получить и НЕ-кнопочный кликабельный
+    // контейнер с tabindex (скроллер ленты) — правило то же: оверлей-слой
+    // и редактируемые поля выше не отдаём, остальное после мыши возвращаем.
+    if (target instanceof HTMLElement && (target.closest('button') || target.tabIndex >= 0)) {
       requestAnimationFrame(stealFocus);
     }
   });

@@ -7,7 +7,7 @@ import { MessageMeta } from './message-meta.js';
 
 /**
  * Мета сообщения (#96): одна композиция на пузырь чата и карточку поста
- * канала — пин → «изменено» → время; галочка «прочитано» — по readBy
+ * канала — пин → «изменено» → время; галочка «просмотрено» — по readBy
  * (первый прочитавший, #102), рисуется только по флагу `ticks`.
  */
 
@@ -20,6 +20,7 @@ const ref = (id: string, displayName: string): ChatMessage['author'] => ({
 const message = (overrides: Partial<ChatMessage> = {}): ChatMessage => ({
   id: 'm1',
   conversationId: 'conv-1',
+  seq: 1,
   author: { id: 'a', displayName: 'Анна Смирнова', avatarUrl: null },
   text: 'текст',
   replyToId: null,
@@ -76,7 +77,7 @@ describe('MessageMeta — композиция меты (#96)', () => {
     expect(meta.querySelector('time')).toBeTruthy();
   });
 
-  it('галочка «прочитано» по readBy (первый прочитавший, #102), не по readAt', () => {
+  it('галочка «просмотрено» по readBy (первый просмотревший, #102 р.2), не по readAt', () => {
     // readAt есть, но прочитавших нет (правка сбросила) — одна галочка (отправлено).
     const edited = message({ readAt: '2026-09-24T10:00:00Z', readBy: [] });
     const onlySent = render(<MessageMeta message={edited} mine ticks />);
@@ -85,11 +86,11 @@ describe('MessageMeta — композиция меты (#96)', () => {
     );
     onlySent.unmount();
 
-    // Есть прочитавший — двойная галочка (прочитано).
+    // Есть просмотревший — двойная галочка (просмотрено).
     const read = message({ readAt: '2026-09-24T10:00:00Z', readBy: [ref('u-1', 'Читатель')] });
     const both = render(<MessageMeta message={read} mine ticks />);
     expect(both.container.querySelector('svg[role="img"]')?.getAttribute('aria-label')).toBe(
-      'прочитано',
+      'просмотрено',
     );
     both.unmount();
 

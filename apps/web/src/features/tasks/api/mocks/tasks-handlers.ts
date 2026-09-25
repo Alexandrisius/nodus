@@ -352,9 +352,15 @@ export const tasksHandlers = [
 
   http.post('/api/v1/tasks/:id/messages', async ({ params, request }) => {
     const { text } = (await request.json()) as { text: string };
+    const seq =
+      Math.max(
+        0,
+        ...demoTaskMessages.filter((m) => m.conversationId === params.id).map((m) => m.seq),
+      ) + 1;
     const message: ChatMessage = {
       id: crypto.randomUUID(),
       conversationId: String(params.id),
+      seq,
       author: userRef(currentAuthUser.id),
       text,
       replyToId: null,
