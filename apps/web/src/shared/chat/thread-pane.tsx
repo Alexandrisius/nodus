@@ -224,7 +224,7 @@ export const ThreadPane = memo(function ThreadPane({
           <MessageScroller className="min-h-0 flex-1 bg-chat-zone">
             <MessageScrollerViewport ref={viewportRef}>
               <MessageScrollerContent
-                className={cn('p-4', selection.selectionActive && 'select-none')}
+                className={cn('px-4 pt-4 pb-0', selection.selectionActive && 'select-none')}
               >
                 {isLoading ? (
                   <MessageGroup>
@@ -243,6 +243,7 @@ export const ThreadPane = memo(function ThreadPane({
                         />
                       </MessageScrollerItem>
                     ) : null}
+
                     {runs.map((run, runIndex) => {
                       const prevLast = runIndex === 0 ? root : runs[runIndex - 1]?.last;
                       const { first, last } = run;
@@ -255,14 +256,21 @@ export const ThreadPane = memo(function ThreadPane({
                           ) : null}
                           <div className="flex min-w-0 flex-col gap-0.5">
                             {run.items.map((message) => (
-                              <MessageScrollerItem key={message.id} messageId={message.id}>
-                                {renderMessage(message, run.mine, first.id, last.id)}
-                              </MessageScrollerItem>
+                              <Fragment key={message.id}>
+                                <MessageScrollerItem messageId={message.id}>
+                                  {renderMessage(message, run.mine, first.id, last.id)}
+                                </MessageScrollerItem>
+                              </Fragment>
                             ))}
                           </div>
                         </Fragment>
                       );
                     })}
+                    <ConversationViewsLine
+                      conversationId={conversationId}
+                      messages={items}
+                      className="-mt-2"
+                    />
                   </MessageGroup>
                 )}
               </MessageScrollerContent>
@@ -270,8 +278,6 @@ export const ThreadPane = memo(function ThreadPane({
             <MessageScrollerButton />
           </MessageScroller>
         </MessageScrollerProvider>
-        {/* Pill просмотров своего последнего сообщения ТРЕДА (раунд 3). */}
-        <ConversationViewsLine conversationId={conversationId} messages={items} />
       </FeedDropzone>
       <ChatComposer
         placeholder={ui.chat.replyPlaceholder}

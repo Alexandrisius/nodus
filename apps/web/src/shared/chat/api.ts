@@ -55,7 +55,9 @@ export function useConversationMessages(id: string) {
   const socketConnected = useSocketStatusStore((s) => s.connected);
   return useQuery({
     queryKey: chatKeys.messages(id),
-    queryFn: () => api<Paginated<ChatMessage>>(`/chat/conversations/${id}/messages`),
+    // limit=100 — максимум контракта (раунд 4: страница 50 резала историю,
+    // «старые сообщения пропадали»; полноценная догрузка при прокрутке — #117).
+    queryFn: () => api<Paginated<ChatMessage>>(`/chat/conversations/${id}/messages?limit=100`),
     enabled: id.length > 0,
     refetchInterval: livePoll(LIVE_CHAT_POLL.messages, socketConnected),
     refetchIntervalInBackground: false,
@@ -81,7 +83,7 @@ export function useThreadMessages(conversationId: string, threadRootId: string) 
     queryKey: chatKeys.thread(conversationId, threadRootId),
     queryFn: () =>
       api<Paginated<ChatMessage>>(
-        `/chat/conversations/${conversationId}/messages?threadRootId=${threadRootId}`,
+        `/chat/conversations/${conversationId}/messages?threadRootId=${threadRootId}&limit=100`,
       ),
     enabled: conversationId.length > 0 && threadRootId.length > 0,
     refetchInterval: livePoll(LIVE_CHAT_POLL.messages, socketConnected),

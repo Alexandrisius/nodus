@@ -41,6 +41,13 @@ export function EdgeScrollbar() {
   const dragRef = useRef<{ startY: number; startScroll: number } | null>(null);
   const [view, setView] = useState({ thumb: 0, top: 0, visible: false });
   const [dragging, setDragging] = useState(false);
+  // Мессенджер (раунд 4) — оконное приложение внутри рамы: страница ростом
+  // в окно, своего «скроллера страницы» НЕТ, у лент чата свои скроллбары.
+  // Усыновление ленты рисовало ползунок периметра «на весь экран» рядом с
+  // родным скроллбаром ленты — «два вертикальных скролла» (вердикт раунда 4).
+  // Реф, а не замыкание: pick/scroll-обработчики живут дольше рендера.
+  const chatPageRef = useRef(false);
+  chatPageRef.current = pathname.startsWith('/chat');
 
   const sync = useCallback(() => {
     const el = scrollerRef.current;
@@ -93,6 +100,10 @@ export function EdgeScrollbar() {
    *  getComputedStyle на каждый DOM-чих дорог — MutationObserver ниже зовёт
    *  pick на догрузку данных чуть не покадрово). */
   const pick = useCallback(() => {
+    if (chatPageRef.current) {
+      adopt(null);
+      return;
+    }
     const content = document.getElementById('content');
     if (!content) {
       adopt(null);
@@ -118,11 +129,13 @@ export function EdgeScrollbar() {
     adopt(best);
   }, [adopt]);
 
-  // Прокрутили другую подходящую область внутри контента — усыновляем её.
+  // Прокрутили другую подходящую область внутри контента — усыновляем её
+  // (кроме мессенджера: там усыновления нет вовсе, см. chatPageRef).
   useEffect(() => {
     const onScroll = (event: Event) => {
       const target = event.target;
       const content = document.getElementById('content');
+      if (chatPageRef.current) return;
       if (!(target instanceof HTMLElement) || !content?.contains(target)) return;
       if (target === scrollerRef.current) {
         sync();
@@ -224,8 +237,10 @@ export function EdgeScrollbar() {
     // Визуальный дублёр скроллбара (скин над реальным скроллером #content):
     // role="scrollbar" без полного ARIA-виджета — дезинформация для СЧ
     // (аудит #45); скролл доступен нативно на самой области — прячем декор.
+    // data-slot — якорь регресс-ассерта «на /chat ползунка периметра нет».
     <div
       aria-hidden="true"
+      data-slot="edge-scrollbar"
       className="fixed inset-y-0 right-0 z-40"
       style={{ width: TRACK_W }}
       onPointerDown={onTrackDown}

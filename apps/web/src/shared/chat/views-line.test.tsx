@@ -122,7 +122,6 @@ describe('ConversationViewsLine (#102 раунд 2)', () => {
   it('не просмотрено / нет своих / удалённое последнее — строки нет', () => {
     const { rerender } = renderLine('group', [msg({ readBy: [] })]);
     expect(screen.queryByText('Просмотрено:')).toBeNull();
-    // Последнее своё удалено → показывать нечего.
     rerender(
       <QueryClientProvider client={queryClient}>
         <ConversationViewsLine
@@ -132,7 +131,6 @@ describe('ConversationViewsLine (#102 раунд 2)', () => {
       </QueryClientProvider>,
     );
     expect(screen.queryByText('Просмотрено:')).toBeNull();
-    // Нет своих сообщений вовсе.
     rerender(
       <QueryClientProvider client={queryClient}>
         <ConversationViewsLine
@@ -141,6 +139,25 @@ describe('ConversationViewsLine (#102 раунд 2)', () => {
         />
       </QueryClientProvider>,
     );
+    expect(screen.queryByText('Просмотрено:')).toBeNull();
+  });
+
+  it('автор нижнего сообщения ленты НЕ показывается в метке (вердикт р.4)', () => {
+    // Своё последнее прочитал u1; ниже висит чужое сообщение от u1 — метка
+    // под ним не должна показывать u1 («автор прочитал своё»); зрителей нет —
+    // метки нет вовсе.
+    renderLine('group', [
+      msg({
+        id: 'm0',
+        seq: 1,
+        readBy: [{ id: 'u1', displayName: 'Анна Первая', avatarUrl: null }],
+      }),
+      msg({
+        id: 'm1',
+        seq: 2,
+        author: { id: 'u1', displayName: 'Анна Первая', avatarUrl: null },
+      }),
+    ]);
     expect(screen.queryByText('Просмотрено:')).toBeNull();
   });
 });

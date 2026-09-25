@@ -374,7 +374,13 @@ export function ChatComposer({
   const align = grown ? 'self-end' : 'self-center';
 
   return (
-    <form onSubmit={onSubmitForm} className={cn('shrink-0 bg-chat-zone px-3 py-2', className)}>
+    <form
+      onSubmit={onSubmitForm} // pt-1.5 (7.5px @1.25): зазор метка «Просмотрено»→остров = 1.5× зазора
+      // пузырь→метка (вердикт владельца раунда 4). Меньше нельзя: этот паддинг —
+      // ЕДИНСТВЕННАЯ полоса под низом ленты (метка = нижняя граница прокрутки,
+      // gotchas «Фронтенд»); больше — метка «висит» по вердикту владельца.
+      className={cn('shrink-0 bg-chat-zone px-3 pt-1.5 pb-2', className)}
+    >
       {/* Островок ввода: ступень тона + тень вместо контура (вердикт 24.09) —
           бары режимов и трей вложений растут ВНУТРИ, строка ввода остаётся
           одной строкой фиксированной высоты. */}

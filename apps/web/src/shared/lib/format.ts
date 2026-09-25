@@ -57,3 +57,13 @@ export function plural(n: number, forms: readonly [string, string, string]): str
   if (digit === 1) return forms[0] ?? '';
   return forms[2] ?? '';
 }
+
+/** Короткое имя человека для компактных строк (просмотры чата, вердикт
+ *  раунда 4: «имя фамилия, без отчества»). Полное имя в справочнике —
+ * «Фамилия Имя Отчество»; здесь — «Имя Фамилия». Короткие формы (два токена
+ * и менее) не трогаем («Администратор Системный»). */
+export function shortPersonName(displayName: string): string {
+  const parts = displayName.trim().split(/\s+/);
+  if (parts.length < 3) return displayName;
+  return `${parts[1]} ${parts[0]}`;
+}

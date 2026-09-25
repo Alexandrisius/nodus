@@ -1,5 +1,5 @@
 import { ArrowRight } from 'lucide-react';
-import { memo, useCallback, useEffect, useMemo, useRef } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { ui } from '@nodus/contracts';
 import { Empty, EmptyTitle } from '@nodus/ui/components/empty';
 import { Skeleton } from '@nodus/ui/components/skeleton';
@@ -81,8 +81,18 @@ export const ThreadFeed = memo(function ThreadFeed({
   // Лента канала — обычный div-скролл: stick к низу при новых постах (если
   // пользователь у нижнего края) и ВСЕГДА при своей отправке/пересылке сюда
   // (вердикт 24.09: своё сообщение видно с любой позиции скролла).
+  // ОТКРЫТИЕ КАНАЛА — сразу ВНИЗ (раунд 4): иначе лента оставалась на верху —
+  // ни последнего поста целиком, ни pill просмотров не видно (вердикт
+  // владельца); прежде баг маскировал pill-оверлей у низа экрана.
   const scrollRequest = useScrollEndStore((s) => s.requests[scope]);
   const scrollPrev = useRef({ count: 0, nonce: 0 });
+  const openedAtBottom = useRef(false);
+  useLayoutEffect(() => {
+    const el = feedRef.current;
+    if (openedAtBottom.current || isLoading || roots.length === 0 || !el) return;
+    openedAtBottom.current = true;
+    el.scrollTop = el.scrollHeight;
+  }, [isLoading, roots.length]);
   useEffect(() => {
     const el = feedRef.current;
     if (!el) return;
@@ -153,7 +163,7 @@ export const ThreadFeed = memo(function ThreadFeed({
         <div
           ref={feedRef}
           className={cn(
-            'min-h-0 flex-1 overflow-y-auto bg-chat-zone p-4',
+            'min-h-0 flex-1 overflow-y-auto bg-chat-zone px-4 pt-4 pb-0',
             selection.selectionActive && 'select-none',
           )}
         >
@@ -308,11 +318,17 @@ export const ThreadFeed = memo(function ThreadFeed({
                   </MessageRow>
                 );
               })}
+              {/* Метка просмотров — ВСЕГДА последний элемент ленты постов
+                  (модель Битрикс24); текст фильтруется от автора нижнего
+                  поста (views-line). */}
+              <ConversationViewsLine
+                conversationId={conversationId}
+                messages={roots}
+                className="-mt-2"
+              />
             </div>
           )}
         </div>
-        {/* Pill просмотров своего последнего поста (#102 р.2 → раунд 3). */}
-        <ConversationViewsLine conversationId={conversationId} messages={roots} />
       </FeedDropzone>
       {conversation === null || canPostFeed(conversation) ? (
         <ChatComposer
