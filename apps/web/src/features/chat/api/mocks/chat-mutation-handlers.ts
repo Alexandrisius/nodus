@@ -19,6 +19,7 @@ import {
   removeMessage,
   unpinById,
   uploadedAttachments,
+  revealHiddenConversation,
 } from './chat-mock-state.js';
 
 /**
@@ -168,6 +169,7 @@ export const chatMutationHandlers = [
 
     const created: ChatMessage[] = [];
     const stamp = (offset: number) => new Date(Date.now() + offset).toISOString();
+    revealHiddenConversation(target.id); // пересылка — активность, раскрывает беседу (#103)
     if (parsed.data.comment) {
       const comment: ChatMessage = {
         id: crypto.randomUUID(),

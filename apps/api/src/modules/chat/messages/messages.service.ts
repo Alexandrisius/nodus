@@ -215,6 +215,8 @@ export class MessagesService {
       await this.repo.claimAttachments(inserted.id, body.attachmentIds ?? [], userId, tx);
       await this.conversations.clearDraft(conversationId, userId, tx);
       await this.conversations.unsnooze(conversationId, userId, tx);
+      // Активность раскрывает беседу скрывшим её участникам (#103).
+      await this.conversations.revealHidden(conversationId, tx);
       if (threadRootId === null) {
         await this.repo.touchLastMessageAt(conversationId, tx);
       } else {

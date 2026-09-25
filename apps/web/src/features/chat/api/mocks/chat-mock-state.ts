@@ -123,3 +123,12 @@ export function pinMessage(conversationId: string, messageId: string): MessagePi
   message.pinned = true;
   return pin;
 }
+
+/** Скрытые из списка беседы (ПКМ «Скрыть»: история сохраняется, I15).
+ *  Активность (отправка/пересылка) раскрывает беседу у всех скрывших —
+ *  модель Битрикс24 (#103). */
+export const hiddenConversations = new Set<string>();
+
+export function revealHiddenConversation(conversationId: string): void {
+  hiddenConversations.delete(conversationId);
+}

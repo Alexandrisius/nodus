@@ -20,12 +20,14 @@ import { demoTasks, personalNew, stageNew, tid } from '../../../../shared/mocks/
 import { demoUserListItems, userRef } from '../../../../shared/mocks/data/users.js';
 import { actorUserRef, getMockActor } from '../../../../shared/mocks/mock-actor.js';
 import { chatMutationHandlers } from './chat-mutation-handlers.js';
-import { buildReplyPreview, uploadedAttachments } from './chat-mock-state.js';
+import {
+  buildReplyPreview,
+  hiddenConversations,
+  revealHiddenConversation,
+  uploadedAttachments,
+} from './chat-mock-state.js';
 
 let chatTaskSeq = 60;
-
-/** Скрытые из списка беседы (ПКМ-меню «Скрыть»: история сохраняется, I15). */
-const hiddenConversations = new Set<string>();
 
 const conversationHandlers = [
   http.get('/api/v1/chat/conversations', () =>
@@ -139,6 +141,7 @@ const conversationHandlers = [
       .map((attachmentId) => uploadedAttachments.get(attachmentId))
       .filter((a): a is MessageAttachment => a !== undefined);
     for (const attachment of attachments) uploadedAttachments.delete(attachment.id);
+    revealHiddenConversation(String(params.id)); // активность раскрывает беседу (#103)
     const message: ChatMessage = {
       id: crypto.randomUUID(),
       conversationId: String(params.id),

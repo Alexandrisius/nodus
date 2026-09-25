@@ -105,6 +105,13 @@ export function MessengerBody({
   async function openDirectChat(userId: string): Promise<void> {
     try {
       const conversation = await api<ConversationListItem>(`/chat/conversations/direct/${userId}`);
+      // Беседа могла быть скрыта (архив): открытие из поиска людей возвращает
+      // её в список ДО перехода (#103) — иначе рабочий экран не найдёт её
+      // в кэше списка (gotchas: find-or-create + navigate без инвалидации).
+      await api(`/chat/conversations/${conversation.id}`, {
+        method: 'PATCH',
+        body: { hidden: false },
+      });
       await queryClient.invalidateQueries({ queryKey: chatKeys.conversations() });
       setQuery('');
       onSelectConversation(conversation.id);

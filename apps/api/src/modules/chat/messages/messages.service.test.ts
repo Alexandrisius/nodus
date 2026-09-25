@@ -74,6 +74,7 @@ describe('MessagesService', () => {
     listMembers: vi.fn(),
     clearDraft: vi.fn(),
     unsnooze: vi.fn(),
+    revealHidden: vi.fn(),
   };
   const mapper = { toDtos: vi.fn() };
   const txRunner = { run: vi.fn((cb: (tx: string) => unknown) => cb(TX)) };
@@ -275,6 +276,8 @@ describe('MessagesService', () => {
       expect(repo.claimAttachments).toHaveBeenCalledWith('msg-new', ['att-1'], ME, TX);
       expect(conversations.clearDraft).toHaveBeenCalledWith(CONV, ME, TX);
       expect(conversations.unsnooze).toHaveBeenCalledWith(CONV, ME, TX);
+      // Активность раскрывает беседу скрывшим участникам — той же tx (#103).
+      expect(conversations.revealHidden).toHaveBeenCalledWith(CONV, TX);
       expect(repo.touchLastMessageAt).toHaveBeenCalledWith(CONV, TX);
       expect(repo.upsertThreadParticipant).not.toHaveBeenCalled();
       expect(eventBus.emit).toHaveBeenCalledWith(

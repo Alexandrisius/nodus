@@ -222,7 +222,9 @@ export const conversationUpdateBodySchema = z
     pinned: z.boolean().optional(),
     muted: z.boolean().optional(),
     snoozed: z.boolean().optional(),
-    /** Скрыть из списка (архив беседы: история сохраняется, I15). */
+    /** Скрыть из списка (архив беседы: история сохраняется, I15). Активность
+     *  (отправка/пересылка) и открытие из поиска людей раскрывают беседу
+     *  (модель Битрикс24, #103). */
     hidden: z.boolean().optional(),
   })
   .refine((v) => Object.keys(v).length > 0, { message: 'empty update' });
