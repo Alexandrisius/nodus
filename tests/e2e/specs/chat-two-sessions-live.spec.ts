@@ -62,6 +62,23 @@ function apiPost(token: string, path: string, body: unknown, key: string): Promi
   });
 }
 
+/** Строка ниже сгиба вьюпорта или исчезла из DOM (px за сгибом; 9999 — нет).
+ *  Playwright-видимость для свежедописанных строк НЕНАДЁЖНА: content-visibility
+ *  вырезает содержимое вне вьюпорта асинхронно — в медленном CI box ещё
+ *  существует и toBeHidden флакует (repro 25.09, геометрия: строка на
+ *  +2500px за сгибом, а «visible»). Честный критерий — геометрия. */
+async function belowFoldOrGone(page: Page, text: string): Promise<number> {
+  return page.evaluate((needle) => {
+    const vp = document.querySelector('[data-slot="message-scroller-viewport"]');
+    if (!vp) return 9999;
+    const el = Array.from(vp.querySelectorAll('[data-message-id]')).find((n) =>
+      n.textContent?.includes(needle),
+    );
+    if (!el) return 9999;
+    return Math.round(el.getBoundingClientRect().bottom - vp.getBoundingClientRect().bottom);
+  }, text);
+}
+
 test.describe('живой чат: две сессии (#104)', () => {
   let admin: AuthSession;
   let conversationId: string;
@@ -268,9 +285,9 @@ test.describe('живой чат: две сессии (#104)', () => {
 
     // Сообщение видно у A, но не у B (ниже вьюпорта). Текст ищем В ЛЕНТЕ:
     // превью последнего сообщения в списке бесед содержит тот же текст.
-    const feedB = pageB.locator('[data-slot="message-scroller-viewport"]');
     await expect(pageA.getByText(msg3).first()).toBeVisible({ timeout: 5_000 });
-    await expect(feedB.getByText(msg3)).toBeHidden();
+    // Сообщение НИЖЕ СГИба у B — геометрически (см. belowFoldOrGone).
+    await expect.poll(() => belowFoldOrGone(pageB, msg3), { timeout: 5_000 }).toBeGreaterThan(4);
     // …и НЕ просмотрено: квитанция видимости не уходила (старая модель —
     // «выдача ленты двигает курсор» — прочла бы мгновенно; окно 1.5 с).
     await pageA.waitForTimeout(1_500);
@@ -281,7 +298,7 @@ test.describe('живой чат: две сессии (#104)', () => {
     // B возвращается вниз: сообщение видно → квитанция → «просмотрено» у A.
     await pageB.mouse.wheel(0, 10_000);
     await pageB.waitForTimeout(300);
-    await expect(feedB.getByText(msg3).first()).toBeVisible({ timeout: 5_000 });
+    await expect(pageB.getByText(msg3, { exact: true }).first()).toBeVisible({ timeout: 5_000 });
     await expect(rowA.getByLabel('просмотрено')).toBeVisible({ timeout: 10_000 });
 
     // Удаление доставляется <1 c: A удаляет (прочитано → надгробие) — текст
@@ -299,7 +316,7 @@ test.describe('живой чат: две сессии (#104)', () => {
       },
     );
     expect(deleted.status).toBe(200); // прочитано → надгробие
-    await expect(feedB.getByText(msg3)).toBeHidden({ timeout: 5_000 });
+    await expect.poll(() => belowFoldOrGone(pageB, msg3), { timeout: 5_000 }).toBeGreaterThan(4); // удалено → строки нет; надгробие-«удалено» не содержит текста
     const elapsed = Date.now() - started;
     test.info().annotations.push({ type: 'latency', description: `delete delivery ${elapsed} ms` });
     expect(elapsed).toBeLessThan(1_000);
