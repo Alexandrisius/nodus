@@ -107,6 +107,49 @@ test.describe('живой чат: две сессии (#104)', () => {
     await expect(page).toHaveURL(/\/home$/);
   }
 
+  test('«супер-курсор» переживает селект-режим (#104 раунд 2)', async ({ browser }) => {
+    // Своё свежее сообщение (низ ленты): тест самодостаточен — не зависит
+    // от сообщений предыдущих тестов.
+    const seedText = `e2e-ws-${RUN}-caret-seed`;
+    const seeded = await apiPost(
+      admin.token,
+      `/chat/conversations/${conversationId}/messages`,
+      { text: seedText },
+      `e2e-ws-${RUN}-caret-seed`,
+    );
+    expect(seeded.status).toBe(201);
+
+    const contextA = await browser.newContext();
+    const pageA = await contextA.newPage();
+    await loginUi(pageA, ADMIN.email, ADMIN.password);
+    await pageA.goto(`/chat/${conversationId}`);
+    const composer = pageA.getByPlaceholder(/Написать сообщение/i);
+    await expect(composer).toBeVisible();
+
+    // Селект-режим размонтирует textarea (островок батч-команд), выход
+    // монтирует НОВЫЙ узел — каретка обязана выжить: «Ответить» из ПКМ-меню
+    // и ввод с клавиатуры попадают в композер без клика мышью (репро 25.09).
+    // ПКМ по ТЕКСТУ сообщения: центр строки своего сообщения — пустое место
+    // слева от пузыря, до триггера меню событие не доходит.
+    const feedA = pageA.locator('[data-slot="message-scroller-viewport"]');
+    await feedA.getByText(seedText).click({ button: 'right' });
+    await pageA.getByRole('menuitem', { name: 'Выбрать' }).click();
+    await expect(pageA.getByRole('button', { name: /снять выделение/i })).toBeVisible();
+
+    await pageA.getByRole('button', { name: /снять выделение/i }).click();
+    await expect(composer).toBeVisible({ timeout: 3_000 }); // фаза exit → normal
+
+    await feedA.getByText(seedText).click({ button: 'right' });
+    await pageA.getByRole('menuitem', { name: 'Ответить' }).click();
+    const typed = `e2e-ws-${RUN}-caret`;
+    // Каретка обязана вернуться сама (focusComposerWhenFree меню) — без клика.
+    await expect(composer).toBeFocused({ timeout: 3_000 });
+    await pageA.keyboard.type(typed);
+    await expect(composer).toHaveValue(new RegExp(`${typed}$`));
+
+    await contextA.close();
+  });
+
   test('сообщение приходит <1 c, «печатает…», прочитано, догон после офлайна', async ({
     browser,
   }) => {
@@ -162,16 +205,28 @@ test.describe('живой чат: две сессии (#104)', () => {
   test('просмотр по вьюпорту (прокрутка) и удаление <1 c (#102/#104 раунд 2)', async ({
     browser,
   }) => {
-    // Длинная беседа: 2–3 сообщения влезают в вьюпорт целиком — «прокрутка
-    // вверх» без длинной ленты не существует (дефект прогона: B видел всё).
+    // Длинная беседа: ОБЯЗАН переполнять вьюпорт на любых шрифтах/машинах
+    // (раунд 3: с якорем первого непрочитанного B открывается у начала хвоста;
+    // на сжатых CI-шрифтах короткие строки влезали в экран целиком — «ниже
+    // вьюпорта» не существовало и premise теста ломался). Гарантия — ВЫСОТА
+    // сообщений (8 строк × 12), а не их количество: 40 запросов роняли воркер
+    // Playwright внутренним assert'ом на финализации (repro 25.09).
+    const tall = (i: number) =>
+      'e2e-ws-' +
+      RUN +
+      '-fill-' +
+      i +
+      '\n' +
+      Array.from({ length: 8 }, (_, k) => 'строка ' + i + '.' + (k + 1)).join('\n');
     for (let i = 1; i <= 12; i += 1) {
       const res = await apiPost(
         admin.token,
         `/chat/conversations/${conversationId}/messages`,
-        { text: `e2e-ws-${RUN}-fill-${i}` },
+        { text: tall(i) },
         `e2e-ws-${RUN}-fill-${i}`,
       );
       expect(res.status).toBe(201);
+      await res.json();
     }
 
     const contextA = await browser.newContext();
@@ -240,48 +295,5 @@ test.describe('живой чат: две сессии (#104)', () => {
 
     await contextA.close();
     await contextB.close();
-  });
-
-  test('«супер-курсор» переживает селект-режим (#104 раунд 2)', async ({ browser }) => {
-    // Своё свежее сообщение (низ ленты): тест самодостаточен — не зависит
-    // от сообщений предыдущих тестов.
-    const seedText = `e2e-ws-${RUN}-caret-seed`;
-    const seeded = await apiPost(
-      admin.token,
-      `/chat/conversations/${conversationId}/messages`,
-      { text: seedText },
-      `e2e-ws-${RUN}-caret-seed`,
-    );
-    expect(seeded.status).toBe(201);
-
-    const contextA = await browser.newContext();
-    const pageA = await contextA.newPage();
-    await loginUi(pageA, ADMIN.email, ADMIN.password);
-    await pageA.goto(`/chat/${conversationId}`);
-    const composer = pageA.getByPlaceholder(/Написать сообщение/i);
-    await expect(composer).toBeVisible();
-
-    // Селект-режим размонтирует textarea (островок батч-команд), выход
-    // монтирует НОВЫЙ узел — каретка обязана выжить: «Ответить» из ПКМ-меню
-    // и ввод с клавиатуры попадают в композер без клика мышью (репро 25.09).
-    // ПКМ по ТЕКСТУ сообщения: центр строки своего сообщения — пустое место
-    // слева от пузыря, до триггера меню событие не доходит.
-    const feedA = pageA.locator('[data-slot="message-scroller-viewport"]');
-    await feedA.getByText(seedText).click({ button: 'right' });
-    await pageA.getByRole('menuitem', { name: 'Выбрать' }).click();
-    await expect(pageA.getByRole('button', { name: /снять выделение/i })).toBeVisible();
-
-    await pageA.getByRole('button', { name: /снять выделение/i }).click();
-    await expect(composer).toBeVisible({ timeout: 3_000 }); // фаза exit → normal
-
-    await feedA.getByText(seedText).click({ button: 'right' });
-    await pageA.getByRole('menuitem', { name: 'Ответить' }).click();
-    const typed = `e2e-ws-${RUN}-caret`;
-    // Каретка обязана вернуться сама (focusComposerWhenFree меню) — без клика.
-    await expect(composer).toBeFocused({ timeout: 3_000 });
-    await pageA.keyboard.type(typed);
-    await expect(composer).toHaveValue(new RegExp(`${typed}$`));
-
-    await contextA.close();
   });
 });

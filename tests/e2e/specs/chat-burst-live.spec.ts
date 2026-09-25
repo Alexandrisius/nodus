@@ -175,6 +175,7 @@ test.describe('живой чат: бурст 30 сообщений (раунд 3
         },
       );
       expect(res.status).toBeLessThan(300);
+      await res.text().catch(() => undefined); // дренируем тело ответа
     }
     await expect(feedViewportB.getByText(victims[0]!.text!, { exact: true })).toBeHidden({
       timeout: 1_000,
