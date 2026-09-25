@@ -39,17 +39,17 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@nestjs/cli": "^12.0.0",
-    "@nestjs/testing": "^12.0.1",
+    "@nestjs/cli": "^12.0.3",
+    "@nestjs/testing": "^12.0.4",
     "@nodus/config": "workspace:*",
-    "@swc/core": "^1.16.1",
-    "@types/node": "^24.13.3",
+    "@swc/core": "^1.16.2",
+    "@types/node": "^26.6.2",
     "@types/pg": "^8.23.1",
     "pg": "^8.23.0",
     "prisma": "^7.10.0",
-    "tsx": "^4.23.13",
+    "tsx": "^4.23.15",
     "typescript": "~5.9.3",
-    "unplugin-swc": "^1.5.11",
-    "vitest": "^4.1.11"
+    "unplugin-swc": "^2.0.0",
+    "vitest": "^5.0.1"
   }
 }
