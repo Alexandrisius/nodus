@@ -342,6 +342,20 @@ export class ConversationsRepository {
     `);
   }
 
+  /**
+   * Активность раскрывает беседу у ВСЕХ скрывших её участников (модель
+   * Битрикс24, #103): чужая/своя отправка и пересылка возвращают беседу в
+   * список — скрывают только «старые» чаты, чтобы не висели сверху. Той же
+   * транзакцией, что и активность; список с `hidden=false` подхватит сам.
+   */
+  async revealHidden(conversationId: string, tx?: TransactionClient): Promise<void> {
+    const client = this.client(tx);
+    await client.$executeRaw(Prisma.sql`
+      UPDATE conversation_members SET hidden = false, updated_at = now()
+      WHERE conversation_id = ${conversationId}::uuid AND hidden
+    `);
+  }
+
   /** Черновик пользователя в беседе. */
   async findDraft(conversationId: string, userId: string): Promise<DraftRow | null> {
     const rows = await this.prisma.$queryRaw<DraftRow[]>(Prisma.sql`

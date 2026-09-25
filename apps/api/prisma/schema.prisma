@@ -334,7 +334,8 @@ model ConversationMember {
   muted    Boolean @default(false)
   /// «Посмотреть позже»: гасится своей отправкой/пересылкой (мок-семантика).
   snoozed  Boolean @default(false)
-  /// Архив беседы (история сохраняется; возвращается только явным PATCH).
+  /// Архив беседы (история сохраняется). Раскрывается активностью (отправка/
+  /// пересылка — revealHidden, #103) и открытием из поиска людей (PATCH).
   hidden   Boolean @default(false)
   joinedAt DateTime @default(now()) @map("joined_at") @db.Timestamptz()
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()

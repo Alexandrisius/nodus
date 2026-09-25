@@ -305,6 +305,8 @@ export class MessageActionsService {
         await this.messages.touchLastMessageAt(targetConversationId, tx);
       }
       await this.conversations.unsnooze(targetConversationId, userId, tx);
+      // Пересылка — активность: раскрывает беседу скрывшим её участникам (#103).
+      await this.conversations.revealHidden(targetConversationId, tx);
 
       for (const row of created) {
         await this.eventBus.emit(
