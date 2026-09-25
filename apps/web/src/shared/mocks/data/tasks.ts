@@ -176,6 +176,7 @@ export const demoTaskMessages: ChatMessage[] = [
     attachments: [],
     editedAt: null,
     readAt: null,
+    readBy: [],
     createdAt: isoAgo(2, 9, 12),
   },
   {
@@ -194,6 +195,7 @@ export const demoTaskMessages: ChatMessage[] = [
     attachments: [],
     editedAt: null,
     readAt: isoAgo(2, 9, 41),
+    readBy: [],
     createdAt: isoAgo(2, 9, 40),
   },
   {
@@ -224,6 +226,7 @@ export const demoTaskMessages: ChatMessage[] = [
     ],
     editedAt: null,
     readAt: null,
+    readBy: [],
     createdAt: isoAgo(1, 14, 5),
   },
 ];

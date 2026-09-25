@@ -19,6 +19,7 @@ const msg = (id: string, authorId: string, createdAt: string): ChatMessage => ({
   attachments: [],
   editedAt: null,
   readAt: null,
+  readBy: [],
   createdAt,
 });
 

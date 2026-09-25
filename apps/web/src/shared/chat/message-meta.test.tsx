@@ -7,9 +7,15 @@ import { MessageMeta } from './message-meta.js';
 
 /**
  * Мета сообщения (#96): одна композиция на пузырь чата и карточку поста
- * канала — пин → «изменено» → время; галочки прочтения — только по флагу
- * `ticks` (у постов каналов их нет по семантике).
+ * канала — пин → «изменено» → время; галочка «прочитано» — по readBy
+ * (первый прочитавший, #102), рисуется только по флагу `ticks`.
  */
+
+const ref = (id: string, displayName: string): ChatMessage['author'] => ({
+  id,
+  displayName,
+  avatarUrl: null,
+});
 
 const message = (overrides: Partial<ChatMessage> = {}): ChatMessage => ({
   id: 'm1',
@@ -27,6 +33,7 @@ const message = (overrides: Partial<ChatMessage> = {}): ChatMessage => ({
   attachments: [],
   editedAt: null,
   readAt: null,
+  readBy: [],
   createdAt: '2026-09-24T09:00:00Z',
   ...overrides,
 });
@@ -69,14 +76,26 @@ describe('MessageMeta — композиция меты (#96)', () => {
     expect(meta.querySelector('time')).toBeTruthy();
   });
 
-  it('галочки прочтения только по ticks (пост канала их не рисует)', () => {
-    const mine = message({ readAt: '2026-09-24T10:00:00Z' });
-    const card = render(<MessageMeta message={mine} />);
-    expect(card.container.querySelector('svg')).toBeNull();
-    card.unmount();
+  it('галочка «прочитано» по readBy (первый прочитавший, #102), не по readAt', () => {
+    // readAt есть, но прочитавших нет (правка сбросила) — одна галочка (отправлено).
+    const edited = message({ readAt: '2026-09-24T10:00:00Z', readBy: [] });
+    const onlySent = render(<MessageMeta message={edited} mine ticks />);
+    expect(onlySent.container.querySelector('svg[role="img"]')?.getAttribute('aria-label')).toBe(
+      'отправлено',
+    );
+    onlySent.unmount();
 
-    const bubble = render(<MessageMeta message={mine} mine ticks />);
-    expect(bubble.container.querySelector('svg')).toBeTruthy();
+    // Есть прочитавший — двойная галочка (прочитано).
+    const read = message({ readAt: '2026-09-24T10:00:00Z', readBy: [ref('u-1', 'Читатель')] });
+    const both = render(<MessageMeta message={read} mine ticks />);
+    expect(both.container.querySelector('svg[role="img"]')?.getAttribute('aria-label')).toBe(
+      'прочитано',
+    );
+    both.unmount();
+
+    // Без ticks (чужое сообщение) — галочек нет вовсе.
+    const card = render(<MessageMeta message={read} />);
+    expect(card.container.querySelector('svg')).toBeNull();
   });
 
   it('свой тон и внешние классы применяются (ml-auto в строке пузыря)', () => {

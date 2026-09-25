@@ -91,13 +91,21 @@ const conversationHandlers = [
     const threadRootId = new URL(request.url).searchParams.get('threadRootId');
     const actorId = getMockActor().id;
     const all = demoMessages.filter((m) => m.conversationId === params.id);
-    // Симуляция прочтения (мокап до бэкенда): своё сообщение собеседник
-    // «прочитывает» через ~2 с после отправки — галочки sent→read без polling:
-    // клиент делает отложенную инвалидацию после отправки (useSendChatMessage).
+    // Симуляция прочтения (мокап до бэкенда): своё сообщение первый участник
+    // «прочитывает» через ~2 с после отправки — галочка + readBy (модель
+    // первого прочитавшего, #102) без polling: клиент делает отложенную
+    // инвалидацию после отправки (useSendChatMessage).
     const now = Date.now();
     for (const m of all) {
       if (m.readAt === null && m.author.id === actorId && now - Date.parse(m.createdAt) > 2000) {
         m.readAt = m.createdAt;
+      }
+      // readBy — вместе с readAt (сидовые и «прочитанные» сообщения: первым
+      // не-автором беседы; галочка #102 теперь по readBy, не по readAt).
+      if (m.readAt !== null && m.readBy.length === 0) {
+        const conversation = demoConversations.find((c) => c.id === m.conversationId);
+        const reader = conversation?.membersPreview.find((u) => u.id !== m.author.id);
+        if (reader) m.readBy = [reader];
       }
     }
     const items = threadRootId
@@ -149,6 +157,7 @@ const conversationHandlers = [
       attachments,
       editedAt: null,
       readAt: null,
+      readBy: [],
       createdAt: new Date().toISOString(),
     };
     demoMessages.push(message);

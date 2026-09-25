@@ -184,6 +184,7 @@ export function useSendChatMessage(conversationId: string) {
         attachments: vars.attachments ?? [],
         editedAt: null,
         readAt: null,
+        readBy: [],
         createdAt: new Date().toISOString(),
       };
 

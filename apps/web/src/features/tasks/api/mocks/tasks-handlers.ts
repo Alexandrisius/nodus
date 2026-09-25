@@ -368,6 +368,7 @@ export const tasksHandlers = [
       attachments: [],
       editedAt: null,
       readAt: null,
+      readBy: [],
       createdAt: new Date().toISOString(),
     };
     demoTaskMessages.push(message);

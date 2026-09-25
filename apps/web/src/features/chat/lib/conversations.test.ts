@@ -42,6 +42,7 @@ function conv(id: string, at: string | null, pinned = false): ConversationListIt
           attachments: [],
           editedAt: null,
           readAt: null,
+          readBy: [],
           createdAt: at,
         }
       : null,

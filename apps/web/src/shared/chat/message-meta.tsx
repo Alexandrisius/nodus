@@ -20,9 +20,9 @@ import { ReadTicks } from './read-ticks.js';
  * данные и не раздувает облако по высоте (вердикт 24.09.2026).
  *
  * Тон: чужой пузырь/пост — muted-foreground; свой (залитый primary) —
- * тон primary-foreground с прозрачностью. Галочки прочтения — ТОЛЬКО у своих
- * в чате (`ticks`): семантика прочтения постов каналов — отдельная тема (#96,
- * «не входит»).
+ * тон primary-foreground с прозрачностью. Галочки прочтения — ТОЛЬКО у своих:
+ * «прочитано» = сообщение прочитал ХОТЯ БЫ ОДИН участник (readBy, модель
+ * Битрикс24/Telegram, #102; у постов канала — тоже, критерий «Новости»).
  */
 export function MessageMeta({
   message,
@@ -33,7 +33,7 @@ export function MessageMeta({
   message: ChatMessage;
   /** Своё сообщение — тон времени на заливке primary. */
   mine?: boolean;
-  /** Галочки отправлено/прочитано (только чат: у постов канала их нет). */
+  /** Галочки отправлено/прочитано (у своих сообщений и постов канала). */
   ticks?: boolean;
   className?: string;
 }) {
@@ -53,7 +53,7 @@ export function MessageMeta({
       <time className="font-mono tabular-nums" dateTime={message.createdAt}>
         {formatTime(message.createdAt)}
       </time>
-      {ticks ? <ReadTicks read={message.readAt !== null} /> : null}
+      {ticks ? <ReadTicks read={message.readBy.length > 0} /> : null}
     </span>
   );
 }
