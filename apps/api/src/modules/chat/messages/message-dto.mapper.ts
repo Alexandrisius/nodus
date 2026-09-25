@@ -51,9 +51,15 @@ export class MessageDtoMapper {
     if (rows.length === 0) return [];
     const ids = rows.map((r) => r.id);
     const replyIds = [...new Set(rows.flatMap((r) => (r.replyToId ? [r.replyToId] : [])))];
+    // Прочитавшие своих сообщений (#102): батч в общий loadRefs.
+    const readByRows = rows.map((row) => ({
+      row,
+      readers: computeReadBy(row, ctx.members, ctx.viewerId),
+    }));
+    const readerIds = new Set(readByRows.flatMap(({ readers }) => readers.map((r) => r.userId)));
     const [refs, reactions, attachments, threadCounts, pinnedIds, replyOriginals] =
       await Promise.all([
-        this.loadRefs(rows),
+        this.loadRefs(rows, readerIds),
         this.messages.reactionsFor(ids),
         this.messages.attachmentsFor(ids),
         this.messages.threadReplyCounts(
@@ -68,8 +74,9 @@ export class MessageDtoMapper {
     const threadCountByRoot = new Map(threadCounts.map((t) => [t.rootId, t.count]));
     const originalById = new Map(replyOriginals.map((o) => [o.id, o]));
 
-    return rows.map((row) => {
+    return rows.map((row, index) => {
       const tombstone = row.deletedAt !== null;
+      const readers = readByRows[index]?.readers ?? [];
       return {
         id: row.id,
         conversationId: row.conversationId,
@@ -100,6 +107,9 @@ export class MessageDtoMapper {
         pinned: pinnedIds.has(row.id),
         forwardedFrom: buildForwardedFrom(row, refs),
         readAt: computeReadAt(row, ctx.members, ctx.viewerId),
+        readBy: readers.map(
+          (reader): UserRef => refs.get(reader.userId) ?? fallbackRef(reader.userId),
+        ),
         createdAt: row.createdAt.toISOString(),
       };
     });
@@ -111,8 +121,11 @@ export class MessageDtoMapper {
     return dto;
   }
 
-  private async loadRefs(rows: MessageRow[]): Promise<Map<string, UserRef>> {
-    const ids = new Set<string>();
+  private async loadRefs(
+    rows: MessageRow[],
+    readerIds: Set<string> = new Set(),
+  ): Promise<Map<string, UserRef>> {
+    const ids = new Set<string>(readerIds);
     for (const row of rows) {
       ids.add(row.authorId);
       const snapshot = (row.replySnapshot ?? null) as ReplySnapshotValue | null;
@@ -191,10 +204,12 @@ function buildForwardedFrom(
 }
 
 /**
- * readAt «прочитано собеседником(ами)» для СВОИХ сообщений: direct — курсор
- * собеседника; group — «прочли все» (момент последнего прочитавшего). Правка
- * (editedAt) требует перечитывания: null, пока кто-то из прочитавших не
- * откроет беседу после правки («повторный пуш прочитавшим», решение #41).
+ * Прочитанность СВОИХ сообщений (модель Битрикс24/Telegram, #102): прочитавшим
+ * считается участник с lastReadSeq >= seq, прочитавший ПОСЛЕ правки
+ * (editedAt; «повторный пуш прочитавшим», решение #41). readAt — момент
+ * ПЕРВОГО прочитавшего (min; в direct он единственный); readBy — все
+ * прочитавшие на момент выдачи, по времени прочтения. Для чужих сообщений
+ * readAt=null, readBy=[] (прочитавших видит только автор).
  */
 export function computeReadAt(
   row: Pick<MessageRow, 'authorId' | 'seq' | 'editedAt' | 'createdAt'>,
@@ -202,17 +217,41 @@ export function computeReadAt(
   viewerId: string,
 ): string | null {
   if (row.authorId !== viewerId) return null;
-  const others = members.filter((m) => m.userId !== row.authorId);
-  if (others.length === 0) return row.createdAt.toISOString(); // «Заметки»
-  let lastReaderAt: Date | null = null;
-  for (const other of others) {
+  if (!members.some((m) => m.userId !== row.authorId)) {
+    return row.createdAt.toISOString(); // «Заметки» (одиночная беседа)
+  }
+  let firstReaderAt: Date | null = null;
+  for (const reader of readCursors(row, members)) {
+    if (firstReaderAt === null || reader.lastReadAt < firstReaderAt) {
+      firstReaderAt = reader.lastReadAt;
+    }
+  }
+  return firstReaderAt?.toISOString() ?? null;
+}
+
+/** Прочитавшие своё сообщение (userId по возрастанию времени прочтения). */
+export function computeReadBy(
+  row: Pick<MessageRow, 'authorId' | 'seq' | 'editedAt'>,
+  members: MemberRow[],
+  viewerId: string,
+): { userId: string; lastReadAt: Date }[] {
+  if (row.authorId !== viewerId) return [];
+  return readCursors(row, members).sort((a, b) => a.lastReadAt.getTime() - b.lastReadAt.getTime());
+}
+
+function readCursors(
+  row: Pick<MessageRow, 'authorId' | 'seq' | 'editedAt'>,
+  members: MemberRow[],
+): { userId: string; lastReadAt: Date }[] {
+  const readers: { userId: string; lastReadAt: Date }[] = [];
+  for (const other of members) {
+    if (other.userId === row.authorId) continue;
     const readCurrent = other.lastReadSeq >= row.seq;
     const readAfterEdit =
       row.editedAt === null || (other.lastReadAt !== null && other.lastReadAt >= row.editedAt);
-    if (!readCurrent || !readAfterEdit) return null;
-    if (other.lastReadAt && (lastReaderAt === null || other.lastReadAt > lastReaderAt)) {
-      lastReaderAt = other.lastReadAt;
+    if (readCurrent && readAfterEdit && other.lastReadAt !== null) {
+      readers.push({ userId: other.userId, lastReadAt: other.lastReadAt });
     }
   }
-  return lastReaderAt?.toISOString() ?? null;
+  return readers;
 }

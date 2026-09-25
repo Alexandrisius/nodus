@@ -185,6 +185,8 @@ export const chatMutationHandlers = [
         pinned: false,
         forwardedFrom: null,
         readAt: null,
+
+        readBy: [],
         createdAt: stamp(0),
       };
       created.push(comment);
@@ -215,6 +217,8 @@ export const chatMutationHandlers = [
           threadRootId: source.threadRootId,
         },
         readAt: null,
+
+        readBy: [],
         createdAt: stamp(index + 1),
       };
       created.push(copy);

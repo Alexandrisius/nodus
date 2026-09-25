@@ -57,6 +57,7 @@ const message = (overrides: Partial<ChatMessage> = {}): ChatMessage => ({
   pinned: false,
   forwardedFrom: null,
   readAt: '2026-09-24T10:00:00Z',
+  readBy: [],
   createdAt: '2026-09-24T09:00:00Z',
   ...overrides,
 });

@@ -31,6 +31,7 @@ function msg(
     attachments: [],
     editedAt: null,
     readAt: author === userIds.klimovich ? createdAt : null,
+    readBy: [],
     createdAt,
     ...extra,
   };

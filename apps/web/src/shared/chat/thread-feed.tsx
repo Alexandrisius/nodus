@@ -16,6 +16,7 @@ import { useChatDrafts } from './chat-drafts.js';
 import { MessageAttachments } from './attachments.js';
 import { MessageReactions } from './chat-message.js';
 import { MessageMeta } from './message-meta.js';
+import { MessageReaders } from './message-readers.js';
 import { addFiles } from './composer-files.js';
 import { toSendVars } from './composer-submit.js';
 import { focusComposer } from './composer-focus.js';
@@ -29,6 +30,9 @@ import { useJumpResponder } from './use-jump-responder.js';
 import { selectionComposerProps, useFeedSelection } from './use-feed-selection.js';
 import { useConversations } from './api.js';
 import { canPostFeed } from './conversations.js';
+// >300 строк — обоснование (I5): лента постов канала — единая карточка поста
+// (автор/вложения/текст/мета/реакции/читатели/полоса ответов) + пагинация и
+// селект-режим в одном компоненте; деление размывало бы анатомию поста (#96).
 
 function repliesLabel(count: number): string {
   return `${count} ${plural(count, [ui.chat.repliesOne, ui.chat.repliesFew, ui.chat.repliesMany])}`;
@@ -236,13 +240,20 @@ export const ThreadFeed = memo(function ThreadFeed({
                               читаться как в сообщениях чатов). До #96 пост
                               рисовал только время — закреп и правка на карточке
                               терялись (в окне треда тот же корень рендерится
-                              пузырём с полной метой — рассинхрон). Галочек
-                              прочтения на постах НЕТ (семантика прочтения
-                              каналов — отдельная тема, #96 «не входит»). */}
+                              пузырём с полной метой — рассинхрон). Галочки
+                              «прочитано» — у СВОИХ постов с #102 (модель
+                              Битрикс24: «открывает канал → у поста галочка и
+                              Прочитано 1»), строка прочитавших — под карточкой. */}
                           <span className="mt-[3px] flex items-end gap-2">
                             <MessageReactions message={root} />
-                            <MessageMeta message={root} className="ml-auto" />
+                            <MessageMeta
+                              message={root}
+                              mine={root.author.id === me?.id}
+                              ticks={root.author.id === me?.id}
+                              className="ml-auto"
+                            />
                           </span>
+                          <MessageReaders message={root} className="mt-0.5" />
                           <span className="-mx-3.5 -mb-3.5 mt-[6px] flex items-center gap-2 rounded-b-[0.8125rem] border-t border-border/60 bg-muted/40 px-3.5 py-2">
                             {participants.length > 0 ? (
                               <span className="flex shrink-0 -space-x-1.5">

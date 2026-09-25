@@ -22,6 +22,7 @@ const msg = (id: string, text: string, threadRootId: string | null = null): Chat
   pinned: false,
   forwardedFrom: null,
   readAt: null,
+  readBy: [],
   createdAt: '2026-09-24T09:00:00Z',
 });
 
