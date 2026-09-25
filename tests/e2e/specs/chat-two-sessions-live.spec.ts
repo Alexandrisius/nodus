@@ -243,11 +243,22 @@ test.describe('живой чат: две сессии (#104)', () => {
     // B прокручивает ленту ВВЕРХ КОЛЕСОМ (реальное намерение пользователя:
     // программный scrollTop примитив MessageScroller считает «не-жестом» и
     // автоскроллит обратно к низу — тогда тест теряет свой смысл).
+    // ГАРДЫ premise: (1) лента B обязана быть загружена ДО колеса — на
+    // медленном CI колесо по пустому/верхнему скроллеру тратилось впустую,
+    // авто-догон ставил B вниз и msg3 оставался видимым; (2) после колеса
+    // утверждаем, что верх ДОСТИГНУТ (msg1 из теста 1) — иначе тест падает
+    // громко в месте причины, а не следствия.
     const viewportB = pageB.locator('[data-slot="message-scroller-viewport"]');
+    await expect(viewportB.locator('[data-message-id]').first()).toBeVisible({
+      timeout: 10_000,
+    });
     const boxB = await viewportB.boundingBox();
     await pageB.mouse.move(boxB!.x + boxB!.width / 2, boxB!.y + boxB!.height / 2);
     await pageB.mouse.wheel(0, -10_000);
-    await pageB.waitForTimeout(300);
+    await expect(
+      pageB.getByText(`e2e-ws-${RUN}-msg1`, { exact: true }).first(),
+      'B доехал колесом до верха истории',
+    ).toBeVisible({ timeout: 5_000 });
 
     const msg3 = `e2e-ws-${RUN}-msg3`;
     const composer = pageA.getByPlaceholder(/Написать сообщение/i);
