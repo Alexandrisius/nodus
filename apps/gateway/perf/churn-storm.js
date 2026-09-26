@@ -49,6 +49,11 @@ export default function () {
           socket.send('3');
           return;
         }
+        if (msg.startsWith('44')) {
+          connErrors.add(1);
+          socket.close();
+          return;
+        }
         if (msg.startsWith('40') && !connected) {
           connected = true;
           connectMs.add(Date.now() - startedAt);

@@ -18,10 +18,12 @@ STAGES=(
 )
 API_HOST=${API:-http://host.docker.internal:3001}
 GW_HOST=${GW:-ws://host.docker.internal:3002}
+# health для межступенчатого автостопа (k6-контейнер видит gateway иначе, чем хост)
+HEALTH_URL=${HEALTH_URL:-http://127.0.0.1:3002/health}
 
 for stage in "${STAGES[@]}"; do
   IFS=':' read -r vus every secs <<<"$stage"
-  if ! curl -sf http://127.0.0.1:3002/health > /dev/null; then
+  if ! curl -sf "$HEALTH_URL" > /dev/null; then
     echo "!! gateway health failed — лестница остановлена перед ступенью $vus"
     break
   fi

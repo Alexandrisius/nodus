@@ -33,7 +33,14 @@ function loadEnv() {
   const env = {};
   for (const line of raw.split(/\r?\n/)) {
     const m = /^([A-Z0-9_]+)=(.*)$/.exec(line.trim());
-    if (m && !line.trim().startsWith('#')) env[m[1]] = m[2].trim();
+    if (m && !line.trim().startsWith('#')) {
+      // кавычки значений и inline-комментарии — как docker compose
+      env[m[1]] = m[2]
+        .trim()
+        .replace(/^["']|["']$/g, '')
+        .split(' #')[0]
+        .trim();
+    }
   }
   return env;
 }

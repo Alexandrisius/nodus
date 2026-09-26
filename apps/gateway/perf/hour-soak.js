@@ -16,7 +16,7 @@ import { botSession, metrics } from './lib/bot-engine.js';
  */
 
 const DURATION_MS = Number(__ENV.DURATION_MS ?? 61 * 60_000);
-const SEND_EVERY_MS = Number(__ENV.SEND_EVERY_MS ?? 36_000); // 300 VU × ~1.67/мин ≈ 500 сообщ/мин
+const SEND_EVERY_MS = Number(__ENV.SEND_EVERY_MS ?? 20_000); // 300 VU × 55% тиков ≈ 500 сообщ/мин
 
 const world = new SharedArray('world', () => [JSON.parse(open('./run/world.json'))]);
 
