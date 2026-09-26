@@ -78,7 +78,36 @@ conv-комнату (троттл-ключ включает root): индика�
   БД `nodus_gateway_test` с минимальным срезом читаемых таблиц; socket.io-client
   против живого сервера; публикация в стрим XADD-ом contract-ного envelope.
   api-сторона публикации покрыта apps/api/test/integration/chat-realtime-fanout.
-- Нагрузка: `perf/ws-spike.js` (спайк raw engine.io-фрейминга для k6) и
-  `perf/chat-ws-load.js` (50 соединений, 500 сообщ/мин, порог p95 < 200 мс,
-  10 минут; `docker run --rm grafana/k6:0.58.0`, из репо
-  `MSYS_NO_PATHCONV=1`, api/gateway доступны как `host.docker.internal`).
+- Нагрузка (k6 0.58, `docker run --rm grafana/k6:0.58.0`, из репо
+  `MSYS_NO_PATHCONV=1`, api/gateway доступны как `host.docker.internal`):
+  - `perf/ws-spike.js` — спайк raw engine.io-фрейминга для k6;
+  - `perf/chat-ws-load.js` — прежний профиль: 50 соединений, 10 минут;
+  - `perf/super-load.js` — стресс-лестница «предел прочности» (#117): ступени
+    300→2000 сокетов, микс операций (отправка 55% / typing 15% / read 15% /
+    реакции 10%), метрика доставки на собственном сокете; оркестрация
+    `tools/run-ladder.sh`;
+  - `perf/churn-storm.js` — волны массовых connect/disconnect (presence-
+    snapshot под нагрузкой, утренний вход офиса);
+  - `perf/login-storm.js` — честный argon2-логин с постоянной интенсивностью;
+  - `perf/hour-soak.js` — часовой профиль НФТ: 300 сокетов, ~500 сообщ/мин,
+    p95 < 200 мс, саморазрывы сокетов + внешний рестарт gateway на 30-й
+    минуте (массовый реконнект, #119); оркестрация `tools/run-soak.sh`.
+- Мир нагрузки: `tools/bots.mjs` генерирует ботов-сотрудников и беседы в БД
+  напрямую (SQL для psql) и HS256-токены ботов (payload как у token.service,
+  permissions копией реального админа) в `run/world.json` (git-ignored).
+  Вычистка: `run/cleanup.sql`. Общий движок бота — `perf/lib/bot-engine.js`
+  (engine.io-фрейминг, join по ack, pending-матчинг доставки — событие может
+  прийти раньше HTTP-ответа отправки).
+- Мониторинг прогонов: `tools/monitor.sh` (CPU/RAM контейнеров, активные
+  PG-сессии, события/мин, длина стрима и pending consumer-группы).
+
+### Известная ловушка: два consumer'а в группе `nodus:gateway`
+
+Любой второй живой reader группы (например, забытый dev-gateway на хосте с
+`REDIS_URL=redis://localhost:6379`, контур портов это допускает) ЗАБИРАЕТ
+записи XREADGROUP'ом и ACK-ает их в никуда — события чата бесследно
+теряются для онлайн-клиентов, pending остаётся 0, ошибок в логах нет.
+Перед k6-прогонами против прода: `XINFO CONSUMERS nodus:chat:events
+nodus:gateway` — активен должен быть ровно один (`gateway-<pid>` контейнера).
+Мотивирует задел «GC мёртвых consumers» (#117) — но живой сирота опаснее
+мёртвых: молчаливая потеря данных.
