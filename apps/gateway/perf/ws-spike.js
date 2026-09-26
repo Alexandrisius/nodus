@@ -26,7 +26,7 @@ export function setup() {
     `${API}/api/v1/auth/login`,
     JSON.stringify({
       email: __ENV.EMAIL ?? 'admin@nodus.by',
-      password: __ENV.PASSWORD ?? 'Nodus!Admin2026',
+      password: __ENV.PASSWORD ?? '',
     }),
     {
       headers: {
