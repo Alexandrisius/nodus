@@ -232,7 +232,7 @@ jobs:
 
       - name: E2E-тесты
         # Критичные пути (DoD): логин (моки) и живой чат двух сессий (#104 —
-        # живой стек: api + gateway + seeded-пользователи admin/klimovich).
+        # живой стек: api + gateway + seeded-пользователи admin/a.klimovich).
         # graph-stress.spec — perf-харнесс для локального прогона, в CI не входит.
         run: pnpm --filter @nodus/e2e test specs/auth.spec.ts specs/chat-two-sessions-live.spec.ts
         env:

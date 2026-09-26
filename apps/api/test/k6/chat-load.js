@@ -31,11 +31,11 @@ const ADMIN_PASSWORD = __ENV.ADMIN_PASSWORD ?? '';
 const DEMO_PASSWORD = __ENV.DEMO_PASSWORD ?? '';
 const USERS = [
   { email: 'admin@nodus.by', password: ADMIN_PASSWORD },
-  { email: 'klimovich@nodus.by', password: DEMO_PASSWORD },
-  { email: 'vasilevich@nodus.by', password: DEMO_PASSWORD },
-  { email: 'ivanov@nodus.by', password: DEMO_PASSWORD },
-  { email: 'petrov@nodus.by', password: DEMO_PASSWORD },
-  { email: 'sidorova@nodus.by', password: DEMO_PASSWORD },
+  { email: 'a.klimovich@passatproekt.by', password: DEMO_PASSWORD },
+  { email: 'a.matorin@passatproekt.by', password: DEMO_PASSWORD },
+  { email: 'e.polomar@passatproekt.by', password: DEMO_PASSWORD },
+  { email: 'd.klemantovich@passatproekt.by', password: DEMO_PASSWORD },
+  { email: 'a.voronich@passatproekt.by', password: DEMO_PASSWORD },
 ];
 
 /** Группы = тегированные подметрики: p50/p95/p99 и fail-rate по эндпоинту. */

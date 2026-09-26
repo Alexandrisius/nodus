@@ -1,4 +1,8 @@
 /**
+ * > 355 строк — осознанное превышение ориентира I5: единый атомарный сид
+ * > (роли → должности → отделы → люди → канал) читается как один сценарий;
+ * > разнос по модулям усложнил бы порядок зависимостей.
+ *
  * Сидинг (ADR-0002): пилотная группа мессенджера — Группа BIM-технологий
  * ПассатПроект (вердикт владельца 26.09.2026: 5 сотрудников + системный
  * админ, БОЛЬШЕ сотрудников и отделов на пилоте нет).
@@ -43,14 +47,12 @@ const ALL_PERMISSIONS = [
   'correspondence.archive',
 ];
 
-/** Созданные этой прогоном учётки с паролями — печать в конце сида. */
+/** Созданные этой прогоном учётки с паролями — печать в конце сида
+ * (только реально созданные записи — пуш в user()). */
 const createdCredentials: { email: string; password: string }[] = [];
 
-function newPassword(envValue: string | undefined, email: string): string {
-  if (envValue) return envValue;
-  const pass = `N-${randomBytes(9).toString('base64url')}`;
-  createdCredentials.push({ email, password: pass });
-  return pass;
+function newPassword(envValue: string | undefined): string {
+  return envValue ?? `N-${randomBytes(9).toString('base64url')}`;
 }
 
 async function main(): Promise<void> {
@@ -122,10 +124,11 @@ async function main(): Promise<void> {
 
   // --- Пользователи ---
   const demoPasswordEnv = process.env.SEED_DEMO_PASSWORD; // стенды: единый пароль
-  const adminPassword = newPassword(process.env.SEED_ADMIN_PASSWORD, 'admin@nodus.by');
+  const adminPassword = newPassword(process.env.SEED_ADMIN_PASSWORD);
   const adminHash = await argon2.hash(adminPassword, ARGON2_OPTIONS);
 
   const pilotHashes = new Map<string, string>();
+  const pilotPasswords = new Map<string, string>();
   const pilots: {
     email: string;
     lastName: string;
@@ -176,10 +179,9 @@ async function main(): Promise<void> {
     },
   ];
   for (const pilot of pilots) {
-    pilotHashes.set(
-      pilot.email,
-      await argon2.hash(newPassword(demoPasswordEnv, pilot.email), ARGON2_OPTIONS),
-    );
+    const pass = newPassword(demoPasswordEnv);
+    pilotPasswords.set(pilot.email, pass);
+    pilotHashes.set(pilot.email, await argon2.hash(pass, ARGON2_OPTIONS));
   }
 
   /**
@@ -190,6 +192,8 @@ async function main(): Promise<void> {
     email: string;
     passwordHash: string;
     updatePassword: boolean;
+    /** Пароль, показанный один раз — только если запись реально создаётся. */
+    generatedPassword?: string;
     lastName: string;
     firstName: string;
     middleName?: string;
@@ -199,6 +203,10 @@ async function main(): Promise<void> {
     roleId: string;
   }) {
     const displayName = [data.lastName, data.firstName, data.middleName].filter(Boolean).join(' ');
+    const existing = await prisma.user.findUnique({
+      where: { email: data.email },
+      select: { id: true },
+    });
     const record = await prisma.user.upsert({
       where: { email: data.email },
       update: data.updatePassword ? { passwordHash: data.passwordHash } : {},
@@ -214,6 +222,9 @@ async function main(): Promise<void> {
         managerId: data.managerId ?? null,
       },
     });
+    if (!existing && data.generatedPassword) {
+      createdCredentials.push({ email: data.email, password: data.generatedPassword });
+    }
     await prisma.userRole.upsert({
       where: { userId_roleId: { userId: record.id, roleId: data.roleId } },
       update: {},
@@ -227,6 +238,7 @@ async function main(): Promise<void> {
     email: 'admin@nodus.by',
     passwordHash: adminHash,
     updatePassword: Boolean(process.env.SEED_ADMIN_PASSWORD),
+    generatedPassword: process.env.SEED_ADMIN_PASSWORD ? undefined : adminPassword,
     lastName: 'Администратор',
     firstName: 'Системный',
     roleId: adminRole.id,
@@ -240,6 +252,7 @@ async function main(): Promise<void> {
         ...pilot,
         passwordHash: pilotHashes.get(pilot.email)!,
         updatePassword: Boolean(demoPasswordEnv),
+        generatedPassword: demoPasswordEnv ? undefined : pilotPasswords.get(pilot.email)!,
         departmentId: bimGroup.id,
       }),
     );
@@ -328,8 +341,10 @@ async function main(): Promise<void> {
       },
     });
   }
-  await prisma.conversation.update({
-    where: { id: NEWS_CHANNEL_ID },
+  // Курсор порядка только вперёд: ре-сид на живом пилоте не должен откатить
+  // last_seq ниже уже отправленных (unique(conversation_id, seq)).
+  await prisma.conversation.updateMany({
+    where: { id: NEWS_CHANNEL_ID, lastSeq: { lt: 3n } },
     data: { lastSeq: 3n, lastMessageAt: new Date() },
   });
 
