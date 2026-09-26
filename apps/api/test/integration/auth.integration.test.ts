@@ -29,12 +29,13 @@ import { ensureTestDatabase } from './test-db.js';
 
 // Креды тестового стенда (nodus_test): сид запускается с ними же ниже —
 // дефолты сида случайные (пароли прода больше не известны из git).
+// EMPLOYEE — pilot-учётка роли employee из сида (BIM-мастер).
 const ADMIN = {
   email: 'admin@nodus.by',
   password: process.env.SEED_ADMIN_PASSWORD ?? 'test-admin-password',
 };
 const EMPLOYEE = {
-  email: 'sidorova@nodus.by',
+  email: 'a.voronich@passatproekt.by',
   password: process.env.SEED_DEMO_PASSWORD ?? 'test-demo-password',
 };
 
@@ -218,7 +219,7 @@ describe('auth + directory (integration)', () => {
     // Админ деактивирует сотрудника
     const adminLogin = await login(baseUrl, ADMIN.email, ADMIN.password);
     const adminTokens = authTokensSchema.parse(await adminLogin.json());
-    const list = await fetch(`${baseUrl}/directory/users?search=Сидорова`, {
+    const list = await fetch(`${baseUrl}/directory/users?search=Воронич`, {
       headers: { authorization: `Bearer ${adminTokens.accessToken}` },
     });
     const { items } = paginatedSchema(userListItemSchema).parse(await list.json());
@@ -261,16 +262,16 @@ describe('auth + directory (integration)', () => {
     const roots = z.array(departmentNodeSchema).parse(await tree.json());
     expect(roots).toHaveLength(1);
     expect(roots[0]!.name).toBe('ПассатПроект');
-    expect(roots[0]!.headName).toContain('Василевич');
-    // BIM-группа вложена в Проектное
-    const project = roots[0]!.children.find((c) => c.name === 'Проектное');
-    expect(project!.children.map((c) => c.name)).toContain('Группа BIM-технологий');
+    // Единственная пилотная группа — прямой ребёнок компании, с руководителем.
+    const bim = roots[0]!.children.find((c) => c.name === 'Группа BIM-технологий');
+    expect(bim).toBeDefined();
+    expect(bim!.headName).toContain('Климович');
 
-    // Юридическая структура — отдельным деревом
+    // Юридическая структура на пилоте не сеется — дерево пусто.
     const legal = await fetch(`${baseUrl}/directory/departments/tree?kind=legal`, {
       headers: { authorization: `Bearer ${accessToken}` },
     });
     const legalRoots = z.array(departmentNodeSchema).parse(await legal.json());
-    expect(legalRoots[0]!.children.map((c) => c.name)).toContain('Группа ГИПов');
+    expect(legalRoots).toHaveLength(0);
   });
 });
