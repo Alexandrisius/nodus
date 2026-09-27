@@ -35,7 +35,25 @@ export function pushRecentEmoji(emoji: string): void {
   localStorage.setItem(RECENT_KEY, JSON.stringify(next));
 }
 
-type EmojiData = typeof import('./emoji-data.js');
+export interface EmojiEntry {
+  /** Юникод-глиф (вставляется в текст как есть). */
+  e: string;
+  /** Английское имя (unicode) — поиск. */
+  n: string;
+  /** Русские ключевые слова (CLDR tts + default) — поиск. */
+  s?: string;
+}
+
+interface EmojiGroupJson {
+  id: string;
+  emojis: EmojiEntry[];
+}
+
+interface EmojiData {
+  EMOJI_GROUPS: EmojiGroupJson[];
+}
+
+type Section = { id: string; title: string; emojis: EmojiEntry[] };
 
 /** Названия категорий — из i18n (I15), данные их не несут. */
 const GROUP_TITLES: Record<string, string> = {
@@ -49,9 +67,16 @@ const GROUP_TITLES: Record<string, string> = {
   symbols: ui.chat.emojiGroupSymbols,
   flags: ui.chat.emojiGroupFlags,
 };
+/** Данные — public/emoji/emoji-data.json (Unicode 16.0 + CLDR ru; генерация,
+ *  вне линтера I5): 204КБ, gzip ~60КБ, грузится ПРИ ОТКРЫТИИ панели один раз. */
 let dataCache: Promise<EmojiData> | null = null;
 function loadEmojiData(): Promise<EmojiData> {
-  dataCache ??= import('./emoji-data.js');
+  dataCache ??= fetch('/emoji/emoji-data.json')
+    .then((res) => {
+      if (!res.ok) throw new Error('emoji data unavailable');
+      return res.json() as Promise<{ groups: EmojiGroupJson[] }>;
+    })
+    .then((json) => ({ EMOJI_GROUPS: json.groups }));
   return dataCache;
 }
 
@@ -79,11 +104,11 @@ export function EmojiPickerButton({
     };
   }, [open, data]);
 
-  const sections = useMemo(() => {
+  const sections = useMemo<Section[]>(() => {
     if (!data) return [];
     const q = query.trim().toLowerCase();
     if (q.length > 0) {
-      const found: EmojiData['EMOJI_GROUPS'][number]['emojis'] = [];
+      const found: EmojiEntry[] = [];
       for (const group of data.EMOJI_GROUPS) {
         for (const entry of group.emojis) {
           if (entry.n.includes(q) || entry.s?.includes(q)) found.push(entry);

@@ -12,8 +12,35 @@ import { EmojiPickerButton, pushRecentEmoji, recentEmojis } from './emoji-picker
 beforeEach(() => {
   localStorage.clear();
   window.HTMLElement.prototype.scrollIntoView = vi.fn();
+  // Данные — public JSON (fetch): в jsdom сети нет, отдаём мини-набор.
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            groups: [
+              {
+                id: 'smileys',
+                emojis: [
+                  { e: '🔥', n: 'fire' },
+                  { e: '😀', n: 'grinning face' },
+                  { e: '🎉', n: 'party popper' },
+                ],
+              },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        ),
+    ),
+  );
 });
-afterEach(cleanup);
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+afterEach(() => {
+  cleanup();
+});
 
 const PICKED = vi.fn();
 
@@ -39,19 +66,18 @@ describe('EmojiPickerButton (#130)', () => {
   it('клик открывает панель; выбор — onPick и «Недавние»', async () => {
     setup();
     fireEvent.click(document.body.querySelector('button[aria-label="Эмодзи"]') as Element);
-    // Ленивый чанк данных резолвится — ждём появления сетки.
-    // Ленивый чанк данных (1906 эмодзи) резолвится в живую сетку.
+    // Данные (fetch JSON, стаб с мини-набором) резолвятся в живую сетку.
     await waitFor(
       () => {
         expect(
           Array.from(document.body.querySelectorAll('button[aria-label]')).length,
-        ).toBeGreaterThan(100);
+        ).toBeGreaterThan(2);
       },
-      { timeout: 20000 },
+      { timeout: 8000 },
     );
     const fire = emojiButton('fire');
     expect(fire).not.toBeNull();
-    fireEvent.click(fire);
+    fireEvent.click(fire as Element);
     expect(PICKED).toHaveBeenCalledWith('🔥');
     expect(recentEmojis()[0]).toBe('🔥');
     // Панель живёт после выбора (канон Telegram): «Недавние» сразу в DOM.
