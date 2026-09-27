@@ -382,11 +382,16 @@ export const ThreadFeed = memo(function ThreadFeed({
           onSubmit={handleSubmit}
         />
       ) : (
-        // Островок композера в неактивном состоянии: та же геометрия/тень,
-        // объяснение вместо ввода (обсуждение в тредах остаётся доступным).
-        <div className="shrink-0 bg-chat-zone px-3 py-2">
-          <div className="flex w-full items-center rounded-2xl bg-card px-3 py-2.5 shadow-sm">
-            <span className="text-sm text-muted-foreground">{ui.chat.composerNoPostRights}</span>
+        // Островок композера в неактивном состоянии — ИЗОМОРФЕН активному
+        // (#130, находка владельца: высота совпадает пиксель-в-пиксель, выдача
+        // права post не двигает ленту): обёртка/островок/строка — те же классы,
+        // что у ChatComposer, строка повторяет геометрию textarea (min-h-8
+        // px-1.5 py-1.5 text-sm). Обсуждение остаётся доступным в тредах.
+        <div className="shrink-0 bg-chat-zone px-3 pt-1.5 pb-2">
+          <div className="flex w-full rounded-2xl bg-card px-2 py-1.5 shadow-sm">
+            <div className="min-h-8 w-full px-1.5 py-1.5 text-sm text-muted-foreground">
+              {ui.chat.composerNoPostRights}
+            </div>
           </div>
         </div>
       )}
