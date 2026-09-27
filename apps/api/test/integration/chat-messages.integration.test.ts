@@ -253,14 +253,29 @@ describe.skipIf(!process.env.DATABASE_URL)('chat: сообщения (integratio
 
     const byBob = await fx.api(bob, 'POST', url, { body: { emoji: '👍' } });
     expect(byBob.status).toBe(200);
-    expect(messageSchema.parse(await byBob.json()).reactions).toEqual([
-      { emoji: '👍', count: 1, mine: true },
-    ]);
+    // users — кто поставил (#124: аватар+ФИО тултипа чипа; count === length).
+    const bobRef = (bob as unknown as { displayName: string }).displayName
+      ? {
+          id: bob.id,
+          displayName: (bob as unknown as { displayName: string }).displayName,
+          avatarUrl: null,
+        }
+      : null;
+    expect(bobRef).not.toBeNull();
+    expect(
+      messageSchema.parse(await byBob.json()).reactions.map((r) => ({
+        ...r,
+        users: r.users.map((u) => u.id),
+      })),
+    ).toEqual([{ emoji: '👍', count: 1, mine: true, users: [bob.id] }]);
 
     const byAlice = await fx.api(alice, 'POST', url, { body: { emoji: '👍' } });
-    expect(messageSchema.parse(await byAlice.json()).reactions).toEqual([
-      { emoji: '👍', count: 2, mine: true },
-    ]);
+    expect(
+      messageSchema.parse(await byAlice.json()).reactions.map((r) => ({
+        ...r,
+        users: r.users.map((u) => u.id),
+      })),
+    ).toEqual([{ emoji: '👍', count: 2, mine: true, users: [bob.id, alice.id] }]);
 
     const removed = await fx.api(bob, 'POST', url, { body: { emoji: '👍', remove: true } });
     expect(messageSchema.parse(await removed.json()).reactions).toEqual([

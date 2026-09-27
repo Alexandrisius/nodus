@@ -249,7 +249,7 @@ export const ChatMessageItem = memo(function ChatMessageItem({
               <MessageMeta message={message} mine={mine} ticks={mine} className="ml-auto" />
             </span>
           </BubbleContent>
-          {/* Ховер-попап реакций (#124): кнопка у верхнего угла пузыря
+          {/* Ховер-попап реакций (#124): кнопка у нижнего угла пузыря
               (Bubble — relative), видна по hover/focus/открытом попапе. */}
           <ReactionPicker message={message} atEnd={atEnd} />
           {/* Хвостик — ПОСЛЕ тела пузыря (вердикт владельца 14.09.2026:
