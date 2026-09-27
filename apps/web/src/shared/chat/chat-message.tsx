@@ -60,10 +60,12 @@ export function MessageReactions({
               'reaction-pop inline-flex cursor-pointer items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-label-sm tabular-nums transition-colors',
               onFilled
                 ? cn(
-                    'border-bubble-out-accent/40 text-bubble-out-accent',
+                    // Текст чипа на залитом пузыре — foreground поверхности
+                    // (акцент на тёмной заливке не дотягивал AA, валидатор
+                    // #127); hue реакции несут бордюр и подложка.
                     reaction.mine
-                      ? 'bg-bubble-out-accent/15'
-                      : 'bg-transparent hover:bg-bubble-out-accent/10',
+                      ? 'border-bubble-out-accent/50 bg-bubble-out-accent/20 text-bubble-out-foreground'
+                      : 'border-bubble-out-accent/30 bg-transparent text-bubble-out-foreground/80 hover:bg-bubble-out-accent/10',
                   )
                 : reaction.mine
                   ? 'border-info/40 bg-info-soft/60 text-info'

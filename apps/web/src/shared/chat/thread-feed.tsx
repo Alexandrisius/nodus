@@ -316,12 +316,13 @@ export const ThreadFeed = memo(function ThreadFeed({
                               <span
                                 className={cn(
                                   'flex items-center gap-1.5 font-mono text-label-sm tabular-nums',
-                                  // Точка «есть новые» + счётчик новым тоном —
-                                  // только наблюдателю трэда (раунд 3): иначе
-                                  // «кликнул канал, а нового ничего не видно».
-                                  threadStates?.get(root.id)?.unreadCount
-                                    ? surface.accentText
-                                    : 'text-muted-foreground',
+                                  // Тон счётчика — тон поверхности (AA на любой
+                                  // заливке, валидатор #127: muted-foreground на
+                                  // залитой тёмной проваливался до ~1.9:1);
+                                  // маркер «есть новые» — точка accentBg
+                                  // (графический контраст ≥3) только наблюдателю
+                                  // трэда (раунд 3).
+                                  surface.stripText,
                                 )}
                               >
                                 {threadStates?.get(root.id)?.unreadCount ? (
@@ -340,7 +341,7 @@ export const ThreadFeed = memo(function ThreadFeed({
                             <span
                               className={cn(
                                 'ml-auto inline-flex items-center gap-1 text-xs font-medium',
-                                surface.accentText,
+                                surface.linkText,
                               )}
                             >
                               {ui.chat.toThread}

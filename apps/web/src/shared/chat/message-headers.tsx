@@ -57,7 +57,18 @@ export function ReplyHeader({
         >
           {reply.deleted ? ui.chat.deletedPlaceholder : (reply.author?.displayName ?? '')}
         </span>
-        {reply.deleted ? null : <span className="truncate text-xs opacity-70">{snippet}</span>}
+        {reply.deleted ? null : (
+          <span
+            className={cn(
+              'truncate text-xs',
+              // На залитом пузыре сниппет плотнее (opacity-80): 70% foreground
+              // на тёмной заливке не дотягивал AA (валидатор #127).
+              onFilled ? 'opacity-80' : 'opacity-70',
+            )}
+          >
+            {snippet}
+          </span>
+        )}
       </span>
     </Tag>
   );

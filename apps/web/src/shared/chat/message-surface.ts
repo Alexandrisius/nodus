@@ -26,8 +26,15 @@ export function messageSurface(mine: boolean) {
     fill: mine
       ? 'bg-bubble-out text-bubble-out-foreground'
       : 'bg-bubble-in text-bubble-in-foreground',
-    /** Акцентный текст на поверхности (ссылка треда, счётчик новых): на залитой — акцент пузыря, на светлой — info. */
-    accentText: mine ? 'text-bubble-out-accent' : 'text-info',
+    /** Текст-ссылка на поверхности («Обсудить»): foreground поверхности с
+        weight/стрелкой как affordance — info на тонированной полосе не
+        дотягивал WCAG AA в обеих темах (валидатор #127); hue «нового» несёт
+        точка accentBg (графический контраст). */
+    linkText: mine ? 'text-bubble-out-foreground' : 'text-bubble-in-foreground/80',
+    /** Вторичный текст на поверхности (счётчик ответов ленты): foreground
+        поверхности (на залитой — целиком, на светлой — /70): muted-foreground
+        на залитой тёмной проваливался до ~1.9:1 (регресс #127, валидатор). */
+    stripText: mine ? 'text-bubble-out-foreground' : 'text-bubble-in-foreground/70',
     /** Акцентная точка/глиф на поверхности (индикатор непрочитанных ответов). */
     accentBg: mine ? 'bg-bubble-out-accent' : 'bg-info',
     /** Кольцо-разделитель на поверхности (стопка аватаров участников треда). */

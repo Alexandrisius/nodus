@@ -167,7 +167,7 @@ describe('Заливка пузырей — токены bubble-* (канон Te
     });
     const onOut = renderMessage(<MessageReactions message={withReaction} onFilled />);
     expect(onOut.container.querySelector('button[aria-pressed]')!.className).toContain(
-      'border-bubble-out-accent/40',
+      'border-bubble-out-accent/50',
     );
     onOut.unmount();
 

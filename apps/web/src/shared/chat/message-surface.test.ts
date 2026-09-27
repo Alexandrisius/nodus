@@ -14,7 +14,8 @@ describe('messageSurface — единое решение заливки сооб
     const s = messageSurface(true);
     expect(s.fill).toContain('bg-bubble-out');
     expect(s.fill).toContain('text-bubble-out-foreground');
-    expect(s.accentText).toBe('text-bubble-out-accent');
+    expect(s.linkText).toBe('text-bubble-out-foreground');
+    expect(s.stripText).toBe('text-bubble-out-foreground');
     expect(s.accentBg).toBe('bg-bubble-out-accent');
     expect(s.ring).toBe('ring-bubble-out');
     expect(s.onFilled).toBe(true);
@@ -24,7 +25,8 @@ describe('messageSurface — единое решение заливки сооб
     const s = messageSurface(false);
     expect(s.fill).toContain('bg-bubble-in');
     expect(s.fill).toContain('text-bubble-in-foreground');
-    expect(s.accentText).toBe('text-info');
+    expect(s.linkText).toBe('text-bubble-in-foreground/80');
+    expect(s.stripText).toBe('text-bubble-in-foreground/70');
     expect(s.accentBg).toBe('bg-info');
     expect(s.ring).toBe('ring-bubble-in');
     expect(s.onFilled).toBe(false);
