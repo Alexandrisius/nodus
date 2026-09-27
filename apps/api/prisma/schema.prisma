@@ -30,6 +30,12 @@ model Event {
   createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz()
   /// NULL = ожидает диспетчеризации поллером outbox.
   publishedAt   DateTime? @map("published_at") @db.Timestamptz()
+  /// Метка realtime-фанута (#104): NULL = ещё не опубликовано в Redis Stream.
+  /// Ставит RedisStreamPublisher ПОСЛЕ XADD; выборка `fanout_at IS NULL ORDER
+  /// BY seq` не теряет поздно закоммиченное событие, как seq-курсор (аудит
+  /// #123): курсор по seq перепрыгнул бы его навсегда. Парциальный индекс —
+  /// в миграции (Prisma не выражает partial-индексы).
+  fanoutAt      DateTime? @map("fanout_at") @db.Timestamptz()
 
   /// Горячий путь поллера: WHERE published_at IS NULL ORDER BY created_at.
   @@index([publishedAt, createdAt])
