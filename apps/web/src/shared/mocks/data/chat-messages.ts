@@ -49,7 +49,20 @@ export const channelMessages: ChatMessage[] = [
     'Коллеги, добрый день! В пятницу — корпоративный обед в честь дня рождения Ольги Карпович, начало в 15:00.',
     isoAgo(0, 10, 15),
     {
-      reactions: [{ emoji: '🎉', count: 5, mine: true }],
+      reactions: [
+        {
+          emoji: '🎉',
+          count: 5,
+          mine: true,
+          users: [
+            userRef(userIds.klimovich),
+            userRef(userIds.matorin),
+            userRef(userIds.karpovich),
+            userRef(userIds.vinnichek),
+            userRef(userIds.klevantovich),
+          ],
+        },
+      ],
       pinned: true,
     },
   ),
@@ -61,7 +74,14 @@ export const channelMessages: ChatMessage[] = [
     isoAgo(1, 14, 33),
     {
       threadRepliesCount: 2,
-      reactions: [{ emoji: '❤️', count: 3, mine: false }],
+      reactions: [
+        {
+          emoji: '❤️',
+          count: 3,
+          mine: false,
+          users: [userRef(userIds.matorin), userRef(userIds.karpovich), userRef(userIds.vinnichek)],
+        },
+      ],
       pinned: true,
       attachments: [
         {
@@ -124,7 +144,14 @@ export const channelMessages: ChatMessage[] = [
     isoAgo(0, 12, 40),
     {
       threadRepliesCount: 1,
-      reactions: [{ emoji: '👍', count: 2, mine: false }],
+      reactions: [
+        {
+          emoji: '👍',
+          count: 2,
+          mine: false,
+          users: [userRef(userIds.klevantovich), userRef(userIds.voronina)],
+        },
+      ],
       attachments: [
         {
           id: '70000000-0000-4000-8000-000000000103',
@@ -180,7 +207,14 @@ export const channelMessages: ChatMessage[] = [
     isoAgo(2, 9, 30),
     {
       threadRepliesCount: 2,
-      reactions: [{ emoji: '📌', count: 2, mine: true }],
+      reactions: [
+        {
+          emoji: '📌',
+          count: 2,
+          mine: true,
+          users: [userRef(userIds.klimovich), userRef(userIds.matorin)],
+        },
+      ],
     },
   ),
   msg(17, 8, userIds.klimovich, 'Взял в работу, черновик ответа покажу завтра.', isoAgo(2, 8, 15), {

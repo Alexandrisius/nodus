@@ -6,11 +6,17 @@ import {
   type QueryClientProviderProps,
 } from '@tanstack/react-query';
 import { createElement, type ReactNode } from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ChatMessage, Paginated } from '@nodus/contracts';
 
+import { useAuthStore } from '../auth-store.js';
 import { chatKeys } from './api.js';
-import { useDeleteMessage, useEditMessage } from './message-mutations.js';
+import {
+  predictReactions,
+  useDeleteMessage,
+  useEditMessage,
+  useReactionToggle,
+} from './message-mutations.js';
 
 /**
  * Детерминированные тесты оптимистичности (канон I4/patterns.md): мутация
@@ -219,5 +225,113 @@ describe('useDeleteMessage — прогноз правила следа (A5)', (
     // Сервер вернул надгробие — оно должно появиться в кэше, хоть прогноз был «удалить».
     const cached = items(client);
     expect(cached.some((m) => m.id === M1 && m.deletedAt !== null)).toBe(true);
+  });
+});
+
+const ME_REF = { id: 'me', displayName: 'Я', avatarUrl: null };
+const U2_REF = { id: 'u2', displayName: 'Другой', avatarUrl: null };
+
+describe('predictReactions (#124)', () => {
+  it('add в пустой / инкремент чужой / no-op своей / remove до нуля (users следом)', () => {
+    expect(predictReactions(message(), '🔥', false, ME_REF)).toEqual([
+      { emoji: '🔥', count: 1, mine: true, users: [ME_REF] },
+    ]);
+    const others = message({
+      reactions: [{ emoji: '🔥', count: 1, mine: false, users: [U2_REF] }],
+    });
+    expect(predictReactions(others, '🔥', false, ME_REF)).toEqual([
+      { emoji: '🔥', count: 2, mine: true, users: [U2_REF, ME_REF] },
+    ]);
+    const mine = message({
+      reactions: [{ emoji: '🔥', count: 2, mine: true, users: [ME_REF, U2_REF] }],
+    });
+    expect(predictReactions(mine, '🔥', false, ME_REF)).toBe(mine.reactions);
+    expect(predictReactions(mine, '🔥', true, ME_REF)).toEqual([
+      { emoji: '🔥', count: 1, mine: false, users: [U2_REF] },
+    ]);
+    const solo = message({ reactions: [{ emoji: '🔥', count: 1, mine: true, users: [ME_REF] }] });
+    expect(predictReactions(solo, '🔥', true, ME_REF)).toEqual([]);
+  });
+});
+
+describe('useReactionToggle — оптимистичность (#124)', () => {
+  beforeEach(() => {
+    useAuthStore.setState({
+      user: { id: 'me', displayName: 'Я', email: 'me@nodus.by', permissions: [] },
+    });
+  });
+  afterEach(() => {
+    useAuthStore.setState({ user: null });
+  });
+  function stubPost(gate: Promise<Response>) {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+        if ((init?.method ?? 'GET') === 'POST') return gate;
+        return new Response(JSON.stringify({ items: [], nextCursor: null }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }),
+    );
+  }
+
+  it('add: чип mine:true ДО ответа; ошибка — откат по снапшоту', async () => {
+    const client = new QueryClient();
+    seed(client, message());
+    const gate = deferred<Response>();
+    stubPost(gate.promise);
+    const { result } = renderHook(() => useReactionToggle(CONV), {
+      wrapper: makeWrapper(client),
+    });
+
+    await act(async () => {
+      result.current.mutate({ messageId: M1, emoji: '👍', remove: false });
+    });
+    expect(items(client)[0]?.reactions).toEqual([
+      { emoji: '👍', count: 1, mine: true, users: [ME_REF] },
+    ]);
+
+    await act(async () => {
+      gate.reject(new Error('boom'));
+    });
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(items(client)[0]?.reactions).toEqual([]);
+  });
+
+  it('remove своей: декремент до ответа; onSuccess — серверная версия', async () => {
+    const client = new QueryClient();
+    seed(
+      client,
+      message({ reactions: [{ emoji: '👍', count: 2, mine: true, users: [ME_REF, U2_REF] }] }),
+    );
+    const gate = deferred<Response>();
+    stubPost(gate.promise);
+    const { result } = renderHook(() => useReactionToggle(CONV), {
+      wrapper: makeWrapper(client),
+    });
+
+    await act(async () => {
+      result.current.mutate({ messageId: M1, emoji: '👍', remove: true });
+    });
+    expect(items(client)[0]?.reactions).toEqual([
+      { emoji: '👍', count: 1, mine: false, users: [U2_REF] },
+    ]);
+
+    const server = message({
+      reactions: [{ emoji: '👍', count: 1, mine: false, users: [U2_REF] }],
+    });
+    await act(async () => {
+      gate.resolve(
+        new Response(JSON.stringify(server), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      );
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(items(client)[0]?.reactions).toEqual([
+      { emoji: '👍', count: 1, mine: false, users: [U2_REF] },
+    ]);
   });
 });

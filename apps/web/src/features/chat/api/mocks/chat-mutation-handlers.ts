@@ -4,6 +4,7 @@ import {
   editMessageBodySchema,
   ErrorCode,
   forwardMessagesBodySchema,
+  messageReactionToggleBodySchema,
 } from '@nodus/contracts';
 
 import { http, HttpResponse } from 'msw';
@@ -19,6 +20,7 @@ import {
   refreshLastMessage,
   removeMessage,
   threadWatchersOf,
+  toggleReaction,
   unpinById,
   uploadedAttachments,
   revealHiddenConversation,
@@ -153,6 +155,20 @@ export const chatMutationHandlers = [
     if (!unpinById(String(params.id), String(params.messageId))) return notFound();
     return new HttpResponse(null, { status: 204 });
   }),
+
+  /** Реакции (#124): toggle своей реакции — паритет серверному эндпоинту
+   *  message-actions (mine — против актёра мока). */
+  http.post(
+    '/api/v1/chat/conversations/:id/messages/:messageId/reactions',
+    async ({ params, request }) => {
+      const parsed = messageReactionToggleBodySchema.safeParse(await request.json());
+      if (!parsed.success) return validationFailed();
+      const message = findMessage(params.id, params.messageId);
+      if (!message) return notFound();
+      toggleReaction(message, parsed.data.emoji, parsed.data.remove === true);
+      return HttpResponse.json(message);
+    },
+  ),
 
   /** Пересылка (A7): серверные копии в целевую беседу (вложения — по ссылке,
    *  не перекачиваются); комментарий — отдельным сообщением ПЕРЕД блоком

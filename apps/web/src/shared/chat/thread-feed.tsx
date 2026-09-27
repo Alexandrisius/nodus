@@ -12,6 +12,8 @@ import { chatAttachmentsEnabled } from './attachments-gate.js';
 import { useConversationMessages, useSendChatMessage } from './api.js';
 import { ChatComposer, type ComposerSubmit } from './chat-composer.js';
 import { ChatMessageItem } from './chat-message.js';
+import { ReactionPicker } from './reaction-picker.js';
+import { setOpenConversation } from './notifications.js';
 import { useChatDrafts } from './chat-drafts.js';
 import { MessageAttachments } from './attachments.js';
 import { MessageReactions } from './chat-message.js';
@@ -60,6 +62,13 @@ export const ThreadFeed = memo(function ThreadFeed({
   onOpenThread: (rootId: string) => void;
 }) {
   const scope = `feed:${conversationId}`;
+
+  // Открытая беседа для гейта уведомлений (#124): фоновая вкладка
+  // уведомляет о чужих сообщениях НЕОТКРЫТОЙ беседы.
+  useEffect(() => {
+    setOpenConversation(conversationId);
+    return () => setOpenConversation(null);
+  }, [conversationId]);
   const { data, isLoading } = useConversationMessages(conversationId);
   // Право публикации в ленту (I8 на клиенте — только UX; сервер проверяет
   // матрицу сам): без post композер ленты гасится, обсуждение — в тредах.
@@ -68,8 +77,8 @@ export const ThreadFeed = memo(function ThreadFeed({
   // Состояния трэдов текущего пользователя (раунд 3): точка «есть новые» на
   // счётчике ответов поста — только наблюдателям трэда.
   const { data: threadStates } = useThreadStates(conversationId);
-  const send = useSendChatMessage(conversationId);
-  const edit = useEditMessage(conversationId);
+  const send = useSendChatMessage(conversationId, scope);
+  const edit = useEditMessage(conversationId, scope);
   const me = useAuthStore((s) => s.user);
   const feedRef = useRef<HTMLDivElement>(null);
 
@@ -233,7 +242,8 @@ export const ThreadFeed = memo(function ThreadFeed({
                               onOpenThread(root.id);
                             }
                           }}
-                          className="node-panel w-full max-w-2xl cursor-pointer p-3.5 text-left transition-colors hover:border-input"
+                          className="node-panel relative w-full max-w-2xl cursor-pointer p-3.5 text-left
+                            transition-colors hover:border-input group/msg"
                         >
                           <span className="flex items-center gap-2 text-sm">
                             <PersonAvatar
@@ -312,6 +322,11 @@ export const ThreadFeed = memo(function ThreadFeed({
                               <ArrowRight className="size-3" strokeWidth={1.75} />
                             </span>
                           </span>
+                          {/* Ховер-кнопка реакций поста канала (#124, вердикт
+                              27.09): правый нижний угол карточки, видна по
+                              наведению на пост (group/msg); чипы реакций — в
+                              мета-строке выше. */}
+                          <ReactionPicker message={root} atEnd={false} />
                         </div>
                       </MessageMenu>
                     )}

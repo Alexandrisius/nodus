@@ -226,6 +226,44 @@ export function threadStatesMock(conversationId: string, userId: string) {
   return items;
 }
 
+/** Toggle реакции (#124, паритет серверной семантике message-actions):
+ *  remove/декремент — исчезновение на нуле; add — инкремент или новый чип;
+ *  повторный add по своей — no-op. Mine — против актёра мока. */
+export function toggleReaction(message: ChatMessage, emoji: string, remove: boolean): void {
+  const actor = actorUserRef();
+  const existing = message.reactions.find((reaction) => reaction.emoji === emoji);
+  if (remove) {
+    message.reactions = message.reactions
+      .map((reaction) =>
+        reaction.emoji === emoji
+          ? {
+              ...reaction,
+              users: reaction.users.filter((user) => user.id !== actor.id),
+              mine: false,
+            }
+          : reaction,
+      )
+      .map((reaction) => ({ ...reaction, count: reaction.users.length }))
+      .filter((reaction) => reaction.count > 0);
+    return;
+  }
+  if (existing) {
+    if (existing.mine) return;
+    message.reactions = message.reactions.map((reaction) =>
+      reaction.emoji === emoji
+        ? {
+            ...reaction,
+            users: [...reaction.users, actor],
+            count: reaction.users.length + 1,
+            mine: true,
+          }
+        : reaction,
+    );
+    return;
+  }
+  message.reactions = [...message.reactions, { emoji, count: 1, mine: true, users: [actor] }];
+}
+
 /** @упоминания мока (паритет серверу, раунд 3): токены @Имя против ФИО
  *  демо-справочника (точное совпадение имени/фамилии/ФИО). */
 export function parseMentionIds(

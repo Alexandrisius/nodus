@@ -1,15 +1,21 @@
 // @vitest-environment jsdom
 import { cleanup, render } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { TooltipProvider } from '@nodus/ui/components/tooltip';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { ChatMessage } from '@nodus/contracts';
 
-import { ChatMessageItem } from './chat-message.js';
+import { ChatMessageItem, MessageReactions } from './chat-message.js';
 
 // QueryClient остаётся: пузырь живёт в дереве с запросами ленты.
 const queryClient = new QueryClient();
 const renderMessage = (node: React.ReactElement) =>
-  render(<QueryClientProvider client={queryClient}>{node}</QueryClientProvider>);
+  render(
+    <QueryClientProvider client={queryClient}>
+      {/* Тултип «кто поставил» на чипах реакций требует Provider (#124). */}
+      <TooltipProvider>{node}</TooltipProvider>
+    </QueryClientProvider>,
+  );
 
 /**
  * Пузырь сообщения (#96): имя автора — ВНУТРИ облака верхней строкой (только
@@ -40,6 +46,10 @@ const message = (overrides: Partial<ChatMessage> = {}): ChatMessage => ({
 });
 
 afterEach(cleanup);
+
+function imgByAlt(root: Element | null, emoji: string): Element | null {
+  return Array.from(root?.querySelectorAll('img') ?? []).find((img) => img.alt === emoji) ?? null;
+}
 
 describe('ChatMessageItem — имя автора внутри пузыря (#96)', () => {
   it('showName: имя внутри [data-slot="bubble"] верхней строкой над содержимым', () => {
@@ -98,5 +108,50 @@ describe('ChatMessageItem — мета отдельной нижней стро�
 
     const theirs = renderMessage(<ChatMessageItem message={message()} mine={false} />);
     expect(theirs.container.querySelector('[data-slot="message-meta"] svg')).toBeNull();
+  });
+});
+
+describe('Реакции — кнопки-toggle (#124)', () => {
+  afterEach(cleanup);
+
+  it('чип — button с aria-pressed и счётчиком', () => {
+    const { container } = renderMessage(
+      <MessageReactions
+        message={message({
+          reactions: [
+            {
+              emoji: '👍',
+              count: 2,
+              mine: true,
+              users: [
+                { id: 'u1', displayName: 'Я', avatarUrl: null },
+                { id: 'u2', displayName: 'Ты', avatarUrl: null },
+              ],
+            },
+          ],
+        })}
+      />,
+    );
+    const chip = container.querySelector('button[aria-pressed="true"]');
+    expect(chip).not.toBeNull();
+    // Эмодзи чипа — анимированный APNG с юникодом в alt (счётчик — текстом).
+    expect(imgByAlt(chip, '👍')).not.toBeNull();
+    expect(chip?.textContent).toContain('2');
+  });
+
+  it('реакция БЕЗ users (api из main) не роняет ленту — чип рендерится', () => {
+    // Регрессия краша 27.09: дев-фронт опередил прод-api без поля users.
+    const legacy = message({
+      reactions: [{ emoji: '🔥', count: 2, mine: false } as never],
+    });
+    const { container } = renderMessage(<MessageReactions message={legacy} />);
+    const chip = container.querySelector('button[aria-pressed]');
+    expect(chip).not.toBeNull();
+    expect(imgByAlt(chip, '🔥')).not.toBeNull();
+  });
+
+  it('ховер-кнопка попапа есть у пузыря (data-slot)', () => {
+    const { container } = renderMessage(<ChatMessageItem message={message()} mine={false} />);
+    expect(container.querySelector('[data-slot="reaction-picker-trigger"]')).not.toBeNull();
   });
 });

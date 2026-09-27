@@ -193,7 +193,7 @@ export const demoTaskMessages: ChatMessage[] = [
     forwardedFrom: null,
     threadRootId: null,
     threadRepliesCount: 0,
-    reactions: [{ emoji: '👍', count: 1, mine: false }],
+    reactions: [{ emoji: '👍', count: 1, mine: false, users: [userRef(userIds.matorin)] }],
     attachments: [],
     editedAt: null,
     readAt: isoAgo(2, 9, 41),
