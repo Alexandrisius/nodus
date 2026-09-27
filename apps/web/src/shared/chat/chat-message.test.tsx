@@ -111,6 +111,73 @@ describe('ChatMessageItem — мета отдельной нижней стро�
   });
 });
 
+describe('Заливка пузырей — токены bubble-* (канон Telegram, #127)', () => {
+  it('свой пузырь — bg-bubble-out, чужой — bg-bubble-in (не global primary/card)', () => {
+    const mine = renderMessage(<ChatMessageItem message={message()} mine />);
+    expect(mine.container.querySelector('[data-slot="bubble"]')!.className).toContain(
+      'bg-bubble-out',
+    );
+    mine.unmount();
+
+    const theirs = renderMessage(<ChatMessageItem message={message()} mine={false} />);
+    expect(theirs.container.querySelector('[data-slot="bubble"]')!.className).toContain(
+      'bg-bubble-in',
+    );
+  });
+
+  it('мета своего — акцент пузыря, чужого — muted-foreground', () => {
+    const mine = renderMessage(<ChatMessageItem message={message()} mine />);
+    expect(mine.container.querySelector('[data-slot="message-meta"]')!.className).toContain(
+      'text-bubble-out-accent',
+    );
+    mine.unmount();
+
+    const theirs = renderMessage(<ChatMessageItem message={message()} mine={false} />);
+    expect(theirs.container.querySelector('[data-slot="message-meta"]')!.className).toContain(
+      'text-muted-foreground',
+    );
+  });
+
+  it('цитата в своём пузыре — бар и имя акцентом пузыря, в чужом — info', () => {
+    const reply = {
+      id: 'r1',
+      author: { id: 'a', displayName: 'Иван Петров', avatarUrl: null },
+      text: 'оригинал',
+      quoteText: null,
+      attachmentKind: null,
+      deleted: false,
+    } as never;
+    const mine = renderMessage(
+      <ChatMessageItem message={message({ reply })} mine showName={false} />,
+    );
+    const mineBar = mine.container.querySelector('[data-slot="bubble-content"] span[aria-hidden]');
+    expect(mineBar!.className).toContain('bg-bubble-out-accent');
+    mine.unmount();
+
+    const theirs = renderMessage(<ChatMessageItem message={message({ reply })} mine={false} />);
+    const theirBar = theirs.container.querySelector(
+      '[data-slot="bubble-content"] span[aria-hidden]',
+    );
+    expect(theirBar!.className).toContain('bg-info');
+  });
+
+  it('чипы реакций на залитом пузыре — акцент пузыря, на чужом — info/нейтраль', () => {
+    const withReaction = message({
+      reactions: [{ emoji: '👍', count: 1, mine: true, users: [] }],
+    });
+    const onOut = renderMessage(<MessageReactions message={withReaction} onFilled />);
+    expect(onOut.container.querySelector('button[aria-pressed]')!.className).toContain(
+      'border-bubble-out-accent/40',
+    );
+    onOut.unmount();
+
+    const onIn = renderMessage(<MessageReactions message={withReaction} />);
+    expect(onIn.container.querySelector('button[aria-pressed]')!.className).toContain(
+      'border-info/40',
+    );
+  });
+});
+
 describe('Реакции — кнопки-toggle (#124)', () => {
   afterEach(cleanup);
 

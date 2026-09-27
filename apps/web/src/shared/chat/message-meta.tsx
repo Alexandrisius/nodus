@@ -19,20 +19,24 @@ import { ReadTicks } from './read-ticks.js';
  * Кегль 10px (`text-badge`) и плотный leading 12px: мета читается как микро-
  * данные и не раздувает облако по высоте (вердикт 24.09.2026).
  *
- * Тон: чужой пузырь/пост — muted-foreground; свой (залитый primary) —
- * тон primary-foreground с прозрачностью. Галочки прочтения — ТОЛЬКО у своих:
- * «просмотрено» = сообщение просмотрел ХОТЯ БЫ ОДИН участник (readBy, модель
- * Битрикс24/Telegram, #102; у постов канала — тоже, критерий «Новости»).
+ * Тон — по ПОВЕРХНОСТИ, не по авторству (#127): на залитом своём пузыре —
+ * акцент пузыря (зелёный/светло-синий, канон Telegram: время и галочки в тон
+ * заливке); на чужом пузыре и на карточке поста (node-panel) — muted-foreground
+ * (до #127 тон шёл от mine: мета СВОИХ постов канала красилась
+ * primary-foreground и в тёмной теме исчезала чёрным по чёрному). Галочки
+ * прочтения — ТОЛЬКО у своих: «просмотрено» = сообщение просмотрел ХОТЯ БЫ
+ * ОДИН участник (readBy, модель Битрикс24/Telegram, #102; у постов канала —
+ * тоже, критерий «Новости»).
  */
 export function MessageMeta({
   message,
-  mine = false,
+  onFilled = false,
   ticks = false,
   className,
 }: {
   message: ChatMessage;
-  /** Своё сообщение — тон времени на заливке primary. */
-  mine?: boolean;
+  /** Мета на залитом своём пузыре — акцент пузыря вместо muted-foreground. */
+  onFilled?: boolean;
   /** Галочки отправлено/просмотрено (у своих сообщений и постов канала). */
   ticks?: boolean;
   className?: string;
@@ -42,7 +46,7 @@ export function MessageMeta({
       data-slot="message-meta"
       className={cn(
         'flex shrink-0 items-center gap-1 text-badge',
-        mine ? 'text-primary-foreground/70' : 'text-muted-foreground',
+        onFilled ? 'text-bubble-out-accent' : 'text-muted-foreground',
         className,
       )}
     >

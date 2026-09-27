@@ -39,7 +39,7 @@ export function BubbleTail({
         side === 'left' ? '-left-[0.75rem]' : '-right-[0.75rem]',
       )}
     >
-      <path d={PATHS[side]} className={variant === 'card' ? 'fill-card' : 'fill-primary'} />
+      <path d={PATHS[side]} className={variant === 'card' ? 'fill-bubble-in' : 'fill-bubble-out'} />
     </svg>
   );
 }

@@ -21,14 +21,23 @@ import { ReactionPicker } from './reaction-picker.js';
 import { MessageTombstone } from './tombstone.js';
 import { PersonAvatar } from '../ui/person-avatar.js';
 
-/** Реакции сообщения: плоские моно-чипы на токенах (моя — info). Чип — кнопка
+/** Реакции сообщения: плоские моно-чипы на токенах. Чип — кнопка
  *  (#124, канон Telegram): клик toggle'ит свою реакцию оптимистично. Ховер по
  *  чипу — тултип «кто поставил»: аватар+ФИО списком (вердикт 27.09 п.4; один
  *  поставивший — одна строка). users — опционально на рендере: api без поля
  *  (например, собран из main при деве с новым фронт-деревом) не роняет ленту,
  *  тултип просто не показывается. Key включает count/mine: смена реакции
- *  перемонтирует чип и проигрывает pop-анимацию (reaction-pop, globals). */
-export function MessageReactions({ message }: { message: ChatMessage }) {
+ *  перемонтирует чип и проигрывает pop-анимацию (reaction-pop, globals).
+ *  Тон — по поверхности (#127): на залитом своём пузыре чипы в акценте пузыря
+ *  (зелёный/светло-синий), на чужом пузыре и постах канала — info/нейтраль. */
+export function MessageReactions({
+  message,
+  onFilled = false,
+}: {
+  message: ChatMessage;
+  /** Чипы на залитом своём пузыре — акцент пузыря вместо info. */
+  onFilled?: boolean;
+}) {
   const toggle = useReactionToggle(message.conversationId);
   if (message.reactions.length === 0) return null;
   return (
@@ -49,9 +58,16 @@ export function MessageReactions({ message }: { message: ChatMessage }) {
             }
             className={cn(
               'reaction-pop inline-flex cursor-pointer items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-label-sm tabular-nums transition-colors',
-              reaction.mine
-                ? 'border-info/40 bg-info-soft/60 text-info'
-                : 'border-border bg-accent/40 text-muted-foreground hover:border-foreground/40',
+              onFilled
+                ? cn(
+                    'border-bubble-out-accent/40 text-bubble-out-accent',
+                    reaction.mine
+                      ? 'bg-bubble-out-accent/15'
+                      : 'bg-transparent hover:bg-bubble-out-accent/10',
+                  )
+                : reaction.mine
+                  ? 'border-info/40 bg-info-soft/60 text-info'
+                  : 'border-border bg-accent/40 text-muted-foreground hover:border-foreground/40',
             )}
           >
             <ReactionGlyph emoji={reaction.emoji} className="size-4" />
@@ -228,6 +244,7 @@ export const ChatMessageItem = memo(function ChatMessageItem({
             {message.reply ? (
               <ReplyHeader
                 reply={message.reply}
+                onFilled={mine}
                 onClick={() => {
                   const reply = message.reply;
                   if (reply) jumpToReply(reply.id);
@@ -245,8 +262,8 @@ export const ChatMessageItem = memo(function ChatMessageItem({
                 маленький), с реакциями строка реакций выше и толкает контент
                 вверх, а метка остаётся внизу пузыря. */}
             <span className="flex items-end gap-2">
-              <MessageReactions message={message} />
-              <MessageMeta message={message} mine={mine} ticks={mine} className="ml-auto" />
+              <MessageReactions message={message} onFilled={mine} />
+              <MessageMeta message={message} onFilled={mine} ticks={mine} className="ml-auto" />
             </span>
           </BubbleContent>
           {/* Ховер-попап реакций (#124): кнопка у нижнего угла пузыря

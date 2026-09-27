@@ -80,7 +80,7 @@ describe('MessageMeta — композиция меты (#96)', () => {
   it('галочка «просмотрено» по readBy (первый просмотревший, #102 р.2), не по readAt', () => {
     // readAt есть, но прочитавших нет (правка сбросила) — одна галочка (отправлено).
     const edited = message({ readAt: '2026-09-24T10:00:00Z', readBy: [] });
-    const onlySent = render(<MessageMeta message={edited} mine ticks />);
+    const onlySent = render(<MessageMeta message={edited} ticks />);
     expect(onlySent.container.querySelector('svg[role="img"]')?.getAttribute('aria-label')).toBe(
       'отправлено',
     );
@@ -88,7 +88,7 @@ describe('MessageMeta — композиция меты (#96)', () => {
 
     // Есть просмотревший — двойная галочка (просмотрено).
     const read = message({ readAt: '2026-09-24T10:00:00Z', readBy: [ref('u-1', 'Читатель')] });
-    const both = render(<MessageMeta message={read} mine ticks />);
+    const both = render(<MessageMeta message={read} ticks />);
     expect(both.container.querySelector('svg[role="img"]')?.getAttribute('aria-label')).toBe(
       'просмотрено',
     );
@@ -99,12 +99,21 @@ describe('MessageMeta — композиция меты (#96)', () => {
     expect(card.container.querySelector('svg')).toBeNull();
   });
 
-  it('свой тон и внешние классы применяются (ml-auto в строке пузыря)', () => {
+  it('тон залитого пузыря и внешние классы применяются (ml-auto в строке пузыря)', () => {
     const { container } = render(
-      <MessageMeta message={message()} mine ticks className="ml-auto" />,
+      <MessageMeta message={message()} onFilled ticks className="ml-auto" />,
     );
     const meta = container.querySelector('[data-slot="message-meta"]')!;
-    expect(meta.className).toContain('text-primary-foreground/70');
+    expect(meta.className).toContain('text-bubble-out-accent');
     expect(meta.className).toContain('ml-auto');
+  });
+
+  it('тон по поверхности, не по авторству (#127): без onFilled — muted-foreground', () => {
+    // Мета своих ПОСТОВ канала живёт на node-panel, не на заливке: тон muted
+    // (до #127 mine красил её primary-foreground — в тёмной теме чёрным по чёрному).
+    const { container } = render(<MessageMeta message={message()} ticks />);
+    const meta = container.querySelector('[data-slot="message-meta"]')!;
+    expect(meta.className).toContain('text-muted-foreground');
+    expect(meta.className).not.toContain('text-bubble-out-accent');
   });
 });
