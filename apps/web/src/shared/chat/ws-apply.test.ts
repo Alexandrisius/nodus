@@ -1,9 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { QueryClient } from '@tanstack/react-query';
-import type { ChatMessage } from '@nodus/contracts';
+import type { ChatMessage, UserRef } from '@nodus/contracts';
 
 import { chatKeys } from './api.js';
-import { applySentMessage } from './ws-apply.js';
+import { useAuthStore } from '../auth-store.js';
+import { applyReadEvent, applyReactionEvent, applySentMessage } from './ws-apply.js';
 
 /** Локальное применение chat.message_sent по seq (раунд 3, «буря рефечей»). */
 
@@ -188,6 +189,184 @@ describe('applySentMessage', () => {
       conversationId: CONV,
       threadRootId: null,
       message: undefined,
+    });
+    expect(applied).toBe(false);
+  });
+});
+
+describe('applyReactionEvent (#124)', () => {
+  const READER = { id: 'u2', displayName: 'Читатель', avatarUrl: null };
+
+  function seedConvWithReader(client: QueryClient) {
+    client.setQueryData(chatKeys.conversations(), {
+      items: [
+        {
+          id: CONV,
+          type: 'group',
+          title: 'б',
+          avatarUrl: null,
+          myRole: 'member',
+          permissions: {
+            changeInfo: 'owner',
+            addMembers: 'owner',
+            removeMembers: 'owner',
+            post: 'member',
+            manageSettings: 'owner',
+          },
+          draft: null,
+          visibility: null,
+          description: null,
+          project: null,
+          task: null,
+          letter: null,
+          membersPreview: [READER],
+          lastMessage: null,
+          unreadCount: 0,
+          myLastReadSeq: 0,
+          pinned: false,
+          muted: false,
+          snoozed: false,
+        },
+      ],
+      nextCursor: null,
+    });
+  }
+
+  it('added: чип патчится в ленте без рефеча (актор не я, users из кэша)', () => {
+    const client = new QueryClient();
+    seedConvWithReader(client);
+    client.setQueryData(chatKeys.messages(CONV), { items: [msg()], nextCursor: null });
+    const applied = applyReactionEvent(
+      client,
+      { conversationId: CONV, messageId: 'm1', emoji: '👍', userId: 'u2' },
+      true,
+    );
+    expect(applied).toBe(true);
+    expect(feed(client)[0]?.reactions).toEqual([
+      { emoji: '👍', count: 1, mine: false, users: [READER] },
+    ]);
+  });
+
+  it('removed: декремент; ноль убирает чип', () => {
+    const client = new QueryClient();
+    client.setQueryData(chatKeys.messages(CONV), {
+      items: [msg({ reactions: [{ emoji: '👍', count: 1, mine: false, users: [READER] }] })],
+      nextCursor: null,
+    });
+    const applied = applyReactionEvent(
+      client,
+      { conversationId: CONV, messageId: 'm1', emoji: '👍', userId: 'u2' },
+      false,
+    );
+    expect(applied).toBe(true);
+    expect(feed(client)[0]?.reactions).toEqual([]);
+  });
+
+  it('сообщения нет в кэше — false (вызывающий инвалидирует)', () => {
+    const client = new QueryClient();
+    const applied = applyReactionEvent(
+      client,
+      { conversationId: CONV, messageId: 'm1', emoji: '👍', userId: 'u2' },
+      true,
+    );
+    expect(applied).toBe(false);
+  });
+});
+
+describe('applyReadEvent (#124)', () => {
+  const ME = '00000000-0000-4000-8000-000000000001';
+  const READER = '00000000-0000-4000-8000-000000000002';
+
+  function seedConversations(client: QueryClient, members: UserRef[]) {
+    client.setQueryData(chatKeys.conversations(), {
+      items: [
+        {
+          id: CONV,
+          type: 'group',
+          title: 'беседа',
+          avatarUrl: null,
+          myRole: 'member',
+          permissions: {
+            changeInfo: 'owner',
+            addMembers: 'owner',
+            removeMembers: 'owner',
+            post: 'member',
+            manageSettings: 'owner',
+          },
+          draft: null,
+          visibility: null,
+          description: null,
+          project: null,
+          task: null,
+          letter: null,
+          membersPreview: members,
+          lastMessage: null,
+          unreadCount: 0,
+          myLastReadSeq: 0,
+          pinned: false,
+          muted: false,
+          snoozed: false,
+        },
+      ],
+      nextCursor: null,
+    });
+  }
+
+  beforeEach(() => {
+    useAuthStore.setState({
+      user: { id: ME, displayName: 'Я', email: 'me@nodus.by', permissions: [] },
+    });
+  });
+
+  afterEach(() => {
+    useAuthStore.setState({ user: null });
+  });
+
+  it('чужое прочтение: readBy/readAt моих сообщений до upToSeq', () => {
+    const client = new QueryClient();
+    seedConversations(client, [{ id: READER, displayName: 'Читатель', avatarUrl: null }]);
+    client.setQueryData(chatKeys.messages(CONV), {
+      items: [
+        msg({ id: 'mine', author: { id: ME, displayName: 'Я', avatarUrl: null }, seq: 3 }),
+        msg({ id: 'theirs', author: { id: READER, displayName: 'Ч', avatarUrl: null }, seq: 4 }),
+      ],
+      nextCursor: null,
+    });
+    const applied = applyReadEvent(client, {
+      conversationId: CONV,
+      userId: READER,
+      upToSeq: 3,
+      readAt: '2026-09-27T10:00:00Z',
+    });
+    expect(applied).toBe(true);
+    const [mine, theirs] = feed(client);
+    expect(mine?.readBy.map((r) => r.id)).toEqual([READER]);
+    expect(mine?.readAt).toBe('2026-09-27T10:00:00Z');
+    expect(theirs?.readBy).toEqual([]);
+  });
+
+  it('своё прочтение — true без патча (readBy себя не включает)', () => {
+    const client = new QueryClient();
+    client.setQueryData(chatKeys.messages(CONV), { items: [msg()], nextCursor: null });
+    const applied = applyReadEvent(client, {
+      conversationId: CONV,
+      userId: ME,
+      upToSeq: 9,
+      readAt: '2026-09-27T10:00:00Z',
+    });
+    expect(applied).toBe(true);
+    expect(feed(client)[0]?.readBy).toEqual([]);
+  });
+
+  it('читателя нет в membersPreview — false (вызывающий инвалидирует)', () => {
+    const client = new QueryClient();
+    seedConversations(client, []);
+    client.setQueryData(chatKeys.messages(CONV), { items: [msg()], nextCursor: null });
+    const applied = applyReadEvent(client, {
+      conversationId: CONV,
+      userId: READER,
+      upToSeq: 9,
+      readAt: '2026-09-27T10:00:00Z',
     });
     expect(applied).toBe(false);
   });

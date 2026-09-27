@@ -2,7 +2,7 @@ import type { QueryClient } from '@tanstack/react-query';
 import type { RealtimeEnvelope } from '@nodus/contracts';
 
 import { chatKeys } from '../chat/api.js';
-import { applySentMessage } from '../chat/ws-apply.js';
+import { applyReadEvent, applyReactionEvent, applySentMessage } from '../chat/ws-apply.js';
 import { createKeyBatcher, type KeyBatcher } from './invalidation-batcher.js';
 
 /**
@@ -52,14 +52,30 @@ export function createRealtimeInvalidator(queryClient: QueryClient): RealtimeInv
           push(conversationId, 'messages');
           if (conversationId) batcher.push(chatKeys.conversations(), 'list');
           return;
-        case 'chat.message_read':
-          // Галочки автора + бейдж непрочитанных + точки трэдов.
-          push(conversationId, 'messages');
-          push(conversationId, 'states');
-          if (conversationId) batcher.push(chatKeys.conversations(), 'list');
+        case 'chat.message_read': {
+          // Шторм квитанций (аудит #123): чужое прочтение патчит readBy автора
+          // ЛОКАЛЬНО (ws-apply) — без рефеча ленты и БЕЗ инвалидации списка
+          // бесед/состояний (свой бейдж гасит успех собственного POST /read,
+          // точки трэдов — тоже). Нет кэша для патча — прежние инвалидации.
+          const applied = applyReadEvent(queryClient, payload as never);
+          if (!applied) {
+            push(conversationId, 'messages');
+            push(conversationId, 'states');
+          }
           return;
+        }
         case 'chat.reaction_added':
-        case 'chat.reaction_removed':
+        case 'chat.reaction_removed': {
+          // Локальный патч реакций (ws-apply, #124): чипы обновляются без
+          // рефеча; нет сообщения в кэше — коалесцированный рефеч ленты.
+          const applied = applyReactionEvent(
+            queryClient,
+            payload as never,
+            envelope.type === 'chat.reaction_added',
+          );
+          if (!applied) push(conversationId, 'messages');
+          return;
+        }
         case 'chat.thread_created':
           push(conversationId, 'messages');
           push(conversationId, 'states');
