@@ -29,6 +29,7 @@ export interface ReactionRow {
   messageId: string;
   emoji: string;
   userId: string;
+  createdAt: Date;
 }
 
 export interface ThreadCountRow {
@@ -466,9 +467,11 @@ export class MessagesRepository {
   async reactionsFor(messageIds: string[]): Promise<ReactionRow[]> {
     if (messageIds.length === 0) return [];
     return this.prisma.$queryRaw<ReactionRow[]>(Prisma.sql`
-      SELECT message_id AS "messageId", emoji, user_id AS "userId"
+      SELECT message_id AS "messageId", emoji, user_id AS "userId",
+             created_at AS "createdAt"
       FROM message_reactions
       WHERE message_id = ANY(${messageIds}::uuid[])
+      ORDER BY emoji ASC, created_at ASC, user_id ASC
     `);
   }
 

@@ -33,42 +33,68 @@ export class ConversationItemMapper {
     row: ConversationListRow,
     ctx: ConversationItemContext,
   ): Promise<ConversationListItem> {
-    const members = ctx.members.filter((m) => m.conversationId === row.id);
-    const preview = await this.membersPreview(row, members, ctx.viewerId, ctx.refs);
-    const lastMessageRow = row.lm_id ? rowToMessageRow(row) : null;
-    const lastMessage = lastMessageRow
-      ? await this.messageMapper.toDto(lastMessageRow, { viewerId: ctx.viewerId, members })
-      : null;
-    return {
-      id: row.id,
-      type: row.type as ConversationListItem['type'],
-      title: row.title,
-      avatarUrl: null,
-      myRole: row.role as ConversationListItem['myRole'],
-      permissions: parsePermissions(row.permissions) as ConversationPermissions,
-      draft:
-        row.draft_text !== null
-          ? {
-              text: row.draft_text,
-              revision: row.draft_revision ?? 0,
-              updatedAt: (row.draft_updated_at ?? new Date()).toISOString(),
-            }
-          : null,
-      visibility: (row.visibility as ConversationListItem['visibility']) ?? null,
-      description: row.description,
-      project: null,
-      task: null,
-      letter: null,
-      membersPreview: preview,
-      lastMessage,
-      unreadCount: row.unread_count,
-      // Watermark текущего пользователя: якорь «первое непрочитанное» при
-      // открытии беседы (раунд 3) — seq > myLastReadSeq.
-      myLastReadSeq: Number(row.my_last_read_seq),
-      pinned: row.pinned,
-      muted: row.muted,
-      snoozed: row.snoozed,
-    };
+    const [item] = await this.toItems([row], ctx);
+    if (!item) throw new Error('toItem: empty page');
+    return item;
+  }
+
+  /** Страница списка бесед (#124): lastMessage всех строк — ОДНИМ toDtos
+   *  (6 батч-запросов на страницу вместо ~6 на строку; аудит #123: ~300
+   *  запросов на GET /chat/conversations). Курсоры прочтения смешанной
+   *  страницы — membersByConversation. */
+  async toItems(
+    rows: ConversationListRow[],
+    ctx: ConversationItemContext,
+  ): Promise<ConversationListItem[]> {
+    const membersByConversation = new Map<string, MemberRow[]>();
+    for (const row of rows) {
+      membersByConversation.set(
+        row.id,
+        ctx.members.filter((m) => m.conversationId === row.id),
+      );
+    }
+    const lastDtos = await this.messageMapper.toDtos(
+      rows.filter((row) => row.lm_id !== null).map(rowToMessageRow),
+      { viewerId: ctx.viewerId, members: ctx.members, membersByConversation },
+    );
+    const dtoById = new Map(lastDtos.map((dto) => [dto.id, dto]));
+    const items: ConversationListItem[] = [];
+    for (const row of rows) {
+      const members = membersByConversation.get(row.id) ?? [];
+      const preview = await this.membersPreview(row, members, ctx.viewerId, ctx.refs);
+      const lastMessage = row.lm_id ? (dtoById.get(row.lm_id) ?? null) : null;
+      items.push({
+        id: row.id,
+        type: row.type as ConversationListItem['type'],
+        title: row.title,
+        avatarUrl: null,
+        myRole: row.role as ConversationListItem['myRole'],
+        permissions: parsePermissions(row.permissions) as ConversationPermissions,
+        draft:
+          row.draft_text !== null
+            ? {
+                text: row.draft_text,
+                revision: row.draft_revision ?? 0,
+                updatedAt: (row.draft_updated_at ?? new Date()).toISOString(),
+              }
+            : null,
+        visibility: (row.visibility as ConversationListItem['visibility']) ?? null,
+        description: row.description,
+        project: null,
+        task: null,
+        letter: null,
+        membersPreview: preview,
+        lastMessage,
+        unreadCount: row.unread_count,
+        // Watermark текущего пользователя: якорь «первое непрочитанное» при
+        // открытии беседы (раунд 3) — seq > myLastReadSeq.
+        myLastReadSeq: Number(row.my_last_read_seq),
+        pinned: row.pinned,
+        muted: row.muted,
+        snoozed: row.snoozed,
+      });
+    }
+    return items;
   }
 
   private async membersPreview(

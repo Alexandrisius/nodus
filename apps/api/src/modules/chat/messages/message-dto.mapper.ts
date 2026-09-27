@@ -28,6 +28,15 @@ export interface MessageDtoContext {
   viewerId: string;
   /** Участники беседы сообщения (курсоры прочтения для readAt). */
   members: MemberRow[];
+  /** Смешанная страница (список бесед: lastMessage разных бесед одним
+   *  toDtos, #124): курсоры прочтения берутся ПО СВОЕЙ беседе; нет записи —
+   *  fallback на members. */
+  membersByConversation?: ReadonlyMap<string, MemberRow[]>;
+}
+
+/** Курсоры прочтения строки: своя беседа в смешанной странице, иначе members. */
+function membersFor(ctx: MessageDtoContext, conversationId: string): MemberRow[] {
+  return ctx.membersByConversation?.get(conversationId) ?? ctx.members;
 }
 
 /** Fallback-профиль: пользователя нет в справочнике (крайний случай). */
@@ -55,20 +64,20 @@ export class MessageDtoMapper {
     // Прочитавшие своих сообщений (#102): батч в общий loadRefs.
     const readByRows = rows.map((row) => ({
       row,
-      readers: computeReadBy(row, ctx.members, ctx.viewerId),
+      readers: computeReadBy(row, membersFor(ctx, row.conversationId), ctx.viewerId),
     }));
     const readerIds = new Set(readByRows.flatMap(({ readers }) => readers.map((r) => r.userId)));
-    const [refs, reactions, attachments, threadCounts, pinnedIds, replyOriginals] =
-      await Promise.all([
-        this.loadRefs(rows, readerIds),
-        this.messages.reactionsFor(ids),
-        this.messages.attachmentsFor(ids),
-        this.messages.threadReplyCounts(
-          rows.filter((r) => r.threadRootId === null).map((r) => r.id),
-        ),
-        this.pins.pinnedIds(ids),
-        replyIds.length > 0 ? this.messages.findByIds(replyIds) : Promise.resolve([]),
-      ]);
+    // Реакции читаются ДО refs: их userId попадают в общий батч профилей
+    // (тултип «кто поставил» — users в DTO, вердикт 27.09).
+    const reactions = await this.messages.reactionsFor(ids);
+    const reactionUserIds = new Set(reactions.map((r) => r.userId));
+    const [refs, attachments, threadCounts, pinnedIds, replyOriginals] = await Promise.all([
+      this.loadRefs(rows, readerIds, reactionUserIds),
+      this.messages.attachmentsFor(ids),
+      this.messages.threadReplyCounts(rows.filter((r) => r.threadRootId === null).map((r) => r.id)),
+      this.pins.pinnedIds(ids),
+      replyIds.length > 0 ? this.messages.findByIds(replyIds) : Promise.resolve([]),
+    ]);
 
     const reactionsByMessage = groupBy(reactions, (r) => r.messageId);
     const attachmentsByMessage = groupBy(attachments, (a) => a.messageId);
@@ -90,7 +99,7 @@ export class MessageDtoMapper {
         threadRepliesCount: row.threadRootId === null ? (threadCountByRoot.get(row.id) ?? 0) : 0,
         reactions: tombstone
           ? []
-          : groupReactions(reactionsByMessage.get(row.id) ?? [], ctx.viewerId),
+          : groupReactions(reactionsByMessage.get(row.id) ?? [], ctx.viewerId, refs),
         attachments: tombstone
           ? []
           : (attachmentsByMessage.get(row.id) ?? []).map((a): MessageAttachment => ({
@@ -108,7 +117,7 @@ export class MessageDtoMapper {
         deletedAt: row.deletedAt?.toISOString() ?? null,
         pinned: pinnedIds.has(row.id),
         forwardedFrom: buildForwardedFrom(row, refs),
-        readAt: computeReadAt(row, ctx.members, ctx.viewerId),
+        readAt: computeReadAt(row, membersFor(ctx, row.conversationId), ctx.viewerId),
         readBy: readers.map(
           (reader): UserRef => refs.get(reader.userId) ?? fallbackRef(reader.userId),
         ),
@@ -196,8 +205,9 @@ export class MessageDtoMapper {
   private async loadRefs(
     rows: MessageRow[],
     readerIds: Set<string> = new Set(),
+    extraIds: Set<string> = new Set(),
   ): Promise<Map<string, UserRef>> {
-    const ids = new Set<string>(readerIds);
+    const ids = new Set<string>([...readerIds, ...extraIds]);
     for (const row of rows) {
       ids.add(row.authorId);
       const snapshot = (row.replySnapshot ?? null) as ReplySnapshotValue | null;
@@ -221,16 +231,20 @@ function groupBy<T>(items: T[], key: (item: T) => string): Map<string, T[]> {
   return map;
 }
 
-function groupReactions(rows: ReactionRow[], viewerId: string): MessageReaction[] {
-  const byEmoji = new Map<string, { count: number; mine: boolean }>();
+function groupReactions(
+  rows: ReactionRow[],
+  viewerId: string,
+  refs: Map<string, UserRef>,
+): MessageReaction[] {
+  const byEmoji = new Map<string, { users: UserRef[]; mine: boolean }>();
   for (const { emoji, userId } of rows) {
-    const agg = byEmoji.get(emoji) ?? { count: 0, mine: false };
-    agg.count += 1;
+    const agg = byEmoji.get(emoji) ?? { users: [], mine: false };
+    agg.users.push(refs.get(userId) ?? fallbackRef(userId));
     agg.mine = agg.mine || userId === viewerId;
     byEmoji.set(emoji, agg);
   }
   return [...byEmoji.entries()]
-    .map(([emoji, { count, mine }]) => ({ emoji, count, mine }))
+    .map(([emoji, { users, mine }]) => ({ emoji, count: users.length, mine, users }))
     .sort((a, b) => b.count - a.count || a.emoji.localeCompare(b.emoji));
 }
 
