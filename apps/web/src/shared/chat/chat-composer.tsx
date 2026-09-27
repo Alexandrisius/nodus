@@ -273,8 +273,9 @@ export function ChatComposer({
     if (!canSubmit) return;
     const store = useChatDrafts.getState();
     if (draft.edit) {
+      // Черновик/режим правки чистит хост по onSuccess мутации (#124):
+      // ошибка сервера не должна терять набранную правку.
       onSubmit({ text: text.trim(), attachments: [], reply: null, edit: draft.edit });
-      store.finishEdit(focusId);
       return;
     }
     if (pending) {
@@ -310,8 +311,9 @@ export function ChatComposer({
       edit: null,
     });
     // Своё сообщение видно с любой позиции скролла (вердикт 24.09).
+    // Черновик чистит хост по onSuccess отправки (#124): сетевой сбой
+    // оставляет текст в композере (аудит #123: потерянного текста нет).
     requestScrollEnd();
-    store.clear(focusId);
   }
 
   function onSubmitForm(event: FormEvent) {

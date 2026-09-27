@@ -8,6 +8,7 @@ import { TooltipProvider } from '@nodus/ui/components/tooltip';
 import { registerCardBridge, registerReplaceTopMessenger } from '../../shared/lib/card-bridge.js';
 import { stageMessengerThread } from '../../shared/chat/messenger-nav.js';
 import { ChatDialogHosts } from '../../shared/chat/dialog-hosts.js';
+import { useUnreadTitle } from '../../shared/chat/unread-title.js';
 import { useChatSocket } from '../../shared/socket/use-chat-socket.js';
 import { WsDebugBadge } from '../../shared/socket/ws-debug-badge.js';
 import { CircuitFrame } from './circuit-frame.js';
@@ -41,6 +42,8 @@ export function AppShell() {
   const replaceTopCard = useReplaceTopCard();
   // WS чата (#104): живёт с сессией, тихий статус; поллинг — fallback.
   useChatSocket();
+  // (N) Nodus в заголовке вкладки (#124): сигнал фоновой вкладке.
+  useUnreadTitle();
   const stressMode =
     typeof window !== 'undefined' &&
     Number(new URLSearchParams(window.location.search).get('stress') ?? 0) >= 1000;

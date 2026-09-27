@@ -16,6 +16,7 @@ import { api } from '../api-client.js';
 import { isDomainMocked } from '../api/api-mock-config.js';
 import { tasksKeys } from '../api/tasks-keys.js';
 import { useAuthStore } from '../auth-store.js';
+import { useChatDrafts } from './chat-drafts.js';
 import { useSocketStatusStore } from '../socket/socket-status-store.js';
 
 /**
@@ -175,7 +176,7 @@ interface SendChatMutationVars extends SendChatVars {
   tempId: string;
 }
 
-export function useSendChatMessage(conversationId: string) {
+export function useSendChatMessage(conversationId: string, draftScope?: string) {
   const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user);
 
@@ -266,6 +267,10 @@ export function useSendChatMessage(conversationId: string) {
     },
 
     onSuccess: (server, _vars, context) => {
+      // Черновик чистится ТОЛЬКО по успеху (#124, аудит #123): при ошибке
+      // сети набранный текст остаётся в композере (retry тем же ключом
+      // идемпотентности). Скоуп знает хост (conversation/feed/thread).
+      if (draftScope) useChatDrafts.getState().clear(draftScope);
       // Темповая запись заменяется серверной в том же кэше (лента или тред).
       queryClient.setQueryData<Paginated<ChatMessage>>(context?.threadKey, (old) =>
         old
