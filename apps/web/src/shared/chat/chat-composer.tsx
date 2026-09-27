@@ -28,6 +28,7 @@ import {
   type ReplyDraft,
 } from './chat-drafts.js';
 import { ComposerAttachments } from './composer-attachments.js';
+import { EmojiPickerButton } from './emoji-picker.js';
 import { ComposerBanner } from './composer-banner.js';
 import { ComposerClipMenu } from './composer-clip-menu.js';
 import { addFiles } from './composer-files.js';
@@ -316,6 +317,24 @@ export function ChatComposer({
     requestScrollEnd();
   }
 
+  /** Вставка эмодзи из панели (#130): в позицию КАРЕТКИ поля, каретка — за
+   *  вставленным глифом (канон мессенджеров); поле получает фокус обратно. */
+  function insertEmoji(emoji: string) {
+    const el = inputRef.current;
+    if (!el) {
+      setText(focusId, text + emoji);
+      return;
+    }
+    const start = el.selectionStart ?? text.length;
+    const end = el.selectionEnd ?? start;
+    setText(focusId, text.slice(0, start) + emoji + text.slice(end));
+    const caret = start + emoji.length;
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(caret, caret);
+    });
+  }
+
   function onSubmitForm(event: FormEvent) {
     event.preventDefault();
     submit();
@@ -501,16 +520,20 @@ export function ChatComposer({
                 rows={1}
                 className="max-h-[45vh] min-h-8 flex-1 resize-none rounded-lg border-0 bg-transparent px-1.5 py-1.5 shadow-none ring-0 focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent"
               />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className={cn('shrink-0 text-muted-foreground', align)}
-                aria-label={ui.chat.emoji}
-                title={ui.chat.emoji}
-              >
-                <Smile strokeWidth={1.75} />
-              </Button>
+              {/* Панель эмодзи (#130): клик — категории/поиск/недавние,
+                  вставка в позицию каретки; попап не крадёт «вечный курсор». */}
+              <EmojiPickerButton onPick={insertEmoji}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className={cn('shrink-0 text-muted-foreground', align)}
+                  aria-label={ui.chat.emoji}
+                  title={ui.chat.emoji}
+                >
+                  <Smile strokeWidth={1.75} />
+                </Button>
+              </EmojiPickerButton>
               {/* Отправка/галка и мик — ОДИН габарит ghost-кнопки (size-8):
                   переключение не двигает строку; заливки НЕТ — гексагон в
                   семье значков, тон темнее (вердикт 24.09, раунды 4–5). */}
