@@ -34,10 +34,12 @@ services:
       # за NAT; k6-прогоны поднимают планку). Не задан — код берёт свой дефолт.
       RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-3000}
       DATABASE_URL: postgresql://${POSTGRES_USER:?задайте в .env}:${POSTGRES_PASSWORD:?задайте в .env}@nodus_postgres:5432/${POSTGRES_DB:?задайте в .env}
-      REDIS_URL: redis://nodus_redis:6379
+      REDIS_URL: redis://:${REDIS_PASSWORD:?задайте в .env}@nodus_redis:6379
       JWT_SECRET: ${JWT_SECRET:?задайте в .env}
     ports:
-      - '${NODUS_API_PORT:-3001}:3001'
+      # 127.0.0.1: api/gateway доступны хосту (k6, dev-таргет) и nginx web-контейнера
+      # по внутренней сети; в LAN не торчат (аудит #123, вердикт 27.09).
+      - '127.0.0.1:${NODUS_API_PORT:-3001}:3001'
     depends_on:
       postgres:
         condition: service_healthy
@@ -64,9 +66,9 @@ services:
       # (членство/профили), consumer Redis Stream событий чата.
       JWT_SECRET: ${JWT_SECRET:?задайте в .env}
       DATABASE_URL: postgresql://${POSTGRES_USER:?задайте в .env}:${POSTGRES_PASSWORD:?задайте в .env}@nodus_postgres:5432/${POSTGRES_DB:?задайте в .env}
-      REDIS_URL: redis://nodus_redis:6379
+      REDIS_URL: redis://:${REDIS_PASSWORD:?задайте в .env}@nodus_redis:6379
     ports:
-      - '${NODUS_GATEWAY_PORT:-3002}:3002'
+      - '127.0.0.1:${NODUS_GATEWAY_PORT:-3002}:3002'
     depends_on:
       postgres:
         condition: service_healthy
@@ -94,7 +96,8 @@ services:
       # папке версии) — так будущие мажорные апгрейды возможны через pg_upgrade --link.
       - nodus_pgdata:/var/lib/postgresql
     ports:
-      - '${NODUS_POSTGRES_PORT:-5432}:5432'
+      # Хостовому dev нужен локальный доступ — но не LAN (аудит #123).
+      - '127.0.0.1:${NODUS_POSTGRES_PORT:-5432}:5432'
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
       interval: 5s
@@ -106,13 +109,18 @@ services:
     image: redis:8-alpine
     container_name: nodus_redis
     restart: unless-stopped
-    command: ['redis-server', '--appendonly', 'yes']
+    # requirepass: official image выключает protected-mode, без пароля любой
+    # процесс хоста/LAN мог FLUSHALL и читать стрим событий (аудит #123).
+    command:
+      ['redis-server', '--appendonly', 'yes', '--requirepass', '${REDIS_PASSWORD:?задайте в .env}']
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?задайте в .env}
     volumes:
       - nodus_redisdata:/data
     ports:
-      - '${NODUS_REDIS_PORT:-6379}:6379'
+      - '127.0.0.1:${NODUS_REDIS_PORT:-6379}:6379'
     healthcheck:
-      test: ['CMD', 'redis-cli', 'ping']
+      test: ['CMD-SHELL', 'REDISCLI_AUTH=$$REDIS_PASSWORD redis-cli ping']
       interval: 5s
       timeout: 3s
       retries: 10
@@ -129,8 +137,8 @@ services:
     volumes:
       - nodus_miniodata:/data
     ports:
-      - '${NODUS_MINIO_API_PORT:-9000}:9000'
-      - '${NODUS_MINIO_CONSOLE_PORT:-9001}:9001'
+      - '127.0.0.1:${NODUS_MINIO_API_PORT:-9000}:9000'
+      - '127.0.0.1:${NODUS_MINIO_CONSOLE_PORT:-9001}:9001'
     healthcheck:
       test: ['CMD', 'mc', 'ready', 'local']
       interval: 10s
@@ -143,8 +151,8 @@ services:
     image: gotenberg/gotenberg:8
     container_name: nodus_gotenberg
     restart: unless-stopped
-    ports:
-      - '${NODUS_GOTENBERG_PORT:-3100}:3000'
+    # Без опубликованного порта: потребителей в api нет, а открытый 3100 —
+    # SSRF-прокси в LAN (аудит #123). Порт вернётся вместе с первым потребителем (#51).
     networks: [nodus_net]
 
   # Туннель к nodus.by (ADR-0002): поднимается явно — `docker compose --profile tunnel up -d`.

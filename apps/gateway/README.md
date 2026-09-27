@@ -15,8 +15,9 @@ presence. Спека — issue #104 (трек M13).
 
 - **Fanout**: api после коммита пишет `chat.*` в outbox (`events`); издатель
   `RedisStreamPublisher` (apps/api, `core/events`) публикует их в Redis Stream
-  `nodus:chat:events` (опрос по монотонному `events.seq`, ~100 мс — бюджет
-  p95 доставки < 200 мс). Gateway — consumer group `nodus:gateway` (XREADGROUP
+  `nodus:chat:events` (опрос хвоста `fanout_at IS NULL`, 50 мс — бюджет
+  p95 доставки < 200 мс; метка ставится после XADD, поздно закоммиченное
+  событие догоняет следующим тиком — аудит #123). Gateway — consumer group `nodus:gateway` (XREADGROUP
   BLOCK), рассылает envelope **`{ type, payload, seq, ts }`** (канон
   api-conventions.md; seq = events.seq, глобальный порядок) по комнатам из
   payload. Группа создаётся на `$` — историю не ретранслируем: клиент,

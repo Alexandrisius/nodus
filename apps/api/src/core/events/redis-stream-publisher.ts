@@ -17,26 +17,8 @@ const BATCH_LIMIT = 200;
 /** Хвост стрима: история в стриме не нужна (клиент ресинхронизируется рефечем). */
 const STREAM_MAXLEN = 100_000;
 
-/**
- * Ключ чекпоинта скоупится именем БД: dev- и тестовые контуры делят один
- * Redis (ADR-0002), а seq в разных БД несравнимы — общий ключ заставил бы
- * контуры перезаписывать точку друг друга (и flood-ом публиковать историю).
- */
-export function fanoutCheckpointKey(databaseUrl: string | undefined): string {
-  let database = 'nodus';
-  try {
-    const path = new URL(databaseUrl ?? '').pathname;
-    const parsed = path.split('/').filter(Boolean).pop();
-    if (parsed) {
-      database = parsed;
-    }
-  } catch {
-    // невалидный/отсутствующий URL — дефолт
-  }
-  return `nodus:chat:fanout:seq:${database}`;
-}
-
 interface PendingEventRow {
+  id: string;
   seq: bigint;
   type: string;
   payload: unknown;
@@ -44,24 +26,30 @@ interface PendingEventRow {
 }
 
 /**
- * Издатель realtime-фанута (#104): читает outbox `events` по монотонному
- * `seq` и публикует доменные события `chat.*` в Redis Stream
- * `nodus:chat:events` (consumer — WS-gateway). Это отдельный лёгкий поллер,
- * а не EventDispatcher: тот доставляет события внутрибоксовым обработчикам
- * (1 с), здесь бюджет — <200 мс до браузера.
+ * Издатель realtime-фанута (#104): читает хвост outbox `events` с доменными
+ * событиями `chat.*` и публикует их в Redis Stream `nodus:chat:events`
+ * (consumer — WS-gateway). Это отдельный лёгкий поллер, а не EventDispatcher:
+ * тот доставляет события внутрибоксовым обработчикам (1 с), здесь бюджет —
+ * <200 мс до браузера.
  *
- * Гарантии: at-least-once (крэш между XADD и чекпоинтом → повторная
- * публикация части батча); порядок — по seq, но поздняя фиксация транзакции
- * может дать событию меньший seq после большего — безопасно, клиент
- * применяет события ТОЛЬКО как сигнал к рефечу, состояние не применяется.
- * Bootstrap без чекпоинта: старт с max(seq) — историю в стрим не льём.
+ * Курсор — множество строк с `fanout_at IS NULL`, а НЕ `seq > checkpoint`:
+ * seq выделяется последовательностью БД ВНУТРИ незакоммиченной транзакции,
+ * поэтому событие, закоммиченное позже соседа с большим seq, seq-курсор
+ * перепрыгивает навсегда («отправил, а не пришло» без следов в логах —
+ * аудит #123). Метка `fanout_at` ставится ПОСЛЕ успешного XADD: поздно
+ * закоммиченное событие подберётся следующим тиком, а нормальные идут с
+ * бюджетом 50 мс. Порядок выдачи — по seq; инверсию порядка приёма клиент
+ * ловит «дырой» seq и откатывается к рефечу (ws-apply).
+ *
+ * Гарантии: at-least-once (крэш между XADD и меткой → повторная публикация
+ * батча; дубли для gateway безвредны). Bootstrap: история до max(seq)
+ * помечается опубликованной разом — в стрим льётся только живой хвост;
+ * закоммиченное «в щель» bootstrap-а событие метки не получает и доедет.
  */
 @Injectable()
 export class RedisStreamPublisher implements OnModuleInit, OnModuleDestroy {
-  private checkpoint: bigint | null = null;
   private timer: NodeJS.Timeout | null = null;
   private publishing = false;
-  private readonly checkpointKey: string;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -69,21 +57,14 @@ export class RedisStreamPublisher implements OnModuleInit, OnModuleDestroy {
     private readonly logger: PinoLogger,
   ) {
     this.logger.setContext(RedisStreamPublisher.name);
-    this.checkpointKey = fanoutCheckpointKey(process.env.DATABASE_URL);
   }
 
   async onModuleInit(): Promise<void> {
-    const stored = await this.redis.get(this.checkpointKey);
-    if (stored !== null) {
-      this.checkpoint = BigInt(stored);
-    } else {
-      const [row] = await this.prisma.$queryRaw<{ max: bigint | null }[]>(
-        Prisma.sql`SELECT max(seq) AS max FROM events`,
-      );
-      this.checkpoint = row?.max ?? 0n;
-      await this.redis.set(this.checkpointKey, this.checkpoint.toString());
-      this.logger.info({ checkpoint: this.checkpoint.toString() }, 'fanout bootstrap at max(seq)');
-    }
+    const marked = await this.prisma.$executeRaw(
+      Prisma.sql`UPDATE events SET fanout_at = now()
+                 WHERE fanout_at IS NULL AND seq <= (SELECT max(seq) FROM events)`,
+    );
+    this.logger.info({ marked }, 'fanout bootstrap: history marked published');
     this.timer = setInterval(() => {
       void this.publishPending();
     }, POLL_INTERVAL_MS);
@@ -98,15 +79,15 @@ export class RedisStreamPublisher implements OnModuleInit, OnModuleDestroy {
 
   /** Один проход публикации (также используется интеграционными тестами). */
   async publishPending(): Promise<void> {
-    if (this.publishing || this.checkpoint === null) {
-      return; // защита от наложения опросов / до завершения bootstrap
+    if (this.publishing) {
+      return; // защита от наложения опросов
     }
     this.publishing = true;
     try {
       const rows = await this.prisma.$queryRaw<PendingEventRow[]>(
-        Prisma.sql`SELECT seq, type, payload, created_at AS "createdAt"
+        Prisma.sql`SELECT id, seq, type, payload, created_at AS "createdAt"
                    FROM events
-                   WHERE seq > ${this.checkpoint} AND type LIKE 'chat.%'
+                   WHERE fanout_at IS NULL AND type LIKE 'chat.%'
                    ORDER BY seq ASC
                    LIMIT ${BATCH_LIMIT}`,
       );
@@ -134,12 +115,15 @@ export class RedisStreamPublisher implements OnModuleInit, OnModuleDestroy {
       const results = await pipeline.exec();
       const failed = results?.findIndex(([err]) => err !== null) ?? -1;
       if (failed >= 0) {
-        // Чекпоинт не двигаем: батч повторится целиком (дубликаты отстреляют
+        // Метки не ставим: батч повторится целиком (дубликаты отстреляют
         // в gateway как лишние инвалидации — безвредно).
         throw results![failed]![0];
       }
-      this.checkpoint = rows[rows.length - 1]!.seq;
-      await this.redis.set(this.checkpointKey, this.checkpoint.toString());
+      const ids = rows.map((row) => row.id);
+      await this.prisma.$executeRaw(
+        Prisma.sql`UPDATE events SET fanout_at = now()
+                   WHERE id = ANY(${ids}::uuid[]) AND fanout_at IS NULL`,
+      );
     } catch (error) {
       this.logger.error({ err: error }, 'chat fanout publish failed, will retry');
     } finally {
