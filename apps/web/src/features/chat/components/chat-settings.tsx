@@ -48,8 +48,10 @@ function AlignTile({
   );
 }
 
-const bubbleIn = 'h-3 w-16 rounded-md border border-border bg-card';
-const bubbleMine = 'h-3 w-16 rounded-md bg-primary';
+/* Превью зеркалит пузыри ленты (#127): заливки bubble-in/bubble-out, без рамки
+   (пузыри канонически без рамки — bubble.tsx). */
+const bubbleIn = 'h-3 w-16 rounded-md bg-bubble-in';
+const bubbleMine = 'h-3 w-16 rounded-md bg-bubble-out';
 
 /**
  * Настройка мессенджера (вердикт владельца 14.09.2026: подмодуль «Настройка»

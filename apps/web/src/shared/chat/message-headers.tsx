@@ -12,8 +12,20 @@ import { cn } from '@nodus/ui/lib/utils';
 
 /** Цитата ответа: ЗАМОРОЖЕННЫЙ снапшот (вердикт 24.09) — автор + сниппет
  *  или «фрагмент» частичной цитаты; удалённый оригинал → placeholder
- *  (канон Telegram lng_deleted_message), клик — no-op. */
-export function ReplyHeader({ reply, onClick }: { reply: ReplyPreview; onClick?: () => void }) {
+ *  (канон Telegram lng_deleted_message), клик — no-op.
+ *  Бар и имя — акцентом поверхности (#127, канон Telegram: msgOutReplyBarColor
+ *  / msgInReplyBarColor): на залитом своём пузыре — акцент пузыря, на чужом —
+ *  info; сниппет и hover остаются на currentColor пузыря. */
+export function ReplyHeader({
+  reply,
+  onClick,
+  onFilled = false,
+}: {
+  reply: ReplyPreview;
+  onClick?: () => void;
+  /** Цитата внутри залитого своего пузыря — акцент пузыря вместо info. */
+  onFilled?: boolean;
+}) {
   const snippet = reply.quoteText
     ? `«${reply.quoteText}»`
     : reply.text ||
@@ -32,12 +44,31 @@ export function ReplyHeader({ reply, onClick }: { reply: ReplyPreview; onClick?:
         interactive && 'transition-colors hover:bg-current/10',
       )}
     >
-      <span aria-hidden className="w-0.5 shrink-0 rounded-full bg-current opacity-55" />
+      <span
+        aria-hidden
+        className={cn('w-0.5 shrink-0 rounded-full', onFilled ? 'bg-bubble-out-accent' : 'bg-info')}
+      />
       <span className="flex min-w-0 flex-col py-0.5">
-        <span className="truncate text-xs font-semibold opacity-90">
+        <span
+          className={cn(
+            'truncate text-xs font-semibold',
+            onFilled ? 'text-bubble-out-accent' : 'text-info',
+          )}
+        >
           {reply.deleted ? ui.chat.deletedPlaceholder : (reply.author?.displayName ?? '')}
         </span>
-        {reply.deleted ? null : <span className="truncate text-xs opacity-70">{snippet}</span>}
+        {reply.deleted ? null : (
+          <span
+            className={cn(
+              'truncate text-xs',
+              // На залитом пузыре сниппет плотнее (opacity-80): 70% foreground
+              // на тёмной заливке не дотягивал AA (валидатор #127).
+              onFilled ? 'opacity-80' : 'opacity-70',
+            )}
+          >
+            {snippet}
+          </span>
+        )}
       </span>
     </Tag>
   );

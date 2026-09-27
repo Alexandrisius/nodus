@@ -89,6 +89,11 @@
   --color-danger-soft: var(--danger-soft);
   --color-info: var(--info);
   --color-info-soft: var(--info-soft);
+  --color-bubble-in: var(--bubble-in);
+  --color-bubble-in-foreground: var(--bubble-in-foreground);
+  --color-bubble-out: var(--bubble-out);
+  --color-bubble-out-foreground: var(--bubble-out-foreground);
+  --color-bubble-out-accent: var(--bubble-out-accent);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
@@ -192,6 +197,18 @@
   --danger-soft: #f9e3df;
   --info: #3d6ba6;
   --info-soft: #e2eaf4;
+  /* Палитра пузырей чата — канон Telegram (issue #127, вердикт владельца
+     28.09.2026: «ровно как в телеграме»): входящие — белый «лист», исходящие —
+     светло-зелёный msgOutBg #EFFDDE из официального colors.palette tdesktop.
+     Пузыри — НА ВЫДЕЛЕННЫХ токенах, не --primary/--card: те несут кнопки,
+     чекбоксы, диалоги и панели, перекраска их изменила бы всё приложение.
+     Акцент своих (мета/галочки/цитата/чипы) — hue телеграмовского #3A8E26,
+     тон затемнён до WCAG AA ≥ 4.5 на зелёном (ux-principles:19). */
+  --bubble-in: #fbfaf9;
+  --bubble-in-foreground: #26272a;
+  --bubble-out: #effdde;
+  --bubble-out-foreground: #26272a;
+  --bubble-out-accent: #2f7a1e;
   /* Categorical-палитра данных: Okabe-Ito (colorblind-safe) на белом холсте. */
   --chart-1: #0072b2;
   --chart-2: #009e73;
@@ -282,6 +299,15 @@
   --danger-soft: #2c1a18;
   --info: #7a93b2;
   --info-soft: #1a2230;
+  /* Пузыри — канон Telegram dark (issue #127): исходящие — синий #2B5278,
+     входящие — тёмно-синий #182533 (мобильные клиенты; фирменный navy остаётся
+     хирургическим акцентом хрома). Акцент своих — светло-синий hue телеграмовских
+     галочек/времени, тон осветлён до WCAG AA ≥ 4.5 на #2B5278. */
+  --bubble-in: #182533;
+  --bubble-in-foreground: #e8e8e6;
+  --bubble-out: #2b5278;
+  --bubble-out-foreground: #e8e8e6;
+  --bubble-out-accent: #9ec7e8;
   /* Categorical-палитра данных: осветлённые тона Okabe-Ito под тёмный холст. */
   --chart-1: #64a4e0;
   --chart-2: #5fbf8f;

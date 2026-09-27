@@ -48,6 +48,13 @@
   --danger-soft: #ecd6cd;
   --info: #52708f;
   --info-soft: #d5dde4;
+  /* Пузыри чата (issue #127): легаси-темы держат досхемовый вид алиасом на
+     card/primary — telegram-палитра только для тем «Инструмент». */
+  --bubble-in: var(--card);
+  --bubble-in-foreground: var(--card-foreground);
+  --bubble-out: var(--primary);
+  --bubble-out-foreground: var(--primary-foreground);
+  --bubble-out-accent: var(--primary-foreground);
   --chart-1: #52708f;
   --chart-2: #5f7f5a;
   --chart-3: #c9973b;
@@ -82,6 +89,12 @@
   --muted-foreground: #6d675a;
   --accent: #e0d6bd;
   --accent-foreground: #2c2a22;
+  /* Пузыри чата (issue #127): алиас на card/primary, как в «Туши». */
+  --bubble-in: var(--card);
+  --bubble-in-foreground: var(--card-foreground);
+  --bubble-out: var(--primary);
+  --bubble-out-foreground: var(--primary-foreground);
+  --bubble-out-accent: var(--primary-foreground);
   --border: rgb(53 51 42 / 0.25);
   --input: rgb(53 51 42 / 0.35);
   --ring: #a84a27;

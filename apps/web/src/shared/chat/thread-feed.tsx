@@ -18,6 +18,7 @@ import { useChatDrafts } from './chat-drafts.js';
 import { MessageAttachments } from './attachments.js';
 import { MessageReactions } from './chat-message.js';
 import { MessageMeta } from './message-meta.js';
+import { messageSurface } from './message-surface.js';
 import { ConversationViewsLine } from './views-line.js';
 import { addFiles } from './composer-files.js';
 import { toSendVars } from './composer-submit.js';
@@ -197,6 +198,9 @@ export const ThreadFeed = memo(function ThreadFeed({
                   ...new Map(replies.map((r) => [r.author.id, r.author])).values(),
                 ];
                 const last = replies[replies.length - 1];
+                // Пост — ТО ЖЕ сообщение, что пузырь чата: поверхность и акценты
+                // — из единой точки решения (message-surface.ts, #127), не свои.
+                const surface = messageSurface(root.author.id === me?.id);
                 return (
                   <MessageRow
                     key={root.id}
@@ -242,8 +246,15 @@ export const ThreadFeed = memo(function ThreadFeed({
                               onOpenThread(root.id);
                             }
                           }}
-                          className="node-panel relative w-full max-w-2xl cursor-pointer p-3.5 text-left
-                            transition-colors hover:border-input group/msg"
+                          className={cn(
+                            // Заливка поста = поверхность сообщения (канон
+                            // Telegram, #127): своё — bubble-out, чужое —
+                            // bubble-in; hairline-бордюр и радиус карточки
+                            // сохраняются (пост — карточка ленты, не облако).
+                            surface.fill,
+                            `relative w-full max-w-2xl cursor-pointer rounded-xl border border-border
+                            p-3.5 text-left transition-colors hover:border-input group/msg`,
+                          )}
                         >
                           <span className="flex items-center gap-2 text-sm">
                             <PersonAvatar
@@ -275,22 +286,28 @@ export const ThreadFeed = memo(function ThreadFeed({
                               Битрикс24); строка просмотров — над композером
                               ленты (views-line, раунд 2). */}
                           <span className="mt-[3px] flex items-end gap-2">
-                            <MessageReactions message={root} />
+                            <MessageReactions message={root} onFilled={surface.onFilled} />
                             <MessageMeta
                               message={root}
-                              mine={root.author.id === me?.id}
+                              onFilled={surface.onFilled}
                               ticks={root.author.id === me?.id}
                               className="ml-auto"
                             />
                           </span>
-                          <span className="-mx-3.5 -mb-3.5 mt-[6px] flex items-center gap-2 rounded-b-[0.8125rem] border-t border-border/60 bg-muted/40 px-3.5 py-2">
+                          {/* Высота полосы ПОСТОЯННАЯ h-8 (вердикт владельца
+                              28.09.2026: полоса со стеком аватарок участников
+                              треда не должна быть выше полосы без них —
+                              нравилась меньшая): аватарки size-5 центрируются
+                              в 32px, текстовая строка 16px — обе входят, прыжка
+                              высоты между постами нет. */}
+                          <span className="-mx-3.5 -mb-3.5 mt-[6px] flex h-8 items-center gap-2 rounded-b-[0.8125rem] border-t border-border/60 bg-current/10 px-3.5">
                             {participants.length > 0 ? (
                               <span className="flex shrink-0 -space-x-1.5">
                                 {participants.slice(0, 3).map((p) => (
                                   <PersonAvatar
                                     key={p.id}
                                     name={p.displayName}
-                                    className="size-5 ring-2 ring-muted"
+                                    className={cn('size-5 ring-2', surface.ring)}
                                   />
                                 ))}
                               </span>
@@ -299,25 +316,34 @@ export const ThreadFeed = memo(function ThreadFeed({
                               <span
                                 className={cn(
                                   'flex items-center gap-1.5 font-mono text-label-sm tabular-nums',
-                                  // Точка «есть новые» + счётчик новым тоном —
-                                  // только наблюдателю трэда (раунд 3): иначе
-                                  // «кликнул канал, а нового ничего не видно».
-                                  threadStates?.get(root.id)?.unreadCount
-                                    ? 'text-info'
-                                    : 'text-muted-foreground',
+                                  // Тон счётчика — тон поверхности (AA на любой
+                                  // заливке, валидатор #127: muted-foreground на
+                                  // залитой тёмной проваливался до ~1.9:1);
+                                  // маркер «есть новые» — точка accentBg
+                                  // (графический контраст ≥3) только наблюдателю
+                                  // трэда (раунд 3).
+                                  surface.stripText,
                                 )}
                               >
                                 {threadStates?.get(root.id)?.unreadCount ? (
                                   <span
                                     aria-label={ui.chat.threadUnreadHint}
-                                    className="size-1.5 shrink-0 rounded-full bg-info"
+                                    className={cn(
+                                      'size-1.5 shrink-0 rounded-full',
+                                      surface.accentBg,
+                                    )}
                                   />
                                 ) : null}
                                 {repliesLabel(repliesCount)}
                                 {last ? ` · ${formatTime(last.createdAt)}` : ''}
                               </span>
                             ) : null}
-                            <span className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-info">
+                            <span
+                              className={cn(
+                                'ml-auto inline-flex items-center gap-1 text-xs font-medium',
+                                surface.linkText,
+                              )}
+                            >
                               {ui.chat.toThread}
                               <ArrowRight className="size-3" strokeWidth={1.75} />
                             </span>
