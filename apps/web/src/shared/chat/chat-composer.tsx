@@ -327,7 +327,9 @@ export function ChatComposer({
     }
     const start = el.selectionStart ?? text.length;
     const end = el.selectionEnd ?? start;
-    setText(focusId, text.slice(0, start) + emoji + text.slice(end));
+    const next = text.slice(0, start) + emoji + text.slice(end);
+    setText(focusId, next);
+    if (conversationId && next.length > 0) emitTyping(conversationId, typingThreadRootId);
     const caret = start + emoji.length;
     requestAnimationFrame(() => {
       el.focus();

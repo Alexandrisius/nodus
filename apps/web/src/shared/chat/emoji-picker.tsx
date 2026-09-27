@@ -1,5 +1,5 @@
 import { Search } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ui } from '@nodus/contracts';
 import { Input } from '@nodus/ui/components/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@nodus/ui/components/popover';
@@ -12,10 +12,10 @@ import { cn } from '@nodus/ui/lib/utils';
  * хост через onPick); панель НЕ закрывается — эмодзи ставят серией (канон
  * Telegram: пикер живёт, пока пользователь не уйдёт).
  *
- * Данные — 1906 эмодзи Unicode 16.0 (без тонов кожи), грузятся ЛЕНИВЫМ
- * dynamic-import-чанком при первом открытии панели (~60КБ gzip; бандл
- * старта не платит). Глифы — шрифтом Noto Color Emoji (self-host, #130):
- * единый «гугловский» вид на любом устройстве.
+ * Данные — 1906 эмодзи Unicode 16.0 (без тонов кожи) из
+ * public/emoji/emoji-data.json (~60КБ gzip), грузятся fetch'ем при первом
+ * открытии панели (бандл старта не платит). Глифы — шрифтом Noto Color
+ * Emoji (self-host, #130): единый «гугловский» вид на любом устройстве.
  */
 
 const RECENT_KEY = 'nodus-emoji-recent-v1';
@@ -91,8 +91,6 @@ export function EmojiPickerButton({
   const [query, setQuery] = useState('');
   const [data, setData] = useState<EmojiData | null>(null);
   const [recent, setRecent] = useState<string[]>(() => recentEmojis());
-  const searchRef = useRef<HTMLDivElement>(null);
-
   useEffect(() => {
     if (!open || data) return;
     let live = true;
@@ -149,7 +147,7 @@ export function EmojiPickerButton({
         // «Вечный курсор» (канон #71): попап не крадёт фокус композера.
         onOpenAutoFocus={(event) => event.preventDefault()}
       >
-        <div ref={searchRef} className="border-b border-border p-2">
+        <div className="border-b border-border p-2">
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
