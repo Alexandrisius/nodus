@@ -13,6 +13,7 @@
 - **`prisma db seed` в контейнере не находит tsx на PATH** (pnpm-бины не экспортированы): seed-команда — `node --import tsx prisma/seed.ts`, кроссплатформенно (Windows-хост и alpine-контейнер; подтверждено воспроизведением в issue #3).
 - Cloudflare Tunnel после пересоздания web-контейнера теряет origin («connection refused» до переподключения): `docker restart nodus_cloudflared`; проверяй демо curl'ом, а не Invoke-WebRequest (тот капризничает с таймаутами на этой машине).
 - **`VITE_*`-переменные — build-time**: `.env` хоста не попадает в docker-сборку, режим демо задаётся `ARG`/build-args в compose (`NODUS_WEB_MOCK` → `VITE_API_MOCK`); сменил режим — пересобирай образ (`docker compose up -d --build web`), рестарта контейнера мало.
+- **Порты сервисов опубликованы на `127.0.0.1`** (postgres/redis/minio/api/gateway; у gotenberg опубликованного порта нет вовсе): k6 и dev с хоста ходят через localhost, из LAN сервисы не видны — это осознанно (аудит #123), «чинить» обратно на `0.0.0.0` не нужно. После ребута хоста `docker compose up -d` БЕЗ `--profile tunnel` не поднимает cloudflared — nodus.by лежит до `--profile tunnel up -d` (runbook `host-reboot.md`).
 
 ## Монорепо и toolchain (pnpm, turbo, TS, ESLint)
 
@@ -32,6 +33,7 @@
 - Генерируемый Prisma client лежит в `apps/api/src/generated/prisma` (не коммитится, eslint-игнор): typecheck/test/build падают на свежем checkout без `pnpm --filter @nodus/api db:generate` — в CI это отдельный шаг после install, в `build` клиент генерируется автоматически.
 - Json-полям Prisma `Record<string, unknown>` не назначается напрямую — нужен каст `as Prisma.InputJsonValue` (типы generated client строже входных DTO).
 - Vitest (vite 8, rolldown/oxc) не эмитит decorator metadata, нужную Nest DI: тесты, поднимающие Nest-приложение (integration), идут через `unplugin-swc` (`vitest.integration.config.ts`); unit-тесты без декораторов SWC не требуют.
+- **Чек-сумма Prisma в `_prisma_migrations` — SHA-256 файла migration.sql**: миграция, применённая из рабочего дерева до финальной формулировки коммита, даёт «modified after applied» и требование RESET в `migrate dev`; если живыми пробами подтверждено, что DDL применившейся версии идентичен текущему файлу — расхождение книжное: `UPDATE _prisma_migrations SET checksum='<sha256 файла>'` (алгоритм опознан 27.09.2026 сверкой с немодифицированными миграциями: md5/sha1 не совпали). Reset живой БД запрещён всегда.
 - `@swc/core`, `prisma`, `@prisma/engines` — в `allowBuilds` (pnpm 11): после их обновления проверяй, что pnpm снова не подставил заглушку «set this to true or false».
 - **pnpm 11 молча игнорирует поле `pnpm` в package.json** (overrides, allowBuilds, ...): настройки читаются только из `pnpm-workspace.yaml` — overrides в package.json просто не применяются, без предупреждений (подтверждено: pnpm.io/package_json, pnpm.io/migration, PR pnpm/pnpm#10086).
 - Интеграционные тесты используют отдельную БД `nodus_test` (создаётся автоматически, миграции — `migrate deploy`): никогда не направляй их на рабочую `nodus` — очистка таблиц деструктивна.
