@@ -2,6 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { RealtimeEnvelope } from '@nodus/contracts';
 
+import { useAuthStore } from '../auth-store.js';
 import { createRealtimeInvalidator } from './socket-invalidation.js';
 
 /** queryClient-шпион: фиксирует инвалидированные ключи; кэшей нет (ws-apply
@@ -9,7 +10,9 @@ import { createRealtimeInvalidator } from './socket-invalidation.js';
 function fakeQueryClient() {
   const invalidateQueries = vi.fn();
   const getQueryData = vi.fn(() => undefined);
-  return { client: { invalidateQueries, getQueryData }, invalidateQueries };
+  // ws-apply патчеры зовут setQueriesData — кэшей нет, патч не применяется.
+  const setQueriesData = vi.fn();
+  return { client: { invalidateQueries, getQueryData, setQueriesData }, invalidateQueries };
 }
 
 function envelope(type: string, payload: Record<string, unknown>): RealtimeEnvelope {
@@ -17,6 +20,7 @@ function envelope(type: string, payload: Record<string, unknown>): RealtimeEnvel
 }
 
 const CONV = '00000000-0000-4000-8000-0000000000c1';
+const ME = '00000000-0000-4000-8000-0000000000me'.replace('me', '01');
 
 /** Прокрутить ярусы окон батчера (feed 150 / list 600 мс). */
 function flushWindows(): void {
@@ -57,17 +61,33 @@ describe('createRealtimeInvalidator (коалесцинг, раунд 3)', () =>
     vi.useRealTimers();
   });
 
-  it('message_read: галочки + бейджи + точки трэдов', () => {
+  it('message_read без кэша для патча: лента + состояния, список НЕ трогает', () => {
     vi.useFakeTimers();
     const { client, invalidateQueries } = fakeQueryClient();
     const invalidator = createRealtimeInvalidator(client as never);
-    invalidator.handle(envelope('chat.message_read', { conversationId: CONV }));
+    invalidator.handle(envelope('chat.message_read', { conversationId: CONV, userId: 'reader-1' }));
     flushWindows();
+    // Шторм квитанций (#124): список бесед на чужие read больше не инвалидируется.
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['chat', 'messages', CONV] });
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['chat', 'threadStates', CONV] });
-    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['chat', 'conversations'] });
+    expect(invalidateQueries).not.toHaveBeenCalledWith({ queryKey: ['chat', 'conversations'] });
     invalidator.dispose();
     vi.useRealTimers();
+  });
+
+  it('message_read СВОЙ — тишина (бейдж гасит успех POST /read)', () => {
+    vi.useFakeTimers();
+    useAuthStore.setState({
+      user: { id: ME, displayName: 'Я', email: 'me@nodus.by', permissions: [] },
+    });
+    const { client, invalidateQueries } = fakeQueryClient();
+    const invalidator = createRealtimeInvalidator(client as never);
+    invalidator.handle(envelope('chat.message_read', { conversationId: CONV, userId: ME }));
+    flushWindows();
+    expect(invalidateQueries).not.toHaveBeenCalled();
+    invalidator.dispose();
+    vi.useRealTimers();
+    useAuthStore.setState({ user: null });
   });
 
   it('reaction_added: только лента беседы (и состояния трэдов)', () => {
@@ -76,9 +96,10 @@ describe('createRealtimeInvalidator (коалесцинг, раунд 3)', () =>
     const invalidator = createRealtimeInvalidator(client as never);
     invalidator.handle(envelope('chat.reaction_added', { conversationId: CONV }));
     flushWindows();
-    expect(invalidateQueries).toHaveBeenCalledTimes(2);
+    // Сообщения нет в кэше → локальный патч невозможен → рефеч ЛЕНТЫ без
+    // состояний трэдов (реакции их не меняют; чипы в кэше патчит ws-apply).
+    expect(invalidateQueries).toHaveBeenCalledTimes(1);
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['chat', 'messages', CONV] });
-    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['chat', 'threadStates', CONV] });
     invalidator.dispose();
     vi.useRealTimers();
   });

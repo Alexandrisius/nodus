@@ -50,27 +50,43 @@ export function MessageRow({
           : undefined
       }
     >
-      {selectable ? (
-        <span className="absolute top-1/2 left-0 z-10 flex w-6 -translate-y-1/2 items-center justify-center pl-1">
-          <button
-            type="button"
-            role="checkbox"
-            aria-checked={selected}
-            aria-label={selected ? ui.chat.deselectOne : ui.chat.selectOne}
-            tabIndex={-1}
-            onMouseDown={(event) => event.preventDefault()}
-            className={cn(
-              'flex size-5 items-center justify-center rounded-full border transition-colors',
-              selected
-                ? 'border-primary bg-primary text-primary-foreground'
-                : 'border-input bg-card text-transparent hover:border-foreground/40',
-            )}
-          >
-            <Check className="size-3" strokeWidth={2.5} />
-          </button>
-        </span>
-      ) : null}
-      <div className={cn(selectable && 'pl-7')}>{children}</div>
+      {/* Колонка чекбокса — ВСЕГДА в DOM (#124): вход/выход режима селекта
+          анимируется (padding ленты + opacity/scale чекбокса, 220 мс — в такт
+          морфу островка композера), вместо мгновенного сдвига всей ленты.
+          Вне режима: pointer-events-none + aria-hidden — клики и AT не трогает
+          (перехват клика строки и так только при selectable). */}
+      <span
+        aria-hidden={selectable ? undefined : true}
+        className={cn(
+          'absolute top-1/2 left-0 z-10 flex w-6 -translate-y-1/2 items-center justify-center pl-1 transition-[opacity,scale] duration-[220ms] ease-out',
+          selectable ? 'opacity-100 scale-100' : 'pointer-events-none opacity-0 scale-75',
+        )}
+      >
+        <button
+          type="button"
+          role="checkbox"
+          aria-checked={selected}
+          aria-label={selected ? ui.chat.deselectOne : ui.chat.selectOne}
+          tabIndex={-1}
+          onMouseDown={(event) => event.preventDefault()}
+          className={cn(
+            'flex size-5 items-center justify-center rounded-full border transition-colors',
+            selected
+              ? 'border-primary bg-primary text-primary-foreground'
+              : 'border-input bg-card text-transparent hover:border-foreground/40',
+          )}
+        >
+          <Check className="size-3" strokeWidth={2.5} />
+        </button>
+      </span>
+      <div
+        className={cn(
+          'transition-[padding-left] duration-[220ms] ease-out',
+          selectable ? 'pl-7' : 'pl-0',
+        )}
+      >
+        {children}
+      </div>
     </div>
   );
 }

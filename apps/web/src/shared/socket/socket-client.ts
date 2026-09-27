@@ -1,11 +1,17 @@
 import type { QueryClient } from '@tanstack/react-query';
 import { io, type Socket } from 'socket.io-client';
-import { REALTIME_EVENTS, realtimeEnvelopeSchema, type RealtimeEnvelope } from '@nodus/contracts';
+import {
+  REALTIME_EVENTS,
+  realtimeEnvelopeSchema,
+  type RealtimeEnvelope,
+  CHAT_EVENTS,
+} from '@nodus/contracts';
 
 import { isDomainMocked } from '../api/api-mock-config.js';
 import { useAuthStore } from '../auth-store.js';
 import { chatKeys } from '../chat/api.js';
 import { usePresenceStore } from './presence-store.js';
+import { notifySentMessage } from '../chat/notifications.js';
 import { createRealtimeInvalidator, type RealtimeInvalidator } from './socket-invalidation.js';
 import { useSocketStatusStore } from './socket-status-store.js';
 import { useTypingStore } from './typing-store.js';
@@ -119,6 +125,10 @@ export function connectChatSocket(queryClient: QueryClient): void {
       const parsed = realtimeEnvelopeSchema.safeParse(raw);
       if (parsed.success) {
         invalidator?.handle(parsed.data satisfies RealtimeEnvelope);
+        // Сигнал фоновой вкладке (#124): гейт внутри (opt-in/фон/не своя).
+        if (parsed.data.type === CHAT_EVENTS.MESSAGE_SENT) {
+          notifySentMessage(parsed.data.payload);
+        }
       }
     });
   }

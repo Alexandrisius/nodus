@@ -1,0 +1,7 @@
+Noto Animated Emoji by Google Fonts — licensed under CC BY 4.0
+https://googlefonts.github.io/noto-emoji-animation/
+https://creativecommons.org/licenses/by/4.0/
+
+Nodus note: assets here are resized/re-encoded derivatives (Lottie vectors rendered
+to 64px animated WebP at 30fps via rlottie/lottie-converter) of the CC BY 4.0
+originals. Attribution: "Animated emoji by Google Fonts, CC BY 4.0".

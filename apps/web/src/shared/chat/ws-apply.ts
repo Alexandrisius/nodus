@@ -1,6 +1,16 @@
 import type { QueryClient } from '@tanstack/react-query';
-import type { ChatMessage, ChatMessageSentPayload, Paginated } from '@nodus/contracts';
+import type {
+  ChatMessage,
+  ChatMessageReadPayload,
+  ChatMessageSentPayload,
+  ChatReactionPayload,
+  ConversationListItem,
+  MessageReaction,
+  Paginated,
+  UserRef,
+} from '@nodus/contracts';
 
+import { useAuthStore } from '../auth-store.js';
 import { chatKeys } from './api.js';
 
 /**
@@ -73,6 +83,126 @@ function applyToThreadCache(
     items: [...threadData.items, message],
   });
   return true;
+}
+
+/** Локальное применение chat.reaction_added/removed (#124): патч массива
+ *  reactions во ВСЕХ окнах кэша (лента + открытый тред — префикс ключа).
+ *  Актор события = me → правка флага mine. Сообщение не в кэше (беседа не
+ *  открыта) → false: вызывающий инвалидирует (рефеч и так не нужен бы, но
+ *  «случайное исцеление — не механизм»: патчим только видимое). */
+export function applyReactionEvent(
+  queryClient: QueryClient,
+  payload: Pick<ChatReactionPayload, 'conversationId' | 'messageId' | 'emoji' | 'userId'>,
+  added: boolean,
+): boolean {
+  const meId = useAuthStore.getState().user?.id ?? null;
+  // users в чипах (контракт): ref актёра — из кэша участников; нет ref —
+  // не гадаем, false → вызывающий инвалидирует (рефеч принесёт users целиком).
+  const reader = added
+    ? readerRefFromCache(queryClient, payload.conversationId, payload.userId)
+    : null;
+  if (added && !reader) return false;
+  let touched = false;
+  queryClient.setQueriesData<Paginated<ChatMessage>>(
+    { queryKey: chatKeys.messages(payload.conversationId) },
+    (old) => {
+      if (!old) return old;
+      let hit = false;
+      const items = old.items.map((m) => {
+        if (m.id !== payload.messageId) return m;
+        hit = true;
+        return { ...m, reactions: nextReactions(m.reactions, payload, added, meId, reader) };
+      });
+      if (hit) touched = true;
+      return hit ? { ...old, items } : old;
+    },
+  );
+  return touched;
+}
+
+function nextReactions(
+  reactions: readonly MessageReaction[],
+  payload: Pick<ChatReactionPayload, 'emoji' | 'userId'>,
+  added: boolean,
+  meId: string | null,
+  reader: UserRef | null,
+): MessageReaction[] {
+  const mine = payload.userId === meId;
+  // users может отсутствовать в кэше от api без поля (main) — не падаем.
+  const usersOf = (reaction: MessageReaction) => reaction.users ?? [];
+  if (added && reader) {
+    const existing = reactions.find((reaction) => reaction.emoji === payload.emoji);
+    if (!existing) {
+      return [...reactions, { emoji: payload.emoji, count: 1, mine, users: [reader] }];
+    }
+    return reactions.map((reaction) =>
+      reaction.emoji === payload.emoji
+        ? {
+            ...reaction,
+            users: [...usersOf(reaction), reader],
+            count: usersOf(reaction).length + 1,
+            mine: reaction.mine || mine,
+          }
+        : reaction,
+    );
+  }
+  return reactions
+    .map((reaction) =>
+      reaction.emoji === payload.emoji
+        ? {
+            ...reaction,
+            users: usersOf(reaction).filter((user) => user.id !== payload.userId),
+            mine: reaction.mine && !mine,
+          }
+        : reaction,
+    )
+    .map((reaction) => ({ ...reaction, count: usersOf(reaction).length }))
+    .filter((reaction) => reaction.count > 0);
+}
+
+/** Локальное применение chat.message_read (#124, «шторм квитанций» аудита
+ *  #123): чужое прочтение патчит readBy/readAt МОИХ сообщений ленты и
+ *  открытого треда (префикс ключа) БЕЗ рефеча. Свой read — тихо (мой бейдж и
+ *  точки трэдов гасит успех собственного POST /read; readBy себя не включает).
+ *  Ref читателя — из membersPreview беседы в кэше списка; нет кэша/ref —
+ *  false: вызывающий инвалидирует по-старому. */
+export function applyReadEvent(
+  queryClient: QueryClient,
+  payload: Pick<ChatMessageReadPayload, 'conversationId' | 'userId' | 'upToSeq' | 'readAt'>,
+): boolean {
+  const meId = useAuthStore.getState().user?.id ?? null;
+  if (payload.userId === meId) return true; // своё прочтение — патчить нечего
+  const reader = readerRefFromCache(queryClient, payload.conversationId, payload.userId);
+  if (!reader) return false;
+  let touched = false;
+  queryClient.setQueriesData<Paginated<ChatMessage>>(
+    { queryKey: chatKeys.messages(payload.conversationId) },
+    (old) => {
+      if (!old) return old;
+      let hit = false;
+      const items = old.items.map((m) => {
+        if (m.author.id !== meId || m.deletedAt !== null || m.seq > payload.upToSeq) return m;
+        if (m.readBy.some((ref) => ref.id === payload.userId)) return m;
+        hit = true;
+        // readAt — момент ПЕРВОГО прочитавшего (min, канон #102).
+        const readAt = m.readAt === null || payload.readAt < m.readAt ? payload.readAt : m.readAt;
+        return { ...m, readBy: [...m.readBy, reader], readAt };
+      });
+      if (hit) touched = true;
+      return hit ? { ...old, items } : old;
+    },
+  );
+  return touched;
+}
+
+function readerRefFromCache(
+  queryClient: QueryClient,
+  conversationId: string,
+  userId: string,
+): UserRef | null {
+  const list = queryClient.getQueryData<Paginated<ConversationListItem>>(chatKeys.conversations());
+  const conversation = list?.items.find((item) => item.id === conversationId);
+  return conversation?.membersPreview.find((ref) => ref.id === userId) ?? null;
 }
 
 /** Счётчик ответов корня в ленте: +1 (карточка поста обновляется до рефеча). */

@@ -39,6 +39,9 @@ export const messageReactionSchema = z.object({
   emoji: z.string().min(1),
   count: z.number().int().min(1),
   mine: z.boolean(),
+  /** Поставившие реакцию (в порядке постановки): тултип чипа — аватар+ФИО
+   *  (вердикт владельца 27.09, реф Битрикс24). Инвариант: count === users.length. */
+  users: z.array(userRefSchema),
 });
 
 export type MessageReaction = z.infer<typeof messageReactionSchema>;

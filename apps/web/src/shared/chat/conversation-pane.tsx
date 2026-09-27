@@ -18,6 +18,7 @@ import { chatAttachmentsEnabled } from './attachments-gate.js';
 import { useConversationMessages, useConversations, useSendChatMessage } from './api.js';
 import { ChatComposer, type ComposerSubmit } from './chat-composer.js';
 import { ChatMessageItem } from './chat-message.js';
+import { setOpenConversation } from './notifications.js';
 import { useChatDrafts } from './chat-drafts.js';
 import { addFiles } from './composer-files.js';
 import { toSendVars } from './composer-submit.js';
@@ -158,9 +159,16 @@ function ConversationFeed({
   emptyLabel: string;
 }) {
   const scope = `conversation:${conversationId}`;
+
+  // Открытая беседа для гейта уведомлений (#124): фоновая вкладка
+  // уведомляет о чужих сообщениях НЕОТКРЫТОЙ беседы.
+  useEffect(() => {
+    setOpenConversation(conversationId);
+    return () => setOpenConversation(null);
+  }, [conversationId]);
   const { data, isLoading } = useConversationMessages(conversationId);
-  const send = useSendChatMessage(conversationId);
-  const edit = useEditMessage(conversationId);
+  const send = useSendChatMessage(conversationId, scope);
+  const edit = useEditMessage(conversationId, scope);
   const me = useAuthStore((s) => s.user);
 
   const items = data?.items ?? [];

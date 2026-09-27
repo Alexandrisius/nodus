@@ -69,9 +69,9 @@ export class ConversationsService {
     const page = hasMore ? rows.slice(0, query.limit) : rows;
     const members = await this.repo.listMembers(page.map((row) => row.id));
     const refs = await this.loadMemberRefs(members);
-    const items = await Promise.all(
-      page.map((row) => this.items.toItem(row, { viewerId: userId, members, refs })),
-    );
+    // lastMessage страницы — одним батчем toDtos внутри toItems (#124,
+    // аудит #123: поштучный toDto давал ~300 запросов на страницу).
+    const items = await this.items.toItems(page, { viewerId: userId, members, refs });
     const last = page.at(-1);
     return {
       items,

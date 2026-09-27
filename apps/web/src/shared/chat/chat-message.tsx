@@ -3,8 +3,10 @@ import type { ChatMessage } from '@nodus/contracts';
 import { cn } from '@nodus/ui/lib/utils';
 import { Message, MessageAvatar, MessageContent } from '@nodus/ui/components/message';
 import { Bubble, BubbleContent } from '@nodus/ui/components/bubble';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@nodus/ui/components/tooltip';
 
 import { openCardViaBridge } from '../lib/card-bridge.js';
+import { shortPersonName } from '../lib/format.js';
 import { MessageAttachments } from './attachments.js';
 import { BubbleTail } from './bubble-tail.js';
 import { useChatPrefs } from './chat-prefs.js';
@@ -12,28 +14,73 @@ import { useChatHostNavigation } from './chat-host.js';
 import { useJumpStore } from './jump-store.js';
 import { ForwardedHeader, ReplyHeader } from './message-headers.js';
 import { MessageMeta } from './message-meta.js';
+import { useReactionToggle } from './message-mutations.js';
 import { MessageText } from './message-text.js';
+import { ReactionGlyph } from './reaction-glyph.js';
+import { ReactionPicker } from './reaction-picker.js';
 import { MessageTombstone } from './tombstone.js';
 import { PersonAvatar } from '../ui/person-avatar.js';
 
-/** Реакции сообщения: плоские моно-чипы на токенах (моя — info). */
+/** Реакции сообщения: плоские моно-чипы на токенах (моя — info). Чип — кнопка
+ *  (#124, канон Telegram): клик toggle'ит свою реакцию оптимистично. Ховер по
+ *  чипу — тултип «кто поставил»: аватар+ФИО списком (вердикт 27.09 п.4; один
+ *  поставивший — одна строка). users — опционально на рендере: api без поля
+ *  (например, собран из main при деве с новым фронт-деревом) не роняет ленту,
+ *  тултип просто не показывается. Key включает count/mine: смена реакции
+ *  перемонтирует чип и проигрывает pop-анимацию (reaction-pop, globals). */
 export function MessageReactions({ message }: { message: ChatMessage }) {
+  const toggle = useReactionToggle(message.conversationId);
   if (message.reactions.length === 0) return null;
   return (
     <span className="flex flex-wrap gap-1">
-      {message.reactions.map((reaction) => (
-        <span
-          key={reaction.emoji}
-          className={cn(
-            'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-label-sm tabular-nums',
-            reaction.mine
-              ? 'border-info/40 bg-info-soft/60 text-info'
-              : 'border-border bg-accent/40 text-muted-foreground',
-          )}
-        >
-          {reaction.emoji} {reaction.count}
-        </span>
-      ))}
+      {message.reactions.map((reaction) => {
+        const users = reaction.users ?? [];
+        const chip = (
+          <button
+            type="button"
+            aria-pressed={reaction.mine}
+            aria-label={`${reaction.emoji} ${reaction.count}`}
+            onClick={() =>
+              toggle.mutate({
+                messageId: message.id,
+                emoji: reaction.emoji,
+                remove: reaction.mine,
+              })
+            }
+            className={cn(
+              'reaction-pop inline-flex cursor-pointer items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-label-sm tabular-nums transition-colors',
+              reaction.mine
+                ? 'border-info/40 bg-info-soft/60 text-info'
+                : 'border-border bg-accent/40 text-muted-foreground hover:border-foreground/40',
+            )}
+          >
+            <ReactionGlyph emoji={reaction.emoji} className="size-4" />
+            {reaction.count}
+          </button>
+        );
+        if (users.length === 0) {
+          return <span key={`${reaction.emoji}:${reaction.count}:${reaction.mine}`}>{chip}</span>;
+        }
+        return (
+          <Tooltip key={`${reaction.emoji}:${reaction.count}:${reaction.mine}`}>
+            <TooltipTrigger asChild>{chip}</TooltipTrigger>
+            <TooltipContent side="top" className="p-1">
+              <span className="flex max-h-40 flex-col gap-0.5 overflow-y-auto">
+                {users.map((user) => (
+                  <span key={user.id} className="flex items-center gap-1.5 px-1.5 py-0.5">
+                    <PersonAvatar
+                      name={user.displayName}
+                      avatarUrl={user.avatarUrl}
+                      className="size-5 shrink-0"
+                    />
+                    <span className="text-xs">{shortPersonName(user.displayName)}</span>
+                  </span>
+                ))}
+              </span>
+            </TooltipContent>
+          </Tooltip>
+        );
+      })}
     </span>
   );
 }
@@ -202,6 +249,9 @@ export const ChatMessageItem = memo(function ChatMessageItem({
               <MessageMeta message={message} mine={mine} ticks={mine} className="ml-auto" />
             </span>
           </BubbleContent>
+          {/* Ховер-попап реакций (#124): кнопка у нижнего угла пузыря
+              (Bubble — relative), видна по hover/focus/открытом попапе. */}
+          <ReactionPicker message={message} atEnd={atEnd} />
           {/* Хвостик — ПОСЛЕ тела пузыря (вердикт владельца 14.09.2026:
               «вертикальная линия-разделитель»): если рисовать до BubbleContent,
               бордюр пузыря перекрашивает заливку хвоста в стыке и читается

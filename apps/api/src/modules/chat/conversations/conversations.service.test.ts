@@ -60,7 +60,7 @@ describe('ConversationsService', () => {
     listMembers: vi.fn(),
     putDraft: vi.fn(),
   };
-  const items = { toItem: vi.fn() };
+  const items = { toItem: vi.fn(), toItems: vi.fn() };
   const txRunner = { run: vi.fn((cb: (tx: string) => unknown) => cb(TX)) };
   const eventBus = { emit: vi.fn() };
   const userProfiles = {
@@ -74,6 +74,10 @@ describe('ConversationsService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     items.toItem.mockImplementation(async (row: { id: string }) => ({ id: row.id }));
+    // Список берёт страницу ОДНИМ батчем (#124): toItems вместо toItem-поштучно.
+    items.toItems.mockImplementation(async (rows: { id: string }[]) =>
+      rows.map((row: { id: string }) => ({ id: row.id })),
+    );
     repo.listMembers.mockResolvedValue([]);
     repo.findListItem.mockImplementation(async (conversationId: string) =>
       makeListRow({ id: conversationId }),

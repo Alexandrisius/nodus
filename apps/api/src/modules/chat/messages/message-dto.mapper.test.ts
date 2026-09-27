@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { MemberRow } from '../conversations/conversations.repository.js';
 import type { MessageRow } from './messages.repository.js';
-import { computeReadAt, computeReadBy } from './message-dto.mapper.js';
+import { computeReadAt, computeReadBy, MessageDtoMapper } from './message-dto.mapper.js';
 
 type ReadAtRow = Pick<MessageRow, 'authorId' | 'seq' | 'editedAt' | 'createdAt'>;
 
@@ -114,5 +114,77 @@ describe('computeReadBy (#102)', () => {
     expect(computeReadBy(edited, [me, read('a', T1), read('b', T3)], 'me-1')).toEqual([
       { userId: 'b', lastReadAt: T3 },
     ]);
+  });
+});
+
+function stubMapper(): MessageDtoMapper {
+  const messages = {
+    reactionsFor: async () => [],
+    attachmentsFor: async () => [],
+    threadReplyCounts: async () => [],
+    findByIds: async () => [],
+  };
+  const pins = { pinnedIds: async () => new Set<string>() };
+  const profiles = {
+    findRefs: async (ids: string[]) => ids.map((id) => ({ id, displayName: id, avatarUrl: null })),
+  };
+  return new MessageDtoMapper(messages as never, pins as never, profiles as never);
+}
+
+function fullRow(overrides: Partial<MessageRow> = {}): MessageRow {
+  return {
+    id: 'm-1',
+    conversationId: 'conv-1',
+    seq: 5n,
+    authorId: 'me-1',
+    clientMessageId: '',
+    text: 'текст',
+    replyToId: null,
+    replySnapshot: null,
+    threadRootId: null,
+    fwdConversationId: null,
+    fwdMessageId: null,
+    fwdAuthorId: null,
+    fwdThreadRootId: null,
+    editedAt: null,
+    deletedAt: null,
+    obliterated: false,
+    createdAt: T0,
+    updatedAt: T0,
+    ...overrides,
+  };
+}
+
+describe('toDtos смешанной страницы (список бесед, #124)', () => {
+  const members = [
+    member({ conversationId: 'conv-1', userId: 'me-1' }),
+    member({ conversationId: 'conv-1', userId: 'a', lastReadSeq: 5n, lastReadAt: T1 }),
+    member({ conversationId: 'conv-2', userId: 'me-1' }),
+    member({ conversationId: 'conv-2', userId: 'b', lastReadSeq: 0n, lastReadAt: T2 }),
+  ];
+  const rows = [
+    fullRow({ id: 'm-1', conversationId: 'conv-1' }),
+    fullRow({ id: 'm-2', conversationId: 'conv-2' }),
+  ];
+
+  it('membersByConversation: readBy по УЧАСТНИКАМ СВОЕЙ беседы', async () => {
+    const dtos = await stubMapper().toDtos(rows, {
+      viewerId: 'me-1',
+      members,
+      membersByConversation: new Map([
+        ['conv-1', members.filter((m) => m.conversationId === 'conv-1')],
+        ['conv-2', members.filter((m) => m.conversationId === 'conv-2')],
+      ]),
+    });
+    expect(dtos[0]?.readBy.map((r) => r.id)).toEqual(['a']);
+    // В conv-2 никто не прочитал (курсор b = 0) — прочитавших нет.
+    expect(dtos[1]?.readBy).toEqual([]);
+  });
+
+  it('без карты (одна беседа в контексте) — прежняя семантика общих members', async () => {
+    const dtos = await stubMapper().toDtos(rows, { viewerId: 'me-1', members });
+    expect(dtos[0]?.readBy.map((r) => r.id)).toEqual(['a']);
+    // Курсор a добрёл и до чужой строки — карта обязательна для смеси.
+    expect(dtos[1]?.readBy.map((r) => r.id)).toEqual(['a']);
   });
 });
