@@ -46,3 +46,4 @@ tests/e2e/shots-*/
 
 # --- ZCode harness (локальные планы сессий) ---
 .zcode/
+.issue132.json

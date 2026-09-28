@@ -2,7 +2,6 @@ import { ArrowRight } from 'lucide-react';
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { ui } from '@nodus/contracts';
 import { Empty, EmptyTitle } from '@nodus/ui/components/empty';
-import { Skeleton } from '@nodus/ui/components/skeleton';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { useAuthStore } from '../auth-store.js';
@@ -193,20 +192,17 @@ export const ThreadFeed = memo(function ThreadFeed({
             (selection.selectionActive || box.active) && 'select-none',
           )}
         >
-          {isLoading ? (
-            <div className="flex flex-col gap-3">
-              {[0, 1, 2].map((i) => (
-                <Skeleton key={i} className="h-28 w-full" />
-              ))}
-            </div>
-          ) : roots.length === 0 ? (
+          {/* Р.12: скелетоны-полоски убраны (три широкие полосы на первое
+              открытие после перезагрузки читались артефактом); лента
+              загрузки — пустая, контент проявляется feed-reveal. */}
+          {isLoading ? null : roots.length === 0 ? (
             <div className="flex h-full items-center justify-center">
               <Empty>
                 <EmptyTitle>{ui.chat.feedEmpty}</EmptyTitle>
               </Empty>
             </div>
           ) : (
-            <div className="flex h-max min-h-full flex-col justify-end gap-3">
+            <div className="feed-reveal flex h-max min-h-full flex-col justify-end gap-3">
               {/* Р.7: лента ЯКОРИТСЯ НИЗОМ (модель Telegram: переписка растёт
                   снизу вверх — первый пост внизу, пустоты под контентом не
                   бывает): неполный экран — контент прижат к низу, pill

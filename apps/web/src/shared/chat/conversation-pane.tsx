@@ -9,7 +9,6 @@ import {
 } from '@nodus/ui/components/message-scroller';
 import { Empty, EmptyTitle } from '@nodus/ui/components/empty';
 import { MessageGroup } from '@nodus/ui/components/message';
-import { Skeleton } from '@nodus/ui/components/skeleton';
 import type { ConversationListItem } from '@nodus/contracts';
 import { cn } from '@nodus/ui/lib/utils';
 
@@ -135,15 +134,9 @@ function ConversationBody({
 }
 
 function FeedSkeleton() {
-  return (
-    <div className="flex min-h-0 flex-1 flex-col bg-chat-zone p-4" aria-hidden>
-      <MessageGroup>
-        {[0, 1, 2].map((i) => (
-          <Skeleton key={i} className="h-14 w-2/3" />
-        ))}
-      </MessageGroup>
-    </div>
-  );
+  // Р.12: гейт списка — ПУСТАЯ зона чата без полос (три серые полосы
+  // читались артефактом «ховеров» на холодном входе после перезагрузки).
+  return <div className="flex min-h-0 flex-1 bg-chat-zone" aria-hidden />;
 }
 
 /** Тело ленты: монтируется ТОЛЬКО по готовому списку бесед — решение об
@@ -282,17 +275,16 @@ function ConversationFeed({
             <MessageScrollerViewport ref={viewportRef}>
               <MessageScrollerContent
                 className={cn(
-                  'px-4 pt-4 pb-0',
+                  'feed-reveal px-4 pt-4 pb-0',
                   (selection.selectionActive || box.active) && 'select-none',
                 )}
               >
-                {isLoading ? (
-                  <MessageGroup>
-                    {[0, 1, 2].map((i) => (
-                      <Skeleton key={i} className="h-14 w-2/3" />
-                    ))}
-                  </MessageGroup>
-                ) : items.length === 0 ? (
+                {/* Р.12: скелетоны-полоски УБРАТЫ (первое открытие после
+                    перезагрузки: три серые полосы выглядели артефактом
+                    «ховеров», с нижним якорем — у самого низа); лента при
+                    загрузке ПУСТА, контент проявляется feed-reveal (160мс),
+                    модель Telegram. */}
+                {isLoading ? null : items.length === 0 ? (
                   <div className="flex h-full items-center justify-center">
                     <Empty>
                       <EmptyTitle>{emptyLabel}</EmptyTitle>

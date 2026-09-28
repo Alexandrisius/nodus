@@ -3,7 +3,6 @@ import { ArrowLeft, Eye, EyeOff, X } from 'lucide-react';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import { NodeLabel } from '@nodus/ui/components/node-label';
-import { Skeleton } from '@nodus/ui/components/skeleton';
 import { MessageGroup } from '@nodus/ui/components/message';
 import { cn } from '@nodus/ui/lib/utils';
 import {
@@ -244,17 +243,13 @@ export const ThreadPane = memo(function ThreadPane({
             <MessageScrollerViewport ref={viewportRef}>
               <MessageScrollerContent
                 className={cn(
-                  'px-4 pt-4 pb-0',
+                  'feed-reveal px-4 pt-4 pb-0',
                   (selection.selectionActive || box.active) && 'select-none',
                 )}
               >
-                {isLoading ? (
-                  <MessageGroup>
-                    {[0, 1, 2].map((i) => (
-                      <Skeleton key={i} className="h-14 w-2/3" />
-                    ))}
-                  </MessageGroup>
-                ) : (
+                {/* Р.12: скелетоны-полоски убраны (артефакт первого
+                    открытия, см. conversation-pane); пусто → feed-reveal. */}
+                {isLoading ? null : (
                   <MessageGroup className="gap-3">
                     {root ? (
                       <MessageScrollerItem messageId={root.id}>

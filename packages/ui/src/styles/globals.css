@@ -602,9 +602,24 @@
   opacity: 0;
   transition: opacity 120ms ease-in;
 }
+/* Проявление ленты при первом открытии беседы (#132 р.12): скелетоны-полоски
+   удалены (выглядели артефактом-«ховерами» при первом входе после
+   перезагрузки); пустая лента → контент мягко проявляется (тот же паттерн
+   @starting-style). Тело ленты кеится по беседе — фейд срабатывает на
+   каждом открытии, 160мс, prefers-reduced-motion — без анимации. */
+@utility feed-reveal {
+  opacity: 1;
+  transition: opacity 160ms ease-out;
+}
+@starting-style {
+  .feed-reveal {
+    opacity: 0;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .composer-reveal,
-  .composer-hide {
+  .composer-hide,
+  .feed-reveal {
     transition: none;
   }
 }

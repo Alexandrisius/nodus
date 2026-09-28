@@ -192,11 +192,12 @@ export function ConversationViewsLine({
         >
           {shortPersonName(first.displayName)}
         </button>
-        {/* #132 р.2: союз «и» — обычный текст; подчёркнута и кликабельна
+        {/* #132 р.2: союз «и» — обычный текст (I15: ключ andConjunction —
+            замечание валидатора, не хардкод); подчёркнута и кликабельна
             только часть «ещё N» (как в Телеграме). */}
         {more > 0 ? (
           <>
-            <span>и</span>
+            <span>{ui.chat.andConjunction}</span>
             <button
               ref={moreRef}
               type="button"
