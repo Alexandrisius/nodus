@@ -14,7 +14,12 @@ export default defineConfig(({ mode }) => {
   const apiTarget = env.NODUS_API_DEV_TARGET ?? `http://localhost:${env.NODUS_API_PORT ?? 3001}`;
   const gatewayTarget =
     env.NODUS_GATEWAY_DEV_TARGET ?? `http://localhost:${env.NODUS_GATEWAY_PORT ?? 3002}`;
-  const proxy = {
+  // ONLYOFFICE (#138): браузер грузит редактор с тех же корневых путей DS,
+  // что и прод-nginx (infra/nginx/web.conf). Цель — хост-порт documentserver
+  // (NODUS_OFFICE_PORT, 3013) или явный NODUS_OFFICE_DEV_TARGET.
+  const officeTarget =
+    env.NODUS_OFFICE_DEV_TARGET ?? `http://localhost:${env.NODUS_OFFICE_PORT ?? 3013}`;
+  const proxy: Record<string, { target: string; changeOrigin?: boolean; ws?: boolean }> = {
     '/api': {
       target: apiTarget,
       changeOrigin: true,
@@ -24,6 +29,21 @@ export default defineConfig(({ mode }) => {
       ws: true,
     },
   };
+  for (const path of [
+    '/web-apps',
+    '/sdkjs',
+    '/sdkjs-plugins',
+    '/fonts',
+    '/dictionaries',
+    '/cache',
+    '/doc',
+    '/converter',
+    '/command',
+    '/docbuilder',
+    '/welcome',
+  ]) {
+    proxy[path] = { target: officeTarget, changeOrigin: true, ws: true };
+  }
   return {
     // VITE_*-флаги (VITE_API_MOCK) лежат в корневом .env рядом с docker-переменными.
     envDir: '../../',

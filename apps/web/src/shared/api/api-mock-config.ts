@@ -19,6 +19,7 @@ export const API_MOCK_DOMAINS = [
   'projects',
   'chat',
   'home',
+  'files',
 ] as const;
 
 export type ApiMockDomain = (typeof API_MOCK_DOMAINS)[number];

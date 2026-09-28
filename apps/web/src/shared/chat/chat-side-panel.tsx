@@ -10,6 +10,7 @@ import { useConversationMessages } from './api.js';
 
 import { useFrameReady } from '../ui/use-frame-ready.js';
 import { uiPx } from '../ui/ui-scale.js';
+import { useViewerStore } from '../files/viewer-store.js';
 
 /** Ширина вталкивающей панели беседы: контейнер уменьшает чат на неё. */
 export const CHAT_PANEL_W = uiPx(300);
@@ -118,6 +119,7 @@ export function ChatSidePanel({
   const scoped =
     threadRootId && scope === 'thread' ? threadScopeMessages(items, threadRootId) : items;
   const files = scoped.flatMap((m) => m.attachments);
+  const openViewer = useViewerStore((s) => s.open);
   const links = scoped.flatMap((m) => m.text.match(/https?:\/\/\S+/g) ?? []);
 
   return (
@@ -179,9 +181,23 @@ export function ChatSidePanel({
               <Section icon={FileText} title={ui.chat.filesMedia}>
                 {files.length > 0 ? (
                   files.map((file) => (
-                    <span key={file.id} className="truncate text-sm text-info">
+                    <button
+                      key={file.id}
+                      type="button"
+                      onClick={() =>
+                        openViewer({
+                          fileId: file.fileId,
+                          name: file.name,
+                          mime: file.mime,
+                          size: file.size,
+                          url: file.url,
+                        })
+                      }
+                      className="truncate text-left text-sm text-info hover:underline"
+                      title={file.name}
+                    >
                       {file.name}
-                    </span>
+                    </button>
                   ))
                 ) : (
                   <span className="text-sm text-muted-foreground">{ui.common.empty}</span>

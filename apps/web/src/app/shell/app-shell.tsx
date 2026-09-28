@@ -8,6 +8,7 @@ import { TooltipProvider } from '@nodus/ui/components/tooltip';
 import { registerCardBridge, registerReplaceTopMessenger } from '../../shared/lib/card-bridge.js';
 import { stageMessengerThread } from '../../shared/chat/messenger-nav.js';
 import { ChatDialogHosts } from '../../shared/chat/dialog-hosts.js';
+import { AttachmentViewer } from '../../shared/files/attachment-viewer.js';
 import { useUnreadTitle } from '../../shared/chat/unread-title.js';
 import { useChatSocket } from '../../shared/socket/use-chat-socket.js';
 import { WsDebugBadge } from '../../shared/socket/ws-debug-badge.js';
@@ -138,6 +139,7 @@ export function AppShell() {
       <WsDebugBadge />
       <CommandPalette />
       <ChatDialogHosts />
+      <AttachmentViewer />
       <Toaster richColors theme={theme} />
     </TooltipProvider>
   );

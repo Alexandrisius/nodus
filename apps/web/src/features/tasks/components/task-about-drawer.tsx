@@ -1,3 +1,4 @@
+import { useViewerStore } from '../../../shared/files/viewer-store.js';
 import { FileText, History, Link2, Star, X } from 'lucide-react';
 import { memo, useState } from 'react';
 import type { TaskDetail } from '@nodus/contracts';
@@ -47,6 +48,7 @@ export const TaskAboutDrawer = memo(function TaskAboutDrawer({
   const [favorite, setFavorite] = useState(false);
 
   const files = (data?.items ?? []).flatMap((m) => m.attachments);
+  const openViewer = useViewerStore((s) => s.open);
   const links = [task.description, ...(data?.items ?? []).map((m) => m.text)].flatMap(
     (text) => text.match(/https?:\/\/\S+/g) ?? [],
   );
@@ -87,9 +89,23 @@ export const TaskAboutDrawer = memo(function TaskAboutDrawer({
         <Section icon={FileText} title={ui.chat.filesMedia}>
           {files.length > 0 ? (
             files.map((file) => (
-              <span key={file.id} className="truncate text-sm text-info">
+              <button
+                key={file.id}
+                type="button"
+                onClick={() =>
+                  openViewer({
+                    fileId: file.fileId,
+                    name: file.name,
+                    mime: file.mime,
+                    size: file.size,
+                    url: file.url,
+                  })
+                }
+                className="truncate text-left text-sm text-info hover:underline"
+                title={file.name}
+              >
                 {file.name}
-              </span>
+              </button>
             ))
           ) : (
             <span className="text-sm text-muted-foreground">{ui.common.empty}</span>

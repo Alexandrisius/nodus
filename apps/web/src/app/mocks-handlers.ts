@@ -6,6 +6,7 @@ import { lettersHandlers } from '../features/correspondence/api/mocks/letters-ha
 import { counterpartiesHandlers } from '../features/crm/api/mocks/counterparties-handlers.js';
 import { directoryHandlers } from '../features/directory/api/mocks/directory-handlers.js';
 import { homeHandlers } from '../features/home/api/mocks/home-handlers.js';
+import { filesHandlers } from '../shared/files/mocks/files-handlers.js';
 import { projectsHandlers } from '../features/projects/api/mocks/projects-handlers.js';
 import { tasksHandlers } from '../features/tasks/api/mocks/tasks-handlers.js';
 import { API_MOCK_DOMAINS, type ApiMockDomain } from '../shared/api/api-mock-config.js';
@@ -25,6 +26,7 @@ const domainHandlers: Record<ApiMockDomain, HttpHandler[]> = {
   projects: projectsHandlers,
   chat: chatHandlers,
   home: homeHandlers,
+  files: filesHandlers,
 };
 
 /** Хендлеры мокаемых доменов (#48): 'all' — все (демо-сборка nodus.by),

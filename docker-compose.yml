@@ -48,6 +48,14 @@ services:
       STORAGE_SECRET_KEY: ${STORAGE_SECRET_KEY:?задайте в .env}
       # Подпись ссылок отдачи файлов (HMAC, ADR-0013) — отдельный секрет.
       STORAGE_URL_SECRET: ${STORAGE_URL_SECRET:?задайте в .env}
+      # ONLYOFFICE (#138): движок просмотра. api↔documentserver ходят по
+      # внутренней сети compose (не по браузерному origin); JWT — общий секрет.
+      OFFICE_ENABLED: ${OFFICE_ENABLED:-false}
+      OFFICE_EDIT_ENABLED: ${OFFICE_EDIT_ENABLED:-true}
+      OFFICE_JWT_SECRET: ${OFFICE_JWT_SECRET:-}
+      OFFICE_INTERNAL_URL: http://documentserver
+      # Дефис-алиас api (SILO-урок: подчёркивания в Host — мина).
+      OFFICE_API_INTERNAL_URL: http://nodus-api:3001
     ports:
       # 127.0.0.1: api/gateway доступны хосту (k6, dev-таргет) и nginx web-контейнера
       # по внутренней сети; в LAN не торчат (аудит #123, вердикт 27.09).
@@ -68,7 +76,9 @@ services:
       timeout: 5s
       retries: 5
       start_period: 15s
-    networks: [nodus_net]
+    networks:
+      nodus_net:
+        aliases: [nodus-api]
 
   gateway:
     build:
@@ -208,6 +218,48 @@ services:
         echo 'minio-init: бакет и сервисная учётка готовы'
     networks: [nodus_net]
 
+  # ONLYOFFICE Docs CE 9.4 (#138): движок просмотра офисных вложений.
+  # Отдельный контейнер-компаньон (как SILO, не линкуемся) под profile `office`
+  # — стек живёт и без него (фолбэк на скачивание). 9.4 CE: без лимита
+  # соединений, один процесс, БД/Redis/RabbitMQ НЕ нужны (EE-only). Внутренние
+  # вызовы api↔DS — по сети compose; наружу только через nginx портала.
+  documentserver:
+    image: onlyoffice/documentserver:9.4.0.1
+    container_name: nodus_documentserver
+    restart: unless-stopped
+    profiles: [office]
+    environment:
+      JWT_ENABLED: 'true'
+      # Общий секрет с api (#138); пустой → DS генерирует случайный при каждом
+      # пересоздании (интеграция развалится) — задавайте в .env.
+      JWT_SECRET: ${OFFICE_JWT_SECRET:-}
+      JWT_HEADER: Authorization
+      JWT_IN_BODY: 'false'
+      # DS скачивает файлы с api по приватным адресам внутренней сети:
+      # SSRF-фильтр DS по умолчанию их режет (research #138,
+      # request-filtering-agent; лечение — официальный env образа).
+      ALLOW_PRIVATE_IP_ADDRESS: 'true'
+      ALLOW_META_IP_ADDRESS: 'true'
+      WOPI_ENABLED: 'false'
+      EXAMPLE_ENABLED: 'false'
+    volumes:
+      - nodus_officedata:/var/www/onlyoffice/Data
+      - nodus_officelogs:/var/log/onlyoffice
+      - nodus_officelib:/var/lib/onlyoffice
+    ports:
+      # Публикуется только на loopback: прод-браузер ходит через nginx web
+      # (корневые пути DS); порт нужен dev/песочнице (vite-прокси) и проверкам.
+      - '127.0.0.1:${NODUS_OFFICE_PORT:-3013}:80'
+    healthcheck:
+      # Готовность = «true» после внутренней конвертации пробы; первый старт
+      # генерирует шрифты — до 5 минут (start_period).
+      test: ['CMD', 'curl', '-fsS', 'http://127.0.0.1/healthcheck']
+      interval: 30s
+      timeout: 5s
+      retries: 10
+      start_period: 300s
+    networks: [nodus_net]
+
   gotenberg:
     image: gotenberg/gotenberg:8
     container_name: nodus_gotenberg
@@ -239,3 +291,9 @@ volumes:
     name: nodus_redisdata
   nodus_miniodata:
     name: nodus_miniodata
+  nodus_officedata:
+    name: nodus_officedata
+  nodus_officelogs:
+    name: nodus_officelogs
+  nodus_officelib:
+    name: nodus_officelib
