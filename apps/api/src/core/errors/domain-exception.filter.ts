@@ -34,6 +34,11 @@ const CODE_TO_STATUS: Record<ErrorCode, number> = {
   [ErrorCode.CHAT_ATTACHMENT_TOO_MANY]: HttpStatus.BAD_REQUEST,
   [ErrorCode.FILE_SIZE_MISMATCH]: HttpStatus.BAD_REQUEST,
   [ErrorCode.FILE_QUARANTINED]: HttpStatus.GONE,
+  // Офисный просмотр (#138): движок выключен — 503 (не ошибка клиента, деградация),
+  // неподдерживаемый формат и превышение потолка — 400 (выбор файла).
+  [ErrorCode.FILE_OFFICE_DISABLED]: HttpStatus.SERVICE_UNAVAILABLE,
+  [ErrorCode.FILE_OFFICE_UNSUPPORTED]: HttpStatus.BAD_REQUEST,
+  [ErrorCode.FILE_OFFICE_TOO_LARGE]: HttpStatus.PAYLOAD_TOO_LARGE,
 };
 
 /** Код для HTTP-исключений Nest/Fastify (400 у нас — всегда валидация входа). */

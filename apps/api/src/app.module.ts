@@ -15,6 +15,7 @@ import { RedisModule } from './core/redis/redis.module.js';
 import { HealthModule } from './health/health.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { JwtAuthGuard } from './modules/auth/jwt-auth.guard.js';
+import { ChatFileAccessModule } from './modules/chat/file-access/chat-file-access.module.js';
 import { ChatModule } from './modules/chat/chat.module.js';
 import { DirectoryModule } from './modules/directory/directory.module.js';
 import { FilesModule } from './modules/files/files.module.js';
@@ -32,6 +33,9 @@ import { FilesModule } from './modules/files/files.module.js';
     AuthModule,
     FilesModule,
     ChatModule,
+    // Права chat на файлы для движка просмотра (#138, I13): @Global-мост
+    // FILE_ACCESS_CONTRIBUTORS — после ChatModule (свой модуль не тянет).
+    ChatFileAccessModule,
     DirectoryModule,
   ],
   providers: [

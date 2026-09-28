@@ -507,6 +507,9 @@ model FileObject {
   bucket    String
   /// Ключ ТЕКУЩЕЙ версии в бакете (указатель; история — в FileVersion).
   key       String    @unique
+  /// Номер текущей версии (указатель на FileObject.versions[N]; растёт при
+  /// сохранениях ONLYOFFICE, #138). Миграция 28.09: существующие файлы = v1.
+  version   Int       @default(1)
   name      String
   mime      String
   size      Int
@@ -534,6 +537,12 @@ model FileVersion {
   key         String
   size        Int
   mime        String
+  /// Ключ документа ONLYOFFICE, из которого сохранена версия (#138):
+  /// `${fileId}:v{N}` на момент правки — дедуп повторных колбэков.
+  sourceKey   String?  @map("source_key")
+  /// lastsave колбэка (мс epoch): повторная доставка того же сохранения
+  /// (forcesave → закрытие) не создаёт дубликат-версию.
+  sourceLastsave BigInt? @map("source_lastsave")
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
 
   fileObject FileObject @relation(fields: [fileObjectId], references: [id], onDelete: Cascade)

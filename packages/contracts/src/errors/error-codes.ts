@@ -39,6 +39,12 @@ export const ErrorCode = {
   FILE_SIZE_MISMATCH: 'FILE_SIZE_MISMATCH',
   /** Файл помещён в карантин (сканер пометил) и не отдаётся (ADR-0013). */
   FILE_QUARANTINED: 'FILE_QUARANTINED',
+  /** Движок офисного просмотра выключен (ONLYOFFICE не поднят, #138). */
+  FILE_OFFICE_DISABLED: 'FILE_OFFICE_DISABLED',
+  /** Формат не открывается в ONLYOFFICE (реестр office-formats, #138). */
+  FILE_OFFICE_UNSUPPORTED: 'FILE_OFFICE_UNSUPPORTED',
+  /** Файл больше потолка открытия в редакторе (#138; открывается скачиванием). */
+  FILE_OFFICE_TOO_LARGE: 'FILE_OFFICE_TOO_LARGE',
 } as const;
 
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];

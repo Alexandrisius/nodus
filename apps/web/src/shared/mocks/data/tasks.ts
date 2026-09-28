@@ -217,6 +217,7 @@ export const demoTaskMessages: ChatMessage[] = [
     attachments: [
       {
         id: '70000000-0000-4000-8000-000000000001',
+        fileId: crypto.randomUUID(),
         name: 'расхождения_оси_4-7.pdf',
         size: 182_000,
         mime: 'application/pdf',

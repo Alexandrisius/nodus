@@ -69,6 +69,7 @@ export const chatMutationHandlers = [
     const isImage = file.type.startsWith('image/');
     const attachment: MessageAttachment = {
       id: crypto.randomUUID(),
+      fileId: crypto.randomUUID(),
       name: file.name,
       size: file.size,
       mime: file.type || 'application/octet-stream',

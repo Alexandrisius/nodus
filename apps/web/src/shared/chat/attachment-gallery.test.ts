@@ -5,6 +5,7 @@ import { galleryRows } from './attachment-gallery.js';
 
 const img = (n: number): MessageAttachment => ({
   id: `img-${n}`,
+  fileId: `00000000-0000-4000-8000-00000000000${n}`,
   name: `фото-${n}.png`,
   size: 1000,
   mime: 'image/png',

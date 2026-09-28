@@ -38,6 +38,13 @@ export class SignedUrlService {
     return `/api/v1/files/${fileId}/content?exp=${exp}&sig=${sig}`;
   }
 
+  /** URL КОНКРЕТНОЙ версии (history просмотрщика, #138): ресурс подписи —
+   *  `${fileId}:v{N}`, поэтому старые ссылки не открывают новый контент. */
+  fileVersionUrl(fileId: string, version: number): string {
+    const { exp, sig } = this.sign(`${fileId}:v${version}`);
+    return `/api/v1/files/${fileId}/content?v=${version}&exp=${exp}&sig=${sig}`;
+  }
+
   sign(resourceId: string): { exp: number; sig: string } {
     const exp = Math.floor(Date.now() / 1000) + this.ttlSeconds;
     return { exp, sig: this.hmac(resourceId, exp) };

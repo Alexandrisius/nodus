@@ -2,6 +2,7 @@ import { ErrorCode } from '../errors/error-codes.js';
 
 import { chatStrings } from './ru-chat.js';
 import { counterpartiesStrings, lettersStrings } from './ru-correspondence.js';
+import { filesStrings } from './ru-files.js';
 
 /**
  * Русские UI-строки для системных кодов ошибок (I15: `message` в ответе —
@@ -26,6 +27,9 @@ export const errorMessages: Record<ErrorCode, string> = {
     'Слишком много неотправленных вложений — сначала отправьте или уберите лишние',
   [ErrorCode.FILE_SIZE_MISMATCH]: 'Файл передался не полностью — попробуйте ещё раз',
   [ErrorCode.FILE_QUARANTINED]: 'Файл заблокирован проверкой безопасности',
+  [ErrorCode.FILE_OFFICE_DISABLED]: 'Просмотр документов недоступен — скачайте файл',
+  [ErrorCode.FILE_OFFICE_UNSUPPORTED]: 'Этот формат не открывается в браузере — скачайте файл',
+  [ErrorCode.FILE_OFFICE_TOO_LARGE]: 'Файл слишком большой для просмотра — скачайте его',
 };
 
 /**
@@ -314,6 +318,7 @@ export const ui = {
     },
   },
   chat: chatStrings,
+  files: filesStrings,
   employees: {
     title: 'Сотрудники',
     structure: 'Структура',
