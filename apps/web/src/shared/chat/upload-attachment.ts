@@ -1,6 +1,7 @@
 import type { MessageAttachment } from '@nodus/contracts';
 
 import { apiUpload } from '../api-client.js';
+import { isDomainMocked } from '../api/api-mock-config.js';
 
 /**
  * Загрузка вложения композера (A1, #87): POST /chat/attachments →
@@ -93,6 +94,9 @@ export function uploadAttachment(file: File, onProgress: (fraction: number) => v
       return attachment;
     } finally {
       window.clearInterval(timer);
+      // objectURL нужен только мок-хендлеру (url вложения в демо); в живом
+      // режиме url выдаёт сервер — ссылку на File освобождаем (валидация #57).
+      if (!isDomainMocked('chat')) URL.revokeObjectURL(objectUrl);
     }
   })();
 

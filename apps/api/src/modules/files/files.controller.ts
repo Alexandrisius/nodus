@@ -64,7 +64,19 @@ export class FilesController {
     }
 
     const stream = await this.driver.get(file.key);
-    const disposition = file.mime.startsWith('image/') ? 'inline' : 'attachment';
+    // Inline — ТОЛЬКО whitelist растровых форматов: mime приходит от клиента
+    // и не валидируется, а SVG (и пр. активный контент) в «новой вкладке»
+    // исполняет скрипты на origin портала → refresh-cookie жертвы (валидация
+    // #57: stored XSS). Остальное — attachment; на всё — nosniff.
+    const INLINE_MIME = new Set([
+      'image/png',
+      'image/jpeg',
+      'image/gif',
+      'image/webp',
+      'image/avif',
+      'image/bmp',
+    ]);
+    const disposition = INLINE_MIME.has(file.mime) ? 'inline' : 'attachment';
     void reply
       .header('Content-Type', file.mime)
       .header('Content-Length', file.size)
@@ -72,6 +84,7 @@ export class FilesController {
         'Content-Disposition',
         `${disposition}; filename*=UTF-8''${encodeURIComponent(file.name)}`,
       )
+      .header('X-Content-Type-Options', 'nosniff')
       .header('Cache-Control', 'private, max-age=3600')
       .header('ETag', etag)
       .send(stream);

@@ -172,6 +172,21 @@ describe.skipIf(!process.env.DATABASE_URL || !process.env.STORAGE_ACCESS_KEY)(
       expect(((await blocked.json()) as { code: string }).code).toBe(ErrorCode.FILE_QUARANTINED);
     });
 
+    it('SVG не отдаётся inline (stored-XSS, валидация #57): attachment + nosniff', async () => {
+      const svg = new Blob(['<svg xmlns="http://www.w3.org/2000/svg"><script>1</script></svg>'], {
+        type: 'image/svg+xml',
+      });
+      const res = await upload(alice, svg, { size: String(svg.size) }, 'evil.svg');
+      expect(res.status).toBe(201);
+      const attachment = (await res.json()) as ChatMessage['attachments'][number];
+      fileIds.push(fileIdOf(attachment));
+
+      const fetched = await fetch(`${origin}${attachment.url}`);
+      expect(fetched.status).toBe(200);
+      expect(fetched.headers.get('content-disposition')).toContain('attachment');
+      expect(fetched.headers.get('x-content-type-options')).toBe('nosniff');
+    });
+
     it('лимиты: заявленный размер > 100 МБ — 413 до касания хранилища', async () => {
       const blob = new Blob([IMAGE_BYTES], { type: 'image/png' });
       const res = await upload(alice, blob, { size: String(100 * 1024 * 1024 + 1) });

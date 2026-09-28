@@ -196,7 +196,10 @@ services:
         set -e
         mcli alias set local http://nodus-minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"
         mcli mb --ignore-existing "local/$$STORAGE_BUCKET"
-        printf '%s' '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["s3:GetObject","s3:PutObject","s3:DeleteObject","s3:ListBucket","s3:GetBucketLocation","s3:CreateBucket","s3:AbortMultipartUpload"],"Resource":["arn:aws:s3:::*","arn:aws:s3:::*/*"]}]}' > /tmp/nodus-storage-rw.json
+        # Права ТОЛЬКО на бакет вложений (валидация #57: ранее arn:aws:s3:::*):
+        # объекты + HeadBucket (ensureBucket при буте api) + Location; бакет
+        # создаёт root здесь — CreateBucket учётке не нужен.
+        printf '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["s3:GetObject","s3:PutObject","s3:DeleteObject","s3:AbortMultipartUpload","s3:ListBucket","s3:GetBucketLocation"],"Resource":["arn:aws:s3:::%s","arn:aws:s3:::%s/*"]}]}' "$$STORAGE_BUCKET" "$$STORAGE_BUCKET" > /tmp/nodus-storage-rw.json
         mcli admin user add local "$$STORAGE_ACCESS_KEY" "$$STORAGE_SECRET_KEY"
         mcli admin policy create local nodus-storage-rw /tmp/nodus-storage-rw.json 2>/dev/null || mcli admin policy update local nodus-storage-rw /tmp/nodus-storage-rw.json
         mcli admin policy attach local nodus-storage-rw --user "$$STORAGE_ACCESS_KEY" 2>/dev/null || true
