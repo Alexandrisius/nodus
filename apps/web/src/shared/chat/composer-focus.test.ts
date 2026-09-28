@@ -13,6 +13,19 @@ function leftPointerDown(): void {
   document.dispatchEvent(new MouseEvent('pointerdown', { button: 0, bubbles: true }));
 }
 
+/** pointerup — кнопка отпущена (#132 р.4: пока ЛКМ зажата, фокус не крадётся). */
+function pointerUp(): void {
+  document.dispatchEvent(new MouseEvent('pointerup', { button: 0, bubbles: true }));
+}
+
+/** Честный клик: down → фокус цели → up → click (возврат каретки — по click). */
+function leftClick(target: HTMLElement): void {
+  leftPointerDown();
+  target.focus();
+  pointerUp();
+  target.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+}
+
 describe('composer-focus — «вечный курсор» и оверлей-слои (регрессия #71)', () => {
   let composer: HTMLTextAreaElement;
 
@@ -31,8 +44,23 @@ describe('composer-focus — «вечный курсор» и оверлей-с�
   it('обычный клик по кнопке ВНЕ слоя — курсор возвращается в композер (канон)', async () => {
     const btn = document.createElement('button');
     document.body.append(btn);
+    leftClick(btn);
+    await frame();
+    expect(document.activeElement).toBe(composer);
+  });
+
+  it('ПОКА ЛКМ зажата — фокус не крадётся (нативное выделение текста живо, #132 р.4)', async () => {
+    // mousedown на тексте ленты: фокус ушёл скроллеру (tabIndex) — steal
+    // кадром позже убивал зарождающийся драг-селект; теперь ждём отпускания.
+    const scroller = document.createElement('div');
+    scroller.tabIndex = 0;
+    document.body.append(scroller);
     leftPointerDown();
-    btn.focus();
+    scroller.focus();
+    await frame();
+    expect(document.activeElement).toBe(scroller);
+    pointerUp();
+    scroller.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await frame();
     expect(document.activeElement).toBe(composer);
   });
@@ -65,6 +93,43 @@ describe('composer-focus — «вечный курсор» и оверлей-с�
     expect(document.activeElement).toBe(btn);
   });
 
+  it('клик открыл поповер, фокус на ТРИГГЕРЕ — не крадётся (emoji-панель жива, #132 р.5)', async () => {
+    // Как PopoverTrigger Radix при открытой панели эмодзи (#130): триггер
+    // несёт aria-expanded=true + aria-controls на СМОНТИРОВАННЫЙ контент,
+    // автофокус контента отключён — фокус остаётся на триггере. Кража кадром
+    // позже уводила его в композер → DismissableLayer закрывал панель
+    // по focusOutside мгновенно.
+    const trigger = document.createElement('button');
+    trigger.setAttribute('aria-expanded', 'true');
+    trigger.setAttribute('aria-controls', 'emoji-panel-content');
+    const content = document.createElement('div');
+    content.id = 'emoji-panel-content';
+    content.setAttribute('role', 'dialog');
+    document.body.append(trigger, content);
+    try {
+      leftClick(trigger);
+      await frame();
+      expect(document.activeElement).toBe(trigger);
+    } finally {
+      trigger.remove();
+      content.remove();
+    }
+  });
+
+  it('закрытый слой (контент размонтирован) — триггер обычная кнопка, курсор возвращается', async () => {
+    const trigger = document.createElement('button');
+    trigger.setAttribute('aria-expanded', 'false');
+    trigger.setAttribute('aria-controls', 'gone-panel-content');
+    document.body.append(trigger);
+    try {
+      leftClick(trigger);
+      await frame();
+      expect(document.activeElement).toBe(composer);
+    } finally {
+      trigger.remove();
+    }
+  });
+
   it('слой закрылся, фокус на триггере — курсор возвращается (канон сохранён)', async () => {
     const layer = document.createElement('div');
     layer.setAttribute('role', 'dialog');
@@ -78,6 +143,7 @@ describe('composer-focus — «вечный курсор» и оверлей-с�
     inner.focus();
     await frame();
     expect(document.activeElement).toBe(inner);
+    pointerUp(); // слой закрывается уже без зажатой кнопки
 
     // «Закрытие поповера»: Radix возвращает фокус на триггер (onCloseAutoFocus).
     layer.remove();
@@ -106,8 +172,7 @@ describe('composer-focus — «вечный курсор» и оверлей-с�
     document.body.append(slider);
     registerComposer('slider-composer', sliderComposer);
     try {
-      leftPointerDown();
-      railButton.focus();
+      leftClick(railButton);
       await frame();
       expect(document.activeElement).toBe(sliderComposer);
     } finally {
@@ -151,6 +216,7 @@ describe('composer-focus — «вечный курсор» и оверлей-с�
       await frame();
       // Слой открыт — фокус не крадётся, композер ждёт.
       expect(document.activeElement).toBe(item);
+      pointerUp(); // дальше — закрытие слоя без зажатой кнопки
       // Слой закрылся: Radix возвращает фокус триггеру — курсор возвращается
       // в композер (канон сохранён).
       menu.remove();

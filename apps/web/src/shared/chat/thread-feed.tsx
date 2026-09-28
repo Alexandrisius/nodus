@@ -2,11 +2,10 @@ import { ArrowRight } from 'lucide-react';
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { ui } from '@nodus/contracts';
 import { Empty, EmptyTitle } from '@nodus/ui/components/empty';
-import { Skeleton } from '@nodus/ui/components/skeleton';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { useAuthStore } from '../auth-store.js';
-import { formatTime, plural } from '../lib/format.js';
+import { formatTime, plural, withoutPatronymic } from '../lib/format.js';
 import { PersonAvatar } from '../ui/person-avatar.js';
 import { chatAttachmentsEnabled } from './attachments-gate.js';
 import { useConversationMessages, useSendChatMessage } from './api.js';
@@ -18,6 +17,7 @@ import { useChatDrafts } from './chat-drafts.js';
 import { MessageAttachments } from './attachments.js';
 import { MessageReactions } from './chat-message.js';
 import { MessageMeta } from './message-meta.js';
+import { MessageText } from './message-text.js';
 import { messageSurface } from './message-surface.js';
 import { ConversationViewsLine } from './views-line.js';
 import { addFiles } from './composer-files.js';
@@ -32,6 +32,7 @@ import { PinBar } from './pin-bar.js';
 import { useJumpResponder } from './use-jump-responder.js';
 import { useFeedViewportRead } from './use-viewport-read.js';
 import { selectionComposerProps, useFeedSelection } from './use-feed-selection.js';
+import { useBoxSelection } from './use-box-selection.js';
 import { useConversations, useThreadStates } from './api.js';
 import { canPostFeed } from './conversations.js';
 // >300 строк — обоснование (I5): лента постов канала — единая карточка поста
@@ -129,6 +130,15 @@ export const ThreadFeed = memo(function ThreadFeed({
   }, [items]);
 
   const selection = useFeedSelection(scope, roots, me?.id);
+  // Рамочное выделение (#132 р.6 — модель Telegram webk, та же логика,
+  // что сообщения чатов, вердикт «не разделять»); якорь — скролл-контейнер
+  // постов.
+  const box = useBoxSelection({
+    scope,
+    viewportRef: feedRef,
+    selectableIds: selection.orderedIds,
+    selectionActive: selection.selectionActive,
+  });
   useJumpResponder({
     conversationId,
     threadRootId: null,
@@ -173,24 +183,31 @@ export const ThreadFeed = memo(function ThreadFeed({
         <div
           ref={feedRef}
           className={cn(
-            'min-h-0 flex-1 overflow-y-auto bg-chat-zone px-4 pt-4 pb-0',
-            selection.selectionActive && 'select-none',
+            // Р.11: гуттер скроллбара РЕЗЕРВИРУЕТСЯ ВСЕГДА (канон
+            // MessageScrollerViewport: scrollbar-thin + gutter-stable) —
+            // при сужении ленты открытием окна трэда контент переступал
+            // порог переполнения, классический скроллбар появлялся на кадр
+            // и съедал ~ширину рывком («лента дёргается влево на 1мм»).
+            'min-h-0 flex-1 overflow-y-auto bg-chat-zone px-4 pt-4 pb-0 scrollbar-thin scrollbar-gutter-stable',
+            (selection.selectionActive || box.active) && 'select-none',
           )}
         >
-          {isLoading ? (
-            <div className="flex flex-col gap-3">
-              {[0, 1, 2].map((i) => (
-                <Skeleton key={i} className="h-28 w-full" />
-              ))}
-            </div>
-          ) : roots.length === 0 ? (
+          {/* Р.12: скелетоны-полоски убраны (три широкие полосы на первое
+              открытие после перезагрузки читались артефактом); лента
+              загрузки — пустая, контент проявляется feed-reveal. */}
+          {isLoading ? null : roots.length === 0 ? (
             <div className="flex h-full items-center justify-center">
               <Empty>
                 <EmptyTitle>{ui.chat.feedEmpty}</EmptyTitle>
               </Empty>
             </div>
           ) : (
-            <div className="flex flex-col gap-3">
+            <div className="feed-reveal flex h-max min-h-full flex-col justify-end gap-3">
+              {/* Р.7: лента ЯКОРИТСЯ НИЗОМ (модель Telegram: переписка растёт
+                  снизу вверх — первый пост внизу, пустоты под контентом не
+                  бывает): неполный экран — контент прижат к низу, pill
+                  «Просмотрено» всегда у нижней кромки статично; полный —
+                  h-max растёт вверх, якорь не мешает скроллу. */}
               {roots.map((root) => {
                 const replies = repliesByRoot.get(root.id) ?? [];
                 const repliesCount = root.threadRepliesCount || replies.length;
@@ -231,6 +248,12 @@ export const ThreadFeed = memo(function ThreadFeed({
                           role="button"
                           tabIndex={0}
                           onClick={(e) => {
+                            // Р.7: завершение выделения текста — НЕ клик по
+                            // карточке (браузер стреляет click и на release
+                            // драга): несвёрнутая селекция глушит открытие
+                            // трэда, иначе «случайный клик» открывал панель
+                            // на первой же попытке выделить текст поста.
+                            if (!window.getSelection()?.isCollapsed) return;
                             const interactive = (e.target as HTMLElement).closest(
                               'button, a, input, [role="button"]',
                             );
@@ -253,8 +276,13 @@ export const ThreadFeed = memo(function ThreadFeed({
                             // сохраняются (пост — карточка ленты, не облако).
                             surface.fill,
                             `relative w-full max-w-2xl cursor-pointer rounded-xl border border-border
-                            p-3.5 text-left transition-colors hover:border-input group/msg`,
+                            p-3.5 text-left transition-colors hover:border-input group/msg group/bubble`,
                           )}
+                          // data-slot пост-поверхности — цель тинта выбранных
+                          // (глоб. CSS, #132 р.3), как bubble-content у пузырей;
+                          // data-surface (р.5) — какой токен заливки смешивать.
+                          data-slot="post-surface"
+                          data-surface={surface.tone}
                         >
                           <span className="flex items-center gap-2 text-sm">
                             <PersonAvatar
@@ -262,7 +290,7 @@ export const ThreadFeed = memo(function ThreadFeed({
                               className="size-7 shrink-0"
                             />
                             <span className="min-w-0 truncate font-medium">
-                              {root.author.displayName}
+                              {withoutPatronymic(root.author.displayName)}
                             </span>
                           </span>
                           {root.attachments.length > 0 ? (
@@ -270,8 +298,14 @@ export const ThreadFeed = memo(function ThreadFeed({
                               <MessageAttachments message={root} />
                             </span>
                           ) : null}
-                          <span className="mt-2 block text-sm leading-relaxed whitespace-pre-wrap">
-                            {root.text}
+                          {/* Текст поста — MessageText (р.6): маркер
+                              message-text включает модель Telegram — старт
+                              на тексте даёт нативное выделение, выход за
+                              карточку превращает жест в выделение поста
+                              целиком; заодно живые превью ссылок-сущностей
+                              (как в пузырях чатов). */}
+                          <span className="mt-2 block text-sm leading-relaxed">
+                            <MessageText text={root.text} />
                           </span>
                           {/* Мета поста — ТА ЖЕ композиция и те же зазоры, что в
                               пузыре чата (#96, message-meta.tsx): пин →
@@ -348,11 +382,14 @@ export const ThreadFeed = memo(function ThreadFeed({
                               <ArrowRight className="size-3" strokeWidth={1.75} />
                             </span>
                           </span>
-                          {/* Ховер-кнопка реакций поста канала (#124, вердикт
-                              27.09): правый нижний угол карточки, видна по
-                              наведению на пост (group/msg); чипы реакций — в
-                              мета-строке выше. */}
-                          <ReactionPicker message={root} atEnd={false} />
+                          {/* Ховер-кнопка реакций поста канала (#124 → #132):
+                              правый нижний угол карточки, видна по наведению
+                              на ПОСТ (group/bubble — «поверхность сообщения»);
+                              чипы реакций — в мета-строке выше; в режиме
+                              выделения реакции недоступны (#132 р.4). */}
+                          {selection.selectionActive ? null : (
+                            <ReactionPicker message={root} atEnd={false} />
+                          )}
                         </div>
                       </MessageMenu>
                     )}
@@ -361,40 +398,33 @@ export const ThreadFeed = memo(function ThreadFeed({
               })}
               {/* Метка просмотров — ВСЕГДА последний элемент ленты постов
                   (модель Битрикс24); текст фильтруется от автора нижнего
-                  поста (views-line). */}
+                  поста (views-line); зазор сверху = 1.5× нижнего (#132 р.2). */}
               <ConversationViewsLine
                 conversationId={conversationId}
                 messages={roots}
-                className="-mt-2"
+                className="-mt-[3px]"
               />
             </div>
           )}
         </div>
       </FeedDropzone>
-      {conversation === null || canPostFeed(conversation) ? (
-        <ChatComposer
-          placeholder={ui.chat.newPostPlaceholder}
-          focusId={scope}
-          conversationId={conversationId}
-          attachmentsEnabled
-          onEditLast={handleEditLast}
-          selection={selectionComposerProps(conversationId, selection)}
-          onSubmit={handleSubmit}
-        />
-      ) : (
-        // Островок композера в неактивном состоянии — ИЗОМОРФЕН активному
-        // (#130, находка владельца: высота совпадает пиксель-в-пиксель, выдача
-        // права post не двигает ленту): обёртка/островок/строка — те же классы,
-        // что у ChatComposer, строка повторяет геометрию textarea (min-h-8
-        // px-1.5 py-1.5 text-sm). Обсуждение остаётся доступным в тредах.
-        <div className="shrink-0 bg-chat-zone px-3 pt-1.5 pb-2">
-          <div className="flex w-full rounded-2xl bg-card px-2 py-1.5 shadow-sm">
-            <div className="min-h-8 w-full px-1.5 py-1.5 text-sm text-muted-foreground">
-              {ui.chat.composerNoPostRights}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Композер ленты ВСЕГДА смонтирован (р.8): с правами — полный ввод,
+          без прав — строка-заглушка ВНУТРИ островка (disabledPlaceholder) —
+          выход из мультиселекта морфится в заглушку той же анимацией, а не
+          мгновенной подменой; в селекте — узкий батч-островок (р.6). Гейт
+          «нет права post» — только UX (I8: сервер проверяет матрицу сам). */}
+      <ChatComposer
+        placeholder={ui.chat.newPostPlaceholder}
+        focusId={scope}
+        conversationId={conversationId}
+        attachmentsEnabled
+        onEditLast={handleEditLast}
+        selection={selectionComposerProps(conversationId, selection)}
+        disabledPlaceholder={
+          conversation !== null && !canPostFeed(conversation) ? ui.chat.composerNoPostRights : null
+        }
+        onSubmit={handleSubmit}
+      />
     </div>
   );
 });

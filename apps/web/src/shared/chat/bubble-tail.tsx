@@ -34,6 +34,9 @@ export function BubbleTail({
     <svg
       aria-hidden
       viewBox="0 0 20 20"
+      // data-slot — цель тинта выбранных (globals.css, #132 р.4): заливка
+      // хвоста перекрашивается вместе с пузырём.
+      data-slot="bubble-tail"
       className={cn(
         'absolute bottom-0 size-[1.25rem]',
         side === 'left' ? '-left-[0.75rem]' : '-right-[0.75rem]',

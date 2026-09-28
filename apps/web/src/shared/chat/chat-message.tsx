@@ -6,7 +6,7 @@ import { Bubble, BubbleContent } from '@nodus/ui/components/bubble';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@nodus/ui/components/tooltip';
 
 import { openCardViaBridge } from '../lib/card-bridge.js';
-import { shortPersonName } from '../lib/format.js';
+import { shortPersonName, withoutPatronymic } from '../lib/format.js';
 import { MessageAttachments } from './attachments.js';
 import { BubbleTail } from './bubble-tail.js';
 import { useChatPrefs } from './chat-prefs.js';
@@ -132,6 +132,7 @@ export const ChatMessageItem = memo(function ChatMessageItem({
   showName = false,
   showAvatar = true,
   tail = false,
+  reactionsHidden = false,
 }: {
   message: ChatMessage;
   mine: boolean;
@@ -141,6 +142,8 @@ export const ChatMessageItem = memo(function ChatMessageItem({
   showAvatar?: boolean;
   /** Хвостик из низа аватарки — у последнего пузыря серии. */
   tail?: boolean;
+  /** Режим выделения: реакции недоступны (модель Битрикс24, #132 р.4). */
+  reactionsHidden?: boolean;
 }) {
   const align = useChatPrefs((s) => s.align);
   const atEnd = mine && align === 'both';
@@ -200,7 +203,9 @@ export const ChatMessageItem = memo(function ChatMessageItem({
       <MessageContent>
         {/* Имя визуально — ВНУТРИ пузыря (ниже); здесь остаётся sr-only автор
             для сообщений серии без видимого имени (AT не теряет автора). */}
-        {showName ? null : <span className="sr-only">{message.author.displayName}: </span>}
+        {showName ? null : (
+          <span className="sr-only">{withoutPatronymic(message.author.displayName)}: </span>
+        )}
         <Bubble variant={variant}>
           {/* Угол со стороны хвостика — БЕЗ скругления: скруглённый угол
               оставлял собственный бордюр пузыря пересекать основание хвоста
@@ -233,7 +238,7 @@ export const ChatMessageItem = memo(function ChatMessageItem({
                 менялась — message-groups.ts). Свои — без имени вовсе. */}
             {showName ? (
               <span className="text-sm leading-[19px] font-semibold text-info">
-                {message.author.displayName}
+                {shortPersonName(message.author.displayName)}
               </span>
             ) : null}
             {/* Атрибуция пересылки — следующая строка пузыря (канон
@@ -270,7 +275,8 @@ export const ChatMessageItem = memo(function ChatMessageItem({
           </BubbleContent>
           {/* Ховер-попап реакций (#124): кнопка у нижнего угла пузыря
               (Bubble — relative), видна по hover/focus/открытом попапе. */}
-          <ReactionPicker message={message} atEnd={atEnd} />
+          {/* В режиме выделения реакции недоступны (модель Битрикс24, #132 р.4). */}
+          {reactionsHidden ? null : <ReactionPicker message={message} atEnd={atEnd} />}
           {/* Хвостик — ПОСЛЕ тела пузыря (вердикт владельца 14.09.2026:
               «вертикальная линия-разделитель»): если рисовать до BubbleContent,
               бордюр пузыря перекрашивает заливку хвоста в стыке и читается

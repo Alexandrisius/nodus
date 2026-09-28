@@ -1,7 +1,7 @@
 import type { ConversationListItem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 
-import { plural } from '../lib/format.js';
+import { plural, withoutPatronymic } from '../lib/format.js';
 
 /**
  * Заголовки/сортировка бесед — shared-слой (#87: диалог пересылки в
@@ -37,7 +37,7 @@ export function conversationTitle(
     return ref ? `${ref} · ${conversation.letter.subject}` : conversation.letter.subject;
   }
   if (isNotesConversation(conversation, meId)) return ui.chat.notes;
-  return conversation.title ?? conversation.membersPreview[0]?.displayName ?? '';
+  return conversation.title ?? withoutPatronymic(conversation.membersPreview[0]?.displayName ?? '');
 }
 
 /** Единый список бесед по активности (вердикт владельца 2026-09-10, раунд 2):

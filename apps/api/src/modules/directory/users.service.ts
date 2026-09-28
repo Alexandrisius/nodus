@@ -17,15 +17,19 @@ import { EventBus } from '../../core/events/event-bus.js';
 import { RolesRepository } from './roles.repository.js';
 import { UsersRepository, type UserCardRow, type UserListRow } from './users.repository.js';
 
-/** «Фамилия Имя Отчество» — денормализация для списков и JWT. */
+/** «Фамилия Имя» — денормализация для списков и JWT. Отчество в displayName
+ *  НЕ входит (#132, фидбек пилотов: слишком формально; поле middleName
+ *  остаётся в справочнике и карточке сотрудника, включалка отображения —
+ *  будущее «Настройки портала» #133). Единая точка: ~40 мест UI рендерят
+ *  displayName сырым. */
 export function buildDisplayName(parts: {
   lastName: string;
   firstName: string;
+  /** Приходит из модели/DTO — ПРИНИМАЕТСЯ и игнорируется: callers с полным
+   *  объектом не чистят поле сами (тест #132 прямо проверяет игнор). */
   middleName?: string | null;
 }): string {
-  return [parts.lastName, parts.firstName, parts.middleName]
-    .filter((p): p is string => Boolean(p))
-    .join(' ');
+  return [parts.lastName, parts.firstName].filter((p): p is string => Boolean(p)).join(' ');
 }
 
 function toIsoDate(value: Date | null): string | null {

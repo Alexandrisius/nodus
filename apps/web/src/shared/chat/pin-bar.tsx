@@ -5,7 +5,7 @@ import { Button } from '@nodus/ui/components/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@nodus/ui/components/popover';
 import { cn } from '@nodus/ui/lib/utils';
 
-import { formatTime } from '../lib/format.js';
+import { formatTime, withoutPatronymic } from '../lib/format.js';
 import { usePins } from './message-mutations.js';
 
 import { useUnpinDialog } from './dialog-stores.js';
@@ -83,7 +83,7 @@ export function PinBar({
             {ui.chat.pinnedBarLabel}
           </span>
           <span className="min-w-0 truncate text-xs text-muted-foreground">
-            {message.deletedAt ? '' : message.author.displayName}
+            {message.deletedAt ? '' : withoutPatronymic(message.author.displayName)}
           </span>
         </span>
         <span className="max-w-full truncate text-xs text-muted-foreground">
@@ -150,7 +150,7 @@ export function PinBar({
                   >
                     <span className="flex max-w-full items-baseline gap-1.5">
                       <span className="truncate text-xs font-semibold">
-                        {p.message.author.displayName}
+                        {withoutPatronymic(p.message.author.displayName)}
                       </span>
                       <span className="shrink-0 font-mono text-[11px] text-muted-foreground tabular-nums">
                         {formatTime(p.pinnedAt)}

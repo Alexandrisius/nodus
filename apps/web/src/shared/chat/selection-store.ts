@@ -2,7 +2,7 @@ import { ui } from '@nodus/contracts';
 import { toast } from 'sonner';
 import { create } from 'zustand';
 
-import { rangeBetween, withSelection } from './selection-range.js';
+import { SELECTION_LIMIT, rangeBetween, withSelection } from './selection-range.js';
 
 /**
  * Режим мультивыбора сообщений (A6, #87). scope = draftKey ленты
@@ -20,6 +20,10 @@ interface SelectionState {
   anchorId: string | null;
   enter: (scope: string, id: string) => void;
   toggle: (scope: string, id: string, shift?: boolean, orderedIds?: readonly string[]) => void;
+  /** Рамочное выделение (#132, раунд 3 — АККУМУЛЯЦИЯ): ДОБАВИТЬ набор к
+   *  выделению (union, порядок ленты); выделенное никогда не снимается
+   *  автоматически; пустой набор и неизменный состав стор не трогают. */
+  applySet: (scope: string, ids: readonly string[]) => void;
   /** Тихое исключение (сообщение удалено другим участником во время селекта). */
   remove: (id: string) => void;
   exit: () => void;
@@ -59,6 +63,27 @@ export const useSelectionStore = create<SelectionState>((set, get) => ({
       return;
     }
     set({ ids, anchorId: id });
+  },
+
+  applySet: (scope, ids) => {
+    if (ids.length === 0) return;
+    const state = get();
+    // Раунд 3: вторая пачка ДОБАВЛЯЕТСЯ к первой (Telegram), якорь не едет.
+    const base = state.scope === scope ? state.ids : [];
+    const merged = [...new Set([...base, ...ids])];
+    const capped = merged.length > SELECTION_LIMIT;
+    if (capped) toast(ui.chat.selectionLimit);
+    const next = capped ? merged.slice(0, SELECTION_LIMIT) : merged;
+    // Не изменилось (множество) — стор молчит: без ряби рендера на каждый
+    // pointermove (лаги длинных лент, раунд 3).
+    if (
+      state.scope === scope &&
+      next.length === state.ids.length &&
+      next.every((id) => state.ids.includes(id))
+    ) {
+      return;
+    }
+    set({ scope, ids: next, anchorId: state.anchorId ?? next[0] ?? null });
   },
 
   remove: (id) =>

@@ -26,6 +26,7 @@ import { toast } from 'sonner';
 
 import { useUsersList } from '../../../shared/api/users-list.js';
 import { useAuthStore } from '../../../shared/auth-store.js';
+import { withoutPatronymic } from '../../../shared/lib/format.js';
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
 import { useCreateConversation } from '../api/chat-api.js';
 
@@ -247,7 +248,7 @@ export function ChatCreateDialog({
               {me ? (
                 <span className="flex items-center gap-1.5 rounded-md bg-accent px-1.5 py-1 text-xs font-medium">
                   <PersonAvatar name={me.displayName} avatarUrl={null} className="size-4" />
-                  {me.displayName}
+                  {withoutPatronymic(me.displayName)}
                 </span>
               ) : null}
               {memberIds.map((id) => {
@@ -263,7 +264,7 @@ export function ChatCreateDialog({
                       avatarUrl={person.avatarUrl}
                       className="size-4"
                     />
-                    {person.displayName}
+                    {withoutPatronymic(person.displayName)}
                     <button
                       type="button"
                       onClick={() => setMemberIds(memberIds.filter((m) => m !== id))}
@@ -306,7 +307,7 @@ export function ChatCreateDialog({
                           avatarUrl={person.avatarUrl}
                           className="size-6"
                         />
-                        <span className="truncate">{person.displayName}</span>
+                        <span className="truncate">{withoutPatronymic(person.displayName)}</span>
                       </button>
                     ))}
                     {candidates.length === 0 ? (

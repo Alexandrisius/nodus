@@ -49,10 +49,10 @@ function cardRow(overrides: Record<string, unknown> = {}) {
 }
 
 describe('buildDisplayName', () => {
-  it('собирает ФИО с отчеством и без', () => {
+  it('«Фамилия Имя» — отчество в displayName НЕ входит (#132)', () => {
     expect(
       buildDisplayName({ lastName: 'Иванов', firstName: 'Иван', middleName: 'Иванович' }),
-    ).toBe('Иванов Иван Иванович');
+    ).toBe('Иванов Иван');
     expect(buildDisplayName({ lastName: 'Иванов', firstName: 'Иван' })).toBe('Иванов Иван');
   });
 });

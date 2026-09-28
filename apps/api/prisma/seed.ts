@@ -202,7 +202,9 @@ async function main(): Promise<void> {
     managerId?: string;
     roleId: string;
   }) {
-    const displayName = [data.lastName, data.firstName, data.middleName].filter(Boolean).join(' ');
+    // #132: displayName без отчества («Фамилия Имя») — отчество живёт только
+    // в middleName (карточка сотрудника); существующие строки чистит миграция.
+    const displayName = [data.lastName, data.firstName].filter(Boolean).join(' ');
     const existing = await prisma.user.findUnique({
       where: { email: data.email },
       select: { id: true },

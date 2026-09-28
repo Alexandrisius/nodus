@@ -67,6 +67,11 @@ interface Item {
   label: string;
   danger?: boolean;
   separatorBefore?: boolean;
+  /** #132 р.2: действие, переключающее режим селекта («Отменить выбор»/
+   *  «Выбрать»), выполняется ПОСЛЕ закрытия меню — иначе контент меню
+   *  морфится в противоположный набор прямо в анимации закрытия («старое
+   *  меню пропало, отрендерилось новое полное»). */
+  closeFirst?: boolean;
   run: () => void;
 }
 // >300 строк — обоснование (I5): реестр действий + подменю «Кто просмотрел»
@@ -144,16 +149,14 @@ export function MessageMenu({
         run: () => copyMessagesAsText(messagesOfSelection?.() ?? []),
       },
       {
-        id: 'toggleThis',
-        icon: CheckSquare,
-        label: selected.includes(message.id) ? ui.chat.deselectOne : ui.chat.selectOne,
-        run: () => useSelectionStore.getState().toggle(scope, message.id),
-      },
-      {
+        // #132: единственная команда выхода (модель Telegram «Отменить
+        // выбор»); дубль «Снять отметку» удалён — при одном выбранном они
+        // делали одно и то же (снятие последнего выходит из режима).
         id: 'clearSelection',
         icon: X,
         label: ui.chat.clearSelection,
         separatorBefore: true,
+        closeFirst: true,
         run: () => useSelectionStore.getState().exit(),
       },
     ];
@@ -259,6 +262,7 @@ export function MessageMenu({
         id: 'select',
         icon: CheckSquare,
         label: ui.chat.menu.select,
+        closeFirst: true,
         run: () => useSelectionStore.getState().enter(scope, message.id),
       },
       {
@@ -289,6 +293,28 @@ export function MessageMenu({
     ? { items: selectionItems(), showViewers: false }
     : normalItems();
 
+  /** #132 р.2: closeFirst-пункты (смена режима селекта) — после ухода меню
+   *  (клик по пункту закрывает его; exit-анимация ~100мс + запас). */
+  function runItem(item: Item) {
+    if (!item.closeFirst) {
+      item.run();
+      return;
+    }
+    window.setTimeout(item.run, 170);
+  }
+
+  /** #132 р.2: двойной клик по ПУЗРЬКУ = «Ответить» (горячая клавиша
+   *  реплая, канон Telegram): по тексту — нативное выделение слова, по
+   *  интерактивам и в режиме селекта/каналов — не срабатывает. */
+  function replyOnDoubleClick(event: React.MouseEvent) {
+    if (replyMode === 'thread' || selectionActive) return;
+    const target = event.target as HTMLElement | null;
+    if (!target?.closest) return;
+    if (target.closest('[data-slot="message-text"]')) return;
+    if (target.closest('button, a, input, textarea, [contenteditable="true"]')) return;
+    setReply(null);
+  }
+
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
@@ -298,6 +324,7 @@ export function MessageMenu({
           ref={triggerRef}
           className="block"
           onContextMenuCapture={captureSelection}
+          onDoubleClick={replyOnDoubleClick}
           data-chat-message={message.id}
           data-chat-scope={scope}
           data-chat-conversation={conversationId}
@@ -314,7 +341,10 @@ export function MessageMenu({
               <ViewersSubmenu viewers={message.readBy} />
             ) : null}
             {item.separatorBefore ? <ContextMenuSeparator /> : null}
-            <ContextMenuItem variant={item.danger ? 'destructive' : 'default'} onClick={item.run}>
+            <ContextMenuItem
+              variant={item.danger ? 'destructive' : 'default'}
+              onClick={() => runItem(item)}
+            >
               <item.icon className="size-4" strokeWidth={1.75} />
               {item.label}
             </ContextMenuItem>

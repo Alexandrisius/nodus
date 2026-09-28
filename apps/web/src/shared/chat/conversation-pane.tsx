@@ -9,7 +9,6 @@ import {
 } from '@nodus/ui/components/message-scroller';
 import { Empty, EmptyTitle } from '@nodus/ui/components/empty';
 import { MessageGroup } from '@nodus/ui/components/message';
-import { Skeleton } from '@nodus/ui/components/skeleton';
 import type { ConversationListItem } from '@nodus/contracts';
 import { cn } from '@nodus/ui/lib/utils';
 
@@ -34,9 +33,12 @@ import { decideOpenAnchor } from './open-anchor.js';
 import { PinBar } from './pin-bar.js';
 import { ScrollEndResponder } from './scroll-end-responder.js';
 import { useFeedViewportRead } from './use-viewport-read.js';
+import { useIncomingFollow } from './use-incoming-follow.js';
 import { ConversationViewsLine } from './views-line.js';
 import { UnreadAnchor } from './use-unread-anchor.js';
 import { selectionComposerProps, useFeedSelection } from './use-feed-selection.js';
+import { useBoxSelection } from './use-box-selection.js';
+import { reconcileServerDraft } from './draft-sync.js';
 import { JumpResponder } from './use-jump-responder.js';
 import { useJumpStore } from './jump-store.js';
 
@@ -132,15 +134,9 @@ function ConversationBody({
 }
 
 function FeedSkeleton() {
-  return (
-    <div className="flex min-h-0 flex-1 flex-col bg-chat-zone p-4" aria-hidden>
-      <MessageGroup>
-        {[0, 1, 2].map((i) => (
-          <Skeleton key={i} className="h-14 w-2/3" />
-        ))}
-      </MessageGroup>
-    </div>
-  );
+  // Р.12: гейт списка — ПУСТАЯ зона чата без полос (три серые полосы
+  // читались артефактом «ховеров» на холодном входе после перезагрузки).
+  return <div className="flex min-h-0 flex-1 bg-chat-zone" aria-hidden />;
 }
 
 /** Тело ленты: монтируется ТОЛЬКО по готовому списку бесед — решение об
@@ -160,6 +156,14 @@ function ConversationFeed({
 }) {
   const scope = `conversation:${conversationId}`;
 
+  // Реконсилейшн серверного черновика (#132, «залипший Огонёк»): в
+  // инициализаторе состояния — синхронно ДО рендера композера, поле получает
+  // текст сразу; локальный слой первичен (логика — draft-sync.ts).
+  useState(() => {
+    reconcileServerDraft(scope, conversation);
+    return true;
+  });
+
   // Открытая беседа для гейта уведомлений (#124): фоновая вкладка
   // уведомляет о чужих сообщениях НЕОТКРЫТОЙ беседы.
   useEffect(() => {
@@ -177,6 +181,15 @@ function ConversationFeed({
   // Viewport ленты — цель прыжка (scroll-jump): «видно/не видно» и скролл
   // ВНУТРИ контейнера без отрыва низа (вердикт 25.09).
   const viewportRef = useRef<HTMLDivElement>(null);
+  // Рамочное выделение (#132 р.6 — модель Telegram webk: старт «на строке»
+  // или откуда угодно в режиме селекта; текст → выход за поверхность →
+  // весь пузырь; якорь строк — viewport ленты).
+  const box = useBoxSelection({
+    scope,
+    viewportRef,
+    selectableIds: selection.orderedIds,
+    selectionActive: selection.selectionActive,
+  });
   // Квитанции просмотров (#102 р.2): seq самой новой видимой строки ленты —
   // IO по строкам, root=скроллер (механика — use-viewport-read.ts).
   useFeedViewportRead(conversationId, viewportRef, items);
@@ -196,6 +209,14 @@ function ConversationFeed({
   const releaseAnchor = useCallback(() => {
     requestAnimationFrame(() => requestAnimationFrame(() => setAnchoring(false)));
   }, []);
+  // Догон входящих (#132): только после якоря и только «у низа» (Telegram).
+  useIncomingFollow({
+    scope,
+    items,
+    meId: me?.id,
+    viewportRef,
+    enabled: !anchoring,
+  });
 
   // Разделитель непрочитанных: НАД первым непрочитанным (даже внутри серии);
   // ЖИВОЙ по watermark: прочитал всё — исчезает сразу (вердикт раунда 4),
@@ -253,15 +274,17 @@ function ConversationFeed({
           <MessageScroller className="min-h-0 flex-1 bg-chat-zone">
             <MessageScrollerViewport ref={viewportRef}>
               <MessageScrollerContent
-                className={cn('px-4 pt-4 pb-0', selection.selectionActive && 'select-none')}
+                className={cn(
+                  'feed-reveal px-4 pt-4 pb-0',
+                  (selection.selectionActive || box.active) && 'select-none',
+                )}
               >
-                {isLoading ? (
-                  <MessageGroup>
-                    {[0, 1, 2].map((i) => (
-                      <Skeleton key={i} className="h-14 w-2/3" />
-                    ))}
-                  </MessageGroup>
-                ) : items.length === 0 ? (
+                {/* Р.12: скелетоны-полоски УБРАТЫ (первое открытие после
+                    перезагрузки: три серые полосы выглядели артефактом
+                    «ховеров», с нижним якорем — у самого низа); лента при
+                    загрузке ПУСТА, контент проявляется feed-reveal (160мс),
+                    модель Telegram. */}
+                {isLoading ? null : items.length === 0 ? (
                   <div className="flex h-full items-center justify-center">
                     <Empty>
                       <EmptyTitle>{emptyLabel}</EmptyTitle>
@@ -319,6 +342,7 @@ function ConversationFeed({
                                           }
                                           showAvatar={message.id === last.id}
                                           tail={message.id === last.id}
+                                          reactionsHidden={selection.selectionActive}
                                         />
                                       </MessageMenu>
                                     )}
@@ -332,19 +356,25 @@ function ConversationFeed({
                     })}
                     {/* Метка просмотров — ВСЕГДА последний элемент ленты
                         (модель Битрикс24); текст фильтруется от автора
-                        нижнего сообщения (views-line). */}
+                        нижнего сообщения (views-line). Зазор сверху 9px =
+                        1.5× зазора снизу 6px (pt-1.5 композера) — #132 р.2. */}
                     <ConversationViewsLine
                       conversationId={conversationId}
                       messages={items}
-                      className="-mt-2"
+                      className="-mt-[3px]"
                     />
                   </MessageGroup>
                 )}
               </MessageScrollerContent>
             </MessageScrollerViewport>
             {/* Стрелка «вниз»: с непрочитанными — к первому непрочитанному
-                (модель Telegram, раунд 4), без — в конец. */}
-            <FeedScrollerButton firstUnreadId={firstUnreadId} viewportRef={viewportRef} />
+                (модель Telegram, раунд 4), без — в конец; чип-счётчик
+                непрочитанных — #132. */}
+            <FeedScrollerButton
+              firstUnreadId={firstUnreadId}
+              viewportRef={viewportRef}
+              unreadCount={conversation?.unreadCount ?? 0}
+            />
           </MessageScroller>
         </MessageScrollerProvider>
       </FeedDropzone>

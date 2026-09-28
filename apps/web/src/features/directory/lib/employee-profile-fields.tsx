@@ -37,6 +37,14 @@ export function employeeProfileDefs(args: {
   const { card, listItem, manager, openCard } = args;
   return [
     {
+      // #132: отчество — ПОЛЕ карточки (в displayName его больше нет);
+      // отображение отчеств в UI включается «Настройками портала» #133.
+      key: 'middleName',
+      icon: <User className="size-3.5" />,
+      label: ui.employees.middleName,
+      render: () => card.middleName ?? ui.common.notSet,
+    },
+    {
       key: 'position',
       icon: <Briefcase className="size-3.5" />,
       label: ui.employees.position,

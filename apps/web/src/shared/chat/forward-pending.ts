@@ -2,6 +2,8 @@ import type { ChatMessage, ConversationListItem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { create } from 'zustand';
 
+import { withoutPatronymic } from '../lib/format.js';
+
 /**
  * «Пересылка ждёт отправки» (A7, #87; переделка по вердикту владельца 24.09:
  * модель Bitrix24). Пикер выбирает ОДНОГО получателя (массовой рассылки нет —
@@ -70,7 +72,7 @@ export function forwardFromLabel(
   for (const id of messageIds) {
     const author = byId.get(id)?.author;
     if (!author) continue;
-    const name = author.id === meId ? ui.common.you : author.displayName;
+    const name = author.id === meId ? ui.common.you : withoutPatronymic(author.displayName);
     if (!names.includes(name)) names.push(name);
   }
   const head = names.slice(0, 2);

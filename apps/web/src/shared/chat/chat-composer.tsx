@@ -134,6 +134,7 @@ export function ChatComposer({
   attachmentsEnabled: attachmentsEnabledProp = false,
   onEditLast,
   selection = null,
+  disabledPlaceholder = null,
   className,
 }: {
   placeholder: string;
@@ -150,6 +151,10 @@ export function ChatComposer({
   onEditLast?: () => void;
   /** Активный мультивыбор ленты: островок сужается до батч-команд. */
   selection?: ComposerSelection | null;
+  /** Гейт прав (каналы без post): строка-заглушка ВНУТРИ островка (#130
+   *  изоморфизм + #132 р.8): выход из селекта морфится в заглушку той же
+   *  анимацией (288px→100%), а не мгновенной подменой компонента. */
+  disabledPlaceholder?: string | null;
   className?: string;
 }) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -183,7 +188,11 @@ export function ChatComposer({
   }, [sel]);
   useEffect(() => {
     if (selPhase !== 'exit') return undefined;
-    const timer = window.setTimeout(() => setSelPhase('normal'), 220);
+    // Р.10: смена фазы на СЕРЕДИНЕ расширения (140 из 200мс ширины) —
+    // тулбар к этому моменту уже растворился (composer-hide 120мс), новый
+    // контент проявляется ещё до конца роста ширины: один кроссфейд, без
+    // «цифры слева у широкой области» и без пустой концовки.
+    const timer = window.setTimeout(() => setSelPhase('normal'), 140);
     return () => window.clearTimeout(timer);
   }, [selPhase]);
   const toolbarSel = selPhase === 'sel' ? sel : lastSel.current;
@@ -419,9 +428,29 @@ export function ChatComposer({
         )}
       >
         {selPhase !== 'normal' && toolbarSel ? (
-          <SelectionToolbar sel={toolbarSel} frozen={selPhase === 'exit'} />
+          // Р.9–10: тулбар ПРОЯВЛЯЕТСЯ при сужении (composer-reveal) и
+          // РАСТВОРЯЕТСЯ на старте расширения (composer-hide в фазе exit,
+          // frozen) — счётчик не висит слева у расширяющейся области.
+          <span
+            className={cn(
+              'flex w-full items-center gap-0.5',
+              selPhase === 'exit' ? 'composer-hide' : 'composer-reveal',
+            )}
+          >
+            <SelectionToolbar sel={toolbarSel} frozen={selPhase === 'exit'} />
+          </span>
+        ) : disabledPlaceholder !== null ? (
+          // Гейт прав (р.8): заглушка живёт ВНУТРИ островка — морф селекта
+          // (288px→100%) доезжает до неё той же анимацией; геометрия строки
+          // изоморфна вводу (#130): min-h-8 px-1.5 py-1.5 text-sm.
+          <span className="composer-reveal min-h-8 w-full px-1.5 py-1.5 text-sm text-muted-foreground">
+            {disabledPlaceholder}
+          </span>
         ) : (
-          <span className="flex w-full flex-col gap-1">
+          // Р.9: разворот полного контента после морфа — контент монтируется
+          // прозрачным и проявляется (composer-reveal), а не вспыхивает
+          // скачком на финальной ширине островка.
+          <span className="composer-reveal flex w-full flex-col gap-1">
             {draft.reply || draft.edit ? (
               <ComposerBanner
                 draft={draft}
@@ -496,12 +525,17 @@ export function ChatComposer({
                   <Paperclip strokeWidth={1.75} />
                 </Button>
               )}
-              {/* autoFocus: вход в чат = курсор сразу в композере (вердикт
-                  14.09.2026); rows=1 + field-sizing: рост до 45vh, дальше
-                  скролл внутри поля (вердикт 15.09.2026). */}
+              {/* Фокус на входе в чат — ЧЕРЕЗ registerComposer (реф-колбэк
+                  textarea): el.focus({preventScroll:true}). БЕЗ autoFocus-
+                  атрибута (#132 р.11): НАТИВНЫЙ автофокус скроллит ВСЕХ
+                  предков без preventScroll — при открытии окна трэда композер
+                  монтируется за правым краем overflow-hidden рамки, браузер
+                  сдвигал её контент на ~7px влево и обратно (jitter-лог
+                  владельца: все дети рамки -7px, ширины на месте) — «весь
+                  контент карточки дёргается». rows=1 + field-sizing: рост до
+                  45vh, дальше скролл внутри поля (вердикт 15.09.2026). */}
               <Textarea
                 ref={registerInput}
-                autoFocus
                 value={text}
                 onFocus={() => {
                   const el = inputRef.current;

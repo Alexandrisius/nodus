@@ -3,7 +3,6 @@ import { ArrowLeft, Eye, EyeOff, X } from 'lucide-react';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import { NodeLabel } from '@nodus/ui/components/node-label';
-import { Skeleton } from '@nodus/ui/components/skeleton';
 import { MessageGroup } from '@nodus/ui/components/message';
 import { cn } from '@nodus/ui/lib/utils';
 import {
@@ -16,6 +15,7 @@ import {
 } from '@nodus/ui/components/message-scroller';
 
 import { useAuthStore } from '../auth-store.js';
+import { withoutPatronymic } from '../lib/format.js';
 import { chatAttachmentsEnabled } from './attachments-gate.js';
 import { useSendChatMessage, useThreadMessages, useThreadStates, useWatchThread } from './api.js';
 import { ChatComposer, type ComposerSubmit } from './chat-composer.js';
@@ -33,6 +33,7 @@ import { MessageRow } from './message-row.js';
 import { buildMessageRuns, formatDayLabel, startsNewDay } from './message-groups.js';
 import { selectionComposerProps, useFeedSelection } from './use-feed-selection.js';
 import { useFeedViewportRead } from './use-viewport-read.js';
+import { useBoxSelection } from './use-box-selection.js';
 import { ConversationViewsLine } from './views-line.js';
 import { useConversations } from './api.js';
 import { typingKey, useTypingStore } from '../socket/typing-store.js';
@@ -48,7 +49,7 @@ function useThreadTyping(conversationId: string, threadRootId: string): string |
   const name = data?.items
     .find((c) => c.id === conversationId)
     ?.membersPreview.find((m) => m.id === typing.userId)?.displayName;
-  return name ? `${name} ${ui.chat.typingThread}` : ui.chat.typingThread;
+  return name ? `${withoutPatronymic(name)} ${ui.chat.typingThread}` : ui.chat.typingThread;
 }
 
 /**
@@ -108,6 +109,14 @@ export const ThreadPane = memo(function ThreadPane({
   const selection = useFeedSelection(scope, items, me?.id);
   // Viewport окна треда — цель прыжка (scroll-jump, вердикт 25.09).
   const viewportRef = useRef<HTMLDivElement>(null);
+  // Рамочное выделение (#132 р.6, модель Telegram webk — правило одного
+  // прохода: окно треда — тот же хост ленты, что беседа и посты канала).
+  const box = useBoxSelection({
+    scope,
+    viewportRef,
+    selectableIds: selection.orderedIds,
+    selectionActive: selection.selectionActive,
+  });
   // Квитанции просмотров (#102 р.2): watermark беседы («увидел где угодно»)
   // И трэда (threadRootId — гасит точку «есть новые», раунд 3).
   useFeedViewportRead(conversationId, viewportRef, items, threadRootId);
@@ -163,6 +172,7 @@ export const ThreadPane = memo(function ThreadPane({
               showName={isRoot ? !mine : !mine && message.id === firstId}
               showAvatar={isRoot ? true : message.id === lastId}
               tail={isRoot ? true : message.id === lastId}
+              reactionsHidden={selection.selectionActive}
             />
           </MessageMenu>
         )}
@@ -232,15 +242,14 @@ export const ThreadPane = memo(function ThreadPane({
           <MessageScroller className="min-h-0 flex-1 bg-chat-zone">
             <MessageScrollerViewport ref={viewportRef}>
               <MessageScrollerContent
-                className={cn('px-4 pt-4 pb-0', selection.selectionActive && 'select-none')}
+                className={cn(
+                  'feed-reveal px-4 pt-4 pb-0',
+                  (selection.selectionActive || box.active) && 'select-none',
+                )}
               >
-                {isLoading ? (
-                  <MessageGroup>
-                    {[0, 1, 2].map((i) => (
-                      <Skeleton key={i} className="h-14 w-2/3" />
-                    ))}
-                  </MessageGroup>
-                ) : (
+                {/* Р.12: скелетоны-полоски убраны (артефакт первого
+                    открытия, см. conversation-pane); пусто → feed-reveal. */}
+                {isLoading ? null : (
                   <MessageGroup className="gap-3">
                     {root ? (
                       <MessageScrollerItem messageId={root.id}>
@@ -277,7 +286,7 @@ export const ThreadPane = memo(function ThreadPane({
                     <ConversationViewsLine
                       conversationId={conversationId}
                       messages={items}
-                      className="-mt-2"
+                      className="-mt-[3px]"
                     />
                   </MessageGroup>
                 )}

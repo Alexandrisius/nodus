@@ -34,6 +34,9 @@ interface RequestOptions {
   idempotencyKey?: string;
   /** Отмена in-flight запроса (черновики: последняя попытка выигрывает, #91). */
   signal?: AbortSignal;
+  /** fetch keepalive: запрос доживёт закрытие вкладки (flush черновика на
+   *  pagehide без него терялся — «залипшая» метка, #132). */
+  keepalive?: boolean;
 }
 
 const MUTATION_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
@@ -56,6 +59,7 @@ async function rawRequest(path: string, options: RequestOptions): Promise<Respon
     body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
     credentials: 'same-origin', // refresh-cookie nodus_refresh
     signal: options.signal,
+    keepalive: options.keepalive,
   });
 }
 

@@ -3,13 +3,16 @@ import { ui } from '@nodus/contracts';
 import { useEffect } from 'react';
 import { toast } from 'sonner';
 
+import { withoutPatronymic } from '../lib/format.js';
 import { useDeleteDialog } from './dialog-stores.js';
 import { useSelectionStore } from './selection-store.js';
 
 /** Скопировать выделенные как текст (канон tdesktop «Copy Selected as Text»,
  *  Ctrl+C): строки «Автор: текст» в порядке ленты. */
 export function copyMessagesAsText(messages: ChatMessage[]): void {
-  const text = messages.map((m) => `${m.author.displayName}: ${m.text}`).join('\n');
+  const text = messages
+    .map((m) => `${withoutPatronymic(m.author.displayName)}: ${m.text}`)
+    .join('\n');
   navigator.clipboard
     .writeText(text)
     .then(() => toast.success(ui.chat.copied))

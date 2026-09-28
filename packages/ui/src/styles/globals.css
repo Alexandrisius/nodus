@@ -580,6 +580,106 @@
   }
 }
 
+/* Появление контента островка композера после морфа селекта (#132 р.9–10,
+   вердикт владельца «резкая смена текста»): при расширении узкого
+   батч-островка (288px→100%) новый контент монтируется ПРОЗРАЧНЫМ и
+   проявляется (паттерн @starting-style — MDN/CSS-Tricks, CSS Transitions
+   L2: стартовое состояние первого кадра, без JS-флага «mounted»).
+   Р.10 — полный кроссфейд: старый тулбар РАСТВОРАЕТСЯ на старте
+   расширения (composer-hide, 120мс) — цифра счётчика не висит слева у
+   широкой области; смена фазы на середине расширения (140мс из 200мс) —
+   новый контент проявляется ещё ДО конца роста ширины, одним движением. */
+@utility composer-reveal {
+  opacity: 1;
+  transition: opacity 200ms ease-out 20ms;
+}
+@starting-style {
+  .composer-reveal {
+    opacity: 0;
+  }
+}
+@utility composer-hide {
+  opacity: 0;
+  transition: opacity 120ms ease-in;
+}
+/* Проявление ленты при первом открытии беседы (#132 р.12): скелетоны-полоски
+   удалены (выглядели артефактом-«ховерами» при первом входе после
+   перезагрузки); пустая лента → контент мягко проявляется (тот же паттерн
+   @starting-style). Тело ленты кеится по беседе — фейд срабатывает на
+   каждом открытии, 160мс, prefers-reduced-motion — без анимации. */
+@utility feed-reveal {
+  opacity: 1;
+  transition: opacity 160ms ease-out;
+}
+@starting-style {
+  .feed-reveal {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .composer-reveal,
+  .composer-hide,
+  .feed-reveal {
+    transition: none;
+  }
+}
+
+/* Мультиселект сообщений/постов (#132 р.3–5, модель Telegram): выбранные —
+   СПЛОШНАЯ замена заливки ОДНОЙ формулой color-mix(поверхность, info 22%)
+   для пузыря И хвоста сразу — никаких полупрозрачных слоёв поверх (раунд 4
+   красил пузырь inset-слоем box-shadow, а хвост перекраской fill: альфа-
+   оверлей поверх заливки ≠ сплошной mix, две независимо закрашенные фигуры
+   давали видимый шов по цвету и форме — вердикт р.5 «бесшовным ни по цвету
+   ни по форме»). Пара пузырь+хвост построена одним силуэтом: соседние
+   сплошные заливки ОДНОГО цвета = стык геометрически невидим. Форма
+   (радиусы) следует поверхности; текст/глифы НЕ тонируются — только фон.
+   data-box-selected — живая «резинка» протяжки (императивный атрибут, без
+   рендера React); data-selected — зафиксированное выделение. Правила ВНЕ
+   @layer — перебивают утилиты заливки cva Bubble-примитива. */
+[data-message-id][data-selected='true'] [data-variant='default'] [data-slot='bubble-content'],
+[data-message-id][data-box-selected='true'] [data-variant='default'] [data-slot='bubble-content'] {
+  background-color: color-mix(in oklch, var(--bubble-out), var(--info) 22%);
+  transition: background-color 120ms ease-out;
+}
+
+[data-message-id][data-selected='true'] [data-variant='card'] [data-slot='bubble-content'],
+[data-message-id][data-box-selected='true'] [data-variant='card'] [data-slot='bubble-content'] {
+  background-color: color-mix(in oklch, var(--bubble-in), var(--info) 22%);
+  transition: background-color 120ms ease-out;
+}
+
+[data-message-id][data-selected='true'] [data-slot='bubble-tail'] path.fill-bubble-out,
+[data-message-id][data-box-selected='true'] [data-slot='bubble-tail'] path.fill-bubble-out {
+  fill: color-mix(in oklch, var(--bubble-out), var(--info) 22%);
+  transition: fill 120ms ease-out;
+}
+
+[data-message-id][data-selected='true'] [data-slot='bubble-tail'] path.fill-bubble-in,
+[data-message-id][data-box-selected='true'] [data-slot='bubble-tail'] path.fill-bubble-in {
+  fill: color-mix(in oklch, var(--bubble-in), var(--info) 22%);
+  transition: fill 120ms ease-out;
+}
+
+[data-message-id][data-selected='true'] [data-slot='post-surface'][data-surface='out'],
+[data-message-id][data-box-selected='true'] [data-slot='post-surface'][data-surface='out'] {
+  background-color: color-mix(in oklch, var(--bubble-out), var(--info) 22%);
+  transition: background-color 120ms ease-out;
+}
+
+[data-message-id][data-selected='true'] [data-slot='post-surface'][data-surface='in'],
+[data-message-id][data-box-selected='true'] [data-slot='post-surface'][data-surface='in'] {
+  background-color: color-mix(in oklch, var(--bubble-in), var(--info) 22%);
+  transition: background-color 120ms ease-out;
+}
+
+/* Текст поста канала — каретка, не «рука» карточки (р.7 #132): пост —
+   кликабельная карточка (cursor-pointer), но над текстом аффорданс
+   выделения текста, как в пузырях чатов; случайный клик при драге текста
+   глушится селекция-гардом в onClick карточки. */
+[data-slot='post-surface'] [data-slot='message-text'] {
+  cursor: text;
+}
+
 /* Сепараторы списка бесед (список бесед мессенджера, #96; канон Битрикс24):
    при ховере строки СОСЕДНИЕ сепараторы исчезают — подсветка «поглощает»
    разделитель (вердикт владельца 24.09.2026: «наводишь курсор — сепаратора

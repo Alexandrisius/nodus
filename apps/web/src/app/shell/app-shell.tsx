@@ -16,6 +16,7 @@ import { CardStackHost } from './card-stack-host.js';
 import { CommandPalette } from './command-palette.js';
 import { EdgeScrollbar } from './edge-scrollbar.js';
 import { LiveGraph } from './live-graph.js';
+import { startLayoutJitterLogger } from './layout-jitter-logger.js';
 import { NodeRail } from './node-rail.js';
 import { RightRail } from './right-rail.js';
 import { useShellStore } from './shell-store.js';
@@ -42,6 +43,11 @@ export function AppShell() {
   const replaceTopCard = useReplaceTopCard();
   // WS чата (#104): живёт с сессией, тихий статус; поллинг — fallback.
   useChatSocket();
+  // Диагностика «карточка дёргается» (#132 р.11): только ?wsdebug=1 — кадровые
+  // логи [jitter] смещений ключевых контейнеров (см. layout-jitter-logger).
+  useEffect(() => {
+    startLayoutJitterLogger();
+  }, []);
   // (N) Nodus в заголовке вкладки (#124): сигнал фоновой вкладке.
   useUnreadTitle();
   const stressMode =

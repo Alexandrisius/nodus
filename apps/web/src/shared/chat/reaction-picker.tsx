@@ -1,31 +1,45 @@
-import { ChevronDown, SmilePlus } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { ChevronDown } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ChatMessage } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
-import { Popover, PopoverContent, PopoverTrigger } from '@nodus/ui/components/popover';
+import { Popover, PopoverAnchor, PopoverContent } from '@nodus/ui/components/popover';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { useReactionToggle } from './message-mutations.js';
 import { ReactionGlyph } from './reaction-glyph.js';
-import { REACTION_MORE, REACTION_QUICK } from './reaction-presets.js';
+import { REACTION_BASE, REACTION_MORE, REACTION_QUICK } from './reaction-presets.js';
 
-/** Задержка закрытия при переезде курсора с кнопки на панель (hover-intent). */
+/** Задержка закрытия при переезде курсора с пилюли на панель (hover-intent). */
 const CLOSE_GRACE_MS = 180;
 
+/** Открытие нового попапа закрывает предыдущий — панели не висят рядом (#132). */
+let closeActivePanel: (() => void) | null = null;
+
 /**
- * Ховер-попап реакций (#124, референс владельца: Битрикс24/Telegram, вердикты
- * 27.09): кнопка SmilePlus в НИЖНЕМ углу пузыря (открывается НАВЕДЕНИЕМ, не
- * кликом); панель встаёт ПОД кнопку (side=bottom), поэтому раскрытие сетки
- * «выезжает» вниз из-под быстрого ряда, а не перепрыгивает (grid-rows
- * анимация). Курсор ушёл — кнопка прячется (opacity-0 вне hover строки).
- * Исключение канона «без кнопок на сообщении» (вердикт 14.09) — реакции
- * ховер-попапом, вердикт 27.09.
+ * Ховер-пилюля реакций (#124 → #132, вердикты владельца 28.09 + раунды 2–5):
+ * при наведении на ПУЗЫРЬ (group-hover/bubble — не на строку ленты) в его
+ * нижнем углу появляется САМА БАЗОВАЯ реакция (REACTION_BASE, анимированный
+ * глиф) — клик сразу ставит/снимает её, без промежуточной панели; по ховеру
+ * пилюля УВЕЛИЧИВАЕТСЯ (базовый размер 20px → hover 28px, раунд 5: прежний
+ * базовый 28px стал hover-результатом scale-[1.4], модель Битрикс24 —
+ * проще попасть). Панель со всеми реакциями открывается НАВЕДЕНИЕМ на
+ * пилюлю: по умолчанию ВНИЗ по стрелочке шеврона, ВВЕРХ — только когда
+ * снизу не влезает раскрытая панель (нижние сообщения; сторона фиксируется
+ * при открытии — телепорт исключён, см. choosePanelSide). Курсор ушёл
+ * (grace 180мс) — панель закрыта, В ТОМ ЧИСЛЕ сброс раскрытия сетки: таймер
+ * раньше звал setOpen напрямую мимо onOpenChange, где жил единственный
+ * сброс expanded — раскрытие «залипало» до Esc (#132).
  */
+/** Оценка высоты раскрытой сетки: 5 рядов size-10 + p-1 + бордер. */
+const GRID_HEIGHT_PX = 5 * 40 + 10;
+
 export function ReactionPicker({ message, atEnd }: { message: ChatMessage; atEnd: boolean }) {
   const toggle = useReactionToggle(message.conversationId);
   const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [gridUp, setGridUp] = useState(false);
   const closeTimer = useRef<number | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(
     () => () => {
@@ -34,16 +48,36 @@ export function ReactionPicker({ message, atEnd }: { message: ChatMessage; atEnd
     [],
   );
 
-  function cancelClose() {
+  const cancelClose = useCallback(() => {
     if (closeTimer.current !== null) {
       window.clearTimeout(closeTimer.current);
       closeTimer.current = null;
     }
-  }
+  }, []);
+
+  const closePanel = useCallback(() => {
+    cancelClose();
+    setOpen(false);
+    setExpanded(false);
+  }, [cancelClose]);
+
+  useEffect(
+    () => () => {
+      if (closeActivePanel === closePanel) closeActivePanel = null;
+    },
+    [closePanel],
+  );
 
   function scheduleClose() {
     cancelClose();
-    closeTimer.current = window.setTimeout(() => setOpen(false), CLOSE_GRACE_MS);
+    closeTimer.current = window.setTimeout(closePanel, CLOSE_GRACE_MS);
+  }
+
+  function openPanel() {
+    if (closeActivePanel && closeActivePanel !== closePanel) closeActivePanel();
+    closeActivePanel = closePanel;
+    cancelClose();
+    setOpen(true);
   }
 
   function mineOf(emoji: string): boolean {
@@ -54,44 +88,78 @@ export function ReactionPicker({ message, atEnd }: { message: ChatMessage; atEnd
     toggle.mutate({ messageId: message.id, emoji, remove: mineOf(emoji) });
   }
 
+  /** Направление раскрытия сетки: ВНИЗ по шеврону (накрывает пилюлю и ленту
+   *  ниже); ВВЕРХ — только когда снизу не влезает высота сетки (раунд 4). */
+  function toggleExpanded() {
+    if (!expanded) {
+      const rect = panelRef.current?.getBoundingClientRect();
+      const spaceBelow = rect ? window.innerHeight - rect.bottom : 0;
+      setGridUp(spaceBelow < GRID_HEIGHT_PX + 8);
+    }
+    setExpanded((value) => !value);
+  }
+
   return (
     <Popover
       open={open}
       onOpenChange={(next) => {
         // Esc/внешний клик закрывают сразу; уход курсора — через scheduleClose.
-        setOpen(next);
-        if (!next) setExpanded(false);
+        if (next) {
+          setOpen(true);
+        } else {
+          closePanel();
+        }
       }}
     >
-      <PopoverTrigger asChild>
-        <button
-          type="button"
+      {/* Якорь панели — СТАБИЛЬНАЯ обёртка фиксированного размера (20px,
+          раунд 5): hover-рост пилюли — transform ВНУТРИ обёртки (scale 1.4
+          → 28px), rect якоря не меняется, панель не дёргается (раунд 3).
+          Выступ вправо >половины, вниз <половины (12/8 от 20px). Клики/hover
+          вешаем на обёртку. */}
+      <PopoverAnchor asChild>
+        <span
           data-slot="reaction-picker-trigger"
-          aria-label={ui.chat.addReaction}
-          title={ui.chat.addReaction}
-          onMouseEnter={() => {
-            cancelClose();
-            setOpen(true);
-          }}
+          onMouseEnter={openPanel}
           onMouseLeave={scheduleClose}
           className={cn(
-            'absolute -bottom-3 z-10 flex size-6 cursor-pointer items-center justify-center rounded-full border border-border bg-card text-muted-foreground opacity-0 shadow-sm transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover/msg:opacity-100',
-            atEnd ? '-left-2' : '-right-2',
+            'absolute -bottom-2 z-10 flex size-5 items-center justify-center rounded-full opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover/bubble:opacity-100',
+            // Пилюля видна, пока открыта панель (под ней, не перекрыта).
+            open && 'opacity-100',
+            atEnd ? '-left-3' : '-right-3',
           )}
         >
-          <SmilePlus className="size-4" strokeWidth={1.75} />
-        </button>
-      </PopoverTrigger>
+          <button
+            type="button"
+            aria-label={ui.chat.addReaction}
+            aria-pressed={mineOf(REACTION_BASE)}
+            title={ui.chat.addReaction}
+            onClick={() => pick(REACTION_BASE)}
+            className="flex size-5 cursor-pointer items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm transition-transform duration-150 hover:scale-[1.4] hover:border-foreground/30 hover:text-foreground"
+          >
+            {/* Глиф меньше кружка (вердикт р.5: «почти вылазит за границы»):
+                анимированный Noto — высокий, 16px в 18px внутреннего поля
+                касались краёв; 14px дают видимый воздух. Панель НЕ тронута. */}
+            <ReactionGlyph emoji={REACTION_BASE} className="size-3.5" />
+          </button>
+        </span>
+      </PopoverAnchor>
+      {/* Раунды 3–4 (вердикты): панель (быстрый ряд) ВСЕГДА сверху
+          дефолтной пилюли, с ЯВНЫМ ЗАЗОРОМ (sideOffset 8, как в Битрикс24);
+          сетка раскрытия — ВНЕ ПОТОКА (absolute): быстрый ряд стоит на месте,
+          сетка едет ВНИЗ по стрелочке шеврона (накрывая пилюлю и ленту ниже),
+          ВВЕРХ — только когда снизу не влезает; высота панели не меняется —
+          Radix ничего не репозиционирует, дёрганья исключены. */}
       <PopoverContent
-        side="bottom"
+        ref={panelRef}
+        side="top"
         align={atEnd ? 'end' : 'start'}
-        sideOffset={4}
+        sideOffset={8}
         data-slot="reaction-pop"
         onMouseEnter={cancelClose}
         onMouseLeave={scheduleClose}
-        className="w-auto p-1"
+        className="relative w-auto p-1"
       >
-        <div className="flex items-center gap-0.5">
+        <div className="flex items-center gap-0">
           {REACTION_QUICK.map((emoji) => (
             <EmojiButton key={emoji} emoji={emoji} active={mineOf(emoji)} onPick={pick} />
           ))}
@@ -100,25 +168,30 @@ export function ReactionPicker({ message, atEnd }: { message: ChatMessage; atEnd
             aria-label={ui.chat.moreReactions}
             aria-expanded={expanded}
             title={ui.chat.moreReactions}
-            onClick={() => setExpanded((value) => !value)}
+            onClick={toggleExpanded}
             className="flex size-10 cursor-pointer items-center justify-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"
           >
             <ChevronDown
-              className={cn('size-4 transition-transform duration-200', expanded && 'rotate-180')}
+              className={cn('size-3.5 transition-transform duration-200', expanded && 'rotate-180')}
               strokeWidth={1.75}
             />
           </button>
         </div>
-        {/* Раскрытие — панель НА МЕСТЕ, сетка выезжает вниз (grid-rows 0fr→1fr,
-            вердикт 27.09 п.5: без перепрыгивания попапа). */}
+        {/* Раскрытие — grid-rows 0fr→1fr выездом из-под быстрого ряда. */}
         <div
           className={cn(
-            'grid transition-[grid-template-rows] duration-200 ease-out',
+            'absolute inset-x-0 grid transition-[grid-template-rows] duration-200 ease-out',
+            gridUp ? 'bottom-full mb-1' : 'top-full mt-1',
             expanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]',
           )}
         >
           <div className="overflow-hidden">
-            <div className="mt-1 grid grid-cols-6 gap-0.5 border-t border-border pt-1">
+            <div
+              className={cn(
+                'grid grid-cols-6 gap-0 border-border bg-card p-1 shadow-md',
+                gridUp ? 'rounded-xl border-b' : 'rounded-xl border-t',
+              )}
+            >
               {REACTION_MORE.map((emoji) => (
                 <EmojiButton key={emoji} emoji={emoji} active={mineOf(emoji)} onPick={pick} />
               ))}
@@ -130,8 +203,8 @@ export function ReactionPicker({ message, atEnd }: { message: ChatMessage; atEnd
   );
 }
 
-/** Эмодзи выбора ×1.5 к прежнему размеру (вердикт 27.09 п.3): глиф 24px,
- *  анимированный APNG (Fluent, MIT). */
+/** Эмодзи выбора (#132 р.2: прежний размер возвращён — 40px кнопка / 24px
+ *  глиф; зазоры между стикерами убраны в ноль — плотность как в Телеграме). */
 function EmojiButton({
   emoji,
   active,
