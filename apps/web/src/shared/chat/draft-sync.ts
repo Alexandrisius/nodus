@@ -52,6 +52,8 @@ async function putDraft(conversationId: string, text: string): Promise<void> {
       method: 'PUT',
       body: { text },
       signal: controller.signal,
+      // #132: flush на pagehide должен пережить закрытие вкладки.
+      keepalive: true,
     });
     lastSent.set(conversationId, text);
   } catch {
@@ -59,6 +61,36 @@ async function putDraft(conversationId: string, text: string): Promise<void> {
   } finally {
     if (inflight.get(conversationId) === controller) inflight.delete(conversationId);
   }
+}
+
+/** Отметить «сервер уже хранит этот текст» без отправки (реконсилейшн #132):
+ *  без неё очистка гидрированного черновика упиралась бы в lastSent-дедуп
+ *  («'' === ''» — очистка не уходит) и метка висела вечно. */
+export function markDraftSynced(conversationId: string, text: string): void {
+  lastSent.set(conversationId, text);
+}
+
+/**
+ * Реконсилейшн серверного черновика при открытии беседы (#132, баг «залипший
+ * Огонёк»): локального черновика нет, а сервер хранит непустой (с другого
+ * устройства или из сессии с потерянным PUT) — гидрируем локальный слой.
+ * Черновик становится виден в композере и убирается штатно (мультидевайс:
+ * стирать чужое PUT ''-ом при открытии нельзя). Вызывать ДО рендера
+ * композера (инициализатор состояния в ленте-хозяине), чтобы поле получило
+ * текст сразу. Локальный слой первичен: свой черновик/режим правки не трогаем.
+ */
+export function reconcileServerDraft(
+  scopeKey: string,
+  conversation: { draft?: { text: string } | null } | null,
+): void {
+  const conversationId = scopeConversationId(scopeKey);
+  if (!conversationId) return;
+  const text = conversation?.draft?.text ?? '';
+  if (!text) return;
+  const local = useChatDrafts.getState().drafts[scopeKey];
+  if (local?.text || local?.edit) return;
+  useChatDrafts.getState().setText(scopeKey, text);
+  markDraftSynced(conversationId, text);
 }
 
 /** Что отправлять при уходе из scope: null — отправки нет (не беседа, режим

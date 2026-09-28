@@ -7,7 +7,7 @@ import { DialogTitle } from '@nodus/ui/components/dialog';
 import { Input } from '@nodus/ui/components/input';
 import { NodeLabel } from '@nodus/ui/components/node-label';
 
-import { formatDate, plural } from '../lib/format.js';
+import { formatDate, plural, withoutPatronymic } from '../lib/format.js';
 import { PersonAvatar } from '../ui/person-avatar.js';
 import { useConversationMessages } from './api.js';
 import { conversationTitle } from './conversations.js';
@@ -90,7 +90,9 @@ export function ThreadLevel({
               <PersonAvatar name={root.author.displayName} className="mt-0.5 size-8 shrink-0" />
               <span className="min-w-0 flex-1">
                 <span className="flex items-baseline gap-2">
-                  <span className="truncate text-sm font-medium">{root.author.displayName}</span>
+                  <span className="truncate text-sm font-medium">
+                    {withoutPatronymic(root.author.displayName)}
+                  </span>
                   <span className="shrink-0 font-mono text-[11px] text-muted-foreground tabular-nums">
                     {formatDate(root.createdAt)}
                   </span>

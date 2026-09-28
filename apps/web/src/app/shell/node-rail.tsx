@@ -243,7 +243,11 @@ export function NodeRail() {
                   {collapsed ? null : ui.nav.settings}
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent side="bottom" align="start" className="w-64">
+              {/* #132: ширина ПО ВНУТРЕННОСТЬ рейки (w-48 при отступе кнопки
+                  ml-[3.25rem] ≈ до края w-60) — раньше w-64 нависал над
+                  рамой; длинные подписи не рвём (метка applyForAll
+                  сокращена). */}
+              <DropdownMenuContent side="bottom" align="start" className="w-48">
                 <DropdownMenuItem onSelect={startCustomize}>
                   <ArrowUpDown className="size-4" />
                   {ui.nav.editOrder}

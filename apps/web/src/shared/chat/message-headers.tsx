@@ -3,6 +3,8 @@ import type { ForwardedFrom, ReplyPreview } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { cn } from '@nodus/ui/lib/utils';
 
+import { withoutPatronymic } from '../lib/format.js';
+
 /**
  * Шапки пузыря (A2/A7, #87): цитата ответа и атрибуция пересылки.
  * Плоско, на currentColor — шапка наследует тон пузыря (свой default /
@@ -55,7 +57,9 @@ export function ReplyHeader({
             onFilled ? 'text-bubble-out-accent' : 'text-info',
           )}
         >
-          {reply.deleted ? ui.chat.deletedPlaceholder : (reply.author?.displayName ?? '')}
+          {reply.deleted
+            ? ui.chat.deletedPlaceholder
+            : withoutPatronymic(reply.author?.displayName ?? '')}
         </span>
         {reply.deleted ? null : (
           <span
@@ -87,10 +91,12 @@ export function ForwardedHeader({ from, onClick }: { from: ForwardedFrom; onClic
           onClick={onClick}
           className="min-w-0 truncate font-semibold text-info transition-opacity hover:opacity-80"
         >
-          {from.author.displayName}
+          {withoutPatronymic(from.author.displayName)}
         </button>
       ) : (
-        <span className="min-w-0 truncate font-semibold text-info">{from.author.displayName}</span>
+        <span className="min-w-0 truncate font-semibold text-info">
+          {withoutPatronymic(from.author.displayName)}
+        </span>
       )}
     </span>
   );

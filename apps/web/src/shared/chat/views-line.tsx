@@ -53,8 +53,9 @@ export function viewersForFeedTail(
   return lastOwn.readBy.filter((v) => v.id !== lastInFeed.author.id);
 }
 
-/** Попап посмотревших (вверх от pill): аватарки + Имя Фамилия, скролл для
- *  длинных. Якорь — сам pill, со сдвигом вправо (alignOffset, вердикт р.4). */
+/** Попап посмотревших (вверх от якоря): аватарки + Имя Фамилия, скролл для
+ *  длинных. #132 р.2: якорь — КНОПКА «ещё N» (левый край попапа = левый край
+ *  слова), заголовка «Кто просмотрел» нет — список самодостаточен. */
 export function ViewsPopup({
   anchor,
   viewers,
@@ -79,20 +80,35 @@ export function ViewsPopup({
           крал его в композер, а DismissableLayer закрывал попап по focus
           outside («мгновенно пропадает»). С автофокусом активный элемент —
           сам попап (role=dialog), гард кражи молчит. */}
-      <PopoverContent side="top" align="start" alignOffset={12} sideOffset={8} className="w-64 p-0">
+      <PopoverContent side="top" align="start" alignOffset={0} sideOffset={8} className="w-64 p-0">
         <ViewsPopupBody viewers={viewers} />
       </PopoverContent>
     </Popover>
   );
 }
 
+/**
+ * Резерв высоты метки (#132, фидбек пилотов): пока квитанции нет, невидимый
+ * слот ТОЙ ЖЕ геометрии (структура/кегль метки, текст — неразрывный пробел,
+ * чтобы держать строку) — появление/исчезновение «Просмотрено» не меняет
+ * высоту ленты, стена чата неподвижна. Нет своих сообщений — резерва нет
+ * (метка там невозможна).
+ */
+function ReservedViewsSlot({ className }: { className?: string }) {
+  return (
+    <div data-slot="views-reserved" aria-hidden className={cn('w-fit invisible', className)}>
+      <div className="views-pill flex items-center gap-1.5 rounded-full px-2.5 py-1 text-label">
+        <ReadTicks read />
+        <span>{'\u00A0'}</span>
+      </div>
+    </div>
+  );
+}
+
 function ViewsPopupBody({ viewers }: { viewers: UserRef[] }) {
   return (
     <div data-slot="views-popup" className="flex flex-col">
-      <span className="px-3 pt-2.5 pb-1.5 text-label-sm font-medium text-muted-foreground">
-        {ui.chat.whoViewed}
-      </span>
-      <div className="max-h-64 overflow-y-auto px-1.5 pb-1.5">
+      <div className="max-h-64 overflow-y-auto px-1.5 py-1.5">
         {viewers.map((viewer) => (
           <span key={viewer.id} className="flex items-center gap-2 rounded-lg px-1.5 py-1.5">
             <PersonAvatar
@@ -111,9 +127,9 @@ function ViewsPopupBody({ viewers }: { viewers: UserRef[] }) {
 /**
  * Pill просмотров сообщения `message` (своего последнего): рендерить СРАЗУ
  * ПОСЛЕ строки этого сообщения в ленте. `className` — вертикальный ритм под
- * контейнер хоста (серии беседы/треда gap-0.5: mt-1; посты канала gap-3:
- * -mt-2). Последнее своё ВНЕ окна ленты (глубокая история) — хост не рендерит
- * pill вовсе.
+ * контейнер хоста (зазор сверху = 1.5× нижнего, #132 р.2: у gap-3 хостов
+ * -mt-[3px] → 9px сверху против 6px pt-1.5 композера снизу). Последнее своё
+ * ВНЕ окна ленты (глубокая история) — хост не рендерит pill вовсе.
  */
 export function ConversationViewsLine({
   conversationId,
@@ -129,23 +145,26 @@ export function ConversationViewsLine({
   const { data } = useConversations();
   const conversation = data?.items.find((c) => c.id === conversationId) ?? null;
   const [popupAnchor, setPopupAnchor] = useState<HTMLElement | null>(null);
-  const pillRef = useRef<HTMLDivElement>(null);
+  const nameRef = useRef<HTMLButtonElement>(null);
+  const moreRef = useRef<HTMLButtonElement>(null);
 
   const lastOwn = lastOwnMessage(messages, me?.id);
   if (!conversation || !lastOwn) {
     return null;
   }
-  const openPopup = () => setPopupAnchor(pillRef.current);
+  // #132 р.2: якорь попапа — «ещё N» (левый край попапа = левый край слова);
+  // одного зрителя — его имя.
+  const openPopup = () => setPopupAnchor(moreRef.current ?? nameRef.current);
 
   // Direct (и «Заметки»): просмотры = факт собеседника; показываем ВРЕМЯ
   // первого просмотра, попапа нет (модель Telegram — просто галочки).
   if (conversation.type === 'direct') {
-    if (lastOwn.readAt === null) return null;
+    if (lastOwn.readAt === null) return <ReservedViewsSlot className={className} />;
     const day = formatDayLabel(lastOwn.readAt);
     const humanDay = day.charAt(0).toLowerCase() + day.slice(1);
     return (
-      <div ref={pillRef} className={cn('w-fit', className)}>
-        <div className="views-pill flex items-center gap-1.5 rounded-full bg-card/70 px-2.5 py-1 text-badge text-muted-foreground shadow-none backdrop-blur-sm">
+      <div className={cn('w-fit', className)}>
+        <div className="views-pill flex items-center gap-1.5 rounded-full bg-card/70 px-2.5 py-1 text-label text-muted-foreground shadow-none backdrop-blur-sm">
           <ReadTicks read />
           <span>
             {ui.chat.readByLabel}: {humanDay}, {formatTime(lastOwn.readAt)}
@@ -156,26 +175,37 @@ export function ConversationViewsLine({
   }
 
   const viewers = viewersForFeedTail(lastOwn, messages[messages.length - 1]);
-  if (viewers.length === 0) return null;
+  if (viewers.length === 0) return <ReservedViewsSlot className={className} />;
   const first = viewers[0]!;
   const more = viewers.length - 1;
 
   return (
-    <div ref={pillRef} className={cn('w-fit', className)}>
-      <div className="views-pill flex items-center gap-1.5 rounded-full bg-card/70 px-2.5 py-1 text-badge text-muted-foreground shadow-none backdrop-blur-sm">
+    <div className={cn('w-fit', className)}>
+      <div className="views-pill flex items-center gap-1.5 rounded-full bg-card/70 px-2.5 py-1 text-label text-muted-foreground shadow-none backdrop-blur-sm">
         <ReadTicks read />
         <span>{ui.chat.readByLabel}:</span>
-        <button type="button" className="rounded-full hover:text-foreground" onClick={openPopup}>
+        <button
+          ref={nameRef}
+          type="button"
+          className="rounded-full hover:text-foreground"
+          onClick={openPopup}
+        >
           {shortPersonName(first.displayName)}
         </button>
+        {/* #132 р.2: союз «и» — обычный текст; подчёркнута и кликабельна
+            только часть «ещё N» (как в Телеграме). */}
         {more > 0 ? (
-          <button
-            type="button"
-            className="rounded-full font-mono underline decoration-dotted underline-offset-2 tabular-nums hover:text-foreground"
-            onClick={openPopup}
-          >
-            {ui.chat.andMore} {more}
-          </button>
+          <>
+            <span>и</span>
+            <button
+              ref={moreRef}
+              type="button"
+              className="rounded-full font-mono underline decoration-dotted underline-offset-2 tabular-nums hover:text-foreground"
+              onClick={openPopup}
+            >
+              {ui.chat.andMore} {more}
+            </button>
+          </>
         ) : null}
       </div>
       <ViewsPopup anchor={popupAnchor} viewers={viewers} onClose={() => setPopupAnchor(null)} />

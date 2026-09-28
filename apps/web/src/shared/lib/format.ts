@@ -61,9 +61,29 @@ export function plural(n: number, forms: readonly [string, string, string]): str
 /** Короткое имя человека для компактных строк (просмотры чата, вердикт
  *  раунда 4: «имя фамилия, без отчества»). Полное имя в справочнике —
  * «Фамилия Имя Отчество»; здесь — «Имя Фамилия». Короткие формы (два токена
- * и менее) не трогаем («Администратор Системный»). */
+ *  и менее) не трогаем («Администратор Системный»). */
 export function shortPersonName(displayName: string): string {
   const parts = displayName.trim().split(/\s+/);
   if (parts.length < 3) return displayName;
   return `${parts[1]} ${parts[0]}`;
+}
+
+/** Имя из «Фамилия Имя [Отчество]» — приветствия по имени (#132: раньше
+ *  split(' ')[0] давал ФАМИЛИЮ — «Добрый день, Климович»). Единственный
+ *  токен возвращается как есть. */
+export function firstNameOf(displayName: string | null | undefined): string {
+  if (!displayName) return '';
+  const parts = displayName.trim().split(/\s+/);
+  return parts[1] ?? parts[0] ?? '';
+}
+
+/** «Фамилия Имя Отчество» → «Фамилия Имя» (#132 р.5): отчества убраны из UI,
+ *  но СТАРЫЕ снапшоты сообщений (UserRef.displayName вшит в реплаи,
+ *  пересылки, просмотры, typing) не мигрируются — фронт чистит НАВСЕГДА.
+ *  Правило простое: ≥3 токенов → третий отбрасывается; короткие формы
+ *  («Имя Фамилия», «Администратор») не трогаем. */
+export function withoutPatronymic(displayName: string): string {
+  const parts = displayName.trim().split(/\s+/);
+  if (parts.length < 3) return displayName;
+  return `${parts[0]} ${parts[1]}`;
 }

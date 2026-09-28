@@ -17,6 +17,7 @@ import { useAuthStore } from '../../../shared/auth-store.js';
 import { useUsersList } from '../../../shared/api/users-list.js';
 import { chatKeys } from '../../../shared/chat/api.js';
 import { ChatHostNavigationContext } from '../../../shared/chat/chat-host.js';
+import { withoutPatronymic } from '../../../shared/lib/format.js';
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
 import { TaskQuickCreate } from '../../../shared/tasks/task-quick-create.js';
 import { useConversations } from '../api/chat-api.js';
@@ -274,7 +275,9 @@ export function MessengerBody({
                 >
                   <PersonAvatar name={person.displayName} className="size-9" />
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium">{person.displayName}</span>
+                    <span className="block truncate text-sm font-medium">
+                      {withoutPatronymic(person.displayName)}
+                    </span>
                     <span className="block truncate text-label-sm text-muted-foreground">
                       {ui.chat.searchPeopleHint}
                     </span>

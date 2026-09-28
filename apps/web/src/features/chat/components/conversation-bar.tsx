@@ -4,6 +4,7 @@ import { ui } from '@nodus/contracts';
 
 import { useOpenCard } from '../../../app/shell/use-card-stack.js';
 import { useAuthStore } from '../../../shared/auth-store.js';
+import { withoutPatronymic } from '../../../shared/lib/format.js';
 import { ChatPanelToggle } from '../../../shared/chat/chat-side-panel.js';
 import { useIsOnline } from '../../../shared/socket/presence-store.js';
 import { useTypingStore } from '../../../shared/socket/typing-store.js';
@@ -85,7 +86,8 @@ function findPeer(conversation: ConversationListItem, meId: string | undefined):
 }
 
 function memberName(conversation: ConversationListItem, userId: string): string | null {
-  return conversation.membersPreview.find((member) => member.id === userId)?.displayName ?? null;
+  const raw = conversation.membersPreview.find((member) => member.id === userId)?.displayName;
+  return raw ? withoutPatronymic(raw) : null;
 }
 
 /** Подзаголовок: typing > direct presence > типовой (conversations.ts). */

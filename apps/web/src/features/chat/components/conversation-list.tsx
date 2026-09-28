@@ -8,7 +8,7 @@ import { Skeleton } from '@nodus/ui/components/skeleton';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { useAuthStore } from '../../../shared/auth-store.js';
-import { formatTime } from '../../../shared/lib/format.js';
+import { formatTime, withoutPatronymic } from '../../../shared/lib/format.js';
 import { ConversationAvatar } from '../../../shared/chat/conversation-avatar.js';
 import { useTypingStore } from '../../../shared/socket/typing-store.js';
 import { conversationTitle, sortByActivity } from '../lib/conversations.js';
@@ -43,7 +43,9 @@ function RowPreview({ conversation }: { conversation: ConversationListItem }) {
   if (typingAlive) {
     const name = conversation.membersPreview.find((m) => m.id === typing.userId)?.displayName;
     const label =
-      conversation.type === 'direct' || !name ? ui.chat.typing : `${name} ${ui.chat.typing}`;
+      conversation.type === 'direct' || !name
+        ? ui.chat.typing
+        : `${withoutPatronymic(name)} ${ui.chat.typing}`;
     return <span className="truncate text-xs italic text-info">{label}</span>;
   }
   const preview = conversation.draft?.text || '';

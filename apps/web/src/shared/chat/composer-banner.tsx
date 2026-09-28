@@ -2,6 +2,7 @@ import { Pencil, X } from 'lucide-react';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 
+import { withoutPatronymic } from '../lib/format.js';
 import type { ChatDraft } from './chat-drafts.js';
 
 /** Подпись медийного оригинала без текста (канон Telegram reply_media:
@@ -53,7 +54,7 @@ export function ComposerBanner({
           className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 rounded-md px-1 text-left transition-colors hover:bg-accent/60"
         >
           <span className="truncate text-xs font-semibold text-info">
-            {draft.reply?.author.displayName}
+            {draft.reply ? withoutPatronymic(draft.reply.author.displayName) : null}
           </span>
           <span className="truncate text-xs text-muted-foreground">{replySnippet(draft)}</span>
         </button>

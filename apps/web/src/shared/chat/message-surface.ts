@@ -22,6 +22,10 @@ export function messageSurface(mine: boolean) {
   return {
     /** Сообщение на залитой (своей) поверхности — для Meta/Reactions/ReplyHeader. */
     onFilled: mine,
+    /** Тон поверхности для селекторов тинта выделения (глоб. CSS #132 р.5):
+     'out' — bubble-out (своё), 'in' — bubble-in (чужое); той же формулой
+     красятся пузырь и хвост — стык бесшовен. */
+    tone: (mine ? 'out' : 'in') as 'out' | 'in',
     /** Заливка + текст поверхности: своё — bubble-out, чужое — bubble-in. */
     fill: mine
       ? 'bg-bubble-out text-bubble-out-foreground'

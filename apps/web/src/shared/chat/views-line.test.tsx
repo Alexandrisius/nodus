@@ -107,10 +107,12 @@ describe('ConversationViewsLine (#102 раунд 2)', () => {
         ],
       }),
     ]);
-    // Строка — по ПОСЛЕДНЕМУ своему: 2 посмотревших → «и ещё 1».
+    // Строка — по ПОСЛЕДНЕМУ своему: 2 посмотревших → «и ещё 1»; союз «и» —
+    // вне подчёркнутой кнопки (#132 р.2).
     expect(screen.getByText('Просмотрено:')).toBeTruthy();
     expect(screen.getByText('Анна Первая')).toBeTruthy();
-    expect(screen.getByText('и ещё 1')).toBeTruthy();
+    expect(screen.getByText('ещё 1')).toBeTruthy();
+    expect(screen.getByText('и', { exact: true })).toBeTruthy();
   });
 
   it('direct: просмотрено → «Просмотрено: {дата}, {время}» без имён', () => {
@@ -123,9 +125,11 @@ describe('ConversationViewsLine (#102 раунд 2)', () => {
     expect(screen.getByText(/Просмотрено: (сегодня|Сегодня), \d{2}:\d{2}/u)).toBeTruthy();
   });
 
-  it('не просмотрено / нет своих / удалённое последнее — строки нет', () => {
-    const { rerender } = renderLine('group', [msg({ readBy: [] })]);
+  it('не просмотрено / нет своих / удалённое последнее — текста нет; резерв высоты держится (#132)', () => {
+    const { rerender, container } = renderLine('group', [msg({ readBy: [] })]);
     expect(screen.queryByText('Просмотрено:')).toBeNull();
+    // Квитанции ещё нет — невидимый слот той же геометрии: стена не двигается.
+    expect(container.querySelector('[data-slot="views-reserved"]')).not.toBeNull();
     rerender(
       <QueryClientProvider client={queryClient}>
         <ConversationViewsLine
@@ -144,6 +148,8 @@ describe('ConversationViewsLine (#102 раунд 2)', () => {
       </QueryClientProvider>,
     );
     expect(screen.queryByText('Просмотрено:')).toBeNull();
+    // Своих сообщений нет — резерва нет (метка невозможна).
+    expect(container.querySelector('[data-slot="views-reserved"]')).toBeNull();
   });
 
   it('автор нижнего сообщения ленты НЕ показывается в метке (вердикт р.4)', () => {

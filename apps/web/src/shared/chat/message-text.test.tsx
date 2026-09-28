@@ -28,7 +28,8 @@ describe('MessageText — одиночный эмодзи (#130)', () => {
     const { container } = render(<MessageText text="🧭" />);
     expect(container.querySelector('img')).toBeNull();
     expect(container.textContent).toBe('🧭');
-    const span = container.querySelector('span');
+    // Глиф — ВНУТРИ маркера текста (обёрнут data-slot, #132 рамка выделения).
+    const span = container.querySelector('[data-slot="message-text"] span');
     expect(span?.className).toContain('text-4xl');
   });
 

@@ -29,11 +29,19 @@ export function MessageText({ text }: { text: string }) {
   );
 
   if (single && entities.length === 0) {
-    return <SingleEmoji emoji={text.trim()} />;
+    return (
+      <span data-slot="message-text" className="inline-block">
+        <SingleEmoji emoji={text.trim()} />
+      </span>
+    );
   }
 
   if (entities.length === 0) {
-    return <span className="whitespace-pre-wrap break-words">{text}</span>;
+    return (
+      <span data-slot="message-text" className="whitespace-pre-wrap break-words">
+        {text}
+      </span>
+    );
   }
 
   const visibleText = segments
@@ -43,7 +51,7 @@ export function MessageText({ text }: { text: string }) {
     .trim();
 
   return (
-    <span className="flex min-w-0 flex-col gap-1.5">
+    <span data-slot="message-text" className="flex min-w-0 flex-col gap-1.5">
       {visibleText ? <span className="whitespace-pre-wrap break-words">{visibleText}</span> : null}
       {entities.map((segment) => {
         const Preview = linkPreviewFor(segment.entity);

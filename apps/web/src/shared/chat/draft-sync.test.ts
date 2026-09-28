@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const { apiMock } = vi.hoisted(() => ({ apiMock: vi.fn() }));
 vi.mock('../api-client.js', () => ({ api: apiMock }));
 
-import { flushDraftSync } from './draft-sync.js';
+import { flushDraftSync, reconcileServerDraft } from './draft-sync.js';
 import { EMPTY_DRAFT, useChatDrafts } from './chat-drafts.js';
 
 /** Политика черновика — ТОЛЬКО на уходе (вердикт 25.09): набор текста сервер
@@ -97,6 +97,15 @@ describe('draft-sync — фиксация черновика на уходе', (
     expect(apiMock).not.toHaveBeenCalled();
   });
 
+  it('PUT уходит с keepalive (закрытие вкладки не теряет фиксацию, #132)', async () => {
+    useChatDrafts.getState().setText(key(11), 'переживёт закрытие');
+    await expect(flushDraftSync(key(11))).resolves.toBe(true);
+    expect(apiMock).toHaveBeenCalledWith(
+      `/chat/conversations/${conv(11)}/draft`,
+      expect.objectContaining({ keepalive: true }),
+    );
+  });
+
   it('скрытие вкладки (visibilitychange hidden) шлёт PUT без предварительного flush — слушатели установлены при инициализации модуля', async () => {
     useChatDrafts.setState({
       drafts: {
@@ -113,5 +122,54 @@ describe('draft-sync — фиксация черновика на уходе', (
       expect.arrayContaining(['скрыли вкладку', 'вторая беседа']),
     );
     Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+  });
+});
+
+describe('draft-sync — реконсилейшн серверного черновика (#132 «залипший Огонёк»)', () => {
+  beforeEach(() => {
+    apiMock.mockReset();
+    apiMock.mockResolvedValue(undefined);
+    useChatDrafts.setState({ drafts: {} });
+  });
+
+  const conv = (n: number) => `2222222${n}-2222-4222-8222-${`${n}`.padStart(12, '0')}`;
+  const key = (n: number) => `conversation:${conv(n)}`;
+
+  it('локального нет, сервер хранит 🔥 — гидрируем локальный слой', () => {
+    reconcileServerDraft(key(1), { draft: { text: '🔥' } });
+    expect(useChatDrafts.getState().drafts[key(1)]?.text).toBe('🔥');
+  });
+
+  it('гидрированный черновик убирается штатно: очистка шлёт PUT мимо дедупа', async () => {
+    reconcileServerDraft(key(2), { draft: { text: '🔥' } });
+    useChatDrafts.getState().setText(key(2), '');
+    await expect(flushDraftSync(key(2))).resolves.toBe(true);
+    expect(apiMock).toHaveBeenCalledWith(
+      `/chat/conversations/${conv(2)}/draft`,
+      expect.objectContaining({ method: 'PUT', body: { text: '' } }),
+    );
+  });
+
+  it('локальный черновик первичен — серверный не затирает', () => {
+    useChatDrafts.getState().setText(key(3), 'мой текст');
+    reconcileServerDraft(key(3), { draft: { text: 'серверный' } });
+    expect(useChatDrafts.getState().drafts[key(3)]?.text).toBe('мой текст');
+  });
+
+  it('режим правки и пустой серверный черновик — реконсилейшн не работает', () => {
+    useChatDrafts.setState({
+      drafts: {
+        [key(4)]: { ...EMPTY_DRAFT, text: '', edit: { messageId: 'm1', originalText: 'x' } },
+      },
+    });
+    reconcileServerDraft(key(4), { draft: { text: 'серверный' } });
+    expect(useChatDrafts.getState().drafts[key(4)]?.text).toBe('');
+    reconcileServerDraft(key(5), { draft: null });
+    expect(useChatDrafts.getState().drafts[key(5)]).toBeUndefined();
+  });
+
+  it('тредовый scope — только локально (реконсилейшн не работает)', () => {
+    reconcileServerDraft('thread:root9', { draft: { text: '🔥' } });
+    expect(useChatDrafts.getState().drafts['thread:root9']).toBeUndefined();
   });
 });

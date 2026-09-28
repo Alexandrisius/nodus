@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ChatMessage, Paginated, UserRef } from '@nodus/contracts';
@@ -9,9 +9,10 @@ import { chatKeys } from './api.js';
 import { ReactionPicker } from './reaction-picker.js';
 
 /**
- * Ховер-попап реакций (#124, вердикты 27.09): открывается НАВЕДЕНИЕМ на
- * кнопку в нижнем углу пузыря; раскрытие сетки — панель на месте (grid-rows);
- * клик по эмодзи — оптимистичный toggle с users в чипе.
+ * Ховер-пилюля реакций (#132, вердикт владельца 28.09): пилюля = сама базовая
+ * реакция (клик — сразу toggle, без панели); панель открывается НАВЕДЕНИЕМ на
+ * пилюлю, стоит выше неё; закрытие по уходу курсора сбрасывает раскрытие сетки
+ * (утечка expanded); клик по эмодзи панели — оптимистичный toggle с users.
  * nwsapi (jsdom) не матчит не-BMP-эмодзи в attribute-селекторах — ищем JS-ом.
  */
 
@@ -93,33 +94,68 @@ afterEach(() => {
   useAuthStore.setState({ user: null });
 });
 
-describe('ReactionPicker (#124, вердикты 27.09)', () => {
-  it('открывается НАВЕДЕНИЕМ; клик по эмодзи — оптимистичный чип с users', async () => {
-    const { client, posted, container } = setup();
+describe('ReactionPicker (#132: пилюля = базовая реакция, панель сверху)', () => {
+  it('клик по пилюле — СРАЗУ базовая реакция, без открытия панели', async () => {
+    const { posted, container } = setup();
     const trigger = container.querySelector('[data-slot="reaction-picker-trigger"]');
     expect(trigger).not.toBeNull();
-    // Кнопка — в НИЖНЕМ углу пузыря (вердикт п.1).
-    expect(trigger?.className).toContain('-bottom-3');
+    // Якорь панели — СТАБИЛЬНАЯ обёртка (р.3): рост пилюли — transform
+    // внутренней кнопки, rect якоря не меняется. Раунд 5: базовый размер
+    // 20px (size-5), hover scale 1.4 → прежние 28px; выступ вправо
+    // >половины (12px), вниз <половины (8px).
+    expect(trigger?.tagName).toBe('SPAN');
+    expect(trigger?.className).toContain('size-5');
+    expect(trigger?.className).toContain('-bottom-2');
+    expect(trigger?.className).toContain('-right-3');
+    // Видимость — по ховеру ПУЗЫРЯ, не строки ленты (р.2).
+    expect(trigger?.className).toContain('group-hover/bubble:opacity-100');
+    expect(trigger?.className).not.toContain('group-hover/msg:opacity-100');
+    const button = (trigger as Element).querySelector('button');
+    expect(button?.className).toContain('size-5');
+    expect(button?.className).toContain('hover:scale-[1.4]');
+    // Пилюля несёт саму базовую реакцию (анимированный глиф), не иконку-заглушку.
+    const glyph = Array.from(trigger?.querySelectorAll('img') ?? []).find(
+      (img) => img.alt === '👍',
+    );
+    expect(glyph).not.toBeNull();
 
-    fireEvent.mouseEnter(trigger as Element);
+    fireEvent.click(button as Element);
+    await waitFor(() => expect(posted).toHaveBeenCalledTimes(1));
+    expect(String(posted.mock.calls[0]?.[0])).toContain('👍');
+    // Панель при этом НЕ открывалась (клик ≠ наведение).
+    expect(emojiButton('❤️')).toBeNull();
+  });
+
+  it('наведение на пилюлю открывает панель; клик по эмодзи — оптимистичный чип', async () => {
+    const { client, container } = setup();
+    const trigger = container.querySelector('[data-slot="reaction-picker-trigger"]') as Element;
+    fireEvent.mouseEnter(trigger);
     const emoji = await vi.waitFor(() => {
       const found = emojiButton('👍');
       expect(found).not.toBeNull();
       return found as Element;
     });
-    // Эмодзи выбора ×1.5 (вердикт п.3) — анимированный APNG-глиф 24px.
+    // Раунд 3: панель ВСЕГДА сверху пилюли (модель Битрикс24, предсказуемо).
+    const pop = document.body.querySelector('[data-slot="reaction-pop"]');
+    expect(pop?.getAttribute('data-side')).toBe('top');
+    // Размер панели — прежний (р.2: возврат после «мелко»): кнопки 40px,
+    // глифы 24px; плотность — зазорами gap-0 между кнопками.
+    expect(emoji.className).toContain('size-10');
     const glyph = Array.from(emoji.querySelectorAll('img')).find((img) => img.alt === '👍');
     expect(glyph?.className).toContain('size-6');
 
     fireEvent.click(emoji);
-    await waitFor(() => expect(posted).toHaveBeenCalled());
-    const cached = (
-      client.getQueryData<Paginated<ChatMessage>>(chatKeys.messages(CONV)) as Paginated<ChatMessage>
-    ).items[0];
-    expect(cached?.reactions).toEqual([{ emoji: '👍', count: 1, mine: true, users: [ME_REF] }]);
+    await waitFor(() => {
+      const cached = (
+        client.getQueryData<Paginated<ChatMessage>>(
+          chatKeys.messages(CONV),
+        ) as Paginated<ChatMessage>
+      ).items[0];
+      expect(cached?.reactions).toEqual([{ emoji: '👍', count: 1, mine: true, users: [ME_REF] }]);
+    });
   });
 
-  it('раскрытие сетки — панель на месте, сетка выезжает вниз (grid-rows)', async () => {
+  it('раскрытие сетки — панель на месте, сетка выезжает (grid-rows)', async () => {
     const { container } = setup();
     const trigger = container.querySelector('[data-slot="reaction-picker-trigger"]') as Element;
     fireEvent.mouseEnter(trigger);
@@ -132,7 +168,42 @@ describe('ReactionPicker (#124, вердикты 27.09)', () => {
     await vi.waitFor(() => {
       expect(emojiButton('🙏')).not.toBeNull();
     });
-    // Контейнер раскрытия — grid-rows-анимация без перепрыгивания попапа.
     expect(document.body.querySelector('.grid-rows-\\[1fr\\]')).not.toBeNull();
+  });
+
+  it('уход курсора закрывает панель И сбрасывает раскрытие (утечка expanded)', async () => {
+    vi.useFakeTimers();
+    try {
+      const { container } = setup();
+      const trigger = container.querySelector('[data-slot="reaction-picker-trigger"]') as Element;
+      fireEvent.mouseEnter(trigger);
+      const more = await vi.waitFor(() => {
+        const found = document.body.querySelector('button[aria-expanded="false"]');
+        expect(found).not.toBeNull();
+        return found as Element;
+      });
+      fireEvent.click(more);
+      await vi.waitFor(() => {
+        expect(document.body.querySelector('.grid-rows-\\[1fr\\]')).not.toBeNull();
+      });
+
+      // Курсор ушёл с пилюли и панели → grace 180мс → панель закрыта.
+      fireEvent.mouseLeave(trigger);
+      act(() => {
+        vi.advanceTimersByTime(200);
+      });
+      expect(emojiButton('👍')).toBeNull();
+
+      // Повторное наведение — панель снова СВЁРНУТА (не «залипает» раскрытой):
+      // раскрытие — это grid-rows-клип, состояние живёт в expanded/шевроне.
+      fireEvent.mouseEnter(trigger);
+      await vi.waitFor(() => {
+        expect(emojiButton('👍')).not.toBeNull();
+      });
+      expect(document.body.querySelector('.grid-rows-\\[1fr\\]')).toBeNull();
+      expect(document.body.querySelector('button[aria-expanded="true"]')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

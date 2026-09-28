@@ -20,6 +20,11 @@ import { wsDebugEnabled } from '../socket/ws-debug.js';
  *   (баг #71: пикер даты в карточке регистрации вспыхивал и пропадал).
  *   Канон сохраняется: после закрытия слоя автофокус Radix возвращает фокус
  *   на триггер, focusin-гард планирует steal уже вне слоя;
+ * - слой владеет фокусом и ЧЕРЕЗ свой ТРИГГЕР: клик открывает поповер,
+ *   автофокус контента отключён (emoji-панель #130 — «попап не крадёт фокус
+ *   композера»), фокус остаётся на триггере; steal кадром позже уводил его
+ *   в композер → DismissableLayer закрывал панель по focusOutside мгновенно
+ *   (#132 р.5 «панель эмодзи закрывается сразу после открытия»);
  * - фокус возвращается с preventScroll — лента не прыгает при возврате;
  * - анрегистр активного композера (закрыли тред) передаёт курсор ранее
  *  зарегистрированному (ленте канала) — «закрыл тред → мигает канал».
@@ -27,6 +32,9 @@ import { wsDebugEnabled } from '../socket/ws-debug.js';
 const registry = new Map<string, HTMLTextAreaElement>();
 let activeId: string | null = null;
 let modality: 'pointer' | 'key' | 'other' = 'other';
+/** ЛКМ зажата (между pointerdown и pointerup/cancel) — фокус не крадём:
+ *  идёт клик ИЛИ зарождающееся выделение текста (#132 р.4). */
+let pointerHeld = false;
 let installed = false;
 
 /** Роли Radix-контента оверлей-слоёв (dialog/popover → role=dialog,
@@ -82,6 +90,20 @@ function insideOverlayLayer(el: Element | null, composer: Element | null = null)
   return false;
 }
 
+/** Активный элемент — ТРИГГЕР открытого слоя Radix (aria-expanded=true,
+ *  aria-controls указывает на смонтированный контент): слой владеет фокусом
+ *  и через триггер (#132 р.5 — фокус-кража закрывала панель эмодзи по
+ *  focusOutside в кадр после клика). Закрытый слой триггером не считается
+ *  (контент размонтирован) — возврат курсора после закрытия как раньше. */
+function isOpenLayerTrigger(el: Element | null): boolean {
+  if (!(el instanceof HTMLElement)) return false;
+  const trigger = el.closest<HTMLElement>('[aria-expanded="true"]');
+  if (!trigger) return false;
+  const contentId = trigger.getAttribute('aria-controls');
+  if (!contentId) return false;
+  return document.getElementById(contentId) !== null;
+}
+
 function stealFocus(): void {
   const el = activeId ? registry.get(activeId) : undefined;
   if (!el || document.activeElement === el) {
@@ -94,6 +116,10 @@ function stealFocus(): void {
   }
   if (insideOverlayLayer(document.activeElement, el)) {
     debugSkip('overlay-layer');
+    return;
+  }
+  if (isOpenLayerTrigger(document.activeElement)) {
+    debugSkip('open-layer-trigger');
     return;
   }
   const selection = window.getSelection();
@@ -112,6 +138,21 @@ function install(): void {
     'pointerdown',
     (e) => {
       modality = e.button === 0 ? 'pointer' : 'other';
+      pointerHeld = e.button === 0;
+    },
+    true,
+  );
+  document.addEventListener(
+    'pointerup',
+    () => {
+      pointerHeld = false;
+    },
+    true,
+  );
+  document.addEventListener(
+    'pointercancel',
+    () => {
+      pointerHeld = false;
     },
     true,
   );
@@ -131,11 +172,14 @@ function install(): void {
       return;
     }
     if (modality !== 'pointer') return;
-    // Клик по кнопке фокусирует её — возвращаем курсор сразу (селекции на
-    // кнопках не бывает; пустое место и карточки обрабатывает click ниже).
-    // Страховка (#104 р.2): фокус может получить и НЕ-кнопочный кликабельный
-    // контейнер с tabindex (скроллер ленты) — правило то же: оверлей-слой
-    // и редактируемые поля выше не отдаём, остальное после мыши возвращаем.
+    // #132 р.4: пока ЛКМ ЗАЖАТА — не крадём: фокус уходит кликабельному
+    // контейнеру (скроллер ленты, tabIndex) на mousedown, steal кадром
+    // позже видел СВЁРНУТУЮ селекцию и textarea.focus() убивал зарождающееся
+    // выделение текста (текст/цитаты были мертвы). Для кликов каретку
+    // возвращает click-обработчик ниже (после mouseup, с гардом готовой
+    // селекции); эта ветка — для фокусов БЕЗ зажатой кнопки (Radix
+    // onCloseAutoFocus после закрытия оверлей-слоя — канон сохранён).
+    if (pointerHeld) return;
     if (target instanceof HTMLElement && (target.closest('button') || target.tabIndex >= 0)) {
       requestAnimationFrame(stealFocus);
     }
