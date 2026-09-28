@@ -38,7 +38,9 @@ services:
       JWT_SECRET: ${JWT_SECRET:?задайте в .env}
       # Файловое хранилище (#57, ADR-0013): api пишет/читает S3 (SILO)
       # сервисной учёткой minio-init (права только на бакет вложений).
-      STORAGE_ENDPOINT: nodus_minio
+      # Дефис-алиас: СЕРВЕР SILO отвергает '_' в Host (400 InvalidRequest на
+      # каждый запрос — репро пересборки прода 28.09), как и клиент mcli.
+      STORAGE_ENDPOINT: nodus-minio
       STORAGE_PORT: '9000'
       STORAGE_USE_SSL: 'false'
       STORAGE_BUCKET: ${STORAGE_BUCKET:-nodus-files}
