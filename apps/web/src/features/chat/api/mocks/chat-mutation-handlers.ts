@@ -82,6 +82,13 @@ export const chatMutationHandlers = [
     return HttpResponse.json(attachment, { status: 201 });
   }),
 
+  /** Отмена неотправленного вложения (#57): крестик готовой карточки в трее —
+   *  освобождает место (лимит 20). Зеркалит живой best-effort DELETE. */
+  http.delete('/api/v1/chat/attachments/:id', ({ params }) => {
+    uploadedAttachments.delete(String(params.id));
+    return new HttpResponse(null, { status: 204 });
+  }),
+
   /** Правка (A4): editedAt ставится только при реальной смене текста;
    *  readAt сбрасывается — «повторный пуш прочитавшим» (решение #41).
    *  Закрепы держат ссылку на объект — пин-бар обновляется реактивно. */

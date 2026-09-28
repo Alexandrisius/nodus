@@ -15,6 +15,7 @@
     "test": "turbo test --filter=!@nodus/e2e",
     "test:e2e": "pnpm --filter @nodus/e2e test",
     "lint": "eslint .",
+    "live-stack": "node scripts/live-stack.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "prepare": "husky"

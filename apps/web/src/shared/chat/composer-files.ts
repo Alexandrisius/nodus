@@ -1,6 +1,7 @@
 import { ui } from '@nodus/contracts';
 import { toast } from 'sonner';
 
+import { api } from '../api-client.js';
 import { EMPTY_DRAFT, useChatDrafts, type PendingAttachment } from './chat-drafts.js';
 import { uploadAttachment, validateFiles, type UploadHandle } from './upload-attachment.js';
 
@@ -87,6 +88,16 @@ export function retryUpload(draftKey: string, localId: string): void {
 }
 
 export function removePending(draftKey: string, localId: string): void {
+  const item = (useChatDrafts.getState().drafts[draftKey] ?? EMPTY_DRAFT).attachments.find(
+    (attachment) => attachment.localId === localId,
+  );
   sourceFiles.delete(localId);
   useChatDrafts.getState().removeAttachment(draftKey, localId);
+  // Убранное из трея ГОТОВОЕ вложение освобождаем и на сервере (лимит 20
+  // неотправленных, #57). Best-effort: сбой молча — брошенное уберёт
+  // ленивая уборка сервера (48 ч).
+  const attachmentId = item?.status === 'ready' ? item.attachment?.id : undefined;
+  if (attachmentId) {
+    void api(`/chat/attachments/${attachmentId}`, { method: 'DELETE' }).catch(() => undefined);
+  }
 }

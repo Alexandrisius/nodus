@@ -1,8 +1,6 @@
 import 'reflect-metadata';
-import fastifyCookie, { type FastifyCookieOptions } from '@fastify/cookie';
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
-import type { FastifyPluginCallback } from 'fastify';
 import type { Redis } from 'ioredis';
 import { expect } from 'vitest';
 import {
@@ -14,6 +12,7 @@ import {
 
 import { AppModule } from '../../src/app.module.js';
 import { PrismaService } from '../../src/core/database/prisma.service.js';
+import { registerCoreFastifyPlugins } from '../../src/core/http/register-fastify-plugins.js';
 import { REDIS_CLIENT } from '../../src/core/redis/redis.module.js';
 import { TokenService } from '../../src/modules/auth/token.service.js';
 import { ensureTestDatabase } from './test-db.js';
@@ -101,7 +100,8 @@ export async function setupChatFixture<T extends string>(
   const app = await NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter(), {
     logger: false,
   });
-  await app.register(fastifyCookie as FastifyPluginCallback<FastifyCookieOptions>);
+  // Сквозные плагины — та же точка, что и main.ts (cookie, multipart #57).
+  await registerCoreFastifyPlugins(app);
   app.setGlobalPrefix('api/v1');
   await app.listen(0, '127.0.0.1');
   const address = app.getHttpServer().address() as { port: number };

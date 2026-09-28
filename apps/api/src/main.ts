@@ -1,6 +1,5 @@
 import 'reflect-metadata';
 import { randomUUID } from 'node:crypto';
-import fastifyCookie, { type FastifyCookieOptions } from '@fastify/cookie';
 import fastifyRateLimit, { type RateLimitPluginOptions } from '@fastify/rate-limit';
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
@@ -8,6 +7,7 @@ import type { FastifyPluginCallback } from 'fastify';
 import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module.js';
 import { validateEnv } from './core/config/env.schema.js';
+import { registerCoreFastifyPlugins } from './core/http/register-fastify-plugins.js';
 import { setupOpenApi } from './core/openapi/openapi.setup.js';
 import { TokenService } from './modules/auth/token.service.js';
 
@@ -30,8 +30,9 @@ async function bootstrap(): Promise<void> {
   const tokenService = app.get(TokenService);
   setupOpenApi(app, (token) => tokenService.verifyAccessToken(token));
 
-  // Refresh-токен — в httpOnly-cookie (auth.controller).
-  await app.register(fastifyCookie as FastifyPluginCallback<FastifyCookieOptions>);
+  // Сквозные плагины (cookie, multipart вложений #57) — общая точка с
+  // интеграционными фикстурами (core/http/register-fastify-plugins).
+  await registerCoreFastifyPlugins(app);
 
   // Базовый rate limit (защита от флода); брутфорс login ограничен пер-аккаунтным
   // счётчиком неудач в AuthService (Redis) — плагин считает по IP до парсинга

@@ -1,0 +1,143 @@
+import { Inject, Injectable } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
+import type { Readable } from 'node:stream';
+import { ErrorCode, type MessageAttachment } from '@nodus/contracts';
+import { PinoLogger } from 'nestjs-pino';
+
+import { SignedUrlService } from '../../../core/crypto/signed-url.service.js';
+import { DomainException } from '../../../core/errors/domain-exception.js';
+import { FILE_STORAGE, type FileStorage } from '../../../core/ports/file-storage.port.js';
+import { AttachmentsRepository } from './attachments.repository.js';
+
+/** Лимиты вложений чата (вердикт владельца 24.09): 100 МБ на файл, ≤ 20
+ *  загруженных-но-неотправленных. Клиент валидирует до старта загрузки
+ *  (upload-attachment.ts), сервер — повторяет (I8: проверка не только в UI). */
+export const MAX_ATTACHMENT_BYTES = 100 * 1024 * 1024;
+export const MAX_PENDING_ATTACHMENTS = 20;
+
+/** Брошенные загрузки (закрыл композер, не отправил): строка + объект
+ *  хранилища убираются попутно при следующей загрузке того же владельца. */
+const STALE_UPLOAD_MS = 48 * 60 * 60 * 1000;
+
+export interface UploadAttachmentInput {
+  name: string;
+  mime: string;
+  size: number;
+  width?: number | undefined;
+  height?: number | undefined;
+}
+
+/**
+ * Загрузка вложений чата (#57, Ф6): multipart-стрим через api в файловое
+ * хранилище (порт FILE_STORAGE, ADR-0013) и строка message_attachments с
+ * message_id IS NULL; привязка — одноразовая при отправке (claimAttachments).
+ * Отдача — по подписанной ссылке files (url в DTO здесь и в маппере).
+ */
+@Injectable()
+export class AttachmentsService {
+  constructor(
+    @Inject(FILE_STORAGE) private readonly storage: FileStorage,
+    private readonly repository: AttachmentsRepository,
+    private readonly signedUrls: SignedUrlService,
+    private readonly logger: PinoLogger,
+  ) {
+    this.logger.setContext(AttachmentsService.name);
+  }
+
+  async upload(
+    ownerId: string,
+    input: UploadAttachmentInput,
+    content: Readable,
+  ): Promise<MessageAttachment> {
+    if (!Number.isSafeInteger(input.size) || input.size < 0 || input.mime.length === 0) {
+      throw new DomainException(ErrorCode.VALIDATION_FAILED, 'Invalid attachment metadata');
+    }
+    if (input.size > MAX_ATTACHMENT_BYTES) {
+      throw new DomainException(
+        ErrorCode.CHAT_ATTACHMENT_TOO_LARGE,
+        'Attachment exceeds chat file limit',
+        { maxBytes: MAX_ATTACHMENT_BYTES },
+        413,
+      );
+    }
+    await this.gcStaleUploads(ownerId);
+    const pending = await this.repository.countUnclaimed(ownerId);
+    if (pending >= MAX_PENDING_ATTACHMENTS) {
+      throw new DomainException(
+        ErrorCode.CHAT_ATTACHMENT_TOO_MANY,
+        'Too many unclaimed attachments',
+        { max: MAX_PENDING_ATTACHMENTS },
+      );
+    }
+
+    const { fileId } = await this.storage.save(
+      { ownerId, name: input.name, mime: input.mime, size: input.size },
+      content,
+    );
+    // Вид — явный (контракт): галерея для изображений, чип для остального.
+    const kind = input.mime.startsWith('image/') ? 'image' : 'file';
+    const row = await this.repository.insertAttachment({
+      id: randomUUID(),
+      fileId,
+      ownerId,
+      name: input.name,
+      size: input.size,
+      mime: input.mime,
+      kind,
+      width: input.width ?? null,
+      height: input.height ?? null,
+    });
+    return this.toDto(row);
+  }
+
+  /** Отмена из трея композера: строка + объект. Best-effort — уже
+   *  отправленное/чужое молча игнорируется (204). */
+  async cancel(ownerId: string, attachmentId: string): Promise<void> {
+    const row = await this.repository.findUnclaimed(attachmentId, ownerId);
+    if (!row) return;
+    await this.repository.deleteUnclaimed(attachmentId, ownerId);
+    await this.storage.remove([row.fileId]);
+  }
+
+  private toDto(row: {
+    id: string;
+    fileId: string;
+    name: string;
+    size: number;
+    mime: string;
+    kind: string;
+    width: number | null;
+    height: number | null;
+  }): MessageAttachment {
+    return {
+      id: row.id,
+      name: row.name,
+      size: row.size,
+      mime: row.mime,
+      kind: row.kind as 'image' | 'file',
+      url: this.signedUrls.fileContentUrl(row.fileId),
+      thumbnailUrl: null,
+      width: row.width,
+      height: row.height,
+    };
+  }
+
+  /** Гигиена брошенных загрузок: не валит новую загрузку при сбое. */
+  private async gcStaleUploads(ownerId: string): Promise<void> {
+    try {
+      const stale = await this.repository.findStaleUnclaimed(
+        ownerId,
+        new Date(Date.now() - STALE_UPLOAD_MS),
+      );
+      if (stale.length === 0) return;
+      await this.repository.deleteUnclaimedByIds(
+        ownerId,
+        stale.map((row) => row.id),
+      );
+      await this.storage.remove(stale.map((row) => row.fileId));
+      this.logger.info({ ownerId, count: stale.length }, 'Убраны брошенные загрузки вложений');
+    } catch (error) {
+      this.logger.warn({ err: error, ownerId }, 'GC брошенных загрузок не удался (не критично)');
+    }
+  }
+}

@@ -494,3 +494,50 @@ model MessageAttachment {
   @@index([ownerId])
   @@map("message_attachments")
 }
+
+// ===================== files (#57, M9 фаза 1) =====================
+
+/// Файл в объектном хранилище (MinIO, ADR-0013): логическая сущность;
+/// физические версии — FileVersion (фаза 1 создаёт ровно одну, v1).
+/// Право на файл решает модуль-потребитель (chat: message_attachments
+/// plain file_id, I3 — без FK между модулями).
+model FileObject {
+  id        String    @id @default(uuid()) @db.Uuid
+  ownerId   String    @map("owner_id") @db.Uuid
+  bucket    String
+  /// Ключ ТЕКУЩЕЙ версии в бакете (указатель; история — в FileVersion).
+  key       String    @unique
+  name      String
+  mime      String
+  size      Int
+  /// pending | clean | infected — гейт отдачи (ADR-0013): infected не
+  /// отдаётся никогда (410); pending отдаётся, пока сканера нет (ClamAV —
+  /// фаза 2, M14). Карантин — префикс ключа quarantine/, фаза 2.
+  scanStatus String   @default("pending") @map("scan_status")
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz()
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+
+  versions FileVersion[]
+
+  @@index([ownerId])
+  @@map("file_objects")
+}
+
+/// Физическая версия файла в хранилище: фаза 1 — одна (v1) на каждый upload;
+/// таблица с первого дня — версии (перегрузки писем и пр.) не потребуют
+/// миграций и смены контрактов.
+model FileVersion {
+  id          String   @id @default(uuid()) @db.Uuid
+  fileObjectId String  @map("file_object_id") @db.Uuid
+  /// 1.. — монотонно; уникально в пределах файла.
+  version     Int
+  key         String
+  size        Int
+  mime        String
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  fileObject FileObject @relation(fields: [fileObjectId], references: [id], onDelete: Cascade)
+
+  @@unique([fileObjectId, version])
+  @@map("file_versions")
+}

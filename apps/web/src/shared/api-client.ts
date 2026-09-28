@@ -1,4 +1,5 @@
 import { useAuthStore } from './auth-store.js';
+import { getApiMockConfig, isDomainMocked, type ApiMockDomain } from './api/api-mock-config.js';
 
 /**
  * HTTP-клиент SPA: Bearer access-токен из auth-store, единый повтор
@@ -107,6 +108,12 @@ interface UploadOptions {
   onProgress?: (fraction: number) => void;
   signal?: AbortSignal;
   idempotencyKey?: string;
+  /** Домен загрузки: в ПОЛУМОК-режиме (MSW активен, домен живой) XHR-перехват
+   *  MSW искажает большие multipart-тела (repro #57: 3 МБ JPEG → network
+   *  error/400; 100-байтовый PNG проходит) — грузим fetch-ом мимо
+   *  перехватчика через msw bypass(). Реальный прогресс недоступен — вызывающий
+   *  уже держит таймер-пол. Демо (домен в моках) и полный live — без изменений. */
+  mswBypassIfLive?: ApiMockDomain;
 }
 
 function xhrUpload<T>(path: string, form: FormData, options: UploadOptions): Promise<T> {
@@ -158,6 +165,46 @@ function xhrUpload<T>(path: string, form: FormData, options: UploadOptions): Pro
   });
 }
 
+/** Загрузка мимо MSW-перехватчика (msw bypass()): полумок-режим — домен
+ *  живой, но воркер активен из-за других доменов. Request строится НА каждый
+ *  заход (тело Request одноразовое — прозрачный refresh повторяет свежим). */
+async function bypassUpload<T>(path: string, form: FormData, options: UploadOptions): Promise<T> {
+  const { bypass } = await import('msw');
+  const idempotencyKey = options.idempotencyKey ?? crypto.randomUUID();
+  const build = () => {
+    const { accessToken } = useAuthStore.getState();
+    const headers: Record<string, string> = { 'Idempotency-Key': idempotencyKey };
+    if (accessToken) headers.authorization = `Bearer ${accessToken}`;
+    return new Request(`/api/v1${path}`, { method: 'POST', body: form, headers });
+  };
+  let response = await fetch(bypass(build()), { signal: options.signal });
+  if (response.status === 401) {
+    const refreshed = await useAuthStore.getState().tryRefresh();
+    if (refreshed) response = await fetch(bypass(build()), { signal: options.signal });
+  }
+  if (response.status === 204) return undefined as T;
+  let body: unknown;
+  try {
+    body = await response.json();
+  } catch {
+    body = undefined;
+  }
+  if (response.status >= 200 && response.status < 300) return body as T;
+  const errorBody = body as {
+    code?: string;
+    message?: string;
+    details?: Record<string, unknown>;
+    traceId?: string;
+  } | null;
+  throw new ApiError(
+    errorBody?.code ?? 'INTERNAL_ERROR',
+    errorBody?.message ?? `HTTP ${response.status}`,
+    response.status,
+    errorBody?.details,
+    errorBody?.traceId,
+  );
+}
+
 /** Загрузка файла (multipart) — единый HTTP-контур проекта (patterns.md):
  *  тот же auth/refresh/Idempotency-Key, но XHR ради событий прогресса
  *  (fetch upload-progress не умеет). 401 → один прозрачный refresh и повтор. */
@@ -166,6 +213,13 @@ export async function apiUpload<T>(
   form: FormData,
   options: UploadOptions = {},
 ): Promise<T> {
+  if (
+    options.mswBypassIfLive !== undefined &&
+    getApiMockConfig().enabled &&
+    !isDomainMocked(options.mswBypassIfLive)
+  ) {
+    return bypassUpload<T>(path, form, options);
+  }
   try {
     return await xhrUpload<T>(path, form, options);
   } catch (error) {

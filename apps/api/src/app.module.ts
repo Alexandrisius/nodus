@@ -17,6 +17,7 @@ import { AuthModule } from './modules/auth/auth.module.js';
 import { JwtAuthGuard } from './modules/auth/jwt-auth.guard.js';
 import { ChatModule } from './modules/chat/chat.module.js';
 import { DirectoryModule } from './modules/directory/directory.module.js';
+import { FilesModule } from './modules/files/files.module.js';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { DirectoryModule } from './modules/directory/directory.module.js';
     AuditModule,
     HealthModule,
     AuthModule,
+    FilesModule,
     ChatModule,
     DirectoryModule,
   ],

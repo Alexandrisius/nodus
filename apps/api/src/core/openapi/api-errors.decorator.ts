@@ -8,7 +8,7 @@ import { apiErrorResponseSchema } from '@nodus/contracts';
  * добавляет ответы с общей схемой `apiErrorResponseSchema` — без дублирования.
  */
 
-type ErrorStatus = 400 | 401 | 403 | 404 | 409 | 429 | 500;
+type ErrorStatus = 400 | 401 | 403 | 404 | 409 | 410 | 413 | 429 | 500;
 
 const ERROR_DESCRIPTIONS: Record<ErrorStatus, string> = {
   400: 'Ошибка валидации (VALIDATION_FAILED) или доменного правила',
@@ -16,6 +16,8 @@ const ERROR_DESCRIPTIONS: Record<ErrorStatus, string> = {
   403: 'Недостаточно прав (FORBIDDEN)',
   404: 'Сущность не найдена или нет доступа (NOT_FOUND)',
   409: 'Конфликт состояния, в т.ч. идемпотентность с иным телом (CONFLICT)',
+  410: 'Ресурс больше недоступен (файл в карантине, FILE_QUARANTINED)',
+  413: 'Файл больше лимита вложений (CHAT_ATTACHMENT_TOO_LARGE)',
   429: 'Превышен лимит запросов (RATE_LIMITED)',
   500: 'Непредвиденная ошибка сервера (INTERNAL_ERROR)',
 };

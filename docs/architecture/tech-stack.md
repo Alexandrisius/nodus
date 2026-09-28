@@ -37,7 +37,7 @@
 | Доменные события | Redis Streams + таблица `events` в Postgres | Интерфейс EventBus; миграция на NATS позже без смены контрактов (I13) |
 | WebSocket | Отдельный процесс `apps/gateway`, Socket.IO | Reconnect, rooms, ack из коробки; stateless |
 | Аутентификация (MVP) | Собственная: email+пароль, Argon2id, JWT access (15 мин) + refresh (30 дней, ротация) | Интерфейс `AuthProvider`; Keycloak/LDAP — V2 за тем же интерфейсом |
-| Файлы | MinIO (S3 API) + таблица метаданных | Версионирование, превью-конвейер |
+| Файлы | S3: SILO (поддерживаемый форк MinIO от Pigsty, silo.pigsty.io; upstream архивирован в 2026 — ADR-0013) + таблица метаданных | Версионирование, превью-конвейер; тот же S3-API/MINIO_*-env, тег обновлять за релизами форка |
 | Конвертация превью | Gotenberg (LibreOffice headless) в отдельном контейнере | docx/xlsx/pptx → PDF для просмотрщика |
 | Поиск (MVP) | PostgreSQL full-text (русский словарь) | Интерфейс SearchProvider; Meilisearch — V2. Векторный поиск (V3) — за интерфейсом VectorStore: старт на pgvector, переход на Qdrant по триггерам (корпус > 5–10 млн векторов / тяжёлая фильтрация / p95 > 100 мс) |
 

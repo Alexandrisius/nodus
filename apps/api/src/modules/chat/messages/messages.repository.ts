@@ -383,6 +383,7 @@ export class MessagesRepository {
   ): Promise<
     {
       id: string;
+      fileId: string;
       name: string;
       size: number;
       mime: string;
@@ -401,6 +402,7 @@ export class MessagesRepository {
     return tx.$queryRaw<
       {
         id: string;
+        fileId: string;
         name: string;
         size: number;
         mime: string;
@@ -409,7 +411,7 @@ export class MessagesRepository {
         height: number | null;
       }[]
     >(Prisma.sql`
-      SELECT id, name, size, mime, kind, width, height
+      SELECT id, file_id AS "fileId", name, size, mime, kind, width, height
       FROM message_attachments
       WHERE message_id = ${messageId}::uuid
       ORDER BY sort_order ASC, id ASC
@@ -445,6 +447,7 @@ export class MessagesRepository {
     {
       messageId: string;
       id: string;
+      fileId: string;
       name: string;
       size: number;
       mime: string;
@@ -457,7 +460,7 @@ export class MessagesRepository {
     if (messageIds.length === 0) return [];
     const client = this.client(tx);
     return client.$queryRaw(Prisma.sql`
-      SELECT message_id AS "messageId", id, name, size, mime, kind, width, height, sort_order AS "sortOrder"
+      SELECT message_id AS "messageId", id, file_id AS "fileId", name, size, mime, kind, width, height, sort_order AS "sortOrder"
       FROM message_attachments
       WHERE message_id = ANY(${messageIds}::uuid[])
       ORDER BY sort_order ASC, id ASC

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { SignedUrlService } from '../../../core/crypto/signed-url.service.js';
 import type { MemberRow } from '../conversations/conversations.repository.js';
 import type { MessageRow } from './messages.repository.js';
 import { computeReadAt, computeReadBy, MessageDtoMapper } from './message-dto.mapper.js';
@@ -128,7 +129,12 @@ function stubMapper(): MessageDtoMapper {
   const profiles = {
     findRefs: async (ids: string[]) => ids.map((id) => ({ id, displayName: id, avatarUrl: null })),
   };
-  return new MessageDtoMapper(messages as never, pins as never, profiles as never);
+  return new MessageDtoMapper(
+    messages as never,
+    pins as never,
+    profiles as never,
+    new SignedUrlService({ STORAGE_URL_SECRET: 'test-secret-32-chars-aaaaaaaaaaaa' }),
+  );
 }
 
 function fullRow(overrides: Partial<MessageRow> = {}): MessageRow {

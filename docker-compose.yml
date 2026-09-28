@@ -1,4 +1,4 @@
-# Dev/демо-профиль (ADR-0002): web, api, gateway, postgres, redis, minio, gotenberg
+# Dev/демо-профиль (ADR-0002): web, api, gateway, postgres, redis, s3 (SILO), gotenberg
 # (+ cloudflared — опциональным профилем `tunnel`, туннель к nodus.by).
 # Изоляция от чужих проектов на хосте: контейнеры/сети/тома — только с префиксом nodus_,
 # порты публикуются через .env (шаблон — .env.example).
@@ -36,6 +36,16 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:?задайте в .env}:${POSTGRES_PASSWORD:?задайте в .env}@nodus_postgres:5432/${POSTGRES_DB:?задайте в .env}
       REDIS_URL: redis://:${REDIS_PASSWORD:?задайте в .env}@nodus_redis:6379
       JWT_SECRET: ${JWT_SECRET:?задайте в .env}
+      # Файловое хранилище (#57, ADR-0013): api пишет/читает S3 (SILO)
+      # сервисной учёткой minio-init (права только на бакет вложений).
+      STORAGE_ENDPOINT: nodus_minio
+      STORAGE_PORT: '9000'
+      STORAGE_USE_SSL: 'false'
+      STORAGE_BUCKET: ${STORAGE_BUCKET:-nodus-files}
+      STORAGE_ACCESS_KEY: ${STORAGE_ACCESS_KEY:?задайте в .env}
+      STORAGE_SECRET_KEY: ${STORAGE_SECRET_KEY:?задайте в .env}
+      # Подпись ссылок отдачи файлов (HMAC, ADR-0013) — отдельный секрет.
+      STORAGE_URL_SECRET: ${STORAGE_URL_SECRET:?задайте в .env}
     ports:
       # 127.0.0.1: api/gateway доступны хосту (k6, dev-таргет) и nginx web-контейнера
       # по внутренней сети; в LAN не торчат (аудит #123, вердикт 27.09).
@@ -45,6 +55,10 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      minio:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
     healthcheck:
       # 127.0.0.1, не localhost: в alpine localhost резолвится в ::1, а сервис слушает IPv4.
       test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:3001/api/v1/health']
@@ -126,8 +140,12 @@ services:
       retries: 10
     networks: [nodus_net]
 
+  # S3-хранилище: SILO — поддерживаемый форк MinIO от Pigsty (silo.pigsty.io,
+  # вердикт владельца 28.09: upstream мёртв — образ RELEASE.2025-09-07 был
+  # последним, репозиторий архивирован в апреле 2026). Тот же S3-API и
+  # MINIO_*-env; тег обновляем осознанно за релизами (не latest).
   minio:
-    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    image: pgsty/silo:RELEASE.2026-09-16T00-00-00Z
     container_name: nodus_minio
     restart: unless-stopped
     command: server /data --console-address ':9001'
@@ -140,11 +158,52 @@ services:
       - '127.0.0.1:${NODUS_MINIO_API_PORT:-9000}:9000'
       - '127.0.0.1:${NODUS_MINIO_CONSOLE_PORT:-9001}:9001'
     healthcheck:
-      test: ['CMD', 'mc', 'ready', 'local']
+      # Нативная проба форка: silo healthcheck ready (exit-код = здоровье).
+      test: ['CMD', 'silo', 'healthcheck', 'ready']
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 10s
+    networks:
+      nodus_net:
+        # Алиас без подчёркивания: клиент mcli (minio-init) отвергает '_' в
+        # hostname как invalid hostname — валидация URL клиента, не DNS.
+        aliases: [nodus-minio]
+
+  # Инициализация S3-хранилища (#57, ADR-0013): приватный бакет вложений +
+  # сервисная учётка api с правами ТОЛЬКО на объекты (root-креды api не
+  # получает). Одноразовый (restart: 'no'); api ждёт service_completed_
+  # successfully. Клиент форка — mcli (mc-совместимый).
+  minio-init:
+    image: pgsty/silo:RELEASE.2026-09-16T00-00-00Z
+    container_name: nodus_minio_init
+    restart: 'no'
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?задайте в .env}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?задайте в .env}
+      STORAGE_BUCKET: ${STORAGE_BUCKET:-nodus-files}
+      STORAGE_ACCESS_KEY: ${STORAGE_ACCESS_KEY:?задайте в .env}
+      STORAGE_SECRET_KEY: ${STORAGE_SECRET_KEY:?задайте в .env}
+    entrypoint: /bin/sh
+    # Идемпотентен: повторный запуск ничего не ломает (mb --ignore-existing,
+    # user add — упсерт секрета существующего, attach уже висящего не ошибка).
+    command:
+      - -c
+      - |
+        set -e
+        mcli alias set local http://nodus-minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"
+        mcli mb --ignore-existing "local/$$STORAGE_BUCKET"
+        # Права ТОЛЬКО на бакет вложений (валидация #57: ранее arn:aws:s3:::*):
+        # объекты + HeadBucket (ensureBucket при буте api) + Location; бакет
+        # создаёт root здесь — CreateBucket учётке не нужен.
+        printf '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["s3:GetObject","s3:PutObject","s3:DeleteObject","s3:AbortMultipartUpload","s3:ListBucket","s3:GetBucketLocation"],"Resource":["arn:aws:s3:::%s","arn:aws:s3:::%s/*"]}]}' "$$STORAGE_BUCKET" "$$STORAGE_BUCKET" > /tmp/nodus-storage-rw.json
+        mcli admin user add local "$$STORAGE_ACCESS_KEY" "$$STORAGE_SECRET_KEY"
+        mcli admin policy create local nodus-storage-rw /tmp/nodus-storage-rw.json 2>/dev/null || mcli admin policy update local nodus-storage-rw /tmp/nodus-storage-rw.json
+        mcli admin policy attach local nodus-storage-rw --user "$$STORAGE_ACCESS_KEY" 2>/dev/null || true
+        echo 'minio-init: бакет и сервисная учётка готовы'
     networks: [nodus_net]
 
   gotenberg:

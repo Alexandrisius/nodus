@@ -7,7 +7,6 @@ import { cn } from '@nodus/ui/lib/utils';
 import { useAuthStore } from '../auth-store.js';
 import { formatTime, plural, withoutPatronymic } from '../lib/format.js';
 import { PersonAvatar } from '../ui/person-avatar.js';
-import { chatAttachmentsEnabled } from './attachments-gate.js';
 import { useConversationMessages, useSendChatMessage } from './api.js';
 import { ChatComposer, type ComposerSubmit } from './chat-composer.js';
 import { ChatMessageItem } from './chat-message.js';
@@ -177,7 +176,6 @@ export const ThreadFeed = memo(function ThreadFeed({
       <PinBar conversationId={conversationId} onOpenThread={onOpenThread} />
       <FeedDropzone
         className="relative flex min-h-0 flex-1 flex-col"
-        disabled={!chatAttachmentsEnabled()}
         onFiles={(files) => addFiles(scope, files)}
       >
         <div

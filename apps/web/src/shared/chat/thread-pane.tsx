@@ -16,7 +16,6 @@ import {
 
 import { useAuthStore } from '../auth-store.js';
 import { withoutPatronymic } from '../lib/format.js';
-import { chatAttachmentsEnabled } from './attachments-gate.js';
 import { useSendChatMessage, useThreadMessages, useThreadStates, useWatchThread } from './api.js';
 import { ChatComposer, type ComposerSubmit } from './chat-composer.js';
 import { ChatMessageItem } from './chat-message.js';
@@ -228,7 +227,6 @@ export const ThreadPane = memo(function ThreadPane({
       </header>
       <FeedDropzone
         className="relative flex min-h-0 flex-1 flex-col"
-        disabled={!chatAttachmentsEnabled()}
         onFiles={(files) => addFiles(scope, files)}
       >
         <MessageScrollerProvider autoScroll>

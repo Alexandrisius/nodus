@@ -10,7 +10,15 @@ import { getApiMockConfig } from './shared/api/api-mock-config.js';
  *  мокаемые домены: VITE_API_MOCK=true — демо целиком, список —
  *  покомпонентный режим, false/пусто — живой API без воркера. */
 async function enableMocking(): Promise<void> {
-  if (!getApiMockConfig().enabled) return;
+  if (!getApiMockConfig().enabled) {
+    // Прошлые мок-сборки оставили service worker на этом origin — снимаем
+    // регистрацию, чтобы живой режим не шёл через бездействующий SW-прокси.
+    navigator.serviceWorker
+      ?.getRegistration('/mockServiceWorker.js')
+      .then((registration) => registration?.unregister())
+      .catch(() => undefined);
+    return;
+  }
   const { worker } = await import('./app/msw-browser.js');
   // Шумим только по нашим /api/*: посторонние запросы (антивирус, devtools)
   // молча пропускаем — иначе консоль засорена предупреждениями «нет хендлера».

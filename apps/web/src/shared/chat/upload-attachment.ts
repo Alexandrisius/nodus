@@ -1,6 +1,7 @@
 import type { MessageAttachment } from '@nodus/contracts';
 
 import { apiUpload } from '../api-client.js';
+import { isDomainMocked } from '../api/api-mock-config.js';
 
 /**
  * Загрузка вложения композера (A1, #87): POST /chat/attachments →
@@ -62,19 +63,28 @@ export function uploadAttachment(file: File, onProgress: (fraction: number) => v
   const promise = (async () => {
     // MOCK-СОГЛАШЕНИЕ (см. chat-mutation-handlers): objectURL создаётся в
     // странице и передаётся серверу как previewUrl — blob из SW не резолвится.
-    // В проде MinIO вернёт собственный url, поле будет проигнорировано.
+    // В живом контуре previewUrl игнорируется: url выдаёт хранилище (#57).
     const objectUrl = URL.createObjectURL(file);
     const dims = file.type.startsWith('image/') ? await imageDimensions(file) : null;
     const form = new FormData();
-    form.append('file', file);
+    // ТЕКСТОВЫЕ ПОЛЯ ДО ФАЙЛА (контракт @fastify/multipart: request.file()
+    // видит только части раньше файловой — на больших файлах поля после
+    // файла теряются, size=NaN → 400; репро #57).
     form.append('previewUrl', objectUrl);
+    // size — заявленный размер (File.size): живой контур стримит в хранилище,
+    // а putObject из стрима требует размер заранее; сервер сверит с байтами.
+    form.append('size', String(file.size));
     if (dims) {
       form.append('width', String(dims.width));
       form.append('height', String(dims.height));
     }
+    form.append('file', file);
     try {
       const attachment = await apiUpload<MessageAttachment>('/chat/attachments', form, {
         signal: controller.signal,
+        // Полумок-режим (chat живой при активном MSW): грузим мимо перехватчика —
+        // большие multipart-тела XHR-passthrough MSW искажает (#57).
+        mswBypassIfLive: 'chat',
         onProgress: (fraction) => {
           realEvents = true;
           onProgress(Math.max(fraction, simulated));
@@ -84,6 +94,9 @@ export function uploadAttachment(file: File, onProgress: (fraction: number) => v
       return attachment;
     } finally {
       window.clearInterval(timer);
+      // objectURL нужен только мок-хендлеру (url вложения в демо); в живом
+      // режиме url выдаёт сервер — ссылку на File освобождаем (валидация #57).
+      if (!isDomainMocked('chat')) URL.revokeObjectURL(objectUrl);
     }
   })();
 
