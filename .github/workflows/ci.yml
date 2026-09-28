@@ -68,21 +68,6 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
-      # S3 SILO (#57, форк MinIO): интеграционный тест загрузки вложений — upload→download
-      # на живом хранилище (приёмка #57). В CI api ходит root-кредами
-      # (minio-init из compose здесь не поднимается — policy-конфиг не нужен).
-      minio:
-        image: pgsty/silo:RELEASE.2026-09-16T00-00-00Z
-        env:
-          MINIO_ROOT_USER: nodus_ci
-          MINIO_ROOT_PASSWORD: nodus_ci_secret_min8
-        ports:
-          - 9000:9000
-        options: >-
-          --health-cmd "curl -sf http://localhost:9000/minio/health/live"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
     steps:
       - uses: actions/checkout@v7
         with:
@@ -125,6 +110,14 @@ jobs:
           else
             pnpm test
           fi
+
+      # S3 SILO (#57, форк MinIO): service-контейнеры GH Actions не умеют
+      # command, а CMD образа без аргумента только печатает версию — поднимаем
+      # обычным docker run; api ходит root-кредами (minio-init не нужен).
+      - name: Запуск S3 (SILO) для вложений (#57)
+        run: |
+          docker run -d --name silo -p 9000:9000             -e MINIO_ROOT_USER=nodus_ci -e MINIO_ROOT_PASSWORD=nodus_ci_secret_min8             pgsty/silo:RELEASE.2026-09-16T00-00-00Z server /data
+          timeout 30 bash -c 'until curl -sf http://127.0.0.1:9000/minio/health/live >/dev/null; do sleep 1; done'
 
       - name: Интеграционные тесты (outbox, идемпотентность, контракт ошибок — реальные PG/Redis)
         run: pnpm --filter @nodus/api test:integration
@@ -182,20 +175,6 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
-      # S3 SILO (#57, форк MinIO): e2e вложений чата грузит файл через композер и качает
-      # обратно по подписанной ссылке — живой стек, как у пилотов.
-      minio:
-        image: pgsty/silo:RELEASE.2026-09-16T00-00-00Z
-        env:
-          MINIO_ROOT_USER: nodus_ci
-          MINIO_ROOT_PASSWORD: nodus_ci_secret_min8
-        ports:
-          - 9000:9000
-        options: >-
-          --health-cmd "curl -sf http://localhost:9000/minio/health/live"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
     env:
       DATABASE_URL: postgresql://nodus:nodus_ci_password@localhost:5432/nodus
       REDIS_URL: redis://localhost:6379
@@ -226,6 +205,14 @@ jobs:
           # пароли — тесты ниже входят этими же значениями.
           SEED_ADMIN_PASSWORD: ci-e2e-admin-2026
           SEED_DEMO_PASSWORD: ci-e2e-demo-2026
+
+      # S3 SILO (#57, форк MinIO): service-контейнеры GH Actions не умеют
+      # command, а CMD образа без аргумента только печатает версию — поднимаем
+      # обычным docker run; api ходит root-кредами (minio-init не нужен).
+      - name: Запуск S3 (SILO) для вложений (#57)
+        run: |
+          docker run -d --name silo -p 9000:9000             -e MINIO_ROOT_USER=nodus_ci -e MINIO_ROOT_PASSWORD=nodus_ci_secret_min8             pgsty/silo:RELEASE.2026-09-16T00-00-00Z server /data
+          timeout 30 bash -c 'until curl -sf http://127.0.0.1:9000/minio/health/live >/dev/null; do sleep 1; done'
 
       - name: Запуск API
         run: nohup node apps/api/dist/main.js > /tmp/nodus-api.log 2>&1 &
