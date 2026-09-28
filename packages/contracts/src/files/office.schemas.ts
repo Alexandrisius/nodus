@@ -10,7 +10,8 @@ import { z } from 'zod';
 export const officeModeSchema = z.enum(['view', 'edit']);
 export type OfficeMode = z.infer<typeof officeModeSchema>;
 
-/** Query сессии: желаемый режим; edit без права → 403 (I8). */
+/** Query сессии: желаемый режим; edit без права контекста деградирует в view
+ *  (право решает сервер — I8, см. OfficeSessionService). */
 export const officeSessionQuerySchema = z.object({
   mode: officeModeSchema.default('view'),
 });
@@ -20,8 +21,9 @@ export type OfficeSessionQuery = z.infer<typeof officeSessionQuerySchema>;
 export const officeDocumentConfigSchema = z.object({
   /** Расширение файла (fileType в терминах Docs API). */
   fileType: z.string().min(1).max(10),
-  /** Идентификатор документа ДЛЯ ко-эдитинга: `${fileId}:${version}` —
-   *  меняется с каждой сохранённой версией (кэш DS не смешивает версии). */
+  /** Идентификатор документа ДЛЯ ко-эдитинга: `${fileId}.v${version}` —
+   *  меняется с каждой сохранённой версией (кэш DS не смешивает версии;
+   *  алфавит ключа DS — 0-9-.a-zA-Z_=, двоеточие запрещено). */
   key: z.string().min(8),
   title: z.string().min(1),
   /** Абсолютный URL контента, доступный ИЗ КОНТЕЙНЕРА документ-сервера

@@ -1,5 +1,5 @@
 import { Inject, Injectable, Optional } from '@nestjs/common';
-import type { AuthUser, OfficeMode, OfficeSession } from '@nodus/contracts';
+import type { AuthUser, OfficeMode, OfficeSession, OfficeVersionList } from '@nodus/contracts';
 import { ErrorCode, fileExtension, officeFormat } from '@nodus/contracts';
 
 import { SignedUrlService } from '../../../core/crypto/signed-url.service.js';
@@ -50,6 +50,21 @@ export class OfficeSessionService {
     }
     if (!canView) throw DomainException.notFound('File not found');
     return { file, canEdit };
+  }
+
+  /** Список версий (сохранения DS), новые сверху; права те же, что у сессии. */
+  async listVersions(fileId: string, userId: string): Promise<OfficeVersionList> {
+    const { file } = await this.resolveAccess(fileId, userId);
+    const rows = await this.repository.findVersions(file.id);
+    return {
+      items: rows.map((row) => ({
+        version: row.version,
+        size: row.size,
+        mime: row.mime,
+        createdAt: row.createdAt.toISOString(),
+        url: this.signedUrls.fileVersionUrl(file.id, row.version),
+      })),
+    };
   }
 
   async createSession(fileId: string, user: AuthUser, mode: OfficeMode): Promise<OfficeSession> {

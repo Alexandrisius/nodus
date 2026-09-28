@@ -6,9 +6,11 @@ import { FILE_EVENTS, type FileVersionCreatedPayload } from '@nodus/contracts';
 import { AuditRepository } from '../../../core/audit/audit.repository.js';
 import { EventBus } from '../../../core/events/event-bus.js';
 import { TransactionRunner } from '../../../core/database/transaction-runner.js';
+import { DomainException } from '../../../core/errors/domain-exception.js';
 import { FilesRepository } from '../files.repository.js';
 import { MinioStorageDriver } from '../storage/minio-storage.driver.js';
 import { OFFICE_CONFIG, type OfficeConfig } from './office.config.js';
+import { OfficeTokenService } from './office-token.service.js';
 
 /** Тело колбэка документ-сервера (протокол DS, не наш контракт):
  *  api.onlyoffice.com/docs/docs-api/usage-api/callback-handler/. */
@@ -41,10 +43,27 @@ export class OfficeCallbackService {
     private readonly txRunner: TransactionRunner,
     private readonly eventBus: EventBus,
     private readonly audit: AuditRepository,
+    private readonly tokens: OfficeTokenService,
     @Inject(OFFICE_CONFIG) private readonly config: OfficeConfig,
     private readonly logger: PinoLogger,
   ) {
     this.logger.setContext(OfficeCallbackService.name);
+  }
+
+  /**
+   * Проверка подписи отправителя колбэка: DS подписывает исходящие запросы
+   * как { payload: <тело> } секретом движка — Bearer в заголовке (JWT_IN_BODY
+   * выключен), body.token — резерв. Сверка payload.key === body.key привязывает
+   * токен к документу. 401 иначе (api.onlyoffice.com/docs/docs-api/
+   * additional-api/signature/request/).
+   */
+  async verifySender(body: OfficeCallbackBody, authorization: string | undefined): Promise<void> {
+    const bearer = authorization?.replace(/^Bearer\s+/i, '');
+    const decoded = await this.tokens.verify(bearer ?? body.token);
+    const inner = decoded?.payload as { key?: string } | undefined;
+    if (!decoded || !inner || inner.key !== body.key) {
+      throw DomainException.unauthenticated('Document server token is invalid');
+    }
   }
 
   async handle(fileId: string, body: OfficeCallbackBody): Promise<void> {

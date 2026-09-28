@@ -80,11 +80,11 @@ export function PdfViewer({ url, fileName }: { url: string; fileName: string }) 
           {status}
         </span>
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon-sm" onClick={zoomOut} aria-label="Уменьшить">
+          <Button variant="ghost" size="icon-sm" onClick={zoomOut} aria-label={ui.files.zoomOut}>
             <Minus />
           </Button>
           <span className="w-12 text-center tabular-nums">{Math.round(zoom * 100)}%</span>
-          <Button variant="ghost" size="icon-sm" onClick={zoomIn} aria-label="Увеличить">
+          <Button variant="ghost" size="icon-sm" onClick={zoomIn} aria-label={ui.files.zoomIn}>
             <Plus />
           </Button>
         </div>

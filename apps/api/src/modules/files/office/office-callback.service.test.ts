@@ -8,6 +8,7 @@ import { FilesRepository, type FileObjectRow, type FileVersionRow } from '../fil
 import { MinioStorageDriver } from '../storage/minio-storage.driver.js';
 import type { OfficeConfig } from './office.config.js';
 import { OfficeCallbackService, type OfficeCallbackBody } from './office-callback.service.js';
+import { OfficeTokenService } from './office-token.service.js';
 
 const FILE_ID = '00000000-0000-0000-0000-00000000000f';
 const SECRET = 'test-secret-32-chars-aaaaaaaaaaaa';
@@ -57,6 +58,7 @@ interface Mocks {
 
 interface Harness {
   service: OfficeCallbackService;
+  tokens: OfficeTokenService;
   mocks: Mocks;
   tx: Record<string, unknown>;
 }
@@ -87,12 +89,22 @@ function makeHarness(file: FileObjectRow | null, versions: FileVersionRow[] = []
     internalUrl: 'http://ds-internal:80',
     maxViewBytes: 52_428_800,
   };
-  const service = new OfficeCallbackService(repo, driver, txRunner, eventBus, audit, config, {
-    setContext: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-  } as unknown as PinoLogger);
-  return { service, mocks, tx };
+  const tokens = new OfficeTokenService(config);
+  const service = new OfficeCallbackService(
+    repo,
+    driver,
+    txRunner,
+    eventBus,
+    audit,
+    tokens,
+    config,
+    {
+      setContext: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+    } as unknown as PinoLogger,
+  );
+  return { service, tokens, mocks, tx };
 }
 
 function mockFetchOk(contentLength: number): ReturnType<typeof vi.fn> {
@@ -236,5 +248,43 @@ describe('OfficeCallbackService (#138)', () => {
     ).rejects.toThrow(/size mismatch/i);
     expect(h.mocks.remove).toHaveBeenCalledWith([`files/${FILE_ID}/v2`]);
     expect(h.mocks.saveVersion).not.toHaveBeenCalled();
+  });
+
+  describe('verifySender', () => {
+    const body: OfficeCallbackBody = { status: 2, key: `${FILE_ID}.v1` };
+
+    it('нет токена вовсе — 401', async () => {
+      const h = makeHarness(makeFile());
+      await expect(h.service.verifySender(body, undefined)).rejects.toMatchObject({
+        code: 'UNAUTHENTICATED',
+      });
+    });
+
+    it('мусорный Bearer — 401', async () => {
+      const h = makeHarness(makeFile());
+      await expect(h.service.verifySender(body, 'Bearer garbage')).rejects.toMatchObject({
+        code: 'UNAUTHENTICATED',
+      });
+    });
+
+    it('payload.key чужого документа — 401 (токен не привязан к телу)', async () => {
+      const h = makeHarness(makeFile());
+      const token = await h.tokens.sign({ payload: { key: 'another-file.v1' } });
+      await expect(h.service.verifySender(body, `Bearer ${token}`)).rejects.toMatchObject({
+        code: 'UNAUTHENTICATED',
+      });
+    });
+
+    it('валидный Bearer с тем же ключом — пропускает', async () => {
+      const h = makeHarness(makeFile());
+      const token = await h.tokens.sign({ payload: { ...body } });
+      await expect(h.service.verifySender(body, `Bearer ${token}`)).resolves.toBeUndefined();
+    });
+
+    it('токен в теле (body.token) без заголовка — пропускает', async () => {
+      const h = makeHarness(makeFile());
+      const token = await h.tokens.sign({ payload: { ...body } });
+      await expect(h.service.verifySender({ ...body, token }, undefined)).resolves.toBeUndefined();
+    });
   });
 });

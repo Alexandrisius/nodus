@@ -25,6 +25,9 @@ export const filesStrings = {
   pdfLoading: 'Загружаем документ…',
   pdfOpenError: 'Не удалось открыть документ',
   pdfPageOf: 'из',
+  /** Ария кнопок масштаба pdf.js. */
+  zoomIn: 'Увеличить',
+  zoomOut: 'Уменьшить',
   /** Медиа-плеер: подпись, пока метаданные не загружены. */
   mediaTitle: 'Медиафайл',
 } as const;

@@ -3,7 +3,7 @@ import type { AuthUser } from '@nodus/contracts';
 
 import { SignedUrlService } from '../../../core/crypto/signed-url.service.js';
 import type { FileAccessContributor } from '../../../core/ports/file-access.port.js';
-import type { FileObjectRow } from '../files.repository.js';
+import type { FileObjectRow, FileVersionRow } from '../files.repository.js';
 import { FilesRepository } from '../files.repository.js';
 import type { OfficeConfig } from './office.config.js';
 import { OfficeSessionService } from './office-session.service.js';
@@ -52,8 +52,12 @@ function makeService(
   file: FileObjectRow | null,
   configOverrides: Partial<OfficeConfig> = {},
   contributors: FileAccessContributor[] = [],
+  versions: FileVersionRow[] = [],
 ): { service: OfficeSessionService; repo: FilesRepository } {
-  const repo = { findById: vi.fn(async () => file) } as unknown as FilesRepository;
+  const repo = {
+    findById: vi.fn(async () => file),
+    findVersions: vi.fn(async () => versions),
+  } as unknown as FilesRepository;
   const config = makeConfig(configOverrides);
   const service = new OfficeSessionService(
     repo,
@@ -169,5 +173,29 @@ describe('OfficeSessionService (#138)', () => {
     const { service } = makeService(makeFile({ version: 3 }));
     const session = await service.createSession(FILE_ID, makeUser(USER_ID), 'view');
     expect(session.document.key).toBe(`${FILE_ID}.v3`);
+  });
+
+  it('listVersions: подписанный URL на каждую версию; чужой — NOT_FOUND', async () => {
+    const mime = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    const versions: FileVersionRow[] = [2, 1].map((version) => ({
+      id: `00000000-0000-0000-0000-00000000000${version}`,
+      fileObjectId: FILE_ID,
+      version,
+      key: `files/${FILE_ID}/v${version}`,
+      size: version * 1024,
+      mime,
+      sourceKey: version === 1 ? null : `${FILE_ID}.v1`,
+      sourceLastsave: null,
+      createdAt: new Date(`2026-09-28T2${version}:00:00.000Z`),
+    }));
+    const { service } = makeService(makeFile({ version: 2 }), {}, [], versions);
+    const list = await service.listVersions(FILE_ID, USER_ID);
+    expect(list.items).toHaveLength(2);
+    expect(list.items[0]).toMatchObject({ version: 2, size: 2048 });
+    expect(list.items[0]!.url).toMatch(new RegExp(`/api/v1/files/${FILE_ID}/content\\?v=2&exp=`));
+    expect(list.items[1]!.url).toMatch(new RegExp(`\\?v=1&exp=`));
+    await expect(service.listVersions(FILE_ID, OTHER_ID)).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
   });
 });

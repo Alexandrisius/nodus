@@ -13,18 +13,14 @@ import {
   type OfficeVersionList,
 } from '@nodus/contracts';
 
-import { SignedUrlService } from '../../../core/crypto/signed-url.service.js';
-import { DomainException } from '../../../core/errors/domain-exception.js';
 import { GetUser } from '../../../core/decorators/get-user.decorator.js';
 import { Public } from '../../../core/decorators/public.decorator.js';
 import { ZodValidationPipe } from '../../../core/pipes/zod-validation.pipe.js';
 import { ApiErrors } from '../../../core/openapi/api-errors.decorator.js';
 import type { AuthUser } from '@nodus/contracts';
-import { FilesRepository } from '../files.repository.js';
 import { OFFICE_CONFIG, type OfficeConfig as OfficeEngineConfig } from './office.config.js';
 import { OfficeCallbackService, type OfficeCallbackBody } from './office-callback.service.js';
 import { OfficeSessionService } from './office-session.service.js';
-import { OfficeTokenService } from './office-token.service.js';
 
 const idSchema = z.uuid();
 
@@ -54,9 +50,6 @@ export class OfficeController {
   constructor(
     private readonly sessions: OfficeSessionService,
     private readonly callback: OfficeCallbackService,
-    private readonly tokens: OfficeTokenService,
-    private readonly repository: FilesRepository,
-    private readonly signedUrls: SignedUrlService,
     @Inject(OFFICE_CONFIG) private readonly engineConfig: OfficeEngineConfig,
   ) {}
 
@@ -101,17 +94,7 @@ export class OfficeController {
     @GetUser() user: AuthUser,
     @Param('id', new ZodValidationPipe(idSchema)) fileId: string,
   ): Promise<OfficeVersionList> {
-    const { file } = await this.sessions.resolveAccess(fileId, user.id);
-    const rows = await this.repository.findVersions(file.id);
-    return {
-      items: rows.map((row) => ({
-        version: row.version,
-        size: row.size,
-        mime: row.mime,
-        createdAt: row.createdAt.toISOString(),
-        url: this.signedUrls.fileVersionUrl(file.id, row.version),
-      })),
-    };
+    return this.sessions.listVersions(fileId, user.id);
   }
 
   /**
@@ -130,14 +113,7 @@ export class OfficeController {
     @Req() request: FastifyRequest,
   ): Promise<{ error: number }> {
     const body: OfficeCallbackBody = callbackBodySchema.parse(request.body);
-    const bearer = request.headers.authorization?.replace(/^Bearer\s+/i, '');
-    // DS подписывает исходящие запросы как { payload: <тело> } тем же секретом
-    // (api.onlyoffice.com/docs/docs-api/additional-api/signature/request/).
-    const decoded = await this.tokens.verify(bearer ?? body.token);
-    const inner = decoded?.payload as { key?: string } | undefined;
-    if (!decoded || !inner || inner.key !== body.key) {
-      throw DomainException.unauthenticated('Document server token is invalid');
-    }
+    await this.callback.verifySender(body, request.headers.authorization);
     await this.callback.handle(fileId, body);
     return { error: 0 };
   }
