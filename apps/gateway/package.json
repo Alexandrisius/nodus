@@ -16,15 +16,15 @@
     "ioredis": "^6.0.0",
     "jose": "^6.2.12",
     "pg": "^8.23.0",
-    "socket.io": "^4.8.3",
+    "socket.io": "^4.8.4",
     "zod": "^4.6.5"
   },
   "devDependencies": {
     "@nodus/config": "workspace:*",
     "@types/node": "^24.13.3",
     "@types/pg": "^8.23.1",
-    "dotenv": "^18.0.0",
-    "socket.io-client": "^4.8.3",
+    "dotenv": "^18.0.4",
+    "socket.io-client": "^4.8.4",
     "typescript": "~5.9.3",
     "vitest": "^4.1.11"
   }
