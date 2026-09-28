@@ -68,11 +68,13 @@
 
 ## Quick Reference
 
-**Стек (зафиксирован, детали — `tech-stack.md`):** pnpm + Turborepo, TypeScript strict · React 19 + Vite, Tailwind 4 + shadcn/ui, TanStack Query/Router, Zustand, RHF + zod · NestJS 12 (Fastify), Prisma 7 + PostgreSQL 18, Redis 8 + BullMQ, Socket.IO gateway, MinIO, Gotenberg · Vitest, Playwright, k6 · Docker Compose, Caddy.
+**Стек (зафиксирован, детали — `tech-stack.md`):** pnpm + Turborepo, TypeScript strict · React 19 + Vite, Tailwind 4 + shadcn/ui, TanStack Query/Router, Zustand, RHF + zod · NestJS 12 (Fastify), Prisma 7 + PostgreSQL 18, Redis 8 + BullMQ, Socket.IO gateway, S3: SILO — поддерживаемый форк MinIO, Gotenberg · Vitest, Playwright, k6 · Docker Compose, Caddy.
 
 **Команды:** используй только те, что реально существуют в `package.json`/`turbo.json`/`docker-compose.yml` — **не выдумывай**. Канонический набор: `pnpm install`, `pnpm dev`, `pnpm build`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm test:e2e` (нужен живой стек), `pnpm format`, `docker compose up` (плюс `--profile tunnel` для nodus.by). Перед `docker compose up`: `cp .env.example .env` и заполнить пароли.
 
 **Среда разработки/демо (ADR-0002):** домашний ПК, Docker (на хосте уже крутятся чужие проекты!), Cloudflare Tunnel, домен `nodus.by`. Все контейнеры/сети/тома — только с префиксом `nodus_`, порты — через `.env`.
+
+**Контуры портов (одна машина — три контура, не путать):** `:5173` — dev-сервер владельца (vite dev, единственный — #91; состав моков — `VITE_API_MOCK` в `.env`) · `:3000/:3001/:3002` + `nodus.by` — docker-прод (web/api/gateway) · **`:3011/:3012/:4173` — песочница агента** (api/gateway ветки + non-mock preview web: приёмка владельцем и локальные e2e). Песочницу поднимать/снимать ТОЛЬКО через `pnpm live-stack up|down|status` (PID-файл `.live-stack/`, сироты прошлых сессий обнаруживаются до старта): свои процессы на этих портах руками не плодить — занятый порт молча валит свежий процесс (EADDRINUSE), а e2e/валидация попадают на СТАРУЮ сборку.
 
 **Research:** перед нетривиальным техническим решением — поиск best practices через **Exa** (`exa_web_search_exa`; прочитать страницу целиком — `exa_web_fetch_exa`); выводы — в комментарий issue или ADR. То же при непонятной ошибке или тупике: сначала Exa (вероятно, кто-то уже решил), потом эксперименты — не наоборот; найденный механизм проблемы фиксируется в Gotchas.
 

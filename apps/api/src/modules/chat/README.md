@@ -103,9 +103,14 @@ SET last_seq = last_seq + n RETURNING` в транзакции отправки 
 | `POST .../messages/:messageId/reactions`                            | Toggle `{emoji, remove?}` → сообщение                                                                                                                                                                                                                                                        |
 | `POST /conversations/:id/forward`                                   | Копии в эту беседу: комментарий ПЕРЕД блоком; forwardedFrom=оригинальный автор                                                                                                                                                                                                               |
 
-Вне контура до смежных треков: `POST .../to-task` (трек задач), вложения
-`POST /chat/attachments` (после #57 — MinIO/StorageDriver; таблица и
-одноразовая привязка `attachmentIds` уже готовы), автоканалы проектов.
+Вложения (#57, реализовано): `POST /chat/attachments` — multipart-стрим
+(поля `file`/`size`/`width`/`height`) → MinIO через порт `FILE_STORAGE`
+(модуль files, ADR-0013) → строка `message_attachments` с `message_id IS
+NULL`; `DELETE /chat/attachments/:id` — отмена из трея; привязка при
+отправке — одноразовая (`attachmentIds`, claimAttachments). Лимиты: 100 МБ
+на файл, ≤20 неотправленных (серверная сверка). Отдача — подписанные URL
+`files/:id/content` (url в DTO). Вне контура до смежных треков:
+`POST .../to-task` (трек задач), автоканалы проектов.
 Realtime-доставка/typing/presence — WS-gateway (#104, `apps/gateway`).
 TTL/автоудаление сообщений — вне продукта навсегда
 (решение владельца 24.09, #96).

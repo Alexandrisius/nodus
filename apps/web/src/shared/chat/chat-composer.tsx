@@ -19,7 +19,6 @@ import { toast } from 'sonner';
 
 import { SendHexIcon } from '../ui/send-hex-icon.js';
 import { emitTyping } from '../socket/typing-emitter.js';
-import { chatAttachmentsEnabled } from './attachments-gate.js';
 import {
   EMPTY_DRAFT,
   useChatDrafts,
@@ -160,9 +159,10 @@ export function ChatComposer({
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const islandRef = useRef<HTMLSpanElement>(null);
 
-  // Гейт вложений (вердикт 25.09, до #57): запрос хоста действует только в
-  // мок-режиме домена chat; в живом — скрепка/вставка выключены с подсказкой.
-  const attachmentsEnabled = attachmentsEnabledProp && chatAttachmentsEnabled();
+  // Хост-разрешение на вложения (панельные исключения передают false);
+  // файловое хранилище (#57) сняло гейт живого режима — скрепка работает
+  // и на моках, и вживую.
+  const attachmentsEnabled = attachmentsEnabledProp;
 
   const draft = useChatDrafts((s) => s.drafts[focusId] ?? EMPTY_DRAFT);
   const setText = useChatDrafts((s) => s.setText);
@@ -393,10 +393,10 @@ export function ChatComposer({
   function onPaste(event: ClipboardEvent<HTMLTextAreaElement>) {
     const files = Array.from(event.clipboardData.files);
     if (files.length === 0) return;
-    // Гейт живого режима (вердикт 25.09): файлы не принимаются, вместо
-    // ошибки — вежливая подсказка (та же, что на выключенной скрепке).
+    // Хост запретил вложения (панельные исключения) — вежливая подсказка
+    // вместо ошибки загрузки.
     if (!attachmentsEnabled) {
-      toast(chatAttachmentsEnabled() ? ui.chat.attachFile : ui.chat.attachmentsUnavailable);
+      toast(ui.chat.attachFile);
       return;
     }
     event.preventDefault();
@@ -512,14 +512,9 @@ export function ChatComposer({
                   variant="ghost"
                   size="icon"
                   className={cn('shrink-0 text-muted-foreground', align)}
-                  // Живой режим до хранилища файлов (вердикт 25.09): скрепка на
-                  // месте, но с подсказкой вместо ошибки загрузки.
-                  aria-label={
-                    attachmentsEnabledProp ? ui.chat.attachmentsUnavailable : ui.chat.attachFile
-                  }
-                  title={
-                    attachmentsEnabledProp ? ui.chat.attachmentsUnavailable : ui.chat.attachFile
-                  }
+                  // Хост запретил вложения: скрепка на месте, но выключена.
+                  aria-label={ui.chat.attachFile}
+                  title={ui.chat.attachFile}
                   disabled
                 >
                   <Paperclip strokeWidth={1.75} />

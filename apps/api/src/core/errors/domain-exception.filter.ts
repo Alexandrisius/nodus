@@ -28,6 +28,12 @@ const CODE_TO_STATUS: Record<ErrorCode, number> = {
   [ErrorCode.DIRECTORY_EMAIL_TAKEN]: HttpStatus.CONFLICT,
   // Удаление единственной личной стадии «Моего плана» — конфликт состояния.
   [ErrorCode.TASK_LAST_STAGE]: HttpStatus.CONFLICT,
+  // Вложения (#57, ADR-0013): лимит файла чата — 413; переполнение трея и
+  // несовпадение размера — 400; карантин — 410 (файл был, больше не отдаётся).
+  [ErrorCode.CHAT_ATTACHMENT_TOO_LARGE]: HttpStatus.PAYLOAD_TOO_LARGE,
+  [ErrorCode.CHAT_ATTACHMENT_TOO_MANY]: HttpStatus.BAD_REQUEST,
+  [ErrorCode.FILE_SIZE_MISMATCH]: HttpStatus.BAD_REQUEST,
+  [ErrorCode.FILE_QUARANTINED]: HttpStatus.GONE,
 };
 
 /** Код для HTTP-исключений Nest/Fastify (400 у нас — всегда валидация входа). */

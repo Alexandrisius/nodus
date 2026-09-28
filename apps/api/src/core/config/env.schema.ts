@@ -23,6 +23,19 @@ const envSchema = z.object({
    *  (вердикт владельца 25.09, раунд 2 #104). Брутфорс-логин защищён отдельно
    *  (Redis-счётчик AuthService), k6 поднимает планку выше через env. */
   RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(3000),
+  /** Файловое хранилище (#57, ADR-0013): MinIO/S3. Endpoint — по умолчанию
+   *  host-dev (compose публикует MinIO на 127.0.0.1); в docker api получает
+   *  STORAGE_ENDPOINT=nodus_minio из compose. */
+  STORAGE_ENDPOINT: z.string().min(1).default('127.0.0.1'),
+  STORAGE_PORT: z.coerce.number().int().min(1).max(65535).default(9000),
+  STORAGE_USE_SSL: z.stringbool().optional(),
+  STORAGE_BUCKET: z.string().min(3).max(63).default('nodus-files'),
+  STORAGE_ACCESS_KEY: z.string().min(3),
+  STORAGE_SECRET_KEY: z.string().min(8),
+  /** Секрет подписи ссылок отдачи файлов (HMAC, ADR-0013); ≠ JWT_SECRET. */
+  STORAGE_URL_SECRET: z.string().min(32),
+  /** TTL подписи ссылок отдачи, секунды (24 ч: кэш браузера + рефечи ленты). */
+  STORAGE_URL_TTL_SECONDS: z.coerce.number().int().min(60).default(86_400),
 });
 
 export type Env = z.infer<typeof envSchema>;

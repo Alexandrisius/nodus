@@ -13,7 +13,6 @@ import type { ConversationListItem } from '@nodus/contracts';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { useAuthStore } from '../auth-store.js';
-import { chatAttachmentsEnabled } from './attachments-gate.js';
 import { useConversationMessages, useConversations, useSendChatMessage } from './api.js';
 import { ChatComposer, type ComposerSubmit } from './chat-composer.js';
 import { ChatMessageItem } from './chat-message.js';
@@ -252,7 +251,6 @@ function ConversationFeed({
     <>
       <FeedDropzone
         className="relative flex min-h-0 flex-1 flex-col"
-        disabled={!chatAttachmentsEnabled()}
         onFiles={(files) => addFiles(scope, files)}
       >
         <MessageScrollerProvider autoScroll={!anchoring}>

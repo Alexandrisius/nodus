@@ -31,6 +31,14 @@ export const ErrorCode = {
   DIRECTORY_EMAIL_TAKEN: 'DIRECTORY_EMAIL_TAKEN',
   /** Удаление единственной личной стадии «Моего плана» запрещено (ADR-0008). */
   TASK_LAST_STAGE: 'TASK_LAST_STAGE',
+  /** Вложение чата больше лимита (100 МБ на файл; серверная сверка, #57). */
+  CHAT_ATTACHMENT_TOO_LARGE: 'CHAT_ATTACHMENT_TOO_LARGE',
+  /** Больше 20 загруженных-но-неотправленных вложений у пользователя (#57). */
+  CHAT_ATTACHMENT_TOO_MANY: 'CHAT_ATTACHMENT_TOO_MANY',
+  /** Фактический размер файла не совпал с заявленным (обрыв/подмена, #57). */
+  FILE_SIZE_MISMATCH: 'FILE_SIZE_MISMATCH',
+  /** Файл помещён в карантин (сканер пометил) и не отдаётся (ADR-0013). */
+  FILE_QUARANTINED: 'FILE_QUARANTINED',
 } as const;
 
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];

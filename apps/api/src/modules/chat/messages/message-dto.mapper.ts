@@ -11,6 +11,7 @@ import {
   USER_PROFILE_READER,
   type UserProfileReader,
 } from '../../../core/ports/user-profile.port.js';
+import { SignedUrlService } from '../../../core/crypto/signed-url.service.js';
 import type { TransactionClient } from '../../../core/database/transaction-runner.js';
 import type { MemberRow } from '../conversations/conversations.repository.js';
 import { MessagesRepository, type MessageRow, type ReactionRow } from './messages.repository.js';
@@ -55,6 +56,7 @@ export class MessageDtoMapper {
     private readonly messages: MessagesRepository,
     private readonly pins: MessagePinsRepository,
     @Inject(USER_PROFILE_READER) private readonly userProfiles: UserProfileReader,
+    private readonly signedUrls: SignedUrlService,
   ) {}
 
   async toDtos(rows: MessageRow[], ctx: MessageDtoContext): Promise<ChatMessage[]> {
@@ -108,7 +110,7 @@ export class MessageDtoMapper {
               size: a.size,
               mime: a.mime,
               kind: a.kind as 'image' | 'file',
-              url: null,
+              url: this.signedUrls.fileContentUrl(a.fileId),
               thumbnailUrl: null,
               width: a.width,
               height: a.height,
@@ -150,6 +152,7 @@ export class MessageDtoMapper {
       replyOriginal: MessageRow | null;
       attachments: {
         id: string;
+        fileId: string;
         name: string;
         size: number;
         mime: string;
@@ -187,7 +190,7 @@ export class MessageDtoMapper {
         size: a.size,
         mime: a.mime,
         kind: a.kind as 'image' | 'file',
-        url: null,
+        url: this.signedUrls.fileContentUrl(a.fileId),
         thumbnailUrl: null,
         width: a.width,
         height: a.height,

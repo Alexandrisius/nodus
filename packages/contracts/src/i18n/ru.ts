@@ -20,6 +20,12 @@ export const errorMessages: Record<ErrorCode, string> = {
   [ErrorCode.AUTH_SESSION_INVALID]: 'Сессия завершена, войдите снова',
   [ErrorCode.DIRECTORY_EMAIL_TAKEN]: 'Пользователь с таким email уже существует',
   [ErrorCode.TASK_LAST_STAGE]: 'Единственную стадию удалить нельзя',
+  [ErrorCode.CHAT_ATTACHMENT_TOO_LARGE]:
+    'Файл больше 100 МБ — вложения такого размера не поддерживаются',
+  [ErrorCode.CHAT_ATTACHMENT_TOO_MANY]:
+    'Слишком много неотправленных вложений — сначала отправьте или уберите лишние',
+  [ErrorCode.FILE_SIZE_MISMATCH]: 'Файл передался не полностью — попробуйте ещё раз',
+  [ErrorCode.FILE_QUARANTINED]: 'Файл заблокирован проверкой безопасности',
 };
 
 /**
