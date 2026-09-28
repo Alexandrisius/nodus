@@ -22,7 +22,13 @@ import { UsersRepository, type UserCardRow, type UserListRow } from './users.rep
  *  остаётся в справочнике и карточке сотрудника, включалка отображения —
  *  будущее «Настройки портала» #133). Единая точка: ~40 мест UI рендерят
  *  displayName сырым. */
-export function buildDisplayName(parts: { lastName: string; firstName: string }): string {
+export function buildDisplayName(parts: {
+  lastName: string;
+  firstName: string;
+  /** Приходит из модели/DTO — ПРИНИМАЕТСЯ и игнорируется: callers с полным
+   *  объектом не чистят поле сами (тест #132 прямо проверяет игнор). */
+  middleName?: string | null;
+}): string {
   return [parts.lastName, parts.firstName].filter((p): p is string => Boolean(p)).join(' ');
 }
 

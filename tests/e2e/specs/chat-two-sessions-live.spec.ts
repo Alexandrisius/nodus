@@ -151,9 +151,11 @@ test.describe('живой чат: две сессии (#104)', () => {
     const feedA = pageA.locator('[data-slot="message-scroller-viewport"]');
     await feedA.getByText(seedText).click({ button: 'right' });
     await pageA.getByRole('menuitem', { name: 'Выбрать' }).click();
-    await expect(pageA.getByRole('button', { name: /снять выделение/i })).toBeVisible();
+    // #132 р.1: команда выхода переименована «Снять выделение» →
+    // «Отменить выбор» (модель Telegram).
+    await expect(pageA.getByRole('button', { name: /отменить выбор/i })).toBeVisible();
 
-    await pageA.getByRole('button', { name: /снять выделение/i }).click();
+    await pageA.getByRole('button', { name: /отменить выбор/i }).click();
     await expect(composer).toBeVisible({ timeout: 3_000 }); // фаза exit → normal
 
     await feedA.getByText(seedText).click({ button: 'right' });
