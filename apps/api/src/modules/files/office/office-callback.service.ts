@@ -65,7 +65,7 @@ export class OfficeCallbackService {
     // Сессия DS живёт под документ-ключом. После forcesave DS продолжает
     // редактирование под ТЕМ ЖЕ ключом, хотя текущая версия уже ушла вперёд:
     // принимаем колбэки ключа текущей версии И ключа, породившего её.
-    const currentKey = `${file.id}:v${file.version}`;
+    const currentKey = `${file.id}.v${file.version}`;
     const continuesLatest = latest?.sourceKey === body.key;
     if (body.key !== currentKey && !continuesLatest) {
       this.logger.info(

@@ -6,7 +6,8 @@ import { Spinner } from '@nodus/ui/components/spinner';
 
 declare global {
   interface Window {
-    DocsAPI?: new (id: string, config: Config) => DocEditor;
+    /** api.js экспортирует ОБЪЕКТ с конструктором: new DocsAPI.DocEditor(...). */
+    DocsAPI?: { DocEditor: new (id: string, config: Config) => DocEditor };
   }
 }
 
@@ -59,7 +60,7 @@ export function OfficeViewer({
     setReady(false);
     loadDocsApi()
       .then(() => {
-        if (cancelled || !window.DocsAPI) throw new Error('DocsAPI missing');
+        if (cancelled || !window.DocsAPI?.DocEditor) throw new Error('DocsAPI missing');
         // document/editorConfig идут с сервера дословно (JWT целостности);
         // каст — только типы: контракты держат строки, DocEditor-типы — union.
         const config: Config = {
@@ -72,13 +73,20 @@ export function OfficeViewer({
           token: session.token,
           events: {
             onDocumentReady: () => setReady(true),
-            onError: () => handlers.current.onEngineError(),
+            onError: (event) => {
+              console.error(
+                '[office-viewer] onError',
+                JSON.stringify(event?.data ?? event).slice(0, 300),
+              );
+              handlers.current.onEngineError();
+            },
             onOutdatedVersion: () => handlers.current.onOutdated(),
           },
         };
-        editorRef.current = new window.DocsAPI(holderId, config);
+        editorRef.current = new window.DocsAPI.DocEditor(holderId, config);
       })
-      .catch(() => {
+      .catch((error) => {
+        console.error('[office-viewer] init failed holder=' + holderId, error);
         if (!cancelled) handlers.current.onEngineError();
       });
     return () => {

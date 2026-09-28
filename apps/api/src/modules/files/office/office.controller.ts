@@ -60,6 +60,12 @@ export class OfficeController {
     @Inject(OFFICE_CONFIG) private readonly engineConfig: OfficeEngineConfig,
   ) {}
 
+  /**
+   * Параметры движка — @Public (как health): не раскрывают пользователей,
+   * нужны реестру до/вне сессии (иначе запрос на буте до логина кэшировал
+   * бы «движок выключен»). Сессии и версии — под авторизацией.
+   */
+  @Public()
   @Get('office-config')
   @ApiOperation({ summary: 'Параметры движка офисного просмотра (фолбэки реестра)' })
   @ApiOkResponse({ standardSchema: officeConfigSchema })

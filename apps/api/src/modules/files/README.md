@@ -1,19 +1,26 @@
-# Модуль files (M9 фаза 1, #57 — ADR-0013)
+# Модуль files (M9: #57 — ADR-0013, #138 — ADR-0014)
 
 Объектное S3-хранилище **SILO** (поддерживаемый форк MinIO от Pigsty,
 `silo.pigsty.io`, образ `pgsty/silo`; upstream MinIO архивирован — ADR-0013)
 
-- метаданные `file_objects`/`file_versions`. Первый потребитель — chat
-  (вложения сообщений); дальше — correspondence (вложения писем), стикеры,
-  аватарки.
+- **движок просмотра офисных вложений ONLYOFFICE** (#138).
+
+* метаданные `file_objects`/`file_versions` (версии: правки ONLYOFFICE
+  растят номер, указатель `file_objects.key` — текущая). Первый потребитель
+  — chat (вложения сообщений); дальше — correspondence (вложения писем),
+  стикеры, аватарки.
 
 ## Границы (I3/I13)
 
 - Наружу — только порт **`FILE_STORAGE`** (`core/ports/file-storage.port.ts`):
   `save(meta, stream) → {fileId}` и `remove(fileIds)`. Модуль `@Global`
   (как CryptoModule): потребитель инжектит токен без межмодульного импорта.
+- Обратное направление — порт **`FILE_ACCESS_CONTRIBUTORS`**
+  (`core/ports/file-access.port.ts`, #138): право пользователя на файл в
+  контексте потребителя. Реализацию регистрирует потребитель (@Global-модуль
+  `chat/file-access`): участник беседы с вложением → просмотр/правка.
+  files OR-ит решения с владением файла (`owner_id`); чужим — 404.
 - `file_objects`/`file_versions` — только через `FilesRepository`.
-- `message_attachments` принадлежит chat (`file_id` — plain UUID, без FK).
 
 ## Механика
 
@@ -21,12 +28,27 @@
   `nodus-files` (ключ `files/{fileId}`), счётчик байт сверяется с заявленным
   `size` — расхождение = `FILE_SIZE_MISMATCH`, объект удаляется. Затем
   `file_objects` + `file_versions` (v1) в БД. Потолок хранилища — 200 МБ
-  (`STORAGE_MAX_FILE_BYTES` + лимит busboy в main.ts).- **Отдача**: `GET /api/v1/files/:id/content?exp&sig` — `@Public`, HMAC-подпись
-  (`SignedUrlService`, `STORAGE_URL_SECRET`, TTL 24 ч, константное сравнение);
-  URL выпускает потребитель в DTO (`fileContentUrl(fileId)`). ETag
-  `{id}-v1` → 304; Content-Disposition inline (image/*) / attachment;
-  `scan_status=infected` → 410 `FILE_QUARANTINED` (сканер — фаза 2/M14,
-  до него pending отдаётся).
+  (`STORAGE_MAX_FILE_BYTES` + лимит busboy в main.ts).
+- **Отдача**: `GET /api/v1/files/:id/content?exp&sig[&v=N]` — `@Public`,
+  HMAC-подпись (`SignedUrlService`, `STORAGE_URL_SECRET`, TTL 24 ч,
+  константное сравнение); ресурс подписи включает версию (`{id}:v{N}`) —
+  ссылкой на v2 не открыть v3. URL выпускает потребитель в DTO
+  (`fileContentUrl` / `fileVersionUrl`). ETag `{id}-v{N}` → 304;
+  Content-Disposition inline (image/*) / attachment; `scan_status=infected`
+  → 410 `FILE_QUARANTINED` (сканер — фаза 2/M14, до него pending отдаётся).
+- **ONLYOFFICE (#138)**: контейнер `documentserver` (CE 9.4, compose-профиль
+  `office`, ADR-0014). Сессия `GET /files/:id/office-session?mode=view|edit`:
+  право → конфиг `DocsAPI.DocEditor` целиком на сервере + JWT HS256
+  (`OFFICE_JWT_SECRET`); документ-ключ `fileId.v{version}` (алфавит DS —
+  `0-9-.a-zA-Z_=`). Callback `POST /files/:id/office-callback` (@Public,
+  Bearer JWT DS): статусы 2/6 → скачивание собранного файла (origin →
+  `OFFICE_INTERNAL_URL`) → новая FileVersion + указатель + событие
+  `file.version_created` (outbox) + аудит `files.office_save` в одной
+  транзакции. Дедуп: `source_key` + `source_lastsave` (повторная доставка
+  и forcesave→закрытие не плодят версии). `GET /files/office-config` —
+  публичные параметры движка (фолбэки реестра); `GET /files/:id/versions` —
+  история с подписанными ссылками. Правка — только при `OFFICE_EDIT_ENABLED`
+  И праве И редактируемом формате (таблица `contracts/files/office-formats`).
 - **Учётка**: `minio-init` (compose) создаёт бакет и сервисного пользователя
   `nodus-api` с политикой только на объекты (клиент форка — `mcli`,
   mc-совместимый); root-креды api не получает.
@@ -36,20 +58,31 @@
 
 ## Env (`env.schema`, fail-fast)
 
-`STORAGE_ENDPOINT` (дефолт 127.0.0.1; в docker — `nodus_minio`),
+`STORAGE_ENDPOINT` (дефолт 127.0.0.1; в docker — `nodus-minio`),
 `STORAGE_PORT` (9000), `STORAGE_USE_SSL`, `STORAGE_BUCKET` (nodus-files),
 `STORAGE_ACCESS_KEY`/`STORAGE_SECRET_KEY` (сервисная учётка),
 `STORAGE_URL_SECRET` (≥32, ≠ JWT_SECRET), `STORAGE_URL_TTL_SECONDS` (86400).
+Офис (#138): `OFFICE_ENABLED` (default false), `OFFICE_EDIT_ENABLED`,
+`OFFICE_JWT_SECRET` (обязателен при enabled), `OFFICE_INTERNAL_URL`
+(api→DS, в docker `http://documentserver`), `OFFICE_API_INTERNAL_URL`
+(DS→api, в docker `http://nodus-api:3001`), `OFFICE_MAX_VIEW_BYTES` (50 МБ).
 
 ## События и аудит
 
-Своих доменных событий нет (жизненный цикл файла — деталь потребителя; событие
-chat `message_sent` уже несёт вложения). Аудит действий — на эндпоинтах
-потребителя (`chat.attachment_upload`/`chat.attachment_cancel`).
+- `file.version_created` (payload: fileId, version, size, mime) — из колбэка
+  ONLYOFFICE, outbox-запись в транзакции версии (I9). Жизненный цикл загрузки
+  — деталь потребителя (событие chat `message_sent` уже несёт вложения).
+- Аудит: `files.office_save` (actor null — система, детали: версия/статус);
+  действия пользователей — на эндпоинтах потребителя
+  (`chat.attachment_upload`/`chat.attachment_cancel`).
 
 ## Тесты
 
 - Интеграционный `chat-attachments.integration.test.ts` (upload→download на
   живом S3 SILO) — приёмка #57; скипается без `STORAGE_ACCESS_KEY`.
-- Unit: `attachments.service.test.ts` (лимиты/kind/отмена/GC),
-  `signed-url.service.test.ts` (подпись/TTL/чужой ресурс).
+- Unit (#138): `office-session.service.test.ts` (права/форматы/лимиты/ключи),
+  `office-callback.service.test.ts` (статусы, дедуп lastsave, устаревшие
+  ключи, сверка байт), `signed-url.service.test.ts` (подпись/TTL/чужой
+  ресурс/версии).
+- E2E `tests/e2e/specs/viewer-live.spec.ts`: pdf.js-канвас + офисная ветка
+  (редактор при включённом движке / карточка-фолбэк при выключенном).

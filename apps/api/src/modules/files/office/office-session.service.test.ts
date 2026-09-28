@@ -72,7 +72,7 @@ describe('OfficeSessionService (#138)', () => {
     expect(session.mode).toBe('view');
     expect(session.canEdit).toBe(true);
     expect(session.documentType).toBe('cell');
-    expect(session.document.key).toBe(`${FILE_ID}:v1`);
+    expect(session.document.key).toBe(`${FILE_ID}.v1`);
     expect(session.document.url).toMatch(
       new RegExp(`^http://api-internal:3001/api/v1/files/${FILE_ID}/content\\?exp=`),
     );
@@ -168,6 +168,6 @@ describe('OfficeSessionService (#138)', () => {
   it('версия файла входит в ключ документа (кэш DS не смешивает версии)', async () => {
     const { service } = makeService(makeFile({ version: 3 }));
     const session = await service.createSession(FILE_ID, makeUser(USER_ID), 'view');
-    expect(session.document.key).toBe(`${FILE_ID}:v3`);
+    expect(session.document.key).toBe(`${FILE_ID}.v3`);
   });
 });

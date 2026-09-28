@@ -26,7 +26,7 @@ export function useOfficeConfig(): UseQueryResult<OfficeConfig> {
     queryKey: officeKeys.config,
     queryFn: async () => {
       try {
-        return await api<OfficeConfig>('/api/v1/files/office-config');
+        return await api<OfficeConfig>('/files/office-config');
       } catch {
         return OFFICE_CONFIG_FALLBACK;
       }
@@ -43,7 +43,7 @@ export function useOfficeSession(
 ): UseQueryResult<OfficeSession> {
   return useQuery({
     queryKey: officeKeys.session(fileId ?? '', mode),
-    queryFn: () => api<OfficeSession>(`/api/v1/files/${fileId}/office-session?mode=${mode}`),
+    queryFn: () => api<OfficeSession>(`/files/${fileId}/office-session?mode=${mode}`),
     enabled: enabled && fileId !== null,
     staleTime: 60_000,
     retry: false,

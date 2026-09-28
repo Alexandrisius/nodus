@@ -122,14 +122,14 @@ describe('OfficeCallbackService (#138)', () => {
 
   it('status 2 без url — подтверждение без версии', async () => {
     const h = makeHarness(makeFile());
-    await h.service.handle(FILE_ID, { status: 2, key: `${FILE_ID}:v1` });
+    await h.service.handle(FILE_ID, { status: 2, key: `${FILE_ID}.v1` });
     expect(h.mocks.put).not.toHaveBeenCalled();
     expect(h.mocks.saveVersion).not.toHaveBeenCalled();
   });
 
   it('status 4 — нет изменений, ничего не делает', async () => {
     const h = makeHarness(makeFile());
-    await h.service.handle(FILE_ID, { status: 4, key: `${FILE_ID}:v1` });
+    await h.service.handle(FILE_ID, { status: 4, key: `${FILE_ID}.v1` });
     expect(h.mocks.put).not.toHaveBeenCalled();
   });
 
@@ -139,7 +139,7 @@ describe('OfficeCallbackService (#138)', () => {
     const h = makeHarness(makeFile(1));
     const body: OfficeCallbackBody = {
       status: 6,
-      key: `${FILE_ID}:v1`,
+      key: `${FILE_ID}.v1`,
       url: SAVE_URL,
       lastsave: '2026-09-28T20:00:00.000Z',
       forcesavetype: 1,
@@ -162,7 +162,7 @@ describe('OfficeCallbackService (#138)', () => {
       key: `files/${FILE_ID}/v2`,
       size: 2,
       mime: expect.any(String),
-      sourceKey: `${FILE_ID}:v1`,
+      sourceKey: `${FILE_ID}.v1`,
       sourceLastsave: BigInt(Date.parse('2026-09-28T20:00:00.000Z')),
     });
     expect(h.mocks.emit).toHaveBeenCalledWith(
@@ -180,11 +180,11 @@ describe('OfficeCallbackService (#138)', () => {
     const fetchMock = mockFetchOk(2);
     vi.stubGlobal('fetch', fetchMock);
     const h = makeHarness(makeFile(2), [
-      makeVersionRow(2, `${FILE_ID}:v1`, '2026-09-28T20:00:00.000Z'),
+      makeVersionRow(2, `${FILE_ID}.v1`, '2026-09-28T20:00:00.000Z'),
     ]);
     await h.service.handle(FILE_ID, {
       status: 2,
-      key: `${FILE_ID}:v1`,
+      key: `${FILE_ID}.v1`,
       url: SAVE_URL,
       lastsave: '2026-09-28T20:00:00.000Z',
     });
@@ -196,11 +196,11 @@ describe('OfficeCallbackService (#138)', () => {
     const fetchMock = mockFetchOk(2);
     vi.stubGlobal('fetch', fetchMock);
     const h = makeHarness(makeFile(2), [
-      makeVersionRow(2, `${FILE_ID}:v1`, '2026-09-28T20:00:00.000Z'),
+      makeVersionRow(2, `${FILE_ID}.v1`, '2026-09-28T20:00:00.000Z'),
     ]);
     await h.service.handle(FILE_ID, {
       status: 2,
-      key: `${FILE_ID}:v1`,
+      key: `${FILE_ID}.v1`,
       url: SAVE_URL,
       lastsave: '2026-09-28T20:05:00.000Z',
     });
@@ -212,14 +212,14 @@ describe('OfficeCallbackService (#138)', () => {
 
   it('колбэк устаревшего ключа подтверждается без сохранения', async () => {
     const h = makeHarness(makeFile(2));
-    await h.service.handle(FILE_ID, { status: 2, key: `${FILE_ID}:v1`, url: SAVE_URL });
+    await h.service.handle(FILE_ID, { status: 2, key: `${FILE_ID}.v1`, url: SAVE_URL });
     expect(h.mocks.put).not.toHaveBeenCalled();
   });
 
   it('файл удалён — подтверждение без ошибки (DS завершает сессию)', async () => {
     const h = makeHarness(null);
     await expect(
-      h.service.handle(FILE_ID, { status: 2, key: `${FILE_ID}:v1`, url: SAVE_URL }),
+      h.service.handle(FILE_ID, { status: 2, key: `${FILE_ID}.v1`, url: SAVE_URL }),
     ).resolves.toBeUndefined();
   });
 
@@ -229,7 +229,7 @@ describe('OfficeCallbackService (#138)', () => {
     await expect(
       h.service.handle(FILE_ID, {
         status: 2,
-        key: `${FILE_ID}:v1`,
+        key: `${FILE_ID}.v1`,
         url: SAVE_URL,
         lastsave: '2026-09-28T20:00:00.000Z',
       }),

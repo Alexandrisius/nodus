@@ -89,8 +89,9 @@ export class OfficeSessionService {
       fileType: fileExtension(file.name),
       // Ключ ко-эдитинга: одна версия файла = одна сессия DS для всех
       // зрителей; с сохранением новой версии ключ меняется (кэш DS не
-      // смешивает версии).
-      key: `${file.id}:v${file.version}`,
+      // смешивает версии). Алфавит ключа DS — 0-9-.a-zA-Z_= (двоеточие
+      // запрещено: io.on connection unexpected key — репро #138).
+      key: `${file.id}.v${file.version}`,
       title: file.name,
       // Абсолютный внутренний URL: документ скачивает КОНТЕЙНЕР DS, не браузер.
       url: `${this.config.apiInternalUrl}${this.signedUrls.fileContentUrl(file.id)}`,

@@ -29,21 +29,17 @@ export default defineConfig(({ mode }) => {
       ws: true,
     },
   };
-  for (const path of [
-    '/web-apps',
-    '/sdkjs',
-    '/sdkjs-plugins',
-    '/fonts',
-    '/dictionaries',
-    '/cache',
-    '/doc',
-    '/converter',
-    '/command',
-    '/docbuilder',
-    '/welcome',
-  ]) {
-    proxy[path] = { target: officeTarget, changeOrigin: true, ws: true };
-  }
+  // Ключ с ^ — RegExp (докам vite): версионный префикс DS 302-редиректит
+  // статик на /<версия>-<хэш>/web-apps/... (кэш-бастинг), корневые пути —
+  // остальное; канал ко-эдитинга /doc/ — вебсокет.
+  const officePaths = String.raw`^/(web-apps|sdkjs|sdkjs-plugins|fonts|dictionaries|cache|doc|converter|command|docbuilder|welcome|healthcheck|[0-9]+\.[0-9]+\.[0-9]+-[0-9a-f]+)`;
+  proxy[officePaths] = {
+    target: officeTarget,
+    // БЕЗ changeOrigin: Host остаётся браузерным — DS строит ссылки на
+    // подготовленные файлы (Editor.bin, колбэки) от увиденного хоста;
+    // подменённый хост = кросс-origin и ERR_FAILED (репро #138).
+    ws: true,
+  };
   return {
     // VITE_*-флаги (VITE_API_MOCK) лежат в корневом .env рядом с docker-переменными.
     envDir: '../../',
