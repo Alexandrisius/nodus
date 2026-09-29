@@ -112,7 +112,8 @@ export class MessageDtoMapper {
               mime: a.mime,
               kind: a.kind as 'image' | 'file',
               url: this.signedUrls.fileContentUrl(a.fileId),
-              thumbnailUrl: null,
+              // Серверное превью-дериват (#150); null — не сгенерировано.
+              thumbnailUrl: a.thumbFileId ? this.signedUrls.fileContentUrl(a.thumbFileId) : null,
               width: a.width,
               height: a.height,
             })),
@@ -160,6 +161,7 @@ export class MessageDtoMapper {
         kind: string;
         width: number | null;
         height: number | null;
+        thumbFileId: string | null;
       }[];
       tx?: TransactionClient;
     },
@@ -193,7 +195,7 @@ export class MessageDtoMapper {
         mime: a.mime,
         kind: a.kind as 'image' | 'file',
         url: this.signedUrls.fileContentUrl(a.fileId),
-        thumbnailUrl: null,
+        thumbnailUrl: a.thumbFileId ? this.signedUrls.fileContentUrl(a.thumbFileId) : null,
         width: a.width,
         height: a.height,
       })),

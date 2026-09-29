@@ -390,6 +390,7 @@ export class MessagesRepository {
       kind: string;
       width: number | null;
       height: number | null;
+      thumbFileId: string | null;
     }[]
   > {
     if (attachmentIds.length === 0) return [];
@@ -409,9 +410,11 @@ export class MessagesRepository {
         kind: string;
         width: number | null;
         height: number | null;
+        thumbFileId: string | null;
       }[]
     >(Prisma.sql`
-      SELECT id, file_id AS "fileId", name, size, mime, kind, width, height
+      SELECT id, file_id AS "fileId", name, size, mime, kind, width, height,
+             thumb_file_id AS "thumbFileId"
       FROM message_attachments
       WHERE message_id = ${messageId}::uuid
       ORDER BY sort_order ASC, id ASC
@@ -430,10 +433,11 @@ export class MessagesRepository {
   ): Promise<void> {
     await tx.$executeRaw(Prisma.sql`
       INSERT INTO message_attachments (
-        id, message_id, file_id, owner_id, name, size, mime, kind, width, height, sort_order
+        id, message_id, file_id, owner_id, name, size, mime, kind, width, height,
+        thumb_file_id, sort_order
       )
       SELECT gen_random_uuid(), ${targetMessageId}::uuid, file_id, owner_id, name, size,
-             mime, kind, width, height, sort_order
+             mime, kind, width, height, thumb_file_id, sort_order
       FROM message_attachments WHERE message_id = ${sourceMessageId}::uuid
     `);
   }
@@ -454,13 +458,15 @@ export class MessagesRepository {
       kind: string;
       width: number | null;
       height: number | null;
+      thumbFileId: string | null;
       sortOrder: number;
     }[]
   > {
     if (messageIds.length === 0) return [];
     const client = this.client(tx);
     return client.$queryRaw(Prisma.sql`
-      SELECT message_id AS "messageId", id, file_id AS "fileId", name, size, mime, kind, width, height, sort_order AS "sortOrder"
+      SELECT message_id AS "messageId", id, file_id AS "fileId", name, size, mime, kind,
+             width, height, thumb_file_id AS "thumbFileId", sort_order AS "sortOrder"
       FROM message_attachments
       WHERE message_id = ANY(${messageIds}::uuid[])
       ORDER BY sort_order ASC, id ASC

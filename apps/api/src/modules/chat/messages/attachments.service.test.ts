@@ -16,9 +16,15 @@ const OWNER = '00000000-0000-0000-0000-000000000001';
 function makeService(
   storageOverrides: Partial<FileStorage> = {},
   repoOverrides: Partial<AttachmentsRepository> = {},
-): { service: AttachmentsService; storage: FileStorage; repo: AttachmentsRepository } {
+): {
+  service: AttachmentsService;
+  storage: FileStorage;
+  repo: AttachmentsRepository;
+  thumbnailQueue: { enqueue: ReturnType<typeof vi.fn> };
+} {
   const storage: FileStorage = {
     save: vi.fn(async () => ({ fileId: '00000000-0000-0000-0000-00000000000f' })),
+    get: vi.fn(async () => null),
     remove: vi.fn(async () => undefined),
     ...storageOverrides,
   };
@@ -31,13 +37,17 @@ function makeService(
     deleteUnclaimed: vi.fn(async () => true),
     ...repoOverrides,
   } as unknown as AttachmentsRepository;
+  const thumbnailQueue = { enqueue: vi.fn(async () => undefined) } as unknown as {
+    enqueue: ReturnType<typeof vi.fn>;
+  };
   const service = new AttachmentsService(
     storage,
     repo,
     new SignedUrlService({ STORAGE_URL_SECRET: 'test-secret-32-chars-aaaaaaaaaaaa' }),
+    thumbnailQueue as never,
     { setContext: vi.fn(), info: vi.fn(), warn: vi.fn() } as unknown as PinoLogger,
   );
-  return { service, storage, repo };
+  return { service, storage, repo, thumbnailQueue };
 }
 
 function content(): Readable {
@@ -49,8 +59,8 @@ describe('AttachmentsService (#57)', () => {
     vi.restoreAllMocks();
   });
 
-  it('загружает: kind=image для изображений, url — подписанная ссылка', async () => {
-    const { service } = makeService();
+  it('загружает: kind=image для изображений, url — подписанная ссылка, превью — в очередь', async () => {
+    const { service, thumbnailQueue } = makeService();
     const dto = await service.upload(
       OWNER,
       { name: 'foto.png', mime: 'image/png', size: 10, width: 640, height: 480 },
@@ -60,16 +70,18 @@ describe('AttachmentsService (#57)', () => {
     expect(dto.width).toBe(640);
     expect(dto.url).toMatch(/^\/api\/v1\/files\/.+\/content\?exp=\d+&sig=[0-9a-f]{64}$/);
     expect(dto.thumbnailUrl).toBeNull();
+    expect(thumbnailQueue.enqueue).toHaveBeenCalledTimes(1);
   });
 
-  it('kind=file для не-изображений', async () => {
-    const { service } = makeService();
+  it('kind=file для не-изображений (превью не ставится в очередь)', async () => {
+    const { service, thumbnailQueue } = makeService();
     const dto = await service.upload(
       OWNER,
       { name: 'doc.pdf', mime: 'application/pdf', size: 10 },
       content(),
     );
     expect(dto.kind).toBe('file');
+    expect(thumbnailQueue.enqueue).not.toHaveBeenCalled();
   });
 
   it(`файл > ${MAX_ATTACHMENT_BYTES} байт — CHAT_ATTACHMENT_TOO_LARGE (413) до записи`, async () => {
@@ -109,6 +121,7 @@ describe('AttachmentsService (#57)', () => {
           kind: 'file',
           width: null,
           height: null,
+          thumbFileId: null,
         })),
       },
     );

@@ -31,6 +31,7 @@ function makeFile(overrides: Partial<FileObjectRow> = {}): FileObjectRow {
     mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     size: 1024,
     scanStatus: 'pending',
+    derivedFrom: null,
     createdAt: new Date(),
     ...overrides,
   };

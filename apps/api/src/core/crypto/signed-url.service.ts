@@ -4,6 +4,13 @@ import { Injectable, Optional } from '@nestjs/common';
 
 const DEFAULT_TTL_SECONDS = 86_400; // 24 ч
 
+/** Бакет округления exp (#150): подпись детерминирована в пределах часа —
+ *  рефечи ленты и ws-инвалидации выдают ТОТ ЖЕ URL файла, поэтому кэш
+ *  браузера (max-age=3600 + ETag) попадает и картинки не перезагружаются
+ *  на каждый перевыпуск DTO. Без бакета новые exp/sig на каждом рефече
+ *  меняли src всех <img> — лента «моргала». */
+const EXP_BUCKET_SECONDS = 3_600;
+
 /**
  * Подпись ссылок отдачи файлов (ADR-0013): GET /files/:id/content открывается
  * из <img>/«скачать»/новой вкладки, которые не умеют Authorization-заголовок.
@@ -46,7 +53,11 @@ export class SignedUrlService {
   }
 
   sign(resourceId: string): { exp: number; sig: string } {
-    const exp = Math.floor(Date.now() / 1000) + this.ttlSeconds;
+    // Округление ВВЕРХ до часового бакета: все вызовы в пределах часа дают
+    // один и тот же exp → одна и та же подпись → один и тот же URL. Реальное
+    // время жизни ссылки — от ttl до ttl+бакет (до 25 ч), verify не меняется.
+    const exp =
+      Math.ceil((Date.now() / 1000 + this.ttlSeconds) / EXP_BUCKET_SECONDS) * EXP_BUCKET_SECONDS;
     return { exp, sig: this.hmac(resourceId, exp) };
   }
 

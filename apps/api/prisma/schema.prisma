@@ -485,6 +485,9 @@ model MessageAttachment {
   kind       String
   width      Int?
   height     Int?
+  /// FileObject серверного превью (WebP-дериват, #150); null — не сгенерировано
+  /// (воркер ещё не дошёл / формат не декодируется). Пересылка копирует ссылку.
+  thumbFileId String? @map("thumb_file_id") @db.Uuid
   sortOrder  Int     @default(0) @map("sort_order")
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz()
 
@@ -517,6 +520,11 @@ model FileObject {
   /// отдаётся никогда (410); pending отдаётся, пока сканера нет (ClamAV —
   /// фаза 2, M14). Карантин — префикс ключа quarantine/, фаза 2.
   scanStatus String   @default("pending") @map("scan_status")
+  /// Дериват: FileObject порождён из файла derivedFrom (превью вложений
+  /// #150). null — «пользовательский» файл; дериваты исключаются из
+  /// выборок «файлов пользователя» и живут вместе с оригиналом (plain UUID,
+  /// между модулями без FK, I3).
+  derivedFrom String? @map("derived_from") @db.Uuid
   deletedAt DateTime? @map("deleted_at") @db.Timestamptz()
   createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz()
 

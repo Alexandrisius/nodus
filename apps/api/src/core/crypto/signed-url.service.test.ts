@@ -42,4 +42,22 @@ describe('SignedUrlService (#57, ADR-0013)', () => {
       /STORAGE_URL_SECRET/,
     );
   });
+
+  it('бакет exp: повторные подписи того же ресурса идентичны (#150)', () => {
+    const service = new SignedUrlService(ENV);
+    // В пределах часового бакета URL стабилен — кэш браузера попадает.
+    const urls = new Set(Array.from({ length: 5 }, () => service.fileContentUrl('file-1')));
+    expect(urls.size).toBe(1);
+  });
+
+  it('бакет exp: граница часа меняет подпись, экспонента кратна бакету', () => {
+    const service = new SignedUrlService(ENV);
+    const { exp } = service.sign('file-1');
+    expect(exp % 3_600).toBe(0);
+    // Истинный ttl (60 с) меньше бакета — exp всё равно следующий бакет.
+    const short = new SignedUrlService({ ...ENV, STORAGE_URL_TTL_SECONDS: '60' });
+    const { exp: shortExp } = short.sign('file-1');
+    expect(shortExp % 3_600).toBe(0);
+    expect(shortExp).toBeGreaterThan(Math.floor(Date.now() / 1000));
+  });
 });

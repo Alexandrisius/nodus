@@ -17,6 +17,9 @@ import { MessagesController } from './messages/messages.controller.js';
 import { MessagesRepository } from './messages/messages.repository.js';
 import { MessagesService } from './messages/messages.service.js';
 import { ThreadParticipantsRepository } from './messages/thread-participants.repository.js';
+import { ThumbnailQueue } from './messages/thumbnail.queue.js';
+import { ThumbnailService } from './messages/thumbnail.service.js';
+import { ThumbnailWorker } from './messages/thumbnail.worker.js';
 
 /**
  * Модуль chat (M6, #58): беседы (direct/group/каналы), сообщения, треды,
@@ -50,6 +53,11 @@ import { ThreadParticipantsRepository } from './messages/thread-participants.rep
     MessageDtoMapper,
     UserProfileProvider,
     { provide: USER_PROFILE_READER, useClass: UserProfileProvider },
+    // Превью вложений (#150, ADR-0015): очередь (продюсер), генератор и
+    // in-process воркер — первый потребитель BullMQ (REDIS_URL, core/redis).
+    ThumbnailQueue,
+    ThumbnailService,
+    ThumbnailWorker,
   ],
 })
 export class ChatModule {}

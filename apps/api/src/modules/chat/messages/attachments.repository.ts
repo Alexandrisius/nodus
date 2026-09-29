@@ -13,6 +13,7 @@ export interface AttachmentRow {
   kind: string;
   width: number | null;
   height: number | null;
+  thumbFileId: string | null;
 }
 
 /**
@@ -64,6 +65,21 @@ export class AttachmentsRepository {
     height: number | null;
   }): Promise<AttachmentRow> {
     return this.prisma.messageAttachment.create({ data: row });
+  }
+
+  /** Любое вложение по id (воркер превью #150: работает и с отправленными —
+   *  в отличие от findUnclaimed; null — строка удалена каскадом сообщения). */
+  findAnyById(id: string): Promise<AttachmentRow | null> {
+    return this.prisma.messageAttachment.findUnique({ where: { id } });
+  }
+
+  /** Фиксация превью (#150): thumbFileId + авторитетные серверные габариты
+   *  (перезаписывают клиентские — сервер не доверяет им после sharp). */
+  async markThumbnail(
+    id: string,
+    data: { thumbFileId: string; width: number; height: number },
+  ): Promise<void> {
+    await this.prisma.messageAttachment.update({ where: { id }, data });
   }
 
   /** Неотправленное вложение владельца (для отмены; null — уже отправлено/

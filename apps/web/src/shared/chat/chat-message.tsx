@@ -7,8 +7,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@nodus/ui/components/to
 
 import { openCardViaBridge } from '../lib/card-bridge.js';
 import { shortPersonName, withoutPatronymic } from '../lib/format.js';
-import { MessageAttachments } from './attachments.js';
-import { BubbleTail } from './bubble-tail.js';
+import { attachmentsContentWidth, MessageAttachments } from './attachments.js';
+import { BubbleOutline } from './bubble-outline.js';
 import { useChatPrefs } from './chat-prefs.js';
 import { useChatHostNavigation } from './chat-host.js';
 import { useJumpStore } from './jump-store.js';
@@ -115,7 +115,7 @@ export function MessageReactions({
  *   (MessageAvatar-примитив self-end); у остальных сообщений серии колонка
  *   аватара резервируется проставкой — пузыри стоят на одной вертикали;
  * - хвостик (`tail`): только у ПОСЛЕДНЕГО пузыря серии, из его нижнего угла
- *   к низу аватарки (BubbleTail, SVG под пузырём);
+ *   к низу аватарки (BubbleOutline, SVG-слой на боксе пузыря);
  * - мета: нижняя строка ПОД содержимым (не в строке текста) — реакции слева,
  *   пин/«изменено»/время/галочки справа (`message-meta.tsx`, общий с постами
  *   каналов); для скринридера у сообщений без видимого имени — sr-only
@@ -191,6 +191,11 @@ export const ChatMessageItem = memo(function ChatMessageItem({
   // (вердикт владельца 14.09.2026, рефы Битрикс24; рамка + SVG-обводка хвоста
   // давали артефакты стыка — пузыри и хвост теперь только заливками).
   const variant = mine ? 'default' : 'card';
+  // С вложениями пузырь УЗКИЙ — ширину задаёт блок вложений, а НЕ текст
+  // (#150, вердикт владельца 29.09 «как в Битриксе»): карточка растянута на
+  // колонку, кнопка скачивания у правого края, текст переносится внутри.
+  // Механика Telegram: у документа captionw = _maxw − padding.
+  const contentWidth = attachmentsContentWidth(message.attachments);
   return (
     <Message align={atEnd ? 'end' : 'start'} className="group/msg">
       {showAvatar ? (
@@ -207,11 +212,16 @@ export const ChatMessageItem = memo(function ChatMessageItem({
           <span className="sr-only">{withoutPatronymic(message.author.displayName)}: </span>
         )}
         <Bubble variant={variant}>
+          {/* Контурный слой (#155 р.10-11) — ПОД контентом: единая заливка
+              силуэта (CSS-фон пузыря прозрачен) + единая граница. Верджикты
+              14.09 сохранены: плавник накрывает прямой угол, контур одной
+              кривой. */}
+          <BubbleOutline side={tail ? (atEnd ? 'right' : 'left') : null} variant={variant} />
           {/* Угол со стороны хвостика — БЕЗ скругления: скруглённый угол
               оставлял собственный бордюр пузыря пересекать основание хвоста
               («пришитый отросток», вердикт владельца 14.09.2026); прямой угол
               накрыт заливкой хвоста, и штрих хвоста продолжает бордюр пузыря
-              одной линией (bubble-tail.tsx). */}
+              одной линией (bubble-outline.tsx). */}
           {/* Реакции и вложения — ВНУТРЬ пузыря (вердикт владельца 14.09.2026,
               реф Битрикс24): они расширяют пузырь по высоте, а НЕ висят под
               ним — иначе аватар (self-end) и хвостик отлипали от пузыря к
@@ -231,6 +241,7 @@ export const ChatMessageItem = memo(function ChatMessageItem({
               'relative flex flex-col gap-[3px] pt-[6px] pb-[5px]',
               tail && (atEnd ? 'rounded-br-none' : 'rounded-bl-none'),
             )}
+            style={contentWidth ? { width: contentWidth } : undefined}
           >
             {/* Имя автора — ВЕРХНЯЯ строка пузыря (вердикт владельца 24.09.2026,
                 #96, реф Битрикс24): цветное и отличается от текста; только
@@ -279,12 +290,6 @@ export const ChatMessageItem = memo(function ChatMessageItem({
               (Bubble — relative), видна по hover/focus/открытом попапе. */}
           {/* В режиме выделения реакции недоступны (модель Битрикс24, #132 р.4). */}
           {reactionsHidden ? null : <ReactionPicker message={message} atEnd={atEnd} />}
-          {/* Хвостик — ПОСЛЕ тела пузыря (вердикт владельца 14.09.2026:
-              «вертикальная линия-разделитель»): если рисовать до BubbleContent,
-              бордюр пузыря перекрашивает заливку хвоста в стыке и читается
-              шов; после — заливка хвоста накрывает угловой стык бордюра, и
-              контур идёт одной линией. */}
-          {tail ? <BubbleTail side={atEnd ? 'right' : 'left'} variant={variant} /> : null}
         </Bubble>
       </MessageContent>
     </Message>

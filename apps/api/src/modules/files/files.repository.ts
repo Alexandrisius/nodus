@@ -13,6 +13,8 @@ export interface FileObjectRow {
   mime: string;
   size: number;
   scanStatus: string;
+  /** Дериват (превью #150): id файла-оригинала; null — пользовательский файл. */
+  derivedFrom: string | null;
   createdAt: Date;
 }
 
@@ -46,6 +48,7 @@ export class FilesRepository {
     name: string;
     mime: string;
     size: number;
+    derivedFrom?: string | null;
   }): Promise<FileObjectRow> {
     const created = await this.prisma.fileObject.create({
       data: {
@@ -58,6 +61,7 @@ export class FilesRepository {
         mime: row.mime,
         size: row.size,
         scanStatus: 'pending',
+        derivedFrom: row.derivedFrom ?? null,
         versions: {
           create: {
             version: 1,
