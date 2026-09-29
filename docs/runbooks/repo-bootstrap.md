@@ -35,6 +35,7 @@ gh repo create Alexandrisius/nodus --private --source=. --push
 gh label create "type:feature" --color 0E8A16
 gh label create "type:bug" --color D73A4A
 gh label create "type:chore" --color 6B7280
+gh label create "type:epic" --color 8B5CF6 --description "Эпик: бизнес-кейс из roadmap, контейнер дочерних issues"
 gh label create "P0" --color B60205
 gh label create "P1" --color D93F0B
 gh label create "P2" --color FBCA04
@@ -42,7 +43,23 @@ gh label create "area:web" --color 1D76DB
 gh label create "area:api" --color 5319E7
 gh label create "area:infra" --color 0052CC
 gh label create "area:docs" --color 0075CA
+gh label create "module:chat" --color C5DEF5 --description "Мессенджер: беседы, каналы, треды, реакции, стикеры (M6)"
+gh label create "module:tasks" --color C5DEF5 --description "Задачи: статус-схемы, канбан, трекинг времени (M4)"
+gh label create "module:projects" --color C5DEF5 --description "Проекты: журнал, карточка, проектный канбан (M4)"
+gh label create "module:correspondence" --color C5DEF5 --description "Корреспонденция: письма, регистрация, резолюция → поручение (M5)"
+gh label create "module:files" --color C5DEF5 --description "Файлы: хранилище SILO, просмотр, производные (M9)"
+gh label create "module:workflows" --color C5DEF5 --description "Согласования и workflow-схемы (M7)"
+gh label create "module:auth" --color C5DEF5 --description "Доступ: логин, сессии, учётки сотрудников (M2)"
+gh label create "module:directory" --color C5DEF5 --description "Справочник сотрудников и оргструктура (M2)"
+gh label create "module:notifications" --color C5DEF5 --description "Уведомления: центр, правила, каналы доставки (M8)"
+gh label create "module:dictionaries" --color C5DEF5 --description "Справочники/классификаторы бизнес-списков (ядро, I15)"
+gh label create "module:core" --color C5DEF5 --description "Кросс-модульная платформа: дизайн-система, общие механизмы, ui-preferences, зависимости"
+gh label create "status:ready" --color 3FB950 --description "Спека готова или не требуется — можно брать (порядок по roadmap/P)"
+gh label create "status:draft" --color CCCCCC --description "Драфт/задел — ждать решения владельца, в работу не брать"
+gh label create "status:waiting-trigger" --color D4C5F9 --description "Задел с триггером — брать только при наступлении триггера из тела issue"
 ```
+
+Полный канон измерений — `docs/process/workflow.md` (раздел «Метаданные issues»); живой словарь значений — `gh label list`.
 
 ### 4. Milestone
 
@@ -111,7 +128,7 @@ gh api -X PUT repos/Alexandrisius/nodus/branches/main/protection \
 ## Проверка результата
 
 - `gh repo view Alexandrisius/nodus` открывается; приватность — Private.
-- `gh label list` — 10 labels; `gh issue list` — 4 issues с milestone MVP.
+- `gh label list` — 25 labels; `gh issue list` — 4 issues с milestone MVP.
 - `git log --oneline` — коммиты на `main`; `git status` — чисто.
 
 ## Откат

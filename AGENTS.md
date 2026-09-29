@@ -60,6 +60,7 @@
 ## Как мы работаем (кратко; детали — `docs/process/workflow.md`)
 
 - **GitHub Issues — единственный таск-трекер.** Нет задачи вне issue.
+- **Метаданные issues — пять ортогональных измерений** (закрытый словарь; полная таблица, правила выбора и gh-рецепты — `docs/process/workflow.md`): тип `type:feature|bug|chore|epic` (ровно 1) · приоритет `P0|P1|P2` (0–1, назначает владелец/roadmap) · модуль `module:chat|tasks|projects|correspondence|files|workflows|auth|directory|notifications|dictionaries|core` (0–2 из карты `docs/architecture/modules.md`, 0 — работа вне доменов: CI/репо/процесс; `core` — кросс-модульная платформа; модуля нет в словаре — лейбл создаётся с первым issue модуля) · слой `area:web|api|infra|docs` (0–2) · готовность `status:ready|draft|waiting-trigger` (ровно 1 у не-эпиков; зеркалит первую строку спеки: ready — можно брать, draft — ждать владельца, waiting-trigger — только при триггере из тела). Issue создаётся с полным набором измерений; заголовок — без commit-префиксов (`feat:`, `[Баг]`) — тип и модуль несут лейблы. Примеры: «все открытые issues мессенджера» → `gh issue list --label module:chat --state open`; «что можно брать» → `--label status:ready`.
 - **Одна фича = один issue** с планом по фазам в описании; не дробим; планы наперёд не пишем — детальный план составляется при взятии issue в работу.
 - Ветка `feat/<N>-<имя>` (`fix/`, `chore/` аналогично); коммиты conventional со ссылкой `(#N)`; один PR = один issue, `Closes #N`.
 - **Каждая задача валидируется независимым субагентом со свежим контекстом** — обязательный пункт DoD.

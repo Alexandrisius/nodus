@@ -1,6 +1,5 @@
 name: "Фича"
 description: "Новая функциональность (одна фича = один issue)"
-title: "[Фича] "
 labels: ["type:feature"]
 body:
   - type: textarea
