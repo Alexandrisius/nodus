@@ -3,8 +3,21 @@ import type { ComposerSubmit } from './chat-composer.js';
 import { toReplyPreview } from './reply-snapshot.js';
 
 /** ComposerSubmit → SendChatVars: готовые вложения → attachmentIds + превью
- *  для оптимистичного temp-сообщения; черновик ответа → поля цитаты. */
+ *  для оптимистичного temp-сообщения; черновик ответа → поля цитаты.
+ *  Стикер (#143) — приоритетная ветка: отдельное сообщение без текста,
+ *  черновик композера не съедается (keepDraft). */
 export function toSendVars(submit: ComposerSubmit): SendChatVars {
+  if (submit.sticker) {
+    return {
+      text: '',
+      stickerId: submit.sticker.stickerId,
+      attachments: [submit.sticker.attachment],
+      replyToId: null,
+      quoteText: null,
+      reply: null,
+      keepDraft: true,
+    };
+  }
   const ready = submit.attachments.flatMap((a) => (a.attachment ? [a.attachment] : []));
   return {
     text: submit.text,
