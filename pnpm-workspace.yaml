@@ -9,6 +9,10 @@ packages:
 overrides:
   deepmerge-ts: '>=8.0.0'
   mysql2: '>=3.22.0'
+  # undici high (GHSA-rfgv-xxqx-mfg5 и др., 30.09): транзитивно из vitest/jsdom (8.x)
+  # и shadcn/@dotenvx (7.x) — селективно, без смены мейджора у потребителей.
+  undici@>=8.0.0: 8.10.2
+  undici@<8.0.0: 7.29.1
 
 # pnpm 11: install-скрипты зависимостей блокируются, если пакет не разрешён явно.
 # esbuild (транспиляция Vite/Vitest) и unrs-resolver (резолвер
