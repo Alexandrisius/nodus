@@ -43,15 +43,23 @@ gh label create "area:web" --color 1D76DB
 gh label create "area:api" --color 5319E7
 gh label create "area:infra" --color 0052CC
 gh label create "area:docs" --color 0075CA
-for m in chat tasks projects correspondence files workflows auth directory notifications dictionaries core; do
-  gh label create "module:$m" --color C5DEF5
-done
+gh label create "module:chat" --color C5DEF5 --description "Мессенджер: беседы, каналы, треды, реакции, стикеры (M6)"
+gh label create "module:tasks" --color C5DEF5 --description "Задачи: статус-схемы, канбан, трекинг времени (M4)
+gh label create "module:projects" --color C5DEF5 --description "Проекты: журнал, карточка, проектный канбан (M4)
+gh label create "module:correspondence" --color C5DEF5 --description "Корреспонденция: письма, регистрация, резолюция → поручение (M5)
+gh label create "module:files" --color C5DEF5 --description "Файлы: хранилище SILO, просмотр, производные (M9)
+gh label create "module:workflows" --color C5DEF5 --description "Согласования и workflow-схемы (M7)
+gh label create "module:auth" --color C5DEF5 --description "Доступ: логин, сессии, учётки сотрудников (M2)
+gh label create "module:directory" --color C5DEF5 --description "Справочник сотрудников и оргструктура (M2)
+gh label create "module:notifications" --color C5DEF5 --description "Уведомления: центр, правила, каналы доставки (M8)
+gh label create "module:dictionaries" --color C5DEF5 --description "Справочники/классификаторы бизнес-списков (ядро, I15)
+gh label create "module:core" --color C5DEF5 --description "Кросс-модульная платформа: дизайн-система, общие механизмы, ui-preferences, зависимости
 gh label create "status:ready" --color 3FB950 --description "Спека готова или не требуется — можно брать (порядок по roadmap/P)"
 gh label create "status:draft" --color CCCCCC --description "Драфт/задел — ждать решения владельца, в работу не брать"
 gh label create "status:waiting-trigger" --color D4C5F9 --description "Задел с триггером — брать только при наступлении триггера из тела issue"
 ```
 
-Описания module-лейблов и полный канон измерений — `docs/process/workflow.md` (раздел «Метаданные issues»).
+Полный канон измерений — `docs/process/workflow.md` (раздел «Метаданные issues»); живой словарь значений — `gh label list`.
 
 ### 4. Milestone
 
