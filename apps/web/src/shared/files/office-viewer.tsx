@@ -97,6 +97,9 @@ export function OfficeViewer({
             }
           });
           observer.observe(holder, { childList: true, subtree: true });
+          // DocsAPI может вставить iframe синхронно в конструкторе — ДО
+          // observe(): MutationObserver на будущее не сработает, проверяем сразу.
+          if (holder.querySelector('iframe')) setReady(true);
         }
       })
       .catch((error) => {
