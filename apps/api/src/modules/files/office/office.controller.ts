@@ -1,4 +1,4 @@
-import { Controller, Get, Inject, Param, Post, Query, Req } from '@nestjs/common';
+import { Controller, Get, HttpCode, Inject, Param, Post, Query, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 import { z } from 'zod';
@@ -104,9 +104,13 @@ export class OfficeController {
    * Idempotency-Key (DS его не шлёт), а по document key + lastsave в
    * сервисе. Ответ `{ error: 0 }` — протокол DS; 5xx заставляет DS
    * повторить доставку (желательно для транзиентных сбоев скачивания).
+   * @HttpCode(200) обязателен: Nest-дефолт 201 для POST DS считает ошибкой
+   * доставки (docservice ждёт ровно 200) и показывает редактору «Не
+   * удается сохранить документ» — репро 29.09.
    */
   @Public()
   @Post(':id/office-callback')
+  @HttpCode(200)
   @ApiOperation({ summary: 'Callback сохранений ONLYOFFICE (внутренний, для DS)' })
   async officeCallback(
     @Param('id', new ZodValidationPipe(idSchema)) fileId: string,

@@ -10,6 +10,11 @@ import { ChatFileAccessRepository } from './chat-file-access.repository.js';
  * USER_PROFILE_READER / FILE_STORAGE; в Nest нет Angular-multi — токен
  * провайдится фабрикой-массивом). Самодостаточен (свой репозиторий на
  * PrismaService из @Global DatabaseModule) — провайдеров ChatModule не тянет.
+ *
+ * exports ОБЯЗАТЕЛЕН: глобальны только ЭКСПОРТИРОВАННЫЕ провайдеры @Global-
+ * модуля (урок 29.09: без exports токен не резолвился, @Optional() в
+ * OfficeSessionService молча подставлял [] и доступ падал до owner-only —
+ * Regress-замок в chat-file-access.module.test.ts).
  */
 @Global()
 @Module({
@@ -22,5 +27,6 @@ import { ChatFileAccessRepository } from './chat-file-access.repository.js';
       inject: [ChatFileAccess],
     },
   ],
+  exports: [FILE_ACCESS_CONTRIBUTORS],
 })
 export class ChatFileAccessModule {}

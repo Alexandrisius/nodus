@@ -12,6 +12,7 @@ import { DownloadCard } from './download-card.jsx';
 import { MediaViewer } from './media-viewer.jsx';
 import { OfficeViewer } from './office-viewer.jsx';
 import { PdfViewer } from './pdf-viewer.jsx';
+import { warmOfficeAssets } from './office-warmup.js';
 import { resolveViewerRoute } from './viewer-registry.js';
 import { useViewerStore } from './viewer-store.js';
 
@@ -22,8 +23,13 @@ import { useViewerStore } from './viewer-store.js';
  * Один вьюер на приложение (стор), портал z-[80], Esc/задник закрывают,
  * фокус возвращается источнику. Спека: «как в Битриксе» — просмотр
  * встроенным редактором, правка отдельным режимом.
+ *
+ * Геометрия окна = канон карточек сущностей (ADR-0009): рама inset-2,
+ * правый край у служебной полосы (stripW передаёт app-shell из состояния
+ * полосы — общие константы слою shared недоступны), скругление карточки,
+ * transition-[right] синхронно с раскрытием полосы.
  */
-export function AttachmentViewer() {
+export function AttachmentViewer({ stripW = 0 }: { stripW?: number }) {
   const target = useViewerStore((s) => s.target);
   const close = useViewerStore((s) => s.close);
   const [mode, setMode] = useState<'view' | 'edit'>('view');
@@ -32,6 +38,12 @@ export function AttachmentViewer() {
 
   const configQuery = useOfficeConfig();
   const officeConfig = configQuery.data;
+
+  // Прогрев кэша DS-ассетов после включения движка (idle, раз на браузер):
+  // первое открытие документа не ждёт загрузки ~30МБ sdkjs.
+  useEffect(() => {
+    if (officeConfig?.enabled) warmOfficeAssets();
+  }, [officeConfig?.enabled]);
 
   // Сброс режима при открытии новой цели.
   useEffect(() => {
@@ -84,7 +96,10 @@ export function AttachmentViewer() {
       aria-label={ui.files.viewerTitle}
     >
       <div className="absolute inset-0 bg-background/80" onClick={close} />
-      <div className="absolute inset-4 flex flex-col overflow-hidden rounded-[14px] border bg-card md:inset-8">
+      <div
+        className="absolute inset-y-2 left-2 flex flex-col overflow-hidden rounded-2xl border bg-card shadow-xl transition-[right] duration-200"
+        style={{ right: stripW + 8 }}
+      >
         <header className="flex h-14 shrink-0 items-center gap-3 border-b px-4">
           <div className="min-w-0 flex-1">
             <p className="truncate text-[15px] font-medium" title={target.name}>

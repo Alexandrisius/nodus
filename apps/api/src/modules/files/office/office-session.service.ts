@@ -120,8 +120,11 @@ export class OfficeSessionService {
       customization: {
         forcesave: effectiveMode === 'edit',
         compactHeader: true,
-        about: false,
+        // «О продукте» — ссылка на разработчика (ONLYOFFICE); реклама
+        // (feedback, маркетплейс плагинов, AI-кнопки) — выключена (29.09).
+        about: true,
         feedback: false,
+        plugins: false,
       },
     };
     const token = await this.tokens.sign({ document, editorConfig });

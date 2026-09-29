@@ -48,8 +48,12 @@ export const officeEditorConfigSchema = z.object({
     forcesave: z.boolean(),
     /** Компактная шапка редактора — одна строка тулбара. */
     compactHeader: z.boolean(),
+    /** «О программе» — инфо о разработчике ONLYOFFICE (CE-кредит). */
     about: z.boolean(),
+    /** Кнопка обратной связи (сайт вендора) — выключена. */
     feedback: z.boolean(),
+    /** Вкладка «Плагины» (AI, маркетплейс и пр.) — выключена. */
+    plugins: z.boolean(),
   }),
 });
 export type OfficeEditorConfig = z.infer<typeof officeEditorConfigSchema>;

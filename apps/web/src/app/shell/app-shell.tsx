@@ -19,7 +19,8 @@ import { EdgeScrollbar } from './edge-scrollbar.js';
 import { LiveGraph } from './live-graph.js';
 import { startLayoutJitterLogger } from './layout-jitter-logger.js';
 import { NodeRail } from './node-rail.js';
-import { RightRail } from './right-rail.js';
+import { EDGE_W_COLLAPSED, EDGE_W_EXPANDED, RightRail } from './right-rail.js';
+import { useRailHidden } from './rail-visibility.js';
 import { useShellStore } from './shell-store.js';
 import { TopBar } from './top-bar.js';
 import { useCardStack, useOpenCard, useReplaceTopCard } from './use-card-stack.js';
@@ -42,6 +43,11 @@ export function AppShell() {
   const openCard = useOpenCard();
   const cardStack = useCardStack();
   const replaceTopCard = useReplaceTopCard();
+  // Геометрия вьюера вложений = канон карточек (ADR-0009): правый край у
+  // служебной полосы; на модуле мессенджера полоса скрыта — stripW=0.
+  const edgeOpen = useShellStore((s) => s.edgeOpen);
+  const railHidden = useRailHidden();
+  const viewerStripW = railHidden ? 0 : edgeOpen ? EDGE_W_EXPANDED : EDGE_W_COLLAPSED;
   // WS чата (#104): живёт с сессией, тихий статус; поллинг — fallback.
   useChatSocket();
   // Диагностика «карточка дёргается» (#132 р.11): только ?wsdebug=1 — кадровые
@@ -139,7 +145,7 @@ export function AppShell() {
       <WsDebugBadge />
       <CommandPalette />
       <ChatDialogHosts />
-      <AttachmentViewer />
+      <AttachmentViewer stripW={viewerStripW} />
       <Toaster richColors theme={theme} />
     </TooltipProvider>
   );
