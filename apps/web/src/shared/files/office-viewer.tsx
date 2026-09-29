@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Config, DocEditor } from '@onlyoffice/doceditor-types';
 import { ui, type OfficeSession } from '@nodus/contracts';
 
@@ -49,7 +49,12 @@ export function OfficeViewer({
   onOutdated: () => void;
   onEngineError: () => void;
 }) {
-  const holderId = useId().replace(/[^a-zA-Z0-9-]/g, '');
+  // УНИКАЛЬНЫЙ id на каждый инстанс: DocsAPI держит реестр редакторов по
+  // id плейсхолдера; повторное открытие модалки с тем же id (useId стабилен
+  // для позиции дерева) после не успевшего вычиститься destroyEditor
+  // молча не стартует — вечная загрузка со второго файла (репро 29.09,
+  // владелец: первый csv открывается, дальше все висят).
+  const [holderId] = useState(() => `oo-editor-${Math.random().toString(36).slice(2, 10)}`);
   const editorRef = useRef<DocEditor | null>(null);
   const [ready, setReady] = useState(false);
   const handlers = useRef({ onOutdated, onEngineError });
@@ -57,7 +62,6 @@ export function OfficeViewer({
 
   useEffect(() => {
     let cancelled = false;
-    let observer: MutationObserver | null = null;
     setReady(false);
     loadDocsApi()
       .then(() => {
@@ -85,22 +89,12 @@ export function OfficeViewer({
           },
         };
         editorRef.current = new window.DocsAPI.DocEditor(holderId, config);
-        // iframe появляется асинхронно — с этого момента у DS свой лоадер,
-        // а наш оверлей не должен закрывать его диалоги (кодировка TXT
-        // висела невидимым диалогом, репро 29.09).
-        const holder = document.getElementById(holderId);
-        if (holder) {
-          observer = new MutationObserver(() => {
-            if (holder.querySelector('iframe')) {
-              setReady(true);
-              observer?.disconnect();
-            }
-          });
-          observer.observe(holder, { childList: true, subtree: true });
-          // DocsAPI может вставить iframe синхронно в конструкторе — ДО
-          // observe(): MutationObserver на будущее не сработает, проверяем сразу.
-          if (holder.querySelector('iframe')) setReady(true);
-        }
+        // Оверлей закрывает только ожидание api.js: конструктор отработал —
+        // дальше у DS свой лоадер в плейсхолдере, а его диалоги (кодировка
+        // TXT, разделитель CSV) обязаны быть видимы. Детект «появился iframe»
+        // ненадёжен (структура DOM api.js различается между сценариями —
+        // репро 29.09: диалог CSV оставался под оверлеем).
+        setReady(true);
       })
       .catch((error) => {
         console.error('[office-viewer] init failed holder=' + holderId, error);
@@ -108,7 +102,6 @@ export function OfficeViewer({
       });
     return () => {
       cancelled = true;
-      observer?.disconnect();
       // destroyEditor гасит iframe и каналы ко-эдитинга (утечки WS иначе).
       editorRef.current?.destroyEditor();
       editorRef.current = null;
