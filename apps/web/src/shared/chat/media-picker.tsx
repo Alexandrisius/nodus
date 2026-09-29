@@ -10,9 +10,11 @@ import { StickerPanel } from './sticker-picker.js';
 /**
  * Медиа-пикер композера (#143): кнопка Smile открывает панель с вкладками
  * «Эмодзи | Стикеры» (макет владельца 28.09 — третья вкладка «Гифки»
- * зарезервирована на будущее). Габарит панели одинаков на обеих вкладках
- * (канон оверлеев-пикеров: прыгающее окно = баг); панель живёт между
- * выборами (канон Telegram). Попап не крадёт «вечный курсор» (канон #71).
+ * зарезервирована на будущее). Габарит панели ОДИНАКОВ на обеих вкладках и
+ * не меняется при переключении/фильтрации (канон оверлеев-пикеров);
+ * панель живёт между выборами (канон Telegram). Попап не крадёт «вечный
+ * курсор» (канон #71). Сегмент вкладок — с воздухом от границ панели:
+ * активная заливка и ховер НЕ касаются разделителя (вердикт владельца 30.09).
  */
 
 type MediaTab = 'emoji' | 'stickers';
@@ -45,7 +47,7 @@ export function MediaPickerButton({
         <div
           role="tablist"
           aria-label={ui.chat.emoji}
-          className="flex gap-1 border-b border-border p-1.5 pb-0"
+          className="flex gap-1 border-b border-border px-2 pt-2 pb-1.5"
         >
           <TabButton id="emoji" active={tab === 'emoji'} onSelect={setTab}>
             {ui.chat.emojiTab}
@@ -54,10 +56,14 @@ export function MediaPickerButton({
             {ui.chat.stickerTab}
           </TabButton>
         </div>
-        {tab === 'emoji' ? <EmojiPanel onPick={onPickEmoji} /> : null}
-        {tab === 'stickers' ? (
-          <StickerPanel onPick={onPickSticker} disabled={stickersDisabled} />
-        ) : null}
+        {/* Контент-зона фиксированной высоты — габарит панели не прыгает
+            между вкладками (канон пикеров). */}
+        <div className="flex h-80 flex-col overflow-hidden">
+          {tab === 'emoji' ? <EmojiPanel onPick={onPickEmoji} /> : null}
+          {tab === 'stickers' ? (
+            <StickerPanel onPick={onPickSticker} disabled={stickersDisabled} />
+          ) : null}
+        </div>
       </PopoverContent>
     </Popover>
   );
@@ -81,10 +87,10 @@ function TabButton({
       aria-selected={active}
       onClick={() => onSelect(id)}
       className={cn(
-        'h-7 flex-1 cursor-pointer rounded-md px-2 text-xs transition-colors',
+        'h-7 flex-1 cursor-pointer rounded-lg px-2 text-xs transition-colors',
         active
           ? 'bg-accent font-medium text-accent-foreground'
-          : 'text-muted-foreground hover:bg-accent/50',
+          : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
       )}
     >
       {children}

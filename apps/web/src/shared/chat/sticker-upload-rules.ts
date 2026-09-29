@@ -1,31 +1,12 @@
 /** Правила загрузки стикеров (#143): форматы/лимиты (спека Telegram/issue:
- *  WebP/PNG ≤512КБ сторона ~512; WebM без звука ≤3с ≤256КБ) + быстрая
- *  палитра эмодзи-привязок. Чистые функции — детерминированные тесты. */
+ *  WebP/PNG ≤512КБ сторона ~512; WebM без звука ≤3с ≤256КБ). Эмодзи-привязки
+ *  выбираются полным пикером (EmojiPanel, вердикт владельца 30.09) — здесь
+ *  только медиа-правила. Чистые функции — детерминированные тесты. */
 
 export const STATIC_MAX_BYTES = 512 * 1024;
 export const WEBM_MAX_BYTES = 256 * 1024;
 export const WEBM_MAX_SECONDS = 3;
 export const STICKER_ACCEPT = '.png,.webp,.webm,image/png,image/webp,video/webm';
-/** Палитра эмодзи-привязок в диалоге (прецедент — reaction-presets.ts):
- *  константа подбора, не бизнес-справочник. */
-export const QUICK_EMOJI = [
-  '👍',
-  '❤️',
-  '😂',
-  '🔥',
-  '🎉',
-  '🙏',
-  '👀',
-  '😎',
-  '✅',
-  '💯',
-  '🚀',
-  '💡',
-  '😅',
-  '🤝',
-  '⭐',
-  '😮',
-] as const;
 
 export type StickerIssue = 'format' | 'size' | 'duration';
 

@@ -1,4 +1,4 @@
-import { ImagePlus, X } from 'lucide-react';
+import { ImagePlus, Plus, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { StickerPack } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
@@ -14,7 +14,9 @@ import {
   DialogTitle,
 } from '@nodus/ui/components/dialog';
 import { Input } from '@nodus/ui/components/input';
+import { Popover, PopoverContent, PopoverTrigger } from '@nodus/ui/components/popover';
 
+import { EmojiPanel } from './emoji-picker.js';
 import {
   useCanManageStickerPacks,
   useCreateStickerPack,
@@ -23,7 +25,6 @@ import {
 } from './sticker-api.js';
 import { StickerGlyph } from './sticker-message.js';
 import {
-  QUICK_EMOJI,
   STICKER_ACCEPT,
   isWebmFile,
   probeStickerMedia,
@@ -247,6 +248,9 @@ function issueText(issue: StickerIssue): string {
   return ui.chat.stickerTooLong;
 }
 
+/** Строка файла: превью + имя + выбранные эмодзи чипами + «выбрать» через
+ *  ПОЛНЫЙ пикер эмодзи (EmojiPanel — тот же, что в композере; вердикт
+ *  владельца 30.09: короткая палитра не годится). */
 function DraftRow({
   draft,
   onToggle,
@@ -256,6 +260,7 @@ function DraftRow({
   onToggle: (key: string, emoji: string) => void;
   onRemove: (key: string) => void;
 }) {
+  const [emojiOpen, setEmojiOpen] = useState(false);
   return (
     <div className="flex items-start gap-2 rounded-lg bg-accent/40 p-2">
       <StickerGlyph
@@ -282,28 +287,45 @@ function DraftRow({
           <span className="text-label-xs text-destructive">{issueText(draft.issue)}</span>
         ) : (
           <span
-            className="flex flex-wrap gap-0.5"
+            className="flex flex-wrap items-center gap-1"
             role="group"
             aria-label={ui.chat.stickerEmojiStep}
           >
-            {QUICK_EMOJI.map((emoji) => {
-              const active = draft.emojis.includes(emoji);
-              return (
+            {draft.emojis.map((emoji) => (
+              <button
+                key={emoji}
+                type="button"
+                aria-label={`${emoji} — ${ui.common.cancel}`}
+                title={ui.common.cancel}
+                onClick={() => onToggle(draft.key, emoji)}
+                className="flex size-6 cursor-pointer items-center justify-center rounded-md bg-accent text-sm ring-1 ring-info/50"
+              >
+                {emoji}
+              </button>
+            ))}
+            <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
+              <PopoverTrigger asChild>
                 <button
-                  key={emoji}
                   type="button"
-                  aria-pressed={active}
-                  onClick={() => onToggle(draft.key, emoji)}
-                  className={
-                    active
-                      ? 'flex size-6 cursor-pointer items-center justify-center rounded-md bg-accent text-sm ring-1 ring-info/50'
-                      : 'flex size-6 cursor-pointer items-center justify-center rounded-md text-sm hover:bg-accent/50'
-                  }
+                  aria-label={ui.chat.stickerAddEmoji}
+                  title={ui.chat.stickerAddEmoji}
+                  disabled={draft.emojis.length >= 3}
+                  className="flex size-6 cursor-pointer items-center justify-center rounded-md text-muted-foreground hover:bg-accent/50 hover:text-foreground disabled:opacity-40"
                 >
-                  {emoji}
+                  <Plus className="size-3.5" strokeWidth={1.75} />
                 </button>
-              );
-            })}
+              </PopoverTrigger>
+              <PopoverContent
+                side="right"
+                align="start"
+                className="w-88 p-0"
+                onOpenAutoFocus={(event) => event.preventDefault()}
+              >
+                <div className="flex h-80 flex-col overflow-hidden">
+                  <EmojiPanel onPick={(emoji) => onToggle(draft.key, emoji)} />
+                </div>
+              </PopoverContent>
+            </Popover>
           </span>
         )}
       </div>

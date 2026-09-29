@@ -141,8 +141,8 @@ export function EmojiPanel({ onPick }: { onPick: (emoji: string) => void }) {
   }
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="border-b border-border p-2">
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="shrink-0 border-b border-border p-2">
         <Input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
@@ -151,7 +151,7 @@ export function EmojiPanel({ onPick }: { onPick: (emoji: string) => void }) {
           aria-label={ui.chat.emojiSearch}
         />
       </div>
-      <div className="h-80 overflow-y-auto overscroll-contain p-2">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-2">
         {data === null ? (
           <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
             <Search className="mr-2 size-4 animate-pulse" strokeWidth={1.75} />

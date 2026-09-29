@@ -280,4 +280,12 @@ export const chatStrings = {
   stickerBadFormat: 'Поддерживаются только WebP, PNG и WebM без звука',
   stickerTooLong: 'WebM дольше 3 секунд не поддерживается',
   stickerPackCreated: 'Пак стикеров создан',
+  /** Деградация без бэкенда (#143 Ф1→Ф2): живой chat-API без стикерного
+   *  модуля отвечает 404 — вкладка честно объясняет, а не выглядит мёртвой. */
+  stickerServerPending: 'Стикеры появятся после обновления сервера — интерфейс готов',
+  /** Вкладка «Недавние» паков (модель Битрикс24: обложки паков рядом). */
+  stickerRecentTab: 'Недавние',
+  stickerPackEmpty: 'В паке пока нет стикеров',
+  stickerAddEmoji: 'Выбрать эмодзи',
+  stickerRemoveFromPack: 'Убрать из пака',
 } as const;
