@@ -144,6 +144,22 @@ describe('attach-send-dialog (#144)', () => {
     expect(useChatDrafts.getState().drafts[KEY]?.attachments).toEqual([]);
   });
 
+  it('клик снаружи окна НЕ закрывает его и НЕ снимает вложения (#148)', () => {
+    useChatDrafts.getState().addAttachments(KEY, [pending('a')]);
+    useAttachSendDialog.getState().open(KEY, 'набранный текст');
+    render(<AttachSendDialogHost />);
+
+    // pointerdown по заднику (вне DialogContent) — dismissal подавлен.
+    fireEvent.pointerDown(document.body);
+
+    expect(useAttachSendDialog.getState().scope).toBe(KEY);
+    expect(useChatDrafts.getState().drafts[KEY]?.attachments).toHaveLength(1);
+    // А намеренная отмена — работает как раньше (текст — черновиком).
+    fireEvent.click(screen.getByRole('button', { name: 'Отмена' }));
+    expect(useChatDrafts.getState().drafts[KEY]?.text).toBe('набранный текст');
+    expect(useAttachSendDialog.getState().scope).toBeNull();
+  });
+
   it('заголовок считает файлы русской плюрализацией', () => {
     useChatDrafts.getState().addAttachments(KEY, [pending('a'), pending('b')]);
     useAttachSendDialog.getState().open(KEY);
