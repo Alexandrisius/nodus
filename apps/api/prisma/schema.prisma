@@ -538,7 +538,8 @@ model FileVersion {
   size        Int
   mime        String
   /// Ключ документа ONLYOFFICE, из которого сохранена версия (#138):
-  /// `${fileId}:v{N}` на момент правки — дедуп повторных колбэков.
+  /// `${fileId}.v{N}` на момент правки — дедуп повторных колбэков
+  /// (алфавит ключа DS без двоеточия — см. office-session.service).
   sourceKey   String?  @map("source_key")
   /// lastsave колбэка (мс epoch): повторная доставка того же сохранения
   /// (forcesave → закрытие) не создаёт дубликат-версию.
