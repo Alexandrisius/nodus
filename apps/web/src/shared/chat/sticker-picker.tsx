@@ -55,9 +55,14 @@ export function StickerPanel({
   const aliveIds = new Set(packs.flatMap((p) => p.stickers.map((s) => s.id)));
   const recentAlive = recent.filter((r) => aliveIds.has(r.id));
 
-  // Активная вкладка: выбранный пак; если его больше нет (удалили) — первый.
-  const activePack = ordered.find((p) => p.id === activeId);
-  const effectiveTab: string = activePack ? activePack.id : (ordered[0]?.id ?? RECENT_TAB);
+  // Активная вкладка: выбранная; «Недавние» или удалённый пак — первый пак.
+  const effectiveTab: string = ordered.some((p) => p.id === activeId)
+    ? activeId
+    : (ordered[0]?.id ?? RECENT_TAB);
+  // Пак активной вкладки — ПОСЛЕ разрешения effectiveTab (не по raw activeId:
+  // начальное состояние 'recent' без живого выбора пользователя оставляло
+  // сетку первого пака пустой — баг ревизии, пойман пробой панели).
+  const activePack = ordered.find((p) => p.id === effectiveTab);
 
   function openCreate(target: StickerPack | null) {
     setAppendTo(target);
