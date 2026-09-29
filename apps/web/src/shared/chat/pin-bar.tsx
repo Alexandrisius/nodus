@@ -13,16 +13,11 @@ import { useJumpStore } from './jump-store.js';
 
 /** Выдержка закрепа: текст или подпись медиа (канон Telegram: бар показывает
  *  превью сообщения; удалённый закреп — placeholder). */
-function pinSnippet(
-  text: string,
-  kind: 'image' | 'file' | 'sticker' | null,
-  deleted: boolean,
-): string {
+function pinSnippet(text: string, kind: 'image' | 'file' | null, deleted: boolean): string {
   if (deleted) return ui.chat.deletedPlaceholder;
   if (text) return text;
   if (kind === 'image') return ui.chat.quotePhoto;
   if (kind === 'file') return ui.chat.quoteFile;
-  if (kind === 'sticker') return ui.chat.stickerPreview;
   return '';
 }
 

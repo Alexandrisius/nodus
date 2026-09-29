@@ -1,16 +1,12 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { MediaPickerButton } from './media-picker.js';
-import { pushRecentEmoji, recentEmojis } from './emoji-picker.js';
+import { EmojiPickerButton, pushRecentEmoji, recentEmojis } from './emoji-picker.js';
 
 /**
- * Медиа-пикер композера (#130 → #143): вкладки «Эмодзи | Стикеры», вкладка
- * эмодзи открывается по умолчанию, грузит данные лениво, клик по эмодзи —
- * onPick + «Недавние» в localStorage; поиск фильтрует. Стикер-вкладка на
- * моках требует MSW-стора — её поведение покрывают интеграционные прогоны.
+ * Панель эмодзи композера (#130): открывается кликом, грузит данные лениво,
+ * клик по эмодзи — onPick + «Недавние» в localStorage; поиск фильтрует.
  */
 
 beforeEach(() => {
@@ -49,16 +45,12 @@ afterEach(() => {
 const PICKED = vi.fn();
 
 function setup() {
-  // Стикер-вкладка живёт на TanStack Query — провайдер обязателен.
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <QueryClientProvider client={client}>
-      <MediaPickerButton onPickEmoji={PICKED} onPickSticker={vi.fn()}>
-        <button type="button" aria-label="Эмодзи">
-          smile
-        </button>
-      </MediaPickerButton>
-    </QueryClientProvider>,
+    <EmojiPickerButton onPick={PICKED}>
+      <button type="button" aria-label="Эмодзи">
+        smile
+      </button>
+    </EmojiPickerButton>,
   );
 }
 
@@ -70,7 +62,7 @@ function emojiButton(emoji: string): Element | null {
   );
 }
 
-describe('MediaPickerButton: вкладка эмодзи (#130/#143)', () => {
+describe('EmojiPickerButton (#130)', () => {
   it('клик открывает панель; выбор — onPick и «Недавние»', async () => {
     setup();
     fireEvent.click(document.body.querySelector('button[aria-label="Эмодзи"]') as Element);
@@ -103,22 +95,4 @@ describe('MediaPickerButton: вкладка эмодзи (#130/#143)', () => {
     pushRecentEmoji('🔥');
     expect(recentEmojis()).toEqual(['🔥', '🎉']);
   });
-
-  it('вкладки переключаются: «Стикеры» выбирается, эмодзи скрываются', async () => {
-    setup();
-    fireEvent.click(document.body.querySelector('button[aria-label="Эмодзи"]') as Element);
-    await waitFor(
-      () => {
-        expect(emojiButton('fire')).not.toBeNull();
-      },
-      { timeout: 8000 },
-    );
-    const stickerTab = Array.from(document.body.querySelectorAll('[role="tab"]')).find((t) =>
-      t.textContent?.includes('Стикеры'),
-    );
-    expect(stickerTab).not.toBeNull();
-    fireEvent.click(stickerTab as Element);
-    // Вкладка эмодзи размонтирована: сетка эмодзи ушла.
-    expect(emojiButton('fire')).toBeNull();
-  }, 30000);
 });

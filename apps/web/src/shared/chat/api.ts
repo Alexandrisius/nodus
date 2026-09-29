@@ -162,11 +162,6 @@ export interface SendChatVars {
   replyToId?: string | null;
   quoteText?: string | null;
   attachmentIds?: string[];
-  /** Стикер-отправка (#143): id стикера из пака; превью-вложение — в
-   *  attachments (kind='sticker' с метаданными пака). */
-  stickerId?: string;
-  /** Стикер не съедает черновик композера (набранный текст остаётся). */
-  keepDraft?: boolean;
   /** Превью для оптимистичного temp-сообщения (готовые загрузки/цитата). */
   attachments?: MessageAttachment[];
   reply?: ReplyPreview | null;
@@ -196,7 +191,6 @@ export function useSendChatMessage(conversationId: string, draftScope?: string) 
         body: {
           text: vars.text,
           attachmentIds: vars.attachmentIds,
-          stickerId: vars.stickerId,
           replyToId: vars.replyToId ?? null,
           quoteText: vars.quoteText ?? null,
           threadRootId: vars.threadRootId ?? null,
@@ -272,12 +266,11 @@ export function useSendChatMessage(conversationId: string, draftScope?: string) 
       toast.error(ui.common.sendError);
     },
 
-    onSuccess: (server, vars, context) => {
+    onSuccess: (server, _vars, context) => {
       // Черновик чистится ТОЛЬКО по успеху (#124, аудит #123): при ошибке
       // сети набранный текст остаётся в композере (retry тем же ключом
       // идемпотентности). Скоуп знает хост (conversation/feed/thread).
-      // Стикер-отправка черновик не трогает (keepDraft, #143).
-      if (draftScope && !vars.keepDraft) useChatDrafts.getState().clear(draftScope);
+      if (draftScope) useChatDrafts.getState().clear(draftScope);
       // Темповая запись заменяется серверной в том же кэше (лента или тред).
       queryClient.setQueryData<Paginated<ChatMessage>>(context?.threadKey, (old) =>
         old

@@ -16,7 +16,7 @@ export interface ReplyDraft {
   snippet: string;
   /** Частичная цитата: выделенный автором фрагмент (Replies 2.0). */
   quoteText: string | null;
-  attachmentKind: 'image' | 'file' | 'sticker' | null;
+  attachmentKind: 'image' | 'file' | null;
   /** Оригинал живёт в треде канала — прыжок по цитате целится в окно треда. */
   inThread: string | null;
 }
