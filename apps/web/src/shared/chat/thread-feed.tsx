@@ -164,10 +164,13 @@ export const ThreadFeed = memo(function ThreadFeed({
   }
 
   // Окно отправки вложений (#144): глобальный диалог шлёт через хук хоста —
-  // оптимистичность/reply/идемпотентность в одном месте.
+  // оптимистичность/reply/идемпотентность в одном месте; send — новый объект
+  // каждый рендер, реестру нужен стабильный колбэк: ref.
+  const sendRef = useRef(send);
+  sendRef.current = send;
   useEffect(
-    () => registerScopeSubmit(scope, (submit) => send.mutateAsync(toSendVars(submit))),
-    [scope, send],
+    () => registerScopeSubmit(scope, (submit) => sendRef.current.mutateAsync(toSendVars(submit))),
+    [scope],
   );
 
   function handleEditLast() {

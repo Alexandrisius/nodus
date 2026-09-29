@@ -243,10 +243,14 @@ function ConversationFeed({
 
   // Окно отправки вложений (#144): глобальный диалог шлёт через хук хоста —
   // оптимистичность/reply/идемпотентность в одном месте; реестр жив, пока
-  // панель смонтирована (режим выделения композер размонтирует, панель — нет).
+  // панель смонтирована (режим выделения композер размонтирует, панель —
+  // нет). send — новый объект каждый рендер, реестру нужен стабильный
+  // колбэк: ref, перерегистрация только по scope.
+  const sendRef = useRef(send);
+  sendRef.current = send;
   useEffect(
-    () => registerScopeSubmit(scope, (submit) => send.mutateAsync(toSendVars(submit))),
-    [scope, send],
+    () => registerScopeSubmit(scope, (submit) => sendRef.current.mutateAsync(toSendVars(submit))),
+    [scope],
   );
 
   function handleEditLast() {

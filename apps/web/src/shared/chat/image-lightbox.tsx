@@ -60,7 +60,13 @@ export function ImageLightbox({
       aria-label={image.name}
       tabIndex={-1}
       onClick={onClose}
-      className="fixed inset-0 z-[80] flex items-center justify-center bg-black/85 outline-none"
+      /* Поверх Radix-модалки (окно отправки вложений, #144): модал ставит
+         body pointer-events:none, портал в body наследует это — лайтбокс
+         был «прозрачен» для мыши, а клики мимо уходили в html и закрывали
+         модал. pointer-events-auto возвращает хит-тест; pointerdown не
+         всплывает до document-слушателей DismissableLayer модала. */
+      onPointerDown={(event) => event.stopPropagation()}
+      className="pointer-events-auto fixed inset-0 z-[80] flex items-center justify-center bg-black/85 outline-none"
     >
       <span className="absolute top-3 left-4 font-mono text-xs text-white/70 tabular-nums">
         {index + 1} / {images.length}

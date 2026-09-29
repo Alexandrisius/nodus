@@ -137,12 +137,15 @@ export const ThreadPane = memo(function ThreadPane({
 
   // Окно отправки вложений (#144): отправка через хук хоста (треда — с
   // threadRootId), оптимистичность/reply не дублируются в диалоге.
+  // send — новый объект каждый рендер: стабильный колбэк через ref.
+  const sendRef = useRef(send);
+  sendRef.current = send;
   useEffect(
     () =>
       registerScopeSubmit(scope, (submit) =>
-        send.mutateAsync({ ...toSendVars(submit), threadRootId }),
+        sendRef.current.mutateAsync({ ...toSendVars(submit), threadRootId }),
       ),
-    [scope, send, threadRootId],
+    [scope, threadRootId],
   );
 
   function handleEditLast() {

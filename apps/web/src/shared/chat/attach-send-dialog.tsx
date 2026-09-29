@@ -68,13 +68,19 @@ export function AttachSendDialogHost() {
     }));
 
   // Отправка встала (хост очистил черновик по onSuccess) или вложения сняты
-  // все до одной — окно закрывается само; sending гаснет здесь же.
+  // все до одной — окно закрывается само. Снятие последней строки = отмена:
+  // подпись возвращается черновиком в композер (валидатор #144: текст не
+  // должен теряться); на пути отправки подпись съедена сообщением.
   useEffect(() => {
     if (scope && items.length === 0) {
+      if (!sending) {
+        const leftover = useAttachSendDialog.getState().caption;
+        if (leftover) useChatDrafts.getState().setText(scope, leftover);
+      }
       setSending(false);
       close();
     }
-  }, [scope, items.length, close]);
+  }, [scope, items.length, sending, close]);
 
   if (!scope) return null;
 
@@ -88,7 +94,9 @@ export function AttachSendDialogHost() {
    *  черновиком (канон Telegram: текст появляется в чате только после
    *  закрытия окна, не онлайн-дублированием). */
   function cancelAll() {
-    if (!scope) return;
+    // В полёте отправки отмена выключена (валидатор #144): DELETE готовых
+    // вложений при уходящем сообщении ломал бы отправку.
+    if (!scope || sending) return;
     if (caption) useChatDrafts.getState().setText(scope, caption);
     const current = (useChatDrafts.getState().drafts[scope] ?? EMPTY_DRAFT).attachments;
     for (const item of current) {
@@ -159,6 +167,9 @@ export function AttachSendDialogHost() {
     <Dialog
       open
       onOpenChange={(open) => {
+        // Пока открыт лайтбокс превью, внешние клики модала (pointerdown
+        // мимо контента) не отменяют окно (валидатор #144).
+        if (!open && lightbox !== null) return;
         if (!open) cancelAll();
       }}
     >

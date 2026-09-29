@@ -131,6 +131,19 @@ describe('attach-send-dialog (#144)', () => {
     unregister();
   });
 
+  it('снятие последней строки крестиком: окно закрывается, подпись возвращается черновиком', async () => {
+    useChatDrafts.getState().addAttachments(KEY, [pending('a')]);
+    useAttachSendDialog.getState().open(KEY, 'набранный текст');
+    render(<AttachSendDialogHost />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Убрать из сообщения' }));
+
+    await waitFor(() => expect(useAttachSendDialog.getState().scope).toBeNull());
+    // Автозакрытие = отмена: текст не теряется (валидатор #144).
+    expect(useChatDrafts.getState().drafts[KEY]?.text).toBe('набранный текст');
+    expect(useChatDrafts.getState().drafts[KEY]?.attachments).toEqual([]);
+  });
+
   it('заголовок считает файлы русской плюрализацией', () => {
     useChatDrafts.getState().addAttachments(KEY, [pending('a'), pending('b')]);
     useAttachSendDialog.getState().open(KEY);
