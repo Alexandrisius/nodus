@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 
 import { api } from '../api-client.js';
 import { EMPTY_DRAFT, useChatDrafts, type PendingAttachment } from './chat-drafts.js';
+import { useAttachSendDialog } from './dialog-stores.js';
 import { uploadAttachment, validateFiles, type UploadHandle } from './upload-attachment.js';
 
 /**
@@ -24,6 +25,18 @@ export function addFiles(draftKey: string, incoming: File[]): void {
   if (issue === 'too-large') toast.error(ui.chat.attachTooLarge);
   if (issue === 'too-many') toast.error(ui.chat.attachTooMany);
   for (const file of accepted) startUpload(draftKey, file);
+  // Принятые файлы видны ТОЛЬКО в окне отправки (#144): трея у строки ввода
+  // больше нет — окно открывается на любое прикрепление (вердикт владельца).
+  // Текст композера переезжает в подпись окна и НЕ дублируется онлайн в чате
+  // (канон Telegram): вернётся в черновик отменой окна.
+  if (accepted.length > 0) {
+    const dialog = useAttachSendDialog.getState();
+    if (!dialog.scope) {
+      const initial = (useChatDrafts.getState().drafts[draftKey] ?? EMPTY_DRAFT).text;
+      dialog.open(draftKey, initial);
+      if (initial) useChatDrafts.getState().setText(draftKey, '');
+    }
+  }
 }
 
 function startUpload(draftKey: string, file: File): void {

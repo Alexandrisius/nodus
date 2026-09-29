@@ -9,7 +9,14 @@ import { AttachmentGallery } from './attachment-gallery.js';
  * ВЫШЕ текста пузыря (иначе аватар и хвостик отлипают к строке вложений).
  * Изображения и файлы разделены явно по `kind` контракта (не по mime).
  */
-export function MessageAttachments({ message }: { message: ChatMessage }) {
+export function MessageAttachments({
+  message,
+  mine = false,
+}: {
+  message: ChatMessage;
+  /** Чья поверхность сообщения (пузырь/пост) — тон вторичного текста чипов. */
+  mine?: boolean;
+}) {
   if (message.attachments.length === 0) return null;
   const images = message.attachments.filter((a) => a.kind === 'image');
   const files = message.attachments.filter((a) => a.kind !== 'image');
@@ -19,7 +26,7 @@ export function MessageAttachments({ message }: { message: ChatMessage }) {
       {files.length > 0 ? (
         <span className="flex min-w-0 flex-col gap-1">
           {files.map((file) => (
-            <AttachmentFile key={file.id} file={file} />
+            <AttachmentFile key={file.id} file={file} mine={mine} />
           ))}
         </span>
       ) : null}

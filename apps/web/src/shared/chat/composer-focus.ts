@@ -1,4 +1,5 @@
 import { wsDebugEnabled } from '../socket/ws-debug.js';
+import { useAttachSendDialog } from './dialog-stores.js';
 
 /**
  * «Вечный курсор» композера (канон Телеграм, вердикт владельца 14.09.2026):
@@ -112,6 +113,13 @@ function stealFocus(): void {
   }
   if (isEditable(document.activeElement)) {
     debugSkip('editable-active-element');
+    return;
+  }
+  // Окно отправки вложений (#144): пока открыто, каретка принадлежит подписи
+  // окна — композер не крадёт её ни на кликах по строкам, ни на drag (drop
+  // оставляет focus на ручке drag, и без гарда курсор уезжал в композер).
+  if (useAttachSendDialog.getState().scope) {
+    debugSkip('attach-send-dialog-open');
     return;
   }
   if (insideOverlayLayer(document.activeElement, el)) {

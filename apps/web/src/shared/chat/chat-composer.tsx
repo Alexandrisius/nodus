@@ -26,7 +26,6 @@ import {
   type PendingAttachment,
   type ReplyDraft,
 } from './chat-drafts.js';
-import { ComposerAttachments } from './composer-attachments.js';
 import { EmojiPickerButton } from './emoji-picker.js';
 import { ComposerBanner } from './composer-banner.js';
 import { ComposerClipMenu } from './composer-clip-menu.js';
@@ -479,9 +478,8 @@ export function ChatComposer({
                 onCancel={() => useForwardPending.getState().clear(focusId)}
               />
             ) : null}
-            {attachmentsEnabled ? (
-              <ComposerAttachments draftKey={focusId} items={draft.attachments} />
-            ) : null}
+            {/* Трея вложений НЕТ (#144): прикреплённые файлы живёт в окне
+                отправки (attach-send-dialog), строка ввода — только текст. */}
             {/* Превалидация лимита текста (раунд 3): счётчик у черты 4000,
                 при превышении — понятное сообщение; отправка заблокирована,
                 текст остаётся в поле/черновике (серверный 422 не наступает). */}

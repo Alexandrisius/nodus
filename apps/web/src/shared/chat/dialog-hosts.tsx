@@ -1,8 +1,14 @@
 import { useEffect, useRef } from 'react';
 
-import { focusConversationComposerWhenFree } from './composer-focus.js';
+import { focusComposerWhenFree, focusConversationComposerWhenFree } from './composer-focus.js';
+import { AttachSendDialogHost } from './attach-send-dialog.js';
 import { DeleteDialogHost } from './delete-dialog.js';
-import { useDeleteDialog, useForwardDialog, useUnpinDialog } from './dialog-stores.js';
+import {
+  useAttachSendDialog,
+  useDeleteDialog,
+  useForwardDialog,
+  useUnpinDialog,
+} from './dialog-stores.js';
 import { ForwardDialogHost } from './forward-dialog.js';
 import { SelectionQuoteBubble } from './selection-quote-bubble.js';
 import { UnpinDialogHost } from './unpin-dialog.js';
@@ -22,6 +28,7 @@ export function ChatDialogHosts() {
       <ForwardDialogHost />
       <DeleteDialogHost />
       <UnpinDialogHost />
+      <AttachSendDialogHost />
       <SelectionQuoteBubble />
     </>
   );
@@ -37,10 +44,22 @@ function useComposerRestoreAfterDialogs() {
   const forward = useForwardDialog((s) => s.request);
   const remove = useDeleteDialog((s) => s.request);
   const unpin = useUnpinDialog((s) => s.request);
+  const attachScope = useAttachSendDialog((s) => s.scope);
   const lastSource = useRef<string | null>(null);
+  const lastAttach = useRef<string | null>(null);
   const source =
     forward?.sourceConversationId ?? remove?.conversationId ?? unpin?.conversationId ?? null;
   useEffect(() => {
+    if (attachScope) {
+      lastAttach.current = attachScope;
+      return;
+    }
+    if (lastAttach.current) {
+      // Окно вложений знает scope черновика само (и thread:<id> тоже).
+      focusComposerWhenFree(lastAttach.current);
+      lastAttach.current = null;
+      return;
+    }
     if (source) {
       lastSource.current = source;
       return;
@@ -49,5 +68,5 @@ function useComposerRestoreAfterDialogs() {
       focusConversationComposerWhenFree(lastSource.current);
       lastSource.current = null;
     }
-  }, [source]);
+  }, [source, attachScope]);
 }

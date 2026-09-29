@@ -167,7 +167,7 @@ render: (task) => <PersonCell user={task.assignee} />,   // UserRef | string | n
 
 ## shadcn-компоненты в новом UI
 
-Button (ghost для иконок хрома), Input, Textarea, Checkbox, DropdownMenu (+CheckboxItem для шестерёнки), Separator, Skeleton, Tooltip, Message/Bubble/Attachment (обсуждения), sonner. Все — на токенах темы; кастомные цвета не переопределять (навык `shadcn`).
+Button (ghost для иконок хрома), Input, Textarea, Checkbox, DropdownMenu (+CheckboxItem для шестерёнки), Separator, Skeleton, Tooltip, Message/Bubble/Attachment (обсуждения), sonner. Все — на токенах темы; кастомные цвета не переопределять (навык `shadcn`). `Attachment` — две поверхности (`surface`): `raised` — карточка ступенью тона ВНЕ сообщения (карточка письма), `flat` — БЕЗ собственной заливки и паддингов НА поверхности сообщения (пузырь/пост, #144): иконка типа `FileTypeIcon` стоит прямо на тоне поверхности, ховер — ТОЛЬКО у кнопки скачивания (`hover:bg-current/10`), сам чип без ховера.
 
 ## Антипримеры (запрещено)
 

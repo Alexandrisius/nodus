@@ -20,6 +20,7 @@ import { setOpenConversation } from './notifications.js';
 import { useChatDrafts } from './chat-drafts.js';
 import { addFiles } from './composer-files.js';
 import { toSendVars } from './composer-submit.js';
+import { registerScopeSubmit } from './submit-registry.js';
 import { focusComposer } from './composer-focus.js';
 import { DayChip } from './day-chip.js';
 import { FeedDropzone } from './feed-dropzone.js';
@@ -239,6 +240,18 @@ function ConversationFeed({
     }
     send.mutate(toSendVars(submit));
   }
+
+  // Окно отправки вложений (#144): глобальный диалог шлёт через хук хоста —
+  // оптимистичность/reply/идемпотентность в одном месте; реестр жив, пока
+  // панель смонтирована (режим выделения композер размонтирует, панель —
+  // нет). send — новый объект каждый рендер, реестру нужен стабильный
+  // колбэк: ref, перерегистрация только по scope.
+  const sendRef = useRef(send);
+  sendRef.current = send;
+  useEffect(
+    () => registerScopeSubmit(scope, (submit) => sendRef.current.mutateAsync(toSendVars(submit))),
+    [scope],
+  );
 
   function handleEditLast() {
     const message = lastMine();

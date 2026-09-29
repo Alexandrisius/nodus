@@ -43,6 +43,31 @@ export const useUnpinDialog = create<UnpinDialogState>((set) => ({
   close: () => set({ request: null }),
 }));
 
+/**
+ * Окно отправки вложений (#144, референсы Telegram/Bitrix): scope черновика,
+ * чьи вложения показывает окно. Инвариант: draft.attachments непуст ⟺ окно
+ * открыто (открытие — в addFiles, закрытие гасит вложения отменой или
+ * очисткой черновика отправкой).
+ */
+interface AttachSendDialogState {
+  scope: string | null;
+  /** Подпись окна — ОТДЕЛЬНОЕ поле от черновика композера (канон Telegram,
+   *  вердикт 29.09.2026): набор в окне НЕ дублируется онлайн в композер; при
+   *  открытии текст композера переезжает сюда, при отмене — возвращается. */
+  caption: string;
+  open: (scope: string, initialCaption?: string) => void;
+  setCaption: (caption: string) => void;
+  close: () => void;
+}
+
+export const useAttachSendDialog = create<AttachSendDialogState>((set) => ({
+  scope: null,
+  caption: '',
+  open: (scope, initialCaption = '') => set({ scope, caption: initialCaption }),
+  setCaption: (caption) => set({ caption }),
+  close: () => set({ scope: null, caption: '' }),
+}));
+
 export interface DeleteRequest {
   conversationId: string;
   messageIds: string[];
