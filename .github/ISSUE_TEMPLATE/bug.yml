@@ -1,6 +1,5 @@
 name: "Баг"
 description: "Дефект: ожидаемое поведение расходится с фактическим"
-title: "[Баг] "
 labels: ["type:bug"]
 body:
   - type: textarea

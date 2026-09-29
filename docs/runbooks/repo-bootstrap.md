@@ -35,6 +35,7 @@ gh repo create Alexandrisius/nodus --private --source=. --push
 gh label create "type:feature" --color 0E8A16
 gh label create "type:bug" --color D73A4A
 gh label create "type:chore" --color 6B7280
+gh label create "type:epic" --color 8B5CF6 --description "Эпик: бизнес-кейс из roadmap, контейнер дочерних issues"
 gh label create "P0" --color B60205
 gh label create "P1" --color D93F0B
 gh label create "P2" --color FBCA04
@@ -42,7 +43,15 @@ gh label create "area:web" --color 1D76DB
 gh label create "area:api" --color 5319E7
 gh label create "area:infra" --color 0052CC
 gh label create "area:docs" --color 0075CA
+for m in chat tasks projects correspondence files workflows auth directory notifications dictionaries core; do
+  gh label create "module:$m" --color C5DEF5
+done
+gh label create "status:ready" --color 3FB950 --description "Спека готова или не требуется — можно брать (порядок по roadmap/P)"
+gh label create "status:draft" --color CCCCCC --description "Драфт/задел — ждать решения владельца, в работу не брать"
+gh label create "status:waiting-trigger" --color D4C5F9 --description "Задел с триггером — брать только при наступлении триггера из тела issue"
 ```
+
+Описания module-лейблов и полный канон измерений — `docs/process/workflow.md` (раздел «Метаданные issues»).
 
 ### 4. Milestone
 
@@ -111,7 +120,7 @@ gh api -X PUT repos/Alexandrisius/nodus/branches/main/protection \
 ## Проверка результата
 
 - `gh repo view Alexandrisius/nodus` открывается; приватность — Private.
-- `gh label list` — 10 labels; `gh issue list` — 4 issues с milestone MVP.
+- `gh label list` — 25 labels; `gh issue list` — 4 issues с milestone MVP.
 - `git log --oneline` — коммиты на `main`; `git status` — чисто.
 
 ## Откат
