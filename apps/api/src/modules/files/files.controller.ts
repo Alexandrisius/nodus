@@ -10,12 +10,16 @@ import { Public } from '../../core/decorators/public.decorator.js';
 import { ZodValidationPipe } from '../../core/pipes/zod-validation.pipe.js';
 import { FilesRepository } from './files.repository.js';
 import { MinioStorageDriver } from './storage/minio-storage.driver.js';
+import { needsTextNormalization, normalizeTextForOffice } from './office/text-normalizer.js';
 
 const contentQuerySchema = z.object({
   exp: z.coerce.number().int().positive(),
   sig: z.string().regex(/^[0-9a-f]{64}$/),
   /** Конкретная версия (история просмотрщика, #138); без v — текущая. */
   v: z.coerce.number().int().min(1).optional(),
+  /** Контекст движка ONLYOFFICE: txt/csv/tsv отдаются UTF-8+BOM (DS сам не
+   *  детектит кодировку — диалог выбора висит невидимым, репро 29.09). */
+  office: z.literal('1').optional(),
 });
 
 /**
@@ -76,6 +80,27 @@ export class FilesController {
     const etag = `"${file.id}-v${version}"`;
     if (request.headers['if-none-match'] === etag) {
       void reply.status(304).send();
+      return;
+    }
+
+    // Контекст DS: текстовые форматы нормализуются (UTF-8+BOM) буфером —
+    // размер тела меняется, отдаём посчитанный.
+    if (query.office && needsTextNormalization(file.name, size)) {
+      const chunks: Buffer[] = [];
+      for await (const chunk of await this.driver.get(key)) {
+        chunks.push(chunk as Buffer);
+      }
+      const body = normalizeTextForOffice(Buffer.concat(chunks));
+      void reply
+        .header('Content-Type', 'text/plain; charset=utf-8')
+        .header('Content-Length', body.length)
+        .header(
+          'Content-Disposition',
+          `attachment; filename*=UTF-8''${encodeURIComponent(file.name)}`,
+        )
+        .header('X-Content-Type-Options', 'nosniff')
+        .header('ETag', etag)
+        .send(body);
       return;
     }
 

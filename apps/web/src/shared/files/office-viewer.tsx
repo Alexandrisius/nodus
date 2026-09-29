@@ -57,6 +57,7 @@ export function OfficeViewer({
 
   useEffect(() => {
     let cancelled = false;
+    let observer: MutationObserver | null = null;
     setReady(false);
     loadDocsApi()
       .then(() => {
@@ -84,6 +85,19 @@ export function OfficeViewer({
           },
         };
         editorRef.current = new window.DocsAPI.DocEditor(holderId, config);
+        // iframe появляется асинхронно — с этого момента у DS свой лоадер,
+        // а наш оверлей не должен закрывать его диалоги (кодировка TXT
+        // висела невидимым диалогом, репро 29.09).
+        const holder = document.getElementById(holderId);
+        if (holder) {
+          observer = new MutationObserver(() => {
+            if (holder.querySelector('iframe')) {
+              setReady(true);
+              observer?.disconnect();
+            }
+          });
+          observer.observe(holder, { childList: true, subtree: true });
+        }
       })
       .catch((error) => {
         console.error('[office-viewer] init failed holder=' + holderId, error);
@@ -91,6 +105,7 @@ export function OfficeViewer({
       });
     return () => {
       cancelled = true;
+      observer?.disconnect();
       // destroyEditor гасит iframe и каналы ко-эдитинга (утечки WS иначе).
       editorRef.current?.destroyEditor();
       editorRef.current = null;

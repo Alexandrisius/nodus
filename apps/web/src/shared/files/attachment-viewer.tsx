@@ -12,7 +12,6 @@ import { DownloadCard } from './download-card.jsx';
 import { MediaViewer } from './media-viewer.jsx';
 import { OfficeViewer } from './office-viewer.jsx';
 import { PdfViewer } from './pdf-viewer.jsx';
-import { warmOfficeAssets } from './office-warmup.js';
 import { resolveViewerRoute } from './viewer-registry.js';
 import { useViewerStore } from './viewer-store.js';
 
@@ -38,12 +37,6 @@ export function AttachmentViewer({ stripW = 0 }: { stripW?: number }) {
 
   const configQuery = useOfficeConfig();
   const officeConfig = configQuery.data;
-
-  // Прогрев кэша DS-ассетов после включения движка (idle, раз на браузер):
-  // первое открытие документа не ждёт загрузки ~30МБ sdkjs.
-  useEffect(() => {
-    if (officeConfig?.enabled) warmOfficeAssets();
-  }, [officeConfig?.enabled]);
 
   // Сброс режима при открытии новой цели.
   useEffect(() => {

@@ -99,3 +99,12 @@ export function fileExtension(name: string): string {
 export function officeFormat(name: string): OfficeFormatInfo | null {
   return OFFICE_VIEW_FORMATS[fileExtension(name)] ?? null;
 }
+
+/** Чисто текстовые форматы: документ-сервер сам НЕ определяет кодировку
+ *  (UTF-8 без BOM / Windows-1251) и спрашивает диалогом «Выбрать параметры
+ *  TXT/CSV» — API отдаёт их DS как UTF-8 с BOM (репро 29.09, #138). */
+const OFFICE_TEXT_EXTENSIONS = new Set(['txt', 'csv', 'tsv']);
+
+export function isOfficeTextFormat(name: string): boolean {
+  return OFFICE_TEXT_EXTENSIONS.has(fileExtension(name));
+}

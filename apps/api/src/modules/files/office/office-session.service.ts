@@ -1,6 +1,6 @@
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import type { AuthUser, OfficeMode, OfficeSession, OfficeVersionList } from '@nodus/contracts';
-import { ErrorCode, fileExtension, officeFormat } from '@nodus/contracts';
+import { ErrorCode, fileExtension, isOfficeTextFormat, officeFormat } from '@nodus/contracts';
 
 import { SignedUrlService } from '../../../core/crypto/signed-url.service.js';
 import { DomainException } from '../../../core/errors/domain-exception.js';
@@ -109,7 +109,11 @@ export class OfficeSessionService {
       key: `${file.id}.v${file.version}`,
       title: file.name,
       // Абсолютный внутренний URL: документ скачивает КОНТЕЙНЕР DS, не браузер.
-      url: `${this.config.apiInternalUrl}${this.signedUrls.fileContentUrl(file.id)}`,
+      // Текстовые форматы — c office=1: контент-эндпоинт отдаст UTF-8+BOM,
+      // иначе DS повисает на невидимом диалоге выбора кодировки (29.09).
+      url: `${this.config.apiInternalUrl}${this.signedUrls.fileContentUrl(file.id)}${
+        isOfficeTextFormat(file.name) ? '&office=1' : ''
+      }`,
       permissions: { edit: effectiveMode === 'edit', download: true, print: true },
     };
     const editorConfig = {
