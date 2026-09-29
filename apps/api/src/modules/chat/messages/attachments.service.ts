@@ -8,6 +8,7 @@ import { SignedUrlService } from '../../../core/crypto/signed-url.service.js';
 import { DomainException } from '../../../core/errors/domain-exception.js';
 import { FILE_STORAGE, type FileStorage } from '../../../core/ports/file-storage.port.js';
 import { AttachmentsRepository } from './attachments.repository.js';
+import { ThumbnailQueue } from './thumbnail.queue.js';
 
 /** Лимиты вложений чата (вердикт владельца 24.09): 100 МБ на файл, ≤ 20
  *  загруженных-но-неотправленных. Клиент валидирует до старта загрузки
@@ -39,6 +40,7 @@ export class AttachmentsService {
     @Inject(FILE_STORAGE) private readonly storage: FileStorage,
     private readonly repository: AttachmentsRepository,
     private readonly signedUrls: SignedUrlService,
+    private readonly thumbnailQueue: ThumbnailQueue,
     private readonly logger: PinoLogger,
   ) {
     this.logger.setContext(AttachmentsService.name);
@@ -87,6 +89,11 @@ export class AttachmentsService {
       width: input.width ?? null,
       height: input.height ?? null,
     });
+    // Превью — асинхронно (ADR-0015): ответ загрузки не ждёт ресайза;
+    // thumbFileId подвязает воркер, лента увидит превью на следующем фече.
+    if (kind === 'image') {
+      await this.thumbnailQueue.enqueue(row.id, fileId);
+    }
     return this.toDto(row);
   }
 
@@ -108,6 +115,7 @@ export class AttachmentsService {
     kind: string;
     width: number | null;
     height: number | null;
+    thumbFileId: string | null;
   }): MessageAttachment {
     return {
       id: row.id,
@@ -117,7 +125,9 @@ export class AttachmentsService {
       mime: row.mime,
       kind: row.kind as 'image' | 'file',
       url: this.signedUrls.fileContentUrl(row.fileId),
-      thumbnailUrl: null,
+      // Превью — дериват в хранилище (#150); до готовности null (клиент
+      // грузит оригинал, геометрия детерминирована отдельно).
+      thumbnailUrl: row.thumbFileId ? this.signedUrls.fileContentUrl(row.thumbFileId) : null,
       width: row.width,
       height: row.height,
     };

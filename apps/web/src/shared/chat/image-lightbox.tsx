@@ -1,16 +1,22 @@
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { MessageAttachment } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
+import { cn } from '@nodus/ui/lib/utils';
 
 /**
  * Лайтбокс изображения галереи (plan chat-attachments-plan, добро владельца
  * 14.09.2026): портал поверх интерфейса (z-80), Esc и клик по заднику —
  * закрыть, стрелки клавиатуры и кнопки по краям — листание, счётчик «N / M»
- * слева сверху. Фокус при открытии — на диалоге, при закрытии возвращается
+ * слева сверху. Полноэкранное изображение — БЕЗ скруглений (#151: в углах
+ * может быть важная информация; скругления — только у миниатюр в ленте). Фокус при открытии — на диалоге, при закрытии возвращается
  * плитке галереи (a11y); клики по самому фото и кнопкам не закрывают диалог.
+ *
+ * Прогрессивная загрузка (#150): пока грузится оригинал, показывается
+ * превью из миниатюры (уже в кэше ленты) — крестс-фейд по onLoad. Без
+ * превью (моки/старые строки) — один <img>, как раньше.
  */
 export function ImageLightbox({
   images,
@@ -25,12 +31,17 @@ export function ImageLightbox({
 }) {
   const boxRef = useRef<HTMLDivElement>(null);
   const image = images[index];
+  const [fullLoaded, setFullLoaded] = useState(false);
 
   useEffect(() => {
     const restoreTo = document.activeElement as HTMLElement | null;
     boxRef.current?.focus();
     return () => restoreTo?.focus();
   }, []);
+
+  useEffect(() => {
+    setFullLoaded(false);
+  }, [index]);
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -111,12 +122,43 @@ export function ImageLightbox({
           <ChevronRight />
         </Button>
       ) : null}
-      <img
-        src={image.url ?? image.thumbnailUrl ?? ''}
-        alt={image.name}
-        onClick={(e) => e.stopPropagation()}
-        className="max-h-[85vh] max-w-[85vw] rounded-lg object-contain"
-      />
+      {/* Миниатюра (кэш ленты) держит кадр, оригинал проявляется поверх
+          кросс-фейдом; у них одно ratio — contain ложится пиксель в пиксель. */}
+      {(() => {
+        const fullSrc = image.url ?? image.thumbnailUrl ?? '';
+        const thumbSrc =
+          image.thumbnailUrl && image.thumbnailUrl !== fullSrc ? image.thumbnailUrl : null;
+        if (!thumbSrc) {
+          return (
+            <img
+              src={fullSrc}
+              alt={image.name}
+              onClick={(e) => e.stopPropagation()}
+              className="max-h-[85vh] max-w-[85vw] object-contain"
+            />
+          );
+        }
+        return (
+          <span className="relative inline-flex max-h-[85vh] max-w-[85vw]">
+            <img
+              src={thumbSrc}
+              alt={image.name}
+              onClick={(e) => e.stopPropagation()}
+              className="max-h-[85vh] max-w-[85vw] object-contain"
+            />
+            <img
+              src={fullSrc}
+              alt=""
+              onLoad={() => setFullLoaded(true)}
+              onClick={(e) => e.stopPropagation()}
+              className={cn(
+                'absolute inset-0 size-full object-contain transition-opacity duration-200',
+                fullLoaded ? 'opacity-100' : 'opacity-0',
+              )}
+            />
+          </span>
+        );
+      })()}
     </div>,
     document.body,
   );

@@ -10,10 +10,11 @@ import { PersonAvatar } from '../ui/person-avatar.js';
 import { useConversationMessages, useSendChatMessage } from './api.js';
 import { ChatComposer, type ComposerSubmit } from './chat-composer.js';
 import { ChatMessageItem } from './chat-message.js';
+import { useChatPrefs } from './chat-prefs.js';
 import { ReactionPicker } from './reaction-picker.js';
 import { setOpenConversation } from './notifications.js';
 import { useChatDrafts } from './chat-drafts.js';
-import { MessageAttachments } from './attachments.js';
+import { attachmentsContentWidth, MessageAttachments } from './attachments.js';
 import { MessageReactions } from './chat-message.js';
 import { MessageMeta } from './message-meta.js';
 import { MessageText } from './message-text.js';
@@ -82,6 +83,9 @@ export const ThreadFeed = memo(function ThreadFeed({
   const send = useSendChatMessage(conversationId, scope);
   const edit = useEditMessage(conversationId, scope);
   const me = useAuthStore((s) => s.user);
+  // «По обе стороны» (#151): свои посты каналов прижимаются вправо, как
+  // пузыри чата; посты-карточки уважают ту же настройку, что и сообщения.
+  const align = useChatPrefs((s) => s.align);
   const feedRef = useRef<HTMLDivElement>(null);
 
   const items = data?.items ?? [];
@@ -97,6 +101,14 @@ export const ThreadFeed = memo(function ThreadFeed({
   // владельца); прежде баг маскировал pill-оверлей у низа экрана.
   const scrollRequest = useScrollEndStore((s) => s.requests[scope]);
   const scrollPrev = useRef({ count: 0, nonce: 0 });
+  /** Форс-запрос «залипает» до ИСПОЛНЕНИЯ ростом ленты (пачка C, репро
+   *  владельца 29.09: свой пост не докручивал ленту). Запрос приходит в
+   *  момент сабмита — ДО прихода поста: мгновенный скролл уходит к СТАРОМУ
+   *  низу, а когда пост приезжает, nearBottom уже false (высота поста > 80px)
+   *  и догон не срабатывает. Теперь форс держится, пока posts не станет
+   *  больше, чем на момент запроса (страховочный таймаут — на случай
+   *  отправки, упавшей на сервере). */
+  const forcedUntilGrew = useRef<{ count: number; timer: number } | null>(null);
   const openedAtBottom = useRef(false);
   useLayoutEffect(() => {
     const el = feedRef.current;
@@ -107,11 +119,26 @@ export const ThreadFeed = memo(function ThreadFeed({
   useEffect(() => {
     const el = feedRef.current;
     if (!el) return;
-    const forced = (scrollRequest?.nonce ?? 0) !== scrollPrev.current.nonce;
+    const nonce = scrollRequest?.nonce ?? 0;
+    if (nonce !== scrollPrev.current.nonce) {
+      if (forcedUntilGrew.current !== null) {
+        window.clearTimeout(forcedUntilGrew.current.timer);
+      }
+      const timer = window.setTimeout(() => {
+        forcedUntilGrew.current = null;
+      }, 5_000);
+      forcedUntilGrew.current = { count: roots.length, timer };
+    }
     const grew = roots.length > scrollPrev.current.count;
     const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-    scrollPrev.current = { count: roots.length, nonce: scrollRequest?.nonce ?? 0 };
+    const forced = forcedUntilGrew.current !== null;
+    scrollPrev.current = { count: roots.length, nonce };
     if (forced || (grew && nearBottom)) {
+      // Исполнение форса: лента выросла относительно момента запроса.
+      if (forcedUntilGrew.current && roots.length > forcedUntilGrew.current.count) {
+        window.clearTimeout(forcedUntilGrew.current.timer);
+        forcedUntilGrew.current = null;
+      }
       el.scrollTo({
         top: el.scrollHeight,
         behavior: forced ? (scrollRequest?.behavior ?? 'smooth') : 'auto',
@@ -226,7 +253,11 @@ export const ThreadFeed = memo(function ThreadFeed({
                 const last = replies[replies.length - 1];
                 // Пост — ТО ЖЕ сообщение, что пузырь чата: поверхность и акценты
                 // — из единой точки решения (message-surface.ts, #127), не свои.
-                const surface = messageSurface(root.author.id === me?.id);
+                const mine = root.author.id === me?.id;
+                const surface = messageSurface(mine);
+                // «По обе стороны» (#151): свой пост прижимается вправо, как
+                // пузырь чата; ширина карточки (max-w-2xl) сохраняется.
+                const atEnd = mine && align === 'both';
                 return (
                   <MessageRow
                     key={root.id}
@@ -235,88 +266,106 @@ export const ThreadFeed = memo(function ThreadFeed({
                     selected={selection.selectedSet.has(root.id)}
                     onToggle={(shift) => selection.toggle(root.id, shift)}
                   >
-                    {root.deletedAt ? (
-                      <ChatMessageItem message={root} mine={root.author.id === me?.id} />
-                    ) : (
-                      <MessageMenu
-                        message={root}
-                        mine={root.author.id === me?.id}
-                        conversationId={conversationId}
-                        scope={scope}
-                        replyMode="thread"
-                        onOpenThread={onOpenThread}
-                        messagesOfSelection={selection.getSelectedMessages}
-                      >
-                        {/* Пост — НЕ <button>: внутри живут интерактивы (плитки
+                    {/* Флекс-строка выравнивания (пачка C): MessageRow — блок,
+                        self-end на карточке не работает; justify-end прижимает
+                        свой пост вправо в режиме «По обе стороны». */}
+                    <div
+                      className={cn('flex min-w-0 w-full', atEnd ? 'justify-end' : 'justify-start')}
+                    >
+                      {root.deletedAt ? (
+                        <ChatMessageItem message={root} mine={mine} />
+                      ) : (
+                        <MessageMenu
+                          message={root}
+                          mine={mine}
+                          conversationId={conversationId}
+                          scope={scope}
+                          replyMode="thread"
+                          onOpenThread={onOpenThread}
+                          messagesOfSelection={selection.getSelectedMessages}
+                        >
+                          {/* Пост — НЕ <button>: внутри живут интерактивы (плитки
                             галереи, реакции, чипы файлов) — вложенные кнопки
                             невалидны (hydration-ошибка, аудит #45). Кликабельная
                             карточка: div+role с клавиатурой; клики по вложенным
                             контролам отсекаются гардой; в режиме селекта клик
                             переключает отметку (MessageRow, capture). */}
-                        <div
-                          role="button"
-                          tabIndex={0}
-                          onClick={(e) => {
-                            // Р.7: завершение выделения текста — НЕ клик по
-                            // карточке (браузер стреляет click и на release
-                            // драга): несвёрнутая селекция глушит открытие
-                            // трэда, иначе «случайный клик» открывал панель
-                            // на первой же попытке выделить текст поста.
-                            if (!window.getSelection()?.isCollapsed) return;
-                            const interactive = (e.target as HTMLElement).closest(
-                              'button, a, input, [role="button"]',
-                            );
-                            if (interactive && interactive !== e.currentTarget) return;
-                            onOpenThread(root.id);
-                          }}
-                          onKeyDown={(e) => {
-                            if (
-                              e.target === e.currentTarget &&
-                              (e.key === 'Enter' || e.key === ' ')
-                            ) {
-                              e.preventDefault();
+                          <div
+                            role="button"
+                            tabIndex={0}
+                            onClick={(e) => {
+                              // Р.7: завершение выделения текста — НЕ клик по
+                              // карточке (браузер стреляет click и на release
+                              // драга): несвёрнутая селекция глушит открытие
+                              // трэда, иначе «случайный клик» открывал панель
+                              // на первой же попытке выделить текст поста.
+                              if (!window.getSelection()?.isCollapsed) return;
+                              const interactive = (e.target as HTMLElement).closest(
+                                'button, a, input, [role="button"]',
+                              );
+                              if (interactive && interactive !== e.currentTarget) return;
                               onOpenThread(root.id);
-                            }
-                          }}
-                          className={cn(
-                            // Заливка поста = поверхность сообщения (канон
-                            // Telegram, #127): своё — bubble-out, чужое —
-                            // bubble-in; hairline-бордюр и радиус карточки
-                            // сохраняются (пост — карточка ленты, не облако).
-                            surface.fill,
-                            `relative w-full max-w-2xl cursor-pointer rounded-xl border border-border
-                            p-3.5 text-left transition-colors hover:border-input group/msg group/bubble`,
-                          )}
-                          // data-slot пост-поверхности — цель тинта выбранных
-                          // (глоб. CSS, #132 р.3), как bubble-content у пузырей;
-                          // data-surface (р.5) — какой токен заливки смешивать.
-                          data-slot="post-surface"
-                          data-surface={surface.tone}
-                        >
-                          <span className="flex items-center gap-2 text-sm">
-                            <PersonAvatar
-                              name={root.author.displayName}
-                              className="size-7 shrink-0"
-                            />
-                            <span className="min-w-0 truncate font-medium">
-                              {withoutPatronymic(root.author.displayName)}
+                            }}
+                            onKeyDown={(e) => {
+                              if (
+                                e.target === e.currentTarget &&
+                                (e.key === 'Enter' || e.key === ' ')
+                              ) {
+                                e.preventDefault();
+                                onOpenThread(root.id);
+                              }
+                            }}
+                            className={cn(
+                              // Заливка поста = поверхность сообщения (канон
+                              // Telegram, #127): своё — bubble-out, чужое —
+                              // bubble-in; hairline-бордюр и радиус карточки
+                              // сохраняются (пост — карточка ленты, не облако).
+                              // Ширина — ПОД КОНТЕНТ (пачка C, вердикт 29.09:
+                              // посты одной ширины давали зазоры справа от
+                              // текста/вложений): w-fit + max-w-2xl, как пузырь
+                              // чата; настройка «По обе стороны» видимо
+                              // прижимает свои посты вправо (self-end).
+                              surface.fill,
+                              'relative w-fit max-w-2xl cursor-pointer rounded-xl border border-border p-3.5 text-left transition-colors hover:border-input group/msg group/bubble',
+                            )}
+                            // data-slot пост-поверхности — цель тинта выбранных
+                            // (глоб. CSS, #132 р.3), как bubble-content у пузырей;
+                            // data-surface (р.5) — какой токен заливки смешивать.
+                            data-slot="post-surface"
+                            data-surface={surface.tone}
+                          >
+                            <span className="flex items-center gap-2 text-sm">
+                              <PersonAvatar
+                                name={root.author.displayName}
+                                className="size-7 shrink-0"
+                              />
+                              <span className="min-w-0 truncate font-medium">
+                                {withoutPatronymic(root.author.displayName)}
+                              </span>
                             </span>
-                          </span>
-                          {root.attachments.length > 0 ? (
-                            <span className="mt-2 block">
-                              <MessageAttachments message={root} mine={root.author.id === me?.id} />
-                            </span>
-                          ) : null}
-                          {/* Текст поста — MessageText (р.6): маркер
+                            {root.attachments.length > 0 ? (
+                              // Ширина блока вложений — детерминированная
+                              // (attachmentsContentWidth, #150): карточки/медиа
+                              // задают ширину поста-карточки, а не наоборот.
+                              <span
+                                className="mt-2 block max-w-full"
+                                style={{
+                                  width: attachmentsContentWidth(root.attachments) ?? undefined,
+                                }}
+                              >
+                                <MessageAttachments message={root} mine={mine} />
+                              </span>
+                            ) : null}
+                            {/* Текст поста — MessageText (р.6): маркер
                               message-text включает модель Telegram — старт
                               на тексте даёт нативное выделение, выход за
                               карточку превращает жест в выделение поста
                               целиком; заодно живые превью ссылок-сущностей
                               (как в пузырях чатов). */}
-                          <span className="mt-2 block text-sm leading-relaxed">
-                            <MessageText text={root.text} />
-                          </span>
-                          {/* Мета поста — ТА ЖЕ композиция и те же зазоры, что в
+                            <span className="mt-2 block text-sm leading-relaxed">
+                              <MessageText text={root.text} />
+                            </span>
+                            {/* Мета поста — ТА ЖЕ композиция и те же зазоры, что в
                               пузыре чата (#96, message-meta.tsx): пин →
                               «изменено» → время, микро-кегль 10px, плотный
                               зазор над строкой (3px — как шаг стека пузыря,
@@ -328,86 +377,89 @@ export const ThreadFeed = memo(function ThreadFeed({
                               «просмотрено» — у СВОИХ постов (#102, модель
                               Битрикс24); строка просмотров — над композером
                               ленты (views-line, раунд 2). */}
-                          <span className="mt-[3px] flex items-end gap-2">
-                            <MessageReactions message={root} onFilled={surface.onFilled} />
-                            <MessageMeta
-                              message={root}
-                              onFilled={surface.onFilled}
-                              ticks={root.author.id === me?.id}
-                              className="ml-auto"
-                            />
-                          </span>
-                          {/* Высота полосы ПОСТОЯННАЯ h-8 (вердикт владельца
+                            <span className="mt-[3px] flex items-end gap-2">
+                              <MessageReactions message={root} onFilled={surface.onFilled} />
+                              <MessageMeta
+                                message={root}
+                                onFilled={surface.onFilled}
+                                ticks={mine}
+                                className="ml-auto"
+                              />
+                            </span>
+                            {/* Высота полосы ПОСТОЯННАЯ h-8 (вердикт владельца
                               28.09.2026: полоса со стеком аватарок участников
                               треда не должна быть выше полосы без них —
                               нравилась меньшая): аватарки size-5 центрируются
                               в 32px, текстовая строка 16px — обе входят, прыжка
                               высоты между постами нет. */}
-                          <span className="-mx-3.5 -mb-3.5 mt-[6px] flex h-8 items-center gap-2 rounded-b-[0.8125rem] border-t border-border/60 bg-current/10 px-3.5">
-                            {participants.length > 0 ? (
-                              <span className="flex shrink-0 -space-x-1.5">
-                                {participants.slice(0, 3).map((p) => (
-                                  <PersonAvatar
-                                    key={p.id}
-                                    name={p.displayName}
-                                    className={cn('size-5 ring-2', surface.ring)}
-                                  />
-                                ))}
-                              </span>
-                            ) : null}
-                            {repliesCount > 0 ? (
+                            <span className="-mx-3.5 -mb-3.5 mt-[6px] flex h-8 items-center gap-2 rounded-b-[0.8125rem] border-t border-border/60 bg-current/10 px-3.5">
+                              {participants.length > 0 ? (
+                                <span className="flex shrink-0 -space-x-1.5">
+                                  {participants.slice(0, 3).map((p) => (
+                                    <PersonAvatar
+                                      key={p.id}
+                                      name={p.displayName}
+                                      className={cn('size-5 ring-2', surface.ring)}
+                                    />
+                                  ))}
+                                </span>
+                              ) : null}
+                              {repliesCount > 0 ? (
+                                <span
+                                  className={cn(
+                                    'flex items-center gap-1.5 font-mono text-label-sm tabular-nums',
+                                    // Тон счётчика — тон поверхности (AA на любой
+                                    // заливке, валидатор #127: muted-foreground на
+                                    // залитой тёмной проваливался до ~1.9:1);
+                                    // маркер «есть новые» — точка accentBg
+                                    // (графический контраст ≥3) только наблюдателю
+                                    // трэда (раунд 3).
+                                    surface.stripText,
+                                  )}
+                                >
+                                  {threadStates?.get(root.id)?.unreadCount ? (
+                                    <span
+                                      aria-label={ui.chat.threadUnreadHint}
+                                      className={cn(
+                                        'size-1.5 shrink-0 rounded-full',
+                                        surface.accentBg,
+                                      )}
+                                    />
+                                  ) : null}
+                                  {repliesLabel(repliesCount)}
+                                  {last ? ` · ${formatTime(last.createdAt)}` : ''}
+                                </span>
+                              ) : null}
                               <span
                                 className={cn(
-                                  'flex items-center gap-1.5 font-mono text-label-sm tabular-nums',
-                                  // Тон счётчика — тон поверхности (AA на любой
-                                  // заливке, валидатор #127: muted-foreground на
-                                  // залитой тёмной проваливался до ~1.9:1);
-                                  // маркер «есть новые» — точка accentBg
-                                  // (графический контраст ≥3) только наблюдателю
-                                  // трэда (раунд 3).
-                                  surface.stripText,
+                                  'ml-auto inline-flex items-center gap-1 text-xs font-medium',
+                                  surface.linkText,
                                 )}
                               >
-                                {threadStates?.get(root.id)?.unreadCount ? (
-                                  <span
-                                    aria-label={ui.chat.threadUnreadHint}
-                                    className={cn(
-                                      'size-1.5 shrink-0 rounded-full',
-                                      surface.accentBg,
-                                    )}
-                                  />
-                                ) : null}
-                                {repliesLabel(repliesCount)}
-                                {last ? ` · ${formatTime(last.createdAt)}` : ''}
+                                {ui.chat.toThread}
+                                <ArrowRight className="size-3" strokeWidth={1.75} />
                               </span>
-                            ) : null}
-                            <span
-                              className={cn(
-                                'ml-auto inline-flex items-center gap-1 text-xs font-medium',
-                                surface.linkText,
-                              )}
-                            >
-                              {ui.chat.toThread}
-                              <ArrowRight className="size-3" strokeWidth={1.75} />
                             </span>
-                          </span>
-                          {/* Ховер-кнопка реакций поста канала (#124 → #132):
+                            {/* Ховер-кнопка реакций поста канала (#124 → #132):
                               правый нижний угол карточки, видна по наведению
                               на ПОСТ (group/bubble — «поверхность сообщения»);
                               чипы реакций — в мета-строке выше; в режиме
                               выделения реакции недоступны (#132 р.4). */}
-                          {selection.selectionActive ? null : (
-                            <ReactionPicker message={root} atEnd={false} />
-                          )}
-                        </div>
-                      </MessageMenu>
-                    )}
+                            {selection.selectionActive ? null : (
+                              <ReactionPicker message={root} atEnd={atEnd} />
+                            )}
+                          </div>
+                        </MessageMenu>
+                      )}
+                    </div>
                   </MessageRow>
                 );
               })}
               {/* Метка просмотров — ВСЕГДА последний элемент ленты постов
                   (модель Битрикс24); текст фильтруется от автора нижнего
                   поста (views-line); зазор сверху = 1.5× нижнего (#132 р.2). */}
+              {/* Пилюля просмотров — ВСЕГДА СЛЕВА (вердикт владельца 29.09:
+                  не выравнивается по сторонам даже в «По обе стороны»). */}
               <ConversationViewsLine
                 conversationId={conversationId}
                 messages={roots}

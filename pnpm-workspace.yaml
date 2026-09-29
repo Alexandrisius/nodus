@@ -24,6 +24,7 @@ allowBuilds:
   prisma: true
   unrs-resolver: true
   '@scarf/scarf': false
+  msgpackr-extract: true
 
 minimumReleaseAgeExclude:
   - globals@17.12.0

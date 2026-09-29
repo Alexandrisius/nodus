@@ -323,7 +323,22 @@ export function MessageMenu({
         <span
           ref={triggerRef}
           className="block"
-          onContextMenuCapture={captureSelection}
+          onContextMenuCapture={(event) => {
+            // Меню — ТОЛЬКО по поверхности сообщения (пачка C, вердикт
+            // 29.09): пузырь/карточка поста/надгробие. ПКМ по пустому месту
+            // строки ленты не открывает меню: стоп для Radix-триггера (его
+            // слушатель — фаза бабблинга этого же span), нативное меню
+            // браузера не глушим.
+            const target = event.target as HTMLElement | null;
+            const onSurface = target?.closest?.(
+              '[data-slot="bubble-content"], [data-slot="post-surface"], [data-slot="message-tombstone"]',
+            );
+            if (!onSurface) {
+              event.stopPropagation();
+              return;
+            }
+            captureSelection();
+          }}
           onDoubleClick={replyOnDoubleClick}
           data-chat-message={message.id}
           data-chat-scope={scope}

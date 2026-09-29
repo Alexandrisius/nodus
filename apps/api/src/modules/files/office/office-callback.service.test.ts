@@ -24,6 +24,7 @@ function makeFile(version = 1): FileObjectRow {
     mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     size: 1024,
     scanStatus: 'pending',
+    derivedFrom: null,
     createdAt: new Date(),
   };
 }

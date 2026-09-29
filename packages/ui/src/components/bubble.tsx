@@ -22,8 +22,13 @@ function BubbleGroup({ className, ...props }: React.ComponentProps<'div'>) {
  * (единая точка решения «чем залито сообщение», чтобы новый хост не изобретал
  * свою заливку). Остальные варианты — общие поверхности не-сообщений.
  */
+/* Кап ширины пузыря (#150): максимум — МЕНЬШЕЕ из 80% ленты и абсолютного
+   40rem: чистый процент на широком экране раздувал пузыри до 1100–1500px
+   (канон Telegram/FB Messenger — жёсткий потолок). rem — не px: кап
+   масштабируется вместе с --ui-scale (ADR-0011) и остаётся больше бокса
+   медиа (480 дизайн-px + паддинги облака). */
 const bubbleVariants = cva(
-  'group/bubble relative flex w-fit max-w-[80%] min-w-0 flex-col gap-1 group-data-[align=end]/message:self-end data-[align=end]:self-end data-[variant=ghost]:max-w-full',
+  'group/bubble relative flex w-fit max-w-[min(80%,40rem)] min-w-0 flex-col gap-1 group-data-[align=end]/message:self-end data-[align=end]:self-end data-[variant=ghost]:max-w-full',
   {
     variants: {
       variant: {

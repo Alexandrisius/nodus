@@ -145,6 +145,10 @@ export function ConversationViewsLine({
   const { data } = useConversations();
   const conversation = data?.items.find((c) => c.id === conversationId) ?? null;
   const [popupAnchor, setPopupAnchor] = useState<HTMLElement | null>(null);
+  /** Чем открыт попап (пачка C, вердикт 29.09): клик по ИМЕНИ — весь список
+   *  просмотревших; клик по «ещё N» — ТОЛЬКО остальные (названный текстом
+   *  сотрудник не дублируется ни счётчиком, ни списком). */
+  const [popupMode, setPopupMode] = useState<'all' | 'rest'>('rest');
   const nameRef = useRef<HTMLButtonElement>(null);
   const moreRef = useRef<HTMLButtonElement>(null);
 
@@ -154,7 +158,10 @@ export function ConversationViewsLine({
   }
   // #132 р.2: якорь попапа — «ещё N» (левый край попапа = левый край слова);
   // одного зрителя — его имя.
-  const openPopup = () => setPopupAnchor(moreRef.current ?? nameRef.current);
+  const openPopup = (mode: 'all' | 'rest') => {
+    setPopupMode(mode);
+    setPopupAnchor(mode === 'rest' ? (moreRef.current ?? nameRef.current) : nameRef.current);
+  };
 
   // Direct (и «Заметки»): просмотры = факт собеседника; показываем ВРЕМЯ
   // первого просмотра, попапа нет (модель Telegram — просто галочки).
@@ -188,13 +195,15 @@ export function ConversationViewsLine({
           ref={nameRef}
           type="button"
           className="rounded-full hover:text-foreground"
-          onClick={openPopup}
+          onClick={() => openPopup('all')}
         >
           {shortPersonName(first.displayName)}
         </button>
         {/* #132 р.2: союз «и» — обычный текст (I15: ключ andConjunction —
             замечание валидатора, не хардкод); подчёркнута и кликабельна
-            только часть «ещё N» (как в Телеграме). */}
+            только часть «ещё N» (как в Телеграме). Пачка C (вердикт 29.09):
+            «ещё N» = ОСТАЛЬНЫЕ (N = all − названный) — названный сотрудник
+            не дублируется ни счётчиком, ни попапом. */}
         {more > 0 ? (
           <>
             <span>{ui.chat.andConjunction}</span>
@@ -202,14 +211,18 @@ export function ConversationViewsLine({
               ref={moreRef}
               type="button"
               className="rounded-full font-mono underline decoration-dotted underline-offset-2 tabular-nums hover:text-foreground"
-              onClick={openPopup}
+              onClick={() => openPopup('rest')}
             >
               {ui.chat.andMore} {more}
             </button>
           </>
         ) : null}
       </div>
-      <ViewsPopup anchor={popupAnchor} viewers={viewers} onClose={() => setPopupAnchor(null)} />
+      <ViewsPopup
+        anchor={popupAnchor}
+        viewers={popupMode === 'rest' ? viewers.slice(1) : viewers}
+        onClose={() => setPopupAnchor(null)}
+      />
     </div>
   );
 }

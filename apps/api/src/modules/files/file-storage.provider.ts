@@ -4,7 +4,11 @@ import type { Readable } from 'node:stream';
 import { ErrorCode } from '@nodus/contracts';
 
 import { DomainException } from '../../core/errors/domain-exception.js';
-import type { FileStorage, FileStorageSaveInput } from '../../core/ports/file-storage.port.js';
+import type {
+  FileStorage,
+  FileStorageContent,
+  FileStorageSaveInput,
+} from '../../core/ports/file-storage.port.js';
 import { FILES_CONFIG, STORAGE_MAX_FILE_BYTES, type FilesConfig } from './files.config.js';
 import { FilesRepository } from './files.repository.js';
 import { MinioStorageDriver } from './storage/minio-storage.driver.js';
@@ -59,8 +63,21 @@ export class FileStorageProvider implements FileStorage {
       name: input.name,
       mime: input.mime,
       size: input.size,
+      derivedFrom: input.derivedFrom ?? null,
     });
     return { fileId };
+  }
+
+  async get(fileId: string): Promise<FileStorageContent | null> {
+    const row = await this.repository.findById(fileId);
+    if (!row) return null;
+    try {
+      const stream = await this.driver.get(row.key);
+      return { stream, mime: row.mime, name: row.name, size: row.size };
+    } catch {
+      // объект исчез (уборка/сбой) — для потребителя это «файла нет»
+      return null;
+    }
   }
 
   async remove(fileIds: string[]): Promise<void> {

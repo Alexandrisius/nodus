@@ -2,7 +2,6 @@
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
 @import '@fontsource-variable/onest';
-@import '@fontsource-variable/jetbrains-mono';
 /* Легаси-темы «Тушь»/«Бумага» и «бумажные» утилиты — для экранов фич до их
  * переписывания (M4–M6) и dev-превью тем. В новом коде запрещены (DoD #4). */
 @import './legacy-themes.css';
@@ -58,8 +57,13 @@
 }
 
 @theme inline {
+  /* ЕДИНЫЙ шрифт портала (#151-пачка C, вердикт владельца 29.09: второй
+     шрифт JetBrains Mono удалён). --font-mono алиасится на --font-sans:
+     класс font-mono (мета/счётчики/табличные числа) остаётся валидным
+     Tailwind-токеном и рендерится тем же Onest — точечная замена сотен
+     употреблений не нужна. tabular-nums сохраняет выравнивание чисел. */
   --font-sans: 'Onest Variable', 'Noto Color Emoji', system-ui, sans-serif;
-  --font-mono: 'JetBrains Mono Variable', ui-monospace, 'Cascadia Mono', monospace;
+  --font-mono: 'Onest Variable', 'Noto Color Emoji', system-ui, sans-serif;
 
   --color-background: var(--background);
   --color-chat-zone: var(--chat-zone);
@@ -202,6 +206,10 @@
   --danger-soft: #f9e3df;
   --info: #3d6ba6;
   --info-soft: #e2eaf4;
+  /* Кольцо выделения сообщений (#155): светлую тему владелец одобрил в --info;
+     отдельный токен — чтобы тёмная могла быть ярче (контраст на тёмных
+     пузырях/ленте). */
+  --selection-ring: var(--info);
   /* Палитра пузырей чата — канон Telegram (issue #127, вердикт владельца
      28.09.2026: «ровно как в телеграме»): входящие — белый «лист», исходящие —
      светло-зелёный msgOutBg #EFFDDE из официального colors.palette tdesktop.
@@ -312,6 +320,9 @@
   --danger-soft: #2c1a18;
   --info: #7a93b2;
   --info-soft: #1a2230;
+  /* Кольцо выделения в dark: приглушённый --info на тёмных пузырях почти
+     неразличим (репро владельца 29.09) — яркий светло-синий tdesktop-hue. */
+  --selection-ring: #a6cdf3;
   /* Пузыри — канон Telegram dark (issue #127): исходящие — синий #2B5278,
      входящие — тёмно-синий #182533 (мобильные клиенты; фирменный navy остаётся
      хирургическим акцентом хрома). Акцент своих — светло-синий hue телеграмовских
@@ -657,40 +668,96 @@
    data-box-selected — живая «резинка» протяжки (императивный атрибут, без
    рендера React); data-selected — зафиксированное выделение. Правила ВНЕ
    @layer — перебивают утилиты заливки cva Bubble-примитива. */
-[data-message-id][data-selected='true'] [data-variant='default'] [data-slot='bubble-content'],
-[data-message-id][data-box-selected='true'] [data-variant='default'] [data-slot='bubble-content'] {
-  background-color: color-mix(in oklch, var(--bubble-out), var(--info) 22%);
-  transition: background-color 120ms ease-out;
+[data-message-id][data-selected='true'] [data-slot='bubble-outline'] path.fill-bubble-out,
+[data-message-id][data-box-selected='true'] [data-slot='bubble-outline'] path.fill-bubble-out {
+  fill: color-mix(in oklch, var(--bubble-out), var(--info) 32%);
 }
 
-[data-message-id][data-selected='true'] [data-variant='card'] [data-slot='bubble-content'],
-[data-message-id][data-box-selected='true'] [data-variant='card'] [data-slot='bubble-content'] {
-  background-color: color-mix(in oklch, var(--bubble-in), var(--info) 22%);
-  transition: background-color 120ms ease-out;
-}
-
-[data-message-id][data-selected='true'] [data-slot='bubble-tail'] path.fill-bubble-out,
-[data-message-id][data-box-selected='true'] [data-slot='bubble-tail'] path.fill-bubble-out {
-  fill: color-mix(in oklch, var(--bubble-out), var(--info) 22%);
-  transition: fill 120ms ease-out;
-}
-
-[data-message-id][data-selected='true'] [data-slot='bubble-tail'] path.fill-bubble-in,
-[data-message-id][data-box-selected='true'] [data-slot='bubble-tail'] path.fill-bubble-in {
-  fill: color-mix(in oklch, var(--bubble-in), var(--info) 22%);
-  transition: fill 120ms ease-out;
+[data-message-id][data-selected='true'] [data-slot='bubble-outline'] path.fill-bubble-in,
+[data-message-id][data-box-selected='true'] [data-slot='bubble-outline'] path.fill-bubble-in {
+  fill: color-mix(in oklch, var(--bubble-in), var(--info) 32%);
 }
 
 [data-message-id][data-selected='true'] [data-slot='post-surface'][data-surface='out'],
 [data-message-id][data-box-selected='true'] [data-slot='post-surface'][data-surface='out'] {
-  background-color: color-mix(in oklch, var(--bubble-out), var(--info) 22%);
-  transition: background-color 120ms ease-out;
+  background-color: color-mix(in oklch, var(--bubble-out), var(--info) 32%);
 }
 
 [data-message-id][data-selected='true'] [data-slot='post-surface'][data-surface='in'],
 [data-message-id][data-box-selected='true'] [data-slot='post-surface'][data-surface='in'] {
-  background-color: color-mix(in oklch, var(--bubble-in), var(--info) 22%);
-  transition: background-color 120ms ease-out;
+  background-color: color-mix(in oklch, var(--bubble-in), var(--info) 32%);
+}
+
+/* Кольцо выделения (#155, ревизия 10 — ЕДИНАЯ SVG-линия): вся граница
+   (коробка + хвост одним контуром) — штрих в слое bubble-outline (svg
+   inset-0 на боксе пузыря); полоса [1,2]css внутрь = штрих + прикрытие
+   цветом заливки + клип по силуэту. Один растеризатор — коробке и хвосту
+   нечем разойтись на дробных зумах (репро 110/150/175%). CSS box-shadow
+   больше НЕ участвует: его округление к device-сетке не совпадало со
+   SVG-штрихом. Посты — цвет существующего бордюра. Переходы — в БАЗОВЫХ
+   правилах (снятие выделения анимирует всё; репро владельца 29.09).
+   Всё — paint-only: layout не пересчитывается (урок pl-7 из #151). */
+/* Фон пузыря чата ПРОЗРАЧЕН: весь силуэт (коробка+плавник) красит ЕДИНЫЙ
+   path в слое bubble-outline — одна заливка на всё сообщение, тинт
+   выделения синхронен по построению (репро «прямоугольник запаздывает»).
+   Остальные варианты Bubble (secondary/muted/…) своими фонами. */
+[data-variant='default'] > [data-slot='bubble-content'],
+[data-variant='card'] > [data-slot='bubble-content'] {
+  background-color: transparent;
+}
+
+[data-slot='bubble-outline'] path {
+  transition:
+    fill 120ms ease-out,
+    stroke 120ms ease-out;
+}
+
+[data-slot='bubble-outline'] .bubble-ring {
+  stroke: transparent;
+}
+
+/* Прикрытие первых 1px от края цветом заливки (глубина полосы [1,2]css,
+   bubble-outline.tsx): цвет ВСЕГДА синхронен заливке пузыря — база и
+   выделение (color-mix те же, что у правил фонов). На коробке невидимо
+   (рисуется поверх фона тем же цветом), на хвосте задаёт глубину. */
+[data-slot='bubble-outline'] .bubble-ring-cover {
+  stroke: var(--bubble-out);
+}
+
+[data-variant='card'] [data-slot='bubble-outline'] .bubble-ring-cover {
+  stroke: var(--bubble-in);
+}
+
+[data-message-id][data-selected='true']
+  [data-variant='default']
+  [data-slot='bubble-outline']
+  .bubble-ring-cover,
+[data-message-id][data-box-selected='true']
+  [data-variant='default']
+  [data-slot='bubble-outline']
+  .bubble-ring-cover {
+  stroke: color-mix(in oklch, var(--bubble-out), var(--info) 32%);
+}
+
+[data-message-id][data-selected='true']
+  [data-variant='card']
+  [data-slot='bubble-outline']
+  .bubble-ring-cover,
+[data-message-id][data-box-selected='true']
+  [data-variant='card']
+  [data-slot='bubble-outline']
+  .bubble-ring-cover {
+  stroke: color-mix(in oklch, var(--bubble-in), var(--info) 32%);
+}
+
+[data-message-id][data-selected='true'] [data-slot='bubble-outline'] .bubble-ring,
+[data-message-id][data-box-selected='true'] [data-slot='bubble-outline'] .bubble-ring {
+  stroke: var(--selection-ring);
+}
+
+[data-message-id][data-selected='true'] [data-slot='post-surface'],
+[data-message-id][data-box-selected='true'] [data-slot='post-surface'] {
+  border-color: var(--selection-ring);
 }
 
 /* Текст поста канала — каретка, не «рука» карточки (р.7 #132): пост —

@@ -109,7 +109,16 @@ SET last_seq = last_seq + n RETURNING` в транзакции отправки 
 NULL`; `DELETE /chat/attachments/:id` — отмена из трея; привязка при
 отправке — одноразовая (`attachmentIds`, claimAttachments). Лимиты: 100 МБ
 на файл, ≤20 неотправленных (серверная сверка). Отдача — подписанные URL
-`files/:id/content` (url в DTO). Вне контура до смежных треков:
+`files/:id/content` (url в DTO; срок действия округляется до часового
+бакета — URL стабилен в пределах часа, кэш браузера работает, #150).
+Превью изображений (#150, ADR-0015): после загрузки kind=image — job в
+BullMQ (`thumbnail.queue.ts` → in-process воркер, concurrency 2) —
+sharp-метаданные (width/height перезаписываются серверно-авторитетно,
+EXIF-поворот учтён) → WebP-дериват max-edge 800 (`FileObject.derivedFrom`
+маркер деривата) → `thumb_file_id`; `thumbnailUrl` в DTO — та же подписанная
+ссылка. Превью опционально: сбой/мусорный файл → null, клиент грузит
+оригинал. Backfill старых вложений:
+`pnpm --filter @nodus/api exec tsx src/scripts/backfill-thumbnails.ts`. Вне контура до смежных треков:
 `POST .../to-task` (трек задач), автоканалы проектов.
 Realtime-доставка/typing/presence — WS-gateway (#104, `apps/gateway`).
 TTL/автоудаление сообщений — вне продукта навсегда

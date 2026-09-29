@@ -1,6 +1,4 @@
-import { Check } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { ui } from '@nodus/contracts';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { useFlashStore } from './jump-store.js';
@@ -8,13 +6,14 @@ import { useFlashStore } from './jump-store.js';
 /**
  * Строка сообщения ленты (#87): единая обёртка для всех хостов — якорь
  * data-message-id (DOM-прыжок лент без MessageScroller), подписка на вспышку
- * (jump-store → .message-flash, css-утилита globals), affordance мультивыбора
- * (A6): колонка чекбокса слева, клик по строке — toggle (Shift — диапазон).
- * В режиме селекта клик перехватывается в CAPTURE-фазе: внутренние
+ * (jump-store → .message-flash, css-утилита globals), affordance мультивыбора.
+ * Выделение — ТОЛЬКО ЦВЕТОМ (#151, вердикт владельца 29.09: анимация сдвига
+ * пузырей и кружки-чекбоксы убраны — у пилотов лагал сам процесс выделения):
+ * строка красится глобальным CSS по `[data-selected]` (globals.css, тинт
+ * bubble-content/post-surface), никакого reflow-перехода каждого пузыря.
+ * Клик по строке в режиме селекта перехватывается в CAPTURE-фазе: внутренние
  * интерактивы пузыря (лайтбокс, ссылки, реакции) не срабатывают — канон
- * tdesktop (клик по сообщению переключает отметку). Чекбокс — отдельная
- * hit-зона с preventDefault на mousedown (главный gotcha research: конфликт
- * с выделением текста).
+ * tdesktop (клик по сообщению переключает отметку).
  */
 export function MessageRow({
   messageId,
@@ -50,43 +49,7 @@ export function MessageRow({
           : undefined
       }
     >
-      {/* Колонка чекбокса — ВСЕГДА в DOM (#124): вход/выход режима селекта
-          анимируется (padding ленты + opacity/scale чекбокса, 220 мс — в такт
-          морфу островка композера), вместо мгновенного сдвига всей ленты.
-          Вне режима: pointer-events-none + aria-hidden — клики и AT не трогает
-          (перехват клика строки и так только при selectable). */}
-      <span
-        aria-hidden={selectable ? undefined : true}
-        className={cn(
-          'absolute top-1/2 left-0 z-10 flex w-6 -translate-y-1/2 items-center justify-center pl-1 transition-[opacity,scale] duration-[220ms] ease-out',
-          selectable ? 'opacity-100 scale-100' : 'pointer-events-none opacity-0 scale-75',
-        )}
-      >
-        <button
-          type="button"
-          role="checkbox"
-          aria-checked={selected}
-          aria-label={selected ? ui.chat.deselectOne : ui.chat.selectOne}
-          tabIndex={-1}
-          onMouseDown={(event) => event.preventDefault()}
-          className={cn(
-            'flex size-5 items-center justify-center rounded-full border transition-colors',
-            selected
-              ? 'border-primary bg-primary text-primary-foreground'
-              : 'border-input bg-card text-transparent hover:border-foreground/40',
-          )}
-        >
-          <Check className="size-3" strokeWidth={2.5} />
-        </button>
-      </span>
-      <div
-        className={cn(
-          'transition-[padding-left] duration-[220ms] ease-out',
-          selectable ? 'pl-7' : 'pl-0',
-        )}
-      >
-        {children}
-      </div>
+      {children}
     </div>
   );
 }

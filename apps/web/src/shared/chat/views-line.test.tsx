@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { ChatMessage, ConversationListItem } from '@nodus/contracts';
@@ -113,6 +113,28 @@ describe('ConversationViewsLine (#102 раунд 2)', () => {
     expect(screen.getByText('Анна Первая')).toBeTruthy();
     expect(screen.getByText('ещё 1')).toBeTruthy();
     expect(screen.getByText('и', { exact: true })).toBeTruthy();
+  });
+
+  it('пачка C: «ещё N» открывает ТОЛЬКО остальных — названный не дублируется', () => {
+    renderLine('group', [
+      msg({
+        id: 'm1',
+        seq: 1,
+        readBy: [
+          { id: 'u1', displayName: 'Анна Первая', avatarUrl: null },
+          { id: 'u2', displayName: 'Борис Второй', avatarUrl: null },
+          { id: 'u3', displayName: 'Вера Третья', avatarUrl: null },
+        ],
+      }),
+    ]);
+    // Названа Анна → «ещё 2» = Борис и Вера; попап «ещё» — БЕЗ Анны.
+    const more = screen.getByText('ещё 2');
+    fireEvent.click(more);
+    // Попап в портале: строки остальных есть, названной Анны — нет.
+    expect(screen.getAllByText('Борис Второй').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Вера Третья').length).toBeGreaterThan(0);
+    const popup = document.querySelector('[data-slot="views-popup"]');
+    expect(popup?.textContent).not.toContain('Анна Первая');
   });
 
   it('direct: просмотрено → «Просмотрено: {дата}, {время}» без имён', () => {

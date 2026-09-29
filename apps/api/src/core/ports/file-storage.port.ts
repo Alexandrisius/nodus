@@ -16,6 +16,16 @@ export interface FileStorageSaveInput {
   mime: string;
   /** Заявленный размер в байтах: провайдер сверит с фактически прожитыми. */
   size: number;
+  /** Дериват: FileObject порождён из этого файла (превью #150); null —
+   *  обычный пользовательский файл. Маркер пишется в file_objects.derivedFrom. */
+  derivedFrom?: string;
+}
+
+export interface FileStorageContent {
+  stream: Readable;
+  mime: string;
+  name: string;
+  size: number;
 }
 
 export interface FileStorage {
@@ -23,6 +33,11 @@ export interface FileStorage {
    *  пишет file_objects + file_versions (v1), возвращает id FileObject.
    *  При несовпадении фактического размера с заявленным объект удаляется. */
   save(input: FileStorageSaveInput, content: Readable): Promise<{ fileId: string }>;
+
+  /** Контент файла (текущей версии) по id; null — файла нет/удалён/объект
+   *  исчез (#150: воркер превью читает оригинал через порт, не зная про
+   *  MinIO и ключи). Права решает модуль-потребитель ДО вызова. */
+  get(fileId: string): Promise<FileStorageContent | null>;
 
   /** Удаляет объекты и строки файлов. Решение «можно ли удалить» (файл не
    *  привязан к сообщению) принадлежит модулю-потребителю — файлы не знают

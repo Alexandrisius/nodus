@@ -48,7 +48,9 @@ function renderMenu(message: ChatMessage, mine: boolean) {
         conversationId="conv-1"
         scope="conversation:conv-1"
       >
-        <span>пузырь</span>
+        {/* Поверхность сообщения: ПКМ-гейт пачки C открывает меню только
+            по пузырю/посту/надгробию (data-slot). */}
+        <span data-slot="bubble-content">пузырь</span>
       </MessageMenu>
     </QueryClientProvider>,
   );
