@@ -12,7 +12,10 @@ import { Redis } from 'ioredis';
 import { PrismaPg } from '@prisma/adapter-pg';
 
 import { PrismaClient } from '../generated/prisma/client.js';
-import { THUMBNAIL_QUEUE } from '../modules/chat/messages/thumbnail.queue.js';
+import {
+  THUMBNAIL_QUEUE,
+  THUMBNAIL_QUEUE_PREFIX,
+} from '../modules/chat/messages/thumbnail.queue.js';
 
 config({ path: fileURLToPath(new URL('../../../../.env', import.meta.url)) });
 
@@ -29,7 +32,7 @@ async function main(): Promise<void> {
   console.log(`Вложений-изображений без превью: ${rows.length}`);
 
   const connection = new Redis(redisUrl, { maxRetriesPerRequest: null });
-  const queue = new Queue(THUMBNAIL_QUEUE, { connection });
+  const queue = new Queue(THUMBNAIL_QUEUE, { connection, prefix: THUMBNAIL_QUEUE_PREFIX });
   for (const row of rows) {
     await queue.add(
       'generate',

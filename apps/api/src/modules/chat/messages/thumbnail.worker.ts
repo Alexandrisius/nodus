@@ -3,7 +3,7 @@ import { Worker } from 'bullmq';
 import { Redis } from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
 
-import { THUMBNAIL_QUEUE } from './thumbnail.queue.js';
+import { THUMBNAIL_QUEUE, THUMBNAIL_QUEUE_PREFIX } from './thumbnail.queue.js';
 import { ThumbnailService } from './thumbnail.service.js';
 
 /**
@@ -35,7 +35,7 @@ export class ThumbnailWorker implements OnModuleInit, OnModuleDestroy {
       async (job) => {
         await this.service.generateFor(job.data.attachmentId);
       },
-      { connection: this.connection, concurrency: 2 },
+      { connection: this.connection, concurrency: 2, prefix: THUMBNAIL_QUEUE_PREFIX },
     );
     this.worker.on('failed', (job, error) => {
       this.logger.warn(

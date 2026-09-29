@@ -2,8 +2,11 @@ import { Injectable, type OnModuleDestroy } from '@nestjs/common';
 import { Queue } from 'bullmq';
 import { Redis } from 'ioredis';
 
-/** Имя очереди превью (конвенция ключей `nodus:<module>:*`). */
-export const THUMBNAIL_QUEUE = 'nodus:chat:thumbnail';
+/** Очередь превью: ИМЯ без двоеточий (BullMQ запрещает ':' в имени — api падал
+ *  на старте, поймано CI PR #157), префикс ключей Redis — 'nodus' (конвенция
+ *  `nodus:<queue>:*` сохраняется: nodus:chat-thumbnail:*). */
+export const THUMBNAIL_QUEUE = 'chat-thumbnail';
+export const THUMBNAIL_QUEUE_PREFIX = 'nodus';
 
 /**
  * Продюсер очереди превью вложений (#150, ADR-0015): BullMQ поверх
@@ -23,7 +26,10 @@ export class ThumbnailQueue implements OnModuleDestroy {
     const url = process.env.REDIS_URL;
     if (!url) throw new Error('REDIS_URL не задан');
     this.connection = new Redis(url, { maxRetriesPerRequest: null });
-    this.queue = new Queue(THUMBNAIL_QUEUE, { connection: this.connection });
+    this.queue = new Queue(THUMBNAIL_QUEUE, {
+      connection: this.connection,
+      prefix: THUMBNAIL_QUEUE_PREFIX,
+    });
   }
 
   /** jobId = thumb:<attachmentId> — идемпотентность (повторная постановка,
