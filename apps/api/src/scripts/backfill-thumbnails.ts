@@ -38,7 +38,7 @@ async function main(): Promise<void> {
       'generate',
       { attachmentId: row.id, fileId: row.fileId },
       {
-        jobId: `thumb:${row.id}`,
+        jobId: `thumb-${row.id}`,
         attempts: 3,
         backoff: { type: 'exponential', delay: 5_000 },
       },
