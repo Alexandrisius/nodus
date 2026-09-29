@@ -2,15 +2,14 @@ import { Search } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { ui } from '@nodus/contracts';
 import { Input } from '@nodus/ui/components/input';
-import { Popover, PopoverContent, PopoverTrigger } from '@nodus/ui/components/popover';
 import { cn } from '@nodus/ui/lib/utils';
 
 /**
- * Панель эмодзи композера (#130, реф Telegram): открывается кнопкой Smile,
- * категории + поиск (EN имена + RU ключевые слова CLDR) + «Недавние»
- * (localStorage). Выбор — вставка юникода в позицию каретки (вставку делает
- * хост через onPick); панель НЕ закрывается — эмодзи ставят серией (канон
- * Telegram: пикер живёт, пока пользователь не уйдёт).
+ * Панель ЭМОДЗИ медиа-пикера композера (#130; вкладки — #143, оболочка в
+ * media-picker.tsx): категории + поиск (EN имена + RU ключевые слова CLDR) +
+ * «Недавние» (localStorage). Выбор — вставка юникода в позицию каретки
+ * (вставку делает хост через onPick); панель НЕ закрывается — эмодзи ставят
+ * серией (канон Telegram: пикер живёт, пока пользователь не уйдёт).
  *
  * Данные — 1906 эмодзи Unicode 16.0 (без тонов кожи) из
  * public/emoji/emoji-data.json (~60КБ gzip), грузятся fetch'ем при первом
@@ -67,8 +66,11 @@ const GROUP_TITLES: Record<string, string> = {
   symbols: ui.chat.emojiGroupSymbols,
   flags: ui.chat.emojiGroupFlags,
 };
+
 /** Данные — public/emoji/emoji-data.json (Unicode 16.0 + CLDR ru; генерация,
- *  вне линтера I5): 204КБ, gzip ~60КБ, грузится ПРИ ОТКРЫТИИ панели один раз. */
+ *  вне линтера I5): 204КБ, gzip ~60КБ, грузится ПРИ ОТКРЫТИИ панели один раз.
+ *  Отвергнутый промис НЕ кэшируется (сброс dataCache в catch панели — иначе
+ *  вечная «Загрузка…», урок #130). */
 let dataCache: Promise<EmojiData> | null = null;
 function loadEmojiData(): Promise<EmojiData> {
   dataCache ??= fetch('/emoji/emoji-data.json')
@@ -80,27 +82,28 @@ function loadEmojiData(): Promise<EmojiData> {
   return dataCache;
 }
 
-export function EmojiPickerButton({
-  onPick,
-  children,
-}: {
-  onPick: (emoji: string) => void;
-  children: React.ReactNode;
-}) {
-  const [open, setOpen] = useState(false);
+/** Контент вкладки «Эмодзи» (оболочка/вкладки — media-picker.tsx):
+ *  грузит данные при первом монтировании (панель открывается — вкладка
+ *  живёт), далее только ре-рендеры секций. */
+export function EmojiPanel({ onPick }: { onPick: (emoji: string) => void }) {
   const [query, setQuery] = useState('');
   const [data, setData] = useState<EmojiData | null>(null);
   const [recent, setRecent] = useState<string[]>(() => recentEmojis());
+
   useEffect(() => {
-    if (!open || data) return;
+    if (data) return;
     let live = true;
-    void loadEmojiData().then((loaded) => {
-      if (live) setData(loaded);
-    });
+    void loadEmojiData()
+      .then((loaded) => {
+        if (live) setData(loaded);
+      })
+      .catch(() => {
+        dataCache = null; // сброс: следующий ретрай снова фетчит
+      });
     return () => {
       live = false;
     };
-  }, [open, data]);
+  }, [data]);
 
   const sections = useMemo<Section[]>(() => {
     if (!data) return [];
@@ -138,61 +141,52 @@ export function EmojiPickerButton({
   }
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>{children}</PopoverTrigger>
-      <PopoverContent
-        side="top"
-        align="end"
-        className="w-88 p-0"
-        // «Вечный курсор» (канон #71): попап не крадёт фокус композера.
-        onOpenAutoFocus={(event) => event.preventDefault()}
-      >
-        <div className="border-b border-border p-2">
-          <Input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder={ui.chat.emojiSearch}
-            className="h-8 text-sm"
-            aria-label={ui.chat.emojiSearch}
-          />
-        </div>
-        <div className="max-h-80 overflow-y-auto overscroll-contain p-2">
-          {data === null ? (
-            <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
-              <Search className="mr-2 size-4 animate-pulse" strokeWidth={1.75} />
-              {ui.chat.emojiLoading}
-            </div>
-          ) : sections.length === 0 || sections.every((section) => section.emojis.length === 0) ? (
-            <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
-              {ui.chat.emojiNothingFound}
-            </div>
-          ) : (
-            sections.map((section) => (
-              <section key={section.id} className="mb-1">
-                <h3 className="px-1 pb-1 text-xs font-medium text-muted-foreground">
-                  {section.title}
-                </h3>
-                <div className="grid grid-cols-8 gap-0.5">
-                  {section.emojis.map((entry) => (
-                    <button
-                      key={entry.e}
-                      type="button"
-                      aria-label={entry.n}
-                      title={entry.n}
-                      onClick={() => pick(entry.e)}
-                      className={cn(
-                        'flex size-9 cursor-pointer items-center justify-center rounded-lg text-2xl transition-transform hover:scale-110 hover:bg-accent',
-                      )}
-                    >
-                      {entry.e}
-                    </button>
-                  ))}
-                </div>
-              </section>
-            ))
-          )}
-        </div>
-      </PopoverContent>
-    </Popover>
+    <div className="flex h-full flex-col">
+      <div className="border-b border-border p-2">
+        <Input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder={ui.chat.emojiSearch}
+          className="h-8 text-sm"
+          aria-label={ui.chat.emojiSearch}
+        />
+      </div>
+      <div className="h-80 overflow-y-auto overscroll-contain p-2">
+        {data === null ? (
+          <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
+            <Search className="mr-2 size-4 animate-pulse" strokeWidth={1.75} />
+            {ui.chat.emojiLoading}
+          </div>
+        ) : sections.length === 0 || sections.every((section) => section.emojis.length === 0) ? (
+          <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
+            {ui.chat.emojiNothingFound}
+          </div>
+        ) : (
+          sections.map((section) => (
+            <section key={section.id} className="mb-1">
+              <h3 className="px-1 pb-1 text-xs font-medium text-muted-foreground">
+                {section.title}
+              </h3>
+              <div className="grid grid-cols-8 gap-0.5">
+                {section.emojis.map((entry) => (
+                  <button
+                    key={entry.e}
+                    type="button"
+                    aria-label={entry.n}
+                    title={entry.n}
+                    onClick={() => pick(entry.e)}
+                    className={cn(
+                      'flex size-9 cursor-pointer items-center justify-center rounded-lg text-2xl transition-transform hover:scale-110 hover:bg-accent',
+                    )}
+                  >
+                    {entry.e}
+                  </button>
+                ))}
+              </div>
+            </section>
+          ))
+        )}
+      </div>
+    </div>
   );
 }

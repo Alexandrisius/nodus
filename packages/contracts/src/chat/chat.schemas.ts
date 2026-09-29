@@ -4,6 +4,7 @@ import { letterRefSchema } from '../correspondence/letter.schemas.js';
 import { userRefSchema } from '../directory/user-ref.schema.js';
 import { projectRefSchema, taskRefSchema } from '../tasks/task.schemas.js';
 import { cursorQuerySchema } from '../pagination/paginated.schema.js';
+import { stickerMetaSchema } from './sticker.schemas.js';
 
 /** Контракты модуля чата (chat.Conversation/Message). */
 
@@ -24,8 +25,11 @@ export const messageAttachmentSchema = z.object({
   size: z.number().int().min(0),
   mime: z.string().min(1),
   /** Явный вид (НЕ выводить из mime: mime — для иконки и валидации):
-   *  image — галерея, file — чип. */
-  kind: z.enum(['image', 'file']),
+   *  image — галерея, file — чип, sticker — стикер-глиф без пузыря (#143). */
+  kind: z.enum(['image', 'file', 'sticker']),
+  /** Метаданные стикера (только kind='sticker'): пак для поповера «Добавить
+   *  пак» и рендер без доп-запроса; снапшот на момент отправки (#143). */
+  sticker: stickerMetaSchema.nullish(),
   /** Адрес оригинала (в проде — MinIO через StorageDriver, I13). */
   url: z.string().nullable(),
   /** Превью для галереи (null у файлов). */
@@ -72,8 +76,8 @@ export const replyPreviewSchema = z.object({
   /** Частичная цитата (модель Telegram Replies 2.0): процитированный
    *  фрагмент вместо начала текста; null — цитата всего сообщения. */
   quoteText: z.string().nullable(),
-  /** Вид вложения оригинала — подписи «Фото»/«Файл» в цитате без текста. */
-  attachmentKind: z.enum(['image', 'file']).nullable(),
+  /** Вид вложения оригинала — подписи «Фото»/«Файл»/«Стикер» в цитате без текста. */
+  attachmentKind: z.enum(['image', 'file', 'sticker']).nullable(),
   /** Оригинал удалён — цитата показывает «Сообщение удалено» (канон
    *  Telegram lng_deleted_message): удаление сильнее заморозки снапшота. */
   deleted: z.boolean(),
@@ -296,21 +300,28 @@ export type ListMessagesQuery = z.infer<typeof listMessagesQuerySchema>;
 
 /** Отправка сообщения: в тред канала — с threadRootId (корень + ответы);
  *  ответ-цитата — replyToId; вложения — ids загруженных через
- *  POST /chat/attachments. Текст ИЛИ вложения обязательны (сообщение
- *  только с файлом — валидно, канон Telegram). */
+ *  POST /chat/attachments; стикер — stickerId (#143, отдельное
+ *  стикер-сообщение без текста). Текст, вложения ИЛИ стикер обязательны
+ *  (сообщение только с файлом/стикером — валидно, канон Telegram). */
 export const sendMessageBodySchema = z
   .object({
     text: z.string().trim().max(4000),
     attachmentIds: z.array(z.uuid()).max(20).optional(),
+    /** Стикер из пака (доступного отправителю): сервер клеймит вложение
+     *  kind='sticker' с метаданными пака (снапшот). */
+    stickerId: z.uuid().optional(),
     replyToId: z.uuid().nullable().optional(),
     /** Частичная цитата: фрагмент текста оригинала, выделенный автором
      *  ответа (модель Telegram Replies 2.0); сервер усекает снапшот. */
     quoteText: z.string().trim().max(1024).nullable().optional(),
     threadRootId: z.uuid().nullable().optional(),
   })
-  .refine((v) => v.text.length > 0 || (v.attachmentIds?.length ?? 0) > 0, {
-    message: 'text or attachmentIds required',
-  });
+  .refine(
+    (v) => v.text.length > 0 || (v.attachmentIds?.length ?? 0) > 0 || v.stickerId !== undefined,
+    {
+      message: 'text or attachmentIds or stickerId required',
+    },
+  );
 
 export type SendMessageBody = z.infer<typeof sendMessageBodySchema>;
 

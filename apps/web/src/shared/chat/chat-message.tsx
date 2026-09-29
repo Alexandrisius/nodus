@@ -3,7 +3,6 @@ import type { ChatMessage } from '@nodus/contracts';
 import { cn } from '@nodus/ui/lib/utils';
 import { Message, MessageAvatar, MessageContent } from '@nodus/ui/components/message';
 import { Bubble, BubbleContent } from '@nodus/ui/components/bubble';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@nodus/ui/components/tooltip';
 
 import { openCardViaBridge } from '../lib/card-bridge.js';
 import { shortPersonName, withoutPatronymic } from '../lib/format.js';
@@ -13,95 +12,17 @@ import { useChatPrefs } from './chat-prefs.js';
 import { useChatHostNavigation } from './chat-host.js';
 import { useJumpStore } from './jump-store.js';
 import { ForwardedHeader, ReplyHeader } from './message-headers.js';
+import { MessageReactions } from './message-reactions.js';
 import { MessageMeta } from './message-meta.js';
-import { useReactionToggle } from './message-mutations.js';
 import { MessageText } from './message-text.js';
-import { ReactionGlyph } from './reaction-glyph.js';
 import { ReactionPicker } from './reaction-picker.js';
+import { stickerAttachmentOf, StickerMessageView } from './sticker-message.js';
 import { MessageTombstone } from './tombstone.js';
 import { PersonAvatar } from '../ui/person-avatar.js';
 
-/** Реакции сообщения: плоские моно-чипы на токенах. Чип — кнопка
- *  (#124, канон Telegram): клик toggle'ит свою реакцию оптимистично. Ховер по
- *  чипу — тултип «кто поставил»: аватар+ФИО списком (вердикт 27.09 п.4; один
- *  поставивший — одна строка). users — опционально на рендере: api без поля
- *  (например, собран из main при деве с новым фронт-деревом) не роняет ленту,
- *  тултип просто не показывается. Key включает count/mine: смена реакции
- *  перемонтирует чип и проигрывает pop-анимацию (reaction-pop, globals).
- *  Тон — по поверхности (#127): на залитом своём пузыре чипы в акценте пузыря
- *  (зелёный/светло-синий), на чужом пузыре и постах канала — info/нейтраль. */
-export function MessageReactions({
-  message,
-  onFilled = false,
-}: {
-  message: ChatMessage;
-  /** Чипы на залитом своём пузыре — акцент пузыря вместо info. */
-  onFilled?: boolean;
-}) {
-  const toggle = useReactionToggle(message.conversationId);
-  if (message.reactions.length === 0) return null;
-  return (
-    <span className="flex flex-wrap gap-1">
-      {message.reactions.map((reaction) => {
-        const users = reaction.users ?? [];
-        const chip = (
-          <button
-            type="button"
-            aria-pressed={reaction.mine}
-            aria-label={`${reaction.emoji} ${reaction.count}`}
-            onClick={() =>
-              toggle.mutate({
-                messageId: message.id,
-                emoji: reaction.emoji,
-                remove: reaction.mine,
-              })
-            }
-            className={cn(
-              'reaction-pop inline-flex cursor-pointer items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-label-sm tabular-nums transition-colors',
-              onFilled
-                ? cn(
-                    // Текст чипа на залитом пузыре — foreground поверхности
-                    // (акцент на тёмной заливке не дотягивал AA, валидатор
-                    // #127); hue реакции несут бордюр и подложка.
-                    reaction.mine
-                      ? 'border-bubble-out-accent/50 bg-bubble-out-accent/20 text-bubble-out-foreground'
-                      : 'border-bubble-out-accent/30 bg-transparent text-bubble-out-foreground/80 hover:bg-bubble-out-accent/10',
-                  )
-                : reaction.mine
-                  ? 'border-info/40 bg-info-soft/60 text-info'
-                  : 'border-border bg-accent/40 text-muted-foreground hover:border-foreground/40',
-            )}
-          >
-            <ReactionGlyph emoji={reaction.emoji} className="size-4" />
-            {reaction.count}
-          </button>
-        );
-        if (users.length === 0) {
-          return <span key={`${reaction.emoji}:${reaction.count}:${reaction.mine}`}>{chip}</span>;
-        }
-        return (
-          <Tooltip key={`${reaction.emoji}:${reaction.count}:${reaction.mine}`}>
-            <TooltipTrigger asChild>{chip}</TooltipTrigger>
-            <TooltipContent side="top" className="p-1">
-              <span className="flex max-h-40 flex-col gap-0.5 overflow-y-auto">
-                {users.map((user) => (
-                  <span key={user.id} className="flex items-center gap-1.5 px-1.5 py-0.5">
-                    <PersonAvatar
-                      name={user.displayName}
-                      avatarUrl={user.avatarUrl}
-                      className="size-5 shrink-0"
-                    />
-                    <span className="text-xs">{shortPersonName(user.displayName)}</span>
-                  </span>
-                ))}
-              </span>
-            </TooltipContent>
-          </Tooltip>
-        );
-      })}
-    </span>
-  );
-}
+/** Реакции — в собственном файле (потребитель-стикер #143); реэкспорт для
+ *  прежних точек импорта (thread-feed, тесты). */
+export { MessageReactions } from './message-reactions.js';
 
 /**
  * Сообщение чата по канону Битрикс24/Телеграм (вердикт владельца 14.09.2026,
@@ -125,6 +46,7 @@ export function MessageReactions({
  * все с одной стороны; 'both' — классика: свои справа. Реакции и вложения —
  * ВНУТРИ пузыря; действия — контекстное меню по правому клику (MessageMenu,
  * без кнопок на сообщении — вердикт владельца).
+ * Стикер-сообщение (#143) — отдельная ветка без пузыря (StickerMessageView).
  */
 export const ChatMessageItem = memo(function ChatMessageItem({
   message,
@@ -162,6 +84,21 @@ export const ChatMessageItem = memo(function ChatMessageItem({
           <MessageTombstone mine={mine} />
         </MessageContent>
       </Message>
+    );
+  }
+
+  // Стикер (#143): без пузыря — крупный глиф + метка; клик — поповер пака
+  // (дистрибуция «из чата»). Имя автора не выводится (канон Telegram).
+  const stickerAttachment = stickerAttachmentOf(message);
+  if (stickerAttachment) {
+    return (
+      <StickerMessageView
+        message={message}
+        attachment={stickerAttachment}
+        mine={mine}
+        showAvatar={showAvatar}
+        reactionsHidden={reactionsHidden}
+      />
     );
   }
 

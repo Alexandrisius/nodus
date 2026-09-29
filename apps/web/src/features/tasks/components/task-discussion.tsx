@@ -102,6 +102,9 @@ export const TaskDiscussion = memo(function TaskDiscussion({ taskId }: { taskId:
         placeholder={ui.tasks.addComment}
         onSubmit={(submit) => send.mutate(submit.text)}
         focusId={`task:${taskId}`}
+        // Обсуждение задачи — задачи на tasks-API: стикеры (chat-API, #143)
+        // здесь не живут; вкладка пикера скрыта до завоза chat-контура.
+        stickersEnabled={false}
       />
     </div>
   );
