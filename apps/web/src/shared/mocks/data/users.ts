@@ -237,15 +237,13 @@ export const currentAuthUser: AuthUser = {
   id: me.id,
   email: me.email,
   displayName: me.displayName,
-  // Мок-концепт: текущий пользователь — админ, галочка «Для всех» видна (#4);
-  // стикеры (#143): право на корпоративные паки для UI-фазы на моках.
+  // Мок-концепт: текущий пользователь — админ, галочка «Для всех» видна (#4).
   permissions: [
     'task.create',
     'task.update',
     'letter.register',
     'resolution.issue',
     Permission.SETTINGS_UI_DEFAULTS,
-    Permission.STICKER_MANAGE,
   ],
 };
 

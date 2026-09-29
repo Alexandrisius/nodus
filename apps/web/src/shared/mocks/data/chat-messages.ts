@@ -265,31 +265,6 @@ export const channelMessages: ChatMessage[] = [
       },
     },
   ),
-  // Стикер из ЧУЖОГО пака «Кадры» (#143): демо дистрибуции «из чата» —
-  // клик по стикеру → поповер пака → «Добавить пак». id = литералы
-  // sid(3)/sid(301) мок-состояния стикеров (features/chat/api/mocks).
-  msg(33, 3, userIds.shaiderova, '', isoAgo(0, 8, 10), {
-    attachments: [
-      {
-        id: '80000000-0000-4000-8000-000000000033',
-        fileId: 'c0000000-0000-4000-8000-000000000301',
-        name: 'sticker.webp',
-        size: 24_000,
-        mime: 'image/webp',
-        kind: 'sticker',
-        url: '/reactions/eyes.webp',
-        thumbnailUrl: null,
-        width: 64,
-        height: 64,
-        sticker: {
-          packId: 'c0000000-0000-4000-8000-000000000003',
-          packTitle: 'Кадры',
-          packScope: 'personal',
-          emojis: ['👀'],
-        },
-      },
-    ],
-  }),
 
   msg(
     5,

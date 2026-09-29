@@ -21,8 +21,6 @@ import { demoTasks, personalNew, stageNew, tid } from '../../../../shared/mocks/
 import { demoUserListItems, userRef } from '../../../../shared/mocks/data/users.js';
 import { actorUserRef, getMockActor } from '../../../../shared/mocks/mock-actor.js';
 import { chatMutationHandlers } from './chat-mutation-handlers.js';
-import { findSticker } from './sticker-mock-state.js';
-import { stickerHandlers } from './sticker-handlers.js';
 import {
   applyReadReceipt,
   applyThreadReadReceipt,
@@ -187,42 +185,9 @@ const conversationHandlers = [
         { status: 404 },
       );
     }
-    // Стикер (#143): снапшот-вложение kind='sticker' с метаданными пака —
-    // доступ проверяет живой сервер (корпоративный | свой | установленный).
-    let stickerAttachment: MessageAttachment | null = null;
-    if (parsed.data.stickerId) {
-      const hit = findSticker(parsed.data.stickerId);
-      if (!hit) {
-        return HttpResponse.json(
-          { code: ErrorCode.NOT_FOUND, message: 'Sticker not found' },
-          { status: 404 },
-        );
-      }
-      const ext = hit.sticker.mime.split('/')[1] ?? 'png';
-      stickerAttachment = {
-        id: crypto.randomUUID(),
-        fileId: hit.sticker.id,
-        name: `sticker.${ext}`,
-        size: hit.sticker.size,
-        mime: hit.sticker.mime,
-        kind: 'sticker',
-        url: hit.sticker.url,
-        thumbnailUrl: null,
-        width: hit.sticker.width,
-        height: hit.sticker.height,
-        sticker: {
-          packId: hit.pack.id,
-          packTitle: hit.pack.title,
-          packScope: hit.pack.scope,
-          emojis: hit.sticker.emojis,
-        },
-      };
-    }
-    const attachments = stickerAttachment
-      ? [stickerAttachment]
-      : (parsed.data.attachmentIds ?? [])
-          .map((attachmentId) => uploadedAttachments.get(attachmentId))
-          .filter((a): a is MessageAttachment => a !== undefined);
+    const attachments = (parsed.data.attachmentIds ?? [])
+      .map((attachmentId) => uploadedAttachments.get(attachmentId))
+      .filter((a): a is MessageAttachment => a !== undefined);
     for (const attachment of attachments) uploadedAttachments.delete(attachment.id);
     revealHiddenConversation(String(params.id)); // активность раскрывает беседу (#103)
     const seq = nextMessageSeq(String(params.id));
@@ -421,4 +386,4 @@ const conversationHandlers = [
  *  сообщений линии A (chat-mutation-handlers.ts). Порядок важен: более
  *  специфичные маршруты (:id/pins, :id/forward) MSW матчит по шаблону,
  *  конфликтов с :id/messages нет. */
-export const chatHandlers = [...conversationHandlers, ...chatMutationHandlers, ...stickerHandlers];
+export const chatHandlers = [...conversationHandlers, ...chatMutationHandlers];

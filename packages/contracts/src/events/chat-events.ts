@@ -21,13 +21,6 @@ export const CHAT_EVENTS = {
   REACTION_ADDED: 'chat.reaction_added',
   REACTION_REMOVED: 'chat.reaction_removed',
   THREAD_CREATED: 'chat.thread_created',
-  STICKER_PACK_CREATED: 'chat.sticker_pack_created',
-  STICKER_PACK_UPDATED: 'chat.sticker_pack_updated',
-  STICKER_PACK_DELETED: 'chat.sticker_pack_deleted',
-  STICKER_ADDED: 'chat.sticker_added',
-  STICKER_REMOVED: 'chat.sticker_removed',
-  STICKER_PACK_INSTALLED: 'chat.sticker_pack_installed',
-  STICKER_PACK_UNINSTALLED: 'chat.sticker_pack_uninstalled',
 } as const;
 
 export const chatConversationCreatedPayloadSchema = z.object({
@@ -119,30 +112,3 @@ export const chatThreadCreatedPayloadSchema = z.object({
   messageId: z.uuid(),
 });
 export type ChatThreadCreatedPayload = z.infer<typeof chatThreadCreatedPayloadSchema>;
-
-/** Стикер-паки (#143): payload минимальный и клиентски видим. Изменения пака
- *  (переименование, состав) — одно UPDATED-событие; стикер-сообщение rides
- *  на обычном chat.message_sent (вложение kind='sticker' несёт метаданные). */
-export const chatStickerPackPayloadSchema = z.object({
-  packId: z.uuid(),
-  scope: z.enum(['corporate', 'personal']),
-  title: z.string().min(1).max(64),
-  /** Инициатор (создатель/редактор/установивший). */
-  actorId: z.uuid(),
-});
-export type ChatStickerPackPayload = z.infer<typeof chatStickerPackPayloadSchema>;
-
-/** Установка/снятие пака пользователем (личная коллекция). */
-export const chatStickerPackInstallPayloadSchema = z.object({
-  packId: z.uuid(),
-  userId: z.uuid(),
-});
-export type ChatStickerPackInstallPayload = z.infer<typeof chatStickerPackInstallPayloadSchema>;
-
-/** Пополнение пака стикером (инкрементальная точка для живых пикеров). */
-export const chatStickerAddedPayloadSchema = z.object({
-  packId: z.uuid(),
-  stickerId: z.uuid(),
-  actorId: z.uuid(),
-});
-export type ChatStickerAddedPayload = z.infer<typeof chatStickerAddedPayloadSchema>;

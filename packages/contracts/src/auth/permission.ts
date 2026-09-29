@@ -20,9 +20,6 @@ export const Permission = {
   ROLE_MANAGE: 'role.manage',
   /** Управление справочниками/классификаторами (dictionaries, I15). */
   DICTIONARY_MANAGE: 'dictionary.manage',
-  /** Корпоративные стикер-паки: создание/пополнение/удаление «для всех»
-   *  (chat, #143); личные паки права не требуют. */
-  STICKER_MANAGE: 'sticker.manage',
   /** Регистрация корреспонденции (входящие/исходящие). */
   CORRESPONDENCE_CREATE: 'correspondence.create',
   /** Архивация корреспонденции. */

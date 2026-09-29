@@ -28,16 +28,13 @@ const TEXT_COL_MIN = uiPx(240);
  * квадратной миниатюрой. Чистая функция — unit-тест.
  */
 export function attachmentsLayout(list: MessageAttachment[]): AttachmentLayout {
-  // Стикер (#143) рендерится собственной веткой сообщения (без пузыря) —
-  // из блока вложений исключён полностью.
-  const items = list.filter((a) => a.kind !== 'sticker');
-  const images = items.filter((a) => a.kind === 'image');
-  if (items.length > 0 && images.length === items.length) {
+  const images = list.filter((a) => a.kind === 'image');
+  if (list.length > 0 && images.length === list.length) {
     return images.length === 1
       ? { mode: 'single', image: images[0]! }
       : { mode: 'gallery', images };
   }
-  return { mode: 'list', items };
+  return { mode: 'list', items: list };
 }
 
 /**
@@ -50,9 +47,8 @@ export function attachmentsLayout(list: MessageAttachment[]): AttachmentLayout {
  * по-прежнему w-fit от текста. Чистая функция — unit-тест.
  */
 export function attachmentsContentWidth(list: MessageAttachment[]): number | null {
-  const visible = list.filter((a) => a.kind !== 'sticker'); // стикер — без пузыря (#143)
-  if (visible.length === 0) return null;
-  const layout = attachmentsLayout(visible);
+  if (list.length === 0) return null;
+  const layout = attachmentsLayout(list);
   const mediaW =
     layout.mode === 'single'
       ? fitSingleBox(layout.image.width, layout.image.height).width
