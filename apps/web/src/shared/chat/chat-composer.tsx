@@ -26,7 +26,7 @@ import {
   type PendingAttachment,
   type ReplyDraft,
 } from './chat-drafts.js';
-import { EmojiPickerButton } from './emoji-picker.js';
+import { MediaPickerButton } from './media-picker.js';
 import { ComposerBanner } from './composer-banner.js';
 import { ComposerClipMenu } from './composer-clip-menu.js';
 import { addFiles } from './composer-files.js';
@@ -40,16 +40,20 @@ import { useForwardMessages } from './message-mutations.js';
 import { isSendShortcut } from './send-keys.js';
 import { useScrollEndStore } from './scroll-end-store.js';
 import { SelectionToolbar } from './selection-island.js';
+import type { StickerSubmitPayload } from './sticker-api.js';
 
 /** Payload отправки композера (#87): текст + готовые вложения + контекст
  *  ответа/правки. Хост решает: edit ≠ null → мутация правки; иначе — отправка
  *  (attachmentIds/replyToId из payload). Пересылка (бар ForwardBanner)
- *  обрабатывается ВНУДРИ композера: текст = комментарий к блоку. */
+ *  обрабатывается ВНУДРИ композера: текст = комментарий к блоку.
+ *  Стикер (#143) — отдельный payload: поле приоритетнее текста (отправка
+ *  кликом из вкладки стикеров, мимо textarea). */
 export interface ComposerSubmit {
   text: string;
   attachments: PendingAttachment[];
   reply: ReplyDraft | null;
   edit: EditDraft | null;
+  sticker?: StickerSubmitPayload | null;
 }
 
 /** Лимит текста сообщения (контракт text.max(4000), спека): превалидация в
@@ -130,6 +134,9 @@ export function ChatComposer({
   typingThreadRootId = null,
   onSubmit,
   attachmentsEnabled: attachmentsEnabledProp = false,
+  /** Стикеры (#143): хосты на чужом API (обсуждение задачи — tasks) их не
+   *  поддерживают; по умолчанию включены вместе с чат-конвейером. */
+  stickersEnabled = true,
   onEditLast,
   selection = null,
   disabledPlaceholder = null,
@@ -145,6 +152,8 @@ export function ChatComposer({
   onSubmit: (submit: ComposerSubmit) => void;
   /** Полный режим (мессенджер): скрепка-меню, вставка файлов, ↑-правка. */
   attachmentsEnabled?: boolean;
+  /** Стикеры вкладки пикера (#143): false — вкладка недоступна (task-хост). */
+  stickersEnabled?: boolean;
   /** ↑ на пустом поле: хост открывает правку последнего своего сообщения. */
   onEditLast?: () => void;
   /** Активный мультивыбор ленты: островок сужается до батч-команд. */
@@ -343,6 +352,14 @@ export function ChatComposer({
       el.focus();
       el.setSelectionRange(caret, caret);
     });
+  }
+
+  /** Выбор стикера (#143): мгновенная отправка отдельным сообщением — мимо
+   *  textarea и гейтов canSubmit (стикер самодостаточен, модель Telegram);
+   *  панель пикера не закрывается (можно поставить серию). */
+  function pickSticker(payload: StickerSubmitPayload) {
+    onSubmit({ text: '', attachments: [], reply: null, edit: null, sticker: payload });
+    requestScrollEnd();
   }
 
   function onSubmitForm(event: FormEvent) {
@@ -549,9 +566,20 @@ export function ChatComposer({
                 rows={1}
                 className="max-h-[45vh] min-h-8 flex-1 resize-none rounded-lg border-0 bg-transparent px-1.5 py-1.5 shadow-none ring-0 focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent"
               />
-              {/* Панель эмодзи (#130): клик — категории/поиск/недавние,
-                  вставка в позицию каретки; попап не крадёт «вечный курсор». */}
-              <EmojiPickerButton onPick={insertEmoji}>
+              {/* Медиа-пикер (#130 → #143): вкладки «Эмодзи | Стикеры»,
+                  вставка эмодзи в каретку, стикер — мгновенная отправка;
+                  попап не крадёт «вечный курсор». Стикеры недоступны в
+                  режиме селекта/пересылки и без права поста. */}
+              <MediaPickerButton
+                onPickEmoji={insertEmoji}
+                onPickSticker={pickSticker}
+                stickersDisabled={
+                  !stickersEnabled ||
+                  selPhase !== 'normal' ||
+                  disabledPlaceholder !== null ||
+                  pending !== null
+                }
+              >
                 <Button
                   type="button"
                   variant="ghost"
@@ -562,7 +590,7 @@ export function ChatComposer({
                 >
                   <Smile strokeWidth={1.75} />
                 </Button>
-              </EmojiPickerButton>
+              </MediaPickerButton>
               {/* Отправка/галка и мик — ОДИН габарит ghost-кнопки (size-8):
                   переключение не двигает строку; заливки НЕТ — гексагон в
                   семье значков, тон темнее (вердикт 24.09, раунды 4–5). */}

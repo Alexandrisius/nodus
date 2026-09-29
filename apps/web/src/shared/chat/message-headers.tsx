@@ -35,7 +35,9 @@ export function ReplyHeader({
         ? ui.chat.quotePhoto
         : reply.attachmentKind === 'file'
           ? ui.chat.quoteFile
-          : '');
+          : reply.attachmentKind === 'sticker'
+            ? ui.chat.stickerPreview
+            : '');
   const interactive = !reply.deleted && onClick !== undefined;
   const Tag = interactive ? 'button' : 'span';
   return (
