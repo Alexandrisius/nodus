@@ -94,6 +94,11 @@
   --color-bubble-out: var(--bubble-out);
   --color-bubble-out-foreground: var(--bubble-out-foreground);
   --color-bubble-out-accent: var(--bubble-out-accent);
+  --color-file-pdf: var(--file-pdf);
+  --color-file-doc: var(--file-doc);
+  --color-file-sheet: var(--file-sheet);
+  --color-file-archive: var(--file-archive);
+  --color-file-media: var(--file-media);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
@@ -209,6 +214,14 @@
   --bubble-out: #effdde;
   --bubble-out-foreground: #26272a;
   --bubble-out-accent: #2f7a1e;
+  /* Цвета типов файлов — иконки документов (референс Битрикс24, #144):
+     pdf красный, офис синий, таблицы зелёные, архивы оранжевые, медиа
+     фиолетовые; графические токены поверх любых поверхностей сообщения. */
+  --file-pdf: #d64541;
+  --file-doc: #3b6fd4;
+  --file-sheet: #3f9142;
+  --file-archive: #d97706;
+  --file-media: #8250df;
   /* Categorical-палитра данных: Okabe-Ito (colorblind-safe) на белом холсте. */
   --chart-1: #0072b2;
   --chart-2: #009e73;
@@ -308,6 +321,12 @@
   --bubble-out: #2b5278;
   --bubble-out-foreground: #e8e8e6;
   --bubble-out-accent: #9ec7e8;
+  /* Цвета типов файлов — осветлённые тона под тёмные пузыри (#144). */
+  --file-pdf: #ff6b61;
+  --file-doc: #7aa2f7;
+  --file-sheet: #62b76a;
+  --file-archive: #f5a054;
+  --file-media: #b394f0;
   /* Categorical-палитра данных: осветлённые тона Okabe-Ito под тёмный холст. */
   --chart-1: #64a4e0;
   --chart-2: #5fbf8f;

@@ -23,6 +23,7 @@ import { setOpenConversation } from './notifications.js';
 import { useChatDrafts } from './chat-drafts.js';
 import { addFiles } from './composer-files.js';
 import { toSendVars } from './composer-submit.js';
+import { registerScopeSubmit } from './submit-registry.js';
 import { focusComposer } from './composer-focus.js';
 import { DayChip } from './day-chip.js';
 import { FeedDropzone } from './feed-dropzone.js';
@@ -133,6 +134,16 @@ export const ThreadPane = memo(function ThreadPane({
     }
     send.mutate({ ...toSendVars(submit), threadRootId });
   }
+
+  // Окно отправки вложений (#144): отправка через хук хоста (треда — с
+  // threadRootId), оптимистичность/reply не дублируются в диалоге.
+  useEffect(
+    () =>
+      registerScopeSubmit(scope, (submit) =>
+        send.mutateAsync({ ...toSendVars(submit), threadRootId }),
+      ),
+    [scope, send, threadRootId],
+  );
 
   function handleEditLast() {
     const message = lastMine();

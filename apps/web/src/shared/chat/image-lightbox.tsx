@@ -34,12 +34,20 @@ export function ImageLightbox({
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
-      if (event.key === 'Escape') onClose();
+      // Capture + stopPropagation: Esc гасит ТОЛЬКО лайтбокс, даже открытый
+      // поверх Radix-диалога (окно отправки вложений, #144) — иначе document-
+      // слушатель DismissableLayer закрыл бы и диалог под ним.
+      if (event.key === 'Escape') {
+        event.stopPropagation();
+        event.preventDefault();
+        onClose();
+        return;
+      }
       if (event.key === 'ArrowRight') onIndex(Math.min(index + 1, images.length - 1));
       if (event.key === 'ArrowLeft') onIndex(Math.max(index - 1, 0));
     }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
   }, [index, images.length, onClose, onIndex]);
 
   if (!image) return null;

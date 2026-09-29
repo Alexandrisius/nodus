@@ -67,6 +67,10 @@ interface DraftsState {
   addAttachments: (key: string, items: PendingAttachment[]) => void;
   patchAttachment: (key: string, localId: string, patch: Partial<PendingAttachment>) => void;
   removeAttachment: (key: string, localId: string) => void;
+  /** Сортировка окна отправки (#144): порядок строк = порядок attachmentIds. */
+  reorderAttachments: (key: string, from: number, to: number) => void;
+  /** Отмена окна отправки (#144): вложения сняты целиком (blob-URL освобождены). */
+  clearAttachments: (key: string) => void;
   clear: (key: string) => void;
 }
 
@@ -160,6 +164,25 @@ export const useChatDrafts = create<DraftsState>()(
               ...d,
               attachments: d.attachments.filter((a) => a.localId !== localId),
             };
+          }),
+        })),
+      reorderAttachments: (key, from, to) =>
+        set((s) => ({
+          drafts: patchDraft(s.drafts, key, (d) => {
+            const attachments = [...d.attachments];
+            const [moved] = attachments.splice(from, 1);
+            if (!moved) return d;
+            attachments.splice(to, 0, moved);
+            return { ...d, attachments };
+          }),
+        })),
+      clearAttachments: (key) =>
+        set((s) => ({
+          drafts: patchDraft(s.drafts, key, (d) => {
+            for (const gone of d.attachments) {
+              if (gone.objectUrl) URL.revokeObjectURL(gone.objectUrl);
+            }
+            return { ...d, attachments: [] };
           }),
         })),
       clear: (key) => set((s) => ({ drafts: patchDraft(s.drafts, key, () => EMPTY_DRAFT) })),

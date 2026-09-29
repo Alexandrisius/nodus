@@ -21,6 +21,7 @@ import { messageSurface } from './message-surface.js';
 import { ConversationViewsLine } from './views-line.js';
 import { addFiles } from './composer-files.js';
 import { toSendVars } from './composer-submit.js';
+import { registerScopeSubmit } from './submit-registry.js';
 import { focusComposer } from './composer-focus.js';
 import { useScrollEndStore } from './scroll-end-store.js';
 import { FeedDropzone } from './feed-dropzone.js';
@@ -162,6 +163,13 @@ export const ThreadFeed = memo(function ThreadFeed({
     send.mutate(toSendVars(submit));
   }
 
+  // Окно отправки вложений (#144): глобальный диалог шлёт через хук хоста —
+  // оптимистичность/reply/идемпотентность в одном месте.
+  useEffect(
+    () => registerScopeSubmit(scope, (submit) => send.mutateAsync(toSendVars(submit))),
+    [scope, send],
+  );
+
   function handleEditLast() {
     const message = lastMine();
     if (!message) return;
@@ -293,7 +301,7 @@ export const ThreadFeed = memo(function ThreadFeed({
                           </span>
                           {root.attachments.length > 0 ? (
                             <span className="mt-2 block">
-                              <MessageAttachments message={root} />
+                              <MessageAttachments message={root} mine={root.author.id === me?.id} />
                             </span>
                           ) : null}
                           {/* Текст поста — MessageText (р.6): маркер

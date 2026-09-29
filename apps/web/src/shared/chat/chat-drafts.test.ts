@@ -1,7 +1,7 @@
 import type { ChatMessage } from '@nodus/contracts';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { EMPTY_DRAFT, useChatDrafts } from './chat-drafts.js';
+import { EMPTY_DRAFT, useChatDrafts, type PendingAttachment } from './chat-drafts.js';
 
 const CONV = '11111111-1111-4111-8111-111111111111';
 const KEY = `conversation:${CONV}`;
@@ -98,5 +98,41 @@ describe('chat-drafts — режимы композера (A2/A4, #87)', () => {
     store.setReply(KEY, msg('m1', 'оригинал'));
     store.clear(KEY);
     expect(useChatDrafts.getState().drafts[KEY] ?? EMPTY_DRAFT).toEqual(EMPTY_DRAFT);
+  });
+});
+
+describe('chat-drafts — окно отправки вложений (#144)', () => {
+  beforeEach(reset);
+
+  const pending = (
+    localId: string,
+    status: 'uploading' | 'ready' | 'error' = 'ready',
+  ): PendingAttachment => ({
+    localId,
+    fileName: `${localId}.csv`,
+    mime: 'text/csv',
+    size: 10,
+    progress: status === 'ready' ? 1 : 0,
+    status,
+    attachment: null,
+    objectUrl: null,
+  });
+
+  it('reorderAttachments: порядок строк = порядок attachmentIds сообщения', () => {
+    const store = useChatDrafts.getState();
+    store.addAttachments(KEY, [pending('a'), pending('b'), pending('c')]);
+    store.reorderAttachments(KEY, 0, 2);
+    const ids = useChatDrafts.getState().drafts[KEY]?.attachments.map((a) => a.localId);
+    expect(ids).toEqual(['b', 'c', 'a']);
+  });
+
+  it('clearAttachments (отмена окна): вложения сняты, текст подписи жив (черновик)', () => {
+    const store = useChatDrafts.getState();
+    store.setText(KEY, 'подпись');
+    store.addAttachments(KEY, [pending('a')]);
+    store.clearAttachments(KEY);
+    const draft = useChatDrafts.getState().drafts[KEY];
+    expect(draft?.attachments).toEqual([]);
+    expect(draft?.text).toBe('подпись');
   });
 });

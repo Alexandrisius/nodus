@@ -260,7 +260,9 @@ export const ChatMessageItem = memo(function ChatMessageItem({
             ) : null}
             {/* Вложения — ВЫШЕ текста (грамматика Битрикс24, план
                 chat-attachments-plan): галерея/чипы сверху, затем текст. */}
-            {message.attachments.length > 0 ? <MessageAttachments message={message} /> : null}
+            {message.attachments.length > 0 ? (
+              <MessageAttachments message={message} mine={mine} />
+            ) : null}
             <MessageText text={message.text} />
             {/* Нижняя строка пузыря ПОД содержимым: реакции СЛЕВА, мета
                 (пин/изменено/время/галочки) — СПРАВА у самого низа облака

@@ -2,9 +2,10 @@ import { expect, test, type Page } from '@playwright/test';
 
 /**
  * Живые вложения чата (#57, приёмка: upload → send → download на реальном
- * MinIO): загрузка картинки через композер (скрепка → скрытый input), трей
- * прогресса, отправка с подписью, картинка видна ОБЕИМ сессиям (WS-доставка
- * DTO с подписанным url), а <img> РЕАЛЬНО грузит контент без auth-заголовка;
+ * MinIO): загрузка картинки через композер (скрепка → скрытый input) открывает
+ * ОКНО ОТПРАВКИ (#144): строка с прогрессом/крестиком, подпись внутри окна,
+ * отправка его кнопкой; картинка видна ОБЕИМ сессиям (WS-доставка DTO с
+ * подписанным url), а <img> РЕАЛЬНО грузит контент без auth-заголовка;
  * контрольное скачивание через API — байт-в-байт.
  *
  * Требует живой стек: api (прокси /api), MinIO и non-mock сборку web. Запуск:
@@ -81,7 +82,7 @@ test.describe('живые вложения чата (#57)', () => {
     conversationId = ((await created.json()) as { id: string }).id;
   });
 
-  test('картинка: скрепка → трей → отправка → обе сессии видят → контент байт-в-байт', async ({
+  test('картинка: скрепка → окно отправки → отправка → обе сессии видят → контент байт-в-байт', async ({
     browser,
   }) => {
     const contextA = await browser.newContext();
@@ -102,17 +103,20 @@ test.describe('живые вложения чата (#57)', () => {
       buffer: PNG_BYTES,
     });
 
-    // Трей: карточка загрузки — крестик «Отменить загрузку» (прогресс) или
-    // «Убрать из сообщения» (готово). Живой MinIO — щедрый таймаут.
+    // Окно отправки (#144): строка загрузки — крестик «Отменить загрузку»
+    // (прогресс) или «Убрать из сообщения» (готово). Живой MinIO — щедрый
+    // таймаут; «Отправить» окна заблокирована, пока загрузка не готова.
+    const dialog = pageA.getByRole('dialog');
     const removeButton = pageA
       .getByRole('button', { name: 'Отменить загрузку' })
       .or(pageA.getByRole('button', { name: 'Убрать из сообщения' }));
     await expect(removeButton.first()).toBeVisible({ timeout: 15_000 });
+    const sendButton = dialog.getByRole('button', { name: 'Отправить', exact: true });
+    await expect(sendButton).toBeEnabled({ timeout: 20_000 });
 
-    const composer = pageA.getByPlaceholder(/Написать сообщение/i);
-    await composer.click();
-    await composer.fill(CAPTION);
-    await composer.press('Enter');
+    // Подпись — поле окна (текст черновика), отправка — кнопкой окна.
+    await dialog.getByPlaceholder('Добавить подпись').fill(CAPTION);
+    await sendButton.click();
 
     // У себя: подпись + галерея; <img> реально загрузил подписанный url
     // (naturalWidth > 0 — без auth-заголовка, только виза в query).

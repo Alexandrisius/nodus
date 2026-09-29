@@ -298,5 +298,11 @@ export function useSendChatMessage(conversationId: string, draftScope?: string) 
     mutation.mutate({ ...vars, tempId: vars.tempId ?? crypto.randomUUID() });
   }
 
-  return { ...mutation, mutate };
+  /** То же с исходом вызова (#144): окно отправки вложений держит кнопку
+   *  нажатой до ответа и переживает сетевую ошибку с повтором. */
+  function mutateAsync(vars: SendChatVars): Promise<ChatMessage> {
+    return mutation.mutateAsync({ ...vars, tempId: vars.tempId ?? crypto.randomUUID() });
+  }
+
+  return { ...mutation, mutate, mutateAsync };
 }
