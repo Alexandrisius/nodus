@@ -10,10 +10,16 @@ import { Public } from '../../core/decorators/public.decorator.js';
 import { ZodValidationPipe } from '../../core/pipes/zod-validation.pipe.js';
 import { FilesRepository } from './files.repository.js';
 import { MinioStorageDriver } from './storage/minio-storage.driver.js';
+import { needsTextNormalization, normalizeTextForOffice } from './office/text-normalizer.js';
 
 const contentQuerySchema = z.object({
   exp: z.coerce.number().int().positive(),
   sig: z.string().regex(/^[0-9a-f]{64}$/),
+  /** Конкретная версия (история просмотрщика, #138); без v — текущая. */
+  v: z.coerce.number().int().min(1).optional(),
+  /** Контекст движка ONLYOFFICE: txt/csv/tsv отдаются UTF-8+BOM (DS сам не
+   *  детектит кодировку — диалог выбора висит невидимым, репро 29.09). */
+  office: z.literal('1').optional(),
 });
 
 /**
@@ -21,7 +27,8 @@ const contentQuerySchema = z.object({
  * `@Public`: ссылку открывают <img>/«скачать»/новая вкладка — Authorization-
  * заголовка нет; подпись = виза, выданная при формировании DTO вложения
  * (лента сообщений уже проверила членство в беседе). Заражённые (scan_status
- * = infected) не отдаются с первого дня — 410 FILE_QUARANTINED.
+ * = infected) не отдаются с первого дня — 410 FILE_QUARANTINED. Версии
+ * неизменяемы (ключ = f(id, version)) — ETag даёт честный 304.
  */
 @ApiTags('files')
 @Controller('files')
@@ -45,7 +52,9 @@ export class FilesController {
     @Req() request: FastifyRequest,
     @Res() reply: FastifyReply,
   ): Promise<void> {
-    if (!this.signedUrls.verify(id, query.exp, query.sig)) {
+    // Ресурс подписи включает версию: ссылка на v2 не открывает v3.
+    const resourceId = query.v ? `${id}:v${query.v}` : id;
+    if (!this.signedUrls.verify(resourceId, query.exp, query.sig)) {
       throw DomainException.unauthenticated('File link is invalid or expired');
     }
     const file = await this.repository.findById(id);
@@ -56,14 +65,46 @@ export class FilesController {
       throw new DomainException(ErrorCode.FILE_QUARANTINED, 'File is quarantined', undefined, 410);
     }
 
-    // Версии неизменяемы (ключ = f(id, version)) — ETag даёт честный 304.
-    const etag = `"${file.id}-v1"`;
+    // Текущая версия — по указателю file_objects.key; запрошенная — из истории.
+    let key = file.key;
+    let version = file.version;
+    let size = file.size;
+    if (query.v && query.v !== file.version) {
+      const row = await this.repository.findVersion(file.id, query.v);
+      if (!row) throw DomainException.notFound('File version not found');
+      key = row.key;
+      version = row.version;
+      size = row.size;
+    }
+
+    const etag = `"${file.id}-v${version}"`;
     if (request.headers['if-none-match'] === etag) {
       void reply.status(304).send();
       return;
     }
 
-    const stream = await this.driver.get(file.key);
+    // Контекст DS: текстовые форматы нормализуются (UTF-8+BOM) буфером —
+    // размер тела меняется, отдаём посчитанный.
+    if (query.office && needsTextNormalization(file.name, size)) {
+      const chunks: Buffer[] = [];
+      for await (const chunk of await this.driver.get(key)) {
+        chunks.push(chunk as Buffer);
+      }
+      const body = normalizeTextForOffice(Buffer.concat(chunks));
+      void reply
+        .header('Content-Type', 'text/plain; charset=utf-8')
+        .header('Content-Length', body.length)
+        .header(
+          'Content-Disposition',
+          `attachment; filename*=UTF-8''${encodeURIComponent(file.name)}`,
+        )
+        .header('X-Content-Type-Options', 'nosniff')
+        .header('ETag', etag)
+        .send(body);
+      return;
+    }
+
+    const stream = await this.driver.get(key);
     // Inline — ТОЛЬКО whitelist растровых форматов: mime приходит от клиента
     // и не валидируется, а SVG (и пр. активный контент) в «новой вкладке»
     // исполняет скрипты на origin портала → refresh-cookie жертвы (валидация
@@ -79,7 +120,7 @@ export class FilesController {
     const disposition = INLINE_MIME.has(file.mime) ? 'inline' : 'attachment';
     void reply
       .header('Content-Type', file.mime)
-      .header('Content-Length', file.size)
+      .header('Content-Length', size)
       .header(
         'Content-Disposition',
         `${disposition}; filename*=UTF-8''${encodeURIComponent(file.name)}`,

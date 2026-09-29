@@ -106,6 +106,7 @@ export class MessageDtoMapper {
           ? []
           : (attachmentsByMessage.get(row.id) ?? []).map((a): MessageAttachment => ({
               id: a.id,
+              fileId: a.fileId,
               name: a.name,
               size: a.size,
               mime: a.mime,
@@ -186,6 +187,7 @@ export class MessageDtoMapper {
       reactions: [],
       attachments: ctx.attachments.map((a) => ({
         id: a.id,
+        fileId: a.fileId,
         name: a.name,
         size: a.size,
         mime: a.mime,

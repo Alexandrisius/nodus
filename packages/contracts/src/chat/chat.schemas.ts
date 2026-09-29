@@ -18,6 +18,8 @@ export type ConversationType = z.infer<typeof conversationTypeSchema>;
 
 export const messageAttachmentSchema = z.object({
   id: z.uuid(),
+  /** Файл модуля files (сессия просмотра/версии, #138); plain UUID (I3). */
+  fileId: z.uuid(),
   name: z.string().min(1),
   size: z.number().int().min(0),
   mime: z.string().min(1),

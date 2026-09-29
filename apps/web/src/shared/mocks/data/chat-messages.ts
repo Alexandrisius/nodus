@@ -86,6 +86,7 @@ export const channelMessages: ChatMessage[] = [
       attachments: [
         {
           id: '70000000-0000-4000-8000-000000000021',
+          fileId: crypto.randomUUID(),
           name: 'презентация_конкурс.pdf',
           size: 2_400_000,
           mime: 'application/pdf',
@@ -155,6 +156,7 @@ export const channelMessages: ChatMessage[] = [
       attachments: [
         {
           id: '70000000-0000-4000-8000-000000000103',
+          fileId: crypto.randomUUID(),
           name: 'статус_внедрение.png',
           size: 620_000,
           mime: 'image/png',
@@ -274,6 +276,7 @@ export const channelMessages: ChatMessage[] = [
       attachments: [
         {
           id: '70000000-0000-4000-8000-000000000101',
+          fileId: crypto.randomUUID(),
           name: 'корпус_Б_фасад.png',
           size: 840_000,
           mime: 'image/png',
@@ -285,6 +288,7 @@ export const channelMessages: ChatMessage[] = [
         },
         {
           id: '70000000-0000-4000-8000-000000000102',
+          fileId: crypto.randomUUID(),
           name: 'планировка_этажа.png',
           size: 760_000,
           mime: 'image/png',

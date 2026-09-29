@@ -522,7 +522,9 @@
    вечный. unicode-range ограждает не-эмодзи глифы. Декабрь/VPS: субсет. */
 @font-face {
   font-family: 'Noto Color Emoji';
-  src: url('/fonts/NotoColorEmoji.ttf') format('truetype');
+  /* /app-fonts, НЕ /fonts: корневой /fonts/* проксируется в ONLYOFFICE
+   * (vite/nginx) и наш шрифт уходит в DS 404 — находка #138, 29.09. */
+  src: url('/app-fonts/NotoColorEmoji.ttf') format('truetype');
   font-display: swap;
   unicode-range:
     U+1F000-1FAFF, U+2600-26FF, U+2700-27BF, U+1F1E6-1F1FF, U+2B00-2BFF, U+FE0F, U+2049, U+203C,

@@ -111,6 +111,7 @@ export class AttachmentsService {
   }): MessageAttachment {
     return {
       id: row.id,
+      fileId: row.fileId,
       name: row.name,
       size: row.size,
       mime: row.mime,
