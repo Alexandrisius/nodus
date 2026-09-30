@@ -27,8 +27,8 @@ beforeEach(() => {
               {
                 id: 'smileys',
                 emojis: [
-                  { e: '🔥', n: 'fire' },
-                  { e: '😀', n: 'grinning face' },
+                  { e: '🔥', n: 'fire', s: 'огонь пламя', t: 'огонь' },
+                  { e: '😀', n: 'grinning face', s: 'улыбка', t: 'широко улыбается' },
                   { e: '🎉', n: 'party popper' },
                 ],
               },
@@ -83,7 +83,7 @@ describe('MediaPickerButton: вкладка эмодзи (#130/#143)', () => {
       },
       { timeout: 8000 },
     );
-    const fire = emojiButton('fire');
+    const fire = emojiButton('Огонь');
     expect(fire).not.toBeNull();
     fireEvent.click(fire as Element);
     expect(PICKED).toHaveBeenCalledWith('🔥');
@@ -104,12 +104,28 @@ describe('MediaPickerButton: вкладка эмодзи (#130/#143)', () => {
     expect(recentEmojis()).toEqual(['🔥', '🎉']);
   });
 
+  it('тултипы — русские имена CLDR с заглавной; без t — английское (#165)', async () => {
+    setup();
+    fireEvent.click(document.body.querySelector('button[aria-label="Эмодзи"]') as Element);
+    await waitFor(
+      () => {
+        expect(emojiButton('Огонь')).not.toBeNull();
+      },
+      { timeout: 8000 },
+    );
+    // С заглавной (данные хранят строчными — I15 и никакой автоперевод).
+    expect(emojiButton('Широко улыбается')).not.toBeNull();
+    // Fallback без русской аннотации (флаг Сарка в реальных данных) —
+    // английское имя, тоже с заглавной.
+    expect(emojiButton('Party popper')).not.toBeNull();
+  }, 30000);
+
   it('вкладки переключаются: «Стикеры» выбирается, эмодзи скрываются', async () => {
     setup();
     fireEvent.click(document.body.querySelector('button[aria-label="Эмодзи"]') as Element);
     await waitFor(
       () => {
-        expect(emojiButton('fire')).not.toBeNull();
+        expect(emojiButton('Огонь')).not.toBeNull();
       },
       { timeout: 8000 },
     );
