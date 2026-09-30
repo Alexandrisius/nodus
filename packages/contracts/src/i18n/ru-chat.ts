@@ -268,7 +268,6 @@ export const chatStrings = {
   stickerDeletePack: 'Удалить пак',
   stickerDeletePackHint: 'Пак исчезнет у всех; отправленные сообщения сохранятся',
   stickerDeleteForMe: 'Убрать из моих',
-  stickerPackCorporate: 'Корпоративный',
   stickerTooLarge: 'Файл больше лимита: 512 КБ (WebP/PNG) или 256 КБ (WebM)',
   stickerBadFormat: 'Поддерживаются только WebP, PNG и WebM без звука',
   stickerTooLong: 'WebM дольше 3 секунд не поддерживается',
