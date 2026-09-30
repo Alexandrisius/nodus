@@ -13,6 +13,10 @@ overrides:
   # и shadcn/@dotenvx (7.x) — селективно, без смены мейджора у потребителей.
   undici@>=8.0.0: 8.10.2
   undici@<8.0.0: 7.29.1
+  # brace-expansion high (DoS рекурсией, 09.2026): транзитивно из eslint/minimatch (dev);
+  # engine.io 6.6.9 → 6.6.10 (Socket.IO DoS, патч мажора — транзитивный из gateway).
+  brace-expansion@>=4.0.0: 5.0.11
+  engine.io@>=6.6.0: 6.6.10
 
 # pnpm 11: install-скрипты зависимостей блокируются, если пакет не разрешён явно.
 # esbuild (транспиляция Vite/Vitest) и unrs-resolver (резолвер
