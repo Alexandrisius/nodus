@@ -59,13 +59,15 @@ export const StickerMessageView = memo(function StickerMessageView({
   message,
   attachment,
   mine,
-  showAvatar = true,
+  avatarSlot = 'avatar',
   reactionsHidden = false,
 }: {
   message: ChatMessage;
   attachment: MessageAttachment;
   mine: boolean;
-  showAvatar?: boolean;
+  /** Слот аватара: 'avatar' — свой (вне серий); 'none' — колонку держит
+   *  grid серии (message-run.tsx, #164). */
+  avatarSlot?: 'avatar' | 'none';
   reactionsHidden?: boolean;
 }) {
   const align = useChatPrefs((s) => s.align);
@@ -75,18 +77,21 @@ export const StickerMessageView = memo(function StickerMessageView({
     <Message align={atEnd ? 'end' : 'start'} className="group/msg">
       {/* Аватар автора — ВИДИМЫЙ (вердикт владельца 30.09: «скидываются
           анонимно»): стикер = обычное сообщение, авторство видно всегда. */}
-      {showAvatar ? (
+      {avatarSlot === 'avatar' ? (
         <MessageAvatar>
           <PersonAvatar name={message.author.displayName} className="size-7" />
         </MessageAvatar>
-      ) : (
-        <span aria-hidden className="w-8 shrink-0" />
-      )}
+      ) : null}
       <MessageContent>
-        {showAvatar ? null : <span className="sr-only">{message.author.displayName}: </span>}
+        {avatarSlot === 'avatar' ? null : (
+          <span className="sr-only">{message.author.displayName}: </span>
+        )}
         {/* w-fit: колонка по ширине глифа (не на всю строку ленты) — иначе
-            мета/реакции убегают к правому краю экрана (ревизия 30.09). */}
-        <span className="relative flex w-fit flex-col group/bubble">
+            мета/реакции убегают к правому краю экрана (ревизия 30.09).
+            data-slot обязателен: MessageContent прижимает вправо (align=end,
+            «По обе стороны») только детей с data-slot — без него стикер
+            оставался слева при аватаре справа (баг-вердикт 30.09, #164). */}
+        <span data-slot="sticker-message" className="relative flex w-fit flex-col group/bubble">
           <StickerWindowTrigger message={message} attachment={attachment}>
             <StickerGlyph
               url={attachment.url ?? ''}

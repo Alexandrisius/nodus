@@ -32,9 +32,10 @@ export { MessageReactions } from './message-reactions.js';
  * - имя (`showName`): только чужое и только ВНУТРИ ПЕРВОГО пузыря серии —
  *   верхней строкой облака, полужирным акцентом (реф Битрикс24: имя цветное и
  *   отличается от текста, лента читается без лишней вертикали «имя — пузырь»);
- * - аватар (`showAvatar`): один на серию, у ПОСЛЕДНЕГО сообщения, внизу
- *   (MessageAvatar-примитив self-end); у остальных сообщений серии колонка
- *   аватара резервируется проставкой — пузыри стоят на одной вертикали;
+ * - аватар: один на серию, у ПОСЛЕДНЕГО сообщения — колонку аватара держит
+ *   grid серии (`message-run.tsx`, #164: аватар — sticky-элемент серии,
+ *   прилипает к нижней кромке ленты при прокрутке); вне серий (посты каналов,
+ *   корень треда) компонента рисует аватар сама (`avatarSlot="avatar"`);
  * - хвостик (`tail`): только у ПОСЛЕДНЕГО пузыря серии, из его нижнего угла
  *   к низу аватарки (BubbleOutline, SVG-слой на боксе пузыря);
  * - мета: нижняя строка ПОД содержимым (не в строке текста) — реакции слева,
@@ -52,7 +53,7 @@ export const ChatMessageItem = memo(function ChatMessageItem({
   message,
   mine,
   showName = false,
-  showAvatar = true,
+  avatarSlot = 'avatar',
   tail = false,
   reactionsHidden = false,
 }: {
@@ -60,8 +61,10 @@ export const ChatMessageItem = memo(function ChatMessageItem({
   mine: boolean;
   /** Имя автора ВНУТРИ пузыря верхней строкой — только чужое и только первое в серии. */
   showName?: boolean;
-  /** Аватар — один на серию, у последнего сообщения. */
-  showAvatar?: boolean;
+  /** Слот аватара: 'avatar' — рисуем свой (вне серий: посты каналов, корень
+   *  треда); 'none' — колонку аватара держит grid серии (message-run.tsx,
+   *  #164), распорка не нужна. */
+  avatarSlot?: 'avatar' | 'none';
   /** Хвостик из низа аватарки — у последнего пузыря серии. */
   tail?: boolean;
   /** Режим выделения: реакции недоступны (модель Битрикс24, #132 р.4). */
@@ -87,13 +90,11 @@ export const ChatMessageItem = memo(function ChatMessageItem({
   if (message.deletedAt) {
     return (
       <Message align={atEnd ? 'end' : 'start'} className="group/msg">
-        {showAvatar ? (
+        {avatarSlot === 'avatar' ? (
           <MessageAvatar>
             <PersonAvatar name={message.author.displayName} className="size-7" />
           </MessageAvatar>
-        ) : (
-          <span aria-hidden className="w-8 shrink-0" />
-        )}
+        ) : null}
         <MessageContent>
           {showName ? null : (
             <span className="sr-only">{withoutPatronymic(message.author.displayName)}: </span>
@@ -131,7 +132,7 @@ export const ChatMessageItem = memo(function ChatMessageItem({
         message={message}
         attachment={stickerAttachment}
         mine={mine}
-        showAvatar={showAvatar}
+        avatarSlot={avatarSlot}
         reactionsHidden={reactionsHidden}
       />
     );
@@ -166,13 +167,11 @@ export const ChatMessageItem = memo(function ChatMessageItem({
   const contentWidth = attachmentsContentWidth(message.attachments);
   return (
     <Message align={atEnd ? 'end' : 'start'} className="group/msg">
-      {showAvatar ? (
+      {avatarSlot === 'avatar' ? (
         <MessageAvatar>
           <PersonAvatar name={message.author.displayName} className="size-7" />
         </MessageAvatar>
-      ) : (
-        <span aria-hidden className="w-8 shrink-0" />
-      )}
+      ) : null}
       <MessageContent>
         {/* Имя визуально — ВНУТРИ пузыря (ниже); здесь остаётся sr-only автор
             для сообщений серии без видимого имени (AT не теряет автора). */}

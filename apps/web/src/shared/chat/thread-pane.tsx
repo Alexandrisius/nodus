@@ -31,6 +31,7 @@ import { useEditMessage } from './message-mutations.js';
 import { MessageMenu } from './message-menu.js';
 import { MessageRow } from './message-row.js';
 import { buildMessageRuns, formatDayLabel, startsNewDay } from './message-groups.js';
+import { MessageRunView } from './message-run.js';
 import { selectionComposerProps, useFeedSelection } from './use-feed-selection.js';
 import { useFeedViewportRead } from './use-viewport-read.js';
 import { useBoxSelection } from './use-box-selection.js';
@@ -155,13 +156,9 @@ export const ThreadPane = memo(function ThreadPane({
     focusComposer(scope);
   }
 
-  function renderMessage(
-    message: (typeof items)[number],
-    mine: boolean,
-    firstId?: string,
-    lastId?: string,
-  ) {
-    const isRoot = message.id === threadRootId;
+  /** Корень треда — ВНЕ серий: полный набор (имя чужое, аватар и хвостик —
+   *  свой слот, avatarSlot="avatar"); серия канона здесь не работает. */
+  function renderRoot(message: (typeof items)[number]) {
     return (
       <MessageRow
         messageId={message.id}
@@ -170,27 +167,19 @@ export const ThreadPane = memo(function ThreadPane({
         onToggle={(shift) => selection.toggle(message.id, shift)}
       >
         {message.deletedAt ? (
-          <ChatMessageItem
-            message={message}
-            mine={mine}
-            showName={isRoot ? !mine : !mine && message.id === firstId}
-            showAvatar={isRoot ? true : message.id === lastId}
-            tail={isRoot ? true : message.id === lastId}
-          />
+          <ChatMessageItem message={message} mine={rootMine} showName={!rootMine} />
         ) : (
           <MessageMenu
             message={message}
-            mine={mine}
+            mine={rootMine}
             conversationId={conversationId}
             scope={scope}
             messagesOfSelection={selection.getSelectedMessages}
           >
             <ChatMessageItem
               message={message}
-              mine={mine}
-              showName={isRoot ? !mine : !mine && message.id === firstId}
-              showAvatar={isRoot ? true : message.id === lastId}
-              tail={isRoot ? true : message.id === lastId}
+              mine={rootMine}
+              showName={!rootMine}
               reactionsHidden={selection.selectionActive}
             />
           </MessageMenu>
@@ -271,7 +260,7 @@ export const ThreadPane = memo(function ThreadPane({
                   <MessageGroup className="gap-3">
                     {root ? (
                       <MessageScrollerItem messageId={root.id}>
-                        {renderMessage(root, rootMine)}
+                        {renderRoot(root)}
                         <span
                           aria-hidden
                           className="mt-3 block border-b border-dashed border-border"
@@ -281,7 +270,7 @@ export const ThreadPane = memo(function ThreadPane({
 
                     {runs.map((run, runIndex) => {
                       const prevLast = runIndex === 0 ? root : runs[runIndex - 1]?.last;
-                      const { first, last } = run;
+                      const { first } = run;
                       return (
                         <Fragment key={first.id}>
                           {startsNewDay(prevLast, first) ? (
@@ -289,15 +278,47 @@ export const ThreadPane = memo(function ThreadPane({
                               <DayChip label={formatDayLabel(first.createdAt)} />
                             </MessageScrollerItem>
                           ) : null}
-                          <div className="flex min-w-0 flex-col gap-0.5">
-                            {run.items.map((message) => (
-                              <Fragment key={message.id}>
-                                <MessageScrollerItem messageId={message.id}>
-                                  {renderMessage(message, run.mine, first.id, last.id)}
-                                </MessageScrollerItem>
-                              </Fragment>
-                            ))}
-                          </div>
+                          <MessageRunView
+                            run={run}
+                            showName={!run.mine}
+                            renderItem={(message, attrs) => (
+                              <MessageScrollerItem messageId={message.id} style={attrs.style}>
+                                <MessageRow
+                                  messageId={message.id}
+                                  selectable={selection.selectionActive && !message.deletedAt}
+                                  selected={selection.selectedSet.has(message.id)}
+                                  onToggle={(shift) => selection.toggle(message.id, shift)}
+                                >
+                                  {message.deletedAt ? (
+                                    <ChatMessageItem
+                                      message={message}
+                                      mine={run.mine}
+                                      showName={attrs.showName}
+                                      avatarSlot="none"
+                                      tail={attrs.tail}
+                                    />
+                                  ) : (
+                                    <MessageMenu
+                                      message={message}
+                                      mine={run.mine}
+                                      conversationId={conversationId}
+                                      scope={scope}
+                                      messagesOfSelection={selection.getSelectedMessages}
+                                    >
+                                      <ChatMessageItem
+                                        message={message}
+                                        mine={run.mine}
+                                        showName={attrs.showName}
+                                        avatarSlot="none"
+                                        tail={attrs.tail}
+                                        reactionsHidden={selection.selectionActive}
+                                      />
+                                    </MessageMenu>
+                                  )}
+                                </MessageRow>
+                              </MessageScrollerItem>
+                            )}
+                          />
                         </Fragment>
                       );
                     })}

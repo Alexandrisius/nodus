@@ -6,6 +6,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { ChatMessage } from '@nodus/contracts';
 
 import { ChatMessageItem, MessageReactions } from './chat-message.js';
+import { StickerMessageView } from './sticker-message.js';
+import { useChatPrefs } from './chat-prefs.js';
 
 // QueryClient остаётся: пузырь живёт в дереве с запросами ленты.
 const queryClient = new QueryClient();
@@ -220,5 +222,37 @@ describe('Реакции — кнопки-toggle (#124)', () => {
   it('ховер-кнопка попапа есть у пузыря (data-slot)', () => {
     const { container } = renderMessage(<ChatMessageItem message={message()} mine={false} />);
     expect(container.querySelector('[data-slot="reaction-picker-trigger"]')).not.toBeNull();
+  });
+});
+
+describe('Стикер — выравнивание «По обе стороны» (баг-вердикт 30.09, #164)', () => {
+  const sticker = {
+    id: 'a1',
+    fileId: 'f1',
+    name: 'sticker.webp',
+    size: 24_000,
+    mime: 'image/webp',
+    kind: 'sticker',
+    url: '/reactions/eyes.webp',
+    thumbnailUrl: null,
+    width: 64,
+    height: 64,
+    sticker: { packId: 'p1', packTitle: 'Кадры', packScope: 'personal', emojis: ['👀'] },
+  } as never;
+
+  it('контейнер стикера несёт data-slot: при align=end (свои справа) он прижат self-end', () => {
+    useChatPrefs.setState({ align: 'both' });
+    const { container } = renderMessage(
+      <StickerMessageView message={message()} attachment={sticker} mine />,
+    );
+    const msg = container.querySelector('[data-slot="message"]')!;
+    expect(msg.getAttribute('data-align')).toBe('end');
+    // механизм: MessageContent прижимает вправо прямых детей С data-slot —
+    // у стикера data-slot быть обязан, иначе он остаётся слева (баг 30.09)
+    const stickerEl = container.querySelector('[data-slot="sticker-message"]')!;
+    expect(stickerEl).not.toBeNull();
+    const content = container.querySelector('[data-slot="message-content"]')!;
+    expect(content.className).toContain('data-slot:self-end');
+    useChatPrefs.setState({ align: 'one' });
   });
 });

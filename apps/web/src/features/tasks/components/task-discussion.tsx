@@ -22,6 +22,7 @@ import {
   formatDayLabel,
   startsNewDay,
 } from '../../../shared/chat/message-groups.js';
+import { MessageRunView } from '../../../shared/chat/message-run.js';
 import { useSendTaskMessage, useTaskMessages } from '../api/tasks-api.js';
 
 /**
@@ -63,7 +64,7 @@ export const TaskDiscussion = memo(function TaskDiscussion({ taskId }: { taskId:
                 <MessageGroup className="gap-3">
                   {runs.map((run, runIndex) => {
                     const prevRun = runIndex === 0 ? undefined : runs[runIndex - 1];
-                    const { first, last } = run;
+                    const { first } = run;
                     return (
                       <Fragment key={first.id}>
                         {startsNewDay(prevRun?.last, first) ? (
@@ -71,19 +72,21 @@ export const TaskDiscussion = memo(function TaskDiscussion({ taskId }: { taskId:
                             <DayChip label={formatDayLabel(first.createdAt)} />
                           </MessageScrollerItem>
                         ) : null}
-                        <div className="flex min-w-0 flex-col gap-0.5">
-                          {run.items.map((message) => (
-                            <MessageScrollerItem key={message.id}>
+                        <MessageRunView
+                          run={run}
+                          showName={!run.mine}
+                          renderItem={(message, attrs) => (
+                            <MessageScrollerItem style={attrs.style}>
                               <ChatMessageItem
                                 message={message}
                                 mine={run.mine}
-                                showName={!run.mine && message.id === first.id}
-                                showAvatar={message.id === last.id}
-                                tail={message.id === last.id}
+                                showName={attrs.showName}
+                                avatarSlot="none"
+                                tail={attrs.tail}
                               />
                             </MessageScrollerItem>
-                          ))}
-                        </div>
+                          )}
+                        />
                       </Fragment>
                     );
                   })}
