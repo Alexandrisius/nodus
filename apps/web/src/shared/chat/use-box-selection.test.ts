@@ -6,7 +6,13 @@ vi.mock('sonner', () => ({ toast: vi.fn() }));
 import { toast } from 'sonner';
 
 import { useSelectionStore } from './selection-store.js';
-import { exitedBoundary, pressKind, rowAt, sliceRange } from './use-box-selection.js';
+import {
+  exitedBoundary,
+  pressKind,
+  rowAt,
+  selectableRowAt,
+  sliceRange,
+} from './use-box-selection.js';
 
 /** Рамочное выделение (#132 р.7 — модель Telegram webk + идентификаторные
  *  диапазоны): решение старта по цели (pressKind), геометрия выхода за
@@ -58,6 +64,45 @@ describe('rowAt (строка под координатой y — сама ст�
       return el;
     });
     expect(rowAt(win, 60)?.dataset.messageId).toBe('m51');
+  });
+});
+
+describe('selectableRowAt (р.8: надгробия — отдельное пространство, #164)', () => {
+  function rowsAt(...specs: Array<[id: string, top: number]>): HTMLElement[] {
+    return specs.map(([id, top]) => {
+      const el = document.createElement('div');
+      el.dataset.messageId = id;
+      vi.spyOn(el, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, top, 100, 40));
+      return el;
+    });
+  }
+
+  it('курсор на надгробии — null: соседнее живое сообщение не втягивается', () => {
+    const rows = rowsAt(['a', 0], ['t', 50], ['c', 100]);
+    expect(selectableRowAt(rows, ['a', 'c'], 60)).toBeNull();
+    expect(selectableRowAt(rows, ['a', 'c'], 90)).toBeNull();
+  });
+
+  it('курсор на живой строке — она сама', () => {
+    const rows = rowsAt(['a', 0], ['t', 50], ['c', 100]);
+    expect(selectableRowAt(rows, ['a', 'c'], 20)?.dataset.messageId).toBe('a');
+    expect(selectableRowAt(rows, ['a', 'c'], 120)?.dataset.messageId).toBe('c');
+  });
+
+  it('пустота над лентой, первая строка — надгробие → null (его зона, не сосед)', () => {
+    const rows = rowsAt(['t', 50], ['a', 100]);
+    expect(selectableRowAt(rows, ['a'], 10)).toBeNull();
+  });
+
+  it('пустое подножье под надгробием-последней → последняя выбираемая (р.7)', () => {
+    const rows = rowsAt(['a', 0], ['t', 50]);
+    expect(selectableRowAt(rows, ['a'], 200)?.dataset.messageId).toBe('a');
+  });
+
+  it('все строки — надгробия → null (рамке не за что зацепиться)', () => {
+    const rows = rowsAt(['t1', 0], ['t2', 50]);
+    expect(selectableRowAt(rows, ['x'], 20)).toBeNull();
+    expect(selectableRowAt(rows, ['x'], 200)).toBeNull();
   });
 });
 

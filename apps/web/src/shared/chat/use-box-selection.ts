@@ -26,6 +26,12 @@ import { useSelectionStore } from './selection-store.js';
  *   строк + спейсер); индекс позиции в DOM-списке ≠ индекс в ленте, и
  *   «резинка» красила СОВСЕМ ДРУГИЕ сообщения («выделяю левые внизу»,
  *   р.7). Идентификаторы безразличны к окну/фильтрам DOM.
+ * - р.8 (#164, баг-вердикт владельца 30.09): надгробия удалённых —
+ *   ОТДЕЛЬНОЕ пространство: под курсором на них рамка не обновляется и
+ *   соседние сообщения не втягиваются (selectableRowAt — раньше фильтр
+ *   выбираемых заставлял rowAt возвращать живое сообщение ВЫШЕ надгробия);
+ *   пустоты ленты (сверху/подножье) работают по р.7 — ближайшая
+ *   выбираемая строка.
  * - Дальше «резинка» р.4: непрерывный диапазон между якорем и курсором,
  *   возврат снимает только что выделенное, отпускание ФИКСИРУЕТ в стор
  *   (applySet = union — накопление); подсветка — императивный атрибут
@@ -73,6 +79,42 @@ export function rowAt(rows: readonly HTMLElement[], y: number): HTMLElement | nu
   }
   // Выше первой строки (нижний якорь ленты — пустота сверху) → первая.
   return found ?? rows[0] ?? null;
+}
+
+/**
+ * Цель рамки под координатой y — ТОЛЬКО выбираемая строка (р.8, #164:
+ * баг-вердикт владельца 30.09 «провожу область по удалённым — выделяется
+ * сообщение сверху»): НАДГРОБИЯ — отдельное пространство. Раньше строки
+ * рамки фильтровались по выбираемым, и rowAt под курсором на надгробии
+ * возвращал ближайшее живое сообщение ВЫШЕ — оно втягивалось в диапазон.
+ * Теперь: надгробие под курсором → null (рамка не обновляется, сосед не
+ * втягивается); пустоты ленты по р.7 работают — пустота сверху → первая
+ * выбираемая, пустое подножье под последней строкой → последняя
+ * выбираемая.
+ */
+export function selectableRowAt(
+  rows: readonly HTMLElement[],
+  allowedIds: readonly string[],
+  y: number,
+): HTMLElement | null {
+  if (rows.length === 0) return null;
+  const allowed = new Set(allowedIds);
+  const isSelectable = (row: HTMLElement) => allowed.has(row.dataset.messageId ?? '');
+  const physical = rowAt(rows, y);
+  if (!physical) {
+    // Пустота НАД лентой (якорь низа — контент прижат к низу, р.7).
+    return rows.find(isSelectable) ?? null;
+  }
+  if (isSelectable(physical)) return physical;
+  const last = rows[rows.length - 1]!;
+  if (physical === last && y > last.getBoundingClientRect().bottom) {
+    // Пустое подножье ПОД последней строкой (р.7) → последняя выбираемая.
+    for (let i = rows.length - 1; i >= 0; i -= 1) {
+      const row = rows[i]!;
+      if (isSelectable(row)) return row;
+    }
+  }
+  return null; // зона надгробия — соседей не втягиваем
 }
 
 /** Курсор покинул прямоугольник поверхности (запас на край): выход ЛЮБОЙ
@@ -151,12 +193,13 @@ export function useBoxSelection({
     const viewport = viewportRef.current;
     if (!viewport) return;
 
-    const collectRows = (): HTMLElement[] => {
-      const allowed = new Set(allowedRef.current);
-      return Array.from(viewport.querySelectorAll<HTMLElement>(ROW_SELECTOR)).filter((el) =>
-        allowed.has(el.dataset.messageId ?? ''),
-      );
-    };
+    const collectRows = (): HTMLElement[] =>
+      Array.from(viewport.querySelectorAll<HTMLElement>(ROW_SELECTOR));
+
+    /** Цель рамки под курсором: только выбираемая строка (надгробия —
+     *  своя зона, р.8; пустоты ленты — р.7). */
+    const selectableTarget = (): HTMLElement | null =>
+      selectableRowAt(collectRows(), allowedRef.current, pointerRef.current.y);
 
     /** Живая «резинка»: диапазон по ИД строки-якоря и строки под курсором
      *  (indexOf по ленте — окно DOM не важно, р.7). */
@@ -215,7 +258,7 @@ export function useBoxSelection({
       }
       viewport.scrollTop += dy;
       if (phaseRef.current === 'box' && anchorIdRef.current !== null) {
-        const row = rowAt(collectRows(), pointerRef.current.y);
+        const row = selectableTarget();
         if (row) paintRange(anchorIdRef.current, row.dataset.messageId ?? '');
       }
       scrollRafRef.current = requestAnimationFrame(autoscrollTick);
@@ -309,13 +352,13 @@ export function useBoxSelection({
       if (phase === 'maybe') {
         const { x: sx, y: sy } = startRef.current;
         if (Math.hypot(event.clientX - sx, event.clientY - sy) < DRAG_ENGAGE_PX) return;
-        const row = rowAt(collectRows(), event.clientY);
+        const row = selectableTarget();
         if (!row) return;
         engageBox(row.dataset.messageId ?? '');
         return;
       }
 
-      const row = rowAt(collectRows(), event.clientY);
+      const row = selectableTarget();
       if (row && anchorIdRef.current !== null) {
         paintRange(anchorIdRef.current, row.dataset.messageId ?? '');
       }
@@ -333,7 +376,7 @@ export function useBoxSelection({
      *  курсором — «резинка» пересчитывается по id, без пропусков. */
     const onFeedScroll = () => {
       if (phaseRef.current !== 'box' || anchorIdRef.current === null) return;
-      const row = rowAt(collectRows(), pointerRef.current.y);
+      const row = selectableTarget();
       if (row) paintRange(anchorIdRef.current, row.dataset.messageId ?? '');
     };
 

@@ -29,6 +29,7 @@ import { useEditMessage } from './message-mutations.js';
 import { MessageMenu } from './message-menu.js';
 import { MessageRow } from './message-row.js';
 import { buildMessageRuns, formatDayLabel, startsNewDay } from './message-groups.js';
+import { MessageRunView } from './message-run.js';
 import { decideOpenAnchor } from './open-anchor.js';
 import { PinBar } from './pin-bar.js';
 import { ScrollEndResponder } from './scroll-end-responder.js';
@@ -41,6 +42,9 @@ import { useBoxSelection } from './use-box-selection.js';
 import { reconcileServerDraft } from './draft-sync.js';
 import { JumpResponder } from './use-jump-responder.js';
 import { useJumpStore } from './jump-store.js';
+// >300 строк — обоснование (I5): лента беседы — якорь открытия (раунд 4),
+// селект/рамка/прочтения/jump-резиденты в одном потоке; серия вынесена
+// в message-run.tsx, оставшееся — хост-обвязка, деление размыло бы её.
 
 /**
  * Обычная беседа (групповой/личный чат, чаты задачи и письма): лента на
@@ -305,7 +309,7 @@ function ConversationFeed({
                   <MessageGroup className="gap-3">
                     {runs.map((run, runIndex) => {
                       const prevRun = runIndex === 0 ? undefined : runs[runIndex - 1];
-                      const { first, last } = run;
+                      const { first } = run;
                       return (
                         <Fragment key={first.id}>
                           {startsNewDay(prevRun?.last, first) ? (
@@ -313,63 +317,60 @@ function ConversationFeed({
                               <DayChip label={formatDayLabel(first.createdAt)} />
                             </MessageScrollerItem>
                           ) : null}
-                          <div className="flex min-w-0 flex-col gap-0.5">
-                            {run.items.map((message) => (
-                              <Fragment key={message.id}>
-                                {/* Разделитель непрочитанных — строго НАД первым
-                                    непрочитанным сообщением, даже ВНУТРИ серии
-                                    (спека раунда 4: якорь по REST-филлу одного
-                                    автора оставлял чип над всей серией, за
-                                    сгибом); my-[5px] держит ритм 12px (gap-3). */}
-                                {firstUnreadId === message.id ? (
-                                  <MessageScrollerItem>
-                                    <div className="my-[5px]">
-                                      <DayChip label={ui.chat.unreadDivider} />
-                                    </div>
-                                  </MessageScrollerItem>
-                                ) : null}
-                                <MessageScrollerItem messageId={message.id}>
-                                  <MessageRow
-                                    messageId={message.id}
-                                    selectable={selection.selectionActive && !message.deletedAt}
-                                    selected={selection.selectedSet.has(message.id)}
-                                    onToggle={(shift) => selection.toggle(message.id, shift)}
-                                  >
-                                    {message.deletedAt ? (
+                          <MessageRunView
+                            run={run}
+                            showName={showAuthor && !run.mine}
+                            dividerBeforeId={firstUnreadId}
+                            divider={
+                              /* Разделитель непрочитанных — строго НАД первым
+                                  непрочитанным сообщением, даже ВНУТРИ серии
+                                  (спека раунда 4: якорь по REST-филлу одного
+                                  автора оставлял чип над всей серией, за
+                                  сгибом); my-[5px] держит ритм 12px (gap-3). */
+                              <MessageScrollerItem>
+                                <div className="my-[5px]">
+                                  <DayChip label={ui.chat.unreadDivider} />
+                                </div>
+                              </MessageScrollerItem>
+                            }
+                            renderItem={(message, attrs) => (
+                              <MessageScrollerItem messageId={message.id} style={attrs.style}>
+                                <MessageRow
+                                  messageId={message.id}
+                                  selectable={selection.selectionActive && !message.deletedAt}
+                                  selected={selection.selectedSet.has(message.id)}
+                                  onToggle={(shift) => selection.toggle(message.id, shift)}
+                                >
+                                  {message.deletedAt ? (
+                                    <ChatMessageItem
+                                      message={message}
+                                      mine={run.mine}
+                                      showName={attrs.showName}
+                                      avatarSlot="none"
+                                      tail={attrs.tail}
+                                    />
+                                  ) : (
+                                    <MessageMenu
+                                      message={message}
+                                      mine={run.mine}
+                                      conversationId={conversationId}
+                                      scope={scope}
+                                      messagesOfSelection={selection.getSelectedMessages}
+                                    >
                                       <ChatMessageItem
                                         message={message}
                                         mine={run.mine}
-                                        showName={
-                                          showAuthor && !run.mine && message.id === first.id
-                                        }
-                                        showAvatar={message.id === last.id}
-                                        tail={message.id === last.id}
+                                        showName={attrs.showName}
+                                        avatarSlot="none"
+                                        tail={attrs.tail}
+                                        reactionsHidden={selection.selectionActive}
                                       />
-                                    ) : (
-                                      <MessageMenu
-                                        message={message}
-                                        mine={run.mine}
-                                        conversationId={conversationId}
-                                        scope={scope}
-                                        messagesOfSelection={selection.getSelectedMessages}
-                                      >
-                                        <ChatMessageItem
-                                          message={message}
-                                          mine={run.mine}
-                                          showName={
-                                            showAuthor && !run.mine && message.id === first.id
-                                          }
-                                          showAvatar={message.id === last.id}
-                                          tail={message.id === last.id}
-                                          reactionsHidden={selection.selectionActive}
-                                        />
-                                      </MessageMenu>
-                                    )}
-                                  </MessageRow>
-                                </MessageScrollerItem>
-                              </Fragment>
-                            ))}
-                          </div>
+                                    </MessageMenu>
+                                  )}
+                                </MessageRow>
+                              </MessageScrollerItem>
+                            )}
+                          />
                         </Fragment>
                       );
                     })}
