@@ -155,7 +155,10 @@ export class MessagesController {
   @Post('batch-delete')
   @HttpCode(200)
   @Audit({ action: 'chat.message_batch_delete', entity: 'message' })
-  @ApiOperation({ summary: 'Пакетное удаление своих (чужие/удалённые пропускаются)' })
+  @ApiOperation({
+    summary:
+      'Пакетное удаление своих: правило «по ответам» на каждое (чужие/удалённые пропускаются)',
+  })
   @ApiOkResponse({ standardSchema: batchDeleteMessagesResultSchema })
   @ApiErrors(400, 401, 403, 404)
   @ApiIdempotencyKey()

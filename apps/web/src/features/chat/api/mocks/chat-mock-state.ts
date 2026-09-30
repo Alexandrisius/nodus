@@ -76,11 +76,12 @@ export function collapseAnchors(
   }
 }
 
-/** Цитаты, ссылающиеся на удалённый оригинал, → «Сообщение удалено». */
-export function markRepliesDeleted(messageId: string): void {
+/** «Удаление сильнее заморозки»: цитаты-ответы → deleted (+obliterated у
+ *  бесследно исчезнувшего оригинала — клику некуда вести, паритет #163). */
+export function markRepliesDeleted(messageId: string, obliterated: boolean): void {
   for (const m of demoMessages) {
     if (m.reply?.id === messageId && !m.reply.deleted) {
-      m.reply = { ...m.reply, deleted: true };
+      m.reply = { ...m.reply, deleted: true, obliterated };
     }
   }
 }
@@ -105,18 +106,19 @@ export function applyDeletion(message: ChatMessage): ChatMessage {
   message.reactions = [];
   message.reply = null;
   unpinById(message.conversationId, message.id);
-  markRepliesDeleted(message.id);
+  markRepliesDeleted(message.id, false);
   return message;
 }
 
-/** Удаление БЕЗ СЛЕДА (никто не прочитал): сообщение исчезает из ленты. */
+/** Удаление БЕЗ СЛЕДА (#163 — нет живых ответов): строка уходит из демо-ленты;
+ *  цитаты-ответы получают obliterated — кликать некуда (паритет прод-маппера). */
 export function removeMessage(messageId: string): void {
   const index = demoMessages.findIndex((m) => m.id === messageId);
   if (index < 0) return;
   const [gone] = demoMessages.splice(index, 1);
   if (!gone) return;
   unpinById(gone.conversationId, gone.id);
-  markRepliesDeleted(messageId);
+  markRepliesDeleted(messageId, true);
 }
 
 /** lastMessage беседы после мутаций (лента-стор меняется inplace). */

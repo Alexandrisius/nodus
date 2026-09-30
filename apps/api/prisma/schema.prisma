@@ -378,7 +378,7 @@ model Message {
   fwdThreadRootId   String? @map("fwd_thread_root_id") @db.Uuid
   editedAt     DateTime? @map("edited_at") @db.Timestamptz()
   deletedAt    DateTime? @map("deleted_at") @db.Timestamptz()
-  /// Бесследное удаление (никто не прочитал): строка остаётся ради
+  /// Бесследное удаление (нет живых ответов, #163): строка остаётся ради
   /// непрерывности seq, ссылок тредов/цитат/пинов и аудита, но исключается
   /// из всех выдач. false у надгробия (видно как «Сообщение удалено»).
   obliterated  Boolean   @default(false)
