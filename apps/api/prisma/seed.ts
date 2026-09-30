@@ -45,6 +45,7 @@ const ALL_PERMISSIONS = [
   'dictionary.manage',
   'correspondence.create',
   'correspondence.archive',
+  'sticker.manage',
 ];
 
 /** Созданные этой прогоном учётки с паролями — печать в конце сида
@@ -68,6 +69,15 @@ async function main(): Promise<void> {
       permissions: { create: ALL_PERMISSIONS.map((permission) => ({ permission })) },
     },
   });
+  // Досев прав на существующей БД: upsert роли создаёт permissions только при
+  // создании — новые права (sticker.manage, #143) добавляются строками PK-идемпотентно.
+  for (const permission of ALL_PERMISSIONS) {
+    await prisma.rolePermission.upsert({
+      where: { roleId_permission: { roleId: adminRole.id, permission } },
+      update: {},
+      create: { roleId: adminRole.id, permission },
+    });
+  }
   const headRole = await prisma.role.upsert({
     where: { code: 'head' },
     update: {},

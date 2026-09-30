@@ -51,6 +51,9 @@ export function useStickerPack(id: string) {
     queryKey: stickerKeys.pack(id),
     queryFn: () => api<StickerPack>(`/chat/stickers/packs/${id}`),
     enabled: id.length > 0,
+    // 404 удалённого пака — легитимное состояние окна, не сетевая морока:
+    // ретраи держат окно со СТАРЫМИ данными секунды (ревизия 30.09).
+    retry: false,
   });
 }
 
@@ -90,13 +93,16 @@ export function useRenameStickerPack() {
   });
 }
 
-/** «Удалить для всех» (soft): владелец/админ; сообщения рендерятся дальше. */
+/** «Удалить для всех» (soft): владелец/админ; сообщения рендерятся дальше.
+ *  Деталь пака инвалидируется сразу: открытое окно честно переходит в
+ *  деградацию «Пак удалён», а не продолжает показывать старые данные. */
 export function useDeleteStickerPack() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (packId: string) =>
       api<void>(`/chat/stickers/packs/${packId}`, { method: 'DELETE' }),
     onSuccess: (_result, packId) => {
+      queryClient.removeQueries({ queryKey: stickerKeys.pack(packId) });
       queryClient.setQueryData<StickerPackList>(stickerKeys.packs(), (old) =>
         old ? { items: old.items.filter((p) => p.id !== packId) } : old,
       );
@@ -179,19 +185,6 @@ export function useInstallStickerPack() {
 
 export function useUninstallStickerPack() {
   return usePackInstallMutation('DELETE', false);
-}
-
-/** Найти стикер в списке паков (превалидация отправки/поповер без запроса). */
-export function findStickerIn(
-  packs: StickerPack[] | undefined,
-  stickerId: string,
-): { pack: StickerPack; sticker: Sticker } | undefined {
-  if (!packs) return undefined;
-  for (const pack of packs) {
-    const sticker = pack.stickers.find((s) => s.id === stickerId);
-    if (sticker) return { pack, sticker };
-  }
-  return undefined;
 }
 
 /** Payload выбора стикера (панель/поповер → композер): id для отправки +

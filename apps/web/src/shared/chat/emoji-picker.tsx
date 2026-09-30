@@ -85,7 +85,14 @@ function loadEmojiData(): Promise<EmojiData> {
 /** Контент вкладки «Эмодзи» (оболочка/вкладки — media-picker.tsx):
  *  грузит данные при первом монтировании (панель открывается — вкладка
  *  живёт), далее только ре-рендеры секций. */
-export function EmojiPanel({ onPick }: { onPick: (emoji: string) => void }) {
+export function EmojiPanel({
+  onPick,
+  action,
+}: {
+  onPick: (emoji: string) => void;
+  /** Слот справа от поиска (крестик закрытия инлайн-палитры в диалоге #143). */
+  action?: React.ReactNode;
+}) {
   const [query, setQuery] = useState('');
   const [data, setData] = useState<EmojiData | null>(null);
   const [recent, setRecent] = useState<string[]>(() => recentEmojis());
@@ -143,15 +150,20 @@ export function EmojiPanel({ onPick }: { onPick: (emoji: string) => void }) {
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="shrink-0 border-b border-border p-2">
-        <Input
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder={ui.chat.emojiSearch}
-          className="h-8 text-sm"
-          aria-label={ui.chat.emojiSearch}
-        />
+        <div className="flex items-center gap-1">
+          <Input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder={ui.chat.emojiSearch}
+            className="h-8 flex-1 text-sm"
+            aria-label={ui.chat.emojiSearch}
+          />
+          {action}
+        </div>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-2">
+      {/* overflow-x-hidden: сетка глифов никогда не скроллится горизонтально
+          (субпиксельная пара px рождала гориз. скроллбар — ревизия 30.09). */}
+      <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain p-2">
         {data === null ? (
           <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
             <Search className="mr-2 size-4 animate-pulse" strokeWidth={1.75} />

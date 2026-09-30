@@ -1,3 +1,7 @@
+// >320 строк — обоснование (I5): файл — форма жизни одного диалога (черновики
+// файлов с превалидацией/пробой метаданных + инлайн-палитра + submit-цикл
+// последовательной загрузки); разнос состояний размывал бы очистку
+// objectURL-ов (draftsRef).
 import { ImagePlus, Plus, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { StickerPack } from '@nodus/contracts';
@@ -14,7 +18,9 @@ import {
   DialogTitle,
 } from '@nodus/ui/components/dialog';
 import { Input } from '@nodus/ui/components/input';
-import { Popover, PopoverContent, PopoverTrigger } from '@nodus/ui/components/popover';
+import { cn } from '@nodus/ui/lib/utils';
+
+import { formatBytes } from '../lib/format.js';
 
 import { EmojiPanel } from './emoji-picker.js';
 import {
@@ -68,6 +74,8 @@ export function StickerCreateDialog({
   const [title, setTitle] = useState('');
   const [corporate, setCorporate] = useState(false);
   const [busy, setBusy] = useState(false);
+  /** Ключ черновика с открытой палитрой эмодзи (инлайн-палитра одна). */
+  const [pickingKey, setPickingKey] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   // Реф текущих черновиков: cleanup objectURL-ов при закрытии без пересборки
   // эффекта на каждый ввод.
@@ -82,6 +90,7 @@ export function StickerCreateDialog({
     setTitle('');
     setCorporate(false);
     setBusy(false);
+    setPickingKey(null);
   }, [open]);
 
   async function addFiles(files: File[]) {
@@ -165,7 +174,7 @@ export function StickerCreateDialog({
   return (
     <Dialog open={open} onOpenChange={(next) => !busy && onOpenChange(next)}>
       <DialogContent
-        className="sm:max-w-lg"
+        className="flex max-h-[85vh] flex-col sm:max-w-lg"
         /* Клик снаружи НЕ закрывает (вердикт владельца 30.09, канон #148/#149
            для окон с пополняемыми данными): случайный мимо-клик не может
            снести выбранные файлы, эмодзи и название. Отмена — намеренная:
@@ -180,7 +189,7 @@ export function StickerCreateDialog({
               : ui.chat.stickerCreatePack}
           </DialogTitle>
         </DialogHeader>
-        <div className="flex flex-col gap-3">
+        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
           {appendTo ? null : (
             <>
               <Input
@@ -224,24 +233,65 @@ export function StickerCreateDialog({
           </Button>
           <p className="text-xs text-muted-foreground">{ui.chat.stickerEmptyHint}</p>
           {drafts.length > 0 ? (
-            <div className="flex max-h-72 flex-col gap-2 overflow-y-auto">
-              <p className="text-xs font-medium text-muted-foreground">
-                {ui.chat.stickerEmojiStep} · {ui.chat.stickerEmojiHint}
-              </p>
-              {drafts.map((d) => (
-                <DraftRow key={d.key} draft={d} onToggle={toggleEmoji} onRemove={removeDraft} />
-              ))}
-              {drafts.some((d) => d.issue === null && d.emojis.length === 0) ? (
-                <p className="text-label-xs text-muted-foreground">{ui.chat.stickerEmojiMissing}</p>
+            <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-2">
+                <p className="text-xs font-medium text-muted-foreground">
+                  {ui.chat.stickerEmojiStep} · {ui.chat.stickerEmojiHint}
+                </p>
+                {drafts.map((d) => (
+                  <DraftRow
+                    key={d.key}
+                    draft={d}
+                    picking={pickingKey === d.key}
+                    onTogglePick={(key) => setPickingKey((prev) => (prev === key ? null : key))}
+                    onToggle={toggleEmoji}
+                    onRemove={(key) => {
+                      removeDraft(key);
+                      setPickingKey((prev) => (prev === key ? null : prev));
+                    }}
+                  />
+                ))}
+                {drafts.some((d) => d.issue === null && d.emojis.length === 0) ? (
+                  <p className="text-label-xs text-muted-foreground">
+                    {ui.chat.stickerEmojiMissing}
+                  </p>
+                ) : null}
+              </div>
+              {/* Палитра ИНЛАЙН в диалоге (ревизия 30.09: поповер внутри
+                  диалога не скроллился колёсиком и рождал гориз. скролл),
+                  на всю ширину окна — скролл только вертикальный. */}
+              {pickingKey !== null ? (
+                <div className="h-64 shrink-0 overflow-hidden rounded-lg border border-border">
+                  <EmojiPanel
+                    onPick={(emoji) => toggleEmoji(pickingKey, emoji)}
+                    action={
+                      <button
+                        type="button"
+                        aria-label={ui.chat.stickerEmojiPaletteClose}
+                        title={ui.chat.stickerEmojiPaletteClose}
+                        onClick={() => setPickingKey(null)}
+                        className="flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+                      >
+                        <X className="size-4" strokeWidth={1.75} />
+                      </button>
+                    }
+                  />
+                </div>
               ) : null}
             </div>
           ) : null}
         </div>
-        <DialogFooter>
-          <Button type="button" variant="ghost" disabled={busy} onClick={() => onOpenChange(false)}>
+        <DialogFooter className="shrink-0 sm:items-center">
+          <Button
+            type="button"
+            variant="ghost"
+            size="default"
+            disabled={busy}
+            onClick={() => onOpenChange(false)}
+          >
             {ui.common.cancel}
           </Button>
-          <Button type="button" disabled={!canSubmit} onClick={() => void submit()}>
+          <Button type="button" size="default" disabled={!canSubmit} onClick={() => void submit()}>
             {busy ? ui.chat.emojiLoading : ui.chat.stickerUpload}
           </Button>
         </DialogFooter>
@@ -261,14 +311,18 @@ function issueText(issue: StickerIssue): string {
  *  владельца 30.09: короткая палитра не годится). */
 function DraftRow({
   draft,
+  picking,
+  onTogglePick,
   onToggle,
   onRemove,
 }: {
   draft: DraftSticker;
+  /** Палитра открыта для этой строки (инлайн-панель внизу диалога). */
+  picking: boolean;
+  onTogglePick: (key: string) => void;
   onToggle: (key: string, emoji: string) => void;
   onRemove: (key: string) => void;
 }) {
-  const [emojiOpen, setEmojiOpen] = useState(false);
   return (
     <div className="flex items-start gap-2 rounded-lg bg-accent/40 p-2">
       <StickerGlyph
@@ -280,7 +334,7 @@ function DraftRow({
         <span className="flex items-center gap-1">
           <span className="truncate text-xs">{draft.file.name}</span>
           <span className="ml-auto shrink-0 font-mono text-label-xs text-muted-foreground">
-            {Math.round(draft.file.size / 1024)} КБ
+            {formatBytes(draft.file.size)}
           </span>
           <button
             type="button"
@@ -311,29 +365,19 @@ function DraftRow({
                 {emoji}
               </button>
             ))}
-            <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
-              <PopoverTrigger asChild>
-                <button
-                  type="button"
-                  aria-label={ui.chat.stickerAddEmoji}
-                  title={ui.chat.stickerAddEmoji}
-                  disabled={draft.emojis.length >= 3}
-                  className="flex size-6 cursor-pointer items-center justify-center rounded-md text-muted-foreground hover:bg-accent/50 hover:text-foreground disabled:opacity-40"
-                >
-                  <Plus className="size-3.5" strokeWidth={1.75} />
-                </button>
-              </PopoverTrigger>
-              <PopoverContent
-                side="right"
-                align="start"
-                className="w-88 p-0"
-                onOpenAutoFocus={(event) => event.preventDefault()}
-              >
-                <div className="flex h-80 flex-col overflow-hidden">
-                  <EmojiPanel onPick={(emoji) => onToggle(draft.key, emoji)} />
-                </div>
-              </PopoverContent>
-            </Popover>
+            <button
+              type="button"
+              aria-label={ui.chat.stickerAddEmoji}
+              title={ui.chat.stickerAddEmoji}
+              aria-pressed={picking}
+              onClick={() => onTogglePick(draft.key)}
+              className={cn(
+                'flex size-6 cursor-pointer items-center justify-center rounded-md hover:bg-accent/50 hover:text-foreground',
+                picking ? 'bg-accent text-foreground' : 'text-muted-foreground',
+              )}
+            >
+              <Plus className="size-3.5" strokeWidth={1.75} />
+            </button>
           </span>
         )}
       </div>

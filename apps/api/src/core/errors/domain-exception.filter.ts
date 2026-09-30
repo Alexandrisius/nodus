@@ -32,6 +32,9 @@ const CODE_TO_STATUS: Record<ErrorCode, number> = {
   // несовпадение размера — 400; карантин — 410 (файл был, больше не отдаётся).
   [ErrorCode.CHAT_ATTACHMENT_TOO_LARGE]: HttpStatus.PAYLOAD_TOO_LARGE,
   [ErrorCode.CHAT_ATTACHMENT_TOO_MANY]: HttpStatus.BAD_REQUEST,
+  // Файл стикера не прошёл magic bytes/лимит (#143): формат — 400 (выбор
+  // файла), превышение размера — отдельно переводится в 413 в сервисе.
+  [ErrorCode.CHAT_STICKER_INVALID]: HttpStatus.BAD_REQUEST,
   [ErrorCode.FILE_SIZE_MISMATCH]: HttpStatus.BAD_REQUEST,
   [ErrorCode.FILE_QUARANTINED]: HttpStatus.GONE,
   // Офисный просмотр (#138): движок выключен — 503 (не ошибка клиента, деградация),

@@ -1,4 +1,4 @@
-import { Ellipsis, Plus, Trash2 } from 'lucide-react';
+import { Ellipsis, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import type { StickerPack } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
@@ -17,6 +17,7 @@ import {
   DropdownMenuTrigger,
 } from '@nodus/ui/components/dropdown-menu';
 import { Input } from '@nodus/ui/components/input';
+import { toast } from 'sonner';
 
 import {
   useDeleteStickerPack,
@@ -26,12 +27,13 @@ import {
 } from './sticker-api.js';
 
 /**
- * Меню «⋯» пака стикеров (#143): единое для вкладки пикера и поповера из
+ * Меню «⋯» пака стикеров (#143): единое для вкладки пикера и окна пака из
  * чата. Само диалоги НЕ рендерит: создание/переименование/удаление —
  * «тяжёлые» окна, которые хост должен монтировать ВНЕ поповера панели
  * (клик мимо закрывает поповер и уносит потомков — репро 30.09); хост
  * получает колбэки и решает, где жить диалогам. Управление («для всех») —
  * владелец пака и админ для корпоративных; «для себя» — снять установленный.
+ * Команд нет → кнопки НЕт (пустое меню — мусор, ревизия владельца 30.09).
  */
 
 export type PackDialogRequest =
@@ -50,6 +52,9 @@ export function StickerPackMenu({
 }) {
   const canManage = useCanManageStickerPacks();
   const manageable = pack.owned || (pack.scope === 'corporate' && canManage);
+  // Пустое меню не рендерим вовсе (ревизия владельца 30.09: «зачем мне это
+  // видеть» — кнопка без команд только путает).
+  if (!manageable && !(pack.installed && pack.scope === 'personal')) return null;
 
   return (
     <DropdownMenu>
@@ -57,15 +62,17 @@ export function StickerPackMenu({
         <Button
           type="button"
           variant="ghost"
-          size="icon"
-          className="size-6 text-muted-foreground"
+          size="icon-sm"
+          className="text-muted-foreground"
           aria-label={ui.chat.stickerPackMenu}
           title={ui.chat.stickerPackMenu}
         >
           <Ellipsis className="size-4" strokeWidth={1.75} />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" side="bottom">
+      {/* Ширина контента — по содержимому: дефолт берёт ширину триггера
+          (иконка 28px) и ломает пункты в перенос (ревизия 30.09). */}
+      <DropdownMenuContent align="end" className="w-max min-w-44">
         {manageable ? (
           <>
             <DropdownMenuItem onSelect={() => onDialog({ kind: 'append', pack })}>
@@ -73,6 +80,7 @@ export function StickerPackMenu({
               {ui.chat.stickerAddToPack}
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={() => onDialog({ kind: 'rename', pack })}>
+              <Pencil className="size-4" strokeWidth={1.75} />
               {ui.chat.stickerRename}
             </DropdownMenuItem>
             <DropdownMenuItem
@@ -83,9 +91,9 @@ export function StickerPackMenu({
               {ui.chat.stickerDeletePack}
             </DropdownMenuItem>
           </>
-        ) : pack.installed && pack.scope === 'personal' ? (
+        ) : (
           <UninstallItem packId={pack.id} />
-        ) : null}
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -122,12 +130,13 @@ export function RenamePackDialog({ pack, onClose }: { pack: StickerPack; onClose
           maxLength={64}
           aria-label={ui.chat.stickerPackTitle}
         />
-        <DialogFooter>
-          <Button type="button" variant="ghost" onClick={onClose}>
+        <DialogFooter className="sm:items-center">
+          <Button type="button" variant="ghost" size="default" onClick={onClose}>
             {ui.common.cancel}
           </Button>
           <Button
             type="button"
+            size="default"
             disabled={title.trim().length === 0 || rename.isPending}
             onClick={() =>
               rename.mutate(
@@ -144,7 +153,9 @@ export function RenamePackDialog({ pack, onClose }: { pack: StickerPack; onClose
   );
 }
 
-/** Подтверждение удаления «для всех» (без ввода — мимо-клик допустим). */
+/** Подтверждение удаления «для всех» (без ввода — мимо-клик допустим). Ошибка
+ *  сервера не оставляет окно висеть: тост + закрытие (ревизия 30.09 —
+ *  «невозможно применить и закрыть» недопустимо). */
 export function DeletePackDialog({ pack, onClose }: { pack: StickerPack; onClose: () => void }) {
   const remove = useDeleteStickerPack();
   return (
@@ -154,15 +165,24 @@ export function DeletePackDialog({ pack, onClose }: { pack: StickerPack; onClose
           <DialogTitle>{ui.chat.stickerDeletePack}</DialogTitle>
         </DialogHeader>
         <p className="text-sm text-muted-foreground">{ui.chat.stickerDeletePackHint}</p>
-        <DialogFooter>
-          <Button type="button" variant="ghost" onClick={onClose}>
+        <DialogFooter className="sm:items-center">
+          <Button type="button" variant="ghost" size="default" onClick={onClose}>
             {ui.common.cancel}
           </Button>
           <Button
             type="button"
             variant="destructive"
+            size="default"
             disabled={remove.isPending}
-            onClick={() => remove.mutate(pack.id, { onSuccess: onClose })}
+            onClick={() =>
+              remove.mutate(pack.id, {
+                onSuccess: onClose,
+                onError: () => {
+                  toast.error(ui.common.sendError);
+                  onClose();
+                },
+              })
+            }
           >
             {ui.chat.stickerDeletePack}
           </Button>

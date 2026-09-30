@@ -108,7 +108,9 @@ export class FilesController {
     // Inline — ТОЛЬКО whitelist растровых форматов: mime приходит от клиента
     // и не валидируется, а SVG (и пр. активный контент) в «новой вкладке»
     // исполняет скрипты на origin портала → refresh-cookie жертвы (валидация
-    // #57: stored XSS). Остальное — attachment; на всё — nosniff.
+    // #57: stored XSS). video/webm — стикеры #143 (проигрывание <video> без
+    // скачивания; WebM-контейнер скрипты не исполняет). Остальное —
+    // attachment; на всё — nosniff.
     const INLINE_MIME = new Set([
       'image/png',
       'image/jpeg',
@@ -116,6 +118,7 @@ export class FilesController {
       'image/webp',
       'image/avif',
       'image/bmp',
+      'video/webm',
     ]);
     const disposition = INLINE_MIME.has(file.mime) ? 'inline' : 'attachment';
     void reply

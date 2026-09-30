@@ -1,13 +1,13 @@
 import { memo } from 'react';
 import type { ChatMessage, MessageAttachment } from '@nodus/contracts';
-import { cn } from '@nodus/ui/lib/utils';
 import { Message, MessageAvatar, MessageContent } from '@nodus/ui/components/message';
 
+import { PersonAvatar } from '../ui/person-avatar.js';
 import { useChatPrefs } from './chat-prefs.js';
 import { MessageMeta } from './message-meta.js';
 import { MessageReactions } from './chat-message.js';
 import { ReactionPicker } from './reaction-picker.js';
-import { StickerPackPopover } from './sticker-pack-popover.js';
+import { StickerWindowTrigger } from './sticker-pack-window.js';
 
 /**
  * Стикер-сообщение (#143, модель Telegram/Битрикс24): БЕЗ пузыря — крупный
@@ -73,34 +73,28 @@ export const StickerMessageView = memo(function StickerMessageView({
   const meta = attachment.sticker ?? null;
   return (
     <Message align={atEnd ? 'end' : 'start'} className="group/msg">
+      {/* Аватар автора — ВИДИМЫЙ (вердикт владельца 30.09: «скидываются
+          анонимно»): стикер = обычное сообщение, авторство видно всегда. */}
       {showAvatar ? (
         <MessageAvatar>
-          {/* Аватар серии не дублируется глифом — но колонка резервируется,
-              серии сообщений стоят на одной вертикали (message-groups). */}
-          <span className="sr-only">{message.author.displayName}</span>
+          <PersonAvatar name={message.author.displayName} className="size-7" />
         </MessageAvatar>
       ) : (
         <span aria-hidden className="w-8 shrink-0" />
       )}
       <MessageContent>
-        <span className="relative flex flex-col group/bubble">
-          <StickerPackPopover message={message} attachment={attachment}>
-            <button
-              type="button"
-              aria-label={meta ? `${meta.packTitle}: ${meta.emojis.join(' ')}` : undefined}
-              title={meta?.packTitle}
-              className={cn(
-                'cursor-pointer rounded-xl p-1 transition-transform duration-150 hover:scale-105 hover:bg-accent/50',
-              )}
-            >
-              <StickerGlyph
-                url={attachment.url ?? ''}
-                mime={attachment.mime}
-                alt={meta ? `${meta.packTitle} ${meta.emojis.join(' ')}` : undefined}
-                className="size-36 object-contain"
-              />
-            </button>
-          </StickerPackPopover>
+        {showAvatar ? null : <span className="sr-only">{message.author.displayName}: </span>}
+        {/* w-fit: колонка по ширине глифа (не на всю строку ленты) — иначе
+            мета/реакции убегают к правому краю экрана (ревизия 30.09). */}
+        <span className="relative flex w-fit flex-col group/bubble">
+          <StickerWindowTrigger message={message} attachment={attachment}>
+            <StickerGlyph
+              url={attachment.url ?? ''}
+              mime={attachment.mime}
+              alt={meta ? `${meta.packTitle} ${meta.emojis.join(' ')}` : undefined}
+              className="size-24 object-contain"
+            />
+          </StickerWindowTrigger>
           {/* Нижняя строка — как у пузырей (реакции слева, мета справа),
               тон muted: стикер без поверхности (#127). */}
           <span className="flex items-end gap-2">

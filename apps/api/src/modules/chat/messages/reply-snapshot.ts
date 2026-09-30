@@ -7,8 +7,8 @@ export interface ReplyOriginalInput {
   authorId: string;
   text: string;
   deleted: boolean;
-  /** Вид первого вложения — подпись «Фото»/«Файл» в цитате без текста. */
-  attachmentKind: 'image' | 'file' | null;
+  /** Вид первого вложения — подпись «Фото»/«Файл»/«Стикер» в цитате без текста. */
+  attachmentKind: 'image' | 'file' | 'sticker' | null;
 }
 
 /**

@@ -118,7 +118,35 @@ EXIF-поворот учтён) → WebP-дериват max-edge 800 (`FileObjec
 маркер деривата) → `thumb_file_id`; `thumbnailUrl` в DTO — та же подписанная
 ссылка. Превью опционально: сбой/мусорный файл → null, клиент грузит
 оригинал. Backfill старых вложений:
-`pnpm --filter @nodus/api exec tsx src/scripts/backfill-thumbnails.ts`. Вне контура до смежных треков:
+`pnpm --filter @nodus/api exec tsx src/scripts/backfill-thumbnails.ts`.
+
+Стикеры (#143, `stickers/` поддомен): паки личные/корпоративные,
+дистрибуция «из чата». `GET /chat/stickers/packs` — мои (корпоративные +
+свои + установленные, со стикерами целиком — пилотный объём);
+`GET /packs/:id` — деталь (поповер из чата, пак может быть не в «моих»);
+`POST /packs {title, scope}` (corporate — право `sticker.manage` — гейт
+в сервисе: условие зависит от scope тела, декоратор маршрута не годится;
+лимит 20 личных); `PATCH /packs/:id` (переименовать), `DELETE /packs/:id`
+(soft — «для всех»: пак исчезает из пикеров, сообщения рендерятся по
+снапшоту `message_attachments.sticker_meta`; файлы не чистим — сообщения
+держат те же file_id); `POST /packs/:id/stickers` — multipart (emojis
+JSON-строка 1–3, size, width/height — поля ДО файла, gotcha #57):
+валидация по **magic bytes** (mime клиента не верим): PNG/WebP ≤512КБ,
+WebM ≤256КБ (длительность — клиентская пре-валидация; ffprobe на сервере
+нет — граница скоупа); GIF/SVG — отказ `CHAT_STICKER_INVALID`; лимит 120
+стикеров/пак перепроверяется в транзакции; `DELETE /stickers/:id` — убрать
+из пака (файл остаётся — отправленные сообщения живут);
+`POST|DELETE /packs/:id/install` — «себе» (PK-идемпотентно). Стикер-
+сообщение — обычный POST messages с `stickerId`: в транзакции отправки
+проверка доступа (корпоративный | владеет | установлен), INSERT
+вложения kind='sticker' со снапшотом пака (замораживается навсегда, как
+reply-цитаты); стикер монолитен — текст/обычные вложения с ним →
+VALIDATION_FAILED; черновик при stickerId НЕ гасится (keepDraft: набранный
+текст живёт).
+Право `sticker.manage` сидится роли admin (PK-идемпотентный досев в seed);
+`video/webm` добавлен в INLINE_MIME отдачи файлов (проигрывание `<video>`).
+
+Вне контура до смежных треков:
 `POST .../to-task` (трек задач), автоканалы проектов.
 Realtime-доставка/typing/presence — WS-gateway (#104, `apps/gateway`).
 TTL/автоудаление сообщений — вне продукта навсегда
@@ -130,7 +158,10 @@ TTL/автоудаление сообщений — вне продукта на
 (+`thread_created` первым ответом) · `chat.message_edited` ·
 `chat.message_deleted` (payload.obliterated) · `chat.message_read` (upToSeq) ·
 `chat.message_pinned` / `chat.message_unpinned` · `chat.reaction_added` /
-`chat.reaction_removed`. Payload минимальный и клиентски видим (будущий
+`chat.reaction_removed`. Стикеры (#143): `chat.sticker_pack_created /
+_updated / _deleted` · `chat.sticker_added / _removed` ·
+`chat.sticker_pack_installed / _uninstalled` (установка — событие только при
+реальной вставке PK). Payload минимальный и клиентски видим (будущий
 WS-fanout рассылает те же события).
 
 ## Лимиты
@@ -139,12 +170,16 @@ WS-fanout рассылает те же события).
   снапшота — 160), batch/forward ≤ 100 сообщений, участников ≤ 200.
 - Пагинация ≤ 100 (дефолт 50); курсоры opaque base64url.
 - Вложения (после #57): 100 МБ/файл, 20/сообщение, привязка одноразовая.
+- Стикеры (#143): PNG/WebP ≤512 КБ, WebM ≤256 КБ (без звука, ≤3 с — клиентская
+  пре-валидация длительности), ≤120 стикеров/пак, ≤20 личных паков, эмодзи
+  1–3/стикер; magic bytes — серверная истина формата.
 
 ## Тесты
 
 - Unit: permissions, reply-snapshot, computeReadAt, cursor.util, сервисы
-  (моки репозиториев).
+  (моки репозиториев), стикеры (magic bytes, лимиты, права — stickers/*.test).
 - Integration (живые PG/Redis, `test:integration`): контракты всех маршрутов,
   гонки (параллельный дубль отправки → 1 строка; 20 параллельных вставок →
   seq 1..20 без дыр; find-or-create race → 1 беседа), пагинация без
-  потерь, outbox-атомарность, unread/readAt циклы.
+  потерь, outbox-атомарность, unread/readAt циклы, стикеры сквозной
+  (create→upload→send→install→send→soft-delete, chat-stickers.integration).

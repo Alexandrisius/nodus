@@ -35,6 +35,8 @@ export const ErrorCode = {
   CHAT_ATTACHMENT_TOO_LARGE: 'CHAT_ATTACHMENT_TOO_LARGE',
   /** Больше 20 загруженных-но-неотправленных вложений у пользователя (#57). */
   CHAT_ATTACHMENT_TOO_MANY: 'CHAT_ATTACHMENT_TOO_MANY',
+  /** Файл стикера не прошёл проверку: формат (magic bytes) или лимит (#143). */
+  CHAT_STICKER_INVALID: 'CHAT_STICKER_INVALID',
   /** Фактический размер файла не совпал с заявленным (обрыв/подмена, #57). */
   FILE_SIZE_MISMATCH: 'FILE_SIZE_MISMATCH',
   /** Файл помещён в карантин (сканер пометил) и не отдаётся (ADR-0013). */

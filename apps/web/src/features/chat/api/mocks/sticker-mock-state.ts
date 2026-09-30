@@ -131,7 +131,9 @@ function toDto(pack: MockPack, actorId: string): StickerPack {
     title: pack.title,
     scope: pack.scope,
     owned: pack.ownerId === actorId,
-    installed: installsOf(actorId).has(pack.id),
+    // Корпоративные видны всем всегда — installed осмыслен только у личных
+    // (контракт sticker.schemas.ts; живой сервер отвечает так же).
+    installed: pack.scope === 'personal' && installsOf(actorId).has(pack.id),
     stickers: [...pack.stickers],
   };
 }

@@ -20,6 +20,9 @@ import { ThreadParticipantsRepository } from './messages/thread-participants.rep
 import { ThumbnailQueue } from './messages/thumbnail.queue.js';
 import { ThumbnailService } from './messages/thumbnail.service.js';
 import { ThumbnailWorker } from './messages/thumbnail.worker.js';
+import { StickersController } from './stickers/stickers.controller.js';
+import { StickersRepository } from './stickers/stickers.repository.js';
+import { StickersService } from './stickers/stickers.service.js';
 
 /**
  * Модуль chat (M6, #58): беседы (direct/group/каналы), сообщения, треды,
@@ -38,6 +41,7 @@ import { ThumbnailWorker } from './messages/thumbnail.worker.js';
     MessagesController,
     MessageActionsController,
     AttachmentsController,
+    StickersController,
   ],
   providers: [
     ConversationsRepository,
@@ -58,6 +62,9 @@ import { ThumbnailWorker } from './messages/thumbnail.worker.js';
     ThumbnailQueue,
     ThumbnailService,
     ThumbnailWorker,
+    // Стикер-паки (#143): CRUD/установка/загрузка + чтение для отправки.
+    StickersRepository,
+    StickersService,
   ],
 })
 export class ChatModule {}

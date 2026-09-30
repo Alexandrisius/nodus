@@ -30,7 +30,7 @@ import { useEditMessage } from './message-mutations.js';
 import { MessageMenu } from './message-menu.js';
 import { MessageRow } from './message-row.js';
 import { StickerGlyph, stickerAttachmentOf } from './sticker-message.js';
-import { StickerPackPopover } from './sticker-pack-popover.js';
+import { StickerWindowTrigger } from './sticker-pack-window.js';
 import { PinBar } from './pin-bar.js';
 import { useJumpResponder } from './use-jump-responder.js';
 import { useFeedViewportRead } from './use-viewport-read.js';
@@ -348,23 +348,17 @@ export const ThreadFeed = memo(function ThreadFeed({
                               </span>
                             </span>
                             {/* Стикер-пост (#143): глиф вместо вложений-карточек;
-                                клик — поповер пака (дистрибуция «из чата»). */}
+                                клик — окно пака (дистрибуция «из чата»). */}
                             {sticker ? (
-                              <span className="mt-2 block">
-                                <StickerPackPopover message={root} attachment={sticker}>
-                                  <button
-                                    type="button"
-                                    title={sticker.sticker?.packTitle}
-                                    className="cursor-pointer rounded-xl p-1 transition-transform duration-150 hover:scale-105 hover:bg-accent/50"
-                                  >
-                                    <StickerGlyph
-                                      url={sticker.url ?? ''}
-                                      mime={sticker.mime}
-                                      alt={sticker.sticker?.packTitle}
-                                      className="size-32 object-contain"
-                                    />
-                                  </button>
-                                </StickerPackPopover>
+                              <span className="mt-2 block w-fit">
+                                <StickerWindowTrigger message={root} attachment={sticker}>
+                                  <StickerGlyph
+                                    url={sticker.url ?? ''}
+                                    mime={sticker.mime}
+                                    alt={sticker.sticker?.packTitle}
+                                    className="size-24 object-contain"
+                                  />
+                                </StickerWindowTrigger>
                               </span>
                             ) : root.attachments.length > 0 ? (
                               // Ширина блока вложений — детерминированная
