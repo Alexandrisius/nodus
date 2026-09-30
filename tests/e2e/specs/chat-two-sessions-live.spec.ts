@@ -303,8 +303,8 @@ test.describe('живой чат: две сессии (#104)', () => {
     await expect(pageB.getByText(msg3, { exact: true }).first()).toBeVisible({ timeout: 5_000 });
     await expect(rowA.getByLabel('просмотрено')).toBeVisible({ timeout: 10_000 });
 
-    // Удаление доставляется <1 c: A удаляет (прочитано → надгробие) — текст
-    // у B пропадает через WS-инвалидацию без перезагрузки.
+    // Удаление доставляется <1 c: A удаляет (без ответов → бесследно, #163) —
+    // текст у B пропадает через WS-инвалидацию без перезагрузки.
     const list = await apiGet(admin.token, `/chat/conversations/${conversationId}/messages`);
     const { items } = (await list.json()) as { items: { id: string; text?: string }[] };
     const target = items.find((m) => m.text === msg3);
@@ -317,7 +317,7 @@ test.describe('живой чат: две сессии (#104)', () => {
         headers: { authorization: `Bearer ${admin.token}`, 'Idempotency-Key': `e2e-ws-${RUN}-del` },
       },
     );
-    expect(deleted.status).toBe(200); // прочитано → надгробие
+    expect(deleted.status).toBe(204); // нет ответов → бесследно (#163)
     await expect.poll(() => belowFoldOrGone(pageB, msg3), { timeout: 5_000 }).toBeGreaterThan(4); // удалено → строки нет; надгробие-«удалено» не содержит текста
     const elapsed = Date.now() - started;
     test.info().annotations.push({ type: 'latency', description: `delete delivery ${elapsed} ms` });

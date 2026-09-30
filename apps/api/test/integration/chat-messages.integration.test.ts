@@ -148,7 +148,6 @@ describe.skipIf(!process.env.DATABASE_URL)('chat: сообщения (integratio
   it('правка надгробия → NOT_FOUND', async () => {
     const conv = await makeGroup();
     const message = await send(alice, conv, { text: 'будет удалён' });
-    await feed(bob, conv, '?limit=50'); // прочитан → удаление оставит надгробие
     await fx.api(alice, 'DELETE', `/chat/conversations/${conv}/messages/${message.id}`);
 
     const res = await fx.api(alice, 'PATCH', `/chat/conversations/${conv}/messages/${message.id}`, {
@@ -158,44 +157,49 @@ describe.skipIf(!process.env.DATABASE_URL)('chat: сообщения (integratio
     expect(apiErrorResponseSchema.parse(await res.json()).code).toBe(ErrorCode.NOT_FOUND);
   });
 
-  it('удаление: непрочитанное исчезает (obliterated), прочитанное — надгробие', async () => {
-    // Непрочитанное: 204, из ленты исчезло, строка в БД obliterated.
+  it('удаление: без ответов — бесследно (даже прочитанное), с ответом — надгробие (#163)', async () => {
+    // Прочитанное без ответов: 204 — прочтения в правиле следа не участвуют.
     const conv1 = await makeGroup();
-    const unread = await send(alice, conv1, { text: 'никто не видел' });
-    const del1 = await fx.api(
-      alice,
-      'DELETE',
-      `/chat/conversations/${conv1}/messages/${unread.id}`,
-    );
+    const read = await send(alice, conv1, { text: 'прочитано, но без ответов' });
+    const receipt = await fx.api(bob, 'POST', `/chat/conversations/${conv1}/read`, {
+      body: { upToSeq: read.seq },
+      key: `del-noreply-${fx.runId}`,
+    });
+    expect(receipt.status).toBe(200);
+    const del1 = await fx.api(alice, 'DELETE', `/chat/conversations/${conv1}/messages/${read.id}`);
     expect(del1.status).toBe(204);
     expect(await del1.text()).toBe('');
-    expect((await feed(bob, conv1, '?limit=50')).items.map((m) => m.id)).not.toContain(unread.id);
-    const row1 = await fx.prisma.message.findUniqueOrThrow({ where: { id: unread.id } });
+    expect((await feed(bob, conv1, '?limit=50')).items.map((m) => m.id)).not.toContain(read.id);
+    const row1 = await fx.prisma.message.findUniqueOrThrow({ where: { id: read.id } });
     expect(row1.obliterated).toBe(true);
     expect(row1.deletedAt).not.toBeNull();
 
-    // Просмотренное получателем (квитанция видимости, #102 р.2): 200 надгробие.
+    // Есть живой ответ: 200 надгробие (якорь цепочки, #163).
     const conv2 = await makeGroup();
-    const read = await send(alice, conv2, { text: 'уже прочитано' });
-    const receipt = await fx.api(bob, 'POST', `/chat/conversations/${conv2}/read`, {
-      body: { upToSeq: read.seq },
-      key: `del-trace-${fx.runId}`,
-    });
-    expect(receipt.status).toBe(200);
-    const del2 = await fx.api(alice, 'DELETE', `/chat/conversations/${conv2}/messages/${read.id}`);
+    const answered = await send(alice, conv2, { text: 'уже прочитано' });
+    await send(bob, conv2, { text: 'отвечаю', replyToId: answered.id });
+    const del2 = await fx.api(
+      alice,
+      'DELETE',
+      `/chat/conversations/${conv2}/messages/${answered.id}`,
+    );
     expect(del2.status).toBe(200);
     const tombstone = messageSchema.parse(await del2.json());
-    expect(tombstone.id).toBe(read.id);
+    expect(tombstone.id).toBe(answered.id);
     expect(tombstone.deletedAt).not.toBeNull();
     expect(tombstone.text).toBe('');
     expect(tombstone.attachments).toEqual([]);
     expect(tombstone.reactions).toEqual([]);
 
     const after = await feed(bob, conv2, '?limit=50');
-    const tombInFeed = after.items.find((m) => m.id === read.id);
+    const tombInFeed = after.items.find((m) => m.id === answered.id);
     expect(tombInFeed?.deletedAt).not.toBeNull();
     expect(tombInFeed?.text).toBe('');
-    const row2 = await fx.prisma.message.findUniqueOrThrow({ where: { id: read.id } });
+    // Цитата ответа помечена deleted, но якорь-надгробие жив (obliterated=false):
+    // цитата кликабельна (#163).
+    const replyDto = after.items.find((m) => m.text === 'отвечаю');
+    expect(replyDto?.reply).toMatchObject({ id: answered.id, deleted: true, obliterated: false });
+    const row2 = await fx.prisma.message.findUniqueOrThrow({ where: { id: answered.id } });
     expect(row2.obliterated).toBe(false);
   });
 
@@ -443,13 +447,13 @@ describe.skipIf(!process.env.DATABASE_URL)('chat: сообщения (integratio
       upToSeq: 1,
     });
 
-    await fx.api(alice, 'DELETE', editUrl); // прочитано bob → надгробие
+    await fx.api(alice, 'DELETE', editUrl); // ответов нет → бесследно (#163)
     const deletedEvents = await eventsOf('chat.message_deleted');
     expect(deletedEvents).toHaveLength(1);
     expect(chatMessageDeletedPayloadSchema.parse(deletedEvents[0]!.payload)).toEqual({
       conversationId: conv,
       messageId: message.id,
-      obliterated: false,
+      obliterated: true,
     });
   });
 });
