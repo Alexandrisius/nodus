@@ -99,7 +99,13 @@ function RenameDialog({ pack, onClose }: { pack: StickerPack; onClose: () => voi
   const [title, setTitle] = useState(pack.title);
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-sm">
+      <DialogContent
+        className="sm:max-w-sm"
+        /* Окно с вводом: мимо-клик не закрывает (канон #148/#149, 30.09) —
+           набранный текст не теряется; отмена — «Отмена»/Esc. */
+        onInteractOutside={(event) => event.preventDefault()}
+        showCloseButton={false}
+      >
         <DialogHeader>
           <DialogTitle>{ui.chat.stickerRename}</DialogTitle>
         </DialogHeader>

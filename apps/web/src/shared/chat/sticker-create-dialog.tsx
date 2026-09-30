@@ -164,7 +164,15 @@ export function StickerCreateDialog({
 
   return (
     <Dialog open={open} onOpenChange={(next) => !busy && onOpenChange(next)}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent
+        className="sm:max-w-lg"
+        /* Клик снаружи НЕ закрывает (вердикт владельца 30.09, канон #148/#149
+           для окон с пополняемыми данными): случайный мимо-клик не может
+           снести выбранные файлы, эмодзи и название. Отмена — намеренная:
+           кнопка «Отмена» или Esc. */
+        onInteractOutside={(event) => event.preventDefault()}
+        showCloseButton={false}
+      >
         <DialogHeader>
           <DialogTitle>
             {appendTo
