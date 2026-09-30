@@ -13,10 +13,9 @@ import {
   type StickerSubmitPayload,
   buildStickerAttachment,
 } from './sticker-api.js';
-import { StickerCreateDialog } from './sticker-create-dialog.js';
 import { StickerGlyph } from './sticker-message.js';
 import { pushRecentSticker, recentStickers, type RecentSticker } from './sticker-recent.js';
-import { StickerPackMenu } from './sticker-pack-menu.js';
+import { StickerPackMenu, type PackDialogRequest } from './sticker-pack-menu.js';
 
 /**
  * Вкладка «Стикеры» медиа-пикера (#143; ревизия по вердикту владельца
@@ -34,16 +33,19 @@ const RECENT_TAB = 'recent';
 
 export function StickerPanel({
   onPick,
+  onHostDialog,
   disabled = false,
 }: {
   onPick: (payload: StickerSubmitPayload) => void;
+  /** Тяжёлые окна (создание/переименование/удаление) хост рендерит ВНЕ
+   *  поповера панели: клик мимо закрывает поповер и уносит потомков (репро
+   *  30.09 — «диалог всё равно закрывается»); панель только просит. */
+  onHostDialog: (request: PackDialogRequest) => void;
   /** Нет права поста/режим селекта/пересылки — отправка запрещена. */
   disabled?: boolean;
 }) {
   const packsQuery = useStickerPacks();
   const [recent, setRecent] = useState<RecentSticker[]>(() => recentStickers());
-  const [createOpen, setCreateOpen] = useState(false);
-  const [appendTo, setAppendTo] = useState<StickerPack | null>(null);
   const [activeId, setActiveId] = useState<string | typeof RECENT_TAB>(RECENT_TAB);
 
   const packs = packsQuery.data?.items ?? [];
@@ -63,11 +65,6 @@ export function StickerPanel({
   // начальное состояние 'recent' без живого выбора пользователя оставляло
   // сетку первого пака пустой — баг ревизии, пойман пробой панели).
   const activePack = ordered.find((p) => p.id === effectiveTab);
-
-  function openCreate(target: StickerPack | null) {
-    setAppendTo(target);
-    setCreateOpen(true);
-  }
 
   function pickPackSticker(pack: StickerPack, stickerId: string) {
     if (disabled) return;
@@ -154,7 +151,7 @@ export function StickerPanel({
           aria-label={ui.chat.stickerCreatePack}
           title={ui.chat.stickerCreatePack}
           disabled={disabled}
-          onClick={() => openCreate(null)}
+          onClick={() => onHostDialog({ kind: 'create' })}
         >
           <Plus className="size-4" strokeWidth={1.75} />
         </Button>
@@ -173,7 +170,12 @@ export function StickerPanel({
         ) : packs.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 px-4 text-center text-sm text-muted-foreground">
             <span>{ui.chat.stickerEmpty}</span>
-            <Button type="button" size="sm" disabled={disabled} onClick={() => openCreate(null)}>
+            <Button
+              type="button"
+              size="sm"
+              disabled={disabled}
+              onClick={() => onHostDialog({ kind: 'create' })}
+            >
               {ui.chat.stickerCreatePack}
             </Button>
           </div>
@@ -210,13 +212,10 @@ export function StickerPanel({
             pack={activePack}
             disabled={disabled}
             onPick={pickPackSticker}
-            onAppend={openCreate}
+            onDialog={onHostDialog}
           />
         ) : null}
       </div>
-      {createOpen ? (
-        <StickerCreateDialog open onOpenChange={setCreateOpen} appendTo={appendTo} />
-      ) : null}
     </div>
   );
 }
@@ -228,12 +227,12 @@ function PackGrid({
   pack,
   disabled,
   onPick,
-  onAppend,
+  onDialog,
 }: {
   pack: StickerPack;
   disabled: boolean;
   onPick: (pack: StickerPack, stickerId: string) => void;
-  onAppend: (pack: StickerPack) => void;
+  onDialog: (request: PackDialogRequest) => void;
 }) {
   const canManage = useCanManageStickerPacks();
   const manageable = pack.owned || (pack.scope === 'corporate' && canManage);
@@ -248,7 +247,7 @@ function PackGrid({
         </span>
         <span className="font-mono text-label-xs tabular-nums">{pack.stickers.length}</span>
         <span className="ml-auto flex items-center">
-          <StickerPackMenu pack={pack} onAppend={onAppend} />
+          <StickerPackMenu pack={pack} onDialog={onDialog} />
         </span>
       </h3>
       {pack.stickers.length === 0 ? (

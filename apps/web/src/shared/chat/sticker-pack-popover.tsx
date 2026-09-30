@@ -13,7 +13,12 @@ import {
 } from './sticker-api.js';
 import { StickerCreateDialog } from './sticker-create-dialog.js';
 import { StickerGlyph } from './sticker-message.js';
-import { StickerPackMenu } from './sticker-pack-menu.js';
+import {
+  DeletePackDialog,
+  RenamePackDialog,
+  StickerPackMenu,
+  type PackDialogRequest,
+} from './sticker-pack-menu.js';
 
 /**
  * Поповер пака по клику на стикер-сообщение (#143, модель Telegram/Битрикс24):
@@ -33,7 +38,8 @@ export function StickerPackPopover({
 }) {
   const meta = attachment.sticker;
   const [open, setOpen] = useState(false);
-  const [appendOpen, setAppendOpen] = useState(false);
+  // Тяжёлые окна — ВНЕ поповера (канон 30.09: мимо-клик не уносит данные).
+  const [packDialog, setPackDialog] = useState<PackDialogRequest | null>(null);
   const detail = useStickerPack(open && meta ? meta.packId : '');
   const install = useInstallStickerPack();
   const uninstall = useUninstallStickerPack();
@@ -67,7 +73,7 @@ export function StickerPackPopover({
                 : ''}
             </span>
             <span className="ml-auto flex shrink-0 items-center">
-              {pack ? <StickerPackMenu pack={pack} onAppend={() => setAppendOpen(true)} /> : null}
+              {pack ? <StickerPackMenu pack={pack} onDialog={setPackDialog} /> : null}
             </span>
           </div>
           {pack === undefined ? (
@@ -127,8 +133,18 @@ export function StickerPackPopover({
           )}
         </PopoverContent>
       </Popover>
-      {appendOpen && pack ? (
-        <StickerCreateDialog open onOpenChange={setAppendOpen} appendTo={pack} />
+      {packDialog?.kind === 'append' && pack ? (
+        <StickerCreateDialog
+          open
+          onOpenChange={() => setPackDialog(null)}
+          appendTo={packDialog.pack}
+        />
+      ) : null}
+      {packDialog?.kind === 'rename' ? (
+        <RenamePackDialog pack={packDialog.pack} onClose={() => setPackDialog(null)} />
+      ) : null}
+      {packDialog?.kind === 'delete' ? (
+        <DeletePackDialog pack={packDialog.pack} onClose={() => setPackDialog(null)} />
       ) : null}
     </>
   );

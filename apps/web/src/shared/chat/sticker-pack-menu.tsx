@@ -27,61 +27,67 @@ import {
 
 /**
  * Меню «⋯» пака стикеров (#143): единое для вкладки пикера и поповера из
- * чата. Управление («для всех»: пополнить/переименовать/удалить) — владелец
- * пака и админ для корпоративных; «для себя» — снять установленный чужой.
- * Переименование и удаление — маленькие диалоги (ввод/подтверждение).
+ * чата. Само диалоги НЕ рендерит: создание/переименование/удаление —
+ * «тяжёлые» окна, которые хост должен монтировать ВНЕ поповера панели
+ * (клик мимо закрывает поповер и уносит потомков — репро 30.09); хост
+ * получает колбэки и решает, где жить диалогам. Управление («для всех») —
+ * владелец пака и админ для корпоративных; «для себя» — снять установленный.
  */
+
+export type PackDialogRequest =
+  | { kind: 'create' }
+  | { kind: 'append'; pack: StickerPack }
+  | { kind: 'rename'; pack: StickerPack }
+  | { kind: 'delete'; pack: StickerPack };
 
 export function StickerPackMenu({
   pack,
-  onAppend,
+  onDialog,
 }: {
   pack: StickerPack;
-  /** «Добавить стикеры»: хост открывает диалог загрузки в этот пак. */
-  onAppend: (pack: StickerPack) => void;
+  /** Запрос тяжёлого окна: хост рендерит его ВНЕ поповеров. */
+  onDialog: (request: PackDialogRequest) => void;
 }) {
   const canManage = useCanManageStickerPacks();
   const manageable = pack.owned || (pack.scope === 'corporate' && canManage);
-  const [dialog, setDialog] = useState<'rename' | 'delete' | null>(null);
 
   return (
-    <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="size-6 text-muted-foreground"
-            aria-label={ui.chat.stickerPackMenu}
-            title={ui.chat.stickerPackMenu}
-          >
-            <Ellipsis className="size-4" strokeWidth={1.75} />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" side="bottom">
-          {manageable ? (
-            <>
-              <DropdownMenuItem onSelect={() => onAppend(pack)}>
-                <Plus className="size-4" strokeWidth={1.75} />
-                {ui.chat.stickerAddToPack}
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => setDialog('rename')}>
-                {ui.chat.stickerRename}
-              </DropdownMenuItem>
-              <DropdownMenuItem variant="destructive" onSelect={() => setDialog('delete')}>
-                <Trash2 className="size-4" strokeWidth={1.75} />
-                {ui.chat.stickerDeletePack}
-              </DropdownMenuItem>
-            </>
-          ) : pack.installed && pack.scope === 'personal' ? (
-            <UninstallItem packId={pack.id} />
-          ) : null}
-        </DropdownMenuContent>
-      </DropdownMenu>
-      {dialog === 'rename' ? <RenameDialog pack={pack} onClose={() => setDialog(null)} /> : null}
-      {dialog === 'delete' ? <DeleteDialog pack={pack} onClose={() => setDialog(null)} /> : null}
-    </>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="size-6 text-muted-foreground"
+          aria-label={ui.chat.stickerPackMenu}
+          title={ui.chat.stickerPackMenu}
+        >
+          <Ellipsis className="size-4" strokeWidth={1.75} />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" side="bottom">
+        {manageable ? (
+          <>
+            <DropdownMenuItem onSelect={() => onDialog({ kind: 'append', pack })}>
+              <Plus className="size-4" strokeWidth={1.75} />
+              {ui.chat.stickerAddToPack}
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => onDialog({ kind: 'rename', pack })}>
+              {ui.chat.stickerRename}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              variant="destructive"
+              onSelect={() => onDialog({ kind: 'delete', pack })}
+            >
+              <Trash2 className="size-4" strokeWidth={1.75} />
+              {ui.chat.stickerDeletePack}
+            </DropdownMenuItem>
+          </>
+        ) : pack.installed && pack.scope === 'personal' ? (
+          <UninstallItem packId={pack.id} />
+        ) : null}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -94,15 +100,15 @@ function UninstallItem({ packId }: { packId: string }) {
   );
 }
 
-function RenameDialog({ pack, onClose }: { pack: StickerPack; onClose: () => void }) {
+/** Переименование пака: окно с вводом — мимо-клик НЕ закрывает (канон
+ * #148/#149/#143), закрытие — кнопками/Esc. */
+export function RenamePackDialog({ pack, onClose }: { pack: StickerPack; onClose: () => void }) {
   const rename = useRenameStickerPack();
   const [title, setTitle] = useState(pack.title);
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent
         className="sm:max-w-sm"
-        /* Окно с вводом: мимо-клик не закрывает (канон #148/#149, 30.09) —
-           набранный текст не теряется; отмена — «Отмена»/Esc. */
         onInteractOutside={(event) => event.preventDefault()}
         showCloseButton={false}
       >
@@ -138,7 +144,8 @@ function RenameDialog({ pack, onClose }: { pack: StickerPack; onClose: () => voi
   );
 }
 
-function DeleteDialog({ pack, onClose }: { pack: StickerPack; onClose: () => void }) {
+/** Подтверждение удаления «для всех» (без ввода — мимо-клик допустим). */
+export function DeletePackDialog({ pack, onClose }: { pack: StickerPack; onClose: () => void }) {
   const remove = useDeleteStickerPack();
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
