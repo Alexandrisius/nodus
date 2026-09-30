@@ -40,5 +40,6 @@ export function toReplyPreview(draft: ReplyDraft): ReplyPreview {
     quoteText: draft.quoteText,
     attachmentKind: draft.attachmentKind,
     deleted: false,
+    obliterated: false,
   };
 }

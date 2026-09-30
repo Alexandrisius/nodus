@@ -14,7 +14,9 @@ import { withoutPatronymic } from '../lib/format.js';
 
 /** Цитата ответа: ЗАМОРОЖЕННЫЙ снапшот (вердикт 24.09) — автор + сниппет
  *  или «фрагмент» частичной цитаты; удалённый оригинал → placeholder
- *  (канон Telegram lng_deleted_message), клик — no-op.
+ *  (канон Telegram lng_deleted_message). Клик (#163, вердикт владельца
+ *  30.09): оригинал-надгробие (deleted, не obliterated) — прыжок к пузырю
+ *  «Сообщение удалено» с подсветкой; бесследно исчезнувший — no-op.
  *  Бар и имя — акцентом поверхности (#127, канон Telegram: msgOutReplyBarColor
  *  / msgInReplyBarColor): на залитом своём пузыре — акцент пузыря, на чужом —
  *  info; сниппет и hover остаются на currentColor пузыря. */
@@ -38,14 +40,18 @@ export function ReplyHeader({
           : reply.attachmentKind === 'sticker'
             ? ui.chat.stickerPreview
             : '');
-  const interactive = !reply.deleted && onClick !== undefined;
+  // Кликабельна: живой оригинал ИЛИ надгробие (#163). obliterated — нет якоря.
+  const interactive = (!reply.deleted || !reply.obliterated) && onClick !== undefined;
   const Tag = interactive ? 'button' : 'span';
   return (
     <Tag
       {...(interactive ? { type: 'button' as const, onClick } : {})}
       className={cn(
         'flex min-w-0 max-w-full items-stretch gap-1.5 rounded-md text-left',
-        interactive && 'transition-colors hover:bg-current/10',
+        // pr-2 только у кликабельной: плашка ховера шириной в самую широкую
+        // строку пузыря (репро 30.09) — без воздухa справа она упирается
+        // ровно в последний глиф сниппета (баг-репорт владельца 30.09).
+        interactive && 'pr-2 transition-colors hover:bg-current/10',
       )}
     >
       <span

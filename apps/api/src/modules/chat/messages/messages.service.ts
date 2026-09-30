@@ -461,10 +461,12 @@ export class MessagesService {
   // ===== Удаление =====
 
   /**
-   * Удаление одного: «хоть один прочитал (курсор ≥ seq) → надгробие» решает
-   * СЕРВЕР по курсорам участников. Оба варианта: авто-unpin, пометка цитат,
-   * событие. Бесследное (obliterated) исключается из всех выдач, но строка
-   * и seq остаются (непрерывность ссылок/истории/аудита).
+   * Удаление одного: правило следа «по ответам» (#163, вердикт владельца
+   * 30.09) — след держат только ЖИВЫЕ ОТВЕТЫ (есть кому показывать цепочку);
+   * прочтения ни при чём: ошибочное сообщение не оставляет мусор прочитавшим.
+   * Оба варианта: авто-unpin, пометка цитат, событие, каскад коллапса якорей.
+   * Бесследное (obliterated) исключается из всех выдач, но строка и seq
+   * остаются (непрерывность ссылок/истории/аудита).
    */
   async delete(userId: string, conversationId: string, messageId: string): Promise<DeleteResult> {
     return this.deleteInternal(userId, conversationId, messageId);
@@ -509,9 +511,10 @@ export class MessagesService {
       if (message.authorId !== userId) {
         throw DomainException.forbidden('Only author can modify this message');
       }
-      const members = await this.conversations.listMembers([conversationId], tx);
-      const anyoneRead = members.some((m) => m.userId !== userId && m.lastReadSeq >= message.seq);
-      const obliterated = !anyoneRead;
+      // Правило следа #163: надгробие — только при живых ответах (якорь
+      // цепочки), иначе бесследно. Решает сервер, прочтения не участвуют.
+      const hasReplies = await this.repo.hasLiveReplies(conversationId, messageId, tx);
+      const obliterated = !hasReplies;
       const tombstone = await this.repo.tombstone(conversationId, messageId, obliterated, tx);
       await this.repo.deletePinByMessage(messageId, tx);
       await this.repo.markRepliesDeleted(messageId, tx);
@@ -521,8 +524,43 @@ export class MessagesService {
         { conversationId, messageId, obliterated },
         { actorId: userId, aggregateType: 'conversation', aggregateId: conversationId },
       );
-      return { message: tombstone, obliterated, members };
+      await this.collapseAnchors(userId, conversationId, tombstone, tx);
+      return {
+        message: tombstone,
+        obliterated,
+        members: await this.conversations.listMembers([conversationId], tx),
+      };
     });
+  }
+
+  /**
+   * Каскад #163: удаление ответа могло оставить родителя/корень треда —
+   * надгробие-якорь без живых ответов. Такой якорь больше не нужен (след
+   * держится только цепочкой) — коллапс в obliterated, своё событие. Условие
+   * атомарно в UPDATE (obliterateTombstone), двойной коллапс невозможен.
+   */
+  private async collapseAnchors(
+    userId: string,
+    conversationId: string,
+    deleted: MessageRow,
+    tx: TransactionClient,
+  ): Promise<void> {
+    const anchors = new Set(
+      [deleted.replyToId, deleted.threadRootId].filter(
+        (id): id is string => id !== null && id !== deleted.id,
+      ),
+    );
+    for (const anchorId of anchors) {
+      const collapsed = await this.repo.obliterateTombstone(conversationId, anchorId, tx);
+      if (collapsed) {
+        await this.eventBus.emit(
+          tx,
+          CHAT_EVENTS.MESSAGE_DELETED,
+          { conversationId, messageId: anchorId, obliterated: true },
+          { actorId: userId, aggregateType: 'conversation', aggregateId: conversationId },
+        );
+      }
+    }
   }
 
   // ===== Треды: наблюдение и состояния (раунд 3) =====

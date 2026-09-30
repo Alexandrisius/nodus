@@ -275,6 +275,9 @@ function buildReplyPreview(
   const snapshot = (row.replySnapshot ?? null) as ReplySnapshotValue | null;
   const original = originalById.get(row.replyToId);
   const deleted = original === undefined || original.deletedAt !== null;
+  // #163: obliterated-оригинала в ленте нет — клику по цитате некуда вести;
+  // deleted при надгробии (obliterated=false) — цитата кликабельна.
+  const obliterated = original === undefined || original.obliterated;
   const authorId = snapshot?.authorId ?? original?.authorId ?? null;
   return {
     id: row.replyToId,
@@ -283,6 +286,7 @@ function buildReplyPreview(
     quoteText: deleted ? null : (snapshot?.quoteText ?? null),
     attachmentKind: deleted ? null : (snapshot?.attachmentKind ?? null),
     deleted,
+    obliterated,
   };
 }
 

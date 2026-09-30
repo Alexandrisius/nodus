@@ -118,12 +118,12 @@ describe('computeReadBy (#102)', () => {
   });
 });
 
-function stubMapper(): MessageDtoMapper {
+function stubMapper(originals: MessageRow[] = []): MessageDtoMapper {
   const messages = {
     reactionsFor: async () => [],
     attachmentsFor: async () => [],
     threadReplyCounts: async () => [],
-    findByIds: async () => [],
+    findByIds: async () => originals,
   };
   const pins = { pinnedIds: async () => new Set<string>() };
   const profiles = {
@@ -192,5 +192,34 @@ describe('toDtos смешанной страницы (список бесед, #
     expect(dtos[0]?.readBy.map((r) => r.id)).toEqual(['a']);
     // Курсор a добрёл и до чужой строки — карта обязательна для смеси.
     expect(dtos[1]?.readBy.map((r) => r.id)).toEqual(['a']);
+  });
+});
+
+describe('buildReplyPreview — различие надгробие/бесследно (#163)', () => {
+  const members = [member({ userId: 'me-1' })];
+  const replyRow = fullRow({
+    id: 'r-1',
+    text: 'ответ',
+    replyToId: 'orig-1',
+    replySnapshot: { authorId: 'peer-1', text: 'цитата', quoteText: null, attachmentKind: null },
+  });
+
+  it('оригинал — надгробие (obliterated=false): deleted=true, obliterated=false → цитата кликабельна', async () => {
+    const dtos = await stubMapper([
+      fullRow({ id: 'orig-1', deletedAt: T1, obliterated: false, text: '' }),
+    ]).toDtos([replyRow], { viewerId: 'me-1', members });
+    expect(dtos[0]?.reply).toMatchObject({ id: 'orig-1', deleted: true, obliterated: false });
+  });
+
+  it('оригинал исчез бесследно (obliterated=true): клику некуда вести', async () => {
+    const dtos = await stubMapper([
+      fullRow({ id: 'orig-1', deletedAt: T1, obliterated: true, text: '' }),
+    ]).toDtos([replyRow], { viewerId: 'me-1', members });
+    expect(dtos[0]?.reply).toMatchObject({ id: 'orig-1', deleted: true, obliterated: true });
+  });
+
+  it('оригинала нет в выдаче вовсе (гонка) — считаем бесследным', async () => {
+    const dtos = await stubMapper([]).toDtos([replyRow], { viewerId: 'me-1', members });
+    expect(dtos[0]?.reply).toMatchObject({ id: 'orig-1', deleted: true, obliterated: true });
   });
 });

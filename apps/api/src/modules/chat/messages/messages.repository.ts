@@ -376,6 +376,55 @@ export class MessagesRepository {
     `);
   }
 
+  /**
+   * Живые ответы-якоря (правило следа #163): ответ по reply_to_id или пост
+   * треда (для корня треда), не удалённые. Удалённое (в т.ч. надгробие и
+   * obliterated — у обоих deleted_at выставлен) якорем не считается.
+   */
+  async hasLiveReplies(
+    conversationId: string,
+    messageId: string,
+    tx: TransactionClient,
+  ): Promise<boolean> {
+    const rows = await tx.$queryRaw<{ exists: boolean }[]>(Prisma.sql`
+      SELECT EXISTS (
+        SELECT 1 FROM messages
+        WHERE conversation_id = ${conversationId}::uuid
+          AND deleted_at IS NULL
+          AND (reply_to_id = ${messageId}::uuid
+               OR (thread_root_id = ${messageId}::uuid AND id <> ${messageId}::uuid))
+      ) AS exists
+    `);
+    return rows[0]?.exists === true;
+  }
+
+  /**
+   * Каскад #163: надгробие-якорь, потерявшее последний живой ответ (условие
+   * в том же UPDATE — атомарно, гонки двух параллельных удалений исключены),
+   * уходит в бесследное. true — коллапс случился (нужно событие).
+   */
+  async obliterateTombstone(
+    conversationId: string,
+    messageId: string,
+    tx: TransactionClient,
+  ): Promise<boolean> {
+    const rows = await tx.$queryRaw<{ id: string }[]>(Prisma.sql`
+      UPDATE messages
+      SET obliterated = true, updated_at = now()
+      WHERE id = ${messageId}::uuid AND conversation_id = ${conversationId}::uuid
+        AND deleted_at IS NOT NULL AND NOT obliterated
+        AND NOT EXISTS (
+          SELECT 1 FROM messages r
+          WHERE r.conversation_id = messages.conversation_id
+            AND r.deleted_at IS NULL
+            AND (r.reply_to_id = messages.id
+                 OR (r.thread_root_id = messages.id AND r.id <> messages.id))
+        )
+      RETURNING id
+    `);
+    return rows.length > 0;
+  }
+
   /** «Удаление сильнее заморозки»: цитаты-ответы → deleted=true. */
   async markRepliesDeleted(messageId: string, tx: TransactionClient): Promise<void> {
     await tx.$executeRaw(Prisma.sql`

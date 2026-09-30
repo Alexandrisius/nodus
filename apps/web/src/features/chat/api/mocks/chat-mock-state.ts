@@ -29,6 +29,9 @@ export function buildReplyPreview(replyToId: string, quoteText?: string | null):
       quoteText: null,
       attachmentKind: null,
       deleted: true,
+      // removeMessage вынул строку из демо-массива (бесследно); tombstone
+      // остаётся в ленте — цитата на него кликабельна (паритет #163).
+      obliterated: !target,
     };
   }
   return {
@@ -38,14 +41,39 @@ export function buildReplyPreview(replyToId: string, quoteText?: string | null):
     quoteText: quoteText ? quoteText.slice(0, REPLY_SNIPPET_MAX) : null,
     attachmentKind: target.attachments[0]?.kind ?? null,
     deleted: false,
+    obliterated: false,
   };
 }
 
-/** Правило следа (#41, вердикт владельца): «хоть один прочитал → след».
- *  Прод-сервер решает по last_read_seq участников; мок — по readAt-симуляции
- *  (своё сообщение «прочитывается» через ~2 с после отправки). */
-export function hasBeenRead(message: ChatMessage): boolean {
-  return message.readAt !== null;
+/** Правило следа (#163, вердикт владельца 30.09 «по ответам»): след держат
+ *  только живые ответы (reply.id либо пост треда, не удалённые) — прочтения
+ *  не участвуют. Прод-сервер решает по reply_to_id/thread_root_id с
+ *  deleted_at IS NULL; мок — по демо-ленте (правило паритетно). */
+export function hasLiveReplies(message: ChatMessage): boolean {
+  return demoMessages.some(
+    (m) =>
+      m.conversationId === message.conversationId &&
+      m.id !== message.id &&
+      !m.deletedAt &&
+      (m.reply?.id === message.id || m.threadRootId === message.id),
+  );
+}
+
+/** Каскад #163: надгробие-якорь (родитель по цитате / корень треда),
+ *  потерявшее последний живой ответ, уходит из ленты бесследно. Якоря
+ *  захватываются ДО applyDeletion (она обнуляет reply). */
+export function collapseAnchors(
+  conversationId: string,
+  anchors: (string | null | undefined)[],
+): void {
+  for (const anchorId of new Set(
+    anchors.filter((id): id is string => id !== null && id !== undefined),
+  )) {
+    const anchor = demoMessages.find(
+      (m) => m.id === anchorId && m.conversationId === conversationId && m.deletedAt,
+    );
+    if (anchor && !hasLiveReplies(anchor)) removeMessage(anchor.id);
+  }
 }
 
 /** Цитаты, ссылающиеся на удалённый оригинал, → «Сообщение удалено». */

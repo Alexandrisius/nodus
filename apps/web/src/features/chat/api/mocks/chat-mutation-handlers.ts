@@ -13,7 +13,8 @@ import { demoConversations, demoMessages } from '../../../../shared/mocks/data/c
 import { actorUserRef, getMockActor } from '../../../../shared/mocks/mock-actor.js';
 import {
   applyDeletion,
-  hasBeenRead,
+  collapseAnchors,
+  hasLiveReplies,
   nextMessageSeq,
   pinMessage,
   pinsOf,
@@ -109,18 +110,23 @@ export const chatMutationHandlers = [
     return HttpResponse.json(message);
   }),
 
-  /** Удаление (A5): не прочитали → 204 без следа; прочитали → 200 + надгробие. */
+  /** Удаление (#163): нет живых ответов → 204 без следа; есть ответы →
+   *  200 + надгробие. Каскад: надгробие-якорь без живых ответов уходит. */
   http.delete('/api/v1/chat/conversations/:id/messages/:messageId', ({ params }) => {
     const message = findMessage(params.id, params.messageId);
     if (!message || message.deletedAt) return notFound();
     if (message.author.id !== getMockActor().id) return forbidden();
     const conversationId = String(params.id);
-    if (hasBeenRead(message)) {
+    // Якоря — до applyDeletion (та обнуляет reply).
+    const anchors = [message.reply?.id, message.threadRootId];
+    if (hasLiveReplies(message)) {
       applyDeletion(message);
+      collapseAnchors(conversationId, anchors);
       refreshLastMessage(conversationId);
       return HttpResponse.json(message);
     }
     removeMessage(message.id);
+    collapseAnchors(conversationId, anchors);
     refreshLastMessage(conversationId);
     return new HttpResponse(null, { status: 204 });
   }),
@@ -137,12 +143,14 @@ export const chatMutationHandlers = [
       const message = findMessage(params.id, id);
       if (!message || message.deletedAt) continue;
       if (message.author.id !== getMockActor().id) continue;
-      if (hasBeenRead(message)) {
+      const anchors = [message.reply?.id, message.threadRootId];
+      if (hasLiveReplies(message)) {
         tombstones.push(applyDeletion(message));
       } else {
         removeMessage(id);
         removed.push(id);
       }
+      collapseAnchors(String(params.id), anchors);
     }
     refreshLastMessage(String(params.id));
     return HttpResponse.json({ removed, tombstones });

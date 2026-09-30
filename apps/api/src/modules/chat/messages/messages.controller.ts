@@ -129,7 +129,7 @@ export class MessagesController {
   @Delete(':messageId')
   @Audit({ action: 'chat.message_delete', entity: 'message' })
   @ApiOperation({
-    summary: 'Удаление: никто не прочитал — 204 бесследно; хоть один — 200 надгробие',
+    summary: 'Удаление: есть живые ответы — 200 надгробие; иначе — 204 бесследно',
   })
   @ApiNoContentResponse({ description: 'Удалено бесследно' })
   @ApiOkResponse({ standardSchema: messageSchema, description: 'Надгробие' })

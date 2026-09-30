@@ -336,7 +336,15 @@ function ConversationFeed({
                                     onToggle={(shift) => selection.toggle(message.id, shift)}
                                   >
                                     {message.deletedAt ? (
-                                      <ChatMessageItem message={message} mine={run.mine} />
+                                      <ChatMessageItem
+                                        message={message}
+                                        mine={run.mine}
+                                        showName={
+                                          showAuthor && !run.mine && message.id === first.id
+                                        }
+                                        showAvatar={message.id === last.id}
+                                        tail={message.id === last.id}
+                                      />
                                     ) : (
                                       <MessageMenu
                                         message={message}

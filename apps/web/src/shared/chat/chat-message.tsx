@@ -74,14 +74,49 @@ export const ChatMessageItem = memo(function ChatMessageItem({
   // карточкой мессенджера (слайдер поверх сущности).
   const host = useChatHostNavigation();
 
-  // Надгробие (A5): placeholder вместо пузыря — без автора, времени и
-  // действий; серия сообщений разрывается (message-groups: отдельный run).
+  // Чужой пузырь — вариант card: БЕЗ рамки, контур ступенью тона поверх зоны
+  // (вердикт владельца 14.09.2026, рефы Битрикс24; рамка + SVG-обводка хвоста
+  // давали артефакты стыка — пузыри и хвост теперь только заливками).
+  const variant = mine ? 'default' : 'card';
+
+  // Надгробие (#163, вердикт владельца 30.09 «по ответам»): обычный пузырь
+  // серии — аватар/имя/мета/хвостик несёт серия (message-groups не рвёт run),
+  // внутри приглушённая строка «Сообщение удалено». Сервер оставляет его
+  // только при живых ответах (якорь цепочки); контент обнулён в DTO,
+  // действий нет — conversation-pane рендерит надгробие БЕЗ MessageMenu.
   if (message.deletedAt) {
     return (
-      <Message align={atEnd ? 'end' : 'start'}>
-        <span aria-hidden className="w-8 shrink-0" />
+      <Message align={atEnd ? 'end' : 'start'} className="group/msg">
+        {showAvatar ? (
+          <MessageAvatar>
+            <PersonAvatar name={message.author.displayName} className="size-7" />
+          </MessageAvatar>
+        ) : (
+          <span aria-hidden className="w-8 shrink-0" />
+        )}
         <MessageContent>
-          <MessageTombstone mine={mine} />
+          {showName ? null : (
+            <span className="sr-only">{withoutPatronymic(message.author.displayName)}: </span>
+          )}
+          <Bubble variant={variant}>
+            <BubbleOutline side={tail ? (atEnd ? 'right' : 'left') : null} variant={variant} />
+            <BubbleContent
+              className={cn(
+                'relative flex flex-col gap-[3px] pt-[6px] pb-[5px]',
+                tail && (atEnd ? 'rounded-br-none' : 'rounded-bl-none'),
+              )}
+            >
+              {showName ? (
+                <span className="text-sm leading-[19px] font-semibold text-info">
+                  {shortPersonName(message.author.displayName)}
+                </span>
+              ) : null}
+              <MessageTombstone mine={mine} />
+              <span className="flex items-end">
+                <MessageMeta message={message} onFilled={mine} ticks={mine} className="ml-auto" />
+              </span>
+            </BubbleContent>
+          </Bubble>
         </MessageContent>
       </Message>
     );
@@ -124,10 +159,6 @@ export const ChatMessageItem = memo(function ChatMessageItem({
     useJumpStore.getState().request(from.conversationId, from.messageId, from.threadRootId);
   }
 
-  // Чужой пузырь — вариант card: БЕЗ рамки, контур ступенью тона поверх зоны
-  // (вердикт владельца 14.09.2026, рефы Битрикс24; рамка + SVG-обводка хвоста
-  // давали артефакты стыка — пузыри и хвост теперь только заливками).
-  const variant = mine ? 'default' : 'card';
   // С вложениями пузырь УЗКИЙ — ширину задаёт блок вложений, а НЕ текст
   // (#150, вердикт владельца 29.09 «как в Битриксе»): карточка растянута на
   // колонку, кнопка скачивания у правого края, текст переносится внутри.

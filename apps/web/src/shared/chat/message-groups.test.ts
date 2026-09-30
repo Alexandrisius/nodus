@@ -105,14 +105,14 @@ describe('formatDayLabel — метка чипа (Intl ru-RU, now инжекти
   });
 });
 
-describe('buildMessageRuns — надгробия (A5, #87)', () => {
+describe('buildMessageRuns — надгробия (#163: участвуют в серии своего автора)', () => {
   const deleted = (id: string, authorId: string, at: string): ChatMessage => ({
     ...msg(id, authorId, at),
     deletedAt: at,
     text: '',
   });
 
-  it('надгробие рвёт серию одного автора и живёт отдельной серией', () => {
+  it('надгробие НЕ рвёт серию своего автора (пузырь с аватаром — атрибуты серии)', () => {
     const runs = buildMessageRuns(
       [
         msg('1', 'a', '2026-09-14T09:00:00Z'),
@@ -121,14 +121,20 @@ describe('buildMessageRuns — надгробия (A5, #87)', () => {
       ],
       'a',
     );
-    expect(runs.map((r) => r.items.length)).toEqual([1, 1, 1]);
+    expect(runs).toHaveLength(1);
+    expect(runs[0]?.items.map((m) => m.id)).toEqual(['1', '2', '3']);
+    expect(runs[0]?.last.id).toBe('3');
   });
 
-  it('два надгробия подряд не сливаются (placeholder без автора/хвоста)', () => {
+  it('надгробие другого автора рвёт серию (смена автора — единственная причина)', () => {
     const runs = buildMessageRuns(
-      [deleted('1', 'a', '2026-09-14T09:00:00Z'), deleted('2', 'a', '2026-09-14T09:01:00Z')],
+      [
+        msg('1', 'a', '2026-09-14T09:00:00Z'),
+        deleted('2', 'b', '2026-09-14T09:01:00Z'),
+        msg('3', 'a', '2026-09-14T09:02:00Z'),
+      ],
       'a',
     );
-    expect(runs).toHaveLength(2);
+    expect(runs).toHaveLength(3);
   });
 });
