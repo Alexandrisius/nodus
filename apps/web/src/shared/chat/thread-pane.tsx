@@ -40,6 +40,9 @@ import { useConversations } from './api.js';
 import { typingKey, useTypingStore } from '../socket/typing-store.js';
 import { ScrollEndResponder } from './scroll-end-responder.js';
 import { JumpResponder } from './use-jump-responder.js';
+// >300 строк — обоснование (I5, валидатор #164): окно треда — шапка
+// (наблюдение/печать/закрытие), корневой пост + лента ответов на run-grid
+// и композер в одном колонке-хосте; деление размыло бы поток колонки.
 
 /** «печатает в обсуждении…» — по typing-записи ТРЕДА (ключ conv:root). */
 function useThreadTyping(conversationId: string, threadRootId: string): string | null {

@@ -42,6 +42,9 @@ import { useBoxSelection } from './use-box-selection.js';
 import { reconcileServerDraft } from './draft-sync.js';
 import { JumpResponder } from './use-jump-responder.js';
 import { useJumpStore } from './jump-store.js';
+// >300 строк — обоснование (I5): лента беседы — якорь открытия (раунд 4),
+// селект/рамка/прочтения/jump-резиденты в одном потоке; серия вынесена
+// в message-run.tsx, оставшееся — хост-обвязка, деление размыло бы её.
 
 /**
  * Обычная беседа (групповой/личный чат, чаты задачи и письма): лента на

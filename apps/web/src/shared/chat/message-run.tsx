@@ -66,8 +66,10 @@ export function MessageRunView({
   const hasDivider = dividerBeforeId !== null && run.items.some((m) => m.id === dividerBeforeId);
   const rowCount = run.items.length + (hasDivider ? 1 : 0);
   // «По обе стороны»: своя серия зеркалится — аватар справа (баг-урок 30.09:
-  // свои серии несут аватар так же, как чужие).
-  const atEnd = run.mine && useChatPrefs((s) => s.align) === 'both';
+  // свои серии несут аватар так же, как чужие). Хук — ДО условия (Rules of
+  // Hooks: закорачивание && пропускал вызов у mine-серий — P1 валидатора).
+  const align = useChatPrefs((s) => s.align);
+  const atEnd = run.mine && align === 'both';
   let row = 0;
   return (
     <div

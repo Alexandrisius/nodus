@@ -21,7 +21,7 @@ import { MessageTombstone } from './tombstone.js';
 import { PersonAvatar } from '../ui/person-avatar.js';
 
 /** Реакции — в собственном файле (потребитель-стикер #143); реэкспорт для
- *  прежних точек импорта (thread-feed, тесты). */
+ *  точек импорта (post-card, тесты). */
 export { MessageReactions } from './message-reactions.js';
 
 /**

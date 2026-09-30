@@ -83,9 +83,11 @@ export const StickerMessageView = memo(function StickerMessageView({
         </MessageAvatar>
       ) : null}
       <MessageContent>
-        {avatarSlot === 'avatar' ? null : (
-          <span className="sr-only">{message.author.displayName}: </span>
-        )}
+        {/* Имя стикер НЕ показывает никогда (канон Telegram) — sr-only автор
+            обязателен ВСЕГДА, включая слот с видимым аватаром (валидатор
+            #164: иначе стикер вне серии терял атрибуцию, которую пузырь
+            там же имеет). */}
+        <span className="sr-only">{message.author.displayName}: </span>
         {/* w-fit: колонка по ширине глифа (не на всю строку ленты) — иначе
             мета/реакции убегают к правому краю экрана (ревизия 30.09).
             data-slot обязателен: MessageContent прижимает вправо (align=end,
