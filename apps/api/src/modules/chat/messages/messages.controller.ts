@@ -129,7 +129,7 @@ export class MessagesController {
   @Delete(':messageId')
   @Audit({ action: 'chat.message_delete', entity: 'message' })
   @ApiOperation({
-    summary: 'Удаление: никто не прочитал — 204 бесследно; хоть один — 200 надгробие',
+    summary: 'Удаление: есть живые ответы — 200 надгробие; иначе — 204 бесследно',
   })
   @ApiNoContentResponse({ description: 'Удалено бесследно' })
   @ApiOkResponse({ standardSchema: messageSchema, description: 'Надгробие' })
@@ -155,7 +155,10 @@ export class MessagesController {
   @Post('batch-delete')
   @HttpCode(200)
   @Audit({ action: 'chat.message_batch_delete', entity: 'message' })
-  @ApiOperation({ summary: 'Пакетное удаление своих (чужие/удалённые пропускаются)' })
+  @ApiOperation({
+    summary:
+      'Пакетное удаление своих: правило «по ответам» на каждое (чужие/удалённые пропускаются)',
+  })
   @ApiOkResponse({ standardSchema: batchDeleteMessagesResultSchema })
   @ApiErrors(400, 401, 403, 404)
   @ApiIdempotencyKey()

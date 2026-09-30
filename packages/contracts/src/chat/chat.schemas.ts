@@ -81,6 +81,10 @@ export const replyPreviewSchema = z.object({
   /** Оригинал удалён — цитата показывает «Сообщение удалено» (канон
    *  Telegram lng_deleted_message): удаление сильнее заморозки снапшота. */
   deleted: z.boolean(),
+  /** Оригинал удалён БЕСЛЕДНО (obliterated, #163): якоря в ленте нет —
+   *  клику по цитате некуда вести. deleted=true при obliterated=false —
+   *  надгробие: цитата кликабельна и ведёт к пузырю «Сообщение удалено». */
+  obliterated: z.boolean(),
 });
 
 export type ReplyPreview = z.infer<typeof replyPreviewSchema>;

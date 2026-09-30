@@ -152,10 +152,30 @@ describe('useEditMessage — оптимистичность (A4)', () => {
   });
 });
 
-describe('useDeleteMessage — прогноз правила следа (A5)', () => {
-  it('прочитанное — оптимистичное надгробие ДО ответа; сервер подтверждает', async () => {
+describe('useDeleteMessage — прогноз правила следа «по ответам» (#163)', () => {
+  const REPLY_ID = '33333333-3333-4333-8333-333333333333';
+  const replyOn = (id: string, targetId: string): ChatMessage =>
+    message({
+      id,
+      replyToId: targetId,
+      reply: {
+        id: targetId,
+        author: { id: 'peer', displayName: 'Собеседник', avatarUrl: null },
+        text: 'цитата',
+        quoteText: null,
+        attachmentKind: null,
+        deleted: false,
+        obliterated: false,
+      },
+    });
+
+  function seedAll(client: QueryClient, list: ChatMessage[]) {
+    client.setQueryData(chatKeys.messages(CONV), { items: list, nextCursor: null });
+  }
+
+  it('есть живой ответ — оптимистичное надгробие ДО ответа; сервер подтверждает', async () => {
     const client = new QueryClient();
-    seed(client, message({ readAt: '2026-09-24T10:00:00Z' }));
+    seedAll(client, [message({ readAt: null }), replyOn(REPLY_ID, M1)]);
     const gate = deferred<Response>();
     stubFetch(gate.promise);
     const { result } = renderHook(() => useDeleteMessage(), { wrapper: makeWrapper(client) });
@@ -181,9 +201,9 @@ describe('useDeleteMessage — прогноз правила следа (A5)', (
     expect(cached?.deletedAt).toBe('2026-09-24T12:00:00Z');
   });
 
-  it('непрочитанное — исчезает бесследно (204)', async () => {
+  it('ответов нет — исчезает бесследно (204), даже если прочитано', async () => {
     const client = new QueryClient();
-    seed(client, message({ readAt: null }));
+    seedAll(client, [message({ readAt: '2026-09-24T10:00:00Z' })]);
     const gate = deferred<Response>();
     stubFetch(gate.promise);
     const { result } = renderHook(() => useDeleteMessage(), { wrapper: makeWrapper(client) });
@@ -200,9 +220,9 @@ describe('useDeleteMessage — прогноз правила следа (A5)', (
     expect(items(client)).toHaveLength(0);
   });
 
-  it('прогноз разошёлся с сервером (прочитали между кликом и ответом) — серверная истина', async () => {
+  it('прогноз разошёлся (ответ вне окна кэша) — серверная истина: надгробие появляется', async () => {
     const client = new QueryClient();
-    seed(client, message({ readAt: null }));
+    seedAll(client, [message({ readAt: null })]);
     const gate = deferred<Response>();
     stubFetch(gate.promise);
     const { result } = renderHook(() => useDeleteMessage(), { wrapper: makeWrapper(client) });

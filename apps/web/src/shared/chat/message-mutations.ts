@@ -102,6 +102,27 @@ function predictTombstone(m: ChatMessage): ChatMessage {
   };
 }
 
+/** Прогноз «есть живые ответы» по кэшу (#163, правило следа «по ответам»):
+ *  ответ (reply.id) или пост треда (threadRootId = цель), не удалённые.
+ *  Кэш — окно ленты/тредов: ответ вне окна прогноз врёт — истину ставит
+ *  реконсиляция по ответу сервера (204/200) и инвалидация. */
+export function cachedHasLiveReplies(
+  qc: QueryClient,
+  conversationId: string,
+  messageId: string,
+): boolean {
+  const caches = qc.getQueriesData<Paginated<ChatMessage>>({
+    queryKey: chatKeys.messages(conversationId),
+  });
+  for (const [, data] of caches) {
+    for (const m of data?.items ?? []) {
+      if (m.id === messageId || m.deletedAt !== null) continue;
+      if (m.reply?.id === messageId || m.threadRootId === messageId) return true;
+    }
+  }
+  return false;
+}
+
 type CacheSnapshot = [readonly unknown[], unknown][];
 
 function snapshotMessages(qc: QueryClient, conversationId: string): CacheSnapshot {
@@ -164,7 +185,7 @@ export function useEditMessage(conversationId: string, draftScope?: string) {
 export function useDeleteMessage() {
   const qc = useQueryClient();
   return useMutation({
-    /** 204 — исчезло бесследно; 200 + надгробие — прочитано (след). */
+    /** 204 — живых ответов нет (бесследно); 200 + надгробие — есть ответы. */
     mutationFn: (vars: { conversationId: string; messageId: string }) =>
       api<ChatMessage | undefined>(
         `/chat/conversations/${vars.conversationId}/messages/${vars.messageId}`,
@@ -174,9 +195,8 @@ export function useDeleteMessage() {
     onMutate: async (vars) => {
       await qc.cancelQueries({ queryKey: chatKeys.messages(vars.conversationId) });
       const snapshot = snapshotMessages(qc, vars.conversationId);
-      const cached = findCached(qc, vars.conversationId, vars.messageId);
       mapMessage(qc, vars.conversationId, vars.messageId, (m) =>
-        (cached?.readAt ?? m.readAt) !== null ? predictTombstone(m) : null,
+        cachedHasLiveReplies(qc, vars.conversationId, vars.messageId) ? predictTombstone(m) : null,
       );
       return { snapshot };
     },
@@ -211,9 +231,8 @@ export function useBatchDeleteMessages() {
       await qc.cancelQueries({ queryKey: chatKeys.messages(vars.conversationId) });
       const snapshot = snapshotMessages(qc, vars.conversationId);
       for (const id of vars.messageIds) {
-        const cached = findCached(qc, vars.conversationId, id);
         mapMessage(qc, vars.conversationId, id, (m) =>
-          (cached?.readAt ?? m.readAt) !== null ? predictTombstone(m) : null,
+          cachedHasLiveReplies(qc, vars.conversationId, id) ? predictTombstone(m) : null,
         );
       }
       return { snapshot };
@@ -225,7 +244,8 @@ export function useBatchDeleteMessages() {
     },
 
     onSuccess: (result, vars) => {
-      // Сервер — истина: прогноз (по readAt) может разойтись с last_read_seq.
+      // Сервер — истина: прогноз (по кэшу окна) может разойтись с ответами
+      // вне загруженного окна.
       for (const id of result.removed) mapMessage(qc, vars.conversationId, id, () => null);
       for (const tombstone of result.tombstones) {
         upsertMessage(qc, vars.conversationId, tombstone);

@@ -170,7 +170,13 @@ export const ThreadPane = memo(function ThreadPane({
         onToggle={(shift) => selection.toggle(message.id, shift)}
       >
         {message.deletedAt ? (
-          <ChatMessageItem message={message} mine={mine} />
+          <ChatMessageItem
+            message={message}
+            mine={mine}
+            showName={isRoot ? !mine : !mine && message.id === firstId}
+            showAvatar={isRoot ? true : message.id === lastId}
+            tail={isRoot ? true : message.id === lastId}
+          />
         ) : (
           <MessageMenu
             message={message}

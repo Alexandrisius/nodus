@@ -9,8 +9,9 @@ import { ui } from '@nodus/contracts';
  * ТОЛЬКО по смене автора или смене календарного дня (UTC-дата `createdAt`);
  * временного порога внутри дня НЕТ. Реакции, вложения, правки, цитаты и
  * оптимистичные (pending) сообщения серию не рвут. Надгробие удалённого
- * сообщения (deletedAt, A5 #87) — ВСЕГДА отдельная серия: у placeholder нет
- * ни автора, ни пузыря с хвостиком, группировка с соседями ломала бы рендер.
+ * сообщения (#163, вердикт владельца 30.09 «по ответам») участвует в серии
+ * СВОЕГО автора как обычное сообщение: пузырь с аватаром и метой — якорь
+ * цепочки ответов; контент внутри приглушённый (tombstone.tsx).
  * Чистые функции — детерминированные unit-тесты без DOM.
  */
 export interface MessageRun {
@@ -29,9 +30,7 @@ export function buildMessageRuns(messages: ChatMessage[], meId?: string): Messag
   const runs: MessageRun[] = [];
   for (const message of messages) {
     const run = runs[runs.length - 1];
-    const groupable = message.deletedAt === null && run?.last.deletedAt === null;
     if (
-      groupable &&
       run &&
       run.authorId === message.author.id &&
       utcDay(run.last.createdAt) === utcDay(message.createdAt)

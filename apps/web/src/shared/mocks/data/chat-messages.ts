@@ -262,6 +262,7 @@ export const channelMessages: ChatMessage[] = [
         quoteText: null,
         attachmentKind: null,
         deleted: false,
+        obliterated: false,
       },
     },
   ),
@@ -342,6 +343,7 @@ export const channelMessages: ChatMessage[] = [
         quoteText: null,
         attachmentKind: 'image',
         deleted: false,
+        obliterated: false,
       },
     },
   ),
@@ -365,6 +367,7 @@ export const channelMessages: ChatMessage[] = [
       quoteText: 'передала вам на резолюцию',
       attachmentKind: null,
       deleted: false,
+      obliterated: false,
     },
   }),
   msg(

@@ -67,6 +67,8 @@ describe('MessagesService', () => {
     attachmentsFor: vi.fn(),
     updateEditText: vi.fn(),
     tombstone: vi.fn(),
+    hasLiveReplies: vi.fn(),
+    obliterateTombstone: vi.fn(),
     deletePinByMessage: vi.fn(),
     markRepliesDeleted: vi.fn(),
     advanceReadCursor: vi.fn(),
@@ -390,15 +392,17 @@ describe('MessagesService', () => {
   });
 
   describe('delete', () => {
-    it('никто не прочитал → obliterated=true; unpin и пометка цитат в обоих случаях', async () => {
+    it('живых ответов нет — бесследно, даже если прочитали (#163: прочтения не решают)', async () => {
       repo.findByIdInConversation.mockResolvedValue(makeMessage({ seq: 3n }));
+      repo.hasLiveReplies.mockResolvedValue(false);
       conversations.listMembers.mockResolvedValue([
         makeMember({ userId: ME }),
-        makeMember({ lastReadSeq: 2n }),
+        makeMember({ lastReadSeq: 3n }),
       ]);
 
       const result = await service.delete(ME, CONV, 'msg-1');
 
+      expect(repo.hasLiveReplies).toHaveBeenCalledWith(CONV, 'msg-1', TX);
       expect(result.obliterated).toBe(true);
       expect(repo.tombstone).toHaveBeenCalledWith(CONV, 'msg-1', true, TX);
       expect(repo.deletePinByMessage).toHaveBeenCalledWith('msg-1', TX);
@@ -411,12 +415,10 @@ describe('MessagesService', () => {
       );
     });
 
-    it('хоть один прочитал (курсор >= seq) → obliterated=false', async () => {
+    it('есть живой ответ → надгробие, даже если никто не читал', async () => {
       repo.findByIdInConversation.mockResolvedValue(makeMessage({ seq: 3n }));
-      conversations.listMembers.mockResolvedValue([
-        makeMember({ userId: ME }),
-        makeMember({ lastReadSeq: 3n }),
-      ]);
+      repo.hasLiveReplies.mockResolvedValue(true);
+      conversations.listMembers.mockResolvedValue([makeMember({ userId: ME })]);
 
       const result = await service.delete(ME, CONV, 'msg-1');
 
@@ -425,39 +427,80 @@ describe('MessagesService', () => {
       expect(repo.deletePinByMessage).toHaveBeenCalledWith('msg-1', TX);
       expect(repo.markRepliesDeleted).toHaveBeenCalledWith('msg-1', TX);
     });
+
+    it('каскад: удаление ответа коллапсирует надгробие-родителя без живых ответов + своё событие', async () => {
+      const source = makeMessage({ id: 'msg-reply', replyToId: 'msg-parent' });
+      repo.findByIdInConversation.mockResolvedValue(source);
+      repo.hasLiveReplies.mockResolvedValue(false);
+      // UPDATE RETURNING сохраняет все колонки строки (в т.ч. replyToId)
+      repo.tombstone.mockImplementation(async (_c: string, id: string, obliterated: boolean) =>
+        makeMessage({ ...source, id, obliterated, deletedAt: new Date() }),
+      );
+      repo.obliterateTombstone.mockResolvedValue(true);
+
+      await service.delete(ME, CONV, 'msg-reply');
+
+      expect(repo.obliterateTombstone).toHaveBeenCalledWith(CONV, 'msg-parent', TX);
+      expect(eventBus.emit).toHaveBeenCalledWith(
+        TX,
+        CHAT_EVENTS.MESSAGE_DELETED,
+        { conversationId: CONV, messageId: 'msg-parent', obliterated: true },
+        expect.anything(),
+      );
+    });
+
+    it('каскад: живой родитель или второй якорь — коллапса и лишних событий нет', async () => {
+      const source = makeMessage({
+        id: 'msg-reply',
+        replyToId: 'msg-parent',
+        threadRootId: 'root-1',
+      });
+      repo.findByIdInConversation.mockResolvedValue(source);
+      repo.hasLiveReplies.mockResolvedValue(false);
+      repo.tombstone.mockImplementation(async (_c: string, id: string, obliterated: boolean) =>
+        makeMessage({ ...source, id, obliterated, deletedAt: new Date() }),
+      );
+      repo.obliterateTombstone.mockResolvedValue(false);
+
+      await service.delete(ME, CONV, 'msg-reply');
+
+      expect(repo.obliterateTombstone).toHaveBeenCalledTimes(2);
+      expect(repo.obliterateTombstone).toHaveBeenCalledWith(CONV, 'msg-parent', TX);
+      expect(repo.obliterateTombstone).toHaveBeenCalledWith(CONV, 'root-1', TX);
+      expect(eventBus.emit).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('batchDelete', () => {
-    it('чужие/несуществующие/удалённые — молча; результат {removed, tombstones} по своим', async () => {
+    it('чужие/несуществующие/удалённые — молча; {removed, tombstones} по правилу ответов (#163)', async () => {
       const byId: Record<string, MessageRow | null> = {
-        'own-unread': makeMessage({ id: 'own-unread', seq: 10n }),
+        'own-no-replies': makeMessage({ id: 'own-no-replies', seq: 10n }),
         foreign: makeMessage({ id: 'foreign', authorId: PEER, seq: 11n }),
         ghost: null,
         'own-deleted': makeMessage({ id: 'own-deleted', seq: 12n, deletedAt: new Date() }),
-        'own-read': makeMessage({ id: 'own-read', seq: 2n }),
+        'own-answered': makeMessage({ id: 'own-answered', seq: 2n }),
       };
       repo.findByIdInConversation.mockImplementation(
         async (_c: string, id: string) => byId[id] ?? null,
       );
-      conversations.listMembers.mockResolvedValue([
-        makeMember({ userId: ME }),
-        makeMember({ lastReadSeq: 5n }),
-      ]);
+      repo.hasLiveReplies.mockImplementation(
+        async (_c: string, id: string) => id === 'own-answered',
+      );
 
       const result = await service.batchDelete(ME, CONV, [
-        'own-unread',
+        'own-no-replies',
         'foreign',
         'ghost',
         'own-deleted',
-        'own-read',
+        'own-answered',
       ]);
 
-      expect(result.removed).toEqual(['own-unread']);
+      expect(result.removed).toEqual(['own-no-replies']);
       expect(result.tombstones).toHaveLength(1);
-      expect(result.tombstones[0]?.message.id).toBe('own-read');
+      expect(result.tombstones[0]?.message.id).toBe('own-answered');
       expect(repo.tombstone).toHaveBeenCalledTimes(2);
-      expect(repo.tombstone).toHaveBeenCalledWith(CONV, 'own-unread', true, TX);
-      expect(repo.tombstone).toHaveBeenCalledWith(CONV, 'own-read', false, TX);
+      expect(repo.tombstone).toHaveBeenCalledWith(CONV, 'own-no-replies', true, TX);
+      expect(repo.tombstone).toHaveBeenCalledWith(CONV, 'own-answered', false, TX);
       expect(repo.deletePinByMessage).toHaveBeenCalledTimes(2);
       expect(repo.markRepliesDeleted).toHaveBeenCalledTimes(2);
     });

@@ -1,5 +1,3 @@
-import { useMemo } from 'react';
-import type { ChatMessage, Paginated } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import {
@@ -13,18 +11,22 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 
 import { plural } from '../lib/format.js';
-import { chatKeys } from './api.js';
 import { useDeleteDialog } from './dialog-stores.js';
-import { useBatchDeleteMessages, useDeleteMessage } from './message-mutations.js';
+import {
+  cachedHasLiveReplies,
+  useBatchDeleteMessages,
+  useDeleteMessage,
+} from './message-mutations.js';
 import { useSelectionStore } from './selection-store.js';
 
 /**
  * Подтверждение удаления (A5, #87; вердикт владельца 24.09 — «диалог с
- * объяснением», undo-снекбар не в v1). Правило следа (#41): не прочитали —
- * исчезнет бесследно; прочитали — останется «Сообщение удалено». Прогноз
- * исхода клиент показывает ПО действия (по readAt из кэша; истину решает
- * сервер — ответ мутации реконсилирует кэш). Пакет — всегда диалог со
- * счётчиком; футер без разделителя (канон 24.09).
+ * объяснением», undo-снекбар не в v1). Правило следа (#163, вердикт владельца
+ * 30.09 «по ответам»): нет живых ответов — исчезнет бесследно; есть ответы —
+ * останется пузырь «Сообщение удалено». Прогноз исхода клиент показывает ПО
+ * действию (по кэшу окна ленты; истину решает сервер — ответ мутации
+ * реконсилирует кэш). Пакет — всегда диалог со счётчиком; футер без
+ * разделителя (канон 24.09).
  */
 export function DeleteDialogHost() {
   const request = useDeleteDialog((s) => s.request);
@@ -35,27 +37,12 @@ export function DeleteDialogHost() {
   const batch = useBatchDeleteMessages();
   const queryClient = useQueryClient();
 
-  const cached = useMemo(() => {
-    if (!request) return [] as ChatMessage[];
-    const caches = queryClient.getQueriesData<Paginated<ChatMessage>>({
-      queryKey: chatKeys.messages(request.conversationId),
-    });
-    const found: ChatMessage[] = [];
-    for (const id of request.messageIds) {
-      for (const [, data] of caches) {
-        const message = data?.items.find((m) => m.id === id);
-        if (message) {
-          found.push(message);
-          break;
-        }
-      }
-    }
-    return found;
-  }, [request, queryClient]);
-
   const count = request?.messageIds.length ?? 0;
   const isSingle = count === 1;
-  const traced = isSingle ? (cached[0]?.readAt ?? null) !== null : false;
+  const traced =
+    isSingle && request && request.messageIds[0]
+      ? cachedHasLiveReplies(queryClient, request.conversationId, request.messageIds[0])
+      : false;
   const description = isSingle
     ? traced
       ? ui.chat.deleteTraced
