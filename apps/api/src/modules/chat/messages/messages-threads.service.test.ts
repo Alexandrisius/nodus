@@ -87,6 +87,11 @@ describe('MessagesService: трэды раунда 3', () => {
     advanceReadCursor: vi.fn(),
     states: vi.fn(),
   };
+  const stickersRepo = {
+    findSticker: vi.fn(),
+    findPackAccessible: vi.fn(),
+    insertAttachmentForMessage: vi.fn(),
+  };
   const txRunner = { run: vi.fn((cb: (tx: string) => unknown) => cb(TX)) };
   const eventBus = { emit: vi.fn() };
   const userProfiles = {
@@ -115,6 +120,7 @@ describe('MessagesService: трэды раунда 3', () => {
       eventBus as never,
       userProfiles as never,
       threadParticipants as never,
+      stickersRepo as never,
     );
   });
 

@@ -25,6 +25,8 @@ export const errorMessages: Record<ErrorCode, string> = {
     'Файл больше 100 МБ — вложения такого размера не поддерживаются',
   [ErrorCode.CHAT_ATTACHMENT_TOO_MANY]:
     'Слишком много неотправленных вложений — сначала отправьте или уберите лишние',
+  [ErrorCode.CHAT_STICKER_INVALID]:
+    'Стикер не подошёл: нужны WebP/PNG до 512 КБ или WebM без звука до 256 КБ',
   [ErrorCode.FILE_SIZE_MISMATCH]: 'Файл передался не полностью — попробуйте ещё раз',
   [ErrorCode.FILE_QUARANTINED]: 'Файл заблокирован проверкой безопасности',
   [ErrorCode.FILE_OFFICE_DISABLED]: 'Просмотр документов недоступен — скачайте файл',

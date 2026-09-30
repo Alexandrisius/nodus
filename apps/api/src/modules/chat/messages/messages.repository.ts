@@ -25,6 +25,20 @@ export interface MessageRow {
   updatedAt: Date;
 }
 
+/** Привязанное вложение (форма для маппера DTO; стикер дополнительно несёт
+ *  stickerMeta — StickerAttachmentRow в stickers.repository). */
+export interface ClaimedAttachmentRow {
+  id: string;
+  fileId: string;
+  name: string;
+  size: number;
+  mime: string;
+  kind: string;
+  width: number | null;
+  height: number | null;
+  thumbFileId: string | null;
+}
+
 export interface ReactionRow {
   messageId: string;
   emoji: string;
@@ -380,19 +394,7 @@ export class MessagesRepository {
     attachmentIds: string[],
     ownerId: string,
     tx: TransactionClient,
-  ): Promise<
-    {
-      id: string;
-      fileId: string;
-      name: string;
-      size: number;
-      mime: string;
-      kind: string;
-      width: number | null;
-      height: number | null;
-      thumbFileId: string | null;
-    }[]
-  > {
+  ): Promise<ClaimedAttachmentRow[]> {
     if (attachmentIds.length === 0) return [];
     await tx.$executeRaw(Prisma.sql`
       UPDATE message_attachments ma
@@ -400,19 +402,7 @@ export class MessagesRepository {
       FROM unnest(${attachmentIds}::uuid[]) WITH ORDINALITY AS ord(id, ordinal)
       WHERE ma.id = ord.id AND ma.owner_id = ${ownerId}::uuid AND ma.message_id IS NULL
     `);
-    return tx.$queryRaw<
-      {
-        id: string;
-        fileId: string;
-        name: string;
-        size: number;
-        mime: string;
-        kind: string;
-        width: number | null;
-        height: number | null;
-        thumbFileId: string | null;
-      }[]
-    >(Prisma.sql`
+    return tx.$queryRaw<ClaimedAttachmentRow[]>(Prisma.sql`
       SELECT id, file_id AS "fileId", name, size, mime, kind, width, height,
              thumb_file_id AS "thumbFileId"
       FROM message_attachments
@@ -424,7 +414,8 @@ export class MessagesRepository {
   /**
    * Копии вложений пересылки: новые строки-метаданные с тем же file_id —
    * «по ссылке» на уровне файла (перекачки нет), у каждого сообщения своя
-   * строка (FK message_id одиночный).
+   * строка (FK message_id одиночный). Стикеры копируются вместе со
+   * снапшотом пака (sticker_meta) — пересланный стикер рендерится дальше.
    */
   async copyAttachments(
     sourceMessageId: string,
@@ -434,10 +425,10 @@ export class MessagesRepository {
     await tx.$executeRaw(Prisma.sql`
       INSERT INTO message_attachments (
         id, message_id, file_id, owner_id, name, size, mime, kind, width, height,
-        thumb_file_id, sort_order
+        thumb_file_id, sort_order, sticker_meta
       )
       SELECT gen_random_uuid(), ${targetMessageId}::uuid, file_id, owner_id, name, size,
-             mime, kind, width, height, thumb_file_id, sort_order
+             mime, kind, width, height, thumb_file_id, sort_order, sticker_meta
       FROM message_attachments WHERE message_id = ${sourceMessageId}::uuid
     `);
   }
@@ -459,6 +450,7 @@ export class MessagesRepository {
       width: number | null;
       height: number | null;
       thumbFileId: string | null;
+      stickerMeta: unknown;
       sortOrder: number;
     }[]
   > {
@@ -466,7 +458,8 @@ export class MessagesRepository {
     const client = this.client(tx);
     return client.$queryRaw(Prisma.sql`
       SELECT message_id AS "messageId", id, file_id AS "fileId", name, size, mime, kind,
-             width, height, thumb_file_id AS "thumbFileId", sort_order AS "sortOrder"
+             width, height, thumb_file_id AS "thumbFileId", sticker_meta AS "stickerMeta",
+             sort_order AS "sortOrder"
       FROM message_attachments
       WHERE message_id = ANY(${messageIds}::uuid[])
       ORDER BY sort_order ASC, id ASC

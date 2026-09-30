@@ -29,6 +29,8 @@ import { FeedDropzone } from './feed-dropzone.js';
 import { useEditMessage } from './message-mutations.js';
 import { MessageMenu } from './message-menu.js';
 import { MessageRow } from './message-row.js';
+import { StickerGlyph, stickerAttachmentOf } from './sticker-message.js';
+import { StickerWindowTrigger } from './sticker-pack-window.js';
 import { PinBar } from './pin-bar.js';
 import { useJumpResponder } from './use-jump-responder.js';
 import { useFeedViewportRead } from './use-viewport-read.js';
@@ -258,6 +260,8 @@ export const ThreadFeed = memo(function ThreadFeed({
                 // «По обе стороны» (#151): свой пост прижимается вправо, как
                 // пузырь чата; ширина карточки (max-w-2xl) сохраняется.
                 const atEnd = mine && align === 'both';
+                // Стикер-пост (#143): глиф вместо блока вложений.
+                const sticker = stickerAttachmentOf(root);
                 return (
                   <MessageRow
                     key={root.id}
@@ -343,7 +347,20 @@ export const ThreadFeed = memo(function ThreadFeed({
                                 {withoutPatronymic(root.author.displayName)}
                               </span>
                             </span>
-                            {root.attachments.length > 0 ? (
+                            {/* Стикер-пост (#143): глиф вместо вложений-карточек;
+                                клик — окно пака (дистрибуция «из чата»). */}
+                            {sticker ? (
+                              <span className="mt-2 block w-fit">
+                                <StickerWindowTrigger message={root} attachment={sticker}>
+                                  <StickerGlyph
+                                    url={sticker.url ?? ''}
+                                    mime={sticker.mime}
+                                    alt={sticker.sticker?.packTitle}
+                                    className="size-24 object-contain"
+                                  />
+                                </StickerWindowTrigger>
+                              </span>
+                            ) : root.attachments.length > 0 ? (
                               // Ширина блока вложений — детерминированная
                               // (attachmentsContentWidth, #150): карточки/медиа
                               // задают ширину поста-карточки, а не наоборот.

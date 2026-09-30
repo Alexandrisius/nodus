@@ -760,6 +760,16 @@
   border-color: var(--selection-ring);
 }
 
+/* Стикер-сообщение (#143) без пузыря — выделение красит ПЛИТУ глифа
+   (sticker-surface, ревизия владельца 30.09: «не видно, что выделен»):
+   тот же тинт color-mix(поверхность, info 32%), что у пузырей, + яркая
+   граница; в базе плита прозрачна с прозрачным бордером (layout стабилен). */
+[data-message-id][data-selected='true'] [data-slot='sticker-surface'],
+[data-message-id][data-box-selected='true'] [data-slot='sticker-surface'] {
+  background-color: color-mix(in oklch, var(--bubble-in), var(--info) 32%);
+  border-color: var(--selection-ring);
+}
+
 /* Текст поста канала — каретка, не «рука» карточки (р.7 #132): пост —
    кликабельная карточка (cursor-pointer), но над текстом аффорданс
    выделения текста, как в пузырях чатов; случайный клик при драге текста

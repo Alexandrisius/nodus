@@ -4,6 +4,7 @@ import type {
   MessageAttachment,
   MessageReaction,
   ReplyPreview,
+  StickerMeta,
   UserRef,
 } from '@nodus/contracts';
 
@@ -22,7 +23,40 @@ export interface ReplySnapshotValue {
   authorId: string | null;
   text: string;
   quoteText: string | null;
-  attachmentKind: 'image' | 'file' | null;
+  attachmentKind: 'image' | 'file' | 'sticker' | null;
+}
+
+/** Строка вложения для DTO (стикер дополнительно несёт снапшот пака). */
+export interface AttachmentDtoRow {
+  id: string;
+  fileId: string;
+  name: string;
+  size: number;
+  mime: string;
+  kind: string;
+  width: number | null;
+  height: number | null;
+  thumbFileId: string | null;
+  stickerMeta?: unknown;
+}
+
+/** Сборка DTO вложения: подписанный url, вид по kind, снапшот стикера. */
+function toAttachmentDto(a: AttachmentDtoRow, signedUrls: SignedUrlService): MessageAttachment {
+  const stickerMeta = (a.stickerMeta as StickerMeta | null | undefined) ?? null;
+  return {
+    id: a.id,
+    fileId: a.fileId,
+    name: a.name,
+    size: a.size,
+    mime: a.mime,
+    kind: a.kind as 'image' | 'file' | 'sticker',
+    url: signedUrls.fileContentUrl(a.fileId),
+    // Серверное превью-дериват (#150); null — не сгенерировано.
+    thumbnailUrl: a.thumbFileId ? signedUrls.fileContentUrl(a.thumbFileId) : null,
+    width: a.width,
+    height: a.height,
+    ...(a.kind === 'sticker' && stickerMeta ? { sticker: stickerMeta } : {}),
+  };
 }
 
 export interface MessageDtoContext {
@@ -104,19 +138,9 @@ export class MessageDtoMapper {
           : groupReactions(reactionsByMessage.get(row.id) ?? [], ctx.viewerId, refs),
         attachments: tombstone
           ? []
-          : (attachmentsByMessage.get(row.id) ?? []).map((a): MessageAttachment => ({
-              id: a.id,
-              fileId: a.fileId,
-              name: a.name,
-              size: a.size,
-              mime: a.mime,
-              kind: a.kind as 'image' | 'file',
-              url: this.signedUrls.fileContentUrl(a.fileId),
-              // Серверное превью-дериват (#150); null — не сгенерировано.
-              thumbnailUrl: a.thumbFileId ? this.signedUrls.fileContentUrl(a.thumbFileId) : null,
-              width: a.width,
-              height: a.height,
-            })),
+          : (attachmentsByMessage.get(row.id) ?? []).map((a): MessageAttachment =>
+              toAttachmentDto(a, this.signedUrls),
+            ),
         editedAt: row.editedAt?.toISOString() ?? null,
         deletedAt: row.deletedAt?.toISOString() ?? null,
         pinned: pinnedIds.has(row.id),
@@ -152,17 +176,7 @@ export class MessageDtoMapper {
       viewerId: string;
       members: MemberRow[];
       replyOriginal: MessageRow | null;
-      attachments: {
-        id: string;
-        fileId: string;
-        name: string;
-        size: number;
-        mime: string;
-        kind: string;
-        width: number | null;
-        height: number | null;
-        thumbFileId: string | null;
-      }[];
+      attachments: AttachmentDtoRow[];
       tx?: TransactionClient;
     },
   ): Promise<ChatMessage> {
@@ -187,18 +201,7 @@ export class MessageDtoMapper {
       threadRootId: row.threadRootId,
       threadRepliesCount: 0,
       reactions: [],
-      attachments: ctx.attachments.map((a) => ({
-        id: a.id,
-        fileId: a.fileId,
-        name: a.name,
-        size: a.size,
-        mime: a.mime,
-        kind: a.kind as 'image' | 'file',
-        url: this.signedUrls.fileContentUrl(a.fileId),
-        thumbnailUrl: a.thumbFileId ? this.signedUrls.fileContentUrl(a.thumbFileId) : null,
-        width: a.width,
-        height: a.height,
-      })),
+      attachments: ctx.attachments.map((a) => toAttachmentDto(a, this.signedUrls)),
       editedAt: null,
       deletedAt: null,
       pinned: false,

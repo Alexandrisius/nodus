@@ -12,7 +12,9 @@ function replySnippet(draft: ChatDraft): string {
   if (!reply) return '';
   if (reply.quoteText) return `«${reply.quoteText}»`;
   if (reply.snippet) return reply.snippet;
-  return reply.attachmentKind === 'image' ? ui.chat.quotePhoto : ui.chat.quoteFile;
+  if (reply.attachmentKind === 'image') return ui.chat.quotePhoto;
+  if (reply.attachmentKind === 'sticker') return ui.chat.stickerPreview;
+  return ui.chat.quoteFile;
 }
 
 /**

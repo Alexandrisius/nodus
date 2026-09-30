@@ -275,11 +275,15 @@ export function MessageMenu({
       },
     );
     // Пересланную копию нельзя править даже автору пересылки (#111): текст
-    // принадлежит оригинальному автору; удалять свою копию — можно.
-    const editable = mine && !message.forwardedFrom;
+    // принадлежит оригинальному автору — правка позволила бы исказить чужие
+    // слова (модель Telegram: только удаление). Стикер (#143): править и
+    // копировать нечего (текст пуст) — оба пункта скрываются.
+    const isSticker = message.attachments.some((a) => a.kind === 'sticker');
+    const editable = mine && !message.forwardedFrom && !isSticker;
     return {
       items: items.filter((item) => {
         if (item.id === 'edit') return editable;
+        if (item.id === 'copy') return !isSticker;
         return !MINE_ONLY.has(item.id) || mine;
       }),
       // «Кто просмотрел» — подменю (раунд 4): только свои живые сообщения с
@@ -325,13 +329,13 @@ export function MessageMenu({
           className="block"
           onContextMenuCapture={(event) => {
             // Меню — ТОЛЬКО по поверхности сообщения (пачка C, вердикт
-            // 29.09): пузырь/карточка поста/надгробие. ПКМ по пустому месту
-            // строки ленты не открывает меню: стоп для Radix-триггера (его
-            // слушатель — фаза бабблинга этого же span), нативное меню
+            // 29.09): пузырь/карточка поста/надгробие/стикер. ПКМ по пустому
+            // месту строки ленты не открывает меню: стоп для Radix-триггера
+            // (его слушатель — фаза бабблинга этого же span), нативное меню
             // браузера не глушим.
             const target = event.target as HTMLElement | null;
             const onSurface = target?.closest?.(
-              '[data-slot="bubble-content"], [data-slot="post-surface"], [data-slot="message-tombstone"]',
+              '[data-slot="bubble-content"], [data-slot="post-surface"], [data-slot="message-tombstone"], [data-slot="sticker-surface"]',
             );
             if (!onSurface) {
               event.stopPropagation();

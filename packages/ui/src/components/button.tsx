@@ -5,7 +5,15 @@ import { Slot } from 'radix-ui';
 import { cn } from '#lib/utils';
 
 const buttonVariants = cva(
-  "group/button inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/30 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  // Оптическое центрирование подписи. Объективный замер (пиксельный скан
+  // скриншота кнопки, dpr=3, инсет 6px от края-ореола; 30.09): без
+  // компенсации зазор сверху 12px, снизу 14px → текст выше центра на 2px.
+  // Причина: браузер центрирует невидимый каркас шрифта (ascent резервирует
+  // место под диакритику), а не «чернила» букв. Фикс pt-[1px] (сдвиг вниз
+  // 0.5px... фактический скан после фикса: 13/13, skew 0). Методика замера —
+  // .agents/skills/nodus-ui-style (не повторять сканы без инсета ореола).
+  // Практики: shadcn #10481, MUI #29965. Все кнопки портала — через примитив.
+  "group/button inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent bg-clip-padding pt-px text-sm leading-none font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/30 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {

@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import {
   CHAT_EVENTS,
+  ErrorCode,
   type ChatMessage,
   type ListMessagesQuery,
   type Paginated,
@@ -29,9 +30,18 @@ import {
 import { can, parsePermissions } from '../permissions.js';
 import { MessageDtoMapper } from './message-dto.mapper.js';
 import { parseMentionTokens } from './mentions.js';
-import { MessagesRepository, type MessageRow } from './messages.repository.js';
+import {
+  MessagesRepository,
+  type MessageRow,
+  type ClaimedAttachmentRow,
+} from './messages.repository.js';
 import { ThreadParticipantsRepository } from './thread-participants.repository.js';
 import { buildReplySnapshot } from './reply-snapshot.js';
+import {
+  StickersRepository,
+  type StickerAttachmentRow,
+  type StickerWithPackRow,
+} from '../stickers/stickers.repository.js';
 
 const messageCursorSchema = z.object({ s: z.number().int().positive() });
 
@@ -67,6 +77,7 @@ export class MessagesService {
     private readonly eventBus: EventBus,
     @Inject(USER_PROFILE_READER) private readonly userProfiles: UserProfileReader,
     private readonly threadParticipants: ThreadParticipantsRepository,
+    private readonly stickersRepo: StickersRepository,
   ) {}
 
   // ===== Чтение =====
@@ -213,6 +224,27 @@ export class MessagesService {
         }
       }
 
+      // Стикер (#143): доступ проверяется в транзакции (корпоративный |
+      //  владеет | установлен); стикер-сообщение монолитно — текста и
+      //  обычных вложений не несёт (модель Telegram, клиентский контракт).
+      let stickerHit: StickerWithPackRow | null = null;
+      if (body.stickerId !== undefined) {
+        if (body.text.length > 0 || (body.attachmentIds?.length ?? 0) > 0) {
+          throw new DomainException(
+            ErrorCode.VALIDATION_FAILED,
+            'Sticker message cannot carry text or attachments',
+          );
+        }
+        stickerHit = await this.stickersRepo.findSticker(body.stickerId, tx);
+        if (!stickerHit) throw DomainException.notFound('Sticker not found');
+        const accessible = await this.stickersRepo.findPackAccessible(
+          stickerHit.pack.id,
+          userId,
+          tx,
+        );
+        if (!accessible) throw DomainException.notFound('Sticker not found');
+      }
+
       // Снапшот цитаты (оригинал — только этой беседы: чужое не утекает).
       let replySnapshot: ReturnType<typeof buildReplySnapshot> | null = null;
       let replyOriginalRow: MessageRow | null = null;
@@ -232,7 +264,8 @@ export class MessagesService {
                 authorId: replyOriginalRow.authorId,
                 text: replyOriginalRow.text,
                 deleted: replyOriginalRow.deletedAt !== null,
-                attachmentKind: (originalAttachments[0]?.kind as 'image' | 'file') ?? null,
+                attachmentKind:
+                  (originalAttachments[0]?.kind as 'image' | 'file' | 'sticker') ?? null,
               }
             : null,
           body.quoteText ?? null,
@@ -267,14 +300,24 @@ export class MessagesService {
         };
       }
 
-      // Вложения одноразовые (мок); активность беседы — только корневые.
-      const claimedAttachments = await this.repo.claimAttachments(
-        inserted.id,
-        body.attachmentIds ?? [],
-        userId,
-        tx,
-      );
-      await this.conversations.clearDraft(conversationId, userId, tx);
+      // Вложения: стикер — прямая вставка со снапшотом пака (#143), обычные —
+      // одноразовый claim трея. Активность беседы — только корневые.
+      const claimedAttachments: (ClaimedAttachmentRow | StickerAttachmentRow)[] = stickerHit
+        ? [
+            await this.stickersRepo.insertAttachmentForMessage(
+              inserted.id,
+              userId,
+              stickerHit,
+              stickerHit.pack,
+              tx,
+            ),
+          ]
+        : await this.repo.claimAttachments(inserted.id, body.attachmentIds ?? [], userId, tx);
+      // Стикер не гасит черновик композера (keepDraft, #143): набранный текст
+      // остаётся жить в PUT /draft после отправки стикера.
+      if (stickerHit === null) {
+        await this.conversations.clearDraft(conversationId, userId, tx);
+      }
       await this.conversations.unsnooze(conversationId, userId, tx);
       // Активность раскрывает беседу скрывшим её участникам (#103).
       await this.conversations.revealHidden(conversationId, tx);

@@ -481,13 +481,17 @@ model MessageAttachment {
   name       String
   size       Int
   mime       String
-  /// image | file — явный вид (НЕ выводится из mime; контракт).
+  /// image | file | sticker — явный вид (НЕ выводится из mime; контракт).
   kind       String
   width      Int?
   height     Int?
   /// FileObject серверного превью (WebP-дериват, #150); null — не сгенерировано
   /// (воркер ещё не дошёл / формат не декодируется). Пересылка копирует ссылку.
   thumbFileId String? @map("thumb_file_id") @db.Uuid
+  /// Снапшот метаданных стикера (kind='sticker', #143): {packId, packTitle,
+  /// packScope, emojis} — заморожен на момент отправки, как reply-цитаты;
+  /// удаление пака рендер отправленных сообщений не ломает.
+  stickerMeta Json?    @map("sticker_meta")
   sortOrder  Int     @default(0) @map("sort_order")
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz()
 
@@ -496,6 +500,68 @@ model MessageAttachment {
   @@index([messageId])
   @@index([ownerId])
   @@map("message_attachments")
+}
+
+// ===================== стикеры чата (#143, M6) =====================
+
+/// Пак стикеров: корпоративный (право sticker.manage, ownerId null) или
+/// личный (каждый сотрудник себе). Дистрибуция личных — только «из чата»
+/// (получатель ставит пак себе); каталога с поиском нет осознанно.
+/// Удаление — soft: пак исчезает из пикеров у всех, отправленные сообщения
+/// рендерятся дальше по снапшоту message_attachments.sticker_meta.
+model StickerPack {
+  id        String    @id @default(uuid()) @db.Uuid
+  title     String
+  /// corporate | personal — системная константа (zod в contracts), не бизнес-справочник.
+  scope     String
+  /// Владелец личного пака; null для корпоративного.
+  ownerId   String?   @map("owner_id") @db.Uuid
+  /// Создатель (у корпоративного — админ с правом sticker.manage).
+  createdBy String    @map("created_by") @db.Uuid
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz()
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+
+  stickers        Sticker[]
+  installedByUsers UserStickerPack[]
+
+  @@index([ownerId])
+  @@map("sticker_packs")
+}
+
+/// Стикер пака: файл в модуле files (file_id plain UUID, I3 — паттерн
+/// MessageAttachment), эмодзи-привязки 1–3 (поиск/подсказки «эмодзи →
+/// стикеры», фаза 2). Формат: WebP/PNG ≤512КБ, WebM/VP9 без звука ≤256КБ
+/// (валидация magic bytes на сервере).
+model Sticker {
+  id        String   @id @default(uuid()) @db.Uuid
+  packId    String   @map("pack_id") @db.Uuid
+  fileId    String   @map("file_id") @db.Uuid
+  emojis    String[]
+  width     Int?
+  height    Int?
+  mime      String
+  size      Int
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  pack StickerPack @relation(fields: [packId], references: [id], onDelete: Cascade)
+
+  @@index([packId])
+  @@map("stickers")
+}
+
+/// Пак, установленный пользователю («добавил из чата»). PK (userId, packId)
+/// даёт идемпотентность установки. Корпоративные видны всем без установки.
+model UserStickerPack {
+  userId  String   @map("user_id") @db.Uuid
+  packId  String   @map("pack_id") @db.Uuid
+  addedAt DateTime @default(now()) @map("added_at") @db.Timestamptz()
+
+  pack StickerPack @relation(fields: [packId], references: [id], onDelete: Cascade)
+
+  @@id([userId, packId])
+  @@map("user_sticker_packs")
 }
 
 // ===================== files (#57, M9 фаза 1) =====================
