@@ -13,8 +13,10 @@ import { cn } from '@nodus/ui/lib/utils';
  *
  * Данные — 1906 эмодзи Unicode 16.0 (без тонов кожи) из
  * public/emoji/emoji-data.json (~60КБ gzip), грузятся fetch'ем при первом
- * открытии панели (бандл старта не платит). Глифы — шрифтом Noto Color
- * Emoji (self-host, #130): единый «гугловский» вид на любом устройстве.
+ * открытии панели (бандл старта не платит); русские имена `t` (CLDR tts,
+ * тултипы) дополняет scripts/emoji-tts.mjs (#165). Глифы — шрифтом Noto
+ * Color Emoji (self-host, #130): единый «гугловский» вид на любом
+ * устройстве.
  */
 
 const RECENT_KEY = 'nodus-emoji-recent-v1';
@@ -41,6 +43,17 @@ export interface EmojiEntry {
   n: string;
   /** Русские ключевые слова (CLDR tts + default) — поиск. */
   s?: string;
+  /** Русское имя (CLDR tts) — подпись/тултип (I15); дополняется
+   *  scripts/emoji-tts.mjs (генератор — там же, пробел #130 закрыт #165). */
+  t?: string;
+}
+
+/** Подпись глифа: русское имя с заглавной; без русской аннотации (флаг
+ *  Сарка — единственный) — английское имя. Русские тултипы заодно гасят
+ *  автоперевод страницы («Астронавт» из англ. title). */
+function emojiTitle(entry: EmojiEntry): string {
+  const label = entry.t ?? entry.n;
+  return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
 interface EmojiGroupJson {
@@ -184,8 +197,8 @@ export function EmojiPanel({
                   <button
                     key={entry.e}
                     type="button"
-                    aria-label={entry.n}
-                    title={entry.n}
+                    aria-label={emojiTitle(entry)}
+                    title={emojiTitle(entry)}
                     onClick={() => pick(entry.e)}
                     className={cn(
                       'flex size-9 cursor-pointer items-center justify-center rounded-lg text-2xl transition-transform hover:scale-110 hover:bg-accent',
