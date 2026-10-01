@@ -111,6 +111,43 @@ function run(command, args = [], env = process.env) {
   if (r.status !== 0) process.exit(r.status ?? 1);
 }
 
+/** Идемпотентный бутстрап изолированной БД песочницы (#178): создать
+ *  nodus_night, если нет -> применить миграции -> night-пользователи для
+ *  проб (scripts/night-users.mjs). Работает и как авто-шаг `up`, и как
+ *  отдельная команда `pnpm live-stack bootstrap`. */
+function bootstrapNight(env) {
+  const user = env.POSTGRES_USER ?? 'nodus';
+  const probe = spawnSync(
+    `docker exec nodus_postgres psql -U ${user} -tAc "SELECT 1 FROM pg_database WHERE datname='nodus_night'"`,
+    { shell: true, encoding: 'utf8' },
+  );
+  if (probe.status !== 0) {
+    console.warn(
+      'sandbox: не удалось проверить nodus_night через docker (docker не запущен?).\n' +
+        'Продолжаю — если api не станет healthy, см. навык nodus-dev-testing (bootstrap).',
+    );
+    return;
+  }
+  if (probe.stdout.trim() !== '1') {
+    console.log('sandbox: создаю изолированную БД nodus_night (однократно)...');
+    const created = spawnSync(
+      `docker exec nodus_postgres psql -U ${user} -c "CREATE DATABASE nodus_night"`,
+      {
+        shell: true,
+        stdio: 'inherit',
+      },
+    );
+    if (created.status !== 0) process.exit(created.status ?? 1);
+  }
+  console.log('sandbox: миграции nodus_night (idempotent)...');
+  run('pnpm --filter @nodus/api exec prisma migrate deploy', [], {
+    ...process.env,
+    DATABASE_URL: env.DATABASE_URL,
+  });
+  console.log('sandbox: night-пользователи для проб (idempotent)...');
+  run('node scripts/night-users.mjs', [], { ...process.env, DATABASE_URL: env.DATABASE_URL });
+}
+
 async function up() {
   const existing = Object.entries(readPids()).filter(([, pid]) => pidAlive(pid));
   if (existing.length > 0) {
@@ -129,6 +166,42 @@ async function up() {
     }
   }
 
+  // Изоляция песочницы (#178, урок-инцидент #175): без явного env процесса
+  // песочница САМА уходит на изолированные nodus_night + Redis db1 — из .env
+  // (там прод-значения) конструируем песочные. Явный env процесса главнее;
+  // осознанный прогон против прода — SANDBOX_ON_PROD=1 (не рекомендуется:
+  // два outbox-диспетчера на одной БД воруют события, пробные данные — в прод).
+  const dotenv = loadDotEnv();
+  const base = { ...dotenv, ...process.env };
+  const nightUrl = (url) => url.replace(/\/nodus(\?|$)/, '/nodus_night$1');
+  if (!process.env.DATABASE_URL && base.DATABASE_URL) {
+    const rewritten = nightUrl(base.DATABASE_URL);
+    if (rewritten !== base.DATABASE_URL) {
+      base.DATABASE_URL = rewritten;
+      console.log(
+        'sandbox: DATABASE_URL -> nodus_night (авто-изоляция; прод — только SANDBOX_ON_PROD=1)',
+      );
+    }
+  }
+  if (!process.env.REDIS_URL && base.REDIS_URL) {
+    // Суффикс БД обязателен: без него redis-клиент сидит в db0 = ПРОД-редис —
+    // два издателя одного стрима событий крадут fanout друг у друга.
+    const rewritten = base.REDIS_URL.replace(/^(rediss?:\/\/[^/?#]*)(\/\d+)?([?#].*)?$/, '$1/1$3');
+    if (rewritten !== base.REDIS_URL) {
+      base.REDIS_URL = rewritten;
+      console.log('sandbox: REDIS_URL -> db1 (авто-изоляция стрима/очередей от прода)');
+    }
+  }
+  if (/\/nodus(\?|$)/.test(base.DATABASE_URL ?? '') && !process.env.SANDBOX_ON_PROD) {
+    console.error(
+      `DATABASE_URL указывает на прод-базу 'nodus' (${base.DATABASE_URL.replace(/\/\/[^@]*@/, '//***@')}).\n` +
+        `Песочница live-stack работает на изолированной БД nodus_night (авто при запуске без env).\n` +
+        `Осознанный запуск против прода (не рекомендуется): SANDBOX_ON_PROD=1.`,
+    );
+    process.exit(1);
+  }
+  bootstrapNight(base);
+
   console.log('Building api + gateway + web (non-mock)...');
   run('pnpm --filter @nodus/api build');
   run('pnpm --filter @nodus/gateway build');
@@ -136,7 +209,6 @@ async function up() {
   // но здесь не хотим пересобирать остальной граф).
   run('pnpm --filter @nodus/web exec vite build', [], { ...process.env, VITE_API_MOCK: 'false' });
 
-  const base = { ...loadDotEnv(), ...process.env };
   const pids = {
     api: startService('api', ['apps/api/dist/main.js'], {
       ...base,
@@ -230,8 +302,16 @@ try {
   if (command === 'up') await up();
   else if (command === 'down') down();
   else if (command === 'status') await status();
-  else {
-    console.error('Usage: pnpm live-stack <up|down|status>');
+  else if (command === 'bootstrap') {
+    // Ручной бутстрап изоляции (up делает это сам): env — как у up.
+    const dotenv = loadDotEnv();
+    const env = { ...dotenv, ...process.env };
+    if (!process.env.DATABASE_URL && env.DATABASE_URL) {
+      env.DATABASE_URL = env.DATABASE_URL.replace(/\/nodus(\?|$)/, '/nodus_night$1');
+    }
+    bootstrapNight(env);
+  } else {
+    console.error('Usage: pnpm live-stack <up|down|status|bootstrap>');
     process.exit(1);
   }
 } catch (error) {

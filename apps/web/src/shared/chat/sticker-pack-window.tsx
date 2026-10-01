@@ -60,14 +60,15 @@ export function StickerWindowTrigger({
   return (
     <>
       {/* Поверхность для ПКМ-меню сообщения и подсветки выделения
-          (globals.css красит по data-selected). */}
+          (globals.css красит по data-selected). Ховера НЕТ (вердикт
+          01.10 #175: плашка за стикером не нужна — только клик). */}
       <button
         type="button"
         data-slot="sticker-surface"
         aria-label={`${meta.packTitle}: ${meta.emojis.join(' ')}`}
         title={meta.packTitle}
         onClick={() => setOpen(true)}
-        className="cursor-pointer rounded-2xl border border-transparent p-2 transition-colors hover:bg-accent/50"
+        className="cursor-pointer rounded-2xl border border-transparent p-2"
       >
         {children}
       </button>

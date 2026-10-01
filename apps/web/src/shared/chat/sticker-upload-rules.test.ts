@@ -10,10 +10,12 @@ function file(name: string, type: string, size: number): File {
   return new File([new Uint8Array(size)], name, { type });
 }
 
-describe('validateStickerFile (#143)', () => {
-  it('WebP/PNG в лимите — валидны', () => {
+describe('validateStickerFile (#143, +JPEG #175)', () => {
+  it('WebP/PNG/JPEG в лимите — валидны', () => {
     expect(validateStickerFile(file('s.webp', 'image/webp', 512 * 1024))).toBeNull();
     expect(validateStickerFile(file('s.png', 'image/png', 512 * 1024))).toBeNull();
+    expect(validateStickerFile(file('s.jpg', 'image/jpeg', 512 * 1024))).toBeNull();
+    expect(validateStickerFile(file('s.jpeg', 'image/jpeg', 512 * 1024))).toBeNull();
   });
 
   it('статика выше 512КБ — size', () => {
@@ -30,9 +32,8 @@ describe('validateStickerFile (#143)', () => {
     expect(validateStickerFile(noMime)).toBeNull();
   });
 
-  it('чужие форматы (GIF/SVG/JPG) — format', () => {
+  it('чужие форматы (GIF/SVG) — format', () => {
     expect(validateStickerFile(file('s.gif', 'image/gif', 100))).toBe('format');
     expect(validateStickerFile(file('s.svg', 'image/svg+xml', 100))).toBe('format');
-    expect(validateStickerFile(file('s.jpg', 'image/jpeg', 100))).toBe('format');
   });
 });

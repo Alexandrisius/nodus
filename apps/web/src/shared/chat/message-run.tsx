@@ -45,6 +45,7 @@ export interface MessageRunItemAttrs {
 export function MessageRunView({
   run,
   showName,
+  spacing = 'chat',
   dividerBeforeId = null,
   divider,
   renderItem,
@@ -52,6 +53,11 @@ export function MessageRunView({
   run: MessageRun;
   /** Показывать имя автора в первом пузыре (чужие серии в групповых чатах). */
   showName: boolean;
+  /** Вертикальный ритм серии: 'chat' — пузыри слипаются в блок (2px, канон
+   *  чатов); 'feed' — посты канала 6px (вердикт 01.10 #175: 2px между
+   *  карточками «слипшиеся», межавторские 12px сохраняются — разница есть,
+   *  как в Битриксе, но мягче). */
+  spacing?: 'chat' | 'feed';
   /** Разделитель непрочитанных ставится ПЕРЕД этим сообщением серии. */
   dividerBeforeId?: string | null;
   /** Содержимое разделителя; обёртка хоста (MessageScrollerItem) внутри. */
@@ -75,7 +81,8 @@ export function MessageRunView({
     <div
       data-slot="message-run"
       className={cn(
-        'grid min-w-0 gap-x-2 gap-y-0.5',
+        'grid min-w-0 gap-x-2',
+        spacing === 'feed' ? 'gap-y-1.5' : 'gap-y-0.5',
         atEnd ? 'grid-cols-[minmax(0,1fr)_2rem]' : 'grid-cols-[2rem_minmax(0,1fr)]',
       )}
     >

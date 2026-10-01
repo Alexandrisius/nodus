@@ -30,16 +30,21 @@ function webm(bytes = 64): Buffer {
   return Buffer.concat([Buffer.from([0x1a, 0x45, 0xdf, 0xa3]), Buffer.alloc(bytes)]);
 }
 
+/** JPEG (FF D8 FF + маркер сегмента; #175 — паритет с Битриксом). */
+function jpeg(bytes = 64): Buffer {
+  return Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(bytes)]);
+}
+
 describe('sniffStickerType (magic bytes)', () => {
-  it('распознаёт PNG, WebP, WebM по сигнатуре, не по заявленному mime', () => {
+  it('распознаёт PNG, WebP, JPEG, WebM по сигнатуре, не по заявленному mime', () => {
     expect(sniffStickerType(png())).toBe('png');
     expect(sniffStickerType(webp())).toBe('webp');
+    expect(sniffStickerType(jpeg())).toBe('jpeg');
     expect(sniffStickerType(webm())).toBe('webm');
   });
 
-  it('GIF/JPEG/SVG/пустой буфер — не стикерный формат', () => {
+  it('GIF/SVG/пустой буфер — не стикерный формат', () => {
     expect(sniffStickerType(Buffer.from('GIF89a'))).toBeNull();
-    expect(sniffStickerType(Buffer.from([0xff, 0xd8, 0xff, 0xe0]))).toBeNull();
     expect(sniffStickerType(Buffer.from('<svg/>'))).toBeNull();
     expect(sniffStickerType(Buffer.alloc(0))).toBeNull();
   });
@@ -59,6 +64,7 @@ describe('validateStickerBytes (формат + лимиты)', () => {
     const verdict = validateStickerBytes(png());
     expect(verdict).toMatchObject({ type: 'png', mime: 'image/png', issue: null });
     expect(validateStickerBytes(webp()).mime).toBe('image/webp');
+    expect(validateStickerBytes(jpeg())).toMatchObject({ type: 'jpeg', mime: 'image/jpeg' });
   });
 
   it('статика больше 512КБ — issue size', () => {
@@ -79,8 +85,8 @@ describe('validateStickerBytes (формат + лимиты)', () => {
     expect(validateStickerBytes(between).issue).toBe('size');
   });
 
-  it('подделка: PNG-сигнатура нет, а байты от JPEG — issue format', () => {
-    const fake = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), png(0).subarray(3)]);
+  it('подделка: PNG-сигнатура нет, а байты от GIF — issue format', () => {
+    const fake = Buffer.concat([Buffer.from('GIF8'), png(0).subarray(4)]);
     expect(validateStickerBytes(fake).issue).toBe('format');
   });
 });
