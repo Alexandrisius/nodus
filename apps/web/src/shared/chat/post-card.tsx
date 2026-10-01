@@ -76,8 +76,9 @@ export function PostCard({
       <div
         className={cn(
           surface.fill,
-          // Отступ до имени — как у пузыря чата (#96, pt-[6px]; вердикт 01.10
-          // #175: 14px читались «воздухом» над автором); низ/бока — карточные.
+          // Поля карточки — ЕДИНЫЕ 10px по периметру, как у пузыря чата
+          // (серия вердиктов 01.10 #181: 6 — мало, 12 — огромно,
+          // единообразие с пузырями); низ накрывает полоса обсуждения.
           'relative w-fit max-w-2xl rounded-xl border border-border px-2.5 pt-2.5 pb-3.5 text-left',
         )}
         data-slot="post-surface"
@@ -90,7 +91,7 @@ export function PostCard({
         {showName ? (
           <span
             className={cn(
-              'block text-sm leading-[19px] font-semibold',
+              '-mt-[3px] block text-sm leading-[19px] font-semibold',
               personTone(message.author.id),
             )}
           >
@@ -99,7 +100,7 @@ export function PostCard({
         ) : (
           <span className="sr-only">{message.author.displayName}: </span>
         )}
-        <span className={cn(showName && 'mt-[2px]', 'block')}>
+        <span className={cn(showName ? 'mt-[2px]' : '-mt-[3px]', 'block')}>
           <MessageTombstone mine={mine} />
         </span>
         {repliesCount > 0 ? (
