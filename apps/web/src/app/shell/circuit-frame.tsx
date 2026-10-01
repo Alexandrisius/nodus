@@ -32,7 +32,9 @@ const CARD_SETTLE_MS = 480;
  * (контур ЗАМЕНЯЕТ бордюр и сливается с классической разметкой) — плюс шина
  * рейки с локтевыми отводами к портам модулей единым блоком и засечки вверх
  * к точкам вкладок (точка — у самого пункта, на оси точек нет). Вспышка —
- * один пульс к активному подменю, только на СМЕНУ фокуса: на сворачивание/
+ * ПОДСВЕТКА-РИСОВКА линии к активному подменю, БЕЗ бегущего импульса-точки
+ * (вердикт начальника 01.10 #179: шарик поверх подсветки излишен —
+ * достаточно первичной подсветки), только на СМЕНУ фокуса: на сворачивание/
  * разворачивание панелей ЗАПРЕЩЕНА флагом width-transition (вердикт владельца
  * 14.09.2026: пульс на переходной геометрии улетал поверх рейки). Геометрия —
  * измерение DOM по data-атрибутам; пересчёт на resize, скролл навигатора и
@@ -87,11 +89,11 @@ export function CircuitFrame() {
   const pulseTimer = useRef(0);
 
   /** Одиночный пульс с авто-затуханием; длительность затухания — из длины
-   * маршрута (рисовка + пробег + догорать), иначе дальний пульс обрывается. */
+   *  маршрута (рисовка + догорание), иначе дальняя подсветка обрывается. */
   const firePulse = useCallback((points: NodeEdgePoint[], dot: boolean) => {
     window.clearTimeout(pulseTimer.current);
     const len = pathLength(points);
-    const fadeMs = (len / 1200 + len / 400 + 0.9) * 1000;
+    const fadeMs = (len / 1200 + 0.9) * 1000;
     setPulse({ points, dot, fadeMs });
     setPulseRun((k) => k + 1);
     pulseTimer.current = window.setTimeout(() => setPulse(null), fadeMs);
@@ -270,13 +272,7 @@ export function CircuitFrame() {
           className="dock-edge-fade absolute inset-0"
           style={{ animationDuration: `${pulse.fadeMs}ms` }}
         >
-          <NodeEdge
-            points={pulse.points}
-            ports={pulse.dot ? 'end' : 'none'}
-            drawOn
-            pulse="once"
-            active
-          />
+          <NodeEdge points={pulse.points} ports={pulse.dot ? 'end' : 'none'} drawOn active />
         </div>
       ) : null}
     </div>

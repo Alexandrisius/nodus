@@ -109,6 +109,13 @@
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
   --color-chart-6: var(--chart-6);
+  --color-name-1: var(--name-1);
+  --color-name-2: var(--name-2);
+  --color-name-3: var(--name-3);
+  --color-name-4: var(--name-4);
+  --color-name-5: var(--name-5);
+  --color-name-6: var(--name-6);
+  --color-name-7: var(--name-7);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -233,6 +240,17 @@
   /* Categorical-палитра данных: Okabe-Ito (colorblind-safe) на белом холсте. */
   --chart-1: #0072b2;
   --chart-2: #009e73;
+  /* Палитра имён авторов (#180, модель Telegram/Битрикс24/Slack): 7
+     персональных детерминированных тонов; значения текстопригодны — AA
+     (≥4.5:1) на пузырях light (белый/светло-зелёный); маркер идентичности
+     человека («цвет = смысл»), не декор хрома. */
+  --name-1: #c63d2f; /* красный */
+  --name-2: #b45309; /* оранжевый */
+  --name-3: #7c3aed; /* фиолетовый */
+  --name-4: #1a7f4b; /* зелёный */
+  --name-5: #0e7490; /* циан */
+  --name-6: #1d4ed8; /* синий */
+  --name-7: #be185d; /* розовый */
   --chart-3: #e69f00;
   --chart-4: #cc79a7;
   --chart-5: #56b4e9;
@@ -341,6 +359,16 @@
   /* Categorical-палитра данных: осветлённые тона Okabe-Ito под тёмный холст. */
   --chart-1: #64a4e0;
   --chart-2: #5fbf8f;
+  /* Палитра имён авторов (#180): осветлённые варианты под тёмные пузыри —
+     AA ≥5.1:1 на bubble-out #2b5278 (свой пузырь: имя цитируемого,
+     «Переслано от») и ≥9.8:1 на bubble-in #182533 (проверено валидатором). */
+  --name-1: #fcc4c4; /* красный */
+  --name-2: #fbc896; /* оранжевый */
+  --name-3: #d4c6fb; /* фиолетовый */
+  --name-4: #aee6c9; /* зелёный */
+  --name-5: #a8dff0; /* циан */
+  --name-6: #c3d4fc; /* синий */
+  --name-7: #f9c4de; /* розовый */
   --chart-3: #e0b054;
   --chart-4: #d795bc;
   --chart-5: #8cc8ea;

@@ -7,7 +7,8 @@ import { reactionAsset } from './reaction-presets.js';
 
 type EntitySegment = Extract<MessageSegment, { kind: 'entity' }>;
 
-/** Текст сообщения: ссылки на сущности (portal:// и deep-link ?cards=)
+/** Текст сообщения: межстрочный leading-snug (1.375 — Telegram 1.35/Anytype 1.33,
+ * узкие строки пузыря; #181). Ссылки на сущности (portal:// и deep-link ?cards=)
  *  ЗАРЕГИСТРИРОВАННЫХ видов заменяются карточкой-превью (сырая ссылка из
  *  текста убирается — пересылка писем запрещена, вместо неё ссылка,
  *  вердикт владельца 22.09.2026); неизвестные виды остаются текстом. */
@@ -38,7 +39,7 @@ export function MessageText({ text }: { text: string }) {
 
   if (entities.length === 0) {
     return (
-      <span data-slot="message-text" className="whitespace-pre-wrap break-words">
+      <span data-slot="message-text" className="whitespace-pre-wrap break-words leading-snug">
         {text}
       </span>
     );
@@ -52,7 +53,9 @@ export function MessageText({ text }: { text: string }) {
 
   return (
     <span data-slot="message-text" className="flex min-w-0 flex-col gap-1.5">
-      {visibleText ? <span className="whitespace-pre-wrap break-words">{visibleText}</span> : null}
+      {visibleText ? (
+        <span className="whitespace-pre-wrap break-words leading-snug">{visibleText}</span>
+      ) : null}
       {entities.map((segment) => {
         const Preview = linkPreviewFor(segment.entity);
         return Preview ? <Preview key={`${segment.entity}:${segment.id}`} id={segment.id} /> : null;

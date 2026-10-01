@@ -6,6 +6,7 @@ import { Bubble, BubbleContent } from '@nodus/ui/components/bubble';
 
 import { openCardViaBridge } from '../lib/card-bridge.js';
 import { shortPersonName, withoutPatronymic } from '../lib/format.js';
+import { personTone } from '../ui/person-tone.js';
 import { attachmentsContentWidth, MessageAttachments } from './attachments.js';
 import { BubbleOutline } from './bubble-outline.js';
 import { useChatPrefs } from './chat-prefs.js';
@@ -103,12 +104,21 @@ export const ChatMessageItem = memo(function ChatMessageItem({
             <BubbleOutline side={tail ? (atEnd ? 'right' : 'left') : null} variant={variant} />
             <BubbleContent
               className={cn(
-                'relative flex flex-col gap-[3px] pt-[6px] pb-[5px]',
+                'relative flex flex-col gap-[2px] px-2.5 pt-2.5 pb-2.5',
                 tail && (atEnd ? 'rounded-br-none' : 'rounded-bl-none'),
               )}
             >
               {showName ? (
-                <span className="text-sm leading-[19px] font-semibold text-info">
+                // Персональный цвет автора (#180, модель Telegram/Битрикс24):
+                // детерминированный тон палитры --name-1..7 по UUID.
+                // -mt-[3px] — оптическая компенсация воздуха строки имени:
+                // визуальный верх = полям 10px, как у картинок (#181).
+                <span
+                  className={cn(
+                    '-mt-[3px] text-sm leading-[19px] font-semibold',
+                    personTone(message.author.id),
+                  )}
+                >
                   {shortPersonName(message.author.displayName)}
                 </span>
               ) : null}
@@ -192,20 +202,18 @@ export const ChatMessageItem = memo(function ChatMessageItem({
           {/* Реакции и вложения — ВНУТРЬ пузыря (вердикт владельца 14.09.2026,
               реф Битрикс24): они расширяют пузырь по высоте, а НЕ висят под
               ним — иначе аватар (self-end) и хвостик отлипали от пузыря к
-              строке реакций. Зазор содержимого — ЦЕЛЫЕ 3px, не rem-шаг
-              (вердикт 24.09.2026, #96: облако было раздуто зазорами вокруг
-              меты; дробные rem-величины при --ui-scale 1.25 округляются
-              врозь — урок Switch, #96). */}
+              строке реакций. Зазор строк — ЦЕЛЫЕ 2px, не rem-шаг
+              (вердикт 01.10 #181: плотность строк по Telegram; дробные
+              rem-величины при --ui-scale 1.25 округляются врозь — урок
+              Switch, #96). */}
           <BubbleContent
             className={cn(
-              // Вертикальные паддинги облака плотнее дефолта примитива
-              // (py-2 = 10px): низ 5px — метку ВРЕМЕНИ прижать к низу облака,
-              // верх 6px — над именем автора остаётся ровно воздух строки
-              // (вердикт владельца 24.09.2026: «сверху и снизу облака великоватые
-              // зазоры, прижать метку книзу, уменьшить зазор над именем»).
-              // pt/pb — целые px: при --ui-scale 1.25 rem-полушаги дают дробные
-              // зазоры с несимметричным округлением (урок Switch, #96).
-              'relative flex flex-col gap-[3px] pt-[6px] pb-[5px]',
+              // Поля пузыря — ЕДИНЫЕ 10px по периметру, как у карточек постов
+              // (серия вердиктов 01.10 #181; канон #96 «6px над именем, 5px
+              // низ» заменён единообразием с постами). px/pt/pb — целые px:
+              // при --ui-scale 1.25 rem-полушаги дают дробные зазоры с
+              // несимметричным округлением (урок Switch, #96).
+              'relative flex flex-col gap-[2px] px-2.5 pt-2.5 pb-2.5',
               tail && (atEnd ? 'rounded-br-none' : 'rounded-bl-none'),
             )}
             style={contentWidth ? { width: contentWidth } : undefined}
@@ -213,9 +221,18 @@ export const ChatMessageItem = memo(function ChatMessageItem({
             {/* Имя автора — ВЕРХНЯЯ строка пузыря (вердикт владельца 24.09.2026,
                 #96, реф Битрикс24): цветное и отличается от текста; только
                 чужое и только у первого сообщения серии (группировка не
-                менялась — message-groups.ts). Свои — без имени вовсе. */}
+                менялась — message-groups.ts). Свои — без имени вовсе.
+                Цвет ПЕРСОНАЛЬНЫЙ (#180): тон палитры --name-1..7 по UUID
+                автора (personTone), как во всех хостах имени.
+                -mt-[3px] — оптическая компенсация воздуха строки имени (#181):
+                визуальный верх = полям 10px, как у картинок. */}
             {showName ? (
-              <span className="text-sm leading-[19px] font-semibold text-info">
+              <span
+                className={cn(
+                  '-mt-[3px] text-sm leading-[19px] font-semibold',
+                  personTone(message.author.id),
+                )}
+              >
                 {shortPersonName(message.author.displayName)}
               </span>
             ) : null}
@@ -241,7 +258,19 @@ export const ChatMessageItem = memo(function ChatMessageItem({
             {message.attachments.length > 0 ? (
               <MessageAttachments message={message} mine={mine} />
             ) : null}
-            <MessageText text={message.text} />
+            {/* Текст-первый (без имени/цитаты/вложений) — оптическая
+                компенсация воздуха строки (-mt-[3px]): визуальный верх
+                текста = полям 10px, как у картинок (#181). */}
+            {showName ||
+            message.reply ||
+            message.forwardedFrom ||
+            message.attachments.length > 0 ? (
+              <MessageText text={message.text} />
+            ) : (
+              <span className="-mt-[3px]">
+                <MessageText text={message.text} />
+              </span>
+            )}
             {/* Нижняя строка пузыря ПОД содержимым: реакции СЛЕВА, мета
                 (пин/изменено/время/галочки) — СПРАВА у самого низа облака
                 (вердикт 24.09.2026: не в строке текста и не инлайном в текст).
