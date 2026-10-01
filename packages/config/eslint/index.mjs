@@ -18,6 +18,22 @@ const boundariesConfig = {
   plugins: { boundaries },
   settings: {
     'boundaries/elements': [
+      // Read-порты модулей-владельцев (ADR-0012): токен + интерфейс порта и
+      // тонкий *-ports.module.ts — ЕДИНСТВЕННАЯ допустимая форма межмодульного
+      // импорта на бэке (первый случай: chat → notifications, #100). Специфичные
+      // file-паттерны стоят выше общего api-module (порядок разрешения).
+      {
+        type: 'api-module-port',
+        pattern: 'apps/api/src/modules/**/*.port.ts',
+        mode: 'file',
+        capture: ['module'],
+      },
+      {
+        type: 'api-module-ports-module',
+        pattern: 'apps/api/src/modules/**/*-ports.module.ts',
+        mode: 'file',
+        capture: ['module'],
+      },
       { type: 'api-module', pattern: 'apps/api/src/modules/*', capture: ['module'] },
       { type: 'web-feature', pattern: 'apps/web/src/features/*', capture: ['feature'] },
       { type: 'web-app', pattern: 'apps/web/src/app/*', capture: [] },
@@ -44,7 +60,7 @@ const boundariesConfig = {
               },
             },
             message:
-              'Cross-module импорт запрещён (I3, I6): модули общаются событиями и @nodus/contracts',
+              'Cross-module импорт запрещён (I3, I6): модули общаются событиями и @nodus/contracts; исключение — read-порты (*.port.ts, *-ports.module.ts, ADR-0012)',
           },
           {
             from: { element: { type: 'web-feature' } },

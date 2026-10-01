@@ -225,6 +225,8 @@ export const chatMutationHandlers = [
         readAt: null,
 
         readBy: [],
+        urgent: false,
+        mentionedUserIds: [],
         createdAt: stamp(0),
       };
       created.push(comment);
@@ -258,6 +260,8 @@ export const chatMutationHandlers = [
         readAt: null,
 
         readBy: [],
+        urgent: false,
+        mentionedUserIds: [],
         createdAt: stamp(index + 1),
       };
       created.push(copy);

@@ -18,7 +18,7 @@ import {
 import { cn } from '@nodus/ui/lib/utils';
 
 import { useConversations } from '../../features/chat/api/chat-api.js';
-import { useHomeSummary } from '../../features/home/api/home-api.js';
+import { useNotificationSummary } from '../../features/notifications/api/notifications-api.js';
 import { useAuthStore } from '../../shared/auth-store.js';
 import { CIRCUIT_REMEASURE } from './circuit-geometry.js';
 import { NAV_MODULES, type NavModuleDef } from './nav-registry.js';
@@ -62,7 +62,7 @@ export function NodeRail() {
   const collapsed = useShellStore((s) => s.menuCollapsed);
   const toggle = useShellStore((s) => s.toggleMenu);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const { data: home } = useHomeSummary();
+  const { data: notificationSummary } = useNotificationSummary();
   const { data: chats } = useConversations();
 
   const personal = useUiPrefsStore((s) => s.personal);
@@ -100,15 +100,18 @@ export function NodeRail() {
   }
 
   const badges = (m: NavModuleDef): number | undefined => {
-    if (m.badge === 'tasks') {
-      const n = home
-        ? home.tasks.overdue.length + home.tasks.today.length + home.tasks.weekCount
-        : 0;
-      return n || undefined;
-    }
-    if (m.badge === 'letters') return home?.letters.unregisteredCount || undefined;
+    // Бейджи задач/писем временно без источника: агрегат Главной похудел до
+    // витрины (#100), а живых модулей задач/писем в бэке ещё нет — счётчики
+    // вернутся с их собственными API.
+    if (m.badge === 'tasks' || m.badge === 'letters') return undefined;
     if (m.badge === 'chat') {
       const n = (chats?.items ?? []).reduce((sum, c) => sum + c.unreadCount, 0);
+      return n || undefined;
+    }
+    // Главная (#100): число важного (срочно+личное+действия) — индикация
+    // «число + точка»; тихая точка фона — badgeAttention dot в строке.
+    if (m.badge === 'notifications') {
+      const n = notificationSummary?.attention ?? 0;
       return n || undefined;
     }
     return undefined;

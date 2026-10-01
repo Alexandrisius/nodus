@@ -102,6 +102,8 @@ describe('useSendTaskMessage: оптимистичность (I4)', () => {
       editedAt: null,
       readAt: null,
       readBy: [],
+      urgent: false,
+      mentionedUserIds: [],
       createdAt: new Date().toISOString(),
     };
     await act(async () => gate.resolve(jsonResponse(201, server)));

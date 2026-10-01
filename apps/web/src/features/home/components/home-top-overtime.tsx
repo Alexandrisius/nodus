@@ -4,10 +4,18 @@ import { NodeCard } from '@nodus/ui/components/node-card';
 
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
 import { chartRowTone } from '../../../shared/ui/identity-tone.js';
+import { HomeEmptyHint } from './home-labor.js';
 
 /** Топ по переработкам: строки с тонкой цветной шкалой (categorical-палитра:
  *  каждый ряд — свой тон, как в классических BI-дашбордах). */
 export function HomeTopOvertime({ entries }: { entries: OvertimeEntry[] }) {
+  if (entries.length === 0) {
+    return (
+      <NodeCard label={ui.home.topOvertime}>
+        <HomeEmptyHint text={ui.home.laborEmpty} />
+      </NodeCard>
+    );
+  }
   const max = Math.max(...entries.map((e) => e.hours), 1);
   return (
     <NodeCard label={ui.home.topOvertime}>

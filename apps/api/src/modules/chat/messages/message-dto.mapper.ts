@@ -26,6 +26,12 @@ export interface ReplySnapshotValue {
   attachmentKind: 'image' | 'file' | 'sticker' | null;
 }
 
+/** userId упоминаний из JSONB-колонки (снапшот отправки, #100). */
+export function readMentionedUserIds(row: MessageRow): string[] {
+  const raw = (row.mentionedUserIds ?? null) as string[] | null;
+  return Array.isArray(raw) ? raw : [];
+}
+
 /** Строка вложения для DTO (стикер дополнительно несёт снапшот пака). */
 export interface AttachmentDtoRow {
   id: string;
@@ -149,6 +155,8 @@ export class MessageDtoMapper {
         readBy: readers.map(
           (reader): UserRef => refs.get(reader.userId) ?? fallbackRef(reader.userId),
         ),
+        urgent: row.urgent,
+        mentionedUserIds: tombstone ? [] : readMentionedUserIds(row),
         createdAt: row.createdAt.toISOString(),
       };
     });
@@ -208,6 +216,8 @@ export class MessageDtoMapper {
       forwardedFrom: buildForwardedFrom(row, refs),
       readAt: computeReadAt(row, ctx.members, ctx.viewerId),
       readBy: [],
+      urgent: row.urgent,
+      mentionedUserIds: readMentionedUserIds(row),
       createdAt: row.createdAt.toISOString(),
     };
   }

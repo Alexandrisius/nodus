@@ -5,9 +5,17 @@ import { NodeChip } from '@nodus/ui/components/node-chip';
 
 import { formatDate } from '../../../shared/lib/format.js';
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
+import { HomeEmptyHint } from './home-labor.js';
 
 /** Дни рождения коллег: плоские строки, «сегодня» — активный чип. */
 export function HomeBirthdays({ birthdays }: { birthdays: BirthdayEntry[] }) {
+  if (birthdays.length === 0) {
+    return (
+      <NodeCard label={ui.home.birthdays}>
+        <HomeEmptyHint text={ui.home.birthdaysEmpty} />
+      </NodeCard>
+    );
+  }
   return (
     <NodeCard label={ui.home.birthdays}>
       <div className="flex flex-col divide-y divide-border">

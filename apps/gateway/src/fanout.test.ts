@@ -83,4 +83,39 @@ describe('routeEnvelope', () => {
     );
     expect(calls.map((c) => c.room)).toEqual([`conv:${CONV}`, `user:${USER_B}`]);
   });
+
+  it('notification.dispatch_requested: user-комната получателя (snapshot.userId)', async () => {
+    const { io, calls } = fakeIo();
+    const store: MembershipStore = { isMember: vi.fn(), memberIds: vi.fn(), userRef: vi.fn() };
+    await routeEnvelope(
+      io,
+      store,
+      envelope('notification.dispatch_requested', {
+        snapshot: { notificationId: 'n1', userId: USER_B, tier: 'personal' },
+        attempt: 0,
+        seq: 9,
+      }),
+    );
+    expect(calls.map((c) => c.room)).toEqual([`user:${USER_B}`]);
+    expect(calls[0]!.type).toBe('notification.dispatch_requested');
+  });
+
+  it('notification.read/acked: user-комната из payload.userId', async () => {
+    const { io, calls } = fakeIo();
+    const store: MembershipStore = { isMember: vi.fn(), memberIds: vi.fn(), userRef: vi.fn() };
+    await routeEnvelope(io, store, envelope('notification.read', { userId: USER_A }));
+    await routeEnvelope(
+      io,
+      store,
+      envelope('notification.acked', { userId: USER_B, messageId: 'm1' }),
+    );
+    expect(calls.map((c) => c.room)).toEqual([`user:${USER_A}`, `user:${USER_B}`]);
+  });
+
+  it('неизвестный доменный тип (стрим общий) — игнор без ошибок', async () => {
+    const { io, calls } = fakeIo();
+    const store: MembershipStore = { isMember: vi.fn(), memberIds: vi.fn(), userRef: vi.fn() };
+    await routeEnvelope(io, store, envelope('file.preview_ready', { fileId: 'f1' }));
+    expect(calls).toHaveLength(0);
+  });
 });

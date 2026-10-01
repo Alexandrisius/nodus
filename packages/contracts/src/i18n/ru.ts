@@ -3,6 +3,7 @@ import { ErrorCode } from '../errors/error-codes.js';
 import { chatStrings } from './ru-chat.js';
 import { counterpartiesStrings, lettersStrings } from './ru-correspondence.js';
 import { filesStrings } from './ru-files.js';
+import { notificationsStrings } from './ru-notifications.js';
 
 /**
  * Русские UI-строки для системных кодов ошибок (I15: `message` в ответе —
@@ -27,6 +28,10 @@ export const errorMessages: Record<ErrorCode, string> = {
     'Слишком много неотправленных вложений — сначала отправьте или уберите лишние',
   [ErrorCode.CHAT_STICKER_INVALID]:
     'Стикер не подошёл: нужны WebP/PNG до 512 КБ или WebM без звука до 256 КБ',
+  [ErrorCode.CHAT_URGENT_LIMIT_EXCEEDED]:
+    'Дневной лимит важных сообщений исчерпан — попробуйте завтра или напишите обычным сообщением',
+  [ErrorCode.CHAT_URGENT_GROUP_TOO_LARGE]:
+    'Важные сообщения не отправляют в беседы больше 20 участников',
   [ErrorCode.FILE_SIZE_MISMATCH]: 'Файл передался не полностью — попробуйте ещё раз',
   [ErrorCode.FILE_QUARANTINED]: 'Файл заблокирован проверкой безопасности',
   [ErrorCode.FILE_OFFICE_DISABLED]: 'Просмотр документов недоступен — скачайте файл',
@@ -161,13 +166,14 @@ export const ui = {
     statsEmployees: 'Сотрудников',
     statsProjectsDone: 'Проектов завершено',
     statsDataNodes: 'Узлов данных накоплено',
-    newsTitle: 'Новости компании',
     birthdays: 'Дни рождения',
     today: 'сегодня',
     laborTitle: 'Трудозатраты команды',
     topOvertime: 'Топ по переработкам',
     hoursShort: 'ч',
-    readMore: 'Читать',
+    /** Заглушки блоков без данных: каркас витрины виден всегда (вердикт 01.10). */
+    laborEmpty: 'Появятся с учётом рабочего времени',
+    birthdaysEmpty: 'Дни рождения не заполнены в справочнике',
   },
   tasks: {
     title: 'Задачи',
@@ -321,6 +327,7 @@ export const ui = {
   },
   chat: chatStrings,
   files: filesStrings,
+  notifications: notificationsStrings,
   employees: {
     title: 'Сотрудники',
     structure: 'Структура',

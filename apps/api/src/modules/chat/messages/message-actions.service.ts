@@ -6,6 +6,7 @@ import {
   type MessagePin,
   type MessageReactionToggleBody,
   type UserRef,
+  type ThreadState,
 } from '@nodus/contracts';
 
 import { EventBus } from '../../../core/events/event-bus.js';
@@ -27,7 +28,9 @@ import { ThreadParticipantsRepository } from './thread-participants.repository.j
 
 /**
  * Действия над сообщениями: закрепы (лента закрепов), реакции (toggle),
- * пересылка (серверные копии одним запросом — комментарий ПЕРЕД блоком).
+ * пересылка (серверные копии одним запросом), наблюдение трэдов
+ * (watch-toggle и состояния — перенесены из MessagesService, I5: файл
+ * отправки перевалил порог 500 кодовых строк, #100).
  */
 @Injectable()
 export class MessageActionsService {
@@ -273,6 +276,8 @@ export class MessageActionsService {
             text: draft.text,
             replyToId: null,
             replySnapshot: null,
+            urgent: false,
+            mentionedUserIds: [],
             threadRootId,
             fwd: draft.fwd,
             createdAt: new Date(createdAt + i),
@@ -351,6 +356,50 @@ export class MessageActionsService {
         );
       }
       return { rows: created, members };
+    });
+  }
+
+  // ===== Треды: наблюдение и состояния (раунд 3) =====
+
+  /**
+   * Состояния трэдов беседы для текущего пользователя: строка на каждый трэд,
+   * где он наблюдатель (автор корня / реплай / кнопка / @). Точка «есть новые»
+   * на посте и счётчик новым тоном — только по этим данным.
+   */
+  async threadStates(userId: string, conversationId: string): Promise<ThreadState[]> {
+    if (!(await this.conversations.findMembership(conversationId, userId))) {
+      throw DomainException.notFound('Conversation not found');
+    }
+    return this.threadParticipants.states(conversationId, userId);
+  }
+
+  /**
+   * Toggle наблюдения (кнопка «Следить/Перестать» в шапке окна треда):
+   * нет строки участия → добавить watcher; есть → снять наблюдение (строка
+   * удаляется целиком — реплай/@ добавят снова при следующем событии).
+   * Идемпотентность пары (пользователь, трэд) держит PK; повтор запроса с тем
+   * же Idempotency-Key возвращает первый результат (Redis-интерсептор).
+   */
+  async watchThread(
+    userId: string,
+    conversationId: string,
+    threadRootId: string,
+  ): Promise<{ watching: boolean }> {
+    return this.txRunner.run(async (tx) => {
+      if (!(await this.conversations.findMembership(conversationId, userId, tx))) {
+        throw DomainException.notFound('Conversation not found');
+      }
+      const root = await this.messages.findByIdInConversation(conversationId, threadRootId, tx);
+      if (!root || root.threadRootId !== null) {
+        throw DomainException.notFound('Thread root not found');
+      }
+      const watching = await this.threadParticipants.findLastRead(threadRootId, userId, tx);
+      if (watching === null) {
+        await this.threadParticipants.upsert(threadRootId, userId, 'watcher', tx);
+        return { watching: true };
+      }
+      await this.threadParticipants.delete(threadRootId, userId, tx);
+      return { watching: false };
     });
   }
 }

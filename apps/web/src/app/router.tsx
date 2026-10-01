@@ -46,7 +46,7 @@ const LoginPage = pageLoader(() =>
   import('../features/auth/pages/login-page.js').then((m) => ({ default: m.LoginPage })),
 );
 const HomePage = pageLoader(() =>
-  import('../features/home/pages/home-page.js').then((m) => ({ default: m.HomePage })),
+  import('./home-route.js').then((m) => ({ default: m.HomeRoute })),
 );
 const TasksPage = pageLoader(() =>
   import('../features/tasks/pages/tasks-page.js').then((m) => ({ default: m.TasksPage })),

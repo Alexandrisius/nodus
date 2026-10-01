@@ -20,6 +20,11 @@ export function setOpenConversation(conversationId: string | null): void {
   openConversationId = conversationId;
 }
 
+/** Открытая беседа (глушит её тосты уведомлений, B6 — читает toast-стор). */
+export function getOpenConversation(): string | null {
+  return openConversationId;
+}
+
 export function notificationsSupported(): boolean {
   return typeof Notification !== 'undefined';
 }

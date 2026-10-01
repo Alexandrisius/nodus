@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ErrorCode } from '@nodus/contracts';
 
+import { MessageActionsService } from './message-actions.service.js';
 import { MessagesService } from './messages.service.js';
 import type { MemberRow } from '../conversations/conversations.repository.js';
 import type { MessageRow } from './messages.repository.js';
@@ -33,6 +34,8 @@ function makeMessage(overrides: Partial<MessageRow> = {}): MessageRow {
     editedAt: null,
     deletedAt: null,
     obliterated: false,
+    urgent: false,
+    mentionedUserIds: null,
     createdAt: now,
     updatedAt: now,
     ...overrides,
@@ -191,6 +194,21 @@ describe('MessagesService: трэды раунда 3', () => {
   });
 
   describe('watchThread / threadStates', () => {
+    // Раунд #100: watch/стособы перенесены в MessageActionsService (I5).
+    const actions = new MessageActionsService(
+      repo as never,
+      { listWithMessages: vi.fn() } as never,
+      conversations as never,
+      { toDtos: vi.fn() } as never,
+      txRunner as never,
+      eventBus as never,
+      userProfiles as never,
+      threadParticipants as never,
+    );
+    const service = {
+      watchThread: (a: string, b: string, c: string) => actions.watchThread(a, b, c),
+      threadStates: (a: string, b: string) => actions.threadStates(a, b),
+    };
     it('toggle: нет строки → watcher вставлен (watching:true); есть → снят (false)', async () => {
       repo.findByIdInConversation.mockResolvedValue(makeMessage({ id: ROOT, threadRootId: null }));
       threadParticipants.findLastRead.mockResolvedValueOnce(null);

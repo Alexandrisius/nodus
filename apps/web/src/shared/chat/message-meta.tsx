@@ -3,6 +3,7 @@ import type { ChatMessage } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { cn } from '@nodus/ui/lib/utils';
 
+import { useUrgentAcks } from '../notifications-acks.js';
 import { formatTime } from '../lib/format.js';
 import { ReadTicks } from './read-ticks.js';
 
@@ -53,11 +54,34 @@ export function MessageMeta({
       {message.pinned ? (
         <Pin role="img" aria-label={ui.chat.menu.pin} className="size-3" strokeWidth={1.75} />
       ) : null}
+      {message.urgent ? <UrgentAcksMeta messageId={message.id} onFilled={onFilled} /> : null}
       {message.editedAt ? <span>{ui.chat.edited}</span> : null}
       <time className="font-mono tabular-nums" dateTime={message.createdAt}>
         {formatTime(message.createdAt)}
       </time>
       {ticks ? <ReadTicks read={message.readBy.length > 0} /> : null}
     </span>
+  );
+}
+
+/**
+ * Мета срочного сообщения (#100): «Срочно · Ознакомились N/M» — отправитель
+ * видит прогресс ознакомления live (WS notification.acked инвалидирует
+ * ключ urgentAcks). Интеграционная точка журнала уведомлений в ЕДИНУЮ мету
+ * мессенджера (второго хоста нет).
+ */
+function UrgentAcksMeta({ messageId, onFilled }: { messageId: string; onFilled: boolean }) {
+  const status = useUrgentAcks(messageId);
+  return (
+    <>
+      <span className={cn(onFilled ? 'font-semibold' : 'font-semibold text-danger')}>
+        {ui.notifications.urgentMeta}
+      </span>
+      {status && status.expectedCount > 0 && (
+        <span className="font-mono tabular-nums">
+          {ui.notifications.urgentAcksMeta} {status.ackedCount}/{status.expectedCount}
+        </span>
+      )}
+    </>
   );
 }

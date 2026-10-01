@@ -33,6 +33,8 @@ function msg(
     editedAt: null,
     readAt: author === userIds.klimovich ? createdAt : null,
     readBy: [],
+    urgent: false,
+    mentionedUserIds: [],
     createdAt,
     ...extra,
   };

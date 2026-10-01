@@ -9,7 +9,6 @@ import {
   type Paginated,
   type ReadConversationResult,
   type SendMessageBody,
-  type ThreadState,
 } from '@nodus/contracts';
 
 import { EventBus } from '../../../core/events/event-bus.js';
@@ -29,7 +28,8 @@ import {
 } from '../conversations/conversations.repository.js';
 import { can, parsePermissions } from '../permissions.js';
 import { MessageDtoMapper } from './message-dto.mapper.js';
-import { parseMentionTokens } from './mentions.js';
+import { addMentionWatchers, resolveMentionMatches } from './mentions.js';
+import { assertUrgentSendAllowed } from './send-urgent.policy.js';
 import {
   MessagesRepository,
   type MessageRow,
@@ -183,7 +183,7 @@ export class MessagesService {
     // @упоминания (раунд 3): справочник читаем ДО транзакции — текст известен
     // заранее, а второе соединение пула внутри tx голодает его под пачкой
     // параллельных отправок (repro chat-reliability).
-    const mentionMatches = await this.resolveMentionMatches(body.text);
+    const mentionMatches = await resolveMentionMatches(this.userProfiles, body.text);
     return this.txRunner.run(async (tx) => {
       const membership = await this.conversations.findMembership(conversationId, userId, tx);
       if (!membership) throw DomainException.notFound('Conversation not found');
@@ -205,6 +205,28 @@ export class MessagesService {
       if (!conversation) throw DomainException.notFound('Conversation not found');
       const permissions = parsePermissions(conversation.permissions);
       const threadRootId = body.threadRootId ?? null;
+
+      // «Важное сообщение» (#100): лимит отправителя и потолок участников —
+      // на бэкенде (I8); политика — чистая функция send-urgent.policy.ts.
+      const urgent = body.urgent ?? false;
+      if (urgent) {
+        const memberCount =
+          conversation.type === 'direct'
+            ? 0
+            : await this.conversations.countMembers(conversationId, tx);
+        const sentToday = await this.repo.countUrgentSentSince(
+          userId,
+          new Date(Date.now() - 24 * 3600 * 1000),
+          tx,
+        );
+        assertUrgentSendAllowed({
+          conversationType: conversation.type,
+          memberCount,
+          sentToday,
+          dailyLimit: Number(process.env.NOTIFY_URGENT_DAILY_LIMIT ?? 3),
+          groupMax: Number(process.env.NOTIFY_URGENT_GROUP_MAX ?? 20),
+        });
+      }
 
       // Право постить — только на корневые сообщения ленты; треды открыты
       // всем участникам (модель канала новостей: постят избранные, обсуждают все).
@@ -285,6 +307,8 @@ export class MessagesService {
           replySnapshot,
           threadRootId,
           fwd: null,
+          urgent,
+          mentionedUserIds: mentionMatches,
           createdAt: new Date(),
         },
         tx,
@@ -345,7 +369,13 @@ export class MessagesService {
       }
       // @упоминания (раунд 3): упомянутые — наблюдатели трэда этого сообщения
       // (для корневого — его будущего треда); соответствие решено до tx.
-      await this.addMentionWatchers(tx, threadRootId ?? inserted.id, mentionMatches, userId);
+      await addMentionWatchers(
+        this.threadParticipants,
+        tx,
+        threadRootId ?? inserted.id,
+        mentionMatches,
+        userId,
+      );
 
       const members = await this.conversations.listMembers([conversationId], tx);
       // Полный DTO в payload (раунд 3): клиенты применяют событие локально по
@@ -367,48 +397,14 @@ export class MessagesService {
           authorId: userId,
           threadRootId,
           forwarded: false,
+          urgent,
+          mentionedUserIds: mentionMatches,
           message: payloadMessage,
         },
         { actorId: userId, aggregateType: 'conversation', aggregateId: conversationId },
       );
       return { message: inserted, members, replayed: false };
     });
-  }
-
-  /** @упоминания → наблюдатели трэда (раунд 3): соответствие токен→сотрудник
-   *  по справочнику (порт ADR-0012, резолв ДО транзакции — текст известен
-   *  заранее, второе соединение пула не занимается), приоритет ФИО > имя >
-   *  фамилия, ТОЧНОЕ совпадение без регистра; автора упоминание не добавляет
-   *  (он и так участник). Возвращает id точных совпадений. */
-  private async resolveMentionMatches(text: string): Promise<string[]> {
-    const tokens = parseMentionTokens(text);
-    if (tokens.length === 0) return [];
-    const lower = new Set(tokens.map((t) => t.toLowerCase()));
-    const matches = await this.userProfiles.findMentionMatches(tokens);
-    const mentioned: string[] = [];
-    const seen = new Set<string>();
-    for (const match of matches) {
-      const exact =
-        lower.has(match.displayName.toLowerCase()) ||
-        lower.has(match.firstName.toLowerCase()) ||
-        lower.has(match.lastName.toLowerCase());
-      if (!exact || seen.has(match.ref.id)) continue;
-      seen.add(match.ref.id);
-      mentioned.push(match.ref.id);
-    }
-    return mentioned;
-  }
-
-  private async addMentionWatchers(
-    tx: TransactionClient,
-    threadRootId: string,
-    mentionedIds: string[],
-    authorId: string,
-  ): Promise<void> {
-    for (const mentionedId of mentionedIds) {
-      if (mentionedId === authorId) continue;
-      await this.threadParticipants.upsert(threadRootId, mentionedId, 'mentioned', tx);
-    }
   }
 
   // ===== Правка =====
@@ -561,49 +557,5 @@ export class MessagesService {
         );
       }
     }
-  }
-
-  // ===== Треды: наблюдение и состояния (раунд 3) =====
-
-  /**
-   * Состояния трэдов беседы для текущего пользователя: строка на каждый трэд,
-   * где он наблюдатель (автор корня / реплай / кнопка / @). Точка «есть новые»
-   * на посте и счётчик новым тоном — только по этим данным.
-   */
-  async threadStates(userId: string, conversationId: string): Promise<ThreadState[]> {
-    if (!(await this.conversations.findMembership(conversationId, userId))) {
-      throw DomainException.notFound('Conversation not found');
-    }
-    return this.threadParticipants.states(conversationId, userId);
-  }
-
-  /**
-   * Toggle наблюдения (кнопка «Следить/Перестать» в шапке окна треда):
-   * нет строки участия → добавить watcher; есть → снять наблюдение (строка
-   * удаляется целиком — реплай/@ добавят снова при следующем событии).
-   * Идемпотентность пары (пользователь, трэд) держит PK; повтор запроса с тем
-   * же Idempotency-Key возвращает первый результат (Redis-интерсептор).
-   */
-  async watchThread(
-    userId: string,
-    conversationId: string,
-    threadRootId: string,
-  ): Promise<{ watching: boolean }> {
-    return this.txRunner.run(async (tx) => {
-      if (!(await this.conversations.findMembership(conversationId, userId, tx))) {
-        throw DomainException.notFound('Conversation not found');
-      }
-      const root = await this.repo.findByIdInConversation(conversationId, threadRootId, tx);
-      if (!root || root.threadRootId !== null) {
-        throw DomainException.notFound('Thread root not found');
-      }
-      const watching = await this.threadParticipants.findLastRead(threadRootId, userId, tx);
-      if (watching === null) {
-        await this.threadParticipants.upsert(threadRootId, userId, 'watcher', tx);
-        return { watching: true };
-      }
-      await this.threadParticipants.delete(threadRootId, userId, tx);
-      return { watching: false };
-    });
   }
 }

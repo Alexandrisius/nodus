@@ -9,8 +9,10 @@ import { presenceEntrySchema } from '../directory/presence.schemas.js';
  * и в каталог/БД не попадают.
  */
 
-/** Redis Stream для фанута `chat.*` из api (издатель → gateway-consumer). */
-export const CHAT_EVENTS_STREAM = 'nodus:chat:events';
+/** Redis Stream для фанута доменных событий из api (издатель →
+ *  gateway-consumer). #100: стрим общий для всех доменных событий (был
+ *  chat-only); переименован вместе со снятием фильтра в publisher. */
+export const DOMAIN_EVENTS_STREAM = 'nodus:domain:events';
 
 /**
  * Envelope WS-доставки (канон api-conventions.md): seq — глобальный

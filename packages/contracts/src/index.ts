@@ -27,3 +27,5 @@ export * from './files/office-formats.js';
 export * from './files/office.schemas.js';
 export * from './views/view-preset.schemas.js';
 export * from './views/ui-preferences.schemas.js';
+export * from './notifications/notifications.schemas.js';
+export * from './notifications/notification-events.js';

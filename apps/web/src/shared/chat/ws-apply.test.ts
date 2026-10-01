@@ -11,7 +11,9 @@ import { applyReadEvent, applyReactionEvent, applySentMessage } from './ws-apply
 const CONV = 'conv-1';
 const ROOT = 'root-1';
 
-const msg = (overrides: Partial<ChatMessage> = {}): ChatMessage => ({
+const msg = (
+  overrides: Partial<import('@nodus/contracts').ChatMessage> = {},
+): import('@nodus/contracts').ChatMessage => ({
   id: 'm1',
   conversationId: CONV,
   seq: 1,
@@ -29,6 +31,8 @@ const msg = (overrides: Partial<ChatMessage> = {}): ChatMessage => ({
   forwardedFrom: null,
   readAt: null,
   readBy: [],
+  urgent: false,
+  mentionedUserIds: [],
   createdAt: '2026-09-25T10:00:00Z',
   ...overrides,
 });

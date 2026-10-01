@@ -232,6 +232,8 @@ export function useSendChatMessage(conversationId: string, draftScope?: string) 
         editedAt: null,
         readAt: null,
         readBy: [],
+        urgent: false,
+        mentionedUserIds: [],
         createdAt: new Date().toISOString(),
       };
 

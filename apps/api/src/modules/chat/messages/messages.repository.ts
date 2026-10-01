@@ -21,6 +21,8 @@ export interface MessageRow {
   editedAt: Date | null;
   deletedAt: Date | null;
   obliterated: boolean;
+  urgent: boolean;
+  mentionedUserIds: Prisma.JsonValue | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -76,6 +78,8 @@ const MESSAGE_COLS = Prisma.sql`
   edited_at AS "editedAt",
   deleted_at AS "deletedAt",
   obliterated,
+  urgent,
+  mentioned_user_ids AS "mentionedUserIds",
   created_at AS "createdAt",
   updated_at AS "updatedAt"
 `;
@@ -157,16 +161,20 @@ export class MessagesRepository {
         authorId: string;
         threadRootId: string | null;
       } | null;
+      urgent: boolean;
+      mentionedUserIds: string[];
       createdAt: Date;
     },
     tx: TransactionClient,
   ): Promise<MessageRow | null> {
     const snapshot = input.replySnapshot === null ? null : JSON.stringify(input.replySnapshot);
+    const mentioned = JSON.stringify(input.mentionedUserIds);
     const rows = await tx.$queryRaw<MessageRow[]>(Prisma.sql`
       INSERT INTO messages (
         id, conversation_id, seq, author_id, client_message_id, text,
         reply_to_id, reply_snapshot, thread_root_id,
         fwd_conversation_id, fwd_message_id, fwd_author_id, fwd_thread_root_id,
+        urgent, mentioned_user_ids,
         created_at, updated_at
       ) VALUES (
         ${input.id}::uuid, ${input.conversationId}::uuid, ${input.seq}::bigint,
@@ -174,6 +182,7 @@ export class MessagesRepository {
         ${input.replyToId}::uuid, ${snapshot}::jsonb, ${input.threadRootId}::uuid,
         ${input.fwd?.conversationId ?? null}::uuid, ${input.fwd?.messageId ?? null}::uuid,
         ${input.fwd?.authorId ?? null}::uuid, ${input.fwd?.threadRootId ?? null}::uuid,
+        ${input.urgent}, ${mentioned}::jsonb,
         ${input.createdAt}::timestamptz, ${input.createdAt}::timestamptz
       )
       ON CONFLICT (author_id, client_message_id) DO NOTHING
@@ -565,6 +574,21 @@ export class MessagesRepository {
       WHERE thread_root_id = ANY(${rootIds}::uuid[]) AND deleted_at IS NULL AND NOT obliterated
       GROUP BY thread_root_id
     `);
+  }
+
+  /** Срочные сообщения автора за скользящие сутки (#100): лимит
+   *  NOTIFY_URGENT_DAILY_LIMIT проверяется ДО вставки в транзакции отправки. */
+  async countUrgentSentSince(
+    authorId: string,
+    since: Date,
+    tx?: TransactionClient,
+  ): Promise<number> {
+    const client = this.client(tx);
+    const rows = await client.$queryRaw<{ count: bigint }[]>(Prisma.sql`
+      SELECT count(*) AS count FROM messages
+      WHERE author_id = ${authorId}::uuid AND urgent AND created_at >= ${since}::timestamptz
+    `);
+    return Number(rows[0]?.count ?? 0);
   }
 
   /** Ответы треда, кроме исключаемого (детект «первый ответ» для события). */

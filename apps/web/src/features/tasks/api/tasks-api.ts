@@ -265,6 +265,8 @@ export function useSendTaskMessage(taskId: string) {
         editedAt: null,
         readAt: null,
         readBy: [],
+        urgent: false,
+        mentionedUserIds: [],
         createdAt: new Date().toISOString(),
       };
       queryClient.setQueryData<Paginated<ChatMessage>>(tasksKeys.messages(taskId), (old) => ({

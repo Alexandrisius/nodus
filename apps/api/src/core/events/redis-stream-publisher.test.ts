@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Redis } from 'ioredis';
-import { CHAT_EVENTS_STREAM, type RealtimeEnvelope } from '@nodus/contracts';
+import { DOMAIN_EVENTS_STREAM, type RealtimeEnvelope } from '@nodus/contracts';
 
 import { RedisStreamPublisher } from './redis-stream-publisher.js';
 
@@ -63,7 +63,7 @@ describe('RedisStreamPublisher', () => {
     expect(redis.xadd).toHaveBeenCalledTimes(2);
     expect(redis.xadd).toHaveBeenNthCalledWith(
       1,
-      CHAT_EVENTS_STREAM,
+      DOMAIN_EVENTS_STREAM,
       'MAXLEN',
       '~',
       100_000,

@@ -2,8 +2,20 @@ import type { LaborWeek } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { NodeCard } from '@nodus/ui/components/node-card';
 
+/** Заглушка блока без данных: каркас витрины виден всегда (вердикт 01.10). */
+export function HomeEmptyHint({ text }: { text: string }) {
+  return <p className="py-3 text-sm text-muted-foreground">{text}</p>;
+}
+
 /** Трудозатраты по неделям: плоские столбики, моно-подписи (тема «Инструмент»). */
 export function HomeLabor({ weeks }: { weeks: LaborWeek[] }) {
+  if (weeks.length === 0) {
+    return (
+      <NodeCard label={ui.home.laborTitle}>
+        <HomeEmptyHint text={ui.home.laborEmpty} />
+      </NodeCard>
+    );
+  }
   const max = Math.max(...weeks.map((w) => w.hours), 1);
   const bw = 34;
   const gap = 16;
