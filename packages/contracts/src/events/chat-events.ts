@@ -57,6 +57,11 @@ export const chatMessageSentPayloadSchema = z.object({
   threadRootId: z.uuid().nullable(),
   /** Копия пересылки (атрибуция — в сообщении, не в событии). */
   forwarded: z.boolean(),
+  /** «Важное сообщение» (#100): ярус urgent получателям (direct/группы ≤20). */
+  urgent: z.boolean(),
+  /** Упомянутые @Имя userId (снапшот момента отправки, #100): fanout
+   *  уведомлений модулю notifications без разбора текста (I3). */
+  mentionedUserIds: z.array(z.uuid()),
   /** Полный DTO нового сообщения (раунд 3, «буря рефечей»): живые клиенты
    *  применяют его в кэш ЛОКАЛЬНО по seq (канон Telegram: событие несёт
    *  сообщение; дыра в seq/правка/удаление — рефеч). Поле заполнено всегда;

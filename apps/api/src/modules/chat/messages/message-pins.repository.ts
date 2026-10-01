@@ -39,6 +39,7 @@ export class MessagePinsRepository {
              fwd_conversation_id AS "fwdConversationId", fwd_message_id AS "fwdMessageId",
              fwd_author_id AS "fwdAuthorId", fwd_thread_root_id AS "fwdThreadRootId",
              edited_at AS "editedAt", deleted_at AS "deletedAt", obliterated,
+             urgent, mentioned_user_ids AS "mentionedUserIds",
              created_at AS "createdAt", updated_at AS "updatedAt"
       FROM messages WHERE id = ANY(${ids}::uuid[])
     `);

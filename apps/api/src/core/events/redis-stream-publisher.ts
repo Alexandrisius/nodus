@@ -3,7 +3,7 @@ import type { OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { PinoLogger } from 'nestjs-pino';
 import type { Redis } from 'ioredis';
 import { Prisma } from '../../generated/prisma/client.js';
-import { CHAT_EVENTS_STREAM, type RealtimeEnvelope } from '@nodus/contracts';
+import { DOMAIN_EVENTS_STREAM, type RealtimeEnvelope } from '@nodus/contracts';
 
 import { PrismaService } from '../database/prisma.service.js';
 import { REDIS_CLIENT } from '../redis/redis.module.js';
@@ -26,11 +26,12 @@ interface PendingEventRow {
 }
 
 /**
- * Издатель realtime-фанута (#104): читает хвост outbox `events` с доменными
- * событиями `chat.*` и публикует их в Redis Stream `nodus:chat:events`
- * (consumer — WS-gateway). Это отдельный лёгкий поллер, а не EventDispatcher:
- * тот доставляет события внутрибоксовым обработчикам (1 с), здесь бюджет —
- * <200 мс до браузера.
+ * Издатель realtime-фанута (#104, #100): читает хвост outbox `events` со ВСЕМИ
+ * доменными событиями (фильтр `chat.%` снят #100 — модуль notifications
+ * расходует тот же конвейер; gateway неизвестные ему типы игнорирует) и
+ * публикует их в Redis Stream `nodus:domain:events` (consumer — WS-gateway).
+ * Это отдельный лёгкий поллер, а не EventDispatcher: тот доставляет события
+ * внутрибоксовым обработчикам (1 с), здесь бюджет — <200 мс до браузера.
  *
  * Курсор — множество строк с `fanout_at IS NULL`, а НЕ `seq > checkpoint`:
  * seq выделяется последовательностью БД ВНУТРИ незакоммиченной транзакции,
@@ -87,7 +88,7 @@ export class RedisStreamPublisher implements OnModuleInit, OnModuleDestroy {
       const rows = await this.prisma.$queryRaw<PendingEventRow[]>(
         Prisma.sql`SELECT id, seq, type, payload, created_at AS "createdAt"
                    FROM events
-                   WHERE fanout_at IS NULL AND type LIKE 'chat.%'
+                   WHERE fanout_at IS NULL
                    ORDER BY seq ASC
                    LIMIT ${BATCH_LIMIT}`,
       );
@@ -103,7 +104,7 @@ export class RedisStreamPublisher implements OnModuleInit, OnModuleDestroy {
           ts: row.createdAt.toISOString(),
         };
         pipeline.xadd(
-          CHAT_EVENTS_STREAM,
+          DOMAIN_EVENTS_STREAM,
           'MAXLEN',
           '~',
           STREAM_MAXLEN,

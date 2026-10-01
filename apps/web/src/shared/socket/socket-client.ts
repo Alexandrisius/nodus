@@ -12,6 +12,11 @@ import { useAuthStore } from '../auth-store.js';
 import { chatKeys } from '../chat/api.js';
 import { usePresenceStore } from './presence-store.js';
 import { notifySentMessage } from '../chat/notifications.js';
+import {
+  notificationAcked,
+  notificationDispatched,
+  notificationRead,
+} from './notification-bridge.js';
 import { createRealtimeInvalidator, type RealtimeInvalidator } from './socket-invalidation.js';
 import { useSocketStatusStore } from './socket-status-store.js';
 import { useTypingStore } from './typing-store.js';
@@ -38,6 +43,10 @@ const DOMAIN_EVENTS = [
   'chat.thread_created',
   'chat.conversation_created',
   'chat.member_added',
+  // Живые уведомления (#100): user-комната получает весь журнал-будил.
+  'notification.dispatch_requested',
+  'notification.read',
+  'notification.acked',
 ] as const;
 
 let socket: Socket | null = null;
@@ -79,13 +88,19 @@ export function connectChatSocket(queryClient: QueryClient): void {
     client.io.engine.once('upgrade', () => {
       wsDebugLog('upgrade →', client.io.engine.transport.name);
     });
-    // Reconnect: догон состояния (события разрыва пропущены — invalidate
-    // всего чат-дерева ключей) + повторная подписка на активные беседы.
+    // Reconnect: догон состояния ТОЧЕЧНО (#100, закрывает «дельта-догрузку»
+    // #119): список бесед + открытые ленты (сервер — истина), полный рефеч
+    // чат-дерева не нужен — ленты применяют события по seq, дыры закрывает
+    // точечная инвалидация только ПОДПИСАННЫХ бесед; прочие кэши свежат
+    // по требованию. Пропущенные уведомления добираются дельтой журнала
+    // (мост получит событие повторной сводки — сводка рефечится в 'feed').
     invalidator?.flush();
-    void queryClient.invalidateQueries({ queryKey: chatKeys.all });
+    void queryClient.invalidateQueries({ queryKey: chatKeys.conversations() });
     for (const conversationId of joinedConversations) {
+      void queryClient.invalidateQueries({ queryKey: chatKeys.messages(conversationId) });
       emitJoin(conversationId);
     }
+    void queryClient.invalidateQueries({ queryKey: ['notifications'] });
   });
   client.on('disconnect', (reason) => {
     status.setConnected(false);
@@ -129,6 +144,8 @@ export function connectChatSocket(queryClient: QueryClient): void {
         if (parsed.data.type === CHAT_EVENTS.MESSAGE_SENT) {
           notifySentMessage(parsed.data.payload);
         }
+        wsDebugLog('domain event:', parsed.data.type);
+        dispatchNotification(parsed.data);
       }
     });
   }
@@ -158,6 +175,37 @@ export function connectChatSocket(queryClient: QueryClient): void {
       presence.setStatus(payload.user.id, payload.status as 'online' | 'away' | 'offline');
     }
   });
+}
+
+/** Будила журнала (#100): тосты/гашение/ack — через мост в фичу. */
+function dispatchNotification(envelope: RealtimeEnvelope): void {
+  const payload = (envelope.payload ?? {}) as Record<string, unknown>;
+  if (envelope.type === 'notification.dispatch_requested') {
+    const snapshot = payload.snapshot as Record<string, unknown> | null;
+    if (snapshot && typeof snapshot.notificationId === 'string') {
+      notificationDispatched(
+        snapshot as never,
+        typeof payload.attempt === 'number' ? payload.attempt : 0,
+      );
+    }
+    return;
+  }
+  if (envelope.type === 'notification.read') {
+    if (typeof payload.userId === 'string') {
+      notificationRead(payload.userId, (payload.sourceId as string | null) ?? null);
+    }
+    return;
+  }
+  if (envelope.type === 'notification.acked') {
+    if (typeof payload.userId === 'string' && typeof payload.messageId === 'string') {
+      notificationAcked({
+        userId: payload.userId,
+        messageId: payload.messageId,
+        ackedCount: typeof payload.ackedCount === 'number' ? payload.ackedCount : 0,
+        expectedCount: typeof payload.expectedCount === 'number' ? payload.expectedCount : 0,
+      });
+    }
+  }
 }
 
 export function disconnectChatSocket(): void {

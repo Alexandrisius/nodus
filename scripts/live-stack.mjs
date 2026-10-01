@@ -136,7 +136,7 @@ async function up() {
   // но здесь не хотим пересобирать остальной граф).
   run('pnpm --filter @nodus/web exec vite build', [], { ...process.env, VITE_API_MOCK: 'false' });
 
-  const base = { ...process.env, ...loadDotEnv() };
+  const base = { ...loadDotEnv(), ...process.env };
   const pids = {
     api: startService('api', ['apps/api/dist/main.js'], {
       ...base,

@@ -52,6 +52,16 @@ const envSchema = z
     /** Потолок размера файла на открытие в редакторе (50 МБ: гигантские листы
      *  открываются карточкой скачивания — спека #138). */
     OFFICE_MAX_VIEW_BYTES: z.coerce.number().int().min(1).default(52_428_800),
+    /** «Важные сообщения» (#100): интервал повторных напоминаний, секунды
+     *  (канон Mattermost persistent: 300 = 5 мин). Тесты/live-приёмка сжимают. */
+    NOTIFY_URGENT_REPEAT_SEC: z.coerce.number().int().min(1).default(300),
+    /** Потолок повторов срочного, секунды (канон 1800 = 30 мин, C4). */
+    NOTIFY_URGENT_MAX_SEC: z.coerce.number().int().min(2).default(1800),
+    /** Суточный лимит «важных сообщений» на отправителя (C5; дисциплину
+     *  даёт лимит, не иерархия — вердикт 30.09). */
+    NOTIFY_URGENT_DAILY_LIMIT: z.coerce.number().int().min(1).default(3),
+    /** Потолок участников беседы для «важного сообщения» (C10, I8). */
+    NOTIFY_URGENT_GROUP_MAX: z.coerce.number().int().min(2).default(20),
   })
   .refine((env) => !env.OFFICE_ENABLED || Boolean(env.OFFICE_JWT_SECRET), {
     message: 'OFFICE_JWT_SECRET обязателен при OFFICE_ENABLED',

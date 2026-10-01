@@ -28,6 +28,7 @@ export interface ConversationListRow {
   lm_seq: bigint | null;
   lm_author_id: string | null;
   lm_text: string | null;
+  lm_urgent: boolean | null;
   lm_reply_to_id: string | null;
   lm_reply_snapshot: Prisma.JsonValue | null;
   lm_thread_root_id: string | null;
@@ -91,6 +92,7 @@ const LIST_SELECT = (userId: string): Prisma.Sql => Prisma.sql`
                   AND tp.user_id = ${userId}::uuid
                   AND um.seq > tp.last_read_seq))) AS unread_count,
     lm.id AS lm_id, lm.seq AS lm_seq, lm.author_id AS lm_author_id, lm.text AS lm_text,
+    lm.urgent AS lm_urgent,
     lm.reply_to_id AS lm_reply_to_id, lm.reply_snapshot AS lm_reply_snapshot,
     lm.thread_root_id AS lm_thread_root_id,
     lm.fwd_conversation_id AS lm_fwd_conversation_id, lm.fwd_message_id AS lm_fwd_message_id,
@@ -314,6 +316,16 @@ export class ConversationsRepository {
       LIMIT 1
     `);
     return rows[0] ?? null;
+  }
+
+  /** Число участников беседы (лимит «важного сообщения», #100). */
+  async countMembers(conversationId: string, tx?: TransactionClient): Promise<number> {
+    const client = this.client(tx);
+    const rows = await client.$queryRaw<{ count: bigint }[]>(Prisma.sql`
+      SELECT count(*) AS count FROM conversation_members
+      WHERE conversation_id = ${conversationId}::uuid
+    `);
+    return Number(rows[0]?.count ?? 0);
   }
 
   /** Персьональные настройки списка (pinned/muted/snoozed/hidden). */

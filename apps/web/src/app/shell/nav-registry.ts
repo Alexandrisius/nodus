@@ -27,7 +27,7 @@ export interface NavModuleDef {
   /** Активен по точному совпадению пути (Главная) или по префиксу. */
   exact?: boolean;
   /** Источник счётчика-значка (считается в рейке по живым данным). */
-  badge?: 'tasks' | 'letters' | 'chat';
+  badge?: 'tasks' | 'letters' | 'chat' | 'notifications';
   tabs: NavTabDef[];
 }
 
@@ -44,7 +44,15 @@ export interface NavModuleDef {
  * места Главная стала бы недостижимой; подтверждено research, gotchas).
  */
 export const NAV_MODULES: NavModuleDef[] = [
-  { id: 'home', to: '/home', label: ui.nav.home, icon: House, exact: true, tabs: [] },
+  {
+    id: 'home',
+    to: '/home',
+    label: ui.nav.home,
+    icon: House,
+    exact: true,
+    badge: 'notifications',
+    tabs: [],
+  },
   {
     id: 'tasks',
     to: '/tasks',

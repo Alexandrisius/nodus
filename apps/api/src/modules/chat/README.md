@@ -3,10 +3,18 @@
 Беседы (direct/group/project_channel/task/letter), сообщения, треды, реакции,
 закрепы, прочитанность, пересылка. REST-контур под готовый контракт UI
 (`packages/contracts/src/chat/chat.schemas.ts`). Realtime — WS-gateway (#104,
-M13): события `chat.*` публикуются в Redis Stream `nodus:chat:events`
-издателем `core/events/redis-stream-publisher` (опрос outbox по монотонному
-`events.seq` ~100 мс); клиент применяет их только как инвалидации. Модуль за
-фичефлагом `chat` (I10).
+M13): ДОМЕННЫЕ события (все модули, #100) публикуются в Redis Stream
+`nodus:domain:events` издателем `core/events/redis-stream-publisher`
+(опрос outbox по монотонному `events.seq`, метка fanout_at); клиент применяет
+их только как инвалидации. Модуль за фичефлагом `chat` (I10).
+
+#100: отправка несёт `urgent` («важное сообщение»: лимит
+`NOTIFY_URGENT_DAILY_LIMIT`/сутки отправителя, группы ≤
+`NOTIFY_URGENT_GROUP_MAX` — проверка в send-urgent.policy, I8) и снапшот
+`mentionedUserIds` (упоминания фиксируются при отправке, правка не добавляет);
+payload `chat.message_sent` отдаёт оба поля модулю notifications (I3). Состав
+бесед с mute-флагами читается чужими модулями через read-порт
+`CHAT_MEMBERSHIP_READER` (ADR-0012, chat-ports.module).
 
 ## Ключевые решения (почему так)
 

@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "messages" ADD COLUMN     "mentioned_user_ids" JSONB;

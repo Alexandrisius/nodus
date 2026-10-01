@@ -9,6 +9,8 @@ import { registerCardBridge, registerReplaceTopMessenger } from '../../shared/li
 import { stageMessengerThread } from '../../shared/chat/messenger-nav.js';
 import { ChatDialogHosts } from '../../shared/chat/dialog-hosts.js';
 import { AttachmentViewer } from '../../shared/files/attachment-viewer.js';
+import { NotificationToasts } from '../../features/notifications/components/notification-toasts.js';
+import { useNotificationSink } from '../../features/notifications/model/use-notification-sink.js';
 import { useUnreadTitle } from '../../shared/chat/unread-title.js';
 import { useChatSocket } from '../../shared/socket/use-chat-socket.js';
 import { WsDebugBadge } from '../../shared/socket/ws-debug-badge.js';
@@ -50,6 +52,7 @@ export function AppShell() {
   const viewerStripW = railHidden ? 0 : edgeOpen ? EDGE_W_EXPANDED : EDGE_W_COLLAPSED;
   // WS чата (#104): живёт с сессией, тихий статус; поллинг — fallback.
   useChatSocket();
+  useNotificationSink();
   // Диагностика «карточка дёргается» (#132 р.11): только ?wsdebug=1 — кадровые
   // логи [jitter] смещений ключевых контейнеров (см. layout-jitter-logger).
   useEffect(() => {
@@ -57,6 +60,7 @@ export function AppShell() {
   }, []);
   // (N) Nodus в заголовке вкладки (#124): сигнал фоновой вкладке.
   useUnreadTitle();
+  // Тосты уведомлений (#100): поверх карточек (z-[70] внутри хоста).
   const stressMode =
     typeof window !== 'undefined' &&
     Number(new URLSearchParams(window.location.search).get('stress') ?? 0) >= 1000;
@@ -143,6 +147,7 @@ export function AppShell() {
       <CircuitFrame />
       <EdgeScrollbar />
       <WsDebugBadge />
+      <NotificationToasts />
       <CommandPalette />
       <ChatDialogHosts />
       <AttachmentViewer stripW={viewerStripW} />

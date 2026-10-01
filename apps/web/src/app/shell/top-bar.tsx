@@ -1,17 +1,12 @@
-import { Bell, Moon, Search, Sun } from 'lucide-react';
+import { Moon, Search, Sun } from 'lucide-react';
 import { useLayoutEffect } from 'react';
 import { Link, useRouterState } from '@tanstack/react-router';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-} from '@nodus/ui/components/dropdown-menu';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { HomeGreeting } from '../../features/home/components/home-greeting.js';
+import { BellPopover } from '../../features/notifications/components/bell-popover.js';
 import { CIRCUIT_REMEASURE } from './circuit-geometry.js';
 import { navModuleForPath } from './nav-registry.js';
 import { ProfileMenu } from './profile-menu.js';
@@ -107,25 +102,7 @@ export function TopBar() {
           </span>
         </Button>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label={ui.topbar.notifications}
-              className="relative text-muted-foreground hover:bg-accent hover:text-foreground"
-            >
-              <Bell />
-              <span className="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-primary ring-2 ring-background" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-72">
-            <DropdownMenuLabel>{ui.topbar.notifications}</DropdownMenuLabel>
-            <div className="px-3 py-6 text-center text-sm text-muted-foreground">
-              {ui.topbar.notificationsEmpty}
-            </div>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <BellPopover />
 
         {/* Профиль — правый верх мягкой рамы, справа от уведомлений (вердикт
             владельца 15.09.2026: служебная полоса — только аватарки коллег). */}

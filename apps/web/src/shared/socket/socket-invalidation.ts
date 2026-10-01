@@ -3,6 +3,7 @@ import type { RealtimeEnvelope } from '@nodus/contracts';
 
 import { chatKeys } from '../chat/api.js';
 import { applyReadEvent, applyReactionEvent, applySentMessage } from '../chat/ws-apply.js';
+import { notificationsKeys } from '../notifications-keys.js';
 import { createKeyBatcher, type KeyBatcher } from './invalidation-batcher.js';
 
 /**
@@ -12,6 +13,8 @@ import { createKeyBatcher, type KeyBatcher } from './invalidation-batcher.js';
  * коалесцируются батчером (invalidation-batcher): каждый ключ инвалидируется
  * один раз за окно, список бесед — по медленному ярусу (гистерезис
  * пересортировки). Префикс messages(id) покрывает и тред-ключи.
+ * notification.* (#100): журнал/сводка — быстрый ярус; тосты — через мост
+ * notification-bridge (фича регистрирует синк, shared не знает features).
  */
 export interface RealtimeInvalidator {
   handle: (envelope: RealtimeEnvelope) => void;
@@ -88,6 +91,11 @@ export function createRealtimeInvalidator(queryClient: QueryClient): RealtimeInv
         case 'chat.conversation_created':
         case 'chat.member_added':
           batcher.push(chatKeys.conversations(), 'list');
+          return;
+        case 'notification.dispatch_requested':
+        case 'notification.read':
+        case 'notification.acked':
+          batcher.push(notificationsKeys.all, 'feed');
           return;
         default:
           return;

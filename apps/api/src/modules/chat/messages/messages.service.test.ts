@@ -31,6 +31,8 @@ function makeMessage(overrides: Partial<MessageRow> = {}): MessageRow {
     editedAt: null,
     deletedAt: null,
     obliterated: false,
+    urgent: false,
+    mentionedUserIds: null,
     createdAt: now,
     updatedAt: now,
     ...overrides,
@@ -72,6 +74,7 @@ describe('MessagesService', () => {
     deletePinByMessage: vi.fn(),
     markRepliesDeleted: vi.fn(),
     advanceReadCursor: vi.fn(),
+    countUrgentSentSince: vi.fn(),
   };
   const conversations = {
     findMembership: vi.fn(),
@@ -81,6 +84,7 @@ describe('MessagesService', () => {
     clearDraft: vi.fn(),
     unsnooze: vi.fn(),
     revealHidden: vi.fn(),
+    countMembers: vi.fn(),
   };
   const mapper = { toDtos: vi.fn(), toFreshDto: vi.fn() };
   const threadParticipants = {
@@ -113,6 +117,8 @@ describe('MessagesService', () => {
       permissions: { ...DEFAULT_CONVERSATION_PERMISSIONS },
     });
     conversations.listMembers.mockResolvedValue([]);
+    conversations.countMembers.mockResolvedValue(5);
+    repo.countUrgentSentSince.mockResolvedValue(0);
     repo.findExisting.mockResolvedValue(null);
     mapper.toFreshDto.mockResolvedValue(FRESH_DTO);
     repo.findByIdInConversation.mockResolvedValue(null);
@@ -319,6 +325,8 @@ describe('MessagesService', () => {
           authorId: ME,
           threadRootId: null,
           forwarded: false,
+          urgent: false,
+          mentionedUserIds: [],
           // Полный DTO в payload (раунд 3): локальное применение по seq.
           message: FRESH_DTO,
         },

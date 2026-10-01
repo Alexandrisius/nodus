@@ -19,6 +19,8 @@ import { ChatFileAccessModule } from './modules/chat/file-access/chat-file-acces
 import { ChatModule } from './modules/chat/chat.module.js';
 import { DirectoryModule } from './modules/directory/directory.module.js';
 import { FilesModule } from './modules/files/files.module.js';
+import { NotificationsModule } from './modules/notifications/notifications.module.js';
+import { HomeModule } from './modules/home/home.module.js';
 
 @Module({
   imports: [
@@ -37,6 +39,10 @@ import { FilesModule } from './modules/files/files.module.js';
     // FILE_ACCESS_CONTRIBUTORS — после ChatModule (свой модуль не тянет).
     ChatFileAccessModule,
     DirectoryModule,
+    // Уведомления (#100): журнал + ярусы; читает состав бесед read-портом
+    // чата (ChatPortsModule внутри), подписан на события chat.*.
+    NotificationsModule,
+    HomeModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: DomainExceptionFilter },

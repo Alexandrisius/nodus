@@ -382,6 +382,12 @@ model Message {
   /// непрерывности seq, ссылок тредов/цитат/пинов и аудита, но исключается
   /// из всех выдач. false у надгробия (видно как «Сообщение удалено»).
   obliterated  Boolean   @default(false)
+  /// «Важное сообщение» (#100): пробивается через mute/DND, повторно
+  /// напоминает до ознакомления/ответа/реакции/потолка; лимит на отправителя.
+  urgent       Boolean   @default(false)
+  /// userId упомянутых @Имя — снапшот МОМЕНТА ОТПРАВКИ (#100, канон
+  /// Discord/Zulip): правка текста упоминания не добавляет/убирает.
+  mentionedUserIds Json?  @map("mentioned_user_ids")
   createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
 
@@ -624,4 +630,85 @@ model FileVersion {
 
   @@unique([fileObjectId, version])
   @@map("file_versions")
+}
+
+// ===== Модуль notifications (#100, ADR-0016) =====
+
+/// Ярус внимания: иерархия блоков Главной = иерархия ярусов (вердикт 30.09).
+/// Системная константа (не бизнес-справочник, I15): enum допустим в БД? — нет:
+/// TEXT + zod-контракт (канон prisma-migrations: бизнес-значения без ENUM).
+/// Ярусы — системная классификация механизма, но перечислены в contracts.
+
+/// Журнал уведомлений — источник истины (ADR-0016): каждое уведомление
+/// персистентно; WS только будит. seq — bigserial (курсор дельты после
+/// reconnect); (event_id, user_id) — дедуп повторной доставки события (D4).
+model Notification {
+  id           String    @id @default(uuid()) @db.Uuid
+  /// Глобальный порядок журнала: курсор дельты `?afterSeq=` (D1/D3).
+  seq          BigInt    @unique @default(autoincrement())
+  userId       String    @map("user_id") @db.Uuid
+  /// urgent | personal | action | background (zod-контракт).
+  tier         String
+  /// Механика источника (urgent.message, chat.mention, action.assignment…).
+  kind         String
+  /// conversation | message | task | letter | workflow.
+  sourceType   String    @map("source_type")
+  /// Id агрегата источника (переход по клику, группировка строк).
+  sourceId     String    @map("source_id") @db.Uuid
+  /// seq события-источника в беседе (гашение по watermark прочтения).
+  sourceSeq    BigInt    @map("source_seq")
+  actorId      String?   @map("actor_id") @db.Uuid
+  /// Превью текста (поиск, строка ленты).
+  preview      String?
+  /// Полный текст срочного — тело «листа ознакомления» (только urgent).
+  urgentText   String?   @map("urgent_text")
+  conversationId String? @map("conversation_id") @db.Uuid
+  conversationTitle String? @map("conversation_title")
+  messageId    String?  @map("message_id") @db.Uuid
+  threadRootId String?  @map("thread_root_id") @db.Uuid
+  /// Событие-первоисточник: дедуп (event_id, user_id) = один экземпляр.
+  eventId      String    @map("event_id") @db.Uuid
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  readAt       DateTime? @map("read_at") @db.Timestamptz()
+  /// Ознакомление (СЭД-паттерн): только urgent; отдельный от readAt акт.
+  ackAt        DateTime? @map("ack_at") @db.Timestamptz()
+  /// Повторы срочного остановлены (прочтение/ответ/реакция/потолок, C2/C3).
+  repeatsStoppedAt DateTime? @map("repeats_stopped_at") @db.Timestamptz()
+
+  deliveries   NotificationDelivery[]
+
+  @@unique([eventId, userId])
+  @@index([userId, readAt, seq(sort: Desc)])
+  @@index([userId, seq(sort: Desc)])
+  @@index([sourceId, tier, ackAt])
+  @@index([tier, readAt, createdAt])
+  @@map("notifications")
+}
+
+/// Журнал доставок по каналам (C11/D6): когда и каким каналом доставлено;
+/// повторы срочного — строки channel='repeat' с номером попытки.
+model NotificationDelivery {
+  id             String   @id @default(uuid()) @db.Uuid
+  notificationId String   @map("notification_id") @db.Uuid
+  /// ws | repeat (расширяемо: будущие desktop/push-каналы).
+  channel        String
+  /// 0 — первая доставка; 1..N — попытки повтора.
+  attempt        Int      @default(0)
+  deliveredAt    DateTime @default(now()) @map("delivered_at") @db.Timestamptz()
+
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+
+  @@index([notificationId, deliveredAt])
+  @@map("notification_deliveries")
+}
+
+/// Настройки уведомлений пользователя (DND-расписание; ADR-0016 §3).
+model NotificationSetting {
+  userId     String   @id @map("user_id") @db.Uuid
+  dndEnabled Boolean  @default(false) @map("dnd_enabled")
+  /// Окно «не беспокоить», локальное «HH:mm» (подавление на клиенте).
+  dndStart   String   @default("22:00") @map("dnd_start")
+  dndEnd     String   @default("08:00") @map("dnd_end")
+
+  @@map("notification_settings")
 }

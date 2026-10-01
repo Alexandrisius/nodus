@@ -136,6 +136,12 @@ export const messageSchema = z.object({
    *  Только для СВОИХ сообщений (приватность: прочитавших видит лишь автор);
    *  у чужих — пустой массив. Правка исключает прочитавшего до перечитывания. */
   readBy: z.array(userRefSchema),
+  /** «Важное сообщение» (#100): срочное — пробивается через mute/DND,
+   *  повторно напоминает до ознакомления/ответа/реакции/потолка. */
+  urgent: z.boolean(),
+  /** Упомянутые @Имя (userId, зафиксированы при отправке, #100): fanout
+   *  уведомлений без разбора текста; правка упоминания не добавляет. */
+  mentionedUserIds: z.array(z.uuid()),
   createdAt: z.iso.datetime(),
 });
 
@@ -319,6 +325,9 @@ export const sendMessageBodySchema = z
      *  ответа (модель Telegram Replies 2.0); сервер усекает снапшот. */
     quoteText: z.string().trim().max(1024).nullable().optional(),
     threadRootId: z.uuid().nullable().optional(),
+    /** «Важное сообщение» (#100): прямые беседы и группы ≤20 участников;
+     *  лимит на отправителя (по умолчанию 3/сутки) проверяет сервер. */
+    urgent: z.boolean().optional(),
   })
   .refine(
     (v) => v.text.length > 0 || (v.attachmentIds?.length ?? 0) > 0 || v.stickerId !== undefined,

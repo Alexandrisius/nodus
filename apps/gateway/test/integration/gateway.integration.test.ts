@@ -2,7 +2,7 @@ import { SignJWT } from 'jose';
 import { io as clientIo, type Socket as ClientSocket } from 'socket.io-client';
 import { Redis } from 'ioredis';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { CHAT_EVENTS_STREAM, type RealtimeEnvelope } from '@nodus/contracts';
+import { DOMAIN_EVENTS_STREAM, type RealtimeEnvelope } from '@nodus/contracts';
 
 import { createGatewayServer, type GatewayServer } from '../../src/gateway-server.js';
 import { PgMembershipStore } from '../../src/membership.js';
@@ -58,10 +58,10 @@ describe.skipIf(!process.env.DATABASE_URL || !process.env.REDIS_URL || !process.
       // Свои записи стрима и изолированная группа прогона — ДО disconnect
       // (ioredis после disconnect отвергает команды).
       for (const entryId of streamEntryIds) {
-        await publisherRedis?.xdel(CHAT_EVENTS_STREAM, entryId);
+        await publisherRedis?.xdel(DOMAIN_EVENTS_STREAM, entryId);
       }
       await publisherRedis
-        ?.xgroup('DESTROY', CHAT_EVENTS_STREAM, consumerGroup)
+        ?.xgroup('DESTROY', DOMAIN_EVENTS_STREAM, consumerGroup)
         .catch(() => undefined);
       await gateway?.close();
       redis?.disconnect();
@@ -182,7 +182,7 @@ describe.skipIf(!process.env.DATABASE_URL || !process.env.REDIS_URL || !process.
       const sentAt = Date.now();
       // Стрим общий с dev-контуром: синтетика полностью контрактна и вычищается.
       const entryId = (await publisherRedis.xadd(
-        CHAT_EVENTS_STREAM,
+        DOMAIN_EVENTS_STREAM,
         'MAXLEN',
         '~',
         100_000,

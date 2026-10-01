@@ -93,7 +93,7 @@ export class MessageActionsController {
     @GetUser() user: { id: string },
     @Param('id', new ZodValidationPipe(uuidSchema)) conversationId: string,
   ): Promise<ThreadStateList> {
-    return this.messages.threadStates(user.id, conversationId).then((items) => ({ items }));
+    return this.actions.threadStates(user.id, conversationId).then((items) => ({ items }));
   }
 
   @Post('threads/:rootId/watch')
@@ -108,7 +108,7 @@ export class MessageActionsController {
     @Param('id', new ZodValidationPipe(uuidSchema)) conversationId: string,
     @Param('rootId', new ZodValidationPipe(uuidSchema)) rootId: string,
   ): Promise<ThreadWatchResult> {
-    return this.messages.watchThread(user.id, conversationId, rootId);
+    return this.actions.watchThread(user.id, conversationId, rootId);
   }
 
   // ===== Закрепы =====

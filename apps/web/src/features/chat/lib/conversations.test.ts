@@ -44,6 +44,8 @@ function conv(id: string, at: string | null, pinned = false): ConversationListIt
           editedAt: null,
           readAt: null,
           readBy: [],
+          urgent: false,
+          mentionedUserIds: [],
           createdAt: at,
         }
       : null,

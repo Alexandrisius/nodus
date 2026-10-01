@@ -115,6 +115,12 @@ export async function setupChatFixture<T extends string>(
     update: { enabled: true },
     create: { key: 'chat', enabled: true },
   });
+  // Уведомления (#100) — тот же закон: фикстура включает флаг модуля.
+  await prisma.featureFlag.upsert({
+    where: { key: 'notifications' },
+    update: { enabled: true },
+    create: { key: 'notifications', enabled: true },
+  });
 
   // Хвосты упавших прошлых прогонов (файлы идут последовательно — гонки нет).
   const abandoned = await prisma.user.findMany({

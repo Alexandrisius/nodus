@@ -39,7 +39,7 @@ correspondence.letter_received / letter_registered / letter_sent
 correspondence.resolution_issued            # → порождает task.created (source=letter)
 workflow.instance_started / step_completed / approved / rejected / escalated
 file.uploaded / preview_ready / version_added
-notification.dispatch_requested / read      # единая точка входа для диспетчера каналов
+notification.dispatch_requested / read / acked  # единая точка входа диспетчера каналов; acked — будило отправителю срочного (#100)
 custom_field.definition_changed / value_changed  # агрегат + код поля + старое/новое значение
 ```
 

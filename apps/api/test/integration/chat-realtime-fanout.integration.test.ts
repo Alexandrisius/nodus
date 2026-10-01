@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
-  CHAT_EVENTS_STREAM,
+  DOMAIN_EVENTS_STREAM,
   chatMessageSentPayloadSchema,
   messageSchema,
   realtimeEnvelopeSchema,
@@ -34,7 +34,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
     afterAll(async () => {
       // Вежливая уборка стрима: тестовые envelope не копятся в общем хвосте.
       for (const id of publishedIds) {
-        await fx?.redis.xdel(CHAT_EVENTS_STREAM, id);
+        await fx?.redis.xdel(DOMAIN_EVENTS_STREAM, id);
       }
       await fx?.cleanup();
     });
@@ -47,7 +47,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
     ): Promise<{ id: string; envelope: RealtimeEnvelope } | null> {
       let cursor = '-';
       for (;;) {
-        const batch = (await fx.redis.xrange(CHAT_EVENTS_STREAM, cursor, '+', 'COUNT', 200)) as [
+        const batch = (await fx.redis.xrange(DOMAIN_EVENTS_STREAM, cursor, '+', 'COUNT', 200)) as [
           string,
           string[],
         ][];

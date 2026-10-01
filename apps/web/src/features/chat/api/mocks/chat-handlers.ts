@@ -246,6 +246,8 @@ const conversationHandlers = [
       editedAt: null,
       readAt: null,
       readBy: [],
+      urgent: false,
+      mentionedUserIds: [],
       createdAt: new Date().toISOString(),
     };
     demoMessages.push(message);

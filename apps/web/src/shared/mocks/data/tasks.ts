@@ -178,6 +178,8 @@ export const demoTaskMessages: ChatMessage[] = [
     editedAt: null,
     readAt: null,
     readBy: [],
+    urgent: false,
+    mentionedUserIds: [],
     createdAt: isoAgo(2, 9, 12),
   },
   {
@@ -198,6 +200,8 @@ export const demoTaskMessages: ChatMessage[] = [
     editedAt: null,
     readAt: isoAgo(2, 9, 41),
     readBy: [],
+    urgent: false,
+    mentionedUserIds: [],
     createdAt: isoAgo(2, 9, 40),
   },
   {
@@ -231,6 +235,8 @@ export const demoTaskMessages: ChatMessage[] = [
     editedAt: null,
     readAt: null,
     readBy: [],
+    urgent: false,
+    mentionedUserIds: [],
     createdAt: isoAgo(1, 14, 5),
   },
 ];

@@ -1,7 +1,7 @@
 import type { Server } from 'socket.io';
 import type { Redis } from 'ioredis';
 import {
-  CHAT_EVENTS_STREAM,
+  DOMAIN_EVENTS_STREAM,
   realtimeEnvelopeSchema,
   type RealtimeEnvelope,
 } from '@nodus/contracts';
@@ -33,7 +33,10 @@ function logError(scope: string, error: unknown): void {
  * - события беседы → `conv:{conversationId}` (только члены в комнате);
  * - message_sent/edited/deleted → плюс user-комнаты участников (список бесед);
  * - message_read → комната беседы (галочки автора) + user:{reader} (свои устройства);
- * - conversation_created/member_added → user-комнаты затронутых.
+ * - conversation_created/member_added → user-комнаты затронутых;
+ * - notification.* (#100) → user-комната получателя (payload.userId или
+ *   snapshot.userId); прочие типы — игнор (стрим несёт все доменные события,
+ *   gateway расходует только адресованные ему).
  */
 export async function routeEnvelope(
   io: Server,
@@ -41,6 +44,18 @@ export async function routeEnvelope(
   envelope: RealtimeEnvelope,
 ): Promise<void> {
   const payload = (envelope.payload ?? {}) as Record<string, unknown>;
+
+  if (envelope.type.startsWith('notification.')) {
+    const snapshot = payload.snapshot as Record<string, unknown> | undefined;
+    const target =
+      (typeof payload.userId === 'string' && payload.userId) ||
+      (typeof snapshot?.userId === 'string' ? snapshot.userId : null);
+    if (target) {
+      io.to(userRoom(target)).emit(envelope.type, envelope);
+    }
+    return;
+  }
+
   const conversationId = typeof payload.conversationId === 'string' ? payload.conversationId : null;
 
   if (envelope.type === 'chat.conversation_created') {
@@ -105,7 +120,7 @@ export class ChatEventsConsumer {
       return;
     }
     try {
-      await this.redis.xgroup('CREATE', CHAT_EVENTS_STREAM, this.group, '$', 'MKSTREAM');
+      await this.redis.xgroup('CREATE', DOMAIN_EVENTS_STREAM, this.group, '$', 'MKSTREAM');
     } catch (error) {
       if (!String(error).includes('BUSYGROUP')) {
         throw error;
@@ -131,7 +146,7 @@ export class ChatEventsConsumer {
           'BLOCK',
           CONSUMER_BLOCK_MS,
           'STREAMS',
-          CHAT_EVENTS_STREAM,
+          DOMAIN_EVENTS_STREAM,
           '>',
         )) as [string, [string, string[]][]][] | null;
         if (!result) {
@@ -166,7 +181,7 @@ export class ChatEventsConsumer {
     } catch (error) {
       logError(`envelope ${id}`, error); // poison-запись: логируем и ack-аем, группу не блокируем
     } finally {
-      await this.redis.xack(CHAT_EVENTS_STREAM, this.group, id);
+      await this.redis.xack(DOMAIN_EVENTS_STREAM, this.group, id);
     }
   }
 }
