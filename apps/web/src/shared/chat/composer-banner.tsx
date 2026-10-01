@@ -1,8 +1,10 @@
 import { Pencil, X } from 'lucide-react';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
+import { cn } from '@nodus/ui/lib/utils';
 
 import { withoutPatronymic } from '../lib/format.js';
+import { personTone } from '../ui/person-tone.js';
 import type { ChatDraft } from './chat-drafts.js';
 
 /** Подпись медийного оригинала без текста (канон Telegram reply_media:
@@ -20,7 +22,8 @@ function replySnippet(draft: ChatDraft): string {
 /**
  * Бар режима композера (A2/A4, #87): ответ-цитата ИЛИ правка — одна механика
  * (канон tdesktop: режимы взаимоисключающие, edit-бар замещает reply-бар).
- * Ответ: имя автора (info) + сниппет/фрагмент; клик по телу — прыжок к
+ * Ответ: имя автора (ПЕРСОНАЛЬНЫЙ цвет, #180 — тон палитры --name-*, как
+ * в цитате пузыря) + сниппет/фрагмент; клик по телу — прыжок к
  * оригиналу (Ctrl+клик reply-бара tdesktop 4.11.2 — у нас обычный клик:
  * веб-канон Slack/Discord). Правка: метка «Редактирование сообщения» +
  * оригинальный текст. Крестик и Esc отменяют режим (Esc-каскад — канон
@@ -55,7 +58,12 @@ export function ComposerBanner({
           onClick={onJump}
           className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 rounded-md px-1 text-left transition-colors hover:bg-accent/60"
         >
-          <span className="truncate text-xs font-semibold text-info">
+          <span
+            className={cn(
+              'truncate text-xs font-semibold',
+              draft.reply ? personTone(draft.reply.author.id) : '',
+            )}
+          >
             {draft.reply ? withoutPatronymic(draft.reply.author.displayName) : null}
           </span>
           <span className="truncate text-xs text-muted-foreground">{replySnippet(draft)}</span>

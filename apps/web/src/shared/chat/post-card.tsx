@@ -4,6 +4,7 @@ import { ui } from '@nodus/contracts';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { formatTime, plural, withoutPatronymic } from '../lib/format.js';
+import { personTone } from '../ui/person-tone.js';
 import { PersonAvatar } from '../ui/person-avatar.js';
 import { attachmentsContentWidth, MessageAttachments } from './attachments.js';
 import { MessageReactions } from './chat-message.js';
@@ -11,7 +12,7 @@ import { messageSurface } from './message-surface.js';
 import { MessageMeta } from './message-meta.js';
 import { MessageText } from './message-text.js';
 import { ReactionPicker } from './reaction-picker.js';
-import { StickerGlyph, stickerAttachmentOf } from './sticker-message.js';
+import { StickerGlyph, stickerAttachmentOf, stickerFeedClass } from './sticker-message.js';
 import { StickerWindowTrigger } from './sticker-pack-window.js';
 import { MessageTombstone } from './tombstone.js';
 
@@ -52,9 +53,9 @@ export function PostCard({
   mine: boolean;
   /** «По обе стороны»: свой пост прижат вправо (аватар — справа, зеркало run-grid). */
   atEnd: boolean;
-  /** Имя автора первой строкой — только у ПЕРВОГО поста серии (канон чатов,
-   *  вердикт владельца 30.09: у постов одного автора подряд один аватар);
-   *  у остальных — sr-only автор для скринридера. */
+  /** Имя автора первой строкой — только у ПЕРВОГО ЧУЖОГО поста серии (канон
+   *  чатов: свои БЕЗ видимого имени — репорт владельца 01.10 #180); у
+   *  остальных и у своих — sr-only автор для скринридера. */
   showName: boolean;
   repliesCount: number;
   participants: ChatMessage['author'][];
@@ -75,24 +76,37 @@ export function PostCard({
       <div
         className={cn(
           surface.fill,
-          'relative w-fit max-w-2xl rounded-xl border border-border p-3.5 text-left',
+          // Отступ до имени — как у пузыря чата (#96, pt-[6px]; вердикт 01.10
+          // #175: 14px читались «воздухом» над автором); низ/бока — карточные.
+          'relative w-fit max-w-2xl rounded-xl border border-border px-2.5 pt-2.5 pb-3.5 text-left',
         )}
         data-slot="post-surface"
         data-surface={surface.tone}
       >
-        {/* В надгробии имя — ВСЕГДА (не по серии): контент пуст, авторство —
-            единственная опора цепочки обсуждения (#163). */}
-        <span className="block text-sm font-medium">
-          {withoutPatronymic(message.author.displayName)}
-        </span>
-        <span className="mt-2 block">
+        {/* Имя в надгробии — у ЧУЖИХ постов (контент пуст, авторство — опора
+            цепочки обсуждения #163); свой удалённый пост БЕЗ имени, как свои
+            живые посты (канон чатов, репорт владельца 01.10 #180) — AT
+            получает sr-only. Цвет персональный (#180). */}
+        {showName ? (
+          <span
+            className={cn(
+              'block text-sm leading-[19px] font-semibold',
+              personTone(message.author.id),
+            )}
+          >
+            {withoutPatronymic(message.author.displayName)}
+          </span>
+        ) : (
+          <span className="sr-only">{message.author.displayName}: </span>
+        )}
+        <span className={cn(showName && 'mt-[2px]', 'block')}>
           <MessageTombstone mine={mine} />
         </span>
         {repliesCount > 0 ? (
           <button
             type="button"
             onClick={onOpenThread}
-            className="-mx-3.5 -mb-3.5 mt-2.5 flex h-8 w-[calc(100%+1.75rem)] cursor-pointer items-center gap-2 rounded-b-[0.8125rem] border-t border-border/60 bg-current/10 px-3.5 text-left transition-colors hover:bg-current/20"
+            className="-mx-2.5 -mb-3.5 mt-2.5 flex h-8 w-[calc(100%+1.25rem)] cursor-pointer items-center gap-2 rounded-b-[0.8125rem] border-t border-border/60 bg-current/10 px-2.5 text-left transition-colors hover:bg-current/20"
           >
             <ThreadStrip
               surface={surface}
@@ -136,29 +150,45 @@ export function PostCard({
       }}
       className={cn(
         surface.fill,
-        'relative w-fit max-w-2xl cursor-pointer rounded-xl border border-border p-3.5 text-left transition-colors hover:border-input group/msg group/bubble',
+        // pt-[6px] — отступ до имени как у пузыря чата (#175, см. выше).
+        'relative w-fit max-w-2xl cursor-pointer rounded-xl border border-border px-2.5 pt-2.5 pb-3.5 text-left transition-colors hover:border-input group/msg group/bubble',
       )}
       data-slot="post-surface"
       data-surface={surface.tone}
     >
-      {/* Автор — первая строка карточки, только у первого поста серии; у
-          остальных — sr-only (AT не теряет автора, как в пузырях чатов). */}
+      {/* Автор — первая строка карточки, только у первого ЧУЖОГО поста серии;
+          у остальных и у своих — sr-only (AT не теряет автора, как в пузырях
+          чатов). Цвет персональный (#180): тон палитры --name-1..7 по UUID.
+          -mt-[3px] — оптическая компенсация воздуха строки имени (ascent-резерв
+          короба leading-19: над буквами ~3px невидимого резерва) — визуальный
+          верх = полям 10px, как у картинок (приём Telegram textRectMargins,
+          аналог центровки кнопок #143). */}
       {showName ? (
-        <span className="block text-sm font-medium">
+        <span
+          className={cn(
+            '-mt-[3px] block text-sm leading-[19px] font-semibold',
+            personTone(message.author.id),
+          )}
+        >
           {withoutPatronymic(message.author.displayName)}
         </span>
       ) : (
         <span className="sr-only">{message.author.displayName}: </span>
       )}
-      {/* Стикер-пост (#143): глиф вместо вложений-карточек. */}
+      {/* Плотность (#181, вердикты владельца 01.10): поля карточки
+          одинаковые сверху/слева/справа для ВСЕГО контента — текст, картинка,
+          галерея, стикер; имя → контент
+          2px (leading-[19px] у имени — короб строки #96); ЕДИНЫЕ поля 10px по периметру для постов И пузырей чатов (px-2.5 = pt-2.5; серия вердиктов 01.10: 6 — мало, 12 — огромно, единообразие с пузырями);
+          пол мелкой картинки — TEXT_COL_MIN 240dp уже внутри
+          attachmentsContentWidth, потолок — max-w-2xl карточки. */}
       {sticker ? (
-        <span className="mt-2 block w-fit">
+        <span className={cn(showName && 'mt-[2px]', 'block w-fit')}>
           <StickerWindowTrigger message={message} attachment={sticker}>
             <StickerGlyph
               url={sticker.url ?? ''}
               mime={sticker.mime}
               alt={sticker.sticker?.packTitle}
-              className="size-24 object-contain"
+              className={stickerFeedClass}
             />
           </StickerWindowTrigger>
         </span>
@@ -166,15 +196,30 @@ export function PostCard({
         // Ширина блока вложений детерминирована (#150): карточки/медиа задают
         // ширину поста, а не наоборот.
         <span
-          className="mt-2 block max-w-full"
+          className={cn(showName && 'mt-[2px]', 'block max-w-full')}
           style={{ width: attachmentsContentWidth(message.attachments) ?? undefined }}
         >
           <MessageAttachments message={message} mine={mine} />
         </span>
       ) : null}
       {/* Текст — MessageText (р.6): старт на тексте даёт нативное выделение,
-          выход за карточку превращает жест в выделение поста целиком. */}
-      <span className="mt-2 block text-sm leading-relaxed">
+          выход за карточку превращает жест в выделение поста целиком.
+          Ширина поста — от ВЛОЖЕНИЯ (как пузырь чата): текст поджимается
+          под колонку медиа (maxWidth); пол мелкой картинки — TEXT_COL_MIN
+          (внутри attachmentsContentWidth), потолок — max-w-2xl. Первый
+          (без имени/медиа) — оптическая компенсация -mt-[3px]: визуальный
+          верх текста = полям 10px, как у картинок (воздух строки, #181). */}
+      <span
+        className={cn(
+          showName || sticker || message.attachments.length > 0 ? 'mt-[2px]' : '-mt-[3px]',
+          'block text-sm',
+        )}
+        style={{
+          maxWidth: sticker
+            ? undefined
+            : (attachmentsContentWidth(message.attachments) ?? undefined),
+        }}
+      >
         <MessageText text={message.text} />
       </span>
       {/* Мета — общая с пузырём чата композиция (#96): реакции слева,
@@ -190,7 +235,7 @@ export function PostCard({
       </span>
       {/* Полоса обсуждения — ПОСТОЯННАЯ высота h-8 (вердикт 28.09): аватарки
           size-5 центрируются, текстовая строка 16px — прыжков высоты нет. */}
-      <span className="-mx-3.5 -mb-3.5 mt-[6px] flex h-8 items-center gap-2 rounded-b-[0.8125rem] border-t border-border/60 bg-current/10 px-3.5">
+      <span className="-mx-2.5 -mb-3.5 mt-[6px] flex h-8 items-center gap-2 rounded-b-[0.8125rem] border-t border-border/60 bg-current/10 px-2.5">
         <ThreadStrip
           surface={surface}
           participants={participants}

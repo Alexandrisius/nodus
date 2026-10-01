@@ -70,15 +70,21 @@ describe('ChatMessageItem — имя автора внутри пузыря (#96
     expect(bubbleContent.firstElementChild).toBe(name);
   });
 
-  it('имя акцентным тоном (text-info) и полужирное — реф Битрикс24', () => {
+  it('имя персональным тоном палитры --name-* и полужирное (#180, модель Telegram)', () => {
     const { container } = renderMessage(
       <ChatMessageItem message={message()} mine={false} showName />,
     );
     const name = [...container.querySelectorAll('span')].find(
       (el) => el.textContent === 'Иван Петров',
     );
-    expect(name!.className).toContain('text-info');
+    expect(name!.className).toMatch(/text-name-[1-7]/);
     expect(name!.className).toContain('font-semibold');
+    // детерминизм: тот же автор — тот же тон
+    const again = renderMessage(<ChatMessageItem message={message()} mine={false} showName />);
+    const name2 = [...again.container.querySelectorAll('span')].find(
+      (el) => el.textContent === 'Иван Петров',
+    );
+    expect(name2!.className).toBe(name!.className);
   });
 
   it('без showName видимого имени нет — только sr-only автор для скринридера', () => {
@@ -142,7 +148,7 @@ describe('Заливка пузырей — токены bubble-* (канон Te
     );
   });
 
-  it('цитата в своём пузыре — бар и имя акцентом пузыря, в чужом — info', () => {
+  it('цитата: бар — акцент поверхности, имя — персональный цвет автора цитаты (#180)', () => {
     const reply = {
       id: 'r1',
       author: { id: 'a', displayName: 'Иван Петров', avatarUrl: null },
@@ -156,6 +162,12 @@ describe('Заливка пузырей — токены bubble-* (канон Te
     );
     const mineBar = mine.container.querySelector('[data-slot="bubble-content"] span[aria-hidden]');
     expect(mineBar!.className).toContain('bg-bubble-out-accent');
+    // имя цитируемого — тон personTone (не info/акцент пузыря), одинаково
+    // на своём и чужом пузыре: identity автора цитаты.
+    const quoteName = [...mine.container.querySelectorAll('span')].find(
+      (el) => el.textContent === 'Иван Петров',
+    );
+    expect(quoteName!.className).toMatch(/text-name-[1-7]/);
     mine.unmount();
 
     const theirs = renderMessage(<ChatMessageItem message={message({ reply })} mine={false} />);

@@ -4,6 +4,7 @@ import { ui } from '@nodus/contracts';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { withoutPatronymic } from '../lib/format.js';
+import { personTone } from '../ui/person-tone.js';
 
 /**
  * Шапки пузыря (A2/A7, #87): цитата ответа и атрибуция пересылки.
@@ -17,9 +18,11 @@ import { withoutPatronymic } from '../lib/format.js';
  *  (канон Telegram lng_deleted_message). Клик (#163, вердикт владельца
  *  30.09): оригинал-надгробие (deleted, не obliterated) — прыжок к пузырю
  *  «Сообщение удалено» с подсветкой; бесследно исчезнувший — no-op.
- *  Бар и имя — акцентом поверхности (#127, канон Telegram: msgOutReplyBarColor
- *  / msgInReplyBarColor): на залитом своём пузыре — акцент пузыря, на чужом —
- *  info; сниппет и hover остаются на currentColor пузыря. */
+ *  Бар — акцент поверхности (#127, канон Telegram: msgOutReplyBarColor
+ *  / msgInReplyBarColor); ИМЯ цитируемого — персональный цвет автора
+ *  (#180, модель Telegram: identity в любом хосте имени; удалённый
+ *  оригинал без автора — прежний акцент поверхности); сниппет и hover —
+ *  на currentColor пузыря. */
 export function ReplyHeader({
   reply,
   onClick,
@@ -62,7 +65,11 @@ export function ReplyHeader({
         <span
           className={cn(
             'truncate text-xs font-semibold',
-            onFilled ? 'text-bubble-out-accent' : 'text-info',
+            reply.author
+              ? personTone(reply.author.id)
+              : onFilled
+                ? 'text-bubble-out-accent'
+                : 'text-info',
           )}
         >
           {reply.deleted
@@ -86,8 +93,9 @@ export function ReplyHeader({
   );
 }
 
-/** «Переслано от X» (канон Telegram lng_forwarded): имя источника — info-тон
- *  (атрибуция = данные, не хром); клик — переход к оригиналу (с учётом прав). */
+/** «Переслано от X» (канон Telegram lng_forwarded): имя источника —
+ *  ПЕРСОНАЛЬНЫЙ цвет автора пересылки (#180, identity в любом хосте
+ *  имени; было info-тон); клик — переход к оригиналу (с учётом прав). */
 export function ForwardedHeader({ from, onClick }: { from: ForwardedFrom; onClick?: () => void }) {
   return (
     <span className="flex min-w-0 items-center gap-1 text-xs">
@@ -97,12 +105,15 @@ export function ForwardedHeader({ from, onClick }: { from: ForwardedFrom; onClic
         <button
           type="button"
           onClick={onClick}
-          className="min-w-0 truncate font-semibold text-info transition-opacity hover:opacity-80"
+          className={cn(
+            'min-w-0 truncate font-semibold transition-opacity hover:opacity-80',
+            personTone(from.author.id),
+          )}
         >
           {withoutPatronymic(from.author.displayName)}
         </button>
       ) : (
-        <span className="min-w-0 truncate font-semibold text-info">
+        <span className={cn('min-w-0 truncate font-semibold', personTone(from.author.id))}>
           {withoutPatronymic(from.author.displayName)}
         </span>
       )}
