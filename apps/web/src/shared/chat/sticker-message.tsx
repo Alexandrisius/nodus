@@ -22,6 +22,11 @@ export function stickerAttachmentOf(message: ChatMessage): MessageAttachment | u
   return message.attachments.find((a) => a.kind === 'sticker');
 }
 
+/** Кегль стикера в ленте — единый для чатов и постов канала: 208 CSS px
+ *  (≈260 экранных при ui-scale 1.25) — паритет Telegram Desktop
+ *  (maxStickerSize 256px, research Exa; вердикт владельца 01.10 #175). */
+export const stickerFeedClass = 'size-52 object-contain';
+
 /** Рендер одного стикера: WebM (Telegram-формат) — беззвучное зацикленное
  *  видео; WebP/PNG — img (анимированный WebP играет сам, прозрачность
  *  работает во всех браузерах — Safari не умеет alpha у WebM). */
@@ -53,7 +58,7 @@ export function StickerGlyph({
   return <img src={url} alt={alt ?? ''} draggable={false} className={className} />;
 }
 
-/** Стикер-сообщение: глиф ~144px + мета; ховер-реакции — та же механика,
+/** Стикер-сообщение: глиф 208px + мета; ховер-реакции — та же механика,
  *  что у пузырей (group/bubble-контейнер для ReactionPicker). */
 export const StickerMessageView = memo(function StickerMessageView({
   message,
@@ -99,7 +104,7 @@ export const StickerMessageView = memo(function StickerMessageView({
               url={attachment.url ?? ''}
               mime={attachment.mime}
               alt={meta ? `${meta.packTitle} ${meta.emojis.join(' ')}` : undefined}
-              className="size-24 object-contain"
+              className={stickerFeedClass}
             />
           </StickerWindowTrigger>
           {/* Нижняя строка — как у пузырей (реакции слева, мета справа),

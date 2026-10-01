@@ -121,7 +121,7 @@ describe.skipIf(!process.env.DATABASE_URL || !process.env.STORAGE_ACCESS_KEY)(
       expect(pack.stickers).toHaveLength(0);
     });
 
-    it('загрузка: PNG/WebM по magic bytes, подделка и GIF — отказ с кодом', async () => {
+    it('загрузка: PNG/JPEG/WebM по magic bytes, подделка (GIF под видом png) — отказ с кодом', async () => {
       const list = (await (await fx.api(alice, 'GET', '/chat/stickers/packs')).json()) as {
         items: { id: string; scope: string }[];
       };
@@ -144,6 +144,19 @@ describe.skipIf(!process.env.DATABASE_URL || !process.env.STORAGE_ACCESS_KEY)(
       });
       expect(withPng.stickers[0]?.url).toMatch(/^\/api\/v1\/files\/[^/]+\/content\?exp=\d+&sig=/);
 
+      // JPEG — принимается (#175, паритет с Битриксом): magic FF D8 FF,
+      // mime выводится из байтов, независимо от заявленного.
+      const jpeg = new Blob([Uint8Array.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4])], {
+        type: 'image/png',
+      });
+      const okJpeg = await uploadSticker(alice, packId, jpeg, {
+        emojis: JSON.stringify(['👀']),
+        size: '8',
+      });
+      expect(okJpeg.status).toBe(201);
+      const withJpeg = stickerPackSchema.parse(await okJpeg.json());
+      expect(withJpeg.stickers.at(-1)?.mime).toBe('image/jpeg');
+
       // WebM: заявлен video/webm, байты контейнера — норм (magic 1A45DFA3).
       const webm = new Blob([WEBM_BYTES], { type: 'video/webm' });
       const okWebm = await uploadSticker(alice, packId, webm, {
@@ -157,20 +170,9 @@ describe.skipIf(!process.env.DATABASE_URL || !process.env.STORAGE_ACCESS_KEY)(
       const webmFetch = await fetch(`${origin}${withWebm.stickers.at(-1)?.url}`);
       expect(webmFetch.headers.get('content-disposition')).toContain('inline');
 
-      // Подделка: JPEG-байты под видом image/png — CHAT_STICKER_INVALID.
-      const jpeg = new Blob([Uint8Array.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4])], {
-        type: 'image/png',
-      });
-      const fake = await uploadSticker(alice, packId, jpeg, {
-        emojis: JSON.stringify(['👀']),
-        size: '8',
-      });
-      expect(fake.status).toBe(400);
-      expect(((await fake.json()) as { code: string }).code).toBe(ErrorCode.CHAT_STICKER_INVALID);
-
-      // GIF — не стикерный формат (подсказка «конвертируйте в WebP»).
+      // Подделка: GIF-байты под видом image/png — CHAT_STICKER_INVALID.
       const gif = new Blob([Uint8Array.from([0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 1])], {
-        type: 'image/gif',
+        type: 'image/png',
       });
       const noGif = await uploadSticker(alice, packId, gif, {
         emojis: JSON.stringify(['😀']),

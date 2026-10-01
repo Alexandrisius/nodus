@@ -1,12 +1,16 @@
-/** Правила загрузки стикеров (#143): форматы/лимиты (спека Telegram/issue:
- *  WebP/PNG ≤512КБ сторона ~512; WebM без звука ≤3с ≤256КБ). Эмодзи-привязки
- *  выбираются полным пикером (EmojiPanel, вердикт владельца 30.09) — здесь
- *  только медиа-правила. Чистые функции — детерминированные тесты. */
+/** Правила загрузки стикеров (#143, +JPEG #175): форматы/лимиты (спека
+ *  Telegram: WebP/PNG ≤512КБ сторона ~512; WebM без звука ≤3с ≤256КБ;
+ *  JPEG — паритет с Битриксом по запросу пилотов 01.10: библиотеки
+ *  сотрудников в JPEG; цена формата — НЕТ прозрачности, фон прямоугольный).
+ *  Эмодзи-привязки выбираются полным пикером (EmojiPanel, вердикт владельца
+ *  30.09) — здесь только медиа-правила. Чистые функции — детерминированные
+ *  тесты. */
 
 export const STATIC_MAX_BYTES = 512 * 1024;
 export const WEBM_MAX_BYTES = 256 * 1024;
 export const WEBM_MAX_SECONDS = 3;
-export const STICKER_ACCEPT = '.png,.webp,.webm,image/png,image/webp,video/webm';
+export const STICKER_ACCEPT =
+  '.png,.webp,.jpg,.jpeg,.webm,image/png,image/webp,image/jpeg,video/webm';
 
 export type StickerIssue = 'format' | 'size' | 'duration';
 
@@ -17,7 +21,8 @@ export function isWebmFile(file: File): boolean {
 /** Синхронная превалидация ДО трафика: формат и размер (чистая функция). */
 export function validateStickerFile(file: File): StickerIssue | null {
   const webm = isWebmFile(file);
-  const mimeOk = webm || file.type === 'image/webp' || file.type === 'image/png';
+  const mimeOk =
+    webm || file.type === 'image/webp' || file.type === 'image/png' || file.type === 'image/jpeg';
   if (!mimeOk) return 'format';
   if (file.size > (webm ? WEBM_MAX_BYTES : STATIC_MAX_BYTES)) return 'size';
   return null;

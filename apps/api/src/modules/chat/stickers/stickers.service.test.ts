@@ -210,18 +210,18 @@ describe('StickersService (#143)', () => {
       expect(dto.stickers).toHaveLength(1);
     });
 
-    it('подделка mime: JPEG-байты с заявленным image/png — CHAT_STICKER_INVALID', async () => {
+    it('подделка mime: GIF-байты с заявленным image/png — CHAT_STICKER_INVALID', async () => {
       const { service } = makeService({
         findPack: vi.fn(async () => ({ ...pack(), stickers: [] })),
       });
-      const jpeg = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(60)]);
+      const gif = Buffer.concat([Buffer.from('GIF89a'), Buffer.alloc(60)]);
       await expect(
         service.uploadSticker(
           ME,
           false,
           PACK_ID,
-          { emojis: ['🔥'], size: jpeg.length },
-          Readable.from([jpeg]),
+          { emojis: ['🔥'], size: gif.length },
+          Readable.from([gif]),
         ),
       ).rejects.toMatchObject({ code: 'CHAT_STICKER_INVALID', httpStatus: undefined });
     });
