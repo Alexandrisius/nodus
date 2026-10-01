@@ -146,4 +146,20 @@ describe('MessageRunView — grid серии с липким аватаром (#
     expect(rows).toHaveLength(1);
     expect(rows[0]!.attrs.style).toEqual({ gridColumn: 2, gridRow: 1 });
   });
+
+  it('ритм серии: chat — слипание 2px (gap-y-0.5), feed — постовый 6px (gap-y-1.5, #175)', () => {
+    const run = buildMessageRuns([message({ id: 'm1' }), message({ id: 'm2', seq: 2 })], 'a')[0]!;
+    expect(run.items).toHaveLength(2);
+    const chat = render(<MessageRunView run={run} showName renderItem={() => <div />} />);
+    expect(chat.container.querySelector('[data-slot="message-run"]')!.className).toContain(
+      'gap-y-0.5',
+    );
+    cleanup();
+    const feed = render(
+      <MessageRunView run={run} showName spacing="feed" renderItem={() => <div />} />,
+    );
+    expect(feed.container.querySelector('[data-slot="message-run"]')!.className).toContain(
+      'gap-y-1.5',
+    );
+  });
 });
