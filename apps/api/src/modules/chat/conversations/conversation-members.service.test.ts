@@ -1,3 +1,6 @@
+// >300 строк — обоснование (I5): полный контракт состава беседы одного
+// агрегата — матрица прав (#186), direct-гвард и точный лимит (#195),
+// keyset-список с поиском; дробление по темам разорвало бы общий каркас моков.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Readable } from 'node:stream';
 import { ErrorCode } from '@nodus/contracts';
