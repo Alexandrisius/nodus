@@ -181,6 +181,10 @@
 
 - **OpenCode V2 не подхватывает кастомные tools V1 из `~/.config/opencode/tools/`**: discovery плагинов — только `plugins/` (глобально `~/.config/opencode/plugins/`) или поле `plugins` в конфиге; лоадер ждёт default-экспорт объекта `{ id, setup }`, а `@opencode-ai/plugin@1.x` не экспортирует `Plugin` рантаймом (`Export named 'Plugin' not found`) — плагин пишется как чистый объект `{ id, async setup(ctx) { await ctx.tool.transform(e => e.add({...})) } }` без импорта SDK; input — plain JSON Schema, execute возвращает `{ content: string }` (воспроизведено по логам сервера beta-19296: «Plugin must export a default definition with an id and an effect or setup function»; рабочий пример — `~/.config/opencode/plugins/image.ts`).
 
+## Инструменты агента (ZCode)
+
+- **`grep` в Git Bash ZCode — шим на ugrep 7.8.4, у которого `-q -v` отклоняется от POSIX**: exit-код определяется наличием совпадений с паттерном, а не наличием выбранных (инвертированных) строк — на смешанном вводе «исключения + код» связка `grep -qv` даёт ложный результат (локально `code=false`, на CI-раннере с GNU grep — `code=true`). Любая локальная проверка CI-фильтров/скриптов с `grep -v` — только с явным путём к GNU grep (`/c/Program Files/Git/usr/bin/grep.exe` в Windows-окружении) или прямым прогоном с выводом (без `-q`), не через составные `$()`-обёртки. Подтверждено воспроизведением 02.10.2026 (#198): таблица истинности ugrep vs GNU grep 3.0 снята на 13 сценариях.
+
 ## Процесс и документация
 
 - ADR нумеруются плотно, без дыр: перед созданием нового — проверь max существующего номера (`ls docs/adr/`), не присваивай «следующий с конца + запас».
