@@ -29,7 +29,7 @@ import {
   PREVIEW_MAX,
   type NotificationInsert,
 } from './notifications.repository.js';
-import { resolveMessageNotifications } from './tier-resolver.js';
+import { resolveMessageNotifications, KIND_PRIORITY } from './priority-resolver.js';
 
 const CURSOR_PATTERN = /^[0-9]+$/;
 
@@ -70,7 +70,7 @@ export class NotificationsService {
 
   async summary(userId: string): Promise<NotificationSummary> {
     const counts = await this.repo.summary(userId);
-    return { ...counts, attention: counts.urgent + counts.personal + counts.action };
+    return { ...counts, attention: counts.urgent + counts.high + counts.medium };
   }
 
   /** Прочитать одно обычное (E3 — осознанное гашение из карточки);
@@ -79,7 +79,7 @@ export class NotificationsService {
   async readOne(userId: string, id: string): Promise<Notification> {
     const row = await this.repo.readOne(userId, id);
     if (!row) throw DomainException.notFound('Notification not found');
-    if (row.tier === 'urgent' && row.read_at === null) {
+    if (row.priority === 'urgent' && row.read_at === null) {
       throw DomainException.conflict('Urgent notification is read by acknowledgement only');
     }
     const [dto] = await this.repo.toDtos([row]);
@@ -209,20 +209,58 @@ export class NotificationsService {
     return resolved.map((r) => ({
       id: randomUUID(),
       user_id: r.userId,
-      tier: r.tier,
+      priority: r.priority,
       kind: r.kind,
       source_type: 'conversation',
       source_id: event.payload.conversationId,
       source_seq: BigInt(event.payload.seq),
       actor_id: event.payload.authorId,
       preview: text.length > 0 ? text.slice(0, PREVIEW_MAX) : null,
-      urgent_text: r.tier === 'urgent' ? text : null,
+      urgent_text: r.priority === 'urgent' ? text : null,
       conversation_id: event.payload.conversationId,
       conversation_title: state.title,
       message_id: event.payload.messageId,
       thread_root_id: event.payload.threadRootId,
       event_id: event.id,
     }));
+  }
+
+  /** Сборка строк журнала из события message_edited (#189: правка прилетает
+   *  в центр): всем членам беседы кроме редактора, низкий приоритет — счётчик
+   *  в чате меняется, центр показывает то же. */
+  buildInsertsFromEditedEvent(
+    event: {
+      id: string;
+      payload: {
+        conversationId: string;
+        messageId: string;
+        authorId: string;
+        text: string;
+        seq: number;
+      };
+    },
+    state: ChatConversationState,
+  ): NotificationInsert[] {
+    const text = event.payload.text ?? '';
+    return state.members
+      .filter((m) => m.userId !== event.payload.authorId)
+      .map((m) => ({
+        id: randomUUID(),
+        user_id: m.userId,
+        priority: KIND_PRIORITY['chat.message_edited'],
+        kind: 'chat.message_edited',
+        source_type: 'conversation',
+        source_id: event.payload.conversationId,
+        source_seq: BigInt(event.payload.seq),
+        actor_id: event.payload.authorId,
+        preview: text.length > 0 ? text.slice(0, PREVIEW_MAX) : null,
+        urgent_text: null,
+        conversation_id: event.payload.conversationId,
+        conversation_title: state.title,
+        message_id: event.payload.messageId,
+        thread_root_id: null,
+        event_id: event.id,
+      }));
   }
 
   /** Обёртки порта чата для хендлеров (мокируются в тестах). */
@@ -232,5 +270,11 @@ export class NotificationsService {
 
   async threadWatcherIds(threadRootId: string) {
     return this.chatMembership.threadWatcherIds(threadRootId);
+  }
+
+  /** Имя актора для снапшота будила (правка: события без DTO автора). */
+  async actorName(userId: string): Promise<string | null> {
+    const [ref] = await this.userProfiles.findRefs([userId]);
+    return ref?.displayName ?? null;
   }
 }

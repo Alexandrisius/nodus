@@ -16,9 +16,9 @@ import { setupChatFixture, type ChatTestFixture, type ChatUser } from './chat-fi
  * outbox `events` → EventDispatcher (журнал `notifications` + событие
  * dispatch_requested) → RedisStreamPublisher (общий стрим; консьюмер —
  * WS-gateway, маршрутизацию в user-комнату покрывает gateway/fanout.test).
- * Плюс: ярусы (mention/direct/фон/mute), urgent+лимит, повтор воркером,
+ * Плюс: приоритеты (mention/direct/low/mute), urgent+лимит, повтор воркером,
  * стоп-условия, ack-аналитика, дедуп повтора события (D4), идемпотентность
- * журнал доставок (D6/C11).
+ * журнал доставок (D6/C11), правка сообщения (#189).
  */
 describe.skipIf(!process.env.DATABASE_URL)(
   'notifications: конвейер журнал+стрим (integration)',
@@ -100,7 +100,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
       return ((await res.json()) as { id: string }).id;
     }
 
-    it('A2/B2: упоминание — personal упомянутому, фон — остальным; оба в стриме', async () => {
+    it('A2/B2: упоминание — high упомянутому, low — остальным; оба в стриме', async () => {
       const res = await fx.api(alice, 'POST', '/chat/conversations', {
         body: { type: 'group', title: `Notif ${fx.runId}`, memberIds: [bob.id, carol.id] },
       });
@@ -116,14 +116,14 @@ describe.skipIf(!process.env.DATABASE_URL)(
       await runPipeline();
 
       const bobList = (await (await listNotifications(bob, '?filter=unread')).json()) as {
-        items: Array<{ tier: string; kind: string; conversationId: string }>;
+        items: Array<{ priority: string; kind: string; conversationId: string }>;
       };
       const mention = bobList.items.find((i) => i.conversationId === conversationId);
-      expect(mention?.tier).toBe('personal');
+      expect(mention?.priority).toBe('high');
       expect(mention?.kind).toBe('chat.mention');
 
-      const carolList = (await (await listNotifications(carol, '?filter=background')).json()) as {
-        items: Array<{ tier: string; conversationId: string }>;
+      const carolList = (await (await listNotifications(carol, '?filter=low')).json()) as {
+        items: Array<{ priority: string; conversationId: string }>;
       };
       expect(carolList.items.some((i) => i.conversationId === conversationId)).toBe(true);
 
@@ -140,7 +140,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
       expect(deliveries.items.some((d) => d.channel === 'ws' && d.attempt === 0)).toBe(true);
     });
 
-    it('B9/B1: автору — ничего; получателю direct — personal', async () => {
+    it('B9/B1: автору — ничего; получателю direct — high', async () => {
       const conversationId = await directId(bob, alice);
       await fx.api(bob, 'POST', `/chat/conversations/${conversationId}/messages`, {
         body: { text: 'личное без упоминания' },
@@ -154,11 +154,50 @@ describe.skipIf(!process.env.DATABASE_URL)(
       expect(bobList.items.some((i) => i.conversationId === conversationId)).toBe(false);
 
       const aliceList = (await (await listNotifications(alice, '?filter=attention')).json()) as {
-        items: Array<{ tier: string; kind: string; conversationId: string }>;
+        items: Array<{ priority: string; kind: string; conversationId: string }>;
       };
       const direct = aliceList.items.find((i) => i.conversationId === conversationId);
-      expect(direct?.tier).toBe('personal');
+      expect(direct?.priority).toBe('high');
       expect(direct?.kind).toBe('chat.direct_message');
+    });
+
+    it('#189: правка сообщения — уведомление участнику (не редактору), низкий приоритет', async () => {
+      const conversationId = await directId(bob, alice);
+      const message = (await (
+        await fx.api(bob, 'POST', `/chat/conversations/${conversationId}/messages`, {
+          body: { text: 'исходный текст правки' },
+          key: `notif-e-${fx.runId}`,
+        })
+      ).json()) as { id: string };
+
+      await fx.api(bob, 'PATCH', `/chat/conversations/${conversationId}/messages/${message.id}`, {
+        body: { text: 'исправленный текст правки' },
+        key: `notif-edit-${fx.runId}`,
+      });
+      await runPipeline();
+
+      const aliceList = (await (await listNotifications(alice, '?filter=unread')).json()) as {
+        items: Array<{
+          priority: string;
+          kind: string;
+          preview: string | null;
+          conversationId: string;
+        }>;
+      };
+      const edited = aliceList.items.find(
+        (i) => i.conversationId === conversationId && i.kind === 'chat.message_edited',
+      );
+      expect(edited?.priority).toBe('low');
+      expect(edited?.preview).toBe('исправленный текст правки');
+
+      const bobList = (await (await listNotifications(bob, '?filter=unread&limit=100')).json()) as {
+        items: Array<{ kind: string; conversationId: string }>;
+      };
+      expect(
+        bobList.items.some(
+          (i) => i.conversationId === conversationId && i.kind === 'chat.message_edited',
+        ),
+      ).toBe(false);
     });
 
     it('C1/C2/C3: срочное — urgent + повтор воркером + стоп реакцией', async () => {
@@ -173,10 +212,10 @@ describe.skipIf(!process.env.DATABASE_URL)(
       await runPipeline();
 
       const bobList = (await (await listNotifications(bob, '?filter=attention')).json()) as {
-        items: Array<{ id: string; tier: string; kind: string; urgentText: string | null }>;
+        items: Array<{ id: string; priority: string; kind: string; urgentText: string | null }>;
       };
       const urgent = bobList.items.find((i) => i.kind === 'urgent.message');
-      expect(urgent?.tier).toBe('urgent');
+      expect(urgent?.priority).toBe('urgent');
       expect(urgent?.urgentText).toContain('Срочно');
 
       // Повтор: воркер проверяет стоп-условия → эмит attempt>=1 + deliveries repeat.
@@ -290,7 +329,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
       expect(after).toBe(before);
     });
 
-    it('B3: muted-беседа — личное понижено до фона', async () => {
+    it('B3: muted-беседа — высокий приоритет понижен до низкого', async () => {
       const conversationId = await directId(alice, carol);
       await fx.api(carol, 'PATCH', `/chat/conversations/${conversationId}`, {
         body: { muted: true },
@@ -301,10 +340,10 @@ describe.skipIf(!process.env.DATABASE_URL)(
       });
       await runPipeline();
       const carolList = (await (await listNotifications(carol, '?filter=unread')).json()) as {
-        items: Array<{ tier: string; conversationId: string }>;
+        items: Array<{ priority: string; conversationId: string }>;
       };
       const hit = carolList.items.find((i) => i.conversationId === conversationId);
-      expect(hit?.tier).toBe('background');
+      expect(hit?.priority).toBe('low');
     });
 
     it('негатив: ack чужого уведомления — 404 (G3)', async () => {
@@ -334,7 +373,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
       expect(((await res.json()) as { code: string }).code).toBe('VALIDATION_FAILED');
     });
 
-    it('негатив: упоминание несуществующего имени — уведомление только фону члена', async () => {
+    it('негатив: упоминание несуществующего имени — уведомление только низкого приоритета', async () => {
       const res = await fx.api(alice, 'POST', '/chat/conversations', {
         body: { type: 'group', title: `Neg ${fx.runId}`, memberIds: [bob.id] },
       });
@@ -345,10 +384,10 @@ describe.skipIf(!process.env.DATABASE_URL)(
       });
       await runPipeline();
       const bobList = (await (await listNotifications(bob, '?filter=unread')).json()) as {
-        items: Array<{ tier: string; kind: string; conversationId: string }>;
+        items: Array<{ priority: string; kind: string; conversationId: string }>;
       };
       const hit = bobList.items.find((i) => i.conversationId === conversationId);
-      expect(hit?.tier).toBe('background');
+      expect(hit?.priority).toBe('low');
       expect(hit?.kind).toBe('chat.channel_post');
     });
 

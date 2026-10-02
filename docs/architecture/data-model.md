@@ -22,7 +22,7 @@
 - **Letter** (тип: incoming|outgoing; рег. номер, дата рег., от/кому, тема, тело, message_id оригинала письма, статус, проект?, срок исполнения?) — **LetterAttachment**, **Resolution** (letter_id, текст резолюции, автор, → task_id созданного поручения)
 - **WorkflowDefinition** (код, название, JSON-схема шагов) — **WorkflowInstance** (объект-связка, текущий шаг, история действий, статус, дедлайны шагов)
 - **FileObject** (бакет-ключ, имя, mime, размер, владелец, контекст: task|letter|project|message + id; derived_from — маркер деривата: файл порождён из другого файла, напр. превью #150 — plain UUID, без FK) — **FileVersion** (версия, ключ, автор, preview_key?)
-- **Notification** (получатель, тип, payload-ссылка на сущность, каналы, прочитано) — **NotificationPreference**
+- **Notification** (получатель, kind «что случилось», priority urgent|high|medium|low «насколько важно» — ADR-0017, источник, payload-выжимка, прочитано/ознакомлено, seq-курсор дельты) — **NotificationDelivery** (журнал доставок ws/repeat) — **NotificationPreference**
 - **EventLog** (id, тип события, actor, aggregate_type/id, payload JSONB, created_at) — append-only, инвариант I9
 - **AuditLog** (actor, действие, сущность, детали, ip/user-agent) — append-only
 - **Revision** (entity_type, entity_id, поле, old_value, new_value, author, created_at) — версии diff-аемого контента: описание задачи, тело письма, текст сообщения. Поле-уровневая история остальных изменений покрыта EventLog (I9)

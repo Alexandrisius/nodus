@@ -9,30 +9,25 @@ import { PinoLogger } from 'nestjs-pino';
 import { NotificationsRepository } from '../notifications.repository.js';
 import { NotificationsService } from '../notifications.service.js';
 
-interface MessageSentPayload {
-  conversationId: string;
-  messageId: string;
-  seq: number;
-  authorId: string;
-  threadRootId: string | null;
-  urgent: boolean;
-  mentionedUserIds?: string[];
-  message?: { text?: string; author?: { displayName?: string } } | null;
+interface MessageEditedPayload {
+  conversationId?: string;
+  messageId?: string;
+  authorId?: string;
+  text?: string;
+  seq?: number;
 }
 
 /**
- * Подписчик `chat.message_sent` (#100, ADR-0016): резолвит приоритеты
- * адресатов (таблица KIND_PRIORITY), пишет журнал и эмитит
- * `notification.dispatch_requested`
- * в одной транзакции — WS-фанут расходится штатным конвейером (I3: чат не
- * знает про уведомления, связность — событие). Идемпотентность: дедуп
- * (event_id, user_id) в БД — повторная доставка события (outbox redelivery)
- * создаёт 0 строк и не эмитит (D4). Ответ автора сообщения останавливает
- * его срочные повторы в беседе (C3: ответ = стоп).
+ * Подписчик `chat.message_edited` (#189: правка прилетает в центр — счётчик
+ * в чате меняется, журнал показывает то же): всем членам беседы кроме
+ * редактора, приоритет из таблицы KIND_PRIORITY. Идемпотентность — дедуп
+ * (event_id, user_id); payload
+ * старой формы (без authorId, до #189) пропускается с журналом — событие
+ * помечается опубликованным, ретраев не требуется.
  */
 @Injectable()
-export class MessageSentHandler implements DomainEventHandler<MessageSentPayload> {
-  static readonly eventType = 'chat.message_sent';
+export class MessageEditedHandler implements DomainEventHandler<MessageEditedPayload> {
+  static readonly eventType = 'chat.message_edited';
 
   constructor(
     private readonly service: NotificationsService,
@@ -42,36 +37,35 @@ export class MessageSentHandler implements DomainEventHandler<MessageSentPayload
     private readonly featureFlags: FeatureFlagService,
     private readonly logger: PinoLogger,
   ) {
-    this.logger.setContext(MessageSentHandler.name);
+    this.logger.setContext(MessageEditedHandler.name);
   }
 
-  async handle(event: DomainEvent<MessageSentPayload>): Promise<void> {
+  async handle(event: DomainEvent<MessageEditedPayload>): Promise<void> {
     if (!(await this.featureFlags.isEnabled('notifications'))) return;
     const payload = event.payload;
-    if (!payload?.conversationId || !payload?.messageId) return;
-
-    // Ответ автора = стоп его срочных повторов в этой беседе (C3).
-    await this.repo.stopRepeats(payload.authorId, { conversationId: payload.conversationId });
+    if (!payload?.conversationId || !payload.messageId) return;
+    if (!payload.authorId || payload.seq === undefined) {
+      this.logger.debug({ eventId: event.id }, 'message_edited: legacy payload skipped');
+      return;
+    }
 
     const state = await this.service.conversationState(payload.conversationId);
     if (!state) return; // беседа исчезла — журналимое событие потеряло источник
-    const watchers =
-      payload.threadRootId !== null
-        ? await this.service.threadWatcherIds(payload.threadRootId)
-        : [];
-    const inserts = this.service.buildInsertsFromMessageEvent(
+    const inserts = this.service.buildInsertsFromEditedEvent(
       {
         id: event.id,
         payload: {
-          ...payload,
-          mentionedUserIds: payload.mentionedUserIds ?? [],
-          urgent: payload.urgent ?? false,
+          conversationId: payload.conversationId,
+          messageId: payload.messageId,
+          authorId: payload.authorId,
+          text: payload.text ?? '',
+          seq: payload.seq,
         },
       },
       state,
-      watchers,
     );
     if (inserts.length === 0) return;
+    const actorName = await this.service.actorName(payload.authorId);
 
     await this.txRunner.run(async (tx) => {
       const created = await this.repo.createFromEvent(inserts, tx);
@@ -91,7 +85,7 @@ export class MessageSentHandler implements DomainEventHandler<MessageSentPayload
               messageId: row.message_id,
               threadRootId: row.thread_root_id,
               preview: row.preview,
-              actorName: payload.message?.author?.displayName ?? null,
+              actorName,
             },
             attempt: 0,
             seq: Number(row.seq),
@@ -100,7 +94,7 @@ export class MessageSentHandler implements DomainEventHandler<MessageSentPayload
         );
       }
       if (created.length === 0) {
-        this.logger.debug({ eventId: event.id }, 'message_sent: all duplicates skipped');
+        this.logger.debug({ eventId: event.id }, 'message_edited: all duplicates skipped');
       }
     });
   }

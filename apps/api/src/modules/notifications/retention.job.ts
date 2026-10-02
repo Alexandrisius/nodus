@@ -7,14 +7,15 @@ import { NotificationsRepository } from './notifications.repository.js';
 
 export const RETENTION_QUEUE = 'notification-retention';
 export const RETENTION_PREFIX = 'nodus';
-/** Фоновые старше N дней — авто-прочтение (анти-свалка; журнал жив). */
-export const BACKGROUND_RETENTION_DAYS = 7;
+/** Низкий приоритет старше N дней — авто-прочтение (анти-свалка; журнал жив). */
+export const LOW_RETENTION_DAYS = 7;
 
 /**
- * Ежедневная уборка фона (#100, ADR-0016 §6): repeatable-джоб BullMQ (cron
- * 04:00, advanced-scheduled-tasks: никаких @nestjs/schedule). Фон старше
- * 7 дней помечается прочитанным — счётчик точки чистится, история остаётся
- * в журнале (фильтр «Все», поиск).
+ * Ежедневная уборка низкого приоритета (#100, ADR-0016 §6): repeatable-джоб
+ * BullMQ (cron 04:00, advanced-scheduled-tasks: никаких @nestjs/schedule).
+ * Низкий старше 7 дней помечается прочитанным — счётчик точки чистится,
+ * история остаётся в журнале (фильтр «Все»; серверный ?q= — до глобального
+ * поиска топбара #172).
  */
 @Injectable()
 export class BackgroundRetentionJob implements OnModuleInit, OnModuleDestroy {
@@ -62,7 +63,7 @@ export class BackgroundRetentionJob implements OnModuleInit, OnModuleDestroy {
 
   /** Один проход архивации — public для тестов/e2e. */
   async runOnce(): Promise<number> {
-    return this.repo.archiveStaleBackground(BACKGROUND_RETENTION_DAYS);
+    return this.repo.archiveStaleLow(LOW_RETENTION_DAYS);
   }
 
   private duplicateConnection(): Redis {

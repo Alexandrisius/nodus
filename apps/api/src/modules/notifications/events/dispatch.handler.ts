@@ -10,7 +10,7 @@ interface DispatchPayload {
   snapshot: {
     notificationId: string;
     userId: string;
-    tier: string;
+    priority: string;
     kind: string;
     sourceId: string;
     conversationId: string | null;
@@ -56,7 +56,7 @@ export class DispatchHandler implements DomainEventHandler<DispatchPayload> {
         attempt,
         tx,
       );
-      if (snapshot.tier === 'urgent' && attempt === 0) {
+      if (snapshot.priority === 'urgent' && attempt === 0) {
         await this.repeats.enqueue(snapshot.notificationId);
       }
     });

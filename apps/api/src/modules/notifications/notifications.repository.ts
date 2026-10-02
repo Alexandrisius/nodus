@@ -17,7 +17,7 @@ interface NotificationRow {
   id: string;
   seq: bigint;
   user_id: string;
-  tier: string;
+  priority: string;
   kind: string;
   source_type: string;
   source_id: string;
@@ -49,7 +49,7 @@ export const PREVIEW_MAX = 160;
 // инварианты гашения (read_at vs repeats_stopped_at) по файлам без выигрыша.
 
 const NOTIFICATION_COLS = Prisma.sql`
-  id, seq, user_id AS "user_id", tier, kind,
+  id, seq, user_id AS "user_id", priority, kind,
   source_type AS "source_type", source_id AS "source_id", source_seq AS "source_seq",
   actor_id AS "actor_id", preview, urgent_text AS "urgent_text",
   conversation_id AS "conversation_id", conversation_title AS "conversation_title",
@@ -62,15 +62,13 @@ function filterWhere(userId: string, filter: NotificationFilter): Prisma.Sql {
   const base = Prisma.sql`user_id = ${userId}::uuid`;
   switch (filter) {
     case 'attention':
-      return Prisma.sql`${base} AND read_at IS NULL AND tier <> 'background'`;
+      return Prisma.sql`${base} AND read_at IS NULL AND priority <> 'low'`;
     case 'unread':
       return Prisma.sql`${base} AND read_at IS NULL`;
     case 'mentions':
       return Prisma.sql`${base} AND read_at IS NULL AND kind = 'chat.mention'`;
-    case 'actions':
-      return Prisma.sql`${base} AND read_at IS NULL AND tier = 'action'`;
-    case 'background':
-      return Prisma.sql`${base} AND read_at IS NULL AND tier = 'background'`;
+    case 'low':
+      return Prisma.sql`${base} AND read_at IS NULL AND priority = 'low'`;
     case 'all':
     default:
       return base;
@@ -117,21 +115,21 @@ export class NotificationsRepository {
   /** Сводка «число + точка» (индикация; G4-деградация — пустая сводка). */
   async summary(userId: string): Promise<{
     urgent: number;
-    personal: number;
-    action: number;
-    background: number;
+    high: number;
+    medium: number;
+    low: number;
   }> {
-    const rows = await this.prisma.$queryRaw<{ tier: string; count: bigint }[]>(Prisma.sql`
-      SELECT tier, count(*) AS count FROM notifications
+    const rows = await this.prisma.$queryRaw<{ priority: string; count: bigint }[]>(Prisma.sql`
+      SELECT priority, count(*) AS count FROM notifications
       WHERE user_id = ${userId}::uuid AND read_at IS NULL
-      GROUP BY tier
+      GROUP BY priority
     `);
-    const byTier = new Map(rows.map((r) => [r.tier, Number(r.count)]));
+    const byPriority = new Map(rows.map((r) => [r.priority, Number(r.count)]));
     return {
-      urgent: byTier.get('urgent') ?? 0,
-      personal: byTier.get('personal') ?? 0,
-      action: byTier.get('action') ?? 0,
-      background: byTier.get('background') ?? 0,
+      urgent: byPriority.get('urgent') ?? 0,
+      high: byPriority.get('high') ?? 0,
+      medium: byPriority.get('medium') ?? 0,
+      low: byPriority.get('low') ?? 0,
     };
   }
 
@@ -145,7 +143,7 @@ export class NotificationsRepository {
     const client = tx ?? this.prisma;
     const values = rows.map(
       (r) => Prisma.sql`(
-        ${r.id}::uuid, ${r.user_id}::uuid, ${r.tier}, ${r.kind},
+        ${r.id}::uuid, ${r.user_id}::uuid, ${r.priority}, ${r.kind},
         ${r.source_type}, ${r.source_id}::uuid, ${r.source_seq}::bigint,
         ${r.actor_id}::uuid, ${r.preview}, ${r.urgent_text},
         ${r.conversation_id}::uuid, ${r.conversation_title}, ${r.message_id}::uuid,
@@ -154,7 +152,7 @@ export class NotificationsRepository {
     );
     return client.$queryRaw<NotificationRow[]>(Prisma.sql`
       INSERT INTO notifications (
-        id, user_id, tier, kind, source_type, source_id, source_seq,
+        id, user_id, priority, kind, source_type, source_id, source_seq,
         actor_id, preview, urgent_text, conversation_id, conversation_title,
         message_id, thread_root_id, event_id
       ) VALUES ${Prisma.join(values)}
@@ -183,13 +181,13 @@ export class NotificationsRepository {
     const rows = await client.$queryRaw<NotificationRow[]>(Prisma.sql`
       UPDATE notifications SET read_at = now()
       WHERE id = ${id}::uuid AND user_id = ${userId}::uuid
-        AND read_at IS NULL AND tier <> 'urgent'
+        AND read_at IS NULL AND priority <> 'urgent'
       RETURNING ${NOTIFICATION_COLS}
     `);
     return rows[0] ?? this.findById(userId, id);
   }
 
-  /** Гашение по источнику (вход в чат): personal/action/фон до watermark;
+  /** Гашение по источнику (вход в чат): high/medium/low до watermark;
    *  срочному — стоп повторов (прочитано, C2), висит до ознакомления. */
   async markReadBySource(
     userId: string,
@@ -202,7 +200,7 @@ export class NotificationsRepository {
       UPDATE notifications SET read_at = now()
       WHERE user_id = ${userId}::uuid AND source_id = ${sourceId}::uuid
         AND source_seq <= ${BigInt(upToSeq)}::bigint AND read_at IS NULL
-        AND tier <> 'urgent'
+        AND priority <> 'urgent'
     `);
   }
 
@@ -219,7 +217,7 @@ export class NotificationsRepository {
         : Prisma.sql`source_id = ${where.conversationId}::uuid`;
     return client.$executeRaw(Prisma.sql`
       UPDATE notifications SET repeats_stopped_at = now()
-      WHERE user_id = ${userId}::uuid AND tier = 'urgent' AND ${scope}
+      WHERE user_id = ${userId}::uuid AND priority = 'urgent' AND ${scope}
         AND ack_at IS NULL AND repeats_stopped_at IS NULL
     `);
   }
@@ -228,7 +226,7 @@ export class NotificationsRepository {
   async urgentAuthorId(messageId: string): Promise<string | null> {
     const rows = await this.prisma.$queryRaw<{ actor_id: string }[]>(Prisma.sql`
       SELECT actor_id FROM notifications
-      WHERE message_id = ${messageId}::uuid AND tier = 'urgent'
+      WHERE message_id = ${messageId}::uuid AND priority = 'urgent'
       LIMIT 1
     `);
     return rows[0]?.actor_id ?? null;
@@ -272,7 +270,7 @@ export class NotificationsRepository {
   async ack(userId: string, id: string): Promise<NotificationRow | null> {
     const rows = await this.prisma.$queryRaw<NotificationRow[]>(Prisma.sql`
       UPDATE notifications SET ack_at = now(), repeats_stopped_at = now(), read_at = now()
-      WHERE id = ${id}::uuid AND user_id = ${userId}::uuid AND tier = 'urgent' AND ack_at IS NULL
+      WHERE id = ${id}::uuid AND user_id = ${userId}::uuid AND priority = 'urgent' AND ack_at IS NULL
       RETURNING ${NOTIFICATION_COLS}
     `);
     return rows[0] ?? this.findById(userId, id);
@@ -285,12 +283,12 @@ export class NotificationsRepository {
   }> {
     const rows = await this.prisma.$queryRaw<{ user_id: string; ack_at: Date }[]>(Prisma.sql`
       SELECT user_id, ack_at FROM notifications
-      WHERE message_id = ${messageId}::uuid AND tier = 'urgent' AND ack_at IS NOT NULL
+      WHERE message_id = ${messageId}::uuid AND priority = 'urgent' AND ack_at IS NOT NULL
       ORDER BY ack_at ASC
     `);
     const total = await this.prisma.$queryRaw<{ count: bigint }[]>(Prisma.sql`
       SELECT count(*) AS count FROM notifications
-      WHERE message_id = ${messageId}::uuid AND tier = 'urgent'
+      WHERE message_id = ${messageId}::uuid AND priority = 'urgent'
     `);
     return {
       rows: rows.map((r) => ({ userId: r.user_id, ackedAt: r.ack_at })),
@@ -332,11 +330,11 @@ export class NotificationsRepository {
     }));
   }
 
-  /** Авто-архивация фона (анти-свалка): старше 7 дней — read, журнал жив. */
-  async archiveStaleBackground(olderThanDays: number): Promise<number> {
+  /** Авто-архивация низкого (анти-свалка): старше 7 дней — read, журнал жив. */
+  async archiveStaleLow(olderThanDays: number): Promise<number> {
     return this.prisma.$executeRaw(Prisma.sql`
       UPDATE notifications SET read_at = now()
-      WHERE tier = 'background' AND read_at IS NULL
+      WHERE priority = 'low' AND read_at IS NULL
         AND created_at < now() - (${olderThanDays} || ' days')::interval
     `);
   }
@@ -349,7 +347,7 @@ export class NotificationsRepository {
     return rows.map((row) => ({
       id: row.id,
       seq: Number(row.seq),
-      tier: row.tier as Notification['tier'],
+      priority: row.priority as Notification['priority'],
       kind: row.kind as Notification['kind'],
       sourceType: row.source_type as Notification['sourceType'],
       sourceId: row.source_id,

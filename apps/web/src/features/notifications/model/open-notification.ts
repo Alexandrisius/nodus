@@ -17,7 +17,7 @@ import { useNotificationDetailStore } from './detail-store.js';
 export function useOpenNotification(): (item: Notification, sourceRect?: SourceRect) => void {
   const openCard = useOpenCard();
   return (item, sourceRect) => {
-    const card = item.tier === 'urgent' ? null : sourceCardOf(item);
+    const card = item.priority === 'urgent' ? null : sourceCardOf(item);
     if (card) {
       openCard(card, sourceRect);
       return;

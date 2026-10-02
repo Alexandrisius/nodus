@@ -25,7 +25,7 @@ function notif(n: number, overrides: Partial<Notification>): Notification {
   return {
     id: `c0000000-0000-4000-8000-${String(n).padStart(12, '0')}`,
     seq: SEQ_SEAD - n,
-    tier: 'personal',
+    priority: 'high',
     kind: 'chat.mention',
     sourceType: 'conversation',
     sourceId: cid(3),
@@ -47,16 +47,16 @@ const SITE_CHAT = cid(5);
 const DIRECT_K = cid(7);
 
 /**
- * Демо-журнал уведомлений (#100): полный срез ярусов для приёмки владельцем —
+ * Демо-журнал уведомлений (#100/#189): полный срез приоритетов для приёмки —
  * срочные (одно длинное под гейт «долистал», одно короткое), личные
  * (несколько авторов/чатов, свежие и старые, пачка одного чата под
- * группировку «+N»), упоминания, действия-заделки (H3), фон разных
- * источников, прочитанные (для фильтра «Все») + горка 1200 для «999+».
+ * группировку «+N»), упоминания, средний приоритет (заделки), низкий
+ * (посты каналов + правка сообщения), прочитанные + горка для «999+».
  */
 export const demoNotifications: Notification[] = [
   // ===== Срочные =====
   notif(1, {
-    tier: 'urgent',
+    priority: 'urgent',
     kind: 'urgent.message',
     preview: 'Внимание! Завтра в 09:30 — выездная планёрка…',
     urgentText: URGENT_LONG_TEXT,
@@ -67,7 +67,7 @@ export const demoNotifications: Notification[] = [
     createdAt: minutesAgo(4),
   }),
   notif(2, {
-    tier: 'urgent',
+    priority: 'urgent',
     kind: 'urgent.message',
     preview: 'Срочно: подпишите акт КС-2 до 18:00',
     urgentText:
@@ -81,7 +81,7 @@ export const demoNotifications: Notification[] = [
 
   // ===== Личные: разные авторы и чаты =====
   notif(3, {
-    tier: 'personal',
+    priority: 'high',
     kind: 'chat.direct_message',
     preview: 'Отправил вам обновлённый сметный расчёт по этапу 3',
     actor: userRef(userIds.vinnichek),
@@ -91,21 +91,21 @@ export const demoNotifications: Notification[] = [
     createdAt: minutesAgo(12),
   }),
   notif(4, {
-    tier: 'personal',
+    priority: 'high',
     kind: 'chat.mention',
     preview: '@Александр, проверьте раздел АР-2 в чертежах',
     actor: userRef(userIds.shaiderova),
     createdAt: minutesAgo(19),
   }),
   notif(5, {
-    tier: 'personal',
+    priority: 'high',
     kind: 'chat.mention',
     preview: 'Прислал правки по фасаду — посмотри Layer 4',
     actor: userRef(userIds.shaiderova),
     createdAt: minutesAgo(95),
   }),
   notif(6, {
-    tier: 'personal',
+    priority: 'high',
     kind: 'chat.direct_message',
     preview: 'Кофе через 10 минут?',
     actor: userRef(userIds.polomar),
@@ -117,7 +117,7 @@ export const demoNotifications: Notification[] = [
 
   // Пачка одного чата — группировка «+2» (E4).
   notif(7, {
-    tier: 'personal',
+    priority: 'high',
     kind: 'chat.direct_message',
     preview: 'Схватка с заказчиком перенесена на четверг',
     actor: userRef(userIds.voronina),
@@ -127,7 +127,7 @@ export const demoNotifications: Notification[] = [
     createdAt: minutesAgo(70),
   }),
   notif(8, {
-    tier: 'personal',
+    priority: 'high',
     kind: 'chat.direct_message',
     preview: 'Отправил вам правки договора, п. 4.2',
     actor: userRef(userIds.voronina),
@@ -138,7 +138,7 @@ export const demoNotifications: Notification[] = [
 
   // Ответ в треде (thread-follow).
   notif(9, {
-    tier: 'personal',
+    priority: 'high',
     kind: 'chat.thread_reply',
     preview: 'Ответ в обсуждении: деформационный шов',
     actor: userRef(userIds.vinnichek),
@@ -148,7 +148,7 @@ export const demoNotifications: Notification[] = [
 
   // ===== Действия (заделки H3) =====
   notif(10, {
-    tier: 'action',
+    priority: 'medium',
     kind: 'action.assignment',
     preview: 'Поручение: согласовать спецификацию узла В-12',
     actor: userRef(userIds.shaiderova),
@@ -159,7 +159,7 @@ export const demoNotifications: Notification[] = [
     createdAt: minutesAgo(33),
   }),
   notif(11, {
-    tier: 'action',
+    priority: 'medium',
     kind: 'action.approval',
     preview: 'Согласование: переработка от 27.09',
     actor: userRef(userIds.klimovich),
@@ -170,7 +170,7 @@ export const demoNotifications: Notification[] = [
     createdAt: minutesAgo(64),
   }),
   notif(12, {
-    tier: 'action',
+    priority: 'medium',
     kind: 'action.deadline',
     preview: 'Срок: аудит безопасности — осталось 2 дня',
     actor: userRef(userIds.karpovich),
@@ -183,7 +183,7 @@ export const demoNotifications: Notification[] = [
 
   // ===== Фон: разные источники =====
   notif(13, {
-    tier: 'background',
+    priority: 'low',
     kind: 'chat.channel_post',
     preview: 'Новая запись в канале «Новости компании»',
     actor: userRef(userIds.klimovich),
@@ -193,7 +193,7 @@ export const demoNotifications: Notification[] = [
     createdAt: minutesAgo(120),
   }),
   notif(14, {
-    tier: 'background',
+    priority: 'low',
     kind: 'chat.channel_post',
     preview: 'Отчёт по итогам месяца опубликован',
     actor: userRef(userIds.shaiderova),
@@ -203,7 +203,7 @@ export const demoNotifications: Notification[] = [
     createdAt: minutesAgo(200),
   }),
   notif(15, {
-    tier: 'background',
+    priority: 'low',
     kind: 'chat.channel_post',
     preview: 'На площадку завезли арматуру, фото в альбоме',
     actor: userRef(userIds.matorin),
@@ -211,6 +211,16 @@ export const demoNotifications: Notification[] = [
     conversationId: SITE_CHAT,
     conversationTitle: 'Стройплощадка Речпарт',
     createdAt: minutesAgo(155),
+  }),
+  notif(19, {
+    priority: 'low',
+    kind: 'chat.message_edited',
+    preview: 'Спецификация обновлена: добавлен узел В-12',
+    actor: userRef(userIds.vinnichek),
+    sourceId: SITE_CHAT,
+    conversationId: SITE_CHAT,
+    conversationTitle: 'Стройплощадка Речпарт',
+    createdAt: minutesAgo(150),
   }),
 
   // ===== Прочитанные (фильтр «Все»; в секциях их нет) =====
@@ -232,7 +242,7 @@ export const demoNotifications: Notification[] = [
     readAt: minutesAgo(500),
   }),
   notif(18, {
-    tier: 'action',
+    priority: 'medium',
     kind: 'action.assignment',
     preview: 'Поручение: проверить узлы примыкания (выполнено)',
     actor: userRef(userIds.klimovich),
@@ -245,12 +255,12 @@ export const demoNotifications: Notification[] = [
   }),
 ];
 
-/** Демо-горка фона (E9 «999+» проверен e2e-моком; в демо — умеренная пачка). */
+/** Демо-горка низкого приоритета (E9 «999+»; в демо — умеренная пачка). */
 export const demoBackgroundBulk: Notification[] = Array.from({ length: 25 }, (_, i) =>
   notif(100 + i, {
-    tier: 'background',
+    priority: 'low',
     kind: 'chat.channel_post',
-    preview: `Фоновое событие #${i + 1}`,
+    preview: `Низкий приоритет #${i + 1}`,
     actor: userRef(userIds.klimovich),
     sourceId: cid(9),
     conversationId: cid(9),

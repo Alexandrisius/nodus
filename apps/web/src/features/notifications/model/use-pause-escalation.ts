@@ -45,7 +45,7 @@ export function usePauseEscalation(): void {
         {
           notificationId: `wave-${now}`,
           userId: 'me',
-          tier: 'action',
+          priority: 'medium',
           kind: 'action.assignment',
           sourceId: 'wave',
           conversationId: null,

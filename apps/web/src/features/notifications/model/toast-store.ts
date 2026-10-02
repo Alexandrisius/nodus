@@ -7,7 +7,8 @@ import { getOpenConversation } from '../../../shared/chat/notifications.js';
 /**
  * Тост-контур уведомлений (#100, вердикты 30.09): стак личного (каждое
  * отдельно, ≤4 видимых, «+1» при повторе того же автора в чате ≤60 с — B7/F2),
- * ОДНА сводная карточка действий (F3), фон — тостов не имеет никогда (F4),
+ * ОДНА сводная карточка действий (F3), низкий приоритет — тостов не имеет
+ * никогда (F4),
  * DND глушит кроме срочного (F6), открытый активный чат-источник — без
  * тоста, только счётчики (B6). Snoozed-беседа — тихое накопление, одна
  * сводная по экспирации (B4 — флаг знает клиент из данных беседы).
@@ -63,7 +64,7 @@ function inDndWindow(dnd: { enabled: boolean; start: string; end: string }, now:
   return start <= end ? minutes >= start && minutes < end : minutes >= start || minutes < end;
 }
 
-/** Чистая функция решения о тосте (юнит-покрыта): tier/контекст → показать? */
+/** Чистая функция решения о тосте (юнит-покрыта): приоритет/контекст → показать? */
 export function shouldToast(
   snapshot: NotificationSnapshot,
   attempt: number,
@@ -79,31 +80,31 @@ export function shouldToast(
 ): 'personal' | 'actions' | null {
   void attempt;
   if (snapshot.userId !== ctx.viewerId) return null; // чужие будила
-  if (snapshot.tier === 'background') return null; // F4: фон — никогда
-  if (snapshot.tier !== 'urgent') {
+  if (snapshot.priority === 'low') return null; // F4: низкий — никогда
+  if (snapshot.priority !== 'urgent') {
     if (inDndWindow(ctx.dnd, ctx.now)) return null; // F6
   }
   if (snapshot.conversationId && ctx.muted.has(snapshot.conversationId)) {
-    if (snapshot.tier !== 'urgent') return null; // B3 (срочное пробивает)
+    if (snapshot.priority !== 'urgent') return null; // B3 (срочное пробивает)
   }
   if (
     snapshot.conversationId &&
     ctx.snoozed.has(snapshot.conversationId) &&
-    snapshot.tier !== 'urgent'
+    snapshot.priority !== 'urgent'
   ) {
     return null; // B4: копится в журнал, тост по экспирации — сводной
   }
   // B6: открытый активный КОНКРЕТНЫЙ чат-источник — только счётчики; события
   // без беседы (действия) null-сравнением не гасятся (bug: null === null).
   if (
-    snapshot.tier !== 'urgent' &&
+    snapshot.priority !== 'urgent' &&
     snapshot.conversationId !== null &&
     ctx.documentVisible &&
     ctx.openConversationId === snapshot.conversationId
   ) {
     return null;
   }
-  return snapshot.tier === 'action' ? 'actions' : 'personal';
+  return snapshot.priority === 'medium' ? 'actions' : 'personal';
 }
 
 export const useNotificationsToastStore = create<NotificationsToastState>((set, get) => ({
@@ -130,13 +131,13 @@ export const useNotificationsToastStore = create<NotificationsToastState>((set, 
       return;
     }
     // B7: тот же автор в том же чате ≤60 с — «+1», новый тост не плодится.
-    const key = `${snapshot.conversationId ?? snapshot.sourceId}:${snapshot.tier === 'urgent' ? snapshot.messageId : (snapshot.preview ?? '')}:${(snapshot as { kind?: string }).kind ?? ''}:${attempt}`;
-    const stackKey = `${snapshot.conversationId ?? snapshot.sourceId}:${snapshot.tier === 'urgent' ? 'urgent' : 'personal'}`;
+    const key = `${snapshot.conversationId ?? snapshot.sourceId}:${snapshot.priority === 'urgent' ? snapshot.messageId : (snapshot.preview ?? '')}:${(snapshot as { kind?: string }).kind ?? ''}:${attempt}`;
+    const stackKey = `${snapshot.conversationId ?? snapshot.sourceId}:${snapshot.priority === 'urgent' ? 'urgent' : 'personal'}`;
     const now = Date.now();
     const existing = state.personal.find(
       (t) => stackKeyOf(t) === stackKey && now - t.addedAt < STACK_WINDOW_MS,
     );
-    if (existing && snapshot.tier !== 'urgent') {
+    if (existing && snapshot.priority !== 'urgent') {
       set({
         personal: state.personal.map((t) =>
           t === existing ? { ...t, count: t.count + 1, addedAt: now } : t,
@@ -158,5 +159,5 @@ export const useNotificationsToastStore = create<NotificationsToastState>((set, 
 }));
 
 function stackKeyOf(toast: PersonalToast): string {
-  return `${toast.snapshot.conversationId ?? toast.snapshot.sourceId}:${toast.snapshot.tier === 'urgent' ? 'urgent' : 'personal'}`;
+  return `${toast.snapshot.conversationId ?? toast.snapshot.sourceId}:${toast.snapshot.priority === 'urgent' ? 'urgent' : 'personal'}`;
 }

@@ -17,8 +17,11 @@ import { useNotificationDetailStore } from '../model/detail-store.js';
  * Блоки витрины не рендерятся без /home/summary — лента занимает всю ширину.
  */
 export function HomeFeedPage({ top, rail }: { top?: ReactNode; rail?: ReactNode }) {
+  // Два окна журнала (#189): внимание и низкий приоритет — каждое своим
+  // запросом (лимит 50 по seq DESC), поток низких не вытесняет важное из
+  // окна ленты и колокольчика; вкладки и счётчики фильтруют объединение.
   const attention = useNotifications('attention');
-  const background = useNotifications('background');
+  const low = useNotifications('low');
   const summary = useNotificationSummary();
   const readerOpen = useNotificationDetailStore((s) => s.notificationId !== null);
 
@@ -28,7 +31,7 @@ export function HomeFeedPage({ top, rail }: { top?: ReactNode; rail?: ReactNode 
   // занимает ровно место ленты, закрывая её собой; закрытие возвращает поток.
   useEffect(() => {
     const el = feedColumnRef.current;
-    if (!readerOpen || el === null) return;
+    if (!el || readerOpen === false) return;
     window.scrollTo({ top: 0, behavior: 'smooth' });
     const pageTop = el.getBoundingClientRect().top + window.scrollY;
     el.style.height = `${Math.max(320, window.innerHeight - pageTop - 24)}px`;
@@ -38,6 +41,7 @@ export function HomeFeedPage({ top, rail }: { top?: ReactNode; rail?: ReactNode 
   }, [readerOpen]);
 
   const attentionItems = attention.data?.items ?? [];
+  const backgroundItems = low.data?.items ?? [];
   const degraded = attention.isError && attention.error != null;
 
   const feed = degraded ? (
@@ -47,8 +51,8 @@ export function HomeFeedPage({ top, rail }: { top?: ReactNode; rail?: ReactNode 
   ) : (
     <NotificationsFeed
       attentionItems={attentionItems}
-      backgroundItems={background.data?.items ?? []}
-      backgroundTotal={summary.data?.background ?? 0}
+      backgroundItems={backgroundItems}
+      backgroundTotal={summary.data?.low ?? 0}
       loading={attention.isLoading && !attention.data}
     />
   );

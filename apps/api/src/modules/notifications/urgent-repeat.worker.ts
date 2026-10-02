@@ -61,7 +61,7 @@ export class UrgentRepeatWorker implements OnModuleInit, OnModuleDestroy {
   /** Один такт повтора — public для интеграционных тестов. */
   async remind(notificationId: string): Promise<'stop' | 'sent' | 'expired'> {
     const row = await this.repo.findRaw(notificationId);
-    if (!row || row.tier !== 'urgent') return 'stop';
+    if (!row || row.priority !== 'urgent') return 'stop';
     if (row.ack_at || row.repeats_stopped_at || row.read_at) return 'stop';
 
     const elapsedSec = (Date.now() - row.created_at.getTime()) / 1000;
@@ -79,7 +79,7 @@ export class UrgentRepeatWorker implements OnModuleInit, OnModuleDestroy {
           snapshot: {
             notificationId: row.id,
             userId: row.user_id,
-            tier: row.tier,
+            priority: row.priority,
             kind: row.kind,
             sourceId: row.source_id,
             conversationId: row.conversation_id,

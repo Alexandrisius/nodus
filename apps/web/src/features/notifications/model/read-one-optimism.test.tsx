@@ -17,7 +17,7 @@ describe('read-one оптимистичность', () => {
     const item: Notification = {
       id: '11111111-1111-4111-8111-111111111111',
       seq: 5,
-      tier: 'personal',
+      priority: 'high',
       kind: 'action.assignment',
       sourceType: 'task',
       sourceId: '22222222-2222-4222-8222-222222222222',
@@ -39,9 +39,9 @@ describe('read-one оптимистичность', () => {
     });
     const summary: NotificationSummary = {
       urgent: 1,
-      personal: 2,
-      action: 1,
-      background: 3,
+      high: 2,
+      medium: 1,
+      low: 3,
       attention: 4,
     };
 
@@ -66,7 +66,7 @@ describe('read-one оптимистичность', () => {
       result.current.mutate(item.id);
     });
 
-    // До ответа сервера: строка ушла из живого фильтра, счётчик яруса -1…
+    // До ответа сервера: строка ушла из живого фильтра, счётчик приоритета -1…
     const attentionPage = queryClient.getQueryData<NotificationPage>([
       'notifications',
       'list',
@@ -74,7 +74,7 @@ describe('read-one оптимистичность', () => {
     ])!;
     expect(attentionPage.items.some((n) => n.id === item.id)).toBe(false);
     const during = queryClient.getQueryData<NotificationSummary>(['notifications', 'summary'])!;
-    expect(during.personal).toBe(1);
+    expect(during.high).toBe(1);
     expect(during.attention).toBe(3);
     // …но история 'all' держит запись — ридер открыт и после гашения.
     const historyPage = queryClient.getQueryData<NotificationPage>([
@@ -87,7 +87,7 @@ describe('read-one оптимистичность', () => {
     rejectRef.fn(new Error('network'));
     await waitFor(() => {
       const after = queryClient.getQueryData<NotificationSummary>(['notifications', 'summary'])!;
-      expect(after.personal).toBe(2);
+      expect(after.high).toBe(2);
       expect(after.attention).toBe(4);
     });
     const restored = queryClient.getQueryData<NotificationPage>([

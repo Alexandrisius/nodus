@@ -8,28 +8,43 @@ export const notificationsStrings = {
   feedTitle: 'УВЕДОМЛЕНИЯ',
   /** Деградация домена (I10/G4): журнал недоступен — витрина жива. */
   feedUnavailable: 'Журнал уведомлений недоступен',
-  /** Секция важного: иерархия блоков = иерархия ярусов (срочно → личное → действия). */
+  /** Секция важного: иерархия блоков = иерархия приоритетов (срочно → высокий → средний). */
   attentionSection: 'ТРЕБУЮТ ВНИМАНИЯ',
-  backgroundSection: 'ФОН',
-  showAllBackground: 'Показать все фоновые',
+  lowSection: 'НИЗКИЙ ПРИОРИТЕТ',
+  showAllLow: 'Показать все низкие',
   allClean: 'Всё разобрано',
   allCleanHint: 'Новых важных уведомлений нет',
-  /** Табы-фильтры ленты (Slack-паттерн: All/Mentions/…; один всегда активен). */
+  /** Табы-фильтры ленты (Slack-паттерн: один всегда активен) + окно «+» (#189). */
   pillAll: 'Все',
   pillUrgent: 'Срочные',
   pillMentions: 'Упоминания',
-  pillActions: 'Действия',
-  searchPlaceholder: 'Поиск…',
-  searchEmpty: 'Ничего не найдено',
+  tabAdd: 'Настроить вкладки',
+  tabsDialogTitle: 'Вкладки уведомлений',
+  tabsDialogCreate: 'Новая вкладка',
+  tabsDialogEdit: 'Вкладка',
+  tabsNameLabel: 'Название',
+  tabsNamePlaceholder: 'Например: Посты каналов',
+  tabsPrioritiesLabel: 'Приоритеты',
+  tabsKindsLabel: 'Типы событий',
+  tabsSystemLabel: 'Системные вкладки',
+  tabsSystemHint: 'Вкладка «Все» всегда доступна',
+  tabsCreateButton: 'Создать',
+  tabsSaveButton: 'Сохранить',
+  tabsCancelButton: 'Отмена',
+  tabsRename: 'Переименовать',
+  tabsDelete: 'Удалить',
+  tabsHide: 'Скрыть',
+  tabNoResults: 'Ничего не найдено',
+  tabAnyFilter: 'без фильтра — все события',
   /** Группировка по источнику (Telegram): счётчик в строке. */
   groupedMore: 'ещё',
   /** Cap отображения (E9). */
   overLimit: '999+',
-  /** Метки ярусов в строке (E11: контраст в обеих темах). */
-  tierUrgent: 'Срочно',
-  tierPersonal: 'Личное',
-  tierAction: 'Действие',
-  tierBackground: 'Фон',
+  /** Метки приоритетов в строке (E11: контраст в обеих темах). */
+  priorityUrgent: 'Срочно',
+  priorityHigh: 'Высокий',
+  priorityMedium: 'Средний',
+  priorityLow: 'Низкий',
   /** Заголовок строки по kind (без гендера: существительные). */
   kindTitles: {
     'urgent.message': 'Срочное сообщение',
@@ -37,6 +52,7 @@ export const notificationsStrings = {
     'chat.mention': 'Упоминание',
     'chat.thread_reply': 'Ответ в обсуждении',
     'chat.channel_post': 'Запись в канале',
+    'chat.message_edited': 'Сообщение отредактировано',
     'action.assignment': 'Поручение',
     'action.approval': 'Согласование',
     'action.deadline': 'Срок',
@@ -78,7 +94,7 @@ export const notificationsStrings = {
   /** Onboarding (Linear-паттерн, первые дни). */
   onboardingTitle: 'Ваша Главная',
   onboardingBody:
-    'Здесь собирается всё, что требует вашего внимания: срочные сообщения, личные обращения и поручения. Фоновые события не отвлекают — они ниже, в свёрнутом виде.',
+    'Здесь собирается всё, что требует вашего внимания: срочные сообщения, личные обращения и поручения. Низкий приоритет не отвлекает — он ниже, в свёрнутом журнале.',
 };
 
 export type NotificationsStrings = typeof notificationsStrings;

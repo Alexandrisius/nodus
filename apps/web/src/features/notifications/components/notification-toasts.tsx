@@ -70,7 +70,7 @@ function PersonalToastCard({
     };
   }, [dismiss, toastKey]);
 
-  const urgent = snapshot.tier === 'urgent';
+  const urgent = snapshot.priority === 'urgent';
   return (
     <div
       className="pointer-events-auto node-panel flex items-start gap-3 p-3 shadow-sm"
@@ -94,7 +94,7 @@ function PersonalToastCard({
             {urgent && (
               <span className="inline-flex items-center gap-1 rounded-4xl bg-danger-soft px-1.5 py-0.5 text-[10px] font-semibold text-danger">
                 <AlarmClock className="size-3" strokeWidth={1.75} />
-                {attempt > 0 ? ui.notifications.toastUrgentRepeat : ui.notifications.tierUrgent}
+                {attempt > 0 ? ui.notifications.toastUrgentRepeat : ui.notifications.priorityUrgent}
               </span>
             )}
             {count > 1 && (

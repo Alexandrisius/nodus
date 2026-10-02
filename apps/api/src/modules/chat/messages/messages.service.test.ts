@@ -394,7 +394,12 @@ describe('MessagesService', () => {
       expect(eventBus.emit).toHaveBeenCalledWith(
         TX,
         CHAT_EVENTS.MESSAGE_EDITED,
-        { conversationId: CONV, messageId: 'msg-1', editedAt: '2026-09-24T13:00:00.000Z' },
+        expect.objectContaining({
+          editedAt: '2026-09-24T13:00:00.000Z',
+          authorId: ME,
+          text: 'Новый',
+          seq: 3,
+        }),
         expect.anything(),
       );
     });

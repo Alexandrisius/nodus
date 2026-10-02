@@ -4,22 +4,23 @@ import { userRefSchema } from '../directory/user-ref.schema.js';
 import { cursorQuerySchema } from '../pagination/paginated.schema.js';
 
 /**
- * Контракты модуля notifications (#100, ADR-0016): журнал уведомлений —
- * источник истины; ярусы urgent/personal/action/background; ознакомление
- * (ack) только для срочных. Русские строки UI — по `kind` из i18n (I15),
- * сервер лингвистики не несёт.
+ * Контракты модуля notifications (#100, ADR-0016; приоритеты — #189/ADR-0017):
+ * журнал уведомлений — источник истины; абстрактные приоритеты
+ * urgent/high/medium/low, маппинг kind → priority — декларативная таблица
+ * на бэке; ознакомление (ack) только для срочных. Русские строки UI — по
+ * `kind` из i18n (I15), сервер лингвистики не несёт.
  */
 
-/** Ярус внимания: иерархия блоков Главной = иерархия ярусов (вердикт 30.09). */
-export const notificationTierSchema = z.enum(['urgent', 'personal', 'action', 'background']);
-export type NotificationTier = z.infer<typeof notificationTierSchema>;
+/** Приоритет уведомления: абстрактная шкала важности, независимая от смысла
+ *  события (ось kind); иерархия блоков Главной = иерархия приоритетов. */
+export const notificationPrioritySchema = z.enum(['urgent', 'high', 'medium', 'low']);
+export type NotificationPriority = z.infer<typeof notificationPrioritySchema>;
 
 /**
  * Тип источника уведомления. kind — механика «что случилось» (заголовок
  * строки из i18n), sourceType/sourceId — «где» (переход по клику).
- * `chat.thread_reply`/`chat.channel_post`/`chat.direct_message`/`chat.mention`
- * — живые источники ночи; `action.*` — заделы под поручения/согласования
- * (H3: на моках, бэк-источники появятся с модулями).
+ * `urgent.message`/`chat.*` — живые источники; `action.*` — заделы под
+ * поручения/согласования (бэк-источники появятся с модулями).
  */
 export const notificationKindSchema = z.enum([
   'urgent.message',
@@ -27,6 +28,7 @@ export const notificationKindSchema = z.enum([
   'chat.mention',
   'chat.thread_reply',
   'chat.channel_post',
+  'chat.message_edited',
   'action.assignment',
   'action.approval',
   'action.deadline',
@@ -47,7 +49,7 @@ export const notificationSchema = z.object({
   id: z.uuid(),
   /** Глобальный порядок журнала (bigserial): курсор дельты после reconnect. */
   seq: z.number().int().positive(),
-  tier: notificationTierSchema,
+  priority: notificationPrioritySchema,
   kind: notificationKindSchema,
   sourceType: notificationSourceSchema,
   sourceId: z.uuid(),
@@ -71,25 +73,18 @@ export type Notification = z.infer<typeof notificationSchema>;
 
 /** Сводка для индикации «число + точка» (колокольчик, рейка, document.title). */
 export const notificationSummarySchema = z.object({
-  /** Непрочитанные важные (urgent+personal+action) — ЧИСЛО. */
+  /** Непрочитанные важные (urgent+high+medium) — ЧИСЛО. */
   attention: z.number().int().min(0),
   urgent: z.number().int().min(0),
-  personal: z.number().int().min(0),
-  action: z.number().int().min(0),
-  /** Непрочитанный фон — ТОЧКА без числа (cap отображения «999+» — клиент). */
-  background: z.number().int().min(0),
+  high: z.number().int().min(0),
+  medium: z.number().int().min(0),
+  /** Непрочитанный низкий — ТОЧКА без числа (cap отображения «999+» — клиент). */
+  low: z.number().int().min(0),
 });
 export type NotificationSummary = z.infer<typeof notificationSummarySchema>;
 
-/** Фильтры ленты: пилюли Главной + развёрнутый фон + «Все» (история журнала). */
-export const notificationFilterSchema = z.enum([
-  'attention',
-  'unread',
-  'mentions',
-  'actions',
-  'background',
-  'all',
-]);
+/** Фильтры ленты: пилюли Главной + низкий + «Все» (история журнала). */
+export const notificationFilterSchema = z.enum(['attention', 'unread', 'mentions', 'low', 'all']);
 export type NotificationFilter = z.infer<typeof notificationFilterSchema>;
 
 export const listNotificationsQuerySchema = cursorQuerySchema.extend({

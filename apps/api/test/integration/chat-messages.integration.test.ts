@@ -431,6 +431,10 @@ describe.skipIf(!process.env.DATABASE_URL)('chat: сообщения (integratio
       conversationId: conv,
       messageId: message.id,
       editedAt,
+      // #189: правка несёт автора/текст/seq — fanout уведомления без рефеча.
+      authorId: alice.id,
+      text: 'событийное (правка)',
+      seq: Number(message.seq),
     });
 
     // Квитанция просмотров (GET курсор больше не двигает, #102 р.2) → событие

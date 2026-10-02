@@ -6,7 +6,7 @@ import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@nodus/ui/components/popover';
 import { useNotifications, useNotificationSummary } from '../api/notifications-api.js';
-import { formatCount } from '../model/group-notifications.js';
+import { formatCount, PRIORITY_ORDER } from '../model/group-notifications.js';
 import { useOpenNotification } from '../model/open-notification.js';
 import { NotificationRowCompact } from './notification-row.js';
 
@@ -14,17 +14,24 @@ import { NotificationRowCompact } from './notification-row.js';
  * Колокольчик топбара (вердикт 30.09): быстрый поповер последних 5–7; клик —
  * тот же сценарий, что и в ленте (к источнику/в ридер), поповер закрывается.
  * Индикация «число + точка» (B2/E7): число — важное, тихая точка — есть фон.
+ * Список — из ВСЕХ непрочитанных, старший ярус сверху (#189: точка фона
+ * всегда раскрываема — колокольчик и лента показывают одно и то же).
  * Массового прочтения НЕТ (фидбек владельца 01.10: важное гасится только
  * осознанно — входом в источник, «Ознакомлен», «Прочитать» по одному).
  */
 export function BellPopover() {
   const summary = useNotificationSummary();
-  const { data } = useNotifications('attention');
+  const attention = useNotifications('attention');
+  const low = useNotifications('low');
   const openNotification = useOpenNotification();
   const [open, setOpen] = useState(false);
-  const attention = summary.data?.attention ?? 0;
-  const background = summary.data?.background ?? 0;
-  const recent = (data?.items ?? []).slice(0, 7);
+  const attentionCount = summary.data?.attention ?? 0;
+  const lowCount = summary.data?.low ?? 0;
+  // Два окна (#189): важное не вытесняется потоком низкого; старший
+  // приоритет сверху, внутри — по свежести.
+  const recent = [...(attention.data?.items ?? []), ...(low.data?.items ?? [])]
+    .sort((a, b) => PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority] || b.seq - a.seq)
+    .slice(0, 7);
 
   function openItem(item: Notification) {
     setOpen(false);
@@ -41,12 +48,12 @@ export function BellPopover() {
           aria-label={ui.notifications.bellLabel}
         >
           <Bell className="size-4" strokeWidth={1.75} />
-          {attention > 0 && (
+          {attentionCount > 0 && (
             <span className="absolute -top-0.5 -right-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-4xl bg-danger px-1 font-mono text-[10px] leading-none font-semibold text-danger-foreground tabular-nums">
-              {formatCount(attention)}
+              {formatCount(attentionCount)}
             </span>
           )}
-          {attention === 0 && background > 0 && (
+          {attentionCount === 0 && lowCount > 0 && (
             <span className="absolute top-1 right-1 size-1.5 rounded-full bg-muted-foreground" />
           )}
         </Button>

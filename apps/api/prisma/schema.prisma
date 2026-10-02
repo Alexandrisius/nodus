@@ -670,10 +670,10 @@ model FileVersion {
 
 // ===== Модуль notifications (#100, ADR-0016) =====
 
-/// Ярус внимания: иерархия блоков Главной = иерархия ярусов (вердикт 30.09).
+/// Приоритет уведомления (ADR-0017): абстрактная шкала важности urgent |
+/// high | medium | low, маппинг kind → priority — таблица на бэке.
 /// Системная константа (не бизнес-справочник, I15): enum допустим в БД? — нет:
 /// TEXT + zod-контракт (канон prisma-migrations: бизнес-значения без ENUM).
-/// Ярусы — системная классификация механизма, но перечислены в contracts.
 
 /// Журнал уведомлений — источник истины (ADR-0016): каждое уведомление
 /// персистентно; WS только будит. seq — bigserial (курсор дельты после
@@ -683,8 +683,8 @@ model Notification {
   /// Глобальный порядок журнала: курсор дельты `?afterSeq=` (D1/D3).
   seq          BigInt    @unique @default(autoincrement())
   userId       String    @map("user_id") @db.Uuid
-  /// urgent | personal | action | background (zod-контракт).
-  tier         String
+  /// urgent | high | medium | low (zod-контракт, ADR-0017).
+  priority     String
   /// Механика источника (urgent.message, chat.mention, action.assignment…).
   kind         String
   /// conversation | message | task | letter | workflow.
@@ -716,8 +716,8 @@ model Notification {
   @@unique([eventId, userId])
   @@index([userId, readAt, seq(sort: Desc)])
   @@index([userId, seq(sort: Desc)])
-  @@index([sourceId, tier, ackAt])
-  @@index([tier, readAt, createdAt])
+  @@index([sourceId, priority, ackAt])
+  @@index([priority, readAt, createdAt])
   @@map("notifications")
 }
 

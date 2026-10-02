@@ -1,5 +1,11 @@
 import { z } from 'zod';
-import { uiPreferencesSchema, viewFieldPrefsSchema, viewSortSchema } from '@nodus/contracts';
+import {
+  notificationKindSchema,
+  notificationPrioritySchema,
+  uiPreferencesSchema,
+  viewFieldPrefsSchema,
+  viewSortSchema,
+} from '@nodus/contracts';
 
 /**
  * Zod-валидация persist-сторов при rehydrate (I7 «zod на границах», аудит
@@ -37,6 +43,23 @@ export const shellEnvelopeSchema = z.object({
 /** Настройки ленты чата. */
 export const chatPrefsEnvelopeSchema = z.object({
   align: z.enum(['one', 'both']).catch('one'),
+});
+
+/** Вкладки-фильтры ленты уведомлений (#189): кастомные вкладки + скрытые
+ *  системные. «Все» скрывать нельзя — схема принимает только urgent/mentions;
+ *  сломанная вкладка отбрасывается целиком (.catch), соседние выживают. */
+export const notificationTabsEnvelopeSchema = z.object({
+  custom: z
+    .array(
+      z.object({
+        id: z.string().min(1),
+        name: z.string().min(1).max(40),
+        kinds: z.array(notificationKindSchema).catch([]),
+        priorities: z.array(notificationPrioritySchema).catch([]),
+      }),
+    )
+    .catch([]),
+  hiddenSystem: z.array(z.enum(['urgent', 'mentions'])).catch([]),
 });
 
 /** Черновики композера (#87): текст + сериализуемый контекст reply/edit.

@@ -12,7 +12,7 @@ function snap(n: number, overrides: Partial<NotificationSnapshot> = {}): Notific
   return {
     notificationId: `n${n}`,
     userId: ME,
-    tier: 'personal',
+    priority: 'high',
     kind: 'chat.direct_message',
     sourceId: CONV,
     conversationId: CONV,
@@ -62,10 +62,10 @@ describe('toast-store push', () => {
     expect(personal[0]!.snapshot.conversationId).toBe('c2');
   });
 
-  it('F3: действия — сводная карточка одним счётчиком', () => {
+  it('F3: средний приоритет — сводная карточка одним счётчиком', () => {
     const s = useNotificationsToastStore.getState();
-    s.push(snap(1, { tier: 'action', kind: 'action.assignment' }), 0);
-    s.push(snap(2, { tier: 'action', kind: 'action.approval' }), 0);
+    s.push(snap(1, { priority: 'medium', kind: 'action.assignment' }), 0);
+    s.push(snap(2, { priority: 'medium', kind: 'action.approval' }), 0);
     const { personal, actions } = useNotificationsToastStore.getState();
     expect(personal).toHaveLength(0);
     expect(actions.count).toBe(2);
@@ -73,8 +73,8 @@ describe('toast-store push', () => {
 
   it('срочные не стекаются попарно — каждая отдельно', () => {
     const s = useNotificationsToastStore.getState();
-    s.push(snap(1, { tier: 'urgent', kind: 'urgent.message' }), 0);
-    s.push(snap(2, { tier: 'urgent', kind: 'urgent.message' }), 0);
+    s.push(snap(1, { priority: 'urgent', kind: 'urgent.message' }), 0);
+    s.push(snap(2, { priority: 'urgent', kind: 'urgent.message' }), 0);
     expect(useNotificationsToastStore.getState().personal).toHaveLength(2);
   });
 });

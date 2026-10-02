@@ -1,6 +1,6 @@
 import { AlarmClock, BellRing, MessageSquare, MessageSquareReply } from 'lucide-react';
 import type { MouseEvent } from 'react';
-import type { Notification, NotificationTier } from '@nodus/contracts';
+import type { Notification, NotificationPriority } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
@@ -9,26 +9,26 @@ import { formatCount, type NotificationGroup } from '../model/group-notification
 import { rowSourceRect } from '../model/open-notification.js';
 import type { SourceRect } from '../../../app/shell/slider-panel.js';
 
-/** Метка яруса строки (E11: контраст в обеих темах — семантические токены). */
-const TIER_CLASS: Record<NotificationTier, string> = {
+/** Метка приоритета строки (E11: контраст в обеих темах — семантические токены). */
+const PRIORITY_CLASS: Record<NotificationPriority, string> = {
   urgent: 'bg-danger/15 text-danger',
-  personal: 'bg-info/15 text-info',
-  action: 'bg-warning/15 text-warning-foreground text-warning',
-  background: 'bg-muted text-muted-foreground',
+  high: 'bg-info/15 text-info',
+  medium: 'bg-warning/15 text-warning-foreground text-warning',
+  low: 'bg-muted text-muted-foreground',
 };
 
-function TierMark({ tier }: { tier: NotificationTier }) {
-  const label =
-    tier === 'urgent'
-      ? ui.notifications.tierUrgent
-      : tier === 'personal'
-        ? ui.notifications.tierPersonal
-        : tier === 'action'
-          ? ui.notifications.tierAction
-          : ui.notifications.tierBackground;
+const PRIORITY_LABEL: Record<NotificationPriority, string> = {
+  urgent: ui.notifications.priorityUrgent,
+  high: ui.notifications.priorityHigh,
+  medium: ui.notifications.priorityMedium,
+  low: ui.notifications.priorityLow,
+};
+
+function PriorityMark({ priority }: { priority: NotificationPriority }) {
+  const label = PRIORITY_LABEL[priority];
   return (
     <span
-      className={`inline-flex h-1.5 w-1.5 shrink-0 rounded-full ${TIER_CLASS[tier]}`}
+      className={`inline-flex h-1.5 w-1.5 shrink-0 rounded-full ${PRIORITY_CLASS[priority]}`}
       title={label}
       aria-label={label}
     />
@@ -40,7 +40,7 @@ function kindTitle(kind: Notification['kind']): string {
 }
 
 /** Строка ленты: кто (аватар) · что (выжимка) · где (источник) · когда
- *  (E3) + метка яруса; клик — сразу к источнику (Битрикс24), срочное и
+ *  (E3) + метка приоритета; клик — сразу к источнику (Битрикс24), срочное и
  *  безисточниковое — ридер-панель (стек ADR-0009). Третья строка — только
  *  НАЗВАНИЕ беседы/обсуждения: у личных источник = сам автор, дубль имени
  *  не показываем (фидбек владельца 01.10). */
@@ -65,7 +65,7 @@ export function NotificationRow({
           <PersonAvatar name={item.actor?.displayName ?? 'N'} className="size-9" />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <TierMark tier={item.tier} />
+              <PriorityMark priority={item.priority} />
               <span className="truncate text-sm font-semibold">
                 {item.actor?.displayName ?? kindTitle(item.kind)}
               </span>
@@ -86,9 +86,9 @@ export function NotificationRow({
               <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
                 {item.kind === 'chat.thread_reply' ? (
                   <MessageSquareReply className="size-3" strokeWidth={1.75} />
-                ) : item.tier === 'urgent' ? (
+                ) : item.priority === 'urgent' ? (
                   <AlarmClock className="size-3" strokeWidth={1.75} />
-                ) : item.tier === 'action' ? (
+                ) : item.priority === 'medium' ? (
                   <BellRing className="size-3" strokeWidth={1.75} />
                 ) : (
                   <MessageSquare className="size-3" strokeWidth={1.75} />
@@ -130,7 +130,7 @@ export function NotificationRowCompact({
           {item.preview ? ` · ${item.preview}` : ''}
         </span>
       </span>
-      <TierMark tier={item.tier} />
+      <PriorityMark priority={item.priority} />
     </button>
   );
 }

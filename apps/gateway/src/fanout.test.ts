@@ -133,7 +133,7 @@ describe('routeEnvelope', () => {
       io,
       store,
       envelope('notification.dispatch_requested', {
-        snapshot: { notificationId: 'n1', userId: USER_B, tier: 'personal' },
+        snapshot: { notificationId: 'n1', userId: USER_B, priority: 'high' },
         attempt: 0,
         seq: 9,
       }),
