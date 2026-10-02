@@ -32,6 +32,7 @@ export const errorMessages: Record<ErrorCode, string> = {
     'Дневной лимит важных сообщений исчерпан — попробуйте завтра или напишите обычным сообщением',
   [ErrorCode.CHAT_URGENT_GROUP_TOO_LARGE]:
     'Важные сообщения не отправляют в беседы больше 20 участников',
+  [ErrorCode.CHAT_MEMBERS_LIMIT_REACHED]: 'В беседе уже максимум участников (200)',
   [ErrorCode.FILE_SIZE_MISMATCH]: 'Файл передался не полностью — попробуйте ещё раз',
   [ErrorCode.FILE_QUARANTINED]: 'Файл заблокирован проверкой безопасности',
   [ErrorCode.FILE_OFFICE_DISABLED]: 'Просмотр документов недоступен — скачайте файл',

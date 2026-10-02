@@ -114,7 +114,7 @@ export class ConversationMembersService {
     if (toAdd.length > 0) {
       if (existing.size + toAdd.length > MAX_MEMBERS) {
         throw new DomainException(
-          ErrorCode.VALIDATION_FAILED,
+          ErrorCode.CHAT_MEMBERS_LIMIT_REACHED,
           'Conversation member limit reached',
           {
             max: MAX_MEMBERS,

@@ -1,9 +1,9 @@
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { ErrorCode, ui } from '@nodus/contracts';
 import type { ConversationListItem, ConversationMember, Paginated } from '@nodus/contracts';
-import { ui } from '@nodus/contracts';
 import { toast } from 'sonner';
 
-import { api } from '../api-client.js';
+import { ApiError, api } from '../api-client.js';
 import { chatKeys } from './api.js';
 import { uploadAvatar } from './avatar-upload.js';
 
@@ -117,6 +117,13 @@ export function useAddMembers(conversationId: string) {
       }),
     onSuccess: () => {
       toast.success(ui.chat.membersAdded);
+    },
+    onError: (error) => {
+      toast.error(
+        error instanceof ApiError && error.code === ErrorCode.CHAT_MEMBERS_LIMIT_REACHED
+          ? ui.chat.membersLimitReached
+          : ui.common.saveError,
+      );
     },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: chatKeys.conversations() });

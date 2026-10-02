@@ -1,6 +1,6 @@
 import { Camera, ChevronDown, Plus, X } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
-import type { ConversationMemberRole, UserListItem } from '@nodus/contracts';
+import type { ConversationListItem, ConversationMemberRole, UserListItem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import {
@@ -219,14 +219,20 @@ export function ChatCreateDialog({
     if (!name || submitting) return;
     setSubmitting(true);
     try {
-      const conversation = await create.mutateAsync({
-        type: kind,
-        title: name,
-        description: description.trim() || undefined,
-        visibility,
-        memberIds,
-        permissions,
-      });
+      let conversation: ConversationListItem;
+      try {
+        conversation = await create.mutateAsync({
+          type: kind,
+          title: name,
+          description: description.trim() || undefined,
+          visibility,
+          memberIds,
+          permissions,
+        });
+      } catch {
+        toast.error(ui.common.saveError);
+        return;
+      }
       // Аватар — после создания (эндпоинт беседы): сбой загрузки НЕ роняет
       // готовую беседу (тост об ошибке), аватар ставится кликом в топбаре.
       if (avatarFile) {
