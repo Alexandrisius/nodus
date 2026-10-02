@@ -8,8 +8,9 @@ import type { ConversationsRepository } from './conversations.repository.js';
  * Гвард действия матрицы прав беседы (#186, I8): членство и матрица —
  * данные репозитория (не request-scope); не-член и несуществующая беседа
  * неотличимы (404 — не палить наличие), член без права — 403.
- * restrictTypes — типы, где действие вообще имеет смысл (переименование и
- * аватар — только группы/каналы: у direct/task/letter название производное).
+ * restrictTypes — типы, где действие вообще имеет смысл (переименование,
+ * аватар и мутации состава — только группы/каналы: у direct/task/letter
+ * название производное, состав фиксирован сущностью).
  */
 export async function requireConversationAction(
   repo: ConversationsRepository,

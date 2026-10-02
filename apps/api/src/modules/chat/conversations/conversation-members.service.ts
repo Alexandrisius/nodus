@@ -41,8 +41,9 @@ export const MAX_MEMBERS = 200;
  * Участники беседы (#186): список с ролями и поиском, добавление (право
  * addMembers — дефолт «любой участник»), смена роли модератора (право
  * manageSettings — владелец), исключение (право removeMembers + иерархия:
- * актёр строго старше цели). Права — гвардом по матрице беседы (I8);
- * не-члену беседа не видна (404).
+ * актёр строго старше цели). Мутации состава — только группы и каналы:
+ * состав direct/task/letter фиксирован сущностью (#195). Права — гвардом
+ * по матрице беседы (I8); не-члену беседа не видна (404).
  */
 @Injectable()
 export class ConversationMembersService {
@@ -95,33 +96,40 @@ export class ConversationMembersService {
   }
 
   /**
-   * Добавление участников: право addMembers (дефолт — любой участник).
-   * Неизвестных справочнику и уже состоящих пропускаем молча; превышение
-   * лимита 200 — ошибка валидации. Событие member_added (существует) —
-   * gateway доставляет и добавленным (их список бесед).
+   * Добавление участников: право addMembers (дефолт — любой участник);
+   * только группы и каналы — состав direct/task/letter фиксирован
+   * сущностью (#195). Неизвестных справочнику и уже состоящих пропускаем
+   * молча; превышение лимита 200 — ошибка валидации. Событие member_added
+   * (существует) — gateway доставляет и добавленным (их список бесед).
    */
   async add(
     userId: string,
     conversationId: string,
     body: { userIds: string[] },
   ): Promise<ConversationListItem> {
-    await requireConversationAction(this.repo, conversationId, userId, 'addMembers');
+    await requireConversationAction(this.repo, conversationId, userId, 'addMembers', [
+      'group',
+      'project_channel',
+    ]);
     const known = new Set(
       (await this.userProfiles.findRefs([...new Set(body.userIds)])).map((r) => r.id),
     );
     const existing = new Set((await this.repo.listMembers([conversationId])).map((m) => m.userId));
     const toAdd = [...new Set(body.userIds)].filter((id) => known.has(id) && !existing.has(id));
     if (toAdd.length > 0) {
-      if (existing.size + toAdd.length > MAX_MEMBERS) {
-        throw new DomainException(
-          ErrorCode.CHAT_MEMBERS_LIMIT_REACHED,
-          'Conversation member limit reached',
-          {
-            max: MAX_MEMBERS,
-          },
-        );
-      }
       await this.txRunner.run(async (tx) => {
+        // Лимит точный: блокировка строки беседы сериализует одновременные
+        // add — перечёт под локом не может проскочить 200 (TOCTOU, #195).
+        await this.repo.lockConversation(conversationId, tx);
+        if ((await this.repo.countMembers(conversationId, tx)) + toAdd.length > MAX_MEMBERS) {
+          throw new DomainException(
+            ErrorCode.CHAT_MEMBERS_LIMIT_REACHED,
+            'Conversation member limit reached',
+            {
+              max: MAX_MEMBERS,
+            },
+          );
+        }
         const added = await this.repo.addMembers(conversationId, toAdd, tx);
         if (added.length > 0) {
           await this.eventBus.emit(
@@ -138,7 +146,8 @@ export class ConversationMembersService {
 
   /**
    * Смена роли (модератор ⇄ участник): право manageSettings (дефолт —
-   * владелец); роль владельца не меняется никем (владелец один — создатель).
+   * владелец); только группы и каналы — у direct/task/letter ролей нет
+   * (#195); роль владельца не меняется никем (владелец один — создатель).
    */
   async updateRole(
     userId: string,
@@ -146,7 +155,10 @@ export class ConversationMembersService {
     memberUserId: string,
     body: { role: 'admin' | 'member' },
   ): Promise<ConversationMember> {
-    await requireConversationAction(this.repo, conversationId, userId, 'manageSettings');
+    await requireConversationAction(this.repo, conversationId, userId, 'manageSettings', [
+      'group',
+      'project_channel',
+    ]);
     const target = await this.repo.findMembership(conversationId, memberUserId);
     if (!target) throw DomainException.notFound('Member not found');
     if (target.role === 'owner') {
@@ -173,11 +185,15 @@ export class ConversationMembersService {
   /**
    * Исключение участника: право removeMembers (дефолт — владелец и модераторы)
    * + иерархия — актёр строго старше цели (модератора снимает только
-   * владелец); владельца исключить нельзя. Вместе со строкой участия уходит
-   * черновик исключённого (user-FK нет — чистим явно).
+   * владелец); только группы и каналы (#195); владельца исключить нельзя.
+   * Вместе со строкой участия уходит черновик исключённого (user-FK нет —
+   * чистим явно).
    */
   async remove(userId: string, conversationId: string, memberUserId: string): Promise<void> {
-    await requireConversationAction(this.repo, conversationId, userId, 'removeMembers');
+    await requireConversationAction(this.repo, conversationId, userId, 'removeMembers', [
+      'group',
+      'project_channel',
+    ]);
     const target = await this.repo.findMembership(conversationId, memberUserId);
     if (!target) throw DomainException.notFound('Member not found');
     if (target.role === 'owner') {

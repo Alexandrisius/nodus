@@ -1,5 +1,11 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiNoContentResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import { z } from 'zod';
 import {
   addConversationMembersBodySchema,
@@ -98,6 +104,7 @@ export class ConversationMembersController {
   @HttpCode(204)
   @Audit({ action: 'chat.member_remove', entity: 'conversation' })
   @ApiOperation({ summary: 'Исключение участника (право removeMembers + иерархия)' })
+  @ApiNoContentResponse({ description: 'Участник исключён' })
   @ApiErrors(400, 401, 403, 404)
   @ApiIdempotencyKey()
   async remove(

@@ -1,10 +1,13 @@
+// >300 строк — обоснование (I5): полный контракт состава беседы одного
+// агрегата — матрица прав (#186), direct-гвард и точный лимит (#195),
+// keyset-список с поиском; дробление по темам разорвало бы общий каркас моков.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Readable } from 'node:stream';
 import { ErrorCode } from '@nodus/contracts';
 
-import { DomainException } from '../../../core/errors/domain-exception.js';
+import { encodeCursor } from '../../../core/pagination/cursor.util.js';
 import { DEFAULT_CONVERSATION_PERMISSIONS } from '../permissions.js';
-import { ConversationMembersService } from './conversation-members.service.js';
+import { MAX_MEMBERS, ConversationMembersService } from './conversation-members.service.js';
 import { ConversationsService } from './conversations.service.js';
 
 /**
@@ -14,11 +17,12 @@ import { ConversationsService } from './conversations.service.js';
  * НЕ может сменить аватарку/название, НО может добавить участника.
  */
 
-const CONV = 'conv-1';
-const OWNER = 'owner-1';
-const ADMIN = 'admin-1';
-const MEMBER = 'member-1';
-const PEER = 'peer-1';
+const CONV = '00000000-0000-4000-8000-000000000001';
+const OWNER = '00000000-0000-4000-8000-000000000011';
+const ADMIN = '00000000-0000-4000-8000-000000000012';
+const MEMBER = '00000000-0000-4000-8000-000000000013';
+const PEER = '00000000-0000-4000-8000-000000000014';
+const PEER2 = '00000000-0000-4000-8000-000000000015';
 const TX = 'tx-handle';
 
 const JOINED = new Date('2026-09-01T09:00:00Z');
@@ -37,7 +41,11 @@ function makeRepo() {
       membershipOf(ADMIN, 'admin'),
       membershipOf(MEMBER, 'member'),
     ]),
-    listMembersPage: vi.fn(async () => []),
+    listMembersPage: vi.fn(
+      async (): Promise<Array<{ userId: string; role: string; joinedAt: Date }>> => [],
+    ),
+    countMembers: vi.fn(async () => 3),
+    lockConversation: vi.fn(),
     addMembers: vi.fn(async (_cid: string, ids: string[]) => ids),
     updateMemberRole: vi.fn(async () => true),
     removeMember: vi.fn(async () => true),
@@ -66,7 +74,9 @@ function makeProfileReader() {
     findRefs: vi.fn(async (ids: string[]) =>
       ids.map((id) => ({ id, displayName: `Имя ${id}`, avatarUrl: null })),
     ),
-    searchByDisplayName: vi.fn(async () => []),
+    searchByDisplayName: vi.fn(
+      async (): Promise<Array<{ id: string; displayName: string; avatarUrl: string | null }>> => [],
+    ),
     findMentionMatches: vi.fn(async () => []),
   };
 }
@@ -265,6 +275,153 @@ describe('участники: addMembers=member, manageSettings=owner, removeMem
     await expect(s.members.remove(MEMBER, CONV, PEER)).rejects.toMatchObject({
       code: ErrorCode.FORBIDDEN,
     });
-    expect(DomainException).toBeDefined();
+  });
+});
+
+describe('мутации состава direct-беседы запрещены (#195: состав фиксирован сущностью)', () => {
+  let s: ReturnType<typeof makeServices>;
+  beforeEach(() => {
+    s = makeServices();
+    vi.clearAllMocks();
+    s.repo.findTypeAndPermissions.mockResolvedValue({
+      id: CONV,
+      type: 'direct',
+      permissions: DEFAULT_CONVERSATION_PERMISSIONS,
+    });
+  });
+
+  it('add на direct → VALIDATION_FAILED, вставки и события нет', async () => {
+    s.repo.findMembership.mockResolvedValue(membershipOf(MEMBER, 'member'));
+    s.userProfiles.findRefs.mockResolvedValue([{ id: PEER, displayName: 'Имя', avatarUrl: null }]);
+    await expect(s.members.add(MEMBER, CONV, { userIds: [PEER] })).rejects.toMatchObject({
+      code: ErrorCode.VALIDATION_FAILED,
+    });
+    expect(s.repo.addMembers).not.toHaveBeenCalled();
+    expect(s.eventBus.emit).not.toHaveBeenCalled();
+  });
+
+  it('updateRole на direct → VALIDATION_FAILED', async () => {
+    s.repo.findMembership.mockResolvedValue(membershipOf(MEMBER, 'member'));
+    await expect(s.members.updateRole(MEMBER, CONV, PEER, { role: 'admin' })).rejects.toMatchObject(
+      { code: ErrorCode.VALIDATION_FAILED },
+    );
+  });
+
+  it('remove на direct → VALIDATION_FAILED', async () => {
+    s.repo.findMembership.mockResolvedValue(membershipOf(MEMBER, 'member'));
+    await expect(s.members.remove(MEMBER, CONV, PEER)).rejects.toMatchObject({
+      code: ErrorCode.VALIDATION_FAILED,
+    });
+  });
+});
+
+describe('участники: список (keyset-пагинация, поиск, видимость)', () => {
+  let s: ReturnType<typeof makeServices>;
+  beforeEach(() => {
+    s = makeServices();
+    vi.clearAllMocks();
+    s.repo.findMembership.mockResolvedValue(membershipOf(MEMBER, 'member'));
+  });
+
+  it('страница с hasMore: обрезана до limit, nextCursor — последняя строка страницы с её рангом роли', async () => {
+    s.repo.listMembersPage.mockResolvedValue([
+      { userId: OWNER, role: 'owner', joinedAt: JOINED },
+      { userId: ADMIN, role: 'admin', joinedAt: JOINED },
+      { userId: MEMBER, role: 'member', joinedAt: JOINED },
+    ]);
+    const page = await s.members.list(MEMBER, CONV, { limit: 2 });
+    expect(page.items.map((m) => m.user.id)).toEqual([OWNER, ADMIN]);
+    expect(page.nextCursor).toBe(
+      encodeCursor({ rank: 1, joinedAt: JOINED.toISOString(), userId: ADMIN }),
+    );
+  });
+
+  it('конец списка (строк ≤ limit): nextCursor null', async () => {
+    s.repo.listMembersPage.mockResolvedValue([{ userId: OWNER, role: 'owner', joinedAt: JOINED }]);
+    const page = await s.members.list(MEMBER, CONV, { limit: 50 });
+    expect(page.items).toHaveLength(1);
+    expect(page.nextCursor).toBeNull();
+  });
+
+  it('курсор запроса декодируется и уходит в репозиторий', async () => {
+    const cursor = encodeCursor({ rank: 1, joinedAt: JOINED.toISOString(), userId: ADMIN });
+    await s.members.list(MEMBER, CONV, { limit: 50, cursor });
+    expect(s.repo.listMembersPage).toHaveBeenCalledWith(
+      CONV,
+      expect.objectContaining({
+        cursor: { rank: 1, joinedAt: JOINED.toISOString(), userId: ADMIN },
+      }),
+    );
+  });
+
+  it('битый курсор → VALIDATION_FAILED (нет молчаливого сброса на первую страницу)', async () => {
+    await expect(
+      s.members.list(MEMBER, CONV, { limit: 50, cursor: 'мусор' }),
+    ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_FAILED });
+  });
+
+  it('поиск: имена резолвит порт справочника, фильтр id уходит в SQL', async () => {
+    s.userProfiles.searchByDisplayName.mockResolvedValue([
+      { id: PEER, displayName: 'Имя', avatarUrl: null },
+    ]);
+    await s.members.list(MEMBER, CONV, { limit: 50, search: 'Имя' });
+    expect(s.userProfiles.searchByDisplayName).toHaveBeenCalledWith('Имя', MAX_MEMBERS);
+    expect(s.repo.listMembersPage).toHaveBeenCalledWith(
+      CONV,
+      expect.objectContaining({ searchUserIds: [PEER] }),
+    );
+  });
+
+  it('пустой результат поиска → фильтр пустого массива (ANY(∅) — пустая страница, не весь список)', async () => {
+    s.userProfiles.searchByDisplayName.mockResolvedValue([]);
+    const page = await s.members.list(MEMBER, CONV, { limit: 50, search: 'Нет таких' });
+    expect(s.repo.listMembersPage).toHaveBeenCalledWith(
+      CONV,
+      expect.objectContaining({ searchUserIds: [] }),
+    );
+    expect(page.items).toEqual([]);
+  });
+
+  it('не-члену список не виден — 404 (не палить существование)', async () => {
+    s.repo.findMembership.mockResolvedValue(null);
+    await expect(s.members.list(MEMBER, CONV, { limit: 50 })).rejects.toMatchObject({
+      code: ErrorCode.NOT_FOUND,
+    });
+  });
+});
+
+describe('участники: лимит 200 точный (перечёт в tx под блокировкой строки, #195)', () => {
+  let s: ReturnType<typeof makeServices>;
+  beforeEach(() => {
+    s = makeServices();
+    vi.clearAllMocks();
+    s.repo.findMembership.mockResolvedValue(membershipOf(MEMBER, 'member'));
+    s.userProfiles.findRefs.mockResolvedValue([
+      { id: PEER, displayName: 'Имя', avatarUrl: null },
+      { id: PEER2, displayName: 'Имя 2', avatarUrl: null },
+    ]);
+    s.repo.listMembers.mockResolvedValue([]);
+  });
+
+  it('199 + 2 → CHAT_MEMBERS_LIMIT_REACHED: строка блокируется, вставки и события нет', async () => {
+    s.repo.countMembers.mockResolvedValue(MAX_MEMBERS - 1);
+    await expect(s.members.add(MEMBER, CONV, { userIds: [PEER, PEER2] })).rejects.toMatchObject({
+      code: ErrorCode.CHAT_MEMBERS_LIMIT_REACHED,
+    });
+    expect(s.repo.lockConversation).toHaveBeenCalledWith(CONV, TX);
+    expect(s.repo.addMembers).not.toHaveBeenCalled();
+    expect(s.eventBus.emit).not.toHaveBeenCalled();
+  });
+
+  it('199 + 1 = 200 — граница проходит: вставка и событие в той же tx', async () => {
+    s.repo.countMembers.mockResolvedValue(MAX_MEMBERS - 1);
+    await s.members.add(MEMBER, CONV, { userIds: [PEER] });
+    expect(s.repo.addMembers).toHaveBeenCalledWith(CONV, [PEER], TX);
+    expect(s.eventBus.emit).toHaveBeenCalledWith(
+      TX,
+      'chat.member_added',
+      expect.objectContaining({ userIds: [PEER] }),
+      expect.anything(),
+    );
   });
 });

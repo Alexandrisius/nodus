@@ -34,6 +34,10 @@ removeMembers + иерархия «строго старше»), кнопка «
 берёт conversationId переменной мутации, не пропом хука: stale-closure).
 Мой профиль: большое фото карточки сотрудника кликабельно только у себя
 (`canEditAvatar = card.id === me`), аватар — `POST/DELETE /directory/users/me/avatar`.
+API разрешает эти мутации только группам и каналам — состав direct/task/letter
+фиксирован сущностью (гвард restrictTypes: название/аватар #186, участники
+#195, `VALIDATION_FAILED`); моки MSW зеркалят гвард
+(`api/mocks/conversation-mutation-handlers.ts`).
 WS-инвалидации новых событий — `socket-invalidation.ts` (conversation_updated →
 список; member_added/removed/role_changed → список + members(id)); gateway
 маршрутизация — fanout.ts (updated → user-комнаты всех участников,

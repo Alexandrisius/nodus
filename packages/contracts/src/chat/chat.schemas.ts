@@ -309,16 +309,19 @@ export const listConversationMembersQuerySchema = cursorQuerySchema.extend({
 export type ListConversationMembersQuery = z.infer<typeof listConversationMembersQuerySchema>;
 
 /** Добавление участников (POST /chat/conversations/:id/members, #186): право
- *  addMembers матрицы (дефолт — любой участник); уже состоящих и неизвестных
- *  сервер молча пропускает, лимит участников беседы (200) проверяет. */
+ *  addMembers матрицы (дефолт — любой участник); только группы и каналы —
+ *  состав direct/task/letter фиксирован сущностью (#195); уже состоящих и
+ *  неизвестных сервер молча пропускает, лимит участников беседы (200) —
+ *  точный (перечёт в tx под блокировкой строки). */
 export const addConversationMembersBodySchema = z.object({
   userIds: z.array(z.uuid()).min(1).max(100),
 });
 export type AddConversationMembersBody = z.infer<typeof addConversationMembersBodySchema>;
 
 /** Смена роли участника (PATCH /chat/conversations/:id/members/:userId,
- *  #186): право manageSettings (дефолт — владелец); роль owner этой дорогой
- *  не назначается и не снимается (владелец один — создатель беседы). */
+ *  #186): право manageSettings (дефолт — владелец); только группы и каналы
+ *  (#195); роль owner этой дорогой не назначается и не снимается (владелец
+ *  один — создатель беседы). */
 export const updateConversationMemberBodySchema = z.object({
   role: z.enum(['admin', 'member']),
 });
