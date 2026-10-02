@@ -7,18 +7,19 @@ import { Bubble, BubbleContent } from '@nodus/ui/components/bubble';
 import { openCardViaBridge } from '../lib/card-bridge.js';
 import { shortPersonName, withoutPatronymic } from '../lib/format.js';
 import { personTone } from '../ui/person-tone.js';
-import { attachmentsContentWidth, MessageAttachments } from './attachments.js';
+import { attachmentsLayout, mediaBubbleWidth, MessageAttachments } from './attachments.js';
 import { BubbleOutline } from './bubble-outline.js';
 import { useChatPrefs } from './chat-prefs.js';
 import { useChatHostNavigation } from './chat-host.js';
 import { useJumpStore } from './jump-store.js';
 import { ForwardedHeader, ReplyHeader } from './message-headers.js';
+import { MediaBubbleContent } from './message-media-bubble.js';
 import { MessageReactions } from './message-reactions.js';
 import { MessageMeta } from './message-meta.js';
 import { MessageText } from './message-text.js';
 import { ReactionPicker } from './reaction-picker.js';
 import { stickerAttachmentOf, StickerMessageView } from './sticker-message.js';
-import { MessageTombstone } from './tombstone.js';
+import { TombstoneBubble } from './tombstone.js';
 import { PersonAvatar } from '../ui/person-avatar.js';
 
 /** Реакции — в собственном файле (потребитель-стикер #143); реэкспорт для
@@ -90,46 +91,13 @@ export const ChatMessageItem = memo(function ChatMessageItem({
   // действий нет — conversation-pane рендерит надгробие БЕЗ MessageMenu.
   if (message.deletedAt) {
     return (
-      <Message align={atEnd ? 'end' : 'start'} className="group/msg">
-        {avatarSlot === 'avatar' ? (
-          <MessageAvatar>
-            <PersonAvatar name={message.author.displayName} className="size-7" />
-          </MessageAvatar>
-        ) : null}
-        <MessageContent>
-          {showName ? null : (
-            <span className="sr-only">{withoutPatronymic(message.author.displayName)}: </span>
-          )}
-          <Bubble variant={variant}>
-            <BubbleOutline side={tail ? (atEnd ? 'right' : 'left') : null} variant={variant} />
-            <BubbleContent
-              className={cn(
-                'relative flex flex-col gap-[2px] px-2.5 pt-2.5 pb-2.5',
-                tail && (atEnd ? 'rounded-br-none' : 'rounded-bl-none'),
-              )}
-            >
-              {showName ? (
-                // Персональный цвет автора (#180, модель Telegram/Битрикс24):
-                // детерминированный тон палитры --name-1..7 по UUID.
-                // -mt-[3px] — оптическая компенсация воздуха строки имени:
-                // визуальный верх = полям 10px, как у картинок (#181).
-                <span
-                  className={cn(
-                    '-mt-[3px] text-sm leading-[19px] font-semibold',
-                    personTone(message.author.id),
-                  )}
-                >
-                  {shortPersonName(message.author.displayName)}
-                </span>
-              ) : null}
-              <MessageTombstone mine={mine} />
-              <span className="flex items-end">
-                <MessageMeta message={message} onFilled={mine} ticks={mine} className="ml-auto" />
-              </span>
-            </BubbleContent>
-          </Bubble>
-        </MessageContent>
-      </Message>
+      <TombstoneBubble
+        message={message}
+        mine={mine}
+        showName={showName}
+        avatarSlot={avatarSlot}
+        tail={tail}
+      />
     );
   }
 
@@ -171,10 +139,19 @@ export const ChatMessageItem = memo(function ChatMessageItem({
   }
 
   // С вложениями пузырь УЗКИЙ — ширину задаёт блок вложений, а НЕ текст
-  // (#150, вердикт владельца 29.09 «как в Битриксе»): карточка растянута на
-  // колонку, кнопка скачивания у правого края, текст переносится внутри.
-  // Механика Telegram: у документа captionw = _maxw − padding.
-  const contentWidth = attachmentsContentWidth(message.attachments);
+  // (#150, вердикт владельца 29.09 «как в Битриксе»; медиа-стиль #187):
+  // карточка растянута на колонку, кнопка скачивания у правого края, текст
+  // переносится внутри. Механика Telegram: у документа captionw = _maxw −
+  // padding, у фото подпись — по ширине фото.
+  // Медиа (single/gallery) — контент БЕЗ полей пузыря (full-bleed #187),
+  // блоки шапки/подписи/низа несут поля сами (message-media-bubble.tsx);
+  // maxWidth 100% — при сужении панели медиа-пузырь сжимается ВМЕСТЕ с
+  // текстовыми (пропорции держит aspect-ratio плитки), без обрезки.
+  const layout = attachmentsLayout(message.attachments);
+  const media = layout.mode === 'single' || layout.mode === 'gallery';
+  const hasTextColumn =
+    Boolean(message.text) || showName || !!message.reply || !!message.forwardedFrom;
+  const contentWidth = mediaBubbleWidth(message.attachments, { hasTextColumn });
   return (
     <Message align={atEnd ? 'end' : 'start'} className="group/msg">
       {avatarSlot === 'avatar' ? (
@@ -208,79 +185,87 @@ export const ChatMessageItem = memo(function ChatMessageItem({
               Switch, #96). */}
           <BubbleContent
             className={cn(
-              // Поля пузыря — ЕДИНЫЕ 10px по периметру, как у карточек постов
-              // (серия вердиктов 01.10 #181; канон #96 «6px над именем, 5px
-              // низ» заменён единообразием с постами). px/pt/pb — целые px:
-              // при --ui-scale 1.25 rem-полушаги дают дробные зазоры с
-              // несимметричным округлением (урок Switch, #96).
-              'relative flex flex-col gap-[2px] px-2.5 pt-2.5 pb-2.5',
+              // Текстовые/карточные пузыри — ЕДИНЫЕ поля 10px по периметру
+              // (серия вердиктов 01.10 #181). Медиа-пузырь — БЕЗ полей:
+              // изображение = часть пузыря (#187), поля несут блоки.
+              media
+                ? 'relative flex flex-col p-0'
+                : 'relative flex flex-col gap-[2px] px-2.5 pt-2.5 pb-2.5',
               tail && (atEnd ? 'rounded-br-none' : 'rounded-bl-none'),
             )}
-            style={contentWidth ? { width: contentWidth } : undefined}
+            style={contentWidth ? { width: contentWidth, maxWidth: '100%' } : undefined}
           >
-            {/* Имя автора — ВЕРХНЯЯ строка пузыря (вердикт владельца 24.09.2026,
-                #96, реф Битрикс24): цветное и отличается от текста; только
-                чужое и только у первого сообщения серии (группировка не
-                менялась — message-groups.ts). Свои — без имени вовсе.
-                Цвет ПЕРСОНАЛЬНЫЙ (#180): тон палитры --name-1..7 по UUID
-                автора (personTone), как во всех хостах имени.
-                -mt-[3px] — оптическая компенсация воздуха строки имени (#181):
-                визуальный верх = полям 10px, как у картинок. */}
-            {showName ? (
-              <span
-                className={cn(
-                  '-mt-[3px] text-sm leading-[19px] font-semibold',
-                  personTone(message.author.id),
-                )}
-              >
-                {shortPersonName(message.author.displayName)}
-              </span>
-            ) : null}
-            {/* Атрибуция пересылки — следующая строка пузыря (канон
-                Telegram lng_forwarded). */}
-            {message.forwardedFrom ? (
-              <ForwardedHeader from={message.forwardedFrom} onClick={jumpToForwardSource} />
-            ) : null}
-            {/* Цитата ответа (A2): замороженный снапшот — клик ведёт к
-                оригиналу (актуальная версия + «изменено» там же). */}
-            {message.reply ? (
-              <ReplyHeader
-                reply={message.reply}
-                onFilled={mine}
-                onClick={() => {
-                  const reply = message.reply;
-                  if (reply) jumpToReply(reply.id);
-                }}
+            {media ? (
+              <MediaBubbleContent
+                message={message}
+                mine={mine}
+                showName={showName}
+                onJumpToReply={jumpToReply}
+                onJumpToForwardSource={jumpToForwardSource}
               />
-            ) : null}
-            {/* Вложения — ВЫШЕ текста (грамматика Битрикс24, план
-                chat-attachments-plan): галерея/чипы сверху, затем текст. */}
-            {message.attachments.length > 0 ? (
-              <MessageAttachments message={message} mine={mine} />
-            ) : null}
-            {/* Текст-первый (без имени/цитаты/вложений) — оптическая
-                компенсация воздуха строки (-mt-[3px]): визуальный верх
-                текста = полям 10px, как у картинок (#181). */}
-            {showName ||
-            message.reply ||
-            message.forwardedFrom ||
-            message.attachments.length > 0 ? (
-              <MessageText text={message.text} />
             ) : (
-              <span className="-mt-[3px]">
-                <MessageText text={message.text} />
-              </span>
+              <>
+                {/* Имя автора — ВЕРХНЯЯ строка пузыря (вердикт владельца
+                  24.09.2026, #96, реф Битрикс24): цветное и отличается от
+                  текста; только чужое и только у первого сообщения серии.
+                  Цвет ПЕРСОНАЛЬНЫЙ (#180): тон палитры --name-1..7 по UUID
+                  автора (personTone). -mt-[3px] — оптическая компенсация
+                  воздуха строки имени (#181): визуальный верх = полям 10px. */}
+                {showName ? (
+                  <span
+                    className={cn(
+                      '-mt-[3px] text-sm leading-[19px] font-semibold',
+                      personTone(message.author.id),
+                    )}
+                  >
+                    {shortPersonName(message.author.displayName)}
+                  </span>
+                ) : null}
+                {/* Атрибуция пересылки — следующая строка пузыря (канон
+                    Telegram lng_forwarded). */}
+                {message.forwardedFrom ? (
+                  <ForwardedHeader from={message.forwardedFrom} onClick={jumpToForwardSource} />
+                ) : null}
+                {/* Цитата ответа (A2): замороженный снапшот — клик ведёт к
+                    оригиналу (актуальная версия + «изменено» там же). */}
+                {message.reply ? (
+                  <ReplyHeader
+                    reply={message.reply}
+                    onFilled={mine}
+                    onClick={() => {
+                      const reply = message.reply;
+                      if (reply) jumpToReply(reply.id);
+                    }}
+                  />
+                ) : null}
+                {/* Вложения-карточки — ВЫШЕ текста (грамматика Битрикс24):
+                    карточный список сверху, затем текст. */}
+                {message.attachments.length > 0 ? (
+                  <MessageAttachments message={message} mine={mine} />
+                ) : null}
+                {/* Текст-первый (без имени/цитаты/вложений) — оптическая
+                    компенсация воздуха строки (-mt-[3px]): визуальный верх
+                    текста = полям 10px, как у картинок (#181). */}
+                {showName ||
+                message.reply ||
+                message.forwardedFrom ||
+                message.attachments.length > 0 ? (
+                  <MessageText text={message.text} />
+                ) : (
+                  <span className="-mt-[3px]">
+                    <MessageText text={message.text} />
+                  </span>
+                )}
+                {/* Нижняя строка пузыря ПОД содержимым: реакции СЛЕВА, мета
+                    (пин/изменено/время/галочки) — СПРАВА у самого низа облака
+                    (вердикт 24.09.2026). items-end: без реакций строка = мета,
+                    с реакциями метка остаётся внизу пузыря. */}
+                <span className="flex items-end gap-2">
+                  <MessageReactions message={message} onFilled={mine} />
+                  <MessageMeta message={message} onFilled={mine} ticks={mine} className="ml-auto" />
+                </span>
+              </>
             )}
-            {/* Нижняя строка пузыря ПОД содержимым: реакции СЛЕВА, мета
-                (пин/изменено/время/галочки) — СПРАВА у самого низа облака
-                (вердикт 24.09.2026: не в строке текста и не инлайном в текст).
-                items-end: без реакций строка = мета (микро 10px, зазор над ней
-                маленький), с реакциями строка реакций выше и толкает контент
-                вверх, а метка остаётся внизу пузыря. */}
-            <span className="flex items-end gap-2">
-              <MessageReactions message={message} onFilled={mine} />
-              <MessageMeta message={message} onFilled={mine} ticks={mine} className="ml-auto" />
-            </span>
           </BubbleContent>
           {/* Ховер-попап реакций (#124): кнопка у нижнего угла пузыря
               (Bubble — relative), видна по hover/focus/открытом попапе. */}

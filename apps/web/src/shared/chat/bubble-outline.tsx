@@ -72,15 +72,22 @@ interface LayerGeom {
   unit: number;
 }
 
-function measureLayer(rect: DOMRect): LayerGeom {
+function measureLayer(el: SVGSVGElement): LayerGeom {
   const dpr = window.devicePixelRatio || 1;
-  const topDev = Math.round(rect.top * dpr);
-  const bottomDev = Math.round((rect.top + rect.height) * dpr);
-  const wDev = Math.max(1, Math.round(rect.width * dpr));
+  // Размеры — clientWidth/clientHeight (layout-px интерфейса Element),
+  // НЕ getBoundingClientRect: трансформ предка (FLIP-раскрытие
+  // карточки-слайдера) масштабирует rect, но не меняет layout-размеры и
+  // border-box элемента — ResizeObserver после анимации НЕ перезапускается,
+  // и замер в кадре раскрытия оставлял SVG-заливку пузыря навсегда
+  // схлопнутой (репро #187: чат из центра уведомлений — время «вне пузыря»
+  // при верной раскладке). Локальный device-снап достаточен: заливку/кольцо
+  // красит один этот SVG в собственных координатах.
+  const wDev = Math.max(1, Math.round(el.clientWidth * dpr));
+  const hDev = Math.max(1, Math.round(el.clientHeight * dpr));
   const finSizeDev = Math.max(1, Math.round(FIN_UNITS * UI_SCALE * dpr));
   return {
     w: wDev / dpr,
-    h: (bottomDev - topDev) / dpr,
+    h: hDev / dpr,
     unit: finSizeDev / dpr / FIN_UNITS,
   };
 }
@@ -104,7 +111,7 @@ export function BubbleOutline({
   useEffect(() => {
     const el = layerRef.current;
     if (!el) return;
-    const measure = () => setGeom(measureLayer(el.getBoundingClientRect()));
+    const measure = () => setGeom(measureLayer(el));
     measure();
     // jsdom/старые среды без ResizeObserver: слой останется без геометрии —
     // тесты рисование контура не проверяют.

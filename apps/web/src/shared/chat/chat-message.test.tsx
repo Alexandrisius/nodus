@@ -8,6 +8,7 @@ import type { ChatMessage } from '@nodus/contracts';
 import { ChatMessageItem, MessageReactions } from './chat-message.js';
 import { StickerMessageView } from './sticker-message.js';
 import { useChatPrefs } from './chat-prefs.js';
+import { uiPx } from '../ui/ui-scale.js';
 
 // QueryClient остаётся: пузырь живёт в дереве с запросами ленты.
 const queryClient = new QueryClient();
@@ -270,5 +271,109 @@ describe('Стикер — выравнивание «По обе стороны
     const content = container.querySelector('[data-slot="message-content"]')!;
     expect(content.className).toContain('data-slot:self-end');
     useChatPrefs.setState({ align: 'one' });
+  });
+});
+
+describe('Медиа-пузырь Telegram (#187): изображение = часть пузыря', () => {
+  const img = (n: number, w: number, h: number) => ({
+    id: `img-${n}`,
+    fileId: `00000000-0000-4000-8000-00000000000${n}`,
+    name: `фото-${n}.png`,
+    size: 1000,
+    mime: 'image/png',
+    kind: 'image' as const,
+    url: '/demo/site-1.png',
+    thumbnailUrl: '/demo/site-1.png',
+    previewKind: 'image' as const,
+    pdfUrl: null,
+    width: w,
+    height: h,
+  });
+
+  it('медиа-пузырь без полей (full-bleed): bubble-content p-0, ширина = медиа', () => {
+    const { container } = renderMessage(
+      <ChatMessageItem
+        message={message({ attachments: [img(1, 1200, 800)], text: '' })}
+        mine={false}
+      />,
+    );
+    const content = container.querySelector('[data-slot="bubble-content"]')!;
+    // full-bleed: боковых полей НЕТ — блоки несут поля сами
+    expect(content.className).toContain('p-0');
+    expect(content.className).not.toContain('px-2.5');
+    // ширина пузыря = бокс медиа (кап 480 дизайн-px в текущем ui-scale)
+    expect((content as HTMLElement).style.width).toBe(`${Math.round(uiPx(480))}px`);
+    expect((content as HTMLElement).style.maxWidth).toBe('100%');
+  });
+
+  it('шапка с именем — блок С полями над изображением (чужие, showName)', () => {
+    const { container } = renderMessage(
+      <ChatMessageItem
+        message={message({ attachments: [img(1, 1200, 800)], text: '' })}
+        mine={false}
+        showName
+      />,
+    );
+    const content = container.querySelector('[data-slot="bubble-content"]')!;
+    const name = [...container.querySelectorAll('span')].find(
+      (el) => el.textContent === 'Иван Петров',
+    )!;
+    // имя — первый блок, с полями (шапка присоединена к изображению)
+    expect(content.firstElementChild).toBe(name.parentElement);
+    expect(name.parentElement!.className).toContain('px-2.5');
+    // изображение — следующий блок после шапки, у самого блока полей нет
+    const mediaBlock = name.parentElement!.nextElementSibling!;
+    expect(mediaBlock.querySelector('img')).toBeTruthy();
+  });
+
+  it('своё медиа-сообщение без шапки: изображение — первый блок пузыря', () => {
+    const { container } = renderMessage(
+      <ChatMessageItem message={message({ attachments: [img(1, 1200, 800)], text: '' })} mine />,
+    );
+    const content = container.querySelector('[data-slot="bubble-content"]')!;
+    const first = content.firstElementChild!;
+    // изображение сверху (скруглённые верхние углы — клип контейнера)
+    expect(first.querySelector('img')).toBeTruthy();
+    expect(first.className).not.toContain('px-2.5');
+  });
+
+  it('подпись под изображением — блок с полями; мета — нижний блок', () => {
+    const { container } = renderMessage(
+      <ChatMessageItem
+        message={message({ attachments: [img(1, 1200, 800)], text: 'подпись к фото' })}
+        mine={false}
+        showName
+      />,
+    );
+    const blocks = [
+      ...container.querySelector('[data-slot="bubble-content"]')!.children,
+    ] as HTMLElement[];
+    const caption = blocks.find((b) => b.textContent === 'подпись к фото')!;
+    expect(caption.className).toContain('px-2.5');
+    const meta = blocks.find((b) => b.querySelector('[data-slot="message-meta"]'))!;
+    expect(meta.className).toContain('pb-2.5');
+    expect(blocks[blocks.length - 1]).toBe(meta);
+  });
+
+  it('плитка одиночного изображения держит пропорции: aspect-ratio вместо фикс-высоты', () => {
+    const { container } = renderMessage(
+      <ChatMessageItem
+        message={message({ attachments: [img(1, 1200, 800)], text: '' })}
+        mine={false}
+      />,
+    );
+    const tile = container.querySelector('button[aria-label="фото-1.png"]') as HTMLElement;
+    // ширина = ширина пузыря (w-full), высота — из пропорции габаритов
+    expect(tile.style.aspectRatio).toBe(`${Math.round(uiPx(480))} / ${Math.round(uiPx(320))}`);
+    expect(tile.style.height).toBe('');
+    expect(tile.style.width).toBe('');
+    expect(tile.className).toContain('w-full');
+  });
+
+  it('текстовый пузырь сохраняет единые поля 10px (#181)', () => {
+    const { container } = renderMessage(<ChatMessageItem message={message()} mine={false} />);
+    const content = container.querySelector('[data-slot="bubble-content"]')!;
+    expect(content.className).toContain('px-2.5');
+    expect(content.className).toContain('pt-2.5');
   });
 });

@@ -86,13 +86,17 @@ function GalleryTile({
       onClick={onOpen}
       aria-label={image.name}
       className={cn(
-        'relative min-w-0 cursor-zoom-in overflow-hidden rounded-lg bg-muted',
-        single ? 'shrink-0' : 'flex-1',
+        // Одиночная плитка — full-bleed: БЕЗ собственного скругления (углы
+        // пузыря/карточки режет контейнер) и БЕЗ фиксации высоты. Ширина —
+        // 100% пузыря (ширина изображения = ширина пузыря, #187; проценты
+        // безопасны: пузырь/карточка несут ЯВНЫЙ px из mediaBubbleWidth —
+        // gotcha «fit-content + проценты» не применяется), высота — из
+        // aspect-ratio по габаритам: пропорции держатся при сужении панели.
+        'relative min-w-0 cursor-zoom-in overflow-hidden bg-muted',
+        single ? 'w-full shrink-0 rounded-none' : 'flex-1 rounded-none',
         !loaded && 'animate-pulse',
       )}
-      style={
-        single ? { width: box.width, height: box.height, maxWidth: '100%' } : { height: ROW_HEIGHT }
-      }
+      style={single ? { aspectRatio: `${box.width} / ${box.height}` } : { height: ROW_HEIGHT }}
     >
       <img
         src={src}
@@ -109,11 +113,12 @@ function GalleryTile({
 }
 
 /**
- * Галерея изображений сообщения (грамматика Битрикс24): плитки равной высоты
- * в рядах по 3, одиночное — крупное превью. Геометрия — ЯВНЫЕ px из
- * сохранённых width/height (#150): проценты (w-full) не дают вклада в
- * fit-content-ширину пузыря, и до загрузки лента схлопывалась, а после —
- * прыгала; теперь бокс обязателен до первого байта картинки и не меняется.
+ * Галерея изображений сообщения (грамматика Битрикс24 + медиа-стиль #187):
+ * плитки равной высоты в рядах по 3, одиночное — full-bleed превью на всю
+ * ширину пузыря. Геометрия — ЯВНЫЕ px из сохранённых width/height (#150):
+ * габариты задают ЯВНУЮ ширину пузыря/карточки (mediaBubbleWidth), поэтому
+ * проценты внутри безопасны (gotcha «fit-content + проценты» о схлопе до
+ * загрузки не применяется) — бокс обязанателен до первого байта картинки.
  * Клик по плитке — лайтбокс (`image-lightbox.tsx`: Esc/стрелки, счётчик,
  * возврат фокуса на плитку; добро владельца 14.09.2026).
  */
