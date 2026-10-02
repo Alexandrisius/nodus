@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   Param,
@@ -8,6 +9,7 @@ import {
   Post,
   Put,
   Query,
+  Req,
   Res,
 } from '@nestjs/common';
 import {
@@ -17,10 +19,12 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
-import type { FastifyReply } from 'fastify';
+import type { FastifyReply, FastifyRequest } from 'fastify';
+import type { MultipartFile } from '@fastify/multipart';
 import { z } from 'zod';
 import {
   conversationDraftSchema,
+  conversationInfoBodySchema,
   conversationListItemSchema,
   createConversationBodySchema,
   listConversationsQuerySchema,
@@ -28,6 +32,7 @@ import {
   saveConversationDraftBodySchema,
   conversationUpdateBodySchema,
   type ConversationDraft,
+  type ConversationInfoBody,
   type ConversationListItem,
   type ConversationUpdateBody,
   type CreateConversationBody,
@@ -42,6 +47,8 @@ import { RequireFeature } from '../../../core/decorators/require-feature.decorat
 import { ApiErrors } from '../../../core/openapi/api-errors.decorator.js';
 import { ApiIdempotencyKey } from '../../../core/openapi/api-idempotency.decorator.js';
 import { ZodValidationPipe } from '../../../core/pipes/zod-validation.pipe.js';
+import { DomainException } from '../../../core/errors/domain-exception.js';
+import { ErrorCode } from '@nodus/contracts';
 import { ConversationsService } from './conversations.service.js';
 
 const uuidSchema = z.uuid();
@@ -147,5 +154,89 @@ export class ConversationsController {
     dto: SaveConversationDraftBody,
   ): Promise<ConversationDraft | null> {
     return this.conversations.putDraft(user.id, id, dto.text);
+  }
+
+  @Patch(':id/info')
+  @HttpCode(200)
+  @Audit({ action: 'chat.conversation_rename', entity: 'conversation' })
+  @ApiOperation({ summary: 'Переименование беседы (право changeInfo)' })
+  @ApiOkResponse({ standardSchema: conversationListItemSchema })
+  @ApiErrors(400, 401, 403, 404)
+  @ApiIdempotencyKey()
+  updateInfo(
+    @GetUser() user: { id: string },
+    @Param('id', new ZodValidationPipe(uuidSchema)) id: string,
+    @Body({
+      schema: conversationInfoBodySchema,
+      pipes: [new ZodValidationPipe(conversationInfoBodySchema)],
+    })
+    dto: ConversationInfoBody,
+  ): Promise<ConversationListItem> {
+    return this.conversations.updateInfo(user.id, id, dto);
+  }
+
+  @Post(':id/avatar')
+  @HttpCode(200)
+  @Audit({ action: 'chat.conversation_avatar_set', entity: 'conversation' })
+  @ApiOperation({ summary: 'Установка/смена аватара беседы (multipart, право changeInfo)' })
+  @ApiOkResponse({ standardSchema: conversationListItemSchema })
+  @ApiErrors(400, 401, 403, 404, 413)
+  @ApiIdempotencyKey()
+  async setAvatar(
+    @GetUser() user: { id: string },
+    @Param('id', new ZodValidationPipe(uuidSchema)) id: string,
+    @Req() request: FastifyRequest,
+  ): Promise<ConversationListItem> {
+    const read = await this.readMultipart(request);
+    const size = Number(read.fields['size']);
+    if (!Number.isSafeInteger(size) || size < 0) {
+      read.file.file.resume();
+      throw new DomainException(ErrorCode.VALIDATION_FAILED, 'size field is required');
+    }
+    try {
+      return await this.conversations.setAvatar(
+        user.id,
+        id,
+        { name: read.file.filename || 'avatar', size },
+        read.file.file,
+      );
+    } catch (error) {
+      read.file.file.resume();
+      throw error;
+    }
+  }
+
+  @Delete(':id/avatar')
+  @HttpCode(200)
+  @Audit({ action: 'chat.conversation_avatar_remove', entity: 'conversation' })
+  @ApiOperation({ summary: 'Убрать аватар беседы (право changeInfo)' })
+  @ApiOkResponse({ standardSchema: conversationListItemSchema })
+  @ApiErrors(400, 401, 403, 404)
+  @ApiIdempotencyKey()
+  removeAvatar(
+    @GetUser() user: { id: string },
+    @Param('id', new ZodValidationPipe(uuidSchema)) id: string,
+  ): Promise<ConversationListItem> {
+    return this.conversations.removeAvatar(user.id, id);
+  }
+
+  /** Первая file-часть + текстовые поля ДО неё (канон @fastify/multipart,
+   *  репро #57: поля после файловой части недетерминированы на больших телах). */
+  private async readMultipart(
+    request: FastifyRequest,
+  ): Promise<{ file: MultipartFile; fields: Record<string, string> }> {
+    const parts = request.parts();
+    const fields: Record<string, string> = {};
+    for await (const part of parts) {
+      if (part.type === 'file') {
+        return { file: part, fields };
+      }
+      if (part.fieldname in fields) continue; // дубль имени — берём первое
+      fields[part.fieldname] = String(part.value);
+    }
+    throw new DomainException(
+      ErrorCode.VALIDATION_FAILED,
+      'multipart/form-data with a file part is required',
+    );
   }
 }

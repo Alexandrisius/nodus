@@ -254,6 +254,9 @@ export function createLetterConversation(letter: LetterListItem, members: UserRe
       subject: letter.subject,
     },
     membersPreview: members,
+    membersCount: members.some((m) => m.id === userIds.klimovich)
+      ? members.length
+      : members.length + 1,
     lastMessage: null,
     unreadCount: 0,
     myLastReadSeq: 0,

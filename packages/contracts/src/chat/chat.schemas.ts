@@ -251,6 +251,10 @@ export const conversationListItemSchema = z.object({
    *  внутренние сотрудники (обсуждение наружу не уходит). */
   letter: letterRefSchema.nullable(),
   membersPreview: z.array(userRefSchema),
+  /** Всего участников беседы, СЧИТЯ зрителя (кнопка «N участников» в
+   *  топбаре и счётчик подзаголовка, #186; membersPreview — урезанный
+   *  превью-набор, его длина счётчиком не является). */
+  membersCount: z.number().int().min(0),
   lastMessage: messageSchema.nullable(),
   unreadCount: z.number().int().min(0),
   /** Watermark прочтения ТЕКУЩЕГО пользователя в беседе (см. ниже): якорь
@@ -281,6 +285,44 @@ export const conversationUpdateBodySchema = z
   .refine((v) => Object.keys(v).length > 0, { message: 'empty update' });
 
 export type ConversationUpdateBody = z.infer<typeof conversationUpdateBodySchema>;
+
+/** Переименование беседы (PATCH /chat/conversations/:id/info, #186): право
+ *  changeInfo матрицы (дефолт — владелец и модераторы); переименовываются
+ *  группы и каналы — у direct/task/letter название производное. */
+export const conversationInfoBodySchema = z.object({
+  title: z.string().trim().min(1).max(128),
+});
+export type ConversationInfoBody = z.infer<typeof conversationInfoBodySchema>;
+
+/** Участник беседы (GET /chat/conversations/:id/members, #186): профиль из
+ *  справочника (read-порт, I3) + роль из таблицы участия. */
+export const conversationMemberSchema = z.object({
+  user: userRefSchema,
+  role: conversationMemberRoleSchema,
+  joinedAt: z.iso.datetime(),
+});
+export type ConversationMember = z.infer<typeof conversationMemberSchema>;
+
+export const listConversationMembersQuerySchema = cursorQuerySchema.extend({
+  search: z.string().trim().min(1).max(128).optional(),
+});
+export type ListConversationMembersQuery = z.infer<typeof listConversationMembersQuerySchema>;
+
+/** Добавление участников (POST /chat/conversations/:id/members, #186): право
+ *  addMembers матрицы (дефолт — любой участник); уже состоящих и неизвестных
+ *  сервер молча пропускает, лимит участников беседы (200) проверяет. */
+export const addConversationMembersBodySchema = z.object({
+  userIds: z.array(z.uuid()).min(1).max(100),
+});
+export type AddConversationMembersBody = z.infer<typeof addConversationMembersBodySchema>;
+
+/** Смена роли участника (PATCH /chat/conversations/:id/members/:userId,
+ *  #186): право manageSettings (дефолт — владелец); роль owner этой дорогой
+ *  не назначается и не снимается (владелец один — создатель беседы). */
+export const updateConversationMemberBodySchema = z.object({
+  role: z.enum(['admin', 'member']),
+});
+export type UpdateConversationMemberBody = z.infer<typeof updateConversationMemberBodySchema>;
 
 /** Создание группового чата/канала (#91, референс окна «Создание чата»
  *  Bitrix24): участники + настройки + матрица прав (частичная — остальные

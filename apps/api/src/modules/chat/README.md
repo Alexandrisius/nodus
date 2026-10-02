@@ -107,6 +107,13 @@ SET last_seq = last_seq + n RETURNING` в транзакции отправки 
 | `POST /conversations`                                               | Группа/канал: создатель owner, memberIds (дедуп, без создателя, неизвестные отбрасываются), частичная матрица прав                                                                                                                                                                           |
 | `GET /conversations/direct/:userId`                                 | Find-or-create (вкл. «Заметки» с собой): 200 существующая / 201 созданная; 404 нет юзера                                                                                                                                                                                                     |
 | `PATCH /conversations/:id`                                          | Персональные pinned/muted/snoozed/hidden (hidden раскрывается активностью — `revealHidden` в send/forward, #103)                                                                                                                                                                             |
+| `PATCH /conversations/:id/info`                                     | Переименование `{title}` (группы/каналы; право changeInfo, #186); событие conversation_updated обновляет название у всех участников                                                                                                                                                          |
+| `POST /conversations/:id/avatar`                                    | Аватар беседы: multipart (`size` ДО файла; право changeInfo, #186) — серверная квадратизация (порт AVATAR_PROCESSOR, files: sharp WebP ≤640 по меньшей стороне) → `avatar_file_id`; событие conversation_updated                                                                             |
+| `DELETE /conversations/:id/avatar`                                  | Убрать аватар (заглушка из инициалов; право changeInfo, #186)                                                                                                                                                                                                                                |
+| `GET /conversations/:id/members`                                    | Участники с ролями `?cursor=&limit=&search=` (член беседы; поиск по displayName через read-порт; сортировка владелец→модераторы→участники, #186)                                                                                                                                             |
+| `POST /conversations/:id/members`                                   | Добавить `{userIds}` (право addMembers — дефолт любой участник, #186): состоящих/неизвестных пропускает, лимит 200; событие member_added (добавленному — user-комната gateway'ем)                                                                                                            |
+| `PATCH /conversations/:id/members/:userId`                          | Роль `{role: admin\|member}` (право manageSettings — дефолт владелец, #186); роль владельца неизменна; событие member_role_changed                                                                                                                                                           |
+| `DELETE /conversations/:id/members/:userId`                         | Исключить (право removeMembers + иерархия: актёр строго старше цели; владельца нельзя, #186); черновик исключённого чистится; событие member_removed                                                                                                                                         |
 | `PUT /conversations/:id/draft`                                      | Черновик: пустой текст = удаление; revision монотонно растит сервер (LWW)                                                                                                                                                                                                                    |
 | `GET /conversations/:id/messages`                                   | Лента ВСЕХ сообщений беседы ASC (страница — новейшие, курсор назад по seq; ответы тредов — инлайн, как в моках: прямой/групповой чат рендерит их плоско, канальный вид фильтрует корни клиентом) или тред (`?threadRootId=`: корень первым на первой странице). Курсор просмотров НЕ двигает |
 | `POST /conversations/:id/read`                                      | Квитанция просмотров `{ upToSeq }` (идемпотентная): seq самой новой видимой строки вьюпорта; двигает watermark (GREATEST, кламп к last_seq) + событие `chat.message_read` только при движении (#102 р.2)                                                                                     |
@@ -169,7 +176,9 @@ TTL/автоудаление сообщений — вне продукта на
 
 ## События (outbox, I9; каталог — api-conventions.md, схемы — contracts)
 
-`chat.conversation_created` · `chat.member_added` · `chat.message_sent`
+`chat.conversation_created` · `chat.conversation_updated` (название/аватар, #186) ·
+`chat.member_added` · `chat.member_removed` (#186) ·
+`chat.member_role_changed` (#186) · `chat.message_sent`
 (+`thread_created` первым ответом) · `chat.message_edited` ·
 `chat.message_deleted` (payload.obliterated) · `chat.message_read` (upToSeq) ·
 `chat.message_pinned` / `chat.message_unpinned` · `chat.reaction_added` /
@@ -190,6 +199,10 @@ WS-fanout рассылает те же события).
 - Стикеры (#143): PNG/WebP ≤512 КБ, WebM ≤256 КБ (без звука, ≤3 с — клиентская
   пре-валидация длительности), ≤120 стикеров/пак, ≤20 личных паков, эмодзи
   1–3/стикер; magic bytes — серверная истина формата.
+- Аватарки (#186): PNG/JPEG/WebP ≤10 МБ (потолок-страховка; клиентское сжатие
+  — #191), сторона ≥64 (magic bytes — сервер);
+  дериват — квадратный WebP по меньшей стороне (≤640), устанавливаются на
+  беседу (группы/каналы, право changeInfo) и свой профиль (directory).
 
 ## Тесты
 

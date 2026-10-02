@@ -1,6 +1,8 @@
+import { useEffect, useState } from 'react';
 import type { ConversationListItem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 
+import { AddMembersDialog } from '../../../shared/chat/conversation-members.js';
 import { ChatSidePanel, useChatSidePanel } from '../../../shared/chat/chat-side-panel.js';
 import { ChannelView } from '../../../shared/chat/channel-view.js';
 import { ConversationPane } from '../../../shared/chat/conversation-pane.js';
@@ -17,6 +19,11 @@ import { ConversationBar } from './conversation-bar.js';
  * Хранилище открытого треда выбирает хост: страница — search `?thread=`
  * (deep-link), карточка — локальное состояние (чужой маршруту параметр
  * не пишем).
+ *
+ * #186: колонка панели хостит и вид «Участники» (ровно поверх тоггл-панели,
+ * та же геометрия 1:1): стрелка «назад» при открытой панели «О чате», иначе
+ * крестик; окно добавления участников — одно на беседу (кнопки в баре и в
+ * панели участников).
  */
 export function ChatWorkspace({
   conversation,
@@ -32,13 +39,35 @@ export function ChatWorkspace({
   // Панель беседы (закон: у каждого чата) — хостится рабочей областью;
   // тоггл — кнопка СПРАВА ВВЕРХУ бара беседы (канон кнопки «О задаче»).
   const panel = useChatSidePanel();
+  const [membersView, setMembersView] = useState(false);
+  const [addMembersOpen, setAddMembersOpen] = useState(false);
+  // Смена беседы без ремаунта (карточка мессенджера подменяет верхнюю):
+  // виды панели персональны беседе — сбрасываем.
+  useEffect(() => {
+    setMembersView(false);
+    setAddMembersOpen(false);
+  }, [conversation.id]);
   // Подписка на комнату беседы (#104): мгновенные события и typing.
   useConvRoom(conversation.id);
+
+  function closeMembers() {
+    // Стрелка «назад»: под видом участников была открыта панель «О чате» —
+    // возвращаемся к файлам; иначе крестик сворачивает колонку целиком.
+    if (panel.open) {
+      setMembersView(false);
+    } else {
+      setMembersView(false);
+      panel.close();
+    }
+  }
+
   const bar = (
     <ConversationBar
       conversation={conversation}
       panelOpen={panel.open}
       onPanelToggle={panel.toggle}
+      onOpenMembers={() => setMembersView(true)}
+      onAddMembers={() => setAddMembersOpen(true)}
     />
   );
 
@@ -71,11 +100,18 @@ export function ChatWorkspace({
       )}
       <ChatSidePanel
         conversationId={conversation.id}
+        conversation={conversation}
         open={panel.open}
         onClose={panel.close}
         title={conversation.type === 'project_channel' ? ui.chat.aboutChannel : ui.chat.aboutChat}
         threadRootId={threadRootId}
+        view={membersView ? 'members' : 'files'}
+        onMembersClose={closeMembers}
+        onAddMembers={() => setAddMembersOpen(true)}
       />
+      {addMembersOpen ? (
+        <AddMembersDialog conversation={conversation} onClose={() => setAddMembersOpen(false)} />
+      ) : null}
     </div>
   );
 }

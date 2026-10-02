@@ -3,6 +3,8 @@ import { Module } from '@nestjs/common';
 import { USER_PROFILE_READER } from '../../core/ports/user-profile.port.js';
 import { UserProfileProvider } from '../../core/ports/user-profile.provider.js';
 import { ConversationItemMapper } from './conversations/conversation-item.mapper.js';
+import { ConversationMembersController } from './conversations/conversation-members.controller.js';
+import { ConversationMembersService } from './conversations/conversation-members.service.js';
 import { ConversationsController } from './conversations/conversations.controller.js';
 import { ConversationsRepository } from './conversations/conversations.repository.js';
 import { ConversationsService } from './conversations/conversations.service.js';
@@ -39,6 +41,7 @@ import { StickersService } from './stickers/stickers.service.js';
   // без межмодульного импорта (I3/I6); здесь chat знает только интерфейс.
   controllers: [
     ConversationsController,
+    ConversationMembersController,
     MessagesController,
     MessageActionsController,
     AttachmentsController,
@@ -47,6 +50,8 @@ import { StickersService } from './stickers/stickers.service.js';
   providers: [
     ConversationsRepository,
     ConversationsService,
+    // Участники беседы (#186): добавление/роли/исключение — права матрицей.
+    ConversationMembersService,
     ConversationItemMapper,
     MessagesRepository,
     ThreadParticipantsRepository,

@@ -23,6 +23,7 @@ function member(overrides: Partial<MemberRow> = {}): MemberRow {
     role: 'member',
     lastReadSeq: 0n,
     lastReadAt: null,
+    joinedAt: T0,
     pinned: false,
     muted: false,
     snoozed: false,

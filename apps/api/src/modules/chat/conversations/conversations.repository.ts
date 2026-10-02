@@ -14,6 +14,7 @@ export interface ConversationListRow {
   description: string | null;
   visibility: string | null;
   permissions: Prisma.JsonValue;
+  avatar_file_id: string | null;
   last_message_at: Date | null;
   role: string;
   pinned: boolean;
@@ -47,6 +48,7 @@ export interface MemberRow {
   role: string;
   lastReadSeq: bigint;
   lastReadAt: Date | null;
+  joinedAt: Date;
   pinned: boolean;
   muted: boolean;
   snoozed: boolean;
@@ -74,7 +76,8 @@ interface ListOpts {
 
 const LIST_SELECT = (userId: string): Prisma.Sql => Prisma.sql`
   SELECT
-    c.id, c.type, c.title, c.description, c.visibility, c.permissions, c.last_message_at,
+    c.id, c.type, c.title, c.description, c.visibility, c.permissions, c.avatar_file_id,
+    c.last_message_at,
     cm.role, cm.pinned, cm.muted, cm.snoozed, cm.last_read_seq AS my_last_read_seq,
     d.text AS draft_text, d.revision AS draft_revision, d.updated_at AS draft_updated_at,
     (SELECT COUNT(*)::int FROM messages um
@@ -310,7 +313,7 @@ export class ConversationsRepository {
     const rows = await client.$queryRaw<MemberRow[]>(Prisma.sql`
       SELECT conversation_id AS "conversationId", user_id AS "userId", role,
              last_read_seq AS "lastReadSeq", last_read_at as "lastReadAt",
-             pinned, muted, snoozed, hidden
+             joined_at as "joinedAt", pinned, muted, snoozed, hidden
       FROM conversation_members
       WHERE conversation_id = ${conversationId}::uuid AND user_id = ${userId}::uuid
       LIMIT 1
@@ -355,7 +358,7 @@ export class ConversationsRepository {
     return client.$queryRaw<MemberRow[]>(Prisma.sql`
       SELECT conversation_id AS "conversationId", user_id AS "userId", role,
              last_read_seq AS "lastReadSeq", last_read_at as "lastReadAt",
-             pinned, muted, snoozed, hidden
+             joined_at as "joinedAt", pinned, muted, snoozed, hidden
       FROM conversation_members
       WHERE conversation_id = ANY(${conversationIds}::uuid[])
       ORDER BY joined_at ASC, user_id ASC
@@ -369,6 +372,129 @@ export class ConversationsRepository {
       UPDATE conversation_members SET snoozed = false, updated_at = now()
       WHERE conversation_id = ${conversationId}::uuid AND user_id = ${userId}::uuid AND snoozed
     `);
+  }
+
+  /** Переименование (право changeInfo, #186); 0 строк — беседы нет. */
+  async updateTitle(
+    conversationId: string,
+    title: string,
+    tx?: TransactionClient,
+  ): Promise<boolean> {
+    const client = this.client(tx);
+    const count = await client.$executeRaw(Prisma.sql`
+      UPDATE conversations SET title = ${title}, updated_at = now()
+      WHERE id = ${conversationId}::uuid
+    `);
+    return count > 0;
+  }
+
+  /** Аватар беседы: fileId деривата или null («убрать», #186). */
+  async updateAvatar(
+    conversationId: string,
+    fileId: string | null,
+    tx?: TransactionClient,
+  ): Promise<boolean> {
+    const client = this.client(tx);
+    const count = await client.$executeRaw(Prisma.sql`
+      UPDATE conversations SET avatar_file_id = ${fileId}::uuid, updated_at = now()
+      WHERE id = ${conversationId}::uuid
+    `);
+    return count > 0;
+  }
+
+  /** Страница участников (#186): владелец → модераторы → участники, внутри
+   *  яруса — по времени входа; keyset-курсор (rank, joined_at, user_id).
+   *  searchUserIds — фильтр поиска по имени (сервис резолвит через порт). */
+  async listMembersPage(
+    conversationId: string,
+    opts: {
+      limit: number;
+      cursor?: { rank: number; joinedAt: string; userId: string };
+      searchUserIds?: string[];
+    },
+    tx?: TransactionClient,
+  ): Promise<Array<{ userId: string; role: string; joinedAt: Date }>> {
+    const client = this.client(tx);
+    const conditions: Prisma.Sql[] = [Prisma.sql`conversation_id = ${conversationId}::uuid`];
+    if (opts.searchUserIds !== undefined) {
+      conditions.push(Prisma.sql`user_id = ANY(${opts.searchUserIds}::uuid[])`);
+    }
+    if (opts.cursor) {
+      conditions.push(Prisma.sql`(
+        CASE role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END,
+        joined_at, user_id
+      ) < (
+        ${opts.cursor.rank},
+        ${opts.cursor.joinedAt}::timestamptz,
+        ${opts.cursor.userId}::uuid
+      )`);
+    }
+    return client.$queryRaw<Array<{ userId: string; role: string; joinedAt: Date }>>(Prisma.sql`
+      SELECT user_id AS "userId", role, joined_at AS "joinedAt"
+      FROM conversation_members
+      WHERE ${Prisma.join(conditions, ' AND ')}
+      ORDER BY CASE role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END, joined_at, user_id
+      LIMIT ${opts.limit + 1}
+    `);
+  }
+
+  /** Добавление участников (#186): идемпотентно (ON CONFLICT DO NOTHING),
+   *  возвращает фактически вставленные id (для события member_added). */
+  async addMembers(
+    conversationId: string,
+    userIds: string[],
+    tx?: TransactionClient,
+  ): Promise<string[]> {
+    const client = this.client(tx);
+    if (userIds.length === 0) return [];
+    const values = Prisma.join(
+      userIds.map(
+        (userId) => Prisma.sql`(${conversationId}::uuid, ${userId}::uuid, 'member', now())`,
+      ),
+      ',',
+    );
+    const rows = await client.$queryRaw<{ user_id: string }[]>(Prisma.sql`
+      INSERT INTO conversation_members (conversation_id, user_id, role, updated_at)
+      VALUES ${values}
+      ON CONFLICT (conversation_id, user_id) DO NOTHING
+      RETURNING user_id
+    `);
+    return rows.map((row) => row.user_id);
+  }
+
+  /** Смена роли участника (модератор ⇄ участник, #186); 0 строк — не член. */
+  async updateMemberRole(
+    conversationId: string,
+    userId: string,
+    role: 'admin' | 'member',
+    tx?: TransactionClient,
+  ): Promise<boolean> {
+    const client = this.client(tx);
+    const count = await client.$executeRaw(Prisma.sql`
+      UPDATE conversation_members SET role = ${role}, updated_at = now()
+      WHERE conversation_id = ${conversationId}::uuid AND user_id = ${userId}::uuid
+    `);
+    return count > 0;
+  }
+
+  /** Исключение участника (#186): строка участия + черновик (user-FK нет —
+   *  чистим явно); 0 строк — не член. */
+  async removeMember(
+    conversationId: string,
+    userId: string,
+    tx?: TransactionClient,
+  ): Promise<boolean> {
+    const client = this.client(tx);
+    const count = await client.$executeRaw(Prisma.sql`
+      DELETE FROM conversation_members
+      WHERE conversation_id = ${conversationId}::uuid AND user_id = ${userId}::uuid
+    `);
+    if (count === 0) return false;
+    await client.$executeRaw(Prisma.sql`
+      DELETE FROM conversation_drafts
+      WHERE conversation_id = ${conversationId}::uuid AND user_id = ${userId}::uuid
+    `);
+    return true;
   }
 
   /**

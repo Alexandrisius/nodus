@@ -313,3 +313,26 @@ export function parseMentionIds(
   }
   return ids;
 }
+
+/** Роли участников бесед (#186, мок): overrides поверх дефолта (актёр —
+ *  owner созданных им бесед, прочие — member); живой контур хранит роли
+ *  в conversation_members — здесь только паритет контрактов. */
+const mockMemberRoles = new Map<string, Map<string, 'owner' | 'admin' | 'member'>>();
+
+export function mockMemberRole(
+  conversationId: string,
+  userId: string,
+  fallback: 'owner' | 'admin' | 'member',
+): 'owner' | 'admin' | 'member' {
+  return mockMemberRoles.get(conversationId)?.get(userId) ?? fallback;
+}
+
+export function setMockMemberRole(
+  conversationId: string,
+  userId: string,
+  role: 'admin' | 'member',
+): void {
+  const byConversation = mockMemberRoles.get(conversationId) ?? new Map();
+  byConversation.set(userId, role);
+  mockMemberRoles.set(conversationId, byConversation);
+}

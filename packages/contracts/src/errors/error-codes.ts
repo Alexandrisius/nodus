@@ -37,10 +37,15 @@ export const ErrorCode = {
   CHAT_ATTACHMENT_TOO_MANY: 'CHAT_ATTACHMENT_TOO_MANY',
   /** Файл стикера не прошёл проверку: формат (magic bytes) или лимит (#143). */
   CHAT_STICKER_INVALID: 'CHAT_STICKER_INVALID',
+  /** Аватар не прошёл проверку: не изображение PNG/JPEG/WebP или больше
+   *  лимита (квадратизация — серверная, sharp, #186). */
+  FILE_AVATAR_INVALID: 'FILE_AVATAR_INVALID',
   /** Суточный лимит «важных сообщений» отправителя исчерпан (#100). */
   CHAT_URGENT_LIMIT_EXCEEDED: 'CHAT_URGENT_LIMIT_EXCEEDED',
   /** «Важное сообщение» в беседе больше 20 участников запрещено (#100, I8). */
   CHAT_URGENT_GROUP_TOO_LARGE: 'CHAT_URGENT_GROUP_TOO_LARGE',
+  /** Лимит участников беседы (200) достигнут — добавление отклонено (#186). */
+  CHAT_MEMBERS_LIMIT_REACHED: 'CHAT_MEMBERS_LIMIT_REACHED',
   /** Фактический размер файла не совпал с заявленным (обрыв/подмена, #57). */
   FILE_SIZE_MISMATCH: 'FILE_SIZE_MISMATCH',
   /** Файл помещён в карантин (сканер пометил) и не отдаётся (ADR-0013). */

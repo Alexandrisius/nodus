@@ -5,6 +5,7 @@ import { cn } from '@nodus/ui/lib/utils';
 
 import { useAssigneeTasks, useMemberProjects } from '../../../shared/api/user-relations.js';
 import { useDirectConversation } from '../../../shared/chat/api.js';
+import { useAuthStore } from '../../../shared/auth-store.js';
 import { useRailShrink } from '../../../app/shell/right-rail.js';
 import {
   CHAT_PANEL_W,
@@ -47,6 +48,7 @@ export function EmployeeCard({ userId }: { userId: string }) {
   const tasksQuery = useAssigneeTasks(userId);
   const projectsQuery = useMemberProjects(userId);
   const directQuery = useDirectConversation(userId);
+  const meId = useAuthStore((s) => s.user?.id);
   const [tab, setTab] = useState<EmployeeTab>('profile');
   // Панель беседы (закон чата): тоггл — в ЕДИНОМ баре карточки справа (канон
   // кнопки «О задаче» — шапки у чата с именем/аватаром НЕТ, вердикт);
@@ -143,6 +145,7 @@ export function EmployeeCard({ userId }: { userId: string }) {
                   manager={manager}
                   subordinates={subordinates}
                   presenceStatus={presenceStatus}
+                  canEditAvatar={card.id === meId}
                 />
               ) : null}
 

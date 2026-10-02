@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { ConversationListItem, ConversationPermissions, UserRef } from '@nodus/contracts';
 
+import { SignedUrlService } from '../../../core/crypto/signed-url.service.js';
 import {
   USER_PROFILE_READER,
   type UserProfileReader,
@@ -26,6 +27,7 @@ export interface ConversationItemContext {
 export class ConversationItemMapper {
   constructor(
     private readonly messageMapper: MessageDtoMapper,
+    private readonly signedUrls: SignedUrlService,
     @Inject(USER_PROFILE_READER) private readonly userProfiles: UserProfileReader,
   ) {}
 
@@ -67,7 +69,8 @@ export class ConversationItemMapper {
         id: row.id,
         type: row.type as ConversationListItem['type'],
         title: row.title,
-        avatarUrl: null,
+        // Аватар — файл-дериват (#186): подписная ссылка отдачи files.
+        avatarUrl: row.avatar_file_id ? this.signedUrls.fileContentUrl(row.avatar_file_id) : null,
         myRole: row.role as ConversationListItem['myRole'],
         permissions: parsePermissions(row.permissions) as ConversationPermissions,
         draft:
@@ -84,6 +87,8 @@ export class ConversationItemMapper {
         task: null,
         letter: null,
         membersPreview: preview,
+        // Всего участников, считая зрителя (#186): кнопка «N участников».
+        membersCount: members.length,
         lastMessage,
         unreadCount: row.unread_count,
         // Watermark текущего пользователя: якорь «первое непрочитанное» при

@@ -81,6 +81,8 @@ describe('UsersService', () => {
       passwords as never,
       tx as never,
       eventBus as never,
+      { fileContentUrl: vi.fn((id: string) => `/files/${id}/content`) } as never,
+      { process: vi.fn() } as never,
     );
   });
 

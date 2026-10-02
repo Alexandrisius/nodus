@@ -89,8 +89,21 @@ export function createRealtimeInvalidator(queryClient: QueryClient): RealtimeInv
           push(conversationId, 'pins');
           return;
         case 'chat.conversation_created':
+          batcher.push(chatKeys.conversations(), 'list');
+          return;
+        case 'chat.conversation_updated':
+          // #186: название/аватар — у всех участников (список + топбар);
+          // подписанный URL аватара нестабилен — только рефеч.
+          batcher.push(chatKeys.conversations(), 'list');
+          return;
         case 'chat.member_added':
           batcher.push(chatKeys.conversations(), 'list');
+          if (conversationId) batcher.push(chatKeys.members(conversationId), 'feed');
+          return;
+        case 'chat.member_removed':
+        case 'chat.member_role_changed':
+          batcher.push(chatKeys.conversations(), 'list');
+          if (conversationId) batcher.push(chatKeys.members(conversationId), 'feed');
           return;
         case 'chat.attachment_updated': {
           // Новая версия файла из сохранения ONLYOFFICE (#182): лента —

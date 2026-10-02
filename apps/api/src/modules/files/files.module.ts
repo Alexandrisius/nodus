@@ -1,5 +1,6 @@
 import { Global, Module } from '@nestjs/common';
 
+import { AVATAR_PROCESSOR } from '../../core/ports/avatar-processor.port.js';
 import { FILE_STORAGE } from '../../core/ports/file-storage.port.js';
 import { FileStorageProvider } from './file-storage.provider.js';
 import { FILES_CONFIG, getFilesConfig } from './files.config.js';
@@ -16,6 +17,7 @@ import { DerivativesQueue } from './derivatives/derivatives.queue.js';
 import { DerivativesRepository } from './derivatives/derivatives.repository.js';
 import { DerivativesService } from './derivatives/derivatives.service.js';
 import { DerivativesWorker } from './derivatives/derivatives.worker.js';
+import { AvatarService } from './avatars/avatar.service.js';
 import { AttachmentSentHandler } from './events/attachment-sent.handler.js';
 
 /**
@@ -47,11 +49,17 @@ import { AttachmentSentHandler } from './events/attachment-sent.handler.js';
     DerivativesQueue,
     DerivativesService,
     DerivativesWorker,
+    // Аватарки (#186): общий конвейер квадратизации для chat и directory
+    // (инжект классом из @Global-модуля, как FILE_STORAGE).
+    AvatarService,
     // Запуск конвейера по подтверждению вложений (#139): files слушает
     // chat.message_sent — связь модулей событием (I3).
     AttachmentSentHandler,
     { provide: FILE_STORAGE, useExisting: FileStorageProvider },
+    // Аватарки (#186): порт для chat/directory (I3 — модули не импортируют
+    // друг друга), реализация — AvatarService (см. avatars/).
+    { provide: AVATAR_PROCESSOR, useExisting: AvatarService },
   ],
-  exports: [FILE_STORAGE],
+  exports: [FILE_STORAGE, AVATAR_PROCESSOR],
 })
 export class FilesModule {}

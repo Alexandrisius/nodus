@@ -38,6 +38,8 @@ export const chatKeys = {
   threadStates: (id: string) => [...chatKeys.all, 'threadStates', id] as const,
   /** Личка с пользователем (открыть/создать direct по сотруднику). */
   direct: (userId: string) => [...chatKeys.conversations(), 'direct', userId] as const,
+  /** Участники беседы (#186): панель с ролями; search — часть ключа. */
+  members: (id: string) => [...chatKeys.all, 'members', id] as const,
 };
 
 /** Живой чат: до WS-шлюза (#48) ленты опрашивались часто (5/10 с); с #104

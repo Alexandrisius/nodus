@@ -32,11 +32,13 @@ export const errorMessages: Record<ErrorCode, string> = {
     'Дневной лимит важных сообщений исчерпан — попробуйте завтра или напишите обычным сообщением',
   [ErrorCode.CHAT_URGENT_GROUP_TOO_LARGE]:
     'Важные сообщения не отправляют в беседы больше 20 участников',
+  [ErrorCode.CHAT_MEMBERS_LIMIT_REACHED]: 'В беседе уже максимум участников (200)',
   [ErrorCode.FILE_SIZE_MISMATCH]: 'Файл передался не полностью — попробуйте ещё раз',
   [ErrorCode.FILE_QUARANTINED]: 'Файл заблокирован проверкой безопасности',
   [ErrorCode.FILE_OFFICE_DISABLED]: 'Просмотр документов недоступен — скачайте файл',
   [ErrorCode.FILE_OFFICE_UNSUPPORTED]: 'Этот формат не открывается в браузере — скачайте файл',
   [ErrorCode.FILE_OFFICE_TOO_LARGE]: 'Файл слишком большой для просмотра — скачайте его',
+  [ErrorCode.FILE_AVATAR_INVALID]: 'Фото не подошло: нужно PNG, JPEG или WebP до 10 МБ',
 };
 
 /**
@@ -97,6 +99,13 @@ export const ui = {
     notFoundDescription: 'Такого адреса нет или раздел был перемещён.',
     backHome: 'Вернуться на главную',
     reload: 'Обновить страницу',
+    /** Аватарки (#186): общие строки чата и профиля сотрудника. */
+    avatarUpload: 'Загрузить фото',
+    avatarChange: 'Сменить фото',
+    avatarRemove: 'Убрать фото',
+    avatarTooLarge: 'Фото больше 10 МБ не поддерживается — выберите поменьше',
+    avatarBadFormat: 'Нужно изображение: PNG, JPEG или WebP',
+    avatarSaved: 'Фото обновлено',
   },
   /** Локальные поиск и фильтры списков (строка инструментов журнала/вкладки;
    *  панель фильтра выезжает из поисковой строки — отдельной кнопки нет,

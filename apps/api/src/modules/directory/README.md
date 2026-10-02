@@ -19,6 +19,7 @@
 | `GET /users`                                                      | directory.read     | Список: `?cursor=&limit=&search=&departmentId=&status=` |
 | `GET /users/:id`                                                  | directory.read     | Карточка сотрудника                                     |
 | `PATCH /users/me`                                                 | auth               | Саморедактирование контактного блока                    |
+| `POST/DELETE /users/me/avatar`                                    | auth               | Аватар СВОЕГО профиля: multipart → WebP-дериват (#186)  |
 | `POST /users`, `PATCH /users/:id`, `POST /users/:id/deactivate`   | directory.manage   | Управление сотрудниками                                 |
 | `GET /departments/tree?kind=`                                     | directory.read     | Дерево оргструктуры (head/deputy/memberCount)           |
 | `POST/PATCH /departments/:id`, `POST /:id/archive`                | directory.manage   | Управление деревом (защита от циклов)                   |

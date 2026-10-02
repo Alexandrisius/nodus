@@ -84,6 +84,48 @@ describe('routeEnvelope', () => {
     expect(calls.map((c) => c.room)).toEqual([`conv:${CONV}`, `user:${USER_B}`]);
   });
 
+  it('conversation_updated (#186): комната беседы + user-комнаты участников (название/аватар в списке)', async () => {
+    const { io, calls } = fakeIo();
+    const store: MembershipStore = {
+      isMember: vi.fn(),
+      memberIds: vi.fn(async () => [USER_A, USER_B]),
+      userRef: vi.fn(),
+    };
+    await routeEnvelope(
+      io,
+      store,
+      envelope('chat.conversation_updated', { conversationId: CONV, title: 'Новое' }),
+    );
+    expect(calls.map((c) => c.room)).toEqual([`conv:${CONV}`, `user:${USER_A}`, `user:${USER_B}`]);
+  });
+
+  it('member_removed (#186): комната беседы + user-комната исключённого', async () => {
+    const { io, calls } = fakeIo();
+    const store: MembershipStore = { isMember: vi.fn(), memberIds: vi.fn(), userRef: vi.fn() };
+    await routeEnvelope(
+      io,
+      store,
+      envelope('chat.member_removed', { conversationId: CONV, userId: USER_B, actorId: USER_A }),
+    );
+    expect(calls.map((c) => c.room)).toEqual([`conv:${CONV}`, `user:${USER_B}`]);
+  });
+
+  it('member_role_changed (#186): комната беседы + user-комната целевого', async () => {
+    const { io, calls } = fakeIo();
+    const store: MembershipStore = { isMember: vi.fn(), memberIds: vi.fn(), userRef: vi.fn() };
+    await routeEnvelope(
+      io,
+      store,
+      envelope('chat.member_role_changed', {
+        conversationId: CONV,
+        userId: USER_B,
+        role: 'admin',
+        actorId: USER_A,
+      }),
+    );
+    expect(calls.map((c) => c.room)).toEqual([`conv:${CONV}`, `user:${USER_B}`]);
+  });
+
   it('notification.dispatch_requested: user-комната получателя (snapshot.userId)', async () => {
     const { io, calls } = fakeIo();
     const store: MembershipStore = { isMember: vi.fn(), memberIds: vi.fn(), userRef: vi.fn() };

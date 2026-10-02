@@ -118,6 +118,9 @@ model User {
   displayName  String     @map("display_name")
   status       UserStatus @default(active)
   avatarUrl    String?    @map("avatar_url")
+  /// Аватар сотрудника (#186): файл модуля files — квадратный WebP-дериват;
+  /// plain UUID без FK (I3). avatar_url (внешняя ссылка) не используется.
+  avatarFileId String?    @map("avatar_file_id") @db.Uuid
 
   // Орг-связи (справочники по ID, I15)
   /// Прямой руководитель — гибкая связь внутри группы (ГИП ↔ помощник),
@@ -312,6 +315,9 @@ model Conversation {
   /// Нормализованная пара direct: min/max id участников (равны у «Заметок»).
   userMin String? @map("user_min") @db.Uuid
   userMax String? @map("user_max") @db.Uuid
+  /// Аватар беседы (группа/канал, #186): файл модуля files — квадратный
+  /// WebP-дериват; plain UUID без FK (I3). null — заглушка из инициалов.
+  avatarFileId String? @map("avatar_file_id") @db.Uuid
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()

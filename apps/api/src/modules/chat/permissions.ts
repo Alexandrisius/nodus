@@ -7,8 +7,14 @@ import {
 /** Действия матрицы прав беседы (контракт conversationPermissionsSchema). */
 export type ConversationAction = keyof ConversationPermissions;
 
-/** Иерархия ролей: выше ранг — больше прав. */
-const ROLE_RANK: Record<ConversationMemberRole, number> = { member: 0, admin: 1, owner: 2 };
+/** Иерархия ролей: выше ранг — больше прав (owner > admin > member). */
+export const CONVERSATION_ROLE_RANK: Record<ConversationMemberRole, number> = {
+  member: 0,
+  admin: 1,
+  owner: 2,
+};
+
+const ROLE_RANK = CONVERSATION_ROLE_RANK;
 
 /** Дефолты сервера (контракт): changeInfo=admin, addMembers=member, ... */
 export const DEFAULT_CONVERSATION_PERMISSIONS: ConversationPermissions = {

@@ -1,4 +1,15 @@
-import { Body, Controller, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+} from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiCreatedResponse,
@@ -7,6 +18,8 @@ import {
   ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
+import type { FastifyRequest } from 'fastify';
+import type { MultipartFile } from '@fastify/multipart';
 import {
   createUserSchema,
   listUsersQuerySchema,
@@ -15,6 +28,7 @@ import {
   updateUserSchema,
   userCardSchema,
   userListItemSchema,
+  ErrorCode,
   Permission,
   type AuthUser,
   type CreateUserDto,
@@ -32,6 +46,7 @@ import { RequirePermissions } from '../../core/decorators/require-permissions.de
 import { ApiErrors } from '../../core/openapi/api-errors.decorator.js';
 import { ApiIdempotencyKey } from '../../core/openapi/api-idempotency.decorator.js';
 import { ZodValidationPipe } from '../../core/pipes/zod-validation.pipe.js';
+import { DomainException } from '../../core/errors/domain-exception.js';
 import { UsersService } from './users.service.js';
 
 /**
@@ -68,6 +83,43 @@ export class UsersController {
     dto: UpdateMyProfileDto,
   ): Promise<UserCard> {
     return this.usersService.updateMyProfile(user.id, dto);
+  }
+
+  @Post('me/avatar')
+  @HttpCode(200)
+  @Audit({ action: 'directory.user.avatar_set', entity: 'user' })
+  @ApiOperation({ summary: 'Аватар своего профиля (multipart: size + file)' })
+  @ApiOkResponse({ standardSchema: userCardSchema })
+  @ApiErrors(400, 401, 404, 413)
+  @ApiIdempotencyKey()
+  async setMyAvatar(@GetUser() user: AuthUser, @Req() request: FastifyRequest): Promise<UserCard> {
+    const read = await this.readMultipart(request);
+    const size = Number(read.fields['size']);
+    if (!Number.isSafeInteger(size) || size < 0) {
+      read.file.file.resume();
+      throw new DomainException(ErrorCode.VALIDATION_FAILED, 'size field is required');
+    }
+    try {
+      return await this.usersService.setMyAvatar(
+        user.id,
+        { name: read.file.filename || 'avatar', size },
+        read.file.file,
+      );
+    } catch (error) {
+      read.file.file.resume();
+      throw error;
+    }
+  }
+
+  @Delete('me/avatar')
+  @HttpCode(200)
+  @Audit({ action: 'directory.user.avatar_remove', entity: 'user' })
+  @ApiOperation({ summary: 'Убрать аватар своего профиля' })
+  @ApiOkResponse({ standardSchema: userCardSchema })
+  @ApiErrors(400, 401, 404)
+  @ApiIdempotencyKey()
+  removeMyAvatar(@GetUser() user: AuthUser): Promise<UserCard> {
+    return this.usersService.removeMyAvatar(user.id);
   }
 
   @Get(':id')
@@ -134,5 +186,25 @@ export class UsersController {
   @ApiIdempotencyKey()
   deactivate(@Param('id') id: string, @GetUser() actor: AuthUser): Promise<UserCard> {
     return this.usersService.deactivateUser(id, actor.id);
+  }
+
+  /** Первая file-часть + текстовые поля ДО неё (канон @fastify/multipart,
+   *  репро #57: поля после файловой части недетерминированы на больших телах). */
+  private async readMultipart(
+    request: FastifyRequest,
+  ): Promise<{ file: MultipartFile; fields: Record<string, string> }> {
+    const parts = request.parts();
+    const fields: Record<string, string> = {};
+    for await (const part of parts) {
+      if (part.type === 'file') {
+        return { file: part, fields };
+      }
+      if (part.fieldname in fields) continue; // дубль имени — берём первое
+      fields[part.fieldname] = String(part.value);
+    }
+    throw new DomainException(
+      ErrorCode.VALIDATION_FAILED,
+      'multipart/form-data with a file part is required',
+    );
   }
 }
