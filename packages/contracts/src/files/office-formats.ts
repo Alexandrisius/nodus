@@ -63,6 +63,7 @@ export const OFFICE_VIEW_FORMATS: Readonly<Record<string, OfficeFormatInfo>> = {
   ett: { documentType: 'cell', editable: true },
   sxc: { documentType: 'cell', editable: false },
   csv: { documentType: 'cell', editable: true },
+  tsv: { documentType: 'cell', editable: true },
   numbers: { documentType: 'cell', editable: false },
   // Презентации (slide)
   ppt: { documentType: 'slide', editable: true },

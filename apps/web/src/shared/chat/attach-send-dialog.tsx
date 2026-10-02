@@ -63,6 +63,8 @@ export function AttachSendDialogHost() {
       kind: 'image',
       url: item.objectUrl ?? '',
       thumbnailUrl: item.objectUrl,
+      previewKind: 'image',
+      pdfUrl: null,
       width: null,
       height: null,
     }));

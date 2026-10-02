@@ -249,6 +249,8 @@ describe('Стикер — выравнивание «По обе стороны
     kind: 'sticker',
     url: '/reactions/eyes.webp',
     thumbnailUrl: null,
+    previewKind: 'image',
+    pdfUrl: null,
     width: 64,
     height: 64,
     sticker: { packId: 'p1', packTitle: 'Кадры', packScope: 'personal', emojis: ['👀'] },

@@ -35,7 +35,11 @@ export function useOfficeConfig(): UseQueryResult<OfficeConfig> {
   });
 }
 
-/** Сессия документа (GET /files/:id/office-session?mode=…). */
+/** Сессия документа (GET /files/:id/office-session?mode=…). staleTime 0 —
+ * документ-ключ сессии обязан строиться от АКТУАЛЬНОЙ версии сервера:
+ * кэш после «тихого» сохранения при закрытии (колбэк в полёте ~1–2 с) выдал
+ * бы редактору ключ прошлой версии → DS показывал «документ был изменён»
+ * (репро владельца 02.10). Открытие модалки = один лёгкий GET. */
 export function useOfficeSession(
   fileId: string | null,
   mode: 'view' | 'edit',
@@ -45,7 +49,7 @@ export function useOfficeSession(
     queryKey: officeKeys.session(fileId ?? '', mode),
     queryFn: () => api<OfficeSession>(`/files/${fileId}/office-session?mode=${mode}`),
     enabled: enabled && fileId !== null,
-    staleTime: 60_000,
+    staleTime: 0,
     retry: false,
   });
 }

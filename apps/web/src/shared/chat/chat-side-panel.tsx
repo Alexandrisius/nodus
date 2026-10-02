@@ -191,6 +191,8 @@ export function ChatSidePanel({
                           mime: file.mime,
                           size: file.size,
                           url: file.url,
+                          previewKind: file.previewKind,
+                          pdfUrl: file.pdfUrl,
                         })
                       }
                       className="truncate text-left text-sm text-info hover:underline"

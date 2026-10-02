@@ -21,6 +21,7 @@ export const CHAT_EVENTS = {
   REACTION_ADDED: 'chat.reaction_added',
   REACTION_REMOVED: 'chat.reaction_removed',
   THREAD_CREATED: 'chat.thread_created',
+  ATTACHMENT_UPDATED: 'chat.attachment_updated',
   STICKER_PACK_CREATED: 'chat.sticker_pack_created',
   STICKER_PACK_UPDATED: 'chat.sticker_pack_updated',
   STICKER_PACK_DELETED: 'chat.sticker_pack_deleted',
@@ -39,6 +40,18 @@ export const chatConversationCreatedPayloadSchema = z.object({
   memberIds: z.array(z.uuid()),
 });
 export type ChatConversationCreatedPayload = z.infer<typeof chatConversationCreatedPayloadSchema>;
+
+/** Вложение обновилось новой версией файла (сохранение ONLYOFFICE, #182):
+ * подписка chat на file.version_created → мост с conversationId для
+ * маршрутизации gateway'ем в комнату беседы; клиенты рефечат ленту и
+ * файловые запросы (сессия просмотрщика) — версия подхватывается без F5. */
+export const chatAttachmentUpdatedPayloadSchema = z.object({
+  conversationId: z.uuid(),
+  fileId: z.uuid(),
+  version: z.number().int().min(2),
+  size: z.number().int().min(0),
+});
+export type ChatAttachmentUpdatedPayload = z.infer<typeof chatAttachmentUpdatedPayloadSchema>;
 
 export const chatMemberAddedPayloadSchema = z.object({
   conversationId: z.uuid(),

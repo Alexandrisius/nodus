@@ -220,6 +220,8 @@ async function up() {
       // ONLYOFFICE (#138): documentserver-контейнер (compose profile office)
       // ходит за файлами/колбэками на ЭТОТ api — адрес хоста из контейнера.
       OFFICE_API_INTERNAL_URL: `http://host.docker.internal:${PORTS.api}`,
+      // Gotenberg (#139, производные): api на хосте — loopback-порт compose.
+      GOTENBERG_URL: 'http://127.0.0.1:3100',
     }),
     gateway: startService('gateway', ['apps/gateway/dist/main.js'], {
       ...base,

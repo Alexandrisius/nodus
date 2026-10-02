@@ -208,6 +208,8 @@ const conversationHandlers = [
         kind: 'sticker',
         url: hit.sticker.url,
         thumbnailUrl: null,
+        previewKind: 'image',
+        pdfUrl: null,
         width: hit.sticker.width,
         height: hit.sticker.height,
         sticker: {

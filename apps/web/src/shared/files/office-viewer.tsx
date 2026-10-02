@@ -37,17 +37,29 @@ export function loadDocsApi(): Promise<void> {
  * Хост редактора ONLYOFFICE (#138): сессия собрана и подписана сервером —
  * document/editorConfig передаются ДОСЛОВНО (JWT проверяет целостность),
  * клиент добавляет только отображение (type/width/height) и события.
- * onOutdatedVersion — документ пересохранён другим пользователем: наверх
- * (пересоздание сессии с новой версией ключа).
+ * onOutdatedVersion — документ пересохранён: наверх (пересоздание сессии).
+ *
+ * Стабильность монтажа (#182, репро владельца 02.10): редактор живёт под
+ * СВОИМ документ-ключом и режимом — внешние рефечи сессии (ws-инвалидации,
+ * переходы dirty→clean DS) обновляют ТОЛЬКО шапку (version из query),
+ * редактор не пересоздаётся: DS шлёт changed=false после КАЖДОЙ синхронизации
+ * правок (не сохранение версии) — пересоздание на них давало белый экран
+ * «перезагрузки страницы» на каждую букву покоя. Пересоздание — только при
+ * реальной смене ключа (новая версия по onOutdated) или режима view/edit.
  */
 export function OfficeViewer({
   session,
   onOutdated,
   onEngineError,
+  onRequestRefresh,
 }: {
   session: OfficeSession;
   onOutdated: () => void;
   onEngineError: () => void;
+  /** DS 9.4 onRequestRefreshFile: движок просит свежий конфиг сессии —
+   * refreshFile обновляет документ БЕЗ перезагрузки редактора (замена
+   * тоста «Версия файла была изменена», репро владельца 02.10). */
+  onRequestRefresh: () => Promise<OfficeSession | null>;
 }) {
   // УНИКАЛЬНЫЙ id на каждый инстанс: DocsAPI держит реестр редакторов по
   // id плейсхолдера; повторное открытие модалки с тем же id (useId стабилен
@@ -57,10 +69,16 @@ export function OfficeViewer({
   const [holderId] = useState(() => `oo-editor-${Math.random().toString(36).slice(2, 10)}`);
   const editorRef = useRef<DocEditor | null>(null);
   const [ready, setReady] = useState(false);
-  const handlers = useRef({ onOutdated, onEngineError });
-  handlers.current = { onOutdated, onEngineError };
+  const handlers = useRef({ onOutdated, onEngineError, onRequestRefresh });
+  handlers.current = { onOutdated, onEngineError, onRequestRefresh };
+  // Сессия монтажа: редактор создаётся ОДИН раз на монтировку компонента
+  // (реакт-ключ над ним — fileId+режим+sessionStale); рефечи того же файла
+  // (ws, повторные fetch) приносят новый объект — редактор НЕ пересоздаётся.
+  const mountedSession = useRef(session);
+  mountedSession.current = session;
 
   useEffect(() => {
+    const initial = mountedSession.current;
     let cancelled = false;
     setReady(false);
     loadDocsApi()
@@ -72,10 +90,10 @@ export function OfficeViewer({
           type: 'desktop',
           width: '100%',
           height: '100%',
-          document: session.document as unknown as Config['document'],
-          documentType: session.documentType,
-          editorConfig: session.editorConfig as unknown as Config['editorConfig'],
-          token: session.token,
+          document: initial.document as unknown as Config['document'],
+          documentType: initial.documentType,
+          editorConfig: initial.editorConfig as unknown as Config['editorConfig'],
+          token: initial.token,
           events: {
             onDocumentReady: () => setReady(true),
             onError: (event) => {
@@ -85,7 +103,25 @@ export function OfficeViewer({
               );
               handlers.current.onEngineError();
             },
+            // Легаси (DS < 9.4): документ пересохранён — перемонтируем сессию.
             onOutdatedVersion: () => handlers.current.onOutdated(),
+            // DS 9.4: ключ сессии уже использовался для сохранения → движок
+            // сам просит свежий конфиг; refreshFile обновляет документ без
+            // тоста «Версия файла была изменена» и без перезагрузки.
+            onRequestRefreshFile: () => {
+              void handlers.current
+                .onRequestRefresh()
+                .then((fresh) => {
+                  if (cancelled || !fresh || !editorRef.current) return;
+                  editorRef.current.refreshFile({
+                    document: fresh.document as unknown as Config['document'],
+                    documentType: fresh.documentType,
+                    editorConfig: fresh.editorConfig as unknown as Config['editorConfig'],
+                    token: fresh.token,
+                  });
+                })
+                .catch(() => undefined);
+            },
           },
         };
         editorRef.current = new window.DocsAPI.DocEditor(holderId, config);
@@ -106,8 +142,9 @@ export function OfficeViewer({
       editorRef.current?.destroyEditor();
       editorRef.current = null;
     };
-    // Сессия меняется только новой версией/режимом — пересоздаём редактор.
-  }, [session, holderId]);
+    // Реакт-ключ над компонентом управляет перемонтированием; сам эффект —
+    // только на holderId (стабильность монтажа, #182).
+  }, [holderId]);
 
   return (
     <div className="relative size-full">

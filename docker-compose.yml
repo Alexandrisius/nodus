@@ -56,6 +56,8 @@ services:
       OFFICE_INTERNAL_URL: http://documentserver
       # Дефис-алиас api (SILO-урок: подчёркивания в Host — мина).
       OFFICE_API_INTERNAL_URL: http://nodus-api:3001
+      # Конвейер производных #139 (PDF-копии офисных): Gotenberg в сети.
+      GOTENBERG_URL: ${GOTENBERG_URL:-http://gotenberg:3000}
     ports:
       # 127.0.0.1: api/gateway доступны хосту (k6, dev-таргет) и nginx web-контейнера
       # по внутренней сети; в LAN не торчат (аудит #123, вердикт 27.09).
@@ -264,8 +266,12 @@ services:
     image: gotenberg/gotenberg:8
     container_name: nodus_gotenberg
     restart: unless-stopped
-    # Без опубликованного порта: потребителей в api нет, а открытый 3100 —
-    # SSRF-прокси в LAN (аудит #123). Порт вернётся вместе с первым потребителем (#51).
+    # Первый потребитель — конвейер производных #139: прод-api ходит по
+    # docker-сети (GOTENBERG_URL=http://gotenberg:3000). Наружу — только
+    # loopback-бинд для песочницы live-stack (api на хосте), не в LAN
+    # (SSRF-аудит #123 сохранён).
+    ports:
+      - '127.0.0.1:${NODUS_GOTENBERG_PORT:-3100}:3000'
     networks: [nodus_net]
 
   # Туннель к nodus.by (ADR-0002): поднимается явно — `docker compose --profile tunnel up -d`.

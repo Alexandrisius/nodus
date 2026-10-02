@@ -228,6 +228,8 @@ export const demoTaskMessages: ChatMessage[] = [
         kind: 'file',
         url: '/demo/sample.pdf',
         thumbnailUrl: null,
+        previewKind: 'pdf',
+        pdfUrl: null,
         width: null,
         height: null,
       },

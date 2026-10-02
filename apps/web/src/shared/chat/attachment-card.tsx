@@ -56,6 +56,8 @@ export function AttachmentCard({
       mime: attachment.mime,
       size: attachment.size,
       url: attachment.url,
+      previewKind: attachment.previewKind,
+      pdfUrl: attachment.pdfUrl,
     });
   };
   return (

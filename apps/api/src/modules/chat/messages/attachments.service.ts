@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import type { Readable } from 'node:stream';
-import { ErrorCode, type MessageAttachment } from '@nodus/contracts';
+import { attachmentPreviewKind, ErrorCode, type MessageAttachment } from '@nodus/contracts';
 import { PinoLogger } from 'nestjs-pino';
 
 import { SignedUrlService } from '../../../core/crypto/signed-url.service.js';
@@ -128,6 +128,9 @@ export class AttachmentsService {
       // Превью — дериват в хранилище (#150); до готовности null (клиент
       // грузит оригинал, геометрия детерминирована отдельно).
       thumbnailUrl: row.thumbFileId ? this.signedUrls.fileContentUrl(row.thumbFileId) : null,
+      // Маршрут просмотрщика и fallback-ссылка (#139) — как в mapper ленты.
+      previewKind: attachmentPreviewKind(row.name, row.mime),
+      pdfUrl: null,
       width: row.width,
       height: row.height,
     };

@@ -18,6 +18,8 @@ const STICKER: StickerSubmitPayload = {
     kind: 'sticker',
     url: '/stickers/demo/1.png',
     thumbnailUrl: null,
+    previewKind: 'image',
+    pdfUrl: null,
     width: 512,
     height: 512,
     sticker: {

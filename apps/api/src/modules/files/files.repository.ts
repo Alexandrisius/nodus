@@ -128,19 +128,44 @@ export class FilesRepository {
     return row;
   }
 
-  /** Строки (с ключами всех версий) для удаления объектов из хранилища. */
+  /** Строки (с ключами всех версий) для удаления объектов из хранилища.
+   * #156: вместе с оригиналом сносятся его дериваты (derivedFrom — превью
+   * #150) и объекты производных конвейера #139 — сирот в SILO не остаётся. */
   async findForRemoval(fileIds: string[]): Promise<{ keys: string[]; ids: string[] }> {
     if (fileIds.length === 0) return { keys: [], ids: [] };
     const objects = await this.prisma.fileObject.findMany({
       where: { id: { in: fileIds } },
       select: { id: true, key: true, versions: { select: { key: true } } },
     });
+    const ids = objects.map((object) => object.id);
+    const [derivatives, derived] = await Promise.all([
+      this.prisma.fileDerivative.findMany({
+        where: { fileObjectId: { in: ids }, key: { not: null } },
+        select: { key: true },
+      }),
+      this.prisma.fileObject.findMany({
+        where: { derivedFrom: { in: ids } },
+        select: { id: true, key: true },
+      }),
+    ]);
     const keys = new Set<string>();
     for (const object of objects) {
       keys.add(object.key);
       for (const version of object.versions) keys.add(version.key);
     }
-    return { keys: [...keys], ids: objects.map((object) => object.id) };
+    for (const row of derivatives) if (row.key) keys.add(row.key);
+    // Дериваты-FileObject (#150) сносятся вместе со СВОИМИ версиями.
+    for (const object of derived) {
+      keys.add(object.key);
+    }
+    const derivedVersions = derived.length
+      ? await this.prisma.fileVersion.findMany({
+          where: { fileObjectId: { in: derived.map((object) => object.id) } },
+          select: { key: true },
+        })
+      : [];
+    for (const version of derivedVersions) keys.add(version.key);
+    return { keys: [...keys], ids: [...ids, ...derived.map((object) => object.id)] };
   }
 
   async deleteMany(ids: string[]): Promise<void> {

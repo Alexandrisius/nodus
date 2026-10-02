@@ -77,6 +77,8 @@ export const chatMutationHandlers = [
       kind: isImage ? 'image' : 'file',
       url: typeof previewUrl === 'string' && previewUrl ? previewUrl : null,
       thumbnailUrl: isImage && typeof previewUrl === 'string' ? previewUrl : null,
+      previewKind: isImage ? 'image' : 'file',
+      pdfUrl: null,
       width: isImage && Number.isFinite(width) && width > 0 ? Math.round(width) : null,
       height: isImage && Number.isFinite(height) && height > 0 ? Math.round(height) : null,
     };

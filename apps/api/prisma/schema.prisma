@@ -601,9 +601,39 @@ model FileObject {
   createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz()
 
   versions FileVersion[]
+  derivatives FileDerivative[]
 
   @@index([ownerId])
   @@map("file_objects")
+}
+
+/// Производная версия файла из конвейера #139: PDF-копия офисного документа
+/// (fallback-просмотр при лежащем движке) и PNG-иконка первой страницы
+/// (карточка вложения). Ключ генерации = (fileObject, version): правки
+/// ONLYOFFICE создают новую версию → конвейер перегенерирует. Миниатюры
+/// изображений — отдельный конвейер чата (#150, WebP), здесь не дублируются.
+model FileDerivative {
+  id          String   @id @default(uuid()) @db.Uuid
+  fileObjectId String  @map("file_object_id") @db.Uuid
+  version     Int
+  /// pdf | icon (спека #139; thumbnail живёт в конвейере #150).
+  kind        String
+  /// pending | ready | failed (ретраи очереди — attempts).
+  status      String   @default("pending")
+  /// Ключ объекта в хранилище (SILO); null, пока не ready.
+  key         String?
+  size        Int      @default(0)
+  mime        String
+  error       String?
+  attempts    Int      @default(0)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+
+  fileObject FileObject @relation(fields: [fileObjectId], references: [id], onDelete: Cascade)
+
+  @@unique([fileObjectId, version, kind])
+  @@index([fileObjectId])
+  @@map("file_derivatives")
 }
 
 /// Физическая версия файла в хранилище: фаза 1 — одна (v1) на каждый upload;
