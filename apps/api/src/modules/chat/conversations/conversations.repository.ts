@@ -331,6 +331,14 @@ export class ConversationsRepository {
     return Number(rows[0]?.count ?? 0);
   }
 
+  /** Блокировка строки беседы (только внутри tx): сериализует конкурирующие
+   *  мутации состава — перечёт лимита под локом точен (TOCTOU add, #195). */
+  async lockConversation(conversationId: string, tx: TransactionClient): Promise<void> {
+    await tx.$queryRaw(Prisma.sql`
+      SELECT id FROM conversations WHERE id = ${conversationId}::uuid FOR UPDATE
+    `);
+  }
+
   /** Персьональные настройки списка (pinned/muted/snoozed/hidden). */
   async updateMemberSettings(
     conversationId: string,
