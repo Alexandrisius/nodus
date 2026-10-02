@@ -32,8 +32,8 @@ jobs:
           else
             CHANGED=$(git diff --name-only HEAD~1)
           fi
-          # Код = что угодно вне docs/** и *.md
-          if echo "$CHANGED" | grep -qv -e '^docs/' -e '\.md$'; then
+          # Код = что угодно вне docs/**, *.md, .gitignore и ролей субагентов (канон без исполняемого кода)
+          if echo "$CHANGED" | grep -qv -e '^docs/' -e '\.md$' -e '^\.gitignore$' -e '^\.zcode/agents/'; then
             echo "code=true" >> "$GITHUB_OUTPUT"
           else
             echo "code=false" >> "$GITHUB_OUTPUT"
