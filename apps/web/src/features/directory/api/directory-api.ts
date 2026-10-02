@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 
 import { api } from '../../../shared/api-client.js';
 import { isDomainMocked } from '../../../shared/api/api-mock-config.js';
+import { uploadAvatar } from '../../../shared/chat/avatar-upload.js';
 import { useIsOnline } from '../../../shared/socket/presence-store.js';
 import { insertDepartment, patchDepartment } from '../lib/department-tree.js';
 
@@ -108,6 +109,34 @@ export function useUserCard(id: string) {
   return useQuery({
     queryKey: directoryKeys.userCard(id),
     queryFn: () => api<UserCard>(`/directory/users/${id}`),
+  });
+}
+
+/** Аватар СВОЕГО профиля (#186): multipart (квадратизация на сервере),
+ *  чужие карточки — только просмотр. Инвалидация — вся ветка directory
+ *  (карточка + списки/пикеры, где аватар тоже виден). */
+export function useSetMyAvatar() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (file: File) =>
+      uploadAvatar<UserCard>({ path: '/directory/users/me/avatar', domain: 'directory' }, file),
+    onSuccess: () => {
+      toast.success(ui.common.avatarSaved);
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: directoryKeys.all });
+    },
+  });
+}
+
+/** Убрать аватар своего профиля (вернутся инициалы). */
+export function useRemoveMyAvatar() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api<UserCard>('/directory/users/me/avatar', { method: 'DELETE' }),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: directoryKeys.all });
+    },
   });
 }
 

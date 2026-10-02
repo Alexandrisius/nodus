@@ -12,9 +12,12 @@
 
 ## Границы (I3/I13)
 
-- Наружу — только порт **`FILE_STORAGE`** (`core/ports/file-storage.port.ts`):
-  `save(meta, stream) → {fileId}` и `remove(fileIds)`. Модуль `@Global`
-  (как CryptoModule): потребитель инжектит токен без межмодульного импорта.
+- Наружу — порты **`FILE_STORAGE`** (`core/ports/file-storage.port.ts`:
+  `save(meta, stream) → {fileId}` и `remove(fileIds)`) и **`AVATAR_PROCESSOR`**
+  (`core/ports/avatar-processor.port.ts`, #186: валидация PNG/JPEG/WebP ≤10 МБ
+  по magic bytes → квадратный WebP-дериват ≤640, реализация `avatars/`).
+  Модуль `@Global` (как CryptoModule): потребитель инжектит токен без
+  межмодульного импорта.
 - Обратное направление — порт **`FILE_ACCESS_CONTRIBUTORS`**
   (`core/ports/file-access.port.ts`, #138): право пользователя на файл в
   контексте потребителя. Реализацию регистрирует потребитель (@Global-модуль

@@ -15,6 +15,7 @@ const userListSelect = {
   displayName: true,
   status: true,
   avatarUrl: true,
+  avatarFileId: true,
   email: true,
   managerId: true,
   departmentId: true,

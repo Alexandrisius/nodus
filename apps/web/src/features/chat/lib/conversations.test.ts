@@ -25,6 +25,7 @@ function conv(id: string, at: string | null, pinned = false): ConversationListIt
     task: null,
     letter: null,
     membersPreview: [],
+    membersCount: 1,
     lastMessage: at
       ? {
           id: `m-${id}`,

@@ -32,6 +32,7 @@ const rawConversations: Omit<
   | 'myRole'
   | 'permissions'
   | 'myLastReadSeq'
+  | 'membersCount'
 >[] = [
   {
     id: cid(1),
@@ -199,6 +200,11 @@ export const demoConversations: ConversationListItem[] = [
   draft: null,
   visibility: c.type === 'project_channel' ? 'open' : c.type === 'group' ? 'closed' : null,
   description: null,
+  // Всего участников, считая мок-юзера: превью его не содержит (кроме
+  // «Заметок», где он и есть единственный участник).
+  membersCount: c.membersPreview.some((m) => m.id === userIds.klimovich)
+    ? c.membersPreview.length
+    : c.membersPreview.length + 1,
   // Watermark текущего пользователя (раунд 3, якорь «первое непрочитанное»):
   // считается ПОСЛЕ сборки сообщений (цикл под demoMessages).
   myLastReadSeq: 0,

@@ -1,0 +1,154 @@
+import { Inject, Injectable } from '@nestjs/common';
+import { Readable } from 'node:stream';
+import sharp from 'sharp';
+import { ErrorCode } from '@nodus/contracts';
+import { PinoLogger } from 'nestjs-pino';
+
+import { SignedUrlService } from '../../../core/crypto/signed-url.service.js';
+import { DomainException } from '../../../core/errors/domain-exception.js';
+import { FILE_STORAGE, type FileStorage } from '../../../core/ports/file-storage.port.js';
+import {
+  AVATAR_DERIVATIVE_SIDE,
+  AVATAR_MAX_BYTES,
+  AVATAR_MIN_SIDE,
+  validateAvatarBytes,
+} from './avatar-rules.js';
+
+/** EXIF-ориентации 5–8 — поворот на 90°: физические стороны меняются
+ *  местами (как видит браузер после авторазворота). */
+function orientedSize(
+  width: number | undefined,
+  height: number | undefined,
+  orientation: number | undefined,
+): { width: number; height: number } {
+  const w = width ?? 0;
+  const h = height ?? 0;
+  return orientation !== undefined && orientation >= 5
+    ? { width: h, height: w }
+    : { width: w, height: h };
+}
+
+export interface AvatarProcessInput {
+  ownerId: string;
+  name: string;
+  /** Заявленный размер (File.size): сверяется с фактически прожитым стримом. */
+  size: number;
+}
+
+/**
+ * Конвейер аватарок (#186): общий для бесед (chat) и профилей сотрудников
+ * (directory). Оригинал валидируется по magic bytes (PNG/JPEG/WebP ≤10 МБ),
+ * сервер квадратизирует sharp'ом (cover-кроп с attention-стратегией —
+ * лицо/салиентная зона остаётся в кадре; EXIF-поворот учитывается) в WebP
+ * ≤640px — единый дериват для списка 28dp, топбара 36dp и большого фото
+ * профиля 176dp ×2. Возвращает fileId ДЕРИВАТА (его и вешают на сущность);
+ * оригинал сохраняется рядом (derivedFrom-маркер) — задел перекадровки.
+ *
+ * Синхронно в HTTP-запросе (не BullMQ): аватар — bounded-файл (≤10 МБ,
+ * ресайз до ~0,5 с — потолок-страховка; реальные фото ужмёт клиент #191),
+ * редкое действие; тяжёлые конвейеры (превью
+ * вложений, PDF) остаются в очередях.
+ */
+@Injectable()
+export class AvatarService {
+  constructor(
+    @Inject(FILE_STORAGE) private readonly storage: FileStorage,
+    private readonly signedUrls: SignedUrlService,
+    private readonly logger: PinoLogger,
+  ) {
+    this.logger.setContext(AvatarService.name);
+  }
+
+  async process(input: AvatarProcessInput, content: Readable): Promise<{ fileId: string }> {
+    const bytes = await this.readAll(content, input.size);
+    const valid = validateAvatarBytes(bytes);
+    if (valid.issue === 'format') {
+      throw new DomainException(ErrorCode.FILE_AVATAR_INVALID, 'Avatar must be PNG, JPEG or WebP');
+    }
+    if (valid.issue === 'size') {
+      throw new DomainException(
+        ErrorCode.FILE_AVATAR_INVALID,
+        'Avatar exceeds 10 MB limit',
+        { maxBytes: AVATAR_MAX_BYTES },
+        413,
+      );
+    }
+
+    const original = await this.storage.save(
+      {
+        ownerId: input.ownerId,
+        name: input.name || 'avatar',
+        mime: valid.mime,
+        size: bytes.length,
+      },
+      Readable.from(bytes),
+    );
+
+    let derivative: Buffer;
+    try {
+      const meta = await sharp(bytes).metadata();
+      // Квадратная сторона: минимум из ориентированных сторон и потолка —
+      // cover-кроп этой величиной никогда не апскейлит (без enlargement)
+      // и всегда даёт точный квадрат (sharp безEnlargement на cover не
+      // кропит — сторону считаем сами).
+      const size = orientedSize(meta.width, meta.height, meta.orientation);
+      if (size.width < AVATAR_MIN_SIDE || size.height < AVATAR_MIN_SIDE) {
+        throw new DomainException(ErrorCode.FILE_AVATAR_INVALID, 'Avatar image is too small', {
+          minSide: AVATAR_MIN_SIDE,
+        });
+      }
+      const side = Math.min(size.width, size.height, AVATAR_DERIVATIVE_SIDE);
+      derivative = await sharp(bytes)
+        .rotate()
+        .resize(side, side, {
+          fit: 'cover',
+          position: sharp.strategy.attention,
+        })
+        .webp({ quality: 82 })
+        .toBuffer();
+    } catch (error) {
+      if (error instanceof DomainException) throw error;
+      // sharp бросает на недекодируемом буфере (failOn по умолчанию) —
+      // magic bytes прошли, но картинка битая; отказ доменный, не 500.
+      this.logger.warn({ err: error }, 'Аватар не декодируется sharp');
+      throw new DomainException(ErrorCode.FILE_AVATAR_INVALID, 'Avatar image is corrupted');
+    }
+
+    const baseName = input.name.replace(/\.[^.]+$/, '') || 'avatar';
+    const saved = await this.storage.save(
+      {
+        ownerId: input.ownerId,
+        name: `${baseName}.webp`,
+        mime: 'image/webp',
+        size: derivative.length,
+        derivedFrom: original.fileId,
+      },
+      Readable.from(derivative),
+    );
+    return { fileId: saved.fileId };
+  }
+
+  /** Подписанный URL отдачи аватара для DTO (сущность хранит fileId). */
+  contentUrl(fileId: string): string {
+    return this.signedUrls.fileContentUrl(fileId);
+  }
+
+  private async readAll(stream: Readable, declaredSize: number): Promise<Buffer> {
+    const chunks: Buffer[] = [];
+    let total = 0;
+    for await (const chunk of stream) {
+      total += (chunk as Buffer).length;
+      if (total > AVATAR_MAX_BYTES + 1024) {
+        stream.resume();
+        throw new DomainException(
+          ErrorCode.FILE_AVATAR_INVALID,
+          'Avatar exceeds 10 MB limit',
+          { maxBytes: AVATAR_MAX_BYTES, declaredSize },
+          413,
+        );
+      }
+      chunks.push(chunk as Buffer);
+    }
+    return Buffer.concat(chunks);
+  }
+}

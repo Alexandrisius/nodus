@@ -50,4 +50,33 @@ async function mk(email, first, last) {
 }
 await mk('night-a@nodus.local', 'Анна', 'Ночная');
 await mk('night-b@nodus.local', 'Борис', 'Ночной');
+// Роль employee (directory.read): пикеры людей и журнал сотрудников в
+// песочнице работают как у пилотов — без роли справочник отдаёт 403 и окна
+// «Добавить участников»/создания чата выглядят пустыми (приёмка #186).
+// Роли сеет только prisma/seed (бутстрап песочницы его не гоняет) —
+// создаём минимальную роль здесь, идемпотентно.
+await client.query(`
+  INSERT INTO roles (id, code, name, is_system, created_at, updated_at)
+  VALUES (gen_random_uuid(), 'employee', 'Сотрудник', true, now(), now())
+  ON CONFLICT (code) DO NOTHING
+`);
+await client.query(`
+  INSERT INTO role_permissions (role_id, permission)
+  SELECT r.id, 'directory.read' FROM roles r WHERE r.code = 'employee'
+  ON CONFLICT DO NOTHING
+`);
+await client.query(`
+  INSERT INTO user_roles (user_id, role_id)
+  SELECT u.id, r.id FROM users u, roles r
+  WHERE u.email LIKE 'night-%@nodus.local' AND r.code = 'employee'
+  ON CONFLICT DO NOTHING
+`);
+// Фича-флаги модулей: прод держит chat/notifications включёнными, свежая
+// nodus_night — пустая таблица (флаги сеет только prisma/seed, бутстрап его
+// не гоняет) — без строк гвард отдаёт 404 на маршрутах чата.
+await client.query(`
+  INSERT INTO feature_flags (key, enabled, created_at, updated_at)
+  VALUES ('chat', true, now(), now()), ('notifications', true, now(), now())
+  ON CONFLICT (key) DO NOTHING
+`);
 await client.end();

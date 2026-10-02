@@ -37,6 +37,7 @@ export const errorMessages: Record<ErrorCode, string> = {
   [ErrorCode.FILE_OFFICE_DISABLED]: 'Просмотр документов недоступен — скачайте файл',
   [ErrorCode.FILE_OFFICE_UNSUPPORTED]: 'Этот формат не открывается в браузере — скачайте файл',
   [ErrorCode.FILE_OFFICE_TOO_LARGE]: 'Файл слишком большой для просмотра — скачайте его',
+  [ErrorCode.FILE_AVATAR_INVALID]: 'Фото не подошло: нужно PNG, JPEG или WebP до 10 МБ',
 };
 
 /**
@@ -97,6 +98,13 @@ export const ui = {
     notFoundDescription: 'Такого адреса нет или раздел был перемещён.',
     backHome: 'Вернуться на главную',
     reload: 'Обновить страницу',
+    /** Аватарки (#186): общие строки чата и профиля сотрудника. */
+    avatarUpload: 'Загрузить фото',
+    avatarChange: 'Сменить фото',
+    avatarRemove: 'Убрать фото',
+    avatarTooLarge: 'Фото больше 10 МБ не поддерживается — выберите поменьше',
+    avatarBadFormat: 'Нужно изображение: PNG, JPEG или WebP',
+    avatarSaved: 'Фото обновлено',
   },
   /** Локальные поиск и фильтры списков (строка инструментов журнала/вкладки;
    *  панель фильтра выезжает из поисковой строки — отдельной кнопки нет,

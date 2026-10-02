@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod';
+import type { Readable } from 'node:stream';
 import {
   CHAT_EVENTS,
   type ConversationDraft,
@@ -14,12 +15,17 @@ import { EventBus } from '../../../core/events/event-bus.js';
 import { TransactionRunner } from '../../../core/database/transaction-runner.js';
 import { decodeCursor, encodeCursor } from '../../../core/pagination/cursor.util.js';
 import {
+  AVATAR_PROCESSOR,
+  type AvatarProcessor,
+} from '../../../core/ports/avatar-processor.port.js';
+import {
   USER_PROFILE_READER,
   type UserProfileReader,
 } from '../../../core/ports/user-profile.port.js';
 import { DomainException } from '../../../core/errors/domain-exception.js';
 import { mergePermissions } from '../permissions.js';
 import { ConversationItemMapper } from './conversation-item.mapper.js';
+import { requireConversationAction } from './conversation-guards.js';
 import {
   ConversationsRepository,
   type ConversationListCursor,
@@ -32,8 +38,10 @@ const conversationCursorSchema = z.object({
 
 /**
  * Беседы: список (LATERAL + unread одним запросом), создание групп/каналов,
- * find-or-create direct, персональные настройки списка, черновики.
- * Нечлен беседы и несуществующая беседа неотличимы (404 — не палить наличие).
+ * find-or-create direct, персональные настройки списка, черновики,
+ * переименование и аватар (#186 — право changeInfo; участники — отдельный
+ * сервис conversation-members.service.ts). Нечлен беседы и несуществующая
+ * беседа неотличимы (404 — не палить наличие).
  */
 @Injectable()
 export class ConversationsService {
@@ -42,6 +50,7 @@ export class ConversationsService {
     private readonly items: ConversationItemMapper,
     private readonly txRunner: TransactionRunner,
     private readonly eventBus: EventBus,
+    @Inject(AVATAR_PROCESSOR) private readonly avatars: AvatarProcessor,
     @Inject(USER_PROFILE_READER) private readonly userProfiles: UserProfileReader,
   ) {}
 
@@ -186,6 +195,74 @@ export class ConversationsService {
       : null;
   }
 
+  /**
+   * Переименование (#186): право changeInfo матрицы (дефолт — владелец и
+   * модераторы); только группы и каналы — у direct/task/letter название
+   * производное от сущности. Событие conversation_updated обновляет
+   * название у всех участников.
+   */
+  async updateInfo(
+    userId: string,
+    conversationId: string,
+    body: { title: string },
+  ): Promise<ConversationListItem> {
+    await requireConversationAction(this.repo, conversationId, userId, 'changeInfo', [
+      'group',
+      'project_channel',
+    ]);
+    await this.txRunner.run(async (tx) => {
+      if (!(await this.repo.updateTitle(conversationId, body.title, tx))) {
+        throw DomainException.notFound('Conversation not found');
+      }
+      await this.emitUpdated(tx, conversationId, userId, { title: body.title });
+    });
+    return this.getItemOrThrow(conversationId, userId);
+  }
+
+  /**
+   * Установка/смена аватара беседы (#186): право changeInfo; квадратизация —
+   * конвейер модуля files (sharp WebP ≤640), на беседу вешается fileId
+   * деривата. Обработка ДО транзакции (не-БД работа), фиксация + событие —
+   * атомарно (outbox, I9).
+   */
+  async setAvatar(
+    userId: string,
+    conversationId: string,
+    input: { name: string; size: number },
+    content: Readable,
+  ): Promise<ConversationListItem> {
+    await requireConversationAction(this.repo, conversationId, userId, 'changeInfo', [
+      'group',
+      'project_channel',
+    ]);
+    const { fileId } = await this.avatars.process(
+      { ownerId: userId, name: input.name, size: input.size },
+      content,
+    );
+    await this.txRunner.run(async (tx) => {
+      if (!(await this.repo.updateAvatar(conversationId, fileId, tx))) {
+        throw DomainException.notFound('Conversation not found');
+      }
+      await this.emitUpdated(tx, conversationId, userId, { avatarChanged: true });
+    });
+    return this.getItemOrThrow(conversationId, userId);
+  }
+
+  /** Убрать аватар беседы (заглушка из инициалов, #186). */
+  async removeAvatar(userId: string, conversationId: string): Promise<ConversationListItem> {
+    await requireConversationAction(this.repo, conversationId, userId, 'changeInfo', [
+      'group',
+      'project_channel',
+    ]);
+    await this.txRunner.run(async (tx) => {
+      if (!(await this.repo.updateAvatar(conversationId, null, tx))) {
+        throw DomainException.notFound('Conversation not found');
+      }
+      await this.emitUpdated(tx, conversationId, userId, { avatarChanged: true });
+    });
+    return this.getItemOrThrow(conversationId, userId);
+  }
+
   private async getItemOrThrow(
     conversationId: string,
     userId: string,
@@ -194,6 +271,20 @@ export class ConversationsService {
     if (!row) throw DomainException.notFound('Conversation not found');
     const members = await this.repo.listMembers([conversationId]);
     return this.items.toItem(row, { viewerId: userId, members });
+  }
+
+  private async emitUpdated(
+    tx: Parameters<Parameters<TransactionRunner['run']>[0]>[0],
+    conversationId: string,
+    actorId: string,
+    changes: { title?: string; avatarChanged?: boolean },
+  ): Promise<void> {
+    await this.eventBus.emit(
+      tx,
+      CHAT_EVENTS.CONVERSATION_UPDATED,
+      { conversationId, ...changes },
+      { actorId, aggregateType: 'conversation', aggregateId: conversationId },
+    );
   }
 
   private async loadMemberRefs(members: { userId: string }[]): Promise<Map<string, UserRef>> {

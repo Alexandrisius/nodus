@@ -31,6 +31,7 @@ function item(unreadCount: number): ConversationListItem {
     task: null,
     letter: null,
     membersPreview: [],
+    membersCount: 1,
     lastMessage: null,
     unreadCount,
     myLastReadSeq: 0,

@@ -1,5 +1,6 @@
-import { FileText, Link2, PanelRight, X } from 'lucide-react';
+import { ArrowLeft, FileText, Link2, PanelRight, X } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
+import type { ConversationListItem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import { NodeLabel } from '@nodus/ui/components/node-label';
@@ -7,6 +8,7 @@ import { cn } from '@nodus/ui/lib/utils';
 
 import { threadScopeMessages } from './channel-layout.js';
 import { useConversationMessages } from './api.js';
+import { ConversationMembersPanel } from './conversation-members.js';
 
 import { useFrameReady } from '../ui/use-frame-ready.js';
 import { uiPx } from '../ui/ui-scale.js';
@@ -84,13 +86,19 @@ export function useChatSidePanel() {
  */
 export function ChatSidePanel({
   conversationId,
+  conversation,
   open,
   onClose,
   title,
   headerClass = 'h-14',
   threadRootId = null,
+  view = 'files',
+  onMembersClose,
+  onAddMembers,
 }: {
   conversationId: string;
+  /** Беседа для вида «Участники» (#186): роли и права матрицы. */
+  conversation?: ConversationListItem;
   open: boolean;
   onClose: () => void;
   title: string;
@@ -98,6 +106,14 @@ export function ChatSidePanel({
    *  border-b продолжаются друг в друга). */
   headerClass?: string;
   threadRootId?: string | null;
+  /** Вид колонки (#186): файлы/ссылки («О чате») или участники — панель
+   *  участников стоит РОВНО ПОВЕРХ тоггл-панели (та же колонка 1:1). */
+  view?: 'files' | 'members';
+  /** Выход из вида участников: назад к файлам (если панель была открыта)
+   *  или свернуть колонку — решает хост. */
+  onMembersClose?: () => void;
+  /** Открыть окно добавления участников (кнопка «Добавить» панели). */
+  onAddMembers?: () => void;
 }) {
   const { data } = useConversationMessages(conversationId);
   const [scope, setScope] = useState<'all' | 'thread'>('all');
@@ -108,10 +124,11 @@ export function ChatSidePanel({
   // не теряются): обёртка уже стоит в DOM с w-0, тяжёлый маунт секций не
   // попадает в кадры width-анимации первого тоггла (рывок ровно один раз,
   // баг-вердикт владельца 15.09.2026 — приём обёртки панели «О задаче»).
+  const columnOpen = open || view === 'members';
   const [contentMounted, setContentMounted] = useState(false);
   useEffect(() => {
-    if (open) setContentMounted(true);
-  }, [open]);
+    if (columnOpen) setContentMounted(true);
+  }, [columnOpen]);
   useEffect(() => {
     if (!threadRootId) setScope('all');
   }, [threadRootId]);
@@ -124,108 +141,131 @@ export function ChatSidePanel({
 
   return (
     <div
-      aria-hidden={!open}
-      inert={!open}
+      aria-hidden={!columnOpen}
+      inert={!columnOpen}
       className={cn(
         'h-full shrink-0 overflow-hidden transition-[width] duration-200 ease-out',
-        open && ready ? 'w-[18.75rem]' : 'w-0',
+        columnOpen && ready ? 'w-[18.75rem]' : 'w-0',
       )}
     >
       <aside className="flex h-full w-[18.75rem] flex-col border-l border-border bg-card">
         {/* Верхняя строка панели — НА УРОВНЕ бара хоста: название слева,
             крестик у самого правого края (реф Битрикс24, вердикт владельца
-            15.09.2026); border-b продолжает линию бара хоста. */}
+            15.09.2026); border-b продолжает линию бара хоста. Вид участников
+            (#186): у края СЛЕВА стрелка «назад», если под ним открыта панель
+            «О чате» (возврат к файлам), иначе крестик (свернуть колонку). */}
         <div
           className={cn(
             'flex shrink-0 items-center gap-2 border-b border-border px-3',
             headerClass,
           )}
         >
-          <NodeLabel label={title} />
-          <Button
-            variant="ghost"
-            size="icon"
-            className="ml-auto shrink-0 hover:bg-accent"
-            onClick={onClose}
-            aria-label={ui.common.close}
-          >
-            <X />
-          </Button>
-        </div>
-        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
-          {contentMounted ? (
-            <>
-              {threadRootId ? (
-                <div className="flex shrink-0 gap-1 rounded-lg bg-muted/40 p-1">
-                  {(['all', 'thread'] as const).map((s) => (
-                    <button
-                      key={s}
-                      type="button"
-                      onClick={() => setScope(s)}
-                      aria-pressed={scope === s}
-                      className={cn(
-                        'flex-1 rounded-md px-2 py-1 text-body-xs transition-colors',
-                        scope === s
-                          ? 'bg-accent text-foreground'
-                          : 'text-muted-foreground hover:text-foreground',
-                      )}
-                    >
-                      {s === 'all' ? ui.chat.scopeAll : ui.chat.scopeThread}
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-
-              {/* Закрепов в панели НЕТ (вердикт владельца 24.09, #91): обзор
-                  закрепов — пин-бар ленты; панель — файлы и ссылки беседы. */}
-              <Section icon={FileText} title={ui.chat.filesMedia}>
-                {files.length > 0 ? (
-                  files.map((file) => (
-                    <button
-                      key={file.id}
-                      type="button"
-                      onClick={() =>
-                        openViewer({
-                          fileId: file.fileId,
-                          name: file.name,
-                          mime: file.mime,
-                          size: file.size,
-                          url: file.url,
-                          previewKind: file.previewKind,
-                          pdfUrl: file.pdfUrl,
-                        })
-                      }
-                      className="truncate text-left text-sm text-info hover:underline"
-                      title={file.name}
-                    >
-                      {file.name}
-                    </button>
-                  ))
-                ) : (
-                  <span className="text-sm text-muted-foreground">{ui.common.empty}</span>
-                )}
-              </Section>
-
-              <Section icon={Link2} title={ui.chat.links}>
-                {links.length > 0 ? (
-                  links.map((link) => (
-                    <a
-                      key={link}
-                      href={link}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="truncate text-sm text-info hover:underline"
-                    >
-                      {link}
-                    </a>
-                  ))
-                ) : (
-                  <span className="text-sm text-muted-foreground">{ui.common.empty}</span>
-                )}
-              </Section>
-            </>
+          {view === 'members' ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="shrink-0 hover:bg-accent"
+              onClick={onMembersClose ?? onClose}
+              aria-label={open ? ui.chat.membersBack : ui.common.close}
+              title={open ? ui.chat.membersBack : ui.common.close}
+            >
+              {open ? <ArrowLeft /> : <X />}
+            </Button>
+          ) : null}
+          <NodeLabel label={view === 'members' ? ui.chat.membersPanelTitle : title} />
+          {view === 'files' ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="ml-auto shrink-0 hover:bg-accent"
+              onClick={onClose}
+              aria-label={ui.common.close}
+            >
+              <X />
+            </Button>
           ) : null}
         </div>
+        {view === 'members' && conversation ? (
+          <ConversationMembersPanel
+            conversation={conversation}
+            onAddMembers={onAddMembers ?? (() => {})}
+          />
+        ) : (
+          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
+            {contentMounted ? (
+              <>
+                {threadRootId ? (
+                  <div className="flex shrink-0 gap-1 rounded-lg bg-muted/40 p-1">
+                    {(['all', 'thread'] as const).map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => setScope(s)}
+                        aria-pressed={scope === s}
+                        className={cn(
+                          'flex-1 rounded-md px-2 py-1 text-body-xs transition-colors',
+                          scope === s
+                            ? 'bg-accent text-foreground'
+                            : 'text-muted-foreground hover:text-foreground',
+                        )}
+                      >
+                        {s === 'all' ? ui.chat.scopeAll : ui.chat.scopeThread}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+
+                {/* Закрепов в панели НЕТ (вердикт владельца 24.09, #91): обзор
+                  закрепов — пин-бар ленты; панель — файлы и ссылки беседы. */}
+                <Section icon={FileText} title={ui.chat.filesMedia}>
+                  {files.length > 0 ? (
+                    files.map((file) => (
+                      <button
+                        key={file.id}
+                        type="button"
+                        onClick={() =>
+                          openViewer({
+                            fileId: file.fileId,
+                            name: file.name,
+                            mime: file.mime,
+                            size: file.size,
+                            url: file.url,
+                            previewKind: file.previewKind,
+                            pdfUrl: file.pdfUrl,
+                          })
+                        }
+                        className="truncate text-left text-sm text-info hover:underline"
+                        title={file.name}
+                      >
+                        {file.name}
+                      </button>
+                    ))
+                  ) : (
+                    <span className="text-sm text-muted-foreground">{ui.common.empty}</span>
+                  )}
+                </Section>
+
+                <Section icon={Link2} title={ui.chat.links}>
+                  {links.length > 0 ? (
+                    links.map((link) => (
+                      <a
+                        key={link}
+                        href={link}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="truncate text-sm text-info hover:underline"
+                      >
+                        {link}
+                      </a>
+                    ))
+                  ) : (
+                    <span className="text-sm text-muted-foreground">{ui.common.empty}</span>
+                  )}
+                </Section>
+              </>
+            ) : null}
+          </div>
+        )}
       </aside>
     </div>
   );

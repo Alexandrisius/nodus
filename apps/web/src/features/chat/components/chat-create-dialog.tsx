@@ -1,5 +1,5 @@
 import { Camera, ChevronDown, Plus, X } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import type { ConversationMemberRole, UserListItem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
@@ -27,17 +27,19 @@ import { toast } from 'sonner';
 import { useUsersList } from '../../../shared/api/users-list.js';
 import { useAuthStore } from '../../../shared/auth-store.js';
 import { withoutPatronymic } from '../../../shared/lib/format.js';
+import { avatarIssueMessage, validateAvatarFile } from '../../../shared/chat/avatar-upload.js';
+import { useSetConversationAvatar } from '../../../shared/chat/manage-api.js';
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
 import { useCreateConversation } from '../api/chat-api.js';
 
 /**
  * Создание группового чата/канала (#91, референс окна «Создание чата»
- * Bitrix24): название + аватарка-плейсхолдер, участники («человек или целый
- * отдел»), сворачиваемые «Настройки чата» (тип закрытый/открытый, описание)
- * и «Права доступа» (владелец, модераторы, матрица минимальных ролей —
- * контракт conversationPermissionsSchema). Аватарка и модераторы — заглушки до
- * сервера файлов и прав (toast-заготовка, как «Опрос» линии A); создание живое
- * на моках: беседа встаёт в список первой.
+ * Bitrix24): название + аватарка (#186: выбор файла с превью, загрузка после
+ * создания беседы), участники («человек или целый отдел»), сворачиваемые
+ * «Настройки чата» (тип закрытый/открытый, описание) и «Права доступа»
+ * (владелец, модераторы, матрица минимальных ролей — контракт
+ * conversationPermissionsSchema). Модераторы — заглушка до серверных прав
+ * (как «Опрос» линии A); создание живое: беседа встаёт в список первой.
  * АВТОУДАЛЕНИЯ СООБЩЕНИЙ ЗДЕСЬ НЕТ (решение владельца 24.09.2026, #96):
  * переключатель не чинили, а фичу убрали целиком — вместе с полем контракта и
  * i18n-строкой; TTL сообщений в продукте не появится без нового решения
@@ -166,8 +168,19 @@ export function ChatCreateDialog({
   const me = useAuthStore((s) => s.user);
   const { data: users } = useUsersList();
   const create = useCreateConversation();
+  const setAvatar = useSetConversationAvatar();
 
   const [title, setTitle] = useState('');
+  // Аватар при создании (#186): файл выбирается сразу (превью в кнопке),
+  // загружается ПОСЛЕ создания беседы (multipart на :id/avatar, право
+  // changeInfo у создателя-owner есть всегда).
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const avatarPreview = useMemo(
+    () => (avatarFile ? URL.createObjectURL(avatarFile) : null),
+    [avatarFile],
+  );
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const [submitting, setSubmitting] = useState(false);
   const [memberIds, setMemberIds] = useState<string[]>([]);
   // Канал всегда открытый (тип не выбирается — радиогруппа только у группы):
   // состояние инициализируется по kind, чтобы UI не показывал одно, а отправлял
@@ -189,22 +202,44 @@ export function ChatCreateDialog({
     );
   }, [users, memberIds, pickQuery, me?.id]);
 
-  function submit() {
+  function onAvatarPicked(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    const issue = validateAvatarFile(file);
+    if (issue) {
+      toast.error(avatarIssueMessage(issue));
+      return;
+    }
+    setAvatarFile(file);
+  }
+
+  async function submit() {
     const name = title.trim();
-    if (!name) return;
-    create.mutate(
-      {
+    if (!name || submitting) return;
+    setSubmitting(true);
+    try {
+      const conversation = await create.mutateAsync({
         type: kind,
         title: name,
         description: description.trim() || undefined,
         visibility,
         memberIds,
         permissions,
-      },
-      {
-        onSuccess: (conversation) => onCreated(conversation.id),
-      },
-    );
+      });
+      // Аватар — после создания (эндпоинт беседы): сбой загрузки НЕ роняет
+      // готовую беседу (тост об ошибке), аватар ставится кликом в топбаре.
+      if (avatarFile) {
+        try {
+          await setAvatar.mutateAsync({ conversationId: conversation.id, file: avatarFile });
+        } catch {
+          toast.error(ui.common.saveError);
+        }
+      }
+      onCreated(conversation.id);
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -217,18 +252,47 @@ export function ChatCreateDialog({
         </DialogHeader>
         <div className="flex flex-col gap-4">
           <div className="flex items-center gap-3">
-            {/* Аватарка группы/канала — фундамент #91: плейсхолдер до сервера
-                файлов (#57); право загрузки — changeInfo; до того беседа
-                живёт с цветной заглушкой из инициалов (conversation-avatar). */}
-            <button
-              type="button"
-              onClick={() => toast(ui.chat.avatarSoon)}
-              aria-label={ui.chat.avatarSoon}
-              title={ui.chat.avatarSoon}
-              className="flex size-14 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground transition-colors hover:text-foreground"
-            >
-              <Camera className="size-5" strokeWidth={1.75} />
-            </button>
+            {/* Аватарка группы/канала (#186): выбор файла сразу (превью в
+                кнопке, «×» сбрасывает), загрузка после создания беседы;
+                без файла — цветная заглушка из инициалов. */}
+            <div className="relative size-14 shrink-0">
+              <button
+                type="button"
+                onClick={() => avatarInputRef.current?.click()}
+                aria-label={avatarPreview ? ui.common.avatarChange : ui.common.avatarUpload}
+                title={avatarPreview ? ui.common.avatarChange : ui.common.avatarUpload}
+                className="group flex size-14 items-center justify-center overflow-hidden rounded-full bg-muted text-muted-foreground transition-colors hover:text-foreground"
+              >
+                {avatarPreview ? (
+                  <img src={avatarPreview} alt="" className="size-full object-cover" />
+                ) : (
+                  <Camera className="size-5" strokeWidth={1.75} />
+                )}
+                <span className="absolute inset-0 flex items-center justify-center rounded-full bg-black/45 text-white opacity-0 transition-opacity group-hover:opacity-100">
+                  <Camera className="size-5" strokeWidth={1.75} aria-hidden />
+                </span>
+              </button>
+              {avatarPreview ? (
+                <button
+                  type="button"
+                  onClick={() => setAvatarFile(null)}
+                  aria-label={ui.common.avatarRemove}
+                  title={ui.common.avatarRemove}
+                  className="absolute -top-1 -right-1 flex size-5 items-center justify-center rounded-full bg-background text-muted-foreground ring-1 ring-border hover:text-foreground"
+                >
+                  <X className="size-3" strokeWidth={2} />
+                </button>
+              ) : null}
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="hidden"
+                onChange={onAvatarPicked}
+                aria-hidden
+                tabIndex={-1}
+              />
+            </div>
             <Input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
@@ -385,7 +449,11 @@ export function ChatCreateDialog({
           <Button variant="ghost" onClick={onClose}>
             {ui.common.cancel}
           </Button>
-          <Button variant="secondary" disabled={!title.trim() || create.isPending} onClick={submit}>
+          <Button
+            variant="secondary"
+            disabled={!title.trim() || submitting || create.isPending}
+            onClick={() => void submit()}
+          >
             {ui.chat.createSubmit}
           </Button>
         </DialogFooter>

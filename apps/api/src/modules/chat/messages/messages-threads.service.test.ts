@@ -49,6 +49,7 @@ function makeMember(overrides: Partial<MemberRow> = {}): MemberRow {
     role: 'member',
     lastReadSeq: 0n,
     lastReadAt: null,
+    joinedAt: new Date('2026-09-24T09:00:00Z'),
     pinned: false,
     muted: false,
     snoozed: false,

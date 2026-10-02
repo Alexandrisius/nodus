@@ -97,3 +97,27 @@ const ROLE_RANK: Record<ConversationListItem['myRole'], number> = { member: 0, a
 export function canPostFeed(conversation: ConversationListItem): boolean {
   return ROLE_RANK[conversation.myRole] >= ROLE_RANK[conversation.permissions.post];
 }
+
+/** Права матрицы беседы для UI (#186): контролы скрываются/гасятся без права;
+ *  API проверяет то же на гвардах (I8) — это производная, не замена. */
+export function canChangeInfo(conversation: ConversationListItem): boolean {
+  return ROLE_RANK[conversation.myRole] >= ROLE_RANK[conversation.permissions.changeInfo];
+}
+
+export function canAddMembers(conversation: ConversationListItem): boolean {
+  return ROLE_RANK[conversation.myRole] >= ROLE_RANK[conversation.permissions.addMembers];
+}
+
+export function canRemoveMembers(conversation: ConversationListItem): boolean {
+  return ROLE_RANK[conversation.myRole] >= ROLE_RANK[conversation.permissions.removeMembers];
+}
+
+export function canManageSettings(conversation: ConversationListItem): boolean {
+  return ROLE_RANK[conversation.myRole] >= ROLE_RANK[conversation.permissions.manageSettings];
+}
+
+/** Название беседы редактируется кликом только у групп/каналов (у
+ *  direct/task/letter оно производное от сущности). */
+export function isRenamableConversation(conversation: ConversationListItem): boolean {
+  return conversation.type === 'group' || conversation.type === 'project_channel';
+}

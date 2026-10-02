@@ -20,8 +20,14 @@ export interface ChatEventsConsumerOptions {
   group?: string;
 }
 
-/** События, меняющие список бесед (lastMessage/unread) → дублируем в user-комнаты участников. */
-const LIST_EVENTS = new Set(['chat.message_sent', 'chat.message_edited', 'chat.message_deleted']);
+/** События, меняющие список бесед (lastMessage/unread/название/аватар) → дублируем в user-комнаты участников. */
+const LIST_EVENTS = new Set([
+  'chat.message_sent',
+  'chat.message_edited',
+  'chat.message_deleted',
+  // #186: название/аватар видны в списке у всех участников.
+  'chat.conversation_updated',
+]);
 
 function logError(scope: string, error: unknown): void {
   // TODO(core): структурное логирование (pino) — issue #2/#3.
@@ -67,6 +73,27 @@ export async function routeEnvelope(
       io.to(convRoom(conversationId)).emit(envelope.type, envelope);
     }
     emitToUsers(io, envelope, memberIdsOf(payload.userIds));
+    return;
+  }
+  if (envelope.type === 'chat.member_removed') {
+    // #186: исключённый (payload.userId) теряет беседу из списка — его
+    // user-комната; остальные участники рефечат счётчик и панель в conv-комнате.
+    if (conversationId) {
+      io.to(convRoom(conversationId)).emit(envelope.type, envelope);
+    }
+    if (typeof payload.userId === 'string') {
+      io.to(userRoom(payload.userId)).emit(envelope.type, envelope);
+    }
+    return;
+  }
+  if (envelope.type === 'chat.member_role_changed') {
+    // #186: смена роли видна участникам беседы (панель участников).
+    if (conversationId) {
+      io.to(convRoom(conversationId)).emit(envelope.type, envelope);
+    }
+    if (typeof payload.userId === 'string') {
+      io.to(userRoom(payload.userId)).emit(envelope.type, envelope);
+    }
     return;
   }
   if (envelope.type === 'chat.message_read') {

@@ -11,7 +11,10 @@ import { messageSchema } from '../chat/chat.schemas.js';
  */
 export const CHAT_EVENTS = {
   CONVERSATION_CREATED: 'chat.conversation_created',
+  CONVERSATION_UPDATED: 'chat.conversation_updated',
   MEMBER_ADDED: 'chat.member_added',
+  MEMBER_REMOVED: 'chat.member_removed',
+  MEMBER_ROLE_CHANGED: 'chat.member_role_changed',
   MESSAGE_SENT: 'chat.message_sent',
   MESSAGE_EDITED: 'chat.message_edited',
   MESSAGE_DELETED: 'chat.message_deleted',
@@ -41,6 +44,19 @@ export const chatConversationCreatedPayloadSchema = z.object({
 });
 export type ChatConversationCreatedPayload = z.infer<typeof chatConversationCreatedPayloadSchema>;
 
+/** Название или аватар беседы изменились (#186: переименование кликом и
+ *  аватарка, право changeInfo): клиенты рефечат список/беседу — подписанные
+ *  URL аватара нестабильны, локальный патч по событию не делаем. */
+export const chatConversationUpdatedPayloadSchema = z.object({
+  conversationId: z.uuid(),
+  /** Новое название (null — сброса нет: у переименовываемых типов оно
+   *  обязательное); отсутствует, когда менялся только аватар. */
+  title: z.string().nullable().optional(),
+  /** Аватар установлен/сменён/убран — поле к рефечу. */
+  avatarChanged: z.boolean().optional(),
+});
+export type ChatConversationUpdatedPayload = z.infer<typeof chatConversationUpdatedPayloadSchema>;
+
 /** Вложение обновилось новой версией файла (сохранение ONLYOFFICE, #182):
  * подписка chat на file.version_created → мост с conversationId для
  * маршрутизации gateway'ем в комнату беседы; клиенты рефечат ленту и
@@ -59,6 +75,24 @@ export const chatMemberAddedPayloadSchema = z.object({
   role: z.enum(['owner', 'admin', 'member']),
 });
 export type ChatMemberAddedPayload = z.infer<typeof chatMemberAddedPayloadSchema>;
+
+/** Участник исключён из беседы (#186, право removeMembers): удалённому
+ *  беседа исчезает из списка, остальным — рефеч счётчика и панели. */
+export const chatMemberRemovedPayloadSchema = z.object({
+  conversationId: z.uuid(),
+  userId: z.uuid(),
+  actorId: z.uuid(),
+});
+export type ChatMemberRemovedPayload = z.infer<typeof chatMemberRemovedPayloadSchema>;
+
+/** Роль участника сменилась (модератор ⇄ участник, #186, право manageSettings). */
+export const chatMemberRoleChangedPayloadSchema = z.object({
+  conversationId: z.uuid(),
+  userId: z.uuid(),
+  role: z.enum(['admin', 'member']),
+  actorId: z.uuid(),
+});
+export type ChatMemberRoleChangedPayload = z.infer<typeof chatMemberRoleChangedPayloadSchema>;
 
 export const chatMessageSentPayloadSchema = z.object({
   conversationId: z.uuid(),

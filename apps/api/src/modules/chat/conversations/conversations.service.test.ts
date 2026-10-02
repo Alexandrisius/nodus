@@ -21,6 +21,7 @@ function makeListRow(overrides: Partial<ConversationListRow> = {}): Conversation
     description: null,
     visibility: 'closed',
     permissions: DEFAULT_CONVERSATION_PERMISSIONS,
+    avatar_file_id: null,
     last_message_at: new Date('2026-09-24T10:00:00Z'),
     role: 'owner',
     pinned: false,
@@ -64,6 +65,7 @@ describe('ConversationsService', () => {
   const items = { toItem: vi.fn(), toItems: vi.fn() };
   const txRunner = { run: vi.fn((cb: (tx: string) => unknown) => cb(TX)) };
   const eventBus = { emit: vi.fn() };
+  const avatars = { process: vi.fn() };
   const userProfiles = {
     findRefs: vi.fn(),
     searchByDisplayName: vi.fn(),
@@ -89,6 +91,7 @@ describe('ConversationsService', () => {
       items as never,
       txRunner as never,
       eventBus as never,
+      avatars as never,
       userProfiles as never,
     );
   });
