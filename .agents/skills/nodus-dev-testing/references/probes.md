@@ -42,6 +42,7 @@ try {
 ## API-вызовы из пробы (node-fetch + Bearer)
 
 - **Idempotency-Key обязателен на POST** (иначе 400): генерируй `probe-<номер>` на вызов.
+- **Ключ уникален за ПРОГОН** (суффикс `Date.now()` всего запуска): интерсептор идемпотентности кэширует ответы в Redis — повторный ключ между прогонами отдаст ФАНТОМНЫЙ ответ первого прогона (репро #186 02.10: «создание группы — 404» при живом коде и свежем стеке).
 - **НЕ слать null-поля**: zod-схемы ожидают string/array или отсутствие — `{stickerId: null}` падает VALIDATION_FAILED. Строй тело из заданного.
 - Полезные маршруты: `GET /chat/conversations?limit=100` (поле типа — `type`, НЕ kind; канал = `project_channel`); `POST /chat/conversations` `{type:'project_channel', title, memberIds}` (создатель = owner, post = member); `POST /chat/conversations/:id/messages` `{text, attachmentIds:[]}` (+`stickerId`); `POST …/messages/:id/reactions` `{emoji}` (toggle); `GET /chat/stickers/packs`.
 - 4xx не молчать: логируй статус+тело (`[api ${status}] …`) — «тихий» фейл превращает пробу в ложные PASS (критерий `gap<=32` и так «зелёный» на пустой ленте: сначала ДОБЕЙСЯ переполнения контента, потом меряй «у низа»).
