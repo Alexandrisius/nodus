@@ -26,8 +26,10 @@ test.describe('уведомления: живой контур (#100)', () => {
     await page.getByRole('button', { name: 'Войти' }).click();
     await expect(page).toHaveURL(/\/home$/);
 
-    // Лента журнала (после живых проб есть строки) + строка поиска.
-    await expect(page.getByLabel('Поиск…')).toBeVisible();
+    // Лента журнала: вкладки-фильтры + «+» за ними (#189: строка поиска
+    // убрана — поиск уведомлений переезжает в глобальный поиск топбара).
+    await expect(page.getByRole('tab', { name: /^Все/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Настроить вкладки' })).toBeVisible();
     // Заголовок ленты (NodeLabel UPPERCASE) ИЛИ пустое состояние — оба валидны
     // в зависимости от остатков проб; главная метка — каркас ленты.
     const attention = page.getByText('УВЕДОМЛЕНИЯ').first();

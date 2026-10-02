@@ -443,6 +443,9 @@ export class MessagesService {
             conversationId,
             messageId,
             editedAt: updated.editedAt!.toISOString(),
+            authorId: userId,
+            text: updated.text,
+            seq: Number(updated.seq),
           },
           { actorId: userId, aggregateType: 'conversation', aggregateId: conversationId },
         );

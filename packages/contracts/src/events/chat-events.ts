@@ -121,6 +121,12 @@ export const chatMessageEditedPayloadSchema = z.object({
   conversationId: z.uuid(),
   messageId: z.uuid(),
   editedAt: z.iso.datetime(),
+  /** Правящий автор (уведомление «сообщение отредактировано», #189). */
+  authorId: z.uuid(),
+  /** Новый текст (превью уведомления; правка всегда текстовая). */
+  text: z.string(),
+  /** Порядковый номер правимого сообщения (гашение уведомления по watermark). */
+  seq: z.number().int().min(1),
 });
 export type ChatMessageEditedPayload = z.infer<typeof chatMessageEditedPayloadSchema>;
 

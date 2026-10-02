@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { notificationKindSchema, notificationTierSchema } from './notifications.schemas.js';
+import { notificationKindSchema, notificationPrioritySchema } from './notifications.schemas.js';
 
 /**
  * Каталог доменных событий модуля notifications (I9; расширение каталога —
@@ -21,7 +21,7 @@ export const NOTIFICATION_EVENTS = {
 export const notificationSnapshotSchema = z.object({
   notificationId: z.uuid(),
   userId: z.uuid(),
-  tier: notificationTierSchema,
+  priority: notificationPrioritySchema,
   kind: notificationKindSchema,
   sourceId: z.uuid(),
   conversationId: z.uuid().nullable(),

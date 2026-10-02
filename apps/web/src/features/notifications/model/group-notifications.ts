@@ -15,7 +15,7 @@ export interface NotificationGroup {
 export function groupNotifications(items: Notification[]): NotificationGroup[] {
   const groups = new Map<string, NotificationGroup>();
   for (const item of items) {
-    if (item.tier === 'urgent') {
+    if (item.priority === 'urgent') {
       groups.set(item.id, { key: item.id, latest: item, count: 1 });
       continue;
     }
@@ -30,15 +30,17 @@ export function groupNotifications(items: Notification[]): NotificationGroup[] {
   return [...groups.values()];
 }
 
-/** Порядок секции внимания: срочно → личное → действия (иерархия ярусов). */
-export const TIER_ORDER = { urgent: 0, personal: 1, action: 2, background: 3 } as const;
+/** Порядок секции внимания: срочно → высокий → средний (иерархия приоритетов). */
+export const PRIORITY_ORDER = { urgent: 0, high: 1, medium: 2, low: 3 } as const;
 
-export function tierOfLatest(group: NotificationGroup): Notification['tier'] {
-  return group.latest.tier;
+export function priorityOfLatest(group: NotificationGroup): Notification['priority'] {
+  return group.latest.priority;
 }
 
 export function sortAttentionGroups(groups: NotificationGroup[]): NotificationGroup[] {
-  return [...groups].sort((a, b) => TIER_ORDER[a.latest.tier] - TIER_ORDER[b.latest.tier]);
+  return [...groups].sort(
+    (a, b) => PRIORITY_ORDER[a.latest.priority] - PRIORITY_ORDER[b.latest.priority],
+  );
 }
 
 /** Cap отображения счётчиков (E9): «999+». */

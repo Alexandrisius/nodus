@@ -13,7 +13,7 @@ function row(overrides: Record<string, unknown> = {}) {
     id: NOTIF_ID,
     seq: 1n,
     user_id: USER,
-    tier: 'urgent',
+    priority: 'urgent',
     kind: 'urgent.message',
     source_type: 'conversation',
     source_id: '11111111-1111-1111-1111-111111111111',
@@ -86,7 +86,7 @@ describe('UrgentRepeatWorker.remind', () => {
   });
 
   it('не-urgent строки повторами не занимаются', async () => {
-    repo.findRaw.mockResolvedValue(row({ tier: 'personal' }));
+    repo.findRaw.mockResolvedValue(row({ priority: 'high' }));
     expect(await worker.remind(NOTIF_ID)).toBe('stop');
   });
 });

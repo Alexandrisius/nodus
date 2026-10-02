@@ -4,6 +4,7 @@ import { USER_PROFILE_READER } from '../../core/ports/user-profile.port.js';
 import { UserProfileProvider } from '../../core/ports/user-profile.provider.js';
 import { ChatPortsModule } from '../chat/chat-ports.module.js';
 import { DispatchHandler } from './events/dispatch.handler.js';
+import { MessageEditedHandler } from './events/message-edited.handler.js';
 import { MessageReadHandler } from './events/message-read.handler.js';
 import { MessageSentHandler } from './events/message-sent.handler.js';
 import { ReactionAddedHandler } from './events/reaction-added.handler.js';
@@ -15,11 +16,13 @@ import { UrgentRepeatQueue } from './urgent-repeat.queue.js';
 import { UrgentRepeatWorker } from './urgent-repeat.worker.js';
 
 /**
- * Модуль notifications (#100, ADR-0016): журнал уведомлений — истина; ярусы
- * urgent/personal/action/background; ознакомление для срочного. Связность —
- * только события (I3: подписчики chat.*, эмиттер notification.*) и read-порт
- * членства чата (ADR-0012, ChatPortsModule). Флаг `notifications` (I10):
- * off → хендлеры тихие, эндпоинты NOT_FOUND, чат жив.
+ * Модуль notifications (#100, ADR-0016; приоритеты — ADR-0017): журнал
+ * уведомлений — истина; абстрактные приоритеты urgent/high/medium/low
+ * (маппинг kind → priority — таблица в priority-resolver); ознакомление для
+ * срочного. Связность — только события (I3: подписчики chat.*, эмиттер
+ * notification.*) и read-порт членства чата (ADR-0012, ChatPortsModule).
+ * Флаг `notifications` (I10): off → хендлеры тихие, эндпоинты NOT_FOUND,
+ * чат жив.
  */
 @Module({
   imports: [ChatPortsModule],
@@ -32,6 +35,7 @@ import { UrgentRepeatWorker } from './urgent-repeat.worker.js';
     NotificationsRepository,
     NotificationsService,
     MessageSentHandler,
+    MessageEditedHandler,
     MessageReadHandler,
     ReactionAddedHandler,
     DispatchHandler,

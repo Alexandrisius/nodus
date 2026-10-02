@@ -64,7 +64,7 @@ describe('MessageSentHandler', () => {
     const insert: NotificationInsert = {
       id: NOTIF_ID,
       user_id: ALICE,
-      tier: 'personal',
+      priority: 'high',
       kind: 'chat.mention',
       source_type: 'conversation',
       source_id: CONV,

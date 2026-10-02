@@ -97,8 +97,8 @@ function applyGone(queryClient: QueryClient, id: string): GoneSnapshot {
   const lists = queryClient.getQueriesData<NotificationPage>({
     queryKey: notificationsKeys.all,
   });
-  const tier =
-    lists.flatMap(([, page]) => page?.items ?? []).find((n) => n.id === id)?.tier ?? null;
+  const priority =
+    lists.flatMap(([, page]) => page?.items ?? []).find((n) => n.id === id)?.priority ?? null;
   const summary = queryClient.getQueryData<NotificationSummary>(notificationsKeys.summary());
   for (const [key, page] of lists) {
     if (!page || !Array.isArray(page.items) || isHistoryListKey(key)) continue;
@@ -107,13 +107,13 @@ function applyGone(queryClient: QueryClient, id: string): GoneSnapshot {
       items: page.items.filter((n) => n.id !== id),
     } satisfies NotificationPage);
   }
-  if (summary && tier) {
+  if (summary && priority) {
     queryClient.setQueryData(notificationsKeys.summary(), {
       ...summary,
-      attention: Math.max(0, summary.attention - (tier === 'background' ? 0 : 1)),
-      urgent: Math.max(0, summary.urgent - (tier === 'urgent' ? 1 : 0)),
-      personal: Math.max(0, summary.personal - (tier === 'personal' ? 1 : 0)),
-      action: Math.max(0, summary.action - (tier === 'action' ? 1 : 0)),
+      attention: Math.max(0, summary.attention - (priority === 'low' ? 0 : 1)),
+      urgent: Math.max(0, summary.urgent - (priority === 'urgent' ? 1 : 0)),
+      high: Math.max(0, summary.high - (priority === 'high' ? 1 : 0)),
+      medium: Math.max(0, summary.medium - (priority === 'medium' ? 1 : 0)),
     } satisfies NotificationSummary);
   }
   return { lists, summary };

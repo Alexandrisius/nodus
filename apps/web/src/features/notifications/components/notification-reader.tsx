@@ -76,7 +76,7 @@ export function NotificationReader() {
         </Button>
       </header>
       {item ? (
-        item.tier === 'urgent' ? (
+        item.priority === 'urgent' ? (
           <AckBody item={item} onClose={close} />
         ) : (
           <PlainBody item={item} onClose={close} />

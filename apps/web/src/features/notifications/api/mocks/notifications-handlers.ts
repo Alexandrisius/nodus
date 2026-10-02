@@ -15,7 +15,7 @@ const acked = new Set<string>();
  * существуют. Хендлеры однократно догружают список реальных бесед (тем же
  * авторизационным заголовком) и пересобирают демо-набор под них: direct
  * беседы получают kind'ы «личное/срочное» (+ имя собеседника из title),
- * группы/каналы — упоминания/фон с настоящими названиями. Недоступен чат
+ * группы/каналы — упоминания/низкий приоритет с настоящими названиями. Недоступен чат
  * (например, он тоже на моках без бесед) — статический набор как раньше.
  */
 interface RealConv {
@@ -123,15 +123,13 @@ export const notificationsHandlers = [
       default:
         items = unreadOf(journal);
         if (filter === 'attention') {
-          items = items.filter((n) => n.tier !== 'background');
+          items = items.filter((n) => n.priority !== 'low');
         } else if (filter === 'mentions') {
           items = items.filter((n) => n.kind === 'chat.mention');
-        } else if (filter === 'actions') {
-          items = items.filter((n) => n.tier === 'action');
-        } else if (filter === 'background') {
+        } else if (filter === 'low') {
           items = items
             .concat(journal.bulk)
-            .filter((n) => n.tier === 'background' && !readIds.has(n.id));
+            .filter((n) => n.priority === 'low' && !readIds.has(n.id));
         }
         break;
     }
@@ -154,11 +152,11 @@ export const notificationsHandlers = [
   http.get('/api/v1/notifications/summary', async ({ request }) => {
     const items = unreadOf(await demoJournal(request));
     return HttpResponse.json({
-      urgent: items.filter((n) => n.tier === 'urgent').length,
-      personal: items.filter((n) => n.tier === 'personal').length,
-      action: items.filter((n) => n.tier === 'action').length,
-      background: items.filter((n) => n.tier === 'background').length + demoBackgroundBulk.length,
-      attention: items.filter((n) => n.tier !== 'background').length,
+      urgent: items.filter((n) => n.priority === 'urgent').length,
+      high: items.filter((n) => n.priority === 'high').length,
+      medium: items.filter((n) => n.priority === 'medium').length,
+      low: items.filter((n) => n.priority === 'low').length + demoBackgroundBulk.length,
+      attention: items.filter((n) => n.priority !== 'low').length,
     });
   }),
 
@@ -180,7 +178,7 @@ export const notificationsHandlers = [
     const item = (await demoJournal(request)).main.find((n) => n.id === id);
     // Гашение = уход из непрочитанных фильтров (readIds), как реальный API:
     // раньше менялся только readAt — строка зависала в списке навсегда.
-    if (item && item.tier !== 'urgent') {
+    if (item && item.priority !== 'urgent') {
       item.readAt = new Date().toISOString();
       readIds.add(id);
     }
@@ -200,7 +198,9 @@ export const notificationsHandlers = [
 
   http.get('/api/v1/notifications/urgent/:messageId/acks', ({ params }) => {
     const messageId = params.messageId as string;
-    const target = demoNotifications.find((n) => n.messageId === messageId && n.tier === 'urgent');
+    const target = demoNotifications.find(
+      (n) => n.messageId === messageId && n.priority === 'urgent',
+    );
     if (!target) {
       return HttpResponse.json({
         messageId,
