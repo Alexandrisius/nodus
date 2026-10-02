@@ -1,13 +1,19 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { PinoLogger } from 'nestjs-pino';
+import { createHash } from 'node:crypto';
 import { Readable } from 'node:stream';
 import { FILE_EVENTS, type FileVersionCreatedPayload } from '@nodus/contracts';
+
+/** Потолок скачивания собранной копии из кэша DS (#182): с избытком покрывает
+ * офисные документы (лимит загрузки вложений — 100 МБ), защищает память api. */
+const SAVE_DOWNLOAD_CAP_BYTES = 128 * 1024 * 1024;
 
 import { AuditRepository } from '../../../core/audit/audit.repository.js';
 import { EventBus } from '../../../core/events/event-bus.js';
 import { TransactionRunner } from '../../../core/database/transaction-runner.js';
 import { DomainException } from '../../../core/errors/domain-exception.js';
 import { FilesRepository } from '../files.repository.js';
+import { DerivativesQueue } from '../derivatives/derivatives.queue.js';
 import { MinioStorageDriver } from '../storage/minio-storage.driver.js';
 import { OFFICE_CONFIG, type OfficeConfig } from './office.config.js';
 import { OfficeTokenService } from './office-token.service.js';
@@ -44,6 +50,7 @@ export class OfficeCallbackService {
     private readonly eventBus: EventBus,
     private readonly audit: AuditRepository,
     private readonly tokens: OfficeTokenService,
+    private readonly derivativesQueue: DerivativesQueue,
     @Inject(OFFICE_CONFIG) private readonly config: OfficeConfig,
     private readonly logger: PinoLogger,
   ) {
@@ -67,11 +74,31 @@ export class OfficeCallbackService {
   }
 
   async handle(fileId: string, body: OfficeCallbackBody): Promise<void> {
+    // Наблюдаемость колбэков (репро #182): причина каждого «молчаливого»
+    // выхода обязана быть видна в логе — иначе диагноз только по DS.
+    if (body.status === 2 || body.status === 6) {
+      this.logger.info(
+        {
+          fileId,
+          status: body.status,
+          key: body.key,
+          hasUrl: Boolean(body.url),
+          lastsave: body.lastsave ?? null,
+          notmodified: body.notmodified ?? null,
+          forcesavetype: body.forcesavetype ?? null,
+          filetype: body.filetype ?? null,
+        },
+        'Office save callback received',
+      );
+    }
     // 1/4 — открытие редактора, 4 — закрытие без изменений, 3/7 — ошибки DS:
     // подтверждаем, версии не касаются (DS повторяет, пока не получит {error:0}).
     if (body.status !== 2 && body.status !== 6) return;
     // 2 без url после forcesave — изменений с прошлого сохранения нет.
-    if (!body.url) return;
+    if (!body.url) {
+      this.logger.info({ fileId, status: body.status }, 'Office callback without url, skipped');
+      return;
+    }
 
     const file = await this.repository.findById(fileId);
     if (!file) {
@@ -101,18 +128,24 @@ export class OfficeCallbackService {
       incomingLastsave !== null &&
       storedLastsave === incomingLastsave
     ) {
+      this.logger.info({ fileId, key: body.key }, 'Office callback deduplicated (same lastsave)');
       return; // повторная доставка того же сохранения (forcesave → закрытие)
     }
 
     const nextVersion = file.version + 1;
-    const key = `files/${file.id}/v${nextVersion}`;
-    const { size, bytes } = await this.downloadTo(body.url, key, file.mime, file.name);
-    if (bytes !== size) {
-      await this.driver.remove([key]).catch(() => undefined);
-      throw new Error(
-        `Office save size mismatch for ${file.id}: declared ${size}, streamed ${bytes}`,
+    // Идемпотентность приёмника (I7): lastsave-дедуп выше не покрывает ретраи
+    // DS без lastsave и гонку параллельных доставок — повтор той же версии
+    // (уникальный fileObjectId+version, тот же sourceKey) подтверждается.
+    const existing = await this.repository.findVersion(file.id, nextVersion);
+    if (existing?.sourceKey === body.key) {
+      this.logger.info(
+        { fileId: file.id, version: nextVersion },
+        'Office save already stored (unique-key dedup)',
       );
+      return;
     }
+    const key = `files/${file.id}/v${nextVersion}`;
+    const { bytes } = await this.downloadTo(body.url, key, file.mime, file.name);
 
     await this.txRunner.run(async (tx) => {
       await this.repository.saveVersion(tx, {
@@ -142,6 +175,9 @@ export class OfficeCallbackService {
       entityId: file.id,
       details: { version: nextVersion, status: body.status, users: body.users ?? [] },
     });
+    // Конвейер производных (#139): новая версия → перегенерация PDF-копии
+    // (очередь; best-effort — не блокирует подтверждение колбэка).
+    await this.derivativesQueue.enqueuePdf(file.id, nextVersion);
     this.logger.info({ fileId, version: nextVersion, status: body.status }, 'Office version saved');
   }
 
@@ -151,29 +187,54 @@ export class OfficeCallbackService {
    * резолвиться, поэтому origin подменяется внутренним адресом DS
    * (механизм: getBaseUrl у DS, DocumentServer#2162); путь и подпись
    * md5+expires сохраняются.
+   *
+   * Заголовки ответа — сверки, не предусловия (#182): тело читается в буфер
+   * (потолок 128 МБ — собранные офисные копии заведомо меньше), хранилище
+   * получает ТОЧНЫЙ фактический размер: отсутствующий или расходящийся
+   * content-length (gzip-декодирование undici, chunked) не валит сохранение
+   * (minio-putObject падает на неверном declared — репро валидатора).
+   * Подпись md5 в url — внутренняя контрольная сумма кэша DS (формат не
+   * документирован): расхождение — предупреждение, не фатал.
    */
   private async downloadTo(
     url: string,
     key: string,
     mime: string,
     fileName: string,
-  ): Promise<{ size: number; bytes: number }> {
+  ): Promise<{ bytes: number }> {
     const internal = this.toInternalUrl(url);
     const response = await fetch(internal);
     if (!response.ok || !response.body) {
       throw new Error(`Office save download failed (${response.status}) for ${fileName}`);
     }
-    const size = Number(response.headers.get('content-length') ?? 0);
-    if (!Number.isSafeInteger(size) || size <= 0) {
-      throw new Error(`Office save download has no content-length for ${fileName}`);
+    const declared = Number(response.headers.get('content-length') ?? -1);
+    const expectedMd5 = new URL(internal).searchParams.get('md5');
+    const chunks: Buffer[] = [];
+    let total = 0;
+    for await (const chunk of Readable.fromWeb(
+      response.body as Parameters<typeof Readable.fromWeb>[0],
+    )) {
+      total += (chunk as Buffer).length;
+      if (total > SAVE_DOWNLOAD_CAP_BYTES) {
+        throw new Error(`Office save exceeds download cap for ${fileName}`);
+      }
+      chunks.push(chunk as Buffer);
     }
-    const { bytes } = await this.driver.put(
-      key,
-      size,
-      mime,
-      Readable.fromWeb(response.body as Parameters<typeof Readable.fromWeb>[0]),
-    );
-    return { size, bytes };
+    const body = Buffer.concat(chunks);
+    const { bytes } = await this.driver.put(key, body.length, mime, Readable.from([body]));
+    if (declared >= 0 && bytes !== declared) {
+      this.logger.warn(
+        { fileName, declared, bytes },
+        'Office save size differs from content-length; stored by actual bytes',
+      );
+    }
+    if (expectedMd5 && createHash('md5').update(body).digest('base64url') !== expectedMd5) {
+      this.logger.warn(
+        { fileName, expectedMd5 },
+        'Office save DS cache signature differs from body md5 (informational)',
+      );
+    }
+    return { bytes };
   }
 
   private toInternalUrl(url: string): string {

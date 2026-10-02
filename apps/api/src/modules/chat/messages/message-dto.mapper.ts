@@ -1,11 +1,13 @@
 import { Inject, Injectable } from '@nestjs/common';
-import type {
-  ChatMessage,
-  MessageAttachment,
-  MessageReaction,
-  ReplyPreview,
-  StickerMeta,
-  UserRef,
+import {
+  attachmentPreviewKind,
+  isPdfDerivativeCandidate,
+  type ChatMessage,
+  type MessageAttachment,
+  type MessageReaction,
+  type ReplyPreview,
+  type StickerMeta,
+  type UserRef,
 } from '@nodus/contracts';
 
 import {
@@ -49,6 +51,7 @@ export interface AttachmentDtoRow {
 /** Сборка DTO вложения: подписанный url, вид по kind, снапшот стикера. */
 function toAttachmentDto(a: AttachmentDtoRow, signedUrls: SignedUrlService): MessageAttachment {
   const stickerMeta = (a.stickerMeta as StickerMeta | null | undefined) ?? null;
+  const previewKind = attachmentPreviewKind(a.name, a.mime);
   return {
     id: a.id,
     fileId: a.fileId,
@@ -59,6 +62,14 @@ function toAttachmentDto(a: AttachmentDtoRow, signedUrls: SignedUrlService): Mes
     url: signedUrls.fileContentUrl(a.fileId),
     // Серверное превью-дериват (#150); null — не сгенерировано.
     thumbnailUrl: a.thumbFileId ? signedUrls.fileContentUrl(a.thumbFileId) : null,
+    // Маршрут просмотрщика и fallback-ссылка (#139): подпись детерминирована
+    // от fileId — pdfUrl выдаётся КОНВЕРТИРУЕМЫМ офисным без похода в БД
+    // (таблицы не конвертятся — спека), неготовая производная отвечает 404.
+    previewKind,
+    pdfUrl:
+      previewKind === 'office' && isPdfDerivativeCandidate(a.name)
+        ? signedUrls.fileDerivativeUrl(a.fileId, 'pdf')
+        : null,
     width: a.width,
     height: a.height,
     ...(a.kind === 'sticker' && stickerMeta ? { sticker: stickerMeta } : {}),

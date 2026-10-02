@@ -96,11 +96,17 @@ export class ThumbnailService {
         },
         Readable.from(thumb),
       );
-      await this.repository.markThumbnail(attachmentId, {
+      const won = await this.repository.markThumbnail(attachmentId, {
         thumbFileId,
         width: size.width,
         height: size.height,
       });
+      if (!won) {
+        // Гонка двойной генерации (#156): победил другой прогон — свой
+        // дериват сносим, сирот не оставляем.
+        await this.storage.remove([thumbFileId]).catch(() => undefined);
+        this.logger.info({ attachmentId }, 'Превью: проиграл гонку фиксации, дериват удалён');
+      }
     } catch (error) {
       // Недекодируемый файл/сбой декодера: превью опционально — тихий отказ
       // без ретраев (job не должен падать трижды на мусоре).

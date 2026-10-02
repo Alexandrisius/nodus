@@ -46,10 +46,18 @@ export class SignedUrlService {
   }
 
   /** URL КОНКРЕТНОЙ версии (history просмотрщика, #138): ресурс подписи —
-   *  `${fileId}:v{N}`, поэтому старые ссылки не открывают новый контент. */
+   * `${fileId}:v{N}`, поэтому старые ссылки не открывают новый контент. */
   fileVersionUrl(fileId: string, version: number): string {
     const { exp, sig } = this.sign(`${fileId}:v${version}`);
     return `/api/v1/files/${fileId}/content?v=${version}&exp=${exp}&sig=${sig}`;
+  }
+
+  /** URL производной файла (конвейер #139): подпись детерминирована от
+   * (fileId, kind) — ссылка выдаётся в DTO без похода в БД; неготовая
+   * производная отвечает 404 по этой же ссылке. */
+  fileDerivativeUrl(fileId: string, kind: 'pdf'): string {
+    const { exp, sig } = this.sign(`${fileId}:deriv:${kind}`);
+    return `/api/v1/files/${fileId}/derivative/${kind}?exp=${exp}&sig=${sig}`;
   }
 
   sign(resourceId: string): { exp: number; sig: string } {

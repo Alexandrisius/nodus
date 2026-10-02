@@ -13,6 +13,8 @@ const img = (n: number): MessageAttachment => ({
   kind: 'image',
   url: `/demo/site-1.png`,
   thumbnailUrl: `/demo/site-1.png`,
+  previewKind: 'image',
+  pdfUrl: null,
   width: 1664,
   height: 928,
 });

@@ -92,6 +92,16 @@ export function createRealtimeInvalidator(queryClient: QueryClient): RealtimeInv
         case 'chat.member_added':
           batcher.push(chatKeys.conversations(), 'list');
           return;
+        case 'chat.attachment_updated': {
+          // Новая версия файла из сохранения ONLYOFFICE (#182): лента —
+          // снапшотные DTO вложений рефечатся, а файловые ключи (сессия
+          // просмотрщика) инвалидируются — версия подхватывается без F5.
+          push(conversationId, 'messages');
+          if (typeof payload.fileId === 'string') {
+            batcher.push(['files', payload.fileId], 'feed');
+          }
+          return;
+        }
         case 'notification.dispatch_requested':
         case 'notification.read':
         case 'notification.acked':

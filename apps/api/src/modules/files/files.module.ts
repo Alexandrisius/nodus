@@ -11,10 +11,17 @@ import { OfficeCallbackService } from './office/office-callback.service.js';
 import { OfficeController } from './office/office.controller.js';
 import { OfficeSessionService } from './office/office-session.service.js';
 import { OfficeTokenService } from './office/office-token.service.js';
+import { DERIVATIVES_CONFIG, getDerivativesConfig } from './derivatives/derivatives.config.js';
+import { DerivativesQueue } from './derivatives/derivatives.queue.js';
+import { DerivativesRepository } from './derivatives/derivatives.repository.js';
+import { DerivativesService } from './derivatives/derivatives.service.js';
+import { DerivativesWorker } from './derivatives/derivatives.worker.js';
+import { AttachmentSentHandler } from './events/attachment-sent.handler.js';
 
 /**
- * Модуль files (M9, #57 ADR-0013 + #138 движок просмотра): объектное
- * хранилище + метаданные file_objects/file_versions + ONLYOFFICE-сессии.
+ * Модуль files (M9, #57 ADR-0013 + #138 движок просмотра + #139 конвейер
+ * производных): объектное хранилище + метаданные file_objects/file_versions
+ * + ONLYOFFICE-сессии + PDF-производные (Gotenberg, очередь BullMQ).
  * Наружу (I3): порт FILE_STORAGE, GET /files/:id/content по подписи,
  * office-эндпоинты (#138). @Global — как CryptoModule: токен FILE_STORAGE
  * инжектится модулями-потребителями (chat, дальше correspondence) БЕЗ
@@ -29,12 +36,20 @@ import { OfficeTokenService } from './office/office-token.service.js';
   providers: [
     { provide: FILES_CONFIG, useFactory: getFilesConfig },
     { provide: OFFICE_CONFIG, useFactory: getOfficeConfig },
+    { provide: DERIVATIVES_CONFIG, useFactory: getDerivativesConfig },
     MinioStorageDriver,
     FilesRepository,
     FileStorageProvider,
     OfficeTokenService,
     OfficeSessionService,
     OfficeCallbackService,
+    DerivativesRepository,
+    DerivativesQueue,
+    DerivativesService,
+    DerivativesWorker,
+    // Запуск конвейера по подтверждению вложений (#139): files слушает
+    // chat.message_sent — связь модулей событием (I3).
+    AttachmentSentHandler,
     { provide: FILE_STORAGE, useExisting: FileStorageProvider },
   ],
   exports: [FILE_STORAGE],

@@ -44,8 +44,15 @@
   Bearer JWT DS): статусы 2/6 → скачивание собранного файла (origin →
   `OFFICE_INTERNAL_URL`) → новая FileVersion + указатель + событие
   `file.version_created` (outbox) + аудит `files.office_save` в одной
-  транзакции. Дедуп: `source_key` + `source_lastsave` (повторная доставка
-  и forcesave→закрытие не плодят версии). `GET /files/office-config` —
+  транзакции. Скачивание устойчиво к заголовкам (#182): тело читается в буфер
+  (потолок 128 МБ) и хранилище получает ТОЧНЫЙ фактический размер —
+  отсутствующий/расходящийся content-length (gzip-декодирование, chunked) не
+  валит сохранение (расхождение — warn); подпись md5 из url DS — внутренняя
+  контрольная сумма их кэша (формат не документирован): расхождение — warn.
+  Дедуп: `source_key` +
+  `source_lastsave` (повторная доставка и forcesave→закрытие не плодят
+  версии) + unique(fileObjectId,version) как страховка ретраев без lastsave.
+  `GET /files/office-config` —
   публичные параметры движка (фолбэки реестра); `GET /files/:id/versions` —
   история с подписанными ссылками. Правка — только при `OFFICE_EDIT_ENABLED`
   И праве И редактируемом формате (таблица `contracts/files/office-formats`).
@@ -66,6 +73,24 @@
 `OFFICE_JWT_SECRET` (обязателен при enabled), `OFFICE_INTERNAL_URL`
 (api→DS, в docker `http://documentserver`), `OFFICE_API_INTERNAL_URL`
 (DS→api, в docker `http://nodus-api:3001`), `OFFICE_MAX_VIEW_BYTES` (50 МБ).
+Производные (#139): `GOTENBERG_URL` (пусто — конвейер выключен; в docker
+`http://gotenberg:3000`, песочница live-stack — `http://127.0.0.1:3100`).
+
+## Конвейер производных (#139)
+
+PDF-копии офисных документов (fallback-просмотр при лежащем движке) в фоне:
+`file_derivatives` (уникальность fileObject+version+kind — ключ генерации =
+версия; правки ONLYOFFICE перегенерируют). Триггеры — подтверждение вложения
+(подписка `events/attachment-sent.handler.ts` на `chat.message_sent`, I3) и
+новая версия (office-callback). BullMQ-воркёр `derivatives/` (concurrency 1)
+конвертит через Gotenberg word/presentation-семейство; таблицы (xlsx/ods/
+csv/tsv) намеренно НЕ конвертятся (спека: PDF-простыня — антипаттерн),
+единый список — `contracts/files/attachment-preview` (`isPdfDerivativeCandidate`,
+его же читает DTO-маппер чата для `pdfUrl`). Отдача — `GET /files/:id/
+derivative/pdf` по подписи (ресурс `${id}:deriv:pdf`, выдаётся в DTO без
+похода в БД; неготовая — 404). PNG-иконка первой страницы отложена: стек не
+даёт (Gotenberg конвертит только в PDF). Уборка: `findForRemoval` сносит
+производные и дериваты вместе с оригиналом (без сирот, #156).
 
 ## События и аудит
 

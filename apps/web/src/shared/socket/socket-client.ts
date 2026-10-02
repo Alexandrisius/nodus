@@ -43,6 +43,9 @@ const DOMAIN_EVENTS = [
   'chat.thread_created',
   'chat.conversation_created',
   'chat.member_added',
+  // Новая версия вложения (сохранение ONLYOFFICE, #182): лента + файловые
+  // запросы рефечатся — версия подхватывается без F5.
+  'chat.attachment_updated',
   // Живые уведомления (#100): user-комната получает весь журнал-будил.
   'notification.dispatch_requested',
   'notification.read',

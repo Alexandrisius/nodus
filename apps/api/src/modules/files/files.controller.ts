@@ -9,6 +9,7 @@ import { ErrorCode } from '@nodus/contracts';
 import { Public } from '../../core/decorators/public.decorator.js';
 import { ZodValidationPipe } from '../../core/pipes/zod-validation.pipe.js';
 import { FilesRepository } from './files.repository.js';
+import { DerivativesRepository } from './derivatives/derivatives.repository.js';
 import { MinioStorageDriver } from './storage/minio-storage.driver.js';
 import { needsTextNormalization, normalizeTextForOffice } from './office/text-normalizer.js';
 
@@ -18,8 +19,13 @@ const contentQuerySchema = z.object({
   /** Конкретная версия (история просмотрщика, #138); без v — текущая. */
   v: z.coerce.number().int().min(1).optional(),
   /** Контекст движка ONLYOFFICE: txt/csv/tsv отдаются UTF-8+BOM (DS сам не
-   *  детектит кодировку — диалог выбора висит невидимым, репро 29.09). */
+   * детектит кодировку — диалог выбора висит невидимым, репро 29.09). */
   office: z.literal('1').optional(),
+});
+
+const derivativeQuerySchema = z.object({
+  exp: z.coerce.number().int().positive(),
+  sig: z.string().regex(/^[0-9a-f]{64}$/),
 });
 
 /**
@@ -35,6 +41,7 @@ const contentQuerySchema = z.object({
 export class FilesController {
   constructor(
     private readonly repository: FilesRepository,
+    private readonly derivatives: DerivativesRepository,
     private readonly driver: MinioStorageDriver,
     private readonly signedUrls: SignedUrlService,
   ) {}
@@ -127,6 +134,53 @@ export class FilesController {
       .header(
         'Content-Disposition',
         `${disposition}; filename*=UTF-8''${encodeURIComponent(file.name)}`,
+      )
+      .header('X-Content-Type-Options', 'nosniff')
+      .header('Cache-Control', 'private, max-age=3600')
+      .header('ETag', etag)
+      .send(stream);
+  }
+
+  /**
+   * Производная файла (конвейер #139): PDF-копия офисного документа для
+   * fallback-просмотра. Подпись = visa, выданная в DTO (тот же механизм,
+   * что content); ссылка детерминирована (fileId, kind) — неготовая
+   * производная честно отвечает 404 (фронт уходит в карточку скачивания).
+   * Заражённые оригиналы не отдаются (410, карантин).
+   */
+  @Public()
+  @Get(':id/derivative/:kind')
+  @ApiOperation({ summary: 'Производная файла по подписанной ссылке (pdf-копия)' })
+  async derivative(
+    @Param('id', new ZodValidationPipe(z.uuid())) id: string,
+    @Param('kind', new ZodValidationPipe(z.enum(['pdf']))) kind: 'pdf',
+    @Query({
+      schema: derivativeQuerySchema,
+      pipes: [new ZodValidationPipe(derivativeQuerySchema)],
+    })
+    query: z.infer<typeof derivativeQuerySchema>,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    if (!this.signedUrls.verify(`${id}:deriv:${kind}`, query.exp, query.sig)) {
+      throw DomainException.unauthenticated('File link is invalid or expired');
+    }
+    const file = await this.repository.findById(id);
+    if (!file) throw DomainException.notFound('File not found');
+    if (file.scanStatus === 'infected') {
+      throw new DomainException(ErrorCode.FILE_QUARANTINED, 'File is quarantined', undefined, 410);
+    }
+    const derivative = await this.derivatives.find(id, file.version, kind);
+    if (derivative?.status !== 'ready' || !derivative.key) {
+      throw DomainException.notFound('File derivative is not ready');
+    }
+    const stream = await this.driver.get(derivative.key);
+    const etag = `"${id}-v${file.version}-deriv-${kind}"`;
+    void reply
+      .header('Content-Type', derivative.mime)
+      .header('Content-Length', derivative.size)
+      .header(
+        'Content-Disposition',
+        `inline; filename*=UTF-8''${encodeURIComponent(`${file.name}.pdf`)}`,
       )
       .header('X-Content-Type-Options', 'nosniff')
       .header('Cache-Control', 'private, max-age=3600')

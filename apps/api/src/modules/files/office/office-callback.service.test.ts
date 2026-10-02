@@ -1,3 +1,4 @@
+import { Readable } from 'node:stream';
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { PinoLogger } from 'nestjs-pino';
 
@@ -50,11 +51,14 @@ function makeVersionRow(
 interface Mocks {
   findById: ReturnType<typeof vi.fn>;
   findVersions: ReturnType<typeof vi.fn>;
+  findVersion: ReturnType<typeof vi.fn>;
   saveVersion: ReturnType<typeof vi.fn>;
   put: ReturnType<typeof vi.fn>;
   remove: ReturnType<typeof vi.fn>;
   emit: ReturnType<typeof vi.fn>;
   append: ReturnType<typeof vi.fn>;
+  enqueuePdf: ReturnType<typeof vi.fn>;
+  warnLog: ReturnType<typeof vi.fn>;
 }
 
 interface Harness {
@@ -68,11 +72,20 @@ function makeHarness(file: FileObjectRow | null, versions: FileVersionRow[] = []
   const mocks = {
     findById: vi.fn(async () => file),
     findVersions: vi.fn(async () => versions),
+    findVersion: vi.fn(async () => null),
     saveVersion: vi.fn(async (_tx: unknown, input: unknown) => input),
-    put: vi.fn(async () => ({ etag: 'e', bytes: 2 })),
+    // put ПОТРЕБЛЯЕТ стрим (как реальный putObject): без чтения md5-final
+    // не наступит и сверка подписи не отработает.
+    put: vi.fn(async (_key: string, _size: number, _mime: string, content: Readable) => {
+      let bytes = 0;
+      for await (const chunk of content) bytes += (chunk as Buffer).length;
+      return { etag: 'e', bytes };
+    }),
     remove: vi.fn(async () => undefined),
     emit: vi.fn(async () => undefined),
     append: vi.fn(async () => undefined),
+    enqueuePdf: vi.fn(async () => undefined),
+    warnLog: vi.fn(),
   };
   const repo = mocks as unknown as FilesRepository;
   const driver = mocks as unknown as MinioStorageDriver;
@@ -98,32 +111,38 @@ function makeHarness(file: FileObjectRow | null, versions: FileVersionRow[] = []
     eventBus,
     audit,
     tokens,
+    { enqueuePdf: mocks.enqueuePdf } as never,
     config,
     {
       setContext: vi.fn(),
       info: vi.fn(),
-      warn: vi.fn(),
+      warn: mocks.warnLog,
     } as unknown as PinoLogger,
   );
   return { service, tokens, mocks, tx };
 }
 
-function mockFetchOk(contentLength: number): ReturnType<typeof vi.fn> {
+function mockFetchOk(contentLength: number | null): ReturnType<typeof vi.fn> {
   const body = new ReadableStream({
     start(controller) {
       controller.enqueue(new Uint8Array([1, 2]));
       controller.close();
     },
   });
+  const headers = new Map<string, string>();
+  if (contentLength !== null) headers.set('content-length', String(contentLength));
   return vi.fn(async () => ({
     ok: true,
     body,
-    headers: new Map([['content-length', String(contentLength)]]) as unknown as Headers,
+    headers: headers as unknown as Headers,
     status: 200,
   }));
 }
 
-const SAVE_URL = 'https://nodus.by/cache/files/data/xxx/output.xlsx?md5=abc&expires=999';
+const SAVE_URL = 'https://nodus.by/cache/files/data/xxx/output.xlsx?expires=999';
+/** md5 от тестового тела [1,2] в base64url — как подписывает DS. */
+const SAVE_URL_MD5 =
+  'https://nodus.by/cache/files/data/xxx/output.xlsx?md5=DLmI0EKn8o3V_itVs_Wseg&expires=999';
 
 describe('OfficeCallbackService (#138)', () => {
   beforeEach(() => {
@@ -161,7 +180,7 @@ describe('OfficeCallbackService (#138)', () => {
 
     // origin переписан на внутренний адрес DS, путь и подпись сохранены
     expect(fetchMock).toHaveBeenCalledWith(
-      'http://ds-internal/cache/files/data/xxx/output.xlsx?md5=abc&expires=999',
+      'http://ds-internal/cache/files/data/xxx/output.xlsx?expires=999',
     );
     expect(h.mocks.put).toHaveBeenCalledWith(
       `files/${FILE_ID}/v2`,
@@ -236,18 +255,110 @@ describe('OfficeCallbackService (#138)', () => {
     ).resolves.toBeUndefined();
   });
 
-  it('несовпадение размера — объект удалён, ошибка наружу (DS повторит)', async () => {
+  it('md5-подпись DS расходится с телом — наблюдаемость, версия сохраняется', async () => {
+    vi.stubGlobal('fetch', mockFetchOk(2));
+    const h = makeHarness(makeFile(1));
+    await h.service.handle(FILE_ID, {
+      status: 2,
+      key: `${FILE_ID}.v1`,
+      url: 'https://nodus.by/cache/files/data/xxx/output.xlsx?md5=WRONG&expires=999',
+      lastsave: '2026-09-28T20:00:00.000Z',
+    });
+    expect(h.mocks.saveVersion).toHaveBeenCalledWith(
+      h.tx,
+      expect.objectContaining({ version: 2, size: 2 }),
+    );
+  });
+
+  it('md5 совпал — версия сохранена (#182: сверка целостности байтов)', async () => {
+    vi.stubGlobal('fetch', mockFetchOk(2));
+    const h = makeHarness(makeFile(1));
+    await h.service.handle(FILE_ID, {
+      status: 6,
+      key: `${FILE_ID}.v1`,
+      url: SAVE_URL_MD5,
+      lastsave: '2026-09-28T20:00:00.000Z',
+    });
+    expect(h.mocks.saveVersion).toHaveBeenCalledWith(h.tx, expect.objectContaining({ version: 2 }));
+  });
+
+  it('нет content-length (chunked) — сохраняет по фактическим байтам', async () => {
+    vi.stubGlobal('fetch', mockFetchOk(null));
+    const h = makeHarness(makeFile(1));
+    await h.service.handle(FILE_ID, {
+      status: 6,
+      key: `${FILE_ID}.v1`,
+      url: SAVE_URL,
+      lastsave: '2026-09-28T20:00:00.000Z',
+    });
+    expect(h.mocks.put).toHaveBeenCalledWith(
+      `files/${FILE_ID}/v2`,
+      2,
+      expect.any(String),
+      expect.anything(),
+    );
+    expect(h.mocks.saveVersion).toHaveBeenCalledWith(h.tx, expect.objectContaining({ size: 2 }));
+  });
+
+  it('declared ≠ фактических — предупреждение, версия сохраняется', async () => {
     vi.stubGlobal('fetch', mockFetchOk(999));
+    const h = makeHarness(makeFile(1));
+    await h.service.handle(FILE_ID, {
+      status: 6,
+      key: `${FILE_ID}.v1`,
+      url: SAVE_URL,
+      lastsave: '2026-09-28T20:00:00.000Z',
+    });
+    expect(h.mocks.saveVersion).toHaveBeenCalledWith(h.tx, expect.objectContaining({ size: 2 }));
+    // расхождение зафиксировано наблюдаемостью, не фатально
+    expect(h.mocks.warnLog).toHaveBeenCalledWith(
+      expect.objectContaining({ declared: 999 }),
+      expect.stringContaining('content-length'),
+    );
+  });
+
+  it('тело сверх потолка скачивания — бросок (DS повторит), без put', async () => {
+    // Один чанк над потолком (128 МБ): аллокация живёт секунды, память vitest тянет.
+    const body = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new Uint8Array(129 * 1024 * 1024));
+        controller.close();
+      },
+    });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        body,
+        headers: new Map() as unknown as Headers,
+        status: 200,
+      })),
+    );
     const h = makeHarness(makeFile(1));
     await expect(
       h.service.handle(FILE_ID, {
-        status: 2,
+        status: 6,
         key: `${FILE_ID}.v1`,
         url: SAVE_URL,
         lastsave: '2026-09-28T20:00:00.000Z',
       }),
-    ).rejects.toThrow(/size mismatch/i);
-    expect(h.mocks.remove).toHaveBeenCalledWith([`files/${FILE_ID}/v2`]);
+    ).rejects.toThrow(/cap/i);
+    expect(h.mocks.put).not.toHaveBeenCalled();
+  });
+
+  it('дубль версии по уникальному ключу (ретрай без lastsave) — дедуп, без ошибки', async () => {
+    vi.stubGlobal('fetch', mockFetchOk(2));
+    const h = makeHarness(makeFile(1));
+    h.mocks.findVersion.mockResolvedValue(
+      makeVersionRow(2, `${FILE_ID}.v1`, '2026-09-28T20:00:00.000Z'),
+    );
+    await h.service.handle(FILE_ID, {
+      status: 2,
+      key: `${FILE_ID}.v1`,
+      url: SAVE_URL,
+      // lastsave отсутствует: lastsave-дедуп пропущен, ловит unique-дедуп
+    });
+    expect(h.mocks.put).not.toHaveBeenCalled();
     expect(h.mocks.saveVersion).not.toHaveBeenCalled();
   });
 

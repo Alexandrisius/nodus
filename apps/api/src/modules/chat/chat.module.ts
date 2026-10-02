@@ -20,6 +20,7 @@ import { ThreadParticipantsRepository } from './messages/thread-participants.rep
 import { ThumbnailQueue } from './messages/thumbnail.queue.js';
 import { ThumbnailService } from './messages/thumbnail.service.js';
 import { ThumbnailWorker } from './messages/thumbnail.worker.js';
+import { FileVersionHandler } from './events/file-version.handler.js';
 import { StickersController } from './stickers/stickers.controller.js';
 import { StickersRepository } from './stickers/stickers.repository.js';
 import { StickersService } from './stickers/stickers.service.js';
@@ -65,6 +66,9 @@ import { StickersService } from './stickers/stickers.service.js';
     // Стикер-паки (#143): CRUD/установка/загрузка + чтение для отправки.
     StickersRepository,
     StickersService,
+    // Мост версий файлов в беседы (#182): file.version_created →
+    // chat.attachment_updated (маршрутизация gateway'ем в conv-комнаты).
+    FileVersionHandler,
   ],
 })
 export class ChatModule {}

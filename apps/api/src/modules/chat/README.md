@@ -173,7 +173,9 @@ TTL/автоудаление сообщений — вне продукта на
 (+`thread_created` первым ответом) · `chat.message_edited` ·
 `chat.message_deleted` (payload.obliterated) · `chat.message_read` (upToSeq) ·
 `chat.message_pinned` / `chat.message_unpinned` · `chat.reaction_added` /
-`chat.reaction_removed`. Стикеры (#143): `chat.sticker_pack_created /
+`chat.reaction_removed` · `chat.attachment_updated` (мост `file.version_created`
+→ беседы с вложением; подписка `events/file-version.handler.ts`, #182 — версия
+подхватывается клиентами без F5). Стикеры (#143): `chat.sticker_pack_created /
 _updated / _deleted` · `chat.sticker_added / _removed` ·
 `chat.sticker_pack_installed / _uninstalled` (установка — событие только при
 реальной вставке PK). Payload минимальный и клиентски видим (будущий

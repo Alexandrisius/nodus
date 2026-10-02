@@ -74,12 +74,19 @@ export class AttachmentsRepository {
   }
 
   /** Фиксация превью (#150): thumbFileId + авторитетные серверные габариты
-   *  (перезаписывают клиентские — сервер не доверяет им после sharp). */
+   *  (перезаписывают клиентские — сервер не доверяет им после sharp).
+   *  Compare-and-set по thumbFileId=null: гонка двойной генерации (#156 —
+   *  jobId вытеснен из removeOnComplete) даёт false, указатель победителя
+   *  не перезаписывается; проигравший дериват удаляет вызывающий. */
   async markThumbnail(
     id: string,
     data: { thumbFileId: string; width: number; height: number },
-  ): Promise<void> {
-    await this.prisma.messageAttachment.update({ where: { id }, data });
+  ): Promise<boolean> {
+    const result = await this.prisma.messageAttachment.updateMany({
+      where: { id, thumbFileId: null },
+      data,
+    });
+    return result.count === 1;
   }
 
   /** Неотправленное вложение владельца (для отмены; null — уже отправлено/

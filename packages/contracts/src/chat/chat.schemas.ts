@@ -34,6 +34,12 @@ export const messageAttachmentSchema = z.object({
   url: z.string().nullable(),
   /** Превью для галереи (null у файлов). */
   thumbnailUrl: z.string().nullable(),
+  /** Маршрут просмотрщика (#139): office | pdf | image | video | file —
+   * серверная классификация (mime/расширению клиента не доверяем). */
+  previewKind: z.enum(['office', 'pdf', 'image', 'video', 'file']),
+  /** PDF-копия офисного документа (конвейер производных #139): fallback-
+   * просмотр при выключенном/лежащем ONLYOFFICE; null — не готова/не офис. */
+  pdfUrl: z.string().nullable(),
   /** Габариты изображения: резерв бокса до загрузки (лента без сдвига). */
   width: z.number().int().min(0).nullable(),
   height: z.number().int().min(0).nullable(),

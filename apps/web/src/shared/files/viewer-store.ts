@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 
+import type { AttachmentPreviewKind } from '@nodus/contracts';
+
 /**
  * Стор просмотрщика вложений (#138): один вьюер на приложение (хост — в
  * app-shell рядом с ChatDialogHosts). Инициатор (чип вложения в любом
@@ -13,6 +15,12 @@ export interface ViewerTarget {
   size: number;
   /** Подписанная ссылка контента (относительная, same-origin). */
   url: string | null;
+  /** Маршрут просмотрщика с сервера (#139); undefined — старый DTO без
+   * классификации (реестр вычислит локально). */
+  previewKind?: AttachmentPreviewKind;
+  /** PDF-копия офисного документа (#139): fallback при выключенном движке;
+   * 404 по ссылке = копия ещё не готова. */
+  pdfUrl?: string | null;
 }
 
 interface ViewerState {

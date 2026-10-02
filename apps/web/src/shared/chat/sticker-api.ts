@@ -226,6 +226,8 @@ export function buildStickerAttachment(
     kind: 'sticker',
     url: sticker.url,
     thumbnailUrl: null,
+    previewKind: 'image',
+    pdfUrl: null,
     width: sticker.width,
     height: sticker.height,
     sticker: { packId: pack.id, packTitle: pack.title, packScope: pack.scope, emojis },

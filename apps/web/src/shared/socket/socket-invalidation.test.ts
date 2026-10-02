@@ -61,6 +61,21 @@ describe('createRealtimeInvalidator (коалесцинг, раунд 3)', () =>
     vi.useRealTimers();
   });
 
+  it('attachment_updated: лента беседы + файловые ключи вложения (#182)', () => {
+    vi.useFakeTimers();
+    const FILE = '00000000-0000-4000-8000-0000000000f1';
+    const { client, invalidateQueries } = fakeQueryClient();
+    const invalidator = createRealtimeInvalidator(client as never);
+    invalidator.handle(
+      envelope('chat.attachment_updated', { conversationId: CONV, fileId: FILE, version: 2 }),
+    );
+    flushWindows();
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['chat', 'messages', CONV] });
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['files', FILE] });
+    invalidator.dispose();
+    vi.useRealTimers();
+  });
+
   it('message_read без кэша для патча: лента + состояния, список НЕ трогает', () => {
     vi.useFakeTimers();
     const { client, invalidateQueries } = fakeQueryClient();

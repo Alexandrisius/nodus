@@ -40,6 +40,8 @@ const pending = (
           kind: 'file',
           url: null,
           thumbnailUrl: null,
+          previewKind: 'file',
+          pdfUrl: null,
           width: null,
           height: null,
         }

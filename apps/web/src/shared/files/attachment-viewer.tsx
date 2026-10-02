@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { Download, Pencil, X } from 'lucide-react';
-import { ui } from '@nodus/contracts';
+import { ui, type OfficeSession } from '@nodus/contracts';
 
 import { Button } from '@nodus/ui/components/button';
 import { Spinner } from '@nodus/ui/components/spinner';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@nodus/ui/components/tooltip';
 
-import { useOfficeConfig, useOfficeSession } from './api.js';
+import { api as apiFetch } from '../api-client.js';
+import { officeKeys, useOfficeConfig, useOfficeSession } from './api.js';
 import { DownloadCard } from './download-card.jsx';
 import { MediaViewer } from './media-viewer.jsx';
 import { OfficeViewer } from './office-viewer.jsx';
@@ -31,9 +33,21 @@ import { useViewerStore } from './viewer-store.js';
 export function AttachmentViewer({ stripW = 0 }: { stripW?: number }) {
   const target = useViewerStore((s) => s.target);
   const close = useViewerStore((s) => s.close);
+  const queryClient = useQueryClient();
   const [mode, setMode] = useState<'view' | 'edit'>('view');
   const [engineFailed, setEngineFailed] = useState(false);
   const [sessionStale, setSessionStale] = useState(0);
+
+  // Свежесть файловых запросов (#182): после сохранения/закрытия версии
+  // подхватываются без F5 — инвалидация обоих режимов сессии цели.
+  const invalidateFile = useCallback(() => {
+    const fileId = useViewerStore.getState().target?.fileId;
+    if (fileId) void queryClient.invalidateQueries({ queryKey: ['files', fileId] });
+  }, [queryClient]);
+  const closeWithInvalidate = useCallback(() => {
+    invalidateFile();
+    close();
+  }, [close, invalidateFile]);
 
   const configQuery = useOfficeConfig();
   const officeConfig = configQuery.data;
@@ -60,9 +74,9 @@ export function AttachmentViewer({ stripW = 0 }: { stripW?: number }) {
 
   const closeOnEsc = useCallback(
     (event: KeyboardEvent) => {
-      if (event.key === 'Escape') close();
+      if (event.key === 'Escape') closeWithInvalidate();
     },
-    [close],
+    [closeWithInvalidate],
   );
 
   useEffect(() => {
@@ -80,6 +94,11 @@ export function AttachmentViewer({ stripW = 0 }: { stripW?: number }) {
   const session = sessionQuery.data ?? null;
   const canSwitchToEdit = route.kind === 'office' && mode === 'view' && session?.canEdit === true;
   const downloadUrl = target.url;
+  // Fallback ONLYOFFICE (#139): движок выключен/лежит — офисный документ
+  // открывается PDF-копией из конвейера производных (битриксов паттерн);
+  // нет копии (404 по ссылке не проверяем заранее — pdf.js покажет ошибку
+  // загрузки только если ссылка жива, а объекта нет) → карточка скачивания.
+  const pdfFallback = route.reason === 'office_disabled' && target.pdfUrl ? target.pdfUrl : null;
 
   return createPortal(
     <div
@@ -88,7 +107,7 @@ export function AttachmentViewer({ stripW = 0 }: { stripW?: number }) {
       aria-modal="true"
       aria-label={ui.files.viewerTitle}
     >
-      <div className="absolute inset-0 bg-background/80" onClick={close} />
+      <div className="absolute inset-0 bg-background/80" onClick={closeWithInvalidate} />
       <div
         className="absolute inset-y-2 left-2 flex flex-col overflow-hidden rounded-2xl border bg-card shadow-xl transition-[right] duration-200"
         style={{ right: stripW + 8 }}
@@ -126,7 +145,7 @@ export function AttachmentViewer({ stripW = 0 }: { stripW?: number }) {
           <Button
             variant="ghost"
             size="icon-sm"
-            onClick={close}
+            onClick={closeWithInvalidate}
             aria-label={ui.files.close}
             autoFocus
           >
@@ -154,14 +173,37 @@ export function AttachmentViewer({ stripW = 0 }: { stripW?: number }) {
               />
             ) : (
               <OfficeViewer
-                key={`${session.document.key}:${session.mode}:${sessionStale}`}
+                // Стабильный монтаж (#182, репро владельца 02.10): fileId+
+                // режим+sessionStale — рефечи сессии (ws, повторные fetch)
+                // НЕ перемонтируют редактор; перемонтаж только при смене
+                // файла/режима или явном onOutdatedVersion от DS (новая
+                // версия от другого участника сессии).
+                key={`${target.fileId}:${session.mode}:${sessionStale}`}
                 session={session}
                 onOutdated={() => {
-                  // Документ пересохранён — сессия с новым ключом версии.
+                  // Легаси-ветка (DS < 9.4): документ пересохранён — сессия
+                  // с новым ключом версии, перемонтируем.
                   setSessionStale((n) => n + 1);
                   void sessionQuery.refetch();
                 }}
                 onEngineError={() => setEngineFailed(true)}
+                onRequestRefresh={async () => {
+                  // DS 9.4 просит свежий конфиг (ключ уже использовался для
+                  // сохранения): отдаём актуальную сессию сервера — движок
+                  // обновит документ сам, без тоста о перезагрузке.
+                  try {
+                    return await queryClient.fetchQuery({
+                      queryKey: officeKeys.session(target.fileId, mode),
+                      queryFn: () =>
+                        apiFetch<OfficeSession>(
+                          `/files/${target.fileId}/office-session?mode=${mode}`,
+                        ),
+                      staleTime: 0,
+                    });
+                  } catch {
+                    return null;
+                  }
+                }}
               />
             )
           ) : route.kind === 'pdf' ? (
@@ -176,6 +218,8 @@ export function AttachmentViewer({ stripW = 0 }: { stripW?: number }) {
             ) : (
               <DownloadCard name={target.name} size={target.size} url={null} reason="unsupported" />
             )
+          ) : pdfFallback ? (
+            <PdfViewer url={pdfFallback} fileName={`${target.name}.pdf`} />
           ) : (
             <DownloadCard
               name={target.name}
