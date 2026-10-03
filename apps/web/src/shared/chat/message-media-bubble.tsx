@@ -159,7 +159,7 @@ export function MediaMessage({
           />
           <BubbleContent
             className={cn(
-              'relative rounded-b-xl px-2.5 pt-[5px] pb-[5px] leading-tight',
+              'relative rounded-b-xl px-2.5 pt-[5px] pb-[8px] leading-tight',
               finSide === 'left' && 'rounded-bl-none',
               finSide === 'right' && 'rounded-br-none',
             )}
@@ -252,7 +252,7 @@ export function MetaPin({
   onFilled?: boolean;
 }) {
   return (
-    <span data-slot="meta-corner" className="pointer-events-none absolute right-2.5 bottom-[5px]">
+    <span data-slot="meta-corner" className="pointer-events-none absolute right-2.5 bottom-[8px]">
       <MessageMeta message={message} onFilled={onFilled ?? mine} ticks={mine} />
     </span>
   );

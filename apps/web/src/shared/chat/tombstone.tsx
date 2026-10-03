@@ -75,7 +75,7 @@ export function TombstoneBubble({
           <BubbleOutline side={tail ? (atEnd ? 'right' : 'left') : null} variant={variant} />
           <BubbleContent
             className={cn(
-              'relative flex flex-col gap-[2px] px-2.5 pt-2.5 pb-[5px] leading-tight',
+              'relative flex flex-col gap-[2px] px-2.5 pt-2.5 pb-[8px] leading-tight',
               tail && (atEnd ? 'rounded-br-none' : 'rounded-bl-none'),
             )}
           >

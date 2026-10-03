@@ -209,7 +209,7 @@ export const ChatMessageItem = memo(function ChatMessageItem({
               // контейнера (р.2 п.7): фактический шаг строк задаёт strut.
               // pb-5px = булавке MetaPin bottom-5px: низ меты ОДИНАКОВ с
               // рядами реакций (стабильность, раунд 11 п.2)
-              'relative flex flex-col gap-[2px] px-2.5 pt-2.5 pb-[5px] leading-tight',
+              'relative flex flex-col gap-[2px] px-2.5 pt-2.5 pb-[8px] leading-tight',
               tail && (atEnd ? 'rounded-br-none' : 'rounded-bl-none'),
             )}
             style={contentWidth ? { width: contentWidth, maxWidth: '100%' } : undefined}

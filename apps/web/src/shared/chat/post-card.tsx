@@ -243,7 +243,7 @@ export function PostCard({
           {!imageOnly || !media ? (
             <span
               className={cn(
-                'relative block px-2.5 pb-[5px] leading-tight text-sm',
+                'relative block px-2.5 pb-[8px] leading-tight text-sm',
                 media
                   ? 'pt-[5px]'
                   : showName || sticker || message.attachments.length > 0
@@ -268,7 +268,7 @@ export function PostCard({
           {/* Реакции — строкой ниже; время справа от них; у соло-медиа
             реакций здесь НЕТ — они чипами ПОД карточкой (раунд 5 п.6). */}
           {message.reactions.length > 0 && !soloMedia ? (
-            <span className={cn('flex items-end gap-2 px-2.5 pt-[3px]', 'pb-[5px]')}>
+            <span className={cn('flex items-end gap-2 px-2.5 pt-[3px]', 'pb-[8px]')}>
               <MessageReactions message={message} onFilled={surface.onFilled} />
               <MessageMeta
                 message={message}

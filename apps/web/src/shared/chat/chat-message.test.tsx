@@ -107,7 +107,7 @@ describe('ChatMessageItem — время: призрак+булавка, ста�
     expect(pin).toBeTruthy();
     expect(pin.className).toContain('absolute');
     expect(pin.className).toContain('right-2.5');
-    expect(pin.className).toContain('bottom-[5px]');
+    expect(pin.className).toContain('bottom-[8px]');
     expect(pin.querySelector('[data-slot="message-meta"]')).toBeTruthy();
     // якорь — сам ПУЗЫРЬ (bubble-content): инсеты от края, как у рядов реакций
     expect(pin.parentElement).toBe(content);
@@ -117,7 +117,7 @@ describe('ChatMessageItem — время: призрак+булавка, ста�
       m.className.includes('invisible'),
     )!;
     expect(ghost).toBeTruthy();
-    expect(content.className).toContain('pb-[5px]');
+    expect(content.className).toContain('pb-[8px]');
   });
 
   it('с реакциями: время — строкой ниже, СПРАВА от реакций (р.3 п.1)', () => {
@@ -502,7 +502,7 @@ describe('Медиа-пузырь Telegram (#187): изображение = ча
     const pin = bottom.querySelector('[data-slot="meta-corner"]')!;
     expect(pin.className).toContain('absolute');
     expect(pin.className).toContain('right-2.5');
-    expect(pin.className).toContain('bottom-[5px]');
+    expect(pin.className).toContain('bottom-[8px]');
     // якорь — сама нижняя часть (bubble-content медиа)
     expect(pin.parentElement).toBe(bottom);
     const ghost = [...bottom.querySelectorAll('[data-slot="message-meta"]')].find((m) =>
@@ -512,7 +512,7 @@ describe('Медиа-пузырь Telegram (#187): изображение = ча
     expect(bottom.textContent).toContain('подпись к фото');
     // первый отступ строки от картинки увеличен (р.5 п.9)
     expect(bottom.className).toContain('pt-[5px]');
-    expect(bottom.className).toContain('pb-[5px]');
+    expect(bottom.className).toContain('pb-[8px]');
   });
 
   it('плитка одиночного изображения держит пропорции: aspect-ratio вместо фикс-высоты', () => {
