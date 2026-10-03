@@ -128,14 +128,14 @@ export function AttachmentGallery({ images }: { images: MessageAttachment[] }) {
   let offset = 0;
   return (
     <span
-      className="flex min-w-0 max-w-full flex-col gap-1"
+      className="flex min-w-0 max-w-full flex-col gap-0.5"
       style={rows.length > 1 || (rows[0]?.length ?? 0) > 1 ? { width: MEDIA_MAX_W } : undefined}
     >
       {rows.map((row, rowIndex) => {
         const start = offset;
         offset += row.length;
         return (
-          <span key={rowIndex} className="flex min-w-0 gap-1">
+          <span key={rowIndex} className="flex min-w-0 gap-0.5">
             {row.map((image, i) => (
               <GalleryTile
                 key={image.id}

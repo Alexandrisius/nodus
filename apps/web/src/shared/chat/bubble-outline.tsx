@@ -77,16 +77,16 @@ interface LayerGeom {
 
 function measureLayer(el: SVGSVGElement): LayerGeom {
   const dpr = window.devicePixelRatio || 1;
-  // Размеры — clientWidth/clientHeight (layout-px интерфейса Element),
-  // НЕ getBoundingClientRect: трансформ предка (FLIP-раскрытие
-  // карточки-слайдера) масштабирует rect, но не меняет layout-размеры и
-  // border-box элемента — ResizeObserver после анимации НЕ перезапускается,
-  // и замер в кадре раскрытия оставлял SVG-заливку пузыря навсегда
-  // схлопнутой (репро #187: чат из центра уведомлений — время «вне пузыря»
-  // при верной раскладке). Локальный device-снап достаточен: заливку/кольцо
-  // красит один этот SVG в собственных координатах.
-  const wDev = Math.max(1, Math.round(el.clientWidth * dpr));
-  const hDev = Math.max(1, Math.round(el.clientHeight * dpr));
+  // Размеры — ДРОБНЫЕ layout-px из getComputedStyle (used width/height):
+  // трансформ предка (FLIP-слайдер) их не искажает (не rect), а округление
+  // clientWidth до целого давало ±0.5px дрейф силуэта от CSS-клипа картинки —
+  // видимые щели/дуги у full-bleed медиа (вердикт #187 п.6). Снап к device-сетке
+  // сохранён: путь строится в долях dpr-целых величин.
+  const styles = getComputedStyle(el);
+  const w = Number.parseFloat(styles.width) || 0;
+  const h = Number.parseFloat(styles.height) || 0;
+  const wDev = Math.max(1, Math.round(w * dpr));
+  const hDev = Math.max(1, Math.round(h * dpr));
   const finSizeDev = Math.max(1, Math.round(FIN_UNITS * UI_SCALE * dpr));
   return {
     w: wDev / dpr,
@@ -101,9 +101,14 @@ function measureLayer(el: SVGSVGElement): LayerGeom {
  * заливку плавника. side — сторона хвоста (только последний пузырь серии).
  *
  * `ringless` (#187, вердикт п.1/п.5): медиа-пузырь БЕЗ границы — изображение
- * идеально является краем пузыря, полоска кольца вокруг картинки запрещена;
- * рамка выделения у медиа рисуется ОВЕРЛЕЕМ над контентом (select-ring в
- * message-media-bubble), т.к. слой под контентом у картинки невидим.
+ * идеально является краем пузыря, полоска кольца вокруг картинки запрещена.
+ *
+ * РАМКА ВЫДЕЛЕНИЯ (вердикт раунда 2 п.1: толстый бордер по границе пузыря
+ * ВЕЗДЕ, единой формой): второй svg (z-10, НАД контентом — под full-bleed
+ * картинкой нижний слой невидим) обводит ТОТ ЖЕ единый силуэт (коробка +
+ * хвост одним контуром, outlinePath) штрихом с клипом по силуэту — хвостик
+ * обводится вместе с пузырём, без составных частей. Прозрачна вне выделения
+ * (CSS [data-selected]).
  */
 export function BubbleOutline({
   side,
@@ -137,50 +142,73 @@ export function BubbleOutline({
   }, []);
 
   return (
-    <svg
-      ref={layerRef}
-      aria-hidden
-      data-slot="bubble-outline"
-      className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
-    >
-      {geom ? (
-        <>
-          <defs>
-            <clipPath id={clipId} clipPathUnits="userSpaceOnUse">
-              <path d={outlinePath(geom.w, geom.h, side, geom.unit)} />
-            </clipPath>
-          </defs>
-          {/* ЕДИНАЯ ЗАЛИВКА: весь силуэт (коробка+плавник) одним путём —
+    <>
+      <svg
+        ref={layerRef}
+        aria-hidden
+        data-slot="bubble-outline"
+        className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
+      >
+        {geom ? (
+          <>
+            <defs>
+              <clipPath id={clipId} clipPathUnits="userSpaceOnUse">
+                <path d={outlinePath(geom.w, geom.h, side, geom.unit)} />
+              </clipPath>
+            </defs>
+            {/* ЕДИНАЯ ЗАЛИВКА: весь силуэт (коробка+плавник) одним путём —
               тинт/фона единый, без второй заливки и её прямоугольника.
               Классы fill-bubble-* — те же правила тинта (globals.css). */}
-          <path
-            d={outlinePath(geom.w, geom.h, side, geom.unit)}
-            className={variant === 'card' ? 'fill-bubble-in' : 'fill-bubble-out'}
-          />
-          {ringless ? null : (
-            <>
-              {/* ЕДИНАЯ граница: коробка + хвост одним контуром, штрих [0,2]css
+            <path
+              d={outlinePath(geom.w, geom.h, side, geom.unit)}
+              className={variant === 'card' ? 'fill-bubble-in' : 'fill-bubble-out'}
+            />
+            {ringless ? null : (
+              <>
+                {/* ЕДИНАЯ граница: коробка + хвост одним контуром, штрих [0,2]css
                   внутрь + прикрытие [0,1] цветом заливки, клип по силуэту —
                   видимая полоса [1,2]css по ВСЕМУ периметру одной линией.
                   Цветом управляет globals.css. */}
-              <path
-                className="bubble-ring"
-                d={outlinePath(geom.w, geom.h, side, geom.unit)}
-                fill="none"
-                strokeWidth={RING_STROKE_CSS}
-                clipPath={`url(#${clipId})`}
-              />
-              <path
-                className="bubble-ring-cover"
-                d={outlinePath(geom.w, geom.h, side, geom.unit)}
-                fill="none"
-                strokeWidth={COVER_STROKE_CSS}
-                clipPath={`url(#${clipId})`}
-              />
-            </>
-          )}
-        </>
-      ) : null}
-    </svg>
+                <path
+                  className="bubble-ring"
+                  d={outlinePath(geom.w, geom.h, side, geom.unit)}
+                  fill="none"
+                  strokeWidth={RING_STROKE_CSS}
+                  clipPath={`url(#${clipId})`}
+                />
+                <path
+                  className="bubble-ring-cover"
+                  d={outlinePath(geom.w, geom.h, side, geom.unit)}
+                  fill="none"
+                  strokeWidth={COVER_STROKE_CSS}
+                  clipPath={`url(#${clipId})`}
+                />
+              </>
+            )}
+          </>
+        ) : null}
+      </svg>
+      {/* РАМКА ВЫДЕЛЕНИЯ (вердикт раунта 2 п.1) — ВТОРОЙ svg того же слоя,
+        НАД контентом (z-10; под full-bleed картинкой нижний svg невиден):
+        обводит ТОТ ЖЕ единый силуэт (коробка + хвост одним контуром
+        outlinePath, общий clipPath) — хвостик обводится вместе с пузырём,
+        без составных частей. Штрих 4css с клипом = видимая полоса 2css от
+        края. Прозрачна вне выделения (globals.css). */}
+      <svg
+        aria-hidden
+        data-slot="bubble-select-ring"
+        className="pointer-events-none absolute inset-0 z-10 h-full w-full overflow-visible opacity-0"
+      >
+        {geom ? (
+          <path
+            d={outlinePath(geom.w, geom.h, side, geom.unit)}
+            fill="none"
+            stroke="var(--selection-ring)"
+            strokeWidth={4}
+            clipPath={`url(#${clipId})`}
+          />
+        ) : null}
+      </svg>
+    </>
   );
 }

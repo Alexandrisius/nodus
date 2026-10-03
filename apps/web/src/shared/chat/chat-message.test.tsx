@@ -98,18 +98,20 @@ describe('ChatMessageItem — имя автора внутри пузыря (#96
   });
 });
 
-describe('ChatMessageItem — мета отдельной нижней строкой (#96)', () => {
-  it('мета — в последней строке содержимого пузыря, не в строке текста', () => {
+describe('ChatMessageItem — мета инлайном в строке текста (раунд 2 п.4, канон Telegram)', () => {
+  it('время стоит в конце текста одной строкой: мета — inline внутри блока текста', () => {
     const { container } = renderMessage(<ChatMessageItem message={message()} mine={false} />);
     const content = container.querySelector('[data-slot="bubble-content"]')!;
-    const meta = content.querySelector('[data-slot="message-meta"]');
+    const meta = content.querySelector('[data-slot="message-meta"]')!;
     expect(meta).toBeTruthy();
-    const lastRow = content.lastElementChild!;
-    expect(lastRow.contains(meta!)).toBe(true);
-    // текст сообщения — отдельный блок, меты в нём нет
-    const textRow = [...content.children].find((el) => el.textContent === 'текст сообщения');
-    expect(textRow).toBeTruthy();
-    expect(textRow!.contains(meta!)).toBe(false);
+    // мета — inline-flex в блоке текста (не отдельная строка)
+    expect(meta.className).toContain('inline-flex');
+    const textBlock = meta.closest('span[class*="leading-tight"]');
+    expect(textBlock).toBeTruthy();
+    expect(textBlock!.textContent).toContain('текст сообщения');
+    // блок текста — последний в пузыре (реакций нет): время прижато к низу
+    expect(content.lastElementChild).toBe(textBlock);
+    expect(textBlock!.className).toContain('pb-[5px]');
   });
 
   it('у своего сообщения — галочки прочтения, у чужого нет', () => {
@@ -325,7 +327,7 @@ describe('Медиа-пузырь Telegram (#187): изображение = ча
     expect(chip.className).toContain('absolute');
   });
 
-  it('bare с именем (чужие): имя цветной строкой над картинкой, пузыря нет', () => {
+  it('чужое чистое изображение: пузырь-шапка с именем над bare-картинкой (раунд 2 п.9)', () => {
     const { container } = renderMessage(
       <ChatMessageItem
         message={message({ attachments: [img(1, 1200, 800)], text: '' })}
@@ -333,14 +335,36 @@ describe('Медиа-пузырь Telegram (#187): изображение = ча
         showName
       />,
     );
-    expect(container.querySelector('[data-slot="bubble"]')).toBeNull();
-    const bare = container.querySelector('[data-slot="media-message"]')!;
-    const name = [...bare.querySelectorAll('span')].find((el) => el.textContent === 'Иван Петров')!;
+    const block = container.querySelector('[data-slot="media-message"]')!;
+    // шапка — пузырь с заливкой над картинкой (имя обязано быть на заливке)
+    const headerBubble = block.querySelector('[data-slot="bubble"]')!;
+    expect(headerBubble).toBeTruthy();
+    const name = [...headerBubble.querySelectorAll('span')].find(
+      (el) => el.textContent === 'Иван Петров',
+    )!;
     expect(name.className).toMatch(/text-name-[1-7]/);
-    // имя — до картинки
+    // зазор сверху больше зазора до картинки (п.9)
+    const headerBlock = name.parentElement!;
+    expect(headerBlock.className).toContain('pt-2.5');
+    expect(headerBlock.className).toContain('pb-[6px]');
+    // шапка — до картинки; чип времени на картинке
+    const frame = block.querySelector('span.overflow-hidden')!;
     expect(
-      bare.querySelector('img')!.compareDocumentPosition(name) & Node.DOCUMENT_POSITION_PRECEDING,
+      frame.compareDocumentPosition(headerBubble) & Node.DOCUMENT_POSITION_PRECEDING,
     ).toBeTruthy();
+    expect(frame.querySelector('time')).toBeTruthy();
+  });
+
+  it('СВОЁ чистое изображение: пузыря нет вообще, чип времени на картинке', () => {
+    const { container } = renderMessage(
+      <ChatMessageItem message={message({ attachments: [img(1, 1200, 800)], text: '' })} mine />,
+    );
+    expect(container.querySelector('[data-slot="bubble"]')).toBeNull();
+    const block = container.querySelector('[data-slot="media-message"]')!;
+    const frame = block.querySelector('span.overflow-hidden')!;
+    expect(frame.querySelector('time')).toBeTruthy();
+    // group/bubble на обёртке — ховер-пилюля реакций работает (раунд 2 п.3)
+    expect(block.className).toContain('group/bubble');
   });
 
   it('bare: реакции — чипами ПОД картинкой (не пузырь)', () => {
@@ -405,7 +429,7 @@ describe('Медиа-пузырь Telegram (#187): изображение = ча
     expect(first.className).not.toContain('px-2.5');
   });
 
-  it('подпись под изображением — блок с полями; мета — нижний блок, время у нижнего угла (п.7)', () => {
+  it('подпись с метой одной строкой, время у нижнего угла (раунд 2 п.2/п.4/п.7)', () => {
     const { container } = renderMessage(
       <ChatMessageItem
         message={message({ attachments: [img(1, 1200, 800)], text: 'подпись к фото' })}
@@ -416,11 +440,12 @@ describe('Медиа-пузырь Telegram (#187): изображение = ча
     const blocks = [
       ...container.querySelector('[data-slot="bubble-content"]')!.children,
     ] as HTMLElement[];
-    const caption = blocks.find((b) => b.textContent === 'подпись к фото')!;
+    // подпись + мета в ОДНОМ блоке (inline), блок — последний (реакций нет)
+    const caption = blocks.find((b) => b.textContent?.includes('подпись к фото'))!;
     expect(caption.className).toContain('px-2.5');
-    const meta = blocks.find((b) => b.querySelector('[data-slot="message-meta"]'))!;
-    expect(meta.className).toContain('pb-[5px]');
-    expect(blocks[blocks.length - 2]).toBe(meta);
+    expect(caption.querySelector('[data-slot="message-meta"]')!.className).toContain('inline-flex');
+    expect(caption.className).toContain('pb-[5px]');
+    expect(blocks[blocks.length - 1]).toBe(caption);
   });
 
   it('плитка одиночного изображения держит пропорции: aspect-ratio вместо фикс-высоты', () => {

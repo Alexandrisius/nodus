@@ -78,17 +78,27 @@ export function MediaBubbleContent({
       {/* Медиа — full-bleed + щит селекта: тонировка ПОВЕРХ изображения
           (п.3: заливка пузыря под картинкой не видна). */}
       <MediaArea message={message} mine={mine} />
-      {message.text ? (
-        <div className="px-2.5 pt-[2px]">
-          <MessageText text={message.text} />
+      {/* Подпись + мета ОДНОЙ строкой (раунд 2 п.4, канон Telegram): время в
+          конце подписи; реакции — строкой ниже, только когда есть. */}
+      <span
+        className={cn(
+          'block px-2.5 pt-[2px] leading-tight',
+          message.reactions.length > 0 ? 'pb-[2px]' : 'pb-[5px]',
+        )}
+      >
+        <MessageText text={message.text} />
+        <MessageMeta
+          message={message}
+          onFilled={mine}
+          ticks={mine}
+          className="ml-1 inline-flex items-center align-bottom"
+        />
+      </span>
+      {message.reactions.length > 0 ? (
+        <div className="flex items-end gap-2 px-2.5 pb-[5px]">
+          <MessageReactions message={message} onFilled={mine} />
         </div>
       ) : null}
-      {/* Нижняя часть: время прижато к нижнему правому углу пузыря (п.7) —
-          pb-5px вместо 10: «висит в воздухе над границей» запрещено. */}
-      <div className="flex items-end gap-2 px-2.5 pt-[2px] pb-[5px]">
-        <MessageReactions message={message} onFilled={mine} />
-        <MessageMeta message={message} onFilled={mine} ticks={mine} className="ml-auto" />
-      </div>
     </>
   );
 }

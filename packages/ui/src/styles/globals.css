@@ -788,6 +788,15 @@
   stroke: var(--selection-ring);
 }
 
+/* Рамка выделения пузыря — ТОЛСТЫЙ бордер по границе, ЕДИНОЙ формой с
+   хвостиком (вердикт раунта 2 п.1): второй svg слоя (bubble-select-ring,
+   z-10 над контентом — под full-bleed картинкой нижний слой невидим)
+   обводит тот же единый силуэт. Единый стиль для ВСЕХ пузырей. */
+[data-message-id][data-selected='true'] [data-slot='bubble-select-ring'],
+[data-message-id][data-box-selected='true'] [data-slot='bubble-select-ring'] {
+  opacity: 1;
+}
+
 [data-message-id][data-selected='true'] [data-slot='post-surface'],
 [data-message-id][data-box-selected='true'] [data-slot='post-surface'] {
   border-color: var(--selection-ring);

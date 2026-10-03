@@ -142,7 +142,10 @@ export function PostCard({
       }}
       className={cn(
         surface.fill,
-        'relative w-fit max-w-[min(100%,42rem)] cursor-pointer rounded-xl border border-border text-left transition-colors hover:border-input group/msg group/bubble',
+        'relative w-fit max-w-[min(100%,42rem)] cursor-pointer rounded-xl border text-left transition-colors group/msg group/bubble',
+        // Медиа-пост — БЕЗ рамки вокруг картинки (раунд 2 п.5: «линии вокруг
+        // изображения» запрещены и в каналах); текстовый пост — hairline.
+        media ? 'border-transparent hover:border-transparent' : 'border-border hover:border-input',
       )}
       data-slot="post-surface"
       data-surface={surface.tone}
@@ -151,8 +154,10 @@ export function PostCard({
       {/* Клип углов full-bleed медиа — ВНУТРЕННЕЙ обёрткой: ховер-кнопка
           реакций (#124) выступает за нижний угол карточки (-right-3) и под
           overflow-hidden внешнего контейнера обрезалась (регресс #187 п.11:
-          «ободок кружка есть, глифа нет») — пи́кер живёт СИБЛИНГом клипа. */}
-      <div className="overflow-hidden rounded-xl">
+          «ободок кружка есть, глифа нет») — пи́лер живёт СИБЛИНГом клипа.
+          Радиус клипа = внешний МИНУС бордер (1px): иначе на нижних углах
+          полосы «Обсудить» щель с фоном (раунд 2 п.6). */}
+      <div className="overflow-hidden rounded-[calc(0.875rem-1px)]">
         {/* Автор — первая строка карточки, только у первого ЧУЖОГО поста серии;
             у остальных и у своих — sr-only (AT не теряет автора, как в пузырях
             чатов). Цвет персональный (#180). -mt-[3px] — оптическая компенсация
@@ -197,32 +202,32 @@ export function PostCard({
             <MessageAttachments message={message} mine={mine} />
           </span>
         ) : null}
-        {/* Текст — MessageText (р.6): старт на тексте даёт нативное выделение,
-            выход за карточку превращает жест в выделение поста целиком.
-            Ширина поста — от ВЛОЖЕНИЯ (как пузырь чата): текст поджимается
-            под колонку медиа. Первый (без имени/медиа) — оптическая
-            компенсация -mt-[3px] (#181). Ритм: текст→мета 3px, мета→полоса 6px. */}
+        {/* Текст + мета ОДНОЙ строкой (раунд 2 п.2/п.4, канон Telegram):
+            время в конце текста, не отдельной строкой; ШТРИХ блока —
+            leading-tight (strut задаёт фактический шаг строк, раунд 2 п.7).
+            Первый (без имени/медиа) — оптическая компенсация -mt-[3px] (#181). */}
         <span
           className={cn(
             showName || sticker || message.attachments.length > 0
-              ? 'block px-2.5 pt-[2px]'
-              : 'block px-2.5 pt-[7px]',
+              ? 'block px-2.5 pt-[2px] leading-tight'
+              : 'block px-2.5 pt-[7px] leading-tight',
             'text-sm',
           )}
         >
           <MessageText text={message.text} />
-        </span>
-        {/* Мета — общая с пузырём чата композиция (#96): реакции слева,
-            пин/«изменено»/время/галочки справа, микро-кегль. */}
-        <span className="flex items-end gap-2 px-2.5 pt-[3px]">
-          <MessageReactions message={message} onFilled={surface.onFilled} />
           <MessageMeta
             message={message}
             onFilled={surface.onFilled}
             ticks={mine}
-            className="ml-auto"
+            className="ml-1 inline-flex items-center align-bottom"
           />
         </span>
+        {/* Реакции — строкой под текстом, только когда есть. */}
+        {message.reactions.length > 0 ? (
+          <span className="flex items-end gap-2 px-2.5 pt-[3px]">
+            <MessageReactions message={message} onFilled={surface.onFilled} />
+          </span>
+        ) : null}
         {/* Полоса обсуждения — ПОСТОЯННАЯ высота h-8 (вердикт 28.09): аватарки
             size-5 центрируются, прыжков высоты нет; нижний full-bleed блок. */}
         <span className="mt-[6px] flex h-8 items-center gap-2 border-t border-border/60 bg-current/10 px-2.5">

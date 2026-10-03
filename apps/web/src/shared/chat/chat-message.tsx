@@ -153,14 +153,33 @@ export const ChatMessageItem = memo(function ChatMessageItem({
   const hasTextColumn =
     Boolean(message.text) || showName || !!message.reply || !!message.forwardedFrom;
 
-  // Bare-медиа (вердикт #187 п.6): чистое изображение/галерея БЕЗ текста,
-  // цитаты, пересылки и срочности — пузыря и хвостика НЕТ вообще (модель
-  // Telegram/Битрикс24): скруглённая картинка, чип времени на ней, реакции
-  // чипами под ней.
-  const bare =
+  // Bare-медиа (вердикт #187 п.6 + раунд 2 п.9): чистое изображение/галерея
+  // БЕЗ текста, цитаты, пересылки и срочности — модель Telegram/Битрикс24:
+  // СВОИМ (и там, где имени нет — direct) рендерится БЕЗ пузыря вообще
+  // (скруглённая картинка, чип времени на ней, реакции чипами под ней);
+  // ЧУЖИМ с именем — «пузырь-шапка»: верхняя часть пузыря с именем над
+  // картинкой (имя обязано быть на заливке), низ картинки bare.
+  const imageOnly =
     media && !message.text?.trim() && !message.reply && !message.forwardedFrom && !message.urgent;
-  if (bare) {
-    const bareWidth = mediaBubbleWidth(message.attachments, { bare: true });
+  if (imageOnly) {
+    const width = mediaBubbleWidth(message.attachments, { bare: true });
+    const frame = (
+      <span
+        className="relative block overflow-hidden rounded-xl"
+        style={width ? { width, maxWidth: '100%' } : undefined}
+      >
+        <MessageAttachments message={message} mine={mine} />
+        <span
+          aria-hidden
+          data-slot="media-shield"
+          className="pointer-events-none absolute inset-0"
+        />
+        <SelectRing />
+        <MediaTimeChip message={message} mine={mine} />
+      </span>
+    );
+    const reactionsBelow =
+      message.reactions.length > 0 ? <MessageReactions message={message} onFilled={false} /> : null;
     return (
       <Message align={atEnd ? 'end' : 'start'} className="group/msg">
         {avatarSlot === 'avatar' ? (
@@ -172,38 +191,36 @@ export const ChatMessageItem = memo(function ChatMessageItem({
           {showName ? null : (
             <span className="sr-only">{withoutPatronymic(message.author.displayName)}: </span>
           )}
-          {/* data-slot обязателен: правило MessageContent прижимает вправо
-              (align=end) прямых детей С data-slot (#132). */}
+          {/* data-slot + group/bubble обязательны: прижатие вправо (align=end,
+              #132) и ховер-пилюля реакций (group-hover/bubble, раунд 2 п.3 —
+              без группы пилюля не показывалась). */}
           <div
             data-slot="media-message"
-            className="relative flex w-fit max-w-full flex-col gap-[3px]"
+            className="group/bubble relative flex w-fit max-w-full flex-col gap-[3px]"
           >
             {showName ? (
-              <span
-                className={cn(
-                  'text-sm leading-[19px] font-semibold',
-                  personTone(message.author.id),
-                )}
-              >
-                {shortPersonName(message.author.displayName)}
-              </span>
+              // Чужое чистое изображение: шапка-пузырь с именем над картинкой
+              // (раунд 2 п.9) — зазор сверху больше зазора до картинки.
+              <Bubble variant={variant}>
+                <BubbleOutline side={null} variant={variant} ringless />
+                <BubbleContent className="relative flex flex-col border-0 p-0">
+                  <div className="flex flex-col px-2.5 pt-2.5 pb-[6px]">
+                    <span
+                      className={cn(
+                        '-mt-[3px] text-sm leading-[19px] font-semibold',
+                        personTone(message.author.id),
+                      )}
+                    >
+                      {shortPersonName(message.author.displayName)}
+                    </span>
+                  </div>
+                </BubbleContent>
+              </Bubble>
             ) : null}
-            <span
-              className="relative block overflow-hidden rounded-xl"
-              style={bareWidth ? { width: bareWidth, maxWidth: '100%' } : undefined}
-            >
-              <MessageAttachments message={message} mine={mine} />
-              <span
-                aria-hidden
-                data-slot="media-shield"
-                className="pointer-events-none absolute inset-0"
-              />
-              <SelectRing />
-              <MediaTimeChip message={message} mine={mine} />
-            </span>
+            {frame}
             {/* Реакции — чипами ПОД картинкой (п.9): лента якорится низом,
                 рост строки реакций поднимает контент вверх, не толкает низ. */}
-            <MessageReactions message={message} onFilled={false} />
+            {reactionsBelow}
             {reactionsHidden ? null : <ReactionPicker message={message} atEnd={atEnd} />}
           </div>
         </MessageContent>
@@ -212,6 +229,9 @@ export const ChatMessageItem = memo(function ChatMessageItem({
   }
 
   const contentWidth = mediaBubbleWidth(message.attachments, { hasTextColumn });
+  // Хвостовик — только у сообщений с «пузырным» низом (текст/подпись);
+  // у чистых изображений пузыря нет (см. imageOnly).
+  const finSide = tail && !imageOnly ? (atEnd ? 'right' : 'left') : null;
   return (
     <Message align={atEnd ? 'end' : 'start'} className="group/msg">
       {avatarSlot === 'avatar' ? (
@@ -229,13 +249,9 @@ export const ChatMessageItem = memo(function ChatMessageItem({
           {/* Контурный слой (#155 р.10-11) — ПОД контентом: единая заливка
               силуэта (CSS-фон пузыря прозрачен). Медиа-пузырь — ringless
               (вердикт #187 п.1): изображение является краем пузыря, полоска
-              кольца вокруг картинки запрещена; рамка селекта — оверлей
-              SelectRing над контентом (п.5). */}
-          <BubbleOutline
-            side={tail ? (atEnd ? 'right' : 'left') : null}
-            variant={variant}
-            ringless={media}
-          />
+              кольца вокруг картинки запрещена; рамка селекта (толстая, единая
+              с хвостиком) — второй svg слоя НАД контентом (раунд 2 п.1). */}
+          <BubbleOutline side={finSide} variant={variant} ringless={media} />
           {/* Угол со стороны хвостика — БЕЗ скругления: скруглённый угол
               оставлял собственный бордюр пузыря пересекать основание хвоста
               («пришитый отросток», вердикт владельца 14.09.2026); прямой угол
@@ -250,30 +266,28 @@ export const ChatMessageItem = memo(function ChatMessageItem({
               Switch, #96). */}
           <BubbleContent
             className={cn(
-              // Текстовые/карточные пузыри — ЕДИНЫЕ поля 10px по периметру
-              // (серия вердиктов 01.10 #181). Медиа-пузырь — БЕЗ полей и БЕЗ
-              // прозрачного бордюра (border-0: его 1px с полоской заливки
-              // вокруг картинки — вердикт п.1), поля несут блоки.
+              // Текстовые/карточные пузыри — поля 10px сверху/сбоку (низ несут
+              // блоки: время прижато к нижнему углу, раунд 2 п.2/п.4).
+              // leading-tight — ШТРИХ контейнера (раунд 2 п.7): inline-текст
+              // с своим line-height всё равно держит шаг строк strut'ом
+              // блока-родителя — relaxed примитива давал фактические 24.4px.
+              // Медиа-пузырь — БЕЗ полей и БЕЗ прозрачного бордюра (border-0,
+              // вердикт п.1), поля несут блоки.
               media
                 ? 'relative flex flex-col border-0 p-0'
-                : 'relative flex flex-col gap-[2px] px-2.5 pt-2.5 pb-2.5',
+                : 'relative flex flex-col gap-[2px] px-2.5 pt-2.5 leading-tight',
               tail && (atEnd ? 'rounded-br-none' : 'rounded-bl-none'),
             )}
             style={contentWidth ? { width: contentWidth, maxWidth: '100%' } : undefined}
           >
             {media ? (
-              <>
-                <MediaBubbleContent
-                  message={message}
-                  mine={mine}
-                  showName={showName}
-                  onJumpToReply={jumpToReply}
-                  onJumpToForwardSource={jumpToForwardSource}
-                />
-                {/* Рамка селекта НАД контентом (п.5): под full-bleed картинкой
-                    SVG-кольцо невидимо. */}
-                <SelectRing />
-              </>
+              <MediaBubbleContent
+                message={message}
+                mine={mine}
+                showName={showName}
+                onJumpToReply={jumpToReply}
+                onJumpToForwardSource={jumpToForwardSource}
+              />
             ) : (
               <>
                 {/* Имя автора — ВЕРХНЯЯ строка пузыря (вердикт владельца
@@ -314,27 +328,38 @@ export const ChatMessageItem = memo(function ChatMessageItem({
                 {message.attachments.length > 0 ? (
                   <MessageAttachments message={message} mine={mine} />
                 ) : null}
-                {/* Текст-первый (без имени/цитаты/вложений) — оптическая
-                    компенсация воздуха строки (-mt-[3px]): визуальный верх
-                    текста = полям 10px, как у картинок (#181). */}
-                {showName ||
-                message.reply ||
-                message.forwardedFrom ||
-                message.attachments.length > 0 ? (
+                {/* Текст + мета ОДНОЙ строкой (раунд 2 п.4, канон Telegram):
+                    короткое сообщение не раздувает пузырь на 2 строки — время
+                    стоит в конце текста, переносится только когда текст
+                    упирается. Оптическая компенсация -mt-[3px] первого
+                    контента (#181). */}
+                <span
+                  className={cn(
+                    'block leading-tight',
+                    showName ||
+                      message.reply ||
+                      message.forwardedFrom ||
+                      message.attachments.length > 0
+                      ? ''
+                      : '-mt-[3px]',
+                    message.reactions.length > 0 ? 'pb-[2px]' : 'pb-[5px]',
+                  )}
+                >
                   <MessageText text={message.text} />
-                ) : (
-                  <span className="-mt-[3px]">
-                    <MessageText text={message.text} />
-                  </span>
-                )}
-                {/* Нижняя строка пузыря ПОД содержимым: реакции СЛЕВА, мета
-                    (пин/изменено/время/галочки) — СПРАВА у самого низа облака
-                    (вердикт 24.09.2026). items-end: без реакций строка = мета,
-                    с реакциями метка остаётся внизу пузыря. */}
-                <span className="flex items-end gap-2">
-                  <MessageReactions message={message} onFilled={mine} />
-                  <MessageMeta message={message} onFilled={mine} ticks={mine} className="ml-auto" />
+                  <MessageMeta
+                    message={message}
+                    onFilled={mine}
+                    ticks={mine}
+                    className="ml-1 inline-flex items-center align-bottom"
+                  />
                 </span>
+                {/* Реакции — строкой ПОД текстом, только когда есть (пустой
+                    строки не рисуем: время уже инлайном в тексте). */}
+                {message.reactions.length > 0 ? (
+                  <span className="flex items-end gap-2 pb-[5px]">
+                    <MessageReactions message={message} onFilled={mine} />
+                  </span>
+                ) : null}
               </>
             )}
           </BubbleContent>

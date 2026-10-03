@@ -75,7 +75,7 @@ export function TombstoneBubble({
           <BubbleOutline side={tail ? (atEnd ? 'right' : 'left') : null} variant={variant} />
           <BubbleContent
             className={cn(
-              'relative flex flex-col gap-[2px] px-2.5 pt-2.5 pb-2.5',
+              'relative flex flex-col gap-[2px] px-2.5 pt-2.5 leading-tight',
               tail && (atEnd ? 'rounded-br-none' : 'rounded-bl-none'),
             )}
           >
@@ -90,9 +90,15 @@ export function TombstoneBubble({
                 {shortPersonName(message.author.displayName)}
               </span>
             ) : null}
-            <MessageTombstone mine={mine} />
-            <span className="flex items-end">
-              <MessageMeta message={message} onFilled={mine} ticks={mine} className="ml-auto" />
+            {/* Надгробие + время одной строкой (раунд 2 п.2/п.4), низ прижат. */}
+            <span className="-mt-[3px] flex flex-wrap items-center gap-x-1.5 pb-[5px]">
+              <MessageTombstone mine={mine} />
+              <MessageMeta
+                message={message}
+                onFilled={mine}
+                ticks={mine}
+                className="inline-flex items-center align-bottom"
+              />
             </span>
           </BubbleContent>
         </Bubble>
