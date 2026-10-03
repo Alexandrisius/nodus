@@ -236,6 +236,9 @@ export function MetaGhost({
       message={message}
       onFilled={onFilled ?? mine}
       ticks={mine}
+      // plain: без aria/role — e2e getByLabel('просмотрено') не должен
+      // находить скрытую копию (toBeVisible падает на visibility:hidden)
+      plain
       // ml-14px — ОБЯЗАТЕЛЬНЫЙ зазор текст→мета (раунд 11 п.1: «примерно
       // две цифры метки»): текст не касается метки НИКОГДА; строка кончилась —
       // призрак (с зазором) уходит своей строкой вниз, текст продолжает

@@ -36,3 +36,10 @@ allowBuilds:
 
 minimumReleaseAgeExclude:
   - globals@17.12.0
+
+# Аудит зависимостей CI: braces GHSA-vfj7-8cjw-p6xm (high, патча нет —
+# dev-цепочка линтера eslint-plugin-boundaries>micromatch, не рантайм)
+# проигнорирован до выхода патченной версии (#187, 03.10.2026)
+auditConfig:
+  ignoreGhsas:
+    - GHSA-vfj7-8cjw-p6xm
