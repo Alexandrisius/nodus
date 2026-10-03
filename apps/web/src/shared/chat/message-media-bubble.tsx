@@ -114,13 +114,23 @@ export function MediaMessage({
           и без прямого угла (раунд 5 п.4: у чистой картинки хвостика нет).
           Клип-спан ОБЯЗАН быть relative: щит селекта (absolute inset-0)
           иначе якорится к внешнему фрейму и НЕ клипается скруглением —
-          серые квадратные уголки поверх дуг картинки (#187 валидатор). */}
+          серые квадратные уголки поверх дуг картинки (#187 валидатор).
+          Радиус соло-углов — 12css (раунд 12): AA скруглённого угла яркой
+          картинки на тёмной ленте даёт видимую 1px дугу-бленд; у Telegram
+          фото-радиус ЗАМЕТНО меньше пузырёвого (~12px против наших 17.5) —
+          короче дуга, слабее артефакт. Контур селекта обязан тем же радиусом
+          (SelectSilhouetteRing radius). */}
       <span className="relative block">
         <span
           className={cn(
             'relative block',
-            !hasHeader && 'overflow-hidden rounded-t-xl',
-            !hasBottom && 'overflow-hidden rounded-b-xl',
+            // 12css-радиус — только у ПОЛНОСТЬЮ голого медиа (без шапки и
+            // низа): фото-радиус Telegram; составные сообщения несут
+            // пузыревой rounded-xl по краям своих частей
+            !hasHeader &&
+              (hasBottom ? 'overflow-hidden rounded-t-xl' : 'overflow-hidden rounded-t-[12px]'),
+            !hasBottom &&
+              (hasHeader ? 'overflow-hidden rounded-b-xl' : 'overflow-hidden rounded-b-[12px]'),
           )}
         >
           <MessageAttachments message={message} mine={mine} />
@@ -170,7 +180,9 @@ export function MediaMessage({
       ) : null}
       {/* Единый контур селекта по всей стопке: с хвостовиком только когда
           есть нижняя часть (раунд 5 п.4 — у соло-изображения хвостика нет). */}
-      <SelectSilhouetteRing side={hasBottom ? finSide : null} />
+      {/* Единый контур селекта: радиус соло-медиа = фото-радиус клипа (12css),
+          составные стопки — пузыревой; хвостовик только при нижней части. */}
+      <SelectSilhouetteRing side={hasBottom ? finSide : null} radius={bare ? 12 : undefined} />
       {children}
     </div>
   );

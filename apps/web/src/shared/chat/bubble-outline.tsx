@@ -44,8 +44,14 @@ const f = (n: number) => Math.round(n * 100) / 100;
 /** Замкнутый контур пузыря (css px, по часовой от левого-верхнего угла):
  *  радиусы углов — как rounded-xl; угол со стороны хвоста ПРЯМОЙ, в него
  *  вписан плавник одной кривой (стык — точка на кромке, вход вертикален). */
-function outlinePath(w: number, h: number, side: 'left' | 'right' | null, u: number): string {
-  const r = Math.min(BOX_RADIUS, w / 2, h / 2);
+function outlinePath(
+  w: number,
+  h: number,
+  side: 'left' | 'right' | null,
+  u: number,
+  radius: number = BOX_RADIUS,
+): string {
+  const r = Math.min(radius, w / 2, h / 2);
   if (side === null) {
     return `M${f(r)} 0 H${f(w - r)} A${f(r)} ${f(r)} 0 0 1 ${f(w)} ${f(r)} V${f(h - r)} A${f(r)} ${f(r)} 0 0 1 ${f(w - r)} ${f(h)} H${f(r)} A${f(r)} ${f(r)} 0 0 1 0 ${f(h - r)} V${f(r)} A${f(r)} ${f(r)} 0 0 1 ${f(r)} 0 Z`;
   }
@@ -224,7 +230,15 @@ export function BubbleOutline({
  * генератор, что у текстовых пузырей: единая «сложная форма» селекта.
  * НАД контентом (z-10), прозрачен вне выделения (globals.css).
  */
-export function SelectSilhouetteRing({ side }: { side: 'left' | 'right' | null }) {
+export function SelectSilhouetteRing({
+  side,
+  radius,
+}: {
+  side: 'left' | 'right' | null;
+  /** Радиус коробки силуэта; соло-медиа передают фото-радиус 12css
+   *  (меньше пузырёвого — контур обязан совпадать с CSS-клипом картинки). */
+  radius?: number;
+}) {
   const clipId = `bubble-sel-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
   const layerRef = useRef<SVGSVGElement>(null);
   const [geom, setGeom] = useState<LayerGeom | null>(null);
@@ -255,11 +269,11 @@ export function SelectSilhouetteRing({ side }: { side: 'left' | 'right' | null }
         <>
           <defs>
             <clipPath id={clipId} clipPathUnits="userSpaceOnUse">
-              <path d={outlinePath(geom.w, geom.h, side, geom.unit)} />
+              <path d={outlinePath(geom.w, geom.h, side, geom.unit, radius)} />
             </clipPath>
           </defs>
           <path
-            d={outlinePath(geom.w, geom.h, side, geom.unit)}
+            d={outlinePath(geom.w, geom.h, side, geom.unit, radius)}
             fill="none"
             stroke="var(--selection-ring)"
             strokeWidth={4}

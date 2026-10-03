@@ -387,7 +387,7 @@ describe('Медиа-пузырь Telegram (#187): изображение = ча
     );
     const block = container.querySelector('[data-slot="media-message"]')!;
     expect(block.querySelectorAll('[data-slot="media-part"]').length).toBe(0);
-    const frame = block.querySelector('span[class*="rounded-t-xl"]')!;
+    const frame = block.querySelector('span[class*="rounded-t-[12px]"]')!;
     expect(frame.querySelector('time')).toBeTruthy();
     // group/bubble на обёртке — ховер-пилюля реакций работает (р.2 п.3)
     expect(block.className).toContain('group/bubble');
@@ -404,7 +404,7 @@ describe('Медиа-пузырь Telegram (#187): изображение = ча
     const block = container.querySelector('[data-slot="media-message"]')!;
     expect(block.querySelector('[data-slot="bubble-fin"]')).toBeNull();
     // соло-картинка скруглена со ВСЕХ сторон (нет выреза под плавник)
-    const frame = block.querySelector('span[class*="rounded-t-xl"]')!;
+    const frame = block.querySelector('span[class*="rounded-t-[12px]"]')!;
     expect(frame.className).not.toContain('rounded-bl-none');
     expect(frame.className).not.toContain('rounded-br-none');
   });
@@ -433,7 +433,7 @@ describe('Медиа-пузырь Telegram (#187): изображение = ча
     });
     const { container } = renderMessage(<ChatMessageItem message={withReaction} mine={false} />);
     const bare = container.querySelector('[data-slot="media-message"]')!;
-    const frame = bare.querySelector('span[class*="rounded-t-xl"]')!;
+    const frame = bare.querySelector('span[class*="rounded-t-[12px]"]')!;
     const chip = bare.querySelector('button[aria-pressed]')!;
     // чип реакции — после картинки в потоке bare-блока (п.9)
     expect(frame.compareDocumentPosition(chip) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -456,6 +456,7 @@ describe('Медиа-пузырь Telegram (#187): изображение = ча
     expect(parts.length).toBe(1); // низ (шапки нет — свои)
     const bottom = parts[0]!;
     expect(bottom.className).toContain('rounded-b-xl');
+    // свой верх с подписью (без шапки) — пузыревой радиус (низ-часть рядом)
     const frame = block.querySelector('span[class*="rounded-t-xl"]')!;
     expect(frame).toBeTruthy();
     // части НЕ являются SVG-пузырём: за картинкой ничего не рисуется
