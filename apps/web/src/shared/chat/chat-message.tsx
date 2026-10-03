@@ -20,7 +20,8 @@ import { ReactionPicker } from './reaction-picker.js';
 import { stickerAttachmentOf, StickerMessageView } from './sticker-message.js';
 import { TombstoneBubble } from './tombstone.js';
 import { PersonAvatar } from '../ui/person-avatar.js';
-import { MediaMessage, MetaFloat } from './message-media-bubble.js';
+import { MediaMessage, MetaGhost, MetaPin } from './message-media-bubble.js';
+import { hasEntityPreviews } from './message-text.js';
 
 /** Реакции — в собственном файле (потребитель-стикер #143); реэкспорт для
  *  точек импорта (post-card, тесты). */
@@ -171,6 +172,8 @@ export const ChatMessageItem = memo(function ChatMessageItem({
     );
   }
 
+  // Текст с карточками-превью (flex-col) — мета строкой ниже, не уголком.
+  const entityRow = Boolean(message.text && hasEntityPreviews(message.text));
   const contentWidth = mediaBubbleWidth(message.attachments, {
     hasTextColumn: true,
   });
@@ -200,10 +203,13 @@ export const ChatMessageItem = memo(function ChatMessageItem({
               #181: дробные rem при --ui-scale 1.25 округляются врозь). */}
           <BubbleContent
             className={cn(
-              // Поля 10px сверху/сбоку (низ несут блоки: время прижато к
-              // нижнему углу). leading-tight — ШТРИХ контейнера (р.2 п.7):
-              // фактический шаг строк задаёт strut блока-родителя.
-              'relative flex flex-col gap-[2px] px-2.5 pt-2.5 leading-tight',
+              // Поля 10px сверху/сбоков, 6px снизу: низ — последняя строка
+              // текста с ИНЛАЙН-меткой (раунд 8) либо ряд реакций; визуальный
+              // низ меты ≈ 5–6css от края одинаково. leading-tight — ШТРИХ
+              // контейнера (р.2 п.7): фактический шаг строк задаёт strut.
+              // pb-5px = булавке MetaPin bottom-5px: низ меты ОДИНАКОВ с
+              // рядами реакций (стабильность, раунд 11 п.2)
+              'relative flex flex-col gap-[2px] px-2.5 pt-2.5 pb-[5px] leading-tight',
               tail && (atEnd ? 'rounded-br-none' : 'rounded-bl-none'),
             )}
             style={contentWidth ? { width: contentWidth, maxWidth: '100%' } : undefined}
@@ -243,28 +249,37 @@ export const ChatMessageItem = memo(function ChatMessageItem({
             {message.attachments.length > 0 ? (
               <MessageAttachments message={message} mine={mine} />
             ) : null}
-            {/* Текст + ВРЕМЯ одной строкой (р.3 п.1, модель Telegram/Битрикс):
-                время — ФЛОАТ в самом правом нижнем углу строки; текст длинный
-                или есть реакции — время строкой ниже справа, реакции =
-                содержание той строки. Короткое сообщение не раздувается. */}
+            {/* Текст + мета: MetaGhost (призрак в потоке — ширина карточки
+                всегда вмещает метку) + MetaPin (абсолют — ребёнок ПУЗЫРЯ:
+                стабильные 5px от низа / 12.5px справа, как у рядов реакций,
+                модель Telegram, раунд 10). */}
             <span
               className={cn(
                 'block',
                 showName || message.reply || message.forwardedFrom || message.attachments.length > 0
                   ? ''
                   : '-mt-[3px]',
-                message.reactions.length > 0 ? 'pb-[2px]' : 'pb-[6px]',
+                message.reactions.length > 0 && 'pb-[2px]',
               )}
             >
               <MessageText text={message.text} />
-              {message.reactions.length > 0 ? null : <MetaFloat message={message} mine={mine} />}
+              {message.reactions.length > 0 || entityRow ? null : (
+                <MetaGhost message={message} mine={mine} />
+              )}
+              {entityRow && message.reactions.length === 0 ? (
+                <span className="flex justify-end">
+                  <MessageMeta message={message} onFilled={mine} ticks={mine} />
+                </span>
+              ) : null}
             </span>
             {message.reactions.length > 0 ? (
-              <span className="flex items-end gap-2 pb-[6px]">
+              <span className="flex items-end gap-2">
                 <MessageReactions message={message} onFilled={mine} />
                 <MessageMeta message={message} onFilled={mine} ticks={mine} className="ml-auto" />
               </span>
-            ) : null}
+            ) : entityRow ? null : (
+              <MetaPin message={message} mine={mine} />
+            )}
           </BubbleContent>
           {/* Ховер-попап реакций (#124): кнопка у нижнего угла пузыря
               (Bubble — relative), видна по hover/focus/открытом попапе. */}

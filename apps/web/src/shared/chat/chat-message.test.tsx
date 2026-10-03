@@ -98,20 +98,26 @@ describe('ChatMessageItem — имя автора внутри пузыря (#96
   });
 });
 
-describe('ChatMessageItem — время флоатом в правом нижнем углу строки (р.3 п.1)', () => {
-  it('без реакций: мета — float-right в блоке текста, время в самом правом углу', () => {
+describe('ChatMessageItem — время: призрак+булавка, стабильный угол (р.10)', () => {
+  it('без реакций: невидимый призрак в потоке + абсолют от края пузыря', () => {
     const { container } = renderMessage(<ChatMessageItem message={message()} mine={false} />);
     const content = container.querySelector('[data-slot="bubble-content"]')!;
-    const meta = content.querySelector('[data-slot="message-meta"]')!;
-    expect(meta).toBeTruthy();
-    // флоат вправо: на строке текста, в правом углу; не помещается — сама
-    // перейдёт строкой ниже (браузерная механика флоата)
-    expect(meta.className).toContain('float-right');
-    const textBlock = meta.closest('span[class*="pb-"]');
-    expect(textBlock).toBeTruthy();
-    expect(textBlock!.textContent).toContain('текст сообщения');
-    expect(content.lastElementChild).toBe(textBlock);
-    expect(textBlock!.className).toContain('pb-[6px]');
+    // булавка: абсолют, стабильные инсеты от края (5px низ / 12.5px право)
+    const pin = content.querySelector('[data-slot="meta-corner"]')!;
+    expect(pin).toBeTruthy();
+    expect(pin.className).toContain('absolute');
+    expect(pin.className).toContain('right-2.5');
+    expect(pin.className).toContain('bottom-[5px]');
+    expect(pin.querySelector('[data-slot="message-meta"]')).toBeTruthy();
+    // якорь — сам ПУЗЫРЬ (bubble-content): инсеты от края, как у рядов реакций
+    expect(pin.parentElement).toBe(content);
+    expect(pin.parentElement!.textContent).toContain('текст сообщения');
+    // призрак: невидимая копия в потоке — резервирует ширину метки
+    const ghost = [...content.querySelectorAll('[data-slot="message-meta"]')].find((m) =>
+      m.className.includes('invisible'),
+    )!;
+    expect(ghost).toBeTruthy();
+    expect(content.className).toContain('pb-[5px]');
   });
 
   it('с реакциями: время — строкой ниже, СПРАВА от реакций (р.3 п.1)', () => {
@@ -362,9 +368,10 @@ describe('Медиа-пузырь Telegram (#187): изображение = ча
       (el) => el.textContent === 'Иван Петров',
     )!;
     expect(name.className).toMatch(/text-name-[1-7]/);
-    // зазор сверху больше зазора до картинки (р.2 п.9)
+    // зазор сверху больше зазора до картинки (р.2 п.9), бар растянут
+    // увеличенным нижним полем (р.5 п.9)
     expect(header.className).toContain('pt-2.5');
-    expect(header.className).toContain('pb-[6px]');
+    expect(header.className).toContain('pb-[9px]');
     // шапка — до картинки; картинка top-прямая (без rounded-t), чип времени на ней
     const frame = header.nextElementSibling!;
     expect(frame.querySelector('img')).toBeTruthy();
@@ -384,6 +391,38 @@ describe('Медиа-пузырь Telegram (#187): изображение = ча
     expect(frame.querySelector('time')).toBeTruthy();
     // group/bubble на обёртке — ховер-пилюля реакций работает (р.2 п.3)
     expect(block.className).toContain('group/bubble');
+  });
+
+  it('СВОЁ чистое изображение — БЕЗ хвостика и прямого угла (р.5 п.4)', () => {
+    const { container } = renderMessage(
+      <ChatMessageItem
+        message={message({ attachments: [img(1, 1200, 800)], text: '' })}
+        mine
+        tail
+      />,
+    );
+    const block = container.querySelector('[data-slot="media-message"]')!;
+    expect(block.querySelector('[data-slot="bubble-fin"]')).toBeNull();
+    // соло-картинка скруглена со ВСЕХ сторон (нет выреза под плавник)
+    const frame = block.querySelector('span[class*="rounded-t-xl"]')!;
+    expect(frame.className).not.toContain('rounded-bl-none');
+    expect(frame.className).not.toContain('rounded-br-none');
+  });
+
+  it('медиа с подписью: хвостовик СНАРУЖИ нижней части (р.5 п.2б)', () => {
+    const { container } = renderMessage(
+      <ChatMessageItem
+        message={message({ attachments: [img(1, 1200, 800)], text: 'подпись' })}
+        mine
+        tail
+      />,
+    );
+    const block = container.querySelector('[data-slot="media-message"]')!;
+    const fin = block.querySelector('[data-slot="bubble-fin"]')!;
+    expect(fin).toBeTruthy();
+    // svg висит СНАРУЖИ части: align 'one' → плавник слева (right-full);
+    // className у SVG — SVGAnimatedString, читаем атрибут
+    expect(fin.getAttribute('class')).toContain('right-full');
   });
 
   it('bare: реакции — чипами ПОД картинкой (не пузырь)', () => {
@@ -445,7 +484,7 @@ describe('Медиа-пузырь Telegram (#187): изображение = ча
     expect(frame.nextElementSibling).toBe(parts[1]!);
   });
 
-  it('подпись: время флоатом в правом нижнем углу строки (р.3 п.1)', () => {
+  it('подпись: та же пара — призрак в потоке, булавка от края части (р.10)', () => {
     const { container } = renderMessage(
       <ChatMessageItem
         message={message({ attachments: [img(1, 1200, 800)], text: 'подпись к фото' })}
@@ -454,10 +493,20 @@ describe('Медиа-пузырь Telegram (#187): изображение = ча
       />,
     );
     const bottom = [...container.querySelectorAll('[data-slot="media-part"]')].at(-1)!;
-    const meta = bottom.querySelector('[data-slot="message-meta"]')!;
-    expect(meta.className).toContain('float-right');
+    const pin = bottom.querySelector('[data-slot="meta-corner"]')!;
+    expect(pin.className).toContain('absolute');
+    expect(pin.className).toContain('right-2.5');
+    expect(pin.className).toContain('bottom-[5px]');
+    // якорь — сама часть медиа
+    expect(pin.parentElement).toBe(bottom);
+    const ghost = [...bottom.querySelectorAll('[data-slot="message-meta"]')].find((m) =>
+      m.className.includes('invisible'),
+    )!;
+    expect(ghost).toBeTruthy();
     expect(bottom.textContent).toContain('подпись к фото');
-    expect(bottom.className).toContain('pb-[6px]');
+    // первый отступ строки от картинки увеличен (р.5 п.9)
+    expect(bottom.className).toContain('pt-[5px]');
+    expect(bottom.className).toContain('pb-[5px]');
   });
 
   it('плитка одиночного изображения держит пропорции: aspect-ratio вместо фикс-высоты', () => {

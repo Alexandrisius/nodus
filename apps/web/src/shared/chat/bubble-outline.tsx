@@ -26,7 +26,9 @@ import { UI_SCALE } from '../ui/ui-scale.js';
  * (зум браузера). Пустой svg ничего не рисует — прятать до замера НЕЛЬЗЯ
  * (display:none убивает раскладку и измерение, урок р.8).
  */
-const FIN_UNITS = 20;
+/** Геометрия плавника — 20-юнитовая сетка (design-px), юнит = UI_SCALE css px:
+ *  та же сетка у BubbleFin (заливка плавника медиа-части) — совпадение
+ *  заливки и контура гарантировано общими числами. */
 /** Радиус углов пузыря = rounded-xl токена темы (--radius-xl = 14 дизайн-px,
  *  0.875rem): силуэт SVG обязан совпадать с CSS-клипом контента — рассинхрон
  *  виден у full-bleed картинок (углы картинки круглее силуэта заливки,
@@ -76,23 +78,19 @@ interface LayerGeom {
 }
 
 function measureLayer(el: SVGSVGElement): LayerGeom {
-  const dpr = window.devicePixelRatio || 1;
   // Размеры — ДРОБНЫЕ layout-px из getComputedStyle (used width/height):
   // трансформ предка (FLIP-слайдер) их не искажает (не rect), а округление
   // clientWidth до целого давало ±0.5px дрейф силуэта от CSS-клипа картинки —
-  // видимые щели/дуги у full-bleed медиа (вердикт #187 п.6). Снап к device-сетке
-  // сохранён: путь строится в долях dpr-целых величин.
+  // видимые щели/дуги у full-bleed медиа (вердикт #187 п.6). Снап к
+  // device-сетке УБРАН (раунд 5 п.8): округление к целым физическим пикселям
+  // ОТВОДИЛО силуэт от фактической CSS-коробки — углы картинки торчали за
+  // мягкие углы рамки селекта; точные дробные совпадают с коробкой (и её
+  // border-radius-клипом) до субпикселя. Юнит плавника — точный UI_SCALE:
+  // та же геометрия, что у BubbleFin (иначе заливка и контур расходились).
   const styles = getComputedStyle(el);
   const w = Number.parseFloat(styles.width) || 0;
   const h = Number.parseFloat(styles.height) || 0;
-  const wDev = Math.max(1, Math.round(w * dpr));
-  const hDev = Math.max(1, Math.round(h * dpr));
-  const finSizeDev = Math.max(1, Math.round(FIN_UNITS * UI_SCALE * dpr));
-  return {
-    w: wDev / dpr,
-    h: hDev / dpr,
-    unit: finSizeDev / dpr / FIN_UNITS,
-  };
+  return { w, h, unit: UI_SCALE };
 }
 
 /**

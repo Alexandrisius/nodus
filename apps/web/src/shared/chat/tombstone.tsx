@@ -10,7 +10,7 @@ import { personTone } from '../ui/person-tone.js';
 import { PersonAvatar } from '../ui/person-avatar.js';
 import { BubbleOutline } from './bubble-outline.js';
 import { useChatPrefs } from './chat-prefs.js';
-import { MessageMeta } from './message-meta.js';
+import { MetaGhost, MetaPin } from './message-media-bubble.js';
 
 /**
  * Надгробие удалённого сообщения (#163, вердикт владельца 30.09 «по ответам»):
@@ -75,7 +75,7 @@ export function TombstoneBubble({
           <BubbleOutline side={tail ? (atEnd ? 'right' : 'left') : null} variant={variant} />
           <BubbleContent
             className={cn(
-              'relative flex flex-col gap-[2px] px-2.5 pt-2.5 leading-tight',
+              'relative flex flex-col gap-[2px] px-2.5 pt-2.5 pb-[5px] leading-tight',
               tail && (atEnd ? 'rounded-br-none' : 'rounded-bl-none'),
             )}
           >
@@ -90,16 +90,13 @@ export function TombstoneBubble({
                 {shortPersonName(message.author.displayName)}
               </span>
             ) : null}
-            {/* Надгробие + время одной строкой (раунд 2 п.2/п.4), низ прижат. */}
-            <span className="-mt-[3px] flex flex-wrap items-center gap-x-1.5 pb-[6px]">
+            {/* Надгробие + время: та же пара призрак+булавка (стабильная
+                модель Telegram, раунд 10 — как у живых сообщений). */}
+            <span className="-mt-[3px] flex flex-wrap items-center gap-x-1.5">
               <MessageTombstone mine={mine} />
-              <MessageMeta
-                message={message}
-                onFilled={mine}
-                ticks={mine}
-                className="inline-flex items-center align-bottom"
-              />
+              <MetaGhost message={message} mine={mine} />
             </span>
+            <MetaPin message={message} mine={mine} />
           </BubbleContent>
         </Bubble>
       </MessageContent>

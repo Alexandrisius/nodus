@@ -7,6 +7,15 @@ import { reactionAsset } from './reaction-presets.js';
 
 type EntitySegment = Extract<MessageSegment, { kind: 'entity' }>;
 
+/** Есть ли в тексте карточки-превью сущностей (portal://ссылки)? Хосты меты
+ * времени переключают раскладку: flex-col текст с превью не дружит с
+ * inline-спейсером MetaCorner — там мета строкой ниже (#187 раунд 5). */
+export function hasEntityPreviews(text: string): boolean {
+  return parseEntityLinks(text).some(
+    (s) => s.kind === 'entity' && linkPreviewFor(s.entity) !== undefined,
+  );
+}
+
 /** Текст сообщения: межстрочный leading-tight (1.25 — плотность Telegram;
  *  вердикт #187 п.10: 1.375 (#181) читался просторнее телеграма). Ссылки
  *  на сущности (portal:// и deep-link ?cards=) ЗАРЕГИСТРИРОВАННЫХ видов
