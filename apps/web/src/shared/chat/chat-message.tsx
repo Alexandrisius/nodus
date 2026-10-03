@@ -174,7 +174,6 @@ export const ChatMessageItem = memo(function ChatMessageItem({
           data-slot="media-shield"
           className="pointer-events-none absolute inset-0"
         />
-        <SelectRing />
         <MediaTimeChip message={message} mine={mine} />
       </span>
     );
@@ -193,7 +192,8 @@ export const ChatMessageItem = memo(function ChatMessageItem({
           )}
           {/* data-slot + group/bubble обязательны: прижатие вправо (align=end,
               #132) и ховер-пилюля реакций (group-hover/bubble, раунд 2 п.3 —
-              без группы пилюля не показывалась). */}
+              без группы пилюля не показывалась). Рамка селекта — ЕДИНЫЙ
+              контур на обёртке (шапка+картинка+реакции), не два кольца. */}
           <div
             data-slot="media-message"
             className="group/bubble relative flex w-fit max-w-full flex-col gap-[3px]"
@@ -201,8 +201,9 @@ export const ChatMessageItem = memo(function ChatMessageItem({
             {showName ? (
               // Чужое чистое изображение: шапка-пузырь с именем над картинкой
               // (раунд 2 п.9) — зазор сверху больше зазора до картинки.
+              // selectRing={false}: контур сообщения рисует SelectRing обёртки.
               <Bubble variant={variant}>
-                <BubbleOutline side={null} variant={variant} ringless />
+                <BubbleOutline side={null} variant={variant} ringless selectRing={false} />
                 <BubbleContent className="relative flex flex-col border-0 p-0">
                   <div className="flex flex-col px-2.5 pt-2.5 pb-[6px]">
                     <span
@@ -221,6 +222,7 @@ export const ChatMessageItem = memo(function ChatMessageItem({
             {/* Реакции — чипами ПОД картинкой (п.9): лента якорится низом,
                 рост строки реакций поднимает контент вверх, не толкает низ. */}
             {reactionsBelow}
+            <SelectRing />
             {reactionsHidden ? null : <ReactionPicker message={message} atEnd={atEnd} />}
           </div>
         </MessageContent>

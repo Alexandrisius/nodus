@@ -114,11 +114,15 @@ export function BubbleOutline({
   side,
   variant,
   ringless = false,
+  selectRing = true,
 }: {
   side: 'left' | 'right' | null;
   variant: 'default' | 'card';
   /** Не рисовать кольцо/прикрытие (медиа-пузырь без рамки). */
   ringless?: boolean;
+  /** Не рисовать рамку выделения (пузырь-шапка bare-медиа: единый контур
+   *  сообщения рисует SelectRing на внешней обёртке — второго контура не нужно). */
+  selectRing?: boolean;
 }) {
   const clipId = `bubble-clip-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
   const layerRef = useRef<SVGSVGElement>(null);
@@ -194,21 +198,23 @@ export function BubbleOutline({
         outlinePath, общий clipPath) — хвостик обводится вместе с пузырём,
         без составных частей. Штрих 4css с клипом = видимая полоса 2css от
         края. Прозрачна вне выделения (globals.css). */}
-      <svg
-        aria-hidden
-        data-slot="bubble-select-ring"
-        className="pointer-events-none absolute inset-0 z-10 h-full w-full overflow-visible opacity-0"
-      >
-        {geom ? (
-          <path
-            d={outlinePath(geom.w, geom.h, side, geom.unit)}
-            fill="none"
-            stroke="var(--selection-ring)"
-            strokeWidth={4}
-            clipPath={`url(#${clipId})`}
-          />
-        ) : null}
-      </svg>
+      {selectRing ? (
+        <svg
+          aria-hidden
+          data-slot="bubble-select-ring"
+          className="pointer-events-none absolute inset-0 z-10 h-full w-full overflow-visible opacity-0"
+        >
+          {geom ? (
+            <path
+              d={outlinePath(geom.w, geom.h, side, geom.unit)}
+              fill="none"
+              stroke="var(--selection-ring)"
+              strokeWidth={4}
+              clipPath={`url(#${clipId})`}
+            />
+          ) : null}
+        </svg>
+      ) : null}
     </>
   );
 }
