@@ -102,7 +102,7 @@ describe('ChatMessageItem — время: призрак+булавка, ста�
   it('без реакций: невидимый призрак в потоке + абсолют от края пузыря', () => {
     const { container } = renderMessage(<ChatMessageItem message={message()} mine={false} />);
     const content = container.querySelector('[data-slot="bubble-content"]')!;
-    // булавка: абсолют, стабильные инсеты от края (5px низ / 12.5px право)
+    // булавка: абсолют, стабильные инсеты от края (8px низ / 12.5px право)
     const pin = content.querySelector('[data-slot="meta-corner"]')!;
     expect(pin).toBeTruthy();
     expect(pin.className).toContain('absolute');

@@ -207,7 +207,7 @@ export const ChatMessageItem = memo(function ChatMessageItem({
               // текста с ИНЛАЙН-меткой (раунд 8) либо ряд реакций; визуальный
               // низ меты ≈ 5–6css от края одинаково. leading-tight — ШТРИХ
               // контейнера (р.2 п.7): фактический шаг строк задаёт strut.
-              // pb-5px = булавке MetaPin bottom-5px: низ меты ОДИНАКОВ с
+              // pb-8px = булавке MetaPin bottom-8px: низ меты ОДИНАКОВ с
               // рядами реакций (стабильность, раунд 11 п.2)
               'relative flex flex-col gap-[2px] px-2.5 pt-2.5 pb-[8px] leading-tight',
               tail && (atEnd ? 'rounded-br-none' : 'rounded-bl-none'),
@@ -251,7 +251,7 @@ export const ChatMessageItem = memo(function ChatMessageItem({
             ) : null}
             {/* Текст + мета: MetaGhost (призрак в потоке — ширина карточки
                 всегда вмещает метку) + MetaPin (абсолют — ребёнок ПУЗЫРЯ:
-                стабильные 5px от низа / 12.5px справа, как у рядов реакций,
+                стабильные 8px от низа / 12.5px справа, как у рядов реакций,
                 модель Telegram, раунд 10). */}
             <span
               className={cn(
