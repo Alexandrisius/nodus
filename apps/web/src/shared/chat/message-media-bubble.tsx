@@ -146,7 +146,9 @@ export function MediaMessage({
           {finSide ? <BubbleFin side={finSide} tone={tone} /> : null}
         </div>
       ) : hasReactions ? (
-        <MessageReactions message={message} onFilled={false} />
+        <span className="mt-[3px]">
+          <MessageReactions message={message} onFilled={false} />
+        </span>
       ) : null}
       {/* Единый контур селекта по всей стопке — всегда с хвостовиком (раунд
           5 п.1: у медиа-сообщений хвостик вернулся). */}
