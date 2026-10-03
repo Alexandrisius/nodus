@@ -220,7 +220,7 @@ export function PostCard({
                 ? 'block px-2.5 pt-[2px] leading-tight'
                 : 'block px-2.5 pt-[7px] leading-tight',
               'text-sm',
-              message.reactions.length > 0 ? 'pb-[2px]' : 'pb-2.5',
+              message.reactions.length > 0 ? 'pb-[2px]' : 'pb-[6px]',
             )}
           >
             <MessageText text={message.text} />

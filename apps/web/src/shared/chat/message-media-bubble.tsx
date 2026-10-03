@@ -126,7 +126,7 @@ export function MediaMessage({
           data-slot="media-part"
           data-tone={tone}
           className={cn(
-            'relative rounded-b-xl px-2.5 pt-[2px] pb-2.5 leading-tight',
+            'relative rounded-b-xl px-2.5 pt-[2px] pb-[6px] leading-tight',
             finSide === 'left' && 'rounded-bl-none',
             finSide === 'right' && 'rounded-br-none',
           )}
@@ -169,7 +169,7 @@ export function MetaFloat({ message, mine }: { message: ChatMessage; mine: boole
       message={message}
       onFilled={mine}
       ticks={mine}
-      className="float-right ml-1.5 translate-y-[4px]"
+      className="float-right ml-1.5 translate-y-[3px]"
     />
   );
 }

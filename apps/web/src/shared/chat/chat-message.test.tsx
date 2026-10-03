@@ -111,7 +111,7 @@ describe('ChatMessageItem — время флоатом в правом нижн
     expect(textBlock).toBeTruthy();
     expect(textBlock!.textContent).toContain('текст сообщения');
     expect(content.lastElementChild).toBe(textBlock);
-    expect(textBlock!.className).toContain('pb-2.5');
+    expect(textBlock!.className).toContain('pb-[6px]');
   });
 
   it('с реакциями: время — строкой ниже, СПРАВА от реакций (р.3 п.1)', () => {
@@ -457,7 +457,7 @@ describe('Медиа-пузырь Telegram (#187): изображение = ча
     const meta = bottom.querySelector('[data-slot="message-meta"]')!;
     expect(meta.className).toContain('float-right');
     expect(bottom.textContent).toContain('подпись к фото');
-    expect(bottom.className).toContain('pb-2.5');
+    expect(bottom.className).toContain('pb-[6px]');
   });
 
   it('плитка одиночного изображения держит пропорции: aspect-ratio вместо фикс-высоты', () => {

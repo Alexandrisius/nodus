@@ -253,14 +253,14 @@ export const ChatMessageItem = memo(function ChatMessageItem({
                 showName || message.reply || message.forwardedFrom || message.attachments.length > 0
                   ? ''
                   : '-mt-[3px]',
-                message.reactions.length > 0 ? 'pb-[2px]' : 'pb-2.5',
+                message.reactions.length > 0 ? 'pb-[2px]' : 'pb-[6px]',
               )}
             >
               <MessageText text={message.text} />
               {message.reactions.length > 0 ? null : <MetaFloat message={message} mine={mine} />}
             </span>
             {message.reactions.length > 0 ? (
-              <span className="flex items-end gap-2 pb-2.5">
+              <span className="flex items-end gap-2 pb-[6px]">
                 <MessageReactions message={message} onFilled={mine} />
                 <MessageMeta message={message} onFilled={mine} ticks={mine} className="ml-auto" />
               </span>
