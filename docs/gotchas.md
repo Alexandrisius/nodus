@@ -32,6 +32,7 @@
 - **Cloudflare режет тело проксированного запроса по тарифу** (Free/Pro 100 МБ, Business 200, Enterprise 500; не отключается): любой upload через туннель nodus.by >100 МБ падает на edge независимо от нашего кода — «серые облака»/VPS или прямой presigned в фазу 2 (подтверждено: developer docs Cloudflare «Limits», #57/ADR-0013).
 
 ## Монорепо и toolchain (pnpm, turbo, TS, ESLint)
+- **pnpm 10 НЕ читает поле `pnpm` в package.json** («The pnpm field is no longer read»): настройки (auditConfig.ignoreGhsas, overrides, onlyBuiltDependencies…) живут в **pnpm-workspace.yaml** (подтверждено docs.pnpm.io/settings, 03.10.2026 #187: ignoreGhsas в package.json молча игнорировался и аудит продолжал падать).
 
 - pnpm 11 блокирует install-скрипты зависимостей: пакеты с бинарниками (esbuild, unrs-resolver) — в `allowBuilds` в `pnpm-workspace.yaml`, иначе падают в рантайме с невнятной ошибкой (в pnpm 10 механизм был `onlyBuiltDependencies`).
 - **`turbo test` включает ВСЕ пакеты workspace с test-скриптом**: новый пакет с особыми рантайм-требованиями (браузеры Playwright в tests/e2e) падает в CI без этих требований — исключать фильтром в корневом скрипте (`turbo test --filter=!@nodus/e2e`), прогон — отдельной командой (`pnpm test:e2e`) и отдельной CI-джобой (подтверждено воспроизведением в issue #3).
