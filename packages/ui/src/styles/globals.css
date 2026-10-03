@@ -789,12 +789,47 @@
 }
 
 /* Рамка выделения пузыря — ТОЛСТЫЙ бордер по границе, ЕДИНОЙ формой с
-   хвостиком (вердикт раунта 2 п.1): второй svg слоя (bubble-select-ring,
+   хвостиком (вердикт раунда 2 п.1): второй svg слоя (bubble-select-ring,
    z-10 над контентом — под full-bleed картинкой нижний слой невидим)
    обводит тот же единый силуэт. Единый стиль для ВСЕХ пузырей. */
 [data-message-id][data-selected='true'] [data-slot='bubble-select-ring'],
 [data-message-id][data-box-selected='true'] [data-slot='bubble-select-ring'] {
   opacity: 1;
+}
+
+/* ЧАСТИ медиа-сообщения (#187 раунд 3 п.3): шапка/низ — отдельные блоки
+   со своей заливкой (картинка между ними, за ней фона нет). Тон — те же
+   токены bubble-*; селект — тот же color-mix, что у SVG-заливок. */
+[data-slot='media-part'][data-tone='in'] {
+  background-color: var(--bubble-in);
+  color: var(--bubble-in-foreground);
+}
+
+[data-slot='media-part'][data-tone='out'] {
+  background-color: var(--bubble-out);
+  color: var(--bubble-out-foreground);
+}
+
+[data-message-id][data-selected='true'] [data-slot='media-part'][data-tone='in'],
+[data-message-id][data-box-selected='true'] [data-slot='media-part'][data-tone='in'] {
+  background-color: color-mix(in oklch, var(--bubble-in), var(--info) 32%);
+}
+
+[data-message-id][data-selected='true'] [data-slot='media-part'][data-tone='out'],
+[data-message-id][data-box-selected='true'] [data-slot='media-part'][data-tone='out'] {
+  background-color: color-mix(in oklch, var(--bubble-out), var(--info) 32%);
+}
+
+/* Хвостовик нижней части медиа: тинт селекта синхронен части (те же
+   color-mix, что у правил выше). */
+[data-message-id][data-selected='true'] [data-slot='bubble-fin'] path.fill-bubble-in,
+[data-message-id][data-box-selected='true'] [data-slot='bubble-fin'] path.fill-bubble-in {
+  fill: color-mix(in oklch, var(--bubble-in), var(--info) 32%);
+}
+
+[data-message-id][data-selected='true'] [data-slot='bubble-fin'] path.fill-bubble-out,
+[data-message-id][data-box-selected='true'] [data-slot='bubble-fin'] path.fill-bubble-out {
+  fill: color-mix(in oklch, var(--bubble-out), var(--info) 32%);
 }
 
 [data-message-id][data-selected='true'] [data-slot='post-surface'],

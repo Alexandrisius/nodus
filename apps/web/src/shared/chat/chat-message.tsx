@@ -13,7 +13,6 @@ import { useChatPrefs } from './chat-prefs.js';
 import { useChatHostNavigation } from './chat-host.js';
 import { useJumpStore } from './jump-store.js';
 import { ForwardedHeader, ReplyHeader } from './message-headers.js';
-import { MediaBubbleContent } from './message-media-bubble.js';
 import { MessageReactions } from './message-reactions.js';
 import { MessageMeta } from './message-meta.js';
 import { MessageText } from './message-text.js';
@@ -21,7 +20,7 @@ import { ReactionPicker } from './reaction-picker.js';
 import { stickerAttachmentOf, StickerMessageView } from './sticker-message.js';
 import { TombstoneBubble } from './tombstone.js';
 import { PersonAvatar } from '../ui/person-avatar.js';
-import { MediaTimeChip, SelectRing } from './message-media-bubble.js';
+import { MediaMessage, MetaFloat } from './message-media-bubble.js';
 
 /** Реакции — в собственном файле (потребитель-стикер #143); реэкспорт для
  *  точек импорта (post-card, тесты). */
@@ -139,46 +138,13 @@ export const ChatMessageItem = memo(function ChatMessageItem({
     useJumpStore.getState().request(from.conversationId, from.messageId, from.threadRootId);
   }
 
-  // С вложениями пузырь УЗКИЙ — ширину задаёт блок вложений, а НЕ текст
-  // (#150, вердикт владельца 29.09 «как в Битриксе»; медиа-стиль #187):
-  // карточка растянута на колонку, кнопка скачивания у правого края, текст
-  // переносится внутри. Механика Telegram: у документа captionw = _maxw −
-  // padding, у фото подпись — по ширине фото.
-  // Медиа (single/gallery) — контент БЕЗ полей пузыря (full-bleed #187),
-  // блоки шапки/подписи/низа несут поля сами (message-media-bubble.tsx);
-  // maxWidth 100% — при сужении панели медиа-пузырь сжимается ВМЕСТЕ с
-  // текстовыми (пропорции держит aspect-ratio плитки), без обрезки.
+  // Медиа (single/gallery) — АРХИТЕКТУРА «ЧАСТЕЙ» (раунд 3 п.3/п.4):
+  // отдельные блоки шапки/низа, между ними картинка; за картинкой фона нет —
+  // швам неоткуда взяться. Вся композиция — MediaMessage.
   const layout = attachmentsLayout(message.attachments);
   const media = layout.mode === 'single' || layout.mode === 'gallery';
-  const hasTextColumn =
-    Boolean(message.text) || showName || !!message.reply || !!message.forwardedFrom;
-
-  // Bare-медиа (вердикт #187 п.6 + раунд 2 п.9): чистое изображение/галерея
-  // БЕЗ текста, цитаты, пересылки и срочности — модель Telegram/Битрикс24:
-  // СВОИМ (и там, где имени нет — direct) рендерится БЕЗ пузыря вообще
-  // (скруглённая картинка, чип времени на ней, реакции чипами под ней);
-  // ЧУЖИМ с именем — «пузырь-шапка»: верхняя часть пузыря с именем над
-  // картинкой (имя обязано быть на заливке), низ картинки bare.
-  const imageOnly =
-    media && !message.text?.trim() && !message.reply && !message.forwardedFrom && !message.urgent;
-  if (imageOnly) {
-    const width = mediaBubbleWidth(message.attachments, { bare: true });
-    const frame = (
-      <span
-        className="relative block overflow-hidden rounded-xl"
-        style={width ? { width, maxWidth: '100%' } : undefined}
-      >
-        <MessageAttachments message={message} mine={mine} />
-        <span
-          aria-hidden
-          data-slot="media-shield"
-          className="pointer-events-none absolute inset-0"
-        />
-        <MediaTimeChip message={message} mine={mine} />
-      </span>
-    );
-    const reactionsBelow =
-      message.reactions.length > 0 ? <MessageReactions message={message} onFilled={false} /> : null;
+  const finSide = tail ? (atEnd ? 'right' : 'left') : null;
+  if (media) {
     return (
       <Message align={atEnd ? 'end' : 'start'} className="group/msg">
         {avatarSlot === 'avatar' ? (
@@ -190,50 +156,24 @@ export const ChatMessageItem = memo(function ChatMessageItem({
           {showName ? null : (
             <span className="sr-only">{withoutPatronymic(message.author.displayName)}: </span>
           )}
-          {/* data-slot + group/bubble обязательны: прижатие вправо (align=end,
-              #132) и ховер-пилюля реакций (group-hover/bubble, раунд 2 п.3 —
-              без группы пилюля не показывалась). Рамка селекта — ЕДИНЫЙ
-              контур на обёртке (шапка+картинка+реакции), не два кольца. */}
-          <div
-            data-slot="media-message"
-            className="group/bubble relative flex w-fit max-w-full flex-col gap-[3px]"
+          <MediaMessage
+            message={message}
+            mine={mine}
+            showName={showName}
+            finSide={finSide}
+            onJumpToReply={jumpToReply}
+            onJumpToForwardSource={jumpToForwardSource}
           >
-            {showName ? (
-              // Чужое чистое изображение: шапка-пузырь с именем над картинкой
-              // (раунд 2 п.9) — зазор сверху больше зазора до картинки.
-              // selectRing={false}: контур сообщения рисует SelectRing обёртки.
-              <Bubble variant={variant}>
-                <BubbleOutline side={null} variant={variant} ringless selectRing={false} />
-                <BubbleContent className="relative flex flex-col border-0 p-0">
-                  <div className="flex flex-col px-2.5 pt-2.5 pb-[6px]">
-                    <span
-                      className={cn(
-                        '-mt-[3px] text-sm leading-[19px] font-semibold',
-                        personTone(message.author.id),
-                      )}
-                    >
-                      {shortPersonName(message.author.displayName)}
-                    </span>
-                  </div>
-                </BubbleContent>
-              </Bubble>
-            ) : null}
-            {frame}
-            {/* Реакции — чипами ПОД картинкой (п.9): лента якорится низом,
-                рост строки реакций поднимает контент вверх, не толкает низ. */}
-            {reactionsBelow}
-            <SelectRing />
             {reactionsHidden ? null : <ReactionPicker message={message} atEnd={atEnd} />}
-          </div>
+          </MediaMessage>
         </MessageContent>
       </Message>
     );
   }
 
-  const contentWidth = mediaBubbleWidth(message.attachments, { hasTextColumn });
-  // Хвостовик — только у сообщений с «пузырным» низом (текст/подпись);
-  // у чистых изображений пузыря нет (см. imageOnly).
-  const finSide = tail && !imageOnly ? (atEnd ? 'right' : 'left') : null;
+  const contentWidth = mediaBubbleWidth(message.attachments, {
+    hasTextColumn: true,
+  });
   return (
     <Message align={atEnd ? 'end' : 'start'} className="group/msg">
       {avatarSlot === 'avatar' ? (
@@ -249,121 +189,82 @@ export const ChatMessageItem = memo(function ChatMessageItem({
         )}
         <Bubble variant={variant}>
           {/* Контурный слой (#155 р.10-11) — ПОД контентом: единая заливка
-              силуэта (CSS-фон пузыря прозрачен). Медиа-пузырь — ringless
-              (вердикт #187 п.1): изображение является краем пузыря, полоска
-              кольца вокруг картинки запрещена; рамка селекта (толстая, единая
-              с хвостиком) — второй svg слоя НАД контентом (раунд 2 п.1). */}
-          <BubbleOutline side={finSide} variant={variant} ringless={media} />
-          {/* Угол со стороны хвостика — БЕЗ скругления: скруглённый угол
-              оставлял собственный бордюр пузыря пересекать основание хвоста
-              («пришитый отросток», вердикт владельца 14.09.2026); прямой угол
-              накрыт заливкой хвоста, и штрих хвоста продолжает бордюр пузыря
-              одной линией (bubble-outline.tsx). */}
-          {/* Реакции и вложения — ВНУТРЬ пузыря (вердикт владельца 14.09.2026,
-              реф Битрикс24): они расширяют пузырь по высоте, а НЕ висят под
-              ним — иначе аватар (self-end) и хвостик отлипали от пузыря к
-              строке реакций. Зазор строк — ЦЕЛЫЕ 2px, не rem-шаг
-              (вердикт 01.10 #181: плотность строк по Telegram; дробные
-              rem-величины при --ui-scale 1.25 округляются врозь — урок
-              Switch, #96). */}
+              силуэта (CSS-фон пузыря прозрачен); рамка селекта (толстая,
+              единая с хвостиком) — второй svg слоя НАД контентом (р.2 п.1). */}
+          <BubbleOutline side={finSide} variant={variant} />
+          {/* Угол со стороны хвостика — БЕЗ скругления: прямой угол накрыт
+              заливкой хвоста, штрих хвоста продолжает бордюр пузыря одной
+              линией (bubble-outline.tsx, вердикт 14.09.2026). */}
+          {/* Реакции и вложения — ВНУТРЬ пузыря (вердикт 14.09.2026): они
+              расширяют пузырь по высоте. Зазор строк — ЦЕЛЫЕ 2px (вердикт
+              #181: дробные rem при --ui-scale 1.25 округляются врозь). */}
           <BubbleContent
             className={cn(
-              // Текстовые/карточные пузыри — поля 10px сверху/сбоку (низ несут
-              // блоки: время прижато к нижнему углу, раунд 2 п.2/п.4).
-              // leading-tight — ШТРИХ контейнера (раунд 2 п.7): inline-текст
-              // с своим line-height всё равно держит шаг строк strut'ом
-              // блока-родителя — relaxed примитива давал фактические 24.4px.
-              // Медиа-пузырь — БЕЗ полей и БЕЗ прозрачного бордюра (border-0,
-              // вердикт п.1), поля несут блоки.
-              media
-                ? 'relative flex flex-col border-0 p-0'
-                : 'relative flex flex-col gap-[2px] px-2.5 pt-2.5 leading-tight',
+              // Поля 10px сверху/сбоку (низ несут блоки: время прижато к
+              // нижнему углу). leading-tight — ШТРИХ контейнера (р.2 п.7):
+              // фактический шаг строк задаёт strut блока-родителя.
+              'relative flex flex-col gap-[2px] px-2.5 pt-2.5 leading-tight',
               tail && (atEnd ? 'rounded-br-none' : 'rounded-bl-none'),
             )}
             style={contentWidth ? { width: contentWidth, maxWidth: '100%' } : undefined}
           >
-            {media ? (
-              <MediaBubbleContent
-                message={message}
-                mine={mine}
-                showName={showName}
-                onJumpToReply={jumpToReply}
-                onJumpToForwardSource={jumpToForwardSource}
+            {/* Имя автора — ВЕРХНЯЯ строка пузыря (вердикт 24.09.2026, #96):
+                только чужое и только у первого сообщения серии; цвет
+                ПЕРСОНАЛЬНЫЙ (#180). -mt-[3px] — оптическая компенсация (#181). */}
+            {showName ? (
+              <span
+                className={cn(
+                  '-mt-[3px] text-sm leading-[19px] font-semibold',
+                  personTone(message.author.id),
+                )}
+              >
+                {shortPersonName(message.author.displayName)}
+              </span>
+            ) : null}
+            {/* Атрибуция пересылки — следующая строка пузыря (канон
+                Telegram lng_forwarded). */}
+            {message.forwardedFrom ? (
+              <ForwardedHeader from={message.forwardedFrom} onClick={jumpToForwardSource} />
+            ) : null}
+            {/* Цитата ответа (A2): замороженный снапшот — клик ведёт к
+                оригиналу (актуальная версия + «изменено» там же). */}
+            {message.reply ? (
+              <ReplyHeader
+                reply={message.reply}
+                onFilled={mine}
+                onClick={() => {
+                  const reply = message.reply;
+                  if (reply) jumpToReply(reply.id);
+                }}
               />
-            ) : (
-              <>
-                {/* Имя автора — ВЕРХНЯЯ строка пузыря (вердикт владельца
-                  24.09.2026, #96, реф Битрикс24): цветное и отличается от
-                  текста; только чужое и только у первого сообщения серии.
-                  Цвет ПЕРСОНАЛЬНЫЙ (#180): тон палитры --name-1..7 по UUID
-                  автора (personTone). -mt-[3px] — оптическая компенсация
-                  воздуха строки имени (#181): визуальный верх = полям 10px. */}
-                {showName ? (
-                  <span
-                    className={cn(
-                      '-mt-[3px] text-sm leading-[19px] font-semibold',
-                      personTone(message.author.id),
-                    )}
-                  >
-                    {shortPersonName(message.author.displayName)}
-                  </span>
-                ) : null}
-                {/* Атрибуция пересылки — следующая строка пузыря (канон
-                    Telegram lng_forwarded). */}
-                {message.forwardedFrom ? (
-                  <ForwardedHeader from={message.forwardedFrom} onClick={jumpToForwardSource} />
-                ) : null}
-                {/* Цитата ответа (A2): замороженный снапшот — клик ведёт к
-                    оригиналу (актуальная версия + «изменено» там же). */}
-                {message.reply ? (
-                  <ReplyHeader
-                    reply={message.reply}
-                    onFilled={mine}
-                    onClick={() => {
-                      const reply = message.reply;
-                      if (reply) jumpToReply(reply.id);
-                    }}
-                  />
-                ) : null}
-                {/* Вложения-карточки — ВЫШЕ текста (грамматика Битрикс24):
-                    карточный список сверху, затем текст. */}
-                {message.attachments.length > 0 ? (
-                  <MessageAttachments message={message} mine={mine} />
-                ) : null}
-                {/* Текст + мета ОДНОЙ строкой (раунд 2 п.4, канон Telegram):
-                    короткое сообщение не раздувает пузырь на 2 строки — время
-                    стоит в конце текста, переносится только когда текст
-                    упирается. Оптическая компенсация -mt-[3px] первого
-                    контента (#181). */}
-                <span
-                  className={cn(
-                    'block leading-tight',
-                    showName ||
-                      message.reply ||
-                      message.forwardedFrom ||
-                      message.attachments.length > 0
-                      ? ''
-                      : '-mt-[3px]',
-                    message.reactions.length > 0 ? 'pb-[2px]' : 'pb-[5px]',
-                  )}
-                >
-                  <MessageText text={message.text} />
-                  <MessageMeta
-                    message={message}
-                    onFilled={mine}
-                    ticks={mine}
-                    className="ml-1 inline-flex items-center align-bottom"
-                  />
-                </span>
-                {/* Реакции — строкой ПОД текстом, только когда есть (пустой
-                    строки не рисуем: время уже инлайном в тексте). */}
-                {message.reactions.length > 0 ? (
-                  <span className="flex items-end gap-2 pb-[5px]">
-                    <MessageReactions message={message} onFilled={mine} />
-                  </span>
-                ) : null}
-              </>
-            )}
+            ) : null}
+            {/* Вложения-карточки — ВЫШЕ текста (грамматика Битрикс24):
+                карточный список сверху, затем текст. */}
+            {message.attachments.length > 0 ? (
+              <MessageAttachments message={message} mine={mine} />
+            ) : null}
+            {/* Текст + ВРЕМЯ одной строкой (р.3 п.1, модель Telegram/Битрикс):
+                время — ФЛОАТ в самом правом нижнем углу строки; текст длинный
+                или есть реакции — время строкой ниже справа, реакции =
+                содержание той строки. Короткое сообщение не раздувается. */}
+            <span
+              className={cn(
+                'block',
+                showName || message.reply || message.forwardedFrom || message.attachments.length > 0
+                  ? ''
+                  : '-mt-[3px]',
+                message.reactions.length > 0 ? 'pb-[2px]' : 'pb-[5px]',
+              )}
+            >
+              <MessageText text={message.text} />
+              {message.reactions.length > 0 ? null : <MetaFloat message={message} mine={mine} />}
+            </span>
+            {message.reactions.length > 0 ? (
+              <span className="flex items-end gap-2 pb-[5px]">
+                <MessageReactions message={message} onFilled={mine} />
+                <MessageMeta message={message} onFilled={mine} ticks={mine} className="ml-auto" />
+              </span>
+            ) : null}
           </BubbleContent>
           {/* Ховер-попап реакций (#124): кнопка у нижнего угла пузыря
               (Bubble — relative), видна по hover/focus/открытом попапе. */}

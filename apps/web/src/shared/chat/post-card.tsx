@@ -6,7 +6,7 @@ import { personTone } from '../ui/person-tone.js';
 import { attachmentsLayout, mediaBubbleWidth, MessageAttachments } from './attachments.js';
 import { MessageReactions } from './chat-message.js';
 import { messageSurface } from './message-surface.js';
-import { MediaArea } from './message-media-bubble.js';
+import { MediaArea, MediaTimeChip, MetaFloat } from './message-media-bubble.js';
 import { MessageMeta } from './message-meta.js';
 import { MessageText } from './message-text.js';
 import { ThreadStrip, ThreadStripEnter } from './post-thread-strip.js';
@@ -67,6 +67,8 @@ export function PostCard({
   const sticker = stickerAttachmentOf(message);
   const layout = attachmentsLayout(message.attachments);
   const media = (layout.mode === 'single' || layout.mode === 'gallery') && !sticker;
+  // Соло-медиа без текста (р.3 п.2): время — чип на картинке, не нижний блок.
+  const imageOnly = media && !message.text?.trim();
   // Ширина медиа-поста задаёт вложение (механика Telegram, #150/#187); у
   // поста всегда есть нижняя полоса обсуждения и, как правило, текст — пол
   // колонки текста держим всегда.
@@ -190,8 +192,12 @@ export function PostCard({
           </span>
         ) : media ? (
           // Медиа — full-bleed: ширина изображения = ширина карточки, боковых
-          // полей нет; щит селекта — тон ПОВЕРХ картинки (п.3).
-          <MediaArea message={message} mine={mine} />
+          // полей нет; щит селекта — тон ПОВЕРХ картинки (п.3). Соло-картинка
+          // без текста — чип времени НА изображении (раунд 3 п.2: низ не
+          // рисуем ради одной метки).
+          <MediaArea message={message} mine={mine}>
+            {imageOnly ? <MediaTimeChip message={message} mine={mine} /> : null}
+          </MediaArea>
         ) : message.attachments.length > 0 ? (
           <span
             className={cn('block max-w-full px-2.5 pt-2.5', showName && 'pt-[2px]')}
@@ -202,30 +208,42 @@ export function PostCard({
             <MessageAttachments message={message} mine={mine} />
           </span>
         ) : null}
-        {/* Текст + мета ОДНОЙ строкой (раунд 2 п.2/п.4, канон Telegram):
-            время в конце текста, не отдельной строкой; ШТРИХ блока —
-            leading-tight (strut задаёт фактический шаг строк, раунд 2 п.7).
-            Первый (без имени/медиа) — оптическая компенсация -mt-[3px] (#181). */}
-        <span
-          className={cn(
-            showName || sticker || message.attachments.length > 0
-              ? 'block px-2.5 pt-[2px] leading-tight'
-              : 'block px-2.5 pt-[7px] leading-tight',
-            'text-sm',
-          )}
-        >
-          <MessageText text={message.text} />
-          <MessageMeta
-            message={message}
-            onFilled={surface.onFilled}
-            ticks={mine}
-            className="ml-1 inline-flex items-center align-bottom"
-          />
-        </span>
-        {/* Реакции — строкой под текстом, только когда есть. */}
+        {/* Текст + ВРЕМЯ одной строкой (р.3 п.1): время — ФЛОАТ в самом правом
+            нижнем углу; длинный текст/реакции — время строкой ниже справа,
+            реакции = содержание той строки. Соло-медиа без текста — блока
+            нет вообще (время на чипе картинки). ШТРИХ — leading-tight (р.2 п.7). */}
+        {!imageOnly || !media ? (
+          <span
+            className={cn(
+              showName || sticker || message.attachments.length > 0
+                ? 'block px-2.5 pt-[2px] leading-tight'
+                : 'block px-2.5 pt-[7px] leading-tight',
+              'text-sm',
+              message.reactions.length > 0 ? 'pb-[2px]' : 'pb-[5px]',
+            )}
+          >
+            <MessageText text={message.text} />
+            {message.reactions.length > 0 ? null : <MetaFloat message={message} mine={mine} />}
+          </span>
+        ) : null}
+        {/* Реакции — строкой ниже; время справа от них (р.3 п.1); у соло-медиа
+            без текста — только реакции (время на чипе). */}
         {message.reactions.length > 0 ? (
-          <span className="flex items-end gap-2 px-2.5 pt-[3px]">
+          <span
+            className={cn(
+              'flex items-end gap-2 px-2.5 pt-[3px]',
+              imageOnly && media ? 'pb-[5px]' : 'pb-[5px]',
+            )}
+          >
             <MessageReactions message={message} onFilled={surface.onFilled} />
+            {imageOnly && media ? null : (
+              <MessageMeta
+                message={message}
+                onFilled={surface.onFilled}
+                ticks={mine}
+                className="ml-auto"
+              />
+            )}
           </span>
         ) : null}
         {/* Полоса обсуждения — ПОСТОЯННАЯ высота h-8 (вердикт 28.09): аватарки

@@ -218,3 +218,57 @@ export function BubbleOutline({
     </>
   );
 }
+
+/**
+ * ЕДИНЫЙ контур выделения стопки медиа-сообщения (раунд 2 п.1 + раунд 3):
+ * самозамер (та же measureLayer — дробные computed layout-px), обводит ВСЮ
+ * стопку «шапка+картинка+низ» и ПЛАВНИК одним силуэтом outlinePath — тот же
+ * генератор, что у текстовых пузырей: единая «сложная форма» селекта.
+ * НАД контентом (z-10), прозрачен вне выделения (globals.css).
+ */
+export function SelectSilhouetteRing({ side }: { side: 'left' | 'right' | null }) {
+  const clipId = `bubble-sel-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
+  const layerRef = useRef<SVGSVGElement>(null);
+  const [geom, setGeom] = useState<LayerGeom | null>(null);
+
+  useEffect(() => {
+    const el = layerRef.current;
+    if (!el) return;
+    const measure = () => setGeom(measureLayer(el));
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    window.addEventListener('resize', measure);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, []);
+
+  return (
+    <svg
+      ref={layerRef}
+      aria-hidden
+      data-slot="bubble-select-ring"
+      className="pointer-events-none absolute inset-0 z-10 h-full w-full overflow-visible opacity-0"
+    >
+      {geom ? (
+        <>
+          <defs>
+            <clipPath id={clipId} clipPathUnits="userSpaceOnUse">
+              <path d={outlinePath(geom.w, geom.h, side, geom.unit)} />
+            </clipPath>
+          </defs>
+          <path
+            d={outlinePath(geom.w, geom.h, side, geom.unit)}
+            fill="none"
+            stroke="var(--selection-ring)"
+            strokeWidth={4}
+            clipPath={`url(#${clipId})`}
+          />
+        </>
+      ) : null}
+    </svg>
+  );
+}
