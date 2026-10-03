@@ -19,6 +19,9 @@ export const CARD_LIST_W = uiPx(300);
 /** Пол колонки текста: карточка/медиа могут быть уже (маленькая картинка,
  *  микро-файл) — текст не должен сжиматься в иглу (Telegram msgMinWidth). */
 const TEXT_COL_MIN = uiPx(240);
+/** Пол читаемости строки меты у чистого изображения (без подписи/шапки):
+ *  «изменено 01:38 ✓✓» не должна обрезаться краем узкого медиа-пузыря. */
+export const MEDIA_META_FLOOR = uiPx(160);
 
 /**
  * Режим показа вложений (#150, канон Telegram/Битрикс): галерея — ТОЛЬКО
@@ -41,25 +44,35 @@ export function attachmentsLayout(list: MessageAttachment[]): AttachmentLayout {
 }
 
 /**
- * Ширина колонки содержимого пузыря С вложениями (#150, вердикт владельца
- * 29.09: «ширина всего пузыря задаётся карточкой вложения, а текст не
- * управляет шириной»; механика Telegram: у документа captionw = _maxw −
- * padding, у фото подпись переносится по ширине фото): карточка/медиа
- * определяют ширину колонки, текст ПЕРЕНОСИТСЯ внутри неё; кнопка скачивания
- * — у правого края карточки (= край пузыря). Без вложений — null: пузырь
- * по-прежнему w-fit от текста. Чистая функция — unit-тест.
+ * Ширина пузыря/карточки сообщения с вложениями (#187, медиа-стиль Telegram:
+ * изображение = ЧАСТЬ пузыря, ширина изображения = ширина пузыря, боковых
+ * полей у медиа нет — подпись/мета переносятся в блоках со своими полями).
+ * Механика Telegram: у фото подпись переносится по ширине фото (captionw),
+ * у документа — узкая карточка. Стилер ширины:
+ * - single — бокс из габаритов (без апскейла мелкого, #150); пол — мета/текст;
+ * - gallery — ширина сетки MEDIA_MAX_W;
+ * - list (файлы/микс) — узкая карточка CARD_LIST_W с полом колонки текста.
+ * `hasTextColumn` (подпись/имя/цитата/пересылка) поднимает пол одиночного
+ * изображения до TEXT_COL_MIN — текст не сжимается в иглу; чистое изображение
+ * без текста ограничено только полом меты (узкий пузырь Telegram). `bare`
+ * (#187 п.6, медиа без пузыря вообще: время — чип ПОВЕРХ картинки, полы не
+ * нужны) — ширина строго по боксу медиа. Без вложений — null: пузырь w-fit
+ * от текста. Чистая функция — unit-тест.
  */
-export function attachmentsContentWidth(list: MessageAttachment[]): number | null {
+export function mediaBubbleWidth(
+  list: MessageAttachment[],
+  opts: { hasTextColumn?: boolean; bare?: boolean } = {},
+): number | null {
   const visible = list.filter((a) => a.kind !== 'sticker'); // стикер — без пузыря (#143)
   if (visible.length === 0) return null;
   const layout = attachmentsLayout(visible);
-  const mediaW =
-    layout.mode === 'single'
-      ? fitSingleBox(layout.image.width, layout.image.height).width
-      : layout.mode === 'gallery'
-        ? MEDIA_MAX_W
-        : CARD_LIST_W;
-  return Math.max(mediaW, TEXT_COL_MIN);
+  if (layout.mode === 'single') {
+    const w = fitSingleBox(layout.image.width, layout.image.height).width;
+    if (opts.bare) return w;
+    return Math.max(w, opts.hasTextColumn ? TEXT_COL_MIN : MEDIA_META_FLOOR);
+  }
+  if (layout.mode === 'gallery') return MEDIA_MAX_W;
+  return Math.max(CARD_LIST_W, TEXT_COL_MIN);
 }
 
 /**
@@ -67,7 +80,7 @@ export function attachmentsContentWidth(list: MessageAttachment[]): number | nul
  * блок ВЫШЕ текста пузыря (иначе аватар и хвостик отлипают к строке
  * вложений). Режим — `attachmentsLayout` (галерея только для «одних
  * картинок», микс — карточный список, #150); ширина колонки пузыря —
- * `attachmentsContentWidth` (карточка задаёт ширину, не текст). Изображения
+ * `mediaBubbleWidth` (карточка/медиа задаёт ширину, не текст). Изображения
  * и файлы разделены явно по `kind` контракта (не по mime).
  */
 export function MessageAttachments({

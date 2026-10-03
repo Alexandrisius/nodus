@@ -155,4 +155,42 @@ describe('PostCard — карточка поста канала с аватар�
     const card = container.querySelector('[data-slot="post-surface"]')!;
     expect(card.textContent).toContain('Иван Петров');
   });
+
+  it('соло-медиа пост с реакциями: чипы ПОД карточкой, не бар внутри (р.5 п.6)', () => {
+    const img = {
+      id: 'f1',
+      fileId: '00000000-0000-4000-8000-000000000001',
+      name: 'foto.png',
+      size: 1000,
+      mime: 'image/png',
+      kind: 'image' as const,
+      url: '/demo/site-1.png',
+      thumbnailUrl: '/demo/site-1.png',
+      previewKind: 'image' as const,
+      pdfUrl: null,
+      width: 1200,
+      height: 800,
+    };
+    const { container } = renderCard(
+      <PostCard
+        {...base}
+        message={message({
+          attachments: [img],
+          text: '',
+          reactions: [{ emoji: '👍', count: 1, mine: true, users: [] }],
+        })}
+      />,
+    );
+    const card = container.querySelector('[data-slot="post-surface"]')!;
+    // внутри карточки реакций НЕТ: единственная кнопка — плитка-зум
+    // картинки, последний блок клипа — полоса обсуждения
+    expect(card.querySelector('img')).toBeTruthy();
+    expect(card.querySelectorAll('button').length).toBe(1);
+    // чипы реакций — сиблинг карточки СНИЗУ, на фоне ленты
+    const after = card.nextElementSibling!;
+    expect(after.querySelector('button')).toBeTruthy();
+    expect(after.textContent).toContain('1');
+    // чип времени остаётся НА картинке
+    expect(card.querySelector('time')).toBeTruthy();
+  });
 });

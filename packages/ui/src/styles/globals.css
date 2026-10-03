@@ -788,9 +788,56 @@
   stroke: var(--selection-ring);
 }
 
+/* Рамка выделения пузыря — ТОЛСТЫЙ бордер по границе, ЕДИНОЙ формой с
+   хвостиком (вердикт раунда 2 п.1): второй svg слоя (bubble-select-ring,
+   z-10 над контентом — под full-bleed картинкой нижний слой невидим)
+   обводит тот же единый силуэт. Единый стиль для ВСЕХ пузырей. */
+[data-message-id][data-selected='true'] [data-slot='bubble-select-ring'],
+[data-message-id][data-box-selected='true'] [data-slot='bubble-select-ring'] {
+  opacity: 1;
+}
+
+/* ЧАСТИ медиа-сообщения (#187 раунд 3 п.3): шапка/низ — отдельные блоки
+   со своей заливкой (картинка между ними, за ней фона нет). Тон — те же
+   токены bubble-*; селект — тот же color-mix, что у SVG-заливок. */
+[data-slot='media-part'][data-tone='in'] {
+  background-color: var(--bubble-in);
+  color: var(--bubble-in-foreground);
+}
+
+[data-slot='media-part'][data-tone='out'] {
+  background-color: var(--bubble-out);
+  color: var(--bubble-out-foreground);
+}
+
+[data-message-id][data-selected='true'] [data-slot='media-part'][data-tone='in'],
+[data-message-id][data-box-selected='true'] [data-slot='media-part'][data-tone='in'] {
+  background-color: color-mix(in oklch, var(--bubble-in), var(--info) 32%);
+}
+
+[data-message-id][data-selected='true'] [data-slot='media-part'][data-tone='out'],
+[data-message-id][data-box-selected='true'] [data-slot='media-part'][data-tone='out'] {
+  background-color: color-mix(in oklch, var(--bubble-out), var(--info) 32%);
+}
+
 [data-message-id][data-selected='true'] [data-slot='post-surface'],
 [data-message-id][data-box-selected='true'] [data-slot='post-surface'] {
   border-color: var(--selection-ring);
+}
+
+/* #187 (вердикт владельца, п.3/п.5): селект медиа — тонировка ПОВЕРХ
+   изображения (заливка пузыря под картинкой не видна, SVG-кольцо тоже);
+   рамка селекта — ОВЕРЛЕЙ над контентом (select-ring, база — прозрачна).
+   Тон щита — info-микс в обеих темах; рамка — тот же --selection-ring,
+   что у кольца текстовых пузырей: одна семантика, «не шире края». */
+[data-message-id][data-selected='true'] [data-slot='media-shield'],
+[data-message-id][data-box-selected='true'] [data-slot='media-shield'] {
+  background-color: color-mix(in oklch, var(--info) 26%, transparent);
+}
+
+[data-message-id][data-selected='true'] [data-slot='select-ring'],
+[data-message-id][data-box-selected='true'] [data-slot='select-ring'] {
+  opacity: 1;
 }
 
 /* Стикер-сообщение (#143) без пузыря — выделение красит ПЛИТУ глифа

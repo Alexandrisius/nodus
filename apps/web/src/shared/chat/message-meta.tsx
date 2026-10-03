@@ -33,13 +33,18 @@ export function MessageMeta({
   message,
   onFilled = false,
   ticks = false,
+  plain = false,
   className,
 }: {
   message: ChatMessage;
   /** Мета на залитом своём пузыре — акцент пузыря вместо muted-foreground. */
   onFilled?: boolean;
-  /** Галочки отправлено/просмотрено (у своих сообщений и постов канала). */
+  /** Галочки отправлено/просмотрено (у своих сообщений и постов каналов). */
   ticks?: boolean;
+  /** Без семантики (aria/role): копия-призрак для резерва ширины (#187) —
+   *  иначе e2e getByLabel('просмотрено') находит СКРЫТУЮ копию первой и
+   *  toBeVisible падает на visibility:hidden. */
+  plain?: boolean;
   className?: string;
 }) {
   return (
@@ -52,14 +57,44 @@ export function MessageMeta({
       )}
     >
       {message.pinned ? (
-        <Pin role="img" aria-label={ui.chat.menu.pin} className="size-3" strokeWidth={1.75} />
+        <Pin
+          role={plain ? undefined : 'img'}
+          aria-label={plain ? undefined : ui.chat.menu.pin}
+          className="size-3"
+          strokeWidth={1.75}
+        />
       ) : null}
       {message.urgent ? <UrgentAcksMeta messageId={message.id} onFilled={onFilled} /> : null}
       {message.editedAt ? <span>{ui.chat.edited}</span> : null}
-      <time className="font-mono tabular-nums" dateTime={message.createdAt}>
+      <time className="font-mono tabular-nums" dateTime={plain ? undefined : message.createdAt}>
         {formatTime(message.createdAt)}
       </time>
-      {ticks ? <ReadTicks read={message.readBy.length > 0} /> : null}
+      {ticks ? (
+        plain ? (
+          // Копия-призрак: ГАЛОЧКИ без role/aria-label — ширина та же,
+          // но e2e-локаторы (getByLabel 'просмотрено') видят только метку
+          <svg width="15" height="10" viewBox="0 0 15 10" className="shrink-0">
+            <path
+              d={message.readBy.length > 0 ? 'M7.5 6.5 L9.5 8.5 L14.5 1.5' : ''}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <path
+              d="M1.5 5.5 L4.5 8.5 L10.5 1.5"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        ) : (
+          <ReadTicks read={message.readBy.length > 0} />
+        )
+      ) : null}
     </span>
   );
 }

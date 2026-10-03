@@ -19,7 +19,7 @@ import { messageSurface } from './message-surface.js';
 /**
  * Карточка вложения НА поверхности сообщения (#144, вердикт «как в Битриксе»
  * + #150): flat-карточка на тоне пузыря, РАСТЯНУТА на колонку содержимого
- * (`w-full`) — ширину колонки задаёт блок вложений (`attachmentsContentWidth`),
+ * (`w-full`) — ширину колонки задаёт блок вложений (`mediaBubbleWidth`),
  * а НЕ текст сообщения (вердикт владельца 29.09: «ширина всего пузыря
  * задаётся карточкой вложения, текст не управляет шириной», механика
  * Telegram-документов: captionw = _maxw − padding). Кнопка скачивания — у
@@ -91,7 +91,7 @@ export function AttachmentCard({
       </AttachmentMedia>
       <AttachmentContent>
         {/* Без ch-капа: ширину имени ограничивает колонка вложений
-            (`attachmentsContentWidth`, CARD_LIST_W ~48ch имени) — truncate
+            (`mediaBubbleWidth`, CARD_LIST_W ~48ch имени) — truncate
             достраивает остаток. */}
         <AttachmentTitle title={attachment.name}>{attachment.name}</AttachmentTitle>
         <AttachmentDescription className={surface.stripText}>

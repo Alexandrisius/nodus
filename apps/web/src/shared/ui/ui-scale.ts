@@ -51,3 +51,14 @@ export const UI_SCALE: number = readUiScale();
 export function uiPx(designPx: number): number {
   return designPx * UI_SCALE;
 }
+
+/** Экранные px → ближайший ЦЕЛЫЙ физический пиксель устройства. Боксы
+ * full-bleed медиа обязаны садиться на device-сетку: на дробном DPR
+ * (Windows 125% = 1.25) субпиксельное смещение рёбер даёт «пляшущие»
+ * дуги AA у скруглений картинки и расхождение с SVG-контуром селекта
+ * (#187 раунд 5 п.7/п.8). Высоту (aspect-ratio) не снапаем — искажение
+ * пропорций заметнее остаточного AA. */
+export function snapDevicePx(cssPx: number): number {
+  const dpr = (typeof window !== 'undefined' && window.devicePixelRatio) || 1;
+  return Math.round(cssPx * dpr) / dpr;
+}

@@ -4,12 +4,10 @@ import { ui } from '@nodus/contracts';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { withoutPatronymic } from '../lib/format.js';
-import { personTone } from '../ui/person-tone.js';
+import { personTone, personToneVar } from '../ui/person-tone.js';
 
 /**
  * Шапки пузыря (A2/A7, #87): цитата ответа и атрибуция пересылки.
- * Плоско, на currentColor — шапка наследует тон пузыря (свой default /
- * чужой card), акцентная линия слева (структура ступенью тона, канон).
  * Обе кликабельны — прыжок к оригиналу + вспышка (jump-store).
  */
 
@@ -18,11 +16,13 @@ import { personTone } from '../ui/person-tone.js';
  *  (канон Telegram lng_deleted_message). Клик (#163, вердикт владельца
  *  30.09): оригинал-надгробие (deleted, не obliterated) — прыжок к пузырю
  *  «Сообщение удалено» с подсветкой; бесследно исчезнувший — no-op.
- *  Бар — акцент поверхности (#127, канон Telegram: msgOutReplyBarColor
- *  / msgInReplyBarColor); ИМЯ цитируемого — персональный цвет автора
- *  (#180, модель Telegram: identity в любом хосте имени; удалённый
- *  оригинал без автора — прежний акцент поверхности); сниппет и hover —
- *  на currentColor пузыря. */
+ *
+ * Вид — канон Telegram по вердикту #187 п.8: плашка со СТАТИЧНЫМ светлым
+ * тоном ПЕРСОНАЛЬНОГО цвета цитируемого (тот же тон, что имя; тинт
+ * color-mix 16%), ЛЕВАЯ вертикальная линия тем же цветом — левый край
+ * плашки, единое целое с ней (border-left, не отдельная палочка). Имя
+ * цитируемого — персональный цвет автора (#180); удалённый оригинал без
+ * автора — нейтральный тинт поверхности. */
 export function ReplyHeader({
   reply,
   onClick,
@@ -46,49 +46,52 @@ export function ReplyHeader({
   // Кликабельна: живой оригинал ИЛИ надгробие (#163). obliterated — нет якоря.
   const interactive = (!reply.deleted || !reply.obliterated) && onClick !== undefined;
   const Tag = interactive ? 'button' : 'span';
+  // Плашка цитаты в цвете цитируемого (#187 п.8): тон — персональная
+  // переменная автора; без автора (удалённый) — нейтральный тинт.
+  const toneVar = reply.author ? personToneVar(reply.author.id) : null;
   return (
     <Tag
       {...(interactive ? { type: 'button' as const, onClick } : {})}
       className={cn(
-        'flex min-w-0 max-w-full items-stretch gap-1.5 rounded-md text-left',
+        'flex min-w-0 max-w-full flex-col rounded-md border-l-2 py-[3px] pl-1.5 text-left',
         // pr-2 только у кликабельной: плашка ховера шириной в самую широкую
         // строку пузыря (репро 30.09) — без воздухa справа она упирается
         // ровно в последний глиф сниппета (баг-репорт владельца 30.09).
-        interactive && 'pr-2 transition-colors hover:bg-current/10',
+        interactive && 'pr-2 transition-colors hover:brightness-96',
       )}
+      style={{
+        borderLeftColor: toneVar ?? (onFilled ? 'var(--bubble-out-accent)' : 'var(--info)'),
+        backgroundColor: toneVar
+          ? `color-mix(in oklch, ${toneVar} 16%, transparent)`
+          : 'color-mix(in oklch, currentColor 6%, transparent)',
+      }}
     >
       <span
-        aria-hidden
-        className={cn('w-0.5 shrink-0 rounded-full', onFilled ? 'bg-bubble-out-accent' : 'bg-info')}
-      />
-      <span className="flex min-w-0 flex-col py-0.5">
+        className={cn(
+          'truncate text-xs font-semibold',
+          reply.author
+            ? personTone(reply.author.id)
+            : onFilled
+              ? 'text-bubble-out-accent'
+              : 'text-info',
+        )}
+      >
+        {reply.deleted
+          ? ui.chat.deletedPlaceholder
+          : withoutPatronymic(reply.author?.displayName ?? '')}
+      </span>
+      {reply.deleted ? null : (
         <span
           className={cn(
-            'truncate text-xs font-semibold',
-            reply.author
-              ? personTone(reply.author.id)
-              : onFilled
-                ? 'text-bubble-out-accent'
-                : 'text-info',
+            'truncate text-xs',
+            // На залитом пузыре сниппет плотнее (opacity-80): 70% foreground
+            // на тёмной заливке не дотягивал AA (валидатор #127).
+            onFilled ? 'opacity-80' : 'opacity-70',
           )}
         >
-          {reply.deleted
-            ? ui.chat.deletedPlaceholder
-            : withoutPatronymic(reply.author?.displayName ?? '')}
+          {snippet}
         </span>
-        {reply.deleted ? null : (
-          <span
-            className={cn(
-              'truncate text-xs',
-              // На залитом пузыре сниппет плотнее (opacity-80): 70% foreground
-              // на тёмной заливке не дотягивал AA (валидатор #127).
-              onFilled ? 'opacity-80' : 'opacity-70',
-            )}
-          >
-            {snippet}
-          </span>
-        )}
-      </span>
+      )}
     </Tag>
   );
 }
