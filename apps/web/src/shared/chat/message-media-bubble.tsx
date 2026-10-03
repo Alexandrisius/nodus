@@ -2,13 +2,14 @@ import type { ReactNode } from 'react';
 import { Pin } from 'lucide-react';
 import type { ChatMessage } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
+import { Bubble, BubbleContent } from '@nodus/ui/components/bubble';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { formatTime, shortPersonName } from '../lib/format.js';
 import { personTone } from '../ui/person-tone.js';
 import { snapDevicePx } from '../ui/ui-scale.js';
 import { mediaBubbleWidth, MessageAttachments } from './attachments.js';
-import { SelectSilhouetteRing } from './bubble-outline.js';
+import { BubbleOutline, SelectSilhouetteRing } from './bubble-outline.js';
 import { ForwardedHeader, ReplyHeader } from './message-headers.js';
 import { MessageMeta } from './message-meta.js';
 import { MessageReactions } from './message-reactions.js';
@@ -143,36 +144,47 @@ export function MediaMessage({
         </span>
       </span>
       {hasBottom ? (
-        <div
-          data-slot="media-part"
-          data-tone={tone}
-          className={cn(
-            'relative rounded-b-xl px-2.5 pt-[5px] pb-[5px] leading-tight',
-            finSide === 'left' && 'rounded-bl-none',
-            finSide === 'right' && 'rounded-br-none',
-          )}
-        >
-          {hasText ? (
-            <span className="block">
-              <MessageText text={message.text} />
-              {hasReactions || entityRow ? null : <MetaGhost message={message} mine={mine} />}
-              {entityRow && !hasReactions ? (
-                <span className="flex justify-end">
-                  <MessageMeta message={message} onFilled={mine} ticks={mine} />
-                </span>
-              ) : null}
-            </span>
-          ) : null}
-          {hasReactions ? (
-            <span className="flex items-end gap-2">
-              <MessageReactions message={message} onFilled={mine} />
-              <MessageMeta message={message} onFilled={mine} ticks={mine} className="ml-auto" />
-            </span>
-          ) : entityRow ? null : (
-            <MetaPin message={message} mine={mine} />
-          )}
-          {finSide ? <BubbleFin side={finSide} tone={tone} /> : null}
-        </div>
+        // НИЖНЯЯ ЧАСТЬ — на ТОМ же механизме, что текстовые пузыри (раунд 14:
+        // отдельный svg-плавник BubbleFin рядом с CSS-фоном части = ДВА
+        // растеризатора — на дробных зумах (125/175/200%) расходились
+        // «вертикальной линией» и по нижней кромке. Канон «одна линия = один
+        // механизм»: Bubble + BubbleOutline — коробка и плавник ОДНИМ путём).
+        <Bubble variant={tone === 'out' ? 'default' : 'card'} className="w-full max-w-full">
+          <BubbleOutline
+            side={finSide}
+            variant={tone === 'out' ? 'default' : 'card'}
+            ringless
+            selectRing={false}
+            topRadius={0}
+          />
+          <BubbleContent
+            className={cn(
+              'relative rounded-b-xl px-2.5 pt-[5px] pb-[5px] leading-tight',
+              finSide === 'left' && 'rounded-bl-none',
+              finSide === 'right' && 'rounded-br-none',
+            )}
+          >
+            {hasText ? (
+              <span className="block">
+                <MessageText text={message.text} />
+                {hasReactions || entityRow ? null : <MetaGhost message={message} mine={mine} />}
+                {entityRow && !hasReactions ? (
+                  <span className="flex justify-end">
+                    <MessageMeta message={message} onFilled={mine} ticks={mine} />
+                  </span>
+                ) : null}
+              </span>
+            ) : null}
+            {hasReactions ? (
+              <span className="flex items-end gap-2">
+                <MessageReactions message={message} onFilled={mine} />
+                <MessageMeta message={message} onFilled={mine} ticks={mine} className="ml-auto" />
+              </span>
+            ) : entityRow ? null : (
+              <MetaPin message={message} mine={mine} />
+            )}
+          </BubbleContent>
+        </Bubble>
       ) : hasReactions ? (
         <span className="mt-[3px]">
           <MessageReactions message={message} onFilled={false} />
@@ -295,39 +307,5 @@ export function SelectRing() {
       className="pointer-events-none absolute inset-0 rounded-xl border-2 opacity-0 transition-opacity"
       style={{ borderColor: 'var(--selection-ring)' }}
     />
-  );
-}
-
-/** Хвостовик нижней части медиа-сообщения: маленький SVG у нижнего угла
- * части, заливка тоном части; кривая — та же геометрия плавника outlinePath
- * (20-юнитовая сетка), замкнутая по краю части. SVG живёт СНАРУЖИ части
- * (`right-full`/`left-full` — раунд 5 п.2б: якорь left-0/right-0 рисовал
- * зеркальный путь ВНУТРИ части той же заливкой — плавник был невидим, а у
- * соло-картинки торчал поверх пикселей «намёком на хвостик»). */
-export function BubbleFin({ side, tone }: { side: 'left' | 'right'; tone: 'in' | 'out' }) {
-  const u = 1.25; // css px на юнит при UI_SCALE 1.25
-  const w = 8 * u;
-  const h = 9 * u;
-  const f = (n: number) => (n * u).toFixed(2);
-  // Локальные координаты: x=w — край части (для левого плавника svg висит
-  // СЛЕВА от части: right-full), x=0 — край части у правого (left-full).
-  const d =
-    side === 'left'
-      ? `M${f(8)} 0 L${f(2.8)} 0 Q${f(0.2)} ${f(-0.4)} ${f(1.5)} ${f(-1.5)} C${f(4.5)} ${f(-2.5)} ${f(8)} ${f(-4.5)} ${f(8)} ${f(-9)} Z`
-      : `M0 0 L${f(5.2)} 0 Q${f(7.8)} ${f(-0.4)} ${f(6.5)} ${f(-1.5)} C${f(3.5)} ${f(-2.5)} 0 ${f(-4.5)} 0 ${f(-9)} Z`;
-  return (
-    <svg
-      aria-hidden
-      data-slot="bubble-fin"
-      className={cn(
-        'pointer-events-none absolute bottom-0',
-        side === 'left' ? 'right-full' : 'left-full',
-      )}
-      width={w}
-      height={h}
-      viewBox={`0 ${(-9 * u).toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)}`}
-    >
-      <path d={d} className={tone === 'in' ? 'fill-bubble-in' : 'fill-bubble-out'} />
-    </svg>
   );
 }

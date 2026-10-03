@@ -409,7 +409,7 @@ describe('Медиа-пузырь Telegram (#187): изображение = ча
     expect(frame.className).not.toContain('rounded-br-none');
   });
 
-  it('медиа с подписью: хвостовик СНАРУЖИ нижней части (р.5 п.2б)', () => {
+  it('медиа с подписью: хвостовик ЕДИНОЙ фигурой BubbleOutline (р.14)', () => {
     const { container } = renderMessage(
       <ChatMessageItem
         message={message({ attachments: [img(1, 1200, 800)], text: 'подпись' })}
@@ -418,11 +418,14 @@ describe('Медиа-пузырь Telegram (#187): изображение = ча
       />,
     );
     const block = container.querySelector('[data-slot="media-message"]')!;
-    const fin = block.querySelector('[data-slot="bubble-fin"]')!;
-    expect(fin).toBeTruthy();
-    // svg висит СНАРУЖИ части: align 'one' → плавник слева (right-full);
-    // className у SVG — SVGAnimatedString, читаем атрибут
-    expect(fin.getAttribute('class')).toContain('right-full');
+    // отдельного svg-плавника НЕТ (два растеризатора расходились на зумах)
+    expect(block.querySelector('[data-slot="bubble-fin"]')).toBeNull();
+    // нижняя часть — Bubble + единый силуэт (коробка+плавник одним путём),
+    // тот же механизм, что у текстовых пузырей
+    const outline = block.querySelector('[data-slot="bubble-outline"]')!;
+    expect(outline).toBeTruthy();
+    const bottom = block.querySelector('[data-slot="bubble-content"]')!;
+    expect(bottom.className).toContain('rounded-bl-none');
   });
 
   it('bare: реакции — чипами ПОД картинкой (не пузырь)', () => {
@@ -450,17 +453,17 @@ describe('Медиа-пузырь Telegram (#187): изображение = ча
     const block = container.querySelector('[data-slot="media-message"]') as HTMLElement;
     expect(block.style.width).toBe(`${Math.round(uiPx(480))}px`);
     expect(block.style.maxWidth).toBe('100%');
-    // архитепктура «частей» (р.3 п.3): низ = media-part с rounded-b,
-    // картинка между шапкой и низом — БЕЗ фона за собой
-    const parts = block.querySelectorAll('[data-slot="media-part"]');
-    expect(parts.length).toBe(1); // низ (шапки нет — свои)
-    const bottom = parts[0]!;
+    // архитепктура «частей» (р.3 п.3): низ = Bubble с rounded-b контентом,
+    // картинка над ним — БЕЗ фона за собой
+    const bottom = block.querySelector('[data-slot="bubble-content"]')!;
     expect(bottom.className).toContain('rounded-b-xl');
     // свой верх с подписью (без шапки) — пузыревой радиус (низ-часть рядом)
     const frame = block.querySelector('span[class*="rounded-t-xl"]')!;
     expect(frame).toBeTruthy();
-    // части НЕ являются SVG-пузырём: за картинкой ничего не рисуется
-    expect(block.querySelector('[data-slot="bubble-outline"]')).toBeNull();
+    // за картинкой ничего не рисуется (силуэт — только у нижней части)
+    const outlines = block.querySelectorAll('[data-slot="bubble-outline"]');
+    expect(outlines.length).toBe(1);
+    expect(outlines[0]!.closest('[data-slot="bubble"]')).toBeTruthy();
   });
 
   it('медиа с подписью и шапкой: шапка → картинка (top прямая) → низ', () => {
@@ -473,16 +476,17 @@ describe('Медиа-пузырь Telegram (#187): изображение = ча
     );
     const block = container.querySelector('[data-slot="media-message"]')!;
     const parts = [...block.querySelectorAll('[data-slot="media-part"]')];
-    expect(parts.length).toBe(2);
+    expect(parts.length).toBe(1); // шапка (низ — Bubble, не media-part)
     const name = [...container.querySelectorAll('span')].find(
       (el) => el.textContent === 'Иван Петров',
     )!;
     expect(parts[0]!.contains(name)).toBe(true);
-    // порядок: шапка, картинка (без rounded-t — верх прямой под шапкой), низ
+    // порядок: шапка, картинка (без rounded-t — верх прямой под шапкой), низ-Bubble
     const frame = parts[0]!.nextElementSibling!;
     expect(frame.querySelector('img')).toBeTruthy();
     expect(frame.className).not.toContain('rounded-t-xl');
-    expect(frame.nextElementSibling).toBe(parts[1]!);
+    const bubble = block.querySelector('[data-slot="bubble"]')!;
+    expect(frame.nextElementSibling).toBe(bubble);
   });
 
   it('подпись: та же пара — призрак в потоке, булавка от края части (р.10)', () => {
@@ -493,12 +497,13 @@ describe('Медиа-пузырь Telegram (#187): изображение = ча
         showName
       />,
     );
-    const bottom = [...container.querySelectorAll('[data-slot="media-part"]')].at(-1)!;
+    const block = container.querySelector('[data-slot="media-message"]')!;
+    const bottom = block.querySelector('[data-slot="bubble-content"]')!;
     const pin = bottom.querySelector('[data-slot="meta-corner"]')!;
     expect(pin.className).toContain('absolute');
     expect(pin.className).toContain('right-2.5');
     expect(pin.className).toContain('bottom-[5px]');
-    // якорь — сама часть медиа
+    // якорь — сама нижняя часть (bubble-content медиа)
     expect(pin.parentElement).toBe(bottom);
     const ghost = [...bottom.querySelectorAll('[data-slot="message-meta"]')].find((m) =>
       m.className.includes('invisible'),

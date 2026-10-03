@@ -26,9 +26,7 @@ import { UI_SCALE } from '../ui/ui-scale.js';
  * (зум браузера). Пустой svg ничего не рисует — прятать до замера НЕЛЬЗЯ
  * (display:none убивает раскладку и измерение, урок р.8).
  */
-/** Геометрия плавника — 20-юнитовая сетка (design-px), юнит = UI_SCALE css px:
- *  та же сетка у BubbleFin (заливка плавника медиа-части) — совпадение
- *  заливки и контура гарантировано общими числами. */
+const FIN_UNITS = 20;
 /** Радиус углов пузыря = rounded-xl токена темы (--radius-xl = 14 дизайн-px,
  *  0.875rem): силуэт SVG обязан совпадать с CSS-клипом контента — рассинхрон
  *  виден у full-bleed картинок (углы картинки круглее силуэта заливки,
@@ -50,26 +48,30 @@ function outlinePath(
   side: 'left' | 'right' | null,
   u: number,
   radius: number = BOX_RADIUS,
+  /** Радиус ВЕРХНИХ углов: 0 — прямые (нижняя часть медиа-сообщения стыкуется
+   *  с картинкой вплотную, раунд 15: полный пузырь прилипал с дугами). */
+  topRadius?: number,
 ): string {
   const r = Math.min(radius, w / 2, h / 2);
+  const rt = Math.min(topRadius ?? radius, w / 2, h / 2);
   if (side === null) {
-    return `M${f(r)} 0 H${f(w - r)} A${f(r)} ${f(r)} 0 0 1 ${f(w)} ${f(r)} V${f(h - r)} A${f(r)} ${f(r)} 0 0 1 ${f(w - r)} ${f(h)} H${f(r)} A${f(r)} ${f(r)} 0 0 1 0 ${f(h - r)} V${f(r)} A${f(r)} ${f(r)} 0 0 1 ${f(r)} 0 Z`;
+    return `M${f(rt)} 0 H${f(w - rt)} A${f(rt)} ${f(rt)} 0 0 1 ${f(w)} ${f(rt)} V${f(h - r)} A${f(r)} ${f(r)} 0 0 1 ${f(w - r)} ${f(h)} H${f(r)} A${f(r)} ${f(r)} 0 0 1 0 ${f(h - r)} V${f(rt)} A${f(rt)} ${f(rt)} 0 0 1 ${f(rt)} 0 Z`;
   }
   if (side === 'left') {
     return (
-      `M${f(r)} 0 H${f(w - r)} A${f(r)} ${f(r)} 0 0 1 ${f(w)} ${f(r)} V${f(h - r)}` +
+      `M${f(rt)} 0 H${f(w - rt)} A${f(rt)} ${f(rt)} 0 0 1 ${f(w)} ${f(rt)} V${f(h - r)}` +
       ` A${f(r)} ${f(r)} 0 0 1 ${f(w - r)} ${f(h)} H0` +
       ` L${f(-5.2 * u)} ${f(h)}` +
       ` Q${f(-7.8 * u)} ${f(h - 0.4 * u)} ${f(-6.5 * u)} ${f(h - 1.5 * u)}` +
       ` C${f(-3.5 * u)} ${f(h - 2.5 * u)} 0 ${f(h - 4.5 * u)} 0 ${f(h - 9 * u)}` +
-      ` V${f(r)} A${f(r)} ${f(r)} 0 0 1 ${f(r)} 0 Z`
+      ` V${f(rt)} A${f(rt)} ${f(rt)} 0 0 1 ${f(rt)} 0 Z`
     );
   }
   return (
-    `M${f(r)} 0 H${f(w - r)} A${f(r)} ${f(r)} 0 0 1 ${f(w)} ${f(r)} V${f(h - 9 * u)}` +
+    `M${f(rt)} 0 H${f(w - rt)} A${f(rt)} ${f(rt)} 0 0 1 ${f(w)} ${f(rt)} V${f(h - 9 * u)}` +
     ` C${f(w)} ${f(h - 4.5 * u)} ${f(w + 3.5 * u)} ${f(h - 2.5 * u)} ${f(w + 6.5 * u)} ${f(h - 1.5 * u)}` +
     ` Q${f(w + 7.8 * u)} ${f(h - 0.4 * u)} ${f(w + 5.2 * u)} ${f(h)} L${f(w)} ${f(h)} H${f(r)}` +
-    ` A${f(r)} ${f(r)} 0 0 1 0 ${f(h - r)} V${f(r)} A${f(r)} ${f(r)} 0 0 1 ${f(r)} 0 Z`
+    ` A${f(r)} ${f(r)} 0 0 1 0 ${f(h - r)} V${f(rt)} A${f(rt)} ${f(rt)} 0 0 1 ${f(rt)} 0 Z`
   );
 }
 
@@ -87,16 +89,26 @@ function measureLayer(el: SVGSVGElement): LayerGeom {
   // Размеры — ДРОБНЫЕ layout-px из getComputedStyle (used width/height):
   // трансформ предка (FLIP-слайдер) их не искажает (не rect), а округление
   // clientWidth до целого давало ±0.5px дрейф силуэта от CSS-клипа картинки —
-  // видимые щели/дуги у full-bleed медиа (вердикт #187 п.6). Снап к
-  // device-сетке УБРАН (раунд 5 п.8): округление к целым физическим пикселям
-  // ОТВОДИЛО силуэт от фактической CSS-коробки — углы картинки торчали за
-  // мягкие углы рамки селекта; точные дробные совпадают с коробкой (и её
-  // border-radius-клипом) до субпикселя. Юнит плавника — точный UI_SCALE:
-  // та же геометрия, что у BubbleFin (иначе заливка и контур расходились).
+  // видимые щели/дуги у full-bleed медиа (вердикт #187 п.6).
+  // Снап w/h/юнита к device-сетке — КАНОН р.9 (вердикт владельца: «заливка
+  // ровная на ВСЕХ зумах; механику не трогать»): без него на дробных DPR
+  // (125/175/200%) штрихи кольца/прикрытия ложатся на дробные физические
+  // пиксели, прикрытие перестаёт съедать край у стыка плавника —
+  // «хвостик разъезжается вертикальной линией» (регрессия раунда 13 —
+  // снап ошибочно снимался в раунде 6). Расхождение с клипом ±0.4css
+  // прячется под 2css-штрих кольца.
+  const dpr = window.devicePixelRatio || 1;
   const styles = getComputedStyle(el);
   const w = Number.parseFloat(styles.width) || 0;
   const h = Number.parseFloat(styles.height) || 0;
-  return { w, h, unit: UI_SCALE };
+  const wDev = Math.max(1, Math.round(w * dpr));
+  const hDev = Math.max(1, Math.round(h * dpr));
+  const finSizeDev = Math.max(1, Math.round(FIN_UNITS * UI_SCALE * dpr));
+  return {
+    w: wDev / dpr,
+    h: hDev / dpr,
+    unit: finSizeDev / dpr / FIN_UNITS,
+  };
 }
 
 /**
@@ -119,6 +131,7 @@ export function BubbleOutline({
   variant,
   ringless = false,
   selectRing = true,
+  topRadius,
 }: {
   side: 'left' | 'right' | null;
   variant: 'default' | 'card';
@@ -127,6 +140,9 @@ export function BubbleOutline({
   /** Не рисовать рамку выделения (пузырь-шапка bare-медиа: единый контур
    *  сообщения рисует SelectRing на внешней обёртке — второго контура не нужно). */
   selectRing?: boolean;
+  /** Радиус ВЕРХНИХ углов: 0 — прямые (нижняя часть медиа стыкуется с
+   *  картинкой, раунд 15). По умолчанию — общий радиус. */
+  topRadius?: number;
 }) {
   const clipId = `bubble-clip-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
   const layerRef = useRef<SVGSVGElement>(null);
@@ -161,14 +177,14 @@ export function BubbleOutline({
           <>
             <defs>
               <clipPath id={clipId} clipPathUnits="userSpaceOnUse">
-                <path d={outlinePath(geom.w, geom.h, side, geom.unit)} />
+                <path d={outlinePath(geom.w, geom.h, side, geom.unit, BOX_RADIUS, topRadius)} />
               </clipPath>
             </defs>
             {/* ЕДИНАЯ ЗАЛИВКА: весь силуэт (коробка+плавник) одним путём —
               тинт/фона единый, без второй заливки и её прямоугольника.
               Классы fill-bubble-* — те же правила тинта (globals.css). */}
             <path
-              d={outlinePath(geom.w, geom.h, side, geom.unit)}
+              d={outlinePath(geom.w, geom.h, side, geom.unit, BOX_RADIUS, topRadius)}
               className={variant === 'card' ? 'fill-bubble-in' : 'fill-bubble-out'}
             />
             {ringless ? null : (
@@ -179,14 +195,14 @@ export function BubbleOutline({
                   Цветом управляет globals.css. */}
                 <path
                   className="bubble-ring"
-                  d={outlinePath(geom.w, geom.h, side, geom.unit)}
+                  d={outlinePath(geom.w, geom.h, side, geom.unit, BOX_RADIUS, topRadius)}
                   fill="none"
                   strokeWidth={RING_STROKE_CSS}
                   clipPath={`url(#${clipId})`}
                 />
                 <path
                   className="bubble-ring-cover"
-                  d={outlinePath(geom.w, geom.h, side, geom.unit)}
+                  d={outlinePath(geom.w, geom.h, side, geom.unit, BOX_RADIUS, topRadius)}
                   fill="none"
                   strokeWidth={COVER_STROKE_CSS}
                   clipPath={`url(#${clipId})`}
@@ -210,7 +226,7 @@ export function BubbleOutline({
         >
           {geom ? (
             <path
-              d={outlinePath(geom.w, geom.h, side, geom.unit)}
+              d={outlinePath(geom.w, geom.h, side, geom.unit, BOX_RADIUS, topRadius)}
               fill="none"
               stroke="var(--selection-ring)"
               strokeWidth={4}

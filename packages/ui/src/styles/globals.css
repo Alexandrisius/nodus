@@ -820,18 +820,6 @@
   background-color: color-mix(in oklch, var(--bubble-out), var(--info) 32%);
 }
 
-/* Хвостовик нижней части медиа: тинт селекта синхронен части (те же
-   color-mix, что у правил выше). */
-[data-message-id][data-selected='true'] [data-slot='bubble-fin'] path.fill-bubble-in,
-[data-message-id][data-box-selected='true'] [data-slot='bubble-fin'] path.fill-bubble-in {
-  fill: color-mix(in oklch, var(--bubble-in), var(--info) 32%);
-}
-
-[data-message-id][data-selected='true'] [data-slot='bubble-fin'] path.fill-bubble-out,
-[data-message-id][data-box-selected='true'] [data-slot='bubble-fin'] path.fill-bubble-out {
-  fill: color-mix(in oklch, var(--bubble-out), var(--info) 32%);
-}
-
 [data-message-id][data-selected='true'] [data-slot='post-surface'],
 [data-message-id][data-box-selected='true'] [data-slot='post-surface'] {
   border-color: var(--selection-ring);
