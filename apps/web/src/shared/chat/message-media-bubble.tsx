@@ -56,9 +56,12 @@ export function MediaMessage({
   children?: ReactNode;
 }) {
   const reply = message.reply;
-  const hasHeader = showName || !!message.forwardedFrom || !!reply;
+  const hasHeader = showName || !!message.forwardedFrom || reply;
   const hasText = Boolean(message.text?.trim());
-  const hasBottom = hasText || message.reactions.length > 0 || message.urgent;
+  // Нижняя часть — ТОЛЬКО для текста/срочности (раунд 5 п.2): реакции НЕ
+  // создают её — у чистого изображения реакции чипами ПОД сообщением,
+  // время остаётся чипом на картинке.
+  const hasBottom = hasText || message.urgent;
   const bare = !hasHeader && !hasBottom;
   const tone = mine ? 'out' : 'in';
   const width = mediaBubbleWidth(message.attachments, { bare, hasTextColumn: !bare });
@@ -73,10 +76,7 @@ export function MediaMessage({
         <div
           data-slot="media-part"
           data-tone={tone}
-          className={cn(
-            'flex flex-col gap-[2px] px-2.5 pt-2.5 pb-[6px] leading-tight',
-            !hasBottom && 'rounded-t-xl',
-          )}
+          className="flex flex-col gap-[2px] rounded-t-xl px-2.5 pt-2.5 pb-[6px] leading-tight"
         >
           {showName ? (
             <span
@@ -98,28 +98,35 @@ export function MediaMessage({
       ) : null}
       {/* КАРТИНКА: края = края сообщения (за ней фона нет — швам неоткуда
           взяться); верх прямой под шапкой, скруглённый без неё; низ
-          скруглён когда нижней части нет. Щит селекта — поверх. */}
-      <span
-        className={cn(
-          'relative block',
-          !hasHeader && 'overflow-hidden rounded-t-xl',
-          !hasBottom && 'overflow-hidden rounded-b-xl',
-        )}
-      >
-        <MessageAttachments message={message} mine={mine} />
+          скруглён когда нижней части нет; хвостовик imageOnly — снаружи
+          клипа (внутри overflow-hidden он бы обрезался). Щит селекта —
+          поверх. */}
+      <span className="relative block">
         <span
-          aria-hidden
-          data-slot="media-shield"
-          className="pointer-events-none absolute inset-0"
-        />
-        {!hasBottom ? <MediaTimeChip message={message} mine={mine} /> : null}
+          className={cn(
+            'block',
+            !hasHeader && 'overflow-hidden rounded-t-xl',
+            !hasBottom && 'overflow-hidden rounded-b-xl',
+            !hasBottom && finSide === 'left' && 'rounded-bl-none',
+            !hasBottom && finSide === 'right' && 'rounded-br-none',
+          )}
+        >
+          <MessageAttachments message={message} mine={mine} />
+          <span
+            aria-hidden
+            data-slot="media-shield"
+            className="pointer-events-none absolute inset-0"
+          />
+          {!hasBottom ? <MediaTimeChip message={message} mine={mine} /> : null}
+        </span>
+        {!hasBottom && finSide ? <BubbleFin side={finSide} tone={tone} /> : null}
       </span>
       {hasBottom ? (
         <div
           data-slot="media-part"
           data-tone={tone}
           className={cn(
-            'relative rounded-b-xl px-2.5 pt-[2px] pb-[5px] leading-tight',
+            'relative rounded-b-xl px-2.5 pt-[2px] pb-2.5 leading-tight',
             finSide === 'left' && 'rounded-bl-none',
             finSide === 'right' && 'rounded-br-none',
           )}
@@ -141,25 +148,28 @@ export function MediaMessage({
       ) : hasReactions ? (
         <MessageReactions message={message} onFilled={false} />
       ) : null}
-      {/* Единый контур селекта по всей стопке (с хвостовиком). */}
-      <SelectSilhouetteRing side={hasBottom ? finSide : null} />
+      {/* Единый контур селекта по всей стопке — всегда с хвостовиком (раунд
+          5 п.1: у медиа-сообщений хвостик вернулся). */}
+      <SelectSilhouetteRing side={finSide} />
       {children}
     </div>
   );
 }
 
-/** Мета-время ФЛОАТ-вправо (раунд 3 п.1, модель Telegram/Битрикс): на той же
- * строке, что текст — в самом правом нижнем углу; когда текст доходит до
- * неё или есть реакции — уходит строкой ниже (реакции = содержание той
- * строки, время справа от них). mt-[5px] — прижать к низу строки (флоат
- * топится к верху line-box). «То слева, то справа» запрещено. */
+/** Мета-время ФЛОАТ-вправо (раунд 3 п.1 + раунд 5 п.4, модель
+ * Telegram/Битрикс): на той же строке, что текст — в самом правом нижнем
+ * углу; когда текст доходит до неё или есть реакции — уходит строкой ниже
+ * (реакции = содержание той строки, время справа от них). Прижатие к низу
+ * строки — translate (НЕ margin: mt раздувал блок под line-box, нижний
+ * зазор пузыря становился больше верхнего — раунд 5 п.4; transform раскладку
+ * не трогает). «То слева, то справа» запрещено. */
 export function MetaFloat({ message, mine }: { message: ChatMessage; mine: boolean }) {
   return (
     <MessageMeta
       message={message}
       onFilled={mine}
       ticks={mine}
-      className="float-right ml-1.5 mt-[5px]"
+      className="float-right ml-1.5 translate-y-[4px]"
     />
   );
 }

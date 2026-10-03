@@ -111,7 +111,7 @@ describe('ChatMessageItem — время флоатом в правом нижн
     expect(textBlock).toBeTruthy();
     expect(textBlock!.textContent).toContain('текст сообщения');
     expect(content.lastElementChild).toBe(textBlock);
-    expect(textBlock!.className).toContain('pb-[5px]');
+    expect(textBlock!.className).toContain('pb-2.5');
   });
 
   it('с реакциями: время — строкой ниже, СПРАВА от реакций (р.3 п.1)', () => {
@@ -352,9 +352,11 @@ describe('Медиа-пузырь Telegram (#187): изображение = ча
       />,
     );
     const block = container.querySelector('[data-slot="media-message"]')!;
-    // шапка — ЧАСТЬ сообщения (media-part с тоном), не отдельный чип
+    // шапка — ЧАСТЬ сообщения (media-part с тоном), не отдельный чип;
+    // всегда со скруглённым верхом (раунд 5 п.1)
     const header = block.querySelector('[data-slot="media-part"]')!;
     expect(header).toBeTruthy();
+    expect(header.className).toContain('rounded-t-xl');
     expect(header.getAttribute('data-tone')).toBe('in');
     const name = [...header.querySelectorAll('span')].find(
       (el) => el.textContent === 'Иван Петров',
@@ -455,7 +457,7 @@ describe('Медиа-пузырь Telegram (#187): изображение = ча
     const meta = bottom.querySelector('[data-slot="message-meta"]')!;
     expect(meta.className).toContain('float-right');
     expect(bottom.textContent).toContain('подпись к фото');
-    expect(bottom.className).toContain('pb-[5px]');
+    expect(bottom.className).toContain('pb-2.5');
   });
 
   it('плитка одиночного изображения держит пропорции: aspect-ratio вместо фикс-высоты', () => {

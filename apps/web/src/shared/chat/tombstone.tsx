@@ -91,7 +91,7 @@ export function TombstoneBubble({
               </span>
             ) : null}
             {/* Надгробие + время одной строкой (раунд 2 п.2/п.4), низ прижат. */}
-            <span className="-mt-[3px] flex flex-wrap items-center gap-x-1.5 pb-[5px]">
+            <span className="-mt-[3px] flex flex-wrap items-center gap-x-1.5 pb-2.5">
               <MessageTombstone mine={mine} />
               <MessageMeta
                 message={message}

@@ -220,7 +220,7 @@ export function PostCard({
                 ? 'block px-2.5 pt-[2px] leading-tight'
                 : 'block px-2.5 pt-[7px] leading-tight',
               'text-sm',
-              message.reactions.length > 0 ? 'pb-[2px]' : 'pb-[5px]',
+              message.reactions.length > 0 ? 'pb-[2px]' : 'pb-2.5',
             )}
           >
             <MessageText text={message.text} />
@@ -230,12 +230,7 @@ export function PostCard({
         {/* Реакции — строкой ниже; время справа от них (р.3 п.1); у соло-медиа
             без текста — только реакции (время на чипе). */}
         {message.reactions.length > 0 ? (
-          <span
-            className={cn(
-              'flex items-end gap-2 px-2.5 pt-[3px]',
-              imageOnly && media ? 'pb-[5px]' : 'pb-[5px]',
-            )}
-          >
+          <span className={cn('flex items-end gap-2 px-2.5 pt-[3px]', 'pb-2.5')}>
             <MessageReactions message={message} onFilled={surface.onFilled} />
             {imageOnly && media ? null : (
               <MessageMeta
@@ -248,8 +243,15 @@ export function PostCard({
           </span>
         ) : null}
         {/* Полоса обсуждения — ПОСТОЯННАЯ высота h-8 (вердикт 28.09): аватарки
-            size-5 центрируются, прыжков высоты нет; нижний full-bleed блок. */}
-        <span className="mt-[6px] flex h-8 items-center gap-2 border-t border-border/60 bg-current/10 px-2.5">
+            size-5 центрируются, прыжков высоты нет; нижний full-bleed блок.
+            Соло-картинка без текста/реакций — ВПЛОТНУЮ к картинке (раунд 5
+            п.3: полоска-зазор между фото и «Обсудить» убрана). */}
+        <span
+          className={cn(
+            'flex h-8 items-center gap-2 border-t border-border/60 bg-current/10 px-2.5',
+            imageOnly && media && message.reactions.length === 0 ? 'mt-0' : 'mt-[6px]',
+          )}
+        >
           <ThreadStrip
             surface={surface}
             participants={participants}
