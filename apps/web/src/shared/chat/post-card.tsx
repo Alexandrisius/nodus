@@ -6,7 +6,7 @@ import { personTone } from '../ui/person-tone.js';
 import { attachmentsLayout, mediaBubbleWidth, MessageAttachments } from './attachments.js';
 import { MessageReactions } from './chat-message.js';
 import { messageSurface } from './message-surface.js';
-import { MediaArea, MediaTimeChip, MetaFloat } from './message-media-bubble.js';
+import { MediaArea, MediaTimeChip, MetaFloat, SelectRing } from './message-media-bubble.js';
 import { MessageMeta } from './message-meta.js';
 import { MessageText } from './message-text.js';
 import { ThreadStrip, ThreadStripEnter } from './post-thread-strip.js';
@@ -144,10 +144,12 @@ export function PostCard({
       }}
       className={cn(
         surface.fill,
-        'relative w-fit max-w-[min(100%,42rem)] cursor-pointer rounded-xl border text-left transition-colors group/msg group/bubble',
-        // Медиа-пост — БЕЗ рамки вокруг картинки (раунд 2 п.5: «линии вокруг
-        // изображения» запрещены и в каналах); текстовый пост — hairline.
-        media ? 'border-transparent hover:border-transparent' : 'border-border hover:border-input',
+        'relative w-fit max-w-[min(100%,42rem)] cursor-pointer rounded-xl text-left transition-colors group/msg group/bubble',
+        // Медиа-пост — БЕЗ рамки вообще (раунд 4: даже прозрачный бордер
+        // давал 1px-полосу фона вдоль картинки — background-clip:border-box
+        // красит фон ПОД прозрачным бордером, инсет = «линии вокруг
+        // изображения»); текстовый пост — hairline.
+        media ? 'border-0' : 'border border-border hover:border-input',
       )}
       data-slot="post-surface"
       data-surface={surface.tone}
@@ -157,9 +159,8 @@ export function PostCard({
           реакций (#124) выступает за нижний угол карточки (-right-3) и под
           overflow-hidden внешнего контейнера обрезалась (регресс #187 п.11:
           «ободок кружка есть, глифа нет») — пи́лер живёт СИБЛИНГом клипа.
-          Радиус клипа = внешний МИНУС бордер (1px): иначе на нижних углах
-          полосы «Обсудить» щель с фоном (раунд 2 п.6). */}
-      <div className="overflow-hidden rounded-[calc(0.875rem-1px)]">
+          Радиус клипа = внешний МИНУС бордер (у медиа бордера нет). */}
+      <div className={cn('overflow-hidden', media ? 'rounded-xl' : 'rounded-[calc(0.875rem-1px)]')}>
         {/* Автор — первая строка карточки, только у первого ЧУЖОГО поста серии;
             у остальных и у своих — sr-only (AT не теряет автора, как в пузырях
             чатов). Цвет персональный (#180). -mt-[3px] — оптическая компенсация
@@ -259,6 +260,10 @@ export function PostCard({
           <ThreadStripEnter surface={surface} />
         </span>
       </div>
+      {/* Рамка выделения — overlay НАД контентом (раунд 4: у медиа-постов
+          бордера нет вовсе, у текстовых он 1px — единая толстая рамка селекта
+          для всех постов рисуется оверлеем, как у пузырей). */}
+      <SelectRing />
       {/* Ховер-кнопка реакций поста (#124 → #132); в селекте недоступны. */}
       {reactionsHidden ? null : <ReactionPicker message={message} atEnd={atEnd} />}
     </div>

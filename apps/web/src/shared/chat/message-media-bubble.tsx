@@ -203,6 +203,19 @@ export function MediaTimeChip({ message, mine }: { message: ChatMessage; mine: b
   );
 }
 
+/** Рамка выделения НАД контентом (border-2 по краю, не шире): для хостов
+ * без SVG-силуэта (посты каналов) — единый с пузырями стиль рамки селекта. */
+export function SelectRing() {
+  return (
+    <span
+      aria-hidden
+      data-slot="select-ring"
+      className="pointer-events-none absolute inset-0 rounded-xl border-2 opacity-0 transition-opacity"
+      style={{ borderColor: 'var(--selection-ring)' }}
+    />
+  );
+}
+
 /** Хвостовик нижней части медиа-сообщения: маленький SVG у нижнего угла ЧАСТИ
  * (не стопки), заливка тоном части; кривая — та же геометрия плавника
  * outlinePath (20-юнитовая сетка), замкнутая по краю части. */
