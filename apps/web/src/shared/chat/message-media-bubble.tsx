@@ -159,7 +159,10 @@ export function MediaMessage({
           />
           <BubbleContent
             className={cn(
-              'relative rounded-b-xl px-2.5 pt-[5px] pb-[8px] leading-tight',
+              // w-full: часть растянута на ширину стопки (ширина = медиа,
+              // раунд 17): w-fit примитива сужал её до текста — булавка меты
+              // уезжала «сразу за текстом» вместо правого угла пузыря.
+              'relative w-full rounded-b-xl px-2.5 pt-[5px] pb-[8px] leading-tight',
               finSide === 'left' && 'rounded-bl-none',
               finSide === 'right' && 'rounded-br-none',
             )}

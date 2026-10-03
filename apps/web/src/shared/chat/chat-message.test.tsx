@@ -457,6 +457,7 @@ describe('Медиа-пузырь Telegram (#187): изображение = ча
     // картинка над ним — БЕЗ фона за собой
     const bottom = block.querySelector('[data-slot="bubble-content"]')!;
     expect(bottom.className).toContain('rounded-b-xl');
+    expect(bottom.className).toContain('w-full');
     // свой верх с подписью (без шапки) — пузыревой радиус (низ-часть рядом)
     const frame = block.querySelector('span[class*="rounded-t-xl"]')!;
     expect(frame).toBeTruthy();
