@@ -793,6 +793,21 @@
   border-color: var(--selection-ring);
 }
 
+/* #187 (вердикт владельца, п.3/п.5): селект медиа — тонировка ПОВЕРХ
+   изображения (заливка пузыря под картинкой не видна, SVG-кольцо тоже);
+   рамка селекта — ОВЕРЛЕЙ над контентом (select-ring, база — прозрачна).
+   Тон щита — info-микс в обеих темах; рамка — тот же --selection-ring,
+   что у кольца текстовых пузырей: одна семантика, «не шире края». */
+[data-message-id][data-selected='true'] [data-slot='media-shield'],
+[data-message-id][data-box-selected='true'] [data-slot='media-shield'] {
+  background-color: color-mix(in oklch, var(--info) 26%, transparent);
+}
+
+[data-message-id][data-selected='true'] [data-slot='select-ring'],
+[data-message-id][data-box-selected='true'] [data-slot='select-ring'] {
+  opacity: 1;
+}
+
 /* Стикер-сообщение (#143) без пузыря — выделение красит ПЛИТУ глифа
    (sticker-surface, ревизия владельца 30.09: «не видно, что выделен»):
    тот же тинт color-mix(поверхность, info 32%), что у пузырей, + яркая

@@ -54,18 +54,21 @@ export function attachmentsLayout(list: MessageAttachment[]): AttachmentLayout {
  * - list (файлы/микс) — узкая карточка CARD_LIST_W с полом колонки текста.
  * `hasTextColumn` (подпись/имя/цитата/пересылка) поднимает пол одиночного
  * изображения до TEXT_COL_MIN — текст не сжимается в иглу; чистое изображение
- * без текста ограничено только полом меты (узкий пузырь Telegram). Без
- * вложений — null: пузырь w-fit от текста. Чистая функция — unit-тест.
+ * без текста ограничено только полом меты (узкий пузырь Telegram). `bare`
+ * (#187 п.6, медиа без пузыря вообще: время — чип ПОВЕРХ картинки, полы не
+ * нужны) — ширина строго по боксу медиа. Без вложений — null: пузырь w-fit
+ * от текста. Чистая функция — unit-тест.
  */
 export function mediaBubbleWidth(
   list: MessageAttachment[],
-  opts: { hasTextColumn?: boolean } = {},
+  opts: { hasTextColumn?: boolean; bare?: boolean } = {},
 ): number | null {
   const visible = list.filter((a) => a.kind !== 'sticker'); // стикер — без пузыря (#143)
   if (visible.length === 0) return null;
   const layout = attachmentsLayout(visible);
   if (layout.mode === 'single') {
     const w = fitSingleBox(layout.image.width, layout.image.height).width;
+    if (opts.bare) return w;
     return Math.max(w, opts.hasTextColumn ? TEXT_COL_MIN : MEDIA_META_FLOOR);
   }
   if (layout.mode === 'gallery') return MEDIA_MAX_W;

@@ -7,11 +7,12 @@ import { reactionAsset } from './reaction-presets.js';
 
 type EntitySegment = Extract<MessageSegment, { kind: 'entity' }>;
 
-/** Текст сообщения: межстрочный leading-snug (1.375 — Telegram 1.35/Anytype 1.33,
- * узкие строки пузыря; #181). Ссылки на сущности (portal:// и deep-link ?cards=)
- *  ЗАРЕГИСТРИРОВАННЫХ видов заменяются карточкой-превью (сырая ссылка из
- *  текста убирается — пересылка писем запрещена, вместо неё ссылка,
- *  вердикт владельца 22.09.2026); неизвестные виды остаются текстом. */
+/** Текст сообщения: межстрочный leading-tight (1.25 — плотность Telegram;
+ *  вердикт #187 п.10: 1.375 (#181) читался просторнее телеграма). Ссылки
+ *  на сущности (portal:// и deep-link ?cards=) ЗАРЕГИСТРИРОВАННЫХ видов
+ *  заменяются карточкой-превью (сырая ссылка из текста убирается —
+ *  пересылка писем запрещена, вместо неё ссылка, вердикт владельца
+ *  22.09.2026); неизвестные виды остаются текстом. */
 /** Одиночный эмодзи сообщения (#130, канон Telegram single-emoji): крупный
  *  живой глиф — анимированный WebP из набора реакций, если анимация есть,
  *  иначе крупный глиф шрифтом Noto Color Emoji. */
@@ -39,7 +40,7 @@ export function MessageText({ text }: { text: string }) {
 
   if (entities.length === 0) {
     return (
-      <span data-slot="message-text" className="whitespace-pre-wrap break-words leading-snug">
+      <span data-slot="message-text" className="whitespace-pre-wrap break-words leading-tight">
         {text}
       </span>
     );
@@ -54,7 +55,7 @@ export function MessageText({ text }: { text: string }) {
   return (
     <span data-slot="message-text" className="flex min-w-0 flex-col gap-1.5">
       {visibleText ? (
-        <span className="whitespace-pre-wrap break-words leading-snug">{visibleText}</span>
+        <span className="whitespace-pre-wrap break-words leading-tight">{visibleText}</span>
       ) : null}
       {entities.map((segment) => {
         const Preview = linkPreviewFor(segment.entity);

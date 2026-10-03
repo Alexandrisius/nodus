@@ -27,8 +27,11 @@ import { UI_SCALE } from '../ui/ui-scale.js';
  * (display:none убивает раскладку и измерение, урок р.8).
  */
 const FIN_UNITS = 20;
-/** Радиус углов пузыря = rounded-xl (0.75rem) в css px. */
-const BOX_RADIUS = 12 * UI_SCALE;
+/** Радиус углов пузыря = rounded-xl токена темы (--radius-xl = 14 дизайн-px,
+ *  0.875rem): силуэт SVG обязан совпадать с CSS-клипом контента — рассинхрон
+ *  виден у full-bleed картинок (углы картинки круглее силуэта заливки,
+ *  баг-вердикт #187 п.2). */
+const BOX_RADIUS = 14 * UI_SCALE;
 /** Полосы: штрих полной шириной 4css (внутрь 2), прикрытие 2css (внутрь 1)
  *  — видимая полоса [1,2] css px. */
 const RING_STROKE_CSS = 4;
@@ -96,13 +99,21 @@ function measureLayer(el: SVGSVGElement): LayerGeom {
  * Слой рисуется для КАЖДОГО пузыря (без хвоста — чистая коробка). Заливка
  * тела пузыря остаётся CSS (фон пузыря), слой рисует только границу и
  * заливку плавника. side — сторона хвоста (только последний пузырь серии).
+ *
+ * `ringless` (#187, вердикт п.1/п.5): медиа-пузырь БЕЗ границы — изображение
+ * идеально является краем пузыря, полоска кольца вокруг картинки запрещена;
+ * рамка выделения у медиа рисуется ОВЕРЛЕЕМ над контентом (select-ring в
+ * message-media-bubble), т.к. слой под контентом у картинки невидим.
  */
 export function BubbleOutline({
   side,
   variant,
+  ringless = false,
 }: {
   side: 'left' | 'right' | null;
   variant: 'default' | 'card';
+  /** Не рисовать кольцо/прикрытие (медиа-пузырь без рамки). */
+  ringless?: boolean;
 }) {
   const clipId = `bubble-clip-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
   const layerRef = useRef<SVGSVGElement>(null);
@@ -146,24 +157,28 @@ export function BubbleOutline({
             d={outlinePath(geom.w, geom.h, side, geom.unit)}
             className={variant === 'card' ? 'fill-bubble-in' : 'fill-bubble-out'}
           />
-          {/* ЕДИНАЯ граница: коробка + хвост одним контуром, штрих [0,2]css
-              внутрь + прикрытие [0,1] цветом заливки, клип по силуэту —
-              видимая полоса [1,2]css по ВСЕМУ периметру одной линией.
-              Цветом управляет globals.css. */}
-          <path
-            className="bubble-ring"
-            d={outlinePath(geom.w, geom.h, side, geom.unit)}
-            fill="none"
-            strokeWidth={RING_STROKE_CSS}
-            clipPath={`url(#${clipId})`}
-          />
-          <path
-            className="bubble-ring-cover"
-            d={outlinePath(geom.w, geom.h, side, geom.unit)}
-            fill="none"
-            strokeWidth={COVER_STROKE_CSS}
-            clipPath={`url(#${clipId})`}
-          />
+          {ringless ? null : (
+            <>
+              {/* ЕДИНАЯ граница: коробка + хвост одним контуром, штрих [0,2]css
+                  внутрь + прикрытие [0,1] цветом заливки, клип по силуэту —
+                  видимая полоса [1,2]css по ВСЕМУ периметру одной линией.
+                  Цветом управляет globals.css. */}
+              <path
+                className="bubble-ring"
+                d={outlinePath(geom.w, geom.h, side, geom.unit)}
+                fill="none"
+                strokeWidth={RING_STROKE_CSS}
+                clipPath={`url(#${clipId})`}
+              />
+              <path
+                className="bubble-ring-cover"
+                d={outlinePath(geom.w, geom.h, side, geom.unit)}
+                fill="none"
+                strokeWidth={COVER_STROKE_CSS}
+                clipPath={`url(#${clipId})`}
+              />
+            </>
+          )}
         </>
       ) : null}
     </svg>

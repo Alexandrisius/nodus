@@ -103,4 +103,11 @@ describe('mediaBubbleWidth — вложение задаёт ширину пуз
     expect(mediaBubbleWidth([small], { hasTextColumn: true })).toBe(Math.round(uiPx(240)));
     expect(mediaBubbleWidth([small], { hasTextColumn: false })).toBe(MEDIA_META_FLOOR);
   });
+
+  it('bare (#187 п.6): чистое изображение без пузыря — строго бокс медиа, без полов', () => {
+    // время — чип ПОВЕРХ картинки, полы меты/текста не нужны
+    const small = { ...image(1), width: 100, height: 100 };
+    expect(mediaBubbleWidth([small], { bare: true })).toBe(100);
+    expect(mediaBubbleWidth([image(1)], { bare: true })).toBe(Math.round(uiPx(480)));
+  });
 });

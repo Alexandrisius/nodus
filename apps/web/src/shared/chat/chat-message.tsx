@@ -21,6 +21,7 @@ import { ReactionPicker } from './reaction-picker.js';
 import { stickerAttachmentOf, StickerMessageView } from './sticker-message.js';
 import { TombstoneBubble } from './tombstone.js';
 import { PersonAvatar } from '../ui/person-avatar.js';
+import { MediaTimeChip, SelectRing } from './message-media-bubble.js';
 
 /** Реакции — в собственном файле (потребитель-стикер #143); реэкспорт для
  *  точек импорта (post-card, тесты). */
@@ -151,6 +152,65 @@ export const ChatMessageItem = memo(function ChatMessageItem({
   const media = layout.mode === 'single' || layout.mode === 'gallery';
   const hasTextColumn =
     Boolean(message.text) || showName || !!message.reply || !!message.forwardedFrom;
+
+  // Bare-медиа (вердикт #187 п.6): чистое изображение/галерея БЕЗ текста,
+  // цитаты, пересылки и срочности — пузыря и хвостика НЕТ вообще (модель
+  // Telegram/Битрикс24): скруглённая картинка, чип времени на ней, реакции
+  // чипами под ней.
+  const bare =
+    media && !message.text?.trim() && !message.reply && !message.forwardedFrom && !message.urgent;
+  if (bare) {
+    const bareWidth = mediaBubbleWidth(message.attachments, { bare: true });
+    return (
+      <Message align={atEnd ? 'end' : 'start'} className="group/msg">
+        {avatarSlot === 'avatar' ? (
+          <MessageAvatar>
+            <PersonAvatar name={message.author.displayName} className="size-7" />
+          </MessageAvatar>
+        ) : null}
+        <MessageContent>
+          {showName ? null : (
+            <span className="sr-only">{withoutPatronymic(message.author.displayName)}: </span>
+          )}
+          {/* data-slot обязателен: правило MessageContent прижимает вправо
+              (align=end) прямых детей С data-slot (#132). */}
+          <div
+            data-slot="media-message"
+            className="relative flex w-fit max-w-full flex-col gap-[3px]"
+          >
+            {showName ? (
+              <span
+                className={cn(
+                  'text-sm leading-[19px] font-semibold',
+                  personTone(message.author.id),
+                )}
+              >
+                {shortPersonName(message.author.displayName)}
+              </span>
+            ) : null}
+            <span
+              className="relative block overflow-hidden rounded-xl"
+              style={bareWidth ? { width: bareWidth, maxWidth: '100%' } : undefined}
+            >
+              <MessageAttachments message={message} mine={mine} />
+              <span
+                aria-hidden
+                data-slot="media-shield"
+                className="pointer-events-none absolute inset-0"
+              />
+              <SelectRing />
+              <MediaTimeChip message={message} mine={mine} />
+            </span>
+            {/* Реакции — чипами ПОД картинкой (п.9): лента якорится низом,
+                рост строки реакций поднимает контент вверх, не толкает низ. */}
+            <MessageReactions message={message} onFilled={false} />
+            {reactionsHidden ? null : <ReactionPicker message={message} atEnd={atEnd} />}
+          </div>
+        </MessageContent>
+      </Message>
+    );
+  }
+
   const contentWidth = mediaBubbleWidth(message.attachments, { hasTextColumn });
   return (
     <Message align={atEnd ? 'end' : 'start'} className="group/msg">
@@ -167,10 +227,15 @@ export const ChatMessageItem = memo(function ChatMessageItem({
         )}
         <Bubble variant={variant}>
           {/* Контурный слой (#155 р.10-11) — ПОД контентом: единая заливка
-              силуэта (CSS-фон пузыря прозрачен) + единая граница. Верджикты
-              14.09 сохранены: плавник накрывает прямой угол, контур одной
-              кривой. */}
-          <BubbleOutline side={tail ? (atEnd ? 'right' : 'left') : null} variant={variant} />
+              силуэта (CSS-фон пузыря прозрачен). Медиа-пузырь — ringless
+              (вердикт #187 п.1): изображение является краем пузыря, полоска
+              кольца вокруг картинки запрещена; рамка селекта — оверлей
+              SelectRing над контентом (п.5). */}
+          <BubbleOutline
+            side={tail ? (atEnd ? 'right' : 'left') : null}
+            variant={variant}
+            ringless={media}
+          />
           {/* Угол со стороны хвостика — БЕЗ скругления: скруглённый угол
               оставлял собственный бордюр пузыря пересекать основание хвоста
               («пришитый отросток», вердикт владельца 14.09.2026); прямой угол
@@ -186,23 +251,29 @@ export const ChatMessageItem = memo(function ChatMessageItem({
           <BubbleContent
             className={cn(
               // Текстовые/карточные пузыри — ЕДИНЫЕ поля 10px по периметру
-              // (серия вердиктов 01.10 #181). Медиа-пузырь — БЕЗ полей:
-              // изображение = часть пузыря (#187), поля несут блоки.
+              // (серия вердиктов 01.10 #181). Медиа-пузырь — БЕЗ полей и БЕЗ
+              // прозрачного бордюра (border-0: его 1px с полоской заливки
+              // вокруг картинки — вердикт п.1), поля несут блоки.
               media
-                ? 'relative flex flex-col p-0'
+                ? 'relative flex flex-col border-0 p-0'
                 : 'relative flex flex-col gap-[2px] px-2.5 pt-2.5 pb-2.5',
               tail && (atEnd ? 'rounded-br-none' : 'rounded-bl-none'),
             )}
             style={contentWidth ? { width: contentWidth, maxWidth: '100%' } : undefined}
           >
             {media ? (
-              <MediaBubbleContent
-                message={message}
-                mine={mine}
-                showName={showName}
-                onJumpToReply={jumpToReply}
-                onJumpToForwardSource={jumpToForwardSource}
-              />
+              <>
+                <MediaBubbleContent
+                  message={message}
+                  mine={mine}
+                  showName={showName}
+                  onJumpToReply={jumpToReply}
+                  onJumpToForwardSource={jumpToForwardSource}
+                />
+                {/* Рамка селекта НАД контентом (п.5): под full-bleed картинкой
+                    SVG-кольцо невидимо. */}
+                <SelectRing />
+              </>
             ) : (
               <>
                 {/* Имя автора — ВЕРХНЯЯ строка пузыря (вердикт владельца

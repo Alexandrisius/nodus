@@ -149,7 +149,7 @@ describe('Заливка пузырей — токены bubble-* (канон Te
     );
   });
 
-  it('цитата: бар — акцент поверхности, имя — персональный цвет автора цитаты (#180)', () => {
+  it('цитата: плашка в цвете цитируемого — тинт + левая линия единым целым (#187 п.8)', () => {
     const reply = {
       id: 'r1',
       author: { id: 'a', displayName: 'Иван Петров', avatarUrl: null },
@@ -161,8 +161,15 @@ describe('Заливка пузырей — токены bubble-* (канон Te
     const mine = renderMessage(
       <ChatMessageItem message={message({ reply })} mine showName={false} />,
     );
-    const mineBar = mine.container.querySelector('[data-slot="bubble-content"] span[aria-hidden]');
-    expect(mineBar!.className).toContain('bg-bubble-out-accent');
+    // плашка цитаты: левая линия = левый КРАЙ плашки (border-l-2), не отдельная
+    // палочка; тон линии и фона — персональная переменная автора цитаты.
+    const quote = [...mine.container.querySelectorAll('[data-slot="bubble-content"] *')].find(
+      (el) => (el as HTMLElement).style?.borderLeftColor,
+    ) as HTMLElement | undefined;
+    expect(quote).toBeTruthy();
+    expect(quote!.className).toContain('border-l-2');
+    expect(quote!.style.borderLeftColor).toMatch(/var\(--name-[1-7]\)/);
+    expect(quote!.style.backgroundColor).toContain('color-mix');
     // имя цитируемого — тон personTone (не info/акцент пузыря), одинаково
     // на своём и чужом пузыре: identity автора цитаты.
     const quoteName = [...mine.container.querySelectorAll('span')].find(
@@ -171,11 +178,19 @@ describe('Заливка пузырей — токены bubble-* (канон Te
     expect(quoteName!.className).toMatch(/text-name-[1-7]/);
     mine.unmount();
 
-    const theirs = renderMessage(<ChatMessageItem message={message({ reply })} mine={false} />);
-    const theirBar = theirs.container.querySelector(
-      '[data-slot="bubble-content"] span[aria-hidden]',
+    // удалённый оригинал без автора — нейтральный тинт поверхности
+    const deletedReply = Object.assign({}, reply, {
+      deleted: true,
+      obliterated: false,
+      author: null,
+    }) as never;
+    const theirs = renderMessage(
+      <ChatMessageItem message={message({ reply: deletedReply })} mine={false} />,
     );
-    expect(theirBar!.className).toContain('bg-info');
+    const quote2 = [...theirs.container.querySelectorAll('[data-slot="bubble-content"] *')].find(
+      (el) => (el as HTMLElement).style?.borderLeftColor,
+    ) as HTMLElement | undefined;
+    expect(quote2!.style.borderLeftColor).toBe('var(--info)');
   });
 
   it('чипы реакций на залитом пузыре — акцент пузыря, на чужом — info/нейтраль', () => {
@@ -290,26 +305,80 @@ describe('Медиа-пузырь Telegram (#187): изображение = ча
     height: h,
   });
 
-  it('медиа-пузырь без полей (full-bleed): bubble-content p-0, ширина = медиа', () => {
+  it('чистое изображение без текста — BARE: пузыря нет, чип времени на картинке (#187 п.6)', () => {
     const { container } = renderMessage(
       <ChatMessageItem
         message={message({ attachments: [img(1, 1200, 800)], text: '' })}
         mine={false}
       />,
     );
+    // пузырь не рендерится вовсе — медиа-блок без Bubble
+    expect(container.querySelector('[data-slot="bubble"]')).toBeNull();
+    const bare = container.querySelector('[data-slot="media-message"]')!;
+    expect(bare).toBeTruthy();
+    const frame = bare.querySelector('span.overflow-hidden')!;
+    expect(frame).toBeTruthy();
+    // чип времени — поверх картинки, тёмная заливка, белый текст
+    const chip = frame.querySelector('time')!.closest('span')!;
+    expect(chip.className).toContain('bg-black/50');
+    expect(chip.className).toContain('text-white');
+    expect(chip.className).toContain('absolute');
+  });
+
+  it('bare с именем (чужие): имя цветной строкой над картинкой, пузыря нет', () => {
+    const { container } = renderMessage(
+      <ChatMessageItem
+        message={message({ attachments: [img(1, 1200, 800)], text: '' })}
+        mine={false}
+        showName
+      />,
+    );
+    expect(container.querySelector('[data-slot="bubble"]')).toBeNull();
+    const bare = container.querySelector('[data-slot="media-message"]')!;
+    const name = [...bare.querySelectorAll('span')].find((el) => el.textContent === 'Иван Петров')!;
+    expect(name.className).toMatch(/text-name-[1-7]/);
+    // имя — до картинки
+    expect(
+      bare.querySelector('img')!.compareDocumentPosition(name) & Node.DOCUMENT_POSITION_PRECEDING,
+    ).toBeTruthy();
+  });
+
+  it('bare: реакции — чипами ПОД картинкой (не пузырь)', () => {
+    const withReaction = message({
+      attachments: [img(1, 1200, 800)],
+      text: '',
+      reactions: [{ emoji: '👍', count: 1, mine: true, users: [] }],
+    });
+    const { container } = renderMessage(<ChatMessageItem message={withReaction} mine={false} />);
+    const bare = container.querySelector('[data-slot="media-message"]')!;
+    const frame = bare.querySelector('span.overflow-hidden')!;
+    const chip = bare.querySelector('button[aria-pressed]')!;
+    // чип реакции — после картинки в потоке bare-блока (п.9)
+    expect(frame.compareDocumentPosition(chip) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // и чип НЕ внутри картинки-блока
+    expect(frame.contains(chip)).toBe(false);
+  });
+
+  it('медиа-пузырь с подписью — full-bleed: p-0 + border-0, ширина = медиа', () => {
+    const { container } = renderMessage(
+      <ChatMessageItem
+        message={message({ attachments: [img(1, 1200, 800)], text: 'подпись' })}
+        mine={false}
+      />,
+    );
     const content = container.querySelector('[data-slot="bubble-content"]')!;
-    // full-bleed: боковых полей НЕТ — блоки несут поля сами
+    // full-bleed: боковых полей НЕТ, прозрачный бордюр снят (полоска п.1)
     expect(content.className).toContain('p-0');
+    expect(content.className).toContain('border-0');
     expect(content.className).not.toContain('px-2.5');
-    // ширина пузыря = бокс медиа (кап 480 дизайн-px в текущем ui-scale)
     expect((content as HTMLElement).style.width).toBe(`${Math.round(uiPx(480))}px`);
     expect((content as HTMLElement).style.maxWidth).toBe('100%');
   });
 
-  it('шапка с именем — блок С полями над изображением (чужие, showName)', () => {
+  it('шапка с именем — блок С полями и зазором 6px до картинки (п.4)', () => {
     const { container } = renderMessage(
       <ChatMessageItem
-        message={message({ attachments: [img(1, 1200, 800)], text: '' })}
+        message={message({ attachments: [img(1, 1200, 800)], text: 'подпись' })}
         mine={false}
         showName
       />,
@@ -318,26 +387,25 @@ describe('Медиа-пузырь Telegram (#187): изображение = ча
     const name = [...container.querySelectorAll('span')].find(
       (el) => el.textContent === 'Иван Петров',
     )!;
-    // имя — первый блок, с полями (шапка присоединена к изображению)
     expect(content.firstElementChild).toBe(name.parentElement);
     expect(name.parentElement!.className).toContain('px-2.5');
-    // изображение — следующий блок после шапки, у самого блока полей нет
-    const mediaBlock = name.parentElement!.nextElementSibling!;
-    expect(mediaBlock.querySelector('img')).toBeTruthy();
+    expect(name.parentElement!.className).toContain('pb-[6px]');
   });
 
   it('своё медиа-сообщение без шапки: изображение — первый блок пузыря', () => {
     const { container } = renderMessage(
-      <ChatMessageItem message={message({ attachments: [img(1, 1200, 800)], text: '' })} mine />,
+      <ChatMessageItem
+        message={message({ attachments: [img(1, 1200, 800)], text: 'подпись' })}
+        mine
+      />,
     );
     const content = container.querySelector('[data-slot="bubble-content"]')!;
     const first = content.firstElementChild!;
-    // изображение сверху (скруглённые верхние углы — клип контейнера)
     expect(first.querySelector('img')).toBeTruthy();
     expect(first.className).not.toContain('px-2.5');
   });
 
-  it('подпись под изображением — блок с полями; мета — нижний блок', () => {
+  it('подпись под изображением — блок с полями; мета — нижний блок, время у нижнего угла (п.7)', () => {
     const { container } = renderMessage(
       <ChatMessageItem
         message={message({ attachments: [img(1, 1200, 800)], text: 'подпись к фото' })}
@@ -351,8 +419,8 @@ describe('Медиа-пузырь Telegram (#187): изображение = ча
     const caption = blocks.find((b) => b.textContent === 'подпись к фото')!;
     expect(caption.className).toContain('px-2.5');
     const meta = blocks.find((b) => b.querySelector('[data-slot="message-meta"]'))!;
-    expect(meta.className).toContain('pb-2.5');
-    expect(blocks[blocks.length - 1]).toBe(meta);
+    expect(meta.className).toContain('pb-[5px]');
+    expect(blocks[blocks.length - 2]).toBe(meta);
   });
 
   it('плитка одиночного изображения держит пропорции: aspect-ratio вместо фикс-высоты', () => {

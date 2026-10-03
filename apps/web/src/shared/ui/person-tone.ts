@@ -20,6 +20,18 @@ export const personToneClasses = [
   'text-name-7',
 ] as const;
 
+/** CSS-переменные тонов той же палитры — для фонов/линий (не-текстовое
+ *  использование: тинт цитаты-реплая #187 п.8, левая линия — color-mix). */
+export const personToneVars = [
+  'var(--name-1)',
+  'var(--name-2)',
+  'var(--name-3)',
+  'var(--name-4)',
+  'var(--name-5)',
+  'var(--name-6)',
+  'var(--name-7)',
+] as const;
+
 /** FNV-1a: короткий детерминированный хеш без зависимостей. */
 function hashId(id: string): number {
   let h = 0x811c9dc5;
@@ -33,4 +45,9 @@ function hashId(id: string): number {
 /** Тон имени автора: класс text-name-* из палитры своей темы. */
 export function personTone(authorId: string): string {
   return personToneClasses[hashId(authorId) % personToneClasses.length] ?? 'text-name-1';
+}
+
+/** Тон автора CSS-переменной (var(--name-N)) — фоны/линии в цвете человека. */
+export function personToneVar(authorId: string): string {
+  return personToneVars[hashId(authorId) % personToneVars.length] ?? 'var(--name-1)';
 }

@@ -6,6 +6,7 @@ import { personTone } from '../ui/person-tone.js';
 import { attachmentsLayout, mediaBubbleWidth, MessageAttachments } from './attachments.js';
 import { MessageReactions } from './chat-message.js';
 import { messageSurface } from './message-surface.js';
+import { MediaArea } from './message-media-bubble.js';
 import { MessageMeta } from './message-meta.js';
 import { MessageText } from './message-text.js';
 import { ThreadStrip, ThreadStripEnter } from './post-thread-strip.js';
@@ -141,94 +142,100 @@ export function PostCard({
       }}
       className={cn(
         surface.fill,
-        'relative w-fit max-w-[min(100%,42rem)] cursor-pointer overflow-hidden rounded-xl border border-border text-left transition-colors hover:border-input group/msg group/bubble',
+        'relative w-fit max-w-[min(100%,42rem)] cursor-pointer rounded-xl border border-border text-left transition-colors hover:border-input group/msg group/bubble',
       )}
       data-slot="post-surface"
       data-surface={surface.tone}
       style={postWidth ? { width: postWidth, maxWidth: '100%' } : undefined}
     >
-      {/* Автор — первая строка карточки, только у первого ЧУЖОГО поста серии;
-          у остальных и у своих — sr-only (AT не теряет автора, как в пузырях
-          чатов). Цвет персональный (#180). -mt-[3px] — оптическая компенсация
-          воздуха строки имени: визуальный верх = полям 10px (#181). */}
-      {showName ? (
+      {/* Клип углов full-bleed медиа — ВНУТРЕННЕЙ обёрткой: ховер-кнопка
+          реакций (#124) выступает за нижний угол карточки (-right-3) и под
+          overflow-hidden внешнего контейнера обрезалась (регресс #187 п.11:
+          «ободок кружка есть, глифа нет») — пи́кер живёт СИБЛИНГом клипа. */}
+      <div className="overflow-hidden rounded-xl">
+        {/* Автор — первая строка карточки, только у первого ЧУЖОГО поста серии;
+            у остальных и у своих — sr-only (AT не теряет автора, как в пузырях
+            чатов). Цвет персональный (#180). -mt-[3px] — оптическая компенсация
+            воздуха строки имени: визуальный верх = полям 10px (#181). */}
+        {showName ? (
+          <span
+            className={cn(
+              '-mt-[3px] block px-2.5 pt-2.5 text-sm leading-[19px] font-semibold',
+              personTone(message.author.id),
+            )}
+          >
+            {withoutPatronymic(message.author.displayName)}
+          </span>
+        ) : (
+          <span className="sr-only">{message.author.displayName}: </span>
+        )}
+        {/* Плотность (#181): поля карточки одинаковые сверху/слева/справа для
+            ВСЕГО контента; медиа — full-bleed без полей (#187); имя → контент
+            2px (leading-[19px] короб строки #96). */}
+        {sticker ? (
+          <span className={cn('block w-fit px-2.5 pt-2.5', showName && 'pt-[2px]')}>
+            <StickerWindowTrigger message={message} attachment={sticker}>
+              <StickerGlyph
+                url={sticker.url ?? ''}
+                mime={sticker.mime}
+                alt={sticker.sticker?.packTitle}
+                className={stickerFeedClass}
+              />
+            </StickerWindowTrigger>
+          </span>
+        ) : media ? (
+          // Медиа — full-bleed: ширина изображения = ширина карточки, боковых
+          // полей нет; щит селекта — тон ПОВЕРХ картинки (п.3).
+          <MediaArea message={message} mine={mine} />
+        ) : message.attachments.length > 0 ? (
+          <span
+            className={cn('block max-w-full px-2.5 pt-2.5', showName && 'pt-[2px]')}
+            style={{
+              width: mediaBubbleWidth(message.attachments, { hasTextColumn: true }) ?? undefined,
+            }}
+          >
+            <MessageAttachments message={message} mine={mine} />
+          </span>
+        ) : null}
+        {/* Текст — MessageText (р.6): старт на тексте даёт нативное выделение,
+            выход за карточку превращает жест в выделение поста целиком.
+            Ширина поста — от ВЛОЖЕНИЯ (как пузырь чата): текст поджимается
+            под колонку медиа. Первый (без имени/медиа) — оптическая
+            компенсация -mt-[3px] (#181). Ритм: текст→мета 3px, мета→полоса 6px. */}
         <span
           className={cn(
-            '-mt-[3px] block px-2.5 pt-2.5 text-sm leading-[19px] font-semibold',
-            personTone(message.author.id),
+            showName || sticker || message.attachments.length > 0
+              ? 'block px-2.5 pt-[2px]'
+              : 'block px-2.5 pt-[7px]',
+            'text-sm',
           )}
         >
-          {withoutPatronymic(message.author.displayName)}
+          <MessageText text={message.text} />
         </span>
-      ) : (
-        <span className="sr-only">{message.author.displayName}: </span>
-      )}
-      {/* Плотность (#181): поля карточки одинаковые сверху/слева/справа для
-          ВСЕГО контента; медиа — full-bleed без полей (#187); имя → контент
-          2px (leading-[19px] короб строки #96). */}
-      {sticker ? (
-        <span className={cn('block w-fit px-2.5 pt-2.5', showName && 'pt-[2px]')}>
-          <StickerWindowTrigger message={message} attachment={sticker}>
-            <StickerGlyph
-              url={sticker.url ?? ''}
-              mime={sticker.mime}
-              alt={sticker.sticker?.packTitle}
-              className={stickerFeedClass}
-            />
-          </StickerWindowTrigger>
+        {/* Мета — общая с пузырём чата композиция (#96): реакции слева,
+            пин/«изменено»/время/галочки справа, микро-кегль. */}
+        <span className="flex items-end gap-2 px-2.5 pt-[3px]">
+          <MessageReactions message={message} onFilled={surface.onFilled} />
+          <MessageMeta
+            message={message}
+            onFilled={surface.onFilled}
+            ticks={mine}
+            className="ml-auto"
+          />
         </span>
-      ) : media ? (
-        // Медиа — full-bleed: ширина изображения = ширина карточки, боковых
-        // полей нет; геометрия детерминирована (#150), сужение — aspect-ratio.
-        <MessageAttachments message={message} mine={mine} />
-      ) : message.attachments.length > 0 ? (
-        <span
-          className={cn('block max-w-full px-2.5 pt-2.5', showName && 'pt-[2px]')}
-          style={{
-            width: mediaBubbleWidth(message.attachments, { hasTextColumn: true }) ?? undefined,
-          }}
-        >
-          <MessageAttachments message={message} mine={mine} />
+        {/* Полоса обсуждения — ПОСТОЯННАЯ высота h-8 (вердикт 28.09): аватарки
+            size-5 центрируются, прыжков высоты нет; нижний full-bleed блок. */}
+        <span className="mt-[6px] flex h-8 items-center gap-2 border-t border-border/60 bg-current/10 px-2.5">
+          <ThreadStrip
+            surface={surface}
+            participants={participants}
+            repliesCount={repliesCount}
+            lastReplyAt={lastReplyAt}
+            threadUnread={threadUnread}
+          />
+          <ThreadStripEnter surface={surface} />
         </span>
-      ) : null}
-      {/* Текст — MessageText (р.6): старт на тексте даёт нативное выделение,
-          выход за карточку превращает жест в выделение поста целиком.
-          Ширина поста — от ВЛОЖЕНИЯ (как пузырь чата): текст поджимается
-          под колонку медиа. Первый (без имени/медиа) — оптическая
-          компенсация -mt-[3px] (#181). Ритм: текст→мета 3px, мета→полоса 6px. */}
-      <span
-        className={cn(
-          showName || sticker || message.attachments.length > 0
-            ? 'block px-2.5 pt-[2px]'
-            : 'block px-2.5 pt-[7px]',
-          'text-sm',
-        )}
-      >
-        <MessageText text={message.text} />
-      </span>
-      {/* Мета — общая с пузырём чата композиция (#96): реакции слева,
-          пин/«изменено»/время/галочки справа, микро-кегль. */}
-      <span className="flex items-end gap-2 px-2.5 pt-[3px]">
-        <MessageReactions message={message} onFilled={surface.onFilled} />
-        <MessageMeta
-          message={message}
-          onFilled={surface.onFilled}
-          ticks={mine}
-          className="ml-auto"
-        />
-      </span>
-      {/* Полоса обсуждения — ПОСТОЯННАЯ высота h-8 (вердикт 28.09): аватарки
-          size-5 центрируются, прыжков высоты нет; нижний full-bleed блок. */}
-      <span className="mt-[6px] flex h-8 items-center gap-2 border-t border-border/60 bg-current/10 px-2.5">
-        <ThreadStrip
-          surface={surface}
-          participants={participants}
-          repliesCount={repliesCount}
-          lastReplyAt={lastReplyAt}
-          threadUnread={threadUnread}
-        />
-        <ThreadStripEnter surface={surface} />
-      </span>
+      </div>
       {/* Ховер-кнопка реакций поста (#124 → #132); в селекте недоступны. */}
       {reactionsHidden ? null : <ReactionPicker message={message} atEnd={atEnd} />}
     </div>
