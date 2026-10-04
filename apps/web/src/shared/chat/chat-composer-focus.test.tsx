@@ -43,6 +43,7 @@ function mount(client: QueryClient, withSelection: boolean) {
         selection: withSelection
           ? {
               count: 1,
+              ids: [],
               allMine: true,
               onForward: () => {},
               onDelete: () => {},

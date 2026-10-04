@@ -2,10 +2,13 @@ import { useEffect, useState } from 'react';
 import type { ConversationListItem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 
+import { useAuthStore } from '../../../shared/auth-store.js';
 import { AddMembersDialog } from '../../../shared/chat/conversation-members.js';
 import { ChatSidePanel, useChatSidePanel } from '../../../shared/chat/chat-side-panel.js';
 import { ChannelView } from '../../../shared/chat/channel-view.js';
 import { ConversationPane } from '../../../shared/chat/conversation-pane.js';
+import { isNotesConversation } from '../../../shared/chat/conversations.js';
+import { NotesPane } from '../../../shared/chat/notes-pane.js';
 import { useConvRoom } from '../../../shared/socket/use-conv-room.js';
 import { ConversationBar } from './conversation-bar.js';
 
@@ -40,15 +43,21 @@ export function ChatWorkspace({
   // тоггл — кнопка СПРАВА ВВЕРХУ бара беседы (канон кнопки «О задаче»).
   const panel = useChatSidePanel();
   const [membersView, setMembersView] = useState(false);
+  const [searchView, setSearchView] = useState(false);
   const [addMembersOpen, setAddMembersOpen] = useState(false);
   // Смена беседы без ремаунта (карточка мессенджера подменяет верхнюю):
   // виды панели персональны беседе — сбрасываем.
   useEffect(() => {
     setMembersView(false);
+    setSearchView(false);
     setAddMembersOpen(false);
   }, [conversation.id]);
   // Подписка на комнату беседы (#104): мгновенные события и typing.
   useConvRoom(conversation.id);
+  // Витрина «Избранного» (#171): беседа с собой — плоский поток записей и
+  // карточек избранного (не обычная лента).
+  const meId = useAuthStore((s) => s.user?.id ?? null);
+  const notes = isNotesConversation(conversation, meId);
 
   function closeMembers() {
     // Стрелка «назад»: под видом участников была открыта панель «О чате» —
@@ -61,11 +70,32 @@ export function ChatWorkspace({
     }
   }
 
+  function closePanelView() {
+    // Крестик панели: сворачивает колонку целиком из ЛЮБОГО вида (файлы,
+    // поиск standalone) — правка раунда 4: раньше при открытой панели
+    // вложений крестик не срабатывал вовсе.
+    setSearchView(false);
+    panel.close();
+  }
+
+  function backFromSearch() {
+    // «Назад» из поиска: под ним открыта панель вложений — возвращаемся к
+    // ней, колонку не трогаем (канон вида участников).
+    setSearchView(false);
+  }
+
+  function togglePanel() {
+    // Тоггл — про панель «О чате»: из режима поиска возвращает к файлам.
+    setSearchView(false);
+    panel.toggle();
+  }
+
   const bar = (
     <ConversationBar
       conversation={conversation}
       panelOpen={panel.open}
-      onPanelToggle={panel.toggle}
+      onPanelToggle={togglePanel}
+      onOpenSearch={() => setSearchView(true)}
       onOpenMembers={() => setMembersView(true)}
       onAddMembers={() => setAddMembersOpen(true)}
     />
@@ -91,10 +121,14 @@ export function ChatWorkspace({
         <div className="flex h-full min-w-0 flex-1 flex-col">
           {bar}
           <div className="flex min-h-0 flex-1">
-            <ConversationPane
-              conversationId={conversation.id}
-              showAuthor={conversation.type !== 'direct'}
-            />
+            {notes ? (
+              <NotesPane conversationId={conversation.id} />
+            ) : (
+              <ConversationPane
+                conversationId={conversation.id}
+                showAuthor={conversation.type !== 'direct'}
+              />
+            )}
           </div>
         </div>
       )}
@@ -102,11 +136,12 @@ export function ChatWorkspace({
         conversationId={conversation.id}
         conversation={conversation}
         open={panel.open}
-        onClose={panel.close}
+        onClose={closePanelView}
         title={conversation.type === 'project_channel' ? ui.chat.aboutChannel : ui.chat.aboutChat}
         threadRootId={threadRootId}
-        view={membersView ? 'members' : 'files'}
+        view={membersView ? 'members' : searchView ? 'search' : 'files'}
         onMembersClose={closeMembers}
+        onSearchBack={backFromSearch}
         onAddMembers={() => setAddMembersOpen(true)}
       />
       {addMembersOpen ? (

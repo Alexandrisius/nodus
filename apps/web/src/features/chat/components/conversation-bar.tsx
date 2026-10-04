@@ -1,4 +1,4 @@
-import { Camera, SquareArrowOutUpRight, UserPlus } from 'lucide-react';
+import { Camera, Search, SquareArrowOutUpRight, UserPlus } from 'lucide-react';
 import { useRef, useState } from 'react';
 import type { ConversationListItem, UserRef } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
@@ -53,12 +53,15 @@ export function ConversationBar({
   conversation,
   panelOpen,
   onPanelToggle,
+  onOpenSearch,
   onOpenMembers,
   onAddMembers,
 }: {
   conversation: ConversationListItem;
   panelOpen: boolean;
   onPanelToggle: () => void;
+  /** Лупа: раскрыть правую панель в режиме поиска (модель Битрикс24). */
+  onOpenSearch: () => void;
   onOpenMembers: () => void;
   onAddMembers: () => void;
 }) {
@@ -110,10 +113,11 @@ export function ConversationBar({
   }
 
   const typingName = typingVisible ? memberName(conversation, typing.userId) : null;
+  const isFavorites = isNotesConversation(conversation, meId);
 
   return (
     <header className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-4">
-      {isNotesConversation(conversation, meId) ? (
+      {isFavorites ? (
         <NotesGlyph className="size-9 shrink-0" />
       ) : canEditInfo ? (
         // Аватар беседы при праве changeInfo: клик — выбор файла (загрузка/
@@ -220,6 +224,19 @@ export function ConversationBar({
             <UserPlus className="size-4" strokeWidth={1.75} />
           </button>
         ) : null}
+        {/* Лупа поиска (все чаты, канон Telegram — #171 ревизия 04.10,
+            раунд 3): слева от тоггла панели; клик раскрывает ПРАВУЮ панель
+            в режиме поиска (строка + топ-выдача + воронка фильтров,
+            модель Битрикс24 — вердикт владельца). */}
+        <button
+          type="button"
+          onClick={onOpenSearch}
+          aria-label={ui.chat.searchMessages}
+          title={ui.chat.searchMessages}
+          className="shrink-0 rounded-lg p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        >
+          <Search className="size-4" strokeWidth={1.75} />
+        </button>
         <ChatPanelToggle open={panelOpen} onToggle={onPanelToggle} />
       </div>
     </header>

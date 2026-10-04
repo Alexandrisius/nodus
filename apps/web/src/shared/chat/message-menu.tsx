@@ -35,6 +35,7 @@ import { useMessageToTask } from './api.js';
 import { useChatDrafts } from './chat-drafts.js';
 import { focusComposerWhenFree } from './composer-focus.js';
 import { useDeleteDialog, useForwardDialog, useUnpinDialog } from './dialog-stores.js';
+import { useAddFavorites, useFavoriteIds, useRemoveFavorite } from './favorites-api.js';
 import { usePinToggle } from './message-mutations.js';
 import { useSelectionStore } from './selection-store.js';
 import { copyMessagesAsText } from './use-selection-keys.js';
@@ -86,6 +87,7 @@ export function MessageMenu({
   replyMode = 'quote',
   onOpenThread,
   messagesOfSelection,
+  hideFavorite = false,
   children,
 }: {
   message: ChatMessage;
@@ -98,10 +100,15 @@ export function MessageMenu({
   onOpenThread?: (rootId: string) => void;
   /** Выделенные сообщения ленты (меню режима селекта: копировать/удалить). */
   messagesOfSelection?: () => ChatMessage[];
+  /** Витрина «Избранного» (#171): звезда внутри — self-reference, пункт скрыт. */
+  hideFavorite?: boolean;
   children: ReactNode;
 }) {
   const toTask = useMessageToTask();
   const pinToggle = usePinToggle(conversationId);
+  const favoriteIds = useFavoriteIds();
+  const addFavorites = useAddFavorites();
+  const removeFavorite = useRemoveFavorite();
   const selectionActive = useSelectionStore((s) => s.scope === scope && s.ids.length > 0);
   const selectedIds = useSelectionStore((s) => (s.scope === scope ? s.ids : EMPTY_IDS));
   const [fragment, setFragment] = useState<string | null>(null);
@@ -129,6 +136,22 @@ export function MessageMenu({
   function selectionItems(): Item[] {
     const selected = selectedIds;
     return [
+      // Витрина «Избранного» (hideFavorite): звезда на свои записи —
+      // self-reference, дизайн запрещает и в режиме селекта.
+      ...(hideFavorite
+        ? []
+        : [
+            {
+              id: 'favoriteSelected',
+              icon: Star,
+              label: ui.chat.favoriteSelected,
+              run: () => {
+                // Порядок цепочки = порядок выделения → поток «Избранного» (#171).
+                addFavorites.mutate(selected);
+                useSelectionStore.getState().exit();
+              },
+            },
+          ]),
       {
         id: 'forwardSelected',
         icon: Forward,
@@ -252,9 +275,14 @@ export function MessageMenu({
       {
         id: 'favorite',
         icon: Star,
-        label: ui.chat.menu.favorite,
+        label: isFavorite ? ui.chat.unfavorite : ui.chat.menu.favorite,
         run: () => {
-          toast(ui.chat.actionSoon);
+          // Личная закладка-звезда (#171): toggle без диалогов («звезда мгновенна»).
+          if (isFavorite) {
+            removeFavorite.mutate(message.id);
+          } else {
+            addFavorites.mutate([message.id]);
+          }
           focusComposerWhenFree(scope);
         },
       },
@@ -284,6 +312,7 @@ export function MessageMenu({
       items: items.filter((item) => {
         if (item.id === 'edit') return editable;
         if (item.id === 'copy') return !isSticker;
+        if (item.id === 'favorite') return !hideFavorite;
         return !MINE_ONLY.has(item.id) || mine;
       }),
       // «Кто просмотрел» — подменю (раунд 4): только свои живые сообщения с
@@ -293,6 +322,7 @@ export function MessageMenu({
     };
   }
 
+  const isFavorite = favoriteIds.has(message.id);
   const selection = selectionActive
     ? { items: selectionItems(), showViewers: false }
     : normalItems();
@@ -335,7 +365,7 @@ export function MessageMenu({
             // браузера не глушим.
             const target = event.target as HTMLElement | null;
             const onSurface = target?.closest?.(
-              '[data-slot="bubble-content"], [data-slot="post-surface"], [data-slot="message-tombstone"], [data-slot="sticker-surface"]',
+              '[data-slot="bubble-content"], [data-slot="post-surface"], [data-slot="message-tombstone"], [data-slot="sticker-surface"], [data-slot="media-message"]',
             );
             if (!onSurface) {
               event.stopPropagation();

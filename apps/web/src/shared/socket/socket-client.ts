@@ -46,6 +46,11 @@ const DOMAIN_EVENTS = [
   // Новая версия вложения (сохранение ONLYOFFICE, #182): лента + файловые
   // запросы рефечатся — версия подхватывается без F5.
   'chat.attachment_updated',
+  // Избранное (#171): личные события владельца (user-комната) — витрины и
+  // звёзды-индикаторы обновляются с другого устройства без F5.
+  'chat.favorite_added',
+  'chat.favorite_removed',
+  'chat.favorite_updated',
   // Живые уведомления (#100): user-комната получает весь журнал-будил.
   'notification.dispatch_requested',
   'notification.read',

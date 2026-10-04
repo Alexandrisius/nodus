@@ -406,6 +406,7 @@ model Message {
   reactions    MessageReaction[]
   messagePins  ConversationPin[]
   attachments  MessageAttachment[]
+  favorites    Favorite[]
 
   @@unique([conversationId, seq])
   @@unique([authorId, clientMessageId])
@@ -512,6 +513,32 @@ model MessageAttachment {
   @@index([messageId])
   @@index([ownerId])
   @@map("message_attachments")
+}
+
+// ===================== избранное чата (#171, M6) =====================
+
+/// Личная закладка-ссылка на сообщение (#171, «закладка, не копия»):
+/// контент живёт в оригинале — правки отражаются, удаление оригинала гасит
+/// карточку в надгробие (#163), строки оригинала не удаляются физически.
+/// PK (user_id, message_id) = идемпотентность звезды. Метки — ЛИЧНЫЕ
+/// эмодзи-реакции (JSONB ["🔑"] ≤ 20, модель Telegram Premium, ревизия
+/// 04.10; НЕ справочник: I15 про бизнес-списки).
+model Favorite {
+  userId    String   @map("user_id") @db.Uuid
+  messageId String   @map("message_id") @db.Uuid
+  /// Историческая колонка (контракт note не отдаёт с ревизии 04.10;
+  /// удаление — contract-этап по канону prisma-migrations).
+  note      String   @default("")
+  /// ["🔑"] ≤ 20 — личные эмодзи-метки (чипы поиска витрины «Избранного»).
+  labels    Json     @default("[]")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@id([userId, messageId])
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("favorites")
 }
 
 // ===================== стикеры чата (#143, M6) =====================

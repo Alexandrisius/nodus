@@ -22,6 +22,7 @@ export * from './projects/project.schemas.js';
 export * from './counterparties/counterparty.schemas.js';
 export * from './correspondence/letter.schemas.js';
 export * from './chat/chat.schemas.js';
+export * from './chat/favorite.schemas.js';
 export * from './chat/sticker.schemas.js';
 export * from './files/office-formats.js';
 export * from './files/attachment-preview.js';

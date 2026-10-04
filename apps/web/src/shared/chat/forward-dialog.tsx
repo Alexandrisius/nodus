@@ -12,7 +12,13 @@ import { useAuthStore } from '../auth-store.js';
 import { useConversations, useConversationMessages } from './api.js';
 import { focusComposer, hasVisibleComposer } from './composer-focus.js';
 import { ConversationAvatar } from './conversation-avatar.js';
-import { conversationSubtitle, conversationTitle, sortByActivity } from './conversations.js';
+import {
+  conversationSubtitle,
+  conversationTitle,
+  isNotesConversation,
+  sortByActivity,
+} from './conversations.js';
+import { useAddFavorites } from './favorites-api.js';
 import { useForwardDialog, type ForwardRequest } from './dialog-stores.js';
 import {
   forwardFromLabel,
@@ -82,6 +88,7 @@ export function ForwardDialogHost() {
 function ForwardBody({ request, onDone }: { request: ForwardRequest; onDone: () => void }) {
   const meId = useAuthStore((s) => s.user?.id);
   const navigate = useNavigate();
+  const addFavorites = useAddFavorites();
   const { data } = useConversations();
   const { data: sourceData } = useConversationMessages(request.sourceConversationId);
   const [drill, setDrill] = useState<ConversationListItem | null>(null);
@@ -97,8 +104,19 @@ function ForwardBody({ request, onDone }: { request: ForwardRequest; onDone: () 
    *  замена её содержимого (пристоян тред через messenger-nav); страница
    *  /chat без накрытого стека — маршрут; видимый композер приёмника —
    *  фокус в него (бар уже в нём); иначе — карточка мессенджера поверх
-   *  сущности. Действий под слайдером НЕТ. */
+   *  сущности. Действий под слайдером НЕТ.
+   *  «Избранное» (диалог с собой) — НЕ пересылка, а АВТОЗВЕЗДА (вердикт
+   *  04.10 р.8): сообщения становятся закладками витрины — ровно как
+   *  обычная звезда, без копий и бара; «провал» — в витрину. */
   function finalize(conversation: ConversationListItem, threadRootId: string | null) {
+    const toFavorites = isNotesConversation(conversation, meId);
+    if (toFavorites) {
+      addFavorites.mutate(request.messageIds);
+      useSelectionStore.getState().exit();
+      onDone();
+      navigateToReceiver(conversation, threadRootId);
+      return;
+    }
     const scopeKey = forwardScopeKey(conversation, threadRootId);
     const pending: ForwardPending = {
       scopeKey,
@@ -111,7 +129,12 @@ function ForwardBody({ request, onDone }: { request: ForwardRequest; onDone: () 
     useForwardPending.getState().set(pending);
     useSelectionStore.getState().exit();
     onDone();
+    navigateToReceiver(conversation, threadRootId);
+  }
+
+  function navigateToReceiver(conversation: ConversationListItem, threadRootId: string | null) {
     window.setTimeout(() => {
+      const scopeKey = forwardScopeKey(conversation, threadRootId);
       const route = resolveForwardRoute({
         topCardIsMessenger: topCardIsMessengerInSearch(window.location.search),
         hasCards: hasCardsInSearch(window.location.search),
@@ -173,8 +196,13 @@ function ConversationLevel({
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<FilterId>('all');
   const filterTypes = FILTERS.find((f) => f.id === filter)?.types ?? null;
+  // «Избранное» — ВСЕГДА первая строка пикера (вердикт 04.10 р.9, канон
+  // Telegram Saved Messages): выбор = автозвезда на оригиналы, пояснение —
+  // подзаголовком строки; из общего списка исключено (не дублируем).
+  const notes = conversations.find((c) => isNotesConversation(c, meId)) ?? null;
   const filtered = conversations.filter(
     (c) =>
+      c !== notes &&
       (filterTypes === null || filterTypes.includes(c.type)) &&
       conversationTitle(c, meId).toLowerCase().includes(query.trim().toLowerCase()),
   );
@@ -211,7 +239,26 @@ function ConversationLevel({
         ))}
       </span>
       <ul className="-mx-1 mt-2 flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto">
-        {filtered.length === 0 ? (
+        {notes ? (
+          <li>
+            <button
+              type="button"
+              onClick={() => onPick(notes)}
+              className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors hover:bg-accent/40"
+            >
+              <ConversationAvatar conversation={notes} meId={meId} className="size-9" />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-medium">
+                  {conversationTitle(notes, meId)}
+                </span>
+                <span className="block truncate text-xs text-muted-foreground">
+                  {ui.chat.forwardFavoritesHint}
+                </span>
+              </span>
+            </button>
+          </li>
+        ) : null}
+        {filtered.length === 0 && !notes ? (
           <li className="px-2 py-8 text-center text-xs text-muted-foreground">
             {ui.chat.forwardEmpty}
           </li>

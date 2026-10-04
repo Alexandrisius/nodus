@@ -56,16 +56,20 @@ export function useFeedSelection(scope: string, items: ChatMessage[], meId?: str
 
 /** Проп selection композера (узкий островок батч-команд, вердикт 24.09):
  *  ids — в порядке ленты; null вне режима. Единая сборка для всех хостов
- *  (правило одного прохода). */
+ *  (правило одного прохода). favoritesEnabled=false — витрина «Избранного»
+ *  (звезда-цепочка там — self-reference, #171). */
 export function selectionComposerProps(
   conversationId: string,
   selection: ReturnType<typeof useFeedSelection>,
+  favoritesEnabled = true,
 ): ComposerSelection | null {
   if (!selection.selectionActive) return null;
   const ids = selection.orderedIds.filter((id) => selection.selectedSet.has(id));
   return {
     count: ids.length,
+    ids,
     allMine: selection.allMine,
+    favoritesEnabled,
     onForward: () => useForwardDialog.getState().open(conversationId, ids),
     onDelete: () => useDeleteDialog.getState().ask(conversationId, ids),
     onCopy: () => copyMessagesAsText(selection.getSelectedMessages()),

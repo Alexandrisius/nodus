@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Pin } from 'lucide-react';
+import { Pin, Star } from 'lucide-react';
 import type { ChatMessage } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { Bubble, BubbleContent } from '@nodus/ui/components/bubble';
@@ -10,6 +10,7 @@ import { personTone } from '../ui/person-tone.js';
 import { snapDevicePx } from '../ui/ui-scale.js';
 import { mediaBubbleWidth, MessageAttachments } from './attachments.js';
 import { BubbleOutline, SelectSilhouetteRing } from './bubble-outline.js';
+import { useFavoriteIds, useNotesConversationId } from './favorites-api.js';
 import { ForwardedHeader, ReplyHeader } from './message-headers.js';
 import { MessageMeta } from './message-meta.js';
 import { MessageReactions } from './message-reactions.js';
@@ -289,8 +290,24 @@ export function MediaArea({
  * ПОВЕРХ картинки, тёмная полупрозрачная заливка, мягкие углы, белый текст;
  * галочки — только у своих (currentColor = белый). */
 export function MediaTimeChip({ message, mine }: { message: ChatMessage; mine: boolean }) {
+  // Звезда избранного (#171 ревизия 04.10): у соло-медиа нет пузырной меты —
+  // единственное место индикации — чип времени на картинке (вердикт владельца).
+  const favoriteIds = useFavoriteIds();
+  const notesId = useNotesConversationId();
+  const favorited = favoriteIds.has(message.id) && message.conversationId !== notesId;
   return (
     <span className="pointer-events-none absolute right-2 bottom-2 flex items-center gap-1 rounded-md bg-black/50 px-1.5 py-0.5 text-badge font-medium text-white">
+      {favorited ? (
+        <span className="flex shrink-0 text-info" title={ui.chat.favoriteBadge}>
+          <Star
+            role="img"
+            aria-label={ui.chat.favoriteBadge}
+            className="size-3"
+            fill="currentColor"
+            strokeWidth={0}
+          />
+        </span>
+      ) : null}
       {message.pinned ? (
         <Pin role="img" aria-label={ui.chat.menu.pin} className="size-3" strokeWidth={1.75} />
       ) : null}

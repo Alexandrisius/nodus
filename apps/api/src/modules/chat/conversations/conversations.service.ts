@@ -138,7 +138,7 @@ export class ConversationsService {
     return this.getItemOrThrow(conversationId, userId);
   }
 
-  /** Find-or-create direct (включая «Заметки» с собой); 404 — нет такого user. */
+  /** Find-or-create direct (включая «Избранное» с собой); 404 — нет такого user. */
   async findOrCreateDirect(
     userId: string,
     peerId: string,

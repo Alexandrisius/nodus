@@ -9,7 +9,7 @@ import { plural, withoutPatronymic } from '../lib/format.js';
  * реэкспортирует отсюда, потребители не меняются).
  */
 
-/** Диалог с самим собой — «Заметки» (модель Битрикс24, вердикт владельца
+/** Диалог с самим собой — «Избранное» (модель Битрикс24, вердикт владельца
  *  13.09.2026): единственный участник = текущий пользователь. */
 export function isNotesConversation(
   conversation: ConversationListItem,
@@ -24,7 +24,7 @@ export function isNotesConversation(
 
 /** Заголовок беседы: у канала/группы — название, у чата задачи — «№ · тема»,
  *  у чата письма — «рег.№ · тема» (без номера — тема), у личного — имя
- *  собеседника, у диалога с собой — «Заметки». */
+ *  собеседника, у диалога с собой — «Избранное». */
 export function conversationTitle(
   conversation: ConversationListItem,
   meId?: string | null,

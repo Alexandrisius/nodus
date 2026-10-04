@@ -49,7 +49,10 @@ export interface AttachmentDtoRow {
 }
 
 /** Сборка DTO вложения: подписанный url, вид по kind, снапшот стикера. */
-function toAttachmentDto(a: AttachmentDtoRow, signedUrls: SignedUrlService): MessageAttachment {
+export function toAttachmentDto(
+  a: AttachmentDtoRow,
+  signedUrls: SignedUrlService,
+): MessageAttachment {
   const stickerMeta = (a.stickerMeta as StickerMeta | null | undefined) ?? null;
   const previewKind = attachmentPreviewKind(a.name, a.mime);
   return {
@@ -339,7 +342,7 @@ export function computeReadAt(
 ): string | null {
   if (row.authorId !== viewerId) return null;
   if (!members.some((m) => m.userId !== row.authorId)) {
-    return row.createdAt.toISOString(); // «Заметки» (одиночная беседа)
+    return row.createdAt.toISOString(); // «Избранное» (одиночная беседа)
   }
   let firstReaderAt: Date | null = null;
   for (const reader of readCursors(row, members)) {

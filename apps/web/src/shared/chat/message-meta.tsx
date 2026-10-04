@@ -1,10 +1,11 @@
-import { Pin } from 'lucide-react';
+import { Pin, Star } from 'lucide-react';
 import type { ChatMessage } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { useUrgentAcks } from '../notifications-acks.js';
 import { formatTime } from '../lib/format.js';
+import { useFavoriteIds, useNotesConversationId } from './favorites-api.js';
 import { ReadTicks } from './read-ticks.js';
 
 /**
@@ -47,6 +48,11 @@ export function MessageMeta({
   plain?: boolean;
   className?: string;
 }) {
+  // Звезда личной закладки (#171): только на СВОИХ избранных сообщениях и
+  // НЕ внутри «Заметков» (self-reference там запрещён).
+  const favoriteIds = useFavoriteIds();
+  const notesId = useNotesConversationId();
+  const favorited = favoriteIds.has(message.id) && message.conversationId !== notesId;
   return (
     <span
       data-slot="message-meta"
@@ -56,6 +62,17 @@ export function MessageMeta({
         className,
       )}
     >
+      {favorited ? (
+        <span className="flex shrink-0 text-info" title={plain ? undefined : ui.chat.favoriteBadge}>
+          <Star
+            role={plain ? undefined : 'img'}
+            aria-label={plain ? undefined : ui.chat.favoriteBadge}
+            className="size-3"
+            fill="currentColor"
+            strokeWidth={0}
+          />
+        </span>
+      ) : null}
       {message.pinned ? (
         <Pin
           role={plain ? undefined : 'img'}
