@@ -114,8 +114,14 @@ export class NotificationsService {
     return dto!;
   }
 
-  /** Статус «Ознакомились N из M» для отправителя срочного (C8/C9). */
-  async urgentAcks(messageId: string): Promise<UrgentAckStatus> {
+  /** Статус «Ознакомились N из M» — только отправителю срочного (#202,
+   *  G3-паттерн модуля: чужой/несуществующий messageId = NOT_FOUND,
+   *  не раскрывает список ознакомившихся и факт существования). */
+  async urgentAcks(userId: string, messageId: string): Promise<UrgentAckStatus> {
+    const authorId = await this.repo.urgentAuthorId(messageId);
+    if (authorId !== userId) {
+      throw DomainException.notFound('Urgent message not found');
+    }
     const { rows, expected } = await this.repo.urgentAcks(messageId);
     const refs = await this.userProfiles.findRefs(rows.map((r) => r.userId));
     const byId = new Map(refs.map((r) => [r.id, r]));

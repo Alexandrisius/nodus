@@ -107,14 +107,14 @@ export class NotificationsController {
   }
 
   @Get('urgent/:messageId/acks')
-  @ApiOperation({ summary: '«Ознакомились N из M» по срочному сообщению (отправитель)' })
+  @ApiOperation({ summary: '«Ознакомились N из M» по срочному (только отправитель)' })
   @ApiOkResponse({ standardSchema: urgentAckStatusSchema })
   @ApiErrors(401, 404)
   urgentAcks(
     @GetUser() user: AuthUser,
     @Param('messageId', new ZodValidationPipe(uuidSchema)) messageId: string,
   ): Promise<UrgentAckStatus> {
-    return this.service.urgentAcks(messageId);
+    return this.service.urgentAcks(user.id, messageId);
   }
 
   @Post(':id/ack')

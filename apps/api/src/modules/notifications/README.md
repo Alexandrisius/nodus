@@ -33,7 +33,8 @@ NotificationPriority>` не даст собрать код без строки.
 - `@nodus/contracts/notifications/`: `notificationSchema` (строка журнала),
   `notificationSummarySchema` (число+точка), `listNotificationsQuerySchema`
   (фильтры пилюль + q + afterSeq-дельта), `urgentAckStatusSchema`
-  («Ознакомились N из M»), `notificationSettingsSchema` (DND).
+  («Ознакомились N из M» — только отправителю срочного, чужой/несуществующий
+  messageId = NOT_FOUND, #202), `notificationSettingsSchema` (DND).
 - События: `notification.dispatch_requested` (создание/повтор; snapshot для
   тоста), `notification.read` (гашение — синхронизация вкладок D2),
   `notification.acked` (будило отправителю, C9).
