@@ -277,6 +277,7 @@ export function PostCard({
               <MessageReactions message={message} onFilled={surface.onFilled} />
               <MessageMeta
                 message={message}
+                mine={mine}
                 onFilled={surface.onFilled}
                 ticks={mine}
                 className="ml-auto"

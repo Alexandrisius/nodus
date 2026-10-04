@@ -241,6 +241,7 @@ export function MetaGhost({
   return (
     <MessageMeta
       message={message}
+      mine={mine}
       onFilled={onFilled ?? mine}
       ticks={mine}
       // plain: без aria/role — e2e getByLabel('просмотрено') не должен
