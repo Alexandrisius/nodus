@@ -49,8 +49,12 @@ export function FavoriteRunMessage({
   // снять звезду, splitNotesSelection в delete-dialog).
   const selectable = selectionActive && !message.deletedAt;
   const labels = labelTarget.labels;
+  // Чипы тэгов остаются и в режиме селекта — паритет с обычными чатами,
+  // где реакции при выделении не пропадают (гасится только пикер — его
+  // прячет reactionsHidden, как reactionPicker в ChatMessageItem).
+  // Фидбэк приёмки #215: пропадавшие тэги в селекте выглядели багом.
   const labelSlots: { reactionsRow?: ReactNode; reactionPicker?: (atEnd: boolean) => ReactNode } =
-    message.deletedAt || selectionActive
+    message.deletedAt
       ? {}
       : {
           reactionsRow:
