@@ -30,3 +30,23 @@ export const useOptimisticFavoriteLabels = create<OptimisticFavoriteLabelsState>
       return { labels: next };
     }),
 }));
+
+/** Кэш списка ДОГНАЛ оптимистичную метку (пришла карточка с теми же
+ *  метками) — снять локальную: серверная истина теперь в кэше. Вызывается
+ *  витриной на каждую смену cardsById. Снимать раньше (в onSuccess) нельзя
+ *  — между ответом и рефетчем чип падал в пустышку (мигание, #215 приёмка:
+ *  «на секунду пропадает и появляется»). */
+export function reconcileOptimisticLabels(
+  cards: Iterable<{ messageId: string; labels: string[] }>,
+): void {
+  const { labels, clear } = useOptimisticFavoriteLabels.getState();
+  if (labels.size === 0) return;
+  for (const card of cards) {
+    const optimistic = labels.get(card.messageId);
+    if (!optimistic) continue;
+    const caughtUp =
+      card.labels.length === optimistic.length &&
+      card.labels.every((label, index) => label === optimistic[index]);
+    if (caughtUp) clear(card.messageId);
+  }
+}

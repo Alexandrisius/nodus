@@ -316,10 +316,10 @@ export function useUpdateFavorite() {
     },
     onSuccess: (card) => {
       patchCard(qc, card.messageId, card);
-      // Апсерт (тэг на записи): новой строки в списке ещё нет — рефеч всей
-      // ветки приносит карточку/тэги для cardsById витрины; локальная метка
-      // больше не нужна (серверная истина в кэше/на подходе).
-      useOptimisticFavoriteLabels.getState().clear(card.messageId);
+      // Апсерт (тэг на записи): локальную метку НЕ снимаем — карточка
+      // попадёт в кэш только после рефетча, между ответом и ним чип падал
+      // бы в пустышку (мигание). Снимает reconcileOptimisticLabels, когда
+      // кэш догонит теми же метками.
       void qc.invalidateQueries({ queryKey: favoriteKeys.all });
       void qc.invalidateQueries({ queryKey: favoriteKeys.labels() });
     },

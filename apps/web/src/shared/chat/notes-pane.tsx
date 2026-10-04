@@ -18,7 +18,7 @@ import { toEditVars } from './message-edit.js';
 import { useEditMessage } from './message-mutations.js';
 import { toFavoriteMessage } from './favorite-message.js';
 import { useFavorites } from './favorites-api.js';
-import { useOptimisticFavoriteLabels } from './optimistic-favorite-labels.js';
+import { useOptimisticFavoriteLabels, reconcileOptimisticLabels } from './optimistic-favorite-labels.js';
 import { JumpResponder } from './use-jump-responder.js';
 import { ScrollEndResponder } from './scroll-end-responder.js';
 import { useIncomingFollow } from './use-incoming-follow.js';
@@ -81,6 +81,12 @@ export function NotesPane({ conversationId }: { conversationId: string }) {
     [favoritesQuery.data],
   );
   const cardsById = useMemo(() => new Map(cards.map((card) => [card.messageId, card])), [cards]);
+  // Кэш списка догнал оптимистичную метку (карточка с теми же метками) —
+  // снять локальную (#215 приёмка: чип не должен мигать между ответом
+  // сервера и рефетчем списка).
+  useEffect(() => {
+    reconcileOptimisticLabels(cards);
+  }, [cards]);
   // Дедуп (#171 р.5): сообщение-запись с тэг-строкой рендерится ОДНОЙ
   // строкой (записью с тэгами) — карточку того же messageId в поток не
   // пускаем. Личные тэги — ЕДИНЫЙ слой реакций всей витрины (публичных
@@ -236,16 +242,20 @@ export function NotesPane({ conversationId }: { conversationId: string }) {
                                   null
                                 }
                                 labelTarget={
-                                  // Тэг-цель строки: карточка → локальная
-                                  // оптимистичная метка (запись до первой
-                                  // закладки, #215) → пустышка (апсерт).
-                                  cardsById.get(message.id) ??
-                                  (optimisticLabels.has(message.id)
+                                  // Тэг-цель строки: ЛОКАЛЬНАЯ оптимистичная
+                                  // метка первична (новейшая локальная истина
+                                  // мутации — иначе WS-рефетч с ещё не
+                                  // применённым PATCH мигал чипом, #215),
+                                  // затем карточка, затем пустышка (апсерт).
+                                  optimisticLabels.has(message.id)
                                     ? {
                                         messageId: message.id,
                                         labels: optimisticLabels.get(message.id)!,
                                       }
-                                    : { messageId: message.id, labels: [] })
+                                    : (cardsById.get(message.id) ?? {
+                                        messageId: message.id,
+                                        labels: [],
+                                      })
                                 }
                               mine={run.mine}
                               showName={attrs.showName}
