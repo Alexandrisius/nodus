@@ -17,11 +17,10 @@ import { useConversationMessages, useConversations, useSendChatMessage } from '.
 import { ChatComposer, type ComposerSubmit } from './chat-composer.js';
 import { ChatMessageItem } from './chat-message.js';
 import { setOpenConversation } from './notifications.js';
-import { useChatDrafts } from './chat-drafts.js';
+import { registerScopeSubmit } from './submit-registry.js';
+import { startMessageEdit, toEditVars } from './message-edit.js';
 import { addFiles } from './composer-files.js';
 import { toSendVars } from './composer-submit.js';
-import { registerScopeSubmit } from './submit-registry.js';
-import { focusComposer } from './composer-focus.js';
 import { DayChip } from './day-chip.js';
 import { FeedDropzone } from './feed-dropzone.js';
 import { FeedScrollerButton } from './feed-scroller-button.js';
@@ -241,7 +240,8 @@ function ConversationFeed({
 
   function handleSubmit(submit: ComposerSubmit) {
     if (submit.edit) {
-      edit.mutate({ messageId: submit.edit.messageId, text: submit.text });
+      const vars = toEditVars(submit);
+      if (vars) edit.mutate(vars);
       return;
     }
     send.mutate(toSendVars(submit));
@@ -250,20 +250,29 @@ function ConversationFeed({
   // Окно отправки вложений (#144): глобальный диалог шлёт через хук хоста —
   // оптимистичность/reply/идемпотентность в одном месте; реестр жив, пока
   // панель смонтирована (режим выделения композер размонтирует, панель —
-  // нет). send — новый объект каждый рендер, реестру нужен стабильный
-  // колбэк: ref, перерегистрация только по scope.
+  // нет). send/edit — новый объект каждый рендер, реестру нужен стабильный
+  // колбэк: ref, перерегистрация только по scope. Правка через окно (#188)
+  // маршрутизируется сюда же (editComposition — состав вкладений окна).
   const sendRef = useRef(send);
   sendRef.current = send;
+  const editRef = useRef(edit);
+  editRef.current = edit;
   useEffect(
-    () => registerScopeSubmit(scope, (submit) => sendRef.current.mutateAsync(toSendVars(submit))),
+    () =>
+      registerScopeSubmit(scope, (submit) => {
+        if (submit.edit) {
+          const vars = toEditVars(submit);
+          return vars ? editRef.current.mutateAsync(vars) : Promise.resolve();
+        }
+        return sendRef.current.mutateAsync(toSendVars(submit));
+      }),
     [scope],
   );
 
   function handleEditLast() {
     const message = lastMine();
     if (!message) return;
-    useChatDrafts.getState().setEdit(scope, message);
-    focusComposer(scope);
+    startMessageEdit(scope, message);
   }
 
   return (

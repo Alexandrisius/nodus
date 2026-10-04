@@ -146,6 +146,13 @@ export const chatStrings = {
   attachReorder: 'Перетащите, чтобы изменить порядок',
   attachViewImage: 'Открыть изображение',
   attachWaitUpload: 'Дождитесь завершения загрузки',
+  // Режим правки окна (#188): редактирование сообщения с вложениями.
+  editTitle: 'Изменение сообщения',
+  attachRowMenu: 'Действия с вложением',
+  attachMenuReplace: 'Заменить вложение',
+  attachMenuRename: 'Переименовать файл',
+  attachRenameField: 'Имя файла',
+  attachRenameApply: 'Применить имя',
   selectOne: 'Отметить',
   deselectOne: 'Снять отметку',
   draftLabel: 'Черновик',

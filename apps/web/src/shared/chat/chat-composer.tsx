@@ -45,14 +45,18 @@ import type { StickerSubmitPayload } from './sticker-api.js';
 /** Payload отправки композера (#87): текст + готовые вложения + контекст
  *  ответа/правки. Хост решает: edit ≠ null → мутация правки; иначе — отправка
  *  (attachmentIds/replyToId из payload). Пересылка (бар ForwardBanner)
- *  обрабатывается ВНУДРИ композера: текст = комментарий к блоку.
+ *  обрабатывается ВНУТРИ композера: текст = комментарий к блоку.
  *  Стикер (#143) — отдельный payload: поле приоритетнее текста (отправка
- *  кликом из вкладки стикеров, мимо textarea). */
+ *  кликом из вкладки стикеров, мимо textarea).
+ *  editComposition (#188): правка пришла из ОКНА вложений — payload несёт
+ *  полный итоговый состав (attachmentIds/renames); инлайн-правка композера
+ *  (флаг не задан) меняет только текст. */
 export interface ComposerSubmit {
   text: string;
   attachments: PendingAttachment[];
   reply: ReplyDraft | null;
   edit: EditDraft | null;
+  editComposition?: boolean;
   sticker?: StickerSubmitPayload | null;
 }
 

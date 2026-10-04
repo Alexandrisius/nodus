@@ -5,6 +5,7 @@ import {
   CHAT_EVENTS,
   ErrorCode,
   type ChatMessage,
+  type EditMessageBody,
   type ListMessagesQuery,
   type Paginated,
   type ReadConversationResult,
@@ -35,6 +36,7 @@ import {
   type MessageRow,
   type ClaimedAttachmentRow,
 } from './messages.repository.js';
+import { AttachmentsRepository } from './attachments.repository.js';
 import { ThreadParticipantsRepository } from './thread-participants.repository.js';
 import { buildReplySnapshot } from './reply-snapshot.js';
 import {
@@ -71,6 +73,7 @@ export interface SendResult {
 export class MessagesService {
   constructor(
     private readonly repo: MessagesRepository,
+    private readonly attachmentsRepo: AttachmentsRepository,
     private readonly conversations: ConversationsRepository,
     private readonly mapper: MessageDtoMapper,
     private readonly txRunner: TransactionRunner,
@@ -409,12 +412,14 @@ export class MessagesService {
 
   // ===== Правка =====
 
-  /** Правка текста: только автор, без давности; editedAt — только при реальной смене. */
+  /** Правка (#188): текст + опционально полный состав вложений. Только
+   *  автор, без давности; editedAt — только при реальной смене (текст,
+   *  состав или имена файлов). */
   async edit(
     userId: string,
     conversationId: string,
     messageId: string,
-    text: string,
+    body: EditMessageBody,
   ): Promise<{ message: MessageRow; members: MemberRow[] }> {
     return this.txRunner.run(async (tx) => {
       if (!(await this.conversations.findMembership(conversationId, userId, tx))) {
@@ -431,11 +436,13 @@ export class MessagesService {
       if (message.fwdMessageId) {
         throw DomainException.forbidden('Forwarded messages cannot be edited');
       }
+      const attachmentsChanged = await this.syncEditAttachments(messageId, userId, body, tx);
       let updated = message;
-      if (message.text !== text) {
-        updated = await this.repo.updateEditText(conversationId, messageId, userId, text, tx);
+      if (message.text !== body.text || attachmentsChanged) {
+        updated = await this.repo.updateEditText(conversationId, messageId, userId, body.text, tx);
         // readAt сбрасывается выводно (editedAt > last_read_at читателей) —
-        // «повторный пуш прочитавшим» (решение #41).
+        // «повторный пуш прочитавшим» (решение #41); состав вложений в
+        // событии не разносится — подписчики дочитывают через API.
         await this.eventBus.emit(
           tx,
           CHAT_EVENTS.MESSAGE_EDITED,
@@ -455,6 +462,41 @@ export class MessagesService {
         members: await this.conversations.listMembers([conversationId], tx),
       };
     });
+  }
+
+  /** Применение состава вложений правки (#188): claim новых, detach
+   *  убранных, reorder, переименования. Возвращает «была ли реальная смена»
+   *  (сигнатура состава+имён до/после) — она решает, ставить ли editedAt и
+   *  событие. Стикер-сообщение не правится ни составом, ни именами (стикер
+   *  неделим, #143). Инвариант непустоты: текст или ≥1 вложение — иначе
+   *  валидационная ошибка и откат транзакции (мусорный/чужой id в списке не
+   *  оставит сообщение пустым — security-ревью #188). */
+  private async syncEditAttachments(
+    messageId: string,
+    userId: string,
+    body: EditMessageBody,
+    tx: TransactionClient,
+  ): Promise<boolean> {
+    if (body.attachmentIds === undefined && body.attachmentRenames === undefined) return false;
+    const before = await this.repo.attachmentsFor([messageId], tx);
+    if (before.some((a) => a.kind === 'sticker')) {
+      throw DomainException.forbidden('Sticker messages cannot be edited');
+    }
+    if (body.attachmentIds !== undefined) {
+      await this.attachmentsRepo.syncMessageAttachments(messageId, body.attachmentIds, userId, tx);
+    }
+    if (body.attachmentRenames !== undefined && body.attachmentRenames.length > 0) {
+      await this.attachmentsRepo.renameMessageAttachments(messageId, body.attachmentRenames, tx);
+    }
+    const after = await this.repo.attachmentsFor([messageId], tx);
+    if (body.text.trim().length === 0 && after.length === 0) {
+      throw new DomainException(
+        ErrorCode.VALIDATION_FAILED,
+        'Message must have text or attachments',
+      );
+    }
+    const signature = (rows: typeof before) => rows.map((a) => `${a.id}:${a.name}`).join('|');
+    return signature(before) !== signature(after);
   }
 
   // ===== Удаление =====

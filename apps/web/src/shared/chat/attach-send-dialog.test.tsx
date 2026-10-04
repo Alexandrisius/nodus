@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { ChatMessage, MessageAttachment } from '@nodus/contracts';
 import type { ComposerSubmit } from './chat-composer.js';
 
 import { AttachSendDialogHost } from './attach-send-dialog.js';
@@ -167,5 +168,167 @@ describe('attach-send-dialog (#144)', () => {
     useAttachSendDialog.getState().open(KEY);
     render(<AttachSendDialogHost />);
     expect(screen.getByText('Выбрано: 2 файла')).toBeTruthy();
+  });
+});
+
+describe('attach-send-dialog — режим правки (#188)', () => {
+  beforeEach(reset);
+  afterEach(cleanup);
+
+  /** Сообщение с вложениями → setEdit (сеет строки) + окно (startMessageEdit). */
+  function openEdit(withAttachments = true) {
+    const attachments: MessageAttachment[] = withAttachments
+      ? [
+          {
+            id: 'att-1',
+            fileId: 'file-1',
+            name: 'отчёт.png',
+            size: 10,
+            mime: 'image/png',
+            kind: 'image',
+            url: null,
+            thumbnailUrl: 'blob:thumb-1',
+            previewKind: 'image',
+            pdfUrl: null,
+            width: null,
+            height: null,
+          },
+        ]
+      : [];
+    const message = { id: 'm1', text: 'исходный текст', attachments } as ChatMessage;
+    useChatDrafts.getState().setText(KEY, 'черновик до правки');
+    useChatDrafts.getState().setEdit(KEY, message);
+    useAttachSendDialog.getState().open(KEY, message.text);
+    useChatDrafts.getState().setText(KEY, '');
+  }
+
+  it('заголовок «Изменение сообщения», строки сообщения с серверным превью, «Сохранить»', () => {
+    openEdit();
+    render(<AttachSendDialogHost />);
+
+    expect(screen.getByText('Изменение сообщения')).toBeTruthy();
+    expect(screen.getByText('отчёт.png')).toBeTruthy();
+    // Превью строки — кнопка просмотра с серверной миниатюрой внутри.
+    expect(screen.getByRole('button', { name: 'Открыть изображение' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Сохранить' })).toBeTruthy();
+  });
+
+  it('снятие последней строки НЕ закрывает окно: пустой состав — легальная правка', () => {
+    openEdit();
+    render(<AttachSendDialogHost />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Убрать из сообщения' }));
+
+    expect(useAttachSendDialog.getState().scope).toBe(KEY);
+    expect(useChatDrafts.getState().drafts[KEY]?.attachments).toEqual([]);
+  });
+
+  it('сохранение: payload несёт edit + editComposition + полный состав', async () => {
+    const payloads: ComposerSubmit[] = [];
+    let resolveSend: (value: unknown) => void = () => undefined;
+    const unregister = registerScopeSubmit(
+      KEY,
+      (payload) =>
+        new Promise((resolve) => {
+          payloads.push(payload);
+          resolveSend = resolve;
+        }),
+    );
+    openEdit();
+    render(<AttachSendDialogHost />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+    expect(payloads[0]?.edit).toMatchObject({ messageId: 'm1' });
+    expect(payloads[0]?.editComposition).toBe(true);
+    expect(payloads[0]?.attachments.map((a) => a.localId)).toEqual(['att-1']);
+
+    // Хост применяет правку → finishEdit чистит вложения → окно закрывается.
+    act(() => {
+      resolveSend({});
+      useChatDrafts.getState().finishEdit(KEY);
+    });
+    await waitFor(() => expect(useAttachSendDialog.getState().scope).toBeNull());
+    unregister();
+  });
+
+  it('отмена: сообщение не тронуто — исходные строки без DELETE на сервер, черновик восстановлен', () => {
+    const fetchSpy = vi.fn(async () => new Response(null, { status: 204 }));
+    vi.stubGlobal('fetch', fetchSpy);
+    openEdit();
+    render(<AttachSendDialogHost />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Отмена' }));
+
+    const draft = useChatDrafts.getState().drafts[KEY];
+    expect(useAttachSendDialog.getState().scope).toBeNull();
+    // Правка снята, текст ДО правки восстановлен, вложения чисты.
+    expect(draft?.edit ?? null).toBeNull();
+    expect(draft?.text).toBe('черновик до правки');
+    expect(draft?.attachments ?? []).toEqual([]);
+    // Строки правимого сообщения серверу не отдавались (состав жив на сервере).
+    expect(fetchSpy).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+
+  it('переименование: поле правит только базу — расширение суффиксом (вердикт 04.10)', async () => {
+    openEdit();
+    render(<AttachSendDialogHost />);
+
+    // Radix-меню открывается pointerdown (не click) — так же в jsdom.
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'Действия с вложением' }), {
+      button: 0,
+    });
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Переименовать файл' }));
+
+    const nameInput = await screen.findByLabelText('Имя файла');
+    // Поле — только база имени; расширение — защищённый суффикс за полем.
+    expect((nameInput as HTMLInputElement).value).toBe('отчёт');
+    expect(screen.getByText('.png')).toBeTruthy();
+
+    fireEvent.change(nameInput, { target: { value: 'переименованное-проба' } });
+    fireEvent.keyDown(nameInput, { key: 'Enter' });
+    await waitFor(() =>
+      expect(useChatDrafts.getState().drafts[KEY]?.attachments[0]?.fileName).toBe(
+        'переименованное-проба.png',
+      ),
+    );
+  });
+
+  it('переименование: Esc откатывает базу, окно живо', async () => {
+    openEdit();
+    render(<AttachSendDialogHost />);
+
+    // Radix-меню открывается pointerdown (не click) — так же в jsdom.
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'Действия с вложением' }), {
+      button: 0,
+    });
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Переименовать файл' }));
+    const nameInput = await screen.findByLabelText('Имя файла');
+    fireEvent.change(nameInput, { target: { value: 'сломанное' } });
+    fireEvent.keyDown(nameInput, { key: 'Escape' });
+
+    // Esc погасил только правку имени — окно не закрылось, имя не тронуто.
+    expect(useAttachSendDialog.getState().scope).toBe(KEY);
+    expect(useChatDrafts.getState().drafts[KEY]?.attachments[0]?.fileName).toBe('отчёт.png');
+  });
+
+  it('Ctrl+V в подписи добавляет вложение, не отправляя сообщение', async () => {
+    const pasteFile = new File(['x'], 'вставка.png', { type: 'image/png' });
+    const submitted = vi.fn<(payload: ComposerSubmit) => Promise<unknown>>(() =>
+      Promise.resolve({}),
+    );
+    const unregister = registerScopeSubmit(KEY, (payload) => submitted(payload));
+    openEdit();
+    render(<AttachSendDialogHost />);
+
+    const caption = screen.getByPlaceholderText('Добавить подпись');
+    fireEvent.paste(caption, { clipboardData: { files: [pasteFile] } });
+
+    // Строка встала в список окна (загрузка стартовала), окно живо,
+    // никакого submit не было — вставка ≠ отправка (#188).
+    await waitFor(() => expect(useChatDrafts.getState().drafts[KEY]?.attachments).toHaveLength(2));
+    expect(useAttachSendDialog.getState().scope).toBe(KEY);
+    expect(submitted).not.toHaveBeenCalled();
+    unregister();
   });
 });

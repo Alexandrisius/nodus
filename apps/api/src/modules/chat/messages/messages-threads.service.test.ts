@@ -118,6 +118,7 @@ describe('MessagesService: трэды раунда 3', () => {
     repo.insertMessage.mockResolvedValue(makeMessage({ id: 'msg-new', seq: 7n }));
     service = new MessagesService(
       repo as never,
+      { syncMessageAttachments: vi.fn(), renameMessageAttachments: vi.fn() } as never,
       conversations as never,
       mapper as never,
       txRunner as never,

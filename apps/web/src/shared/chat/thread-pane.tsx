@@ -20,11 +20,10 @@ import { useSendChatMessage, useThreadMessages, useThreadStates, useWatchThread 
 import { ChatComposer, type ComposerSubmit } from './chat-composer.js';
 import { ChatMessageItem } from './chat-message.js';
 import { setOpenConversation } from './notifications.js';
-import { useChatDrafts } from './chat-drafts.js';
 import { addFiles } from './composer-files.js';
 import { toSendVars } from './composer-submit.js';
 import { registerScopeSubmit } from './submit-registry.js';
-import { focusComposer } from './composer-focus.js';
+import { startMessageEdit, toEditVars } from './message-edit.js';
 import { DayChip } from './day-chip.js';
 import { FeedDropzone } from './feed-dropzone.js';
 import { useEditMessage } from './message-mutations.js';
@@ -133,7 +132,8 @@ export const ThreadPane = memo(function ThreadPane({
 
   function handleSubmit(submit: ComposerSubmit) {
     if (submit.edit) {
-      edit.mutate({ messageId: submit.edit.messageId, text: submit.text });
+      const vars = toEditVars(submit);
+      if (vars) edit.mutate(vars);
       return;
     }
     send.mutate({ ...toSendVars(submit), threadRootId });
@@ -141,22 +141,28 @@ export const ThreadPane = memo(function ThreadPane({
 
   // Окно отправки вложений (#144): отправка через хук хоста (треда — с
   // threadRootId), оптимистичность/reply не дублируются в диалоге.
-  // send — новый объект каждый рендер: стабильный колбэк через ref.
+  // send/edit — новый объект каждый рендер: стабильные колбэки через ref;
+  // правка окна (#188) маршрутизируется сюда же (editComposition).
   const sendRef = useRef(send);
   sendRef.current = send;
+  const editRef = useRef(edit);
+  editRef.current = edit;
   useEffect(
     () =>
-      registerScopeSubmit(scope, (submit) =>
-        sendRef.current.mutateAsync({ ...toSendVars(submit), threadRootId }),
-      ),
+      registerScopeSubmit(scope, (submit) => {
+        if (submit.edit) {
+          const vars = toEditVars(submit);
+          return vars ? editRef.current.mutateAsync(vars) : Promise.resolve();
+        }
+        return sendRef.current.mutateAsync({ ...toSendVars(submit), threadRootId });
+      }),
     [scope, threadRootId],
   );
 
   function handleEditLast() {
     const message = lastMine();
     if (!message) return;
-    useChatDrafts.getState().setEdit(scope, message);
-    focusComposer(scope);
+    startMessageEdit(scope, message);
   }
 
   /** Корень треда — ВНЕ серий: полный набор (имя чужое, аватар и хвостик —
