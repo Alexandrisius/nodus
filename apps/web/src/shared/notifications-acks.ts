@@ -24,16 +24,21 @@ export function useUrgentAcks(messageId: string | null): UrgentAckStatus | undef
 
 /**
  * Свой факт ознакомления по важному (#177): восстановление чипа
- * «Ознакомлен» на пузыре после перезагрузки. null — запрос не шлётся
- * (не получатель requireAck: сервер ответит 404, G3).
+ * «Ознакомлен» на пузыре после перезагрузки. isError = 404 (не получатель
+ * requireAck-строки — поздне-добавленный участник; G3): чип-кнопку такой
+ * пользователь НЕ рендерит. null — запрос не шлётся.
  */
-export function useSelfUrgentAck(messageId: string | null): UrgentSelfAck | undefined {
-  const { data } = useQuery({
+export function useSelfUrgentAck(messageId: string | null): {
+  data: UrgentSelfAck | undefined;
+  isError: boolean;
+} {
+  const query = useQuery({
     queryKey: notificationsKeys.urgentSelfAck(messageId ?? 'foreign'),
     queryFn: () => api<UrgentSelfAck>(`/notifications/urgent/${messageId}/ack`),
     enabled: messageId !== null,
+    retry: false,
   });
-  return data;
+  return { data: query.data, isError: query.isError };
 }
 
 /**

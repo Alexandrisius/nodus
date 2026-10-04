@@ -8,19 +8,23 @@ import { composerSendErrorMessage } from './composer-errors.js';
  *  прочие коды — штатный тост (null). */
 
 describe('composerSendErrorMessage (#177)', () => {
-  it('лимит важных исчерпан — инлайн-строка из i18n', () => {
+  it('лимит важных исчерпан — русская строка словаря ПО КОДУ (I15)', () => {
     const error = new ApiError(
       ErrorCode.CHAT_URGENT_LIMIT_EXCEEDED,
       'Urgent message daily limit exceeded',
       409,
     );
-    expect(composerSendErrorMessage(error)).toBe('Лимит важных на сегодня исчерпан');
+    expect(composerSendErrorMessage(error)).toBe(
+      'Дневной лимит важных сообщений исчерпан — попробуйте завтра или напишите обычным сообщением',
+    );
   });
 
-  it('потолок группы — серверное русское сообщение', () => {
+  it('потолок группы — русская строка словаря ПО КОДУ (I15: message сервера английский)', () => {
+    // Валидатор #177: server message — английский технический; инлайн должен
+    // брать русскую строку из errorMessages по коду, не из error.message.
     const error = new ApiError(
       ErrorCode.CHAT_URGENT_GROUP_TOO_LARGE,
-      'Важные сообщения не отправляют в беседы больше 20 участников',
+      'Urgent messages are not allowed in conversations over the member limit',
       409,
     );
     expect(composerSendErrorMessage(error)).toBe(

@@ -38,11 +38,14 @@ export function UrgentMarkChip({ className }: { className?: string }) {
 }
 
 export function UrgentAckChip({ messageId }: { messageId: string }) {
-  const selfAck = useSelfUrgentAck(messageId);
+  const { data: selfAck, isError } = useSelfUrgentAck(messageId);
   const ack = useAckUrgentByMessage();
   const [pressed, setPressed] = useState(false);
   // pressed — optimistic-флаг на время мутации (self-ack придёт с сервера).
   const acked = pressed || Boolean(selfAck?.ackedAt);
+  // 404 self-ack = я не адресат requireAck-строки (поздне-добавленный участник,
+  // валидатор #177): кнопки, на которую ответ 404, не предлагаем.
+  if (isError) return null;
   if (acked) {
     return (
       <span

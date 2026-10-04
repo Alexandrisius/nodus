@@ -306,9 +306,14 @@ export function ChatComposer({
       onSubmit({ text: text.trim(), attachments: [], reply: null, edit: draft.edit });
       return;
     }
-    void guardrailGate().then((allowed) => {
-      if (allowed) submitInner();
-    });
+    void guardrailGate()
+      .then((allowed) => {
+        if (allowed) submitInner();
+      })
+      // Политика недоступна (сеть/5xx) — fail-open: сервер при исчерпании
+      // всё равно вернёт 409 с инлайном; молча терять отправку нельзя
+      // (валидатор #177).
+      .catch(() => submitInner());
   }
 
   function submitInner() {

@@ -68,7 +68,7 @@ export function ComposerUrgentButton({
           aria-pressed={urgent}
           title={
             disabledByLimit
-              ? `${ui.notifications.urgentLimitReached} (${policy.data?.limit} / ${policy.data?.limit})`
+              ? `${ui.notifications.urgentLimitReached} (${policy.data?.limit} ${ui.notifications.ackStatusOf} ${policy.data?.limit})`
               : ui.notifications.urgentToggle
           }
           disabled={disabled || disabledByLimit}

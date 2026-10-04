@@ -1,9 +1,7 @@
 import { create } from 'zustand';
-
-import { ui } from '@nodus/contracts';
+import { ErrorCode, errorMessages } from '@nodus/contracts';
 
 import { ApiError } from '../api-client.js';
-import { ErrorCode } from '@nodus/contracts';
 
 /**
  * Инлайн-ошибки отправки в композере (#177): лимит важных и потолок группы
@@ -11,6 +9,8 @@ import { ErrorCode } from '@nodus/contracts';
  * должен стоять РЯДОМ с молнией, пока пользователь правит сообщение).
  * Ключ — draftScope композера (= focusId), ошибку ставит onError мутации
  * отправки, гасит новая попытка (onMutate) и размонтирование.
+ * Текст — русская строка словаря ПО КОДУ ошибки (I15: `message` в ответе —
+ * английский технический, пользователю не показывается; канон error-toast).
  */
 interface ComposerErrorsState {
   errors: Record<string, string>;
@@ -30,12 +30,15 @@ export const useComposerErrors = create<ComposerErrorsState>()((set) => ({
     }),
 }));
 
-/** Классификация ошибки отправки: 409 политики важных — инлайн-текст,
- *  остальное — null (штатный тост sendError). */
+/** Классификация ошибки отправки: 409 политики важных — инлайн-текст по коду
+ *  из словаря контрактов, остальное — null (штатный тост sendError). */
 export function composerSendErrorMessage(error: unknown): string | null {
   if (!(error instanceof ApiError)) return null;
-  if (error.code === ErrorCode.CHAT_URGENT_LIMIT_EXCEEDED)
-    return ui.notifications.urgentLimitReached;
-  if (error.code === ErrorCode.CHAT_URGENT_GROUP_TOO_LARGE) return error.message;
+  if (error.code === ErrorCode.CHAT_URGENT_LIMIT_EXCEEDED) {
+    return errorMessages[ErrorCode.CHAT_URGENT_LIMIT_EXCEEDED];
+  }
+  if (error.code === ErrorCode.CHAT_URGENT_GROUP_TOO_LARGE) {
+    return errorMessages[ErrorCode.CHAT_URGENT_GROUP_TOO_LARGE];
+  }
   return null;
 }
