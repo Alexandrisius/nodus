@@ -270,6 +270,48 @@ describe('attach-send-dialog — режим правки (#188)', () => {
     vi.unstubAllGlobals();
   });
 
+  it('переименование: поле правит только базу — расширение суффиксом (вердикт 04.10)', async () => {
+    openEdit();
+    render(<AttachSendDialogHost />);
+
+    // Radix-меню открывается pointerdown (не click) — так же в jsdom.
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'Действия с вложением' }), {
+      button: 0,
+    });
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Переименовать файл' }));
+
+    const nameInput = await screen.findByLabelText('Имя файла');
+    // Поле — только база имени; расширение — защищённый суффикс за полем.
+    expect((nameInput as HTMLInputElement).value).toBe('отчёт');
+    expect(screen.getByText('.png')).toBeTruthy();
+
+    fireEvent.change(nameInput, { target: { value: 'переименованное-проба' } });
+    fireEvent.keyDown(nameInput, { key: 'Enter' });
+    await waitFor(() =>
+      expect(useChatDrafts.getState().drafts[KEY]?.attachments[0]?.fileName).toBe(
+        'переименованное-проба.png',
+      ),
+    );
+  });
+
+  it('переименование: Esc откатывает базу, окно живо', async () => {
+    openEdit();
+    render(<AttachSendDialogHost />);
+
+    // Radix-меню открывается pointerdown (не click) — так же в jsdom.
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'Действия с вложением' }), {
+      button: 0,
+    });
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Переименовать файл' }));
+    const nameInput = await screen.findByLabelText('Имя файла');
+    fireEvent.change(nameInput, { target: { value: 'сломанное' } });
+    fireEvent.keyDown(nameInput, { key: 'Escape' });
+
+    // Esc погасил только правку имени — окно не закрылось, имя не тронуто.
+    expect(useAttachSendDialog.getState().scope).toBe(KEY);
+    expect(useChatDrafts.getState().drafts[KEY]?.attachments[0]?.fileName).toBe('отчёт.png');
+  });
+
   it('Ctrl+V в подписи добавляет вложение, не отправляя сообщение', async () => {
     const pasteFile = new File(['x'], 'вставка.png', { type: 'image/png' });
     const submitted = vi.fn<(payload: ComposerSubmit) => Promise<unknown>>(() =>

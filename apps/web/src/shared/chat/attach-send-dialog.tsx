@@ -54,9 +54,20 @@ export function AttachSendDialogHost() {
   // «Заменить вложение» (#188): строка, на которую подменяет следующий
   // выбранный файл (скрытый инпут окна один на все источники).
   const [replaceTarget, setReplaceTarget] = useState<string | null>(null);
+  // Инлайн-правка имени строки (#188, вердикт владельца 04.10): супер-курсор
+  // временно погашен — каретка в поле имени; после применения/отката —
+  // возврат в подпись. Ref — чтобы фокус-хендлеры без ре-рендера видели.
+  const [renameActive, setRenameActive] = useState(false);
+  const renameActiveRef = useRef(false);
+  renameActiveRef.current = renameActive;
   const draggingRef = useRef<string | null>(null);
   const captionRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  function handleRenameMode(active: boolean) {
+    setRenameActive(active);
+    if (!active) refocusCaption();
+  }
 
   // Картинки окна — локальные objectURL новых загрузок ИЛИ серверные
   // превью строк правимого сообщения (#188); лайтбокс смотрит их же.
@@ -187,13 +198,17 @@ export function AttachSendDialogHost() {
   function refocusCaption() {
     requestAnimationFrame(() => {
       if (!useAttachSendDialog.getState().scope) return;
+      if (renameActiveRef.current) return;
       captionRef.current?.focus({ preventScroll: true });
     });
   }
 
   /** Супер-курсор окна (#144, вердикт 29.09.2026): любой клик вне полей ввода
-   *  возвращает мигающую каретку в подпись — как «вечный курсор» чата. */
+   *  возвращает мигающую каретку в подпись — как «вечный курсор» чата.
+   *  Исключение — правка имени строки (#188, вердикт владельца 04.10):
+   *  курсор временно погашен, клики фокус не воруют. */
   function stealCaret(event: React.MouseEvent) {
+    if (renameActiveRef.current) return;
     const target = event.target as HTMLElement;
     if (target.closest('textarea, input, [contenteditable="true"]')) return;
     captionRef.current?.focus({ preventScroll: true });
@@ -219,6 +234,12 @@ export function AttachSendDialogHost() {
            уничтожить работу. Отмена — только намеренная: «Отмена» или Esc;
            референсы Telegram/Битрикс тоже не закрывают окно по заднику. */
         onInteractOutside={(event) => event.preventDefault()}
+        onEscapeKeyDown={(event) => {
+          // Esc в поле имени гасит только правку имени — окно живо (#188):
+          // Radix ловит keydown на document (capture) раньше поля, поэтому
+          // подавляем ЗАКРЫТИЕ здесь, откат делает само поле.
+          if (renameActiveRef.current) event.preventDefault();
+        }}
         onClick={stealCaret}
         onOpenAutoFocus={(event) => {
           // Супер-курсор окна: набор текста начинается сразу в подписи.
@@ -230,7 +251,9 @@ export function AttachSendDialogHost() {
           // пока окно открыто. Ушла в никуда (body) или на НЕ-поле внутри
           // окна (кнопка строки/ручка drag) — возвращаем (тайминг — как в
           // refocusCaption, позже 50-мс окна очистки dnd-kit). Внешний слой
-          // (лайтбокс превью) фокусом владеет — не трогаем.
+          // (лайтбокс превью) фокусом владеет — не трогаем. Правка имени
+          // строки — каретка в поле имени, не воруем (#188).
+          if (renameActiveRef.current) return;
           const active = document.activeElement as HTMLElement | null;
           if (active?.closest('textarea, input, [contenteditable="true"]')) return;
           if (active && active !== document.body && !active.closest('[data-slot="dialog-content"]'))
@@ -255,6 +278,7 @@ export function AttachSendDialogHost() {
               item={item}
               dragging={draggingId === item.localId}
               actions={editMode}
+              onRenameMode={handleRenameMode}
               onReplace={() => {
                 // «Заменить вложение» (#188): выбор файла подменяет цель
                 // скрытого инпута окна (обычное «Добавить» не трогаем).
