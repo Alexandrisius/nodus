@@ -9,7 +9,7 @@ import { defineConfig, loadEnv } from 'vite';
 // NODUS_API_PORT (docker-стек, 3001). Цель /socket.io (#104): симметрично —
 // NODUS_GATEWAY_DEV_TARGET (dev-gateway ветки, например :3012), иначе хост-порт
 // docker-gateway (NODUS_GATEWAY_PORT, 3002).
-export default defineConfig(({ mode }) => {
+export default defineConfig(({ command, mode }) => {
   const env = loadEnv(mode, '../../', '');
   const apiTarget = env.NODUS_API_DEV_TARGET ?? `http://localhost:${env.NODUS_API_PORT ?? 3001}`;
   const gatewayTarget =
@@ -43,6 +43,15 @@ export default defineConfig(({ mode }) => {
   return {
     // VITE_*-флаги (VITE_API_MOCK) лежат в корневом .env рядом с docker-переменными.
     envDir: '../../',
+    // МОКИ — ТОЛЬКО dev-сервер (command === 'serve'): любой `vite build`
+    // (турбо-гейт, CI, live-stack, ручной) вшивает VITE_API_MOCK='false'.
+    // Иначе гейт-сборка затирала non-mock dist песочницы, MSW стартовал на
+    // preview и его service worker съедал мутации до сети (инцидент #171,
+    // 04.10; gotchas «Изоляция песочницы»).
+    define:
+      command === 'build'
+        ? { 'import.meta.env.VITE_API_MOCK': JSON.stringify('false') }
+        : undefined,
     plugins: [tailwindcss(), react()],
     server: {
       port: Number(env.NODUS_WEB_DEV_PORT ?? 5173),

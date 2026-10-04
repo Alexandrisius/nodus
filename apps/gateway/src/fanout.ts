@@ -105,6 +105,18 @@ export async function routeEnvelope(
     }
     return;
   }
+  // Избранное (#171): личное состояние (как прочитанность) — только
+  // user-комната владельца, участникам беседы не рассылается.
+  if (
+    envelope.type === 'chat.favorite_added' ||
+    envelope.type === 'chat.favorite_removed' ||
+    envelope.type === 'chat.favorite_updated'
+  ) {
+    if (typeof payload.userId === 'string') {
+      io.to(userRoom(payload.userId)).emit(envelope.type, envelope);
+    }
+    return;
+  }
   if (!conversationId) {
     return; // message_*/reaction/pin/thread_created без беседы — некуда маршрутизировать
   }

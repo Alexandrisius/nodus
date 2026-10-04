@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, render } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { ChatMessage } from '@nodus/contracts';
 
@@ -9,7 +10,16 @@ import { MessageMeta } from './message-meta.js';
  * Мета сообщения (#96): одна композиция на пузырь чата и карточку поста
  * канала — пин → «изменено» → время; галочка «просмотрено» — по readBy
  * (первый прочитавший, #102), рисуется только по флагу `ticks`.
+ * #171: мета подписана на кэш избранного (звезда-индикатор) — рендер в
+ * QueryClientProvider.
  */
+
+function renderMeta(node: React.ReactElement) {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  return render(<QueryClientProvider client={client}>{node}</QueryClientProvider>);
+}
 
 const ref = (id: string, displayName: string): ChatMessage['author'] => ({
   id,
@@ -45,7 +55,7 @@ afterEach(cleanup);
 
 describe('MessageMeta — композиция меты (#96)', () => {
   it('пин, «изменено» и время в порядке состава; время несёт dateTime', () => {
-    const { container } = render(
+    const { container } = renderMeta(
       <MessageMeta message={message({ pinned: true, editedAt: '2026-09-24T10:00:00Z' })} ticks />,
     );
     const meta = container.querySelector('[data-slot="message-meta"]');
@@ -72,7 +82,7 @@ describe('MessageMeta — композиция меты (#96)', () => {
   });
 
   it('без закрепа и правки — только время', () => {
-    const { container } = render(<MessageMeta message={message()} />);
+    const { container } = renderMeta(<MessageMeta message={message()} />);
     const meta = container.querySelector('[data-slot="message-meta"]')!;
     expect(meta.querySelector('[role="img"]')).toBeNull();
     expect(meta.textContent).not.toContain('изменено');
@@ -82,7 +92,7 @@ describe('MessageMeta — композиция меты (#96)', () => {
   it('галочка «просмотрено» по readBy (первый просмотревший, #102 р.2), не по readAt', () => {
     // readAt есть, но прочитавших нет (правка сбросила) — одна галочка (отправлено).
     const edited = message({ readAt: '2026-09-24T10:00:00Z', readBy: [] });
-    const onlySent = render(<MessageMeta message={edited} ticks />);
+    const onlySent = renderMeta(<MessageMeta message={edited} ticks />);
     expect(onlySent.container.querySelector('svg[role="img"]')?.getAttribute('aria-label')).toBe(
       'отправлено',
     );
@@ -90,19 +100,19 @@ describe('MessageMeta — композиция меты (#96)', () => {
 
     // Есть просмотревший — двойная галочка (просмотрено).
     const read = message({ readAt: '2026-09-24T10:00:00Z', readBy: [ref('u-1', 'Читатель')] });
-    const both = render(<MessageMeta message={read} ticks />);
+    const both = renderMeta(<MessageMeta message={read} ticks />);
     expect(both.container.querySelector('svg[role="img"]')?.getAttribute('aria-label')).toBe(
       'просмотрено',
     );
     both.unmount();
 
     // Без ticks (чужое сообщение) — галочек нет вовсе.
-    const card = render(<MessageMeta message={read} />);
+    const card = renderMeta(<MessageMeta message={read} />);
     expect(card.container.querySelector('svg')).toBeNull();
   });
 
   it('тон залитого пузыря и внешние классы применяются (ml-auto в строке пузыря)', () => {
-    const { container } = render(
+    const { container } = renderMeta(
       <MessageMeta message={message()} onFilled ticks className="ml-auto" />,
     );
     const meta = container.querySelector('[data-slot="message-meta"]')!;
@@ -113,7 +123,7 @@ describe('MessageMeta — композиция меты (#96)', () => {
   it('тон по поверхности, не по авторству (#127): без onFilled — muted-foreground', () => {
     // Мета своих ПОСТОВ канала живёт на node-panel, не на заливке: тон muted
     // (до #127 mine красил её primary-foreground — в тёмной теме чёрным по чёрному).
-    const { container } = render(<MessageMeta message={message()} ticks />);
+    const { container } = renderMeta(<MessageMeta message={message()} ticks />);
     const meta = container.querySelector('[data-slot="message-meta"]')!;
     expect(meta.className).toContain('text-muted-foreground');
     expect(meta.className).not.toContain('text-bubble-out-accent');

@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, type ReactNode } from 'react';
 import type { ChatMessage } from '@nodus/contracts';
 import { cn } from '@nodus/ui/lib/utils';
 import { Message, MessageAvatar, MessageContent } from '@nodus/ui/components/message';
@@ -59,6 +59,9 @@ export const ChatMessageItem = memo(function ChatMessageItem({
   avatarSlot = 'avatar',
   tail = false,
   reactionsHidden = false,
+  nameSuffix,
+  reactionsRow,
+  reactionPicker,
 }: {
   message: ChatMessage;
   mine: boolean;
@@ -72,6 +75,14 @@ export const ChatMessageItem = memo(function ChatMessageItem({
   tail?: boolean;
   /** Режим выделения: реакции недоступны (модель Битрикс24, #132 р.4). */
   reactionsHidden?: boolean;
+  /** Доп-подпись рядом с именем автора (карточки избранного: «из <чат>»). */
+  nameSuffix?: ReactNode;
+  /** Замена ряда реакций (карточки избранного: личные эмодзи-метки вместо
+   *  публичных чипов — #171 ревизия 04.10). */
+  reactionsRow?: ReactNode;
+  /** Замена ховер-пикера реакций (карточки: пилюля личных меток); получает
+   *  atEnd (сторона пилюли — как у ReactionPicker). */
+  reactionPicker?: (atEnd: boolean) => ReactNode;
 }) {
   const align = useChatPrefs((s) => s.align);
   const atEnd = mine && align === 'both';
@@ -145,6 +156,13 @@ export const ChatMessageItem = memo(function ChatMessageItem({
   const layout = attachmentsLayout(message.attachments);
   const media = layout.mode === 'single' || layout.mode === 'gallery';
   const finSide = tail ? (atEnd ? 'right' : 'left') : null;
+  // Слоты карточек избранного (#171): личные метки вместо публичных реакций.
+  const pickerNode = reactionsHidden ? null : reactionPicker !== undefined ? (
+    reactionPicker(atEnd)
+  ) : (
+    <ReactionPicker message={message} atEnd={atEnd} />
+  );
+  const hasReactionsRow = reactionsRow !== undefined || message.reactions.length > 0;
   if (media) {
     return (
       <Message align={atEnd ? 'end' : 'start'} className="group/msg">
@@ -165,7 +183,7 @@ export const ChatMessageItem = memo(function ChatMessageItem({
             onJumpToReply={jumpToReply}
             onJumpToForwardSource={jumpToForwardSource}
           >
-            {reactionsHidden ? null : <ReactionPicker message={message} atEnd={atEnd} />}
+            {pickerNode}
           </MediaMessage>
         </MessageContent>
       </Message>
@@ -220,11 +238,12 @@ export const ChatMessageItem = memo(function ChatMessageItem({
             {showName ? (
               <span
                 className={cn(
-                  '-mt-[3px] text-sm leading-[19px] font-semibold',
+                  '-mt-[3px] flex min-w-0 items-baseline gap-1 text-sm leading-[19px] font-semibold',
                   personTone(message.author.id),
                 )}
               >
-                {shortPersonName(message.author.displayName)}
+                <span className="truncate">{shortPersonName(message.author.displayName)}</span>
+                {nameSuffix}
               </span>
             ) : null}
             {/* Атрибуция пересылки — следующая строка пузыря (канон
@@ -259,22 +278,20 @@ export const ChatMessageItem = memo(function ChatMessageItem({
                 showName || message.reply || message.forwardedFrom || message.attachments.length > 0
                   ? ''
                   : '-mt-[3px]',
-                message.reactions.length > 0 && 'pb-[2px]',
+                hasReactionsRow && 'pb-[2px]',
               )}
             >
               <MessageText text={message.text} />
-              {message.reactions.length > 0 || entityRow ? null : (
-                <MetaGhost message={message} mine={mine} />
-              )}
-              {entityRow && message.reactions.length === 0 ? (
+              {hasReactionsRow || entityRow ? null : <MetaGhost message={message} mine={mine} />}
+              {entityRow && !hasReactionsRow ? (
                 <span className="flex justify-end">
                   <MessageMeta message={message} onFilled={mine} ticks={mine} />
                 </span>
               ) : null}
             </span>
-            {message.reactions.length > 0 ? (
+            {hasReactionsRow ? (
               <span className="flex items-end gap-2">
-                <MessageReactions message={message} onFilled={mine} />
+                {reactionsRow ?? <MessageReactions message={message} onFilled={mine} />}
                 <MessageMeta message={message} onFilled={mine} ticks={mine} className="ml-auto" />
               </span>
             ) : entityRow ? null : (
@@ -284,7 +301,7 @@ export const ChatMessageItem = memo(function ChatMessageItem({
           {/* Ховер-попап реакций (#124): кнопка у нижнего угла пузыря
               (Bubble — relative), видна по hover/focus/открытом попапе. */}
           {/* В режиме выделения реакции недоступны (модель Битрикс24, #132 р.4). */}
-          {reactionsHidden ? null : <ReactionPicker message={message} atEnd={atEnd} />}
+          {pickerNode}
         </Bubble>
       </MessageContent>
     </Message>

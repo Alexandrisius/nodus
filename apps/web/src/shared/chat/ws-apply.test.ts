@@ -251,6 +251,27 @@ describe('applyReactionEvent (#124)', () => {
     ]);
   });
 
+  it('added-эхо актёра уже в users (беседа с собой) — дубль не растит count', () => {
+    const client = new QueryClient();
+    seedConvWithReader(client);
+    // В беседе с собой membersPreview = сам зритель (канон #186): WS-эхо
+    // собственной реакции приносит reader == уже записанный актёр.
+    const SELF = { id: 'u2', displayName: 'Читатель', avatarUrl: null };
+    client.setQueryData(chatKeys.messages(CONV), {
+      items: [msg({ reactions: [{ emoji: '👍', count: 1, mine: true, users: [SELF] }] })],
+      nextCursor: null,
+    });
+    const applied = applyReactionEvent(
+      client,
+      { conversationId: CONV, messageId: 'm1', emoji: '👍', userId: 'u2' },
+      true,
+    );
+    expect(applied).toBe(true);
+    expect(feed(client)[0]?.reactions).toEqual([
+      { emoji: '👍', count: 1, mine: true, users: [SELF] },
+    ]);
+  });
+
   it('removed: декремент; ноль убирает чип', () => {
     const client = new QueryClient();
     client.setQueryData(chatKeys.messages(CONV), {

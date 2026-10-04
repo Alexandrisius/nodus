@@ -22,6 +22,7 @@ import { demoUserListItems, userRef } from '../../../../shared/mocks/data/users.
 import { actorUserRef, getMockActor } from '../../../../shared/mocks/mock-actor.js';
 import { chatMutationHandlers } from './chat-mutation-handlers.js';
 import { conversationMutationHandlers } from './conversation-mutation-handlers.js';
+import { favoriteHandlers } from './favorite-handlers.js';
 import { findSticker } from './sticker-mock-state.js';
 import { stickerHandlers } from './sticker-handlers.js';
 import {
@@ -433,4 +434,5 @@ export const chatHandlers = [
   ...conversationMutationHandlers,
   ...chatMutationHandlers,
   ...stickerHandlers,
+  ...favoriteHandlers,
 ];

@@ -32,6 +32,11 @@ export const CHAT_EVENTS = {
   STICKER_REMOVED: 'chat.sticker_removed',
   STICKER_PACK_INSTALLED: 'chat.sticker_pack_installed',
   STICKER_PACK_UNINSTALLED: 'chat.sticker_pack_uninstalled',
+  // Избранное (#171): личное состояние (как прочитанность) — без рассылки
+  // другим участникам; gateway маршрутизирует в user-комнату владельца.
+  FAVORITE_ADDED: 'chat.favorite_added',
+  FAVORITE_REMOVED: 'chat.favorite_removed',
+  FAVORITE_UPDATED: 'chat.favorite_updated',
 } as const;
 
 export const chatConversationCreatedPayloadSchema = z.object({
@@ -204,3 +209,28 @@ export const chatStickerAddedPayloadSchema = z.object({
   actorId: z.uuid(),
 });
 export type ChatStickerAddedPayload = z.infer<typeof chatStickerAddedPayloadSchema>;
+
+/** Избранное (#171): payload несёт userId владельца — gateway шлёт событие
+ *  ТОЛЬКО в его user-комнату (личное состояние, другим участникам не виден;
+ *  conversationId — для точечных инвалидаций вкладки панели беседы). */
+export const chatFavoriteAddedPayloadSchema = z.object({
+  userId: z.uuid(),
+  conversationId: z.uuid(),
+  messageId: z.uuid(),
+});
+export type ChatFavoriteAddedPayload = z.infer<typeof chatFavoriteAddedPayloadSchema>;
+
+export const chatFavoriteRemovedPayloadSchema = z.object({
+  userId: z.uuid(),
+  conversationId: z.uuid(),
+  messageId: z.uuid(),
+});
+export type ChatFavoriteRemovedPayload = z.infer<typeof chatFavoriteRemovedPayloadSchema>;
+
+/** Метки закладки изменились (правка карточки, #171). */
+export const chatFavoriteUpdatedPayloadSchema = z.object({
+  userId: z.uuid(),
+  conversationId: z.uuid(),
+  messageId: z.uuid(),
+});
+export type ChatFavoriteUpdatedPayload = z.infer<typeof chatFavoriteUpdatedPayloadSchema>;

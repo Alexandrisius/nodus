@@ -91,9 +91,21 @@ export function MessageAttachments({
   /** Чья поверхность сообщения (пузырь/пост) — тон вторичного текста карточек. */
   mine?: boolean;
 }) {
+  return <AttachmentBlock attachments={message.attachments} mine={mine} />;
+}
+
+/** Вложения как блок: та же грамматика и просмотрщики, что у сообщения —
+ *  без зависимости от ChatMessage (внутренний хелпер MessageAttachments). */
+function AttachmentBlock({
+  attachments,
+  mine = false,
+}: {
+  attachments: MessageAttachment[];
+  mine?: boolean;
+}) {
   const [openImageId, setOpenImageId] = useState<string | null>(null);
-  if (message.attachments.length === 0) return null;
-  const layout = attachmentsLayout(message.attachments);
+  if (attachments.length === 0) return null;
+  const layout = attachmentsLayout(attachments);
   const listImages = layout.mode === 'list' ? layout.items.filter((a) => a.kind === 'image') : [];
   const openIndex = openImageId ? listImages.findIndex((a) => a.id === openImageId) : -1;
   return (

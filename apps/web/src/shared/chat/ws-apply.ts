@@ -135,16 +135,19 @@ function nextReactions(
     if (!existing) {
       return [...reactions, { emoji: payload.emoji, count: 1, mine, users: [reader] }];
     }
-    return reactions.map((reaction) =>
-      reaction.emoji === payload.emoji
-        ? {
-            ...reaction,
-            users: [...usersOf(reaction), reader],
-            count: usersOf(reaction).length + 1,
-            mine: reaction.mine || mine,
-          }
-        : reaction,
-    );
+    return reactions.map((reaction) => {
+      if (reaction.emoji !== payload.emoji) return reaction;
+      const users = usersOf(reaction);
+      // Эхо-дубль (беседа с собой: membersPreview = сам зритель, reader = актёр):
+      // актёр уже в users — аппенд раздул бы count до 2 до рефеча.
+      if (users.some((user) => user.id === payload.userId)) return reaction;
+      return {
+        ...reaction,
+        users: [...users, reader],
+        count: users.length + 1,
+        mine: reaction.mine || mine,
+      };
+    });
   }
   return reactions
     .map((reaction) =>

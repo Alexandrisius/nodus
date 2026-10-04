@@ -2,6 +2,7 @@ import type { QueryClient } from '@tanstack/react-query';
 import type { RealtimeEnvelope } from '@nodus/contracts';
 
 import { chatKeys } from '../chat/api.js';
+import { favoriteKeys } from '../chat/favorites-api.js';
 import { applyReadEvent, applyReactionEvent, applySentMessage } from '../chat/ws-apply.js';
 import { notificationsKeys } from '../notifications-keys.js';
 import { createKeyBatcher, type KeyBatcher } from './invalidation-batcher.js';
@@ -53,6 +54,9 @@ export function createRealtimeInvalidator(queryClient: QueryClient): RealtimeInv
         case 'chat.message_edited':
         case 'chat.message_deleted':
           push(conversationId, 'messages');
+          // Карточки избранного — живые ссылки на оригинал (#171): правка
+          // отражается в карточке, удаление гасит её в надгробие.
+          batcher.push(favoriteKeys.all, 'feed');
           if (conversationId) batcher.push(chatKeys.conversations(), 'list');
           return;
         case 'chat.message_read': {
@@ -115,6 +119,13 @@ export function createRealtimeInvalidator(queryClient: QueryClient): RealtimeInv
           }
           return;
         }
+        case 'chat.favorite_added':
+        case 'chat.favorite_removed':
+        case 'chat.favorite_updated':
+          // Личное состояние (#171): событие приходит только в свою
+          // user-комнату — обновляем витрины и звёзды-индикаторы.
+          batcher.push(favoriteKeys.all, 'feed');
+          return;
         case 'notification.dispatch_requested':
         case 'notification.read':
         case 'notification.acked':

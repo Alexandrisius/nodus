@@ -75,7 +75,11 @@ export function messageLimitState(length: number): { over: boolean; counter: str
  *  верхняя полоса двигала UI). Действия собирает хост (use-feed-selection). */
 export interface ComposerSelection {
   count: number;
+  /** Выделенные id в порядке ленты (#171: порядок цепочки = порядок «Заметок»). */
+  ids: string[];
   allMine: boolean;
+  /** Витрина «Заметок»: звезда-цепочка скрыта (self-reference, #171). */
+  favoritesEnabled?: boolean;
   onForward: () => void;
   onDelete: () => void;
   onCopy: () => void;

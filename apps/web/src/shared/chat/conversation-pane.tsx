@@ -179,6 +179,8 @@ function ConversationFeed({
   const edit = useEditMessage(conversationId, scope);
   const me = useAuthStore((s) => s.user);
 
+  // Поиск беседы — правая панель (лупа в шапке, модель Битрикс24): лента
+  // не фильтруется, выдача и прыжки — в панели (#171 ревизия 04.10, раунд 3).
   const items = data?.items ?? [];
   const runs = useMemo(() => buildMessageRuns(items, me?.id), [items, me?.id]);
   const selection = useFeedSelection(scope, items, me?.id);

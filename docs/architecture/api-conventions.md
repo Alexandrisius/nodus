@@ -34,6 +34,7 @@ project.created / updated / stage_changed / member_added
 task.created / updated / status_changed / stage_changed / personal_stage_changed / assigned / completed / overdue
 task.time_logged
 chat.conversation_created / conversation_updated / member_added / member_removed / member_role_changed / message_sent / message_edited / message_deleted / message_read / message_pinned / message_unpinned / reaction_added / reaction_removed / thread_created
+chat.favorite_added / favorite_removed / favorite_updated  # личные закладки #171: только user-комната владельца (не рассылается участникам)
 chat.sticker_pack_created / updated / deleted · chat.sticker_added / removed · chat.sticker_pack_installed / uninstalled  # стикер-сообщение rides на message_sent (вложение kind='sticker' со снапшотом пака, #143)
 correspondence.letter_received / letter_registered / letter_sent
 correspondence.resolution_issued            # → порождает task.created (source=letter)

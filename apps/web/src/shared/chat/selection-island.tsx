@@ -1,18 +1,21 @@
-import { Copy, Forward, Trash2, X } from 'lucide-react';
+import { Copy, Forward, Star, Trash2, X } from 'lucide-react';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import { cn } from '@nodus/ui/lib/utils';
 
+import { useAddFavorites } from './favorites-api.js';
 import type { ComposerSelection } from './chat-composer.js';
 
 /**
  * Тулбар узкого островка батч-команд (A6, #87; вердикт 24.09): композер в
  * селекте сужается до него, ввод не нужен. «Переслать» — ТЕКСТОМ (самая
- * популярная команда очевидна), корзина (только когда все свои) / копировать /
- * выход — значками. frozen — фаза выхода из селекта: островок ещё
- * расширяется, кнопки уже не кликаются (pointer-events-none).
+ * популярная команда очевидна), звезда-цепочка (#171, «В избранное») /
+ * корзина (только когда все свои) / копировать / выход — значками. frozen —
+ * фаза выхода из селекта: островок ещё расширяется, кнопки уже не кликаются
+ * (pointer-events-none).
  */
 export function SelectionToolbar({ sel, frozen }: { sel: ComposerSelection; frozen: boolean }) {
+  const addFavorites = useAddFavorites();
   return (
     <span
       role="toolbar"
@@ -35,6 +38,23 @@ export function SelectionToolbar({ sel, frozen }: { sel: ComposerSelection; froz
         <Forward className="size-4" strokeWidth={1.75} />
         {ui.chat.menu.forward}
       </Button>
+      {sel.favoritesEnabled !== false ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="shrink-0 text-muted-foreground"
+          aria-label={ui.chat.favoriteSelected}
+          title={ui.chat.favoriteSelected}
+          onClick={() => {
+            // Порядок цепочки = порядок выделения в ленте → поток «Избранного».
+            addFavorites.mutate(sel.ids);
+            sel.onClear();
+          }}
+        >
+          <Star className="size-4" strokeWidth={1.75} />
+        </Button>
+      ) : null}
       {sel.allMine ? (
         <Button
           type="button"

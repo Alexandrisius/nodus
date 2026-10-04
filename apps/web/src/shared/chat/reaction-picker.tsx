@@ -33,8 +33,32 @@ let closeActivePanel: (() => void) | null = null;
 /** Оценка высоты раскрытой сетки: 5 рядов size-10 + p-1 + бордер. */
 const GRID_HEIGHT_PX = 5 * 40 + 10;
 
-export function ReactionPicker({ message, atEnd }: { message: ChatMessage; atEnd: boolean }) {
-  const toggle = useReactionToggle(message.conversationId);
+export function ReactionPicker({
+  message,
+  atEnd,
+  quickItems,
+  moreItems,
+  baseEmoji,
+  isActive,
+  onPick,
+  ariaLabel,
+}: {
+  /** Публичные реакции: сообщение-хозяин (с layer-пропами НЕ передаётся). */
+  message?: ChatMessage;
+  atEnd: boolean;
+  /** Слой личных тэгов (#171 р.5): свои наборы/база/активность/выбор. */
+  quickItems?: string[];
+  moreItems?: string[];
+  baseEmoji?: string;
+  isActive?: (emoji: string) => boolean;
+  onPick?: (emoji: string) => void;
+  ariaLabel?: string;
+}) {
+  const toggle = useReactionToggle(message?.conversationId ?? '');
+  const QUICK = quickItems ?? REACTION_QUICK;
+  const MORE = moreItems ?? REACTION_MORE;
+  const BASE = baseEmoji ?? REACTION_BASE;
+  const label = ariaLabel ?? ui.chat.addReaction;
   const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [gridUp, setGridUp] = useState(false);
@@ -81,11 +105,18 @@ export function ReactionPicker({ message, atEnd }: { message: ChatMessage; atEnd
   }
 
   function mineOf(emoji: string): boolean {
-    return message.reactions.find((reaction) => reaction.emoji === emoji)?.mine ?? false;
+    if (message) {
+      return message.reactions.find((reaction) => reaction.emoji === emoji)?.mine ?? false;
+    }
+    return isActive?.(emoji) ?? false;
   }
 
   function pick(emoji: string) {
-    toggle.mutate({ messageId: message.id, emoji, remove: mineOf(emoji) });
+    if (message) {
+      toggle.mutate({ messageId: message.id, emoji, remove: mineOf(emoji) });
+      return;
+    }
+    onPick?.(emoji);
   }
 
   /** Направление раскрытия сетки: ВНИЗ по шеврону (накрывает пилюлю и ленту
@@ -130,16 +161,16 @@ export function ReactionPicker({ message, atEnd }: { message: ChatMessage; atEnd
         >
           <button
             type="button"
-            aria-label={ui.chat.addReaction}
-            aria-pressed={mineOf(REACTION_BASE)}
-            title={ui.chat.addReaction}
-            onClick={() => pick(REACTION_BASE)}
+            aria-label={label}
+            aria-pressed={mineOf(BASE)}
+            title={label}
+            onClick={() => pick(BASE)}
             className="flex size-5 cursor-pointer items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm transition-transform duration-150 hover:scale-[1.4] hover:border-foreground/30 hover:text-foreground"
           >
             {/* Глиф меньше кружка (вердикт р.5: «почти вылазит за границы»):
                 анимированный Noto — высокий, 16px в 18px внутреннего поля
                 касались краёв; 14px дают видимый воздух. Панель НЕ тронута. */}
-            <ReactionGlyph emoji={REACTION_BASE} className="size-3.5" />
+            <ReactionGlyph emoji={BASE} className="size-3.5" />
           </button>
         </span>
       </PopoverAnchor>
@@ -160,7 +191,7 @@ export function ReactionPicker({ message, atEnd }: { message: ChatMessage; atEnd
         className="relative w-auto p-1"
       >
         <div className="flex items-center gap-0">
-          {REACTION_QUICK.map((emoji) => (
+          {QUICK.map((emoji) => (
             <EmojiButton key={emoji} emoji={emoji} active={mineOf(emoji)} onPick={pick} />
           ))}
           <button
@@ -192,7 +223,7 @@ export function ReactionPicker({ message, atEnd }: { message: ChatMessage; atEnd
                 gridUp ? 'rounded-xl border-b' : 'rounded-xl border-t',
               )}
             >
-              {REACTION_MORE.map((emoji) => (
+              {MORE.map((emoji) => (
                 <EmojiButton key={emoji} emoji={emoji} active={mineOf(emoji)} onPick={pick} />
               ))}
             </div>

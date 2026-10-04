@@ -98,7 +98,7 @@ export class ConversationsController {
   }
 
   @Get('direct/:userId')
-  @ApiOperation({ summary: 'Find-or-create личной беседы (включая «Заметки»)' })
+  @ApiOperation({ summary: 'Find-or-create личной беседы (включая «Избранное» с собой)' })
   @ApiOkResponse({ standardSchema: conversationListItemSchema, description: 'Существующая беседа' })
   @ApiCreatedResponse({
     standardSchema: conversationListItemSchema,

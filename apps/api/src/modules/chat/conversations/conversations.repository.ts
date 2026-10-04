@@ -188,6 +188,21 @@ export class ConversationsRepository {
     return rows[0] ?? null;
   }
 
+  /** Признак беседы «Избранное» пользователя (direct с собой: user_min =
+   *  user_max = userId, #171) — звезда внутри запрещена и сервером. */
+  async isNotesConversation(
+    conversationId: string,
+    userId: string,
+    tx?: TransactionClient,
+  ): Promise<boolean> {
+    const client = this.client(tx);
+    const rows = await client.$queryRaw<{ one: boolean }[]>(Prisma.sql`
+      SELECT (type = 'direct' AND user_min = ${userId}::uuid AND user_max = ${userId}::uuid) AS one
+      FROM conversations WHERE id = ${conversationId}::uuid LIMIT 1
+    `);
+    return rows[0]?.one === true;
+  }
+
   /** Последний seq беседы — потолок клампа квитанций просмотров (#102 р.2). */
   async findLastSeq(conversationId: string, tx?: TransactionClient): Promise<bigint | null> {
     const client = this.client(tx);
