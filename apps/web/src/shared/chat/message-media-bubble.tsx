@@ -161,7 +161,12 @@ export function MediaMessage({
                   {message.requireAck && !mine && !receiptsHidden ? (
                     <UrgentAckChip messageId={message.id} />
                   ) : null}
-                  <UrgentMarkChip />
+                  <UrgentMarkChip
+                    mine={mine}
+                    requireAck={message.requireAck}
+                    noReceipts={receiptsHidden}
+                    messageId={message.id}
+                  />
                 </span>
               ) : null}
             </>
@@ -176,7 +181,7 @@ export function MediaMessage({
         // механизм»: Bubble + BubbleOutline — коробка и плавник ОДНИМ путём).
         <Bubble
           variant={tone === 'out' ? 'default' : 'card'}
-          className="w-full max-w-full"
+          className={cn('w-full max-w-full', message.urgent && 'mb-2')}
           data-urgent={message.urgent || undefined}
         >
           <BubbleOutline
@@ -210,7 +215,6 @@ export function MediaMessage({
                   <span className="flex justify-end">
                     <MessageMeta
                       message={message}
-                      mine={mine}
                       onFilled={mine}
                       ticks={mine}
                       noReceipts={receiptsHidden}
@@ -224,7 +228,6 @@ export function MediaMessage({
                 {reactionsRow ?? <MessageReactions message={message} onFilled={mine} />}
                 <MessageMeta
                   message={message}
-                  mine={mine}
                   onFilled={mine}
                   ticks={mine}
                   noReceipts={receiptsHidden}
@@ -292,7 +295,6 @@ export function MetaGhost({
   return (
     <MessageMeta
       message={message}
-      mine={mine}
       onFilled={onFilled ?? mine}
       ticks={mine}
       noReceipts={noReceipts}
@@ -333,7 +335,6 @@ export function MetaPin({
     >
       <MessageMeta
         message={message}
-        mine={mine}
         onFilled={onFilled ?? mine}
         ticks={mine}
         noReceipts={noReceipts}

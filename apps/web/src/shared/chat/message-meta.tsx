@@ -3,7 +3,6 @@ import type { ChatMessage } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { cn } from '@nodus/ui/lib/utils';
 
-import { useUrgentAcks } from '../notifications-acks.js';
 import { formatTime } from '../lib/format.js';
 import { useFavoriteIds, useNotesConversationId } from './favorites-api.js';
 import { ReadTicks } from './read-ticks.js';
@@ -32,7 +31,6 @@ import { ReadTicks } from './read-ticks.js';
  */
 export function MessageMeta({
   message,
-  mine = false,
   onFilled = false,
   ticks = false,
   plain = false,
@@ -40,8 +38,6 @@ export function MessageMeta({
   className,
 }: {
   message: ChatMessage;
-  /** Свойство сообщения (run-контекст): acks срочного опрашивает только автор. */
-  mine?: boolean;
   /** Мета на залитом своём пузыре — акцент пузыря вместо muted-foreground. */
   onFilled?: boolean;
   /** Галочки отправлено/просмотрено (у своих сообщений и постов каналов). */
@@ -92,14 +88,9 @@ export function MessageMeta({
           strokeWidth={1.75}
         />
       ) : null}
-      {message.requireAck && mine && !receiptsOff ? (
-        <UrgentAcksMeta
-          /* Прогресс ознакомления — данные отправителя (#202, #177): только
-             СВОИ requireAck-сообщения. Статичный бейдж «Важное» из меты
-             убран — метку на пузыре несёт чип (UrgentChips, реф Яндекса). */
-          messageId={message.id}
-        />
-      ) : null}
+      {/* Прогресс «Ознакомились N/M» из меты УБРАН (ревизия приёмки 05.10:
+          занимал место в пузыре) — данные в тултипе чипа «Важное» у автора
+          (urgent-chips.tsx, live по WS). */}
       {message.editedAt ? <span>{ui.chat.edited}</span> : null}
       <time className="font-mono tabular-nums" dateTime={plain ? undefined : message.createdAt}>
         {formatTime(message.createdAt)}
@@ -132,19 +123,4 @@ export function MessageMeta({
       ) : null}
     </span>
   );
-}
-
-/**
- * Прогресс ознакомления важного (#100/#177): «Ознакомились N/M» — отправитель
- * requireAck-сообщения видит прогресс live (WS notification.acked инвалидирует
- * ключ urgentAcks). Интеграционная точка журнала уведомлений в ЕДИНУЮ мету
- * мессенджера (второго хоста нет).
- */
-function UrgentAcksMeta({ messageId }: { messageId: string }) {
-  const status = useUrgentAcks(messageId);
-  return status && status.expectedCount > 0 ? (
-    <span className="font-mono tabular-nums">
-      {ui.notifications.urgentAcksMeta} {status.ackedCount}/{status.expectedCount}
-    </span>
-  ) : null;
 }

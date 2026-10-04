@@ -61,6 +61,13 @@ describe('ChatComposer — черновик при переключении бе
   let client: QueryClient;
   beforeEach(() => {
     apiMock.mockReset();
+    // Политика важных (#177) грузится на монтировании композера — отдаём
+    // валидный ответ, чтобы queryFn не резолвился в undefined.
+    apiMock.mockImplementation((path: string) =>
+      path === '/chat/urgent/policy'
+        ? Promise.resolve({ remaining: 3, limit: 3, resetAt: null, groupMax: 20 })
+        : Promise.resolve(undefined),
+    );
     useChatDrafts.setState({ drafts: {} });
     client = new QueryClient();
   });
@@ -81,7 +88,10 @@ describe('ChatComposer — черновик при переключении бе
         'черновик беседы А',
       ),
     );
-    expect(apiMock).not.toHaveBeenCalled(); // набор — молча
+    // Набор молчит ПО ЧЕРНОВИКУ (PUT /draft нет); GET политики важных на
+    // монтировании композера — легитимный фоновый запрос (#177, ревизия 05.10:
+    // приглушение молнии обязано переживать перезагрузку страницы).
+    expect(apiMock.mock.calls.filter(([path]) => String(path).includes('/draft'))).toHaveLength(0);
 
     // Переключение беседы А→Б: композер переиспользуется, focusId меняется.
     view.rerender(

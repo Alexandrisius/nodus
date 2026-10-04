@@ -62,6 +62,12 @@ describe('ChatComposer — «вечный курсор» переживает с
 
   beforeEach(() => {
     apiMock.mockReset();
+    // Политика важных (#177) на монтировании композера — валидный ответ.
+    apiMock.mockImplementation((path: string) =>
+      path === '/chat/urgent/policy'
+        ? Promise.resolve({ remaining: 3, limit: 3, resetAt: null, groupMax: 20 })
+        : Promise.resolve(undefined),
+    );
     client = new QueryClient();
   });
   afterEach(() => {

@@ -75,7 +75,7 @@ urgent/high/medium/low — ось важности, независимая от 
 ## Интеграционные точки (вне фичи)
 
 - `shared/notifications-keys.ts`, `shared/notifications-acks.ts` (мета чата
-  «Ознакомились N/M» (только requireAck у автора; метку пузыря несёт чип), live по WS), `shared/socket/*` (приём
+  «Ознакомились N/M» (только requireAck у автора; данные — тултип чипа «Важное» на пузыре, из мета-строки убраны), live по WS), `shared/socket/*` (приём
   notification.*, точечная догрузка после reconnect), `app/shell/*`
   (колокольчик, бейдж рейки, document.title, ридер в AppShell),
   `shared/lib/persist-zod.ts` (envelope вкладок).

@@ -220,7 +220,14 @@ export const ChatMessageItem = memo(function ChatMessageItem({
         {showName ? null : (
           <span className="sr-only">{withoutPatronymic(message.author.displayName)}: </span>
         )}
-        <Bubble variant={variant} data-urgent={message.urgent || undefined}>
+        {/* mb-2 у важного (#177, ревизия приёмки 05.10): чип на нижней кромке
+            выступает под пузырь — без отступа наезжал на следующий пузырь
+            серии (зазор внутри серии 2px). */}
+        <Bubble
+          variant={variant}
+          data-urgent={message.urgent || undefined}
+          className={message.urgent ? 'mb-2' : undefined}
+        >
           {/* Контурный слой (#155 р.10-11) — ПОД контентом: единая заливка
               силуэта (CSS-фон пузыря прозрачен); рамка селекта (толстая,
               единая с хвостиком) — второй svg слоя НАД контентом (р.2 п.1).
@@ -305,7 +312,6 @@ export const ChatMessageItem = memo(function ChatMessageItem({
                 <span className="flex justify-end">
                   <MessageMeta
                     message={message}
-                    mine={mine}
                     onFilled={mine}
                     ticks={mine}
                     noReceipts={receiptsHidden}
@@ -318,7 +324,6 @@ export const ChatMessageItem = memo(function ChatMessageItem({
                 {reactionsRow ?? <MessageReactions message={message} onFilled={mine} />}
                 <MessageMeta
                   message={message}
-                  mine={mine}
                   onFilled={mine}
                   ticks={mine}
                   noReceipts={receiptsHidden}
