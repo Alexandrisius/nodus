@@ -26,18 +26,20 @@ export function SelectionToolbar({ sel, frozen }: { sel: ComposerSelection; froz
       <span className="px-1.5 font-mono text-label-sm text-muted-foreground tabular-nums">
         {sel.count}
       </span>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        className="shrink-0 gap-1.5 text-muted-foreground"
-        aria-label={ui.chat.menu.forward}
-        title={ui.chat.menu.forward}
-        onClick={sel.onForward}
-      >
-        <Forward className="size-4" strokeWidth={1.75} />
-        {ui.chat.menu.forward}
-      </Button>
+      {sel.forwardable !== false ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="shrink-0 gap-1.5 text-muted-foreground"
+          aria-label={ui.chat.menu.forward}
+          title={ui.chat.menu.forward}
+          onClick={sel.onForward}
+        >
+          <Forward className="size-4" strokeWidth={1.75} />
+          {ui.chat.menu.forward}
+        </Button>
+      ) : null}
       {sel.favoritesEnabled !== false ? (
         <Button
           type="button"

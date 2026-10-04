@@ -556,12 +556,17 @@ export class MessagesService {
       }
       // Правило следа #163: надгробие — только при живых ответах (якорь
       // цепочки), иначе бесследно. Решает сервер, прочтения не участвуют.
-      // «Избранное» (#215): беседа с собой — личный чат одного автора,
-      // следов не нужно: свои записи удаляются БЕССЛЕДНО всегда (надгробие
-      // в витрине — баг приёмки); прочтения/ознакомления там выключены и
-      // якорь цепочки никому не показывать.
-      const members = await this.conversations.listMembers([conversationId], tx);
-      const selfChat = members.length === 1 && members[0]!.userId === message.authorId;
+      // «Избранное» (#215): беседа с собой (direct, user_min=user_max=автор —
+      // состав неизменяем, гонок нет) — личный чат, следов не нужно: свои
+      // записи удаляются БЕССЛЕДНО всегда (надгробие в витрине — баг
+      // приёмки); прочтения/ознакомления там выключены, якорь цепочки
+      // показывать некому. Выродившаяся группа/канал (1 участник) под гвард
+      // НЕ попадает — там правило #163 работает как раньше.
+      const selfChat = await this.conversations.isNotesConversation(
+        conversationId,
+        message.authorId,
+        tx,
+      );
       const hasReplies = selfChat
         ? false
         : await this.repo.hasLiveReplies(conversationId, messageId, tx);

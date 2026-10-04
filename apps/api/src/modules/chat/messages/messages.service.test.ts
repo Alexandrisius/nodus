@@ -84,6 +84,7 @@ describe('MessagesService', () => {
   const conversations = {
     findMembership: vi.fn(),
     findTypeAndPermissions: vi.fn(),
+    isNotesConversation: vi.fn(),
     findLastSeq: vi.fn(),
     listMembers: vi.fn(),
     clearDraft: vi.fn(),
@@ -124,6 +125,7 @@ describe('MessagesService', () => {
     });
     conversations.listMembers.mockResolvedValue([]);
     conversations.countMembers.mockResolvedValue(5);
+    conversations.isNotesConversation.mockResolvedValue(false);
     favoritesRepo.deleteByMessage.mockResolvedValue([]);
     repo.countUrgentSentSince.mockResolvedValue(0);
     repo.findExisting.mockResolvedValue(null);
@@ -387,12 +389,24 @@ describe('MessagesService', () => {
     it('«Избранное» (#215): беседа с собой — бесследно ВСЕГДА, даже при живых ответах', async () => {
       repo.findByIdInConversation.mockResolvedValue(makeMessage({ seq: 3n }));
       repo.hasLiveReplies.mockResolvedValue(true);
-      conversations.listMembers.mockResolvedValue([makeMember({ userId: ME })]);
+      conversations.isNotesConversation.mockResolvedValue(true);
 
       const result = await service.delete(ME, CONV, 'msg-1');
 
       expect(result.obliterated).toBe(true);
       expect(repo.tombstone).toHaveBeenCalledWith(CONV, 'msg-1', true, TX);
+    });
+
+    it('выродившаяся группа с 1 участником-автором — гвард НЕ действует: надгробие по #163 (security-ревью #215)', async () => {
+      repo.findByIdInConversation.mockResolvedValue(makeMessage({ seq: 3n }));
+      repo.hasLiveReplies.mockResolvedValue(true);
+      conversations.isNotesConversation.mockResolvedValue(false); // не direct-with-self
+      conversations.listMembers.mockResolvedValue([makeMember({ userId: ME })]);
+
+      const result = await service.delete(ME, CONV, 'msg-1');
+
+      expect(result.obliterated).toBe(false);
+      expect(repo.tombstone).toHaveBeenCalledWith(CONV, 'msg-1', false, TX);
     });
 
     it('каскад закладок (#215): удаление оригинала гасит строки избранного у всех владельцев + событие каждому', async () => {

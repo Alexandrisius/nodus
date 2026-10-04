@@ -46,12 +46,13 @@ export function buildReplyPreview(replyToId: string, quoteText?: string | null):
   };
 }
 
-/** «Избранное» (#215): беседа с собой (единственный участник) — удаление
- *  всегда БЕССЛЕДНО, надгробия не оставляем (паритет серверному self-chat
- *  гварду MessagesService.deleteInternal). */
+/** «Избранное» (#215): беседа с собой (direct, единственный участник) —
+ *  удаление всегда БЕСЛЕДНО, надгробия не оставляем (паритет серверному
+ *  гварду MessagesService.deleteInternal → isNotesConversation; выродившаяся
+ *  группа/канал с 1 участником под гвард НЕ попадает). */
 export function isSelfConversation(conversationId: string): boolean {
   const conversation = demoConversations.find((c) => c.id === conversationId);
-  return !!conversation && conversation.membersPreview.length === 1;
+  return conversation?.type === 'direct' && conversation.membersPreview.length === 1;
 }
 
 /** Правило следа (#163, вердикт владельца 30.09 «по ответам»): след держат

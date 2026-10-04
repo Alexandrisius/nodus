@@ -145,4 +145,16 @@ describe('splitNotesSelection (#215)', () => {
       cardIds: ['x1', 'x2'],
     });
   });
+
+  it('с множеством карточек: неклассифицированное (кэш ленты протух) — запись', () => {
+    // security-ревью #215: кэш messages(notesId) пуст/выгружен — id без
+    // следа в кэше избранного консервативно идут записью: сервер
+    // перепроверит автора/беседу, чужое молча пропустит (204-тишина
+    // removeFavorite не съест удаление).
+    const cards = new Set(['c1']);
+    expect(splitNotesSelection(['c1', 'n1', 'ghost'], notesIds, cards)).toEqual({
+      noteIds: ['n1', 'ghost'],
+      cardIds: ['c1'],
+    });
+  });
 });

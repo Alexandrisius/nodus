@@ -36,6 +36,7 @@ export function MessageMeta({
   onFilled = false,
   ticks = false,
   plain = false,
+  noReceipts = false,
   className,
 }: {
   message: ChatMessage;
@@ -49,6 +50,9 @@ export function MessageMeta({
    *  иначе e2e getByLabel('просмотрено') находит СКРЫТУЮ копию первой и
    *  toBeVisible падает на visibility:hidden. */
   plain?: boolean;
+  /** Хост витрины «Избранного» (#215): мета «просмотрено/ознакомились»
+   *  выключена для ВСЕХ строк (записей и карточек-оригиналов). */
+  noReceipts?: boolean;
   className?: string;
 }) {
   // Звезда личной закладки (#171): только на СВОИХ избранных сообщениях и
@@ -57,9 +61,9 @@ export function MessageMeta({
   const notesId = useNotesConversationId();
   const favorited = favoriteIds.has(message.id) && message.conversationId !== notesId;
   // «Избранное» (#215): логика «просмотрено/ознакомились» в личном чате с
-  // собой выключена — своих зрителей нет, галочки и прогресс срочности
-  // не рисуются (мета = звезда-оригинала/пин/правка/время).
-  const inNotes = notesId !== null && message.conversationId === notesId;
+  // собой выключена — своих зрителей нет. Проп хоста покрывает и карточки
+  // (оригиналы чужих бесед), гвард по беседе — записи из любого хоста.
+  const receiptsOff = noReceipts || (notesId !== null && message.conversationId === notesId);
   return (
     <span
       data-slot="message-meta"
@@ -88,7 +92,7 @@ export function MessageMeta({
           strokeWidth={1.75}
         />
       ) : null}
-      {message.urgent && !inNotes ? (
+      {message.urgent && !receiptsOff ? (
         <UrgentAcksMeta
           /* Прогресс ознакомления — данные отправителя (#202): опрашивают
              только СВОИ срочные; получателям бейдж «Срочно» без счётчика. */
@@ -100,7 +104,7 @@ export function MessageMeta({
       <time className="font-mono tabular-nums" dateTime={plain ? undefined : message.createdAt}>
         {formatTime(message.createdAt)}
       </time>
-      {ticks && !inNotes ? (
+      {ticks && !receiptsOff ? (
         plain ? (
           // Копия-призрак: ГАЛОЧКИ без role/aria-label — ширина та же,
           // но e2e-локаторы (getByLabel 'просмотрено') видят только метку

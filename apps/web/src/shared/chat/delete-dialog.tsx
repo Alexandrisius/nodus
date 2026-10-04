@@ -1,5 +1,5 @@
 import { ui } from '@nodus/contracts';
-import type { ChatMessage, Paginated } from '@nodus/contracts';
+import type { ChatMessage, FavoriteCard, Paginated } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import {
   Dialog,
@@ -9,12 +9,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@nodus/ui/components/dialog';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, type InfiniteData } from '@tanstack/react-query';
 
 import { chatKeys } from './api.js';
 import { plural } from '../lib/format.js';
 import { useDeleteDialog } from './dialog-stores.js';
-import { useNotesConversationId, useRemoveFavorite } from './favorites-api.js';
+import { favoriteKeys, useNotesConversationId, useRemoveFavorite } from './favorites-api.js';
 import { splitNotesSelection } from './notes-flow.js';
 import {
   cachedHasLiveReplies,
@@ -53,12 +53,21 @@ export function DeleteDialogHost() {
   const { noteIds, cardIds } = (() => {
     if (!notesMode || !request) return { noteIds: [], cardIds: [] };
     // Запись витрины = сообщение беседы «Избранного» (кэш её ленты); запись
-    // со звездой остаётся записью — удаляется целиком (splitNotesSelection).
+    // со звездой остаётся записью — удаляется целиком. Второе множество —
+    // карточки из кэша избранного: кэш ленты протух (GC/WS) → id без следа
+    // в обоих консервативно записью (security-ревью #215), сервер
+    // перепроверит автора/беседу.
     const cache = queryClient.getQueryData<Paginated<ChatMessage>>(
       chatKeys.messages(request.conversationId),
     );
     const ids = new Set((cache?.items ?? []).map((m) => m.id));
-    return splitNotesSelection(request.messageIds, ids);
+    const favorites = queryClient.getQueryData<InfiniteData<Paginated<FavoriteCard>>>(
+      favoriteKeys.list(),
+    );
+    const cards = new Set(
+      (favorites?.pages ?? []).flatMap((page) => page.items.map((c) => c.messageId)),
+    );
+    return splitNotesSelection(request.messageIds, ids, cards);
   })();
 
   const count = request?.messageIds.length ?? 0;

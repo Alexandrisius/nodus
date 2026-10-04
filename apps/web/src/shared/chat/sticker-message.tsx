@@ -67,6 +67,7 @@ export const StickerMessageView = memo(function StickerMessageView({
   avatarSlot = 'avatar',
   reactionsHidden = false,
   reactionsRow,
+  receiptsHidden = false,
   children,
 }: {
   message: ChatMessage;
@@ -78,6 +79,8 @@ export const StickerMessageView = memo(function StickerMessageView({
   reactionsHidden?: boolean;
   /** Замена ряда реакций (карточки избранного: личные метки — #215). */
   reactionsRow?: ReactNode;
+  /** Витрина «Избранного» (#215): мета «просмотрено» выключена. */
+  receiptsHidden?: boolean;
   /** Пилюля реакций хозяина (ReactionPicker / пилюля личных меток). */
   children?: ReactNode;
 }) {
@@ -123,6 +126,7 @@ export const StickerMessageView = memo(function StickerMessageView({
               mine={mine}
               onFilled={false}
               ticks={mine}
+              noReceipts={receiptsHidden}
               className="ml-auto"
             />
           </span>
