@@ -70,8 +70,6 @@ export const demoNotifications: Notification[] = [
     priority: 'urgent',
     kind: 'urgent.message',
     preview: 'Срочно: подпишите акт КС-2 до 18:00',
-    urgentText:
-      'Срочно: подпишите акт КС-2 по объекту «Минск-Мир», корпус 5 до 18:00 сегодняшнего дня — документы уходят в бухгалтерию.',
     actor: userRef(userIds.shaiderova),
     conversationTitle: null,
     sourceId: DIRECT_K,

@@ -57,7 +57,7 @@ export const notificationSchema = z.object({
   actor: userRefSchema.nullable(),
   /** Превью текста (выжимка «что»); null — без текста. */
   preview: z.string().nullable(),
-  /** Полный текст срочного — тело «листа ознакомления» (только urgent). */
+  /** Полный текст важного — тело «листа ознакомления» (только urgent). */
   urgentText: z.string().nullable(),
   conversationId: z.uuid().nullable(),
   /** Название беседы («где»); у direct — null, строка покажет автора. */
@@ -105,21 +105,17 @@ export const notificationPageSchema = z.object({
 });
 export type NotificationPage = z.infer<typeof notificationPageSchema>;
 
-/** Строка списка ознакомившихся с срочным (отправитель, C8/C9). */
-export const urgentAckEntrySchema = z.object({
-  user: userRefSchema,
-  ackedAt: z.iso.datetime(),
+/** Политика дневного лимита важных (#177): счётчик зарядов молнии.
+ *  Сутки скользящие (не календарные): resetAt = старейшая отправка отправителя
+ *  за последние 24ч + 24ч; null — лимит не исчерпан, ожидания нет. */
+export const urgentPolicySchema = z.object({
+  remaining: z.number().int().min(0),
+  limit: z.number().int().min(0),
+  resetAt: z.iso.datetime().nullable(),
+  /** Потолок участников для важных. */
+  groupMax: z.number().int().min(0),
 });
-export type UrgentAckEntry = z.infer<typeof urgentAckEntrySchema>;
-
-/** «Ознакомились N из M» по срочному сообщению (аналитика журнала). */
-export const urgentAckStatusSchema = z.object({
-  messageId: z.uuid(),
-  ackedCount: z.number().int().min(0),
-  expectedCount: z.number().int().min(0),
-  items: z.array(urgentAckEntrySchema),
-});
-export type UrgentAckStatus = z.infer<typeof urgentAckStatusSchema>;
+export type UrgentPolicy = z.infer<typeof urgentPolicySchema>;
 
 /** Настройки уведомлений пользователя (DND-расписание; тосты гасятся, кроме urgent). */
 export const notificationSettingsSchema = z.object({

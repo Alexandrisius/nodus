@@ -123,14 +123,15 @@ export const StickerMessageView = memo(function StickerMessageView({
             {reactionsRow ?? <MessageReactions message={message} onFilled={false} />}
             <MessageMeta
               message={message}
-              mine={mine}
               onFilled={false}
               ticks={mine}
               noReceipts={receiptsHidden}
               className="ml-auto"
             />
           </span>
-          {reactionsHidden ? null : (children ?? <ReactionPicker message={message} atEnd={atEnd} />)}
+          {reactionsHidden
+            ? null
+            : (children ?? <ReactionPicker message={message} atEnd={atEnd} />)}
         </span>
       </MessageContent>
     </Message>

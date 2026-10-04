@@ -50,6 +50,7 @@ function card(
     attachments: [],
     editedAt: null,
     deletedAt: null,
+    urgent: false,
     obliterated: false,
     createdAt: favoritedAt,
     labels: [],

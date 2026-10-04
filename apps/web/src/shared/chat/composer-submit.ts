@@ -26,5 +26,6 @@ export function toSendVars(submit: ComposerSubmit): SendChatVars {
     replyToId: submit.reply?.messageId ?? null,
     quoteText: submit.reply?.quoteText ?? null,
     reply: submit.reply ? toReplyPreview(submit.reply) : null,
+    urgent: submit.urgent ?? false,
   };
 }

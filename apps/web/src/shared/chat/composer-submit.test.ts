@@ -57,3 +57,33 @@ describe('toSendVars: стикер-ветка (#143)', () => {
     expect(vars.keepDraft).toBeUndefined();
   });
 });
+
+describe('toSendVars: молния «Важное» (#177, ревизия 05.10 — тоггл)', () => {
+  it('urgent летит в vars обычной отправки', () => {
+    const vars = toSendVars({
+      text: 'Завтра объект закрыт',
+      attachments: [],
+      reply: null,
+      edit: null,
+      urgent: true,
+    });
+    expect(vars.urgent).toBe(true);
+  });
+
+  it('без молнии — явный false (не undefined)', () => {
+    const vars = toSendVars({ text: 'обычное', attachments: [], reply: null, edit: null });
+    expect(vars.urgent).toBe(false);
+  });
+
+  it('стикер отправляется обычным, даже если молния горит', () => {
+    const vars = toSendVars({
+      text: '',
+      attachments: [],
+      reply: null,
+      edit: null,
+      sticker: STICKER,
+      urgent: true,
+    });
+    expect(vars.urgent).toBeUndefined();
+  });
+});

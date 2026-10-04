@@ -48,6 +48,10 @@ export interface ChatDraft {
   /** Текст композера до входа в режим правки — восстанавливается отменой. */
   preEditText: string | null;
   attachments: PendingAttachment[];
+  /** «Важное» (#177, ревизия 05.10): клик молнии — простой тоггл.
+   *  Сессионное состояние — НЕ персистится (после перезагрузки молния
+   *  выключена: случайного важного нет). */
+  urgent: boolean;
 }
 
 export const EMPTY_DRAFT: ChatDraft = {
@@ -56,6 +60,7 @@ export const EMPTY_DRAFT: ChatDraft = {
   edit: null,
   preEditText: null,
   attachments: [],
+  urgent: false,
 };
 
 interface DraftsState {
@@ -77,11 +82,21 @@ interface DraftsState {
   reorderAttachments: (key: string, from: number, to: number) => void;
   /** Отмена окна отправки (#144): вложения сняты целиком (blob-URL освобождены). */
   clearAttachments: (key: string) => void;
+  /** Молния «Важное» (#177): клик — вкл/выкл. */
+  setUrgent: (key: string, urgent: boolean) => void;
   clear: (key: string) => void;
 }
 
 function prune(draft: ChatDraft): ChatDraft | null {
-  const empty = draft.text === '' && !draft.reply && !draft.edit && draft.attachments.length === 0;
+  // Молния (#177) держит черновик живым — иначе тоггл на пустом поле
+  // мгновенно вычищался бы из стора; индикатор в списке смотрит на
+  // СЕРВЕРНЫЙ draft.text и от сессионного urgent не зажигается.
+  const empty =
+    draft.text === '' &&
+    !draft.reply &&
+    !draft.edit &&
+    draft.attachments.length === 0 &&
+    !draft.urgent;
   return empty ? null : draft;
 }
 
@@ -223,6 +238,10 @@ export const useChatDrafts = create<DraftsState>()(
             }
             return { ...d, attachments: [] };
           }),
+        })),
+      setUrgent: (key, urgent) =>
+        set((s) => ({
+          drafts: patchDraft(s.drafts, key, (d) => ({ ...d, urgent })),
         })),
       clear: (key) => set((s) => ({ drafts: patchDraft(s.drafts, key, () => EMPTY_DRAFT) })),
     }),

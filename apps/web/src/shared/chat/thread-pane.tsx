@@ -96,6 +96,7 @@ export const ThreadPane = memo(function ThreadPane({
   const { data, isLoading } = useThreadMessages(conversationId, threadRootId);
   const send = useSendChatMessage(conversationId, scope);
   const edit = useEditMessage(conversationId, scope);
+  // Guardrail молнии (#177): размер беседы треда = размеру беседы.
   const me = useAuthStore((s) => s.user);
   // Наблюдение и точка «есть новые» (раунд 3): состояния трэдов текущего
   // пользователя — кнопка «Следить» и индикатор чужой печати в шапке окна.

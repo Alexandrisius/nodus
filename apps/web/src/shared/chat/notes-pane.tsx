@@ -18,7 +18,10 @@ import { toEditVars } from './message-edit.js';
 import { useEditMessage } from './message-mutations.js';
 import { toFavoriteMessage } from './favorite-message.js';
 import { useFavorites } from './favorites-api.js';
-import { useOptimisticFavoriteLabels, reconcileOptimisticLabels } from './optimistic-favorite-labels.js';
+import {
+  useOptimisticFavoriteLabels,
+  reconcileOptimisticLabels,
+} from './optimistic-favorite-labels.js';
 import { JumpResponder } from './use-jump-responder.js';
 import { ScrollEndResponder } from './scroll-end-responder.js';
 import { useIncomingFollow } from './use-incoming-follow.js';
@@ -234,29 +237,29 @@ export function NotesPane({ conversationId }: { conversationId: string }) {
                         <MessageRunView
                           run={run}
                           showName={!run.mine}
-                            renderItem={(message, attrs) => (
-                              <FavoriteRunMessage
-                                message={message}
-                                card={
-                                  (feedCardIds.has(message.id) ? cardsById.get(message.id) : null) ??
-                                  null
-                                }
-                                labelTarget={
-                                  // Тэг-цель строки: ЛОКАЛЬНАЯ оптимистичная
-                                  // метка первична (новейшая локальная истина
-                                  // мутации — иначе WS-рефетч с ещё не
-                                  // применённым PATCH мигал чипом, #215),
-                                  // затем карточка, затем пустышка (апсерт).
-                                  optimisticLabels.has(message.id)
-                                    ? {
-                                        messageId: message.id,
-                                        labels: optimisticLabels.get(message.id)!,
-                                      }
-                                    : (cardsById.get(message.id) ?? {
-                                        messageId: message.id,
-                                        labels: [],
-                                      })
-                                }
+                          renderItem={(message, attrs) => (
+                            <FavoriteRunMessage
+                              message={message}
+                              card={
+                                (feedCardIds.has(message.id) ? cardsById.get(message.id) : null) ??
+                                null
+                              }
+                              labelTarget={
+                                // Тэг-цель строки: ЛОКАЛЬНАЯ оптимистичная
+                                // метка первична (новейшая локальная истина
+                                // мутации — иначе WS-рефетч с ещё не
+                                // применённым PATCH мигал чипом, #215),
+                                // затем карточка, затем пустышка (апсерт).
+                                optimisticLabels.has(message.id)
+                                  ? {
+                                      messageId: message.id,
+                                      labels: optimisticLabels.get(message.id)!,
+                                    }
+                                  : (cardsById.get(message.id) ?? {
+                                      messageId: message.id,
+                                      labels: [],
+                                    })
+                              }
                               mine={run.mine}
                               showName={attrs.showName}
                               tail={attrs.tail}
@@ -287,6 +290,8 @@ export function NotesPane({ conversationId }: { conversationId: string }) {
         attachmentsEnabled
         selection={selectionBar}
         onSubmit={handleSubmit}
+        // Заметки — чат с собой (#171): молнии и подтверждений здесь нет.
+        urgentEnabled={false}
       />
     </div>
   );

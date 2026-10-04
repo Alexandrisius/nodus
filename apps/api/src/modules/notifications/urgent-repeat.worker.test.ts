@@ -79,7 +79,9 @@ describe('UrgentRepeatWorker.remind', () => {
   });
 
   it('C4: потолок времени — стоп, строка остаётся непрочитанной', async () => {
-    repo.findRaw.mockResolvedValue(row({ created_at: new Date(Date.now() - 31 * 60 * 1000) }));
+    // Ревизия 05.10: потолок 3600с (пуш каждые 5 минут в течение часа) —
+    // 61 минута = expired.
+    repo.findRaw.mockResolvedValue(row({ created_at: new Date(Date.now() - 61 * 60 * 1000) }));
     expect(await worker.remind(NOTIF_ID)).toBe('expired');
     expect(repo.markRepeatsStopped).toHaveBeenCalledWith(NOTIF_ID);
     expect(eventBus.emit).not.toHaveBeenCalled();

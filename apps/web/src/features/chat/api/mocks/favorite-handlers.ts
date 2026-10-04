@@ -44,6 +44,8 @@ function toCard(messageId: string): FavoriteCard | null {
     attachments: tombstone ? [] : message.attachments,
     editedAt: message.editedAt,
     deletedAt: message.deletedAt,
+    // Флаг важного — из живого сообщения (паритет favorite-card.mapper, #177).
+    urgent: message.urgent,
     obliterated: false,
     createdAt: message.createdAt,
     labels: state.labels,

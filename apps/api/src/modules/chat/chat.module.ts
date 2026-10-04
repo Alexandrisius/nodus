@@ -22,6 +22,8 @@ import { ThreadParticipantsRepository } from './messages/thread-participants.rep
 import { ThumbnailQueue } from './messages/thumbnail.queue.js';
 import { ThumbnailService } from './messages/thumbnail.service.js';
 import { ThumbnailWorker } from './messages/thumbnail.worker.js';
+import { UrgentPolicyController } from './messages/urgent-policy.controller.js';
+import { UrgentPolicyReader } from './messages/urgent-policy.reader.js';
 import { FileVersionHandler } from './events/file-version.handler.js';
 import { FavoritesController } from './favorites/favorites.controller.js';
 import { FavoriteCardMapper } from './favorites/favorite-card.mapper.js';
@@ -51,6 +53,7 @@ import { StickersService } from './stickers/stickers.service.js';
     AttachmentsController,
     StickersController,
     FavoritesController,
+    UrgentPolicyController,
   ],
   providers: [
     ConversationsRepository,
@@ -80,6 +83,8 @@ import { StickersService } from './stickers/stickers.service.js';
     FavoritesRepository,
     FavoriteCardMapper,
     FavoritesService,
+    // Политика важных (#177): счётчик дневного лимита для попапа молнии.
+    UrgentPolicyReader,
     // Мост версий файлов в беседы (#182): file.version_created →
     // chat.attachment_updated (маршрутизация gateway'ем в conv-комнаты).
     FileVersionHandler,

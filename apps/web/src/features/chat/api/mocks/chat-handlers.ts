@@ -42,6 +42,11 @@ import {
 let chatTaskSeq = 60;
 
 const conversationHandlers = [
+  // Политика важных (#177): счётчик попапа молнии. Мок отдаёт полный лимит
+  // (NOTIFY_URGENT_DAILY_LIMIT дефолт) — исчерпание демонстрирует живой стек.
+  http.get('/api/v1/chat/urgent/policy', () =>
+    HttpResponse.json({ remaining: 3, limit: 3, resetAt: null, groupMax: 20 }),
+  ),
   http.get('/api/v1/chat/conversations', () =>
     HttpResponse.json({
       items: demoConversations.filter((c) => !hiddenConversations.has(c.id)),
@@ -252,7 +257,7 @@ const conversationHandlers = [
       editedAt: null,
       readAt: null,
       readBy: [],
-      urgent: false,
+      urgent: parsed.data.urgent ?? false,
       mentionedUserIds: [],
       createdAt: new Date().toISOString(),
     };

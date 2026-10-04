@@ -55,8 +55,8 @@ const envSchema = z
     /** «Важные сообщения» (#100): интервал повторных напоминаний, секунды
      *  (канон Mattermost persistent: 300 = 5 мин). Тесты/live-приёмка сжимают. */
     NOTIFY_URGENT_REPEAT_SEC: z.coerce.number().int().min(1).default(300),
-    /** Потолок повторов срочного, секунды (канон 1800 = 30 мин, C4). */
-    NOTIFY_URGENT_MAX_SEC: z.coerce.number().int().min(2).default(1800),
+    /** Потолок повторов важного, секунды (ревизия 05.10: 3600 = час, пуш каждые 5 мин × 12). */
+    NOTIFY_URGENT_MAX_SEC: z.coerce.number().int().min(2).default(3600),
     /** Суточный лимит «важных сообщений» на отправителя (C5; дисциплину
      *  даёт лимит, не иерархия — вердикт 30.09). */
     NOTIFY_URGENT_DAILY_LIMIT: z.coerce.number().int().min(1).default(3),

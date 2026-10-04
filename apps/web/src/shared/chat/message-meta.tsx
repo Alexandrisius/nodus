@@ -3,7 +3,6 @@ import type { ChatMessage } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { cn } from '@nodus/ui/lib/utils';
 
-import { useUrgentAcks } from '../notifications-acks.js';
 import { formatTime } from '../lib/format.js';
 import { useFavoriteIds, useNotesConversationId } from './favorites-api.js';
 import { ReadTicks } from './read-ticks.js';
@@ -32,7 +31,6 @@ import { ReadTicks } from './read-ticks.js';
  */
 export function MessageMeta({
   message,
-  mine = false,
   onFilled = false,
   ticks = false,
   plain = false,
@@ -40,8 +38,6 @@ export function MessageMeta({
   className,
 }: {
   message: ChatMessage;
-  /** Свойство сообщения (run-контекст): acks срочного опрашивает только автор. */
-  mine?: boolean;
   /** Мета на залитом своём пузыре — акцент пузыря вместо muted-foreground. */
   onFilled?: boolean;
   /** Галочки отправлено/просмотрено (у своих сообщений и постов каналов). */
@@ -92,14 +88,9 @@ export function MessageMeta({
           strokeWidth={1.75}
         />
       ) : null}
-      {message.urgent && !receiptsOff ? (
-        <UrgentAcksMeta
-          /* Прогресс ознакомления — данные отправителя (#202): опрашивают
-             только СВОИ срочные; получателям бейдж «Срочно» без счётчика. */
-          messageId={mine ? message.id : null}
-          onFilled={onFilled}
-        />
-      ) : null}
+      {/* Прогресс «Ознакомились N/M» из меты УБРАН (ревизия приёмки 05.10:
+          занимал место в пузыре) — данные в тултипе чипа «Важное» у автора
+          (urgent-chips.tsx, live по WS). */}
       {message.editedAt ? <span>{ui.chat.edited}</span> : null}
       <time className="font-mono tabular-nums" dateTime={plain ? undefined : message.createdAt}>
         {formatTime(message.createdAt)}
@@ -131,27 +122,5 @@ export function MessageMeta({
         )
       ) : null}
     </span>
-  );
-}
-
-/**
- * Мета срочного сообщения (#100): «Срочно · Ознакомились N/M» — отправитель
- * видит прогресс ознакомления live (WS notification.acked инвалидирует
- * ключ urgentAcks). Интеграционная точка журнала уведомлений в ЕДИНУЮ мету
- * мессенджера (второго хоста нет).
- */
-function UrgentAcksMeta({ messageId, onFilled }: { messageId: string | null; onFilled: boolean }) {
-  const status = useUrgentAcks(messageId);
-  return (
-    <>
-      <span className={cn(onFilled ? 'font-semibold' : 'font-semibold text-danger')}>
-        {ui.notifications.urgentMeta}
-      </span>
-      {status && status.expectedCount > 0 && (
-        <span className="font-mono tabular-nums">
-          {ui.notifications.urgentAcksMeta} {status.ackedCount}/{status.expectedCount}
-        </span>
-      )}
-    </>
   );
 }

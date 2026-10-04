@@ -388,8 +388,10 @@ model Message {
   /// непрерывности seq, ссылок тредов/цитат/пинов и аудита, но исключается
   /// из всех выдач. false у надгробия (видно как «Сообщение удалено»).
   obliterated  Boolean   @default(false)
-  /// «Важное сообщение» (#100): пробивается через mute/DND, повторно
-  /// напоминает до ознакомления/ответа/реакции/потолка; лимит на отправителя.
+  /// «Важное сообщение» (#100, ревизия модели 05.10): пробивается через
+  /// mute/DND верхним ярусом; непрочитавшим повторяем пуш каждые 5 минут
+  /// до часа (аналитика прочтений — watermark/readBy); действий получателя
+  /// не требует (ack-механика выпилена решением владельца 05.10).
   urgent       Boolean   @default(false)
   /// userId упомянутых @Имя — снапшот МОМЕНТА ОТПРАВКИ (#100, канон
   /// Discord/Zulip): правка текста упоминания не добавляет/убирает.
@@ -411,6 +413,7 @@ model Message {
   @@unique([conversationId, seq])
   @@unique([authorId, clientMessageId])
   @@index([conversationId, seq(sort: Desc)])
+  @@index([authorId, createdAt])
   @@index([threadRootId])
   @@index([replyToId])
   @@map("messages")
@@ -723,7 +726,7 @@ model Notification {
   actorId      String?   @map("actor_id") @db.Uuid
   /// Превью текста (поиск, строка ленты).
   preview      String?
-  /// Полный текст срочного — тело «листа ознакомления» (только urgent).
+  /// Полный текст важного — тело строки журнала/пуша (только urgent).
   urgentText   String?   @map("urgent_text")
   conversationId String? @map("conversation_id") @db.Uuid
   conversationTitle String? @map("conversation_title")

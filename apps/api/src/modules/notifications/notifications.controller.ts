@@ -8,7 +8,6 @@ import {
   notificationSettingsSchema,
   notificationSummarySchema,
   updateNotificationSettingsBodySchema,
-  urgentAckStatusSchema,
   listNotificationsQuerySchema,
   type ListNotificationsQuery,
   type Notification,
@@ -17,7 +16,6 @@ import {
   type NotificationSettings,
   type NotificationSummary,
   type UpdateNotificationSettingsBody,
-  type UrgentAckStatus,
 } from '@nodus/contracts';
 
 import { Audit } from '../../core/decorators/audit.decorator.js';
@@ -104,31 +102,6 @@ export class NotificationsController {
     @Param('id', new ZodValidationPipe(uuidSchema)) id: string,
   ): Promise<Notification> {
     return this.service.readOne(user.id, id);
-  }
-
-  @Get('urgent/:messageId/acks')
-  @ApiOperation({ summary: '«Ознакомились N из M» по срочному (только отправитель)' })
-  @ApiOkResponse({ standardSchema: urgentAckStatusSchema })
-  @ApiErrors(401, 404)
-  urgentAcks(
-    @GetUser() user: AuthUser,
-    @Param('messageId', new ZodValidationPipe(uuidSchema)) messageId: string,
-  ): Promise<UrgentAckStatus> {
-    return this.service.urgentAcks(user.id, messageId);
-  }
-
-  @Post(':id/ack')
-  @HttpCode(200)
-  @ApiOperation({ summary: 'Ознакомиться со срочным (СЭД-паттерн, только urgent)' })
-  @ApiOkResponse({ standardSchema: notificationSchema })
-  @ApiErrors(400, 401, 404)
-  @ApiIdempotencyKey()
-  @Audit({ action: 'notification.ack', entity: 'notification' })
-  ack(
-    @GetUser() user: AuthUser,
-    @Param('id', new ZodValidationPipe(uuidSchema)) id: string,
-  ): Promise<Notification> {
-    return this.service.ack(user.id, id);
   }
 
   @Get(':id/deliveries')

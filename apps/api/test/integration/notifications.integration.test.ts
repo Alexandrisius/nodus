@@ -266,53 +266,39 @@ describe.skipIf(!process.env.DATABASE_URL)(
       expect(((await fourth.json()) as { code: string }).code).toBe('CHAT_URGENT_LIMIT_EXCEEDED');
     });
 
-    it('C8/C9: ознакомление — ack + аналитика «ознакомились N из M»', async () => {
+    it('#177 (ревизия 05.10): важное гасится прочтением — ack-API удалён', async () => {
       const conversationId = await directId(alice, bob);
       const message = (await (
         await fx.api(alice, 'POST', `/chat/conversations/${conversationId}/messages`, {
-          body: { text: 'Срочно: ознакомьтесь с приказом', urgent: true },
+          body: { text: 'Важно: ознакомьтесь с приказом', urgent: true },
           key: `notif-a-${fx.runId}`,
         })
       ).json()) as { id: string };
       await runPipeline();
 
-      const before = (await (
-        await fx.api(alice, 'GET', `/notifications/urgent/${message.id}/acks`)
-      ).json()) as { ackedCount: number; expectedCount: number };
-      expect(before.expectedCount).toBe(1);
-      expect(before.ackedCount).toBe(0);
-
       const bobList = (await (await listNotifications(bob, '?filter=attention')).json()) as {
-        items: Array<{ id: string; kind: string; ackAt: string | null }>;
+        items: Array<{ id: string; kind: string }>;
       };
       const urgent = bobList.items.find((i) => i.kind === 'urgent.message');
-      const ack = await fx.api(bob, 'POST', `/notifications/${urgent!.id}/ack`, {
+
+      // Повтор важного поставлен (urgent-repeat — без ack-гейта, ревизия 05.10).
+      expect(await urgentWorker.remind(urgent!.id)).toBe('sent');
+
+      // Ack-эндпоинты удалены (ревизия 05.10) — 404.
+      const ackGone = await fx.api(bob, 'POST', `/notifications/${urgent!.id}/ack`, {
         key: `notif-ack-${fx.runId}`,
       });
-      expect(ack.status).toBe(200);
-      expect(((await ack.json()) as { ackAt: string }).ackAt).toBeTruthy();
+      expect(ackGone.status).toBe(404);
+      const acksGone = await fx.api(alice, 'GET', `/notifications/urgent/${message.id}/acks`);
+      expect(acksGone.status).toBe(404);
 
-      // D5: повторный ack с тем же Idempotency-Key — replay, один эффект.
-      const replay = await fx.api(bob, 'POST', `/notifications/${urgent!.id}/ack`, {
-        key: `notif-ack-${fx.runId}`,
+      // Прочтение гасит важное как обычное (read → повторы стоп).
+      const read = await fx.api(bob, 'POST', `/notifications/${urgent!.id}/read`, {
+        key: `notif-read-${fx.runId}`,
       });
-      expect(replay.status).toBe(200);
-
-      const after = (await (
-        await fx.api(alice, 'GET', `/notifications/urgent/${message.id}/acks`)
-      ).json()) as {
-        ackedCount: number;
-        expectedCount: number;
-        items: Array<{ user: { id: string } }>;
-      };
-      expect(after.ackedCount).toBe(1);
-      expect(after.items[0]!.user.id).toBe(bob.id);
-
-      // notification.acked уходит отправителю (C9-будило).
+      expect(read.status).toBe(200);
       await runPipeline();
-      const acked = await findNotificationEnvelope('notification.acked', alice.id);
-      expect(acked).not.toBeNull();
-      publishedIds.push(acked!.id);
+      expect(await urgentWorker.remind(urgent!.id)).toBe('stop');
     });
 
     it('D4: повторная диспетчеризация события не плодит уведомления', async () => {

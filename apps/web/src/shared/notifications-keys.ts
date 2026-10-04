@@ -13,5 +13,4 @@ export const notificationsKeys = {
       : [...notificationsKeys.all, 'list', filter, q],
   summary: () => [...notificationsKeys.all, 'summary'],
   settings: () => [...notificationsKeys.all, 'settings'],
-  urgentAcks: (messageId: string) => [...notificationsKeys.all, 'urgentAcks', messageId],
 };

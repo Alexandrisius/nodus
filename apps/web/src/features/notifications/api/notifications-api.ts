@@ -6,7 +6,6 @@ import type {
   NotificationPage,
   NotificationSettings,
   NotificationSummary,
-  UrgentAckStatus,
 } from '@nodus/contracts';
 
 import { api } from '../../../shared/api-client.js';
@@ -42,17 +41,10 @@ export function useNotificationSettings() {
   });
 }
 
-/** «Ознакомились N из M» по срочному сообщению (отправитель, live по WS). */
-export function useUrgentAcks(messageId: string) {
-  return useQuery({
-    queryKey: notificationsKeys.urgentAcks(messageId),
-    queryFn: () => api<UrgentAckStatus>(`/notifications/urgent/${messageId}/acks`),
-  });
-}
-
 /** Прочитать одно (E3): оптимистично — строка уходит из всех закэшированных
  *  страниц журнала и счётчик яруса гасится ДО ответа сервера (I4, < 100 мс),
- *  откат при ошибке; срочное читается только ознакомлением. */
+ *  откат при ошибке; важное читается как обычное (ack-механики нет,
+ *  ревизия модели 05.10 — прочтение гасит и повторы). */
 export function useReadNotification() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -65,20 +57,18 @@ export function useReadNotification() {
   });
 }
 
-/** Ознакомление со срочным (СЭД-паттерн): строка уходит из секции, счётчик -1. */
-export function useAckNotification() {
+/** Правка DND-настроек (свои устройства синхронны рефечем). */
+export function useUpdateNotificationSettings() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => api<Notification>(`/notifications/${id}/ack`, { method: 'POST' }),
-    onMutate: async (id) => applyGone(queryClient, id),
-    onError: (_error, _id, context) => rollbackGone(queryClient, context),
+    mutationFn: (body: Partial<NotificationSettings>) =>
+      api<NotificationSettings>('/notifications/settings', { method: 'PATCH', body }),
     onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: notificationsKeys.all });
+      void queryClient.invalidateQueries({ queryKey: notificationsKeys.settings() });
     },
   });
 }
 
-/** Снапшот кэша для откката оптимистичного гашения одной записи. */
 interface GoneSnapshot {
   lists: Array<[readonly unknown[], NotificationPage | undefined]>;
   summary: NotificationSummary | undefined;
@@ -127,17 +117,6 @@ function rollbackGone(queryClient: QueryClient, snapshot: GoneSnapshot | undefin
   if (snapshot.summary) {
     queryClient.setQueryData(notificationsKeys.summary(), snapshot.summary);
   }
-}
-
-export function useUpdateNotificationSettings() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (body: Partial<NotificationSettings>) =>
-      api<NotificationSettings>('/notifications/settings', { method: 'PATCH', body }),
-    onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: notificationsKeys.settings() });
-    },
-  });
 }
 
 /** Дельта после reconnect (D1/D3): добор журнала по seq без полной перезагрузки. */

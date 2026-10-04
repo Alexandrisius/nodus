@@ -101,6 +101,7 @@ export class FavoriteCardMapper {
             ),
         editedAt: message.editedAt?.toISOString() ?? null,
         deletedAt: message.deletedAt?.toISOString() ?? null,
+        urgent: message.urgent,
         obliterated: message.obliterated,
         createdAt: message.createdAt.toISOString(),
         labels: parseLabels(row.labels),

@@ -134,7 +134,6 @@ export function createRealtimeInvalidator(queryClient: QueryClient): RealtimeInv
           return;
         case 'notification.dispatch_requested':
         case 'notification.read':
-        case 'notification.acked':
           batcher.push(notificationsKeys.all, 'feed');
           return;
         default:

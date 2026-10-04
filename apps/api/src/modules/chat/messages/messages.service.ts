@@ -30,7 +30,7 @@ import {
 import { can, parsePermissions } from '../permissions.js';
 import { MessageDtoMapper } from './message-dto.mapper.js';
 import { addMentionWatchers, resolveMentionMatches } from './mentions.js';
-import { assertUrgentSendAllowed } from './send-urgent.policy.js';
+import { assertUrgentSendAllowedBy } from './send-urgent.policy.js';
 import {
   MessagesRepository,
   type MessageRow,
@@ -215,21 +215,14 @@ export class MessagesService {
       // на бэкенде (I8); политика — чистая функция send-urgent.policy.ts.
       const urgent = body.urgent ?? false;
       if (urgent) {
-        const memberCount =
-          conversation.type === 'direct'
-            ? 0
-            : await this.conversations.countMembers(conversationId, tx);
-        const sentToday = await this.repo.countUrgentSentSince(
-          userId,
-          new Date(Date.now() - 24 * 3600 * 1000),
-          tx,
-        );
-        assertUrgentSendAllowed({
+        // Лок лимита автора ДО подсчёта (#177): гонка параллельных отправок
+        // на границе лимита закрыта (паттерн advisory/FOR UPDATE #195).
+        await this.repo.lockUrgentLimit(userId, tx);
+        await assertUrgentSendAllowedBy({
           conversationType: conversation.type,
-          memberCount,
-          sentToday,
-          dailyLimit: Number(process.env.NOTIFY_URGENT_DAILY_LIMIT ?? 3),
-          groupMax: Number(process.env.NOTIFY_URGENT_GROUP_MAX ?? 20),
+          countMembers: () => this.conversations.countMembers(conversationId, tx),
+          countUrgentSent: () =>
+            this.repo.countUrgentSentSince(userId, new Date(Date.now() - 24 * 3600 * 1000), tx),
         });
       }
 

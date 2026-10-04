@@ -153,8 +153,8 @@ export class NotificationsRepository {
     return client.$queryRaw<NotificationRow[]>(Prisma.sql`
       INSERT INTO notifications (
         id, user_id, priority, kind, source_type, source_id, source_seq,
-        actor_id, preview, urgent_text, conversation_id, conversation_title,
-        message_id, thread_root_id, event_id
+        actor_id, preview, urgent_text, conversation_id,
+        conversation_title, message_id, thread_root_id, event_id
       ) VALUES ${Prisma.join(values)}
       ON CONFLICT (event_id, user_id) DO NOTHING
       RETURNING ${NOTIFICATION_COLS}
@@ -170,8 +170,9 @@ export class NotificationsRepository {
     return rows[0] ?? null;
   }
 
-  /** Прочитать одно (E3: клик по строке = автопрочтение по правилам яруса):
-   *  любое кроме срочного (оно — только через ознакомление). */
+  /** Прочитать одно (E3: клик по строке = автопрочтение), любое яруса —
+   *  ack-механики больше нет (ревизия модели 05.10), важное гасится
+   *  прочтением как обычное. */
   async readOne(
     userId: string,
     id: string,
@@ -181,14 +182,15 @@ export class NotificationsRepository {
     const rows = await client.$queryRaw<NotificationRow[]>(Prisma.sql`
       UPDATE notifications SET read_at = now()
       WHERE id = ${id}::uuid AND user_id = ${userId}::uuid
-        AND read_at IS NULL AND priority <> 'urgent'
+        AND read_at IS NULL
       RETURNING ${NOTIFICATION_COLS}
     `);
     return rows[0] ?? this.findById(userId, id);
   }
 
-  /** Гашение по источнику (вход в чат): high/medium/low до watermark;
-   *  срочному — стоп повторов (прочитано, C2), висит до ознакомления. */
+  /** Гашение по источнику (вход в чат) до watermark — ВСЕ ярусы, включая
+   *  важное (прочитал = повторы этому получателю остановлены, #177
+   *  ревизия 05.10). */
   async markReadBySource(
     userId: string,
     sourceId: string,
@@ -200,11 +202,11 @@ export class NotificationsRepository {
       UPDATE notifications SET read_at = now()
       WHERE user_id = ${userId}::uuid AND source_id = ${sourceId}::uuid
         AND source_seq <= ${BigInt(upToSeq)}::bigint AND read_at IS NULL
-        AND priority <> 'urgent'
     `);
   }
 
-  /** Стоп повторов срочного (прочтение/ответ/реакция/ознакомление, C2/C3). */
+  /** Стоп повторов важного (прочтение/ответ/реакция — «увидел где угодно»,
+   *  C2/C3; ack-механика выпилена, ревизия модели 05.10). */
   async stopRepeats(
     userId: string,
     where: { messageId?: string; conversationId?: string },
@@ -218,18 +220,8 @@ export class NotificationsRepository {
     return client.$executeRaw(Prisma.sql`
       UPDATE notifications SET repeats_stopped_at = now()
       WHERE user_id = ${userId}::uuid AND priority = 'urgent' AND ${scope}
-        AND ack_at IS NULL AND repeats_stopped_at IS NULL
+        AND repeats_stopped_at IS NULL
     `);
-  }
-
-  /** Автор срочного сообщения (actor строк журнала) — адресат будила acked. */
-  async urgentAuthorId(messageId: string): Promise<string | null> {
-    const rows = await this.prisma.$queryRaw<{ actor_id: string }[]>(Prisma.sql`
-      SELECT actor_id FROM notifications
-      WHERE message_id = ${messageId}::uuid AND priority = 'urgent'
-      LIMIT 1
-    `);
-    return rows[0]?.actor_id ?? null;
   }
 
   /** Настройки пользователя (одна строка; null — дефолты). */
@@ -263,37 +255,6 @@ export class NotificationsRepository {
         dnd_enabled = ${next.dndEnabled}, dnd_start = ${next.dndStart}, dnd_end = ${next.dndEnd}
     `);
     return next;
-  }
-
-  /** Ознакомление (только срочное, только своё): идемпотентно — повторный
-   *  ack возвращает уже-ознакомленную строку без новой записи. */
-  async ack(userId: string, id: string): Promise<NotificationRow | null> {
-    const rows = await this.prisma.$queryRaw<NotificationRow[]>(Prisma.sql`
-      UPDATE notifications SET ack_at = now(), repeats_stopped_at = now(), read_at = now()
-      WHERE id = ${id}::uuid AND user_id = ${userId}::uuid AND priority = 'urgent' AND ack_at IS NULL
-      RETURNING ${NOTIFICATION_COLS}
-    `);
-    return rows[0] ?? this.findById(userId, id);
-  }
-
-  /** «Ознакомились N из M» по срочному сообщению (отправитель, C8/C9). */
-  async urgentAcks(messageId: string): Promise<{
-    rows: Array<{ userId: string; ackedAt: Date }>;
-    expected: number;
-  }> {
-    const rows = await this.prisma.$queryRaw<{ user_id: string; ack_at: Date }[]>(Prisma.sql`
-      SELECT user_id, ack_at FROM notifications
-      WHERE message_id = ${messageId}::uuid AND priority = 'urgent' AND ack_at IS NOT NULL
-      ORDER BY ack_at ASC
-    `);
-    const total = await this.prisma.$queryRaw<{ count: bigint }[]>(Prisma.sql`
-      SELECT count(*) AS count FROM notifications
-      WHERE message_id = ${messageId}::uuid AND priority = 'urgent'
-    `);
-    return {
-      rows: rows.map((r) => ({ userId: r.user_id, ackedAt: r.ack_at })),
-      expected: Number(total[0]?.count ?? 0),
-    };
   }
 
   /** Запись доставки по каналу (журнал доставок, C11/D6). */

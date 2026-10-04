@@ -12,7 +12,7 @@ export function urgentRepeatSec(): number {
 }
 
 export function urgentMaxSec(): number {
-  return Number(process.env.NOTIFY_URGENT_MAX_SEC ?? 1800);
+  return Number(process.env.NOTIFY_URGENT_MAX_SEC ?? 3600);
 }
 
 /**

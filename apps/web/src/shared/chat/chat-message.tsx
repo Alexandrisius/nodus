@@ -22,6 +22,7 @@ import { TombstoneBubble } from './tombstone.js';
 import { PersonAvatar } from '../ui/person-avatar.js';
 import { MediaMessage, MetaGhost, MetaPin } from './message-media-bubble.js';
 import { hasEntityPreviews } from './message-text.js';
+import { UrgentChips } from './urgent-chips.js';
 
 /** Реакции — в собственном файле (потребитель-стикер #143); реэкспорт для
  *  точек импорта (post-card, тесты). */
@@ -219,10 +220,18 @@ export const ChatMessageItem = memo(function ChatMessageItem({
         {showName ? null : (
           <span className="sr-only">{withoutPatronymic(message.author.displayName)}: </span>
         )}
-        <Bubble variant={variant}>
+        {/* mb-2 у важного (#177, ревизия приёмки 05.10): чип на нижней кромке
+            выступает под пузырь — без отступа наезжал на следующий пузырь
+            серии (зазор внутри серии 2px). */}
+        <Bubble
+          variant={variant}
+          data-urgent={message.urgent || undefined}
+          className={message.urgent ? 'mb-2' : undefined}
+        >
           {/* Контурный слой (#155 р.10-11) — ПОД контентом: единая заливка
               силуэта (CSS-фон пузыря прозрачен); рамка селекта (толстая,
-              единая с хвостиком) — второй svg слоя НАД контентом (р.2 п.1). */}
+              единая с хвостиком) — второй svg слоя НАД контентом (р.2 п.1).
+              data-urgent (#177): статичный warning-бордер (globals.css). */}
           <BubbleOutline side={finSide} variant={variant} />
           {/* Угол со стороны хвостика — БЕЗ скругления: прямой угол накрыт
               заливкой хвоста, штрих хвоста продолжает бордюр пузыря одной
@@ -237,8 +246,14 @@ export const ChatMessageItem = memo(function ChatMessageItem({
               // низ меты ≈ 5–6css от края одинаково. leading-tight — ШТРИХ
               // контейнера (р.2 п.7): фактический шаг строк задаёт strut.
               // pb-8px = булавке MetaPin bottom-8px: низ меты ОДИНАКОВ с
-              // рядами реакций (стабильность, раунд 11 п.2)
-              'relative flex flex-col gap-[2px] px-2.5 pt-2.5 pb-[8px] leading-tight',
+              // рядами реакций (стабильность, раунд 11 п.2). Важное (#177):
+              // pb-14px — резерв под чипы на нижней кромке (сквозь бордер),
+              // мета поднята той же величиной (MetaPin urgent).
+              'relative flex flex-col gap-[2px] px-2.5 pt-2.5 leading-tight',
+              // Важное (#177, ревизия 05.10): pb-14px — резерв под чип на
+              // кромке; min-w-28 — чип задаёт ширину ОДНО-СИМВОЛЬНОГО
+              // пузыря (не вылезает влево за бордер, вердикт владельца).
+              message.urgent ? 'pb-[14px] min-w-28' : 'pb-[8px]',
               tail && (atEnd ? 'rounded-br-none' : 'rounded-bl-none'),
             )}
             style={contentWidth ? { width: contentWidth, maxWidth: '100%' } : undefined}
@@ -300,7 +315,6 @@ export const ChatMessageItem = memo(function ChatMessageItem({
                 <span className="flex justify-end">
                   <MessageMeta
                     message={message}
-                    mine={mine}
                     onFilled={mine}
                     ticks={mine}
                     noReceipts={receiptsHidden}
@@ -313,7 +327,6 @@ export const ChatMessageItem = memo(function ChatMessageItem({
                 {reactionsRow ?? <MessageReactions message={message} onFilled={mine} />}
                 <MessageMeta
                   message={message}
-                  mine={mine}
                   onFilled={mine}
                   ticks={mine}
                   noReceipts={receiptsHidden}
@@ -321,9 +334,17 @@ export const ChatMessageItem = memo(function ChatMessageItem({
                 />
               </span>
             ) : entityRow ? null : (
-              <MetaPin message={message} mine={mine} noReceipts={receiptsHidden} />
+              <MetaPin
+                message={message}
+                mine={mine}
+                noReceipts={receiptsHidden}
+                urgent={message.urgent}
+              />
             )}
           </BubbleContent>
+          {/* Чипы важного (#177): «Ознакомлен» (получателю requireAck) +
+              «Важное» (всем) — на нижней кромке, сквозь бордер. */}
+          <UrgentChips message={message} />
           {/* Ховер-попап реакций (#124): кнопка у нижнего угла пузыря
               (Bubble — relative), видна по hover/focus/открытом попапе. */}
           {/* В режиме выделения реакции недоступны (модель Битрикс24, #132 р.4). */}

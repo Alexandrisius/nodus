@@ -24,9 +24,6 @@ export function useNotificationSink(): void {
       read: () => {
         void queryClient.invalidateQueries({ queryKey: notificationsKeys.summary() });
       },
-      acked: () => {
-        void queryClient.invalidateQueries({ queryKey: notificationsKeys.all });
-      },
     });
     return () => registerNotificationSink(null);
   }, [push, queryClient]);

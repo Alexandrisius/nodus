@@ -2,11 +2,13 @@
 
 Живые обновления и уведомления: журнал доставок в БД — источник истины («как
 в Телеге»), WS только будит. Приоритеты `urgent | high | medium | low` (UI:
-Срочно/Высокий/Средний/Низкий) — абстрактная шкала важности, отвязанная от
-смысла события; маппинг kind → priority — декларативная таблица
-(`priority-resolver.ts`, ADR-0017). Ознакомление для срочного (СЭД-паттерн
-«Е-дело»), повторы срочного BullMQ, анти-свалка (группировка по источнику,
-журнал-список низкого, авто-архивация 7 дней, cap 999+).
+Важное/Высокий/Средний/Низкий — единое слово «Важное» для яруса urgent,
+#177) — абстрактная шкала важности, отвязанная от смысла события; маппинг
+kind → priority — декларативная таблица (`priority-resolver.ts`, ADR-0017).
+Повторы BullMQ (непрочитавшим важное — пуш каждые 5 минут до часа),
+анти-свалка (группировка по источнику, журнал-список низкого,
+авто-архивация 7 дней, cap 999+). Ack-механика выпилена (ревизия модели
+«важного» 05.10: действий получателя нет, повторы гасит прочтение).
 
 ## Конвейер подключения нового вида уведомлений (ADR-0017)
 
@@ -32,12 +34,10 @@ NotificationPriority>` не даст собрать код без строки.
 
 - `@nodus/contracts/notifications/`: `notificationSchema` (строка журнала),
   `notificationSummarySchema` (число+точка), `listNotificationsQuerySchema`
-  (фильтры пилюль + q + afterSeq-дельта), `urgentAckStatusSchema`
-  («Ознакомились N из M» — только отправителю срочного, чужой/несуществующий
-  messageId = NOT_FOUND, #202), `notificationSettingsSchema` (DND).
+  (фильтры пилюль + q + afterSeq-дельта), `urgentPolicySchema` (остаток
+  дневного лимита важных — заряды молнии), `notificationSettingsSchema` (DND).
 - События: `notification.dispatch_requested` (создание/повтор; snapshot для
-  тоста), `notification.read` (гашение — синхронизация вкладок D2),
-  `notification.acked` (будило отправителю, C9).
+  тоста), `notification.read` (гашение — синхронизация вкладок D2).
 - Коды ошибок: `CHAT_URGENT_LIMIT_EXCEEDED`, `CHAT_URGENT_GROUP_TOO_LARGE`
   (проверяются в chat при отправке, I8).
 
@@ -45,8 +45,8 @@ NotificationPriority>` не даст собрать код без строки.
 
 - `notifications` — журнал: seq (bigserial, курсор дельты), priority, kind,
   источник (source_type/source_id + conversation/message ids), preview,
-  urgent_text (лист ознакомления), read_at, ack_at, repeats_stopped_at;
-  дедуп `(event_id, user_id)`.
+  urgent_text (полный текст важного), read_at, repeats_stopped_at; дедуп
+  `(event_id, user_id)`.
 - `notification_deliveries` — журнал доставок (канал ws/repeat + попытка).
 - `notification_settings` — DND-расписание per user.
 
@@ -61,11 +61,17 @@ NotificationPriority>` не даст собрать код без строки.
 - **Доставка**: `notification.dispatch_requested` → outbox → RedisStreamPublisher
   (все доменные события) → gateway → комната `user:{id}`. Хендлер dispatch
   пишет deliveries и для urgent планирует повторы.
-- **Повторы срочного**: BullMQ `notification-repeat`, интервал
-  `NOTIFY_URGENT_REPEAT_SEC` (300), потолок `NOTIFY_URGENT_MAX_SEC` (1800),
-  стоп: ack/прочтение/ответ/реакция. Лимит отправителя
-  `NOTIFY_URGENT_DAILY_LIMIT` (3) и потолок группы `NOTIFY_URGENT_GROUP_MAX`
-  (20) — в chat при отправке.
+- **Повторы важного (#177, ревизия 05.10)**: BullMQ `notification-repeat`,
+  интервал `NOTIFY_URGENT_REPEAT_SEC` (300) × потолок `NOTIFY_URGENT_MAX_SEC`
+  (3600 = пуш каждые 5 минут в течение часа, максимум 12 повторов); повтор —
+  тот же пуш (тост), строка журнала ОДНА (в центре не накапливается); стоп:
+  прочтение (вход в чат/кнопка «Прочитать»), ответ, реакция или потолок —
+  «увидел где угодно». Лимит отправителя `NOTIFY_URGENT_DAILY_LIMIT` (3) и
+  потолок группы `NOTIFY_URGENT_GROUP_MAX` (20) — в chat при отправке.
+- **Аналитика прочтений** (#177): кто прочитал/не прочитал за цикл повторов —
+  `notifications.read_at` + журнал доставок `notification_deliveries`
+  (attempt 1..12) + watermark прочтений чата (`messages.readBy`). Отдельных
+  эндпоинтов нет — данные в существующих таблицах (I14).
 - **Уборка**: `notification-retention` cron 04:00 — низкий старше 7 дней
   помечается прочитанным (журнал жив для фильтра «Все»; `?q=` сервера —
   до глобального поиска топбара #172).

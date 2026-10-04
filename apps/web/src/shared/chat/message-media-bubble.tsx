@@ -16,6 +16,7 @@ import { MessageMeta } from './message-meta.js';
 import { MessageReactions } from './message-reactions.js';
 import { hasEntityPreviews, MessageText } from './message-text.js';
 import { ReadTicks } from './read-ticks.js';
+import { UrgentChip, UrgentChips } from './urgent-chips.js';
 
 /**
  * Медиа-сообщение Telegram (issue #187, раунды вердиктов) — АРХИТЕКТУРА
@@ -150,7 +151,18 @@ export function MediaMessage({
             data-slot="media-shield"
             className="pointer-events-none absolute inset-0"
           />
-          {!hasBottom ? <MediaTimeChip message={message} mine={mine} noReceipts={receiptsHidden} /> : null}
+          {!hasBottom ? (
+            <>
+              <MediaTimeChip message={message} mine={mine} noReceipts={receiptsHidden} />
+              {/* Важное на голом медиа (#177): чипы стопкой НАД чипом времени
+                  (рамки у медиа нет — канон #187; бордер не рисуем). */}
+              {message.urgent ? (
+                <span className="absolute right-2 bottom-9">
+                  <UrgentChip />
+                </span>
+              ) : null}
+            </>
+          ) : null}
         </span>
       </span>
       {hasBottom ? (
@@ -159,10 +171,16 @@ export function MediaMessage({
         // растеризатора — на дробных зумах (125/175/200%) расходились
         // «вертикальной линией» и по нижней кромке. Канон «одна линия = один
         // механизм»: Bubble + BubbleOutline — коробка и плавник ОДНИМ путём).
-        <Bubble variant={tone === 'out' ? 'default' : 'card'} className="w-full max-w-full">
+        <Bubble
+          variant={tone === 'out' ? 'default' : 'card'}
+          className={cn('w-full max-w-full', message.urgent && 'mb-2')}
+          data-urgent={message.urgent || undefined}
+        >
           <BubbleOutline
             side={finSide}
             variant={tone === 'out' ? 'default' : 'card'}
+            /* Важное (#177): рамку на медиа не возвращаем — картинка есть
+               край сообщения (канон #187); метку несёт чип на нижней части. */
             ringless
             selectRing={false}
             topRadius={0}
@@ -172,7 +190,9 @@ export function MediaMessage({
               // w-full: часть растянута на ширину стопки (ширина = медиа,
               // раунд 17): w-fit примитива сужал её до текста — булавка меты
               // уезжала «сразу за текстом» вместо правого угла пузыря.
-              'relative w-full rounded-b-xl px-2.5 pt-[5px] pb-[8px] leading-tight',
+              // Важное (#177): pb-14px — резерв под чипы на кромке.
+              'relative w-full rounded-b-xl px-2.5 pt-[5px] leading-tight',
+              message.urgent ? 'pb-[14px]' : 'pb-[8px]',
               finSide === 'left' && 'rounded-bl-none',
               finSide === 'right' && 'rounded-br-none',
             )}
@@ -187,7 +207,6 @@ export function MediaMessage({
                   <span className="flex justify-end">
                     <MessageMeta
                       message={message}
-                      mine={mine}
                       onFilled={mine}
                       ticks={mine}
                       noReceipts={receiptsHidden}
@@ -201,7 +220,6 @@ export function MediaMessage({
                 {reactionsRow ?? <MessageReactions message={message} onFilled={mine} />}
                 <MessageMeta
                   message={message}
-                  mine={mine}
                   onFilled={mine}
                   ticks={mine}
                   noReceipts={receiptsHidden}
@@ -209,9 +227,16 @@ export function MediaMessage({
                 />
               </span>
             ) : entityRow ? null : (
-              <MetaPin message={message} mine={mine} noReceipts={receiptsHidden} />
+              <MetaPin
+                message={message}
+                mine={mine}
+                noReceipts={receiptsHidden}
+                urgent={message.urgent}
+              />
             )}
           </BubbleContent>
+          {/* Чип важного (#177) на кромке нижней части медиа-стопки. */}
+          <UrgentChips message={message} />
         </Bubble>
       ) : hasReactionsRow ? (
         <span className="mt-[3px]">
@@ -262,7 +287,6 @@ export function MetaGhost({
   return (
     <MessageMeta
       message={message}
-      mine={mine}
       onFilled={onFilled ?? mine}
       ticks={mine}
       noReceipts={noReceipts}
@@ -283,18 +307,26 @@ export function MetaPin({
   mine,
   onFilled,
   noReceipts = false,
+  urgent = false,
 }: {
   message: ChatMessage;
   mine: boolean;
   onFilled?: boolean;
   /** Витрина «Избранного» (#215): без галочек/ознакомлений. */
   noReceipts?: boolean;
+  /** Важное (#177): мета поднята — нижняя полоса отдана чипам на кромке. */
+  urgent?: boolean;
 }) {
   return (
-    <span data-slot="meta-corner" className="pointer-events-none absolute right-2.5 bottom-[8px]">
+    <span
+      data-slot="meta-corner"
+      className={cn(
+        'pointer-events-none absolute right-2.5',
+        urgent ? 'bottom-[14px]' : 'bottom-[8px]',
+      )}
+    >
       <MessageMeta
         message={message}
-        mine={mine}
         onFilled={onFilled ?? mine}
         ticks={mine}
         noReceipts={noReceipts}

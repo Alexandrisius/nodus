@@ -591,6 +591,16 @@ export class MessagesRepository {
     return Number(rows[0]?.count ?? 0);
   }
 
+  /** Сериализация проверки лимита важных одного автора (#177, паттерн #195):
+   *  count и INSERT в одной tx, но без лока два параллельных отправки на
+   *  границе лимита оба проходят (TOCTOU). Advisory-лок КОНКРЕТНОГО автора —
+   *  чужие отправки не ждут; держится до конца tx отправки. */
+  async lockUrgentLimit(authorId: string, tx: TransactionClient): Promise<void> {
+    await tx.$executeRaw(Prisma.sql`
+      SELECT pg_advisory_xact_lock(177, hashtext(${authorId}::text))
+    `);
+  }
+
   /** Ответы треда, кроме исключаемого (детект «первый ответ» для события). */
   async countThreadReplies(
     threadRootId: string,

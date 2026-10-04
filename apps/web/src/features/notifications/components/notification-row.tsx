@@ -1,4 +1,4 @@
-import { AlarmClock, BellRing, MessageSquare, MessageSquareReply } from 'lucide-react';
+import { BellRing, MessageSquare, MessageSquareReply, Zap } from 'lucide-react';
 import type { MouseEvent } from 'react';
 import type { Notification, NotificationPriority } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
@@ -87,7 +87,7 @@ export function NotificationRow({
                 {item.kind === 'chat.thread_reply' ? (
                   <MessageSquareReply className="size-3" strokeWidth={1.75} />
                 ) : item.priority === 'urgent' ? (
-                  <AlarmClock className="size-3" strokeWidth={1.75} />
+                  <Zap className="size-3" strokeWidth={1.75} fill="currentColor" />
                 ) : item.priority === 'medium' ? (
                   <BellRing className="size-3" strokeWidth={1.75} />
                 ) : (

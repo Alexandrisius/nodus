@@ -10,13 +10,6 @@ export interface NotificationSink {
   dispatched: (snapshot: NotificationSnapshot, attempt: number) => void;
   /** Гашение (вкладки синхронны, D2). */
   read: (payload: { userId: string; sourceId: string | null }) => void;
-  /** Ознакомление со срочным (счётчик отправителя, C9). */
-  acked: (payload: {
-    userId: string;
-    messageId: string;
-    ackedCount: number;
-    expectedCount: number;
-  }) => void;
 }
 
 let sink: NotificationSink | null = null;
@@ -32,13 +25,4 @@ export function notificationDispatched(snapshot: NotificationSnapshot, attempt: 
 
 export function notificationRead(userId: string, sourceId: string | null): void {
   sink?.read({ userId, sourceId });
-}
-
-export function notificationAcked(payload: {
-  userId: string;
-  messageId: string;
-  ackedCount: number;
-  expectedCount: number;
-}): void {
-  sink?.acked(payload);
 }

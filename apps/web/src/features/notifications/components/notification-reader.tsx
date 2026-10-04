@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect } from 'react';
 import { X } from 'lucide-react';
 import type { Notification } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
@@ -7,12 +7,7 @@ import { Button } from '@nodus/ui/components/button';
 import { Skeleton } from '@nodus/ui/components/skeleton';
 import { useOpenCard } from '../../../app/shell/use-card-stack.js';
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
-import {
-  useAckNotification,
-  useNotifications,
-  useReadNotification,
-} from '../api/notifications-api.js';
-import { isAckGateNeeded } from '../model/ack-gate.js';
+import { useNotifications, useReadNotification } from '../api/notifications-api.js';
 import { useNotificationDetailStore } from '../model/detail-store.js';
 import { sourceCardOf } from '../model/open-notification.js';
 
@@ -76,11 +71,9 @@ export function NotificationReader() {
         </Button>
       </header>
       {item ? (
-        item.priority === 'urgent' ? (
-          <AckBody item={item} onClose={close} />
-        ) : (
-          <PlainBody item={item} onClose={close} />
-        )
+        /* Лист ознакомления удалён вместе с ack-механикой (ревизия модели
+         * 05.10): важное — обычная карточка «Прочитать» + переход. */
+        <PlainBody item={item} onClose={close} />
       ) : isLoading ? (
         <ReaderSkeleton />
       ) : null}
@@ -112,85 +105,6 @@ function ReaderMeta({ item }: { item: Notification }) {
           {new Date(item.createdAt).toLocaleString('ru-RU')}
         </div>
       </div>
-    </div>
-  );
-}
-
-/** Срочное: полный текст + «Ознакомлен» с гейтом «долистал» (СЭД-паттерн). */
-function AckBody({ item, onClose }: { item: Notification; onClose: () => void }) {
-  const ack = useAckNotification();
-  const openCard = useOpenCard();
-  const scrollerRef = useRef<HTMLDivElement>(null);
-  const [gated, setGated] = useState(false);
-  const [reachedEnd, setReachedEnd] = useState(true);
-
-  // Гейт «долистал» включается ТОЛЬКО когда скролл реально нужен: длинный
-  // текст, целиком влезающий в карточку, не требует прокрутки — кнопка активна
-  // сразу (замер после рендера, не по длине текста).
-  useEffect(() => {
-    const el = scrollerRef.current;
-    const needGate =
-      isAckGateNeeded(item.urgentText ?? null) &&
-      el !== null &&
-      el.scrollHeight > el.clientHeight + 4;
-    setGated(needGate);
-    setReachedEnd(!needGate);
-    el?.scrollTo(0, 0);
-  }, [item.id, item.urgentText]);
-
-  function handleScroll() {
-    const el = scrollerRef.current;
-    if (!el) return;
-    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 8) setReachedEnd(true);
-  }
-
-  const done = item.ackAt !== null;
-  return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div
-        ref={scrollerRef}
-        onScroll={handleScroll}
-        className="mx-auto w-full max-w-3xl flex-1 overflow-y-auto px-8 py-6"
-      >
-        <ReaderMeta item={item} />
-        <p className="mt-6 text-[15px] leading-relaxed whitespace-pre-wrap text-foreground/90">
-          {item.urgentText ?? item.preview ?? ''}
-        </p>
-      </div>
-      <footer className="shrink-0 border-t border-border">
-        <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3 px-8 py-3.5">
-          {done ? (
-            <span className="text-xs font-medium text-success">{ui.notifications.ackDone}</span>
-          ) : gated && !reachedEnd ? (
-            <span className="text-xs text-muted-foreground">{ui.notifications.ackScrollHint}</span>
-          ) : (
-            <span />
-          )}
-          <div className="flex items-center gap-2">
-            {item.conversationId && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  onClose();
-                  openCard({ kind: 'messenger', id: item.conversationId! });
-                }}
-              >
-                {ui.notifications.detailOpenSource}
-              </Button>
-            )}
-            {!done && (
-              <Button
-                size="sm"
-                disabled={!reachedEnd || ack.isPending}
-                onClick={() => ack.mutate(item.id, { onSuccess: onClose })}
-              >
-                {ui.notifications.ackButton}
-              </Button>
-            )}
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }

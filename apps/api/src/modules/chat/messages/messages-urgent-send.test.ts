@@ -74,6 +74,7 @@ describe('MessagesService: send urgent (#100)', () => {
     markRepliesDeleted: vi.fn(),
     advanceReadCursor: vi.fn(),
     countUrgentSentSince: vi.fn(),
+    lockUrgentLimit: vi.fn(),
   };
   const conversations = {
     findMembership: vi.fn(),
@@ -144,6 +145,15 @@ describe('MessagesService: send urgent (#100)', () => {
     repo.countUrgentSentSince.mockResolvedValue(2);
     await service.send(ME, CONV, body(true), 'key-u3');
     expect(repo.insertMessage).toHaveBeenCalledWith(expect.objectContaining({ urgent: true }), TX);
+  });
+
+  it('#177: advisory-лок лимита автора берётся ДО подсчёта (анти-TOCTOU)', async () => {
+    repo.countUrgentSentSince.mockResolvedValue(0);
+    await service.send(ME, CONV, body(true), 'key-lock');
+    expect(repo.lockUrgentLimit).toHaveBeenCalledWith(ME, TX);
+    const lockCall = repo.lockUrgentLimit.mock.invocationCallOrder[0]!;
+    const countCall = repo.countUrgentSentSince.mock.invocationCallOrder[0]!;
+    expect(lockCall).toBeLessThan(countCall);
   });
 
   it('C10: группа больше лимита участников — отклонено на бэкенде (I8)', async () => {
