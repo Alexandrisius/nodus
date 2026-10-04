@@ -121,6 +121,12 @@ export const chatMutationHandlers = [
         const uploaded = uploadedAttachments.get(id);
         return uploaded ? [uploaded] : [];
       });
+      // Инвариант непустоты (паритет с сервером, security-ревью #188):
+      // мусорный id не оставляет сообщение без текста и вложений — проверка
+      // ДО мутации стора (сервер откатывает транзакцию целиком).
+      if (body.text.trim().length === 0 && next.length === 0) {
+        return validationFailed();
+      }
       for (const attachment of next) uploadedAttachments.delete(attachment.id);
       changed =
         changed ||
@@ -136,11 +142,6 @@ export const chatMutationHandlers = [
           changed = true;
         }
       }
-    }
-    // Инвариант непустоты (паритет с сервером, security-ревью #188): мусорный
-    // id в списке не оставляет сообщение без текста и вложений.
-    if (touchesAttachments && body.text.trim().length === 0 && message.attachments.length === 0) {
-      return validationFailed();
     }
     if (changed) {
       message.text = body.text;
