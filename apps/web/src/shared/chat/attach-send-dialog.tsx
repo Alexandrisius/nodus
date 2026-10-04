@@ -16,7 +16,8 @@ import { plural } from '../lib/format.js';
 import { AttachSendRow } from './attach-send-row.js';
 import { messageLimitState, type ComposerSubmit } from './chat-composer.js';
 import { EMPTY_DRAFT, useChatDrafts } from './chat-drafts.js';
-import { addFiles, cancelUpload, removePending } from './composer-files.js';
+import { addFiles, cancelUpload, removePending, replaceFile } from './composer-files.js';
+import { cancelMessageEdit } from './message-edit.js';
 import { useAttachSendDialog } from './dialog-stores.js';
 import { ImageLightbox } from './image-lightbox.js';
 import { useScrollEndStore } from './scroll-end-store.js';
@@ -44,37 +45,55 @@ export function AttachSendDialogHost() {
   const setCaption = useAttachSendDialog((s) => s.setCaption);
   const draft = useChatDrafts((s) => (scope ? (s.drafts[scope] ?? EMPTY_DRAFT) : EMPTY_DRAFT));
   const items = draft.attachments;
+  // Режим правки (#188): окно редактирует существующее сообщение — текст и
+  // состав; «Сохранить» = PATCH с полным составом, отмена не трогает сообщение.
+  const editMode = draft.edit !== null;
   const [sending, setSending] = useState(false);
   const [lightbox, setLightbox] = useState<number | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  // «Заменить вложение» (#188): строка, на которую подменяет следующий
+  // выбранный файл (скрытый инпут окна один на все источники).
+  const [replaceTarget, setReplaceTarget] = useState<string | null>(null);
   const draggingRef = useRef<string | null>(null);
   const captionRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // Картинки окна — локальные objectURL до отправки; лайтбокс смотрит их же.
-  const previewImages: MessageAttachment[] = items
-    .filter((item) => item.objectUrl)
-    .map((item) => ({
-      id: item.localId,
-      fileId: item.attachment?.fileId ?? '',
-      name: item.fileName,
-      size: item.size,
-      mime: item.mime,
-      kind: 'image',
-      url: item.objectUrl ?? '',
-      thumbnailUrl: item.objectUrl,
-      previewKind: 'image',
-      pdfUrl: null,
-      width: null,
-      height: null,
-    }));
+  // Картинки окна — локальные objectURL новых загрузок ИЛИ серверные
+  // превью строк правимого сообщения (#188); лайтбокс смотрит их же.
+  const previewImages: MessageAttachment[] = items.flatMap((item): MessageAttachment[] => {
+    if (item.objectUrl) {
+      return [
+        {
+          id: item.localId,
+          fileId: item.attachment?.fileId ?? '',
+          name: item.fileName,
+          size: item.size,
+          mime: item.mime,
+          kind: 'image',
+          url: item.objectUrl,
+          thumbnailUrl: item.objectUrl,
+          previewKind: 'image',
+          pdfUrl: null,
+          width: null,
+          height: null,
+        },
+      ];
+    }
+    // Строка правимого сообщения: DTO с серверными url/превью.
+    return item.attachment ? [{ ...item.attachment, name: item.fileName }] : [];
+  });
+  const previewIndex = (localId: string) => previewImages.findIndex((p) => p.id === localId);
+  const hasPreview = (item: (typeof items)[number]) =>
+    Boolean(item.objectUrl || item.attachment?.thumbnailUrl || item.attachment?.url);
 
   // Отправка встала (хост очистил черновик по onSuccess) или вложения сняты
   // все до одной — окно закрывается само. Снятие последней строки = отмена:
   // подпись возвращается черновиком в композер (валидатор #144: текст не
-  // должен теряться); на пути отправки подпись съедена сообщением.
+  // должен теряться); на пути отправки подпись съедена сообщением. В режиме
+  // ПРАВКИ (#188) пустой состав — легальное состояние (сообщение с одним
+  // текстом): окно не закрывается, edit сбрасывается только сохранением.
   useEffect(() => {
-    if (scope && items.length === 0) {
+    if (scope && items.length === 0 && !editMode) {
       if (!sending) {
         const leftover = useAttachSendDialog.getState().caption;
         if (leftover) useChatDrafts.getState().setText(scope, leftover);
@@ -82,23 +101,34 @@ export function AttachSendDialogHost() {
       setSending(false);
       close();
     }
-  }, [scope, items.length, sending, close]);
+  }, [scope, items.length, editMode, sending, close]);
 
   if (!scope) return null;
 
   const uploading = items.some((item) => item.status === 'uploading');
   const errored = items.some((item) => item.status === 'error');
   const limit = messageLimitState(caption.length);
-  const canSend = items.length > 0 && !uploading && !errored && !limit.over && !sending;
+  const readyCount = items.filter((item) => item.status === 'ready').length;
+  const canSend =
+    (editMode ? caption.trim().length > 0 || readyCount > 0 : items.length > 0) &&
+    !uploading &&
+    !errored &&
+    !limit.over &&
+    !sending;
 
-  /** Отмена (крестик/Esc/задник/«Отмена»): загрузки сняты, готовые объекты
-   *  удалены на сервере, ПОДПИСЬ возвращается в композер — становится
-   *  черновиком (канон Telegram: текст появляется в чате только после
-   *  закрытия окна, не онлайн-дублированием). */
+  /** Отмена (Esc/«Отмена»): правка — сообщение не тронуто (исходные строки
+   *  отвязаны только локально, новые загрузки сняты, текст композера
+   *  восстановлен); отправка — загрузки сняты, готовые объекты удалены,
+   *  подпись возвращается черновиком в композер (канон Telegram). */
   function cancelAll() {
     // В полёте отправки отмена выключена (валидатор #144): DELETE готовых
     // вложений при уходящем сообщении ломал бы отправку.
     if (!scope || sending) return;
+    if (draft.edit) {
+      cancelMessageEdit(scope);
+      close();
+      return;
+    }
     if (caption) useChatDrafts.getState().setText(scope, caption);
     const current = (useChatDrafts.getState().drafts[scope] ?? EMPTY_DRAFT).attachments;
     for (const item of current) {
@@ -115,13 +145,17 @@ export function AttachSendDialogHost() {
       text: caption.trim(),
       attachments: items,
       reply: draft.reply,
-      edit: null,
+      edit: draft.edit,
+      editComposition: editMode,
     };
     const promise = submitForScope(scope, payload);
     if (!promise) return;
     setSending(true);
-    // Своё сообщение видно с любой позиции скролла (вердикт 24.09).
-    useScrollEndStore.getState().request(scope, 'smooth');
+    if (!editMode) {
+      // Своё сообщение видно с любой позиции скролла (вердикт 24.09); правка
+      // сообщения на месте скролл не двигает.
+      useScrollEndStore.getState().request(scope, 'smooth');
+    }
     try {
       await promise;
     } catch {
@@ -206,8 +240,9 @@ export function AttachSendDialogHost() {
       >
         <DialogHeader>
           <DialogTitle>
-            {ui.chat.attachSelected} {items.length}{' '}
-            {plural(items.length, [ui.chat.fileOne, ui.chat.fileFew, ui.chat.fileMany])}
+            {editMode
+              ? ui.chat.editTitle
+              : `${ui.chat.attachSelected} ${items.length} ${plural(items.length, [ui.chat.fileOne, ui.chat.fileFew, ui.chat.fileMany])}`}
           </DialogTitle>
         </DialogHeader>
         {/* Фиксированные границы зоны списка: габарит окна не прыгает
@@ -219,6 +254,13 @@ export function AttachSendDialogHost() {
               scope={scope}
               item={item}
               dragging={draggingId === item.localId}
+              actions={editMode}
+              onReplace={() => {
+                // «Заменить вложение» (#188): выбор файла подменяет цель
+                // скрытого инпута окна (обычное «Добавить» не трогаем).
+                setReplaceTarget(item.localId);
+                fileRef.current?.click();
+              }}
               onDragStart={() => {
                 draggingRef.current = item.localId;
                 setDraggingId(item.localId);
@@ -229,9 +271,7 @@ export function AttachSendDialogHost() {
                 setDraggingId(null);
               }}
               onPreview={
-                item.objectUrl
-                  ? () => setLightbox(previewImages.findIndex((p) => p.id === item.localId))
-                  : undefined
+                hasPreview(item) ? () => setLightbox(previewIndex(item.localId)) : undefined
               }
             />
           ))}
@@ -240,6 +280,14 @@ export function AttachSendDialogHost() {
           ref={captionRef}
           value={caption}
           onChange={(event) => setCaption(event.target.value)}
+          onPaste={(event) => {
+            // Ctrl+V в окне добавляет вложение (в правке — НЕ новое
+            // сообщение, #188; в отправке — тот же канон Telegram).
+            const files = Array.from(event.clipboardData.files);
+            if (files.length === 0) return;
+            event.preventDefault();
+            addFiles(scope, files);
+          }}
           onKeyDown={(event) => {
             // Клавиатура — КАК в композере чата (send-keys.ts, вердикт
             // 14.09.2026): Enter отправляет, Shift/Ctrl+Enter — перенос.
@@ -279,7 +327,7 @@ export function AttachSendDialogHost() {
             disabled={!canSend}
             title={uploading ? ui.chat.attachWaitUpload : undefined}
           >
-            {ui.chat.attachSend}
+            {editMode ? ui.common.save : ui.chat.attachSend}
           </Button>
         </DialogFooter>
         <input
@@ -288,7 +336,18 @@ export function AttachSendDialogHost() {
           multiple
           hidden
           onChange={(event) => {
-            if (scope && event.target.files) addFiles(scope, Array.from(event.target.files));
+            if (scope && event.target.files) {
+              // Замена (#188): один файл на место строки-цели; иначе —
+              // обычное добавление («Добавить», дроп, Ctrl+V).
+              const files = Array.from(event.target.files);
+              if (replaceTarget !== null) {
+                const [file] = files;
+                if (file) replaceFile(scope, replaceTarget, file);
+                setReplaceTarget(null);
+              } else {
+                addFiles(scope, files);
+              }
+            }
             event.target.value = '';
           }}
         />

@@ -66,7 +66,7 @@ describe('draft-sync — фиксация черновика на уходе', (
         [key(5)]: {
           ...EMPTY_DRAFT,
           text: 'текст правки',
-          edit: { messageId: 'm1', originalText: 'оригинал' },
+          edit: { messageId: 'm1', originalText: 'оригинал', originalIds: [] },
         },
       },
     });
@@ -159,7 +159,11 @@ describe('draft-sync — реконсилейшн серверного черн�
   it('режим правки и пустой серверный черновик — реконсилейшн не работает', () => {
     useChatDrafts.setState({
       drafts: {
-        [key(4)]: { ...EMPTY_DRAFT, text: '', edit: { messageId: 'm1', originalText: 'x' } },
+        [key(4)]: {
+          ...EMPTY_DRAFT,
+          text: '',
+          edit: { messageId: 'm1', originalText: 'x', originalIds: [] },
+        },
       },
     });
     reconcileServerDraft(key(4), { draft: { text: 'серверный' } });

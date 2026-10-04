@@ -33,6 +33,7 @@ import { shortPersonName } from '../lib/format.js';
 import { PersonAvatar } from '../ui/person-avatar.js';
 import { useMessageToTask } from './api.js';
 import { useChatDrafts } from './chat-drafts.js';
+import { startMessageEdit } from './message-edit.js';
 import { focusComposerWhenFree } from './composer-focus.js';
 import { useDeleteDialog, useForwardDialog, useUnpinDialog } from './dialog-stores.js';
 import { useAddFavorites, useFavoriteIds, useRemoveFavorite } from './favorites-api.js';
@@ -228,7 +229,9 @@ export function MessageMenu({
         icon: Pencil,
         label: ui.chat.menu.edit,
         run: () => {
-          useChatDrafts.getState().setEdit(scope, message);
+          // Правка (#188): сообщение с вложениями — окно правки (состав +
+          // текст); без вложений — прежний инлайн-режим композера.
+          startMessageEdit(scope, message);
           focusComposerWhenFree(scope);
         },
       },

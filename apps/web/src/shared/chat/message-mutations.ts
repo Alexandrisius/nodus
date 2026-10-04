@@ -15,6 +15,7 @@ import { api } from '../api-client.js';
 import { useAuthStore } from '../auth-store.js';
 import { chatKeys } from './api.js';
 import { useChatDrafts } from './chat-drafts.js';
+import type { EditMessageVars } from './message-edit.js';
 import { useScrollEndStore } from './scroll-end-store.js';
 
 /**
@@ -138,22 +139,35 @@ function restoreSnapshot(qc: QueryClient, snapshot: CacheSnapshot): void {
 export function useEditMessage(conversationId: string, draftScope?: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (vars: { messageId: string; text: string }) =>
+    mutationFn: (vars: EditMessageVars) =>
       api<ChatMessage>(`/chat/conversations/${conversationId}/messages/${vars.messageId}`, {
         method: 'PATCH',
-        body: { text: vars.text },
+        body: {
+          text: vars.text,
+          // attachmentIds есть = полный итоговый состав из окна правки
+          // (#188); отсутствует = инлайн-правка текста, состав не трогаем.
+          ...(vars.attachmentIds !== undefined ? { attachmentIds: vars.attachmentIds } : {}),
+          ...(vars.attachmentRenames !== undefined
+            ? { attachmentRenames: vars.attachmentRenames }
+            : {}),
+        },
       }),
 
     onMutate: async (vars) => {
       await qc.cancelQueries({ queryKey: chatKeys.messages(conversationId) });
       const snapshot = snapshotMessages(qc, conversationId);
       // «Повторный пуш прочитавшим» (решение #41): editedAt + сброс readAt —
-      // галочки read→sent видны сразу (модель поведения до WS M13).
+      // галочки read→sent видны сразу (модель поведения до WS M13). Состав
+      // вложений (#188): окно дало оптимистичный список — применяем ДО
+      // ответа сервера (I4).
       mapMessage(qc, conversationId, vars.messageId, (m) => ({
         ...m,
         text: vars.text,
         editedAt: new Date().toISOString(),
         readAt: null,
+        ...(vars.optimisticAttachments !== undefined
+          ? { attachments: vars.optimisticAttachments }
+          : {}),
       }));
       return { snapshot };
     },

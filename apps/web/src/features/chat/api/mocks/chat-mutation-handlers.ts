@@ -93,8 +93,11 @@ export const chatMutationHandlers = [
     return new HttpResponse(null, { status: 204 });
   }),
 
-  /** Правка (A4): editedAt ставится только при реальной смене текста;
-   *  readAt сбрасывается — «повторный пуш прочитавшим» (решение #41).
+  /** Правка (A4 + #188): editedAt — только при реальной смене (текст, состав
+   *  вложений, имена); readAt сбрасывается — «повторный пуш прочитавшим»
+   *  (решение #41). Состав: attachmentIds = итоговый список — убранные
+   *  отвязываются, новые забираются из загруженных (uploadedAttachments),
+   *  порядок = списку; переименования применяются к строкам сообщения.
    *  Закрепы держат ссылку на объект — пин-бар обновляется реактивно. */
   http.patch('/api/v1/chat/conversations/:id/messages/:messageId', async ({ params, request }) => {
     const parsed = editMessageBodySchema.safeParse(await request.json());
@@ -104,8 +107,36 @@ export const chatMutationHandlers = [
     if (message.author.id !== getMockActor().id) return forbidden();
     // Паритет с бэком (#111): пересланную копию не правит даже переславший.
     if (message.forwardedFrom) return forbidden('Forwarded messages cannot be edited');
-    if (message.text !== parsed.data.text) {
-      message.text = parsed.data.text;
+    const body = parsed.data;
+    let changed = message.text !== body.text;
+    if (body.attachmentIds !== undefined) {
+      if (message.attachments.some((a) => a.sticker)) {
+        return forbidden('Sticker messages cannot be edited');
+      }
+      const next = body.attachmentIds.flatMap((id) => {
+        const kept = message.attachments.find((a) => a.id === id);
+        if (kept) return [kept];
+        const uploaded = uploadedAttachments.get(id);
+        return uploaded ? [uploaded] : [];
+      });
+      for (const attachment of next) uploadedAttachments.delete(attachment.id);
+      changed =
+        changed ||
+        next.length !== message.attachments.length ||
+        next.some((a, i) => a.id !== message.attachments[i]!.id);
+      message.attachments = next;
+    }
+    if (body.attachmentRenames !== undefined && body.attachmentRenames.length > 0) {
+      for (const rename of body.attachmentRenames) {
+        const target = message.attachments.find((a) => a.id === rename.id);
+        if (target && target.name !== rename.name) {
+          target.name = rename.name;
+          changed = true;
+        }
+      }
+    }
+    if (changed) {
+      message.text = body.text;
       message.editedAt = new Date().toISOString();
       message.readAt = null;
     }

@@ -152,6 +152,85 @@ describe('useEditMessage — оптимистичность (A4)', () => {
     expect(rolled?.editedAt).toBeNull();
     expect(rolled?.readAt).toBe('2026-09-24T10:00:00Z');
   });
+
+  it('состав вложений (#188): оптимистичный список ДО ответа, PATCH несёт attachmentIds/renames', async () => {
+    const client = new QueryClient();
+    seed(
+      client,
+      message({
+        attachments: [
+          {
+            id: 'att-old',
+            fileId: 'f1',
+            name: 'старое.png',
+            size: 10,
+            mime: 'image/png',
+            kind: 'image',
+            url: null,
+            thumbnailUrl: null,
+            previewKind: 'image',
+            pdfUrl: null,
+            width: null,
+            height: null,
+          },
+        ],
+      }),
+    );
+    const gate = deferred<Response>();
+    stubFetch(gate.promise);
+    const { result } = renderHook(() => useEditMessage(CONV), { wrapper: makeWrapper(client) });
+
+    const optimistic = [
+      {
+        id: 'att-new',
+        fileId: 'f2',
+        name: 'новое имя.png',
+        size: 20,
+        mime: 'image/png',
+        kind: 'image' as const,
+        url: null,
+        thumbnailUrl: null,
+        previewKind: 'image' as const,
+        pdfUrl: null,
+        width: null,
+        height: null,
+      },
+    ];
+    await act(async () => {
+      result.current.mutate({
+        messageId: M1,
+        text: 'с новым вложением',
+        attachmentIds: ['att-new'],
+        attachmentRenames: [{ id: 'att-new', name: 'новое имя.png' }],
+        optimisticAttachments: optimistic,
+      });
+    });
+
+    // Оптимистично (I4): состав в кэше до ответа сервера.
+    const cached = items(client)[0];
+    expect(cached?.attachments).toEqual(optimistic);
+    // Тело запроса несёт полный состав + переименование.
+    const patch = vi
+      .mocked(fetch)
+      .mock.calls.find((c) => (c[1] as RequestInit | undefined)?.method === 'PATCH');
+    expect(JSON.parse(String((patch![1] as RequestInit).body))).toMatchObject({
+      text: 'с новым вложением',
+      attachmentIds: ['att-new'],
+      attachmentRenames: [{ id: 'att-new', name: 'новое имя.png' }],
+    });
+
+    const server = message({ text: 'с новым вложением', attachments: optimistic });
+    await act(async () => {
+      gate.resolve(
+        new Response(JSON.stringify(server), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      );
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(items(client)[0]?.attachments).toEqual(optimistic);
+  });
 });
 
 describe('useDeleteMessage — прогноз правила следа «по ответам» (#163)', () => {

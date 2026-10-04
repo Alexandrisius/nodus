@@ -35,6 +35,10 @@ export interface PendingAttachment {
 export interface EditDraft {
   messageId: string;
   originalText: string;
+  /** Вложения правимого сообщения на момент входа в правку (#188): отличить
+   *  строки сообщения (крестик — локальный detach) от новых загрузок
+   *  (крестик — отмена на сервере). */
+  originalIds: string[];
 }
 
 export interface ChatDraft {
@@ -65,6 +69,8 @@ interface DraftsState {
   /** Правка сохранена/отправлена: режим снят, восстановлен исходный текст. */
   finishEdit: (key: string) => void;
   addAttachments: (key: string, items: PendingAttachment[]) => void;
+  /** Замена вложения на месте (#188): новая строка встаёт на позицию старой. */
+  insertAttachment: (key: string, index: number, item: PendingAttachment) => void;
   patchAttachment: (key: string, localId: string, patch: Partial<PendingAttachment>) => void;
   removeAttachment: (key: string, localId: string) => void;
   /** Сортировка окна отправки (#144): порядок строк = порядок attachmentIds. */
@@ -118,9 +124,25 @@ export const useChatDrafts = create<DraftsState>()(
           drafts: patchDraft(s.drafts, key, (d) => ({
             ...d,
             reply: null,
-            edit: { messageId: message.id, originalText: message.text },
+            edit: {
+              messageId: message.id,
+              originalText: message.text,
+              originalIds: message.attachments.map((a) => a.id),
+            },
             preEditText: d.edit ? d.preEditText : d.text,
             text: message.text,
+            // Вложения правимого сообщения — строки окна правки (#188):
+            // ready-карточки с серверным DTO (id строки = localId).
+            attachments: message.attachments.map((a) => ({
+              localId: a.id,
+              fileName: a.name,
+              mime: a.mime,
+              size: a.size,
+              progress: 1,
+              status: 'ready' as const,
+              attachment: a,
+              objectUrl: null,
+            })),
           })),
         })),
       cancelEdit: (key) =>
@@ -131,12 +153,20 @@ export const useChatDrafts = create<DraftsState>()(
         })),
       finishEdit: (key) =>
         set((s) => ({
-          drafts: patchDraft(s.drafts, key, (d) => ({
-            ...d,
-            edit: null,
-            text: d.preEditText ?? '',
-            preEditText: null,
-          })),
+          drafts: patchDraft(s.drafts, key, (d) => {
+            // Правка сохранена: состав окна съеден сообщением — objectURL
+            // превью новых загрузок освобождаем (#188).
+            for (const gone of d.attachments) {
+              if (gone.objectUrl) URL.revokeObjectURL(gone.objectUrl);
+            }
+            return {
+              ...d,
+              edit: null,
+              text: d.preEditText ?? '',
+              preEditText: null,
+              attachments: [],
+            };
+          }),
         })),
       addAttachments: (key, items) =>
         set((s) => ({
@@ -144,6 +174,15 @@ export const useChatDrafts = create<DraftsState>()(
             ...d,
             attachments: [...d.attachments, ...items],
           })),
+        })),
+      insertAttachment: (key, index, item) =>
+        set((s) => ({
+          drafts: patchDraft(s.drafts, key, (d) => {
+            const attachments = [...d.attachments];
+            const at = Math.max(0, Math.min(index, attachments.length));
+            attachments.splice(at, 0, item);
+            return { ...d, attachments };
+          }),
         })),
       patchAttachment: (key, localId, patch) =>
         set((s) => ({

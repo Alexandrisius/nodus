@@ -39,7 +39,36 @@ export function addFiles(draftKey: string, incoming: File[]): void {
   }
 }
 
-function startUpload(draftKey: string, file: File): void {
+/** Замена вложения на месте (#188, меню строки «⋯» окна правки): новый файл
+ *  загружается и встаёт на позицию старой строки; старая снимается — строка
+ *  правимого сообщения отвязывается только локально (сервер увидит итоговый
+ *  состав при сохранении правки), новая загрузка отменяется на сервере. */
+export function replaceFile(draftKey: string, localId: string, file: File): void {
+  const store = useChatDrafts.getState();
+  const current = store.drafts[draftKey] ?? EMPTY_DRAFT;
+  const index = current.attachments.findIndex((a) => a.localId === localId);
+  const old = index >= 0 ? current.attachments[index] : undefined;
+  if (!old) return;
+  const { accepted, issue } = validateFiles([file], current.attachments.length - 1);
+  if (issue === 'too-large') {
+    toast.error(ui.chat.attachTooLarge);
+    return;
+  }
+  if (accepted.length === 0) return;
+  // Старая строка уходит до старта загрузки новой — «замена на месте» видна
+  // сразу (позицию держит insertAttachment).
+  const edit = current.edit;
+  if (old.attachment && edit?.originalIds.includes(old.attachment.id)) {
+    store.removeAttachment(draftKey, localId);
+  } else if (old.status === 'uploading') {
+    cancelUpload(draftKey, localId);
+  } else {
+    removePending(draftKey, localId);
+  }
+  startUploadAt(draftKey, index, file);
+}
+
+function startUploadAt(draftKey: string, index: number, file: File): void {
   const localId = crypto.randomUUID();
   const isImage = file.type.startsWith('image/');
   // Blob из буфера обмена не имеет имени — подписываем «Изображение»
@@ -56,8 +85,13 @@ function startUpload(draftKey: string, file: File): void {
     objectUrl: isImage ? URL.createObjectURL(file) : null,
   };
   sourceFiles.set(localId, file);
-  useChatDrafts.getState().addAttachments(draftKey, [pending]);
+  useChatDrafts.getState().insertAttachment(draftKey, index, pending);
   runUpload(draftKey, localId, file);
+}
+
+function startUpload(draftKey: string, file: File): void {
+  const current = (useChatDrafts.getState().drafts[draftKey] ?? EMPTY_DRAFT).attachments;
+  startUploadAt(draftKey, current.length, file);
 }
 
 function runUpload(draftKey: string, localId: string, file: File): void {

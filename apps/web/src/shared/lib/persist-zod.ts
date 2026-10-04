@@ -87,6 +87,7 @@ const chatDraftSchema = z.object({
     .object({
       messageId: z.string(),
       originalText: z.string(),
+      originalIds: z.array(z.string()).catch([]),
     })
     .nullable()
     .catch(null),

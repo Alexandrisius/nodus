@@ -16,12 +16,11 @@ import { useConversationMessages, useSendChatMessage } from './api.js';
 import { ChatComposer, type ComposerSubmit } from './chat-composer.js';
 import { useChatPrefs } from './chat-prefs.js';
 import { setOpenConversation } from './notifications.js';
-import { useChatDrafts } from './chat-drafts.js';
 import { ConversationViewsLine } from './views-line.js';
 import { addFiles } from './composer-files.js';
 import { toSendVars } from './composer-submit.js';
 import { registerScopeSubmit } from './submit-registry.js';
-import { focusComposer } from './composer-focus.js';
+import { startMessageEdit, toEditVars } from './message-edit.js';
 import { FeedDropzone } from './feed-dropzone.js';
 import { FeedScrollerButton } from './feed-scroller-button.js';
 import { useEditMessage } from './message-mutations.js';
@@ -156,27 +155,37 @@ export const ThreadFeed = memo(function ThreadFeed({
 
   function handleSubmit(submit: ComposerSubmit) {
     if (submit.edit) {
-      edit.mutate({ messageId: submit.edit.messageId, text: submit.text });
+      const vars = toEditVars(submit);
+      if (vars) edit.mutate(vars);
       return;
     }
     send.mutate(toSendVars(submit));
   }
 
   // Окно отправки вложений (#144): глобальный диалог шлёт через хук хоста —
-  // оптимистичность/reply/идемпотентность в одном месте; send — новый объект
-  // каждый рендер, реестру нужен стабильный колбэк: ref.
+  // оптимистичность/reply/идемпотентность в одном месте; send/edit — новый
+  // объект каждый рендер, реестру нужны стабильные колбэки: ref; правка окна
+  // (#188) маршрутизируется сюда же (editComposition).
   const sendRef = useRef(send);
   sendRef.current = send;
+  const editRef = useRef(edit);
+  editRef.current = edit;
   useEffect(
-    () => registerScopeSubmit(scope, (submit) => sendRef.current.mutateAsync(toSendVars(submit))),
+    () =>
+      registerScopeSubmit(scope, (submit) => {
+        if (submit.edit) {
+          const vars = toEditVars(submit);
+          return vars ? editRef.current.mutateAsync(vars) : Promise.resolve();
+        }
+        return sendRef.current.mutateAsync(toSendVars(submit));
+      }),
     [scope],
   );
 
   function handleEditLast() {
     const message = lastMine();
     if (!message) return;
-    useChatDrafts.getState().setEdit(scope, message);
-    focusComposer(scope);
+    startMessageEdit(scope, message);
   }
 
   return (
