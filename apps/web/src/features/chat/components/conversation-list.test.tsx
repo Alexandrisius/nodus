@@ -36,6 +36,7 @@ function conv(id: string, pinned = false): ConversationListItem {
     membersPreview: [],
     membersCount: 1,
     lastMessage: null,
+    lastActivityAt: null,
     unreadCount: 0,
     myLastReadSeq: 0,
     pinned,

@@ -33,6 +33,7 @@ const rawConversations: Omit<
   | 'permissions'
   | 'myLastReadSeq'
   | 'membersCount'
+  | 'lastActivityAt'
 >[] = [
   {
     id: cid(1),
@@ -208,6 +209,9 @@ export const demoConversations: ConversationListItem[] = [
   // Watermark текущего пользователя (раунд 3, якорь «первое непрочитанное»):
   // считается ПОСЛЕ сборки сообщений (цикл под demoMessages).
   myLastReadSeq: 0,
+  // Активность сортировки (#215): null → фолбэк на lastMessage.createdAt;
+  // звёзды мока поднимают «Избранное» явной правкой поля (favorite-handlers).
+  lastActivityAt: null,
 }));
 
 // Демо-состояния контекстного меню: канал закреплён, группа без звука.

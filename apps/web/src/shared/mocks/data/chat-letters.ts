@@ -22,6 +22,7 @@ type RawConversation = Omit<
   | 'permissions'
   | 'myLastReadSeq'
   | 'membersCount'
+  | 'lastActivityAt'
 >;
 
 /** Чаты писем (type=letter): обсуждение письма — только внутренние

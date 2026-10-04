@@ -59,6 +59,7 @@ export const ChatMessageItem = memo(function ChatMessageItem({
   avatarSlot = 'avatar',
   tail = false,
   reactionsHidden = false,
+  receiptsHidden = false,
   nameSuffix,
   reactionsRow,
   reactionPicker,
@@ -75,6 +76,9 @@ export const ChatMessageItem = memo(function ChatMessageItem({
   tail?: boolean;
   /** Режим выделения: реакции недоступны (модель Битрикс24, #132 р.4). */
   reactionsHidden?: boolean;
+  /** Витрина «Избранного» (#215): мета «просмотрено/ознакомились» выключена
+   *  для ВСЕХ строк (записей и карточек-оригиналов). */
+  receiptsHidden?: boolean;
   /** Доп-подпись рядом с именем автора (карточки избранного: «из <чат>»). */
   nameSuffix?: ReactNode;
   /** Замена ряда реакций (карточки избранного: личные эмодзи-метки вместо
@@ -116,6 +120,13 @@ export const ChatMessageItem = memo(function ChatMessageItem({
   // Стикер (#143): без пузыря — крупный глиф + метка; клик — поповер пака
   // (дистрибуция «из чата»). Имя автора не выводится (канон Telegram).
   const stickerAttachment = stickerAttachmentOf(message);
+  // Пилюля реакций/меток — ОДНА на все ветки формы (текст/медиа/стикер):
+  // слот витрины (#171/#215) либо публичный ReactionPicker.
+  const pickerNode = reactionsHidden ? null : reactionPicker !== undefined ? (
+    reactionPicker(atEnd)
+  ) : (
+    <ReactionPicker message={message} atEnd={atEnd} />
+  );
   if (stickerAttachment) {
     return (
       <StickerMessageView
@@ -124,7 +135,11 @@ export const ChatMessageItem = memo(function ChatMessageItem({
         mine={mine}
         avatarSlot={avatarSlot}
         reactionsHidden={reactionsHidden}
-      />
+        reactionsRow={reactionsRow}
+        receiptsHidden={receiptsHidden}
+      >
+        {pickerNode}
+      </StickerMessageView>
     );
   }
 
@@ -156,12 +171,6 @@ export const ChatMessageItem = memo(function ChatMessageItem({
   const layout = attachmentsLayout(message.attachments);
   const media = layout.mode === 'single' || layout.mode === 'gallery';
   const finSide = tail ? (atEnd ? 'right' : 'left') : null;
-  // Слоты карточек избранного (#171): личные метки вместо публичных реакций.
-  const pickerNode = reactionsHidden ? null : reactionPicker !== undefined ? (
-    reactionPicker(atEnd)
-  ) : (
-    <ReactionPicker message={message} atEnd={atEnd} />
-  );
   const hasReactionsRow = reactionsRow !== undefined || message.reactions.length > 0;
   if (media) {
     return (
@@ -182,6 +191,8 @@ export const ChatMessageItem = memo(function ChatMessageItem({
             finSide={finSide}
             onJumpToReply={jumpToReply}
             onJumpToForwardSource={jumpToForwardSource}
+            reactionsRow={reactionsRow}
+            receiptsHidden={receiptsHidden}
           >
             {pickerNode}
           </MediaMessage>
@@ -282,10 +293,18 @@ export const ChatMessageItem = memo(function ChatMessageItem({
               )}
             >
               <MessageText text={message.text} />
-              {hasReactionsRow || entityRow ? null : <MetaGhost message={message} mine={mine} />}
+              {hasReactionsRow || entityRow ? null : (
+                <MetaGhost message={message} mine={mine} noReceipts={receiptsHidden} />
+              )}
               {entityRow && !hasReactionsRow ? (
                 <span className="flex justify-end">
-                  <MessageMeta message={message} mine={mine} onFilled={mine} ticks={mine} />
+                  <MessageMeta
+                    message={message}
+                    mine={mine}
+                    onFilled={mine}
+                    ticks={mine}
+                    noReceipts={receiptsHidden}
+                  />
                 </span>
               ) : null}
             </span>
@@ -297,11 +316,12 @@ export const ChatMessageItem = memo(function ChatMessageItem({
                   mine={mine}
                   onFilled={mine}
                   ticks={mine}
+                  noReceipts={receiptsHidden}
                   className="ml-auto"
                 />
               </span>
             ) : entityRow ? null : (
-              <MetaPin message={message} mine={mine} />
+              <MetaPin message={message} mine={mine} noReceipts={receiptsHidden} />
             )}
           </BubbleContent>
           {/* Ховер-попап реакций (#124): кнопка у нижнего угла пузыря

@@ -23,7 +23,9 @@ export const favoriteMocks = new Map<string, FavoriteState>();
 function toCard(messageId: string): FavoriteCard | null {
   const message = demoMessages.find((m) => m.id === messageId);
   const state = favoriteMocks.get(messageId);
-  if (!message || !state) return null;
+  // Призраки удалённых оригиналов не выдаются (#215, паритет серверному
+  // фильтру списка + каскаду при удалении).
+  if (!message || !state || message.deletedAt) return null;
   const conversation = demoConversations.find((c) => c.id === message.conversationId);
   const title =
     conversation?.title ??
@@ -91,6 +93,22 @@ export const favoriteHandlers = [
       const card = toCard(messageId);
       if (card) items.push(card);
     });
+    // Активность «Избранного» (#215, паритет серверному touchLastMessageAt +
+    // lastActivityAt списка): новая звезда поднимает беседу «Избранное»
+    // наверх — клиент сортирует по lastActivityAt.
+    if (items.length > 0) {
+      const notes = demoConversations.find(
+        (c) => c.type === 'direct' && c.membersPreview.length === 1,
+      );
+      if (notes) {
+        notes.lastActivityAt = new Date().toISOString();
+        const index = demoConversations.indexOf(notes);
+        if (index > 0) {
+          demoConversations.splice(index, 1);
+          demoConversations.unshift(notes);
+        }
+      }
+    }
     return HttpResponse.json({ items });
   }),
 

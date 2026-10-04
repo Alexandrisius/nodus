@@ -23,6 +23,7 @@ function makeListRow(overrides: Partial<ConversationListRow> = {}): Conversation
     permissions: DEFAULT_CONVERSATION_PERMISSIONS,
     avatar_file_id: null,
     last_message_at: new Date('2026-09-24T10:00:00Z'),
+    last_activity_at: new Date('2026-09-24T10:00:00Z'),
     role: 'owner',
     pinned: false,
     muted: false,

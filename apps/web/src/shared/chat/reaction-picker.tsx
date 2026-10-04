@@ -165,6 +165,9 @@ export function ReactionPicker({
             aria-pressed={mineOf(BASE)}
             title={label}
             onClick={() => pick(BASE)}
+            // «Вечный курсор» (канон #71): клик по пилюле не уводит фокус
+            // из композера — каретка мигает всегда.
+            onMouseDown={(event) => event.preventDefault()}
             className="flex size-5 cursor-pointer items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm transition-transform duration-150 hover:scale-[1.4] hover:border-foreground/30 hover:text-foreground"
           >
             {/* Глиф меньше кружка (вердикт р.5: «почти вылазит за границы»):
@@ -186,6 +189,12 @@ export function ReactionPicker({
         align={atEnd ? 'end' : 'start'}
         sideOffset={8}
         data-slot="reaction-pop"
+        // «Вечный курсор» (канон #71, как media-picker #130/#132): панель
+        // открывается ХОВЕРОМ — автофокус контента уводил каретку из
+        // композера, а stealFocus молчал по гварду insideOverlayLayer
+        // (role=dialog); при закрытии фокус падал в body. Фокус отсюда
+        // вообще не должен уходить в панель.
+        onOpenAutoFocus={(event) => event.preventDefault()}
         onMouseEnter={cancelClose}
         onMouseLeave={scheduleClose}
         className="relative w-auto p-1"
@@ -200,6 +209,8 @@ export function ReactionPicker({
             aria-expanded={expanded}
             title={ui.chat.moreReactions}
             onClick={toggleExpanded}
+            // «Вечный курсор» (#71): кнопки панели не фокусируются мышью.
+            onMouseDown={(event) => event.preventDefault()}
             className="flex size-10 cursor-pointer items-center justify-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"
           >
             <ChevronDown
@@ -251,6 +262,8 @@ function EmojiButton({
       aria-pressed={active}
       aria-label={emoji}
       onClick={() => onPick(emoji)}
+      // «Вечный курсор» (#71): клик по эмодзи не уводит фокус из композера.
+      onMouseDown={(event) => event.preventDefault()}
       className={cn(
         'flex size-10 cursor-pointer items-center justify-center rounded-full transition-transform hover:scale-110 hover:bg-accent',
         active && 'bg-info-soft/60 hover:bg-info-soft/60',

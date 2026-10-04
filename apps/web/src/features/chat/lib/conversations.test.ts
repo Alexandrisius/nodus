@@ -4,7 +4,12 @@ import type { ConversationListItem } from '@nodus/contracts';
 import { sortByActivity } from './conversations.js';
 import { canPostFeed } from '../../../shared/chat/conversations.js';
 
-function conv(id: string, at: string | null, pinned = false): ConversationListItem {
+function conv(
+  id: string,
+  at: string | null,
+  pinned = false,
+  lastActivityAt: string | null = null,
+): ConversationListItem {
   return {
     id,
     type: 'direct',
@@ -50,6 +55,7 @@ function conv(id: string, at: string | null, pinned = false): ConversationListIt
           createdAt: at,
         }
       : null,
+    lastActivityAt,
     unreadCount: 0,
     myLastReadSeq: 0,
     pinned,
@@ -66,6 +72,17 @@ describe('sortByActivity — единый список бесед', () => {
       conv('c', '2026-09-02T10:00:00Z'),
     ]);
     expect(sorted.map((c) => c.id)).toEqual(['c', 'a', 'b']);
+  });
+
+  it('lastActivityAt бьёт превью (#215): звезда поднимает «Избранное» наверх', () => {
+    // Фидбек приёмки: превью-сообщение «Избранного» — старая запись, свежая
+    // звезда живёт только в lastActivityAt (сервер: GREATEST(last_message_at,
+    // последняя закладка)) — сортировка идёт по нему, фолбэк — превью.
+    const sorted = sortByActivity([
+      conv('chat', '2026-10-04T12:00:00Z'),
+      conv('notes', '2026-09-01T10:00:00Z', false, '2026-10-04T15:00:00Z'),
+    ]);
+    expect(sorted.map((c) => c.id)).toEqual(['notes', 'chat']);
   });
 
   it('закреплённые — всегда сверху, между собой по активности', () => {

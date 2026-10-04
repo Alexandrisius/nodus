@@ -52,11 +52,17 @@ export function sortByActivity(
   hasDraft?: (conversationId: string) => boolean,
 ): ConversationListItem[] {
   const rank = (c: ConversationListItem) => (c.pinned ? 0 : (hasDraft?.(c.id) ?? false) ? 1 : 2);
+  // Ключ активности — lastActivityAt (сообщения ИЛИ звезда «Избранного»,
+  // #215): сервер считает GREATEST(last_message_at, последняя закладка);
+  // превью-поле lastMessage отстаёт (звезда не создаёт сообщение) —
+  // фолбэк на него только для старых/нулевых значений.
+  const activityAt = (c: ConversationListItem): string | null =>
+    c.lastActivityAt ?? c.lastMessage?.createdAt ?? null;
   return [...conversations].sort((a, b) => {
     const tier = rank(a) - rank(b);
     if (tier !== 0) return tier;
-    const ta = a.lastMessage?.createdAt ?? null;
-    const tb = b.lastMessage?.createdAt ?? null;
+    const ta = activityAt(a);
+    const tb = activityAt(b);
     if (ta === null && tb === null) return 0;
     if (ta === null) return 1;
     if (tb === null) return -1;

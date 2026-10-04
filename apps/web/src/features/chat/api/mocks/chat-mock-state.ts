@@ -2,6 +2,7 @@ import type { ChatMessage, MessageAttachment, MessagePin, ReplyPreview } from '@
 
 import { demoConversations, demoMessages, demoPins } from '../../../../shared/mocks/data/chat.js';
 import { actorUserRef } from '../../../../shared/mocks/mock-actor.js';
+import { favoriteMocks } from './favorite-handlers.js';
 
 /**
  * Состояние мок-домена чата для мутаций линии A (#87): загруженные вложения,
@@ -43,6 +44,15 @@ export function buildReplyPreview(replyToId: string, quoteText?: string | null):
     deleted: false,
     obliterated: false,
   };
+}
+
+/** «Избранное» (#215): беседа с собой (direct, единственный участник) —
+ *  удаление всегда БЕСЛЕДНО, надгробия не оставляем (паритет серверному
+ *  гварду MessagesService.deleteInternal → isNotesConversation; выродившаяся
+ *  группа/канал с 1 участником под гвард НЕ попадает). */
+export function isSelfConversation(conversationId: string): boolean {
+  const conversation = demoConversations.find((c) => c.id === conversationId);
+  return conversation?.type === 'direct' && conversation.membersPreview.length === 1;
 }
 
 /** Правило следа (#163, вердикт владельца 30.09 «по ответам»): след держат
@@ -98,7 +108,8 @@ export function unpinById(conversationId: string, messageId: string): boolean {
 }
 
 /** Удаление СО СЛЕДОМ: надгробие на месте сообщения (текст/вложения/реакции
- *  очищены, авто-анпин — канон: удаление закреплённого спускает пин). */
+ *  очищены, авто-анпин — канон: удаление закреплённого спускает пин).
+ *  Закладки гаснут сразу (#215 — паритет серверному каскаду deleteInternal). */
 export function applyDeletion(message: ChatMessage): ChatMessage {
   message.deletedAt = new Date().toISOString();
   message.text = '';
@@ -106,18 +117,21 @@ export function applyDeletion(message: ChatMessage): ChatMessage {
   message.reactions = [];
   message.reply = null;
   unpinById(message.conversationId, message.id);
+  favoriteMocks.delete(message.id);
   markRepliesDeleted(message.id, false);
   return message;
 }
 
 /** Удаление БЕЗ СЛЕДА (#163 — нет живых ответов): строка уходит из демо-ленты;
- *  цитаты-ответы получают obliterated — кликать некуда (паритет прод-маппера). */
+ *  цитаты-ответы получают obliterated — кликать некуда (паритет прод-маппера).
+ *  Закладки гаснут сразу (#215 — паритет серверному каскаду deleteInternal). */
 export function removeMessage(messageId: string): void {
   const index = demoMessages.findIndex((m) => m.id === messageId);
   if (index < 0) return;
   const [gone] = demoMessages.splice(index, 1);
   if (!gone) return;
   unpinById(gone.conversationId, gone.id);
+  favoriteMocks.delete(messageId);
   markRepliesDeleted(messageId, true);
 }
 

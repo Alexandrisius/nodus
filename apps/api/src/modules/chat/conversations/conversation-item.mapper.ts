@@ -90,6 +90,9 @@ export class ConversationItemMapper {
         // Всего участников, считая зрителя (#186): кнопка «N участников».
         membersCount: members.length,
         lastMessage,
+        // Активность сортировки (#215): звезда в «Избранном» — как новое
+        // сообщение; null — активности не было.
+        lastActivityAt: row.last_activity_at?.toISOString() ?? null,
         unreadCount: row.unread_count,
         // Watermark текущего пользователя: якорь «первое непрочитанное» при
         // открытии беседы (раунд 3) — seq > myLastReadSeq.

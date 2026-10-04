@@ -120,6 +120,12 @@ export function createRealtimeInvalidator(queryClient: QueryClient): RealtimeInv
           return;
         }
         case 'chat.favorite_added':
+          // Личное состояние (#171) + активность: новая звезда поднимает
+          // «Избранное» в списке бесед (сервер трогает last_message_at,
+          // фидбек приёмки #215) — рефечим список.
+          batcher.push(favoriteKeys.all, 'feed');
+          batcher.push(chatKeys.conversations(), 'list');
+          return;
         case 'chat.favorite_removed':
         case 'chat.favorite_updated':
           // Личное состояние (#171): событие приходит только в свою

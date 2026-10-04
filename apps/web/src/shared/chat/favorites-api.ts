@@ -24,6 +24,7 @@ import { useAuthStore } from '../auth-store.js';
 import { chatKeys } from './api.js';
 import { useConversations } from './api.js';
 import { isNotesConversation } from './conversations.js';
+import { useOptimisticFavoriteLabels } from './optimistic-favorite-labels.js';
 
 /**
  * API-слой избранного (#171): личные закладки-ссылки. Один список —
@@ -192,7 +193,10 @@ function removeCard(qc: QueryClient, messageId: string): void {
   }
 }
 
-function patchCard(qc: QueryClient, messageId: string, patch: Partial<FavoriteCard>): void {
+/** Патч карточки во всех страничных кэшах избранного; false — карточки
+ *  в кэшах не было (например, тэг на записи витрины до первой закладки). */
+function patchCard(qc: QueryClient, messageId: string, patch: Partial<FavoriteCard>): boolean {
+  let any = false;
   for (const [key, data] of qc.getQueriesData<InfiniteData<FavoritePage, string | null>>({
     queryKey: favoriteKeys.all,
   })) {
@@ -206,8 +210,12 @@ function patchCard(qc: QueryClient, messageId: string, patch: Partial<FavoriteCa
         return { ...card, ...patch };
       }),
     }));
-    if (touched) qc.setQueryData(key, { ...data, pages });
+    if (touched) {
+      qc.setQueryData(key, { ...data, pages });
+      any = true;
+    }
   }
+  return any;
 }
 
 /** Поставить звёзды (одиночная — из меню; цепочка — мультиселект). */
@@ -262,7 +270,11 @@ export function useRemoveFavorite() {
 
 /** Личные эмодзи-метки сообщения (мультивыбор, весь состав массивом).
  *  Апсерт (#171 р.5): тэг на ЗАПИСИ витрины — закладки ещё нет → POST
- *  (сервер разрешает записи «Избранного») → PATCH меток. */
+ *  (сервер разрешает записи «Избранного») → PATCH меток. Мгновенность
+ *  (#215): карточка в кэше патчится на месте; для записи без закладки
+ *  оптимистичная метка живёт в ЛОКАЛЬНОМ сторе (optimistic-favorite-labels)
+ *  — вставка прогноза-карточки в кэш списка убрана ревизией приёмки:
+ *  она дёргала ленту на первом выставлении после загрузки страницы. */
 export function useUpdateFavorite() {
   const qc = useQueryClient();
   return useMutation({
@@ -289,17 +301,25 @@ export function useUpdateFavorite() {
     onMutate: async ({ messageId, body }) => {
       await qc.cancelQueries({ queryKey: favoriteKeys.all });
       const snapshot = qc.getQueryData(favoriteKeys.list());
-      patchCard(qc, messageId, { labels: body.labels });
+      const patched = patchCard(qc, messageId, { labels: body.labels });
+      if (!patched) {
+        // Запись без закладки: кэш списка НЕ трогаем (вставка прогноза дёргала
+        // ленту, #215 приёмка) — оптимистичная метка в локальном сторе.
+        useOptimisticFavoriteLabels.getState().set(messageId, body.labels);
+      }
       return { snapshot };
     },
-    onError: (_error, _vars, context) => {
+    onError: (_error, vars, context) => {
       if (context) restoreList(qc, context.snapshot);
+      useOptimisticFavoriteLabels.getState().clear(vars.messageId);
       toast.error(ui.common.saveError);
     },
     onSuccess: (card) => {
       patchCard(qc, card.messageId, card);
-      // Апсерт (тэг на записи): новой строки в списке ещё нет — рефеч всей
-      // ветки приносит карточку/тэги для cardsById витрины.
+      // Апсерт (тэг на записи): локальную метку НЕ снимаем — карточка
+      // попадёт в кэш только после рефетча, между ответом и ним чип падал
+      // бы в пустышку (мигание). Снимает reconcileOptimisticLabels, когда
+      // кэш догонит теми же метками.
       void qc.invalidateQueries({ queryKey: favoriteKeys.all });
       void qc.invalidateQueries({ queryKey: favoriteKeys.labels() });
     },

@@ -51,6 +51,8 @@ export function MediaMessage({
   finSide,
   onJumpToReply,
   onJumpToForwardSource,
+  reactionsRow,
+  receiptsHidden = false,
   children,
 }: {
   message: ChatMessage;
@@ -60,6 +62,11 @@ export function MediaMessage({
   finSide: 'left' | 'right' | null;
   onJumpToReply: (replyId: string) => void;
   onJumpToForwardSource: () => void;
+  /** Замена ряда реакций (карточки избранного: личные метки вместо публичных
+   *  чипов — #215; в обычных чатах не передаётся). */
+  reactionsRow?: ReactNode;
+  /** Витрина «Избранного» (#215): мета «просмотрено» выключена (все строки). */
+  receiptsHidden?: boolean;
   /** Пилюля реакций хозяина (ReactionPicker) — внутри стопки, снаружи клипа. */
   children?: ReactNode;
 }) {
@@ -79,7 +86,9 @@ export function MediaMessage({
   // картинки субпиксельное смещение — «пляшущие» дуги AA и расхождение с
   // контуром селекта.
   const width = rawWidth === null ? null : snapDevicePx(rawWidth);
-  const hasReactions = message.reactions.length > 0;
+  // Ряд реакций/меток: слот витрины (реакции псевдо-сообщения всегда пусты)
+  // либо публичные чипы — одна и та же строка (#215).
+  const hasReactionsRow = reactionsRow !== undefined || message.reactions.length > 0;
   return (
     <div
       data-slot="media-message"
@@ -141,7 +150,7 @@ export function MediaMessage({
             data-slot="media-shield"
             className="pointer-events-none absolute inset-0"
           />
-          {!hasBottom ? <MediaTimeChip message={message} mine={mine} /> : null}
+          {!hasBottom ? <MediaTimeChip message={message} mine={mine} noReceipts={receiptsHidden} /> : null}
         </span>
       </span>
       {hasBottom ? (
@@ -171,33 +180,42 @@ export function MediaMessage({
             {hasText ? (
               <span className="block">
                 <MessageText text={message.text} />
-                {hasReactions || entityRow ? null : <MetaGhost message={message} mine={mine} />}
-                {entityRow && !hasReactions ? (
+                {hasReactionsRow || entityRow ? null : (
+                  <MetaGhost message={message} mine={mine} noReceipts={receiptsHidden} />
+                )}
+                {entityRow && !hasReactionsRow ? (
                   <span className="flex justify-end">
-                    <MessageMeta message={message} mine={mine} onFilled={mine} ticks={mine} />
+                    <MessageMeta
+                      message={message}
+                      mine={mine}
+                      onFilled={mine}
+                      ticks={mine}
+                      noReceipts={receiptsHidden}
+                    />
                   </span>
                 ) : null}
               </span>
             ) : null}
-            {hasReactions ? (
+            {hasReactionsRow ? (
               <span className="flex items-end gap-2">
-                <MessageReactions message={message} onFilled={mine} />
+                {reactionsRow ?? <MessageReactions message={message} onFilled={mine} />}
                 <MessageMeta
                   message={message}
                   mine={mine}
                   onFilled={mine}
                   ticks={mine}
+                  noReceipts={receiptsHidden}
                   className="ml-auto"
                 />
               </span>
             ) : entityRow ? null : (
-              <MetaPin message={message} mine={mine} />
+              <MetaPin message={message} mine={mine} noReceipts={receiptsHidden} />
             )}
           </BubbleContent>
         </Bubble>
-      ) : hasReactions ? (
+      ) : hasReactionsRow ? (
         <span className="mt-[3px]">
-          <MessageReactions message={message} onFilled={false} />
+          {reactionsRow ?? <MessageReactions message={message} onFilled={false} />}
         </span>
       ) : null}
       {/* Единый контур селекта по всей стопке: с хвостовиком только когда
@@ -233,10 +251,13 @@ export function MetaGhost({
   message,
   mine,
   onFilled,
+  noReceipts = false,
 }: {
   message: ChatMessage;
   mine: boolean;
   onFilled?: boolean;
+  /** Витрина «Избранного» (#215): без галочек/ознакомлений. */
+  noReceipts?: boolean;
 }) {
   return (
     <MessageMeta
@@ -244,6 +265,7 @@ export function MetaGhost({
       mine={mine}
       onFilled={onFilled ?? mine}
       ticks={mine}
+      noReceipts={noReceipts}
       // plain: без aria/role — e2e getByLabel('просмотрено') не должен
       // находить скрытую копию (toBeVisible падает на visibility:hidden)
       plain
@@ -260,14 +282,23 @@ export function MetaPin({
   message,
   mine,
   onFilled,
+  noReceipts = false,
 }: {
   message: ChatMessage;
   mine: boolean;
   onFilled?: boolean;
+  /** Витрина «Избранного» (#215): без галочек/ознакомлений. */
+  noReceipts?: boolean;
 }) {
   return (
     <span data-slot="meta-corner" className="pointer-events-none absolute right-2.5 bottom-[8px]">
-      <MessageMeta message={message} mine={mine} onFilled={onFilled ?? mine} ticks={mine} />
+      <MessageMeta
+        message={message}
+        mine={mine}
+        onFilled={onFilled ?? mine}
+        ticks={mine}
+        noReceipts={noReceipts}
+      />
     </span>
   );
 }
@@ -294,9 +325,18 @@ export function MediaArea({
 }
 
 /** Чип времени чистого изображения (без нижней части): нижний правый угол
- * ПОВЕРХ картинки, тёмная полупрозрачная заливка, мягкие углы, белый текст;
- * галочки — только у своих (currentColor = белый). */
-export function MediaTimeChip({ message, mine }: { message: ChatMessage; mine: boolean }) {
+ *  ПОВЕРХ картинки, тёмная полупрозрачная заливка, мягкие углы, белый текст;
+ *  галочки — только у своих (currentColor = белый). */
+export function MediaTimeChip({
+  message,
+  mine,
+  noReceipts = false,
+}: {
+  message: ChatMessage;
+  mine: boolean;
+  /** Витрина «Избранного» (#215): без галочек (все строки). */
+  noReceipts?: boolean;
+}) {
   // Звезда избранного (#171 ревизия 04.10): у соло-медиа нет пузырной меты —
   // единственное место индикации — чип времени на картинке (вердикт владельца).
   const favoriteIds = useFavoriteIds();
@@ -322,7 +362,9 @@ export function MediaTimeChip({ message, mine }: { message: ChatMessage; mine: b
       <time className="font-mono tabular-nums" dateTime={message.createdAt}>
         {formatTime(message.createdAt)}
       </time>
-      {mine ? <ReadTicks read={message.readBy.length > 0} /> : null}
+      {mine && !noReceipts && message.conversationId !== notesId ? (
+        <ReadTicks read={message.readBy.length > 0} />
+      ) : null}
     </span>
   );
 }

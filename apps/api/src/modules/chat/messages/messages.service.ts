@@ -37,6 +37,7 @@ import {
   type ClaimedAttachmentRow,
 } from './messages.repository.js';
 import { AttachmentsRepository } from './attachments.repository.js';
+import { FavoritesRepository } from '../favorites/favorites.repository.js';
 import { ThreadParticipantsRepository } from './thread-participants.repository.js';
 import { buildReplySnapshot } from './reply-snapshot.js';
 import {
@@ -81,6 +82,7 @@ export class MessagesService {
     @Inject(USER_PROFILE_READER) private readonly userProfiles: UserProfileReader,
     private readonly threadParticipants: ThreadParticipantsRepository,
     private readonly stickersRepo: StickersRepository,
+    private readonly favoritesRepo: FavoritesRepository,
   ) {}
 
   // ===== Чтение =====
@@ -554,11 +556,37 @@ export class MessagesService {
       }
       // Правило следа #163: надгробие — только при живых ответах (якорь
       // цепочки), иначе бесследно. Решает сервер, прочтения не участвуют.
-      const hasReplies = await this.repo.hasLiveReplies(conversationId, messageId, tx);
+      // «Избранное» (#215): беседа с собой (direct, user_min=user_max=автор —
+      // состав неизменяем, гонок нет) — личный чат, следов не нужно: свои
+      // записи удаляются БЕССЛЕДНО всегда (надгробие в витрине — баг
+      // приёмки); прочтения/ознакомления там выключены, якорь цепочки
+      // показывать некому. Выродившаяся группа/канал (1 участник) под гвард
+      // НЕ попадает — там правило #163 работает как раньше.
+      const selfChat = await this.conversations.isNotesConversation(
+        conversationId,
+        message.authorId,
+        tx,
+      );
+      const hasReplies = selfChat
+        ? false
+        : await this.repo.hasLiveReplies(conversationId, messageId, tx);
       const obliterated = !hasReplies;
       const tombstone = await this.repo.tombstone(conversationId, messageId, obliterated, tx);
       await this.repo.deletePinByMessage(messageId, tx);
       await this.repo.markRepliesDeleted(messageId, tx);
+      // Каскад закладок (#215): оригинал удалён — строки избранного гаснут у
+      // ВСЕХ владельцев (карточка-призрак не висит в витрине надгробием),
+      // каждому — событие в его user-комнату (как при ручном снятии звезды;
+      // фронт рефечит список и гасит звёзды).
+      const owners = await this.favoritesRepo.deleteByMessage(messageId, tx);
+      for (const ownerId of owners) {
+        await this.eventBus.emit(
+          tx,
+          CHAT_EVENTS.FAVORITE_REMOVED,
+          { userId: ownerId, conversationId, messageId },
+          { actorId: userId, aggregateType: 'message', aggregateId: messageId },
+        );
+      }
       await this.eventBus.emit(
         tx,
         CHAT_EVENTS.MESSAGE_DELETED,

@@ -83,8 +83,12 @@ export class FavoritesRepository {
         is: {
           // Приватность: контент оригинала доступен только участникам беседы —
           // закладка исключённого из беседы перестаёт выдаваться (не раскрываем).
+          // Призраки удалённых не выдаются (#215): каскад в MessagesService
+          // чистит строки при удалении оригинала, фильтр — страховка на
+          // переходный период и реплеи.
           AND: [
             { conversation: { is: { members: { some: { userId } } } } },
+            { deletedAt: null, obliterated: false },
             ...(query.conversationId ? [{ conversationId: query.conversationId }] : []),
           ],
         },
@@ -120,6 +124,8 @@ export class FavoritesRepository {
         SELECT 1 FROM conversation_members cm
         WHERE cm.conversation_id = m.conversation_id AND cm.user_id = ${userId}::uuid
       )`,
+      // Призраки удалённых оригиналов не выдаются (#215) — см. list.
+      Prisma.sql`m.deleted_at IS NULL AND m.obliterated = false`,
     ];
     if (query.conversationId) {
       conditions.push(Prisma.sql`m.conversation_id = ${query.conversationId}::uuid`);
@@ -210,6 +216,17 @@ export class FavoritesRepository {
       where: { userId, messageId },
     });
     return removed.count > 0;
+  }
+
+  /** Удаление оригинала (#215): строки закладки гаснут у ВСЕХ владельцев
+   *  (карточка-призрак не висит в витрине надгробием). Возвращает владельцев
+   *  для событий FAVORITE_REMOVED в их user-комнаты. Атомарно (RETURNING). */
+  async deleteByMessage(messageId: string, tx?: TransactionClient): Promise<string[]> {
+    const client = tx ?? this.prisma;
+    const rows = await client.$queryRaw<{ user_id: string }[]>(Prisma.sql`
+      DELETE FROM favorites WHERE message_id = ${messageId}::uuid RETURNING user_id
+    `);
+    return rows.map((row) => row.user_id);
   }
 
   async findRow(userId: string, messageId: string): Promise<FavoriteRow | null> {

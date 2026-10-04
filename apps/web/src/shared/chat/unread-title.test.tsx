@@ -33,6 +33,7 @@ function item(unreadCount: number): ConversationListItem {
     membersPreview: [],
     membersCount: 1,
     lastMessage: null,
+    lastActivityAt: null,
     unreadCount,
     myLastReadSeq: 0,
     pinned: false,

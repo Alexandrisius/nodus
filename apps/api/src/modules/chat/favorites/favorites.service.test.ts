@@ -63,10 +63,11 @@ describe('FavoritesService (#171)', () => {
     distinctLabels: ReturnType<typeof vi.fn>;
   };
   let cards: { toDtos: ReturnType<typeof vi.fn> };
-  let messages: { findByIds: ReturnType<typeof vi.fn> };
+  let messages: { findByIds: ReturnType<typeof vi.fn>; touchLastMessageAt: ReturnType<typeof vi.fn> };
   let conversations: {
     findMembership: ReturnType<typeof vi.fn>;
     isNotesConversation: ReturnType<typeof vi.fn>;
+    findOrCreateDirect: ReturnType<typeof vi.fn>;
   };
   let eventBus: { emit: ReturnType<typeof vi.fn> };
   let service: FavoritesService;
@@ -82,10 +83,11 @@ describe('FavoritesService (#171)', () => {
       distinctLabels: vi.fn().mockResolvedValue([]),
     };
     cards = { toDtos: vi.fn().mockResolvedValue([]) };
-    messages = { findByIds: vi.fn() };
+    messages = { findByIds: vi.fn(), touchLastMessageAt: vi.fn().mockResolvedValue(undefined) };
     conversations = {
       findMembership: vi.fn(),
       isNotesConversation: vi.fn().mockResolvedValue(false),
+      findOrCreateDirect: vi.fn().mockResolvedValue({ id: 'notes-1', created: false }),
     };
     eventBus = { emit: vi.fn().mockResolvedValue(undefined) };
     const txRunner = {
@@ -117,6 +119,32 @@ describe('FavoritesService (#171)', () => {
     expect(favorites.create).toHaveBeenCalledWith(ME, 'm1', expect.any(Date), 'tx-handle');
     // Карточки — только доступные (m2/m-missing отфильтрованы).
     expect(result.items).toEqual([{ messageId: 'm1' }]);
+  });
+
+  it('add (#215): новая звезда — активность «Избранного»: беседа поднимается в списке', async () => {
+    // Фидбек приёмки: сортировка списка — по last_message_at; без бампа
+    // добавленное никто не заметит. Find-or-create: первая звезда сразу
+    // создаёт чат в списке.
+    messages.findByIds.mockResolvedValue([makeMessage('m1', CONV)]);
+    conversations.findMembership.mockResolvedValue({ userId: ME });
+    favorites.findRow.mockResolvedValue(makeRow('m1'));
+
+    await service.add(ME, { messageIds: ['m1'] });
+
+    expect(conversations.findOrCreateDirect).toHaveBeenCalledWith(ME, ME, 'tx-handle');
+    expect(messages.touchLastMessageAt).toHaveBeenCalledWith('notes-1', 'tx-handle');
+  });
+
+  it('add (#215): идемпотентный повтор — активность «Избранного» НЕ трогается', async () => {
+    messages.findByIds.mockResolvedValue([makeMessage('m1', CONV)]);
+    conversations.findMembership.mockResolvedValue({ userId: ME });
+    favorites.findExisting.mockResolvedValue(new Set(['m1']));
+    favorites.findRow.mockResolvedValue(makeRow('m1'));
+
+    await service.add(ME, { messageIds: ['m1'] });
+
+    expect(conversations.findOrCreateDirect).not.toHaveBeenCalled();
+    expect(messages.touchLastMessageAt).not.toHaveBeenCalled();
   });
 
   it('add: порядок цепочки — createdAt монотонен по порядку массива', async () => {
