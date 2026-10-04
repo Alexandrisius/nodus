@@ -57,8 +57,11 @@ export const notificationSchema = z.object({
   actor: userRefSchema.nullable(),
   /** Превью текста (выжимка «что»); null — без текста. */
   preview: z.string().nullable(),
-  /** Полный текст срочного — тело «листа ознакомления» (только urgent). */
+  /** Полный текст важного — тело «листа ознакомления» (только urgent). */
   urgentText: z.string().nullable(),
+  /** Требует подтверждения (#177): false — важное без действий получателя
+   *  (одно уведомление); true — чип «Ознакомлен» и повторы до ack. */
+  requireAck: z.boolean(),
   conversationId: z.uuid().nullable(),
   /** Название беседы («где»); у direct — null, строка покажет автора. */
   conversationTitle: z.string().nullable(),
@@ -120,6 +123,26 @@ export const urgentAckStatusSchema = z.object({
   items: z.array(urgentAckEntrySchema),
 });
 export type UrgentAckStatus = z.infer<typeof urgentAckStatusSchema>;
+
+/** Состояние ack текущего пользователя по важному сообщению (#177):
+ *  восстановление чипа «Ознакомлен» после перезагрузки (F5). */
+export const urgentSelfAckSchema = z.object({
+  messageId: z.uuid(),
+  ackedAt: z.iso.datetime().nullable(),
+});
+export type UrgentSelfAck = z.infer<typeof urgentSelfAckSchema>;
+
+/** Политика дневного лимита важных (#177): счётчик в попапе молнии.
+ *  Сутки скользящие (не календарные): resetAt = старейшая отправка отправителя
+ *  за последние 24ч + 24ч; null — лимит не исчерпан, ожидания нет. */
+export const urgentPolicySchema = z.object({
+  remaining: z.number().int().min(0),
+  limit: z.number().int().min(0),
+  resetAt: z.iso.datetime().nullable(),
+  /** Потолок участников для важных (guardrail «Требовать подтверждения»). */
+  groupMax: z.number().int().min(0),
+});
+export type UrgentPolicy = z.infer<typeof urgentPolicySchema>;
 
 /** Настройки уведомлений пользователя (DND-расписание; тосты гасятся, кроме urgent). */
 export const notificationSettingsSchema = z.object({

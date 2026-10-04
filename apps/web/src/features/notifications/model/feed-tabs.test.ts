@@ -23,6 +23,7 @@ function notif(kind: Notification['kind'], priority: Notification['priority']): 
     actor: null,
     preview: null,
     urgentText: null,
+    requireAck: false,
     conversationId: null,
     conversationTitle: null,
     messageId: null,

@@ -133,6 +133,8 @@ function predictCard(qc: QueryClient, messageId: string): FavoriteCard | null {
     attachments: message.attachments,
     editedAt: message.editedAt,
     deletedAt: message.deletedAt,
+    urgent: false,
+    requireAck: false,
     obliterated: false,
     createdAt: message.createdAt,
     labels: [],

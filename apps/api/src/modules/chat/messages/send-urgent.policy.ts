@@ -28,3 +28,21 @@ export function assertUrgentSendAllowed(input: UrgentSendInput): void {
     );
   }
 }
+
+/** Затратные части гейта (запросы + env) собраны здесь, чтобы send остался
+ *  линейным: счётчики передаются замыканиями в tx отправки (#100, #177). */
+export async function assertUrgentSendAllowedBy(deps: {
+  conversationType: string;
+  countMembers: () => Promise<number>;
+  countUrgentSent: () => Promise<number>;
+}): Promise<void> {
+  const memberCount = deps.conversationType === 'direct' ? 0 : await deps.countMembers();
+  const sentToday = await deps.countUrgentSent();
+  assertUrgentSendAllowed({
+    conversationType: deps.conversationType,
+    memberCount,
+    sentToday,
+    dailyLimit: Number(process.env.NOTIFY_URGENT_DAILY_LIMIT ?? 3),
+    groupMax: Number(process.env.NOTIFY_URGENT_GROUP_MAX ?? 20),
+  });
+}

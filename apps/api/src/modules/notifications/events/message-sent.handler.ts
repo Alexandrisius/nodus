@@ -16,6 +16,7 @@ interface MessageSentPayload {
   authorId: string;
   threadRootId: string | null;
   urgent: boolean;
+  requireAck: boolean;
   mentionedUserIds?: string[];
   message?: { text?: string; author?: { displayName?: string } } | null;
 }
@@ -66,6 +67,7 @@ export class MessageSentHandler implements DomainEventHandler<MessageSentPayload
           ...payload,
           mentionedUserIds: payload.mentionedUserIds ?? [],
           urgent: payload.urgent ?? false,
+          requireAck: (payload.urgent ?? false) && (payload.requireAck ?? false),
         },
       },
       state,
@@ -91,6 +93,7 @@ export class MessageSentHandler implements DomainEventHandler<MessageSentPayload
               messageId: row.message_id,
               threadRootId: row.thread_root_id,
               preview: row.preview,
+              requireAck: row.require_ack,
               actorName: payload.message?.author?.displayName ?? null,
             },
             attempt: 0,

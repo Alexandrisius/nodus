@@ -58,6 +58,10 @@ export interface ComposerSubmit {
   edit: EditDraft | null;
   editComposition?: boolean;
   sticker?: StickerSubmitPayload | null;
+  /** «Важное» (#177): молния композера; requireAck — чекбокс подтверждения
+   *  (осмыслен только с urgent, сервер клампит). */
+  urgent?: boolean;
+  requireAck?: boolean;
 }
 
 /** Лимит текста сообщения (контракт text.max(4000), спека): превалидация в

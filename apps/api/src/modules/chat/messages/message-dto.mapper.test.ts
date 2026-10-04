@@ -157,6 +157,7 @@ function fullRow(overrides: Partial<MessageRow> = {}): MessageRow {
     deletedAt: null,
     obliterated: false,
     urgent: false,
+    requireAck: false,
     mentionedUserIds: null,
     createdAt: T0,
     updatedAt: T0,

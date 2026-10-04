@@ -2,11 +2,12 @@
 
 Живые обновления и уведомления: журнал доставок в БД — источник истины («как
 в Телеге»), WS только будит. Приоритеты `urgent | high | medium | low` (UI:
-Срочно/Высокий/Средний/Низкий) — абстрактная шкала важности, отвязанная от
-смысла события; маппинг kind → priority — декларативная таблица
-(`priority-resolver.ts`, ADR-0017). Ознакомление для срочного (СЭД-паттерн
-«Е-дело»), повторы срочного BullMQ, анти-свалка (группировка по источнику,
-журнал-список низкого, авто-архивация 7 дней, cap 999+).
+Важное/Высокий/Средний/Низкий — единое слово «Важное» для яруса urgent,
+#177) — абстрактная шкала важности, отвязанная от смысла события; маппинг
+kind → priority — декларативная таблица (`priority-resolver.ts`, ADR-0017).
+Ознакомление для важного с подтверждением (СЭД-паттерн «Е-дело»), повторы
+BullMQ, анти-свалка (группировка по источнику, журнал-список низкого,
+авто-архивация 7 дней, cap 999+).
 
 ## Конвейер подключения нового вида уведомлений (ADR-0017)
 
@@ -34,7 +35,8 @@ NotificationPriority>` не даст собрать код без строки.
   `notificationSummarySchema` (число+точка), `listNotificationsQuerySchema`
   (фильтры пилюль + q + afterSeq-дельта), `urgentAckStatusSchema`
   («Ознакомились N из M» — только отправителю срочного, чужой/несуществующий
-  messageId = NOT_FOUND, #202), `notificationSettingsSchema` (DND).
+  messageId = NOT_FOUND, #202), `urgentSelfAckSchema` (свой ack по сообщению),
+  `urgentPolicySchema` (остаток дневного лимита важных), `notificationSettingsSchema` (DND).
 - События: `notification.dispatch_requested` (создание/повтор; snapshot для
   тоста), `notification.read` (гашение — синхронизация вкладок D2),
   `notification.acked` (будило отправителю, C9).
@@ -45,8 +47,8 @@ NotificationPriority>` не даст собрать код без строки.
 
 - `notifications` — журнал: seq (bigserial, курсор дельты), priority, kind,
   источник (source_type/source_id + conversation/message ids), preview,
-  urgent_text (лист ознакомления), read_at, ack_at, repeats_stopped_at;
-  дедуп `(event_id, user_id)`.
+  urgent_text (лист ознакомления), require_ack (#177), read_at, ack_at,
+  repeats_stopped_at; дедуп `(event_id, user_id)`.
 - `notification_deliveries` — журнал доставок (канал ws/repeat + попытка).
 - `notification_settings` — DND-расписание per user.
 
@@ -60,12 +62,17 @@ NotificationPriority>` не даст собрать код без строки.
   вкладки), журнал честен.
 - **Доставка**: `notification.dispatch_requested` → outbox → RedisStreamPublisher
   (все доменные события) → gateway → комната `user:{id}`. Хендлер dispatch
-  пишет deliveries и для urgent планирует повторы.
-- **Повторы срочного**: BullMQ `notification-repeat`, интервал
-  `NOTIFY_URGENT_REPEAT_SEC` (300), потолок `NOTIFY_URGENT_MAX_SEC` (1800),
-  стоп: ack/прочтение/ответ/реакция. Лимит отправителя
+  пишет deliveries и для urgent С requireAck (#177) планирует повторы —
+  важное без подтверждения повторов не имеет.
+- **Повторы важного с подтверждением (#177)**: BullMQ `notification-repeat`,
+  интервал `NOTIFY_URGENT_REPEAT_SEC` (300), потолок `NOTIFY_URGENT_MAX_SEC`
+  (1800), стоп: ТОЛЬКО ack или потолок (прочтение/ответ/реакция requireAck-
+  строку не гасят — гейт `NOT require_ack` в stopRepeats). Лимит отправителя
   `NOTIFY_URGENT_DAILY_LIMIT` (3) и потолок группы `NOTIFY_URGENT_GROUP_MAX`
   (20) — в chat при отправке.
+- **Ack из пузыря (#177)**: `POST /notifications/urgent/:messageId/ack`
+  (своя requireAck-строка по сообщению, иначе NOT_FOUND — G3) и
+  `GET /notifications/urgent/:messageId/ack` (восстановление чипа «Ознакомлен»).
 - **Уборка**: `notification-retention` cron 04:00 — низкий старше 7 дней
   помечается прочитанным (журнал жив для фильтра «Все»; `?q=` сервера —
   до глобального поиска топбара #172).

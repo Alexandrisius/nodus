@@ -28,7 +28,8 @@ export function toFavoriteMessage(card: FavoriteCard): ChatMessage {
     forwardedFrom: null,
     readAt: null,
     readBy: [],
-    urgent: false,
+    urgent: card.urgent,
+    requireAck: card.requireAck,
     mentionedUserIds: [],
     createdAt: card.createdAt,
   };

@@ -32,6 +32,7 @@ function makeMessage(overrides: Partial<MessageRow> = {}): MessageRow {
     deletedAt: null,
     obliterated: false,
     urgent: false,
+    requireAck: false,
     mentionedUserIds: null,
     createdAt: now,
     updatedAt: now,
@@ -336,6 +337,7 @@ describe('MessagesService', () => {
           authorId: ME,
           threadRootId: null,
           forwarded: false,
+          requireAck: false,
           urgent: false,
           mentionedUserIds: [],
           // Полный DTO в payload (раунд 3): локальное применение по seq.

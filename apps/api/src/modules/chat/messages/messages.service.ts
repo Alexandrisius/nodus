@@ -30,7 +30,7 @@ import {
 import { can, parsePermissions } from '../permissions.js';
 import { MessageDtoMapper } from './message-dto.mapper.js';
 import { addMentionWatchers, resolveMentionMatches } from './mentions.js';
-import { assertUrgentSendAllowed } from './send-urgent.policy.js';
+import { assertUrgentSendAllowedBy } from './send-urgent.policy.js';
 import {
   MessagesRepository,
   type MessageRow,
@@ -214,22 +214,15 @@ export class MessagesService {
       // «Важное сообщение» (#100): лимит отправителя и потолок участников —
       // на бэкенде (I8); политика — чистая функция send-urgent.policy.ts.
       const urgent = body.urgent ?? false;
+      // «Требовать подтверждения» (#177): осмыслен только при urgent —
+      // сервер клампит (обычное сообщение не может требовать ознакомления).
+      const requireAck = urgent && (body.requireAck ?? false);
       if (urgent) {
-        const memberCount =
-          conversation.type === 'direct'
-            ? 0
-            : await this.conversations.countMembers(conversationId, tx);
-        const sentToday = await this.repo.countUrgentSentSince(
-          userId,
-          new Date(Date.now() - 24 * 3600 * 1000),
-          tx,
-        );
-        assertUrgentSendAllowed({
+        await assertUrgentSendAllowedBy({
           conversationType: conversation.type,
-          memberCount,
-          sentToday,
-          dailyLimit: Number(process.env.NOTIFY_URGENT_DAILY_LIMIT ?? 3),
-          groupMax: Number(process.env.NOTIFY_URGENT_GROUP_MAX ?? 20),
+          countMembers: () => this.conversations.countMembers(conversationId, tx),
+          countUrgentSent: () =>
+            this.repo.countUrgentSentSince(userId, new Date(Date.now() - 24 * 3600 * 1000), tx),
         });
       }
 
@@ -313,6 +306,7 @@ export class MessagesService {
           threadRootId,
           fwd: null,
           urgent,
+          requireAck,
           mentionedUserIds: mentionMatches,
           createdAt: new Date(),
         },
@@ -403,6 +397,7 @@ export class MessagesService {
           threadRootId,
           forwarded: false,
           urgent,
+          requireAck,
           mentionedUserIds: mentionMatches,
           message: payloadMessage,
         },

@@ -33,6 +33,7 @@ export interface ConversationListRow {
   lm_author_id: string | null;
   lm_text: string | null;
   lm_urgent: boolean | null;
+  lm_require_ack: boolean | null;
   lm_reply_to_id: string | null;
   lm_reply_snapshot: Prisma.JsonValue | null;
   lm_thread_root_id: string | null;
@@ -105,7 +106,7 @@ const LIST_SELECT = (userId: string): Prisma.Sql => Prisma.sql`
                   AND tp.user_id = ${userId}::uuid
                   AND um.seq > tp.last_read_seq))) AS unread_count,
     lm.id AS lm_id, lm.seq AS lm_seq, lm.author_id AS lm_author_id, lm.text AS lm_text,
-    lm.urgent AS lm_urgent,
+    lm.urgent AS lm_urgent, lm.require_ack AS lm_require_ack,
     lm.reply_to_id AS lm_reply_to_id, lm.reply_snapshot AS lm_reply_snapshot,
     lm.thread_root_id AS lm_thread_root_id,
     lm.fwd_conversation_id AS lm_fwd_conversation_id, lm.fwd_message_id AS lm_fwd_message_id,

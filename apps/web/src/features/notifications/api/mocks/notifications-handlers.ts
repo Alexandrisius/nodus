@@ -178,7 +178,8 @@ export const notificationsHandlers = [
     const item = (await demoJournal(request)).main.find((n) => n.id === id);
     // Гашение = уход из непрочитанных фильтров (readIds), как реальный API:
     // раньше менялся только readAt — строка зависала в списке навсегда.
-    if (item && item.priority !== 'urgent') {
+    // Важное С подтверждением (#177) читается только ознакомлением.
+    if (item && (item.priority !== 'urgent' || !item.requireAck)) {
       item.readAt = new Date().toISOString();
       readIds.add(id);
     }
@@ -194,6 +195,29 @@ export const notificationsHandlers = [
       readIds.add(id);
     }
     return HttpResponse.json(item ?? {});
+  }),
+
+  // Ack из пузыря чата (#177): своя requireAck-строка или 404 (G3-паритет).
+  http.post('/api/v1/notifications/urgent/:messageId/ack', async ({ params, request }) => {
+    const messageId = params.messageId as string;
+    const item = demoNotifications.find(
+      (n) => n.messageId === messageId && n.priority === 'urgent' && n.requireAck,
+    );
+    if (!item) return HttpResponse.json({}, { status: 404 });
+    item.ackAt = new Date().toISOString();
+    acked.add(item.id);
+    readIds.add(item.id);
+    void request;
+    return HttpResponse.json(item);
+  }),
+
+  http.get('/api/v1/notifications/urgent/:messageId/ack', ({ params }) => {
+    const messageId = params.messageId as string;
+    const item = demoNotifications.find(
+      (n) => n.messageId === messageId && n.priority === 'urgent' && n.requireAck,
+    );
+    if (!item) return HttpResponse.json({}, { status: 404 });
+    return HttpResponse.json({ messageId, ackedAt: item.ackAt });
   }),
 
   http.get('/api/v1/notifications/urgent/:messageId/acks', ({ params }) => {

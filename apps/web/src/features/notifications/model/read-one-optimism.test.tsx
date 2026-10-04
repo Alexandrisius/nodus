@@ -24,6 +24,7 @@ describe('read-one оптимистичность', () => {
       actor: null,
       preview: 'Поручение: согласовать узел',
       urgentText: null,
+      requireAck: false,
       conversationId: null,
       conversationTitle: null,
       messageId: null,

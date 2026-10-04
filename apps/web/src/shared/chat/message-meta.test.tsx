@@ -46,6 +46,7 @@ const message = (overrides: Partial<ChatMessage> = {}): ChatMessage => ({
   readAt: null,
   readBy: [],
   urgent: false,
+  requireAck: false,
   mentionedUserIds: [],
   createdAt: '2026-09-24T09:00:00Z',
   ...overrides,

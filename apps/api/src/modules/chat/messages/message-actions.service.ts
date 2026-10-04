@@ -277,6 +277,9 @@ export class MessageActionsService {
             replyToId: null,
             replySnapshot: null,
             urgent: false,
+            // Копия пересылки — новое сообщение нового автора: ознакомление
+            // не переносится (актуально для оригинала, #177).
+            requireAck: false,
             mentionedUserIds: [],
             threadRootId,
             fwd: draft.fwd,

@@ -111,6 +111,9 @@ export const chatMessageSentPayloadSchema = z.object({
   forwarded: z.boolean(),
   /** «Важное сообщение» (#100): ярус urgent получателям (direct/группы ≤20). */
   urgent: z.boolean(),
+  /** Требует ознакомления (#177): повторы получателю до ack (иначе одно
+   *  уведомление без действий); ставит флаг requireAck в строках журнала. */
+  requireAck: z.boolean(),
   /** Упомянутые @Имя userId (снапшот момента отправки, #100): fanout
    *  уведомлений модулю notifications без разбора текста (I3). */
   mentionedUserIds: z.array(z.uuid()),

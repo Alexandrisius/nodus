@@ -137,6 +137,7 @@ function rowToMessageRow(row: ConversationListRow): Parameters<MessageDtoMapper[
     clientMessageId: '',
     text: row.lm_text ?? '',
     urgent: row.lm_urgent ?? false,
+    requireAck: row.lm_require_ack ?? false,
     mentionedUserIds: null,
     replyToId: row.lm_reply_to_id,
     replySnapshot: row.lm_reply_snapshot ?? null,

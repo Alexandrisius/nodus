@@ -21,6 +21,7 @@ function notif(n: number, overrides: Partial<Notification> = {}): Notification {
     actor: { id: AUTHOR, displayName: 'Автор', avatarUrl: null },
     preview: 'текст',
     urgentText: null,
+    requireAck: false,
     conversationId: CONV,
     conversationTitle: 'Беседа',
     messageId: `m${n}`,

@@ -266,6 +266,7 @@ export function useSendTaskMessage(taskId: string) {
         readAt: null,
         readBy: [],
         urgent: false,
+        requireAck: false,
         mentionedUserIds: [],
         createdAt: new Date().toISOString(),
       };

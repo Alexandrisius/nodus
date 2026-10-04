@@ -18,6 +18,9 @@ interface DispatchPayload {
     messageId: string | null;
     threadRootId: string | null;
     preview: string | null;
+    /** #177: повторы ставятся ТОЛЬКО важному с подтверждением (старые
+     *  события поля не несут → undefined → повторов нет). */
+    requireAck?: boolean;
   };
   attempt: number;
   seq: number;
@@ -26,8 +29,9 @@ interface DispatchPayload {
 /**
  * Подписчик `notification.dispatch_requested` — единая точка входа диспетчера
  * каналов (каталог событий): фиксирует доставку в журнале (channel='ws' при
- * первой, 'repeat' при повторе — C11/D6) и для срочного планирует BullMQ-
- * повторы. Само WS-будило — конвейер outbox → RedisStreamPublisher → gateway
+ * первой, 'repeat' при повторе — C11/D6) и для важного С ПОДТВЕРЖДЕНИЕМ
+ * (#177) планирует BullMQ-повторы; важное без requireAck повторов не имеет.
+ * Само WS-будило — конвейер outbox → RedisStreamPublisher → gateway
  * (это событие расходится как любое доменное; хендлер только журналирует).
  * Идемпотентность: повторная доставка события пишет дубль записи deliveries?
  * — нет: запись доставки не влияет на клиентский эффект (gateway дубли
@@ -56,7 +60,7 @@ export class DispatchHandler implements DomainEventHandler<DispatchPayload> {
         attempt,
         tx,
       );
-      if (snapshot.priority === 'urgent' && attempt === 0) {
+      if (snapshot.priority === 'urgent' && snapshot.requireAck === true && attempt === 0) {
         await this.repeats.enqueue(snapshot.notificationId);
       }
     });

@@ -72,6 +72,7 @@ describe('MessageSentHandler', () => {
       actor_id: AUTHOR,
       preview: 'Привет',
       urgent_text: null,
+      require_ack: false,
       conversation_id: CONV,
       conversation_title: 'Проект',
       message_id: MSG,

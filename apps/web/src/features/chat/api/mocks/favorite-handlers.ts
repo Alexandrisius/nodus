@@ -44,6 +44,8 @@ function toCard(messageId: string): FavoriteCard | null {
     attachments: tombstone ? [] : message.attachments,
     editedAt: message.editedAt,
     deletedAt: message.deletedAt,
+    urgent: false,
+    requireAck: false,
     obliterated: false,
     createdAt: message.createdAt,
     labels: state.labels,

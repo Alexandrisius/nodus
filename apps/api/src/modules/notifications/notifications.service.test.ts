@@ -78,3 +78,76 @@ describe('NotificationsService.urgentAcks (#202: доступ только ав�
     expect(status.items[0]!.user).toEqual({ id: RECIPIENT, displayName: '—', avatarUrl: null });
   });
 });
+
+describe('NotificationsService: ack из пузыря (#177)', () => {
+  const row = {
+    id: 'notif-1',
+    message_id: MSG,
+    priority: 'urgent',
+    require_ack: true,
+    ack_at: null,
+    read_at: null,
+  };
+  const repo = {
+    findByMessage: vi.fn(),
+    ack: vi.fn(),
+    urgentAcks: vi.fn(),
+    urgentAuthorId: vi.fn(),
+    toDtos: vi.fn(),
+  };
+  const txRunner = { run: vi.fn((cb: (tx: string) => unknown) => cb('tx')) };
+  const eventBus = { emit: vi.fn() };
+  const userProfiles = { findRefs: vi.fn() };
+  let service: NotificationsService;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    service = new NotificationsService(
+      repo as never,
+      txRunner as never,
+      eventBus as never,
+      userProfiles as never,
+      {} as never,
+    );
+  });
+
+  it('своя requireAck-строка — штатный ack по id строки журнала', async () => {
+    repo.findByMessage.mockResolvedValue(row);
+    repo.ack.mockResolvedValue({ ...row, ack_at: new Date('2026-10-04T11:00:00Z') });
+    repo.urgentAcks.mockResolvedValue({ rows: [], expected: 1 });
+    repo.urgentAuthorId.mockResolvedValue(AUTHOR);
+    repo.toDtos.mockResolvedValue([{ id: row.id }]);
+
+    await service.ackByMessage(RECIPIENT, MSG);
+
+    expect(repo.ack).toHaveBeenCalledWith(RECIPIENT, row.id);
+  });
+
+  it('не моя / не requireAck строка — NOT_FOUND (G3)', async () => {
+    repo.findByMessage.mockResolvedValue(null);
+    await expect(service.ackByMessage(RECIPIENT, MSG)).rejects.toMatchObject({
+      code: ErrorCode.NOT_FOUND,
+    });
+    expect(repo.ack).not.toHaveBeenCalled();
+  });
+
+  it('selfAck: своё — ackedAt из строки, ещё не ознакомлен — null', async () => {
+    repo.findByMessage.mockResolvedValue(row);
+    await expect(service.selfAck(RECIPIENT, MSG)).resolves.toEqual({
+      messageId: MSG,
+      ackedAt: null,
+    });
+    repo.findByMessage.mockResolvedValue({ ...row, ack_at: new Date('2026-10-04T11:00:00Z') });
+    await expect(service.selfAck(RECIPIENT, MSG)).resolves.toEqual({
+      messageId: MSG,
+      ackedAt: '2026-10-04T11:00:00.000Z',
+    });
+  });
+
+  it('selfAck: не моя строка — NOT_FOUND', async () => {
+    repo.findByMessage.mockResolvedValue(null);
+    await expect(service.selfAck(RECIPIENT, MSG)).rejects.toMatchObject({
+      code: ErrorCode.NOT_FOUND,
+    });
+  });
+});

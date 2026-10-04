@@ -22,6 +22,7 @@ export interface MessageRow {
   deletedAt: Date | null;
   obliterated: boolean;
   urgent: boolean;
+  requireAck: boolean;
   mentionedUserIds: Prisma.JsonValue | null;
   createdAt: Date;
   updatedAt: Date;
@@ -79,6 +80,7 @@ const MESSAGE_COLS = Prisma.sql`
   deleted_at AS "deletedAt",
   obliterated,
   urgent,
+  require_ack AS "requireAck",
   mentioned_user_ids AS "mentionedUserIds",
   created_at AS "createdAt",
   updated_at AS "updatedAt"
@@ -162,6 +164,7 @@ export class MessagesRepository {
         threadRootId: string | null;
       } | null;
       urgent: boolean;
+      requireAck: boolean;
       mentionedUserIds: string[];
       createdAt: Date;
     },
@@ -174,7 +177,7 @@ export class MessagesRepository {
         id, conversation_id, seq, author_id, client_message_id, text,
         reply_to_id, reply_snapshot, thread_root_id,
         fwd_conversation_id, fwd_message_id, fwd_author_id, fwd_thread_root_id,
-        urgent, mentioned_user_ids,
+        urgent, require_ack, mentioned_user_ids,
         created_at, updated_at
       ) VALUES (
         ${input.id}::uuid, ${input.conversationId}::uuid, ${input.seq}::bigint,
@@ -182,7 +185,7 @@ export class MessagesRepository {
         ${input.replyToId}::uuid, ${snapshot}::jsonb, ${input.threadRootId}::uuid,
         ${input.fwd?.conversationId ?? null}::uuid, ${input.fwd?.messageId ?? null}::uuid,
         ${input.fwd?.authorId ?? null}::uuid, ${input.fwd?.threadRootId ?? null}::uuid,
-        ${input.urgent}, ${mentioned}::jsonb,
+        ${input.urgent}, ${input.requireAck}, ${mentioned}::jsonb,
         ${input.createdAt}::timestamptz, ${input.createdAt}::timestamptz
       )
       ON CONFLICT (author_id, client_message_id) DO NOTHING

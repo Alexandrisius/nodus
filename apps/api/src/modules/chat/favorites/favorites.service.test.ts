@@ -34,6 +34,7 @@ function makeMessage(id: string, conversationId: string): MessageRow {
     deletedAt: null,
     obliterated: false,
     urgent: false,
+    requireAck: false,
     mentionedUserIds: null,
     createdAt: now,
     updatedAt: now,
@@ -63,7 +64,10 @@ describe('FavoritesService (#171)', () => {
     distinctLabels: ReturnType<typeof vi.fn>;
   };
   let cards: { toDtos: ReturnType<typeof vi.fn> };
-  let messages: { findByIds: ReturnType<typeof vi.fn>; touchLastMessageAt: ReturnType<typeof vi.fn> };
+  let messages: {
+    findByIds: ReturnType<typeof vi.fn>;
+    touchLastMessageAt: ReturnType<typeof vi.fn>;
+  };
   let conversations: {
     findMembership: ReturnType<typeof vi.fn>;
     isNotesConversation: ReturnType<typeof vi.fn>;

@@ -16,7 +16,10 @@ import {
   useRemoveFavorite,
   useUpdateFavorite,
 } from './favorites-api.js';
-import { useOptimisticFavoriteLabels, reconcileOptimisticLabels } from './optimistic-favorite-labels.js';
+import {
+  useOptimisticFavoriteLabels,
+  reconcileOptimisticLabels,
+} from './optimistic-favorite-labels.js';
 
 /**
  * Детерминированные тесты оптимистичности избранного (#171, канон I4):
@@ -68,6 +71,7 @@ const message: ChatMessage = {
   readAt: null,
   readBy: [],
   urgent: false,
+  requireAck: false,
   mentionedUserIds: [],
   createdAt: '2026-10-04T10:00:00Z',
 };
@@ -114,6 +118,8 @@ function card(overrides: Partial<FavoriteCard> = {}): FavoriteCard {
     attachments: [],
     editedAt: null,
     deletedAt: null,
+    urgent: false,
+    requireAck: false,
     obliterated: false,
     createdAt: '2026-10-04T10:00:00Z',
     labels: [],

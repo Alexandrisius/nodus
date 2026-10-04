@@ -25,6 +25,7 @@ interface NotificationRow {
   actor_id: string | null;
   preview: string | null;
   urgent_text: string | null;
+  require_ack: boolean;
   conversation_id: string | null;
   conversation_title: string | null;
   message_id: string | null;
@@ -52,6 +53,7 @@ const NOTIFICATION_COLS = Prisma.sql`
   id, seq, user_id AS "user_id", priority, kind,
   source_type AS "source_type", source_id AS "source_id", source_seq AS "source_seq",
   actor_id AS "actor_id", preview, urgent_text AS "urgent_text",
+  require_ack AS "require_ack",
   conversation_id AS "conversation_id", conversation_title AS "conversation_title",
   message_id AS "message_id", thread_root_id AS "thread_root_id",
   created_at AS "created_at", read_at AS "read_at", ack_at AS "ack_at",
@@ -145,7 +147,7 @@ export class NotificationsRepository {
       (r) => Prisma.sql`(
         ${r.id}::uuid, ${r.user_id}::uuid, ${r.priority}, ${r.kind},
         ${r.source_type}, ${r.source_id}::uuid, ${r.source_seq}::bigint,
-        ${r.actor_id}::uuid, ${r.preview}, ${r.urgent_text},
+        ${r.actor_id}::uuid, ${r.preview}, ${r.urgent_text}, ${r.require_ack},
         ${r.conversation_id}::uuid, ${r.conversation_title}, ${r.message_id}::uuid,
         ${r.thread_root_id}::uuid, ${r.event_id}::uuid
       )`,
@@ -153,8 +155,8 @@ export class NotificationsRepository {
     return client.$queryRaw<NotificationRow[]>(Prisma.sql`
       INSERT INTO notifications (
         id, user_id, priority, kind, source_type, source_id, source_seq,
-        actor_id, preview, urgent_text, conversation_id, conversation_title,
-        message_id, thread_root_id, event_id
+        actor_id, preview, urgent_text, require_ack, conversation_id,
+        conversation_title, message_id, thread_root_id, event_id
       ) VALUES ${Prisma.join(values)}
       ON CONFLICT (event_id, user_id) DO NOTHING
       RETURNING ${NOTIFICATION_COLS}
@@ -171,7 +173,8 @@ export class NotificationsRepository {
   }
 
   /** Прочитать одно (E3: клик по строке = автопрочтение по правилам яруса):
-   *  любое кроме срочного (оно — только через ознакомление). */
+   *  любое, кроме важного С подтверждением (#177: оно — только через
+   *  ознакомление; важное без requireAck гасится как обычное). */
   async readOne(
     userId: string,
     id: string,
@@ -181,14 +184,15 @@ export class NotificationsRepository {
     const rows = await client.$queryRaw<NotificationRow[]>(Prisma.sql`
       UPDATE notifications SET read_at = now()
       WHERE id = ${id}::uuid AND user_id = ${userId}::uuid
-        AND read_at IS NULL AND priority <> 'urgent'
+        AND read_at IS NULL AND (priority <> 'urgent' OR NOT require_ack)
       RETURNING ${NOTIFICATION_COLS}
     `);
     return rows[0] ?? this.findById(userId, id);
   }
 
-  /** Гашение по источнику (вход в чат): high/medium/low до watermark;
-   *  срочному — стоп повторов (прочитано, C2), висит до ознакомления. */
+  /** Гашение по источнику (вход в чат): high/medium/low и важные без
+   *  подтверждения (#177) до watermark; requireAck-строка читается
+   *  только ознакомлением и повторяется до него. */
   async markReadBySource(
     userId: string,
     sourceId: string,
@@ -200,11 +204,12 @@ export class NotificationsRepository {
       UPDATE notifications SET read_at = now()
       WHERE user_id = ${userId}::uuid AND source_id = ${sourceId}::uuid
         AND source_seq <= ${BigInt(upToSeq)}::bigint AND read_at IS NULL
-        AND priority <> 'urgent'
+        AND (priority <> 'urgent' OR NOT require_ack)
     `);
   }
 
-  /** Стоп повторов срочного (прочтение/ответ/реакция/ознакомление, C2/C3). */
+  /** Стоп повторов важного (прочтение/ответ/реакция, C2/C3): НЕ задевает
+   *  requireAck-строки (#177) — их повторяет до ознакомления или потолка. */
   async stopRepeats(
     userId: string,
     where: { messageId?: string; conversationId?: string },
@@ -218,7 +223,7 @@ export class NotificationsRepository {
     return client.$executeRaw(Prisma.sql`
       UPDATE notifications SET repeats_stopped_at = now()
       WHERE user_id = ${userId}::uuid AND priority = 'urgent' AND ${scope}
-        AND ack_at IS NULL AND repeats_stopped_at IS NULL
+        AND ack_at IS NULL AND repeats_stopped_at IS NULL AND NOT require_ack
     `);
   }
 
@@ -265,15 +270,29 @@ export class NotificationsRepository {
     return next;
   }
 
-  /** Ознакомление (только срочное, только своё): идемпотентно — повторный
-   *  ack возвращает уже-ознакомленную строку без новой записи. */
+  /** Ознакомление (только важное с подтверждением, только своё): идемпотентно
+   *  — повторный ack возвращает уже-ознакомленную строку без новой записи. */
   async ack(userId: string, id: string): Promise<NotificationRow | null> {
     const rows = await this.prisma.$queryRaw<NotificationRow[]>(Prisma.sql`
       UPDATE notifications SET ack_at = now(), repeats_stopped_at = now(), read_at = now()
-      WHERE id = ${id}::uuid AND user_id = ${userId}::uuid AND priority = 'urgent' AND ack_at IS NULL
+      WHERE id = ${id}::uuid AND user_id = ${userId}::uuid AND priority = 'urgent'
+        AND require_ack AND ack_at IS NULL
       RETURNING ${NOTIFICATION_COLS}
     `);
     return rows[0] ?? this.findById(userId, id);
+  }
+
+  /** СВОЯ requireAck-строка важного сообщения (#177): ack из пузыря чата
+   *  и восстановление чипа «Ознакомлен» после перезагрузки. null — не моё
+   *  / не requireAck / нет (G3: факт существования не раскрываем). */
+  async findByMessage(userId: string, messageId: string): Promise<NotificationRow | null> {
+    const rows = await this.prisma.$queryRaw<NotificationRow[]>(Prisma.sql`
+      SELECT ${NOTIFICATION_COLS} FROM notifications
+      WHERE message_id = ${messageId}::uuid AND user_id = ${userId}::uuid
+        AND priority = 'urgent' AND require_ack
+      LIMIT 1
+    `);
+    return rows[0] ?? null;
   }
 
   /** «Ознакомились N из M» по срочному сообщению (отправитель, C8/C9). */
@@ -354,6 +373,7 @@ export class NotificationsRepository {
       actor: row.actor_id ? (refs.get(row.actor_id) ?? null) : null,
       preview: row.preview,
       urgentText: row.urgent_text,
+      requireAck: row.require_ack,
       conversationId: row.conversation_id,
       conversationTitle: row.conversation_title,
       messageId: row.message_id,

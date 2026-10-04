@@ -36,6 +36,10 @@ export const favoriteCardSchema = z.object({
   editedAt: z.iso.datetime().nullable(),
   /** Оригинал удалён (#163): карточка гаснет в «Сообщение удалено». */
   deletedAt: z.iso.datetime().nullable(),
+  /** Оригинал — «Важное» (#177): чип важного в витрине (ack-механика в
+   *  витрине не рендерится — noReceipts). */
+  urgent: z.boolean(),
+  requireAck: z.boolean(),
   /** Бесследное удаление: якоря в ленте нет — «показать в чате» скрыто. */
   obliterated: z.boolean(),
   /** Момент оригинала (для группировки потока по дням). */
