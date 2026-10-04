@@ -406,7 +406,17 @@ export const editMessageBodySchema = z
   })
   .refine((v) => v.text.length > 0 || (v.attachmentIds?.length ?? 0) > 0, {
     message: 'text or attachmentIds required',
-  });
+  })
+  // Дубликаты id недетерминировали бы sort_order (UPDATE … FROM ordinal).
+  .refine(
+    (v) => {
+      const ids = v.attachmentIds;
+      return ids === undefined || new Set(ids).size === ids.length;
+    },
+    {
+      message: 'attachmentIds must be unique',
+    },
+  );
 
 export type EditMessageBody = z.infer<typeof editMessageBodySchema>;
 

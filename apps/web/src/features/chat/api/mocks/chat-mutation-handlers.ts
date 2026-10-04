@@ -109,10 +109,12 @@ export const chatMutationHandlers = [
     if (message.forwardedFrom) return forbidden('Forwarded messages cannot be edited');
     const body = parsed.data;
     let changed = message.text !== body.text;
+    const touchesAttachments =
+      body.attachmentIds !== undefined || body.attachmentRenames !== undefined;
+    if (touchesAttachments && message.attachments.some((a) => a.sticker)) {
+      return forbidden('Sticker messages cannot be edited');
+    }
     if (body.attachmentIds !== undefined) {
-      if (message.attachments.some((a) => a.sticker)) {
-        return forbidden('Sticker messages cannot be edited');
-      }
       const next = body.attachmentIds.flatMap((id) => {
         const kept = message.attachments.find((a) => a.id === id);
         if (kept) return [kept];
@@ -134,6 +136,11 @@ export const chatMutationHandlers = [
           changed = true;
         }
       }
+    }
+    // Инвариант непустоты (паритет с сервером, security-ревью #188): мусорный
+    // id в списке не оставляет сообщение без текста и вложений.
+    if (touchesAttachments && body.text.trim().length === 0 && message.attachments.length === 0) {
+      return validationFailed();
     }
     if (changed) {
       message.text = body.text;

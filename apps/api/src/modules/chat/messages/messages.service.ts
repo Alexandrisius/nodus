@@ -467,7 +467,10 @@ export class MessagesService {
   /** Применение состава вложений правки (#188): claim новых, detach
    *  убранных, reorder, переименования. Возвращает «была ли реальная смена»
    *  (сигнатура состава+имён до/после) — она решает, ставить ли editedAt и
-   *  событие. Стикер-сообщение составом не правится (стикер неделим, #143). */
+   *  событие. Стикер-сообщение не правится ни составом, ни именами (стикер
+   *  неделим, #143). Инвариант непустоты: текст или ≥1 вложение — иначе
+   *  валидационная ошибка и откат транзакции (мусорный/чужой id в списке не
+   *  оставит сообщение пустым — security-ревью #188). */
   private async syncEditAttachments(
     messageId: string,
     userId: string,
@@ -476,7 +479,7 @@ export class MessagesService {
   ): Promise<boolean> {
     if (body.attachmentIds === undefined && body.attachmentRenames === undefined) return false;
     const before = await this.repo.attachmentsFor([messageId], tx);
-    if (before.some((a) => a.kind === 'sticker') && body.attachmentIds !== undefined) {
+    if (before.some((a) => a.kind === 'sticker')) {
       throw DomainException.forbidden('Sticker messages cannot be edited');
     }
     if (body.attachmentIds !== undefined) {
@@ -486,6 +489,12 @@ export class MessagesService {
       await this.attachmentsRepo.renameMessageAttachments(messageId, body.attachmentRenames, tx);
     }
     const after = await this.repo.attachmentsFor([messageId], tx);
+    if (body.text.trim().length === 0 && after.length === 0) {
+      throw new DomainException(
+        ErrorCode.VALIDATION_FAILED,
+        'Message must have text or attachments',
+      );
+    }
     const signature = (rows: typeof before) => rows.map((a) => `${a.id}:${a.name}`).join('|');
     return signature(before) !== signature(after);
   }

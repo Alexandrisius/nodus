@@ -262,4 +262,47 @@ describe('MessagesService.edit (#188: текст + состав вложений
     });
     expect(attachmentsRepo.syncMessageAttachments).not.toHaveBeenCalled();
   });
+
+  it('стикер не переименовывается (гвард на attachmentRenames, #143)', async () => {
+    repo.findByIdInConversation.mockResolvedValue(makeMessage({ text: '' }));
+    repo.attachmentsFor.mockResolvedValue([attachmentRow({ kind: 'sticker' })]);
+
+    await expect(
+      service.edit(ME, CONV, 'msg-1', {
+        text: '',
+        attachmentRenames: [{ id: 'att-1', name: 'переименованный стикер' }],
+      }),
+    ).rejects.toMatchObject({
+      code: ErrorCode.FORBIDDEN,
+      message: 'Sticker messages cannot be edited',
+    });
+    expect(attachmentsRepo.renameMessageAttachments).not.toHaveBeenCalled();
+  });
+
+  it('непустота (security #188): мусорный id не оставляет сообщение пустым', async () => {
+    repo.findByIdInConversation.mockResolvedValue(makeMessage({ text: '' }));
+    // До правки — одно вложение; после синхронизации список пуст (id не
+    // клеймится) → валидационная ошибка, транзакция откатится.
+    repo.attachmentsFor
+      .mockResolvedValueOnce([attachmentRow({ name: 'файл.png' })])
+      .mockResolvedValueOnce([]);
+
+    await expect(
+      service.edit(ME, CONV, 'msg-1', { text: '', attachmentIds: ['unknown-uuid'] }),
+    ).rejects.toMatchObject({
+      code: ErrorCode.VALIDATION_FAILED,
+      message: 'Message must have text or attachments',
+    });
+    expect(repo.updateEditText).not.toHaveBeenCalled();
+    expect(eventBus.emit).not.toHaveBeenCalled();
+  });
+
+  it('текст с обрезкой до пустого не проходит непустоту', async () => {
+    repo.findByIdInConversation.mockResolvedValue(makeMessage({ text: 'старый текст' }));
+    repo.attachmentsFor.mockResolvedValue([]);
+
+    await expect(
+      service.edit(ME, CONV, 'msg-1', { text: '   ', attachmentIds: [] }),
+    ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_FAILED });
+  });
 });
