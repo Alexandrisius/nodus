@@ -55,7 +55,7 @@ export function SelectionToolbar({ sel, frozen }: { sel: ComposerSelection; froz
           <Star className="size-4" strokeWidth={1.75} />
         </Button>
       ) : null}
-      {sel.allMine ? (
+      {(sel.deletable ?? sel.allMine) ? (
         <Button
           type="button"
           variant="ghost"

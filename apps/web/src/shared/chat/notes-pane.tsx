@@ -34,6 +34,8 @@ import { setOpenConversation } from './notifications.js';
 import { registerScopeSubmit } from './submit-registry.js';
 import { toSendVars } from './composer-submit.js';
 import { useFeedSelection, selectionComposerProps } from './use-feed-selection.js';
+import { useBoxSelection } from './use-box-selection.js';
+import { cn } from '@nodus/ui/lib/utils';
 
 /**
  * Витрина «Избранного» (#171, ревизия 04.10): беседа с собой = плоский
@@ -97,7 +99,23 @@ export function NotesPane({ conversationId }: { conversationId: string }) {
   const feedCardIds = useMemo(() => new Set(feedCards.map((card) => card.messageId)), [feedCards]);
   const runs = useMemo(() => buildMessageRuns(items, meId ?? undefined), [items, meId]);
 
-  const selection = useFeedSelection(scope, messages, undefined);
+  // Viewport витрины — цель прыжка с подсветкой (панель поиска, клик по
+  // строке выдачи; тот же резидент, что у ленты беседы) и якорь рамки.
+  const viewportRef = useRef<HTMLDivElement>(null);
+
+  // Селект по КОМБИНИРОВАННОМУ потоку (#215): orderedIds покрывает и записи,
+  // и карточки (Shift-диапазон и рамка — по порядку витрины); meId нужен
+  // канону «все свои» (для витрины корзина всё равно всегда доступна —
+  // deletable ниже).
+  const selection = useFeedSelection(scope, items, meId ?? undefined);
+  // Рамочное выделение (#215, паритет с лентой беседы): старт «на строке»/
+  // на пустом месте, в режиме селекта — откуда угодно.
+  const box = useBoxSelection({
+    scope,
+    viewportRef,
+    selectableIds: selection.orderedIds,
+    selectionActive: selection.selectionActive,
+  });
   // Правка в Заметках (#188, находка живой пробы): сообщения витрины — свои,
   // «Редактировать» в меню предлагается — хост обязан маршрутизировать правку
   // (раньше submit уходил отправкой НОВОГО сообщения). Окно правки вложений
@@ -130,10 +148,6 @@ export function NotesPane({ conversationId }: { conversationId: string }) {
     send.mutate(toSendVars(submit));
   }
 
-  // Viewport витрины — цель прыжка с подсветкой (панель поиска, клик по
-  // строке выдачи): тот же резидент, что у ленты беседы.
-  const viewportRef = useRef<HTMLDivElement>(null);
-
   return (
     <div className="flex h-full min-w-0 flex-1 flex-col">
       <MessageScrollerProvider autoScroll>
@@ -149,7 +163,12 @@ export function NotesPane({ conversationId }: { conversationId: string }) {
         />
         <MessageScroller className="min-h-0 flex-1 bg-chat-zone">
           <MessageScrollerViewport ref={viewportRef}>
-            <MessageScrollerContent className="feed-reveal flex flex-col gap-3 px-4 pt-4 pb-0">
+            <MessageScrollerContent
+              className={cn(
+                'feed-reveal flex flex-col gap-3 px-4 pt-4 pb-0',
+                (selection.selectionActive || box.active) && 'select-none',
+              )}
+            >
               {messagesQuery.isLoading && favoritesQuery.isLoading ? null : items.length === 0 ? (
                 <div className="flex h-full items-center justify-center">
                   <Empty>
@@ -208,7 +227,7 @@ export function NotesPane({ conversationId }: { conversationId: string }) {
         focusId={scope}
         conversationId={conversationId}
         attachmentsEnabled
-        selection={selectionComposerProps(conversationId, selection, false)}
+        selection={selectionComposerProps(conversationId, selection, false, true)}
         onSubmit={handleSubmit}
       />
     </div>
@@ -247,8 +266,10 @@ function FavoriteRunMessage({
   selectedSet: Set<string>;
   onToggle: (id: string, shift: boolean) => void;
 }) {
-  // Карточки в режиме селекта не выделяются (селект — про СВОИ записи).
-  const selectable = selectionActive && card === null;
+  // В режиме селекта выбираемы ВСЕ живые строки (#215): записи и карточки —
+  // пакетное удаление маршрутизируется по типу (запись — удалить, карточку —
+  // снять звезду, splitNotesSelection в delete-dialog).
+  const selectable = selectionActive && !message.deletedAt;
   const labels = labelTarget.labels;
   const labelSlots =
     message.deletedAt || selectionActive

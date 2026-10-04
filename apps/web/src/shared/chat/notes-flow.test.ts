@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ChatMessage, FavoriteCard, UserRef } from '@nodus/contracts';
 
-import { filterNotesFlow, mergeNotesFlow } from './notes-flow.js';
+import { filterNotesFlow, mergeNotesFlow, splitNotesSelection } from './notes-flow.js';
 
 const author: UserRef = {
   id: '00000000-0000-4000-8000-000000000001',
@@ -118,5 +118,31 @@ describe('filterNotesFlow', () => {
     expect(filterNotesFlow(all, 'all', 'подряд', [])).toHaveLength(1);
     expect(filterNotesFlow(all, 'all', 'смет', [])).toHaveLength(1);
     expect(filterNotesFlow(all, 'all', 'нет-такого', [])).toHaveLength(0);
+  });
+});
+
+describe('splitNotesSelection (#215)', () => {
+  const notesIds = new Set(['n1', 'n2']);
+
+  it('записи — в noteIds, карточки — в cardIds, порядок сохраняется', () => {
+    const { noteIds, cardIds } = splitNotesSelection(['c1', 'n1', 'c2', 'n2'], notesIds);
+    expect(noteIds).toEqual(['n1', 'n2']);
+    expect(cardIds).toEqual(['c1', 'c2']);
+  });
+
+  it('запись со звездой остаётся записью (удаляется целиком, не снимается)', () => {
+    // Звёздная запись есть в ленте беседы «Избранного» → принадлежность
+    // сообщениям беседы первична, дедуп витрины тут ни при чём.
+    const { noteIds, cardIds } = splitNotesSelection(['n1'], notesIds);
+    expect(noteIds).toEqual(['n1']);
+    expect(cardIds).toEqual([]);
+  });
+
+  it('пустое выделение и пустой кэш ленты — устойчиво', () => {
+    expect(splitNotesSelection([], notesIds)).toEqual({ noteIds: [], cardIds: [] });
+    expect(splitNotesSelection(['x1', 'x2'], new Set())).toEqual({
+      noteIds: [],
+      cardIds: ['x1', 'x2'],
+    });
   });
 });

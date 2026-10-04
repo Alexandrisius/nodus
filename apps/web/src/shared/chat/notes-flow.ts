@@ -52,3 +52,21 @@ export function filterNotesFlow(
     return true;
   });
 }
+
+/** Пакетное удаление выделения витрины (#215): запись беседы удаляется как
+ *  сообщение, карточка избранного — снимается с избранного (оригинал не
+ *  трогается). Разделение — по принадлежности сообщениям беседы «Избранного»
+ *  (запись со звездой остаётся ЗАПИСЬЮ: удаляется целиком, закладку чистит
+ *  сервер). Порядок внутри групп сохраняется. */
+export function splitNotesSelection(
+  ids: readonly string[],
+  notesMessageIds: ReadonlySet<string>,
+): { noteIds: string[]; cardIds: string[] } {
+  const noteIds: string[] = [];
+  const cardIds: string[] = [];
+  for (const id of ids) {
+    if (notesMessageIds.has(id)) noteIds.push(id);
+    else cardIds.push(id);
+  }
+  return { noteIds, cardIds };
+}

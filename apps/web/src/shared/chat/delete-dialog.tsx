@@ -1,4 +1,5 @@
 import { ui } from '@nodus/contracts';
+import type { ChatMessage, Paginated } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import {
   Dialog,
@@ -10,8 +11,11 @@ import {
 } from '@nodus/ui/components/dialog';
 import { useQueryClient } from '@tanstack/react-query';
 
+import { chatKeys } from './api.js';
 import { plural } from '../lib/format.js';
 import { useDeleteDialog } from './dialog-stores.js';
+import { useNotesConversationId, useRemoveFavorite } from './favorites-api.js';
+import { splitNotesSelection } from './notes-flow.js';
 import {
   cachedHasLiveReplies,
   useBatchDeleteMessages,
@@ -27,6 +31,12 @@ import { useSelectionStore } from './selection-store.js';
  * действию (по кэшу окна ленты; истину решает сервер — ответ мутации
  * реконсилирует кэш). Пакет — всегда диалог со счётчиком; футер без
  * разделителя (канон 24.09).
+ *
+ * Витрина «Избранного» (#215): удаление из неё Маршрутизируется по типу
+ * строки — свои записи удаляются как сообщения (бесследно, см. серверный
+ * self-chat гвард), карточки избранного снимаются звездой (оригиналы в
+ * исходных чатах не трогаются). Единая точка: сюда сходятся островок селекта,
+ * ПКМ «Удалить выделенные» и клавиша Delete.
  */
 export function DeleteDialogHost() {
   const request = useDeleteDialog((s) => s.request);
@@ -35,30 +45,66 @@ export function DeleteDialogHost() {
   // (диалог закрывается сразу после mutate — замыкание опустело бы, гонка).
   const single = useDeleteMessage();
   const batch = useBatchDeleteMessages();
+  const removeFavorite = useRemoveFavorite();
   const queryClient = useQueryClient();
+  const notesId = useNotesConversationId();
+
+  const notesMode = request !== null && request.conversationId === notesId;
+  const { noteIds, cardIds } = (() => {
+    if (!notesMode || !request) return { noteIds: [], cardIds: [] };
+    // Запись витрины = сообщение беседы «Избранного» (кэш её ленты); запись
+    // со звездой остаётся записью — удаляется целиком (splitNotesSelection).
+    const cache = queryClient.getQueryData<Paginated<ChatMessage>>(
+      chatKeys.messages(request.conversationId),
+    );
+    const ids = new Set((cache?.items ?? []).map((m) => m.id));
+    return splitNotesSelection(request.messageIds, ids);
+  })();
 
   const count = request?.messageIds.length ?? 0;
-  const isSingle = count === 1;
+  const isSingle = !notesMode && count === 1;
   const traced =
     isSingle && request && request.messageIds[0]
       ? cachedHasLiveReplies(queryClient, request.conversationId, request.messageIds[0])
       : false;
-  const description = isSingle
-    ? traced
-      ? ui.chat.deleteTraced
-      : ui.chat.deleteNoTrace
-    : ui.chat.deleteManyHint;
-  const title = isSingle
+  const singleNote = notesMode && noteIds.length === 1 && cardIds.length === 0;
+  const description = notesMode
+    ? cardIds.length > 0
+      ? noteIds.length > 0
+        ? ui.chat.mixedDeleteHint
+        : ui.chat.unfavoriteHint
+      : ui.chat.notesTracelessHint
+    : isSingle
+      ? traced
+        ? ui.chat.deleteTraced
+        : ui.chat.deleteNoTrace
+      : ui.chat.deleteManyHint;
+  const title = singleNote
     ? ui.chat.deleteTitle
-    : `${ui.chat.deleteConfirm} ${count} ${plural(count, [
-        ui.chat.messageOne,
-        ui.chat.messageFew,
-        ui.chat.messageMany,
-      ])}?`;
+    : notesMode
+      ? `${ui.chat.deleteFromFavoritesConfirm} ${count} ${plural(count, [
+          ui.chat.messageOne,
+          ui.chat.messageFew,
+          ui.chat.messageMany,
+        ])}?`
+      : isSingle
+        ? ui.chat.deleteTitle
+        : `${ui.chat.deleteConfirm} ${count} ${plural(count, [
+            ui.chat.messageOne,
+            ui.chat.messageFew,
+            ui.chat.messageMany,
+          ])}?`;
 
   function confirm() {
     if (!request) return;
-    if (isSingle && request.messageIds[0]) {
+    if (notesMode) {
+      if (noteIds.length === 1) {
+        single.mutate({ conversationId: request.conversationId, messageId: noteIds[0]! });
+      } else if (noteIds.length > 1) {
+        batch.mutate({ conversationId: request.conversationId, messageIds: noteIds });
+      }
+      for (const id of cardIds) removeFavorite.mutate(id);
+    } else if (isSingle && request.messageIds[0]) {
       single.mutate({ conversationId: request.conversationId, messageId: request.messageIds[0] });
     } else {
       batch.mutate({ conversationId: request.conversationId, messageIds: request.messageIds });
