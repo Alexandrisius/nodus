@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, type ReactNode } from 'react';
 import type { ChatMessage, MessageAttachment } from '@nodus/contracts';
 import { Message, MessageAvatar, MessageContent } from '@nodus/ui/components/message';
 
@@ -66,6 +66,8 @@ export const StickerMessageView = memo(function StickerMessageView({
   mine,
   avatarSlot = 'avatar',
   reactionsHidden = false,
+  reactionsRow,
+  children,
 }: {
   message: ChatMessage;
   attachment: MessageAttachment;
@@ -74,6 +76,10 @@ export const StickerMessageView = memo(function StickerMessageView({
    *  grid серии (message-run.tsx, #164). */
   avatarSlot?: 'avatar' | 'none';
   reactionsHidden?: boolean;
+  /** Замена ряда реакций (карточки избранного: личные метки — #215). */
+  reactionsRow?: ReactNode;
+  /** Пилюля реакций хозяина (ReactionPicker / пилюля личных меток). */
+  children?: ReactNode;
 }) {
   const align = useChatPrefs((s) => s.align);
   const atEnd = mine && align === 'both';
@@ -108,9 +114,10 @@ export const StickerMessageView = memo(function StickerMessageView({
             />
           </StickerWindowTrigger>
           {/* Нижняя строка — как у пузырей (реакции слева, мета справа),
-              тон muted: стикер без поверхности (#127). */}
+              тон muted: стикер без поверхности (#127). Слот витрины
+              «Избранного» — личные метки вместо публичных реакций (#215). */}
           <span className="flex items-end gap-2">
-            <MessageReactions message={message} onFilled={false} />
+            {reactionsRow ?? <MessageReactions message={message} onFilled={false} />}
             <MessageMeta
               message={message}
               mine={mine}
@@ -119,7 +126,7 @@ export const StickerMessageView = memo(function StickerMessageView({
               className="ml-auto"
             />
           </span>
-          {reactionsHidden ? null : <ReactionPicker message={message} atEnd={atEnd} />}
+          {reactionsHidden ? null : (children ?? <ReactionPicker message={message} atEnd={atEnd} />)}
         </span>
       </MessageContent>
     </Message>

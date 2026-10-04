@@ -116,6 +116,13 @@ export const ChatMessageItem = memo(function ChatMessageItem({
   // Стикер (#143): без пузыря — крупный глиф + метка; клик — поповер пака
   // (дистрибуция «из чата»). Имя автора не выводится (канон Telegram).
   const stickerAttachment = stickerAttachmentOf(message);
+  // Пилюля реакций/меток — ОДНА на все ветки формы (текст/медиа/стикер):
+  // слот витрины (#171/#215) либо публичный ReactionPicker.
+  const pickerNode = reactionsHidden ? null : reactionPicker !== undefined ? (
+    reactionPicker(atEnd)
+  ) : (
+    <ReactionPicker message={message} atEnd={atEnd} />
+  );
   if (stickerAttachment) {
     return (
       <StickerMessageView
@@ -124,7 +131,10 @@ export const ChatMessageItem = memo(function ChatMessageItem({
         mine={mine}
         avatarSlot={avatarSlot}
         reactionsHidden={reactionsHidden}
-      />
+        reactionsRow={reactionsRow}
+      >
+        {pickerNode}
+      </StickerMessageView>
     );
   }
 
@@ -156,12 +166,6 @@ export const ChatMessageItem = memo(function ChatMessageItem({
   const layout = attachmentsLayout(message.attachments);
   const media = layout.mode === 'single' || layout.mode === 'gallery';
   const finSide = tail ? (atEnd ? 'right' : 'left') : null;
-  // Слоты карточек избранного (#171): личные метки вместо публичных реакций.
-  const pickerNode = reactionsHidden ? null : reactionPicker !== undefined ? (
-    reactionPicker(atEnd)
-  ) : (
-    <ReactionPicker message={message} atEnd={atEnd} />
-  );
   const hasReactionsRow = reactionsRow !== undefined || message.reactions.length > 0;
   if (media) {
     return (
@@ -182,6 +186,7 @@ export const ChatMessageItem = memo(function ChatMessageItem({
             finSide={finSide}
             onJumpToReply={jumpToReply}
             onJumpToForwardSource={jumpToForwardSource}
+            reactionsRow={reactionsRow}
           >
             {pickerNode}
           </MediaMessage>

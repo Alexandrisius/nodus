@@ -51,6 +51,7 @@ export function MediaMessage({
   finSide,
   onJumpToReply,
   onJumpToForwardSource,
+  reactionsRow,
   children,
 }: {
   message: ChatMessage;
@@ -60,6 +61,9 @@ export function MediaMessage({
   finSide: 'left' | 'right' | null;
   onJumpToReply: (replyId: string) => void;
   onJumpToForwardSource: () => void;
+  /** Замена ряда реакций (карточки избранного: личные метки вместо публичных
+   *  чипов — #215; в обычных чатах не передаётся). */
+  reactionsRow?: ReactNode;
   /** Пилюля реакций хозяина (ReactionPicker) — внутри стопки, снаружи клипа. */
   children?: ReactNode;
 }) {
@@ -79,7 +83,9 @@ export function MediaMessage({
   // картинки субпиксельное смещение — «пляшущие» дуги AA и расхождение с
   // контуром селекта.
   const width = rawWidth === null ? null : snapDevicePx(rawWidth);
-  const hasReactions = message.reactions.length > 0;
+  // Ряд реакций/меток: слот витрины (реакции псевдо-сообщения всегда пусты)
+  // либо публичные чипы — одна и та же строка (#215).
+  const hasReactionsRow = reactionsRow !== undefined || message.reactions.length > 0;
   return (
     <div
       data-slot="media-message"
@@ -171,17 +177,17 @@ export function MediaMessage({
             {hasText ? (
               <span className="block">
                 <MessageText text={message.text} />
-                {hasReactions || entityRow ? null : <MetaGhost message={message} mine={mine} />}
-                {entityRow && !hasReactions ? (
+                {hasReactionsRow || entityRow ? null : <MetaGhost message={message} mine={mine} />}
+                {entityRow && !hasReactionsRow ? (
                   <span className="flex justify-end">
                     <MessageMeta message={message} mine={mine} onFilled={mine} ticks={mine} />
                   </span>
                 ) : null}
               </span>
             ) : null}
-            {hasReactions ? (
+            {hasReactionsRow ? (
               <span className="flex items-end gap-2">
-                <MessageReactions message={message} onFilled={mine} />
+                {reactionsRow ?? <MessageReactions message={message} onFilled={mine} />}
                 <MessageMeta
                   message={message}
                   mine={mine}
@@ -195,9 +201,9 @@ export function MediaMessage({
             )}
           </BubbleContent>
         </Bubble>
-      ) : hasReactions ? (
+      ) : hasReactionsRow ? (
         <span className="mt-[3px]">
-          <MessageReactions message={message} onFilled={false} />
+          {reactionsRow ?? <MessageReactions message={message} onFilled={false} />}
         </span>
       ) : null}
       {/* Единый контур селекта по всей стопке: с хвостовиком только когда
