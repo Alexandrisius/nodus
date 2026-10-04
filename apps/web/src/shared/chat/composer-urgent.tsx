@@ -9,16 +9,13 @@ import { useComposerErrors } from './composer-errors.js';
 
 /**
  * Молния «Важное» (#177, ревизия модели 05.10 — канон Яндекс-мессенджера):
- * КЛИК = мгновенное включение/выключение «Важного». Никакого меню и
- * подтверждения — ack-механика выпилена решением владельца; непрочитавшим
- * бэкенд сам повторяет пуш каждые 5 минут до часа (стоп — прочтение).
- *
- * Бейдж ЗАРЯДОВ (правый нижний угол кнопки, канон бейджа аватара): сколько
- * важных осталось сегодня (лимит 3/сутки); тултип при наведении объясняет:
- * «Осталось важных сегодня: 2 из 3». Источник — GET политики при монтаже
- * композера (приглушение переживает перезагрузку) плюс код 409 последней
- * отправки из composer-errors. Исчерпание: молния приглушена, клик не
- * переключает (кроме выключения горящей) — тост-заменитель не нужен.
+ * КЛИК = мгновенное включение/выключение «Важного». Никакого меню,
+ * счётчика и подтверждения (решение владельца 05.10): состояние видно по
+ * ЦВЕТУ глифа — горит жёлтым/залитая, погашена серой; ховер-заливки нет.
+ * Сколько осталось — тултип при наведении. Источник — GET политики при
+ * монтаже композера (приглушение переживает перезагрузку) плюс код 409
+ * последней отправки из composer-errors. Исчерпание: молния приглушена,
+ * клик не включает (выключить горящую можно).
  */
 export function ComposerUrgentButton({
   draftKey,
@@ -38,7 +35,6 @@ export function ComposerUrgentButton({
   const exhausted =
     (policy.data?.remaining ?? 1) <= 0 || sendErrorCode === ErrorCode.CHAT_URGENT_LIMIT_EXCEEDED;
   const blocked = exhausted && !urgent;
-  const remaining = policy.data?.remaining;
 
   return (
     <Button
@@ -46,20 +42,20 @@ export function ComposerUrgentButton({
       variant="ghost"
       size="icon"
       className={cn(
-        'relative shrink-0 text-muted-foreground',
+        // Без ховер-заливки квадратом (ревизия владельца 05.10): состояние —
+        // ТОЛЬКО цвет глифа; ghost-ховер кнопки подавлен.
+        'relative shrink-0 bg-transparent shadow-none hover:bg-transparent hover:text-inherit',
         align,
-        urgent && 'bg-warning-soft text-warning hover:bg-warning-soft hover:text-warning',
+        urgent ? 'text-warning' : 'text-muted-foreground',
         blocked && 'opacity-60',
       )}
       aria-label={ui.notifications.urgentToggle}
       aria-pressed={urgent}
       aria-disabled={blocked || disabled || undefined}
       title={
-        policy.data
-          ? blocked
-            ? `${ui.notifications.urgentLimitReached} (${policy.data.limit} ${ui.notifications.ackStatusOf} ${policy.data.limit})`
-            : `${ui.notifications.urgentChargesLeft}: ${remaining} ${ui.notifications.ackStatusOf} ${policy.data.limit}`
-          : ui.notifications.urgentToggle
+        blocked
+          ? `${ui.notifications.urgentLimitReached} (${policy.data?.limit} ${ui.notifications.ackStatusOf} ${policy.data?.limit})`
+          : `${ui.notifications.urgentToday} ${policy.data?.remaining ?? '—'} ${ui.notifications.ackStatusOf} ${policy.data?.limit ?? '—'}`
       }
       disabled={disabled}
       onClick={() => {
@@ -68,27 +64,7 @@ export function ComposerUrgentButton({
         setUrgent(draftKey, !urgent);
       }}
     >
-      {/* Оптическая центровка молнии: глиф Zap визуально сидит выше
-          геометрического центра (широкая верхушка) — полпикселя вниз. */}
-      <Zap
-        strokeWidth={1.75}
-        fill={urgent ? 'currentColor' : 'none'}
-        className="translate-y-[0.5px]"
-      />
-      {remaining !== undefined ? (
-        <span
-          data-slot="urgent-charges"
-          aria-hidden
-          className={cn(
-            // Компактный бейдж (ревизия владельца 05.10): фиксированный
-            // h-3/w-3 (12 дизайн-px, канон бейджа аватара), цифра — вниз
-            // на 1px (глиф цифры оптически сидит выше центра строки).
-            'absolute right-0 bottom-0 z-10 flex h-3 w-3 items-center justify-center rounded-full bg-warning pt-[1px] font-mono text-[8.5px] font-semibold text-background tabular-nums ring-1 ring-card select-none',
-          )}
-        >
-          {remaining}
-        </span>
-      ) : null}
+      <Zap strokeWidth={1.75} fill={urgent ? 'currentColor' : 'none'} />
     </Button>
   );
 }
