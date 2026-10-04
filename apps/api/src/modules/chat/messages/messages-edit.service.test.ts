@@ -104,6 +104,12 @@ describe('MessagesService.edit (#188: текст + состав вложений
       threadParticipants as never,
       stickersRepo as never,
       { deleteByMessage: vi.fn().mockResolvedValue([]) } as never,
+      {
+        applyMessageSent: vi.fn(async () => {}),
+        applyMessageEdited: vi.fn(async () => {}),
+        applyMessageDeleted: vi.fn(async () => {}),
+        applyForwardCopies: vi.fn(async () => {}),
+      } as never,
     );
   });
 

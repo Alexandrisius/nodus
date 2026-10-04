@@ -1,26 +1,20 @@
-import { ArrowLeft, FileText, Link2, PanelRight, X } from 'lucide-react';
-import { Fragment, useCallback, useEffect, useState } from 'react';
+import { ArrowLeft, PanelRight, X } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ConversationListItem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
-import { Empty, EmptyTitle } from '@nodus/ui/components/empty';
 import { NodeLabel } from '@nodus/ui/components/node-label';
 import { cn } from '@nodus/ui/lib/utils';
 
-import { threadScopeMessages } from './channel-layout.js';
 import { ChatSearchPanel } from './chat-search-panel.js';
-import { useConversationMessages } from './api.js';
 import { isNotesConversation } from './conversations.js';
 import { ConversationMembersPanel } from './conversation-members.js';
-import { FavoriteHitRow } from './favorite-hit-row.js';
-import { useFavorites } from './favorites-api.js';
-import { useJumpStore } from './jump-store.js';
-import { formatDayLabel } from './message-groups.js';
+import { NotesSourcesPane, type NotesSourceId } from './notes-sources-pane.js';
+import { VaultPane } from './vault-pane.js';
 
 import { useAuthStore } from '../auth-store.js';
 import { useFrameReady } from '../ui/use-frame-ready.js';
 import { uiPx } from '../ui/ui-scale.js';
-import { useViewerStore } from '../files/viewer-store.js';
 
 /** Ширина вталкивающей панели беседы: контейнер уменьшает чат на неё. */
 export const CHAT_PANEL_W = uiPx(300);
@@ -29,26 +23,6 @@ export const CHAT_PANEL_W = uiPx(300);
  *  малая») и соответствующий минимум всей колонки чата. */
 export const MIN_FEED_WITH_PANEL = uiPx(360);
 export const MIN_COLUMN_WITH_PANEL = MIN_FEED_WITH_PANEL + CHAT_PANEL_W;
-
-function Section({
-  icon: Icon,
-  title,
-  children,
-}: {
-  icon: typeof FileText;
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="rounded-lg border border-border p-3">
-      <h4 className="flex items-center gap-2">
-        <Icon className="size-3.5 text-muted-foreground" strokeWidth={1.75} />
-        <NodeLabel label={title} />
-      </h4>
-      <div className="mt-2.5 flex flex-col gap-2">{children}</div>
-    </section>
-  );
-}
 
 /**
  * Состояние панели беседы: обёртка монтируется СРАЗУ и ПОСТОЯННО (w-0), а
@@ -77,8 +51,13 @@ export function useChatSidePanel() {
  * рядом с лентой (#42) не умножает правых панелей (research OpenClaw:
  * несколько rail'ов съедают ширину ленты и множат границы ресайза). При
  * открытом треде — переключатель области «Вся беседа / Этот тред» (канон
- * пресетов: 13px, зона bg-muted/40, активный bg-accent): файлы/ссылки
- * фильтруются по корню треда и его ответам.
+ * пресетов: 13px, зона bg-muted/40, активный bg-accent): списки витрины
+ * фильтруются по корню треда и его ответам (#211 — серверным threadRootId).
+ *
+ * #211 (вердикт владельца 04.10): панель — ЧИСТОЕ хранилище беседы
+ * (серверные списки медиа/документов/ссылок + счётчики), БЕЗ избранного;
+ * просмотр избранного централизован в чате «Избранное» — там панель
+ * показывает ИСТОЧНИКИ звёзд (NotesSourcesPane, реф Telegram Saved).
  *
  * ГЕОМЕТРИЯ (вердикт владельца 15.09.2026, рефы Битрикс24): панель —
  * ПОЛНОВЫСОТНАЯ колонка-сиблинг всего контента хоста: занимает ВЕРХНИЙ БАР
@@ -104,6 +83,7 @@ export function ChatSidePanel({
   onMembersClose,
   onSearchBack,
   onAddMembers,
+  onOpenNotesSource,
 }: {
   conversationId: string;
   /** Беседа для вида «Участники» (#186): роли и права матрицы. */
@@ -127,33 +107,25 @@ export function ChatSidePanel({
   onSearchBack?: () => void;
   /** Открыть окно добавления участников (кнопка «Добавить»). */
   onAddMembers?: () => void;
+  /** Клик по источнику в панели чата «Избранное» (#211 Ф3) — хост открывает
+   *  окно-фильтр поверх витрины. */
+  onOpenNotesSource?: (source: NotesSourceId) => void;
 }) {
-  const { data } = useConversationMessages(conversationId);
   const meId = useAuthStore((s) => s.user?.id ?? null);
-  // Витрина «Избранного»: своих звёзд в ней нет — вкладка скрыта (04.10 р.5).
+  // Чат «Избранное»: панель — источники звёзд (Ф3), НЕ хранилище файлов.
   const isNotes = Boolean(conversation && isNotesConversation(conversation, meId));
   const [scope, setScope] = useState<'all' | 'thread'>('all');
-  // Вкладка панели (#171): файлы/ссылки ↔ избранное ЭТОЙ беседы — витрина
-  // карточек + снятие звезды + прыжок к оригиналу (битриксовская модель).
-  const [tab, setTab] = useState<'files' | 'favorites'>('files');
-  const favoritesQuery = useFavorites({ conversationId });
   // Плавное ПЕРВОЕ открытие: монтируемся в покое (w-0), класс раскрытия —
   // после двух кадров (useFrameReady), transition идёт с первого кадра.
   const ready = useFrameReady();
-  // Контент (файлы/избранное/поиск) монтируется ВМЕСТЕ с панелью — ещё в
-  // свёрнутом виде: НИ один выезд колонки не платит маунтом в кадрах
-  // анимации (ленивый маунт первого открытия давал «гармошку» выезда,
-  // 04.10 р.6; обёртка в DOM постоянна — приём панели «О задаче»).
+  // Контент панели монтируется ВМЕСТЕ с панелью — ещё в свёрнутом виде: НИ
+  // один выезд колонки не платит маунтом в кадрах анимации (ленивый маунт
+  // первого открытия давал «гармошку» выезда, 04.10 р.6).
   const columnOpen = open || view !== 'files';
+  const scrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!threadRootId) setScope('all');
   }, [threadRootId]);
-  const items = data?.items ?? [];
-  const scoped =
-    threadRootId && scope === 'thread' ? threadScopeMessages(items, threadRootId) : items;
-  const files = scoped.flatMap((m) => m.attachments);
-  const openViewer = useViewerStore((s) => s.open);
-  const links = scoped.flatMap((m) => m.text.match(/https?:\/\/\S+/g) ?? []);
 
   return (
     <div
@@ -191,7 +163,11 @@ export function ChatSidePanel({
                 {open ? <ArrowLeft /> : <X />}
               </Button>
             ) : null}
-            <NodeLabel label={view === 'members' ? ui.chat.membersPanelTitle : title} />
+            <NodeLabel
+              label={
+                view === 'members' ? ui.chat.membersPanelTitle : isNotes ? ui.chat.notes : title
+              }
+            />
             {view !== 'members' ? (
               <Button
                 variant="ghost"
@@ -212,43 +188,19 @@ export function ChatSidePanel({
           />
         ) : (
           <>
-            {/* Панель вложений: смонтирована ПОСТОЯННО после первого открытия
-                (без ремаунтов при смене видов — плавность анимаций колонки);
-                в режиме поиска скрыта CSS — поиск стоит ПОВЕРХ неё. */}
+            {/* Панель вложений/источников: смонтирована ПОСТОЯННО после
+                первого открытия (без ремаунтов при смене видов — плавность
+                анимаций колонки); в режиме поиска скрыта CSS — поиск стоит
+                ПОВЕРХ неё. */}
             <div
+              ref={scrollRef}
               className={cn(
-                'flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4',
+                'flex min-h-0 flex-1 flex-col overflow-y-auto p-4',
                 view === 'search' && 'hidden',
               )}
             >
-              {!isNotes ? (
-                <div className="flex shrink-0 gap-1 rounded-lg bg-muted/40 p-1">
-                  {(
-                    [
-                      ['files', ui.chat.favoritesTabFiles],
-                      ['favorites', ui.chat.favoritesTab],
-                    ] as const
-                  ).map(([value, label]) => (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => setTab(value)}
-                      aria-pressed={tab === value}
-                      className={cn(
-                        'flex-1 rounded-md px-2 py-1 text-body-xs transition-colors',
-                        tab === value
-                          ? 'bg-accent text-foreground'
-                          : 'text-muted-foreground hover:text-foreground',
-                      )}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-
-              {tab === 'favorites' && !isNotes ? (
-                <FavoritesTab query={favoritesQuery} conversationId={conversationId} />
+              {isNotes ? (
+                <NotesSourcesPane onOpenSource={onOpenNotesSource ?? (() => {})} />
               ) : (
                 <>
                   {threadRootId ? (
@@ -272,61 +224,22 @@ export function ChatSidePanel({
                     </div>
                   ) : null}
 
-                  {/* Закрепов в панели НЕТ (вердикт владельца 24.09, #91): обзор
-                      закрепов — пин-бар ленты; панель — файлы и ссылки беседы. */}
-                  <Section icon={FileText} title={ui.chat.filesMedia}>
-                    {files.length > 0 ? (
-                      files.map((file) => (
-                        <button
-                          key={file.id}
-                          type="button"
-                          onClick={() =>
-                            openViewer({
-                              fileId: file.fileId,
-                              name: file.name,
-                              mime: file.mime,
-                              size: file.size,
-                              url: file.url,
-                              previewKind: file.previewKind,
-                              pdfUrl: file.pdfUrl,
-                            })
-                          }
-                          className="truncate text-left text-sm text-info hover:underline"
-                          title={file.name}
-                        >
-                          {file.name}
-                        </button>
-                      ))
-                    ) : (
-                      <span className="text-sm text-muted-foreground">{ui.common.empty}</span>
-                    )}
-                  </Section>
-
-                  <Section icon={Link2} title={ui.chat.links}>
-                    {links.length > 0 ? (
-                      links.map((link) => (
-                        <a
-                          key={link}
-                          href={link}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="truncate text-sm text-info hover:underline"
-                        >
-                          {link}
-                        </a>
-                      ))
-                    ) : (
-                      <span className="text-sm text-muted-foreground">{ui.common.empty}</span>
-                    )}
-                  </Section>
+                  {/* Закрепов в панели НЕТ (вердикт владельца 24.09, #91):
+                      обзор закрепов — пин-бар ленты; панель — хранилище
+                      витрины беседы (#211). */}
+                  <VaultPane
+                    conversationId={conversationId}
+                    threadRootId={scope === 'thread' ? threadRootId : null}
+                    scrollRef={scrollRef}
+                  />
                 </>
               )}
             </div>
             {/* Поиск — ПОВЕРХ панели вложений (кнопка «назад», канон вида
                 участников) или standalone (крестик). Смонтирован ВСЕГДА:
                 первый выезд панели — чистая смена классов, тот же ритм
-                анимации, что у вложений/участников (ремаунт в кадре анимации
-                давал «инерцию с запаздыванием», 04.10 р.5). */}
+                анимации, что у вложений/участников (ремаунт в кадре
+                анимации давал «инерцию с запаздыванием», 04.10 р.5). */}
             <ChatSearchPanel
               conversationId={conversationId}
               isFavorites={isNotes}
@@ -360,53 +273,5 @@ export function ChatPanelToggle({ open, onToggle }: { open: boolean; onToggle: (
     >
       <PanelRight className="size-4" strokeWidth={1.75} />
     </button>
-  );
-}
-
-/** Вкладка «Избранное» беседы (#171, р.6): свои звезды этого чата — те же
- *  битрикс-строки, что в поисковой выдаче (FavoriteHitRow: полное имя, 3
- *  строки, вложения словами, звезда-заливка внизу справа), группировка
- *  заголовками дат; кликом — прыжок к оригиналу. Снятие звезды — в чате
- *  (ПКМ сообщения) или в витрине «Избранного». */
-function FavoritesTab({
-  query,
-  conversationId,
-}: {
-  query: ReturnType<typeof useFavorites>;
-  conversationId: string;
-}) {
-  const cards = (query.data?.pages ?? []).flatMap((page) => page.items);
-  if (cards.length === 0 && !query.isLoading) {
-    return (
-      <div className="flex min-h-24 items-center justify-center">
-        <Empty>
-          <EmptyTitle>{ui.chat.favoritesEmpty}</EmptyTitle>
-        </Empty>
-      </div>
-    );
-  }
-  return (
-    <div className="flex flex-col gap-0.5">
-      {cards.map((card, index) => {
-        const prev = cards[index - 1];
-        const day = formatDayLabel(card.createdAt);
-        const newDay = prev === undefined || formatDayLabel(prev.createdAt) !== day;
-        return (
-          <Fragment key={card.messageId}>
-            {newDay ? (
-              <span className="pb-1 pt-2 text-center text-xs text-muted-foreground">{day}</span>
-            ) : null}
-            <FavoriteHitRow
-              author={card.author.displayName}
-              snippet={card.text}
-              attachments={card.attachments.map((a) => a.kind)}
-              onJump={() =>
-                useJumpStore.getState().request(conversationId, card.messageId, card.threadRootId)
-              }
-            />
-          </Fragment>
-        );
-      })}
-    </div>
   );
 }

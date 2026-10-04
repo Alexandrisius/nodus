@@ -6,6 +6,8 @@ import {
   type AddFavoritesBody,
   type FavoriteCard,
   type FavoriteLabelList,
+  type FavoriteSource,
+  type FavoriteSources,
   type ListFavoritesQuery,
   type Paginated,
   type UpdateFavoriteBody,
@@ -53,6 +55,30 @@ export class FavoritesService {
   /** Подсказки существующих эмодзи-меток (чипы поиска витрины). */
   async labels(userId: string): Promise<FavoriteLabelList> {
     return { items: await this.favorites.distinctLabels(userId) };
+  }
+
+  /**
+   * Источники «Избранного» (#211 Ф3, реф Telegram Saved): чаты, откуда
+   * прилетали звёзды (новые закладки сверху), счётчики типов всего
+   * избранного и псевдоисточник «Записи» — свои сообщения чата «Избранное».
+   * Читает только закладки самого владельца (личное состояние, как список).
+   */
+  async sources(userId: string): Promise<FavoriteSources> {
+    const [rows, summary] = await Promise.all([
+      this.favorites.sourceRows(userId),
+      this.favorites.sourcesSummary(userId),
+    ]);
+    return {
+      notes: { count: summary.notesCount, lastAt: summary.notesLast?.toISOString() ?? null },
+      sources: rows.map((row) => ({
+        conversationId: row.id,
+        title: row.title,
+        conversationType: row.type as FavoriteSource['conversationType'],
+        lastFavoritedAt: row.last.toISOString(),
+        count: row.count,
+      })),
+      counts: { media: summary.media, document: summary.document, link: summary.link },
+    };
   }
 
   /**

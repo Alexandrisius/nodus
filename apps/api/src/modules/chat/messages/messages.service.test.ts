@@ -64,7 +64,7 @@ describe('MessagesService', () => {
     findByIdInConversation: vi.fn(),
     allocateSeqs: vi.fn(),
     insertMessage: vi.fn(),
-    claimAttachments: vi.fn(),
+    claimAttachments: vi.fn().mockResolvedValue([]),
     touchLastMessageAt: vi.fn(),
     countThreadReplies: vi.fn(),
     attachmentsFor: vi.fn(),
@@ -147,6 +147,12 @@ describe('MessagesService', () => {
       threadParticipants as never,
       stickersRepo as never,
       favoritesRepo as never,
+      {
+        applyMessageSent: vi.fn(async () => {}),
+        applyMessageEdited: vi.fn(async () => {}),
+        applyMessageDeleted: vi.fn(async () => {}),
+        applyForwardCopies: vi.fn(async () => {}),
+      } as never,
     );
   });
 

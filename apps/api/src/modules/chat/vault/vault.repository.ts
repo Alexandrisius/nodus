@@ -1,0 +1,387 @@
+import { Injectable } from '@nestjs/common';
+import { Prisma } from '../../../generated/prisma/client.js';
+import { PrismaService } from '../../../core/database/prisma.service.js';
+import type { TransactionClient } from '../../../core/database/transaction-runner.js';
+import { extractMessageUrls } from '../messages/link-extractor.js';
+import type { AttachmentDtoRow } from '../messages/message-dto.mapper.js';
+
+/** Витрина беседы (#211): списки вложений/ссылок + денормализованные
+ *  счётчики (conversation_vault_stats) и проекция ссылок (message_links).
+ *
+ *  Производительность (модель Telegram getSearchCounters / Битрикс24):
+ *  счётчики всей беседы — чтение O(1) по PK stats-строки (Δ-обслуживание
+ *  в транзакциях состава — см. messages.service/message-actions.service);
+ *  списки — keyset (seq DESC, положение в сообщении ASC) по индексам
+ *  messages(conversation_id, seq) и message_links(conversation_id).
+ *  Счётчики скоупа треда считаются на лету (объём треда мал; денормализацию
+ *  per-thread не плодим). Инвариант stats == COUNT(живых) проверяется
+ *  integration-тестами; полный пересчёт — миграция vault_backfill. */
+
+/** Δ счётчиков одной операции состава (0 — не трогать). */
+export interface VaultDelta {
+  media: number;
+  document: number;
+  link: number;
+}
+
+export function emptyVaultDelta(): VaultDelta {
+  return { media: 0, document: 0, link: 0 };
+}
+
+/** Δ счётчиков по составам вложений ДО/ПОСЛЕ (правка #188): стикеры и
+ *  посторонние виды не участвуют. */
+export function attachmentKindDelta(
+  before: readonly { kind: string }[],
+  after: readonly { kind: string }[],
+): { media: number; document: number } {
+  const count = (rows: readonly { kind: string }[], kind: string) =>
+    rows.filter((a) => a.kind === kind).length;
+  return {
+    media: count(after, 'image') - count(before, 'image'),
+    document: count(after, 'file') - count(before, 'file'),
+  };
+}
+
+/** Контекст сообщения для вставки строк message_links. */
+export interface LinkMessageContext {
+  id: string;
+  conversationId: string;
+  threadRootId: string | null;
+  authorId: string;
+  createdAt: Date;
+}
+
+/** Строка вложения витрины: DTO-поля + контекст сообщения-источника. */
+export interface VaultAttachmentRow extends AttachmentDtoRow {
+  sortOrder: number;
+  messageId: string;
+  threadRootId: string | null;
+  seq: bigint;
+  authorId: string;
+  messageCreatedAt: Date;
+}
+
+/** Строка ссылки витрины (message_links + seq сообщения для keyset). */
+export interface VaultLinkRow {
+  messageId: string;
+  conversationId: string;
+  threadRootId: string | null;
+  position: number;
+  url: string;
+  authorId: string;
+  seq: bigint;
+  messageCreatedAt: Date;
+}
+
+const ATTACHMENT_COLS = Prisma.sql`
+  a.id, a.file_id AS "fileId", a.name, a.size, a.mime, a.kind,
+  a.width, a.height, a.thumb_file_id AS "thumbFileId", a.sort_order AS "sortOrder",
+  m.id AS "messageId", m.thread_root_id AS "threadRootId", m.seq,
+  m.author_id AS "authorId", m.created_at AS "messageCreatedAt"
+`;
+
+const LINK_COLS = Prisma.sql`
+  l.message_id AS "messageId", l.conversation_id AS "conversationId",
+  l.thread_root_id AS "threadRootId", l.position, l.url, l.author_id AS "authorId",
+  m.seq, m.created_at AS "messageCreatedAt"
+`;
+
+/** Живость сообщения-хоста (надгробия/бесследие в витрине не показываются). */
+
+@Injectable()
+export class VaultRepository {
+  constructor(private readonly prisma: PrismaService) {}
+
+  private client(tx?: TransactionClient): PrismaService | TransactionClient {
+    return tx ?? this.prisma;
+  }
+
+  // ===== Чтение: списки =====
+
+  /**
+   * Страница вложений одного вида (image → media, file → document): новые
+   * сверху, keyset (seq DESC, sort_order ASC); hasMore по limit+1.
+   */
+  async listAttachments(
+    conversationId: string,
+    opts: { kind: 'image' | 'file'; limit: number; threadRootId: string | null },
+    cursor: { s: bigint; o: number } | null,
+  ): Promise<{ rows: VaultAttachmentRow[]; hasMore: boolean }> {
+    const beforeSeq = cursor ? cursor.s.toString() : null;
+    const beforeOrder = cursor ? cursor.o : 0;
+    const thread = opts.threadRootId;
+    const rows = await this.prisma.$queryRaw<VaultAttachmentRow[]>(Prisma.sql`
+      SELECT ${ATTACHMENT_COLS} FROM message_attachments a
+      JOIN messages m ON m.id = a.message_id
+      WHERE m.conversation_id = ${conversationId}::uuid
+        AND a.kind = ${opts.kind}
+        AND m.deleted_at IS NULL AND NOT m.obliterated
+        AND (${thread === null} OR m.thread_root_id = ${thread ?? '00000000-0000-0000-0000-000000000000'}::uuid
+             OR m.id = ${thread ?? '00000000-0000-0000-0000-000000000000'}::uuid)
+        AND (${cursor === null}
+             OR m.seq < ${beforeSeq ?? '0'}::bigint
+             OR (m.seq = ${beforeSeq ?? '0'}::bigint AND a.sort_order > ${beforeOrder}::int))
+      ORDER BY m.seq DESC, a.sort_order ASC
+      LIMIT ${opts.limit + 1}
+    `);
+    const hasMore = rows.length > opts.limit;
+    return { rows: hasMore ? rows.slice(0, opts.limit) : rows, hasMore };
+  }
+
+  /** Страница ссылок: новые сверху, keyset (seq DESC, position ASC). */
+  async listLinks(
+    conversationId: string,
+    opts: { limit: number; threadRootId: string | null },
+    cursor: { s: bigint; o: number } | null,
+  ): Promise<{ rows: VaultLinkRow[]; hasMore: boolean }> {
+    const beforeSeq = cursor ? cursor.s.toString() : null;
+    const beforePosition = cursor ? cursor.o : 0;
+    const thread = opts.threadRootId;
+    const rows = await this.prisma.$queryRaw<VaultLinkRow[]>(Prisma.sql`
+      SELECT ${LINK_COLS} FROM message_links l
+      JOIN messages m ON m.id = l.message_id
+      WHERE l.conversation_id = ${conversationId}::uuid
+        AND (${thread === null} OR l.thread_root_id = ${thread ?? '00000000-0000-0000-0000-000000000000'}::uuid
+             OR l.message_id = ${thread ?? '00000000-0000-0000-0000-000000000000'}::uuid)
+        AND (${cursor === null}
+             OR m.seq < ${beforeSeq ?? '0'}::bigint
+             OR (m.seq = ${beforeSeq ?? '0'}::bigint AND l.position > ${beforePosition}::int))
+      ORDER BY m.seq DESC, l.position ASC
+      LIMIT ${opts.limit + 1}
+    `);
+    const hasMore = rows.length > opts.limit;
+    return { rows: hasMore ? rows.slice(0, opts.limit) : rows, hasMore };
+  }
+
+  // ===== Чтение: счётчики =====
+
+  /** Счётчики всей беседы — O(1) из денормализованной stats-строки. */
+  async conversationCounts(
+    conversationId: string,
+  ): Promise<{ media: number; document: number; link: number }> {
+    const rows = await this.prisma.$queryRaw<
+      { media_count: bigint; document_count: bigint; link_count: bigint }[]
+    >(Prisma.sql`
+      SELECT COALESCE(media_count, 0) AS media_count,
+             COALESCE(document_count, 0) AS document_count,
+             COALESCE(link_count, 0) AS link_count
+      FROM conversation_vault_stats WHERE conversation_id = ${conversationId}::uuid
+    `);
+    return {
+      media: Number(rows[0]?.media_count ?? 0),
+      document: Number(rows[0]?.document_count ?? 0),
+      link: Number(rows[0]?.link_count ?? 0),
+    };
+  }
+
+  /**
+   * Счётчики скоупа треда — на лету (объём треда мал; per-thread
+   * денормализацию не плодим). Ссылки — по денормализованному thread_root_id
+   * без join; вложения — join живых сообщений треда.
+   */
+  async threadCounts(
+    conversationId: string,
+    threadRootId: string,
+  ): Promise<{ media: number; document: number; link: number }> {
+    const rows = await this.prisma.$queryRaw<
+      { media_count: bigint; document_count: bigint; link_count: bigint }[]
+    >(Prisma.sql`
+      SELECT
+        (SELECT COUNT(*) FROM message_attachments a
+          JOIN messages m ON m.id = a.message_id
+          WHERE m.conversation_id = ${conversationId}::uuid
+            AND (m.thread_root_id = ${threadRootId}::uuid OR m.id = ${threadRootId}::uuid)
+            AND m.deleted_at IS NULL AND NOT m.obliterated AND a.kind = 'image') AS media_count,
+        (SELECT COUNT(*) FROM message_attachments a
+          JOIN messages m ON m.id = a.message_id
+          WHERE m.conversation_id = ${conversationId}::uuid
+            AND (m.thread_root_id = ${threadRootId}::uuid OR m.id = ${threadRootId}::uuid)
+            AND m.deleted_at IS NULL AND NOT m.obliterated AND a.kind = 'file') AS document_count,
+        (SELECT COUNT(*) FROM message_links l
+          WHERE l.conversation_id = ${conversationId}::uuid
+            AND (l.thread_root_id = ${threadRootId}::uuid OR l.message_id = ${threadRootId}::uuid)) AS link_count
+    `);
+    return {
+      media: Number(rows[0]?.media_count ?? 0),
+      document: Number(rows[0]?.document_count ?? 0),
+      link: Number(rows[0]?.link_count ?? 0),
+    };
+  }
+
+  // ===== Обслуживание проекции ссылок (те же транзакции, что и состав) =====
+
+  /** Вставка ссылок нового сообщения + Δ link-счётчика. */
+  async insertLinks(
+    tx: TransactionClient,
+    message: LinkMessageContext,
+    urls: string[],
+  ): Promise<number> {
+    if (urls.length === 0) return 0;
+    await tx.messageLink.createMany({
+      data: urls.map((url, position) => ({
+        messageId: message.id,
+        conversationId: message.conversationId,
+        threadRootId: message.threadRootId,
+        position,
+        url,
+        authorId: message.authorId,
+        createdAt: message.createdAt,
+      })),
+    });
+    return urls.length;
+  }
+
+  /**
+   * Правка текста: полная замена строк ссылок сообщения (позиции
+   * пересчитываются), Δ = new − old. Возвращает Δ для stats.
+   */
+  async replaceLinks(
+    tx: TransactionClient,
+    message: LinkMessageContext,
+    urls: string[],
+  ): Promise<number> {
+    const removed = await tx.messageLink.deleteMany({ where: { messageId: message.id } });
+    const added = urls.length;
+    if (added > 0) {
+      await tx.messageLink.createMany({
+        data: urls.map((url, position) => ({
+          messageId: message.id,
+          conversationId: message.conversationId,
+          threadRootId: message.threadRootId,
+          position,
+          url,
+          authorId: message.authorId,
+          createdAt: message.createdAt,
+        })),
+      });
+    }
+    return added - removed.count;
+  }
+
+  /** Удаление сообщения: чистка строк ссылок, возвращает их число (Δ −). */
+  async deleteLinksByMessage(tx: TransactionClient, messageId: string): Promise<number> {
+    const removed = await tx.messageLink.deleteMany({ where: { messageId } });
+    return removed.count;
+  }
+
+  // ===== Обслуживание счётчиков =====
+
+  /**
+   * Применение Δ к stats-строке беседы (атомарный upsert-инкремент;
+   * statement-level — по одному UPDATE на операцию, не на строку: паттерн
+   * PostgreSQL counter cache без row-триггеров). Нулевая Δ — no-op.
+   */
+  async applyDelta(
+    tx: TransactionClient,
+    conversationId: string,
+    delta: VaultDelta,
+  ): Promise<void> {
+    if (delta.media === 0 && delta.document === 0 && delta.link === 0) return;
+    await tx.$executeRaw`
+      INSERT INTO conversation_vault_stats (conversation_id, media_count, document_count, link_count)
+      VALUES (${conversationId}::uuid, ${delta.media}::int, ${delta.document}::int, ${delta.link}::int)
+      ON CONFLICT (conversation_id) DO UPDATE SET
+        media_count = conversation_vault_stats.media_count + EXCLUDED.media_count,
+        document_count = conversation_vault_stats.document_count + EXCLUDED.document_count,
+        link_count = conversation_vault_stats.link_count + EXCLUDED.link_count
+    `;
+  }
+
+  /** Живые вложения сообщений по видам, сгруппированные по сообщению
+   *  (Δ копий forward, Δ удаления). */
+  async attachmentKindsByMessages(
+    tx: TransactionClient,
+    messageIds: string[],
+  ): Promise<Map<string, { image: number; file: number }>> {
+    const result = new Map<string, { image: number; file: number }>();
+    if (messageIds.length === 0) return result;
+    const rows = await tx.$queryRaw<{ message_id: string; kind: string; count: bigint }[]>(
+      Prisma.sql`
+        SELECT message_id, kind, COUNT(*) AS count FROM message_attachments
+        WHERE message_id = ANY(${messageIds}::uuid[]) AND kind IN ('image', 'file')
+        GROUP BY message_id, kind
+      `,
+    );
+    for (const row of rows) {
+      const entry = result.get(row.message_id) ?? { image: 0, file: 0 };
+      if (row.kind === 'image') entry.image = Number(row.count);
+      else entry.file = Number(row.count);
+      result.set(row.message_id, entry);
+    }
+    return result;
+  }
+
+  // ===== Операции жизненного цикла сообщения (вызовы из транзакций
+  // send/edit/delete/forward — держат проекцию и счётчики консистентными) =====
+
+  /** Отправка: строки ссылок нового текста + Δ по составу вложений. */
+  async applyMessageSent(
+    tx: TransactionClient,
+    message: LinkMessageContext,
+    attachments: readonly { kind: string }[],
+    text: string,
+  ): Promise<void> {
+    const delta = emptyVaultDelta();
+    for (const attachment of attachments) {
+      if (attachment.kind === 'image') delta.media += 1;
+      else if (attachment.kind === 'file') delta.document += 1;
+    }
+    delta.link = await this.insertLinks(tx, message, extractMessageUrls(text));
+    await this.applyDelta(tx, message.conversationId, delta);
+  }
+
+  /** Удаление (надгробие/бесследно): чистка ссылок + Δ по живому составу. */
+  async applyMessageDeleted(
+    tx: TransactionClient,
+    conversationId: string,
+    messageId: string,
+  ): Promise<void> {
+    const removedLinks = await this.deleteLinksByMessage(tx, messageId);
+    const kinds = (await this.attachmentKindsByMessages(tx, [messageId])).get(messageId) ?? {
+      image: 0,
+      file: 0,
+    };
+    await this.applyDelta(tx, conversationId, {
+      media: -kinds.image,
+      document: -kinds.file,
+      link: -removedLinks,
+    });
+  }
+
+  /** Правка: замена строк ссылок (при смене текста) + Δ состава вложений. */
+  async applyMessageEdited(
+    tx: TransactionClient,
+    message: LinkMessageContext & { text: string },
+    body: { text: string },
+    change: { changed: boolean; delta: { media: number; document: number } },
+  ): Promise<void> {
+    const textChanged = message.text !== body.text;
+    const linkDelta = textChanged
+      ? await this.replaceLinks(tx, message, extractMessageUrls(body.text))
+      : 0;
+    await this.applyDelta(tx, message.conversationId, { ...change.delta, link: linkDelta });
+  }
+
+  /** Пересылка: копии несут текст (ссылки — в проекцию) и виды вложений
+   *  оригиналов (комментарий-строка — без sourceId, только её ссылки). */
+  async applyForwardCopies(
+    tx: TransactionClient,
+    conversationId: string,
+    copies: readonly { message: LinkMessageContext; text: string; sourceId?: string }[],
+  ): Promise<void> {
+    const sourceKinds = await this.attachmentKindsByMessages(
+      tx,
+      copies.flatMap((copy) => (copy.sourceId ? [copy.sourceId] : [])),
+    );
+    const delta = emptyVaultDelta();
+    for (const copy of copies) {
+      const kinds = copy.sourceId ? sourceKinds.get(copy.sourceId) : undefined;
+      if (kinds) {
+        delta.media += kinds.image;
+        delta.document += kinds.file;
+      }
+      delta.link += await this.insertLinks(tx, copy.message, extractMessageUrls(copy.text));
+    }
+    await this.applyDelta(tx, conversationId, delta);
+  }
+}

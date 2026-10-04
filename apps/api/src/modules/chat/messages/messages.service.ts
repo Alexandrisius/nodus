@@ -40,6 +40,7 @@ import { AttachmentsRepository } from './attachments.repository.js';
 import { FavoritesRepository } from '../favorites/favorites.repository.js';
 import { ThreadParticipantsRepository } from './thread-participants.repository.js';
 import { buildReplySnapshot } from './reply-snapshot.js';
+import { VaultRepository, attachmentKindDelta } from '../vault/vault.repository.js';
 import {
   StickersRepository,
   type StickerAttachmentRow,
@@ -83,6 +84,7 @@ export class MessagesService {
     private readonly threadParticipants: ThreadParticipantsRepository,
     private readonly stickersRepo: StickersRepository,
     private readonly favoritesRepo: FavoritesRepository,
+    private readonly vault: VaultRepository,
   ) {}
 
   // ===== Чтение =====
@@ -335,6 +337,9 @@ export class MessagesService {
             ),
           ]
         : await this.repo.claimAttachments(inserted.id, body.attachmentIds ?? [], userId, tx);
+      // Витрина #211: проекция ссылок + Δ денормализованных счётчиков (та же
+      // tx; стикеры видом 'sticker' в счётчиках не участвуют).
+      await this.vault.applyMessageSent(tx, inserted, claimedAttachments, body.text);
       // Стикер не гасит черновик композера (keepDraft, #143): набранный текст
       // остаётся жить в PUT /draft после отправки стикера.
       if (stickerHit === null) {
@@ -433,7 +438,9 @@ export class MessagesService {
       }
       const attachmentsChanged = await this.syncEditAttachments(messageId, userId, body, tx);
       let updated = message;
-      if (message.text !== body.text || attachmentsChanged) {
+      if (message.text !== body.text || attachmentsChanged.changed) {
+        // Витрина #211: смена текста — замена строк ссылок, состав — Δ видов.
+        await this.vault.applyMessageEdited(tx, message, body, attachmentsChanged);
         updated = await this.repo.updateEditText(conversationId, messageId, userId, body.text, tx);
         // readAt сбрасывается выводно (editedAt > last_read_at читателей) —
         // «повторный пуш прочитавшим» (решение #41); состав вложений в
@@ -461,8 +468,9 @@ export class MessagesService {
 
   /** Применение состава вложений правки (#188): claim новых, detach
    *  убранных, reorder, переименования. Возвращает «была ли реальная смена»
-   *  (сигнатура состава+имён до/после) — она решает, ставить ли editedAt и
-   *  событие. Стикер-сообщение не правится ни составом, ни именами (стикер
+   *  (сигнатура состава+имён до/после — решает editedAt и событие) и Δ
+   *  счётчиков витрины по видам (#211: стикеры не правятся, в Δ не входят).
+   *  Стикер-сообщение не правится ни составом, ни именами (стикер
    *  неделим, #143). Инвариант непустоты: текст или ≥1 вложение — иначе
    *  валидационная ошибка и откат транзакции (мусорный/чужой id в списке не
    *  оставит сообщение пустым — security-ревью #188). */
@@ -471,8 +479,10 @@ export class MessagesService {
     userId: string,
     body: EditMessageBody,
     tx: TransactionClient,
-  ): Promise<boolean> {
-    if (body.attachmentIds === undefined && body.attachmentRenames === undefined) return false;
+  ): Promise<{ changed: boolean; delta: { media: number; document: number } }> {
+    if (body.attachmentIds === undefined && body.attachmentRenames === undefined) {
+      return { changed: false, delta: { media: 0, document: 0 } };
+    }
     const before = await this.repo.attachmentsFor([messageId], tx);
     if (before.some((a) => a.kind === 'sticker')) {
       throw DomainException.forbidden('Sticker messages cannot be edited');
@@ -491,7 +501,8 @@ export class MessagesService {
       );
     }
     const signature = (rows: typeof before) => rows.map((a) => `${a.id}:${a.name}`).join('|');
-    return signature(before) !== signature(after);
+    const changed = signature(before) !== signature(after);
+    return { changed, delta: attachmentKindDelta(before, after) };
   }
 
   // ===== Удаление =====
@@ -567,6 +578,9 @@ export class MessagesService {
       const tombstone = await this.repo.tombstone(conversationId, messageId, obliterated, tx);
       await this.repo.deletePinByMessage(messageId, tx);
       await this.repo.markRepliesDeleted(messageId, tx);
+      // Витрина #211: сообщение уходит из выдач (надгробие/бесследно) — его
+      // вложения и ссылки гаснут: чистка строк ссылок + Δ счётчиков (та же tx).
+      await this.vault.applyMessageDeleted(tx, conversationId, messageId);
       // Каскад закладок (#215): оригинал удалён — строки избранного гаснут у
       // ВСЕХ владельцев (карточка-призрак не висит в витрине надгробием),
       // каждому — событие в его user-комнату (как при ручном снятии звезды;

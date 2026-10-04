@@ -25,6 +25,7 @@ import { MessageDtoMapper } from './message-dto.mapper.js';
 import { MessagePinsRepository, type PinRecord } from './message-pins.repository.js';
 import { MessagesRepository, type MessageRow } from './messages.repository.js';
 import { ThreadParticipantsRepository } from './thread-participants.repository.js';
+import { VaultRepository } from '../vault/vault.repository.js';
 
 /**
  * Действия над сообщениями: закрепы (лента закрепов), реакции (toggle),
@@ -43,6 +44,7 @@ export class MessageActionsService {
     private readonly eventBus: EventBus,
     @Inject(USER_PROFILE_READER) private readonly userProfiles: UserProfileReader,
     private readonly threadParticipants: ThreadParticipantsRepository,
+    private readonly vault: VaultRepository,
   ) {}
 
   // ===== Закрепы =====
@@ -263,6 +265,7 @@ export class MessageActionsService {
       const firstSeq = await this.messages.allocateSeqs(targetConversationId, drafts.length, tx);
       const createdAt = Date.now();
       const created: MessageRow[] = [];
+      const vaultCopies: { message: MessageRow; text: string; sourceId?: string }[] = [];
       for (let i = 0; i < drafts.length; i += 1) {
         const draft = drafts[i]!;
         const row = await this.messages.insertMessage(
@@ -288,8 +291,16 @@ export class MessageActionsService {
         if (draft.sourceId) {
           await this.messages.copyAttachments(draft.sourceId, row.id, tx);
         }
+        vaultCopies.push({
+          message: row,
+          text: draft.text,
+          ...(draft.sourceId ? { sourceId: draft.sourceId } : {}),
+        });
         created.push(row);
       }
+      // Витрина #211: копии несут текст (ссылки — в проекцию) и вложения
+      // источников (Δ счётчиков) — весь механизм в репозитории витрины.
+      await this.vault.applyForwardCopies(tx, targetConversationId, vaultCopies);
 
       if (threadRootId !== null) {
         const root = await this.messages.findByIdInConversation(

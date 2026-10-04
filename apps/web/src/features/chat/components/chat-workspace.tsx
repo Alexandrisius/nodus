@@ -9,6 +9,7 @@ import { ChannelView } from '../../../shared/chat/channel-view.js';
 import { ConversationPane } from '../../../shared/chat/conversation-pane.js';
 import { isNotesConversation } from '../../../shared/chat/conversations.js';
 import { NotesPane } from '../../../shared/chat/notes-pane.js';
+import type { NotesSourceId } from '../../../shared/chat/notes-sources-pane.js';
 import { useConvRoom } from '../../../shared/socket/use-conv-room.js';
 import { ConversationBar } from './conversation-bar.js';
 
@@ -45,12 +46,16 @@ export function ChatWorkspace({
   const [membersView, setMembersView] = useState(false);
   const [searchView, setSearchView] = useState(false);
   const [addMembersOpen, setAddMembersOpen] = useState(false);
+  // Окно-источник «Избранного» (#211 Ф3): клик по источнику в панели —
+  // лента, выезжающая справа налево поверх витрины; смена беседы сбрасывает.
+  const [notesSource, setNotesSource] = useState<NotesSourceId | null>(null);
   // Смена беседы без ремаунта (карточка мессенджера подменяет верхнюю):
   // виды панели персональны беседе — сбрасываем.
   useEffect(() => {
     setMembersView(false);
     setSearchView(false);
     setAddMembersOpen(false);
+    setNotesSource(null);
   }, [conversation.id]);
   // Подписка на комнату беседы (#104): мгновенные события и typing.
   useConvRoom(conversation.id);
@@ -122,7 +127,11 @@ export function ChatWorkspace({
           {bar}
           <div className="flex min-h-0 flex-1">
             {notes ? (
-              <NotesPane conversationId={conversation.id} />
+              <NotesPane
+                conversationId={conversation.id}
+                source={notesSource}
+                onSourceClose={() => setNotesSource(null)}
+              />
             ) : (
               <ConversationPane
                 conversationId={conversation.id}
@@ -143,6 +152,7 @@ export function ChatWorkspace({
         onMembersClose={closeMembers}
         onSearchBack={backFromSearch}
         onAddMembers={() => setAddMembersOpen(true)}
+        onOpenNotesSource={setNotesSource}
       />
       {addMembersOpen ? (
         <AddMembersDialog conversation={conversation} onClose={() => setAddMembersOpen(false)} />

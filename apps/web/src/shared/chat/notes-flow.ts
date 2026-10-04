@@ -13,6 +13,10 @@ export type NotesEntry =
 /** Режим потока: все / только записи / только карточки избранного. */
 export type NotesFilter = 'all' | 'notes' | 'favorites';
 
+/** Идентификатор источника окна «Избранного» (#211 Ф3): беседа-источник
+ *  звёзд или псевдоисточник «Записи» (свои сообщения, не звёзды). */
+export type NotesSourceId = string | 'notes';
+
 /** Слияние потоков по времени (ASC); при равных метках запись первична
  *  (порядок вставки стабилен — birthday tie-break по kind). */
 export function mergeNotesFlow(messages: ChatMessage[], cards: FavoriteCard[]): NotesEntry[] {
@@ -51,6 +55,22 @@ export function filterNotesFlow(
     }
     return true;
   });
+}
+
+/** Фильтр окна-источника (#211 Ф3): 'notes' — только СВОИ записи (автор =
+ *  владелец «Избранного»), иначе — только звёзды из беседы-источника.
+ *  Глубина = глубина витрины (те же данные окна, догрузка ленты — #117). */
+export function filterNotesFlowBySource(
+  entries: NotesEntry[],
+  source: string | 'notes',
+  meId: string,
+): NotesEntry[] {
+  if (source === 'notes') {
+    return entries.filter((entry) => entry.kind === 'note' && entry.message.author.id === meId);
+  }
+  return entries.filter(
+    (entry) => entry.kind === 'favorite' && entry.card.conversationId === source,
+  );
 }
 
 /** Пакетное удаление выделения витрины (#215): запись беседы удаляется как

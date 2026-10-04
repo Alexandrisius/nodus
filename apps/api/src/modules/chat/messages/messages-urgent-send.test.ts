@@ -62,7 +62,7 @@ describe('MessagesService: send urgent (#100)', () => {
     findByIdInConversation: vi.fn(),
     allocateSeqs: vi.fn(),
     insertMessage: vi.fn(),
-    claimAttachments: vi.fn(),
+    claimAttachments: vi.fn().mockResolvedValue([]),
     touchLastMessageAt: vi.fn(),
     countThreadReplies: vi.fn(),
     attachmentsFor: vi.fn(),
@@ -134,6 +134,12 @@ describe('MessagesService: send urgent (#100)', () => {
       threadParticipants as never,
       stickersRepo as never,
       { deleteByMessage: vi.fn().mockResolvedValue([]) } as never,
+      {
+        applyMessageSent: vi.fn(async () => {}),
+        applyMessageEdited: vi.fn(async () => {}),
+        applyMessageDeleted: vi.fn(async () => {}),
+        applyForwardCopies: vi.fn(async () => {}),
+      } as never,
     );
   });
 

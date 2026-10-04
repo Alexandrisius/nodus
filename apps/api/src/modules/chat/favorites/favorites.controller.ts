@@ -12,6 +12,7 @@ import {
   addFavoritesResultSchema,
   favoriteCardSchema,
   favoriteLabelListSchema,
+  favoriteSourcesSchema,
   listFavoritesQuerySchema,
   paginatedSchema,
   updateFavoriteBodySchema,
@@ -19,6 +20,7 @@ import {
   type AddFavoritesResult,
   type FavoriteCard,
   type FavoriteLabelList,
+  type FavoriteSources,
   type ListFavoritesQuery,
   type Paginated,
   type UpdateFavoriteBody,
@@ -70,6 +72,17 @@ export class FavoritesController {
   @ApiErrors(400, 401)
   labels(@GetUser() user: { id: string }): Promise<FavoriteLabelList> {
     return this.favorites.labels(user.id);
+  }
+
+  @Get('sources')
+  @ApiOperation({
+    summary:
+      'Источники «Избранного» (#211): чаты, откуда прилетали звёзды, + счётчики типов + «Записи»',
+  })
+  @ApiOkResponse({ standardSchema: favoriteSourcesSchema })
+  @ApiErrors(400, 401)
+  sources(@GetUser() user: { id: string }): Promise<FavoriteSources> {
+    return this.favorites.sources(user.id);
   }
 
   @Post()
