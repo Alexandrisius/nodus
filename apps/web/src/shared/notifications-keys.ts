@@ -14,4 +14,6 @@ export const notificationsKeys = {
   summary: () => [...notificationsKeys.all, 'summary'],
   settings: () => [...notificationsKeys.all, 'settings'],
   urgentAcks: (messageId: string) => [...notificationsKeys.all, 'urgentAcks', messageId],
+  /** Свой ack по важному (#177): восстановление чипа «Ознакомлен» после F5. */
+  urgentSelfAck: (messageId: string) => [...notificationsKeys.all, 'urgentSelfAck', messageId],
 };

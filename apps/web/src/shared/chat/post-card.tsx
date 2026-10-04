@@ -15,6 +15,7 @@ import {
   SelectRing,
 } from './message-media-bubble.js';
 import { MessageMeta } from './message-meta.js';
+import { UrgentChips } from './urgent-chips.js';
 import { hasEntityPreviews, MessageText } from './message-text.js';
 import { ThreadStrip, ThreadStripEnter } from './post-thread-strip.js';
 import { ReactionPicker } from './reaction-picker.js';
@@ -266,7 +267,12 @@ export function PostCard({
                 </span>
               ) : null}
               {message.reactions.length > 0 || entityRow ? null : (
-                <MetaPin message={message} mine={mine} onFilled={surface.onFilled} />
+                <MetaPin
+                  message={message}
+                  mine={mine}
+                  onFilled={surface.onFilled}
+                  urgent={message.urgent}
+                />
               )}
             </span>
           ) : null}
@@ -284,6 +290,14 @@ export function PostCard({
               />
             </span>
           ) : null}
+          {/* Чипы важного (#177): карточка поста с overflow-hidden — чипы
+              ИНЛАЙН (в потоке, справа), не стрэддлом через кромку. */}
+          <UrgentChips
+            message={message}
+            mine={mine}
+            inline
+            className="px-2.5 pb-[6px] justify-end"
+          />
           {/* Полоса обсуждения — ПОСТОЯННАЯ высота h-8 (вердикт 28.09): аватарки
             size-5 центрируются, прыжков высоты нет; нижний full-bleed блок.
             ВПЛОТНУЮ к контенту (раунд 7 п.3): зазор метки до границы — как у

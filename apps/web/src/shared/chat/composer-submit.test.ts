@@ -57,3 +57,38 @@ describe('toSendVars: стикер-ветка (#143)', () => {
     expect(vars.keepDraft).toBeUndefined();
   });
 });
+
+describe('toSendVars: молния «Важное» (#177)', () => {
+  it('urgent+requireAck летят в vars обычной отправки', () => {
+    const vars = toSendVars({
+      text: 'Завтра объект закрыт',
+      attachments: [],
+      reply: null,
+      edit: null,
+      urgent: true,
+      requireAck: true,
+    });
+    expect(vars.urgent).toBe(true);
+    expect(vars.requireAck).toBe(true);
+  });
+
+  it('без молнии — явные false (не undefined: сервер клампит по false)', () => {
+    const vars = toSendVars({ text: 'обычное', attachments: [], reply: null, edit: null });
+    expect(vars.urgent).toBe(false);
+    expect(vars.requireAck).toBe(false);
+  });
+
+  it('стикер отправляется обычным, даже если молния горит', () => {
+    const vars = toSendVars({
+      text: '',
+      attachments: [],
+      reply: null,
+      edit: null,
+      sticker: STICKER,
+      urgent: true,
+      requireAck: false,
+    });
+    expect(vars.urgent).toBeUndefined();
+    expect(vars.requireAck).toBeUndefined();
+  });
+});

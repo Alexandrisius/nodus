@@ -133,6 +133,8 @@ describe('ChatComposer — каретка в конец восстановлен
           reply: null,
           edit: null,
           preEditText: null,
+          urgent: false,
+          requireAck: false,
         },
       },
     });

@@ -2,13 +2,10 @@ import { Check, Mic, Paperclip, Smile } from 'lucide-react';
 import {
   useCallback,
   useEffect,
-  useLayoutEffect,
   useRef,
   useState,
-  type ClipboardEvent,
   type FormEvent,
   type KeyboardEvent,
-  type RefObject,
 } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { ui } from '@nodus/contracts';
@@ -19,6 +16,8 @@ import { toast } from 'sonner';
 
 import { SendHexIcon } from '../ui/send-hex-icon.js';
 import { emitTyping } from '../socket/typing-emitter.js';
+import { ctrlOrAlt, useComposerInputActions, useGrown } from './composer-input-utils.js';
+import { useSelectionPhase } from './selection-phase.js';
 import {
   EMPTY_DRAFT,
   useChatDrafts,
@@ -27,15 +26,16 @@ import {
   type ReplyDraft,
 } from './chat-drafts.js';
 import { MediaPickerButton } from './media-picker.js';
+import { ComposerUrgentButton, UrgentGuardrailDialog } from './composer-urgent.js';
+import { useComposerErrors } from './composer-errors.js';
 import { ComposerBanner } from './composer-banner.js';
 import { ComposerClipMenu } from './composer-clip-menu.js';
-import { addFiles } from './composer-files.js';
 import { registerComposer, unregisterComposer, focusComposer } from './composer-focus.js';
 import { flushDraftSync } from './draft-sync.js';
 import { ForwardBanner } from './forward-banner.js';
 import { useForwardPending } from './forward-pending.js';
 import { useJumpStore } from './jump-store.js';
-import { chatKeys } from './api.js';
+import { chatKeys, fetchUrgentPolicy } from './api.js';
 import { useForwardMessages } from './message-mutations.js';
 import { isSendShortcut } from './send-keys.js';
 import { useScrollEndStore } from './scroll-end-store.js';
@@ -103,23 +103,6 @@ export interface ComposerSelection {
   onClear: () => void;
 }
 
-/** Рост поля против базовой строки (ResizeObserver) — хореография иконок. */
-function useGrown(inputRef: RefObject<HTMLTextAreaElement | null>): boolean {
-  const [grown, setGrown] = useState(false);
-  const baseHeight = useRef(0);
-  useLayoutEffect(() => {
-    const el = inputRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(() => {
-      if (baseHeight.current === 0) baseHeight.current = el.clientHeight;
-      setGrown(el.clientHeight > baseHeight.current + 4);
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [inputRef]);
-  return grown;
-}
-
 /**
  * Композер сообщений (единый для чатов, каналов, тредов и обсуждений; файл
  * >300 строк — сборка ВСЕХ режимов композера по вердиктам 14–24.09, детали
@@ -161,6 +144,12 @@ export function ChatComposer({
   onEditLast,
   selection = null,
   disabledPlaceholder = null,
+  /** Молния «Важное» (#177): false — кнопки нет (Заметки: подтверждать
+   *  нечем). Скрыта также в правке/пересылке/селекте. */
+  urgentEnabled = true,
+  /** Участников в беседе — для guardrail подтверждения (#177); неизвестно —
+   *  guardrail пропускается (task-хост). */
+  memberCount,
   className,
 }: {
   placeholder: string;
@@ -183,6 +172,10 @@ export function ChatComposer({
    *  изоморфизм + #132 р.8): выход из селекта морфится в заглушку той же
    *  анимацией (288px→100%), а не мгновенной подменой компонента. */
   disabledPlaceholder?: string | null;
+  /** Молния «Важное» (#177): false — кнопки нет (Заметки). */
+  urgentEnabled?: boolean;
+  /** Участников в беседе — guardrail requireAck (#177). */
+  memberCount?: number;
   className?: string;
 }) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -201,30 +194,8 @@ export function ChatComposer({
   const text = draft.text;
   const grown = useGrown(inputRef);
 
-  // Морфология островка: sel — узкий батч-островок; exit — он же, но ширина
-  // уже полная (transition ведёт 288px→100% при mx-auto = симметрично от
-  // центра), тулбар внутри до конца фазы; normal — облако ввода.
-  const [selPhase, setSelPhase] = useState<'normal' | 'sel' | 'exit'>('normal');
-  const lastSel = useRef<ComposerSelection | null>(null);
-  useEffect(() => {
-    if (sel) {
-      lastSel.current = sel;
-      setSelPhase('sel');
-      return undefined;
-    }
-    setSelPhase((p) => (p === 'sel' ? 'exit' : p));
-    return undefined;
-  }, [sel]);
-  useEffect(() => {
-    if (selPhase !== 'exit') return undefined;
-    // Р.10: смена фазы на СЕРЕДИНЕ расширения (140 из 200мс ширины) —
-    // тулбар к этому моменту уже растворился (composer-hide 120мс), новый
-    // контент проявляется ещё до конца роста ширины: один кроссфейд, без
-    // «цифры слева у широкой области» и без пустой концовки.
-    const timer = window.setTimeout(() => setSelPhase('normal'), 140);
-    return () => window.clearTimeout(timer);
-  }, [selPhase]);
-  const toolbarSel = selPhase === 'sel' ? sel : lastSel.current;
+  // Морфология островка (селект) — хук selection-phase.ts (I5, #177).
+  const { selPhase, toolbarSel } = useSelectionPhase(sel);
 
   // «Вечный курсор»: монтаж — композер активный владелец; размонтаж (закрыли
   // тред) — курсор возвращается ранее зарегистрированному (ленте канала).
@@ -287,6 +258,12 @@ export function ChatComposer({
   // Превалидация лимита (раунд 3): счётчик у черты, отправка заблокирована,
   // текст НЕ теряется (остаётся в поле/черновике — серверного 422 нет).
   const limit = messageLimitState(text.length);
+  // Инлайн-ошибка 409 политики важных (#177): стоит рядом с молнией до
+  // следующей попытки отправки (гасится в onMutate мутации).
+  const sendError = useComposerErrors((s) => s.errors[focusId]);
+  // Guardrail requireAck (#177): ≥ groupMax участников — мягкое подтверждение.
+  // Политика — ЛЕНИВО в момент отправки (запроса на маунт композера нет).
+  const [guardrailOpen, setGuardrailOpen] = useState(false);
   // Пересылка отправляется и без комментария (блок сам по себе ценен);
   // правка — только с непустым текстом; загрузка вложений держит обе.
   const canSubmit = draft.edit
@@ -308,15 +285,35 @@ export function ChatComposer({
     useScrollEndStore.getState().request(focusId, burst ? 'auto' : 'smooth');
   }
 
+  /** Guardrail (#177): «Требовать подтверждения» в большой беседе — мягкий
+   *  диалог до отправки. Политика догружается ЛЕНИВО (fetchQuery, кэш общий
+   *  с попапом молнии); размер беседы неизвестен — guardrail пропускается. */
+  async function guardrailGate(): Promise<boolean> {
+    if (!draft.requireAck || pending !== null || memberCount === undefined || guardrailOpen) {
+      return true;
+    }
+    const policy = await fetchUrgentPolicy(queryClient);
+    if (memberCount < policy.groupMax) return true;
+    setGuardrailOpen(true);
+    return false;
+  }
+
   function submit() {
     if (!canSubmit) return;
-    const store = useChatDrafts.getState();
     if (draft.edit) {
       // Черновик/режим правки чистит хост по onSuccess мутации (#124):
       // ошибка сервера не должна терять набранную правку.
       onSubmit({ text: text.trim(), attachments: [], reply: null, edit: draft.edit });
       return;
     }
+    void guardrailGate().then((allowed) => {
+      if (allowed) submitInner();
+    });
+  }
+
+  function submitInner() {
+    if (!canSubmit) return;
+    const store = useChatDrafts.getState();
     if (pending) {
       const target = pending;
       forward.mutate(
@@ -348,6 +345,10 @@ export function ChatComposer({
       attachments: readyAttachments,
       reply: draft.reply,
       edit: null,
+      // Молния (#177): флаги летят с отправкой; сброс — очисткой черновика
+      // onSuccess (мутация). Ошибка 409 политики — черновик жив, молния на месте.
+      urgent: draft.urgent,
+      requireAck: draft.requireAck,
     });
     // Своё сообщение видно с любой позиции скролла (вердикт 24.09).
     // Черновик чистит хост по onSuccess отправки (#124): сетевой сбой
@@ -355,33 +356,18 @@ export function ChatComposer({
     requestScrollEnd();
   }
 
-  /** Вставка эмодзи из панели (#130): в позицию КАРЕТКИ поля, каретка — за
-   *  вставленным глифом (канон мессенджеров); поле получает фокус обратно. */
-  function insertEmoji(emoji: string) {
-    const el = inputRef.current;
-    if (!el) {
-      setText(focusId, text + emoji);
-      return;
-    }
-    const start = el.selectionStart ?? text.length;
-    const end = el.selectionEnd ?? start;
-    const next = text.slice(0, start) + emoji + text.slice(end);
-    setText(focusId, next);
-    if (conversationId && next.length > 0) emitTyping(conversationId, typingThreadRootId);
-    const caret = start + emoji.length;
-    requestAnimationFrame(() => {
-      el.focus();
-      el.setSelectionRange(caret, caret);
-    });
-  }
-
-  /** Выбор стикера (#143): мгновенная отправка отдельным сообщением — мимо
-   *  textarea и гейтов canSubmit (стикер самодостаточен, модель Telegram);
-   *  панель пикера не закрывается (можно поставить серию). */
-  function pickSticker(payload: StickerSubmitPayload) {
-    onSubmit({ text: '', attachments: [], reply: null, edit: null, sticker: payload });
-    requestScrollEnd();
-  }
+  // Ввод-действия (эмодзи/стикер/paste) — хук composer-input-utils.ts.
+  const { insertEmoji, pickSticker, onPaste } = useComposerInputActions({
+    focusId,
+    conversationId,
+    typingThreadRootId,
+    text,
+    inputRef,
+    attachmentsEnabled,
+    setText,
+    onSubmit,
+    requestScrollEnd,
+  });
 
   function onSubmitForm(event: FormEvent) {
     event.preventDefault();
@@ -425,19 +411,6 @@ export function ChatComposer({
       event.preventDefault();
       onEditLast();
     }
-  }
-
-  function onPaste(event: ClipboardEvent<HTMLTextAreaElement>) {
-    const files = Array.from(event.clipboardData.files);
-    if (files.length === 0) return;
-    // Хост запретил вложения (панельные исключения) — вежливая подсказка
-    // вместо ошибки загрузки.
-    if (!attachmentsEnabled) {
-      toast(ui.chat.attachFile);
-      return;
-    }
-    event.preventDefault();
-    addFiles(focusId, files);
   }
 
   const align = grown ? 'self-end' : 'self-center';
@@ -520,7 +493,8 @@ export function ChatComposer({
                 отправки (attach-send-dialog), строка ввода — только текст. */}
             {/* Превалидация лимита текста (раунд 3): счётчик у черты 4000,
                 при превышении — понятное сообщение; отправка заблокирована,
-                текст остаётся в поле/черновике (серверный 422 не наступает). */}
+                текст остаётся в поле/черновике (серверный 422 не наступает).
+                Рядом — инлайн-ошибка 409 политики важных (#177). */}
             {limit.over ? (
               <span
                 className="px-1.5 text-label-sm text-destructive"
@@ -528,6 +502,14 @@ export function ChatComposer({
                 aria-live="polite"
               >
                 {ui.chat.messageLimitHint}
+              </span>
+            ) : sendError ? (
+              <span
+                className="px-1.5 text-label-sm text-destructive"
+                role="status"
+                aria-live="polite"
+              >
+                {sendError}
               </span>
             ) : limit.counter !== null ? (
               <span className="px-1.5 text-right font-mono text-label-sm text-muted-foreground tabular-nums">
@@ -587,6 +569,16 @@ export function ChatComposer({
                 rows={1}
                 className="max-h-[45vh] min-h-8 flex-1 resize-none rounded-lg border-0 bg-transparent px-1.5 py-1.5 shadow-none ring-0 focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent"
               />
+              {/* Молния «Важное» (#177): слева от смайликов; в правке,
+                  пересылке, селекте и без права поста — выключена; в Заметках
+                  — скрыта (urgentEnabled=false, подтверждать нечем). */}
+              {urgentEnabled && disabledPlaceholder === null ? (
+                <ComposerUrgentButton
+                  draftKey={focusId}
+                  align={align}
+                  disabled={draft.edit !== null || pending !== null || selPhase !== 'normal'}
+                />
+              ) : null}
               {/* Медиа-пикер (#130 → #143): вкладки «Эмодзи | Стикеры»,
                   вставка эмодзи в каретку, стикер — мгновенная отправка;
                   попап не крадёт «вечный курсор». Стикеры недоступны в
@@ -650,10 +642,20 @@ export function ChatComposer({
           </span>
         )}
       </span>
+      {/* Guardrail requireAck (#177): мягкое подтверждение отправки в большой
+          беседе; «Отправить» — повторный submit (гейт с guardrailOpen
+          пропущен). */}
+      {guardrailOpen && memberCount !== undefined ? (
+        <UrgentGuardrailDialog
+          open
+          memberCount={memberCount}
+          onConfirm={() => {
+            setGuardrailOpen(false);
+            submit();
+          }}
+          onCancel={() => setGuardrailOpen(false)}
+        />
+      ) : null}
     </form>
   );
-}
-
-function ctrlOrAlt(event: KeyboardEvent<HTMLTextAreaElement>): boolean {
-  return event.ctrlKey || event.altKey;
 }

@@ -76,7 +76,9 @@ export function NotificationReader() {
         </Button>
       </header>
       {item ? (
-        item.priority === 'urgent' ? (
+        item.priority === 'urgent' && item.requireAck ? (
+          /* Лист ознакомления — только requireAck (#177): важное без
+             подтверждения действий не требует — гасится «Прочитать». */
           <AckBody item={item} onClose={close} />
         ) : (
           <PlainBody item={item} onClose={close} />

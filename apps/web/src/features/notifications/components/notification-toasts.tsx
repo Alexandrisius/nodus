@@ -1,4 +1,4 @@
-import { AlarmClock, CheckCheck, X } from 'lucide-react';
+import { CheckCheck, X, Zap } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { ui } from '@nodus/contracts';
@@ -93,7 +93,7 @@ function PersonalToastCard({
           <span className="flex items-center gap-1.5">
             {urgent && (
               <span className="inline-flex items-center gap-1 rounded-4xl bg-danger-soft px-1.5 py-0.5 text-[10px] font-semibold text-danger">
-                <AlarmClock className="size-3" strokeWidth={1.75} />
+                <Zap className="size-3" strokeWidth={1.75} fill="currentColor" />
                 {attempt > 0 ? ui.notifications.toastUrgentRepeat : ui.notifications.priorityUrgent}
               </span>
             )}

@@ -8,6 +8,7 @@ import type {
   TaskListItem,
   ThreadStateList,
   ThreadWatchResult,
+  UrgentPolicy,
 } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { toast } from 'sonner';
@@ -17,6 +18,7 @@ import { isDomainMocked } from '../api/api-mock-config.js';
 import { tasksKeys } from '../api/tasks-keys.js';
 import { useAuthStore } from '../auth-store.js';
 import { useChatDrafts } from './chat-drafts.js';
+import { composerSendErrorMessage, useComposerErrors } from './composer-errors.js';
 import { useSocketStatusStore } from '../socket/socket-status-store.js';
 
 /**
@@ -40,7 +42,32 @@ export const chatKeys = {
   direct: (userId: string) => [...chatKeys.conversations(), 'direct', userId] as const,
   /** Участники беседы (#186): панель с ролями; search — часть ключа. */
   members: (id: string) => [...chatKeys.all, 'members', id] as const,
+  /** Политика важных (#177): счётчик дневного лимита попапа молнии. */
+  urgentPolicy: () => [...chatKeys.all, 'urgentPolicy'] as const,
 };
+
+/** Политика дневного лимита важных (#177): remaining/limit/resetAt/groupMax.
+ *  Опрос — при ОТКРЫТИИ попапа молнии (staleTime короткий: за сутки лимит
+ *  меняется только отправками самого пользователя); на маунте композера
+ *  запроса НЕТ (лишний фетч на каждую беседу). */
+export function useUrgentPolicy(enabled: boolean) {
+  return useQuery({
+    queryKey: chatKeys.urgentPolicy(),
+    queryFn: () => api<UrgentPolicy>('/chat/urgent/policy'),
+    enabled,
+    staleTime: 30_000,
+  });
+}
+
+/** Императивный догруз политики (guardrail перед отправкой requireAck:
+ *  кэш общий с useUrgentPolicy — если счётчик уже открыт, запроса нет). */
+export function fetchUrgentPolicy(queryClient: ReturnType<typeof useQueryClient>) {
+  return queryClient.fetchQuery({
+    queryKey: chatKeys.urgentPolicy(),
+    queryFn: () => api<UrgentPolicy>('/chat/urgent/policy'),
+    staleTime: 30_000,
+  });
+}
 
 /** Живой чат: до WS-шлюза (#48) ленты опрашивались часто (5/10 с); с #104
  *  основной путь — WS-события → инвалидации, опрос остаётся fallback:
@@ -271,16 +298,26 @@ export function useSendChatMessage(conversationId: string, draftScope?: string) 
           nextCursor: old?.nextCursor ?? null,
         }));
       }
+      // Новая попытка отправки гасит инлайн-ошибку предыдущей (#177).
+      if (draftScope) useComposerErrors.getState().clear(draftScope);
       return { previousList, previousThread, threadKey, tempId: temp.id };
     },
 
-    onError: (_error, _vars, context) => {
+    onError: (error, vars, context) => {
       if (context?.previousList) {
         queryClient.setQueryData(chatKeys.messages(conversationId), context.previousList);
       }
       if (context?.previousThread && context.threadKey) {
         queryClient.setQueryData(context.threadKey, context.previousThread);
       }
+      // 409 политики важных (#177) — инлайн в композере (рядом с молнией),
+      // прочие ошибки — штатный тост. Текст при этом НЕ теряется (#124).
+      const inline = composerSendErrorMessage(error);
+      if (inline && draftScope) {
+        useComposerErrors.getState().set(draftScope, inline);
+        return;
+      }
+      void vars;
       toast.error(ui.common.sendError);
     },
 

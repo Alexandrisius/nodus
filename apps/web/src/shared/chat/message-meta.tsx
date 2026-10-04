@@ -92,12 +92,12 @@ export function MessageMeta({
           strokeWidth={1.75}
         />
       ) : null}
-      {message.urgent && !receiptsOff ? (
+      {message.requireAck && mine && !receiptsOff ? (
         <UrgentAcksMeta
-          /* Прогресс ознакомления — данные отправителя (#202): опрашивают
-             только СВОИ срочные; получателям бейдж «Срочно» без счётчика. */
-          messageId={mine ? message.id : null}
-          onFilled={onFilled}
+          /* Прогресс ознакомления — данные отправителя (#202, #177): только
+             СВОИ requireAck-сообщения. Статичный бейдж «Важное» из меты
+             убран — метку на пузыре несёт чип (UrgentChips, реф Яндекса). */
+          messageId={message.id}
         />
       ) : null}
       {message.editedAt ? <span>{ui.chat.edited}</span> : null}
@@ -135,23 +135,16 @@ export function MessageMeta({
 }
 
 /**
- * Мета срочного сообщения (#100): «Срочно · Ознакомились N/M» — отправитель
- * видит прогресс ознакомления live (WS notification.acked инвалидирует
+ * Прогресс ознакомления важного (#100/#177): «Ознакомились N/M» — отправитель
+ * requireAck-сообщения видит прогресс live (WS notification.acked инвалидирует
  * ключ urgentAcks). Интеграционная точка журнала уведомлений в ЕДИНУЮ мету
  * мессенджера (второго хоста нет).
  */
-function UrgentAcksMeta({ messageId, onFilled }: { messageId: string | null; onFilled: boolean }) {
+function UrgentAcksMeta({ messageId }: { messageId: string }) {
   const status = useUrgentAcks(messageId);
-  return (
-    <>
-      <span className={cn(onFilled ? 'font-semibold' : 'font-semibold text-danger')}>
-        {ui.notifications.urgentMeta}
-      </span>
-      {status && status.expectedCount > 0 && (
-        <span className="font-mono tabular-nums">
-          {ui.notifications.urgentAcksMeta} {status.ackedCount}/{status.expectedCount}
-        </span>
-      )}
-    </>
-  );
+  return status && status.expectedCount > 0 ? (
+    <span className="font-mono tabular-nums">
+      {ui.notifications.urgentAcksMeta} {status.ackedCount}/{status.expectedCount}
+    </span>
+  ) : null;
 }
