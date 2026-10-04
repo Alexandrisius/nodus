@@ -251,7 +251,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
       await messages.readConversation(bob.id, conv, seq); // B просмотрел
       expect(await readAtOf()).not.toBeNull();
 
-      await messages.edit(alice.id, conv, message.message.id, 'финальное решение');
+      await messages.edit(alice.id, conv, message.message.id, { text: 'финальное решение' });
 
       // У читателя сообщение снова непрочитано; галочка у автора снята.
       const listForBob = await conversations.list(bob.id, { limit: 100 });

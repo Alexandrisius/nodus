@@ -124,6 +124,7 @@ describe('MessagesService: send urgent (#100)', () => {
     repo.countUrgentSentSince.mockResolvedValue(0);
     service = new MessagesService(
       repo as never,
+      { syncMessageAttachments: vi.fn(), renameMessageAttachments: vi.fn() } as never,
       conversations as never,
       { toDtos: vi.fn(), toFreshDto: vi.fn().mockResolvedValue(FRESH_DTO) } as never,
       txRunner as never,

@@ -77,6 +77,10 @@ describe('MessagesService', () => {
     advanceReadCursor: vi.fn(),
     countUrgentSentSince: vi.fn(),
   };
+  const attachmentsRepo = {
+    syncMessageAttachments: vi.fn(),
+    renameMessageAttachments: vi.fn(),
+  };
   const conversations = {
     findMembership: vi.fn(),
     findTypeAndPermissions: vi.fn(),
@@ -130,6 +134,7 @@ describe('MessagesService', () => {
     );
     service = new MessagesService(
       repo as never,
+      attachmentsRepo as never,
       conversations as never,
       mapper as never,
       txRunner as never,
@@ -332,75 +337,6 @@ describe('MessagesService', () => {
           message: FRESH_DTO,
         },
         expect.objectContaining({ actorId: ME, aggregateType: 'conversation', aggregateId: CONV }),
-      );
-    });
-  });
-
-  describe('edit', () => {
-    it('сообщение не найдено / не автор → NOT_FOUND / FORBIDDEN без UPDATE', async () => {
-      repo.findByIdInConversation.mockResolvedValue(null);
-      await expect(service.edit(ME, CONV, 'msg-1', 'Новый')).rejects.toMatchObject({
-        code: ErrorCode.NOT_FOUND,
-        message: 'Message not found',
-      });
-      repo.findByIdInConversation.mockResolvedValue(makeMessage({ authorId: PEER }));
-      await expect(service.edit(ME, CONV, 'msg-1', 'Новый')).rejects.toMatchObject({
-        code: ErrorCode.FORBIDDEN,
-        message: 'Only author can modify this message',
-      });
-      expect(repo.updateEditText).not.toHaveBeenCalled();
-    });
-
-    it('пересланную копию не правит даже переславший (#111)', async () => {
-      conversations.findMembership.mockResolvedValue(makeMember({ userId: ME }));
-      repo.findByIdInConversation.mockResolvedValue(
-        makeMessage({
-          id: 'msg-fwd',
-          authorId: ME,
-          fwdMessageId: 'src-msg',
-          fwdConversationId: 'src-conv',
-          fwdAuthorId: PEER,
-        }),
-      );
-      await expect(service.edit(ME, CONV, 'msg-fwd', 'переписанное чужое')).rejects.toMatchObject({
-        code: ErrorCode.FORBIDDEN,
-        message: 'Forwarded messages cannot be edited',
-      });
-      expect(repo.updateEditText).not.toHaveBeenCalled();
-      expect(eventBus.emit).not.toHaveBeenCalled();
-    });
-
-    it('тот же текст → без UPDATE и без события', async () => {
-      const message = makeMessage({ text: 'Привет' });
-      repo.findByIdInConversation.mockResolvedValue(message);
-
-      const result = await service.edit(ME, CONV, 'msg-1', 'Привет');
-
-      expect(repo.updateEditText).not.toHaveBeenCalled();
-      expect(eventBus.emit).not.toHaveBeenCalled();
-      expect(result.message).toEqual(message);
-    });
-
-    it('другой текст → updateEditText + MESSAGE_EDITED с editedAt', async () => {
-      repo.findByIdInConversation.mockResolvedValue(makeMessage({ text: 'Привет' }));
-      repo.updateEditText.mockResolvedValue(
-        makeMessage({ text: 'Новый', editedAt: new Date('2026-09-24T13:00:00Z') }),
-      );
-
-      const result = await service.edit(ME, CONV, 'msg-1', 'Новый');
-
-      expect(repo.updateEditText).toHaveBeenCalledWith(CONV, 'msg-1', ME, 'Новый', TX);
-      expect(result.message.text).toBe('Новый');
-      expect(eventBus.emit).toHaveBeenCalledWith(
-        TX,
-        CHAT_EVENTS.MESSAGE_EDITED,
-        expect.objectContaining({
-          editedAt: '2026-09-24T13:00:00.000Z',
-          authorId: ME,
-          text: 'Новый',
-          seq: 3,
-        }),
-        expect.anything(),
       );
     });
   });

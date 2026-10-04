@@ -108,7 +108,9 @@ export class MessagesController {
   @Patch(':messageId')
   @HttpCode(200)
   @Audit({ action: 'chat.message_edit', entity: 'message' })
-  @ApiOperation({ summary: 'Правка текста (только автор; editedAt при реальной смене)' })
+  @ApiOperation({
+    summary: 'Правка текста и состава вложений (только автор; editedAt при реальной смене)',
+  })
   @ApiOkResponse({ standardSchema: messageSchema })
   @ApiErrors(400, 401, 403, 404)
   @ApiIdempotencyKey()
@@ -122,7 +124,7 @@ export class MessagesController {
     })
     dto: EditMessageBody,
   ): Promise<ChatMessage> {
-    const result = await this.messages.edit(user.id, conversationId, messageId, dto.text);
+    const result = await this.messages.edit(user.id, conversationId, messageId, dto);
     return this.mapper.toDto(result.message, { viewerId: user.id, members: result.members });
   }
 

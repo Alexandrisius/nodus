@@ -112,6 +112,7 @@ describe('MessagesService.send: стикер (#143)', () => {
     stickersRepo = makeStickersRepo();
     service = new MessagesService(
       repo as never,
+      { syncMessageAttachments: vi.fn(), renameMessageAttachments: vi.fn() } as never,
       conversations as never,
       mapper as never,
       { run: vi.fn((cb: (tx: string) => unknown) => cb(TX)) } as never,

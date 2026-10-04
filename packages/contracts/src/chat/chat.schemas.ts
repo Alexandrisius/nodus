@@ -389,11 +389,24 @@ export const sendMessageBodySchema = z
 
 export type SendMessageBody = z.infer<typeof sendMessageBodySchema>;
 
-/** Правка сообщения (без лимита давности — решение #41): только текст;
- *  вложения не заменяются (паттерн Telegram: замена медиа не поддерживается). */
-export const editMessageBodySchema = z.object({
-  text: z.string().trim().min(1).max(4000),
-});
+/** Правка сообщения (#188, без лимита давности — решение #41): текст плюс
+ *  опционально полный итоговый состав вложений attachmentIds (порядок =
+ *  sort_order; новые — привязываются, отсутствующие — открепляются;
+ *  отсутствующее поле = состав не меняется — правка текста из композера)
+ *  и переименования файлов. Текст или состав обязательны (сообщение только
+ *  с файлами — валидно, канон отправки). */
+export const editMessageBodySchema = z
+  .object({
+    text: z.string().trim().max(4000),
+    attachmentIds: z.array(z.uuid()).max(20).optional(),
+    attachmentRenames: z
+      .array(z.object({ id: z.uuid(), name: z.string().trim().min(1).max(255) }))
+      .max(20)
+      .optional(),
+  })
+  .refine((v) => v.text.length > 0 || (v.attachmentIds?.length ?? 0) > 0, {
+    message: 'text or attachmentIds required',
+  });
 
 export type EditMessageBody = z.infer<typeof editMessageBodySchema>;
 

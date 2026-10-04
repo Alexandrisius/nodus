@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '../../../generated/prisma/client.js';
 
 import { PrismaService } from '../../../core/database/prisma.service.js';
+import type { TransactionClient } from '../../../core/database/transaction-runner.js';
 
 /** Строка вложения (сырой ряд, camelCase). */
 export interface AttachmentRow {
@@ -104,5 +106,49 @@ export class AttachmentsRepository {
       where: { id, ownerId, messageId: null },
     });
     return result.count > 0;
+  }
+
+  /** Синхронизация состава вложений правки (#188): убранные из списка строки
+   *  открепляются (файл-объект хранилища живёт — его могут держать копии
+   *  пересылки с тем же file_id, уборка брошенного — фоновая гигиена #57),
+   *  новые привязываются (owner, одноразовый claim), порядок = позициям
+   *  списка. Чужие/уже занятые другим сообщением id молча пропускаются
+   *  (семантика отправки). */
+  async syncMessageAttachments(
+    messageId: string,
+    attachmentIds: string[],
+    ownerId: string,
+    tx: TransactionClient,
+  ): Promise<void> {
+    await tx.$executeRaw(Prisma.sql`
+      DELETE FROM message_attachments
+      WHERE message_id = ${messageId}::uuid AND NOT (id = ANY(${attachmentIds}::uuid[]))
+    `);
+    if (attachmentIds.length === 0) return;
+    await tx.$executeRaw(Prisma.sql`
+      UPDATE message_attachments ma
+      SET message_id = ${messageId}::uuid, sort_order = ord.ordinal - 1
+      FROM unnest(${attachmentIds}::uuid[]) WITH ORDINALITY AS ord(id, ordinal)
+      WHERE ma.id = ord.id AND ma.owner_id = ${ownerId}::uuid
+        AND (ma.message_id IS NULL OR ma.message_id = ${messageId}::uuid)
+    `);
+  }
+
+  /** Переименование файлов правки (#188): только строки этого сообщения;
+   *  идемпотентно (повтор с тем же именем — no-op). */
+  async renameMessageAttachments(
+    messageId: string,
+    renames: Array<{ id: string; name: string }>,
+    tx: TransactionClient,
+  ): Promise<void> {
+    if (renames.length === 0) return;
+    const ids = renames.map((r) => r.id);
+    const names = renames.map((r) => r.name);
+    await tx.$executeRaw(Prisma.sql`
+      UPDATE message_attachments ma
+      SET name = r.name
+      FROM unnest(${ids}::uuid[], ${names}::text[]) AS r(id, name)
+      WHERE ma.id = r.id AND ma.message_id = ${messageId}::uuid
+    `);
   }
 }
