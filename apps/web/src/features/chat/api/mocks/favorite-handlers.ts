@@ -23,7 +23,9 @@ export const favoriteMocks = new Map<string, FavoriteState>();
 function toCard(messageId: string): FavoriteCard | null {
   const message = demoMessages.find((m) => m.id === messageId);
   const state = favoriteMocks.get(messageId);
-  if (!message || !state) return null;
+  // Призраки удалённых оригиналов не выдаются (#215, паритет серверному
+  // фильтру списка + каскаду при удалении).
+  if (!message || !state || message.deletedAt) return null;
   const conversation = demoConversations.find((c) => c.id === message.conversationId);
   const title =
     conversation?.title ??

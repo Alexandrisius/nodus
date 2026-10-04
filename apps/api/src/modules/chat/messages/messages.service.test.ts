@@ -104,6 +104,7 @@ describe('MessagesService', () => {
     findPackAccessible: vi.fn(),
     insertAttachmentForMessage: vi.fn(),
   };
+  const favoritesRepo = { deleteByMessage: vi.fn() };
   const txRunner = { run: vi.fn((cb: (tx: string) => unknown) => cb(TX)) };
   const eventBus = { emit: vi.fn() };
   const userProfiles = {
@@ -123,6 +124,7 @@ describe('MessagesService', () => {
     });
     conversations.listMembers.mockResolvedValue([]);
     conversations.countMembers.mockResolvedValue(5);
+    favoritesRepo.deleteByMessage.mockResolvedValue([]);
     repo.countUrgentSentSince.mockResolvedValue(0);
     repo.findExisting.mockResolvedValue(null);
     mapper.toFreshDto.mockResolvedValue(FRESH_DTO);
@@ -142,6 +144,7 @@ describe('MessagesService', () => {
       userProfiles as never,
       threadParticipants as never,
       stickersRepo as never,
+      favoritesRepo as never,
     );
   });
 
@@ -368,7 +371,10 @@ describe('MessagesService', () => {
     it('есть живой ответ → надгробие, даже если никто не читал', async () => {
       repo.findByIdInConversation.mockResolvedValue(makeMessage({ seq: 3n }));
       repo.hasLiveReplies.mockResolvedValue(true);
-      conversations.listMembers.mockResolvedValue([makeMember({ userId: ME })]);
+      conversations.listMembers.mockResolvedValue([
+        makeMember({ userId: ME }),
+        makeMember({ lastReadSeq: 0n }),
+      ]);
 
       const result = await service.delete(ME, CONV, 'msg-1');
 
@@ -376,6 +382,43 @@ describe('MessagesService', () => {
       expect(repo.tombstone).toHaveBeenCalledWith(CONV, 'msg-1', false, TX);
       expect(repo.deletePinByMessage).toHaveBeenCalledWith('msg-1', TX);
       expect(repo.markRepliesDeleted).toHaveBeenCalledWith('msg-1', TX);
+    });
+
+    it('«Избранное» (#215): беседа с собой — бесследно ВСЕГДА, даже при живых ответах', async () => {
+      repo.findByIdInConversation.mockResolvedValue(makeMessage({ seq: 3n }));
+      repo.hasLiveReplies.mockResolvedValue(true);
+      conversations.listMembers.mockResolvedValue([makeMember({ userId: ME })]);
+
+      const result = await service.delete(ME, CONV, 'msg-1');
+
+      expect(result.obliterated).toBe(true);
+      expect(repo.tombstone).toHaveBeenCalledWith(CONV, 'msg-1', true, TX);
+    });
+
+    it('каскад закладок (#215): удаление оригинала гасит строки избранного у всех владельцев + событие каждому', async () => {
+      repo.findByIdInConversation.mockResolvedValue(makeMessage({ seq: 3n }));
+      repo.hasLiveReplies.mockResolvedValue(false);
+      conversations.listMembers.mockResolvedValue([
+        makeMember({ userId: ME }),
+        makeMember({ lastReadSeq: 3n }),
+      ]);
+      favoritesRepo.deleteByMessage.mockResolvedValue(['u-1', 'u-2']);
+
+      await service.delete(ME, CONV, 'msg-1');
+
+      expect(favoritesRepo.deleteByMessage).toHaveBeenCalledWith('msg-1', TX);
+      expect(eventBus.emit).toHaveBeenCalledWith(
+        TX,
+        CHAT_EVENTS.FAVORITE_REMOVED,
+        { userId: 'u-1', conversationId: CONV, messageId: 'msg-1' },
+        expect.anything(),
+      );
+      expect(eventBus.emit).toHaveBeenCalledWith(
+        TX,
+        CHAT_EVENTS.FAVORITE_REMOVED,
+        { userId: 'u-2', conversationId: CONV, messageId: 'msg-1' },
+        expect.anything(),
+      );
     });
 
     it('каскад: удаление ответа коллапсирует надгробие-родителя без живых ответов + своё событие', async () => {

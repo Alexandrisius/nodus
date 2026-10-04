@@ -103,6 +103,7 @@ describe('MessagesService.edit (#188: текст + состав вложений
       userProfiles as never,
       threadParticipants as never,
       stickersRepo as never,
+      { deleteByMessage: vi.fn().mockResolvedValue([]) } as never,
     );
   });
 

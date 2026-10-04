@@ -328,7 +328,9 @@ export function MediaTimeChip({ message, mine }: { message: ChatMessage; mine: b
       <time className="font-mono tabular-nums" dateTime={message.createdAt}>
         {formatTime(message.createdAt)}
       </time>
-      {mine ? <ReadTicks read={message.readBy.length > 0} /> : null}
+      {mine && message.conversationId !== notesId ? (
+        <ReadTicks read={message.readBy.length > 0} />
+      ) : null}
     </span>
   );
 }

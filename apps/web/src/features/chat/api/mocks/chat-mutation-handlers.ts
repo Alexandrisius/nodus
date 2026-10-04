@@ -15,6 +15,7 @@ import {
   applyDeletion,
   collapseAnchors,
   hasLiveReplies,
+  isSelfConversation,
   nextMessageSeq,
   pinMessage,
   pinsOf,
@@ -152,7 +153,8 @@ export const chatMutationHandlers = [
   }),
 
   /** Удаление (#163): нет живых ответов → 204 без следа; есть ответы →
-   *  200 + надгробие. Каскад: надгробие-якорь без живых ответов уходит. */
+   *  200 + надгробие. «Избранное» (#215): беседа с собой — всегда бесследно.
+   *  Каскад: надгробие-якорь без живых ответов уходит. */
   http.delete('/api/v1/chat/conversations/:id/messages/:messageId', ({ params }) => {
     const message = findMessage(params.id, params.messageId);
     if (!message || message.deletedAt) return notFound();
@@ -160,7 +162,7 @@ export const chatMutationHandlers = [
     const conversationId = String(params.id);
     // Якоря — до applyDeletion (та обнуляет reply).
     const anchors = [message.reply?.id, message.threadRootId];
-    if (hasLiveReplies(message)) {
+    if (!isSelfConversation(conversationId) && hasLiveReplies(message)) {
       applyDeletion(message);
       collapseAnchors(conversationId, anchors);
       refreshLastMessage(conversationId);
@@ -185,7 +187,7 @@ export const chatMutationHandlers = [
       if (!message || message.deletedAt) continue;
       if (message.author.id !== getMockActor().id) continue;
       const anchors = [message.reply?.id, message.threadRootId];
-      if (hasLiveReplies(message)) {
+      if (!isSelfConversation(String(params.id)) && hasLiveReplies(message)) {
         tombstones.push(applyDeletion(message));
       } else {
         removeMessage(id);
