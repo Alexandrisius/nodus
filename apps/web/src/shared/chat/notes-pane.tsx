@@ -18,6 +18,7 @@ import { toEditVars } from './message-edit.js';
 import { useEditMessage } from './message-mutations.js';
 import { toFavoriteMessage } from './favorite-message.js';
 import { useFavorites } from './favorites-api.js';
+import { useOptimisticFavoriteLabels } from './optimistic-favorite-labels.js';
 import { JumpResponder } from './use-jump-responder.js';
 import { ScrollEndResponder } from './scroll-end-responder.js';
 import { useIncomingFollow } from './use-incoming-follow.js';
@@ -68,6 +69,7 @@ export function NotesPane({ conversationId }: { conversationId: string }) {
 
   const messagesQuery = useConversationMessages(conversationId);
   const favoritesQuery = useFavorites();
+  const optimisticLabels = useOptimisticFavoriteLabels((s) => s.labels);
   const send = useSendChatMessage(conversationId, scope);
 
   const messages = useMemo(
@@ -202,7 +204,7 @@ export function NotesPane({ conversationId }: { conversationId: string }) {
           <MessageScrollerViewport ref={viewportRef}>
             <MessageScrollerContent
               className={cn(
-                'feed-reveal flex flex-col gap-3 px-4 pt-4 pb-0',
+                'feed-reveal flex flex-col gap-3 px-4 pt-4 pb-3',
                 (selection.selectionActive || box.active) && 'select-none',
               )}
             >
@@ -226,16 +228,25 @@ export function NotesPane({ conversationId }: { conversationId: string }) {
                         <MessageRunView
                           run={run}
                           showName={!run.mine}
-                          renderItem={(message, attrs) => (
-                            <FavoriteRunMessage
-                              message={message}
-                              card={
-                                (feedCardIds.has(message.id) ? cardsById.get(message.id) : null) ??
-                                null
-                              }
-                              labelTarget={
-                                cardsById.get(message.id) ?? { messageId: message.id, labels: [] }
-                              }
+                            renderItem={(message, attrs) => (
+                              <FavoriteRunMessage
+                                message={message}
+                                card={
+                                  (feedCardIds.has(message.id) ? cardsById.get(message.id) : null) ??
+                                  null
+                                }
+                                labelTarget={
+                                  // Тэг-цель строки: карточка → локальная
+                                  // оптимистичная метка (запись до первой
+                                  // закладки, #215) → пустышка (апсерт).
+                                  cardsById.get(message.id) ??
+                                  (optimisticLabels.has(message.id)
+                                    ? {
+                                        messageId: message.id,
+                                        labels: optimisticLabels.get(message.id)!,
+                                      }
+                                    : { messageId: message.id, labels: [] })
+                                }
                               mine={run.mine}
                               showName={attrs.showName}
                               tail={attrs.tail}

@@ -24,6 +24,7 @@ import { useAuthStore } from '../auth-store.js';
 import { chatKeys } from './api.js';
 import { useConversations } from './api.js';
 import { isNotesConversation } from './conversations.js';
+import { useOptimisticFavoriteLabels } from './optimistic-favorite-labels.js';
 
 /**
  * API-слой избранного (#171): личные закладки-ссылки. Один список —
@@ -269,7 +270,11 @@ export function useRemoveFavorite() {
 
 /** Личные эмодзи-метки сообщения (мультивыбор, весь состав массивом).
  *  Апсерт (#171 р.5): тэг на ЗАПИСИ витрины — закладки ещё нет → POST
- *  (сервер разрешает записи «Избранного») → PATCH меток. */
+ *  (сервер разрешает записи «Избранного») → PATCH меток. Мгновенность
+ *  (#215): карточка в кэше патчится на месте; для записи без закладки
+ *  оптимистичная метка живёт в ЛОКАЛЬНОМ сторе (optimistic-favorite-labels)
+ *  — вставка прогноза-карточки в кэш списка убрана ревизией приёмки:
+ *  она дёргала ленту на первом выставлении после загрузки страницы. */
 export function useUpdateFavorite() {
   const qc = useQueryClient();
   return useMutation({
@@ -296,26 +301,25 @@ export function useUpdateFavorite() {
     onMutate: async ({ messageId, body }) => {
       await qc.cancelQueries({ queryKey: favoriteKeys.all });
       const snapshot = qc.getQueryData(favoriteKeys.list());
-      // Оптимистичность тэга (#215): на записи витрины закладки ещё нет —
-      // patchCard молчит, UI ждал бы 404→POST→PATCH + рефеч (видимый лаг
-      // против мгновенных реакций обычных чатов). Вставляем прогноз карточки
-      // с новыми метками ДО сети (как useAddFavorites); onSuccess заменит
-      // серверной карточкой.
       const patched = patchCard(qc, messageId, { labels: body.labels });
       if (!patched) {
-        const forecast = predictCard(qc, messageId);
-        if (forecast) upsertCards(qc, [{ ...forecast, labels: body.labels }]);
+        // Запись без закладки: кэш списка НЕ трогаем (вставка прогноза дёргала
+        // ленту, #215 приёмка) — оптимистичная метка в локальном сторе.
+        useOptimisticFavoriteLabels.getState().set(messageId, body.labels);
       }
       return { snapshot };
     },
-    onError: (_error, _vars, context) => {
+    onError: (_error, vars, context) => {
       if (context) restoreList(qc, context.snapshot);
+      useOptimisticFavoriteLabels.getState().clear(vars.messageId);
       toast.error(ui.common.saveError);
     },
     onSuccess: (card) => {
       patchCard(qc, card.messageId, card);
       // Апсерт (тэг на записи): новой строки в списке ещё нет — рефеч всей
-      // ветки приносит карточку/тэги для cardsById витрины.
+      // ветки приносит карточку/тэги для cardsById витрины; локальная метка
+      // больше не нужна (серверная истина в кэше/на подходе).
+      useOptimisticFavoriteLabels.getState().clear(card.messageId);
       void qc.invalidateQueries({ queryKey: favoriteKeys.all });
       void qc.invalidateQueries({ queryKey: favoriteKeys.labels() });
     },

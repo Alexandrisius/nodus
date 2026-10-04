@@ -16,6 +16,7 @@ import {
   useRemoveFavorite,
   useUpdateFavorite,
 } from './favorites-api.js';
+import { useOptimisticFavoriteLabels } from './optimistic-favorite-labels.js';
 
 /**
  * Детерминированные тесты оптимистичности избранного (#171, канон I4):
@@ -254,10 +255,10 @@ describe('favorites-api (#171): оптимистичность', () => {
     expect(after.pages[0]!.items[0]!.labels).toEqual(['🔑']);
   });
 
-  it('update (#215): тэг на записи без закладки — прогноз карточки ДО resolve', async () => {
-    // Сценарий лага витрины: закладки в кэше НЕТ (тэг на своей записи),
-    // контент оригинала уже в кэше ленты — прогноз с метками вставляется
-    // до сети, как useAddFavorites; onSuccess заменяет серверной карточкой.
+  it('update (#215): тэг на записи без закладки — локальная метка ДО resolve, кэш списка НЕ трогается', async () => {
+    // Ревизия приёмки: вставка прогноза-карточки в кэш списка дёргала ленту
+    // на первом выставлении после загрузки страницы. Мгновенность чипов —
+    // локальный оптимистичный стор (витрина мерджит его в labelTarget).
     const client = new QueryClient();
     client.setQueryData<Paginated<ChatMessage>>(chatKeys.messages(CONV), {
       items: [message],
@@ -267,6 +268,9 @@ describe('favorites-api (#171): оптимистичность', () => {
       items: [conversation],
       nextCursor: null,
     });
+    const initial = { pages: [{ items: [], nextCursor: null }], pageParams: [null] };
+    client.setQueryData(favoriteKeys.list(), initial as never);
+    useOptimisticFavoriteLabels.getState().clear(MSG);
     const server = card({ labels: ['🔑'] });
     const gate = deferred<Response>();
     stubFetch(gate.promise);
@@ -278,12 +282,11 @@ describe('favorites-api (#171): оптимистичность', () => {
       result.current.mutate({ messageId: MSG, body: { labels: ['🔑'] } });
     });
 
-    const before = client.getQueryData(favoriteKeys.list()) as unknown as {
+    expect(useOptimisticFavoriteLabels.getState().labels.get(MSG)).toEqual(['🔑']);
+    const list = client.getQueryData(favoriteKeys.list()) as unknown as {
       pages: { items: FavoriteCard[] }[];
     };
-    expect(before.pages[0]!.items.map((c) => c.messageId)).toEqual([MSG]);
-    expect(before.pages[0]!.items[0]!.labels).toEqual(['🔑']);
-    expect(before.pages[0]!.items[0]!.text).toBe('текст оригинала');
+    expect(list.pages[0]!.items).toHaveLength(0);
 
     await act(async () => {
       gate.resolve(
@@ -294,12 +297,7 @@ describe('favorites-api (#171): оптимистичность', () => {
       );
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
     });
-    const after = client.getQueryData(favoriteKeys.list()) as unknown as {
-      pages: { items: FavoriteCard[] }[];
-    };
-    expect(after.pages[0]!.items).toHaveLength(1);
-    expect(after.pages[0]!.items[0]!.favoritedAt).toBe(server.favoritedAt);
-    expect(after.pages[0]!.items[0]!.labels).toEqual(['🔑']);
+    expect(useOptimisticFavoriteLabels.getState().labels.has(MSG)).toBe(false);
   });
 
   it('remove: карточка исчезает ДО resolve', async () => {
