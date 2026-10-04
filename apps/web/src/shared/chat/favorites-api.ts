@@ -192,7 +192,10 @@ function removeCard(qc: QueryClient, messageId: string): void {
   }
 }
 
-function patchCard(qc: QueryClient, messageId: string, patch: Partial<FavoriteCard>): void {
+/** Патч карточки во всех страничных кэшах избранного; false — карточки
+ *  в кэшах не было (например, тэг на записи витрины до первой закладки). */
+function patchCard(qc: QueryClient, messageId: string, patch: Partial<FavoriteCard>): boolean {
+  let any = false;
   for (const [key, data] of qc.getQueriesData<InfiniteData<FavoritePage, string | null>>({
     queryKey: favoriteKeys.all,
   })) {
@@ -206,8 +209,12 @@ function patchCard(qc: QueryClient, messageId: string, patch: Partial<FavoriteCa
         return { ...card, ...patch };
       }),
     }));
-    if (touched) qc.setQueryData(key, { ...data, pages });
+    if (touched) {
+      qc.setQueryData(key, { ...data, pages });
+      any = true;
+    }
   }
+  return any;
 }
 
 /** Поставить звёзды (одиночная — из меню; цепочка — мультиселект). */
@@ -289,7 +296,16 @@ export function useUpdateFavorite() {
     onMutate: async ({ messageId, body }) => {
       await qc.cancelQueries({ queryKey: favoriteKeys.all });
       const snapshot = qc.getQueryData(favoriteKeys.list());
-      patchCard(qc, messageId, { labels: body.labels });
+      // Оптимистичность тэга (#215): на записи витрины закладки ещё нет —
+      // patchCard молчит, UI ждал бы 404→POST→PATCH + рефеч (видимый лаг
+      // против мгновенных реакций обычных чатов). Вставляем прогноз карточки
+      // с новыми метками ДО сети (как useAddFavorites); onSuccess заменит
+      // серверной карточкой.
+      const patched = patchCard(qc, messageId, { labels: body.labels });
+      if (!patched) {
+        const forecast = predictCard(qc, messageId);
+        if (forecast) upsertCards(qc, [{ ...forecast, labels: body.labels }]);
+      }
       return { snapshot };
     },
     onError: (_error, _vars, context) => {

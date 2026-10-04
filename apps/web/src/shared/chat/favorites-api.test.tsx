@@ -253,6 +253,54 @@ describe('favorites-api (#171): оптимистичность', () => {
     expect(after.pages[0]!.items[0]!.labels).toEqual(['🔑']);
   });
 
+  it('update (#215): тэг на записи без закладки — прогноз карточки ДО resolve', async () => {
+    // Сценарий лага витрины: закладки в кэше НЕТ (тэг на своей записи),
+    // контент оригинала уже в кэше ленты — прогноз с метками вставляется
+    // до сети, как useAddFavorites; onSuccess заменяет серверной карточкой.
+    const client = new QueryClient();
+    client.setQueryData<Paginated<ChatMessage>>(chatKeys.messages(CONV), {
+      items: [message],
+      nextCursor: null,
+    });
+    client.setQueryData<Paginated<ConversationListItem>>(chatKeys.conversations(), {
+      items: [conversation],
+      nextCursor: null,
+    });
+    const server = card({ labels: ['🔑'] });
+    const gate = deferred<Response>();
+    stubFetch(gate.promise);
+
+    const { result } = renderHook(() => useUpdateFavorite(), {
+      wrapper: makeWrapper(client),
+    });
+    await act(async () => {
+      result.current.mutate({ messageId: MSG, body: { labels: ['🔑'] } });
+    });
+
+    const before = client.getQueryData(favoriteKeys.list()) as unknown as {
+      pages: { items: FavoriteCard[] }[];
+    };
+    expect(before.pages[0]!.items.map((c) => c.messageId)).toEqual([MSG]);
+    expect(before.pages[0]!.items[0]!.labels).toEqual(['🔑']);
+    expect(before.pages[0]!.items[0]!.text).toBe('текст оригинала');
+
+    await act(async () => {
+      gate.resolve(
+        new Response(JSON.stringify(server), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      );
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    });
+    const after = client.getQueryData(favoriteKeys.list()) as unknown as {
+      pages: { items: FavoriteCard[] }[];
+    };
+    expect(after.pages[0]!.items).toHaveLength(1);
+    expect(after.pages[0]!.items[0]!.favoritedAt).toBe(server.favoritedAt);
+    expect(after.pages[0]!.items[0]!.labels).toEqual(['🔑']);
+  });
+
   it('remove: карточка исчезает ДО resolve', async () => {
     const client = new QueryClient();
     const initial = { pages: [{ items: [card()], nextCursor: null }], pageParams: [null] };
