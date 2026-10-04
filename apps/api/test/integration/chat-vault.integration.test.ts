@@ -73,7 +73,7 @@ describe.skipIf(!process.env.DATABASE_URL || !process.env.STORAGE_ACCESS_KEY)(
       body: { text?: string; attachmentIds?: string[]; threadRootId?: string },
     ): Promise<string> {
       const res = await fx.api(user, 'POST', `/chat/conversations/${conv}/messages`, {
-        body,
+        body: { text: body.text ?? '', ...body },
         key: `vault-${fx.runId}-${Math.random().toString(36).slice(2)}`,
       });
       expect(res.status).toBe(201);
@@ -160,9 +160,10 @@ describe.skipIf(!process.env.DATABASE_URL || !process.env.STORAGE_ACCESS_KEY)(
       expect(res.status).toBe(200);
       const links = await vault(alice, conv, 'type=link');
       expect(links.page!.counts.link).toBe(2);
+      // Внутри одного сообщения ссылки идут по позициям текста (ASC).
       expect(links.page!.items.map((i) => (i.type === 'link' ? i.url : null))).toEqual([
-        'https://new.example/z',
         'https://new.example/y',
+        'https://new.example/z',
       ]);
     });
 
@@ -194,10 +195,11 @@ describe.skipIf(!process.env.DATABASE_URL || !process.env.STORAGE_ACCESS_KEY)(
 
     it('пагинация keyset: страницы без потерь и дублей', async () => {
       const conv = await makeConversation();
-      const image = await upload(alice, IMAGE_BYTES, 'g.png', 'image/png');
-      const attachment = (await image.json()) as { id: string };
-      fileIds.push(attachment.id);
+      // Привязка вложения одноразовая (claim): три сообщения — три файла.
       for (let i = 0; i < 3; i += 1) {
+        const image = await upload(alice, IMAGE_BYTES, `g${i}.png`, 'image/png');
+        const attachment = (await image.json()) as { id: string };
+        fileIds.push(attachment.id);
         await send(alice, conv, { attachmentIds: [attachment.id] });
       }
       const first = await vault(alice, conv, 'type=media&limit=2');
