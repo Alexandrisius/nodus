@@ -174,7 +174,7 @@ export function MediaMessage({
                 {hasReactions || entityRow ? null : <MetaGhost message={message} mine={mine} />}
                 {entityRow && !hasReactions ? (
                   <span className="flex justify-end">
-                    <MessageMeta message={message} onFilled={mine} ticks={mine} />
+                    <MessageMeta message={message} mine={mine} onFilled={mine} ticks={mine} />
                   </span>
                 ) : null}
               </span>
@@ -182,7 +182,13 @@ export function MediaMessage({
             {hasReactions ? (
               <span className="flex items-end gap-2">
                 <MessageReactions message={message} onFilled={mine} />
-                <MessageMeta message={message} onFilled={mine} ticks={mine} className="ml-auto" />
+                <MessageMeta
+                  message={message}
+                  mine={mine}
+                  onFilled={mine}
+                  ticks={mine}
+                  className="ml-auto"
+                />
               </span>
             ) : entityRow ? null : (
               <MetaPin message={message} mine={mine} />
@@ -235,6 +241,7 @@ export function MetaGhost({
   return (
     <MessageMeta
       message={message}
+      mine={mine}
       onFilled={onFilled ?? mine}
       ticks={mine}
       // plain: без aria/role — e2e getByLabel('просмотрено') не должен
@@ -260,7 +267,7 @@ export function MetaPin({
 }) {
   return (
     <span data-slot="meta-corner" className="pointer-events-none absolute right-2.5 bottom-[8px]">
-      <MessageMeta message={message} onFilled={onFilled ?? mine} ticks={mine} />
+      <MessageMeta message={message} mine={mine} onFilled={onFilled ?? mine} ticks={mine} />
     </span>
   );
 }

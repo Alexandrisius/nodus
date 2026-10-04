@@ -111,7 +111,13 @@ export const StickerMessageView = memo(function StickerMessageView({
               тон muted: стикер без поверхности (#127). */}
           <span className="flex items-end gap-2">
             <MessageReactions message={message} onFilled={false} />
-            <MessageMeta message={message} onFilled={false} ticks={mine} className="ml-auto" />
+            <MessageMeta
+              message={message}
+              mine={mine}
+              onFilled={false}
+              ticks={mine}
+              className="ml-auto"
+            />
           </span>
           {reactionsHidden ? null : <ReactionPicker message={message} atEnd={atEnd} />}
         </span>
