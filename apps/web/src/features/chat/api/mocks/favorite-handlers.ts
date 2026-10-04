@@ -93,6 +93,17 @@ export const favoriteHandlers = [
       const card = toCard(messageId);
       if (card) items.push(card);
     });
+    // Активность «Избранного» (#215, паритет серверному touchLastMessageAt):
+    // новая звезда поднимает беседу «Избранное» в начало демо-списка.
+    if (items.length > 0) {
+      const notesIndex = demoConversations.findIndex(
+        (c) => c.type === 'direct' && c.membersPreview.length === 1,
+      );
+      if (notesIndex > 0) {
+        const [notes] = demoConversations.splice(notesIndex, 1);
+        demoConversations.unshift(notes!);
+      }
+    }
     return HttpResponse.json({ items });
   }),
 

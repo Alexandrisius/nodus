@@ -105,6 +105,15 @@ export class FavoritesService {
           );
         }
       }
+      // Активность «Избранного» (фидбек приёмки #215): новая звезда — как
+      // новое сообщение — поднимает беседу «Избранное» в списке (сортировка
+      // по last_message_at), иначе добавленное никто не заметит. Клиент
+      // рефечит список по событию favorite_added. Find-or-create: у самой
+      // первой звезды чат появляется в списке сразу.
+      if (created.length > 0) {
+        const notes = await this.conversations.findOrCreateDirect(userId, userId, tx);
+        await this.messages.touchLastMessageAt(notes.id, tx);
+      }
       return created;
     });
 
