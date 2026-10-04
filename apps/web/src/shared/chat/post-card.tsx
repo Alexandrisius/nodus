@@ -257,7 +257,12 @@ export function PostCard({
               )}
               {entityRow && message.reactions.length === 0 ? (
                 <span className="flex justify-end">
-                  <MessageMeta message={message} onFilled={surface.onFilled} ticks={mine} />
+                  <MessageMeta
+                    message={message}
+                    mine={mine}
+                    onFilled={surface.onFilled}
+                    ticks={mine}
+                  />
                 </span>
               ) : null}
               {message.reactions.length > 0 || entityRow ? null : (

@@ -285,14 +285,20 @@ export const ChatMessageItem = memo(function ChatMessageItem({
               {hasReactionsRow || entityRow ? null : <MetaGhost message={message} mine={mine} />}
               {entityRow && !hasReactionsRow ? (
                 <span className="flex justify-end">
-                  <MessageMeta message={message} onFilled={mine} ticks={mine} />
+                  <MessageMeta message={message} mine={mine} onFilled={mine} ticks={mine} />
                 </span>
               ) : null}
             </span>
             {hasReactionsRow ? (
               <span className="flex items-end gap-2">
                 {reactionsRow ?? <MessageReactions message={message} onFilled={mine} />}
-                <MessageMeta message={message} onFilled={mine} ticks={mine} className="ml-auto" />
+                <MessageMeta
+                  message={message}
+                  mine={mine}
+                  onFilled={mine}
+                  ticks={mine}
+                  className="ml-auto"
+                />
               </span>
             ) : entityRow ? null : (
               <MetaPin message={message} mine={mine} />

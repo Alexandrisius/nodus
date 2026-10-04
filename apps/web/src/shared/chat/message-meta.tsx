@@ -32,12 +32,15 @@ import { ReadTicks } from './read-ticks.js';
  */
 export function MessageMeta({
   message,
+  mine = false,
   onFilled = false,
   ticks = false,
   plain = false,
   className,
 }: {
   message: ChatMessage;
+  /** Свойство сообщения (run-контекст): acks срочного опрашивает только автор. */
+  mine?: boolean;
   /** Мета на залитом своём пузыре — акцент пузыря вместо muted-foreground. */
   onFilled?: boolean;
   /** Галочки отправлено/просмотрено (у своих сообщений и постов каналов). */
@@ -85,7 +88,7 @@ export function MessageMeta({
         <UrgentAcksMeta
           /* Прогресс ознакомления — данные отправителя (#202): опрашивают
              только СВОИ срочные; получателям бейдж «Срочно» без счётчика. */
-          messageId={message.mine ? message.id : null}
+          messageId={mine ? message.id : null}
           onFilled={onFilled}
         />
       ) : null}
