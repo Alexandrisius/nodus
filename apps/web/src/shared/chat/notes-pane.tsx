@@ -20,6 +20,7 @@ import { toFavoriteMessage } from './favorite-message.js';
 import { useFavorites } from './favorites-api.js';
 import { JumpResponder } from './use-jump-responder.js';
 import { ScrollEndResponder } from './scroll-end-responder.js';
+import { useIncomingFollow } from './use-incoming-follow.js';
 import { FavoriteRunMessage } from './notes-row.js';
 import { buildMessageRuns, formatDayLabel, startsNewDay } from './message-groups.js';
 import { MessageRunView } from './message-run.js';
@@ -113,6 +114,19 @@ export function NotesPane({ conversationId }: { conversationId: string }) {
     viewportRef,
     selectableIds: selection.orderedIds,
     selectionActive: selection.selectionActive,
+  });
+
+  // Догон/компенсация роста (#215, паритет с лентой беседы): у низа лента
+  // стоит неподвижно ДО отрисовки — ряд тэгов под пузырём растит контент
+  // ВВЕРХ (стиль «реакции толкают пузыри вверх»), новая карточка чужого
+  // автора дотягивает в конец. Свои записи дотягивает композер
+  // (ScrollEndResponder); якорной фазы у витрины нет — включено всегда.
+  useIncomingFollow({
+    scope,
+    items,
+    meId: meId ?? undefined,
+    viewportRef,
+    enabled: true,
   });
 
   // Островок селекта витрины (#215): корзина доступна ВСЕГДА (маршрутизация
