@@ -414,6 +414,7 @@ model Message {
   @@unique([conversationId, seq])
   @@unique([authorId, clientMessageId])
   @@index([conversationId, seq(sort: Desc)])
+  @@index([authorId, createdAt])
   @@index([threadRootId])
   @@index([replyToId])
   @@map("messages")

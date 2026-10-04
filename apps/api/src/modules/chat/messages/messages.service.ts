@@ -218,6 +218,9 @@ export class MessagesService {
       // сервер клампит (обычное сообщение не может требовать ознакомления).
       const requireAck = urgent && (body.requireAck ?? false);
       if (urgent) {
+        // Лок лимита автора ДО подсчёта (#177): гонка параллельных отправок
+        // на границе лимита закрыта (паттерн advisory/FOR UPDATE #195).
+        await this.repo.lockUrgentLimit(userId, tx);
         await assertUrgentSendAllowedBy({
           conversationType: conversation.type,
           countMembers: () => this.conversations.countMembers(conversationId, tx),
