@@ -23,6 +23,7 @@ import { FavoriteMenu } from './favorite-menu.js';
 import { favoriteSourceTitle, toFavoriteMessage } from './favorite-message.js';
 import { useFavorites } from './favorites-api.js';
 import { JumpResponder } from './use-jump-responder.js';
+import { ScrollEndResponder } from './scroll-end-responder.js';
 import { MessageMenu } from './message-menu.js';
 import { MessageRow } from './message-row.js';
 import { buildMessageRuns, formatDayLabel, startsNewDay } from './message-groups.js';
@@ -136,6 +137,10 @@ export function NotesPane({ conversationId }: { conversationId: string }) {
   return (
     <div className="flex h-full min-w-0 flex-1 flex-col">
       <MessageScrollerProvider autoScroll>
+        {/* Своя отправка дотягивает ленту до конца с любой позиции (#215):
+            композер витрины пишет scroll-end-запрос по тому же scope —
+            резидент, как у ленты беседы (conversation-pane). */}
+        <ScrollEndResponder scope={scope} />
         <JumpResponder
           conversationId={conversationId}
           threadRootId={null}
