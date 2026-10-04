@@ -7,38 +7,44 @@ import { ApiError } from '../api-client.js';
  * Инлайн-ошибки отправки в композере (#177): лимит важных и потолок группы
  * приходят кодом 409 из send-urgent.policy — тост здесь не подходит (текст
  * должен стоять РЯДОМ с молнией, пока пользователь правит сообщение).
- * Ключ — draftScope композера (= focusId), ошибку ставит onError мутации
- * отправки, гасит новая попытка (onMutate) и размонтирование.
- * Текст — русская строка словаря ПО КОДУ ошибки (I15: `message` в ответе —
- * английский технический, пользователю не показывается; канон error-toast).
+ * Хранится КОД ошибки, текст берётся из словаря контрактов по коду (I15:
+ * `message` в ответе — английский технический, пользователю не показывается).
+ * Пользователь хука: api.ts onError ставит код, композер рендерит текст,
+ * молния (composer-urgent) по коду CHAT_URGENT_LIMIT_EXCEEDED приглушается
+ * даже при закрытом попапе (политика опрашивается только там). Гасит код
+ * новая попытка отправки (onMutate).
  */
 interface ComposerErrorsState {
-  errors: Record<string, string>;
-  set: (key: string, message: string) => void;
+  codes: Record<string, string>;
+  set: (key: string, code: string) => void;
   clear: (key: string) => void;
 }
 
 export const useComposerErrors = create<ComposerErrorsState>()((set) => ({
-  errors: {},
-  set: (key, message) => set((s) => ({ errors: { ...s.errors, [key]: message } })),
+  codes: {},
+  set: (key, code) => set((s) => ({ codes: { ...s.codes, [key]: code } })),
   clear: (key) =>
     set((s) => {
-      if (!(key in s.errors)) return s;
-      const errors = { ...s.errors };
-      delete errors[key];
-      return { errors };
+      if (!(key in s.codes)) return s;
+      const codes = { ...s.codes };
+      delete codes[key];
+      return { codes };
     }),
 }));
 
-/** Классификация ошибки отправки: 409 политики важных — инлайн-текст по коду
- *  из словаря контрактов, остальное — null (штатный тост sendError). */
-export function composerSendErrorMessage(error: unknown): string | null {
+/** Классификация ошибки отправки: код 409 политики важных — вернуть его,
+ *  остальное — null (штатный тост sendError). */
+export function composerSendErrorCode(error: unknown): string | null {
   if (!(error instanceof ApiError)) return null;
-  if (error.code === ErrorCode.CHAT_URGENT_LIMIT_EXCEEDED) {
-    return errorMessages[ErrorCode.CHAT_URGENT_LIMIT_EXCEEDED];
-  }
-  if (error.code === ErrorCode.CHAT_URGENT_GROUP_TOO_LARGE) {
-    return errorMessages[ErrorCode.CHAT_URGENT_GROUP_TOO_LARGE];
-  }
+  if (error.code === ErrorCode.CHAT_URGENT_LIMIT_EXCEEDED) return error.code;
+  if (error.code === ErrorCode.CHAT_URGENT_GROUP_TOO_LARGE) return error.code;
   return null;
+}
+
+/** Инлайн-сообщение композера: русская строка словаря по коду из стора. */
+export function useComposerSendError(key: string): { code: string; message: string } | null {
+  const code = useComposerErrors((s) => s.codes[key]);
+  if (!code) return null;
+  const message = errorMessages[code as ErrorCode];
+  return message ? { code, message } : null;
 }

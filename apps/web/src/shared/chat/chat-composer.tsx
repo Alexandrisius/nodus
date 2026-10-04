@@ -27,7 +27,7 @@ import {
 } from './chat-drafts.js';
 import { MediaPickerButton } from './media-picker.js';
 import { ComposerUrgentButton, UrgentGuardrailDialog } from './composer-urgent.js';
-import { useComposerErrors } from './composer-errors.js';
+import { useComposerSendError } from './composer-errors.js';
 import { ComposerBanner } from './composer-banner.js';
 import { ComposerClipMenu } from './composer-clip-menu.js';
 import { registerComposer, unregisterComposer, focusComposer } from './composer-focus.js';
@@ -260,7 +260,7 @@ export function ChatComposer({
   const limit = messageLimitState(text.length);
   // Инлайн-ошибка 409 политики важных (#177): стоит рядом с молнией до
   // следующей попытки отправки (гасится в onMutate мутации).
-  const sendError = useComposerErrors((s) => s.errors[focusId]);
+  const sendError = useComposerSendError(focusId);
   // Guardrail requireAck (#177): ≥ groupMax участников — мягкое подтверждение.
   // Политика — ЛЕНИВО в момент отправки (запроса на маунт композера нет).
   const [guardrailOpen, setGuardrailOpen] = useState(false);
@@ -514,7 +514,7 @@ export function ChatComposer({
                 role="status"
                 aria-live="polite"
               >
-                {sendError}
+                {sendError.message}
               </span>
             ) : limit.counter !== null ? (
               <span className="px-1.5 text-right font-mono text-label-sm text-muted-foreground tabular-nums">

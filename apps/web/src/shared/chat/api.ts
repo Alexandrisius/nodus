@@ -18,7 +18,7 @@ import { isDomainMocked } from '../api/api-mock-config.js';
 import { tasksKeys } from '../api/tasks-keys.js';
 import { useAuthStore } from '../auth-store.js';
 import { useChatDrafts } from './chat-drafts.js';
-import { composerSendErrorMessage, useComposerErrors } from './composer-errors.js';
+import { composerSendErrorCode, useComposerErrors } from './composer-errors.js';
 import { useSocketStatusStore } from '../socket/socket-status-store.js';
 
 /**
@@ -312,9 +312,9 @@ export function useSendChatMessage(conversationId: string, draftScope?: string) 
       }
       // 409 политики важных (#177) — инлайн в композере (рядом с молнией),
       // прочие ошибки — штатный тост. Текст при этом НЕ теряется (#124).
-      const inline = composerSendErrorMessage(error);
-      if (inline && draftScope) {
-        useComposerErrors.getState().set(draftScope, inline);
+      const inlineCode = composerSendErrorCode(error);
+      if (inlineCode && draftScope) {
+        useComposerErrors.getState().set(draftScope, inlineCode);
         return;
       }
       void vars;

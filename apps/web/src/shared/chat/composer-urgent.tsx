@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Zap } from 'lucide-react';
-import { ui } from '@nodus/contracts';
+import { ErrorCode, ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import { Checkbox } from '@nodus/ui/components/checkbox';
 import {
@@ -16,6 +16,7 @@ import { cn } from '@nodus/ui/lib/utils';
 
 import { useUrgentPolicy } from './api.js';
 import { useChatDrafts } from './chat-drafts.js';
+import { useComposerErrors } from './composer-errors.js';
 
 /**
  * Молния «Важное» (#177): кнопка между полем ввода и смайликами; активное
@@ -49,7 +50,11 @@ export function ComposerUrgentButton({
   const setRequireAck = useChatDrafts((s) => s.setRequireAck);
   // Счётчик опрашивается только при открытом попапе (30 c staleTime).
   const policy = useUrgentPolicy(open);
-  const exhausted = (policy.data?.remaining ?? 1) <= 0;
+  // Исчерпание видно и при закрытом попапе: 409 CHAT_URGENT_LIMIT_EXCEEDED
+  // из последней отправки ставит код в composer-errors (проба #177).
+  const sendErrorCode = useComposerErrors((s) => s.codes[draftKey]);
+  const exhausted =
+    (policy.data?.remaining ?? 1) <= 0 || sendErrorCode === ErrorCode.CHAT_URGENT_LIMIT_EXCEEDED;
   const disabledByLimit = exhausted && !urgent;
 
   return (
@@ -115,7 +120,9 @@ export function ComposerUrgentButton({
             </div>
             <Checkbox
               checked={requireAck}
-              disabled={!urgent}
+              /* Чекбокс доступен ВСЕГДА: включение само поднимает молнию
+                 (setRequireAck → urgent: true) — модель Mattermost, спека #177
+                 («вкл чекбокс включает "Важное"»); дефект пойман пробой. */
               onCheckedChange={(on) => setRequireAck(draftKey, on === true)}
               aria-label={ui.notifications.urgentRequireAck}
             />
