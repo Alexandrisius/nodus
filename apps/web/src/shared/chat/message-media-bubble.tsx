@@ -16,7 +16,7 @@ import { MessageMeta } from './message-meta.js';
 import { MessageReactions } from './message-reactions.js';
 import { hasEntityPreviews, MessageText } from './message-text.js';
 import { ReadTicks } from './read-ticks.js';
-import { UrgentAckChip, UrgentChips, UrgentMarkChip } from './urgent-chips.js';
+import { UrgentChip, UrgentChips } from './urgent-chips.js';
 
 /**
  * Медиа-сообщение Telegram (issue #187, раунды вердиктов) — АРХИТЕКТУРА
@@ -157,16 +157,8 @@ export function MediaMessage({
               {/* Важное на голом медиа (#177): чипы стопкой НАД чипом времени
                   (рамки у медиа нет — канон #187; бордер не рисуем). */}
               {message.urgent ? (
-                <span className="absolute right-2 bottom-9 flex flex-col items-end gap-1">
-                  {message.requireAck && !mine && !receiptsHidden ? (
-                    <UrgentAckChip messageId={message.id} />
-                  ) : null}
-                  <UrgentMarkChip
-                    mine={mine}
-                    requireAck={message.requireAck}
-                    noReceipts={receiptsHidden}
-                    messageId={message.id}
-                  />
+                <span className="absolute right-2 bottom-9">
+                  <UrgentChip />
                 </span>
               ) : null}
             </>
@@ -243,8 +235,8 @@ export function MediaMessage({
               />
             )}
           </BubbleContent>
-          {/* Чипы важного (#177) на кромке нижней части медиа-стопки. */}
-          <UrgentChips message={message} mine={mine} noReceipts={receiptsHidden} />
+          {/* Чип важного (#177) на кромке нижней части медиа-стопки. */}
+          <UrgentChips message={message} />
         </Bubble>
       ) : hasReactionsRow ? (
         <span className="mt-[3px]">

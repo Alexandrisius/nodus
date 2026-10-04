@@ -41,13 +41,12 @@ payload `chat.message_sent` отдаёт оба поля модулю notificati
 бесед с mute-флагами читается чужими модулями через read-порт
 `CHAT_MEMBERSHIP_READER` (ADR-0012, chat-ports.module).
 
-#177: отправка несёт `requireAck` («Требовать подтверждения», клампится
-`requireAck = urgent && requireAck` — обычное сообщение не может требовать
-ознакомления); повторы получателю ставит модуль notifications ТОЛЬКО для
-requireAck-строк. Остаток лимита для счётчика в попапе молнии —
-`GET /chat/urgent/policy` (`urgent-policy.controller.ts` → `UrgentPolicy`:
-remaining/limit/resetAt — скользящие сутки, старейшая отправка + 24ч — и
-groupMax).
+#177 (ревизия модели 05.10): молния — простой тоггл `urgent` (подтверждение
+ознакомления выпилено решением владельца); непрочитавшим модуль notifications
+повторяет пуш каждые 5 минут до часа. Остаток лимита для бейджа зарядов
+молнии — `GET /chat/urgent/policy` (`urgent-policy.controller.ts` →
+`UrgentPolicy`: remaining/limit/resetAt — скользящие сутки, старейшая
+отправка + 24ч — и groupMax).
 
 ## Ключевые решения (почему так)
 

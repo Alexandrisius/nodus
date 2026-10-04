@@ -48,11 +48,10 @@ export interface ChatDraft {
   /** Текст композера до входа в режим правки — восстанавливается отменой. */
   preEditText: string | null;
   attachments: PendingAttachment[];
-  /** «Важное» (#177): молния композера; requireAck — чекбокс подтверждения
-   *  (включает urgent обратно). Сессионное состояние — НЕ персистится
-   *  (после перезагрузки молния выключена: случайного важного нет). */
+  /** «Важное» (#177, ревизия 05.10): клик молнии — простой тоггл.
+   *  Сессионное состояние — НЕ персистится (после перезагрузки молния
+   *  выключена: случайного важного нет). */
   urgent: boolean;
-  requireAck: boolean;
 }
 
 export const EMPTY_DRAFT: ChatDraft = {
@@ -62,7 +61,6 @@ export const EMPTY_DRAFT: ChatDraft = {
   preEditText: null,
   attachments: [],
   urgent: false,
-  requireAck: false,
 };
 
 interface DraftsState {
@@ -84,10 +82,8 @@ interface DraftsState {
   reorderAttachments: (key: string, from: number, to: number) => void;
   /** Отмена окна отправки (#144): вложения сняты целиком (blob-URL освобождены). */
   clearAttachments: (key: string) => void;
-  /** Молния «Важное» (#177): снятие гасит и чекбокс подтверждения. */
+  /** Молния «Важное» (#177): клик — вкл/выкл. */
   setUrgent: (key: string, urgent: boolean) => void;
-  /** «Требовать подтверждения» (#177): включение поднимает и молнию. */
-  setRequireAck: (key: string, requireAck: boolean) => void;
   clear: (key: string) => void;
 }
 
@@ -100,8 +96,7 @@ function prune(draft: ChatDraft): ChatDraft | null {
     !draft.reply &&
     !draft.edit &&
     draft.attachments.length === 0 &&
-    !draft.urgent &&
-    !draft.requireAck;
+    !draft.urgent;
   return empty ? null : draft;
 }
 
@@ -246,15 +241,7 @@ export const useChatDrafts = create<DraftsState>()(
         })),
       setUrgent: (key, urgent) =>
         set((s) => ({
-          drafts: patchDraft(s.drafts, key, (d) =>
-            urgent ? { ...d, urgent: true } : { ...d, urgent: false, requireAck: false },
-          ),
-        })),
-      setRequireAck: (key, requireAck) =>
-        set((s) => ({
-          drafts: patchDraft(s.drafts, key, (d) =>
-            requireAck ? { ...d, requireAck: true, urgent: true } : { ...d, requireAck: false },
-          ),
+          drafts: patchDraft(s.drafts, key, (d) => ({ ...d, urgent })),
         })),
       clear: (key) => set((s) => ({ drafts: patchDraft(s.drafts, key, () => EMPTY_DRAFT) })),
     }),

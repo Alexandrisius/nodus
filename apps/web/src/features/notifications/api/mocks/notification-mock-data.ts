@@ -32,7 +32,6 @@ function notif(n: number, overrides: Partial<Notification>): Notification {
     actor: userRef(userIds.shaiderova),
     preview: null,
     urgentText: null,
-    requireAck: false,
     conversationId: cid(3),
     conversationTitle: 'Отдел проектирования',
     messageId: mid(n),
@@ -61,8 +60,6 @@ export const demoNotifications: Notification[] = [
     kind: 'urgent.message',
     preview: 'Внимание! Завтра в 09:30 — выездная планёрка…',
     urgentText: URGENT_LONG_TEXT,
-    // #177: с подтверждением — чип «Ознакомлен» у получателя в моке.
-    requireAck: true,
     actor: userRef(userIds.klimovich),
     conversationTitle: null,
     sourceId: DIRECT_K,
@@ -73,10 +70,6 @@ export const demoNotifications: Notification[] = [
     priority: 'urgent',
     kind: 'urgent.message',
     preview: 'Срочно: подпишите акт КС-2 до 18:00',
-    urgentText:
-      'Срочно: подпишите акт КС-2 по объекту «Минск-Мир», корпус 5 до 18:00 сегодняшнего дня — документы уходят в бухгалтерию.',
-    // #177: важное без подтверждения — действий получателя нет.
-    requireAck: false,
     actor: userRef(userIds.shaiderova),
     conversationTitle: null,
     sourceId: DIRECT_K,

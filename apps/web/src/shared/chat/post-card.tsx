@@ -286,12 +286,7 @@ export function PostCard({
           ) : null}
           {/* Чипы важного (#177): карточка поста с overflow-hidden — чипы
               ИНЛАЙН (в потоке, справа), не стрэддлом через кромку. */}
-          <UrgentChips
-            message={message}
-            mine={mine}
-            inline
-            className="px-2.5 pb-[6px] justify-end"
-          />
+          <UrgentChips message={message} inline className="px-2.5 pb-[6px] justify-end" />
           {/* Полоса обсуждения — ПОСТОЯННАЯ высота h-8 (вердикт 28.09): аватарки
             size-5 центрируются, прыжков высоты нет; нижний full-bleed блок.
             ВПЛОТНУЮ к контенту (раунд 7 п.3): зазор метки до границы — как у

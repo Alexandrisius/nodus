@@ -1,12 +1,5 @@
 import { Check, Mic, Paperclip, Smile } from 'lucide-react';
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type FormEvent,
-  type KeyboardEvent,
-} from 'react';
+import { useCallback, useEffect, useRef, type FormEvent, type KeyboardEvent } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
@@ -26,7 +19,7 @@ import {
   type ReplyDraft,
 } from './chat-drafts.js';
 import { MediaPickerButton } from './media-picker.js';
-import { ComposerUrgentButton, UrgentGuardrailDialog } from './composer-urgent.js';
+import { ComposerUrgentButton } from './composer-urgent.js';
 import { useComposerSendError } from './composer-errors.js';
 import { ComposerBanner } from './composer-banner.js';
 import { ComposerClipMenu } from './composer-clip-menu.js';
@@ -35,7 +28,7 @@ import { flushDraftSync } from './draft-sync.js';
 import { ForwardBanner } from './forward-banner.js';
 import { useForwardPending } from './forward-pending.js';
 import { useJumpStore } from './jump-store.js';
-import { chatKeys, fetchUrgentPolicy } from './api.js';
+import { chatKeys } from './api.js';
 import { useForwardMessages } from './message-mutations.js';
 import { isSendShortcut } from './send-keys.js';
 import { useScrollEndStore } from './scroll-end-store.js';
@@ -144,12 +137,8 @@ export function ChatComposer({
   onEditLast,
   selection = null,
   disabledPlaceholder = null,
-  /** Молния «Важное» (#177): false — кнопки нет (Заметки: подтверждать
-   *  нечем). Скрыта также в правке/пересылке/селекте. */
+  /** Молния «Важное» (#177): false — кнопки нет (Заметки — чат с собой). */
   urgentEnabled = true,
-  /** Участников в беседе — для guardrail подтверждения (#177); неизвестно —
-   *  guardrail пропускается (task-хост). */
-  memberCount,
   className,
 }: {
   placeholder: string;
@@ -174,8 +163,6 @@ export function ChatComposer({
   disabledPlaceholder?: string | null;
   /** Молния «Важное» (#177): false — кнопки нет (Заметки). */
   urgentEnabled?: boolean;
-  /** Участников в беседе — guardrail requireAck (#177). */
-  memberCount?: number;
   className?: string;
 }) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -261,9 +248,6 @@ export function ChatComposer({
   // Инлайн-ошибка 409 политики важных (#177): стоит рядом с молнией до
   // следующей попытки отправки (гасится в onMutate мутации).
   const sendError = useComposerSendError(focusId);
-  // Guardrail requireAck (#177): ≥ groupMax участников — мягкое подтверждение.
-  // Политика — ЛЕНИВО в момент отправки (запроса на маунт композера нет).
-  const [guardrailOpen, setGuardrailOpen] = useState(false);
   // Пересылка отправляется и без комментария (блок сам по себе ценен);
   // правка — только с непустым текстом; загрузка вложений держит обе.
   const canSubmit = draft.edit
@@ -285,19 +269,6 @@ export function ChatComposer({
     useScrollEndStore.getState().request(focusId, burst ? 'auto' : 'smooth');
   }
 
-  /** Guardrail (#177): «Требовать подтверждения» в большой беседе — мягкий
-   *  диалог до отправки. Политика догружается ЛЕНИВО (fetchQuery, кэш общий
-   *  с попапом молнии); размер беседы неизвестен — guardrail пропускается. */
-  async function guardrailGate(): Promise<boolean> {
-    if (!draft.requireAck || pending !== null || memberCount === undefined || guardrailOpen) {
-      return true;
-    }
-    const policy = await fetchUrgentPolicy(queryClient);
-    if (memberCount < policy.groupMax) return true;
-    setGuardrailOpen(true);
-    return false;
-  }
-
   function submit() {
     if (!canSubmit) return;
     if (draft.edit) {
@@ -306,19 +277,6 @@ export function ChatComposer({
       onSubmit({ text: text.trim(), attachments: [], reply: null, edit: draft.edit });
       return;
     }
-    void guardrailGate()
-      .then((allowed) => {
-        if (allowed) submitInner();
-      })
-      // Политика недоступна (сеть/5xx) — fail-open: сервер при исчерпании
-      // всё равно вернёт 409 с инлайном; молча терять отправку нельзя
-      // (валидатор #177).
-      .catch(() => submitInner());
-  }
-
-  function submitInner() {
-    if (!canSubmit) return;
-    const store = useChatDrafts.getState();
     if (pending) {
       const target = pending;
       forward.mutate(
@@ -334,7 +292,7 @@ export function ChatComposer({
         {
           onSuccess: () => {
             useForwardPending.getState().clear(focusId);
-            store.setText(focusId, '');
+            useChatDrafts.getState().setText(focusId, '');
             toast.success(ui.chat.forwardDone);
             // Догон и фокус приёмника — ПОСЛЕ успеха (раунд 3): раньше нонс
             // ставился до ответа сервера и гасился о невставшие сообщения.
@@ -353,7 +311,6 @@ export function ChatComposer({
       // Молния (#177): флаги летят с отправкой; сброс — очисткой черновика
       // onSuccess (мутация). Ошибка 409 политики — черновик жив, молния на месте.
       urgent: draft.urgent,
-      requireAck: draft.requireAck,
     });
     // Своё сообщение видно с любой позиции скролла (вердикт 24.09).
     // Черновик чистит хост по onSuccess отправки (#124): сетевой сбой
@@ -574,9 +531,9 @@ export function ChatComposer({
                 rows={1}
                 className="max-h-[45vh] min-h-8 flex-1 resize-none rounded-lg border-0 bg-transparent px-1.5 py-1.5 shadow-none ring-0 focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent"
               />
-              {/* Молния «Важное» (#177): слева от смайликов; в правке,
-                  пересылке, селекте и без права поста — выключена; в Заметках
-                  — скрыта (urgentEnabled=false, подтверждать нечем). */}
+              {/* Молния «Важное» (#177, ревизия 05.10 — тоггл с бейджем
+                  зарядов): слева от смайликов; в правке, пересылке, селекте
+                  и без права поста — выключена; в Заметках — скрыта. */}
               {urgentEnabled && disabledPlaceholder === null ? (
                 <ComposerUrgentButton
                   draftKey={focusId}
@@ -647,20 +604,6 @@ export function ChatComposer({
           </span>
         )}
       </span>
-      {/* Guardrail requireAck (#177): мягкое подтверждение отправки в большой
-          беседе; «Отправить» — повторный submit (гейт с guardrailOpen
-          пропущен). */}
-      {guardrailOpen && memberCount !== undefined ? (
-        <UrgentGuardrailDialog
-          open
-          memberCount={memberCount}
-          onConfirm={() => {
-            setGuardrailOpen(false);
-            submit();
-          }}
-          onCancel={() => setGuardrailOpen(false)}
-        />
-      ) : null}
     </form>
   );
 }

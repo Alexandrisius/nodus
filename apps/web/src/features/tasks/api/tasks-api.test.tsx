@@ -103,7 +103,6 @@ describe('useSendTaskMessage: оптимистичность (I4)', () => {
       readAt: null,
       readBy: [],
       urgent: false,
-      requireAck: false,
       mentionedUserIds: [],
       createdAt: new Date().toISOString(),
     };

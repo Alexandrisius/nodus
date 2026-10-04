@@ -59,9 +59,6 @@ export const notificationSchema = z.object({
   preview: z.string().nullable(),
   /** Полный текст важного — тело «листа ознакомления» (только urgent). */
   urgentText: z.string().nullable(),
-  /** Требует подтверждения (#177): false — важное без действий получателя
-   *  (одно уведомление); true — чип «Ознакомлен» и повторы до ack. */
-  requireAck: z.boolean(),
   conversationId: z.uuid().nullable(),
   /** Название беседы («где»); у direct — null, строка покажет автора. */
   conversationTitle: z.string().nullable(),
@@ -108,38 +105,14 @@ export const notificationPageSchema = z.object({
 });
 export type NotificationPage = z.infer<typeof notificationPageSchema>;
 
-/** Строка списка ознакомившихся с срочным (отправитель, C8/C9). */
-export const urgentAckEntrySchema = z.object({
-  user: userRefSchema,
-  ackedAt: z.iso.datetime(),
-});
-export type UrgentAckEntry = z.infer<typeof urgentAckEntrySchema>;
-
-/** «Ознакомились N из M» по срочному сообщению (аналитика журнала). */
-export const urgentAckStatusSchema = z.object({
-  messageId: z.uuid(),
-  ackedCount: z.number().int().min(0),
-  expectedCount: z.number().int().min(0),
-  items: z.array(urgentAckEntrySchema),
-});
-export type UrgentAckStatus = z.infer<typeof urgentAckStatusSchema>;
-
-/** Состояние ack текущего пользователя по важному сообщению (#177):
- *  восстановление чипа «Ознакомлен» после перезагрузки (F5). */
-export const urgentSelfAckSchema = z.object({
-  messageId: z.uuid(),
-  ackedAt: z.iso.datetime().nullable(),
-});
-export type UrgentSelfAck = z.infer<typeof urgentSelfAckSchema>;
-
-/** Политика дневного лимита важных (#177): счётчик в попапе молнии.
+/** Политика дневного лимита важных (#177): счётчик зарядов молнии.
  *  Сутки скользящие (не календарные): resetAt = старейшая отправка отправителя
  *  за последние 24ч + 24ч; null — лимит не исчерпан, ожидания нет. */
 export const urgentPolicySchema = z.object({
   remaining: z.number().int().min(0),
   limit: z.number().int().min(0),
   resetAt: z.iso.datetime().nullable(),
-  /** Потолок участников для важных (guardrail «Требовать подтверждения»). */
+  /** Потолок участников для важных. */
   groupMax: z.number().int().min(0),
 });
 export type UrgentPolicy = z.infer<typeof urgentPolicySchema>;

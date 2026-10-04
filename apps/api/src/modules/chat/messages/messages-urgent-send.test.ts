@@ -50,7 +50,6 @@ function makeMessage(): MessageRow {
     deletedAt: null,
     obliterated: false,
     urgent: false,
-    requireAck: false,
     mentionedUserIds: null,
     createdAt: now,
     updatedAt: now,
@@ -181,23 +180,5 @@ describe('MessagesService: send urgent (#100)', () => {
     await service.send(ME, CONV, body(false), 'key-n');
     expect(repo.insertMessage).toHaveBeenCalledWith(expect.objectContaining({ urgent: false }), TX);
     expect(repo.countUrgentSentSince).not.toHaveBeenCalled();
-  });
-
-  it('#177: requireAck клампится к urgent — обычное не может требовать ознакомления', async () => {
-    await service.send(ME, CONV, { ...body(false), requireAck: true }, 'key-clamp');
-    expect(repo.insertMessage).toHaveBeenCalledWith(
-      expect.objectContaining({ urgent: false, requireAck: false }),
-      TX,
-    );
-  });
-
-  it('#177: urgent + requireAck — флаг доходит до вставки и события', async () => {
-    await service.send(ME, CONV, { ...body(true), requireAck: true }, 'key-ack');
-    expect(repo.insertMessage).toHaveBeenCalledWith(
-      expect.objectContaining({ urgent: true, requireAck: true }),
-      TX,
-    );
-    const emit = eventBus.emit.mock.calls.find((c) => c[1] === 'chat.message_sent')!;
-    expect(emit![2]).toMatchObject({ urgent: true, requireAck: true });
   });
 });

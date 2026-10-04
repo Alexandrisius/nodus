@@ -18,9 +18,6 @@ interface DispatchPayload {
     messageId: string | null;
     threadRootId: string | null;
     preview: string | null;
-    /** #177: повторы ставятся ТОЛЬКО важному с подтверждением (старые
-     *  события поля не несут → undefined → повторов нет). */
-    requireAck?: boolean;
   };
   attempt: number;
   seq: number;
@@ -60,7 +57,7 @@ export class DispatchHandler implements DomainEventHandler<DispatchPayload> {
         attempt,
         tx,
       );
-      if (snapshot.priority === 'urgent' && snapshot.requireAck === true && attempt === 0) {
+      if (snapshot.priority === 'urgent' && attempt === 0) {
         await this.repeats.enqueue(snapshot.notificationId);
       }
     });

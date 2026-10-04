@@ -214,9 +214,6 @@ export class MessagesService {
       // «Важное сообщение» (#100): лимит отправителя и потолок участников —
       // на бэкенде (I8); политика — чистая функция send-urgent.policy.ts.
       const urgent = body.urgent ?? false;
-      // «Требовать подтверждения» (#177): осмыслен только при urgent —
-      // сервер клампит (обычное сообщение не может требовать ознакомления).
-      const requireAck = urgent && (body.requireAck ?? false);
       if (urgent) {
         // Лок лимита автора ДО подсчёта (#177): гонка параллельных отправок
         // на границе лимита закрыта (паттерн advisory/FOR UPDATE #195).
@@ -309,7 +306,6 @@ export class MessagesService {
           threadRootId,
           fwd: null,
           urgent,
-          requireAck,
           mentionedUserIds: mentionMatches,
           createdAt: new Date(),
         },
@@ -400,7 +396,6 @@ export class MessagesService {
           threadRootId,
           forwarded: false,
           urgent,
-          requireAck,
           mentionedUserIds: mentionMatches,
           message: payloadMessage,
         },

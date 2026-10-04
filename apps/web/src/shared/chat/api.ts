@@ -199,10 +199,9 @@ export interface SendChatVars {
   /** Превью для оптимистичного temp-сообщения (готовые загрузки/цитата). */
   attachments?: MessageAttachment[];
   reply?: ReplyPreview | null;
-  /** «Важное» (#177): ярус уведомлений + чекбокс подтверждения; флаги
-   *  летят в тело отправки и в оптимистичный temp-пузырь (бордер сразу). */
+  /** «Важное» (#177): флаг летит в тело отправки и в оптимистичный
+   *  temp-пузырь (бордер/чип видны сразу, I4). */
   urgent?: boolean;
-  requireAck?: boolean;
   /** Ключ идемпотентности = id оптимистичной записи (#48). Обычно НЕ передают:
    *  mutate генерирует temp id на отправку; явно — в тестах и для повторов
    *  ТОГО ЖЕ логического сообщения (двойной клик/ретрай после потери ответа
@@ -234,7 +233,6 @@ export function useSendChatMessage(conversationId: string, draftScope?: string) 
           quoteText: vars.quoteText ?? null,
           threadRootId: vars.threadRootId ?? null,
           urgent: vars.urgent,
-          requireAck: vars.requireAck,
         },
       }),
 
@@ -269,7 +267,6 @@ export function useSendChatMessage(conversationId: string, draftScope?: string) 
         readBy: [],
         // Оптимистичный пузырь важного (#177): бордер/чип видны сразу (I4).
         urgent: vars.urgent ?? false,
-        requireAck: vars.requireAck ?? false,
         mentionedUserIds: [],
         createdAt: new Date().toISOString(),
       };

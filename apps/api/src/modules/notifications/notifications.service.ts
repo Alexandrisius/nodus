@@ -7,8 +7,6 @@ import type {
   NotificationPage,
   NotificationSettings,
   NotificationSummary,
-  UrgentAckStatus,
-  UrgentSelfAck,
 } from '@nodus/contracts';
 import { NOTIFICATION_EVENTS } from '@nodus/contracts';
 
@@ -74,87 +72,14 @@ export class NotificationsService {
     return { ...counts, attention: counts.urgent + counts.high + counts.medium };
   }
 
-  /** Прочитать одно обычное (E3 — осознанное гашение из карточки);
-   *  важное С подтверждением (#177) читается только ознакомлением,
-   *  важное без requireAck гасится как обычное. */
+  /** Прочитать одно (E3 — осознанное гашение из карточки): любое, включая
+   *  важное — ack-механики нет (ревизия модели 05.10), повторы гасит
+   *  прочтение (repo.readOne + markReadBySource). */
   async readOne(userId: string, id: string): Promise<Notification> {
     const row = await this.repo.readOne(userId, id);
     if (!row) throw DomainException.notFound('Notification not found');
-    if (row.priority === 'urgent' && row.require_ack && row.read_at === null) {
-      throw DomainException.conflict(
-        'Important message requiring acknowledgement is read by acknowledgement only',
-      );
-    }
     const [dto] = await this.repo.toDtos([row]);
     return dto!;
-  }
-
-  /** Ознакомление (СЭД-паттерн): своё срочное; будило отправителю (C8/C9). */
-  async ack(userId: string, id: string): Promise<Notification> {
-    const row = await this.repo.ack(userId, id);
-    if (!row) throw DomainException.notFound('Notification not found');
-    if (row.ack_at && row.message_id) {
-      const { rows, expected } = await this.repo.urgentAcks(row.message_id);
-      const authorId = await this.repo.urgentAuthorId(row.message_id);
-      if (authorId && authorId !== userId) {
-        await this.txRunner.run(async (tx) => {
-          await this.eventBus.emit(
-            tx,
-            NOTIFICATION_EVENTS.ACKED,
-            {
-              userId: authorId,
-              messageId: row.message_id,
-              ackedCount: rows.length,
-              expectedCount: expected,
-              ackedAt: row.ack_at!.toISOString(),
-            },
-            { actorId: userId, aggregateType: 'notification', aggregateId: row.message_id! },
-          );
-        });
-      }
-    }
-    const [dto] = await this.repo.toDtos([row]);
-    return dto!;
-  }
-
-  /** Ознакомление ИЗ ПУЗЫРЯ чата (#177): по сообщению, не по id строки
-   *  журнала (получатель не знает id уведомления). Своя requireAck-строка
-   *  или NOT_FOUND (G3); дальше — штатный путь ack (гашение повторов,
-   *  будило автору). */
-  async ackByMessage(userId: string, messageId: string): Promise<Notification> {
-    const row = await this.repo.findByMessage(userId, messageId);
-    if (!row) throw DomainException.notFound('Urgent message not found');
-    return this.ack(userId, row.id);
-  }
-
-  /** Состояние своего ack по важному сообщению (#177): восстановление чипа
-   *  «Ознакомлен» после перезагрузки. Не моё/не requireAck — NOT_FOUND. */
-  async selfAck(userId: string, messageId: string): Promise<UrgentSelfAck> {
-    const row = await this.repo.findByMessage(userId, messageId);
-    if (!row) throw DomainException.notFound('Urgent message not found');
-    return { messageId, ackedAt: row.ack_at?.toISOString() ?? null };
-  }
-
-  /** Статус «Ознакомились N из M» — только отправителю срочного (#202,
-   *  G3-паттерн модуля: чужой/несуществующий messageId = NOT_FOUND,
-   *  не раскрывает список ознакомившихся и факт существования). */
-  async urgentAcks(userId: string, messageId: string): Promise<UrgentAckStatus> {
-    const authorId = await this.repo.urgentAuthorId(messageId);
-    if (authorId !== userId) {
-      throw DomainException.notFound('Urgent message not found');
-    }
-    const { rows, expected } = await this.repo.urgentAcks(messageId);
-    const refs = await this.userProfiles.findRefs(rows.map((r) => r.userId));
-    const byId = new Map(refs.map((r) => [r.id, r]));
-    return {
-      messageId,
-      ackedCount: rows.length,
-      expectedCount: expected,
-      items: rows.map((r) => ({
-        user: byId.get(r.userId) ?? { id: r.userId, displayName: '—', avatarUrl: null },
-        ackedAt: r.ackedAt.toISOString(),
-      })),
-    };
   }
 
   /** Журнал доставок (D6: когда и каким каналом уведомили). */
@@ -217,7 +142,6 @@ export class NotificationsService {
         authorId: string;
         threadRootId: string | null;
         urgent: boolean;
-        requireAck: boolean;
         mentionedUserIds: string[];
         message?: { text?: string } | null;
       };
@@ -245,7 +169,6 @@ export class NotificationsService {
       actor_id: event.payload.authorId,
       preview: text.length > 0 ? text.slice(0, PREVIEW_MAX) : null,
       urgent_text: r.priority === 'urgent' ? text : null,
-      require_ack: event.payload.requireAck,
       conversation_id: event.payload.conversationId,
       conversation_title: state.title,
       message_id: event.payload.messageId,
@@ -284,7 +207,6 @@ export class NotificationsService {
         actor_id: event.payload.authorId,
         preview: text.length > 0 ? text.slice(0, PREVIEW_MAX) : null,
         urgent_text: null,
-        require_ack: false,
         conversation_id: event.payload.conversationId,
         conversation_title: state.title,
         message_id: event.payload.messageId,

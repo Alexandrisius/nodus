@@ -170,7 +170,6 @@ export class MessageDtoMapper {
           (reader): UserRef => refs.get(reader.userId) ?? fallbackRef(reader.userId),
         ),
         urgent: row.urgent,
-        requireAck: row.requireAck,
         mentionedUserIds: tombstone ? [] : readMentionedUserIds(row),
         createdAt: row.createdAt.toISOString(),
       };
@@ -232,7 +231,6 @@ export class MessageDtoMapper {
       readAt: computeReadAt(row, ctx.members, ctx.viewerId),
       readBy: [],
       urgent: row.urgent,
-      requireAck: row.requireAck,
       mentionedUserIds: readMentionedUserIds(row),
       createdAt: row.createdAt.toISOString(),
     };

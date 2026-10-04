@@ -36,7 +36,6 @@ const msg = (overrides: Partial<ChatMessage> = {}): ChatMessage => ({
     { id: 'u2', displayName: 'Борис Второй', avatarUrl: null },
   ],
   urgent: false,
-  requireAck: false,
   mentionedUserIds: [],
   createdAt: '2026-09-25T09:00:00.000Z',
   ...overrides,

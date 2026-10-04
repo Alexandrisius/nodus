@@ -269,7 +269,6 @@ export const chatMutationHandlers = [
 
         readBy: [],
         urgent: false,
-        requireAck: false,
         mentionedUserIds: [],
         createdAt: stamp(0),
       };
@@ -305,7 +304,6 @@ export const chatMutationHandlers = [
 
         readBy: [],
         urgent: false,
-        requireAck: false,
         mentionedUserIds: [],
         createdAt: stamp(index + 1),
       };

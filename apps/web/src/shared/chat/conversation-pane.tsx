@@ -420,8 +420,6 @@ function ConversationFeed({
         onEditLast={handleEditLast}
         selection={selectionComposerProps(conversationId, selection)}
         onSubmit={handleSubmit}
-        // Guardrail молнии (#177): размер беседы для подтверждения requireAck.
-        memberCount={conversation?.membersCount ?? undefined}
       />
     </>
   );

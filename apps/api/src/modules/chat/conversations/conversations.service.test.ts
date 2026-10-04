@@ -38,7 +38,6 @@ function makeListRow(overrides: Partial<ConversationListRow> = {}): Conversation
     lm_author_id: null,
     lm_text: null,
     lm_urgent: null,
-    lm_require_ack: null,
     lm_reply_to_id: null,
     lm_reply_snapshot: null,
     lm_thread_root_id: null,

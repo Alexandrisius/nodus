@@ -34,7 +34,6 @@ function makeMessage(id: string, conversationId: string): MessageRow {
     deletedAt: null,
     obliterated: false,
     urgent: false,
-    requireAck: false,
     mentionedUserIds: null,
     createdAt: now,
     updatedAt: now,

@@ -257,9 +257,7 @@ const conversationHandlers = [
       editedAt: null,
       readAt: null,
       readBy: [],
-      // #177: мок зеркалит серверную семантику — requireAck клампится к urgent.
       urgent: parsed.data.urgent ?? false,
-      requireAck: (parsed.data.urgent ?? false) && (parsed.data.requireAck ?? false),
       mentionedUserIds: [],
       createdAt: new Date().toISOString(),
     };

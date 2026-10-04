@@ -144,7 +144,6 @@ describe('ChatComposer — каретка в конец восстановлен
           edit: null,
           preEditText: null,
           urgent: false,
-          requireAck: false,
         },
       },
     });

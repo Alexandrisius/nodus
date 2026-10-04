@@ -376,7 +376,6 @@ export const tasksHandlers = [
       readAt: null,
       readBy: [],
       urgent: false,
-      requireAck: false,
       mentionedUserIds: [],
       createdAt: new Date().toISOString(),
     };

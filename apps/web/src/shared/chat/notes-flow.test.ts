@@ -29,7 +29,6 @@ function message(id: string, createdAt: string, text = ''): ChatMessage {
     readAt: null,
     readBy: [],
     urgent: false,
-    requireAck: false,
     mentionedUserIds: [],
     createdAt,
   };
@@ -52,7 +51,6 @@ function card(
     editedAt: null,
     deletedAt: null,
     urgent: false,
-    requireAck: false,
     obliterated: false,
     createdAt: favoritedAt,
     labels: [],

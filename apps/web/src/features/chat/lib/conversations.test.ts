@@ -51,7 +51,6 @@ function conv(
           readAt: null,
           readBy: [],
           urgent: false,
-          requireAck: false,
           mentionedUserIds: [],
           createdAt: at,
         }

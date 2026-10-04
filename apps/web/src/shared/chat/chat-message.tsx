@@ -250,7 +250,10 @@ export const ChatMessageItem = memo(function ChatMessageItem({
               // pb-14px — резерв под чипы на нижней кромке (сквозь бордер),
               // мета поднята той же величиной (MetaPin urgent).
               'relative flex flex-col gap-[2px] px-2.5 pt-2.5 leading-tight',
-              message.urgent ? 'pb-[14px]' : 'pb-[8px]',
+              // Важное (#177, ревизия 05.10): pb-14px — резерв под чип на
+              // кромке; min-w-28 — чип задаёт ширину ОДНО-СИМВОЛЬНОГО
+              // пузыря (не вылезает влево за бордер, вердикт владельца).
+              message.urgent ? 'pb-[14px] min-w-28' : 'pb-[8px]',
               tail && (atEnd ? 'rounded-br-none' : 'rounded-bl-none'),
             )}
             style={contentWidth ? { width: contentWidth, maxWidth: '100%' } : undefined}
@@ -341,7 +344,7 @@ export const ChatMessageItem = memo(function ChatMessageItem({
           </BubbleContent>
           {/* Чипы важного (#177): «Ознакомлен» (получателю requireAck) +
               «Важное» (всем) — на нижней кромке, сквозь бордер. */}
-          <UrgentChips message={message} mine={mine} noReceipts={receiptsHidden} />
+          <UrgentChips message={message} />
           {/* Ховер-попап реакций (#124): кнопка у нижнего угла пузыря
               (Bubble — relative), видна по hover/focus/открытом попапе. */}
           {/* В режиме выделения реакции недоступны (модель Битрикс24, #132 р.4). */}

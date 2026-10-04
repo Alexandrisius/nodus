@@ -71,7 +71,6 @@ const message: ChatMessage = {
   readAt: null,
   readBy: [],
   urgent: false,
-  requireAck: false,
   mentionedUserIds: [],
   createdAt: '2026-10-04T10:00:00Z',
 };
@@ -119,7 +118,6 @@ function card(overrides: Partial<FavoriteCard> = {}): FavoriteCard {
     editedAt: null,
     deletedAt: null,
     urgent: false,
-    requireAck: false,
     obliterated: false,
     createdAt: '2026-10-04T10:00:00Z',
     labels: [],

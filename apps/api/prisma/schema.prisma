@@ -388,12 +388,11 @@ model Message {
   /// непрерывности seq, ссылок тредов/цитат/пинов и аудита, но исключается
   /// из всех выдач. false у надгробия (видно как «Сообщение удалено»).
   obliterated  Boolean   @default(false)
-  /// «Важное сообщение» (#100): пробивается через mute/DND верхним ярусом;
-  /// лимит на отправителя. Само по себе действий получателя не требует.
+  /// «Важное сообщение» (#100, ревизия модели 05.10): пробивается через
+  /// mute/DND верхним ярусом; непрочитавшим повторяем пуш каждые 5 минут
+  /// до часа (аналитика прочтений — watermark/readBy); действий получателя
+  /// не требует (ack-механика выпилена решением владельца 05.10).
   urgent       Boolean   @default(false)
-  /// Требует подтверждения ознакомления (#177): повторяет уведомление
-  /// получателю до ack; false — важное без действий (одно уведомление).
-  requireAck   Boolean   @default(false) @map("require_ack")
   /// userId упомянутых @Имя — снапшот МОМЕНТА ОТПРАВКИ (#100, канон
   /// Discord/Zulip): правка текста упоминания не добавляет/убирает.
   mentionedUserIds Json?  @map("mentioned_user_ids")
@@ -727,11 +726,8 @@ model Notification {
   actorId      String?   @map("actor_id") @db.Uuid
   /// Превью текста (поиск, строка ленты).
   preview      String?
-  /// Полный текст срочного — тело «листа ознакомления» (только urgent).
+  /// Полный текст важного — тело строки журнала/пуша (только urgent).
   urgentText   String?   @map("urgent_text")
-  /// Требует подтверждения (#177): повторы до ack; false — важное без
-  /// действий (гасится прочтением, ack не ждёт).
-  requireAck   Boolean   @default(false) @map("require_ack")
   conversationId String? @map("conversation_id") @db.Uuid
   conversationTitle String? @map("conversation_title")
   messageId    String?  @map("message_id") @db.Uuid

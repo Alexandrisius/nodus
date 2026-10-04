@@ -25,7 +25,6 @@ const msg = (id: string, text: string, threadRootId: string | null = null): Chat
   readAt: null,
   readBy: [],
   urgent: false,
-  requireAck: false,
   mentionedUserIds: [],
   createdAt: '2026-09-24T09:00:00Z',
 });

@@ -12,11 +12,7 @@ import { useAuthStore } from '../auth-store.js';
 import { chatKeys } from '../chat/api.js';
 import { usePresenceStore } from './presence-store.js';
 import { notifySentMessage } from '../chat/notifications.js';
-import {
-  notificationAcked,
-  notificationDispatched,
-  notificationRead,
-} from './notification-bridge.js';
+import { notificationDispatched, notificationRead } from './notification-bridge.js';
 import { createRealtimeInvalidator, type RealtimeInvalidator } from './socket-invalidation.js';
 import { useSocketStatusStore } from './socket-status-store.js';
 import { useTypingStore } from './typing-store.js';
@@ -54,7 +50,6 @@ const DOMAIN_EVENTS = [
   // Живые уведомления (#100): user-комната получает весь журнал-будил.
   'notification.dispatch_requested',
   'notification.read',
-  'notification.acked',
 ] as const;
 
 let socket: Socket | null = null;
@@ -185,7 +180,7 @@ export function connectChatSocket(queryClient: QueryClient): void {
   });
 }
 
-/** Будила журнала (#100): тосты/гашение/ack — через мост в фичу. */
+/** Будила журнала (#100): тосты/гашение — через мост в фичу. */
 function dispatchNotification(envelope: RealtimeEnvelope): void {
   const payload = (envelope.payload ?? {}) as Record<string, unknown>;
   if (envelope.type === 'notification.dispatch_requested') {
@@ -201,17 +196,6 @@ function dispatchNotification(envelope: RealtimeEnvelope): void {
   if (envelope.type === 'notification.read') {
     if (typeof payload.userId === 'string') {
       notificationRead(payload.userId, (payload.sourceId as string | null) ?? null);
-    }
-    return;
-  }
-  if (envelope.type === 'notification.acked') {
-    if (typeof payload.userId === 'string' && typeof payload.messageId === 'string') {
-      notificationAcked({
-        userId: payload.userId,
-        messageId: payload.messageId,
-        ackedCount: typeof payload.ackedCount === 'number' ? payload.ackedCount : 0,
-        expectedCount: typeof payload.expectedCount === 'number' ? payload.expectedCount : 0,
-      });
     }
   }
 }

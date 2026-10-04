@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import type { Notification, NotificationSnapshot } from '@nodus/contracts';
 
 import { formatCount, groupNotifications, sortAttentionGroups } from './group-notifications.js';
-import { isAckGateNeeded } from './ack-gate.js';
 import { PERSONAL_TOAST_CAP, shouldToast } from './toast-store.js';
 
 const AUTHOR = '11111111-1111-1111-1111-111111111111';
@@ -21,7 +20,6 @@ function notif(n: number, overrides: Partial<Notification> = {}): Notification {
     actor: { id: AUTHOR, displayName: 'Автор', avatarUrl: null },
     preview: 'текст',
     urgentText: null,
-    requireAck: false,
     conversationId: CONV,
     conversationTitle: 'Беседа',
     messageId: `m${n}`,
@@ -166,17 +164,5 @@ describe('shouldToast (подавления B-кейсов)', () => {
 
   it('F2: кап стака — 4', () => {
     expect(PERSONAL_TOAST_CAP).toBe(4);
-  });
-});
-
-describe('isAckGateNeeded (C6/C7)', () => {
-  it('короткий текст — кнопка активна сразу', () => {
-    expect(isAckGateNeeded('Одна строка')).toBe(false);
-    expect(isAckGateNeeded(null)).toBe(false);
-  });
-
-  it('длинный текст (>8 строк) — гейт долистывания', () => {
-    const nine = Array.from({ length: 9 }, (_, i) => `строка ${i + 1}`).join('\n');
-    expect(isAckGateNeeded(nine)).toBe(true);
   });
 });

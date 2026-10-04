@@ -133,10 +133,9 @@ function predictCard(qc: QueryClient, messageId: string): FavoriteCard | null {
     attachments: message.attachments,
     editedAt: message.editedAt,
     deletedAt: message.deletedAt,
-    // Прогноз из живого сообщения (#177): флаги важного не теряются на время
+    // Прогноз из живого сообщения (#177): флаг важного не теряется на время
     // до серверного рефеча.
     urgent: message.urgent,
-    requireAck: message.requireAck,
     obliterated: false,
     createdAt: message.createdAt,
     labels: [],

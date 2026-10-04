@@ -6,7 +6,6 @@ import { demoBackgroundBulk, demoNotifications } from './notification-mock-data.
 /** Живое мок-состояние журнала (#100): прочтения/ack мутируют данные,
  *  актёр — из живого auth-стора (покомпонентный режим). */
 const readIds = new Set<string>();
-const acked = new Set<string>();
 
 /**
  * Привязка демо-журнала к РЕАЛЬНЫМ беседам аккаунта (фидбек владельца
@@ -178,80 +177,18 @@ export const notificationsHandlers = [
     const item = (await demoJournal(request)).main.find((n) => n.id === id);
     // Гашение = уход из непрочитанных фильтров (readIds), как реальный API:
     // раньше менялся только readAt — строка зависала в списке навсегда.
-    // Важное С подтверждением (#177) читается только ознакомлением.
-    if (item && (item.priority !== 'urgent' || !item.requireAck)) {
+    if (item) {
       item.readAt = new Date().toISOString();
       readIds.add(id);
     }
     return HttpResponse.json(item ?? {});
   }),
 
-  http.post('/api/v1/notifications/:id/ack', async ({ params, request }) => {
-    const id = params.id as string;
-    acked.add(id);
-    const item = (await demoJournal(request)).main.find((n) => n.id === id);
-    if (item) {
-      item.ackAt = new Date().toISOString();
-      readIds.add(id);
-    }
-    return HttpResponse.json(item ?? {});
-  }),
-
-  // Ack из пузыря чата (#177): своя requireAck-строка или 404 (G3-паритет).
-  http.post('/api/v1/notifications/urgent/:messageId/ack', async ({ params, request }) => {
-    const messageId = params.messageId as string;
-    const item = demoNotifications.find(
-      (n) => n.messageId === messageId && n.priority === 'urgent' && n.requireAck,
-    );
-    if (!item) return HttpResponse.json({}, { status: 404 });
-    item.ackAt = new Date().toISOString();
-    acked.add(item.id);
-    readIds.add(item.id);
-    void request;
-    return HttpResponse.json(item);
-  }),
-
-  http.get('/api/v1/notifications/urgent/:messageId/ack', ({ params }) => {
-    const messageId = params.messageId as string;
-    const item = demoNotifications.find(
-      (n) => n.messageId === messageId && n.priority === 'urgent' && n.requireAck,
-    );
-    if (!item) return HttpResponse.json({}, { status: 404 });
-    return HttpResponse.json({ messageId, ackedAt: item.ackAt });
-  }),
-
-  http.get('/api/v1/notifications/urgent/:messageId/acks', ({ params }) => {
-    const messageId = params.messageId as string;
-    const target = demoNotifications.find(
-      (n) => n.messageId === messageId && n.priority === 'urgent',
-    );
-    if (!target) {
-      return HttpResponse.json({
-        messageId,
-        ackedCount: 0,
-        expectedCount: 0,
-        items: [],
-      });
-    }
-    const isAcked = acked.has(target.id);
-    return HttpResponse.json({
-      messageId,
-      ackedCount: isAcked ? 1 : 0,
-      expectedCount: 1,
-      items: isAcked
-        ? [{ user: target.actor!, ackedAt: target.ackAt ?? new Date().toISOString() }]
-        : [],
-    });
-  }),
-
-  http.get('/api/v1/notifications/:id/deliveries', ({ params }) => {
-    const id = params.id as string;
+  http.get('/api/v1/notifications/:id/deliveries', () => {
     return HttpResponse.json({
       items: [
         { channel: 'ws', attempt: 0, deliveredAt: new Date().toISOString() },
-        ...(acked.has(id)
-          ? []
-          : [{ channel: 'repeat', attempt: 1, deliveredAt: new Date().toISOString() }]),
+        { channel: 'repeat', attempt: 1, deliveredAt: new Date().toISOString() },
       ],
     });
   }),

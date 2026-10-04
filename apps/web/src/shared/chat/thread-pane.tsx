@@ -97,9 +97,6 @@ export const ThreadPane = memo(function ThreadPane({
   const send = useSendChatMessage(conversationId, scope);
   const edit = useEditMessage(conversationId, scope);
   // Guardrail молнии (#177): размер беседы треда = размеру беседы.
-  const conversationMembersCount = useConversations().data?.items.find(
-    (c) => c.id === conversationId,
-  )?.membersCount;
   const me = useAuthStore((s) => s.user);
   // Наблюдение и точка «есть новые» (раунд 3): состояния трэдов текущего
   // пользователя — кнопка «Следить» и индикатор чужой печати в шапке окна.
@@ -357,7 +354,6 @@ export const ThreadPane = memo(function ThreadPane({
         onEditLast={handleEditLast}
         selection={selectionComposerProps(conversationId, selection)}
         onSubmit={handleSubmit}
-        memberCount={conversationMembersCount}
       />
     </div>
   );

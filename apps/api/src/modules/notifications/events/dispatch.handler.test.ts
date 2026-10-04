@@ -2,8 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DispatchHandler } from './dispatch.handler.js';
 
-/** Гейтинг повторов важного (#177): BullMQ-повтор ставится ТОЛЬКО
- *  requireAck-строке; важное без подтверждения — одно уведомление. */
+/** Повторы важного (#177, ревизия модели 05.10): BullMQ-повторы ставятся
+ *  КАЖДОМУ urgent-уведомлению при первой доставке (5 мин × 12 до часа);
+ *  гасит прочтение/ответ/реакция или потолок (стоп-повторы в репозитории). */
 
 const TX = 'tx-dispatch';
 
@@ -32,11 +33,11 @@ function makeEvent(
       attempt,
       seq: 1,
     },
-    createdAt: '2026-10-04T00:00:00Z',
+    createdAt: '2026-10-05T00:00:00Z',
   } as never;
 }
 
-describe('DispatchHandler: гейтинг повторов (#177)', () => {
+describe('DispatchHandler: повторы важного (#177)', () => {
   const repo = { recordDelivery: vi.fn() };
   const repeats = { enqueue: vi.fn() };
   const txRunner = { run: vi.fn((cb: (tx: string) => unknown) => cb(TX)) };
@@ -54,28 +55,18 @@ describe('DispatchHandler: гейтинг повторов (#177)', () => {
     );
   });
 
-  it('requireAck=true — повторы ставятся', async () => {
-    await handler.handle(makeEvent({ requireAck: true }));
+  it('urgent при первой доставке — повторы ставятся', async () => {
+    await handler.handle(makeEvent({}));
     expect(repeats.enqueue).toHaveBeenCalledTimes(1);
   });
 
-  it('requireAck=false — важное без повторов', async () => {
-    await handler.handle(makeEvent({ requireAck: false }));
-    expect(repeats.enqueue).not.toHaveBeenCalled();
-  });
-
-  it('старые события без поля — повторов нет (undefined ≠ true)', async () => {
-    await handler.handle(makeEvent({}));
-    expect(repeats.enqueue).not.toHaveBeenCalled();
-  });
-
   it('повтор-попытка (attempt>0) — повторно не ставится', async () => {
-    await handler.handle(makeEvent({ requireAck: true }, 2));
+    await handler.handle(makeEvent({}, 2));
     expect(repeats.enqueue).not.toHaveBeenCalled();
   });
 
   it('не-urgent — повторов нет', async () => {
-    await handler.handle(makeEvent({ priority: 'high', requireAck: false }));
+    await handler.handle(makeEvent({ priority: 'high' }));
     expect(repeats.enqueue).not.toHaveBeenCalled();
   });
 });
