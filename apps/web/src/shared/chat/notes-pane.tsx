@@ -16,6 +16,8 @@ import { useConversationMessages, useConversations, useSendChatMessage } from '.
 import { ChatComposer, type ComposerSubmit } from './chat-composer.js';
 import { ChatMessageItem } from './chat-message.js';
 import { DayChip } from './day-chip.js';
+import { toEditVars } from './message-edit.js';
+import { useEditMessage } from './message-mutations.js';
 import { FavoriteLabelChips, FavoriteLabels } from './favorite-labels.js';
 import { FavoriteMenu } from './favorite-menu.js';
 import { favoriteSourceTitle, toFavoriteMessage } from './favorite-message.js';
@@ -95,19 +97,35 @@ export function NotesPane({ conversationId }: { conversationId: string }) {
   const runs = useMemo(() => buildMessageRuns(items, meId ?? undefined), [items, meId]);
 
   const selection = useFeedSelection(scope, messages, undefined);
-  // Реестр окна вложений (#144): стабильный колбэк по scope (send — новый
+  // Правка в Заметках (#188, находка живой пробы): сообщения витрины — свои,
+  // «Редактировать» в меню предлагается — хост обязан маршрутизировать правку
+  // (раньше submit уходил отправкой НОВОГО сообщения). Окно правки вложений
+  // идёт через реестр с составом (editComposition).
+  const edit = useEditMessage(conversationId, scope);
+  const editRef = useRef(edit);
+  editRef.current = edit;
+  // Реестр окна вложений (#144): стабильный колбэк по scope (send/edit — новый
   // объект каждый рендер; mutate стабилен, ref держит актуальный).
   const sendRef = useRef(send);
   sendRef.current = send;
   useEffect(
     () =>
-      registerScopeSubmit(scope, (submit: ComposerSubmit) =>
-        sendRef.current.mutateAsync(toSendVars(submit)),
-      ),
+      registerScopeSubmit(scope, (submit: ComposerSubmit) => {
+        if (submit.edit) {
+          const vars = toEditVars(submit);
+          return vars ? editRef.current.mutateAsync(vars) : Promise.resolve();
+        }
+        return sendRef.current.mutateAsync(toSendVars(submit));
+      }),
     [scope],
   );
 
   function handleSubmit(submit: ComposerSubmit) {
+    if (submit.edit) {
+      const vars = toEditVars(submit);
+      if (vars) edit.mutate(vars);
+      return;
+    }
     send.mutate(toSendVars(submit));
   }
 
