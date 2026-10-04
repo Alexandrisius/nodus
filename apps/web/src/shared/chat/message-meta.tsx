@@ -81,7 +81,14 @@ export function MessageMeta({
           strokeWidth={1.75}
         />
       ) : null}
-      {message.urgent ? <UrgentAcksMeta messageId={message.id} onFilled={onFilled} /> : null}
+      {message.urgent ? (
+        <UrgentAcksMeta
+          /* Прогресс ознакомления — данные отправителя (#202): опрашивают
+             только СВОИ срочные; получателям бейдж «Срочно» без счётчика. */
+          messageId={message.mine ? message.id : null}
+          onFilled={onFilled}
+        />
+      ) : null}
       {message.editedAt ? <span>{ui.chat.edited}</span> : null}
       <time className="font-mono tabular-nums" dateTime={plain ? undefined : message.createdAt}>
         {formatTime(message.createdAt)}
@@ -122,7 +129,7 @@ export function MessageMeta({
  * ключ urgentAcks). Интеграционная точка журнала уведомлений в ЕДИНУЮ мету
  * мессенджера (второго хоста нет).
  */
-function UrgentAcksMeta({ messageId, onFilled }: { messageId: string; onFilled: boolean }) {
+function UrgentAcksMeta({ messageId, onFilled }: { messageId: string | null; onFilled: boolean }) {
   const status = useUrgentAcks(messageId);
   return (
     <>
