@@ -342,6 +342,9 @@ export function useSendChatMessage(conversationId: string, draftScope?: string) 
       // Префикс messages(id) покрывает и тред-ключи (prefix matching).
       void queryClient.invalidateQueries({ queryKey: chatKeys.messages(conversationId) });
       void queryClient.invalidateQueries({ queryKey: chatKeys.conversations() });
+      // Заряды молнии (#177): счётчик обновляется сразу после отправки,
+      // не по 30-секундному staleTime.
+      void queryClient.invalidateQueries({ queryKey: chatKeys.urgentPolicy() });
     },
   });
 

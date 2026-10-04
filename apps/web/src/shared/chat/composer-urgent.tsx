@@ -80,7 +80,10 @@ export function ComposerUrgentButton({
           data-slot="urgent-charges"
           aria-hidden
           className={cn(
-            'absolute right-0 bottom-0 z-10 inline-flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-warning px-0.5 font-mono text-[9px] leading-none font-medium text-background tabular-nums ring-2 ring-card select-none',
+            // Компактный бейдж (ревизия владельца 05.10): фиксированный
+            // h-3/w-3 (12 дизайн-px, канон бейджа аватара), цифра — вниз
+            // на 1px (глиф цифры оптически сидит выше центра строки).
+            'absolute right-0 bottom-0 z-10 flex h-3 w-3 items-center justify-center rounded-full bg-warning pt-[1px] font-mono text-[8.5px] font-semibold text-background tabular-nums ring-1 ring-card select-none',
           )}
         >
           {remaining}
