@@ -258,6 +258,7 @@ export function createLetterConversation(letter: LetterListItem, members: UserRe
       ? members.length
       : members.length + 1,
     lastMessage: null,
+    lastActivityAt: null,
     unreadCount: 0,
     myLastReadSeq: 0,
     pinned: false,

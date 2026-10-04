@@ -93,6 +93,7 @@ const conversation: ConversationListItem = {
   membersPreview: [author],
   membersCount: 2,
   lastMessage: null,
+  lastActivityAt: null,
   unreadCount: 0,
   myLastReadSeq: 0,
   pinned: false,

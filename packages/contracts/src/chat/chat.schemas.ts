@@ -256,6 +256,11 @@ export const conversationListItemSchema = z.object({
    *  превью-набор, его длина счётчиком не является). */
   membersCount: z.number().int().min(0),
   lastMessage: messageSchema.nullable(),
+  /** Момент активности для сортировки списка (ISO): сообщения ИЛИ новая
+   *  звезда в «Избранном» (GREATEST(last_message_at, последняя закладка) —
+   *  звезда поднимает чат наверх, как новое сообщение, #215); null —
+   *  активности не было. Превью остаётся lastMessage. */
+  lastActivityAt: z.string().nullable(),
   unreadCount: z.number().int().min(0),
   /** Watermark прочтения ТЕКУЩЕГО пользователя в беседе (см. ниже): якорь
    *  «открыть на первом непрочитанном» (seq > myLastReadSeq, раунд 3). */

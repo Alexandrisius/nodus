@@ -93,15 +93,20 @@ export const favoriteHandlers = [
       const card = toCard(messageId);
       if (card) items.push(card);
     });
-    // Активность «Избранного» (#215, паритет серверному touchLastMessageAt):
-    // новая звезда поднимает беседу «Избранное» в начало демо-списка.
+    // Активность «Избранного» (#215, паритет серверному touchLastMessageAt +
+    // lastActivityAt списка): новая звезда поднимает беседу «Избранное»
+    // наверх — клиент сортирует по lastActivityAt.
     if (items.length > 0) {
-      const notesIndex = demoConversations.findIndex(
+      const notes = demoConversations.find(
         (c) => c.type === 'direct' && c.membersPreview.length === 1,
       );
-      if (notesIndex > 0) {
-        const [notes] = demoConversations.splice(notesIndex, 1);
-        demoConversations.unshift(notes!);
+      if (notes) {
+        notes.lastActivityAt = new Date().toISOString();
+        const index = demoConversations.indexOf(notes);
+        if (index > 0) {
+          demoConversations.splice(index, 1);
+          demoConversations.unshift(notes);
+        }
       }
     }
     return HttpResponse.json({ items });

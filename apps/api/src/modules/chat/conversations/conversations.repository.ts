@@ -16,6 +16,9 @@ export interface ConversationListRow {
   permissions: Prisma.JsonValue;
   avatar_file_id: string | null;
   last_message_at: Date | null;
+  /** Активность для сортировки (#215): last_message_at, для «Избранного» —
+   *  GREATEST с последней закладкой владельца (CASE в LIST_SELECT). */
+  last_activity_at: Date | null;
   role: string;
   pinned: boolean;
   muted: boolean;
@@ -78,6 +81,13 @@ const LIST_SELECT = (userId: string): Prisma.Sql => Prisma.sql`
   SELECT
     c.id, c.type, c.title, c.description, c.visibility, c.permissions, c.avatar_file_id,
     c.last_message_at,
+    CASE WHEN c.type = 'direct' AND c.user_min = c.user_max AND c.user_min = ${userId}::uuid
+      THEN GREATEST(
+        c.last_message_at,
+        (SELECT max(f.created_at) FROM favorites f WHERE f.user_id = ${userId}::uuid)
+      )
+      ELSE c.last_message_at
+    END AS last_activity_at,
     cm.role, cm.pinned, cm.muted, cm.snoozed, cm.last_read_seq AS my_last_read_seq,
     d.text AS draft_text, d.revision AS draft_revision, d.updated_at AS draft_updated_at,
     (SELECT COUNT(*)::int FROM messages um
