@@ -190,7 +190,6 @@ export function ProjectCard({ projectId }: { projectId: string }) {
           onClose={panel.close}
           title={ui.chat.aboutProject}
           headerClass="h-10"
-          threadRootId={threadId}
         />
       ) : null}
     </div>

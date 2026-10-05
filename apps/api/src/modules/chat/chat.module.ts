@@ -32,6 +32,9 @@ import { FavoritesService } from './favorites/favorites.service.js';
 import { StickersController } from './stickers/stickers.controller.js';
 import { StickersRepository } from './stickers/stickers.repository.js';
 import { StickersService } from './stickers/stickers.service.js';
+import { VaultController } from './vault/vault.controller.js';
+import { VaultRepository } from './vault/vault.repository.js';
+import { VaultService } from './vault/vault.service.js';
 
 /**
  * Модуль chat (M6, #58): беседы (direct/group/каналы), сообщения, треды,
@@ -54,6 +57,7 @@ import { StickersService } from './stickers/stickers.service.js';
     StickersController,
     FavoritesController,
     UrgentPolicyController,
+    VaultController,
   ],
   providers: [
     ConversationsRepository,
@@ -83,6 +87,10 @@ import { StickersService } from './stickers/stickers.service.js';
     FavoritesRepository,
     FavoriteCardMapper,
     FavoritesService,
+    // Витрина беседы (#211): серверные списки вложений/ссылок панели
+    // «О чате» + денормализованные счётчики (Δ в транзакциях состава).
+    VaultRepository,
+    VaultService,
     // Политика важных (#177): счётчик дневного лимита для попапа молнии.
     UrgentPolicyReader,
     // Мост версий файлов в беседы (#182): file.version_created →

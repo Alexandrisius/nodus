@@ -9,6 +9,8 @@ import { ChannelView } from '../../../shared/chat/channel-view.js';
 import { ConversationPane } from '../../../shared/chat/conversation-pane.js';
 import { isNotesConversation } from '../../../shared/chat/conversations.js';
 import { NotesPane } from '../../../shared/chat/notes-pane.js';
+import { NotesSourceWindow } from '../../../shared/chat/notes-source-window.js';
+import type { NotesSourceId } from '../../../shared/chat/notes-sources-pane.js';
 import { useConvRoom } from '../../../shared/socket/use-conv-room.js';
 import { ConversationBar } from './conversation-bar.js';
 
@@ -45,12 +47,16 @@ export function ChatWorkspace({
   const [membersView, setMembersView] = useState(false);
   const [searchView, setSearchView] = useState(false);
   const [addMembersOpen, setAddMembersOpen] = useState(false);
+  // Окно-источник «Избранного» (#211 Ф3): клик по источнику в панели —
+  // лента, выезжающая справа налево поверх витрины; смена беседы сбрасывает.
+  const [notesSource, setNotesSource] = useState<NotesSourceId | null>(null);
   // Смена беседы без ремаунта (карточка мессенджера подменяет верхнюю):
   // виды панели персональны беседе — сбрасываем.
   useEffect(() => {
     setMembersView(false);
     setSearchView(false);
     setAddMembersOpen(false);
+    setNotesSource(null);
   }, [conversation.id]);
   // Подписка на комнату беседы (#104): мгновенные события и typing.
   useConvRoom(conversation.id);
@@ -118,7 +124,12 @@ export function ChatWorkspace({
           threadBarClass="h-14"
         />
       ) : (
-        <div className="flex h-full min-w-0 flex-1 flex-col">
+        // Колонка чата: overflow-hidden — на узких окнах лента гибнет в 0
+        // (пола на странице мессенджера нет, #211 находка), и без обрезки
+        // контент бара выезжал поверх панели «О чате» (огрызки без ellipsis).
+        // relative — корень окна-источника «Избранного» (ревизия 05.10):
+        // оно выезжает от САМОГО ВЕРХА и перекрывает бар беседы (Telegram).
+        <div className="relative flex h-full min-w-0 flex-1 flex-col overflow-hidden">
           {bar}
           <div className="flex min-h-0 flex-1">
             {notes ? (
@@ -130,6 +141,13 @@ export function ChatWorkspace({
               />
             )}
           </div>
+          {notes ? (
+            <NotesSourceWindow
+              conversationId={conversation.id}
+              source={notesSource}
+              onClose={() => setNotesSource(null)}
+            />
+          ) : null}
         </div>
       )}
       <ChatSidePanel
@@ -138,11 +156,11 @@ export function ChatWorkspace({
         open={panel.open}
         onClose={closePanelView}
         title={conversation.type === 'project_channel' ? ui.chat.aboutChannel : ui.chat.aboutChat}
-        threadRootId={threadRootId}
         view={membersView ? 'members' : searchView ? 'search' : 'files'}
         onMembersClose={closeMembers}
         onSearchBack={backFromSearch}
         onAddMembers={() => setAddMembersOpen(true)}
+        onOpenNotesSource={setNotesSource}
       />
       {addMembersOpen ? (
         <AddMembersDialog conversation={conversation} onClose={() => setAddMembersOpen(false)} />

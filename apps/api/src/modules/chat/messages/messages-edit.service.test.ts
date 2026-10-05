@@ -61,6 +61,8 @@ function attachmentRow(overrides: Record<string, unknown> = {}) {
     id: 'att-1',
     name: 'a.png',
     kind: 'file',
+    // mime в БД NOT NULL — витринная классификация (#211) читает его.
+    mime: 'application/pdf',
     sortOrder: 0,
     ...overrides,
   };
@@ -104,6 +106,12 @@ describe('MessagesService.edit (#188: текст + состав вложений
       threadParticipants as never,
       stickersRepo as never,
       { deleteByMessage: vi.fn().mockResolvedValue([]) } as never,
+      {
+        applyMessageSent: vi.fn(async () => {}),
+        applyMessageEdited: vi.fn(async () => {}),
+        applyMessageDeleted: vi.fn(async () => {}),
+        applyForwardCopies: vi.fn(async () => {}),
+      } as never,
     );
   });
 

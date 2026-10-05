@@ -197,7 +197,7 @@ export function NotesPane({ conversationId }: { conversationId: string }) {
   }
 
   return (
-    <div className="flex h-full min-w-0 flex-1 flex-col">
+    <div className="relative flex h-full min-w-0 flex-1 flex-col">
       <MessageScrollerProvider autoScroll>
         {/* Своя отправка дотягивает ленту до конца с любой позиции (#215):
             композер витрины пишет scroll-end-запрос по тому же scope —

@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { ChatMessage, FavoriteCard, UserRef } from '@nodus/contracts';
 
-import { filterNotesFlow, mergeNotesFlow, splitNotesSelection } from './notes-flow.js';
+import {
+  filterNotesFlow,
+  filterNotesFlowBySource,
+  mergeNotesFlow,
+  splitNotesSelection,
+} from './notes-flow.js';
 
 const author: UserRef = {
   id: '00000000-0000-4000-8000-000000000001',
@@ -157,5 +162,48 @@ describe('splitNotesSelection (#215)', () => {
       noteIds: ['n1', 'ghost'],
       cardIds: ['c1'],
     });
+  });
+});
+
+describe('filterNotesFlowBySource (#211 Ф3: окно-источник «Избранного»)', () => {
+  const me = '00000000-0000-4000-8000-000000000001';
+  const other = '00000000-0000-4000-8000-000000000002';
+  const chatA = '00000000-0000-4000-8000-00000000000a';
+  const chatB = '00000000-0000-4000-8000-00000000000b';
+
+  it('«Записи» — только СВОИ записи (карточки и чужие авторы исключены)', () => {
+    const entries = mergeNotesFlow(
+      [
+        { ...message('n-mine', '2026-10-01T10:00:00Z'), author: { ...author, id: me } },
+        { ...message('n-other', '2026-10-01T11:00:00Z'), author: { ...author, id: other } },
+      ],
+      [card('c1', '2026-10-01T12:00:00Z', { conversationId: chatA })],
+    );
+    const filtered = filterNotesFlowBySource(entries, 'notes', me);
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0]).toMatchObject({ kind: 'note' });
+    if (filtered[0]!.kind === 'note') expect(filtered[0]!.message.id).toBe('n-mine');
+  });
+
+  it('источник-беседа — только её карточки; записи и чужие звёзды исключены', () => {
+    const entries = mergeNotesFlow(
+      [message('n1', '2026-10-01T10:00:00Z')],
+      [
+        card('ca', '2026-10-01T11:00:00Z', { conversationId: chatA }),
+        card('cb', '2026-10-01T12:00:00Z', { conversationId: chatB }),
+      ],
+    );
+    const filtered = filterNotesFlowBySource(entries, chatA, me);
+    expect(filtered).toHaveLength(1);
+    if (filtered[0]!.kind === 'favorite') expect(filtered[0]!.card.conversationId).toBe(chatA);
+  });
+
+  it('порядок потока сохраняется (ось слияния не меняется фильтром)', () => {
+    const entries = mergeNotesFlow(
+      [message('n1', '2026-10-01T10:00:00Z'), message('n2', '2026-10-01T09:00:00Z')],
+      [],
+    );
+    const filtered = filterNotesFlowBySource(entries, 'notes', author.id);
+    expect(filtered.map((e) => (e.kind === 'note' ? e.message.id : ''))).toEqual(['n2', 'n1']);
   });
 });

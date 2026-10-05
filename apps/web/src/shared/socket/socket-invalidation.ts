@@ -3,6 +3,7 @@ import type { RealtimeEnvelope } from '@nodus/contracts';
 
 import { chatKeys } from '../chat/api.js';
 import { favoriteKeys } from '../chat/favorites-api.js';
+import { vaultKeys } from '../chat/vault-api.js';
 import { applyReadEvent, applyReactionEvent, applySentMessage } from '../chat/ws-apply.js';
 import { notificationsKeys } from '../notifications-keys.js';
 import { createKeyBatcher, type KeyBatcher } from './invalidation-batcher.js';
@@ -48,12 +49,16 @@ export function createRealtimeInvalidator(queryClient: QueryClient): RealtimeInv
           if (!applied) push(conversationId, 'messages');
           // Точка «есть новые»/счётчик трэда и превью списка — по окнам.
           push(conversationId, 'states');
+          // Витрина #211: новое сообщение могло принести вложения/ссылки.
+          if (conversationId) batcher.push(vaultKeys.all, 'feed');
           if (conversationId) batcher.push(chatKeys.conversations(), 'list');
           return;
         }
         case 'chat.message_edited':
         case 'chat.message_deleted':
           push(conversationId, 'messages');
+          // Витрина #211: правка меняет состав/ссылки, удаление гасит.
+          if (conversationId) batcher.push(vaultKeys.all, 'feed');
           // Карточки избранного — живые ссылки на оригинал (#171): правка
           // отражается в карточке, удаление гасит её в надгробие.
           batcher.push(favoriteKeys.all, 'feed');

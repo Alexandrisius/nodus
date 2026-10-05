@@ -326,6 +326,7 @@ model Conversation {
   messages Message[]
   pins    ConversationPin[]
   drafts  ConversationDraft[]
+  vaultStats ConversationVaultStats?
 
   @@index([lastMessageAt(sort: Desc), id])
   @@map("conversations")
@@ -409,6 +410,7 @@ model Message {
   messagePins  ConversationPin[]
   attachments  MessageAttachment[]
   favorites    Favorite[]
+  links        MessageLink[]
 
   @@unique([conversationId, seq])
   @@unique([authorId, clientMessageId])
@@ -519,6 +521,54 @@ model MessageAttachment {
 }
 
 // ===================== избранное чата (#171, M6) =====================
+
+/// Проекция ссылок сообщения (#211): URL из текста, извлекаемые ПРИ
+/// ОТПРАВКЕ/ПРАВКЕ в той же транзакции (write-time projection, модель
+/// Telegram/Bitrix — счётчики и списки секции «Ссылки» без скана текстов;
+/// переиспользуется превью ссылок #212). Удаление/бесследие сообщения
+/// чистит строки физически (восстановления нет, #163).
+model MessageLink {
+  id         String   @id @default(uuid()) @db.Uuid
+  messageId  String   @map("message_id") @db.Uuid
+  /// Денормализация для keyset-списка витрины без join на навигацию.
+  conversationId String @map("conversation_id") @db.Uuid
+  /// Денормализация треда (скоуп «Этот тред», null у корней ленты).
+  threadRootId   String? @map("thread_root_id") @db.Uuid
+  /// Порядок в тексте сообщения (устойчивый ключ страницы внутри seq).
+  position   Int
+  url        String
+  /// Автор сообщения — контекст строки витрины (кто отправил).
+  authorId   String   @map("author_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, position])
+  @@index([conversationId, threadRootId, position])
+  @@index([authorId])
+  @@map("message_links")
+}
+
+/// Денормализованные счётчики витрины беседы (#211): image (kind='image'),
+/// video/audio (файлы с mime video/*|audio/*), document (остальные файлы),
+/// link (строки message_links) — только ЖИВЫЕ сообщения (надгробие/
+/// бесследие уменьшает). Обслуживание — Δ в тех же транзакциях состава
+/// (send/edit/delete/batch-delete/forward), модель Telegram getSearchCounters /
+/// Битрикс24 (чтение O(1), «не для пилотных объёмов»); backfill-миграции
+/// обеспечивают стартовую консистентность, инвариант stats == COUNT(живых)
+/// проверяется integration-тестами.
+model ConversationVaultStats {
+  conversationId String @id @map("conversation_id") @db.Uuid
+  imageCount     Int    @default(0) @map("image_count")
+  videoCount     Int    @default(0) @map("video_count")
+  audioCount     Int    @default(0) @map("audio_count")
+  documentCount  Int    @default(0) @map("document_count")
+  linkCount      Int    @default(0) @map("link_count")
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@map("conversation_vault_stats")
+}
 
 /// Личная закладка-ссылка на сообщение (#171, «закладка, не копия»):
 /// контент живёт в оригинале — правки отражаются, удаление оригинала гасит

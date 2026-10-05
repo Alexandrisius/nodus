@@ -71,3 +71,12 @@ export function formatDayLabel(iso: string, now: Date = new Date()): string {
     timeZone: 'UTC',
   }).format(day);
 }
+
+/** Метка дня витрины (#211, ревизия 05.10): как formatDayLabel, но для
+ *  прошлых лет добавляет год («4 октября 2025») — вложения живут месяцами. */
+export function formatVaultDayLabel(iso: string, now: Date = new Date()): string {
+  const label = formatDayLabel(iso, now);
+  if (label === ui.chat.today || label === ui.chat.yesterday) return label;
+  const year = new Date(iso).getUTCFullYear();
+  return year === now.getUTCFullYear() ? label : `${label} ${year}`;
+}

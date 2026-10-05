@@ -1,6 +1,6 @@
 import { Camera, Search, SquareArrowOutUpRight, UserPlus } from 'lucide-react';
 import { useRef, useState } from 'react';
-import type { ConversationListItem, UserRef } from '@nodus/contracts';
+import type { ConversationListItem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { toast } from 'sonner';
 import {
@@ -12,13 +12,12 @@ import {
 
 import { useOpenCard } from '../../../app/shell/use-card-stack.js';
 import { useAuthStore } from '../../../shared/auth-store.js';
-import { withoutPatronymic } from '../../../shared/lib/format.js';
 import { avatarIssueMessage, validateAvatarFile } from '../../../shared/chat/avatar-upload.js';
 import { ChatPanelToggle } from '../../../shared/chat/chat-side-panel.js';
+import { buildSubtitle, findPeer, memberName } from '../../../shared/chat/conversation-subtitle.js';
 import {
   canAddMembers,
   canChangeInfo,
-  conversationSubtitle,
   conversationTitle,
   isNotesConversation,
   isRenamableConversation,
@@ -32,7 +31,6 @@ import { useIsOnline } from '../../../shared/socket/presence-store.js';
 import { useTypingStore } from '../../../shared/socket/typing-store.js';
 import { NotesGlyph } from '../../../shared/ui/notes-glyph.js';
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
-import { plural } from '../../../shared/lib/format.js';
 
 /**
  * Бар беседы: аватар/закладка, название, подпись, «Открыть задачу», тоггл
@@ -241,54 +239,4 @@ export function ConversationBar({
       </div>
     </header>
   );
-}
-
-function findPeer(conversation: ConversationListItem, meId: string | undefined): UserRef | null {
-  return conversation.membersPreview.find((member) => member.id !== meId) ?? null;
-}
-
-function memberName(conversation: ConversationListItem, userId: string): string | null {
-  const raw = conversation.membersPreview.find((member) => member.id === userId)?.displayName;
-  return raw ? withoutPatronymic(raw) : null;
-}
-
-/** Подзаголовок: typing > direct presence > «N участников» (кнопка, #186) >
- *  типовой (conversations.ts). */
-function buildSubtitle(
-  conversation: ConversationListItem,
-  meId: string | undefined,
-  live: {
-    typingName: string | null;
-    peerOnline: boolean;
-    onOpenMembers: () => void;
-  },
-) {
-  if (live.typingName !== null) {
-    // Direct — просто «печатает…»; группа/канал — «Имя печатает…».
-    return conversation.type === 'direct' || live.typingName === ''
-      ? ui.chat.typing
-      : `${live.typingName} ${ui.chat.typing}`;
-  }
-  if (conversation.type === 'direct' && !isNotesConversation(conversation, meId)) {
-    return live.peerOnline ? ui.common.online : ui.chat.offline;
-  }
-  if (conversation.type === 'group' || conversation.type === 'project_channel') {
-    const count = conversation.membersCount;
-    const label = `${count} ${plural(count, [
-      ui.chat.membersCountOne,
-      ui.chat.membersCountFew,
-      ui.chat.membersCountMany,
-    ])}`;
-    return (
-      <button
-        type="button"
-        onClick={live.onOpenMembers}
-        className="-mx-1 rounded px-1 py-0.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
-        title={ui.chat.membersPanelTitle}
-      >
-        {label}
-      </button>
-    );
-  }
-  return conversationSubtitle(conversation);
 }

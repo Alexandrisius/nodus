@@ -20,7 +20,8 @@ interface FavoriteState {
 /** Личные закладки актёра: messageId → состояние. */
 export const favoriteMocks = new Map<string, FavoriteState>();
 
-function toCard(messageId: string): FavoriteCard | null {
+/** Карточка закладки по id (для витрины и моков-источников #211). */
+export function toCard(messageId: string): FavoriteCard | null {
   const message = demoMessages.find((m) => m.id === messageId);
   const state = favoriteMocks.get(messageId);
   // Призраки удалённых оригиналов не выдаются (#215, паритет серверному

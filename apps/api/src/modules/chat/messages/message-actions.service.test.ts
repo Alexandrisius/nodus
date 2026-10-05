@@ -53,6 +53,12 @@ function makeService() {
     eventBus as never,
     userProfiles as never,
     threadParticipants as never,
+    {
+      applyMessageSent: vi.fn(async () => {}),
+      applyMessageEdited: vi.fn(async () => {}),
+      applyMessageDeleted: vi.fn(async () => {}),
+      applyForwardCopies: vi.fn(async () => {}),
+    } as never,
   );
   return { service, conversations, messages, mapper };
 }
