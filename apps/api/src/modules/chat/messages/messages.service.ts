@@ -28,8 +28,8 @@ import {
   type MemberRow,
 } from '../conversations/conversations.repository.js';
 import { can, parsePermissions } from '../permissions.js';
-import { MessageDtoMapper } from './message-dto.mapper.js';
-import { addMentionWatchers, resolveMentionMatches } from './mentions.js';
+import { MessageDtoMapper, readMentionedUserIds } from './message-dto.mapper.js';
+import { addMentionWatchers, resolveMentionTargets } from './mentions.js';
 import { assertUrgentSendAllowedBy } from './send-urgent.policy.js';
 import {
   MessagesRepository,
@@ -40,11 +40,8 @@ import { AttachmentsRepository } from './attachments.repository.js';
 import { FavoritesRepository } from '../favorites/favorites.repository.js';
 import { ThreadParticipantsRepository } from './thread-participants.repository.js';
 import { buildReplySnapshot } from './reply-snapshot.js';
-import {
-  VaultRepository,
-  attachmentKindDelta,
-  emptyAttachmentDelta,
-} from '../vault/vault.repository.js';
+import { VaultRepository } from '../vault/vault.repository.js';
+import { syncEditAttachments } from './messages-edit-attachments.js';
 import {
   StickersRepository,
   type StickerAttachmentRow,
@@ -191,10 +188,9 @@ export class MessagesService {
     idempotencyKey: string | undefined,
   ): Promise<SendResult> {
     const clientMessageId = idempotencyKey ?? randomUUID();
-    // @упоминания (раунд 3): справочник читаем ДО транзакции — текст известен
-    // заранее, а второе соединение пула внутри tx голодает его под пачкой
-    // параллельных отправок (repro chat-reliability).
-    const mentionMatches = await resolveMentionMatches(this.userProfiles, body.text);
+    // @упоминания (#176): токены → активные участники беседы, ДО tx (repro
+    // chat-reliability: второе соединение пула внутри tx голодает его).
+    const mentionMatches = await this.resolveMentions(conversationId, body.text, userId);
     return this.txRunner.run(async (tx) => {
       const membership = await this.conversations.findMembership(conversationId, userId, tx);
       if (!membership) throw DomainException.notFound('Conversation not found');
@@ -418,13 +414,16 @@ export class MessagesService {
 
   /** Правка (#188): текст + опционально полный состав вложений. Только
    *  автор, без давности; editedAt — только при реальной смене (текст,
-   *  состав или имена файлов). */
+   *  состав или имена файлов). Упоминания пересчитываются по итоговому
+   *  тексту (#176): токен — источник истины, правка меняет снапшот. */
   async edit(
     userId: string,
     conversationId: string,
     messageId: string,
     body: EditMessageBody,
   ): Promise<{ message: MessageRow; members: MemberRow[] }> {
+    // Упоминания по итоговому тексту — ДО tx (как в send).
+    const mentionMatches = await this.resolveMentions(conversationId, body.text, userId);
     return this.txRunner.run(async (tx) => {
       if (!(await this.conversations.findMembership(conversationId, userId, tx)))
         throw DomainException.notFound('Conversation not found');
@@ -439,12 +438,36 @@ export class MessagesService {
       if (message.fwdMessageId) {
         throw DomainException.forbidden('Forwarded messages cannot be edited');
       }
-      const attachmentsChanged = await this.syncEditAttachments(messageId, userId, body, tx);
+      // Состав вложений правки — messages-edit-attachments.ts (#188, I5).
+      const attachmentsChanged = await syncEditAttachments(
+        { repo: this.repo, attachmentsRepo: this.attachmentsRepo },
+        messageId,
+        userId,
+        body,
+        tx,
+      );
       let updated = message;
       if (message.text !== body.text || attachmentsChanged.changed) {
         // Витрина #211: смена текста — замена строк ссылок, состав — Δ видов.
         await this.vault.applyMessageEdited(tx, message, body, attachmentsChanged);
-        updated = await this.repo.updateEditText(conversationId, messageId, userId, body.text, tx);
+        updated = await this.repo.updateEditText(
+          conversationId,
+          messageId,
+          userId,
+          body.text,
+          message.text !== body.text ? mentionMatches : readMentionedUserIds(message),
+          tx,
+        );
+        // Новые упомянутые — наблюдатели трэда (#176), как отправка.
+        if (message.text !== body.text) {
+          await addMentionWatchers(
+            this.threadParticipants,
+            tx,
+            message.threadRootId ?? messageId,
+            mentionMatches,
+            userId,
+          );
+        }
         // readAt сбрасывается выводно (editedAt > last_read_at читателей) —
         // «повторный пуш прочитавшим» (решение #41); состав вложений в
         // событии не разносится — подписчики дочитывают через API.
@@ -469,40 +492,15 @@ export class MessagesService {
     });
   }
 
-  /** Применение состава вложений правки (#188): claim новых, detach
-   *  убранных, reorder, переименования. Возвращает «была ли реальная смена»
-   *  (сигнатура состава+имён до/после — решает editedAt и событие) и Δ
-   *  счётчиков витрины по видам (#211: стикеры не правятся, в Δ не входят).
-   *  Стикер-сообщение не правится ни составом, ни именами (стикер
-   *  неделим, #143). Инвариант непустоты: текст или ≥1 вложение — иначе
-   *  валидационная ошибка и откат транзакции (мусорный/чужой id в списке не
-   *  оставит сообщение пустым — security-ревью #188). */
-  private async syncEditAttachments(
-    messageId: string,
-    userId: string,
-    body: EditMessageBody,
-    tx: TransactionClient,
-  ) {
-    if (body.attachmentIds === undefined && body.attachmentRenames === undefined)
-      return { changed: false, delta: emptyAttachmentDelta() };
-    const before = await this.repo.attachmentsFor([messageId], tx);
-    if (before.some((a) => a.kind === 'sticker'))
-      throw DomainException.forbidden('Sticker messages cannot be edited');
-    if (body.attachmentIds !== undefined) {
-      await this.attachmentsRepo.syncMessageAttachments(messageId, body.attachmentIds, userId, tx);
-    }
-    if (body.attachmentRenames !== undefined && body.attachmentRenames.length > 0)
-      await this.attachmentsRepo.renameMessageAttachments(messageId, body.attachmentRenames, tx);
-    const after = await this.repo.attachmentsFor([messageId], tx);
-    if (body.text.trim().length === 0 && after.length === 0) {
-      throw new DomainException(
-        ErrorCode.VALIDATION_FAILED,
-        'Message must have text or attachments',
-      );
-    }
-    const signature = (rows: typeof before) => rows.map((a) => `${a.id}:${a.name}`).join('|');
-    const changed = signature(before) !== signature(after);
-    return { changed, delta: attachmentKindDelta(before, after) };
+  /** Упоминания send/edit (#176): токены → активные участники, ДО tx. */
+  private resolveMentions(conversationId: string, text: string, authorId: string) {
+    return resolveMentionTargets(
+      this.userProfiles,
+      this.conversations,
+      conversationId,
+      text,
+      authorId,
+    );
   }
 
   // ===== Удаление =====

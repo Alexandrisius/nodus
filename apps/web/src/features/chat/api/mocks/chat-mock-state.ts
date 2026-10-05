@@ -1,3 +1,4 @@
+import { extractMentionIds } from '@nodus/contracts';
 import type { ChatMessage, MessageAttachment, MessagePin, ReplyPreview } from '@nodus/contracts';
 
 import { demoConversations, demoMessages, demoPins } from '../../../../shared/mocks/data/chat.js';
@@ -308,24 +309,16 @@ export function toggleReaction(message: ChatMessage, emoji: string, remove: bool
   message.reactions = [...message.reactions, { emoji, count: 1, mine: true, users: [actor] }];
 }
 
-/** @упоминания мока (паритет серверу, раунд 3): токены @Имя против ФИО
- *  демо-справочника (точное совпадение имени/фамилии/ФИО). */
-export function parseMentionIds(
+/** @упоминания мока (#176, паритет серверу): токены `@[текст](user:id)` из
+ *  текста → валидные id справочника, без автора. Правило «уведомлять только
+ *  участников» в моке приближено справочником — полной матрицы
+ *  conversation_members здесь нет (мок — паритет контрактов, не БД). */
+export function mockMentionTargets(
   text: string,
-  resolve: (token: string) => { id: string; displayName: string } | undefined,
   authorId: string,
+  isValidUser: (id: string) => boolean,
 ): string[] {
-  const ids: string[] = [];
-  const seen = new Set<string>();
-  for (const match of text.matchAll(/@([\p{L}\p{M}\p{N}._-]+)/gu)) {
-    const token = match[1];
-    if (!token) continue;
-    const person = resolve(token);
-    if (!person || person.id === authorId || seen.has(person.id)) continue;
-    seen.add(person.id);
-    ids.push(person.id);
-  }
-  return ids;
+  return extractMentionIds(text).filter((id) => id !== authorId && isValidUser(id));
 }
 
 /** Роли участников бесед (#186, мок): overrides поверх дефолта (актёр —

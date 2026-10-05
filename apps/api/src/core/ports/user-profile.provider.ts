@@ -51,28 +51,15 @@ export class UserProfileProvider implements UserProfileReader {
     return rows.map((row) => this.toRef(row));
   }
 
-  async findMentionMatches(
-    tokens: string[],
-  ): Promise<{ ref: UserRef; displayName: string; firstName: string; lastName: string }[]> {
-    if (tokens.length === 0) return [];
-    const rows = await this.prisma.user.findMany({
-      where: {
-        status: 'active',
-        OR: [
-          { displayName: { in: tokens, mode: 'insensitive' } },
-          { firstName: { in: tokens, mode: 'insensitive' } },
-          { lastName: { in: tokens, mode: 'insensitive' } },
-        ],
-      },
-      select: { ...userRefSelect, firstName: true, lastName: true },
-      orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }, { id: 'asc' }],
+  /** Активные сотрудники из списка id (#176): уведомление @упоминания летит
+   *  только действующим — деактивированный остаётся чипом-ссылкой в истории. */
+  async filterActiveUserIds(userIds: string[], tx?: TransactionClient): Promise<string[]> {
+    if (userIds.length === 0) return [];
+    const rows = await (tx ?? this.prisma).user.findMany({
+      where: { id: { in: userIds }, status: 'active' },
+      select: { id: true },
     });
-    return rows.map((row) => ({
-      ref: this.toRef(row),
-      displayName: row.displayName,
-      firstName: row.firstName,
-      lastName: row.lastName,
-    }));
+    return rows.map((row) => row.id);
   }
 
   private toRef(row: UserRefRow): UserRef {

@@ -13,6 +13,9 @@ const TX = 'tx-handle';
 const CONV = '00000000-0000-4000-8000-0000000000c1';
 const ME = '00000000-0000-4000-8000-0000000000a1';
 const ROOT = '00000000-0000-4000-8000-0000000000r1';
+// Валидные UUID упомянутых (токен-парсер строг к формату, #176).
+const USER_ANNA = '00000000-0000-4000-8000-0000000000b1';
+const USER_BORIS = '00000000-0000-4000-8000-0000000000b2';
 
 const now = new Date('2026-09-25T10:00:00Z');
 
@@ -82,6 +85,7 @@ describe('MessagesService: трэды раунда 3', () => {
     clearDraft: vi.fn(),
     unsnooze: vi.fn(),
     revealHidden: vi.fn(),
+    listMembersPage: vi.fn(),
   };
   const mapper = { toDtos: vi.fn(), toFreshDto: vi.fn() };
   const threadParticipants = {
@@ -101,7 +105,7 @@ describe('MessagesService: трэды раунда 3', () => {
   const userProfiles = {
     findRefs: vi.fn(),
     searchByDisplayName: vi.fn(),
-    findMentionMatches: vi.fn(),
+    filterActiveUserIds: vi.fn(),
   };
   let service: MessagesService;
 
@@ -136,30 +140,40 @@ describe('MessagesService: трэды раунда 3', () => {
     );
   });
 
-  describe('send: @упоминания', () => {
-    it('упомянутый точным именем становится наблюдателем трэда сообщения', async () => {
-      userProfiles.findMentionMatches.mockResolvedValue([
-        {
-          ref: { id: 'user-anna', displayName: 'Анна Первая', avatarUrl: null },
-          displayName: 'Анна Первая',
-          firstName: 'Анна',
-          lastName: 'Первая',
-        },
-        {
-          ref: { id: 'user-boris', displayName: 'Борис Второй', avatarUrl: null },
-          displayName: 'Борис Второй',
-          firstName: 'Борис',
-          lastName: 'Второй',
-        },
+  describe('send: @упоминания (#176: токен @[текст](user:id))', () => {
+    it('упомянутый токеном-участником становится наблюдателем трэда сообщения', async () => {
+      conversations.listMembersPage.mockResolvedValue([
+        { userId: USER_ANNA, role: 'member', joinedAt: new Date() },
+        { userId: USER_BORIS, role: 'member', joinedAt: new Date() },
       ]);
-      await service.send(ME, CONV, { text: 'спросим @Анна' }, 'key-mention');
+      userProfiles.filterActiveUserIds.mockResolvedValue([USER_ANNA, USER_BORIS]);
+      await service.send(
+        ME,
+        CONV,
+        { text: `спросим @[Анна Первая](user:${USER_ANNA}) и @[Борис](user:${USER_BORIS})` },
+        'key-mention',
+      );
       expect(threadParticipants.upsert).toHaveBeenCalledWith(
         'msg-new',
-        'user-anna',
+        USER_ANNA,
         'mentioned',
         TX,
       );
-      expect(threadParticipants.upsert).toHaveBeenCalledTimes(1);
+      expect(threadParticipants.upsert).toHaveBeenCalledTimes(2);
+    });
+
+    it('не-участник и деактивированный не пингуются, автор — тоже', async () => {
+      conversations.listMembersPage.mockResolvedValue([
+        { userId: USER_ANNA, role: 'member', joinedAt: new Date() },
+      ]);
+      userProfiles.filterActiveUserIds.mockResolvedValue([]);
+      await service.send(
+        ME,
+        CONV,
+        { text: `спросим @[Анна](user:${USER_ANNA}) @[я](user:${ME}) @[Директор](user:${USER_BORIS})` },
+        'key-mention2',
+      );
+      expect(threadParticipants.upsert).not.toHaveBeenCalled();
     });
 
     it('ответ в трэд: реплайер — участник, watermark трэда доходит до своего ответа', async () => {
@@ -172,9 +186,10 @@ describe('MessagesService: трэды раунда 3', () => {
       expect(threadParticipants.advanceReadCursor).toHaveBeenCalledWith(ROOT, ME, 7n, TX);
     });
 
-    it('текст без @ — справочник не читается', async () => {
-      await service.send(ME, CONV, { text: 'без упоминаний' }, 'key-plain');
-      expect(userProfiles.findMentionMatches).not.toHaveBeenCalled();
+    it('текст без токенов — справочник и состав не читаются', async () => {
+      await service.send(ME, CONV, { text: 'без упоминаний, просто @Анна' }, 'key-plain');
+      expect(userProfiles.filterActiveUserIds).not.toHaveBeenCalled();
+      expect(conversations.listMembersPage).not.toHaveBeenCalled();
       expect(threadParticipants.upsert).not.toHaveBeenCalled();
     });
   });

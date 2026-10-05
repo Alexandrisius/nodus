@@ -375,4 +375,11 @@ export const chatStrings = {
   searchAttachImage: 'Картинка',
   searchAttachFile: 'Документ',
   searchAttachSticker: 'Стикер',
+  /** @упоминания (#176): автокомплит композера и правка чипа. */
+  mentionAutocompleteEmpty: 'Никого не найдено',
+  mentionNotInConversation: 'не в беседе',
+  mentionEditText: 'Текст упоминания',
+  mentionApply: 'Применить',
+  mentionCancel: 'Отмена',
+  mentionRemove: 'Удалить упоминание',
 } as const;

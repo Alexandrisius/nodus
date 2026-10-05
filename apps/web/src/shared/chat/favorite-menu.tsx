@@ -1,7 +1,7 @@
 import { ArrowUpRight, Copy, Forward, Star } from 'lucide-react';
 import { useRef, type ReactNode } from 'react';
 import type { FavoriteCard } from '@nodus/contracts';
-import { ui } from '@nodus/contracts';
+import { stripMentionTokens, ui } from '@nodus/contracts';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -63,7 +63,8 @@ export function FavoriteMenu({ card, children }: { card: FavoriteCard; children:
         <ContextMenuItem
           onClick={() => {
             navigator.clipboard
-              .writeText(card.text)
+              // Упоминания — отображаемым текстом без разметки (#176).
+              .writeText(stripMentionTokens(card.text))
               .then(() => toast.success(ui.chat.copied))
               .catch(() => toast.error(ui.common.copyError));
           }}

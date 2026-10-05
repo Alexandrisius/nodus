@@ -1,33 +1,119 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { MENTION_TOKENS_MAX, parseMentionTokens } from './mentions.js';
+import { addMentionWatchers, resolveMentionTargets } from './mentions.js';
 
-/** @упоминания (раунд 3): парсер токенов — соответствие имени решает
- *  справочник (порт), здесь только извлечение «@Имя» из текста. */
+/** @упоминания (#176): резолвер токенов `@[текст](user:id)` — парсер живёт
+ *  в contracts (свои тесты там), здесь правила фильтрации: активные
+ *  участники беседы ∩ ≠ автор, порядок по появлению в тексте. */
 
-describe('parseMentionTokens', () => {
-  it('извлекает токены без «@», уникально, в порядке появления', () => {
-    expect(parseMentionTokens('привет @Анна, потом @Анна и @boris.k')).toEqual(['Анна', 'boris.k']);
+const UUID_A = '11111111-1111-4111-8111-111111111111';
+const UUID_B = '22222222-2222-4222-8222-222222222222';
+const UUID_C = '33333333-3333-4333-8333-333333333333';
+const AUTHOR = '44444444-4444-4444-8444-444444444444';
+
+function deps(members: string[], active: string[]) {
+  return {
+    userProfiles: {
+      filterActiveUserIds: vi.fn(async (ids: string[]) => ids.filter((id) => active.includes(id))),
+    },
+    conversations: {
+      listMembersPage: vi.fn(async (_cid: string, opts: { searchUserIds?: string[] }) =>
+        (opts.searchUserIds ?? [])
+          .filter((id) => members.includes(id))
+          .map((userId) => ({ userId, role: 'member', joinedAt: new Date() })),
+      ),
+    },
+  };
+}
+
+describe('resolveMentionTargets', () => {
+  it('токены → активные участники, порядок по появлению в тексте', async () => {
+    const d = deps([UUID_A, UUID_B], [UUID_A, UUID_B]);
+    const ids = await resolveMentionTargets(
+      d.userProfiles,
+      d.conversations,
+      'cid',
+      `@[Б](user:${UUID_B}) и @[А](user:${UUID_A})`,
+      AUTHOR,
+    );
+    expect(ids).toEqual([UUID_B, UUID_A]);
   });
 
-  it('кириллица, латиница, цифры, точки/дефисы/подчёркивания', () => {
-    expect(parseMentionTokens('@Иван @user_1 @О-Ковальчук')).toEqual([
-      'Иван',
-      'user_1',
-      'О-Ковальчук',
-    ]);
+  it('не-участник беседы не упоминается (канон Slack «не в беседе»)', async () => {
+    const d = deps([UUID_A], [UUID_A, UUID_C]);
+    const ids = await resolveMentionTargets(
+      d.userProfiles,
+      d.conversations,
+      'cid',
+      `@[А](user:${UUID_A}) @[Директор](user:${UUID_C})`,
+      AUTHOR,
+    );
+    expect(ids).toEqual([UUID_A]);
   });
 
-  it('email и «собака» без имени не являются упоминаниями', () => {
-    expect(parseMentionTokens('напиши на a@b.by и @')).toEqual([]);
+  it('деактивированный участник не упоминается (чип остаётся, пинга нет)', async () => {
+    const d = deps([UUID_A, UUID_B], [UUID_B]);
+    const ids = await resolveMentionTargets(
+      d.userProfiles,
+      d.conversations,
+      'cid',
+      `@[Уволен](user:${UUID_A}) @[Б](user:${UUID_B})`,
+      AUTHOR,
+    );
+    expect(ids).toEqual([UUID_B]);
   });
 
-  it('лимит токенов на сообщение', () => {
-    const text = Array.from({ length: MENTION_TOKENS_MAX + 10 }, (_, i) => `@u${i}`).join(' ');
-    expect(parseMentionTokens(text)).toHaveLength(MENTION_TOKENS_MAX);
+  it('автора собственное упоминание не пингует (дедуп по id)', async () => {
+    const d = deps([AUTHOR, UUID_A], [AUTHOR, UUID_A]);
+    const ids = await resolveMentionTargets(
+      d.userProfiles,
+      d.conversations,
+      'cid',
+      `@[я сам](user:${AUTHOR}) @[А](user:${UUID_A}) @[снова я](user:${AUTHOR})`,
+      AUTHOR,
+    );
+    expect(ids).toEqual([UUID_A]);
   });
 
-  it('пустой текст — пусто', () => {
-    expect(parseMentionTokens('')).toEqual([]);
+  it('голый @текст и email не упоминаются — только явные токены', async () => {
+    const d = deps([UUID_A], [UUID_A]);
+    const ids = await resolveMentionTargets(
+      d.userProfiles,
+      d.conversations,
+      'cid',
+      'напиши @Анна и a@b.by, склонения без чипа не считаются',
+      AUTHOR,
+    );
+    expect(ids).toEqual([]);
+    expect(d.conversations.listMembersPage).not.toHaveBeenCalled();
+  });
+
+  it('нет участников — справочник не читается', async () => {
+    const d = deps([], []);
+    const ids = await resolveMentionTargets(
+      d.userProfiles,
+      d.conversations,
+      'cid',
+      `@[А](user:${UUID_A})`,
+      AUTHOR,
+    );
+    expect(ids).toEqual([]);
+    expect(d.userProfiles.filterActiveUserIds).not.toHaveBeenCalled();
+  });
+});
+
+describe('addMentionWatchers', () => {
+  it('упомянутые становятся наблюдателями, автор — нет', async () => {
+    const upsert = vi.fn(async () => undefined);
+    await addMentionWatchers(
+      { upsert } as never,
+      'tx' as never,
+      'root',
+      [UUID_A, AUTHOR, UUID_B],
+      AUTHOR,
+    );
+    expect(upsert).toHaveBeenCalledTimes(2);
+    expect(upsert).toHaveBeenCalledWith('root', UUID_A, 'mentioned', 'tx');
+    expect(upsert).toHaveBeenCalledWith('root', UUID_B, 'mentioned', 'tx');
   });
 });

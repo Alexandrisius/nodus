@@ -5,6 +5,7 @@ import { cn } from '@nodus/ui/lib/utils';
 
 import { withoutPatronymic } from '../lib/format.js';
 import { personTone, personToneVar } from '../ui/person-tone.js';
+import { MentionSnippet } from './mention-chip.js';
 
 /**
  * Шапки пузыря (A2/A7, #87): цитата ответа и атрибуция пересылки.
@@ -89,7 +90,7 @@ export function ReplyHeader({
             onFilled ? 'opacity-80' : 'opacity-70',
           )}
         >
-          {snippet}
+          <MentionSnippet text={snippet} />
         </span>
       )}
     </Tag>

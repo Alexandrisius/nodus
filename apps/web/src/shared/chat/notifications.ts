@@ -1,4 +1,4 @@
-import { chatMessageSentPayloadSchema, ui } from '@nodus/contracts';
+import { chatMessageSentPayloadSchema, stripMentionTokens, ui } from '@nodus/contracts';
 
 import { useAuthStore } from '../auth-store.js';
 import { withoutPatronymic } from '../lib/format.js';
@@ -72,5 +72,9 @@ export function notifySentMessage(payload: unknown): void {
   if (!parsed.success || !parsed.data.message) return;
   const { conversationId, message } = parsed.data;
   if (!shouldNotify(message.author.id, conversationId)) return;
-  notifyMessage(withoutPatronymic(message.author.displayName), message.text);
+  // Упоминания — отображаемым текстом (браузерное уведомление без разметки).
+  notifyMessage(
+    withoutPatronymic(message.author.displayName),
+    stripMentionTokens(message.text),
+  );
 }

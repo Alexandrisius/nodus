@@ -342,11 +342,13 @@ export class MessagesRepository {
     messageId: string,
     authorId: string,
     text: string,
+    mentionedUserIds: string[],
     tx: TransactionClient,
   ): Promise<MessageRow> {
     const rows = await tx.$queryRaw<MessageRow[]>(Prisma.sql`
       UPDATE messages
-      SET text = ${text}, edited_at = now(), updated_at = now()
+      SET text = ${text}, mentioned_user_ids = ${JSON.stringify(mentionedUserIds)}::jsonb,
+          edited_at = now(), updated_at = now()
       WHERE id = ${messageId}::uuid AND conversation_id = ${conversationId}::uuid
         AND author_id = ${authorId}::uuid AND deleted_at IS NULL
       RETURNING ${MESSAGE_COLS}

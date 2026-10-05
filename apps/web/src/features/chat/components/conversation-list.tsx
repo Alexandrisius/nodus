@@ -1,7 +1,7 @@
 import { BellOff, Clock, Pin } from 'lucide-react';
 import { Fragment } from 'react';
 import type { ConversationListItem } from '@nodus/contracts';
-import { ui } from '@nodus/contracts';
+import { stripMentionTokens, ui } from '@nodus/contracts';
 import { Empty, EmptyTitle } from '@nodus/ui/components/empty';
 import { NodeChip } from '@nodus/ui/components/node-chip';
 import { Skeleton } from '@nodus/ui/components/skeleton';
@@ -52,7 +52,8 @@ function RowPreview({ conversation }: { conversation: ConversationListItem }) {
   if (preview) {
     return (
       <span className="truncate text-xs">
-        <span className="font-medium text-destructive">{ui.chat.draftLabel}:</span> {preview}
+        <span className="font-medium text-destructive">{ui.chat.draftLabel}:</span>{' '}
+        {stripMentionTokens(preview)}
       </span>
     );
   }
@@ -60,7 +61,9 @@ function RowPreview({ conversation }: { conversation: ConversationListItem }) {
   const text = last
     ? last.deletedAt
       ? ui.chat.deletedPlaceholder
-      : last.text ||
+      : // Превью списка — однострочный truncate: упоминание отображаемым
+        // текстом (канон Telegram), чипы только в ленте.
+        stripMentionTokens(last.text) ||
         (last.attachments[0]?.kind === 'image'
           ? ui.chat.quotePhoto
           : last.attachments[0]?.kind === 'sticker'

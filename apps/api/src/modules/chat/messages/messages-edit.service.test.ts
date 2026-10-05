@@ -82,13 +82,20 @@ describe('MessagesService.edit (#188: текст + состав вложений
   const conversations = {
     findMembership: vi.fn(),
     listMembers: vi.fn(),
+    listMembersPage: vi.fn(async (_c: string, opts: { searchUserIds?: string[] }) =>
+      (opts.searchUserIds ?? []).map((userId) => ({
+        userId,
+        role: 'member',
+        joinedAt: new Date(),
+      })),
+    ),
   };
   const mapper = { toDtos: vi.fn(), toFreshDto: vi.fn() };
   const threadParticipants = { upsert: vi.fn(), delete: vi.fn() };
   const stickersRepo = { findSticker: vi.fn() };
   const txRunner = { run: vi.fn((cb: (tx: string) => unknown) => cb(TX)) };
   const eventBus = { emit: vi.fn() };
-  const userProfiles = { findRefs: vi.fn() };
+  const userProfiles = { findRefs: vi.fn(), filterActiveUserIds: vi.fn(async (ids: string[]) => ids) };
   let service: MessagesService;
 
   beforeEach(() => {
@@ -162,7 +169,7 @@ describe('MessagesService.edit (#188: текст + состав вложений
 
     const result = await service.edit(ME, CONV, 'msg-1', { text: 'Новый' });
 
-    expect(repo.updateEditText).toHaveBeenCalledWith(CONV, 'msg-1', ME, 'Новый', TX);
+    expect(repo.updateEditText).toHaveBeenCalledWith(CONV, 'msg-1', ME, 'Новый', [], TX);
     expect(result.message.text).toBe('Новый');
     expect(eventBus.emit).toHaveBeenCalledWith(
       TX,
@@ -202,7 +209,7 @@ describe('MessagesService.edit (#188: текст + состав вложений
 
     expect(attachmentsRepo.syncMessageAttachments).toHaveBeenCalledWith('msg-1', ['att-2'], ME, TX);
     expect(attachmentsRepo.renameMessageAttachments).not.toHaveBeenCalled();
-    expect(repo.updateEditText).toHaveBeenCalledWith(CONV, 'msg-1', ME, 'Файлы', TX);
+    expect(repo.updateEditText).toHaveBeenCalledWith(CONV, 'msg-1', ME, 'Файлы', [], TX);
     expect(eventBus.emit).toHaveBeenCalledTimes(1);
   });
 
