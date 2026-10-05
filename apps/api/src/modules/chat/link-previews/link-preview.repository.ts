@@ -47,13 +47,15 @@ export class LinkPreviewRepository {
     return new Map(rows.map((row) => [row.normalizedUrl, row]));
   }
 
-  /** Есть ли хоть одна строка под URL (любого статуса, включая expired):
-   *  lazy-прогрев решает «нужно ли ставить задачу». */
+  /** Живая строка под URL (ready/failed в TTL, blocked бессрочно): lazy-
+   *  прогрев решает «нужно ли ставить задачу»; expired pending/failed НЕ
+   *  блокируют пере-прогрев (задача могла умереть на лимите фетчей). */
   async existsAny(urls: string[]): Promise<Set<string>> {
     if (urls.length === 0) return new Set();
     const rows = await this.prisma.$queryRaw<{ normalizedUrl: string }[]>(Prisma.sql`
       SELECT normalized_url AS "normalizedUrl" FROM link_previews
       WHERE normalized_url = ANY(${urls}::text[])
+        AND (expires_at IS NULL OR expires_at > now())
     `);
     return new Set(rows.map((row) => row.normalizedUrl));
   }
