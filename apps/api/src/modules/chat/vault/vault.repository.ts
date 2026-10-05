@@ -1,4 +1,6 @@
 import { Injectable } from '@nestjs/common';
+import type { VaultCounts } from '@nodus/contracts';
+
 import { Prisma } from '../../../generated/prisma/client.js';
 import { PrismaService } from '../../../core/database/prisma.service.js';
 import type { TransactionClient } from '../../../core/database/transaction-runner.js';
@@ -19,26 +21,60 @@ import type { AttachmentDtoRow } from '../messages/message-dto.mapper.js';
 
 /** Δ счётчиков одной операции состава (0 — не трогать). */
 export interface VaultDelta {
-  media: number;
+  image: number;
+  video: number;
+  audio: number;
   document: number;
   link: number;
 }
 
 export function emptyVaultDelta(): VaultDelta {
-  return { media: 0, document: 0, link: 0 };
+  return { image: 0, video: 0, audio: 0, document: 0, link: 0 };
+}
+
+/** Δ состава без ссылок (ссылки считает проекция). */
+export type VaultAttachmentDelta = Omit<VaultDelta, 'link'>;
+
+export function emptyAttachmentDelta(): VaultAttachmentDelta {
+  return { image: 0, video: 0, audio: 0, document: 0 };
+}
+
+/**
+ * Витринная категория вложения (ревизия 05.10 — модель Telegram):
+ * kind='image' → image, файлы — по mime (video/*, audio/*), остальное —
+ * document. Это классификация ВИТРИНЫ: storage-kind в БД не меняется
+ * (image|file|sticker); стикеры — не пользовательские файлы, null.
+ */
+export type VaultKind = 'image' | 'video' | 'audio' | 'document';
+export function vaultKindOf(mime: string, kind: string): VaultKind | null {
+  if (kind === 'image') return 'image';
+  if (kind === 'sticker') return null;
+  if (mime.startsWith('video/')) return 'video';
+  if (mime.startsWith('audio/')) return 'audio';
+  return kind === 'file' ? 'document' : null;
 }
 
 /** Δ счётчиков по составам вложений ДО/ПОСЛЕ (правка #188): стикеры и
  *  посторонние виды не участвуют. */
 export function attachmentKindDelta(
-  before: readonly { kind: string }[],
-  after: readonly { kind: string }[],
-): { media: number; document: number } {
-  const count = (rows: readonly { kind: string }[], kind: string) =>
-    rows.filter((a) => a.kind === kind).length;
+  before: readonly { kind: string; mime: string }[],
+  after: readonly { kind: string; mime: string }[],
+): VaultAttachmentDelta {
+  const tally = (rows: readonly { kind: string; mime: string }[]) => {
+    const acc = emptyAttachmentDelta();
+    for (const a of rows) {
+      const kind = vaultKindOf(a.mime, a.kind);
+      if (kind) acc[kind] += 1;
+    }
+    return acc;
+  };
+  const beforeTally = tally(before);
+  const afterTally = tally(after);
   return {
-    media: count(after, 'image') - count(before, 'image'),
-    document: count(after, 'file') - count(before, 'file'),
+    image: afterTally.image - beforeTally.image,
+    video: afterTally.video - beforeTally.video,
+    audio: afterTally.audio - beforeTally.audio,
+    document: afterTally.document - beforeTally.document,
   };
 }
 
@@ -99,22 +135,31 @@ export class VaultRepository {
   // ===== Чтение: списки =====
 
   /**
-   * Страница вложений одного вида (image → media, file → document): новые
-   * сверху, keyset (seq DESC, sort_order ASC); hasMore по limit+1.
+   * Страница вложений одной категории витрины: новые сверху, keyset
+   * (seq DESC, sort_order ASC); hasMore по limit+1. Видео/аудио — файлы
+   * с соответствующим mime (классификация vaultKindOf).
    */
   async listAttachments(
     conversationId: string,
-    opts: { kind: 'image' | 'file'; limit: number; threadRootId: string | null },
+    opts: { kind: VaultKind; limit: number; threadRootId: string | null },
     cursor: { s: bigint; o: number } | null,
   ): Promise<{ rows: VaultAttachmentRow[]; hasMore: boolean }> {
     const beforeSeq = cursor ? cursor.s.toString() : null;
     const beforeOrder = cursor ? cursor.o : 0;
     const thread = opts.threadRootId;
+    const kindFilter =
+      opts.kind === 'image'
+        ? Prisma.sql`a.kind = 'image'`
+        : opts.kind === 'video'
+          ? Prisma.sql`a.kind = 'file' AND a.mime LIKE 'video/%'`
+          : opts.kind === 'audio'
+            ? Prisma.sql`a.kind = 'file' AND a.mime LIKE 'audio/%'`
+            : Prisma.sql`a.kind = 'file' AND a.mime NOT LIKE 'video/%' AND a.mime NOT LIKE 'audio/%'`;
     const rows = await this.prisma.$queryRaw<VaultAttachmentRow[]>(Prisma.sql`
       SELECT ${ATTACHMENT_COLS} FROM message_attachments a
       JOIN messages m ON m.id = a.message_id
       WHERE m.conversation_id = ${conversationId}::uuid
-        AND a.kind = ${opts.kind}
+        AND ${kindFilter}
         AND m.deleted_at IS NULL AND NOT m.obliterated
         AND (${thread === null} OR m.thread_root_id = ${thread ?? '00000000-0000-0000-0000-000000000000'}::uuid
              OR m.id = ${thread ?? '00000000-0000-0000-0000-000000000000'}::uuid)
@@ -157,19 +202,27 @@ export class VaultRepository {
   // ===== Чтение: счётчики =====
 
   /** Счётчики всей беседы — O(1) из денормализованной stats-строки. */
-  async conversationCounts(
-    conversationId: string,
-  ): Promise<{ media: number; document: number; link: number }> {
+  async conversationCounts(conversationId: string): Promise<VaultCounts> {
     const rows = await this.prisma.$queryRaw<
-      { media_count: bigint; document_count: bigint; link_count: bigint }[]
+      {
+        image_count: bigint;
+        video_count: bigint;
+        audio_count: bigint;
+        document_count: bigint;
+        link_count: bigint;
+      }[]
     >(Prisma.sql`
-      SELECT COALESCE(media_count, 0) AS media_count,
+      SELECT COALESCE(image_count, 0) AS image_count,
+             COALESCE(video_count, 0) AS video_count,
+             COALESCE(audio_count, 0) AS audio_count,
              COALESCE(document_count, 0) AS document_count,
              COALESCE(link_count, 0) AS link_count
       FROM conversation_vault_stats WHERE conversation_id = ${conversationId}::uuid
     `);
     return {
-      media: Number(rows[0]?.media_count ?? 0),
+      image: Number(rows[0]?.image_count ?? 0),
+      video: Number(rows[0]?.video_count ?? 0),
+      audio: Number(rows[0]?.audio_count ?? 0),
       document: Number(rows[0]?.document_count ?? 0),
       link: Number(rows[0]?.link_count ?? 0),
     };
@@ -180,24 +233,41 @@ export class VaultRepository {
    * денормализацию не плодим). Вложения и ссылки — join живых сообщений
    * треда (defense-in-depth: выдача не зависит от чистки проекции).
    */
-  async threadCounts(
-    conversationId: string,
-    threadRootId: string,
-  ): Promise<{ media: number; document: number; link: number }> {
+  async threadCounts(conversationId: string, threadRootId: string): Promise<VaultCounts> {
+    const threadScope = Prisma.sql`m.thread_root_id = ${threadRootId}::uuid OR m.id = ${threadRootId}::uuid`;
     const rows = await this.prisma.$queryRaw<
-      { media_count: bigint; document_count: bigint; link_count: bigint }[]
+      {
+        image_count: bigint;
+        video_count: bigint;
+        audio_count: bigint;
+        document_count: bigint;
+        link_count: bigint;
+      }[]
     >(Prisma.sql`
       SELECT
         (SELECT COUNT(*) FROM message_attachments a
           JOIN messages m ON m.id = a.message_id
           WHERE m.conversation_id = ${conversationId}::uuid
-            AND (m.thread_root_id = ${threadRootId}::uuid OR m.id = ${threadRootId}::uuid)
-            AND m.deleted_at IS NULL AND NOT m.obliterated AND a.kind = 'image') AS media_count,
+            AND (${threadScope})
+            AND m.deleted_at IS NULL AND NOT m.obliterated AND a.kind = 'image') AS image_count,
         (SELECT COUNT(*) FROM message_attachments a
           JOIN messages m ON m.id = a.message_id
           WHERE m.conversation_id = ${conversationId}::uuid
-            AND (m.thread_root_id = ${threadRootId}::uuid OR m.id = ${threadRootId}::uuid)
-            AND m.deleted_at IS NULL AND NOT m.obliterated AND a.kind = 'file') AS document_count,
+            AND (${threadScope})
+            AND m.deleted_at IS NULL AND NOT m.obliterated
+            AND a.kind = 'file' AND a.mime LIKE 'video/%') AS video_count,
+        (SELECT COUNT(*) FROM message_attachments a
+          JOIN messages m ON m.id = a.message_id
+          WHERE m.conversation_id = ${conversationId}::uuid
+            AND (${threadScope})
+            AND m.deleted_at IS NULL AND NOT m.obliterated
+            AND a.kind = 'file' AND a.mime LIKE 'audio/%') AS audio_count,
+        (SELECT COUNT(*) FROM message_attachments a
+          JOIN messages m ON m.id = a.message_id
+          WHERE m.conversation_id = ${conversationId}::uuid
+            AND (${threadScope})
+            AND m.deleted_at IS NULL AND NOT m.obliterated AND a.kind = 'file'
+            AND a.mime NOT LIKE 'video/%' AND a.mime NOT LIKE 'audio/%') AS document_count,
         (SELECT COUNT(*) FROM message_links l
           JOIN messages m ON m.id = l.message_id
           WHERE l.conversation_id = ${conversationId}::uuid
@@ -205,7 +275,9 @@ export class VaultRepository {
             AND m.deleted_at IS NULL AND NOT m.obliterated) AS link_count
     `);
     return {
-      media: Number(rows[0]?.media_count ?? 0),
+      image: Number(rows[0]?.image_count ?? 0),
+      video: Number(rows[0]?.video_count ?? 0),
+      audio: Number(rows[0]?.audio_count ?? 0),
       document: Number(rows[0]?.document_count ?? 0),
       link: Number(rows[0]?.link_count ?? 0),
     };
@@ -279,37 +351,62 @@ export class VaultRepository {
     conversationId: string,
     delta: VaultDelta,
   ): Promise<void> {
-    if (delta.media === 0 && delta.document === 0 && delta.link === 0) return;
+    if (
+      delta.image === 0 &&
+      delta.video === 0 &&
+      delta.audio === 0 &&
+      delta.document === 0 &&
+      delta.link === 0
+    )
+      return;
     await tx.$executeRaw`
-      INSERT INTO conversation_vault_stats (conversation_id, media_count, document_count, link_count)
-      VALUES (${conversationId}::uuid, ${delta.media}::int, ${delta.document}::int, ${delta.link}::int)
+      INSERT INTO conversation_vault_stats
+        (conversation_id, image_count, video_count, audio_count, document_count, link_count)
+      VALUES (${conversationId}::uuid, ${delta.image}::int, ${delta.video}::int,
+              ${delta.audio}::int, ${delta.document}::int, ${delta.link}::int)
       ON CONFLICT (conversation_id) DO UPDATE SET
-        media_count = conversation_vault_stats.media_count + EXCLUDED.media_count,
+        image_count = conversation_vault_stats.image_count + EXCLUDED.image_count,
+        video_count = conversation_vault_stats.video_count + EXCLUDED.video_count,
+        audio_count = conversation_vault_stats.audio_count + EXCLUDED.audio_count,
         document_count = conversation_vault_stats.document_count + EXCLUDED.document_count,
         link_count = conversation_vault_stats.link_count + EXCLUDED.link_count
     `;
   }
 
-  /** Живые вложения сообщений по видам, сгруппированные по сообщению
-   *  (Δ копий forward, Δ удаления). */
+  /** Живые вложения сообщений по витринным категориям (mime-классификация),
+   *  сгруппированные по сообщению (Δ копий forward, Δ удаления). */
   async attachmentKindsByMessages(
     tx: TransactionClient,
     messageIds: string[],
-  ): Promise<Map<string, { image: number; file: number }>> {
-    const result = new Map<string, { image: number; file: number }>();
+  ): Promise<Map<string, VaultAttachmentDelta>> {
+    const result = new Map<string, VaultAttachmentDelta>();
     if (messageIds.length === 0) return result;
-    const rows = await tx.$queryRaw<{ message_id: string; kind: string; count: bigint }[]>(
-      Prisma.sql`
-        SELECT message_id, kind, COUNT(*) AS count FROM message_attachments
-        WHERE message_id = ANY(${messageIds}::uuid[]) AND kind IN ('image', 'file')
-        GROUP BY message_id, kind
-      `,
-    );
+    const rows = await tx.$queryRaw<
+      {
+        message_id: string;
+        image: bigint;
+        video: bigint;
+        audio: bigint;
+        document: bigint;
+      }[]
+    >(Prisma.sql`
+      SELECT message_id,
+        COUNT(*) FILTER (WHERE kind = 'image') AS image,
+        COUNT(*) FILTER (WHERE kind = 'file' AND mime LIKE 'video/%') AS video,
+        COUNT(*) FILTER (WHERE kind = 'file' AND mime LIKE 'audio/%') AS audio,
+        COUNT(*) FILTER (WHERE kind = 'file'
+          AND mime NOT LIKE 'video/%' AND mime NOT LIKE 'audio/%') AS document
+      FROM message_attachments
+      WHERE message_id = ANY(${messageIds}::uuid[]) AND kind IN ('image', 'file')
+      GROUP BY message_id
+    `);
     for (const row of rows) {
-      const entry = result.get(row.message_id) ?? { image: 0, file: 0 };
-      if (row.kind === 'image') entry.image = Number(row.count);
-      else entry.file = Number(row.count);
-      result.set(row.message_id, entry);
+      result.set(row.message_id, {
+        image: Number(row.image),
+        video: Number(row.video),
+        audio: Number(row.audio),
+        document: Number(row.document),
+      });
     }
     return result;
   }
@@ -321,13 +418,13 @@ export class VaultRepository {
   async applyMessageSent(
     tx: TransactionClient,
     message: LinkMessageContext,
-    attachments: readonly { kind: string }[],
+    attachments: readonly { kind: string; mime: string }[],
     text: string,
   ): Promise<void> {
     const delta = emptyVaultDelta();
     for (const attachment of attachments) {
-      if (attachment.kind === 'image') delta.media += 1;
-      else if (attachment.kind === 'file') delta.document += 1;
+      const kind = vaultKindOf(attachment.mime, attachment.kind);
+      if (kind) delta[kind] += 1;
     }
     delta.link = await this.insertLinks(tx, message, extractMessageUrls(text));
     await this.applyDelta(tx, message.conversationId, delta);
@@ -340,13 +437,14 @@ export class VaultRepository {
     messageId: string,
   ): Promise<void> {
     const removedLinks = await this.deleteLinksByMessage(tx, messageId);
-    const kinds = (await this.attachmentKindsByMessages(tx, [messageId])).get(messageId) ?? {
-      image: 0,
-      file: 0,
-    };
+    const kinds =
+      (await this.attachmentKindsByMessages(tx, [messageId])).get(messageId) ??
+      emptyAttachmentDelta();
     await this.applyDelta(tx, conversationId, {
-      media: -kinds.image,
-      document: -kinds.file,
+      image: -kinds.image,
+      video: -kinds.video,
+      audio: -kinds.audio,
+      document: -kinds.document,
       link: -removedLinks,
     });
   }
@@ -356,7 +454,7 @@ export class VaultRepository {
     tx: TransactionClient,
     message: LinkMessageContext & { text: string },
     body: { text: string },
-    change: { changed: boolean; delta: { media: number; document: number } },
+    change: { changed: boolean; delta: VaultAttachmentDelta },
   ): Promise<void> {
     const textChanged = message.text !== body.text;
     const linkDelta = textChanged
@@ -365,7 +463,7 @@ export class VaultRepository {
     await this.applyDelta(tx, message.conversationId, { ...change.delta, link: linkDelta });
   }
 
-  /** Пересылка: копии несут текст (ссылки — в проекцию) и виды вложений
+  /** Пересылка: копии несут текст (ссылки — в проекцию) и категории вложений
    *  оригиналов (комментарий-строка — без sourceId, только её ссылки). */
   async applyForwardCopies(
     tx: TransactionClient,
@@ -380,8 +478,10 @@ export class VaultRepository {
     for (const copy of copies) {
       const kinds = copy.sourceId ? sourceKinds.get(copy.sourceId) : undefined;
       if (kinds) {
-        delta.media += kinds.image;
-        delta.document += kinds.file;
+        delta.image += kinds.image;
+        delta.video += kinds.video;
+        delta.audio += kinds.audio;
+        delta.document += kinds.document;
       }
       delta.link += await this.insertLinks(tx, copy.message, extractMessageUrls(copy.text));
     }

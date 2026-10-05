@@ -2,6 +2,7 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import type {
   ConversationVaultPage,
   FavoriteSources,
+  VaultCounts,
   VaultItem,
   VaultItemType,
 } from '@nodus/contracts';
@@ -19,20 +20,31 @@ import { favoriteKeys } from './favorites-api.js';
 
 export const vaultKeys = {
   all: [...chatKeys.all, 'vault'] as const,
-  /** Секция витрины: беседа + тип + скоуп треда (панель «Вся беседа/Этот
-   *  тред»); счётчики приезжают в каждом ответе. */
+  /** Секция витрины: беседа + тип (счётчики приезжают в каждом ответе). */
   list: (conversationId: string, type: VaultItemType, threadRootId: string | null) =>
     [...vaultKeys.all, 'list', conversationId, type, threadRootId] as const,
+  /** Счётчики категорий (панель-профиль, реф Telegram). */
+  counts: (conversationId: string) => [...vaultKeys.all, 'counts', conversationId] as const,
 };
 
 /** Источники «Избранного» (панель чата «Избранное», Ф3). */
 export const favoriteSourcesKey = [...favoriteKeys.all, 'sources'] as const;
 
-/** Страницы секции витрины (медиа/документы/ссылки). */
+/** Счётчики категорий витрины — O(1) из денормализованных stats (модель
+ *  Telegram getSearchCounters); WS-инвалидации message_* накрывают префиксом. */
+export function useConversationVaultCounts(conversationId: string) {
+  return useQuery({
+    queryKey: vaultKeys.counts(conversationId),
+    queryFn: () => api<VaultCounts>(`/chat/conversations/${conversationId}/attachments/counts`),
+  });
+}
+
+/** Страницы секции витрины (картинки/видео/аудио/файлы/ссылки). */
 export function useConversationVault(
   conversationId: string,
   type: VaultItemType,
   threadRootId: string | null,
+  enabled = true,
 ) {
   return useInfiniteQuery({
     queryKey: vaultKeys.list(conversationId, type, threadRootId),
@@ -46,6 +58,7 @@ export function useConversationVault(
     },
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.nextCursor,
+    enabled,
   });
 }
 

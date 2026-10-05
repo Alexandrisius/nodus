@@ -1,6 +1,6 @@
-import { ChevronRight, FileText, Image as ImageIcon, Link2 } from 'lucide-react';
+import { ChevronRight, FileText, Image as ImageIcon, Link2, Music, Video } from 'lucide-react';
+import type { VaultItemType } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
-import { cn } from '@nodus/ui/lib/utils';
 import { Empty, EmptyTitle } from '@nodus/ui/components/empty';
 
 import { useConversations } from './api.js';
@@ -15,15 +15,19 @@ export type { NotesSourceId };
 
 /**
  * Панель «Избранное по чатам» (#211 Ф3, реф Telegram Saved Messages):
- * контент правой панели чата «Избранное» — счётчики типов всего избранного
- * в шапке + список чатов-источников (аватар, название, дата последней
- * закладки, счётчик); первым — псевдоисточник «Записи». Клик — хост
- * открывает окно-фильтр (лента, отфильтрованная по источнику).
+ * контент правой панели чата «Избранное» — кликабельные категории-счётчики
+ * (ревизия 05.10, окно категории поверх панели; счётчики — ПО КАРТОЧКАМ
+ * звёзд из /chat/favorites/sources, НЕ stats беседы «Избранное») + список
+ * чатов-источников (аватар, название, дата последней закладки, счётчик);
+ * первым — псевдоисточник «Записи». Клик по источнику — хост открывает
+ * окно-фильтр (лента, отфильтрованная по источнику). Пустые категории скрыты.
  */
 export function NotesSourcesPane({
   onOpenSource,
+  onOpenVaultType,
 }: {
   onOpenSource: (source: NotesSourceId) => void;
+  onOpenVaultType: (type: VaultItemType) => void;
 }) {
   const sources = useFavoriteSources();
   const { data: conversations } = useConversations();
@@ -32,29 +36,36 @@ export function NotesSourcesPane({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {/* Счётчики типов всего избранного (шапка панели, реф Telegram). */}
+      {/* Категории-счётчики всего избранного (ревизия 05.10): клик — окно
+          категории поверх панели, те же списки, что у обычных чатов. */}
       <nav className="flex shrink-0 flex-col gap-0.5" aria-label={ui.chat.vaultSources}>
         {(
           [
-            [ui.chat.vaultMedia, sources.data?.counts.media ?? 0, ImageIcon],
-            [ui.chat.vaultDocuments, sources.data?.counts.document ?? 0, FileText],
-            [ui.chat.vaultLinks, sources.data?.counts.link ?? 0, Link2],
+            ['image', ui.chat.vaultImages, ImageIcon],
+            ['video', ui.chat.vaultVideos, Video],
+            ['audio', ui.chat.vaultAudios, Music],
+            ['document', ui.chat.vaultFiles, FileText],
+            ['link', ui.chat.vaultLinks, Link2],
           ] as const
-        ).map(([label, count, Icon]) => (
-          <span
-            key={label}
-            className={cn(
-              'flex items-center gap-2 rounded-lg px-2 py-1.5',
-              count === 0 && 'opacity-45',
-            )}
-          >
-            <Icon className="size-4 shrink-0 text-muted-foreground" strokeWidth={1.75} />
-            <span className="flex-1 truncate text-sm">{label}</span>
-            <span className="font-mono text-label-sm tabular-nums text-muted-foreground">
-              {count}
-            </span>
-          </span>
-        ))}
+        ).map(([type, label, Icon]) => {
+          const count = sources.data?.counts[type] ?? 0;
+          if (count === 0) return null;
+          return (
+            <button
+              key={type}
+              type="button"
+              onClick={() => onOpenVaultType(type)}
+              title={ui.chat.vaultOpenCategory}
+              className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-accent"
+            >
+              <Icon className="size-4 shrink-0 text-muted-foreground" strokeWidth={1.75} />
+              <span className="flex-1 truncate text-sm">{label}</span>
+              <span className="font-mono text-label-sm tabular-nums text-muted-foreground">
+                {count}
+              </span>
+            </button>
+          );
+        })}
       </nav>
 
       <div className="mt-3 min-h-0 flex-1 overflow-y-auto">

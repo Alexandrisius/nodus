@@ -119,16 +119,20 @@ export const chatStrings = {
   filesMedia: 'Файлы и медиа',
   links: 'Ссылки',
   panelTitle: 'Панель беседы',
-  scopeAll: 'Вся беседа',
-  scopeThread: 'Этот тред',
-  // Витрина беседы (#211): серверные списки панели «О чате».
-  vaultMedia: 'Медиа',
-  vaultDocuments: 'Документы',
+  // Витрина беседы (#211): категории-окна (ревизия 05.10, модель Telegram).
+  vaultImages: 'Картинки',
+  vaultVideos: 'Видео',
+  vaultAudios: 'Аудио',
+  vaultFiles: 'Файлы',
   vaultLinks: 'Ссылки',
-  vaultMediaEmpty: 'В беседе пока нет медиа',
-  vaultDocumentsEmpty: 'В беседе пока нет документов',
+  vaultImagesEmpty: 'В беседе пока нет картинок',
+  vaultVideosEmpty: 'В беседе пока нет видео',
+  vaultAudiosEmpty: 'В беседе пока нет аудио',
+  vaultFilesEmpty: 'В беседе пока нет файлов',
   vaultLinksEmpty: 'В беседе пока нет ссылок',
-  vaultOpenMedia: 'Открыть медиа',
+  vaultOpenCategory: 'Открыть категорию',
+  // Профиль чата (ревизия 05.10): большой аватар, действия, категории.
+  profileSound: 'Звук',
   // Источники «Избранного» (Ф3, реф Telegram Saved).
   vaultSources: 'Избранное по чатам',
   vaultSourcesEmpty: 'Здесь появится избранное из чатов',

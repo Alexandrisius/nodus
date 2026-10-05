@@ -2,6 +2,7 @@ import { HttpResponse, http } from 'msw';
 import type {
   ConversationVaultPage,
   FavoriteSources,
+  VaultCounts,
   VaultItem,
   VaultLinkItem,
   VaultItemType,
@@ -63,22 +64,51 @@ function scopedMessages(conversationId: string, threadRootId: string | null) {
     .sort((a, b) => b.seq - a.seq);
 }
 
-function vaultCounts(conversationId: string, threadRootId: string | null) {
+/** Категория витрины вложения — эквивалент серверного vaultKindOf. */
+function vaultKindOf(attachment: {
+  kind: string;
+  mime: string;
+}): 'image' | 'video' | 'audio' | 'document' | null {
+  if (attachment.kind === 'image') return 'image';
+  if (attachment.kind === 'sticker') return null;
+  if (attachment.mime.startsWith('video/')) return 'video';
+  if (attachment.mime.startsWith('audio/')) return 'audio';
+  return attachment.kind === 'file' ? 'document' : null;
+}
+
+function vaultCounts(conversationId: string, threadRootId: string | null): VaultCounts {
   const messages = scopedMessages(conversationId, threadRootId);
-  return {
-    media: messages.reduce(
-      (sum, m) => sum + m.attachments.filter((a) => a.kind === 'image').length,
-      0,
-    ),
-    document: messages.reduce(
-      (sum, m) => sum + m.attachments.filter((a) => a.kind === 'file').length,
-      0,
-    ),
-    link: messages.reduce((sum, m) => sum + extractUrls(m.text).length, 0),
-  };
+  const counts: VaultCounts = { image: 0, video: 0, audio: 0, document: 0, link: 0 };
+  for (const message of messages) {
+    for (const attachment of message.attachments) {
+      const kind = vaultKindOf(attachment);
+      if (kind) counts[kind] += 1;
+    }
+    counts.link += extractUrls(message.text).length;
+  }
+  return counts;
+}
+
+/** Принадлежность вложения запрошенной категории. */
+function matchesType(
+  attachment: { kind: string; mime: string },
+  type: Exclude<VaultItemType, 'link'>,
+): boolean {
+  return vaultKindOf(attachment) === type;
 }
 
 export const vaultHandlers = [
+  http.get('/api/v1/chat/conversations/:id/attachments/counts', ({ params }) => {
+    const conversationId = String(params.id);
+    if (!demoConversations.some((c) => c.id === conversationId)) {
+      return HttpResponse.json(
+        { code: 'NOT_FOUND', message: 'Conversation not found' },
+        { status: 404 },
+      );
+    }
+    return HttpResponse.json(vaultCounts(conversationId, null));
+  }),
+
   http.get('/api/v1/chat/conversations/:id/attachments', ({ params, request }) => {
     const conversationId = String(params.id);
     if (!demoConversations.some((c) => c.id === conversationId)) {
@@ -88,7 +118,7 @@ export const vaultHandlers = [
       );
     }
     const url = new URL(request.url);
-    const type = (url.searchParams.get('type') ?? 'media') as VaultItemType;
+    const type = (url.searchParams.get('type') ?? 'image') as VaultItemType;
     const threadRootId = url.searchParams.get('threadRootId');
     const limit = Math.min(Number(url.searchParams.get('limit') ?? 50) || 50, 100);
     const cursor = decodeCursor(url.searchParams.get('cursor'));
@@ -114,12 +144,12 @@ export const vaultHandlers = [
         });
       } else {
         message.attachments.forEach((attachment, order) => {
-          if (attachment.kind !== (type === 'media' ? 'image' : 'file')) return;
+          if (!matchesType(attachment, type)) return;
           const after =
             !cursor || message.seq < cursor.s || (message.seq === cursor.s && order > cursor.o);
           if (!after) return;
           items.push({
-            type: type === 'media' ? 'media' : 'document',
+            type,
             messageId: message.id,
             conversationId,
             threadRootId: message.threadRootId,
@@ -192,13 +222,23 @@ export const vaultHandlers = [
         ),
       },
       sources,
+      // Категории — ПО КАРТОЧКАМ звёзд (mime-классификация), как живой
+      // sourcesSummary; НЕ counts беседы «Избранное».
       counts: {
-        media: cards.reduce(
-          (sum, c) => sum + c.attachments.filter((a) => a.kind === 'image').length,
+        image: cards.reduce(
+          (sum, c) => sum + c.attachments.filter((a) => vaultKindOf(a) === 'image').length,
+          0,
+        ),
+        video: cards.reduce(
+          (sum, c) => sum + c.attachments.filter((a) => vaultKindOf(a) === 'video').length,
+          0,
+        ),
+        audio: cards.reduce(
+          (sum, c) => sum + c.attachments.filter((a) => vaultKindOf(a) === 'audio').length,
           0,
         ),
         document: cards.reduce(
-          (sum, c) => sum + c.attachments.filter((a) => a.kind === 'file').length,
+          (sum, c) => sum + c.attachments.filter((a) => vaultKindOf(a) === 'document').length,
           0,
         ),
         link: cards.reduce((sum, c) => sum + extractUrls(c.text).length, 0),

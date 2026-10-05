@@ -2,8 +2,11 @@ import { Avatar, AvatarFallback, AvatarImage } from '@nodus/ui/components/avatar
 import { cn } from '@nodus/ui/lib/utils';
 
 function initialsOf(name: string): string {
-  return name
-    .split(' ')
+  // Инициалы берём только от слов, начинающихся с БУКВЫ: названия вида
+  // «Витрина (проба…)» не должны давать глиф «В(» (визуальный гейт #211).
+  const letters = name.split(' ').filter((part) => /\p{L}/u.test(part[0] ?? ''));
+  const source = letters.length > 0 ? letters : [name];
+  return source
     .slice(0, 2)
     .map((part) => part[0] ?? '')
     .join('')

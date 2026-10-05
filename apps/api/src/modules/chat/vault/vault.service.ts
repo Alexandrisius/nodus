@@ -52,9 +52,7 @@ export class VaultService {
           return { s: BigInt(decoded.s), o: decoded.o };
         })()
       : null;
-    const counts: VaultCounts = query.threadRootId
-      ? await this.repo.threadCounts(conversationId, query.threadRootId)
-      : await this.repo.conversationCounts(conversationId);
+    const counts = await this.countsInternal(conversationId, query.threadRootId ?? null);
 
     if (query.type === 'link') {
       const { rows, hasMore } = await this.repo.listLinks(
@@ -79,7 +77,7 @@ export class VaultService {
       };
     }
 
-    const kind = query.type === 'media' ? 'image' : 'file';
+    const kind = query.type;
     const { rows, hasMore } = await this.repo.listAttachments(
       conversationId,
       { kind, limit: query.limit, threadRootId: query.threadRootId ?? null },
@@ -87,7 +85,7 @@ export class VaultService {
     );
     const authors = await this.authorRefs(new Set(rows.map((row) => row.authorId)));
     const items: VaultItem[] = rows.map((row) => ({
-      type: query.type as 'media' | 'document',
+      type: kind,
       messageId: row.messageId,
       conversationId,
       threadRootId: row.threadRootId,
@@ -100,6 +98,28 @@ export class VaultService {
       nextCursor: hasMore ? encodeCursor(cursorFor(rows[rows.length - 1]!)) : null,
       counts,
     };
+  }
+
+  /** Счётчики категорий витрины (панель-профиль, реф Telegram): без скоупа —
+   *  O(1) из stats, с тредом — на лету. */
+  async counts(
+    userId: string,
+    conversationId: string,
+    threadRootId: string | null,
+  ): Promise<VaultCounts> {
+    if (!(await this.conversations.findMembership(conversationId, userId))) {
+      throw DomainException.notFound('Conversation not found');
+    }
+    return this.countsInternal(conversationId, threadRootId);
+  }
+
+  private countsInternal(
+    conversationId: string,
+    threadRootId: string | null,
+  ): Promise<VaultCounts> {
+    return threadRootId
+      ? this.repo.threadCounts(conversationId, threadRootId)
+      : this.repo.conversationCounts(conversationId);
   }
 
   /** Гидратация авторов через read-порт (ADR-0012, как в ленте сообщений). */

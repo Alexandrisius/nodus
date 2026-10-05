@@ -59,9 +59,10 @@ export class FavoritesService {
 
   /**
    * Источники «Избранного» (#211 Ф3, реф Telegram Saved): чаты, откуда
-   * прилетали звёзды (новые закладки сверху), счётчики типов всего
-   * избранного и псевдоисточник «Записи» — свои сообщения чата «Избранное».
-   * Читает только закладки самого владельца (личное состояние, как список).
+   * прилетали звёзды (новые закладки сверху), счётчики категорий ПО КАРТОЧКАМ
+   * звёзд (ревизия 05.10 — НЕ stats беседы «Избранное»: избранное живёт в
+   * чужих беседах) и псевдоисточник «Записи». Читает только закладки самого
+   * владельца (личное состояние, как список).
    */
   async sources(userId: string): Promise<FavoriteSources> {
     const [rows, summary] = await Promise.all([
@@ -77,7 +78,7 @@ export class FavoritesService {
         lastFavoritedAt: row.last.toISOString(),
         count: row.count,
       })),
-      counts: { media: summary.media, document: summary.document, link: summary.link },
+      counts: summary.counts,
     };
   }
 

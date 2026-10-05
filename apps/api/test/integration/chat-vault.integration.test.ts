@@ -9,11 +9,12 @@ import {
 import { setupChatFixture, type ChatTestFixture, type ChatUser } from './chat-fixtures.js';
 
 /**
- * Витрина беседы #211 (integration): серверные списки media/document/link
- * со счётчиками, write-time проекция ссылок и ИНВАРИАНТ денормализованных
- * счётчиков (stats == фактический состав живых сообщений) на всём цикле
- * жизни: отправка → правка состава/текста → удаление; скоуп треда, пагинация
- * keyset, RBAC (не-участник 404); источники «Избранного» (Ф3).
+ * Витрина беседы #211 (integration): серверные списки категорий
+ * image|video|audio|document|link со счётчиками, write-time проекция ссылок
+ * и ИНВАРИАНТ денормализованных счётчиков (stats == фактический состав живых
+ * сообщений) на всём цикле жизни: отправка → правка состава/текста →
+ * удаление; скоуп треда, пагинация keyset, RBAC (не-участник 404);
+ * источники «Избранного» (Ф3); видео/аудио — файлы по mime (ревизия 05.10).
  */
 
 const IMAGE_BYTES = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
@@ -108,14 +109,14 @@ describe.skipIf(!process.env.DATABASE_URL || !process.env.STORAGE_ACCESS_KEY)(
       });
       await send(bob, conv, { text: 'Ещё ссылка https://example.com/c' });
 
-      const media = await vault(alice, conv, 'type=media');
+      const media = await vault(alice, conv, 'type=image');
       expect(media.page!.items).toHaveLength(1);
       expect(media.page!.items[0]).toMatchObject({
-        type: 'media',
+        type: 'image',
         attachment: { name: 'foto.png', kind: 'image' },
         author: { id: alice.id },
       });
-      expect(media.page!.counts).toEqual({ media: 1, document: 1, link: 3 });
+      expect(media.page!.counts).toEqual({ image: 1, video: 0, audio: 0, document: 1, link: 3 });
 
       const documents = await vault(alice, conv, 'type=document');
       expect(documents.page!.items[0]).toMatchObject({
@@ -137,7 +138,7 @@ describe.skipIf(!process.env.DATABASE_URL || !process.env.STORAGE_ACCESS_KEY)(
       const res = await fx.api(
         carol,
         'GET',
-        `/chat/conversations/${await makeConversation()}/attachments?type=media`,
+        `/chat/conversations/${await makeConversation()}/attachments?type=image`,
       );
       expect(res.status).toBe(404);
     });
@@ -176,8 +177,10 @@ describe.skipIf(!process.env.DATABASE_URL || !process.env.STORAGE_ACCESS_KEY)(
         text: 'https://gone.example/a',
         attachmentIds: [attachment.id],
       });
-      expect((await vault(alice, conv, 'type=media')).page!.counts).toEqual({
-        media: 1,
+      expect((await vault(alice, conv, 'type=image')).page!.counts).toEqual({
+        image: 1,
+        video: 0,
+        audio: 0,
         document: 0,
         link: 1,
       });
@@ -188,9 +191,9 @@ describe.skipIf(!process.env.DATABASE_URL || !process.env.STORAGE_ACCESS_KEY)(
         `/chat/conversations/${conv}/messages/${messageId}`,
       );
       expect([200, 204]).toContain(res.status);
-      const media = await vault(alice, conv, 'type=media');
+      const media = await vault(alice, conv, 'type=image');
       expect(media.page!.items).toHaveLength(0);
-      expect(media.page!.counts).toEqual({ media: 0, document: 0, link: 0 });
+      expect(media.page!.counts).toEqual({ image: 0, video: 0, audio: 0, document: 0, link: 0 });
     });
 
     it('пагинация keyset: страницы без потерь и дублей', async () => {
@@ -202,19 +205,19 @@ describe.skipIf(!process.env.DATABASE_URL || !process.env.STORAGE_ACCESS_KEY)(
         fileIds.push(attachment.id);
         await send(alice, conv, { attachmentIds: [attachment.id] });
       }
-      const first = await vault(alice, conv, 'type=media&limit=2');
+      const first = await vault(alice, conv, 'type=image&limit=2');
       expect(first.page!.items).toHaveLength(2);
       expect(first.page!.nextCursor).toBeTruthy();
-      expect(first.page!.counts.media).toBe(3);
+      expect(first.page!.counts.image).toBe(3);
       const second = await vault(
         alice,
         conv,
-        `type=media&limit=2&cursor=${first.page!.nextCursor}`,
+        `type=image&limit=2&cursor=${first.page!.nextCursor}`,
       );
       expect(second.page!.items).toHaveLength(1);
       expect(second.page!.nextCursor).toBeNull();
       const ids = [...first.page!.items, ...second.page!.items].map((i) =>
-        i.type === 'media' || i.type === 'document' ? i.attachment.id : '',
+        i.type === 'image' || i.type === 'document' ? i.attachment.id : '',
       );
       expect(new Set(ids).size).toBe(3);
     });
@@ -237,7 +240,7 @@ describe.skipIf(!process.env.DATABASE_URL || !process.env.STORAGE_ACCESS_KEY)(
         'https://reply.example/b',
         'https://root.example/a',
       ]);
-      expect(thread.page!.counts).toEqual({ media: 1, document: 0, link: 2 });
+      expect(thread.page!.counts).toEqual({ image: 1, video: 0, audio: 0, document: 0, link: 2 });
     });
 
     it('источники «Избранного»: чат-источник со счётчиком + «Записи»', async () => {
@@ -262,8 +265,72 @@ describe.skipIf(!process.env.DATABASE_URL || !process.env.STORAGE_ACCESS_KEY)(
       const sources = favoriteSourcesSchema.parse(await res.json()) as FavoriteSources;
       const fromConv = sources.sources.find((s) => s.conversationId === conv);
       expect(fromConv).toMatchObject({ count: 2, conversationType: 'group' });
-      expect(sources.counts.link).toBe(1);
+      // Категории считают ЗВЁЗДЫ (карточки), не беседу «Избранное».
+      expect(sources.counts).toEqual({
+        image: 0,
+        video: 0,
+        audio: 0,
+        document: 0,
+        link: 1,
+      });
       expect(sources.notes.count).toBe(1);
+    });
+
+    it('видео/аудио — файлы по mime (ревизия 05.10); счётчики — отдельный эндпоинт', async () => {
+      const conv = await makeConversation();
+      const video = await upload(alice, FILE_BYTES, 'briefing.mp4', 'video/mp4');
+      const videoAttachment = (await video.json()) as { id: string };
+      fileIds.push(videoAttachment.id);
+      const audio = await upload(alice, FILE_BYTES, 'memo.m4a', 'audio/x-m4a');
+      const audioAttachment = (await audio.json()) as { id: string };
+      fileIds.push(audioAttachment.id);
+      const doc = await upload(alice, FILE_BYTES, 'act.pdf', 'application/pdf');
+      const docAttachment = (await doc.json()) as { id: string };
+      fileIds.push(docAttachment.id);
+      // Привязка вложения одноразовая и только своим владельцем — все три
+      // файла уходят одним сообщением alice.
+      await send(alice, conv, {
+        attachmentIds: [videoAttachment.id, audioAttachment.id, docAttachment.id],
+      });
+
+      const countsRes = await fx.api(
+        alice,
+        'GET',
+        `/chat/conversations/${conv}/attachments/counts`,
+      );
+      expect(countsRes.status).toBe(200);
+      expect(await countsRes.json()).toEqual({
+        image: 0,
+        video: 1,
+        audio: 1,
+        document: 1,
+        link: 0,
+      });
+
+      const videos = await vault(alice, conv, 'type=video');
+      expect(videos.page!.items).toHaveLength(1);
+      expect(videos.page!.items[0]).toMatchObject({
+        type: 'video',
+        attachment: { name: 'briefing.mp4', kind: 'file' },
+      });
+      const audios = await vault(alice, conv, 'type=audio');
+      expect(audios.page!.items[0]).toMatchObject({
+        type: 'audio',
+        attachment: { name: 'memo.m4a' },
+      });
+      const documents = await vault(alice, conv, 'type=document');
+      expect(documents.page!.items[0]).toMatchObject({
+        type: 'document',
+        attachment: { name: 'act.pdf' },
+      });
+
+      // Не-участник — 404 и на счётчиках.
+      const carolCounts = await fx.api(
+        carol,
+        'GET',
+        `/chat/conversations/${conv}/attachments/counts`,
+      );
+      expect(carolCounts.status).toBe(404);
     });
   },
 );

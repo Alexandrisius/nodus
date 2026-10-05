@@ -4,8 +4,12 @@ import { z } from 'zod';
 import {
   conversationVaultPageSchema,
   listConversationVaultQuerySchema,
+  vaultCountsQuerySchema,
+  vaultCountsSchema,
   type ConversationVaultPage,
   type ListConversationVaultQuery,
+  type VaultCounts,
+  type VaultCountsQuery,
 } from '@nodus/contracts';
 
 import { GetUser } from '../../../core/decorators/get-user.decorator.js';
@@ -26,9 +30,30 @@ import { VaultService } from './vault.service.js';
 export class VaultController {
   constructor(private readonly vault: VaultService) {}
 
+  /** Счётчики категорий (панель-профиль Telegram-стиля) — O(1) из stats. */
+  @Get('attachments/counts')
+  @ApiOperation({
+    summary:
+      'Счётчики витрины по категориям image|video|audio|document|link (денормализованные, O(1))',
+  })
+  @ApiOkResponse({ standardSchema: vaultCountsSchema })
+  @ApiErrors(400, 401, 404)
+  counts(
+    @GetUser() user: { id: string },
+    @Param('id', new ZodValidationPipe(z.uuid())) conversationId: string,
+    @Query({
+      schema: vaultCountsQuerySchema,
+      pipes: [new ZodValidationPipe(vaultCountsQuerySchema)],
+    })
+    query: VaultCountsQuery,
+  ): Promise<VaultCounts> {
+    return this.vault.counts(user.id, conversationId, query.threadRootId ?? null);
+  }
+
   @Get('attachments')
   @ApiOperation({
-    summary: 'Витрина беседы: страница media|document|link + счётчики всех типов (панель «О чате»)',
+    summary:
+      'Витрина беседы: страница категории image|video|audio|document|link + счётчики всех категорий',
   })
   @ApiOkResponse({ standardSchema: conversationVaultPageSchema })
   @ApiErrors(400, 401, 404)

@@ -28,8 +28,7 @@ import { useIncomingFollow } from './use-incoming-follow.js';
 import { FavoriteRunMessage } from './notes-row.js';
 import { buildMessageRuns, formatDayLabel, startsNewDay } from './message-groups.js';
 import { MessageRunView } from './message-run.js';
-import { mergeNotesFlow, splitNotesSelection, type NotesSourceId } from './notes-flow.js';
-import { NotesSourceWindow } from './notes-source-window.js';
+import { mergeNotesFlow, splitNotesSelection } from './notes-flow.js';
 import { reconcileServerDraft } from './draft-sync.js';
 import { setOpenConversation } from './notifications.js';
 import { registerScopeSubmit } from './submit-registry.js';
@@ -55,38 +54,11 @@ import { cn } from '@nodus/ui/lib/utils';
  * пересылка ИЗ витрины работает.
  * Открывается вниз (как каналы, #175), без якоря непрочитанных.
  */
-export function NotesPane({
-  conversationId,
-  source = null,
-  onSourceClose,
-}: {
-  conversationId: string;
-  /** Окно-источник «Избранного» (#211 Ф3): клик по строке панели источников. */
-  source?: NotesSourceId | null;
-  onSourceClose?: () => void;
-}) {
+export function NotesPane({ conversationId }: { conversationId: string }) {
   const scope = `conversation:${conversationId}`;
   const listQuery = useConversations();
   const conversation = listQuery.data?.items.find((c) => c.id === conversationId) ?? null;
   const meId = useAuthStore((s) => s.user?.id ?? null);
-  // Подпись окна-источника: «Записи» / название беседы из списка (task и
-  // letter — i18n-строки, как у карточек избранного).
-  const sourceTitle =
-    source === null
-      ? ''
-      : source === 'notes'
-        ? ui.chat.notesFilterNotes
-        : (() => {
-            const c = listQuery.data?.items.find((item) => item.id === source);
-            return (
-              c?.title ??
-              (c?.type === 'task'
-                ? ui.chat.taskChat
-                : c?.type === 'letter'
-                  ? ui.chat.letterChat
-                  : ui.chat.vaultSources)
-            );
-          })();
 
   // Реконсилейшн серверного черновика — синхронно до рендера композера (#132).
   useState(() => {
@@ -320,15 +292,6 @@ export function NotesPane({
         onSubmit={handleSubmit}
         // Заметки — чат с собой (#171): молнии и подтверждений здесь нет.
         urgentEnabled={false}
-      />
-
-      {/* Окно-источник «Избранного» (#211 Ф3): выезжает СПРАВА НАЛЕВО
-          поверх витрины (обёртка постоянна — w-0 в покое). */}
-      <NotesSourceWindow
-        conversationId={conversationId}
-        source={source}
-        title={sourceTitle}
-        onClose={onSourceClose ?? (() => {})}
       />
     </div>
   );

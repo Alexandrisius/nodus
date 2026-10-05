@@ -40,7 +40,11 @@ import { AttachmentsRepository } from './attachments.repository.js';
 import { FavoritesRepository } from '../favorites/favorites.repository.js';
 import { ThreadParticipantsRepository } from './thread-participants.repository.js';
 import { buildReplySnapshot } from './reply-snapshot.js';
-import { VaultRepository, attachmentKindDelta } from '../vault/vault.repository.js';
+import {
+  VaultRepository,
+  attachmentKindDelta,
+  emptyAttachmentDelta,
+} from '../vault/vault.repository.js';
 import {
   StickersRepository,
   type StickerAttachmentRow,
@@ -422,9 +426,8 @@ export class MessagesService {
     body: EditMessageBody,
   ): Promise<{ message: MessageRow; members: MemberRow[] }> {
     return this.txRunner.run(async (tx) => {
-      if (!(await this.conversations.findMembership(conversationId, userId, tx))) {
+      if (!(await this.conversations.findMembership(conversationId, userId, tx)))
         throw DomainException.notFound('Conversation not found');
-      }
       const message = await this.repo.findByIdInConversation(conversationId, messageId, tx);
       if (!message || message.deletedAt) throw DomainException.notFound('Message not found');
       if (message.authorId !== userId) {
@@ -479,20 +482,17 @@ export class MessagesService {
     userId: string,
     body: EditMessageBody,
     tx: TransactionClient,
-  ): Promise<{ changed: boolean; delta: { media: number; document: number } }> {
-    if (body.attachmentIds === undefined && body.attachmentRenames === undefined) {
-      return { changed: false, delta: { media: 0, document: 0 } };
-    }
+  ) {
+    if (body.attachmentIds === undefined && body.attachmentRenames === undefined)
+      return { changed: false, delta: emptyAttachmentDelta() };
     const before = await this.repo.attachmentsFor([messageId], tx);
-    if (before.some((a) => a.kind === 'sticker')) {
+    if (before.some((a) => a.kind === 'sticker'))
       throw DomainException.forbidden('Sticker messages cannot be edited');
-    }
     if (body.attachmentIds !== undefined) {
       await this.attachmentsRepo.syncMessageAttachments(messageId, body.attachmentIds, userId, tx);
     }
-    if (body.attachmentRenames !== undefined && body.attachmentRenames.length > 0) {
+    if (body.attachmentRenames !== undefined && body.attachmentRenames.length > 0)
       await this.attachmentsRepo.renameMessageAttachments(messageId, body.attachmentRenames, tx);
-    }
     const after = await this.repo.attachmentsFor([messageId], tx);
     if (body.text.trim().length === 0 && after.length === 0) {
       throw new DomainException(
@@ -550,9 +550,8 @@ export class MessagesService {
     messageId: string,
   ): Promise<DeleteResult> {
     return this.txRunner.run(async (tx) => {
-      if (!(await this.conversations.findMembership(conversationId, userId, tx))) {
+      if (!(await this.conversations.findMembership(conversationId, userId, tx)))
         throw DomainException.notFound('Conversation not found');
-      }
       const message = await this.repo.findByIdInConversation(conversationId, messageId, tx);
       if (!message || message.deletedAt) throw DomainException.notFound('Message not found');
       if (message.authorId !== userId) {

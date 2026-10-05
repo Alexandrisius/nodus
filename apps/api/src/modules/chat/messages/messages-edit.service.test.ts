@@ -61,6 +61,8 @@ function attachmentRow(overrides: Record<string, unknown> = {}) {
     id: 'att-1',
     name: 'a.png',
     kind: 'file',
+    // mime в БД NOT NULL — витринная классификация (#211) читает его.
+    mime: 'application/pdf',
     sortOrder: 0,
     ...overrides,
   };

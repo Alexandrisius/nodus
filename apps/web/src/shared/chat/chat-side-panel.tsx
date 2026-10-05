@@ -1,6 +1,6 @@
 import { ArrowLeft, PanelRight, X } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import type { ConversationListItem } from '@nodus/contracts';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { ConversationListItem, VaultItemType } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import { NodeLabel } from '@nodus/ui/components/node-label';
@@ -9,8 +9,10 @@ import { cn } from '@nodus/ui/lib/utils';
 import { ChatSearchPanel } from './chat-search-panel.js';
 import { isNotesConversation } from './conversations.js';
 import { ConversationMembersPanel } from './conversation-members.js';
+import { ChatProfilePane } from './chat-profile-pane.js';
+import { useFavorites } from './favorites-api.js';
 import { NotesSourcesPane, type NotesSourceId } from './notes-sources-pane.js';
-import { VaultPane } from './vault-pane.js';
+import { VaultWindow } from './vault-window.js';
 
 import { useAuthStore } from '../auth-store.js';
 import { useFrameReady } from '../ui/use-frame-ready.js';
@@ -49,15 +51,16 @@ export function useChatSidePanel() {
  *
  * Панель — ОДНА на беседу (хостится контейнером), НЕ на зону: окно треда
  * рядом с лентой (#42) не умножает правых панелей (research OpenClaw:
- * несколько rail'ов съедают ширину ленты и множат границы ресайза). При
- * открытом треде — переключатель области «Вся беседа / Этот тред» (канон
- * пресетов: 13px, зона bg-muted/40, активный bg-accent): списки витрины
- * фильтруются по корню треда и его ответам (#211 — серверным threadRootId).
+ * несколько rail'ов съедают ширину ленты и множат границы ресайза).
  *
- * #211 (вердикт владельца 04.10): панель — ЧИСТОЕ хранилище беседы
- * (серверные списки медиа/документов/ссылок + счётчики), БЕЗ избранного;
- * просмотр избранного централизован в чате «Избранное» — там панель
- * показывает ИСТОЧНИКИ звёзд (NotesSourcesPane, реф Telegram Saved).
+ * #211 (вердикт владельца 04.10): панель — ЧИСТОЕ хранилище беседы,
+ * БЕЗ избранного; просмотр избранного централизован в чате «Избранное» —
+ * там панель показывает ИСТОЧНИКИ звёзд (NotesSourcesPane, реф Telegram
+ * Saved). РЕВИЗИЯ владельца 05.10 (модель Telegram): панель — профиль
+ * чата (большой аватар, «Звук»/«Копировать ссылку») + кликабельные
+ * категории-счётчики БЕЗ превью; клик открывает окно категории
+ * (VaultWindow) поверх всей панели — только «назад», без крестика.
+ * Скоуп-тоггл «Вся беседа/Этот тред» снят (в Telegram/Битриксе его нет).
  *
  * ГЕОМЕТРИЯ (вердикт владельца 15.09.2026, рефы Битрикс24): панель —
  * ПОЛНОВЫСОТНАЯ колонка-сиблинг всего контента хоста: занимает ВЕРХНИЙ БАР
@@ -78,7 +81,6 @@ export function ChatSidePanel({
   onClose,
   title,
   headerClass = 'h-14',
-  threadRootId = null,
   view = 'files',
   onMembersClose,
   onSearchBack,
@@ -86,15 +88,15 @@ export function ChatSidePanel({
   onOpenNotesSource,
 }: {
   conversationId: string;
-  /** Беседа для вида «Участники» (#186): роли и права матрицы. */
+  /** Беседа для вида «Участники» (#186) и профиля (ревизия 05.10): роли,
+   *  права матрицы, аватар/подпись/звук. */
   conversation?: ConversationListItem;
   open: boolean;
   onClose: () => void;
   title: string;
-  /** Высота верхней строки панели = высота верхнего бара хоста (линии
+  /** Высота верхней строки панели = высота верхнего бара хоста (линия
    *  border-b продолжаются друг в друга). */
   headerClass?: string;
-  threadRootId?: string | null;
   /** Вид колонки (#186 + поиск 04.10): файлы/ссылки («О чате»), участники —
    *  панель участников стоит РОВНО ПОВЕРХ тоггл-панели (та же колонка 1:1),
    *  поиск — лупа в шапке беседы раскрывает ту же панель с поисковой
@@ -114,7 +116,15 @@ export function ChatSidePanel({
   const meId = useAuthStore((s) => s.user?.id ?? null);
   // Чат «Избранное»: панель — источники звёзд (Ф3), НЕ хранилище файлов.
   const isNotes = Boolean(conversation && isNotesConversation(conversation, meId));
-  const [scope, setScope] = useState<'all' | 'thread'>('all');
+  // Окно категории витрины (ревизия 05.10): поверх всей панели, «назад».
+  const [vaultType, setVaultType] = useState<VaultItemType | null>(null);
+  // Карточки звёзд для категорий «Избранного» (режим окна): тот же кэш,
+  // что у витрины чата (ключ useFavorites() — без фильтров).
+  const favorites = useFavorites();
+  const favoriteCards = useMemo(
+    () => (favorites.data?.pages ?? []).flatMap((page) => page.items),
+    [favorites.data],
+  );
   // Плавное ПЕРВОЕ открытие: монтируемся в покое (w-0), класс раскрытия —
   // после двух кадров (useFrameReady), transition идёт с первого кадра.
   const ready = useFrameReady();
@@ -122,10 +132,11 @@ export function ChatSidePanel({
   // один выезд колонки не платит маунтом в кадрах анимации (ленивый маунт
   // первого открытия давал «гармошку» выезда, 04.10 р.6).
   const columnOpen = open || view !== 'files';
-  const scrollRef = useRef<HTMLDivElement>(null);
+  // Окно категории персонально беседе и виду: смена беседы (карточка
+  // подменяет без ремаунта), свёртка колонки и чужие виды сбрасывают.
   useEffect(() => {
-    if (!threadRootId) setScope('all');
-  }, [threadRootId]);
+    setVaultType(null);
+  }, [conversationId, open, view]);
 
   return (
     <div
@@ -136,7 +147,7 @@ export function ChatSidePanel({
         columnOpen && ready ? 'w-[18.75rem]' : 'w-0',
       )}
     >
-      <aside className="flex h-full w-[18.75rem] flex-col border-l border-border bg-card">
+      <aside className="relative flex h-full w-[18.75rem] flex-col border-l border-border bg-card">
         {/* Верхняя строка панели — НА УРОВНЕ бара хоста: название слева,
             крестик у самого правого края (реф Битрикс24, вердикт владельца
             15.09.2026); border-b продолжает линию бара хоста. Вид участников
@@ -193,46 +204,25 @@ export function ChatSidePanel({
                 анимаций колонки); в режиме поиска скрыта CSS — поиск стоит
                 ПОВЕРХ неё. */}
             <div
-              ref={scrollRef}
               className={cn(
                 'flex min-h-0 flex-1 flex-col overflow-y-auto p-4',
                 view === 'search' && 'hidden',
               )}
             >
               {isNotes ? (
-                <NotesSourcesPane onOpenSource={onOpenNotesSource ?? (() => {})} />
+                <NotesSourcesPane
+                  onOpenSource={onOpenNotesSource ?? (() => {})}
+                  onOpenVaultType={setVaultType}
+                />
               ) : (
-                <>
-                  {threadRootId ? (
-                    <div className="flex shrink-0 gap-1 rounded-lg bg-muted/40 p-1">
-                      {(['all', 'thread'] as const).map((s) => (
-                        <button
-                          key={s}
-                          type="button"
-                          onClick={() => setScope(s)}
-                          aria-pressed={scope === s}
-                          className={cn(
-                            'flex-1 rounded-md px-2 py-1 text-body-xs transition-colors',
-                            scope === s
-                              ? 'bg-accent text-foreground'
-                              : 'text-muted-foreground hover:text-foreground',
-                          )}
-                        >
-                          {s === 'all' ? ui.chat.scopeAll : ui.chat.scopeThread}
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
-
-                  {/* Закрепов в панели НЕТ (вердикт владельца 24.09, #91):
-                      обзор закрепов — пин-бар ленты; панель — хранилище
-                      витрины беседы (#211). */}
-                  <VaultPane
-                    conversationId={conversationId}
-                    threadRootId={scope === 'thread' ? threadRootId : null}
-                    scrollRef={scrollRef}
-                  />
-                </>
+                /* Закрепов в панели НЕТ (вердикт владельца 24.09, #91):
+                    обзор закрепов — пин-бар ленты; панель — профиль беседы
+                    (ревизия 05.10): аватар, «Звук», категории-счётчики. */
+                <ChatProfilePane
+                  conversationId={conversationId}
+                  conversation={conversation}
+                  onOpenVaultType={setVaultType}
+                />
               )}
             </div>
             {/* Поиск — ПОВЕРХ панели вложений (кнопка «назад», канон вида
@@ -251,6 +241,16 @@ export function ChatSidePanel({
             />
           </>
         )}
+        {/* Окно категории витрины (ревизия 05.10): absolute на КОРНЕ aside —
+            перекрывает и верхний бар панели; смонтировано всегда (закон
+            выдвижных поверхностей, w-0 в покое). «Избранное» — карточный
+            режим (категории считают ЗВЁЗДЫ, не беседу «Избранное»). */}
+        <VaultWindow
+          conversationId={conversationId}
+          type={vaultType}
+          cards={isNotes ? favoriteCards : undefined}
+          onClose={() => setVaultType(null)}
+        />
       </aside>
     </div>
   );

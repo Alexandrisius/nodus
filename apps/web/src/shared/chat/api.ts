@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   ChatMessage,
   ConversationListItem,
+  ConversationUpdateBody,
   MessageAttachment,
   Paginated,
   ReplyPreview,
@@ -103,6 +104,21 @@ export function useConversations() {
     queryFn: () => api<Paginated<ConversationListItem>>('/chat/conversations'),
     refetchInterval: livePoll(LIVE_CHAT_POLL.conversations, socketConnected),
     refetchIntervalInBackground: false,
+  });
+}
+
+/** Состояние беседы из контекстного меню и профиля чата (ПКМ, реф Битрикс24;
+ *  ревизия #211 05.10 — кнопка «Звук» в панели-профиле): закрепить / звук /
+ *  «посмотреть позже» / скрыть. Оптимистично не работаем: список дешёвый,
+ *  инвалидация мгновенная (I4 держим серверным ответом < 100 мс). */
+export function useUpdateConversation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: ConversationUpdateBody }) =>
+      api<ConversationListItem>(`/chat/conversations/${id}`, { method: 'PATCH', body }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: chatKeys.conversations() });
+    },
   });
 }
 

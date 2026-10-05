@@ -54,6 +54,7 @@ export const ui = {
     save: 'Сохранить',
     cancel: 'Отмена',
     close: 'Закрыть',
+    back: 'Назад',
     you: 'Вы',
     search: 'Поиск',
     add: 'Добавить',

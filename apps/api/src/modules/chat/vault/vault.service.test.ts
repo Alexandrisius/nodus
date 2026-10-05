@@ -55,7 +55,7 @@ describe('VaultService.list', () => {
     conversations.findMembership.mockResolvedValue(null);
     await expect(
       service.list('u1', 'c1', {
-        type: 'media',
+        type: 'image',
         limit: 50,
         cursor: undefined,
         threadRootId: undefined,
@@ -63,11 +63,17 @@ describe('VaultService.list', () => {
     ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND });
   });
 
-  it('media: строка → item с автором, подписанным url и счётчиками', async () => {
+  it('image: строка → item с автором, подписанным url и счётчиками', async () => {
     repo.listAttachments.mockResolvedValue({ rows: [ATTACHMENT_ROW], hasMore: false });
-    repo.conversationCounts.mockResolvedValue({ media: 3, document: 2, link: 1 });
+    repo.conversationCounts.mockResolvedValue({
+      image: 3,
+      video: 0,
+      audio: 0,
+      document: 2,
+      link: 1,
+    });
     const page = await service.list('u1', 'c1', {
-      type: 'media',
+      type: 'image',
       limit: 50,
       cursor: undefined,
       threadRootId: undefined,
@@ -78,27 +84,33 @@ describe('VaultService.list', () => {
       null,
     );
     expect(page.items[0]).toMatchObject({
-      type: 'media',
+      type: 'image',
       messageId: 'msg-1',
       author: { id: 'u1' },
       attachment: { fileId: 'file-1', thumbnailUrl: expect.stringContaining('thumb-1') },
     });
-    expect(page.counts).toEqual({ media: 3, document: 2, link: 1 });
+    expect(page.counts).toEqual({ image: 3, video: 0, audio: 0, document: 2, link: 1 });
     expect(page.nextCursor).toBeNull();
   });
 
-  it('document → kind file; nextCursor кодирует последнюю строку (seq, sortOrder)', async () => {
+  it('video: категория → mime-фильтр репозитория; nextCursor кодирует последнюю строку', async () => {
     repo.listAttachments.mockResolvedValue({ rows: [ATTACHMENT_ROW], hasMore: true });
-    repo.conversationCounts.mockResolvedValue({ media: 0, document: 1, link: 0 });
+    repo.conversationCounts.mockResolvedValue({
+      image: 0,
+      video: 1,
+      audio: 0,
+      document: 1,
+      link: 0,
+    });
     const page = await service.list('u1', 'c1', {
-      type: 'document',
+      type: 'video',
       limit: 50,
       cursor: undefined,
       threadRootId: undefined,
     });
     expect(repo.listAttachments).toHaveBeenCalledWith(
       'c1',
-      { kind: 'file', limit: 50, threadRootId: null },
+      { kind: 'video', limit: 50, threadRootId: null },
       null,
     );
     expect(page.nextCursor).toBeTruthy();
@@ -120,7 +132,7 @@ describe('VaultService.list', () => {
       ],
       hasMore: false,
     });
-    repo.threadCounts.mockResolvedValue({ media: 0, document: 0, link: 5 });
+    repo.threadCounts.mockResolvedValue({ image: 0, video: 0, audio: 0, document: 0, link: 5 });
     const page = await service.list('u1', 'c1', {
       type: 'link',
       limit: 50,

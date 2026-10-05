@@ -8,30 +8,34 @@ M13): ДОМЕННЫЕ события (все модули, #100) публику
 (опрос outbox по монотонному `events.seq`, метка fanout_at); клиент применяет
 их только как инвалидации. Модуль за фичефлагом `chat` (I10).
 
-Витрина беседы (#211, `vault/`): серверные списки панели «О чате» —
-`GET /chat/conversations/:id/attachments?type=media|document|link`
-(курсорная пагинация ≤100, keyset `(seq DESC, sort_order|position ASC)`,
-фильтр `threadRootId` = скоуп «Этот тред» с корнем; доступ — участник,
-нечлен 404) + счётчики всех типов в каждом ответе. Ссылки — write-time
-проекция `message_links` (извлечение `messages/link-extractor.ts` при
-отправке/правке в той же транзакции, срез хвостовой пунктуации; надгробие/
-бесследие чистит строки). Счётчики — денормализация
-`conversation_vault_stats` (media=kind image, document=kind file, link;
-стикеры НЕ считаются), Δ-обслуживание в тех же транзакциях состава
+Витрина беседы (#211, `vault/`; ревизия владельца 05.10 — модель Telegram):
+серверные списки панели «О чате» по категориям image|video|audio|document|link
+— `GET /chat/conversations/:id/attachments?type=…` (курсорная пагинация ≤100,
+keyset `(seq DESC, sort_order|position ASC)`; доступ — участник, нечлен 404)
+и счётчики категорий `GET …/attachments/counts` (O(1) из stats; в списке
+счётчики тоже едут в каждом ответе). Классификация — `vaultKindOf`:
+kind='image' → image, файлы — по mime (video/_|audio/_), остальное —
+document; storage-kind вложений не меняется. `?threadRootId` — скоуп треда
+(задел #42; в панели скоуп-тоггла нет — витрина всегда вся беседа). Ссылки —
+write-time проекция `message_links` (извлечение `messages/link-extractor.ts`
+при отправке/правке в той же транзакции, срез хвостовой пунктуации;
+надгробие/бесследие чистит строки). Счётчики — денормализация
+`conversation_vault_stats` (image/video/audio/document/link; стикеры НЕ
+считаются), Δ-обслуживание в тех же транзакциях состава
 (send/edit/delete/batch-delete/forward — `applyMessageSent/Edited/Deleted`),
 statement-level upsert-инкремент по PK беседы (модель Telegram
 getSearchCounters / Битрикс24: чтение O(1); row-триггеры — анти-паттерн,
 Exa-research 04.10); скоуп треда считается на лету (объём треда мал).
 Инвариант stats == COUNT(живых) — integration-тест (chat-vault.integration);
-стартовый полный пересчёт — миграция vault_backfill (идемпотентна).
+стартовый полный пересчёт — миграции vault_backfill и
+vault_video_audio_counts (идемпотентны).
 Источники «Избранного» (Ф3, реф Telegram Saved):
 `GET /chat/favorites/sources` — чаты, откуда прилетали звёзды (аватар-мета,
-count, MAX(favoritedAt)), счётчики типов всего избранного (вложения карточек
-
-- message_links) и псевдоисточник «Записи» (свои живые сообщения чата
-  «Избранное»); только закладки бесед, где владелец участник (приватность
-  списка). Новый файл → событие НЕ плодим: клиент рефечит по `chat.message_*`
-  / `chat.favorite_*` (WS-инвалидации).
+count, MAX(favoritedAt)) и псевдоисточник «Записи» (свои живые сообщения чата
+«Избранное»); только закладки бесед, где владелец участник (приватность
+списка); счётчики категорий — тот же эндпоинт vault counts (единый путь).
+Новый файл → событие НЕ плодим: клиент рефечит по `chat.message_*`
+/ `chat.favorite_*` (WS-инвалидации).
 
 Избранное (#171, `favorites/`; ревизия 04.10): личные закладки-ссылки на
 сообщения («закладка, не копия» — контент живёт в оригинале, правки
@@ -180,7 +184,8 @@ SET last_seq = last_seq + n RETURNING` в транзакции отправки 
 | `DELETE /conversations/:id/members/:userId`                         | Исключить (право removeMembers + иерархия: актёр строго старше цели; владельца нельзя; только группы/каналы, #195); черновик исключённого чистится; событие member_removed                                                                                                                   |
 | `PUT /conversations/:id/draft`                                      | Черновик: пустой текст = удаление; revision монотонно растит сервер (LWW)                                                                                                                                                                                                                    |
 | `GET /conversations/:id/messages`                                   | Лента ВСЕХ сообщений беседы ASC (страница — новейшие, курсор назад по seq; ответы тредов — инлайн, как в моках: прямой/групповой чат рендерит их плоско, канальный вид фильтрует корни клиентом) или тред (`?threadRootId=`: корень первым на первой странице). Курсор просмотров НЕ двигает |
-| `GET /conversations/:id/attachments`                                | Витрина беседы (#211): страница `?type=media\|document\|link` (keyset seq+порядок, ≤100) + счётчики всех типов; `?threadRootId` — скоуп треда (с корнем); участник, нечлен 404                                                                                                               |
+| `GET /conversations/:id/attachments`                                | Витрина беседы (#211): страница `?type=image\|video\|audio\|document\|link` (keyset seq+порядок, ≤100) + счётчики всех категорий; `?threadRootId` — скоуп треда (с корнем); участник, нечлен 404                                                                                             |
+| `GET /conversations/:id/attachments/counts`                         | Счётчики витрины по категориям (ревизия 05.10): O(1) из денормализованных stats; `?threadRootId` — на лету; участник, нечлен 404                                                                                                                                                             |
 | `POST /conversations/:id/read`                                      | Квитанция просмотров `{ upToSeq }` (идемпотентная): seq самой новой видимой строки вьюпорта; двигает watermark (GREATEST, кламп к last_seq) + событие `chat.message_read` только при движении (#102 р.2)                                                                                     |
 | `POST /conversations/:id/messages`                                  | Отправка: seq+вставка+вложения+гашение черновика/snooze+события в одной tx                                                                                                                                                                                                                   |
 | `PATCH .../messages/:messageId`                                     | Правка текста и состава вложений (#188): `attachmentIds` — итоговый упорядоченный список (claim новых по owner / detach убранных / reorder), `attachmentRenames` — имена файлов; только автор; editedAt при реальной смене                                                                   |

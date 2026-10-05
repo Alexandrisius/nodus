@@ -10,19 +10,30 @@ import { conversationTypeSchema, messageAttachmentSchema } from './chat.schemas.
  *  (conversation_vault_stats, Δ в транзакциях состава), модель
  *  Telegram getSearchCounters / Битрикс24: чтение O(1), списки — keyset. */
 
-/** Тип секции витрины: media = вложение kind='image', document = kind='file'
- *  (стикеры — НЕ файлы пользователя, в витрине их нет; голосовые/GIF — с
- *  будущими фичами), link = URL из текста сообщения (write-time проекция
- *  message_links — извлечение при отправке/правке, не скан текстов на чтении). */
-export const vaultItemTypeSchema = z.enum(['media', 'document', 'link']);
+/** Категория витрины (ревизия владельца 05.10 — модель Telegram): image —
+ *  вложение kind='image', video/audio — файлы с mime video/*|audio/*,
+ *  document — остальные файлы (стикеры — НЕ файлы пользователя, в витрине
+ *  их нет; голосовые/GIF — с будущими фичами), link — URL из текста
+ *  сообщения (write-time проекция message_links — извлечение при отправке/
+ *  правке, не скан текстов на чтении). */
+export const vaultItemTypeSchema = z.enum(['image', 'video', 'audio', 'document', 'link']);
 export type VaultItemType = z.infer<typeof vaultItemTypeSchema>;
 
 export const vaultCountsSchema = z.object({
-  media: z.number().int().min(0),
+  image: z.number().int().min(0),
+  video: z.number().int().min(0),
+  audio: z.number().int().min(0),
   document: z.number().int().min(0),
   link: z.number().int().min(0),
 });
 export type VaultCounts = z.infer<typeof vaultCountsSchema>;
+
+/** Параметры счётчиков витрины: без скоупа — вся беседа (O(1) из stats),
+ *  с threadRootId — скоуп треда (на лету). */
+export const vaultCountsQuerySchema = z.object({
+  threadRootId: z.uuid().optional(),
+});
+export type VaultCountsQuery = z.infer<typeof vaultCountsQuerySchema>;
 
 /** Контекст источника элемента витрины: кто/когда отправил, где искать
  *  прыжок («показать в чате», jump-store #171). */
@@ -36,16 +47,26 @@ const vaultItemBaseSchema = z.object({
   createdAt: z.iso.datetime(),
 });
 
-/** Элемент-вложение (media | document): DTO вложения как в ленте. */
+/** Элемент-вложение (image|video|audio|document): DTO вложения как в ленте. */
 const vaultAttachmentBaseSchema = vaultItemBaseSchema.extend({
   attachment: messageAttachmentSchema,
 });
 export type VaultAttachmentItem = z.infer<typeof vaultAttachmentBaseSchema>;
 
-export const vaultMediaItemSchema = vaultAttachmentBaseSchema.extend({
-  type: z.literal('media'),
+export const vaultImageItemSchema = vaultAttachmentBaseSchema.extend({
+  type: z.literal('image'),
 });
-export type VaultMediaItem = z.infer<typeof vaultMediaItemSchema>;
+export type VaultImageItem = z.infer<typeof vaultImageItemSchema>;
+
+export const vaultVideoItemSchema = vaultAttachmentBaseSchema.extend({
+  type: z.literal('video'),
+});
+export type VaultVideoItem = z.infer<typeof vaultVideoItemSchema>;
+
+export const vaultAudioItemSchema = vaultAttachmentBaseSchema.extend({
+  type: z.literal('audio'),
+});
+export type VaultAudioItem = z.infer<typeof vaultAudioItemSchema>;
 
 export const vaultDocumentItemSchema = vaultAttachmentBaseSchema.extend({
   type: z.literal('document'),
@@ -60,7 +81,9 @@ export const vaultLinkItemSchema = vaultItemBaseSchema.extend({
 export type VaultLinkItem = z.infer<typeof vaultLinkItemSchema>;
 
 export const vaultItemSchema = z.discriminatedUnion('type', [
-  vaultMediaItemSchema,
+  vaultImageItemSchema,
+  vaultVideoItemSchema,
+  vaultAudioItemSchema,
   vaultDocumentItemSchema,
   vaultLinkItemSchema,
 ]);
@@ -68,12 +91,13 @@ export type VaultItem = z.infer<typeof vaultItemSchema>;
 
 export const listConversationVaultQuerySchema = cursorQuerySchema.extend({
   type: vaultItemTypeSchema,
-  /** Скоуп панели «Вся беседа / Этот тред» (#42). */
+  /** Скоуп треда (задел #42): в панели ревизии 05.10 скоуп-тоггла нет —
+   *  витрина всегда вся беседа, параметр остаётся на будущее. */
   threadRootId: z.uuid().optional(),
 });
 export type ListConversationVaultQuery = z.infer<typeof listConversationVaultQuerySchema>;
 
-/** Ответ витрины: страница элементов ОДНОГО типа + счётчики всех трёх
+/** Ответ витрины: страница элементов ОДНОГО типа + счётчики всех категорий
  *  (сводка панели; счётчики — денормализованные stats, «сколько всего»). */
 export const conversationVaultPageSchema = z.object({
   items: z.array(vaultItemSchema),
@@ -83,8 +107,10 @@ export const conversationVaultPageSchema = z.object({
 export type ConversationVaultPage = z.infer<typeof conversationVaultPageSchema>;
 
 /** Источники «Избранного» (Ф3, реф Telegram Saved): чаты, откуда прилетали
- *  звёзды, + счётчики типов всего избранного. «Записи» — псевдоисточник
- *  (свои сообщения чата «Избранное»), отдельным полем. */
+ *  звёзды. «Записи» — псевдоисточник (свои сообщения чата «Избранное»),
+ *  отдельным полем. Счётчики категорий считают ЗВЁЗДЫ (вложения/ссылки
+ *  карточек живых оригиналов) — НЕ stats беседы «Избранное»: избранное
+ *  живёт в чужих беседах, денормализованная строка тут не подходит. */
 export const favoriteSourceSchema = z.object({
   conversationId: z.uuid(),
   /** Подпись как у карточки: группа/канал — название, direct — имя
@@ -107,7 +133,7 @@ export const favoriteSourcesSchema = z.object({
   }),
   /** Живые источники-звёзды, новые закладки сверху. */
   sources: z.array(favoriteSourceSchema),
-  /** Типы всего избранного (медиа/документы/ссылки по карточкам). */
+  /** Категории всего избранного (карточки звёзд: вложения по mime + ссылки). */
   counts: vaultCountsSchema,
 });
 export type FavoriteSources = z.infer<typeof favoriteSourcesSchema>;

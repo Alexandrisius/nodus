@@ -549,16 +549,19 @@ model MessageLink {
   @@map("message_links")
 }
 
-/// Денормализованные счётчики витрины беседы (#211): media (kind='image'),
-/// document (kind='file'), link (строки message_links) — только ЖИВЫЕ
-/// сообщения (надгробие/бесследие уменьшает). Обслуживание — Δ в тех же
-/// транзакциях состава (send/edit/delete/batch-delete/forward), модель
-/// Telegram getSearchCounters / Битрикс24 (чтение O(1), «не для пилотных
-/// объёмов»); backfill-миграция обеспечивает стартовую консистентность,
-/// инвариант stats == COUNT(живых) проверяется integration-тестами.
+/// Денормализованные счётчики витрины беседы (#211): image (kind='image'),
+/// video/audio (файлы с mime video/*|audio/*), document (остальные файлы),
+/// link (строки message_links) — только ЖИВЫЕ сообщения (надгробие/
+/// бесследие уменьшает). Обслуживание — Δ в тех же транзакциях состава
+/// (send/edit/delete/batch-delete/forward), модель Telegram getSearchCounters /
+/// Битрикс24 (чтение O(1), «не для пилотных объёмов»); backfill-миграции
+/// обеспечивают стартовую консистентность, инвариант stats == COUNT(живых)
+/// проверяется integration-тестами.
 model ConversationVaultStats {
   conversationId String @id @map("conversation_id") @db.Uuid
-  mediaCount     Int    @default(0) @map("media_count")
+  imageCount     Int    @default(0) @map("image_count")
+  videoCount     Int    @default(0) @map("video_count")
+  audioCount     Int    @default(0) @map("audio_count")
   documentCount  Int    @default(0) @map("document_count")
   linkCount      Int    @default(0) @map("link_count")
 
