@@ -166,12 +166,12 @@ export class LinkPreviewService {
       });
       await this.emitReady(job, 'ready');
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      // Блок нашего pinned-DNS агента приходит ОБЁРНУТЫМ (undici TypeError
+      // «fetch failed» с cause=SsrfBlockedError; linkpeek добавляет свою
+      // обёртку) — ищем признак блока по всей цепочке причин.
       const blocked =
         (error instanceof LinkpeekError && error.code === 'PRIVATE_NETWORK_BLOCKED') ||
-        error instanceof SsrfBlockedError ||
-        message.includes('private dns record') ||
-        message.includes('private address');
+        hasSsrfBlockCause(error);
       if (blocked) {
         await this.repo.upsertBlocked(job.normalizedUrl);
         await this.emitReady(job, 'blocked');
@@ -255,4 +255,17 @@ export class LinkPreviewService {
       );
     });
   }
+}
+
+/** Признак SSRF-блока в цепочке ошибок (undici/linkpeek оборачивают наш
+ *  SsrfBlockedError из lookup-гварда агента). */
+function hasSsrfBlockCause(error: unknown, depth = 0): boolean {
+  let current: unknown = error;
+  for (let i = 0; i <= depth && current; i += 1) {
+    if (current instanceof SsrfBlockedError) return true;
+    const message = current instanceof Error ? current.message : String(current);
+    if (message.includes('private dns record') || message.includes('private address')) return true;
+    current = (current as Error & { cause?: unknown }).cause;
+  }
+  return false;
 }
