@@ -89,19 +89,21 @@ export class LinkPreviewService {
   }
 
   private toDto(row: {
+    normalizedUrl: string;
     status: string;
     title: string | null;
     description: string | null;
     siteName: string | null;
     imageFileId: string | null;
   }): LinkPreviewDto {
-    // failed/blocked — карточка-заглушка из домена (бот-блокировка/SSRF).
-    const stub = row.status === 'ready' ? null : urlDomain(row.siteName ?? '');
+    // failed/blocked — карточка-заглушка ИЗ ДОМЕНА (бот-блокировка/SSRF):
+    // домен всегда берём из URL строки (siteName у blocked не пишется).
+    const stub = urlDomain(row.siteName || row.normalizedUrl);
     return {
       status: row.status as LinkPreviewDto['status'],
       title: row.status === 'ready' ? row.title : null,
       description: row.status === 'ready' ? row.description : null,
-      siteName: row.status === 'ready' ? row.siteName : stub,
+      siteName: row.status === 'ready' ? (row.siteName ?? stub) : stub,
       imageUrl:
         row.status === 'ready' && row.imageFileId
           ? this.signedUrls.fileContentUrl(row.imageFileId)
