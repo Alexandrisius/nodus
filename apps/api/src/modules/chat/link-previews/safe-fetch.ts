@@ -1,4 +1,4 @@
-import { Agent } from 'undici';
+import { Agent, fetch as undiciFetch } from 'undici';
 import dns from 'node:dns/promises';
 
 import { SsrfBlockedError } from './link-preview.guards.js';
@@ -75,10 +75,12 @@ export function ssrfGuardedAgent(): Agent {
   return sharedAgent;
 }
 
-/** fetch через гвард-агент: все соединения/редиректы проходят pinned-DNS. */
+/** fetch через гвард-агент: все соединения/редиректы проходят pinned-DNS.
+ *  fetch — ИЗ ПАКЕТА undici (совместим с Agent той же версии; встроенный
+ *  fetch Node держит внутренний undici иной версии — «invalid onRequestStart
+ *  method» на чужом dispatcher'е). */
 export function ssrfGuardedFetch(url: string, init: RequestInit = {}): Promise<Response> {
-  const guarded = { ...init, dispatcher: ssrfGuardedAgent() } as unknown as RequestInit;
-  return globalThis.fetch(url, guarded);
+  return undiciFetch(url, { ...init, dispatcher: ssrfGuardedAgent() } as never) as never;
 }
 
 export async function disposeSsrfAgent(): Promise<void> {
