@@ -176,3 +176,20 @@ export function caretBeyondToken(text: string, offset: number): number | null {
   }
   return null;
 }
+
+/** Кламп каретки для стрелок ←/→: позиция строго внутри токена ведёт к
+ *  ближней границе ПО НАПРАВЛЕНИЮ (влево → start, вправо → end) — каретка
+ *  не живёт в разметке токена, тупика ArrowLeft у токена нет. null — вне
+ *  токенов, позиция не трогается. */
+export function clampCaretByArrow(
+  text: string,
+  pos: number,
+  direction: 'left' | 'right',
+): number | null {
+  for (const token of mentionTokens(text)) {
+    if (pos > token.start && pos < token.end) {
+      return direction === 'left' ? token.start : token.end;
+    }
+  }
+  return null;
+}

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   caretBeyondToken,
+  clampCaretByArrow,
   detectMentionQuery,
   insertMentionToken,
   mentionTokens,
@@ -141,5 +142,27 @@ describe('mentionTokens / caretBeyondToken', () => {
     expect(caretBeyondToken(text, 5)).toBeNull(); // внутри label — правка поповером
     expect(caretBeyondToken(text, 8)).toBe(`@[Артём](user:${UUID_A})`.length);
     expect(caretBeyondToken(text, text.length - 1)).toBeNull();
+  });
+});
+
+describe('clampCaretByArrow (стрелки не ходят сквозь токен)', () => {
+  const TOKEN = `@[Артём](user:${UUID_A})`;
+  const text = `до ${TOKEN} после`;
+  const start = 3;
+  const end = start + TOKEN.length;
+
+  it('внутри токена влево — к началу', () => {
+    expect(clampCaretByArrow(text, start + 10, 'left')).toBe(start);
+  });
+
+  it('внутри токена вправо — к концу', () => {
+    expect(clampCaretByArrow(text, start + 10, 'right')).toBe(end);
+  });
+
+  it('границы start/end и позиции вне токенов — без клампа', () => {
+    expect(clampCaretByArrow(text, start, 'left')).toBeNull();
+    expect(clampCaretByArrow(text, end, 'right')).toBeNull();
+    expect(clampCaretByArrow(text, 1, 'left')).toBeNull();
+    expect(clampCaretByArrow(text, text.length, 'right')).toBeNull();
   });
 });

@@ -9,9 +9,9 @@ import { useAuthStore } from '../auth-store.js';
 import { PersonAvatar } from '../ui/person-avatar.js';
 
 import {
+  clampCaretByArrow,
   detectMentionQuery,
   insertMentionToken,
-  mentionTokens,
   mergeMentionCandidates,
   type MentionCandidate,
 } from './composer-mentions.js';
@@ -111,18 +111,16 @@ export function useComposerMentions(opts: {
   }
 
   /** KeyUp поля: синк каретки; стрелки ←/→ НЕ ходят сквозь токен — кламп по
-   *  направлению (внутрь токена → к ближней границе: ArrowLeft → start,
-   *  ArrowRight → end; печать внутри разметки ломала бы токен). */
+   *  направлению (чистая clampCaretByArrow + unit-тесты; печать внутри
+   *  разметки ломала бы токен). */
   function handleKeyUp(el: HTMLTextAreaElement, key: string) {
     if (key === 'ArrowLeft' || key === 'ArrowRight') {
-      const pos = el.selectionStart ?? 0;
-      for (const token of mentionTokens(opts.text)) {
-        if (pos > token.start && pos < token.end) {
-          const target = key === 'ArrowLeft' ? token.start : token.end;
-          el.setSelectionRange(target, target);
-          break;
-        }
-      }
+      const target = clampCaretByArrow(
+        opts.text,
+        el.selectionStart ?? 0,
+        key === 'ArrowLeft' ? 'left' : 'right',
+      );
+      if (target !== null) el.setSelectionRange(target, target);
     }
     setCaret(el.selectionStart ?? 0);
   }
