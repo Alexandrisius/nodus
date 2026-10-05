@@ -47,6 +47,8 @@ const DOMAIN_EVENTS = [
   'chat.favorite_added',
   'chat.favorite_removed',
   'chat.favorite_updated',
+  // Превью ссылки дозрело (#212): карточка патчится в кэше на месте.
+  'chat.link_preview_ready',
   // Живые уведомления (#100): user-комната получает весь журнал-будил.
   'notification.dispatch_requested',
   'notification.read',
