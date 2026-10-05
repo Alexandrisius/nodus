@@ -258,10 +258,10 @@ export class LinkPreviewService {
 }
 
 /** Признак SSRF-блока в цепочке ошибок (undici/linkpeek оборачивают наш
- *  SsrfBlockedError из lookup-гварда агента). */
-function hasSsrfBlockCause(error: unknown, depth = 0): boolean {
+ *  SsrfBlockedError из lookup-гварда агента): до 5 причин вглубь. */
+function hasSsrfBlockCause(error: unknown): boolean {
   let current: unknown = error;
-  for (let i = 0; i <= depth && current; i += 1) {
+  for (let depth = 0; depth < 5 && current; depth += 1) {
     if (current instanceof SsrfBlockedError) return true;
     const message = current instanceof Error ? current.message : String(current);
     if (message.includes('private dns record') || message.includes('private address')) return true;
