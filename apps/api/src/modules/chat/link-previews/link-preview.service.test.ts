@@ -27,28 +27,28 @@ const JOB = {
 
 function makeService(over: Record<string, unknown> = {}) {
   const repo = {
-    findAlive: vi.fn(async () => new Map()),
-    existsAny: vi.fn(async () => new Set()),
-    markPending: vi.fn(async () => undefined),
-    upsertReady: vi.fn(async () => undefined),
-    upsertFailed: vi.fn(async () => undefined),
-    upsertBlocked: vi.fn(async () => undefined),
+    findAlive: vi.fn(async (): Promise<Map<string, unknown>> => new Map()),
+    existsAny: vi.fn(async (): Promise<Set<string>> => new Set()),
+    markPending: vi.fn(async (): Promise<void> => undefined),
+    upsertReady: vi.fn(async (): Promise<void> => undefined),
+    upsertFailed: vi.fn(async (): Promise<void> => undefined),
+    upsertBlocked: vi.fn(async (): Promise<void> => undefined),
     ...over,
   };
-  const eventBus = { emit: vi.fn(async () => undefined) };
-  const txRunner = { run: vi.fn(async (cb) => cb('tx')) };
-  const signedUrls = { fileContentUrl: vi.fn((id) => `/files/${id}`) };
+  const eventBus = { emit: vi.fn(async (): Promise<void> => undefined) };
+  const txRunner = { run: vi.fn(async (cb: (tx: string) => unknown) => cb('tx')) };
+  const signedUrls = { fileContentUrl: vi.fn((id: string) => `/files/${id}`) };
   const storage = { save: vi.fn(async () => ({ fileId: 'f-1' })) };
   const rateLimiter = { allow: vi.fn(async () => true) };
   const logger = { setContext: vi.fn(), info: vi.fn(), warn: vi.fn() };
   const svc = new LinkPreviewService(
-    repo,
-    eventBus,
-    txRunner,
-    signedUrls,
-    storage,
-    rateLimiter,
-    logger,
+    repo as never,
+    eventBus as never,
+    txRunner as never,
+    signedUrls as never,
+    storage as never,
+    rateLimiter as never,
+    logger as never,
   );
   return { svc, repo, eventBus, storage, rateLimiter };
 }
@@ -83,7 +83,13 @@ function cacheRow(status: string, over: Record<string, unknown> = {}) {
 describe('LinkPreviewService.processJob', () => {
   it('SSRF-гвард порта — blocked навсегда + событие blocked', async () => {
     const { svc, repo, eventBus } = makeService({
-      findAlive: vi.fn(async () => new Map([[JOB.normalizedUrl, cacheRow('blocked')]])),
+      findAlive: vi.fn(
+        async () =>
+          new Map<string, unknown>([[JOB.normalizedUrl, cacheRow('blocked')]] as [
+            string,
+            unknown,
+          ][]),
+      ),
     });
     await svc.processJob({ ...JOB, rawUrl: 'http://192.168.1.10:9200/x' });
     expect(repo.upsertBlocked).toHaveBeenCalled();
@@ -117,7 +123,7 @@ describe('LinkPreviewService.processJob', () => {
     });
     const { svc, repo, eventBus, storage } = makeService({
       findAlive: vi.fn(
-        async (urls) =>
+        async (urls: string[]) =>
           new Map(
             urls.map((u) => [
               u,
@@ -139,24 +145,39 @@ describe('LinkPreviewService.processJob', () => {
     await svc.processJob(JOB);
     expect(previewMock).toHaveBeenCalledWith(
       JOB.rawUrl,
-      expect.objectContaining({ allowPrivateIPs: false, maxBytes: 30_000 }),
+      expect.objectContaining({
+        allowPrivateIPs: false,
+        maxBytes: 30_000,
+        fetch: expect.any(Function),
+      }),
     );
     expect(storage.save).toHaveBeenCalled(); // og:image → SILO
     expect(repo.upsertReady).toHaveBeenCalledWith(
       JOB.normalizedUrl,
       expect.objectContaining({ title: 'Заголовок сайта', imageFileId: 'f-1' }),
     );
-    const [tx, type, payload] = eventBus.emit.mock.calls[0]!;
+    const call = (eventBus.emit as ReturnType<typeof vi.fn>).mock.calls[0] as unknown[];
+    const [tx, type, payload] = call as [
+      string,
+      string,
+      { preview: { status: string; imageUrl: string } },
+    ];
     expect(tx).toBe('tx');
     expect(type).toBe('chat.link_preview_ready');
-    expect(payload.preview.status).toBe('ready');
-    expect(payload.preview.imageUrl).toContain('/files/f-1');
+    expect(payload!.preview.status).toBe('ready');
+    expect(payload!.preview.imageUrl).toContain('/files/f-1');
   });
 
   it('PRIVATE_NETWORK_BLOCKED от linkpeek — blocked + событие', async () => {
-    previewMock.mockRejectedValue(new LinkpeekError('PRIVATE_NETWORK_BLOCKED'));
+    previewMock.mockRejectedValue(new LinkpeekError('PRIVATE_NETWORK_BLOCKED', 'private'));
     const { svc, repo, eventBus } = makeService({
-      findAlive: vi.fn(async () => new Map([[JOB.normalizedUrl, cacheRow('blocked')]])),
+      findAlive: vi.fn(
+        async () =>
+          new Map<string, unknown>([[JOB.normalizedUrl, cacheRow('blocked')]] as [
+            string,
+            unknown,
+          ][]),
+      ),
     });
     await svc.processJob(JOB);
     expect(repo.upsertBlocked).toHaveBeenCalledWith(JOB.normalizedUrl);
@@ -166,7 +187,9 @@ describe('LinkPreviewService.processJob', () => {
   it('сетевая ошибка — отрицательный кэш (failed) + событие failed', async () => {
     previewMock.mockRejectedValue(new Error('fetch failed'));
     const { svc, repo, eventBus } = makeService({
-      findAlive: vi.fn(async () => new Map([[JOB.normalizedUrl, cacheRow('failed')]])),
+      findAlive: vi.fn(
+        async () => new Map([[JOB.normalizedUrl, cacheRow('failed')]] as [string, unknown][]),
+      ),
     });
     await svc.processJob(JOB);
     expect(repo.upsertFailed).toHaveBeenCalledWith(JOB.normalizedUrl);
@@ -182,7 +205,7 @@ describe('LinkPreviewService.processJob', () => {
     });
     const { svc, repo } = makeService({
       findAlive: vi.fn(
-        async (urls) =>
+        async (urls: string[]) =>
           new Map(
             urls.map((u) => [
               u,

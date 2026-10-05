@@ -11,6 +11,7 @@ import { TransactionRunner } from '../../../core/database/transaction-runner.js'
 import { SignedUrlService } from '../../../core/crypto/signed-url.service.js';
 import { FILE_STORAGE, type FileStorage } from '../../../core/ports/file-storage.port.js';
 import { LinkPreviewRateLimiter } from './link-preview.rate-limiter.js';
+import { ssrfGuardedFetch } from './safe-fetch.js';
 import {
   assertFetchableUrl,
   clampField,
@@ -149,6 +150,10 @@ export class LinkPreviewService {
         followRedirects: true,
         maxRedirects: 3,
         allowPrivateIPs: false,
+        // Pinned-DNS агент: каждое соединение (и редирект-хопы) резолвится и
+        // проверяется ЗДЕСЬ против приватных диапазонов (security-ревью:
+        // linkpeek проверяет только литеральные IP хоста).
+        fetch: ssrfGuardedFetch as typeof globalThis.fetch,
       });
       const imageFileId = result.image
         ? await this.saveImageDerivative(result.image, job.authorId, urlDomain(job.rawUrl))
@@ -161,7 +166,13 @@ export class LinkPreviewService {
       });
       await this.emitReady(job, 'ready');
     } catch (error) {
-      if (error instanceof LinkpeekError && error.code === 'PRIVATE_NETWORK_BLOCKED') {
+      const message = error instanceof Error ? error.message : String(error);
+      const blocked =
+        (error instanceof LinkpeekError && error.code === 'PRIVATE_NETWORK_BLOCKED') ||
+        error instanceof SsrfBlockedError ||
+        message.includes('private dns record') ||
+        message.includes('private address');
+      if (blocked) {
         await this.repo.upsertBlocked(job.normalizedUrl);
         await this.emitReady(job, 'blocked');
         return;
@@ -173,8 +184,11 @@ export class LinkPreviewService {
     }
   }
 
-  /** og:image → SILO (без хотлинков): те же гварды адреса, стрим ≤ 2 МБ,
-   *  sharp-дериват ≤640px webp (#139). Любой сбой — карточка без картинки. */
+  /** og:image → SILO (без хотлинков): гварды адреса + pinned-DNS агент
+   *  (редиректы картинки на внутренние адреса блокируются на коннекте,
+   *  security-ревью), стрим ≤ 2 МБ, sharp-дериват ≤640px webp (#139),
+   *  лимит пикселей 4096² от декомпрессионных бомб. Любой сбой — карточка
+   *  без картинки. */
   private async saveImageDerivative(
     rawImageUrl: string,
     ownerId: string,
@@ -182,7 +196,7 @@ export class LinkPreviewService {
   ): Promise<string | null> {
     try {
       assertFetchableUrl(rawImageUrl);
-      const res = await fetch(rawImageUrl, {
+      const res = await ssrfGuardedFetch(rawImageUrl, {
         signal: AbortSignal.timeout(8000),
         headers: { 'user-agent': PREVIEW_USER_AGENT },
         redirect: 'follow',
@@ -198,7 +212,10 @@ export class LinkPreviewService {
         if (size > IMAGE_MAX_BYTES) return null;
         chunks.push(Buffer.from(value!));
       }
-      const image = await sharp(Buffer.concat(chunks), { failOn: 'none' })
+      const image = await sharp(Buffer.concat(chunks), {
+        failOn: 'none',
+        limitInputPixels: 4096 * 4096,
+      })
         .resize({ width: 640, height: 640, fit: 'inside', withoutEnlargement: true })
         .webp({ quality: 80 })
         .toBuffer();

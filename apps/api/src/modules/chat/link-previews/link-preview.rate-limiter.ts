@@ -20,7 +20,10 @@ export class LinkPreviewRateLimiter implements OnModuleDestroy {
     });
     const key = `nodus:link-preview:fetches:${userId}`;
     const count = await this.connection.incr(key);
+    // NX: TTL и на повторных входах — крах между INCR/EXPIRE не оставит
+    // ключ вечным (security-ревью).
     if (count === 1) await this.connection.expire(key, 3600);
+    else await this.connection.expire(key, 3600, 'NX');
     return count <= USER_FETCH_LIMIT_PER_HOUR;
   }
 
