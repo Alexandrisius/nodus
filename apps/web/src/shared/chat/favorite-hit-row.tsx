@@ -1,6 +1,8 @@
 import { Star } from 'lucide-react';
 import { ui } from '@nodus/contracts';
 
+import { MentionSnippet } from './mention-chip.js';
+
 /** Вложение строки — словом, не рендером (реф Битрикс24, 04.10 р.5). */
 export function attachmentWord(kind: 'image' | 'file' | 'sticker'): string {
   if (kind === 'image') return ui.chat.searchAttachImage;
@@ -41,7 +43,7 @@ export function FavoriteHitRow({
       <span className="w-full truncate text-sm font-semibold text-foreground">{author}</span>
       <span className="line-clamp-3 w-full text-sm leading-snug text-muted-foreground">
         {words ? `${words}\u00A0· ` : ''}
-        {snippet || '\u00A0'}
+        <MentionSnippet text={snippet || '\u00A0'} />
       </span>
       {/* Индикатор «в избранном» — залитая звезда справа внизу строки. */}
       {favorited ? (

@@ -1,6 +1,6 @@
 import { ChevronDown, ChevronUp, LayoutList, Pin, PinOff } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { ui } from '@nodus/contracts';
+import { stripMentionTokens, ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@nodus/ui/components/popover';
 import { cn } from '@nodus/ui/lib/utils';
@@ -19,7 +19,8 @@ function pinSnippet(
   deleted: boolean,
 ): string {
   if (deleted) return ui.chat.deletedPlaceholder;
-  if (text) return text;
+  // Однострочный truncate: упоминание — отображаемым текстом (канон Telegram).
+  if (text) return stripMentionTokens(text);
   if (kind === 'image') return ui.chat.quotePhoto;
   if (kind === 'file') return ui.chat.quoteFile;
   if (kind === 'sticker') return ui.chat.stickerPreview;

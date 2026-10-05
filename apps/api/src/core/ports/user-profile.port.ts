@@ -22,13 +22,10 @@ export interface UserProfileReader {
   /** Подстрочный поиск по отображаемому имени (ILIKE, без курсора — объём ≤ штата). */
   searchByDisplayName(query: string, limit: number): Promise<UserRef[]>;
 
-  /** Кандидаты @упоминаний (раунд 3, chat): активные сотрудники, у которых
-   *  displayName / имя / фамилия ТОЧНО совпадает с одним из токенов (без
-   *  регистра). Соответствие «токен → сотрудник» решает потребитель по
-   *  приоритету ФИО > имя > фамилия. */
-  findMentionMatches(
-    tokens: string[],
-  ): Promise<{ ref: UserRef; displayName: string; firstName: string; lastName: string }[]>;
+  /** Активные сотрудники из списка id (#176, chat): @упоминание уведомляет
+   *  только действующих — деактивированный остаётся чипом-ссылкой в истории.
+   *  tx: чтение по соединению транзакции отправителя. */
+  filterActiveUserIds(userIds: string[], tx?: TransactionClient): Promise<string[]>;
 }
 
 export const USER_PROFILE_READER: InjectionToken = 'USER_PROFILE_READER';

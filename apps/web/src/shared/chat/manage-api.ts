@@ -88,8 +88,13 @@ export function useRemoveConversationAvatar(conversationId: string) {
 }
 
 /** Участники беседы с ролями (#186): бесконечными страницами по 100 (потолок
- *  беседы 200 участников — чаще всего всё входит в первую). */
-export function useConversationMembers(conversationId: string, search = '') {
+ *  беседы 200 участников — чаще всего всё входит в первую). enabled — ленивые
+ *  потребители (#176: автокомплит тянет состав при первом «@», не при монтировке). */
+export function useConversationMembers(
+  conversationId: string,
+  search = '',
+  { enabled = true }: { enabled?: boolean } = {},
+) {
   return useInfiniteQuery({
     queryKey: [...chatKeys.members(conversationId), search],
     initialPageParam: '',
@@ -101,7 +106,7 @@ export function useConversationMembers(conversationId: string, search = '') {
         `/chat/conversations/${conversationId}/members?${params}`,
       );
     },
-    enabled: conversationId.length > 0,
+    enabled: conversationId.length > 0 && enabled,
     getNextPageParam: (last) => last.nextCursor ?? undefined,
   });
 }

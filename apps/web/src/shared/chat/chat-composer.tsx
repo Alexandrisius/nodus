@@ -1,5 +1,5 @@
 import { Check, Mic, Paperclip, Smile } from 'lucide-react';
-import { useCallback, useEffect, useRef, type FormEvent, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
@@ -34,6 +34,13 @@ import { isSendShortcut } from './send-keys.js';
 import { useScrollEndStore } from './scroll-end-store.js';
 import { SelectionToolbar } from './selection-island.js';
 import type { StickerSubmitPayload } from './sticker-api.js';
+import {
+  mentionAutocompleteKeydown,
+  MentionAutocompletePanel,
+  useComposerMentions,
+} from './composer-mention-autocomplete.js';
+import type { CaretMention } from './composer-mentions.js';
+import { MentionFieldOverlay, mentionAtOffset } from './composer-mention-overlay.js';
 
 /** Payload отправки композера (#87): текст + готовые вложения + контекст
  *  ответа/правки. Хост решает: edit ≠ null → мутация правки; иначе — отправка
@@ -180,6 +187,18 @@ export function ChatComposer({
   const forward = useForwardMessages();
   const text = draft.text;
   const grown = useGrown(inputRef);
+
+  // @упоминания (#176): каретка поля + запрос «@буквы» у неё — хук
+  // useComposerMentions (composer-mention-autocomplete); клик по чипу поля
+  // открывает поповер правки (composer-mention-overlay).
+  const [editToken, setEditToken] = useState<CaretMention | null>(null);
+  const mentions = useComposerMentions({
+    conversationId,
+    focusId,
+    text,
+    setText,
+    inputRef,
+  });
 
   // Морфология островка (селект) — хук selection-phase.ts (I5, #177).
   const { selPhase, toolbarSel } = useSelectionPhase(sel);
@@ -337,6 +356,24 @@ export function ChatComposer({
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    // Автокомплит @упоминаний (#176) — верхняя клавиатурная площадка: Enter
+    // выбирает кандидата (НЕ отправляет), ↑↓ ходят по списку, Esc гасит
+    // панель (не режимы композера); канон Slack.
+    if (
+      mentionAutocompleteKeydown(
+        event,
+        {
+          open: mentions.open,
+          count: mentions.autocomplete.candidates.length,
+          active: mentions.autocomplete.active,
+          setActive: mentions.autocomplete.setActive,
+        },
+        mentions.pick,
+        mentions.dismiss,
+      )
+    ) {
+      return;
+    }
     if (isSendShortcut(event.key, event.shiftKey, event.ctrlKey)) {
       event.preventDefault();
       submit();
@@ -508,29 +545,57 @@ export function ChatComposer({
                   сдвигал её контент на ~7px влево и обратно (jitter-лог
                   владельца: все дети рамки -7px, ширины на месте) — «весь
                   контент карточки дёргается». rows=1 + field-sizing: рост до
-                  45vh, дальше скролл внутри поля (вердикт 15.09.2026). */}
-              <Textarea
-                ref={registerInput}
-                value={text}
-                onFocus={() => {
-                  const el = inputRef.current;
-                  if (caretToEndRef.current && el) {
-                    el.setSelectionRange(el.value.length, el.value.length);
-                  }
-                  caretToEndRef.current = false;
-                }}
-                onChange={(e) => {
-                  setText(focusId, e.target.value);
-                  if (conversationId && e.target.value.length > 0) {
-                    emitTyping(conversationId, typingThreadRootId);
-                  }
-                }}
-                onKeyDown={onKeyDown}
-                onPaste={onPaste}
-                placeholder={placeholder}
-                rows={1}
-                className="max-h-[45vh] min-h-8 flex-1 resize-none rounded-lg border-0 bg-transparent px-1.5 py-1.5 shadow-none ring-0 focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent"
-              />
+                  45vh, дальше скролл внутри поля (вердикт 15.09.2026).
+                  @упоминания (#176): текст поля ПРОЗРАЧНЫЙ, чипы рисует
+                  зеркальный оверлей (composer-mention-overlay) — каретка
+                  видима (caret-foreground), каретка поля = источник запроса
+                  автокомплита и кликов по чипам. */}
+              <span className="relative flex min-w-0 flex-1 flex-col">
+                {mentions.open ? (
+                  <MentionAutocompletePanel
+                    candidates={mentions.autocomplete.candidates}
+                    active={mentions.autocomplete.active}
+                    onHover={mentions.autocomplete.setActive}
+                    onPick={mentions.pick}
+                  />
+                ) : null}
+                <MentionFieldOverlay
+                  text={text}
+                  setText={(next) => setText(focusId, next)}
+                  textareaRef={inputRef}
+                  editToken={editToken}
+                  onEditClose={() => setEditToken(null)}
+                />
+                <Textarea
+                  ref={registerInput}
+                  value={text}
+                  className="max-h-[45vh] min-h-8 flex-1 resize-none rounded-lg border-0 bg-transparent px-1.5 py-1.5 text-transparent caret-foreground shadow-none ring-0 focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent"
+                  onFocus={() => {
+                    const el = inputRef.current;
+                    if (caretToEndRef.current && el) {
+                      el.setSelectionRange(el.value.length, el.value.length);
+                    }
+                    caretToEndRef.current = false;
+                  }}
+                  onChange={(e) => {
+                    setText(focusId, e.target.value);
+                    mentions.syncCaret(e.target);
+                    if (conversationId && e.target.value.length > 0) {
+                      emitTyping(conversationId, typingThreadRootId);
+                    }
+                  }}
+                  onKeyUp={(e) => mentions.syncCaret(e.currentTarget)}
+                  onClick={(e) => {
+                    mentions.syncCaret(e.currentTarget);
+                    // Клик в видимую часть чипа — поповер правки label (#176).
+                    setEditToken(mentionAtOffset(text, e.currentTarget.selectionStart ?? 0));
+                  }}
+                  onKeyDown={onKeyDown}
+                  onPaste={onPaste}
+                  placeholder={placeholder}
+                  rows={1}
+                />
+              </span>
               {/* Молния «Важное» (#177, ревизия 05.10 — тоггл с бейджем
                   зарядов): слева от смайликов; в правке, пересылке, селекте
                   и без права поста — выключена; в Заметках — скрыта. */}

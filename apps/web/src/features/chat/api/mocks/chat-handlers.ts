@@ -31,8 +31,8 @@ import {
   applyThreadReadReceipt,
   buildReplyPreview,
   hiddenConversations,
+  mockMentionTargets,
   nextMessageSeq,
-  parseMentionIds,
   revealHiddenConversation,
   threadStatesMock,
   threadWatchersOf,
@@ -270,22 +270,13 @@ const conversationHandlers = [
       const watchers = threadWatchersOf(threadRootId);
       if (!watchers.has(getMockActor().id)) watchers.set(getMockActor().id, 0);
     }
-    // @упоминания: упомянутые — наблюдатели трэда этого сообщения (паритет
-    // серверу: точное совпадение ФИО/имени/фамилии, без регистра).
+    // @упоминания (#176): токены `@[текст](user:id)` → снапшот сообщения
+    // + упомянутые — наблюдатели трэда этого сообщения (паритет серверу).
     const actorId = getMockActor().id;
-    const mentionIds = parseMentionIds(
-      parsed.data.text,
-      (token) => {
-        const lower = token.toLowerCase();
-        const person = demoUserListItems.find(
-          (u) =>
-            u.displayName.toLowerCase() === lower ||
-            u.displayName.toLowerCase().split(' ').includes(lower),
-        );
-        return person ? { id: person.id, displayName: person.displayName } : undefined;
-      },
-      actorId,
+    const mentionIds = mockMentionTargets(parsed.data.text, actorId, (id) =>
+      demoUserListItems.some((u) => u.id === id),
     );
+    message.mentionedUserIds = mentionIds;
     for (const mentionedId of mentionIds) {
       const watchers = threadWatchersOf(threadRootId ?? message.id);
       if (!watchers.has(mentionedId)) watchers.set(mentionedId, 0);

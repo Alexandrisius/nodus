@@ -16,6 +16,7 @@ import {
   collapseAnchors,
   hasLiveReplies,
   isSelfConversation,
+  mockMentionTargets,
   nextMessageSeq,
   pinMessage,
   pinsOf,
@@ -27,6 +28,7 @@ import {
   uploadedAttachments,
   revealHiddenConversation,
 } from './chat-mock-state.js';
+import { demoUserListItems } from '../../../../shared/mocks/data/users.js';
 
 /**
  * Мутации сообщений линии A (#87): загрузка вложений, правка, удаление
@@ -148,6 +150,16 @@ export const chatMutationHandlers = [
       message.text = body.text;
       message.editedAt = new Date().toISOString();
       message.readAt = null;
+      // Упоминания пересчитываются по итоговому тексту (#176, паритет
+      // серверу): новые упомянутые — наблюдатели трэда, убранные — нет.
+      const mentionIds = mockMentionTargets(body.text, message.author.id, (id) =>
+        demoUserListItems.some((u) => u.id === id),
+      );
+      message.mentionedUserIds = mentionIds;
+      for (const mentionedId of mentionIds) {
+        const watchers = threadWatchersOf(message.threadRootId ?? message.id);
+        if (!watchers.has(mentionedId)) watchers.set(mentionedId, 0);
+      }
     }
     return HttpResponse.json(message);
   }),

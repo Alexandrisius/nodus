@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { useRef, useState, type ReactNode } from 'react';
 import type { ChatMessage, UserRef } from '@nodus/contracts';
-import { ui } from '@nodus/contracts';
+import { stripMentionTokens, ui } from '@nodus/contracts';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -216,7 +216,8 @@ export function MessageMenu({
         label: ui.chat.menu.copy,
         run: () => {
           navigator.clipboard
-            .writeText(message.text)
+            // Упоминания — отображаемым текстом без разметки (#176).
+            .writeText(stripMentionTokens(message.text))
             .then(() => toast.success(ui.chat.copied))
             .catch(() => toast.error(ui.common.copyError));
           // «Вечный курсор» (баг #91): меню гасило фокус композера — возвращаем

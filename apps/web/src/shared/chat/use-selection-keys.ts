@@ -1,5 +1,5 @@
 import type { ChatMessage } from '@nodus/contracts';
-import { ui } from '@nodus/contracts';
+import { stripMentionTokens, ui } from '@nodus/contracts';
 import { useEffect } from 'react';
 import { toast } from 'sonner';
 
@@ -8,10 +8,11 @@ import { useDeleteDialog } from './dialog-stores.js';
 import { useSelectionStore } from './selection-store.js';
 
 /** Скопировать выделенные как текст (канон tdesktop «Copy Selected as Text»,
- *  Ctrl+C): строки «Автор: текст» в порядке ленты. */
+ *  Ctrl+C): строки «Автор: текст» в порядке ленты; упоминания — отображаемым
+ *  текстом без разметки (#176). */
 export function copyMessagesAsText(messages: ChatMessage[]): void {
   const text = messages
-    .map((m) => `${withoutPatronymic(m.author.displayName)}: ${m.text}`)
+    .map((m) => `${withoutPatronymic(m.author.displayName)}: ${stripMentionTokens(m.text)}`)
     .join('\n');
   navigator.clipboard
     .writeText(text)
