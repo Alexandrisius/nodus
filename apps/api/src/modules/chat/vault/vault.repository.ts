@@ -141,6 +141,7 @@ export class VaultRepository {
       SELECT ${LINK_COLS} FROM message_links l
       JOIN messages m ON m.id = l.message_id
       WHERE l.conversation_id = ${conversationId}::uuid
+        AND m.deleted_at IS NULL AND NOT m.obliterated
         AND (${thread === null} OR l.thread_root_id = ${thread ?? '00000000-0000-0000-0000-000000000000'}::uuid
              OR l.message_id = ${thread ?? '00000000-0000-0000-0000-000000000000'}::uuid)
         AND (${cursor === null}
@@ -176,8 +177,8 @@ export class VaultRepository {
 
   /**
    * Счётчики скоупа треда — на лету (объём треда мал; per-thread
-   * денормализацию не плодим). Ссылки — по денормализованному thread_root_id
-   * без join; вложения — join живых сообщений треда.
+   * денормализацию не плодим). Вложения и ссылки — join живых сообщений
+   * треда (defense-in-depth: выдача не зависит от чистки проекции).
    */
   async threadCounts(
     conversationId: string,
@@ -198,8 +199,10 @@ export class VaultRepository {
             AND (m.thread_root_id = ${threadRootId}::uuid OR m.id = ${threadRootId}::uuid)
             AND m.deleted_at IS NULL AND NOT m.obliterated AND a.kind = 'file') AS document_count,
         (SELECT COUNT(*) FROM message_links l
+          JOIN messages m ON m.id = l.message_id
           WHERE l.conversation_id = ${conversationId}::uuid
-            AND (l.thread_root_id = ${threadRootId}::uuid OR l.message_id = ${threadRootId}::uuid)) AS link_count
+            AND (l.thread_root_id = ${threadRootId}::uuid OR l.message_id = ${threadRootId}::uuid)
+            AND m.deleted_at IS NULL AND NOT m.obliterated) AS link_count
     `);
     return {
       media: Number(rows[0]?.media_count ?? 0),

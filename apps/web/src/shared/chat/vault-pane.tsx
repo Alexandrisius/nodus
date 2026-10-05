@@ -18,6 +18,11 @@ import { useConversationVault, vaultItems } from './vault-api.js';
  * чате»): клик по строке скроллит к секции, пустой тип приглушён. Клик:
  * изображение → лайтбокс (листание страницы сетки), документ → просмотрщик
  * (канон ленты); «скачать» и «показать в чате» (jump-store #171) — у строк.
+ *
+ * > 300 строк — обоснование (I5): сводка + три однотипные секции + их
+ * строители (строка/плитка) + сентинел догрузи — одна колонка панели одним
+ * файлом (одна ответственность: витрина); вынос строителей разорвал бы
+ * тривиальную связку «секция → сентинел → скролл-контейнер».
  */
 export function VaultPane({
   conversationId,
@@ -95,6 +100,7 @@ export function VaultPane({
                   <MediaTile
                     key={item.attachment.id}
                     name={item.attachment.name}
+                    meta={`${item.author.displayName} · ${formatDateTimeShort(item.createdAt)}`}
                     src={item.attachment.thumbnailUrl ?? item.attachment.url ?? undefined}
                     onOpen={() => {
                       if (item.attachment.previewKind === 'image') {
@@ -103,6 +109,11 @@ export function VaultPane({
                         useViewerStore.getState().open(toViewerTarget(item.attachment));
                       }
                     }}
+                    onJump={() =>
+                      useJumpStore
+                        .getState()
+                        .request(conversationId, item.messageId, item.threadRootId)
+                    }
                   />
                 ) : null,
               )}
@@ -175,16 +186,24 @@ export function VaultPane({
   );
 }
 
-/** Плитка медиа-сетки: квадратное превью (aspect-square, object-cover; фон
- *  bg-muted — скелетон до загрузки) + подпись-имя под плиткой (реф Битрикс). */
+/**
+ * Плитка медиа-сетки: квадратное превью (aspect-square, object-cover; фон
+ * bg-muted — скелетон до загрузки), имя и КОНТЕКСТ ИСТОЧНИКА (автор · дата —
+ * требование Ф2) под плиткой; hover-кнопка «показать в чате» (jump-store)
+ * поверх превью — тот же глиф, что у строк документов/ссылок.
+ */
 function MediaTile({
   name,
+  meta,
   src,
   onOpen,
+  onJump,
 }: {
   name: string;
+  meta: string;
   src: string | undefined;
   onOpen: () => void;
+  onJump: () => void;
 }) {
   return (
     <button
@@ -192,7 +211,7 @@ function MediaTile({
       onClick={onOpen}
       aria-label={name}
       title={name}
-      className="group flex flex-col gap-1 text-left"
+      className="group relative flex flex-col gap-1 text-left"
     >
       <span className="relative block aspect-square w-full overflow-hidden rounded-md bg-muted/60">
         {src ? (
@@ -204,8 +223,29 @@ function MediaTile({
             className="absolute inset-0 size-full object-cover transition-opacity duration-200 group-hover:opacity-90"
           />
         ) : null}
+        <span
+          role="button"
+          tabIndex={0}
+          aria-label={ui.chat.showInChat}
+          title={ui.chat.showInChat}
+          onClick={(event) => {
+            event.stopPropagation();
+            onJump();
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.stopPropagation();
+              event.preventDefault();
+              onJump();
+            }
+          }}
+          className="absolute right-1 top-1 rounded-md bg-background/80 p-1 text-muted-foreground opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
+        >
+          <MessagesSquare className="size-3.5" strokeWidth={1.75} />
+        </span>
       </span>
       <span className="truncate text-xs text-muted-foreground">{name}</span>
+      <span className="truncate text-xs text-muted-foreground/80">{meta}</span>
     </button>
   );
 }

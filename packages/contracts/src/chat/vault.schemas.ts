@@ -7,7 +7,7 @@ import { conversationTypeSchema, messageAttachmentSchema } from './chat.schemas.
 /** Витрина беседы (#211): серверные списки вложений и ссылок панели «О чате»
  *  + источники «Избранного». Списки читают БД (не загруженное окно ленты):
  *  вложение за пределами окна видно. Счётчики по типам — денормализованные
- *  (conversation_attachment_stats, Δ в транзакциях состава), модель
+ *  (conversation_vault_stats, Δ в транзакциях состава), модель
  *  Telegram getSearchCounters / Битрикс24: чтение O(1), списки — keyset. */
 
 /** Тип секции витрины: media = вложение kind='image', document = kind='file'

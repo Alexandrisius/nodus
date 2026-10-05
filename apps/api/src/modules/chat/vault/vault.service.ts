@@ -68,7 +68,7 @@ export class VaultService {
         messageId: row.messageId,
         conversationId: row.conversationId,
         threadRootId: row.threadRootId,
-        author: authors.get(row.authorId)!,
+        author: this.authorRef(authors, row.authorId),
         createdAt: row.messageCreatedAt.toISOString(),
         url: row.url,
       }));
@@ -91,7 +91,7 @@ export class VaultService {
       messageId: row.messageId,
       conversationId,
       threadRootId: row.threadRootId,
-      author: authors.get(row.authorId)!,
+      author: this.authorRef(authors, row.authorId),
       createdAt: row.messageCreatedAt.toISOString(),
       attachment: toAttachmentDto(row, this.signedUrls),
     }));
@@ -108,6 +108,12 @@ export class VaultService {
     if (ids.size === 0) return map;
     for (const ref of await this.userProfiles.findRefs([...ids])) map.set(ref.id, ref);
     return map;
+  }
+
+  /** Fallback профиля (паттерн message-dto.mapper): пользователя нет в
+   *  справочнике — строка витрины всё равно собирается, без 500. */
+  private authorRef(authors: Map<string, UserRef>, id: string): UserRef {
+    return authors.get(id) ?? { id, displayName: 'Пользователь', avatarUrl: null };
   }
 }
 
