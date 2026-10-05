@@ -123,7 +123,10 @@ export function ChatWorkspace({
           threadBarClass="h-14"
         />
       ) : (
-        <div className="flex h-full min-w-0 flex-1 flex-col">
+        // Колонка чата: overflow-hidden — на узких окнах лента гибнет в 0
+        // (пола на странице мессенджера нет, #211 находка), и без обрезки
+        // контент бара выезжал поверх панели «О чате» (огрызки без ellipsis).
+        <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
           {bar}
           <div className="flex min-h-0 flex-1">
             {notes ? (
