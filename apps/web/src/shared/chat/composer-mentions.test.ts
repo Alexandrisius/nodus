@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  caretBeyondToken,
   detectMentionQuery,
   insertMentionToken,
-  mentionAtCaret,
   mentionTokens,
   mergeMentionCandidates,
   removeMentionToken,
@@ -128,7 +128,7 @@ describe('insertMentionToken / правка / удаление', () => {
   });
 });
 
-describe('mentionTokens / mentionAtCaret', () => {
+describe('mentionTokens / caretBeyondToken', () => {
   it('позиции токенов в тексте', () => {
     const tokens = mentionTokens(`до @[А](user:${UUID_A}) после @[Б](user:${UUID_B})`);
     expect(tokens).toHaveLength(2);
@@ -136,10 +136,10 @@ describe('mentionTokens / mentionAtCaret', () => {
     expect(tokens[1]).toMatchObject({ id: UUID_B, label: 'Б' });
   });
 
-  it('клик в label-часть — токен найден; в хвост uuid — нет', () => {
+  it('каретка в хвосте токена клампится за токен, вне — не трогается', () => {
     const text = `@[Артём](user:${UUID_A}) хвост`;
-    const labelEnd = 2 + 'Артём'.length;
-    expect(mentionAtCaret(text, labelEnd)?.id).toBe(UUID_A);
-    expect(mentionAtCaret(text, text.length - 1)).toBeNull();
+    expect(caretBeyondToken(text, 5)).toBeNull(); // внутри label — правка поповером
+    expect(caretBeyondToken(text, 8)).toBe(`@[Артём](user:${UUID_A})`.length);
+    expect(caretBeyondToken(text, text.length - 1)).toBeNull();
   });
 });

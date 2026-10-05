@@ -124,33 +124,6 @@ export interface CaretMention {
   end: number;
 }
 
-/** Токен, чей label содержит смещение (клик в видимую часть чипа). */
-export function mentionAtCaret(text: string, offset: number): CaretMention | null {
-  let cursor = 0;
-  let index = 0;
-  for (const segment of parseMentionSegments(text)) {
-    if (segment.kind === 'mention') {
-      // Видимая часть токена ≈ «@[label]» — клик в неё открывает правку.
-      const labelStart = cursor + 2; // '@['
-      const labelEnd = labelStart + segment.label.length + 1; // + ']'
-      if (offset >= labelStart && offset <= labelEnd) {
-        return {
-          index,
-          id: segment.id,
-          label: segment.label,
-          start: cursor,
-          end: cursor + lengthOfToken(segment.label, segment.id),
-        };
-      }
-      cursor += lengthOfToken(segment.label, segment.id);
-      index += 1;
-    } else {
-      cursor += segment.value.length;
-    }
-  }
-  return null;
-}
-
 function lengthOfToken(label: string, id: string): number {
   return `@[${label}](user:${id})`.length;
 }

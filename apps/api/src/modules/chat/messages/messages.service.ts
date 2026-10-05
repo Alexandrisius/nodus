@@ -40,9 +40,7 @@ import { AttachmentsRepository } from './attachments.repository.js';
 import { FavoritesRepository } from '../favorites/favorites.repository.js';
 import { ThreadParticipantsRepository } from './thread-participants.repository.js';
 import { buildReplySnapshot } from './reply-snapshot.js';
-import {
-  VaultRepository,
-} from '../vault/vault.repository.js';
+import { VaultRepository } from '../vault/vault.repository.js';
 import { syncEditAttachments } from './messages-edit-attachments.js';
 import {
   StickersRepository,
@@ -192,13 +190,7 @@ export class MessagesService {
     const clientMessageId = idempotencyKey ?? randomUUID();
     // @упоминания (#176): токены → активные участники беседы, ДО tx (repro
     // chat-reliability: второе соединение пула внутри tx голодает его).
-    const mentionMatches = await resolveMentionTargets(
-      this.userProfiles,
-      this.conversations,
-      conversationId,
-      body.text,
-      userId,
-    );
+    const mentionMatches = await this.resolveMentions(conversationId, body.text, userId);
     return this.txRunner.run(async (tx) => {
       const membership = await this.conversations.findMembership(conversationId, userId, tx);
       if (!membership) throw DomainException.notFound('Conversation not found');
@@ -431,7 +423,7 @@ export class MessagesService {
     body: EditMessageBody,
   ): Promise<{ message: MessageRow; members: MemberRow[] }> {
     // Упоминания по итоговому тексту — ДО tx (как в send).
-    const mentionMatches = await resolveMentionTargets(this.userProfiles, this.conversations, conversationId, body.text, userId);
+    const mentionMatches = await this.resolveMentions(conversationId, body.text, userId);
     return this.txRunner.run(async (tx) => {
       if (!(await this.conversations.findMembership(conversationId, userId, tx)))
         throw DomainException.notFound('Conversation not found');
@@ -498,6 +490,17 @@ export class MessagesService {
         members: await this.conversations.listMembers([conversationId], tx),
       };
     });
+  }
+
+  /** Упоминания send/edit (#176): токены → активные участники, ДО tx. */
+  private resolveMentions(conversationId: string, text: string, authorId: string) {
+    return resolveMentionTargets(
+      this.userProfiles,
+      this.conversations,
+      conversationId,
+      text,
+      authorId,
+    );
   }
 
   // ===== Удаление =====

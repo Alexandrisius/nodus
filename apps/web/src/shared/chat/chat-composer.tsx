@@ -585,7 +585,7 @@ export function ChatComposer({
                       emitTyping(conversationId, typingThreadRootId);
                     }
                   }}
-                  onKeyUp={(e) => mentions.syncCaret(e.currentTarget)}
+                  onKeyUp={(e) => mentions.handleKeyUp(e.currentTarget, e.key)}
                   onClick={(e) => {
                     const el = e.currentTarget;
                     const offset = el.selectionStart ?? 0;

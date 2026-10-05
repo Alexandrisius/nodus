@@ -62,7 +62,8 @@ export function MessageText({ text }: { text: string }) {
       segments.flatMap((s): EntitySegment[] =>
         s.kind === 'text'
           ? parseEntityLinks(s.value).filter(
-              (e): e is EntitySegment => e.kind === 'entity' && linkPreviewFor(e.entity) !== undefined,
+              (e): e is EntitySegment =>
+                e.kind === 'entity' && linkPreviewFor(e.entity) !== undefined,
             )
           : [],
       ),
@@ -71,7 +72,8 @@ export function MessageText({ text }: { text: string }) {
   // Строка без превью-карточек: сырой текст + чипы (portal:// неизвестных
   // видов остаётся текстом — прежняя семантика).
   const inlineRaw = segments;
-  const single = isSingleEmoji(text) && entities.length === 0 && !segments.some((s) => s.kind === 'mention');
+  const single =
+    isSingleEmoji(text) && entities.length === 0 && !segments.some((s) => s.kind === 'mention');
 
   if (single) {
     return (

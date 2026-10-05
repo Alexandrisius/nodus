@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { Paginated, UserListItem, UserRef } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
@@ -9,6 +9,7 @@ import { useAuthStore } from '../auth-store.js';
 import { PersonAvatar } from '../ui/person-avatar.js';
 
 import {
+  caretBeyondToken,
   detectMentionQuery,
   insertMentionToken,
   mergeMentionCandidates,
@@ -81,9 +82,12 @@ export function useComposerMentions(opts: {
   inputRef: { current: HTMLTextAreaElement | null };
 }) {
   const [caret, setCaret] = useState(0);
-  const dismissedAtRef = useRef<number | null>(null);
+  // dismissed-старт «@»: Esc закрыл панель — она не откроется снова, пока
+  // пользователь не начнёт ДРУГОЙ «@» (иной start). state, не ref: Esc
+  // обязан закрыть панель немедленно (рендер), а не ждать чужого обновления.
+  const [dismissedStart, setDismissedStart] = useState<number | null>(null);
   const autocomplete = useMentionAutocomplete(opts.conversationId, opts.text, caret);
-  const open = autocomplete.query !== null && autocomplete.query.start !== dismissedAtRef.current;
+  const open = autocomplete.query !== null && autocomplete.query.start !== dismissedStart;
 
   const syncCaret = (el: HTMLTextAreaElement) => setCaret(el.selectionStart ?? 0);
 
@@ -103,10 +107,21 @@ export function useComposerMentions(opts: {
   }
 
   function dismiss() {
-    dismissedAtRef.current = autocomplete.query?.start ?? null;
+    setDismissedStart(autocomplete.query?.start ?? null);
   }
 
-  return { autocomplete, open, syncCaret, pick, dismiss };
+  /** KeyUp поля: синк каретки; стрелки ←/→ дополнительно клампятся за
+   *  невидимый хвост токена (блокер code-ревью: печать в хвосте ломала
+   *  разметку токена). */
+  function handleKeyUp(el: HTMLTextAreaElement, key: string) {
+    if (key === 'ArrowLeft' || key === 'ArrowRight') {
+      const beyond = caretBeyondToken(opts.text, el.selectionStart ?? 0);
+      if (beyond !== null) el.setSelectionRange(beyond, beyond);
+    }
+    setCaret(el.selectionStart ?? 0);
+  }
+
+  return { autocomplete, open, syncCaret, pick, dismiss, handleKeyUp };
 }
 
 /** Обработка клавиш панели: возвращает true, если событие съедено (композер

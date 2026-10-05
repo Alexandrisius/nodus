@@ -25,20 +25,24 @@ import {
  * владельца 04.10 — без больших кнопок); привязка по id не меняется.
  */
 
-/** Токен-чип оверлея: та же пилюля, что в ленте (mention-chip), но
- *  не-интерактивный — клики собирает textarea. */
+/** Зеркало токена в оверлее: СЫРОЙ текст токена рисуется теми же глифами,
+ *  что и textarea (каретка живёт в raw-координатах — ширины обязаны
+ *  совпадать 1:1, блокер code-ревью): видима только label-часть на
+ *  пилюле-тинте, обрамление `@[`/`]` и хвост `(user:uuid)` — прозрачные
+ *  глифы (место занимают, глазом невидимы). */
 function OverlayChip({ id, label }: { id: string; label: string }) {
   return (
-    <span
-      style={{
-        backgroundColor: `color-mix(in oklch, ${personToneVar(id)} 14%, transparent)`,
-      }}
-      className={cn(
-        'mx-0.5 inline-flex max-w-full items-baseline truncate rounded-md px-1 align-baseline font-medium',
-        personTone(id),
-      )}
-    >
-      {label || '@'}
+    <span className="whitespace-pre">
+      <span style={{ color: 'transparent' }}>@[</span>
+      <span
+        style={{
+          backgroundColor: `color-mix(in oklch, ${personToneVar(id)} 14%, transparent)`,
+        }}
+        className={cn('rounded-md px-0.5 font-medium', personTone(id))}
+      >
+        {label || '@'}
+      </span>
+      <span style={{ color: 'transparent' }}>]{`(user:${id})`}</span>
     </span>
   );
 }
