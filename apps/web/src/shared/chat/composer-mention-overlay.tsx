@@ -152,7 +152,7 @@ export function MentionFieldOverlay({
               }
             }}
             maxLength={128}
-            className="h-7 min-w-0 flex-1 rounded-md bg-transparent px-1 text-sm outline-none placeholder:text-muted-foreground"
+            className="h-7 min-w-0 flex-1 rounded-md bg-muted/60 px-1.5 text-sm outline-none placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-ring/40"
           />
           <Button
             type="button"

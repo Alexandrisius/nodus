@@ -5,6 +5,7 @@ import { ui } from '@nodus/contracts';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { api } from '../api-client.js';
+import { useAuthStore } from '../auth-store.js';
 import { PersonAvatar } from '../ui/person-avatar.js';
 
 import {
@@ -30,6 +31,7 @@ export function useMentionAutocomplete(
   text: string,
   caret: number,
 ) {
+  const meId = useAuthStore((s) => s.user?.id);
   const query = useMemo(() => detectMentionQuery(text, caret), [text, caret]);
   const [debounced, setDebounced] = useState('');
   const [active, setActive] = useState(0);
@@ -61,8 +63,8 @@ export function useMentionAutocomplete(
   });
 
   const candidates = useMemo<MentionCandidate[]>(
-    () => mergeMentionCandidates(memberRefs, directory.data?.items ?? [], queryText),
-    [memberRefs, directory.data, queryText],
+    () => mergeMentionCandidates(memberRefs, directory.data?.items ?? [], queryText, meId),
+    [memberRefs, directory.data, queryText, meId],
   );
 
   return { query, candidates, active, setActive };

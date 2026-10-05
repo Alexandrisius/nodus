@@ -50,17 +50,20 @@ export function detectMentionQuery(text: string, caret: number): MentionQuery | 
 /** Слияние кандидатов: участники беседы (по подстроке query, без регистра),
  *  затем сотрудники поиска справочника, не-участники — с пометкой; дедуп
  *  по id, лимит списка. Справочник обогащает участников должностью/отделом
- *  (общий кэш usersList). */
+ *  (общий кэш usersList). Себя не предлагаем: сервер пингует только ≠ автора
+ *  (упомянуть себя нельзя, канон Slack). */
 export function mergeMentionCandidates(
   members: UserRef[],
   directory: UserListItem[],
   query: string,
+  meId: string | undefined,
 ): MentionCandidate[] {
   const byId = new Map<string, MentionCandidate>();
   const lower = query.toLowerCase();
   const matches = (name: string) => name.toLowerCase().includes(lower);
 
   for (const member of members) {
+    if (member.id === meId) continue;
     if (!matches(member.displayName)) continue;
     byId.set(member.id, {
       id: member.id,
@@ -79,6 +82,7 @@ export function mergeMentionCandidates(
       continue;
     }
     if (byId.size >= MENTION_CANDIDATES_MAX) continue;
+    if (person.id === meId) continue;
     if (!matches(person.displayName) && !matches(person.email)) continue;
     byId.set(person.id, {
       id: person.id,
@@ -188,4 +192,14 @@ export function removeMentionToken(text: string, index: number): string {
   const token = mentionTokens(text)[index];
   if (!token) return text;
   return text.slice(0, token.start) + text.slice(token.end);
+}
+
+/** Клик в НЕВИДИМУЮ часть токена (хвост `](user:uuid)`): каретке место не
+ *  внутри разметки — вернуть позицию ЗА токен (правка label — только через
+ *  поповер по видимой части чипа). null — смещение вне токенов. */
+export function caretBeyondToken(text: string, offset: number): number | null {
+  for (const token of mentionTokens(text)) {
+    if (offset > token.start + 2 + token.label.length && offset < token.end) return token.end;
+  }
+  return null;
 }

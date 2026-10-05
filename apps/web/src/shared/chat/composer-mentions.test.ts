@@ -43,9 +43,7 @@ describe('detectMentionQuery', () => {
 });
 
 describe('mergeMentionCandidates', () => {
-  const members = [
-    { id: UUID_A, displayName: 'Анна Первая', avatarUrl: null },
-  ];
+  const members = [{ id: UUID_A, displayName: 'Анна Первая', avatarUrl: null }];
   const directory = [
     {
       id: UUID_A,
@@ -73,23 +71,26 @@ describe('mergeMentionCandidates', () => {
     },
   ];
 
-  it('участники первыми и обогащаются справочником; не-участник с пометкой', () => {
-    const list = mergeMentionCandidates(members, directory, '');
+  it('участники первыми и обогащаются справочником; не-участник с пометкой; себя нет', () => {
+    const list = mergeMentionCandidates(members, directory, '', undefined);
     expect(list[0]).toMatchObject({
       id: UUID_A,
       inConversation: true,
       positionName: 'ГИП',
     });
     expect(list[1]).toMatchObject({ id: UUID_B, inConversation: false });
+    // Себя не предлагаем (сервер пингует только ≠ автора): я = Анна.
+    const asAnna = mergeMentionCandidates(members, directory, '', UUID_A);
+    expect(asAnna.map((c) => c.id)).toEqual([UUID_B]);
   });
 
   it('фильтр участников по подстроке без регистра', () => {
-    const list = mergeMentionCandidates(members, [], 'АНН');
+    const list = mergeMentionCandidates(members, [], 'АНН', undefined);
     expect(list.map((c) => c.id)).toEqual([UUID_A]);
   });
 
   it('поиск справочника по ФИО находит не-участника', () => {
-    const list = mergeMentionCandidates([], directory, 'матор');
+    const list = mergeMentionCandidates([], directory, 'матор', undefined);
     expect(list.map((c) => c.id)).toEqual([UUID_B]);
     expect(list[0]?.inConversation).toBe(false);
   });
@@ -98,10 +99,14 @@ describe('mergeMentionCandidates', () => {
 describe('insertMentionToken / правка / удаление', () => {
   it('вставка заменяет запрос на токен с пробелом, каретка после', () => {
     const text = 'отправьте @арт пожалуйста';
-    const res = insertMentionToken(text, { query: 'арт', start: 10, end: 14 }, {
-      id: UUID_A,
-      displayName: 'Артём Маторин',
-    });
+    const res = insertMentionToken(
+      text,
+      { query: 'арт', start: 10, end: 14 },
+      {
+        id: UUID_A,
+        displayName: 'Артём Маторин',
+      },
+    );
     expect(res.text).toBe(`отправьте @[Артём Маторин](user:${UUID_A})  пожалуйста`);
     expect(res.caret).toBe(`отправьте @[Артём Маторин](user:${UUID_A}) `.length);
   });

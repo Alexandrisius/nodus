@@ -1,5 +1,12 @@
 import { Check, Mic, Paperclip, Smile } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+} from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
@@ -39,7 +46,7 @@ import {
   MentionAutocompletePanel,
   useComposerMentions,
 } from './composer-mention-autocomplete.js';
-import type { CaretMention } from './composer-mentions.js';
+import { caretBeyondToken, type CaretMention } from './composer-mentions.js';
 import { MentionFieldOverlay, mentionAtOffset } from './composer-mention-overlay.js';
 
 /** Payload отправки композера (#87): текст + готовые вложения + контекст
@@ -586,9 +593,18 @@ export function ChatComposer({
                   }}
                   onKeyUp={(e) => mentions.syncCaret(e.currentTarget)}
                   onClick={(e) => {
-                    mentions.syncCaret(e.currentTarget);
-                    // Клик в видимую часть чипа — поповер правки label (#176).
-                    setEditToken(mentionAtOffset(text, e.currentTarget.selectionStart ?? 0));
+                    const el = e.currentTarget;
+                    const offset = el.selectionStart ?? 0;
+                    // Клик в невидимый хвост токена — каретку ЗА токен (печать
+                    // не ломает разметку); клик в видимый чип — поповер правки.
+                    const beyond = caretBeyondToken(text, offset);
+                    if (beyond !== null) {
+                      el.setSelectionRange(beyond, beyond);
+                      mentions.syncCaret(el);
+                      return;
+                    }
+                    mentions.syncCaret(el);
+                    setEditToken(mentionAtOffset(text, offset));
                   }}
                   onKeyDown={onKeyDown}
                   onPaste={onPaste}
