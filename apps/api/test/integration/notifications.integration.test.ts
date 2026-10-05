@@ -107,10 +107,10 @@ describe.skipIf(!process.env.DATABASE_URL)(
       expect(res.status).toBe(201);
       const conversationId = ((await res.json()) as { id: string }).id;
 
-      // Упоминание по ИМЕНИ: фамилии фикстурных пользователей прогона общие
-      // («Чатов<runId>»), displayName-токен с пробелом парсер не берёт.
+      // Упоминание ТОКЕНОМ (#176): `@[текст](user:id)` — привязка по id,
+      // отображаемый текст свободный (старое exact-match по имени упразднено).
       await fx.api(alice, 'POST', `/chat/conversations/${conversationId}/messages`, {
-        body: { text: '@Борис, посмотри чертежи' },
+        body: { text: `@[Борис](user:${bob.id}), посмотри чертежи` },
         key: `notif-m-${fx.runId}`,
       });
       await runPipeline();

@@ -138,7 +138,7 @@ describe.skipIf(!process.env.DATABASE_URL)('chat: трэды — наблюда�
     expect(conv?.unreadCount).toBe(before + 1);
   });
 
-  it('@упоминание делает наблюдателем (точное совпадение имени)', async () => {
+  it('@упоминание токеном делает наблюдателем (#176)', async () => {
     // carol снимает участие реплаем-строкой? Нельзя: реплай уже сделал её
     // участником навсегда до unwatch — используем unwatch кнопкой.
     await fx.api(carol, 'POST', `/chat/conversations/${channel.id}/threads/${root.id}/watch`, {
@@ -146,7 +146,8 @@ describe.skipIf(!process.env.DATABASE_URL)('chat: трэды — наблюда�
     });
     expect((await statesOf(carol)).find((s) => s.threadRootId === root.id)).toBeUndefined();
 
-    await reply(bob, `вопрос к @${carol.displayName.split(' ')[1]} — глянь`);
+    // Токен @[текст](user:id): привязка по id, не угадывание по имени.
+    await reply(bob, `вопрос к @[${carol.displayName}](user:${carol.id}) — глянь`);
     const states = await statesOf(carol);
     expect(states.find((s) => s.threadRootId === root.id)?.watched).toBe(true);
   });
