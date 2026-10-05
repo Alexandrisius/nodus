@@ -19,17 +19,17 @@ describe('parseMentionSegments', () => {
   });
 
   it('токен вытаскивается сегментом, текст вокруг сохраняется', () => {
-    expect(parseMentionSegments(`Отправьте @[Артёму Маторину](user:${UUID_A}) пожалуйста`)).toEqual([
-      { kind: 'text', value: 'Отправьте ' },
-      { kind: 'mention', id: UUID_A, label: 'Артёму Маторину' },
-      { kind: 'text', value: ' пожалуйста' },
-    ]);
+    expect(parseMentionSegments(`Отправьте @[Артёму Маторину](user:${UUID_A}) пожалуйста`)).toEqual(
+      [
+        { kind: 'text', value: 'Отправьте ' },
+        { kind: 'mention', id: UUID_A, label: 'Артёму Маторину' },
+        { kind: 'text', value: ' пожалуйста' },
+      ],
+    );
   });
 
   it('несколько токенов подряд, пустые текстовые сегменты не создаются', () => {
-    expect(
-      parseMentionSegments(`@[А](user:${UUID_A})@[Б](user:${UUID_B})`),
-    ).toEqual([
+    expect(parseMentionSegments(`@[А](user:${UUID_A})@[Б](user:${UUID_B})`)).toEqual([
       { kind: 'mention', id: UUID_A, label: 'А' },
       { kind: 'mention', id: UUID_B, label: 'Б' },
     ]);
@@ -89,9 +89,9 @@ describe('extractMentionIds', () => {
 
 describe('stripMentionTokens', () => {
   it('токен разворачивается в отображаемый текст', () => {
-    expect(
-      stripMentionTokens(`Отправьте @[Артёму Маторину](user:${UUID_A}) пожалуйста`),
-    ).toBe('Отправьте Артёму Маторину пожалуйста');
+    expect(stripMentionTokens(`Отправьте @[Артёму Маторину](user:${UUID_A}) пожалуйста`)).toBe(
+      'Отправьте Артёму Маторину пожалуйста',
+    );
   });
 
   it('пустой label разворачивается в @', () => {
@@ -111,5 +111,10 @@ describe('buildMentionToken', () => {
       { kind: 'text', value: 'привет ' },
       { kind: 'mention', id: UUID_A, label: 'Артём' },
     ]);
+  });
+
+  it('скобка `]` в label вырезается (не ломает грамматику токена)', () => {
+    const token = buildMentionToken('Ива]н', UUID_A);
+    expect(parseMentionSegments(token)).toEqual([{ kind: 'mention', id: UUID_A, label: 'Иван' }]);
   });
 });

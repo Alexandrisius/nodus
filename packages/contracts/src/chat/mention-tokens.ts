@@ -23,8 +23,7 @@ const MENTION_TOKEN_RE = new RegExp(`@\\[([^\\]\\n]*)\\]\\(user:(${UUID})\\)`, '
 /** Сегмент текста сообщения: обычный текст либо упоминание-чип (токен из
  *  текста убирается — его заменит чип с персональным цветом #180). */
 export type MentionSegment =
-  | { kind: 'text'; value: string }
-  | { kind: 'mention'; id: string; label: string };
+  { kind: 'text'; value: string } | { kind: 'mention'; id: string; label: string };
 
 /** Разбить текст на текстовые сегменты и упоминания. Пустых текстовых
  *  сегментов нет; токены без валидного UUID остаются текстом. */
@@ -63,7 +62,9 @@ export function stripMentionTokens(text: string): string {
   return text.replace(new RegExp(MENTION_TOKEN_RE.source, 'g'), (_, label: string) => label || '@');
 }
 
-/** Сборка токена (автокомплит композера, правка чипа). */
+/** Сборка токена (автокомплит композера, правка чипа). `]` в label вырезается:
+ *  первый `]` закрывает скобку грамматики — неподчищенный label молча
+ *  деградировал бы токен до плоского текста (подозрение security-ревью). */
 export function buildMentionToken(label: string, userId: string): string {
-  return `@[${label}](user:${userId})`;
+  return `@[${label.replace(/]/g, '')}](user:${userId})`;
 }
