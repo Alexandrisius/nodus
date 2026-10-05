@@ -26,24 +26,26 @@ import {
  */
 
 /** Зеркало токена в оверлее: СЫРОЙ текст токена рисуется теми же глифами,
- *  что и textarea (каретка живёт в raw-координатах — ширины обязаны
- *  совпадать 1:1, блокер code-ревью): видима только label-часть на
+ *  что и textarea (каретка живёт в raw-координатах — ширины и ПЕРЕНОСЫ
+ *  обязаны совпадать 1:1, code-ревью): видима только label-часть на
  *  пилюле-тинте, обрамление `@[`/`]` и хвост `(user:uuid)` — прозрачные
- *  глифы (место занимают, глазом невидимы). */
+ *  глифы. Без whitespace-pre: инлайны рвутся по строкам как в textarea
+ *  (пилюля честно разрывается, модель Slack); паддинг пилюли скомпенсирован
+ *  отрицательным маргином и вес наследуется — поток не шире сырых глифов. */
 function OverlayChip({ id, label }: { id: string; label: string }) {
   return (
-    <span className="whitespace-pre">
+    <>
       <span style={{ color: 'transparent' }}>@[</span>
       <span
         style={{
           backgroundColor: `color-mix(in oklch, ${personToneVar(id)} 14%, transparent)`,
         }}
-        className={cn('rounded-md px-0.5 font-medium', personTone(id))}
+        className={cn('-mx-0.5 rounded-md px-0.5', personTone(id))}
       >
         {label || '@'}
       </span>
-      <span style={{ color: 'transparent' }}>]{`(user:${id})`}</span>
-    </span>
+      <span style={{ color: 'transparent' }}>{`](user:${id})`}</span>
+    </>
   );
 }
 
