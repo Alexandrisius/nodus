@@ -32,8 +32,11 @@ export interface LinkPreviewDto {
   imageUrl: string | null;
 }
 
-/** Self-домены портала (карточка без фетча, спека #212). */
-const SELF_HOSTS = (process.env.LINK_PREVIEW_SELF_HOSTS ?? 'nodus.by,localhost')
+/** Self-домены портала (карточка без фетча, спека #212): прод-домен;
+ *  dev/песочница добавляет свои через LINK_PREVIEW_SELF_HOSTS. localhost
+ *  НЕ входит — по спеке SSRF-прогона блокируется (ссылки на локальные
+ *  dev-порты получают заглушку через blocked-ветку). */
+const SELF_HOSTS = (process.env.LINK_PREVIEW_SELF_HOSTS ?? 'nodus.by')
   .split(',')
   .map((host) => host.trim().toLowerCase())
   .filter(Boolean);
