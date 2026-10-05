@@ -195,17 +195,10 @@ export function ChatComposer({
   const text = draft.text;
   const grown = useGrown(inputRef);
 
-  // @упоминания (#176): каретка поля + запрос «@буквы» у неё — хук
-  // useComposerMentions (composer-mention-autocomplete); клик по чипу поля
-  // открывает поповер правки (composer-mention-overlay).
+  // @упоминания (#176): каретка + запрос — useComposerMentions; клик по чипу
+  // поля — поповер правки (composer-mention-overlay).
   const [editToken, setEditToken] = useState<CaretMention | null>(null);
-  const mentions = useComposerMentions({
-    conversationId,
-    focusId,
-    text,
-    setText,
-    inputRef,
-  });
+  const mentions = useComposerMentions({ conversationId, focusId, text, setText, inputRef });
 
   // Морфология островка (селект) — хук selection-phase.ts (I5, #177).
   const { selPhase, toolbarSel } = useSelectionPhase(sel);
@@ -363,24 +356,19 @@ export function ChatComposer({
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    // Автокомплит @упоминаний (#176) — верхняя клавиатурная площадка: Enter
-    // выбирает кандидата (НЕ отправляет), ↑↓ ходят по списку, Esc гасит
-    // панель (не режимы композера); канон Slack.
-    if (
-      mentionAutocompleteKeydown(
-        event,
-        {
-          open: mentions.open,
-          count: mentions.autocomplete.candidates.length,
-          active: mentions.autocomplete.active,
-          setActive: mentions.autocomplete.setActive,
-        },
-        mentions.pick,
-        mentions.dismiss,
-      )
-    ) {
-      return;
-    }
+    // Автокомплит @упоминаний (#176): Enter выбирает (НЕ отправляет), ↑↓ по списку, Esc гасит панель; Slack.
+    const eaten = mentionAutocompleteKeydown(
+      event,
+      {
+        open: mentions.open,
+        count: mentions.autocomplete.candidates.length,
+        active: mentions.autocomplete.active,
+        setActive: mentions.autocomplete.setActive,
+      },
+      mentions.pick,
+      mentions.dismiss,
+    );
+    if (eaten) return;
     if (isSendShortcut(event.key, event.shiftKey, event.ctrlKey)) {
       event.preventDefault();
       submit();
@@ -571,7 +559,13 @@ export function ChatComposer({
                   setText={(next) => setText(focusId, next)}
                   textareaRef={inputRef}
                   editToken={editToken}
-                  onEditClose={() => setEditToken(null)}
+                  onEditClose={() => {
+                    setEditToken(null);
+                    // Каретку DOM поповер поставил — забрать в state (иначе
+                    // детектор автокомплита живёт по старой позиции).
+                    const el = inputRef.current;
+                    if (el) mentions.syncCaret(el);
+                  }}
                 />
                 <Textarea
                   ref={registerInput}
@@ -595,16 +589,14 @@ export function ChatComposer({
                   onClick={(e) => {
                     const el = e.currentTarget;
                     const offset = el.selectionStart ?? 0;
-                    // Клик в невидимый хвост токена — каретку ЗА токен (печать
-                    // не ломает разметку); клик в видимый чип — поповер правки.
-                    const beyond = caretBeyondToken(text, offset);
-                    if (beyond !== null) {
-                      el.setSelectionRange(beyond, beyond);
-                      mentions.syncCaret(el);
-                      return;
-                    }
+                    // Кликом по чипу (видимая часть) открываем поповер, по
+                    // невидимому хвосту — каретка за токен; НИКОГДА не внутрь
+                    // разметки токена (печать ломала бы uuid).
+                    const chip = mentionAtOffset(text, offset);
+                    const caret = chip ? chip.end : caretBeyondToken(text, offset);
+                    if (caret !== null) el.setSelectionRange(caret, caret);
                     mentions.syncCaret(el);
-                    setEditToken(mentionAtOffset(text, offset));
+                    setEditToken(chip);
                   }}
                   onKeyDown={onKeyDown}
                   onPaste={onPaste}

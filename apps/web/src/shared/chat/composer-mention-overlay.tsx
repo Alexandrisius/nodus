@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Check, Trash2, X } from 'lucide-react';
-import { parseMentionSegments, ui } from '@nodus/contracts';
+import { buildMentionToken, parseMentionSegments, ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import { cn } from '@nodus/ui/lib/utils';
 
@@ -95,20 +95,33 @@ export function MentionFieldOverlay({
     return () => el.removeEventListener('scroll', sync);
   }, [textareaRef]);
 
-  function closePopover() {
+  function closePopover(caretEnd?: number) {
     const token = editing;
+    // Каретку — ЗА токен ДО закрытия (или в переданную точку после замены
+    // текста): композер синкнет caret-state из DOM — рассинхрон DOM/state
+    // держал панель автокомплита открытой (валидация, раунд 2).
+    const end = caretEnd ?? token?.end;
+    if (end !== undefined) textareaRef.current?.setSelectionRange(end, end);
     onEditClose();
-    if (token) textareaRef.current?.setSelectionRange(token.end, token.end);
   }
 
   function applyLabel() {
-    if (editing) setText(replaceMentionLabel(text, editing.index, draftLabel.trim()));
+    if (editing && draftLabel.trim().length > 0) {
+      setText(replaceMentionLabel(text, editing.index, draftLabel.trim()));
+      const newEnd = editing.start + buildMentionToken(draftLabel.trim(), editing.id).length;
+      closePopover(newEnd);
+      return;
+    }
     closePopover();
   }
 
   function removeToken() {
-    if (editing) setText(removeMentionToken(text, editing.index));
-    onEditClose();
+    if (editing) {
+      setText(removeMentionToken(text, editing.index));
+      closePopover(editing.start);
+      return;
+    }
+    closePopover();
   }
 
   return (
@@ -173,7 +186,7 @@ export function MentionFieldOverlay({
             className="size-7 shrink-0 text-muted-foreground"
             aria-label={ui.chat.mentionCancel}
             title={ui.chat.mentionCancel}
-            onClick={closePopover}
+            onClick={() => closePopover()}
           >
             <X className="size-4" strokeWidth={2} />
           </Button>
