@@ -282,6 +282,7 @@ export const chatMutationHandlers = [
         readBy: [],
         urgent: false,
         mentionedUserIds: [],
+        linkPreview: null,
         createdAt: stamp(0),
       };
       created.push(comment);
@@ -317,6 +318,7 @@ export const chatMutationHandlers = [
         readBy: [],
         urgent: false,
         mentionedUserIds: [],
+        linkPreview: null,
         createdAt: stamp(index + 1),
       };
       created.push(copy);

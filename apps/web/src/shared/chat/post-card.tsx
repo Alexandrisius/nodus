@@ -17,6 +17,7 @@ import {
 import { MessageMeta } from './message-meta.js';
 import { UrgentChips } from './urgent-chips.js';
 import { hasEntityPreviews, MessageText } from './message-text.js';
+import { MessageLinkPreview } from './link-preview-card.js';
 import { ThreadStrip, ThreadStripEnter } from './post-thread-strip.js';
 import { ReactionPicker } from './reaction-picker.js';
 import { StickerGlyph, stickerAttachmentOf, stickerFeedClass } from './sticker-message.js';
@@ -252,6 +253,8 @@ export function PostCard({
                     : 'pt-[7px]',
               )}
             >
+              {/* Карточка первой ссылки над текстом (#212). */}
+              <MessageLinkPreview text={message.text} preview={message.linkPreview} />
               <MessageText text={message.text} />
               {message.reactions.length > 0 || entityRow ? null : (
                 <MetaGhost message={message} mine={mine} onFilled={surface.onFilled} />

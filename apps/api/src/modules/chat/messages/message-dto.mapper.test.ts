@@ -135,6 +135,7 @@ function stubMapper(originals: MessageRow[] = []): MessageDtoMapper {
     pins as never,
     profiles as never,
     new SignedUrlService({ STORAGE_URL_SECRET: 'test-secret-32-chars-aaaaaaaaaaaa' }),
+    { previewsForUrls: async () => new Map() } as never,
   );
 }
 

@@ -19,6 +19,9 @@ import type { TransactionClient } from '../../../core/database/transaction-runne
 import type { MemberRow } from '../conversations/conversations.repository.js';
 import { MessagesRepository, type MessageRow, type ReactionRow } from './messages.repository.js';
 import { MessagePinsRepository } from './message-pins.repository.js';
+import { extractMessageUrls } from './link-extractor.js';
+import { LinkPreviewService } from '../link-previews/link-preview.service.js';
+import { normalizeUrl } from '../link-previews/url-normalize.js';
 
 /** Замороженный снапшот цитаты (поле reply_snapshot). */
 export interface ReplySnapshotValue {
@@ -111,6 +114,7 @@ export class MessageDtoMapper {
     private readonly pins: MessagePinsRepository,
     @Inject(USER_PROFILE_READER) private readonly userProfiles: UserProfileReader,
     private readonly signedUrls: SignedUrlService,
+    private readonly linkPreviews: LinkPreviewService,
   ) {}
 
   async toDtos(rows: MessageRow[], ctx: MessageDtoContext): Promise<ChatMessage[]> {
@@ -139,6 +143,13 @@ export class MessageDtoMapper {
     const attachmentsByMessage = groupBy(attachments, (a) => a.messageId);
     const threadCountByRoot = new Map(threadCounts.map((t) => [t.rootId, t.count]));
     const originalById = new Map(replyOriginals.map((o) => [o.id, o]));
+
+    // Превью ПЕРВОЙ ссылки сообщения (#212): карточка только первой (канон
+    // TG/Slack), батч кэша на страницу; надгробие карточки не несёт.
+    const firstUrls = rows.map((row) => extractMessageUrls(row.text)[0] ?? null);
+    const previews = await this.linkPreviews.previewsForUrls(
+      firstUrls.filter((url): url is string => url !== null),
+    );
 
     return rows.map((row, index) => {
       const tombstone = row.deletedAt !== null;
@@ -171,6 +182,10 @@ export class MessageDtoMapper {
         ),
         urgent: row.urgent,
         mentionedUserIds: tombstone ? [] : readMentionedUserIds(row),
+        linkPreview: tombstone
+          ? null
+          : ((firstUrls[index] ? previews.get(normalizeUrl(firstUrls[index]!) ?? '') : null) ??
+            null),
         createdAt: row.createdAt.toISOString(),
       };
     });
@@ -232,6 +247,9 @@ export class MessageDtoMapper {
       readBy: [],
       urgent: row.urgent,
       mentionedUserIds: readMentionedUserIds(row),
+      // Свежая отправка: превью ещё нет (конвейер фоновый, #212) — клиент
+      // рисует скелетон по наличию URL и патчит по chat.link_preview_ready.
+      linkPreview: null,
       createdAt: row.createdAt.toISOString(),
     };
   }

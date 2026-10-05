@@ -23,6 +23,7 @@ const msg = (id: string, authorId: string, createdAt: string): ChatMessage => ({
   readBy: [],
   urgent: false,
   mentionedUserIds: [],
+  linkPreview: null,
   createdAt,
 });
 

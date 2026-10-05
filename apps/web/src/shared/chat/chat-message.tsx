@@ -16,6 +16,7 @@ import { ForwardedHeader, ReplyHeader } from './message-headers.js';
 import { MessageReactions } from './message-reactions.js';
 import { MessageMeta } from './message-meta.js';
 import { MessageText } from './message-text.js';
+import { MessageLinkPreview } from './link-preview-card.js';
 import { ReactionPicker } from './reaction-picker.js';
 import { stickerAttachmentOf, StickerMessageView } from './sticker-message.js';
 import { TombstoneBubble } from './tombstone.js';
@@ -294,6 +295,9 @@ export const ChatMessageItem = memo(function ChatMessageItem({
             {message.attachments.length > 0 ? (
               <MessageAttachments message={message} mine={mine} />
             ) : null}
+            {/* Карточка-цитата первой ссылки (#212): после вложений, над
+                текстом; дозревает фоном (WS), скелетон без сдвига макета. */}
+            <MessageLinkPreview text={message.text} preview={message.linkPreview} />
             {/* Текст + мета: MetaGhost (призрак в потоке — ширина карточки
                 всегда вмещает метку) + MetaPin (абсолют — ребёнок ПУЗЫРЯ:
                 стабильные 8px от низа / 12.5px справа, как у рядов реакций,

@@ -4,7 +4,12 @@ import type { RealtimeEnvelope } from '@nodus/contracts';
 import { chatKeys } from '../chat/api.js';
 import { favoriteKeys } from '../chat/favorites-api.js';
 import { vaultKeys } from '../chat/vault-api.js';
-import { applyReadEvent, applyReactionEvent, applySentMessage } from '../chat/ws-apply.js';
+import {
+  applyLinkPreviewEvent,
+  applyReadEvent,
+  applyReactionEvent,
+  applySentMessage,
+} from '../chat/ws-apply.js';
 import { notificationsKeys } from '../notifications-keys.js';
 import { createKeyBatcher, type KeyBatcher } from './invalidation-batcher.js';
 
@@ -52,6 +57,13 @@ export function createRealtimeInvalidator(queryClient: QueryClient): RealtimeInv
           // Витрина #211: новое сообщение могло принести вложения/ссылки.
           if (conversationId) batcher.push(vaultKeys.all, 'feed');
           if (conversationId) batcher.push(chatKeys.conversations(), 'list');
+          return;
+        }
+        case 'chat.link_preview_ready': {
+          // Превью дозрело (#212): патч сообщения на месте (скелетон →
+          // карточка без рефетча); витрина «Ссылки» — по окну.
+          applyLinkPreviewEvent(queryClient, payload as never);
+          if (conversationId) batcher.push(vaultKeys.all, 'feed');
           return;
         }
         case 'chat.message_edited':

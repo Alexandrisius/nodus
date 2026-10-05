@@ -52,6 +52,7 @@ function conv(
           readBy: [],
           urgent: false,
           mentionedUserIds: [],
+          linkPreview: null,
           createdAt: at,
         }
       : null,

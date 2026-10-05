@@ -15,6 +15,7 @@ import { ForwardedHeader, ReplyHeader } from './message-headers.js';
 import { MessageMeta } from './message-meta.js';
 import { MessageReactions } from './message-reactions.js';
 import { hasEntityPreviews, MessageText } from './message-text.js';
+import { MessageLinkPreview } from './link-preview-card.js';
 import { ReadTicks } from './read-ticks.js';
 import { UrgentChip, UrgentChips } from './urgent-chips.js';
 
@@ -199,6 +200,8 @@ export function MediaMessage({
           >
             {hasText ? (
               <span className="block">
+                {/* Карточка первой ссылки над текстом (#212). */}
+                <MessageLinkPreview text={message.text} preview={message.linkPreview} />
                 <MessageText text={message.text} />
                 {hasReactionsRow || entityRow ? null : (
                   <MetaGhost message={message} mine={mine} noReceipts={receiptsHidden} />

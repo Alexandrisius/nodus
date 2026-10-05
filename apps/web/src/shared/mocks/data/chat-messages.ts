@@ -35,6 +35,7 @@ function msg(
     readBy: [],
     urgent: false,
     mentionedUserIds: [],
+    linkPreview: null,
     createdAt,
     ...extra,
   };

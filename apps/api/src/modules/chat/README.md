@@ -290,3 +290,22 @@ WS-fanout рассылает те же события).
   seq 1..20 без дыр; find-or-create race → 1 беседа), пагинация без
   потерь, outbox-атомарность, unread/readAt циклы, стикеры сквозной
   (create→upload→send→install→send→soft-delete, chat-stickers.integration).
+
+#212 Превью ссылок (`link-previews/`, ADR-0018): асинхронный конвейер —
+сообщение летит мгновенно, карточка дозревает фоном. Слушатель
+`chat.message_sent/edited` (`message-links.handler.ts`) берёт готовую
+проекцию `message_links` → URL без кэша → BullMQ `chat-link-preview`
+(jobId = нормализованный URL, дедуп; транзакцию отправки не трогаем).
+Воркер `link-preview.worker.ts` → `link-preview.service.ts`: наши
+SSRF-гварды (схема, порт 80/443/дефолт, без кредов; self-домены —
+карточка без фетча) + linkpeek (приватные диапазоны, ручные редиректы с
+ревалидацией, 30 КБ, 8с) + per-user лимит ~30 фетчей/час
+(`link-preview.rate-limiter.ts`); og:image → sharp-дериват ≤640px webp в
+SILO (без хотлинков); кэш `link_previews` (нормализованный URL —
+`url-normalize.ts`, общий для ключа и обогащения): ready 24ч / failed 1ч
+(заглушка из домена, главный режим отказа I11) / blocked бессрочно.
+Готовность — событие `chat.link_preview_ready` (комната беседы; payload
+несёт DTO-снимок). Чтение: DTO сообщения `linkPreview` ПЕРВОЙ ссылки
+(батч-кэш в `message-dto.mapper.ts`; toFreshDto — null, скелетон на
+клиенте), витрина `GET ?type=link` — `preview` в элементах (батч).
+Ленивый прогрев: только новые события, бэкфилла нет.

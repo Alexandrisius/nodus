@@ -549,6 +549,32 @@ model MessageLink {
   @@map("message_links")
 }
 
+/// Кэш превью ссылок (#212, ADR-0018): асинхронный конвейер BullMQ —
+/// сообщение летит мгновенно, карточка дозревает фоном (WS-событие).
+/// Ключ — нормализованный URL (url-normalize.ts, общий для ключа и
+/// обогащения); TTL готовых 24ч, отрицательный (failed) 1ч, blocked —
+/// навсегда. expand-only: обратной миграции данных нет.
+model LinkPreview {
+  id            String    @id @default(uuid()) @db.Uuid
+  normalizedUrl String    @unique @map("normalized_url")
+  /// pending | ready | failed | blocked (blocked = SSRF/отказ гварда).
+  status        String
+  title         String?
+  description   String?
+  siteName      String?   @map("site_name")
+  /// og:image-дериват в SILO (≤640px webp, #139); null — без картинки.
+  imageFileId   String?   @map("image_file_id") @db.Uuid
+  faviconFileId String?   @map("favicon_file_id") @db.Uuid
+  fetchedAt     DateTime? @map("fetched_at") @db.Timestamptz()
+  /// Годен до: ready 24ч, failed 1ч, blocked бессрочно (null).
+  expiresAt     DateTime? @map("expires_at") @db.Timestamptz()
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt     DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+
+  @@index([status, expiresAt])
+  @@map("link_previews")
+}
+
 /// Денормализованные счётчики витрины беседы (#211): image (kind='image'),
 /// video/audio (файлы с mime video/*|audio/*), document (остальные файлы),
 /// link (строки message_links) — только ЖИВЫЕ сообщения (надгробие/

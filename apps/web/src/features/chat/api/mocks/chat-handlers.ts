@@ -260,6 +260,7 @@ const conversationHandlers = [
       readBy: [],
       urgent: parsed.data.urgent ?? false,
       mentionedUserIds: [],
+      linkPreview: null,
       createdAt: new Date().toISOString(),
     };
     demoMessages.push(message);

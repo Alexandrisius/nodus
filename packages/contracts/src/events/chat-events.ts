@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { messageSchema } from '../chat/chat.schemas.js';
+import { messageSchema, linkPreviewSchema } from '../chat/chat.schemas.js';
 
 /**
  * Каталог доменных событий модуля chat (I9: каждое событие — в `events`
@@ -37,6 +37,9 @@ export const CHAT_EVENTS = {
   FAVORITE_ADDED: 'chat.favorite_added',
   FAVORITE_REMOVED: 'chat.favorite_removed',
   FAVORITE_UPDATED: 'chat.favorite_updated',
+  // Превью ссылки дозрело фоном (#212): конвейер BullMQ закончил — карточка
+  // применяется в кэш ленты на месте (скелетон → fade-in, без рефетча).
+  LINK_PREVIEW_READY: 'chat.link_preview_ready',
 } as const;
 
 export const chatConversationCreatedPayloadSchema = z.object({
@@ -234,3 +237,16 @@ export const chatFavoriteUpdatedPayloadSchema = z.object({
   messageId: z.uuid(),
 });
 export type ChatFavoriteUpdatedPayload = z.infer<typeof chatFavoriteUpdatedPayloadSchema>;
+
+/** Превью ссылки готово (#212): карточка первого URL сообщения дозрела
+ *  фоном (кэш link_previews) — payload несёт готовый DTO-снимок превью,
+ *  клиенты патчат сообщение на месте без рефетча. Комната — беседы.
+ *  Схема превью — общая с DTO сообщения (chat.schemas.linkPreviewSchema). */
+export const chatLinkPreviewReadyPayloadSchema = z.object({
+  conversationId: z.uuid(),
+  messageId: z.uuid(),
+  /** Первая ссылка сообщения (превью — только первая, канон TG/Slack). */
+  url: z.string(),
+  preview: linkPreviewSchema,
+});
+export type ChatLinkPreviewReadyPayload = z.infer<typeof chatLinkPreviewReadyPayloadSchema>;

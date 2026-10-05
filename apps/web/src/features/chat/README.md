@@ -1136,3 +1136,15 @@ im.dialog — принята модель Bitrix24 как ближайшая к 
 Оптимистичность мутаций — детерминированные
 unit-тесты (`message-mutations.test.tsx`); чистая логика — selection-range,
 chat-drafts, upload-attachment (validateFiles), message-groups (надгробия).
+
+**Превью ссылок (#212, ADR-0018)**: карточка-цитата ПЕРВОЙ ссылки
+сообщения «верхней цитатой» над текстом (после вложений) во всех
+хостах пузыря — `shared/chat/link-preview-card.tsx` (`MessageLinkPreview`:
+лента/тред/пост/медиа-пузырь): картинка сверху (og:image-дериват из
+SILO), домен/заголовок/описание ≤2 строки, клик — новая вкладка
+(noopener); pending — скелетон ФИКСИРОВАННОЙ высоты (дозревание без
+сдвига макета), failed/blocked — заглушка из домена. Дозревание фоном:
+WS `chat.link_preview_ready` патчит `linkPreview` сообщения в кэше на
+месте (`ws-apply.applyLinkPreviewEvent`, без рефетча) + окно витрины.
+Витрина «Ссылки» (#211): `VaultLinkCard` рендерит заголовок/миниатюру
+готового превью (`preview` в DTO), фолбэк — прежний вид адреса.

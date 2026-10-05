@@ -37,6 +37,7 @@ const msg = (overrides: Partial<ChatMessage> = {}): ChatMessage => ({
   ],
   urgent: false,
   mentionedUserIds: [],
+  linkPreview: null,
   createdAt: '2026-09-25T09:00:00.000Z',
   ...overrides,
 });
