@@ -45,8 +45,11 @@ export class LinkPreviewQueue implements OnModuleDestroy {
         jobId: previewJobId(job.normalizedUrl),
         attempts: 3,
         backoff: { type: 'exponential', delay: 5000 },
-        removeOnComplete: 1000,
-        removeOnFail: 1000,
+        // Завершённые НЕ ретеншнятся (code-ревью): стабильный jobId +
+        // ретеншен дедупили бы повторную постановку навсегда — expired кэш
+        // не смог бы перегреться. Дедуп — только in-flight задачи.
+        removeOnComplete: true,
+        removeOnFail: 100,
       });
     } catch (error) {
       this.logger.warn(

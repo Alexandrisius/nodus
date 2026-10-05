@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { LinkpeekError } from 'linkpeek';
 
-const { previewMock } = vi.hoisted(() => ({ previewMock: vi.fn() }));
+const { previewMock, guardedFetchMock } = vi.hoisted(() => ({
+  previewMock: vi.fn(),
+  guardedFetchMock: vi.fn(),
+}));
 vi.mock('linkpeek', () => ({
   preview: previewMock,
   LinkpeekError: class LinkpeekError extends Error {
@@ -10,6 +13,12 @@ vi.mock('linkpeek', () => ({
     }
   },
   validateUrl: vi.fn(),
+}));
+vi.mock('./safe-fetch.js', () => ({
+  SsrfBlockedError: class SsrfBlockedError extends Error {},
+  ssrfGuardedFetch: guardedFetchMock,
+  ssrfGuardedAgent: vi.fn(() => ({})),
+  disposeSsrfAgent: vi.fn(async () => undefined),
 }));
 
 import { LinkPreviewService } from './link-preview.service.js';
@@ -57,13 +66,18 @@ beforeEach(() => {
   previewMock.mockReset();
 });
 
-// 1×1 прозрачный PNG: sharp-дериват в юнит-окружении без сети.
+// 1×1 прозрачный PNG: sharp-дериват в юнит-окружении без сети (картинка
+// качается через ssrfGuardedFetch — замокан выше).
 const PNG_1PX = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
   'base64',
 );
-const fetchMock = vi.fn(async () => new Response(new Uint8Array(PNG_1PX), { status: 200 }));
-vi.stubGlobal('fetch', fetchMock);
+beforeEach(() => {
+  guardedFetchMock.mockReset();
+  guardedFetchMock.mockImplementation(
+    async () => new Response(new Uint8Array(PNG_1PX), { status: 200 }),
+  );
+});
 
 function cacheRow(status: string, over: Record<string, unknown> = {}) {
   return {

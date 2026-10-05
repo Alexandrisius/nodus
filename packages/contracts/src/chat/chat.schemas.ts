@@ -165,9 +165,10 @@ export const linkPreviewSchema = z.object({
   siteName: z.string().nullable(),
   title: z.string().nullable(),
   description: z.string().nullable(),
-  /** Подписная ссылка og:image-деривата (SILO, ≤640px webp); null — без
-   *  картинки (текстовая карточка). */
-  imageUrl: z.url().nullable(),
+  /** Подписная ссылка og:image-деривата (SILO, ≤640px webp) — ОТНОСИТЕЛЬНЫЙ
+   *  путь `/api/v1/files/…?exp=&sig=` (тот же формат, что у вложений);
+   *  null — без картинки (текстовая карточка). */
+  imageUrl: z.string().nullable(),
   status: z.enum(['pending', 'ready', 'failed', 'blocked']),
 });
 export type LinkPreview = z.infer<typeof linkPreviewSchema>;
