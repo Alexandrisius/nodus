@@ -295,9 +295,6 @@ export const ChatMessageItem = memo(function ChatMessageItem({
             {message.attachments.length > 0 ? (
               <MessageAttachments message={message} mine={mine} />
             ) : null}
-            {/* Карточка-цитата первой ссылки (#212): после вложений, над
-                текстом; дозревает фоном (WS), скелетон без сдвига макета. */}
-            <MessageLinkPreview text={message.text} preview={message.linkPreview} />
             {/* Текст + мета: MetaGhost (призрак в потоке — ширина карточки
                 всегда вмещает метку) + MetaPin (абсолют — ребёнок ПУЗЫРЯ:
                 стабильные 8px от низа / 12.5px справа, как у рядов реакций,
@@ -326,6 +323,11 @@ export const ChatMessageItem = memo(function ChatMessageItem({
                 </span>
               ) : null}
             </span>
+            {/* Карточка-цитата первой ссылки (#212): ПОД текстом — сначала
+                сообщение, затем доп-контекст (канон Telegram/Slack: превью
+                «just below the message»); дозревает фоном (WS), скелетон
+                без сдвига макета. */}
+            <MessageLinkPreview text={message.text} preview={message.linkPreview} />
             {hasReactionsRow ? (
               <span className="flex items-end gap-2">
                 {reactionsRow ?? <MessageReactions message={message} onFilled={mine} />}

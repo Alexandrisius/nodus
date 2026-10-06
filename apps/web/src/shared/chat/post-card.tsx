@@ -253,8 +253,6 @@ export function PostCard({
                     : 'pt-[7px]',
               )}
             >
-              {/* Карточка первой ссылки над текстом (#212). */}
-              <MessageLinkPreview text={message.text} preview={message.linkPreview} />
               <MessageText text={message.text} />
               {message.reactions.length > 0 || entityRow ? null : (
                 <MetaGhost message={message} mine={mine} onFilled={surface.onFilled} />
@@ -264,6 +262,9 @@ export function PostCard({
                   <MessageMeta message={message} onFilled={surface.onFilled} ticks={mine} />
                 </span>
               ) : null}
+              {/* Карточка первой ссылки ПОД текстом (#212, канон Telegram/
+                  Slack — превью «just below the message»). */}
+              <MessageLinkPreview text={message.text} preview={message.linkPreview} />
               {message.reactions.length > 0 || entityRow ? null : (
                 <MetaPin
                   message={message}

@@ -539,3 +539,31 @@ describe('Медиа-пузырь Telegram (#187): изображение = ча
     expect(content.className).toContain('pt-2.5');
   });
 });
+
+describe('ChatMessageItem — карточка превью ссылки ПОД текстом (#212 ревизия)', () => {
+  it('порядок DOM: текст сообщения выше карточки превью', () => {
+    const { container } = renderMessage(
+      <ChatMessageItem
+        message={message({
+          text: 'посмотри https://example.com/spec',
+          linkPreview: {
+            status: 'ready',
+            siteName: 'example.com',
+            title: 'Спека',
+            description: null,
+            imageUrl: null,
+          },
+        })}
+        mine={false}
+      />,
+    );
+    const content = container.querySelector('[data-slot="bubble-content"]')!;
+    const text = Array.from(content.querySelectorAll('[data-slot="message-text"]'))[0]!;
+    const card = content.querySelector(
+      'a[aria-label*="превью"], a[title="https://example.com/spec"]',
+    );
+    expect(card).not.toBeNull();
+    // compareDocumentPosition: text должен идти РАНЬШЕ карточки (preceding)
+    expect(!!(text.compareDocumentPosition(card!) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+  });
+});

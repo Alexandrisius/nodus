@@ -4,13 +4,13 @@ import { ui } from '@nodus/contracts';
 import { cn } from '@nodus/ui/lib/utils';
 
 /**
- * Карточка-цитата превью ссылки (#212): «верхней цитатой» над текстом
- * пузыря (после вложений), модель Telegram — картинка сверху, затем
- * домен/заголовок/описание ≤2 строки; клик — новая вкладка (noopener).
- * pending — скелетон ФИКСИРОВАННОЙ высоты текстовой части (нулевой сдвиг
- * макета при дозревании, спека); failed/blocked — заглушка из домена.
- * Геометрия — по канону медиа-пузыря #187: радиус меньше пузырёвого,
- * max-w по контенту (пол 240dp не нужен — карточка уже шире).
+ * Карточка-цитата превью ссылки (#212): ПОД текстом пузыря (канон
+ * Telegram/Slack — сначала сообщение, затем доп-контекст), модель
+ * Telegram — картинка сверху, затем домен/заголовок/описание ≤2 строки;
+ * клик — новая вкладка (noopener). pending — скелетон ФИКСИРОВАННОЙ
+ * высоты текстовой части (нулевой сдвиг макета при дозревании, спека);
+ * failed/blocked — заглушка из домена. Геометрия — по канону
+ * медиа-пузыря #187: радиус меньше пузырёвого, max-w по контенту.
  */
 
 function SkeletonLine({ wide }: { wide?: boolean }) {
@@ -60,7 +60,7 @@ export const LinkPreviewCard = memo(function LinkPreviewCard({
       aria-label={ui.chat.linkPreviewOpen}
       title={url}
       className={cn(
-        'mb-1.5 flex max-w-full flex-col overflow-hidden rounded-lg no-underline',
+        'mt-1 flex max-w-full flex-col overflow-hidden rounded-lg no-underline',
         'bg-muted/60 transition-colors hover:bg-muted',
       )}
     >
@@ -82,7 +82,31 @@ export const LinkPreviewCard = memo(function LinkPreviewCard({
 export function firstHttpUrl(text: string): string | null {
   const match = text.match(/https?:\/\/\S+/);
   if (!match) return null;
-  return match[0].replace(/[.,;:!?)]}'>"]+$/, '');
+  return match[0].replace(/[.,;:!?)\]}'>"]+$/, '');
+}
+
+/** Кусок обычного текста либо http(s)-ссылка (автолинк #212 ревизия:
+ *  ссылка в пузыре — классический гипертекст, как в Telegram/Битрикс). */
+type UrlSegment = { kind: 'text'; value: string } | { kind: 'url'; url: string };
+
+/** Разбить текст на куски «текст / http(s)-ссылка» с тем же правилом
+ *  хвостовой пунктуации, что firstHttpUrl (единый канон). Внимание:
+ *  `\]` в классе обязателен — голый `]` закрывает класс раньше и трим
+ *  молча перестаёт работать (баг находка ревизии #212). */
+export function httpUrlSegments(text: string): UrlSegment[] {
+  const out: UrlSegment[] = [];
+  let rest = text;
+  for (;;) {
+    const match = rest.match(/https?:\/\/\S+/);
+    if (!match || match.index === undefined) break;
+    const trimmed = match[0].replace(/[.,;:!?)\]}'>"]+$/, '');
+    if (trimmed.length === 0) break;
+    if (match.index > 0) out.push({ kind: 'text', value: rest.slice(0, match.index) });
+    out.push({ kind: 'url', url: trimmed });
+    rest = rest.slice(match.index + trimmed.length);
+  }
+  if (rest.length > 0 || out.length === 0) out.push({ kind: 'text', value: rest });
+  return out;
 }
 
 function hostOf(url: string): string {
@@ -93,8 +117,8 @@ function hostOf(url: string): string {
   }
 }
 
-/** Точка вставки в пузырь (#212): карточка первой ссылки НАД текстом (после
- *  вложений), null-превью = скелетон (конвейер фоновый, WS дозреет). */
+/** Точка вставки в пузырь (#212): карточка первой ссылки ПОД текстом,
+ *  null-превью = скелетон (конвейер фоновый, WS дозреет). */
 export function MessageLinkPreview({
   text,
   preview,

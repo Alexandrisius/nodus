@@ -148,10 +148,11 @@ export const messageSchema = z.object({
   /** Упомянутые @Имя (userId, зафиксированы при отправке, #100): fanout
    *  уведомлений без разбора текста; правка упоминания не добавляет. */
   mentionedUserIds: z.array(z.uuid()),
-  /** Превью ПЕРВОЙ ссылки сообщения (#212): карточка-цитата над текстом
-   *  (домен/заголовок/описание/картинка), дозревает фоном (WS
-   *  chat.link_preview_ready). null — ссылок нет/надгробие; pending —
-   *  скелетон; failed/blocked — заглушка из домена. */
+  /** Превью ПЕРВОЙ ссылки сообщения (#212): карточка-цитата ПОД текстом
+   *  (домен/заголовок/описание/картинка; канон Telegram/Slack — превью
+   *  ниже сообщения), дозревает фоном (WS chat.link_preview_ready).
+   *  null — ссылок нет/надгробие; pending — скелетон; failed/blocked —
+   *  заглушка из домена. */
   linkPreview: z.lazy(() => linkPreviewSchema).nullable(),
   createdAt: z.iso.datetime(),
 });

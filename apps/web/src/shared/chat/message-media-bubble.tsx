@@ -200,8 +200,6 @@ export function MediaMessage({
           >
             {hasText ? (
               <span className="block">
-                {/* Карточка первой ссылки над текстом (#212). */}
-                <MessageLinkPreview text={message.text} preview={message.linkPreview} />
                 <MessageText text={message.text} />
                 {hasReactionsRow || entityRow ? null : (
                   <MetaGhost message={message} mine={mine} noReceipts={receiptsHidden} />
@@ -216,6 +214,8 @@ export function MediaMessage({
                     />
                   </span>
                 ) : null}
+                {/* Карточка первой ссылки ПОД подписью (#212, канон Telegram). */}
+                <MessageLinkPreview text={message.text} preview={message.linkPreview} />
               </span>
             ) : null}
             {hasReactionsRow ? (
