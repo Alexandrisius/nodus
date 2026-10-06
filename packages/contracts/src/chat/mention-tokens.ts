@@ -47,18 +47,43 @@ export function parseMentionSegments(text: string): MentionSegment[] {
 }
 
 /** Уникальные userId упомянутых в порядке появления (дедуп, лимит
- *  MENTION_TOKENS_MAX) — серверный снапшот mentionedUserIds. */
+ *  MENTION_TOKENS_MAX) — серверный снапшот mentionedUserIds. Сентинел
+ *  «все» не вытесняется лимитом: 20 индивидуальных токенов до него не
+ *  обязаны гасить общий пинг (security-ревью #224). */
 export function extractMentionIds(text: string): string[] {
-  const ids: string[] = [];
+  const all: string[] = [];
   const seen = new Set<string>();
   for (const match of text.matchAll(MENTION_TOKEN_RE)) {
     const id = match[2]!.toLowerCase();
     if (seen.has(id)) continue;
     seen.add(id);
-    ids.push(id);
-    if (ids.length >= MENTION_TOKENS_MAX) break;
+    all.push(id);
   }
-  return ids;
+  // Сентинел первым, индивидуальные — капом; вход ограничен (текст ≤4000),
+  // полный скан дешевле ветвления: сентинел в конце не вытесняется лимитом.
+  const sentinel = all.filter((id) => id === MENTION_ALL_ID);
+  const individual = all.filter((id) => id !== MENTION_ALL_ID).slice(0, MENTION_TOKENS_MAX);
+  return [...sentinel, ...individual];
+}
+
+/** Обрезка текста с токенами упоминаний БЕЗ разрезания токена (#224):
+ *  срез идёт по границам сегментов — цитата-ответ/снапшот никогда не
+ *  хранят огрызок `@[Имя](user:4242-…`; текстовый кусок режется свободно
+ *  (токенов внутри него нет по построению парсера). */
+export function truncateMentionText(text: string, max: number): string {
+  if (text.length <= max) return text;
+  let out = '';
+  for (const segment of parseMentionSegments(text)) {
+    const raw =
+      segment.kind === 'mention' ? buildMentionToken(segment.label, segment.id) : segment.value;
+    if (out.length + raw.length > max) {
+      if (segment.kind === 'text' && out.length < max)
+        out += segment.value.slice(0, max - out.length);
+      break;
+    }
+    out += raw;
+  }
+  return out;
 }
 
 /** Разворот токенов в отображаемый текст (копирование сообщения, сниппеты

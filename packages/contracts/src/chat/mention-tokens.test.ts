@@ -6,6 +6,7 @@ import {
   extractMentionIds,
   parseMentionSegments,
   stripMentionTokens,
+  truncateMentionText,
 } from './mention-tokens.js';
 
 const UUID_A = '11111111-1111-4111-8111-111111111111';
@@ -128,10 +129,10 @@ describe('упоминание «Все» (#224, сентинел user:all)', ()
     ]);
   });
 
-  it('extractMentionIds отдаёт all среди id (сервер резолвит отдельно)', () => {
+  it('extractMentionIds отдаёт all первым (сервер резолвит отдельно)', () => {
     expect(extractMentionIds(`@[Борис](user:${UUID_A}) и @[Все](user:all)`)).toEqual([
-      UUID_A,
       'all',
+      UUID_A,
     ]);
   });
 
@@ -140,6 +141,27 @@ describe('упоминание «Все» (#224, сентинел user:all)', ()
     const token = buildMentionToken('Все', 'all');
     expect(token).toBe('@[Все](user:all)');
     expect(parseMentionSegments(token)).toEqual([{ kind: 'mention', id: 'all', label: 'Все' }]);
+  });
+
+  it('extractMentionIds: сентинел «все» не вытесняется лимитом 20 (#224)', () => {
+    // 20 индивидуальных токенов ДО «Все» — сентинел обязан выжить
+    const many = Array.from(
+      { length: 21 },
+      (_, i) => `@[Ч${i}](user:11111111-1111-4111-8111-1111111111${String(i).padStart(2, '0')})`,
+    ).join(' ');
+    const ids = extractMentionIds(`${many} @[Все](user:all)`);
+    expect(ids[0]).toBe('all');
+  });
+
+  it('truncateMentionText: срез не режет токен — цитаты без огрызков (#224)', () => {
+    const text = `длинное начало ${`@[Борис Ночной](user:${UUID_A})`} и хвост сообщения`;
+    const cut = truncateMentionText(text, 20);
+    // в результате нет ни одного незакрытого огрызка разметки
+    expect(cut).not.toMatch(/@\[/);
+    expect(parseMentionSegments(cut).every((seg) => seg.kind === 'text')).toBe(true);
+    // короткий текст с токеном проходит ЦЕЛИКОМ (токен влезает — сохранён)
+    const short = `@[Яс](user:${UUID_A}) ок`;
+    expect(truncateMentionText(short, 100)).toBe(short);
   });
 
   it('all не матчится как часть другого слова/uuid-подобного хвоста', () => {
