@@ -1,5 +1,6 @@
 import { chromium } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 /**
  * Разовые скриншоты ревизии #212: автолинк-гипертекст в пузыре + карточка
@@ -9,7 +10,7 @@ import { mkdirSync } from 'node:fs';
  */
 const base = (process.env.NODUS_BASE_URL ?? 'http://127.0.0.1:4173').replace(/\/$/, '');
 // От корня репо (не от cwd запуска): live-stack-каталог канонический
-const out = new URL('../../.live-stack/shots/212-fix/', import.meta.url).pathname;
+const out = fileURLToPath(new URL('../../.live-stack/shots/212-fix/', import.meta.url));
 mkdirSync(out, { recursive: true });
 
 const PEER_NAME = 'Борис Ночной';
