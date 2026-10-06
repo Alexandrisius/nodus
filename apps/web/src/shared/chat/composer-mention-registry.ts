@@ -6,13 +6,14 @@ import {
 } from '@nodus/contracts';
 
 /**
- * Реестр упоминаний ЧЕРНОВИКА (#228, ревизия модели #176/#224): в поле
- * композера лежит ВИДИМЫЙ текст (`@Анна Ночная`), а не сырой токен —
- * каретка/клики/выделение нативны и совпадают с картинкой (прошлая модель
- * прятала 44-символьный хвост `](user:uuid)` в поле: текст после чипа
- * рендерился за сотни пикселей, каретка-картинка врала). Привязка id живёт
- * ЗДЕСЬ — диапазонами по display-тексту; wire-токены пересобираются на
- * отправке (сервер не менялся).
+ * Реестр упоминаний ЧЕРНОВИКА (#228, ревизии #176/#224 + dev-фидбек 06.10):
+ * в поле композера лежит ВИДИМЫЙ текст — просто ИМЯ сотрудника (без `@`,
+ * без разметки токена): каретка/клики/выделение нативны и совпадают с
+ * картинкой. Чип в поле — подчёркнутый персональный тон (заливка-пилюля
+ * только в пузыре после отправки, канон Slack/Telegram; dev-фидбек: пилюля
+ * в поле «касалась» набираемого текста). Привязка id живёт ЗДЕСЬ —
+ * диапазонами по display-тексту; wire-токены `@[имя](user:id)`
+ * пересобираются на отправке (сервер не менялся).
  *
  * Всё чистые функции — unit-тесты без React; правки текста сводятся к
  * префикс/суффикс-диффу: диапазоны до правки стабильны, после — сдвиг,
@@ -88,9 +89,9 @@ export function applyEditToMentions(
   return out;
 }
 
-/** Вставка чипа автокомплитом: заменяет «@запрос» на `@label` + пробел,
- * регистрирует диапазон, прочие — по диффу. Каретка — за пробелом
- * (НАСТОЯЩАЯ позиция строки — нативная каретка там, где текст). */
+/** Вставка чипа автокомплитом: заменяет «@запрос» на ИМЯ + пробел
+ * (без «@» — dev-фидбек 06.10), регистрирует диапазон, прочие — по диффу.
+ * Каретка — за пробелом (НАСТОЯЩАЯ позиция строки — нативная). */
 export function insertMentionDraft(
   text: string,
   mentions: DraftMention[],
@@ -102,7 +103,9 @@ export function insertMentionDraft(
   const label = cleanLabel(rawLabel);
   if (label.length === 0) return null;
   if (mentions.length >= MENTION_TOKENS_MAX) return null;
-  const display = `@${label}`;
+  // Display = просто имя (без «@»: чип-подчёркивание сам сигналит тэг,
+  // dev-фидбек 06.10) + пробел — честный зазор текста после чипа.
+  const display = label;
   const next = `${text.slice(0, atStart)}${display} ${text.slice(atEnd)}`;
   const shifted = applyEditToMentions(mentions, text, next);
   return {
@@ -124,7 +127,7 @@ export function replaceMentionLabelDraft(
   const label = cleanLabel(rawLabel);
   const m = mentions[index];
   if (!m || label.length === 0) return null;
-  const display = `@${label}`;
+  const display = label;
   const next = `${text.slice(0, m.start)}${display}${text.slice(m.end)}`;
   const delta = display.length - (m.end - m.start);
   const others = mentions
@@ -205,14 +208,13 @@ export function fromWireText(text: string): { text: string; mentions: DraftMenti
       display += segment.value;
       continue;
     }
-    const label = `@${segment.label}`;
     mentions.push({
       start: display.length,
-      end: display.length + label.length,
+      end: display.length + segment.label.length,
       id: segment.id === MENTION_ALL_ID ? MENTION_ALL_ID : segment.id,
       label: segment.label,
     });
-    display += label;
+    display += segment.label;
   }
   return { text: display, mentions };
 }

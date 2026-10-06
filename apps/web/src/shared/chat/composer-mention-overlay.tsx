@@ -4,18 +4,21 @@ import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import { cn } from '@nodus/ui/lib/utils';
 
-import { personTone, personToneVar } from '../ui/person-tone.js';
+import { personTone } from '../ui/person-tone.js';
 import type { DraftMention } from './composer-mention-registry.js';
 
 /**
- * Оверлей @упоминаний поля композера (#176, модель #228): зеркальный слой
- * ПОД textarea рендерит ВИДИМЫЙ текст (`@Имя` — в поле лежит display-текст,
- * не сырой токен) и подсвечивает диапазоны реестра пилюлями. Метрика
- * зеркала 1:1 с полем (тот же текст!) — НАТИВНАЯ каретка видима и стоит
- * там, где ввод (канон react-mentions/css-tricks). «Все» — нейтральный тон.
+ * Оверлей @упоминаний поля композера (#176, модель #228 + dev-фидбек 06.10):
+ * зеркальный слой ПОД textarea рендерит ВИДИМЫЙ текст (в поле лежит просто
+ * ИМЯ сотрудника — без «@» и без разметки токена) и подчёркивает диапазоны
+ * реестра персональным тоном. Метрика зеркала 1:1 с полем (тот же текст,
+ * ноль компенсаций) — НАТИВНАЯ каретка видима и стоит там, где ввод (канон
+ * react-mentions/css-tricks). Заливка-пилюля — только в ПУЗЫРЕ после
+ * отправки («как делают все»: Telegram/Slack; пилюля в поле «касалась»
+ * набираемого текста — dev-фидбек). «Все» — нейтральный тон.
  *
- * Клик по пилюле (каретка попадает в диапазон) открывает поповер правки
- * отображаемого текста: ✓ применить / ✕ отмена / 🗑 удалить чип целиком;
+ * Клик по подчёркнутому имени (каретка попадает в диапазон) открывает
+ * КОМПАКТНЫЙ поповер правки (без заголовка, dev-фидбек): ✓/✕/🗑;
  * привязка по id не меняется (операции — реестр стора черновика).
  */
 
@@ -39,20 +42,19 @@ function renderSegments(text: string, mentions: DraftMention[]): ReactNode[] {
   return parts;
 }
 
-/** Пилюля чипа: тинт по id, поля px-1 скомпенсированы -mx-1 — метрика
- *  зеркала не расходится с полем (каретка честная). */
+/** Чип в поле: ИМЯ персонального тона с мягким точечным подчёркиванием —
+ *  без «@», без заливки и без полей (метрика зеркала = поле без компенсаций;
+ *  зазор после чипа — честный пробел текста). Заливка — в пузыре отправки. */
 function Pill({ mention }: { mention: DraftMention }) {
   const tone = mention.id === 'all' ? 'text-foreground' : personTone(mention.id);
-  const tint =
-    mention.id === 'all'
-      ? 'color-mix(in oklch, var(--foreground) 12%, transparent)'
-      : `color-mix(in oklch, ${personToneVar(mention.id)} 12%, transparent)`;
   return (
     <span
-      style={{ backgroundColor: tint }}
-      className={cn('-mx-1 rounded-md px-1 font-medium', tone)}
+      className={cn(
+        'font-medium underline decoration-dotted decoration-from-font underline-offset-[3px]',
+        tone,
+      )}
     >
-      {`@${mention.label}`}
+      {mention.label}
     </span>
   );
 }
@@ -149,11 +151,8 @@ export function MentionFieldOverlay({
         <span
           role="dialog"
           aria-label={ui.chat.mentionEditText}
-          className="absolute bottom-full left-0 z-30 mb-1.5 flex w-max max-w-full items-center gap-1 rounded-xl border border-border bg-popover p-1.5 pl-2.5 shadow-sm"
+          className="absolute bottom-full left-0 z-30 mb-3 flex w-max max-w-full items-center gap-1 rounded-xl border border-border bg-popover p-1.5 shadow-sm"
         >
-          <span className="w-32 shrink-0 text-xs text-muted-foreground">
-            {ui.chat.mentionEditText}
-          </span>
           <input
             ref={inputRef}
             value={draftLabel}

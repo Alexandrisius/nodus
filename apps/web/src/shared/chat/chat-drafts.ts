@@ -9,6 +9,7 @@ import {
   insertMentionDraft,
   removeMentionDraft,
   replaceMentionLabelDraft,
+  toWireText,
   type DraftMention,
 } from './composer-mention-registry.js';
 import { replyDraftFrom, type ReplyDraft } from './reply-snapshot.js';
@@ -50,8 +51,8 @@ export interface EditDraft {
 }
 
 export interface ChatDraft {
-  /** ВИДИМЫЙ текст поля (#228): `@Имя`, не сырой токен — каретка/клики
-   *  нативны; wire-токены пересобираются на отправке (registry). */
+  /** ВИДИМЫЙ текст поля (#228): просто ИМЯ сотрудника в месте чипа —
+   *  каретка/клики нативны; wire-токены пересобираются на отправке. */
   text: string;
   /** Привязки чипов-упоминаний к диапазонам display-текста (#228). */
   mentions: DraftMention[];
@@ -361,18 +362,31 @@ export const useChatDrafts = create<DraftsState>()(
           ]),
         ),
       }),
-      version: 2,
-      // v1 → v2 (#228): персист хранил СЫРОЙ текст с токенами — миграция
-      // разбирает его в display + реестр упоминаний.
+      version: 3,
+      // Миграции (#228): v1 хранил СЫРОЙ текст с токенами; v2 — display с
+      // «@Имя». v3 — display без «@» (dev-фидбек 06.10): старый черновик
+      // проходит roundtrip wire→display, «@» срезается, диапазоны честные.
       migrate: (persisted, version) => {
-        if (version >= 2) return persisted as never;
-        const state = persisted as { drafts?: Record<string, Record<string, unknown>> };
+        if (version >= 3) return persisted as never;
+        const state = persisted as {
+          drafts?: Record<
+            string,
+            { text?: string; mentions?: DraftMention[] } & Record<string, unknown>
+          >;
+        };
+        const roundtrip = (text: string, mentions: DraftMention[] | undefined) =>
+          fromWireText(toWireText(text, mentions ?? []));
         const drafts = Object.fromEntries(
           Object.entries(state.drafts ?? {}).map(([key, d]) => {
-            const parsed = fromWireText(typeof d.text === 'string' ? d.text : '');
+            const parsed = roundtrip(typeof d.text === 'string' ? d.text : '', d.mentions);
             return [
               key,
-              { ...d, text: parsed.text, mentions: parsed.mentions, preEditMentions: null },
+              {
+                ...d,
+                text: parsed.text,
+                mentions: parsed.mentions,
+                preEditMentions: null,
+              },
             ];
           }),
         );

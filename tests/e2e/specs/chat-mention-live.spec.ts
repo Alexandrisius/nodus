@@ -190,7 +190,7 @@ test.describe('живое упоминание-чип (#176)', () => {
     await field.press('Enter');
 
     // Чип «Все» в поле — ВИДИМЫЙ текст (#228) + отправка пересоберёт токен
-    await expect(field).toHaveValue('@Все ');
+    await expect(field).toHaveValue('Все ');
     await field.press('Enter');
     await page.waitForTimeout(400);
 
@@ -215,9 +215,9 @@ test.describe('живое упоминание-чип (#176)', () => {
     await field.click();
     await field.pressSequentially('@вс', { delay: 40 });
     await field.press('Enter'); // чип вставлен, каретка за пробелом (нативная)
-    await expect(field).toHaveValue('@Все ');
+    await expect(field).toHaveValue('Все ');
     await field.press('Backspace'); // пробел
-    await expect(field).toHaveValue('@Все');
+    await expect(field).toHaveValue('Все');
     await field.press('Backspace'); // чип целиком (реестр) — поле пусто
     await expect(field).toHaveValue('');
     expect(await field.evaluate((el: HTMLTextAreaElement) => el.selectionStart)).toBe(0);
