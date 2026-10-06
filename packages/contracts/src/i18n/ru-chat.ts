@@ -71,6 +71,10 @@ export const chatStrings = {
   convMenuHide: 'Скрыть',
   photoPrev: 'Предыдущее фото',
   photoNext: 'Следующее фото',
+  /** Лайтбокс (#221): индикация загрузки оригинала поверх миниатюры. */
+  lightboxLoading: 'Загружается оригинал',
+  lightboxLoadError: 'Не удалось загрузить оригинал',
+  lightboxRetry: 'Повторить',
   aboutChat: 'О чате',
   aboutChannel: 'О канале',
   aboutProject: 'О проекте',
