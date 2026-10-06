@@ -48,7 +48,16 @@ function mountComposer() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   apiMock.mockImplementation((url: string) => {
     if (String(url).includes('/members')) {
-      return Promise.resolve({ items: [{ user: { id: USER_A, displayName: 'Анна Первая', avatarUrl: null }, role: 'member', joinedAt: '2026-01-01T00:00:00Z' }], nextCursor: null });
+      return Promise.resolve({
+        items: [
+          {
+            user: { id: USER_A, displayName: 'Анна Первая', avatarUrl: null },
+            role: 'member',
+            joinedAt: '2026-01-01T00:00:00Z',
+          },
+        ],
+        nextCursor: null,
+      });
     }
     return Promise.resolve(userPage());
   });

@@ -382,4 +382,6 @@ export const chatStrings = {
   mentionApply: 'Применить',
   mentionCancel: 'Отмена',
   mentionRemove: 'Удалить упоминание',
+  /** Превью ссылок (#212): карточка-цитата первой ссылки сообщения. */
+  linkPreviewOpen: 'Открыть ссылку',
 } as const;

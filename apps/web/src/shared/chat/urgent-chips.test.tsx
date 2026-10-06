@@ -35,6 +35,7 @@ function makeMessage(overrides: Partial<ChatMessage> = {}): ChatMessage {
     readBy: [],
     urgent: true,
     mentionedUserIds: [],
+    linkPreview: null,
     createdAt: '2026-10-05T10:00:00Z',
     ...overrides,
   };

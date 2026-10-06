@@ -16,6 +16,7 @@ import { ForwardedHeader, ReplyHeader } from './message-headers.js';
 import { MessageReactions } from './message-reactions.js';
 import { MessageMeta } from './message-meta.js';
 import { MessageText } from './message-text.js';
+import { MessageLinkPreview } from './link-preview-card.js';
 import { ReactionPicker } from './reaction-picker.js';
 import { stickerAttachmentOf, StickerMessageView } from './sticker-message.js';
 import { TombstoneBubble } from './tombstone.js';
@@ -322,6 +323,11 @@ export const ChatMessageItem = memo(function ChatMessageItem({
                 </span>
               ) : null}
             </span>
+            {/* Карточка-цитата первой ссылки (#212): ПОД текстом — сначала
+                сообщение, затем доп-контекст (канон Telegram/Slack: превью
+                «just below the message»); дозревает фоном (WS), скелетон
+                без сдвига макета. */}
+            <MessageLinkPreview text={message.text} preview={message.linkPreview} />
             {hasReactionsRow ? (
               <span className="flex items-end gap-2">
                 {reactionsRow ?? <MessageReactions message={message} onFilled={mine} />}

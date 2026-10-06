@@ -180,6 +180,7 @@ function VaultWindowBody({
                     <VaultLinkCard
                       key={`${item.messageId}:${item.url}`}
                       url={item.url}
+                      preview={item.preview}
                       author={item.author.displayName}
                       createdAt={item.createdAt}
                       conversationId={conversationId}

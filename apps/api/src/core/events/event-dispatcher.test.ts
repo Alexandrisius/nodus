@@ -33,7 +33,7 @@ function createDispatcher(options: { delivered?: boolean; handlerError?: Error }
   const txRunner = { run: vi.fn((fn: (tx: TransactionClient) => Promise<void>) => fn(tx)) };
   const prisma = { event: { findMany: vi.fn().mockResolvedValue([EVENT]) } };
   const discovery = { getProviders: () => [{ instance: handler }] };
-  const logger = { setContext: vi.fn(), error: vi.fn(), warn: vi.fn() };
+  const logger = { setContext: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() };
   const dispatcher = new EventDispatcher(
     prisma as unknown as PrismaService,
     txRunner as unknown as TransactionRunner,
@@ -72,5 +72,68 @@ describe('EventDispatcher', () => {
     await dispatcher.dispatchPending();
     expect(tx.event.update).not.toHaveBeenCalled();
     expect(logger.error).toHaveBeenCalledOnce();
+  });
+
+  it('P2025 на tx (строку события удалили конкурентно) — тихий скип, без retry-шума', async () => {
+    const { dispatcher: d2, logger: log2, txRunner } = createDispatcher();
+    const p2025 = Object.assign(new Error('No record was found for an update.'), {
+      code: 'P2025',
+    });
+    txRunner.run.mockRejectedValue(p2025);
+    await d2.dispatchPending();
+    expect(log2.error).not.toHaveBeenCalled();
+    expect(log2.debug).toHaveBeenCalled();
+  });
+
+  it('конкурентный вызов ДОЖИДАЕТСЯ in-flight прохода и делает свой (не no-op)', async () => {
+    // Фоновый тик диспетчера держит проход (медленный хендлер #212),
+    // тестовый dispatchPending приходит поверх — обязан дождаться и
+    // увидеть результат, а не вернуться «пустым» до записи хендлера.
+    const handler = new TestHandler();
+    let release: () => void = () => {};
+    const gate = new Promise<void>((r) => {
+      release = r;
+    });
+    handler.handle.mockImplementation(async () => {
+      await gate;
+    });
+    const tx = {
+      eventDelivery: { findUnique: vi.fn().mockResolvedValue(null), create: vi.fn() },
+      event: { update: vi.fn().mockResolvedValue({}) },
+    } as unknown as TransactionClient;
+    const txRunner = { run: vi.fn((fn: (tx: TransactionClient) => Promise<void>) => fn(tx)) };
+    let findManyCalls = 0;
+    const prisma = {
+      event: {
+        findMany: vi.fn().mockImplementation(async () => {
+          findManyCalls += 1;
+          return findManyCalls === 1 ? [EVENT] : [];
+        }),
+      },
+    };
+    const discovery = { getProviders: () => [{ instance: handler }] };
+    const logger = { setContext: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() };
+    const dispatcher = new EventDispatcher(
+      prisma as unknown as PrismaService,
+      txRunner as unknown as TransactionRunner,
+      discovery as never,
+      logger as never,
+    );
+    dispatcher.onModuleInit(); // регистрация хендлеров
+    dispatcher.onModuleDestroy();
+
+    const background = dispatcher.dispatchPending(); // «тикер» начал проход
+    await vi.waitFor(() => expect(handler.handle).toHaveBeenCalled()); // проход внутри хендла
+    const foreground = dispatcher.dispatchPending(); // тестовый вызов поверх
+    release(); // хендлер фонового прохода отпущен
+    await Promise.all([background, foreground]);
+
+    // Свой проход после чужого — на старом булевом гварде foreground был
+    // no-op (findManyCalls остался бы 1) — именно та гонка CI.
+    expect(findManyCalls).toBe(2);
+    expect(tx.event.update).toHaveBeenCalledWith({
+      where: { id: 'e1' },
+      data: { publishedAt: expect.any(Date) },
+    });
   });
 });

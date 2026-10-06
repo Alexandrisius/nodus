@@ -17,6 +17,8 @@ import { SignedUrlService } from '../../../core/crypto/signed-url.service.js';
 import { DomainException } from '../../../core/errors/domain-exception.js';
 import { ConversationsRepository } from '../conversations/conversations.repository.js';
 import { toAttachmentDto } from '../messages/message-dto.mapper.js';
+import { LinkPreviewService } from '../link-previews/link-preview.service.js';
+import { normalizeUrl } from '../link-previews/url-normalize.js';
 import { VaultRepository } from './vault.repository.js';
 
 /** Курсор витрины: seq сообщения + положение внутри него (sort_order
@@ -35,6 +37,7 @@ export class VaultService {
     private readonly conversations: ConversationsRepository,
     @Inject(USER_PROFILE_READER) private readonly userProfiles: UserProfileReader,
     private readonly signedUrls: SignedUrlService,
+    private readonly linkPreviews: LinkPreviewService,
   ) {}
 
   /** Страница секции витрины + счётчики всех типов (сводка панели). */
@@ -61,6 +64,8 @@ export class VaultService {
         cursor,
       );
       const authors = await this.authorRefs(new Set(rows.map((row) => row.authorId)));
+      // Обогащение страницы превью (#212): один батч-запрос кэша по URL.
+      const previews = await this.linkPreviews.previewsForUrls(rows.map((row) => row.url));
       const items: VaultItem[] = rows.map((row) => ({
         type: 'link' as const,
         messageId: row.messageId,
@@ -69,6 +74,7 @@ export class VaultService {
         author: this.authorRef(authors, row.authorId),
         createdAt: row.messageCreatedAt.toISOString(),
         url: row.url,
+        preview: previews.get(normalizeUrl(row.url) ?? '') ?? null,
       }));
       return {
         items,

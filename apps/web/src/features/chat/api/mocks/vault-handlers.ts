@@ -140,6 +140,16 @@ export const vaultHandlers = [
             author: message.author,
             createdAt: message.createdAt,
             url: link,
+            // Превью в моке — заглушка из домена (конвейер серверный, #212).
+            preview:
+              message.linkPreview ??
+              ({
+                status: 'pending',
+                siteName: null,
+                title: null,
+                description: null,
+                imageUrl: null,
+              } as VaultLinkItem['preview']),
           } satisfies VaultLinkItem);
         });
       } else {

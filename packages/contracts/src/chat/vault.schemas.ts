@@ -2,7 +2,11 @@ import { z } from 'zod';
 
 import { userRefSchema } from '../directory/user-ref.schema.js';
 import { cursorQuerySchema } from '../pagination/paginated.schema.js';
-import { conversationTypeSchema, messageAttachmentSchema } from './chat.schemas.js';
+import {
+  conversationTypeSchema,
+  messageAttachmentSchema,
+  linkPreviewSchema,
+} from './chat.schemas.js';
 
 /** Витрина беседы (#211): серверные списки вложений и ссылок панели «О чате»
  *  + источники «Избранного». Списки читают БД (не загруженное окно ленты):
@@ -73,10 +77,13 @@ export const vaultDocumentItemSchema = vaultAttachmentBaseSchema.extend({
 });
 export type VaultDocumentItem = z.infer<typeof vaultDocumentItemSchema>;
 
-/** Элемент-ссылка: URL из текста сообщения (домен/путь клиент форматирует). */
+/** Элемент-ссылка: URL из текста сообщения (домен/путь клиент форматирует).
+ *  preview — снимок кэша превью (#212): заголовок/домен/картинка, дозревает
+ *  фоном; null — превью ещё нет (фолбэк — прежний вид строки). */
 export const vaultLinkItemSchema = vaultItemBaseSchema.extend({
   type: z.literal('link'),
   url: z.string().min(1),
+  preview: z.lazy(() => linkPreviewSchema).nullable(),
 });
 export type VaultLinkItem = z.infer<typeof vaultLinkItemSchema>;
 

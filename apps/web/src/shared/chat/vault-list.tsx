@@ -1,6 +1,12 @@
 import { Download, Link2, MessagesSquare } from 'lucide-react';
 import type { ReactNode } from 'react';
-import type { FavoriteCard, MessageAttachment, VaultItem, VaultItemType } from '@nodus/contracts';
+import type {
+  FavoriteCard,
+  LinkPreview,
+  MessageAttachment,
+  VaultItem,
+  VaultItemType,
+} from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 
 import { FileTypeIcon } from '../files/file-type-icon.js';
@@ -9,9 +15,13 @@ import { useJumpStore } from './jump-store.js';
 
 /**
  * Рендереры элементов витрины (#211, ревизия 05.10): плитка медиа-сетки
- * (реф Битрикс24), строка вложения, карточка ссылки (домен + адрес + автор).
- * Общий контекст каждой строки: автор · дата и hover-действия «скачать» /
- * «показать в чате» (jump-store #171). Хозяин — vault-window (окно категории).
+ * (реф Битрикс24), строка вложения, карточка ссылки (домен + адрес + автор;
+ * #212 — заголовок/миниатюра готового превью). Общий контекст каждой
+ * строки: автор · дата и hover-действия «скачать» / «показать в чате»
+ * (jump-store #171). Хозяин — vault-window (окно категории).
+ * >300 строк (I5): пять однотипных рендереров одной витрины + карта
+ * избранного — общая типизация контекста; дробление на файлы по рендереру
+ * разнесло бы единую модель строки.
  */
 
 /** Плитка медиа-сетки: квадратное превью (aspect-square, object-cover; фон
@@ -153,6 +163,7 @@ export function VaultRow({
  *  к источнику. Превью сайта появится с OG-карточками (#212). */
 export function VaultLinkCard({
   url,
+  preview,
   author,
   createdAt,
   conversationId,
@@ -160,6 +171,9 @@ export function VaultLinkCard({
   threadRootId,
 }: {
   url: string;
+  /** Снимок кэша превью (#212): готовое — заголовок/миниатюра вместо голого
+   *  адреса; null/pending/failed — прежний вид (фолбэк, спека). */
+  preview: LinkPreview | null;
   author: string;
   createdAt: string;
   conversationId: string;
@@ -173,6 +187,7 @@ export function VaultLinkCard({
   } catch {
     /* непарсимый URL — показываем как есть */
   }
+  const ready = preview?.status === 'ready';
   return (
     <a
       href={url}
@@ -180,14 +195,26 @@ export function VaultLinkCard({
       rel="noreferrer"
       className="group flex w-full items-center gap-2.5 rounded-lg p-1.5 text-left transition-colors hover:bg-accent"
     >
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-muted/60">
-        <Link2 className="size-4 text-muted-foreground" strokeWidth={1.75} />
-      </span>
+      {ready && preview.imageUrl ? (
+        <img
+          src={preview.imageUrl}
+          alt={preview.title ?? domain}
+          loading="lazy"
+          className="h-10 w-10 shrink-0 rounded-md object-cover"
+        />
+      ) : (
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-muted/60">
+          <Link2 className="size-4 text-muted-foreground" strokeWidth={1.75} />
+        </span>
+      )}
       <span className="min-w-0 flex-1">
         <span className="block truncate text-xs text-muted-foreground">{domain}</span>
         {/* Адрес — токен ссылок проекта (text-info): primary в тёмной теме
-            почти белый, акцент терялся (визуальный гейт #211 раунд 2). */}
-        <span className="block truncate text-sm text-info">{url}</span>
+            почти белый, акцент терялся (визуальный гейт #211 раунд 2).
+            Готовое превью — заголовок вместо адреса (#212, спека витрины). */}
+        <span className="block truncate text-sm text-info">
+          {ready && preview.title ? preview.title : url}
+        </span>
         <span className="block truncate text-xs text-muted-foreground">
           {author} · {formatDateTimeShort(createdAt)}
         </span>
@@ -324,7 +351,13 @@ export function favoriteVaultItems(cards: FavoriteCard[], type: VaultItemType): 
       createdAt: card.createdAt,
     };
     if (type === 'link') {
-      for (const url of extractCardUrls(card.text)) items.push({ type, ...base, url });
+      for (const url of extractCardUrls(card.text))
+        items.push({
+          type,
+          ...base,
+          url,
+          preview: null,
+        });
       continue;
     }
     for (const attachment of card.attachments) {

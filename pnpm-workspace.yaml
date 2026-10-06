@@ -17,6 +17,11 @@ overrides:
   # engine.io 6.6.9 → 6.6.10 (Socket.IO DoS, патч мажора — транзитивный из gateway).
   brace-expansion@>=4.0.0: 5.0.11
   engine.io@>=6.6.0: 6.6.10
+  # proxy-addr critical (IP spoofing через v4-mapped, 10.2026) и source-map-js
+  # high (event-loop DoS, 10.2026): транзитивно из shadcn CLI (ui-инструментарий,
+  # не рантайм прода) — свежие advisories блокировали CI-аудит всех веток (#212).
+  proxy-addr@>=1.1.0 <2.0.8: 2.0.8
+  source-map-js@>=1.0.0 <1.2.2: 1.2.2
 
 # pnpm 11: install-скрипты зависимостей блокируются, если пакет не разрешён явно.
 # esbuild (транспиляция Vite/Vitest) и unrs-resolver (резолвер

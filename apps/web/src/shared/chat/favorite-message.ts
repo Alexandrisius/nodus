@@ -30,6 +30,7 @@ export function toFavoriteMessage(card: FavoriteCard): ChatMessage {
     readBy: [],
     urgent: card.urgent,
     mentionedUserIds: [],
+    linkPreview: null,
     createdAt: card.createdAt,
   };
 }

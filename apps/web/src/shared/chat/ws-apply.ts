@@ -1,5 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query';
 import type {
+  ChatLinkPreviewReadyPayload,
   ChatMessage,
   ChatMessageReadPayload,
   ChatMessageSentPayload,
@@ -224,5 +225,29 @@ function bumpRootReplies(
           ),
         }
       : old,
+  );
+}
+
+/** Локальное применение chat.link_preview_ready (#212): превью дозрело —
+ *  патч linkPreview конкретного сообщения в ленте/треде/пинах БЕЗ рефеча
+ *  (скелетон → карточка на месте, нулевой сдвиг макета). Всегда true:
+ *  сообщения может не быть в кэше — тогда и патчить нечего, витрину
+ *  инвалидирует вызывающий. */
+export function applyLinkPreviewEvent(
+  queryClient: QueryClient,
+  payload: Pick<ChatLinkPreviewReadyPayload, 'conversationId' | 'messageId' | 'preview'>,
+): void {
+  queryClient.setQueriesData<Paginated<ChatMessage>>(
+    { queryKey: chatKeys.messages(payload.conversationId) },
+    (old) => {
+      if (!old) return old;
+      let hit = false;
+      const items = old.items.map((m) => {
+        if (m.id !== payload.messageId) return m;
+        hit = true;
+        return { ...m, linkPreview: payload.preview };
+      });
+      return hit ? { ...old, items } : old;
+    },
   );
 }

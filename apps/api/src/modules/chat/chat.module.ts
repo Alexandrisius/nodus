@@ -35,6 +35,15 @@ import { StickersService } from './stickers/stickers.service.js';
 import { VaultController } from './vault/vault.controller.js';
 import { VaultRepository } from './vault/vault.repository.js';
 import { VaultService } from './vault/vault.service.js';
+import { LinkPreviewRepository } from './link-previews/link-preview.repository.js';
+import { LinkPreviewQueue } from './link-previews/link-preview.queue.js';
+import { LinkPreviewRateLimiter } from './link-previews/link-preview.rate-limiter.js';
+import { LinkPreviewService } from './link-previews/link-preview.service.js';
+import { LinkPreviewWorker } from './link-previews/link-preview.worker.js';
+import {
+  MessageEditedPreviewHandler,
+  MessageLinksPreviewHandler,
+} from './link-previews/message-links.handler.js';
 
 /**
  * Модуль chat (M6, #58): беседы (direct/group/каналы), сообщения, треды,
@@ -91,6 +100,15 @@ import { VaultService } from './vault/vault.service.js';
     // «О чате» + денормализованные счётчики (Δ в транзакциях состава).
     VaultRepository,
     VaultService,
+    // Превью ссылок (#212, ADR-0018): кэш + очередь + воркер (linkpeek за
+    // SSRF-гвардами) + слушатель message_sent/edited (ленивый прогрев).
+    LinkPreviewRepository,
+    LinkPreviewQueue,
+    LinkPreviewRateLimiter,
+    LinkPreviewService,
+    LinkPreviewWorker,
+    MessageLinksPreviewHandler,
+    MessageEditedPreviewHandler,
     // Политика важных (#177): счётчик дневного лимита для попапа молнии.
     UrgentPolicyReader,
     // Мост версий файлов в беседы (#182): file.version_created →

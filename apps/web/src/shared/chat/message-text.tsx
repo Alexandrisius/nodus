@@ -1,8 +1,10 @@
 import { useMemo } from 'react';
 
 import { parseMentionSegments, type MentionSegment } from '@nodus/contracts';
+import { cn } from '@nodus/ui/lib/utils';
 
 import { parseEntityLinks, type MessageSegment } from './entity-links.js';
+import { httpUrlSegments } from './link-preview-card.js';
 import { linkPreviewFor } from './link-previews.js';
 import { MentionChip } from './mention-chip.js';
 import { ReactionGlyph } from './reaction-glyph.js';
@@ -10,6 +12,28 @@ import { reactionAsset } from './reaction-presets.js';
 
 type EntitySegment = Extract<MessageSegment, { kind: 'entity' }>;
 export type ContentSegment = MentionSegment | EntitySegment;
+
+/** Гиперссылка в тексте пузыря: подчёркнутый стальной синий (--info — канон
+ *  ссылок продукта, text-info+underline как в диалогах); на СВОЁМ цветном
+ *  пузыре — цвет текста пузыря (канон Telegram: весь текст своего пузыря
+ *  единым цветом, иначе акцент-на-акцент не читается). */
+function UrlLink({ url }: { url: string }) {
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={(e) => e.stopPropagation()}
+      title={url}
+      className={cn(
+        'text-info wrap-anywhere underline underline-offset-2 hover:underline',
+        'group-data-[variant=default]/bubble:text-bubble-out-foreground',
+      )}
+    >
+      {url}
+    </a>
+  );
+}
 
 /** Есть ли в тексте карточки-превью сущностей (portal://ссылки)? Хосты меты
  *  времени переключают раскладку: flex-col текст с превью не дружит с
@@ -37,8 +61,8 @@ function SingleEmoji({ emoji }: { emoji: string }) {
   return <span className="text-4xl leading-none">{emoji}</span>;
 }
 
-/** Inline-поток: текстовые куски и чипы упоминаний вперемешку (entity-URI
- *  уже вырезаны — их заменяют карточки ниже). */
+/** Inline-поток: текстовые куски (с автолинком ссылок) и чипы упоминаний
+ *  вперемешку (entity-URI уже вырезаны — их заменяют карточки ниже). */
 function InlineContent({ segments }: { segments: MentionSegment[] }) {
   return (
     <span className="whitespace-pre-wrap break-words leading-tight">
@@ -46,7 +70,9 @@ function InlineContent({ segments }: { segments: MentionSegment[] }) {
         segment.kind === 'mention' ? (
           <MentionChip key={i} id={segment.id} label={segment.label} />
         ) : (
-          segment.value
+          httpUrlSegments(segment.value).map((piece, j) =>
+            piece.kind === 'url' ? <UrlLink key={`${i}:${j}`} url={piece.url} /> : piece.value,
+          )
         ),
       )}
     </span>

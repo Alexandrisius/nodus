@@ -377,6 +377,7 @@ export const tasksHandlers = [
       readBy: [],
       urgent: false,
       mentionedUserIds: [],
+      linkPreview: null,
       createdAt: new Date().toISOString(),
     };
     demoTaskMessages.push(message);

@@ -29,6 +29,7 @@ const msg = (id: string, authorId: string): ChatMessage => ({
   readBy: [],
   urgent: false,
   mentionedUserIds: [],
+  linkPreview: null,
   createdAt: '2026-09-28T09:00:00Z',
 });
 

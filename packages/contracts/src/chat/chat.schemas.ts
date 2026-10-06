@@ -148,10 +148,31 @@ export const messageSchema = z.object({
   /** Упомянутые @Имя (userId, зафиксированы при отправке, #100): fanout
    *  уведомлений без разбора текста; правка упоминания не добавляет. */
   mentionedUserIds: z.array(z.uuid()),
+  /** Превью ПЕРВОЙ ссылки сообщения (#212): карточка-цитата ПОД текстом
+   *  (домен/заголовок/описание/картинка; канон Telegram/Slack — превью
+   *  ниже сообщения), дозревает фоном (WS chat.link_preview_ready).
+   *  null — ссылок нет/надгробие; pending — скелетон; failed/blocked —
+   *  заглушка из домена. */
+  linkPreview: z.lazy(() => linkPreviewSchema).nullable(),
   createdAt: z.iso.datetime(),
 });
 
 export type ChatMessage = z.infer<typeof messageSchema>;
+
+/** Снимок превью ссылки (#212): в DTO сообщения и в payload WS-события
+ *  chat.link_preview_ready (общая схема). */
+export const linkPreviewSchema = z.object({
+  /** Домен-источник карточки (заглушка при bot-block/нет OG). */
+  siteName: z.string().nullable(),
+  title: z.string().nullable(),
+  description: z.string().nullable(),
+  /** Подписная ссылка og:image-деривата (SILO, ≤640px webp) — ОТНОСИТЕЛЬНЫЙ
+   *  путь `/api/v1/files/…?exp=&sig=` (тот же формат, что у вложений);
+   *  null — без картинки (текстовая карточка). */
+  imageUrl: z.string().nullable(),
+  status: z.enum(['pending', 'ready', 'failed', 'blocked']),
+});
+export type LinkPreview = z.infer<typeof linkPreviewSchema>;
 
 /** Закрепленное сообщение: снапшот обязателен — закреп может жить вне
  *  загруженного окна ленты (пин-бар и секция «Закреплённые» рендерят из него). */

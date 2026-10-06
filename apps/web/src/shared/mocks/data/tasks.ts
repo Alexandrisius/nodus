@@ -180,6 +180,7 @@ export const demoTaskMessages: ChatMessage[] = [
     readBy: [],
     urgent: false,
     mentionedUserIds: [],
+    linkPreview: null,
     createdAt: isoAgo(2, 9, 12),
   },
   {
@@ -202,6 +203,7 @@ export const demoTaskMessages: ChatMessage[] = [
     readBy: [],
     urgent: false,
     mentionedUserIds: [],
+    linkPreview: null,
     createdAt: isoAgo(2, 9, 40),
   },
   {
@@ -239,6 +241,7 @@ export const demoTaskMessages: ChatMessage[] = [
     readBy: [],
     urgent: false,
     mentionedUserIds: [],
+    linkPreview: null,
     createdAt: isoAgo(1, 14, 5),
   },
 ];

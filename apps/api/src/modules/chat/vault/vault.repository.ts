@@ -487,4 +487,13 @@ export class VaultRepository {
     }
     await this.applyDelta(tx, conversationId, delta);
   }
+
+  /** URL сообщения в порядке появления (конвейер превью #212: какие адреса
+   *  греть; проекция уже посчитана транзакцией отправки). */
+  async urlsOfMessage(messageId: string): Promise<string[]> {
+    const rows = await this.prisma.$queryRaw<{ url: string }[]>(Prisma.sql`
+      SELECT url FROM message_links WHERE message_id = ${messageId}::uuid ORDER BY position
+    `);
+    return rows.map((row) => row.url);
+  }
 }

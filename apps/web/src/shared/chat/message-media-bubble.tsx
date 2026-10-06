@@ -15,6 +15,7 @@ import { ForwardedHeader, ReplyHeader } from './message-headers.js';
 import { MessageMeta } from './message-meta.js';
 import { MessageReactions } from './message-reactions.js';
 import { hasEntityPreviews, MessageText } from './message-text.js';
+import { MessageLinkPreview } from './link-preview-card.js';
 import { ReadTicks } from './read-ticks.js';
 import { UrgentChip, UrgentChips } from './urgent-chips.js';
 
@@ -213,6 +214,8 @@ export function MediaMessage({
                     />
                   </span>
                 ) : null}
+                {/* Карточка первой ссылки ПОД подписью (#212, канон Telegram). */}
+                <MessageLinkPreview text={message.text} preview={message.linkPreview} />
               </span>
             ) : null}
             {hasReactionsRow ? (

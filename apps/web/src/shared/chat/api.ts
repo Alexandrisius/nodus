@@ -284,6 +284,8 @@ export function useSendChatMessage(conversationId: string, draftScope?: string) 
         // Оптимистичный пузырь важного (#177): бордер/чип видны сразу (I4).
         urgent: vars.urgent ?? false,
         mentionedUserIds: [],
+        // Свежая отправка: превью нет — скелетон по URL, WS дозреет (#212).
+        linkPreview: null,
         createdAt: new Date().toISOString(),
       };
 

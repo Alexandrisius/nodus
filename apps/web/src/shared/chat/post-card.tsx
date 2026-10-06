@@ -17,6 +17,7 @@ import {
 import { MessageMeta } from './message-meta.js';
 import { UrgentChips } from './urgent-chips.js';
 import { hasEntityPreviews, MessageText } from './message-text.js';
+import { MessageLinkPreview } from './link-preview-card.js';
 import { ThreadStrip, ThreadStripEnter } from './post-thread-strip.js';
 import { ReactionPicker } from './reaction-picker.js';
 import { StickerGlyph, stickerAttachmentOf, stickerFeedClass } from './sticker-message.js';
@@ -261,6 +262,9 @@ export function PostCard({
                   <MessageMeta message={message} onFilled={surface.onFilled} ticks={mine} />
                 </span>
               ) : null}
+              {/* Карточка первой ссылки ПОД текстом (#212, канон Telegram/
+                  Slack — превью «just below the message»). */}
+              <MessageLinkPreview text={message.text} preview={message.linkPreview} />
               {message.reactions.length > 0 || entityRow ? null : (
                 <MetaPin
                   message={message}

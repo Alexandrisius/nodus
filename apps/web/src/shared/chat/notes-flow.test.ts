@@ -35,6 +35,7 @@ function message(id: string, createdAt: string, text = ''): ChatMessage {
     readBy: [],
     urgent: false,
     mentionedUserIds: [],
+    linkPreview: null,
     createdAt,
   };
 }

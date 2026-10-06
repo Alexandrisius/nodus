@@ -23,6 +23,7 @@ const service = new VaultService(
   conversations as never,
   userProfiles as never,
   signedUrls as never,
+  { previewsForUrls: async () => new Map() } as never,
 );
 
 const ATTACHMENT_ROW = {
