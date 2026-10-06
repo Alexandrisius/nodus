@@ -17,11 +17,13 @@ function deps(members: string[], active: string[]) {
       filterActiveUserIds: vi.fn(async (ids: string[]) => ids.filter((id) => active.includes(id))),
     },
     conversations: {
-      listMembersPage: vi.fn(async (_cid: string, opts: { searchUserIds?: string[] }) =>
-        (opts.searchUserIds ?? [])
-          .filter((id) => members.includes(id))
-          .map((userId) => ({ userId, role: 'member', joinedAt: new Date() })),
-      ),
+      // Без searchUserIds (ветка «Все») — весь состав; с фильтром — по id.
+      listMembersPage: vi.fn(async (_cid: string, opts: { searchUserIds?: string[] }) => {
+        const pool = opts.searchUserIds ?? members.concat(AUTHOR);
+        return pool
+          .filter((id) => members.includes(id) || id === AUTHOR)
+          .map((userId) => ({ userId, role: 'member', joinedAt: new Date() }));
+      }),
     },
   };
 }
@@ -115,5 +117,41 @@ describe('addMentionWatchers', () => {
     expect(upsert).toHaveBeenCalledTimes(2);
     expect(upsert).toHaveBeenCalledWith('root', UUID_A, 'mentioned', 'tx');
     expect(upsert).toHaveBeenCalledWith('root', UUID_B, 'mentioned', 'tx');
+  });
+
+  it('«Все» (#224): разворачивается во всех активных участников кроме автора', async () => {
+    const d = deps([UUID_A, UUID_B], [UUID_A, UUID_B]);
+    const ids = await resolveMentionTargets(
+      d.userProfiles,
+      d.conversations,
+      'cid',
+      '@[Все](user:all) — планёрка',
+      AUTHOR,
+    );
+    expect(ids.sort()).toEqual([UUID_A, UUID_B]);
+  });
+
+  it('«Все» поглощает индивидуальные токены того же сообщения (#224)', async () => {
+    const d = deps([UUID_A, UUID_B], [UUID_A, UUID_B]);
+    const ids = await resolveMentionTargets(
+      d.userProfiles,
+      d.conversations,
+      'cid',
+      `@[Б](user:${UUID_B}) @[Все](user:all)`,
+      AUTHOR,
+    );
+    expect(ids.sort()).toEqual([UUID_A, UUID_B]);
+  });
+
+  it('«Все» без активных участников — пусто; автор исключается', async () => {
+    const d = deps([UUID_A], []);
+    const empty = await resolveMentionTargets(
+      d.userProfiles,
+      d.conversations,
+      'cid',
+      '@[Все](user:all)',
+      AUTHOR,
+    );
+    expect(empty).toEqual([]);
   });
 });

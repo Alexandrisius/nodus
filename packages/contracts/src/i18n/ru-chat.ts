@@ -378,6 +378,9 @@ export const chatStrings = {
   /** @упоминания (#176): автокомплит композера и правка чипа. */
   mentionAutocompleteEmpty: 'Никого не найдено',
   mentionNotInConversation: 'не в беседе',
+  /** Упоминание «Все» (#224): пинг всем участникам беседы. */
+  mentionAllLabel: 'Все',
+  mentionAllNote: 'уведомить всех участников',
   mentionEditText: 'Текст упоминания',
   mentionApply: 'Применить',
   mentionCancel: 'Отмена',

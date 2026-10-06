@@ -6,9 +6,10 @@
  */
 
 import type { UserListItem, UserRef } from '@nodus/contracts';
-import { buildMentionToken, parseMentionSegments } from '@nodus/contracts';
+import { buildMentionToken, MENTION_ALL_ID, parseMentionSegments, ui } from '@nodus/contracts';
 
-/** Кандидат автокомплита: участник беседы или сотрудник справочника. */
+/** Кандидат автокомплита: участник беседы, сотрудник справочника или
+ *  спец-кандидат «Все» (#224). */
 export interface MentionCandidate {
   id: string;
   displayName: string;
@@ -17,6 +18,8 @@ export interface MentionCandidate {
   avatarUrl: string | null;
   /** Участник этой беседы — пингуется; прочие — с пометкой «не в беседе». */
   inConversation: boolean;
+  /** «Все» (#224): пинг всем участникам, иконка вместо аватара. */
+  isAll?: boolean;
 }
 
 /** Активный запрос автокомплита: `@` на границе слова + набранные буквы
@@ -47,11 +50,12 @@ export function detectMentionQuery(text: string, caret: number): MentionQuery | 
   return { query, start: at, end: caret };
 }
 
-/** Слияние кандидатов: участники беседы (по подстроке query, без регистра),
- *  затем сотрудники поиска справочника, не-участники — с пометкой; дедуп
- *  по id, лимит списка. Справочник обогащает участников должностью/отделом
- *  (общий кэш usersList). Себя не предлагаем: сервер пингует только ≠ автора
- *  (упомянуть себя нельзя, канон Slack). */
+/** Слияние кандидатов: «Все» закреплено первой строкой (показ при пустом
+ *  запросе или вводе «все»), затем участники беседы (по подстроке query,
+ *  без регистра), затем сотрудники поиска справочника, не-участники — с
+ *  пометкой; дедуп по id, лимит списка. Справочник обогащает участников
+ *  должностью/отделом (общий кэш usersList). Себя не предлагаем: сервер
+ *  пингует только ≠ автора (упомянуть себя нельзя, канон Slack). */
 export function mergeMentionCandidates(
   members: UserRef[],
   directory: UserListItem[],
@@ -61,6 +65,20 @@ export function mergeMentionCandidates(
   const byId = new Map<string, MentionCandidate>();
   const lower = query.toLowerCase();
   const matches = (name: string) => name.toLowerCase().includes(lower);
+
+  // «Все» (#224): первая строка панели — канал Slack @channel.
+  const allLabel = ui.chat.mentionAllLabel.toLowerCase();
+  if (lower.length === 0 || allLabel.startsWith(lower)) {
+    byId.set(MENTION_ALL_ID, {
+      id: MENTION_ALL_ID,
+      displayName: ui.chat.mentionAllLabel,
+      positionName: ui.chat.mentionAllNote,
+      departmentName: null,
+      avatarUrl: null,
+      inConversation: true,
+      isAll: true,
+    });
+  }
 
   for (const member of members) {
     if (member.id === meId) continue;
@@ -192,4 +210,39 @@ export function clampCaretByArrow(
     }
   }
   return null;
+}
+
+/** Атомарное удаление токена (#224): Backspace у КОНЦА токена (или внутри
+ *  него) и Delete у НАЧАЛА (или внутри) сносят токен ЦЕЛИКОМ — чип никогда
+ *  не разбирается в сырую разметку `@[…](user:…)` посимвольно. null —
+ *  обычное поведение браузера (каретка вне токенов). */
+export function deleteTokenKey(
+  text: string,
+  caret: number,
+  key: 'Backspace' | 'Delete',
+): { text: string; caret: number } | null {
+  for (const token of mentionTokens(text)) {
+    const inside = caret > token.start && caret < token.end;
+    const atEdge = key === 'Backspace' ? caret === token.end : caret === token.start;
+    if (!inside && !atEdge) continue;
+    return {
+      text: text.slice(0, token.start) + text.slice(token.end),
+      caret: token.start,
+    };
+  }
+  return null;
+}
+
+/** Отображаемое смещение каретки (#224): позиции в невидимом хвосте токена
+ *  (label-конец..token-конец) И сразу за токеном (+1 — хвостовой пробел
+ *  вставки автокомплита) показываются у ПРАВОГО КРАЯ чипа — каретка
+ *  визуально «сразу за чипом», а не за 45 символами прозрачного хвоста
+ *  `](user:uuid)` (и не строкой ниже при переносе хвоста). Хвост рисует
+ *  кастомная каретка композера (сырые глифы прозрачны). */
+export function displayCaretOffset(text: string, offset: number): number {
+  for (const token of mentionTokens(text)) {
+    const labelEnd = token.start + 2 + token.label.length; // после `@[label`
+    if (offset > labelEnd && offset <= token.end + 1) return labelEnd;
+  }
+  return offset;
 }

@@ -146,4 +146,53 @@ test.describe('живое упоминание-чип (#176)', () => {
     const body = (await res.json()) as { mentionedUserIds: string[] };
     expect(body.mentionedUserIds, 'без токена — пусто').toEqual([]);
   });
+
+  test('#224 «Все»: первая строка автокомплита → чип → пинг обоим; Backspace атомарен', async ({
+    browser,
+  }) => {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    await loginUi(page, ADMIN.email, ADMIN.password);
+    await page.goto(`/chat/${conversationId}`);
+    await page.waitForTimeout(1200);
+
+    const field = page.locator('textarea');
+    await field.click();
+    await field.pressSequentially('@вс', { delay: 40 });
+    // «Все» — закреплённая первая строка (Slack @channel)
+    await expect(page.locator('[role="option"]').first()).toHaveText(/Все/);
+    await field.press('Enter');
+
+    // Чип «Все» в поле + отправка
+    await expect(field).toHaveValue(/@\[Все\]\(user:all\)/);
+    await field.press('Enter');
+    await page.waitForTimeout(400);
+
+    // Снапшот: оба участника упомянуты (автор исключён)
+    const page1 = await fetch(
+      `${BASE_URL}/api/v1/chat/conversations/${conversationId}/messages?limit=5`,
+      { headers: { authorization: `Bearer ${admin.token}` } },
+    );
+    const sent = (
+      (await page1.json()) as { items: { text: string; mentionedUserIds: string[] }[] }
+    ).items.find((m) => m.text.includes('(user:all)'));
+    expect(sent, 'токен «Все» в тексте').toBeTruthy();
+    expect(sent!.mentionedUserIds.sort()).toEqual([peer.userId].sort());
+
+    // Чип «Все» в ленте у автора (нейтральный, без карточки — не человек)
+    await expect(
+      page.locator('[data-slot="message-text"] [data-slot="mention-chip"]', { hasText: 'Все' }),
+    ).toBeVisible({ timeout: 5000 });
+
+    // Backspace у чипа удаляет токен ЦЕЛИКОМ (главный баг приёмки #224):
+    // снова вводим упоминание, каретка после чипа — один Backspace чист.
+    await field.click();
+    await field.pressSequentially('@вс', { delay: 40 });
+    await field.press('Enter'); // чип вставлен, каретка за токеном (после пробела)
+    await field.press('Backspace'); // пробел
+    await field.press('Backspace'); // чип целиком — поле пусто
+    await expect(field).toHaveValue('');
+
+    await context.close();
+  });
 });

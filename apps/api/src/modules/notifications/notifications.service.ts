@@ -8,7 +8,7 @@ import type {
   NotificationSettings,
   NotificationSummary,
 } from '@nodus/contracts';
-import { NOTIFICATION_EVENTS } from '@nodus/contracts';
+import { NOTIFICATION_EVENTS, stripMentionTokens } from '@nodus/contracts';
 
 import { DomainException } from '../../core/errors/domain-exception.js';
 import { ErrorCode } from '@nodus/contracts';
@@ -157,7 +157,10 @@ export class NotificationsService {
       threadWatcherIds: event.payload.threadRootId !== null ? threadWatcherIds : [],
       members: state.members,
     });
-    const text = event.payload.message?.text ?? '';
+    // Превью центра — БЕЗ токенов упоминаний (#224): стрип ДО обрезки —
+    // slice по сырому тексту разрезал бы `@[Имя](user:…)` посередине и центр
+    // показывал сырую разметку.
+    const text = stripMentionTokens(event.payload.message?.text ?? '');
     return resolved.map((r) => ({
       id: randomUUID(),
       user_id: r.userId,
@@ -193,7 +196,7 @@ export class NotificationsService {
     },
     state: ChatConversationState,
   ): NotificationInsert[] {
-    const text = event.payload.text ?? '';
+    const text = stripMentionTokens(event.payload.text ?? '');
     return state.members
       .filter((m) => m.userId !== event.payload.authorId)
       .map((m) => ({

@@ -1,3 +1,5 @@
+import { truncateMentionText } from '@nodus/contracts';
+
 import type { ReplySnapshotValue } from './message-dto.mapper.js';
 
 /** Усечение сниппета цитаты и частичной цитаты (мок: REPLY_SNIPPET_MAX = 160). */
@@ -31,10 +33,12 @@ export function buildReplySnapshot(
       attachmentKind: null,
     };
   }
+  // Токен-знающая обрезка (#224): срез по границам сегментов — замороженный
+  // снапшот никогда не хранит огрызок `@[Имя](user:…` (цитата без кода).
   return {
     authorId: original.authorId,
-    text: original.text.slice(0, REPLY_SNIPPET_MAX),
-    quoteText: quoteText ? quoteText.slice(0, REPLY_SNIPPET_MAX) : null,
+    text: truncateMentionText(original.text, REPLY_SNIPPET_MAX),
+    quoteText: quoteText ? truncateMentionText(quoteText, REPLY_SNIPPET_MAX) : null,
     attachmentKind: original.attachmentKind,
   };
 }

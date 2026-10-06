@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import {
   attachmentPreviewKind,
   isPdfDerivativeCandidate,
+  truncateMentionText,
   type ChatMessage,
   type MessageAttachment,
   type MessageReaction,
@@ -324,7 +325,11 @@ function buildReplyPreview(
   return {
     id: row.replyToId,
     author: authorId === null ? null : (refs.get(authorId) ?? fallbackRef(authorId)),
-    text: deleted ? '' : (snapshot?.text ?? original?.text.slice(0, 160) ?? ''),
+    // Фолбэк без снапшота — та же токен-знающая обрезка (#224): цитата
+    // без огрызков `@[Имя](user:…`.
+    text: deleted
+      ? ''
+      : (snapshot?.text ?? (original ? truncateMentionText(original.text, 160) : '')),
     quoteText: deleted ? null : (snapshot?.quoteText ?? null),
     attachmentKind: deleted ? null : (snapshot?.attachmentKind ?? null),
     deleted,

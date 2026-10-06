@@ -9,18 +9,43 @@ import { personTone, personToneVar } from '../ui/person-tone.js';
 /**
  * Чип @упоминания (#176, модель Slack): inline-токен `@[текст](user:id)`
  * рендерится пилюлей персонального цвета упомянутого (#180 — тон
- * идентичности человека в любом хосте; палитра --name-1..7 текстопригодна
- * на пузырях обеих тем). Клик в ленте — карточка сотрудника; токен из
- * текста убирается парсером (contracts), чип — его визуальная замена.
+ * идентичности человека; палитра --name-1..7 текстопригодна на пузырях
+ * обеих тем). Клик в ленте — карточка сотрудника; токен из текста убирается
+ * парсером (contracts), чип — его визуальная замена.
+ *
+ * Контраст по поверхности (#224, ревизия приёмки): персональный тон на
+ * СВОЁМ цветном пузыре давал «синее на синем». На пузыре variant=default
+ * (своё сообщение) чип переключается на цвет текста пузыря с полупрозрачной
+ * заливкой этого же цвета (канон Telegram: весь текст своего пузыря —
+ * единый цвет). Селекторы group-data специфичнее базового класса тинта —
+ * перекрытие надёжно без !important.
  */
 
-/** Фон-пилюля чипа: мягкий тинт персонального тона (не заливка — текст
- *  читаем на пузыре любого тона, канон тинта цитат #187 п.8). */
+/** Тинт пилюли — CSS-переменной (класс ниже): инлайн background блокировал
+ *  бы вариантное перекрытие своего пузыря (inline > любой селектор).
+ *  «Все» — НЕ человек: нейтральный тон переднего плана (тон = маркер
+ *  идентичности, у «Все» идентичности нет). */
 function chipStyle(userId: string): CSSProperties {
+  const tone = userId === 'all' ? 'var(--foreground)' : personToneVar(userId);
   return {
-    backgroundColor: `color-mix(in oklch, ${personToneVar(userId)} 14%, transparent)`,
-  };
+    '--mention-tint': `color-mix(in oklch, ${tone} 12%, transparent)`,
+  } as CSSProperties;
 }
+
+/** Тон текста чипа: персональный; «Все» — цвет текста хоста. */
+function chipToneClass(userId: string): string {
+  return userId === 'all' ? 'text-foreground' : personTone(userId);
+}
+
+/** Общий каркас пилюли: поля px-1.5 (ревизия #224 — Material input-chip,
+ *  ~6px горизонтального поля; прежние px-1 выглядели «впритык»). */
+const CHIP_BASE =
+  'mx-0.5 inline-flex max-w-full items-baseline truncate rounded-md px-1.5 align-baseline';
+
+/** Своё сообщение (пузырь variant=default): цвет текста пузыря вместо
+ *  персонального тона — иначе тон-на-тон не читается (ревизия #224). */
+const CHIP_ON_OWN =
+  'group-data-[variant=default]/bubble:text-bubble-out-foreground group-data-[variant=default]/bubble:bg-[color-mix(in_oklch,var(--bubble-out-foreground)_16%,transparent)]';
 
 /** Чип в ленте: кнопка-ссылка на карточку сотрудника. Токен чипа не
  *  разрывается переносом строки (nowrap-поведение inline-flex + truncate
@@ -29,15 +54,17 @@ export function MentionChip({ id, label }: { id: string; label: string }) {
   return (
     <button
       type="button"
+      data-slot="mention-chip"
       onClick={(e) => {
         e.stopPropagation();
-        openCardViaBridge({ kind: 'employee', id });
+        if (id !== 'all') openCardViaBridge({ kind: 'employee', id });
       }}
       style={chipStyle(id)}
       className={cn(
-        'mx-0.5 inline-flex max-w-full items-baseline truncate rounded-md px-1 align-baseline',
-        'font-medium transition-[filter] hover:brightness-110',
-        personTone(id),
+        CHIP_BASE,
+        'bg-[var(--mention-tint)] font-medium transition-[filter] hover:brightness-110',
+        CHIP_ON_OWN,
+        chipToneClass(id),
       )}
     >
       {label || '@'}
@@ -45,16 +72,21 @@ export function MentionChip({ id, label }: { id: string; label: string }) {
   );
 }
 
-/** Чип сниппетов (цитата-ответ, панель поиска, «Избранное», закреп): без
- *  интерактива — строка-хост сама кликабельна (прыжок), вложенная кнопка
- *  ломала бы её семантику; тон и пилюля — те же, размер наследует хост. */
+/** Чип сниппетов (цитата-ответ, панель поиска, «Избранное», закреп,
+ *  уведомления #224): без интерактива — строка-хост сама кликабельна
+ *  (прыжок), вложенная кнопка ломала бы её семантику; тон и пилюля — те
+ *  же, размер наследует хост. На цветных пузырях (цитата своего
+ *  сообщения) перекрывается как интерактивный чип. */
 export function MentionChipMuted({ id, label }: { id: string; label: string }) {
   return (
     <span
+      data-slot="mention-chip"
       style={chipStyle(id)}
       className={cn(
-        'inline-flex max-w-full truncate rounded-md px-1 font-medium',
-        personTone(id),
+        'inline-flex max-w-full truncate rounded-md px-1.5 font-medium',
+        'bg-[var(--mention-tint)]',
+        CHIP_ON_OWN,
+        chipToneClass(id),
       )}
     >
       {label || '@'}
@@ -63,7 +95,7 @@ export function MentionChipMuted({ id, label }: { id: string; label: string }) {
 }
 
 /** Текст сниппета сегментами (пассивные чипы): общий хелпер однострочных
- *  preview — цитаты, строки выдачи, закреп; пустой label → «@». */
+ *  preview — цитаты, строки выдачи, закреп, уведомления; пустой label → «@». */
 export function mentionSnippetNodes(text: string): ReactNode[] {
   return parseMentionSegments(text).map((segment, i) =>
     segment.kind === 'mention' ? (

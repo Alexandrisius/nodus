@@ -12,17 +12,25 @@
  * (раунды 3–#100) упразднено: упоминание — только явный токен.
  */
 
-import { extractMentionIds } from '@nodus/contracts';
+import { extractMentionIds, MENTION_ALL_ID } from '@nodus/contracts';
 
 import type { UserProfileReader } from '../../../core/ports/user-profile.port.js';
 import type { ConversationsRepository } from '../conversations/conversations.repository.js';
 import type { TransactionClient } from '../../../core/database/transaction-runner.js';
 import type { ThreadParticipantsRepository } from './thread-participants.repository.js';
 
+/** Потолок состава под «@Все» (#224): страница больше продуктового
+ *  предела участников беседы — состав читается целиком одной страницей. */
+const ALL_MEMBERS_PAGE = 200;
+
 /** userId упомянутых, кому летит уведомление: токены текста → активные
  *  участники беседы ∩ ≠ автор, в порядке появления. Справочник и состав
  *  читаются ДО транзакции отправки (текст известен заранее, второе
- *  соединение пула внутри tx голодает его — repro chat-reliability). */
+ *  соединение пула внутри tx голодает его — repro chat-reliability).
+ *
+ * Токен «Все» `@[Все](user:all)` (#224) разворачивается во ВСЕХ активных
+ * участников беседы кроме автора; индивидуальные токены того же сообщения
+ * поглощаются (их адресаты уже в составе «Все»). */
 export async function resolveMentionTargets(
   userProfiles: Pick<UserProfileReader, 'filterActiveUserIds'>,
   conversations: Pick<ConversationsRepository, 'listMembersPage'>,
@@ -33,6 +41,20 @@ export async function resolveMentionTargets(
 ): Promise<string[]> {
   const ids = extractMentionIds(text).filter((id) => id !== authorId);
   if (ids.length === 0) return [];
+
+  // «Все»: полный состав беседы одной страницей (без searchUserIds).
+  if (ids.includes(MENTION_ALL_ID)) {
+    const allRows = await conversations.listMembersPage(
+      conversationId,
+      { limit: ALL_MEMBERS_PAGE },
+      tx,
+    );
+    const memberIds = allRows.map((row) => row.userId).filter((id) => id !== authorId);
+    if (memberIds.length === 0) return [];
+    const activeAll = new Set(await userProfiles.filterActiveUserIds(memberIds, tx));
+    return memberIds.filter((id) => activeAll.has(id));
+  }
+
   // Фильтр «участник беседы» — готовый listMembersPage с searchUserIds
   // (канон Slack: «не в беседе» не пингуется).
   const memberRows = await conversations.listMembersPage(

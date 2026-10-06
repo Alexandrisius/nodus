@@ -85,9 +85,10 @@ describe('автокомплит @упоминаний (#176)', () => {
   it('«@» открывает панель, Enter вставляет токен с полным ФИО и пробелом', async () => {
     const view = mountComposer();
     const field = view.container.querySelector('textarea')!;
-    fireEvent.change(field, { target: { value: 'спросим @' } });
-    field.setSelectionRange(9, 9);
-    fireEvent.keyUp(field, { key: 'a' });
+    // Запрос «ан» фильтрует и «Все» (не матчится), и оставляет Анну первой.
+    fireEvent.change(field, { target: { value: 'спросим @ан' } });
+    field.setSelectionRange(11, 11);
+    fireEvent.keyUp(field, { key: 'н' });
 
     const option = await waitFor(() => {
       const el = view.container.querySelector<HTMLElement>('[role="option"]');

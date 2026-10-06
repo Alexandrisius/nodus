@@ -6,6 +6,8 @@ import {
   detectMentionQuery,
   insertMentionToken,
   mentionTokens,
+  deleteTokenKey,
+  displayCaretOffset,
   mergeMentionCandidates,
   removeMentionToken,
   replaceMentionLabel,
@@ -72,17 +74,24 @@ describe('mergeMentionCandidates', () => {
     },
   ];
 
-  it('участники первыми и обогащаются справочником; не-участник с пометкой; себя нет', () => {
+  it('«Все» первой строкой, затем участники и справочник; себя нет (#224)', () => {
     const list = mergeMentionCandidates(members, directory, '', undefined);
-    expect(list[0]).toMatchObject({
+    expect(list[0]).toMatchObject({ id: 'all', isAll: true, inConversation: true });
+    expect(list[1]).toMatchObject({
       id: UUID_A,
       inConversation: true,
       positionName: 'ГИП',
     });
-    expect(list[1]).toMatchObject({ id: UUID_B, inConversation: false });
+    expect(list[2]).toMatchObject({ id: UUID_B, inConversation: false });
     // Себя не предлагаем (сервер пингует только ≠ автора): я = Анна.
     const asAnna = mergeMentionCandidates(members, directory, '', UUID_A);
-    expect(asAnna.map((c) => c.id)).toEqual([UUID_B]);
+    expect(asAnna.map((c) => c.id)).toEqual(['all', UUID_B]);
+  });
+
+  it('«Все» показывается по вводе «все», скрывается чужим запросом (#224)', () => {
+    expect(mergeMentionCandidates([], [], 'вс', undefined)[0]?.id).toBe('all');
+    expect(mergeMentionCandidates([], [], 'все', undefined)[0]?.id).toBe('all');
+    expect(mergeMentionCandidates(members, [], 'б', undefined).some((c) => c.isAll)).toBe(false);
   });
 
   it('фильтр участников по подстроке без регистра', () => {
@@ -94,6 +103,38 @@ describe('mergeMentionCandidates', () => {
     const list = mergeMentionCandidates([], directory, 'матор', undefined);
     expect(list.map((c) => c.id)).toEqual([UUID_B]);
     expect(list[0]?.inConversation).toBe(false);
+  });
+});
+
+describe('deleteTokenKey / displayCaretOffset (#224)', () => {
+  const TOKEN = `@[Борис](user:${UUID_A})`;
+  const text = `привет ${TOKEN} пока`;
+  const end = 'привет '.length + TOKEN.length;
+
+  it('Backspace у конца токена удаляет чип целиком, каретка в начало', () => {
+    const del = deleteTokenKey(text, end, 'Backspace');
+    expect(del).toEqual({ text: 'привет  пока', caret: 'привет '.length });
+  });
+
+  it('Backspace ВНУТРИ хвоста токена тоже атомарен; Delete у начала — тоже', () => {
+    expect(deleteTokenKey(text, end - 3, 'Backspace')?.text).toBe('привет  пока');
+    expect(deleteTokenKey(text, 'привет '.length, 'Delete')?.text).toBe('привет  пока');
+  });
+
+  it('каретка вне токена — обычное поведение (null)', () => {
+    expect(deleteTokenKey(text, 2, 'Backspace')).toBeNull();
+    expect(deleteTokenKey('без токенов', 5, 'Delete')).toBeNull();
+  });
+
+  it('displayCaretOffset: хвост токена и пробел за ним — у края чипа', () => {
+    const labelEnd = 'привет '.length + 2 + 'Борис'.length;
+    expect(displayCaretOffset(text, end)).toBe(labelEnd);
+    expect(displayCaretOffset(text, labelEnd + 5)).toBe(labelEnd);
+    // +1 = хвостовой пробел автокомплита: каретка всё ещё «за чипом»
+    expect(displayCaretOffset(text, end + 1)).toBe(labelEnd);
+    // дальше собственного пробела — честная позиция
+    expect(displayCaretOffset(text, end + 2)).toBe(end + 2);
+    expect(displayCaretOffset(text, 2)).toBe(2); // вне токенов — как есть
   });
 });
 
