@@ -101,13 +101,13 @@ test.describe('живое упоминание-чип (#176)', () => {
     await expect(option).toBeVisible({ timeout: 5000 });
     await field.press('Enter');
 
-    // Чип в поле (оверлей): ВИДИМЫЙ текст `@ФИО` + пробел (#228), каретка
-    // нативная сразу за ним; ввод после чипа льётся вплотную к пилюле.
-    const chipInField = pageA.locator('div[aria-hidden] span[style*="color-mix"]').first();
-    await expect(chipInField).toHaveText(`@${peerName}`);
+    // Чип в поле (оверлей): ВИДИМЫЙ текст — просто ФИО с подчёркиванием
+    // (#228, dev-фидбек: без «@» и без заливки), каретка нативная.
+    const chipInField = pageA.locator('div[aria-hidden] span.underline').first();
+    await expect(chipInField).toHaveText(peerName);
     await field.pressSequentially('смотри', { delay: 30 });
     const adjacency = await pageA.evaluate(() => {
-      const pill = document.querySelector<HTMLElement>('div[aria-hidden] span[style*="color-mix"]');
+      const pill = document.querySelector<HTMLElement>('div[aria-hidden] span.underline');
       const mirror = pill?.closest('div[aria-hidden]');
       const after = mirror?.querySelector<HTMLElement>('span[style*="color-mix"] ~ span');
       void after;
