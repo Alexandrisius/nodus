@@ -3,6 +3,15 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { chatDraftsEnvelopeSchema, zodPersistMerge } from '../lib/persist-zod.js';
+import {
+  applyEditToMentions,
+  fromWireText,
+  insertMentionDraft,
+  removeMentionDraft,
+  replaceMentionLabelDraft,
+  toWireText,
+  type DraftMention,
+} from './composer-mention-registry.js';
 import { replyDraftFrom, type ReplyDraft } from './reply-snapshot.js';
 
 export type { ReplyDraft } from './reply-snapshot.js';
@@ -42,11 +51,17 @@ export interface EditDraft {
 }
 
 export interface ChatDraft {
+  /** ВИДИМЫЙ текст поля (#228): просто ИМЯ сотрудника в месте чипа —
+   *  каретка/клики нативны; wire-токены пересобираются на отправке. */
   text: string;
+  /** Привязки чипов-упоминаний к диапазонам display-текста (#228). */
+  mentions: DraftMention[];
   reply: ReplyDraft | null;
   edit: EditDraft | null;
   /** Текст композера до входа в режим правки — восстанавливается отменой. */
   preEditText: string | null;
+  /** Реестр упоминаний до входа в правку — восстанавливается отменой (#228). */
+  preEditMentions: DraftMention[] | null;
   attachments: PendingAttachment[];
   /** «Важное» (#177, ревизия 05.10): клик молнии — простой тоггл.
    *  Сессионное состояние — НЕ персистится (после перезагрузки молния
@@ -56,9 +71,11 @@ export interface ChatDraft {
 
 export const EMPTY_DRAFT: ChatDraft = {
   text: '',
+  mentions: [],
   reply: null,
   edit: null,
   preEditText: null,
+  preEditMentions: null,
   attachments: [],
   urgent: false,
 };
@@ -66,6 +83,20 @@ export const EMPTY_DRAFT: ChatDraft = {
 interface DraftsState {
   drafts: Record<string, ChatDraft>;
   setText: (key: string, text: string) => void;
+  /** Вставка чипа упоминания (#228): замена @запроса + регистрация привязки. */
+  insertMention: (
+    key: string,
+    atStart: number,
+    atEnd: number,
+    id: string,
+    label: string,
+  ) => number | null;
+  /** Правка label чипа поповером (#228). */
+  renameMention: (key: string, index: number, label: string) => boolean;
+  /** Удаление чипа целиком (корзина поповера, #228). */
+  removeMention: (key: string, index: number) => void;
+  /** Восстановление серверного черновика (#228): wire → display + реестр. */
+  restoreFromWire: (key: string, wire: string) => void;
   /** Режимы ответа и правки взаимоисключающие (канон tdesktop: один _editMsgId). */
   setReply: (key: string, message: ChatMessage, quoteText?: string | null) => void;
   cancelReply: (key: string) => void;
@@ -93,6 +124,7 @@ function prune(draft: ChatDraft): ChatDraft | null {
   // СЕРВЕРНЫЙ draft.text и от сессионного urgent не зажигается.
   const empty =
     draft.text === '' &&
+    (draft.mentions ?? []).length === 0 &&
     !draft.reply &&
     !draft.edit &&
     draft.attachments.length === 0 &&
@@ -118,7 +150,56 @@ export const useChatDrafts = create<DraftsState>()(
     (set) => ({
       drafts: {},
       setText: (key, text) =>
-        set((s) => ({ drafts: patchDraft(s.drafts, key, (d) => ({ ...d, text })) })),
+        set((s) => ({
+          // Реестр упоминаний следует за правкой текста (#228): сдвиги/
+          // инвалидации — диффом registry; прямые присваивания (клир,
+          // вставка эмодзи, правка) обслуживаются тем же путём.
+          drafts: patchDraft(s.drafts, key, (d) => ({
+            ...d,
+            mentions: applyEditToMentions(d.mentions ?? [], d.text, text),
+            text,
+          })),
+        })),
+      insertMention: (key, atStart, atEnd, id, label) => {
+        let caret: number | null = null;
+        set((s) => ({
+          drafts: patchDraft(s.drafts, key, (d) => {
+            const res = insertMentionDraft(d.text, d.mentions ?? [], atStart, atEnd, id, label);
+            if (!res) return d;
+            caret = res.caret;
+            return { ...d, text: res.text, mentions: res.mentions };
+          }),
+        }));
+        return caret;
+      },
+      renameMention: (key, index, label) => {
+        let ok = false;
+        set((s) => ({
+          drafts: patchDraft(s.drafts, key, (d) => {
+            const res = replaceMentionLabelDraft(d.text, d.mentions ?? [], index, label);
+            if (!res) return d;
+            ok = true;
+            return { ...d, text: res.text, mentions: res.mentions };
+          }),
+        }));
+        return ok;
+      },
+      removeMention: (key, index) => {
+        set((s) => ({
+          drafts: patchDraft(s.drafts, key, (d) => {
+            const res = removeMentionDraft(d.text, d.mentions ?? [], index);
+            return { ...d, text: res.text, mentions: res.mentions };
+          }),
+        }));
+      },
+      restoreFromWire: (key, wire) => {
+        set((s) => ({
+          drafts: patchDraft(s.drafts, key, (d) => {
+            const parsed = fromWireText(wire);
+            return { ...d, text: parsed.text, mentions: parsed.mentions };
+          }),
+        }));
+      },
       setReply: (key, message, quoteText) =>
         set((s) => ({
           drafts: patchDraft(s.drafts, key, (d) => ({
@@ -128,7 +209,9 @@ export const useChatDrafts = create<DraftsState>()(
             // безопасное — снимаем режим, preEdit восстанавливается).
             edit: null,
             preEditText: d.edit ? d.preEditText : null,
+            preEditMentions: d.edit ? d.preEditMentions : null,
             text: d.edit ? (d.preEditText ?? '') : d.text,
+            mentions: d.edit ? (d.preEditMentions ?? []) : (d.mentions ?? []),
             reply: replyDraftFrom(message, quoteText),
           })),
         })),
@@ -145,7 +228,11 @@ export const useChatDrafts = create<DraftsState>()(
               originalIds: message.attachments.map((a) => a.id),
             },
             preEditText: d.edit ? d.preEditText : d.text,
-            text: message.text,
+            preEditMentions: d.edit ? d.preEditMentions : (d.mentions ?? []),
+            // Правка открывается ВИДИМЫМ текстом (#228): токены сообщения
+            // разбираются в display + реестр, отправка пересоберёт wire.
+            text: fromWireText(message.text).text,
+            mentions: fromWireText(message.text).mentions,
             // Вложения правимого сообщения — строки окна правки (#188):
             // ready-карточки с серверным DTO (id строки = localId).
             attachments: message.attachments.map((a) => ({
@@ -163,7 +250,16 @@ export const useChatDrafts = create<DraftsState>()(
       cancelEdit: (key) =>
         set((s) => ({
           drafts: patchDraft(s.drafts, key, (d) =>
-            d.edit ? { ...d, edit: null, text: d.preEditText ?? '', preEditText: null } : d,
+            d.edit
+              ? {
+                  ...d,
+                  edit: null,
+                  text: d.preEditText ?? '',
+                  mentions: d.preEditMentions ?? [],
+                  preEditText: null,
+                  preEditMentions: null,
+                }
+              : d,
           ),
         })),
       finishEdit: (key) =>
@@ -178,7 +274,9 @@ export const useChatDrafts = create<DraftsState>()(
               ...d,
               edit: null,
               text: d.preEditText ?? '',
+              mentions: d.preEditMentions ?? [],
               preEditText: null,
+              preEditMentions: null,
               attachments: [],
             };
           }),
@@ -253,11 +351,55 @@ export const useChatDrafts = create<DraftsState>()(
         drafts: Object.fromEntries(
           Object.entries(s.drafts).map(([key, d]) => [
             key,
-            { text: d.text, reply: d.reply, edit: d.edit, preEditText: d.preEditText },
+            {
+              text: d.text,
+              mentions: d.mentions ?? [],
+              reply: d.reply,
+              edit: d.edit,
+              preEditText: d.preEditText,
+              preEditMentions: d.preEditMentions,
+            },
           ]),
         ),
       }),
-      version: 1,
+      version: 3,
+      // Миграции (#228): v1 хранил СЫРОЙ текст с токенами; v2 — display с
+      // «@Имя». v3 — display без «@» (dev-фидбек 06.10): старый черновик
+      // проходит roundtrip wire→display, «@» срезается, диапазоны честные.
+      migrate: (persisted, version) => {
+        if (version >= 3) return persisted as never;
+        const state = persisted as {
+          drafts?: Record<
+            string,
+            { text?: string; mentions?: DraftMention[] } & Record<string, unknown>
+          >;
+        };
+        const roundtrip = (text: string, mentions: DraftMention[] | undefined) =>
+          fromWireText(toWireText(text, mentions ?? []));
+        const drafts = Object.fromEntries(
+          Object.entries(state.drafts ?? {}).map(([key, d]) => {
+            const parsed = roundtrip(typeof d.text === 'string' ? d.text : '', d.mentions);
+            // preEditText персистился СЫРЫМ (v1 — с токенами) — тот же
+            // roundtrip, иначе отмена правки после F5 вернёт в поле
+            // сырую разметку при пустом реестре (code-ревью #228).
+            const pre =
+              typeof d.preEditText === 'string' && d.preEditText.length > 0
+                ? roundtrip(d.preEditText, [])
+                : null;
+            return [
+              key,
+              {
+                ...d,
+                text: parsed.text,
+                mentions: parsed.mentions,
+                preEditText: pre ? pre.text : null,
+                preEditMentions: pre ? pre.mentions : null,
+              },
+            ];
+          }),
+        );
+        return { ...state, drafts } as never;
+      },
       // После rehydrate в черновиках НЕТ attachments (не персистятся) —
       // нормализация обязательна, иначе draft.attachments.some() падает
       // (баг найден скриншот-прогоном 24.09: белый экран после F5).

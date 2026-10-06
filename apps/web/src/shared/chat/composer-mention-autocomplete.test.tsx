@@ -102,7 +102,9 @@ describe('автокомплит @упоминаний (#176)', () => {
 
     await waitFor(() => {
       const draft = useChatDrafts.getState().drafts[`conversation:${CONV}`];
-      expect(draft?.text).toBe(`спросим @[Анна Первая](user:${USER_A}) `);
+      // #228: в поле ВИДИМЫЙ текст (имя без @) + реестр; wire — на отправке.
+      expect(draft?.text).toBe('спросим Анна Первая ');
+      expect(draft?.mentions).toEqual([{ start: 8, end: 19, id: USER_A, label: 'Анна Первая' }]);
     });
   });
 

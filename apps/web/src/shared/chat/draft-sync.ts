@@ -1,5 +1,6 @@
 import { api } from '../api-client.js';
 import { useChatDrafts } from './chat-drafts.js';
+import { toWireText } from './composer-mention-registry.js';
 import { MESSAGE_TEXT_LIMIT } from './chat-composer.js';
 
 /**
@@ -89,7 +90,7 @@ export function reconcileServerDraft(
   if (!text) return;
   const local = useChatDrafts.getState().drafts[scopeKey];
   if (local?.text || local?.edit) return;
-  useChatDrafts.getState().setText(scopeKey, text);
+  useChatDrafts.getState().restoreFromWire(scopeKey, text);
   markDraftSynced(conversationId, text);
 }
 
@@ -101,8 +102,11 @@ function flushPlan(scopeKey: string): { conversationId: string; text: string } |
   if (!conversationId) return null;
   const draft = useChatDrafts.getState().drafts[scopeKey];
   if (draft?.edit) return null;
-  const text = draft?.text ?? '';
+  // Серверный черновик хранит WIRE-формат (#228): перезагрузка/другое
+  // устройство восстанавливает чипы; лимит считается по wire-длине.
+  const text = toWireText(draft?.text ?? '', draft?.mentions ?? []);
   if (text.length > MESSAGE_TEXT_LIMIT) return null;
+  if (text.length > 0 && (draft?.text ?? '') === '') return null;
   if (text === (lastSent.get(conversationId) ?? '')) return null;
   return { conversationId, text };
 }

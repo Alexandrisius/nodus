@@ -2,6 +2,7 @@ import type { KeyboardEvent } from 'react';
 
 import { useChatDrafts } from './chat-drafts.js';
 import { mentionAutocompleteKeydown } from './composer-mention-autocomplete.js';
+import { mentionIndexAtKey, type DraftMention } from './composer-mention-registry.js';
 import { useForwardPending } from './forward-pending.js';
 import { isSendShortcut } from './send-keys.js';
 
@@ -15,8 +16,9 @@ import { isSendShortcut } from './send-keys.js';
 export interface ComposerKeyboardCtx {
   focusId: string;
   text: string;
-  /** Атомарные Backspace/Delete у чипа-токена (use-composer-caret). */
-  handleCaretKeys: (event: KeyboardEvent<HTMLTextAreaElement>) => boolean;
+  /** Реестр чипов черновика + удаление по индексу (#228). */
+  mentions: DraftMention[];
+  removeMention: (index: number) => void;
   /** Панель @упоминаний: состояние + выбор/закрытие. */
   autocomplete: {
     open: boolean;
@@ -39,9 +41,29 @@ export function composerKeyDown(
   event: KeyboardEvent<HTMLTextAreaElement>,
   ctx: ComposerKeyboardCtx,
 ): void {
-  // Атомарное удаление чипа (#224): Backspace/Delete у токена сносит его
-  // ЦЕЛИКОМ — чип не разбирается в сырую разметку посимвольно.
-  if (ctx.handleCaretKeys(event)) return;
+  // Атомарное удаление чипа (#224/#228): Backspace/Delete у диапазона
+  // сносят чип ЦЕЛИКОМ — label не разбирается посимвольно.
+  if (
+    (event.key === 'Backspace' || event.key === 'Delete') &&
+    !event.ctrlKey &&
+    !event.metaKey &&
+    !event.altKey
+  ) {
+    const el = event.currentTarget;
+    if (el.selectionStart === el.selectionEnd) {
+      const index = mentionIndexAtKey(ctx.mentions, el.selectionStart ?? 0, event.key);
+      if (index !== null) {
+        const start = ctx.mentions[index]!.start;
+        event.preventDefault();
+        ctx.removeMention(index);
+        requestAnimationFrame(() => {
+          const next = el; // элемент жив, менялось только value
+          next.setSelectionRange(start, start);
+        });
+        return;
+      }
+    }
+  }
   // Автокомплит @упоминаний (#176): Enter выбирает (НЕ отправляет), ↑↓ по
   // списку, Esc гасит панель; Slack.
   const eaten = mentionAutocompleteKeydown(

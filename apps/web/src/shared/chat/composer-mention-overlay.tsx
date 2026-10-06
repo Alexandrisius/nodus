@@ -1,86 +1,86 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Check, Trash2, X } from 'lucide-react';
-import { buildMentionToken, parseMentionSegments, ui } from '@nodus/contracts';
+import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import { cn } from '@nodus/ui/lib/utils';
 
-import { personTone, personToneVar } from '../ui/person-tone.js';
-import { ComposerCaret } from './composer-caret.js';
-import {
-  mentionTokens,
-  removeMentionToken,
-  replaceMentionLabel,
-  type CaretMention,
-} from './composer-mentions.js';
+import { personTone } from '../ui/person-tone.js';
+import type { DraftMention } from './composer-mention-registry.js';
 
 /**
- * Оверлей @упоминаний поля композера (#176): зеркальный слой ПОД textarea
- * рендерит токены чипами (текст поля прозрачный, каретка видима; паттерн
- * highlight-within-textarea). Слой строго повторяет типографику поля
- * (px-1.5 py-1.5 text-base md:text-sm, pre-wrap, break-words) — перенос
- * строк совпадает с textarea 1:1; скролл длинного текста синхронизируется
- * слушателем scroll на самом textarea.
+ * Оверлей @упоминаний поля композера (#176, модель #228 + dev-фидбек 06.10):
+ * зеркальный слой ПОД textarea рендерит ВИДИМЫЙ текст (в поле лежит просто
+ * ИМЯ сотрудника — без «@» и без разметки токена) и подчёркивает диапазоны
+ * реестра персональным тоном. Метрика зеркала 1:1 с полем (тот же текст,
+ * ноль компенсаций) — НАТИВНАЯ каретка видима и стоит там, где ввод (канон
+ * react-mentions/css-tricks). Заливка-пилюля — только в ПУЗЫРЕ после
+ * отправки («как делают все»: Telegram/Slack; пилюля в поле «касалась»
+ * набираемого текста — dev-фидбек). «Все» — нейтральный тон.
  *
- * Клик по видимой части чипа (label) открывает поповер правки отображаемого
- * текста: ✓ применить / ✕ отмена / 🗑 удалить метку целиком (вердикт
- * владельца 04.10 — без больших кнопок); привязка по id не меняется.
+ * Клик по подчёркнутому имени (каретка попадает в диапазон) открывает
+ * КОМПАКТНЫЙ поповер правки (без заголовка, dev-фидбек): ✓/✕/🗑;
+ * привязка по id не меняется (операции — реестр стора черновика).
  */
 
-/** Зеркало токена в оверлее: СЫРОЙ текст токена рисуется теми же глифами,
- *  что и textarea (каретка живёт в raw-координатах — ширины и ПЕРЕНОСЫ
- *  обязаны совпадать 1:1, code-ревью): видима только label-часть на
- *  пилюле-тинте, обрамление `@[`/`]` и хвост `(user:uuid)` — прозрачные
- *  глифы. Без whitespace-pre: инлайны рвутся по строкам как в textarea
- *  (пилюля честно разрывается, модель Slack); паддинг пилюли px-1.5
- *  скомпенсирован равным отрицательным маргином — видимые поля чипа без
- *  сдвига метрики (ревизия #224: прежние px-0.5 были «впритык»); пилюля
- *  наезжает на прозрачные глифы обрамления. «Все» — нейтральный тон. */
-function OverlayChip({ id, label }: { id: string; label: string }) {
-  const tone = id === 'all' ? 'text-foreground' : personTone(id);
-  const tint =
-    id === 'all'
-      ? 'color-mix(in oklch, var(--foreground) 12%, transparent)'
-      : `color-mix(in oklch, ${personToneVar(id)} 12%, transparent)`;
-  return (
-    <>
-      <span style={{ color: 'transparent' }}>@[</span>
-      <span style={{ backgroundColor: tint }} className={cn('-mx-1.5 rounded-md px-1.5', tone)}>
-        {label || '@'}
-      </span>
-      <span style={{ color: 'transparent' }}>{`](user:${id})`}</span>
-    </>
-  );
+/** Чип под кареткой клика (правка поповером). */
+export interface MentionHit extends DraftMention {
+  index: number;
 }
 
-/** Токен, чей видимый label накрыт смещением каретки (клик в чип). */
-export function mentionAtOffset(text: string, offset: number): CaretMention | null {
+/** Сегменты видимого текста: пилюли по диапазонам реестра. */
+function renderSegments(text: string, mentions: DraftMention[]): ReactNode[] {
+  const parts: ReactNode[] = [];
+  let cursor = 0;
+  let key = 0;
+  for (const m of [...mentions].sort((a, b) => a.start - b.start)) {
+    if (m.start < cursor || m.end > text.length || m.start >= m.end) continue;
+    if (m.start > cursor) parts.push(text.slice(cursor, m.start));
+    parts.push(<Pill key={key++} mention={m} />);
+    cursor = m.end;
+  }
+  parts.push(text.slice(cursor));
+  return parts;
+}
+
+/** Чип в поле: ИМЯ персонального тона с мягким точечным подчёркиванием —
+ *  без «@», без заливки и без полей (метрика зеркала = поле без компенсаций;
+ *  зазор после чипа — честный пробел текста). Заливка — в пузыре отправки. */
+function Pill({ mention }: { mention: DraftMention }) {
+  const tone = mention.id === 'all' ? 'text-foreground' : personTone(mention.id);
   return (
-    mentionTokens(text).find(
-      (t) => offset > t.start + 1 && offset <= t.start + 2 + t.label.length,
-    ) ?? null
+    <span
+      className={cn(
+        'font-medium underline decoration-dotted decoration-from-font underline-offset-[3px]',
+        tone,
+      )}
+    >
+      {mention.label}
+    </span>
   );
 }
 
 /** Оверлей + поповер правки; рендерится ВНУТРИ relative-обёртки textarea.
  *  editToken/onEditClose — управляемое состояние поповера (клик по чипу
- *  решает композер: mentionAtOffset по каретке клика). caret — слой
- *  кастомной каретки (#224): нативная скрыта, позиция живёт по зеркалу. */
+ *  решает композер: попадание каретки клика в диапазон реестра). */
 export function MentionFieldOverlay({
   text,
-  setText,
+  mentions,
   textareaRef,
   editToken,
   onEditClose,
-  caret,
+  onRename,
+  onRemove,
 }: {
   text: string;
-  /** setText стора черновика (правка/удаление токена). */
-  setText: (next: string) => void;
+  /** Реестр чипов черновика (#228). */
+  mentions: DraftMention[];
   textareaRef: { current: HTMLTextAreaElement | null };
-  editToken: CaretMention | null;
+  editToken: MentionHit | null;
   onEditClose: () => void;
-  /** Каретка поля (offset + видимость) или null — слой не монтируется. */
-  caret?: { offset: number; visible: boolean } | null;
+  /** Правка label (поповер): стор пересчитает текст и диапазоны. */
+  onRename: (index: number, label: string) => void;
+  /** Удаление чипа целиком (корзина поповера). */
+  onRemove: (index: number) => void;
 }) {
   const overlayRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -89,7 +89,7 @@ export function MentionFieldOverlay({
 
   // Фокус в поле правки при открытии поповера (подпись-редактор владеет
   // кареткой, канон окна отправки вложений); Esc/применение возвращают
-  // курсор композеру (каретка — ЗА токеном, печать не ломает разметку).
+  // курсор композеру (каретка — ЗА чипом, печать не ломает разметку).
   useEffect(() => {
     if (!editing) return;
     setDraftLabel(editing.label);
@@ -110,19 +110,18 @@ export function MentionFieldOverlay({
 
   function closePopover(caretEnd?: number) {
     const token = editing;
-    // Каретку — ЗА токен ДО закрытия (или в переданную точку после замены
+    // Каретку — ЗА чип ДО закрытия (или в переданную точку после замены
     // текста): композер синкнет caret-state из DOM — рассинхрон DOM/state
     // держал панель автокомплита открытой (валидация, раунд 2).
-    const end = caretEnd ?? token?.end;
+    const end = caretEnd ?? (token ? token.start + token.label.length + 1 : undefined);
     if (end !== undefined) textareaRef.current?.setSelectionRange(end, end);
     onEditClose();
   }
 
   function applyLabel() {
     if (editing && draftLabel.trim().length > 0) {
-      setText(replaceMentionLabel(text, editing.index, draftLabel.trim()));
-      const newEnd = editing.start + buildMentionToken(draftLabel.trim(), editing.id).length;
-      closePopover(newEnd);
+      onRename(editing.index, draftLabel.trim());
+      closePopover(editing.start + draftLabel.trim().length + 1);
       return;
     }
     closePopover();
@@ -130,7 +129,7 @@ export function MentionFieldOverlay({
 
   function removeToken() {
     if (editing) {
-      setText(removeMentionToken(text, editing.index));
+      onRemove(editing.index);
       closePopover(editing.start);
       return;
     }
@@ -144,28 +143,16 @@ export function MentionFieldOverlay({
         aria-hidden
         className="pointer-events-none absolute inset-0 overflow-hidden px-1.5 py-1.5 text-base leading-normal whitespace-pre-wrap break-words md:text-sm"
       >
-        {parseMentionSegments(text).map((segment, i) =>
-          segment.kind === 'mention' ? (
-            <OverlayChip key={i} id={segment.id} label={segment.label} />
-          ) : (
-            segment.value
-          ),
-        )}
+        {renderSegments(text, mentions)}
         {/* Хвостовой перенос строки: pre-wrap textarea держит строку. */}
         {text.endsWith('\n') ? '\n' : null}
       </div>
-      {caret !== undefined ? (
-        <ComposerCaret text={text} caret={caret} mirrorRef={overlayRef} />
-      ) : null}
       {editing ? (
         <span
           role="dialog"
           aria-label={ui.chat.mentionEditText}
-          className="absolute bottom-full left-0 z-30 mb-1.5 flex w-max max-w-full items-center gap-1 rounded-xl border border-border bg-popover p-1.5 pl-2.5 shadow-sm"
+          className="absolute bottom-full left-0 z-30 mb-3 flex w-max max-w-full items-center gap-1 rounded-xl border border-border bg-popover p-1.5 shadow-sm"
         >
-          <span className="w-32 shrink-0 text-xs text-muted-foreground">
-            {ui.chat.mentionEditText}
-          </span>
           <input
             ref={inputRef}
             value={draftLabel}

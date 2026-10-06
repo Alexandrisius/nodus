@@ -139,6 +139,8 @@ describe('ChatComposer — каретка в конец восстановлен
       drafts: {
         [`conversation:${CONV_B}`]: {
           text: 'продолжение с места остановки',
+          mentions: [],
+          preEditMentions: null,
           attachments: [],
           reply: null,
           edit: null,
