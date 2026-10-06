@@ -79,11 +79,7 @@ describe('EventDispatcher', () => {
     const p2025 = Object.assign(new Error('No record was found for an update.'), {
       code: 'P2025',
     });
-    (txRunner.run as { mockImplementation: (fn: unknown) => Promise<void> }).mockImplementation(
-      async () => {
-        throw p2025;
-      },
-    );
+    txRunner.run.mockRejectedValue(p2025);
     await d2.dispatchPending();
     expect(log2.error).not.toHaveBeenCalled();
     expect(log2.debug).toHaveBeenCalled();
