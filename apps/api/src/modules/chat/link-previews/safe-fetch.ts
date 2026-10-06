@@ -76,6 +76,9 @@ export function ssrfGuardedAgent(): Agent {
 }
 
 /** fetch через гвард-агент: все соединения/редиректы проходят pinned-DNS.
+ *  ДИСЦИПЛИНА (security-ревью): перед КАЖДЫМ вызовом — assertFetchableUrl —
+ *  Node net.connect для ЛИТЕРАЛЬНЫХ хостов не вызывает lookup (isIP-быстрый
+ *  путь), агент один их не ловит; агент закрывает DNS-имена.
  *  fetch — ИЗ ПАКЕТА undici (совместим с Agent той же версии; встроенный
  *  fetch Node держит внутренний undici иной версии — «invalid onRequestStart
  *  method» на чужом dispatcher'е). */

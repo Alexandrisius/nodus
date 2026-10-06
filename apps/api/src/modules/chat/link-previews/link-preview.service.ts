@@ -189,8 +189,8 @@ export class LinkPreviewService {
    *  (схема/порт/креды/литеральный приватный IP; security-ревью: Node
    *  net.connect для литералов не зовёт lookup агента), DNS-имена хопов —
    *  за pinned-DNS агентом. Стрим ≤ 2 МБ, sharp-дериват ≤640px webp (#139),
-   *  лимит пикселей 4096². Сбой сети — карточка без картинки; SSRF-блок —
-   *  бросает SsrfBlockedError наверх (классификация blocked). */
+   *  лимит пикселей 4096². Любой сбой/блок картинки — карточка БЕЗ картинки
+   *  (fail-closed, превью живёт текстом). */
   private async fetchImageGuarded(rawImageUrl: string): Promise<Response | null> {
     let current = rawImageUrl;
     for (let hop = 0; hop <= 3; hop += 1) {
