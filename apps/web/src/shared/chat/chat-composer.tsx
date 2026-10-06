@@ -41,10 +41,9 @@ import { useScrollEndStore } from './scroll-end-store.js';
 import { SelectionToolbar } from './selection-island.js';
 import type { StickerSubmitPayload } from './sticker-api.js';
 import { MentionAutocompletePanel, useComposerMentions } from './composer-mention-autocomplete.js';
-import { caretBeyondToken, type CaretMention } from './composer-mentions.js';
-import { useComposerCaret } from './use-composer-caret.js';
 import { composerKeyDown } from './composer-keydown.js';
-import { MentionFieldOverlay, mentionAtOffset } from './composer-mention-overlay.js';
+import { mentionIndexAtOffset, toWireText } from './composer-mention-registry.js';
+import { MentionFieldOverlay, type MentionHit } from './composer-mention-overlay.js';
 
 /** Payload отправки композера (#87): текст + готовые вложения + контекст
  *  ответа/правки. Хост решает: edit ≠ null → мутация правки; иначе — отправка
@@ -194,20 +193,10 @@ export function ChatComposer({
 
   // @упоминания (#176): каретка + запрос — useComposerMentions; клик по чипу
   // поля — поповер правки (composer-mention-overlay).
-  const [editToken, setEditToken] = useState<CaretMention | null>(null);
+  const [editToken, setEditToken] = useState<MentionHit | null>(null);
   const mentions = useComposerMentions({ conversationId, focusId, text, setText, inputRef });
-
-  // Каретка + атомарные Backspace/Delete у токенов (#224) — хук; каретка
-  // в конец восстановленного черновика — модель Telegram.
-  const { caretMeta, updateCaret, handleCaretKeys, fieldEvents } = useComposerCaret({
-    text,
-    setText: (next) => setText(focusId, next),
-    inputRef,
-    onFocusExtra: (el) => {
-      if (caretToEndRef.current) el.setSelectionRange(el.value.length, el.value.length);
-      caretToEndRef.current = false;
-    },
-  });
+  // Реестр чипов черновика (#228): в поле ВИДИМЫЙ текст, каретка нативная.
+  const draftMentions = draft.mentions ?? [];
 
   // Морфология островка (селект) — хук selection-phase.ts (I5, #177).
   const { selPhase, toolbarSel } = useSelectionPhase(sel);
@@ -302,7 +291,12 @@ export function ChatComposer({
     if (draft.edit) {
       // Черновик/режим правки чистит хост по onSuccess мутации (#124):
       // ошибка сервера не должна терять набранную правку.
-      onSubmit({ text: text.trim(), attachments: [], reply: null, edit: draft.edit });
+      onSubmit({
+        text: toWireText(text, draftMentions).trim(),
+        attachments: [],
+        reply: null,
+        edit: draft.edit,
+      });
       return;
     }
     if (pending) {
@@ -313,7 +307,7 @@ export function ChatComposer({
           body: {
             sourceConversationId: target.sourceConversationId,
             messageIds: target.messageIds,
-            comment: text.trim() || undefined,
+            comment: toWireText(text, draftMentions).trim() || undefined,
             threadRootId: target.threadRootId,
           },
         },
@@ -332,7 +326,7 @@ export function ChatComposer({
       return;
     }
     onSubmit({
-      text: text.trim(),
+      text: toWireText(text, draftMentions).trim(),
       attachments: readyAttachments,
       reply: draft.reply,
       edit: null,
@@ -370,7 +364,8 @@ export function ChatComposer({
     composerKeyDown(event, {
       focusId,
       text,
-      handleCaretKeys,
+      mentions: draftMentions,
+      removeMention: (index) => useChatDrafts.getState().removeMention(focusId, index),
       autocomplete: {
         open: mentions.open,
         count: mentions.autocomplete.candidates.length,
@@ -537,10 +532,13 @@ export function ChatComposer({
                 ) : null}
                 <MentionFieldOverlay
                   text={text}
-                  setText={(next) => setText(focusId, next)}
+                  mentions={draftMentions}
                   textareaRef={inputRef}
-                  caret={caretMeta}
                   editToken={editToken}
+                  onRename={(index, label) =>
+                    useChatDrafts.getState().renameMention(focusId, index, label)
+                  }
+                  onRemove={(index) => useChatDrafts.getState().removeMention(focusId, index)}
                   onEditClose={() => {
                     setEditToken(null);
                     // Каретку DOM поповер поставил — забрать в state (иначе
@@ -552,28 +550,31 @@ export function ChatComposer({
                 <Textarea
                   ref={registerInput}
                   value={text}
-                  className="max-h-[45vh] min-h-8 flex-1 resize-none rounded-lg border-0 bg-transparent px-1.5 py-1.5 text-transparent caret-transparent shadow-none ring-0 focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent"
-                  {...fieldEvents}
+                  className="max-h-[45vh] min-h-8 flex-1 resize-none rounded-lg border-0 bg-transparent px-1.5 py-1.5 text-transparent caret-foreground shadow-none ring-0 focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent"
+                  onFocus={() => {
+                    const el = inputRef.current;
+                    if (caretToEndRef.current && el) {
+                      el.setSelectionRange(el.value.length, el.value.length);
+                    }
+                    caretToEndRef.current = false;
+                  }}
                   onChange={(e) => {
                     setText(focusId, e.target.value);
                     mentions.syncCaret(e.target);
-                    updateCaret(e.target);
                     if (conversationId && e.target.value.length > 0) {
                       emitTyping(conversationId, typingThreadRootId);
                     }
                   }}
-                  onKeyUp={(e) => mentions.handleKeyUp(e.currentTarget, e.key)}
+                  onKeyUp={(e) => mentions.syncCaret(e.currentTarget)}
                   onClick={(e) => {
+                    // Кликом по пилюле (каретка попала в диапазон чипа)
+                    // открываем поповер правки label (#228: каретка нативная,
+                    // позиции честные — клампы не нужны).
                     const el = e.currentTarget;
                     const offset = el.selectionStart ?? 0;
-                    // Кликом по чипу (видимая часть) открываем поповер, по
-                    // невидимому хвосту — каретка за токен; НИКОГДА не внутрь
-                    // разметки токена (печать ломала бы uuid).
-                    const chip = mentionAtOffset(text, offset);
-                    const caret = chip ? chip.end : caretBeyondToken(text, offset);
-                    if (caret !== null) el.setSelectionRange(caret, caret);
+                    const index = mentionIndexAtOffset(draftMentions, offset);
+                    setEditToken(index === null ? null : { ...draftMentions[index]!, index });
                     mentions.syncCaret(el);
-                    setEditToken(chip);
                   }}
                   onKeyDown={onKeyDown}
                   onPaste={onPaste}

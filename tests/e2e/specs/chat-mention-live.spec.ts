@@ -101,9 +101,35 @@ test.describe('живое упоминание-чип (#176)', () => {
     await expect(option).toBeVisible({ timeout: 5000 });
     await field.press('Enter');
 
-    // Чип в поле (оверлей) + отправка.
+    // Чип в поле (оверлей): ВИДИМЫЙ текст `@ФИО` + пробел (#228), каретка
+    // нативная сразу за ним; ввод после чипа льётся вплотную к пилюле.
     const chipInField = pageA.locator('div[aria-hidden] span[style*="color-mix"]').first();
-    await expect(chipInField).toHaveText(peerName);
+    await expect(chipInField).toHaveText(`@${peerName}`);
+    await field.pressSequentially('смотри', { delay: 30 });
+    const adjacency = await pageA.evaluate(() => {
+      const pill = document.querySelector<HTMLElement>('div[aria-hidden] span[style*="color-mix"]');
+      const mirror = pill?.closest('div[aria-hidden]');
+      const after = mirror?.querySelector<HTMLElement>('span[style*="color-mix"] ~ span');
+      void after;
+      // правый край пилюли и левый край СЛОВА СРАЗУ ЗА ней: ищем текстовый
+      // узел зеркала, начинающийся правее пилюли
+      const pillRect = pill?.getBoundingClientRect();
+      const walker = document.createTreeWalker(mirror!, NodeFilter.SHOW_TEXT);
+      let wordLeft: number | null = null;
+      for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+        const r = document.createRange();
+        r.selectNodeContents(n);
+        const rect = r.getBoundingClientRect();
+        if (pillRect && rect.left >= pillRect.right - 1 && rect.width > 0) {
+          wordLeft = rect.left;
+          break;
+        }
+      }
+      return { pillRight: pillRect?.right ?? null, wordLeft };
+    });
+    expect(adjacency.pillRight).not.toBeNull();
+    expect(adjacency.wordLeft).not.toBeNull();
+    expect((adjacency.wordLeft ?? 0) - (adjacency.pillRight ?? 0)).toBeLessThan(24);
     await field.press('Enter'); // больше нет запроса — обычная отправка
     await pageA.waitForTimeout(400);
 
@@ -163,8 +189,8 @@ test.describe('живое упоминание-чип (#176)', () => {
     await expect(page.locator('[role="option"]').first()).toHaveText(/Все/);
     await field.press('Enter');
 
-    // Чип «Все» в поле + отправка
-    await expect(field).toHaveValue(/@\[Все\]\(user:all\)/);
+    // Чип «Все» в поле — ВИДИМЫЙ текст (#228) + отправка пересоберёт токен
+    await expect(field).toHaveValue('@Все ');
     await field.press('Enter');
     await page.waitForTimeout(400);
 
@@ -184,14 +210,17 @@ test.describe('живое упоминание-чип (#176)', () => {
       page.locator('[data-slot="message-text"] [data-slot="mention-chip"]', { hasText: 'Все' }),
     ).toBeVisible({ timeout: 5000 });
 
-    // Backspace у чипа удаляет токен ЦЕЛИКОМ (главный баг приёмки #224):
-    // снова вводим упоминание, каретка после чипа — один Backspace чист.
+    // Backspace у чипа удаляет его ЦЕЛИКОМ (главный баг приёмки #224/#228):
+    // снова вводим упоминание, каретка после видимого `@Все` — за пробелом.
     await field.click();
     await field.pressSequentially('@вс', { delay: 40 });
-    await field.press('Enter'); // чип вставлен, каретка за токеном (после пробела)
+    await field.press('Enter'); // чип вставлен, каретка за пробелом (нативная)
+    await expect(field).toHaveValue('@Все ');
     await field.press('Backspace'); // пробел
-    await field.press('Backspace'); // чип целиком — поле пусто
+    await expect(field).toHaveValue('@Все');
+    await field.press('Backspace'); // чип целиком (реестр) — поле пусто
     await expect(field).toHaveValue('');
+    expect(await field.evaluate((el: HTMLTextAreaElement) => el.selectionStart)).toBe(0);
 
     await context.close();
   });

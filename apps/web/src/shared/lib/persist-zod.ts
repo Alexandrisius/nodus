@@ -68,6 +68,17 @@ export const notificationTabsEnvelopeSchema = z.object({
  *  беседы отбрасывается, соседние живут. */
 const chatDraftSchema = z.object({
   text: z.string().catch(''),
+  // Реестр упоминаний черновика (#228): display-текст + диапазоны чипов.
+  mentions: z
+    .array(
+      z.object({
+        start: z.number().int().nonnegative(),
+        end: z.number().int().nonnegative(),
+        id: z.string(),
+        label: z.string(),
+      }),
+    )
+    .catch([]),
   reply: z
     .object({
       messageId: z.string(),

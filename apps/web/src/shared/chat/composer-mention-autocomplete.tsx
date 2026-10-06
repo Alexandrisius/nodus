@@ -9,10 +9,9 @@ import { api } from '../api-client.js';
 import { useAuthStore } from '../auth-store.js';
 import { PersonAvatar } from '../ui/person-avatar.js';
 
+import { useChatDrafts } from './chat-drafts.js';
 import {
-  clampCaretByArrow,
   detectMentionQuery,
-  insertMentionToken,
   mergeMentionCandidates,
   type MentionCandidate,
 } from './composer-mentions.js';
@@ -96,13 +95,17 @@ export function useComposerMentions(opts: {
     const query = autocomplete.query;
     const candidate = autocomplete.candidates[index];
     if (!query || !candidate) return;
-    const next = insertMentionToken(opts.text, query, candidate);
-    opts.setText(opts.focusId, next.text);
+    // Вставка ЧИПА через реестр стора (#228): в поле ложится видимый
+    // `@Имя` + пробел; каретка — НАСТОЯЩАЯ позиция за пробелом (нативная).
+    const caretAt = useChatDrafts
+      .getState()
+      .insertMention(opts.focusId, query.start, query.end, candidate.id, candidate.displayName);
+    if (caretAt === null) return;
     requestAnimationFrame(() => {
       const el = opts.inputRef.current;
       if (el) {
-        el.setSelectionRange(next.caret, next.caret);
-        setCaret(next.caret);
+        el.setSelectionRange(caretAt, caretAt);
+        setCaret(caretAt);
       }
     });
   }
@@ -111,18 +114,9 @@ export function useComposerMentions(opts: {
     setDismissedStart(autocomplete.query?.start ?? null);
   }
 
-  /** KeyUp поля: синк каретки; стрелки ←/→ НЕ ходят сквозь токен — кламп по
-   *  направлению (чистая clampCaretByArrow + unit-тесты; печать внутри
-   *  разметки ломала бы токен). */
-  function handleKeyUp(el: HTMLTextAreaElement, key: string) {
-    if (key === 'ArrowLeft' || key === 'ArrowRight') {
-      const target = clampCaretByArrow(
-        opts.text,
-        el.selectionStart ?? 0,
-        key === 'ArrowLeft' ? 'left' : 'right',
-      );
-      if (target !== null) el.setSelectionRange(target, target);
-    }
+  /** KeyUp поля: синк каретки (источник запроса автокомплита). Стрелки
+   *  нативны — в поле видимый текст, скрытой разметки нет (#228). */
+  function handleKeyUp(el: HTMLTextAreaElement) {
     setCaret(el.selectionStart ?? 0);
   }
 
