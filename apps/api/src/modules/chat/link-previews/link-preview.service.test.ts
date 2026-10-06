@@ -305,3 +305,41 @@ describe('LinkPreviewService.previewsForUrls', () => {
     });
   });
 });
+
+describe('og:image-литералы (security-реванш: net.connect не зовёт lookup)', () => {
+  it('og:image на приватный литерал — НЕ качается, превью живо текстовой карточкой', async () => {
+    previewMock.mockResolvedValue({
+      title: 'T',
+      description: null,
+      siteName: 'example.com',
+      image: 'http://169.254.169.254/og.png',
+    });
+    const { svc, repo, storage } = makeService({
+      findAlive: vi.fn(
+        async (urls: string[]) =>
+          new Map(
+            urls.map((u) => [
+              u,
+              {
+                normalizedUrl: u,
+                status: 'ready',
+                title: 'T',
+                description: null,
+                siteName: 'example.com',
+                imageFileId: null,
+                faviconFileId: null,
+                fetchedAt: new Date(),
+                expiresAt: new Date(),
+              },
+            ]),
+          ),
+      ),
+    });
+    await svc.processJob(JOB);
+    expect(storage.save).not.toHaveBeenCalled(); // наружу не ходили
+    expect(repo.upsertReady).toHaveBeenCalledWith(
+      JOB.normalizedUrl,
+      expect.objectContaining({ imageFileId: null, title: 'T' }),
+    );
+  });
+});
