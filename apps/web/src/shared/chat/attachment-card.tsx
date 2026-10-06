@@ -79,12 +79,18 @@ export function AttachmentCard({
     >
       <AttachmentMedia className="w-6">
         {isImage ? (
-          <img
-            src={attachment.thumbnailUrl ?? attachment.url ?? ''}
-            alt=""
-            loading="lazy"
-            className="aspect-square w-6 rounded-sm object-cover"
-          />
+          // Мини-превью карточки — только серверная миниатюра (#221):
+          // оригинал в ленте не грузится, до готовности — нейтральный фон.
+          attachment.thumbnailUrl ? (
+            <img
+              src={attachment.thumbnailUrl}
+              alt=""
+              loading="lazy"
+              className="aspect-square w-6 rounded-sm object-cover"
+            />
+          ) : (
+            <span className="aspect-square w-6 rounded-sm bg-muted" />
+          )
         ) : (
           <FileTypeIcon mime={attachment.mime} className="size-6" />
         )}

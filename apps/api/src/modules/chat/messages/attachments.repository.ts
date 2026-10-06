@@ -75,6 +75,17 @@ export class AttachmentsRepository {
     return this.prisma.messageAttachment.findUnique({ where: { id } });
   }
 
+  /** Беседа отправленного вложения (событие готовности превью #221):
+   *  null — ещё не отправлено (DTO отправки возьмёт свежий thumbFileId сам)
+   *  или сообщение уже удалено. */
+  async findConversationIdOf(id: string): Promise<string | null> {
+    const row = await this.prisma.messageAttachment.findUnique({
+      where: { id },
+      select: { message: { select: { conversationId: true } } },
+    });
+    return row?.message?.conversationId ?? null;
+  }
+
   /** Фиксация превью (#150): thumbFileId + авторитетные серверные габариты
    *  (перезаписывают клиентские — сервер не доверяет им после sharp).
    *  Compare-and-set по thumbFileId=null: гонка двойной генерации (#156 —

@@ -5,22 +5,27 @@ import { PinoLogger } from 'nestjs-pino';
 import { SignedUrlService } from '../../../core/crypto/signed-url.service.js';
 import type { FileStorage } from '../../../core/ports/file-storage.port.js';
 import { AttachmentsRepository, type AttachmentRow } from './attachments.repository.js';
+import { AttachmentsService } from './attachments.service.js';
 import {
-  AttachmentsService,
   MAX_ATTACHMENT_BYTES,
   MAX_PENDING_ATTACHMENTS,
-} from './attachments.service.js';
+  SYNC_PREVIEW_BYTES,
+} from './attachments.constants.js';
+import type { ThumbnailService } from './thumbnail.service.js';
 
 const OWNER = '00000000-0000-0000-0000-000000000001';
+const THUMB_FILE_ID = '00000000-0000-0000-0000-00000000000e';
 
 function makeService(
   storageOverrides: Partial<FileStorage> = {},
   repoOverrides: Partial<AttachmentsRepository> = {},
+  thumbnailsOverrides: Partial<ThumbnailService> = {},
 ): {
   service: AttachmentsService;
   storage: FileStorage;
   repo: AttachmentsRepository;
   thumbnailQueue: { enqueue: ReturnType<typeof vi.fn> };
+  thumbnails: { generateFor: ReturnType<typeof vi.fn> };
 } {
   const storage: FileStorage = {
     save: vi.fn(async () => ({ fileId: '00000000-0000-0000-0000-00000000000f' })),
@@ -33,6 +38,18 @@ function makeService(
     findStaleUnclaimed: vi.fn(async () => []),
     deleteUnclaimedByIds: vi.fn(async () => undefined),
     insertAttachment: vi.fn(async (row: AttachmentRow): Promise<AttachmentRow> => row),
+    findAnyById: vi.fn(async (id: string): Promise<AttachmentRow | null> => ({
+      id,
+      fileId: '00000000-0000-0000-0000-00000000000f',
+      ownerId: OWNER,
+      name: 'foto.png',
+      size: 10,
+      mime: 'image/png',
+      kind: 'image',
+      width: 640,
+      height: 480,
+      thumbFileId: THUMB_FILE_ID,
+    })),
     findUnclaimed: vi.fn(async () => null),
     deleteUnclaimed: vi.fn(async () => true),
     ...repoOverrides,
@@ -40,27 +57,32 @@ function makeService(
   const thumbnailQueue = { enqueue: vi.fn(async () => undefined) } as unknown as {
     enqueue: ReturnType<typeof vi.fn>;
   };
+  const thumbnails = {
+    generateFor: vi.fn(async () => undefined),
+    ...thumbnailsOverrides,
+  } as unknown as { generateFor: ReturnType<typeof vi.fn> };
   const service = new AttachmentsService(
     storage,
     repo,
     new SignedUrlService({ STORAGE_URL_SECRET: 'test-secret-32-chars-aaaaaaaaaaaa' }),
     thumbnailQueue as never,
+    thumbnails as unknown as ThumbnailService,
     { setContext: vi.fn(), info: vi.fn(), warn: vi.fn() } as unknown as PinoLogger,
   );
-  return { service, storage, repo, thumbnailQueue };
+  return { service, storage, repo, thumbnailQueue, thumbnails };
 }
 
 function content(): Readable {
   return Readable.from(['hello']);
 }
 
-describe('AttachmentsService (#57)', () => {
+describe('AttachmentsService (#57, синхронное превью #221)', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
   });
 
-  it('загружает: kind=image для изображений, url — подписанная ссылка, превью — в очередь', async () => {
-    const { service, thumbnailQueue } = makeService();
+  it('изображение ≤ SYNC_PREVIEW_BYTES: миниатюра рождается В ответе загрузки, очередь не занимается', async () => {
+    const { service, thumbnails, thumbnailQueue } = makeService();
     const dto = await service.upload(
       OWNER,
       { name: 'foto.png', mime: 'image/png', size: 10, width: 640, height: 480 },
@@ -69,12 +91,73 @@ describe('AttachmentsService (#57)', () => {
     expect(dto.kind).toBe('image');
     expect(dto.width).toBe(640);
     expect(dto.url).toMatch(/^\/api\/v1\/files\/.+\/content\?exp=\d+&sig=[0-9a-f]{64}$/);
+    // Свежая строка перечитана после генерации — превью уже в DTO.
+    expect(dto.thumbnailUrl).toMatch(/^\/api\/v1\/files\/.+\/content\?exp=\d+&sig=/);
+    expect(thumbnails.generateFor).toHaveBeenCalledTimes(1);
+    expect(thumbnailQueue.enqueue).not.toHaveBeenCalled();
+  });
+
+  it('сбой синхронного превью не валит загрузку — запасной путь в очередь', async () => {
+    const { service, thumbnails, thumbnailQueue } = makeService(
+      {},
+      {},
+      { generateFor: vi.fn(async () => Promise.reject(new Error('sharp died'))) },
+    );
+    const dto = await service.upload(
+      OWNER,
+      { name: 'foto.png', mime: 'image/png', size: 10 },
+      content(),
+    );
     expect(dto.thumbnailUrl).toBeNull();
+    expect(thumbnails.generateFor).toHaveBeenCalledTimes(1);
+    expect(thumbnailQueue.enqueue).toHaveBeenCalledTimes(1);
+  });
+
+  it('гигант по пикселям (sync-лимит security #221): запасной путь в очередь', async () => {
+    // Перечитанная строка всё ещё без превью — sync-генерация тихо отказала
+    // (декомпрессионная бомба превысила SYNC_PIXEL_LIMIT).
+    const { service, thumbnails, thumbnailQueue } = makeService(
+      {},
+      {
+        findAnyById: vi.fn(async (id: string): Promise<AttachmentRow | null> => ({
+          id,
+          fileId: '00000000-0000-0000-0000-00000000000f',
+          ownerId: OWNER,
+          name: 'bomb.png',
+          size: 10,
+          mime: 'image/png',
+          kind: 'image',
+          width: 16383,
+          height: 16383,
+          thumbFileId: null,
+        })),
+      },
+    );
+    const dto = await service.upload(
+      OWNER,
+      { name: 'bomb.png', mime: 'image/png', size: 10 },
+      content(),
+    );
+    expect(dto.thumbnailUrl).toBeNull();
+    // Синхронный вызов — с жёстким пиксельным потолком.
+    expect(thumbnails.generateFor).toHaveBeenCalledWith(expect.any(String), 4096 * 4096);
+    expect(thumbnailQueue.enqueue).toHaveBeenCalledTimes(1);
+  });
+
+  it(`изображение > ${SYNC_PREVIEW_BYTES} байт — фоновая очередь, ответ без превью`, async () => {
+    const { service, thumbnails, thumbnailQueue } = makeService();
+    const dto = await service.upload(
+      OWNER,
+      { name: 'huge.png', mime: 'image/png', size: SYNC_PREVIEW_BYTES + 1 },
+      content(),
+    );
+    expect(dto.thumbnailUrl).toBeNull();
+    expect(thumbnails.generateFor).not.toHaveBeenCalled();
     expect(thumbnailQueue.enqueue).toHaveBeenCalledTimes(1);
   });
 
   it('kind=file для не-изображений (превью не ставится в очередь)', async () => {
-    const { service, thumbnailQueue } = makeService();
+    const { service, thumbnailQueue, thumbnails } = makeService();
     const dto = await service.upload(
       OWNER,
       { name: 'doc.pdf', mime: 'application/pdf', size: 10 },
@@ -82,6 +165,7 @@ describe('AttachmentsService (#57)', () => {
     );
     expect(dto.kind).toBe('file');
     expect(thumbnailQueue.enqueue).not.toHaveBeenCalled();
+    expect(thumbnails.generateFor).not.toHaveBeenCalled();
   });
 
   it(`файл > ${MAX_ATTACHMENT_BYTES} байт — CHAT_ATTACHMENT_TOO_LARGE (413) до записи`, async () => {

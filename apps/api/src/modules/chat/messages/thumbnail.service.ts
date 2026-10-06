@@ -1,15 +1,28 @@
 import { Inject, Injectable } from '@nestjs/common';
 import sharp from 'sharp';
 import { Readable } from 'node:stream';
+import { CHAT_EVENTS } from '@nodus/contracts';
 import { PinoLogger } from 'nestjs-pino';
 
+import { SignedUrlService } from '../../../core/crypto/signed-url.service.js';
+import { TransactionRunner } from '../../../core/database/transaction-runner.js';
+import { EventBus } from '../../../core/events/event-bus.js';
 import { FILE_STORAGE, type FileStorage } from '../../../core/ports/file-storage.port.js';
-import { MAX_ATTACHMENT_BYTES } from './attachments.service.js';
+import { MAX_ATTACHMENT_BYTES } from './attachments.constants.js';
 import { AttachmentsRepository } from './attachments.repository.js';
 
 /** Максимальная сторона превью (WebP): плитки ленты ≤480 дизайн-px ×DPR —
  *  800 хватает и для галерей, и для лайтбокс-подложки (#150). */
 export const THUMB_MAX_EDGE = 800;
+
+/** Потолок пикселей декодирования (security #221, декомпрессионная бомба:
+ * сжатый до сотен КБ монотонный PNG разворачивается в гигабайты RAM).
+ * Синхронный путь (в HTTP-запросе загрузки) — жёсткий 4096² (≈50 МБ
+ * декода, единообразно с link-preview). Фоновый воркер — дефолт sharp
+ * 16383² (паритет main: фото серийных камер 100–200 Мп не теряют превью;
+ * путь изолирован очередью concurrency 2, не в HTTP). */
+export const SYNC_PIXEL_LIMIT = 4096 * 4096;
+export const WORKER_PIXEL_LIMIT = 16383 * 16383;
 
 /** EXIF-ориентации 5–8 — поворот на 90°: физические width/height в файле
  *  нужно менять местами, чтобы совпасть с тем, что видит браузер. */
@@ -44,22 +57,30 @@ async function readAll(stream: Readable, cap: number): Promise<Buffer> {
  *
  * Контракт отказоустойчивости: превью ОПЦИОНАЛЬНО — не-изображение,
  * недекодируемый файл или исчезнувший объект оставляют thumbFileId=null
- * (клиент показывает оригинал, геометрия детерминирована отдельно).
+ * (клиент держит заглушку, оригинал грузит только лайтбокс).
  * БРОСОК хранилища/БД выходит наружу — job ретраится (3 попытки), после
  * исчерпания превью остаётся null. Идемпотентно: готовое превью — no-op.
- * Вне HTTP: вызывается только из BullMQ-воркера и backfill-скрипта.
+ * Вызывается из BullMQ-воркера и backfill-скрипта, а также СИНХРОННО из
+ * HTTP-запроса загрузки (≤ SYNC_PREVIEW_BYTES, #221) — там пиксельный
+ * потолок SYNC_PIXEL_LIMIT жёстче воркерного (декомпрессионные бомбы).
  */
 @Injectable()
 export class ThumbnailService {
   constructor(
     @Inject(FILE_STORAGE) private readonly storage: FileStorage,
     private readonly repository: AttachmentsRepository,
+    private readonly signedUrls: SignedUrlService,
+    private readonly txRunner: TransactionRunner,
+    private readonly eventBus: EventBus,
     private readonly logger: PinoLogger,
   ) {
     this.logger.setContext(ThumbnailService.name);
   }
 
-  async generateFor(attachmentId: string): Promise<void> {
+  /** pixelLimit — потолок пикселей декодирования (security #221): синхронный
+   *  вызов из HTTP передаёт жёсткий SYNC_PIXEL_LIMIT, воркер — просторный
+   *  WORKER_PIXEL_LIMIT; превышение — тихий отказ (превью опционально). */
+  async generateFor(attachmentId: string, pixelLimit: number = WORKER_PIXEL_LIMIT): Promise<void> {
     const attachment = await this.repository.findAnyById(attachmentId);
     if (!attachment || attachment.kind !== 'image' || attachment.thumbFileId) return;
 
@@ -68,14 +89,14 @@ export class ThumbnailService {
     const input = await readAll(original.stream, MAX_ATTACHMENT_BYTES);
 
     try {
-      const meta = await sharp(input, { failOn: 'none' }).metadata();
+      const meta = await sharp(input, { failOn: 'none', limitInputPixels: pixelLimit }).metadata();
       if (!meta.width || !meta.height) {
         this.logger.warn({ attachmentId }, 'Превью: изображение без габаритов');
         return;
       }
       const size = orientedSize(meta.width, meta.height, meta.orientation);
 
-      const thumb = await sharp(input, { failOn: 'none' })
+      const thumb = await sharp(input, { failOn: 'none', limitInputPixels: pixelLimit })
         .rotate() // авто-поворот по EXIF — превью всегда в экспонируемой ориентации
         .resize({
           width: THUMB_MAX_EDGE,
@@ -106,11 +127,38 @@ export class ThumbnailService {
         // дериват сносим, сирот не оставляем.
         await this.storage.remove([thumbFileId]).catch(() => undefined);
         this.logger.info({ attachmentId }, 'Превью: проиграл гонку фиксации, дериват удалён');
+        return;
       }
+      await this.emitPreviewReady(attachmentId, thumbFileId);
     } catch (error) {
       // Недекодируемый файл/сбой декодера: превью опционально — тихий отказ
       // без ретраев (job не должен падать трижды на мусоре).
       this.logger.warn({ attachmentId, err: error }, 'Превью: декодирование не удалось');
+    }
+  }
+
+  /** Фоновое превью отправленного сообщения готово (#221): клиенты получают
+   *  chat.attachment_preview_ready и патчат плитку на месте — получатели не
+   *  грузят оригинал в ленту, пока очередь догенерировала миниатюру. Событие
+   *  — только для уже отправленных (неотправленное DTO заберёт сам); сбой
+   *  эвента не рушит генерацию (превью в строке уже зафиксировано). */
+  private async emitPreviewReady(attachmentId: string, thumbFileId: string): Promise<void> {
+    try {
+      const conversationId = await this.repository.findConversationIdOf(attachmentId);
+      if (!conversationId) return;
+      const thumbnailUrl = this.signedUrls.fileContentUrl(thumbFileId);
+      await this.txRunner.run((tx) =>
+        this.eventBus.emit(tx, CHAT_EVENTS.ATTACHMENT_PREVIEW_READY, {
+          conversationId,
+          attachmentId,
+          thumbnailUrl,
+        }),
+      );
+    } catch (error) {
+      this.logger.warn(
+        { attachmentId, err: error },
+        'Событие готовности превью не отправлено (клиент догонит рефетчем)',
+      );
     }
   }
 }

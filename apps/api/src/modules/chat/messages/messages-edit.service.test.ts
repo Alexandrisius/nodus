@@ -95,7 +95,10 @@ describe('MessagesService.edit (#188: текст + состав вложений
   const stickersRepo = { findSticker: vi.fn() };
   const txRunner = { run: vi.fn((cb: (tx: string) => unknown) => cb(TX)) };
   const eventBus = { emit: vi.fn() };
-  const userProfiles = { findRefs: vi.fn(), filterActiveUserIds: vi.fn(async (ids: string[]) => ids) };
+  const userProfiles = {
+    findRefs: vi.fn(),
+    filterActiveUserIds: vi.fn(async (ids: string[]) => ids),
+  };
   let service: MessagesService;
 
   beforeEach(() => {
@@ -119,6 +122,7 @@ describe('MessagesService.edit (#188: текст + состав вложений
         applyMessageDeleted: vi.fn(async () => {}),
         applyForwardCopies: vi.fn(async () => {}),
       } as never,
+      { enqueue: vi.fn(async () => undefined) } as never,
     );
   });
 

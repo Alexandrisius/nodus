@@ -163,7 +163,7 @@ function VaultWindowBody({
                         key={item.attachment.id}
                         name={item.attachment.name}
                         meta={`${item.author.displayName} · ${formatDay(item.createdAt)}`}
-                        src={item.attachment.thumbnailUrl ?? item.attachment.url ?? undefined}
+                        src={item.attachment.thumbnailUrl ?? undefined}
                         onOpen={() => setLightbox(images.indexOf(item.attachment))}
                         onJump={() =>
                           useJumpStore

@@ -4,7 +4,12 @@ import type { ChatMessage, UserRef } from '@nodus/contracts';
 
 import { chatKeys } from './api.js';
 import { useAuthStore } from '../auth-store.js';
-import { applyReadEvent, applyReactionEvent, applySentMessage } from './ws-apply.js';
+import {
+  applyAttachmentPreviewEvent,
+  applyReadEvent,
+  applyReactionEvent,
+  applySentMessage,
+} from './ws-apply.js';
 
 /** Локальное применение chat.message_sent по seq (раунд 3, «буря рефечей»). */
 
@@ -395,5 +400,44 @@ describe('applyReadEvent (#124)', () => {
       readAt: '2026-09-27T10:00:00Z',
     });
     expect(applied).toBe(false);
+  });
+});
+
+describe('applyAttachmentPreviewEvent (#221)', () => {
+  const att = (id: string, thumbnailUrl: string | null) =>
+    ({
+      id,
+      fileId: `f-${id}`,
+      name: `${id}.png`,
+      size: 10,
+      mime: 'image/png',
+      kind: 'image',
+      url: `/orig/${id}`,
+      thumbnailUrl,
+      previewKind: 'image',
+      pdfUrl: null,
+      width: 100,
+      height: 50,
+    }) as import('@nodus/contracts').MessageAttachment;
+
+  it('патчит thumbnailUrl вложения на месте, без рефеча и чужих сообщений', () => {
+    const client = new QueryClient();
+    client.setQueryData(chatKeys.messages(CONV), {
+      items: [
+        msg({ id: 'm1', attachments: [att('a1', null), att('a2', '/thumb/old')] }),
+        msg({ id: 'm2', attachments: [att('a3', null)] }),
+      ],
+      nextCursor: null,
+    });
+    applyAttachmentPreviewEvent(client, {
+      conversationId: CONV,
+      attachmentId: 'a1',
+      thumbnailUrl: '/thumb/new',
+    });
+    const items = feed(client);
+    expect(items[0]!.attachments[0]!.thumbnailUrl).toBe('/thumb/new');
+    expect(items[0]!.attachments[1]!.thumbnailUrl).toBe('/thumb/old'); // чужие не тронуты
+    expect(items[1]!.attachments[0]!.thumbnailUrl).toBeNull();
+    expect(client.getQueryData(chatKeys.messages(CONV))).toBeTruthy();
   });
 });

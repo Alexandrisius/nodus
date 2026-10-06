@@ -7,14 +7,14 @@ import { PinoLogger } from 'nestjs-pino';
 import { SignedUrlService } from '../../../core/crypto/signed-url.service.js';
 import { DomainException } from '../../../core/errors/domain-exception.js';
 import { FILE_STORAGE, type FileStorage } from '../../../core/ports/file-storage.port.js';
-import { AttachmentsRepository } from './attachments.repository.js';
+import {
+  MAX_ATTACHMENT_BYTES,
+  MAX_PENDING_ATTACHMENTS,
+  SYNC_PREVIEW_BYTES,
+} from './attachments.constants.js';
+import { AttachmentsRepository, type AttachmentRow } from './attachments.repository.js';
 import { ThumbnailQueue } from './thumbnail.queue.js';
-
-/** Лимиты вложений чата (вердикт владельца 24.09): 100 МБ на файл, ≤ 20
- *  загруженных-но-неотправленных. Клиент валидирует до старта загрузки
- *  (upload-attachment.ts), сервер — повторяет (I8: проверка не только в UI). */
-export const MAX_ATTACHMENT_BYTES = 100 * 1024 * 1024;
-export const MAX_PENDING_ATTACHMENTS = 20;
+import { SYNC_PIXEL_LIMIT, ThumbnailService } from './thumbnail.service.js';
 
 /** Брошенные загрузки (закрыл композер, не отправил): строка + объект
  *  хранилища убираются попутно при следующей загрузке того же владельца. */
@@ -41,6 +41,7 @@ export class AttachmentsService {
     private readonly repository: AttachmentsRepository,
     private readonly signedUrls: SignedUrlService,
     private readonly thumbnailQueue: ThumbnailQueue,
+    private readonly thumbnails: ThumbnailService,
     private readonly logger: PinoLogger,
   ) {
     this.logger.setContext(AttachmentsService.name);
@@ -78,7 +79,7 @@ export class AttachmentsService {
     );
     // Вид — явный (контракт): галерея для изображений, чип для остального.
     const kind = input.mime.startsWith('image/') ? 'image' : 'file';
-    const row = await this.repository.insertAttachment({
+    let row: AttachmentRow = await this.repository.insertAttachment({
       id: randomUUID(),
       fileId,
       ownerId,
@@ -89,10 +90,30 @@ export class AttachmentsService {
       width: input.width ?? null,
       height: input.height ?? null,
     });
-    // Превью — асинхронно (ADR-0015): ответ загрузки не ждёт ресайза;
-    // thumbFileId подвязает воркер, лента увидит превью на следующем фече.
     if (kind === 'image') {
-      await this.thumbnailQueue.enqueue(row.id, fileId);
+      if (input.size <= SYNC_PREVIEW_BYTES) {
+        // Синхронное превью (#221): миниатюра рождается В ответе загрузки —
+        // пузырь отправителя (оптимистичный temp несёт этот DTO) и получатели
+        // видят лёгкую миниатюру с первого кадра; оригинал в ленту не грузится
+        // вовсе. Сбой ИЛИ гигант по пикселям (декомпрессионная бомба —
+        // SYNC_PIXEL_LIMIT): фоновый запасной путь с просторным потолком.
+        try {
+          await this.thumbnails.generateFor(row.id, SYNC_PIXEL_LIMIT);
+          row = (await this.repository.findAnyById(row.id)) ?? row;
+        } catch (error) {
+          this.logger.warn(
+            { attachmentId: row.id, err: error },
+            'Синхронное превью не удалось — уходим в фоновую очередь',
+          );
+        }
+        if (!row.thumbFileId) {
+          await this.thumbnailQueue.enqueue(row.id, fileId);
+        }
+      } else {
+        // Тяжёлый файл: ресайз — работа BullMQ («HTTP тяжёлую работу не
+        // выполняет»); готовность привезёт chat.attachment_preview_ready.
+        await this.thumbnailQueue.enqueue(row.id, fileId);
+      }
     }
     return this.toDto(row);
   }

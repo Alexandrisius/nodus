@@ -1,5 +1,5 @@
-import { ChevronLeft, ChevronRight, X } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { AlertTriangle, ChevronLeft, ChevronRight, Loader2, X } from 'lucide-react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import type { MessageAttachment } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
@@ -14,10 +14,161 @@ import { cn } from '@nodus/ui/lib/utils';
  * может быть важная информация; скругления — только у миниатюр в ленте). Фокус при открытии — на диалоге, при закрытии возвращается
  * плитке галереи (a11y); клики по самому фото и кнопкам не закрывают диалог.
  *
- * Прогрессивная загрузка (#150): пока грузится оригинал, показывается
- * превью из миниатюры (уже в кэше ленты) — крестс-фейд по onLoad. Без
- * превью (моки/старые строки) — один <img>, как раньше.
+ * Размер кадра (#221): показываю в боксе min(natural, 85vw, 85vh·ratio) —
+ * крупные вписываются в экран (Telegram-модель: downscale-only), мелкие
+ * остаются в natural 1:1, апскейла нет (канон PhotoPrism viewport-mapping и
+ * headless-lightbox minCoverage=0; research #221). Бокс задаётся ЯВНЫМИ
+ * габаритами оригинала — контейнер не сжимается под потоковую миниатюру
+ * (прошлая верстка рендерила 2400px-оригинал в 800px-бокс миниатюры).
+ *
+ * Прогрессивная загрузка (#150): пока грузится оригинал, кадр держит
+ * миниатюра (кэш ленты) — обе absolute в одном аспект-боксе, пиксель в
+ * пиксель (модель Medium). Фейд — только после подтверждённого декодирования
+ * (img.decode(), MDN); сбой загрузки не молчит: авто-ретрай ×1 (ремоунт по
+ * key), затем явная плашка «не удалось загрузить» с повтором.
  */
+
+/** Источники кадра: полный = оригинал (url), миниатюра — только промежуточный
+ *  кадр; равные источники не дублируются. Чистая — unit-тест (#221:
+ *  регрессия «лайтбокс показывает url, а не thumbnailUrl»). */
+export function resolveLightboxSources(image: Pick<MessageAttachment, 'url' | 'thumbnailUrl'>): {
+  fullSrc: string;
+  thumbSrc: string | null;
+} {
+  const fullSrc = image.url ?? image.thumbnailUrl ?? '';
+  const thumbSrc = image.thumbnailUrl && image.thumbnailUrl !== fullSrc ? image.thumbnailUrl : null;
+  return { fullSrc, thumbSrc };
+}
+
+/** Кадр показа из габаритов оригинала: явный aspect-бокс шириной
+ *  min(85vw, 85vh·ratio, natural) — крупное вписывается в экран, мелкое
+ *  остаётся 1:1. Без габаритов (старые строки) — null, потоковый фолбэк.
+ *  Чистая — unit-тест. */
+export function lightboxFrameStyle(
+  width?: number | null,
+  height?: number | null,
+): CSSProperties | null {
+  if (!width || width <= 0 || !height || height <= 0) return null;
+  const ratio = width / height;
+  return {
+    width: `min(85vw, calc(85vh * ${ratio}), ${Math.round(width)}px)`,
+    aspectRatio: `${width} / ${height}`,
+  };
+}
+
+type FullPhase = 'loading' | 'ready' | 'error';
+
+function LightboxImage({ image }: { image: MessageAttachment }) {
+  const { fullSrc, thumbSrc } = resolveLightboxSources(image);
+  const frame = lightboxFrameStyle(image.width, image.height);
+  const [phase, setPhase] = useState<FullPhase>('loading');
+  const [attempt, setAttempt] = useState(0);
+  const fullRef = useRef<HTMLImageElement>(null);
+
+  const showFull = () => {
+    const settle = () => setPhase('ready');
+    const img = fullRef.current;
+    // Фейд после декодирования: без decode пустой кадр/мигание на больших PNG
+    if (img && typeof img.decode === 'function') img.decode().then(settle, settle);
+    else settle();
+  };
+  const failFull = () => {
+    if (attempt < 1)
+      setAttempt(attempt + 1); // один авто-ретрай — новый <img>
+    else setPhase('error');
+  };
+  const retry = () => {
+    setPhase('loading');
+    setAttempt(attempt + 1);
+  };
+
+  const indicator =
+    phase === 'loading' && thumbSrc ? (
+      <span
+        role="status"
+        aria-label={ui.chat.lightboxLoading}
+        className="absolute bottom-2.5 left-1/2 -translate-x-1/2 rounded-full bg-black/55 p-1.5 text-white/85"
+      >
+        <Loader2 className="size-4 animate-spin" />
+      </span>
+    ) : null;
+
+  const error =
+    phase === 'error' ? (
+      <span
+        role="alert"
+        onClick={(e) => e.stopPropagation()}
+        className="absolute inset-0 flex min-w-72 flex-col items-center justify-center gap-2 rounded-sm bg-black/65 text-white"
+      >
+        <AlertTriangle className="size-6 text-white/85" />
+        <span className="text-sm">{ui.chat.lightboxLoadError}</span>
+        <Button variant="outline" size="sm" onClick={retry}>
+          {ui.chat.lightboxRetry}
+        </Button>
+      </span>
+    ) : null;
+
+  if (frame) {
+    return (
+      <span className="relative inline-flex" style={frame}>
+        {thumbSrc ? (
+          <img
+            src={thumbSrc}
+            alt={image.name}
+            onClick={(e) => e.stopPropagation()}
+            className="absolute inset-0 size-full object-contain"
+          />
+        ) : null}
+        <img
+          key={attempt}
+          ref={fullRef}
+          src={fullSrc}
+          alt={image.name}
+          onLoad={showFull}
+          onError={failFull}
+          onClick={(e) => e.stopPropagation()}
+          className={cn(
+            'absolute inset-0 size-full object-contain transition-opacity duration-200',
+            phase === 'ready' ? 'opacity-100' : 'opacity-0',
+          )}
+        />
+        {indicator}
+        {error}
+      </span>
+    );
+  }
+
+  // Фолбэк без габаритов: прежняя потоковая схема, но с обработкой ошибок.
+  return (
+    <span className="relative inline-flex min-h-48 min-w-72 max-h-[85vh] max-w-[85vw]">
+      {thumbSrc ? (
+        <img
+          src={thumbSrc}
+          alt={image.name}
+          onClick={(e) => e.stopPropagation()}
+          className="max-h-[85vh] max-w-[85vw] object-contain"
+        />
+      ) : null}
+      <img
+        key={attempt}
+        ref={fullRef}
+        src={fullSrc}
+        alt={image.name}
+        onLoad={showFull}
+        onError={failFull}
+        onClick={(e) => e.stopPropagation()}
+        className={cn(
+          'max-h-[85vh] max-w-[85vw] object-contain transition-opacity duration-200',
+          thumbSrc && 'absolute inset-0 size-full',
+          phase === 'ready' || (!thumbSrc && phase !== 'error') ? 'opacity-100' : 'opacity-0',
+        )}
+      />
+      {indicator}
+      {error}
+    </span>
+  );
+}
+
 export function ImageLightbox({
   images,
   index,
@@ -31,17 +182,12 @@ export function ImageLightbox({
 }) {
   const boxRef = useRef<HTMLDivElement>(null);
   const image = images[index];
-  const [fullLoaded, setFullLoaded] = useState(false);
 
   useEffect(() => {
     const restoreTo = document.activeElement as HTMLElement | null;
     boxRef.current?.focus();
     return () => restoreTo?.focus();
   }, []);
-
-  useEffect(() => {
-    setFullLoaded(false);
-  }, [index]);
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -122,43 +268,7 @@ export function ImageLightbox({
           <ChevronRight />
         </Button>
       ) : null}
-      {/* Миниатюра (кэш ленты) держит кадр, оригинал проявляется поверх
-          кросс-фейдом; у них одно ratio — contain ложится пиксель в пиксель. */}
-      {(() => {
-        const fullSrc = image.url ?? image.thumbnailUrl ?? '';
-        const thumbSrc =
-          image.thumbnailUrl && image.thumbnailUrl !== fullSrc ? image.thumbnailUrl : null;
-        if (!thumbSrc) {
-          return (
-            <img
-              src={fullSrc}
-              alt={image.name}
-              onClick={(e) => e.stopPropagation()}
-              className="max-h-[85vh] max-w-[85vw] object-contain"
-            />
-          );
-        }
-        return (
-          <span className="relative inline-flex max-h-[85vh] max-w-[85vw]">
-            <img
-              src={thumbSrc}
-              alt={image.name}
-              onClick={(e) => e.stopPropagation()}
-              className="max-h-[85vh] max-w-[85vw] object-contain"
-            />
-            <img
-              src={fullSrc}
-              alt=""
-              onLoad={() => setFullLoaded(true)}
-              onClick={(e) => e.stopPropagation()}
-              className={cn(
-                'absolute inset-0 size-full object-contain transition-opacity duration-200',
-                fullLoaded ? 'opacity-100' : 'opacity-0',
-              )}
-            />
-          </span>
-        );
-      })()}
+      <LightboxImage key={image.id} image={image} />
     </div>,
     document.body,
   );

@@ -153,6 +153,7 @@ describe('MessagesService', () => {
         applyMessageDeleted: vi.fn(async () => {}),
         applyForwardCopies: vi.fn(async () => {}),
       } as never,
+      { enqueue: vi.fn(async () => undefined) } as never,
     );
   });
 

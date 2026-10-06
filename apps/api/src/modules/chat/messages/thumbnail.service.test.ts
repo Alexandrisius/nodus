@@ -2,7 +2,9 @@ import { Readable } from 'node:stream';
 import { describe, expect, it, vi } from 'vitest';
 import sharp from 'sharp';
 import { PinoLogger } from 'nestjs-pino';
+import { CHAT_EVENTS } from '@nodus/contracts';
 
+import { SignedUrlService } from '../../../core/crypto/signed-url.service.js';
 import type { FileStorage } from '../../../core/ports/file-storage.port.js';
 import { AttachmentsRepository, type AttachmentRow } from './attachments.repository.js';
 import { ThumbnailService } from './thumbnail.service.js';
@@ -46,6 +48,8 @@ interface Harness {
   storage: FileStorage;
   saved: { input: SavedDerivative | null; buffer: Buffer };
   marked: { thumbFileId: string; width: number; height: number }[];
+  emitted: { type: string; payload: Record<string, unknown> }[];
+  findConversationIdOf: (id: string) => Promise<string | null>;
 }
 
 function makeHarness(original: Buffer, attachmentRow: AttachmentRow | null): Harness {
@@ -67,20 +71,35 @@ function makeHarness(original: Buffer, attachmentRow: AttachmentRow | null): Har
     remove: vi.fn(async () => undefined),
   };
   const marked: Harness['marked'] = [];
+  const emitted: Harness['emitted'] = [];
+  const findConversationIdOf = vi.fn(async (): Promise<string | null> => null);
   const repo = {
     findAnyById: vi.fn(async () => attachmentRow),
+    findConversationIdOf,
     markThumbnail: vi.fn(
       async (_id: string, data: { thumbFileId: string; width: number; height: number }) => {
         marked.push(data);
+        return true; // фиксация выиграла ( гонка #156 — отдельной веткой ниже )
       },
     ),
   } as unknown as AttachmentsRepository;
-  const service = new ThumbnailService(storage, repo, {
-    setContext: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-  } as unknown as PinoLogger);
-  return { service, storage, saved, marked };
+  const eventBus = {
+    emit: vi.fn(async (_tx: unknown, type: string, payload: Record<string, unknown>) => {
+      emitted.push({ type, payload });
+    }),
+  };
+  const txRunner = {
+    run: vi.fn(async (fn: (tx: unknown) => Promise<void>) => fn({})),
+  };
+  const service = new ThumbnailService(
+    storage,
+    repo,
+    new SignedUrlService({ STORAGE_URL_SECRET: 'test-secret-32-chars-aaaaaaaaaaaa' }),
+    txRunner as never,
+    eventBus as never,
+    { setContext: vi.fn(), info: vi.fn(), warn: vi.fn() } as unknown as PinoLogger,
+  );
+  return { service, storage, saved, marked, emitted, findConversationIdOf };
 }
 
 describe('ThumbnailService — серверные превью (#150)', () => {
@@ -148,5 +167,35 @@ describe('ThumbnailService — серверные превью (#150)', () => {
     const h = makeHarness(Buffer.from('not an image at all'), attachment());
     await h.service.generateFor('att-1');
     expect(h.marked).toEqual([]);
+  });
+
+  it('готовность превью отправленного вложения — событие chat.attachment_preview_ready (#221)', async () => {
+    const png = await fixturePng(1200, 600);
+    const h = makeHarness(png, attachment());
+    vi.mocked(h.findConversationIdOf).mockResolvedValue('00000000-0000-4000-8000-0000000000c1');
+    await h.service.generateFor('att-1');
+    expect(h.emitted).toHaveLength(1);
+    expect(h.emitted[0]!.type).toBe(CHAT_EVENTS.ATTACHMENT_PREVIEW_READY);
+    expect(h.emitted[0]!.payload).toMatchObject({
+      conversationId: '00000000-0000-4000-8000-0000000000c1',
+      attachmentId: 'att-1',
+    });
+    expect(h.emitted[0]!.payload.thumbnailUrl as string).toContain(THUMB_ID);
+  });
+
+  it('пиксельный потолок (security #221): 4097² под sync-лимитом 4096² — тихий отказ, превью нет', async () => {
+    const png = await fixturePng(4097, 4097); // монотонный цвет — PNG лёгкий, декод был бы ~67 МБ
+    const h = makeHarness(png, attachment());
+    await h.service.generateFor('att-1', 4096 * 4096);
+    expect(h.marked).toEqual([]);
+    expect(h.emitted).toHaveLength(0);
+  });
+
+  it('неотправленное вложение — без события (DTO отправки возьмёт свежий thumbFileId)', async () => {
+    const png = await fixturePng(1200, 600);
+    const h = makeHarness(png, attachment()); // findConversationIdOf → null
+    await h.service.generateFor('att-1');
+    expect(h.marked).toHaveLength(1);
+    expect(h.emitted).toHaveLength(0);
   });
 });
