@@ -28,6 +28,29 @@ describe('assertFetchableUrl', () => {
   it('мусор — blocked', () => {
     expect(() => assertFetchableUrl('не адрес')).toThrow(SsrfBlockedError);
   });
+
+  it('литеральные приватные хосты — blocked (security-ревью: Node net.connect для литералов не зовёт lookup агента)', () => {
+    for (const url of [
+      'http://192.168.1.1/x',
+      'http://10.0.0.1/x',
+      'http://172.20.3.4/x',
+      'http://127.0.0.1/x',
+      'http://169.254.169.254/x',
+      'http://[::1]/x',
+      'http://[fe80::1]/x',
+      'http://[fd00::1]/x',
+      // v4-mapped в hex-форме (WHATWG URL так сериализует [::ffff:127.0.0.1]).
+      'http://[::ffff:7f00:1]/x',
+      'http://localhost/x',
+    ]) {
+      expect(() => assertFetchableUrl(url), url).toThrow(SsrfBlockedError);
+    }
+  });
+
+  it('публичные литеральные и DNS-имена — проходят (DNS проверяет агент)', () => {
+    expect(assertFetchableUrl('http://93.184.216.34/').hostname).toBe('93.184.216.34');
+    expect(assertFetchableUrl('https://example.com/').hostname).toBe('example.com');
+  });
 });
 
 describe('clampField', () => {

@@ -1,9 +1,10 @@
 /**
  * Безопасный фетч превью ссылки (#212, ADR-0018): наши гварды (порт/креды/
- * self-domain) поверх linkpeek (приватные диапазоны, ручные редиректы с
- * ревалидацией каждого хопа, стрим-лимит, таймаут). Чистые проверки —
- * отдельные функции (unit-тесты); сеть и SILO — в сервисе-воркере.
+ * литеральные приватные IP) поверх linkpeek (pinned-DNS через наш агент,
+ * ручные редиректы, стрим-лимит, таймаут). Чистые проверки — отдельные
+ * функции (unit-тесты); сеть и SILO — в сервисе-воркере.
  */
+import { isPrivateHost } from 'linkpeek';
 
 /** Разрешённые порты внешнего фетча (спека #212: только 80/443/не указан). */
 const ALLOWED_PORTS = new Set(['', '80', '443']);
@@ -16,7 +17,11 @@ export class SsrfBlockedError extends Error {
 }
 
 /** Гвард адреса ДО любого фетча: схема http/https, порт 80/443/не указан,
- *  без учётных данных в URL. Бросает SsrfBlockedError. */
+ *  без учётных данных, литеральный хост НЕ приватный (isPrivateHost
+ *  linkpeek — полный парсер v4/v6/mapped/NAT64; security-ревью: Node
+ *  net.connect для литералов не зовёт lookup-гвард агента — проверяем
+ *  здесь, на КАЖДОМ хопе ручного цикла). DNS-имена проверяет pinned-DNS
+ *  агент (safe-fetch). Бросает SsrfBlockedError. */
 export function assertFetchableUrl(raw: string): URL {
   let parsed: URL;
   try {
@@ -32,6 +37,10 @@ export function assertFetchableUrl(raw: string): URL {
   }
   if (parsed.username || parsed.password) {
     throw new SsrfBlockedError('credentials in url');
+  }
+  const hostname = parsed.hostname.replace(/^\[|\]$/g, '');
+  if (isPrivateHost(hostname)) {
+    throw new SsrfBlockedError(`private host ${hostname}`);
   }
   return parsed;
 }

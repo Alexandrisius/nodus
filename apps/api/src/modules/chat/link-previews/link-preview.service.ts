@@ -184,24 +184,42 @@ export class LinkPreviewService {
     }
   }
 
-  /** og:image → SILO (без хотлинков): гварды адреса + pinned-DNS агент
-   *  (редиректы картинки на внутренние адреса блокируются на коннекте,
-   *  security-ревью), стрим ≤ 2 МБ, sharp-дериват ≤640px webp (#139),
-   *  лимит пикселей 4096² от декомпрессионных бомб. Любой сбой — карточка
-   *  без картинки. */
+  /** og:image → SILO (без хотлинков): РУЧНОЙ цикл редиректов (≤3, паттерн
+   *  linkpeek manual+Location) — на КАЖДОМ хопе полный гвард адреса
+   *  (схема/порт/креды/литеральный приватный IP; security-ревью: Node
+   *  net.connect для литералов не зовёт lookup агента), DNS-имена хопов —
+   *  за pinned-DNS агентом. Стрим ≤ 2 МБ, sharp-дериват ≤640px webp (#139),
+   *  лимит пикселей 4096². Сбой сети — карточка без картинки; SSRF-блок —
+   *  бросает SsrfBlockedError наверх (классификация blocked). */
+  private async fetchImageGuarded(rawImageUrl: string): Promise<Response | null> {
+    let current = rawImageUrl;
+    for (let hop = 0; hop <= 3; hop += 1) {
+      assertFetchableUrl(current);
+      const res = await ssrfGuardedFetch(current, {
+        signal: AbortSignal.timeout(8000),
+        headers: { 'user-agent': PREVIEW_USER_AGENT },
+        redirect: 'manual',
+      });
+      if ([301, 302, 303, 307, 308].includes(res.status)) {
+        const location = res.headers.get('location');
+        if (!location) return null;
+        await res.body?.cancel().catch(() => undefined);
+        current = new URL(location, current).toString();
+        continue;
+      }
+      return res.ok ? res : null;
+    }
+    return null; // больше трёх хопов — спека
+  }
+
   private async saveImageDerivative(
     rawImageUrl: string,
     ownerId: string,
     domain: string,
   ): Promise<string | null> {
     try {
-      assertFetchableUrl(rawImageUrl);
-      const res = await ssrfGuardedFetch(rawImageUrl, {
-        signal: AbortSignal.timeout(8000),
-        headers: { 'user-agent': PREVIEW_USER_AGENT },
-        redirect: 'follow',
-      });
-      if (!res.ok || !res.body) return null;
+      const res = await this.fetchImageGuarded(rawImageUrl);
+      if (!res || !res.ok || !res.body) return null;
       const chunks: Buffer[] = [];
       let size = 0;
       const reader = res.body.getReader();

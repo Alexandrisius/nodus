@@ -13,6 +13,7 @@ vi.mock('linkpeek', () => ({
     }
   },
   validateUrl: vi.fn(),
+  isPrivateHost: vi.fn((host: string) => host === 'localhost' || /^\d+\./.test(host)),
 }));
 vi.mock('./safe-fetch.js', () => ({
   SsrfBlockedError: class SsrfBlockedError extends Error {},

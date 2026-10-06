@@ -9,6 +9,7 @@ import {
   type LinkPreviewJob,
 } from './link-preview.queue.js';
 import { LinkPreviewService } from './link-preview.service.js';
+import { disposeSsrfAgent } from './safe-fetch.js';
 
 /**
  * In-process BullMQ-воркер превью ссылок (#212, ADR-0018; паттерн
@@ -50,6 +51,7 @@ export class LinkPreviewWorker implements OnModuleInit, OnModuleDestroy {
 
   async onModuleDestroy(): Promise<void> {
     await this.worker?.close();
+    await disposeSsrfAgent(); // keep-alive сокеты гвард-агента (гигиена)
     this.connection.disconnect();
   }
 }
