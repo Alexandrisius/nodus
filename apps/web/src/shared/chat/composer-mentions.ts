@@ -234,14 +234,15 @@ export function deleteTokenKey(
 }
 
 /** Отображаемое смещение каретки (#224): позиции в невидимом хвосте токена
- *  (label-конец..token-конец) показываются у ПРАВОГО КРАЯ чипа — каретка
- *  визуально «сразу за чипом», а не за 45 символов прозрачного хвоста
- *  `](user:uuid)`. Хвост рисует кастомная каретка композера (сырые глифы
- *  прозрачны). */
+ *  (label-конец..token-конец) И сразу за токеном (+1 — хвостовой пробел
+ *  вставки автокомплита) показываются у ПРАВОГО КРАЯ чипа — каретка
+ *  визуально «сразу за чипом», а не за 45 символами прозрачного хвоста
+ *  `](user:uuid)` (и не строкой ниже при переносе хвоста). Хвост рисует
+ *  кастомная каретка композера (сырые глифы прозрачны). */
 export function displayCaretOffset(text: string, offset: number): number {
   for (const token of mentionTokens(text)) {
     const labelEnd = token.start + 2 + token.label.length; // после `@[label`
-    if (offset > labelEnd && offset <= token.end) return labelEnd;
+    if (offset > labelEnd && offset <= token.end + 1) return labelEnd;
   }
   return offset;
 }

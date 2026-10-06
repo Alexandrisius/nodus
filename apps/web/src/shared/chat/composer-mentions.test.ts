@@ -126,10 +126,14 @@ describe('deleteTokenKey / displayCaretOffset (#224)', () => {
     expect(deleteTokenKey('без токенов', 5, 'Delete')).toBeNull();
   });
 
-  it('displayCaretOffset: хвост токена показывается у края чипа (label-конец)', () => {
+  it('displayCaretOffset: хвост токена и пробел за ним — у края чипа', () => {
     const labelEnd = 'привет '.length + 2 + 'Борис'.length;
     expect(displayCaretOffset(text, end)).toBe(labelEnd);
     expect(displayCaretOffset(text, labelEnd + 5)).toBe(labelEnd);
+    // +1 = хвостовой пробел автокомплита: каретка всё ещё «за чипом»
+    expect(displayCaretOffset(text, end + 1)).toBe(labelEnd);
+    // дальше собственного пробела — честная позиция
+    expect(displayCaretOffset(text, end + 2)).toBe(end + 2);
     expect(displayCaretOffset(text, 2)).toBe(2); // вне токенов — как есть
   });
 });
