@@ -183,6 +183,14 @@ describe('ThumbnailService — серверные превью (#150)', () => {
     expect(h.emitted[0]!.payload.thumbnailUrl as string).toContain(THUMB_ID);
   });
 
+  it('пиксельный потолок (security #221): 4097² под sync-лимитом 4096² — тихий отказ, превью нет', async () => {
+    const png = await fixturePng(4097, 4097); // монотонный цвет — PNG лёгкий, декод был бы ~67 МБ
+    const h = makeHarness(png, attachment());
+    await h.service.generateFor('att-1', 4096 * 4096);
+    expect(h.marked).toEqual([]);
+    expect(h.emitted).toHaveLength(0);
+  });
+
   it('неотправленное вложение — без события (DTO отправки возьмёт свежий thumbFileId)', async () => {
     const png = await fixturePng(1200, 600);
     const h = makeHarness(png, attachment()); // findConversationIdOf → null
