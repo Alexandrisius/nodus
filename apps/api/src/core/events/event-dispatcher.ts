@@ -30,7 +30,11 @@ type HandlerInstance = DomainEventHandler & { constructor: { eventType?: string;
 export class EventDispatcher implements OnModuleInit, OnModuleDestroy {
   private readonly handlers = new Map<string, HandlerInstance[]>();
   private timer: NodeJS.Timeout | null = null;
-  private dispatching = false;
+  /** In-flight проход диспетчеризации (null — прохода нет). Параллельный вызов
+   *  ЖДЁТ чужой проход и делает свой — а не молча уходит no-op'ом:
+   *  ручной прогон конвейера поверх фонового тикера читал «пусто» до
+   *  записи хендлеров (гонка интеграционных CI, #212). */
+  private pass: Promise<void> | null = null;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -68,24 +72,30 @@ export class EventDispatcher implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  /** Один проход диспетчеризации (также используется интеграционными тестами). */
+  /** Один проход диспетчеризации (также используется интеграционными
+   *  тестами). Проходы не накладываются, но конкурентный вызов ДОЖИДАЕТСЯ
+   *  чужого прохода и стартует свой — вызов никогда не «пустой». */
   async dispatchPending(): Promise<void> {
-    if (this.dispatching) {
-      return; // защита от наложения опросов
+    while (this.pass) {
+      await this.pass.catch(() => {}); // чужой проход упал — свой всё равно стартует
     }
-    this.dispatching = true;
+    this.pass = this.runPass();
     try {
-      const pending = await this.prisma.event.findMany({
-        where: { publishedAt: null },
-        // Детерминированный порядок (I7): created_at + tiebreaker по id.
-        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-        take: BATCH_SIZE,
-      });
-      for (const row of pending) {
-        await this.dispatchOne(row as unknown as DomainEvent);
-      }
+      await this.pass;
     } finally {
-      this.dispatching = false;
+      this.pass = null;
+    }
+  }
+
+  private async runPass(): Promise<void> {
+    const pending = await this.prisma.event.findMany({
+      where: { publishedAt: null },
+      // Детерминированный порядок (I7): created_at + tiebreaker по id.
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      take: BATCH_SIZE,
+    });
+    for (const row of pending) {
+      await this.dispatchOne(row as unknown as DomainEvent);
     }
   }
 
@@ -110,6 +120,15 @@ export class EventDispatcher implements OnModuleInit, OnModuleDestroy {
         });
       });
     } catch (error) {
+      if ((error as { code?: string }).code === 'P2025') {
+        // Строка события удалена конкурентно (очистка тестов/retention):
+        // повторять нечего — событие уже не существует, пропускаем тихо.
+        this.logger.debug(
+          { eventId: event.id, type: event.type },
+          'Event row deleted concurrently, skip dispatch',
+        );
+        return;
+      }
       // Событие остаётся неопубликованным — повтор на следующем опросе.
       this.logger.error(
         { eventId: event.id, type: event.type, err: error },
