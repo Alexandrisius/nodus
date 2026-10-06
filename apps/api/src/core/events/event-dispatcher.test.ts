@@ -128,6 +128,9 @@ describe('EventDispatcher', () => {
     release(); // хендлер фонового прохода отпущен
     await Promise.all([background, foreground]);
 
+    // Свой проход после чужого — на старом булевом гварде foreground был
+    // no-op (findManyCalls остался бы 1) — именно та гонка CI.
+    expect(findManyCalls).toBe(2);
     expect(tx.event.update).toHaveBeenCalledWith({
       where: { id: 'e1' },
       data: { publishedAt: expect.any(Date) },
