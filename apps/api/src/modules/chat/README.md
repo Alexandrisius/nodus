@@ -209,13 +209,19 @@ NULL`; `DELETE /chat/attachments/:id` — отмена из трея; привя
 на файл, ≤20 неотправленных (серверная сверка). Отдача — подписанные URL
 `files/:id/content` (url в DTO; срок действия округляется до часового
 бакета — URL стабилен в пределах часа, кэш браузера работает, #150).
-Превью изображений (#150, ADR-0015): после загрузки kind=image — job в
-BullMQ (`thumbnail.queue.ts` → in-process воркер, concurrency 2) —
+Превью изображений (#150, ADR-0015; конвейер #221): для kind=image ≤10 МБ
+(`SYNC_PREVIEW_BYTES`) миниатюра генерится СИНХРОННО в ответе загрузки —
+optimistic-пузырь и получатели сразу несут лёгкое превью; тяжелее порога —
+job в BullMQ (`thumbnail.queue.ts` → in-process воркер, concurrency 2).
 sharp-метаданные (width/height перезаписываются серверно-авторитетно,
 EXIF-поворот учтён) → WebP-дериват max-edge 800 (`FileObject.derivedFrom`
 маркер деривата) → `thumb_file_id`; `thumbnailUrl` в DTO — та же подписанная
-ссылка. Превью опционально: сбой/мусорный файл → null, клиент грузит
-оригинал. Backfill старых вложений:
+ссылка. Превью опционально: сбой/мусорный файл → null — клиент держит
+заглушку и НЕ грузит оригинал в ленту (оригинал — только лайтбокс по клику);
+фоновая готовность отправленного вложения привозит событие
+`chat.attachment_preview_ready` ({conversationId, attachmentId,
+thumbnailUrl}) — клиенты патчат плитку на месте; чтение ленты лениво
+догревает сбойные miss'ы постановкой job'а. Backfill старых вложений:
 `pnpm --filter @nodus/api exec tsx src/scripts/backfill-thumbnails.ts`.
 
 Стикеры (#143, `stickers/` поддомен): паки личные/корпоративные,

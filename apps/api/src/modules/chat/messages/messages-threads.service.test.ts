@@ -137,6 +137,7 @@ describe('MessagesService: трэды раунда 3', () => {
         applyMessageDeleted: vi.fn(async () => {}),
         applyForwardCopies: vi.fn(async () => {}),
       } as never,
+      { enqueue: vi.fn(async () => undefined) } as never,
     );
   });
 
@@ -153,12 +154,7 @@ describe('MessagesService: трэды раунда 3', () => {
         { text: `спросим @[Анна Первая](user:${USER_ANNA}) и @[Борис](user:${USER_BORIS})` },
         'key-mention',
       );
-      expect(threadParticipants.upsert).toHaveBeenCalledWith(
-        'msg-new',
-        USER_ANNA,
-        'mentioned',
-        TX,
-      );
+      expect(threadParticipants.upsert).toHaveBeenCalledWith('msg-new', USER_ANNA, 'mentioned', TX);
       expect(threadParticipants.upsert).toHaveBeenCalledTimes(2);
     });
 
@@ -170,7 +166,9 @@ describe('MessagesService: трэды раунда 3', () => {
       await service.send(
         ME,
         CONV,
-        { text: `спросим @[Анна](user:${USER_ANNA}) @[я](user:${ME}) @[Директор](user:${USER_BORIS})` },
+        {
+          text: `спросим @[Анна](user:${USER_ANNA}) @[я](user:${ME}) @[Директор](user:${USER_BORIS})`,
+        },
         'key-mention2',
       );
       expect(threadParticipants.upsert).not.toHaveBeenCalled();

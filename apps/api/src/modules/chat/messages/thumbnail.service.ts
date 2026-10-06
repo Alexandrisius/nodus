@@ -1,10 +1,14 @@
 import { Inject, Injectable } from '@nestjs/common';
 import sharp from 'sharp';
 import { Readable } from 'node:stream';
+import { CHAT_EVENTS } from '@nodus/contracts';
 import { PinoLogger } from 'nestjs-pino';
 
+import { SignedUrlService } from '../../../core/crypto/signed-url.service.js';
+import { TransactionRunner } from '../../../core/database/transaction-runner.js';
+import { EventBus } from '../../../core/events/event-bus.js';
 import { FILE_STORAGE, type FileStorage } from '../../../core/ports/file-storage.port.js';
-import { MAX_ATTACHMENT_BYTES } from './attachments.service.js';
+import { MAX_ATTACHMENT_BYTES } from './attachments.constants.js';
 import { AttachmentsRepository } from './attachments.repository.js';
 
 /** Максимальная сторона превью (WebP): плитки ленты ≤480 дизайн-px ×DPR —
@@ -54,6 +58,9 @@ export class ThumbnailService {
   constructor(
     @Inject(FILE_STORAGE) private readonly storage: FileStorage,
     private readonly repository: AttachmentsRepository,
+    private readonly signedUrls: SignedUrlService,
+    private readonly txRunner: TransactionRunner,
+    private readonly eventBus: EventBus,
     private readonly logger: PinoLogger,
   ) {
     this.logger.setContext(ThumbnailService.name);
@@ -106,11 +113,38 @@ export class ThumbnailService {
         // дериват сносим, сирот не оставляем.
         await this.storage.remove([thumbFileId]).catch(() => undefined);
         this.logger.info({ attachmentId }, 'Превью: проиграл гонку фиксации, дериват удалён');
+        return;
       }
+      await this.emitPreviewReady(attachmentId, thumbFileId);
     } catch (error) {
       // Недекодируемый файл/сбой декодера: превью опционально — тихий отказ
       // без ретраев (job не должен падать трижды на мусоре).
       this.logger.warn({ attachmentId, err: error }, 'Превью: декодирование не удалось');
+    }
+  }
+
+  /** Фоновое превью отправленного сообщения готово (#221): клиенты получают
+   *  chat.attachment_preview_ready и патчат плитку на месте — получатели не
+   *  грузят оригинал в ленту, пока очередь догенерировала миниатюру. Событие
+   *  — только для уже отправленных (неотправленное DTO заберёт сам); сбой
+   *  эвента не рушит генерацию (превью в строке уже зафиксировано). */
+  private async emitPreviewReady(attachmentId: string, thumbFileId: string): Promise<void> {
+    try {
+      const conversationId = await this.repository.findConversationIdOf(attachmentId);
+      if (!conversationId) return;
+      const thumbnailUrl = this.signedUrls.fileContentUrl(thumbFileId);
+      await this.txRunner.run((tx) =>
+        this.eventBus.emit(tx, CHAT_EVENTS.ATTACHMENT_PREVIEW_READY, {
+          conversationId,
+          attachmentId,
+          thumbnailUrl,
+        }),
+      );
+    } catch (error) {
+      this.logger.warn(
+        { attachmentId, err: error },
+        'Событие готовности превью не отправлено (клиент догонит рефетчем)',
+      );
     }
   }
 }

@@ -78,7 +78,10 @@ function GalleryTile({
   onOpen: () => void;
 }) {
   const [loaded, setLoaded] = useState(false);
-  const src = image.thumbnailUrl ?? image.url ?? '';
+  // Плитка живёт ТОЛЬКО на серверной миниатюре (#221): без неё — заглушка
+  // (pulse) до chat.attachment_preview_ready; оригинал грузит один лишь
+  // лайтбокс по клику — лента никогда не тянет мегабайты.
+  const src = image.thumbnailUrl ?? '';
   const box = fitSingleBox(image.width, image.height);
   return (
     <button
@@ -98,16 +101,18 @@ function GalleryTile({
       )}
       style={single ? { aspectRatio: `${box.width} / ${box.height}` } : { height: ROW_HEIGHT }}
     >
-      <img
-        src={src}
-        alt={image.name}
-        loading="lazy"
-        onLoad={() => setLoaded(true)}
-        className={cn(
-          'size-full object-cover transition-opacity duration-150',
-          !loaded && 'opacity-0',
-        )}
-      />
+      {src ? (
+        <img
+          src={src}
+          alt={image.name}
+          loading="lazy"
+          onLoad={() => setLoaded(true)}
+          className={cn(
+            'size-full object-cover transition-opacity duration-150',
+            !loaded && 'opacity-0',
+          )}
+        />
+      ) : null}
     </button>
   );
 }

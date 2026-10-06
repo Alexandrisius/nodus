@@ -40,6 +40,10 @@ export const CHAT_EVENTS = {
   // Превью ссылки дозрело фоном (#212): конвейер BullMQ закончил — карточка
   // применяется в кэш ленты на месте (скелетон → fade-in, без рефетча).
   LINK_PREVIEW_READY: 'chat.link_preview_ready',
+  // Серверная миниатюра вложения-изображения готова (#221): фоновая очередь
+  // догенерила превью после отправки — клиенты патчат thumbnailUrl на месте
+  // (плитка-заглушка → превью, без рефетча и без загрузки оригинала).
+  ATTACHMENT_PREVIEW_READY: 'chat.attachment_preview_ready',
 } as const;
 
 export const chatConversationCreatedPayloadSchema = z.object({
@@ -76,6 +80,20 @@ export const chatAttachmentUpdatedPayloadSchema = z.object({
   size: z.number().int().min(0),
 });
 export type ChatAttachmentUpdatedPayload = z.infer<typeof chatAttachmentUpdatedPayloadSchema>;
+
+/** Серверная миниатюра вложения готова (#221): очередь догенерила превью уже
+ *  отправленного сообщения — маршрутизация в комнату беседы, клиенты патчат
+ *  thumbnailUrl вложения в кэше ленты на месте (заглушка → превью). */
+export const chatAttachmentPreviewReadyPayloadSchema = z.object({
+  conversationId: z.uuid(),
+  attachmentId: z.uuid(),
+  /** Подписанная ссылка превью (TTL подписи 24 ч; дальнейшие рефечи ленты
+   *  обновляют её сами). */
+  thumbnailUrl: z.string().min(1),
+});
+export type ChatAttachmentPreviewReadyPayload = z.infer<
+  typeof chatAttachmentPreviewReadyPayloadSchema
+>;
 
 export const chatMemberAddedPayloadSchema = z.object({
   conversationId: z.uuid(),

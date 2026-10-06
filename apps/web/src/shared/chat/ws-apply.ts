@@ -1,5 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query';
 import type {
+  ChatAttachmentPreviewReadyPayload,
   ChatLinkPreviewReadyPayload,
   ChatMessage,
   ChatMessageReadPayload,
@@ -246,6 +247,39 @@ export function applyLinkPreviewEvent(
         if (m.id !== payload.messageId) return m;
         hit = true;
         return { ...m, linkPreview: payload.preview };
+      });
+      return hit ? { ...old, items } : old;
+    },
+  );
+}
+
+/** Локальное применение chat.attachment_preview_ready (#221): фоновая
+ *  миниатюра догенерилась — патч thumbnailUrl вложения в ленте/треде/пинах
+ *  БЕЗ рефеча (плитка-заглушка → превью на месте). Всегда true: сообщения
+ *  может не быть в кэше — тогда и патчить нечего, витрину инвалидирует
+ *  вызывающий. */
+export function applyAttachmentPreviewEvent(
+  queryClient: QueryClient,
+  payload: Pick<
+    ChatAttachmentPreviewReadyPayload,
+    'conversationId' | 'attachmentId' | 'thumbnailUrl'
+  >,
+): void {
+  queryClient.setQueriesData<Paginated<ChatMessage>>(
+    { queryKey: chatKeys.messages(payload.conversationId) },
+    (old) => {
+      if (!old) return old;
+      let hit = false;
+      const items = old.items.map((m) => {
+        let touched = false;
+        const attachments = m.attachments.map((a) => {
+          if (a.id !== payload.attachmentId) return a;
+          touched = true;
+          return { ...a, thumbnailUrl: payload.thumbnailUrl };
+        });
+        if (!touched) return m;
+        hit = true;
+        return { ...m, attachments };
       });
       return hit ? { ...old, items } : old;
     },

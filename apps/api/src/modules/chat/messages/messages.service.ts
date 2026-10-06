@@ -13,10 +13,7 @@ import {
 } from '@nodus/contracts';
 
 import { EventBus } from '../../../core/events/event-bus.js';
-import {
-  TransactionRunner,
-  type TransactionClient,
-} from '../../../core/database/transaction-runner.js';
+import { TransactionRunner } from '../../../core/database/transaction-runner.js';
 import { DomainException } from '../../../core/errors/domain-exception.js';
 import {
   USER_PROFILE_READER,
@@ -37,6 +34,9 @@ import {
   type ClaimedAttachmentRow,
 } from './messages.repository.js';
 import { AttachmentsRepository } from './attachments.repository.js';
+import { ThumbnailQueue } from './thumbnail.queue.js';
+import { warmMissingPreviews } from './preview-warmup.js';
+import { collapseAnchors } from './messages-delete-anchors.js';
 import { FavoritesRepository } from '../favorites/favorites.repository.js';
 import { ThreadParticipantsRepository } from './thread-participants.repository.js';
 import { buildReplySnapshot } from './reply-snapshot.js';
@@ -86,6 +86,7 @@ export class MessagesService {
     private readonly stickersRepo: StickersRepository,
     private readonly favoritesRepo: FavoritesRepository,
     private readonly vault: VaultRepository,
+    private readonly thumbnailQueue: ThumbnailQueue,
   ) {}
 
   // ===== Чтение =====
@@ -110,6 +111,7 @@ export class MessagesService {
     });
     const members = await this.conversations.listMembers([conversationId]);
     const items = await this.mapper.toDtos(rows, { viewerId: userId, members });
+    warmMissingPreviews(items, this.thumbnailQueue);
     return {
       items,
       nextCursor: hasMore && rows.length > 0 ? encodeCursor({ s: Number(rows[0]!.seq) }) : null,
@@ -597,42 +599,12 @@ export class MessagesService {
         { conversationId, messageId, obliterated },
         { actorId: userId, aggregateType: 'conversation', aggregateId: conversationId },
       );
-      await this.collapseAnchors(userId, conversationId, tombstone, tx);
+      await collapseAnchors(userId, conversationId, tombstone, this.repo, this.eventBus, tx);
       return {
         message: tombstone,
         obliterated,
         members: await this.conversations.listMembers([conversationId], tx),
       };
     });
-  }
-
-  /**
-   * Каскад #163: удаление ответа могло оставить родителя/корень треда —
-   * надгробие-якорь без живых ответов. Такой якорь больше не нужен (след
-   * держится только цепочкой) — коллапс в obliterated, своё событие. Условие
-   * атомарно в UPDATE (obliterateTombstone), двойной коллапс невозможен.
-   */
-  private async collapseAnchors(
-    userId: string,
-    conversationId: string,
-    deleted: MessageRow,
-    tx: TransactionClient,
-  ): Promise<void> {
-    const anchors = new Set(
-      [deleted.replyToId, deleted.threadRootId].filter(
-        (id): id is string => id !== null && id !== deleted.id,
-      ),
-    );
-    for (const anchorId of anchors) {
-      const collapsed = await this.repo.obliterateTombstone(conversationId, anchorId, tx);
-      if (collapsed) {
-        await this.eventBus.emit(
-          tx,
-          CHAT_EVENTS.MESSAGE_DELETED,
-          { conversationId, messageId: anchorId, obliterated: true },
-          { actorId: userId, aggregateType: 'conversation', aggregateId: conversationId },
-        );
-      }
-    }
   }
 }

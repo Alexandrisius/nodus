@@ -5,6 +5,7 @@ import { chatKeys } from '../chat/api.js';
 import { favoriteKeys } from '../chat/favorites-api.js';
 import { vaultKeys } from '../chat/vault-api.js';
 import {
+  applyAttachmentPreviewEvent,
   applyLinkPreviewEvent,
   applyReadEvent,
   applyReactionEvent,
@@ -63,6 +64,13 @@ export function createRealtimeInvalidator(queryClient: QueryClient): RealtimeInv
           // Превью дозрело (#212): патч сообщения на месте (скелетон →
           // карточка без рефетча); витрина «Ссылки» — по окну.
           applyLinkPreviewEvent(queryClient, payload as never);
+          if (conversationId) batcher.push(vaultKeys.all, 'feed');
+          return;
+        }
+        case 'chat.attachment_preview_ready': {
+          // Фоновая миниатюра готова (#221): патч вложения на месте
+          // (заглушка → превью без рефетча); витрина «Картинки» — по окну.
+          applyAttachmentPreviewEvent(queryClient, payload as never);
           if (conversationId) batcher.push(vaultKeys.all, 'feed');
           return;
         }
