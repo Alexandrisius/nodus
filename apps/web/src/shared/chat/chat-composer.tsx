@@ -16,7 +16,7 @@ import { toast } from 'sonner';
 
 import { SendHexIcon } from '../ui/send-hex-icon.js';
 import { emitTyping } from '../socket/typing-emitter.js';
-import { ctrlOrAlt, useComposerInputActions, useGrown } from './composer-input-utils.js';
+import { useComposerInputActions, useGrown } from './composer-input-utils.js';
 import { useSelectionPhase } from './selection-phase.js';
 import {
   EMPTY_DRAFT,
@@ -37,16 +37,13 @@ import { useForwardPending } from './forward-pending.js';
 import { useJumpStore } from './jump-store.js';
 import { chatKeys } from './api.js';
 import { useForwardMessages } from './message-mutations.js';
-import { isSendShortcut } from './send-keys.js';
 import { useScrollEndStore } from './scroll-end-store.js';
 import { SelectionToolbar } from './selection-island.js';
 import type { StickerSubmitPayload } from './sticker-api.js';
-import {
-  mentionAutocompleteKeydown,
-  MentionAutocompletePanel,
-  useComposerMentions,
-} from './composer-mention-autocomplete.js';
+import { MentionAutocompletePanel, useComposerMentions } from './composer-mention-autocomplete.js';
 import { caretBeyondToken, type CaretMention } from './composer-mentions.js';
+import { useComposerCaret } from './use-composer-caret.js';
+import { composerKeyDown } from './composer-keydown.js';
 import { MentionFieldOverlay, mentionAtOffset } from './composer-mention-overlay.js';
 
 /** Payload отправки композера (#87): текст + готовые вложения + контекст
@@ -199,6 +196,18 @@ export function ChatComposer({
   // поля — поповер правки (composer-mention-overlay).
   const [editToken, setEditToken] = useState<CaretMention | null>(null);
   const mentions = useComposerMentions({ conversationId, focusId, text, setText, inputRef });
+
+  // Каретка + атомарные Backspace/Delete у токенов (#224) — хук; каретка
+  // в конец восстановленного черновика — модель Telegram.
+  const { caretMeta, updateCaret, handleCaretKeys, fieldEvents } = useComposerCaret({
+    text,
+    setText: (next) => setText(focusId, next),
+    inputRef,
+    onFocusExtra: (el) => {
+      if (caretToEndRef.current) el.setSelectionRange(el.value.length, el.value.length);
+      caretToEndRef.current = false;
+    },
+  });
 
   // Морфология островка (селект) — хук selection-phase.ts (I5, #177).
   const { selPhase, toolbarSel } = useSelectionPhase(sel);
@@ -355,57 +364,27 @@ export function ChatComposer({
     submit();
   }
 
-  function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    // Автокомплит @упоминаний (#176): Enter выбирает (НЕ отправляет), ↑↓ по списку, Esc гасит панель; Slack.
-    const eaten = mentionAutocompleteKeydown(
-      event,
-      {
+  // Клавиатура поля — composer-keydown.ts (I5-сплит): атомарные клавиши
+  // чипа, автокомплит, отправка, Esc-каскад режимов, ↑-правка последнего.
+  const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) =>
+    composerKeyDown(event, {
+      focusId,
+      text,
+      handleCaretKeys,
+      autocomplete: {
         open: mentions.open,
         count: mentions.autocomplete.candidates.length,
         active: mentions.autocomplete.active,
         setActive: mentions.autocomplete.setActive,
+        pick: mentions.pick,
+        dismiss: mentions.dismiss,
       },
-      mentions.pick,
-      mentions.dismiss,
-    );
-    if (eaten) return;
-    if (isSendShortcut(event.key, event.shiftKey, event.ctrlKey)) {
-      event.preventDefault();
-      submit();
-      return;
-    }
-    // Esc-каскад (канон Discord): сначала режимы композера (пересылка —
-    // верхний, самый сиюминутный); preventDefault не даёт SliderPanel закрыть
-    // карточку (фильтр канона #71).
-    if (event.key === 'Escape') {
-      const store = useChatDrafts.getState();
-      if (pending) {
-        event.preventDefault();
-        useForwardPending.getState().clear(focusId);
-      } else if (draft.reply) {
-        event.preventDefault();
-        store.cancelReply(focusId);
-      } else if (draft.edit) {
-        event.preventDefault();
-        store.cancelEdit(focusId);
-      }
-      return;
-    }
-    // ↑ на пустом поле — править последнее своё (официальный шорткат Telegram).
-    if (
-      event.key === 'ArrowUp' &&
-      !event.shiftKey &&
-      !ctrlOrAlt(event) &&
-      text.length === 0 &&
-      !draft.edit &&
-      !draft.reply &&
-      !pending &&
-      onEditLast
-    ) {
-      event.preventDefault();
-      onEditLast();
-    }
-  }
+      submit,
+      pendingForward: pending !== null,
+      hasReply: draft.reply !== null,
+      hasEdit: draft.edit !== null,
+      onEditLast,
+    });
 
   const align = grown ? 'self-end' : 'self-center';
 
@@ -542,9 +521,11 @@ export function ChatComposer({
                   контент карточки дёргается». rows=1 + field-sizing: рост до
                   45vh, дальше скролл внутри поля (вердикт 15.09.2026).
                   @упоминания (#176): текст поля ПРОЗРАЧНЫЙ, чипы рисует
-                  зеркальный оверлей (composer-mention-overlay) — каретка
-                  видима (caret-foreground), каретка поля = источник запроса
-                  автокомплита и кликов по чипам. */}
+                  зеркальный оверлей (composer-mention-overlay). Каретка —
+                  КАСТОМНЫЙ слой (#224): нативная скрыта (caret-transparent —
+                  в прозрачном хвосте токена висела «в пустоте»), слой
+                  composer-caret рисует её по зеркалу; каретка поля =
+                  источник запроса автокомплита и кликов по чипам. */}
               <span className="relative flex min-w-0 flex-1 flex-col">
                 {mentions.open ? (
                   <MentionAutocompletePanel
@@ -558,6 +539,7 @@ export function ChatComposer({
                   text={text}
                   setText={(next) => setText(focusId, next)}
                   textareaRef={inputRef}
+                  caret={caretMeta}
                   editToken={editToken}
                   onEditClose={() => {
                     setEditToken(null);
@@ -570,17 +552,12 @@ export function ChatComposer({
                 <Textarea
                   ref={registerInput}
                   value={text}
-                  className="max-h-[45vh] min-h-8 flex-1 resize-none rounded-lg border-0 bg-transparent px-1.5 py-1.5 text-transparent caret-foreground shadow-none ring-0 focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent"
-                  onFocus={() => {
-                    const el = inputRef.current;
-                    if (caretToEndRef.current && el) {
-                      el.setSelectionRange(el.value.length, el.value.length);
-                    }
-                    caretToEndRef.current = false;
-                  }}
+                  className="max-h-[45vh] min-h-8 flex-1 resize-none rounded-lg border-0 bg-transparent px-1.5 py-1.5 text-transparent caret-transparent shadow-none ring-0 focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent"
+                  {...fieldEvents}
                   onChange={(e) => {
                     setText(focusId, e.target.value);
                     mentions.syncCaret(e.target);
+                    updateCaret(e.target);
                     if (conversationId && e.target.value.length > 0) {
                       emitTyping(conversationId, typingThreadRootId);
                     }

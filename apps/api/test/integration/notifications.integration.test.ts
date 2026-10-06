@@ -140,6 +140,34 @@ describe.skipIf(!process.env.DATABASE_URL)(
       expect(deliveries.items.some((d) => d.channel === 'ws' && d.attempt === 0)).toBe(true);
     });
 
+    it('#224 «Все»: пинг всем участникам с приоритетом упоминания; превью без разметки', async () => {
+      const res = await fx.api(alice, 'POST', '/chat/conversations', {
+        body: { type: 'group', title: `All ${fx.runId}`, memberIds: [bob.id, carol.id] },
+      });
+      expect(res.status).toBe(201);
+      const conversationId = ((await res.json()) as { id: string }).id;
+      await fx.api(alice, 'POST', `/chat/conversations/${conversationId}/messages`, {
+        body: { text: '@[Все](user:all) — планёрка в 15:00' },
+        key: `notif-all-${fx.runId}`,
+      });
+      await runPipeline();
+
+      // Оба участника (кроме автора) получают упоминание — HIGH, не low
+      // пост группы: «Все» поднимает приоритет обычного сообщения (#224).
+      for (const member of [bob, carol]) {
+        const list = (await (await listNotifications(member, '?filter=unread')).json()) as {
+          items: Array<{ priority: string; kind: string; conversationId: string; preview: string }>;
+        };
+        const hit = list.items.find((i) => i.conversationId === conversationId);
+        expect(hit?.priority).toBe('high');
+        expect(hit?.kind).toBe('chat.mention');
+        // Превью — стрипнутый текст: без сырой разметки токенов (#224).
+        expect(hit?.preview).toContain('Все');
+        expect(hit?.preview).not.toContain('@[');
+        expect(hit?.preview).not.toContain('user:');
+      }
+    });
+
     it('B9/B1: автору — ничего; получателю direct — high', async () => {
       const conversationId = await directId(bob, alice);
       await fx.api(bob, 'POST', `/chat/conversations/${conversationId}/messages`, {

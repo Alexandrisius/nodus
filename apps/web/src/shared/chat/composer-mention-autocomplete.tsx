@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { Paginated, UserListItem, UserRef } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
+import { Users } from 'lucide-react';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { api } from '../api-client.js';
@@ -201,12 +202,19 @@ export function MentionAutocompletePanel({
             }}
             onMouseMove={() => onHover(i)}
           >
-            <PersonAvatar
-              name={candidate.displayName}
-              avatarUrl={candidate.avatarUrl}
-              className="size-7 shrink-0"
-              fallbackClass="text-[10px]"
-            />
+            {candidate.isAll ? (
+              // «Все» (#224): иконка группы вместо аватара человека.
+              <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted">
+                <Users className="size-4 text-foreground" strokeWidth={1.75} />
+              </span>
+            ) : (
+              <PersonAvatar
+                name={candidate.displayName}
+                avatarUrl={candidate.avatarUrl}
+                className="size-7 shrink-0"
+                fallbackClass="text-[10px]"
+              />
+            )}
             <span className="min-w-0 flex-1 truncate text-sm font-medium">
               {candidate.displayName}
             </span>

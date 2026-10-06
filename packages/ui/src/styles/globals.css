@@ -411,6 +411,18 @@
   stroke-dashoffset: 1;
   animation: node-edge-draw 0.45s ease-out forwards;
 }
+/* Блинк каретки композера упоминаний (#224): нативная скрыта
+   (caret-transparent — сырые глифы поля прозрачны), каретку рисует слой. */
+@keyframes caret-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
 @keyframes node-edge-draw {
   to {
     stroke-dashoffset: 0;

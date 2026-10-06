@@ -47,12 +47,25 @@ describe('MessageText — токен упоминания (#176)', () => {
 });
 
 describe('MentionSnippet — сниппеты (#176)', () => {
-  it('токен — пассивный чип (без кнопки), цвет по id', () => {
+  it('токен — пассивный чип (без кнопки), тинт тон-переменной (#224)', () => {
     const { container } = render(<MentionSnippet text={`для ${TOKEN_A}`} />);
     expect(container.querySelector('button')).toBeNull();
-    const chip = container.querySelector<HTMLElement>('span[style*="color-mix"]');
+    const chip = container.querySelector<HTMLElement>('[data-slot="mention-chip"]');
     expect(chip?.textContent).toBe('Артёму Маторину');
-    expect(chip?.style.backgroundColor).toContain('color-mix');
+    // Тинт — CSS-переменной (инлайн background блокировал бы вариантное
+    // перекрытие своего пузыря): var потребляется классом bg-[...].
+    expect(chip?.style.getPropertyValue('--mention-tint')).toContain('color-mix');
+    expect(chip?.className).toContain('bg-[var(--mention-tint)]');
+    // Поля пилюли — комфортные px-1.5 (ревизия #224).
+    expect(chip?.className).toContain('px-1.5');
+  });
+
+  it('«Все» — нейтральный тон переднего плана, не персональный (#224)', () => {
+    const { container } = render(<MentionSnippet text="@[Все](user:all) сбор" />);
+    const chip = container.querySelector<HTMLElement>('[data-slot="mention-chip"]');
+    expect(chip?.textContent).toBe('Все');
+    expect(chip?.style.getPropertyValue('--mention-tint')).toContain('var(--foreground)');
+    expect(chip?.className).toContain('text-foreground');
   });
 
   it('без токенов — сырой текст, DOM не обрастает узлами', () => {

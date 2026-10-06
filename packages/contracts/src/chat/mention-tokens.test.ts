@@ -118,3 +118,34 @@ describe('buildMentionToken', () => {
     expect(parseMentionSegments(token)).toEqual([{ kind: 'mention', id: UUID_A, label: 'Иван' }]);
   });
 });
+
+describe('упоминание «Все» (#224, сентинел user:all)', () => {
+  it('парсер читает токен @[Все](user:all) как mention с id=all', () => {
+    expect(parseMentionSegments('внимание @[Все](user:all) — планёрка')).toEqual([
+      { kind: 'text', value: 'внимание ' },
+      { kind: 'mention', id: 'all', label: 'Все' },
+      { kind: 'text', value: ' — планёрка' },
+    ]);
+  });
+
+  it('extractMentionIds отдаёт all среди id (сервер резолвит отдельно)', () => {
+    expect(extractMentionIds(`@[Борис](user:${UUID_A}) и @[Все](user:all)`)).toEqual([
+      UUID_A,
+      'all',
+    ]);
+  });
+
+  it('stripMentionTokens разворачивает Все в label; сборка токена симметрична', () => {
+    expect(stripMentionTokens('@[Все](user:all), сбор')).toBe('Все, сбор');
+    const token = buildMentionToken('Все', 'all');
+    expect(token).toBe('@[Все](user:all)');
+    expect(parseMentionSegments(token)).toEqual([{ kind: 'mention', id: 'all', label: 'Все' }]);
+  });
+
+  it('all не матчится как часть другого слова/uuid-подобного хвоста', () => {
+    expect(parseMentionSegments('@[Х](user:allx))')[0]).toEqual({
+      kind: 'text',
+      value: '@[Х](user:allx))',
+    });
+  });
+});

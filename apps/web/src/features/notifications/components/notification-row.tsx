@@ -3,6 +3,7 @@ import type { MouseEvent } from 'react';
 import type { Notification, NotificationPriority } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 
+import { MentionSnippet } from '../../../shared/chat/mention-chip.js';
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
 import { formatTime } from '../../../shared/lib/format.js';
 import { formatCount, type NotificationGroup } from '../model/group-notifications.js';
@@ -80,7 +81,8 @@ export function NotificationRow({
             </div>
             <div className="mt-0.5 truncate text-sm text-foreground/90">
               {kindTitle(item.kind)}
-              {item.preview ? ` · ${item.preview}` : ''}
+              {item.preview ? ' · ' : ''}
+              {item.preview ? <MentionSnippet text={item.preview} /> : null}
             </div>
             {where.length > 0 && (
               <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
@@ -127,7 +129,8 @@ export function NotificationRowCompact({
         </span>
         <span className="block truncate text-xs text-muted-foreground">
           {ui.notifications.kindTitles[item.kind]}
-          {item.preview ? ` · ${item.preview}` : ''}
+          {item.preview ? ' · ' : ''}
+          {item.preview ? <MentionSnippet text={item.preview} /> : null}
         </span>
       </span>
       <PriorityMark priority={item.priority} />

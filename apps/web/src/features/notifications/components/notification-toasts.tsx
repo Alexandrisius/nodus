@@ -4,6 +4,7 @@ import { useNavigate } from '@tanstack/react-router';
 import { ui } from '@nodus/contracts';
 
 import { useConversations } from '../../../shared/chat/api.js';
+import { MentionSnippet } from '../../../shared/chat/mention-chip.js';
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
 import { useNotificationsToastStore } from '../model/toast-store.js';
 import { PERSONAL_TOAST_TTL_MS } from '../model/toast-store.js';
@@ -107,7 +108,9 @@ function PersonalToastCard({
             {snapshot.actorName ?? ui.notifications.kindTitles[snapshot.kind]}
           </span>
           {snapshot.preview && (
-            <span className="block truncate text-xs text-muted-foreground">{snapshot.preview}</span>
+            <span className="block truncate text-xs text-muted-foreground">
+              <MentionSnippet text={snapshot.preview} />
+            </span>
           )}
           {snapshot.conversationTitle && (
             <span className="block truncate text-xs text-muted-foreground">

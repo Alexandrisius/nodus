@@ -5,6 +5,7 @@ import { Button } from '@nodus/ui/components/button';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { personTone, personToneVar } from '../ui/person-tone.js';
+import { ComposerCaret } from './composer-caret.js';
 import {
   mentionTokens,
   removeMentionToken,
@@ -30,18 +31,20 @@ import {
  *  обязаны совпадать 1:1, code-ревью): видима только label-часть на
  *  пилюле-тинте, обрамление `@[`/`]` и хвост `(user:uuid)` — прозрачные
  *  глифы. Без whitespace-pre: инлайны рвутся по строкам как в textarea
- *  (пилюля честно разрывается, модель Slack); паддинг пилюли скомпенсирован
- *  отрицательным маргином и вес наследуется — поток не шире сырых глифов. */
+ *  (пилюля честно разрывается, модель Slack); паддинг пилюли px-1.5
+ *  скомпенсирован равным отрицательным маргином — видимые поля чипа без
+ *  сдвига метрики (ревизия #224: прежние px-0.5 были «впритык»); пилюля
+ *  наезжает на прозрачные глифы обрамления. «Все» — нейтральный тон. */
 function OverlayChip({ id, label }: { id: string; label: string }) {
+  const tone = id === 'all' ? 'text-foreground' : personTone(id);
+  const tint =
+    id === 'all'
+      ? 'color-mix(in oklch, var(--foreground) 12%, transparent)'
+      : `color-mix(in oklch, ${personToneVar(id)} 12%, transparent)`;
   return (
     <>
       <span style={{ color: 'transparent' }}>@[</span>
-      <span
-        style={{
-          backgroundColor: `color-mix(in oklch, ${personToneVar(id)} 14%, transparent)`,
-        }}
-        className={cn('-mx-0.5 rounded-md px-0.5', personTone(id))}
-      >
+      <span style={{ backgroundColor: tint }} className={cn('-mx-1.5 rounded-md px-1.5', tone)}>
         {label || '@'}
       </span>
       <span style={{ color: 'transparent' }}>{`](user:${id})`}</span>
@@ -60,13 +63,15 @@ export function mentionAtOffset(text: string, offset: number): CaretMention | nu
 
 /** Оверлей + поповер правки; рендерится ВНУТРИ relative-обёртки textarea.
  *  editToken/onEditClose — управляемое состояние поповера (клик по чипу
- *  решает композер: mentionAtOffset по каретке клика). */
+ *  решает композер: mentionAtOffset по каретке клика). caret — слой
+ *  кастомной каретки (#224): нативная скрыта, позиция живёт по зеркалу. */
 export function MentionFieldOverlay({
   text,
   setText,
   textareaRef,
   editToken,
   onEditClose,
+  caret,
 }: {
   text: string;
   /** setText стора черновика (правка/удаление токена). */
@@ -74,6 +79,8 @@ export function MentionFieldOverlay({
   textareaRef: { current: HTMLTextAreaElement | null };
   editToken: CaretMention | null;
   onEditClose: () => void;
+  /** Каретка поля (offset + видимость) или null — слой не монтируется. */
+  caret?: { offset: number; visible: boolean } | null;
 }) {
   const overlayRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -147,6 +154,9 @@ export function MentionFieldOverlay({
         {/* Хвостовой перенос строки: pre-wrap textarea держит строку. */}
         {text.endsWith('\n') ? '\n' : null}
       </div>
+      {caret !== undefined ? (
+        <ComposerCaret text={text} caret={caret} mirrorRef={overlayRef} />
+      ) : null}
       {editing ? (
         <span
           role="dialog"
