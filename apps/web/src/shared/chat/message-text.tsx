@@ -13,9 +13,10 @@ import { reactionAsset } from './reaction-presets.js';
 type EntitySegment = Extract<MessageSegment, { kind: 'entity' }>;
 export type ContentSegment = MentionSegment | EntitySegment;
 
-/** Гиперссылка в тексте пузыря: подчёркнутый акцент; на СВОЁМ синем пузыре
- *  — белая (канон Telegram: весь текст своего пузыря, включая ссылки,
- *  единым цветом пузыря, иначе синее-на-синём не читается). */
+/** Гиперссылка в тексте пузыря: подчёркнутый стальной синий (--info — канон
+ *  ссылок продукта, text-info+underline как в диалогах); на СВОЁМ цветном
+ *  пузыре — цвет текста пузыря (канон Telegram: весь текст своего пузыря
+ *  единым цветом, иначе акцент-на-акцент не читается). */
 function UrlLink({ url }: { url: string }) {
   return (
     <a
@@ -25,7 +26,7 @@ function UrlLink({ url }: { url: string }) {
       onClick={(e) => e.stopPropagation()}
       title={url}
       className={cn(
-        'text-primary wrap-anywhere underline underline-offset-2 hover:underline',
+        'text-info wrap-anywhere underline underline-offset-2 hover:underline',
         'group-data-[variant=default]/bubble:text-bubble-out-foreground',
       )}
     >

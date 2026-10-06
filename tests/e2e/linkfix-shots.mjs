@@ -8,7 +8,8 @@ import { mkdirSync } from 'node:fs';
  *   NODUS_BASE_URL=http://127.0.0.1:4173 node tests/e2e/linkfix-shots.mjs
  */
 const base = (process.env.NODUS_BASE_URL ?? 'http://127.0.0.1:4173').replace(/\/$/, '');
-const out = '.live-stack/shots/212-fix';
+// От корня репо (не от cwd запуска): live-stack-каталог канонический
+const out = new URL('../../.live-stack/shots/212-fix/', import.meta.url).pathname;
 mkdirSync(out, { recursive: true });
 
 const PEER_NAME = 'Борис Ночной';
@@ -44,9 +45,16 @@ async function shoot(browser, { user, peer, tag }) {
     await page.waitForTimeout(2000);
     console.log('after conv click:', page.url());
 
-    const stream = page.locator('[data-slot="message-run"], [data-slot="bubble-group"]').last();
-    await stream.waitFor({ timeout: 10000 });
-    await stream.screenshot({ path: `${out}/${tag}__${theme}.png` });
+    const bubbles = page.locator('[data-slot="bubble-content"]:has(a[target="_blank"])');
+    await bubbles.first().waitFor({ timeout: 10000 });
+    // Кропы каждого пузыря со ссылкой (текст + карточка целиком), снизу вверх
+    const count = await bubbles.count();
+    for (let i = 0; i < count; i += 1) {
+      await bubbles
+        .nth(count - 1 - i)
+        .screenshot({ path: `${out}/${tag}__${theme}__bubble${i}.png` });
+    }
+    await page.screenshot({ path: `${out}/${tag}__${theme}__page.png` });
     // Кликабельность ссылки: якорь в тексте существует и ведёт наружу
     const link = page.locator('[data-slot="bubble-content"] a[target="_blank"]').first();
     const href = await link.getAttribute('href');
