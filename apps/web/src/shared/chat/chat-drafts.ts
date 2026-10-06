@@ -379,13 +379,21 @@ export const useChatDrafts = create<DraftsState>()(
         const drafts = Object.fromEntries(
           Object.entries(state.drafts ?? {}).map(([key, d]) => {
             const parsed = roundtrip(typeof d.text === 'string' ? d.text : '', d.mentions);
+            // preEditText персистился СЫРЫМ (v1 — с токенами) — тот же
+            // roundtrip, иначе отмена правки после F5 вернёт в поле
+            // сырую разметку при пустом реестре (code-ревью #228).
+            const pre =
+              typeof d.preEditText === 'string' && d.preEditText.length > 0
+                ? roundtrip(d.preEditText, [])
+                : null;
             return [
               key,
               {
                 ...d,
                 text: parsed.text,
                 mentions: parsed.mentions,
-                preEditMentions: null,
+                preEditText: pre ? pre.text : null,
+                preEditMentions: pre ? pre.mentions : null,
               },
             ];
           }),

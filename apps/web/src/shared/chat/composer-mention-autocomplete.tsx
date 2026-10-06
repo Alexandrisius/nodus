@@ -95,8 +95,8 @@ export function useComposerMentions(opts: {
     const query = autocomplete.query;
     const candidate = autocomplete.candidates[index];
     if (!query || !candidate) return;
-    // Вставка ЧИПА через реестр стора (#228): в поле ложится видимый
-    // `@Имя` + пробел; каретка — НАСТОЯЩАЯ позиция за пробелом (нативная).
+    // Вставка ЧИПА через реестр стора (#228): в поле ложится видимое
+    // ИМЯ + пробел (без «@»); каретка — НАСТОЯЩАЯ позиция за пробелом.
     const caretAt = useChatDrafts
       .getState()
       .insertMention(opts.focusId, query.start, query.end, candidate.id, candidate.displayName);
