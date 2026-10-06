@@ -113,6 +113,37 @@ describe('AttachmentsService (#57, синхронное превью #221)', () 
     expect(thumbnailQueue.enqueue).toHaveBeenCalledTimes(1);
   });
 
+  it('гигант по пикселям (sync-лимит security #221): запасной путь в очередь', async () => {
+    // Перечитанная строка всё ещё без превью — sync-генерация тихо отказала
+    // (декомпрессионная бомба превысила SYNC_PIXEL_LIMIT).
+    const { service, thumbnails, thumbnailQueue } = makeService(
+      {},
+      {
+        findAnyById: vi.fn(async (id: string): Promise<AttachmentRow | null> => ({
+          id,
+          fileId: '00000000-0000-0000-0000-00000000000f',
+          ownerId: OWNER,
+          name: 'bomb.png',
+          size: 10,
+          mime: 'image/png',
+          kind: 'image',
+          width: 16383,
+          height: 16383,
+          thumbFileId: null,
+        })),
+      },
+    );
+    const dto = await service.upload(
+      OWNER,
+      { name: 'bomb.png', mime: 'image/png', size: 10 },
+      content(),
+    );
+    expect(dto.thumbnailUrl).toBeNull();
+    // Синхронный вызов — с жёстким пиксельным потолком.
+    expect(thumbnails.generateFor).toHaveBeenCalledWith(expect.any(String), 4096 * 4096);
+    expect(thumbnailQueue.enqueue).toHaveBeenCalledTimes(1);
+  });
+
   it(`изображение > ${SYNC_PREVIEW_BYTES} байт — фоновая очередь, ответ без превью`, async () => {
     const { service, thumbnails, thumbnailQueue } = makeService();
     const dto = await service.upload(

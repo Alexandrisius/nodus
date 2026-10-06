@@ -14,7 +14,7 @@ import {
 } from './attachments.constants.js';
 import { AttachmentsRepository, type AttachmentRow } from './attachments.repository.js';
 import { ThumbnailQueue } from './thumbnail.queue.js';
-import { ThumbnailService } from './thumbnail.service.js';
+import { SYNC_PIXEL_LIMIT, ThumbnailService } from './thumbnail.service.js';
 
 /** Брошенные загрузки (закрыл композер, не отправил): строка + объект
  *  хранилища убираются попутно при следующей загрузке того же владельца. */
@@ -95,15 +95,18 @@ export class AttachmentsService {
         // Синхронное превью (#221): миниатюра рождается В ответе загрузки —
         // пузырь отправителя (оптимистичный temp несёт этот DTO) и получатели
         // видят лёгкую миниатюру с первого кадра; оригинал в ленту не грузится
-        // вовсе. Сбой — не валит загрузку: запасной путь фоновый, как раньше.
+        // вовсе. Сбой ИЛИ гигант по пикселям (декомпрессионная бомба —
+        // SYNC_PIXEL_LIMIT): фоновый запасной путь с просторным потолком.
         try {
-          await this.thumbnails.generateFor(row.id);
+          await this.thumbnails.generateFor(row.id, SYNC_PIXEL_LIMIT);
           row = (await this.repository.findAnyById(row.id)) ?? row;
         } catch (error) {
           this.logger.warn(
             { attachmentId: row.id, err: error },
             'Синхронное превью не удалось — уходим в фоновую очередь',
           );
+        }
+        if (!row.thumbFileId) {
           await this.thumbnailQueue.enqueue(row.id, fileId);
         }
       } else {
