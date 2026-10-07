@@ -88,6 +88,23 @@ export function CircuitFrame() {
 
   const pulseTimer = useRef(0);
 
+  /** Сворачивание/разворачивание левого меню (#235): width-transition рейки
+   *  стартует в кадре ПОСЛЕ коммита, и transitionrun может прийти позже
+   *  первого перемера — вспышка успевала выстрелить по переходной геометрии.
+   *  Гвард moving ставим сами, не дожидаясь события; страховочный таймер —
+   *  если transition не случится. Настоящий transitionend снимет флаг
+   *  раньше и перемерит контур. */
+  const prevMenuCollapsed = useRef(menuCollapsed);
+  useLayoutEffect(() => {
+    if (prevMenuCollapsed.current === menuCollapsed) return;
+    prevMenuCollapsed.current = menuCollapsed;
+    moving.current = true;
+    const settle = window.setTimeout(() => {
+      moving.current = false;
+    }, 360);
+    return () => window.clearTimeout(settle);
+  }, [menuCollapsed]);
+
   /** Одиночный пульс с авто-затуханием; длительность затухания — из длины
    *  маршрута (рисовка + догорание), иначе дальняя подсветка обрывается. */
   const firePulse = useCallback((points: NodeEdgePoint[], dot: boolean) => {
