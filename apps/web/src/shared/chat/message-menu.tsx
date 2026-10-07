@@ -140,8 +140,7 @@ export function MessageMenu({
 
   /** Серверные id подтверждённых записей выделения (#243): селект хранит
    *  ключи clientMessageId (стабильны через замену темпа), командам нужны
-   *  настоящие id — летящие темпы исключаются с тостом-подсказкой.
-   *  Порядок = порядок выделения (цепочка «Избранного», #171).
+   *  настоящие id. Порядок = порядок выделения (цепочка «Избранного», #171).
    *  Пересчёт В МОМЕНТ клика: между открытием меню и кликом очередь
    *  могла подтвердить летящие. */
   function confirmedSelectionIds(): string[] {
@@ -152,9 +151,12 @@ export function MessageMenu({
     });
   }
 
+  /** В выделении есть летящие (#243): серверные команды меню серые (гри-аут
+   *  без уведомлений, вердикт владельца 07.10). */
+  const selectionPending =
+    selectedIds.length > 0 && confirmedSelectionIds().length !== selectedIds.length;
+
   function selectionItems(): Item[] {
-    const somePending = () =>
-      selectedIds.length > 0 && confirmedSelectionIds().length !== selectedIds.length;
     return [
       // Витрина «Избранного» (hideFavorite): звезда на свои записи —
       // self-reference, дизайн запрещает и в режиме селекта.
@@ -165,11 +167,8 @@ export function MessageMenu({
               id: 'favoriteSelected',
               icon: Star,
               label: ui.chat.favoriteSelected,
+              disabled: selectionPending,
               run: () => {
-                if (somePending()) {
-                  toast(ui.chat.selectionStillSending);
-                  return;
-                }
                 // Порядок цепочки = порядок выделения → поток «Избранного» (#171).
                 addFavorites.mutate(confirmedSelectionIds());
                 useSelectionStore.getState().exit();
@@ -180,6 +179,7 @@ export function MessageMenu({
         id: 'forwardSelected',
         icon: Forward,
         label: ui.chat.forwardSelected,
+        disabled: selectionPending,
         run: () => {
           const ids = confirmedSelectionIds();
           if (ids.length > 0) useForwardDialog.getState().open(conversationId, ids);
@@ -190,6 +190,7 @@ export function MessageMenu({
         icon: Trash2,
         label: ui.chat.deleteSelected,
         danger: true,
+        disabled: selectionPending,
         run: () => {
           const ids = confirmedSelectionIds();
           if (ids.length > 0) useDeleteDialog.getState().ask(conversationId, ids);

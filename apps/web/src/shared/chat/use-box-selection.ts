@@ -51,6 +51,9 @@ const BOUNDARY_SLOP_PX = 2;
 /** Старт с этих целей не перехватываем: поля ввода живут своей жизнью. */
 const INTERACTIVE_SELECTOR = 'input, textarea, select, [contenteditable="true"]';
 const ROW_SELECTOR = '[data-message-id]';
+/** Ключ селекта строки (#243): data-message-key (clientMessageId) — стабилен
+ *  через замену темпа серверной записью; data-message-id (id записи) меняется. */
+const rowKey = (row: HTMLElement): string => row.dataset.messageKey ?? row.dataset.messageId ?? '';
 const TEXT_SELECTOR = '[data-slot="message-text"]';
 /** Поверхность сообщения — граница «внутри/снаружи» для текста: пузырь
  *  (Bubble-примитив, data-variant) или карточка поста канала. */
@@ -99,7 +102,7 @@ export function selectableRowAt(
 ): HTMLElement | null {
   if (rows.length === 0) return null;
   const allowed = new Set(allowedIds);
-  const isSelectable = (row: HTMLElement) => allowed.has(row.dataset.messageId ?? '');
+  const isSelectable = (row: HTMLElement) => allowed.has(rowKey(row));
   const physical = rowAt(rows, y);
   if (!physical) {
     // Пустота НАД лентой (якорь низа — контент прижат к низу, р.7).
@@ -211,7 +214,7 @@ export function useBoxSelection({
       rowsRef.current = rows;
       const ids = new Set(sliceRange(allowedRef.current, from, to));
       for (const row of rows) {
-        const id = row.dataset.messageId ?? '';
+        const id = rowKey(row);
         const should = ids.has(id);
         const has = row.getAttribute('data-box-selected') === 'true';
         if (should && !has) row.setAttribute('data-box-selected', 'true');
@@ -259,7 +262,7 @@ export function useBoxSelection({
       viewport.scrollTop += dy;
       if (phaseRef.current === 'box' && anchorIdRef.current !== null) {
         const row = selectableTarget();
-        if (row) paintRange(anchorIdRef.current, row.dataset.messageId ?? '');
+        if (row) paintRange(anchorIdRef.current, rowKey(row));
       }
       scrollRafRef.current = requestAnimationFrame(autoscrollTick);
     };
@@ -343,7 +346,7 @@ export function useBoxSelection({
         // рамка включается ЦЕЛИКОМ на сообщении текста — якорь ТОЧНАЯ
         // строка этого сообщения, а не строка под курсором.
         window.getSelection()?.removeAllRanges();
-        const anchorId = text.row.dataset.messageId ?? '';
+        const anchorId = rowKey(text.row);
         textRef.current = null;
         engageBox(anchorId);
         return;
@@ -354,13 +357,13 @@ export function useBoxSelection({
         if (Math.hypot(event.clientX - sx, event.clientY - sy) < DRAG_ENGAGE_PX) return;
         const row = selectableTarget();
         if (!row) return;
-        engageBox(row.dataset.messageId ?? '');
+        engageBox(rowKey(row));
         return;
       }
 
       const row = selectableTarget();
       if (row && anchorIdRef.current !== null) {
-        paintRange(anchorIdRef.current, row.dataset.messageId ?? '');
+        paintRange(anchorIdRef.current, rowKey(row));
       }
       kickAutoscroll();
     };
@@ -377,7 +380,7 @@ export function useBoxSelection({
     const onFeedScroll = () => {
       if (phaseRef.current !== 'box' || anchorIdRef.current === null) return;
       const row = selectableTarget();
-      if (row) paintRange(anchorIdRef.current, row.dataset.messageId ?? '');
+      if (row) paintRange(anchorIdRef.current, rowKey(row));
     };
 
     viewport.addEventListener('pointerdown', onPointerDown);

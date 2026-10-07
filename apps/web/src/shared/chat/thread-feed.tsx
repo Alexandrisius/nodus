@@ -272,6 +272,7 @@ export const ThreadFeed = memo(function ThreadFeed({
                                   >
                                     <MessageRow
                                       messageId={message.id}
+                                      selectionKey={message.clientMessageId}
                                       selectable={selection.selectionActive && !message.deletedAt}
                                       selected={selection.selectedSet.has(message.clientMessageId)}
                                       onToggle={(shift) =>

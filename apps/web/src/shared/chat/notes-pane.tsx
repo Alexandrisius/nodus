@@ -34,7 +34,7 @@ import { setOpenConversation } from './notifications.js';
 import { registerScopeSubmit } from './submit-registry.js';
 import { toSendVars } from './composer-submit.js';
 import { useFeedSelection } from './use-feed-selection.js';
-import { confirmedIdsOf } from './selection-confirmed.js';
+import { confirmedIdsOf, hasPendingMessages } from './selection-confirmed.js';
 import { useBoxSelection } from './use-box-selection.js';
 import { useDeleteDialog, useForwardDialog } from './dialog-stores.js';
 import { copyMessagesAsText } from './use-selection-keys.js';
@@ -150,13 +150,15 @@ export function NotesPane({ conversationId }: { conversationId: string }) {
   const selectionBar: ComposerSelection | null = selection.selectionActive
     ? (() => {
         const keys = selection.orderedIds.filter((id) => selection.selectedSet.has(id));
+        const selectedMessages = selection.getSelectedMessages();
         // Батч-командам — подтверждённые серверные id (летящие темпы #243
-        // исключает confirmedIdsOf с тостом-подсказкой).
-        const ids = confirmedIdsOf(selection.getSelectedMessages());
+        // исключены; команды при них серые — pending).
+        const ids = confirmedIdsOf(selectedMessages);
         const { noteIds } = splitNotesSelection(ids, new Set(messages.map((m) => m.id)));
         return {
           count: keys.length,
           ids,
+          pending: hasPendingMessages(selectedMessages),
           allMine: selection.allMine,
           deletable: true,
           favoritesEnabled: false,

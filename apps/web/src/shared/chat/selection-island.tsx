@@ -34,6 +34,7 @@ export function SelectionToolbar({ sel, frozen }: { sel: ComposerSelection; froz
           className="shrink-0 gap-1.5 text-muted-foreground"
           aria-label={ui.chat.menu.forward}
           title={ui.chat.menu.forward}
+          disabled={sel.pending}
           onClick={sel.onForward}
         >
           <Forward className="size-4" strokeWidth={1.75} />
@@ -48,6 +49,7 @@ export function SelectionToolbar({ sel, frozen }: { sel: ComposerSelection; froz
           className="shrink-0 text-muted-foreground"
           aria-label={ui.chat.favoriteSelected}
           title={ui.chat.favoriteSelected}
+          disabled={sel.pending}
           onClick={() => {
             // Порядок цепочки = порядок выделения в ленте → поток «Избранного».
             addFavorites.mutate(sel.ids);
@@ -65,6 +67,7 @@ export function SelectionToolbar({ sel, frozen }: { sel: ComposerSelection; froz
           className="shrink-0 text-muted-foreground"
           aria-label={ui.chat.menu.delete}
           title={ui.chat.menu.delete}
+          disabled={sel.pending}
           onClick={sel.onDelete}
         >
           <Trash2 className="size-4" strokeWidth={1.75} />

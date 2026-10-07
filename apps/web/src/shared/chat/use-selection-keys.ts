@@ -59,8 +59,8 @@ export function useSelectionKeys(
         const messages = getSelectedMessages();
         const conversationId = messages[0]?.conversationId;
         if (conversationId) {
-          // Батч-командам — подтверждённые id (летящие темпы #243 исключает
-          // confirmedIdsOf с тостом-подсказкой).
+          // Батч-командам — подтверждённые id (летящие темпы #243 не
+          // трогаем: сервер их ещё не знает).
           const ids = confirmedIdsOf(messages);
           if (ids.length > 0) useDeleteDialog.getState().ask(conversationId, ids);
         }

@@ -17,12 +17,16 @@ import { useFlashStore } from './jump-store.js';
  */
 export function MessageRow({
   messageId,
+  selectionKey,
   selectable = false,
   selected = false,
   onToggle,
   children,
 }: {
   messageId: string;
+  /** Ключ селекта (clientMessageId, #243): стабилен через замену темпа
+   *  серверной записью; рамочное выделение матчит строки по нему. */
+  selectionKey?: string;
   selectable?: boolean;
   selected?: boolean;
   onToggle?: (shiftKey: boolean) => void;
@@ -33,6 +37,7 @@ export function MessageRow({
   return (
     <div
       data-message-id={messageId}
+      data-message-key={selectionKey}
       data-selected={selectable ? selected : undefined}
       className={cn(
         'relative min-w-0 rounded-lg',

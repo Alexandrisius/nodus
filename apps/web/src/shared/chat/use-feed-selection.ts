@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo } from 'react';
 
 import type { ComposerSelection } from './chat-composer.js';
 import { useDeleteDialog, useForwardDialog } from './dialog-stores.js';
-import { confirmedIdsOf } from './selection-confirmed.js';
+import { confirmedIdsOf, hasPendingMessages } from './selection-confirmed.js';
 import { useSelectionActive, useSelectedIds, useSelectionStore } from './selection-store.js';
 import { copyMessagesAsText, useSelectionKeys } from './use-selection-keys.js';
 
@@ -76,10 +76,12 @@ export function selectionComposerProps(
 ): ComposerSelection | null {
   if (!selection.selectionActive) return null;
   const keys = selection.orderedIds.filter((id) => selection.selectedSet.has(id));
-  const ids = confirmedIdsOf(selection.getSelectedMessages());
+  const selectedMessages = selection.getSelectedMessages();
+  const ids = confirmedIdsOf(selectedMessages);
   return {
     count: keys.length,
     ids,
+    pending: hasPendingMessages(selectedMessages),
     allMine: selection.allMine,
     deletable,
     favoritesEnabled,
@@ -87,7 +89,7 @@ export function selectionComposerProps(
     onDelete: () => {
       if (ids.length > 0) useDeleteDialog.getState().ask(conversationId, ids);
     },
-    onCopy: () => copyMessagesAsText(selection.getSelectedMessages()),
+    onCopy: () => copyMessagesAsText(selectedMessages),
     onClear: () => useSelectionStore.getState().exit(),
   };
 }

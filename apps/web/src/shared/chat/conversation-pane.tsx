@@ -350,6 +350,7 @@ function ConversationFeed({
                               <MessageScrollerItem messageId={message.id} style={attrs.style}>
                                 <MessageRow
                                   messageId={message.id}
+                                  selectionKey={message.clientMessageId}
                                   selectable={selection.selectionActive && !message.deletedAt}
                                   selected={selection.selectedSet.has(message.clientMessageId)}
                                   onToggle={(shift) =>

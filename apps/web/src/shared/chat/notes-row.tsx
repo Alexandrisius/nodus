@@ -107,6 +107,7 @@ export function FavoriteRunMessage({
     <MessageScrollerItem messageId={message.id} style={style}>
       <MessageRow
         messageId={message.id}
+        selectionKey={message.clientMessageId}
         selectable={selectable}
         selected={selectedSet.has(message.clientMessageId)}
         onToggle={(shift) => onToggle(message.clientMessageId, shift)}
