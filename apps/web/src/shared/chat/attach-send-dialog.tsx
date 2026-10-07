@@ -15,7 +15,7 @@ import { Textarea } from '@nodus/ui/components/textarea';
 import { plural } from '../lib/format.js';
 import { AttachSendRow } from './attach-send-row.js';
 import { messageLimitState, type ComposerSubmit } from './chat-composer.js';
-import { EMPTY_DRAFT, useChatDrafts } from './chat-drafts.js';
+import { EMPTY_DRAFT, useChatDrafts, type PendingAttachment } from './chat-drafts.js';
 import { addFiles, cancelUpload, removePending, replaceFile } from './composer-files.js';
 import { cancelMessageEdit } from './message-edit.js';
 import { useAttachSendDialog } from './dialog-stores.js';
@@ -44,7 +44,12 @@ export function AttachSendDialogHost() {
   const caption = useAttachSendDialog((s) => s.caption);
   const setCaption = useAttachSendDialog((s) => s.setCaption);
   const draft = useChatDrafts((s) => (scope ? (s.drafts[scope] ?? EMPTY_DRAFT) : EMPTY_DRAFT));
-  const items = draft.attachments;
+  // Строки на полёте отправки (#248): хост чистит черновик на САБМИТЕ — окно
+  // держит снятый ДО отправки состав (кнопка нажата, отмена выключена) до
+  // исхода; на ошибке мутация возвращает вложения в черновик и строки снова
+  // живые (файлы и подпись не теряются, повтор возможен, #144).
+  const [flightItems, setFlightItems] = useState<PendingAttachment[] | null>(null);
+  const items = flightItems ?? draft.attachments;
   // Режим правки (#188): окно редактирует существующее сообщение — текст и
   // состав; «Сохранить» = PATCH с полным составом, отмена не трогает сообщение.
   const editMode = draft.edit !== null;
@@ -97,12 +102,12 @@ export function AttachSendDialogHost() {
   const hasPreview = (item: (typeof items)[number]) =>
     Boolean(item.objectUrl || item.attachment?.thumbnailUrl || item.attachment?.url);
 
-  // Отправка встала (хост очистил черновик по onSuccess) или вложения сняты
-  // все до одной — окно закрывается само. Снятие последней строки = отмена:
-  // подпись возвращается черновиком в композер (валидатор #144: текст не
-  // должен теряться); на пути отправки подпись съедена сообщением. В режиме
-  // ПРАВКИ (#188) пустой состав — легальное состояние (сообщение с одним
-  // текстом): окно не закрывается, edit сбрасывается только сохранением.
+  // Отправка встала (хост очистил черновик на сабмите, #248) или вложения
+  // сняты все до одной — окно закрывается само. Снятие последней строки =
+  // отмена: подпись возвращается черновиком в композер (валидатор #144:
+  // текст не должен теряться); на пути отправки подпись съедена сообщением.
+  // В режиме ПРАВКИ (#188) пустой состав — легальное состояние (сообщение с
+  // одним текстом): окно не закрывается, edit сбрасывается только сохранением.
   useEffect(() => {
     if (scope && items.length === 0 && !editMode) {
       if (!sending) {
@@ -161,6 +166,10 @@ export function AttachSendDialogHost() {
     };
     const promise = submitForScope(scope, payload);
     if (!promise) return;
+    // Состав снимается ДО первого рендера после сабмита (#248): черновик
+    // чистится синхронно внутри submitForScope — без снапшота строки
+    // мигнули бы пустыми на полёте.
+    setFlightItems(items);
     setSending(true);
     if (!editMode) {
       // Своё сообщение видно с любой позиции скролла (вердикт 24.09); правка
@@ -169,8 +178,15 @@ export function AttachSendDialogHost() {
     }
     try {
       await promise;
+      // Подпись съедена сообщением: в поле через закрывающий эффект она не
+      // возвращается (тот возвращает только подпись ОТМЕНЁННОЙ отправки).
+      useAttachSendDialog.getState().setCaption('');
     } catch {
-      // Тост сетевой ошибки — от мутации хоста; окно остаётся открытым.
+      // Тост сетевой ошибки — от мутации хоста; окно остаётся открытым:
+      // вложения и ответ восстановлены в черновик onError (#248), подпись
+      // жива — повтор возможен (#144).
+    } finally {
+      setFlightItems(null);
       setSending(false);
     }
   }

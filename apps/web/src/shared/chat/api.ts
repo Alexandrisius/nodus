@@ -377,6 +377,19 @@ export function useSendChatMessage(conversationId: string, draftScope?: string) 
           old ? { ...old, items: old.items.filter((m) => m.id !== context?.tempId) } : old,
         );
       }
+      // Возврат упавшей отправки в поле (#248; инвариант #124 — потерянного
+      // текста нет): состав восстанавливается из переменных мутации. Пустое
+      // поле — целиком (текст wire→display с чипами, ответ, молния, вложения
+      // не claimed на сервере), занятое следующим набором — упавший текст в
+      // начало плоским текстом + вложения. Стикер поле не трогает (#143).
+      if (draftScope && !vars.keepDraft) {
+        useChatDrafts.getState().restoreFailedSend(draftScope, {
+          wireText: vars.text,
+          reply: vars.reply ?? null,
+          urgent: vars.urgent ?? false,
+          attachments: vars.attachments ?? [],
+        });
+      }
       // 409 политики важных (#177) — инлайн в композере (рядом с молнией),
       // прочие ошибки — штатный тост. Текст при этом НЕ теряется (#124).
       const inlineCode = composerSendErrorCode(error);
@@ -388,11 +401,10 @@ export function useSendChatMessage(conversationId: string, draftScope?: string) 
     },
 
     onSuccess: (server, vars, context) => {
-      // Черновик чистится ТОЛЬКО по успеху (#124, аудит #123): при ошибке
-      // сети набранный текст остаётся в композере (retry тем же ключом
-      // идемпотентности). Скоуп знает хост (conversation/feed/thread).
-      // Стикер-отправка черновик не трогает (keepDraft, #143).
-      if (draftScope && !vars.keepDraft) useChatDrafts.getState().clear(draftScope);
+      // Черновик уже чист с сабмита (#248, Telegram-модель: поле пусто
+      // мгновенно, статус отправки живёт в ленте темпом) — здесь кэш черновика
+      // НЕ трогаем: тики подтверждений очереди не должны обнулять текст,
+      // набираемый следующим сообщением.
       // Темповая запись заменяется серверной НА МЕСТЕ (лента или тред): при
       // последовательной очереди порядок кликов = порядок ответов, позиции
       // не двигаются. Темп мог уже уйти (WS-эхо по clientMessageId / рефеч
@@ -446,15 +458,26 @@ export function useSendChatMessage(conversationId: string, draftScope?: string) 
     },
   });
 
+  /** Поле чистится на САБМИТЕ, не по подтверждению (#248, модель Telegram):
+   *  черновик уходит из композера синхронно с кликом — на медленном канале
+   *  текст не висит ~RTT, а тики подтверждений очереди не обнуляют следующий
+   *  набираемый текст; статус отправки живёт в ленте (темп). Ошибка вернёт
+   *  состав в поле (onError). Стикер поле не трогает (keepDraft, #143). */
+  function takeDraft(vars: SendChatVars): void {
+    if (draftScope && !vars.keepDraft) useChatDrafts.getState().clear(draftScope);
+  }
+
   /** Отправка с temp id (#48): одна отправка = один temp id = один ключ
    *  идемпотентности на все повторы этого сообщения. */
   function mutate(vars: SendChatVars): void {
+    takeDraft(vars);
     mutation.mutate({ ...vars, tempId: vars.tempId ?? crypto.randomUUID() });
   }
 
   /** То же с исходом вызова (#144): окно отправки вложений держит кнопку
    *  нажатой до ответа и переживает сетевую ошибку с повтором. */
   function mutateAsync(vars: SendChatVars): Promise<ChatMessage> {
+    takeDraft(vars);
     return mutation.mutateAsync({ ...vars, tempId: vars.tempId ?? crypto.randomUUID() });
   }
 

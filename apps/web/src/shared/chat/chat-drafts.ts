@@ -12,6 +12,11 @@ import {
   toWireText,
   type DraftMention,
 } from './composer-mention-registry.js';
+import {
+  pendingRowFromAttachment,
+  restoreFailedIntoDraft,
+  type FailedSendRestore,
+} from './draft-restore.js';
 import { replyDraftFrom, type ReplyDraft } from './reply-snapshot.js';
 
 export type { ReplyDraft } from './reply-snapshot.js';
@@ -115,6 +120,10 @@ interface DraftsState {
   clearAttachments: (key: string) => void;
   /** Молния «Важное» (#177): клик — вкл/выкл. */
   setUrgent: (key: string, urgent: boolean) => void;
+  /** Возврат упавшей отправки в поле (#248): пустое поле — состав целиком
+   *  (текст с чипами, ответ, молния, вложения), занятое следующим набором —
+   *  упавший текст в начало плоским текстом + вложения. Логика — draft-restore. */
+  restoreFailedSend: (key: string, failed: FailedSendRestore) => void;
   clear: (key: string) => void;
 }
 
@@ -235,16 +244,7 @@ export const useChatDrafts = create<DraftsState>()(
             mentions: fromWireText(message.text).mentions,
             // Вложения правимого сообщения — строки окна правки (#188):
             // ready-карточки с серверным DTO (id строки = localId).
-            attachments: message.attachments.map((a) => ({
-              localId: a.id,
-              fileName: a.name,
-              mime: a.mime,
-              size: a.size,
-              progress: 1,
-              status: 'ready' as const,
-              attachment: a,
-              objectUrl: null,
-            })),
+            attachments: message.attachments.map(pendingRowFromAttachment),
           })),
         })),
       cancelEdit: (key) =>
@@ -340,6 +340,10 @@ export const useChatDrafts = create<DraftsState>()(
       setUrgent: (key, urgent) =>
         set((s) => ({
           drafts: patchDraft(s.drafts, key, (d) => ({ ...d, urgent })),
+        })),
+      restoreFailedSend: (key, failed) =>
+        set((s) => ({
+          drafts: patchDraft(s.drafts, key, (d) => restoreFailedIntoDraft(d, failed)),
         })),
       clear: (key) => set((s) => ({ drafts: patchDraft(s.drafts, key, () => EMPTY_DRAFT) })),
     }),
