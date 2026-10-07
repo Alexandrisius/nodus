@@ -17,6 +17,14 @@ import { scrollMessageIntoView } from './scroll-jump.js';
  * #132: чип-счётчик НЕпрочитанных на кнопке (модель Telegram): новые
  * сообщения копятся, пока читатель в истории; цифра гаснет с прочтением.
  * Канон счётчиков — моно 11px tabular-nums.
+ * #236 (вердикт 07.10): заливка — ЦВЕТ СВОЕГО ПУЗЫРЯ (bubble-out), текст —
+ * foreground пузыря: в тёмной теме синий+белый как в Telegram, в светлой —
+ * читаемая пара своего пузыря (тон всей меты на пузыре, #127). Размер —
+ * literal px, не rem-классы: при ui-scale 1.25 бейдж раздувало (h-4 = 20px
+ * фактических). Раунд 2 вердикта 07.10: бейдж ПО ЦЕНТРУ кнопки; цифровая
+ * оптическая компенсация — измеренная пиксельным сканом (канон #143:
+ * каркас шрифта центрируется браузером, не «чернила» — у JetBrains Mono
+ * резерв над базовой линией больше).
  *
  * preventDefault выключает встроенный scrollToEnd кнопки примитива только
  * в ветке «к первому непрочитанному».
@@ -37,9 +45,11 @@ export function FeedScrollerButton({
       {unreadCount > 0 ? (
         <span
           data-slot="feed-unread-badge"
-          className="absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-info px-1 font-mono text-[11px] leading-none tabular-nums text-info-foreground"
+          className="absolute left-1/2 top-0 z-10 flex h-[17px] min-w-[17px] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-bubble-out px-[4px] font-mono text-[11px] leading-none font-semibold text-bubble-out-foreground tabular-nums"
         >
-          {unreadCount > 99 ? '99+' : unreadCount}
+          <span data-slot="feed-unread-badge-digit" className="translate-y-[0.5px]">
+            {unreadCount > 99 ? '99+' : unreadCount}
+          </span>
         </span>
       ) : null}
     </>

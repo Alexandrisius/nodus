@@ -196,3 +196,55 @@ describe('PostCard — карточка поста канала с аватар�
     expect(card.querySelector('time')).toBeTruthy();
   });
 });
+
+describe('PostCard — OG-карточка и мета (#238, #240)', () => {
+  it('готовая OG-карточка: булавка погашена, мета строкой ПОД карточкой', () => {
+    const { container } = renderCard(
+      <PostCard
+        {...base}
+        message={message({
+          text: 'смотрите https://example.com/spec',
+          linkPreview: {
+            status: 'ready',
+            siteName: 'example.com',
+            title: 'Спека',
+            description: null,
+            imageUrl: null,
+          },
+        })}
+      />,
+    );
+    const card = container.querySelector('[data-slot="post-surface"]')!;
+    // флоат-булавка погашена — перекрытия карточки нет
+    expect(card.querySelector('[data-slot="meta-corner"]')).toBeNull();
+    // мета — обычной строкой ПОД карточкой превью (не невидимый призрак)
+    const metaRow = [...card.querySelectorAll('[data-slot="message-meta"]')].find(
+      (m) => !m.className.includes('invisible'),
+    );
+    expect(metaRow).toBeTruthy();
+    const og = card.querySelector('a[aria-label]');
+    expect(og).not.toBeNull();
+    expect(!!(og!.compareDocumentPosition(metaRow!) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+  });
+
+  it('failed-превью: карточки нет вовсе — булавка меты на месте (#240)', () => {
+    const { container } = renderCard(
+      <PostCard
+        {...base}
+        message={message({
+          text: 'смотрите https://example.com/spec',
+          linkPreview: {
+            status: 'failed',
+            siteName: null,
+            title: null,
+            description: null,
+            imageUrl: null,
+          },
+        })}
+      />,
+    );
+    const card = container.querySelector('[data-slot="post-surface"]')!;
+    expect(card.querySelector('a[aria-label]')).toBeNull();
+    expect(card.querySelector('[data-slot="meta-corner"]')).not.toBeNull();
+  });
+});

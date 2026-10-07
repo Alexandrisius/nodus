@@ -16,7 +16,7 @@ import { ForwardedHeader, ReplyHeader } from './message-headers.js';
 import { MessageReactions } from './message-reactions.js';
 import { MessageMeta } from './message-meta.js';
 import { MessageText } from './message-text.js';
-import { MessageLinkPreview } from './link-preview-card.js';
+import { linkCardVisible, MessageLinkPreview } from './link-preview-card.js';
 import { ReactionPicker } from './reaction-picker.js';
 import { stickerAttachmentOf, StickerMessageView } from './sticker-message.js';
 import { TombstoneBubble } from './tombstone.js';
@@ -205,6 +205,10 @@ export const ChatMessageItem = memo(function ChatMessageItem({
 
   // Текст с карточками-превью (flex-col) — мета строкой ниже, не уголком.
   const entityRow = Boolean(message.text && hasEntityPreviews(message.text));
+  // Карточка OG-превью — тот же канон (#238): флоат-мета (призрак+булавка)
+  // перекрывала карточку; мета становится строкой ПОД карточкой, как у
+  // entity-карточек. Условие видимости — общее с MessageLinkPreview.
+  const linkRow = linkCardVisible(message.text, message.linkPreview);
   const contentWidth = mediaBubbleWidth(message.attachments, {
     hasTextColumn: true,
   });
@@ -296,9 +300,8 @@ export const ChatMessageItem = memo(function ChatMessageItem({
               <MessageAttachments message={message} mine={mine} />
             ) : null}
             {/* Текст + мета: MetaGhost (призрак в потоке — ширина карточки
-                всегда вмещает метку) + MetaPin (абсолют — ребёнок ПУЗЫРЯ:
-                стабильные 8px от низа / 12.5px справа, как у рядов реакций,
-                модель Telegram, раунд 10). */}
+                всегда вмещает метку); при entity/OG-карточках призрак и
+                булавка не рисуются — мета строкой ПОД карточками (#238). */}
             <span
               className={cn(
                 'block',
@@ -309,19 +312,9 @@ export const ChatMessageItem = memo(function ChatMessageItem({
               )}
             >
               <MessageText text={message.text} />
-              {hasReactionsRow || entityRow ? null : (
+              {hasReactionsRow || entityRow || linkRow ? null : (
                 <MetaGhost message={message} mine={mine} noReceipts={receiptsHidden} />
               )}
-              {entityRow && !hasReactionsRow ? (
-                <span className="flex justify-end">
-                  <MessageMeta
-                    message={message}
-                    onFilled={mine}
-                    ticks={mine}
-                    noReceipts={receiptsHidden}
-                  />
-                </span>
-              ) : null}
             </span>
             {/* Карточка-цитата первой ссылки (#212): ПОД текстом — сначала
                 сообщение, затем доп-контекст (канон Telegram/Slack: превью
@@ -339,7 +332,19 @@ export const ChatMessageItem = memo(function ChatMessageItem({
                   className="ml-auto"
                 />
               </span>
-            ) : entityRow ? null : (
+            ) : entityRow || linkRow ? (
+              /* Мета строкой под карточками превью (entity/OG) — призрак и
+                 булавка гаснут (#238): карточка всегда заканчивается выше
+                 метки, как в Telegram. */
+              <span className="flex justify-end">
+                <MessageMeta
+                  message={message}
+                  onFilled={mine}
+                  ticks={mine}
+                  noReceipts={receiptsHidden}
+                />
+              </span>
+            ) : (
               <MetaPin
                 message={message}
                 mine={mine}

@@ -1,5 +1,6 @@
 import { orthPath, snapPx, type NodeEdgePoint } from '@nodus/ui/components/node-edge';
 
+import { navModuleForPath } from './nav-registry.js';
 import { RAIL_TRUNK_X, MODULE_PORT_R } from './node-rail.js';
 
 /** Custom-событие «перемерь контур»: его шлёт хром, который меняется БЕЗ
@@ -62,6 +63,13 @@ function centerOf(el: Element): NodeEdgePoint {
   return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
 }
 
+/** Маршрут виртуального модуля (схлопнутая рейка/режим карточки): базовый
+ *  путь модуля по реестру — совпадает с data-module-port порта развёрнутой
+ *  рейки, чтобы сигнатура фокуса не менялась на сворачивание (#235). */
+function activeModuleTo(pathname: string): string {
+  return navModuleForPath(pathname)?.to ?? pathname;
+}
+
 /** Измерение контура из живого DOM. Возвращает null, если каркас не смонтирован.
  *  `cardMode` — вершина стека карточек: полноэкранная карточка мессенджера
  *  (шина шелла под ней невидима — измеряется контур самой карточки). */
@@ -96,8 +104,10 @@ export function measureCircuit(pathname = '/', cardMode = false): CircuitGeometr
   const lastY = modules.length ? Math.max(...modules.map((m) => m.port.y)) : axisY;
   // Схлопнутая рейка: стык — правый край узла бокового шва (точка 5px);
   // «виртуальный» активный модуль опирает вспышки на ось (портов внутри
-  // панели нет); to — реальный маршрут, чтобы сигнатура фокуса не дёргалась
-  // при развороте.
+  // панели нет); to — БАЗОВЫЙ маршрут модуля (как data-module-port у порта
+  // развёрнутой рейки), НЕ полный pathname: на вложенных маршрутах
+  // (/chat/<id>) сигнатура фокуса дёргалась на каждое сворачивание и
+  // запускала запрещённую вспышку (#235).
   const junction: NodeEdgePoint = leftNode
     ? { x: leftNode.x + 2.5, y: axisY }
     : { x: RAIL_TRUNK_X, y: axisY };
@@ -105,7 +115,7 @@ export function measureCircuit(pathname = '/', cardMode = false): CircuitGeometr
     junction,
     axisY,
     tabY,
-    modules: leftNode ? [{ to: pathname, active: true, port: junction }] : modules,
+    modules: leftNode ? [{ to: activeModuleTo(pathname), active: true, port: junction }] : modules,
     tabs,
     leftNode,
     rightEdge: frameRect ? frameRect.right : document.documentElement.clientWidth,
@@ -143,8 +153,8 @@ function measureCardCircuit(pathname: string): CircuitGeometry | null {
   const cardRect = card.getBoundingClientRect();
   const leftNode: NodeEdgePoint = { x: cardRect.left, y: axisY };
   // Виртуальный активный модуль опирает вспышки на ось (портов рейки под
-  // карточкой нет) — приём схлопнутой рейки; to — реальный маршрут, чтобы
-  // сигнатура фокуса не дёргалась.
+  // карточкой нет) — приём схлопнутой рейки; to — базовый маршрут модуля
+  // (стабильная сигнатура, #235).
   const junction: NodeEdgePoint = { x: leftNode.x + 2.5, y: axisY };
   const tabs = [...header.querySelectorAll<HTMLElement>('[data-tab-port]')].map((el) => ({
     active: el.dataset.active === 'true',
@@ -155,7 +165,7 @@ function measureCardCircuit(pathname: string): CircuitGeometry | null {
     junction,
     axisY,
     tabY,
-    modules: [{ to: pathname, active: true, port: junction }],
+    modules: [{ to: activeModuleTo(pathname), active: true, port: junction }],
     tabs,
     leftNode,
     rightEdge: cardRect.right,

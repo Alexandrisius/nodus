@@ -281,7 +281,13 @@ export function useBoxSelection({
       paintRange(anchorId, anchorId);
     };
 
-    const endDrag = (commit: boolean) => {
+    /** Завершение жеста. `swallowClick=false` — путь pointercancel: браузер
+     *  отменил поток указателя, стартуя НАТИВНЫЙ драг (например, тянут
+     *  картинку сообщения) — синтетического click после него НЕ БУДЕТ, и
+     *  заряжённый глотатель съедал бы первый ЛЕГИТИМНЫЙ клик владельца
+     *  (крестик островка селекта ждал два нажатия — вердикт 07.10, #242).
+     *  Выделение при этом фиксируется (тяга зацепила строку — «это норм»). */
+    const endDrag = (commit: boolean, swallowClick = true) => {
       const wasBox = phaseRef.current === 'box';
       phaseRef.current = 'idle';
       textRef.current = null;
@@ -296,7 +302,7 @@ export function useBoxSelection({
       // Глотание клика после драга — ТОЛЬКО ЗДЕСЬ (once-listener): вторая
       // регистрация при включении рамки оставляла «заряжённый» листener,
       // съедавший следующий ЛЕГИТИМНЫЙ клик (раунд 5).
-      swallowNextClick();
+      if (swallowClick) swallowNextClick();
     };
 
     const onPointerDown = (event: PointerEvent) => {
@@ -369,7 +375,9 @@ export function useBoxSelection({
     };
 
     const onPointerUp = () => endDrag(true);
-    const onPointerCancel = () => endDrag(true);
+    // pointercancel = браузер перехватил указатель под НАТИВНЫЙ драг:
+    // клика-продолжения не будет, глотатель не заряжаем (#242).
+    const onPointerCancel = () => endDrag(true, false);
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' || phaseRef.current !== 'box') return;
       endDrag(false);

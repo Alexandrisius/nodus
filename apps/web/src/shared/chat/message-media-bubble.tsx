@@ -15,7 +15,7 @@ import { ForwardedHeader, ReplyHeader } from './message-headers.js';
 import { MessageMeta } from './message-meta.js';
 import { MessageReactions } from './message-reactions.js';
 import { hasEntityPreviews, MessageText } from './message-text.js';
-import { MessageLinkPreview } from './link-preview-card.js';
+import { linkCardVisible, MessageLinkPreview } from './link-preview-card.js';
 import { ReadTicks } from './read-ticks.js';
 import { UrgentChip, UrgentChips } from './urgent-chips.js';
 
@@ -91,6 +91,10 @@ export function MediaMessage({
   // Ряд реакций/меток: слот витрины (реакции псевдо-сообщения всегда пусты)
   // либо публичные чипы — одна и та же строка (#215).
   const hasReactionsRow = reactionsRow !== undefined || message.reactions.length > 0;
+  // OG-карточка под подписью — мета строкой ПОД карточкой (#238): булавка
+  // (absolute bottom) перекрывала карточку; условие видимости общее с
+  // MessageLinkPreview (#240).
+  const linkRow = hasText && linkCardVisible(message.text ?? '', message.linkPreview);
   return (
     <div
       data-slot="media-message"
@@ -201,10 +205,13 @@ export function MediaMessage({
             {hasText ? (
               <span className="block">
                 <MessageText text={message.text} />
-                {hasReactionsRow || entityRow ? null : (
+                {hasReactionsRow || entityRow || linkRow ? null : (
                   <MetaGhost message={message} mine={mine} noReceipts={receiptsHidden} />
                 )}
-                {entityRow && !hasReactionsRow ? (
+                {/* Карточка первой ссылки ПОД подписью (#212, канон Telegram);
+                    мета — строкой ПОД ней (#238). */}
+                <MessageLinkPreview text={message.text} preview={message.linkPreview} />
+                {(entityRow || linkRow) && !hasReactionsRow ? (
                   <span className="flex justify-end">
                     <MessageMeta
                       message={message}
@@ -214,8 +221,6 @@ export function MediaMessage({
                     />
                   </span>
                 ) : null}
-                {/* Карточка первой ссылки ПОД подписью (#212, канон Telegram). */}
-                <MessageLinkPreview text={message.text} preview={message.linkPreview} />
               </span>
             ) : null}
             {hasReactionsRow ? (
@@ -229,7 +234,7 @@ export function MediaMessage({
                   className="ml-auto"
                 />
               </span>
-            ) : entityRow ? null : (
+            ) : entityRow || linkRow ? null : (
               <MetaPin
                 message={message}
                 mine={mine}

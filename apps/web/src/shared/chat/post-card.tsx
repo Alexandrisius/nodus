@@ -17,7 +17,7 @@ import {
 import { MessageMeta } from './message-meta.js';
 import { UrgentChips } from './urgent-chips.js';
 import { hasEntityPreviews, MessageText } from './message-text.js';
-import { MessageLinkPreview } from './link-preview-card.js';
+import { linkCardVisible, MessageLinkPreview } from './link-preview-card.js';
 import { ThreadStrip, ThreadStripEnter } from './post-thread-strip.js';
 import { ReactionPicker } from './reaction-picker.js';
 import { StickerGlyph, stickerAttachmentOf, stickerFeedClass } from './sticker-message.js';
@@ -89,6 +89,10 @@ export function PostCard({
   const soloMedia = imageOnly && media;
   // Текст с карточками-превью (flex-col) — мета строкой ниже, не уголком.
   const entityRow = Boolean(message.text && hasEntityPreviews(message.text));
+  // OG-карточка под текстом — мета строкой ПОД карточкой (#238): булавка
+  // (absolute bottom) перекрывала карточку; условие видимости общее с
+  // MessageLinkPreview (#240).
+  const linkRow = linkCardVisible(message.text, message.linkPreview);
 
   // Надгробие: контент обнулён сервером (текст/вложения/реакции), действий
   // нет — остаётся шапка автора, строка удаления и полоса обсуждения.
@@ -254,18 +258,19 @@ export function PostCard({
               )}
             >
               <MessageText text={message.text} />
-              {message.reactions.length > 0 || entityRow ? null : (
+              {message.reactions.length > 0 || entityRow || linkRow ? null : (
                 <MetaGhost message={message} mine={mine} onFilled={surface.onFilled} />
               )}
-              {entityRow && message.reactions.length === 0 ? (
+              {/* Карточка первой ссылки ПОД текстом (#212, канон Telegram/
+                  Slack — превью «just below the message»); мета — строкой
+                  ПОД карточкой (#238). */}
+              <MessageLinkPreview text={message.text} preview={message.linkPreview} />
+              {(entityRow || linkRow) && message.reactions.length === 0 ? (
                 <span className="flex justify-end">
                   <MessageMeta message={message} onFilled={surface.onFilled} ticks={mine} />
                 </span>
               ) : null}
-              {/* Карточка первой ссылки ПОД текстом (#212, канон Telegram/
-                  Slack — превью «just below the message»). */}
-              <MessageLinkPreview text={message.text} preview={message.linkPreview} />
-              {message.reactions.length > 0 || entityRow ? null : (
+              {message.reactions.length > 0 || entityRow || linkRow ? null : (
                 <MetaPin
                   message={message}
                   mine={mine}

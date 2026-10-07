@@ -193,13 +193,24 @@ export function AttachSendDialogHost() {
     if (from >= 0 && to >= 0) useChatDrafts.getState().reorderAttachments(scope, from, to);
   }
 
+  /** Фокус подписи с кареткой В КОНЦЕ текста (#241): при открытии окна текст
+   *  композера уже переехал в подпись — «начало строки» заставляло вручную
+   *  переносить курсор, чтобы продолжить писать. Единая точка для всех
+   *  возвратов фокуса (открытие, кража клика, drag-сортировка, лайтбокс). */
+  function focusCaption() {
+    const el = captionRef.current;
+    if (!el) return;
+    el.focus({ preventScroll: true });
+    el.setSelectionRange(el.value.length, el.value.length);
+  }
+
   /** Страховка супер-курсора: каретка вернётся в подпись, если фокус ушёл
    *  в никуда (body) — кадром позже (drag-ручка фокус не забирает). */
   function refocusCaption() {
     requestAnimationFrame(() => {
       if (!useAttachSendDialog.getState().scope) return;
       if (renameActiveRef.current) return;
-      captionRef.current?.focus({ preventScroll: true });
+      focusCaption();
     });
   }
 
@@ -211,7 +222,7 @@ export function AttachSendDialogHost() {
     if (renameActiveRef.current) return;
     const target = event.target as HTMLElement;
     if (target.closest('textarea, input, [contenteditable="true"]')) return;
-    captionRef.current?.focus({ preventScroll: true });
+    focusCaption();
   }
 
   return (
@@ -242,9 +253,10 @@ export function AttachSendDialogHost() {
         }}
         onClick={stealCaret}
         onOpenAutoFocus={(event) => {
-          // Супер-курсор окна: набор текста начинается сразу в подписи.
+          // Супер-курсор окна: набор текста начинается сразу в подписи —
+          // каретка В КОНЦЕ уже написанного текста (#241).
           event.preventDefault();
-          captionRef.current?.focus({ preventScroll: true });
+          focusCaption();
         }}
         onBlur={() => {
           // Супер-курсор НЕ ПРОПАДАЕТ: каретка живёт в подписи всё время,
@@ -385,7 +397,7 @@ export function AttachSendDialogHost() {
           onIndex={setLightbox}
           onClose={() => {
             setLightbox(null);
-            captionRef.current?.focus({ preventScroll: true });
+            focusCaption();
           }}
         />
       ) : null}
