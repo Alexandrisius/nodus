@@ -169,6 +169,20 @@ describe('attach-send-dialog (#144)', () => {
     render(<AttachSendDialogHost />);
     expect(screen.getByText('Выбрано: 2 файла')).toBeTruthy();
   });
+
+  it('открытие с готовым текстом: каретка В КОНЦЕ подписи (#241)', () => {
+    // Текст композера переехал в подпись при открытии — продолжать писать
+    // можно сразу, без ручного переноса курсора с начала строки.
+    useChatDrafts.getState().addAttachments(KEY, [pending('a')]);
+    useAttachSendDialog.getState().open(KEY, 'уже написанный текст сообщения');
+    render(<AttachSendDialogHost />);
+
+    const caption = screen.getByPlaceholderText('Добавить подпись') as HTMLTextAreaElement;
+    const len = 'уже написанный текст сообщения'.length;
+    expect(caption.selectionStart).toBe(len);
+    expect(caption.selectionEnd).toBe(len);
+    expect(document.activeElement).toBe(caption);
+  });
 });
 
 describe('attach-send-dialog — режим правки (#188)', () => {
