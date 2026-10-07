@@ -38,6 +38,7 @@ try {
 - SPA-роуты — `history.pushState` + `popstate` в evaluate (роутер TanStack): `/chat`, `/chat/$conversationId`, `/home`.
 - Reload на :5173 убивает сессию — там пробы живого НЕ гоняем вообще; на :4173 сессия cookie — живёт.
 - Ожидания — по состоянию (`locator.waitFor`, `waitForURL`, наличие `[data-slot=…]`), сон `sleep()` — только на WS-догонку (1.5–2.5с), не вместо ожиданий.
+- **Обрыв сети ≠ CDP-offline** (#248): `Network.emulateNetworkConditions {offline:true}` ПОДВЕШИВАЕТ fetch навсегда (запрос не отклоняется — мутация не завершается ни успехом, ни ошибкой; воспроизведено 07.10). Отказ как при реальной потере сети — перехват `context.route(url, route => route.abort('internetdisconnected'))` с флагом; латентность канала при этом честно эмулируется CDP `latency` (мс на каждый ход).
 
 ## API-вызовы из пробы (node-fetch + Bearer)
 
