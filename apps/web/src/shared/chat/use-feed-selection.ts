@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo } from 'react';
 
 import type { ComposerSelection } from './chat-composer.js';
 import { useDeleteDialog, useForwardDialog } from './dialog-stores.js';
+import { confirmedIdsOf } from './selection-confirmed.js';
 import { useSelectionActive, useSelectedIds, useSelectionStore } from './selection-store.js';
 import { copyMessagesAsText, useSelectionKeys } from './use-selection-keys.js';
 
@@ -12,24 +13,31 @@ import { copyMessagesAsText, useSelectionKeys } from './use-selection-keys.js';
  * для кнопки удаления (логика canDeleteCount tdesktop), клавиатура
  * (Esc/Delete/Ctrl+C), тихое исключение сообщений, удалённых другим
  * участником во время селекта (research-канон).
+ *
+ * Ключ выделения — clientMessageId, НЕ id записи: при шквальной отправке
+ * оптимистичный темп (id = tempId) заменяется серверной записью с ДРУГИМ id —
+ * селект по id слетал строка за строкой по мере подтверждения очереди
+ * (регрессия #243). clientMessageId стабилен от клика до серверной записи.
  */
 export function useFeedSelection(scope: string, items: ChatMessage[], meId?: string) {
   const selectionActive = useSelectionActive(scope);
   const selectedIds = useSelectedIds(scope);
   const orderedIds = useMemo(
-    () => items.filter((m) => m.deletedAt === null).map((m) => m.id),
+    () => items.filter((m) => m.deletedAt === null).map((m) => m.clientMessageId),
     [items],
   );
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
 
   const getSelectedMessages = useCallback(
-    () => items.filter((m) => selectedSet.has(m.id)),
+    () => items.filter((m) => selectedSet.has(m.clientMessageId)),
     [items, selectedSet],
   );
 
   const allMine = useMemo(() => {
     if (selectedIds.length === 0) return false;
-    return items.filter((m) => selectedSet.has(m.id)).every((m) => m.author.id === meId);
+    return items
+      .filter((m) => selectedSet.has(m.clientMessageId))
+      .every((m) => m.author.id === meId);
   }, [items, selectedSet, selectedIds.length, meId]);
 
   useSelectionKeys(scope, selectionActive, getSelectedMessages);
@@ -39,7 +47,7 @@ export function useFeedSelection(scope: string, items: ChatMessage[], meId?: str
     if (!selectionActive) return;
     const store = useSelectionStore.getState();
     for (const id of selectedIds) {
-      const message = items.find((m) => m.id === id);
+      const message = items.find((m) => m.clientMessageId === id);
       if (!message || message.deletedAt) store.remove(id);
     }
   }, [items, selectionActive, selectedIds]);
@@ -67,15 +75,18 @@ export function selectionComposerProps(
   deletable?: boolean,
 ): ComposerSelection | null {
   if (!selection.selectionActive) return null;
-  const ids = selection.orderedIds.filter((id) => selection.selectedSet.has(id));
+  const keys = selection.orderedIds.filter((id) => selection.selectedSet.has(id));
+  const ids = confirmedIdsOf(selection.getSelectedMessages());
   return {
-    count: ids.length,
+    count: keys.length,
     ids,
     allMine: selection.allMine,
     deletable,
     favoritesEnabled,
     onForward: () => useForwardDialog.getState().open(conversationId, ids),
-    onDelete: () => useDeleteDialog.getState().ask(conversationId, ids),
+    onDelete: () => {
+      if (ids.length > 0) useDeleteDialog.getState().ask(conversationId, ids);
+    },
     onCopy: () => copyMessagesAsText(selection.getSelectedMessages()),
     onClear: () => useSelectionStore.getState().exit(),
   };

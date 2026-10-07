@@ -257,6 +257,7 @@ export const chatStrings = {
   pinGoTo: 'Перейти к сообщению',
   selectedPrefix: 'Выбрано',
   selectionLimit: 'Максимум 100 сообщений',
+  selectionStillSending: 'Часть сообщений ещё отправляется — команда их не затронула',
   clearSelection: 'Отменить выбор',
   copySelected: 'Скопировать как текст',
   forwardSelected: 'Переслать выделенные',

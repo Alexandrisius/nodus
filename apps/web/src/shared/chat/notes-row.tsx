@@ -108,8 +108,8 @@ export function FavoriteRunMessage({
       <MessageRow
         messageId={message.id}
         selectable={selectable}
-        selected={selectedSet.has(message.id)}
-        onToggle={(shift) => onToggle(message.id, shift)}
+        selected={selectedSet.has(message.clientMessageId)}
+        onToggle={(shift) => onToggle(message.clientMessageId, shift)}
       >
         {row}
       </MessageRow>

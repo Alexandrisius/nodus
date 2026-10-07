@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 
 import { withoutPatronymic } from '../lib/format.js';
 import { useDeleteDialog } from './dialog-stores.js';
+import { confirmedIdsOf } from './selection-confirmed.js';
 import { useSelectionStore } from './selection-store.js';
 
 /** Скопировать выделенные как текст (канон tdesktop «Copy Selected as Text»,
@@ -58,10 +59,10 @@ export function useSelectionKeys(
         const messages = getSelectedMessages();
         const conversationId = messages[0]?.conversationId;
         if (conversationId) {
-          useDeleteDialog.getState().ask(
-            conversationId,
-            messages.map((m) => m.id),
-          );
+          // Батч-командам — подтверждённые id (летящие темпы #243 исключает
+          // confirmedIdsOf с тостом-подсказкой).
+          const ids = confirmedIdsOf(messages);
+          if (ids.length > 0) useDeleteDialog.getState().ask(conversationId, ids);
         }
         return;
       }

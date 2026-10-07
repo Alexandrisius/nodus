@@ -127,7 +127,9 @@ export const ThreadPane = memo(function ThreadPane({
 
   const lastMine = useCallback(
     () =>
-      [...items].reverse().find((m) => m.author.id === me?.id && !m.deletedAt && !m.forwardedFrom),
+      [...items]
+        .reverse()
+        .find((m) => m.author.id === me?.id && !m.deletedAt && !m.forwardedFrom && m.seq > 0),
     [items, me?.id],
   );
 
@@ -173,8 +175,8 @@ export const ThreadPane = memo(function ThreadPane({
       <MessageRow
         messageId={message.id}
         selectable={selection.selectionActive && !message.deletedAt}
-        selected={selection.selectedSet.has(message.id)}
-        onToggle={(shift) => selection.toggle(message.id, shift)}
+        selected={selection.selectedSet.has(message.clientMessageId)}
+        onToggle={(shift) => selection.toggle(message.clientMessageId, shift)}
       >
         {message.deletedAt ? (
           <ChatMessageItem message={message} mine={rootMine} showName={!rootMine} />
@@ -296,8 +298,10 @@ export const ThreadPane = memo(function ThreadPane({
                                 <MessageRow
                                   messageId={message.id}
                                   selectable={selection.selectionActive && !message.deletedAt}
-                                  selected={selection.selectedSet.has(message.id)}
-                                  onToggle={(shift) => selection.toggle(message.id, shift)}
+                                  selected={selection.selectedSet.has(message.clientMessageId)}
+                                  onToggle={(shift) =>
+                                    selection.toggle(message.clientMessageId, shift)
+                                  }
                                 >
                                   {message.deletedAt ? (
                                     <ChatMessageItem

@@ -34,6 +34,7 @@ import { setOpenConversation } from './notifications.js';
 import { registerScopeSubmit } from './submit-registry.js';
 import { toSendVars } from './composer-submit.js';
 import { useFeedSelection } from './use-feed-selection.js';
+import { confirmedIdsOf } from './selection-confirmed.js';
 import { useBoxSelection } from './use-box-selection.js';
 import { useDeleteDialog, useForwardDialog } from './dialog-stores.js';
 import { copyMessagesAsText } from './use-selection-keys.js';
@@ -148,17 +149,22 @@ export function NotesPane({ conversationId }: { conversationId: string }) {
   // кнопки пересылки нет.
   const selectionBar: ComposerSelection | null = selection.selectionActive
     ? (() => {
-        const ids = selection.orderedIds.filter((id) => selection.selectedSet.has(id));
+        const keys = selection.orderedIds.filter((id) => selection.selectedSet.has(id));
+        // Батч-командам — подтверждённые серверные id (летящие темпы #243
+        // исключает confirmedIdsOf с тостом-подсказкой).
+        const ids = confirmedIdsOf(selection.getSelectedMessages());
         const { noteIds } = splitNotesSelection(ids, new Set(messages.map((m) => m.id)));
         return {
-          count: ids.length,
+          count: keys.length,
           ids,
           allMine: selection.allMine,
           deletable: true,
           favoritesEnabled: false,
           forwardable: noteIds.length > 0,
           onForward: () => useForwardDialog.getState().open(conversationId, noteIds),
-          onDelete: () => useDeleteDialog.getState().ask(conversationId, ids),
+          onDelete: () => {
+            if (ids.length > 0) useDeleteDialog.getState().ask(conversationId, ids);
+          },
           onCopy: () => copyMessagesAsText(selection.getSelectedMessages()),
           onClear: () => useSelectionStore.getState().exit(),
         };

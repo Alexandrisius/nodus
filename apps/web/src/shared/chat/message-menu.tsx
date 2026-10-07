@@ -69,6 +69,10 @@ interface Item {
   label: string;
   danger?: boolean;
   separatorBefore?: boolean;
+  /** #243: серверная команда недоступна на летящем темпе (seq=0,
+   *  id=tempId) — сервер не знает tempId; дизейбл до подтверждения
+   *  (канон Telegram: с неотправленным ничего делать нельзя). */
+  disabled?: boolean;
   /** #132 р.2: действие, переключающее режим селекта («Отменить выбор»/
    *  «Выбрать»), выполняется ПОСЛЕ закрытия меню — иначе контент меню
    *  морфится в противоположный набор прямо в анимации закрытия («старое
@@ -134,8 +138,23 @@ export function MessageMenu({
     if (quoteText) window.getSelection()?.removeAllRanges();
   }
 
+  /** Серверные id подтверждённых записей выделения (#243): селект хранит
+   *  ключи clientMessageId (стабильны через замену темпа), командам нужны
+   *  настоящие id — летящие темпы исключаются с тостом-подсказкой.
+   *  Порядок = порядок выделения (цепочка «Избранного», #171).
+   *  Пересчёт В МОМЕНТ клика: между открытием меню и кликом очередь
+   *  могла подтвердить летящие. */
+  function confirmedSelectionIds(): string[] {
+    const byKey = new Map((messagesOfSelection?.() ?? []).map((m) => [m.clientMessageId, m]));
+    return selectedIds.flatMap((key) => {
+      const message = byKey.get(key);
+      return message && message.seq > 0 ? [message.id] : [];
+    });
+  }
+
   function selectionItems(): Item[] {
-    const selected = selectedIds;
+    const somePending = () =>
+      selectedIds.length > 0 && confirmedSelectionIds().length !== selectedIds.length;
     return [
       // Витрина «Избранного» (hideFavorite): звезда на свои записи —
       // self-reference, дизайн запрещает и в режиме селекта.
@@ -147,8 +166,12 @@ export function MessageMenu({
               icon: Star,
               label: ui.chat.favoriteSelected,
               run: () => {
+                if (somePending()) {
+                  toast(ui.chat.selectionStillSending);
+                  return;
+                }
                 // Порядок цепочки = порядок выделения → поток «Избранного» (#171).
-                addFavorites.mutate(selected);
+                addFavorites.mutate(confirmedSelectionIds());
                 useSelectionStore.getState().exit();
               },
             },
@@ -157,14 +180,20 @@ export function MessageMenu({
         id: 'forwardSelected',
         icon: Forward,
         label: ui.chat.forwardSelected,
-        run: () => useForwardDialog.getState().open(conversationId, selected),
+        run: () => {
+          const ids = confirmedSelectionIds();
+          if (ids.length > 0) useForwardDialog.getState().open(conversationId, ids);
+        },
       },
       {
         id: 'deleteSelected',
         icon: Trash2,
         label: ui.chat.deleteSelected,
         danger: true,
-        run: () => useDeleteDialog.getState().ask(conversationId, selected),
+        run: () => {
+          const ids = confirmedSelectionIds();
+          if (ids.length > 0) useDeleteDialog.getState().ask(conversationId, ids);
+        },
       },
       {
         id: 'copySelected',
@@ -187,11 +216,16 @@ export function MessageMenu({
   }
 
   function normalItems(): { items: Item[]; showViewers: boolean } {
+    // Летящий темп (seq=0, id=tempId): серверных команд нет — сервер не
+    // знает tempId (#243; канон Telegram: с неотправленным ничего делать
+    // нельзя). Локальные (копировать, выделить) — доступны.
+    const pending = message.seq === 0;
     const items: Item[] = [
       {
         id: 'reply',
         icon: Reply,
         label: ui.chat.menu.reply,
+        disabled: pending,
         run: () => {
           if (replyMode === 'thread') {
             onOpenThread?.(message.threadRootId ?? message.id);
@@ -206,6 +240,7 @@ export function MessageMenu({
         id: 'quoteFragment',
         icon: Quote,
         label: ui.chat.quoteFragment,
+        disabled: pending,
         run: () => setReply(fragment),
       });
     }
@@ -229,6 +264,7 @@ export function MessageMenu({
         id: 'edit',
         icon: Pencil,
         label: ui.chat.menu.edit,
+        disabled: pending,
         run: () => {
           // Правка (#188): сообщение с вложениями — окно правки (состав +
           // текст); без вложений — прежний инлайн-режим композера.
@@ -240,12 +276,14 @@ export function MessageMenu({
         id: 'forward',
         icon: Forward,
         label: ui.chat.menu.forward,
+        disabled: pending,
         run: () => useForwardDialog.getState().open(conversationId, [message.id]),
       },
       {
         id: 'toTask',
         icon: ListTodo,
         label: ui.chat.menu.createTask,
+        disabled: pending,
         run: () => {
           toTask.mutate(
             { conversationId, messageId: message.id },
@@ -257,6 +295,7 @@ export function MessageMenu({
         id: 'pin',
         icon: Pin,
         label: message.pinned ? ui.chat.unpin : ui.chat.menu.pin,
+        disabled: pending,
         run: () => {
           if (message.pinned) {
             // Открепление — диалог: курсор вернёт dialog-hosts после закрытия.
@@ -271,6 +310,7 @@ export function MessageMenu({
         id: 'copyLink',
         icon: Link2,
         label: ui.chat.menu.copyLink,
+        disabled: pending,
         run: () => {
           toast(ui.chat.actionSoon);
           focusComposerWhenFree(scope);
@@ -280,6 +320,7 @@ export function MessageMenu({
         id: 'favorite',
         icon: Star,
         label: isFavorite ? ui.chat.unfavorite : ui.chat.menu.favorite,
+        disabled: pending,
         run: () => {
           // Личная закладка-звезда (#171): toggle без диалогов («звезда мгновенна»).
           if (isFavorite) {
@@ -295,7 +336,7 @@ export function MessageMenu({
         icon: CheckSquare,
         label: ui.chat.menu.select,
         closeFirst: true,
-        run: () => useSelectionStore.getState().enter(scope, message.id),
+        run: () => useSelectionStore.getState().enter(scope, message.clientMessageId),
       },
       {
         id: 'delete',
@@ -303,6 +344,7 @@ export function MessageMenu({
         label: ui.chat.menu.delete,
         danger: true,
         separatorBefore: true,
+        disabled: pending,
         run: () => useDeleteDialog.getState().ask(conversationId, [message.id]),
       },
     );
@@ -334,6 +376,7 @@ export function MessageMenu({
   /** #132 р.2: closeFirst-пункты (смена режима селекта) — после ухода меню
    *  (клик по пункту закрывает его; exit-анимация ~100мс + запас). */
   function runItem(item: Item) {
+    if (item.disabled) return;
     if (!item.closeFirst) {
       item.run();
       return;
@@ -396,6 +439,7 @@ export function MessageMenu({
             {item.separatorBefore ? <ContextMenuSeparator /> : null}
             <ContextMenuItem
               variant={item.danger ? 'destructive' : 'default'}
+              disabled={item.disabled}
               onClick={() => runItem(item)}
             >
               <item.icon className="size-4" strokeWidth={1.75} />
