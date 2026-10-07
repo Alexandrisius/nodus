@@ -8,9 +8,12 @@ import { cn } from '@nodus/ui/lib/utils';
  * Telegram/Slack — сначала сообщение, затем доп-контекст), модель
  * Telegram — картинка сверху, затем домен/заголовок/описание ≤2 строки;
  * клик — новая вкладка (noopener). pending — скелетон ФИКСИРОВАННОЙ
- * высоты текстовой части (нулевой сдвиг макета при дозревании, спека);
- * failed/blocked — заглушка из домена. Геометрия — по канону
- * медиа-пузыря #187: радиус меньше пузырёвого, max-w по контенту.
+ * высоты текстовой части (нулевой сдвиг макета при дозревании, спека).
+ * Ссылка БЕЗ превью-данных (failed/blocked или готовая без заголовка,
+ * описания и картинки) карточки НЕ имеет (#240, вердикт 07.10: заглушка
+ * из одного домена — бесполезное превью; паритет Telegram — просто текст
+ * ссылки). Геометрия — по канону медиа-пузыря #187: радиус меньше
+ * пузырёвого, max-w по контенту.
  */
 
 function SkeletonLine({ wide }: { wide?: boolean }) {
@@ -117,8 +120,19 @@ function hostOf(url: string): string {
   }
 }
 
+/** Видима ли карточка превью у сообщения (#240): pending/null — скелетон
+ *  (конвейер фоновый, WS дозреет); всё, что дозрело БЕЗ заголовка,
+ *  описания и картинки — не показываем вовсе (бесполезная заглушка,
+ *  паритет Telegram — остаётся текст ссылки). */
+export function linkCardVisible(text: string, preview: LinkPreview | null): boolean {
+  if (!firstHttpUrl(text)) return false;
+  if (!preview || preview.status === 'pending') return true;
+  return Boolean(preview.title || preview.description || preview.imageUrl);
+}
+
 /** Точка вставки в пузырь (#212): карточка первой ссылки ПОД текстом,
- *  null-превью = скелетон (конвейер фоновый, WS дозреет). */
+ * null-превью = скелетон (конвейер фоновый, WS дозреет); без превью-данных
+ * карточки нет вовсе (#240). */
 export function MessageLinkPreview({
   text,
   preview,
@@ -126,6 +140,7 @@ export function MessageLinkPreview({
   text: string;
   preview: LinkPreview | null;
 }) {
+  if (!linkCardVisible(text, preview)) return null;
   const url = firstHttpUrl(text);
   if (!url) return null;
   return (
