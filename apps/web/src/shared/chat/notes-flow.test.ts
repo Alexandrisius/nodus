@@ -68,15 +68,39 @@ function card(
 }
 
 describe('mergeNotesFlow', () => {
-  it('сливает записи и карточки по времени ASC', () => {
+  it('сливает записи и карточки: записи в порядке кэша, карточки по времени между ними', () => {
     const entries = mergeNotesFlow(
-      [message('m2', '2026-10-04T10:00:00Z'), message('m1', '2026-10-04T09:00:00Z')],
+      [message('m1', '2026-10-04T09:00:00Z'), message('m2', '2026-10-04T10:00:00Z')],
       [card('f1', '2026-10-04T09:30:00Z')],
     );
     expect(entries.map((e) => e.kind)).toEqual(['note', 'favorite', 'note']);
     expect(entries[0]).toHaveProperty('message.id', 'm1');
     expect(entries[1]).toHaveProperty('card.messageId', 'f1');
     expect(entries[2]).toHaveProperty('message.id', 'm2');
+  });
+
+  it('записи НЕ пересортируются по createdAt (#243, пляска «Избранного»)', () => {
+    // Шквал: темпы с КЛИЕНТСКИМИ метками заменяются серверными записями с
+    // ДРУГИМИ метками (сдвиг часов: инвертированы). Порядок записей =
+    // порядок массива (кэш ленты/очередь): смена метки не двигает строку.
+    const temps = [
+      message('t1', '2026-10-04T12:00:03.100Z'),
+      message('t2', '2026-10-04T12:00:03.200Z'),
+      message('t3', '2026-10-04T12:00:03.300Z'),
+    ];
+    expect(mergeNotesFlow(temps, []).map((e) => (e.kind === 'note' ? e.message.id : ''))).toEqual([
+      't1',
+      't2',
+      't3',
+    ]);
+    const confirmed = [
+      message('s1', '2026-10-04T12:00:03.250Z'),
+      message('s2', '2026-10-04T12:00:03.150Z'),
+      message('s3', '2026-10-04T12:00:03.050Z'),
+    ];
+    expect(
+      mergeNotesFlow(confirmed, []).map((e) => (e.kind === 'note' ? e.message.id : '')),
+    ).toEqual(['s1', 's2', 's3']);
   });
 
   it('при равных метках запись первична (стабильный порядок)', () => {
@@ -202,12 +226,13 @@ describe('filterNotesFlowBySource (#211 Ф3: окно-источник «Изб�
   });
 
   it('порядок потока сохраняется (ось слияния не меняется фильтром)', () => {
+    // Записи — в порядке кэша ленты (ASC по seq, #243), не по createdAt.
     const entries = mergeNotesFlow(
-      [message('n1', '2026-10-01T10:00:00Z'), message('n2', '2026-10-01T09:00:00Z')],
+      [message('n1', '2026-10-01T09:00:00Z'), message('n2', '2026-10-01T10:00:00Z')],
       [],
     );
     const filtered = filterNotesFlowBySource(entries, 'notes', author.id);
-    expect(filtered.map((e) => (e.kind === 'note' ? e.message.id : ''))).toEqual(['n2', 'n1']);
+    expect(filtered.map((e) => (e.kind === 'note' ? e.message.id : ''))).toEqual(['n1', 'n2']);
   });
 });
 
