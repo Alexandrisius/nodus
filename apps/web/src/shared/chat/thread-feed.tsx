@@ -273,8 +273,10 @@ export const ThreadFeed = memo(function ThreadFeed({
                                     <MessageRow
                                       messageId={message.id}
                                       selectable={selection.selectionActive && !message.deletedAt}
-                                      selected={selection.selectedSet.has(message.id)}
-                                      onToggle={(shift) => selection.toggle(message.id, shift)}
+                                      selected={selection.selectedSet.has(message.clientMessageId)}
+                                      onToggle={(shift) =>
+                                        selection.toggle(message.clientMessageId, shift)
+                                      }
                                     >
                                       {message.deletedAt ? (
                                         <PostCard
