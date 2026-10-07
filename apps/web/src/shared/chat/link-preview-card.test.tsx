@@ -14,16 +14,17 @@ const preview = (over: Partial<LinkPreview>): LinkPreview => ({
   ...over,
 });
 
-/** Видимость карточки превью (#240, вердикт 07.10): ссылка без превью-данных
- *  не рисует карточку-заглушку — паритет Telegram, остаётся текст ссылки. */
+/** Видимость карточки превью (#240, ревизия вердиктом 07.10): карточка
+ *  появляется только по факту готовности («сначала проверить, потом
+ *  показывать», как Telegram/Битрикс) — ни скелетона, ни заглушки. */
 describe('linkCardVisible (#240)', () => {
   it('нет http(s)-ссылки в тексте — карточки нет', () => {
     expect(linkCardVisible('просто текст', preview({ title: 'T' }))).toBe(false);
   });
 
-  it('pending/null — скелетон виден (конвейер фоновый, WS дозреет)', () => {
-    expect(linkCardVisible('см. https://example.com', null)).toBe(true);
-    expect(linkCardVisible('см. https://example.com', preview({ status: 'pending' }))).toBe(true);
+  it('pending/null — карточки НЕТ (WS довезёт готовую, если будет)', () => {
+    expect(linkCardVisible('см. https://example.com', null)).toBe(false);
+    expect(linkCardVisible('см. https://example.com', preview({ status: 'pending' }))).toBe(false);
   });
 
   it('дозревшая БЕЗ заголовка/описания/картинки — НЕ видна (заглушки отменены)', () => {
@@ -32,7 +33,7 @@ describe('linkCardVisible (#240)', () => {
     expect(linkCardVisible('https://example.com', preview({ status: 'blocked' }))).toBe(false);
   });
 
-  it('есть любой контент — видна', () => {
+  it('готовая с любым контентом — видна', () => {
     expect(linkCardVisible('https://example.com', preview({ title: 'T' }))).toBe(true);
     expect(linkCardVisible('https://example.com', preview({ description: 'D' }))).toBe(true);
     expect(linkCardVisible('https://example.com', preview({ imageUrl: '/x.webp' }))).toBe(true);
@@ -56,18 +57,20 @@ describe('MessageLinkPreview (#240)', () => {
     expect(container.querySelector('a')).toBeNull();
   });
 
-  it('pending — скелетон-карточка на месте', () => {
+  it('pending — карточки нет: без «нарисовалось и исчезло» (ревизия 07.10)', () => {
     const { container } = render(
       <MessageLinkPreview text="https://example.com" preview={preview({ status: 'pending' })} />,
     );
-    expect(container.querySelector('a')).not.toBeNull();
+    expect(container.querySelector('a')).toBeNull();
   });
 
-  it('ready с заголовком — карточка с доменом и заголовком', () => {
+  it('ready с заголовком — карточка с доменом, заголовком и зазором до меты (#238)', () => {
     render(
       <MessageLinkPreview text="https://example.com" preview={preview({ title: 'Заголовок' })} />,
     );
     expect(screen.getByText('example.com')).toBeTruthy();
     expect(screen.getByText('Заголовок')).toBeTruthy();
+    // Зазор карточки до меты времени — телегра-канон ~4–5 мм (вердикт 07.10)
+    expect(screen.getByText('Заголовок').closest('a')!.className).toContain('mb-3');
   });
 });
