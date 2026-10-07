@@ -20,6 +20,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import { readIdempotencyKey } from '../idempotency-key.js';
 import { z } from 'zod';
 import {
   batchDeleteMessagesBodySchema,
@@ -181,16 +182,4 @@ export class MessagesController {
     );
     return { removed: result.removed, tombstones };
   }
-}
-
-/** Читает Idempotency-Key (клиент ставит на каждый POST; иначе — сгенерим).
- *  Значение становится clientMessageId сообщения и транслируется всем
- *  участникам (DTO/WS, #243) — принимаем только короткие ключи: длинный или
- *  мусорный заголовок игнорируем, сервер генерирует свой (мягче reject:
- *  ретраи старых/чужих клиентов не ломаются). */
-function readIdempotencyKey(request: FastifyRequest): string | undefined {
-  const header = request.headers['idempotency-key'];
-  const key = Array.isArray(header) ? header[0] : header;
-  if (!key) return undefined;
-  return key.length >= 1 && key.length <= 128 ? key : undefined;
 }
