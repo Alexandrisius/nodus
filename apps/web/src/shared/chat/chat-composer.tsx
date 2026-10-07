@@ -296,8 +296,9 @@ export function ChatComposer({
   function submit() {
     if (!canSubmit) return;
     if (draft.edit) {
-      // Черновик/режим правки чистит хост по onSuccess мутации (#124):
-      // ошибка сервера не должна терять набранную правку.
+      // Правка НЕ переводится на сабмит-чистку (#248): правки нет в очереди
+      // отправки, RTT визуально мал, а риск сломать восстановление режима
+      // выше выгоды — черновик/режим чистит хост по onSuccess (#124).
       onSubmit({
         text: toWireText(text, draftMentions).trim(),
         attachments: [],
@@ -308,25 +309,39 @@ export function ChatComposer({
     }
     if (pending) {
       const target = pending;
+      const comment = toWireText(text, draftMentions).trim();
+      // Комментарий уходит из поля на сабмите (#248, модель Telegram):
+      // мгновенно, не по подтверждению; ошибка пересылки вернёт его в поле.
+      useChatDrafts.getState().setText(focusId, '');
       forward.mutate(
         {
           targetId: target.conversationId,
           body: {
             sourceConversationId: target.sourceConversationId,
             messageIds: target.messageIds,
-            comment: toWireText(text, draftMentions).trim() || undefined,
+            comment: comment || undefined,
             threadRootId: target.threadRootId,
           },
         },
         {
           onSuccess: () => {
             useForwardPending.getState().clear(focusId);
-            useChatDrafts.getState().setText(focusId, '');
             toast.success(ui.chat.forwardDone);
             // Догон и фокус приёмника — ПОСЛЕ успеха (раунд 3): раньше нонс
             // ставился до ответа сервера и гасился о невставшие сообщения.
             useScrollEndStore.getState().request(focusId, 'smooth');
             focusComposer(focusId);
+          },
+          onError: () => {
+            // Возврат комментария в поле (#248; #124 — упавшая пересылка не
+            // теряет текст): пустое поле — с чипами (wire→display), занятое
+            // следующим набором — prepend плоским текстом.
+            useChatDrafts.getState().restoreFailedSend(focusId, {
+              wireText: comment,
+              reply: null,
+              urgent: false,
+              attachments: [],
+            });
           },
         },
       );
@@ -338,12 +353,14 @@ export function ChatComposer({
       reply: draft.reply,
       edit: null,
       // Молния (#177): флаги летят с отправкой; сброс — очисткой черновика
-      // onSuccess (мутация). Ошибка 409 политики — черновик жив, молния на месте.
+      // на сабмите (обёртка мутации, #248). Ошибка 409 политики — состав
+      // возвращается в поле onError, молния на месте.
       urgent: draft.urgent,
     });
     // Своё сообщение видно с любой позиции скролла (вердикт 24.09).
-    // Черновик чистит хост по onSuccess отправки (#124): сетевой сбой
-    // оставляет текст в композере (аудит #123: потерянного текста нет).
+    // Черновик чистит обёртка мутации на сабмите (#248, модель Telegram):
+    // поле пусто мгновенно, статус отправки — в ленте (темп); ошибка вернёт
+    // текст в поле (#124).
     requestScrollEnd();
   }
 

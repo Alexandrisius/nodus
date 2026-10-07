@@ -12,9 +12,10 @@ import { registerScopeSubmit } from './submit-registry.js';
 /**
  * Окно отправки вложений (#144): строки из черновика; отмена гасит вложения и
  * ОСТАВЛЯЕТ текст подписи в композере (семантика черновика Telegram);
- * отправка идёт через реестр submit-функций хостов payload'ом черновика и
- * закрывает окно, когда хост очистил черновик (onSuccess мутации); пока есть
- * загрузки — «Отправить» заблокирована.
+ * отправка идёт через реестр submit-функций хостов payload'ом черновика;
+ * черновик чистится сабмитом (#248) — окно держит состав снапшотом до
+ * исхода и закрывается по успеху; пока есть загрузки — «Отправить»
+ * заблокирована.
  */
 
 const CONV = '11111111-1111-4111-8111-111111111111';
@@ -77,7 +78,7 @@ describe('attach-send-dialog (#144)', () => {
     expect(useAttachSendDialog.getState().caption).toBe('');
   });
 
-  it('отправка: payload черновика через реестр хостов; очистка черновика закрывает окно', async () => {
+  it('отправка: payload черновика через реестр хостов; сабмит чистит черновик, окно доезжает до исхода и закрывается', async () => {
     const submitted = vi.fn<(payload: ComposerSubmit) => Promise<unknown>>();
     const payloads: ComposerSubmit[] = [];
     let resolveSend: (value: unknown) => void = () => undefined;
@@ -88,7 +89,13 @@ describe('attach-send-dialog (#144)', () => {
           resolveSend = resolve;
         }),
     );
-    const unregister = registerScopeSubmit(KEY, (payload) => submitted(payload));
+    // Обёртка useSendChatMessage чистит черновик синхронно на сабмите (#248)
+    // — мок хоста повторяет контракт реального колбэка.
+    const unregister = registerScopeSubmit(KEY, (payload) => {
+      const promise = submitted(payload);
+      useChatDrafts.getState().clear(KEY);
+      return promise;
+    });
 
     useChatDrafts.getState().addAttachments(KEY, [pending('a'), pending('b')]);
     useAttachSendDialog.getState().open(KEY, 'комментарий');
@@ -100,12 +107,58 @@ describe('attach-send-dialog (#144)', () => {
     expect(payloads[0]?.attachments.map((a) => a.localId)).toEqual(['a', 'b']);
     expect(payloads[0]?.edit).toBeNull();
 
-    // Хост очистил черновик по onSuccess мутации — окно закрывается само.
+    // Черновик чист С САБМИТА (#248), но окно ещё открыто: строки едут
+    // снапшотом до исхода (кнопка нажата, состав виден).
+    expect(useChatDrafts.getState().drafts[KEY]).toBeUndefined();
+    expect(useAttachSendDialog.getState().scope).toBe(KEY);
+    expect(screen.getByText('a.csv')).toBeTruthy();
+    expect(screen.getByText('b.csv')).toBeTruthy();
+
+    // Успех: подпись съедена сообщением — окно закрылось, в поле ничего
+    // не вернулось (левловер-возврат подписи — только у отмены).
     act(() => {
       resolveSend({});
-      useChatDrafts.getState().clear(KEY);
     });
     await waitFor(() => expect(useAttachSendDialog.getState().scope).toBeNull());
+    expect(useChatDrafts.getState().drafts[KEY]).toBeUndefined();
+    unregister();
+  });
+
+  it('ошибка отправки: окно живо, вложения восстановлены в черновик (#248)', async () => {
+    let rejectSend: (reason?: unknown) => void = () => undefined;
+    const unregister = registerScopeSubmit(KEY, () => {
+      useChatDrafts.getState().clear(KEY); // сабмит-чистка реальной обёртки
+      return new Promise((_resolve, reject) => {
+        rejectSend = reject;
+      });
+    });
+
+    useChatDrafts.getState().addAttachments(KEY, [pending('a')]);
+    useAttachSendDialog.getState().open(KEY, 'комментарий');
+    render(<AttachSendDialogHost />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Отправить' }));
+    expect(useChatDrafts.getState().drafts[KEY]).toBeUndefined();
+
+    // Сеть упала: onError мутации вернул вложения в черновик — строки окна
+    // снова живые, подпись на месте, повтор возможен (#144/#248).
+    const dto = pending('a').attachment!;
+    act(() => {
+      useChatDrafts.getState().restoreFailedSend(KEY, {
+        wireText: 'комментарий',
+        reply: null,
+        urgent: false,
+        attachments: [dto],
+      });
+      rejectSend(new Error('network down'));
+    });
+    await waitFor(() => {
+      const draft = useChatDrafts.getState().drafts[KEY];
+      expect(draft?.attachments.map((a) => a.localId)).toEqual([dto.id]);
+    });
+    expect(useAttachSendDialog.getState().scope).toBe(KEY);
+    expect(useChatDrafts.getState().drafts[KEY]?.text).toBe('комментарий');
+    expect(screen.getByText('a.csv')).toBeTruthy();
     unregister();
   });
 

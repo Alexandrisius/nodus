@@ -43,3 +43,20 @@ export function toReplyPreview(draft: ReplyDraft): ReplyPreview {
     obliterated: false,
   };
 }
+
+/** Возврат упавшей отправки (#248): превью контракта из переменных мутации →
+ *  плоский черновик ответа; null — оригинал стёрт бесследно (author нет),
+ *  цитате некуда вести — ответ не восстанавливаем, текст важнее. inThread в
+ *  превью нет: прыжок по цитате тредового оригинала откроет ленту, не окно
+ *  треда; для повтора отправки не критично. */
+export function replyDraftFromPreview(preview: ReplyPreview): ReplyDraft | null {
+  if (!preview.author) return null;
+  return {
+    messageId: preview.id,
+    author: preview.author,
+    snippet: preview.text,
+    quoteText: preview.quoteText ?? null,
+    attachmentKind: preview.attachmentKind ?? null,
+    inThread: null,
+  };
+}
