@@ -28,7 +28,13 @@ export function FeedDropzone({
 
   function hasFiles(event: DragEvent): boolean {
     if (disabled) return false;
-    return event.dataTransfer?.types.includes('Files') ?? false;
+    const types = event.dataTransfer?.types;
+    if (!types?.includes('Files')) return false;
+    // Драг внутренних <img> (лента/превью): Chromium СИНТЕЗИРУЕТ File из
+    // картинки (webp-миниатюра) — внутренний драг маскируется под файловый
+    // и прикреплял дубль отправленного (#242). Признак небраузерного файла
+    // — отсутствие html/uri в payload: у драга из ОС только Files.
+    return !types.includes('text/html') && !types.includes('text/uri-list');
   }
 
   return (
