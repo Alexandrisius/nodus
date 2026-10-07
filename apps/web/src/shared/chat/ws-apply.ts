@@ -16,21 +16,26 @@ import { useAuthStore } from '../auth-store.js';
 import { chatKeys } from './api.js';
 
 /**
- * Локальное применение chat.message_sent в кэш по seq (раунд 3, «буря
- * рефечей»; канон Telegram-клиентов: событие несёт сообщение). Событие с
- * seq == последний в кэше + 1 дописывается в ленту (и +1 к счётчику корня)
- * БЕЗ рефеча — 30–40 сообщ/с отображаются поступательно, каждый своей
- * строкой, без пересборки ленты.
+ * Локальное применение chat.message_sent в кэш (раунд 3 «буря рефечей» +
+ * #243 «шквальная отправка»; канон Telegram-клиентов: событие несёт
+ * сообщение). Три пути, все — без рефеча:
  *
- * Дыра в seq, отсутствие кэша, темповая оптимистичная запись (seq=0) ИЛИ
- * НЕДОПИСАННОЕ окно открытого треда → false: вызывающий инвалидирует ленту
- * (коалесцинг окон — invalidation-batcher; префикс messages(id) покрывает и
- * тред-ключи). Окно треда содержит только корень+ответы, а seq — общий по
- * беседе, поэтому непрерывность в окне треда держится не всегда: не смогли
- * дописать туда — рефеч обязателен, иначе окно молчит до попутного события
- * (замечание валидатора: «случайное исцеление — не механизм»).
- * Идентичное сообщение (своя отправка этой вкладки успела мутацией) — true:
- * тихо, без рефеча.
+ * 1. Эхо СВОЕЙ летящей отправки: clientMessageId события совпадает с темпом
+ *    (seq=0) в кэше — серверная запись заменяет темп НА МЕСТЕ (порядок
+ *    отправки не двигается; работает и когда эхо обгоняет REST-ответ, и из
+ *    другой вкладки).
+ * 2. Сообщение уже применено (id в кэше) — тихо.
+ * 3. Непрерывность seq по последней НЕ-темповой записи (seq= last+1; пустой
+ *    кэш — seq=1) — вставка ПЕРЕД хвостом темпов (чужие/свои летящие всегда
+ *    «новее» подтверждаемого сообщения).
+ *
+ * Дыра в seq, отсутствие кэша ИЛИ недописанное окно открытого треда → false:
+ * вызывающий инвалидирует ленту (коалесцинг — invalidation-batcher; префикс
+ * messages(id) покрывает и тред-ключи). Окно треда содержит только
+ * корень+ответы, а seq — общий по беседе, поэтому непрерывность в окне треда
+ * держится не всегда: не смогли дописать туда — рефеч обязателен, иначе окно
+ * молчит до попутного события (замечание валидатора: «случайное исцеление —
+ * не механизм»).
  */
 export function applySentMessage(
   queryClient: QueryClient,
@@ -43,47 +48,97 @@ export function applySentMessage(
   const listData = queryClient.getQueryData<Paginated<ChatMessage>>(listKey);
   if (!listData) return false; // беседа не открыта — кэша нет, рефеч не нужен
 
-  if (listData.items.some((m) => m.id === message.id)) {
-    return true; // уже применено (мутация своей отправки / повтор события)
-  }
-  const last = listData.items[listData.items.length - 1];
-  // Пустой кэш (первое сообщение открытой пустой беседы) — seq обязан быть 1.
-  if (!last) {
-    if (message.seq !== 1) return false;
-  } else if (last.seq + 1 !== message.seq) {
-    return false; // дыра или темповая запись (seq=0) — догонит рефеч
-  }
-
-  queryClient.setQueryData<Paginated<ChatMessage>>(listKey, {
-    ...listData,
-    items: [...listData.items, message],
+  let applied = false;
+  let pendingReplaced = false;
+  queryClient.setQueryData<Paginated<ChatMessage>>(listKey, (old) => {
+    if (!old) return old;
+    if (old.items.some((m) => m.id === message.id)) {
+      applied = true; // уже применено (мутация своей отправки / повтор события)
+      return old;
+    }
+    // Эхо своего темпа: замена на месте, порядок не двигается (#243).
+    const tempIndex = message.clientMessageId
+      ? old.items.findIndex((m) => m.seq === 0 && m.clientMessageId === message.clientMessageId)
+      : -1;
+    if (tempIndex !== -1) {
+      applied = true;
+      pendingReplaced = true;
+      const items = [...old.items];
+      items[tempIndex] = message;
+      return { ...old, items };
+    }
+    // Непрерывность по последней не-темповой записи; темпы (seq=0) в хвосте
+    // летящих отправок её не ломают.
+    let lastSeq = 0;
+    for (let i = old.items.length - 1; i >= 0; i -= 1) {
+      if (old.items[i]!.seq > 0) {
+        lastSeq = old.items[i]!.seq;
+        break;
+      }
+    }
+    if (lastSeq === 0 ? message.seq !== 1 : lastSeq + 1 !== message.seq) {
+      return old; // дыра — догонит рефеч
+    }
+    applied = true;
+    const at = old.items.findIndex((m) => m.seq === 0);
+    const items = [...old.items];
+    items.splice(at === -1 ? items.length : at, 0, message);
+    return { ...old, items };
   });
+  if (!applied) return false;
   if (threadRootId !== null && threadRootId !== undefined) {
-    const threadAppended = applyToThreadCache(queryClient, conversationId, threadRootId, message);
-    bumpRootReplies(queryClient, conversationId, threadRootId);
+    const threadAppended = applyToThreadCache(
+      queryClient,
+      conversationId,
+      threadRootId,
+      message,
+      pendingReplaced,
+    );
+    if (!pendingReplaced) bumpRootReplies(queryClient, conversationId, threadRootId);
     if (!threadAppended) return false; // окно треда открыто, но с дырой — рефеч
   }
   return true;
 }
 
 /** Кэш окна треда (если открыт): дописать ответ; false — кэш есть, но
- *  непрерывность не сошлась (сообщение придёт инвалидацией). */
+ *  непрерывность не сошлась (сообщение придёт инвалидацией). Эхо своего
+ *  темпа заменяет его на месте (как в ленте, #243). */
 function applyToThreadCache(
   queryClient: QueryClient,
   conversationId: string,
   threadRootId: string,
   message: ChatMessage,
+  pendingReplaced: boolean,
 ): boolean {
   const threadKey = chatKeys.thread(conversationId, threadRootId);
   const threadData = queryClient.getQueryData<Paginated<ChatMessage>>(threadKey);
   if (!threadData) return true; // окно не открыто — дописывать некуда, не мешаем
   if (threadData.items.some((m) => m.id === message.id)) return true;
+  const tempIndex = message.clientMessageId
+    ? threadData.items.findIndex(
+        (m) => m.seq === 0 && m.clientMessageId === message.clientMessageId,
+      )
+    : -1;
+  if (tempIndex !== -1) {
+    const items = [...threadData.items];
+    items[tempIndex] = message;
+    queryClient.setQueryData<Paginated<ChatMessage>>(threadKey, { ...threadData, items });
+    return true;
+  }
+  if (pendingReplaced) return true; // темп был только в ленте — окно догонит рефечем
+  let lastSeq = 0;
+  for (let i = threadData.items.length - 1; i >= 0; i -= 1) {
+    if (threadData.items[i]!.seq > 0) {
+      lastSeq = threadData.items[i]!.seq;
+      break;
+    }
+  }
   const last = threadData.items[threadData.items.length - 1];
-  if (!last || last.seq + 1 !== message.seq) return false;
-  queryClient.setQueryData<Paginated<ChatMessage>>(threadKey, {
-    ...threadData,
-    items: [...threadData.items, message],
-  });
+  if (!last || lastSeq + 1 !== message.seq) return false;
+  const at = threadData.items.findIndex((m) => m.seq === 0);
+  const items = [...threadData.items];
+  items.splice(at === -1 ? items.length : at, 0, message);
+  queryClient.setQueryData<Paginated<ChatMessage>>(threadKey, { ...threadData, items });
   return true;
 }
 

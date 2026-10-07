@@ -19,6 +19,7 @@ function makeMessage(overrides: Partial<ChatMessage> = {}): ChatMessage {
     id: MSG,
     conversationId: CONV,
     seq: 1,
+    clientMessageId: 'client-1',
     author: { id: 'a-1', displayName: 'Анна Смирнова', avatarUrl: null },
     text: 'Завтра объект закрыт',
     replyToId: null,

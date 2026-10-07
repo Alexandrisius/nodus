@@ -31,6 +31,7 @@ const message = (overrides: Partial<ChatMessage> = {}): ChatMessage => ({
   id: 'm1',
   conversationId: 'conv-1',
   seq: 1,
+  clientMessageId: 'client-1',
   author: { id: 'a', displayName: 'Анна Смирнова', avatarUrl: null },
   text: 'текст',
   replyToId: null,

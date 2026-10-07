@@ -163,6 +163,7 @@ function msg(
     id: mid(n),
     conversationId: cid(conversation),
     seq: n,
+    clientMessageId: `demo-letter-${n}`,
     author: userRef(author),
     text,
     replyToId: null,

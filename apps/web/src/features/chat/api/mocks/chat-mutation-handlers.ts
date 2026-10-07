@@ -265,6 +265,7 @@ export const chatMutationHandlers = [
         id: crypto.randomUUID(),
         conversationId: target.id,
         seq: seq++,
+        clientMessageId: crypto.randomUUID(),
         author: actorUserRef(),
         text: parsed.data.comment,
         replyToId: null,
@@ -296,6 +297,8 @@ export const chatMutationHandlers = [
         id: crypto.randomUUID(),
         conversationId: target.id,
         seq: seq++,
+        // Копия пересылки: свой ключ отправки (паритет серверу — суффикс «:i»).
+        clientMessageId: crypto.randomUUID(),
         author: actorUserRef(),
         text: source.text,
         replyToId: null,

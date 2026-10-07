@@ -56,6 +56,7 @@ const message: ChatMessage = {
   id: MSG,
   conversationId: CONV,
   seq: 3,
+  clientMessageId: 'client-3',
   author,
   text: 'текст оригинала',
   replyToId: null,

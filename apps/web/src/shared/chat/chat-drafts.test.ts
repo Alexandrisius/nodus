@@ -10,6 +10,7 @@ const msg = (id: string, text: string, threadRootId: string | null = null): Chat
   id,
   conversationId: CONV,
   seq: 1,
+  clientMessageId: id,
   author: { id: 'a1', displayName: 'Иванов И.И.', avatarUrl: null },
   text,
   replyToId: null,

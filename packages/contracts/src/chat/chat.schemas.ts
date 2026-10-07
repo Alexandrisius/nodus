@@ -113,6 +113,11 @@ export const messageSchema = z.object({
   /** Порядковый номер в беседе (монотонный): курсор квитанций просмотров
    *  (POST /read { upToSeq } — seq самой новой видимой строки, #102 р.2). */
   seq: z.number().int().positive(),
+  /** Ключ отправки клиента (= Idempotency-Key запроса; у копий пересылки —
+   *  с суффиксом). Связка оптимистичного темпа с серверной записью: WS-эхо
+   *  своей отправки заменяет темп на месте по этому полю, рефечи отличают
+   *  подтверждённые записи от ещё летящих (#243). */
+  clientMessageId: z.string().min(1),
   author: userRefSchema,
   text: z.string(),
   replyToId: z.uuid().nullable(),

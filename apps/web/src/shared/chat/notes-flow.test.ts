@@ -19,6 +19,7 @@ function message(id: string, createdAt: string, text = ''): ChatMessage {
     id,
     conversationId: '00000000-0000-4000-8000-0000000000c0',
     seq: 1,
+    clientMessageId: id,
     author,
     text,
     replyToId: null,
