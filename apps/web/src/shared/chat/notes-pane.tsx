@@ -28,13 +28,12 @@ import { useIncomingFollow } from './use-incoming-follow.js';
 import { FavoriteRunMessage } from './notes-row.js';
 import { buildMessageRuns, formatDayLabel, startsNewDay } from './message-groups.js';
 import { MessageRunView } from './message-run.js';
-import { mergeNotesFlow, splitNotesSelection } from './notes-flow.js';
+import { notesSelectionIds, mergeNotesFlow, splitNotesSelection } from './notes-flow.js';
 import { reconcileServerDraft } from './draft-sync.js';
 import { setOpenConversation } from './notifications.js';
 import { registerScopeSubmit } from './submit-registry.js';
 import { toSendVars } from './composer-submit.js';
 import { useFeedSelection } from './use-feed-selection.js';
-import { confirmedIdsOf, hasPendingMessages } from './selection-confirmed.js';
 import { useBoxSelection } from './use-box-selection.js';
 import { useDeleteDialog, useForwardDialog } from './dialog-stores.js';
 import { copyMessagesAsText } from './use-selection-keys.js';
@@ -150,15 +149,14 @@ export function NotesPane({ conversationId }: { conversationId: string }) {
   const selectionBar: ComposerSelection | null = selection.selectionActive
     ? (() => {
         const keys = selection.orderedIds.filter((id) => selection.selectedSet.has(id));
-        const selectedMessages = selection.getSelectedMessages();
-        // Батч-командам — подтверждённые серверные id (летящие темпы #243
-        // исключены; команды при них серые — pending).
-        const ids = confirmedIdsOf(selectedMessages);
+        // Батч-команды витрины (#243, блокер ревью): карточка — серверная
+        // закладка (id валиден, НЕ темп), летящий — только запись seq=0.
+        const { ids, pending } = notesSelectionIds(selection.getSelectedMessages(), feedCardIds);
         const { noteIds } = splitNotesSelection(ids, new Set(messages.map((m) => m.id)));
         return {
           count: keys.length,
           ids,
-          pending: hasPendingMessages(selectedMessages),
+          pending,
           allMine: selection.allMine,
           deletable: true,
           favoritesEnabled: false,
@@ -277,6 +275,7 @@ export function NotesPane({ conversationId }: { conversationId: string }) {
                               selectionActive={selection.selectionActive}
                               selectedSet={selection.selectedSet}
                               onToggle={selection.toggle}
+                              messagesOfSelection={selection.getSelectedMessages}
                             />
                           )}
                         />

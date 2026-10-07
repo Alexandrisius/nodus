@@ -82,6 +82,28 @@ export function filterNotesFlowBySource(
  *  id без следа в ОБОИХ множествах консервативно считается записью —
  *  сервер перепроверит автора/беседу и чужое молча пропустит (как в обычных
  *  чатах). Порядок внутри групп сохраняется. */
+/** Идентификаторы батч-команд селекта витрины (#243, «не сломать витрину»):
+ *  карточка — СЕРВЕРНАЯ закладка (её id = id оригинала, валиден для команд,
+ *  псевдо-запись несёт seq=0, но это НЕ летящий темп); летящий темп — только
+ *  ЗАПИСЬ (собственная отправка в беседу Заметок) с seq=0 — её серверного id
+ *  ещё нет. pending = в выделении есть такие записи (команды серые). */
+export function notesSelectionIds(
+  selected: readonly ChatMessage[],
+  feedCardIds: ReadonlySet<string>,
+): { ids: string[]; pending: boolean } {
+  let pending = false;
+  const ids: string[] = [];
+  for (const m of selected) {
+    if (feedCardIds.has(m.id)) {
+      ids.push(m.id);
+      continue;
+    }
+    if (m.seq > 0) ids.push(m.id);
+    else pending = true;
+  }
+  return { ids, pending };
+}
+
 export function splitNotesSelection(
   ids: readonly string[],
   notesMessageIds: ReadonlySet<string>,

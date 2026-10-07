@@ -6,6 +6,7 @@ import {
   filterNotesFlowBySource,
   mergeNotesFlow,
   splitNotesSelection,
+  notesSelectionIds,
 } from './notes-flow.js';
 
 const author: UserRef = {
@@ -207,5 +208,35 @@ describe('filterNotesFlowBySource (#211 Ф3: окно-источник «Изб�
     );
     const filtered = filterNotesFlowBySource(entries, 'notes', author.id);
     expect(filtered.map((e) => (e.kind === 'note' ? e.message.id : ''))).toEqual(['n2', 'n1']);
+  });
+});
+
+describe('notesSelectionIds — батч-команды витрины не ломаются на карточках (#243)', () => {
+  const cardIds = new Set(['card-1']);
+  const card = message('card-1', '2026-10-07T10:00:00Z'); // псевдо-запись карточки
+  const cardMsg = { ...card, seq: 0, clientMessageId: 'card-1' };
+  const confirmed = { ...message('n-1', '2026-10-07T10:00:01Z'), seq: 5, clientMessageId: 'k1' };
+  const flying = {
+    ...message('temp-1', '2026-10-07T10:00:02Z'),
+    seq: 0,
+    id: 'temp-1',
+    clientMessageId: 'temp-1',
+  };
+
+  it('карточка — НЕ темп: id валиден, pending нет', () => {
+    const res = notesSelectionIds([cardMsg], cardIds);
+    expect(res).toEqual({ ids: ['card-1'], pending: false });
+  });
+
+  it('микс карточка+запись подтверждённая — всё доступно', () => {
+    const res = notesSelectionIds([cardMsg, confirmed], cardIds);
+    expect(res.ids).toEqual(['card-1', 'n-1']);
+    expect(res.pending).toBe(false);
+  });
+
+  it('летящая запись — pending, карточки при ней не блокируются', () => {
+    const res = notesSelectionIds([cardMsg, flying], cardIds);
+    expect(res.ids).toEqual(['card-1']);
+    expect(res.pending).toBe(true);
   });
 });
