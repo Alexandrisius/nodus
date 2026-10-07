@@ -17,16 +17,27 @@ export type NotesFilter = 'all' | 'notes' | 'favorites';
  *  звёзд или псевдоисточник «Записи» (свои сообщения, не звёзды). */
 export type NotesSourceId = string | 'notes';
 
-/** Слияние потоков по времени (ASC); при равных метках запись первична
- *  (порядок вставки стабилен — birthday tie-break по kind). */
+/** Слияние потоков (#243): записи — В ПОРЯДКЕ КЭША ЛЕНТЫ (comparator 0,
+ *  стабильная сортировка сохраняет порядок массива — очередь отправки
+ *  держит его «порядок кликов навсегда»), карточки — по favoritedAt,
+ *  запись↔карточка сплетаются по времени (createdAt vs favoritedAt; при
+ *  равенстве запись первична). Сортировать записи по createdAt НЕЛЬЗЯ:
+ *  темп несёт клиентскую метку, серверная запись — серверную, замена
+ *  метки при подтверождении переставляла сообщения «пляской» даже на
+ *  быстром канале. */
 export function mergeNotesFlow(messages: ChatMessage[], cards: FavoriteCard[]): NotesEntry[] {
   const entries: NotesEntry[] = [
     ...messages.filter((m) => !m.deletedAt).map((message) => ({ kind: 'note', message }) as const),
     ...cards.map((card) => ({ kind: 'favorite', card }) as const),
   ];
+  const timeOf = (e: NotesEntry) => (e.kind === 'note' ? e.message.createdAt : e.card.favoritedAt);
   return entries.sort((a, b) => {
-    const ta = a.kind === 'note' ? a.message.createdAt : a.card.favoritedAt;
-    const tb = b.kind === 'note' ? b.message.createdAt : b.card.favoritedAt;
+    if (a.kind === 'note' && b.kind === 'note') return 0; // порядок кэша
+    if (a.kind === 'favorite' && b.kind === 'favorite') {
+      return timeOf(a) < timeOf(b) ? -1 : timeOf(a) > timeOf(b) ? 1 : 0;
+    }
+    const ta = timeOf(a);
+    const tb = timeOf(b);
     if (ta === tb) return a.kind === 'note' ? -1 : 1;
     return ta < tb ? -1 : 1;
   });
@@ -82,6 +93,28 @@ export function filterNotesFlowBySource(
  *  id без следа в ОБОИХ множествах консервативно считается записью —
  *  сервер перепроверит автора/беседу и чужое молча пропустит (как в обычных
  *  чатах). Порядок внутри групп сохраняется. */
+/** Идентификаторы батч-команд селекта витрины (#243, «не сломать витрину»):
+ *  карточка — СЕРВЕРНАЯ закладка (её id = id оригинала, валиден для команд,
+ *  псевдо-запись несёт seq=0, но это НЕ летящий темп); летящий темп — только
+ *  ЗАПИСЬ (собственная отправка в беседу Заметок) с seq=0 — её серверного id
+ *  ещё нет. pending = в выделении есть такие записи (команды серые). */
+export function notesSelectionIds(
+  selected: readonly ChatMessage[],
+  feedCardIds: ReadonlySet<string>,
+): { ids: string[]; pending: boolean } {
+  let pending = false;
+  const ids: string[] = [];
+  for (const m of selected) {
+    if (feedCardIds.has(m.id)) {
+      ids.push(m.id);
+      continue;
+    }
+    if (m.seq > 0) ids.push(m.id);
+    else pending = true;
+  }
+  return { ids, pending };
+}
+
 export function splitNotesSelection(
   ids: readonly string[],
   notesMessageIds: ReadonlySet<string>,

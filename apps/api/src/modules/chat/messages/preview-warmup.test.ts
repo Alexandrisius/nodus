@@ -10,6 +10,7 @@ const msg = (attId: string, thumbnailUrl: string | null): ChatMessage =>
     id: `m-${attId}`,
     conversationId: 'conv-1',
     seq: 1,
+    clientMessageId: `m-${attId}`,
     author: { id: 'u1', displayName: 'А', avatarUrl: null },
     text: '',
     replyToId: null,

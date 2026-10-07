@@ -92,6 +92,10 @@ export function ReactionPicker({
     [closePanel],
   );
 
+  // Летящий темп (seq=0, id=tempId): реакция — серверная команда, сервер
+  // не знает tempId (#243, канон Telegram: с неотправленным ничего нельзя).
+  if (message?.seq === 0) return null;
+
   function scheduleClose() {
     cancelClose();
     closeTimer.current = window.setTimeout(closePanel, CLOSE_GRACE_MS);

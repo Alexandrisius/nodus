@@ -14,6 +14,8 @@ export function toFavoriteMessage(card: FavoriteCard): ChatMessage {
     id: card.messageId,
     conversationId: card.conversationId,
     seq: 0,
+    // Псевдо-запись витрины (не ходит в кэш ленты): нейтральный ключ.
+    clientMessageId: card.messageId,
     author: card.author,
     text: card.text,
     replyToId: null,

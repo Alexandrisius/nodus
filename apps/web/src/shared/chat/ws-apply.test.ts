@@ -22,6 +22,7 @@ const msg = (
   id: 'm1',
   conversationId: CONV,
   seq: 1,
+  clientMessageId: 'client-1',
   author: { id: 'u1', displayName: 'Автор', avatarUrl: null },
   text: 'текст',
   replyToId: null,
@@ -103,16 +104,95 @@ describe('applySentMessage', () => {
     expect(applied).toBe(false);
   });
 
-  it('темповая оптимистичная запись (seq=0) в хвосте → false (рефетч заменит)', () => {
+  it('чужой темп (seq=0) в хвосте, непрерывный seq → вставка ПЕРЕД темпом, true (#243)', () => {
     const client = new QueryClient();
     client.setQueryData(chatKeys.messages(CONV), {
-      items: [msg({ id: 'a', seq: 5 }), msg({ id: 'temp', seq: 0 })],
+      items: [msg({ id: 'a', seq: 5 }), msg({ id: 'temp', seq: 0, clientMessageId: 'temp-1' })],
       nextCursor: null,
     });
     const applied = applySentMessage(client, {
       conversationId: CONV,
       threadRootId: null,
-      message: msg({ id: 'b', seq: 6 }),
+      message: msg({ id: 'b', seq: 6, clientMessageId: 'server-b' }),
+    });
+    expect(applied).toBe(true);
+    // Подтверждённое сообщение — перед хвостом летящих темпов.
+    expect(feed(client).map((m) => m.id)).toEqual(['a', 'b', 'temp']);
+  });
+
+  it('эхо СВОЕГО темпа по clientMessageId → замена на месте, true, без рефеча (#243)', () => {
+    const client = new QueryClient();
+    client.setQueryData(chatKeys.messages(CONV), {
+      items: [
+        msg({ id: 'a', seq: 5 }),
+        msg({ id: 'temp-1', seq: 0, clientMessageId: 'temp-1', text: 'привет' }),
+        msg({ id: 'temp-2', seq: 0, clientMessageId: 'temp-2' }),
+      ],
+      nextCursor: null,
+    });
+    const applied = applySentMessage(client, {
+      conversationId: CONV,
+      threadRootId: null,
+      message: msg({ id: 'server-1', seq: 6, clientMessageId: 'temp-1', text: 'привет' }),
+    });
+    expect(applied).toBe(true);
+    // Позиция темпа не двигается: серверная запись встала на его место,
+    // более поздний темп остался в хвосте.
+    expect(feed(client).map((m) => m.id)).toEqual(['a', 'server-1', 'temp-2']);
+    expect(feed(client)[1]?.seq).toBe(6);
+  });
+
+  it('эхо своего темпа при ДЫРЕ в seq → замена всё равно точна, true (#243)', () => {
+    const client = new QueryClient();
+    client.setQueryData(chatKeys.messages(CONV), {
+      items: [msg({ id: 'a', seq: 5 }), msg({ id: 'temp-1', seq: 0, clientMessageId: 'temp-1' })],
+      nextCursor: null,
+    });
+    // seq=7 при последнем реальном 5 — дыра, но свой темп сводится точно.
+    const applied = applySentMessage(client, {
+      conversationId: CONV,
+      threadRootId: null,
+      message: msg({ id: 'server-1', seq: 7, clientMessageId: 'temp-1' }),
+    });
+    expect(applied).toBe(true);
+    expect(feed(client).map((m) => m.id)).toEqual(['a', 'server-1']);
+  });
+
+  it('ЧУЖАЯ запись с clientMessageId темпа темп не забирает (ключ уникален в рамках автора)', () => {
+    const client = new QueryClient();
+    client.setQueryData(chatKeys.messages(CONV), {
+      items: [
+        msg({ id: 'a', seq: 5 }),
+        // Темп НАШ (author u1), но ключ совпал с чужой отправкой.
+        msg({ id: 'temp-1', seq: 0, clientMessageId: 'shared-key', text: 'моё' }),
+      ],
+      nextCursor: null,
+    });
+    // Чужое сообщение (другой автор) с тем же ключом — непрерывности нет (дыра).
+    const applied = applySentMessage(client, {
+      conversationId: CONV,
+      threadRootId: null,
+      message: msg({
+        id: 'foreign',
+        seq: 8,
+        clientMessageId: 'shared-key',
+        author: { id: 'u2', displayName: 'Чужой', avatarUrl: null },
+      }),
+    });
+    expect(applied).toBe(false); // дыра → рефеч; темп не тронут
+    expect(feed(client).map((m) => m.id)).toEqual(['a', 'temp-1']);
+  });
+
+  it('дыра в seq при темпе в хвосте (чужом) → false (рефетч заменит)', () => {
+    const client = new QueryClient();
+    client.setQueryData(chatKeys.messages(CONV), {
+      items: [msg({ id: 'a', seq: 5 }), msg({ id: 'temp', seq: 0, clientMessageId: 'temp-1' })],
+      nextCursor: null,
+    });
+    const applied = applySentMessage(client, {
+      conversationId: CONV,
+      threadRootId: null,
+      message: msg({ id: 'c', seq: 8, clientMessageId: 'server-c' }),
     });
     expect(applied).toBe(false);
   });

@@ -13,6 +13,7 @@ const msg = (id: string, authorId: string): ChatMessage => ({
   id,
   conversationId: 'c1',
   seq: 1,
+  clientMessageId: 'client-1',
   author: { id: authorId, displayName: authorId, avatarUrl: null },
   text: 'текст',
   replyToId: null,

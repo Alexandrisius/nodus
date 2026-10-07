@@ -1,4 +1,5 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Post, Req } from '@nestjs/common';
+import { readIdempotencyKey } from '../idempotency-key.js';
 import {
   ApiBearerAuth,
   ApiCreatedResponse,
@@ -200,9 +201,12 @@ export class MessageActionsController {
     dto: ForwardMessagesBody,
     @Req() request: FastifyRequest,
   ): Promise<ChatMessage[]> {
-    const header = request.headers['idempotency-key'];
-    const key = Array.isArray(header) ? header[0] : header;
-    const result = await this.actions.forward(user.id, conversationId, dto, key);
+    const result = await this.actions.forward(
+      user.id,
+      conversationId,
+      dto,
+      readIdempotencyKey(request),
+    );
     return this.mapper.toDtos(result.rows, { viewerId: user.id, members: result.members });
   }
 }

@@ -8,7 +8,8 @@ import {
 } from '../../../core/ports/user-profile.port.js';
 import { parsePermissions } from '../permissions.js';
 import { MessageDtoMapper } from '../messages/message-dto.mapper.js';
-import type { MemberRow, ConversationListRow } from './conversations.repository.js';
+import type { ConversationListRow } from './conversations-list.select.js';
+import type { MemberRow } from './conversations.repository.js';
 
 export interface ConversationItemContext {
   viewerId: string;
@@ -134,7 +135,7 @@ function rowToMessageRow(row: ConversationListRow): Parameters<MessageDtoMapper[
     conversationId: row.id,
     seq: row.lm_seq!,
     authorId: row.lm_author_id!,
-    clientMessageId: '',
+    clientMessageId: row.lm_client_message_id!,
     text: row.lm_text ?? '',
     urgent: row.lm_urgent ?? false,
     mentionedUserIds: null,

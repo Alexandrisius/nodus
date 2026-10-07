@@ -20,6 +20,8 @@ import { tasksKeys } from '../api/tasks-keys.js';
 import { useAuthStore } from '../auth-store.js';
 import { useChatDrafts } from './chat-drafts.js';
 import { composerSendErrorCode, useComposerErrors } from './composer-errors.js';
+import { mergePendingIntoPage } from './pending-merge.js';
+import { enqueueSend } from './send-queue.js';
 import { useSocketStatusStore } from '../socket/socket-status-store.js';
 
 /**
@@ -83,12 +85,23 @@ function livePoll(intervalMs: number, socketConnected: boolean): number | false 
 }
 
 export function useConversationMessages(id: string) {
+  const queryClient = useQueryClient();
   const socketConnected = useSocketStatusStore((s) => s.connected);
   return useQuery({
     queryKey: chatKeys.messages(id),
     // limit=100 — максимум контракта (раунд 4: страница 50 резала историю,
     // «старые сообщения пропадали»; полноценная догрузка при прокрутке — #117).
-    queryFn: () => api<Paginated<ChatMessage>>(`/chat/conversations/${id}/messages?limit=100`),
+    queryFn: async () => {
+      const page = await api<Paginated<ChatMessage>>(
+        `/chat/conversations/${id}/messages?limit=100`,
+      );
+      // Рефеч не съедает летящие отправки (#243): темпы и локальные
+      // опережения переносятся в хвост серверной страницы.
+      return mergePendingIntoPage(
+        queryClient.getQueryData<Paginated<ChatMessage>>(chatKeys.messages(id))?.items,
+        page,
+      );
+    },
     enabled: id.length > 0,
     refetchInterval: livePoll(LIVE_CHAT_POLL.messages, socketConnected),
     refetchIntervalInBackground: false,
@@ -124,13 +137,22 @@ export function useUpdateConversation() {
 
 /** Тред канала: корневое сообщение + ответы (ровно один уровень). */
 export function useThreadMessages(conversationId: string, threadRootId: string) {
+  const queryClient = useQueryClient();
   const socketConnected = useSocketStatusStore((s) => s.connected);
   return useQuery({
     queryKey: chatKeys.thread(conversationId, threadRootId),
-    queryFn: () =>
-      api<Paginated<ChatMessage>>(
+    queryFn: async () => {
+      const page = await api<Paginated<ChatMessage>>(
         `/chat/conversations/${conversationId}/messages?threadRootId=${threadRootId}&limit=100`,
-      ),
+      );
+      // Как и лента: летящие ответы треда переживают рефеч (#243).
+      return mergePendingIntoPage(
+        queryClient.getQueryData<Paginated<ChatMessage>>(
+          chatKeys.thread(conversationId, threadRootId),
+        )?.items,
+        page,
+      );
+    },
     enabled: conversationId.length > 0 && threadRootId.length > 0,
     refetchInterval: livePoll(LIVE_CHAT_POLL.messages, socketConnected),
     refetchIntervalInBackground: false,
@@ -235,22 +257,27 @@ export function useSendChatMessage(conversationId: string, draftScope?: string) 
 
   const mutation = useMutation({
     mutationFn: (vars: SendChatMutationVars) =>
-      api<ChatMessage>(`/chat/conversations/${conversationId}/messages`, {
-        method: 'POST',
-        // Идемпотентность (#48): ключ = temp id оптимистичной записи —
-        // и повтор той же мутации, и прозрачный refresh внутри api()
-        // идут с ОДНИМ ключом (по умолчанию ключ — на вызов api()).
-        idempotencyKey: vars.tempId,
-        body: {
-          text: vars.text,
-          attachmentIds: vars.attachmentIds,
-          stickerId: vars.stickerId,
-          replyToId: vars.replyToId ?? null,
-          quoteText: vars.quoteText ?? null,
-          threadRootId: vars.threadRootId ?? null,
-          urgent: vars.urgent,
-        },
-      }),
+      // Очередь беседы (#243): POST-запросы сериализуются — seq на сервере
+      // выдаётся в порядке кликов, лента не переупорядочивается после
+      // ответов. Темп уже вставлен onMutate (мгновенность I4 не страдает).
+      enqueueSend(conversationId, () =>
+        api<ChatMessage>(`/chat/conversations/${conversationId}/messages`, {
+          method: 'POST',
+          // Идемпотентность (#48): ключ = temp id оптимистичной записи —
+          // и повтор той же мутации, и прозрачный refresh внутри api()
+          // идут с ОДНИМ ключом (по умолчанию ключ — на вызов api()).
+          idempotencyKey: vars.tempId,
+          body: {
+            text: vars.text,
+            attachmentIds: vars.attachmentIds,
+            stickerId: vars.stickerId,
+            replyToId: vars.replyToId ?? null,
+            quoteText: vars.quoteText ?? null,
+            threadRootId: vars.threadRootId ?? null,
+            urgent: vars.urgent,
+          },
+        }),
+      ),
 
     onMutate: async (vars) => {
       const listKey = chatKeys.messages(conversationId);
@@ -258,15 +285,14 @@ export function useSendChatMessage(conversationId: string, draftScope?: string) 
         ? chatKeys.thread(conversationId, vars.threadRootId)
         : listKey;
       await queryClient.cancelQueries({ queryKey: threadKey });
-      const previousList = queryClient.getQueryData<Paginated<ChatMessage>>(listKey);
-      const previousThread = vars.threadRootId
-        ? queryClient.getQueryData<Paginated<ChatMessage>>(threadKey)
-        : undefined;
 
       const temp: ChatMessage = {
         id: vars.tempId,
         conversationId,
         seq: 0, // плейсхолдер: реальный seq придёт с ответом сервера
+        // Связка темпа с серверной записью (#243): Idempotency-Key отправки;
+        // WS-эхо и рефечи по этому полю узнают свой темп.
+        clientMessageId: vars.tempId,
         author: { id: user?.id ?? '', displayName: user?.displayName ?? '', avatarUrl: null },
         text: vars.text,
         replyToId: vars.replyToId ?? null,
@@ -315,15 +341,41 @@ export function useSendChatMessage(conversationId: string, draftScope?: string) 
       }
       // Новая попытка отправки гасит инлайн-ошибку предыдущей (#177).
       if (draftScope) useComposerErrors.getState().clear(draftScope);
-      return { previousList, previousThread, threadKey, tempId: temp.id };
+      return { threadKey, tempId: temp.id };
     },
 
     onError: (error, vars, context) => {
-      if (context?.previousList) {
-        queryClient.setQueryData(chatKeys.messages(conversationId), context.previousList);
-      }
-      if (context?.previousThread && context.threadKey) {
-        queryClient.setQueryData(context.threadKey, context.previousThread);
+      // Точечный откат СВОЕГО темпа (#243): restore-снапшот при шквальной
+      // отправке затирал темпы соседних запросов и чужие события, уже
+      // применённые в кэш между мутацией и ошибкой.
+      const listKey = chatKeys.messages(conversationId);
+      const threadKey = context?.threadKey;
+      if (threadKey && threadKey !== listKey) {
+        let removed = false;
+        queryClient.setQueryData<Paginated<ChatMessage>>(threadKey, (old) => {
+          if (!old?.items.some((m) => m.id === context?.tempId)) return old;
+          removed = true;
+          return { ...old, items: old.items.filter((m) => m.id !== context?.tempId) };
+        });
+        if (removed && vars.threadRootId) {
+          // Оптимистичный +1 счётчика ответов корня откатывается вместе с темпом.
+          queryClient.setQueryData<Paginated<ChatMessage>>(listKey, (old) =>
+            old
+              ? {
+                  ...old,
+                  items: old.items.map((m) =>
+                    m.id === vars.threadRootId && m.threadRepliesCount > 0
+                      ? { ...m, threadRepliesCount: m.threadRepliesCount - 1 }
+                      : m,
+                  ),
+                }
+              : old,
+          );
+        }
+      } else {
+        queryClient.setQueryData<Paginated<ChatMessage>>(listKey, (old) =>
+          old ? { ...old, items: old.items.filter((m) => m.id !== context?.tempId) } : old,
+        );
       }
       // 409 политики важных (#177) — инлайн в композере (рядом с молнией),
       // прочие ошибки — штатный тост. Текст при этом НЕ теряется (#124).
@@ -332,7 +384,6 @@ export function useSendChatMessage(conversationId: string, draftScope?: string) 
         useComposerErrors.getState().set(draftScope, inlineCode);
         return;
       }
-      void vars;
       toast.error(ui.common.sendError);
     },
 
@@ -342,26 +393,55 @@ export function useSendChatMessage(conversationId: string, draftScope?: string) 
       // идемпотентности). Скоуп знает хост (conversation/feed/thread).
       // Стикер-отправка черновик не трогает (keepDraft, #143).
       if (draftScope && !vars.keepDraft) useChatDrafts.getState().clear(draftScope);
-      // Темповая запись заменяется серверной в том же кэше (лента или тред).
-      queryClient.setQueryData<Paginated<ChatMessage>>(context?.threadKey, (old) =>
-        old
-          ? {
-              items: old.items.map((m) => (m.id === context?.tempId ? server : m)),
-              nextCursor: old.nextCursor,
-            }
-          : old,
-      );
+      // Темповая запись заменяется серверной НА МЕСТЕ (лента или тред): при
+      // последовательной очереди порядок кликов = порядок ответов, позиции
+      // не двигаются. Темп мог уже уйти (WS-эхо по clientMessageId / рефеч
+      // с мерджем принесли серверную запись) — тогда не дублируем; запись
+      // вовсе отсутствует — вставляем перед хвостом более поздних темпов.
+      const key = context?.threadKey ?? chatKeys.messages(conversationId);
+      queryClient.setQueryData<Paginated<ChatMessage>>(key, (old) => {
+        if (!old) return old;
+        let settled = false;
+        const items = old.items.map((m) => {
+          if (settled) return m;
+          if (m.id === context?.tempId) {
+            settled = true;
+            return server;
+          }
+          // Темп той же логической отправки (эхо обогнало REST) — заменяем;
+          // автор сверяется (ключ уникален в рамках автора, БД).
+          if (
+            m.seq === 0 &&
+            m.clientMessageId === server.clientMessageId &&
+            m.author.id === server.author.id
+          ) {
+            settled = true;
+            return server;
+          }
+          // Серверная версия уже применена (эхо/рефеч) — оставляем её.
+          if (m.id === server.id) {
+            settled = true;
+            return m;
+          }
+          return m;
+        });
+        if (!settled) {
+          const at = items.findIndex((m) => m.seq === 0);
+          items.splice(at === -1 ? items.length : at, 0, server);
+        }
+        return { ...old, items };
+      });
       // МОК-симуляция просмотров (#102 р.2) переехала с отправки на КВИТАНЦИЮ
       // просмотра (use-viewport-read.ts): собеседник «просматривает» видимое
       // по мере прокрутки — отложенный рефеч после собственной квитанции.
     },
 
     onSettled: () => {
-      // Префикс messages(id) покрывает и тред-ключи (prefix matching).
-      void queryClient.invalidateQueries({ queryKey: chatKeys.messages(conversationId) });
+      // Ленту НЕ рефечим (#243): onSuccess уже применил точную серверную
+      // запись, WS-событие message_sent покрывает побочные ключи; рефеч на
+      // каждую отправку шквала и был источником дрожи. Список бесед
+      // (превью/активность) и заряды молнии (#177) — как раньше.
       void queryClient.invalidateQueries({ queryKey: chatKeys.conversations() });
-      // Заряды молнии (#177): счётчик обновляется сразу после отправки,
-      // не по 30-секундному staleTime.
       void queryClient.invalidateQueries({ queryKey: chatKeys.urgentPolicy() });
     },
   });

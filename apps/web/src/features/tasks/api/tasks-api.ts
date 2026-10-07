@@ -247,10 +247,13 @@ export function useSendTaskMessage(taskId: string) {
     onMutate: async (text) => {
       await queryClient.cancelQueries({ queryKey: tasksKeys.messages(taskId) });
       const previous = queryClient.getQueryData<Paginated<ChatMessage>>(tasksKeys.messages(taskId));
+      const tempId = `temp-${crypto.randomUUID()}`;
       const temp: ChatMessage = {
-        id: `temp-${crypto.randomUUID()}`,
+        id: tempId,
         conversationId: taskId,
         seq: 0, // плейсхолдер: реальный seq придёт с ответом сервера
+        // Ключ отправки темпа (#243, контракт clientMessageId).
+        clientMessageId: tempId,
         author: { id: user?.id ?? '', displayName: user?.displayName ?? '', avatarUrl: null },
         text,
         replyToId: null,

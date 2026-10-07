@@ -361,6 +361,7 @@ export const tasksHandlers = [
       id: crypto.randomUUID(),
       conversationId: String(params.id),
       seq,
+      clientMessageId: crypto.randomUUID(),
       author: userRef(currentAuthUser.id),
       text,
       replyToId: null,

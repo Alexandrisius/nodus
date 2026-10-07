@@ -36,6 +36,7 @@ function conv(
           id: `m-${id}`,
           conversationId: id,
           seq: 1,
+          clientMessageId: `m-${id}`,
           author: { id: 'u', displayName: 'U', avatarUrl: null },
           text: 'x',
           replyToId: null,

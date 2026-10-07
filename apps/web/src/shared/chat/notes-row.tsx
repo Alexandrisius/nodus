@@ -28,6 +28,7 @@ export function FavoriteRunMessage({
   selectionActive,
   selectedSet,
   onToggle,
+  messagesOfSelection,
 }: {
   message: ChatMessage;
   /** Карточка (строка — псевдо-сообщение оригинала) или null (запись). */
@@ -43,6 +44,8 @@ export function FavoriteRunMessage({
   selectionActive: boolean;
   selectedSet: Set<string>;
   onToggle: (id: string, shift: boolean) => void;
+  /** Выделенные строки витрины (ПКМ-меню селекта: команды #243). */
+  messagesOfSelection?: () => ChatMessage[];
 }) {
   // В режиме селекта выбираемы ВСЕ живые строки (#215): записи и карточки —
   // пакетное удаление маршрутизируется по типу (запись — удалить, карточку —
@@ -76,6 +79,7 @@ export function FavoriteRunMessage({
         mine={mine}
         conversationId={conversationId}
         scope={scope}
+        messagesOfSelection={messagesOfSelection}
         hideFavorite
       >
         <ChatMessageItem
@@ -107,9 +111,10 @@ export function FavoriteRunMessage({
     <MessageScrollerItem messageId={message.id} style={style}>
       <MessageRow
         messageId={message.id}
+        selectionKey={message.clientMessageId}
         selectable={selectable}
-        selected={selectedSet.has(message.id)}
-        onToggle={(shift) => onToggle(message.id, shift)}
+        selected={selectedSet.has(message.clientMessageId)}
+        onToggle={(shift) => onToggle(message.clientMessageId, shift)}
       >
         {row}
       </MessageRow>

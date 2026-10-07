@@ -9,7 +9,7 @@ import {
 import { encodeCursor } from '../../../core/pagination/cursor.util.js';
 import { DEFAULT_CONVERSATION_PERMISSIONS } from '../permissions.js';
 import { ConversationsService } from './conversations.service.js';
-import type { ConversationListRow } from './conversations.repository.js';
+import type { ConversationListRow } from './conversations-list.select.js';
 
 const TX = 'tx-handle';
 
@@ -36,6 +36,7 @@ function makeListRow(overrides: Partial<ConversationListRow> = {}): Conversation
     lm_id: null,
     lm_seq: null,
     lm_author_id: null,
+    lm_client_message_id: null,
     lm_text: null,
     lm_urgent: null,
     lm_reply_to_id: null,

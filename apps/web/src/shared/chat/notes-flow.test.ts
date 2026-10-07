@@ -6,6 +6,7 @@ import {
   filterNotesFlowBySource,
   mergeNotesFlow,
   splitNotesSelection,
+  notesSelectionIds,
 } from './notes-flow.js';
 
 const author: UserRef = {
@@ -19,6 +20,7 @@ function message(id: string, createdAt: string, text = ''): ChatMessage {
     id,
     conversationId: '00000000-0000-4000-8000-0000000000c0',
     seq: 1,
+    clientMessageId: id,
     author,
     text,
     replyToId: null,
@@ -66,15 +68,39 @@ function card(
 }
 
 describe('mergeNotesFlow', () => {
-  it('сливает записи и карточки по времени ASC', () => {
+  it('сливает записи и карточки: записи в порядке кэша, карточки по времени между ними', () => {
     const entries = mergeNotesFlow(
-      [message('m2', '2026-10-04T10:00:00Z'), message('m1', '2026-10-04T09:00:00Z')],
+      [message('m1', '2026-10-04T09:00:00Z'), message('m2', '2026-10-04T10:00:00Z')],
       [card('f1', '2026-10-04T09:30:00Z')],
     );
     expect(entries.map((e) => e.kind)).toEqual(['note', 'favorite', 'note']);
     expect(entries[0]).toHaveProperty('message.id', 'm1');
     expect(entries[1]).toHaveProperty('card.messageId', 'f1');
     expect(entries[2]).toHaveProperty('message.id', 'm2');
+  });
+
+  it('записи НЕ пересортируются по createdAt (#243, пляска «Избранного»)', () => {
+    // Шквал: темпы с КЛИЕНТСКИМИ метками заменяются серверными записями с
+    // ДРУГИМИ метками (сдвиг часов: инвертированы). Порядок записей =
+    // порядок массива (кэш ленты/очередь): смена метки не двигает строку.
+    const temps = [
+      message('t1', '2026-10-04T12:00:03.100Z'),
+      message('t2', '2026-10-04T12:00:03.200Z'),
+      message('t3', '2026-10-04T12:00:03.300Z'),
+    ];
+    expect(mergeNotesFlow(temps, []).map((e) => (e.kind === 'note' ? e.message.id : ''))).toEqual([
+      't1',
+      't2',
+      't3',
+    ]);
+    const confirmed = [
+      message('s1', '2026-10-04T12:00:03.250Z'),
+      message('s2', '2026-10-04T12:00:03.150Z'),
+      message('s3', '2026-10-04T12:00:03.050Z'),
+    ];
+    expect(
+      mergeNotesFlow(confirmed, []).map((e) => (e.kind === 'note' ? e.message.id : '')),
+    ).toEqual(['s1', 's2', 's3']);
   });
 
   it('при равных метках запись первична (стабильный порядок)', () => {
@@ -200,11 +226,42 @@ describe('filterNotesFlowBySource (#211 Ф3: окно-источник «Изб�
   });
 
   it('порядок потока сохраняется (ось слияния не меняется фильтром)', () => {
+    // Записи — в порядке кэша ленты (ASC по seq, #243), не по createdAt.
     const entries = mergeNotesFlow(
-      [message('n1', '2026-10-01T10:00:00Z'), message('n2', '2026-10-01T09:00:00Z')],
+      [message('n1', '2026-10-01T09:00:00Z'), message('n2', '2026-10-01T10:00:00Z')],
       [],
     );
     const filtered = filterNotesFlowBySource(entries, 'notes', author.id);
-    expect(filtered.map((e) => (e.kind === 'note' ? e.message.id : ''))).toEqual(['n2', 'n1']);
+    expect(filtered.map((e) => (e.kind === 'note' ? e.message.id : ''))).toEqual(['n1', 'n2']);
+  });
+});
+
+describe('notesSelectionIds — батч-команды витрины не ломаются на карточках (#243)', () => {
+  const cardIds = new Set(['card-1']);
+  const card = message('card-1', '2026-10-07T10:00:00Z'); // псевдо-запись карточки
+  const cardMsg = { ...card, seq: 0, clientMessageId: 'card-1' };
+  const confirmed = { ...message('n-1', '2026-10-07T10:00:01Z'), seq: 5, clientMessageId: 'k1' };
+  const flying = {
+    ...message('temp-1', '2026-10-07T10:00:02Z'),
+    seq: 0,
+    id: 'temp-1',
+    clientMessageId: 'temp-1',
+  };
+
+  it('карточка — НЕ темп: id валиден, pending нет', () => {
+    const res = notesSelectionIds([cardMsg], cardIds);
+    expect(res).toEqual({ ids: ['card-1'], pending: false });
+  });
+
+  it('микс карточка+запись подтверждённая — всё доступно', () => {
+    const res = notesSelectionIds([cardMsg, confirmed], cardIds);
+    expect(res.ids).toEqual(['card-1', 'n-1']);
+    expect(res.pending).toBe(false);
+  });
+
+  it('летящая запись — pending, карточки при ней не блокируются', () => {
+    const res = notesSelectionIds([cardMsg, flying], cardIds);
+    expect(res.ids).toEqual(['card-1']);
+    expect(res.pending).toBe(true);
   });
 });

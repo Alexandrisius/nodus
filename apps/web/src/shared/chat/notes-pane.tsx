@@ -28,7 +28,7 @@ import { useIncomingFollow } from './use-incoming-follow.js';
 import { FavoriteRunMessage } from './notes-row.js';
 import { buildMessageRuns, formatDayLabel, startsNewDay } from './message-groups.js';
 import { MessageRunView } from './message-run.js';
-import { mergeNotesFlow, splitNotesSelection } from './notes-flow.js';
+import { notesSelectionIds, mergeNotesFlow, splitNotesSelection } from './notes-flow.js';
 import { reconcileServerDraft } from './draft-sync.js';
 import { setOpenConversation } from './notifications.js';
 import { registerScopeSubmit } from './submit-registry.js';
@@ -148,17 +148,23 @@ export function NotesPane({ conversationId }: { conversationId: string }) {
   // кнопки пересылки нет.
   const selectionBar: ComposerSelection | null = selection.selectionActive
     ? (() => {
-        const ids = selection.orderedIds.filter((id) => selection.selectedSet.has(id));
+        const keys = selection.orderedIds.filter((id) => selection.selectedSet.has(id));
+        // Батч-команды витрины (#243, блокер ревью): карточка — серверная
+        // закладка (id валиден, НЕ темп), летящий — только запись seq=0.
+        const { ids, pending } = notesSelectionIds(selection.getSelectedMessages(), feedCardIds);
         const { noteIds } = splitNotesSelection(ids, new Set(messages.map((m) => m.id)));
         return {
-          count: ids.length,
+          count: keys.length,
           ids,
+          pending,
           allMine: selection.allMine,
           deletable: true,
           favoritesEnabled: false,
           forwardable: noteIds.length > 0,
           onForward: () => useForwardDialog.getState().open(conversationId, noteIds),
-          onDelete: () => useDeleteDialog.getState().ask(conversationId, ids),
+          onDelete: () => {
+            if (ids.length > 0) useDeleteDialog.getState().ask(conversationId, ids);
+          },
           onCopy: () => copyMessagesAsText(selection.getSelectedMessages()),
           onClear: () => useSelectionStore.getState().exit(),
         };
@@ -269,6 +275,7 @@ export function NotesPane({ conversationId }: { conversationId: string }) {
                               selectionActive={selection.selectionActive}
                               selectedSet={selection.selectedSet}
                               onToggle={selection.toggle}
+                              messagesOfSelection={selection.getSelectedMessages}
                             />
                           )}
                         />

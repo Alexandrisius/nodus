@@ -242,6 +242,9 @@ const conversationHandlers = [
       id: crypto.randomUUID(),
       conversationId: String(params.id),
       seq,
+      // Связка темпа с серверной записью (#243): ключ идемпотентности
+      // запроса = clientMessageId (паритет живому серверу).
+      clientMessageId: request.headers.get('Idempotency-Key') ?? crypto.randomUUID(),
       author: actorUserRef(),
       text: parsed.data.text,
       replyToId: parsed.data.replyToId ?? null,
