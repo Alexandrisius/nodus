@@ -26,10 +26,8 @@ import { DomainException } from '../../../core/errors/domain-exception.js';
 import { mergePermissions } from '../permissions.js';
 import { ConversationItemMapper } from './conversation-item.mapper.js';
 import { requireConversationAction } from './conversation-guards.js';
-import {
-  ConversationsRepository,
-  type ConversationListCursor,
-} from './conversations.repository.js';
+import type { ConversationListCursor } from './conversations-list.select.js';
+import { ConversationsRepository } from './conversations.repository.js';
 
 const conversationCursorSchema = z.object({
   at: z.string().nullable(),

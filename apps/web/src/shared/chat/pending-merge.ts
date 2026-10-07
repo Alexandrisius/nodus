@@ -19,7 +19,9 @@ export function mergePendingIntoPage(
   if (!prevItems || prevItems.length === 0) return server;
 
   const serverIds = new Set(server.items.map((m) => m.id));
-  const serverClientIds = new Set(server.items.map((m) => m.clientMessageId));
+  // Связка (автор + ключ отправки): ключ уникален в рамках автора (БД) —
+  // чужая запись с тем же ключом темп не «подтверждает».
+  const serverAuthorKeys = new Set(server.items.map((m) => `${m.author.id}|${m.clientMessageId}`));
   let serverLastSeq = 0;
   for (const m of server.items) if (m.seq > serverLastSeq) serverLastSeq = m.seq;
 
@@ -27,7 +29,7 @@ export function mergePendingIntoPage(
     (m) =>
       (m.seq === 0 || m.seq > serverLastSeq) &&
       !serverIds.has(m.id) &&
-      !serverClientIds.has(m.clientMessageId),
+      !serverAuthorKeys.has(`${m.author.id}|${m.clientMessageId}`),
   );
   if (carry.length === 0) return server;
   return { ...server, items: [...server.items, ...carry] };

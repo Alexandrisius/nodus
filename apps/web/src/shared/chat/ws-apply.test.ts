@@ -158,6 +158,31 @@ describe('applySentMessage', () => {
     expect(feed(client).map((m) => m.id)).toEqual(['a', 'server-1']);
   });
 
+  it('ЧУЖАЯ запись с clientMessageId темпа темп не забирает (ключ уникален в рамках автора)', () => {
+    const client = new QueryClient();
+    client.setQueryData(chatKeys.messages(CONV), {
+      items: [
+        msg({ id: 'a', seq: 5 }),
+        // Темп НАШ (author u1), но ключ совпал с чужой отправкой.
+        msg({ id: 'temp-1', seq: 0, clientMessageId: 'shared-key', text: 'моё' }),
+      ],
+      nextCursor: null,
+    });
+    // Чужое сообщение (другой автор) с тем же ключом — непрерывности нет (дыра).
+    const applied = applySentMessage(client, {
+      conversationId: CONV,
+      threadRootId: null,
+      message: msg({
+        id: 'foreign',
+        seq: 8,
+        clientMessageId: 'shared-key',
+        author: { id: 'u2', displayName: 'Чужой', avatarUrl: null },
+      }),
+    });
+    expect(applied).toBe(false); // дыра → рефеч; темп не тронут
+    expect(feed(client).map((m) => m.id)).toEqual(['a', 'temp-1']);
+  });
+
   it('дыра в seq при темпе в хвосте (чужом) → false (рефетч заменит)', () => {
     const client = new QueryClient();
     client.setQueryData(chatKeys.messages(CONV), {

@@ -57,8 +57,15 @@ export function applySentMessage(
       return old;
     }
     // Эхо своего темпа: замена на месте, порядок не двигается (#243).
+    // Автор сверяется: ключ отправки уникален в рамках АВТОРА (БД), чужая
+    // запись с тем же ключом темп не забирает.
     const tempIndex = message.clientMessageId
-      ? old.items.findIndex((m) => m.seq === 0 && m.clientMessageId === message.clientMessageId)
+      ? old.items.findIndex(
+          (m) =>
+            m.seq === 0 &&
+            m.clientMessageId === message.clientMessageId &&
+            m.author.id === message.author.id,
+        )
       : -1;
     if (tempIndex !== -1) {
       applied = true;
@@ -116,7 +123,10 @@ function applyToThreadCache(
   if (threadData.items.some((m) => m.id === message.id)) return true;
   const tempIndex = message.clientMessageId
     ? threadData.items.findIndex(
-        (m) => m.seq === 0 && m.clientMessageId === message.clientMessageId,
+        (m) =>
+          m.seq === 0 &&
+          m.clientMessageId === message.clientMessageId &&
+          m.author.id === message.author.id,
       )
     : -1;
   if (tempIndex !== -1) {

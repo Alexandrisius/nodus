@@ -408,8 +408,13 @@ export function useSendChatMessage(conversationId: string, draftScope?: string) 
             settled = true;
             return server;
           }
-          // Темп той же логической отправки (эхо обогнало REST) — заменяем.
-          if (m.seq === 0 && m.clientMessageId === server.clientMessageId) {
+          // Темп той же логической отправки (эхо обогнало REST) — заменяем;
+          // автор сверяется (ключ уникален в рамках автора, БД).
+          if (
+            m.seq === 0 &&
+            m.clientMessageId === server.clientMessageId &&
+            m.author.id === server.author.id
+          ) {
             settled = true;
             return server;
           }

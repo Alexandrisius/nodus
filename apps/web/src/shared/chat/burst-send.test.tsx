@@ -3,9 +3,10 @@ import { act, renderHook } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ChatMessage, Paginated } from '@nodus/contracts';
 import { createElement, type ReactNode } from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { chatKeys, useSendChatMessage } from './api.js';
+import { useAuthStore } from '../auth-store.js';
 import { applySentMessage } from './ws-apply.js';
 
 /**
@@ -101,6 +102,15 @@ function seedFeed(client: QueryClient): void {
 beforeEach(() => {
   vi.unstubAllGlobals();
   vi.stubEnv('VITE_API_MOCK', 'false');
+  // Автор темпа = автор серверной записи (связка по clientMessageId сверяет
+  // и автора — ключ уникален в рамках автора, БД).
+  useAuthStore.setState({
+    user: { id: 'me', displayName: 'Я', email: 'me@nodus.by', permissions: [] },
+  });
+});
+
+afterEach(() => {
+  useAuthStore.setState({ user: null });
 });
 
 describe('useSendChatMessage — шквальная отправка (#243)', () => {
