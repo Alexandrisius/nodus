@@ -5,6 +5,7 @@ import {
   realtimeEnvelopeSchema,
   type RealtimeEnvelope,
   CHAT_EVENTS,
+  chatMessageSentPayloadSchema,
 } from '@nodus/contracts';
 
 import { isDomainMocked } from '../api/api-mock-config.js';
@@ -149,7 +150,7 @@ export function connectChatSocket(queryClient: QueryClient): void {
       if (parsed.success) {
         invalidator?.handle(parsed.data satisfies RealtimeEnvelope);
         // Сигнал фоновой вкладке (#124): гейт внутри (opt-in/фон/не своя).
-        if (parsed.data.type === CHAT_EVENTS.MESSAGE_SENT) {
+        if (parsed.data.type === CHAT_EVENTS.MESSAGE_SENT && isFirstDelivery(parsed.data.payload)) {
           notifySentMessage(parsed.data.payload);
           // Десктоп-оболочка (#254): попап с быстрым ответом (гейты внутри).
           notifyDesktopMessage(parsed.data.payload, queryClient);
@@ -187,8 +188,35 @@ export function connectChatSocket(queryClient: QueryClient): void {
   });
 }
 
-/** Будила журнала (#100): тосты/гашение — через мост в фичу. */
-function dispatchNotification(envelope: RealtimeEnvelope): void {
+/**
+ * Дедуп доставки message_sent (gateway fanout шлёт событие и в conv-комнату,
+ * и в user-комнаты участников — at-least-once): клиент в открытой беседе
+ * получает ОДНО сообщение дважды; без дедупа каждый канал всплытия
+ * срабатывал бы на каждую копию (2 попапа оболочки, 2 тоста, 2 flash).
+ * Порядок вставки Set = очередь; старейший выпадает за пределами лимита.
+ */
+const deliveredMessageIds = new Set<string>();
+const DELIVERED_LIMIT = 500;
+
+/**
+ * Первая ли это доставка message_sent (экспорт — для юнит-теста дедупа).
+ */
+export function isFirstDelivery(payload: unknown): boolean {
+  const parsed = chatMessageSentPayloadSchema.safeParse(payload);
+  if (!parsed.success || !parsed.data.message) return true; // мусор — гейты ниже молчат
+  const id = parsed.data.message.id;
+  if (deliveredMessageIds.has(id)) return false;
+  deliveredMessageIds.add(id);
+  if (deliveredMessageIds.size > DELIVERED_LIMIT) {
+    const oldest = deliveredMessageIds.values().next().value;
+    if (oldest) deliveredMessageIds.delete(oldest);
+  }
+  return true;
+}
+
+/** Будила журнала (#100): тосты/гашение — через мост в фичу. */ function dispatchNotification(
+  envelope: RealtimeEnvelope,
+): void {
   const payload = (envelope.payload ?? {}) as Record<string, unknown>;
   if (envelope.type === 'notification.dispatch_requested') {
     const snapshot = payload.snapshot as Record<string, unknown> | null;

@@ -47,6 +47,25 @@ export function maxSeenSeq(
   return max;
 }
 
+/**
+ * Форс-дозапись квитанций всех бесед (фидбек 08.10: «счётчик висит на 1,
+ * пропадает только после отправки»): сокрытие оболочки в трей не меняет
+ * document.hidden в WebView2 — visibilitychange не стреляет и хвост
+ * квитанции оставался неотправленным. Оболочка сигналит shell-visibility,
+ * вызов дозаписывает увиденное немедленно.
+ */
+let flushOnHide: (() => void) | null = null;
+
+/** Регистрация колбэка «оболочка скрылась» (вызывает desktop-bridge). */
+export function setShellHiddenFlush(fn: (() => void) | null): void {
+  flushOnHide = fn;
+}
+
+/** Вызов из desktop-bridge при visible=false. */
+export function flushReadReceiptsOnShellHide(): void {
+  flushOnHide?.();
+}
+
 function useReadReceiptScheduler(
   conversationId: string,
   threadRootIdRef: RefObject<string | null>,
@@ -95,10 +114,15 @@ function useReadReceiptScheduler(
     };
     document.addEventListener('visibilitychange', onVisibility);
     window.addEventListener('pagehide', onVisibility);
+    const prevFlush = flushOnHide;
+    setShellHiddenFlush(() => scheduler.flush());
 
     return () => {
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('pagehide', onVisibility);
+      if (flushOnHide === scheduler.flush || prevFlush === null) {
+        setShellHiddenFlush(null);
+      }
       scheduler.flush(); // смена беседы: хвост ниже вьюпорта не прочитан
       scheduler.dispose();
       schedulerRef.current = null;

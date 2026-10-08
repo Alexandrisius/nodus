@@ -192,11 +192,34 @@ describe('notifyDesktopMessage', () => {
   it('пустой текст заменяется заглушкой вложения', () => {
     setShellVisibleFromShell(false);
     const withAttachment = messagePayload({
-      message: { ...messagePayload().message, text: '' },
+      message: {
+        ...messagePayload().message,
+        text: '',
+        attachments: [
+          {
+            id: '00000000-0000-4000-8000-0000000000a1',
+            fileId: '00000000-0000-4000-8000-0000000000f1',
+            name: 'photo.png',
+            size: 12345,
+            mime: 'image/png',
+            kind: 'image',
+            sticker: null,
+            url: null,
+            thumbnailUrl: null,
+            previewKind: 'image',
+            pdfUrl: null,
+            width: 800,
+            height: 600,
+          },
+        ],
+      },
     });
     notifyDesktopMessage(withAttachment, queryClientWith({}));
     expect(window.nodusDesktop?.showPopup).toHaveBeenCalledWith(
-      expect.objectContaining({ preview: expect.any(String) }),
+      expect.objectContaining({
+        preview: 'Фотография',
+        previewAttachment: true,
+      }),
     );
   });
 });

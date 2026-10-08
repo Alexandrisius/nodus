@@ -40,16 +40,59 @@ export function notifyDesktopMessage(payload: unknown, queryClient: QueryClient)
     if (looking) return;
   }
 
+  // Превью: текст сообщения; без текста — метка вложения («Фотография»),
+  // попап красит её акцентом (модель Telegram, фидбек 08.10).
+  const attachments = message.attachments ?? [];
+  const text = stripMentionTokens(message.text).trim();
+  let preview: string;
+  let previewAttachment = false;
+  if (text) {
+    preview = text.slice(0, 200);
+  } else if (attachments.length > 0) {
+    preview = attachmentLabel(attachments, ui.desktop);
+    previewAttachment = true;
+  } else {
+    preview = ui.chat.notificationEmpty;
+  }
+
   void desktopShowPopup({
     id: message.id,
     conversationId,
     title: withoutPatronymic(message.author.displayName),
     avatarUrl: message.author.avatarUrl ?? undefined,
-    preview: stripMentionTokens(message.text).slice(0, 200) || ui.chat.notificationEmpty,
+    preview,
+    previewAttachment,
     urgent,
     canReply: true,
   });
   void desktopFlashTaskbar(urgent);
+}
+
+/** Метка вложения для превью попапа: вид носителя + число (как Telegram). */
+function attachmentLabel(
+  attachments: { kind: string; previewKind?: string; mime: string }[],
+  t: typeof ui.desktop,
+): string {
+  const first = attachments[0];
+  if (!first) return t.attachmentFile;
+  const mime = first.mime.toLowerCase();
+  const label =
+    first.kind === 'sticker'
+      ? t.attachmentSticker
+      : first.previewKind === 'image'
+        ? attachments.length > 1
+          ? t.attachmentImages
+          : t.attachmentImage
+        : first.previewKind === 'video'
+          ? t.attachmentVideo
+          : first.previewKind === 'pdf'
+            ? t.attachmentPdf
+            : first.previewKind === 'office'
+              ? t.attachmentOffice
+              : mime.startsWith('audio/')
+                ? t.attachmentAudio
+                : t.attachmentFile;
+  return attachments.length > 1 ? `${label} ×${attachments.length}` : label;
 }
 
 /** Mute/snooze беседы из кэша списка (WS-инвалидация несёт свежесть). */

@@ -21,7 +21,8 @@ pub async fn check_and_install(app: &AppHandle) -> Result<UpdateOutcome, String>
     let Some(root) = portal::portal_root(app) else {
         return Ok(UpdateOutcome::Unavailable);
     };
-    let endpoint = tauri::Url::parse(&format!("{root}/desktop/latest.json")).map_err(|e| e.to_string())?;
+    let endpoint =
+        tauri::Url::parse(&format!("{root}/desktop/latest.json")).map_err(|e| e.to_string())?;
     let updater = app
         .updater_builder()
         .endpoints(vec![endpoint])
@@ -36,7 +37,11 @@ pub async fn check_and_install(app: &AppHandle) -> Result<UpdateOutcome, String>
             return Ok(UpdateOutcome::Unavailable);
         }
     };
-    log::info!("обновление оболочки: {} → {}", update.current_version, update.version);
+    log::info!(
+        "обновление оболочки: {} → {}",
+        update.current_version,
+        update.version
+    );
     update
         .download_and_install(|_, _| {}, || {})
         .await

@@ -127,6 +127,12 @@ export async function getShellInfo(): Promise<{ version: string; platform: strin
 /** Установка видимости оболочки (событие bridge; тесты — напрямую). */
 export function setShellVisibleFromShell(visible: boolean): void {
   setShellVisible(visible);
+  // Сокрытие в трей: WebView2 не меняет document.hidden — квитанции
+  // просмотров чата дозаписываем немедленно, иначе хвост непрочитанного
+  // оставался «зомби-бейджем» до следующей активности (фидбек 08.10).
+  if (!visible) {
+    void import('../chat/use-viewport-read.js').then((m) => m.flushReadReceiptsOnShellHide());
+  }
 }
 
 /**

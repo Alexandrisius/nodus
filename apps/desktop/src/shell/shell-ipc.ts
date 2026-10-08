@@ -35,5 +35,6 @@ export const shellApi = {
   changeServer: () => invoke<void>('change_server'),
 };
 
-/** Данные попапа, приходящие из Rust событием `popup:data`. */
-export type PopupData = PopupPayload & { autocloseMs: number };
+/** Данные попапа (pull из Rust после загрузки окна; автозакрытия нет —
+ *  угасанием командует Rust-тикер по активности пользователя). */
+export type PopupData = PopupPayload;

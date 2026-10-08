@@ -42,7 +42,10 @@ struct DesktopConfig {
 }
 
 fn config_file(app: &AppHandle) -> Option<std::path::PathBuf> {
-    app.path().app_config_dir().ok().map(|dir| dir.join("portal.json"))
+    app.path()
+        .app_config_dir()
+        .ok()
+        .map(|dir| dir.join("portal.json"))
 }
 
 /// Адрес, зашитый в сборку (CI-арг NODUS_PORTAL_URL, модель Битрикса для
@@ -115,7 +118,10 @@ async fn fetch_config(root: &str) -> Result<DesktopConfig, String> {
         .await
         .map_err(|e| e.to_string())?;
     if !resp.status().is_success() {
-        return Ok(DesktopConfig { server_name: "Nodus".into(), min_shell_version: "0.0.0".into() });
+        return Ok(DesktopConfig {
+            server_name: "Nodus".into(),
+            min_shell_version: "0.0.0".into(),
+        });
     }
     #[derive(serde::Deserialize, Default)]
     struct Raw {
@@ -126,7 +132,10 @@ async fn fetch_config(root: &str) -> Result<DesktopConfig, String> {
     }
     let raw: Raw = resp.json().await.unwrap_or_default();
     Ok(DesktopConfig {
-        server_name: raw.server_name.filter(|s| !s.is_empty()).unwrap_or_else(|| "Nodus".into()),
+        server_name: raw
+            .server_name
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| "Nodus".into()),
         min_shell_version: raw
             .min_shell_version
             .filter(|s| !s.is_empty())
@@ -154,7 +163,10 @@ async fn connect(app: AppHandle, root: String) -> ConnectionState {
         }
     };
     if !version_satisfies(&version, &cfg.min_shell_version) {
-        log::info!("оболочка {version} ниже минимума {} сервера", cfg.min_shell_version);
+        log::info!(
+            "оболочка {version} ниже минимума {} сервера",
+            cfg.min_shell_version
+        );
         set_phase(&app, Phase::NeedsUpdate, Some(root.clone()), Some(&cfg));
         return ConnectionState::NeedsUpdate {
             address: root,
@@ -176,7 +188,10 @@ async fn connect(app: AppHandle, root: String) -> ConnectionState {
     log::info!("подключено к «{}» ({root})", cfg.server_name);
     // Фоновая проверка обновлений оболочки (тихо, результат не блокирует вход).
     crate::updates::spawn_startup_check(app.clone());
-    ConnectionState::Ready { address: root, server_name: cfg.server_name }
+    ConnectionState::Ready {
+        address: root,
+        server_name: cfg.server_name,
+    }
 }
 
 fn set_phase(app: &AppHandle, phase: Phase, root: Option<String>, cfg: Option<&DesktopConfig>) {
@@ -202,7 +217,9 @@ pub fn get_connection_state(app: AppHandle, state: State<'_, ShellState>) -> Con
             saved_address: load_saved_address(&app),
         },
         Phase::Connecting => ConnectionState::Connecting,
-        Phase::Offline => ConnectionState::Offline { address: address.unwrap_or_default() },
+        Phase::Offline => ConnectionState::Offline {
+            address: address.unwrap_or_default(),
+        },
         Phase::NeedsUpdate => ConnectionState::NeedsUpdate {
             address: address.unwrap_or_default(),
             server_name: server,
@@ -211,7 +228,10 @@ pub fn get_connection_state(app: AppHandle, state: State<'_, ShellState>) -> Con
                 .clone()
                 .unwrap_or_else(|| "0.0.0".into()),
         },
-        Phase::Ready => ConnectionState::Ready { address: address.unwrap_or_default(), server_name: server },
+        Phase::Ready => ConnectionState::Ready {
+            address: address.unwrap_or_default(),
+            server_name: server,
+        },
     }
 }
 
@@ -256,7 +276,12 @@ pub fn change_server(app: AppHandle) {
 
 /// Текущий root портала для остальных модулей (updater, deep links).
 pub fn portal_root(app: &AppHandle) -> Option<String> {
-    app.state::<ShellState>().inner.lock().unwrap().portal_root.clone()
+    app.state::<ShellState>()
+        .inner
+        .lock()
+        .unwrap()
+        .portal_root
+        .clone()
 }
 
 /// Портал готов и окно навигировано (гейт для доставки deep link'ов).

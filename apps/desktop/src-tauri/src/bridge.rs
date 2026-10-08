@@ -4,8 +4,8 @@ use tauri::ipc::CapabilityBuilder;
 use tauri::{AppHandle, Manager, UserAttentionType};
 use tauri_plugin_opener::OpenerExt;
 
-use crate::popups;
 use crate::badge;
+use crate::popups;
 use crate::portal;
 
 /// JS-мост, инъектируемый в webview до скриптов каждой страницы (включая
@@ -78,7 +78,9 @@ pub fn grant_portal_capability(app: &AppHandle, root: &str) -> tauri::Result<()>
 /// Пуш события «оболочка → веб» (eval в главное окно). JSON-строки — валидные
 /// JS-литералы, экранирование бесплатно.
 pub fn push_to_portal(app: &AppHandle, event_type: &str, payload: &impl Serialize) {
-    let Some(win) = app.get_webview_window("main") else { return };
+    let Some(win) = app.get_webview_window("main") else {
+        return;
+    };
     let js = format!(
         "window.__nodusDesktopInvoke && window.__nodusDesktopInvoke({}, {})",
         serde_json::to_string(event_type).unwrap_or_default(),
@@ -109,6 +111,8 @@ pub struct PopupPayload {
     pub title: String,
     pub avatar_url: Option<String>,
     pub preview: String,
+    /// Превью — метка вложения («Фотография»): попап красит акцентом.
+    pub preview_attachment: Option<bool>,
     pub urgent: bool,
     pub can_reply: bool,
 }
@@ -134,7 +138,10 @@ pub async fn notify_popup(app: AppHandle, payload: PopupPayload) -> Result<(), S
         || payload.title.is_empty()
         || payload.title.chars().count() > 200
         || payload.preview.chars().count() > 500
-        || payload.avatar_url.as_deref().is_some_and(|u| u.len() > 2000)
+        || payload
+            .avatar_url
+            .as_deref()
+            .is_some_and(|u| u.len() > 2000)
     {
         return Err("invalid_payload".into());
     }
@@ -162,7 +169,11 @@ pub fn dismiss_popups(app: AppHandle, conversation_id: String) -> Result<(), Str
 #[tauri::command]
 pub fn flash_taskbar(app: AppHandle, critical: bool) {
     if let Some(win) = app.get_webview_window("main") {
-        let attention = if critical { UserAttentionType::Critical } else { UserAttentionType::Informational };
+        let attention = if critical {
+            UserAttentionType::Critical
+        } else {
+            UserAttentionType::Informational
+        };
         if let Err(e) = win.request_user_attention(Some(attention)) {
             log::warn!("мигание таскбара не удалось: {e}");
         }

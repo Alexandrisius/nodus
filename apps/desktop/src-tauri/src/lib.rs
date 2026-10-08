@@ -1,3 +1,4 @@
+mod activity;
 mod badge;
 mod bridge;
 mod deep_link;
@@ -38,7 +39,9 @@ pub fn run() {
             tauri_plugin_log::Builder::new()
                 .targets([
                     Target::new(TargetKind::Stdout),
-                    Target::new(TargetKind::LogDir { file_name: Some("nodus-desktop.log".into()) }),
+                    Target::new(TargetKind::LogDir {
+                        file_name: Some("nodus-desktop.log".into()),
+                    }),
                 ])
                 .max_file_size(8_000_000)
                 .build(),
@@ -51,6 +54,9 @@ pub fn run() {
             create_main_window(&handle)?;
             tray_menu::setup(&handle)?;
             deep_link::setup(&handle)?;
+            // Активность пользователя (клик/клавиша, без движения мыши) —
+            // арбитр угасания попапов (#254, модель Telegram).
+            activity::start();
             Ok(())
         })
         .on_window_event(|window, event| match event {
@@ -89,6 +95,8 @@ pub fn run() {
             popups::popup_get_data,
             popups::popup_close,
             popups::popup_set_expanded,
+            popups::popup_set_hover,
+            popups::popup_close_all,
             popups::popup_submit_reply,
             popups::popup_open,
         ])
@@ -101,19 +109,16 @@ pub fn run() {
 fn create_main_window(app: &AppHandle) -> tauri::Result<()> {
     let version = app.package_info().version.to_string();
     let nav_app = app.clone();
-    let win = tauri::WebviewWindowBuilder::new(
-        app,
-        "main",
-        tauri::WebviewUrl::App("index.html".into()),
-    )
-    .title("Nodus")
-    .inner_size(1280.0, 800.0)
-    .min_inner_size(1024.0, 660.0)
-    .center()
-    .visible(false)
-    .initialization_script(bridge::initialization_script(&version))
-    .on_navigation(move |url| navigation_allowed(&nav_app, url))
-    .build()?;
+    let win =
+        tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::App("index.html".into()))
+            .title("Nodus")
+            .inner_size(1280.0, 800.0)
+            .min_inner_size(1024.0, 660.0)
+            .center()
+            .visible(false)
+            .initialization_script(bridge::initialization_script(&version))
+            .on_navigation(move |url| navigation_allowed(&nav_app, url))
+            .build()?;
     // Иконка окна/таскбара по системной теме (тёмная тема → белый знак);
     // дефолт конфигурации один, реверс живёт рантаймом.
     let _ = win.set_icon(badge::themed_base_icon(app));
@@ -152,5 +157,9 @@ pub fn show_main(app: &AppHandle) {
         let _ = win.unminimize();
         let _ = win.set_focus();
     }
-    bridge::push_to_portal(app, "shell-visibility", &serde_json::json!({ "visible": true }));
+    bridge::push_to_portal(
+        app,
+        "shell-visibility",
+        &serde_json::json!({ "visible": true }),
+    );
 }

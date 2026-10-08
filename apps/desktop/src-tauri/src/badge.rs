@@ -35,7 +35,11 @@ struct Rgba {
 
 impl Rgba {
     fn new(width: u32, height: u32) -> Self {
-        Self { data: vec![0; (width * height * 4) as usize], width, height }
+        Self {
+            data: vec![0; (width * height * 4) as usize],
+            width,
+            height,
+        }
     }
     fn put(&mut self, x: i32, y: i32, color: [u8; 4]) {
         if x < 0 || y < 0 || x >= self.width as i32 || y >= self.height as i32 {
@@ -132,19 +136,19 @@ fn draw_counter(buf: &mut Rgba, cx: f32, cy: f32, count: u32, scale: i32) {
     }
 }
 
-/// Геометрия бейджа: (радиус круга, масштаб цифр). Единая для трея и
-/// панели задач (фидбек владельца 08.10: «уменьшить в 1.5 раза вместе с
-/// цифрой» — было r11/масштаб 3, заполнявшее всю иконку); двухзначному
-/// числу круг чуть шире, чтобы «99» не резало углы.
-fn badge_geom(count: u32) -> (f32, i32) {
-    if count >= 10 && count < 100 { (8.0, 2) } else { (7.0, 2) }
+/// Геометрия бейджа панели задач: (радиус круга, масштаб цифр) — заливка
+/// чуть крупнее при мелкой цифре (фидбек 08.10: «диаметр заливки увеличить,
+/// цифру не увеличивать»); двухзначному числу круг шире, чтобы «99» не резало
+/// углы. В трее бейджа НЕТ (закрывал знак-график — вердикт владельца 08.10).
+fn taskbar_geom(count: u32) -> (f32, i32) {
+    if count >= 10 && count < 100 { (9.0, 2) } else { (8.0, 2) }
 }
 
 /// Значок-бейдж отдельной картинкой (оверлей панели задач, 24×24): круг в
 /// правом-нижнем углу канваса — Windows дорисовывает оверлей у угла кнопки.
 fn overlay_icon(count: u32) -> Image<'static> {
     let size = 24;
-    let (r, scale) = badge_geom(count);
+    let (r, scale) = taskbar_geom(count);
     let mut buf = Rgba::new(size, size);
     let cx = size as f32 - r - 1.0;
     let cy = size as f32 - r - 1.0;
@@ -153,29 +157,15 @@ fn overlay_icon(count: u32) -> Image<'static> {
     buf.into_image()
 }
 
-/// Значок трея: базовая иконка + бейдж в правом-ВЕРХНЕМ углу (32×32) —
-/// в правом-нижнем круг наезжал на знак-график (фидбек владельца 08.10),
-/// крупный радиус 9 с цифрой в масштабе 3 читался «почти по центру».
-fn tray_icon_with_badge(base: &Image, count: u32) -> Image<'static> {
-    let (w, h) = (base.width(), base.height());
-    let mut buf = Rgba::new(w, h);
-    buf.data.copy_from_slice(base.rgba());
-    let (r, scale) = badge_geom(count);
-    let (cx, cy) = (w as f32 - r - 1.0, r + 1.0);
-    // подложка цвета панели под кругом не нужна: круг с альфой поверх иконки
-    fill_circle(&mut buf, cx, cy, r, BADGE_RED);
-    draw_counter(&mut buf, cx, cy, count, scale);
-    buf.into_image()
-}
-
-/// Применить счётчик непрочитанных: бейдж трея + оверлей панели задач +
-/// тултип. 0/None — чистые иконки.
+/// Применить счётчик непрочитанных (фидбек 08.10: счётчик ТОЛЬКО на панели
+/// задач — оверлей; в трее чистый знак, он бейдж не вмещает без ущерба
+/// знаку-графику). 0/None — чистые иконки.
 pub fn apply(app: &AppHandle, count: Option<u32>) {
     *LAST_COUNT.lock().unwrap() = count;
     let base = themed_base_icon(app);
     match count.filter(|c| *c > 0) {
         Some(n) => {
-            tray_menu::set_tray_icon(app, tray_icon_with_badge(&base, n));
+            tray_menu::set_tray_icon(app, base.clone());
             tray_menu::set_tray_tooltip(app, &format!("Nodus — {n} непрочитанных"));
             if let Some(win) = app.get_webview_window("main") {
                 let _ = win.set_overlay_icon(Some(overlay_icon(n)));
@@ -210,7 +200,11 @@ pub fn system_theme_dark(app: &AppHandle) -> bool {
 pub fn themed_base_icon(app: &AppHandle) -> Image<'static> {
     static DARK_GLYPH: &[u8] = include_bytes!("../icons/32x32.png");
     static LIGHT_GLYPH: &[u8] = include_bytes!("../icons/32x32-light.png");
-    decode_png(if system_theme_dark(app) { LIGHT_GLYPH } else { DARK_GLYPH })
+    decode_png(if system_theme_dark(app) {
+        LIGHT_GLYPH
+    } else {
+        DARK_GLYPH
+    })
 }
 
 /// Последний счётчик: смена темы перерисовывает бейдж на новой базе.
@@ -237,18 +231,13 @@ mod badge_previews {
         let target = std::env::var("CARGO_TARGET_DIR").unwrap_or_else(|_| "target".into());
         let dir = std::path::Path::new(&target).join("badge-preview");
         std::fs::create_dir_all(&dir).unwrap();
-        let base = decode_png(include_bytes!("../icons/32x32.png"));
         for count in [3, 27] {
-            for (name, img) in [
-                ("tray", tray_icon_with_badge(&base, count)),
-                ("taskbar", overlay_icon(count)),
-            ] {
-                let path = dir.join(format!("{name}-{count}.png"));
-                image::RgbaImage::from_raw(img.width(), img.height(), img.rgba().to_vec())
-                    .unwrap()
-                    .save(&path)
-                    .unwrap();
-            }
+            let img = overlay_icon(count);
+            let path = dir.join(format!("taskbar-{count}.png"));
+            image::RgbaImage::from_raw(img.width(), img.height(), img.rgba().to_vec())
+                .unwrap()
+                .save(&path)
+                .unwrap();
         }
     }
 }

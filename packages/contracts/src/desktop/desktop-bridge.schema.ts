@@ -22,6 +22,8 @@ export const popupPayloadSchema = z.object({
   avatarUrl: z.string().max(2000).optional(),
   /** Превью текста сообщения/уведомления. */
   preview: z.string().max(500),
+  /** Превью — метка вложения («Фотография», #254): попап красит её акцентом. */
+  previewAttachment: z.boolean().optional(),
   /** Важное (ADR-0016): попап висит до реакции, мигание критичное. */
   urgent: z.boolean(),
   /** Разрешён ли быстрый ответ из попапа (только личные/групповые беседы). */

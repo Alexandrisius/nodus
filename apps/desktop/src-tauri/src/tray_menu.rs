@@ -12,8 +12,14 @@ use crate::updates;
 pub fn setup(app: &AppHandle) -> tauri::Result<()> {
     let open = MenuItem::with_id(app, "open", "Открыть Nodus", true, None::<&str>)?;
     let autostart_enabled = app.autolaunch().is_enabled().unwrap_or(false);
-    let autostart =
-        CheckMenuItem::with_id(app, "autostart", "Запускать при входе в Windows", true, autostart_enabled, None::<&str>)?;
+    let autostart = CheckMenuItem::with_id(
+        app,
+        "autostart",
+        "Запускать при входе в Windows",
+        true,
+        autostart_enabled,
+        None::<&str>,
+    )?;
     let update = MenuItem::with_id(app, "update", "Проверить обновления", true, None::<&str>)?;
     let reload = MenuItem::with_id(app, "reload", "Перезагрузить портал", true, None::<&str>)?;
     let change = MenuItem::with_id(app, "change_server", "Сменить сервер…", true, None::<&str>)?;
@@ -51,7 +57,11 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
             _ => {}
         })
         .on_tray_icon_event(|tray, event| {
-            if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = event
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = event
             {
                 crate::show_main(tray.app_handle());
             }

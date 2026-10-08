@@ -29,10 +29,10 @@ commands.allow = ["run_updater"]
 
 [[permission]]
 identifier = "allow-popup-window"
-description = "Управление окном попапа: закрыть, изменить высоту (рост вверх)."
-commands.allow = ["popup_get_data", "popup_close", "popup_set_expanded"]
+description = "Управление окном попапа: закрыть, изменить высоту (рост вверх), пауза угасания."
+commands.allow = ["popup_get_data", "popup_close", "popup_set_expanded", "popup_set_hover"]
 
 [[permission]]
 identifier = "allow-popup-actions"
-description = "Действия попапа: отправить быстрый ответ, открыть беседу."
-commands.allow = ["popup_submit_reply", "popup_open"]
+description = "Действия попапа: отправить быстрый ответ, открыть беседу, скрыть все."
+commands.allow = ["popup_submit_reply", "popup_open", "popup_close_all"]
