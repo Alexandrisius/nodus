@@ -14,9 +14,9 @@ use crate::bridge::{self, PopupPayload, PopupReply};
 const POPUP_W: f64 = 360.0;
 const POPUP_H: f64 = 88.0;
 const POPUP_H_REPLY: f64 = 124.0;
-const HIDE_ALL_H: f64 = 28.0;
+const HIDE_ALL_H: f64 = 44.0;
 const MARGIN: f64 = 14.0;
-const GAP: f64 = 10.0;
+const GAP: f64 = 5.0;
 /// Максимум в столбик (фидбек 08.10, модель Telegram: «не более трёх, каждое
 /// следующее заменяет старейшее как очередь»).
 const MAX_STACK: u32 = 3;
@@ -346,7 +346,10 @@ fn place_hide_all(app: &AppHandle) {
             bottom = bottom - h - px(GAP);
         }
         match top {
-            Some(top) => (order.len(), x, top - px(HIDE_ALL_H)),
+            // Зазор капсула↔попап = GAP ровно: окно на 4px шире капсулы
+            // снизу (запас от резки бордера о край окна), поэтому окно
+            // поднимается на (H - 4 + GAP) над верхом попапа.
+            Some(top) => (order.len(), x, top - px(HIDE_ALL_H) + px(4.0) - px(GAP)),
             None => (0, x, 0),
         }
     };
