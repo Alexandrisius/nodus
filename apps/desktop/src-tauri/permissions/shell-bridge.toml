@@ -24,6 +24,11 @@ description = "Открыть http(s)-ссылку в системном бра�
 commands.allow = ["open_external"]
 
 [[permission]]
+identifier = "allow-dismiss-popups"
+description = "Погасить попапы беседы (портал открыл беседу — уведомления гаснут)."
+commands.allow = ["dismiss_popups"]
+
+[[permission]]
 identifier = "allow-get-shell-info"
 description = "Версия и платформа оболочки (диагностика, поддержка)."
 commands.allow = ["get_shell_info"]

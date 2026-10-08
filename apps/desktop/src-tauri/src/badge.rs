@@ -141,14 +141,16 @@ fn overlay_icon(count: u32) -> Image<'static> {
     buf.into_image()
 }
 
-/// Значок трея: базовая иконка + бейдж в правом-нижнем углу (32×32).
+/// Значок трея: базовая иконка + бейдж в правом-ВЕРХНЕМ углу (32×32) —
+/// в правом-нижнем круг наезжал на знак-график (фидбек владельца 08.10:
+/// расположить как оверлей панели задач, подальше от графика).
 fn tray_icon_with_badge(base: &Image, count: u32) -> Image<'static> {
     let (w, h) = (base.width(), base.height());
     let mut buf = Rgba::new(w, h);
     buf.data.copy_from_slice(base.rgba());
     let (bw, bh) = (w as f32, h as f32);
-    let radius = (bw.min(bh) * 0.28).ceil();
-    let (cx, cy) = (bw - radius - 1.0, bh - radius - 1.0);
+    let radius = (bw.min(bh) * 0.26).ceil();
+    let (cx, cy) = (bw - radius - 1.0, radius + 1.0);
     // подложка цвета панели под кругом не нужна: круг с альфой поверх иконки
     fill_circle(&mut buf, cx, cy, radius, BADGE_RED);
     draw_counter(&mut buf, cx, cy, count, if count >= 10 { 2 } else { 3 });

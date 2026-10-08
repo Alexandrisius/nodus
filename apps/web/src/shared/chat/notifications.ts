@@ -1,7 +1,7 @@
 import { chatMessageSentPayloadSchema, stripMentionTokens, ui } from '@nodus/contracts';
 
 import { useAuthStore } from '../auth-store.js';
-import { isDesktopShell } from '../desktop/desktop-bridge.js';
+import { desktopDismissPopups, isDesktopShell } from '../desktop/desktop-bridge.js';
 import { withoutPatronymic } from '../lib/format.js';
 
 /**
@@ -19,6 +19,11 @@ let openConversationId: string | null = null;
 
 export function setOpenConversation(conversationId: string | null): void {
   openConversationId = conversationId;
+  // Открыл беседу — попапы оболочки этой беседы гаснут, не висят устаревшими
+  // (модель Telegram unlinkHistory). Вне оболочки вызов тихий no-op.
+  if (conversationId && isDesktopShell()) {
+    void desktopDismissPopups(conversationId);
+  }
 }
 
 /** Открытая беседа (глушит её тосты уведомлений, B6 — читает toast-стор). */

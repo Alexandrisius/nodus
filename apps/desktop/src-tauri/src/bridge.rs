@@ -40,6 +40,7 @@ pub fn initialization_script(shell_version: &str) -> String {
     setUnreadBadge: function (count) {{ return invoke('set_unread_badge', {{ count: count }}); }},
     flashTaskbar: function (critical) {{ return invoke('flash_taskbar', {{ critical: !!critical }}); }},
     openExternal: function (url) {{ return invoke('open_external', {{ url: url }}); }},
+    dismissPopups: function (conversationId) {{ return invoke('dismiss_popups', {{ conversationId: conversationId }}); }},
     getShellInfo: function () {{ return invoke('get_shell_info'); }},
     shellReady: function () {{ return invoke('shell_ready'); }},
     onEvent: function (type, fn) {{
@@ -68,6 +69,7 @@ pub fn grant_portal_capability(app: &AppHandle, root: &str) -> tauri::Result<()>
         .permission("allow-set-unread-badge")
         .permission("allow-flash-taskbar")
         .permission("allow-open-external")
+        .permission("allow-dismiss-popups")
         .permission("allow-get-shell-info")
         .permission("allow-shell-ready");
     app.add_capability(capability)
@@ -143,6 +145,18 @@ pub async fn notify_popup(app: AppHandle, payload: PopupPayload) -> Result<(), S
 #[tauri::command]
 pub fn set_unread_badge(app: AppHandle, count: Option<u32>) {
     badge::apply(&app, count);
+}
+
+/// Погасить попапы беседы: портал зовёт при открытии беседы (модель
+/// Telegram — открыл чат, его уведомления не висят устаревшими). Только
+/// закрывает окна/вычищает очередь, ничего не создаёт — sync безопасен.
+#[tauri::command]
+pub fn dismiss_popups(app: AppHandle, conversation_id: String) -> Result<(), String> {
+    if !is_valid_conversation(&conversation_id) {
+        return Err("invalid_payload".into());
+    }
+    popups::dismiss_for_conversation(&app, &conversation_id);
+    Ok(())
 }
 
 #[tauri::command]

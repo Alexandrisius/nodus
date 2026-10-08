@@ -25,6 +25,7 @@ function installBridge() {
     setUnreadBadge: vi.fn(async () => undefined),
     flashTaskbar: vi.fn(async () => undefined),
     openExternal: vi.fn(async () => undefined),
+    dismissPopups: vi.fn(async () => undefined),
     getShellInfo: vi.fn(async () => ({ version: '1.0.0', platform: 'windows' })),
     shellReady: vi.fn(async () => undefined),
     onEvent: vi.fn(() => () => undefined),
@@ -130,12 +131,36 @@ describe('notifyDesktopMessage', () => {
     expect(window.nodusDesktop?.showPopup).not.toHaveBeenCalled();
   });
 
-  it('обычное молчит, когда пользователь смотрит в портал (окно в фокусе)', () => {
+  it('обычное молчит, только когда смотрят В ОТКРЫТУЮ беседу (фокус + видимость)', () => {
     // jsdom: hasFocus() по умолчанию false — мокаем «смотрит» явно.
     vi.spyOn(document, 'hasFocus').mockReturnValue(true);
     try {
+      setOpenConversation(CONV);
       notifyDesktopMessage(messagePayload(), queryClientWith({}));
       expect(window.nodusDesktop?.showPopup).not.toHaveBeenCalled();
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
+  it('фокус на портале, но беседа НЕ открыта (другая страница) — попап', () => {
+    // Фидбек владельца 08.10: «мессенджер не открыт» — сообщение не видно,
+    // попап нужен; раньше гейт молчал при любом фокусе окна.
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true);
+    try {
+      notifyDesktopMessage(messagePayload(), queryClientWith({}));
+      expect(window.nodusDesktop?.showPopup).toHaveBeenCalled();
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
+  it('открытая беседа без фокуса окна — попап (окно перекрыто другим)', () => {
+    setOpenConversation(CONV);
+    vi.spyOn(document, 'hasFocus').mockReturnValue(false);
+    try {
+      notifyDesktopMessage(messagePayload(), queryClientWith({}));
+      expect(window.nodusDesktop?.showPopup).toHaveBeenCalled();
     } finally {
       vi.restoreAllMocks();
     }

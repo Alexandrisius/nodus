@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::sync::Mutex;
 
 use tauri::webview::WebviewWindowBuilder;
@@ -5,34 +6,41 @@ use tauri::{AppHandle, Manager, PhysicalPosition, WebviewUrl, WebviewWindow};
 
 use crate::bridge::{self, PopupPayload, PopupReply};
 
-/// Геометрия попапа (логические px): карточка 360×136, с полем ответа 360×216
-/// (референс Telegram; окно прозрачное — скругления несёт сама карточка).
+/// Геометрия попапа (логические px): компактная карточка ~360×104, с полем
+/// ответа ~360×136 (канон Telegram Desktop: notifyWidth 320, min height 80 +
+/// поле 36; окно прозрачное — скругления несёт карточка).
 const POPUP_W: f64 = 360.0;
-const POPUP_H: f64 = 136.0;
-const POPUP_H_REPLY: f64 = 216.0;
+const POPUP_H: f64 = 104.0;
+const POPUP_H_REPLY: f64 = 136.0;
 const MARGIN: f64 = 14.0;
-const GAP: f64 = 10.0;
-/// Максимум в стеке (право-низ, рост вверх) — как Telegram.
+const GAP: f64 = 8.0;
+/// Максимум на экране (право-низ, рост вверх); сверх — очередь (Telegram).
 const MAX_STACK: u32 = 4;
-/// Автоскрытие обычного попапа; важные (urgent) висят до реакции.
-const AUTOCLOSE_MS: u64 = 6000;
 
 struct ActivePopup {
     label: String,
     slot: u32,
-    held: bool,
-    urgent: bool,
-    created: std::time::Instant,
+    conversation_id: String,
     /// Payload для pull-модели: окно забирает данные само после загрузки
     /// (push-событие проигрывал бы гонку со скоростью монтирования React).
     payload: serde_json::Value,
 }
 
-/// Стек активных попапов: слоты 0..4 от право-низа вверх.
+/// Стек попапов: слоты 0..4 от право-низа вверх + очередь переполнения.
+/// Автоскрытия НЕТ (вердикт владельца 08.10): попапы накапливаются и живут
+/// до реакции пользователя — «после обеда увидел, кто писал» (модель
+/// Telegram: закрыл один — выехал следующий из очереди; счётчик — в трее).
 #[derive(Default)]
 pub struct PopupStack {
     counter: u64,
     active: Vec<ActivePopup>,
+    pending: VecDeque<PopupPayload>,
+}
+
+impl PopupStack {
+    fn free_slot(&self) -> Option<u32> {
+        (0..MAX_STACK).find(|k| !self.active.iter().any(|p| p.slot == *k))
+    }
 }
 
 fn stack(app: &AppHandle) -> std::sync::MutexGuard<'_, PopupStack> {
@@ -41,6 +49,8 @@ fn stack(app: &AppHandle) -> std::sync::MutexGuard<'_, PopupStack> {
 
 /// Показать попап. Вызывать ТОЛЬКО из async-команд: на Windows билдер окна
 /// в синхронном контексте дедлокит WebView2 (см. bridge::notify_popup).
+/// Экран полон — уведомление встаёт в очередь, докатывается по мере
+/// закрытия активных (on_popup_destroyed).
 pub fn show(app: &AppHandle, payload: PopupPayload) {
     let payload_json = serde_json::json!({
         "id": payload.id,
@@ -51,30 +61,11 @@ pub fn show(app: &AppHandle, payload: PopupPayload) {
         "urgent": payload.urgent,
         "canReply": payload.can_reply,
     });
-    let label = {
+    let (label, slot) = {
         let mut s = stack(app);
-        // Стек полон: закрываем старейший неважный (важные/активные не трогаем).
-        // Жертву удаляем из active ЗДЕСЬ ЖЕ: обработчик Destroyed не придёт,
-        // пока мы держим мьютекс (code-review #254 — иначе слот «не
-        // освобождается» и новый попап отбрасывается, теряя уведомление);
-        // повторное удаление в on_popup_destroyed идемпотентно.
-        if s.active.len() >= MAX_STACK as usize {
-            let victim = s
-                .active
-                .iter()
-                .filter(|p| !p.urgent && !p.held)
-                .min_by_key(|p| p.created)
-                .map(|p| p.label.clone());
-            if let Some(v) = victim {
-                if let Some(w) = app.get_webview_window(&v) {
-                    let _ = w.close();
-                }
-                s.active.retain(|p| p.label != v);
-            }
-        }
-        let used: Vec<u32> = s.active.iter().map(|p| p.slot).collect();
-        let Some(slot) = (0..MAX_STACK).find(|k| !used.contains(k)) else {
-            log::info!("стек попапов занят важными — попап пропущен ({})", payload.id);
+        let Some(slot) = s.free_slot() else {
+            s.pending.push_back(payload);
+            log::info!("экран полон — попап в очереди (всего в очереди: {})", s.pending.len());
             return;
         };
         s.counter += 1;
@@ -82,12 +73,10 @@ pub fn show(app: &AppHandle, payload: PopupPayload) {
         s.active.push(ActivePopup {
             label: label.clone(),
             slot,
-            held: false,
-            urgent: payload.urgent,
-            created: std::time::Instant::now(),
+            conversation_id: payload.conversation_id,
             payload: payload_json,
         });
-        label
+        (label, slot)
     };
 
     // Роут попапа — по label (main.tsx рендерит PopupView для popup-*).
@@ -118,46 +107,65 @@ pub fn show(app: &AppHandle, payload: PopupPayload) {
 
     // Право-низ work_area монитора курсора (физические px, DPI-точно);
     // монитор недоступен — остаёмся в позиции билдера (центр).
-    let slot = stack(app).active.iter().find(|p| p.label == label).map(|p| p.slot).unwrap_or(0);
-    if let Some((x, y)) = position_for_slot(app, slot) {
+    if let Some((x, y)) = position_for_slot(app, slot, POPUP_H) {
         let _ = win.set_position(PhysicalPosition::new(x, y));
     }
     let _ = win.show();
-    let _ = win.set_focus();
-
-    if !payload.urgent {
-        let app = app.clone();
-        let label = label.clone();
-        tauri::async_runtime::spawn_blocking(move || {
-            std::thread::sleep(std::time::Duration::from_millis(AUTOCLOSE_MS));
-            let held = stack(&app).active.iter().any(|p| p.label == label && p.held);
-            if !held {
-                if let Some(w) = app.get_webview_window(&label) {
-                    let _ = w.close();
-                }
-            }
-        });
-    }
 }
 
 /// Слот k → право-низ work_area монитора курсора (физические координаты:
 /// work_area физический, размеры окна конвертируются через scale_factor).
-fn position_for_slot(app: &AppHandle, slot: u32) -> Option<(i32, i32)> {
+/// Низ слота фиксирован: рост высоты (поле ответа) поднимает ВЕРХ окна,
+/// карточка не уезжает за низ экрана (канон Telegram onReplyResize).
+fn position_for_slot(app: &AppHandle, slot: u32, height: f64) -> Option<(i32, i32)> {
     let cursor = app.cursor_position().ok()?;
     let monitor = app.monitor_from_point(cursor.x, cursor.y).ok()??;
     let scale = monitor.scale_factor();
     let wa = monitor.work_area();
     let popup_w = (POPUP_W * scale).round() as i32;
-    let popup_h = (POPUP_H * scale).round() as i32;
+    let popup_h = (height * scale).round() as i32;
     let margin = (MARGIN * scale).round() as i32;
     let gap = (GAP * scale).round() as i32;
     let x = wa.position.x + wa.size.width as i32 - popup_w - margin;
-    let y = wa.position.y + wa.size.height as i32 - popup_h - margin - slot as i32 * (popup_h + gap);
+    let y = wa.position.y + wa.size.height as i32 - margin
+        - slot as i32 * ((POPUP_H * scale).round() as i32 + gap)
+        - popup_h;
     Some((x, y))
 }
 
 pub fn on_popup_destroyed(app: &AppHandle, label: &str) {
-    stack(app).active.retain(|p| p.label != label);
+    // Докат очереди — ПОСЛЕ снятия лока: show() лочит стек сам.
+    let next: Option<PopupPayload> = {
+        let mut s = stack(app);
+        s.active.retain(|p| p.label != label);
+        if s.active.len() < MAX_STACK as usize {
+            s.pending.pop_front()
+        } else {
+            None
+        }
+    };
+    if let Some(payload) = next {
+        show(app, payload);
+    }
+}
+
+/// Погасить попапы беседы: портал зовёт при открытии беседы (модель
+/// Telegram unlinkHistory — открыл чат, его уведомления больше не висят).
+pub fn dismiss_for_conversation(app: &AppHandle, conversation_id: &str) {
+    let labels: Vec<String> = {
+        let mut s = stack(app);
+        s.pending.retain(|p| p.conversation_id != conversation_id);
+        s.active
+            .iter()
+            .filter(|p| p.conversation_id == conversation_id)
+            .map(|p| p.label.clone())
+            .collect()
+    };
+    for label in labels {
+        if let Some(w) = app.get_webview_window(&label) {
+            let _ = w.close();
+        }
+    }
 }
 
 /// Payload попапа — pull-моделью после загрузки окна (без гонки со маунтом).
@@ -173,21 +181,23 @@ pub fn popup_close(window: WebviewWindow) {
     let _ = window.close();
 }
 
-/// Пользователь начал ответ — снять автоскрытие.
+/// Высота окна под режим ответа: низ слота фиксирован, растёт ВЕРХ —
+/// иначе поле уводило карточку за низ экрана (фидбек владельца 08.10).
 #[tauri::command]
-pub fn popup_hold(app: AppHandle, window: WebviewWindow) {
-    let label = window.label().to_string();
-    if let Some(p) = stack(&app).active.iter_mut().find(|p| p.label == label) {
-        p.held = true;
-    }
-}
-
-/// Высота окна под режим ответа (логические px).
-#[tauri::command]
-pub fn popup_set_expanded(window: WebviewWindow, expanded: bool) {
+pub fn popup_set_expanded(app: AppHandle, window: WebviewWindow, expanded: bool) {
     use tauri::LogicalSize;
+    let slot = stack(&app)
+        .active
+        .iter()
+        .find(|p| p.label == window.label())
+        .map(|p| p.slot);
     let h = if expanded { POPUP_H_REPLY } else { POPUP_H };
     let _ = window.set_size(tauri::Size::Logical(LogicalSize::new(POPUP_W, h)));
+    if let Some(slot) = slot {
+        if let Some((x, y)) = position_for_slot(&app, slot, h) {
+            let _ = window.set_position(PhysicalPosition::new(x, y));
+        }
+    }
 }
 
 #[tauri::command]
@@ -227,4 +237,58 @@ pub fn popup_open(
     );
     let _ = window.close();
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn payload(id: &str, conversation_id: &str) -> PopupPayload {
+        PopupPayload {
+            id: id.into(),
+            conversation_id: conversation_id.into(),
+            title: "Автор".into(),
+            avatar_url: None,
+            preview: "текст".into(),
+            urgent: false,
+            can_reply: true,
+        }
+    }
+
+    fn occupy(s: &mut PopupStack, n: u32) {
+        for k in 0..n {
+            let slot = s.free_slot().expect("свободный слот");
+            s.counter += 1;
+            s.active.push(ActivePopup {
+                label: format!("popup-{k}"),
+                slot,
+                conversation_id: format!("conv-{k}"),
+                payload: serde_json::Value::Null,
+            });
+        }
+    }
+
+    #[test]
+    fn overflow_уходит_в_очередь_и_докатывается() {
+        let mut s = PopupStack::default();
+        occupy(&mut s, MAX_STACK);
+        assert!(s.free_slot().is_none(), "экран полон");
+        s.pending.push_back(payload("m5", "conv-x"));
+        // Закрыли один попап — очередь отдаёт голову.
+        s.active.remove(0);
+        assert!(s.free_slot().is_some());
+        assert_eq!(s.pending.pop_front().map(|p| p.id), Some("m5".into()));
+        assert!(s.pending.pop_front().is_none());
+    }
+
+    #[test]
+    fn dismiss_вычищает_очередь_только_своей_беседы() {
+        let mut s = PopupStack::default();
+        s.pending.push_back(payload("m1", "conv-1"));
+        s.pending.push_back(payload("m2", "conv-2"));
+        s.pending.push_back(payload("m3", "conv-1"));
+        s.pending.retain(|p| p.conversation_id != "conv-1");
+        let rest: Vec<&str> = s.pending.iter().map(|p| p.id.as_str()).collect();
+        assert_eq!(rest, vec!["m2"]);
+    }
 }

@@ -66,6 +66,7 @@ describe('уведомления чата (#124)', () => {
       setUnreadBadge: () => Promise.resolve(),
       flashTaskbar: () => Promise.resolve(),
       openExternal: () => Promise.resolve(),
+      dismissPopups: () => Promise.resolve(),
       getShellInfo: () => Promise.resolve(),
       shellReady: () => Promise.resolve(),
       onEvent: () => () => undefined,
@@ -74,6 +75,32 @@ describe('уведомления чата (#124)', () => {
       expect(isDesktopShell()).toBe(true);
       Object.defineProperty(document, 'hidden', { value: true, configurable: true });
       expect(shouldNotify(OTHER, CONV)).toBe(false);
+    } finally {
+      delete (window as { nodusDesktop?: unknown }).nodusDesktop;
+    }
+  });
+
+  it('открыл беседу в оболочке — попапы этой беседы гаснут (Telegram-модель)', () => {
+    const dismissPopups = vi.fn(() => Promise.resolve());
+    (window as { nodusDesktop?: unknown }).nodusDesktop = {
+      shellVersion: '1.0.0',
+      platform: 'windows',
+      showPopup: () => Promise.resolve(),
+      setUnreadBadge: () => Promise.resolve(),
+      flashTaskbar: () => Promise.resolve(),
+      openExternal: () => Promise.resolve(),
+      dismissPopups,
+      getShellInfo: () => Promise.resolve(),
+      shellReady: () => Promise.resolve(),
+      onEvent: () => () => undefined,
+    };
+    try {
+      setOpenConversation(CONV);
+      expect(dismissPopups).toHaveBeenCalledWith(CONV);
+      // Уход из беседы (null) мост не дёргает.
+      dismissPopups.mockClear();
+      setOpenConversation(null);
+      expect(dismissPopups).not.toHaveBeenCalled();
     } finally {
       delete (window as { nodusDesktop?: unknown }).nodusDesktop;
     }

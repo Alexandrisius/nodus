@@ -7,10 +7,11 @@ import type { PopupData } from '../shell/shell-ipc.js';
 const t = ui.desktop;
 
 /**
- * Попап уведомления (ADR-0019 п.4): frameless always-on-top окно, аватар+имя+
- * превью, «Ответить» инлайн, «Открыть» — фокус портала и переход в беседу.
- * Автоскрытие (6 c, важные — до реакции) ведёт Rust; фокус поля ответа
- * снимает таймер (`popup_hold`). Окно закрывается только из Rust (`popup_close`).
+ * Попап уведомления (ADR-0019 п.4, канон Telegram Desktop): клик по карточке —
+ * открыть беседу; «Ответить» — незаметная ghost-кнопка, разворачивает поле
+ * ввода на всю ширину с круглой кнопкой-стрелкой (send). Окно растёт ВВЕРХ —
+ * низ на месте (Rust пересчитывает позицию слота). Автоскрытия нет: попап
+ * живёт до реакции, сверх 4 на экране — очередь в Rust (вердикт 08.10).
  */
 export function PopupView() {
   const [data, setData] = useState<PopupData | null>(null);
@@ -18,7 +19,6 @@ export function PopupView() {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const rootRef = useRef<HTMLDivElement>(null);
 
   // Прозрачное окно: globals.css красит body в фон темы — для попапа
   // возвращаем прозрачность, иначе скруглённая карточка сидит на прямоугольнике.
@@ -43,7 +43,6 @@ export function PopupView() {
 
   function startReply() {
     setReplying(true);
-    void invoke('popup_hold');
     void invoke('popup_set_expanded', { expanded: true });
     requestAnimationFrame(() => inputRef.current?.focus());
   }
@@ -66,44 +65,49 @@ export function PopupView() {
   if (!data) {
     return <div className="h-screen w-screen bg-transparent" />;
   }
-  // Прозрачное окно (transparent(true) в Rust): body перекрашен globals.css,
-  // для попапа возвращаем прозрачность, иначе углы карточки сидят на фоне окна.
 
   return (
     <div
-      className="bg-card text-card-foreground flex h-screen w-screen flex-col rounded-[14px] border px-3 py-2.5 font-sans shadow-[0_8px_30px_rgba(0,0,0,0.25)]"
-      ref={rootRef}
+      className="group bg-card text-card-foreground relative flex h-screen w-screen flex-col rounded-xl border px-3 py-2.5 font-sans shadow-[0_8px_30px_rgba(0,0,0,0.25)]"
       onKeyDown={(e) => {
         if (e.key === 'Escape') close();
       }}
     >
-      <header className="flex items-start gap-2.5">
+      {/* Клик по карточке — открыть беседу (как клик по уведомлению в Telegram). */}
+      <button
+        type="button"
+        onClick={openConversation}
+        className="focus-visible:ring-ring flex min-w-0 cursor-pointer items-start gap-2.5 rounded-lg pr-5 text-left focus-visible:outline-none focus-visible:ring-2"
+        title={t.popupOpen}
+      >
         <Avatar url={data.avatarUrl} name={data.title} />
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5">
-            <p className="truncate text-sm font-semibold">{data.title}</p>
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center gap-1.5">
+            <span className="truncate text-[13px] leading-5 font-semibold">{data.title}</span>
             {data.urgent ? (
-              <span className="bg-warning-soft text-warning rounded px-1.5 py-px text-[11px] font-medium">
+              <span className="bg-warning-soft text-warning rounded px-1 py-px text-[10px] leading-3 font-medium">
                 {t.urgentLabel}
               </span>
             ) : null}
-          </div>
-          <p className="text-muted-foreground mt-0.5 line-clamp-2 text-sm leading-snug">
+          </span>
+          <span className="text-muted-foreground mt-0.5 line-clamp-2 block text-[12.5px] leading-4">
             {data.preview}
-          </p>
-        </div>
-        <button
-          type="button"
-          aria-label={ui.common.close}
-          onClick={close}
-          className="text-muted-foreground hover:text-foreground -mr-0.5 -mt-0.5 h-6 w-6 shrink-0 rounded-md text-sm"
-        >
-          ×
-        </button>
-      </header>
+          </span>
+        </span>
+      </button>
+
+      {/* Крестик — проявляется на hover (Telegram), вне фокуса не мешает читать. */}
+      <button
+        type="button"
+        aria-label={ui.common.close}
+        onClick={close}
+        className="text-muted-foreground hover:text-foreground absolute top-1 right-1 flex h-5 w-5 items-center justify-center rounded-md text-xs opacity-0 transition-opacity group-hover:opacity-100"
+      >
+        ×
+      </button>
 
       {replying ? (
-        <div className="mt-2.5 flex items-end gap-2">
+        <div className="mt-auto flex items-end gap-1.5 pt-2">
           <textarea
             ref={inputRef}
             value={text}
@@ -117,36 +121,38 @@ export function PopupView() {
             placeholder={t.popupReplyPlaceholder}
             rows={2}
             maxLength={4000}
-            className="border-input bg-background focus:ring-ring min-h-0 flex-1 resize-none rounded-[10px] border px-2.5 py-1.5 text-sm outline-none focus:ring-2"
+            className="border-input bg-background focus:ring-ring w-full flex-1 resize-none rounded-lg border px-2.5 py-2 text-[13px] leading-[17px] outline-none focus:ring-2"
           />
           <button
             type="button"
             onClick={send}
             disabled={text.trim().length === 0 || sending}
-            className="bg-primary text-primary-foreground h-9 shrink-0 rounded-[10px] px-3 text-sm font-medium disabled:opacity-60"
+            aria-label={t.popupSend}
+            className="bg-primary text-primary-foreground focus-visible:ring-ring flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-full outline-none focus-visible:ring-2 disabled:opacity-50"
           >
-            {t.popupSend}
+            <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" aria-hidden="true">
+              <path
+                d="M8 13V3.5M8 3.5 4 7.5M8 3.5l4 4"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
           </button>
         </div>
       ) : (
-        <footer className="mt-2.5 flex justify-end gap-2">
+        <div className="mt-auto flex justify-end pt-1">
           {data.canReply ? (
             <button
               type="button"
               onClick={startReply}
-              className="bg-primary text-primary-foreground h-8 rounded-[10px] px-3 text-sm font-medium"
+              className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring -mr-1.5 cursor-pointer rounded-md px-2 py-0.5 text-[12.5px] font-medium outline-none focus-visible:ring-2"
             >
               {t.popupReply}
             </button>
           ) : null}
-          <button
-            type="button"
-            onClick={openConversation}
-            className="border-input bg-background hover:bg-accent h-8 rounded-[10px] border px-3 text-sm font-medium"
-          >
-            {t.popupOpen}
-          </button>
-        </footer>
+        </div>
       )}
     </div>
   );
@@ -158,7 +164,7 @@ function Avatar({ url, name }: { url?: string; name: string }) {
   const initial = name.trim().charAt(0).toUpperCase() || 'N';
   if (!url || failed) {
     return (
-      <div className="bg-muted text-muted-foreground flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold">
+      <div className="bg-muted text-muted-foreground flex size-8 shrink-0 items-center justify-center rounded-full text-[13px] font-semibold">
         {initial}
       </div>
     );
@@ -168,7 +174,7 @@ function Avatar({ url, name }: { url?: string; name: string }) {
       src={url}
       alt=""
       onError={() => setFailed(true)}
-      className="size-9 shrink-0 rounded-full object-cover"
+      className="size-8 shrink-0 rounded-full object-cover"
     />
   );
 }

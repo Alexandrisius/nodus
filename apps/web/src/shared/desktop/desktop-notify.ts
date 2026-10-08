@@ -4,6 +4,7 @@ import { chatMessageSentPayloadSchema, stripMentionTokens, ui } from '@nodus/con
 import { useAuthStore } from '../auth-store.js';
 import { withoutPatronymic } from '../lib/format.js';
 import { chatKeys } from '../chat/api.js';
+import { getOpenConversation } from '../chat/notifications.js';
 import {
   desktopFlashTaskbar,
   desktopShowPopup,
@@ -15,7 +16,7 @@ import {
  * Попапы десктоп-оболочки по WS-событию chat.message_sent (ADR-0019): правила
  * тишины — ЗДЕСЬ, в веб-приложении (оболочка — только исполнитель дисплея).
  * Свidi-сообщения не звенят; обычное молчит в заглушённых беседах, «Посмотреть
- * позже» и видимой открытой беседе (зеркало B6 журнала); важное (urgent)
+ * позже» и в ОТКРЫТОЙ беседе под фокусом (зеркало B6 журнала); важное (urgent)
  * пробивается верхним ярусом (#177). Опти-ин браузерных уведомлений (#124)
  * тут НЕ действует: оболочку ставят осознанно.
  */
@@ -30,11 +31,13 @@ export function notifyDesktopMessage(payload: unknown, queryClient: QueryClient)
   if (!urgent) {
     const flags = conversationFlags(queryClient, conversationId);
     if (flags?.muted || flags?.snoozed) return;
-    // Модель Telegram: попап — только когда портал не на виду (в трее/свернут
-    // или окно без фокуса); пользователь смотрит в портал — тишина, непрочи-
-    // танные несут бейдж рейки/заголовка.
-    const engaged = !isPortalBackground() && document.hasFocus();
-    if (engaged) return;
+    // Модель Telegram (фидбек 08.10): тишина только когда пользователь СМОТРИТ
+    // в эту беседу — окно на виду, в фокусе, беседа открыта. Фокус на другой
+    // странице портала — попап нужен: сообщение всё равно не видно. Попапы
+    // копятся до реакции (очередь в оболочке), бейдж считает непрочитанное.
+    const looking =
+      !isPortalBackground() && document.hasFocus() && getOpenConversation() === conversationId;
+    if (looking) return;
   }
 
   void desktopShowPopup({

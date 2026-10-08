@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   bindDesktopShellEvents,
+  desktopDismissPopups,
   desktopSetUnreadBadge,
   desktopShowPopup,
   getDesktopBridge,
@@ -29,6 +30,7 @@ function installBridge() {
     setUnreadBadge: vi.fn(async () => undefined),
     flashTaskbar: vi.fn(async () => undefined),
     openExternal: vi.fn(async () => undefined),
+    dismissPopups: vi.fn(async () => undefined),
     getShellInfo: vi.fn(async () => ({ version: '1.0.0', platform: 'windows' })),
     shellReady: vi.fn(async () => undefined),
     onEvent: vi.fn((type: string, fn: (payload: unknown) => void) => {
@@ -98,6 +100,12 @@ describe('команды на границе', () => {
     await desktopSetUnreadBadge(null);
     expect(bridge.setUnreadBadge).toHaveBeenNthCalledWith(1, 7);
     expect(bridge.setUnreadBadge).toHaveBeenNthCalledWith(2, null);
+  });
+
+  it('dismissPopups передаёт беседу (открыл чат — его попапы гаснут)', async () => {
+    const { bridge } = installBridge();
+    await desktopDismissPopups(CONV);
+    expect(bridge.dismissPopups).toHaveBeenCalledWith(CONV);
   });
 });
 

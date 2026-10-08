@@ -26,6 +26,7 @@ interface NodusDesktopGlobal {
   setUnreadBadge(count: number | null): Promise<void>;
   flashTaskbar(critical: boolean): Promise<void>;
   openExternal(url: string): Promise<void>;
+  dismissPopups(conversationId: string): Promise<void>;
   getShellInfo(): Promise<unknown>;
   shellReady(): Promise<void>;
   onEvent(type: string, fn: (payload: unknown) => void): () => void;
@@ -103,6 +104,16 @@ export async function desktopOpenExternal(url: string): Promise<void> {
   const bridge = getDesktopBridge();
   if (!bridge) return;
   await bridge.openExternal(url);
+}
+
+/**
+ * Погасить попапы беседы: хост чата зовёт при открытии беседы (модель
+ * Telegram unlinkHistory — открыл чат, его уведомления больше не висят).
+ */
+export async function desktopDismissPopups(conversationId: string): Promise<void> {
+  const bridge = getDesktopBridge();
+  if (!bridge) return;
+  await bridge.dismissPopups(conversationId);
 }
 
 /** Диагностика: версия и платформа оболочки. */
