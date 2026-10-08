@@ -4,5 +4,15 @@
   "description": "Локальный мини-UI оболочки (экран подключения, попапы): события и команды окна без доступа к порталу.",
   "local": true,
   "windows": ["main", "popup-*"],
-  "permissions": ["core:default", "core:event:default"]
+  "permissions": [
+    "core:default",
+    "core:event:default",
+    "allow-connection-state",
+    "allow-submit-portal-address",
+    "allow-retry-connection",
+    "allow-change-server",
+    "allow-run-updater",
+    "allow-popup-window",
+    "allow-popup-actions"
+  ]
 }

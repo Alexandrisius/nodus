@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 import { ui } from '@nodus/contracts';
 
@@ -19,14 +18,23 @@ export function PopupView() {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
 
+  // Прозрачное окно: globals.css красит body в фон темы — для попапа
+  // возвращаем прозрачность, иначе скруглённая карточка сидит на прямоугольнике.
   useEffect(() => {
-    const un = listen<PopupData>('popup:data', (e) => {
-      setData(e.payload);
+    document.documentElement.style.background = 'transparent';
+    document.body.style.background = 'transparent';
+  }, []);
+
+  // Pull-модель: окно забирает payload после загрузки — событие из Rust
+  // могло бы прийти раньше монтирования React (гонка), pull её исключает.
+  useEffect(() => {
+    void invoke<PopupData | null>('popup_get_data').then((payload) => {
+      setData(payload);
       setReplying(false);
       setText('');
     });
-    return () => void un.then((f) => f());
   }, []);
 
   function close() {
@@ -58,10 +66,13 @@ export function PopupView() {
   if (!data) {
     return <div className="h-screen w-screen bg-transparent" />;
   }
+  // Прозрачное окно (transparent(true) в Rust): body перекрашен globals.css,
+  // для попапа возвращаем прозрачность, иначе углы карточки сидят на фоне окна.
 
   return (
     <div
-      className="bg-card text-card-foreground flex h-screen w-screen flex-col rounded-[14px] border p-3 font-sans shadow-lg"
+      className="bg-card text-card-foreground flex h-screen w-screen flex-col rounded-[14px] border px-3 py-2.5 font-sans shadow-[0_8px_30px_rgba(0,0,0,0.25)]"
+      ref={rootRef}
       onKeyDown={(e) => {
         if (e.key === 'Escape') close();
       }}

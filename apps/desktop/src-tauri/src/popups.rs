@@ -1,14 +1,15 @@
 use std::sync::Mutex;
 
 use tauri::webview::WebviewWindowBuilder;
-use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, WebviewUrl, WebviewWindow};
+use tauri::{AppHandle, Manager, PhysicalPosition, WebviewUrl, WebviewWindow};
 
 use crate::bridge::{self, PopupPayload, PopupReply};
 
-/// Геометрия попапа (логические px): карточка 380×152, с полем ответа 380×232.
-const POPUP_W: f64 = 380.0;
-const POPUP_H: f64 = 152.0;
-const POPUP_H_REPLY: f64 = 232.0;
+/// Геометрия попапа (логические px): карточка 360×136, с полем ответа 360×216
+/// (референс Telegram; окно прозрачное — скругления несёт сама карточка).
+const POPUP_W: f64 = 360.0;
+const POPUP_H: f64 = 136.0;
+const POPUP_H_REPLY: f64 = 216.0;
 const MARGIN: f64 = 14.0;
 const GAP: f64 = 10.0;
 /// Максимум в стеке (право-низ, рост вверх) — как Telegram.
@@ -22,6 +23,9 @@ struct ActivePopup {
     held: bool,
     urgent: bool,
     created: std::time::Instant,
+    /// Payload для pull-модели: окно забирает данные само после загрузки
+    /// (push-событие проигрывал бы гонку со скоростью монтирования React).
+    payload: serde_json::Value,
 }
 
 /// Стек активных попапов: слоты 0..4 от право-низа вверх.
@@ -35,10 +39,22 @@ fn stack(app: &AppHandle) -> std::sync::MutexGuard<'_, PopupStack> {
     app.state::<Mutex<PopupStack>>().inner().lock().unwrap()
 }
 
+/// Показать попап. Вызывать ТОЛЬКО из async-команд: на Windows билдер окна
+/// в синхронном контексте дедлокит WebView2 (см. bridge::notify_popup).
 pub fn show(app: &AppHandle, payload: PopupPayload) {
+    let payload_json = serde_json::json!({
+        "id": payload.id,
+        "conversationId": payload.conversation_id,
+        "title": payload.title,
+        "avatarUrl": payload.avatar_url,
+        "preview": payload.preview,
+        "urgent": payload.urgent,
+        "canReply": payload.can_reply,
+    });
     let label = {
         let mut s = stack(app);
-        // Стек полон: закрываем старейший неважный (важные/активные не трогаем).
+        // Стек полон: закрываем старейший неважный (важные/активные не трогаем);
+        // слот освободится событием Destroyed и будет перезанят ниже.
         if s.active.len() >= MAX_STACK as usize {
             let victim = s
                 .active
@@ -65,6 +81,7 @@ pub fn show(app: &AppHandle, payload: PopupPayload) {
             held: false,
             urgent: payload.urgent,
             created: std::time::Instant::now(),
+            payload: payload_json,
         });
         label
     };
@@ -80,7 +97,11 @@ pub fn show(app: &AppHandle, payload: PopupPayload) {
         .minimizable(false)
         .inner_size(POPUP_W, POPUP_H)
         .visible(false)
-        .shadow(true)
+        // Прозрачное окно: скруглённые углы и тень рисует карточка (CSS);
+        // непрозрачный фон окна вылезал артефактами из-за скруглений,
+        // а системная тень тянулась бы по прямоугольнику окна.
+        .transparent(true)
+        .shadow(false)
         .build()
     {
         Ok(win) => win,
@@ -91,29 +112,14 @@ pub fn show(app: &AppHandle, payload: PopupPayload) {
         }
     };
 
-    // Право-низ work_area монитора курсора (физические px, DPI-точно).
+    // Право-низ work_area монитора курсора (физические px, DPI-точно);
+    // монитор недоступен — остаёмся в позиции билдера (центр).
     let slot = stack(app).active.iter().find(|p| p.label == label).map(|p| p.slot).unwrap_or(0);
     if let Some((x, y)) = position_for_slot(app, slot) {
         let _ = win.set_position(PhysicalPosition::new(x, y));
     }
     let _ = win.show();
     let _ = win.set_focus();
-
-    let autoclose_ms = if payload.urgent { 0 } else { AUTOCLOSE_MS };
-    let _ = app.emit_to(
-        &label,
-        "popup:data",
-        serde_json::json!({
-            "id": payload.id,
-            "conversationId": payload.conversation_id,
-            "title": payload.title,
-            "avatarUrl": payload.avatar_url,
-            "preview": payload.preview,
-            "urgent": payload.urgent,
-            "canReply": payload.can_reply,
-            "autocloseMs": autoclose_ms,
-        }),
-    );
 
     if !payload.urgent {
         let app = app.clone();
@@ -148,6 +154,13 @@ fn position_for_slot(app: &AppHandle, slot: u32) -> Option<(i32, i32)> {
 
 pub fn on_popup_destroyed(app: &AppHandle, label: &str) {
     stack(app).active.retain(|p| p.label != label);
+}
+
+/// Payload попапа — pull-моделью после загрузки окна (без гонки со маунтом).
+#[tauri::command]
+pub fn popup_get_data(app: AppHandle, window: WebviewWindow) -> Option<serde_json::Value> {
+    let label = window.label();
+    stack(&app).active.iter().find(|p| p.label == label).map(|p| p.payload.clone())
 }
 
 /// Закрыть попап — вызывает само окно (крестик/Esc/после действия).

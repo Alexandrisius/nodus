@@ -4,7 +4,6 @@ import { chatMessageSentPayloadSchema, stripMentionTokens, ui } from '@nodus/con
 import { useAuthStore } from '../auth-store.js';
 import { withoutPatronymic } from '../lib/format.js';
 import { chatKeys } from '../chat/api.js';
-import { getOpenConversation } from '../chat/notifications.js';
 import {
   desktopFlashTaskbar,
   desktopShowPopup,
@@ -31,7 +30,11 @@ export function notifyDesktopMessage(payload: unknown, queryClient: QueryClient)
   if (!urgent) {
     const flags = conversationFlags(queryClient, conversationId);
     if (flags?.muted || flags?.snoozed) return;
-    if (!isPortalBackground() && getOpenConversation() === conversationId) return;
+    // Модель Telegram: попап — только когда портал не на виду (в трее/свернут
+    // или окно без фокуса); пользователь смотрит в портал — тишина, непрочи-
+    // танные несут бейдж рейки/заголовка.
+    const engaged = !isPortalBackground() && document.hasFocus();
+    if (engaged) return;
   }
 
   void desktopShowPopup({

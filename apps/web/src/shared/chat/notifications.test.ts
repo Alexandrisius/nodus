@@ -15,6 +15,8 @@ import {
  * вкладка ИЛИ неоткрытая беседа.
  */
 
+import { isDesktopShell } from '../desktop/desktop-bridge.js';
+
 const ME = '00000000-0000-4000-8000-000000000001';
 const OTHER = '00000000-0000-4000-8000-000000000002';
 const CONV = '00000000-0000-4000-8000-0000000000c1';
@@ -53,6 +55,28 @@ describe('уведомления чата (#124)', () => {
     expect(shouldNotify(OTHER, CONV)).toBe(true);
     disableNotifications();
     expect(shouldNotify(OTHER, CONV)).toBe(false);
+  });
+
+  it('в десктоп-оболочке браузерные уведомления выключены всегда (модель Telegram)', async () => {
+    await enableNotifications();
+    (window as { nodusDesktop?: unknown }).nodusDesktop = {
+      shellVersion: '1.0.0',
+      platform: 'windows',
+      showPopup: () => Promise.resolve(),
+      setUnreadBadge: () => Promise.resolve(),
+      flashTaskbar: () => Promise.resolve(),
+      openExternal: () => Promise.resolve(),
+      getShellInfo: () => Promise.resolve(),
+      shellReady: () => Promise.resolve(),
+      onEvent: () => () => undefined,
+    };
+    try {
+      expect(isDesktopShell()).toBe(true);
+      Object.defineProperty(document, 'hidden', { value: true, configurable: true });
+      expect(shouldNotify(OTHER, CONV)).toBe(false);
+    } finally {
+      delete (window as { nodusDesktop?: unknown }).nodusDesktop;
+    }
   });
 
   it('своё сообщение и открытая беседа в активной вкладке — тишина', async () => {

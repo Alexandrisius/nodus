@@ -45,7 +45,18 @@ fn config_file(app: &AppHandle) -> Option<std::path::PathBuf> {
     app.path().app_config_dir().ok().map(|dir| dir.join("portal.json"))
 }
 
+/// Адрес, зашитый в сборку (CI-арг NODUS_PORTAL_URL, модель Битрикса для
+/// корпоративной раскатки): приоритетнее сохранённого — сотрудники ничего
+/// не вводят; пустой/невалидный зашитый тихо игнорируется.
+const BAKED_PORTAL_URL: Option<&str> = option_env!("NODUS_PORTAL_URL");
+
 pub fn load_saved_address(app: &AppHandle) -> Option<String> {
+    if let Some(baked) = BAKED_PORTAL_URL {
+        if let Ok(root) = normalize_address(baked) {
+            return Some(root);
+        }
+        log::warn!("зашитый NODUS_PORTAL_URL невалиден, игнорируем: {baked}");
+    }
     #[derive(serde::Deserialize)]
     struct Saved {
         address: String,

@@ -4,6 +4,7 @@ import type { QueryClient } from '@tanstack/react-query';
 
 import { useAuthStore } from '../auth-store.js';
 import { setOpenConversation } from '../chat/notifications.js';
+import { setShellVisibleFromShell } from './desktop-bridge.js';
 import { notifyDesktopMessage } from './desktop-notify.js';
 import { setShellVisibleFromShell } from './desktop-bridge.js';
 
@@ -130,16 +131,20 @@ describe('notifyDesktopMessage', () => {
     expect(window.nodusDesktop?.showPopup).not.toHaveBeenCalled();
   });
 
-  it('обычное молчит, когда оболочка видима и беседа открыта', () => {
-    setOpenConversation(CONV);
+  it('обычное молчит, когда пользователь смотрит в портал (окно в фокусе)', () => {
+    // jsdom: document.hasFocus() = true по умолчанию, окно «видимо».
     notifyDesktopMessage(messagePayload(), queryClientWith({}));
     expect(window.nodusDesktop?.showPopup).not.toHaveBeenCalled();
   });
 
-  it('обычное звонит, когда беседа НЕ открыта, даже в видимой оболочке', () => {
-    setOpenConversation(null);
-    notifyDesktopMessage(messagePayload(), queryClientWith({}));
-    expect(window.nodusDesktop?.showPopup).toHaveBeenCalled();
+  it('обычное звонит, когда окно видимо, но без фокуса (другое приложение)', () => {
+    vi.spyOn(document, 'hasFocus').mockReturnValue(false);
+    try {
+      notifyDesktopMessage(messagePayload(), queryClientWith({}));
+      expect(window.nodusDesktop?.showPopup).toHaveBeenCalled();
+    } finally {
+      vi.mockRestore();
+    }
   });
 
   it('важное пробивает mute, snooze и открытую беседу; мигание критичное', () => {

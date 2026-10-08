@@ -34,13 +34,10 @@ export function useDesktopBridge(): void {
           api(`/chat/conversations/${conversationId}/messages`, {
             method: 'POST',
             idempotencyKey: tempId,
+            // Optional-поля не шлём вовсе: серверная zod-схема ждёт
+            // отсутствующий ключ (undefined), а не null (400, как у хука).
             body: {
               text,
-              attachmentIds: null,
-              stickerId: null,
-              replyToId: null,
-              quoteText: null,
-              threadRootId: null,
               urgent: false,
             },
           }),

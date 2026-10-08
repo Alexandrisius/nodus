@@ -1,6 +1,7 @@
 import { chatMessageSentPayloadSchema, stripMentionTokens, ui } from '@nodus/contracts';
 
 import { useAuthStore } from '../auth-store.js';
+import { isDesktopShell } from '../desktop/desktop-bridge.js';
 import { withoutPatronymic } from '../lib/format.js';
 
 /**
@@ -50,8 +51,14 @@ export function disableNotifications(): void {
   localStorage.removeItem(PREF_KEY);
 }
 
-/** Гейт события: чужое сообщение в фоновой вкладке или в неоткрытой беседе. */
+/**
+ * Гейт события: чужое сообщение в фоновой вкладке или в неоткрытой беседе.
+ * В десктоп-оболочке выключены ВСЕГДА (вердикт владельца 08.10, модель
+ * Telegram): уведомления — только попапы оболочки, WebView2 не должен
+ * поднимать нативные тосты Windows (дубль). Opt-in остаётся для браузера.
+ */
 export function shouldNotify(authorId: string, conversationId: string): boolean {
+  if (isDesktopShell()) return false;
   if (!notificationsEnabled()) return false;
   if (authorId === (useAuthStore.getState().user?.id ?? null)) return false;
   if (!document.hidden && openConversationId === conversationId) return false;
@@ -73,8 +80,5 @@ export function notifySentMessage(payload: unknown): void {
   const { conversationId, message } = parsed.data;
   if (!shouldNotify(message.author.id, conversationId)) return;
   // Упоминания — отображаемым текстом (браузерное уведомление без разметки).
-  notifyMessage(
-    withoutPatronymic(message.author.displayName),
-    stripMentionTokens(message.text),
-  );
+  notifyMessage(withoutPatronymic(message.author.displayName), stripMentionTokens(message.text));
 }

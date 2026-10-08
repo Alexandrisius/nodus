@@ -18,7 +18,14 @@ export function SetupScreen() {
   const [update, setUpdate] = useState<UpdateOutcome | null>(null);
 
   useEffect(() => {
-    void shellApi.getState().then(setState);
+    void shellApi.getState().then((initial) => {
+      setState(initial);
+      // Автоподключение по сохранённому/зашитому адресу: старт Windows,
+      // перезапуск после обновления — сотрудник ничего не вводит (ADR-0019).
+      if (initial.status === 'idle' && initial.savedAddress) {
+        void retry();
+      }
+    });
   }, []);
 
   const busy = state.status === 'connecting' || update?.status === 'installing';

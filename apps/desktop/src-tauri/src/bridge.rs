@@ -109,8 +109,11 @@ pub struct PopupReply {
     pub text: String,
 }
 
+/// Async обязателен: на Windows создание WebviewWindow из синхронной
+/// команды/обработчика ДЕДЛОКИТ WebView2 — окно висит на about:blank
+/// (known issue, docs.rs WebviewWindowBuilder; баги tauri #13963/#13092).
 #[tauri::command]
-pub fn notify_popup(app: AppHandle, payload: PopupPayload) -> Result<(), String> {
+pub async fn notify_popup(app: AppHandle, payload: PopupPayload) -> Result<(), String> {
     let len = payload.preview.chars().count();
     if payload.id.is_empty() || payload.conversation_id.is_empty() || len > 500 {
         return Err("invalid_payload".into());

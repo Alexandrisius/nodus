@@ -1,0 +1,38 @@
+# Права локального мини-UI оболочки (экран подключения + попапы). Наличие
+# каталога permissions/ включает строгий AppManifest-режим: КАЖДАЯ команда
+# приложения должна быть явно разрешена capability — включая локальные.
+
+[[permission]]
+identifier = "allow-connection-state"
+description = "Состояние подключения к порталу (экран «Адрес портала»)."
+commands.allow = ["get_connection_state"]
+
+[[permission]]
+identifier = "allow-submit-portal-address"
+description = "Валидировать/сохранить адрес портала и подключиться."
+commands.allow = ["submit_portal_address"]
+
+[[permission]]
+identifier = "allow-retry-connection"
+description = "Повторить подключение к сохранённому адресу (офлайн-заглушка)."
+commands.allow = ["retry_connection"]
+
+[[permission]]
+identifier = "allow-change-server"
+description = "Сбросить адрес и перезапустить оболочку (меню трея)."
+commands.allow = ["change_server"]
+
+[[permission]]
+identifier = "allow-run-updater"
+description = "Проверить и тихо установить обновление оболочки."
+commands.allow = ["run_updater"]
+
+[[permission]]
+identifier = "allow-popup-window"
+description = "Управление окном попапа: закрыть, держать открытым, изменить высоту."
+commands.allow = ["popup_get_data", "popup_close", "popup_hold", "popup_set_expanded"]
+
+[[permission]]
+identifier = "allow-popup-actions"
+description = "Действия попапа: отправить быстрый ответ, открыть беседу."
+commands.allow = ["popup_submit_reply", "popup_open"]

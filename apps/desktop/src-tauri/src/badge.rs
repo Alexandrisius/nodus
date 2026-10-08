@@ -8,18 +8,21 @@ use crate::tray_menu;
 const BADGE_RED: [u8; 4] = [229, 72, 77, 255];
 const BADGE_WHITE: [u8; 4] = [255, 255, 255, 255];
 
-/// 3×5 пиксельный шрифт цифр (row-major, 15 бит на глиф).
-const DIGITS: [u16; 10] = [
-    0b111_101_101_101_111, // 0
-    0b010_110_010_010_111, // 1
-    0b111_001_111_100_111, // 2
-    0b111_001_111_001_111, // 3
-    0b101_101_111_001_001, // 4
-    0b111_100_111_001_111, // 5
-    0b111_100_111_101_111, // 6
-    0b111_001_001_001_001, // 7
-    0b111_101_111_101_111, // 8
-    0b111_101_111_001_111, // 9
+/// 3×5 пиксельный шрифт цифр: 15 символов на глиф, row-major, ПЕРВЫЙ
+/// символ — левый верх (строковые глифы вместо битовых масок: сдвиг
+/// `row*3+col` читал битовое представление снизу вверх — цифры зеркалились
+/// по вертикали в бейджах трея и панели задач).
+const DIGITS: [&str; 10] = [
+    "111101101101111", // 0
+    "010110010010111", // 1
+    "111001111100111", // 2
+    "111001111001111", // 3
+    "101101111001001", // 4
+    "111100111001111", // 5
+    "111100111101111", // 6
+    "111001001001001", // 7
+    "111101111101111", // 8
+    "111101111001111", // 9
 ];
 
 struct Rgba {
@@ -37,22 +40,23 @@ impl Rgba {
             return;
         }
         let idx = ((y as u32 * self.width + x as u32) * 4) as usize;
-        let alpha = color[3] as u16;
+        let alpha = color[3] as u32;
         let [old_r, old_g, old_b, old_a] = [
-            self.data[idx],
-            self.data[idx + 1],
-            self.data[idx + 2],
-            self.data[idx + 3],
+            self.data[idx] as u32,
+            self.data[idx + 1] as u32,
+            self.data[idx + 2] as u32,
+            self.data[idx + 3] as u32,
         ];
-        // Альфа-смешивание для мягкой кромки круга (1px).
-        let out_a = alpha + (old_a as u16 * (255 - alpha) / 255);
+        // Альфа-смешивание для мягкой кромки круга (1px); u32 обязательна:
+        // 255 * 255 * 255 не помещается в u16 (паника переполнения в debug).
+        let out_a = alpha + (old_a * (255 - alpha) / 255);
         if out_a == 0 {
             return;
         }
         for c in 0..3 {
-            let src = color[c] as u16 * alpha;
+            let src = color[c] as u32 * alpha;
             let old_c = [old_r, old_g, old_b][c];
-            let dst = old_c as u16 * old_a as u16 * (255 - alpha) / 255;
+            let dst = old_c * old_a * (255 - alpha) / 255;
             self.data[idx + c] = ((src + dst) / out_a) as u8;
         }
         self.data[idx + 3] = out_a as u8;
@@ -83,10 +87,10 @@ fn fill_circle(buf: &mut Rgba, cx: f32, cy: f32, radius: f32, color: [u8; 4]) {
 
 /// Цифры (+ «9+»): масштаб целый, центрируем в круг.
 fn draw_counter(buf: &mut Rgba, cx: f32, cy: f32, count: u32, scale: i32) {
-    let text: Vec<u16> = if count >= 10 {
+    let text: Vec<&str> = if count >= 10 {
         // две цифры; 100+ → «9+»
         if count >= 100 {
-            vec![DIGITS[9], 0] // 0 = глиф «+» ниже
+            vec![DIGITS[9], ""] // хвост — глиф «+» ниже
         } else {
             vec![DIGITS[(count / 10) as usize], DIGITS[(count % 10) as usize]]
         }
@@ -102,20 +106,20 @@ fn draw_counter(buf: &mut Rgba, cx: f32, cy: f32, count: u32, scale: i32) {
         if i > 0 {
             dx += scale as f32; // межцифровой зазор
         }
-        for row in 0..5 {
-            for col in 0..3 {
+        for row in 0..5usize {
+            for col in 0..3usize {
                 let is_plus = is_plus_tail && i == 1;
                 let on = if is_plus {
                     // плюс 3×5: вертикаль и горизонталь
                     (col == 1 && (1..4).contains(&row)) || (row == 2 && (0..3).contains(&col))
                 } else {
-                    (glyph >> (row * 3 + col)) & 1 == 1
+                    glyph.as_bytes()[row * 3 + col] == b'1'
                 };
                 if on {
                     for sy in 0..scale {
                         for sx in 0..scale {
-                            let px = dx as i32 + col * scale + sx;
-                            let py = cy as i32 - glyph_h / 2 + row * scale + sy;
+                            let px = dx as i32 + col as i32 * scale + sx;
+                            let py = cy as i32 - glyph_h / 2 + row as i32 * scale + sy;
                             buf.put(px, py, BADGE_WHITE);
                         }
                     }
