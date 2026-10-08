@@ -205,15 +205,21 @@ fn set_noactivate(win: &WebviewWindow, on: bool) {
 /// (blur документа) — после закрытия попапа руками вернём фокус порталу,
 /// супер-курсор поднимется сам.
 fn refocus_portal(app: &AppHandle) {
+    use windows::Win32::Foundation::HWND;
+    use windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
     if let Some(main) = app.get_webview_window("main") {
-        // Только если портал уже на экране: закрытие крестиком/«Скрыть все» =
-        // «пользователь занят» — разворачивать свернутое/в трее приложение
-        // нельзя (фидбек владельца 08.10).
-        let visible = main.is_visible().unwrap_or(false);
-        let minimized = main.is_minimized().unwrap_or(false);
-        if visible && !minimized {
-            let _ = main.set_focus();
+        // Возвращаем фокус ТОЛЬКО если портал сейчас в фокусе системы
+        // (пользователь печатал в нём). Перекрытый другим окном / свёрнутый /
+        // в трее портал не трогаем: клик по попапу = «пользователь занят»,
+        // поднимать окно поверх чужого нельзя (фидбек 08.10). Попап не
+        // активируется (WS_EX_NOACTIVATE), поэтому foreground не менялся.
+        let Ok(hwnd) = main.hwnd() else { return };
+        unsafe {
+            if GetForegroundWindow() != HWND(hwnd.0) {
+                return;
+            }
         }
+        let _ = main.set_focus();
     }
 }
 
