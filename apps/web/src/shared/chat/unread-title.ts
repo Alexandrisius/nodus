@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { NotificationSummary } from '@nodus/contracts';
 
+import { desktopSetUnreadBadge } from '../desktop/desktop-bridge.js';
 import { notificationsKeys } from '../notifications-keys.js';
 import { useConversations } from './api.js';
 
@@ -24,6 +25,8 @@ export function useUnreadTitle(): void {
     const chatTotal = (data?.items ?? []).reduce((sum, c) => sum + c.unreadCount, 0);
     const total = attention > 0 ? attention : chatTotal;
     document.title = total > 0 ? `(${total}) ${BASE_TITLE}` : BASE_TITLE;
+    // Десктоп-оболочка (#254): тот же счётчик — бейдж трея и панели задач.
+    void desktopSetUnreadBadge(total > 0 ? total : null);
   }, [data, queryClient]);
 
   useEffect(

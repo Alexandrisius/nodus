@@ -12,6 +12,7 @@ import { useAuthStore } from '../auth-store.js';
 import { chatKeys } from '../chat/api.js';
 import { usePresenceStore } from './presence-store.js';
 import { notifySentMessage } from '../chat/notifications.js';
+import { notifyDesktopMessage } from '../desktop/desktop-notify.js';
 import { notificationDispatched, notificationRead } from './notification-bridge.js';
 import { createRealtimeInvalidator, type RealtimeInvalidator } from './socket-invalidation.js';
 import { useSocketStatusStore } from './socket-status-store.js';
@@ -150,6 +151,8 @@ export function connectChatSocket(queryClient: QueryClient): void {
         // Сигнал фоновой вкладке (#124): гейт внутри (opt-in/фон/не своя).
         if (parsed.data.type === CHAT_EVENTS.MESSAGE_SENT) {
           notifySentMessage(parsed.data.payload);
+          // Десктоп-оболочка (#254): попап с быстрым ответом (гейты внутри).
+          notifyDesktopMessage(parsed.data.payload, queryClient);
         }
         wsDebugLog('domain event:', parsed.data.type);
         dispatchNotification(parsed.data);

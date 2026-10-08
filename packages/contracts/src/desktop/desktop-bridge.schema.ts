@@ -50,10 +50,20 @@ export const openConversationEventSchema = z.object({
 });
 export type OpenConversationEvent = z.infer<typeof openConversationEventSchema>;
 
+/**
+ * Событие «оболочка → веб»: видимость окна (скрытие в трей может не менять
+ * `document.hidden` в WebView2 — портал обязан знать, что он «в фоне»).
+ */
+export const shellVisibilityEventSchema = z.object({
+  visible: z.boolean(),
+});
+export type ShellVisibilityEvent = z.infer<typeof shellVisibilityEventSchema>;
+
 /** Каталог типов событий моста «оболочка → веб» (расширяется). */
 export const DESKTOP_BRIDGE_EVENTS = {
   popupReply: 'popup-reply',
   openConversation: 'open-conversation',
+  shellVisibility: 'shell-visibility',
 } as const;
 export type DesktopBridgeEventType =
   (typeof DESKTOP_BRIDGE_EVENTS)[keyof typeof DESKTOP_BRIDGE_EVENTS];

@@ -12,6 +12,7 @@ import { AttachmentViewer } from '../../shared/files/attachment-viewer.js';
 import { NotificationToasts } from '../../features/notifications/components/notification-toasts.js';
 import { useNotificationSink } from '../../features/notifications/model/use-notification-sink.js';
 import { useUnreadTitle } from '../../shared/chat/unread-title.js';
+import { useDesktopBridge } from '../../shared/desktop/use-desktop-bridge.js';
 import { useChatSocket } from '../../shared/socket/use-chat-socket.js';
 import { WsDebugBadge } from '../../shared/socket/ws-debug-badge.js';
 import { CircuitFrame } from './circuit-frame.js';
@@ -60,6 +61,8 @@ export function AppShell() {
   }, []);
   // (N) Nodus в заголовке вкладки (#124): сигнал фоновой вкладке.
   useUnreadTitle();
+  // Мост десктоп-оболочки (#254): попапы-ответы, deep link, видимость трея.
+  useDesktopBridge();
   // Тосты уведомлений (#100): поверх карточек (z-[70] внутри хоста).
   const stressMode =
     typeof window !== 'undefined' &&

@@ -1,0 +1,148 @@
+// @vitest-environment jsdom
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import {
+  bindDesktopShellEvents,
+  desktopSetUnreadBadge,
+  desktopShowPopup,
+  getDesktopBridge,
+  getShellVisible,
+  isDesktopShell,
+  isPortalBackground,
+} from './desktop-bridge.js';
+
+/**
+ * Протокол моста «портал ↔ оболочка» (ADR-0019): обнаружение, zod-фильтр
+ * команд на границе, события видимости, сигнал готовности. Фейковый
+ * window.nodusDesktop повторяет сигнатуру инициализационного скрипта
+ * (apps/desktop/src-tauri/src/bridge.rs) — рассинхрон = тест падает.
+ */
+
+const CONV = '00000000-0000-4000-8000-0000000000c1';
+
+function installBridge() {
+  const listeners = new Map<string, ((payload: unknown) => void)[]>();
+  const bridge = {
+    shellVersion: '1.0.0',
+    platform: 'windows',
+    showPopup: vi.fn(async () => undefined),
+    setUnreadBadge: vi.fn(async () => undefined),
+    flashTaskbar: vi.fn(async () => undefined),
+    openExternal: vi.fn(async () => undefined),
+    getShellInfo: vi.fn(async () => ({ version: '1.0.0', platform: 'windows' })),
+    shellReady: vi.fn(async () => undefined),
+    onEvent: vi.fn((type: string, fn: (payload: unknown) => void) => {
+      const arr = listeners.get(type) ?? [];
+      arr.push(fn);
+      listeners.set(type, arr);
+      return () => {
+        const cur = listeners.get(type) ?? [];
+        listeners.set(
+          type,
+          cur.filter((f) => f !== fn),
+        );
+      };
+    }),
+  };
+  window.nodusDesktop = bridge;
+  const emit = (type: string, payload: unknown) =>
+    (listeners.get(type) ?? []).forEach((fn) => fn(payload));
+  return { bridge, emit };
+}
+
+function setHidden(hidden: boolean) {
+  Object.defineProperty(document, 'hidden', { configurable: true, get: () => hidden });
+}
+
+beforeEach(() => {
+  delete window.nodusDesktop;
+  setHidden(false);
+});
+
+afterEach(() => {
+  delete window.nodusDesktop;
+});
+
+describe('обнаружение моста', () => {
+  it('в браузере моста нет и все вызовы — тихие no-op', async () => {
+    expect(isDesktopShell()).toBe(false);
+    expect(getDesktopBridge()).toBeNull();
+    await expect(desktopShowPopup({})).resolves.toBeUndefined();
+    await expect(desktopSetUnreadBadge(5)).resolves.toBeUndefined();
+  });
+
+  it('в оболочке мост обнаруживается', () => {
+    installBridge();
+    expect(isDesktopShell()).toBe(true);
+  });
+});
+
+describe('команды на границе', () => {
+  it('showPopup пропускает только контрактный payload', async () => {
+    const { bridge } = installBridge();
+    await desktopShowPopup({
+      id: 'm1',
+      conversationId: CONV,
+      title: 'Иван Петров',
+      preview: 'Привет',
+      urgent: false,
+      canReply: true,
+    });
+    await desktopShowPopup({ id: '', title: 42 }); // мусор — молча отбрасывается
+    expect(bridge.showPopup).toHaveBeenCalledTimes(1);
+  });
+
+  it('бейдж передаёт счётчик и null-сброс', async () => {
+    const { bridge } = installBridge();
+    await desktopSetUnreadBadge(7);
+    await desktopSetUnreadBadge(null);
+    expect(bridge.setUnreadBadge).toHaveBeenNthCalledWith(1, 7);
+    expect(bridge.setUnreadBadge).toHaveBeenNthCalledWith(2, null);
+  });
+});
+
+describe('видимость оболочки', () => {
+  it('до bind события видимости не меняют состояние (подписка — через bind)', () => {
+    const { emit } = installBridge();
+    emit('shell-visibility', { visible: false });
+    expect(getShellVisible()).toBe(true);
+  });
+
+  it('bind слушает события и фильтрует кривые payload', () => {
+    const { emit } = installBridge();
+    const onReply = vi.fn();
+    const onOpen = vi.fn();
+    const un = bindDesktopShellEvents({ onPopupReply: onReply, onOpenConversation: onOpen });
+
+    emit('popup-reply', { id: 'm1', conversationId: CONV, text: 'Ответ' });
+    emit('popup-reply', { id: 'm2', conversationId: 'не-uuid', text: 'мусор' });
+    emit('open-conversation', { conversationId: CONV });
+    emit('shell-visibility', { visible: false });
+    emit('shell-visibility', 'не объект');
+
+    expect(onReply).toHaveBeenCalledTimes(1);
+    expect(onOpen).toHaveBeenCalledWith({ conversationId: CONV });
+    expect(isPortalBackground()).toBe(true);
+
+    emit('shell-visibility', { visible: true });
+    expect(isPortalBackground()).toBe(false);
+
+    un();
+    emit('popup-reply', { id: 'm3', conversationId: CONV, text: 'после отписки' });
+    expect(onReply).toHaveBeenCalledTimes(1);
+  });
+
+  it('bind сигналит оболочке shellReady', () => {
+    const { bridge } = installBridge();
+    bindDesktopShellEvents({ onPopupReply: vi.fn(), onOpenConversation: vi.fn() });
+    expect(bridge.shellReady).toHaveBeenCalled();
+  });
+});
+
+describe('фон документа', () => {
+  it('document.hidden тоже считает портал фоновым', () => {
+    installBridge();
+    setHidden(true);
+    expect(isPortalBackground()).toBe(true);
+  });
+});
