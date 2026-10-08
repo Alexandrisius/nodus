@@ -206,7 +206,14 @@ fn set_noactivate(win: &WebviewWindow, on: bool) {
 /// супер-курсор поднимется сам.
 fn refocus_portal(app: &AppHandle) {
     if let Some(main) = app.get_webview_window("main") {
-        let _ = main.set_focus();
+        // Только если портал уже на экране: закрытие крестиком/«Скрыть все» =
+        // «пользователь занят» — разворачивать свернутое/в трее приложение
+        // нельзя (фидбек владельца 08.10).
+        let visible = main.is_visible().unwrap_or(false);
+        let minimized = main.is_minimized().unwrap_or(false);
+        if visible && !minimized {
+            let _ = main.set_focus();
+        }
     }
 }
 
