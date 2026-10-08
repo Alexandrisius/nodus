@@ -1,3 +1,5 @@
+use std::sync::Mutex;
+
 use tauri::image::Image;
 use tauri::{AppHandle, Manager};
 
@@ -156,10 +158,8 @@ fn tray_icon_with_badge(base: &Image, count: u32) -> Image<'static> {
 /// Применить счётчик непрочитанных: бейдж трея + оверлей панели задач +
 /// тултип. 0/None — чистые иконки.
 pub fn apply(app: &AppHandle, count: Option<u32>) {
-    let base = app
-        .default_window_icon()
-        .cloned()
-        .unwrap_or_else(|| include_icon_fallback());
+    *LAST_COUNT.lock().unwrap() = count;
+    let base = themed_base_icon(app);
     match count.filter(|c| *c > 0) {
         Some(n) => {
             tray_menu::set_tray_icon(app, tray_icon_with_badge(&base, n));
@@ -178,10 +178,36 @@ pub fn apply(app: &AppHandle, count: Option<u32>) {
     }
 }
 
-fn include_icon_fallback() -> Image<'static> {
-    static BYTES: &[u8] = include_bytes!("../icons/32x32.png");
-    let img = image::load_from_memory(BYTES).expect("иконка 32x32 встроена в сборку");
+fn decode_png(bytes: &'static [u8]) -> Image<'static> {
+    let img = image::load_from_memory(bytes).expect("иконка встроена в сборку");
     let rgba = img.to_rgba8();
     let (w, h) = rgba.dimensions();
     Image::new_owned(rgba.into_raw(), w, h)
+}
+
+/// Тёмная ли системная тема (тёмный таскбар → нужен белый знак).
+pub fn system_theme_dark(app: &AppHandle) -> bool {
+    app.get_webview_window("main")
+        .and_then(|w| w.theme().ok())
+        .is_some_and(|t| t == tauri::Theme::Dark)
+}
+
+/// Базовый знак по теме: тёмный знак на светлый таскбар, белый — на тёмный
+/// (запрос владельца 08.10: тёмный знак не читается в тёмной теме Windows).
+pub fn themed_base_icon(app: &AppHandle) -> Image<'static> {
+    static DARK_GLYPH: &[u8] = include_bytes!("../icons/32x32.png");
+    static LIGHT_GLYPH: &[u8] = include_bytes!("../icons/32x32-light.png");
+    decode_png(if system_theme_dark(app) { LIGHT_GLYPH } else { DARK_GLYPH })
+}
+
+/// Последний счётчик: смена темы перерисовывает бейдж на новой базе.
+static LAST_COUNT: Mutex<Option<u32>> = Mutex::new(None);
+
+/// Перерисовать иконки после смены системной темы (WindowEvent::ThemeChanged).
+pub fn refresh_for_theme(app: &AppHandle) {
+    let count = *LAST_COUNT.lock().unwrap();
+    apply(app, count);
+    if let Some(win) = app.get_webview_window("main") {
+        let _ = win.set_icon(themed_base_icon(app));
+    }
 }

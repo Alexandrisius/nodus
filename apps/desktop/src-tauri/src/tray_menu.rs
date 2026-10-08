@@ -1,7 +1,7 @@
 use tauri::image::Image;
 use tauri::menu::{CheckMenuItem, Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 use tauri_plugin_autostart::ManagerExt as _;
 
 use crate::updates;
@@ -15,14 +15,12 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
     let autostart =
         CheckMenuItem::with_id(app, "autostart", "Запускать при входе в Windows", true, autostart_enabled, None::<&str>)?;
     let update = MenuItem::with_id(app, "update", "Проверить обновления", true, None::<&str>)?;
+    let reload = MenuItem::with_id(app, "reload", "Перезагрузить портал", true, None::<&str>)?;
     let change = MenuItem::with_id(app, "change_server", "Сменить сервер…", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Выход", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&open, &autostart, &update, &change, &quit])?;
+    let menu = Menu::with_items(app, &[&open, &autostart, &update, &reload, &change, &quit])?;
 
-    let icon = app
-        .default_window_icon()
-        .cloned()
-        .expect("иконка окна зашита в конфигурации");
+    let icon = crate::badge::themed_base_icon(app);
     TrayIconBuilder::with_id("nodus-tray")
         .icon(icon)
         .tooltip("Nodus")
@@ -38,6 +36,15 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
                         log::warn!("проверка обновлений не удалась: {e}");
                     }
                 });
+            }
+            "reload" => {
+                // Recovery (ADR-0019 Ф4): краш рендера лечится перезагрузкой
+                // webview — сессия портала переживает reload (refresh-cookie).
+                if let Some(win) = app.get_webview_window("main") {
+                    if let Err(e) = win.eval("location.reload()") {
+                        log::warn!("перезагрузка портала не удалась: {e}");
+                    }
+                }
             }
             "change_server" => crate::portal::change_server(app.clone()),
             "quit" => app.exit(0),

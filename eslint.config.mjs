@@ -15,6 +15,9 @@ export default [
       'tests/lint/fixtures/**',
       // Генерируемый Prisma client (генерируемое не коммитится и не линтится).
       'apps/api/src/generated/**',
+      // Артефакты сборки Rust/Tauri (кодоген и мини-UI вшитые в бинарь).
+      '**/target/**',
+      'apps/desktop/dist/**',
     ],
   },
   ...nodusConfig,

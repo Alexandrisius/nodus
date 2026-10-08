@@ -10,7 +10,7 @@ import type { PopupPayload } from '@nodus/contracts';
 
 /** Состояние подключения к порталу (драйвер экрана «Адрес портала»). */
 export type ConnectionState =
-  | { status: 'idle' }
+  | { status: 'idle'; savedAddress?: string | null }
   | { status: 'connecting' }
   | { status: 'offline'; address: string }
   | { status: 'needs-update'; address: string; serverName: string; minShellVersion: string }

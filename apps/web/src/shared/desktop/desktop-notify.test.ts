@@ -6,7 +6,6 @@ import { useAuthStore } from '../auth-store.js';
 import { setOpenConversation } from '../chat/notifications.js';
 import { setShellVisibleFromShell } from './desktop-bridge.js';
 import { notifyDesktopMessage } from './desktop-notify.js';
-import { setShellVisibleFromShell } from './desktop-bridge.js';
 
 /**
  * Гейты попапов оболочки (#254, ADR-0019): свои молчат; обычное сообщение —
@@ -132,9 +131,14 @@ describe('notifyDesktopMessage', () => {
   });
 
   it('обычное молчит, когда пользователь смотрит в портал (окно в фокусе)', () => {
-    // jsdom: document.hasFocus() = true по умолчанию, окно «видимо».
-    notifyDesktopMessage(messagePayload(), queryClientWith({}));
-    expect(window.nodusDesktop?.showPopup).not.toHaveBeenCalled();
+    // jsdom: hasFocus() по умолчанию false — мокаем «смотрит» явно.
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true);
+    try {
+      notifyDesktopMessage(messagePayload(), queryClientWith({}));
+      expect(window.nodusDesktop?.showPopup).not.toHaveBeenCalled();
+    } finally {
+      vi.restoreAllMocks();
+    }
   });
 
   it('обычное звонит, когда окно видимо, но без фокуса (другое приложение)', () => {
@@ -143,7 +147,7 @@ describe('notifyDesktopMessage', () => {
       notifyDesktopMessage(messagePayload(), queryClientWith({}));
       expect(window.nodusDesktop?.showPopup).toHaveBeenCalled();
     } finally {
-      vi.mockRestore();
+      vi.restoreAllMocks();
     }
   });
 
