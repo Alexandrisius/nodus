@@ -31,6 +31,7 @@ function installBridge() {
     flashTaskbar: vi.fn(async () => undefined),
     openExternal: vi.fn(async () => undefined),
     dismissPopups: vi.fn(async () => undefined),
+    setUiTheme: vi.fn(async () => undefined),
     getShellInfo: vi.fn(async () => ({ version: '1.0.0', platform: 'windows' })),
     shellReady: vi.fn(async () => undefined),
     onEvent: vi.fn((type: string, fn: (payload: unknown) => void) => {

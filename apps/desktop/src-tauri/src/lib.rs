@@ -90,6 +90,7 @@ pub fn run() {
             bridge::flash_taskbar,
             bridge::open_external,
             bridge::dismiss_popups,
+            bridge::set_ui_theme,
             bridge::get_shell_info,
             bridge::shell_ready,
             popups::popup_get_data,

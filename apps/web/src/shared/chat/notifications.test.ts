@@ -89,6 +89,7 @@ describe('уведомления чата (#124)', () => {
       setUnreadBadge: () => Promise.resolve(),
       flashTaskbar: () => Promise.resolve(),
       openExternal: () => Promise.resolve(),
+      setUiTheme: () => Promise.resolve(),
       dismissPopups,
       getShellInfo: () => Promise.resolve(),
       shellReady: () => Promise.resolve(),

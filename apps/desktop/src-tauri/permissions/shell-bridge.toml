@@ -29,6 +29,11 @@ description = "Погасить попапы беседы (портал откр
 commands.allow = ["dismiss_popups"]
 
 [[permission]]
+identifier = "allow-set-ui-theme"
+description = "Тема UI портала для попапов (светлая/тёмная — следует за приложением)."
+commands.allow = ["set_ui_theme"]
+
+[[permission]]
 identifier = "allow-get-shell-info"
 description = "Версия и платформа оболочки (диагностика, поддержка)."
 commands.allow = ["get_shell_info"]

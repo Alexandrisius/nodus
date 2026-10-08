@@ -150,12 +150,13 @@ export function PopupView() {
         </span>
       </button>
 
-      {/* Крестик крупный, в покое полупрозрачен (фидбек 08.10). */}
+      {/* Крестик: зона ховера = визуальный размер глифа (фидбек 08.10:
+       «маленький крестик с огромным ховером»). */}
       <button
         type="button"
         aria-label={ui.common.close}
         onClick={close}
-        className="text-muted-foreground hover:text-foreground hover:bg-accent absolute top-0.5 right-0.5 flex size-7 items-center justify-center rounded-lg text-[15px] opacity-60 transition-opacity hover:opacity-100"
+        className="text-muted-foreground hover:text-foreground hover:bg-accent absolute top-1 right-1 flex size-6 items-center justify-center rounded-md text-[16px] leading-none opacity-60 transition-opacity hover:opacity-100"
       >
         ×
       </button>

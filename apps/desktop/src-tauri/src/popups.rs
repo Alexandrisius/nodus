@@ -135,11 +135,11 @@ pub fn show(app: &AppHandle, payload: PopupPayload) {
     spawn_fade_ticker(app);
 
     // Невидимое окно: позицию даст reposition_all (кумулятив по стеку),
-    // затем показ — без мигания из центра.
+    // затем показ — без мигания из центра и БЕЗ кражи фокуса портала.
     let win = build_popup_window(app, &label, POPUP_H);
     reposition_all(app);
     if let Some(win) = win {
-        let _ = win.show();
+        show_noactivate(&win);
     }
 }
 
@@ -172,6 +172,8 @@ fn build_popup_window(app: &AppHandle, label: &str, height: f64) -> Option<Webvi
         }
     };
     set_noactivate(&win, true);
+    // Тема попапа = тема ПРИЛОЖЕНИЯ (портал сообщил через set_ui_theme).
+    crate::bridge::apply_ui_theme(&win);
     Some(win)
 }
 
@@ -195,6 +197,28 @@ fn set_noactivate(win: &WebviewWindow, on: bool) {
         if next != style {
             SetWindowLongPtrW(hwnd, GWL_EXSTYLE, next);
         }
+    }
+}
+
+/// Показ БЕЗ активации (SW_SHOWNOACTIVATE): штатный show() у Tauri может
+/// активировать окно даже с WS_EX_NOACTIVATE — это и убивало супер-курсор
+/// портала «иногда» (гонка стилей/показа).
+fn show_noactivate(win: &WebviewWindow) {
+    use windows::Win32::Foundation::HWND;
+    use windows::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_SHOWNOACTIVATE};
+    if let Ok(hwnd) = win.hwnd() {
+        unsafe {
+            ShowWindow(HWND(hwnd.0), SW_SHOWNOACTIVATE);
+        }
+    }
+}
+
+/// Вернуть фокус окну портала: клик по попапу глушит каретку композера
+/// (blur документа) — после закрытия попапа руками вернём фокус порталу,
+/// супер-курсор поднимется сам.
+fn refocus_portal(app: &AppHandle) {
+    if let Some(main) = app.get_webview_window("main") {
+        let _ = main.set_focus();
     }
 }
 
@@ -382,7 +406,7 @@ fn place_hide_all(app: &AppHandle) {
             if let Some(win) = app.get_webview_window(HIDE_ALL_LABEL) {
                 let _ = win.set_size(tauri::Size::Logical(LogicalSize::new(POPUP_W, HIDE_ALL_H)));
                 let _ = win.set_position(PhysicalPosition::new(x, y));
-                let _ = win.show();
+                show_noactivate(&win);
             }
         }
     }
@@ -441,6 +465,7 @@ pub fn popup_close_all(app: AppHandle) {
     if let Some(w) = app.get_webview_window(HIDE_ALL_LABEL) {
         let _ = w.close();
     }
+    refocus_portal(&app);
 }
 
 /// Курсор на попапе (mouseenter/leave из UI): пауза угасания + возврат
@@ -472,9 +497,11 @@ pub fn popup_get_data(app: AppHandle, window: WebviewWindow) -> Option<serde_jso
 }
 
 /// Закрыть попап — вызывает само окно (крестик/Esc/после действия).
+/// Клики по попапу глушат каретку портала (blur) — возвращаем фокус.
 #[tauri::command]
-pub fn popup_close(window: WebviewWindow) {
+pub fn popup_close(app: AppHandle, window: WebviewWindow) {
     let _ = window.close();
+    refocus_portal(&app);
 }
 
 /// Высота окна под режим ответа: кумулятив в reposition_all поднимет верхние.

@@ -27,6 +27,7 @@ interface NodusDesktopGlobal {
   flashTaskbar(critical: boolean): Promise<void>;
   openExternal(url: string): Promise<void>;
   dismissPopups(conversationId: string): Promise<void>;
+  setUiTheme(theme: 'light' | 'dark'): Promise<void>;
   getShellInfo(): Promise<unknown>;
   shellReady(): Promise<void>;
   onEvent(type: string, fn: (payload: unknown) => void): () => void;
@@ -114,6 +115,17 @@ export async function desktopDismissPopups(conversationId: string): Promise<void
   const bridge = getDesktopBridge();
   if (!bridge) return;
   await bridge.dismissPopups(conversationId);
+}
+
+/**
+ * Тема приложения для попапов оболочки: попап-мини-UI не знает выбора
+ * пользователя — шлём при старте и каждой смене (фидбек владельца 08.10:
+ * «тема попапов зависит от темы приложения, не Windows»).
+ */
+export async function desktopSetUiTheme(theme: 'light' | 'dark'): Promise<void> {
+  const bridge = getDesktopBridge();
+  if (!bridge) return;
+  await bridge.setUiTheme(theme);
 }
 
 /** Диагностика: версия и платформа оболочки. */

@@ -41,6 +41,7 @@ pub fn initialization_script(shell_version: &str) -> String {
     flashTaskbar: function (critical) {{ return invoke('flash_taskbar', {{ critical: !!critical }}); }},
     openExternal: function (url) {{ return invoke('open_external', {{ url: url }}); }},
     dismissPopups: function (conversationId) {{ return invoke('dismiss_popups', {{ conversationId: conversationId }}); }},
+    setUiTheme: function (theme) {{ return invoke('set_ui_theme', {{ theme: theme }}); }},
     getShellInfo: function () {{ return invoke('get_shell_info'); }},
     shellReady: function () {{ return invoke('shell_ready'); }},
     onEvent: function (type, fn) {{
@@ -70,6 +71,7 @@ pub fn grant_portal_capability(app: &AppHandle, root: &str) -> tauri::Result<()>
         .permission("allow-flash-taskbar")
         .permission("allow-open-external")
         .permission("allow-dismiss-popups")
+        .permission("allow-set-ui-theme")
         .permission("allow-get-shell-info")
         .permission("allow-shell-ready");
     app.add_capability(capability)
@@ -152,6 +154,37 @@ pub async fn notify_popup(app: AppHandle, payload: PopupPayload) -> Result<(), S
 #[tauri::command]
 pub fn set_unread_badge(app: AppHandle, count: Option<u32>) {
     badge::apply(&app, count);
+}
+
+/// Тема UI портала ('light'|'dark') для попапов: мини-UI попапа не знает о
+/// выборе пользователя в портале — портал сообщает при старте и смене, Rust
+/// хранит и применяет к живущим окнам и каждому новому попапу.
+static UI_THEME: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
+
+fn theme_js() -> &'static str {
+    match UI_THEME.lock().unwrap().as_deref() {
+        Some("dark") => "document.documentElement.dataset.theme='dark'",
+        _ => "delete document.documentElement.dataset.theme",
+    }
+}
+
+/// Применить сохранённую тему портала к окну (новые попапы — после build).
+pub fn apply_ui_theme(win: &tauri::WebviewWindow) {
+    let _ = win.eval(theme_js());
+}
+
+#[tauri::command]
+pub fn set_ui_theme(app: AppHandle, theme: String) -> Result<(), String> {
+    if !matches!(theme.as_str(), "light" | "dark") {
+        return Err("invalid_theme".into());
+    }
+    *UI_THEME.lock().unwrap() = Some(theme);
+    for (_, win) in app.webview_windows() {
+        if win.label().starts_with("popup-") {
+            let _ = win.eval(theme_js());
+        }
+    }
+    Ok(())
 }
 
 /// Погасить попапы беседы: портал зовёт при открытии беседы (модель
