@@ -1,5 +1,5 @@
 import { useEffect, useRef, type RefObject } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import type { ChatMessage } from '@nodus/contracts';
 
 import { api } from '../api-client.js';
@@ -47,6 +47,44 @@ export function maxSeenSeq(
   return max;
 }
 
+/**
+ * Форс-дозапись квитанций всех бесед (фидбек 08.10: «счётчик висит на 1,
+ * пропадает только после отправки»): сокрытие оболочки в трей не меняет
+ * document.hidden в WebView2 — visibilitychange не стреляет и хвост
+ * квитанции оставался неотправленным. Оболочка сигналит shell-visibility,
+ * вызов дозаписывает увиденное немедленно.
+ */
+let flushOnHide: (() => void) | null = null;
+
+/** Регистрация колбэка «оболочка скрылась» (вызывает desktop-bridge). */
+export function setShellHiddenFlush(fn: (() => void) | null): void {
+  flushOnHide = fn;
+}
+
+/** Вызов из desktop-bridge при visible=false. */
+export function flushReadReceiptsOnShellHide(): void {
+  flushOnHide?.();
+}
+
+/**
+ * Кэш списка бесед после квитанции: не ждём рефеча — unreadCount беседы
+ * зануляется сразу (квитанция покрывает всю видимость). Гонка «GET ушёл
+ * раньше коммита read» возвращала старый unreadCount, и заголовок/бейдж
+ * оболочки зависали до F5 (зомби-бейдж #254). Чистая функция — юнит-тест.
+ */
+export function applyReadToCache(queryClient: QueryClient, conversationId: string): void {
+  queryClient.setQueryData<{ items?: { id: string; unreadCount: number }[] }>(
+    chatKeys.conversations(),
+    (old) =>
+      old
+        ? {
+            ...old,
+            items: old.items?.map((c) => (c.id === conversationId ? { ...c, unreadCount: 0 } : c)),
+          }
+        : old,
+  );
+}
+
 function useReadReceiptScheduler(
   conversationId: string,
   threadRootIdRef: RefObject<string | null>,
@@ -65,6 +103,7 @@ function useReadReceiptScheduler(
           .then(() => {
             // Бейдж непрочитанных гаснет сразу и без WS (событие придёт —
             // инвалидация идемпотентна).
+            applyReadToCache(queryClient, conversationId);
             void queryClient.invalidateQueries({ queryKey: chatKeys.conversations() });
             if (threadRootId) {
               // Точка «есть новые» на посте гасится квитанцией трэда.
@@ -95,10 +134,15 @@ function useReadReceiptScheduler(
     };
     document.addEventListener('visibilitychange', onVisibility);
     window.addEventListener('pagehide', onVisibility);
+    const prevFlush = flushOnHide;
+    setShellHiddenFlush(() => scheduler.flush());
 
     return () => {
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('pagehide', onVisibility);
+      if (flushOnHide === scheduler.flush || prevFlush === null) {
+        setShellHiddenFlush(null);
+      }
       scheduler.flush(); // смена беседы: хвост ниже вьюпорта не прочитан
       scheduler.dispose();
       schedulerRef.current = null;
@@ -175,7 +219,12 @@ export function useFeedViewportRead(
         observer.observe(el);
       }
     }
+    // Первичная квитанция при открытии беседы (#254 зомби-бейдж): IO на
+    // старте ленты может не дать entries (монтаж при неактивном рендере
+    // оболочки) — считаем геометрию видимости напрямую, не дожидаясь.
+    const initial = setTimeout(recompute, 350);
     return () => {
+      clearTimeout(initial);
       container.removeEventListener('scroll', onScroll);
       if (scrollFrame !== 0) cancelAnimationFrame(scrollFrame);
       observer.disconnect();

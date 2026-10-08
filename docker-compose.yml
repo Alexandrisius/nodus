@@ -16,6 +16,10 @@ services:
     restart: unless-stopped
     ports:
       - '${NODUS_WEB_PORT:-3000}:80'
+    volumes:
+      # Десктоп-оболочка (#254): каталог артефактов (latest.json + установщики)
+      # за nginx-статикой /desktop/; пусто = папка репо без артефактов.
+      - '${NODUS_DESKTOP_DIR:-./infra/desktop-dist}:/usr/share/nginx/desktop:ro'
     depends_on:
       - api
       - gateway

@@ -44,6 +44,16 @@
 | Конвертация превью | Gotenberg (LibreOffice headless) в отдельном контейнере | Конвейер производных (#139): PDF-копии для фолбэков |
 | Поиск (MVP) | PostgreSQL full-text (русский словарь) | Интерфейс SearchProvider; Meilisearch — V2. Векторный поиск (V3) — за интерфейсом VectorStore: старт на pgvector, переход на Qdrant по триггерам (корпус > 5–10 млн векторов / тяжёлая фильтрация / p95 > 100 мс) |
 
+## Десктоп-оболочка (`apps/desktop`, M17/#254, ADR-0019)
+
+| Компонент | Выбор | Комментарий |
+|---|---|---|
+| Оболочка | Tauri 2 (Rust, пин ≥ 2.10) + WebView2 | Тонкий клиент: окно грузит удалённый портал, бандл веба не встраивается; Windows 10/11 only |
+| Мини-UI оболочки | React + Vite + `@nodus/ui` | Экран подключения и попапы уведомлений; единственный допустимый общий пакет (I6) |
+| Мост «веб↔оболочка» | Tauri IPC + dynamic-acl runtime capability | Права выдаются ровно origin'у портала; обратное направление — `eval` (ADR-0019) |
+| Плагины | single-instance, deep-link (`nodus://`), autostart, updater (minisign), log, opener | Официальные плагины Tauri |
+| Установщики | NSIS (perUser, канал автообновления) + MSI/WiX (perMachine, GPO) | Обновления раздаёт сам портал (`/desktop/`, `NODUS_DESKTOP_DIR`), не GitHub (I11) |
+
 ## Тесты
 
 | Уровень | Инструмент |

@@ -20,6 +20,7 @@ import { ChatModule } from './modules/chat/chat.module.js';
 import { DirectoryModule } from './modules/directory/directory.module.js';
 import { FilesModule } from './modules/files/files.module.js';
 import { NotificationsModule } from './modules/notifications/notifications.module.js';
+import { DesktopModule } from './modules/desktop/desktop.module.js';
 import { HomeModule } from './modules/home/home.module.js';
 
 @Module({
@@ -43,6 +44,8 @@ import { HomeModule } from './modules/home/home.module.js';
     // чата (ChatPortsModule внутри), подписан на события chat.*.
     NotificationsModule,
     HomeModule,
+    // Десктоп-оболочка (#254): публичный конфиг для тонкого клиента.
+    DesktopModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: DomainExceptionFilter },

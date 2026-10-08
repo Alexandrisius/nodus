@@ -1,0 +1,44 @@
+# Права моста «веб-приложение портала → оболочка» (ADR-0019). Раздаются ТОЛЬКО
+# runtime-capability с remote = origin сохранённого портала (см. bridge.rs);
+# локальному UI не положены. Команды дисплея и навигации — без файлов, без
+# кредов, без выполнения чего-либо произвольного.
+
+[[permission]]
+identifier = "allow-notify-popup"
+description = "Показать попап уведомления (стек право-низ, важные — до реакции)."
+commands.allow = ["notify_popup"]
+
+[[permission]]
+identifier = "allow-set-unread-badge"
+description = "Задать счётчик непрочитанных (бейдж трея и панели задач)."
+commands.allow = ["set_unread_badge"]
+
+[[permission]]
+identifier = "allow-flash-taskbar"
+description = "Мигание значка на панели задач (внимание к новому сообщению)."
+commands.allow = ["flash_taskbar"]
+
+[[permission]]
+identifier = "allow-open-external"
+description = "Открыть http(s)-ссылку в системном браузере (ссылки портала)."
+commands.allow = ["open_external"]
+
+[[permission]]
+identifier = "allow-dismiss-popups"
+description = "Погасить попапы беседы (портал открыл беседу — уведомления гаснут)."
+commands.allow = ["dismiss_popups"]
+
+[[permission]]
+identifier = "allow-set-ui-theme"
+description = "Тема UI портала для попапов (светлая/тёмная — следует за приложением)."
+commands.allow = ["set_ui_theme"]
+
+[[permission]]
+identifier = "allow-get-shell-info"
+description = "Версия и платформа оболочки (диагностика, поддержка)."
+commands.allow = ["get_shell_info"]
+
+[[permission]]
+identifier = "allow-shell-ready"
+description = "Сигнал «слушатели моста armed» — оболочка доставляет отложенный deep link."
+commands.allow = ["shell_ready"]
