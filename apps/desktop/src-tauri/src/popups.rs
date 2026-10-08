@@ -53,8 +53,11 @@ pub fn show(app: &AppHandle, payload: PopupPayload) {
     });
     let label = {
         let mut s = stack(app);
-        // Стек полон: закрываем старейший неважный (важные/активные не трогаем);
-        // слот освободится событием Destroyed и будет перезанят ниже.
+        // Стек полон: закрываем старейший неважный (важные/активные не трогаем).
+        // Жертву удаляем из active ЗДЕСЬ ЖЕ: обработчик Destroyed не придёт,
+        // пока мы держим мьютекс (code-review #254 — иначе слот «не
+        // освобождается» и новый попап отбрасывается, теряя уведомление);
+        // повторное удаление в on_popup_destroyed идемпотентно.
         if s.active.len() >= MAX_STACK as usize {
             let victim = s
                 .active
@@ -66,6 +69,7 @@ pub fn show(app: &AppHandle, payload: PopupPayload) {
                 if let Some(w) = app.get_webview_window(&v) {
                     let _ = w.close();
                 }
+                s.active.retain(|p| p.label != v);
             }
         }
         let used: Vec<u32> = s.active.iter().map(|p| p.slot).collect();

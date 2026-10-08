@@ -68,7 +68,7 @@ fn toggle_autostart(app: &AppHandle) {
         autolaunch.enable()
     };
     if let Err(e) = result {
-        log::warn!("переключение автозапуска не удался: {e}");
+        log::warn!("переключение автозапуска не удалось: {e}");
     }
 }
 
