@@ -19,11 +19,11 @@ export function HideAllBar() {
   }, []);
 
   return (
-    <div className="h-screen w-screen bg-transparent py-1">
+    <div className="h-screen w-screen bg-transparent">
       <button
         type="button"
         onClick={() => void invoke('popup_close_all')}
-        className="bg-card text-muted-foreground hover:text-foreground hover:bg-accent flex h-full w-full cursor-pointer items-center justify-center rounded-full border font-sans text-[12px] font-medium transition-colors"
+        className="bg-card text-muted-foreground hover:text-foreground hover:bg-accent flex h-full w-full cursor-pointer items-center justify-center rounded-lg border font-sans text-[12px] font-medium transition-colors"
       >
         {ui.desktop.hideAll}
       </button>

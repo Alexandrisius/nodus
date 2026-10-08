@@ -14,7 +14,7 @@ use crate::bridge::{self, PopupPayload, PopupReply};
 const POPUP_W: f64 = 360.0;
 const POPUP_H: f64 = 88.0;
 const POPUP_H_REPLY: f64 = 124.0;
-const HIDE_ALL_H: f64 = 44.0;
+const HIDE_ALL_H: f64 = 28.0;
 const MARGIN: f64 = 14.0;
 const GAP: f64 = 5.0;
 /// Максимум в столбик (фидбек 08.10, модель Telegram: «не более трёх, каждое
@@ -59,6 +59,9 @@ pub struct PopupStack {
     counter: u64,
     active: Vec<ActivePopup>,
     pending: VecDeque<PopupPayload>,
+    /// Окно «Скрыть все» живёт (флаг под мьютексом — гонка двух
+    /// reposition_all успевала создать ОКНО-ДУБЛЬ, висевшее поверх стека).
+    hide_all_live: bool,
 }
 
 impl PopupStack {
@@ -321,11 +324,13 @@ fn reposition_all(app: &AppHandle) {
     place_hide_all(app);
 }
 
-/// Окно «Скрыть все»: строго над верхним попапом с тем же зазором, что
-/// между карточками; живёт только при полном столбике (len == MAX_STACK).
+/// Окно «Скрыть все»: РОВНО межпопапный зазор (та же арифметика кумутива),
+/// живёт ТОЛЬКО при полном столбике. Создание/закрытие — под мьютексом
+/// (hide_all_live): два reposition_all подряд успевали создать ОКНО-ДУБЛЬ,
+/// которое вечно висело над стеком и ломало зазор.
 fn place_hide_all(app: &AppHandle) {
     use tauri::LogicalSize;
-    let (len, x, y) = {
+    let action = {
         let cursor = app.cursor_position().ok();
         let Some(monitor) = cursor.and_then(|c| app.monitor_from_point(c.x, c.y).ok()).flatten()
         else {
@@ -336,36 +341,50 @@ fn place_hide_all(app: &AppHandle) {
         let px = |v: f64| (v * scale).round() as i32;
         let x = wa.position.x + wa.size.width as i32 - px(POPUP_W) - px(MARGIN);
         let mut bottom = wa.position.y + wa.size.height as i32 - px(MARGIN);
-        let s = stack(app);
-        let mut order: Vec<&ActivePopup> = s.active.iter().collect();
+        let mut s = stack(app);
+        let mut order: Vec<&mut ActivePopup> = s.active.iter_mut().collect();
         order.sort_by(|a, b| b.counter.cmp(&a.counter));
         let mut top: Option<i32> = None;
-        for p in &order {
+        for p in order.iter() {
             let h = px(if p.replying { POPUP_H_REPLY } else { POPUP_H });
             top = Some(bottom - h);
             bottom = bottom - h - px(GAP);
         }
-        match top {
-            // Зазор капсула↔попап = GAP ровно: окно на 4px шире капсулы
-            // снизу (запас от резки бордера о край окна), поэтому окно
-            // поднимается на (H - 4 + GAP) над верхом попапа.
-            Some(top) => (order.len(), x, top - px(HIDE_ALL_H) + px(4.0) - px(GAP)),
-            None => (0, x, 0),
+        let full = s.active.len() >= MAX_STACK as usize;
+        if full && !s.hide_all_live {
+            s.hide_all_live = true;
+            match top {
+                Some(top) => ('c', x, top - px(GAP) - px(HIDE_ALL_H)),
+                None => ('x', x, 0),
+            }
+        } else if !full && s.hide_all_live {
+            s.hide_all_live = false;
+            ('x', x, 0)
+        } else if full {
+            match top {
+                Some(top) => ('m', x, top - px(GAP) - px(HIDE_ALL_H)),
+                None => ('x', x, 0),
+            }
+        } else {
+            ('x', x, 0)
         }
     };
-    if len < MAX_STACK as usize {
-        if let Some(w) = app.get_webview_window(HIDE_ALL_LABEL) {
-            let _ = w.close();
+    match action {
+        ('x', _, _) => {
+            if let Some(w) = app.get_webview_window(HIDE_ALL_LABEL) {
+                let _ = w.close();
+            }
         }
-        return;
-    }
-    if app.get_webview_window(HIDE_ALL_LABEL).is_none() {
-        build_popup_window(app, HIDE_ALL_LABEL, HIDE_ALL_H);
-    }
-    if let Some(win) = app.get_webview_window(HIDE_ALL_LABEL) {
-        let _ = win.set_size(tauri::Size::Logical(LogicalSize::new(POPUP_W, HIDE_ALL_H)));
-        let _ = win.set_position(PhysicalPosition::new(x, y));
-        let _ = win.show();
+        (op, x, y) => {
+            if op == 'c' {
+                build_popup_window(app, HIDE_ALL_LABEL, HIDE_ALL_H);
+            }
+            if let Some(win) = app.get_webview_window(HIDE_ALL_LABEL) {
+                let _ = win.set_size(tauri::Size::Logical(LogicalSize::new(POPUP_W, HIDE_ALL_H)));
+                let _ = win.set_position(PhysicalPosition::new(x, y));
+                let _ = win.show();
+            }
+        }
     }
 }
 
@@ -411,6 +430,7 @@ pub fn popup_close_all(app: AppHandle) {
     let labels: Vec<String> = {
         let mut s = stack(&app);
         s.pending.clear();
+        s.hide_all_live = false;
         s.active.iter().map(|p| p.label.clone()).collect()
     };
     for label in labels {
