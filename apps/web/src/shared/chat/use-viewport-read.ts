@@ -85,6 +85,22 @@ function useReadReceiptScheduler(
             // Бейдж непрочитанных гаснет сразу и без WS (событие придёт —
             // инвалидация идемпотентна).
             void queryClient.invalidateQueries({ queryKey: chatKeys.conversations() });
+            // Зомби-бейдж (#254): не ждём рефеча — патчим счётчик беседы в
+            // кэше сразу (квитанция покрывает всю видимость до upToSeq);
+            // гонка «GET ушёл раньше коммита read» возвращала старый
+            // unreadCount, и заголовок/бейдж оболочки зависали до F5.
+            queryClient.setQueryData<{ items?: { id: string; unreadCount: number }[] }>(
+              chatKeys.conversations(),
+              (old) =>
+                old
+                  ? {
+                      ...old,
+                      items: old.items?.map((c) =>
+                        c.id === conversationId ? { ...c, unreadCount: 0 } : c,
+                      ),
+                    }
+                  : old,
+            );
             if (threadRootId) {
               // Точка «есть новые» на посте гасится квитанцией трэда.
               void queryClient.invalidateQueries({
@@ -199,7 +215,12 @@ export function useFeedViewportRead(
         observer.observe(el);
       }
     }
+    // Первичная квитанция при открытии беседы (#254 зомби-бейдж): IO на
+    // старте ленты может не дать entries (монтаж при неактивном рендере
+    // оболочки) — считаем геометрию видимости напрямую, не дожидаясь.
+    const initial = setTimeout(recompute, 350);
     return () => {
+      clearTimeout(initial);
       container.removeEventListener('scroll', onScroll);
       if (scrollFrame !== 0) cancelAnimationFrame(scrollFrame);
       observer.disconnect();

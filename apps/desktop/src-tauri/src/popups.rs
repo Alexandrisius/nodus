@@ -14,7 +14,7 @@ use crate::bridge::{self, PopupPayload, PopupReply};
 const POPUP_W: f64 = 360.0;
 const POPUP_H: f64 = 88.0;
 const POPUP_H_REPLY: f64 = 124.0;
-const HIDE_ALL_H: f64 = 34.0;
+const HIDE_ALL_H: f64 = 28.0;
 const MARGIN: f64 = 14.0;
 const GAP: f64 = 10.0;
 /// Максимум в столбик (фидбек 08.10, модель Telegram: «не более трёх, каждое
@@ -140,7 +140,10 @@ pub fn show(app: &AppHandle, payload: PopupPayload) {
     }
 }
 
-/// Общий билдер popup-окон (карточка + плашка «Скрыть все»).
+/// Общий билдер popup-окон (карточка + плашка «Скрыть все»). Окно НЕАКТИВИ-
+/// РУЕМОЕ (WS_EX_NOACTIVATE, канон Telegram и Raymond Chen / Old New Thing):
+/// показ и клики НЕ крадут фокус у портала — супер-курсор композера живёт.
+/// Для печати в поле ответа флаг снимается (popup_set_expanded → allow_focus).
 fn build_popup_window(app: &AppHandle, label: &str, height: f64) -> Option<WebviewWindow> {
     let win = match WebviewWindowBuilder::new(app, label, WebviewUrl::App("index.html".into()))
         .title("Nodus")
@@ -150,6 +153,7 @@ fn build_popup_window(app: &AppHandle, label: &str, height: f64) -> Option<Webvi
         .resizable(false)
         .maximizable(false)
         .minimizable(false)
+        .focused(false)
         .inner_size(POPUP_W, height)
         .visible(false)
         // Прозрачное окно: скруглённые углы и тень рисует карточка (CSS).
@@ -164,7 +168,31 @@ fn build_popup_window(app: &AppHandle, label: &str, height: f64) -> Option<Webvi
             return None;
         }
     };
+    set_noactivate(&win, true);
     Some(win)
+}
+
+/// WS_EX_NOACTIVATE на топ-левел окно попапа (GWL_EXSTYLE).
+const WS_EX_NOACTIVATE: isize = 0x0800_0000;
+
+fn set_noactivate(win: &WebviewWindow, on: bool) {
+    use windows::Win32::Foundation::HWND;
+    use windows::Win32::UI::WindowsAndMessaging::{
+        GetWindowLongPtrW, SetWindowLongPtrW, GWL_EXSTYLE,
+    };
+    let Ok(hwnd) = win.hwnd() else { return };
+    let hwnd = HWND(hwnd.0);
+    unsafe {
+        let style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+        let next = if on {
+            style | WS_EX_NOACTIVATE
+        } else {
+            style & !WS_EX_NOACTIVATE
+        };
+        if next != style {
+            SetWindowLongPtrW(hwnd, GWL_EXSTYLE, next);
+        }
+    }
 }
 
 /// JS-сигнал в окно попапа (fade старт/сброс): попап-UI вешает глобальную
@@ -426,8 +454,9 @@ pub fn popup_close(window: WebviewWindow) {
     let _ = window.close();
 }
 
-/// Высота окна под режим ответа: в reposition_all кумулятив пересчитается —
-/// низ карточки на месте, рост ВВЕРХ (фидбек владельца 08.10).
+/// Высота окна под режим ответа: кумулятив в reposition_all поднимет верхние.
+/// Открыли поле — снимаем NOACTIVATE и даём фокус (пользователь явно кликнул
+/// «Ответить»: печать требует активного окна); закрытие поля — обратно.
 #[tauri::command]
 pub fn popup_set_expanded(app: AppHandle, window: WebviewWindow, expanded: bool) {
     let label = window.label().to_string();
@@ -436,6 +465,10 @@ pub fn popup_set_expanded(app: AppHandle, window: WebviewWindow, expanded: bool)
         if let Some(p) = s.active.iter_mut().find(|p| p.label == label) {
             p.replying = expanded;
         }
+    }
+    set_noactivate(&window, !expanded);
+    if expanded {
+        let _ = window.set_focus();
     }
     reposition_all(&app);
 }

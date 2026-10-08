@@ -4,9 +4,10 @@ import { ui } from '@nodus/contracts';
 
 /**
  * Плашка «Скрыть все» над стеком попапов (модель Telegram HideAllButton):
- * пилюля в стиле карточек (фон, рамка, то же скругление), по центру полосы;
- * клик по всей полосе гасит стек и очередь (бейджи ведёт портал). Без тени —
- * окно прозрачное, тень обрезалась прямыми углами (фидбек 08.10).
+ * пилюля в стиле карточек, прижата к НИЗУ окна — зазор до верхнего попапа
+ * ровно такой же, как между карточками (GAP задаёт Rust при позиционировании).
+ * Клик по всей полосе гасит стек и очередь; показывается только при полном
+ * столбике. Без тени — окно прозрачное, тень обрезалась прямыми углами.
  */
 export function HideAllBar() {
   useEffect(() => {
@@ -17,11 +18,11 @@ export function HideAllBar() {
   }, []);
 
   return (
-    <div className="flex h-screen w-screen cursor-pointer items-center justify-center bg-transparent">
+    <div className="flex h-screen w-screen cursor-pointer items-end justify-center bg-transparent">
       <button
         type="button"
         onClick={() => void invoke('popup_close_all')}
-        className="bg-card text-muted-foreground hover:text-foreground rounded-xl border px-3 py-1 font-sans text-[12px] font-medium transition-colors"
+        className="bg-card text-muted-foreground hover:text-foreground flex w-full items-center justify-center rounded-xl border font-sans text-[12px] font-medium transition-colors"
       >
         {ui.desktop.hideAll}
       </button>
