@@ -62,6 +62,13 @@ const envSchema = z
     NOTIFY_URGENT_DAILY_LIMIT: z.coerce.number().int().min(1).default(3),
     /** Потолок участников беседы для «важного сообщения» (C10, I8). */
     NOTIFY_URGENT_GROUP_MAX: z.coerce.number().int().min(2).default(20),
+    /** Десктоп-оболочка (#254): имя сервера на экране подключения клиента. */
+    NODUS_SERVER_NAME: z.string().min(1).max(120).default('Nodus'),
+    /** Минимальная версия оболочки (semver); 0.0.0 — без ограничения. */
+    NODUS_MIN_SHELL_VERSION: z
+      .string()
+      .regex(/^\d+\.\d+\.\d+$/, 'формат major.minor.patch')
+      .default('0.0.0'),
   })
   .refine((env) => !env.OFFICE_ENABLED || Boolean(env.OFFICE_JWT_SECRET), {
     message: 'OFFICE_JWT_SECRET обязателен при OFFICE_ENABLED',
