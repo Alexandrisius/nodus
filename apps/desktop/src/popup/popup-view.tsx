@@ -6,6 +6,25 @@ import type { PopupData } from '../shell/shell-ipc.js';
 
 const t = ui.desktop;
 
+/** Гексагон отправки — зеркало web/shared/ui/send-hex-icon.tsx (канон
+ *  композера, вердикт 24.09): мини-UI оболочки не импортирует web-код. */
+function SendHexIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden
+    >
+      <polygon points="12,2.8 20,7.4 20,16.6 12,21.2 4,16.6 4,7.4" />
+    </svg>
+  );
+}
+
 /**
  * Попап уведомления (ADR-0019 п.4, канон Telegram Desktop): клик по карточке —
  * открыть беседу; «Ответить» — незаметная ghost-кнопка, разворачивает поле
@@ -107,7 +126,9 @@ export function PopupView() {
       </button>
 
       {replying ? (
-        <div className="mt-auto flex items-end gap-1.5 pt-2">
+        // Канон композера портала: поле на всю ширину, кнопка-гексагон —
+        // ВНУТРИ строки ввода (не сужает текстовое поле), высота в 1 строку.
+        <div className="relative mt-auto pt-2">
           <textarea
             ref={inputRef}
             value={text}
@@ -119,26 +140,19 @@ export function PopupView() {
               }
             }}
             placeholder={t.popupReplyPlaceholder}
-            rows={2}
+            rows={1}
             maxLength={4000}
-            className="border-input bg-background focus:ring-ring w-full flex-1 resize-none rounded-lg border px-2.5 py-2 text-[13px] leading-[17px] outline-none focus:ring-2"
+            className="border-input bg-background focus:ring-ring w-full resize-none rounded-lg border py-[7px] pl-2.5 pr-10 text-[13px] leading-[16px] outline-none focus:ring-2"
           />
           <button
             type="button"
             onClick={send}
             disabled={text.trim().length === 0 || sending}
             aria-label={t.popupSend}
-            className="bg-primary text-primary-foreground focus-visible:ring-ring flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-full outline-none focus-visible:ring-2 disabled:opacity-50"
+            title={t.popupSend}
+            className="text-info hover:text-info/80 absolute right-2 bottom-[7px] flex size-6 items-center justify-center disabled:opacity-40"
           >
-            <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" aria-hidden="true">
-              <path
-                d="M8 13V3.5M8 3.5 4 7.5M8 3.5l4 4"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
+            <SendHexIcon className="size-5" />
           </button>
         </div>
       ) : (

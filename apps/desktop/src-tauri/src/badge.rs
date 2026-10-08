@@ -132,28 +132,39 @@ fn draw_counter(buf: &mut Rgba, cx: f32, cy: f32, count: u32, scale: i32) {
     }
 }
 
-/// Значок-бейдж отдельной картинкой (оверлей панели задач, 24×24).
+/// Геометрия бейджа: (радиус круга, масштаб цифр). Единая для трея и
+/// панели задач (фидбек владельца 08.10: «уменьшить в 1.5 раза вместе с
+/// цифрой» — было r11/масштаб 3, заполнявшее всю иконку); двухзначному
+/// числу круг чуть шире, чтобы «99» не резало углы.
+fn badge_geom(count: u32) -> (f32, i32) {
+    if count >= 10 && count < 100 { (8.0, 2) } else { (7.0, 2) }
+}
+
+/// Значок-бейдж отдельной картинкой (оверлей панели задач, 24×24): круг в
+/// правом-нижнем углу канваса — Windows дорисовывает оверлей у угла кнопки.
 fn overlay_icon(count: u32) -> Image<'static> {
     let size = 24;
+    let (r, scale) = badge_geom(count);
     let mut buf = Rgba::new(size, size);
-    fill_circle(&mut buf, 11.5, 11.5, 11.0, BADGE_RED);
-    draw_counter(&mut buf, 11.5, 11.5, count, if count >= 10 { 2 } else { 3 });
+    let cx = size as f32 - r - 1.0;
+    let cy = size as f32 - r - 1.0;
+    fill_circle(&mut buf, cx, cy, r, BADGE_RED);
+    draw_counter(&mut buf, cx, cy, count, scale);
     buf.into_image()
 }
 
 /// Значок трея: базовая иконка + бейдж в правом-ВЕРХНЕМ углу (32×32) —
-/// в правом-нижнем круг наезжал на знак-график (фидбек владельца 08.10:
-/// расположить как оверлей панели задач, подальше от графика).
+/// в правом-нижнем круг наезжал на знак-график (фидбек владельца 08.10),
+/// крупный радиус 9 с цифрой в масштабе 3 читался «почти по центру».
 fn tray_icon_with_badge(base: &Image, count: u32) -> Image<'static> {
     let (w, h) = (base.width(), base.height());
     let mut buf = Rgba::new(w, h);
     buf.data.copy_from_slice(base.rgba());
-    let (bw, bh) = (w as f32, h as f32);
-    let radius = (bw.min(bh) * 0.26).ceil();
-    let (cx, cy) = (bw - radius - 1.0, radius + 1.0);
+    let (r, scale) = badge_geom(count);
+    let (cx, cy) = (w as f32 - r - 1.0, r + 1.0);
     // подложка цвета панели под кругом не нужна: круг с альфой поверх иконки
-    fill_circle(&mut buf, cx, cy, radius, BADGE_RED);
-    draw_counter(&mut buf, cx, cy, count, if count >= 10 { 2 } else { 3 });
+    fill_circle(&mut buf, cx, cy, r, BADGE_RED);
+    draw_counter(&mut buf, cx, cy, count, scale);
     buf.into_image()
 }
 
@@ -211,5 +222,33 @@ pub fn refresh_for_theme(app: &AppHandle) {
     apply(app, count);
     if let Some(win) = app.get_webview_window("main") {
         let _ = win.set_icon(themed_base_icon(app));
+    }
+}
+
+/// Визуальный регресс бейджей (урок приёмки #254: пиксели правятся только
+/// по глазам): cargo test пишет PNG в target/badge-preview/ — трей поверх
+/// знака и оверлей панели задач для 1/2-значных счётчиков.
+#[cfg(test)]
+mod badge_previews {
+    use super::*;
+
+    #[test]
+    fn пишем_png_превью_в_target() {
+        let target = std::env::var("CARGO_TARGET_DIR").unwrap_or_else(|_| "target".into());
+        let dir = std::path::Path::new(&target).join("badge-preview");
+        std::fs::create_dir_all(&dir).unwrap();
+        let base = decode_png(include_bytes!("../icons/32x32.png"));
+        for count in [3, 27] {
+            for (name, img) in [
+                ("tray", tray_icon_with_badge(&base, count)),
+                ("taskbar", overlay_icon(count)),
+            ] {
+                let path = dir.join(format!("{name}-{count}.png"));
+                image::RgbaImage::from_raw(img.width(), img.height(), img.rgba().to_vec())
+                    .unwrap()
+                    .save(&path)
+                    .unwrap();
+            }
+        }
     }
 }

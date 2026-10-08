@@ -7,11 +7,11 @@ use tauri::{AppHandle, Manager, PhysicalPosition, WebviewUrl, WebviewWindow};
 use crate::bridge::{self, PopupPayload, PopupReply};
 
 /// Геометрия попапа (логические px): компактная карточка ~360×104, с полем
-/// ответа ~360×136 (канон Telegram Desktop: notifyWidth 320, min height 80 +
-/// поле 36; окно прозрачное — скругления несёт карточка).
+/// ответа ~360×118 (одна строка ввода, кнопка-гексагон внутри поля — канон
+/// композера; окно прозрачное — скругления несёт карточка).
 const POPUP_W: f64 = 360.0;
 const POPUP_H: f64 = 104.0;
-const POPUP_H_REPLY: f64 = 136.0;
+const POPUP_H_REPLY: f64 = 118.0;
 const MARGIN: f64 = 14.0;
 const GAP: f64 = 8.0;
 /// Максимум на экране (право-низ, рост вверх); сверх — очередь (Telegram).
