@@ -135,11 +135,12 @@ pub fn show(app: &AppHandle, payload: PopupPayload) {
     spawn_fade_ticker(app);
 
     // Невидимое окно: позицию даст reposition_all (кумулятив по стеку),
-    // затем показ — без мигания из центра и БЕЗ кражи фокуса портала.
+    // затем показ. Кражу фокуса подавляет WS_EX_NOACTIVATE — своя
+    // SW_SHOWNOACTIVATE ломала рендер (системная рамка + чёрный фон).
     let win = build_popup_window(app, &label, POPUP_H);
     reposition_all(app);
     if let Some(win) = win {
-        show_noactivate(&win);
+        let _ = win.show();
     }
 }
 
@@ -196,19 +197,6 @@ fn set_noactivate(win: &WebviewWindow, on: bool) {
         };
         if next != style {
             SetWindowLongPtrW(hwnd, GWL_EXSTYLE, next);
-        }
-    }
-}
-
-/// Показ БЕЗ активации (SW_SHOWNOACTIVATE): штатный show() у Tauri может
-/// активировать окно даже с WS_EX_NOACTIVATE — это и убивало супер-курсор
-/// портала «иногда» (гонка стилей/показа).
-fn show_noactivate(win: &WebviewWindow) {
-    use windows::Win32::Foundation::HWND;
-    use windows::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_SHOWNOACTIVATE};
-    if let Ok(hwnd) = win.hwnd() {
-        unsafe {
-            ShowWindow(HWND(hwnd.0), SW_SHOWNOACTIVATE);
         }
     }
 }
@@ -406,7 +394,7 @@ fn place_hide_all(app: &AppHandle) {
             if let Some(win) = app.get_webview_window(HIDE_ALL_LABEL) {
                 let _ = win.set_size(tauri::Size::Logical(LogicalSize::new(POPUP_W, HIDE_ALL_H)));
                 let _ = win.set_position(PhysicalPosition::new(x, y));
-                show_noactivate(&win);
+                let _ = win.show();
             }
         }
     }
