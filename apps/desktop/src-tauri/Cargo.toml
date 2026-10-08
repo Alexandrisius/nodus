@@ -14,7 +14,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["tray-icon", "image-png", "devtools", "dynamic-acl"] }
+tauri = { version = "2", features = ["tray-icon", "image-png", "dynamic-acl"] }
 tauri-plugin-single-instance = "2"
 tauri-plugin-deep-link = "2"
 tauri-plugin-autostart = "2"

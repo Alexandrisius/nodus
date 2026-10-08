@@ -106,6 +106,9 @@ export function SetupScreen() {
             className="border-input bg-background focus:ring-ring mt-1.5 h-10 w-full rounded-[10px] border px-3 text-sm outline-none focus:ring-2"
           />
           {error ? <p className="text-destructive mt-2 text-sm">{error}</p> : null}
+          {address.trim().toLowerCase().startsWith('http://') ? (
+            <p className="text-warning mt-2 text-sm leading-snug">{t.insecureWarning}</p>
+          ) : null}
           <button
             type="button"
             onClick={() => void connect()}

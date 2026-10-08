@@ -413,6 +413,8 @@ export const ui = {
     retry: 'Повторить',
     changeServer: 'Сменить сервер',
     invalidAddress: 'Введите адрес в формате portal.company.local или https://…',
+    insecureWarning:
+      'Адрес без шифрования (http): пароль и сообщения могут перехватить. Для работы используйте https-адрес сервера.',
     updateRequiredTitle: 'Обновите приложение Nodus',
     updateRequiredHint:
       'Эта версия оболочки больше не поддерживается сервером. Обновите приложение, чтобы продолжить.',

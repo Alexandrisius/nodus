@@ -87,6 +87,17 @@ pub fn push_to_portal(app: &AppHandle, event_type: &str, payload: &impl Serializ
     }
 }
 
+/// Строгая проверка UUID без зависимости: 8-4-4-4-12 hex (зеркалит
+/// z.string().uuid() контракта — Rust-сторона валидирует границу сама).
+pub fn is_valid_conversation(s: &str) -> bool {
+    let b = s.as_bytes();
+    b.len() == 36
+        && b.iter().enumerate().all(|(i, c)| match i {
+            8 | 13 | 18 | 23 => *c == b'-',
+            _ => c.is_ascii_hexdigit(),
+        })
+}
+
 /// Зеркало contracts `popupPayloadSchema` (desktop-bridge.schema.ts).
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -114,8 +125,15 @@ pub struct PopupReply {
 /// (known issue, docs.rs WebviewWindowBuilder; баги tauri #13963/#13092).
 #[tauri::command]
 pub async fn notify_popup(app: AppHandle, payload: PopupPayload) -> Result<(), String> {
-    let len = payload.preview.chars().count();
-    if payload.id.is_empty() || payload.conversation_id.is_empty() || len > 500 {
+    // Граница контракта на Rust-стороне (security-аудит #254, подозрение 5).
+    if payload.id.is_empty()
+        || payload.id.len() > 200
+        || !is_valid_conversation(&payload.conversation_id)
+        || payload.title.is_empty()
+        || payload.title.chars().count() > 200
+        || payload.preview.chars().count() > 500
+        || payload.avatar_url.as_deref().is_some_and(|u| u.len() > 2000)
+    {
         return Err("invalid_payload".into());
     }
     popups::show(&app, payload);

@@ -187,13 +187,34 @@ pub fn popup_set_expanded(window: WebviewWindow, expanded: bool) {
 }
 
 #[tauri::command]
-pub fn popup_submit_reply(app: AppHandle, window: WebviewWindow, payload: PopupReply) {
+pub fn popup_submit_reply(
+    app: AppHandle,
+    window: WebviewWindow,
+    payload: PopupReply,
+) -> Result<(), String> {
+    // Граница контракта на Rust-стороне (security-аудит #254): попап-UI
+    // доверенный, но зеркало обязано валидировать само.
+    if payload.text.trim().is_empty()
+        || payload.text.chars().count() > 4000
+        || payload.id.len() > 200
+        || !bridge::is_valid_conversation(&payload.conversation_id)
+    {
+        return Err("invalid_payload".into());
+    }
     bridge::push_to_portal(&app, "popup-reply", &payload);
     let _ = window.close();
+    Ok(())
 }
 
 #[tauri::command]
-pub fn popup_open(app: AppHandle, window: WebviewWindow, conversation_id: String) {
+pub fn popup_open(
+    app: AppHandle,
+    window: WebviewWindow,
+    conversation_id: String,
+) -> Result<(), String> {
+    if !bridge::is_valid_conversation(&conversation_id) {
+        return Err("invalid_payload".into());
+    }
     crate::show_main(&app);
     bridge::push_to_portal(
         &app,
@@ -201,4 +222,5 @@ pub fn popup_open(app: AppHandle, window: WebviewWindow, conversation_id: String
         &serde_json::json!({ "conversationId": conversation_id }),
     );
     let _ = window.close();
+    Ok(())
 }
