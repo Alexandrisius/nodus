@@ -399,6 +399,32 @@ export const ui = {
     noTasks: 'Нет задач в работе',
     noProjects: 'Не участвует в проектах',
   },
+  desktop: {
+    appTitle: 'Nodus',
+    connectTitle: 'Подключение к порталу',
+    connectHint: 'Введите адрес корпоративного портала Nodus — как в браузере.',
+    addressLabel: 'Адрес портала',
+    addressPlaceholder: 'например, portal.company.local',
+    connect: 'Подключиться',
+    connecting: 'Подключаемся…',
+    connectedTo: 'Подключено к серверу',
+    offlineTitle: 'Нет связи с сервером',
+    offlineHint: 'Проверьте подключение к сети и доступность портала.',
+    retry: 'Повторить',
+    changeServer: 'Сменить сервер',
+    invalidAddress: 'Введите адрес в формате portal.company.local или https://…',
+    updateRequiredTitle: 'Обновите приложение Nodus',
+    updateRequiredHint:
+      'Эта версия оболочки больше не поддерживается сервером. Обновите приложение, чтобы продолжить.',
+    updateNow: 'Обновить сейчас',
+    updateUnavailable: 'Обновление пока недоступно — обратитесь к администратору',
+    popupReply: 'Ответить',
+    popupOpen: 'Открыть',
+    popupSend: 'Отправить',
+    popupReplyPlaceholder: 'Сообщение…',
+    urgentLabel: 'Важное',
+    themeToggle: 'Тёмная тема',
+  },
 } as const;
 
 export type UiStrings = typeof ui;

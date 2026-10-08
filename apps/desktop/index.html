@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nodus</title>
+    <script>
+      // Тема до первой отрисовки (канон @nodus/ui): тёмная — persisted-выбор,
+      // светлая — дефолт. У оболочки свой ключ, тема портала не зависит от неё.
+      try {
+        if (localStorage.getItem('nodus-shell-theme-v1') === 'dark') {
+          document.documentElement.dataset.theme = 'dark';
+        }
+      } catch {
+        /* localStorage недоступен — светлая тема по умолчанию */
+      }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
