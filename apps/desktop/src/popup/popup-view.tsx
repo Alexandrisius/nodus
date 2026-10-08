@@ -150,15 +150,25 @@ export function PopupView() {
         </span>
       </button>
 
-      {/* Крестик: зона ховера = визуальный размер глифа (фидбек 08.10:
-       «маленький крестик с огромным ховером»). */}
+      {/* Крестик: SVG-глиф заполняет кнопку (канон Telegram notifyClose —
+       *  иконка ≈ 70% зоны), ховер ровно по видимой кнопке (фидбек 08.10). */}
       <button
         type="button"
         aria-label={ui.common.close}
         onClick={close}
-        className="text-muted-foreground hover:text-foreground hover:bg-accent absolute top-1 right-1 flex size-6 items-center justify-center rounded-md text-[16px] leading-none opacity-60 transition-opacity hover:opacity-100"
+        className="text-muted-foreground hover:text-foreground hover:bg-accent absolute top-1 right-1 flex size-5 items-center justify-center rounded-md opacity-70 transition-opacity hover:opacity-100"
       >
-        ×
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2.6}
+          strokeLinecap="round"
+          className="size-3.5"
+          aria-hidden
+        >
+          <path d="M5 5l14 14M19 5 5 19" />
+        </svg>
       </button>
 
       {replying ? (
