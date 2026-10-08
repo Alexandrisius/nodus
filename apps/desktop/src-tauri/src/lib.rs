@@ -2,6 +2,8 @@ mod activity;
 mod badge;
 mod bridge;
 mod deep_link;
+mod fade;
+mod layout;
 mod popups;
 mod portal;
 mod state;

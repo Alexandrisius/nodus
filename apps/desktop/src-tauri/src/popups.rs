@@ -1,9 +1,9 @@
 use std::collections::VecDeque;
 use std::sync::Mutex;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use tauri::webview::WebviewWindowBuilder;
-use tauri::{AppHandle, Manager, PhysicalPosition, WebviewUrl, WebviewWindow};
+use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindow};
 
 use crate::activity;
 use crate::bridge::{self, PopupPayload, PopupReply};
@@ -11,36 +11,32 @@ use crate::bridge::{self, PopupPayload, PopupReply};
 /// Геометрия попапа (логические px): карточка ~360×88 (аватар 40, имя
 /// вверху, 2 строки превью, воздух снизу pb-3.5), с полем ответа ~360×124.
 /// Окно прозрачное — скругления несёт карточка; скролл запрещён в UI.
-const POPUP_W: f64 = 360.0;
-const POPUP_H: f64 = 88.0;
-const POPUP_H_REPLY: f64 = 124.0;
-const HIDE_ALL_H: f64 = 28.0;
-const MARGIN: f64 = 14.0;
-const GAP: f64 = 5.0;
+pub(crate) const POPUP_W: f64 = 360.0;
+pub(crate) const POPUP_H: f64 = 88.0;
+pub(crate) const POPUP_H_REPLY: f64 = 124.0;
+pub(crate) const HIDE_ALL_H: f64 = 28.0;
+pub(crate) const MARGIN: f64 = 14.0;
+pub(crate) const GAP: f64 = 5.0;
 /// Максимум в столбик (фидбек 08.10, модель Telegram: «не более трёх, каждое
 /// следующее заменяет старейшее как очередь»).
-const MAX_STACK: u32 = 3;
-/// Полное угасание с момента активности пользователя (~3 c, медленно).
-const FADE_MS: u64 = 3000;
-/// Период тикера угасания (плавность стартует CSS-transition, тикер — арбитр).
-const TICK_MS: u64 = 120;
+pub(crate) const MAX_STACK: u32 = 3;
 /// Метка окна «Скрыть все» над стеком (Telegram HideAllButton).
-const HIDE_ALL_LABEL: &str = "popup-hide-all";
+pub(crate) const HIDE_ALL_LABEL: &str = "popup-hide-all";
 
-struct ActivePopup {
-    label: String,
-    slot: u32,
+pub(crate) struct ActivePopup {
+    pub(crate) label: String,
+    pub(crate) slot: u32,
     /// Монотонный номер показа — жёсткий порядок «новейший внизу»
     /// (Instant имеет грубое разрешение на Windows, counter — нет).
-    counter: u64,
+    pub(crate) counter: u64,
     conversation_id: String,
-    created_ms: u64,
+    pub(crate) created_ms: u64,
     /// Начало текущего угасания (None — полная яркость).
-    fading: Option<Instant>,
+    pub(crate) fading: Option<Instant>,
     /// Курсор на попапе: угасание на паузе, яркость восстановлена.
-    hover: bool,
+    pub(crate) hover: bool,
     /// Открыто поле ответа: не гасим (пользователь печатает).
-    replying: bool,
+    pub(crate) replying: bool,
     /// Payload для pull-модели: окно забирает данные само после загрузки
     /// (push-событие проигрывал бы гонку со скоростью монтирования React).
     payload: serde_json::Value,
@@ -55,13 +51,13 @@ struct ActivePopup {
 ///   (CSS transition в окне), hover возвращает яркость и держит паузу;
 /// - над стеком плашка «Скрыть все».
 #[derive(Default)]
-pub struct PopupStack {
-    counter: u64,
-    active: Vec<ActivePopup>,
-    pending: VecDeque<PopupPayload>,
+pub(crate) struct PopupStack {
+    pub(crate) counter: u64,
+    pub(crate) active: Vec<ActivePopup>,
+    pub(crate) pending: VecDeque<PopupPayload>,
     /// Окно «Скрыть все» живёт (флаг под мьютексом — гонка двух
     /// reposition_all успевала создать ОКНО-ДУБЛЬ, висевшее поверх стека).
-    hide_all_live: bool,
+    pub(crate) hide_all_live: bool,
 }
 
 impl PopupStack {
@@ -78,13 +74,13 @@ impl PopupStack {
     }
 }
 
-fn stack(app: &AppHandle) -> std::sync::MutexGuard<'_, PopupStack> {
+pub(crate) fn stack(app: &AppHandle) -> std::sync::MutexGuard<'_, PopupStack> {
     app.state::<Mutex<PopupStack>>().inner().lock().unwrap()
 }
 
 /// Показать попап. Вызывать ТОЛЬКО из async-команд: на Windows билдер окна
 /// в синхронном контексте дедлокит WebView2 (см. bridge::notify_popup).
-pub fn show(app: &AppHandle, payload: PopupPayload) {
+pub(crate) fn show(app: &AppHandle, payload: crate::bridge::PopupPayload) {
     let payload_json = serde_json::json!({
         "id": payload.id,
         "conversationId": payload.conversation_id,
@@ -132,23 +128,22 @@ pub fn show(app: &AppHandle, payload: PopupPayload) {
         });
         (label, slot)
     };
-    spawn_fade_ticker(app);
-
     // Невидимое окно: позицию даст reposition_all (кумулятив по стеку),
     // затем показ. Кражу фокуса подавляет WS_EX_NOACTIVATE — своя
     // SW_SHOWNOACTIVATE ломала рендер (системная рамка + чёрный фон).
     let win = build_popup_window(app, &label, POPUP_H);
-    reposition_all(app);
+    crate::layout::reposition_all(app);
     if let Some(win) = win {
         let _ = win.show();
     }
+    crate::fade::spawn_fade_ticker(app);
 }
 
 /// Общий билдер popup-окон (карточка + плашка «Скрыть все»). Окно НЕАКТИВИ-
 /// РУЕМОЕ (WS_EX_NOACTIVATE, канон Telegram и Raymond Chen / Old New Thing):
 /// показ и клики НЕ крадут фокус у портала — супер-курсор композера живёт.
 /// Для печати в поле ответа флаг снимается (popup_set_expanded → allow_focus).
-fn build_popup_window(app: &AppHandle, label: &str, height: f64) -> Option<WebviewWindow> {
+pub(crate) fn build_popup_window(app: &AppHandle, label: &str, height: f64) -> Option<WebviewWindow> {
     let win = match WebviewWindowBuilder::new(app, label, WebviewUrl::App("index.html".into()))
         .title("Nodus")
         .decorations(false)
@@ -223,196 +218,6 @@ fn refocus_portal(app: &AppHandle) {
     }
 }
 
-/// JS-сигнал в окно попапа (fade старт/сброс): попап-UI вешает глобальную
-/// `window.__popupFade(phase)` — мост portal-bridge сюда не инъектируется.
-fn eval_popup_js(app: &AppHandle, label: &str, js: &str) {
-    if let Some(w) = app.get_webview_window(label) {
-        let _ = w.eval(js);
-    }
-}
-
-/// Один общий тикер угасания на процесс (первый попап запускает).
-fn spawn_fade_ticker(app: &AppHandle) {
-    static STARTED: std::sync::Once = std::sync::Once::new();
-    STARTED.call_once(|| {
-        let app = app.clone();
-        std::thread::spawn(move || loop {
-            std::thread::sleep(Duration::from_millis(TICK_MS));
-            tick_fade(&app);
-        });
-    });
-}
-
-/// Арбитр угасания: решает по глобальной активности (клик/клавиша) и
-/// состоянию попапа (hover/печать), CSS в окне делает плавность.
-fn tick_fade(app: &AppHandle) {
-    let mut to_close: Vec<String> = Vec::new();
-    let mut queued: Option<PopupPayload> = None;
-    {
-        let mut s = stack(app);
-        let last_input = activity::last_input_ms();
-        for p in s.active.iter_mut() {
-            if p.hover || p.replying {
-                if p.fading.take().is_some() {
-                    eval_popup_js(
-                        app,
-                        &p.label,
-                        "window.__popupFade&&window.__popupFade('reset')",
-                    );
-                }
-                continue;
-            }
-            // Неактивен (нет кликов/клавиш после показа) — не угасаем никогда;
-            // активность пришла — медленное угасание с этого тика (~3 c).
-            let activity_after_show = last_input >= p.created_ms;
-            if !activity_after_show {
-                if p.fading.take().is_some() {
-                    eval_popup_js(
-                        app,
-                        &p.label,
-                        "window.__popupFade&&window.__popupFade('reset')",
-                    );
-                }
-                continue;
-            }
-            if p.fading.is_none() {
-                p.fading = Some(Instant::now());
-                eval_popup_js(
-                    app,
-                    &p.label,
-                    "window.__popupFade&&window.__popupFade('start')",
-                );
-            } else if p
-                .fading
-                .is_some_and(|t| t.elapsed() >= Duration::from_millis(FADE_MS))
-            {
-                to_close.push(p.label.clone());
-            }
-        }
-        s.active.retain(|p| !to_close.contains(&p.label));
-        if s.active.len() < MAX_STACK as usize {
-            queued = s.pending.pop_front();
-        }
-    }
-    let had_closes = !to_close.is_empty();
-    for label in to_close {
-        if let Some(w) = app.get_webview_window(&label) {
-            let _ = w.close();
-        }
-    }
-    if let Some(payload) = queued {
-        show(app, payload);
-    } else if had_closes {
-        reposition_all(app);
-    }
-}
-
-/// ЕДИНЫЙ раскладчик стека (фидбек 08.10): один проход решает всё —
-/// порядок по счёту показа (новейший у ПОЛА), позиции КУМУЛЯТИВНО по
-/// фактическим высотам (разросшийся «Ответить» приподнимает верхние —
-/// дыр и наездов не бывает), «Скрыть все» только над ПОЛНЫМ столбиком
-/// (смысл — быстро убрать 3 попапа; фидбек 08.10 п.4).
-fn reposition_all(app: &AppHandle) {
-    use tauri::LogicalSize;
-    let plan: Vec<(String, i32, i32, f64)> = {
-        let cursor = app.cursor_position().ok();
-        let monitor = cursor
-            .and_then(|c| app.monitor_from_point(c.x, c.y).ok())
-            .flatten();
-        let Some(monitor) = monitor else { return };
-        let scale = monitor.scale_factor();
-        let wa = monitor.work_area();
-        let px = |v: f64| (v * scale).round() as i32;
-        let x = wa.position.x + wa.size.width as i32 - px(POPUP_W) - px(MARGIN);
-        // Низ стека — над панелью задач; идём снизу вверх: новейший первым.
-        let mut bottom = wa.position.y + wa.size.height as i32 - px(MARGIN);
-        let mut s = stack(app);
-        let mut order: Vec<&mut ActivePopup> = s.active.iter_mut().collect();
-        order.sort_by(|a, b| b.counter.cmp(&a.counter));
-        let mut plan = Vec::new();
-        for p in order.iter_mut() {
-            let h = if p.replying { POPUP_H_REPLY } else { POPUP_H };
-            let ph = px(h);
-            let y = bottom - ph;
-            plan.push((p.label.clone(), x, y, h));
-            p.slot = plan.len() as u32 - 1;
-            bottom = bottom - ph - px(GAP);
-        }
-        plan
-    };
-    for (label, x, y, h) in plan {
-        if let Some(w) = app.get_webview_window(&label) {
-            let _ = w.set_size(tauri::Size::Logical(LogicalSize::new(POPUP_W, h)));
-            let _ = w.set_position(PhysicalPosition::new(x, y));
-        }
-    }
-    place_hide_all(app);
-}
-
-/// Окно «Скрыть все»: РОВНО межпопапный зазор (та же арифметика кумутива),
-/// живёт ТОЛЬКО при полном столбике. Создание/закрытие — под мьютексом
-/// (hide_all_live): два reposition_all подряд успевали создать ОКНО-ДУБЛЬ,
-/// которое вечно висело над стеком и ломало зазор.
-fn place_hide_all(app: &AppHandle) {
-    use tauri::LogicalSize;
-    let action = {
-        let cursor = app.cursor_position().ok();
-        let Some(monitor) = cursor.and_then(|c| app.monitor_from_point(c.x, c.y).ok()).flatten()
-        else {
-            return;
-        };
-        let scale = monitor.scale_factor();
-        let wa = monitor.work_area();
-        let px = |v: f64| (v * scale).round() as i32;
-        let x = wa.position.x + wa.size.width as i32 - px(POPUP_W) - px(MARGIN);
-        let mut bottom = wa.position.y + wa.size.height as i32 - px(MARGIN);
-        let mut s = stack(app);
-        let mut order: Vec<&mut ActivePopup> = s.active.iter_mut().collect();
-        order.sort_by(|a, b| b.counter.cmp(&a.counter));
-        let mut top: Option<i32> = None;
-        for p in order.iter() {
-            let h = px(if p.replying { POPUP_H_REPLY } else { POPUP_H });
-            top = Some(bottom - h);
-            bottom = bottom - h - px(GAP);
-        }
-        let full = s.active.len() >= MAX_STACK as usize;
-        if full && !s.hide_all_live {
-            s.hide_all_live = true;
-            match top {
-                Some(top) => ('c', x, top - px(GAP) - px(HIDE_ALL_H)),
-                None => ('x', x, 0),
-            }
-        } else if !full && s.hide_all_live {
-            s.hide_all_live = false;
-            ('x', x, 0)
-        } else if full {
-            match top {
-                Some(top) => ('m', x, top - px(GAP) - px(HIDE_ALL_H)),
-                None => ('x', x, 0),
-            }
-        } else {
-            ('x', x, 0)
-        }
-    };
-    match action {
-        ('x', _, _) => {
-            if let Some(w) = app.get_webview_window(HIDE_ALL_LABEL) {
-                let _ = w.close();
-            }
-        }
-        (op, x, y) => {
-            if op == 'c' {
-                build_popup_window(app, HIDE_ALL_LABEL, HIDE_ALL_H);
-            }
-            if let Some(win) = app.get_webview_window(HIDE_ALL_LABEL) {
-                let _ = win.set_size(tauri::Size::Logical(LogicalSize::new(POPUP_W, HIDE_ALL_H)));
-                let _ = win.set_position(PhysicalPosition::new(x, y));
-                let _ = win.show();
-            }
-        }
-    }
-}
-
 pub fn on_popup_destroyed(app: &AppHandle, label: &str) {
     let next: Option<PopupPayload> = {
         let mut s = stack(app);
@@ -423,11 +228,18 @@ pub fn on_popup_destroyed(app: &AppHandle, label: &str) {
             None
         }
     };
-    if let Some(payload) = next {
-        show(app, payload); // show завершает reposition_all
-    } else {
-        reposition_all(app);
-    }
+    // Хвост (док очереди строит ОКНО, reposition двигает/создаёт капсулу) —
+    // ТОЛЬКО из async-контекста: сюда приходит синхронный обработчик
+    // WindowEvent::Destroyed (event loop, main thread) — создание окна здесь
+    // дедлокит WebView2 (gotcha «Десктоп», docs/gotchas.md).
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        if let Some(payload) = next {
+            show(&app, payload); // show завершает reposition_all
+        } else {
+            crate::layout::reposition_all(&app);
+        }
+    });
 }
 
 /// Погасить попапы беседы: портал зовёт при открытии беседы (модель
@@ -521,7 +333,7 @@ pub fn popup_set_expanded(app: AppHandle, window: WebviewWindow, expanded: bool)
     if expanded {
         let _ = window.set_focus();
     }
-    reposition_all(&app);
+    crate::layout::reposition_all(&app);
 }
 
 #[tauri::command]

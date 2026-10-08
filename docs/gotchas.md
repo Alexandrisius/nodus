@@ -106,6 +106,8 @@
 - **INCLUDE-индекс PostgreSQL не моделируется Prisma — постоянный дрейф schema↔БД**: индекс `ON (conversation_id) INCLUDE (last_read_seq)` из миграции chat-core не выразим в schema.prisma, и каждый следующий `migrate dev` генерирует его DROP (можно незаметно прихватить в чужую миграцию — так и случилось в chat_thread_watch 25.09). Индексы, которых нет в схеме, держаться не могут: либо моделируемые индексы, либо осознанный DROP с комментарием в миграции (доступный путь покрыт PK; схема — истина).
 
 ## Десктоп (Tauri, apps/desktop)
+- **Свой `SW_SHOWNOACTIVATE` на окне Tauri ломает рендер попапа** — Windows рисует системную рамку с заголовком на непрозрачном чёрном фоне (вид «попап в попапе», живой вердикт 08.10 #254). Кражу фокуса подавляй только `WS_EX_NOACTIVATE` через `SetWindowLongPtrW(GWL_EXSTYLE)`; показ — штатный `win.show()`.
+- **WebView2 при `win.hide()` НЕ меняет `document.hidden`** — `visibilitychange` не стреляет: квитанции просмотров чата и гейты «фона» обязаны переключаться по сигналу `shell-visibility` оболочки (desktop-bridge → flush квитанций), иначе хвост остаётся непрочитанным («зомби-бейдж» #254, воспроизведено и починено 08.10).
 
 - Создание `WebviewWindow` в СИНХРОННОЙ tauri-команде дедлокит WebView2 — окно висит на `about:blank` и держит foreground Windows (пользователь не может активировать другие окна!): команды, создающие окна, — только `async fn` (docs.rs WebviewWindowBuilder «Known issues», tauri #13963/#13092; подтверждено живым репро 08.10 #254).
 - Наличие каталога `src-tauri/permissions/` включает строгий AppManifest-режим: КАЖДАЯ команда приложения (включая локальный мини-UI) требует явной capability — «command not allowed. Command not found» даже для локальных страниц (tauri 7a2672f; репро #254).
