@@ -1,5 +1,5 @@
 import { useEffect, useRef, type RefObject } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import type { ChatMessage } from '@nodus/contracts';
 
 import { api } from '../api-client.js';
@@ -66,6 +66,25 @@ export function flushReadReceiptsOnShellHide(): void {
   flushOnHide?.();
 }
 
+/**
+ * Кэш списка бесед после квитанции: не ждём рефеча — unreadCount беседы
+ * зануляется сразу (квитанция покрывает всю видимость). Гонка «GET ушёл
+ * раньше коммита read» возвращала старый unreadCount, и заголовок/бейдж
+ * оболочки зависали до F5 (зомби-бейдж #254). Чистая функция — юнит-тест.
+ */
+export function applyReadToCache(queryClient: QueryClient, conversationId: string): void {
+  queryClient.setQueryData<{ items?: { id: string; unreadCount: number }[] }>(
+    chatKeys.conversations(),
+    (old) =>
+      old
+        ? {
+            ...old,
+            items: old.items?.map((c) => (c.id === conversationId ? { ...c, unreadCount: 0 } : c)),
+          }
+        : old,
+  );
+}
+
 function useReadReceiptScheduler(
   conversationId: string,
   threadRootIdRef: RefObject<string | null>,
@@ -84,23 +103,8 @@ function useReadReceiptScheduler(
           .then(() => {
             // Бейдж непрочитанных гаснет сразу и без WS (событие придёт —
             // инвалидация идемпотентна).
+            applyReadToCache(queryClient, conversationId);
             void queryClient.invalidateQueries({ queryKey: chatKeys.conversations() });
-            // Зомби-бейдж (#254): не ждём рефеча — патчим счётчик беседы в
-            // кэше сразу (квитанция покрывает всю видимость до upToSeq);
-            // гонка «GET ушёл раньше коммита read» возвращала старый
-            // unreadCount, и заголовок/бейдж оболочки зависали до F5.
-            queryClient.setQueryData<{ items?: { id: string; unreadCount: number }[] }>(
-              chatKeys.conversations(),
-              (old) =>
-                old
-                  ? {
-                      ...old,
-                      items: old.items?.map((c) =>
-                        c.id === conversationId ? { ...c, unreadCount: 0 } : c,
-                      ),
-                    }
-                  : old,
-            );
             if (threadRootId) {
               // Точка «есть новые» на посте гасится квитанцией трэда.
               void queryClient.invalidateQueries({
