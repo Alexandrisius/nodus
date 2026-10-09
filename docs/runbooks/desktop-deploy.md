@@ -35,13 +35,14 @@
    updater-артефакты и генерирует `latest.json` (`scripts/desktop-manifest.mjs`).
    Ручной запуск — Actions → desktop → Run workflow.
 3. Релиз с артефактами: тег `desktop-v<версия>` с аннотацией-примечанием
-   (например `desktop-v1.1.0`) → job `release` публикует в GitHub Release:
-   установщики, `.sig`, `latest.json` (примечание — из аннотации тега) и
-   `changelog.json` (история последних релизов для попапа кнопки скачивания).
+   (например `desktop-v1.1.0`) — суть одной строкой и списком изменений:
+   аннотация попадает в `notes` манифеста и показывается в попапе кнопки
+   «Скачать приложение» при зелёной точке. Job `release` публикует в GitHub
+   Release: установщики, `.sig`, `latest.json`.
 4. Выложить на сервер портала (в `NODUS_DESKTOP_DIR`, см. ниже) ВСЕ файлы
    релиза: `Nodus_<версия>_x64-setup.exe` + `.sig` (NSIS-канал),
-   `Nodus_<версия>_x64_ru-RU.msi` + `.sig` (MSI-канал GPO), `latest.json`,
-   `changelog.json`. Имена установщиков менять нельзя — на них ссылается
+   `Nodus_<версия>_x64_ru-RU.msi` + `.sig` (MSI-канал GPO) и `latest.json`.
+   Имена установщиков менять нельзя — на них ссылается
    манифест.
 5. Проверка: `curl https://<портал>/desktop/latest.json` — отдаёт манифест,
    в `platforms.*.url` — абсолютные адреса этого портала (nginx

@@ -29,16 +29,6 @@ export function windowsInstallerUrl(manifest: DesktopManifest): string | null {
   );
 }
 
-/** История релизов `/desktop/changelog.json` (CI собирает из GitHub Releases). */
-export const desktopChangelogSchema = z.array(
-  z.object({
-    version: z.string(),
-    date: z.string().nullable().optional(),
-    notes: z.string(),
-  }),
-);
-export type DesktopChangelog = z.infer<typeof desktopChangelogSchema>;
-
 /**
  * Раздача отсутствует (артефакты не выложены) — это нормальное состояние
  * портала, а не ошибка: кнопка скачивания просто не показывается.
@@ -48,18 +38,6 @@ export async function fetchDesktopManifest(): Promise<DesktopManifest | null> {
     const res = await fetch('/desktop/latest.json');
     if (!res.ok) return null;
     const parsed = desktopManifestSchema.safeParse(await res.json());
-    return parsed.success ? parsed.data : null;
-  } catch {
-    return null;
-  }
-}
-
-/** История опциональна: нет файла — попап живёт без секции «История». */
-export async function fetchDesktopChangelog(): Promise<DesktopChangelog | null> {
-  try {
-    const res = await fetch('/desktop/changelog.json');
-    if (!res.ok) return null;
-    const parsed = desktopChangelogSchema.safeParse(await res.json());
     return parsed.success ? parsed.data : null;
   } catch {
     return null;

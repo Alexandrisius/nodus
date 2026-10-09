@@ -2,9 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
-  desktopChangelogSchema,
   desktopManifestSchema,
-  fetchDesktopChangelog,
   fetchDesktopManifest,
   windowsInstallerUrl,
 } from './desktop-manifest.js';
@@ -87,7 +85,6 @@ describe('fetch-границы', () => {
       vi.fn(async () => jsonResponse(404, {})),
     );
     expect(await fetchDesktopManifest()).toBeNull();
-    expect(await fetchDesktopChangelog()).toBeNull();
 
     vi.stubGlobal(
       'fetch',
@@ -102,14 +99,5 @@ describe('fetch-границы', () => {
       vi.fn(async () => Promise.reject(new Error('offline'))),
     );
     expect(await fetchDesktopManifest()).toBeNull();
-  });
-
-  it('changelog: валидная история проходит', () => {
-    expect(
-      desktopChangelogSchema.safeParse([
-        { version: '1.0.1', date: '2026-10-09T00:00:00Z', notes: 'Кнопка' },
-        { version: '1.0.0', notes: 'Первый выпуск' },
-      ]).success,
-    ).toBe(true);
   });
 });

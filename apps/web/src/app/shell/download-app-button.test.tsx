@@ -4,7 +4,7 @@ import {
   QueryClientProvider,
   type QueryClientProviderProps,
 } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { createElement, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -76,15 +76,8 @@ describe('браузер', () => {
     await waitFor(() => expect(screen.queryByRole('button')).toBeNull());
   });
 
-  it('манифест есть — кнопка ведёт на NSIS-установщик', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (input: RequestInfo | URL) =>
-        String(input).endsWith('changelog.json')
-          ? new Response('[]', { status: 404 })
-          : new Response(JSON.stringify(MANIFEST), { status: 200 }),
-      ),
-    );
+  it('манифест есть — кнопка ведёт на NSIS-установщику, без лишнего текста', async () => {
+    vi.stubGlobal('fetch', stubFetch(200, MANIFEST));
     renderButton();
     const link = await screen.findByRole('link', { name: 'Скачать приложение' });
     expect(link.getAttribute('href')).toBe(MANIFEST.platforms['windows-x86_64-nsis'].url);
@@ -93,19 +86,28 @@ describe('браузер', () => {
 });
 
 describe('оболочка', () => {
-  it('обновление скачано — точка + «Обновить приложение»', async () => {
+  it('обновление скачано — точка + список изменений новой версии (скролл)', async () => {
     installShellBridge({ status: 'available', version: '1.0.1' });
     vi.stubGlobal('fetch', stubFetch(200, MANIFEST));
     renderButton();
     const button = await screen.findByRole('button', { name: 'Обновить приложение' });
     expect(button.querySelector('.bg-success')).not.toBeNull();
+
+    fireEvent.mouseEnter(button);
+    const notes = await waitFor(() => screen.getByText(/Кнопка скачивания/), { timeout: 1500 });
+    expect(notes.className).toContain('overflow-y-auto');
   });
 
-  it('обновления нет — без точки, подпись «Скачать приложение»', async () => {
+  it('обновления нет — без точки, «Новых версий нет»', async () => {
     installShellBridge({ status: 'idle', version: null });
     vi.stubGlobal('fetch', stubFetch(200, MANIFEST));
     renderButton();
     const button = await screen.findByRole('button', { name: 'Скачать приложение' });
     expect(button.querySelector('.bg-success')).toBeNull();
+
+    fireEvent.mouseEnter(button);
+    await waitFor(() => expect(screen.getByText('Новых версий нет')).toBeTruthy(), {
+      timeout: 1500,
+    });
   });
 });

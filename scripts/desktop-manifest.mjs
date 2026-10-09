@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-// Генератор артефактов раздачи оболочки (#263): latest.json для
-// tauri-plugin-updater и changelog.json для попапа «Скачать приложение».
+// Генератор манифеста раздачи оболочки (#263): latest.json для
+// tauri-plugin-updater (notes = список изменений новой версии — человекочита-
+// емый, попадает в попап кнопки «Скачать приложение» из аннотации тега).
 // Вызывается после `tauri build` (локально и в CI — .github/workflows/desktop.yml).
 //
 //   node scripts/desktop-manifest.mjs [--bundle-dir <dir>] [--out <file>]
 //        [--notes <text>] [--optional]
-//   node scripts/desktop-manifest.mjs --changelog <releases.json> [--changelog-out <file>]
 //
 // latest.json: подписи — СОДЕРЖИМОЕ .sig-файлов; URL — относительные
 // (/desktop/<имя>): nginx web-контейнера абсолютизирует их на раздаче
@@ -13,10 +13,6 @@
 // домене коробки. Target-ключи: windows-x86_64-nsis / -msi — апдейтер ищет
 // ключ по типу ТЕКУЩЕЙ установки, каналы обновления не пересекаются.
 // `--optional`: без .sig (CI без секрета подписи) — предупредить и выйти (0).
-//
-// changelog.json: из GitHub Releases (`gh api repos/<repo>/releases --jq
-// '[.[] | {tagName,publishedAt,body}]'` — у `gh release list` поля body нет),
-// фильтр desktop-v*, newest-first, для попапа кнопки скачивания.
 
 import { readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
@@ -25,11 +21,7 @@ import { fileURLToPath } from 'node:url';
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const args = parseArgs(process.argv.slice(2));
 
-if (args.changelog) {
-  writeChangelog(args.changelog, args.changelogOut);
-} else {
-  writeManifest(args);
-}
+writeManifest(args);
 
 function parseArgs(argv) {
   // Флаги без значения (--optional) — true, а не «съесть следующий аргумент»
@@ -117,20 +109,4 @@ function pickFile(dir, pattern) {
   if (!existsSync(dir)) return null;
   const match = readdirSync(dir).find((name) => pattern.test(name));
   return match ? resolve(dir, match) : null;
-}
-
-function writeChangelog(releasesPath, changelogOut) {
-  const releases = JSON.parse(readFileSync(resolve(repoRoot, releasesPath), 'utf8'));
-  const entries = releases
-    .filter((r) => /^desktop-v/.test(r.tagName))
-    .map((r) => ({
-      version: r.tagName.replace(/^desktop-v/, ''),
-      date: r.publishedAt,
-      notes: (r.body ?? '').trim() || `Nodus ${r.tagName.replace(/^desktop-v/, '')}`,
-    }));
-  const target = changelogOut
-    ? resolve(repoRoot, changelogOut)
-    : resolve(repoRoot, 'changelog.json');
-  writeFileSync(target, `${JSON.stringify(entries)}\n`);
-  console.log(`desktop-manifest: ${target} (${entries.length} релизов)`);
 }

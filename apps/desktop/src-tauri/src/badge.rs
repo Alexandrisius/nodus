@@ -200,22 +200,26 @@ pub fn system_theme_dark(app: &AppHandle) -> bool {
 pub fn themed_base_icon(app: &AppHandle) -> Image<'static> {
     static DARK_GLYPH: &[u8] = include_bytes!("../icons/32x32.png");
     static LIGHT_GLYPH: &[u8] = include_bytes!("../icons/32x32-light.png");
-    decode_png(if system_theme_dark(app) {
-        LIGHT_GLYPH
-    } else {
-        DARK_GLYPH
-    })
+    let dark = system_theme_dark(app);
+    log::debug!("themed_base_icon: системная тема «{}»", if dark { "тёмная" } else { "светлая" });
+    decode_png(if dark { LIGHT_GLYPH } else { DARK_GLYPH })
 }
 
 /// Последний счётчик: смена темы перерисовывает бейдж на новой базе.
 static LAST_COUNT: Mutex<Option<u32>> = Mutex::new(None);
 
-/// Перерисовать иконки после смены системной темы (WindowEvent::ThemeChanged).
+/// Перерисовать иконки после смены системной темы (WindowEvent::ThemeChanged
+/// и отложенный повтор после старта — lib.rs: в момент build() окна тема ещё
+/// не известна, таскбар оставался с тёмным знаком, фидбек 09.10 #263).
 pub fn refresh_for_theme(app: &AppHandle) {
     let count = *LAST_COUNT.lock().unwrap();
     apply(app, count);
     if let Some(win) = app.get_webview_window("main") {
-        let _ = win.set_icon(themed_base_icon(app));
+        let dark = system_theme_dark(app);
+        log::info!("иконка окна: тема «{}» → {}", if dark { "тёмная" } else { "светлая" }, if dark { "белый знак" } else { "тёмный знак" });
+        if let Err(e) = win.set_icon(themed_base_icon(app)) {
+            log::warn!("иконка окна не обновлена: {e}");
+        }
     }
 }
 

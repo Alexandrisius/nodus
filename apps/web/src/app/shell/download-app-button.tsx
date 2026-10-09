@@ -11,16 +11,17 @@ import { formatDate } from '../../shared/lib/format.js';
 
 const OPEN_DELAY_MS = 140;
 const CLOSE_DELAY_MS = 200;
-const HISTORY_LIMIT = 4;
 
 /**
  * Кнопка «Скачать приложение» в топбаре (#263, рядом с лупой): браузеру —
  * прямая загрузка NSIS-установщика, оболочке — точка обновления (пассивный
- * поток: скачано и ждёт решения пользователя). Наведение — попап с версией,
- * примечанием релиза и историей. Нет манифеста `/desktop/` — кнопки нет.
+ * поток: скачано и ждёт решения пользователя). Наведение — попап: при
+ * зелёной точке список изменений НОВОЙ версии (вертикальный скролл для
+ * длинных), без обновления — «Новых версий нет», в браузере — только
+ * скачивание. Нет манифеста `/desktop/` — кнопки нет.
  */
 export function DownloadAppButton() {
-  const { manifest, changelog, inShell, updateState } = useDesktopApp();
+  const { manifest, inShell, updateState } = useDesktopApp();
   const installerUrl = manifest ? windowsInstallerUrl(manifest) : null;
   const [open, setOpen] = useState(false);
   const enterTimer = useRef<number | undefined>(undefined);
@@ -39,7 +40,6 @@ export function DownloadAppButton() {
   const updateReady = inShell && updateState.status === 'available';
   const downloading = inShell && updateState.status === 'downloading';
   const label = updateReady ? ui.topbar.updateApp : ui.topbar.downloadApp;
-  const history = (changelog ?? []).filter((entry) => entry.version !== manifest.version);
 
   const scheduleOpen = () => {
     window.clearTimeout(leaveTimer.current);
@@ -99,7 +99,7 @@ export function DownloadAppButton() {
       >
         <div className="flex flex-col gap-2">
           <div className="text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">
-            {ui.topbar.downloadAppHint}
+            {updateReady ? ui.topbar.updateAvailable : ui.topbar.downloadAppHint}
           </div>
           <div className="flex items-baseline gap-2">
             <span className="font-mono text-label font-semibold text-foreground tabular-nums">
@@ -110,43 +110,33 @@ export function DownloadAppButton() {
             )}
           </div>
 
-          {inShell ? (
-            updateReady ? (
+          {updateReady ? (
+            <>
+              {manifest.notes && (
+                <div
+                  className="max-h-40 overflow-y-auto text-sm whitespace-pre-line text-muted-foreground"
+                  data-no-scrollbar
+                >
+                  {manifest.notes}
+                </div>
+              )}
               <Button size="sm" className="self-start" onClick={() => void desktopApplyUpdate()}>
                 {ui.topbar.updateAppRestart}
               </Button>
-            ) : downloading ? (
-              <div className="text-sm text-muted-foreground">
-                {ui.topbar.updateDownloading}
-                {updateState.version ? ` ${updateState.version}…` : '…'}
-              </div>
-            ) : (
-              <div className="text-sm text-muted-foreground">{ui.topbar.updateLatestInstalled}</div>
-            )
+            </>
+          ) : downloading ? (
+            <div className="text-sm text-muted-foreground">
+              {ui.topbar.updateDownloading}
+              {updateState.version ? ` ${updateState.version}…` : '…'}
+            </div>
+          ) : inShell ? (
+            <div className="text-sm text-muted-foreground">{ui.topbar.updateNone}</div>
           ) : (
             <Button asChild size="sm" className="self-start">
               <a href={installerUrl} download>
                 {ui.topbar.downloadAppForWindows}
               </a>
             </Button>
-          )}
-
-          {manifest.notes && <p className="text-sm text-muted-foreground">{manifest.notes}</p>}
-
-          {history.length > 0 && (
-            <div className="flex flex-col gap-1.5 pt-1">
-              <div className="text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">
-                {ui.topbar.releaseHistory}
-              </div>
-              {history.slice(0, HISTORY_LIMIT).map((entry) => (
-                <div key={entry.version} className="flex gap-2 text-xs">
-                  <span className="font-mono text-muted-foreground tabular-nums">
-                    {entry.version}
-                  </span>
-                  <span className="text-muted-foreground">{entry.notes}</span>
-                </div>
-              ))}
-            </div>
           )}
         </div>
       </PopoverContent>

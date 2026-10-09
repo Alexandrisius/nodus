@@ -7,16 +7,10 @@ import {
 } from '@nodus/contracts';
 
 import { getShellUpdateState, isDesktopShell, onDesktopEvent } from './desktop-bridge.js';
-import {
-  fetchDesktopChangelog,
-  fetchDesktopManifest,
-  type DesktopChangelog,
-  type DesktopManifest,
-} from './desktop-manifest.js';
+import { fetchDesktopManifest, type DesktopManifest } from './desktop-manifest.js';
 
 export const desktopAppKeys = {
   manifest: ['desktop', 'manifest'] as const,
-  changelog: ['desktop', 'changelog'] as const,
 };
 
 const IDLE_STATE: ShellUpdateState = { status: 'idle', version: null };
@@ -28,7 +22,6 @@ const IDLE_STATE: ShellUpdateState = { status: 'idle', version: null };
  */
 export function useDesktopApp(): {
   manifest: DesktopManifest | null;
-  changelog: DesktopChangelog | null;
   inShell: boolean;
   updateState: ShellUpdateState;
 } {
@@ -38,13 +31,6 @@ export function useDesktopApp(): {
     // Манифест живёт редко и не горит: без ретраев и фоновых рефетчей —
     // кнопка не мигает на каждом фокусе окна.
     staleTime: 10 * 60_000,
-    retry: false,
-    refetchOnWindowFocus: false,
-  });
-  const changelog = useQuery({
-    queryKey: desktopAppKeys.changelog,
-    queryFn: fetchDesktopChangelog,
-    staleTime: 60 * 60_000,
     retry: false,
     refetchOnWindowFocus: false,
   });
@@ -65,7 +51,6 @@ export function useDesktopApp(): {
 
   return {
     manifest: manifest.data ?? null,
-    changelog: changelog.data ?? null,
     inShell,
     updateState,
   };

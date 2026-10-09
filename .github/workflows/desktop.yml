@@ -112,7 +112,9 @@ jobs:
         env:
           TAG: ${{ github.ref_name }}
         run: |
-          NOTES=$(git tag -l --format='%(contents:subject)' "$TAG")
+          # Аннотация тега целиком (суть + список изменений) — notes манифеста:
+          # попап кнопки показывает его при зелёной точке (вертикальный скролл).
+          NOTES=$(git tag -l --format='%(contents)' "$TAG")
           [ -n "$NOTES" ] || NOTES="Nodus ${TAG#desktop-v}"
           node scripts/desktop-manifest.mjs --bundle-dir dist --out dist/latest.json --notes "$NOTES"
 
@@ -125,15 +127,3 @@ jobs:
             dist/**/*.sig
             dist/latest.json
           generate_release_notes: true
-
-      - name: changelog.json из истории релизов (#263)
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          TAG: ${{ github.ref_name }}
-        run: |
-          gh api "repos/$REPO/releases?per_page=15" \
-            --jq '[.[] | {tagName: .tag_name, publishedAt: .published_at, body: .body}]' > releases.json
-          node scripts/desktop-manifest.mjs --changelog releases.json --changelog-out dist/changelog.json
-          gh release upload "$TAG" dist/changelog.json --repo "$REPO" --clobber

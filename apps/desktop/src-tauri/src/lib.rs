@@ -128,6 +128,14 @@ fn create_main_window(app: &AppHandle) -> tauri::Result<()> {
     // дефолт конфигурации один, реверс живёт рантаймом.
     let _ = win.set_icon(badge::themed_base_icon(app));
     let _ = win.show();
+    // Сразу после build() окно может ещё не знать системную тему (theme() =
+    // Light в тёмной системе) — таскбар оставался с тёмным знаком из ресурсов
+    // exe (фидбек 09.10 #263). Перечитываем тему отложенно и перекрашиваем.
+    let late_app = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(1200));
+        badge::refresh_for_theme(&late_app);
+    });
     Ok(())
 }
 

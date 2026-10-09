@@ -10,6 +10,5 @@
 - `latest.json` — сгенерировать `node scripts/desktop-manifest.mjs --out`
   и заменить url на абсолютные `http://127.0.0.1:4173/desktop/...` (в песочнице
   нет nginx `sub_filter`, который абсолютизирует относительные пути);
-- `changelog.json` — опционально (история в попапе);
 - установщик `Nodus_<версия>_x64-setup.exe` — из
   `apps/desktop/src-tauri/target/release/bundle/nsis/`.
