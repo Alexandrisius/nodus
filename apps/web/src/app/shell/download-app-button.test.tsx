@@ -4,7 +4,7 @@ import {
   QueryClientProvider,
   type QueryClientProviderProps,
 } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { createElement, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -64,6 +64,9 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  // Авто-очистки RTL в этом окружении нет: накопленные деревья прошлых
+  // тестов давали «multiple elements» (кнопки с одинаковыми именами).
+  cleanup();
   vi.useRealTimers();
   delete window.nodusDesktop;
   vi.unstubAllGlobals();
@@ -87,6 +90,28 @@ describe('браузер', () => {
 });
 
 describe('оболочка', () => {
+  it('манифест недоступен — кнопка-точка ВСЁ РАВНО есть с первого кадра (фидбек 09.10)', async () => {
+    // При первом открытии фетч манифеста спотыкался — кнопки не было до
+    // перехода по разделам (ремоунт). В оболочке кнопка = точка обновления
+    // из моста: от сетевого манифеста её видимость не зависит.
+    installShellBridge({ status: 'idle', version: null });
+    vi.stubGlobal('fetch', stubFetch(404, {}));
+    renderButton();
+    const button = await screen.findByRole('button', { name: 'Скачать приложение' });
+    fireEvent.mouseEnter(button);
+    await waitFor(() => expect(screen.getByText('Новых версий нет')).toBeTruthy(), {
+      timeout: 1500,
+    });
+  });
+
+  it('манифест недоступен, обновление готово — точка и кнопка обновления работают', async () => {
+    installShellBridge({ status: 'available', version: '1.0.5' });
+    vi.stubGlobal('fetch', stubFetch(404, {}));
+    renderButton();
+    const button = await screen.findByRole('button', { name: 'Обновить приложение' });
+    expect(button.querySelector('.bg-success')).not.toBeNull();
+  });
+
   it('обновление скачано — точка + «Обновить приложение» + переход версии', async () => {
     installShellBridge({ status: 'available', version: '1.0.1' });
     vi.stubGlobal('fetch', stubFetch(200, MANIFEST));

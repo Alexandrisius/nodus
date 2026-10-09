@@ -35,20 +35,29 @@ export function DownloadAppButton() {
     [],
   );
 
-  if (!manifest || !installerUrl) return null;
+  // Кнопка в ОБОЛОЧКЕ — точка обновления (состояние из моста, локально и
+  // мгновенно): НЕ ждём сетевого манифеста, иначе при первом открытии её
+  // не было до завершения фетча (фидбек 09.10). Манифест нужен только для
+  // текстов попапа (версия/изменения/скачивание). Браузер — fail-safe:
+  // нет раздачи — нет кнопки.
+  if (!inShell && (!manifest || !installerUrl)) return null;
 
   const updateReady = inShell && updateState.status === 'available';
   // Версия в попапе: браузер — последняя с сервера (её скачают); оболочка
   // без обновления — УСТАНОВЛЕННАЯ («Новых версий нет» рядом с чужой версией
   // с сервера читалось как «у вас 1.0.4», фидбек 09.10); при зелёной точке —
   // переход «текущая → новая». Дата (релиза серверной версии) — только где
-  // она о чём-то: браузер и доступное обновление.
+  // она о чём-то: браузер и доступное обновление. Манифеста может не быть
+  // (оболочка: кнопка живёт без него) — тогда только версия моста.
+  const newVersion = manifest?.version ?? '';
   const versionLine = updateReady
-    ? `${shellVersion ?? ''} → ${manifest.version}`.trim()
+    ? newVersion
+      ? `${shellVersion ?? ''} → ${newVersion}`.trim()
+      : (shellVersion ?? '')
     : inShell
-      ? (shellVersion ?? manifest.version)
-      : manifest.version;
-  const showDate = !inShell || updateReady;
+      ? (shellVersion ?? newVersion)
+      : newVersion;
+  const showDate = (!inShell || updateReady) && Boolean(manifest?.pub_date);
 
   const downloading = inShell && updateState.status === 'downloading';
   const label = updateReady ? ui.topbar.updateApp : ui.topbar.downloadApp;
@@ -91,7 +100,7 @@ export function DownloadAppButton() {
             className="relative text-muted-foreground hover:bg-accent hover:text-foreground"
           >
             <a
-              href={installerUrl}
+              href={installerUrl ?? undefined}
               download
               onMouseEnter={scheduleOpen}
               onMouseLeave={scheduleClose}
@@ -117,14 +126,14 @@ export function DownloadAppButton() {
             <span className="font-mono text-label font-semibold text-foreground tabular-nums">
               {versionLine}
             </span>
-            {showDate && manifest.pub_date && (
+            {showDate && manifest?.pub_date && (
               <span className="text-xs text-muted-foreground">{formatDate(manifest.pub_date)}</span>
             )}
           </div>
 
           {updateReady ? (
             <>
-              {manifest.notes && (
+              {manifest?.notes && (
                 <div
                   className="max-h-40 overflow-y-auto text-sm whitespace-pre-line text-muted-foreground"
                   data-no-scrollbar
@@ -145,7 +154,7 @@ export function DownloadAppButton() {
             <div className="text-sm text-muted-foreground">{ui.topbar.updateNone}</div>
           ) : (
             <Button asChild size="sm" className="self-start">
-              <a href={installerUrl} download>
+              <a href={installerUrl ?? undefined} download>
                 {ui.topbar.downloadAppForWindows}
               </a>
             </Button>
