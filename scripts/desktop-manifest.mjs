@@ -85,7 +85,9 @@ function writeManifest({ bundleDir, out, notes, optional }) {
     pub_date: new Date().toISOString(),
     platforms,
   };
-  const target = resolve(bundle, out ?? 'latest.json');
+  // Явный --out — путь от корня репо (CI: dist/latest.json); дефолт — рядом
+  // с установщиками в bundle-каталоге.
+  const target = out ? resolve(repoRoot, out) : resolve(bundle, 'latest.json');
   // Минифицированно: nginx sub_filter матчит '"url":"/desktop/' как есть
   writeFileSync(target, `${JSON.stringify(manifest)}\n`);
   console.log(`desktop-manifest: ${target} (версия ${version})`);
@@ -118,7 +120,9 @@ function writeChangelog(releasesPath, changelogOut) {
       date: r.publishedAt,
       notes: (r.body ?? '').trim() || `Nodus ${r.tagName.replace(/^desktop-v/, '')}`,
     }));
-  const target = resolve(repoRoot, changelogOut ?? 'changelog.json');
+  const target = changelogOut
+    ? resolve(repoRoot, changelogOut)
+    : resolve(repoRoot, 'changelog.json');
   writeFileSync(target, `${JSON.stringify(entries)}\n`);
   console.log(`desktop-manifest: ${target} (${entries.length} релизов)`);
 }
