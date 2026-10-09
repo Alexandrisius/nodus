@@ -143,7 +143,11 @@ pub(crate) fn show(app: &AppHandle, payload: crate::bridge::PopupPayload) {
 /// РУЕМОЕ (WS_EX_NOACTIVATE, канон Telegram и Raymond Chen / Old New Thing):
 /// показ и клики НЕ крадут фокус у портала — супер-курсор композера живёт.
 /// Для печати в поле ответа флаг снимается (popup_set_expanded → allow_focus).
-pub(crate) fn build_popup_window(app: &AppHandle, label: &str, height: f64) -> Option<WebviewWindow> {
+pub(crate) fn build_popup_window(
+    app: &AppHandle,
+    label: &str,
+    height: f64,
+) -> Option<WebviewWindow> {
     let win = match WebviewWindowBuilder::new(app, label, WebviewUrl::App("index.html".into()))
         .title("Nodus")
         .decorations(false)

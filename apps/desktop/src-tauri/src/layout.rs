@@ -7,8 +7,8 @@
 use tauri::{AppHandle, Manager, PhysicalPosition};
 
 use crate::popups::{
-    build_popup_window, stack, ActivePopup, GAP, HIDE_ALL_H, HIDE_ALL_LABEL, MARGIN,
-    MAX_STACK, POPUP_H, POPUP_H_REPLY, POPUP_W,
+    build_popup_window, stack, ActivePopup, GAP, HIDE_ALL_H, HIDE_ALL_LABEL, MARGIN, MAX_STACK,
+    POPUP_H, POPUP_H_REPLY, POPUP_W,
 };
 
 /// ЕДИНЫЙ раскладчик стека (фидбек 08.10): один проход решает всё —
@@ -61,7 +61,9 @@ fn place_hide_all(app: &AppHandle) {
     use tauri::LogicalSize;
     let action = {
         let cursor = app.cursor_position().ok();
-        let Some(monitor) = cursor.and_then(|c| app.monitor_from_point(c.x, c.y).ok()).flatten()
+        let Some(monitor) = cursor
+            .and_then(|c| app.monitor_from_point(c.x, c.y).ok())
+            .flatten()
         else {
             return;
         };
@@ -82,8 +84,8 @@ fn place_hide_all(app: &AppHandle) {
         let full = s.active.len() >= MAX_STACK as usize;
         // Окно уже существует (в т.ч. ещё закрывается после close_all) —
         // 'c' не создаём (дубль-лейбл упал бы в Err и потерял бы флаг).
-        let hide_window_absent = s.hide_all_live
-            && app.get_webview_window(HIDE_ALL_LABEL).is_none();
+        let hide_window_absent =
+            s.hide_all_live && app.get_webview_window(HIDE_ALL_LABEL).is_none();
         if full && s.hide_all_live && hide_window_absent {
             s.hide_all_live = true;
             match top {
@@ -120,4 +122,3 @@ fn place_hide_all(app: &AppHandle) {
         }
     }
 }
-

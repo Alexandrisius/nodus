@@ -116,7 +116,8 @@ pub async fn check_and_prepare(app: &AppHandle) -> Result<bool, String> {
     let version = update.version.clone();
     log::info!(
         "обновление оболочки: {} → {} (скачивание)",
-        update.current_version, version
+        update.current_version,
+        version
     );
     {
         let mut state = PREPARED.lock().unwrap();
@@ -151,7 +152,10 @@ pub fn apply_prepared() -> Result<(), String> {
         *PREPARED.lock().unwrap() = taken;
         return Err("update-not-ready".into());
     };
-    log::info!("установка обновления {} (passive, перезапуск)", update.version);
+    log::info!(
+        "установка обновления {} (passive, перезапуск)",
+        update.version
+    );
     update.install(bytes).map_err(|e| e.to_string())
 }
 
@@ -179,7 +183,8 @@ pub async fn check_and_install(app: &AppHandle) -> Result<UpdateOutcome, String>
     };
     log::info!(
         "обновление оболочки: {} → {}",
-        update.current_version, update.version
+        update.current_version,
+        update.version
     );
     update
         .download_and_install(|_, _| {}, || {})

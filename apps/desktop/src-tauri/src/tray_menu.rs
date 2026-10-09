@@ -32,7 +32,7 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
     let quit = MenuItem::with_id(app, "quit", "Выход", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&open, &autostart, &update, &reload, &change, &quit])?;
 
-    let icon = crate::badge::themed_base_icon(app);
+    let icon = crate::badge::base_icon();
     TrayIconBuilder::with_id("nodus-tray")
         .icon(icon)
         .tooltip("Nodus")

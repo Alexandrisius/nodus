@@ -75,10 +75,6 @@ pub fn run() {
             WindowEvent::Destroyed if window.label().starts_with("popup-") => {
                 popups::on_popup_destroyed(window.app_handle(), window.label());
             }
-            // Смена системной темы: белый знак на тёмный таскбар (и обратно).
-            WindowEvent::ThemeChanged(_) if window.label() == "main" => {
-                badge::refresh_for_theme(window.app_handle());
-            }
             _ => {}
         })
         .invoke_handler(tauri::generate_handler![
@@ -124,18 +120,10 @@ fn create_main_window(app: &AppHandle) -> tauri::Result<()> {
             .initialization_script(bridge::initialization_script(&version))
             .on_navigation(move |url| navigation_allowed(&nav_app, url))
             .build()?;
-    // Иконка окна/таскбара по системной теме (тёмная тема → белый знак);
-    // дефолт конфигурации один, реверс живёт рантаймом.
-    let _ = win.set_icon(badge::themed_base_icon(app));
+    // Иконка окна/таскбара — единый значок из ресурсов (bundle.icon):
+    // тёмно-синяя плитка с белым знаком читается на любой теме Windows,
+    // рантайм-перекрас не нужен (#263).
     let _ = win.show();
-    // Сразу после build() окно может ещё не знать системную тему (theme() =
-    // Light в тёмной системе) — таскбар оставался с тёмным знаком из ресурсов
-    // exe (фидбек 09.10 #263). Перечитываем тему отложенно и перекрашиваем.
-    let late_app = app.clone();
-    std::thread::spawn(move || {
-        std::thread::sleep(std::time::Duration::from_millis(1200));
-        badge::refresh_for_theme(&late_app);
-    });
     Ok(())
 }
 

@@ -12,8 +12,8 @@ use std::time::Duration;
 use tauri::{AppHandle, Manager};
 
 use crate::activity;
-use crate::layout::reposition_all;
 use crate::bridge::PopupPayload;
+use crate::layout::reposition_all;
 use crate::popups::{show, stack, MAX_STACK};
 
 /// Полное угасание с момента активности пользователя (~3 c, медленно).
@@ -52,7 +52,11 @@ fn tick_fade(app: &AppHandle) {
         for p in s.active.iter_mut() {
             if p.hover || p.replying {
                 if p.fading.take().is_some() {
-                    eval_popup_js(app, &p.label, "window.__popupFade&&window.__popupFade('reset')");
+                    eval_popup_js(
+                        app,
+                        &p.label,
+                        "window.__popupFade&&window.__popupFade('reset')",
+                    );
                 }
                 continue;
             }
@@ -60,14 +64,22 @@ fn tick_fade(app: &AppHandle) {
             // активность пришла — медленное угасание с этого тика (~3 c).
             if last_input < p.created_ms {
                 if p.fading.take().is_some() {
-                    eval_popup_js(app, &p.label, "window.__popupFade&&window.__popupFade('reset')");
+                    eval_popup_js(
+                        app,
+                        &p.label,
+                        "window.__popupFade&&window.__popupFade('reset')",
+                    );
                 }
                 continue;
             }
             match p.fading {
                 None => {
                     p.fading = Some(std::time::Instant::now());
-                    eval_popup_js(app, &p.label, "window.__popupFade&&window.__popupFade('start')");
+                    eval_popup_js(
+                        app,
+                        &p.label,
+                        "window.__popupFade&&window.__popupFade('start')",
+                    );
                 }
                 Some(t) if t.elapsed() >= Duration::from_millis(FADE_MS) => {
                     to_close.push(p.label.clone());
