@@ -226,3 +226,19 @@ pub fn spawn_startup_check(app: AppHandle) {
         }
     });
 }
+
+/// Периодическая проверка для ДОЛГИХ сессий (фидбек 09.10: «пользуюсь
+/// приложением — точка сама загорается»): портал может быть загружен
+/// единожды на дни, стартовая проверка и on_portal_ready уже в прошлом —
+/// без таймера новая версия не обнаружится до перезапуска. Один поток на
+/// процесс, стартует один раз из setup.
+pub fn start_periodic_check(app: AppHandle) {
+    static STARTED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    if STARTED.swap(true, std::sync::atomic::Ordering::SeqCst) {
+        return;
+    }
+    std::thread::spawn(move || loop {
+        std::thread::sleep(std::time::Duration::from_secs(4 * 60 * 60));
+        let _ = tauri::async_runtime::block_on(check_and_prepare(&app));
+    });
+}

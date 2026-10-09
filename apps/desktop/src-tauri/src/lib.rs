@@ -16,7 +16,6 @@ use tauri::{AppHandle, Manager, Url, WindowEvent};
 use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_log::{Target, TargetKind};
 use tauri_plugin_opener::OpenerExt;
-use windows::Win32::Foundation::WPARAM;
 
 use state::ShellState;
 
@@ -60,6 +59,9 @@ pub fn run() {
             // Активность пользователя (клик/клавиша, без движения мыши) —
             // арбитр угасания попапов (#254, модель Telegram).
             activity::start();
+            // Точка обновления в долгих сессиях: периодическая проверка
+            // (стартовая и on_portal_ready уже позади, #263).
+            updates::start_periodic_check(handle.clone());
             Ok(())
         })
         .on_window_event(|window, event| match event {
@@ -121,23 +123,6 @@ fn create_main_window(app: &AppHandle) -> tauri::Result<()> {
             .initialization_script(bridge::initialization_script(&version))
             .on_navigation(move |url| navigation_allowed(&nav_app, url))
             .build()?;
-    // Иконку из СИСТЕМНОЙ шапки убираем (WM_SETICON ICON_SMALL = NULL —
-    // канон Win32): логотип портала в шапке UI и так рядом, дубль некрасив
-    // (фидбек 09.10). Большая иконка (панель задач/Alt-Tab) не трогается.
-    if let Ok(hwnd) = win.hwnd() {
-        use windows::Win32::Foundation::HWND;
-        use windows::Win32::UI::WindowsAndMessaging::{SendMessageW, ICON_SMALL, WM_SETICON};
-        unsafe {
-            // Option<WPARAM/LPARAM> = NULL-параметры API: lParam NULL снимает
-            // маленькую иконку заголовка.
-            SendMessageW(
-                HWND(hwnd.0),
-                WM_SETICON,
-                Some(WPARAM(ICON_SMALL as usize)),
-                None,
-            );
-        }
-    }
     let _ = win.show();
     Ok(())
 }
