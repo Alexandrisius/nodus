@@ -1,4 +1,4 @@
-import { CheckCheck, ChevronDown, Pencil, Plus, Trash2 } from 'lucide-react';
+import { CheckCheck, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import type { Notification } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
@@ -172,12 +172,16 @@ export function NotificationsFeed({
             <button
               type="button"
               onClick={() => setBackgroundOpen(true)}
-              className="flex items-center gap-2 text-left text-muted-foreground transition-colors hover:text-foreground"
+              className="group flex items-center gap-2 text-left"
             >
-              <ChevronDown className="size-3.5 -rotate-90" strokeWidth={1.75} />
-              <span className="text-sm">
-                {ui.notifications.showAllLow} ({backgroundTotal})
-              </span>
+              {/* Тот же примитив, что у раскрытого раздела: один регистр и
+                  кегль в обоих состояниях; счётчик — голым моно-числом. */}
+              <NodeLabel
+                label={ui.notifications.lowSection}
+                count={backgroundTotal}
+                chevron="right"
+                className="transition-colors group-hover:text-foreground"
+              />
             </button>
           )}
         </section>
