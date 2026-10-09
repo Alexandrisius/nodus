@@ -38,7 +38,7 @@ function makeEvent(
 }
 
 describe('DispatchHandler: повторы важного (#177)', () => {
-  const repo = { recordDelivery: vi.fn() };
+  const repo = { recordDelivery: vi.fn(), findById: vi.fn() };
   const repeats = { enqueue: vi.fn() };
   const txRunner = { run: vi.fn((cb: (tx: string) => unknown) => cb(TX)) };
   const featureFlags = { isEnabled: vi.fn() };
@@ -47,6 +47,7 @@ describe('DispatchHandler: повторы важного (#177)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     featureFlags.isEnabled.mockResolvedValue(true);
+    repo.findById.mockResolvedValue({ id: '99999999-9999-9999-9999-999999999999' });
     handler = new DispatchHandler(
       repo as never,
       txRunner as never,
@@ -67,6 +68,13 @@ describe('DispatchHandler: повторы важного (#177)', () => {
 
   it('не-urgent — повторов нет', async () => {
     await handler.handle(makeEvent({ priority: 'high' }));
+    expect(repeats.enqueue).not.toHaveBeenCalled();
+  });
+
+  it('#267: строка вычищена (удалённое сообщение) — тихий пропуск без доставки', async () => {
+    repo.findById.mockResolvedValue(null);
+    await handler.handle(makeEvent({}));
+    expect(repo.recordDelivery).not.toHaveBeenCalled();
     expect(repeats.enqueue).not.toHaveBeenCalled();
   });
 });

@@ -50,6 +50,13 @@ export class DispatchHandler implements DomainEventHandler<DispatchPayload> {
     const { snapshot, attempt } = event.payload;
     if (!snapshot?.notificationId) return;
 
+    // #267: строка могла быть вычищена чисткой удалённого сообщения (гонка
+    // порядка событий: dispatch_requested обработан после purge) — доставка
+    // не нужна, тихий пропуск иначе FK-нарушение уводит событие в вечный
+    // ретрай диспетчера.
+    const alive = await this.repo.findById(snapshot.userId, snapshot.notificationId);
+    if (!alive) return;
+
     await this.txRunner.run(async (tx) => {
       await this.repo.recordDelivery(
         snapshot.notificationId,

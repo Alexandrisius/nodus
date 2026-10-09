@@ -87,6 +87,14 @@ describe('UrgentRepeatWorker.remind', () => {
     expect(eventBus.emit).not.toHaveBeenCalled();
   });
 
+  it('#267: строка удалена чисткой (сообщение стёрто) — тихий стоп без эмитов', async () => {
+    repo.findRaw.mockResolvedValue(null);
+    const outcome = await worker.remind(NOTIF_ID);
+    expect(outcome).toBe('stop');
+    expect(eventBus.emit).not.toHaveBeenCalled();
+    expect(repeats.reenqueue).not.toHaveBeenCalled();
+  });
+
   it('не-urgent строки повторами не занимаются', async () => {
     repo.findRaw.mockResolvedValue(row({ priority: 'high' }));
     expect(await worker.remind(NOTIF_ID)).toBe('stop');

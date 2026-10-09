@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   DOMAIN_EVENTS_STREAM,
@@ -430,6 +432,129 @@ describe.skipIf(!process.env.DATABASE_URL)(
         items: Array<{ id: string; readAt: string | null }>;
       };
       expect(all.items.some((i) => i.id === target!.id && i.readAt !== null)).toBe(true);
+    });
+
+    /** Найти envelope notification.read от чистки #267 по источнику: purge
+     *  эмитит notificationIds = null (гашение по источнику), readOne — массив
+     *  id; фильтр по null отсекает конверты ручного прочтения той же беседы. */
+    async function findReadEnvelopeForSource(
+      userId: string,
+      sourceId: string,
+    ): Promise<{ id: string; envelope: RealtimeEnvelope } | null> {
+      let cursor = '-';
+      for (;;) {
+        const batch = (await fx.redis.xrange(DOMAIN_EVENTS_STREAM, cursor, '+', 'COUNT', 200)) as [
+          string,
+          string[],
+        ][];
+        if (batch.length === 0) return null;
+        for (const [id, fields] of batch) {
+          const raw = fields[fields.indexOf('envelope') + 1];
+          if (!raw) continue;
+          const envelope = realtimeEnvelopeSchema.parse(JSON.parse(raw));
+          if (envelope.type !== 'notification.read') continue;
+          const payload = envelope.payload as Record<string, unknown>;
+          if (payload.userId !== userId || payload.sourceId !== sourceId) continue;
+          if (payload.notificationIds !== null) continue;
+          return { id, envelope };
+        }
+        const lastId = batch[batch.length - 1]![0];
+        if (batch.length < 200) return null;
+        cursor = `(${lastId}`;
+      }
+    }
+
+    it('#267: удаление непрочитанного сообщения гасит уведомление получателя целиком', async () => {
+      const conversationId = await directId(alice, bob);
+      const message = (await (
+        await fx.api(alice, 'POST', `/chat/conversations/${conversationId}/messages`, {
+          body: { text: 'сообщение, которое скоро исчезнет' },
+          key: `notif-del-${fx.runId}`,
+        })
+      ).json()) as { id: string };
+      await runPipeline();
+
+      // Уведомление получателю висит непрочитанным (сценарий бага).
+      const before = (await (await listNotifications(bob, '?filter=unread')).json()) as {
+        items: Array<{ id: string; conversationId: string }>;
+      };
+      const target = before.items.find((i) => i.conversationId === conversationId);
+      expect(target).toBeTruthy();
+
+      // Автор удаляет до прочтения (ответов нет → бесследно, 204).
+      const summaryBefore = (await (await fx.api(bob, 'GET', '/notifications/summary')).json()) as {
+        attention: number;
+      };
+      const deleted = await fx.api(
+        alice,
+        'DELETE',
+        `/chat/conversations/${conversationId}/messages/${message.id}`,
+      );
+      expect(deleted.status).toBe(204);
+      await runPipeline();
+
+      // Строка ушла из журнала целиком — и из непрочитанных, и из истории.
+      const unreadAfter = (await (await listNotifications(bob, '?filter=unread')).json()) as {
+        items: Array<{ id: string }>;
+      };
+      expect(unreadAfter.items.some((i) => i.id === target!.id)).toBe(false);
+      const allAfter = (await (await listNotifications(bob, '?filter=all&limit=100')).json()) as {
+        items: Array<{ id: string }>;
+      };
+      expect(allAfter.items.some((i) => i.id === target!.id)).toBe(false);
+
+      // Сводка получателя минус ровно эта строка (бейдж падает).
+      const summaryAfter = (await (await fx.api(bob, 'GET', '/notifications/summary')).json()) as {
+        attention: number;
+      };
+      expect(summaryAfter.attention).toBe(summaryBefore.attention - 1);
+
+      // Получателю прилетело notification.read (лента/бейдж — штатный синк).
+      const readEnvelope = await findReadEnvelopeForSource(bob.id, conversationId);
+      expect(readEnvelope).not.toBeNull();
+      publishedIds.push(readEnvelope!.id);
+    });
+
+    it('#267: pack-guard — «опоздавшая» строка об удалённом сообщении не отдаётся (гонка порядка событий)', async () => {
+      // Гонка: message_sent обработан ПОСЛЕ message_deleted — строка создана
+      // пост-чистки и подписчик её больше не увидит. Моделируем прямой
+      // вставкой журнала поверх уже удалённого сообщения.
+      const conversationId = await directId(alice, bob);
+      const message = (await (
+        await fx.api(alice, 'POST', `/chat/conversations/${conversationId}/messages`, {
+          body: { text: 'жертва гонки' },
+          key: `notif-race-${fx.runId}`,
+        })
+      ).json()) as { id: string };
+      await fx.api(alice, 'DELETE', `/chat/conversations/${conversationId}/messages/${message.id}`);
+      await runPipeline();
+
+      const summaryBefore = (await (await fx.api(bob, 'GET', '/notifications/summary')).json()) as {
+        attention: number;
+      };
+      await prisma.notification.create({
+        data: {
+          userId: bob.id,
+          priority: 'high',
+          kind: 'chat.direct_message',
+          sourceType: 'conversation',
+          sourceId: conversationId,
+          sourceSeq: 1n,
+          preview: 'жертва гонки',
+          conversationId,
+          messageId: message.id,
+          eventId: randomUUID(),
+        },
+      });
+
+      const unread = (await (await listNotifications(bob, '?filter=unread&limit=100')).json()) as {
+        items: Array<{ messageId: string | null }>;
+      };
+      expect(unread.items.some((i) => i.messageId === message.id)).toBe(false);
+      const summaryAfter = (await (await fx.api(bob, 'GET', '/notifications/summary')).json()) as {
+        attention: number;
+      };
+      expect(summaryAfter.attention).toBe(summaryBefore.attention);
     });
   },
 );
