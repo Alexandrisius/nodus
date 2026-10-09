@@ -43,6 +43,8 @@ pub fn initialization_script(shell_version: &str) -> String {
     dismissPopups: function (conversationId) {{ return invoke('dismiss_popups', {{ conversationId: conversationId }}); }},
     setUiTheme: function (theme) {{ return invoke('set_ui_theme', {{ theme: theme }}); }},
     getShellInfo: function () {{ return invoke('get_shell_info'); }},
+    getUpdateState: function () {{ return invoke('get_update_state'); }},
+    applyUpdate: function () {{ return invoke('apply_update'); }},
     shellReady: function () {{ return invoke('shell_ready'); }},
     onEvent: function (type, fn) {{
       (listeners[type] = listeners[type] || []).push(fn);
@@ -73,6 +75,8 @@ pub fn grant_portal_capability(app: &AppHandle, root: &str) -> tauri::Result<()>
         .permission("allow-dismiss-popups")
         .permission("allow-set-ui-theme")
         .permission("allow-get-shell-info")
+        .permission("allow-get-update-state")
+        .permission("allow-apply-update")
         .permission("allow-shell-ready");
     app.add_capability(capability)
 }

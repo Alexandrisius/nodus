@@ -87,6 +87,8 @@ pub fn run() {
             portal::retry_connection,
             portal::change_server,
             updates::run_updater,
+            updates::get_update_state,
+            updates::apply_update,
             bridge::notify_popup,
             bridge::set_unread_badge,
             bridge::flash_taskbar,

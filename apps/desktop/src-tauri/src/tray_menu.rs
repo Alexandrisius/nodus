@@ -6,6 +6,11 @@ use tauri_plugin_autostart::ManagerExt as _;
 
 use crate::updates;
 
+/// Пункт «Проверить обновления»: у TrayIcon нет геттера меню — держим хэндл
+/// (items ref-counted), чтобы переименовать в «Перезапустить (версия)» (#263).
+static UPDATE_ITEM: std::sync::Mutex<Option<tauri::menu::MenuItem<tauri::Wry>>> =
+    std::sync::Mutex::new(None);
+
 /// Трей: «Открыть Nodus», «Запускать при входе в Windows» (чекбокс),
 /// «Проверить обновления», «Сменить сервер…», «Выход». ЛКМ по значку —
 /// показать окно; закрытие окна всегда прячет в трей (lib.rs).
@@ -21,6 +26,7 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
         None::<&str>,
     )?;
     let update = MenuItem::with_id(app, "update", "Проверить обновления", true, None::<&str>)?;
+    *UPDATE_ITEM.lock().unwrap() = Some(update.clone());
     let reload = MenuItem::with_id(app, "reload", "Перезагрузить портал", true, None::<&str>)?;
     let change = MenuItem::with_id(app, "change_server", "Сменить сервер…", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Выход", true, None::<&str>)?;
@@ -38,7 +44,13 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
             "update" => {
                 let app = app.clone();
                 tauri::async_runtime::spawn(async move {
-                    if let Err(e) = updates::check_and_install(&app).await {
+                    // Скачанное обновление (#263) — пункт становится
+                    // «Перезапустить (версия)»: клик = passive-установка.
+                    if updates::has_prepared() {
+                        if let Err(e) = updates::apply_prepared() {
+                            log::warn!("установка обновления не удалась: {e}");
+                        }
+                    } else if let Err(e) = updates::check_and_prepare(&app).await {
                         log::warn!("проверка обновлений не удалась: {e}");
                     }
                 });
@@ -95,4 +107,19 @@ pub fn set_tray_tooltip(app: &AppHandle, tooltip: &str) {
     if let Some(tray) = app.tray_by_id("nodus-tray") {
         let _ = tray.set_tooltip(Some(tooltip));
     }
+}
+
+/// Обновление скачано и ждёт решения (#263): пункт «Проверить обновления»
+/// становится «Перезапустить (версия)» — тот же id, клик ставит и возвращает
+/// приложение (passive-установщик).
+pub fn mark_update_ready(app: &AppHandle) {
+    let Some(version) = updates::pending_version() else {
+        return;
+    };
+    if let Some(item) = UPDATE_ITEM.lock().unwrap().as_ref() {
+        if let Err(e) = item.set_text(format!("Перезапустить ({version})")) {
+            log::warn!("подпись пункта обновления трея не изменена: {e}");
+        }
+    }
+    set_tray_tooltip(app, &format!("Nodus — {version} доступна"));
 }

@@ -61,11 +61,26 @@ export const shellVisibilityEventSchema = z.object({
 });
 export type ShellVisibilityEvent = z.infer<typeof shellVisibilityEventSchema>;
 
+/**
+ * Состояние автообновления оболочки (пассивный поток #263): idle — обновления
+ * нет/проверка не находила; downloading — скачивает; available — скачано и
+ * ждёт решения пользователя (зелёная точка на кнопке «Скачать приложение»).
+ */
+export const shellUpdateStateSchema = z.object({
+  status: z.enum(['idle', 'downloading', 'available']),
+  version: z
+    .string()
+    .regex(/^\d+\.\d+\.\d+$/)
+    .nullable(),
+});
+export type ShellUpdateState = z.infer<typeof shellUpdateStateSchema>;
+
 /** Каталог типов событий моста «оболочка → веб» (расширяется). */
 export const DESKTOP_BRIDGE_EVENTS = {
   popupReply: 'popup-reply',
   openConversation: 'open-conversation',
   shellVisibility: 'shell-visibility',
+  updateState: 'update-state',
 } as const;
 export type DesktopBridgeEventType =
   (typeof DESKTOP_BRIDGE_EVENTS)[keyof typeof DESKTOP_BRIDGE_EVENTS];

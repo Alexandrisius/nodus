@@ -8,6 +8,7 @@ import { cn } from '@nodus/ui/lib/utils';
 import { HomeGreeting } from '../../features/home/components/home-greeting.js';
 import { BellPopover } from '../../features/notifications/components/bell-popover.js';
 import { CIRCUIT_REMEASURE } from './circuit-geometry.js';
+import { DownloadAppButton } from './download-app-button.js';
 import { navModuleForPath } from './nav-registry.js';
 import { ProfileMenu } from './profile-menu.js';
 import { useShellStore } from './shell-store.js';
@@ -85,6 +86,10 @@ export function TopBar() {
         >
           <Search />
         </Button>
+
+        {/* Приложение для Windows: браузеру — загрузка установщика, оболочке —
+            точка обновления (#263); без раздачи /desktop/ кнопки нет */}
+        <DownloadAppButton />
 
         <span className="flex h-8 items-center rounded-md border border-border px-2.5 font-mono text-label font-medium tracking-wider text-muted-foreground">
           RU

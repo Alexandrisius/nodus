@@ -28,6 +28,8 @@ function installBridge() {
     dismissPopups: vi.fn(async () => undefined),
     setUiTheme: vi.fn(async () => undefined),
     getShellInfo: vi.fn(async () => ({ version: '1.0.0', platform: 'windows' })),
+    getUpdateState: vi.fn(async () => ({ status: 'idle', version: null })),
+    applyUpdate: vi.fn(async () => undefined),
     shellReady: vi.fn(async () => undefined),
     onEvent: vi.fn(() => () => undefined),
   };
