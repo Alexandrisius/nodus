@@ -14,8 +14,9 @@
 // ключ по типу ТЕКУЩЕЙ установки, каналы обновления не пересекаются.
 // `--optional`: без .sig (CI без секрета подписи) — предупредить и выйти (0).
 //
-// changelog.json: из `gh release list --json tagName,publishedAt,body`
-// (фильтр desktop-v*), newest-first, для попапа кнопки скачивания.
+// changelog.json: из GitHub Releases (`gh api repos/<repo>/releases --jq
+// '[.[] | {tagName,publishedAt,body}]'` — у `gh release list` поля body нет),
+// фильтр desktop-v*, newest-first, для попапа кнопки скачивания.
 
 import { readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
