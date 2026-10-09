@@ -102,7 +102,7 @@ export function DownloadAppButton() {
             {ui.topbar.downloadAppHint}
           </div>
           <div className="flex items-baseline gap-2">
-            <span className="font-mono text-sm font-semibold text-foreground tabular-nums">
+            <span className="font-mono text-label font-semibold text-foreground tabular-nums">
               {manifest.version}
             </span>
             {manifest.pub_date && (

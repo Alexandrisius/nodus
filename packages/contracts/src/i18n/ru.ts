@@ -159,11 +159,9 @@ export const ui = {
     downloadAppForWindows: 'Скачать для Windows',
     updateApp: 'Обновить приложение',
     updateAppRestart: 'Обновить и перезапустить',
-    updateAvailable: 'Доступна новая версия',
     updateDownloading: 'Загружается обновление',
     updateLatestInstalled: 'Установлена последняя версия',
     releaseHistory: 'История изменений',
-    releaseNotes: 'О версии',
   },
   edge: {
     expand: 'Развернуть список бесед',
