@@ -29,9 +29,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 11
+      # Версия pnpm — из packageManager в package.json (как ci.yml):
+      # явная version здесь конфликтовала с фиксацией и валила сборку.
+      - uses: pnpm/action-setup@v6
 
       - uses: actions/setup-node@v4
         with:
