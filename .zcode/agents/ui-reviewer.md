@@ -2,8 +2,8 @@
 name: 'ui-reviewer'
 description: 'Обязательный визуальный ревьюер UI Nodus — ЕДИНСТВЕННЫЙ, кто выносит визуальные суждения: сам снимает кадры (Playwright, песочница :4173) и читает их со зрением (обе темы, общий кадр + зум-кропы), точные px измеряет через DOM, сверяет с каноном навыка nodus-ui-style. ОБЯЗАТЕЛЕН при любом diff, меняющем отрисовку веба (карта срабатывания — DoD, «Карта срабатывания ui-гейта»): до UI-чекпоинта и до вердикта владельца. Агент-исполнитель скриншоты не оценивает и «выглядит хорошо» не пишет.'
 color: blue
-model: 'account:zai-individual-coding-plan/GLM-5.3-Flash'
-thoughtLevel: max
+model: 'qwen-alibaba-model-studio-intl/qwen3.8-flash'
+thoughtLevel: xhigh
 tools:
   - Read
   - Grep

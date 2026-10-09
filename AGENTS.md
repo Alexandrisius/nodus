@@ -82,7 +82,7 @@
 
 ## Инструменты и навыки
 
-**GitHub — только через `gh` CLI** (не GitHub MCP): `gh issue/pr/repo ...`, JSON-вывод через `--json`. Репозиторий: `github.com/Alexandrisius/nodus` (приватный, аккаунт владельца). Изменение настроек репозитория (labels, protection, secrets) — только по runbook-процедуре и с разрешения владельца.
+**GitHub — только через `gh` CLI** (не GitHub MCP): `gh issue/pr/repo ...`, JSON-вывод через `--json`. Репозиторий: `github.com/Alexandrisius/nodus` (публичный, opensource; секреты и внутренние детали компании в код/issues/PR не попадают). Изменение настроек репозитория (labels, protection, secrets) — только по runbook-процедуре и с разрешения владельца.
 
 **Документация библиотек — Context7 MCP** (вместо угадывания API по памяти): сначала `context7_resolve-library-id` (имя библиотеки + вопрос), затем `context7_query-docs` с полученным ID; ≤ 3 вызовов на вопрос, для версий — version-specific ID. Триггер: любая работа с API библиотеки, где нет уверенности в актуальном синтаксисе. **Новая зависимость/плагин — всегда Context7 по жизненному циклу ДО кода** (порядок хуков, когда доступен request.body, дефолтные опции): ошибки интеграции чужого API — самые дорогие (урок issue #3: `keyGenerator` rate-limit до парсинга тела, `vite preview --host`).
 
