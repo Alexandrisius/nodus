@@ -49,7 +49,12 @@ minimumReleaseAgeExclude:
 
 # Аудит зависимостей CI: braces GHSA-vfj7-8cjw-p6xm (high, патча нет —
 # dev-цепочка линтера eslint-plugin-boundaries>micromatch, не рантайм)
-# проигнорирован до выхода патченной версии (#187, 03.10.2026)
+# проигнорирован до выхода патченной версии (#187, 03.10.2026).
+# handlebars GHSA-8r5x-fm3f-whwj / GHSA-p8wg-vrv2-v86f (critical, 09.10.2026):
+# уязвим весь 4.x, патча нет; тянется ТОЛЬКО dev-цепочкой линтера
+# (eslint-plugin-boundaries), в рантайм/образы не попадает (#263).
 auditConfig:
   ignoreGhsas:
     - GHSA-vfj7-8cjw-p6xm
+    - GHSA-8r5x-fm3f-whwj
+    - GHSA-p8wg-vrv2-v86f
