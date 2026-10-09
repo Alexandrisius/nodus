@@ -133,6 +133,7 @@ jobs:
           REPO: ${{ github.repository }}
           TAG: ${{ github.ref_name }}
         run: |
-          gh release list --repo "$REPO" --json tagName,publishedAt,body --limit 15 > releases.json
+          gh api "repos/$REPO/releases?per_page=15" \
+            --jq '[.[] | {tagName: .tag_name, publishedAt: .published_at, body: .body}]' > releases.json
           node scripts/desktop-manifest.mjs --changelog releases.json --changelog-out dist/changelog.json
           gh release upload "$TAG" dist/changelog.json --repo "$REPO" --clobber

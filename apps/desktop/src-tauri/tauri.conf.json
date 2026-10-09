@@ -20,6 +20,7 @@
       }
     },
     "updater": {
+      "requireSignedVersion": true,
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEE1QThFRjA5OUJFQzNGNzcKUldSM1AreWJDZStvcFN4SHpQeUhWWWFyaWN2MEZWREdJbEJoMzJaUWN2RXlFK1lLeWpmK05kclUK",
       "windows": {
         "installMode": "passive"

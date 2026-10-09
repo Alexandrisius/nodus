@@ -6,7 +6,11 @@ import { z } from 'zod';
  * относительные url под домен входа (sub_filter). Веб-кнопке нужен только
  * Windows-канал; подписи и MSI-цели Portal не интересуют.
  */
-const platformEntrySchema = z.object({ url: z.string().url() });
+const platformEntrySchema = z.object({
+  // Только http(s): javascript:/data: не проходят границу (security-аудит #263;
+  // форма z.url({ protocols: [...] }) в zod 4.6.5 их НЕ отсекает — проверено)
+  url: z.url({ protocol: /^https?$/ }),
+});
 
 export const desktopManifestSchema = z.object({
   version: z.string(),

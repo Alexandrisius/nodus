@@ -47,6 +47,16 @@ describe('desktopManifestSchema', () => {
     });
     expect(parsed.success).toBe(false);
   });
+
+  it('отвергает javascript:/data: url в манифесте (security #263)', () => {
+    for (const url of ['javascript:alert(1)', 'data:text/html,hi']) {
+      const parsed = desktopManifestSchema.safeParse({
+        ...MANIFEST,
+        platforms: { 'windows-x86_64': { url } },
+      });
+      expect(parsed.success).toBe(false);
+    }
+  });
 });
 
 describe('windowsInstallerUrl', () => {

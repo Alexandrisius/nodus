@@ -31,10 +31,17 @@ if (args.changelog) {
 }
 
 function parseArgs(argv) {
+  // Флаги без значения (--optional) — true, а не «съесть следующий аргумент»
   const out = {};
-  for (let i = 0; i < argv.length; i += 2) {
+  for (let i = 0; i < argv.length; i++) {
     const key = argv[i]?.replace(/^--/, '')?.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
-    out[key] = argv[i + 1];
+    if (!key) continue;
+    if (argv[i + 1] === undefined || argv[i + 1].startsWith('--')) {
+      out[key] = true;
+    } else {
+      out[key] = argv[i + 1];
+      i += 1;
+    }
   }
   return out;
 }
