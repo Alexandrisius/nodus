@@ -178,7 +178,19 @@ async fn connect(app: AppHandle, root: String) -> ConnectionState {
         log::error!("не выдана capability моста: {e}");
     }
     if let Some(win) = app.get_webview_window("main") {
-        if let Ok(url) = Url::parse(&root) {
+        if let Ok(mut url) = Url::parse(&root) {
+            // Кэш WebView2 отдавал документ портала без ревалидации между
+            // запусками (HTTP-эвристика свежести; фидбек 09.10: оболочка
+            // неделями могла жить на старой сборке веба — серверные
+            // no-cache правила лечат только НОВЫЕ ответы). Одноразовый
+            // параметр адреса делает документ физически не-из-кэша при
+            // каждом запуске; хэш-ассенты остаются в кэше законно
+            // (именованы содержимым).
+            let nonce = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_millis())
+                .unwrap_or_default();
+            url.query_pairs_mut().append_pair("_nd", &nonce.to_string());
             if let Err(e) = win.navigate(url) {
                 log::error!("навигация на портал не удалась: {e}");
             }
