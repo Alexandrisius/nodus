@@ -72,7 +72,9 @@ Prisma-фильтры их не выражают), `GET /labels` (DISTINCT эм�
 при отправке, пересчитываются правкой, #176);
 payload `chat.message_sent` отдаёт оба поля модулю notifications (I3). Состав
 бесед с mute-флагами читается чужими модулями через read-порт
-`CHAT_MEMBERSHIP_READER` (ADR-0012, chat-ports.module).
+`CHAT_MEMBERSHIP_READER` (ADR-0012, chat-ports.module); живость сообщений
+(мягкое удаление, #267) — read-порт `CHAT_MESSAGE_LIVENESS` (SQL-предикат
+живости для pack-time фильтра журнала уведомлений).
 
 #177 (ревизия модели 05.10): молния — простой тоггл `urgent` (подтверждение
 ознакомления выпилено решением владельца); непрочитавшим модуль notifications

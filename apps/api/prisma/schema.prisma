@@ -824,6 +824,8 @@ model Notification {
   @@index([userId, seq(sort: Desc)])
   @@index([sourceId, priority, ackAt])
   @@index([priority, readAt, createdAt])
+  /// Чистка журнала по удалённому сообщению (#267: DELETE WHERE message_id).
+  @@index([messageId])
   @@map("notifications")
 }
 

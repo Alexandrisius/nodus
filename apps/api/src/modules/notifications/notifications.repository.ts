@@ -11,6 +11,7 @@ import type {
 import { PrismaService } from '../../core/database/prisma.service.js';
 import type { TransactionClient } from '../../core/database/transaction-runner.js';
 import { USER_PROFILE_READER, type UserProfileReader } from '../../core/ports/user-profile.port.js';
+import { CHAT_MESSAGE_LIVENESS, type ChatMessageLiveness } from '../chat/message-liveness.port.js';
 import type { UserRef } from '@nodus/contracts';
 
 interface NotificationRow {
@@ -85,15 +86,25 @@ function filterWhere(userId: string, filter: NotificationFilter): Prisma.Sql {
 export class NotificationsRepository {
   constructor(
     private readonly prisma: PrismaService,
+    @Inject(CHAT_MESSAGE_LIVENESS) private readonly messageLiveness: ChatMessageLiveness,
     @Inject(USER_PROFILE_READER) private readonly userProfiles: UserProfileReader,
   ) {}
+
+  /** #267: строки об удалённых сообщениях не отдаются вовсе — страховка от
+   *  гонки переупорядочивания outbox (message_sent обработан после
+   *  message_deleted → строка создана пост-чистки) и будущих регрессий;
+   *  чистку самих строк делает подписчик chat.message_deleted. Живость —
+   *  read-порт чата (ADR-0012), схема messages не покидает владельца. */
+  private get messageAliveGuard(): Prisma.Sql {
+    return this.messageLiveness.messageAliveGuard(Prisma.sql`notifications.message_id`);
+  }
 
   /** Страница журнала (filter + поиск + дельта afterSeq; курсор по seq). */
   async list(
     userId: string,
     query: ListNotificationsQuery,
   ): Promise<{ rows: NotificationRow[]; hasMore: boolean }> {
-    const conditions = [filterWhere(userId, query.filter)];
+    const conditions = [filterWhere(userId, query.filter), this.messageAliveGuard];
     if (query.afterSeq !== undefined) {
       conditions.push(Prisma.sql`seq > ${BigInt(query.afterSeq)}::bigint`);
     }
@@ -121,7 +132,7 @@ export class NotificationsRepository {
   }> {
     const rows = await this.prisma.$queryRaw<{ priority: string; count: bigint }[]>(Prisma.sql`
       SELECT priority, count(*) AS count FROM notifications
-      WHERE user_id = ${userId}::uuid AND read_at IS NULL
+      WHERE user_id = ${userId}::uuid AND read_at IS NULL AND ${this.messageAliveGuard}
       GROUP BY priority
     `);
     const byPriority = new Map(rows.map((r) => [r.priority, Number(r.count)]));
@@ -162,8 +173,13 @@ export class NotificationsRepository {
   }
 
   /** Своё уведомление по id (RBAC: чужое = не найдено, G3). */
-  async findById(userId: string, id: string): Promise<NotificationRow | null> {
-    const rows = await this.prisma.$queryRaw<NotificationRow[]>(Prisma.sql`
+  async findById(
+    userId: string,
+    id: string,
+    tx?: TransactionClient,
+  ): Promise<NotificationRow | null> {
+    const client = tx ?? this.prisma;
+    const rows = await client.$queryRaw<NotificationRow[]>(Prisma.sql`
       SELECT ${NOTIFICATION_COLS} FROM notifications
       WHERE id = ${id}::uuid AND user_id = ${userId}::uuid
     `);
@@ -172,12 +188,13 @@ export class NotificationsRepository {
 
   /** Прочитать одно (E3: клик по строке = автопрочтение), любое яруса —
    *  ack-механики больше нет (ревизия модели 05.10), важное гасится
-   *  прочтением как обычное. */
+   *  прочтением как обычное. changed=false — уже было прочитано (повтор
+   *  чтения прочитанного эмитить не нужно). */
   async readOne(
     userId: string,
     id: string,
     tx?: TransactionClient,
-  ): Promise<NotificationRow | null> {
+  ): Promise<{ row: NotificationRow; changed: boolean } | null> {
     const client = tx ?? this.prisma;
     const rows = await client.$queryRaw<NotificationRow[]>(Prisma.sql`
       UPDATE notifications SET read_at = now()
@@ -185,7 +202,9 @@ export class NotificationsRepository {
         AND read_at IS NULL
       RETURNING ${NOTIFICATION_COLS}
     `);
-    return rows[0] ?? this.findById(userId, id);
+    if (rows[0]) return { row: rows[0], changed: true };
+    const existing = await this.findById(userId, id, tx);
+    return existing ? { row: existing, changed: false } : null;
   }
 
   /** Гашение по источнику (вход в чат) до watermark — ВСЕ ярусы, включая
@@ -203,6 +222,19 @@ export class NotificationsRepository {
       WHERE user_id = ${userId}::uuid AND source_id = ${sourceId}::uuid
         AND source_seq <= ${BigInt(upToSeq)}::bigint AND read_at IS NULL
     `);
+  }
+
+  /** Чистка журнала по удалённому сообщению (#267): строки об удалённом не
+   *  имеют ценности (текст исчез) — уходят у всех пользователей в любом
+   *  состоянии (read/unread; все kind с этим message_id, включая правки);
+   *  возвращает user_id затронутых строк (с повторами — дедуп в сервисе). */
+  async deleteByMessage(messageId: string, tx?: TransactionClient): Promise<string[]> {
+    const client = tx ?? this.prisma;
+    const rows = await client.$queryRaw<{ user_id: string }[]>(Prisma.sql`
+      DELETE FROM notifications WHERE message_id = ${messageId}::uuid
+      RETURNING user_id
+    `);
+    return rows.map((r) => r.user_id);
   }
 
   /** Стоп повторов важного (прочтение/ответ/реакция — «увидел где угодно»,

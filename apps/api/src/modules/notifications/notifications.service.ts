@@ -74,9 +74,18 @@ export class NotificationsService {
 
   /** Прочитать одно (E3 — осознанное гашение из карточки): любое, включая
    *  важное — ack-механики нет (ревизия модели 05.10), повторы гасит
-   *  прочтение (repo.readOne + markReadBySource). */
+   *  прочтение (repo.readOne + markReadBySource). Реальный переход в read
+   *  эмитит notification.read — другие устройства владельца синхронят бейдж
+   *  (D2); повторное чтение прочитанного — тишина (#267). */
   async readOne(userId: string, id: string): Promise<Notification> {
-    const row = await this.repo.readOne(userId, id);
+    const row = await this.txRunner.run(async (tx) => {
+      const read = await this.repo.readOne(userId, id, tx);
+      if (!read) return null;
+      if (read.changed) {
+        await this.emitRead(tx, userId, read.row.source_id, [read.row.id]);
+      }
+      return read.row;
+    });
     if (!row) throw DomainException.notFound('Notification not found');
     const [dto] = await this.repo.toDtos([row]);
     return dto!;
@@ -115,6 +124,24 @@ export class NotificationsService {
   /** Стоп повторов по реакции получателя (C3, обработчик chat.reaction_added). */
   async stopRepeatsByReaction(userId: string, messageId: string): Promise<void> {
     await this.repo.stopRepeats(userId, { messageId });
+  }
+
+  /** Чистка по удалённому сообщению (#267, обработчик chat.message_deleted):
+   *  удалённое до прочтения сообщение физически не прочитывается
+   *  (obliterated-строки нет во вьюпорте — watermark не накроет source_seq),
+   *  строки журнала об этом сообщении удаляются у всех получателей; каждому
+   *  затронутому — notification.read (бейдж/лента — штатный конвейер, как при
+   *  гашении прочтением). Идемпотентно: 0 строк — 0 эмитов. */
+  async purgeByMessage(conversationId: string, messageId: string): Promise<number> {
+    return this.txRunner.run(async (tx) => {
+      // Дедуп: у одного пользователя может быть несколько строк на сообщение
+      // (sent + edited) — notification.read достаточно один на пользователя.
+      const affected = [...new Set(await this.repo.deleteByMessage(messageId, tx))];
+      for (const userId of affected) {
+        await this.emitRead(tx, userId, conversationId, null);
+      }
+      return affected.length;
+    });
   }
 
   private async emitRead(
