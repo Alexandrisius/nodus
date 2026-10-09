@@ -177,13 +177,16 @@ export function ConversationBar({
             className="w-full rounded-md border border-port bg-transparent px-1.5 py-0.5 text-sm font-semibold outline-none"
           />
         ) : (
-          <div className="truncate text-sm font-semibold">
+          // -mx на усечённой ОБЁРТКЕ, не на кнопке: граница клипа (truncate)
+          // раздвигается на ширину ховер-пилюли, и её скругления видны с обеих
+          // сторон; сама кнопка усекает длинное название (многоточие).
+          <div className="-mx-1.5 truncate text-sm font-semibold">
             {canEditInfo ? (
               <button
                 type="button"
                 onClick={startEditing}
                 title={ui.chat.renameTitle}
-                className="rounded px-1.5 py-0.5 -mx-1.5 text-left hover:bg-accent"
+                className="block w-fit max-w-full truncate rounded px-1.5 py-0.5 text-left hover:bg-accent"
               >
                 {title}
               </button>
