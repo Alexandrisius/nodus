@@ -21,7 +21,7 @@ const CLOSE_DELAY_MS = 200;
  * скачивание. Нет манифеста `/desktop/` — кнопки нет.
  */
 export function DownloadAppButton() {
-  const { manifest, inShell, updateState } = useDesktopApp();
+  const { manifest, inShell, updateState, shellVersion } = useDesktopApp();
   const installerUrl = manifest ? windowsInstallerUrl(manifest) : null;
   const [open, setOpen] = useState(false);
   const enterTimer = useRef<number | undefined>(undefined);
@@ -38,6 +38,18 @@ export function DownloadAppButton() {
   if (!manifest || !installerUrl) return null;
 
   const updateReady = inShell && updateState.status === 'available';
+  // Версия в попапе: браузер — последняя с сервера (её скачают); оболочка
+  // без обновления — УСТАНОВЛЕННАЯ («Новых версий нет» рядом с чужой версией
+  // с сервера читалось как «у вас 1.0.4», фидбек 09.10); при зелёной точке —
+  // переход «текущая → новая». Дата (релиза серверной версии) — только где
+  // она о чём-то: браузер и доступное обновление.
+  const versionLine = updateReady
+    ? `${shellVersion ?? ''} → ${manifest.version}`.trim()
+    : inShell
+      ? (shellVersion ?? manifest.version)
+      : manifest.version;
+  const showDate = !inShell || updateReady;
+
   const downloading = inShell && updateState.status === 'downloading';
   const label = updateReady ? ui.topbar.updateApp : ui.topbar.downloadApp;
 
@@ -103,9 +115,9 @@ export function DownloadAppButton() {
           </div>
           <div className="flex items-baseline gap-2">
             <span className="font-mono text-label font-semibold text-foreground tabular-nums">
-              {manifest.version}
+              {versionLine}
             </span>
-            {manifest.pub_date && (
+            {showDate && manifest.pub_date && (
               <span className="text-xs text-muted-foreground">{formatDate(manifest.pub_date)}</span>
             )}
           </div>

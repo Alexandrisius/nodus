@@ -6,7 +6,12 @@ import {
   type ShellUpdateState,
 } from '@nodus/contracts';
 
-import { getShellUpdateState, isDesktopShell, onDesktopEvent } from './desktop-bridge.js';
+import {
+  getShellInfo,
+  getShellUpdateState,
+  isDesktopShell,
+  onDesktopEvent,
+} from './desktop-bridge.js';
 import { fetchDesktopManifest, type DesktopManifest } from './desktop-manifest.js';
 
 export const desktopAppKeys = {
@@ -24,6 +29,7 @@ export function useDesktopApp(): {
   manifest: DesktopManifest | null;
   inShell: boolean;
   updateState: ShellUpdateState;
+  shellVersion: string | null;
 } {
   const manifest = useQuery({
     queryKey: desktopAppKeys.manifest,
@@ -37,8 +43,15 @@ export function useDesktopApp(): {
 
   const inShell = isDesktopShell();
   const [updateState, setUpdateState] = useState<ShellUpdateState>(IDLE_STATE);
+  // Установленная версия оболочки (мост): в попапе без обновлений показываем
+  // ЕЁ, а не версию с сервера — «1.0.4 / Новых версий нет» сбивало с толку
+  // (фидбек 09.10).
+  const [shellVersion, setShellVersion] = useState<string | null>(null);
   useEffect(() => {
     if (!inShell) return;
+    void getShellInfo().then((info) => {
+      if (info) setShellVersion(info.version);
+    });
     const pull = () => {
       void getShellUpdateState().then((state) => {
         if (state) setUpdateState(state);
@@ -65,5 +78,6 @@ export function useDesktopApp(): {
     manifest: manifest.data ?? null,
     inShell,
     updateState,
+    shellVersion,
   };
 }

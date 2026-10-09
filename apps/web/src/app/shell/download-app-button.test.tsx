@@ -87,7 +87,7 @@ describe('браузер', () => {
 });
 
 describe('оболочка', () => {
-  it('обновление скачано — точка + список изменений новой версии (скролл)', async () => {
+  it('обновление скачано — точка + «Обновить приложение» + переход версии', async () => {
     installShellBridge({ status: 'available', version: '1.0.1' });
     vi.stubGlobal('fetch', stubFetch(200, MANIFEST));
     renderButton();
@@ -95,11 +95,16 @@ describe('оболочка', () => {
     expect(button.querySelector('.bg-success')).not.toBeNull();
 
     fireEvent.mouseEnter(button);
+    // Фидбек 09.10: рядом с «доступна новая» обязана быть своя версия —
+    // голое число с сервера читалось как «у вас 1.0.4».
+    await waitFor(() => expect(screen.getByText('1.0.0 → 1.0.1')).toBeTruthy());
+
+    fireEvent.mouseEnter(button);
     const notes = await waitFor(() => screen.getByText(/Кнопка скачивания/), { timeout: 1500 });
     expect(notes.className).toContain('overflow-y-auto');
   });
 
-  it('обновления нет — без точки, «Новых версий нет»', async () => {
+  it('обновления нет — без точки, установленная версия + «Новых версий нет»', async () => {
     installShellBridge({ status: 'idle', version: null });
     vi.stubGlobal('fetch', stubFetch(200, MANIFEST));
     renderButton();
@@ -110,6 +115,10 @@ describe('оболочка', () => {
     await waitFor(() => expect(screen.getByText('Новых версий нет')).toBeTruthy(), {
       timeout: 1500,
     });
+    // Версия УСТАНОВЛЕННОЙ оболочки (мост), не серверный манифест: «1.0.1 /
+    // Новых версий нет» — противоречие на экране (фидбек 09.10).
+    expect(screen.getByText('1.0.0')).toBeTruthy();
+    expect(screen.queryByText('1.0.1')).toBeNull();
   });
 
   it('потерянное событие восполняется опросом: точка появляется без перезагрузки', async () => {
