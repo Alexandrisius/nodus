@@ -51,3 +51,11 @@ tests/e2e/shots-*/
 
 # --- Песочница агента (live-stack): PID-файл и логи сервисов ветки ---
 .live-stack/
+
+# --- Проверочная фикстура кнопки "Скачать приложение" (песочница :4173, #263) ---
+apps/web/public/desktop/*
+!apps/web/public/desktop/README.md
+
+# --- Артефакты раздачи десктопа (том NODUS_DESKTOP_DIR, не репозиторий, #263) ---
+infra/desktop-dist/*
+!infra/desktop-dist/.gitkeep

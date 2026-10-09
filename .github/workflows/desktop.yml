@@ -1,9 +1,10 @@
 name: desktop
 
 # Десктоп-оболочка (#254, ADR-0019): сборка на windows-runner. Подписанные
-# updater-артефакты собираются ТОЛЬКО при наличии секрета TAURI_SIGNING_PRIVATE_KEY
-# (владелец добавляет по runbook docs/runbooks/desktop-deploy.md); без ключа —
-# обычные установщики (dev-проверки), latest.json не публикуется.
+# updater-артефакты и latest.json — ТОЛЬКО при наличии секрета
+# TAURI_SIGNING_PRIVATE_KEY (владелец добавляет по runbook
+# docs/runbooks/desktop-deploy.md); без ключа — обычные установщики
+# (dev-проверки), раздача обновлений не собирается.
 
 on:
   push:
@@ -67,6 +68,10 @@ jobs:
             pnpm exec tauri build
           fi
 
+      - name: Манифест раздачи latest.json (#263)
+        shell: bash
+        run: node scripts/desktop-manifest.mjs --optional
+
       - name: Артефакты сборки
         uses: actions/upload-artifact@v4
         with:
@@ -75,6 +80,8 @@ jobs:
             apps/desktop/src-tauri/target/release/bundle/nsis/*.exe
             apps/desktop/src-tauri/target/release/bundle/msi/*.msi
             apps/desktop/src-tauri/target/release/bundle/nsis/*.sig
+            apps/desktop/src-tauri/target/release/bundle/msi/*.sig
+            apps/desktop/src-tauri/target/release/bundle/latest.json
           if-no-files-found: warn
           retention-days: 30
 
@@ -86,10 +93,30 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
+        with:
+          # Аннотация тега — примечание релиза в latest.json (#263)
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
       - uses: actions/download-artifact@v4
         with:
           name: nodus-desktop-${{ github.sha }}
           path: dist
+
+      - name: latest.json с примечанием из тега
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          # Аннотация тега целиком (суть + список изменений) — notes манифеста:
+          # попап кнопки показывает его при зелёной точке (вертикальный скролл).
+          NOTES=$(git tag -l --format='%(contents)' "$TAG")
+          [ -n "$NOTES" ] || NOTES="Nodus ${TAG#desktop-v}"
+          node scripts/desktop-manifest.mjs --bundle-dir dist --out dist/latest.json --notes "$NOTES"
 
       - name: GitHub Release с установщиками и манифестом
         uses: softprops/action-gh-release@v2
@@ -98,4 +125,5 @@ jobs:
             dist/**/*.exe
             dist/**/*.msi
             dist/**/*.sig
+            dist/latest.json
           generate_release_notes: true

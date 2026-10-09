@@ -39,6 +39,16 @@ description = "Версия и платформа оболочки (диагно
 commands.allow = ["get_shell_info"]
 
 [[permission]]
+identifier = "allow-get-update-state"
+description = "Состояние автообновления оболочки (точка «доступна новая версия»)."
+commands.allow = ["get_update_state"]
+
+[[permission]]
+identifier = "allow-apply-update"
+description = "Применить скачанное обновление: passive-установка и перезапуск (по клику пользователя)."
+commands.allow = ["apply_update"]
+
+[[permission]]
 identifier = "allow-shell-ready"
 description = "Сигнал «слушатели моста armed» — оболочка доставляет отложенный deep link."
 commands.allow = ["shell_ready"]

@@ -4,6 +4,13 @@
 **/.turbo
 **/coverage
 **/*.log
+# Rust/cargo target десктопа — гигабайды, web-образу не нужны (сборка web
+# висела на передаче контекста, #263); раздача /desktop/ идёт томом, не образом
+**/target
+# Рабочие каталоги машины: песочница, планы сессий, артефакты раздачи (том)
+.live-stack
+.zcode
+infra/desktop-dist
 .env
 .env.*
 !.env.example

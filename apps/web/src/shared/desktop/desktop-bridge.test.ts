@@ -3,10 +3,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   bindDesktopShellEvents,
+  desktopApplyUpdate,
   desktopDismissPopups,
   desktopSetUnreadBadge,
   desktopShowPopup,
   getDesktopBridge,
+  getShellUpdateState,
   getShellVisible,
   isDesktopShell,
   isPortalBackground,
@@ -33,6 +35,11 @@ function installBridge() {
     dismissPopups: vi.fn(async () => undefined),
     setUiTheme: vi.fn(async () => undefined),
     getShellInfo: vi.fn(async () => ({ version: '1.0.0', platform: 'windows' })),
+    getUpdateState: vi.fn(async (): Promise<{ status: string; version: string | null }> => ({
+      status: 'idle',
+      version: null,
+    })),
+    applyUpdate: vi.fn(async () => undefined),
     shellReady: vi.fn(async () => undefined),
     onEvent: vi.fn((type: string, fn: (payload: unknown) => void) => {
       const arr = listeners.get(type) ?? [];
@@ -107,6 +114,30 @@ describe('команды на границе', () => {
     const { bridge } = installBridge();
     await desktopDismissPopups(CONV);
     expect(bridge.dismissPopups).toHaveBeenCalledWith(CONV);
+  });
+
+  it('состояние обновления фильтруется контрактом (#263)', async () => {
+    const { bridge } = installBridge();
+    bridge.getUpdateState.mockResolvedValue({ status: 'available', version: '1.0.1' });
+    expect(await getShellUpdateState()).toEqual({ status: 'available', version: '1.0.1' });
+
+    bridge.getUpdateState.mockResolvedValue({ status: 'weird', version: null });
+    expect(await getShellUpdateState()).toBeNull();
+
+    delete window.nodusDesktop;
+    expect(await getShellUpdateState()).toBeNull();
+  });
+
+  it('applyUpdate: успех — истина, сбой/браузер — ложь', async () => {
+    const { bridge } = installBridge();
+    expect(await desktopApplyUpdate()).toBe(true);
+    expect(bridge.applyUpdate).toHaveBeenCalledTimes(1);
+
+    bridge.applyUpdate.mockRejectedValue(new Error('update-not-ready'));
+    expect(await desktopApplyUpdate()).toBe(false);
+
+    delete window.nodusDesktop;
+    expect(await desktopApplyUpdate()).toBe(false);
   });
 });
 

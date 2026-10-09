@@ -4,9 +4,11 @@ import {
   popupPayloadSchema,
   popupReplyEventSchema,
   shellInfoSchema,
+  shellUpdateStateSchema,
   shellVisibilityEventSchema,
   type OpenConversationEvent,
   type PopupReplyEvent,
+  type ShellUpdateState,
 } from '@nodus/contracts';
 
 /**
@@ -29,6 +31,8 @@ interface NodusDesktopGlobal {
   dismissPopups(conversationId: string): Promise<void>;
   setUiTheme(theme: 'light' | 'dark'): Promise<void>;
   getShellInfo(): Promise<unknown>;
+  getUpdateState(): Promise<unknown>;
+  applyUpdate(): Promise<void>;
   shellReady(): Promise<void>;
   onEvent(type: string, fn: (payload: unknown) => void): () => void;
 }
@@ -134,6 +138,32 @@ export async function getShellInfo(): Promise<{ version: string; platform: strin
   if (!bridge) return null;
   const parsed = shellInfoSchema.safeParse(await bridge.getShellInfo());
   return parsed.success ? parsed.data : null;
+}
+
+/**
+ * Состояние автообновления оболочки (пассивный поток #263): null вне оболочки.
+ */
+export async function getShellUpdateState(): Promise<ShellUpdateState | null> {
+  const bridge = getDesktopBridge();
+  if (!bridge) return null;
+  const parsed = shellUpdateStateSchema.safeParse(await bridge.getUpdateState());
+  return parsed.success ? parsed.data : null;
+}
+
+/**
+ * Применить скачанное обновление: passive-установка и перезапуск оболочки
+ * (процесс завершает установщик, он же возвращает приложение). Ложь — обновле-
+ * ния нет или мост недоступен.
+ */
+export async function desktopApplyUpdate(): Promise<boolean> {
+  const bridge = getDesktopBridge();
+  if (!bridge) return false;
+  try {
+    await bridge.applyUpdate();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Установка видимости оболочки (событие bridge; тесты — напрямую). */

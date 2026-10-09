@@ -1,5 +1,3 @@
-use std::sync::Mutex;
-
 use tauri::image::Image;
 use tauri::{AppHandle, Manager};
 
@@ -141,7 +139,11 @@ fn draw_counter(buf: &mut Rgba, cx: f32, cy: f32, count: u32, scale: i32) {
 /// цифру не увеличивать»); двухзначному числу круг шире, чтобы «99» не резало
 /// углы. В трее бейджа НЕТ (закрывал знак-график — вердикт владельца 08.10).
 fn taskbar_geom(count: u32) -> (f32, i32) {
-    if count >= 10 && count < 100 { (9.0, 2) } else { (8.0, 2) }
+    if count >= 10 && count < 100 {
+        (9.0, 2)
+    } else {
+        (8.0, 2)
+    }
 }
 
 /// Значок-бейдж отдельной картинкой (оверлей панели задач, 24×24): круг в
@@ -161,18 +163,16 @@ fn overlay_icon(count: u32) -> Image<'static> {
 /// задач — оверлей; в трее чистый знак, он бейдж не вмещает без ущерба
 /// знаку-графику). 0/None — чистые иконки.
 pub fn apply(app: &AppHandle, count: Option<u32>) {
-    *LAST_COUNT.lock().unwrap() = count;
-    let base = themed_base_icon(app);
     match count.filter(|c| *c > 0) {
         Some(n) => {
-            tray_menu::set_tray_icon(app, base.clone());
+            tray_menu::set_tray_icon(app, base_icon());
             tray_menu::set_tray_tooltip(app, &format!("Nodus — {n} непрочитанных"));
             if let Some(win) = app.get_webview_window("main") {
                 let _ = win.set_overlay_icon(Some(overlay_icon(n)));
             }
         }
         None => {
-            tray_menu::set_tray_icon(app, base);
+            tray_menu::set_tray_icon(app, base_icon());
             tray_menu::set_tray_tooltip(app, "Nodus");
             if let Some(win) = app.get_webview_window("main") {
                 let _ = win.set_overlay_icon(None::<Image>);
@@ -188,35 +188,14 @@ fn decode_png(bytes: &'static [u8]) -> Image<'static> {
     Image::new_owned(rgba.into_raw(), w, h)
 }
 
-/// Тёмная ли системная тема (тёмный таскбар → нужен белый знак).
-pub fn system_theme_dark(app: &AppHandle) -> bool {
-    app.get_webview_window("main")
-        .and_then(|w| w.theme().ok())
-        .is_some_and(|t| t == tauri::Theme::Dark)
-}
-
-/// Базовый знак по теме: тёмный знак на светлый таскбар, белый — на тёмный
-/// (запрос владельца 08.10: тёмный знак не читается в тёмной теме Windows).
-pub fn themed_base_icon(app: &AppHandle) -> Image<'static> {
-    static DARK_GLYPH: &[u8] = include_bytes!("../icons/32x32.png");
-    static LIGHT_GLYPH: &[u8] = include_bytes!("../icons/32x32-light.png");
-    decode_png(if system_theme_dark(app) {
-        LIGHT_GLYPH
-    } else {
-        DARK_GLYPH
-    })
-}
-
-/// Последний счётчик: смена темы перерисовывает бейдж на новой базе.
-static LAST_COUNT: Mutex<Option<u32>> = Mutex::new(None);
-
-/// Перерисовать иконки после смены системной темы (WindowEvent::ThemeChanged).
-pub fn refresh_for_theme(app: &AppHandle) {
-    let count = *LAST_COUNT.lock().unwrap();
-    apply(app, count);
-    if let Some(win) = app.get_webview_window("main") {
-        let _ = win.set_icon(themed_base_icon(app));
-    }
+/// Единый значок приложения (#263, вердикт владельца 09.10): тёмно-синяя
+/// скруглённая плитка с белым знаком — одинаков на тёмной и светлой теме
+/// Windows; отсюда трей, окно и панель задач берут одну картинку. Мастер —
+/// docs/design/logo/Nodus_значок_приложения.svg, набор генерирует
+/// `tauri icon` (перегенерация правит ВСЕ размеры разом).
+pub fn base_icon() -> Image<'static> {
+    static UNIFIED: &[u8] = include_bytes!("../icons/32x32.png");
+    decode_png(UNIFIED)
 }
 
 /// Визуальный регресс бейджей (урок приёмки #254: пиксели правятся только
