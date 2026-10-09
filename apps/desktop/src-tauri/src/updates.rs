@@ -69,6 +69,23 @@ fn push_state(app: &AppHandle) {
     bridge::push_to_portal(app, "update-state", &snapshot_state());
 }
 
+/// Реакция на готовность портала (shell_ready): события state могли прилететь
+/// eval'ом ДО монтирования веб-слушателя и потеряться (push без очереди — та
+/// же гонка, что с deep link'ами) — доставить снапшот повторно. Если проверка
+/// ещё ничего не нашла — повторить её: портал мог быть подключён раньше, чем
+/// новую версию выложили в раздачу (фидбек 09.10: точка требовала Ctrl+Shift+R).
+pub fn on_portal_ready(app: &AppHandle) {
+    let busy = matches!(
+        &*PREPARED.lock().unwrap(),
+        Prepared::Downloading { .. } | Prepared::Ready { .. }
+    );
+    if busy {
+        push_state(app);
+    } else {
+        spawn_startup_check(app.clone());
+    }
+}
+
 /// Собрать апдейтер с эндпоинтом текущего портала (эндпоинт известен только
 /// после подключения — в рантайме через UpdaterBuilder).
 fn build_updater(app: &AppHandle) -> Result<tauri_plugin_updater::Updater, String> {

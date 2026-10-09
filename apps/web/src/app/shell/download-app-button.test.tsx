@@ -64,6 +64,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   delete window.nodusDesktop;
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
@@ -109,5 +110,26 @@ describe('оболочка', () => {
     await waitFor(() => expect(screen.getByText('Новых версий нет')).toBeTruthy(), {
       timeout: 1500,
     });
+  });
+
+  it('потерянное событие восполняется опросом: точка появляется без перезагрузки', async () => {
+    // Фидбек 09.10: пуш update-state прилетал eval'ом раньше слушателя —
+    // точка ждала Ctrl+Shift+R. Опрос каждые 15с закрывает окно гонки.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    let state: { status: string; version: string | null } = {
+      status: 'downloading',
+      version: '1.0.4',
+    };
+    installShellBridge(state);
+    const bridge = window.nodusDesktop!;
+    vi.spyOn(bridge, 'getUpdateState').mockImplementation(async () => state);
+    vi.stubGlobal('fetch', stubFetch(200, MANIFEST));
+    renderButton();
+    await screen.findByRole('button', { name: 'Скачать приложение' });
+    // Скачивание завершилось ПОСЛЕ монтирования, событие потерялось:
+    state = { status: 'available', version: '1.0.4' };
+    await vi.advanceTimersByTimeAsync(16_000);
+    const button = await screen.findByRole('button', { name: 'Обновить приложение' });
+    expect(button.querySelector('.bg-success')).not.toBeNull();
   });
 });

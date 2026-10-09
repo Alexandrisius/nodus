@@ -39,14 +39,26 @@ export function useDesktopApp(): {
   const [updateState, setUpdateState] = useState<ShellUpdateState>(IDLE_STATE);
   useEffect(() => {
     if (!inShell) return;
-    void getShellUpdateState().then((state) => {
-      if (state) setUpdateState(state);
-    });
-    return onDesktopEvent(
+    const pull = () => {
+      void getShellUpdateState().then((state) => {
+        if (state) setUpdateState(state);
+      });
+    };
+    pull();
+    const unsubscribe = onDesktopEvent(
       DESKTOP_BRIDGE_EVENTS.updateState,
       shellUpdateStateSchema,
       setUpdateState,
     );
+    // Пуш события теряется, если прилетает eval'ом раньше монтирования
+    // слушателя (мост без очереди): дотягиваем состояние опросом — чинит и
+    // уже выпущенные оболочки без репуша (фидбек 09.10: точка требовала
+    // перезагрузки портала).
+    const poll = window.setInterval(pull, 15_000);
+    return () => {
+      unsubscribe();
+      window.clearInterval(poll);
+    };
   }, [inShell]);
 
   return {

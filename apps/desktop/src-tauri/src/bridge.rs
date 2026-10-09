@@ -245,12 +245,15 @@ pub fn get_shell_info(app: AppHandle) -> ShellInfo {
     }
 }
 
-/// Веб-приложение армировало слушателей моста: доставить отложенный deep link.
+/// Веб-приложение армировало слушателей моста: доставить отложенный deep link
+/// и повторить доставку состояния обновлений (события могли потеряться до
+/// монтирования слушателя).
 #[tauri::command]
 pub fn shell_ready(app: AppHandle) {
     if let Some(link) = portal::take_pending_deep_link(&app) {
         route_deep_link(&app, &link);
     }
+    crate::updates::on_portal_ready(&app);
 }
 
 /// Разбор `nodus://chat/<uuid>` и доставка в веб (или очередь до готовности).
