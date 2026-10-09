@@ -142,9 +142,12 @@ export function NodeRail() {
         collapsed && !customizing ? 'w-16' : 'w-60',
       )}
     >
+      {/* pt-4: содержимое сидит на одной горизонтали с топбаром — тот
+          начинается на 8px ниже (mt-2 мягкой рамы), и без компенсации низ
+          вордмарка висит выше базовой линии приветствия (#269). */}
       <div
         className={cn(
-          'flex h-14 shrink-0 items-center justify-center px-4',
+          'flex h-14 shrink-0 items-center justify-center px-4 pt-4',
           'transition-[gap] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]',
           collapsed && !customizing ? 'gap-0 px-0' : 'gap-2.5',
         )}
