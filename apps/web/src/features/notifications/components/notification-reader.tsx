@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import type { Notification } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
@@ -16,8 +16,9 @@ import { sourceCardOf } from '../model/open-notification.js';
  * РОВНО ПОВЕРХ колонки ленты уведомлений на Главной (не на весь экран):
  * метрики компании сверху и дни рождения справа остаются видимыми. Живёт в
  * колонке ленты (home-feed-page), fullscreen-панелью больше не является.
- * Срочное — лист ознакомления с гейтом «долистал»; прочее — текст +
- * «Прочитать»/«Перейти к источнику». Esc и крестик закрывают.
+ * Просмотр = прочтение (#244, вердикт владельца 07.10): открытие карточки
+ * сразу гасит уведомление — оптимистично, без отдельной кнопки; «Перейти к
+ * источнику» — осознанный переход к оригиналу. Esc и крестик закрывают.
  */
 export function NotificationReader() {
   const notificationId = useNotificationDetailStore((s) => s.notificationId);
@@ -109,12 +110,21 @@ function ReaderMeta({ item }: { item: Notification }) {
   );
 }
 
-/** Обычное уведомление: текст + явное «Прочитать» (гашение без источника)
- *  и переход к источнику осознанным кликом. */
+/** Обычное уведомление: текст и переход к источнику. Открытие карточки —
+ *  уже прочтение (#244): гашение уходит оптимистично без кнопки, карточка
+ *  остаётся открытой (кэш-история 'all' держит запись). */
 function PlainBody({ item, onClose }: { item: Notification; onClose: () => void }) {
   const read = useReadNotification();
   const openCard = useOpenCard();
   const source = sourceCardOf(item);
+
+  // Один вызов на запись: ремаунты (StrictMode) и рефечи не дёргают повторно.
+  const firedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (item.readAt !== null || firedFor.current === item.id) return;
+    firedFor.current = item.id;
+    read.mutate(item.id);
+  }, [item.id, item.readAt, read]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -124,19 +134,9 @@ function PlainBody({ item, onClose }: { item: Notification; onClose: () => void 
           {item.preview ?? ''}
         </p>
       </div>
-      <footer className="shrink-0 border-t border-border">
-        <div className="mx-auto flex w-full max-w-3xl items-center justify-end gap-2 px-8 py-3.5">
-          {item.readAt === null && (
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={read.isPending}
-              onClick={() => read.mutate(item.id, { onSuccess: onClose })}
-            >
-              {ui.notifications.detailReadOne}
-            </Button>
-          )}
-          {source && (
+      {source && (
+        <footer className="shrink-0 border-t border-border">
+          <div className="mx-auto flex w-full max-w-3xl items-center justify-end gap-2 px-8 py-3.5">
             <Button
               size="sm"
               onClick={() => {
@@ -146,9 +146,9 @@ function PlainBody({ item, onClose }: { item: Notification; onClose: () => void 
             >
               {ui.notifications.detailOpenSource}
             </Button>
-          )}
-        </div>
-      </footer>
+          </div>
+        </footer>
+      )}
     </div>
   );
 }
