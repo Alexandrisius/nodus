@@ -94,6 +94,7 @@ export function MessageMenu({
   onOpenThread,
   messagesOfSelection,
   hideFavorite = false,
+  variant,
   children,
 }: {
   message: ChatMessage;
@@ -108,6 +109,9 @@ export function MessageMenu({
   messagesOfSelection?: () => ChatMessage[];
   /** Витрина «Избранного» (#171): звезда внутри — self-reference, пункт скрыт. */
   hideFavorite?: boolean;
+  /** Окно-источник «Избранного» (#237): набор Telegram — только копировать/
+   *  переслать/выбрать/удалить; команды ленты не показываются. */
+  variant?: 'source-window';
   children: ReactNode;
 }) {
   const toTask = useMessageToTask();
@@ -357,20 +361,24 @@ export function MessageMenu({
     // копировать нечего (текст пуст) — оба пункта скрываются.
     // «Удалить» на чужом — право модерации (#245): админ/владелец беседы или
     // модератор портала (группы/каналы; серверная проверка та же, I8).
+    // Окно-источник (#237): только набор Telegram — copy/forward/select/
+    // delete (в т.ч. без «Редактировать»: правка живёт в витрине).
     const isSticker = message.attachments.some((a) => a.kind === 'sticker');
-    const editable = mine && !message.forwardedFrom && !isSticker;
+    const editable = mine && !message.forwardedFrom && !isSticker && variant !== 'source-window';
     return {
       items: items.filter((item) => {
         if (item.id === 'edit') return editable;
         if (item.id === 'copy') return !isSticker;
         if (item.id === 'favorite') return !hideFavorite;
         if (item.id === 'delete') return mine || canModerate;
+        if (variant === 'source-window') return SOURCE_WINDOW_ITEMS.has(item.id);
         return true;
       }),
       // «Кто просмотрел» — подменю (раунд 4): только свои живые сообщения с
       // непустым readBy (просмотры видит автор; пустой список показывать
       // нечего). Вставляется над «Удалить» (недеструктивная группа).
-      showViewers: mine && !message.deletedAt && message.readBy.length > 0,
+      showViewers:
+        mine && variant !== 'source-window' && !message.deletedAt && message.readBy.length > 0,
     };
   }
 
@@ -489,3 +497,5 @@ function ViewersSubmenu({ viewers }: { viewers: readonly UserRef[] }) {
 }
 
 const EMPTY_IDS: string[] = [];
+/** #237: набор Telegram для окна-источника «Избранного». */
+const SOURCE_WINDOW_ITEMS = new Set(['copy', 'forward', 'select', 'delete']);

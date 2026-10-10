@@ -19,7 +19,16 @@ import { copyMessagesAsText, useSelectionKeys } from './use-selection-keys.js';
  * селект по id слетал строка за строкой по мере подтверждения очереди
  * (регрессия #243). clientMessageId стабилен от клика до серверной записи.
  */
-export function useFeedSelection(scope: string, items: ChatMessage[], meId?: string) {
+export function useFeedSelection(
+  scope: string,
+  items: ChatMessage[],
+  meId?: string,
+  opts?: {
+    /** Нестандартная семантика Delete хоста (#237: окно-источник избранного
+     *  на карточках — батч «снять звёзды» вместо удаления оригиналов). */
+    onDelete?: (messages: ChatMessage[]) => void;
+  },
+) {
   const selectionActive = useSelectionActive(scope);
   const selectedIds = useSelectedIds(scope);
   const orderedIds = useMemo(
@@ -40,7 +49,7 @@ export function useFeedSelection(scope: string, items: ChatMessage[], meId?: str
       .every((m) => m.author.id === meId);
   }, [items, selectedSet, selectedIds.length, meId]);
 
-  useSelectionKeys(scope, selectionActive, getSelectedMessages);
+  useSelectionKeys(scope, selectionActive, getSelectedMessages, opts?.onDelete);
 
   // Тихое исключение удалённых/исчезнувших из набора (счётчик обновляется).
   useEffect(() => {

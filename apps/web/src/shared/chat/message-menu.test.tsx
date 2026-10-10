@@ -106,3 +106,45 @@ describe('MessageMenu: подменю «Кто просмотрел» (раун�
     expect(screen.queryByRole('menuitem', { name: ui.chat.whoViewed })).toBeNull();
   });
 });
+
+describe('MessageMenu: окно-источник «Избранного» — Telegram-набор (#237)', () => {
+  it('вне набора (ответить/правка/задача/закрепить/ссылка/просмотры) скрыты', async () => {
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MessageMenu
+          message={msg()}
+          mine
+          conversationId="conv-1"
+          scope="notes-source:notes"
+          variant="source-window"
+        >
+          <span data-slot="bubble-content">пузырь</span>
+        </MessageMenu>
+      </QueryClientProvider>,
+    );
+    const bubble = screen.getByText('пузырь');
+    fireEvent.contextMenu(bubble, { button: 2, clientX: 10, clientY: 10 });
+    await screen.findByRole('menuitem', { name: ui.chat.menu.copy });
+
+    // Набор Telegram: копировать / переслать / выбрать / удалить.
+    for (const label of [
+      ui.chat.menu.copy,
+      ui.chat.menu.forward,
+      ui.chat.menu.select,
+      ui.chat.menu.delete,
+    ]) {
+      expect(screen.getByRole('menuitem', { name: label })).toBeTruthy();
+    }
+    // Команды ленты не показываются.
+    for (const label of [
+      ui.chat.menu.reply,
+      ui.chat.menu.edit,
+      ui.chat.menu.createTask,
+      ui.chat.menu.pin,
+      ui.chat.menu.copyLink,
+      ui.chat.whoViewed,
+    ]) {
+      expect(screen.queryByRole('menuitem', { name: label })).toBeNull();
+    }
+  });
+});
