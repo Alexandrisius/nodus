@@ -15,7 +15,8 @@
 - Наружу — порты **`FILE_STORAGE`** (`core/ports/file-storage.port.ts`:
   `save(meta, stream) → {fileId}` и `remove(fileIds)`) и **`AVATAR_PROCESSOR`**
   (`core/ports/avatar-processor.port.ts`, #186: валидация PNG/JPEG/WebP ≤10 МБ
-  по magic bytes → квадратный WebP-дериват ≤640, реализация `avatars/`).
+  по magic bytes с пиксельным потолком декодирования 4096² (#231, канон #221 —
+  декомпрессионные бомбы) → квадратный WebP-дериват ≤640, реализация `avatars/`).
   Модуль `@Global` (как CryptoModule): потребитель инжектит токен без
   межмодульного импорта.
 - Обратное направление — порт **`FILE_ACCESS_CONTRIBUTORS`**
