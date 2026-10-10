@@ -9,7 +9,6 @@ import { api } from '../api-client.js';
 import { useAuthStore } from '../auth-store.js';
 import { PersonAvatar } from '../ui/person-avatar.js';
 
-import { useChatDrafts } from './chat-drafts.js';
 import {
   detectMentionQuery,
   mergeMentionCandidates,
@@ -71,14 +70,15 @@ export function useMentionAutocomplete(
   return { query, candidates, active, setActive };
 }
 
-/** Полное упоминание-состояние композера (#176): каретка поля,dismissed-@,
- *  вставка токена (setText черновика + каретка после пробела). Возвращает
- *  готовые пропсы панели и обработчик клавиш. */
+/** Полное упоминание-состояние поля ввода (#176): каретка поля, dismissed-@,
+ *  вставка токена, обработчик клавиш. Используется композером (реестр
+ *  стора черновиков) и окном вложений (#239 — локальный реестр подписи);
+ *  insertMention пишет текст+реестр ХОСТА и возвращает новую каретку. */
 export function useComposerMentions(opts: {
   conversationId: string | undefined;
-  focusId: string;
   text: string;
-  setText: (focusId: string, text: string) => void;
+  /** Вставка чипа хостом: (start, end, id, label) → новая каретка | null. */
+  insertMention: (atStart: number, atEnd: number, id: string, label: string) => number | null;
   inputRef: { current: HTMLTextAreaElement | null };
 }) {
   const [caret, setCaret] = useState(0);
@@ -95,11 +95,9 @@ export function useComposerMentions(opts: {
     const query = autocomplete.query;
     const candidate = autocomplete.candidates[index];
     if (!query || !candidate) return;
-    // Вставка ЧИПА через реестр стора (#228): в поле ложится видимое
+    // Вставка ЧИПА через реестр хоста (#228): в поле ложится видимое
     // ИМЯ + пробел (без «@»); каретка — НАСТОЯЩАЯ позиция за пробелом.
-    const caretAt = useChatDrafts
-      .getState()
-      .insertMention(opts.focusId, query.start, query.end, candidate.id, candidate.displayName);
+    const caretAt = opts.insertMention(query.start, query.end, candidate.id, candidate.displayName);
     if (caretAt === null) return;
     requestAnimationFrame(() => {
       const el = opts.inputRef.current;

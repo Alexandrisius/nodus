@@ -26,11 +26,15 @@ export function copyMessagesAsText(messages: ChatMessage[]): void {
  * (диалог исхода), Ctrl+C — копировать выделенные как текст (только когда
  * нет текстовой селекции — выделение текста важнее, канон composer-focus).
  * Слушатель живёт только пока режим активен в данной ленте (scope).
+ * onDelete — нестандартная семантика удаления хоста (#237: окно-источник
+ * «Избранного» на карточках Delete трактует как «снять звёзды», не как
+ * удаление оригиналов чужих бесед).
  */
 export function useSelectionKeys(
   scope: string,
   active: boolean,
   getSelectedMessages: () => ChatMessage[],
+  onDelete?: (messages: ChatMessage[]) => void,
 ): void {
   useEffect(() => {
     if (!active) return;
@@ -57,6 +61,10 @@ export function useSelectionKeys(
       if (event.key === 'Delete') {
         event.preventDefault();
         const messages = getSelectedMessages();
+        if (onDelete) {
+          onDelete(messages);
+          return;
+        }
         const conversationId = messages[0]?.conversationId;
         if (conversationId) {
           // Батч-командам — подтверждённые id (летящие темпы #243 не
@@ -75,5 +83,5 @@ export function useSelectionKeys(
     }
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [active, scope, getSelectedMessages]);
+  }, [active, scope, getSelectedMessages, onDelete]);
 }

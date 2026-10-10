@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useRef, type ReactNode } from 'react';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { useFlashStore } from './jump-store.js';
@@ -33,9 +33,11 @@ export function MessageRow({
   children: ReactNode;
 }) {
   const flashing = useFlashStore((s) => s.messageId === messageId);
+  const rowRef = useRef<HTMLDivElement>(null);
 
   return (
     <div
+      ref={rowRef}
       data-message-id={messageId}
       data-message-key={selectionKey}
       data-selected={selectable ? selected : undefined}
@@ -47,6 +49,12 @@ export function MessageRow({
       onClickCapture={
         selectable
           ? (event) => {
+              // Клик по оверлей-слою (контекстное меню, поповеры) строкой НЕ
+              // является: их контент порталится в body — это React-потомок
+              // строки, но НЕ DOM-потомок, а React всплывает через дерево.
+              // Баг мультивыбора (фидбек 10.10): глотатель съедал клики по
+              // командам ПКМ-меню и вместо действия снимал выделение.
+              if (!rowRef.current?.contains(event.target as Node)) return;
               event.preventDefault();
               event.stopPropagation();
               onToggle?.(event.shiftKey);

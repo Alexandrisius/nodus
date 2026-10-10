@@ -18,7 +18,8 @@ import {
 import { SignedUrlService } from '../../../core/crypto/signed-url.service.js';
 import type { TransactionClient } from '../../../core/database/transaction-runner.js';
 import type { MemberRow } from '../conversations/conversations.repository.js';
-import { MessagesRepository, type MessageRow, type ReactionRow } from './messages.repository.js';
+import { MessagesRepository, type MessageRow } from './messages.repository.js';
+import { MessagesReactionsRepository, type ReactionRow } from './messages-reactions.repository.js';
 import { MessagePinsRepository } from './message-pins.repository.js';
 import { extractMessageUrls } from './link-extractor.js';
 import { LinkPreviewService } from '../link-previews/link-preview.service.js';
@@ -35,6 +36,12 @@ export interface ReplySnapshotValue {
 /** userId упоминаний из JSONB-колонки (снапшот отправки, #100). */
 export function readMentionedUserIds(row: MessageRow): string[] {
   const raw = (row.mentionedUserIds ?? null) as string[] | null;
+  return Array.isArray(raw) ? raw : [];
+}
+
+/** Накопительное множество упомянутых за историю сообщения (#239). */
+export function readEverMentionedUserIds(row: MessageRow): string[] {
+  const raw = (row.everMentionedUserIds ?? null) as string[] | null;
   return Array.isArray(raw) ? raw : [];
 }
 
@@ -112,6 +119,7 @@ function fallbackRef(id: string): UserRef {
 export class MessageDtoMapper {
   constructor(
     private readonly messages: MessagesRepository,
+    private readonly reactions: MessagesReactionsRepository,
     private readonly pins: MessagePinsRepository,
     @Inject(USER_PROFILE_READER) private readonly userProfiles: UserProfileReader,
     private readonly signedUrls: SignedUrlService,
@@ -130,7 +138,7 @@ export class MessageDtoMapper {
     const readerIds = new Set(readByRows.flatMap(({ readers }) => readers.map((r) => r.userId)));
     // Реакции читаются ДО refs: их userId попадают в общий батч профилей
     // (тултип «кто поставил» — users в DTO, вердикт 27.09).
-    const reactions = await this.messages.reactionsFor(ids);
+    const reactions = await this.reactions.reactionsFor(ids);
     const reactionUserIds = new Set(reactions.map((r) => r.userId));
     const [refs, attachments, threadCounts, pinnedIds, replyOriginals] = await Promise.all([
       this.loadRefs(rows, readerIds, reactionUserIds),

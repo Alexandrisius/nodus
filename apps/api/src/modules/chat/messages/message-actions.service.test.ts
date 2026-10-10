@@ -17,7 +17,8 @@ const TX = 'TX';
 function makeService() {
   const messages = {
     allocateSeqs: vi.fn(async () => [8n, 9n, 10n]),
-    insertMessage: vi.fn(async () => true),
+    // Возвращает вставленную строку (не true): payload читает clientMessageId (#239).
+    insertMessage: vi.fn(async (draft: Record<string, unknown>) => ({ ...draft })),
     copyAttachments: vi.fn(),
     touchLastMessageAt: vi.fn(),
     countThreadReplies: vi.fn(),
@@ -37,15 +38,22 @@ function makeService() {
       permissions: { post: 'member' },
     })),
     listMembers: vi.fn(async () => []),
+    listMembersPage: vi.fn(async (_c: string, opts: { searchUserIds?: string[] }) =>
+      (opts.searchUserIds ?? []).map((userId) => ({ userId, role: 'member' })),
+    ),
     unsnooze: vi.fn(),
     revealHidden: vi.fn(),
   };
   const mapper = { toDtos: vi.fn(), toFreshDto: vi.fn() };
   const txRunner = { run: vi.fn((cb: (tx: string) => unknown) => cb(TX)) };
   const eventBus = { emit: vi.fn() };
-  const userProfiles = { findRefs: vi.fn(async () => []) };
+  const userProfiles = {
+    findRefs: vi.fn(async () => []),
+    filterActiveUserIds: vi.fn(async (ids: string[]) => ids),
+  };
   const service = new MessageActionsService(
     messages as never,
+    messages as never, // реакции (#239: MessagesReactionsRepository)
     pins as never,
     conversations as never,
     mapper as never,
@@ -60,7 +68,7 @@ function makeService() {
       applyForwardCopies: vi.fn(async () => {}),
     } as never,
   );
-  return { service, conversations, messages, mapper };
+  return { service, conversations, messages, mapper, eventBus, userProfiles };
 }
 
 describe('MessageActionsService.forward — раскрытие скрытой беседы (#103)', () => {
@@ -118,5 +126,30 @@ describe('MessageActionsService.forward — payload DTO (раунд 3)', () => {
       expect.anything(),
       expect.objectContaining({ tx: TX }),
     );
+  });
+});
+
+describe('MessageActionsService.forward — упоминания комментария (#239)', () => {
+  const ALICE = '33333333-3333-4333-8333-333333333333';
+  it('токен комментария: снимок строки и payload несут упомянутых; копии — нет', async () => {
+    const { service, messages, eventBus } = makeService();
+    const body: ForwardMessagesBody = {
+      sourceConversationId: SOURCE,
+      messageIds: ['src-1'],
+      comment: `Привет @[Алиса](user:${ALICE})`,
+    };
+
+    await service.forward(ME, TARGET, body, 'fwd-key');
+
+    // Строка комментария (fwd=null) — снимок упомянутых; копия пересылки — [].
+    const commentInsert = messages.insertMessage.mock.calls.find(([draft]) => draft.fwd === null)!;
+    expect(commentInsert[0]!.mentionedUserIds).toEqual([ALICE]);
+    const copyInsert = messages.insertMessage.mock.calls.find(([draft]) => draft.fwd !== null)!;
+    expect(copyInsert[0]!.mentionedUserIds).toEqual([]);
+
+    // Событие отправки комментария несёт mentionedUserIds (fanout #100).
+    const sent = eventBus.emit.mock.calls.filter(([, type]) => type === 'chat.message_sent');
+    const commentEvent = sent.find(([, , payload]) => payload.forwarded === false)!;
+    expect(commentEvent[2]!.mentionedUserIds).toEqual([ALICE]);
   });
 });

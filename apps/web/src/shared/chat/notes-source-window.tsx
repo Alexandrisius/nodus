@@ -1,5 +1,5 @@
 import { ArrowLeft } from 'lucide-react';
-import { Fragment, useMemo, useRef } from 'react';
+import { Fragment, useEffect, useMemo, useRef } from 'react';
 import { ui, type FavoriteCard } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import { Empty, EmptyTitle } from '@nodus/ui/components/empty';
@@ -17,12 +17,15 @@ import { useAuthStore } from '../auth-store.js';
 import { useConversationMessages, useConversations } from './api.js';
 import { DayChip } from './day-chip.js';
 import { toFavoriteMessage } from './favorite-message.js';
-import { useFavorites } from './favorites-api.js';
+import { useFavorites, useRemoveFavorite } from './favorites-api.js';
 import { buildMessageRuns, formatDayLabel, startsNewDay } from './message-groups.js';
 import { FavoriteRunMessage } from './notes-row.js';
 import { filterNotesFlowBySource, mergeNotesFlow, type NotesSourceId } from './notes-flow.js';
 import { MessageRunView } from './message-run.js';
 import { useOptimisticFavoriteLabels } from './optimistic-favorite-labels.js';
+import { useBoxSelection } from './use-box-selection.js';
+import { useSelectionStore } from './selection-store.js';
+import { useFeedSelection } from './use-feed-selection.js';
 import { useFrameReady } from '../ui/use-frame-ready.js';
 
 /**
@@ -36,6 +39,10 @@ import { useFrameReady } from '../ui/use-frame-ready.js';
  * ПОСТОЯННО (w-0 в покое — закон выдвижных поверхностей: переход с первого
  * кадра и после Ctrl+R), контент ленив на первом открытии и далее остаётся.
  * Композера нет: это просмотр среза, ввод живёт в самой витрине.
+ * Селект (#237, вердикт владельца 07.10 + 10.10): мультивыбор с РАМОЧНЫМ
+ * выделением областью (канон витрины #215 — быстрый пакетный выбор) +
+ * Telegram-набор команд — копировать/переслать/удалить из избранного
+ * (карточки — батч «снять звёзды», записи — удаление записей).
  */
 export function NotesSourceWindow({
   conversationId,
@@ -107,6 +114,42 @@ export function NotesSourceWindow({
     return map;
   }, [filtered]);
 
+  // Селект окна-источника (#237): канон витрины (useFeedSelection по scope
+  // `notes-source:<id>`) — галочки/подсветка + ПКМ-батч. Клавиша Delete на
+  // карточках = снять звёзды (оригиналы чужих бесед не трогаем), на «Записях»
+  // — стандартный диалог удаления записей.
+  const removeFavorite = useRemoveFavorite();
+  const shownSource = openedRef.current;
+  const scope = `notes-source:${shownSource}`;
+  const isCardsWindow = shownSource !== null && shownSource !== 'notes';
+  const selection = useFeedSelection(scope, items, meId ?? undefined, {
+    onDelete: isCardsWindow
+      ? (messages) => {
+          for (const message of messages) removeFavorite.mutate(message.id);
+        }
+      : undefined,
+  });
+  const viewportRef = useRef<HTMLDivElement>(null);
+  // Рамочное выделение (вердикт владельца 10.10: быстрый ПАКЕТНЫЙ выбор —
+  // «областью выделить все свои сообщения»): канон витрины #215 — старт
+  // «на строке»/на пустом месте, в режиме селекта — откуда угодно.
+  const box = useBoxSelection({
+    scope,
+    viewportRef,
+    selectableIds: selection.orderedIds,
+    selectionActive: selection.selectionActive,
+  });
+
+  // Смена источника/закрытие окна — селект прошлого среза не протекает в
+  // соседние хосты (единый глобальный стор мультивыбора).
+  useEffect(
+    () => () => {
+      const store = useSelectionStore.getState();
+      if (store.scope?.startsWith('notes-source:')) store.exit();
+    },
+    [shownSource],
+  );
+
   return (
     <div
       aria-hidden={source === null}
@@ -136,8 +179,13 @@ export function NotesSourceWindow({
             </div>
             <MessageScrollerProvider autoScroll>
               <MessageScroller className="min-h-0 flex-1 bg-chat-zone">
-                <MessageScrollerViewport>
-                  <MessageScrollerContent className="feed-reveal flex flex-col gap-3 px-4 pt-4 pb-3">
+                <MessageScrollerViewport ref={viewportRef}>
+                  <MessageScrollerContent
+                    className={cn(
+                      'feed-reveal flex flex-col gap-3 px-4 pt-4 pb-3',
+                      (selection.selectionActive || box.active) && 'select-none',
+                    )}
+                  >
                     {items.length === 0 && !messagesQuery.isLoading && !favoritesQuery.isLoading ? (
                       <div className="flex h-full items-center justify-center">
                         <Empty>
@@ -180,10 +228,12 @@ export function NotesSourceWindow({
                                     tail={attrs.tail}
                                     style={attrs.style}
                                     conversationId={conversationId}
-                                    scope={`notes-source:${openedRef.current}`}
-                                    selectionActive={false}
-                                    selectedSet={EMPTY_SET}
-                                    onToggle={() => {}}
+                                    scope={scope}
+                                    selectionActive={selection.selectionActive}
+                                    selectedSet={selection.selectedSet}
+                                    onToggle={selection.toggle}
+                                    messagesOfSelection={selection.getSelectedMessages}
+                                    variant="source-window"
                                   />
                                 )}
                               />
@@ -202,5 +252,3 @@ export function NotesSourceWindow({
     </div>
   );
 }
-
-const EMPTY_SET = new Set<string>();

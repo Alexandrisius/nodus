@@ -29,6 +29,7 @@ export function FavoriteRunMessage({
   selectedSet,
   onToggle,
   messagesOfSelection,
+  variant,
 }: {
   message: ChatMessage;
   /** Карточка (строка — псевдо-сообщение оригинала) или null (запись). */
@@ -46,6 +47,9 @@ export function FavoriteRunMessage({
   onToggle: (id: string, shift: boolean) => void;
   /** Выделенные строки витрины (ПКМ-меню селекта: команды #243). */
   messagesOfSelection?: () => ChatMessage[];
+  /** Окно-источник «Избранного» (#237): запись — Telegram-набор меню,
+   *  карточка — селект и батч-команды FavoriteMenu. */
+  variant?: 'source-window';
 }) {
   // В режиме селекта выбираемы ВСЕ живые строки (#215): записи и карточки —
   // пакетное удаление маршрутизируется по типу (запись — удалить, карточку —
@@ -81,6 +85,7 @@ export function FavoriteRunMessage({
         scope={scope}
         messagesOfSelection={messagesOfSelection}
         hideFavorite
+        variant={variant}
       >
         <ChatMessageItem
           message={message}
@@ -94,7 +99,12 @@ export function FavoriteRunMessage({
         />
       </MessageMenu>
     ) : (
-      <FavoriteMenu card={card}>
+      <FavoriteMenu
+        card={card}
+        scope={variant === 'source-window' ? scope : undefined}
+        selectionActive={selectionActive}
+        messagesOfSelection={messagesOfSelection}
+      >
         <ChatMessageItem
           message={message}
           mine={mine}

@@ -86,8 +86,6 @@ export const notificationsStrings = {
   /** Узкая панель деталей (фидбек владельца 01.10: не на весь экран). */
   detailTitle: 'Уведомление',
   detailOpenSource: 'Перейти к источнику',
-  /** Явное гашение одного уведомления из карточки (без перехода в чат). */
-  detailReadOne: 'Прочитать',
   /** Onboarding (Linear-паттерн, первые дни). */
   onboardingTitle: 'Ваша Главная',
   onboardingBody:

@@ -209,7 +209,12 @@ export class NotificationsService {
 
   /** Сборка строк журнала из события message_edited (#189: правка прилетает
    *  в центр): всем членам беседы кроме редактора, низкий приоритет — счётчик
-   *  в чате меняется, центр показывает то же. */
+   *  в чате меняется, центр показывает то же. Высокий chat.mention — только
+   *  ПЕРВЫЙ личный тэг (#239 + вердикт 10.10: замена @Все на прямой тэг —
+   *  высший): человек упомянут в новой версии, никогда не тэгался лично
+   *  (previousMentionedUserIds — личные тэги за историю) и (тэг личный,
+   *  либо broadcast-«Все» добавлен этой правкой впервые). Повторные тэги
+   *  и убрали-вернули того же — не дёргаем. */
   buildInsertsFromEditedEvent(
     event: {
       id: string;
@@ -219,30 +224,49 @@ export class NotificationsService {
         authorId: string;
         text: string;
         seq: number;
+        mentionedUserIds?: string[];
+        previousMentionedUserIds?: string[];
+        previousMentionedAll?: boolean;
+        directMentionedUserIds?: string[];
       };
     },
     state: ChatConversationState,
   ): NotificationInsert[] {
     const text = stripMentionTokens(event.payload.text ?? '');
+    const mentioned = new Set(event.payload.mentionedUserIds ?? []);
+    // Личные тэги за историю сообщения; broadcast-«Все» в истории отдельно.
+    const everDirect = new Set(event.payload.previousMentionedUserIds ?? []);
+    const hadAllBefore = event.payload.previousMentionedAll === true;
+    const directNew = new Set(event.payload.directMentionedUserIds ?? []);
     return state.members
       .filter((m) => m.userId !== event.payload.authorId)
-      .map((m) => ({
-        id: randomUUID(),
-        user_id: m.userId,
-        priority: KIND_PRIORITY['chat.message_edited'],
-        kind: 'chat.message_edited',
-        source_type: 'conversation',
-        source_id: event.payload.conversationId,
-        source_seq: BigInt(event.payload.seq),
-        actor_id: event.payload.authorId,
-        preview: text.length > 0 ? text.slice(0, PREVIEW_MAX) : null,
-        urgent_text: null,
-        conversation_id: event.payload.conversationId,
-        conversation_title: state.title,
-        message_id: event.payload.messageId,
-        thread_root_id: null,
-        event_id: event.id,
-      }));
+      .map((m) => {
+        // Первый личный тэг — high (broadcast в истории его НЕ глушит,
+        // вердикт владельца 10.10: «@Все → @Анна — Анне высший»); или
+        // первый broadcast («Все» добавлен правкой, человека не тэгали).
+        const newly =
+          mentioned.has(m.userId) &&
+          !everDirect.has(m.userId) &&
+          (directNew.has(m.userId) || !hadAllBefore);
+        const kind = newly ? 'chat.mention' : 'chat.message_edited';
+        return {
+          id: randomUUID(),
+          user_id: m.userId,
+          priority: KIND_PRIORITY[kind],
+          kind,
+          source_type: 'conversation',
+          source_id: event.payload.conversationId,
+          source_seq: BigInt(event.payload.seq),
+          actor_id: event.payload.authorId,
+          preview: text.length > 0 ? text.slice(0, PREVIEW_MAX) : null,
+          urgent_text: null,
+          conversation_id: event.payload.conversationId,
+          conversation_title: state.title,
+          message_id: event.payload.messageId,
+          thread_root_id: null,
+          event_id: event.id,
+        };
+      });
   }
 
   /** Обёртки порта чата для хендлеров (мокируются в тестах). */

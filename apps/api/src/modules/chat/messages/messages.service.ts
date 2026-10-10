@@ -4,6 +4,7 @@ import { z } from 'zod';
 import {
   CHAT_EVENTS,
   ErrorCode,
+  MENTION_ALL_ID,
   type ChatMessage,
   type EditMessageBody,
   type ListMessagesQuery,
@@ -25,8 +26,12 @@ import {
   type MemberRow,
 } from '../conversations/conversations.repository.js';
 import { can, parsePermissions } from '../permissions.js';
-import { MessageDtoMapper, readMentionedUserIds } from './message-dto.mapper.js';
-import { addMentionWatchers, resolveMentionTargets } from './mentions.js';
+import {
+  MessageDtoMapper,
+  readEverMentionedUserIds,
+  readMentionedUserIds,
+} from './message-dto.mapper.js';
+import { addMentionWatchers, mentionTokenIds, resolveMentionTargets } from './mentions.js';
 import { assertUrgentSendAllowedBy } from './send-urgent.policy.js';
 import {
   MessagesRepository,
@@ -36,8 +41,6 @@ import {
 import { AttachmentsRepository } from './attachments.repository.js';
 import { ThumbnailQueue } from './thumbnail.queue.js';
 import { warmMissingPreviews } from './preview-warmup.js';
-import { collapseAnchors } from './messages-delete-anchors.js';
-import { FavoritesRepository } from '../favorites/favorites.repository.js';
 import { ThreadParticipantsRepository } from './thread-participants.repository.js';
 import { buildReplySnapshot } from './reply-snapshot.js';
 import { VaultRepository } from '../vault/vault.repository.js';
@@ -49,13 +52,6 @@ import {
 } from '../stickers/stickers.repository.js';
 
 const messageCursorSchema = z.object({ s: z.number().int().positive() });
-
-/** Результат удаления: 204-семантика (бесследно) или надгробие. */
-export interface DeleteResult {
-  message: MessageRow;
-  obliterated: boolean;
-  members: MemberRow[];
-}
 
 export interface SendResult {
   message: MessageRow;
@@ -84,7 +80,6 @@ export class MessagesService {
     @Inject(USER_PROFILE_READER) private readonly userProfiles: UserProfileReader,
     private readonly threadParticipants: ThreadParticipantsRepository,
     private readonly stickersRepo: StickersRepository,
-    private readonly favoritesRepo: FavoritesRepository,
     private readonly vault: VaultRepository,
     private readonly thumbnailQueue: ThumbnailQueue,
   ) {}
@@ -311,6 +306,7 @@ export class MessagesService {
           fwd: null,
           urgent,
           mentionedUserIds: mentionMatches,
+          everMentionedUserIds: mentionTokenIds(body.text, userId),
           createdAt: new Date(),
         },
         tx,
@@ -448,16 +444,28 @@ export class MessagesService {
         body,
         tx,
       );
+      // Накопительное множество упомянутых ДО правки (#239): ever хранит
+      // ТОКЕНЫ (личные тэги + сентинел «Все», без разворота). Дифф-пинги
+      // только ПЕРВЫЕ личные тэги; broadcast в истории личный тэг не глушит
+      // (вердикт владельца 10.10: «@Все → @Анна — Анне высший»).
+      const previousEver = readEverMentionedUserIds(message);
+      // Токены НОВОЙ версии: личные id + сентинел «Все».
+      const tokenIds = mentionTokenIds(body.text, userId);
+      const directNewMentioned = tokenIds.filter((id) => id !== MENTION_ALL_ID);
       let updated = message;
       if (message.text !== body.text || attachmentsChanged.changed) {
         // Витрина #211: смена текста — замена строк ссылок, состав — Δ видов.
+        const nextMentioned =
+          message.text !== body.text ? mentionMatches : readMentionedUserIds(message);
+        const everMentioned = Array.from(new Set([...previousEver, ...tokenIds]));
         await this.vault.applyMessageEdited(tx, message, body, attachmentsChanged);
         updated = await this.repo.updateEditText(
           conversationId,
           messageId,
           userId,
           body.text,
-          message.text !== body.text ? mentionMatches : readMentionedUserIds(message),
+          nextMentioned,
+          everMentioned,
           tx,
         );
         // Новые упомянутые — наблюдатели трэда (#176), как отправка.
@@ -473,6 +481,9 @@ export class MessagesService {
         // readAt сбрасывается выводно (editedAt > last_read_at читателей) —
         // «повторный пуш прочитавшим» (решение #41); состав вложений в
         // событии не разносится — подписчики дочитывают через API.
+        // Дифф упоминаний (#239): payload несёт множества для notifications —
+        // expanded новой версии (кому адресовано), ЛИЧНЫЕ тэги за историю,
+        // флаг broadcast-«Все» в истории и личные тэги новой версии.
         await this.eventBus.emit(
           tx,
           CHAT_EVENTS.MESSAGE_EDITED,
@@ -483,6 +494,10 @@ export class MessagesService {
             authorId: userId,
             text: updated.text,
             seq: Number(updated.seq),
+            mentionedUserIds: nextMentioned,
+            previousMentionedUserIds: previousEver.filter((id) => id !== MENTION_ALL_ID),
+            previousMentionedAll: previousEver.includes(MENTION_ALL_ID),
+            directMentionedUserIds: directNewMentioned,
           },
           { actorId: userId, aggregateType: 'conversation', aggregateId: conversationId },
         );
@@ -503,108 +518,5 @@ export class MessagesService {
       text,
       authorId,
     );
-  }
-
-  // ===== Удаление =====
-
-  /**
-   * Удаление одного: правило следа «по ответам» (#163, вердикт владельца
-   * 30.09) — след держат только ЖИВЫЕ ОТВЕТЫ (есть кому показывать цепочку);
-   * прочтения ни при чём: ошибочное сообщение не оставляет мусор прочитавшим.
-   * Оба варианта: авто-unpin, пометка цитат, событие, каскад коллапса якорей.
-   * Бесследное (obliterated) исключается из всех выдач, но строка и seq
-   * остаются (непрерывность ссылок/истории/аудита).
-   */
-  async delete(userId: string, conversationId: string, messageId: string): Promise<DeleteResult> {
-    return this.deleteInternal(userId, conversationId, messageId);
-  }
-
-  /** Пакетное удаление: чужие/чужой беседы/удалённые пропускаются молча (мок). */
-  async batchDelete(
-    userId: string,
-    conversationId: string,
-    messageIds: string[],
-  ): Promise<{ removed: string[]; tombstones: { message: MessageRow; members: MemberRow[] }[] }> {
-    if (!(await this.conversations.findMembership(conversationId, userId))) {
-      throw DomainException.notFound('Conversation not found');
-    }
-    const removed: string[] = [];
-    const tombstones: { message: MessageRow; members: MemberRow[] }[] = [];
-    for (const messageId of messageIds) {
-      const message = await this.repo.findByIdInConversation(conversationId, messageId);
-      if (!message || message.deletedAt || message.authorId !== userId) continue;
-      const result = await this.deleteInternal(userId, conversationId, messageId);
-      if (result.obliterated) removed.push(messageId);
-      else
-        tombstones.push({
-          message: result.message,
-          members: await this.conversations.listMembers([conversationId]),
-        });
-    }
-    return { removed, tombstones };
-  }
-
-  private async deleteInternal(
-    userId: string,
-    conversationId: string,
-    messageId: string,
-  ): Promise<DeleteResult> {
-    return this.txRunner.run(async (tx) => {
-      if (!(await this.conversations.findMembership(conversationId, userId, tx)))
-        throw DomainException.notFound('Conversation not found');
-      const message = await this.repo.findByIdInConversation(conversationId, messageId, tx);
-      if (!message || message.deletedAt) throw DomainException.notFound('Message not found');
-      if (message.authorId !== userId) {
-        throw DomainException.forbidden('Only author can modify this message');
-      }
-      // Правило следа #163: надгробие — только при живых ответах (якорь
-      // цепочки), иначе бесследно. Решает сервер, прочтения не участвуют.
-      // «Избранное» (#215): беседа с собой (direct, user_min=user_max=автор —
-      // состав неизменяем, гонок нет) — личный чат, следов не нужно: свои
-      // записи удаляются БЕССЛЕДНО всегда (надгробие в витрине — баг
-      // приёмки); прочтения/ознакомления там выключены, якорь цепочки
-      // показывать некому. Выродившаяся группа/канал (1 участник) под гвард
-      // НЕ попадает — там правило #163 работает как раньше.
-      const selfChat = await this.conversations.isNotesConversation(
-        conversationId,
-        message.authorId,
-        tx,
-      );
-      const hasReplies = selfChat
-        ? false
-        : await this.repo.hasLiveReplies(conversationId, messageId, tx);
-      const obliterated = !hasReplies;
-      const tombstone = await this.repo.tombstone(conversationId, messageId, obliterated, tx);
-      await this.repo.deletePinByMessage(messageId, tx);
-      await this.repo.markRepliesDeleted(messageId, tx);
-      // Витрина #211: сообщение уходит из выдач (надгробие/бесследно) — его
-      // вложения и ссылки гаснут: чистка строк ссылок + Δ счётчиков (та же tx).
-      await this.vault.applyMessageDeleted(tx, conversationId, messageId);
-      // Каскад закладок (#215): оригинал удалён — строки избранного гаснут у
-      // ВСЕХ владельцев (карточка-призрак не висит в витрине надгробием),
-      // каждому — событие в его user-комнату (как при ручном снятии звезды;
-      // фронт рефечит список и гасит звёзды).
-      const owners = await this.favoritesRepo.deleteByMessage(messageId, tx);
-      for (const ownerId of owners) {
-        await this.eventBus.emit(
-          tx,
-          CHAT_EVENTS.FAVORITE_REMOVED,
-          { userId: ownerId, conversationId, messageId },
-          { actorId: userId, aggregateType: 'message', aggregateId: messageId },
-        );
-      }
-      await this.eventBus.emit(
-        tx,
-        CHAT_EVENTS.MESSAGE_DELETED,
-        { conversationId, messageId, obliterated },
-        { actorId: userId, aggregateType: 'conversation', aggregateId: conversationId },
-      );
-      await collapseAnchors(userId, conversationId, tombstone, this.repo, this.eventBus, tx);
-      return {
-        message: tombstone,
-        obliterated,
-        members: await this.conversations.listMembers([conversationId], tx),
-      };
-    });
   }
 }

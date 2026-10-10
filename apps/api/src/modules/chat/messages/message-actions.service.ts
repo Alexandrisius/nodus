@@ -22,8 +22,10 @@ import {
 } from '../conversations/conversations.repository.js';
 import { can, parsePermissions } from '../permissions.js';
 import { MessageDtoMapper } from './message-dto.mapper.js';
+import { addMentionWatchers, mentionTokenIds, resolveMentionTargets } from './mentions.js';
 import { MessagePinsRepository, type PinRecord } from './message-pins.repository.js';
 import { MessagesRepository, type MessageRow } from './messages.repository.js';
+import { MessagesReactionsRepository } from './messages-reactions.repository.js';
 import { ThreadParticipantsRepository } from './thread-participants.repository.js';
 import { VaultRepository } from '../vault/vault.repository.js';
 
@@ -37,6 +39,7 @@ import { VaultRepository } from '../vault/vault.repository.js';
 export class MessageActionsService {
   constructor(
     private readonly messages: MessagesRepository,
+    private readonly reactionsRepo: MessagesReactionsRepository,
     private readonly pins: MessagePinsRepository,
     private readonly conversations: ConversationsRepository,
     private readonly mapper: MessageDtoMapper,
@@ -157,8 +160,8 @@ export class MessageActionsService {
       const message = await this.messages.findByIdInConversation(conversationId, messageId, tx);
       if (!message || message.deletedAt) throw DomainException.notFound('Message not found');
       const changed = body.remove
-        ? await this.messages.removeReaction(messageId, userId, body.emoji, tx)
-        : await this.messages.addReaction(messageId, userId, body.emoji, tx);
+        ? await this.reactionsRepo.removeReaction(messageId, userId, body.emoji, tx)
+        : await this.reactionsRepo.addReaction(messageId, userId, body.emoji, tx);
       if (changed) {
         await this.eventBus.emit(
           tx,
@@ -192,6 +195,19 @@ export class MessageActionsService {
     idempotencyKey: string | undefined,
   ): Promise<{ rows: MessageRow[]; members: MemberRow[] }> {
     const baseKey = idempotencyKey ?? randomUUID();
+    // Упоминания сопроводительного текста (#239): резолв ДО tx (как send) —
+    // копии пересланных сообщений уведомлений не порождают (канон Telegram:
+    // пересылка не пингает упомянутых оригинала).
+    const commentMentions =
+      body.comment !== undefined
+        ? await resolveMentionTargets(
+            this.userProfiles,
+            this.conversations,
+            targetConversationId,
+            body.comment,
+            userId,
+          )
+        : [];
     return this.txRunner.run(async (tx) => {
       const membership = await this.conversations.findMembership(targetConversationId, userId, tx);
       if (!membership) throw DomainException.notFound('Conversation not found');
@@ -280,7 +296,13 @@ export class MessageActionsService {
             replyToId: null,
             replySnapshot: null,
             urgent: false,
-            mentionedUserIds: [],
+            // Сопроводительный текст — свои упоминания (#239); копии — без.
+            mentionedUserIds: draft.fwd === null ? commentMentions : [],
+            // ever = токены комментария (личные тэги + «Все»), копии — пусто.
+            everMentionedUserIds:
+              draft.fwd === null && body.comment !== undefined
+                ? mentionTokenIds(body.comment, userId)
+                : [],
             threadRootId,
             fwd: draft.fwd,
             createdAt: new Date(createdAt + i),
@@ -312,6 +334,14 @@ export class MessageActionsService {
           await this.threadParticipants.upsert(threadRootId, root.authorId, 'author', tx);
         }
         await this.threadParticipants.upsert(threadRootId, userId, 'replier', tx);
+        // Упомянутые в комментарии — наблюдатели трэда (#239, как отправка).
+        await addMentionWatchers(
+          this.threadParticipants,
+          tx,
+          threadRootId,
+          commentMentions,
+          userId,
+        );
         if (priorThreadReplies === 0) {
           await this.eventBus.emit(
             tx,
@@ -361,6 +391,7 @@ export class MessageActionsService {
             authorId: userId,
             threadRootId,
             forwarded: row.clientMessageId !== `${baseKey}:c`,
+            mentionedUserIds: row.clientMessageId === `${baseKey}:c` ? commentMentions : [],
             message: payloadMessage,
           },
           { actorId: userId, aggregateType: 'conversation', aggregateId: targetConversationId },

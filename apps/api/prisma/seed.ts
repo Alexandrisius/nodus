@@ -46,6 +46,7 @@ const ALL_PERMISSIONS = [
   'correspondence.create',
   'correspondence.archive',
   'sticker.manage',
+  'chat.moderate',
 ];
 
 /** Созданные этой прогоном учётки с паролями — печать в конце сида
@@ -105,6 +106,26 @@ async function main(): Promise<void> {
         create: ['directory.read', 'task.create'].map((permission) => ({ permission })),
       },
     },
+  });
+  // Модератор портала (#245): удаление любых сообщений в группах/каналах.
+  const moderatorRole = await prisma.role.upsert({
+    where: { code: 'moderator' },
+    update: {},
+    create: {
+      code: 'moderator',
+      name: 'Модератор портала',
+      description: 'Модерация мессенджера: удаление любых сообщений в группах и каналах',
+      isSystem: true,
+      permissions: {
+        create: ['directory.read', 'chat.moderate'].map((permission) => ({ permission })),
+      },
+    },
+  });
+  // Досев права на существующей БД (как у admin выше) — PK-идемпотентно.
+  await prisma.rolePermission.upsert({
+    where: { roleId_permission: { roleId: moderatorRole.id, permission: 'chat.moderate' } },
+    update: {},
+    create: { roleId: moderatorRole.id, permission: 'chat.moderate' },
   });
 
   // --- Должности (management; юр-структуры на пилоте нет) ---

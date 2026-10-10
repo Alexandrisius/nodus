@@ -191,4 +191,133 @@ describe('NotificationsService.buildInsertsFromEditedEvent', () => {
     expect(inserts[0]!.preview!.length).toBe(160);
     expect(inserts[0]!.urgent_text).toBeNull();
   });
+
+  /** #239: дифф множеств упоминаний при правке. */
+  it('НОВЫЙ упомянутый → chat.mention (high); прежний/без упоминания → message_edited (low)', () => {
+    const inserts = svc.buildInsertsFromEditedEvent(
+      {
+        id: EVENT_ID,
+        payload: {
+          conversationId: CONV,
+          messageId: MSG,
+          authorId: AUTHOR,
+          text: 'Текст с @[Алиса](user:…)',
+          seq: 9,
+          mentionedUserIds: [ALICE],
+          previousMentionedUserIds: [],
+        },
+      },
+      state,
+    );
+    const alice = inserts.find((i) => i.user_id === ALICE)!;
+    expect(alice).toMatchObject({ kind: 'chat.mention', priority: 'high' });
+  });
+
+  it('упомянутый в ПРЕДЫДУЩЕЙ версии (в т.ч. убрали-вернули) → НЕ дёргается упоминанием', () => {
+    const inserts = svc.buildInsertsFromEditedEvent(
+      {
+        id: EVENT_ID,
+        payload: {
+          conversationId: CONV,
+          messageId: MSG,
+          authorId: AUTHOR,
+          text: 'Текст',
+          seq: 9,
+          mentionedUserIds: [ALICE],
+          previousMentionedUserIds: [ALICE],
+        },
+      },
+      state,
+    );
+    const alice = inserts.find((i) => i.user_id === ALICE)!;
+    expect(alice).toMatchObject({ kind: 'chat.message_edited', priority: 'low' });
+  });
+
+  /** Вердикт владельца 10.10: замена @Все на ЛИЧНЫЙ тэг — высший приоритет
+   *  (broadcast в истории НЕ глушит первый личный тэг). */
+  it('«@Все → @Анна»: Анне chat.mention (high), broadcast-соседям — low', () => {
+    const inserts = svc.buildInsertsFromEditedEvent(
+      {
+        id: EVENT_ID,
+        payload: {
+          conversationId: CONV,
+          messageId: MSG,
+          authorId: AUTHOR,
+          text: 'Текст с @Анной',
+          seq: 9,
+          // Новая версия: прямой тэг Анны (expanded = [ALICE]).
+          mentionedUserIds: [ALICE],
+          // История: только broadcast «Все» — личных тэгов не было.
+          previousMentionedUserIds: [],
+          previousMentionedAll: true,
+          directMentionedUserIds: [ALICE],
+        },
+      },
+      state,
+    );
+    const alice = inserts.find((i) => i.user_id === ALICE)!;
+    expect(alice).toMatchObject({ kind: 'chat.mention', priority: 'high' });
+  });
+
+  it('«@Все остался»: повторный broadcast никого не пингает (low всем)', () => {
+    const inserts = svc.buildInsertsFromEditedEvent(
+      {
+        id: EVENT_ID,
+        payload: {
+          conversationId: CONV,
+          messageId: MSG,
+          authorId: AUTHOR,
+          text: 'Текст',
+          seq: 9,
+          mentionedUserIds: [ALICE], // expanded «Все» покрывает Анну
+          previousMentionedUserIds: [],
+          previousMentionedAll: true,
+          directMentionedUserIds: [], // личных тэгов в новой версии нет
+        },
+      },
+      state,
+    );
+    expect(inserts.every((i) => i.kind === 'chat.message_edited')).toBe(true);
+  });
+
+  it('правка ДОБАВИЛА @Все (первый broadcast): участникам high', () => {
+    const inserts = svc.buildInsertsFromEditedEvent(
+      {
+        id: EVENT_ID,
+        payload: {
+          conversationId: CONV,
+          messageId: MSG,
+          authorId: AUTHOR,
+          text: 'Текст',
+          seq: 9,
+          mentionedUserIds: [ALICE],
+          previousMentionedUserIds: [],
+          previousMentionedAll: false,
+          directMentionedUserIds: [],
+        },
+      },
+      state,
+    );
+    const alice = inserts.find((i) => i.user_id === ALICE)!;
+    expect(alice).toMatchObject({ kind: 'chat.mention', priority: 'high' });
+  });
+
+  it('payload без множеств (события до #239) → прежнее поведение: все edited (low)', () => {
+    const inserts = svc.buildInsertsFromEditedEvent(
+      {
+        id: EVENT_ID,
+        payload: {
+          conversationId: CONV,
+          messageId: MSG,
+          authorId: AUTHOR,
+          text: 'Текст',
+          seq: 9,
+          mentionedUserIds: [],
+          previousMentionedUserIds: [],
+        },
+      },
+      state,
+    );
+    expect(inserts.every((i) => i.kind === 'chat.message_edited')).toBe(true);
+  });
 });
