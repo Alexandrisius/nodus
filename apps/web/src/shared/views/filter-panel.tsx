@@ -77,7 +77,9 @@ export function FilterPanel<T>({
                 title={pinned ? ui.filters.unpin : ui.filters.pin}
                 className={cn(
                   'shrink-0 rounded p-1 transition-opacity',
-                  pinned ? 'text-port' : 'text-muted-foreground opacity-0 group-hover:opacity-100',
+                  pinned
+                    ? 'text-port'
+                    : 'text-muted-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100',
                 )}
               >
                 {pinned ? (
@@ -91,7 +93,7 @@ export function FilterPanel<T>({
                   type="button"
                   onClick={() => toolbar.deletePreset(preset.id)}
                   aria-label={ui.filters.deletePreset}
-                  className="shrink-0 rounded p-1 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:text-danger"
+                  className="shrink-0 rounded p-1 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 hover:text-danger"
                 >
                   <Trash2 className="size-3" strokeWidth={1.75} />
                 </button>

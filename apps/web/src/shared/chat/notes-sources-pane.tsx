@@ -89,7 +89,7 @@ export function NotesSourcesPane({
             {sources.data?.notes.count ?? 0}
           </span>
           <ChevronRight
-            className="size-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
+            className="size-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
             strokeWidth={1.75}
           />
         </button>
@@ -135,7 +135,7 @@ export function NotesSourcesPane({
                 {source.count}
               </span>
               <ChevronRight
-                className="size-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
+                className="size-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
                 strokeWidth={1.75}
               />
             </button>

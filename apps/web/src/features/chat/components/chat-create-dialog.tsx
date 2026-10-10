@@ -274,7 +274,7 @@ export function ChatCreateDialog({
                 ) : (
                   <Camera className="size-5" strokeWidth={1.75} />
                 )}
-                <span className="absolute inset-0 flex items-center justify-center rounded-full bg-black/45 text-white opacity-0 transition-opacity group-hover:opacity-100">
+                <span className="absolute inset-0 flex items-center justify-center rounded-full bg-black/45 text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
                   <Camera className="size-5" strokeWidth={1.75} aria-hidden />
                 </span>
               </button>

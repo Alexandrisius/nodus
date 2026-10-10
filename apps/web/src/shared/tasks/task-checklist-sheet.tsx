@@ -114,7 +114,7 @@ export function TaskChecklistSheet({
                 type="button"
                 onClick={() => onChange(items.filter((i) => i.id !== item.id))}
                 aria-label={`${ui.filters.reset}: ${item.text}`}
-                className="rounded p-0.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:text-foreground"
+                className="rounded p-0.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 hover:text-foreground"
               >
                 <X className="size-3.5" strokeWidth={1.75} />
               </button>
