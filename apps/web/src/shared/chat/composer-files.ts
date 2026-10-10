@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { api } from '../api-client.js';
 import { EMPTY_DRAFT, useChatDrafts, type PendingAttachment } from './chat-drafts.js';
 import { useAttachSendDialog } from './dialog-stores.js';
+import { toWireText } from './composer-mention-registry.js';
 import { uploadAttachment, validateFiles, type UploadHandle } from './upload-attachment.js';
 
 /**
@@ -32,7 +33,10 @@ export function addFiles(draftKey: string, incoming: File[]): void {
   if (accepted.length > 0) {
     const dialog = useAttachSendDialog.getState();
     if (!dialog.scope) {
-      const initial = (useChatDrafts.getState().drafts[draftKey] ?? EMPTY_DRAFT).text;
+      // Подпись окна получает WIRE-текст (#239): чипы упоминаний переезжают
+      // с текстом — окно пересоберёт видимый текст + реестр из токенов.
+      const d = useChatDrafts.getState().drafts[draftKey] ?? EMPTY_DRAFT;
+      const initial = toWireText(d.text, d.mentions ?? []);
       dialog.open(draftKey, initial);
       if (initial) useChatDrafts.getState().setText(draftKey, '');
     }

@@ -209,7 +209,10 @@ export class NotificationsService {
 
   /** Сборка строк журнала из события message_edited (#189: правка прилетает
    *  в центр): всем членам беседы кроме редактора, низкий приоритет — счётчик
-   *  в чате меняется, центр показывает то же. */
+   *  в чате меняется, центр показывает то же. НОВО упомянутые (в новой
+   *  версии, но не в предыдущей) — вместо этого chat.mention высокого
+   *  приоритета (#239, дифф множеств): убрали-вернули того же человека —
+   *  его в диффе нет, повторно не дёргаем. */
   buildInsertsFromEditedEvent(
     event: {
       id: string;
@@ -219,30 +222,41 @@ export class NotificationsService {
         authorId: string;
         text: string;
         seq: number;
+        mentionedUserIds?: string[];
+        previousMentionedUserIds?: string[];
       };
     },
     state: ChatConversationState,
   ): NotificationInsert[] {
     const text = stripMentionTokens(event.payload.text ?? '');
+    const mentioned = new Set(event.payload.mentionedUserIds ?? []);
+    const previous = new Set(event.payload.previousMentionedUserIds ?? []);
     return state.members
       .filter((m) => m.userId !== event.payload.authorId)
-      .map((m) => ({
-        id: randomUUID(),
-        user_id: m.userId,
-        priority: KIND_PRIORITY['chat.message_edited'],
-        kind: 'chat.message_edited',
-        source_type: 'conversation',
-        source_id: event.payload.conversationId,
-        source_seq: BigInt(event.payload.seq),
-        actor_id: event.payload.authorId,
-        preview: text.length > 0 ? text.slice(0, PREVIEW_MAX) : null,
-        urgent_text: null,
-        conversation_id: event.payload.conversationId,
-        conversation_title: state.title,
-        message_id: event.payload.messageId,
-        thread_root_id: null,
-        event_id: event.id,
-      }));
+      .map((m) => {
+        // Дифф: упоминание новое (не в предыдущей версии) — как отправка.
+        const kind =
+          mentioned.has(m.userId) && !previous.has(m.userId)
+            ? 'chat.mention'
+            : 'chat.message_edited';
+        return {
+          id: randomUUID(),
+          user_id: m.userId,
+          priority: KIND_PRIORITY[kind],
+          kind,
+          source_type: 'conversation',
+          source_id: event.payload.conversationId,
+          source_seq: BigInt(event.payload.seq),
+          actor_id: event.payload.authorId,
+          preview: text.length > 0 ? text.slice(0, PREVIEW_MAX) : null,
+          urgent_text: null,
+          conversation_id: event.payload.conversationId,
+          conversation_title: state.title,
+          message_id: event.payload.messageId,
+          thread_root_id: null,
+          event_id: event.id,
+        };
+      });
   }
 
   /** Обёртки порта чата для хендлеров (мокируются в тестах). */

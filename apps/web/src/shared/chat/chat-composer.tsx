@@ -44,6 +44,7 @@ import { MentionAutocompletePanel, useComposerMentions } from './composer-mentio
 import { composerKeyDown } from './composer-keydown.js';
 import { mentionIndexAtOffset, toWireText } from './composer-mention-registry.js';
 import { MentionFieldOverlay, type MentionHit } from './composer-mention-overlay.js';
+import { registerScopeConversation } from './scope-conversations.js';
 
 /** Payload отправки композера (#87): текст + готовые вложения + контекст
  *  ответа/правки. Хост решает: edit ≠ null → мутация правки; иначе — отправка
@@ -198,9 +199,21 @@ export function ChatComposer({
   // @упоминания (#176): каретка + запрос — useComposerMentions; клик по чипу
   // поля — поповер правки (composer-mention-overlay).
   const [editToken, setEditToken] = useState<MentionHit | null>(null);
-  const mentions = useComposerMentions({ conversationId, focusId, text, setText, inputRef });
+  const mentions = useComposerMentions({
+    conversationId,
+    text,
+    inputRef,
+    insertMention: (atStart, atEnd, id, label) =>
+      useChatDrafts.getState().insertMention(focusId, atStart, atEnd, id, label),
+  });
   // Реестр чипов черновика (#228): в поле ВИДИМЫЙ текст, каретка нативная.
   const draftMentions = draft.mentions ?? [];
+
+  // Карта scope→беседа для окна вложений (#239): автокомплит подписи окна
+  // показывает состав участников, scope треда id беседы не несёт.
+  useEffect(() => {
+    registerScopeConversation(focusId, conversationId);
+  }, [focusId, conversationId]);
 
   // Морфология островка (селект) — хук selection-phase.ts (I5, #177).
   const { selPhase, toolbarSel } = useSelectionPhase(sel);

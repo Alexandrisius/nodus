@@ -1,12 +1,19 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ChatMessage, MessageAttachment } from '@nodus/contracts';
+import { ui, type ChatMessage, type MessageAttachment } from '@nodus/contracts';
 import type { ComposerSubmit } from './chat-composer.js';
+
+vi.mock('../api-client.js', () => ({
+  // Дефолт — безопасный промис: путь удаления строки зовёт DELETE вложения.
+  api: vi.fn(async () => ({})),
+}));
 
 import { AttachSendDialogHost } from './attach-send-dialog.js';
 import { useChatDrafts, type PendingAttachment } from './chat-drafts.js';
 import { useAttachSendDialog } from './dialog-stores.js';
+import { registerScopeConversation } from './scope-conversations.js';
 import { registerScopeSubmit } from './submit-registry.js';
 
 /**
@@ -56,9 +63,25 @@ function reset() {
   useAttachSendDialog.setState({ scope: null, caption: '' });
 }
 
+let queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+/** Диалог тянет queries упоминаний (#239) — рендер под провайдером. */
+function renderDialog() {
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <AttachSendDialogHost />
+    </QueryClientProvider>,
+  );
+}
+
 describe('attach-send-dialog (#144)', () => {
-  beforeEach(reset);
-  afterEach(cleanup);
+  beforeEach(() => {
+    reset();
+    queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  });
+  afterEach(() => {
+    cleanup();
+    queryClient.clear();
+  });
 
   it('отмена: вложения сняты, подпись ВОЗВРАЩАЕТСЯ черновиком в композер', () => {
     // Открытие (composer-files): текст композера переезжает в подпись окна,
@@ -67,7 +90,7 @@ describe('attach-send-dialog (#144)', () => {
     useAttachSendDialog.getState().open(KEY, 'подпись к файлам');
     useChatDrafts.getState().setText(KEY, '');
     useChatDrafts.getState().addAttachments(KEY, [pending('a', 'uploading')]);
-    render(<AttachSendDialogHost />);
+    renderDialog();
 
     fireEvent.click(screen.getByRole('button', { name: 'Отмена' }));
 
@@ -99,7 +122,7 @@ describe('attach-send-dialog (#144)', () => {
 
     useChatDrafts.getState().addAttachments(KEY, [pending('a'), pending('b')]);
     useAttachSendDialog.getState().open(KEY, 'комментарий');
-    render(<AttachSendDialogHost />);
+    renderDialog();
 
     fireEvent.click(screen.getByRole('button', { name: 'Отправить' }));
     expect(submitted).toHaveBeenCalledTimes(1);
@@ -135,7 +158,7 @@ describe('attach-send-dialog (#144)', () => {
 
     useChatDrafts.getState().addAttachments(KEY, [pending('a')]);
     useAttachSendDialog.getState().open(KEY, 'комментарий');
-    render(<AttachSendDialogHost />);
+    renderDialog();
 
     fireEvent.click(screen.getByRole('button', { name: 'Отправить' }));
     expect(useChatDrafts.getState().drafts[KEY]).toBeUndefined();
@@ -165,7 +188,7 @@ describe('attach-send-dialog (#144)', () => {
   it('пока есть загрузки — «Отправить» заблокирована', () => {
     useChatDrafts.getState().addAttachments(KEY, [pending('a', 'uploading')]);
     useAttachSendDialog.getState().open(KEY);
-    render(<AttachSendDialogHost />);
+    renderDialog();
     const send = screen.getByRole('button', { name: 'Отправить' });
     expect((send as HTMLButtonElement).disabled).toBe(true);
   });
@@ -177,7 +200,7 @@ describe('attach-send-dialog (#144)', () => {
     const unregister = registerScopeSubmit(KEY, (payload) => submitted(payload));
     useChatDrafts.getState().addAttachments(KEY, [pending('a')]);
     useAttachSendDialog.getState().open(KEY, 'текст');
-    render(<AttachSendDialogHost />);
+    renderDialog();
 
     const caption = screen.getByPlaceholderText('Добавить подпись');
     fireEvent.keyDown(caption, { key: 'Enter', shiftKey: true });
@@ -190,7 +213,7 @@ describe('attach-send-dialog (#144)', () => {
   it('снятие последней строки крестиком: окно закрывается, подпись возвращается черновиком', async () => {
     useChatDrafts.getState().addAttachments(KEY, [pending('a')]);
     useAttachSendDialog.getState().open(KEY, 'набранный текст');
-    render(<AttachSendDialogHost />);
+    renderDialog();
 
     fireEvent.click(screen.getByRole('button', { name: 'Убрать из сообщения' }));
 
@@ -203,7 +226,7 @@ describe('attach-send-dialog (#144)', () => {
   it('клик снаружи окна НЕ закрывает его и НЕ снимает вложения (#148)', () => {
     useChatDrafts.getState().addAttachments(KEY, [pending('a')]);
     useAttachSendDialog.getState().open(KEY, 'набранный текст');
-    render(<AttachSendDialogHost />);
+    renderDialog();
 
     // pointerdown по заднику (вне DialogContent) — dismissal подавлен.
     fireEvent.pointerDown(document.body);
@@ -219,7 +242,7 @@ describe('attach-send-dialog (#144)', () => {
   it('заголовок считает файлы русской плюрализацией', () => {
     useChatDrafts.getState().addAttachments(KEY, [pending('a'), pending('b')]);
     useAttachSendDialog.getState().open(KEY);
-    render(<AttachSendDialogHost />);
+    renderDialog();
     expect(screen.getByText('Выбрано: 2 файла')).toBeTruthy();
   });
 
@@ -228,7 +251,7 @@ describe('attach-send-dialog (#144)', () => {
     // можно сразу, без ручного переноса курсора с начала строки.
     useChatDrafts.getState().addAttachments(KEY, [pending('a')]);
     useAttachSendDialog.getState().open(KEY, 'уже написанный текст сообщения');
-    render(<AttachSendDialogHost />);
+    renderDialog();
 
     const caption = screen.getByPlaceholderText('Добавить подпись') as HTMLTextAreaElement;
     const len = 'уже написанный текст сообщения'.length;
@@ -271,7 +294,7 @@ describe('attach-send-dialog — режим правки (#188)', () => {
 
   it('заголовок «Изменение сообщения», строки сообщения с серверным превью, «Сохранить»', () => {
     openEdit();
-    render(<AttachSendDialogHost />);
+    renderDialog();
 
     expect(screen.getByText('Изменение сообщения')).toBeTruthy();
     expect(screen.getByText('отчёт.png')).toBeTruthy();
@@ -282,7 +305,7 @@ describe('attach-send-dialog — режим правки (#188)', () => {
 
   it('снятие последней строки НЕ закрывает окно: пустой состав — легальная правка', () => {
     openEdit();
-    render(<AttachSendDialogHost />);
+    renderDialog();
 
     fireEvent.click(screen.getByRole('button', { name: 'Убрать из сообщения' }));
 
@@ -302,7 +325,7 @@ describe('attach-send-dialog — режим правки (#188)', () => {
         }),
     );
     openEdit();
-    render(<AttachSendDialogHost />);
+    renderDialog();
 
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
     expect(payloads[0]?.edit).toMatchObject({ messageId: 'm1' });
@@ -322,7 +345,7 @@ describe('attach-send-dialog — режим правки (#188)', () => {
     const fetchSpy = vi.fn(async () => new Response(null, { status: 204 }));
     vi.stubGlobal('fetch', fetchSpy);
     openEdit();
-    render(<AttachSendDialogHost />);
+    renderDialog();
 
     fireEvent.click(screen.getByRole('button', { name: 'Отмена' }));
 
@@ -339,7 +362,7 @@ describe('attach-send-dialog — режим правки (#188)', () => {
 
   it('переименование: поле правит только базу — расширение суффиксом (вердикт 04.10)', async () => {
     openEdit();
-    render(<AttachSendDialogHost />);
+    renderDialog();
 
     // Radix-меню открывается pointerdown (не click) — так же в jsdom.
     fireEvent.pointerDown(screen.getByRole('button', { name: 'Действия с вложением' }), {
@@ -363,7 +386,7 @@ describe('attach-send-dialog — режим правки (#188)', () => {
 
   it('переименование: Esc откатывает базу, окно живо', async () => {
     openEdit();
-    render(<AttachSendDialogHost />);
+    renderDialog();
 
     // Radix-меню открывается pointerdown (не click) — так же в jsdom.
     fireEvent.pointerDown(screen.getByRole('button', { name: 'Действия с вложением' }), {
@@ -386,7 +409,7 @@ describe('attach-send-dialog — режим правки (#188)', () => {
     );
     const unregister = registerScopeSubmit(KEY, (payload) => submitted(payload));
     openEdit();
-    render(<AttachSendDialogHost />);
+    renderDialog();
 
     const caption = screen.getByPlaceholderText('Добавить подпись');
     fireEvent.paste(caption, { clipboardData: { files: [pasteFile] } });
@@ -396,6 +419,82 @@ describe('attach-send-dialog — режим правки (#188)', () => {
     await waitFor(() => expect(useChatDrafts.getState().drafts[KEY]?.attachments).toHaveLength(2));
     expect(useAttachSendDialog.getState().scope).toBe(KEY);
     expect(submitted).not.toHaveBeenCalled();
+    unregister();
+  });
+});
+
+describe('attach-send-dialog: @упоминания подписи (#239)', () => {
+  const ALICE_ID = '33333333-3333-4333-8333-333333333333';
+  let apiMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(async () => {
+    reset();
+    queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    registerScopeConversation(KEY, CONV);
+    const { api } = await import('../api-client.js');
+    apiMock = vi.mocked(api);
+    apiMock.mockImplementation(async (url) => {
+      // Состав беседы: Алиса-участник (автокомплит без дебаунса поиска).
+      if (String(url).includes('/members')) {
+        return {
+          items: [
+            { user: { id: ALICE_ID, displayName: 'Алиса Тест', avatarUrl: null }, role: 'member' },
+          ],
+          nextCursor: null,
+        };
+      }
+      return { items: [], nextCursor: null };
+    });
+  });
+  afterEach(() => {
+    cleanup();
+    queryClient.clear();
+    registerScopeConversation(KEY, undefined);
+    apiMock.mockReset();
+  });
+
+  it('подпись с токенами открывается ВИДИМЫМ текстом; отправка уносит wire', async () => {
+    const wire = `Привет @[Алиса Тест](user:${ALICE_ID})`;
+    const payloads: ComposerSubmit[] = [];
+    const unregister = registerScopeSubmit(KEY, (payload) => {
+      payloads.push(payload);
+      return Promise.resolve({});
+    });
+    useChatDrafts.getState().addAttachments(KEY, [pending('a')]);
+    useAttachSendDialog.getState().open(KEY, wire);
+    renderDialog();
+
+    const field = screen.getByPlaceholderText(ui.chat.attachCaption) as HTMLTextAreaElement;
+    // Display-текст, не сырая разметка (#239: раньше поле показывало токен).
+    expect(field.value).toBe('Привет Алиса Тест');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Отправить' }));
+    await waitFor(() => expect(payloads[0]?.text).toBe(wire));
+    unregister();
+  });
+
+  it('«@» открывает панель; выбор вставляет чип; отправка несёт токен', async () => {
+    const payloads: ComposerSubmit[] = [];
+    const unregister = registerScopeSubmit(KEY, (payload) => {
+      payloads.push(payload);
+      return Promise.resolve({});
+    });
+    useChatDrafts.getState().addAttachments(KEY, [pending('a')]);
+    useAttachSendDialog.getState().open(KEY, '');
+    renderDialog();
+
+    const field = screen.getByPlaceholderText(ui.chat.attachCaption) as HTMLTextAreaElement;
+    fireEvent.change(field, { target: { value: '@' } });
+
+    // Первый кандидат — закреплённое «Все»; выбираем Алису.
+    const aliceOption = (await screen.findByText('Алиса Тест')).closest('[role="option"]')!;
+    fireEvent.mouseDown(aliceOption); // каретка остаётся в поле (канон панели)
+
+    await waitFor(() => expect(field.value).toBe('Алиса Тест '));
+    expect(field.value).not.toContain('@[');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Отправить' }));
+    await waitFor(() => expect(payloads[0]?.text).toBe(`@[Алиса Тест](user:${ALICE_ID})`));
     unregister();
   });
 });

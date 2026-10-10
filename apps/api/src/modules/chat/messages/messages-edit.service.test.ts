@@ -187,6 +187,37 @@ describe('MessagesService.edit (#188: текст + состав вложений
     );
   });
 
+  /** #239: правка с новым упоминанием — событие несёт дифф множеств. */
+  it('упоминание в новой версии → MESSAGE_EDITED с mentioned/previous (#239)', async () => {
+    const NEW = '77777777-7777-7777-7777-777777777777';
+    const PREV = '88888888-8888-8888-8888-888888888888';
+    // токен — реальная грамматика: @[текст](user:uuid)
+    const wire = `Привет @[Алиса](user:${NEW})`;
+    repo.findByIdInConversation.mockResolvedValue(
+      makeMessage({ text: 'Привет', mentionedUserIds: [PREV] }),
+    );
+    repo.updateEditText.mockResolvedValue(
+      makeMessage({ text: wire, editedAt: new Date('2026-10-07T13:00:00Z') }),
+    );
+    conversations.listMembersPage.mockResolvedValue([
+      { userId: NEW, role: 'member', joinedAt: new Date() },
+    ]);
+
+    await service.edit(ME, CONV, 'msg-1', { text: wire });
+
+    // Снапшот строки — новое множество; событие — оба (дифф на стороне notifications).
+    expect(repo.updateEditText).toHaveBeenCalledWith(CONV, 'msg-1', ME, wire, [NEW], TX);
+    expect(eventBus.emit).toHaveBeenCalledWith(
+      TX,
+      CHAT_EVENTS.MESSAGE_EDITED,
+      expect.objectContaining({
+        mentionedUserIds: [NEW],
+        previousMentionedUserIds: [PREV],
+      }),
+      expect.anything(),
+    );
+  });
+
   it('правка только текста: состав не трогается (attachmentIds отсутствует)', async () => {
     repo.findByIdInConversation.mockResolvedValue(makeMessage({ text: 'Привет' }));
     repo.updateEditText.mockResolvedValue(

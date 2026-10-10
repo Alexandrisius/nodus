@@ -15,6 +15,9 @@ interface MessageEditedPayload {
   authorId?: string;
   text?: string;
   seq?: number;
+  /** Дифф упоминаний правки (#239): пусто у событий до #239. */
+  mentionedUserIds?: string[];
+  previousMentionedUserIds?: string[];
 }
 
 /**
@@ -60,6 +63,8 @@ export class MessageEditedHandler implements DomainEventHandler<MessageEditedPay
           authorId: payload.authorId,
           text: payload.text ?? '',
           seq: payload.seq,
+          mentionedUserIds: payload.mentionedUserIds ?? [],
+          previousMentionedUserIds: payload.previousMentionedUserIds ?? [],
         },
       },
       state,

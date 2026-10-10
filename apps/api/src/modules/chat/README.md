@@ -137,6 +137,13 @@ SET last_seq = last_seq + n RETURNING` в транзакции отправки 
   `USER_PROFILE_READER.filterActiveUserIds`, расширение порта ADR-0012);
   резолв ДО транзакции отправки/правки (repro chat-reliability); правка
   пересчитывает снапшот и добавляет новых упомянутых в наблюдатели.
+  Дифф при правке (#239): payload `chat.message_edited` несёт
+  `mentionedUserIds` (новая версия) + `previousMentionedUserIds` —
+  notifications даёт НОВО упомянутым chat.mention (high), остальным —
+  прежний chat.message_edited (low); убрали-вернули того же — не дёргается.
+  Пересылка (#239): упоминания СОПРОВОДИТЕЛЬНОГО комментария резолвятся
+  (снапшот/наблюдатели/уведомление); копии пересланных сообщений чужие
+  упоминания не пингуют (канон Telegram).
   Состояния —
   `GET /conversations/:id/threads/state` (наблюдаемые трэды + unreadCount
   чужих ответов выше watermark).

@@ -438,6 +438,9 @@ export class MessagesService {
         body,
         tx,
       );
+      // Прежнее множество упоминаний — ДО правки: дифф для уведомлений #239
+      // (новые упомянутые получают chat.mention, прежние не дёргаются).
+      const previousMentioned = readMentionedUserIds(message);
       let updated = message;
       if (message.text !== body.text || attachmentsChanged.changed) {
         // Витрина #211: смена текста — замена строк ссылок, состав — Δ видов.
@@ -463,6 +466,9 @@ export class MessagesService {
         // readAt сбрасывается выводно (editedAt > last_read_at читателей) —
         // «повторный пуш прочитавшим» (решение #41); состав вложений в
         // событии не разносится — подписчики дочитывают через API.
+        // Дифф упоминаний (#239): новые минус прежние → chat.mention (high)
+        // в notifications; текст не менялся — множество прежнее (дифф пуст).
+        const nextMentioned = message.text !== body.text ? mentionMatches : previousMentioned;
         await this.eventBus.emit(
           tx,
           CHAT_EVENTS.MESSAGE_EDITED,
@@ -473,6 +479,8 @@ export class MessagesService {
             authorId: userId,
             text: updated.text,
             seq: Number(updated.seq),
+            mentionedUserIds: nextMentioned,
+            previousMentionedUserIds: previousMentioned,
           },
           { actorId: userId, aggregateType: 'conversation', aggregateId: conversationId },
         );

@@ -153,6 +153,13 @@ export const chatMessageEditedPayloadSchema = z.object({
   text: z.string(),
   /** Порядковый номер правимого сообщения (гашение уведомления по watermark). */
   seq: z.number().int().min(1),
+  /** Упомянутые в НОВОЙ версии (снапшот, #239): fanout дифф-уведомлений
+   *  модулю notifications без разбора текста (I3). Optional — толерантность
+   *  к старым записям events-лога (до #239). */
+  mentionedUserIds: z.array(z.uuid()).optional(),
+  /** Упомянутые в ПРЕДЫДУЩЕЙ версии: дифф = новые минус прежние — только
+   *  они получают chat.mention; убрали-вернули того же — не дёргаем (#239). */
+  previousMentionedUserIds: z.array(z.uuid()).optional(),
 });
 export type ChatMessageEditedPayload = z.infer<typeof chatMessageEditedPayloadSchema>;
 
