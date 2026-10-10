@@ -39,7 +39,7 @@ export function DomainChain({ nodes, className }: { nodes: ChainNode[]; classNam
       {nodes.map((node, i) => {
         const content = (
           <>
-            <span className="block truncate text-label-sm font-semibold tracking-wide text-muted-foreground uppercase">
+            <span className="block truncate text-label-sm font-semibold tracking-wide text-muted-foreground uppercase tabular-nums">
               {node.caption} · {node.ref}
             </span>
             {node.label ? (

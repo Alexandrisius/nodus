@@ -80,7 +80,7 @@ export function MediaTile({
         </span>
       </span>
       <span className="truncate text-xs text-muted-foreground">{name}</span>
-      <span className="truncate text-xs text-muted-foreground/80">{meta}</span>
+      <span className="truncate text-xs text-muted-foreground/80 tabular-nums">{meta}</span>
     </button>
   );
 }
@@ -118,7 +118,7 @@ export function VaultRow({
       </span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm">{title}</span>
-        <span className="block truncate text-xs text-muted-foreground">{meta}</span>
+        <span className="block truncate text-xs text-muted-foreground tabular-nums">{meta}</span>
       </span>
       <span className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
         {downloadUrl ? (
@@ -215,7 +215,7 @@ export function VaultLinkCard({
         <span className="block truncate text-sm text-info">
           {ready && preview.title ? preview.title : url}
         </span>
-        <span className="block truncate text-xs text-muted-foreground">
+        <span className="block truncate text-xs text-muted-foreground tabular-nums">
           {author} · {formatDateTimeShort(createdAt)}
         </span>
       </span>

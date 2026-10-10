@@ -51,7 +51,7 @@ export function CounterpartiesPage() {
   return (
     <div className="relative flex h-full flex-col">
       <div className="flex h-14 shrink-0 items-center gap-3 px-6">
-        <h1 className="shrink-0 text-xl font-semibold text-foreground">
+        <h1 className="shrink-0 text-xl font-semibold text-balance text-foreground">
           {ui.counterparties.title}
           <span className="ml-2 align-middle font-mono text-label-lg font-normal text-muted-foreground tabular-nums">
             {data?.items.length ?? 0}

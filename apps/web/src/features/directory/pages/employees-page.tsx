@@ -115,7 +115,7 @@ export function EmployeesPage() {
         style={{ paddingRight: selectedNode ? 424 : 24 }}
         className="flex h-14 shrink-0 items-center gap-3 pl-6 transition-[padding] duration-200 ease-out"
       >
-        <h1 className="shrink-0 text-xl font-semibold text-foreground">
+        <h1 className="shrink-0 text-xl font-semibold text-balance text-foreground">
           {ui.employees.title}
           <span className="ml-2 align-middle font-mono text-label-lg font-normal text-muted-foreground tabular-nums">
             {items.length}
