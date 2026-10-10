@@ -681,9 +681,11 @@ MAX_RATIO 0.66, `shared/ui/use-chat-width.ts`; при открытой пане�
   отфильтрован `filterNotesFlowBySource` (чистая, notes-flow.test):
   источник — его карточки, «Записи» — только свои записи; глубина =
   глубина витрины (догрузка ленты — #117); композера нет (просмотр
-  среза). Селект окна (#237): useFeedSelection по scope
-  `notes-source:<id>` + Telegram-набор команд — записи (MessageMenu
-  variant=source-window): копировать/переслать/выбрать/удалить;
+  среза). Селект окна (#237 + вердикт 10.10): useFeedSelection по scope
+  `notes-source:<id>` + РАМОЧНОЕ выделение областью (useBoxSelection,
+  канон витрины #215 — быстрый пакетный выбор) + Telegram-набор команд —
+  записи (MessageMenu variant=source-window): копировать/переслать/
+  выбрать/удалить;
   карточки (FavoriteMenu selection-aware): переслать выбранные
   ОРИГИНАЛАМИ из беседы-источника, батч «снять звёзды», копировать;
   Delete на карточках = снять звёзды (onDelete-оверрайд селекта), на
