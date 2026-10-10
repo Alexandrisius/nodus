@@ -11,6 +11,7 @@ import {
   AVATAR_DERIVATIVE_SIDE,
   AVATAR_MAX_BYTES,
   AVATAR_MIN_SIDE,
+  AVATAR_PIXEL_LIMIT,
   validateAvatarBytes,
 } from './avatar-rules.js';
 
@@ -86,7 +87,7 @@ export class AvatarService {
 
     let derivative: Buffer;
     try {
-      const meta = await sharp(bytes).metadata();
+      const meta = await sharp(bytes, { limitInputPixels: AVATAR_PIXEL_LIMIT }).metadata();
       // Квадратная сторона: минимум из ориентированных сторон и потолка —
       // cover-кроп этой величиной никогда не апскейлит (без enlargement)
       // и всегда даёт точный квадрат (sharp безEnlargement на cover не
@@ -98,7 +99,7 @@ export class AvatarService {
         });
       }
       const side = Math.min(size.width, size.height, AVATAR_DERIVATIVE_SIDE);
-      derivative = await sharp(bytes)
+      derivative = await sharp(bytes, { limitInputPixels: AVATAR_PIXEL_LIMIT })
         .rotate()
         .resize(side, side, {
           fit: 'cover',
