@@ -81,7 +81,7 @@ export function NotesSourcesPane({
           </span>
           <span className="min-w-0 flex-1">
             <span className="block truncate text-sm">{ui.chat.notesFilterNotes}</span>
-            <span className="block truncate text-xs text-muted-foreground">
+            <span className="block truncate text-xs text-muted-foreground tabular-nums">
               {sources.data?.notes.lastAt ? formatDateTimeShort(sources.data.notes.lastAt) : ''}
             </span>
           </span>
@@ -127,7 +127,7 @@ export function NotesSourcesPane({
               )}
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm">{title}</span>
-                <span className="block truncate text-xs text-muted-foreground">
+                <span className="block truncate text-xs text-muted-foreground tabular-nums">
                   {formatDateTimeShort(source.lastFavoritedAt)}
                 </span>
               </span>
