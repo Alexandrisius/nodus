@@ -452,7 +452,11 @@ export function ChatComposer({
               selPhase === 'exit' ? 'composer-hide' : 'composer-reveal',
             )}
           >
-            <SelectionToolbar sel={toolbarSel} frozen={selPhase === 'exit'} />
+            <SelectionToolbar
+              sel={toolbarSel}
+              frozen={selPhase === 'exit'}
+              conversationId={conversationId}
+            />
           </span>
         ) : disabledPlaceholder !== null ? (
           // Гейт прав (р.8): заглушка живёт ВНУТРИ островка — морф селекта

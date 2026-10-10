@@ -229,6 +229,51 @@ describe('MessagesService.edit (#188: текст + состав вложений
     );
   });
 
+  /** Вердикт владельца 10.10: отправлено @Все → правка заменила на личный
+   *  тэг Анны — Анна получает ВЫСШИЙ (личный тэг ≠ broadcast в истории). */
+  it('«@Все → @Анна»: ever с сентинелом, previous только личные + флаг all', async () => {
+    const ALICE = '77777777-7777-7777-7777-777777777777';
+    const wire = `Важно: @[Анна](user:${ALICE})`;
+    // Состояние после отправки @Все: снапшот expanded, ever = ['all'].
+    repo.findByIdInConversation.mockResolvedValue(
+      makeMessage({
+        text: 'Важно: @[Все](user:all)',
+        mentionedUserIds: [ALICE, '99999999-9999-9999-9999-999999999999'],
+        everMentionedUserIds: ['all'],
+      }),
+    );
+    repo.updateEditText.mockResolvedValue(
+      makeMessage({ text: wire, editedAt: new Date('2026-10-10T19:00:00Z') }),
+    );
+    conversations.listMembersPage.mockResolvedValue([
+      { userId: ALICE, role: 'member', joinedAt: new Date() },
+    ]);
+
+    await service.edit(ME, CONV, 'msg-1', { text: wire });
+
+    // ever накапливает сентинел + личный тэг; payload несёт флаги диффа.
+    expect(repo.updateEditText).toHaveBeenCalledWith(
+      CONV,
+      'msg-1',
+      ME,
+      wire,
+      [ALICE],
+      ['all', ALICE],
+      TX,
+    );
+    expect(eventBus.emit).toHaveBeenCalledWith(
+      TX,
+      CHAT_EVENTS.MESSAGE_EDITED,
+      expect.objectContaining({
+        mentionedUserIds: [ALICE],
+        previousMentionedUserIds: [],
+        previousMentionedAll: true,
+        directMentionedUserIds: [ALICE],
+      }),
+      expect.anything(),
+    );
+  });
+
   /** #239 (критерий приёмки): убрали упоминание в правке N, вернули в
    *  правке N+1 — повторного пинга НЕТ: previous = накопительное ever. */
   it('убрали-вернули того же в следующей правке → previous из ever, пинга нет', async () => {

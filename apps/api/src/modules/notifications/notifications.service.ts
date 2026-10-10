@@ -209,11 +209,12 @@ export class NotificationsService {
 
   /** Сборка строк журнала из события message_edited (#189: правка прилетает
    *  в центр): всем членам беседы кроме редактора, низкий приоритет — счётчик
-   *  в чате меняется, центр показывает то же. Упомянутые в новой версии,
-   *  но НЕ входившие в накопительное ever-множество сообщения (payload
-   *  previousMentionedUserIds) — вместо этого chat.mention высокого
-   *  приоритета (#239, дифф множеств): повторное упоминание (в т.ч.
-   *  убрали-вернули того же человека) — не дёргаем. */
+   *  в чате меняется, центр показывает то же. Высокий chat.mention — только
+   *  ПЕРВЫЙ личный тэг (#239 + вердикт 10.10: замена @Все на прямой тэг —
+   *  высший): человек упомянут в новой версии, никогда не тэгался лично
+   *  (previousMentionedUserIds — личные тэги за историю) и (тэг личный,
+   *  либо broadcast-«Все» добавлен этой правкой впервые). Повторные тэги
+   *  и убрали-вернули того же — не дёргаем. */
   buildInsertsFromEditedEvent(
     event: {
       id: string;
@@ -225,21 +226,29 @@ export class NotificationsService {
         seq: number;
         mentionedUserIds?: string[];
         previousMentionedUserIds?: string[];
+        previousMentionedAll?: boolean;
+        directMentionedUserIds?: string[];
       };
     },
     state: ChatConversationState,
   ): NotificationInsert[] {
     const text = stripMentionTokens(event.payload.text ?? '');
     const mentioned = new Set(event.payload.mentionedUserIds ?? []);
-    const previous = new Set(event.payload.previousMentionedUserIds ?? []);
+    // Личные тэги за историю сообщения; broadcast-«Все» в истории отдельно.
+    const everDirect = new Set(event.payload.previousMentionedUserIds ?? []);
+    const hadAllBefore = event.payload.previousMentionedAll === true;
+    const directNew = new Set(event.payload.directMentionedUserIds ?? []);
     return state.members
       .filter((m) => m.userId !== event.payload.authorId)
       .map((m) => {
-        // Дифф: упоминание новое (не в предыдущей версии) — как отправка.
-        const kind =
-          mentioned.has(m.userId) && !previous.has(m.userId)
-            ? 'chat.mention'
-            : 'chat.message_edited';
+        // Первый личный тэг — high (broadcast в истории его НЕ глушит,
+        // вердикт владельца 10.10: «@Все → @Анна — Анне высший»); или
+        // первый broadcast («Все» добавлен правкой, человека не тэгали).
+        const newly =
+          mentioned.has(m.userId) &&
+          !everDirect.has(m.userId) &&
+          (directNew.has(m.userId) || !hadAllBefore);
+        const kind = newly ? 'chat.mention' : 'chat.message_edited';
         return {
           id: randomUUID(),
           user_id: m.userId,

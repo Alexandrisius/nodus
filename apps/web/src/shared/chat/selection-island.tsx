@@ -5,17 +5,29 @@ import { cn } from '@nodus/ui/lib/utils';
 
 import { useAddFavorites } from './favorites-api.js';
 import type { ComposerSelection } from './chat-composer.js';
+import { useCanModerateMessages } from './use-can-moderate.js';
 
 /**
  * Тулбар узкого островка батч-команд (A6, #87; вердикт 24.09): композер в
  * селекте сужается до него, ввод не нужен. «Переслать» — ТЕКСТОМ (самая
  * популярная команда очевидна), звезда-цепочка (#171, «В избранное») /
- * корзина (только когда все свои) / копировать / выход — значками. frozen —
+ * корзина (все свои ИЛИ право модерации #245 — админ беседы/модератор
+ * портала удаляют и чужие) / копировать / выход — значками. frozen —
  * фаза выхода из селекта: островок ещё расширяется, кнопки уже не кликаются
  * (pointer-events-none).
  */
-export function SelectionToolbar({ sel, frozen }: { sel: ComposerSelection; frozen: boolean }) {
+export function SelectionToolbar({
+  sel,
+  frozen,
+  conversationId,
+}: {
+  sel: ComposerSelection;
+  frozen: boolean;
+  /** Беседа ленты-хоста: право модерации открывает корзину на чужих (#245). */
+  conversationId?: string;
+}) {
   const addFavorites = useAddFavorites();
+  const canModerate = useCanModerateMessages(conversationId ?? '');
   return (
     <span
       role="toolbar"
@@ -59,7 +71,7 @@ export function SelectionToolbar({ sel, frozen }: { sel: ComposerSelection; froz
           <Star className="size-4" strokeWidth={1.75} />
         </Button>
       ) : null}
-      {(sel.deletable ?? sel.allMine) ? (
+      {(sel.deletable ?? (sel.allMine || canModerate)) ? (
         <Button
           type="button"
           variant="ghost"

@@ -158,13 +158,18 @@ export class MessagesRepository {
       } | null;
       urgent: boolean;
       mentionedUserIds: string[];
+      /** Накопительное множество (#239): ТОКЕНЫ без разворота «Все» —
+       *  прямой тэг ≠ broadcast; на отправке = токенам текста. */
+      everMentionedUserIds: string[];
       createdAt: Date;
     },
     tx: TransactionClient,
   ): Promise<MessageRow | null> {
     const snapshot = input.replySnapshot === null ? null : JSON.stringify(input.replySnapshot);
     const mentioned = JSON.stringify(input.mentionedUserIds);
-    // ever = снапшот отправки (#239): первое упоминание человека в истории.
+    // ever = ТОКЕНЫ текста (#239): личный тэг и сентинел «Все», без
+    // разворота — broadcast не глушит будущий первый личный тэг.
+    const ever = JSON.stringify(input.everMentionedUserIds);
     const rows = await tx.$queryRaw<MessageRow[]>(Prisma.sql`
       INSERT INTO messages (
         id, conversation_id, seq, author_id, client_message_id, text,
@@ -178,7 +183,7 @@ export class MessagesRepository {
         ${input.replyToId}::uuid, ${snapshot}::jsonb, ${input.threadRootId}::uuid,
         ${input.fwd?.conversationId ?? null}::uuid, ${input.fwd?.messageId ?? null}::uuid,
         ${input.fwd?.authorId ?? null}::uuid, ${input.fwd?.threadRootId ?? null}::uuid,
-        ${input.urgent}, ${mentioned}::jsonb, ${mentioned}::jsonb,
+        ${input.urgent}, ${mentioned}::jsonb, ${ever}::jsonb,
         ${input.createdAt}::timestamptz, ${input.createdAt}::timestamptz
       )
       ON CONFLICT (author_id, client_message_id) DO NOTHING

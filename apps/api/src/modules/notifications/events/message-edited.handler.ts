@@ -18,6 +18,8 @@ interface MessageEditedPayload {
   /** Дифф упоминаний правки (#239): пусто у событий до #239. */
   mentionedUserIds?: string[];
   previousMentionedUserIds?: string[];
+  previousMentionedAll?: boolean;
+  directMentionedUserIds?: string[];
 }
 
 /**
@@ -65,6 +67,8 @@ export class MessageEditedHandler implements DomainEventHandler<MessageEditedPay
           seq: payload.seq,
           mentionedUserIds: payload.mentionedUserIds ?? [],
           previousMentionedUserIds: payload.previousMentionedUserIds ?? [],
+          previousMentionedAll: payload.previousMentionedAll ?? false,
+          directMentionedUserIds: payload.directMentionedUserIds ?? [],
         },
       },
       state,

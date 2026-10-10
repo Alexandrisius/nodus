@@ -157,10 +157,15 @@ export const chatMessageEditedPayloadSchema = z.object({
    *  модулю notifications без разбора текста (I3). Optional — толерантность
    *  к старым записям events-лога (до #239). */
   mentionedUserIds: z.array(z.uuid()).optional(),
-  /** Накопительное множество упомянутых ДО правки (за всю историю
-   *  сообщения): дифф = новые минус когда-либо упомянутые — только они
-   *  получают chat.mention; убрали-вернули того же — не дёргаем (#239). */
+  /** ЛИЧНЫЕ тэги за всю историю сообщения ДО правки (без разворота
+   *  «Все»): первый личный тэг получает chat.mention; убрали-вернули
+   *  того же — не дёргаем (#239). */
   previousMentionedUserIds: z.array(z.uuid()).optional(),
+  /** В истории сообщения был broadcast @Все (#239): глушит повторные
+   *  broadcast-пинги правок, но НЕ первый личный тэг (вердикт 10.10). */
+  previousMentionedAll: z.boolean().optional(),
+  /** Личные тэги НОВОЙ версии (без «Все», без разворота, #239). */
+  directMentionedUserIds: z.array(z.uuid()).optional(),
 });
 export type ChatMessageEditedPayload = z.infer<typeof chatMessageEditedPayloadSchema>;
 

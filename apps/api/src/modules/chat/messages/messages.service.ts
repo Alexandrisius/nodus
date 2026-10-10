@@ -4,6 +4,7 @@ import { z } from 'zod';
 import {
   CHAT_EVENTS,
   ErrorCode,
+  MENTION_ALL_ID,
   type ChatMessage,
   type EditMessageBody,
   type ListMessagesQuery,
@@ -30,7 +31,7 @@ import {
   readEverMentionedUserIds,
   readMentionedUserIds,
 } from './message-dto.mapper.js';
-import { addMentionWatchers, resolveMentionTargets } from './mentions.js';
+import { addMentionWatchers, mentionTokenIds, resolveMentionTargets } from './mentions.js';
 import { assertUrgentSendAllowedBy } from './send-urgent.policy.js';
 import {
   MessagesRepository,
@@ -305,6 +306,7 @@ export class MessagesService {
           fwd: null,
           urgent,
           mentionedUserIds: mentionMatches,
+          everMentionedUserIds: mentionTokenIds(body.text, userId),
           createdAt: new Date(),
         },
         tx,
@@ -442,18 +444,20 @@ export class MessagesService {
         body,
         tx,
       );
-      // Накопительное множество упомянутых ДО правки (#239): дифф-уведомления
-      // пингуют только при ПЕРВОМ упоминании человека в истории сообщения —
-      // «убрали упоминание (правка N), вернули (правка N+1)» повторно НЕ
-      // дёргается (критерий приёмки #239; снапшот предыдущей версии тут
-      // недостаточен — возврат выглядел бы новым упоминанием).
-      const previousMentioned = readEverMentionedUserIds(message);
+      // Накопительное множество упомянутых ДО правки (#239): ever хранит
+      // ТОКЕНЫ (личные тэги + сентинел «Все», без разворота). Дифф-пинги
+      // только ПЕРВЫЕ личные тэги; broadcast в истории личный тэг не глушит
+      // (вердикт владельца 10.10: «@Все → @Анна — Анне высший»).
+      const previousEver = readEverMentionedUserIds(message);
+      // Токены НОВОЙ версии: личные id + сентинел «Все».
+      const tokenIds = mentionTokenIds(body.text, userId);
+      const directNewMentioned = tokenIds.filter((id) => id !== MENTION_ALL_ID);
       let updated = message;
       if (message.text !== body.text || attachmentsChanged.changed) {
         // Витрина #211: смена текста — замена строк ссылок, состав — Δ видов.
         const nextMentioned =
           message.text !== body.text ? mentionMatches : readMentionedUserIds(message);
-        const everMentioned = Array.from(new Set([...previousMentioned, ...nextMentioned]));
+        const everMentioned = Array.from(new Set([...previousEver, ...tokenIds]));
         await this.vault.applyMessageEdited(tx, message, body, attachmentsChanged);
         updated = await this.repo.updateEditText(
           conversationId,
@@ -477,8 +481,9 @@ export class MessagesService {
         // readAt сбрасывается выводно (editedAt > last_read_at читателей) —
         // «повторный пуш прочитавшим» (решение #41); состав вложений в
         // событии не разносится — подписчики дочитывают через API.
-        // Дифф упоминаний (#239): новые минус КОГДА-ЛИБО упомянутые →
-        // chat.mention (high) в notifications; повторные — тишина.
+        // Дифф упоминаний (#239): payload несёт множества для notifications —
+        // expanded новой версии (кому адресовано), ЛИЧНЫЕ тэги за историю,
+        // флаг broadcast-«Все» в истории и личные тэги новой версии.
         await this.eventBus.emit(
           tx,
           CHAT_EVENTS.MESSAGE_EDITED,
@@ -490,7 +495,9 @@ export class MessagesService {
             text: updated.text,
             seq: Number(updated.seq),
             mentionedUserIds: nextMentioned,
-            previousMentionedUserIds: previousMentioned,
+            previousMentionedUserIds: previousEver.filter((id) => id !== MENTION_ALL_ID),
+            previousMentionedAll: previousEver.includes(MENTION_ALL_ID),
+            directMentionedUserIds: directNewMentioned,
           },
           { actorId: userId, aggregateType: 'conversation', aggregateId: conversationId },
         );

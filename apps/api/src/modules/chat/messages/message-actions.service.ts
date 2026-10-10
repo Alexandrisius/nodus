@@ -22,7 +22,7 @@ import {
 } from '../conversations/conversations.repository.js';
 import { can, parsePermissions } from '../permissions.js';
 import { MessageDtoMapper } from './message-dto.mapper.js';
-import { addMentionWatchers, resolveMentionTargets } from './mentions.js';
+import { addMentionWatchers, mentionTokenIds, resolveMentionTargets } from './mentions.js';
 import { MessagePinsRepository, type PinRecord } from './message-pins.repository.js';
 import { MessagesRepository, type MessageRow } from './messages.repository.js';
 import { MessagesReactionsRepository } from './messages-reactions.repository.js';
@@ -298,6 +298,11 @@ export class MessageActionsService {
             urgent: false,
             // Сопроводительный текст — свои упоминания (#239); копии — без.
             mentionedUserIds: draft.fwd === null ? commentMentions : [],
+            // ever = токены комментария (личные тэги + «Все»), копии — пусто.
+            everMentionedUserIds:
+              draft.fwd === null && body.comment !== undefined
+                ? mentionTokenIds(body.comment, userId)
+                : [],
             threadRootId,
             fwd: draft.fwd,
             createdAt: new Date(createdAt + i),

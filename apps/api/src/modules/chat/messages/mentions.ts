@@ -23,6 +23,16 @@ import type { ThreadParticipantsRepository } from './thread-participants.reposit
  *  предела участников беседы — состав читается целиком одной страницей. */
 const ALL_MEMBERS_PAGE = 200;
 
+/** Токены упоминаний текста БЕЗ разворота «Все» (#239): прямые id +
+ *  сентинел MENTION_ALL_ID, без автора, без дублей. Основа накопительного
+ *  ever-множества сообщения: ЛИЧНЫЙ тэг ≠ broadcast — замена @Все на
+ *  прямое упоминание человека считается его ПЕРВЫМ личным пингом
+ *  (вердикт владельца 10.10: «высший приоритет»). */
+export function mentionTokenIds(text: string, authorId: string): string[] {
+  const ids = extractMentionIds(text).filter((id) => id !== authorId);
+  return Array.from(new Set(ids));
+}
+
 /** userId упомянутых, кому летит уведомление: токены текста → активные
  *  участники беседы ∩ ≠ автор, в порядке появления. Справочник и состав
  *  читаются ДО транзакции отправки (текст известен заранее, второе
