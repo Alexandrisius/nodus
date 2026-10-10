@@ -25,6 +25,7 @@ import { MessageDtoMapper } from './message-dto.mapper.js';
 import { addMentionWatchers, resolveMentionTargets } from './mentions.js';
 import { MessagePinsRepository, type PinRecord } from './message-pins.repository.js';
 import { MessagesRepository, type MessageRow } from './messages.repository.js';
+import { MessagesReactionsRepository } from './messages-reactions.repository.js';
 import { ThreadParticipantsRepository } from './thread-participants.repository.js';
 import { VaultRepository } from '../vault/vault.repository.js';
 
@@ -38,6 +39,7 @@ import { VaultRepository } from '../vault/vault.repository.js';
 export class MessageActionsService {
   constructor(
     private readonly messages: MessagesRepository,
+    private readonly reactionsRepo: MessagesReactionsRepository,
     private readonly pins: MessagePinsRepository,
     private readonly conversations: ConversationsRepository,
     private readonly mapper: MessageDtoMapper,
@@ -158,8 +160,8 @@ export class MessageActionsService {
       const message = await this.messages.findByIdInConversation(conversationId, messageId, tx);
       if (!message || message.deletedAt) throw DomainException.notFound('Message not found');
       const changed = body.remove
-        ? await this.messages.removeReaction(messageId, userId, body.emoji, tx)
-        : await this.messages.addReaction(messageId, userId, body.emoji, tx);
+        ? await this.reactionsRepo.removeReaction(messageId, userId, body.emoji, tx)
+        : await this.reactionsRepo.addReaction(messageId, userId, body.emoji, tx);
       if (changed) {
         await this.eventBus.emit(
           tx,

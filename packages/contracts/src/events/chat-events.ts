@@ -157,8 +157,9 @@ export const chatMessageEditedPayloadSchema = z.object({
    *  модулю notifications без разбора текста (I3). Optional — толерантность
    *  к старым записям events-лога (до #239). */
   mentionedUserIds: z.array(z.uuid()).optional(),
-  /** Упомянутые в ПРЕДЫДУЩЕЙ версии: дифф = новые минус прежние — только
-   *  они получают chat.mention; убрали-вернули того же — не дёргаем (#239). */
+  /** Накопительное множество упомянутых ДО правки (за всю историю
+   *  сообщения): дифф = новые минус когда-либо упомянутые — только они
+   *  получают chat.mention; убрали-вернули того же — не дёргаем (#239). */
   previousMentionedUserIds: z.array(z.uuid()).optional(),
 });
 export type ChatMessageEditedPayload = z.infer<typeof chatMessageEditedPayloadSchema>;

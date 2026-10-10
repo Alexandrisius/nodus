@@ -34,6 +34,7 @@ function makeMessage(overrides: Partial<MessageRow> = {}): MessageRow {
     obliterated: false,
     urgent: false,
     mentionedUserIds: null,
+    everMentionedUserIds: null,
     createdAt: now,
     updatedAt: now,
     ...overrides,
@@ -156,6 +157,19 @@ describe('MessagesDeleteService: модерация (#245)', () => {
     const result = await service.delete(ME, CONV, 'msg-1', []);
 
     expect(result.moderated).toBe(false);
+    expect(auditRepo.append).not.toHaveBeenCalled();
+  });
+
+  it('модератор-НЕ-участник беседы — NOT_FOUND (модель видимости: членство обязательное)', async () => {
+    // Security-ревью #245: удаление следует модели чтения (лента только для
+    // участников) — модератор без членства НЕ удаляет невидимое ему.
+    conversations.findMembership.mockResolvedValue(null);
+
+    await expect(service.delete(ME, CONV, 'msg-1', ['chat.moderate'])).rejects.toMatchObject({
+      code: ErrorCode.NOT_FOUND,
+      message: 'Conversation not found',
+    });
+    expect(repo.tombstone).not.toHaveBeenCalled();
     expect(auditRepo.append).not.toHaveBeenCalled();
   });
 

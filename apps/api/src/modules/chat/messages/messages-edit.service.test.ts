@@ -33,6 +33,7 @@ function makeMessage(overrides: Partial<MessageRow> = {}): MessageRow {
     obliterated: false,
     urgent: false,
     mentionedUserIds: null,
+    everMentionedUserIds: null,
     createdAt: now,
     updatedAt: now,
     ...overrides,
@@ -172,7 +173,7 @@ describe('MessagesService.edit (#188: текст + состав вложений
 
     const result = await service.edit(ME, CONV, 'msg-1', { text: 'Новый' });
 
-    expect(repo.updateEditText).toHaveBeenCalledWith(CONV, 'msg-1', ME, 'Новый', [], TX);
+    expect(repo.updateEditText).toHaveBeenCalledWith(CONV, 'msg-1', ME, 'Новый', [], [], TX);
     expect(result.message.text).toBe('Новый');
     expect(eventBus.emit).toHaveBeenCalledWith(
       TX,
@@ -187,14 +188,15 @@ describe('MessagesService.edit (#188: текст + состав вложений
     );
   });
 
-  /** #239: правка с новым упоминанием — событие несёт дифф множеств. */
+  /** #239: правка с новым упоминанием — событие несёт дифф множеств
+   *  (previous = накопительное ever, не снапшот версии). */
   it('упоминание в новой версии → MESSAGE_EDITED с mentioned/previous (#239)', async () => {
     const NEW = '77777777-7777-7777-7777-777777777777';
     const PREV = '88888888-8888-8888-8888-888888888888';
     // токен — реальная грамматика: @[текст](user:uuid)
     const wire = `Привет @[Алиса](user:${NEW})`;
     repo.findByIdInConversation.mockResolvedValue(
-      makeMessage({ text: 'Привет', mentionedUserIds: [PREV] }),
+      makeMessage({ text: 'Привет', mentionedUserIds: [PREV], everMentionedUserIds: [PREV] }),
     );
     repo.updateEditText.mockResolvedValue(
       makeMessage({ text: wire, editedAt: new Date('2026-10-07T13:00:00Z') }),
@@ -205,14 +207,59 @@ describe('MessagesService.edit (#188: текст + состав вложений
 
     await service.edit(ME, CONV, 'msg-1', { text: wire });
 
-    // Снапшот строки — новое множество; событие — оба (дифф на стороне notifications).
-    expect(repo.updateEditText).toHaveBeenCalledWith(CONV, 'msg-1', ME, wire, [NEW], TX);
+    // Снапшот строки — новое множество; ever — объединение; событие —
+    // текущее + накопительное (дифф считает notifications).
+    expect(repo.updateEditText).toHaveBeenCalledWith(
+      CONV,
+      'msg-1',
+      ME,
+      wire,
+      [NEW],
+      [PREV, NEW],
+      TX,
+    );
     expect(eventBus.emit).toHaveBeenCalledWith(
       TX,
       CHAT_EVENTS.MESSAGE_EDITED,
       expect.objectContaining({
         mentionedUserIds: [NEW],
         previousMentionedUserIds: [PREV],
+      }),
+      expect.anything(),
+    );
+  });
+
+  /** #239 (критерий приёмки): убрали упоминание в правке N, вернули в
+   *  правке N+1 — повторного пинга НЕТ: previous = накопительное ever. */
+  it('убрали-вернули того же в следующей правке → previous из ever, пинга нет', async () => {
+    const ALICE = '77777777-7777-7777-7777-777777777777';
+    const wire = `Вернула @[Алиса](user:${ALICE})`;
+    // Состояние ПОСЛЕ правки-удаления: снапшот пуст, ever помнит Алису.
+    repo.findByIdInConversation.mockResolvedValue(
+      makeMessage({
+        text: 'Убрала упоминание',
+        mentionedUserIds: [],
+        everMentionedUserIds: [ALICE],
+      }),
+    );
+    repo.updateEditText.mockResolvedValue(
+      makeMessage({ text: wire, editedAt: new Date('2026-10-07T13:05:00Z') }),
+    );
+    conversations.listMembersPage.mockResolvedValue([
+      { userId: ALICE, role: 'member', joinedAt: new Date() },
+    ]);
+
+    await service.edit(ME, CONV, 'msg-1', { text: wire });
+
+    expect(repo.updateEditText).toHaveBeenCalledWith(CONV, 'msg-1', ME, wire, [ALICE], [ALICE], TX);
+    // previousMentionedUserIds = [ALICE] → в notifications её НЕТ в диффе
+    // (mentioned − previous пуст) — повторного chat.mention не будет.
+    expect(eventBus.emit).toHaveBeenCalledWith(
+      TX,
+      CHAT_EVENTS.MESSAGE_EDITED,
+      expect.objectContaining({
+        mentionedUserIds: [ALICE],
+        previousMentionedUserIds: [ALICE],
       }),
       expect.anything(),
     );
@@ -243,7 +290,7 @@ describe('MessagesService.edit (#188: текст + состав вложений
 
     expect(attachmentsRepo.syncMessageAttachments).toHaveBeenCalledWith('msg-1', ['att-2'], ME, TX);
     expect(attachmentsRepo.renameMessageAttachments).not.toHaveBeenCalled();
-    expect(repo.updateEditText).toHaveBeenCalledWith(CONV, 'msg-1', ME, 'Файлы', [], TX);
+    expect(repo.updateEditText).toHaveBeenCalledWith(CONV, 'msg-1', ME, 'Файлы', [], [], TX);
     expect(eventBus.emit).toHaveBeenCalledTimes(1);
   });
 

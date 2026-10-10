@@ -17,6 +17,7 @@ import { MessageDtoMapper } from './messages/message-dto.mapper.js';
 import { MessagePinsRepository } from './messages/message-pins.repository.js';
 import { MessagesController } from './messages/messages.controller.js';
 import { MessagesRepository } from './messages/messages.repository.js';
+import { MessagesReactionsRepository } from './messages/messages-reactions.repository.js';
 import { MessagesDeleteService } from './messages/messages-delete.service.js';
 import { MessagesService } from './messages/messages.service.js';
 import { ThreadParticipantsRepository } from './messages/thread-participants.repository.js';
@@ -76,6 +77,7 @@ import {
     ConversationMembersService,
     ConversationItemMapper,
     MessagesRepository,
+    MessagesReactionsRepository,
     ThreadParticipantsRepository,
     MessagesService,
     MessagesDeleteService,

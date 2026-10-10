@@ -39,6 +39,7 @@ function makeMessage(overrides: Partial<MessageRow> = {}): MessageRow {
     obliterated: false,
     urgent: false,
     mentionedUserIds: null,
+    everMentionedUserIds: null,
     createdAt: now,
     updatedAt: now,
     ...overrides,
@@ -218,6 +219,7 @@ describe('MessagesService: трэды раунда 3', () => {
     // Раунд #100: watch/стособы перенесены в MessageActionsService (I5).
     const actions = new MessageActionsService(
       repo as never,
+      {} as never, // реакции (#239: вынесены в MessagesReactionsRepository)
       { listWithMessages: vi.fn() } as never,
       conversations as never,
       { toDtos: vi.fn() } as never,

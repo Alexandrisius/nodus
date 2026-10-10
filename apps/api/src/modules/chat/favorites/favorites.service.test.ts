@@ -35,6 +35,7 @@ function makeMessage(id: string, conversationId: string): MessageRow {
     obliterated: false,
     urgent: false,
     mentionedUserIds: null,
+    everMentionedUserIds: null,
     createdAt: now,
     updatedAt: now,
   };

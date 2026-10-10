@@ -23,6 +23,7 @@ export interface MessageRow {
   obliterated: boolean;
   urgent: boolean;
   mentionedUserIds: Prisma.JsonValue | null;
+  everMentionedUserIds: Prisma.JsonValue | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -39,13 +40,6 @@ export interface ClaimedAttachmentRow {
   width: number | null;
   height: number | null;
   thumbFileId: string | null;
-}
-
-export interface ReactionRow {
-  messageId: string;
-  emoji: string;
-  userId: string;
-  createdAt: Date;
 }
 
 export interface ThreadCountRow {
@@ -80,6 +74,7 @@ const MESSAGE_COLS = Prisma.sql`
   obliterated,
   urgent,
   mentioned_user_ids AS "mentionedUserIds",
+  COALESCE(ever_mentioned_user_ids, '[]'::jsonb) AS "everMentionedUserIds",
   created_at AS "createdAt",
   updated_at AS "updatedAt"
 `;
@@ -169,12 +164,13 @@ export class MessagesRepository {
   ): Promise<MessageRow | null> {
     const snapshot = input.replySnapshot === null ? null : JSON.stringify(input.replySnapshot);
     const mentioned = JSON.stringify(input.mentionedUserIds);
+    // ever = снапшот отправки (#239): первое упоминание человека в истории.
     const rows = await tx.$queryRaw<MessageRow[]>(Prisma.sql`
       INSERT INTO messages (
         id, conversation_id, seq, author_id, client_message_id, text,
         reply_to_id, reply_snapshot, thread_root_id,
         fwd_conversation_id, fwd_message_id, fwd_author_id, fwd_thread_root_id,
-        urgent, mentioned_user_ids,
+        urgent, mentioned_user_ids, ever_mentioned_user_ids,
         created_at, updated_at
       ) VALUES (
         ${input.id}::uuid, ${input.conversationId}::uuid, ${input.seq}::bigint,
@@ -182,7 +178,7 @@ export class MessagesRepository {
         ${input.replyToId}::uuid, ${snapshot}::jsonb, ${input.threadRootId}::uuid,
         ${input.fwd?.conversationId ?? null}::uuid, ${input.fwd?.messageId ?? null}::uuid,
         ${input.fwd?.authorId ?? null}::uuid, ${input.fwd?.threadRootId ?? null}::uuid,
-        ${input.urgent}, ${mentioned}::jsonb,
+        ${input.urgent}, ${mentioned}::jsonb, ${mentioned}::jsonb,
         ${input.createdAt}::timestamptz, ${input.createdAt}::timestamptz
       )
       ON CONFLICT (author_id, client_message_id) DO NOTHING
@@ -343,11 +339,14 @@ export class MessagesRepository {
     authorId: string,
     text: string,
     mentionedUserIds: string[],
+    /** Накопительное множество (#239): union(ever, новая версия). */
+    everMentionedUserIds: string[],
     tx: TransactionClient,
   ): Promise<MessageRow> {
     const rows = await tx.$queryRaw<MessageRow[]>(Prisma.sql`
       UPDATE messages
       SET text = ${text}, mentioned_user_ids = ${JSON.stringify(mentionedUserIds)}::jsonb,
+          ever_mentioned_user_ids = ${JSON.stringify(everMentionedUserIds)}::jsonb,
           edited_at = now(), updated_at = now()
       WHERE id = ${messageId}::uuid AND conversation_id = ${conversationId}::uuid
         AND author_id = ${authorId}::uuid AND deleted_at IS NULL
@@ -524,47 +523,6 @@ export class MessagesRepository {
       WHERE message_id = ANY(${messageIds}::uuid[])
       ORDER BY sort_order ASC, id ASC
     `);
-  }
-
-  async reactionsFor(messageIds: string[]): Promise<ReactionRow[]> {
-    if (messageIds.length === 0) return [];
-    return this.prisma.$queryRaw<ReactionRow[]>(Prisma.sql`
-      SELECT message_id AS "messageId", emoji, user_id AS "userId",
-             created_at AS "createdAt"
-      FROM message_reactions
-      WHERE message_id = ANY(${messageIds}::uuid[])
-      ORDER BY emoji ASC, created_at ASC, user_id ASC
-    `);
-  }
-
-  /** Поставить свою реакцию (идемпотентно; false — уже стояла). */
-  async addReaction(
-    messageId: string,
-    userId: string,
-    emoji: string,
-    tx: TransactionClient,
-  ): Promise<boolean> {
-    const rows = await tx.$queryRaw<{ id: string }[]>(Prisma.sql`
-      INSERT INTO message_reactions (message_id, user_id, emoji)
-      VALUES (${messageId}::uuid, ${userId}::uuid, ${emoji})
-      ON CONFLICT DO NOTHING
-      RETURNING user_id AS id
-    `);
-    return rows.length > 0;
-  }
-
-  /** Снять свою реакцию (false — не стояла). */
-  async removeReaction(
-    messageId: string,
-    userId: string,
-    emoji: string,
-    tx: TransactionClient,
-  ): Promise<boolean> {
-    const count = await tx.$executeRaw(Prisma.sql`
-      DELETE FROM message_reactions
-      WHERE message_id = ${messageId}::uuid AND user_id = ${userId}::uuid AND emoji = ${emoji}
-    `);
-    return count > 0;
   }
 
   /** Живые ответы тредов (счётчик в DTO; удалённые не считаются). */

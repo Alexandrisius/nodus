@@ -34,6 +34,7 @@ function makeMessage(overrides: Partial<MessageRow> = {}): MessageRow {
     obliterated: false,
     urgent: false,
     mentionedUserIds: null,
+    everMentionedUserIds: null,
     createdAt: now,
     updatedAt: now,
     ...overrides,

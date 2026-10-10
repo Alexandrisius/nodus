@@ -53,6 +53,7 @@ function makeService() {
   };
   const service = new MessageActionsService(
     messages as never,
+    messages as never, // реакции (#239: MessagesReactionsRepository)
     pins as never,
     conversations as never,
     mapper as never,

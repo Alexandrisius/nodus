@@ -25,7 +25,11 @@ import {
   type MemberRow,
 } from '../conversations/conversations.repository.js';
 import { can, parsePermissions } from '../permissions.js';
-import { MessageDtoMapper, readMentionedUserIds } from './message-dto.mapper.js';
+import {
+  MessageDtoMapper,
+  readEverMentionedUserIds,
+  readMentionedUserIds,
+} from './message-dto.mapper.js';
 import { addMentionWatchers, resolveMentionTargets } from './mentions.js';
 import { assertUrgentSendAllowedBy } from './send-urgent.policy.js';
 import {
@@ -438,19 +442,26 @@ export class MessagesService {
         body,
         tx,
       );
-      // Прежнее множество упоминаний — ДО правки: дифф для уведомлений #239
-      // (новые упомянутые получают chat.mention, прежние не дёргаются).
-      const previousMentioned = readMentionedUserIds(message);
+      // Накопительное множество упомянутых ДО правки (#239): дифф-уведомления
+      // пингуют только при ПЕРВОМ упоминании человека в истории сообщения —
+      // «убрали упоминание (правка N), вернули (правка N+1)» повторно НЕ
+      // дёргается (критерий приёмки #239; снапшот предыдущей версии тут
+      // недостаточен — возврат выглядел бы новым упоминанием).
+      const previousMentioned = readEverMentionedUserIds(message);
       let updated = message;
       if (message.text !== body.text || attachmentsChanged.changed) {
         // Витрина #211: смена текста — замена строк ссылок, состав — Δ видов.
+        const nextMentioned =
+          message.text !== body.text ? mentionMatches : readMentionedUserIds(message);
+        const everMentioned = Array.from(new Set([...previousMentioned, ...nextMentioned]));
         await this.vault.applyMessageEdited(tx, message, body, attachmentsChanged);
         updated = await this.repo.updateEditText(
           conversationId,
           messageId,
           userId,
           body.text,
-          message.text !== body.text ? mentionMatches : readMentionedUserIds(message),
+          nextMentioned,
+          everMentioned,
           tx,
         );
         // Новые упомянутые — наблюдатели трэда (#176), как отправка.
@@ -466,9 +477,8 @@ export class MessagesService {
         // readAt сбрасывается выводно (editedAt > last_read_at читателей) —
         // «повторный пуш прочитавшим» (решение #41); состав вложений в
         // событии не разносится — подписчики дочитывают через API.
-        // Дифф упоминаний (#239): новые минус прежние → chat.mention (high)
-        // в notifications; текст не менялся — множество прежнее (дифф пуст).
-        const nextMentioned = message.text !== body.text ? mentionMatches : previousMentioned;
+        // Дифф упоминаний (#239): новые минус КОГДА-ЛИБО упомянутые →
+        // chat.mention (high) в notifications; повторные — тишина.
         await this.eventBus.emit(
           tx,
           CHAT_EVENTS.MESSAGE_EDITED,

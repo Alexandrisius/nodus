@@ -394,9 +394,13 @@ model Message {
   /// до часа (аналитика прочтений — watermark/readBy); действий получателя
   /// не требует (ack-механика выпилена решением владельца 05.10).
   urgent       Boolean   @default(false)
-  /// userId упомянутых @Имя — снапшот МОМЕНТА ОТПРАВКИ (#100, канон
-  /// Discord/Zulip): правка текста упоминания не добавляет/убирает.
+  /// userId упомянутых @Имя — снапшот текущей версии (#100, канон
+  /// Discord/Zulip; правка пересчитывает, #176).
   mentionedUserIds Json?  @map("mentioned_user_ids")
+  /// Накопительное множество упомянутых за ВСЮ историю сообщения (#239):
+  /// дифф-уведомления правок пингуют только при ПЕРВОМ упоминании человека
+  /// (вердикт владельца: «убрали-вернули того же — не дёргается»).
+  everMentionedUserIds Json? @map("ever_mentioned_user_ids")
   createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
 

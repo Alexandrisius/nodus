@@ -132,6 +132,7 @@ function stubMapper(originals: MessageRow[] = []): MessageDtoMapper {
   };
   return new MessageDtoMapper(
     messages as never,
+    messages as never, // реакции: тот же мок (метод reactionsFor)
     pins as never,
     profiles as never,
     new SignedUrlService({ STORAGE_URL_SECRET: 'test-secret-32-chars-aaaaaaaaaaaa' }),
@@ -159,6 +160,7 @@ function fullRow(overrides: Partial<MessageRow> = {}): MessageRow {
     obliterated: false,
     urgent: false,
     mentionedUserIds: null,
+    everMentionedUserIds: null,
     createdAt: T0,
     updatedAt: T0,
     ...overrides,
