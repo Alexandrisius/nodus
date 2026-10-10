@@ -105,9 +105,13 @@ export const ThreadPane = memo(function ThreadPane({
   const watch = useWatchThread(conversationId);
   const typingLabel = useThreadTyping(conversationId, threadRootId);
 
-  const items = data?.items ?? [];
+  const rawItems = data?.items;
+  const items = useMemo(() => rawItems ?? [], [rawItems]);
   const root = items.find((m) => m.id === threadRootId);
-  const replies = items.filter((m) => m.id !== threadRootId);
+  const replies = useMemo(
+    () => items.filter((m) => m.id !== threadRootId),
+    [items, threadRootId],
+  );
   const runs = useMemo(() => buildMessageRuns(replies, me?.id), [replies, me?.id]);
   const rootMine = root ? root.author.id === me?.id : false;
   const selection = useFeedSelection(scope, items, me?.id);

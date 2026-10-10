@@ -38,7 +38,8 @@ export const TaskDiscussion = memo(function TaskDiscussion({ taskId }: { taskId:
   const send = useSendTaskMessage(taskId);
   const me = useAuthStore((s) => s.user);
 
-  const items = data?.items ?? [];
+  const rawItems = data?.items;
+  const items = useMemo(() => rawItems ?? [], [rawItems]);
   const runs = useMemo(() => buildMessageRuns(items, me?.id), [items, me?.id]);
 
   return (

@@ -90,7 +90,8 @@ export const ThreadFeed = memo(function ThreadFeed({
   const align = useChatPrefs((s) => s.align);
   const viewportRef = useRef<HTMLDivElement>(null);
 
-  const items = data?.items ?? [];
+  const rawItems = data?.items;
+  const items = useMemo(() => rawItems ?? [], [rawItems]);
   const roots = useMemo(
     () => items.filter((m) => m.threadRootId === null && m.replyToId === null),
     [items],

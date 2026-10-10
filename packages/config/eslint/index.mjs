@@ -2,6 +2,7 @@ import js from '@eslint/js';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
 import boundaries from 'eslint-plugin-boundaries';
+import reactHooks from 'eslint-plugin-react-hooks';
 import eslintConfigPrettier from 'eslint-config-prettier';
 import { nodusInternal } from './nodus-internal.mjs';
 
@@ -105,6 +106,27 @@ const fileSizeConfig = {
   },
 };
 
+/** Rules of Hooks (#168): условный вызов хука прошёл все гейты и ловился
+ *  только ручным аудитом (урок PR #167/#164 — React 19 падает в рантайме
+ *  «Expected static flag was missing»). Только два классических правила:
+ *  пресеты плагина v7 («recommended*») тянут React-Compiler-набор
+ *  (purity/immutability/…) — отдельное решение, не этого issue. */
+const reactHooksConfig = {
+  files: [
+    'apps/web/**/*.ts',
+    'apps/web/**/*.tsx',
+    'packages/ui/**/*.ts',
+    'packages/ui/**/*.tsx',
+    'apps/desktop/**/*.ts',
+    'apps/desktop/**/*.tsx',
+  ],
+  plugins: { 'react-hooks': reactHooks },
+  rules: {
+    'react-hooks/rules-of-hooks': 'error',
+    'react-hooks/exhaustive-deps': 'warn',
+  },
+};
+
 /**
  * Единый flat-config монорепо. Корень добавляет к нему только ignores;
  * tests/lint/fixtures использует как есть (паттерны boundaries cwd-относительны).
@@ -119,5 +141,6 @@ export const nodusConfig = tseslint.config(
   },
   boundariesConfig,
   fileSizeConfig,
+  reactHooksConfig,
   eslintConfigPrettier,
 );

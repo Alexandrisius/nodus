@@ -77,7 +77,9 @@ export function usePauseEscalation(): void {
     let timer: ReturnType<typeof setTimeout> | null = null;
     const arm = () => {
       if (timer) clearTimeout(timer);
-      timer = setTimeout(fireWave, IDLE_TRIGGER_MS);
+      // fireRef — свежий колбэк каждого рендера (канон эффекта смены раздела
+      // выше): таймер стреляет текущей волной, а не колбэшем первого рендера.
+      timer = setTimeout(() => fireRef.current(), IDLE_TRIGGER_MS);
     };
     for (const event of ACTIVITY_EVENTS) {
       window.addEventListener(event, arm, { passive: true });
