@@ -120,7 +120,6 @@ describe('MessagesService.send: стикер (#143)', () => {
       { findRefs: vi.fn(), findMentionMatches: vi.fn().mockResolvedValue([]) } as never,
       { upsert: vi.fn(), advanceReadCursor: vi.fn(), states: vi.fn() } as never,
       stickersRepo as never,
-      { deleteByMessage: vi.fn().mockResolvedValue([]) } as never,
       {
         applyMessageSent: vi.fn(async () => {}),
         applyMessageEdited: vi.fn(async () => {}),

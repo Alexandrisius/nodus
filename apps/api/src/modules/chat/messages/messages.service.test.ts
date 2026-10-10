@@ -69,11 +69,6 @@ describe('MessagesService', () => {
     countThreadReplies: vi.fn(),
     attachmentsFor: vi.fn(),
     updateEditText: vi.fn(),
-    tombstone: vi.fn(),
-    hasLiveReplies: vi.fn(),
-    obliterateTombstone: vi.fn(),
-    deletePinByMessage: vi.fn(),
-    markRepliesDeleted: vi.fn(),
     advanceReadCursor: vi.fn(),
     countUrgentSentSince: vi.fn(),
   };
@@ -84,7 +79,6 @@ describe('MessagesService', () => {
   const conversations = {
     findMembership: vi.fn(),
     findTypeAndPermissions: vi.fn(),
-    isNotesConversation: vi.fn(),
     findLastSeq: vi.fn(),
     listMembers: vi.fn(),
     clearDraft: vi.fn(),
@@ -105,7 +99,6 @@ describe('MessagesService', () => {
     findPackAccessible: vi.fn(),
     insertAttachmentForMessage: vi.fn(),
   };
-  const favoritesRepo = { deleteByMessage: vi.fn() };
   const txRunner = { run: vi.fn((cb: (tx: string) => unknown) => cb(TX)) };
   const eventBus = { emit: vi.fn() };
   const userProfiles = {
@@ -125,17 +118,12 @@ describe('MessagesService', () => {
     });
     conversations.listMembers.mockResolvedValue([]);
     conversations.countMembers.mockResolvedValue(5);
-    conversations.isNotesConversation.mockResolvedValue(false);
-    favoritesRepo.deleteByMessage.mockResolvedValue([]);
     repo.countUrgentSentSince.mockResolvedValue(0);
     repo.findExisting.mockResolvedValue(null);
     mapper.toFreshDto.mockResolvedValue(FRESH_DTO);
     repo.findByIdInConversation.mockResolvedValue(null);
     repo.allocateSeqs.mockResolvedValue(7n);
     repo.insertMessage.mockResolvedValue(makeMessage({ id: 'msg-new', seq: 7n }));
-    repo.tombstone.mockImplementation(async (_c: string, id: string, obliterated: boolean) =>
-      makeMessage({ id, obliterated, deletedAt: new Date('2026-09-24T14:00:00Z') }),
-    );
     service = new MessagesService(
       repo as never,
       attachmentsRepo as never,
@@ -146,7 +134,6 @@ describe('MessagesService', () => {
       userProfiles as never,
       threadParticipants as never,
       stickersRepo as never,
-      favoritesRepo as never,
       {
         applyMessageSent: vi.fn(async () => {}),
         applyMessageEdited: vi.fn(async () => {}),
@@ -350,173 +337,6 @@ describe('MessagesService', () => {
         },
         expect.objectContaining({ actorId: ME, aggregateType: 'conversation', aggregateId: CONV }),
       );
-    });
-  });
-
-  describe('delete', () => {
-    it('живых ответов нет — бесследно, даже если прочитали (#163: прочтения не решают)', async () => {
-      repo.findByIdInConversation.mockResolvedValue(makeMessage({ seq: 3n }));
-      repo.hasLiveReplies.mockResolvedValue(false);
-      conversations.listMembers.mockResolvedValue([
-        makeMember({ userId: ME }),
-        makeMember({ lastReadSeq: 3n }),
-      ]);
-
-      const result = await service.delete(ME, CONV, 'msg-1');
-
-      expect(repo.hasLiveReplies).toHaveBeenCalledWith(CONV, 'msg-1', TX);
-      expect(result.obliterated).toBe(true);
-      expect(repo.tombstone).toHaveBeenCalledWith(CONV, 'msg-1', true, TX);
-      expect(repo.deletePinByMessage).toHaveBeenCalledWith('msg-1', TX);
-      expect(repo.markRepliesDeleted).toHaveBeenCalledWith('msg-1', TX);
-      expect(eventBus.emit).toHaveBeenCalledWith(
-        TX,
-        CHAT_EVENTS.MESSAGE_DELETED,
-        { conversationId: CONV, messageId: 'msg-1', obliterated: true },
-        expect.anything(),
-      );
-    });
-
-    it('есть живой ответ → надгробие, даже если никто не читал', async () => {
-      repo.findByIdInConversation.mockResolvedValue(makeMessage({ seq: 3n }));
-      repo.hasLiveReplies.mockResolvedValue(true);
-      conversations.listMembers.mockResolvedValue([
-        makeMember({ userId: ME }),
-        makeMember({ lastReadSeq: 0n }),
-      ]);
-
-      const result = await service.delete(ME, CONV, 'msg-1');
-
-      expect(result.obliterated).toBe(false);
-      expect(repo.tombstone).toHaveBeenCalledWith(CONV, 'msg-1', false, TX);
-      expect(repo.deletePinByMessage).toHaveBeenCalledWith('msg-1', TX);
-      expect(repo.markRepliesDeleted).toHaveBeenCalledWith('msg-1', TX);
-    });
-
-    it('«Избранное» (#215): беседа с собой — бесследно ВСЕГДА, даже при живых ответах', async () => {
-      repo.findByIdInConversation.mockResolvedValue(makeMessage({ seq: 3n }));
-      repo.hasLiveReplies.mockResolvedValue(true);
-      conversations.isNotesConversation.mockResolvedValue(true);
-
-      const result = await service.delete(ME, CONV, 'msg-1');
-
-      expect(result.obliterated).toBe(true);
-      expect(repo.tombstone).toHaveBeenCalledWith(CONV, 'msg-1', true, TX);
-    });
-
-    it('выродившаяся группа с 1 участником-автором — гвард НЕ действует: надгробие по #163 (security-ревью #215)', async () => {
-      repo.findByIdInConversation.mockResolvedValue(makeMessage({ seq: 3n }));
-      repo.hasLiveReplies.mockResolvedValue(true);
-      conversations.isNotesConversation.mockResolvedValue(false); // не direct-with-self
-      conversations.listMembers.mockResolvedValue([makeMember({ userId: ME })]);
-
-      const result = await service.delete(ME, CONV, 'msg-1');
-
-      expect(result.obliterated).toBe(false);
-      expect(repo.tombstone).toHaveBeenCalledWith(CONV, 'msg-1', false, TX);
-    });
-
-    it('каскад закладок (#215): удаление оригинала гасит строки избранного у всех владельцев + событие каждому', async () => {
-      repo.findByIdInConversation.mockResolvedValue(makeMessage({ seq: 3n }));
-      repo.hasLiveReplies.mockResolvedValue(false);
-      conversations.listMembers.mockResolvedValue([
-        makeMember({ userId: ME }),
-        makeMember({ lastReadSeq: 3n }),
-      ]);
-      favoritesRepo.deleteByMessage.mockResolvedValue(['u-1', 'u-2']);
-
-      await service.delete(ME, CONV, 'msg-1');
-
-      expect(favoritesRepo.deleteByMessage).toHaveBeenCalledWith('msg-1', TX);
-      expect(eventBus.emit).toHaveBeenCalledWith(
-        TX,
-        CHAT_EVENTS.FAVORITE_REMOVED,
-        { userId: 'u-1', conversationId: CONV, messageId: 'msg-1' },
-        expect.anything(),
-      );
-      expect(eventBus.emit).toHaveBeenCalledWith(
-        TX,
-        CHAT_EVENTS.FAVORITE_REMOVED,
-        { userId: 'u-2', conversationId: CONV, messageId: 'msg-1' },
-        expect.anything(),
-      );
-    });
-
-    it('каскад: удаление ответа коллапсирует надгробие-родителя без живых ответов + своё событие', async () => {
-      const source = makeMessage({ id: 'msg-reply', replyToId: 'msg-parent' });
-      repo.findByIdInConversation.mockResolvedValue(source);
-      repo.hasLiveReplies.mockResolvedValue(false);
-      // UPDATE RETURNING сохраняет все колонки строки (в т.ч. replyToId)
-      repo.tombstone.mockImplementation(async (_c: string, id: string, obliterated: boolean) =>
-        makeMessage({ ...source, id, obliterated, deletedAt: new Date() }),
-      );
-      repo.obliterateTombstone.mockResolvedValue(true);
-
-      await service.delete(ME, CONV, 'msg-reply');
-
-      expect(repo.obliterateTombstone).toHaveBeenCalledWith(CONV, 'msg-parent', TX);
-      expect(eventBus.emit).toHaveBeenCalledWith(
-        TX,
-        CHAT_EVENTS.MESSAGE_DELETED,
-        { conversationId: CONV, messageId: 'msg-parent', obliterated: true },
-        expect.anything(),
-      );
-    });
-
-    it('каскад: живой родитель или второй якорь — коллапса и лишних событий нет', async () => {
-      const source = makeMessage({
-        id: 'msg-reply',
-        replyToId: 'msg-parent',
-        threadRootId: 'root-1',
-      });
-      repo.findByIdInConversation.mockResolvedValue(source);
-      repo.hasLiveReplies.mockResolvedValue(false);
-      repo.tombstone.mockImplementation(async (_c: string, id: string, obliterated: boolean) =>
-        makeMessage({ ...source, id, obliterated, deletedAt: new Date() }),
-      );
-      repo.obliterateTombstone.mockResolvedValue(false);
-
-      await service.delete(ME, CONV, 'msg-reply');
-
-      expect(repo.obliterateTombstone).toHaveBeenCalledTimes(2);
-      expect(repo.obliterateTombstone).toHaveBeenCalledWith(CONV, 'msg-parent', TX);
-      expect(repo.obliterateTombstone).toHaveBeenCalledWith(CONV, 'root-1', TX);
-      expect(eventBus.emit).toHaveBeenCalledTimes(1);
-    });
-  });
-
-  describe('batchDelete', () => {
-    it('чужие/несуществующие/удалённые — молча; {removed, tombstones} по правилу ответов (#163)', async () => {
-      const byId: Record<string, MessageRow | null> = {
-        'own-no-replies': makeMessage({ id: 'own-no-replies', seq: 10n }),
-        foreign: makeMessage({ id: 'foreign', authorId: PEER, seq: 11n }),
-        ghost: null,
-        'own-deleted': makeMessage({ id: 'own-deleted', seq: 12n, deletedAt: new Date() }),
-        'own-answered': makeMessage({ id: 'own-answered', seq: 2n }),
-      };
-      repo.findByIdInConversation.mockImplementation(
-        async (_c: string, id: string) => byId[id] ?? null,
-      );
-      repo.hasLiveReplies.mockImplementation(
-        async (_c: string, id: string) => id === 'own-answered',
-      );
-
-      const result = await service.batchDelete(ME, CONV, [
-        'own-no-replies',
-        'foreign',
-        'ghost',
-        'own-deleted',
-        'own-answered',
-      ]);
-
-      expect(result.removed).toEqual(['own-no-replies']);
-      expect(result.tombstones).toHaveLength(1);
-      expect(result.tombstones[0]?.message.id).toBe('own-answered');
-      expect(repo.tombstone).toHaveBeenCalledTimes(2);
-      expect(repo.tombstone).toHaveBeenCalledWith(CONV, 'own-no-replies', true, TX);
-      expect(repo.tombstone).toHaveBeenCalledWith(CONV, 'own-answered', false, TX);
-      expect(repo.deletePinByMessage).toHaveBeenCalledTimes(2);
-      expect(repo.markRepliesDeleted).toHaveBeenCalledTimes(2);
     });
   });
 

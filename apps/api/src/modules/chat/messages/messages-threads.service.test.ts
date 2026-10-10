@@ -130,7 +130,6 @@ describe('MessagesService: трэды раунда 3', () => {
       userProfiles as never,
       threadParticipants as never,
       stickersRepo as never,
-      { deleteByMessage: vi.fn().mockResolvedValue([]) } as never,
       {
         applyMessageSent: vi.fn(async () => {}),
         applyMessageEdited: vi.fn(async () => {}),

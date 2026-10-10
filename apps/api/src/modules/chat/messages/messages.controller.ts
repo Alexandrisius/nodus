@@ -32,6 +32,7 @@ import {
   sendMessageBodySchema,
   type BatchDeleteMessagesBody,
   type BatchDeleteMessagesResult,
+  type AuthUser,
   type ChatMessage,
   type EditMessageBody,
   type ListMessagesQuery,
@@ -46,6 +47,7 @@ import { ApiErrors } from '../../../core/openapi/api-errors.decorator.js';
 import { ApiIdempotencyKey } from '../../../core/openapi/api-idempotency.decorator.js';
 import { ZodValidationPipe } from '../../../core/pipes/zod-validation.pipe.js';
 import { MessageDtoMapper } from './message-dto.mapper.js';
+import { MessagesDeleteService } from './messages-delete.service.js';
 import { MessagesService } from './messages.service.js';
 
 const uuidSchema = z.uuid();
@@ -63,6 +65,7 @@ const uuidSchema = z.uuid();
 export class MessagesController {
   constructor(
     private readonly messages: MessagesService,
+    private readonly deletes: MessagesDeleteService,
     private readonly mapper: MessageDtoMapper,
   ) {}
 
@@ -132,19 +135,20 @@ export class MessagesController {
   @Delete(':messageId')
   @Audit({ action: 'chat.message_delete', entity: 'message' })
   @ApiOperation({
-    summary: 'Удаление: есть живые ответы — 200 надгробие; иначе — 204 бесследно',
+    summary:
+      'Удаление (#163): живые ответы — 200 надгробие, иначе — 204 бесследно; чужое — админ беседы/модератор портала в группах и каналах (#245)',
   })
   @ApiNoContentResponse({ description: 'Удалено бесследно' })
   @ApiOkResponse({ standardSchema: messageSchema, description: 'Надгробие' })
   @ApiErrors(400, 401, 403, 404)
   @ApiIdempotencyKey()
   async delete(
-    @GetUser() user: { id: string },
+    @GetUser() user: AuthUser,
     @Param('id', new ZodValidationPipe(uuidSchema)) conversationId: string,
     @Param('messageId', new ZodValidationPipe(uuidSchema)) messageId: string,
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<ChatMessage | void> {
-    const result = await this.messages.delete(user.id, conversationId, messageId);
+    const result = await this.deletes.delete(user.id, conversationId, messageId, user.permissions);
     if (result.obliterated) {
       void reply.status(204);
       return;
@@ -160,13 +164,13 @@ export class MessagesController {
   @Audit({ action: 'chat.message_batch_delete', entity: 'message' })
   @ApiOperation({
     summary:
-      'Пакетное удаление своих: правило «по ответам» на каждое (чужие/удалённые пропускаются)',
+      'Пакетное удаление: правило «по ответам» на каждое (чужие без права модерации и удалённые пропускаются, #245)',
   })
   @ApiOkResponse({ standardSchema: batchDeleteMessagesResultSchema })
   @ApiErrors(400, 401, 403, 404)
   @ApiIdempotencyKey()
   async batchDelete(
-    @GetUser() user: { id: string },
+    @GetUser() user: AuthUser,
     @Param('id', new ZodValidationPipe(uuidSchema)) conversationId: string,
     @Body({
       schema: batchDeleteMessagesBodySchema,
@@ -174,7 +178,12 @@ export class MessagesController {
     })
     dto: BatchDeleteMessagesBody,
   ): Promise<BatchDeleteMessagesResult> {
-    const result = await this.messages.batchDelete(user.id, conversationId, dto.messageIds);
+    const result = await this.deletes.batchDelete(
+      user.id,
+      conversationId,
+      dto.messageIds,
+      user.permissions,
+    );
     const tombstones = await Promise.all(
       result.tombstones.map(({ message, members }) =>
         this.mapper.toDto(message, { viewerId: user.id, members }),

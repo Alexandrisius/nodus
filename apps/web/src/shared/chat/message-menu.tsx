@@ -39,6 +39,7 @@ import { useDeleteDialog, useForwardDialog, useUnpinDialog } from './dialog-stor
 import { useAddFavorites, useFavoriteIds, useRemoveFavorite } from './favorites-api.js';
 import { usePinToggle } from './message-mutations.js';
 import { useSelectionStore } from './selection-store.js';
+import { useCanModerateMessages } from './use-can-moderate.js';
 import { copyMessagesAsText } from './use-selection-keys.js';
 
 /**
@@ -114,6 +115,7 @@ export function MessageMenu({
   const favoriteIds = useFavoriteIds();
   const addFavorites = useAddFavorites();
   const removeFavorite = useRemoveFavorite();
+  const canModerate = useCanModerateMessages(conversationId);
   const selectionActive = useSelectionStore((s) => s.scope === scope && s.ids.length > 0);
   const selectedIds = useSelectionStore((s) => (s.scope === scope ? s.ids : EMPTY_IDS));
   const [fragment, setFragment] = useState<string | null>(null);
@@ -353,6 +355,8 @@ export function MessageMenu({
     // принадлежит оригинальному автору — правка позволила бы исказить чужие
     // слова (модель Telegram: только удаление). Стикер (#143): править и
     // копировать нечего (текст пуст) — оба пункта скрываются.
+    // «Удалить» на чужом — право модерации (#245): админ/владелец беседы или
+    // модератор портала (группы/каналы; серверная проверка та же, I8).
     const isSticker = message.attachments.some((a) => a.kind === 'sticker');
     const editable = mine && !message.forwardedFrom && !isSticker;
     return {
@@ -360,7 +364,8 @@ export function MessageMenu({
         if (item.id === 'edit') return editable;
         if (item.id === 'copy') return !isSticker;
         if (item.id === 'favorite') return !hideFavorite;
-        return !MINE_ONLY.has(item.id) || mine;
+        if (item.id === 'delete') return mine || canModerate;
+        return true;
       }),
       // «Кто просмотрел» — подменю (раунд 4): только свои живые сообщения с
       // непустым readBy (просмотры видит автор; пустой список показывать
@@ -484,4 +489,3 @@ function ViewersSubmenu({ viewers }: { viewers: readonly UserRef[] }) {
 }
 
 const EMPTY_IDS: string[] = [];
-const MINE_ONLY = new Set(['edit', 'delete']);
