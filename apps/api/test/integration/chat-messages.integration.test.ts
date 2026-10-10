@@ -435,6 +435,11 @@ describe.skipIf(!process.env.DATABASE_URL)('chat: сообщения (integratio
       authorId: alice.id,
       text: 'событийное (правка)',
       seq: Number(message.seq),
+      // #239: дифф-множества упоминаний правки (текст без тэгов — пустые).
+      mentionedUserIds: [],
+      previousMentionedUserIds: [],
+      previousMentionedAll: false,
+      directMentionedUserIds: [],
     });
 
     // Квитанция просмотров (GET курсор больше не двигает, #102 р.2) → событие
