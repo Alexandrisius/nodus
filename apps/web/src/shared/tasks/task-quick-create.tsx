@@ -120,7 +120,10 @@ export function TaskQuickCreate({
         }}
       >
         <DialogTitle className="sr-only">{ui.tasks.createTask}</DialogTitle>
-        <form onSubmit={submit} className="relative flex max-h-[80vh] flex-col">
+        {/* min-w-0 на grid-элементе (#277, ловушка field-sizing+grid): form —
+            прямой grid-ребёнок DialogContent, без него min-content Textarea
+            распирает окно; скролл-зонт внутри (overflow-y-auto) спасается сам. */}
+        <form onSubmit={submit} className="relative flex max-h-[80vh] min-w-0 flex-col">
           <div className="flex flex-col gap-3 overflow-y-auto p-4 pb-3">
             {/* Крестик — ВНЕ поля названия (вердикт владельца 15.09.2026,
                 реф Битрикс24: X в углу диалога, не «очистка textbox»):

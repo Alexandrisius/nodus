@@ -120,7 +120,9 @@ export function LetterComposeDialog({
         <DialogTitle className="text-base font-semibold text-foreground">
           {replyTo ? `${ui.letters.reply}: ${replyTo.subject}` : ui.letters.composeTitle}
         </DialogTitle>
-        <div className="mt-2 flex flex-col gap-3">
+        {/* min-w-0 на grid-элементе (#277, ловушка field-sizing+grid; min-w-0
+            на label Field'а не спасал — авто-минимум считает сам grid-ребёнок). */}
+        <div className="mt-2 flex min-w-0 flex-col gap-3">
           <div className="grid grid-cols-2 gap-3">
             <Field label={ui.letters.composeFrom}>
               <div className="flex h-8 items-center truncate rounded-md border border-border bg-muted/40 px-2.5 font-mono text-label-sm text-muted-foreground">
