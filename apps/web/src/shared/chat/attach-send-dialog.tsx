@@ -454,8 +454,12 @@ export function AttachSendDialogHost() {
         {/* @упоминания подписи (#239): та же машинерия, что в композере —
             в поле ВИДИМЫЙ текст (имена без разметки), зеркальный оверлей
             подчёркивает чипы, панель автокомплита всплывает над полем.
-            Метрика зеркала = поле (px-1.5 py-1.5, канон композера #228). */}
-        <span className="relative block">
+            Метрика зеркала = поле (px-1.5 py-1.5, канон композера #228).
+            min-w-0 (#277, канон обёртки композера): без него grid-элемент
+            сетки окна получает авто-минимум = min-content поля, а поле с
+            field-sizing-content в min-content = вся набранная строка —
+            длинная подпись растягивала окно и футер за границы. */}
+        <span className="relative block min-w-0">
           {mentions.open ? (
             <MentionAutocompletePanel
               candidates={mentions.autocomplete.candidates}
@@ -518,7 +522,10 @@ export function AttachSendDialogHost() {
                (вердикты 29.09.2026: и подсветка, и голое поле без рамки — нет).
                Текст прозрачен — видно зеркало оверлея с чипами (#239);
                паддинги = метрике зеркала (px-1.5 py-1.5, канон композера). */
-            className="min-h-16 resize-none border-input bg-transparent px-1.5 py-1.5 text-transparent caret-foreground shadow-none focus-visible:border-input focus-visible:ring-0 dark:bg-transparent"
+            /* max-h-[45vh] — канон композера 15.09 (#277): field-sizing-рост
+               поля по вертикали ограничен высотой зоны (габарит окна не прыгает,
+               §39), дальше скролл внутри поля (оверлей синхронит scrollTop). */
+            className="min-h-16 max-h-[45vh] resize-none border-input bg-transparent px-1.5 py-1.5 text-transparent caret-foreground shadow-none focus-visible:border-input focus-visible:ring-0 dark:bg-transparent"
           />
         </span>
         {limit.counter ? (
