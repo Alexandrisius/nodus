@@ -62,10 +62,16 @@ function SingleEmoji({ emoji }: { emoji: string }) {
 }
 
 /** Inline-поток: текстовые куски (с автолинком ссылок) и чипы упоминаний
- *  вперемешку (entity-URI уже вырезаны — их заменяют карточки ниже). */
+ *  вперемешку (entity-URI уже вырезаны — их заменяют карточки ниже).
+ *  wrap-anywhere, не break-words (#277): пузырь `w-fit` + `overflow-hidden`,
+ *  а авто-минимум flex-элемента = min-content текста; MDN overflow-wrap: у
+ *  `break-word` точки аварийного переноса НЕ учитываются в min-content —
+ *  сплошная строка без пробелов растягивала слой до своей ширины, и клип
+ *  пузыря её обрезал; `anywhere` учитывает — слово рвётся по границе пузыря.
+ *  Ссылки этого же файла живут на wrap-anywhere с #212 (та же механика). */
 function InlineContent({ segments }: { segments: MentionSegment[] }) {
   return (
-    <span className="whitespace-pre-wrap break-words leading-tight">
+    <span className="whitespace-pre-wrap wrap-anywhere leading-tight">
       {segments.map((segment, i) =>
         segment.kind === 'mention' ? (
           <MentionChip key={i} id={segment.id} label={segment.label} />
