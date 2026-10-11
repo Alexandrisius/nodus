@@ -256,7 +256,10 @@ export function ChatCreateDialog({
             {kind === 'group' ? ui.chat.createGroupChat : ui.chat.createChannel}
           </DialogTitle>
         </DialogHeader>
-        <div className="flex flex-col gap-4">
+        {/* min-w-0 (#277, ловушка field-sizing+grid): без него прямые grid-дети
+            DialogContent получают авто-минимум = min-content Textarea, и
+            длинная однострочная подпись/описание распирает окно. */}
+        <div className="flex min-w-0 flex-col gap-4">
           <div className="flex items-center gap-3">
             {/* Аватарка группы/канала (#186): выбор файла сразу (превью в
                 кнопке, «×» сбрасывает), загрузка после создания беседы;

@@ -82,7 +82,8 @@ export function ResolutionComposer({
         <DialogTitle className="text-base font-semibold text-foreground">
           {ui.letters.resolutionTitle}
         </DialogTitle>
-        <div className="mt-2 flex flex-col gap-4">
+        {/* min-w-0 на grid-элементе (#277, ловушка field-sizing+grid). */}
+        <div className="mt-2 flex min-w-0 flex-col gap-4">
           <label className="flex flex-col gap-1.5">
             <span className="text-xs font-medium text-muted-foreground">
               {ui.letters.resolutionText}
