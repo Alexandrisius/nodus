@@ -100,7 +100,7 @@ export function AttachmentCard({
             (`mediaBubbleWidth`, CARD_LIST_W ~48ch имени) — truncate
             достраивает остаток. */}
         <AttachmentTitle title={attachment.name}>{attachment.name}</AttachmentTitle>
-        <AttachmentDescription className={surface.stripText}>
+        <AttachmentDescription className={`tabular-nums ${surface.stripText}`}>
           {formatBytes(attachment.size)}
         </AttachmentDescription>
       </AttachmentContent>

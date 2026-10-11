@@ -180,7 +180,8 @@ function ConversationFeed({
 
   // Поиск беседы — правая панель (лупа в шапке, модель Битрикс24): лента
   // не фильтруется, выдача и прыжки — в панели (#171 ревизия 04.10, раунд 3).
-  const items = data?.items ?? [];
+  const rawItems = data?.items;
+  const items = useMemo(() => rawItems ?? [], [rawItems]);
   const runs = useMemo(() => buildMessageRuns(items, me?.id), [items, me?.id]);
   const selection = useFeedSelection(scope, items, me?.id);
   // Viewport ленты — цель прыжка (scroll-jump): «видно/не видно» и скролл

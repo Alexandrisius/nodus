@@ -37,7 +37,7 @@ export function DownloadCard({
         </div>
         <p className="text-sm font-medium text-foreground">{title}</p>
         <p className="text-[13px] leading-relaxed text-muted-foreground">{hint}</p>
-        <p className="text-[13px] text-muted-foreground">
+        <p className="text-[13px] text-muted-foreground tabular-nums">
           {name} · {formatBytes(size)}
         </p>
         {url ? (

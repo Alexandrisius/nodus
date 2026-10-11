@@ -24,12 +24,10 @@ import { startMessageEdit, toEditVars } from './message-edit.js';
 import { FeedDropzone } from './feed-dropzone.js';
 import { FeedScrollerButton } from './feed-scroller-button.js';
 import { useEditMessage } from './message-mutations.js';
-import { MessageMenu } from './message-menu.js';
-import { MessageRow } from './message-row.js';
 import { buildMessageRuns, formatDayLabel, startsNewDay } from './message-groups.js';
 import { DayChip } from './day-chip.js';
 import { MessageRunView } from './message-run.js';
-import { PostCard } from './post-card.js';
+import { FeedPostRow } from './feed-post-row.js';
 import { PinBar } from './pin-bar.js';
 import { ScrollEndResponder } from './scroll-end-responder.js';
 import { useIncomingFollow } from './use-incoming-follow.js';
@@ -39,9 +37,6 @@ import { selectionComposerProps, useFeedSelection } from './use-feed-selection.j
 import { useBoxSelection } from './use-box-selection.js';
 import { useConversations, useThreadStates } from './api.js';
 import { canPostFeed } from './conversations.js';
-// >300 строк — обоснование (I5): лента постов канала — пагинация, селект-режим
-// и хост-обвязка общего скролл-стека в одном компоненте; анатомия поста вынесена
-// в post-card.tsx (карточка+надгробие), деление размывало бы поток ленты (#96).
 
 /**
  * Лента канала (вердикт владельца 2026-09-10): каждое сообщение канала —
@@ -95,7 +90,8 @@ export const ThreadFeed = memo(function ThreadFeed({
   const align = useChatPrefs((s) => s.align);
   const viewportRef = useRef<HTMLDivElement>(null);
 
-  const items = data?.items ?? [];
+  const rawItems = data?.items;
+  const items = useMemo(() => rawItems ?? [], [rawItems]);
   const roots = useMemo(
     () => items.filter((m) => m.threadRootId === null && m.replyToId === null),
     [items],
@@ -250,77 +246,24 @@ export const ThreadFeed = memo(function ThreadFeed({
                             run={run}
                             showName={false}
                             spacing="feed"
-                            renderItem={(message, attrs) => {
-                              // Полоса поста — ДАННЫЕ ЭТОГО поста (треда):
-                              // счётчик, участники, точка «есть новые» — per-message.
-                              const replies = repliesByRoot.get(message.id) ?? [];
-                              const repliesCount = message.threadRepliesCount || replies.length;
-                              const participants = [
-                                ...new Map(replies.map((r) => [r.author.id, r.author])).values(),
-                              ];
-                              const last = replies[replies.length - 1];
-                              const threadUnread = Boolean(
-                                threadStates?.get(message.id)?.unreadCount,
-                              );
-                              return (
-                                <MessageScrollerItem messageId={message.id} style={attrs.style}>
-                                  <div
-                                    className={cn(
-                                      'flex w-full min-w-0',
-                                      atEnd ? 'justify-end' : 'justify-start',
-                                    )}
-                                  >
-                                    <MessageRow
-                                      messageId={message.id}
-                                      selectionKey={message.clientMessageId}
-                                      selectable={selection.selectionActive && !message.deletedAt}
-                                      selected={selection.selectedSet.has(message.clientMessageId)}
-                                      onToggle={(shift) =>
-                                        selection.toggle(message.clientMessageId, shift)
-                                      }
-                                    >
-                                      {message.deletedAt ? (
-                                        <PostCard
-                                          message={message}
-                                          mine={run.mine}
-                                          atEnd={atEnd}
-                                          showName={message.id === run.first.id && !run.mine}
-                                          repliesCount={repliesCount}
-                                          participants={participants}
-                                          lastReplyAt={last?.createdAt ?? null}
-                                          threadUnread={threadUnread}
-                                          reactionsHidden
-                                          onOpenThread={() => onOpenThread(message.id)}
-                                        />
-                                      ) : (
-                                        <MessageMenu
-                                          message={message}
-                                          mine={run.mine}
-                                          conversationId={conversationId}
-                                          scope={scope}
-                                          replyMode="thread"
-                                          onOpenThread={onOpenThread}
-                                          messagesOfSelection={selection.getSelectedMessages}
-                                        >
-                                          <PostCard
-                                            message={message}
-                                            mine={run.mine}
-                                            atEnd={atEnd}
-                                            showName={message.id === run.first.id && !run.mine}
-                                            repliesCount={repliesCount}
-                                            participants={participants}
-                                            lastReplyAt={last?.createdAt ?? null}
-                                            threadUnread={threadUnread}
-                                            reactionsHidden={selection.selectionActive}
-                                            onOpenThread={() => onOpenThread(message.id)}
-                                          />
-                                        </MessageMenu>
-                                      )}
-                                    </MessageRow>
-                                  </div>
-                                </MessageScrollerItem>
-                              );
-                            }}
+                            renderItem={(message, attrs) => (
+                              <FeedPostRow
+                                message={message}
+                                mine={run.mine}
+                                atEnd={atEnd}
+                                showName={message.id === run.first.id && !run.mine}
+                                replies={repliesByRoot.get(message.id) ?? []}
+                                threadUnread={Boolean(threadStates?.get(message.id)?.unreadCount)}
+                                selectionActive={selection.selectionActive}
+                                selected={selection.selectedSet.has(message.clientMessageId)}
+                                onToggle={(shift) => selection.toggle(message.clientMessageId, shift)}
+                                conversationId={conversationId}
+                                scope={scope}
+                                onOpenThread={onOpenThread}
+                                getSelectedMessages={selection.getSelectedMessages}
+                                style={attrs.style}
+                              />
+                            )}
                           />
                         </Fragment>
                       );

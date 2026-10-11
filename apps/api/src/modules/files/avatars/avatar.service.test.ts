@@ -109,6 +109,18 @@ describe('AvatarService.process', () => {
     ).rejects.toMatchObject({ code: ErrorCode.FILE_AVATAR_INVALID });
   });
 
+  it('пиксельный потолок (security #231): 4097² под лимитом 4096² → FILE_AVATAR_INVALID, деривата нет', async () => {
+    const { service, saved } = makeService();
+    // Монотонный цвет — PNG лёгкий, но декод был бы ~67 МБ; бомба 16383² — ~1 ГБ.
+    const png = await testPng(4097, 4097);
+    await expect(
+      service.process({ ownerId: 'u-1', name: 'giant.png', size: png.length }, Readable.from(png)),
+    ).rejects.toMatchObject({ code: ErrorCode.FILE_AVATAR_INVALID });
+    // Оригинал сохранён до декода, WebP-деривата нет — аватар на сущность не вешается.
+    expect(saved).toHaveLength(1);
+    expect(saved[0]!.input.mime).toBe('image/png');
+  });
+
   it('contentUrl — подписная ссылка отдачи', () => {
     const { service } = makeService();
     expect(service.contentUrl('abc')).toBe('/files/abc/content');

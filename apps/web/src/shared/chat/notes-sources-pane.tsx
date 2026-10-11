@@ -81,7 +81,7 @@ export function NotesSourcesPane({
           </span>
           <span className="min-w-0 flex-1">
             <span className="block truncate text-sm">{ui.chat.notesFilterNotes}</span>
-            <span className="block truncate text-xs text-muted-foreground">
+            <span className="block truncate text-xs text-muted-foreground tabular-nums">
               {sources.data?.notes.lastAt ? formatDateTimeShort(sources.data.notes.lastAt) : ''}
             </span>
           </span>
@@ -89,7 +89,7 @@ export function NotesSourcesPane({
             {sources.data?.notes.count ?? 0}
           </span>
           <ChevronRight
-            className="size-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
+            className="size-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
             strokeWidth={1.75}
           />
         </button>
@@ -127,7 +127,7 @@ export function NotesSourcesPane({
               )}
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm">{title}</span>
-                <span className="block truncate text-xs text-muted-foreground">
+                <span className="block truncate text-xs text-muted-foreground tabular-nums">
                   {formatDateTimeShort(source.lastFavoritedAt)}
                 </span>
               </span>
@@ -135,7 +135,7 @@ export function NotesSourcesPane({
                 {source.count}
               </span>
               <ChevronRight
-                className="size-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
+                className="size-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
                 strokeWidth={1.75}
               />
             </button>

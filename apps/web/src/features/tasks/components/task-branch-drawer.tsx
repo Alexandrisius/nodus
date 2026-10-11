@@ -123,7 +123,7 @@ export const TaskBranchDrawer = memo(function TaskBranchDrawer({
               setAddingTo(node.id);
               setDraft('');
             }}
-            className="shrink-0 rounded p-0.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:bg-accent hover:text-foreground"
+            className="shrink-0 rounded p-0.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 hover:bg-accent hover:text-foreground"
           >
             <Plus className="size-3.5" strokeWidth={1.75} />
           </button>

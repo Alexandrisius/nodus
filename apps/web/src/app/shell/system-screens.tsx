@@ -19,7 +19,7 @@ function SystemScreen({
 }) {
   return (
     <div className="flex h-full min-h-[50vh] flex-col items-center justify-center gap-4 p-8 text-center">
-      <h1 className="text-xl font-semibold text-foreground">{title}</h1>
+      <h1 className="text-xl font-semibold text-balance text-foreground">{title}</h1>
       <p className="max-w-md text-sm text-muted-foreground">{description}</p>
       <div className="flex gap-2">{children}</div>
     </div>
