@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type RefObject } from 'react';
 import { ui } from '@nodus/contracts';
 import { Popover, PopoverContent, PopoverTrigger } from '@nodus/ui/components/popover';
 import { cn } from '@nodus/ui/lib/utils';
@@ -17,6 +17,11 @@ import { StickerCreateDialog } from './sticker-create-dialog.js';
  * панель живёт между выборами (канон Telegram). Попап не крадёт «вечный
  * курсор» (канон #71). Сегмент вкладок — с воздухом от границ панели.
  *
+ * #288 (вердикт владельца 14.10, канон Telegram): closeOnStickerPick —
+ * выбор стикера ЗАКРЫВАЕТ панель, фокус возвращается в каретку набора
+ * (finalFocusRef — поле композера; без него клик по стикеру убивал каретку,
+ * а панель висела). Дефолт прежний (панель живёт — серия стикеров).
+ *
  * ТЯЖЁЛЫЕ ДИАЛОГИ (создание/переименование/удаление пака) рендерятся ЗДЕСЬ,
  * ВНЕ поповера: клик мимо закрывает поповер и уносит потомков вместе с
  * диалогом — preventDefault на диалоге не спасает от смерти родителя
@@ -30,12 +35,18 @@ export function MediaPickerButton({
   onPickEmoji,
   onPickSticker,
   stickersDisabled = false,
+  closeOnStickerPick = false,
+  finalFocusRef,
   children,
 }: {
   onPickEmoji: (emoji: string) => void;
   onPickSticker: (payload: StickerSubmitPayload) => void;
   /** Селект/пересылка/нет права поста — вкладка стикеров заблокирована. */
   stickersDisabled?: boolean;
+  /** Закрыть панель после выбора стикера + вернуть каретку (finalFocusRef). */
+  closeOnStickerPick?: boolean;
+  /** Куда вернуть фокус при закрытии поповера (поле композера). */
+  finalFocusRef?: RefObject<HTMLElement | null>;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -52,6 +63,14 @@ export function MediaPickerButton({
           className="w-88 p-0"
           // «Вечный курсор» (канон #71): попап не крадёт фокус композера.
           onOpenAutoFocus={(event) => event.preventDefault()}
+          onCloseAutoFocus={(event) => {
+            // Каретка возвращается в ПОЛЕ, не на кнопку Smile (#288): клик по
+            // стикеру уводил фокус в панель, закрытие — на триггер.
+            if (closeOnStickerPick && finalFocusRef?.current) {
+              event.preventDefault();
+              finalFocusRef.current.focus();
+            }
+          }}
         >
           <div
             role="tablist"
@@ -71,7 +90,10 @@ export function MediaPickerButton({
             {tab === 'emoji' ? <EmojiPanel onPick={onPickEmoji} /> : null}
             {tab === 'stickers' ? (
               <StickerPanel
-                onPick={onPickSticker}
+                onPick={(payload) => {
+                  onPickSticker(payload);
+                  if (closeOnStickerPick) setOpen(false);
+                }}
                 onHostDialog={setPackDialog}
                 disabled={stickersDisabled}
               />

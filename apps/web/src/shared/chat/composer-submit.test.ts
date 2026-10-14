@@ -66,6 +66,9 @@ describe('toSendVars: стикер-ветка (#143)', () => {
       snippet: 'оригинал',
       quoteText: 'фрагмент',
       attachmentKind: null,
+      stickerUrl: null,
+      stickerEmoji: null,
+      stickerMime: null,
       inThread: null,
     };
     const vars = toSendVars({

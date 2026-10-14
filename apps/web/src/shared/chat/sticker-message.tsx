@@ -1,7 +1,6 @@
 import { memo, type ReactNode } from 'react';
 import type { ChatMessage, MessageAttachment } from '@nodus/contracts';
 import { Message, MessageAvatar, MessageContent } from '@nodus/ui/components/message';
-import { cn } from '@nodus/ui/lib/utils';
 
 import { PersonAvatar } from '../ui/person-avatar.js';
 import { useChatPrefs } from './chat-prefs.js';
@@ -30,36 +29,10 @@ export function stickerAttachmentOf(message: ChatMessage): MessageAttachment | u
  *  (maxStickerSize 256px, research Exa; вердикт владельца 01.10 #175). */
 export const stickerFeedClass = 'size-52 object-contain';
 
-/** Рендер одного стикера: WebM (Telegram-формат) — беззвучное зацикленное
- *  видео; WebP/PNG — img (анимированный WebP играет сам, прозрачность
- *  работает во всех браузерах — Safari не умеет alpha у WebM). */
-export function StickerGlyph({
-  url,
-  mime,
-  alt,
-  className,
-}: {
-  url: string;
-  mime: string;
-  alt?: string;
-  className?: string;
-}) {
-  if (mime === 'video/webm') {
-    return (
-      <video
-        src={url}
-        autoPlay
-        loop
-        muted
-        playsInline
-        disablePictureInPicture
-        className={className}
-        aria-label={alt}
-      />
-    );
-  }
-  return <img src={url} alt={alt ?? ''} draggable={false} className={className} />;
-}
+/** Рендер одного стикера — в собственном модуле `sticker-glyph.ts` (#288:
+ *  глиф нужен цитате ответа в message-headers без цикла импортов). */
+import { StickerGlyph } from './sticker-glyph.js';
+export { StickerGlyph } from './sticker-glyph.js';
 
 /** Стикер-сообщение: глиф 208px + мета; ховер-реакции — та же механика,
  *  что у пузырей (group/bubble-контейнер для ReactionPicker). */
@@ -120,19 +93,19 @@ export const StickerMessageView = memo(function StickerMessageView({
               владельца 14.10). */}
           <span
             data-slot="sticker-body"
-            className="flex w-fit flex-col rounded-2xl border border-transparent p-2"
+            className="relative flex w-fit flex-col rounded-2xl border border-transparent p-2"
           >
             {/* Цитата ответа (#288): стикер-ответ раньше молча терял видимую
-                связь (replyToId хранился, цитата не рисовалась). Тот же
-                ReplyHeader, что у пузырей, — прыжок к оригиналу. Обёртка
-                БЛОЧНАЯ (инлайн-span молча съедает max-w — ширина на inline не
-                действует): кап по кеглю стикера, чтобы длинный сниппет не
-                растягивал колонку w-fit; зазор до глифа (референс Telegram);
-                у СВОИХ — по правому краю тела ВСЕГДА (канон Telegram, вердикт
-                владельца 14.10: слева цитата сливается с чужой колонкой
-                выше, в «одном краю» тоже). */}
+                связь (replyToId хранился, цитата не рисовалась). КАНОН
+                Telegram (вердикт владельца 14.10, рефскрин: место реплая
+                ВСЕГДА в одном месте — фиксированный бокс в правом верхнем
+                углу тела, не зависит от длины текста, длинный ОБРЕЗАЕТСЯ;
+                клик — прыжок к оригиналу с подсветкой). Панель ПЛАВАЕТ НАД
+                глифом (absolute, колонку не раздвигает), фон — плотная
+                поверхность зоны чата (глиф просвечивать не должен). Ширина
+                w-40 = 160/208 кегля глифа. */}
             {message.reply ? (
-              <span className={cn('mb-1 flex w-fit max-w-52 flex-col', mine && 'self-end')}>
+              <span className="absolute top-2 right-2 z-10 w-40 overflow-hidden rounded-md bg-chat-zone">
                 <ReplyHeader
                   reply={message.reply}
                   onFilled={mine}

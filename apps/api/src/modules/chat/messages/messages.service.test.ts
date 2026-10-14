@@ -254,7 +254,15 @@ describe('MessagesService', () => {
       expect(repo.insertMessage).toHaveBeenCalledWith(
         expect.objectContaining({
           replyToId: 'orig-1',
-          replySnapshot: { authorId: PEER, text: '', quoteText: null, attachmentKind: null },
+          replySnapshot: {
+            authorId: PEER,
+            text: '',
+            quoteText: null,
+            attachmentKind: null,
+            stickerFileId: null,
+            stickerEmoji: null,
+            stickerMime: null,
+          },
         }),
         TX,
       );
@@ -290,6 +298,9 @@ describe('MessagesService', () => {
             text: 'х'.repeat(160),
             quoteText: null,
             attachmentKind: 'image',
+            stickerFileId: null,
+            stickerEmoji: null,
+            stickerMime: null,
           },
         }),
         TX,

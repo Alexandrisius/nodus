@@ -303,6 +303,9 @@ describe('useSendChatMessage — чистка черновика на сабми
       snippet: 'оригинал',
       quoteText: null,
       attachmentKind: null,
+      stickerUrl: null,
+      stickerEmoji: null,
+      stickerMime: null,
       inThread: null,
     };
     const preview = {

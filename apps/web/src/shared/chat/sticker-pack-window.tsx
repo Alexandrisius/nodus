@@ -72,7 +72,10 @@ export function StickerWindowTrigger({
           01.10 #175: плашка за стикером не нужна — только клик). */}
       <button
         type="button"
-        data-slot="sticker-surface"
+        /* #288: без плиты (лента) глиф теряет data-slot='sticker-surface' —
+           иначе рамка выделения красила бы его ВМЕСТЕ с плитой тела
+           (sticker-body) — двойная рамка (замечание владельца 14.10). */
+        data-slot={plate ? 'sticker-surface' : 'sticker-glyph'}
         aria-label={`${meta.packTitle}: ${meta.emojis.join(' ')}`}
         title={meta.packTitle}
         onClick={() => setOpen(true)}

@@ -84,6 +84,13 @@ export const replyPreviewSchema = z.object({
   quoteText: z.string().nullable(),
   /** Вид вложения оригинала — подписи «Фото»/«Файл»/«Стикер» в цитате без текста. */
   attachmentKind: z.enum(['image', 'file', 'sticker']).nullable(),
+  /** #288: мини-глиф оригинального СТИКЕРА в цитате (референс Telegram) —
+   *  подписанный url содержимого файла + первый эмодзи пака. Опционально:
+   *  толерантность к старым снапшотам и записям events-лога. */
+  stickerUrl: z.string().nullable().optional(),
+  stickerEmoji: z.string().nullable().optional(),
+  /** #288: mime глифа (webm играет видео, остальное — img). */
+  stickerMime: z.string().nullable().optional(),
   /** Оригинал удалён — цитата показывает «Сообщение удалено» (канон
    *  Telegram lng_deleted_message): удаление сильнее заморозки снапшота. */
   deleted: z.boolean(),

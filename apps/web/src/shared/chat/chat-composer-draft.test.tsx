@@ -178,6 +178,9 @@ describe('ChatComposer — ответ-стикером (#288, канон Telegra
     snippet: 'оригинал',
     quoteText: null,
     attachmentKind: null,
+    stickerUrl: null,
+    stickerEmoji: null,
+    stickerMime: null,
     inThread: null,
   };
 

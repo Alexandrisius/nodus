@@ -1,4 +1,5 @@
 import { Forward } from 'lucide-react';
+import type { ReactElement } from 'react';
 import type { ForwardedFrom, ReplyPreview } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { cn } from '@nodus/ui/lib/utils';
@@ -6,6 +7,7 @@ import { cn } from '@nodus/ui/lib/utils';
 import { withoutPatronymic } from '../lib/format.js';
 import { personTone, personToneVar } from '../ui/person-tone.js';
 import { MentionSnippet } from './mention-chip.js';
+import { StickerGlyph } from './sticker-glyph.js';
 
 /**
  * Шапки пузыря (A2/A7, #87): цитата ответа и атрибуция пересылки.
@@ -34,6 +36,7 @@ export function ReplyHeader({
   /** Цитата внутри залитого своего пузыря — акцент пузыря вместо info. */
   onFilled?: boolean;
 }) {
+  const stickerEmoji = reply.attachmentKind === 'sticker' ? (reply.stickerEmoji ?? null) : null;
   const snippet = reply.quoteText
     ? `«${reply.quoteText}»`
     : reply.text ||
@@ -42,14 +45,21 @@ export function ReplyHeader({
         : reply.attachmentKind === 'file'
           ? ui.chat.quoteFile
           : reply.attachmentKind === 'sticker'
-            ? ui.chat.stickerPreview
+            ? // #288 (референс Telegram): «Стикер 🙂» — эмодзи пака в подписи.
+              stickerEmoji
+              ? `${ui.chat.stickerPreview} ${stickerEmoji}`
+              : ui.chat.stickerPreview
             : '');
   // Кликабельна: живой оригинал ИЛИ надгробие (#163). obliterated — нет якоря.
   const interactive = (!reply.deleted || !reply.obliterated) && onClick !== undefined;
   const Tag = interactive ? 'button' : 'span';
   // Плашка цитаты в цвете цитируемого (#187 п.8): тон — персональная
-  // переменная автора; без автора (удалённый) — нейтральный тинт.
+  // переменная автора; без автора (удаленный) — нейтральный тинт.
   const toneVar = reply.author ? personToneVar(reply.author.id) : null;
+  // #288: цитата-на-стикер показывает МИНИ-ГЛИФ оригинала слева (канон
+  // Telegram) — имя и сниппет колонкой справа от него.
+  const showStickerThumb =
+    reply.attachmentKind === 'sticker' && !reply.deleted && !!reply.stickerUrl;
   return (
     <Tag
       {...(interactive ? { type: 'button' as const, onClick } : {})}
@@ -67,33 +77,71 @@ export function ReplyHeader({
           : 'color-mix(in oklch, currentColor 6%, transparent)',
       }}
     >
-      <span
-        className={cn(
-          'truncate text-xs font-semibold',
-          reply.author
-            ? personTone(reply.author.id)
-            : onFilled
-              ? 'text-bubble-out-accent'
-              : 'text-info',
-        )}
-      >
-        {reply.deleted
-          ? ui.chat.deletedPlaceholder
-          : withoutPatronymic(reply.author?.displayName ?? '')}
-      </span>
-      {reply.deleted ? null : (
-        <span
-          className={cn(
-            'truncate text-xs',
-            // На залитом пузыре сниппет плотнее (opacity-80): 70% foreground
-            // на тёмной заливке не дотягивал AA (валидатор #127).
-            onFilled ? 'opacity-80' : 'opacity-70',
-          )}
-        >
-          <MentionSnippet text={snippet} />
+      {showStickerThumb ? (
+        <span className="flex min-w-0 items-center gap-1.5 pr-2">
+          {/* Мини-глиф оригинального стикера; alt дублирует подпись рядом. */}
+          <StickerGlyph
+            url={reply.stickerUrl ?? ''}
+            mime={reply.stickerMime ?? 'image/webp'}
+            className="size-8 shrink-0 object-contain"
+          />
+          <span className="flex min-w-0 flex-col">
+            <QuoteName reply={reply} onFilled={onFilled} />
+            <QuoteSnippet snippet={snippet} onFilled={onFilled} deleted={reply.deleted} />
+          </span>
         </span>
+      ) : (
+        <>
+          <QuoteName reply={reply} onFilled={onFilled} />
+          {reply.deleted ? null : (
+            <QuoteSnippet snippet={snippet} onFilled={onFilled} deleted={reply.deleted} />
+          )}
+        </>
       )}
     </Tag>
+  );
+}
+
+function QuoteName({ reply, onFilled }: { reply: ReplyPreview; onFilled: boolean }): ReactElement {
+  return (
+    <span
+      className={cn(
+        'truncate text-xs font-semibold',
+        reply.author
+          ? personTone(reply.author.id)
+          : onFilled
+            ? 'text-bubble-out-accent'
+            : 'text-info',
+      )}
+    >
+      {reply.deleted
+        ? ui.chat.deletedPlaceholder
+        : withoutPatronymic(reply.author?.displayName ?? '')}
+    </span>
+  );
+}
+
+function QuoteSnippet({
+  snippet,
+  onFilled,
+  deleted,
+}: {
+  snippet: string;
+  onFilled: boolean;
+  deleted: boolean;
+}): ReactElement | null {
+  if (deleted) return null;
+  return (
+    <span
+      className={cn(
+        'truncate text-xs',
+        // На залитом пузыре сниппет плотнее (opacity-80): 70% foreground
+        // на тёмной заливке не дотягивал AA (валидатор #127).
+        onFilled ? 'opacity-80' : 'opacity-70',
+      )}
+    >
+      <MentionSnippet text={snippet} />
+    </span>
   );
 }
 

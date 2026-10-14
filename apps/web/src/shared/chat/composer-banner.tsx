@@ -8,14 +8,17 @@ import { personTone } from '../ui/person-tone.js';
 import type { ChatDraft } from './chat-drafts.js';
 
 /** Подпись медийного оригинала без текста (канон Telegram reply_media:
- *  «Фото» / «Файл» в цитате). */
+ *  «Фото» / «Файл» в цитате; стикер — «Стикер 🙂» с эмодзи пака, #288). */
 function replySnippet(draft: ChatDraft): string {
   const reply = draft.reply;
   if (!reply) return '';
   if (reply.quoteText) return `«${reply.quoteText}»`;
   if (reply.snippet) return reply.snippet;
   if (reply.attachmentKind === 'image') return ui.chat.quotePhoto;
-  if (reply.attachmentKind === 'sticker') return ui.chat.stickerPreview;
+  if (reply.attachmentKind === 'sticker')
+    return reply.stickerEmoji
+      ? `${ui.chat.stickerPreview} ${reply.stickerEmoji}`
+      : ui.chat.stickerPreview;
   return ui.chat.quoteFile;
 }
 

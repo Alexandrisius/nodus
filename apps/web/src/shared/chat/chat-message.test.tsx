@@ -368,39 +368,51 @@ describe('Стикер — цитата ответа (#288)', () => {
     });
   });
 
-  it('«По обе стороны»: цитата своего стикера прижата к правому краю колонки', () => {
-    useChatPrefs.setState({ align: 'both' });
-    const { container } = renderMessage(
+  it('цитата — ФИКСИРОВАННЫЙ бокс в правом верхнем углу, одинаков у своих и чужих (#288)', () => {
+    // Канон Telegram (вердикт владельца 14.10): место реплая всегда одно,
+    // не зависит от длины текста и стороны сообщения; длинное обрезается.
+    useChatPrefs.setState({ align: 'one' });
+    const mineView = renderMessage(
       <StickerMessageView message={message({ reply })} attachment={sticker} mine />,
     );
-    const wrapper = container.querySelector('[data-slot="sticker-body"]')!.firstElementChild!;
-    expect(wrapper.className).toContain('self-end');
-    // Блочная обёртка: инлайн-span молча съедал max-w (ширина на inline не
-    // действует) — длинный сниппет растягивал колонку w-fit (жалоба 14.10)
-    expect(wrapper.className).toContain('max-w-52');
-    useChatPrefs.setState({ align: 'one' });
-  });
+    const mineQuote = mineView.container.querySelector(
+      '[data-slot="sticker-body"]',
+    )!.firstElementChild!;
+    expect(mineQuote.className).toContain('absolute');
+    expect(mineQuote.className).toContain('top-2');
+    expect(mineQuote.className).toContain('right-2');
+    expect(mineQuote.className).toContain('w-40');
 
-  it('цитата СВОЕГО стикера уходит вправо в ЛЮБОМ режиме (#288, канон Telegram)', () => {
-    // Вердикт владельца 14.10: слева цитата сливается с чужой колонкой выше —
-    // self-end по факту «моё», не по режиму выравнивания
-    useChatPrefs.setState({ align: 'one' });
-    const { container } = renderMessage(
-      <StickerMessageView message={message({ reply })} attachment={sticker} mine />,
-    );
-    const wrapper = container.querySelector('[data-slot="sticker-body"]')!.firstElementChild!;
-    expect(wrapper.className).toContain('self-end');
-
-    // Чужой стикер с цитатой — слева (сторона сообщения)
-    const view = renderMessage(
+    const foreignView = renderMessage(
       <StickerMessageView message={message({ reply })} attachment={sticker} mine={false} />,
     );
-    const foreign = view.container.querySelector('[data-slot="sticker-body"]')!.firstElementChild!;
-    expect(foreign.className).not.toContain('self-end');
+    const foreignQuote = foreignView.container.querySelector(
+      '[data-slot="sticker-body"]',
+    )!.firstElementChild!;
+    expect(foreignQuote.className).toBe(mineQuote.className);
     useChatPrefs.setState({ align: 'one' });
   });
 
-  it('выделение: единая плита тела «цитата+глиф», у глифа двойной плиты нет', () => {
+  it('цитата-на-стикер показывает МИНИ-ГЛИФ оригинала и «Стикер 🙂» (#288)', () => {
+    const stickerReply = {
+      ...reply,
+      text: '',
+      attachmentKind: 'sticker' as const,
+      stickerUrl: '/stickers/pack/1.webp',
+      stickerEmoji: '🙂',
+      stickerMime: 'image/webp',
+    };
+    const { container } = renderMessage(
+      <StickerMessageView message={message({ reply: stickerReply })} attachment={sticker} mine />,
+    );
+    const quote = container.querySelector('[data-slot="sticker-body"]')!.firstElementChild!;
+    // Глиф-миниатюра внутри цитаты (webp — img)
+    expect(quote.querySelector('img, video')).toBeTruthy();
+    expect(quote.textContent).toContain('Стикер');
+    expect(quote.textContent).toContain('🙂');
+  });
+
+  it('выделение: единая плита тела «цитата+глиф», двойной рамки нет', () => {
     // Рамка селекта обнимает виртуальный пузырь целиком (data-selected красит
     // sticker-body, globals.css); мета-строка — снаружи, как у пузырей
     const { container } = renderMessage(
@@ -408,8 +420,9 @@ describe('Стикер — цитата ответа (#288)', () => {
     );
     const body = container.querySelector('[data-slot="sticker-body"]')!;
     expect(body).toBeTruthy();
-    expect(body.querySelector('[data-slot="sticker-surface"]')).toBeTruthy();
-    // Плита глифа снята (plate=false): двойного паддинга нет
-    expect(body.querySelector('[data-slot="sticker-surface"]')!.className).not.toContain('p-2');
+    // У глифа в ленте плиты нет (data-slot 'sticker-glyph') — иначе рамка
+    // красила бы тело И глиф вместе: двойная рамка (жалоба владельца 14.10)
+    expect(body.querySelector('[data-slot="sticker-glyph"]')).toBeTruthy();
+    expect(body.querySelector('[data-slot="sticker-surface"]')).toBeNull();
   });
 });

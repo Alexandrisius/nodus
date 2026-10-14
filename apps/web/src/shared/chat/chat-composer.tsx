@@ -419,6 +419,9 @@ export function ChatComposer({
     });
 
   const align = grown ? 'self-end' : 'self-center';
+  // Стикеры недоступны в режиме селекта/пересылки и без права поста (#143).
+  const stickersDisabled =
+    !stickersEnabled || selPhase !== 'normal' || disabledPlaceholder !== null || pending !== null;
 
   return (
     <form
@@ -639,12 +642,9 @@ export function ChatComposer({
               <MediaPickerButton
                 onPickEmoji={insertEmoji}
                 onPickSticker={pickSticker}
-                stickersDisabled={
-                  !stickersEnabled ||
-                  selPhase !== 'normal' ||
-                  disabledPlaceholder !== null ||
-                  pending !== null
-                }
+                closeOnStickerPick /* #288: стикер ушёл — панель закрыта, каретка в поле */
+                finalFocusRef={inputRef}
+                stickersDisabled={stickersDisabled}
               >
                 <Button
                   type="button"
