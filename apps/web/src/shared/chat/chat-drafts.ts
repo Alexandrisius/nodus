@@ -1,4 +1,4 @@
-import type { ChatMessage, MessageAttachment } from '@nodus/contracts';
+import type { ChatMessage, MessageAttachment, ReplyPreview } from '@nodus/contracts';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
@@ -17,7 +17,7 @@ import {
   restoreFailedIntoDraft,
   type FailedSendRestore,
 } from './draft-restore.js';
-import { replyDraftFrom, type ReplyDraft } from './reply-snapshot.js';
+import { replyDraftFrom, replyDraftFromPreview, type ReplyDraft } from './reply-snapshot.js';
 
 export type { ReplyDraft } from './reply-snapshot.js';
 
@@ -124,6 +124,10 @@ interface DraftsState {
    *  (текст с чипами, ответ, молния, вложения), занятое следующим набором —
    *  упавший текст в начало плоским текстом + вложения. Логика — draft-restore. */
   restoreFailedSend: (key: string, failed: FailedSendRestore) => void;
+  /** Возврат ответа упавшей СТИКЕР-отправки (#288): keepDraft-путь поле не
+   *  трогает (текст и вложения живы), но потреблённый сабмитом ответ
+   *  возвращается (канон #124 — потерянного нет). null — снять ответ. */
+  restoreReply: (key: string, preview: ReplyPreview | null) => void;
   clear: (key: string) => void;
 }
 
@@ -344,6 +348,13 @@ export const useChatDrafts = create<DraftsState>()(
       restoreFailedSend: (key, failed) =>
         set((s) => ({
           drafts: patchDraft(s.drafts, key, (d) => restoreFailedIntoDraft(d, failed)),
+        })),
+      restoreReply: (key, preview) =>
+        set((s) => ({
+          drafts: patchDraft(s.drafts, key, (d) => ({
+            ...d,
+            reply: preview ? replyDraftFromPreview(preview) : null,
+          })),
         })),
       clear: (key) => set((s) => ({ drafts: patchDraft(s.drafts, key, () => EMPTY_DRAFT) })),
     }),

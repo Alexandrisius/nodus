@@ -381,7 +381,8 @@ export function useSendChatMessage(conversationId: string, draftScope?: string) 
       // текста нет): состав восстанавливается из переменных мутации. Пустое
       // поле — целиком (текст wire→display с чипами, ответ, молния, вложения
       // не claimed на сервере), занятое следующим набором — упавший текст в
-      // начало плоским текстом + вложения. Стикер поле не трогает (#143).
+      // начало плоским текстом + вложения. Стикер поле не трогает (#143),
+      // но активный ответ упавшей стикер-отправки возвращается (#288).
       if (draftScope && !vars.keepDraft) {
         useChatDrafts.getState().restoreFailedSend(draftScope, {
           wireText: vars.text,
@@ -389,6 +390,8 @@ export function useSendChatMessage(conversationId: string, draftScope?: string) 
           urgent: vars.urgent ?? false,
           attachments: vars.attachments ?? [],
         });
+      } else if (draftScope && vars.reply) {
+        useChatDrafts.getState().restoreReply(draftScope, vars.reply);
       }
       // 409 политики важных (#177) — инлайн в композере (рядом с молнией),
       // прочие ошибки — штатный тост. Текст при этом НЕ теряется (#124).
@@ -462,9 +465,16 @@ export function useSendChatMessage(conversationId: string, draftScope?: string) 
    *  черновик уходит из композера синхронно с кликом — на медленном канале
    *  текст не висит ~RTT, а тики подтверждений очереди не обнуляют следующий
    *  набираемый текст; статус отправки живёт в ленте (темп). Ошибка вернёт
-   *  состав в поле (onError). Стикер поле не трогает (keepDraft, #143). */
+   *  состав в поле (onError). Стикер поле не трогает (keepDraft, #143), но
+   *  ответ-стикером потребляет активный ответ (#288, канон Telegram):
+   *  плашка гаснет синхронно с отправкой, текст остаётся, ошибка вернёт. */
   function takeDraft(vars: SendChatVars): void {
-    if (draftScope && !vars.keepDraft) useChatDrafts.getState().clear(draftScope);
+    if (!draftScope) return;
+    if (vars.keepDraft) {
+      if (vars.replyToId) useChatDrafts.getState().cancelReply(draftScope);
+      return;
+    }
+    useChatDrafts.getState().clear(draftScope);
   }
 
   /** Отправка с temp id (#48): одна отправка = один temp id = один ключ

@@ -5,6 +5,7 @@ import { ui } from '@nodus/contracts';
 
 import { emitTyping } from '../socket/typing-emitter.js';
 import { addFiles } from './composer-files.js';
+import { useChatDrafts, type ReplyDraft } from './chat-drafts.js';
 import type { StickerSubmitPayload } from './sticker-api.js';
 
 /** Рост поля против базовой строки (ResizeObserver) — хореография иконок
@@ -45,7 +46,7 @@ export function useComposerInputActions(deps: {
   onSubmit: (submit: {
     text: string;
     attachments: [];
-    reply: null;
+    reply: ReplyDraft | null;
     edit: null;
     sticker: StickerSubmitPayload;
   }) => void;
@@ -86,8 +87,14 @@ export function useComposerInputActions(deps: {
   /** Выбор стикера (#143): мгновенная отправка отдельным сообщением — мимо
    *  textarea и гейтов canSubmit (стикер самодостаточен, модель Telegram);
    *  панель пикера не закрывается (можно поставить серию). */
+  /** Стикер из пикера — мгновенная отправка (#143): стикер самодостаточен,
+   *  набранный текст не уходит (keepDraft мутации). Ответ-стикером (#288,
+   *  канон Telegram: в режиме ответа клик по стикеру отправляет его ответом)
+   *  — активный ответ летит в payload; потребление ответа из черновика —
+   *  takeDraft мутации (текст остаётся, плашка гаснет), ошибка вернёт. */
   function pickSticker(payload: StickerSubmitPayload) {
-    onSubmit({ text: '', attachments: [], reply: null, edit: null, sticker: payload });
+    const reply: ReplyDraft | null = useChatDrafts.getState().drafts[focusId]?.reply ?? null;
+    onSubmit({ text: '', attachments: [], reply, edit: null, sticker: payload });
     requestScrollEnd();
   }
 

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, renderHook, waitFor } from '@testing-library/react';
 import { createElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -10,6 +10,7 @@ vi.mock('../api-client.js', () => ({ api: apiMock, apiUpload: vi.fn() }));
 import { ChatComposer } from './chat-composer.js';
 import { useChatDrafts } from './chat-drafts.js';
 import { chatKeys } from './api.js';
+import { useComposerInputActions } from './composer-input-utils.js';
 
 /** Флуш черновика при ПЕРЕКЛЮЧЕНИИ бесед (дефект приёмки 25.09): ChatComposer
  *  переиспользуется (focusId меняется без ремаунта) — cleanup-эффект обязан
@@ -166,5 +167,105 @@ describe('ChatComposer — каретка в конец восстановлен
     fireEvent.focus(textarea);
     expect(textarea.selectionStart).toBe('продолжение с места остановки'.length);
     expect(textarea.selectionEnd).toBe('продолжение с места остановки'.length);
+  });
+});
+
+describe('ChatComposer — ответ-стикером (#288, канон Telegram)', () => {
+  const KEY = 'conversation:11111111-1111-4111-8111-111111111111';
+  const replyDraft = {
+    messageId: '55555555-5555-4555-8555-555555555555',
+    author: { id: 'u9', displayName: 'Мария Соколова', avatarUrl: null },
+    snippet: 'оригинал',
+    quoteText: null,
+    attachmentKind: null,
+    inThread: null,
+  };
+
+  it('pickSticker несёт активный ответ черновика; текст не тронут (keepDraft)', () => {
+    useChatDrafts.setState({
+      drafts: {
+        [KEY]: {
+          text: 'набираю',
+          mentions: [],
+          reply: replyDraft,
+          edit: null,
+          preEditText: null,
+          preEditMentions: null,
+          attachments: [],
+          urgent: false,
+        },
+      },
+    });
+    const submitted: Array<{ reply: unknown; text: string }> = [];
+    const { result } = renderHook(() =>
+      useComposerInputActions({
+        focusId: KEY,
+        text: 'набираю',
+        inputRef: { current: null },
+        attachmentsEnabled: true,
+        setText: (key, t) => useChatDrafts.getState().setText(key, t),
+        onSubmit: (s) => submitted.push(s),
+        requestScrollEnd: () => {},
+      }),
+    );
+
+    result.current.pickSticker({
+      stickerId: 'st-1',
+      attachment: {
+        id: 'a1',
+        fileId: 'f1',
+        name: 's.webp',
+        size: 1,
+        mime: 'image/webp',
+        kind: 'sticker',
+        url: null,
+        thumbnailUrl: null,
+        previewKind: 'image',
+        pdfUrl: null,
+        width: 64,
+        height: 64,
+      },
+    });
+
+    expect(submitted[0]?.reply).toMatchObject({ messageId: replyDraft.messageId });
+    expect(submitted[0]?.text).toBe('');
+    // Потребление ответа — takeDraft мутации; сам хук черновик не трогает
+    expect(useChatDrafts.getState().drafts[KEY]?.text).toBe('набираю');
+  });
+
+  it('без активного ответа — reply null (прежнее поведение)', () => {
+    useChatDrafts.setState({ drafts: {} });
+    const submitted: Array<{ reply: unknown }> = [];
+    const { result } = renderHook(() =>
+      useComposerInputActions({
+        focusId: KEY,
+        text: '',
+        inputRef: { current: null },
+        attachmentsEnabled: true,
+        setText: () => {},
+        onSubmit: (s) => submitted.push(s),
+        requestScrollEnd: () => {},
+      }),
+    );
+
+    result.current.pickSticker({
+      stickerId: 'st-1',
+      attachment: {
+        id: 'a1',
+        fileId: 'f1',
+        name: 's.webp',
+        size: 1,
+        mime: 'image/webp',
+        kind: 'sticker',
+        url: null,
+        thumbnailUrl: null,
+        previewKind: 'image',
+        pdfUrl: null,
+        width: 64,
+        height: 64,
+      },
+    });
+
+    expect(submitted[0]?.reply).toBeNull();
   });
 });

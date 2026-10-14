@@ -293,6 +293,53 @@ describe('useSendChatMessage — чистка черновика на сабми
     expect(scopeDraft()?.text).toBe('набираю');
     expect(scopeDraft()?.attachments).toEqual([]);
   });
+
+  it('ответ-стикером (#288): ответ потреблён сабмитом (текст жив), ошибка возвращает ответ', async () => {
+    const captured: Captured[] = [];
+    stubFetch(captured);
+    const reply = {
+      messageId: '55555555-5555-4555-8555-555555555555',
+      author: { id: 'u9', displayName: 'Мария Соколова', avatarUrl: null },
+      snippet: 'оригинал',
+      quoteText: null,
+      attachmentKind: null,
+      inThread: null,
+    };
+    const preview = {
+      id: reply.messageId,
+      author: reply.author,
+      text: reply.snippet,
+      quoteText: null,
+      attachmentKind: null,
+      deleted: false,
+      obliterated: false,
+    };
+    useChatDrafts.setState({ drafts: { [SCOPE]: draft({ text: 'набираю', reply }) } });
+    const client = new QueryClient();
+    const { result } = renderHook(() => useSendChatMessage(CONV, SCOPE), {
+      wrapper: makeWrapper(client),
+    });
+
+    await act(async () => {
+      result.current.mutate({
+        text: '',
+        stickerId: 'st-1',
+        keepDraft: true,
+        replyToId: reply.messageId,
+        reply: preview,
+      });
+    });
+    // Канон Telegram: плашка погасла синхронно с отправкой, текст жив
+    expect(scopeDraft()?.reply).toBeNull();
+    expect(scopeDraft()?.text).toBe('набираю');
+
+    await act(async () => {
+      captured[0]!.reject(new Error('network down'));
+    });
+    // Ошибка: ответ вернулся в черновик (канон #124), текст не задет
+    expect(scopeDraft()?.reply?.messageId).toBe(reply.messageId);
+    expect(scopeDraft()?.text).toBe('набираю');
+  });
 });
 
 describe('пересылка с комментарием — чистка на сабмите (#248)', () => {
