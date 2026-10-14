@@ -89,7 +89,14 @@ const chatDraftSchema = z.object({
       }),
       snippet: z.string(),
       quoteText: z.string().nullable(),
-      attachmentKind: z.enum(['image', 'file']).nullable(),
+      // 'sticker' (#288): черновик ответа-на-стикер обязан переживать reload —
+      // без значения enum разваливался весь reply-узел (.catch(null)).
+      attachmentKind: z.enum(['image', 'file', 'sticker']).nullable(),
+      // #288: мини-глиф оригинального стикера в цитате; битое значение →
+      // null (глиф пропадает), а не весь черновик.
+      stickerUrl: z.string().nullable().catch(null),
+      stickerEmoji: z.string().nullable().catch(null),
+      stickerMime: z.string().nullable().catch(null),
       inThread: z.string().nullable(),
     })
     .nullable()

@@ -498,3 +498,103 @@ describe('attach-send-dialog: @упоминания подписи (#239)', () =
     unregister();
   });
 });
+
+describe('attach-send-dialog — цитата ответа над списком файлов (#288)', () => {
+  beforeEach(() => {
+    reset();
+    queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  });
+  afterEach(() => {
+    cleanup();
+    queryClient.clear();
+  });
+
+  const original: ChatMessage = {
+    id: '22222222-2222-4222-8222-222222222222',
+    conversationId: CONV,
+    seq: 1,
+    clientMessageId: 'client-1',
+    author: { id: 'u2', displayName: 'Мария Соколова', avatarUrl: null },
+    text: 'Вай фая нет',
+    replyToId: null,
+    reply: null,
+    deletedAt: null,
+    pinned: false,
+    forwardedFrom: null,
+    threadRootId: null,
+    threadRepliesCount: 0,
+    reactions: [],
+    attachments: [],
+    editedAt: null,
+    readAt: null,
+    readBy: [],
+    urgent: false,
+    mentionedUserIds: [],
+    linkPreview: null,
+    createdAt: '2026-10-14T09:00:00Z',
+  };
+
+  it('плашка ответа: цитата НАД списком; крестик снимает ответ, окно живо', () => {
+    useChatDrafts.getState().setReply(KEY, original, null);
+    useChatDrafts.getState().addAttachments(KEY, [pending('a')]);
+    useAttachSendDialog.getState().open(KEY, '');
+    renderDialog();
+
+    expect(screen.getByText('Мария Соколова')).toBeTruthy();
+    expect(screen.getByText('Вай фая нет')).toBeTruthy();
+    // Порядок Telegram: цитата раньше строки файла в DOM
+    expect(
+      screen.getByText('Мария Соколова').compareDocumentPosition(screen.getByText('a.csv')) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+
+    // «Отмена» две — крестик плашки и кнопка футера; крестик плашки первый в DOM
+    const [bannerX] = screen.getAllByRole('button', { name: 'Отмена' });
+    fireEvent.click(bannerX!);
+
+    expect(useChatDrafts.getState().drafts[KEY]?.reply).toBeNull();
+    // Окно живо: файл цел, отправка уйдёт без ответа
+    expect(useAttachSendDialog.getState().scope).toBe(KEY);
+    expect(screen.getByText('a.csv')).toBeTruthy();
+  });
+
+  it('отправка несёт ответ; плашка живёт на полёте (черновик чист сабмитом)', async () => {
+    const payloads: ComposerSubmit[] = [];
+    let resolveSend: (value: unknown) => void = () => undefined;
+    const unregister = registerScopeSubmit(KEY, (payload) => {
+      payloads.push(payload);
+      useChatDrafts.getState().clear(KEY); // контракт хоста: чистка на сабмите
+      return new Promise((resolve) => {
+        resolveSend = resolve;
+      });
+    });
+
+    useChatDrafts.getState().setReply(KEY, original, null);
+    useChatDrafts.getState().addAttachments(KEY, [pending('a')]);
+    useAttachSendDialog.getState().open(KEY, '');
+    renderDialog();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Отправить' }));
+    expect(payloads[0]?.reply?.messageId).toBe(original.id);
+    // Черновик чист, но цитата и файл держатся снапшотами до исхода (#248/#288)
+    expect(useChatDrafts.getState().drafts[KEY]).toBeUndefined();
+    expect(screen.getByText('Мария Соколова')).toBeTruthy();
+
+    act(() => {
+      resolveSend({});
+    });
+    await waitFor(() => expect(useAttachSendDialog.getState().scope).toBeNull());
+    unregister();
+  });
+
+  it('правка: плашки ответа нет — режимы взаимоисключающие', () => {
+    useChatDrafts.getState().setReply(KEY, original, null);
+    useChatDrafts.getState().setEdit(KEY, original); // гасит reply в черновике
+    useChatDrafts.getState().addAttachments(KEY, [pending('a')]);
+    useAttachSendDialog.getState().open(KEY, 'исходный текст');
+    renderDialog();
+
+    expect(screen.queryByText('Мария Соколова')).toBeNull();
+    expect(screen.getByText('Изменение сообщения')).toBeTruthy();
+  });
+});

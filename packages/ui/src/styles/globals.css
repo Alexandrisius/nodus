@@ -868,7 +868,13 @@
 /* Стикер-сообщение (#143) без пузыря — выделение красит ПЛИТУ глифа
    (sticker-surface, ревизия владельца 30.09: «не видно, что выделен»):
    тот же тинт color-mix(поверхность, info 32%), что у пузырей, + яркая
-   граница; в базе плита прозрачна с прозрачным бордером (layout стабилен). */
+   граница; в базе плита прозрачна с прозрачным бордером (layout стабилен).
+   #288: в ленте стикер-ответ несёт цитату — красится плита ТЕЛА
+   «цитата+глиф» (sticker-body) ЕДИНОЙ рамкой (у глифа там data-slot
+   'sticker-glyph' — без выделения, иначе двойная рамка); посты канала и
+   стикеры без тела — глифовая плита (sticker-surface), как было. */
+[data-message-id][data-selected='true'] [data-slot='sticker-body'],
+[data-message-id][data-box-selected='true'] [data-slot='sticker-body'],
 [data-message-id][data-selected='true'] [data-slot='sticker-surface'],
 [data-message-id][data-box-selected='true'] [data-slot='sticker-surface'] {
   background-color: color-mix(in oklch, var(--bubble-in), var(--info) 32%);

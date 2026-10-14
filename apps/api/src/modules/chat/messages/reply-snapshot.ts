@@ -11,6 +11,12 @@ export interface ReplyOriginalInput {
   deleted: boolean;
   /** Вид первого вложения — подпись «Фото»/«Файл»/«Стикер» в цитате без текста. */
   attachmentKind: 'image' | 'file' | 'sticker' | null;
+  /** #288: оригинал-стикер — fileId для мини-глифа в цитате (url строится
+   *  ПОДПИСЬЮ при чтении: замороженный снапшот не хранит протухающие ссылки)
+   *  и первый эмодзи пака. */
+  stickerFileId: string | null;
+  stickerEmoji: string | null;
+  stickerMime: string | null;
 }
 
 /**
@@ -31,6 +37,9 @@ export function buildReplySnapshot(
       text: '',
       quoteText: null,
       attachmentKind: null,
+      stickerFileId: null,
+      stickerEmoji: null,
+      stickerMime: null,
     };
   }
   // Токен-знающая обрезка (#224): срез по границам сегментов — замороженный
@@ -40,5 +49,8 @@ export function buildReplySnapshot(
     text: truncateMentionText(original.text, REPLY_SNIPPET_MAX),
     quoteText: quoteText ? truncateMentionText(quoteText, REPLY_SNIPPET_MAX) : null,
     attachmentKind: original.attachmentKind,
+    stickerFileId: original.stickerFileId,
+    stickerEmoji: original.stickerEmoji,
+    stickerMime: original.stickerMime,
   };
 }

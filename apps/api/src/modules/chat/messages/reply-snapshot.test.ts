@@ -7,7 +7,10 @@ function original(
     authorId: string;
     text: string;
     deleted: boolean;
-    attachmentKind: 'image' | 'file' | null;
+    attachmentKind: 'image' | 'file' | 'sticker' | null;
+    stickerFileId: string | null;
+    stickerEmoji: string | null;
+    stickerMime: string | null;
   }> = {},
 ) {
   return {
@@ -15,6 +18,9 @@ function original(
     text: 'Исходный текст',
     deleted: false,
     attachmentKind: null,
+    stickerFileId: null,
+    stickerEmoji: null,
+    stickerMime: null,
     ...overrides,
   };
 }
@@ -27,6 +33,9 @@ describe('buildReplySnapshot', () => {
       text,
       quoteText: null,
       attachmentKind: null,
+      stickerFileId: null,
+      stickerEmoji: null,
+      stickerMime: null,
     });
   });
 
@@ -59,19 +68,61 @@ describe('buildReplySnapshot', () => {
     expect(buildReplySnapshot(original({ attachmentKind: null }), null).attachmentKind).toBeNull();
   });
 
+  it('оригинал-стикер: fileId/эмодзи/mime для мини-глифа цитаты (#288)', () => {
+    expect(
+      buildReplySnapshot(
+        original({
+          attachmentKind: 'sticker',
+          stickerFileId: 'file-1',
+          stickerEmoji: '🙂',
+          stickerMime: 'image/webp',
+        }),
+        null,
+      ),
+    ).toEqual({
+      authorId: 'orig-1',
+      text: 'Исходный текст',
+      quoteText: null,
+      attachmentKind: 'sticker',
+      stickerFileId: 'file-1',
+      stickerEmoji: '🙂',
+      stickerMime: 'image/webp',
+    });
+  });
+
   it('цитата без текста оригинала: text пуст, quoteText сохранён', () => {
     expect(buildReplySnapshot(original({ text: '' }), 'фрагмент')).toEqual({
       authorId: 'orig-1',
       text: '',
       quoteText: 'фрагмент',
       attachmentKind: null,
+      stickerFileId: null,
+      stickerEmoji: null,
+      stickerMime: null,
     });
   });
 
-  it('удалённый оригинал: автор сохранён, содержимое затёрто', () => {
+  it('удалённый оригинал: автор сохранён, содержимое затёрто (включая стикер-глиф)', () => {
     expect(
-      buildReplySnapshot(original({ deleted: true, attachmentKind: 'image' }), 'цитата'),
-    ).toEqual({ authorId: 'orig-1', text: '', quoteText: null, attachmentKind: null });
+      buildReplySnapshot(
+        original({
+          deleted: true,
+          attachmentKind: 'sticker',
+          stickerFileId: 'file-1',
+          stickerEmoji: '🙂',
+          stickerMime: 'image/webp',
+        }),
+        'цитата',
+      ),
+    ).toEqual({
+      authorId: 'orig-1',
+      text: '',
+      quoteText: null,
+      attachmentKind: null,
+      stickerFileId: null,
+      stickerEmoji: null,
+      stickerMime: null,
+    });
   });
 
   it('несуществующий оригинал: authorId null', () => {
@@ -80,6 +131,9 @@ describe('buildReplySnapshot', () => {
       text: '',
       quoteText: null,
       attachmentKind: null,
+      stickerFileId: null,
+      stickerEmoji: null,
+      stickerMime: null,
     });
   });
 });

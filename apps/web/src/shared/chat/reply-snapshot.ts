@@ -17,17 +17,26 @@ export interface ReplyDraft {
   /** Частичная цитата: выделенный автором фрагмент (Replies 2.0). */
   quoteText: string | null;
   attachmentKind: 'image' | 'file' | 'sticker' | null;
+  /** #288: мини-глиф оригинального СТИКЕРА в цитате (url + первый эмодзи
+   *  пака + mime); null у остальных видов и старых черновиков. */
+  stickerUrl: string | null;
+  stickerEmoji: string | null;
+  stickerMime: string | null;
   /** Оригинал живёт в треде канала — прыжок по цитате целится в окно треда. */
   inThread: string | null;
 }
 
 export function replyDraftFrom(message: ChatMessage, quoteText?: string | null): ReplyDraft {
+  const first = message.attachments[0];
   return {
     messageId: message.id,
     author: message.author,
     snippet: message.text.slice(0, REPLY_SNIPPET_MAX),
     quoteText: quoteText ? quoteText.slice(0, REPLY_SNIPPET_MAX) : null,
-    attachmentKind: message.attachments[0]?.kind ?? null,
+    attachmentKind: first?.kind ?? null,
+    stickerUrl: first?.kind === 'sticker' ? (first.url ?? null) : null,
+    stickerEmoji: first?.kind === 'sticker' ? (first.sticker?.emojis[0] ?? null) : null,
+    stickerMime: first?.kind === 'sticker' ? first.mime : null,
     inThread: message.threadRootId,
   };
 }
@@ -39,6 +48,9 @@ export function toReplyPreview(draft: ReplyDraft): ReplyPreview {
     text: draft.snippet,
     quoteText: draft.quoteText,
     attachmentKind: draft.attachmentKind,
+    stickerUrl: draft.stickerUrl,
+    stickerEmoji: draft.stickerEmoji,
+    stickerMime: draft.stickerMime,
     deleted: false,
     obliterated: false,
   };
@@ -57,6 +69,9 @@ export function replyDraftFromPreview(preview: ReplyPreview): ReplyDraft | null 
     snippet: preview.text,
     quoteText: preview.quoteText ?? null,
     attachmentKind: preview.attachmentKind ?? null,
+    stickerUrl: preview.stickerUrl ?? null,
+    stickerEmoji: preview.stickerEmoji ?? null,
+    stickerMime: preview.stickerMime ?? null,
     inThread: null,
   };
 }

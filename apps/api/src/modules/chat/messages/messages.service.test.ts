@@ -254,7 +254,15 @@ describe('MessagesService', () => {
       expect(repo.insertMessage).toHaveBeenCalledWith(
         expect.objectContaining({
           replyToId: 'orig-1',
-          replySnapshot: { authorId: PEER, text: '', quoteText: null, attachmentKind: null },
+          replySnapshot: {
+            authorId: PEER,
+            text: '',
+            quoteText: null,
+            attachmentKind: null,
+            stickerFileId: null,
+            stickerEmoji: null,
+            stickerMime: null,
+          },
         }),
         TX,
       );
@@ -290,7 +298,53 @@ describe('MessagesService', () => {
             text: 'х'.repeat(160),
             quoteText: null,
             attachmentKind: 'image',
+            stickerFileId: null,
+            stickerEmoji: null,
+            stickerMime: null,
           },
+        }),
+        TX,
+      );
+    });
+
+    it('цитата-на-стикер: снапшот несёт fileId/эмодзи/mime для мини-глифа (#288)', async () => {
+      repo.findByIdInConversation.mockResolvedValue(
+        makeMessage({ id: 'orig-st', authorId: PEER, text: '' }),
+      );
+      repo.attachmentsFor.mockResolvedValue([
+        {
+          messageId: 'orig-st',
+          id: 'a-st',
+          name: 'sticker.webp',
+          size: 24_000,
+          mime: 'image/webp',
+          kind: 'sticker',
+          width: 512,
+          height: 512,
+          sortOrder: 0,
+          fileId: 'file-st-1',
+          stickerMeta: {
+            packId: 'p-1',
+            packTitle: 'Пак',
+            packScope: 'personal',
+            emojis: ['🔥', '😀'],
+          },
+        },
+      ]);
+      repo.insertMessage.mockResolvedValue(
+        makeMessage({ id: 'msg-rs', seq: 8n, replyToId: 'orig-st' }),
+      );
+
+      await service.send(ME, CONV, { text: 'Ответ', replyToId: 'orig-st' }, 'key-st');
+
+      expect(repo.insertMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          replySnapshot: expect.objectContaining({
+            attachmentKind: 'sticker',
+            stickerFileId: 'file-st-1',
+            stickerEmoji: '🔥',
+            stickerMime: 'image/webp',
+          }),
         }),
         TX,
       );

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import { ui } from '@nodus/contracts';
 import { Popover, PopoverContent, PopoverTrigger } from '@nodus/ui/components/popover';
 import { cn } from '@nodus/ui/lib/utils';
@@ -17,6 +17,15 @@ import { StickerCreateDialog } from './sticker-create-dialog.js';
  * панель живёт между выборами (канон Telegram). Попап не крадёт «вечный
  * курсор» (канон #71). Сегмент вкладок — с воздухом от границ панели.
  *
+ * #288 (вердикт владельца 14.10, канон Telegram): closeOnStickerPick —
+ * выбор стикера ЗАКРЫВАЕТ панель, фокус возвращается в каретку набора
+ * (finalFocusRef — поле композера; без него клик по стикеру убивал каретку,
+ * а панель висела). Панель раскрывается НАВЕДЕНИЕМ на Smile (задержка
+ * 250мс — намеренность: кнопка в ряду с молнией и «Отправить», без неё
+ * панель вспыхивала бы при каждом проводе мыши) и КЛИКОМ; открытая
+ * наведением закрывается, когда курсор покинул и кнопку, и панель;
+ * открытая кликом живёт по-старому (вне клика/ Esc / выбор стикера).
+ *
  * ТЯЖЁЛЫЕ ДИАЛОГИ (создание/переименование/удаление пака) рендерятся ЗДЕСЬ,
  * ВНЕ поповера: клик мимо закрывает поповер и уносит потомков вместе с
  * диалогом — preventDefault на диалоге не спасает от смерти родителя
@@ -30,28 +39,89 @@ export function MediaPickerButton({
   onPickEmoji,
   onPickSticker,
   stickersDisabled = false,
+  closeOnStickerPick = false,
+  finalFocusRef,
   children,
 }: {
   onPickEmoji: (emoji: string) => void;
   onPickSticker: (payload: StickerSubmitPayload) => void;
   /** Селект/пересылка/нет права поста — вкладка стикеров заблокирована. */
   stickersDisabled?: boolean;
+  /** Закрыть панель после выбора стикера + вернуть каретку (finalFocusRef). */
+  closeOnStickerPick?: boolean;
+  /** Куда вернуть фокус при закрытии поповера (поле композера). */
+  finalFocusRef?: RefObject<HTMLElement | null>;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<MediaTab>('emoji');
   const [packDialog, setPackDialog] = useState<PackDialogRequest | null>(null);
+  // Наведение (#288, канон Telegram): openVia различает «открыта кликом» —
+  // такая живёт до явного закрытия — и «наведением» — такая гаснет, когда
+  // курсор ушёл с кнопки И панели (таймер-допуск на щель между ними).
+  const openViaRef = useRef<'click' | 'hover'>('click');
+  const hoverTimer = useRef<number | undefined>(undefined);
+  const leaveTimer = useRef<number | undefined>(undefined);
+  const clearHoverTimers = () => {
+    window.clearTimeout(hoverTimer.current);
+    window.clearTimeout(leaveTimer.current);
+  };
+  useEffect(() => clearHoverTimers, []);
+
+  const scheduleCloseOnLeave = () => {
+    clearHoverTimers();
+    leaveTimer.current = window.setTimeout(() => setOpen(false), 150);
+  };
 
   return (
     <>
       <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>{children}</PopoverTrigger>
+        {/* display:contents — события мыши кнопки всплывают в обёртку, не
+            ломая раскладку триггера (канон #71: фокус не крадётся). */}
+        <span
+          className="contents"
+          onMouseEnter={() => {
+            if (open) return;
+            clearHoverTimers();
+            hoverTimer.current = window.setTimeout(() => {
+              openViaRef.current = 'hover';
+              setOpen(true);
+            }, 250);
+          }}
+          onMouseLeave={() => {
+            clearHoverTimers();
+            if (open && openViaRef.current === 'hover') scheduleCloseOnLeave();
+          }}
+        >
+          <PopoverTrigger
+            asChild
+            onClick={() => {
+              clearHoverTimers();
+              openViaRef.current = 'click';
+            }}
+          >
+            {children}
+          </PopoverTrigger>
+        </span>
         <PopoverContent
           side="top"
           align="end"
           className="w-88 p-0"
+          // Курсор перетёк с кнопки в панель — отложенное закрытие отменено.
+          onMouseEnter={clearHoverTimers}
+          onMouseLeave={() => {
+            if (openViaRef.current === 'hover') scheduleCloseOnLeave();
+          }}
           // «Вечный курсор» (канон #71): попап не крадёт фокус композера.
           onOpenAutoFocus={(event) => event.preventDefault()}
+          onCloseAutoFocus={(event) => {
+            // Каретка возвращается в ПОЛЕ, не на кнопку Smile (#288): клик по
+            // стикеру уводил фокус в панель, закрытие — на триггер.
+            if (closeOnStickerPick && finalFocusRef?.current) {
+              event.preventDefault();
+              finalFocusRef.current.focus();
+            }
+          }}
         >
           <div
             role="tablist"
@@ -71,7 +141,10 @@ export function MediaPickerButton({
             {tab === 'emoji' ? <EmojiPanel onPick={onPickEmoji} /> : null}
             {tab === 'stickers' ? (
               <StickerPanel
-                onPick={onPickSticker}
+                onPick={(payload) => {
+                  onPickSticker(payload);
+                  if (closeOnStickerPick) setOpen(false);
+                }}
                 onHostDialog={setPackDialog}
                 disabled={stickersDisabled}
               />

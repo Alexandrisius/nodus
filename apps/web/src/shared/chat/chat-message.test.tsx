@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render } from '@testing-library/react';
+import { cleanup, fireEvent, render } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { TooltipProvider } from '@nodus/ui/components/tooltip';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -8,6 +8,7 @@ import type { ChatMessage } from '@nodus/contracts';
 import { ChatMessageItem, MessageReactions } from './chat-message.js';
 import { StickerMessageView } from './sticker-message.js';
 import { useChatPrefs } from './chat-prefs.js';
+import { useJumpStore } from './jump-store.js';
 
 // QueryClient остаётся: пузырь живёт в дереве с запросами ленты.
 const queryClient = new QueryClient();
@@ -311,5 +312,117 @@ describe('Стикер — выравнивание «По обе стороны
     const content = container.querySelector('[data-slot="message-content"]')!;
     expect(content.className).toContain('data-slot:self-end');
     useChatPrefs.setState({ align: 'one' });
+  });
+});
+
+describe('Стикер — цитата ответа (#288)', () => {
+  const sticker = {
+    id: 'a1',
+    fileId: 'f1',
+    name: 'sticker.webp',
+    size: 24_000,
+    mime: 'image/webp',
+    kind: 'sticker',
+    url: '/reactions/eyes.webp',
+    thumbnailUrl: null,
+    previewKind: 'image',
+    pdfUrl: null,
+    width: 64,
+    height: 64,
+    sticker: { packId: 'p1', packTitle: 'Кадры', packScope: 'personal', emojis: ['👀'] },
+  } as never;
+  const reply = {
+    id: 'm0',
+    author: { id: 'a', displayName: 'Иван Петров', avatarUrl: null },
+    text: 'оригинал',
+    quoteText: null,
+    attachmentKind: null,
+    deleted: false,
+    obliterated: false,
+  };
+
+  it('ответ стикером рисует цитату НАД глифом (раньше связь была невидима)', () => {
+    const { container } = renderMessage(
+      <StickerMessageView message={message({ reply })} attachment={sticker} mine />,
+    );
+    const stickerEl = container.querySelector('[data-slot="sticker-message"]')!;
+    // Цитата — первый ребёнок колонки, имя автора в ней
+    expect(stickerEl.firstElementChild!.textContent).toContain('Иван Петров');
+  });
+
+  it('клик по цитате — запрос прыжка к оригиналу (механика пузырей)', () => {
+    useJumpStore.setState({ target: null });
+    const { getByRole } = renderMessage(
+      <StickerMessageView
+        message={message({ reply, threadRootId: 't1' })}
+        attachment={sticker}
+        mine
+      />,
+    );
+    // Кнопка цитаты: имя автора + сниппет (поверхность стикера — своя кнопка)
+    fireEvent.click(getByRole('button', { name: /Иван Петров/ }));
+    expect(useJumpStore.getState().target).toMatchObject({
+      conversationId: 'conv-1',
+      messageId: 'm0',
+      threadRootId: 't1',
+    });
+  });
+
+  it('цитата — фиксированная ширина, прижата вправо, в потоке НАД глифом (#288)', () => {
+    // Канон Telegram (вердикт владельца 14.10): место реплая всегда одно,
+    // не зависит от длины текста и стороны сообщения; длинное обрезается.
+    // Наложение на глиф ЗАПРЕЩЕНО: панель «вырезала» кусок стикера.
+    useChatPrefs.setState({ align: 'one' });
+    const mineView = renderMessage(
+      <StickerMessageView message={message({ reply })} attachment={sticker} mine />,
+    );
+    const mineQuote = mineView.container.querySelector(
+      '[data-slot="sticker-body"]',
+    )!.firstElementChild!;
+    expect(mineQuote.className).not.toContain('absolute');
+    expect(mineQuote.className).toContain('self-end');
+    expect(mineQuote.className).toContain('w-40');
+
+    const foreignView = renderMessage(
+      <StickerMessageView message={message({ reply })} attachment={sticker} mine={false} />,
+    );
+    const foreignQuote = foreignView.container.querySelector(
+      '[data-slot="sticker-body"]',
+    )!.firstElementChild!;
+    expect(foreignQuote.className).toBe(mineQuote.className);
+    useChatPrefs.setState({ align: 'one' });
+  });
+
+  it('цитата-на-стикер показывает МИНИ-ГЛИФ оригинала и «Стикер 🙂» (#288)', () => {
+    const stickerReply = {
+      ...reply,
+      text: '',
+      attachmentKind: 'sticker' as const,
+      stickerUrl: '/stickers/pack/1.webp',
+      stickerEmoji: '🙂',
+      stickerMime: 'image/webp',
+    };
+    const { container } = renderMessage(
+      <StickerMessageView message={message({ reply: stickerReply })} attachment={sticker} mine />,
+    );
+    const quote = container.querySelector('[data-slot="sticker-body"]')!.firstElementChild!;
+    // Глиф-миниатюра внутри цитаты (webp — img)
+    expect(quote.querySelector('img, video')).toBeTruthy();
+    expect(quote.textContent).toContain('Стикер');
+    expect(quote.textContent).toContain('🙂');
+  });
+
+  it('выделение: единая плита тела «цитата+глиф», двойной рамки нет', () => {
+    // Рамка селекта обнимает виртуальный пузырь целиком (data-selected красит
+    // sticker-body, globals.css); мета-строка — снаружи, как у пузырей
+    const { container } = renderMessage(
+      <StickerMessageView message={message({ reply })} attachment={sticker} mine />,
+    );
+    const body = container.querySelector('[data-slot="sticker-body"]')!;
+    expect(body).toBeTruthy();
+    // У глифа в ленте плиты нет (data-slot 'sticker-glyph') — иначе рамка
+    // красила бы тело И глиф вместе: двойная рамка (жалоба владельца 14.10)
+    expect(body.querySelector('[data-slot="sticker-glyph"]')).toBeTruthy();
+    expect(body.querySelector('[data-slot="sticker-surface"]')).toBeNull();
   });
 });

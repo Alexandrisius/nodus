@@ -8,14 +8,17 @@ import { personTone } from '../ui/person-tone.js';
 import type { ChatDraft } from './chat-drafts.js';
 
 /** Подпись медийного оригинала без текста (канон Telegram reply_media:
- *  «Фото» / «Файл» в цитате). */
+ *  «Фото» / «Файл» в цитате; стикер — «Стикер 🙂» с эмодзи пака, #288). */
 function replySnippet(draft: ChatDraft): string {
   const reply = draft.reply;
   if (!reply) return '';
   if (reply.quoteText) return `«${reply.quoteText}»`;
   if (reply.snippet) return reply.snippet;
   if (reply.attachmentKind === 'image') return ui.chat.quotePhoto;
-  if (reply.attachmentKind === 'sticker') return ui.chat.stickerPreview;
+  if (reply.attachmentKind === 'sticker')
+    return reply.stickerEmoji
+      ? `${ui.chat.stickerPreview} ${reply.stickerEmoji}`
+      : ui.chat.stickerPreview;
   return ui.chat.quoteFile;
 }
 
@@ -30,19 +33,51 @@ function replySnippet(draft: ChatDraft): string {
  * Discord: сначала режимы композера, потом слайдер).
  * Плоско: ступень тона bg-accent/40, акцентная линия слева (info), без
  * разделителей (канон 24.09: линии — только границы функциональных зон).
+ *
+ * Реиспользуется вне композера (#288): окно отправки вложений рисует ту же
+ * плашку над списком файлов. Там className задаёт скругление карточкой
+ * (tailwind-merge перебивает rounded-t), а onJump не передаётся — тело
+ * рендерится спаном: за модалом лента не видна, прыжок сбивчив; крестик
+ * отмены остаётся.
  */
 export function ComposerBanner({
   draft,
   onCancel,
   onJump,
+  className,
 }: {
   draft: ChatDraft;
   onCancel: () => void;
   onJump?: () => void;
+  className?: string;
 }) {
   const isEdit = draft.edit !== null;
+  const bodyClass = cn(
+    'flex min-w-0 flex-1 flex-col justify-center gap-0.5 rounded-md px-1 text-left',
+    onJump && 'transition-colors hover:bg-accent/60',
+  );
+  const body = (
+    <>
+      <span
+        className={cn(
+          'truncate text-xs font-semibold',
+          draft.reply ? personTone(draft.reply.author.id) : '',
+        )}
+      >
+        {draft.reply ? withoutPatronymic(draft.reply.author.displayName) : null}
+      </span>
+      <span className="truncate text-xs text-muted-foreground">{replySnippet(draft)}</span>
+    </>
+  );
   return (
-    <span className="flex items-stretch gap-1.5 rounded-t-[10px] bg-accent/40 py-1.5 pr-1.5 pl-2.5">
+    <span
+      className={cn(
+        // min-w-0: в окне вложений плашка — прямой ребёнок grid DialogContent,
+        // без него min-content nowrap-сниппета растягивает окно (блокер ui #288)
+        'flex min-w-0 items-stretch gap-1.5 rounded-t-[10px] bg-accent/40 py-1.5 pr-1.5 pl-2.5',
+        className,
+      )}
+    >
       <span aria-hidden className="w-0.5 shrink-0 rounded-full bg-info" />
       {isEdit ? (
         <span className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 px-1">
@@ -52,22 +87,12 @@ export function ComposerBanner({
           </span>
           <span className="truncate text-xs text-muted-foreground">{draft.edit?.originalText}</span>
         </span>
-      ) : (
-        <button
-          type="button"
-          onClick={onJump}
-          className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 rounded-md px-1 text-left transition-colors hover:bg-accent/60"
-        >
-          <span
-            className={cn(
-              'truncate text-xs font-semibold',
-              draft.reply ? personTone(draft.reply.author.id) : '',
-            )}
-          >
-            {draft.reply ? withoutPatronymic(draft.reply.author.displayName) : null}
-          </span>
-          <span className="truncate text-xs text-muted-foreground">{replySnippet(draft)}</span>
+      ) : onJump ? (
+        <button type="button" onClick={onJump} className={bodyClass}>
+          {body}
         </button>
+      ) : (
+        <span className={bodyClass}>{body}</span>
       )}
       <Button
         type="button"

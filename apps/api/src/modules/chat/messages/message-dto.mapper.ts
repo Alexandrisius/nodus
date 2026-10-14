@@ -31,6 +31,11 @@ export interface ReplySnapshotValue {
   text: string;
   quoteText: string | null;
   attachmentKind: 'image' | 'file' | 'sticker' | null;
+  /** #288: мини-глиф оригинального стикера в цитате — fileId (url строится
+   *  подписью при чтении) + первый эмодзи пака. Старые снапшоты — без полей. */
+  stickerFileId?: string | null;
+  stickerEmoji?: string | null;
+  stickerMime?: string | null;
 }
 
 /** userId упоминаний из JSONB-колонки (снапшот отправки, #100). */
@@ -171,7 +176,7 @@ export class MessageDtoMapper {
         author: refs.get(row.authorId) ?? fallbackRef(row.authorId),
         text: tombstone ? '' : row.text,
         replyToId: row.replyToId,
-        reply: tombstone ? null : buildReplyPreview(row, refs, originalById),
+        reply: tombstone ? null : buildReplyPreview(row, refs, originalById, this.signedUrls),
         threadRootId: row.threadRootId,
         threadRepliesCount: row.threadRootId === null ? (threadCountByRoot.get(row.id) ?? 0) : 0,
         reactions: tombstone
@@ -245,7 +250,7 @@ export class MessageDtoMapper {
       author: refs.get(row.authorId) ?? fallbackRef(row.authorId),
       text: row.text,
       replyToId: row.replyToId,
-      reply: buildReplyPreview(row, refs, originalById),
+      reply: buildReplyPreview(row, refs, originalById, this.signedUrls),
       threadRootId: row.threadRootId,
       threadRepliesCount: 0,
       reactions: [],
@@ -323,6 +328,7 @@ function buildReplyPreview(
   row: MessageRow,
   refs: Map<string, UserRef>,
   originalById: Map<string, MessageRow>,
+  signedUrls: SignedUrlService,
 ): ReplyPreview | null {
   if (!row.replyToId) return null;
   const snapshot = (row.replySnapshot ?? null) as ReplySnapshotValue | null;
@@ -342,6 +348,14 @@ function buildReplyPreview(
       : (snapshot?.text ?? (original ? truncateMentionText(original.text, 160) : '')),
     quoteText: deleted ? null : (snapshot?.quoteText ?? null),
     attachmentKind: deleted ? null : (snapshot?.attachmentKind ?? null),
+    // #288: мини-глиф оригинального стикера; url подписывается при ЧТЕНИИ —
+    // снапшот хранит только fileId (протухающие ссылки замораживать нельзя).
+    stickerUrl:
+      !deleted && snapshot?.stickerFileId
+        ? signedUrls.fileContentUrl(snapshot.stickerFileId)
+        : null,
+    stickerEmoji: deleted ? null : (snapshot?.stickerEmoji ?? null),
+    stickerMime: deleted ? null : (snapshot?.stickerMime ?? null),
     deleted,
     obliterated,
   };

@@ -5,16 +5,17 @@ import { toReplyPreview } from './reply-snapshot.js';
 /** ComposerSubmit → SendChatVars: готовые вложения → attachmentIds + превью
  *  для оптимистичного temp-сообщения; черновик ответа → поля цитаты.
  *  Стикер (#143) — приоритетная ветка: отдельное сообщение без текста,
- *  черновик композера не съедается (keepDraft). */
+ *  черновик композера не съедается (keepDraft); активный ответ уходит
+ *  ответом-стикером (#288, канон Telegram) — ветка НЕ обнуляет цитату. */
 export function toSendVars(submit: ComposerSubmit): SendChatVars {
   if (submit.sticker) {
     return {
       text: '',
       stickerId: submit.sticker.stickerId,
       attachments: [submit.sticker.attachment],
-      replyToId: null,
-      quoteText: null,
-      reply: null,
+      replyToId: submit.reply?.messageId ?? null,
+      quoteText: submit.reply?.quoteText ?? null,
+      reply: submit.reply ? toReplyPreview(submit.reply) : null,
       keepDraft: true,
     };
   }

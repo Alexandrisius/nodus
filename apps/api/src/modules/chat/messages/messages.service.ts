@@ -11,6 +11,7 @@ import {
   type Paginated,
   type ReadConversationResult,
   type SendMessageBody,
+  type StickerMeta,
 } from '@nodus/contracts';
 
 import { EventBus } from '../../../core/events/event-bus.js';
@@ -285,6 +286,21 @@ export class MessagesService {
                 deleted: replyOriginalRow.deletedAt !== null,
                 attachmentKind:
                   (originalAttachments[0]?.kind as 'image' | 'file' | 'sticker') ?? null,
+                // #288: мини-глиф оригинального стикера в цитате — fileId
+                // (url подписывается при чтении) + первый эмодзи пака.
+                stickerFileId:
+                  originalAttachments[0]?.kind === 'sticker'
+                    ? (originalAttachments[0]?.fileId ?? null)
+                    : null,
+                stickerEmoji:
+                  originalAttachments[0]?.kind === 'sticker'
+                    ? ((originalAttachments[0]?.stickerMeta as StickerMeta | null)?.emojis[0] ??
+                      null)
+                    : null,
+                stickerMime:
+                  originalAttachments[0]?.kind === 'sticker'
+                    ? (originalAttachments[0]?.mime ?? null)
+                    : null,
               }
             : null,
           body.quoteText ?? null,
