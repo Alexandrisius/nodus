@@ -96,10 +96,19 @@ describe.skipIf(!process.env.DATABASE_URL)(
         ).json(),
       );
 
-      await publisher.publishPending();
-
-      const found1 = await findSentEnvelope(first.id);
-      const found2 = await findSentEnvelope(second.id);
+      // Флэйк-иммунитет («expected null not to be null» в CI): ручной
+      // publishPending — no-op, пока фоновый 50-мс поллер держит замок
+      // publishing, а батч LIMIT 200 при длинном хвосте outbox кладёт наши
+      // события не с первого прохода. Ждём долёта ограниченно: в норме
+      // первый проход находит оба envelope.
+      let found1: { id: string; envelope: RealtimeEnvelope } | null = null;
+      let found2: { id: string; envelope: RealtimeEnvelope } | null = null;
+      for (let attempt = 0; attempt < 50 && !(found1 && found2); attempt++) {
+        await publisher.publishPending();
+        if (!found1) found1 = await findSentEnvelope(first.id);
+        if (!found2) found2 = await findSentEnvelope(second.id);
+        if (!(found1 && found2)) await new Promise((resolve) => setTimeout(resolve, 50));
+      }
       expect(found1).not.toBeNull();
       expect(found2).not.toBeNull();
       publishedIds.push(found1!.id, found2!.id);
