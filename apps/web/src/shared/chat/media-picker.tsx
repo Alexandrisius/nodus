@@ -41,6 +41,7 @@ export function MediaPickerButton({
   stickersDisabled = false,
   closeOnStickerPick = false,
   finalFocusRef,
+  onOpenChange,
   children,
 }: {
   onPickEmoji: (emoji: string) => void;
@@ -51,6 +52,9 @@ export function MediaPickerButton({
   closeOnStickerPick?: boolean;
   /** Куда вернуть фокус при закрытии поповера (поле композера). */
   finalFocusRef?: RefObject<HTMLElement | null>;
+  /** Наружное зеркало open (#294): композер гасит плашку стикеров-подсказок,
+   *  пока пикер открыт (его портал z-70 перекрыл бы плашку). */
+  onOpenChange?: (open: boolean) => void;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -68,14 +72,20 @@ export function MediaPickerButton({
   };
   useEffect(() => clearHoverTimers, []);
 
+  // Все переключения open — через обёртку с наружным зеркалом.
+  const setOpenBoth = (open: boolean) => {
+    setOpen(open);
+    onOpenChange?.(open);
+  };
+
   const scheduleCloseOnLeave = () => {
     clearHoverTimers();
-    leaveTimer.current = window.setTimeout(() => setOpen(false), 150);
+    leaveTimer.current = window.setTimeout(() => setOpenBoth(false), 150);
   };
 
   return (
     <>
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover open={open} onOpenChange={setOpenBoth}>
         {/* display:contents — события мыши кнопки всплывают в обёртку, не
             ломая раскладку триггера (канон #71: фокус не крадётся). */}
         <span
@@ -85,7 +95,7 @@ export function MediaPickerButton({
             clearHoverTimers();
             hoverTimer.current = window.setTimeout(() => {
               openViaRef.current = 'hover';
-              setOpen(true);
+              setOpenBoth(true);
             }, 250);
           }}
           onMouseLeave={() => {
@@ -107,6 +117,15 @@ export function MediaPickerButton({
           side="top"
           align="end"
           className="w-88 p-0"
+          // «Клик пинит» (канон #288): ЛЮБОЕ нажатие внутри панели — серия
+          // эмодзи, вкладка, «⋯» пака — переводит панель в режим «открыта
+          // кликом» (живёт до явного закрытия). Без пина модальное меню «⋯»
+          // (Radix блокирует pointer-events снаружи меню) выглядит для
+          // hover-панели уходом курсора — ложный mouseleave закрывал панель
+          // ВМЕСТЕ с меню (баг-репро владельца 15.10, #294).
+          onPointerDown={() => {
+            openViaRef.current = 'click';
+          }}
           // Курсор перетёк с кнопки в панель — отложенное закрытие отменено.
           onMouseEnter={clearHoverTimers}
           onMouseLeave={() => {
@@ -143,7 +162,7 @@ export function MediaPickerButton({
               <StickerPanel
                 onPick={(payload) => {
                   onPickSticker(payload);
-                  if (closeOnStickerPick) setOpen(false);
+                  if (closeOnStickerPick) setOpenBoth(false);
                 }}
                 onHostDialog={setPackDialog}
                 disabled={stickersDisabled}

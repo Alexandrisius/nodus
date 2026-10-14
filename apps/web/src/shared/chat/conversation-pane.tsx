@@ -14,7 +14,8 @@ import { cn } from '@nodus/ui/lib/utils';
 
 import { useAuthStore } from '../auth-store.js';
 import { useConversationMessages, useConversations, useSendChatMessage } from './api.js';
-import { ChatComposer, type ComposerSubmit } from './chat-composer.js';
+import { ChatComposer } from './chat-composer.js';
+import type { ComposerSubmit } from './composer-submit.js';
 import { ChatMessageItem } from './chat-message.js';
 import { setOpenConversation } from './notifications.js';
 import { registerScopeSubmit } from './submit-registry.js';

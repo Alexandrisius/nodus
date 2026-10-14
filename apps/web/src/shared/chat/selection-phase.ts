@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
-import type { ComposerSelection } from './chat-composer.js';
+import type { ComposerSelection } from './selection-island.js';
 
 /**
  * Морфология островка при мультивыборе (chat-composer, канон раундов 9–10,

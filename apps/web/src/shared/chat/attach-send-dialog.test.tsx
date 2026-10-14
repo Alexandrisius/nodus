@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ui, type ChatMessage, type MessageAttachment } from '@nodus/contracts';
-import type { ComposerSubmit } from './chat-composer.js';
+import type { ComposerSubmit } from './composer-submit.js';
 
 vi.mock('../api-client.js', () => ({
   // Дефолт — безопасный промис: путь удаления строки зовёт DELETE вложения.

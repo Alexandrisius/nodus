@@ -1,7 +1,7 @@
 import { api } from '../api-client.js';
 import { useChatDrafts } from './chat-drafts.js';
 import { toWireText } from './composer-mention-registry.js';
-import { MESSAGE_TEXT_LIMIT } from './chat-composer.js';
+import { MESSAGE_TEXT_LIMIT } from './composer-submit.js';
 
 /**
  * Серверная синхронизация черновика — ТОЛЬКО НА УХОДЕ из беседы (вердикт

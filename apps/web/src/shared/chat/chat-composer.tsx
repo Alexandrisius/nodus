@@ -18,13 +18,7 @@ import { SendHexIcon } from '../ui/send-hex-icon.js';
 import { emitTyping } from '../socket/typing-emitter.js';
 import { useComposerInputActions, useGrown } from './composer-input-utils.js';
 import { useSelectionPhase } from './selection-phase.js';
-import {
-  EMPTY_DRAFT,
-  useChatDrafts,
-  type EditDraft,
-  type PendingAttachment,
-  type ReplyDraft,
-} from './chat-drafts.js';
+import { EMPTY_DRAFT, useChatDrafts } from './chat-drafts.js';
 import { MediaPickerButton } from './media-picker.js';
 import { ComposerUrgentButton } from './composer-urgent.js';
 import { useComposerSendError } from './composer-errors.js';
@@ -39,77 +33,14 @@ import { chatKeys } from './api.js';
 import { useForwardMessages } from './message-mutations.js';
 import { useScrollEndStore } from './scroll-end-store.js';
 import { SelectionToolbar } from './selection-island.js';
-import type { StickerSubmitPayload } from './sticker-api.js';
+import { StickerSuggestPanel, useStickerSuggest } from './composer-sticker-suggest-panel.js';
 import { MentionAutocompletePanel, useComposerMentions } from './composer-mention-autocomplete.js';
 import { composerKeyDown } from './composer-keydown.js';
 import { mentionIndexAtOffset, toWireText } from './composer-mention-registry.js';
 import { MentionFieldOverlay, type MentionHit } from './composer-mention-overlay.js';
 import { registerScopeConversation } from './scope-conversations.js';
-
-/** Payload отправки композера (#87): текст + готовые вложения + контекст
- *  ответа/правки. Хост решает: edit ≠ null → мутация правки; иначе — отправка
- *  (attachmentIds/replyToId из payload). Пересылка (бар ForwardBanner)
- *  обрабатывается ВНУТРИ композера: текст = комментарий к блоку.
- *  Стикер (#143) — отдельный payload: поле приоритетнее текста (отправка
- *  кликом из вкладки стикеров, мимо textarea).
- *  editComposition (#188): правка пришла из ОКНА вложений — payload несёт
- *  полный итоговый состав (attachmentIds/renames); инлайн-правка композера
- *  (флаг не задан) меняет только текст. */
-export interface ComposerSubmit {
-  text: string;
-  attachments: PendingAttachment[];
-  reply: ReplyDraft | null;
-  edit: EditDraft | null;
-  editComposition?: boolean;
-  sticker?: StickerSubmitPayload | null;
-  /** «Важное» (#177): молния композера; requireAck — чекбокс подтверждения
-   *  (осмыслен только с urgent, сервер клампит). */
-  urgent?: boolean;
-  requireAck?: boolean;
-}
-
-/** Лимит текста сообщения (контракт text.max(4000), спека): превалидация в
- *  композере (раунд 3) — серверный 422 не должен съедать текст. */
-export const MESSAGE_TEXT_LIMIT = 4000;
-/** Счётчик виден, когда до лимита ближе этого порога. */
-export const MESSAGE_TEXT_COUNTER_FROM = 3500;
-
-/** Состояние превалидации длины (чистая функция — unit-тесты на границе). */
-export function messageLimitState(length: number): { over: boolean; counter: string | null } {
-  return {
-    over: length > MESSAGE_TEXT_LIMIT,
-    counter: length > MESSAGE_TEXT_COUNTER_FROM ? `${length} / ${MESSAGE_TEXT_LIMIT}` : null,
-  };
-}
-
-/** Режим мультивыбора ленты (A6): композер СХЛОПЫВАЕТСЯ в узкий островок
- *  батч-команд (модель Bitrix24, вердикт 24.09: ввод в селекте не нужен,
- *  верхняя полоса двигала UI). Действия собирает хост (use-feed-selection). */
-export interface ComposerSelection {
-  count: number;
-  /** Выделенные id в порядке ленты (#171: порядок цепочки = порядок «Заметок»). */
-  ids: string[];
-  allMine: boolean;
-  /** В выделении есть ещё не подтверждённые отправки (#243): серверные
-   *  команды (переслать/звезда/удалить) серые до подтверждения очереди —
-   *  без уведомлений, гри-аут как в Telegram (вердикт владельца 07.10). */
-  pending?: boolean;
-  /** Корзина доступна, когда всё выделенное можно удалить: в обычных лентах
-   *  это «все свои» (allMine, tdesktop); витрина «Избранного» удаляет ЛЮБУЮ
-   *  строку (запись — удалить, карточку — снять звезду, #215). */
-  deletable?: boolean;
-  /** Витрина «Избранного» (#215): пересылка островка — только записи (id
-   *  карточек живут в чужих беседах, сервер форварда ищет источники в одной
-   *  беседе-источнике; карточка пересылается ПКМ из исходной беседы).
-   *  false — кнопки «Переслать» нет. */
-  forwardable?: boolean;
-  /** Витрина «Заметок»: звезда-цепочка скрыта (self-reference, #171). */
-  favoritesEnabled?: boolean;
-  onForward: () => void;
-  onDelete: () => void;
-  onCopy: () => void;
-  onClear: () => void;
-}
+import { messageLimitState, type ComposerSubmit } from './composer-submit.js';
+import type { ComposerSelection } from './selection-island.js';
 
 /**
  * Композер сообщений (единый для чатов, каналов, тредов и обсуждений; файл
@@ -218,6 +149,41 @@ export function ChatComposer({
   // Морфология островка (селект) — хук selection-phase.ts (I5, #177).
   const { selPhase, toolbarSel } = useSelectionPhase(sel);
 
+  // Стикеры недоступны в режиме селекта/пересылки и без права поста (#143).
+  const stickersDisabled =
+    !stickersEnabled || selPhase !== 'normal' || disabledPlaceholder !== null || pending !== null;
+
+  // Наружное зеркало open пикера (#294): пока поповер смайла открыт, плашка
+  // стикеров-подсказок скрыта (его портал z-70 перекрыл бы её).
+  const [mediaPickerOpen, setMediaPickerOpen] = useState(false);
+
+  // Ввод-действия (эмодзи/стикер/paste) — хук composer-input-utils.ts
+  // (раньше плашки подсказок: её выбор уходит через pickSticker).
+  const { insertEmoji, pickSticker, onPaste } = useComposerInputActions({
+    focusId,
+    conversationId,
+    typingThreadRootId,
+    text,
+    inputRef,
+    attachmentsEnabled,
+    setText,
+    onSubmit,
+    requestScrollEnd,
+    syncCaret: mentions.syncCaret,
+  });
+
+  // Плашка стикеров-подсказок при вводе соло-эмодзи (#294): детект по
+  // тексту+каретке; скрыта, когда стикеры недоступны, идёт правка
+  // (стикер в правке — бессмыслица) или открыт медиа-пикер.
+  const suggest = useStickerSuggest({
+    text,
+    caret: mentions.caret,
+    suppressed: stickersDisabled || draft.edit !== null || mediaPickerOpen,
+    focusId,
+    setText,
+    submitSticker: pickSticker,
+  });
+
   // «Вечный курсор»: монтаж — композер активный владелец; размонтаж (закрыли
   // тред) — курсор возвращается ранее зарегистрированному (ленте канала).
   // Черновик восстановлен при смене беседы → каретка в КОНЕЦ текста при
@@ -228,7 +194,13 @@ export function ChatComposer({
     const restored = (useChatDrafts.getState().drafts[focusId]?.text ?? '').length;
     caretToEndRef.current = restored > 0;
     const el = inputRef.current;
-    if (el && restored > 0) el.setSelectionRange(restored, restored);
+    if (el && restored > 0) {
+      el.setSelectionRange(restored, restored);
+      // Синк каретки в стейт (#294): детекторы панелей (упоминания/стикеры)
+      // живут по ней — черновик-соло-эмодзи раскрывает плашку сразу после
+      // смены беседы, без ожидания первого ввода.
+      mentions.syncCaret(el);
+    }
   }, [focusId]);
 
   // «Вечный курсор» — регистрация РЕФ-КОЛБЭКОМ, не эффектом на [focusId]
@@ -377,19 +349,6 @@ export function ChatComposer({
     requestScrollEnd();
   }
 
-  // Ввод-действия (эмодзи/стикер/paste) — хук composer-input-utils.ts.
-  const { insertEmoji, pickSticker, onPaste } = useComposerInputActions({
-    focusId,
-    conversationId,
-    typingThreadRootId,
-    text,
-    inputRef,
-    attachmentsEnabled,
-    setText,
-    onSubmit,
-    requestScrollEnd,
-  });
-
   function onSubmitForm(event: FormEvent) {
     event.preventDefault();
     submit();
@@ -411,6 +370,14 @@ export function ChatComposer({
         pick: mentions.pick,
         dismiss: mentions.dismiss,
       },
+      stickerSuggest: {
+        open: suggest.open,
+        count: suggest.matches.length,
+        active: suggest.active,
+        setActive: suggest.setActive,
+        pick: suggest.pick,
+        dismiss: suggest.dismiss,
+      },
       submit,
       pendingForward: pending !== null,
       hasReply: draft.reply !== null,
@@ -419,9 +386,6 @@ export function ChatComposer({
     });
 
   const align = grown ? 'self-end' : 'self-center';
-  // Стикеры недоступны в режиме селекта/пересылки и без права поста (#143).
-  const stickersDisabled =
-    !stickersEnabled || selPhase !== 'normal' || disabledPlaceholder !== null || pending !== null;
 
   return (
     <form
@@ -437,7 +401,9 @@ export function ChatComposer({
       <span
         ref={islandRef}
         className={cn(
-          'rounded-2xl bg-card shadow-sm transition-all duration-200',
+          // relative — якорь панели стикеров-подсказок (#294): панель во всю
+          // ширину островка, выезжает из-под его верхней кромки.
+          'relative rounded-2xl bg-card shadow-sm transition-all duration-200',
           selPhase === 'sel'
             ? 'mx-auto flex w-72 items-center gap-0.5 px-2 py-1.5'
             : selPhase === 'exit'
@@ -445,6 +411,16 @@ export function ChatComposer({
               : 'flex w-full px-2 py-1.5',
         )}
       >
+        {/* Панель стикеров-подсказок (#294): перекрывает ленту над островком,
+            ничего в ней не двигая; с плашкой баннеров/строки ввода не
+            пересекается — anchored к островку целиком. */}
+        {suggest.open ? (
+          <StickerSuggestPanel
+            matches={suggest.matches}
+            active={suggest.active}
+            onPick={suggest.pick}
+          />
+        ) : null}
         {selPhase !== 'normal' && toolbarSel ? (
           // Р.9–10: тулбар ПРОЯВЛЯЕТСЯ при сужении (composer-reveal) и
           // РАСТВОРЯЕТСЯ на старте расширения (composer-hide в фазе exit,
@@ -598,6 +574,7 @@ export function ChatComposer({
                     const el = inputRef.current;
                     if (caretToEndRef.current && el) {
                       el.setSelectionRange(el.value.length, el.value.length);
+                      mentions.syncCaret(el);
                     }
                     caretToEndRef.current = false;
                   }}
@@ -645,6 +622,7 @@ export function ChatComposer({
                 closeOnStickerPick /* #288: стикер ушёл — панель закрыта, каретка в поле */
                 finalFocusRef={inputRef}
                 stickersDisabled={stickersDisabled}
+                onOpenChange={setMediaPickerOpen}
               >
                 <Button
                   type="button"

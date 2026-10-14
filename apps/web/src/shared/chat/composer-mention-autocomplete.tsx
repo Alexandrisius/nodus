@@ -118,7 +118,7 @@ export function useComposerMentions(opts: {
     setCaret(el.selectionStart ?? 0);
   }
 
-  return { autocomplete, open, syncCaret, pick, dismiss, handleKeyUp };
+  return { autocomplete, open, caret, syncCaret, pick, dismiss, handleKeyUp };
 }
 
 /** Обработка клавиш панели: возвращает true, если событие съедено (композер

@@ -14,7 +14,7 @@ import { Textarea } from '@nodus/ui/components/textarea';
 
 import { plural } from '../lib/format.js';
 import { AttachSendRow } from './attach-send-row.js';
-import { messageLimitState, type ComposerSubmit } from './chat-composer.js';
+import { messageLimitState, type ComposerSubmit } from './composer-submit.js';
 import { EMPTY_DRAFT, useChatDrafts, type PendingAttachment } from './chat-drafts.js';
 import { addFiles, cancelUpload, removePending, replaceFile } from './composer-files.js';
 import { MentionFieldOverlay, type MentionHit } from './composer-mention-overlay.js';

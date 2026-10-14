@@ -43,6 +43,10 @@ export function useComposerInputActions(deps: {
   attachmentsEnabled: boolean;
   /** Стор-экшн черновика (useChatDrafts.setText) — пишем в ключ фокуса. */
   setText: (key: string, text: string) => void;
+  /** Синк каретки поля хостом (#294): вставка эмодзи из панели ставит
+   *  каретку в rAF — без синка детекторы (упоминания/стикеры) живут по
+   *  устаревшей позиции до ближайшего keyUp. */
+  syncCaret?: (el: HTMLTextAreaElement) => void;
   onSubmit: (submit: {
     text: string;
     attachments: [];
@@ -81,6 +85,7 @@ export function useComposerInputActions(deps: {
     requestAnimationFrame(() => {
       el.focus();
       el.setSelectionRange(caret, caret);
+      deps.syncCaret?.(el);
     });
   }
 
