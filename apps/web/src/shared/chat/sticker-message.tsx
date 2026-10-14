@@ -93,19 +93,18 @@ export const StickerMessageView = memo(function StickerMessageView({
               владельца 14.10). */}
           <span
             data-slot="sticker-body"
-            className="relative flex w-fit flex-col rounded-2xl border border-transparent p-2"
+            className="flex w-fit flex-col rounded-2xl border border-transparent p-2"
           >
             {/* Цитата ответа (#288): стикер-ответ раньше молча терял видимую
-                связь (replyToId хранился, цитата не рисовалась). КАНОН
-                Telegram (вердикт владельца 14.10, рефскрин: место реплая
-                ВСЕГДА в одном месте — фиксированный бокс в правом верхнем
-                углу тела, не зависит от длины текста, длинный ОБРЕЗАЕТСЯ;
-                клик — прыжок к оригиналу с подсветкой). Панель ПЛАВАЕТ НАД
-                глифом (absolute, колонку не раздвигает), фон — плотная
-                поверхность зоны чата (глиф просвечивать не должен). Ширина
-                w-40 = 160/208 кегля глифа. */}
+              связь (replyToId хранился, цитата не рисовалась). КАНОН Telegram
+              (вердикты владельца 14.10): фиксированное место — панель w-40
+              ПРИЖАТА ВПРАВО и стоит НАД глифом В ПОТОКЕ (наложение
+              «вырезало» кусок стикера — запрет владельца), длина текста не
+              влияет, длинное обрезается; клик — прыжок с подсветкой. Фон —
+              штатная полупрозрачная цитата: плотный фон на тонированной
+              плите выделения давал чёрную кляксу (замечание владельца). */}
             {message.reply ? (
-              <span className="absolute top-2 right-2 z-10 w-40 overflow-hidden rounded-md bg-chat-zone">
+              <span className="mb-1 flex w-40 flex-col self-end">
                 <ReplyHeader
                   reply={message.reply}
                   onFilled={mine}

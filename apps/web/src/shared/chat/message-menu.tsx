@@ -426,7 +426,10 @@ export function MessageMenu({
             // браузера не глушим.
             const target = event.target as HTMLElement | null;
             const onSurface = target?.closest?.(
-              '[data-slot="bubble-content"], [data-slot="post-surface"], [data-slot="message-tombstone"], [data-slot="sticker-surface"], [data-slot="media-message"]',
+              // sticker-body/sticker-glyph (#288): плита стикера в ленте
+              // переехала на тело «цитата+глиф» (surface остался у постов
+              // канала) — ПКМ по стикеру обязан открывать меню как раньше.
+              '[data-slot="bubble-content"], [data-slot="post-surface"], [data-slot="message-tombstone"], [data-slot="sticker-surface"], [data-slot="sticker-body"], [data-slot="sticker-glyph"], [data-slot="media-message"]',
             );
             if (!onSurface) {
               event.stopPropagation();

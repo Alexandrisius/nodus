@@ -269,3 +269,51 @@ describe('MessageMenu: модераторское «Удалить» (#245)', ()
     expect(screen.queryByRole('menuitem', { name: ui.chat.menu.delete })).toBeNull();
   });
 });
+
+describe('MessageMenu: поверхность стикера (#288)', () => {
+  it('ПКМ по глифу стикера в плите тела открывает меню (data-slot сменился — гейт обязан знать новые)', async () => {
+    // Регресс полной ui-валидации #288: плита стикера переехала на тело
+    // «цитата+глиф» — allow-список onSurface без новых слотов глушил ПКМ.
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MessageMenu
+          message={msg()}
+          mine={false}
+          conversationId="conv-1"
+          scope="conversation:conv-1"
+        >
+          <span data-slot="sticker-body">
+            <button type="button" data-slot="sticker-glyph">
+              глиф
+            </button>
+          </span>
+        </MessageMenu>
+      </QueryClientProvider>,
+    );
+    fireEvent.contextMenu(screen.getByText('глиф'), { button: 2, clientX: 10, clientY: 10 });
+    await screen.findByRole('menuitem', { name: ui.chat.menu.copy });
+  });
+
+  it('ПКМ мимо поверхностей сообщение не открывает (как раньше)', () => {
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MessageMenu
+          message={msg()}
+          mine={false}
+          conversationId="conv-1"
+          scope="conversation:conv-1"
+        >
+          <span data-slot="sticker-body">
+            <button type="button" data-slot="sticker-glyph">
+              глиф
+            </button>
+          </span>
+          <span data-slot="sticker-meta">мета</span>
+        </MessageMenu>
+      </QueryClientProvider>,
+    );
+    // Мета-строка снаружи плиты — поверхности нет: меню не собирается.
+    fireEvent.contextMenu(screen.getByText('мета'), { button: 2, clientX: 10, clientY: 10 });
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+});

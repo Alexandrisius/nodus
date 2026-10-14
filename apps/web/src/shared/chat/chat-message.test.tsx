@@ -368,9 +368,10 @@ describe('Стикер — цитата ответа (#288)', () => {
     });
   });
 
-  it('цитата — ФИКСИРОВАННЫЙ бокс в правом верхнем углу, одинаков у своих и чужих (#288)', () => {
+  it('цитата — фиксированная ширина, прижата вправо, в потоке НАД глифом (#288)', () => {
     // Канон Telegram (вердикт владельца 14.10): место реплая всегда одно,
     // не зависит от длины текста и стороны сообщения; длинное обрезается.
+    // Наложение на глиф ЗАПРЕЩЕНО: панель «вырезала» кусок стикера.
     useChatPrefs.setState({ align: 'one' });
     const mineView = renderMessage(
       <StickerMessageView message={message({ reply })} attachment={sticker} mine />,
@@ -378,9 +379,8 @@ describe('Стикер — цитата ответа (#288)', () => {
     const mineQuote = mineView.container.querySelector(
       '[data-slot="sticker-body"]',
     )!.firstElementChild!;
-    expect(mineQuote.className).toContain('absolute');
-    expect(mineQuote.className).toContain('top-2');
-    expect(mineQuote.className).toContain('right-2');
+    expect(mineQuote.className).not.toContain('absolute');
+    expect(mineQuote.className).toContain('self-end');
     expect(mineQuote.className).toContain('w-40');
 
     const foreignView = renderMessage(
