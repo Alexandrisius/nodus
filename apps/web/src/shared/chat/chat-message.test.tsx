@@ -367,4 +367,17 @@ describe('Стикер — цитата ответа (#288)', () => {
       threadRootId: 't1',
     });
   });
+
+  it('«По обе стороны»: цитата своего стикера прижата к правому краю колонки', () => {
+    useChatPrefs.setState({ align: 'both' });
+    const { container } = renderMessage(
+      <StickerMessageView message={message({ reply })} attachment={sticker} mine />,
+    );
+    const wrapper = container.querySelector('[data-slot="sticker-message"]')!.firstElementChild!;
+    expect(wrapper.className).toContain('self-end');
+    // Блочная обёртка: инлайн-span молча съедал max-w (ширина на inline не
+    // действует) — длинный сниппет растягивал колонку w-fit (жалоба 14.10)
+    expect(wrapper.className).toContain('max-w-52');
+    useChatPrefs.setState({ align: 'one' });
+  });
 });

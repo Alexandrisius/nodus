@@ -1,6 +1,7 @@
 import { memo, type ReactNode } from 'react';
 import type { ChatMessage, MessageAttachment } from '@nodus/contracts';
 import { Message, MessageAvatar, MessageContent } from '@nodus/ui/components/message';
+import { cn } from '@nodus/ui/lib/utils';
 
 import { PersonAvatar } from '../ui/person-avatar.js';
 import { useChatPrefs } from './chat-prefs.js';
@@ -112,11 +113,13 @@ export const StickerMessageView = memo(function StickerMessageView({
         <span data-slot="sticker-message" className="relative flex w-fit flex-col group/bubble">
           {/* Цитата ответа (#288): стикер-ответ раньше молча терял видимую
               связь (replyToId хранился, цитата не рисовалась). Тот же
-              ReplyHeader, что у пузырей, — прыжок к оригиналу; ширина
-              ограничена кеглем стикера, чтобы длинный сниппет не растягивал
-              колонку w-fit. */}
+              ReplyHeader, что у пузырей, — прыжок к оригиналу. Обёртка
+              БЛОЧНАЯ (инлайн-span молча съедает max-w — ширина на inline не
+              действует): кап по кеглю стикера, чтобы длинный сниппет не
+              растягивал колонку w-fit; зазор до глифа (референс Telegram);
+              своё в «По обе стороны» — по правому краю колонки. */}
           {message.reply ? (
-            <span className="w-fit max-w-52">
+            <span className={cn('mb-1 flex w-fit max-w-52 flex-col', atEnd && 'self-end')}>
               <ReplyHeader
                 reply={message.reply}
                 onFilled={mine}
