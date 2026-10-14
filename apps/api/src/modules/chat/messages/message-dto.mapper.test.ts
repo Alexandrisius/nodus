@@ -229,3 +229,47 @@ describe('buildReplyPreview — различие надгробие/бессле
     expect(dtos[0]?.reply).toMatchObject({ id: 'orig-1', deleted: true, obliterated: true });
   });
 });
+
+describe('цитата-на-стикер: url подписывается при чтении (#288)', () => {
+  const members = [member({ userId: 'me-1' })];
+  const replyRow = fullRow({
+    id: 'r-st',
+    text: 'ответ',
+    replyToId: 'orig-st',
+    replySnapshot: {
+      authorId: 'peer-1',
+      text: '',
+      quoteText: null,
+      attachmentKind: 'sticker',
+      // Несущий инвариант: замороженный снапшот хранит только fileId —
+      // протухающие подписанные ссылки в нём запрещены.
+      stickerFileId: 'file-st-1',
+      stickerEmoji: '🙂',
+      stickerMime: 'image/webp',
+    },
+  });
+
+  it('stickerUrl строится подписью fileId; эмодзи/mime прокинуты', async () => {
+    const dtos = await stubMapper([fullRow({ id: 'orig-st' })]).toDtos([replyRow], {
+      viewerId: 'me-1',
+      members,
+    });
+    const url = dtos[0]?.reply?.stickerUrl ?? '';
+    // Подписанный адрес содержимого ИМЕННО этого файла
+    expect(url).toContain('/api/v1/files/file-st-1/content');
+    expect(url).toContain('sig=');
+    expect(dtos[0]?.reply?.stickerEmoji).toBe('🙂');
+    expect(dtos[0]?.reply?.stickerMime).toBe('image/webp');
+    // Сам снапшот подписанного url не хранит
+    expect(JSON.stringify(replyRow.replySnapshot)).not.toContain(url);
+  });
+
+  it('удалённый оригинал: глиф погашен (url/эмодзи/mime → null)', async () => {
+    const dtos = await stubMapper([
+      fullRow({ id: 'orig-st', deletedAt: T1, obliterated: true }),
+    ]).toDtos([replyRow], { viewerId: 'me-1', members });
+    expect(dtos[0]?.reply?.stickerUrl).toBeNull();
+    expect(dtos[0]?.reply?.stickerEmoji).toBeNull();
+    expect(dtos[0]?.reply?.stickerMime).toBeNull();
+  });
+});

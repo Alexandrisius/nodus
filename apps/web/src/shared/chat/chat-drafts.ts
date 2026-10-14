@@ -353,7 +353,9 @@ export const useChatDrafts = create<DraftsState>()(
         set((s) => ({
           drafts: patchDraft(s.drafts, key, (d) => ({
             ...d,
-            reply: preview ? replyDraftFromPreview(preview) : null,
+            // Канон restore #248: ответ, начатый ПОЛЬЗОВАТЕЛЕМ за полёт,
+            // сильнее возвращаемого упавшей отправкой — затирать нельзя.
+            reply: d.reply ?? (preview ? replyDraftFromPreview(preview) : null),
           })),
         })),
       clear: (key) => set((s) => ({ drafts: patchDraft(s.drafts, key, () => EMPTY_DRAFT) })),
