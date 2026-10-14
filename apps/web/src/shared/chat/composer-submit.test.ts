@@ -56,6 +56,30 @@ describe('toSendVars: стикер-ветка (#143)', () => {
     expect(vars.stickerId).toBeUndefined();
     expect(vars.keepDraft).toBeUndefined();
   });
+
+  it('ответ-стикером (#288): активный ответ уходит в vars — ветка НЕ обнуляет цитату', () => {
+    // Регресс 14.10: стикерная ветка хардкодила replyToId/reply null —
+    // клик по стикеру в режиме ответа отправлял обычным сообщением.
+    const reply = {
+      messageId: '44444444-4444-4444-8444-444444444444',
+      author: { id: 'u9', displayName: 'Мария Соколова', avatarUrl: null },
+      snippet: 'оригинал',
+      quoteText: 'фрагмент',
+      attachmentKind: null,
+      inThread: null,
+    };
+    const vars = toSendVars({
+      text: '',
+      attachments: [],
+      reply,
+      edit: null,
+      sticker: STICKER,
+    });
+    expect(vars.replyToId).toBe(reply.messageId);
+    expect(vars.quoteText).toBe('фрагмент');
+    expect(vars.reply).toMatchObject({ id: reply.messageId, quoteText: 'фрагмент' });
+    expect(vars.keepDraft).toBe(true);
+  });
 });
 
 describe('toSendVars: молния «Важное» (#177, ревизия 05.10 — тоггл)', () => {
