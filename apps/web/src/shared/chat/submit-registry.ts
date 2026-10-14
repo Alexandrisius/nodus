@@ -1,4 +1,4 @@
-import type { ComposerSubmit } from './chat-composer.js';
+import type { ComposerSubmit } from './composer-submit.js';
 
 /**
  * Реестр submit-функций хостов композера (#144): окно отправки вложений —

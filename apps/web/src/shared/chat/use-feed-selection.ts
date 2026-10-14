@@ -1,7 +1,7 @@
 import type { ChatMessage } from '@nodus/contracts';
 import { useCallback, useEffect, useMemo } from 'react';
 
-import type { ComposerSelection } from './chat-composer.js';
+import type { ComposerSelection } from './selection-island.js';
 import { useDeleteDialog, useForwardDialog } from './dialog-stores.js';
 import { confirmedIdsOf, hasPendingMessages } from './selection-confirmed.js';
 import { useSelectionActive, useSelectedIds, useSelectionStore } from './selection-store.js';

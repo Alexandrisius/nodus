@@ -10,7 +10,7 @@ vi.mock('../api-client.js', () => ({
 }));
 
 import { SelectionToolbar } from './selection-island.js';
-import type { ComposerSelection } from './chat-composer.js';
+import type { ComposerSelection } from './selection-island.js';
 import { useAuthStore } from '../auth-store.js';
 import { api } from '../api-client.js';
 

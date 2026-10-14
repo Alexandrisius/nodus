@@ -17,7 +17,8 @@ import {
 import { useAuthStore } from '../auth-store.js';
 import { withoutPatronymic } from '../lib/format.js';
 import { useSendChatMessage, useThreadMessages, useThreadStates, useWatchThread } from './api.js';
-import { ChatComposer, type ComposerSubmit } from './chat-composer.js';
+import { ChatComposer } from './chat-composer.js';
+import type { ComposerSubmit } from './composer-submit.js';
 import { ChatMessageItem } from './chat-message.js';
 import { setOpenConversation } from './notifications.js';
 import { addFiles } from './composer-files.js';
@@ -108,10 +109,7 @@ export const ThreadPane = memo(function ThreadPane({
   const rawItems = data?.items;
   const items = useMemo(() => rawItems ?? [], [rawItems]);
   const root = items.find((m) => m.id === threadRootId);
-  const replies = useMemo(
-    () => items.filter((m) => m.id !== threadRootId),
-    [items, threadRootId],
-  );
+  const replies = useMemo(() => items.filter((m) => m.id !== threadRootId), [items, threadRootId]);
   const runs = useMemo(() => buildMessageRuns(replies, me?.id), [replies, me?.id]);
   const rootMine = root ? root.author.id === me?.id : false;
   const selection = useFeedSelection(scope, items, me?.id);

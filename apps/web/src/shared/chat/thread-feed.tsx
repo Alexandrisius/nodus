@@ -13,7 +13,8 @@ import { cn } from '@nodus/ui/lib/utils';
 
 import { useAuthStore } from '../auth-store.js';
 import { useConversationMessages, useSendChatMessage } from './api.js';
-import { ChatComposer, type ComposerSubmit } from './chat-composer.js';
+import { ChatComposer } from './chat-composer.js';
+import type { ComposerSubmit } from './composer-submit.js';
 import { useChatPrefs } from './chat-prefs.js';
 import { setOpenConversation } from './notifications.js';
 import { ConversationViewsLine } from './views-line.js';
@@ -256,7 +257,9 @@ export const ThreadFeed = memo(function ThreadFeed({
                                 threadUnread={Boolean(threadStates?.get(message.id)?.unreadCount)}
                                 selectionActive={selection.selectionActive}
                                 selected={selection.selectedSet.has(message.clientMessageId)}
-                                onToggle={(shift) => selection.toggle(message.clientMessageId, shift)}
+                                onToggle={(shift) =>
+                                  selection.toggle(message.clientMessageId, shift)
+                                }
                                 conversationId={conversationId}
                                 scope={scope}
                                 onOpenThread={onOpenThread}

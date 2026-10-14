@@ -12,7 +12,9 @@ import { MessageGroup } from '@nodus/ui/components/message';
 
 import { useAuthStore } from '../auth-store.js';
 import { useConversationMessages, useConversations, useSendChatMessage } from './api.js';
-import { ChatComposer, type ComposerSubmit, type ComposerSelection } from './chat-composer.js';
+import { ChatComposer } from './chat-composer.js';
+import type { ComposerSubmit } from './composer-submit.js';
+import type { ComposerSelection } from './selection-island.js';
 import { DayChip } from './day-chip.js';
 import { toEditVars } from './message-edit.js';
 import { useEditMessage } from './message-mutations.js';

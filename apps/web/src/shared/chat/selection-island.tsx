@@ -4,8 +4,37 @@ import { Button } from '@nodus/ui/components/button';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { useAddFavorites } from './favorites-api.js';
-import type { ComposerSelection } from './chat-composer.js';
 import { useCanModerateMessages } from './use-can-moderate.js';
+
+/** Режим мультивыбора ленты (A6): композер СХЛОПЫВАЕТСЯ в узкий островок
+ *  батч-команд (модель Bitrix24, вердикт 24.09: ввод в селекте не нужен,
+ *  верхняя полоса двигала UI). Действия собирает хост (use-feed-selection).
+ *  Дом — модуль селекта (I5-сплит из chat-composer.tsx, #294). */
+export interface ComposerSelection {
+  count: number;
+  /** Выделенные id в порядке ленты (#171: порядок цепочки = порядок «Заметок»). */
+  ids: string[];
+  allMine: boolean;
+  /** В выделении есть ещё не подтверждённые отправки (#243): серверные
+   *  команды (переслать/звезда/удалить) серые до подтверждения очереди —
+   *  без уведомлений, гри-аут как в Telegram (вердикт владельца 07.10). */
+  pending?: boolean;
+  /** Корзина доступна, когда всё выделенное можно удалить: в обычных лентах
+   *  это «все свои» (allMine, tdesktop); витрина «Избранного» удаляет ЛЮБУЮ
+   *  строку (запись — удалить, карточку — снять звезду, #215). */
+  deletable?: boolean;
+  /** Витрина «Избранного» (#215): пересылка островка — только записи (id
+   *  карточек живут в чужих беседах, сервер форварда ищет источники в одной
+   *  беседе-источнике; карточка пересылается ПКМ из исходной беседы).
+   *  false — кнопки «Переслать» нет. */
+  forwardable?: boolean;
+  /** Витрина «Заметок»: звезда-цепочка скрыта (self-reference, #171). */
+  favoritesEnabled?: boolean;
+  onForward: () => void;
+  onDelete: () => void;
+  onCopy: () => void;
+  onClear: () => void;
+}
 
 /**
  * Тулбар узкого островка батч-команд (A6, #87; вердикт 24.09): композер в

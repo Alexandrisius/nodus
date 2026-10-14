@@ -3,6 +3,7 @@ import type { KeyboardEvent } from 'react';
 import { useChatDrafts } from './chat-drafts.js';
 import { mentionAutocompleteKeydown } from './composer-mention-autocomplete.js';
 import { mentionIndexAtKey, type DraftMention } from './composer-mention-registry.js';
+import { stickerSuggestKeydown } from './composer-sticker-suggest-panel.js';
 import { useForwardPending } from './forward-pending.js';
 import { isSendShortcut } from './send-keys.js';
 
@@ -25,6 +26,16 @@ export interface ComposerKeyboardCtx {
     count: number;
     active: number;
     setActive: (i: number) => void;
+    pick: (i: number) => void;
+    dismiss: () => void;
+  };
+  /** Плашка стикеров соло-эмодзи (#294): опциональна — у хостов без
+   *  стикеров (task-обсуждения) ветки клавиш нет. */
+  stickerSuggest?: {
+    open: boolean;
+    count: number;
+    active: number | null;
+    setActive: (i: number | null) => void;
     pick: (i: number) => void;
     dismiss: () => void;
   };
@@ -73,6 +84,14 @@ export function composerKeyDown(
     ctx.autocomplete.dismiss,
   );
   if (eaten) return;
+  // Плашка стикеров соло-эмодзи (#294): стрелки — подсветка, Enter — выбор
+  // ТОЛЬКО подсвеченного (чистый Enter — обычная отправка), Esc — спрятать;
+  // до шортката отправки и Esc-каскада режимов (Esc не должен снимать
+  // ответ/правку, пока плашка открыта).
+  if (ctx.stickerSuggest) {
+    const eatenSticker = stickerSuggestKeydown(event, ctx.stickerSuggest);
+    if (eatenSticker) return;
+  }
   if (isSendShortcut(event.key, event.shiftKey, event.ctrlKey)) {
     event.preventDefault();
     ctx.submit();

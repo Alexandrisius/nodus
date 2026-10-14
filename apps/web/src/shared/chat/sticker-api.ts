@@ -37,11 +37,14 @@ export function useCanManageStickerPacks(): boolean {
 }
 
 /** Мои паки: корпоративные + свои + установленные (со стикерами — пилотный
- *  объём; см. комментарий к stickerPackSchema в contracts). */
-export function useStickerPacks() {
+ *  объём; см. комментарий к stickerPackSchema в contracts). enabled:false —
+ *  ленивый сценарий (плашка-подсказка #294 тянет паки при первом
+ *  соло-эмодзи, а не каждым монтированием композера; кэш общий). */
+export function useStickerPacks(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: stickerKeys.packs(),
     queryFn: () => api<StickerPackList>('/chat/stickers/packs'),
+    enabled: options?.enabled ?? true,
   });
 }
 

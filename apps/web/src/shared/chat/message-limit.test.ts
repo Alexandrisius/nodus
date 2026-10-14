@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 
-import { MESSAGE_TEXT_LIMIT, messageLimitState } from './chat-composer.js';
+import { MESSAGE_TEXT_LIMIT, messageLimitState } from './composer-submit.js';
 
 /** Превалидация лимита 4000 (раунд 3, замечание 5): счётчик у черты,
  *  блокировка с понятным сообщением — текст не теряется (сервер 422 не
