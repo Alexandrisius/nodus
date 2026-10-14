@@ -83,8 +83,10 @@ export function ReplyHeader({
           <StickerGlyph
             url={reply.stickerUrl ?? ''}
             mime={reply.stickerMime ?? 'image/webp'}
-            /* Мягкие углы миниатюры — паритет глифу в ленте (#288). */
-            className="size-8 shrink-0 rounded-md object-contain"
+            /* Мягкие углы миниатюры — паритет глифу в ленте (#288). MAX, а
+               не фикс-квадрат: неквадратный стикер обязан скругляться по
+               углам РИСУНКА (поля object-contain радиус не достаёт). */
+            className="max-h-8 max-w-8 shrink-0 rounded-md"
           />
           <span className="flex min-w-0 flex-col">
             <QuoteName reply={reply} onFilled={onFilled} />
