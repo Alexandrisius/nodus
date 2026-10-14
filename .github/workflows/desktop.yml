@@ -27,13 +27,13 @@ jobs:
     name: Tauri build (windows)
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Версия pnpm — из packageManager в package.json (как ci.yml):
       # явная version здесь конфликтовала с фиксацией и валила сборку.
       - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm
@@ -73,7 +73,7 @@ jobs:
         run: node scripts/desktop-manifest.mjs --optional
 
       - name: Артефакты сборки
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: nodus-desktop-${{ github.sha }}
           path: |
@@ -93,16 +93,16 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # Аннотация тега — примечание релиза в latest.json (#263)
           fetch-depth: 1
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: nodus-desktop-${{ github.sha }}
           path: dist
@@ -119,7 +119,7 @@ jobs:
           node scripts/desktop-manifest.mjs --bundle-dir dist --out dist/latest.json --notes "$NOTES"
 
       - name: GitHub Release с установщиками и манифестом
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             dist/**/*.exe
