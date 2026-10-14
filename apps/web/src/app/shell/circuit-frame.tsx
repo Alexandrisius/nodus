@@ -14,6 +14,7 @@ import {
   type CircuitGeometry,
 } from './circuit-geometry.js';
 import { useShellStore } from './shell-store.js';
+import { useGeometryMotion } from './use-geometry-motion.js';
 
 function focusSig(f: CircuitFocus | null): string {
   return f ? `${f.moduleTo}|${f.tabLabel ?? ''}` : '';
@@ -76,31 +77,47 @@ export function CircuitFrame() {
   } | null>(null);
   const [pulseRun, setPulseRun] = useState(0);
   const prevFocus = useRef<CircuitFocus | null>(null);
-  /** Ширина панелей в transition (свёртывание/развёртывание рейки, служебная
-   *  полоса): вспышка в это время ЗАПРЕЩЕНА (вердикт владельца 14.09.2026:
-   *  «вспышка вылетает непонятно куда, накладывается на левую панель») —
-   *  измеряемый фокус на переходной геометрии мигает сигнатурой, и пульс
-   *  рисовался на ломаных точках. Пока moving — фокус только запоминается. */
-  const moving = useRef(false);
+  /** Живые значения для слушателей-колбэков: transitionrun может прийти раньше
+   *  следующего рендера, а «догоняющая» вспышка обязана мерить маршрут и режим
+   *  АКТУАЛЬНЫЕ (иначе её путь — по геометрии прошлого модуля). */
+  const pathnameRef = useRef(pathname);
+  pathnameRef.current = pathname;
+  const cardModeLiveRef = useRef(cardModeLive);
+  cardModeLiveRef.current = cardModeLive;
+  const coveredRef = useRef(covered);
+  coveredRef.current = covered;
+  /** Живой пересчёт контура и кадровый цикл движения панелей: хук движения
+   *  зовёт их из слушателей (вне рендер-скоупа эффекта контура). */
+  const remeasureRef = useRef<() => void>(() => {});
+  const loopRef = useRef(0);
+
   /** Раскрытие фулскрин-карточки (FLIP-анимация): замеры глушатся до оседания
    *  (CARD_SETTLE_MS) — геометрия хедера в transform-переходе «плавает». */
   const settling = useRef(false);
+  /** Ширины контейнеров каркаса в transition (рейка, служебная полоса): пока
+   *  геометрия едет, вспышка на смену фокуса ЗАПРЕЩЕНА (вердикт владельца
+   *  14.09.2026: пульс на переходной геометрии «вылетает непонятно куда»).
+   *  Снимает гвард хук `useGeometryMotion` — по ПОСЛЕДНЕЙ транзиции серии. */
+  const moving = useRef(false);
+  const setMoving = (v: boolean) => {
+    moving.current = v;
+  };
 
   const pulseTimer = useRef(0);
 
   /** Сворачивание/разворачивание левого меню (#235): width-transition рейки
    *  стартует в кадре ПОСЛЕ коммита, и transitionrun может прийти позже
-   *  первого перемера — вспышка успевала выстрелить по переходной геометрии.
-   *  Гвард moving ставим сами, не дожидаясь события; страховочный таймер —
-   *  если transition не случится. Настоящий transitionend снимет флаг
-   *  раньше и перемерит контур. */
+   *  первого замера — вспышка успевала выстрелить по переходной геометрии.
+   *  Гвард ставим сами, не дожидаясь события; страховочный таймер — если
+   *  transition не случится. Настоящий transitionend снимет флаг раньше и
+   *  перемерит контур. */
   const prevMenuCollapsed = useRef(menuCollapsed);
   useLayoutEffect(() => {
     if (prevMenuCollapsed.current === menuCollapsed) return;
     prevMenuCollapsed.current = menuCollapsed;
-    moving.current = true;
+    setMoving(true);
     const settle = window.setTimeout(() => {
-      moving.current = false;
+      setMoving(false);
     }, 360);
     return () => window.clearTimeout(settle);
   }, [menuCollapsed]);
@@ -116,6 +133,20 @@ export function CircuitFrame() {
     pulseTimer.current = window.setTimeout(() => setPulse(null), fadeMs);
   }, []);
 
+  /** Отложенная вспышка не должна «сгореть»: следом начавшееся движение
+   *  (быстрый клик по модулям подряд раньше оседания) отменяет settle-кадр —
+   *  пульс предыдущего фокуса рисуем на свежем замере; фокус сменился ещё раз —
+   *  settle-кадр нарисует следующий. */
+  const fireDuePulse = () => {
+    const g = measureCircuit(pathnameRef.current, cardModeLiveRef.current);
+    if (!g) return;
+    const next = currentFocus(g);
+    if (focusSig(next) === focusSig(prevFocus.current)) return;
+    const p = transitionPulse(g, prevFocus.current);
+    prevFocus.current = next;
+    if (p) firePulse(p.points, p.dot);
+  };
+
   useLayoutEffect(() => {
     // СОН под НЕфулскрин-карточкой (issue #63): карточка накрывает мягкую раму
     // целиком — контур невидим, а рефлоу полосы под ней крутил покадровый
@@ -125,7 +156,8 @@ export function CircuitFrame() {
     // (covered → false): эффект перезапускается рабочим режимом и перемеряет
     // шелл ДО схлопывания карточки, открывая его контуром.
     if (covered && !cardModeLive) {
-      settling.current = false;
+      setMoving(false);
+      remeasureRef.current = () => {};
       let settle = 0;
       const raf = requestAnimationFrame(() => setGeo(measureCircuit(pathname, false)));
       settle = window.setTimeout(() => setGeo(null), CARD_SETTLE_MS);
@@ -135,7 +167,6 @@ export function CircuitFrame() {
       };
     }
     let raf = 0;
-    let loop = 0;
     let settle = 0;
     const applyGeo = () => {
       if (settling.current) return;
@@ -145,6 +176,9 @@ export function CircuitFrame() {
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(applyGeo);
     };
+    // Хук движения снимает гвард и перемеряет контур на осевшей геометрии —
+    // через живой реф (его хуку виден только актуальный замер).
+    remeasureRef.current = remeasure;
     // Режим карточки включается: контур гаснет (шина шелла уходит под карточку)
     // и возвращается одним замером, когда FLIP-раскрытие осело.
     settling.current = cardModeLive;
@@ -155,43 +189,17 @@ export function CircuitFrame() {
         remeasure();
       }, CARD_SETTLE_MS);
     }
-    // Плавный пересчёт КАЖДЫЙ КАДР во время transition ШИРИНЫ панелей —
-    // контур идёт за панелью без ступенек. Фильтр propertyName: иначе цикл
-    // гаснет по transitionend посторонних анимаций раньше окончания движения.
-    const onTransitionRun = (e: TransitionEvent) => {
-      if (e.propertyName !== 'width' || loop) return;
-      moving.current = true;
-      const tick = () => {
-        applyGeo();
-        loop = requestAnimationFrame(tick);
-      };
-      loop = requestAnimationFrame(tick);
-    };
-    const onTransitionEnd = (e: TransitionEvent) => {
-      if (e.propertyName !== 'width') return;
-      cancelAnimationFrame(loop);
-      loop = 0;
-      moving.current = false;
-      remeasure();
-    };
     remeasure();
     const ro = new ResizeObserver(remeasure);
     ro.observe(document.documentElement);
-    document.addEventListener('transitionrun', onTransitionRun, true);
-    document.addEventListener('transitionend', onTransitionEnd, true);
-    document.addEventListener('transitioncancel', onTransitionEnd, true);
     document.addEventListener('scroll', remeasure, { capture: true, passive: true });
     // Вкладки фулскрин-карточки — локальное состояние (не маршрут): хром шлёт
     // CIRCUIT_REMEASURE после коммита data-active — перемер и вспышка фокуса.
     window.addEventListener(CIRCUIT_REMEASURE, remeasure);
     return () => {
       cancelAnimationFrame(raf);
-      cancelAnimationFrame(loop);
       window.clearTimeout(settle);
       ro.disconnect();
-      document.removeEventListener('transitionrun', onTransitionRun, true);
-      document.removeEventListener('transitionend', onTransitionEnd, true);
-      document.removeEventListener('transitioncancel', onTransitionEnd, true);
       document.removeEventListener('scroll', remeasure, { capture: true });
       window.removeEventListener(CIRCUIT_REMEASURE, remeasure);
     };
@@ -200,19 +208,47 @@ export function CircuitFrame() {
     // не перезапускает режим карточки и не гасит контур на CARD_SETTLE_MS.
   }, [pathname, menuCollapsed, cardModeLive, covered]);
 
+  /** Движение ширин контейнеров (рейка, служебная полоса) — общий хук:
+   *  гвард `moving` держится до ПОСЛЕДНЕЙ транзиции серии, покадровый замер
+   *  ведёт контур за панелями, settle-кадр на осевшей геометрии снимает гвард
+   *  и перемеряет (детали и механика — use-geometry-motion.ts). */
+  useGeometryMotion({
+    // Новое движение началось, а смена фокуса ещё не нарисована: либо у
+    // предыдущего движения отменён кадр оседания (pendingSettle), либо гвард
+    // уже стоял (створка пре-арма меню/предыдущий run серии). Дорисовываем на
+    // свежем замере. Дубля нет — settle настоящего движения сработает, лишь
+    // если фокус сменится ЕЩЁ раз (prevFocus уже актуален).
+    onRun: ({ pendingSettle }) => {
+      if (pendingSettle || moving.current) fireDuePulse();
+    },
+    onSettle: () => {
+      setMoving(false);
+      remeasureRef.current();
+    },
+    onFrames: (active) => {
+      cancelAnimationFrame(loopRef.current);
+      loopRef.current = 0;
+      if (!active || coveredRef.current || cardModeLiveRef.current) return;
+      const tick = () => {
+        setGeo(measureCircuit(pathnameRef.current, false));
+        loopRef.current = requestAnimationFrame(tick);
+      };
+      loopRef.current = requestAnimationFrame(tick);
+    },
+  });
+
   useLayoutEffect(() => {
     if (!geo) return;
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-    // Вспышка навигации — только на смену фокуса (не на движение панелей):
-    // пока ширина панелей в transition, фокус лишь запоминается — пульс на
-    // переходной геометрии улетал «непонятно куда» поверх рейки (вердикт
-    // владельца 14.09.2026).
     const next = currentFocus(geo);
-    if (moving.current) {
-      prevFocus.current = next;
-      return;
-    }
+    // Кадровый пересчёт во время движения панелей: фокус НЕ трогаем (ни
+    // вспышка, ни запись): промежуточные замеры несут уже НОВЫЙ модуль —
+    // запись «съедала» смену фокуса, и к оседанию геометрии (settle-кадр)
+    // prev уже совпадал с next — вспышка не стреляла вовсе (баг 14.10:
+    // переход на/с мессенджера прячет правую полосу width-анимацией —
+    // вспышка глохла на нём и на соседних модулях).
+    if (moving.current) return;
     if (!reduced && focusSig(next) !== focusSig(prevFocus.current)) {
       const p = transitionPulse(geo, prevFocus.current);
       if (p) firePulse(p.points, p.dot);
