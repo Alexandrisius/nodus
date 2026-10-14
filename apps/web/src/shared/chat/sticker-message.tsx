@@ -24,13 +24,15 @@ export function stickerAttachmentOf(message: ChatMessage): MessageAttachment | u
   return message.attachments.find((a) => a.kind === 'sticker');
 }
 
-/** Кегль стикера в ленте — единый для чатов и постов канала: 208 CSS px
- *  (≈260 экранных при ui-scale 1.25) — паритет Telegram Desktop
+/** Кегль стикера в ленте — единый для чатов и постов канала: ПОТОЛОК
+ *  208 CSS px (≈260 экранных при ui-scale 1.25) — паритет Telegram Desktop
  *  (maxStickerSize 256px, research Exa; вердикт владельца 01.10 #175).
- *  Мягкие углы (#288, вердикт владельца 14.10): прозрачные PNG/WebP не
- *  меняют вид, «плоские» картинки (jpeg) перестают смотреться угловато —
- *  скругление CSS-клип, файлы не обрабатываются. */
-export const stickerFeedClass = 'size-52 rounded-2xl object-contain';
+ *  Мягкие углы (#288, вердикт владельца 14.10): скругление CSS-клипом,
+ *  файлы не обрабатываются. Именно MAX, а не фиксированный квадрат:
+ *  бокc обнимает картинку (сохраняя пропорции), иначе у неквадратных
+ *  стикеров радиус резал углы ПУСТЫХ полей object-contain, а не рисунка
+ *  (репро владельца 14.10: «прямоугольный не скруглился»). */
+export const stickerFeedClass = 'max-h-52 max-w-52 rounded-2xl object-contain';
 
 /** Рендер одного стикера — в собственном модуле `sticker-glyph.ts` (#288:
  *  глиф нужен цитате ответа в message-headers без цикла импортов). */
