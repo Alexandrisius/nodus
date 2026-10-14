@@ -145,10 +145,15 @@ export function stickerSuggestKeydown(
   }
 }
 
-/** Плашка-ряд стикеров: absolute над строкой ввода, один ряд фиксированной
- *  высоты с горизонтальным скроллом (канон пикеров — габарит не прыгает),
- *  НЕ перехватывает фокус (клики — mousedown с preventDefault, каретка в
- *  поле). Ховер подсвечивает визуально, клавиатурная подсветка — отдельно. */
+/** Панель стикеров-подсказок (ридизайн по вердикту владельца #294): во всю
+ *  ширину островка композера, ВЫЕЗЖАЕТ вверх из него (composer-panel-rise)
+ *  и ПЕРЕКРЫВАЕТ ленту, ничего в ней не двигая (absolute). Высота
+ *  адаптивная: один ряд стикеров — компактно, много — два ряда, дальше
+ *  вертикальный скролл (модель Telegram; высота ряда 64px + паддинг = 78px,
+ *  двух рядов = max-h-36 144px). Сетка заворачивается, ячейки растягиваются
+ *  ровно на всю ширину. НЕ перехватывает фокус (клики — mousedown с
+ *  preventDefault, каретка в поле); ховер — визуальный, клавиатурная
+ *  подсветка — отдельно. */
 export function StickerSuggestPanel({
   matches,
   active,
@@ -168,36 +173,38 @@ export function StickerSuggestPanel({
     <div
       role="listbox"
       aria-label={ui.chat.stickerSuggestLabel}
-      className="composer-reveal absolute bottom-full left-0 z-20 mb-1.5 flex w-fit max-w-full items-center gap-0.5 overflow-x-auto overscroll-x-contain rounded-2xl border border-border bg-popover p-1 text-popover-foreground shadow-sm"
+      className="composer-panel-rise absolute inset-x-0 bottom-full z-30 mb-1.5 max-h-36 overflow-y-auto overscroll-contain rounded-2xl border border-border bg-popover p-1.5 text-popover-foreground shadow-md"
     >
-      {matches.map((match, i) => (
-        <button
-          key={match.sticker.id}
-          ref={(el) => {
-            if (el) cells.current.set(i, el);
-            else cells.current.delete(i);
-          }}
-          type="button"
-          role="option"
-          aria-selected={i === active}
-          title={match.pack.title}
-          onMouseDown={(e) => {
-            e.preventDefault(); // каретка остаётся в textarea
-            onPick(i);
-          }}
-          className={cn(
-            'flex size-16 shrink-0 cursor-pointer items-center justify-center rounded-lg p-1 transition-colors',
-            i === active ? 'bg-accent' : 'hover:bg-accent/60',
-          )}
-        >
-          <StickerGlyph
-            url={match.sticker.url}
-            mime={match.sticker.mime}
-            alt={match.pack.title}
-            className="size-14 object-contain"
-          />
-        </button>
-      ))}
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(64px,1fr))] gap-0.5">
+        {matches.map((match, i) => (
+          <button
+            key={match.sticker.id}
+            ref={(el) => {
+              if (el) cells.current.set(i, el);
+              else cells.current.delete(i);
+            }}
+            type="button"
+            role="option"
+            aria-selected={i === active}
+            title={match.pack.title}
+            onMouseDown={(e) => {
+              e.preventDefault(); // каретка остаётся в textarea
+              onPick(i);
+            }}
+            className={cn(
+              'flex size-16 cursor-pointer items-center justify-center rounded-lg p-1 transition-colors',
+              i === active ? 'bg-accent' : 'hover:bg-accent/60',
+            )}
+          >
+            <StickerGlyph
+              url={match.sticker.url}
+              mime={match.sticker.mime}
+              alt={match.pack.title}
+              className="size-14 object-contain"
+            />
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

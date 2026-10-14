@@ -682,6 +682,23 @@
   opacity: 0;
   transition: opacity 120ms ease-in;
 }
+/* Панель над островком композера (#294): ВЫЕЗЖАЕТ вверх из островка —
+   старт на 8px ниже (к островку) и прозрачной, подъём + проявление одним
+   движением; закрытие мгновенное (unmount). Ленту не двигает — панель
+   абсолютна и перекрывает сообщения. */
+@utility composer-panel-rise {
+  transform: translateY(0);
+  opacity: 1;
+  transition:
+    transform 200ms ease-out,
+    opacity 180ms ease-out 20ms;
+}
+@starting-style {
+  .composer-panel-rise {
+    transform: translateY(8px);
+    opacity: 0;
+  }
+}
 /* Проявление ленты при первом открытии беседы (#132 р.12): скелетоны-полоски
    удалены (выглядели артефактом-«ховерами» при первом входе после
    перезагрузки); пустая лента → контент мягко проявляется (тот же паттерн
@@ -699,6 +716,7 @@
 @media (prefers-reduced-motion: reduce) {
   .composer-reveal,
   .composer-hide,
+  .composer-panel-rise,
   .feed-reveal {
     transition: none;
   }

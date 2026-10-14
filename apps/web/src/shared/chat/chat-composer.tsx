@@ -401,7 +401,9 @@ export function ChatComposer({
       <span
         ref={islandRef}
         className={cn(
-          'rounded-2xl bg-card shadow-sm transition-all duration-200',
+          // relative — якорь панели стикеров-подсказок (#294): панель во всю
+          // ширину островка, выезжает из-под его верхней кромки.
+          'relative rounded-2xl bg-card shadow-sm transition-all duration-200',
           selPhase === 'sel'
             ? 'mx-auto flex w-72 items-center gap-0.5 px-2 py-1.5'
             : selPhase === 'exit'
@@ -409,6 +411,16 @@ export function ChatComposer({
               : 'flex w-full px-2 py-1.5',
         )}
       >
+        {/* Панель стикеров-подсказок (#294): перекрывает ленту над островком,
+            ничего в ней не двигая; с плашкой баннеров/строки ввода не
+            пересекается — anchored к островку целиком. */}
+        {suggest.open ? (
+          <StickerSuggestPanel
+            matches={suggest.matches}
+            active={suggest.active}
+            onPick={suggest.pick}
+          />
+        ) : null}
         {selPhase !== 'normal' && toolbarSel ? (
           // Р.9–10: тулбар ПРОЯВЛЯЕТСЯ при сужении (composer-reveal) и
           // РАСТВОРЯЕТСЯ на старте расширения (composer-hide в фазе exit,
@@ -529,13 +541,6 @@ export function ChatComposer({
                   (caret-foreground) — стоит там, где ввод; клики по
                   подчёркнутому имени открывают поповер правки. */}
               <span className="relative flex min-w-0 flex-1 flex-col">
-                {suggest.open ? (
-                  <StickerSuggestPanel
-                    matches={suggest.matches}
-                    active={suggest.active}
-                    onPick={suggest.pick}
-                  />
-                ) : null}
                 {mentions.open ? (
                   <MentionAutocompletePanel
                     candidates={mentions.autocomplete.candidates}
