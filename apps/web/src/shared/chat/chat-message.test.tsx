@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render } from '@testing-library/react';
+import { cleanup, fireEvent, render } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { TooltipProvider } from '@nodus/ui/components/tooltip';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -8,6 +8,7 @@ import type { ChatMessage } from '@nodus/contracts';
 import { ChatMessageItem, MessageReactions } from './chat-message.js';
 import { StickerMessageView } from './sticker-message.js';
 import { useChatPrefs } from './chat-prefs.js';
+import { useJumpStore } from './jump-store.js';
 
 // QueryClient остаётся: пузырь живёт в дереве с запросами ленты.
 const queryClient = new QueryClient();
@@ -311,5 +312,59 @@ describe('Стикер — выравнивание «По обе стороны
     const content = container.querySelector('[data-slot="message-content"]')!;
     expect(content.className).toContain('data-slot:self-end');
     useChatPrefs.setState({ align: 'one' });
+  });
+});
+
+describe('Стикер — цитата ответа (#288)', () => {
+  const sticker = {
+    id: 'a1',
+    fileId: 'f1',
+    name: 'sticker.webp',
+    size: 24_000,
+    mime: 'image/webp',
+    kind: 'sticker',
+    url: '/reactions/eyes.webp',
+    thumbnailUrl: null,
+    previewKind: 'image',
+    pdfUrl: null,
+    width: 64,
+    height: 64,
+    sticker: { packId: 'p1', packTitle: 'Кадры', packScope: 'personal', emojis: ['👀'] },
+  } as never;
+  const reply = {
+    id: 'm0',
+    author: { id: 'a', displayName: 'Иван Петров', avatarUrl: null },
+    text: 'оригинал',
+    quoteText: null,
+    attachmentKind: null,
+    deleted: false,
+    obliterated: false,
+  };
+
+  it('ответ стикером рисует цитату НАД глифом (раньше связь была невидима)', () => {
+    const { container } = renderMessage(
+      <StickerMessageView message={message({ reply })} attachment={sticker} mine />,
+    );
+    const stickerEl = container.querySelector('[data-slot="sticker-message"]')!;
+    // Цитата — первый ребёнок колонки, имя автора в ней
+    expect(stickerEl.firstElementChild!.textContent).toContain('Иван Петров');
+  });
+
+  it('клик по цитате — запрос прыжка к оригиналу (механика пузырей)', () => {
+    useJumpStore.setState({ target: null });
+    const { getByRole } = renderMessage(
+      <StickerMessageView
+        message={message({ reply, threadRootId: 't1' })}
+        attachment={sticker}
+        mine
+      />,
+    );
+    // Кнопка цитаты: имя автора + сниппет (поверхность стикера — своя кнопка)
+    fireEvent.click(getByRole('button', { name: /Иван Петров/ }));
+    expect(useJumpStore.getState().target).toMatchObject({
+      conversationId: 'conv-1',
+      messageId: 'm0',
+      threadRootId: 't1',
+    });
   });
 });

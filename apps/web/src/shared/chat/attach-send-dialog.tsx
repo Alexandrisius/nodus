@@ -37,6 +37,8 @@ import {
 import { cancelMessageEdit } from './message-edit.js';
 import { useAttachSendDialog } from './dialog-stores.js';
 import { ImageLightbox } from './image-lightbox.js';
+import { ComposerBanner } from './composer-banner.js';
+import type { ReplyDraft } from './reply-snapshot.js';
 import { useScrollEndStore } from './scroll-end-store.js';
 import { scopeConversationOf } from './scope-conversations.js';
 import { isSendShortcut } from './send-keys.js';
@@ -61,6 +63,12 @@ import { submitForScope } from './submit-registry.js';
  * (токены), окно держит ЛОКАЛЬНЫЙ реестр чипов (видимый текст без разметки);
  * открытие разбирает wire → display+реестр, отправка пересобирает wire,
  * отмена возвращает черновику через restoreFromWire (чипы не теряются).
+ *
+ * Цитата ответа над списком файлов (#288, паритет Telegram): ответ, активный
+ * в композере, виден и в окне — плашка ComposerBanner (без прыжка: за
+ * модалом лента не видна); крестик снимает ответ в черновике (гаснет и в
+ * композере). На полёте отправки цитата живёт снапшотом flightReply — как
+ * строки flightItems (#248).
  */
 export function AttachSendDialogHost() {
   const scope = useAttachSendDialog((s) => s.scope);
@@ -74,6 +82,10 @@ export function AttachSendDialogHost() {
   // живые (файлы и подпись не теряются, повтор возможен, #144).
   const [flightItems, setFlightItems] = useState<PendingAttachment[] | null>(null);
   const items = flightItems ?? draft.attachments;
+  // Плашка ответа на полёте (#288): тот же снапшот-паттерн, что у строк —
+  // черновик чистится сабмитом, цитата держится до исхода и не мигает.
+  const [flightReply, setFlightReply] = useState<ReplyDraft | null>(null);
+  const shownReply = flightReply ?? draft.reply;
   // Режим правки (#188): окно редактирует существующее сообщение — текст и
   // состав; «Сохранить» = PATCH с полным составом, отмена не трогает сообщение.
   const editMode = draft.edit !== null;
@@ -289,6 +301,7 @@ export function AttachSendDialogHost() {
     // чистится синхронно внутри submitForScope — без снапшота строки
     // мигнули бы пустыми на полёте.
     setFlightItems(items);
+    setFlightReply(draft.reply);
     setSending(true);
     if (!editMode) {
       // Своё сообщение видно с любой позиции скролла (вердикт 24.09); правка
@@ -306,6 +319,7 @@ export function AttachSendDialogHost() {
       // жива — повтор возможен (#144).
     } finally {
       setFlightItems(null);
+      setFlightReply(null);
       setSending(false);
     }
   }
@@ -419,6 +433,20 @@ export function AttachSendDialogHost() {
               : `${ui.chat.attachSelected} ${items.length} ${plural(items.length, [ui.chat.fileOne, ui.chat.fileFew, ui.chat.fileMany])}`}
           </DialogTitle>
         </DialogHeader>
+        {/* Цитата ответа над списком файлов (#288, паритет Telegram): тот же
+            примитив, что у композера; в окне она индикатор — тело не прыгает
+            (лента за модалом не видна), крестик снимает ответ и в окне, и в
+            композере (один черновик). В полёте отправки не действует —
+            payload уже собран (канон «Отмена»). */}
+        {shownReply ? (
+          <ComposerBanner
+            draft={{ ...EMPTY_DRAFT, reply: shownReply }}
+            className="rounded-[10px]"
+            onCancel={() => {
+              if (!sending) useChatDrafts.getState().cancelReply(scope);
+            }}
+          />
+        ) : null}
         {/* Фиксированные границы зоны списка: габарит окна не прыгает
             (канон nodus-ui §39). */}
         <ul className="flex min-h-14 max-h-[45vh] flex-col gap-1 overflow-x-hidden overflow-y-auto pr-1">

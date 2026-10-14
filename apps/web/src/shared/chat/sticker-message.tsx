@@ -6,6 +6,8 @@ import { PersonAvatar } from '../ui/person-avatar.js';
 import { useChatPrefs } from './chat-prefs.js';
 import { MessageMeta } from './message-meta.js';
 import { MessageReactions } from './chat-message.js';
+import { useJumpStore } from './jump-store.js';
+import { ReplyHeader } from './message-headers.js';
 import { ReactionPicker } from './reaction-picker.js';
 import { StickerWindowTrigger } from './sticker-pack-window.js';
 
@@ -108,6 +110,26 @@ export const StickerMessageView = memo(function StickerMessageView({
             «По обе стороны») только детей с data-slot — без него стикер
             оставался слева при аватаре справа (баг-вердикт 30.09, #164). */}
         <span data-slot="sticker-message" className="relative flex w-fit flex-col group/bubble">
+          {/* Цитата ответа (#288): стикер-ответ раньше молча терял видимую
+              связь (replyToId хранился, цитата не рисовалась). Тот же
+              ReplyHeader, что у пузырей, — прыжок к оригиналу; ширина
+              ограничена кеглем стикера, чтобы длинный сниппет не растягивал
+              колонку w-fit. */}
+          {message.reply ? (
+            <span className="w-fit max-w-52">
+              <ReplyHeader
+                reply={message.reply}
+                onFilled={mine}
+                onClick={() => {
+                  const reply = message.reply;
+                  if (reply)
+                    useJumpStore
+                      .getState()
+                      .request(message.conversationId, reply.id, message.threadRootId);
+                }}
+              />
+            </span>
+          ) : null}
           <StickerWindowTrigger message={message} attachment={attachment}>
             <StickerGlyph
               url={attachment.url ?? ''}
