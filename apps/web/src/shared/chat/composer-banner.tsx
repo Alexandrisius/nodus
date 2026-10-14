@@ -69,7 +69,9 @@ export function ComposerBanner({
   return (
     <span
       className={cn(
-        'flex items-stretch gap-1.5 rounded-t-[10px] bg-accent/40 py-1.5 pr-1.5 pl-2.5',
+        // min-w-0: в окне вложений плашка — прямой ребёнок grid DialogContent,
+        // без него min-content nowrap-сниппета растягивает окно (блокер ui #288)
+        'flex min-w-0 items-stretch gap-1.5 rounded-t-[10px] bg-accent/40 py-1.5 pr-1.5 pl-2.5',
         className,
       )}
     >
