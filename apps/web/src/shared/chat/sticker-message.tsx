@@ -26,8 +26,11 @@ export function stickerAttachmentOf(message: ChatMessage): MessageAttachment | u
 
 /** Кегль стикера в ленте — единый для чатов и постов канала: 208 CSS px
  *  (≈260 экранных при ui-scale 1.25) — паритет Telegram Desktop
- *  (maxStickerSize 256px, research Exa; вердикт владельца 01.10 #175). */
-export const stickerFeedClass = 'size-52 object-contain';
+ *  (maxStickerSize 256px, research Exa; вердикт владельца 01.10 #175).
+ *  Мягкие углы (#288, вердикт владельца 14.10): прозрачные PNG/WebP не
+ *  меняют вид, «плоские» картинки (jpeg) перестают смотреться угловато —
+ *  скругление CSS-клип, файлы не обрабатываются. */
+export const stickerFeedClass = 'size-52 rounded-2xl object-contain';
 
 /** Рендер одного стикера — в собственном модуле `sticker-glyph.ts` (#288:
  *  глиф нужен цитате ответа в message-headers без цикла импортов). */

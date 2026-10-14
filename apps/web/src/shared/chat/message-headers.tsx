@@ -83,7 +83,8 @@ export function ReplyHeader({
           <StickerGlyph
             url={reply.stickerUrl ?? ''}
             mime={reply.stickerMime ?? 'image/webp'}
-            className="size-8 shrink-0 object-contain"
+            /* Мягкие углы миниатюры — паритет глифу в ленте (#288). */
+            className="size-8 shrink-0 rounded-md object-contain"
           />
           <span className="flex min-w-0 flex-col">
             <QuoteName reply={reply} onFilled={onFilled} />
