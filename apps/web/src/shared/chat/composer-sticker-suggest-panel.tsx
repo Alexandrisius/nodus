@@ -173,7 +173,7 @@ export function StickerSuggestPanel({
     <div
       role="listbox"
       aria-label={ui.chat.stickerSuggestLabel}
-      className="composer-panel-rise absolute inset-x-0 bottom-full z-30 mb-1.5 max-h-36 overflow-y-auto overscroll-contain rounded-2xl border border-border bg-popover p-1.5 text-popover-foreground shadow-md"
+      className="composer-panel-rise absolute inset-x-0 bottom-full z-30 mb-1.5 max-h-36 overflow-y-auto overscroll-contain rounded-2xl bg-popover p-1.5 text-popover-foreground shadow-md"
     >
       <div className="grid grid-cols-[repeat(auto-fill,minmax(64px,1fr))] gap-0.5">
         {matches.map((match, i) => (
@@ -200,7 +200,10 @@ export function StickerSuggestPanel({
               url={match.sticker.url}
               mime={match.sticker.mime}
               alt={match.pack.title}
-              className="size-14 object-contain"
+              // Мягкие углы — как у стикера в ленте (stickerFeedClass): бокс
+              // ОБНИМАЕТ арт (max-*), радиус режет углы самой картинки —
+              // JPEG с фоном не торчит квадратом (gotcha object-fit).
+              className="max-h-14 max-w-14 rounded-md object-contain"
             />
           </button>
         ))}
