@@ -11,6 +11,17 @@ updates:
       # TS 7 — миграция инструментария, не патч-бамп; отложена до «после запуска» (#75)
       - dependency-name: 'typescript'
         update-types: ['version-update:semver-major']
+      # Свежие мажоры дев-инструментария: миграция каждой — отдельной задачей,
+      # не в еженедельной группе; зелёный CI (e2e — только логин) их не валидирует (#281)
+      - dependency-name: 'vitest'
+        update-types: ['version-update:semver-major']
+      - dependency-name: 'msw'
+        update-types: ['version-update:semver-major']
+      - dependency-name: 'unplugin-swc'
+        update-types: ['version-update:semver-major']
+      # Типы под Node 26 при рантайме Node 24 (ci.yml) — держим линию 24; снять при подъёме рантайма (#281)
+      - dependency-name: '@types/node'
+        update-types: ['version-update:semver-major']
     groups:
       production-dependencies:
         dependency-type: 'production'
