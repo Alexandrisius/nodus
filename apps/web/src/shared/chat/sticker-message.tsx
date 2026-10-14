@@ -111,36 +111,50 @@ export const StickerMessageView = memo(function StickerMessageView({
             «По обе стороны») только детей с data-slot — без него стикер
             оставался слева при аватаре справа (баг-вердикт 30.09, #164). */}
         <span data-slot="sticker-message" className="relative flex w-fit flex-col group/bubble">
-          {/* Цитата ответа (#288): стикер-ответ раньше молча терял видимую
-              связь (replyToId хранился, цитата не рисовалась). Тот же
-              ReplyHeader, что у пузырей, — прыжок к оригиналу. Обёртка
-              БЛОЧНАЯ (инлайн-span молча съедает max-w — ширина на inline не
-              действует): кап по кеглю стикера, чтобы длинный сниппет не
-              растягивал колонку w-fit; зазор до глифа (референс Telegram);
-              своё в «По обе стороны» — по правому краю колонки. */}
-          {message.reply ? (
-            <span className={cn('mb-1 flex w-fit max-w-52 flex-col', atEnd && 'self-end')}>
-              <ReplyHeader
-                reply={message.reply}
-                onFilled={mine}
-                onClick={() => {
-                  const reply = message.reply;
-                  if (reply)
-                    useJumpStore
-                      .getState()
-                      .request(message.conversationId, reply.id, message.threadRootId);
-                }}
+          {/* Тело «цитата+глиф» (#288) — виртуальный пузырь стикера: ЕДИНАЯ
+              плита выделения (плиту с глифа снял — plate={false} у триггера,
+              иначе двойной паддинг; у постов канала осталась), мета-строка —
+              снаружи, как у пузырей. В базе плита прозрачна с прозрачным
+              бордером (layout стабилен), data-selected красит её целиком
+              (globals.css) — рамка не «только вокруг стикера» (замечание
+              владельца 14.10). */}
+          <span
+            data-slot="sticker-body"
+            className="flex w-fit flex-col rounded-2xl border border-transparent p-2"
+          >
+            {/* Цитата ответа (#288): стикер-ответ раньше молча терял видимую
+                связь (replyToId хранился, цитата не рисовалась). Тот же
+                ReplyHeader, что у пузырей, — прыжок к оригиналу. Обёртка
+                БЛОЧНАЯ (инлайн-span молча съедает max-w — ширина на inline не
+                действует): кап по кеглю стикера, чтобы длинный сниппет не
+                растягивал колонку w-fit; зазор до глифа (референс Telegram);
+                у СВОИХ — по правому краю тела ВСЕГДА (канон Telegram, вердикт
+                владельца 14.10: слева цитата сливается с чужой колонкой
+                выше, в «одном краю» тоже). */}
+            {message.reply ? (
+              <span className={cn('mb-1 flex w-fit max-w-52 flex-col', mine && 'self-end')}>
+                <ReplyHeader
+                  reply={message.reply}
+                  onFilled={mine}
+                  onClick={() => {
+                    const reply = message.reply;
+                    if (reply)
+                      useJumpStore
+                        .getState()
+                        .request(message.conversationId, reply.id, message.threadRootId);
+                  }}
+                />
+              </span>
+            ) : null}
+            <StickerWindowTrigger message={message} attachment={attachment} plate={false}>
+              <StickerGlyph
+                url={attachment.url ?? ''}
+                mime={attachment.mime}
+                alt={meta ? `${meta.packTitle} ${meta.emojis.join(' ')}` : undefined}
+                className={stickerFeedClass}
               />
-            </span>
-          ) : null}
-          <StickerWindowTrigger message={message} attachment={attachment}>
-            <StickerGlyph
-              url={attachment.url ?? ''}
-              mime={attachment.mime}
-              alt={meta ? `${meta.packTitle} ${meta.emojis.join(' ')}` : undefined}
-              className={stickerFeedClass}
-            />
-          </StickerWindowTrigger>
+            </StickerWindowTrigger>
+          </span>
           {/* Нижняя строка — как у пузырей (реакции слева, мета справа),
               тон muted: стикер без поверхности (#127). Слот витрины
               «Избранного» — личные метки вместо публичных реакций (#215). */}

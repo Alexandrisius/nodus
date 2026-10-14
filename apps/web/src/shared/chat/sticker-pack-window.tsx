@@ -3,6 +3,7 @@ import { useState } from 'react';
 import type { ChatMessage, MessageAttachment, StickerPack } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
+import { cn } from '@nodus/ui/lib/utils';
 import { Dialog, DialogContent, DialogTitle } from '@nodus/ui/components/dialog';
 import {
   DropdownMenu,
@@ -44,15 +45,22 @@ const WINDOW_CLASS =
   'flex h-[440px] w-[420px] max-w-[calc(100vw-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[420px]';
 
 /** Кнопка-глиф стикера, открывающая окно пака: единая поверхность для
- *  ленты и постов тредов. ПКМ не перехватывает (MessageMenu снаружи). */
+ *  ленты и постов тредов. ПКМ не перехватывает (MessageMenu снаружи).
+ *  plate (#288): плита «прозрачный бордер + p-2» (layout стабилен, рамка
+ *  выделения красит её по data-selected). В ленте стикер-ответ рисует плиту
+ *  САМ на обёртке «цитата+глиф» (sticker-body) — единая рамка выделения
+ *  вокруг виртуального пузыря, глифу двойная не нужна; посты канала —
+ *  дефолт (плита на глифе). */
 export function StickerWindowTrigger({
   message,
   attachment,
   children,
+  plate = true,
 }: {
   message: ChatMessage;
   attachment: MessageAttachment;
   children: React.ReactNode;
+  plate?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const meta = attachment.sticker;
@@ -68,7 +76,7 @@ export function StickerWindowTrigger({
         aria-label={`${meta.packTitle}: ${meta.emojis.join(' ')}`}
         title={meta.packTitle}
         onClick={() => setOpen(true)}
-        className="cursor-pointer rounded-2xl border border-transparent p-2"
+        className={cn('cursor-pointer rounded-2xl border border-transparent', plate && 'p-2')}
       >
         {children}
       </button>

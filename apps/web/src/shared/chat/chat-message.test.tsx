@@ -373,11 +373,43 @@ describe('Стикер — цитата ответа (#288)', () => {
     const { container } = renderMessage(
       <StickerMessageView message={message({ reply })} attachment={sticker} mine />,
     );
-    const wrapper = container.querySelector('[data-slot="sticker-message"]')!.firstElementChild!;
+    const wrapper = container.querySelector('[data-slot="sticker-body"]')!.firstElementChild!;
     expect(wrapper.className).toContain('self-end');
     // Блочная обёртка: инлайн-span молча съедал max-w (ширина на inline не
     // действует) — длинный сниппет растягивал колонку w-fit (жалоба 14.10)
     expect(wrapper.className).toContain('max-w-52');
     useChatPrefs.setState({ align: 'one' });
+  });
+
+  it('цитата СВОЕГО стикера уходит вправо в ЛЮБОМ режиме (#288, канон Telegram)', () => {
+    // Вердикт владельца 14.10: слева цитата сливается с чужой колонкой выше —
+    // self-end по факту «моё», не по режиму выравнивания
+    useChatPrefs.setState({ align: 'one' });
+    const { container } = renderMessage(
+      <StickerMessageView message={message({ reply })} attachment={sticker} mine />,
+    );
+    const wrapper = container.querySelector('[data-slot="sticker-body"]')!.firstElementChild!;
+    expect(wrapper.className).toContain('self-end');
+
+    // Чужой стикер с цитатой — слева (сторона сообщения)
+    const view = renderMessage(
+      <StickerMessageView message={message({ reply })} attachment={sticker} mine={false} />,
+    );
+    const foreign = view.container.querySelector('[data-slot="sticker-body"]')!.firstElementChild!;
+    expect(foreign.className).not.toContain('self-end');
+    useChatPrefs.setState({ align: 'one' });
+  });
+
+  it('выделение: единая плита тела «цитата+глиф», у глифа двойной плиты нет', () => {
+    // Рамка селекта обнимает виртуальный пузырь целиком (data-selected красит
+    // sticker-body, globals.css); мета-строка — снаружи, как у пузырей
+    const { container } = renderMessage(
+      <StickerMessageView message={message({ reply })} attachment={sticker} mine />,
+    );
+    const body = container.querySelector('[data-slot="sticker-body"]')!;
+    expect(body).toBeTruthy();
+    expect(body.querySelector('[data-slot="sticker-surface"]')).toBeTruthy();
+    // Плита глифа снята (plate=false): двойного паддинга нет
+    expect(body.querySelector('[data-slot="sticker-surface"]')!.className).not.toContain('p-2');
   });
 });
