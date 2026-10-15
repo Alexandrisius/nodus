@@ -180,8 +180,9 @@ export class NotificationsService {
       conversationType: state.type,
       authorId: event.payload.authorId,
       urgent: event.payload.urgent,
+      threadRootId: event.payload.threadRootId,
       mentionedUserIds: event.payload.mentionedUserIds,
-      threadWatcherIds: event.payload.threadRootId !== null ? threadWatcherIds : [],
+      threadWatcherIds,
       members: state.members,
     });
     // Превью центра — БЕЗ токенов упоминаний (#224): стрип ДО обрезки —
