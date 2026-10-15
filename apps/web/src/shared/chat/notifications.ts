@@ -107,7 +107,7 @@ export function notifyMessage(authorName: string, text: string): void {
  * Ответы в трэдах — только наблюдателям/@упомянутым (канон раунда 3, #300);
  * гейт асинхронный, синхронный путь (корневые сообщения) не ждёт.
  */
-export function notifySentMessage(payload: unknown, queryClient?: QueryClient): void {
+export function notifySentMessage(payload: unknown, queryClient: QueryClient): void {
   const parsed = chatMessageSentPayloadSchema.safeParse(payload);
   if (!parsed.success || !parsed.data.message) return;
   const { conversationId, message, mentionedUserIds } = parsed.data;
@@ -116,13 +116,17 @@ export function notifySentMessage(payload: unknown, queryClient?: QueryClient): 
     // Упоминания — отображаемым текстом (браузерное уведомление без разметки).
     notifyMessage(withoutPatronymic(message.author.displayName), stripMentionTokens(message.text));
   };
-  if (message.threadRootId !== null && queryClient) {
+  if (message.threadRootId !== null) {
     const meId = useAuthStore.getState().user?.id ?? null;
-    void threadNotifyAllowed(queryClient, meId, conversationId, message.threadRootId, mentionedUserIds).then(
-      (allowed) => {
-        if (allowed) show();
-      },
-    );
+    void threadNotifyAllowed(
+      queryClient,
+      meId,
+      conversationId,
+      message.threadRootId,
+      mentionedUserIds,
+    ).then((allowed) => {
+      if (allowed) show();
+    });
     return;
   }
   show();

@@ -10,7 +10,7 @@ import { MessengerBody, type ChatTab } from '../../features/chat/components/mess
 import { MessengerTabs } from '../../features/chat/components/messenger-tabs.js';
 import { useUsersList } from '../../features/directory/api/directory-api.js';
 import { EmployeeCard } from '../../features/directory/components/employee-card.js';
-import { takeMessengerThread } from '../../shared/chat/messenger-nav.js';
+import { subscribeMessengerThread, takeMessengerThread } from '../../shared/chat/messenger-nav.js';
 import { useProjectDetail } from '../../features/projects/api/projects-api.js';
 import { ProjectCard } from '../../features/projects/components/project-card.js';
 import { useTaskDetail } from '../../features/tasks/api/tasks-api.js';
@@ -142,10 +142,18 @@ function CounterpartyEntry({ id, source, onClose, dormant }: EntryProps) {
 function MessengerEntry({ id, source, onClose, dormant }: EntryProps) {
   const [conversationId, setConversationId] = useState(id);
   const [tab, setTab] = useState<ChatTab>('chats');
-  // Пристоенный тред (messenger-nav): потребляется и на МАУНТЕ карточки
-  // (клик по уведомлению о трэде открывает новую карточку с окном трэда,
-  // #300), и при подмене верхней карточки (переход по пересланному).
+  // Пристоенный тред (messenger-nav): потребляется на МАУНТЕ карточки,
+  // при подмене верхней карточки и ПО ПОДПИСКЕ — клик по уведомлению о
+  // трэде при уже открытой карточке той же беседы (openCard там no-op, #300).
   const [threadRootId, setThreadRootId] = useState<string | null>(() => takeMessengerThread(id));
+  useEffect(
+    () =>
+      subscribeMessengerThread(() => {
+        const staged = takeMessengerThread(conversationId);
+        if (staged !== null) setThreadRootId(staged);
+      }),
+    [conversationId],
+  );
   // Подмена беседы (replaceTop): сброс треда — он принадлежал прежней беседе
   // (рендер-тайм сброс по смене id, канон React, аудит #45); пристоенный тред
   // подмены (переход по пересланному в тред канала) — наоборот, открывается.
