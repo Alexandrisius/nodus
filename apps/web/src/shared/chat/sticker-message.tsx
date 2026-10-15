@@ -68,6 +68,14 @@ export const StickerMessageView = memo(function StickerMessageView({
   const align = useChatPrefs((s) => s.align);
   const atEnd = mine && align === 'both';
   const meta = attachment.sticker ?? null;
+  // Ширина глифа в ленте (dp): потолок 208 по большей стороне (stickerFeedClass
+  // max-h/max-w-52), вторая — по пропорции вложения. null — габариты неизвестны
+  // (старые снапшоты): цитата без капа, как до #297.
+  const glyphWidthDp =
+    attachment.width && attachment.height
+      ? Math.min(208, Math.round((208 * attachment.width) / attachment.height))
+      : null;
+  const quoteCap = glyphWidthDp !== null ? `${glyphWidthDp / 16}rem` : null;
   return (
     <Message align={atEnd ? 'end' : 'start'} className="group/msg">
       {/* Аватар автора — ВИДИМЫЙ (вердикт владельца 30.09: «скидываются
@@ -109,7 +117,19 @@ export const StickerMessageView = memo(function StickerMessageView({
               штатная полупрозрачная цитата: плотный фон на тонированной
               плите выделения давал чёрную кляксу (замечание владельца). */}
             {message.reply ? (
-              <span className="mb-1 flex w-40 flex-col self-end">
+              /* Цитата НЕ расширяет строку стикера (#297, модель Telegram:
+                 верхний блок не учитывается в ширине): её максимум — ширина
+                 ГЛИФА, детерминированно считаемая из пропорций вложения
+                 (потолок 13rem = 208dp, как stickerFeedClass); у узких
+                 стикеров цитата обрезается до ширины стикера, иначе плита
+                 выделения и якорь реакций следовали за цитатой w-40 и
+                 реакции вставали далеко от глифа (репорт владельца 15.10).
+                 Широкие глифы (>=160dp) — без изменений: w-40 прижата
+                 вправо, канон #288. rem — масштабируется ui-scale. */
+              <span
+                className="mb-1 flex w-40 flex-col self-end"
+                style={quoteCap ? { maxWidth: quoteCap } : undefined}
+              >
                 <ReplyHeader
                   reply={message.reply}
                   onFilled={mine}
