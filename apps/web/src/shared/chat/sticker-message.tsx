@@ -1,6 +1,7 @@
 import { memo, type ReactNode } from 'react';
 import type { ChatMessage, MessageAttachment } from '@nodus/contracts';
 import { Message, MessageAvatar, MessageContent } from '@nodus/ui/components/message';
+import { cn } from '@nodus/ui/lib/utils';
 
 import { PersonAvatar } from '../ui/person-avatar.js';
 import { useChatPrefs } from './chat-prefs.js';
@@ -68,14 +69,6 @@ export const StickerMessageView = memo(function StickerMessageView({
   const align = useChatPrefs((s) => s.align);
   const atEnd = mine && align === 'both';
   const meta = attachment.sticker ?? null;
-  // Ширина глифа в ленте (dp): потолок 208 по большей стороне (stickerFeedClass
-  // max-h/max-w-52), вторая — по пропорции вложения. null — габариты неизвестны
-  // (старые снапшоты): цитата без капа, как до #297.
-  const glyphWidthDp =
-    attachment.width && attachment.height
-      ? Math.min(208, Math.round((208 * attachment.width) / attachment.height))
-      : null;
-  const quoteCap = glyphWidthDp !== null ? `${glyphWidthDp / 16}rem` : null;
   return (
     <Message align={atEnd ? 'end' : 'start'} className="group/msg">
       {/* Аватар автора — ВИДИМЫЙ (вердикт владельца 30.09: «скидываются
@@ -96,40 +89,69 @@ export const StickerMessageView = memo(function StickerMessageView({
             data-slot обязателен: MessageContent прижимает вправо (align=end,
             «По обе стороны») только детей с data-slot — без него стикер
             оставался слева при аватаре справа (баг-вердикт 30.09, #164). */}
-        <span data-slot="sticker-message" className="relative flex w-fit flex-col group/bubble">
-          {/* Тело «цитата+глиф» (#288) — виртуальный пузырь стикера: ЕДИНАЯ
-              плита выделения (плиту с глифа снял — plate={false} у триггера,
-              иначе двойной паддинг; у постов канала осталась), мета-строка —
-              снаружи, как у пузырей. В базе плита прозрачна с прозрачным
-              бордером (layout стабилен), data-selected красит её целиком
-              (globals.css) — рамка не «только вокруг стикера» (замечание
-              владельца 14.10). */}
-          <span
-            data-slot="sticker-body"
-            className="flex w-fit flex-col rounded-2xl border border-transparent p-2"
-          >
-            {/* Цитата ответа (#288): стикер-ответ раньше молча терял видимую
-              связь (replyToId хранился, цитата не рисовалась). КАНОН Telegram
-              (вердикты владельца 14.10): фиксированное место — панель w-40
-              ПРИЖАТА ВПРАВО и стоит НАД глифом В ПОТОКЕ (наложение
-              «вырезало» кусок стикера — запрет владельца), длина текста не
-              влияет, длинное обрезается; клик — прыжок с подсветкой. Фон —
-              штатная полупрозрачная цитата: плотный фон на тонированной
-              плите выделения давал чёрную кляксу (замечание владельца). */}
-            {message.reply ? (
-              /* Цитата НЕ расширяет строку стикера (#297, модель Telegram:
-                 верхний блок не учитывается в ширине): её максимум — ширина
-                 ГЛИФА, детерминированно считаемая из пропорций вложения
-                 (потолок 13rem = 208dp, как stickerFeedClass); у узких
-                 стикеров цитата обрезается до ширины стикера, иначе плита
-                 выделения и якорь реакций следовали за цитатой w-40 и
-                 реакции вставали далеко от глифа (репорт владельца 15.10).
-                 Широкие глифы (>=160dp) — без изменений: w-40 прижата
-                 вправо, канон #288. rem — масштабируется ui-scale. */
+        <span data-slot="sticker-message" className="flex w-fit flex-col">
+          {/* Ряд «глиф + цитата» (#297, ревизия владельца 15.10, модель
+              Telegram): цитата СПРАВА от глифа (у своих — слева, row-reverse),
+              ВНЕ плиты выделения и с зазором, в который проходит рамка
+              селекта: цитата больше не растягивает строку стикера и не
+              уводит якорь реакций от глифа (репорт владельца: «стикер 160px,
+              цитата 220px, реакции далеко»). */}
+          <span className={cn('flex w-fit items-start gap-1.5', atEnd && 'flex-row-reverse')}>
+            {/* Плита выделения — ТОЛЬКО глиф (канон 14.10: рамка обнимает
+                стикер); она же якорь ховер-пилюли реакций и метки времени
+                (group/bubble + relative). В базе прозрачна с прозрачным
+                бордером (layout стабилен), data-selected красит целиком
+                (globals.css). */}
+            <span className="group/bubble relative flex w-fit flex-col">
               <span
-                className="mb-1 flex w-40 flex-col self-end"
-                style={quoteCap ? { maxWidth: quoteCap } : undefined}
+                data-slot="sticker-body"
+                className="flex w-fit flex-col rounded-2xl border border-transparent p-2"
               >
+                <StickerWindowTrigger message={message} attachment={attachment} plate={false}>
+                  <StickerGlyph
+                    url={attachment.url ?? ''}
+                    mime={attachment.mime}
+                    alt={meta ? `${meta.packTitle} ${meta.emojis.join(' ')}` : undefined}
+                    className={stickerFeedClass}
+                  />
+                </StickerWindowTrigger>
+              </span>
+              {/* Метка времени стикера — ТОЛЬКО по ховеру и СБОКУ глифа снизу
+                  (Telegram; вердикт владельца 15.10): под глифом её пересекал
+                  кружок реакций. Пилюля на подложке — читаема и над низким
+                  глифом, и рядом с цитатой. pointer-events-none — не мешает
+                  ховеру панели реакций. */}
+              <span
+                className={cn(
+                  // Правее кружка реакций (пилюля торчит за плиту на 12dp):
+                  // ml/mr-3.5 = 14dp — метка не пересекает кружок (репорт
+                  // владельца 15.10, ревизия 2). Заливка-пилюля как в
+                  // Telegram — читается на любом фоне ленты.
+                  'pointer-events-none absolute bottom-1 z-10 rounded-full bg-muted/80 px-2 opacity-0 transition-opacity duration-150 group-hover/bubble:opacity-100',
+                  atEnd ? 'right-full mr-3.5' : 'left-full ml-3.5',
+                )}
+              >
+                <MessageMeta
+                  message={message}
+                  onFilled={false}
+                  ticks={mine}
+                  noReceipts={receiptsHidden}
+                />
+              </span>
+              {reactionsHidden
+                ? null
+                : (children ?? <ReactionPicker message={message} atEnd={atEnd} />)}
+            </span>
+            {/* Цитата ответа (#288): связь стикер-ответ видима; клик — прыжок
+                с подсветкой. Ширина фикс w-40, длинное обрезается; стоит
+                В ПОТОКЕ рядом с глифом (наложение на глиф запрещено
+                вердиктом 14.10), верхняя кромка — по верхней кромке глифа
+                (mt-2 = паддинг плиты). Фон — штатная полупрозрачная цитата. */}
+            {message.reply ? (
+              // Верх цитаты — ТОЧНО по верху глифа: паддинг плиты p-2 + её
+              // бордер 1px (ревизия владельца 15.10: цитата висела на пару
+              // пикселей выше стикера).
+              <span className="mt-[calc(0.5rem+1px)] w-40 shrink-0">
                 <ReplyHeader
                   reply={message.reply}
                   onFilled={mine}
@@ -143,31 +165,16 @@ export const StickerMessageView = memo(function StickerMessageView({
                 />
               </span>
             ) : null}
-            <StickerWindowTrigger message={message} attachment={attachment} plate={false}>
-              <StickerGlyph
-                url={attachment.url ?? ''}
-                mime={attachment.mime}
-                alt={meta ? `${meta.packTitle} ${meta.emojis.join(' ')}` : undefined}
-                className={stickerFeedClass}
-              />
-            </StickerWindowTrigger>
           </span>
-          {/* Нижняя строка — как у пузырей (реакции слева, мета справа),
-              тон muted: стикер без поверхности (#127). Слот витрины
+          {/* Чипы реакций — под плитой с минимальным зазором (вердикт
+              владельца 15.10: вплотную к рамке селекта — некрасиво). Тон
+              muted: стикер без поверхности (#127). Слот витрины
               «Избранного» — личные метки вместо публичных реакций (#215). */}
-          <span className="flex items-end gap-2">
+          <span
+            className={cn('mt-1 flex w-fit items-end gap-2', atEnd && 'flex-row-reverse self-end')}
+          >
             {reactionsRow ?? <MessageReactions message={message} onFilled={false} />}
-            <MessageMeta
-              message={message}
-              onFilled={false}
-              ticks={mine}
-              noReceipts={receiptsHidden}
-              className="ml-auto"
-            />
           </span>
-          {reactionsHidden
-            ? null
-            : (children ?? <ReactionPicker message={message} atEnd={atEnd} />)}
         </span>
       </MessageContent>
     </Message>
