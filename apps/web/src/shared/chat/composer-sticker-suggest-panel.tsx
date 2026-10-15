@@ -145,6 +145,19 @@ export function stickerSuggestKeydown(
   }
 }
 
+/** Размер глифа в ячейке: квадраты и умеренные прямоугольники — по канону
+ *  ленты (max-бокс 56dp, радиус на арте); ЭКСТРЕМАЛЬНО вытянутые (отношение
+ *  сторон ≥1.4) — компактнее (длинная сторона 44dp, центр ячейки), иначе
+ *  узкий арт тянется столбом на всю высоту ряда и выглядит рвано (модель
+ *  пикеров Discord/Twitch; пропорции — из DTO width/height). Решение
+ *  делегировано владельцем 15.10 (#294). */
+function glyphSizeClass(sticker: { width: number | null; height: number | null }): string {
+  const w = sticker.width ?? 0;
+  const h = sticker.height ?? 0;
+  const ratio = w > 0 && h > 0 ? Math.max(w, h) / Math.min(w, h) : 1;
+  return ratio >= 1.4 ? 'max-h-11 max-w-11' : 'max-h-14 max-w-14';
+}
+
 /** Панель стикеров-подсказок (ридизайн по вердикту владельца #294): во всю
  *  ширину островка композера, ВЫЕЗЖАЕТ вверх из него (composer-panel-rise)
  *  и ПЕРЕКРЫВАЕТ ленту, ничего в ней не двигая (absolute). Высота
@@ -206,7 +219,7 @@ export function StickerSuggestPanel({
               // Мягкие углы — как у стикера в ленте (stickerFeedClass): бокс
               // ОБНИМАЕТ арт (max-*), радиус режет углы самой картинки —
               // JPEG с фоном не торчит квадратом (gotcha object-fit).
-              className="max-h-14 max-w-14 rounded-md object-contain"
+              className={cn(glyphSizeClass(match.sticker), 'rounded-md object-contain')}
             />
           </button>
         ))}
