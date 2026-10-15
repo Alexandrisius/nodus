@@ -114,6 +114,8 @@ pub fn is_valid_conversation(s: &str) -> bool {
 pub struct PopupPayload {
     pub id: String,
     pub conversation_id: String,
+    /// Корень трэда (попап об ответе в трэде): клик раскрывает окно трэда (#300).
+    pub thread_root_id: Option<String>,
     pub title: String,
     pub avatar_url: Option<String>,
     pub preview: String,
@@ -141,6 +143,10 @@ pub async fn notify_popup(app: AppHandle, payload: PopupPayload) -> Result<(), S
     if payload.id.is_empty()
         || payload.id.len() > 200
         || !is_valid_conversation(&payload.conversation_id)
+        || payload
+            .thread_root_id
+            .as_deref()
+            .is_some_and(|t| !is_valid_conversation(t))
         || payload.title.is_empty()
         || payload.title.chars().count() > 200
         || payload.preview.chars().count() > 500

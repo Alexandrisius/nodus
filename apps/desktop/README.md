@@ -36,6 +36,8 @@ apps/desktop/
   команды «веб→оболочка» (`window.nodusDesktop.*`), события «оболочка→веб»
   (`__nodusDesktopInvoke`). Rust-зеркала: `bridge.rs`/`popups.rs` —
   **рассинхрон = баг** (тесты протокола: `apps/web/src/shared/desktop/`).
+  Попап об ответе в трэде несёт `threadRootId` (#300): клик «Открыть»
+  (событие `open-conversation`) раскрывает окно трэда в портале.
 - Обновления: `GET <портал>/desktop/latest.json` + установщики (`/desktop/`
   статика nginx, env `NODUS_DESKTOP_DIR`); pubkey зашит в `tauri.conf.json`.
 

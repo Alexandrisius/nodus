@@ -16,8 +16,15 @@ export function useDesktopBridge(): void {
   const navigate = useNavigate();
 
   const openConversation = useCallback(
-    (conversationId: string) => {
-      void navigate({ to: '/chat/$conversationId', params: { conversationId } });
+    // Трэд в событии (попап об ответе в трэде, #300) — открывается окном
+    // трэда через готовый deep-link `?thread=`; функциональная форма search
+    // сохраняет посторонние параметры (стек карточек ?cards=).
+    (conversationId: string, threadRootId?: string | null) => {
+      void navigate({
+        to: '/chat/$conversationId',
+        params: { conversationId },
+        search: (prev) => ({ ...prev, thread: threadRootId ?? undefined }),
+      });
     },
     [navigate],
   );
@@ -45,8 +52,9 @@ export function useDesktopBridge(): void {
           .then(() => undefined)
           .catch(() => openConversation(conversationId));
       },
-      // «Открыть» из попапа и deep link nodus://chat/<id>.
-      onOpenConversation: ({ conversationId }) => openConversation(conversationId),
+      // «Открыть» из попапа и deep link nodus://chat/<id>; трэд — окном трэда.
+      onOpenConversation: ({ conversationId, threadRootId }) =>
+        openConversation(conversationId, threadRootId ?? null),
     });
   }, [queryClient, openConversation]);
 }

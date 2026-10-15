@@ -9,7 +9,7 @@ import { useOpenCard } from '../../../app/shell/use-card-stack.js';
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
 import { useNotifications, useReadNotification } from '../api/notifications-api.js';
 import { useNotificationDetailStore } from '../model/detail-store.js';
-import { sourceCardOf } from '../model/open-notification.js';
+import { sourceCardOf, openSourceCard } from '../model/open-notification.js';
 
 /**
  * Карточка просмотра уведомления (#100, фидбек владельца 01.10): открывается
@@ -141,7 +141,8 @@ function PlainBody({ item, onClose }: { item: Notification; onClose: () => void 
               size="sm"
               onClick={() => {
                 onClose();
-                openCard(source);
+                // Уведомление об ответе в трэде — источник с окном трэда (#300).
+                openSourceCard(openCard, source, item.threadRootId);
               }}
             >
               {ui.notifications.detailOpenSource}

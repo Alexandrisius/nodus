@@ -142,7 +142,10 @@ function CounterpartyEntry({ id, source, onClose, dormant }: EntryProps) {
 function MessengerEntry({ id, source, onClose, dormant }: EntryProps) {
   const [conversationId, setConversationId] = useState(id);
   const [tab, setTab] = useState<ChatTab>('chats');
-  const [threadRootId, setThreadRootId] = useState<string | null>(null);
+  // Пристоенный тред (messenger-nav): потребляется и на МАУНТЕ карточки
+  // (клик по уведомлению о трэде открывает новую карточку с окном трэда,
+  // #300), и при подмене верхней карточки (переход по пересланному).
+  const [threadRootId, setThreadRootId] = useState<string | null>(() => takeMessengerThread(id));
   // Подмена беседы (replaceTop): сброс треда — он принадлежал прежней беседе
   // (рендер-тайм сброс по смене id, канон React, аудит #45); пристоенный тред
   // подмены (переход по пересланному в тред канала) — наоборот, открывается.

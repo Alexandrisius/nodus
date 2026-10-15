@@ -4,26 +4,45 @@ import type { Notification } from '@nodus/contracts';
 import { router } from '../../../app/router.js';
 import { useOpenCard } from '../../../app/shell/use-card-stack.js';
 import type { SourceRect } from '../../../app/shell/slider-panel.js';
+import { stageMessengerThread } from '../../../shared/chat/messenger-nav.js';
 import { useNotificationDetailStore } from './detail-store.js';
 
 /**
  * Клик по уведомлению (фидбек владельца 01.10, паттерн Битрикс24): сразу
  * ОТКРЫТЬ источник — карточку сущности с выбранной беседой/задачей, где видно
  * оригинал изменения; чтение источника гасит уведомление (message_read на
- * сервере). Карточка просмотра — для срочных (лист ознакомления: текст +
- * «Ознакомлен») и записей без источника; она живёт на Главной поверх колонки
- * ленты, поэтому открытие из другого раздела сначала ведёт на Главную.
+ * сервере). Уведомление об ответе в трэде открывает беседу с раскрытым окном
+ * этого трэда (#300). Карточка просмотра — для срочных (лист ознакомления:
+ * текст + «Ознакомлен») и записей без источника; она живёт на Главной поверх
+ * колонки ленты, поэтому открытие из другого раздела сначала ведёт на Главную.
  */
 export function useOpenNotification(): (item: Notification, sourceRect?: SourceRect) => void {
   const openCard = useOpenCard();
   return (item, sourceRect) => {
     const card = item.priority === 'urgent' ? null : sourceCardOf(item);
     if (card) {
-      openCard(card, sourceRect);
+      openSourceCard(openCard, card, item.threadRootId, sourceRect);
       return;
     }
     openNotificationReader(item.id);
   };
+}
+
+/** Открыть карточку мессенджер-источника; трэд уведомления пристаивается
+ * к карточке (messenger-nav) и раскрывается окном трэда (#300). */
+export function openSourceCard(
+  openCard: (
+    ref: { kind: 'messenger' | 'task' | 'letter'; id: string },
+    sourceRect?: SourceRect,
+  ) => void,
+  card: { kind: 'messenger' | 'task' | 'letter'; id: string },
+  threadRootId: string | null,
+  sourceRect?: SourceRect,
+): void {
+  if (card.kind === 'messenger' && threadRootId) {
+    stageMessengerThread(card.id, threadRootId);
+  }
+  openCard(card, sourceRect);
 }
 
 /** Открыть карточку просмотра на Главной (из любого раздела — с переходом). */
