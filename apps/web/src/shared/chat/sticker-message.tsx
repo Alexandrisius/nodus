@@ -123,8 +123,12 @@ export const StickerMessageView = memo(function StickerMessageView({
                   ховеру панели реакций. */}
               <span
                 className={cn(
-                  'pointer-events-none absolute bottom-1 z-10 rounded-md bg-card/90 px-1 opacity-0 transition-opacity duration-150 group-hover/bubble:opacity-100',
-                  atEnd ? 'right-full mr-1' : 'left-full ml-1',
+                  // Правее кружка реакций (пилюля торчит за плиту на 12dp):
+                  // ml/mr-3.5 = 14dp — метка не пересекает кружок (репорт
+                  // владельца 15.10, ревизия 2). Заливка-пилюля как в
+                  // Telegram — читается на любом фоне ленты.
+                  'pointer-events-none absolute bottom-1 z-10 rounded-full bg-muted/80 px-2 opacity-0 transition-opacity duration-150 group-hover/bubble:opacity-100',
+                  atEnd ? 'right-full mr-3.5' : 'left-full ml-3.5',
                 )}
               >
                 <MessageMeta
@@ -144,7 +148,10 @@ export const StickerMessageView = memo(function StickerMessageView({
                 вердиктом 14.10), верхняя кромка — по верхней кромке глифа
                 (mt-2 = паддинг плиты). Фон — штатная полупрозрачная цитата. */}
             {message.reply ? (
-              <span className="mt-2 w-40 shrink-0">
+              // Верх цитаты — ТОЧНО по верху глифа: паддинг плиты p-2 + её
+              // бордер 1px (ревизия владельца 15.10: цитата висела на пару
+              // пикселей выше стикера).
+              <span className="mt-[calc(0.5rem+1px)] w-40 shrink-0">
                 <ReplyHeader
                   reply={message.reply}
                   onFilled={mine}
