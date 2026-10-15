@@ -20,6 +20,8 @@ export interface MessageEventInput {
   authorId: string;
   /** «Важное сообщение»: всем получателям urgent, mute не понижает. */
   urgent: boolean;
+  /** Ответ в трэде — корень трэда; null — корневое сообщение ленты. */
+  threadRootId: string | null;
   /** userId упомянутых (снапшот отправки, без автора — фильтр здесь). */
   mentionedUserIds: string[];
   /** Наблюдатели треда (author/replier/watcher/mentioned корня). */
@@ -64,8 +66,11 @@ function kindFor(
 /**
  * Механики поверх таблицы:
  * 1. Автор события → skip (себя не уведомляем, B9).
- * 2. urgent → всем получателям urgent (пробивает mute, B5).
- * 3. Mute понижает приоритет до low (точка без числа); urgent не понижает.
+ * 2. Ответ в трэде (канон раунда 3, #300) → получатели ТОЛЬКО наблюдатели
+ *    трэда и @упомянутые; остальной состав беседы — мимо (счётчик трэда у
+ *    не-наблюдателя и так 0). «Важное» меняет приоритет, не круг лиц.
+ * 3. urgent → получателям urgent (пробивает mute, B5).
+ * 4. Mute понижает приоритет до low (точка без числа); urgent не понижает.
  */
 export function resolveMessageNotifications(input: MessageEventInput): ResolvedNotification[] {
   const mentioned = new Set(input.mentionedUserIds.filter((id) => id !== input.authorId));
@@ -74,6 +79,13 @@ export function resolveMessageNotifications(input: MessageEventInput): ResolvedN
   const resolved = new Map<string, ResolvedNotification>();
   for (const member of input.members) {
     if (member.userId === input.authorId) continue;
+    if (
+      input.threadRootId !== null &&
+      !threadWatchers.has(member.userId) &&
+      !mentioned.has(member.userId)
+    ) {
+      continue;
+    }
     const kind = kindFor(input, member.userId, mentioned, threadWatchers);
     const tablePriority = KIND_PRIORITY[kind];
     const priority: NotificationPriority =

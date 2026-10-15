@@ -94,7 +94,11 @@ export function PopupView() {
 
   function openConversation() {
     if (!data) return;
-    void invoke('popup_open', { conversationId: data.conversationId }).then(close);
+    // Трэд (попап об ответе в трэде, #300): портал раскроет окно трэда.
+    void invoke('popup_open', {
+      conversationId: data.conversationId,
+      threadRootId: data.threadRootId ?? null,
+    }).then(close);
   }
 
   if (!data) {

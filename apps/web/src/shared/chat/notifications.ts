@@ -1,8 +1,10 @@
+import type { QueryClient } from '@tanstack/react-query';
 import { chatMessageSentPayloadSchema, stripMentionTokens, ui } from '@nodus/contracts';
 
 import { useAuthStore } from '../auth-store.js';
 import { desktopDismissPopups, isDesktopShell } from '../desktop/desktop-bridge.js';
 import { withoutPatronymic } from '../lib/format.js';
+import { threadNotifyAllowed } from './thread-notify-gate.js';
 
 /**
  * Браузерные уведомления чата (#124, минимум живости без полного контура
@@ -14,21 +16,43 @@ import { withoutPatronymic } from '../lib/format.js';
 
 const PREF_KEY = 'nodus-chat-notifications-v1';
 
-/** Беседа, открытая сейчас в мессенджере (хосты ставят через сеттер). */
-let openConversationId: string | null = null;
+/**
+ * Реестр хостов открытой беседы (#300): одну беседу держат НЕСКОЛЬКО хостов
+ * (лента канала + окно треда + карточка мессенджера). Раньше общий
+ * module-level маркер затирался null при анмаунте любого хоста — закрытие
+ * окна треда гасило признак «смотрю в беседу», и попапы прилетали в открытый
+ * чат. Реестр живёт до последнего хоста; «текущая» — последний заявленный
+ * (верхняя карточка/окно поверх страницы — то, на что смотрит пользователь).
+ */
+const openConversationHosts: { conversationId: string }[] = [];
 
-export function setOpenConversation(conversationId: string | null): void {
-  openConversationId = conversationId;
-  // Открыл беседу — попапы оболочки этой беседы гаснут, не висят устаревшими
-  // (модель Telegram unlinkHistory). Вне оболочки вызов тихий no-op.
-  if (conversationId && isDesktopShell()) {
+/**
+ * Заявить беседу открытой (хост ленты/треда/карточки); возвращает release —
+ * вызвать на анмаунте. Открыл беседу — попапы оболочки этой беседы гаснут,
+ * не висят устаревшими (модель Telegram unlinkHistory); вне оболочки тихо.
+ */
+export function acquireOpenConversation(conversationId: string): () => void {
+  const host = { conversationId };
+  openConversationHosts.push(host);
+  if (isDesktopShell()) {
     void desktopDismissPopups(conversationId);
   }
+  return () => {
+    const i = openConversationHosts.indexOf(host);
+    if (i !== -1) openConversationHosts.splice(i, 1);
+  };
 }
 
-/** Открытая беседа (глушит её тосты уведомлений, B6 — читает toast-стор). */
+/** Открытая беседа (глушит её тосты и попапы; B6 — читает toast-стор). */
 export function getOpenConversation(): string | null {
-  return openConversationId;
+  return openConversationHosts.length > 0
+    ? openConversationHosts[openConversationHosts.length - 1]!.conversationId
+    : null;
+}
+
+/** Сброс реестра (только тесты): детерминированное «ничего не открыто». */
+export function resetOpenConversationRegistry(): void {
+  openConversationHosts.length = 0;
 }
 
 export function notificationsSupported(): boolean {
@@ -66,7 +90,7 @@ export function shouldNotify(authorId: string, conversationId: string): boolean 
   if (isDesktopShell()) return false;
   if (!notificationsEnabled()) return false;
   if (authorId === (useAuthStore.getState().user?.id ?? null)) return false;
-  if (!document.hidden && openConversationId === conversationId) return false;
+  if (!document.hidden && getOpenConversation() === conversationId) return false;
   return true;
 }
 
@@ -78,12 +102,32 @@ export function notifyMessage(authorName: string, text: string): void {
   });
 }
 
-/** Точка входа WS-события (socket-client): уведомление по message_sent. */
-export function notifySentMessage(payload: unknown): void {
+/**
+ * Точка входа WS-события (socket-client): уведомление по message_sent.
+ * Ответы в трэдах — только наблюдателям/@упомянутым (канон раунда 3, #300);
+ * гейт асинхронный, синхронный путь (корневые сообщения) не ждёт.
+ */
+export function notifySentMessage(payload: unknown, queryClient: QueryClient): void {
   const parsed = chatMessageSentPayloadSchema.safeParse(payload);
   if (!parsed.success || !parsed.data.message) return;
-  const { conversationId, message } = parsed.data;
-  if (!shouldNotify(message.author.id, conversationId)) return;
-  // Упоминания — отображаемым текстом (браузерное уведомление без разметки).
-  notifyMessage(withoutPatronymic(message.author.displayName), stripMentionTokens(message.text));
+  const { conversationId, message, mentionedUserIds } = parsed.data;
+  const show = () => {
+    if (!shouldNotify(message.author.id, conversationId)) return;
+    // Упоминания — отображаемым текстом (браузерное уведомление без разметки).
+    notifyMessage(withoutPatronymic(message.author.displayName), stripMentionTokens(message.text));
+  };
+  if (message.threadRootId !== null) {
+    const meId = useAuthStore.getState().user?.id ?? null;
+    void threadNotifyAllowed(
+      queryClient,
+      meId,
+      conversationId,
+      message.threadRootId,
+      mentionedUserIds,
+    ).then((allowed) => {
+      if (allowed) show();
+    });
+    return;
+  }
+  show();
 }

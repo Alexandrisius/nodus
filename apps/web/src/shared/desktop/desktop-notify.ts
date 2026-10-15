@@ -5,6 +5,7 @@ import { useAuthStore } from '../auth-store.js';
 import { withoutPatronymic } from '../lib/format.js';
 import { chatKeys } from '../chat/api.js';
 import { getOpenConversation } from '../chat/notifications.js';
+import { threadNotifyAllowed } from '../chat/thread-notify-gate.js';
 import {
   desktopFlashTaskbar,
   desktopShowPopup,
@@ -15,57 +16,80 @@ import {
 /**
  * Попапы десктоп-оболочки по WS-событию chat.message_sent (ADR-0019): правила
  * тишины — ЗДЕСЬ, в веб-приложении (оболочка — только исполнитель дисплея).
- * Свidi-сообщения не звенят; обычное молчит в заглушённых беседах, «Посмотреть
- * позже» и в ОТКРЫТОЙ беседе под фокусом (зеркало B6 журнала); важное (urgent)
- * пробивается верхним ярусом (#177). Опти-ин браузерных уведомлений (#124)
- * тут НЕ действует: оболочку ставят осознанно.
+ * Свои сообщения не звенят. Смотрю в открытую беседу (окно на виду, в фокусе,
+ * беседа открыта) — ПОЛНАЯ тишина, включая «Важное» (#300, вердикт владельца
+ * 15.10; зеркало Slack/Telegram: сообщение и так на экране); «Важное»
+ * пробивает только «Заглушено» и «Посмотреть позже». Ответы в трэдах —
+ * только наблюдателям/@упомянутым (канон раунда 3, #300). Опти-ин браузерных
+ * уведомлений (#124) тут НЕ действует: оболочку ставят осознанно.
  */
 export function notifyDesktopMessage(payload: unknown, queryClient: QueryClient): void {
   if (!isDesktopShell()) return;
   const parsed = chatMessageSentPayloadSchema.safeParse(payload);
   if (!parsed.success || !parsed.data.message) return;
-  const { conversationId, urgent, message } = parsed.data;
-  const authorId = message.author.id;
-  if (authorId === (useAuthStore.getState().user?.id ?? null)) return;
+  const { conversationId, urgent, message, mentionedUserIds } = parsed.data;
+  const meId = useAuthStore.getState().user?.id ?? null;
+  if (message.author.id === meId) return;
+
+  // Модель Telegram (фидбек 08.10) + вердикт 15.10: тишина, когда пользователь
+  // СМОТРИТ в эту беседу — окно на виду, в фокусе, беседа открыта. Фокус на
+  // другой странице портала — попап нужен: сообщение всё равно не видно.
+  // Попапы копятся до реакции (очередь в оболочке), бейдж считает непрочитанное.
+  const looking =
+    !isPortalBackground() && document.hasFocus() && getOpenConversation() === conversationId;
+  if (looking) return;
 
   if (!urgent) {
     const flags = conversationFlags(queryClient, conversationId);
     if (flags?.muted || flags?.snoozed) return;
-    // Модель Telegram (фидбек 08.10): тишина только когда пользователь СМОТРИТ
-    // в эту беседу — окно на виду, в фокусе, беседа открыта. Фокус на другой
-    // странице портала — попап нужен: сообщение всё равно не видно. Попапы
-    // копятся до реакции (очередь в оболочке), бейдж считает непрочитанное.
-    const looking =
-      !isPortalBackground() && document.hasFocus() && getOpenConversation() === conversationId;
-    if (looking) return;
   }
 
-  // Превью: текст сообщения; без текста — метка вложения («Фотография»),
-  // попап красит её акцентом (модель Telegram, фидбек 08.10).
-  const attachments = message.attachments ?? [];
-  const text = stripMentionTokens(message.text).trim();
-  let preview: string;
-  let previewAttachment = false;
-  if (text) {
-    preview = text.slice(0, 200);
-  } else if (attachments.length > 0) {
-    preview = attachmentLabel(attachments, ui.desktop);
-    previewAttachment = true;
-  } else {
-    preview = ui.chat.notificationEmpty;
+  // Ответ в трэде — гейт наблюдателя (асинхронный: холодный кэш состояний
+  // трэдов догоняется одним запросом; корневые сообщения идут синхронно).
+  if (message.threadRootId !== null) {
+    void threadNotifyAllowed(
+      queryClient,
+      meId,
+      conversationId,
+      message.threadRootId,
+      mentionedUserIds,
+    ).then((allowed) => {
+      if (allowed) showPopup();
+    });
+    return;
   }
+  showPopup();
 
-  void desktopShowPopup({
-    id: message.id,
-    conversationId,
-    title: withoutPatronymic(message.author.displayName),
-    avatarUrl: message.author.avatarUrl ?? undefined,
-    preview,
-    previewAttachment,
-    urgent,
-    canReply: true,
-  });
-  void desktopFlashTaskbar(urgent);
+  function showPopup(): void {
+    // Превью: текст сообщения; без текста — метка вложения («Фотография»),
+    // попап красит её акцентом (модель Telegram, фидбек 08.10).
+    const attachments = message.attachments ?? [];
+    const text = stripMentionTokens(message.text).trim();
+    let preview: string;
+    let previewAttachment = false;
+    if (text) {
+      preview = text.slice(0, 200);
+    } else if (attachments.length > 0) {
+      preview = attachmentLabel(attachments, ui.desktop);
+      previewAttachment = true;
+    } else {
+      preview = ui.chat.notificationEmpty;
+    }
+
+    void desktopShowPopup({
+      id: message.id,
+      conversationId,
+      // Клик по попапу раскрывает окно треда, если попап об ответе в нём (#300).
+      threadRootId: message.threadRootId ?? undefined,
+      title: withoutPatronymic(message.author.displayName),
+      avatarUrl: message.author.avatarUrl ?? undefined,
+      preview,
+      previewAttachment,
+      urgent,
+      canReply: true,
+    });
+    void desktopFlashTaskbar(urgent);
+  }
 }
 
 /** Метка вложения для превью попапа: вид носителя + число (как Telegram). */

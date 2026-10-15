@@ -32,7 +32,7 @@ import { buildMessageRuns, formatDayLabel, startsNewDay } from './message-groups
 import { MessageRunView } from './message-run.js';
 import { notesSelectionIds, mergeNotesFlow, splitNotesSelection } from './notes-flow.js';
 import { reconcileServerDraft } from './draft-sync.js';
-import { setOpenConversation } from './notifications.js';
+import { acquireOpenConversation } from './notifications.js';
 import { registerScopeSubmit } from './submit-registry.js';
 import { toSendVars } from './composer-submit.js';
 import { useFeedSelection } from './use-feed-selection.js';
@@ -67,10 +67,7 @@ export function NotesPane({ conversationId }: { conversationId: string }) {
     reconcileServerDraft(scope, conversation);
     return true;
   });
-  useEffect(() => {
-    setOpenConversation(conversationId);
-    return () => setOpenConversation(null);
-  }, [conversationId]);
+  useEffect(() => acquireOpenConversation(conversationId), [conversationId]);
 
   const messagesQuery = useConversationMessages(conversationId);
   const favoritesQuery = useFavorites();

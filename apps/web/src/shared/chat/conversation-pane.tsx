@@ -17,7 +17,7 @@ import { useConversationMessages, useConversations, useSendChatMessage } from '.
 import { ChatComposer } from './chat-composer.js';
 import type { ComposerSubmit } from './composer-submit.js';
 import { ChatMessageItem } from './chat-message.js';
-import { setOpenConversation } from './notifications.js';
+import { acquireOpenConversation } from './notifications.js';
 import { registerScopeSubmit } from './submit-registry.js';
 import { startMessageEdit, toEditVars } from './message-edit.js';
 import { addFiles } from './composer-files.js';
@@ -168,12 +168,9 @@ function ConversationFeed({
     return true;
   });
 
-  // Открытая беседа для гейта уведомлений (#124): фоновая вкладка
-  // уведомляет о чужих сообщениях НЕОТКРЫТОЙ беседы.
-  useEffect(() => {
-    setOpenConversation(conversationId);
-    return () => setOpenConversation(null);
-  }, [conversationId]);
+  // Открытая беседа для гейта уведомлений (#124/#300): реестр хостов —
+  // анмаунт одного хоста не гасит признак, пока жив другой (лента+тред).
+  useEffect(() => acquireOpenConversation(conversationId), [conversationId]);
   const { data, isLoading } = useConversationMessages(conversationId);
   const send = useSendChatMessage(conversationId, scope);
   const edit = useEditMessage(conversationId, scope);

@@ -8,7 +8,8 @@ import { MentionSnippet } from '../../../shared/chat/mention-chip.js';
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
 import { useNotificationsToastStore } from '../model/toast-store.js';
 import { PERSONAL_TOAST_TTL_MS } from '../model/toast-store.js';
-import { openNotificationReader } from '../model/open-notification.js';
+import { openNotificationReader, openSourceCard } from '../model/open-notification.js';
+import { useOpenCard } from '../../../app/shell/use-card-stack.js';
 import { usePauseEscalation } from '../model/use-pause-escalation.js';
 
 /**
@@ -17,7 +18,8 @@ import { usePauseEscalation } from '../model/use-pause-escalation.js';
  * ОДНА сводная карточка действий «Требуют внимания: N» — персистентная до
  * открытия (F3); фон — тостов не имеет никогда (F4). Поверх карточек
  * (z-[70] — лестница z каркаса). Подавления (mute/snooze/DND/открытый чат)
- * — в shouldToast (toast-store).
+ * — в shouldToast (toast-store). Клик — сразу к источнику (#300): трэд
+ * уведомления раскрывается окном трэда; срочное и безисточниковое — ридер.
  */
 export function NotificationToasts() {
   const personal = useNotificationsToastStore((s) => s.personal);
@@ -60,6 +62,7 @@ function PersonalToastCard({
 }) {
   const dismiss = useNotificationsToastStore((s) => s.dismissPersonal);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const openCard = useOpenCard();
 
   useEffect(() => {
     const arm = () => {
@@ -72,6 +75,19 @@ function PersonalToastCard({
   }, [dismiss, toastKey]);
 
   const urgent = snapshot.priority === 'urgent';
+  // Клик — к источнику (F1, #300): у тоста только снимок события, источник
+  // чата восстанавливается по conversationId (срочное — лист ознакомления).
+  function open() {
+    const card =
+      snapshot.conversationId !== null && snapshot.priority !== 'urgent'
+        ? ({ kind: 'messenger', id: snapshot.conversationId } as const)
+        : null;
+    if (card) {
+      openSourceCard(openCard, card, snapshot.threadRootId);
+    } else {
+      openNotificationReader(snapshot.notificationId);
+    }
+  }
   return (
     <div
       className="pointer-events-auto node-panel flex items-start gap-3 p-3 shadow-sm"
@@ -85,7 +101,7 @@ function PersonalToastCard({
         type="button"
         className="flex min-w-0 flex-1 items-start gap-3 text-left"
         onClick={() => {
-          openNotificationReader(snapshot.notificationId);
+          open();
           dismiss(toastKey);
         }}
       >

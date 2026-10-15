@@ -16,6 +16,8 @@ export const popupPayloadSchema = z.object({
   id: z.string().min(1).max(200),
   /** Беседа для «Открыть»/быстрого ответа (uuid). */
   conversationId: z.string().uuid(),
+  /** Попап об ответе в трэде — корень трэда; клик раскрывает окно трэда (#300). */
+  threadRootId: z.string().uuid().nullable().optional(),
   /** Заголовок попапа: имя автора или название беседы. */
   title: z.string().min(1).max(200),
   /** Аватар автора (абсолютный URL портала); пусто — графитовая заглушка. */
@@ -46,9 +48,11 @@ export const popupReplyEventSchema = z.object({
 });
 export type PopupReplyEvent = z.infer<typeof popupReplyEventSchema>;
 
-/** Событие «оболочка → веб»: открыть беседу (deep link `nodus://chat/<id>` или кнопка попапа). */
+/** Событие «оболочка → веб»: открыть беседу (deep link `nodus://chat/<id>` или кнопка попапа).
+ * threadRootId — клик по попапу об ответе в трэде раскрывает окно трэда (#300). */
 export const openConversationEventSchema = z.object({
   conversationId: z.string().uuid(),
+  threadRootId: z.string().uuid().nullable().optional(),
 });
 export type OpenConversationEvent = z.infer<typeof openConversationEventSchema>;
 

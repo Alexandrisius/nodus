@@ -84,6 +84,7 @@ pub(crate) fn show(app: &AppHandle, payload: crate::bridge::PopupPayload) {
     let payload_json = serde_json::json!({
         "id": payload.id,
         "conversationId": payload.conversation_id,
+        "threadRootId": payload.thread_root_id,
         "title": payload.title,
         "avatarUrl": payload.avatar_url,
         "preview": payload.preview,
@@ -365,15 +366,21 @@ pub fn popup_open(
     app: AppHandle,
     window: WebviewWindow,
     conversation_id: String,
+    thread_root_id: Option<String>,
 ) -> Result<(), String> {
-    if !bridge::is_valid_conversation(&conversation_id) {
+    if !bridge::is_valid_conversation(&conversation_id)
+        || thread_root_id
+            .as_deref()
+            .is_some_and(|t| !bridge::is_valid_conversation(t))
+    {
         return Err("invalid_payload".into());
     }
     crate::show_main(&app);
+    // Трэд (попап об ответе в трэде, #300) — портал открывает окно трэда.
     bridge::push_to_portal(
         &app,
         "open-conversation",
-        &serde_json::json!({ "conversationId": conversation_id }),
+        &serde_json::json!({ "conversationId": conversation_id, "threadRootId": thread_root_id }),
     );
     let _ = window.close();
     Ok(())
@@ -387,6 +394,7 @@ mod tests {
         PopupPayload {
             id: id.into(),
             conversation_id: conversation_id.into(),
+            thread_root_id: None,
             title: "Автор".into(),
             avatar_url: None,
             preview: "текст".into(),

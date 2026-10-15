@@ -11,12 +11,14 @@ const AUTHOR = '11111111-1111-1111-1111-111111111111';
 const ALICE = '22222222-2222-2222-2222-222222222222';
 const BOB = '33333333-3333-3333-3333-333333333333';
 const CAROL = '44444444-4444-4444-4444-444444444444';
+const THREAD_ROOT = '55555555-5555-5555-5555-555555555555';
 
 function input(overrides: Partial<MessageEventInput> = {}): MessageEventInput {
   return {
     conversationType: 'group',
     authorId: AUTHOR,
     urgent: false,
+    threadRootId: null,
     mentionedUserIds: [],
     threadWatcherIds: [],
     members: [
@@ -104,10 +106,35 @@ describe('resolveMessageNotifications', () => {
     expect(one(list, BOB)).toEqual({ userId: BOB, priority: 'low', kind: 'chat.channel_post' });
   });
 
-  it('ряд 5: ответ в треде — high участникам треда (B8, thread-follow)', () => {
-    const list = resolveMessageNotifications(input({ threadWatcherIds: [BOB] }));
+  it('ряд 5: ответ в треде — high ТОЛЬКО наблюдателям трэда (B8, #300)', () => {
+    const list = resolveMessageNotifications(
+      input({ threadRootId: THREAD_ROOT, threadWatcherIds: [BOB] }),
+    );
     expect(one(list, BOB)).toEqual({ userId: BOB, priority: 'high', kind: 'chat.thread_reply' });
-    expect(one(list, ALICE).kind).toBe('chat.channel_post');
+    // Не-наблюдатель не получает уведомления вовсе (канон раунда 3).
+    expect(list.some((n) => n.userId === ALICE)).toBe(false);
+  });
+
+  it('#300: @упомянутый не-наблюдатель в трэде — mention, остальные мимо', () => {
+    const list = resolveMessageNotifications(
+      input({
+        threadRootId: THREAD_ROOT,
+        threadWatcherIds: [BOB],
+        mentionedUserIds: [ALICE],
+        members: input().members.concat({ userId: CAROL, muted: false }),
+      }),
+    );
+    expect(one(list, ALICE).kind).toBe('chat.mention');
+    expect(one(list, BOB).kind).toBe('chat.thread_reply');
+    expect(list.some((n) => n.userId === CAROL)).toBe(false);
+  });
+
+  it('#300: «важный» ответ в треде — urgent по-прежнему только наблюдателям', () => {
+    const list = resolveMessageNotifications(
+      input({ threadRootId: THREAD_ROOT, urgent: true, threadWatcherIds: [BOB] }),
+    );
+    expect(one(list, BOB)).toEqual({ userId: BOB, priority: 'urgent', kind: 'urgent.message' });
+    expect(list.some((n) => n.userId === ALICE)).toBe(false);
   });
 
   it('ряд 6: корневое в группе без упоминаний — low (B2)', () => {
@@ -143,7 +170,11 @@ describe('resolveMessageNotifications', () => {
 
   it('приоритет kind: mention > thread > channel (упомянутый в треде — mention)', () => {
     const list = resolveMessageNotifications(
-      input({ mentionedUserIds: [ALICE], threadWatcherIds: [ALICE, BOB] }),
+      input({
+        threadRootId: THREAD_ROOT,
+        mentionedUserIds: [ALICE],
+        threadWatcherIds: [ALICE, BOB],
+      }),
     );
     expect(one(list, ALICE).kind).toBe('chat.mention');
     expect(one(list, BOB).kind).toBe('chat.thread_reply');
