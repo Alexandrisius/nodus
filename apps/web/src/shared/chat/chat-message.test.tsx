@@ -341,13 +341,16 @@ describe('Стикер — цитата ответа (#288)', () => {
     obliterated: false,
   };
 
-  it('ответ стикером рисует цитату НАД глифом (раньше связь была невидима)', () => {
+  it('ответ стикером рисует цитату РАДОМ с глифом (раньше связь была невидима)', () => {
     const { container } = renderMessage(
       <StickerMessageView message={message({ reply })} attachment={sticker} mine />,
     );
-    const stickerEl = container.querySelector('[data-slot="sticker-message"]')!;
-    // Цитата — первый ребёнок колонки, имя автора в ней
-    expect(stickerEl.firstElementChild!.textContent).toContain('Иван Петров');
+    // Цитата — ВНЕ плиты выделения (рамка селекта обнимает только глиф),
+    // в ряду рядом с ним; имя автора в ней.
+    const body = container.querySelector('[data-slot="sticker-body"]')!;
+    expect(body.textContent).not.toContain('Иван Петров');
+    const row = body.parentElement!.parentElement!;
+    expect(row.textContent).toContain('Иван Петров');
   });
 
   it('клик по цитате — запрос прыжка к оригиналу (механика пузырей)', () => {
@@ -368,28 +371,35 @@ describe('Стикер — цитата ответа (#288)', () => {
     });
   });
 
-  it('цитата — фиксированная ширина, прижата вправо, в потоке НАД глифом (#288)', () => {
-    // Канон Telegram (вердикт владельца 14.10): место реплая всегда одно,
-    // не зависит от длины текста и стороны сообщения; длинное обрезается.
-    // Наложение на глиф ЗАПРЕЩЕНО: панель «вырезала» кусок стикера.
-    useChatPrefs.setState({ align: 'one' });
+  it('цитата — фиксированная ширина, в потоке РАДОМ с глифом, у своих зеркалится (#288/#297)', () => {
+    // Канон Telegram (вердикты владельца 14.10 и 15.10): место реплея всегда
+    // одно, не зависит от длины текста; длинное обрезается; наложение на
+    // глиф ЗАПРЕЩЕНО. Ревизия 15.10: цитата СПРАВА от глифа (у своих —
+    // слева, row-reverse), ВНЕ плиты выделения — не растягивает строку
+    // стикера и не уводит якорь ховер-реакций от глифа.
+    // Зеркало у своих работает при align=both (когда свои реально справа).
+    useChatPrefs.setState({ align: 'both' });
     const mineView = renderMessage(
       <StickerMessageView message={message({ reply })} attachment={sticker} mine />,
     );
-    const mineQuote = mineView.container.querySelector(
-      '[data-slot="sticker-body"]',
-    )!.firstElementChild!;
+    const mineBody = mineView.container.querySelector('[data-slot="sticker-body"]')!;
+    const mineRow = mineBody.parentElement!.parentElement!;
+    const mineQuote = mineRow.querySelector('.w-40')!;
+    expect(mineQuote).not.toBeNull();
+    expect(mineBody.contains(mineQuote)).toBe(false);
     expect(mineQuote.className).not.toContain('absolute');
-    expect(mineQuote.className).toContain('self-end');
     expect(mineQuote.className).toContain('w-40');
+    // У своих ряд зеркален: цитата слева от глифа.
+    expect(mineRow.className).toContain('flex-row-reverse');
 
+    useChatPrefs.setState({ align: 'one' });
     const foreignView = renderMessage(
       <StickerMessageView message={message({ reply })} attachment={sticker} mine={false} />,
     );
-    const foreignQuote = foreignView.container.querySelector(
-      '[data-slot="sticker-body"]',
-    )!.firstElementChild!;
-    expect(foreignQuote.className).toBe(mineQuote.className);
+    const foreignBody = foreignView.container.querySelector('[data-slot="sticker-body"]')!;
+    const foreignRow = foreignBody.parentElement!.parentElement!;
+    expect(foreignRow.className).not.toContain('flex-row-reverse');
+    expect(foreignRow.querySelector('.w-40')).not.toBeNull();
     useChatPrefs.setState({ align: 'one' });
   });
 
@@ -405,16 +415,18 @@ describe('Стикер — цитата ответа (#288)', () => {
     const { container } = renderMessage(
       <StickerMessageView message={message({ reply: stickerReply })} attachment={sticker} mine />,
     );
-    const quote = container.querySelector('[data-slot="sticker-body"]')!.firstElementChild!;
+    const body = container.querySelector('[data-slot="sticker-body"]')!;
+    const quote = body.parentElement!.parentElement!.querySelector('.w-40')!;
     // Глиф-миниатюра внутри цитаты (webp — img)
     expect(quote.querySelector('img, video')).toBeTruthy();
     expect(quote.textContent).toContain('Стикер');
     expect(quote.textContent).toContain('🙂');
   });
 
-  it('выделение: единая плита тела «цитата+глиф», двойной рамки нет', () => {
-    // Рамка селекта обнимает виртуальный пузырь целиком (data-selected красит
-    // sticker-body, globals.css); мета-строка — снаружи, как у пузырей
+  it('выделение: плита обнимает ТОЛЬКО глиф (цитата снаружи, #297), двойной рамки нет', () => {
+    // Рамка селекта красит sticker-body (globals.css) — с ревизии 15.10 она
+    // обнимает глиф без цитаты (цитата — рядом, вне плиты); мета-строка —
+    // снаружи, как у пузырей
     const { container } = renderMessage(
       <StickerMessageView message={message({ reply })} attachment={sticker} mine />,
     );
