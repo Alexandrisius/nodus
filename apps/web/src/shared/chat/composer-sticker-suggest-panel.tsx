@@ -145,6 +145,19 @@ export function stickerSuggestKeydown(
   }
 }
 
+/** Размер глифа в ячейке: квадраты и умеренные прямоугольники — по канону
+ *  ленты (max-бокс 56dp, радиус на арте); ЭКСТРЕМАЛЬНО вытянутые (отношение
+ *  сторон ≥1.4) — компактнее (длинная сторона 44dp, центр ячейки), иначе
+ *  узкий арт тянется столбом на всю высоту ряда и выглядит рвано (модель
+ *  пикеров Discord/Twitch; пропорции — из DTO width/height). Решение
+ *  делегировано владельцем 15.10 (#294). */
+function glyphSizeClass(sticker: { width: number | null; height: number | null }): string {
+  const w = sticker.width ?? 0;
+  const h = sticker.height ?? 0;
+  const ratio = w > 0 && h > 0 ? Math.max(w, h) / Math.min(w, h) : 1;
+  return ratio >= 1.4 ? 'max-h-11 max-w-11' : 'max-h-14 max-w-14';
+}
+
 /** Панель стикеров-подсказок (ридизайн по вердикту владельца #294): во всю
  *  ширину островка композера, ВЫЕЗЖАЕТ вверх из него (composer-panel-rise)
  *  и ПЕРЕКРЫВАЕТ ленту, ничего в ней не двигая (absolute). Высота
@@ -175,7 +188,10 @@ export function StickerSuggestPanel({
       aria-label={ui.chat.stickerSuggestLabel}
       className="composer-panel-rise absolute inset-x-0 bottom-full z-30 mb-1.5 max-h-36 overflow-y-auto overscroll-contain rounded-2xl bg-popover p-1.5 text-popover-foreground shadow-md"
     >
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(64px,1fr))] gap-0.5">
+      {/* Пол трека — в rem (4rem = size-16 ячейки): px-литерал не масштабируется
+          ui-scale и трек становился УЖЕ кнопки — ячейки наезжали друг на друга
+          (баг на проде, репорт владельца 15.10). */}
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(4rem,1fr))] gap-0.5">
         {matches.map((match, i) => (
           <button
             key={match.sticker.id}
@@ -203,7 +219,7 @@ export function StickerSuggestPanel({
               // Мягкие углы — как у стикера в ленте (stickerFeedClass): бокс
               // ОБНИМАЕТ арт (max-*), радиус режет углы самой картинки —
               // JPEG с фоном не торчит квадратом (gotcha object-fit).
-              className="max-h-14 max-w-14 rounded-md object-contain"
+              className={cn(glyphSizeClass(match.sticker), 'rounded-md object-contain')}
             />
           </button>
         ))}
