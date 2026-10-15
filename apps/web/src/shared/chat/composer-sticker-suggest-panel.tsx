@@ -175,7 +175,10 @@ export function StickerSuggestPanel({
       aria-label={ui.chat.stickerSuggestLabel}
       className="composer-panel-rise absolute inset-x-0 bottom-full z-30 mb-1.5 max-h-36 overflow-y-auto overscroll-contain rounded-2xl bg-popover p-1.5 text-popover-foreground shadow-md"
     >
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(64px,1fr))] gap-0.5">
+      {/* Пол трека — в rem (4rem = size-16 ячейки): px-литерал не масштабируется
+          ui-scale и трек становился УЖЕ кнопки — ячейки наезжали друг на друга
+          (баг на проде, репорт владельца 15.10). */}
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(4rem,1fr))] gap-0.5">
         {matches.map((match, i) => (
           <button
             key={match.sticker.id}
