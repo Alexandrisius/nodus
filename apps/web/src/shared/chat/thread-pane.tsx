@@ -20,7 +20,7 @@ import { useSendChatMessage, useThreadMessages, useThreadStates, useWatchThread 
 import { ChatComposer } from './chat-composer.js';
 import type { ComposerSubmit } from './composer-submit.js';
 import { ChatMessageItem } from './chat-message.js';
-import { setOpenConversation } from './notifications.js';
+import { acquireOpenConversation } from './notifications.js';
 import { addFiles } from './composer-files.js';
 import { toSendVars } from './composer-submit.js';
 import { registerScopeSubmit } from './submit-registry.js';
@@ -88,12 +88,9 @@ export const ThreadPane = memo(function ThreadPane({
 }) {
   const scope = `thread:${threadRootId}`;
 
-  // Открытая беседа для гейта уведомлений (#124): фоновая вкладка
-  // уведомляет о чужих сообщениях НЕОТКРЫТОЙ беседы.
-  useEffect(() => {
-    setOpenConversation(conversationId);
-    return () => setOpenConversation(null);
-  }, [conversationId]);
+  // Открытая беседа для гейта уведомлений (#124/#300): реестр хостов —
+  // закрытие окна треда не гасит признак, пока жива лента беседы.
+  useEffect(() => acquireOpenConversation(conversationId), [conversationId]);
   const { data, isLoading } = useThreadMessages(conversationId, threadRootId);
   const send = useSendChatMessage(conversationId, scope);
   const edit = useEditMessage(conversationId, scope);

@@ -3,10 +3,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useAuthStore } from '../auth-store.js';
 import {
+  acquireOpenConversation,
   disableNotifications,
   enableNotifications,
+  getOpenConversation,
   notificationsEnabled,
-  setOpenConversation,
+  resetOpenConversationRegistry,
   shouldNotify,
 } from './notifications.js';
 
@@ -32,7 +34,7 @@ class NotificationStub {
 
 beforeEach(() => {
   localStorage.clear();
-  setOpenConversation(null);
+  resetOpenConversationRegistry();
   Object.defineProperty(document, 'hidden', { value: false, configurable: true });
   vi.stubGlobal('Notification', NotificationStub);
   useAuthStore.setState({
@@ -80,6 +82,25 @@ describe('уведомления чата (#124)', () => {
     }
   });
 
+  it('реестр хостов (#300): закрытие окна трэда не гасит открытую беседу', () => {
+    const feed = acquireOpenConversation(CONV);
+    const thread = acquireOpenConversation(CONV);
+    expect(getOpenConversation()).toBe(CONV);
+    // Анмаунт ОДНОГО хоста (окно трэда) — беседа всё ещё открыта лентой.
+    thread();
+    expect(getOpenConversation()).toBe(CONV);
+    feed();
+    expect(getOpenConversation()).toBe(null);
+    // Карточка поверх страницы: текущая — последняя заявленная.
+    const page = acquireOpenConversation('00000000-0000-4000-8000-0000000000aa');
+    const card = acquireOpenConversation(CONV);
+    expect(getOpenConversation()).toBe(CONV);
+    card();
+    expect(getOpenConversation()).toBe('00000000-0000-4000-8000-0000000000aa');
+    page();
+    expect(getOpenConversation()).toBe(null);
+  });
+
   it('открыл беседу в оболочке — попапы этой беседы гаснут (Telegram-модель)', () => {
     const dismissPopups = vi.fn(() => Promise.resolve());
     (window as { nodusDesktop?: unknown }).nodusDesktop = {
@@ -96,11 +117,11 @@ describe('уведомления чата (#124)', () => {
       onEvent: () => () => undefined,
     };
     try {
-      setOpenConversation(CONV);
+      const release = acquireOpenConversation(CONV);
       expect(dismissPopups).toHaveBeenCalledWith(CONV);
-      // Уход из беседы (null) мост не дёргает.
+      // Release хоста мост не дёргает.
       dismissPopups.mockClear();
-      setOpenConversation(null);
+      release();
       expect(dismissPopups).not.toHaveBeenCalled();
     } finally {
       delete (window as { nodusDesktop?: unknown }).nodusDesktop;
@@ -110,12 +131,13 @@ describe('уведомления чата (#124)', () => {
   it('своё сообщение и открытая беседа в активной вкладке — тишина', async () => {
     await enableNotifications();
     expect(shouldNotify(ME, CONV)).toBe(false);
-    setOpenConversation(CONV);
+    const release = acquireOpenConversation(CONV);
     expect(shouldNotify(OTHER, CONV)).toBe(false);
     // Другая беседа открыта — уведомляем.
     expect(shouldNotify(OTHER, 'another-conv')).toBe(true);
     // Фоновая вкладка — уведомляем даже в открытой беседе.
     Object.defineProperty(document, 'hidden', { value: true, configurable: true });
     expect(shouldNotify(OTHER, CONV)).toBe(true);
+    release();
   });
 });

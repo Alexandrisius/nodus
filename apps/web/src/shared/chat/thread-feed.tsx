@@ -16,7 +16,7 @@ import { useConversationMessages, useSendChatMessage } from './api.js';
 import { ChatComposer } from './chat-composer.js';
 import type { ComposerSubmit } from './composer-submit.js';
 import { useChatPrefs } from './chat-prefs.js';
-import { setOpenConversation } from './notifications.js';
+import { acquireOpenConversation } from './notifications.js';
 import { ConversationViewsLine } from './views-line.js';
 import { addFiles } from './composer-files.js';
 import { toSendVars } from './composer-submit.js';
@@ -69,12 +69,9 @@ export const ThreadFeed = memo(function ThreadFeed({
 }) {
   const scope = `feed:${conversationId}`;
 
-  // Открытая беседа для гейта уведомлений (#124): фоновая вкладка
-  // уведомляет о чужих сообщениях НЕОТКРЫТОЙ беседы.
-  useEffect(() => {
-    setOpenConversation(conversationId);
-    return () => setOpenConversation(null);
-  }, [conversationId]);
+  // Открытая беседа для гейта уведомлений (#124/#300): реестр хостов —
+  // анмаунт одного хоста не гасит признак, пока жив другой (лента+тред).
+  useEffect(() => acquireOpenConversation(conversationId), [conversationId]);
   const { data, isLoading } = useConversationMessages(conversationId);
   // Право публикации в ленту (I8 на клиенте — только UX; сервер проверяет
   // матрицу сам): без post композер ленты гасится, обсуждение — в тредах.

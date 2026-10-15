@@ -161,12 +161,17 @@ export function useThreadMessages(conversationId: string, threadRootId: string) 
 
 /** Состояния трэдов для текущего пользователя (раунд 3): карта rootId →
  *  { watched, unreadCount } — точка «есть новые» на счётчике ответов поста
- *  и состояние кнопки «Следить» в шапке окна треда. */
+ *  и состояние кнопки «Следить» в шапке окна треда. Тот же fetch — гейт
+ *  всплытия уведомлений о трэдах (thread-notify-gate, #300). */
+export function fetchThreadStates(conversationId: string): Promise<ThreadStateList> {
+  return api<ThreadStateList>(`/chat/conversations/${conversationId}/threads/state`);
+}
+
 export function useThreadStates(conversationId: string) {
   const socketConnected = useSocketStatusStore((s) => s.connected);
   return useQuery({
     queryKey: chatKeys.threadStates(conversationId),
-    queryFn: () => api<ThreadStateList>(`/chat/conversations/${conversationId}/threads/state`),
+    queryFn: () => fetchThreadStates(conversationId),
     select: (data) => new Map(data.items.map((s) => [s.threadRootId, s])),
     enabled: conversationId.length > 0,
     refetchInterval: livePoll(LIVE_CHAT_POLL.conversations, socketConnected),

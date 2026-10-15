@@ -151,7 +151,7 @@ export function connectChatSocket(queryClient: QueryClient): void {
         invalidator?.handle(parsed.data satisfies RealtimeEnvelope);
         // Сигнал фоновой вкладке (#124): гейт внутри (opt-in/фон/не своя).
         if (parsed.data.type === CHAT_EVENTS.MESSAGE_SENT && isFirstDelivery(parsed.data.payload)) {
-          notifySentMessage(parsed.data.payload);
+          notifySentMessage(parsed.data.payload, queryClient);
           // Десктоп-оболочка (#254): попап с быстрым ответом (гейты внутри).
           notifyDesktopMessage(parsed.data.payload, queryClient);
         }

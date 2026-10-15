@@ -3,19 +3,26 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { QueryClient } from '@tanstack/react-query';
 
 import { useAuthStore } from '../auth-store.js';
-import { setOpenConversation } from '../chat/notifications.js';
+import {
+  acquireOpenConversation,
+  resetOpenConversationRegistry,
+} from '../chat/notifications.js';
 import { setShellVisibleFromShell } from './desktop-bridge.js';
 import { notifyDesktopMessage } from './desktop-notify.js';
 
 /**
- * Гейты попапов оболочки (#254, ADR-0019): свои молчат; обычное сообщение —
- * тишина в muted/snoozed/видимой открытой беседе; важное пробивается
- * (зеркало B6 журнала). Опти-ин браузерных уведомлений не участвует.
+ * Гейты попапов оболочки (#254/#300, ADR-0019): свои молчат; смотрю в
+ * открытую беседу — ПОЛНАЯ тишина, включая «Важное» (вердикт 15.10);
+ * «Важное» пробивает muted/snoozed, когда беседы не смотрят; ответ в трэде —
+ * только наблюдателям/@упомянутым (канон раунда 3). Опти-ин браузерных
+ * уведомлений не участвует.
  */
 
 const ME = '00000000-0000-4000-8000-000000000001';
 const OTHER = '00000000-0000-4000-8000-000000000002';
 const CONV = '00000000-0000-4000-8000-0000000000c1';
+const THREAD_ROOT = '00000000-0000-4000-8000-000000000071';
+const OTHER_THREAD = '00000000-0000-4000-8000-000000000072';
 
 function installBridge() {
   const bridge = {
@@ -75,18 +82,34 @@ function messagePayload(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function queryClientWith(flags: { muted?: boolean; snoozed?: boolean } | null): QueryClient {
+/** Кэш/догон запроса состояний трэдов беседы («мои наблюдаемые трэды»). */
+function queryClientWith(
+  flags: { muted?: boolean; snoozed?: boolean } | null,
+  threads: { states?: string[]; fetchStates?: string[] } = {},
+): QueryClient {
+  const states = (roots: string[]) => ({
+    items: roots.map((r) => ({ threadRootId: r, watched: true, unreadCount: 1 })),
+  });
   return {
-    getQueryData: () =>
-      flags === null
+    getQueryData: (key: unknown) => {
+      const k = JSON.stringify(key);
+      if (k.includes('threadStates')) {
+        return threads.states === undefined ? undefined : states(threads.states);
+      }
+      return flags === null
         ? undefined
-        : { items: [{ id: CONV, muted: flags.muted ?? false, snoozed: flags.snoozed ?? false }] },
+        : { items: [{ id: CONV, muted: flags.muted ?? false, snoozed: flags.snoozed ?? false }] };
+    },
+    fetchQuery: vi.fn(async () => states(threads.fetchStates ?? [])),
   } as unknown as QueryClient;
 }
 
+/** Выждать микро/макро-задачи (гейт трэда асинхронный). */
+const flush = () => new Promise((r) => setTimeout(r, 0));
+
 beforeEach(() => {
   installBridge();
-  setOpenConversation(null);
+  resetOpenConversationRegistry();
   setShellVisibleFromShell(true);
   useAuthStore.setState({ user: { id: ME, displayName: 'Я', avatarUrl: null } } as never);
 });
@@ -134,13 +157,27 @@ describe('notifyDesktopMessage', () => {
     expect(window.nodusDesktop?.showPopup).not.toHaveBeenCalled();
   });
 
-  it('обычное молчит, только когда смотрят В ОТКРЫТУЮ беседу (фокус + видимость)', () => {
+  it('обычное молчит, когда смотрят В ОТКРЫТУЮ беседу (фокус + видимость)', () => {
     // jsdom: hasFocus() по умолчанию false — мокаем «смотрит» явно.
     vi.spyOn(document, 'hasFocus').mockReturnValue(true);
     try {
-      setOpenConversation(CONV);
+      acquireOpenConversation(CONV);
       notifyDesktopMessage(messagePayload(), queryClientWith({}));
       expect(window.nodusDesktop?.showPopup).not.toHaveBeenCalled();
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
+  it('смотрю в беседу (лента жива, окно трэда закрыто) — тишина (#300 реестр)', () => {
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true);
+    try {
+      const feed = acquireOpenConversation(CONV);
+      const thread = acquireOpenConversation(CONV);
+      thread(); // закрыли окно трэда — лента держит беседу открытой
+      notifyDesktopMessage(messagePayload(), queryClientWith({}));
+      expect(window.nodusDesktop?.showPopup).not.toHaveBeenCalled();
+      feed();
     } finally {
       vi.restoreAllMocks();
     }
@@ -159,7 +196,7 @@ describe('notifyDesktopMessage', () => {
   });
 
   it('открытая беседа без фокуса окна — попап (окно перекрыто другим)', () => {
-    setOpenConversation(CONV);
+    acquireOpenConversation(CONV);
     vi.spyOn(document, 'hasFocus').mockReturnValue(false);
     try {
       notifyDesktopMessage(messagePayload(), queryClientWith({}));
@@ -179,8 +216,8 @@ describe('notifyDesktopMessage', () => {
     }
   });
 
-  it('важное пробивает mute, snooze и открытую беседу; мигание критичное', () => {
-    setOpenConversation(CONV);
+  it('важное пробивает mute и snooze, когда беседы не смотрят; мигание критичное', () => {
+    setShellVisibleFromShell(false);
     const urgent = messagePayload({
       urgent: true,
       message: { ...messagePayload().message, urgent: true },
@@ -190,6 +227,82 @@ describe('notifyDesktopMessage', () => {
       expect.objectContaining({ urgent: true }),
     );
     expect(window.nodusDesktop?.flashTaskbar).toHaveBeenCalledWith(true);
+  });
+
+  it('#300: важное тоже молчит, когда смотрю в открытую беседу', () => {
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true);
+    try {
+      acquireOpenConversation(CONV);
+      const urgent = messagePayload({
+        urgent: true,
+        message: { ...messagePayload().message, urgent: true },
+      });
+      notifyDesktopMessage(urgent, queryClientWith({ muted: true, snoozed: true }));
+      expect(window.nodusDesktop?.showPopup).not.toHaveBeenCalled();
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
+  it('#300: ответ в трэде наблюдателю — попап несёт threadRootId', async () => {
+    setShellVisibleFromShell(false);
+    notifyDesktopMessage(
+      messagePayload({
+        threadRootId: THREAD_ROOT,
+        message: { ...messagePayload().message, threadRootId: THREAD_ROOT },
+      }),
+      queryClientWith({}, { states: [THREAD_ROOT] }),
+    );
+    await flush();
+    expect(window.nodusDesktop?.showPopup).toHaveBeenCalledWith(
+      expect.objectContaining({ threadRootId: THREAD_ROOT }),
+    );
+  });
+
+  it('#300: ответ в трэде не-наблюдателю — тишина (кэш известен)', async () => {
+    setShellVisibleFromShell(false);
+    notifyDesktopMessage(
+      messagePayload({
+        threadRootId: THREAD_ROOT,
+        message: { ...messagePayload().message, threadRootId: THREAD_ROOT },
+      }),
+      queryClientWith({}, { states: [OTHER_THREAD] }),
+    );
+    await flush();
+    expect(window.nodusDesktop?.showPopup).not.toHaveBeenCalled();
+  });
+
+  it('#300: холодный кэш — догоняющий запрос решает (наблюдатель)', async () => {
+    setShellVisibleFromShell(false);
+    const qc = queryClientWith({}, { fetchStates: [THREAD_ROOT] });
+    notifyDesktopMessage(
+      messagePayload({
+        threadRootId: THREAD_ROOT,
+        message: { ...messagePayload().message, threadRootId: THREAD_ROOT },
+      }),
+      qc,
+    );
+    await flush();
+    expect(qc.fetchQuery).toHaveBeenCalled();
+    expect(window.nodusDesktop?.showPopup).toHaveBeenCalled();
+  });
+
+  it('#300: @упомянутому в трэде — попап даже без подписки', async () => {
+    setShellVisibleFromShell(false);
+    notifyDesktopMessage(
+      messagePayload({
+        threadRootId: THREAD_ROOT,
+        mentionedUserIds: [ME],
+        message: {
+          ...messagePayload().message,
+          threadRootId: THREAD_ROOT,
+          mentionedUserIds: [ME],
+        },
+      }),
+      queryClientWith({}, { states: [OTHER_THREAD] }),
+    );
+    await flush();
+    expect(window.nodusDesktop?.showPopup).toHaveBeenCalled();
   });
 
   it('пустой текст заменяется заглушкой вложения', () => {
