@@ -289,7 +289,7 @@ What used to be "admin only" is expressed as a permission requirement instead:
 // admin/admin.controller.ts
 import { Permission } from '@nodus/contracts';
 import { PermissionGuard } from '../core/guards/permission.guard';
-import { RequirePermissions } from '../core/guards/require-permissions.decorator';
+import { RequirePermissions } from '../core/decorators/require-permissions.decorator';
 
 @Controller('admin')
 @UseGuards(PermissionGuard)  // ✅ Apply to controller
@@ -353,7 +353,7 @@ export class TasksController {
 ## Permission-Based Authorization
 
 ```typescript
-// core/guards/require-permissions.decorator.ts
+// core/decorators/require-permissions.decorator.ts
 import { SetMetadata } from '@nestjs/common';
 import { Permission } from '@nodus/contracts';
 

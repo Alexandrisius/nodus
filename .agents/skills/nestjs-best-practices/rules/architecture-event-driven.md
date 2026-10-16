@@ -192,49 +192,40 @@ Handlers live in the subscriber module's `events/` directory and are registered 
 
 ```typescript
 // ✅ REQUIRED: one handler per file in events/, idempotent by construction
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import {
   CORRESPONDENCE_EVENTS,
   TASK_EVENTS,
-  ResolutionIssuedPayload,
+  type DomainEvent,
+  type ResolutionIssuedPayload,
   resolutionIssuedPayloadSchema,
 } from '@nodus/contracts';
-import { TransactionRunner } from '../../../core/database/transaction-runner';
-import { EventBus } from '../../../core/events/event-bus';
-import { EventEnvelope } from '../../../core/events/event-envelope';
-import { TasksRepository } from '../tasks.repository';
-import { ProcessedEventsRepository } from '../../../core/events/processed-events.repository';
+import { TransactionRunner } from '../../../core/database/transaction-runner.js';
+import { EventBus } from '../../../core/events/event-bus.js';
+import { TasksRepository } from '../tasks/tasks.repository.js';
 
 @Injectable()
 export class ResolutionIssuedHandler {
-  // ✅ The core events module subscribes providers declaring `eventType` to the stream
+  // ✅ core EventDispatcher registers providers declaring `static eventType` at bootstrap
   static readonly eventType = CORRESPONDENCE_EVENTS.RESOLUTION_ISSUED;
-
-  private readonly logger = new Logger(ResolutionIssuedHandler.name);
 
   constructor(
     // ✅ Handlers never see the Prisma client — it lives only in repositories; transactions run via TransactionRunner
     private readonly txRunner: TransactionRunner,
     private readonly tasks: TasksRepository,
-    private readonly processedEvents: ProcessedEventsRepository,
     private readonly eventBus: EventBus,
   ) {}
 
-  async handle(envelope: EventEnvelope<ResolutionIssuedPayload>): Promise<void> {
-    // ✅ Validate at the boundary — a malformed payload must not crash the consumer group
-    const payload = resolutionIssuedPayloadSchema.parse(envelope.payload);
+  async handle(event: DomainEvent<ResolutionIssuedPayload>): Promise<void> {
+    // ✅ Validate at the boundary — a malformed payload goes to dispatcher backoff, not a crash loop
+    const payload = resolutionIssuedPayloadSchema.parse(event.payload);
 
     await this.txRunner.run(async (tx) => {
-      // ✅ Idempotency guard: first writer wins, replays become a no-op
-      const firstDelivery = await this.processedEvents.tryMarkProcessed(
-        tx,
-        ResolutionIssuedHandler.name,
-        envelope.id,
-      );
-      if (!firstDelivery) {
-        this.logger.log(`Duplicate event ${envelope.id} — skipping`);
-        return;
-      }
+      // ✅ Dispatcher dedupes (event_id, handler) in `event_deliveries`, but a crash between
+      //    this commit and the delivery record replays the event — so the WRITE itself is
+      //    idempotent: a partial unique (source, source_id, creator_id) + "find existing first".
+      const existing = await this.tasks.findBySource('letter', payload.letterId, payload.actorId, tx);
+      if (existing) return;
 
       // ✅ Subscriber uses ONLY its own repository — never the publisher's tables (I3)
       const task = await this.tasks.createFromLetter(tx, {
@@ -277,44 +268,9 @@ import { ResolutionIssuedHandler } from './events/resolution-issued.handler';
 export class TasksModule {}
 ```
 
-A second subscriber — e.g. notifications reacting to `task.created` — follows the same shape, with its own dedupe record:
+A second subscriber — e.g. notifications reacting to `task.created` — follows the same shape. Its idempotency also lives in the data: notifications carry `unique(event_id, user_id)` and insert with `ON CONFLICT DO NOTHING` (real code: `apps/api/src/modules/notifications/events/task-events.handler.ts`). A recount-style handler (`apps/api/src/modules/tasks/events/comments-count.handler.ts`) is idempotent by computing an absolute value instead of incrementing.
 
-**File:** `apps/api/src/modules/notifications/events/task-created.handler.ts`
-
-```typescript
-@Injectable()
-export class TaskCreatedNotificationHandler {
-  static readonly eventType = TASK_EVENTS.CREATED;
-
-  constructor(
-    // ✅ Handlers never see the Prisma client — it lives only in repositories; transactions run via TransactionRunner
-    private readonly txRunner: TransactionRunner,
-    private readonly processedEvents: ProcessedEventsRepository,
-    private readonly eventBus: EventBus,
-  ) {}
-
-  async handle(envelope: EventEnvelope<TaskCreatedPayload>): Promise<void> {
-    const payload = taskCreatedPayloadSchema.parse(envelope.payload);
-    if (!payload.assigneeId) return;
-
-    await this.txRunner.run(async (tx) => {
-      const firstDelivery = await this.processedEvents.tryMarkProcessed(
-        tx,
-        TaskCreatedNotificationHandler.name,
-        envelope.id,
-      );
-      if (!firstDelivery) return;
-
-      // ✅ notification.dispatch_requested is the single entry point of the channel dispatcher
-      await this.eventBus.emit(tx, NOTIFICATION_EVENTS.DISPATCH_REQUESTED, {
-        recipientId: payload.assigneeId,
-        template: 'task_assigned',
-        context: { taskId: payload.taskId },
-      });
-    });
-  }
-}
-```
+Dispatcher semantics to rely on (`apps/api/src/core/README.md`): the handler runs OUTSIDE the dispatcher's transaction (open your own via `TransactionRunner`), progress is recorded per handler (a failing sibling does not re-run you), and a persistently failing event goes to exponential backoff — it never blocks other events and is never dropped.
 
 ### Step 5: What NOT to Install
 
@@ -324,7 +280,7 @@ export class TaskCreatedNotificationHandler {
 # pnpm add @nestjs/event-emitter
 ```
 
-No package is needed: the `EventBus`, outbox relay, Redis Streams fanout, and processed-events dedupe store are provided by the core events module (`apps/api/src/core/events/`).
+No package is needed: the `EventBus`, outbox dispatcher (`event-dispatcher.ts`, dedupe in `event_deliveries`) and Redis Streams fanout (`redis-stream-publisher.ts`) are provided by the core events module (`apps/api/src/core/events/`).
 
 ## Quick Reference Checklist
 
@@ -438,22 +394,17 @@ await this.eventBus.emit(tx, TASK_EVENTS.CREATION_FAILED, {
 
 ## Advanced: Delivery Semantics — Ordering, Retries, Poison Events
 
-- **At-least-once, ordered per stream.** Redis Streams deliver in append order within a stream; consumer groups give each subscriber module its own cursor. Design handlers to tolerate replays (idempotency) rather than assuming exactly-once.
-- **Retry with backoff.** A handler that throws is retried by the core consumer with exponential backoff. Transient failures (DB deadlock, Redis timeout) should just throw.
-- **Poison events dead-letter.** After the retry budget is exhausted, the core consumer parks the event in a dead-letter list with the error and `traceId`, and processing continues. Alert on dead-letter growth; never let one bad event block the group.
-- **Handler isolation.** Listeners of the same event run in independent consumer-group deliveries: a throwing notification handler must not prevent the search indexer from processing the same event.
+Two independent pipelines read the same `events` outbox (`apps/api/src/core/events/`):
+
+- **Server-side subscribers — `EventDispatcher`.** Polls `published_at IS NULL ORDER BY seq` every second, batch 50. At-least-once: design handlers to tolerate replays (idempotency in the data), never assume exactly-once.
+- **Per-handler progress.** Each handler that succeeds is recorded in `event_deliveries (event_id, handler)` immediately; a throwing sibling does not re-run it. `published_at` is set once all handlers are recorded.
+- **Retry with backoff, no dead-letter drop.** A handler that throws keeps the event unpublished: two immediate retries, then exponential backoff 2 s → 5 min (in-memory) with the event excluded from the batch, so poison events never block the head of the queue. From the 8th attempt the log marks it `poison event` — alert on it. Events are never dropped: fix the handler/data and the next attempt delivers.
+- **Browser fanout — `RedisStreamPublisher` → gateway.** A separate cursor (`fanout_at`) publishes every event to the Redis Stream for WS delivery; it does not wait for server handlers.
 
 ```typescript
-// ✅ Throw transient errors (retry), swallow nothing, log with context
-async handle(envelope: EventEnvelope<TaskCreatedPayload>): Promise<void> {
-  try {
-    // ...idempotent work...
-  } catch (error) {
-    this.logger.error(`Handler failed for event ${envelope.id}`, error, {
-      traceId: envelope.traceId,
-    });
-    throw error; // let the consumer retry / dead-letter — do not catch-and-ignore
-  }
+// ✅ Throw transient errors (retry with backoff), swallow nothing
+async handle(event: DomainEvent<TaskCreatedPayload>): Promise<void> {
+  // ...idempotent work; a thrown error is logged by the dispatcher with eventId/type/attempts
 }
 ```
 
@@ -575,15 +526,15 @@ import { describe, expect, it, vi } from 'vitest';
 import { ResolutionIssuedHandler } from './resolution-issued.handler';
 
 it('applies a duplicated event exactly once', async () => {
-  const processedEvents = { tryMarkProcessed: vi.fn() };
-  const tasks = { createFromLetter: vi.fn().mockResolvedValue({ id: 'task-1' }) };
+  const tasks = {
+    findBySource: vi.fn(),
+    createFromLetter: vi.fn().mockResolvedValue({ id: 'task-1' }),
+  };
   const eventBus = { emit: vi.fn() };
   const txRunner = { run: vi.fn((cb: (tx: unknown) => unknown) => cb('TX')) };
 
-  const handler = new ResolutionIssuedHandler(
-    txRunner as never, tasks as never, processedEvents as never, eventBus as never,
-  );
-  const envelope = {
+  const handler = new ResolutionIssuedHandler(txRunner as never, tasks as never, eventBus as never);
+  const event = {
     id: 'evt-1',
     type: 'correspondence.resolution_issued',
     payload: {
@@ -594,13 +545,12 @@ it('applies a duplicated event exactly once', async () => {
       deadline: null,
       actorId: '44444444-4444-4444-8444-444444444444',
     },
-    traceId: 'trace-1',
   };
 
-  processedEvents.tryMarkProcessed.mockResolvedValueOnce(true);   // first delivery
-  await handler.handle(envelope as never);
-  processedEvents.tryMarkProcessed.mockResolvedValueOnce(false);  // replay
-  await handler.handle(envelope as never);
+  tasks.findBySource.mockResolvedValueOnce(null);              // first delivery
+  await handler.handle(event as never);
+  tasks.findBySource.mockResolvedValueOnce({ id: 'task-1' });  // replay after crash
+  await handler.handle(event as never);
 
   expect(tasks.createFromLetter).toHaveBeenCalledTimes(1); // ✅ no duplicate task
   expect(eventBus.emit).toHaveBeenCalledTimes(1);

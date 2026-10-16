@@ -23,8 +23,12 @@ nodus/
 │   │       │       ├── pages/      # страницы
 │   │       │       ├── model/      # локальное состояние, селекторы
 │   │       │       └── README.md   # назначение, контракты, события, лимиты
-│   │       ├── shared/        # переиспользуемое: lib, hooks, ui-kit re-export
-│   │       └── socket/        # WS-клиент чата (#104): соединение, инвалидации, typing/presence
+│   │       └── shared/        # переиспользуемое фичами (features → shared, не наоборот):
+│   │           ├── api/       #   api-client, фабрики query keys общих доменов, общие запросы
+│   │           ├── chat/      #   движок мессенджера (ленты, композер, мутации) — живёт в shared,
+│   │           │              #   потому что его встраивают и мессенджер, и карточка задачи (#252)
+│   │           ├── socket/    #   WS-клиент (#104): соединение, применение событий, typing/presence
+│   │           ├── views/ ui/ lib/ tasks/ files/ desktop/ mocks/
 │   ├── api/                   # NestJS backend (Fastify)
 │   │   ├── prisma/            # schema.prisma, миграции (задним числом не меняются), seed dev-БД
 │   │   └── src/
@@ -32,11 +36,11 @@ nodus/
 │   │       │                  # пагинация, идемпотентность, feature flags, database (Prisma),
 │   │       │                  # redis-клиент (канон путей core — patterns.md)
 │   │       ├── health/        # liveness/readiness (terminus): /api/v1/health/*
-│   │       ├── modules/
-│   │       │   └── <module>/  # controller / service / repo / dto / events / README.md
-│   │       └── infra/         # minio, mail (IMAP/SMTP) клиенты — появятся с модулями
-│   ├── gateway/               # WebSocket gateway (Socket.IO): auth, presence, fanout
-│   └── desktop/               # Tauri-оболочка — создаётся в фазе «Десктоп» (после пилота)
+│   │       └── modules/
+│   │           └── <module>/  # controller / service / repository / events / README.md
+│   │                          # (внешние клиенты — внутри модуля-владельца: files/storage)
+│   ├── gateway/               # WebSocket gateway (Socket.IO): auth, presence, fanout; perf/ — k6
+│   └── desktop/               # Tauri-оболочка портала (M17)
 ├── packages/
 │   ├── contracts/             # ЕДИНСТВЕННАЯ точка обмена между фронтом, бэком и модулями:
 │   │                          # DTO, zod-схемы, типы доменных событий, константы прав, i18n
@@ -44,10 +48,11 @@ nodus/
 │   └── config/                # общие tsconfig, eslint, tailwind presets
 ├── tests/
 │   ├── e2e/                   # Playwright — только критичные пути
-│   └── load/                  # k6-сценарии нагрузочного тестирования
+│   └── lint/                  # тест-кейсы правил линтера (границы, размер, repository, промисы)
 ├── .agents/
-│   └── skills/                # проектные навыки (коммитятся, едут с репо): react, nestjs, миграции...
-├── infra/                     # конфиги инфраструктуры: caddy, cloudflared, prometheus, grafana
+│   ├── skills/                # проектные навыки (коммитятся, едут с репо): react, nestjs, миграции...
+│   └── agents/                # роли субагентов-ревьюверов (зеркало .zcode/agents/ для другого рантайма — правятся парой)
+├── infra/                     # конфиги инфраструктуры: nginx/web.conf, desktop-dist/ (Caddy/мониторинг — к пилоту)
 ├── docs/
 │   ├── product/               # видение, roadmap (мастер-план), глоссарий, UX-принципы, потоки
 │   ├── architecture/          # инварианты, стек, эта структура, модули, API, данные, НФТ
@@ -67,7 +72,7 @@ nodus/
 
 - Один файл = одна ответственность. Цель ≤ 200 строк, ориентир ≤ 300; линтер: предупреждение > 300, ошибка > 500; 300–500 — только с комментарием-обоснованием.
 - Один компонент / класс / сущность на файл. Имя файла = имя сущности (kebab-case).
-- Запрещены импорты `apps/api/src/modules/X/*` из модуля `Y` — только события и `@nodus/contracts`. Контроль: `eslint-plugin-boundaries` + CI.
+- Запрещены импорты `apps/api/src/modules/X/*` из модуля `Y` — только события и `@nodus/contracts` (исключение — read-порты `*.port.ts`/`*-ports.module.ts`, ADR-0012). Запрещены импорты между приложениями (`web` ↔ `api` ↔ `gateway`) и `core` → `modules`. Контроль: `eslint-plugin-boundaries` + CI, тест-кейсы — `tests/lint`.
 - Barrel `index.ts` допускается только на границе модуля (публичный контракт), не внутри.
 - Генерируемое (Prisma client, OpenAPI) в репозиторий не коммитится.
 - Любая новая папка модуля содержит `README.md`: назначение, контракты, события, лимиты.

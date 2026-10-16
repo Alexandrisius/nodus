@@ -404,7 +404,8 @@ const nextPage = await this.prisma.task.findMany({
 Sorting by a non-unique column (e.g. `dueDate`) needs an explicit keyset predicate — the cursor payload then carries both the sort value and the tiebreaker id:
 
 ```typescript
-// apps/api/src/core/pagination/task-cursor.util.ts ✅
+// apps/api/src/modules/tasks/tasks/task-cursor.ts ✅ — схема курсора живёт в модуле;
+// кодирование — общие encodeCursor/decodeCursor из core/pagination/cursor.util.ts
 import { z } from 'zod';
 
 export const taskCursorSchema = z.object({

@@ -426,10 +426,11 @@ The client receives:
 Pipes constructed inline in decorators (`new ParseIntPipe({ min: 1 })`) need **no** DI registration. Register a pipe in a module only when it is injected by class token, or globally via `APP_PIPE` when it must run on every request:
 
 ```typescript
-// core/core.module.ts ✅
+// apps/api/src/app.module.ts (фрагмент) ✅ — глобальные провайдеры живут в корневом модуле;
+// единого CoreModule нет: core-примитивы экспортируют свои модули (database, events, audit, …)
 import { Module } from '@nestjs/common';
 import { APP_PIPE } from '@nestjs/core';
-import { DeepTrimPipe } from './pipes/trim.pipe';
+import { DeepTrimPipe } from './core/pipes/trim.pipe.js';
 
 @Module({
   providers: [
@@ -437,7 +438,7 @@ import { DeepTrimPipe } from './pipes/trim.pipe';
     { provide: APP_PIPE, useClass: DeepTrimPipe },
   ],
 })
-export class CoreModule {}
+export class AppModule {}
 ```
 
 ## Testing Custom Pipes

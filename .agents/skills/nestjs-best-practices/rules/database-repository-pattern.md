@@ -805,14 +805,13 @@ export class TasksService {
 
 // tasks/tasks.module.ts - Proper registration ✅
 import { Module } from '@nestjs/common';
-import { InfraModule } from '../../infra/infra.module';
-import { CoreModule } from '../../core/core.module'; // TransactionRunner, EventBus
-import { TasksController } from './tasks.controller';
-import { TasksService } from './tasks.service';
-import { TasksRepository } from './tasks.repository';
+// TransactionRunner/PrismaService (DatabaseModule) и EventBus (EventsModule) —
+// @Global() core-модули, подключённые в AppModule: модулю их импортировать не нужно.
+import { TasksController } from './tasks.controller.js';
+import { TasksService } from './tasks.service.js';
+import { TasksRepository } from './tasks.repository.js';
 
 @Module({
-  imports: [InfraModule, CoreModule],
   controllers: [TasksController],
   providers: [TasksService, TasksRepository],
   // ✅ No exports: providers are module-private — other modules consume

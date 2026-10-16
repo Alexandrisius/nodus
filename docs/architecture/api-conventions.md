@@ -24,13 +24,8 @@
 ## Каталог доменных событий (расширяется только добавлением)
 
 ```
-directory.user.created / updated / deactivated
-directory.department.created / updated / archived
-directory.position.created / updated / archived
-directory.role.created / updated / deleted
-dictionary.created / updated
-dictionary.item_created / updated / archived
-project.created / updated / stage_changed / member_added
+# Реализованные (эмитятся кодом; payload-схемы — packages/contracts/src/**/*events*.ts)
+directory.user.created / updated / deactivated  # deactivated — gateway рвёт WS-сокеты пользователя
 task.created / updated / status_changed / stage_changed / personal_stage_changed / assigned / completed / overdue
 task.time_logged
 task.participants_changed / checklist_changed / result_set / relation_changed / deleted / timer_started / timer_stopped
@@ -41,11 +36,21 @@ chat.favorite_added / favorite_removed / favorite_updated  # личные зак
 chat.link_preview_ready  # превью ссылки дозрело фоном (#212, ADR-0018): комната беседы, клиенты патчат карточку без рефетча
 chat.attachment_preview_ready  # серверная миниатюра вложения догенерилась фоном (#221): комната беседы, патч thumbnailUrl без рефетча
 chat.sticker_pack_created / updated / deleted · chat.sticker_added / removed · chat.sticker_pack_installed / uninstalled  # стикер-сообщение rides на message_sent (вложение kind='sticker' со снапшотом пака, #143)
+chat.attachment_updated  # мост file.version_created → беседы с этим вложением (#182)
+file.version_created     # новая версия файла (колбэк ONLYOFFICE, #138)
+notification.dispatch_requested / read  # dispatch — снимок для тоста; read — синхронизация вкладок
+notification.acked       # выпилено ревизией 05.10 (ack-механика удалена), не эмитится; имя зарезервировано
+
+# Задел (модуль ещё не реализован; имена зарезервированы — уточняются тем же PR, что вводит модуль)
+directory.department.created / updated / archived
+directory.position.created / updated / archived
+directory.role.created / updated / deleted
+dictionary.created / updated
+dictionary.item_created / updated / archived
+project.created / updated / stage_changed / member_added
 correspondence.letter_received / letter_registered / letter_sent
 correspondence.resolution_issued            # → порождает task.created (source=letter)
 workflow.instance_started / step_completed / approved / rejected / escalated
-file.uploaded / preview_ready / version_added
-notification.dispatch_requested / read / acked  # единая точка входа диспетчера каналов; acked — будило отправителю срочного (#100)
 custom_field.definition_changed / value_changed  # агрегат + код поля + старое/новое значение
 ```
 

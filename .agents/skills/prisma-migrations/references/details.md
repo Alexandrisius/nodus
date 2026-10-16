@@ -31,7 +31,7 @@ Rule: never let one deploy both change the schema destructively and require new 
 
 ## Monthly Partitioning (`messages`)
 
-Postgres declarative partitioning, created in the **first** migration containing `messages` (retrofitting partitions over 100M rows is the expensive path we avoid):
+**Status:** `messages` is a plain table (`PRIMARY KEY (id)`, migration `add_chat_core`); partitioning is trigger-based per data-model.md — at tens of millions of rows. Other tables FK `messages(id)` (attachments, reactions, pins, favorites, links, thread participants), so the move is a planned swap, not an ALTER: `CREATE TABLE messages_new (...) PARTITION BY RANGE (created_at)` with PK `(id, created_at)` → batched backfill → FK rework (children reference `(id, created_at)` or drop FK, I3-style plain UUID) → rename in a maintenance window. Target layout:
 
 ```sql
 CREATE TABLE "messages" (
@@ -88,4 +88,4 @@ Prefer domain events over bulk copies. When a bulk move is unavoidable (e.g., re
 - [ ] No `CREATE INDEX CONCURRENTLY` inside the Prisma transaction (run via separate `--create-only` edit)
 - [ ] Long backfills are batched (≤ 5–10k rows per statement) or moved to a BullMQ job
 - [ ] Destructive phases are split across deploys (expand/contract), not stacked into one PR
-- [ ] New partitions for `messages` covered up to next quarter
+- [ ] Once `messages` is partitioned: new partitions covered up to next quarter
