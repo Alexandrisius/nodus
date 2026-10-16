@@ -154,6 +154,13 @@ export function useThreadMessages(conversationId: string, threadRootId: string) 
       );
     },
     enabled: conversationId.length > 0 && threadRootId.length > 0,
+    // Открытие окна трэда = момент интереса: ВСЕГДА сверяемся с сервером,
+    // даже когда кэш моложе staleTime (#303). Если WS-событие о ответе не
+    // дошло (разрыв сокета, гонка conv:join при открытии беседы), кэш окна
+    // никто не пометит протухшим — до фикса повторное открытие в течение
+    // 30 с показывало старый снимок («зашёл — сообщения нет, F5 — есть»).
+    // Кэш рисуется мгновенно, сверка идёт фоном — без мигания.
+    refetchOnMount: 'always',
     refetchInterval: livePoll(LIVE_CHAT_POLL.messages, socketConnected),
     refetchIntervalInBackground: false,
   });
@@ -321,23 +328,14 @@ export function useSendChatMessage(conversationId: string, draftScope?: string) 
       };
 
       if (vars.threadRootId) {
-        // Ответ виден в треде сразу; счётчик корня в ленте — тоже.
+        // Ответ виден в треде сразу темпом. Счётчик корня в ленте оптимистично
+        // НЕ тикает: его +1 пишет WS-эхо (ws-apply, ровно один раз) — здесь
+        // +1, там +1 и дубль доставки из user-комнаты считали одну отправку
+        // трижды (#303).
         queryClient.setQueryData<Paginated<ChatMessage>>(threadKey, (old) => ({
           items: [...(old?.items ?? []), temp],
           nextCursor: old?.nextCursor ?? null,
         }));
-        queryClient.setQueryData<Paginated<ChatMessage>>(listKey, (old) =>
-          old
-            ? {
-                ...old,
-                items: old.items.map((m) =>
-                  m.id === vars.threadRootId
-                    ? { ...m, threadRepliesCount: m.threadRepliesCount + 1 }
-                    : m,
-                ),
-              }
-            : old,
-        );
       } else {
         queryClient.setQueryData<Paginated<ChatMessage>>(listKey, (old) => ({
           items: [...(old?.items ?? []), temp],
@@ -356,27 +354,12 @@ export function useSendChatMessage(conversationId: string, draftScope?: string) 
       const listKey = chatKeys.messages(conversationId);
       const threadKey = context?.threadKey;
       if (threadKey && threadKey !== listKey) {
-        let removed = false;
         queryClient.setQueryData<Paginated<ChatMessage>>(threadKey, (old) => {
           if (!old?.items.some((m) => m.id === context?.tempId)) return old;
-          removed = true;
           return { ...old, items: old.items.filter((m) => m.id !== context?.tempId) };
         });
-        if (removed && vars.threadRootId) {
-          // Оптимистичный +1 счётчика ответов корня откатывается вместе с темпом.
-          queryClient.setQueryData<Paginated<ChatMessage>>(listKey, (old) =>
-            old
-              ? {
-                  ...old,
-                  items: old.items.map((m) =>
-                    m.id === vars.threadRootId && m.threadRepliesCount > 0
-                      ? { ...m, threadRepliesCount: m.threadRepliesCount - 1 }
-                      : m,
-                  ),
-                }
-              : old,
-          );
-        }
+        // Счётчик корня не откатываем: оптимистичного +1 больше нет (#303),
+        // падение отправки до эха счётчик не трогало.
       } else {
         queryClient.setQueryData<Paginated<ChatMessage>>(listKey, (old) =>
           old ? { ...old, items: old.items.filter((m) => m.id !== context?.tempId) } : old,

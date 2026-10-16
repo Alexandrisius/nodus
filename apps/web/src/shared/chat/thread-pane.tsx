@@ -34,6 +34,7 @@ import { buildMessageRuns, formatDayLabel, startsNewDay } from './message-groups
 import { MessageRunView } from './message-run.js';
 import { selectionComposerProps, useFeedSelection } from './use-feed-selection.js';
 import { useFeedViewportRead } from './use-viewport-read.js';
+import { useIncomingFollow } from './use-incoming-follow.js';
 import { useBoxSelection } from './use-box-selection.js';
 import { ConversationViewsLine } from './views-line.js';
 import { useConversations } from './api.js';
@@ -119,6 +120,18 @@ export const ThreadPane = memo(function ThreadPane({
     viewportRef,
     selectableIds: selection.orderedIds,
     selectionActive: selection.selectionActive,
+  });
+  // Догон чужих ответов (#303): во всех лентах (беседа/канал/заметки) входящее
+  // чужое сообщение дёргает scroll-end тем же каналом, что и своя отправка, —
+  // окно трэда было единственным хостом без догона: ответ рендерился «под
+  // срезом» вьюпорта и читался как «новых сообщений нет». Свои ответы догон
+  // не трогает (meId) — их просит композер.
+  useIncomingFollow({
+    scope,
+    items,
+    meId: me?.id,
+    viewportRef,
+    enabled: true,
   });
   // Квитанции просмотров (#102 р.2): watermark беседы («увидел где угодно»)
   // И трэда (threadRootId — гасит точку «есть новые», раунд 3).

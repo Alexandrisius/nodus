@@ -50,6 +50,7 @@ export function applySentMessage(
 
   let applied = false;
   let pendingReplaced = false;
+  let added = false;
   queryClient.setQueryData<Paginated<ChatMessage>>(listKey, (old) => {
     if (!old) return old;
     if (old.items.some((m) => m.id === message.id)) {
@@ -87,6 +88,7 @@ export function applySentMessage(
       return old; // дыра — догонит рефеч
     }
     applied = true;
+    added = true;
     const at = old.items.findIndex((m) => m.seq === 0);
     const items = [...old.items];
     items.splice(at === -1 ? items.length : at, 0, message);
@@ -101,7 +103,12 @@ export function applySentMessage(
       message,
       pendingReplaced,
     );
-    if (!pendingReplaced) bumpRootReplies(queryClient, conversationId, threadRootId);
+    // Счётчик корня — ровно один раз на сообщение: ТОЛЬКО когда эта доставка
+    // реально ВСТАВИЛА запись в кэш ленты. Gateway дублирует message_sent в
+    // conv-комнату и user-комнаты (at-least-once): повторная доставка попадает
+    // в «уже применено», а оптимистичный +1 своей отправки убран из onMutate —
+    // иначе одна отправка считалась трижды (#303: 3 → 6 → 9 → 12).
+    if (added && !pendingReplaced) bumpRootReplies(queryClient, conversationId, threadRootId);
     if (!threadAppended) return false; // окно треда открыто, но с дырой — рефеч
   }
   return true;
@@ -135,7 +142,7 @@ function applyToThreadCache(
     queryClient.setQueryData<Paginated<ChatMessage>>(threadKey, { ...threadData, items });
     return true;
   }
-  if (pendingReplaced) return true; // темп был только в ленте — окно догонит рефечем
+  if (pendingReplaced) return false; // темп был только в ленте, окна он не касался — подтвердит рефеч
   let lastSeq = 0;
   for (let i = threadData.items.length - 1; i >= 0; i -= 1) {
     if (threadData.items[i]!.seq > 0) {
