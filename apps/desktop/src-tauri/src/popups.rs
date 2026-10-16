@@ -238,6 +238,7 @@ pub(crate) fn build_popup_window(
         // Прозрачное окно: скруглённые углы и тень рисует карточка (CSS).
         .transparent(true)
         .shadow(false)
+        .additional_browser_args(crate::WEBVIEW2_BROWSER_ARGS)
         .build()
     {
         Ok(win) => win,
