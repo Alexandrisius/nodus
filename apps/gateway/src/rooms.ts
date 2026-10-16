@@ -1,4 +1,4 @@
-import type { Socket } from 'socket.io';
+import type { Server, Socket } from 'socket.io';
 import type { MembershipStore } from './membership.ts';
 
 /** Комнаты: `conv:{conversationId}` — только члены беседы; `user:{userId}` — персональная. */
@@ -77,6 +77,25 @@ export function registerRoomHandlers(socket: Socket, store: MembershipStore): vo
     socketConvRooms(socket).delete(room);
     void socket.leave(room);
   });
+}
+
+/**
+ * Ревокация комнаты беседы у исключённого (security-гейт #252): членство
+ * проверяется только на conv:join, поэтому без принудительного выхода
+ * открытые сокеты снятого участника продолжали бы получать сообщения
+ * беседы до переподключения. Сбрасывается и локальный реестр convRooms —
+ * иначе повторное добавление отвечало бы на conv:join «ok» без join.
+ */
+export async function revokeConvRoom(
+  io: Server,
+  userId: string,
+  conversationId: string,
+): Promise<void> {
+  const room = convRoom(conversationId);
+  for (const socket of await io.in(userRoom(userId)).fetchSockets()) {
+    (socket.data as { convRooms?: Set<string> }).convRooms?.delete(room);
+    socket.leave(room);
+  }
 }
 
 function readConversationId(payload: unknown): string | null {
