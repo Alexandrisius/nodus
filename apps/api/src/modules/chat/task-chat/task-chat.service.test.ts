@@ -95,10 +95,12 @@ describe('TaskChatService.sync (#252)', () => {
     expect(same.eventBus.emit).not.toHaveBeenCalled();
   });
 
-  it('задачи нет — null без транзакции', async () => {
-    const { service, repo } = setup({ roster: null });
-    await expect(service.sync(TASK, null)).resolves.toBeNull();
+  it('задача удалена — состав беседы распускается, новая не создаётся', async () => {
+    const { service, repo, eventBus } = setup({ roster: null, current: ['alice', 'bob'] });
+    await expect(service.sync(TASK, 'alice')).resolves.toBeNull();
     expect(repo.findOrCreate).not.toHaveBeenCalled();
+    expect(repo.removeMembers).toHaveBeenCalledWith(TX, CONV, ['alice', 'bob']);
+    expect(eventBus.emit).toHaveBeenCalledTimes(2);
   });
 
   it('openForUser: невидимая задача — 404 до синхронизации', async () => {

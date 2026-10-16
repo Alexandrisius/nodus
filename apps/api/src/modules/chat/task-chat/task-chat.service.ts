@@ -1,7 +1,10 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { CHAT_EVENTS } from '@nodus/contracts';
 
-import { TransactionRunner } from '../../../core/database/transaction-runner.js';
+import {
+  TransactionRunner,
+  type TransactionClient,
+} from '../../../core/database/transaction-runner.js';
 import { EventBus } from '../../../core/events/event-bus.js';
 import { DomainException } from '../../../core/errors/domain-exception.js';
 import { TASK_CHAT_READER, type TaskChatReader } from '../../tasks/ports/task-chat-reader.port.js';
@@ -24,10 +27,15 @@ export class TaskChatService {
     @Inject(TASK_CHAT_READER) private readonly tasks: TaskChatReader,
   ) {}
 
-  /** Привести беседу задачи к составу задачи; null — задачи нет (удалена). */
+  /** Привести беседу задачи к составу задачи; null — задачи нет (удалена):
+   *  состав беседы распускается — чат удалённой задачи пропадает из вкладки
+   *  «Чаты задач и писем» у всех (история остаётся в БД). */
   async sync(taskId: string, actorId: string | null): Promise<string | null> {
     const roster = await this.tasks.roster(taskId);
-    if (!roster) return null;
+    if (!roster) {
+      await this.dissolve(taskId, actorId);
+      return null;
+    }
     return this.txRunner.run(async (tx) => {
       const { id, created } = await this.repo.findOrCreate(tx, taskId, roster.creatorId);
       await this.repo.lock(tx, id);
@@ -44,8 +52,6 @@ export class TaskChatService {
             muted: m.muted,
           })),
       );
-      const removed = [...current].filter((userId) => !desired.has(userId));
-      await this.repo.removeMembers(tx, id, removed);
       const meta = { actorId, aggregateType: 'conversation', aggregateId: id };
       if (created) {
         await this.eventBus.emit(
@@ -68,16 +74,40 @@ export class TaskChatService {
           meta,
         );
       }
-      for (const userId of removed) {
-        await this.eventBus.emit(
-          tx,
-          CHAT_EVENTS.MEMBER_REMOVED,
-          { conversationId: id, userId, actorId },
-          meta,
-        );
-      }
+      await this.removeMembers(
+        tx,
+        id,
+        [...current].filter((userId) => !desired.has(userId)),
+        actorId,
+      );
       return id;
     });
+  }
+
+  private async dissolve(taskId: string, actorId: string | null): Promise<void> {
+    await this.txRunner.run(async (tx) => {
+      const id = await this.repo.find(tx, taskId);
+      if (!id) return;
+      await this.repo.lock(tx, id);
+      await this.removeMembers(tx, id, await this.repo.members(tx, id), actorId);
+    });
+  }
+
+  private async removeMembers(
+    tx: TransactionClient,
+    conversationId: string,
+    userIds: string[],
+    actorId: string | null,
+  ): Promise<void> {
+    await this.repo.removeMembers(tx, conversationId, userIds);
+    for (const userId of userIds) {
+      await this.eventBus.emit(
+        tx,
+        CHAT_EVENTS.MEMBER_REMOVED,
+        { conversationId, userId, actorId },
+        { actorId, aggregateType: 'conversation', aggregateId: conversationId },
+      );
+    }
   }
 
   /** Название задачи изменилось: строки списка бесед у участников

@@ -33,6 +33,7 @@ import {
   TaskAssignedChatHandler,
   TaskChatSyncRunner,
   TaskCreatedChatHandler,
+  TaskDeletedChatHandler,
   TaskParticipantsChatHandler,
   TaskUpdatedChatHandler,
 } from './task-chat/task-chat.handlers.js';
@@ -139,6 +140,7 @@ import {
     TaskCreatedChatHandler,
     TaskAssignedChatHandler,
     TaskParticipantsChatHandler,
+    TaskDeletedChatHandler,
     TaskUpdatedChatHandler,
   ],
 })

@@ -45,6 +45,9 @@ export class TaskCreatedChatHandler extends handlerFor(TASK_EVENTS.CREATED) {}
 export class TaskAssignedChatHandler extends handlerFor(TASK_EVENTS.ASSIGNED) {}
 @Injectable()
 export class TaskParticipantsChatHandler extends handlerFor(TASK_EVENTS.PARTICIPANTS_CHANGED) {}
+/** Удаление задачи — состав беседы распускается (sync видит roster=null). */
+@Injectable()
+export class TaskDeletedChatHandler extends handlerFor(TASK_EVENTS.DELETED) {}
 
 /** Переименование задачи — строки «Чатов задач» у участников обновляются. */
 @Injectable()
