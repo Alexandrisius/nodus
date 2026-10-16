@@ -37,7 +37,9 @@ model Event {
   /// в миграции (Prisma не выражает partial-индексы).
   fanoutAt      DateTime? @map("fanout_at") @db.Timestamptz()
 
-  /// Горячий путь поллера: WHERE published_at IS NULL ORDER BY created_at.
+  /// Историческая выборка по published_at; горячий путь поллера outbox
+  /// (WHERE published_at IS NULL ORDER BY seq) — парциальный индекс
+  /// `events_dispatch_pending_idx` в миграции (растёт только с хвостом).
   @@index([publishedAt, createdAt])
   @@index([aggregateType, aggregateId])
   @@map("events")
@@ -165,6 +167,10 @@ model User {
   @@index([status, lastName, firstName, id])
   @@index([managerId])
   @@index([departmentId])
+  /// FK SetNull-проверки при архивации справочников и фильтр юр. структуры.
+  @@index([positionId])
+  @@index([legalDepartmentId])
+  @@index([legalPositionId])
   @@map("users")
 }
 
@@ -193,6 +199,10 @@ model Department {
   legalMembers User[] @relation("LegalDepartmentMembers")
 
   @@index([kind, parentId, sortOrder])
+  /// FK SetNull-проверки (удаление подразделения/сотрудника) и подъём по дереву.
+  @@index([parentId])
+  @@index([headId])
+  @@index([deputyId])
   @@map("departments")
 }
 
@@ -241,6 +251,7 @@ model UserRole {
   role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
   @@id([userId, roleId])
+  @@index([roleId])
   @@map("user_roles")
 }
 
@@ -521,6 +532,8 @@ model MessageAttachment {
 
   @@index([messageId])
   @@index([ownerId])
+  /// Гейт доступа к файлу (`WHERE file_id = ?` на каждую отдачу вложения).
+  @@index([fileId])
   @@map("message_attachments")
 }
 
@@ -621,6 +634,8 @@ model Favorite {
 
   @@id([userId, messageId])
   @@index([userId, createdAt(sort: Desc)])
+  /// Чистка закладок при удалении сообщения (`WHERE message_id = ?`) + каскад FK.
+  @@index([messageId])
   @@map("favorites")
 }
 
@@ -683,6 +698,7 @@ model UserStickerPack {
   pack StickerPack @relation(fields: [packId], references: [id], onDelete: Cascade)
 
   @@id([userId, packId])
+  @@index([packId])
   @@map("user_sticker_packs")
 }
 
@@ -964,6 +980,7 @@ model WorkflowTransition {
 
   @@unique([workflowId, code])
   @@index([workflowId, fromStageId])
+  @@index([toStageId])
   @@map("workflow_transitions")
 }
 
@@ -992,6 +1009,8 @@ model WorkflowSchemeEntry {
   workflow Workflow       @relation(fields: [workflowId], references: [id], onDelete: Restrict)
 
   @@id([schemeId, taskTypeId])
+  @@index([taskTypeId])
+  @@index([workflowId])
   @@map("workflow_scheme_entries")
 }
 
@@ -1065,6 +1084,9 @@ model Task {
   @@index([creatorId, systemState])
   @@index([parentId])
   @@index([projectId])
+  /// FK Restrict-проверки (архивация типа/маршрута) и фильтр по типу.
+  @@index([typeId])
+  @@index([workflowId])
   @@index([systemState, deadline])
   @@index([updatedAt(sort: Desc), id])
   @@index([customFields(ops: JsonbPathOps)], type: Gin, map: "tasks_custom_fields_gin")
@@ -1161,6 +1183,8 @@ model TimeEntry {
 
   @@index([taskId, createdAt(sort: Desc), id])
   @@index([userId, date])
+  /// Трудозатраты по проекту (отчёт ступени 3 M4, I14).
+  @@index([projectId, date])
   @@map("time_entries")
 }
 
