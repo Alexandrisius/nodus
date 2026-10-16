@@ -91,7 +91,7 @@ impl PopupStack {
     /// Первый показ этого label? Помечает показ, true — окно надо показать
     /// (#305): show дергают ровно один раз — popup_ready ИЛИ fallback-таймер,
     /// кто раньше; остальным вызовам отказ (и уже закрытым окнам тоже).
-    fn mark_shown(&mut self, label: &str) -> bool {
+    pub(crate) fn mark_shown(&mut self, label: &str) -> bool {
         if label == HIDE_ALL_LABEL {
             if !self.hide_all_live || self.hide_all_shown {
                 return false;

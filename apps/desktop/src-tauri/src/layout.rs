@@ -132,6 +132,13 @@ fn place_hide_all(app: &AppHandle) {
             if let Some(win) = app.get_webview_window(HIDE_ALL_LABEL) {
                 let _ = win.set_size(tauri::Size::Logical(LogicalSize::new(POPUP_W, HIDE_ALL_H)));
                 let _ = win.set_position(PhysicalPosition::new(x, y));
+                // Гонка close↔create (security-прогон d25c82b): окно могло
+                // родиться в эпоху неполного стека (показ не состоялся), а
+                // стек снова полон — контент давно отрисован, показываем
+                // через тот же одноразовый гейт (повтор — no-op).
+                if stack(app).mark_shown(HIDE_ALL_LABEL) {
+                    let _ = win.show();
+                }
             }
         }
     }
