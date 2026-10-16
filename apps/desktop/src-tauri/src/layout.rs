@@ -7,8 +7,8 @@
 use tauri::{AppHandle, Manager, PhysicalPosition};
 
 use crate::popups::{
-    build_popup_window, stack, ActivePopup, GAP, HIDE_ALL_H, HIDE_ALL_LABEL, MARGIN, MAX_STACK,
-    POPUP_H, POPUP_H_REPLY, POPUP_W,
+    build_popup_window, spawn_ready_fallback, stack, ActivePopup, GAP, HIDE_ALL_H, HIDE_ALL_LABEL,
+    MARGIN, MAX_STACK, POPUP_H, POPUP_H_REPLY, POPUP_W,
 };
 
 /// ЕДИНЫЙ раскладчик стека (фидбек 08.10): один проход решает всё —
@@ -57,6 +57,11 @@ pub(crate) fn reposition_all(app: &AppHandle) {
 /// живёт ТОЛЬКО при полном столбике. Создание/закрытие — под мьютексом
 /// (hide_all_live): два reposition_all подряд успевали создать ОКНО-ДУБЛЬ,
 /// которое вечно висело над стеком и ломало зазор.
+///
+/// Регрессия создания (найдена при #305): условие «создать» требовало
+/// hide_all_live УЖЕ истинным — флаг никто не поднимал, плашка не создавалась
+/// никогда. Теперь флаг = «стек полон», создание — окно отсутствует.
+/// Показ — только ready-gate (popup_ready/fallback), как у попапов.
 fn place_hide_all(app: &AppHandle) {
     use tauri::LogicalSize;
     let action = {
@@ -82,26 +87,20 @@ fn place_hide_all(app: &AppHandle) {
             bottom = bottom - h - px(GAP);
         }
         let full = s.active.len() >= MAX_STACK as usize;
-        // Окно уже существует (в т.ч. ещё закрывается после close_all) —
-        // 'c' не создаём (дубль-лейбл упал бы в Err и потерял бы флаг).
-        let hide_window_absent =
-            s.hide_all_live && app.get_webview_window(HIDE_ALL_LABEL).is_none();
-        if full && s.hide_all_live && hide_window_absent {
-            s.hide_all_live = true;
-            match top {
-                Some(top) => ('c', x, top - px(GAP) - px(HIDE_ALL_H)),
-                None => ('x', x, 0),
-            }
-        } else if !full && s.hide_all_live {
-            s.hide_all_live = false;
-            ('x', x, 0)
-        } else if full {
-            match top {
-                Some(top) => ('m', x, top - px(GAP) - px(HIDE_ALL_H)),
-                None => ('x', x, 0),
-            }
+        s.hide_all_live = full;
+        if !full {
+            ('x', 0, 0)
         } else {
-            ('x', x, 0)
+            // Окно уже существует (в т.ч. ещё закрывается после close_all) —
+            // дубль-лейбл упал бы в Err; двигаем/создаём по факту.
+            let window_absent = app.get_webview_window(HIDE_ALL_LABEL).is_none();
+            match top {
+                Some(top) => {
+                    let y = top - px(GAP) - px(HIDE_ALL_H);
+                    (if window_absent { 'c' } else { 'm' }, x, y)
+                }
+                None => ('x', 0, 0),
+            }
         }
     };
     match action {
@@ -113,11 +112,13 @@ fn place_hide_all(app: &AppHandle) {
         (op, x, y) => {
             if op == 'c' {
                 build_popup_window(app, HIDE_ALL_LABEL, HIDE_ALL_H);
+                // Новый цикл жизни плашки — показ снова ждёт готовности.
+                stack(app).hide_all_shown = false;
+                spawn_ready_fallback(app, HIDE_ALL_LABEL);
             }
             if let Some(win) = app.get_webview_window(HIDE_ALL_LABEL) {
                 let _ = win.set_size(tauri::Size::Logical(LogicalSize::new(POPUP_W, HIDE_ALL_H)));
                 let _ = win.set_position(PhysicalPosition::new(x, y));
-                let _ = win.show();
             }
         }
     }

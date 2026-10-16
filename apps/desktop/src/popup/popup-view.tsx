@@ -54,13 +54,28 @@ export function PopupView() {
   }, []);
 
   // Pull-модель: окно забирает payload после загрузки (без гонки с маунтом).
+  // Тема — из payload (#305): применяется ДО рендера карточки; окно вообще
+  // невидимо до popup_ready, так что кадров в чужой теме не бывает.
   useEffect(() => {
     void invoke<PopupData | null>('popup_get_data').then((payload) => {
+      if (payload?.theme === 'dark') document.documentElement.dataset.theme = 'dark';
+      else delete document.documentElement.dataset.theme;
       setData(payload);
       setReplying(false);
       setText('');
     });
   }, []);
+
+  // Готовность к показу (#305): данные+тема применены, двойной rAF = первый
+  // кадр отрисован — просим оболочку показать окно (страховка таймаута там).
+  useEffect(() => {
+    if (!data) return;
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        void invoke('popup_ready');
+      }),
+    );
+  }, [data]);
 
   // Rust-арбитр угасания сигналит напрямую (мост портала сюда не инъектируется).
   useEffect(() => {

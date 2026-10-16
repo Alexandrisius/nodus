@@ -36,5 +36,7 @@ export const shellApi = {
 };
 
 /** Данные попапа (pull из Rust после загрузки окна; автозакрытия нет —
- *  угасанием командует Rust-тикер по активности пользователя). */
-export type PopupData = PopupPayload;
+ *  угасанием командует Rust-тикер по активности пользователя). Тема —
+ *  прикладывается Rust-ом к payload (#305): мини-UI применяет её до рендера,
+ *  в контракт web→shell она не входит. */
+export type PopupData = PopupPayload & { theme?: 'light' | 'dark' };

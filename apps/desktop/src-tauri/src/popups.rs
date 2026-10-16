@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 use std::sync::Mutex;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use tauri::webview::WebviewWindowBuilder;
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindow};
@@ -22,6 +22,13 @@ pub(crate) const GAP: f64 = 5.0;
 pub(crate) const MAX_STACK: u32 = 3;
 /// Метка окна «Скрыть все» над стеком (Telegram HideAllButton).
 pub(crate) const HIDE_ALL_LABEL: &str = "popup-hide-all";
+/// Сколько ждать `popup_ready` от мини-UI попапа до принудительного показа
+/// (#305): окно показывается ТОЛЬКО после применения темы и первого кадра
+/// (иначе прозрачное непрогретое окно composite-ится чёрным, а гонка каналов
+/// темы успевала накинуть тёмные токены в светлой теме портала). Вебваlew
+/// не поднялся за таймаут — показываем как есть: потерянное уведомление
+/// хуже одного некрасивого кадра.
+pub(crate) const READY_FALLBACK_MS: u64 = 1200;
 
 pub(crate) struct ActivePopup {
     pub(crate) label: String,
@@ -37,6 +44,8 @@ pub(crate) struct ActivePopup {
     pub(crate) hover: bool,
     /// Открыто поле ответа: не гасим (пользователь печатает).
     pub(crate) replying: bool,
+    /// Окно показано (popup_ready или fallback): повторный show не нужен.
+    pub(crate) shown: bool,
     /// Payload для pull-модели: окно забирает данные само после загрузки
     /// (push-событие проигрывал бы гонку со скоростью монтирования React).
     payload: serde_json::Value,
@@ -58,6 +67,8 @@ pub(crate) struct PopupStack {
     /// Окно «Скрыть все» живёт (флаг под мьютексом — гонка двух
     /// reposition_all успевала создать ОКНО-ДУБЛЬ, висевшее поверх стека).
     pub(crate) hide_all_live: bool,
+    /// Плашка «Скрыть все» показана (ready/fallback) — как shown у попапов.
+    pub(crate) hide_all_shown: bool,
 }
 
 impl PopupStack {
@@ -72,16 +83,32 @@ impl PopupStack {
             .min_by_key(|p| p.counter)
             .map(|p| p.label.clone())
     }
+    /// Первый показ этого label? Помечает показ, true — окно надо показать
+    /// (#305): show дергают ровно один раз — popup_ready ИЛИ fallback-таймер,
+    /// кто раньше; остальным вызовам отказ (и уже закрытым окнам тоже).
+    fn mark_shown(&mut self, label: &str) -> bool {
+        if label == HIDE_ALL_LABEL {
+            if !self.hide_all_live || self.hide_all_shown {
+                return false;
+            }
+            self.hide_all_shown = true;
+            return true;
+        }
+        match self.active.iter_mut().find(|p| p.label == label) {
+            Some(p) if !p.shown => {
+                p.shown = true;
+                true
+            }
+            _ => false,
+        }
+    }
 }
 
-pub(crate) fn stack(app: &AppHandle) -> std::sync::MutexGuard<'_, PopupStack> {
-    app.state::<Mutex<PopupStack>>().inner().lock().unwrap()
-}
-
-/// Показать попап. Вызывать ТОЛЬКО из async-команд: на Windows билдер окна
-/// в синхронном контексте дедлокит WebView2 (см. bridge::notify_popup).
-pub(crate) fn show(app: &AppHandle, payload: crate::bridge::PopupPayload) {
-    let payload_json = serde_json::json!({
+/// Payload попапа в JSON для pull-модели: тема прикладывается здесь же —
+/// мини-UI применяет её ДО рендера карточки, видимые кадры всегда в теме
+/// портала (#305).
+fn payload_to_json(payload: &PopupPayload, theme: &str) -> serde_json::Value {
+    serde_json::json!({
         "id": payload.id,
         "conversationId": payload.conversation_id,
         "threadRootId": payload.thread_root_id,
@@ -91,7 +118,18 @@ pub(crate) fn show(app: &AppHandle, payload: crate::bridge::PopupPayload) {
         "previewAttachment": payload.preview_attachment.unwrap_or(false),
         "urgent": payload.urgent,
         "canReply": payload.can_reply,
-    });
+        "theme": theme,
+    })
+}
+
+pub(crate) fn stack(app: &AppHandle) -> std::sync::MutexGuard<'_, PopupStack> {
+    app.state::<Mutex<PopupStack>>().inner().lock().unwrap()
+}
+
+/// Показать попап. Вызывать ТОЛЬКО из async-команд: на Windows билдер окна
+/// в синхронном контексте дедлокит WebView2 (см. bridge::notify_popup).
+pub(crate) fn show(app: &AppHandle, payload: crate::bridge::PopupPayload) {
+    let payload_json = payload_to_json(&payload, bridge::ui_theme());
     let conversation_id = payload.conversation_id.clone();
     let (label, _slot) = {
         let mut s = stack(app);
@@ -125,19 +163,51 @@ pub(crate) fn show(app: &AppHandle, payload: crate::bridge::PopupPayload) {
             fading: None,
             hover: false,
             replying: false,
+            shown: false,
             payload: payload_json,
         });
         (label, slot)
     };
-    // Невидимое окно: позицию даст reposition_all (кумулятив по стеку),
-    // затем показ. Кражу фокуса подавляет WS_EX_NOACTIVATE — своя
-    // SW_SHOWNOACTIVATE ломала рендер (системная рамка + чёрный фон).
+    // Невидимое окно: позицию даст reposition_all (кумулятив по стеку).
+    // Показ — ТОЛЬКО по готовности (#305): мини-UI применит тему из payload
+    // и отрисует карточку, позовёт popup_ready; не успел за таймаут —
+    // fallback показывает как есть. Кражу фокуса подавляет WS_EX_NOACTIVATE.
     let win = build_popup_window(app, &label, POPUP_H);
     crate::layout::reposition_all(app);
-    if let Some(win) = win {
-        let _ = win.show();
+    if win.is_some() {
+        spawn_ready_fallback(app, &label);
     }
     crate::fade::spawn_fade_ticker(app);
+}
+
+/// Показать окно, если оно ещё не показано (первый вызов из popup_ready или
+/// fallback-таймера выигрывает, остальные — тихий no-op).
+pub(crate) fn show_if_ready(app: &AppHandle, label: &str) {
+    let should = stack(app).mark_shown(label);
+    if !should {
+        return;
+    }
+    if let Some(win) = app.get_webview_window(label) {
+        let _ = win.show();
+    }
+}
+
+/// Страховка ready-gate (#305): мини-UI не поднялся/не позвал popup_ready —
+/// показываем окно принудительно, уведомление не теряем.
+pub(crate) fn spawn_ready_fallback(app: &AppHandle, label: &str) {
+    let app = app.clone();
+    let label = label.to_string();
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(READY_FALLBACK_MS));
+        show_if_ready(&app, &label);
+    });
+}
+
+/// Сигнал готовности от мини-UI попапа/плашки: данные получены, тема
+/// применена, первый кадр отрисован — окно можно показывать (#305).
+#[tauri::command]
+pub fn popup_ready(app: AppHandle, window: WebviewWindow) {
+    show_if_ready(&app, window.label());
 }
 
 /// Общий билдер popup-окон (карточка + плашка «Скрыть все»). Окно НЕАКТИВИ-
@@ -273,6 +343,7 @@ pub fn popup_close_all(app: AppHandle) {
         let mut s = stack(&app);
         s.pending.clear();
         s.hide_all_live = false;
+        s.hide_all_shown = false;
         s.active.iter().map(|p| p.label.clone()).collect()
     };
     for label in labels {
@@ -304,9 +375,13 @@ pub fn popup_set_hover(app: AppHandle, window: WebviewWindow, hover: bool) {
 /// reposition_all).
 
 /// Payload попапа — pull-моделью после загрузки окна (без гонки со маунтом).
+/// Плашке «Скрыть все» данных не надо — отдаём только тему (#305).
 #[tauri::command]
 pub fn popup_get_data(app: AppHandle, window: WebviewWindow) -> Option<serde_json::Value> {
     let label = window.label();
+    if label == HIDE_ALL_LABEL {
+        return Some(serde_json::json!({ "theme": bridge::ui_theme() }));
+    }
     stack(&app)
         .active
         .iter()
@@ -417,6 +492,7 @@ mod tests {
                 fading: None,
                 hover: false,
                 replying: false,
+                shown: false,
                 payload: serde_json::Value::Null,
             });
         }
@@ -451,5 +527,33 @@ mod tests {
         s.pending.push_back(payload("m2", "conv-2"));
         s.pending.retain(|p| p.conversation_id != "conv-1");
         assert_eq!(s.pending.pop_front().map(|p| p.id), Some("m2".into()));
+    }
+
+    #[test]
+    fn показ_ровно_один_раз() {
+        let mut s = PopupStack::default();
+        occupy(&mut s, 1);
+        // Первый сигнал (ready или fallback — кто раньше) показывает.
+        assert!(s.mark_shown("popup-0"));
+        assert!(!s.mark_shown("popup-0"), "повторный show — no-op");
+        // Закрытого попапа нет в стеке — показывать нечего.
+        assert!(!s.mark_shown("popup-9"));
+    }
+
+    #[test]
+    fn плашка_скрыть_все_показ_один_раз() {
+        let mut s = PopupStack::default();
+        // Плашки нет — сигнал тихий (окно ещё не создано/уже закрыто).
+        assert!(!s.mark_shown(HIDE_ALL_LABEL));
+        s.hide_all_live = true;
+        assert!(s.mark_shown(HIDE_ALL_LABEL));
+        assert!(!s.mark_shown(HIDE_ALL_LABEL));
+    }
+
+    #[test]
+    fn payload_несёт_тему() {
+        let json = payload_to_json(&payload("m1", "conv-1"), "light");
+        assert_eq!(json["theme"], "light");
+        assert_eq!(json["conversationId"], "conv-1");
     }
 }

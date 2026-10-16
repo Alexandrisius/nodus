@@ -18,6 +18,20 @@ export function HideAllBar() {
     document.body.style.overflow = 'hidden';
   }, []);
 
+  // Тема — pull-моделью (плашке отдаётся только тема, #305); показ окна —
+  // после popup_ready (двойной rAF = первый кадр отрисован), как у попапов.
+  useEffect(() => {
+    void invoke<{ theme?: 'light' | 'dark' } | null>('popup_get_data').then((payload) => {
+      if (payload?.theme === 'dark') document.documentElement.dataset.theme = 'dark';
+      else delete document.documentElement.dataset.theme;
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => {
+          void invoke('popup_ready');
+        }),
+      );
+    });
+  }, []);
+
   return (
     <div className="h-screen w-screen bg-transparent">
       <button
