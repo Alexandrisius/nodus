@@ -27,6 +27,8 @@ export const tasksKeys = {
   messages: (id: string) => [...tasksKeys.all, 'messages', id] as const,
   branch: (id: string) => [...tasksKeys.all, 'branch', id] as const,
   relations: (id: string) => [...tasksKeys.all, 'relations', id] as const,
+  /** Доступные переходы маршрута задачи (кнопки бара, ADR-0020). */
+  transitions: (id: string) => [...tasksKeys.all, 'transitions', id] as const,
 };
 
 /** Точечное обновление задачи в бесконечном кэше журнала (оптимистичные

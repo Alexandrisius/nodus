@@ -71,7 +71,10 @@ export function TaskKanban({ filter }: { filter?: ActiveListFilter<TaskListItem>
   // Структурная смена набора колонок (CRUD личной стадии): дельты сбрасываются
   // — серверные count уже пересчитаны. Сброс во время рендера (канон React:
   // adjust-state-on-prop-change, без лишнего кадра эффекта).
-  const signature = board.stageList.map((s) => s.id).join('|');
+  // Подпись — набор колонок И серверные счётчики: свежие count из
+  // инвалидации уже учитывают перенос/создание — дельта обнуляется, иначе
+  // шапка показывала бы задачу дважды.
+  const signature = board.stageList.map((s) => `${s.id}:${s.count}`).join('|');
   const [prevSignature, setPrevSignature] = useState(signature);
   if (prevSignature !== signature) {
     setPrevSignature(signature);
@@ -86,7 +89,7 @@ export function TaskKanban({ filter }: { filter?: ActiveListFilter<TaskListItem>
 
   if (!board.ready) {
     // Скелетон зеркалит классы контейнера доски ниже (pt-1).
-    return <KanbanSkeleton className="pt-1" />;
+    return <KanbanSkeleton className="pt-1" columns={stages?.length} />;
   }
 
   return (
@@ -119,10 +122,13 @@ export function TaskKanban({ filter }: { filter?: ActiveListFilter<TaskListItem>
                   { title, personalStageId: stageId },
                   {
                     onSuccess: (task) => {
-                      board.insertNewTask(stageId, task);
+                      // Колонку назначает сервер (закрытая колонка — задача
+                      // встаёт в начальную): вставка — туда, где она живёт.
+                      const column = task.personalStageId ?? stageId;
+                      board.insertNewTask(column, task);
                       setCountDelta((prev) => ({
                         ...prev,
-                        [stageId]: (prev[stageId] ?? 0) + 1,
+                        [column]: (prev[column] ?? 0) + 1,
                       }));
                     },
                   },

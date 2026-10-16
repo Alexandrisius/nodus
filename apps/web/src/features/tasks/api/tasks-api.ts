@@ -19,6 +19,8 @@ import type {
 import { ui } from '@nodus/contracts';
 import { toast } from 'sonner';
 
+import { transitionErrorText } from './transitions-api.js';
+
 import { useAuthStore } from '../../../shared/auth-store.js';
 import { api } from '../../../shared/api-client.js';
 import { lettersKeys } from '../../../shared/api/letters-keys.js';
@@ -76,6 +78,10 @@ export function useTaskMessages(id: string) {
   return useQuery({
     queryKey: tasksKeys.messages(id),
     queryFn: () => api<Paginated<ChatMessage>>(`/tasks/${id}/messages`),
+    // На живом бэкенде маршрута нет (канон #252: чат задачи — беседа
+    // мессенджера); без ретраев обсуждение сразу показывает пустое
+    // состояние, а не трясущийся скелетон трёх повторов. Хук уходит в #252.
+    retry: false,
   });
 }
 
@@ -114,14 +120,15 @@ export function useUpdateTaskStage() {
       return { previous, previousDetail };
     },
 
-    onError: (_error, vars, context) => {
+    onError: (error, vars, context) => {
       if (context?.previous) {
         queryClient.setQueryData(tasksKeys.listPages(), context.previous);
       }
       if (context?.previousDetail) {
         queryClient.setQueryData(tasksKeys.detail(vars.taskId), context.previousDetail);
       }
-      toast.error(ui.tasks.stageMoveError);
+      // Отказ маршрута/гейта — с причиной (ADR-0020), не безликое «вернули».
+      toast.error(transitionErrorText(error));
     },
 
     onSettled: (_data, _error, vars) => {

@@ -17,10 +17,12 @@ import { parseRules } from '../workflow/transition-rules.js';
 
 /**
  * Бутстрап системного каталога (ADR-0020): при старте api создаёт
- * недостающие тип, маршруты (стадии + переходы) и схему по `code`.
- * Существующие записи не трогает — правки каталога делаются данными, а не
- * тихим ре-сидом поверх настроек. Идемпотентен; гонка двух стартов
- * разрешается уникальными ключами (повтор проходит по ветке «уже есть»).
+ * недостающие тип, маршруты (стадии + переходы) и схему по `code` и
+ * синхронизирует имена/правила СИСТЕМНЫХ стадий и переходов с кодом (каталог
+ * — данные кода; правка правила = правка system-catalog.ts, без миграции).
+ * Шаблон «Мой план» синхронизируется только по составу (личные копии
+ * сотрудников не трогаются). Идемпотентен; гонка двух стартов разрешается
+ * уникальными ключами (повтор проходит по ветке «уже есть»).
  */
 @Injectable()
 export class CatalogBootstrap implements OnApplicationBootstrap {
@@ -74,10 +76,17 @@ export class CatalogBootstrap implements OnApplicationBootstrap {
       }));
     const stageIds = new Map<string, string>();
     for (const [index, s] of def.stages.entries()) {
+      const found = await tx.workflowStage.findUnique({
+        where: { workflowId_code: { workflowId: workflow.id, code: s.code } },
+      });
+      if (found && (found.name !== s.name || found.color !== s.color)) {
+        await tx.workflowStage.update({
+          where: { id: found.id },
+          data: { name: s.name, color: s.color },
+        });
+      }
       const stage =
-        (await tx.workflowStage.findUnique({
-          where: { workflowId_code: { workflowId: workflow.id, code: s.code } },
-        })) ??
+        found ??
         (await tx.workflowStage.create({
           data: {
             workflowId: workflow.id,
@@ -95,7 +104,14 @@ export class CatalogBootstrap implements OnApplicationBootstrap {
       const found = await tx.workflowTransition.findUnique({
         where: { workflowId_code: { workflowId: workflow.id, code: t.code } },
       });
-      if (found) continue;
+      const rules = parseRules(t.rules) as Prisma.InputJsonValue;
+      if (found) {
+        await tx.workflowTransition.update({
+          where: { id: found.id },
+          data: { name: t.name, rules, sortOrder: index },
+        });
+        continue;
+      }
       await tx.workflowTransition.create({
         data: {
           workflowId: workflow.id,
@@ -104,7 +120,7 @@ export class CatalogBootstrap implements OnApplicationBootstrap {
           fromStageId: t.from === null ? null : stageIds.get(t.from)!,
           toStageId: stageIds.get(t.to)!,
           sortOrder: index,
-          rules: parseRules(t.rules) as Prisma.InputJsonValue,
+          rules,
         },
       });
     }

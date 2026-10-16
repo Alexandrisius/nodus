@@ -7,8 +7,9 @@ import type {
   TaskStage,
   Paginated,
 } from '@nodus/contracts';
-import { ui } from '@nodus/contracts';
 import { toast } from 'sonner';
+
+import { transitionErrorText } from './transitions-api.js';
 
 import { api } from '../../../shared/api-client.js';
 import { mapTaskInPages, tasksKeys } from './tasks-api.js';
@@ -55,14 +56,15 @@ export function useUpdateTaskPersonalStage() {
       return { previous, previousDetail };
     },
 
-    onError: (_error, vars, context) => {
+    onError: (error, vars, context) => {
       if (context?.previous) {
         queryClient.setQueryData(tasksKeys.listPages(), context.previous);
       }
       if (context?.previousDetail) {
         queryClient.setQueryData(tasksKeys.detail(vars.taskId), context.previousDetail);
       }
-      toast.error(ui.tasks.stageMoveError);
+      // Отказ маршрута/гейта — с причиной (ADR-0020), не безликое «вернули».
+      toast.error(transitionErrorText(error));
     },
 
     onSettled: (_data, _error, vars) => {

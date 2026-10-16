@@ -61,6 +61,7 @@ export class TransitionsService {
           name: t.name,
           toStageId: target.id,
           toStageName: target.name,
+          toStageState: target.systemState as TaskTransition['toStageState'],
           blockedBy: evaluateValidators(t.rules, facts),
           canOverride,
         };

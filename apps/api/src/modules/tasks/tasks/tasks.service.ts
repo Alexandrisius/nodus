@@ -27,6 +27,8 @@ import { TaskDtoMapper } from './task-dto.mapper.js';
 import { taskListInclude } from './task-row.js';
 import { TasksQueryService } from './tasks-query.service.js';
 
+const OPEN_STATES = new Set(['backlog', 'active', 'paused']);
+
 /**
  * Создание и удаление задач (правка и перенос — TaskEditService). Задача без
  * проекта и без колонки — обычный случай: встаёт в начальную стадию
@@ -85,13 +87,18 @@ export class TasksService {
     const personalColumn = body.personalStageId
       ? await this.personalColumn(user.id, body.personalStageId)
       : null;
-    // Новая задача стартует только в стадии «ещё не начата» (backlog): иначе
-    // создание обходило бы движок переходов (условия «кто» и гейты) —
-    // находка security-гейта #37. Колонка «Моего плана» — лишь размещение.
-    const starts = workflow.stages.filter((s) => !s.archivedAt && s.systemState === 'backlog');
+    // Новая задача стартует только в ОТКРЫТОМ состоянии (backlog/active/
+    // paused): создание сразу «завершённой» обходило бы гейты DoD
+    // (security-гейт #37). Колонка «Моего плана» открытого состояния задаёт
+    // стадию (плюсик в «В работе» = задача в работе); закрытая колонка —
+    // начальная стадия.
+    const starts = workflow.stages.filter((s) => !s.archivedAt && OPEN_STATES.has(s.systemState));
+    const initial = starts.find((s) => s.isInitial) ?? starts[0];
     const stage = body.stageId
       ? starts.find((s) => s.id === body.stageId)
-      : (starts.find((s) => s.isInitial) ?? starts[0]);
+      : personalColumn && OPEN_STATES.has(personalColumn.systemState)
+        ? (starts.find((s) => s.systemState === personalColumn.systemState) ?? initial)
+        : initial;
     if (!stage) throw DomainException.notFound('Stage not found');
     const holders = planHolderIds({ creatorId: user.id, assigneeId, participants });
     await this.placements.prepare(holders);

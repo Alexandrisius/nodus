@@ -100,6 +100,8 @@ export const taskTransitionSchema = z.object({
   name: z.string().min(1),
   toStageId: z.uuid(),
   toStageName: z.string().min(1),
+  /** Системное состояние цели (иконка кнопки: закрыть / вернуть / вперёд). */
+  toStageState: z.enum(['backlog', 'active', 'paused', 'done', 'closed']),
   blockedBy: z.array(transitionBlockReasonSchema),
   /** Можно ли пройти гейт с причиной (право task.override_gate). */
   canOverride: z.boolean(),

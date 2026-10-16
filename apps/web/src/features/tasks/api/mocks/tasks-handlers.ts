@@ -33,6 +33,7 @@ import { letterIdByTaskId, syncLetterWithTasks } from '../../../../shared/mocks/
 import { demoStages, systemTaskType } from '../../../../shared/mocks/data/task-stages.js';
 import { currentAuthUser, userRef } from '../../../../shared/mocks/data/users.js';
 import { tasksChecklistHandlers } from './tasks-checklist-handlers.js';
+import { tasksTransitionsHandlers } from './tasks-transitions-handlers.js';
 
 function notFound(message: string) {
   return HttpResponse.json({ code: ErrorCode.NOT_FOUND, message }, { status: 404 });
@@ -188,6 +189,8 @@ export const tasksHandlers = [
   /** Пункты чек-листа карточки (вердикт владельца 15.09.2026: чек-листу —
    *  важное место) — вынесены в tasks-checklist-handlers (I5). */
   ...tasksChecklistHandlers,
+  // Кнопки маршрута карточки (ADR-0020).
+  ...tasksTransitionsHandlers,
 
   // Личная схема «Мой план» (ADR-0008): каталог колонок со счётчиками.
   // Маршруты personal-stages — ДО '/api/v1/tasks/:id' (:id захватил бы их).
