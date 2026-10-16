@@ -78,10 +78,15 @@ function PersonalToastCard({
   // Клик — к источнику (F1, #300): у тоста только снимок события, источник
   // чата восстанавливается по conversationId (срочное — лист ознакомления).
   function open() {
+    // Уведомление задачи (#252) — сразу карточка задачи, не лист просмотра.
     const card =
-      snapshot.conversationId !== null && snapshot.priority !== 'urgent'
-        ? ({ kind: 'messenger', id: snapshot.conversationId } as const)
-        : null;
+      snapshot.priority === 'urgent'
+        ? null
+        : snapshot.conversationId !== null
+          ? ({ kind: 'messenger', id: snapshot.conversationId } as const)
+          : snapshot.sourceType === 'task'
+            ? ({ kind: 'task', id: snapshot.sourceId } as const)
+            : null;
     if (card) {
       openSourceCard(openCard, card, snapshot.threadRootId);
     } else {

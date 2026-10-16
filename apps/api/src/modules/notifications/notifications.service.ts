@@ -121,6 +121,16 @@ export class NotificationsService {
     });
   }
 
+  /** Открыта карточка сущности (#252): все её уведомления у пользователя
+   *  прочитаны — «Требуют внимания» не висят вечно. Идемпотентно. */
+  async readBySource(userId: string, sourceType: string, sourceId: string): Promise<number> {
+    return this.txRunner.run(async (tx) => {
+      const read = await this.repo.readByEntity(userId, sourceType, sourceId, tx);
+      if (read > 0) await this.emitRead(tx, userId, sourceId, null);
+      return read;
+    });
+  }
+
   /** Стоп повторов по реакции получателя (C3, обработчик chat.reaction_added). */
   async stopRepeatsByReaction(userId: string, messageId: string): Promise<void> {
     await this.repo.stopRepeats(userId, { messageId });

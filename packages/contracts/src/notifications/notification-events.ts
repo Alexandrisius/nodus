@@ -1,6 +1,10 @@
 import { z } from 'zod';
 
-import { notificationKindSchema, notificationPrioritySchema } from './notifications.schemas.js';
+import {
+  notificationKindSchema,
+  notificationPrioritySchema,
+  notificationSourceSchema,
+} from './notifications.schemas.js';
 
 /**
  * Каталог доменных событий модуля notifications (I9). Payload клиентски
@@ -22,6 +26,9 @@ export const notificationSnapshotSchema = z.object({
   priority: notificationPrioritySchema,
   kind: notificationKindSchema,
   sourceId: z.uuid(),
+  /** Тип источника (#252): тост задачи открывает карточку задачи; без поля —
+   *  прежние эмиттеры чата (источник — беседа). */
+  sourceType: notificationSourceSchema.optional(),
   conversationId: z.uuid().nullable(),
   conversationTitle: z.string().nullable(),
   messageId: z.uuid().nullable(),
