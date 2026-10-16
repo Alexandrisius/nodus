@@ -239,6 +239,21 @@ describe('AuthService', () => {
       expect(authRepository.revokeSession).not.toHaveBeenCalled();
     });
 
+    it('деактивация между проигрышем CAS и повтором → 401 и отзыв, токен не выпущен', async () => {
+      authRepository.findSessionById.mockResolvedValue(makeSession());
+      authRepository.findIdentityById
+        .mockResolvedValueOnce(IDENTITY)
+        .mockResolvedValueOnce({ ...IDENTITY, status: 'inactive' });
+      authRepository.rotateSessionIfCurrent.mockResolvedValueOnce(false);
+
+      await expect(service.refresh('cookie', '1.1.1.1', 'ua')).rejects.toMatchObject({
+        code: ErrorCode.AUTH_SESSION_INVALID,
+      });
+      expect(authRepository.rotateSessionIfCurrent).toHaveBeenCalledTimes(1);
+      expect(authRepository.revokeSession).toHaveBeenCalledWith('session-1');
+      expect(tokenService.signAccessToken).not.toHaveBeenCalled();
+    });
+
     it('CAS проигран на всех попытках → 401, сессия не отзывается', async () => {
       authRepository.findSessionById.mockResolvedValue(makeSession());
       authRepository.findIdentityById.mockResolvedValue(IDENTITY);

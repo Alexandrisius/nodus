@@ -4,7 +4,7 @@ import { ErrorCode, type AuthUser } from '@nodus/contracts';
 import { AuditRepository } from '../../core/audit/audit.repository.js';
 import { DomainException } from '../../core/errors/domain-exception.js';
 import { AUTH_PROVIDER, type AuthProvider } from './auth-provider.js';
-import { AuthRepository, type AuthIdentity, type SessionRow } from './auth.repository.js';
+import { AuthRepository, type SessionRow } from './auth.repository.js';
 import { LoginThrottleService } from './login-throttle.service.js';
 import { PasswordService } from '../../core/crypto/password.service.js';
 import { TokenService } from './token.service.js';
@@ -123,7 +123,6 @@ export class AuthService {
     }
     const presentedHash = this.tokenService.hashRefreshToken(parsed.token);
     const { token, hash } = this.tokenService.generateRefreshToken();
-    let identity: AuthIdentity | null = null;
 
     // Read → check → compare-and-swap. Проигрыш CAS = параллельный refresh той
     // же cookie успел ротировать раньше (две вкладки): перечитываем сессию и
@@ -136,12 +135,12 @@ export class AuthService {
       }
       const expected = await this.resolveRotationBase(session, presentedHash, ip, userAgent);
 
-      if (!identity) {
-        identity = await this.authRepository.findIdentityById(session.userId);
-        if (!identity || identity.status !== 'active') {
-          await this.authRepository.revokeSession(session.id);
-          throw this.sessionInvalid();
-        }
+      // Статус перечитывается на КАЖДОЙ попытке: деактивация между проигрышем
+      // CAS и повтором не должна выпустить access-токен (security-ревью #317).
+      const identity = await this.authRepository.findIdentityById(session.userId);
+      if (!identity || identity.status !== 'active') {
+        await this.authRepository.revokeSession(session.id);
+        throw this.sessionInvalid();
       }
 
       const expiresAt = this.refreshExpiresAt();
