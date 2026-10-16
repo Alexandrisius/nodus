@@ -171,6 +171,9 @@ export const tasksStrings = {
   subtasksClosed: 'Подзадачи завершены',
   subtasksNotClosed: 'Не удалось завершить часть подзадач — проверьте их условия',
   /** Массовые действия журнала (#311). */
+  scopeMine: 'Мои',
+  scopeAll: 'Все доступные',
+  scopeHint: 'Все доступные — ваши задачи и задачи подчинённых по оргструктуре',
   bulkStage: 'Стадия',
   bulkAssignee: 'Ответственный',
   bulkDeadline: 'Срок',

@@ -10,7 +10,7 @@ import { taskStagesKey } from './task-stages.js';
 export const tasksKeys = {
   all: ['tasks'] as const,
   /** Журнал задач — бесконечные страницы (useTasksPages, useProjectTaskPages). */
-  listPages: (params?: { projectId?: string }) =>
+  listPages: (params?: { projectId?: string; scope?: 'all' }) =>
     params
       ? ([...tasksKeys.all, 'list-pages', params] as const)
       : ([...tasksKeys.all, 'list-pages'] as const),

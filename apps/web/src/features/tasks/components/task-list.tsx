@@ -37,11 +37,13 @@ import { TasksEmpty } from './tasks-empty.js';
 export function TaskList({
   filter,
   onCreate,
+  scope = 'mine',
 }: {
   filter?: ActiveListFilter<TaskListItem>;
   onCreate?: () => void;
+  scope?: 'mine' | 'all';
 }) {
-  const { data, isLoading, hasNextPage, isFetchingNextPage, fetchNextPage } = useTasksPages();
+  const { data, isLoading, hasNextPage, isFetchingNextPage, fetchNextPage } = useTasksPages(scope);
   const openCard = useOpenCard();
   const prefetch = usePrefetchTask();
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
