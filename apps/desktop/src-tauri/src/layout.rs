@@ -111,10 +111,23 @@ fn place_hide_all(app: &AppHandle) {
         }
         (op, x, y) => {
             if op == 'c' {
-                build_popup_window(app, HIDE_ALL_LABEL, HIDE_ALL_H);
-                // Новый цикл жизни плашки — показ снова ждёт готовности.
-                stack(app).hide_all_shown = false;
-                spawn_ready_fallback(app, HIDE_ALL_LABEL);
+                // Создание окна — ТОЛЬКО из async-контекста: сюда добирается
+                // и синхронная команда (popup_set_expanded → reposition_all),
+                // а WebviewWindowBuilder в sync-контексте дедлокит WebView2
+                // (gotchas «Десктоп», #254; security-ревью #305).
+                let app = app.clone();
+                tauri::async_runtime::spawn(async move {
+                    build_popup_window(&app, HIDE_ALL_LABEL, HIDE_ALL_H);
+                    // Новый цикл жизни плашки — показ снова ждёт готовности.
+                    stack(&app).hide_all_shown = false;
+                    spawn_ready_fallback(&app, HIDE_ALL_LABEL);
+                    if let Some(win) = app.get_webview_window(HIDE_ALL_LABEL) {
+                        let _ =
+                            win.set_size(tauri::Size::Logical(LogicalSize::new(POPUP_W, HIDE_ALL_H)));
+                        let _ = win.set_position(PhysicalPosition::new(x, y));
+                    }
+                });
+                return;
             }
             if let Some(win) = app.get_webview_window(HIDE_ALL_LABEL) {
                 let _ = win.set_size(tauri::Size::Logical(LogicalSize::new(POPUP_W, HIDE_ALL_H)));
