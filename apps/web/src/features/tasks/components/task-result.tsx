@@ -6,6 +6,7 @@ import { Button } from '@nodus/ui/components/button';
 import { NodeLabel } from '@nodus/ui/components/node-label';
 import { Textarea } from '@nodus/ui/components/textarea';
 
+import { LinkifiedText } from '../../../shared/chat/message-text.js';
 import { formatDateTime, plural, withoutPatronymic } from '../../../shared/lib/format.js';
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
 import { useSaveTaskResult } from '../api/task-edit-api.js';
@@ -74,7 +75,9 @@ export function TaskResultSection({ task }: { task: TaskDetail }) {
       ) : result ? (
         <div className="mt-2 rounded-lg bg-success-soft/40 px-3 py-2.5">
           {result.text ? (
-            <p className="text-sm leading-relaxed whitespace-pre-wrap">{result.text}</p>
+            <p className="text-sm leading-relaxed wrap-anywhere whitespace-pre-wrap">
+              <LinkifiedText text={result.text} />
+            </p>
           ) : null}
           {result.messageIds.length > 0 ? (
             <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">

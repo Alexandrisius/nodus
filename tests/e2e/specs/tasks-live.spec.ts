@@ -74,4 +74,11 @@ test('задача: создание → работа → время → зав�
   await expect(page.getByText('Подзадачи завершены')).toBeVisible();
   await expect(card.getByLabel('Стадия')).toContainText('Завершена');
   await expect(card.getByRole('button', { name: 'Вернуть в работу' })).toBeVisible();
+
+  // Удаление из меню «⋯» карточки (постановщик): карточка закрывается.
+  await card.getByRole('button', { name: 'Действия задачи' }).click();
+  await page.getByRole('menuitem', { name: 'Удалить задачу' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Удалить задачу' }).click();
+  await expect(page.getByText('Задача удалена')).toBeVisible();
+  await expect(card).toHaveCount(0);
 });

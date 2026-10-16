@@ -125,3 +125,21 @@ export function useBulkTasks() {
     },
   });
 }
+
+/** Удаление задачи (постановщик или task.manage_any; мягкое — подзадачи
+ *  поднимаются к деду, чат задачи распускается, уведомления чистятся). */
+export function useDeleteTask(taskId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api<void>(`/tasks/${taskId}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      queryClient.removeQueries({ queryKey: tasksKeys.detail(taskId) });
+      toast.success(ui.tasks.deleted);
+    },
+    onError: () => toast.error(ui.common.saveError),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: tasksKeys.all });
+      void queryClient.invalidateQueries({ queryKey: lettersKeys.all });
+    },
+  });
+}

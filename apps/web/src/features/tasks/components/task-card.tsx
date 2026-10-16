@@ -20,6 +20,7 @@ import { useTaskDetail } from '../api/tasks-api.js';
 import { TaskAboutDrawer } from './task-about-drawer.js';
 import { TaskBranchDrawer } from './task-branch-drawer.js';
 import { TaskCardSkeleton } from './task-card-skeleton.js';
+import { TaskCardMenu } from './task-card-menu.js';
 import { TaskChecklist } from './task-checklist.js';
 import { TaskDescription } from './task-description.js';
 import { TaskResultSection } from './task-result.js';
@@ -180,6 +181,7 @@ export function TaskCard({ taskId }: { taskId: string }) {
                 {ui.tasks.fromChat}
               </NodeChip>
             ) : null}
+            <TaskCardMenu task={task} />
             <button
               type="button"
               onClick={() => {

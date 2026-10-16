@@ -5,6 +5,7 @@ import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import { Textarea } from '@nodus/ui/components/textarea';
 
+import { LinkifiedText } from '../../../shared/chat/message-text.js';
 import { useUpdateTask } from '../api/task-edit-api.js';
 
 /** Описание задачи — правка на месте (модель Jira): клик по тексту
@@ -67,17 +68,24 @@ export function TaskDescription({ task }: { task: TaskDetail }) {
     ) : null;
   }
 
+  // Ссылки в описании кликабельны (клик по ссылке не открывает правку —
+  // UrlLink гасит всплытие); клик по тексту — правка на месте.
   return canEdit ? (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
+      title={ui.tasks.descriptionEdit}
       onClick={() => setDraft(task.description)}
-      className="-mx-2 block w-[calc(100%+1rem)] cursor-text rounded-md px-2 py-1 text-left text-sm leading-relaxed whitespace-pre-wrap text-foreground/90 transition-colors hover:bg-accent/40"
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') setDraft(task.description);
+      }}
+      className="-mx-2 cursor-text rounded-md px-2 py-1 text-sm leading-relaxed wrap-anywhere whitespace-pre-wrap text-foreground/90 transition-colors hover:bg-accent/40"
     >
-      {task.description}
-    </button>
+      <LinkifiedText text={task.description} />
+    </div>
   ) : (
-    <p className="text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">
-      {task.description}
+    <p className="text-sm leading-relaxed wrap-anywhere whitespace-pre-wrap text-foreground/90">
+      <LinkifiedText text={task.description} />
     </p>
   );
 }

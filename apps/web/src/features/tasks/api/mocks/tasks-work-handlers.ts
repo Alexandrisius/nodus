@@ -165,6 +165,16 @@ export const tasksWorkHandlers = [
     return HttpResponse.json(result, { status: 201 });
   }),
 
+  http.delete('/api/v1/tasks/:id', ({ params }) => {
+    const index = demoTasks.findIndex((t) => t.id === params.id);
+    const task = demoTasks[index];
+    if (!task) return notFound();
+    demoTasks.splice(index, 1);
+    // Подзадачи поднимаются к деду (как на сервере #37).
+    for (const t of demoTasks) if (t.parentId === task.id) t.parentId = task.parentId;
+    return new HttpResponse(null, { status: 204 });
+  }),
+
   http.post('/api/v1/tasks/bulk', async ({ request }) => {
     const parsed = taskBulkBodySchema.safeParse(await request.json());
     if (!parsed.success) return invalid();
