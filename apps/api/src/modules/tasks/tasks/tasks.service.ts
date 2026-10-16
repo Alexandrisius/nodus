@@ -4,11 +4,9 @@ import {
   TASK_EVENTS,
   type AuthUser,
   type CreateTaskBody,
-  type TaskChainNode,
   type TaskListItem,
 } from '@nodus/contracts';
 
-import { Prisma } from '../../../generated/prisma/client.js';
 import { PrismaService } from '../../../core/database/prisma.service.js';
 import {
   TransactionRunner,
@@ -103,16 +101,6 @@ export class TasksService {
         where: { stageId: stage.id },
         orderBy: [{ stageOrder: 'asc' }, { id: 'asc' }],
       });
-      const origin: TaskChainNode[] | undefined = message
-        ? [
-            {
-              kind: 'chat_message',
-              ref: message.conversationTitle ?? 'Чат',
-              label: message.excerpt || 'Сообщение чата',
-              entityId: message.conversationId,
-            },
-          ]
-        : undefined;
       const task = await tx.task.create({
         data: {
           title: body.title,
@@ -132,7 +120,6 @@ export class TasksService {
           projectId: body.projectId ?? null,
           source: body.sourceMessageId ? 'chat_message' : 'manual',
           sourceId: body.sourceMessageId ?? null,
-          origin: origin as Prisma.InputJsonValue | undefined,
           checklistTotal: body.checklist?.length ?? 0,
           participants: { create: participants },
         },

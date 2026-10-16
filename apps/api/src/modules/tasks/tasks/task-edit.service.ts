@@ -60,7 +60,13 @@ export class TaskEditService {
     if (body.parentId === id) {
       throw new DomainException(ErrorCode.TASK_PARENT_CYCLE, 'Task cannot be its own parent');
     }
-    if (body.parentId) await this.tasks.assertCanEditParent(user, body.parentId);
+    if (body.parentId !== undefined && body.parentId !== row.parentId) {
+      // Перепривязка трогает ОБА конца: новый родитель получает подзадачу,
+      // прежний — теряет (иначе отвязка обходила бы его гейт «нет открытых
+      // подзадач»). Права правки нужны на обоих (security-гейт #37, р.2).
+      if (body.parentId) await this.tasks.assertCanEditParent(user, body.parentId);
+      if (row.parentId) await this.tasks.assertCanEditParent(user, row.parentId);
+    }
     const holdersAfter = planHolderIds({ ...row, assigneeId: body.assigneeId ?? row.assigneeId });
     await this.placements.prepare(holdersAfter);
 
@@ -81,13 +87,13 @@ export class TaskEditService {
     body: TaskUpdateBody,
     fields: readonly string[],
   ): Promise<void> {
-    // Цикл родителя проверяется под блокировкой обеих строк (в порядке id —
-    // без взаимоблокировки): параллельные A→B и B→A сериализуются
-    // (находка security-гейта #37).
-    for (const id of [row.id, body.parentId].filter((x): x is string => !!x).sort()) {
-      await this.repo.lock(tx, id);
-    }
+    await this.repo.lock(tx, row.id);
     if (body.parentId) {
+      // Смены родителя сериализуются одной advisory-блокировкой транзакции:
+      // построчные локи не ловят циклы из 4+ узлов, собранные параллельными
+      // правками непересекающихся пар (security-гейт #37, р.2). Смена
+      // родителя редка — общая очередь дешевле, чем замок на всё дерево.
+      await this.repo.lockTree(tx);
       if (await this.repo.isDescendant(tx, row.id, body.parentId)) {
         throw new DomainException(ErrorCode.TASK_PARENT_CYCLE, 'Parent is a descendant');
       }

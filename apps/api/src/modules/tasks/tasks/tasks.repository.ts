@@ -186,6 +186,11 @@ export class TasksRepository {
     return { all, overdue };
   }
 
+  /** Глобальная очередь смен родителя (pg_advisory_xact_lock до конца tx). */
+  async lockTree(tx: TransactionClient): Promise<void> {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('nodus:tasks:tree'))`;
+  }
+
   /** Предок ли candidate задачи taskId (защита от цикла родителя). */
   async isDescendant(
     tx: TransactionClient,

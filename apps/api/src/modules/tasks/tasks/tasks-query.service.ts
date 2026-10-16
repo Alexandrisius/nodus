@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod';
 import type {
   AuthUser,
@@ -23,6 +23,7 @@ import { WorkflowRepository } from '../workflow/workflow.repository.js';
 import { selfChainNode, stageDto, TaskDtoMapper } from './task-dto.mapper.js';
 import { TasksRepository, type TaskOrder } from './tasks.repository.js';
 import { DEFAULT_TASK_WORKFLOW_CODE } from '../catalog/system-catalog.js';
+import { CHAT_MESSAGE_ACCESS, type ChatMessageAccess } from '../../chat/message-access.port.js';
 
 const keyCursor = z.object({ o: z.string(), id: z.uuid() });
 const numberCursor = z.object({ n: z.number().int() });
@@ -39,6 +40,7 @@ export class TasksQueryService {
     private readonly workflows: WorkflowRepository,
     private readonly viewers: ViewerResolver,
     private readonly mapper: TaskDtoMapper,
+    @Inject(CHAT_MESSAGE_ACCESS) private readonly messages: ChatMessageAccess,
   ) {}
 
   viewer(user: Pick<AuthUser, 'id' | 'permissions'>): Promise<Viewer> {
@@ -132,7 +134,12 @@ export class TasksQueryService {
       ...observerIds,
       ...(result ? [result.authorId] : []),
     ]);
-    const origin = (full.origin as TaskChainNode[] | null) ?? [];
+    const origin = [
+      ...((full.origin as TaskChainNode[] | null) ?? []),
+      ...(full.source === 'chat_message' && full.sourceId
+        ? [await this.messageNode(full.sourceId, user.id)]
+        : []),
+    ];
     return {
       ...this.mapper.toListItem(row, refs),
       description: full.description,
@@ -157,6 +164,22 @@ export class TasksQueryService {
       access: taskAccess(actorRoles(row, user.id), user.permissions),
       createdAt: full.createdAt.toISOString(),
     };
+  }
+
+  /** Узел «сообщение чата» цепочки — по правам СМОТРЯЩЕГО: участник беседы
+   *  видит её название и выдержку, остальные — нейтральную заглушку (снимок
+   *  не хранится в задаче — иначе «В задачу» пересылал бы закрытую беседу
+   *  исполнителю вне неё; security-гейт #37, р.2). */
+  private async messageNode(messageId: string, viewerId: string): Promise<TaskChainNode> {
+    const snap = await this.messages.snapshot(messageId, viewerId);
+    return snap
+      ? {
+          kind: 'chat_message',
+          ref: snap.conversationTitle ?? 'Чат',
+          label: snap.excerpt || 'Сообщение чата',
+          entityId: snap.conversationId,
+        }
+      : { kind: 'chat_message', ref: 'Чат', label: 'Сообщение чата' };
   }
 
   /** Ветка от корневого предка; невидимые узлы маскируются (номер без названия). */
