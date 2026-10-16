@@ -144,6 +144,19 @@ export class NotificationsService {
     });
   }
 
+  /** Чистка по удалённой задаче (#252, обработчик task.deleted): строки
+   *  журнала удаляются у всех, каждому затронутому — notification.read
+   *  (бейдж/лента/тосты синхронизируются штатным конвейером). Идемпотентно. */
+  async purgeBySource(sourceType: string, sourceId: string): Promise<number> {
+    return this.txRunner.run(async (tx) => {
+      const affected = [...new Set(await this.repo.deleteBySource(sourceType, sourceId, tx))];
+      for (const userId of affected) {
+        await this.emitRead(tx, userId, sourceId, null);
+      }
+      return affected.length;
+    });
+  }
+
   private async emitRead(
     tx: TransactionClient,
     userId: string,
