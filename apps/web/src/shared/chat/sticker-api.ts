@@ -13,7 +13,8 @@ import { toast } from 'sonner';
 
 import { api, apiUpload } from '../api-client.js';
 import { useAuthStore } from '../auth-store.js';
-import { chatKeys, useSendChatMessage } from './api.js';
+import { chatKeys } from './chat-keys.js';
+import { useSendChatMessage } from './send-message.js';
 import { pushRecentSticker } from './sticker-recent.js';
 
 /**

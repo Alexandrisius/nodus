@@ -9,7 +9,7 @@ import { useNavigate } from '@tanstack/react-router';
 
 import { openCardViaBridge, replaceTopMessengerCard } from '../lib/card-bridge.js';
 import { useAuthStore } from '../auth-store.js';
-import { useConversations, useConversationMessages } from './api.js';
+import { useConversations, useConversationMessages } from './chat-queries.js';
 import { focusComposer, hasVisibleComposer } from './composer-focus.js';
 import { ConversationAvatar } from './conversation-avatar.js';
 import {

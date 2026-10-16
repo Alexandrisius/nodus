@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { ui, type ChatMessage, type MessageAttachment } from '@nodus/contracts';
 import type { ComposerSubmit } from './composer-submit.js';
 
@@ -425,25 +425,26 @@ describe('attach-send-dialog — режим правки (#188)', () => {
 
 describe('attach-send-dialog: @упоминания подписи (#239)', () => {
   const ALICE_ID = '33333333-3333-4333-8333-333333333333';
-  let apiMock: ReturnType<typeof vi.fn>;
+  // Тип мока — по форме ответа (generic api<T> mockImplementation не выразит).
+  let apiMock: Mock<(url: unknown) => Promise<unknown>>;
 
   beforeEach(async () => {
     reset();
     queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     registerScopeConversation(KEY, CONV);
     const { api } = await import('../api-client.js');
-    apiMock = vi.mocked(api);
-    apiMock.mockImplementation(async (url) => {
+    apiMock = vi.mocked(api) as unknown as typeof apiMock;
+    apiMock.mockImplementation((url) => {
       // Состав беседы: Алиса-участник (автокомплит без дебаунса поиска).
       if (String(url).includes('/members')) {
-        return {
+        return Promise.resolve({
           items: [
             { user: { id: ALICE_ID, displayName: 'Алиса Тест', avatarUrl: null }, role: 'member' },
           ],
           nextCursor: null,
-        };
+        });
       }
-      return { items: [], nextCursor: null };
+      return Promise.resolve({ items: [], nextCursor: null });
     });
   });
   afterEach(() => {

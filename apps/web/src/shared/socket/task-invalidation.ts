@@ -23,10 +23,15 @@ export function pushTaskKeys(
       batcher.push(tasksKeys.timeEntries(taskId), 'feed');
       batcher.push(tasksKeys.timer(), 'feed');
     }
+    // Связь меняет обе карточки: сервер шлёт relation_changed по каждой
+    // стороне со своей аудиторией (#317) — список связей живёт отдельным ключом.
+    if (type === 'task.relation_changed') {
+      batcher.push(tasksKeys.relations(taskId), 'feed');
+    }
   }
   batcher.push(tasksKeys.listPages(), 'list');
   batcher.push(tasksKeys.kanbanAll(), 'list');
   batcher.push(tasksKeys.personalStages(), 'list');
   batcher.push(tasksKeys.stages(), 'list');
-  batcher.push([...tasksKeys.all, 'branch'], 'list');
+  batcher.push(tasksKeys.branchAll(), 'list');
 }

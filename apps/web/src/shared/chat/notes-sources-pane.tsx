@@ -3,7 +3,7 @@ import type { VaultItemType } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { Empty, EmptyTitle } from '@nodus/ui/components/empty';
 
-import { useConversations } from './api.js';
+import { useConversations } from './chat-queries.js';
 import { ConversationAvatar } from './conversation-avatar.js';
 import type { NotesSourceId } from './notes-flow.js';
 import { useFavoriteSources } from './vault-api.js';

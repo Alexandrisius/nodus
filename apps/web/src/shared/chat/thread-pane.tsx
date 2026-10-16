@@ -1,4 +1,4 @@
-import { Fragment, memo, useCallback, useMemo, useRef, useEffect } from 'react';
+import { Fragment, memo, useMemo, useRef, useEffect } from 'react';
 import { ArrowLeft, Eye, EyeOff, X } from 'lucide-react';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
@@ -16,18 +16,14 @@ import {
 
 import { useAuthStore } from '../auth-store.js';
 import { withoutPatronymic } from '../lib/format.js';
-import { useSendChatMessage, useThreadMessages, useThreadStates, useWatchThread } from './api.js';
+import { useThreadMessages, useThreadStates } from './chat-queries.js';
+import { useWatchThread } from './conversation-actions.js';
 import { ChatComposer } from './chat-composer.js';
-import type { ComposerSubmit } from './composer-submit.js';
 import { ChatMessageItem } from './chat-message.js';
 import { acquireOpenConversation } from './notifications.js';
 import { addFiles } from './composer-files.js';
-import { toSendVars } from './composer-submit.js';
-import { registerScopeSubmit } from './submit-registry.js';
-import { startMessageEdit, toEditVars } from './message-edit.js';
 import { DayChip } from './day-chip.js';
 import { FeedDropzone } from './feed-dropzone.js';
-import { useEditMessage } from './message-mutations.js';
 import { MessageMenu } from './message-menu.js';
 import { MessageRow } from './message-row.js';
 import { buildMessageRuns, formatDayLabel, startsNewDay } from './message-groups.js';
@@ -37,11 +33,12 @@ import { useFeedViewportRead } from './use-viewport-read.js';
 import { useIncomingFollow } from './use-incoming-follow.js';
 import { useBoxSelection } from './use-box-selection.js';
 import { ConversationViewsLine } from './views-line.js';
-import { useConversations } from './api.js';
+import { useConversations } from './chat-queries.js';
 import { typingKey, useTypingStore } from '../socket/typing-store.js';
 import { ScrollEndResponder } from './scroll-end-responder.js';
 import { useHistoryLoader } from './use-history-loader.js';
 import { JumpResponder } from './use-jump-responder.js';
+import { useFeedSubmit } from './use-feed-submit.js';
 // >300 строк — обоснование (I5, валидатор #164): окно треда — шапка
 // (наблюдение/печать/закрытие), корневой пост + лента ответов на run-grid
 // и композер в одном колонке-хосте; деление размыло бы поток колонки.
@@ -94,8 +91,6 @@ export const ThreadPane = memo(function ThreadPane({
   // закрытие окна треда не гасит признак, пока жива лента беседы.
   useEffect(() => acquireOpenConversation(conversationId), [conversationId]);
   const { data, isLoading } = useThreadMessages(conversationId, threadRootId);
-  const send = useSendChatMessage(conversationId, scope);
-  const edit = useEditMessage(conversationId, scope);
   // Guardrail молнии (#177): размер беседы треда = размеру беседы.
   const me = useAuthStore((s) => s.user);
   // Наблюдение и точка «есть новые» (раунд 3): состояния трэдов текущего
@@ -148,48 +143,15 @@ export const ThreadPane = memo(function ThreadPane({
     enabled: !isLoading && items.length > 0,
   });
 
-  const lastMine = useCallback(
-    () =>
-      [...items]
-        .reverse()
-        .find((m) => m.author.id === me?.id && !m.deletedAt && !m.forwardedFrom && m.seq > 0),
-    [items, me?.id],
-  );
-
-  function handleSubmit(submit: ComposerSubmit) {
-    if (submit.edit) {
-      const vars = toEditVars(submit);
-      if (vars) edit.mutate(vars);
-      return;
-    }
-    send.mutate({ ...toSendVars(submit), threadRootId });
-  }
-
-  // Окно отправки вложений (#144): отправка через хук хоста (треда — с
-  // threadRootId), оптимистичность/reply не дублируются в диалоге.
-  // send/edit — новый объект каждый рендер: стабильные колбэки через ref;
-  // правка окна (#188) маршрутизируется сюда же (editComposition).
-  const sendRef = useRef(send);
-  sendRef.current = send;
-  const editRef = useRef(edit);
-  editRef.current = edit;
-  useEffect(
-    () =>
-      registerScopeSubmit(scope, (submit) => {
-        if (submit.edit) {
-          const vars = toEditVars(submit);
-          return vars ? editRef.current.mutateAsync(vars) : Promise.resolve();
-        }
-        return sendRef.current.mutateAsync({ ...toSendVars(submit), threadRootId });
-      }),
-    [scope, threadRootId],
-  );
-
-  function handleEditLast() {
-    const message = lastMine();
-    if (!message) return;
-    startMessageEdit(scope, message);
-  }
+  // Протокол хоста ленты (ответы — в тред threadRootId): отправка/правка,
+  // submit окна вложений, ↑-правка последнего своего — use-feed-submit.ts.
+  const { handleSubmit, handleEditLast } = useFeedSubmit({
+    conversationId,
+    scope,
+    threadRootId,
+    items,
+    meId: me?.id,
+  });
 
   /** Корень треда — ВНЕ серий: полный набор (имя чужое, аватар и хвостик —
    *  свой слот, avatarSlot="avatar"); серия канона здесь не работает. */

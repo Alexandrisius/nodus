@@ -9,7 +9,7 @@ import { NodeLabel } from '@nodus/ui/components/node-label';
 
 import { formatDate, plural, withoutPatronymic } from '../lib/format.js';
 import { PersonAvatar } from '../ui/person-avatar.js';
-import { useConversationMessages } from './api.js';
+import { useConversationMessages } from './chat-queries.js';
 import { conversationTitle } from './conversations.js';
 
 /**

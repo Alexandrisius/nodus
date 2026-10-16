@@ -9,7 +9,7 @@ import { createElement, type ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ConversationListItem, Paginated } from '@nodus/contracts';
 
-import { chatKeys } from './api.js';
+import { chatKeys } from './chat-keys.js';
 import { useRenameConversation } from './manage-api.js';
 
 /**

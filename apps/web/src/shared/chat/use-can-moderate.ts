@@ -1,7 +1,7 @@
 import { Permission } from '@nodus/contracts';
 
 import { useAuthStore } from '../auth-store.js';
-import { useConversations } from './api.js';
+import { useConversations } from './chat-queries.js';
 
 /**
  * #245: видимость модераторского «Удалить» на ЧУЖИХ сообщениях — админ/

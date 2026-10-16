@@ -23,6 +23,12 @@ export function emitTyping(conversationId: string, threadRootId?: string | null)
   if (now - last < EMIT_THROTTLE_MS) {
     return;
   }
+  // Отметки старше окна троттла ничего не значат (отсутствие = «можно слать»):
+  // вычищаем их на каждом пропущенном эмите — карта не растёт бессрочно по
+  // всем беседам/тредам сессии, поведение троттла не меняется.
+  for (const [staleKey, at] of lastEmitAt) {
+    if (now - at >= EMIT_THROTTLE_MS) lastEmitAt.delete(staleKey);
+  }
   lastEmitAt.set(key, now);
   socket.emit(REALTIME_EVENTS.TYPING, {
     conversationId,

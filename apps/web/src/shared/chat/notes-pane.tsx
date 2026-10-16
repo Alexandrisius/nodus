@@ -13,13 +13,10 @@ import { MessageGroup } from '@nodus/ui/components/message';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { useAuthStore } from '../auth-store.js';
-import { useConversationMessages, useConversations, useSendChatMessage } from './api.js';
+import { useConversationMessages, useConversations } from './chat-queries.js';
 import { ChatComposer } from './chat-composer.js';
-import type { ComposerSubmit } from './composer-submit.js';
 import type { ComposerSelection } from './selection-island.js';
 import { DayChip } from './day-chip.js';
-import { toEditVars } from './message-edit.js';
-import { useEditMessage } from './message-mutations.js';
 import { toFavoriteMessage } from './favorite-message.js';
 import { ensureOlderPage } from './messages-history.js';
 import { useFavorites } from './favorites-api.js';
@@ -37,14 +34,13 @@ import { MessageRunView } from './message-run.js';
 import { notesSelectionIds, mergeNotesFlow, splitNotesSelection } from './notes-flow.js';
 import { reconcileServerDraft } from './draft-sync.js';
 import { acquireOpenConversation } from './notifications.js';
-import { registerScopeSubmit } from './submit-registry.js';
-import { toSendVars } from './composer-submit.js';
 import { useFeedSelection } from './use-feed-selection.js';
 import { useBoxSelection } from './use-box-selection.js';
 import { useDeleteDialog, useForwardDialog } from './dialog-stores.js';
 import { copyMessagesAsText } from './use-selection-keys.js';
 import { useSelectionStore } from './selection-store.js';
 import { cn } from '@nodus/ui/lib/utils';
+import { useFeedSubmit } from './use-feed-submit.js';
 
 /**
  * Витрина «Избранного» (#171, ревизия 04.10): беседа с собой = плоский
@@ -76,7 +72,6 @@ export function NotesPane({ conversationId }: { conversationId: string }) {
   const messagesQuery = useConversationMessages(conversationId);
   const favoritesQuery = useFavorites();
   const optimisticLabels = useOptimisticFavoriteLabels((s) => s.labels);
-  const send = useSendChatMessage(conversationId, scope);
 
   const messages = useMemo(
     () => (messagesQuery.data?.items ?? []).filter((m) => !m.deletedAt),
@@ -120,13 +115,16 @@ export function NotesPane({ conversationId }: { conversationId: string }) {
   // Догрузка истории витрины при прокрутке вверх (#307): записи — курсором
   // ленты заметок, карточки — следующей страницей избранного; поток
   // пересобирается mergeNotesFlow, компенсация скролла — общая.
+  // Поля деструктурированы: вызов favoritesQuery.fetchNextPage() — метод
+  // объекта результата (новый на каждый рендер), deps по полям линтер не
+  // признаёт; fetchNextPage TanStack привязан к наблюдателю и стабилен.
+  const { hasNextPage: favoritesHasNext, fetchNextPage: fetchFavoritesPage } = favoritesQuery;
   const fetchFavoritesNext = useCallback(() => {
-    if (!favoritesQuery.hasNextPage) return Promise.resolve(false);
-    return favoritesQuery
-      .fetchNextPage()
+    if (!favoritesHasNext) return Promise.resolve(false);
+    return fetchFavoritesPage()
       .then(() => true)
       .catch(() => false);
-  }, [favoritesQuery.hasNextPage, favoritesQuery.fetchNextPage]);
+  }, [favoritesHasNext, fetchFavoritesPage]);
   const { topSentinel } = useHistoryLoader({
     conversationId,
     viewportRef,
@@ -200,34 +198,9 @@ export function NotesPane({ conversationId }: { conversationId: string }) {
   // Правка в Заметках (#188, находка живой пробы): сообщения витрины — свои,
   // «Редактировать» в меню предлагается — хост обязан маршрутизировать правку
   // (раньше submit уходил отправкой НОВОГО сообщения). Окно правки вложений
-  // идёт через реестр с составом (editComposition).
-  const edit = useEditMessage(conversationId, scope);
-  const editRef = useRef(edit);
-  editRef.current = edit;
-  // Реестр окна вложений (#144): стабильный колбэк по scope (send/edit — новый
-  // объект каждый рендер; mutate стабилен, ref держит актуальный).
-  const sendRef = useRef(send);
-  sendRef.current = send;
-  useEffect(
-    () =>
-      registerScopeSubmit(scope, (submit: ComposerSubmit) => {
-        if (submit.edit) {
-          const vars = toEditVars(submit);
-          return vars ? editRef.current.mutateAsync(vars) : Promise.resolve();
-        }
-        return sendRef.current.mutateAsync(toSendVars(submit));
-      }),
-    [scope],
-  );
-
-  function handleSubmit(submit: ComposerSubmit) {
-    if (submit.edit) {
-      const vars = toEditVars(submit);
-      if (vars) edit.mutate(vars);
-      return;
-    }
-    send.mutate(toSendVars(submit));
-  }
+  // идёт через реестр с составом (editComposition) — use-feed-submit.ts;
+  // ↑-правки в витрине нет.
+  const { handleSubmit } = useFeedSubmit({ conversationId, scope });
 
   return (
     <div className="relative flex h-full min-w-0 flex-1 flex-col">

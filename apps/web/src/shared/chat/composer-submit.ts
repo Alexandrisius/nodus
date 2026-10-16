@@ -1,4 +1,4 @@
-import type { SendChatVars } from './api.js';
+import type { SendChatVars } from './send-message.js';
 import type { EditDraft, PendingAttachment, ReplyDraft } from './chat-drafts.js';
 import type { StickerSubmitPayload } from './sticker-api.js';
 import { toReplyPreview } from './reply-snapshot.js';

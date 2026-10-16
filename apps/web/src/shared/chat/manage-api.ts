@@ -4,7 +4,7 @@ import type { ConversationListItem, ConversationMember, Paginated } from '@nodus
 import { toast } from 'sonner';
 
 import { ApiError, api } from '../api-client.js';
-import { chatKeys } from './api.js';
+import { chatKeys } from './chat-keys.js';
 import { uploadAvatar } from './avatar-upload.js';
 
 /**

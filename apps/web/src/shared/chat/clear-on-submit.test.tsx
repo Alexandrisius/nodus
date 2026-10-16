@@ -5,7 +5,7 @@ import type { ChatMessage, MessageAttachment, ReplyPreview } from '@nodus/contra
 import { createElement, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useSendChatMessage } from './api.js';
+import { useSendChatMessage } from './send-message.js';
 import { useAuthStore } from '../auth-store.js';
 import { ChatComposer } from './chat-composer.js';
 import { useChatDrafts, type ChatDraft } from './chat-drafts.js';

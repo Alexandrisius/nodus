@@ -1,6 +1,5 @@
 import { Paperclip } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import type { MessageAttachment } from '@nodus/contracts';
+import { useRef, useState } from 'react';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import {
@@ -13,36 +12,18 @@ import {
 import { Textarea } from '@nodus/ui/components/textarea';
 
 import { plural } from '../lib/format.js';
+import { attachPreviewImages, hasAttachPreview } from './attach-preview.js';
 import { AttachSendRow } from './attach-send-row.js';
-import { messageLimitState, type ComposerSubmit } from './composer-submit.js';
-import { EMPTY_DRAFT, useChatDrafts, type PendingAttachment } from './chat-drafts.js';
-import { addFiles, cancelUpload, removePending, replaceFile } from './composer-files.js';
-import { MentionFieldOverlay, type MentionHit } from './composer-mention-overlay.js';
-import {
-  applyEditToMentions,
-  fromWireText,
-  insertMentionDraft,
-  mentionIndexAtKey,
-  mentionIndexAtOffset,
-  removeMentionDraft,
-  replaceMentionLabelDraft,
-  toWireText,
-  type DraftMention,
-} from './composer-mention-registry.js';
-import {
-  MentionAutocompletePanel,
-  mentionAutocompleteKeydown,
-  useComposerMentions,
-} from './composer-mention-autocomplete.js';
-import { cancelMessageEdit } from './message-edit.js';
+import { EMPTY_DRAFT, useChatDrafts } from './chat-drafts.js';
+import { addFiles, replaceFile } from './composer-files.js';
+import { MentionFieldOverlay } from './composer-mention-overlay.js';
+import { MentionAutocompletePanel } from './composer-mention-autocomplete.js';
 import { useAttachSendDialog } from './dialog-stores.js';
 import { ImageLightbox } from './image-lightbox.js';
 import { ComposerBanner } from './composer-banner.js';
-import type { ReplyDraft } from './reply-snapshot.js';
-import { useScrollEndStore } from './scroll-end-store.js';
-import { scopeConversationOf } from './scope-conversations.js';
 import { isSendShortcut } from './send-keys.js';
-import { submitForScope } from './submit-registry.js';
+import { useAttachSend } from './use-attach-send.js';
+import { useCaptionMentions } from './use-caption-mentions.js';
 
 /**
  * Окно отправки вложений (#144, референсы Telegram/Bitrix, вердикт владельца
@@ -70,26 +51,16 @@ import { submitForScope } from './submit-registry.js';
  * композере). На полёте отправки цитата живёт снапшотом flightReply — как
  * строки flightItems (#248).
  */
+// Подпись с @упоминаниями — use-caption-mentions.ts, отправка/отмена —
+// use-attach-send.ts, превью — attach-preview.ts; здесь — разметка окна и
+// супер-курсор.
+
 export function AttachSendDialogHost() {
   const scope = useAttachSendDialog((s) => s.scope);
   const close = useAttachSendDialog((s) => s.close);
   const caption = useAttachSendDialog((s) => s.caption);
   const setCaption = useAttachSendDialog((s) => s.setCaption);
   const draft = useChatDrafts((s) => (scope ? (s.drafts[scope] ?? EMPTY_DRAFT) : EMPTY_DRAFT));
-  // Строки на полёте отправки (#248): хост чистит черновик на САБМИТЕ — окно
-  // держит снятый ДО отправки состав (кнопка нажата, отмена выключена) до
-  // исхода; на ошибке мутация возвращает вложения в черновик и строки снова
-  // живые (файлы и подпись не теряются, повтор возможен, #144).
-  const [flightItems, setFlightItems] = useState<PendingAttachment[] | null>(null);
-  const items = flightItems ?? draft.attachments;
-  // Плашка ответа на полёте (#288): тот же снапшот-паттерн, что у строк —
-  // черновик чистится сабмитом, цитата держится до исхода и не мигает.
-  const [flightReply, setFlightReply] = useState<ReplyDraft | null>(null);
-  const shownReply = flightReply ?? draft.reply;
-  // Режим правки (#188): окно редактирует существующее сообщение — текст и
-  // состав; «Сохранить» = PATCH с полным составом, отмена не трогает сообщение.
-  const editMode = draft.edit !== null;
-  const [sending, setSending] = useState(false);
   const [lightbox, setLightbox] = useState<number | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   // «Заменить вложение» (#188): строка, на которую подменяет следующий
@@ -104,53 +75,16 @@ export function AttachSendDialogHost() {
   const draggingRef = useRef<string | null>(null);
   const captionRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  // Локальный реестр чипов подписи (#239): видимый текст — в сторе окна,
-  // привязки id — здесь; открытие сеет из wire, правки — диффом registry.
-  const [mentionList, setMentionList] = useState<DraftMention[]>([]);
-  // Свежий срез реестра для обработчиков вне рендера (эффект закрытия).
-  const mentionListRef = useRef<DraftMention[]>([]);
-  mentionListRef.current = mentionList;
-  const [editToken, setEditToken] = useState<MentionHit | null>(null);
-  // Состав участников для автокомплита (#239): scope треда не несёт id
-  // беседы — карту ведёт смонтированный композер хоста.
-  const conversationId = useMemo(() => (scope ? scopeConversationOf(scope) : undefined), [scope]);
-  const mentions = useComposerMentions({
-    conversationId,
-    text: caption,
-    inputRef: captionRef,
-    insertMention: (atStart, atEnd, id, label) => {
-      const res = insertMentionDraft(caption, mentionList, atStart, atEnd, id, label);
-      if (!res) return null;
-      setCaption(res.text);
-      setMentionList(res.mentions);
-      return res.caret;
-    },
-  });
-
-  // Открытие окна (#239): подпись приходит WIRE-текстом (черновик композера
-  // при отправке, правимое сообщение — при правке) — разбирается в видимый
-  // текст + реестр чипов; закрытие гасит реестр.
-  useEffect(() => {
-    if (scope === null) {
-      setMentionList([]);
-      return;
-    }
-    const parsed = fromWireText(useAttachSendDialog.getState().caption);
-    setCaption(parsed.text);
-    setMentionList(parsed.mentions);
-  }, [scope, setCaption]);
-
-  /** Правка подписи: текст — в стор окна, реестр — диффом registry (#228). */
-  function handleCaptionChange(next: string) {
-    setMentionList((prev) => applyEditToMentions(prev, caption, next));
-    setCaption(next);
-  }
-
-  /** Wire-подпись окна (#239): отправка/возврат черновику идут в разметке.
-   *  Читает СТОР и ref — эффект закрытия живёт вне рендеров подписи. */
-  function captionWire(): string {
-    return toWireText(useAttachSendDialog.getState().caption, mentionListRef.current);
-  }
+  const captionMentions = useCaptionMentions({ scope, caption, setCaption, captionRef });
+  const { mentions, mentionList, editToken } = captionMentions;
+  const { items, shownReply, editMode, sending, uploading, limit, canSend, cancelAll, send } =
+    useAttachSend({
+      scope,
+      draft,
+      caption,
+      close,
+      mentionListRef: captionMentions.mentionListRef,
+    });
 
   function handleRenameMode(active: boolean) {
     setRenameActive(active);
@@ -159,168 +93,18 @@ export function AttachSendDialogHost() {
 
   // Картинки окна — локальные objectURL новых загрузок ИЛИ серверные
   // превью строк правимого сообщения (#188); лайтбокс смотрит их же.
-  const previewImages: MessageAttachment[] = items.flatMap((item): MessageAttachment[] => {
-    if (item.objectUrl) {
-      return [
-        {
-          id: item.localId,
-          fileId: item.attachment?.fileId ?? '',
-          name: item.fileName,
-          size: item.size,
-          mime: item.mime,
-          kind: 'image',
-          url: item.objectUrl,
-          thumbnailUrl: item.objectUrl,
-          previewKind: 'image',
-          pdfUrl: null,
-          width: null,
-          height: null,
-        },
-      ];
-    }
-    // Строка правимого сообщения: DTO с серверными url/превью.
-    return item.attachment ? [{ ...item.attachment, name: item.fileName }] : [];
-  });
+  const previewImages = attachPreviewImages(items);
   const previewIndex = (localId: string) => previewImages.findIndex((p) => p.id === localId);
-  const hasPreview = (item: (typeof items)[number]) =>
-    Boolean(item.objectUrl || item.attachment?.thumbnailUrl || item.attachment?.url);
-
-  // Отправка встала (хост очистил черновик на сабмите, #248) или вложения
-  // сняты все до одной — окно закрывается само. Снятие последней строки =
-  // отмена: подпись возвращается черновиком в композер (валидатор #144:
-  // текст не должен теряться); на пути отправки подпись съедена сообщением.
-  // В режиме ПРАВКИ (#188) пустой состав — легальное состояние (сообщение с
-  // одним текстом): окно не закрывается, edit сбрасывается только сохранением.
-  useEffect(() => {
-    if (scope && items.length === 0 && !editMode) {
-      if (!sending) {
-        // Возврат неотправленной подписи — wire-текстом (#239: чипы живы).
-        const leftover = captionWire();
-        if (leftover) useChatDrafts.getState().restoreFromWire(scope, leftover);
-      }
-      setSending(false);
-      close();
-    }
-  }, [scope, items.length, editMode, sending, close]);
 
   if (!scope) return null;
 
-  const uploading = items.some((item) => item.status === 'uploading');
-  const errored = items.some((item) => item.status === 'error');
-  // Лимит — по WIRE-длине (отправляемое = измеряемое, канон композера #228).
-  const limit = messageLimitState(captionWire().length);
-  const readyCount = items.filter((item) => item.status === 'ready').length;
-  const canSend =
-    (editMode ? caption.trim().length > 0 || readyCount > 0 : items.length > 0) &&
-    !uploading &&
-    !errored &&
-    !limit.over &&
-    !sending;
-
-  /** Клавиатура подписи (#239): атомарное удаление чипа + автокомплит —
-   *  канон композера (composer-keydown); Enter выбирает кандидата (НЕ
-   *  отправляет), ↑↓ по списку, Esc гасит панель; отправка — как было. */
+  /** Клавиатура подписи (#239): упоминания (чипы/автокомплит) — хук
+   *  подписи; отправка — как было. */
   function handleCaptionKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (
-      (event.key === 'Backspace' || event.key === 'Delete') &&
-      !event.ctrlKey &&
-      !event.metaKey &&
-      !event.altKey
-    ) {
-      const el = event.currentTarget;
-      if (el.selectionStart === el.selectionEnd) {
-        const index = mentionIndexAtKey(mentionList, el.selectionStart ?? 0, event.key);
-        if (index !== null) {
-          const start = mentionList[index]!.start;
-          event.preventDefault();
-          const res = removeMentionDraft(caption, mentionList, index);
-          setCaption(res.text);
-          setMentionList(res.mentions);
-          requestAnimationFrame(() => el.setSelectionRange(start, start));
-          return;
-        }
-      }
-    }
-    const eaten = mentionAutocompleteKeydown(
-      event,
-      {
-        open: mentions.open,
-        count: mentions.autocomplete.candidates.length,
-        active: mentions.autocomplete.active,
-        setActive: mentions.autocomplete.setActive,
-      },
-      mentions.pick,
-      mentions.dismiss,
-    );
-    if (eaten) return;
+    if (captionMentions.handleMentionKeyDown(event)) return;
     if (isSendShortcut(event.key, event.shiftKey, event.ctrlKey)) {
       event.preventDefault();
       void send();
-    }
-  }
-
-  /** Отмена (Esc/«Отмена»): правка — сообщение не тронуто (исходные строки
-   *  отвязаны только локально, новые загрузки сняты, текст композера
-   *  восстановлен); отправка — загрузки сняты, готовые объекты удалены,
-   *  подпись возвращается черновиком в композер (канон Telegram). */
-  function cancelAll() {
-    // В полёте отправки отмена выключена (валидатор #144): DELETE готовых
-    // вложений при уходящем сообщении ломал бы отправку.
-    if (!scope || sending) return;
-    if (draft.edit) {
-      cancelMessageEdit(scope);
-      close();
-      return;
-    }
-    // Возврат подписи черновику — WIRE-текстом через restoreFromWire (#239):
-    // чипы упоминаний восстанавливаются в реестр композера, не теряются.
-    const wire = captionWire();
-    if (wire) useChatDrafts.getState().restoreFromWire(scope, wire);
-    const current = (useChatDrafts.getState().drafts[scope] ?? EMPTY_DRAFT).attachments;
-    for (const item of current) {
-      if (item.status === 'uploading') cancelUpload(scope, item.localId);
-      else removePending(scope, item.localId);
-    }
-    useChatDrafts.getState().clearAttachments(scope);
-    close();
-  }
-
-  async function send() {
-    if (!scope || !canSend) return;
-    const payload: ComposerSubmit = {
-      // Wire-текст (#239): чипы подписи уходят токенами @[имя](user:id).
-      text: captionWire().trim(),
-      attachments: items,
-      reply: draft.reply,
-      edit: draft.edit,
-      editComposition: editMode,
-    };
-    const promise = submitForScope(scope, payload);
-    if (!promise) return;
-    // Состав снимается ДО первого рендера после сабмита (#248): черновик
-    // чистится синхронно внутри submitForScope — без снапшота строки
-    // мигнули бы пустыми на полёте.
-    setFlightItems(items);
-    setFlightReply(draft.reply);
-    setSending(true);
-    if (!editMode) {
-      // Своё сообщение видно с любой позиции скролла (вердикт 24.09); правка
-      // сообщения на месте скролл не двигает.
-      useScrollEndStore.getState().request(scope, 'smooth');
-    }
-    try {
-      await promise;
-      // Подпись съедена сообщением: в поле через закрывающий эффект она не
-      // возвращается (тот возвращает только подпись ОТМЕНЁННОЙ отправки).
-      useAttachSendDialog.getState().setCaption('');
-    } catch {
-      // Тост сетевой ошибки — от мутации хоста; окно остаётся открытым:
-      // вложения и ответ восстановлены в черновик onError (#248), подпись
-      // жива — повтор возможен (#144).
-    } finally {
-      setFlightItems(null);
-      setFlightReply(null);
-      setSending(false);
     }
   }
 
@@ -474,7 +258,7 @@ export function AttachSendDialogHost() {
                 setDraggingId(null);
               }}
               onPreview={
-                hasPreview(item) ? () => setLightbox(previewIndex(item.localId)) : undefined
+                hasAttachPreview(item) ? () => setLightbox(previewIndex(item.localId)) : undefined
               }
             />
           ))}
@@ -501,19 +285,10 @@ export function AttachSendDialogHost() {
             mentions={mentionList}
             textareaRef={captionRef}
             editToken={editToken}
-            onRename={(index, label) => {
-              const res = replaceMentionLabelDraft(caption, mentionList, index, label);
-              if (!res) return;
-              setCaption(res.text);
-              setMentionList(res.mentions);
-            }}
-            onRemove={(index) => {
-              const res = removeMentionDraft(caption, mentionList, index);
-              setCaption(res.text);
-              setMentionList(res.mentions);
-            }}
+            onRename={captionMentions.renameMention}
+            onRemove={captionMentions.removeMention}
             onEditClose={() => {
-              setEditToken(null);
+              captionMentions.setEditToken(null);
               const el = captionRef.current;
               if (el) mentions.syncCaret(el);
             }}
@@ -522,7 +297,7 @@ export function AttachSendDialogHost() {
             ref={captionRef}
             value={caption}
             onChange={(event) => {
-              handleCaptionChange(event.target.value);
+              captionMentions.handleCaptionChange(event.target.value);
               mentions.syncCaret(event.target);
             }}
             onPaste={(event) => {
@@ -534,14 +309,8 @@ export function AttachSendDialogHost() {
               addFiles(scope, files);
             }}
             onKeyUp={(event) => mentions.syncCaret(event.currentTarget)}
-            onClick={(event) => {
-              // Клик по чипу — поповер правки label (#228, как композер).
-              const el = event.currentTarget;
-              const offset = el.selectionStart ?? 0;
-              const index = mentionIndexAtOffset(mentionList, offset);
-              setEditToken(index === null ? null : { ...mentionList[index]!, index });
-              mentions.syncCaret(el);
-            }}
+            // Клик по чипу — поповер правки label (#228, как композер).
+            onClick={(event) => captionMentions.handleCaptionClick(event.currentTarget)}
             onKeyDown={handleCaptionKeyDown}
             placeholder={ui.chat.attachCaption}
             rows={2}

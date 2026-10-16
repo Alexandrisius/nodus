@@ -3,7 +3,7 @@ import { Button } from '@nodus/ui/components/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@nodus/ui/components/dialog';
 
 import { useUnpinDialog } from './dialog-stores.js';
-import { usePinToggle } from './message-mutations.js';
+import { usePinToggle } from './pin-mutations.js';
 
 /**
  * Подтверждение открепления (вердикт 24.09: «любое открепление — через

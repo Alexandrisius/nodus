@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { QueryClient } from '@tanstack/react-query';
 import type { ChatMessage } from '@nodus/contracts';
 
-import { chatKeys } from './api.js';
+import { chatKeys } from './chat-keys.js';
 import { applySentMessage } from './ws-apply.js';
 
 /**

@@ -13,6 +13,7 @@ export const wsDebugEnabled: boolean =
 
 export function wsDebugLog(...args: unknown[]): void {
   if (wsDebugEnabled) {
-    console.log('[ws]', ...args);
+    // warn — канон no-console (log запрещён); вывод только под ?wsdebug=1.
+    console.warn('[ws]', ...args);
   }
 }

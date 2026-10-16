@@ -13,7 +13,8 @@ import type { ConversationListItem, VaultItemType } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 
-import { useUpdateConversation, useConversations } from './api.js';
+import { useConversations } from './chat-queries.js';
+import { useUpdateConversation } from './conversation-actions.js';
 import { ConversationAvatar } from './conversation-avatar.js';
 import { conversationTitle } from './conversations.js';
 import { useConversationSubtitle } from './conversation-subtitle.js';

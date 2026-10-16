@@ -6,7 +6,7 @@ import type { ChatMessage, FavoriteCard } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { useQueryClient, type InfiniteData, type QueryClient } from '@tanstack/react-query';
 
-import { chatKeys } from './api.js';
+import { chatKeys } from './chat-keys.js';
 import { useChatDrafts } from './chat-drafts.js';
 import { useConversationOpenStore } from './conversation-open-store.js';
 import { toFavoriteMessage } from './favorite-message.js';

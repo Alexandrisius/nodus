@@ -11,7 +11,7 @@ import {
 
 import { isDomainMocked } from '../api/api-mock-config.js';
 import { useAuthStore } from '../auth-store.js';
-import { chatKeys } from '../chat/api.js';
+import { chatKeys } from '../chat/chat-keys.js';
 import { usePresenceStore } from './presence-store.js';
 import { notifySentMessage } from '../chat/notifications.js';
 import { notifyDesktopMessage } from '../desktop/desktop-notify.js';

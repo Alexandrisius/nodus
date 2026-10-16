@@ -2,7 +2,7 @@ import type { QueryClient } from '@tanstack/react-query';
 import type { ChatMessage, Paginated } from '@nodus/contracts';
 
 import { api } from '../api-client.js';
-import { chatKeys } from './api.js';
+import { chatKeys } from './chat-keys.js';
 import type { HistoryPage } from './feed-merge.js';
 
 /**
@@ -10,7 +10,7 @@ import type { HistoryPage } from './feed-merge.js';
  * nextCursor текущей страницы — серверная граница «самое старое загруженное»)
  * преппендится в ТОТ ЖЕ плоский кэш, форма не меняется. Бэк полностью готов
  * (beforeSeq, ASC, трэды — корень только на первой странице). Первое окно —
- * limit=100 (api.ts), дальше — страничками по 50 (модель Telegram).
+ * limit=100 (chat-queries.ts), дальше — страничками по 50 (модель Telegram).
  */
 
 /** Размер страницы догрузки. */

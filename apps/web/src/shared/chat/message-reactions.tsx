@@ -3,7 +3,7 @@ import { cn } from '@nodus/ui/lib/utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@nodus/ui/components/tooltip';
 
 import { shortPersonName } from '../lib/format.js';
-import { useReactionToggle } from './message-mutations.js';
+import { useReactionToggle } from './reaction-mutations.js';
 import { ReactionGlyph } from './reaction-glyph.js';
 import { PersonAvatar } from '../ui/person-avatar.js';
 

@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ChatMessage, Paginated, UserRef } from '@nodus/contracts';
 
 import { useAuthStore } from '../auth-store.js';
-import { chatKeys } from './api.js';
+import { chatKeys } from './chat-keys.js';
 import { ReactionPicker } from './reaction-picker.js';
 
 /**

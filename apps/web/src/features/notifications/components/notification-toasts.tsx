@@ -3,7 +3,7 @@ import { useEffect, useRef } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { ui } from '@nodus/contracts';
 
-import { useConversations } from '../../../shared/chat/api.js';
+import { useConversations } from '../../../shared/chat/chat-queries.js';
 import { MentionSnippet } from '../../../shared/chat/mention-chip.js';
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
 import { useNotificationsToastStore } from '../model/toast-store.js';

@@ -6,7 +6,7 @@ import { cn } from '@nodus/ui/lib/utils';
 
 import { formatDayLabel } from './message-groups.js';
 import { FavoriteHitRow } from './favorite-hit-row.js';
-import { useConversationMessages } from './api.js';
+import { useConversationMessages } from './chat-queries.js';
 import { useFavoriteLabels, useFavorites } from './favorites-api.js';
 import { useJumpStore } from './jump-store.js';
 import { filterNotesFlow, mergeNotesFlow, type NotesFilter } from './notes-flow.js';

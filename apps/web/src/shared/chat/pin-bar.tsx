@@ -6,7 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@nodus/ui/components/po
 import { cn } from '@nodus/ui/lib/utils';
 
 import { formatTime, withoutPatronymic } from '../lib/format.js';
-import { usePins } from './message-mutations.js';
+import { usePins } from './pin-mutations.js';
 
 import { useUnpinDialog } from './dialog-stores.js';
 import { useJumpStore } from './jump-store.js';

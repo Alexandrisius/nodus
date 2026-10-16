@@ -14,7 +14,7 @@ import {
 import { cn } from '@nodus/ui/lib/utils';
 
 import { useAuthStore } from '../auth-store.js';
-import { useConversationMessages, useConversations } from './api.js';
+import { useConversationMessages, useConversations } from './chat-queries.js';
 import { DayChip } from './day-chip.js';
 import { toFavoriteMessage } from './favorite-message.js';
 import { useFavorites, useRemoveFavorite } from './favorites-api.js';

@@ -1,5 +1,5 @@
 import { Camera, ChevronDown, Plus, X } from 'lucide-react';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ConversationListItem, ConversationMemberRole, UserListItem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
@@ -175,10 +175,19 @@ export function ChatCreateDialog({
   // загружается ПОСЛЕ создания беседы (multipart на :id/avatar, право
   // changeInfo у создателя-owner есть всегда).
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
-  const avatarPreview = useMemo(
-    () => (avatarFile ? URL.createObjectURL(avatarFile) : null),
-    [avatarFile],
-  );
+  // Превью — blob-URL с жизненным циклом эффекта: смена/сброс файла и
+  // закрытие окна ревочат прежний URL (useMemo создавал URL без revoke —
+  // утечка blob на каждый выбор; StrictMode-повтор эффекта создаёт свежий).
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  useEffect(() => {
+    if (!avatarFile) {
+      setAvatarPreview(null);
+      return;
+    }
+    const url = URL.createObjectURL(avatarFile);
+    setAvatarPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [avatarFile]);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const [submitting, setSubmitting] = useState(false);
   const [memberIds, setMemberIds] = useState<string[]>([]);

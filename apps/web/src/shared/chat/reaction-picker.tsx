@@ -5,7 +5,7 @@ import { ui } from '@nodus/contracts';
 import { Popover, PopoverAnchor, PopoverContent } from '@nodus/ui/components/popover';
 import { cn } from '@nodus/ui/lib/utils';
 
-import { useReactionToggle } from './message-mutations.js';
+import { useReactionToggle } from './reaction-mutations.js';
 import { ReactionGlyph } from './reaction-glyph.js';
 import { REACTION_BASE, REACTION_MORE, REACTION_QUICK } from './reaction-presets.js';
 

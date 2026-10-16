@@ -11,16 +11,13 @@ import {
 } from '@nodus/ui/components/dialog';
 import { useQueryClient, type InfiniteData } from '@tanstack/react-query';
 
-import { chatKeys } from './api.js';
+import { chatKeys } from './chat-keys.js';
 import { plural } from '../lib/format.js';
 import { useDeleteDialog } from './dialog-stores.js';
 import { favoriteKeys, useNotesConversationId, useRemoveFavorite } from './favorites-api.js';
 import { splitNotesSelection } from './notes-flow.js';
-import {
-  cachedHasLiveReplies,
-  useBatchDeleteMessages,
-  useDeleteMessage,
-} from './message-mutations.js';
+import { useBatchDeleteMessages, useDeleteMessage } from './delete-message-mutations.js';
+import { cachedHasLiveReplies } from './message-cache.js';
 import { useSelectionStore } from './selection-store.js';
 
 /**

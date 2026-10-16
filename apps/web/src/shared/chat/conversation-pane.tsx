@@ -13,19 +13,14 @@ import type { ConversationListItem } from '@nodus/contracts';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { useAuthStore } from '../auth-store.js';
-import { useConversationMessages, useConversations, useSendChatMessage } from './api.js';
+import { useConversationMessages, useConversations } from './chat-queries.js';
 import { ChatComposer } from './chat-composer.js';
-import type { ComposerSubmit } from './composer-submit.js';
 import { ChatMessageItem } from './chat-message.js';
 import { acquireOpenConversation } from './notifications.js';
-import { registerScopeSubmit } from './submit-registry.js';
-import { startMessageEdit, toEditVars } from './message-edit.js';
 import { addFiles } from './composer-files.js';
-import { toSendVars } from './composer-submit.js';
 import { DayChip } from './day-chip.js';
 import { FeedDropzone } from './feed-dropzone.js';
 import { FeedScrollerButton } from './feed-scroller-button.js';
-import { useEditMessage } from './message-mutations.js';
 import { MessageMenu } from './message-menu.js';
 import { MessageRow } from './message-row.js';
 import { buildMessageRuns, formatDayLabel, startsNewDay } from './message-groups.js';
@@ -43,6 +38,7 @@ import { useBoxSelection } from './use-box-selection.js';
 import { reconcileServerDraft } from './draft-sync.js';
 import { JumpResponder } from './use-jump-responder.js';
 import { useJumpStore } from './jump-store.js';
+import { useFeedSubmit } from './use-feed-submit.js';
 // >300 строк — обоснование (I5): лента беседы — якорь открытия (раунд 4),
 // селект/рамка/прочтения/jump-резиденты в одном потоке; серия вынесена
 // в message-run.tsx, оставшееся — хост-обвязка, деление размыло бы её.
@@ -192,8 +188,6 @@ function ConversationFeed({
   // анмаунт одного хоста не гасит признак, пока жив другой (лента+тред).
   useEffect(() => acquireOpenConversation(conversationId), [conversationId]);
   const { data, isLoading } = useConversationMessages(conversationId);
-  const send = useSendChatMessage(conversationId, scope);
-  const edit = useEditMessage(conversationId, scope);
   const me = useAuthStore((s) => s.user);
 
   // Поиск беседы — правая панель (лупа в шапке, модель Битрикс24): лента
@@ -260,50 +254,14 @@ function ConversationFeed({
     return items.find((m) => m.seq > myLastReadSeq && !m.deletedAt)?.id ?? null;
   }, [items, myLastReadSeq, conversation?.unreadCount]);
 
-  const lastMine = useCallback(
-    () =>
-      [...items]
-        .reverse()
-        .find((m) => m.author.id === me?.id && !m.deletedAt && !m.forwardedFrom && m.seq > 0),
-    [items, me?.id],
-  );
-
-  function handleSubmit(submit: ComposerSubmit) {
-    if (submit.edit) {
-      const vars = toEditVars(submit);
-      if (vars) edit.mutate(vars);
-      return;
-    }
-    send.mutate(toSendVars(submit));
-  }
-
-  // Окно отправки вложений (#144): глобальный диалог шлёт через хук хоста —
-  // оптимистичность/reply/идемпотентность в одном месте; реестр жив, пока
-  // панель смонтирована (режим выделения композер размонтирует, панель —
-  // нет). send/edit — новый объект каждый рендер, реестру нужен стабильный
-  // колбэк: ref, перерегистрация только по scope. Правка через окно (#188)
-  // маршрутизируется сюда же (editComposition — состав вкладений окна).
-  const sendRef = useRef(send);
-  sendRef.current = send;
-  const editRef = useRef(edit);
-  editRef.current = edit;
-  useEffect(
-    () =>
-      registerScopeSubmit(scope, (submit) => {
-        if (submit.edit) {
-          const vars = toEditVars(submit);
-          return vars ? editRef.current.mutateAsync(vars) : Promise.resolve();
-        }
-        return sendRef.current.mutateAsync(toSendVars(submit));
-      }),
-    [scope],
-  );
-
-  function handleEditLast() {
-    const message = lastMine();
-    if (!message) return;
-    startMessageEdit(scope, message);
-  }
+  // Протокол хоста ленты: отправка/правка, submit окна вложений, ↑-правка
+  // последнего своего — use-feed-submit.ts.
+  const { handleSubmit, handleEditLast } = useFeedSubmit({
+    conversationId,
+    scope,
+    items,
+    meId: me?.id,
+  });
 
   return (
     <>
