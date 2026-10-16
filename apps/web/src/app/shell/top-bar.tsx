@@ -7,6 +7,7 @@ import { cn } from '@nodus/ui/lib/utils';
 
 import { HomeGreeting } from '../../features/home/components/home-greeting.js';
 import { BellPopover } from '../../features/notifications/components/bell-popover.js';
+import { RunningTimerChip } from '../../features/tasks/components/running-timer-chip.js';
 import { CIRCUIT_REMEASURE } from './circuit-geometry.js';
 import { DownloadAppButton } from './download-app-button.js';
 import { navModuleForPath } from './nav-registry.js';
@@ -74,6 +75,8 @@ export function TopBar() {
       </nav>
 
       <div className="flex min-w-0 flex-1 items-center justify-end gap-3">
+        {/* Идущий таймер учёта времени (#311) — виден из любого раздела */}
+        <RunningTimerChip />
         {/* Глобальный «Умный поиск» — лупа (та же палитра Ctrl+K); большого
             поля в центре нет — не путается с локальным поиском списков */}
         <Button

@@ -1,14 +1,22 @@
-import { ListChecks, Plus } from 'lucide-react';
+import { ListChecks, Plus, Settings2 } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import { Dialog, DialogContent, DialogTitle } from '@nodus/ui/components/dialog';
 import { Input } from '@nodus/ui/components/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@nodus/ui/components/select';
 import { NodeLabel } from '@nodus/ui/components/node-label';
 import { Textarea } from '@nodus/ui/components/textarea';
 import { toast } from 'sonner';
 
-import { useCreateTask, usePersonalStages } from '../api/task-create.js';
+import { projectsAvailable } from '../api/projects-available.js';
+import { useCreateTask, usePersonalStages, useTaskTypes } from '../api/task-create.js';
 import { useUsersList } from '../api/users-list.js';
 import { useAuthStore } from '../auth-store.js';
 import { DateTimePicker } from '../ui/date-time-picker.js';
@@ -49,6 +57,7 @@ export function TaskQuickCreate({
   const { data: users } = useUsersList();
   // Первая личная колонка — приёмник новых задач (глобальная «Новые»).
   const { data: personalStages } = usePersonalStages();
+  const { data: types } = useTaskTypes();
 
   const [title, setTitle] = useState('');
   const [descriptionOpen, setDescriptionOpen] = useState(false);
@@ -56,6 +65,7 @@ export function TaskQuickCreate({
   const [assigneeId, setAssigneeId] = useState<string | undefined>(meId);
   const [deadline, setDeadline] = useState<Date | null>(null);
   const [projectId, setProjectId] = useState<string | undefined>(undefined);
+  const [typeId, setTypeId] = useState<string | undefined>(undefined);
   const [checklist, setChecklist] = useState<DraftChecklistItem[]>([]);
   const [checklistOpen, setChecklistOpen] = useState(false);
 
@@ -71,6 +81,7 @@ export function TaskQuickCreate({
       setAssigneeId(defaultAssigneeId ?? meId);
       setDeadline(null);
       setProjectId(undefined);
+      setTypeId(undefined);
       setChecklist([]);
       setChecklistOpen(false);
     }
@@ -87,6 +98,7 @@ export function TaskQuickCreate({
         title: title.trim(),
         personalStageId: stage.id,
         ...(projectId ? { projectId } : {}),
+        ...(typeId ? { typeId } : {}),
         ...(description.trim() ? { description: description.trim() } : {}),
         ...(assigneeId ? { assigneeId } : {}),
         ...(deadline ? { deadline: deadline.toISOString() } : {}),
@@ -156,6 +168,39 @@ export function TaskQuickCreate({
               </button>
             )}
             <div className="grid grid-cols-[7.5rem_1fr] items-center gap-x-3 gap-y-2.5">
+              {/* Тип (ADR-0020): ступень 1 — один системный «Задача», выбор
+                  уже здесь — «Разработка/Изменение» ступени 2 встанут сюда же. */}
+              <NodeLabel label={ui.tasks.type} />
+              <Select
+                value={typeId ?? types?.find((t) => t.isSystem)?.id ?? ''}
+                onValueChange={setTypeId}
+              >
+                <SelectTrigger aria-label={ui.tasks.type} className="w-full">
+                  <SelectValue placeholder={ui.tasks.task} />
+                </SelectTrigger>
+                {/* popper — список ПОД полем, как у соседних пикеров формы
+                    (ответственный, срок): режим item-aligned клал единственный
+                    пункт пилюлей прямо поверх значения (фидбек владельца #311). */}
+                <SelectContent position="popper" align="start" sideOffset={4}>
+                  {(types ?? []).map((t) => (
+                    <SelectItem key={t.id} value={t.id} className="py-1.5">
+                      {t.name}
+                    </SelectItem>
+                  ))}
+                  {/* Задел модуля workflow (ступень 2, ADR-0020): настройка
+                      типов и маршрутов откроется отсюда; до редактора — видимая
+                      неактивная команда «скоро» (решение владельца 16.10). */}
+                  <SelectItem
+                    value="__configure"
+                    disabled
+                    className="mt-1 py-1.5 pr-2 *:[span]:last:w-full"
+                  >
+                    <Settings2 className="size-3.5 text-muted-foreground" strokeWidth={1.75} />
+                    {ui.tasks.configureTypes}
+                    <span className="ml-auto text-xs text-muted-foreground">{ui.tasks.soon}</span>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
               <NodeLabel label={ui.tasks.assignee} />
               <FilterCombobox
                 options={(users?.items ?? []).map((u) => ({
@@ -173,12 +218,16 @@ export function TaskQuickCreate({
                 onChange={setDeadline}
                 ariaLabel={ui.tasks.deadline}
               />
-              <NodeLabel label={ui.tasks.project} />
-              <ProjectPicker
-                value={projectId}
-                onChange={setProjectId}
-                ariaLabel={ui.tasks.project}
-              />
+              {projectsAvailable() ? (
+                <>
+                  <NodeLabel label={ui.tasks.project} />
+                  <ProjectPicker
+                    value={projectId}
+                    onChange={setProjectId}
+                    ariaLabel={ui.tasks.project}
+                  />
+                </>
+              ) : null}
               <NodeLabel label={ui.tasks.checklist} />
               <button
                 type="button"

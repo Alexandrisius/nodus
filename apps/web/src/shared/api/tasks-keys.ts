@@ -10,7 +10,7 @@ import { taskStagesKey } from './task-stages.js';
 export const tasksKeys = {
   all: ['tasks'] as const,
   /** Журнал задач — бесконечные страницы (useTasksPages, useProjectTaskPages). */
-  listPages: (params?: { projectId?: string }) =>
+  listPages: (params?: { projectId?: string; scope?: 'all' }) =>
     params
       ? ([...tasksKeys.all, 'list-pages', params] as const)
       : ([...tasksKeys.all, 'list-pages'] as const),
@@ -28,7 +28,27 @@ export const tasksKeys = {
   relations: (id: string) => [...tasksKeys.all, 'relations', id] as const,
   /** Доступные переходы маршрута задачи (кнопки бара, ADR-0020). */
   transitions: (id: string) => [...tasksKeys.all, 'transitions', id] as const,
+  /** Каталог типов задач (ступень 1 — один системный «Задача»). */
+  types: () => [...tasksKeys.all, 'types'] as const,
+  /** Записи времени задачи (I14). */
+  timeEntries: (id: string) => [...tasksKeys.all, 'time-entries', id] as const,
+  /** Идущий таймер текущего пользователя (один на сотрудника). */
+  timer: () => [...tasksKeys.all, 'timer'] as const,
 };
+
+/** Всё, что зависит от полей/состояния задачи: деталь, переходы (гейты
+ *  DoR/DoD читают поля), доски, журнал и счётчики каталогов. */
+export function taskDependentKeys(taskId: string) {
+  return [
+    tasksKeys.detail(taskId),
+    tasksKeys.transitions(taskId),
+    tasksKeys.listPages(),
+    tasksKeys.kanbanAll(),
+    tasksKeys.personalStages(),
+    tasksKeys.stages(),
+    [...tasksKeys.all, 'branch'] as const,
+  ];
+}
 
 /** Точечное обновление задачи в бесконечном кэше журнала (оптимистичные
  *  мутации переноса, I4): задача встречается на одной из подгруженных страниц. */

@@ -35,6 +35,19 @@ function UrlLink({ url }: { url: string }) {
   );
 }
 
+/** Текст с автоссылками http(s) без упоминаний и превью — описания и
+ *  результаты задач (#311): те же ссылки, что в пузыре, клик по ссылке не
+ *  всплывает к хосту (правка описания по клику не открывается). */
+export function LinkifiedText({ text }: { text: string }) {
+  return (
+    <>
+      {httpUrlSegments(text).map((piece, i) =>
+        piece.kind === 'url' ? <UrlLink key={i} url={piece.url} /> : piece.value,
+      )}
+    </>
+  );
+}
+
 /** Есть ли в тексте карточки-превью сущностей (portal://ссылки)? Хосты меты
  *  времени переключают раскладку: flex-col текст с превью не дружит с
  *  inline-спейсером MetaCorner — там мета строкой ниже (#187 раунд 5). */

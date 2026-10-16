@@ -14,6 +14,7 @@ import {
 import { notificationsKeys } from '../notifications-keys.js';
 import { bumpCommentsOnce, useCommentsLive } from '../tasks/comments-live.js';
 import { createKeyBatcher, type KeyBatcher } from './invalidation-batcher.js';
+import { pushTaskKeys } from './task-invalidation.js';
 
 /**
  * Роутер WS-событий → инвалидации (#104: сервер — единственная истина).
@@ -181,6 +182,10 @@ export function createRealtimeInvalidator(queryClient: QueryClient): RealtimeInv
           batcher.push(notificationsKeys.all, 'feed');
           return;
         default:
+          // Живые задачи (#311): коллега сменил стадию/срок/состав — у
+          // аудитории задачи деталь и переходы догоняют быстро, доски,
+          // журнал и счётчики — по медленному ярусу (одна пересборка на пачку).
+          if (envelope.type.startsWith('task.')) pushTaskKeys(batcher, envelope.type, payload);
           return;
       }
     },

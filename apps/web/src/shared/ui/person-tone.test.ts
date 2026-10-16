@@ -24,9 +24,13 @@ describe('personTone (#180)', () => {
   });
 
   it('разные id дают разные тоны (в пределах палитры) — рядом стоящие различимы', () => {
-    // Не гарантия для любой пары (палитра 7), но для набора рейла пилота
-    // устойчиво: 10 случайных id занимают >3 тонов.
-    const tones = new Set(Array.from({ length: 10 }, () => personTone(crypto.randomUUID())));
+    // Не гарантия для любой пары (палитра 7): фиксированный набор id
+    // (случайные давали редкий флак — ≤3 тона из 10, #311).
+    const ids = Array.from(
+      { length: 10 },
+      (_, i) => `6f1c2a3b-4d5e-4f60-8a7b-${String(i * 7919).padStart(12, '0')}`,
+    );
+    const tones = new Set(ids.map((id) => personTone(id)));
     expect(tones.size).toBeGreaterThan(3);
   });
 });

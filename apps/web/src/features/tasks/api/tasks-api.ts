@@ -22,23 +22,26 @@ import { transitionErrorText } from './transitions-api.js';
 
 import { api } from '../../../shared/api-client.js';
 import { lettersKeys } from '../../../shared/api/letters-keys.js';
-import { mapTaskInPages, tasksKeys } from '../../../shared/api/tasks-keys.js';
+import { mapTaskInPages, taskDependentKeys, tasksKeys } from '../../../shared/api/tasks-keys.js';
 
 // Ключи кэша и помощник страниц — canonical в shared/api/tasks-keys (общие
 // компоненты создания в shared/tasks тоже ими пользуются); реэкспорт для
 // потребителей фичи.
 export { mapTaskInPages, tasksKeys } from '../../../shared/api/tasks-keys.js';
 
-/** Список (таблица с деревом): курсорные страницы по 100, подгрузка sentinel-ом
+/** Список (таблица с деревом): scope «мои» / «все доступные» (подчинённые
+ *  по оргструктуре, task.view_all — сервер решает видимость); курсорные страницы по 100, подгрузка sentinel-ом
  * у dna контейнера (industry-паттерн: целиком на клиент крупные списки не
  * живут). Дерево строится из загруженного; родитель старше окна страницы
  * отображается корнем (известное ограничение до серверного lazy-дерева). */
-export function useTasksPages() {
+export function useTasksPages(scope: 'mine' | 'all' = 'mine') {
   return useInfiniteQuery({
-    queryKey: tasksKeys.listPages(),
+    // «Мои» — канонический ключ (оптимистичные патчи бьют в него точно);
+    // «Все доступные» — свой ключ под тем же префиксом (инвалидации общие).
+    queryKey: scope === 'all' ? tasksKeys.listPages({ scope }) : tasksKeys.listPages(),
     queryFn: ({ pageParam }) =>
       api<Paginated<TaskListItem>>(
-        `/tasks?view=list&limit=100${pageParam ? `&cursor=${pageParam}` : ''}`,
+        `/tasks?view=list&scope=${scope}&limit=100${pageParam ? `&cursor=${pageParam}` : ''}`,
       ),
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.nextCursor,
@@ -205,7 +208,11 @@ export function useAddSubtask(taskId: string) {
     },
 
     onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: tasksKeys.detail(taskId) });
+      // Новая открытая подзадача меняет гейт «нет открытых подзадач», ветку,
+      // журнал и доски (подзадача — тоже задача «Моего плана»).
+      for (const key of taskDependentKeys(taskId)) {
+        void queryClient.invalidateQueries({ queryKey: key });
+      }
     },
   });
 }

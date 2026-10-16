@@ -11,6 +11,7 @@ import type { ActiveListFilter } from '../../../shared/views/list-filters.js';
 import { useListToolbar } from '../../../shared/views/use-list-toolbar.js';
 import { ViewSettings } from '../../../shared/views/view-settings.js';
 import { useTaskStages } from '../../../shared/api/task-stages.js';
+import { projectsAvailable } from '../../../shared/api/projects-available.js';
 import { makeTaskCardFields } from '../../../shared/views/task-card-fields.js';
 import {
   taskBuiltinPresets,
@@ -48,13 +49,14 @@ export function TasksPage() {
 function TasksSection({ view, overdueTotal }: { view: 'list' | 'kanban'; overdueTotal: number }) {
   const viewKey = view === 'list' ? 'tasks.list' : 'tasks.kanban';
   const toolbar = useListToolbar(viewKey, taskBuiltinPresets);
-  const defs = useTaskFilterDefs({ projectVisible: true });
+  const defs = useTaskFilterDefs({ projectVisible: projectsAvailable() });
   const filter = useMemo<ActiveListFilter<TaskListItem>>(
     () => ({ defs, state: toolbar.filters, query: toolbar.query, searchText: taskSearchText }),
     [defs, toolbar.filters, toolbar.query],
   );
   const overdueActive = toolbar.filters.overdue === 'yes';
   const [createOpen, setCreateOpen] = useState(false);
+  const [scope, setScope] = useListScope();
 
   return (
     <>
@@ -78,6 +80,7 @@ function TasksSection({ view, overdueTotal }: { view: 'list' | 'kanban'; overdue
           }
           right={
             <>
+              {view === 'list' ? <ScopeSwitch scope={scope} onChange={setScope} /> : null}
               {overdueTotal > 0 ? (
                 <button
                   type="button"
@@ -103,10 +106,66 @@ function TasksSection({ view, overdueTotal }: { view: 'list' | 'kanban'; overdue
           }
         />
       </div>
-      <div className="min-h-0 flex-1">
-        {view === 'list' ? <TaskList filter={filter} /> : <TaskKanban filter={filter} />}
+      <div className="relative min-h-0 flex-1">
+        {view === 'list' ? (
+          <TaskList filter={filter} scope={scope} onCreate={() => setCreateOpen(true)} />
+        ) : (
+          <TaskKanban filter={filter} onCreate={() => setCreateOpen(true)} />
+        )}
       </div>
       <TaskQuickCreate open={createOpen} onOpenChange={setCreateOpen} />
     </>
+  );
+}
+
+const SCOPE_KEY = 'nodus-tasks-scope-v1';
+
+/** «Мои / Все доступные» журнала (модель Битрикс24 «Все задачи» для
+ *  руководителя): выбор помнится между сессиями. «Мой план» — всегда личный. */
+function useListScope(): ['mine' | 'all', (s: 'mine' | 'all') => void] {
+  const [scope, setScope] = useState<'mine' | 'all'>(() =>
+    localStorage.getItem(SCOPE_KEY) === 'all' ? 'all' : 'mine',
+  );
+  return [
+    scope,
+    (next) => {
+      localStorage.setItem(SCOPE_KEY, next);
+      setScope(next);
+    },
+  ];
+}
+
+function ScopeSwitch({
+  scope,
+  onChange,
+}: {
+  scope: 'mine' | 'all';
+  onChange: (s: 'mine' | 'all') => void;
+}) {
+  return (
+    <div
+      role="radiogroup"
+      aria-label={ui.tasks.scopeHint}
+      title={ui.tasks.scopeHint}
+      className="flex h-8 shrink-0 items-center rounded-lg bg-muted/40 p-0.5"
+    >
+      {(['mine', 'all'] as const).map((s) => (
+        <button
+          key={s}
+          type="button"
+          role="radio"
+          aria-checked={scope === s}
+          onClick={() => onChange(s)}
+          className={cn(
+            'h-7 rounded-md px-2.5 text-[13px] transition-colors',
+            scope === s
+              ? 'bg-accent text-foreground'
+              : 'text-muted-foreground hover:text-foreground',
+          )}
+        >
+          {s === 'mine' ? ui.tasks.scopeMine : ui.tasks.scopeAll}
+        </button>
+      ))}
+    </div>
   );
 }

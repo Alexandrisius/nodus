@@ -33,6 +33,7 @@ import { demoStages, systemTaskType } from '../../../../shared/mocks/data/task-s
 import { currentAuthUser, userRef } from '../../../../shared/mocks/data/users.js';
 import { tasksChecklistHandlers } from './tasks-checklist-handlers.js';
 import { tasksTransitionsHandlers } from './tasks-transitions-handlers.js';
+import { tasksWorkHandlers } from './tasks-work-handlers.js';
 
 function notFound(message: string) {
   return HttpResponse.json({ code: ErrorCode.NOT_FOUND, message }, { status: 404 });
@@ -190,6 +191,8 @@ export const tasksHandlers = [
   ...tasksChecklistHandlers,
   // Кнопки маршрута карточки (ADR-0020).
   ...tasksTransitionsHandlers,
+  // Типы, время/таймер, результат, bulk (#311) — ДО '/api/v1/tasks/:id'.
+  ...tasksWorkHandlers,
 
   // Личная схема «Мой план» (ADR-0008): каталог колонок со счётчиками.
   // Маршруты personal-stages — ДО '/api/v1/tasks/:id' (:id захватил бы их).
@@ -311,12 +314,25 @@ export const tasksHandlers = [
         { status: 422 },
       );
 
-    // Правка полей без переноса (смена ответственного из карточки).
+    // Правка полей без переноса (карточка: ответственный, срок, приоритет…).
     if (!parsed.data.stageId && !parsed.data.personalStageId) {
-      if (parsed.data.assigneeId) {
-        task.assignee = userRef(parsed.data.assigneeId);
-        task.participants = task.participants.filter((p) => p.id !== parsed.data.assigneeId);
+      const body = parsed.data;
+      if (body.assigneeId) {
+        task.assignee = userRef(body.assigneeId);
+        task.participants = task.participants.filter((p) => p.id !== body.assigneeId);
       }
+      if (body.title !== undefined) task.title = body.title;
+      if (body.priority !== undefined) task.priority = body.priority;
+      if (body.deadline !== undefined) task.deadline = body.deadline;
+      const extra = (detailsExtra[task.id] ??= {
+        description: taskDetailOf(task).description,
+        observers: [],
+        checklist: [],
+        createdAt: task.updatedAt,
+      });
+      if (body.description !== undefined) extra.description = body.description;
+      if (body.plannedMinutes !== undefined) extra.plannedMinutes = body.plannedMinutes;
+      if (body.acceptRequired !== undefined) extra.acceptRequired = body.acceptRequired;
       task.updatedAt = new Date().toISOString();
       return HttpResponse.json(task);
     }

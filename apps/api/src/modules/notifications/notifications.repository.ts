@@ -269,6 +269,26 @@ export class NotificationsRepository {
     return rows.map((r) => r.user_id);
   }
 
+  /** Чистка журнала сущности у КОНКРЕТНЫХ пользователей (#311): снятый с
+   *  задачи больше не участник — её уведомления у него уходят (ссылка вела
+   *  бы в «не найдено»). Возвращает user_id затронутых строк. */
+  async deleteBySourceForUsers(
+    sourceType: string,
+    sourceId: string,
+    userIds: string[],
+    tx?: TransactionClient,
+  ): Promise<string[]> {
+    if (userIds.length === 0) return [];
+    const client = tx ?? this.prisma;
+    const rows = await client.$queryRaw<{ user_id: string }[]>(Prisma.sql`
+      DELETE FROM notifications
+      WHERE source_type = ${sourceType} AND source_id = ${sourceId}::uuid
+        AND user_id = ANY(${userIds}::uuid[])
+      RETURNING user_id
+    `);
+    return rows.map((r) => r.user_id);
+  }
+
   /** Стоп повторов важного (прочтение/ответ/реакция — «увидел где угодно»,
    *  C2/C3; ack-механика выпилена, ревизия модели 05.10). */
   async stopRepeats(

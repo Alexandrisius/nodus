@@ -75,10 +75,9 @@ function SelectContent({
         <SelectScrollUpButton />
         <SelectPrimitive.Viewport
           data-position={position}
-          className={cn(
-            'data-[position=popper]:h-(--radix-select-trigger-height) data-[position=popper]:w-full data-[position=popper]:min-w-(--radix-select-trigger-width)',
-            position === 'popper' && '',
-          )}
+          // Отступ списка — у ВЬЮПОРТА (border-box), не у контента: в popper
+          // ширина = ширине поля ровно, без «вылезания» на паддинг (#311).
+          className="p-1 data-[position=popper]:h-(--radix-select-trigger-height) data-[position=popper]:w-full data-[position=popper]:min-w-(--radix-select-trigger-width)"
         >
           {children}
         </SelectPrimitive.Viewport>

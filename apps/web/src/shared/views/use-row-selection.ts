@@ -3,8 +3,8 @@ import { useCallback, useMemo, useState } from 'react';
 /** Состояние множественного выбора строк журнала (модель Битрикс24,
  *  вердикт владельца 15.09.2026): чекбокс строки + чекбокс «выбрать все»
  *  в хедере (indeterminate при частичном выборе). Выбор переживает фильтры
- *  и подгрузку страниц (ключи не сбрасываются) — групповые действия (будущее)
- *  получат стабильный набор. Потребители: DataTable и TaskList (одинаковая
+ *  и подгрузку страниц (ключи не сбрасываются) — групповые действия островка
+ *  (#311) получают стабильный набор. Потребители: DataTable и TaskList (одинаковая
  *  механика во всех списках — принцип одного прохода). */
 export function useRowSelection(rowKeys: readonly string[]) {
   const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set());
@@ -32,5 +32,7 @@ export function useRowSelection(rowKeys: readonly string[]) {
     return visibleSelected === rowKeys.length ? true : 'indeterminate';
   }, [rowKeys, selected]);
 
-  return { selected, toggle, toggleAll, headerChecked };
+  const clear = useCallback(() => setSelected(new Set()), []);
+
+  return { selected, toggle, toggleAll, clear, headerChecked };
 }
