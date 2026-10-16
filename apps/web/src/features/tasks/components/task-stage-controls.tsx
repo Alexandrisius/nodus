@@ -72,18 +72,28 @@ export function TaskActionBar({ task }: { task: TaskDetail }) {
             disabled={runner.isPending}
             // НЕ aria-disabled: кнопка работает — открывает диалог причин.
             data-blocked={blocked || undefined}
+            aria-label={t.name}
             title={blocked ? gateReasonsText(t.blockedBy) : `${t.name}: ${t.toStageName}`}
             onClick={() => runner.run(t)}
             className={cn(
               btn,
               t.id === primaryId
                 ? 'bg-primary text-primary-foreground hover:bg-primary/90'
-                : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+                : 'min-w-0 shrink text-muted-foreground hover:bg-accent hover:text-foreground',
               blocked && 'opacity-50',
             )}
           >
             <Icon className="size-4 shrink-0" strokeWidth={1.75} />
-            <span className="max-w-36 truncate">{t.name}</span>
+            {/* Узкая левая зона (ноутбук, широкий чат): вторичная кнопка —
+              только значок с подсказкой; таймер справа не обрезается. */}
+            <span
+              className={cn(
+                'max-w-36 min-w-0 truncate',
+                t.id !== primaryId && '@max-[420px]:hidden',
+              )}
+            >
+              {t.name}
+            </span>
           </button>
         );
       })}
