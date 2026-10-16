@@ -44,7 +44,30 @@ describe('ConversationsRepository.listForUser — ось сортировки', 
     const sql = sqlOf(prisma.$queryRaw.mock.calls[0]!);
     const where = sql.slice(sql.indexOf('WHERE'), sql.lastIndexOf('ORDER BY'));
     expect(where).toMatch(
-      /COALESCE\( CASE WHEN c\.type = 'direct'.*END, 'infinity'::timestamptz\), c\.id \) </,
+      /CASE WHEN c\.type = 'direct'.*END, c\.id\) < \(\?::timestamptz, \?::uuid\)/,
     );
+  });
+
+  it('курсор с активностью — беседы без активности (хвост NULLS LAST) не теряются', async () => {
+    await repo.listForUser(ME, {
+      limit: 50,
+      cursor: { at: '2026-09-24T10:00:00.000Z', id: '11111111-1111-4111-8111-111111111111' },
+    });
+
+    const sql = sqlOf(prisma.$queryRaw.mock.calls[0]!);
+    const where = sql.slice(sql.indexOf('WHERE'), sql.lastIndexOf('ORDER BY'));
+    expect(where).toMatch(/END IS NULL OR \(/);
+  });
+
+  it('курсор внутри NULL-хвоста — только беседы без активности дальше по id', async () => {
+    await repo.listForUser(ME, {
+      limit: 50,
+      cursor: { at: null, id: '11111111-1111-4111-8111-111111111111' },
+    });
+
+    const sql = sqlOf(prisma.$queryRaw.mock.calls[0]!);
+    const where = sql.slice(sql.indexOf('WHERE'), sql.lastIndexOf('ORDER BY'));
+    expect(where).toMatch(/END IS NULL AND c\.id < \?::uuid\)/);
+    expect(where).not.toMatch(/infinity/);
   });
 });

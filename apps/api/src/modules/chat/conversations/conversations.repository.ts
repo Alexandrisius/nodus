@@ -76,13 +76,18 @@ export class ConversationsRepository {
     // и звёздами) — порядок/курсор совпадают с порядком клиента.
     const activity = ACTIVITY_EXPR(userId);
     if (opts.cursor) {
-      // NULLS LAST через infinity-сентинел: сравнение строк корректно для NULL.
+      // Keyset под ORDER BY activity DESC NULLS LAST, id DESC: беседы без
+      // активности стоят в хвосте и идут ПОСЛЕ любого непустого курсора —
+      // NULL-ветка явная (сентинел-сравнение строк их терял, ревью #317).
       const at = opts.cursor.at ?? null;
-      conditions.push(Prisma.sql`(
-        COALESCE(${activity}, 'infinity'::timestamptz), c.id
-      ) < (
-        COALESCE(${at}::timestamptz, 'infinity'::timestamptz), ${opts.cursor.id}::uuid
-      )`);
+      conditions.push(
+        at === null
+          ? Prisma.sql`(${activity} IS NULL AND c.id < ${opts.cursor.id}::uuid)`
+          : Prisma.sql`(
+              ${activity} IS NULL
+              OR (${activity}, c.id) < (${at}::timestamptz, ${opts.cursor.id}::uuid)
+            )`,
+      );
     }
     const where = Prisma.join(conditions, ' AND ');
     const rows = await this.prisma.$queryRaw<ConversationListRow[]>(Prisma.sql`
