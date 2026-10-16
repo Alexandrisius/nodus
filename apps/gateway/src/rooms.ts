@@ -62,6 +62,14 @@ export function registerRoomHandlers(socket: Socket, store: MembershipStore): vo
       }
       await socket.join(room);
       rooms.add(room);
+      // Гонка с ревокацией (#252): исключение могло закоммититься между
+      // проверкой и join — перепроверяем и откатываем вход.
+      if (!(await store.isMember(socket.data.userId as string, conversationId))) {
+        rooms.delete(room);
+        await socket.leave(room);
+        ack?.({ ok: false, error: 'forbidden' });
+        return;
+      }
       ack?.({ ok: true });
     } catch {
       ack?.({ ok: false, error: 'unavailable' });
@@ -85,6 +93,9 @@ export function registerRoomHandlers(socket: Socket, store: MembershipStore): vo
  * открытые сокеты снятого участника продолжали бы получать сообщения
  * беседы до переподключения. Сбрасывается и локальный реестр convRooms —
  * иначе повторное добавление отвечало бы на conv:join «ok» без join.
+ * Адаптер in-memory: fetchSockets отдаёт живые сокеты. При переходе на
+ * redis-адаптер data удалённых сокетов — копия, реестр надо сбрасывать
+ * через serverSideEmit на их ноде.
  */
 export async function revokeConvRoom(
   io: Server,
