@@ -22,7 +22,7 @@ import { transitionErrorText } from './transitions-api.js';
 
 import { api } from '../../../shared/api-client.js';
 import { lettersKeys } from '../../../shared/api/letters-keys.js';
-import { mapTaskInPages, tasksKeys } from '../../../shared/api/tasks-keys.js';
+import { mapTaskInPages, taskDependentKeys, tasksKeys } from '../../../shared/api/tasks-keys.js';
 
 // Ключи кэша и помощник страниц — canonical в shared/api/tasks-keys (общие
 // компоненты создания в shared/tasks тоже ими пользуются); реэкспорт для
@@ -205,7 +205,11 @@ export function useAddSubtask(taskId: string) {
     },
 
     onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: tasksKeys.detail(taskId) });
+      // Новая открытая подзадача меняет гейт «нет открытых подзадач», ветку,
+      // журнал и доски (подзадача — тоже задача «Моего плана»).
+      for (const key of taskDependentKeys(taskId)) {
+        void queryClient.invalidateQueries({ queryKey: key });
+      }
     },
   });
 }

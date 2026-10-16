@@ -22,6 +22,7 @@ import {
 import { TaskKanbanCard } from './task-kanban-card.js';
 import { TaskKanbanColumn } from './task-kanban-column.js';
 import { TaskStageCreate } from './task-stage-create.js';
+import { TasksEmpty } from './tasks-empty.js';
 
 /** Реестр блоков карточки канбана — module-константа (стабильная идентичность). */
 const taskCardFields = makeTaskCardFields();
@@ -34,7 +35,14 @@ const taskCardFields = makeTaskCardFields();
  * фиды, dnd-жизнь, скелетон) — общий движок use-kanban-board (аудит #45);
  * здесь — конфиг оси/фида/мутаций и экстра-механики: CRUD колонок и
  * дельта счётчиков шапок «n из m». */
-export function TaskKanban({ filter }: { filter?: ActiveListFilter<TaskListItem> }) {
+export function TaskKanban({
+  filter,
+  onCreate,
+}: {
+  filter?: ActiveListFilter<TaskListItem>;
+  /** Пустой «Мой план» — главное действие пустого состояния. */
+  onCreate?: () => void;
+}) {
   const { data: stages } = usePersonalStages();
   const updatePersonalStage = useUpdateTaskPersonalStage();
   const createStage = useCreatePersonalStage();
@@ -92,6 +100,11 @@ export function TaskKanban({ filter }: { filter?: ActiveListFilter<TaskListItem>
     return <KanbanSkeleton className="pt-1" columns={stages?.length} />;
   }
 
+  const empty =
+    !filtering &&
+    onCreate !== undefined &&
+    board.stageList.every((s) => s.count + (countDelta[s.id] ?? 0) === 0);
+
   return (
     <DndContext
       sensors={board.sensors}
@@ -99,6 +112,11 @@ export function TaskKanban({ filter }: { filter?: ActiveListFilter<TaskListItem>
       measuring={board.measuring}
       {...board.dndHandlers}
     >
+      {empty ? (
+        <div className="pointer-events-none absolute inset-x-0 top-1/3 z-10 flex justify-center px-6">
+          <TasksEmpty onCreate={onCreate} className="pointer-events-auto" />
+        </div>
+      ) : null}
       <div className="flex h-full gap-5 overflow-x-auto px-6 pt-1 pb-4">
         {board.stageList.map((stage) => {
           const cards = visibleItems.filter((t) => t.personalStageId === stage.id);

@@ -1,0 +1,106 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { Paginated, RunningTimer, TimeEntry, TimeEntryCreateBody } from '@nodus/contracts';
+import { errorMessages, ui, type ErrorCode } from '@nodus/contracts';
+import { toast } from 'sonner';
+
+import { api, ApiError } from '../../../shared/api-client.js';
+import { taskDependentKeys, tasksKeys } from '../../../shared/api/tasks-keys.js';
+
+/** Учёт времени (I14): записи задачи, ручной ввод и таймер. Таймер у
+ *  сотрудника один — запуск на другой задаче останавливает прежний. */
+
+function errorText(error: unknown): string {
+  if (error instanceof ApiError) {
+    const known = errorMessages[error.code as ErrorCode];
+    if (known) return known;
+  }
+  return ui.common.saveError;
+}
+
+function useSettleTime() {
+  const queryClient = useQueryClient();
+  return (taskId: string | undefined) => {
+    void queryClient.invalidateQueries({ queryKey: tasksKeys.timer() });
+    if (!taskId) return;
+    void queryClient.invalidateQueries({ queryKey: tasksKeys.timeEntries(taskId) });
+    // spentMinutes — в детали/журнале/досках; гейт time_logged — в переходах.
+    for (const key of taskDependentKeys(taskId)) {
+      void queryClient.invalidateQueries({ queryKey: key });
+    }
+  };
+}
+
+export function useTimeEntries(taskId: string, enabled = true) {
+  return useQuery({
+    queryKey: tasksKeys.timeEntries(taskId),
+    queryFn: () => api<Paginated<TimeEntry>>(`/tasks/${taskId}/time-entries?limit=100`),
+    enabled,
+  });
+}
+
+export function useAddTimeEntry(taskId: string) {
+  const settle = useSettleTime();
+  return useMutation({
+    mutationFn: (body: TimeEntryCreateBody) =>
+      api<TimeEntry>(`/tasks/${taskId}/time-entries`, { method: 'POST', body }),
+    onSuccess: () => toast.success(ui.tasks.timeLogged),
+    onError: (error) => toast.error(errorText(error)),
+    onSettled: () => settle(taskId),
+  });
+}
+
+export function useDeleteTimeEntry(taskId: string) {
+  const settle = useSettleTime();
+  return useMutation({
+    mutationFn: (entryId: string) =>
+      api<void>(`/tasks/time-entries/${entryId}`, { method: 'DELETE' }),
+    onError: (error) => toast.error(errorText(error)),
+    onSettled: () => settle(taskId),
+  });
+}
+
+/** Идущий таймер текущего пользователя (null — не идёт). */
+export function useRunningTimer() {
+  return useQuery({
+    queryKey: tasksKeys.timer(),
+    queryFn: () => api<RunningTimer | null>('/tasks/timer'),
+    staleTime: 30_000,
+  });
+}
+
+export function useStartTimer(taskId: string) {
+  const queryClient = useQueryClient();
+  const settle = useSettleTime();
+  return useMutation({
+    mutationFn: () => api<RunningTimer>(`/tasks/${taskId}/timer/start`, { method: 'POST' }),
+    onMutate: () => queryClient.getQueryData<RunningTimer | null>(tasksKeys.timer()) ?? null,
+    onSuccess: (timer, _vars, previous) => {
+      queryClient.setQueryData(tasksKeys.timer(), timer);
+      // Таймер один на сотрудника: прежний остановлен — его минуты записаны.
+      if (previous && previous.task.id !== taskId) {
+        toast.info(`${ui.tasks.timerSwitched}${previous.task.number}`);
+        settle(previous.task.id);
+      }
+    },
+    onError: (error) => toast.error(errorText(error)),
+    onSettled: () => settle(taskId),
+  });
+}
+
+export function useStopTimer() {
+  const queryClient = useQueryClient();
+  const settle = useSettleTime();
+  return useMutation({
+    mutationFn: () => api<void>('/tasks/timer/stop', { method: 'POST' }),
+    onMutate: () => {
+      const previous = queryClient.getQueryData<RunningTimer | null>(tasksKeys.timer()) ?? null;
+      queryClient.setQueryData(tasksKeys.timer(), null);
+      return previous;
+    },
+    onError: (error, _vars, previous) => {
+      queryClient.setQueryData(tasksKeys.timer(), previous);
+      toast.error(errorText(error));
+    },
+    onSettled: (_data, _error, _vars, previous) => settle(previous?.task.id),
+  });
+}

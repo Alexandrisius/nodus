@@ -7,7 +7,7 @@ import {
 
 import { http, HttpResponse } from 'msw';
 
-import { demoTasks, detailsExtra, taskDetailOf } from '../../../../shared/mocks/data/tasks.js';
+import { demoTasks, detailsExtra } from '../../../../shared/mocks/data/tasks.js';
 
 function notFound(message: string) {
   return HttpResponse.json({ code: ErrorCode.NOT_FOUND, message }, { status: 404 });
@@ -44,9 +44,11 @@ export const tasksChecklistHandlers = [
         { status: 422 },
       );
     const detail = ensureDetails(task);
-    detail.checklist.push({ id: crypto.randomUUID(), text: parsed.data.text, done: false });
+    const item = { id: crypto.randomUUID(), text: parsed.data.text, done: false };
+    detail.checklist.push(item);
     recountChecklist(task, detail.checklist);
-    return HttpResponse.json(taskDetailOf(task), { status: 201 });
+    // Контракт #37: ответ — созданный ПУНКТ (не задача).
+    return HttpResponse.json(item, { status: 201 });
   }),
 
   http.patch('/api/v1/tasks/:id/checklist/:itemId', async ({ params, request }) => {
@@ -63,6 +65,15 @@ export const tasksChecklistHandlers = [
     if (!item) return notFound('Checklist item not found');
     Object.assign(item, parsed.data);
     recountChecklist(task, detail.checklist);
-    return HttpResponse.json(taskDetailOf(task));
+    return HttpResponse.json(item);
+  }),
+
+  http.delete('/api/v1/tasks/:id/checklist/:itemId', ({ params }) => {
+    const task = demoTasks.find((t) => t.id === params.id);
+    if (!task) return notFound('Task not found');
+    const detail = ensureDetails(task);
+    detail.checklist = detail.checklist.filter((i) => i.id !== params.itemId);
+    recountChecklist(task, detail.checklist);
+    return new HttpResponse(null, { status: 204 });
   }),
 ];

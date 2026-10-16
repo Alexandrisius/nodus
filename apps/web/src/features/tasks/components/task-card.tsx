@@ -1,10 +1,8 @@
-import { Mail, MessageSquare, PanelRight, Plus, Waypoints } from 'lucide-react';
-import { useCallback, useRef, useState, type FormEvent } from 'react';
+import { Mail, MessageSquare, PanelRight, Waypoints } from 'lucide-react';
+import { useCallback, useRef, useState } from 'react';
 import type { TaskChainNode } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
-import { Input } from '@nodus/ui/components/input';
 import { NodeChip } from '@nodus/ui/components/node-chip';
-import { NodeLabel } from '@nodus/ui/components/node-label';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { useOpenCard, useReplaceTopCard } from '../../../app/shell/use-card-stack.js';
@@ -17,15 +15,17 @@ import {
 } from '../../../shared/ui/use-chat-width.js';
 import { uiPx } from '../../../shared/ui/ui-scale.js';
 import { useReadEntityNotifications } from '../../../shared/api/read-entity-notifications.js';
-import { useAddSubtask, useTaskDetail } from '../api/tasks-api.js';
+import { useTaskDetail } from '../api/tasks-api.js';
 import { TaskAboutDrawer } from './task-about-drawer.js';
 import { TaskBranchDrawer } from './task-branch-drawer.js';
 import { TaskCardSkeleton } from './task-card-skeleton.js';
 import { TaskChecklist } from './task-checklist.js';
+import { TaskDescription } from './task-description.js';
+import { TaskResultSection } from './task-result.js';
+import { TaskSubtasks } from './task-subtasks.js';
 import { TaskDiscussion } from './task-discussion.js';
 import { TaskFields } from './task-fields.js';
 import { TaskActionBar } from './task-stage-controls.js';
-import { TaskStatusBadge } from '../../../shared/ui/task-status-badge.js';
 
 const chainCaption: Record<TaskChainNode['kind'], string> = {
   letter: ui.letters.letter,
@@ -56,9 +56,7 @@ export function TaskCard({ taskId }: { taskId: string }) {
   const { data: task, isLoading } = useTaskDetail(taskId);
   // Открыл задачу — её уведомления прочитаны (#252: «Требуют внимания» не вечные).
   useReadEntityNotifications('task', taskId);
-  const addSubtask = useAddSubtask(taskId);
   const openCard = useOpenCard();
-  const [subtaskTitle, setSubtaskTitle] = useState('');
   const [aboutOpen, setAboutOpen] = useState(false);
   // Панель «О задаче» монтируется раз и остаётся: колонка анимируется
   // 0↔360px (плавный пуш), состояние (избранное, скролл) не теряется.
@@ -116,14 +114,6 @@ export function TaskCard({ taskId }: { taskId: string }) {
   // ломали бы memo на каждом рендере.
   const closeBranch = useCallback(() => setBranchOpen(false), []);
   const closeAbout = useCallback(() => setAboutOpen(false), []);
-
-  function onAddSubtask(event: FormEvent) {
-    event.preventDefault();
-    const title = subtaskTitle.trim();
-    if (!title || addSubtask.isPending) return;
-    setSubtaskTitle('');
-    addSubtask.mutate(title);
-  }
 
   if (isLoading || !task) {
     return <TaskCardSkeleton chatW={chatColumnW} />;
@@ -234,53 +224,21 @@ export function TaskCard({ taskId }: { taskId: string }) {
             @container — сетка полей перестраивается от ширины зоны (ресайз чата) */}
           <div className="relative flex min-h-0 flex-col border-r border-border @container">
             <div className="content-fade min-h-0 flex-1 overflow-y-auto p-6">
-              {/* Название — в хроме слайдера (вердикт владельца), в теле
-                не дублируется: тело начинается с описания */}
-              <p className="text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">
-                {task.description}
-              </p>
-
-              <TaskFields task={task} />
-
-              {/* Чек-лист — сразу после полей, ДО подзадач (вердикт владельца
-                15.09.2026: «чек-листам нужно выделить важное место»). */}
-              <TaskChecklist task={task} />
-
-              {/* Секции разделяются отступами, без висячих линий-сепараторов
-                (вердикт владельца: линия не доходила до границы зоны) */}
-              <div className="mt-6">
-                <NodeLabel label={ui.tasks.subtasks} count={task.subtasks.length} />
+              {/* Колонка контента — max-w-4xl, ОДНА вертикаль с сеткой полей
+                (#311, вердикт «огромные широкие пункты на широком экране»):
+                описание, чек-лист, подзадачи и результат не растягиваются
+                на всю зону. Название — в хроме слайдера (вердикт владельца),
+                в теле не дублируется: тело начинается с описания. Секции
+                разделяются отступами, без висячих линий-сепараторов. */}
+              <div className="mx-auto max-w-4xl pb-4">
+                <TaskDescription task={task} />
+                <TaskFields task={task} />
+                {/* Чек-лист — сразу после полей, ДО подзадач (вердикт
+                  владельца 15.09.2026: «чек-листам — важное место»). */}
+                <TaskChecklist task={task} />
+                <TaskSubtasks task={task} onOpen={navigateInCard} />
+                <TaskResultSection task={task} />
               </div>
-              <div className="mt-2.5 flex flex-col gap-1.5">
-                {task.subtasks.map((subtask) => (
-                  <button
-                    key={subtask.id}
-                    type="button"
-                    onClick={() => navigateInCard(subtask.id)}
-                    className="flex items-center gap-2 rounded-md px-1 py-1 text-left text-sm hover:bg-accent/50"
-                  >
-                    <span className="size-1.5 shrink-0 rounded-full bg-port" />
-                    <span className="min-w-0 flex-1 truncate">{subtask.title}</span>
-                    <TaskStatusBadge stage={subtask.stage} />
-                  </button>
-                ))}
-              </div>
-              <form onSubmit={onAddSubtask} className="mt-2 flex items-center gap-2">
-                <Input
-                  value={subtaskTitle}
-                  onChange={(e) => setSubtaskTitle(e.target.value)}
-                  placeholder={ui.tasks.subtaskPlaceholder}
-                  className="h-8 text-sm"
-                />
-                <button
-                  type="submit"
-                  disabled={!subtaskTitle.trim()}
-                  aria-label={ui.tasks.subtasks}
-                  className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground disabled:opacity-40"
-                >
-                  <Plus className="size-4" />
-                </button>
-              </form>
             </div>
 
             {/* Замоноличенный нижний бар: главные кнопки движения/завершения

@@ -3,9 +3,15 @@ import { Module } from '@nestjs/common';
 import { USER_PROFILE_READER } from '../../core/ports/user-profile.port.js';
 import { UserProfileProvider } from '../../core/ports/user-profile.provider.js';
 import { ChatPortsModule } from '../chat/chat-ports.module.js';
+import { TasksPortsModule } from '../tasks/tasks-ports.module.js';
 import { DispatchHandler } from './events/dispatch.handler.js';
 import { MessageDeletedHandler } from './events/message-deleted.handler.js';
 import { TaskDeletedNotifyHandler } from './events/task-deleted.handler.js';
+import {
+  TaskAccessLostWriter,
+  TaskAssigneeAccessLostHandler,
+  TaskParticipantsAccessLostHandler,
+} from './events/task-access-lost.handler.js';
 import { MessageEditedHandler } from './events/message-edited.handler.js';
 import { MessageReadHandler } from './events/message-read.handler.js';
 import { MessageSentHandler } from './events/message-sent.handler.js';
@@ -29,13 +35,14 @@ import { UrgentRepeatWorker } from './urgent-repeat.worker.js';
  * Модуль notifications (#100, ADR-0016; приоритеты — ADR-0017): журнал
  * уведомлений — истина; абстрактные приоритеты urgent/high/medium/low
  * (маппинг kind → priority — таблица в priority-resolver); ознакомление для
- * срочного. Связность — только события (I3: подписчики chat.*, эмиттер
- * notification.*) и read-порт членства чата (ADR-0012, ChatPortsModule).
+ * срочного. Связность — только события (I3: подписчики chat.* и task.*, эмиттер
+ * notification.*) и read-порты (ADR-0012): членство чата (ChatPortsModule),
+ * состав задачи (TasksPortsModule, #311).
  * Флаг `notifications` (I10): off → хендлеры тихие, эндпоинты NOT_FOUND,
  * чат жив.
  */
 @Module({
-  imports: [ChatPortsModule],
+  imports: [ChatPortsModule, TasksPortsModule],
   controllers: [NotificationsController],
   providers: [
     // Профили сотрудников: read-порт ADR-0012 (users — core-shared); провайдер
@@ -58,6 +65,10 @@ import { UrgentRepeatWorker } from './urgent-repeat.worker.js';
     TaskParticipantsNotifyHandler,
     TaskStageNotifyHandler,
     TaskOverdueNotifyHandler,
+    // Снят с задачи — её уведомления уходят (#311; состав — read-порт задач).
+    TaskAccessLostWriter,
+    TaskParticipantsAccessLostHandler,
+    TaskAssigneeAccessLostHandler,
     UrgentRepeatQueue,
     UrgentRepeatWorker,
     BackgroundRetentionJob,

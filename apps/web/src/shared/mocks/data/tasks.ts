@@ -134,7 +134,8 @@ function chainOf(task: TaskListItem): TaskChainNode[] {
  *  Экспорт — хендлерам создания/чек-листа: записи пополняются в рантайме. */
 export const detailsExtra: Record<
   string,
-  Pick<TaskDetail, 'description' | 'observers' | 'checklist' | 'createdAt'>
+  Pick<TaskDetail, 'description' | 'observers' | 'checklist' | 'createdAt'> &
+    Partial<Pick<TaskDetail, 'plannedMinutes' | 'acceptRequired' | 'result'>>
 > = {
   [tid(2)]: {
     description:
@@ -162,9 +163,9 @@ export function taskDetailOf(task: TaskListItem): TaskDetail {
     ...extra,
     subtasks: demoSubtasks[task.id] ?? [],
     chain: chainOf(task),
-    plannedMinutes: null,
-    acceptRequired: false,
-    result: null,
+    plannedMinutes: extra.plannedMinutes ?? null,
+    acceptRequired: extra.acceptRequired ?? false,
+    result: extra.result ?? null,
     completedAt: closed ? task.updatedAt : null,
     // Мок-мир: демо-пользователь — полный доступ (права проверяет бэкенд, #37).
     access: {

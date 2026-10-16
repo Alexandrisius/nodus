@@ -167,6 +167,25 @@ export class NotificationsService {
     });
   }
 
+  /** Чистка по потере участия (#311, обработчик снятия с задачи): только
+   *  у перечисленных пользователей; каждому затронутому — notification.read. */
+  async purgeBySourceForUsers(
+    sourceType: string,
+    sourceId: string,
+    userIds: string[],
+  ): Promise<number> {
+    if (userIds.length === 0) return 0;
+    return this.txRunner.run(async (tx) => {
+      const affected = [
+        ...new Set(await this.repo.deleteBySourceForUsers(sourceType, sourceId, userIds, tx)),
+      ];
+      for (const userId of affected) {
+        await this.emitRead(tx, userId, sourceId, null);
+      }
+      return affected.length;
+    });
+  }
+
   private async emitRead(
     tx: TransactionClient,
     userId: string,

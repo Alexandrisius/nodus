@@ -1,5 +1,5 @@
 import { Calendar, ChevronLeft, ChevronRight, X } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { ui } from '@nodus/contracts';
 import { Input } from '@nodus/ui/components/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@nodus/ui/components/popover';
@@ -50,11 +50,17 @@ export function DateTimePicker({
   onChange,
   ariaLabel,
   placeholder = ui.common.noDeadline,
+  children,
+  clearLabel,
 }: {
   value: Date | null;
   onChange: (value: Date | null) => void;
   ariaLabel: string;
   placeholder?: string;
+  /** Свой триггер (поле карточки — чип срока вместо полноширинного поля). */
+  children?: ReactNode;
+  /** Кнопка очистки внутри поповера (у своего триггера крестика нет). */
+  clearLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
   // «Сейчас» — на момент открытия поповера (подсветка today, быстрые варианты).
@@ -96,33 +102,35 @@ export function DateTimePicker({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          aria-label={ariaLabel}
-          className="flex h-8 w-full items-center gap-2 rounded-lg border border-input bg-transparent px-2.5 text-sm transition-colors hover:bg-accent/40 dark:bg-input/30"
-        >
-          <Calendar className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.75} />
-          <span
-            className={cn('min-w-0 flex-1 truncate text-left', !value && 'text-muted-foreground')}
+      <PopoverTrigger asChild aria-label={children ? ariaLabel : undefined}>
+        {children ?? (
+          <button
+            type="button"
+            aria-label={ariaLabel}
+            className="flex h-8 w-full items-center gap-2 rounded-lg border border-input bg-transparent px-2.5 text-sm transition-colors hover:bg-accent/40 dark:bg-input/30"
           >
-            {value ? `${dayMonthFmt.format(value)} ${timeStr}` : placeholder}
-          </span>
-          {value ? (
+            <Calendar className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.75} />
             <span
-              role="button"
-              tabIndex={-1}
-              aria-label={ui.filters.reset}
-              onClick={(e) => {
-                e.stopPropagation();
-                onChange(null);
-              }}
-              className="rounded p-0.5 text-muted-foreground hover:text-foreground"
+              className={cn('min-w-0 flex-1 truncate text-left', !value && 'text-muted-foreground')}
             >
-              <X className="size-3" strokeWidth={1.75} />
+              {value ? `${dayMonthFmt.format(value)} ${timeStr}` : placeholder}
             </span>
-          ) : null}
-        </button>
+            {value ? (
+              <span
+                role="button"
+                tabIndex={-1}
+                aria-label={ui.filters.reset}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onChange(null);
+                }}
+                className="rounded p-0.5 text-muted-foreground hover:text-foreground"
+              >
+                <X className="size-3" strokeWidth={1.75} />
+              </span>
+            ) : null}
+          </button>
+        )}
       </PopoverTrigger>
       <PopoverContent align="start" className="w-auto p-3">
         <div className="flex gap-3">
@@ -208,6 +216,19 @@ export function DateTimePicker({
                 </button>
               );
             })}
+            {clearLabel && value ? (
+              <button
+                type="button"
+                onClick={() => {
+                  onChange(null);
+                  setOpen(false);
+                }}
+                className="mt-auto flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-left text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              >
+                <X className="size-3.5" strokeWidth={1.75} />
+                {clearLabel}
+              </button>
+            ) : null}
           </div>
         </div>
       </PopoverContent>

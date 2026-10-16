@@ -180,10 +180,27 @@ describe('createRealtimeInvalidator (коалесцинг, раунд 3)', () =>
     vi.useFakeTimers();
     const { client, invalidateQueries } = fakeQueryClient();
     const invalidator = createRealtimeInvalidator(client as never);
-    invalidator.handle(envelope('task.updated', {}));
+    invalidator.handle(envelope('chat.unknown_event', {}));
     invalidator.handle(envelope('chat.reaction_added', {}));
     flushWindows();
     expect(invalidateQueries).not.toHaveBeenCalled();
+    invalidator.dispose();
+    vi.useRealTimers();
+  });
+
+  it('task.* (#311): деталь и переходы задачи + доски/журнал, каждый ключ один раз', () => {
+    vi.useFakeTimers();
+    const { client, invalidateQueries } = fakeQueryClient();
+    const invalidator = createRealtimeInvalidator(client as never);
+    invalidator.handle(envelope('task.stage_changed', { taskId: 't-1' }));
+    invalidator.handle(envelope('task.updated', { taskId: 't-1' }));
+    flushWindows();
+    const keys = invalidateQueries.mock.calls.map((c) => JSON.stringify(c[0].queryKey));
+    expect(keys).toContain(JSON.stringify(['tasks', 'detail', 't-1']));
+    expect(keys).toContain(JSON.stringify(['tasks', 'transitions', 't-1']));
+    expect(keys).toContain(JSON.stringify(['tasks', 'kanban']));
+    expect(keys).toContain(JSON.stringify(['tasks', 'list-pages']));
+    expect(new Set(keys).size).toBe(keys.length);
     invalidator.dispose();
     vi.useRealTimers();
   });

@@ -13,8 +13,8 @@ import { EmployeeCard } from '../../features/directory/components/employee-card.
 import { subscribeMessengerThread, takeMessengerThread } from '../../shared/chat/messenger-nav.js';
 import { useProjectDetail } from '../../features/projects/api/projects-api.js';
 import { ProjectCard } from '../../features/projects/components/project-card.js';
-import { useTaskDetail } from '../../features/tasks/api/tasks-api.js';
 import { TaskCard } from '../../features/tasks/components/task-card.js';
+import { TaskTitle } from '../../features/tasks/components/task-title.js';
 import type { CardRef } from './card-stack.js';
 import { SliderPanel, type SourceRect } from './slider-panel.js';
 import { useShellStore } from './shell-store.js';
@@ -42,10 +42,9 @@ interface EntryProps {
 }
 
 function TaskEntry({ id, source, onClose, dormant }: EntryProps) {
-  const { data: task } = useTaskDetail(id);
   return (
     <SliderPanel
-      title={task?.title ?? ui.tasks.task}
+      title={<TaskTitle taskId={id} />}
       onClose={onClose}
       sourceRect={source}
       fadeContent={false}

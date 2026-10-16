@@ -1,0 +1,188 @@
+import type { RunningTimer, TaskListItem, TaskResult, TimeEntry } from '@nodus/contracts';
+import {
+  ErrorCode,
+  taskBulkBodySchema,
+  taskResultCreateBodySchema,
+  timeEntryCreateBodySchema,
+} from '@nodus/contracts';
+
+import { http, HttpResponse } from 'msw';
+
+import {
+  demoSubtasks,
+  demoTasks,
+  detailsExtra,
+  taskDetailOf,
+} from '../../../../shared/mocks/data/tasks.js';
+import { demoStages, systemTaskType } from '../../../../shared/mocks/data/task-stages.js';
+import { currentAuthUser, userRef } from '../../../../shared/mocks/data/users.js';
+
+/** Работа по задаче в демо-режиме (#311): типы, учёт времени и таймер,
+ *  результат, массовые операции. Права не моделируются — демо-пользователь
+ *  может всё (их проверяет бэкенд #37). */
+
+function findTask(id: unknown): TaskListItem | undefined {
+  return (
+    demoTasks.find((t) => t.id === id) ??
+    Object.values(demoSubtasks)
+      .flat()
+      .find((t) => t.id === id)
+  );
+}
+
+const invalid = () =>
+  HttpResponse.json(
+    { code: ErrorCode.VALIDATION_FAILED, message: 'Invalid body' },
+    { status: 422 },
+  );
+const notFound = () =>
+  HttpResponse.json({ code: ErrorCode.NOT_FOUND, message: 'Task not found' }, { status: 404 });
+
+const timeEntries: TimeEntry[] = [];
+let running: { entryId: string; taskId: string; startedAt: string } | null = null;
+
+function today(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function stopRunning(): void {
+  if (!running) return;
+  const task = findTask(running.taskId);
+  const minutes = Math.max(1, Math.round((Date.now() - Date.parse(running.startedAt)) / 60_000));
+  timeEntries.unshift({
+    id: running.entryId,
+    taskId: running.taskId,
+    user: userRef(currentAuthUser.id),
+    minutes,
+    date: today(),
+    method: 'timer',
+    startedAt: running.startedAt,
+    endedAt: new Date().toISOString(),
+    comment: null,
+    createdAt: new Date().toISOString(),
+  });
+  if (task) task.spentMinutes += minutes;
+  running = null;
+}
+
+function timerDto(): RunningTimer | null {
+  const task = running ? findTask(running.taskId) : undefined;
+  if (!running || !task) return null;
+  return {
+    entryId: running.entryId,
+    task: { id: task.id, number: task.number, title: task.title },
+    startedAt: running.startedAt,
+  };
+}
+
+export const tasksWorkHandlers = [
+  http.get('/api/v1/tasks/types', () =>
+    HttpResponse.json([{ ...systemTaskType, structural: false, isSystem: true }]),
+  ),
+
+  http.get('/api/v1/tasks/timer', () => HttpResponse.json(timerDto())),
+
+  http.post('/api/v1/tasks/timer/stop', () => {
+    if (!running)
+      return HttpResponse.json(
+        { code: ErrorCode.TASK_TIMER_NOT_RUNNING, message: 'Timer is not running' },
+        { status: 409 },
+      );
+    stopRunning();
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  http.delete('/api/v1/tasks/time-entries/:entryId', ({ params }) => {
+    const index = timeEntries.findIndex((e) => e.id === params.entryId);
+    const entry = timeEntries[index];
+    if (!entry) return notFound();
+    timeEntries.splice(index, 1);
+    const task = entry.taskId ? findTask(entry.taskId) : undefined;
+    if (task) task.spentMinutes = Math.max(0, task.spentMinutes - entry.minutes);
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  http.get('/api/v1/tasks/:id/time-entries', ({ params }) =>
+    HttpResponse.json({
+      items: timeEntries.filter((e) => e.taskId === params.id),
+      nextCursor: null,
+    }),
+  ),
+
+  http.post('/api/v1/tasks/:id/time-entries', async ({ params, request }) => {
+    const task = findTask(params.id);
+    if (!task) return notFound();
+    const parsed = timeEntryCreateBodySchema.safeParse(await request.json());
+    if (!parsed.success) return invalid();
+    const entry: TimeEntry = {
+      id: crypto.randomUUID(),
+      taskId: task.id,
+      user: userRef(currentAuthUser.id),
+      minutes: parsed.data.minutes,
+      date: parsed.data.date,
+      method: 'manual',
+      startedAt: null,
+      endedAt: null,
+      comment: parsed.data.comment ?? null,
+      createdAt: new Date().toISOString(),
+    };
+    timeEntries.unshift(entry);
+    task.spentMinutes += entry.minutes;
+    return HttpResponse.json(entry, { status: 201 });
+  }),
+
+  http.post('/api/v1/tasks/:id/timer/start', ({ params }) => {
+    const task = findTask(params.id);
+    if (!task) return notFound();
+    stopRunning();
+    running = {
+      entryId: crypto.randomUUID(),
+      taskId: task.id,
+      startedAt: new Date().toISOString(),
+    };
+    return HttpResponse.json(timerDto());
+  }),
+
+  http.post('/api/v1/tasks/:id/results', async ({ params, request }) => {
+    const task = findTask(params.id);
+    if (!task) return notFound();
+    const parsed = taskResultCreateBodySchema.safeParse(await request.json());
+    if (!parsed.success) return invalid();
+    const result: TaskResult = {
+      id: crypto.randomUUID(),
+      text: parsed.data.text,
+      messageIds: parsed.data.messageIds ?? [],
+      author: userRef(currentAuthUser.id),
+      createdAt: new Date().toISOString(),
+    };
+    const extra = (detailsExtra[task.id] ??= {
+      description: taskDetailOf(task).description,
+      observers: [],
+      checklist: [],
+      createdAt: task.updatedAt,
+    });
+    extra.result = result;
+    return HttpResponse.json(result, { status: 201 });
+  }),
+
+  http.post('/api/v1/tasks/bulk', async ({ request }) => {
+    const parsed = taskBulkBodySchema.safeParse(await request.json());
+    if (!parsed.success) return invalid();
+    const { action } = parsed.data;
+    const results = parsed.data.taskIds.map((taskId) => {
+      const task = findTask(taskId);
+      if (!task) return { taskId, ok: false, code: ErrorCode.NOT_FOUND };
+      if (action.kind === 'set_deadline') task.deadline = action.deadline;
+      if (action.kind === 'set_priority') task.priority = action.priority;
+      if (action.kind === 'set_assignee') task.assignee = userRef(action.assigneeId);
+      if (action.kind === 'move_to_stage') {
+        const stage = demoStages.find((s) => s.id === action.stageId);
+        if (!stage) return { taskId, ok: false, code: ErrorCode.NOT_FOUND };
+        task.stage = stage;
+      }
+      task.updatedAt = new Date().toISOString();
+      return { taskId, ok: true };
+    });
+    return HttpResponse.json({ results });
+  }),
+];

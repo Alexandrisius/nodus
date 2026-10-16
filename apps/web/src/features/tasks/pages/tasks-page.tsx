@@ -11,6 +11,7 @@ import type { ActiveListFilter } from '../../../shared/views/list-filters.js';
 import { useListToolbar } from '../../../shared/views/use-list-toolbar.js';
 import { ViewSettings } from '../../../shared/views/view-settings.js';
 import { useTaskStages } from '../../../shared/api/task-stages.js';
+import { projectsAvailable } from '../../../shared/api/projects-available.js';
 import { makeTaskCardFields } from '../../../shared/views/task-card-fields.js';
 import {
   taskBuiltinPresets,
@@ -48,7 +49,7 @@ export function TasksPage() {
 function TasksSection({ view, overdueTotal }: { view: 'list' | 'kanban'; overdueTotal: number }) {
   const viewKey = view === 'list' ? 'tasks.list' : 'tasks.kanban';
   const toolbar = useListToolbar(viewKey, taskBuiltinPresets);
-  const defs = useTaskFilterDefs({ projectVisible: true });
+  const defs = useTaskFilterDefs({ projectVisible: projectsAvailable() });
   const filter = useMemo<ActiveListFilter<TaskListItem>>(
     () => ({ defs, state: toolbar.filters, query: toolbar.query, searchText: taskSearchText }),
     [defs, toolbar.filters, toolbar.query],
@@ -103,8 +104,12 @@ function TasksSection({ view, overdueTotal }: { view: 'list' | 'kanban'; overdue
           }
         />
       </div>
-      <div className="min-h-0 flex-1">
-        {view === 'list' ? <TaskList filter={filter} /> : <TaskKanban filter={filter} />}
+      <div className="relative min-h-0 flex-1">
+        {view === 'list' ? (
+          <TaskList filter={filter} onCreate={() => setCreateOpen(true)} />
+        ) : (
+          <TaskKanban filter={filter} onCreate={() => setCreateOpen(true)} />
+        )}
       </div>
       <TaskQuickCreate open={createOpen} onOpenChange={setCreateOpen} />
     </>

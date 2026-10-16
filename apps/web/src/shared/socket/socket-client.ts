@@ -5,6 +5,7 @@ import {
   realtimeEnvelopeSchema,
   type RealtimeEnvelope,
   CHAT_EVENTS,
+  TASK_EVENTS,
   chatMessageSentPayloadSchema,
 } from '@nodus/contracts';
 
@@ -40,7 +41,13 @@ const DOMAIN_EVENTS = [
   'chat.reaction_removed',
   'chat.thread_created',
   'chat.conversation_created',
+  // #186/#252: название/состав беседы — список и панель участников у всех
+  // (снятый участник задачи теряет её чат без F5). Были в роутере
+  // инвалидаций, но без подписки — событие до него не доходило (#311).
+  'chat.conversation_updated',
   'chat.member_added',
+  'chat.member_removed',
+  'chat.member_role_changed',
   // Новая версия вложения (сохранение ONLYOFFICE, #182): лента + файловые
   // запросы рефечатся — версия подхватывается без F5.
   'chat.attachment_updated',
@@ -56,6 +63,9 @@ const DOMAIN_EVENTS = [
   // Живые уведомления (#100): user-комната получает весь журнал-будил.
   'notification.dispatch_requested',
   'notification.read',
+  // Живые задачи (#311): весь каталог task.* (fanout в user-комнаты
+  // аудитории задачи) — доски/карточки/счётчик комментариев без F5.
+  ...Object.values(TASK_EVENTS),
 ] as const;
 
 let socket: Socket | null = null;
