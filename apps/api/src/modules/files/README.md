@@ -46,7 +46,9 @@
   (`OFFICE_JWT_SECRET`); документ-ключ `fileId.v{version}` (алфавит DS —
   `0-9-.a-zA-Z_=`). Callback `POST /files/:id/office-callback` (@Public,
   Bearer JWT DS): статусы 2/6 → скачивание собранного файла (origin →
-  `OFFICE_INTERNAL_URL`) → новая FileVersion + указатель + событие
+  `OFFICE_INTERNAL_URL`; fail-closed против SSRF: невалидный/не-http(s) url
+  колбэка — `VALIDATION_FAILED`, кривой `OFFICE_INTERNAL_URL` — 500, сырой
+  url никогда не запрашивается) → новая FileVersion + указатель + событие
   `file.version_created` (outbox) + аудит `files.office_save` в одной
   транзакции. Скачивание устойчиво к заголовкам (#182): тело читается в буфер
   (потолок 128 МБ) и хранилище получает ТОЧНЫЙ фактический размер —

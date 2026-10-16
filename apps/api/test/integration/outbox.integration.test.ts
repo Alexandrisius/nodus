@@ -37,7 +37,6 @@ describe.skipIf(!process.env.DATABASE_URL)('outbox (integration)', () => {
     handler = new TestHandler();
     dispatcher = new EventDispatcher(
       prisma,
-      txRunner,
       { getProviders: () => [{ instance: handler }] } as never,
       { setContext: vi.fn(), error: vi.fn(), warn: vi.fn() } as never,
     );

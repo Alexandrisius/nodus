@@ -45,6 +45,16 @@ export type NotificationInsert = Omit<
 /** Превью строки ленты: обрезаем текст сообщения на границе слова. */
 export const PREVIEW_MAX = 160;
 
+/** Дефолты DND, пока у пользователя нет строки настроек (зеркало DEFAULT колонок). */
+const DEFAULT_SETTINGS: NotificationSettings = {
+  dndEnabled: false,
+  dndStart: '22:00',
+  dndEnd: '08:00',
+};
+
+/** Размер батча авто-архивации низкого (строк за один UPDATE). */
+const ARCHIVE_BATCH = 1_000;
+
 // >300 строк — обоснование (I5): единая точка SQL журнала (список/сводка/гашения/
 // стопы/ознакомления/доставки/настройки) — расщепление по таблицам разорвёт
 // инварианты гашения (read_at vs repeats_stopped_at) по файлам без выигрыша.
@@ -321,24 +331,36 @@ export class NotificationsRepository {
     return { dndEnabled: row.dnd_enabled, dndStart: row.dnd_start, dndEnd: row.dnd_end };
   }
 
-  /** Upsert настроек (частичный патч поверх существующих/дефолтов). */
+  /** Upsert настроек — частичный патч ОДНИМ оператором: поле вне патча (NULL)
+   *  берётся из строки (COALESCE с текущим значением) или из дефолта при
+   *  вставке. ON CONFLICT DO UPDATE атомарен под row-lock — параллельные
+   *  патчи разных полей (две вкладки) не затирают друг друга (раньше
+   *  read-modify-write терял обновление). Возвращает итоговую строку. */
   async upsertSettings(
     userId: string,
     patch: Partial<NotificationSettings>,
   ): Promise<NotificationSettings> {
-    const current = (await this.readSettings(userId)) ?? {
-      dndEnabled: false,
-      dndStart: '22:00',
-      dndEnd: '08:00',
-    };
-    const next = { ...current, ...patch };
-    await this.prisma.$executeRaw(Prisma.sql`
+    const enabled = patch.dndEnabled ?? null;
+    const start = patch.dndStart ?? null;
+    const end = patch.dndEnd ?? null;
+    const rows = await this.prisma.$queryRaw<
+      Array<{ dnd_enabled: boolean; dnd_start: string; dnd_end: string }>
+    >(Prisma.sql`
       INSERT INTO notification_settings (user_id, dnd_enabled, dnd_start, dnd_end)
-      VALUES (${userId}::uuid, ${next.dndEnabled}, ${next.dndStart}, ${next.dndEnd})
+      VALUES (
+        ${userId}::uuid,
+        COALESCE(${enabled}::boolean, ${DEFAULT_SETTINGS.dndEnabled}),
+        COALESCE(${start}::text, ${DEFAULT_SETTINGS.dndStart}),
+        COALESCE(${end}::text, ${DEFAULT_SETTINGS.dndEnd})
+      )
       ON CONFLICT (user_id) DO UPDATE SET
-        dnd_enabled = ${next.dndEnabled}, dnd_start = ${next.dndStart}, dnd_end = ${next.dndEnd}
+        dnd_enabled = COALESCE(${enabled}::boolean, notification_settings.dnd_enabled),
+        dnd_start = COALESCE(${start}::text, notification_settings.dnd_start),
+        dnd_end = COALESCE(${end}::text, notification_settings.dnd_end)
+      RETURNING dnd_enabled, dnd_start, dnd_end
     `);
-    return next;
+    const row = rows[0]!; // INSERT … ON CONFLICT DO UPDATE всегда возвращает строку
+    return { dndEnabled: row.dnd_enabled, dndStart: row.dnd_start, dndEnd: row.dnd_end };
   }
 
   /** Запись доставки по каналу (журнал доставок, C11/D6). */
@@ -375,13 +397,29 @@ export class NotificationsRepository {
     }));
   }
 
-  /** Авто-архивация низкого (анти-свалка): старше 7 дней — read, журнал жив. */
+  /** Авто-архивация низкого (анти-свалка): старше N дней — read, журнал жив.
+   *  Батчами по ARCHIVE_BATCH (CTE с LIMIT, цикл до неполного батча):
+   *  единый UPDATE по всем пользователям держал бы row-lock-и тысяч строк
+   *  одной долгой транзакцией и блокировал бы гашения/чтения журнала.
+   *  SKIP LOCKED — строку, которую прямо сейчас гасит пользователь, не ждём
+   *  (заберёт следующий проход). Граница возраста фиксирована на весь проход. */
   async archiveStaleLow(olderThanDays: number): Promise<number> {
-    return this.prisma.$executeRaw(Prisma.sql`
-      UPDATE notifications SET read_at = now()
-      WHERE priority = 'low' AND read_at IS NULL
-        AND created_at < now() - (${olderThanDays} || ' days')::interval
-    `);
+    const cutoff = new Date(Date.now() - olderThanDays * 24 * 60 * 60 * 1000);
+    let total = 0;
+    for (;;) {
+      const archived = await this.prisma.$executeRaw(Prisma.sql`
+        WITH batch AS (
+          SELECT id FROM notifications
+          WHERE priority = 'low' AND read_at IS NULL AND created_at < ${cutoff}
+          LIMIT ${ARCHIVE_BATCH}
+          FOR UPDATE SKIP LOCKED
+        )
+        UPDATE notifications SET read_at = now()
+        FROM batch WHERE notifications.id = batch.id
+      `);
+      total += archived;
+      if (archived < ARCHIVE_BATCH) return total;
+    }
   }
 
   /** DTO строки журнала: гидратация actor батчем (ADR-0012). */

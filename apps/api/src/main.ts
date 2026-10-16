@@ -17,9 +17,11 @@ async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
     new FastifyAdapter({
-      // traceId = UUID запроса; trustProxy — реальные IP за Caddy/Cloudflare Tunnel (аудит).
+      // traceId = UUID запроса; trustProxy — реальные IP за nginx/Cloudflare Tunnel (аудит).
+      // Не `true`: доверяем только хопам из TRUST_PROXY (дефолт — приватные/
+      // локальные адреса), иначе прямой клиент подделывает X-Forwarded-For.
       genReqId: () => randomUUID(),
-      trustProxy: true,
+      trustProxy: env.TRUST_PROXY,
     }),
   );
   app.useLogger(app.get(Logger));

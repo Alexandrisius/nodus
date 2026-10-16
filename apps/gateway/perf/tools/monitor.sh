@@ -16,8 +16,8 @@ while true; do
     "SELECT count(*) FROM pg_stat_activity WHERE state='active'" 2>/dev/null)
   events_1m=$(docker exec nodus_postgres psql -U nodus -d nodus -tAc \
     "SELECT count(*) FROM events WHERE created_at > now() - interval '1 minute'" 2>/dev/null)
-  stream_len=$(docker exec nodus_redis redis-cli XLEN nodus:chat:events 2>/dev/null)
-  stream_pending=$(docker exec nodus_redis redis-cli --raw XPENDING nodus:chat:events nodus:gateway 2>/dev/null | head -1)
+  stream_len=$(docker exec nodus_redis redis-cli XLEN nodus:domain:events 2>/dev/null)
+  stream_pending=$(docker exec nodus_redis redis-cli --raw XPENDING nodus:domain:events nodus:gateway 2>/dev/null | head -1)
   echo "$ts [$stats] pg_active=$pg_active events_1m=$events_1m stream_len=$stream_len pending=$stream_pending" >> "$OUT"
   sleep 10
 done

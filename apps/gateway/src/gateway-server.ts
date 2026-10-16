@@ -49,14 +49,22 @@ export function createGatewayServer(deps: GatewayDeps): GatewayServer {
   const typing = new TypingThrottler(io, deps.store);
   const presence = new PresenceTracker(deps.store, io);
 
-  io.use(async (socket, next) => {
-    const identity = await verify(socket.handshake.auth?.token);
-    if (!identity) {
-      next(new Error('unauthorized')); // connect_error у клиента, сессии нет
-      return;
-    }
-    socket.data.userId = identity.userId;
-    next();
+  io.use((socket, next) => {
+    // Middleware socket.io ждёт void: промис верификатора разворачиваем сами,
+    // сбой верификации = отказ хендшейка (а не необработанный reject).
+    verify(socket.handshake.auth?.token).then(
+      (identity) => {
+        if (!identity) {
+          next(new Error('unauthorized')); // connect_error у клиента, сессии нет
+          return;
+        }
+        socket.data.userId = identity.userId;
+        next();
+      },
+      () => {
+        next(new Error('unauthorized'));
+      },
+    );
   });
 
   io.on('connection', (socket: Socket) => {
@@ -93,7 +101,9 @@ export function createGatewayServer(deps: GatewayDeps): GatewayServer {
     },
     async close() {
       await consumer.stop();
-      io.close();
+      // io.close() закрывает и привязанный httpServer; явный close ниже —
+      // страховка (на уже закрытом сервере колбэк получит ошибку — игнор).
+      await io.close();
       await new Promise<void>((resolve) => {
         httpServer.close(() => {
           resolve();

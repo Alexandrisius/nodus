@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { DomainEvent, DomainEventHandler } from '@nodus/contracts';
+import { DIRECTORY_EVENTS, type DomainEvent, type DomainEventHandler } from '@nodus/contracts';
 
 import { AuthRepository } from '../auth.repository.js';
 
@@ -14,7 +14,7 @@ interface UserDeactivatedPayload {
  */
 @Injectable()
 export class UserDeactivatedHandler implements DomainEventHandler<UserDeactivatedPayload> {
-  static readonly eventType = 'directory.user.deactivated';
+  static readonly eventType = DIRECTORY_EVENTS.USER_DEACTIVATED;
 
   constructor(private readonly authRepository: AuthRepository) {}
 

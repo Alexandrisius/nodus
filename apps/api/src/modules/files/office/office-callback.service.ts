@@ -2,7 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { PinoLogger } from 'nestjs-pino';
 import { createHash } from 'node:crypto';
 import { Readable } from 'node:stream';
-import { FILE_EVENTS, type FileVersionCreatedPayload } from '@nodus/contracts';
+import { ErrorCode, FILE_EVENTS, type FileVersionCreatedPayload } from '@nodus/contracts';
 
 /** Потолок скачивания собранной копии из кэша DS (#182): с избытком покрывает
  * офисные документы (лимит загрузки вложений — 100 МБ), защищает память api. */
@@ -237,14 +237,26 @@ export class OfficeCallbackService {
     return { bytes };
   }
 
+  /**
+   * Fail-closed (SSRF): скачиваем ТОЛЬКО с внутреннего origin DS — от body.url
+   * берутся лишь путь и query. Невалидный url колбэка или кривой
+   * OFFICE_INTERNAL_URL — отказ, а не fetch сырого url (иначе подписанный
+   * колбэк уводил бы запрос api на произвольный хост).
+   */
   private toInternalUrl(url: string): string {
-    try {
-      const parsed = new URL(url);
-      const base = new URL(this.config.internalUrl);
-      return `${base.origin}${parsed.pathname}${parsed.search}`;
-    } catch {
-      return url;
+    const base = parseHttpUrl(this.config.internalUrl);
+    if (!base) {
+      // Ошибка конфигурации, не входа: 500 → DS повторит доставку после починки.
+      throw new Error('OFFICE_INTERNAL_URL is not a valid http(s) URL');
     }
+    const parsed = parseHttpUrl(url);
+    if (!parsed) {
+      throw new DomainException(
+        ErrorCode.VALIDATION_FAILED,
+        'Document server callback url is not a valid http(s) URL',
+      );
+    }
+    return `${base.origin}${parsed.pathname}${parsed.search}`;
   }
 
   /** lastsave колбэка → мс (bigint для file_versions.source_lastsave);
@@ -254,5 +266,15 @@ export class OfficeCallbackService {
     if (!iso) return null;
     const ms = Date.parse(iso);
     return Number.isFinite(ms) ? BigInt(ms) : null;
+  }
+}
+
+/** Абсолютный http(s)-URL или null (иные схемы дают origin 'null' — тоже отказ). */
+function parseHttpUrl(raw: string): URL | null {
+  try {
+    const url = new URL(raw);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url : null;
+  } catch {
+    return null;
   }
 }

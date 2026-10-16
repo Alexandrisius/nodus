@@ -35,7 +35,7 @@ describe('AuthService', () => {
     updatePassword: vi.fn(),
     createSession: vi.fn(),
     findSessionById: vi.fn(),
-    rotateSession: vi.fn(),
+    rotateSessionIfCurrent: vi.fn().mockResolvedValue(true),
     revokeSession: vi.fn(),
     revokeAllSessions: vi.fn(),
     listActiveSessions: vi.fn(),
@@ -68,6 +68,7 @@ describe('AuthService', () => {
       raw ? { sessionId: 'session-1', token: 'raw-token' } : null,
     );
     loginThrottle.isLocked.mockResolvedValue(false);
+    authRepository.rotateSessionIfCurrent.mockResolvedValue(true);
     service = new AuthService(
       authProvider as never,
       authRepository as never,
@@ -162,7 +163,7 @@ describe('AuthService', () => {
       const result = await service.refresh('cookie', '1.1.1.1', 'ua');
 
       expect(result.accessToken).toBe('access-jwt');
-      expect(authRepository.rotateSession).toHaveBeenCalled();
+      expect(authRepository.rotateSessionIfCurrent).toHaveBeenCalled();
       expect(authRepository.revokeSession).not.toHaveBeenCalled();
     });
 
@@ -183,12 +184,71 @@ describe('AuthService', () => {
       const result = await service.refresh('cookie', '1.1.1.1', 'ua');
 
       expect(result.accessToken).toBe('access-jwt');
-      expect(authRepository.rotateSession).toHaveBeenCalledWith(
+      expect(authRepository.rotateSessionIfCurrent).toHaveBeenCalledWith(
         'session-1',
+        'a'.repeat(64), // CAS-база: предъявленный текущий
         'b'.repeat(64),
-        'a'.repeat(64),
         expect.any(Date),
       );
+    });
+
+    it('гонка двух вкладок: проигрыш CAS → перечитали, предъявленный стал предыдущим в leeway → ротация поверх выигравшей', async () => {
+      const winnerHash = 'c'.repeat(64);
+      authRepository.findSessionById
+        .mockResolvedValueOnce(makeSession()) // до ротации соседней вкладки
+        .mockResolvedValueOnce(
+          makeSession({
+            refreshTokenHash: winnerHash,
+            previousRefreshTokenHash: 'a'.repeat(64),
+            updatedAt: new Date(), // соседняя вкладка ротировала только что
+          }),
+        );
+      authRepository.findIdentityById.mockResolvedValue(IDENTITY);
+      authRepository.rotateSessionIfCurrent
+        .mockResolvedValueOnce(false) // соседняя вкладка успела раньше
+        .mockResolvedValueOnce(true);
+
+      const result = await service.refresh('cookie', '1.1.1.1', 'ua');
+
+      expect(result.refreshToken).toBe('raw-token');
+      expect(authRepository.rotateSessionIfCurrent).toHaveBeenCalledTimes(2);
+      expect(authRepository.rotateSessionIfCurrent).toHaveBeenLastCalledWith(
+        'session-1',
+        winnerHash,
+        'b'.repeat(64),
+        expect.any(Date),
+      );
+      expect(authRepository.revokeSession).not.toHaveBeenCalled();
+      expect(audit.append).not.toHaveBeenCalled();
+    });
+
+    it('проигрыш CAS, а предъявленный уже не текущий и не предыдущий → 401 без отзыва', async () => {
+      authRepository.findSessionById.mockResolvedValueOnce(makeSession()).mockResolvedValueOnce(
+        makeSession({
+          refreshTokenHash: 'd'.repeat(64),
+          previousRefreshTokenHash: 'c'.repeat(64),
+        }),
+      );
+      authRepository.findIdentityById.mockResolvedValue(IDENTITY);
+      authRepository.rotateSessionIfCurrent.mockResolvedValueOnce(false);
+
+      await expect(service.refresh('cookie', '1.1.1.1', 'ua')).rejects.toMatchObject({
+        code: ErrorCode.AUTH_SESSION_INVALID,
+      });
+      expect(authRepository.rotateSessionIfCurrent).toHaveBeenCalledTimes(1);
+      expect(authRepository.revokeSession).not.toHaveBeenCalled();
+    });
+
+    it('CAS проигран на всех попытках → 401, сессия не отзывается', async () => {
+      authRepository.findSessionById.mockResolvedValue(makeSession());
+      authRepository.findIdentityById.mockResolvedValue(IDENTITY);
+      authRepository.rotateSessionIfCurrent.mockResolvedValue(false);
+
+      await expect(service.refresh('cookie', '1.1.1.1', 'ua')).rejects.toMatchObject({
+        code: ErrorCode.AUTH_SESSION_INVALID,
+      });
+      expect(authRepository.rotateSessionIfCurrent).toHaveBeenCalledTimes(3);
+      expect(authRepository.revokeSession).not.toHaveBeenCalled();
     });
 
     it('деактивированный пользователь → отзыв сессии + 401', async () => {

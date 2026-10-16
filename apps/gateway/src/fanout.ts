@@ -1,33 +1,31 @@
 import type { Server } from 'socket.io';
 import type { Redis } from 'ioredis';
-import {
-  DOMAIN_EVENTS_STREAM,
-  realtimeEnvelopeSchema,
-  type RealtimeEnvelope,
-} from '@nodus/contracts';
+import { DOMAIN_EVENTS_STREAM, realtimeEnvelopeSchema } from '@nodus/contracts';
 
 import type { MembershipStore } from './membership.ts';
-import { convRoom, revokeConvRoom, userRoom } from './rooms.ts';
+import { routeEnvelope } from './route-envelope.ts';
+import {
+  pruneOrphanConsumers,
+  reclaimIdlePending,
+  type StreamRecoveryOptions,
+} from './stream-recovery.ts';
 
 /** Consumer group gateway в стриме событий чата. */
 const CONSUMER_GROUP = 'nodus:gateway';
 const CONSUMER_BATCH = 100;
 const CONSUMER_BLOCK_MS = 5_000;
 const RETRY_DELAY_MS = 1_000;
+/** Период обслуживания группы: перехват брошенных pending + GC сирот. */
+const MAINTENANCE_INTERVAL_MS = 30_000;
+/** Pending без ACK дольше минуты — брошен (живая обработка записи — миллисекунды). */
+const RECLAIM_MIN_IDLE_MS = 60_000;
+/** Consumer без pending и без попыток чтения 10 минут — сирота (живой BLOCK-reader — секунды). */
+const ORPHAN_IDLE_MS = 10 * 60_000;
 
 export interface ChatEventsConsumerOptions {
   /** Имя consumer group (по умолчанию nodus:gateway); тесты подставляют своё. */
   group?: string;
 }
-
-/** События, меняющие список бесед (lastMessage/unread/название/аватар) → дублируем в user-комнаты участников. */
-const LIST_EVENTS = new Set([
-  'chat.message_sent',
-  'chat.message_edited',
-  'chat.message_deleted',
-  // #186: название/аватар видны в списке у всех участников.
-  'chat.conversation_updated',
-]);
 
 function logError(scope: string, error: unknown): void {
   // TODO(core): структурное логирование (pino) — issue #2/#3.
@@ -35,112 +33,17 @@ function logError(scope: string, error: unknown): void {
 }
 
 /**
- * Маршрутизация envelope по комнатам (чистая функция для юнит-тестов):
- * - события беседы → `conv:{conversationId}` (только члены в комнате);
- * - message_sent/edited/deleted → плюс user-комнаты участников (список бесед);
- * - message_read → комната беседы (галочки автора) + user:{reader} (свои устройства);
- * - conversation_created/member_added → user-комнаты затронутых;
- * - notification.* (#100) → user-комната получателя (payload.userId или
- *   snapshot.userId); прочие типы — игнор (стрим несёт все доменные события,
- *   gateway расходует только адресованные ему).
- */
-export async function routeEnvelope(
-  io: Server,
-  store: MembershipStore,
-  envelope: RealtimeEnvelope,
-): Promise<void> {
-  const payload = (envelope.payload ?? {}) as Record<string, unknown>;
-
-  if (envelope.type.startsWith('notification.')) {
-    const snapshot = payload.snapshot as Record<string, unknown> | undefined;
-    const target =
-      (typeof payload.userId === 'string' && payload.userId) ||
-      (typeof snapshot?.userId === 'string' ? snapshot.userId : null);
-    if (target) {
-      io.to(userRoom(target)).emit(envelope.type, envelope);
-    }
-    return;
-  }
-
-  // Задачи (#37): адресаты — payload.audience (участники задачи, при снятии —
-  // и снятый), user-комнаты; клиент инвалидирует кэш задач.
-  if (envelope.type.startsWith('task.')) {
-    emitToUsers(io, envelope, memberIdsOf(payload.audience));
-    return;
-  }
-
-  const conversationId = typeof payload.conversationId === 'string' ? payload.conversationId : null;
-
-  if (envelope.type === 'chat.conversation_created') {
-    emitToUsers(io, envelope, memberIdsOf(payload.memberIds));
-    return;
-  }
-  if (envelope.type === 'chat.member_added') {
-    if (conversationId) {
-      io.to(convRoom(conversationId)).emit(envelope.type, envelope);
-    }
-    emitToUsers(io, envelope, memberIdsOf(payload.userIds));
-    return;
-  }
-  if (envelope.type === 'chat.member_removed') {
-    // #186: исключённый (payload.userId) теряет беседу из списка — его
-    // user-комната; остальные участники рефечат счётчик и панель в conv-комнате.
-    if (conversationId) {
-      io.to(convRoom(conversationId)).emit(envelope.type, envelope);
-    }
-    if (typeof payload.userId === 'string') {
-      io.to(userRoom(payload.userId)).emit(envelope.type, envelope);
-      // Событие доставлено — выводим его сокеты из комнаты беседы (#252).
-      if (conversationId) await revokeConvRoom(io, payload.userId, conversationId);
-    }
-    return;
-  }
-  if (envelope.type === 'chat.member_role_changed') {
-    // #186: смена роли видна участникам беседы (панель участников).
-    if (conversationId) {
-      io.to(convRoom(conversationId)).emit(envelope.type, envelope);
-    }
-    if (typeof payload.userId === 'string') {
-      io.to(userRoom(payload.userId)).emit(envelope.type, envelope);
-    }
-    return;
-  }
-  if (envelope.type === 'chat.message_read') {
-    if (conversationId) {
-      io.to(convRoom(conversationId)).emit(envelope.type, envelope);
-    }
-    if (typeof payload.userId === 'string') {
-      io.to(userRoom(payload.userId)).emit(envelope.type, envelope);
-    }
-    return;
-  }
-  // Избранное (#171): личное состояние (как прочитанность) — только
-  // user-комната владельца, участникам беседы не рассылается.
-  if (
-    envelope.type === 'chat.favorite_added' ||
-    envelope.type === 'chat.favorite_removed' ||
-    envelope.type === 'chat.favorite_updated'
-  ) {
-    if (typeof payload.userId === 'string') {
-      io.to(userRoom(payload.userId)).emit(envelope.type, envelope);
-    }
-    return;
-  }
-  if (!conversationId) {
-    return; // message_*/reaction/pin/thread_created без беседы — некуда маршрутизировать
-  }
-  io.to(convRoom(conversationId)).emit(envelope.type, envelope);
-  if (LIST_EVENTS.has(envelope.type)) {
-    emitToUsers(io, envelope, await store.memberIds(conversationId));
-  }
-}
-
-/**
- * Консьюмер Redis Stream `nodus:chat:events`: consumer group читает только
+ * Консьюмер Redis Stream доменных событий (`DOMAIN_EVENTS_STREAM` =
+ * `nodus:domain:events`, несёт ВСЕ события outbox): consumer group читает только
  * новые записи (`$` на старте — историю в стриме не ретранслируем: клиенты
  * ресинхронизируются рефечем), каждая запись эмитится в комнаты и XACK-ается.
  * Порядок seq может нарушаться поздними коммитами в api — безопасно:
  * клиент применяет события только как сигнал к рефечу.
+ * Обслуживание группы (при старте и раз в 30 с, между чтениями — на том же
+ * соединении нельзя параллельно: команды встали бы за XREADGROUP BLOCK,
+ * gotcha Realtime): перехват брошенных pending (XAUTOCLAIM, idle > 60 с —
+ * падение между XREADGROUP и XACK больше не теряет события) и GC
+ * consumer'ов-сирот без pending (`stream-recovery.ts`).
  */
 export class ChatEventsConsumer {
   private readonly redis: Redis;
@@ -149,6 +52,7 @@ export class ChatEventsConsumer {
   private readonly group: string;
   private readonly consumerName: string;
   private running = false;
+  private lastMaintenanceAt = 0;
 
   constructor(
     redis: Redis,
@@ -182,8 +86,41 @@ export class ChatEventsConsumer {
     this.running = false;
   }
 
+  /**
+   * Обслуживание группы: брошенные pending → штатная обработка (эмит + XACK),
+   * затем GC сирот. Сбой обслуживания не останавливает живое чтение.
+   */
+  async runMaintenance(): Promise<void> {
+    this.lastMaintenanceAt = Date.now();
+    const options: StreamRecoveryOptions = {
+      stream: DOMAIN_EVENTS_STREAM,
+      group: this.group,
+      consumer: this.consumerName,
+      minIdleMs: RECLAIM_MIN_IDLE_MS,
+      orphanIdleMs: ORPHAN_IDLE_MS,
+      batch: CONSUMER_BATCH,
+    };
+    try {
+      const reclaimed = await reclaimIdlePending(this.redis, options, (id, fields) =>
+        this.processEntry(id, fields),
+      );
+      if (reclaimed > 0) {
+        console.warn(`[gateway] reclaimed ${reclaimed} abandoned stream entries`);
+      }
+      const removed = await pruneOrphanConsumers(this.redis, options);
+      if (removed.length > 0) {
+        console.warn(`[gateway] orphan consumers removed: ${removed.join(', ')}`);
+      }
+    } catch (error) {
+      logError('stream maintenance', error);
+    }
+  }
+
   private async loop(): Promise<void> {
     while (this.running) {
+      if (Date.now() - this.lastMaintenanceAt >= MAINTENANCE_INTERVAL_MS) {
+        await this.runMaintenance();
+      }
       try {
         const result = (await this.redis.xreadgroup(
           'GROUP',
@@ -232,16 +169,6 @@ export class ChatEventsConsumer {
       await this.redis.xack(DOMAIN_EVENTS_STREAM, this.group, id);
     }
   }
-}
-
-function emitToUsers(io: Server, envelope: RealtimeEnvelope, userIds: string[]): void {
-  for (const userId of userIds) {
-    io.to(userRoom(userId)).emit(envelope.type, envelope);
-  }
-}
-
-function memberIdsOf(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((id): id is string => typeof id === 'string') : [];
 }
 
 function sleep(ms: number): Promise<void> {
