@@ -11,7 +11,7 @@ import {
   Users,
 } from 'lucide-react';
 import { memo } from 'react';
-import type { TaskDetail, UserRef } from '@nodus/contracts';
+import type { TaskDetail } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { NodeChip } from '@nodus/ui/components/node-chip';
 
@@ -22,6 +22,7 @@ import { DeadlineChip } from '../../../shared/ui/deadline-chip.js';
 import { EntityFields, type EntityFieldDef } from '../../../shared/ui/entity-fields.js';
 import { identityTone } from '../../../shared/ui/identity-tone.js';
 import { priorityTone } from '../../../shared/views/task-table-fields.js';
+import { TaskAssigneeField, TaskPeopleField } from './task-people-field.js';
 import { TaskStageField } from './task-stage-controls.js';
 
 const VISIBILITY_KEY = 'nodus-task-fields-v1';
@@ -55,15 +56,7 @@ export const TaskFields = memo(function TaskFields({ task }: { task: TaskDetail 
       key: 'assignee',
       icon: <User className="size-3.5" />,
       label: ui.tasks.assignee,
-      render: () =>
-        task.assignee ? (
-          <>
-            <PersonAvatar name={task.assignee.displayName} className="size-6" />
-            <span>{task.assignee.displayName}</span>
-          </>
-        ) : (
-          ui.common.notSet
-        ),
+      render: () => <TaskAssigneeField task={task} />,
     },
     {
       key: 'creator',
@@ -102,7 +95,7 @@ export const TaskFields = memo(function TaskFields({ task }: { task: TaskDetail 
       key: 'participants',
       icon: <Users className="size-3.5" />,
       label: ui.tasks.participants,
-      render: () => <PeopleList people={task.participants} />,
+      render: () => <TaskPeopleField task={task} role="coexecutor" />,
     },
     {
       key: 'stage',
@@ -114,7 +107,7 @@ export const TaskFields = memo(function TaskFields({ task }: { task: TaskDetail 
       key: 'observers',
       icon: <Eye className="size-3.5" />,
       label: ui.tasks.watchers,
-      render: () => <PeopleList people={task.observers} />,
+      render: () => <TaskPeopleField task={task} role="observer" />,
     },
     {
       key: 'spent',
@@ -140,20 +133,3 @@ export const TaskFields = memo(function TaskFields({ task }: { task: TaskDetail 
 
   return <EntityFields defs={defs} storageKey={VISIBILITY_KEY} />;
 });
-
-/** Люди НЕ сокращаются (вердикт владельца: места много): полное имя,
- *  не влезает — переносится. Truncate — только сверхдлинные названия
- *  типа проектов (с title-тултипом). */
-function PeopleList({ people }: { people: UserRef[] }) {
-  if (people.length === 0) return <>{ui.common.notSet}</>;
-  return (
-    <>
-      <span className="flex shrink-0 -space-x-1.5">
-        {people.slice(0, 3).map((p) => (
-          <PersonAvatar key={p.id} name={p.displayName} className="size-6 ring-2 ring-card" />
-        ))}
-      </span>
-      <span>{people.map((p) => p.displayName).join(', ')}</span>
-    </>
-  );
-}

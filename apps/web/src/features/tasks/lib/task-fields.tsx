@@ -10,6 +10,7 @@ import { monoCell, PersonCell } from '../../../shared/ui/person-cell.js';
 import { priorityTone } from '../../../shared/views/task-table-fields.js';
 import type { FieldDef } from '../../../shared/views/use-view-fields.js';
 import { TaskStatusBadge } from '../../../shared/ui/task-status-badge.js';
+import { CommentsCount } from '../../../shared/tasks/comments-count.js';
 
 /** Контекст ячейки списка: состояние ветки дерева (счётчик свёрнутых). */
 export interface CellContext {
@@ -139,7 +140,7 @@ export const taskListFields: ListFieldDef[] = [
     defaultVisible: true,
     defaultWidth: 60,
     minWidth: 48,
-    render: (task) => <span className={monoCell}>{task.commentsCount}</span>,
+    render: (task) => <CommentsCount task={task} className={monoCell} />,
     sortValue: (task) => task.commentsCount,
   },
   {

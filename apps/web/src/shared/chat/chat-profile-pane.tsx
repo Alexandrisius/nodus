@@ -23,8 +23,12 @@ export function ChatProfilePane({
   conversationId,
   conversation,
   onOpenVaultType,
+  compact = false,
 }: {
   conversationId: string;
+  /** Встроенный вид (панель «О задаче», #252): без большого аватара и
+   *  названия — хост уже показывает сущность; пустые категории — «Пусто». */
+  compact?: boolean;
   /** Беседа из кэша хоста; карточки-хосты могут не передать — берём из списка. */
   conversation?: ConversationListItem;
   onOpenVaultType: (type: VaultItemType) => void;
@@ -52,7 +56,14 @@ export function ChatProfilePane({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {item ? (
+      {item && compact ? (
+        <div className="flex shrink-0 items-center gap-2 pb-3">
+          <Button variant="outline" size="sm" onClick={toggleMute}>
+            {item.muted ? <BellOff data-testid="muted" /> : <Bell />}
+            {ui.chat.profileSound}
+          </Button>
+        </div>
+      ) : item ? (
         <div className="flex shrink-0 flex-col items-center gap-1.5 px-4 pb-4">
           <ConversationAvatar conversation={item} meId={meId} className="size-20" />
           <div className="mt-1 w-full text-center">
@@ -99,6 +110,9 @@ export function ChatProfilePane({
             </button>
           );
         })}
+        {compact && counts.data && Object.values(counts.data).every((n) => !n) ? (
+          <span className="px-2 py-1.5 text-sm text-muted-foreground">{ui.common.empty}</span>
+        ) : null}
       </nav>
     </div>
   );

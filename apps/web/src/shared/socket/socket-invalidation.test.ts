@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { RealtimeEnvelope } from '@nodus/contracts';
 
 import { useAuthStore } from '../auth-store.js';
+import { useCommentsLive } from '../tasks/comments-live.js';
 import { createRealtimeInvalidator } from './socket-invalidation.js';
 
 /** queryClient-шпион: фиксирует инвалидированные ключи; кэшей нет (ws-apply
@@ -12,7 +13,12 @@ function fakeQueryClient() {
   const getQueryData = vi.fn(() => undefined);
   // ws-apply патчеры зовут setQueriesData — кэшей нет, патч не применяется.
   const setQueriesData = vi.fn();
-  return { client: { invalidateQueries, getQueryData, setQueriesData }, invalidateQueries };
+  // Поиск беседы задачи по кэшам списка (#252) — кэшей нет.
+  const getQueriesData = vi.fn(() => []);
+  return {
+    client: { invalidateQueries, getQueryData, setQueriesData, getQueriesData },
+    invalidateQueries,
+  };
 }
 
 function envelope(type: string, payload: Record<string, unknown>): RealtimeEnvelope {
@@ -139,6 +145,33 @@ describe('createRealtimeInvalidator (коалесцинг, раунд 3)', () =>
     flushWindows();
     expect(invalidateQueries).toHaveBeenCalledTimes(1);
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['chat', 'conversations'] });
+    invalidator.dispose();
+    vi.useRealTimers();
+  });
+
+  it('task.comments_counted (#252): точное значение счётчика без инвалидаций', () => {
+    vi.useFakeTimers();
+    const { client, invalidateQueries } = fakeQueryClient();
+    const invalidator = createRealtimeInvalidator(client as never);
+    invalidator.handle(envelope('task.comments_counted', { taskId: 't-1', commentsCount: 7 }));
+    flushWindows();
+    expect(useCommentsLive.getState().exact['t-1']).toBe(7);
+    expect(invalidateQueries).not.toHaveBeenCalled();
+    invalidator.dispose();
+    vi.useRealTimers();
+  });
+
+  it('message_sent в беседе задачи (#252): +1 к живому счётчику один раз', () => {
+    vi.useFakeTimers();
+    const { client } = fakeQueryClient();
+    client.getQueriesData.mockReturnValue([
+      [['chat', 'conversations'], { items: [{ id: CONV, task: { id: 't-2' } }], nextCursor: null }],
+    ] as never);
+    const invalidator = createRealtimeInvalidator(client as never);
+    const sent = envelope('chat.message_sent', { conversationId: CONV, messageId: 'm-1', seq: 3 });
+    invalidator.handle(sent);
+    invalidator.handle(sent);
+    expect(useCommentsLive.getState().delta['t-2']).toBe(1);
     invalidator.dispose();
     vi.useRealTimers();
   });

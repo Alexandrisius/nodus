@@ -63,6 +63,7 @@ export const ui = {
     you: 'Вы',
     search: 'Поиск',
     add: 'Добавить',
+    remove: 'Убрать',
     showAll: 'Показать все',
     notSet: 'Не задано',
     noDeadline: 'Без срока',

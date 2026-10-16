@@ -8,6 +8,7 @@ import { identityTone } from '../ui/identity-tone.js';
 import { monoCell, PersonCell } from '../ui/person-cell.js';
 import { TaskStatusBadge } from '../ui/task-status-badge.js';
 import type { DataTableField } from './data-table.js';
+import { CommentsCount } from '../tasks/comments-count.js';
 
 export const priorityTone: Record<TaskPriority, 'muted' | 'warning' | 'danger'> = {
   low: 'muted',
@@ -127,7 +128,7 @@ export function makeTaskTableFields({
       defaultVisible: true,
       defaultWidth: 60,
       minWidth: 48,
-      render: (task) => <span className={monoCell}>{task.commentsCount}</span>,
+      render: (task) => <CommentsCount task={task} className={monoCell} />,
       sortValue: (task) => task.commentsCount,
     },
     {

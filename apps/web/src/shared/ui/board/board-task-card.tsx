@@ -4,6 +4,7 @@ import { ui } from '@nodus/contracts';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { formatMinutes } from '../../lib/format.js';
+import { useCommentsCount } from '../../tasks/comments-live.js';
 import { PersonAvatar } from '../person-avatar.js';
 import { DeadlineChip } from '../deadline-chip.js';
 import { identityTone } from '../identity-tone.js';
@@ -35,6 +36,8 @@ export function BoardTaskCard({
   onHover?: (task: TaskListItem) => void;
 }) {
   const showFooter = isVisible('assignee') || isVisible('comments') || isVisible('spent');
+  // Живой счётчик (#252): +1 сразу по сообщению, точное значение — событием.
+  const commentsCount = useCommentsCount(task);
 
   return (
     <button
@@ -89,7 +92,7 @@ export function BoardTaskCard({
           {isVisible('comments') ? (
             <span className="ml-auto inline-flex items-center gap-1 font-mono text-label-sm tabular-nums">
               <MessageSquare className="size-3.5" />
-              {task.commentsCount}
+              {commentsCount}
             </span>
           ) : (
             <span className="ml-auto" />
