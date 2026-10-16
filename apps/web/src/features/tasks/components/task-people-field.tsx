@@ -1,6 +1,7 @@
 import { Plus, X } from 'lucide-react';
 import type { TaskDetail, TaskParticipantRole, UserRef } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
+import { cn } from '@nodus/ui/lib/utils';
 
 import { useAuthStore } from '../../../shared/auth-store.js';
 import { withoutPatronymic } from '../../../shared/lib/format.js';
@@ -58,7 +59,11 @@ export function TaskPeopleField({ task, role }: { task: TaskDetail; role: TaskPa
         >
           <button
             type="button"
-            className="inline-flex h-7 items-center gap-1 rounded-md px-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            className={cn(
+              'inline-flex h-6 items-center gap-1 rounded-md px-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
+              // Пустое поле: «+ Добавить» по левой кромке значений.
+              people.length === 0 && '-ml-1.5',
+            )}
           >
             <Plus className="size-3.5" strokeWidth={1.75} />
             {people.length === 0 ? ui.common.add : null}
@@ -84,7 +89,7 @@ export function TaskAssigneeField({ task }: { task: TaskDetail }) {
     >
       <button
         type="button"
-        className="-mx-1 flex min-w-0 items-center rounded-md px-1 py-0.5 text-left transition-colors hover:bg-accent"
+        className="-mx-1 flex h-6 min-w-0 items-center rounded-md px-1 text-left transition-colors hover:bg-accent"
       >
         {current}
       </button>
@@ -94,7 +99,7 @@ export function TaskAssigneeField({ task }: { task: TaskDetail }) {
 
 function PersonChip({ person, onRemove }: { person: UserRef; onRemove?: () => void }) {
   return (
-    <span className="group/chip inline-flex h-7 max-w-full items-center gap-1.5 rounded-md pr-1 text-sm">
+    <span className="group/chip inline-flex h-6 max-w-full items-center gap-2 rounded-md text-sm">
       <PersonAvatar name={person.displayName} avatarUrl={person.avatarUrl} className="size-6" />
       <span className="truncate">{withoutPatronymic(person.displayName)}</span>
       {onRemove ? (

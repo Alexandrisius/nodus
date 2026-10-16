@@ -46,7 +46,12 @@ export function buildSubtitle(
   if (conversation.type === 'direct' && !isNotesConversation(conversation, meId)) {
     return live.peerOnline ? ui.common.online : ui.chat.offline;
   }
-  if (conversation.type === 'group' || conversation.type === 'project_channel') {
+  // Чат задачи — как группа (вердикт владельца 16.10, #252): число участников.
+  if (
+    conversation.type === 'group' ||
+    conversation.type === 'project_channel' ||
+    conversation.type === 'task'
+  ) {
     const count = conversation.membersCount;
     const label = `${count} ${plural(count, [
       ui.chat.membersCountOne,
