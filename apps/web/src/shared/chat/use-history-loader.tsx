@@ -50,7 +50,7 @@ export function useHistoryLoader({
   enabled?: boolean;
   /** Переопределение загрузки (витрина: история + страницы избранного). */
   loadMore?: () => Promise<boolean>;
-}): { loadingOlder: boolean; topSentinel: ReactNode } {
+}): { loadingOlder: boolean; topSentinel: ReactNode; loadOlder: () => Promise<boolean> } {
   const queryClient = useQueryClient();
   const [loadingOlder, setLoadingOlder] = useState(false);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -76,13 +76,18 @@ export function useHistoryLoader({
     return task;
   }, [conversationId, threadRootId, loadMore, queryClient, viewportRef]);
 
-  // Компенсация: items сменились при висящем якоре — сдвигаем scrollTop на
-  // прирост высоты (преппенд растит контент НАД текущей позицией).
+  // Компенсация ТОЛЬКО преппенда: якорь живёт до смены ПЕРВОГО элемента
+  // (ревью #307: аппенд/патч чужого события в окне полёта не должен
+  // расходовать якорь — иначе сдвиг по чужой высоте, а настоящий преппенд
+  // остался бы без компенсации). Пустой исход (сетевой отказ) — якорь
+  // перезапишется следующим запуском загрузки.
   useLayoutEffect(() => {
-    const changed = prevItemsRef.current !== items;
+    const prev = prevItemsRef.current;
+    const changed = prev !== items;
+    const prepended = changed && items[0]?.id !== prev[0]?.id;
     prevItemsRef.current = items;
     const anchor = anchorRef.current;
-    if (!changed || !anchor) return;
+    if (!prepended || !anchor) return;
     anchorRef.current = null;
     const el = viewportRef.current;
     if (!el) return;
@@ -124,5 +129,5 @@ export function useHistoryLoader({
     </div>
   );
 
-  return { loadingOlder, topSentinel };
+  return { loadingOlder, topSentinel, loadOlder };
 }
