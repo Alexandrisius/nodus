@@ -67,7 +67,8 @@ export function TaskActionBar({ task }: { task: TaskDetail }) {
             key={t.id}
             type="button"
             disabled={runner.isPending}
-            aria-disabled={blocked || undefined}
+            // НЕ aria-disabled: кнопка работает — открывает диалог причин.
+            data-blocked={blocked || undefined}
             title={blocked ? gateReasonsText(t.blockedBy) : `${t.name}: ${t.toStageName}`}
             onClick={() => runner.run(t)}
             className={cn(

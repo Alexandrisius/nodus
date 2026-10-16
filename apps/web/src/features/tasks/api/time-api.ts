@@ -65,6 +65,8 @@ export function useRunningTimer() {
     queryKey: tasksKeys.timer(),
     queryFn: () => api<RunningTimer | null>('/tasks/timer'),
     staleTime: 30_000,
+    // Модуль задач может быть выключен флагом (404) — без повторов в топбаре.
+    retry: false,
   });
 }
 

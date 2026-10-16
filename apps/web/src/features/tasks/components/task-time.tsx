@@ -29,7 +29,7 @@ function isoDate(daysAgo: number): string {
 }
 
 /** «ЧЧ:ММ:СС» идущего таймера — тикает раз в секунду только пока виден. */
-function useElapsed(startedAt: string | undefined): string {
+export function useElapsed(startedAt: string | undefined): string {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (!startedAt) return;
