@@ -2,97 +2,20 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '../../../generated/prisma/client.js';
 import { PrismaService } from '../../../core/database/prisma.service.js';
 import type { TransactionClient } from '../../../core/database/transaction-runner.js';
+import {
+  MESSAGE_COLS,
+  type MessageAttachmentRow,
+  type MessageRow,
+  type ThreadCountRow,
+} from './message-row.js';
 
-/** Сообщение (сырой SQL-ряд, camelCase-алиасы). seq приходит как bigint. */
-export interface MessageRow {
-  id: string;
-  conversationId: string;
-  seq: bigint;
-  authorId: string;
-  clientMessageId: string;
-  text: string;
-  replyToId: string | null;
-  replySnapshot: Prisma.JsonValue | null;
-  threadRootId: string | null;
-  fwdConversationId: string | null;
-  fwdMessageId: string | null;
-  fwdAuthorId: string | null;
-  fwdThreadRootId: string | null;
-  editedAt: Date | null;
-  deletedAt: Date | null;
-  obliterated: boolean;
-  urgent: boolean;
-  mentionedUserIds: Prisma.JsonValue | null;
-  everMentionedUserIds: Prisma.JsonValue | null;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-/** Привязанное вложение (форма для маппера DTO; стикер дополнительно несёт
- *  stickerMeta — StickerAttachmentRow в stickers.repository). */
-export interface ClaimedAttachmentRow {
-  id: string;
-  fileId: string;
-  name: string;
-  size: number;
-  mime: string;
-  kind: string;
-  width: number | null;
-  height: number | null;
-  thumbFileId: string | null;
-}
-
-export interface ThreadCountRow {
-  rootId: string;
-  count: number;
-}
-
-export interface PinRow {
-  conversationId: string;
-  messageId: string;
-  pinnedBy: string;
-  pinnedAt: Date;
-  message: MessageRow;
-}
-
-const MESSAGE_COLS = Prisma.sql`
-  id,
-  conversation_id AS "conversationId",
-  seq,
-  author_id AS "authorId",
-  client_message_id AS "clientMessageId",
-  text,
-  reply_to_id AS "replyToId",
-  reply_snapshot AS "replySnapshot",
-  thread_root_id AS "threadRootId",
-  fwd_conversation_id AS "fwdConversationId",
-  fwd_message_id AS "fwdMessageId",
-  fwd_author_id AS "fwdAuthorId",
-  fwd_thread_root_id AS "fwdThreadRootId",
-  edited_at AS "editedAt",
-  deleted_at AS "deletedAt",
-  obliterated,
-  urgent,
-  mentioned_user_ids AS "mentionedUserIds",
-  COALESCE(ever_mentioned_user_ids, '[]'::jsonb) AS "everMentionedUserIds",
-  created_at AS "createdAt",
-  updated_at AS "updatedAt"
-`;
-
-// >300 строк — обоснование (I5): один репозиторий на агрегат Message (канон skills/database-repository-pattern);
-// идемпотентная вставка, seq-выделение, лента/треды, курсоры прочтения, tombstone, реакции, тред-участники —
-// все запросы к таблицам сообщений держатся вместе; дробление по эндпоинтам запрещено каноном.
 /**
- * Репозиторий агрегата Message: порядок (seq через лок строки беседы),
- * идемпотентная вставка (ON CONFLICT по автору+client_message_id — crash-окно
- * Redis-реплея закрывает БД), лента/треды курсором по seq, прочитанность
- * watermark-курсором. Все записи сообщений идут ПОСЛЕ UPDATE conversations
- * SET last_seq (лок строки) → транзакции одной беседы сериализуются,
- * порядок seq == порядку коммита.
- *
- * > 300 строк: блоки сырого SQL сообщений (лента/тред/курсор/идемпотентность)
- * держатся вместе ради транзакционных инвариантов; разнос по файлам разбил бы
- * агрегат (обоснование лимита I5).
+ * Репозиторий агрегата Message — ЧТЕНИЕ: сообщение по id (строго в беседе),
+ * батчи для маппера (оригиналы цитат, вложения, счётчики тредов), источники
+ * пересылки, лента/треды курсором по seq. Запись разнесена по
+ * ответственности (I5): отправка/пересылка — messages-write.repository,
+ * правка/удаление — messages-lifecycle.repository, прочитанность —
+ * messages-read-state.repository; формы рядов и колонки — message-row.
  */
 @Injectable()
 export class MessagesRepository {
@@ -100,111 +23,6 @@ export class MessagesRepository {
 
   private client(tx?: TransactionClient): PrismaService | TransactionClient {
     return tx ?? this.prisma;
-  }
-
-  /**
-   * Выделяет `count` подряд идущих seq: инкремент last_seq с возвратом.
-   * Лок строки беседы держится до конца транзакции — все вставки сообщений
-   * беседы сериализуются (глобальный bigserial так не может: значение
-   * выдаётся до коммита, конкурентные транзакции коммитятся вне порядка seq,
-   * курсор «после N» теряет сообщения — см. комментарий модели Conversation).
-   * Возвращает ПЕРВЫЙ seq диапазона (конец = first + count - 1).
-   */
-  async allocateSeqs(
-    conversationId: string,
-    count: number,
-    tx: TransactionClient,
-  ): Promise<bigint> {
-    const rows = await tx.$queryRaw<{ last_seq: bigint }[]>(Prisma.sql`
-      UPDATE conversations
-      SET last_seq = last_seq + ${count}::bigint, updated_at = now()
-      WHERE id = ${conversationId}::uuid
-      RETURNING last_seq
-    `);
-    if (!rows[0]) throw new Error(`allocateSeqs: conversation ${conversationId} not found`);
-    return rows[0].last_seq - BigInt(count) + 1n;
-  }
-
-  /** Активность беседы — только корневые сообщения (мок: тред не lastMessage). */
-  async touchLastMessageAt(conversationId: string, tx: TransactionClient): Promise<void> {
-    await tx.$executeRaw(Prisma.sql`
-      UPDATE conversations
-      SET last_message_at = GREATEST(last_message_at, now()), updated_at = now()
-      WHERE id = ${conversationId}::uuid
-    `);
-  }
-
-  /**
-   * Идемпотентная вставка: ON CONFLICT (author_id, client_message_id)
-   * DO NOTHING; пустой RETURNING = повтор (replay) → вызывающий делает
-   * findExisting. Привязка вложений и побочные эффекты — на вызывающем.
-   */
-  async insertMessage(
-    input: {
-      id: string;
-      conversationId: string;
-      seq: bigint;
-      authorId: string;
-      clientMessageId: string;
-      text: string;
-      replyToId: string | null;
-      replySnapshot: object | null;
-      threadRootId: string | null;
-      fwd: {
-        conversationId: string;
-        messageId: string;
-        authorId: string;
-        threadRootId: string | null;
-      } | null;
-      urgent: boolean;
-      mentionedUserIds: string[];
-      /** Накопительное множество (#239): ТОКЕНЫ без разворота «Все» —
-       *  прямой тэг ≠ broadcast; на отправке = токенам текста. */
-      everMentionedUserIds: string[];
-      createdAt: Date;
-    },
-    tx: TransactionClient,
-  ): Promise<MessageRow | null> {
-    const snapshot = input.replySnapshot === null ? null : JSON.stringify(input.replySnapshot);
-    const mentioned = JSON.stringify(input.mentionedUserIds);
-    // ever = ТОКЕНЫ текста (#239): личный тэг и сентинел «Все», без
-    // разворота — broadcast не глушит будущий первый личный тэг.
-    const ever = JSON.stringify(input.everMentionedUserIds);
-    const rows = await tx.$queryRaw<MessageRow[]>(Prisma.sql`
-      INSERT INTO messages (
-        id, conversation_id, seq, author_id, client_message_id, text,
-        reply_to_id, reply_snapshot, thread_root_id,
-        fwd_conversation_id, fwd_message_id, fwd_author_id, fwd_thread_root_id,
-        urgent, mentioned_user_ids, ever_mentioned_user_ids,
-        created_at, updated_at
-      ) VALUES (
-        ${input.id}::uuid, ${input.conversationId}::uuid, ${input.seq}::bigint,
-        ${input.authorId}::uuid, ${input.clientMessageId}, ${input.text},
-        ${input.replyToId}::uuid, ${snapshot}::jsonb, ${input.threadRootId}::uuid,
-        ${input.fwd?.conversationId ?? null}::uuid, ${input.fwd?.messageId ?? null}::uuid,
-        ${input.fwd?.authorId ?? null}::uuid, ${input.fwd?.threadRootId ?? null}::uuid,
-        ${input.urgent}, ${mentioned}::jsonb, ${ever}::jsonb,
-        ${input.createdAt}::timestamptz, ${input.createdAt}::timestamptz
-      )
-      ON CONFLICT (author_id, client_message_id) DO NOTHING
-      RETURNING ${MESSAGE_COLS}
-    `);
-    return rows[0] ?? null;
-  }
-
-  /** Существующее сообщение по идемпотентной паре (replay-ветка). */
-  async findExisting(
-    authorId: string,
-    clientMessageId: string,
-    tx?: TransactionClient,
-  ): Promise<MessageRow | null> {
-    const client = this.client(tx);
-    const rows = await client.$queryRaw<MessageRow[]>(Prisma.sql`
-      SELECT ${MESSAGE_COLS} FROM messages
-      WHERE author_id = ${authorId}::uuid AND client_message_id = ${clientMessageId}
-      LIMIT 1
-    `);
-    return rows[0] ?? null;
   }
 
   /** Сообщение строго в беседе (не палит чужие беседы). */
@@ -303,224 +121,15 @@ export class MessagesRepository {
     return { rows: hasMore ? rowsAsc.slice(rowsAsc.length - limit) : rowsAsc, hasMore };
   }
 
-  /**
-   * Продвижение watermark прочтения: seq монотонно (GREATEST — stale-устройство
-   * не откатит), last_read_at обновляется и при догоне правок (иначе readAt
-   * «повторного прочтения» после edit никогда не восстановится — курсор уже
-   * был впереди). Возвращает факт изменения и фактическое время прочтения
-   * (для payload события — не now() на эмите).
-   */
-  async advanceReadCursor(
-    conversationId: string,
-    userId: string,
-    upToSeq: bigint,
-    tx: TransactionClient,
-  ): Promise<{ advanced: boolean; lastReadAt: Date | null }> {
-    const rows = await tx.$queryRaw<{ last_read_seq: bigint; last_read_at: Date }[]>(Prisma.sql`
-      UPDATE conversation_members m
-      SET last_read_seq = GREATEST(m.last_read_seq, ${upToSeq.toString()}::bigint),
-          last_read_at = now(),
-          updated_at = now()
-      WHERE m.conversation_id = ${conversationId}::uuid AND m.user_id = ${userId}::uuid
-        AND (m.last_read_seq < ${upToSeq.toString()}::bigint
-             OR m.last_read_at IS NULL
-             OR EXISTS (
-               SELECT 1 FROM messages msg
-               WHERE msg.conversation_id = ${conversationId}::uuid
-                 AND msg.author_id <> ${userId}::uuid
-                 AND msg.deleted_at IS NULL
-                 AND msg.edited_at IS NOT NULL
-                 AND msg.edited_at > m.last_read_at
-             ))
-      RETURNING m.last_read_seq, m.last_read_at
-    `);
-    return { advanced: rows.length > 0, lastReadAt: rows[0]?.last_read_at ?? null };
-  }
-
-  /** Правка текста (только автор, не надгробие — гарантирует сервис). */
-  async updateEditText(
-    conversationId: string,
-    messageId: string,
-    authorId: string,
-    text: string,
-    mentionedUserIds: string[],
-    /** Накопительное множество (#239): union(ever, новая версия). */
-    everMentionedUserIds: string[],
-    tx: TransactionClient,
-  ): Promise<MessageRow> {
-    const rows = await tx.$queryRaw<MessageRow[]>(Prisma.sql`
-      UPDATE messages
-      SET text = ${text}, mentioned_user_ids = ${JSON.stringify(mentionedUserIds)}::jsonb,
-          ever_mentioned_user_ids = ${JSON.stringify(everMentionedUserIds)}::jsonb,
-          edited_at = now(), updated_at = now()
-      WHERE id = ${messageId}::uuid AND conversation_id = ${conversationId}::uuid
-        AND author_id = ${authorId}::uuid AND deleted_at IS NULL
-      RETURNING ${MESSAGE_COLS}
-    `);
-    if (!rows[0]) throw new Error(`updateEditText: message ${messageId} not updatable`);
-    return rows[0];
-  }
-
-  /**
-   * Удаление: строка остаётся всегда (непрерывность seq, ссылки тредов/цитат,
-   * аудит). obliterated=true — «бесследно» (исключается из выдач);
-   * false — надгробие (text/цитата затёрты, вложения/реакции скрывает маппер).
-   */
-  async tombstone(
-    conversationId: string,
-    messageId: string,
-    obliterated: boolean,
-    tx: TransactionClient,
-  ): Promise<MessageRow> {
-    const rows = await tx.$queryRaw<MessageRow[]>(Prisma.sql`
-      UPDATE messages
-      SET deleted_at = now(), text = '', reply_snapshot = NULL,
-          obliterated = ${obliterated}, updated_at = now()
-      WHERE id = ${messageId}::uuid AND conversation_id = ${conversationId}::uuid
-        AND deleted_at IS NULL
-      RETURNING ${MESSAGE_COLS}
-    `);
-    if (!rows[0]) throw new Error(`tombstone: message ${messageId} already deleted`);
-    return rows[0];
-  }
-
-  /** Авто-unpin при удалении закреплённого (мок-семантика). */
-  async deletePinByMessage(messageId: string, tx: TransactionClient): Promise<void> {
-    await tx.$executeRaw(Prisma.sql`
-      DELETE FROM conversation_pins WHERE message_id = ${messageId}::uuid
-    `);
-  }
-
-  /**
-   * Живые ответы-якоря (правило следа #163): ответ по reply_to_id или пост
-   * треда (для корня треда), не удалённые. Удалённое (в т.ч. надгробие и
-   * obliterated — у обоих deleted_at выставлен) якорем не считается.
-   */
-  async hasLiveReplies(
-    conversationId: string,
-    messageId: string,
-    tx: TransactionClient,
-  ): Promise<boolean> {
-    const rows = await tx.$queryRaw<{ exists: boolean }[]>(Prisma.sql`
-      SELECT EXISTS (
-        SELECT 1 FROM messages
-        WHERE conversation_id = ${conversationId}::uuid
-          AND deleted_at IS NULL
-          AND (reply_to_id = ${messageId}::uuid
-               OR (thread_root_id = ${messageId}::uuid AND id <> ${messageId}::uuid))
-      ) AS exists
-    `);
-    return rows[0]?.exists === true;
-  }
-
-  /**
-   * Каскад #163: надгробие-якорь, потерявшее последний живой ответ (условие
-   * в том же UPDATE — атомарно, гонки двух параллельных удалений исключены),
-   * уходит в бесследное. true — коллапс случился (нужно событие).
-   */
-  async obliterateTombstone(
-    conversationId: string,
-    messageId: string,
-    tx: TransactionClient,
-  ): Promise<boolean> {
-    const rows = await tx.$queryRaw<{ id: string }[]>(Prisma.sql`
-      UPDATE messages
-      SET obliterated = true, updated_at = now()
-      WHERE id = ${messageId}::uuid AND conversation_id = ${conversationId}::uuid
-        AND deleted_at IS NOT NULL AND NOT obliterated
-        AND NOT EXISTS (
-          SELECT 1 FROM messages r
-          WHERE r.conversation_id = messages.conversation_id
-            AND r.deleted_at IS NULL
-            AND (r.reply_to_id = messages.id
-                 OR (r.thread_root_id = messages.id AND r.id <> messages.id))
-        )
-      RETURNING id
-    `);
-    return rows.length > 0;
-  }
-
-  /** «Удаление сильнее заморозки»: цитаты-ответы → deleted=true. */
-  async markRepliesDeleted(messageId: string, tx: TransactionClient): Promise<void> {
-    await tx.$executeRaw(Prisma.sql`
-      UPDATE messages
-      SET reply_snapshot = jsonb_set(reply_snapshot, '{deleted}', 'true'::jsonb),
-          updated_at = now()
-      WHERE reply_to_id = ${messageId}::uuid AND reply_snapshot IS NOT NULL
-    `);
-  }
-
-  /** Одноразовая привязка загруженных вложений (неизвестные молча пропускаются).
-   *  Возвращает привязанные строки (порядок по sort_order) — они нужны для
-   *  DTO сообщения в payload события message_sent (раунд 3). */
-  async claimAttachments(
-    messageId: string,
-    attachmentIds: string[],
-    ownerId: string,
-    tx: TransactionClient,
-  ): Promise<ClaimedAttachmentRow[]> {
-    if (attachmentIds.length === 0) return [];
-    await tx.$executeRaw(Prisma.sql`
-      UPDATE message_attachments ma
-      SET message_id = ${messageId}::uuid, sort_order = ord.ordinal - 1
-      FROM unnest(${attachmentIds}::uuid[]) WITH ORDINALITY AS ord(id, ordinal)
-      WHERE ma.id = ord.id AND ma.owner_id = ${ownerId}::uuid AND ma.message_id IS NULL
-    `);
-    return tx.$queryRaw<ClaimedAttachmentRow[]>(Prisma.sql`
-      SELECT id, file_id AS "fileId", name, size, mime, kind, width, height,
-             thumb_file_id AS "thumbFileId"
-      FROM message_attachments
-      WHERE message_id = ${messageId}::uuid
-      ORDER BY sort_order ASC, id ASC
-    `);
-  }
-
-  /**
-   * Копии вложений пересылки: новые строки-метаданные с тем же file_id —
-   * «по ссылке» на уровне файла (перекачки нет), у каждого сообщения своя
-   * строка (FK message_id одиночный). Стикеры копируются вместе со
-   * снапшотом пака (sticker_meta) — пересланный стикер рендерится дальше.
-   */
-  async copyAttachments(
-    sourceMessageId: string,
-    targetMessageId: string,
-    tx: TransactionClient,
-  ): Promise<void> {
-    await tx.$executeRaw(Prisma.sql`
-      INSERT INTO message_attachments (
-        id, message_id, file_id, owner_id, name, size, mime, kind, width, height,
-        thumb_file_id, sort_order, sticker_meta
-      )
-      SELECT gen_random_uuid(), ${targetMessageId}::uuid, file_id, owner_id, name, size,
-             mime, kind, width, height, thumb_file_id, sort_order, sticker_meta
-      FROM message_attachments WHERE message_id = ${sourceMessageId}::uuid
-    `);
-  }
-
   /** Вложения сообщений (для маппера; tx — чтение в транзакции отправки,
    *  когда строка ещё не закоммичена — payload события, раунд 3). */
   async attachmentsFor(
     messageIds: string[],
     tx?: TransactionClient,
-  ): Promise<
-    {
-      messageId: string;
-      id: string;
-      fileId: string;
-      name: string;
-      size: number;
-      mime: string;
-      kind: string;
-      width: number | null;
-      height: number | null;
-      thumbFileId: string | null;
-      stickerMeta: unknown;
-      sortOrder: number;
-    }[]
-  > {
+  ): Promise<MessageAttachmentRow[]> {
     if (messageIds.length === 0) return [];
     const client = this.client(tx);
-    return client.$queryRaw(Prisma.sql`
+    return client.$queryRaw<MessageAttachmentRow[]>(Prisma.sql`
       SELECT message_id AS "messageId", id, file_id AS "fileId", name, size, mime, kind,
              width, height, thumb_file_id AS "thumbFileId", sticker_meta AS "stickerMeta",
              sort_order AS "sortOrder"
@@ -538,31 +147,6 @@ export class MessagesRepository {
       FROM messages
       WHERE thread_root_id = ANY(${rootIds}::uuid[]) AND deleted_at IS NULL AND NOT obliterated
       GROUP BY thread_root_id
-    `);
-  }
-
-  /** Срочные сообщения автора за скользящие сутки (#100): лимит
-   *  NOTIFY_URGENT_DAILY_LIMIT проверяется ДО вставки в транзакции отправки. */
-  async countUrgentSentSince(
-    authorId: string,
-    since: Date,
-    tx?: TransactionClient,
-  ): Promise<number> {
-    const client = this.client(tx);
-    const rows = await client.$queryRaw<{ count: bigint }[]>(Prisma.sql`
-      SELECT count(*) AS count FROM messages
-      WHERE author_id = ${authorId}::uuid AND urgent AND created_at >= ${since}::timestamptz
-    `);
-    return Number(rows[0]?.count ?? 0);
-  }
-
-  /** Сериализация проверки лимита важных одного автора (#177, паттерн #195):
-   *  count и INSERT в одной tx, но без лока два параллельных отправки на
-   *  границе лимита оба проходят (TOCTOU). Advisory-лок КОНКРЕТНОГО автора —
-   *  чужие отправки не ждут; держится до конца tx отправки. */
-  async lockUrgentLimit(authorId: string, tx: TransactionClient): Promise<void> {
-    await tx.$executeRaw(Prisma.sql`
-      SELECT pg_advisory_xact_lock(177, hashtext(${authorId}::text))
     `);
   }
 

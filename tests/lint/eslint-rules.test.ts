@@ -14,6 +14,9 @@ function makeCodeFile(lines: number): string {
   );
 }
 
+// Таймаут — в скрипте test (30 с): первый lintFile поднимает projectService
+// type-aware правил (холодный TS-проект), под параллельной нагрузкой turbo это
+// дольше дефолтных 5 с (#317).
 async function lintFile(relativePath: string): Promise<Linter.LintMessage[]> {
   const eslint = new ESLint({
     cwd: fixturesDir,
@@ -55,6 +58,42 @@ describe('границы модулей (I3, I6)', () => {
     const messages = await lintFile('apps/api/src/modules/alpha/uses-internal.ts');
 
     expect(messages.filter((m) => m.ruleId === 'boundaries/dependencies')).toHaveLength(0);
+  });
+
+  it('ловит импорт кода бэкенда из веба (I1, I6)', async () => {
+    const messages = await lintFile('apps/web/src/features/orders/uses-backend.ts');
+
+    expect(messages.some((m) => m.ruleId === 'boundaries/dependencies' && m.severity === 2)).toBe(
+      true,
+    );
+  });
+});
+
+describe('repository pattern (patterns.md)', () => {
+  it('ловит PrismaService в сервисе модуля', async () => {
+    const messages = await lintFile('apps/api/src/modules/alpha/alpha-data.service.ts');
+
+    expect(messages.some((m) => m.ruleId === 'no-restricted-imports' && m.severity === 2)).toBe(
+      true,
+    );
+  });
+
+  it('разрешает PrismaService в репозитории', async () => {
+    const messages = await lintFile('apps/api/src/modules/alpha/alpha.repository.ts');
+
+    expect(messages.filter((m) => m.ruleId === 'no-restricted-imports')).toHaveLength(0);
+  });
+});
+
+describe('безопасность промисов (type-aware)', () => {
+  it('ловит промис без await/catch', async () => {
+    const messages = await lintFile('apps/api/src/modules/alpha/floating-promise.ts');
+
+    expect(
+      messages.some(
+        (m) => m.ruleId === '@typescript-eslint/no-floating-promises' && m.severity === 2,
+      ),
+    ).toBe(true);
   });
 });
 

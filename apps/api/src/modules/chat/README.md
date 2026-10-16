@@ -47,12 +47,14 @@ count, MAX(favoritedAt)) и псевдоисточник «Записи» (св�
 (PK user×message = идемпотентность звезды; labels JSONB — ЛИЧНЫЕ
 эмодзи-метки-реакции `["🔑","📌"]`, модель Telegram Premium, НЕ справочник;
 колонка note осталась исторически — контракт её не отдаёт). Эндпоинты
-`/api/v1/chat/favorites`: `GET` (карточки, курсор по моменту закладки;
+`/api/v1/chat/favorites`: `GET` (карточки, keyset `(created_at, message_id)`
+по моменту закладки — без якоря-строки: закладку-якорь мог погасить каскад;
 фильтры conversationId/label/q — label/q через RAW jsonb_path/ILIKE, т.к.
 Prisma-фильтры их не выражают), `GET /labels` (DISTINCT эмодзи для чипов
 поиска), `POST {messageIds 1..100}` (порядок массива = порядок цепочки в
-«Избранном», createdAt=now+i; только сообщения бесед-участий владельца,
-чужие/несуществующие молча пропускаются; новая звезда — АКТИВНОСТЬ
+«Избранном», createdAt=now+i; только живые сообщения бесед-участий
+владельца, чужие/несуществующие/удалённые (надгробие, бесследно) молча
+пропускаются; новая звезда — АКТИВНОСТЬ
 «Избранного»: беседа find-or-create + touchLastMessageAt → всплывает
 в списке, клиент рефечит его по favorite_added, #215; идемпотентный
 повер активности не трогает), `PATCH /:messageId {labels}`
@@ -100,7 +102,9 @@ SET last_seq = last_seq + n RETURNING` в транзакции отправки 
   `UNIQUE (author_id, client_message_id)` в БД; `client_message_id` = значение
   заголовка `Idempotency-Key` (api-client ставит uuid на каждый POST),
   у копий пересылки — суффикс `:c`/`:i`. Crash-окно между реплеем и фиксацией
-  закрывает БД (ON CONFLICT DO NOTHING → SELECT существующей).
+  закрывает БД (ON CONFLICT DO NOTHING → SELECT существующей); пересылка —
+  replay блока по ключам `:c`/`:0..n` (уже зафиксированные копии отдаются
+  тем же ответом без побочных эффектов; ключ в другой беседе — 409).
 - **Просматриваемость — watermark (#102 раунд 2: просмотр = ВИДИМОСТЬ
   вьюпортом всей строки; раунд 3: низ строки виден = просмотрено)**:
   `conversation_members.last_read_seq` (GREATEST, не откатывается) +
@@ -201,38 +205,40 @@ SET last_seq = last_seq + n RETURNING` в транзакции отправки 
 
 ## Эндпоинты (`/api/v1/chat`, все за Bearer + флагом `chat`)
 
-| Маршрут                                                             | Назначение                                                                                                                                                                                                                                                                                   |
-| ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /conversations`                                                | Список бесед юзера: `?cursor=&limit=&search=`; keyset `(last_message_at DESC NULLS LAST, id)`; LATERAL lastMessage+unread одним запросом                                                                                                                                                     |
-| `POST /conversations`                                               | Группа/канал: создатель owner, memberIds (дедуп, без создателя, неизвестные отбрасываются), частичная матрица прав                                                                                                                                                                           |
-| `GET /conversations/direct/:userId`                                 | Find-or-create (вкл. «Заметки» с собой): 200 существующая / 201 созданная; 404 нет юзера                                                                                                                                                                                                     |
-| `PATCH /conversations/:id`                                          | Персональные pinned/muted/snoozed/hidden (hidden раскрывается активностью — `revealHidden` в send/forward, #103)                                                                                                                                                                             |
-| `PATCH /conversations/:id/info`                                     | Переименование `{title}` (группы/каналы; право changeInfo, #186); событие conversation_updated обновляет название у всех участников                                                                                                                                                          |
-| `POST /conversations/:id/avatar`                                    | Аватар беседы: multipart (`size` ДО файла; право changeInfo, #186) — серверная квадратизация (порт AVATAR_PROCESSOR, files: sharp WebP ≤640 по меньшей стороне) → `avatar_file_id`; событие conversation_updated                                                                             |
-| `DELETE /conversations/:id/avatar`                                  | Убрать аватар (заглушка из инициалов; право changeInfo, #186)                                                                                                                                                                                                                                |
-| `GET /conversations/:id/members`                                    | Участники с ролями `?cursor=&limit=&search=` (член беседы; поиск по displayName через read-порт; сортировка владелец→модераторы→участники, #186)                                                                                                                                             |
-| `POST /conversations/:id/members`                                   | Добавить `{userIds}` (право addMembers — дефолт любой участник; только группы/каналы, #195): состоящих/неизвестных пропускает, лимит 200 точный (блокировка строки беседы FOR UPDATE + перечёт в tx, #195); событие member_added (добавленному — user-комната gateway'ем)                    |
-| `PATCH /conversations/:id/members/:userId`                          | Роль `{role: admin\|member}` (право manageSettings — дефолт владелец; только группы/каналы, #195); роль владельца неизменна; событие member_role_changed                                                                                                                                     |
-| `DELETE /conversations/:id/members/:userId`                         | Исключить (право removeMembers + иерархия: актёр строго старше цели; владельца нельзя; только группы/каналы, #195); черновик исключённого чистится; событие member_removed                                                                                                                   |
-| `PUT /conversations/:id/draft`                                      | Черновик: пустой текст = удаление; revision монотонно растит сервер (LWW)                                                                                                                                                                                                                    |
-| `GET /conversations/:id/messages`                                   | Лента ВСЕХ сообщений беседы ASC (страница — новейшие, курсор назад по seq; ответы тредов — инлайн, как в моках: прямой/групповой чат рендерит их плоско, канальный вид фильтрует корни клиентом) или тред (`?threadRootId=`: корень первым на первой странице). Курсор просмотров НЕ двигает |
-| `GET /conversations/:id/attachments`                                | Витрина беседы (#211): страница `?type=image\|video\|audio\|document\|link` (keyset seq+порядок, ≤100) + счётчики всех категорий; `?threadRootId` — скоуп треда (с корнем); участник, нечлен 404                                                                                             |
-| `GET /conversations/:id/attachments/counts`                         | Счётчики витрины по категориям (ревизия 05.10): O(1) из денормализованных stats; `?threadRootId` — на лету; участник, нечлен 404                                                                                                                                                             |
-| `POST /conversations/:id/read`                                      | Квитанция просмотров `{ upToSeq }` (идемпотентная): seq самой новой видимой строки вьюпорта; двигает watermark (GREATEST, кламп к last_seq) + событие `chat.message_read` только при движении (#102 р.2)                                                                                     |
-| `POST /conversations/:id/messages`                                  | Отправка: seq+вставка+вложения+гашение черновика/snooze+события в одной tx                                                                                                                                                                                                                   |
-| `PATCH .../messages/:messageId`                                     | Правка текста и состава вложений (#188): `attachmentIds` — итоговый упорядоченный список (claim новых по owner / detach убранных / reorder), `attachmentRenames` — имена файлов; только автор; editedAt при реальной смене                                                                   |
-| `DELETE .../messages/:messageId`                                    | Есть живые ответы → 200 надгробие; нет → 204 бесследно (#163)                                                                                                                                                                                                                                |
-| `POST .../messages/batch-delete`                                    | Свои: `{removed[], tombstones[]}`; чужие/удалённые пропускаются                                                                                                                                                                                                                              |
-| `POST .../messages/:messageId/pin` · `DELETE .../pin` · `GET /pins` | Закрепы (идемпотентный pin, свежие первыми)                                                                                                                                                                                                                                                  |
-| `POST .../messages/:messageId/reactions`                            | Toggle `{emoji, remove?}` → сообщение                                                                                                                                                                                                                                                        |
-| `POST /conversations/:id/forward`                                   | Копии в эту беседу: комментарий ПЕРЕД блоком; forwardedFrom=оригинальный автор                                                                                                                                                                                                               |
+| Маршрут                                                             | Назначение                                                                                                                                                                                                                                                                                                                  |
+| ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /conversations`                                                | Список бесед юзера: `?cursor=&limit=&search=`; keyset `(last_activity_at DESC NULLS LAST, id)` — та же ось, что `lastActivityAt` в выдаче («Избранное» — GREATEST с последней звездой, `ACTIVITY_EXPR`); LATERAL lastMessage+unread одним запросом                                                                          |
+| `POST /conversations`                                               | Группа/канал: создатель owner, memberIds (дедуп, без создателя, неизвестные отбрасываются), частичная матрица прав                                                                                                                                                                                                          |
+| `GET /conversations/direct/:userId`                                 | Find-or-create (вкл. «Заметки» с собой): 200 существующая / 201 созданная; 404 нет юзера                                                                                                                                                                                                                                    |
+| `PATCH /conversations/:id`                                          | Персональные pinned/muted/snoozed/hidden (hidden раскрывается активностью — `revealHidden` в send/forward, #103)                                                                                                                                                                                                            |
+| `PATCH /conversations/:id/info`                                     | Переименование `{title}` (группы/каналы; право changeInfo, #186); событие conversation_updated обновляет название у всех участников                                                                                                                                                                                         |
+| `POST /conversations/:id/avatar`                                    | Аватар беседы: multipart (`size` ДО файла; право changeInfo, #186) — серверная квадратизация (порт AVATAR_PROCESSOR, files: sharp WebP ≤640 по меньшей стороне) → `avatar_file_id`; событие conversation_updated                                                                                                            |
+| `DELETE /conversations/:id/avatar`                                  | Убрать аватар (заглушка из инициалов; право changeInfo, #186)                                                                                                                                                                                                                                                               |
+| `GET /conversations/:id/members`                                    | Участники с ролями `?cursor=&limit=&search=` (член беседы; поиск по displayName через read-порт; сортировка владелец→модераторы→участники, #186)                                                                                                                                                                            |
+| `POST /conversations/:id/members`                                   | Добавить `{userIds}` (право addMembers — дефолт любой участник; только группы/каналы, #195): состоящих/неизвестных пропускает, лимит 200 точный (блокировка строки беседы FOR UPDATE + перечёт в tx, #195); событие member_added (добавленному — user-комната gateway'ем)                                                   |
+| `PATCH /conversations/:id/members/:userId`                          | Роль `{role: admin\|member}` (право manageSettings — дефолт владелец; только группы/каналы, #195); роль владельца неизменна; событие member_role_changed                                                                                                                                                                    |
+| `DELETE /conversations/:id/members/:userId`                         | Исключить (право removeMembers + иерархия: актёр строго старше цели; владельца нельзя; только группы/каналы, #195); черновик исключённого чистится; событие member_removed                                                                                                                                                  |
+| `PUT /conversations/:id/draft`                                      | Черновик: пустой текст = удаление; revision монотонно растит сервер (LWW)                                                                                                                                                                                                                                                   |
+| `GET /conversations/:id/messages`                                   | Лента ВСЕХ сообщений беседы ASC (страница — новейшие, курсор назад по seq; ответы тредов — инлайн, как в моках: прямой/групповой чат рендерит их плоско, канальный вид фильтрует корни клиентом) или тред (`?threadRootId=`: корень первым на первой странице, курсор — по старейшему ответу). Курсор просмотров НЕ двигает |
+| `GET /conversations/:id/attachments`                                | Витрина беседы (#211): страница `?type=image\|video\|audio\|document\|link` (keyset seq+порядок, ≤100) + счётчики всех категорий; `?threadRootId` — скоуп треда (с корнем); участник, нечлен 404                                                                                                                            |
+| `GET /conversations/:id/attachments/counts`                         | Счётчики витрины по категориям (ревизия 05.10): O(1) из денормализованных stats; `?threadRootId` — на лету; участник, нечлен 404                                                                                                                                                                                            |
+| `POST /conversations/:id/read`                                      | Квитанция просмотров `{ upToSeq }` (идемпотентная): seq самой новой видимой строки вьюпорта; двигает watermark (GREATEST, кламп к last_seq) + событие `chat.message_read` только при движении (#102 р.2)                                                                                                                    |
+| `POST /conversations/:id/messages`                                  | Отправка: seq+вставка+вложения+гашение черновика/snooze+события в одной tx                                                                                                                                                                                                                                                  |
+| `PATCH .../messages/:messageId`                                     | Правка текста и состава вложений (#188): `attachmentIds` — итоговый упорядоченный список (claim новых по owner / detach убранных / reorder), `attachmentRenames` — имена файлов; только автор; editedAt при реальной смене                                                                                                  |
+| `DELETE .../messages/:messageId`                                    | Есть живые ответы → 200 надгробие; нет → 204 бесследно (#163)                                                                                                                                                                                                                                                               |
+| `POST .../messages/batch-delete`                                    | Свои: `{removed[], tombstones[]}`; чужие/удалённые пропускаются                                                                                                                                                                                                                                                             |
+| `POST .../messages/:messageId/pin` · `DELETE .../pin` · `GET /pins` | Закрепы (идемпотентный pin, свежие первыми)                                                                                                                                                                                                                                                                                 |
+| `POST .../messages/:messageId/reactions`                            | Toggle `{emoji, remove?}` → сообщение                                                                                                                                                                                                                                                                                       |
+| `POST /conversations/:id/forward`                                   | Копии в эту беседу: комментарий ПЕРЕД блоком; forwardedFrom=оригинальный автор                                                                                                                                                                                                                                              |
 
 Вложения (#57, реализовано): `POST /chat/attachments` — multipart-стрим
 (поля `file`/`size`/`width`/`height`) → MinIO через порт `FILE_STORAGE`
 (модуль files, ADR-0013) → строка `message_attachments` с `message_id IS
 NULL`; `DELETE /chat/attachments/:id` — отмена из трея; привязка при
 отправке — одноразовая (`attachmentIds`, claimAttachments). Лимиты: 100 МБ
-на файл, ≤20 неотправленных (серверная сверка). Отдача — подписанные URL
+на файл, ≤20 неотправленных (серверная сверка: fast-fail до загрузки +
+перечёт под advisory-локом владельца в транзакции вставки; отказ —
+объект хранилища убирается). Отдача — подписанные URL
 `files/:id/content` (url в DTO; срок действия округляется до часового
 бакета — URL стабилен в пределах часа, кэш браузера работает, #150).
 Превью изображений (#150, ADR-0015; конвейер #221): для kind=image ≤10 МБ
@@ -256,7 +262,7 @@ thumbnailUrl}) — клиенты патчат плитку на месте; ч�
 `GET /packs/:id` — деталь (поповер из чата, пак может быть не в «моих»);
 `POST /packs {title, scope}` (corporate — право `sticker.manage` — гейт
 в сервисе: условие зависит от scope тела, декоратор маршрута не годится;
-лимит 20 личных); `PATCH /packs/:id` (переименовать), `DELETE /packs/:id`
+лимит 20 личных — перечёт под advisory-локом владельца); `PATCH /packs/:id` (переименовать), `DELETE /packs/:id`
 (soft — «для всех»: пак исчезает из пикеров, сообщения рендерятся по
 снапшоту `message_attachments.sticker_meta`; файлы не чистим — сообщения
 держат те же file_id); `POST /packs/:id/stickers` — multipart (emojis
@@ -264,7 +270,7 @@ JSON-строка 1–3, size, width/height — поля ДО файла, gotcha
 валидация по **magic bytes** (mime клиента не верим): PNG/WebP ≤512КБ,
 WebM ≤256КБ (длительность — клиентская пре-валидация; ffprobe на сервере
 нет — граница скоупа); GIF/SVG — отказ `CHAT_STICKER_INVALID`; лимит 120
-стикеров/пак перепроверяется в транзакции; `DELETE /stickers/:id` — убрать
+стикеров/пак перепроверяется в транзакции под локом строки пака; `DELETE /stickers/:id` — убрать
 из пака (файл остаётся — отправленные сообщения живут);
 `POST|DELETE /packs/:id/install` — «себе» (PK-идемпотентно). Стикер-
 сообщение — обычный POST messages с `stickerId`: в транзакции отправки
@@ -307,6 +313,27 @@ participants_changed` и `GET /chat/conversations/by-task/:taskId`
 Realtime-доставка/typing/presence — WS-gateway (#104, `apps/gateway`).
 TTL/автоудаление сообщений — вне продукта навсегда
 (решение владельца 24.09, #96).
+
+## Репозитории и сервисы (I5: по ответственности)
+
+- Message: `messages.repository` (чтение: по id, лента/тред, батчи маппера),
+  `messages-write.repository` (seq, идемпотентная вставка, replay-ключи,
+  вложения отправки/пересылки, лимит важных), `messages-lifecycle.repository`
+  (правка, надгробие/бесследно, каскад якорей), `messages-read-state.repository`
+  (watermark квитанций); формы рядов и `MESSAGE_COLS` — `message-row.ts`.
+- Conversation: `conversations.repository` (чтение: список, участие, состав),
+  `conversations-write.repository` (find-or-create, группа, название/аватар,
+  лок строки), `conversation-members.repository` (запись участия),
+  `conversation-drafts.repository` (черновики).
+- Витрина: `vault.repository` (чтение) / `vault-write.repository` (проекция
+  ссылок + Δ stats в транзакциях состава) / `vault-kinds.ts` (классификация).
+- Избранное: `favorites.repository` (закладки) / `favorite-sources.repository`
+  (панель источников).
+- Сервисы действий: `message-actions.service` (пересылка),
+  `message-pins.service`, `message-reactions.service`, `thread-watch.service`;
+  подготовка/эффекты отправки — `messages-send-prepare.ts`; DTO —
+  `message-dto.mapper` + `message-attachment.dto` / `message-reply-preview` /
+  `message-read-receipts`.
 
 ## События (outbox, I9; каталог — api-conventions.md, схемы — contracts)
 

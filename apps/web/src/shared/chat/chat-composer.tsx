@@ -1,21 +1,10 @@
-import { Check, Mic, Paperclip, Smile } from 'lucide-react';
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type FormEvent,
-  type KeyboardEvent,
-} from 'react';
+import { Paperclip, Smile } from 'lucide-react';
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
-import { Textarea } from '@nodus/ui/components/textarea';
 import { cn } from '@nodus/ui/lib/utils';
-import { toast } from 'sonner';
 
-import { SendHexIcon } from '../ui/send-hex-icon.js';
-import { emitTyping } from '../socket/typing-emitter.js';
 import { useComposerInputActions, useGrown } from './composer-input-utils.js';
 import { useSelectionPhase } from './selection-phase.js';
 import { EMPTY_DRAFT, useChatDrafts } from './chat-drafts.js';
@@ -24,29 +13,33 @@ import { ComposerUrgentButton } from './composer-urgent.js';
 import { useComposerSendError } from './composer-errors.js';
 import { ComposerBanner } from './composer-banner.js';
 import { ComposerClipMenu } from './composer-clip-menu.js';
-import { registerComposer, unregisterComposer, focusComposer } from './composer-focus.js';
+import { ComposerSendButton } from './composer-send-button.js';
+import { ComposerStatusLine } from './composer-status-line.js';
+import { ComposerTextField } from './composer-text-field.js';
 import { flushDraftSync } from './draft-sync.js';
 import { ForwardBanner } from './forward-banner.js';
 import { useForwardPending } from './forward-pending.js';
 import { useJumpStore } from './jump-store.js';
-import { chatKeys } from './api.js';
-import { useForwardMessages } from './message-mutations.js';
-import { useScrollEndStore } from './scroll-end-store.js';
+import { chatKeys } from './chat-keys.js';
 import { SelectionToolbar } from './selection-island.js';
 import { StickerSuggestPanel, useStickerSuggest } from './composer-sticker-suggest-panel.js';
-import { MentionAutocompletePanel, useComposerMentions } from './composer-mention-autocomplete.js';
+import { useComposerMentions } from './composer-mention-autocomplete.js';
 import { composerKeyDown } from './composer-keydown.js';
-import { mentionIndexAtOffset, toWireText } from './composer-mention-registry.js';
-import { MentionFieldOverlay, type MentionHit } from './composer-mention-overlay.js';
+import type { MentionHit } from './composer-mention-overlay.js';
 import { registerScopeConversation } from './scope-conversations.js';
-import { messageLimitState, type ComposerSubmit } from './composer-submit.js';
+import type { ComposerSubmit } from './composer-submit.js';
 import type { ComposerSelection } from './selection-island.js';
+import { useComposerFocus } from './use-composer-focus.js';
+import { useComposerSubmit, useRequestScrollEnd } from './use-composer-submit.js';
 
 /**
  * Композер сообщений (единый для чатов, каналов, тредов и обсуждений; файл
  * >300 строк — сборка ВСЕХ режимов композера по вердиктам 14–24.09, детали
  * вынесены: клип-меню `composer-clip-menu.tsx`, тулбар селекта
- * `selection-island.tsx`, бары `composer-banner.tsx`/`forward-banner.tsx`).
+ * `selection-island.tsx`, бары `composer-banner.tsx`/`forward-banner.tsx`,
+ * сабмит `use-composer-submit.ts`, «вечный курсор» `use-composer-focus.ts`,
+ * поле с упоминаниями `composer-text-field.tsx`, строка статуса
+ * `composer-status-line.tsx`, кнопка отправки/мика `composer-send-button.tsx`).
  * «Островок» ввода (rounded-2xl bg-card, тень-ступень) парит над тоном
  * chat-zone БЕЗ внешнего контура и разделителя (вердикт 24.09: модель
  * Bitrix24/Telegram — владелец: «бары режимов не должны растягивать кнопку
@@ -123,7 +116,6 @@ export function ChatComposer({
   const setText = useChatDrafts((s) => s.setText);
   const pending = useForwardPending((s) => s.pendings[focusId] ?? null);
   const sel = selection && selection.count > 0 ? selection : null;
-  const forward = useForwardMessages();
   const text = draft.text;
   const grown = useGrown(inputRef);
 
@@ -157,6 +149,8 @@ export function ChatComposer({
   // стикеров-подсказок скрыта (его портал z-70 перекрыл бы её).
   const [mediaPickerOpen, setMediaPickerOpen] = useState(false);
 
+  const requestScrollEnd = useRequestScrollEnd(focusId);
+
   // Ввод-действия (эмодзи/стикер/paste) — хук composer-input-utils.ts
   // (раньше плашки подсказок: её выбор уходит через pickSticker).
   const { insertEmoji, pickSticker, onPaste } = useComposerInputActions({
@@ -184,46 +178,13 @@ export function ChatComposer({
     submitSticker: pickSticker,
   });
 
-  // «Вечный курсор»: монтаж — композер активный владелец; размонтаж (закрыли
-  // тред) — курсор возвращается ранее зарегистрированному (ленте канала).
-  // Черновик восстановлен при смене беседы → каретка в КОНЕЦ текста при
-  // ближайшем фокусе (модель Telegram: продолжаешь писать с места остановки;
-  // вердикт 25.09 — каретка «у начала» заставляла переставлять её руками).
-  const caretToEndRef = useRef(false);
-  useEffect(() => {
-    const restored = (useChatDrafts.getState().drafts[focusId]?.text ?? '').length;
-    caretToEndRef.current = restored > 0;
-    const el = inputRef.current;
-    if (el && restored > 0) {
-      el.setSelectionRange(restored, restored);
-      // Синк каретки в стейт (#294): детекторы панелей (упоминания/стикеры)
-      // живут по ней — черновик-соло-эмодзи раскрывает плашку сразу после
-      // смены беседы, без ожидания первого ввода.
-      mentions.syncCaret(el);
-    }
-  }, [focusId]);
-
-  // «Вечный курсор» — регистрация РЕФ-КОЛБЭКОМ, не эффектом на [focusId]
-  // (#104 раунд 2, баг «супер-курсора»): селект-режим РАЗМОНТИРУЕТ textarea
-  // (островок батч-команд), выход — монтирует НОВЫЙ элемент; эффект с deps
-  // [focusId] не перезапускался, registry хранил отсоединённый узел, focus()
-  // на нём молча не работал — после «Ответить»/«Редактировать» каретка
-  // умирала до смены беседы (ремаунт композера). Реф-колбэк честно
-  // пере-регистрирует КАЖДЫЙ монтаж textarea. (autoFocus нового элемента
-  // маскировал баг сразу после выхода из селекта.)
-  const registerInput = useCallback(
-    (el: HTMLTextAreaElement | null) => {
-      if (el) {
-        inputRef.current = el;
-        registerComposer(focusId, el);
-        return;
-      }
-      const prev = inputRef.current;
-      inputRef.current = null;
-      if (prev) unregisterComposer(focusId, prev);
-    },
-    [focusId],
-  );
+  // «Вечный курсор» (реф-колбэк поля, каретка в конец черновика) —
+  // use-composer-focus.ts.
+  const { registerInput, onInputFocus } = useComposerFocus({
+    focusId,
+    inputRef,
+    syncCaret: mentions.syncCaret,
+  });
 
   // Черновик — ТОЛЬКО на уходе из беседы (вердикт владельца 25.09:
   // «онлайн-трансляция набранного текста не нужна»): во время набора сервер
@@ -245,109 +206,17 @@ export function ChatComposer({
     };
   }, [focusId, queryClient]);
 
-  const uploading = draft.attachments.some((a) => a.status === 'uploading');
-  const readyAttachments = draft.attachments.filter((a) => a.status === 'ready' && a.attachment);
-  const hasContent = text.trim().length > 0 || readyAttachments.length > 0;
-  // Превалидация лимита (раунд 3): счётчик у черты, отправка заблокирована,
-  // текст НЕ теряется (остаётся в поле/черновике — серверного 422 нет).
-  // Лимит/счётчик — по WIRE-длине (отправляемое = измеряемое, ревью #228):
-  // display короче wire на накладные расходы токенов (~46 симв./чип) —
-  // display-замер пропускал бы к отправке 422.
-  const limit = messageLimitState(toWireText(text, draftMentions).length);
   // Инлайн-ошибка 409 политики важных (#177): стоит рядом с молнией до
   // следующей попытки отправки (гасится в onMutate мутации).
   const sendError = useComposerSendError(focusId);
-  // Пересылка отправляется и без комментария (блок сам по себе ценен);
-  // правка — только с непустым текстом; загрузка вложений держит обе.
-  const canSubmit = draft.edit
-    ? text.trim().length > 0 && !limit.over
-    : pending // пересылка без вложений — загрузка трей не блокирует
-      ? !limit.over
-      : hasContent && !uploading && !limit.over;
-  // Telegram: отправки НЕТ до первого символа (на её месте микрофон);
-  // бар пересылки кнопку показывает (комментарий опционален).
-  const sendVisible = draft.edit ? text.trim().length > 0 : hasContent || pending !== null;
-
-  // Догон ленты (вердикт 24.09): одиночная своя отправка — ПЛАВНО; быстрая
-  // серия — мгновенно (smooth на каждую пачку = «дёргание», раунд 3).
-  const lastSendAt = useRef(0);
-  function requestScrollEnd(): void {
-    const now = Date.now();
-    const burst = now - lastSendAt.current < 1500;
-    lastSendAt.current = now;
-    useScrollEndStore.getState().request(focusId, burst ? 'auto' : 'smooth');
-  }
-
-  function submit() {
-    if (!canSubmit) return;
-    if (draft.edit) {
-      // Правка НЕ переводится на сабмит-чистку (#248): правки нет в очереди
-      // отправки, RTT визуально мал, а риск сломать восстановление режима
-      // выше выгоды — черновик/режим чистит хост по onSuccess (#124).
-      onSubmit({
-        text: toWireText(text, draftMentions).trim(),
-        attachments: [],
-        reply: null,
-        edit: draft.edit,
-      });
-      return;
-    }
-    if (pending) {
-      const target = pending;
-      const comment = toWireText(text, draftMentions).trim();
-      // Комментарий уходит из поля на сабмите (#248, модель Telegram):
-      // мгновенно, не по подтверждению; ошибка пересылки вернёт его в поле.
-      useChatDrafts.getState().setText(focusId, '');
-      forward.mutate(
-        {
-          targetId: target.conversationId,
-          body: {
-            sourceConversationId: target.sourceConversationId,
-            messageIds: target.messageIds,
-            comment: comment || undefined,
-            threadRootId: target.threadRootId,
-          },
-        },
-        {
-          onSuccess: () => {
-            useForwardPending.getState().clear(focusId);
-            toast.success(ui.chat.forwardDone);
-            // Догон и фокус приёмника — ПОСЛЕ успеха (раунд 3): раньше нонс
-            // ставился до ответа сервера и гасился о невставшие сообщения.
-            useScrollEndStore.getState().request(focusId, 'smooth');
-            focusComposer(focusId);
-          },
-          onError: () => {
-            // Возврат комментария в поле (#248; #124 — упавшая пересылка не
-            // теряет текст): пустое поле — с чипами (wire→display), занятое
-            // следующим набором — prepend плоским текстом.
-            useChatDrafts.getState().restoreFailedSend(focusId, {
-              wireText: comment,
-              reply: null,
-              urgent: false,
-              attachments: [],
-            });
-          },
-        },
-      );
-      return;
-    }
-    onSubmit({
-      text: toWireText(text, draftMentions).trim(),
-      attachments: readyAttachments,
-      reply: draft.reply,
-      edit: null,
-      // Молния (#177): флаги летят с отправкой; сброс — очисткой черновика
-      // на сабмите (обёртка мутации, #248). Ошибка 409 политики — состав
-      // возвращается в поле onError, молния на месте.
-      urgent: draft.urgent,
-    });
-    // Своё сообщение видно с любой позиции скролла (вердикт 24.09).
-    // Черновик чистит обёртка мутации на сабмите (#248, модель Telegram):
-    // поле пусто мгновенно, статус отправки — в ленте (темп); ошибка вернёт
-    // текст в поле (#124).
-    requestScrollEnd();
-  }
+  const { limit, sendVisible, submit } = useComposerSubmit({
+    focusId,
+    draft,
+    draftMentions,
+    pending,
+    onSubmit,
+    requestScrollEnd,
+  });
 
   function onSubmitForm(event: FormEvent) {
     event.preventDefault();
@@ -483,27 +352,7 @@ export function ChatComposer({
                 при превышении — понятное сообщение; отправка заблокирована,
                 текст остаётся в поле/черновике (серверный 422 не наступает).
                 Рядом — инлайн-ошибка 409 политики важных (#177). */}
-            {limit.over ? (
-              <span
-                className="px-1.5 text-label-sm text-destructive"
-                role="status"
-                aria-live="polite"
-              >
-                {ui.chat.messageLimitHint}
-              </span>
-            ) : sendError ? (
-              <span
-                className="px-1.5 text-label-sm text-destructive"
-                role="status"
-                aria-live="polite"
-              >
-                {sendError.message}
-              </span>
-            ) : limit.counter !== null ? (
-              <span className="px-1.5 text-right font-mono text-label-sm text-muted-foreground tabular-nums">
-                {limit.counter}
-              </span>
-            ) : null}
+            <ComposerStatusLine limit={limit} sendError={sendError} />
             <span className="flex items-end gap-0.5">
               {attachmentsEnabled ? (
                 <ComposerClipMenu
@@ -540,68 +389,22 @@ export function ChatComposer({
                   метрически 1:1 с подчёркиванием чипов. Каретка НАТИВНАЯ
                   (caret-foreground) — стоит там, где ввод; клики по
                   подчёркнутому имени открывают поповер правки. */}
-              <span className="relative flex min-w-0 flex-1 flex-col">
-                {mentions.open ? (
-                  <MentionAutocompletePanel
-                    candidates={mentions.autocomplete.candidates}
-                    active={mentions.autocomplete.active}
-                    onHover={mentions.autocomplete.setActive}
-                    onPick={mentions.pick}
-                  />
-                ) : null}
-                <MentionFieldOverlay
-                  text={text}
-                  mentions={draftMentions}
-                  textareaRef={inputRef}
-                  editToken={editToken}
-                  onRename={(index, label) =>
-                    useChatDrafts.getState().renameMention(focusId, index, label)
-                  }
-                  onRemove={(index) => useChatDrafts.getState().removeMention(focusId, index)}
-                  onEditClose={() => {
-                    setEditToken(null);
-                    // Каретку DOM поповер поставил — забрать в state (иначе
-                    // детектор автокомплита живёт по старой позиции).
-                    const el = inputRef.current;
-                    if (el) mentions.syncCaret(el);
-                  }}
-                />
-                <Textarea
-                  ref={registerInput}
-                  value={text}
-                  className="max-h-[45vh] min-h-8 flex-1 resize-none rounded-lg border-0 bg-transparent px-1.5 py-1.5 text-transparent caret-foreground shadow-none ring-0 focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent"
-                  onFocus={() => {
-                    const el = inputRef.current;
-                    if (caretToEndRef.current && el) {
-                      el.setSelectionRange(el.value.length, el.value.length);
-                      mentions.syncCaret(el);
-                    }
-                    caretToEndRef.current = false;
-                  }}
-                  onChange={(e) => {
-                    setText(focusId, e.target.value);
-                    mentions.syncCaret(e.target);
-                    if (conversationId && e.target.value.length > 0) {
-                      emitTyping(conversationId, typingThreadRootId);
-                    }
-                  }}
-                  onKeyUp={(e) => mentions.syncCaret(e.currentTarget)}
-                  onClick={(e) => {
-                    // Кликом по пилюле (каретка попала в диапазон чипа)
-                    // открываем поповер правки label (#228: каретка нативная,
-                    // позиции честные — клампы не нужны).
-                    const el = e.currentTarget;
-                    const offset = el.selectionStart ?? 0;
-                    const index = mentionIndexAtOffset(draftMentions, offset);
-                    setEditToken(index === null ? null : { ...draftMentions[index]!, index });
-                    mentions.syncCaret(el);
-                  }}
-                  onKeyDown={onKeyDown}
-                  onPaste={onPaste}
-                  placeholder={placeholder}
-                  rows={1}
-                />
-              </span>
+              <ComposerTextField
+                focusId={focusId}
+                conversationId={conversationId}
+                typingThreadRootId={typingThreadRootId}
+                text={text}
+                draftMentions={draftMentions}
+                mentions={mentions}
+                inputRef={inputRef}
+                registerInput={registerInput}
+                editToken={editToken}
+                onEditToken={setEditToken}
+                onInputFocus={onInputFocus}
+                onKeyDown={onKeyDown}
+                onPaste={onPaste}
+                placeholder={placeholder}
+              />
               {/* Молния «Важное» (#177, ревизия 05.10 — тоггл с бейджем
                   зарядов): слева от смайликов; в правке, пересылке, селекте
                   и без права поста — выключена; в Заметках — скрыта. */}
@@ -635,40 +438,11 @@ export function ChatComposer({
                   <Smile strokeWidth={1.75} />
                 </Button>
               </MediaPickerButton>
-              {/* Отправка/галка и мик — ОДИН габарит ghost-кнопки (size-8):
-                  переключение не двигает строку; заливки НЕТ — гексагон в
-                  семье значков, тон темнее (вердикт 24.09, раунды 4–5). */}
-              {sendVisible ? (
-                <Button
-                  type="submit"
-                  variant="ghost"
-                  size="icon"
-                  /* Акцент info — тот же токен, что закреп/цитаты/бар
-                     пересылки (вердикт 24.09: «нравится цвет цитат и
-                     закрепов»; смена оттенка акцента = одна строка темы). */
-                  className={cn('shrink-0 text-info', align)}
-                  aria-label={draft.edit ? ui.common.save : ui.tasks.send}
-                  title={draft.edit ? ui.common.save : ui.tasks.send}
-                >
-                  {draft.edit ? (
-                    <Check className="size-5" strokeWidth={2} />
-                  ) : (
-                    <SendHexIcon className="size-5" />
-                  )}
-                </Button>
-              ) : (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className={cn('shrink-0 text-muted-foreground', align)}
-                  aria-label={ui.chat.voice}
-                  title={ui.chat.voice}
-                  onClick={() => toast(ui.chat.voiceSoon)}
-                >
-                  <Mic strokeWidth={1.75} />
-                </Button>
-              )}
+              <ComposerSendButton
+                sendVisible={sendVisible}
+                editing={draft.edit !== null}
+                align={align}
+              />
             </span>
           </span>
         )}

@@ -12,14 +12,12 @@
     "eslint-config-prettier": "^10.1.8",
     "eslint-import-resolver-typescript": "^4.4.5",
     "eslint-plugin-boundaries": "^7.2.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.13.0",
     "typescript-eslint": "^8.71.1"
   },
   "peerDependencies": {
     "eslint": "^10.0.0",
     "typescript": "~5.9.0"
-  },
-  "devDependencies": {
-    "eslint-plugin-react-hooks": "^7.1.1"
   }
 }

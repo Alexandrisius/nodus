@@ -4,6 +4,14 @@ coverage
 .turbo
 pnpm-lock.yaml
 tests/lint/fixtures
+# Артефакты сборки Tauri/cargo и кодоген (не исходники; локально ломали
+# `pnpm format:check`, в CI их нет — рассинхрон гейта, #317).
+**/target
+apps/desktop/src-tauri/gen
+apps/desktop/src-tauri/wix
+# Рабочие зоны агентов (гитигнорнуты).
+.live-stack
+.zcode
 # Вендорные навыки — не трогаем форматтером.
 .agents
 # Документация и шаблоны — форматируются осознанно, не массово.
