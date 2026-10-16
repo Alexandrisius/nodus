@@ -87,13 +87,25 @@ export class TaskEditService {
     body: TaskUpdateBody,
     fields: readonly string[],
   ): Promise<void> {
+    const reparent = body.parentId !== undefined;
+    // Смены родителя сериализуются одной advisory-блокировкой транзакции
+    // (построчные локи не ловят циклы из 4+ узлов) — и берётся она ДО замка
+    // строки: единый порядок захвата во всех транзакциях, без 40P01 с
+    // FK-проверкой parent_id (security-гейт #37, р.2–3). Смены редки.
+    if (reparent) await this.repo.lockTree(tx);
     await this.repo.lock(tx, row.id);
+    if (reparent) {
+      // Права на прежнего родителя проверены по снимку до транзакции —
+      // параллельная перепривязка их обесценивает: конфликт, а не обход.
+      const fresh = await tx.task.findUniqueOrThrow({
+        where: { id: row.id },
+        select: { parentId: true },
+      });
+      if (fresh.parentId !== row.parentId) {
+        throw DomainException.conflict('Task parent changed concurrently');
+      }
+    }
     if (body.parentId) {
-      // Смены родителя сериализуются одной advisory-блокировкой транзакции:
-      // построчные локи не ловят циклы из 4+ узлов, собранные параллельными
-      // правками непересекающихся пар (security-гейт #37, р.2). Смена
-      // родителя редка — общая очередь дешевле, чем замок на всё дерево.
-      await this.repo.lockTree(tx);
       if (await this.repo.isDescendant(tx, row.id, body.parentId)) {
         throw new DomainException(ErrorCode.TASK_PARENT_CYCLE, 'Parent is a descendant');
       }

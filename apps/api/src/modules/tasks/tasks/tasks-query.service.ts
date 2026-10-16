@@ -135,7 +135,9 @@ export class TasksQueryService {
       ...(result ? [result.authorId] : []),
     ]);
     const origin = [
-      ...((full.origin as TaskChainNode[] | null) ?? []),
+      // Узлы чата строятся только при чтении (по правам смотрящего); старые
+      // снимки в origin, если есть, не отдаются (security-гейт #37, р.3).
+      ...((full.origin as TaskChainNode[] | null) ?? []).filter((n) => n.kind !== 'chat_message'),
       ...(full.source === 'chat_message' && full.sourceId
         ? [await this.messageNode(full.sourceId, user.id)]
         : []),
