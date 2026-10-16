@@ -26,7 +26,8 @@ const MAILBOX: Mailbox = {
 };
 const CP_ID = 'd0000000-0000-4000-8000-000000000001';
 const SERVER_ID = '80000000-0000-4000-8000-000000000099';
-const OUTGOING_KEY = [...lettersKeys.list('outgoing'), null] as const;
+// Тот же ключ, что у shared useLettersList('outgoing') — общая фабрика.
+const OUTGOING_KEY = lettersKeys.folderList('outgoing');
 
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {

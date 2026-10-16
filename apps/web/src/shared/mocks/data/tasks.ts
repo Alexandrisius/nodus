@@ -23,10 +23,12 @@ export function makeSubtask(parent: TaskListItem, title: string): TaskListItem {
     personalStageId: personalNew.id,
     priority: 'normal',
     deadline: null,
-    creator: userRef(userIds.klimovich),
-    assignee: parent.assignee,
+    // Как API (POST /tasks/:id/subtasks = create с parentId): постановщик и
+    // ответственный по умолчанию — актор, проект не наследуется.
+    creator: userRef(currentAuthUser.id),
+    assignee: userRef(currentAuthUser.id),
     participants: [],
-    project: parent.project,
+    project: null,
     parentId: parent.id,
     spentMinutes: 0,
     commentsCount: 0,

@@ -4,7 +4,7 @@ import { ui } from '@nodus/contracts';
 import { toast } from 'sonner';
 
 import { api } from '../../../shared/api-client.js';
-import { chatKeys } from '../../../shared/chat/api.js';
+import { chatKeys } from '../../../shared/chat/chat-keys.js';
 import { tasksKeys } from '../../../shared/api/tasks-keys.js';
 
 /** Состав задачи поменялся: деталь — ответом сервера, доски/списки и чат

@@ -3,7 +3,7 @@ import { ui } from '@nodus/contracts';
 import { Empty, EmptyTitle } from '@nodus/ui/components/empty';
 
 import { ApiError } from '../../../shared/api-client.js';
-import { useTaskConversation } from '../../../shared/chat/api.js';
+import { useTaskConversation } from '../../../shared/chat/chat-queries.js';
 import { ConversationPane } from '../../../shared/chat/conversation-pane.js';
 
 /**

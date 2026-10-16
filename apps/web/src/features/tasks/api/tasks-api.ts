@@ -19,8 +19,10 @@ import { ui } from '@nodus/contracts';
 import { toast } from 'sonner';
 
 import { transitionErrorText } from './transitions-api.js';
+import { buildTempSubtask } from '../lib/temp-records.js';
 
 import { api } from '../../../shared/api-client.js';
+import { useAuthStore } from '../../../shared/auth-store.js';
 import { lettersKeys } from '../../../shared/api/letters-keys.js';
 import { mapTaskInPages, taskDependentKeys, tasksKeys } from '../../../shared/api/tasks-keys.js';
 
@@ -172,17 +174,14 @@ export function useAddSubtask(taskId: string) {
       await queryClient.cancelQueries({ queryKey: tasksKeys.detail(taskId) });
       const previous = queryClient.getQueryData<TaskDetail>(tasksKeys.detail(taskId));
       if (!previous) return { previous: undefined, tempId: '' };
-      const temp: TaskListItem = {
-        ...previous,
-        id: `temp-${crypto.randomUUID()}`,
+      // Явные поля темпа (не `...previous`): чужой номер/срок/стадия родителя
+      // выдавали бы темп за копию родителя — buildTempSubtask.
+      const temp = buildTempSubtask(
+        previous,
         title,
-        parentId: taskId,
-        commentsCount: 0,
-        spentMinutes: 0,
-        checklistDone: 0,
-        checklistTotal: 0,
-        updatedAt: new Date().toISOString(),
-      };
+        queryClient.getQueryData<TaskStage[]>(tasksKeys.stages()),
+        useAuthStore.getState().user,
+      );
       queryClient.setQueryData<TaskDetail>(tasksKeys.detail(taskId), {
         ...previous,
         subtasks: [...previous.subtasks, temp],
@@ -227,7 +226,7 @@ export function useAddSubtaskTo() {
       api<TaskListItem>(`/tasks/${parentId}/subtasks`, { method: 'POST', body: { title } }),
     onSettled: (_data, _error, vars) => {
       void queryClient.invalidateQueries({ queryKey: tasksKeys.detail(vars.parentId) });
-      void queryClient.invalidateQueries({ queryKey: [...tasksKeys.all, 'branch'] });
+      void queryClient.invalidateQueries({ queryKey: tasksKeys.branchAll() });
       void queryClient.invalidateQueries({ queryKey: tasksKeys.listPages() });
     },
   });

@@ -26,7 +26,9 @@ export const taskBuiltinPresets: FilterPreset[] = [
   { id: 'mine-assignee', name: ui.tasks.roles.assignee, state: { role: 'assignee' } },
   { id: 'mine-creator', name: ui.tasks.roles.creator, state: { role: 'creator' } },
   { id: 'overdue', name: ui.tasks.presetOverdue, state: { overdue: 'yes' } },
-  { id: 'done', name: ui.tasks.stageStates.done, state: { systemState: 'done' } },
+  // «Завершённые» — состояние closed (каталог API: «Завершена»/«Отменена»);
+  // done на бэке — «Ждёт контроля», работа ещё не принята.
+  { id: 'done', name: ui.tasks.stageStates.closed, state: { systemState: 'closed' } },
 ];
 
 /** Крайний срок в диапазоне дат (ISO-дата срезается до YYYY-MM-DD). */

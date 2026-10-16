@@ -1,3 +1,11 @@
+// >300 строк — обоснование (I5): ОДИН SVG-слой контура и его жизненный цикл
+// (сон под карточкой/пробуждение по cardClosing, оседание FLIP, гвард вспышки
+// на переходной геометрии, отложенная вспышка) — одна машина состояний на
+// общих refs (pathname/cardModeLive/covered/moving/prevFocus). Чистая
+// геометрия уже вынесена в circuit-geometry.ts, покадровое движение панелей —
+// в use-geometry-motion.ts; дальнейший разнос (вспышка отдельным хуком)
+// протаскивал бы те же 6 refs через границу хука без выигрыша. Заметная
+// доля объёма — канон-комментарии вердиктов владельца (их не сокращаем).
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useRouterState } from '@tanstack/react-router';
 import { NodeEdge, pathLength, snapPx, type NodeEdgePoint } from '@nodus/ui/components/node-edge';

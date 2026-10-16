@@ -29,6 +29,10 @@ interface RequestOptions {
   body?: unknown;
   /** false — без Bearer (login/refresh). */
   auth?: boolean;
+  /** Явный access-токен вместо стора (login: /auth/me ДО записи токена в
+   *  стор — вход атомарен). С явным токеном прозрачного refresh нет: повтор
+   *  ушёл бы с тем же отвергнутым токеном. */
+  bearer?: string;
   /** Явный ключ идемпотентности — когда один ЛОГИЧЕСКИЙ запрос шлётся
    *  несколькими вызовами (ручной retry той же операции). По умолчанию
    *  генерируется на вызов. */
@@ -43,7 +47,7 @@ interface RequestOptions {
 const MUTATION_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 async function rawRequest(path: string, options: RequestOptions): Promise<Response> {
-  const { accessToken } = useAuthStore.getState();
+  const accessToken = options.bearer ?? useAuthStore.getState().accessToken;
   const headers: Record<string, string> = {};
   if (options.auth !== false && accessToken) {
     headers.authorization = `Bearer ${accessToken}`;
@@ -75,7 +79,7 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
   let response = await rawRequest(path, resolved);
 
   // Access протух → один прозрачный refresh и повтор (I4: без спиннеров).
-  if (response.status === 401 && resolved.auth !== false) {
+  if (response.status === 401 && resolved.auth !== false && resolved.bearer === undefined) {
     const refreshed = await useAuthStore.getState().tryRefresh();
     if (refreshed) {
       response = await rawRequest(path, resolved);
@@ -97,10 +101,28 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
       errorBody?.traceId,
     );
   }
+  return readSuccessBody<T>(response);
+}
+
+/** Тело успешного ответа: 204 и пустое тело — undefined (как у загрузок);
+ *  не-JSON (HTML заглушки прокси, обрезанный ответ) — ApiError единого
+ *  формата, а не голый SyntaxError мимо обработчиков `instanceof ApiError`. */
+async function readSuccessBody<T>(response: Response): Promise<T> {
   if (response.status === 204) {
     return undefined as T;
   }
-  return (await response.json()) as T;
+  const text = await response.text().catch(() => null);
+  if (text === null) {
+    throw new ApiError('INTERNAL_ERROR', 'Response body unreadable', response.status);
+  }
+  if (text.trim() === '') {
+    return undefined as T;
+  }
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new ApiError('INTERNAL_ERROR', 'Invalid JSON response', response.status);
+  }
 }
 
 interface UploadOptions {
@@ -213,19 +235,26 @@ export async function apiUpload<T>(
   form: FormData,
   options: UploadOptions = {},
 ): Promise<T> {
+  // Ключ идемпотентности — ОДИН на логическую загрузку (как в api()):
+  // повтор после прозрачного refresh идёт с тем же ключом, иначе бэкенд
+  // принял бы ретрай за вторую загрузку (дубль вложения).
+  const resolved: UploadOptions = {
+    ...options,
+    idempotencyKey: options.idempotencyKey ?? crypto.randomUUID(),
+  };
   if (
-    options.mswBypassIfLive !== undefined &&
+    resolved.mswBypassIfLive !== undefined &&
     getApiMockConfig().enabled &&
-    !isDomainMocked(options.mswBypassIfLive)
+    !isDomainMocked(resolved.mswBypassIfLive)
   ) {
-    return bypassUpload<T>(path, form, options);
+    return bypassUpload<T>(path, form, resolved);
   }
   try {
-    return await xhrUpload<T>(path, form, options);
+    return await xhrUpload<T>(path, form, resolved);
   } catch (error) {
     if (error instanceof ApiError && error.status === 401) {
       const refreshed = await useAuthStore.getState().tryRefresh();
-      if (refreshed) return xhrUpload<T>(path, form, options);
+      if (refreshed) return xhrUpload<T>(path, form, resolved);
     }
     throw error;
   }

@@ -5,33 +5,26 @@ import type {
   TaskListItem,
   TaskRelation,
 } from '@nodus/contracts';
-import {
-  ErrorCode,
-  createTaskBodySchema,
-  personalStageCreateBodySchema,
-  personalStageUpdateBodySchema,
-  taskParticipantAddBodySchema,
-  taskUpdateBodySchema,
-} from '@nodus/contracts';
+import { ErrorCode, taskUpdateBodySchema } from '@nodus/contracts';
 
 import { http, HttpResponse } from 'msw';
 
 import {
   autoMovePersonalPlacement,
-  deletePersonalStagePure,
   demoPersonalStages,
   demoSubtasks,
   demoTasks,
   detailsExtra,
-  globalStageForPersonal,
   makeSubtask,
   taskDetailOf,
 } from '../../../../shared/mocks/data/tasks.js';
-import { demoProjects } from '../../../../shared/mocks/data/projects.js';
 import { letterIdByTaskId, syncLetterWithTasks } from '../../../../shared/mocks/data/letters.js';
-import { demoStages, systemTaskType } from '../../../../shared/mocks/data/task-stages.js';
-import { currentAuthUser, userRef } from '../../../../shared/mocks/data/users.js';
+import { demoStages } from '../../../../shared/mocks/data/task-stages.js';
+import { userRef } from '../../../../shared/mocks/data/users.js';
 import { tasksChecklistHandlers } from './tasks-checklist-handlers.js';
+import { tasksListHandlers } from './tasks-list-handlers.js';
+import { tasksParticipantsHandlers } from './tasks-participants-handlers.js';
+import { tasksPersonalStagesHandlers } from './tasks-personal-stages-handlers.js';
 import { tasksTransitionsHandlers } from './tasks-transitions-handlers.js';
 import { tasksWorkHandlers } from './tasks-work-handlers.js';
 
@@ -60,131 +53,15 @@ function branchNodeOf(task: TaskListItem): TaskBranchNode {
   };
 }
 
-/** MSW-маршруты домена задач (315 строк — допустимый превыш 300 с
- *  обоснованием по I5: единый модуль маршрутов одного домена, чек-лист
- *  вынесен в tasks-checklist-handlers; дальнейший рост — сплит по
- *  субдоменам: messages, personal-stages). */
+/** MSW-маршруты домена задач — реестр домена (app/mocks-handlers.ts
+ *  подключает только его): субдомены — своими файлами (журнал и создание,
+ *  чек-лист, переходы, время/результат/bulk, личные колонки, участники),
+ *  здесь — карточка задачи (деталь, ветка, связи, подзадачи, PATCH).
+ *  Порядок важен: статические маршруты /tasks/<слово> — ДО /tasks/:id. */
 export const tasksHandlers = [
-  http.get('/api/v1/tasks', ({ request }) => {
-    const url = new URL(request.url);
-    const stageId = url.searchParams.get('stageId');
-    const personalStageId = url.searchParams.get('personalStageId');
-    const projectId = url.searchParams.get('projectId');
-    const assigneeId = url.searchParams.get('assigneeId');
-    const search = url.searchParams.get('search')?.trim().toLowerCase() ?? '';
-    const cursor = url.searchParams.get('cursor');
-    const limit = Math.min(Number(url.searchParams.get('limit') ?? 50) || 50, 100);
-    let filtered = stageId ? demoTasks.filter((t) => t.stage.id === stageId) : demoTasks;
-    if (personalStageId) {
-      filtered = demoTasks.filter((t) => t.personalStageId === personalStageId);
-    }
-    if (projectId) {
-      filtered = filtered.filter((t) => t.project?.id === projectId);
-    }
-    if (assigneeId) {
-      filtered = filtered.filter((t) => t.assignee?.id === assigneeId);
-    }
-    if (search) {
-      filtered = filtered.filter(
-        (t) => t.title.toLowerCase().includes(search) || String(t.number).includes(search),
-      );
-    }
-    const start = cursor ? Number(cursor) || 0 : 0;
-    const items = filtered.slice(start, start + limit);
-    const next = start + limit < filtered.length ? String(start + limit) : null;
-    return HttpResponse.json({ items, nextCursor: next });
-  }),
-
-  http.get('/api/v1/tasks/stages', () =>
-    HttpResponse.json(
-      demoStages.map((s) => ({
-        ...s,
-        count: demoTasks.filter((t) => t.stage.id === s.id).length,
-        overdueCount: demoTasks.filter(
-          (t) =>
-            t.stage.id === s.id &&
-            t.deadline !== null &&
-            new Date(t.deadline) < new Date() &&
-            s.systemState !== 'done' &&
-            s.systemState !== 'closed',
-        ).length,
-      })),
-    ),
-  ),
-
-  /** Быстрое создание задачи из колонки доски (плюсик в шапке): личная
-   *  колонка «Моего плана» — глобальная стадия подставляется по состоянию
-   *  колонки; глобальная стадия (проектная доска) — как есть, личное
-   *  размещение не создаётся (появится при первом DnD «Моего плана»). */
-  http.post('/api/v1/tasks', async ({ request }) => {
-    const parsed = createTaskBodySchema.safeParse(await request.json());
-    if (!parsed.success)
-      return HttpResponse.json(
-        { code: ErrorCode.VALIDATION_FAILED, message: 'Invalid body' },
-        { status: 422 },
-      );
-    const project = parsed.data.projectId
-      ? demoProjects.find((p) => p.id === parsed.data.projectId)
-      : undefined;
-    const personalColumn = parsed.data.personalStageId
-      ? demoPersonalStages.find((s) => s.id === parsed.data.personalStageId)
-      : undefined;
-    if (parsed.data.personalStageId && !personalColumn) return notFound('Stage not found');
-    const stage = personalColumn
-      ? globalStageForPersonal(personalColumn, demoStages)
-      : parsed.data.stageId
-        ? demoStages.find((s) => s.id === parsed.data.stageId)
-        : // Без колонки (экспресс-форма, «В задачу») — начальная стадия маршрута.
-          demoStages[0];
-    if (!stage) return notFound('Stage not found');
-    const checklist = (parsed.data.checklist ?? []).map((text) => ({
-      id: crypto.randomUUID(),
-      text,
-      done: false,
-    }));
-    // Ответственный экспресс-формы; неизвестный id — текущий (userRef кидает
-    // на чужом id, мок держим мягким).
-    let assignee = userRef(currentAuthUser.id);
-    if (parsed.data.assigneeId) {
-      try {
-        assignee = userRef(parsed.data.assigneeId);
-      } catch {
-        /* fallback — текущий пользователь */
-      }
-    }
-    const task: TaskListItem = {
-      id: crypto.randomUUID(),
-      number: Math.max(...demoTasks.map((t) => t.number)) + 1,
-      title: parsed.data.title,
-      type: systemTaskType,
-      stage,
-      personalStageId: personalColumn?.id ?? null,
-      priority: 'normal',
-      deadline: parsed.data.deadline ?? null,
-      creator: userRef(currentAuthUser.id),
-      assignee,
-      participants: [],
-      project: project
-        ? { id: project.id, code: project.code, name: project.name, color: project.color }
-        : null,
-      parentId: null,
-      spentMinutes: 0,
-      commentsCount: 0,
-      checklistDone: 0,
-      checklistTotal: checklist.length,
-      source: 'manual',
-      updatedAt: new Date().toISOString(),
-    };
-    demoTasks.push(task);
-    // Деталь (описание/чек-лист экспресс-формы) — карточка видит их сразу.
-    detailsExtra[task.id] = {
-      description: parsed.data.description?.trim() || 'Описание уточняется постановщиком.',
-      observers: [],
-      checklist,
-      createdAt: task.updatedAt,
-    };
-    return HttpResponse.json(task, { status: 201 });
-  }),
+  // Журнал/фиды, каталог стадий, создание — ДО '/api/v1/tasks/:id'
+  // (:id захватил бы /tasks/stages).
+  ...tasksListHandlers,
 
   /** Пункты чек-листа карточки (вердикт владельца 15.09.2026: чек-листу —
    *  важное место) — вынесены в tasks-checklist-handlers (I5). */
@@ -194,66 +71,9 @@ export const tasksHandlers = [
   // Типы, время/таймер, результат, bulk (#311) — ДО '/api/v1/tasks/:id'.
   ...tasksWorkHandlers,
 
-  // Личная схема «Мой план» (ADR-0008): каталог колонок со счётчиками.
-  // Маршруты personal-stages — ДО '/api/v1/tasks/:id' (:id захватил бы их).
-  http.get('/api/v1/tasks/personal-stages', () =>
-    HttpResponse.json(
-      demoPersonalStages.map((s) => ({
-        ...s,
-        count: demoTasks.filter((t) => t.personalStageId === s.id).length,
-        overdueCount: demoTasks.filter(
-          (t) =>
-            t.personalStageId === s.id &&
-            t.deadline !== null &&
-            new Date(t.deadline) < new Date() &&
-            s.systemState !== 'done' &&
-            s.systemState !== 'closed',
-        ).length,
-      })),
-    ),
-  ),
-
-  http.post('/api/v1/tasks/personal-stages', async ({ request }) => {
-    const parsed = personalStageCreateBodySchema.safeParse(await request.json());
-    if (!parsed.success)
-      return HttpResponse.json(
-        { code: ErrorCode.VALIDATION_FAILED, message: 'Invalid body' },
-        { status: 422 },
-      );
-    const stage = {
-      id: crypto.randomUUID(),
-      name: parsed.data.name,
-      color: parsed.data.color,
-      systemState: parsed.data.systemState,
-      order: Math.max(...demoPersonalStages.map((s) => s.order), -1) + 1,
-    };
-    demoPersonalStages.push(stage);
-    return HttpResponse.json(stage, { status: 201 });
-  }),
-
-  http.patch('/api/v1/tasks/personal-stages/:stageId', async ({ params, request }) => {
-    const stage = demoPersonalStages.find((s) => s.id === params.stageId);
-    if (!stage) return notFound('Stage not found');
-    const parsed = personalStageUpdateBodySchema.safeParse(await request.json());
-    if (!parsed.success)
-      return HttpResponse.json(
-        { code: ErrorCode.VALIDATION_FAILED, message: 'Invalid body' },
-        { status: 422 },
-      );
-    Object.assign(stage, parsed.data);
-    return HttpResponse.json(stage);
-  }),
-
-  http.delete('/api/v1/tasks/personal-stages/:stageId', ({ params }) => {
-    const result = deletePersonalStagePure(demoPersonalStages, demoTasks, String(params.stageId));
-    if (!result.ok) {
-      return HttpResponse.json(
-        { code: ErrorCode.TASK_LAST_STAGE, message: 'Last personal stage cannot be deleted' },
-        { status: 409 },
-      );
-    }
-    return HttpResponse.json({ ok: true, movedToStageId: result.movedTo?.id });
-  }),
+  // Личная схема «Мой план» (ADR-0008): CRUD колонок — ДО '/api/v1/tasks/:id'
+  // (:id захватил бы personal-stages).
+  ...tasksPersonalStagesHandlers,
 
   http.get('/api/v1/tasks/:id', ({ params }) => {
     const task =
@@ -374,38 +194,6 @@ export const tasksHandlers = [
     return HttpResponse.json(task);
   }),
 
-  /** Участники (#252/#311): соисполнитель — в `participants`, наблюдатель —
-   *  в `observers` детали; повторное добавление меняет роль. */
-  http.post('/api/v1/tasks/:id/participants', async ({ params, request }) => {
-    const task = demoTasks.find((t) => t.id === params.id);
-    if (!task) return notFound('Task not found');
-    const parsed = taskParticipantAddBodySchema.safeParse(await request.json());
-    if (!parsed.success || parsed.data.userId === task.assignee?.id)
-      return HttpResponse.json(
-        { code: ErrorCode.VALIDATION_FAILED, message: 'Invalid body' },
-        { status: 400 },
-      );
-    const extra = (detailsExtra[task.id] ??= {
-      description: taskDetailOf(task).description,
-      observers: [],
-      checklist: [],
-      createdAt: task.updatedAt,
-    });
-    const { userId, role } = parsed.data;
-    task.participants = task.participants.filter((p) => p.id !== userId);
-    extra.observers = extra.observers.filter((p) => p.id !== userId);
-    if (role === 'coexecutor') task.participants.push(userRef(userId));
-    else extra.observers.push(userRef(userId));
-    return HttpResponse.json(taskDetailOf(task), { status: 201 });
-  }),
-
-  http.delete('/api/v1/tasks/:id/participants/:userId', ({ params }) => {
-    const task = demoTasks.find((t) => t.id === params.id);
-    if (!task) return notFound('Task not found');
-    const userId = String(params.userId);
-    task.participants = task.participants.filter((p) => p.id !== userId);
-    const extra = detailsExtra[task.id];
-    if (extra) extra.observers = extra.observers.filter((p) => p.id !== userId);
-    return HttpResponse.json(taskDetailOf(task));
-  }),
+  // Участники (соисполнители/наблюдатели).
+  ...tasksParticipantsHandlers,
 ];

@@ -29,15 +29,15 @@ function useMountStatus(): boolean {
  * shallow-compare всегда false — мёртвый memo («мемо ради мемо»); оживление
  * = стабильные пропы вместо render-пропа, а во время drag карточку всё равно
  * перерисовывает контекст useSortable — выгоды нет, честнее без обёртки.
+ * Колонку движок доски выводит из своего борда по оси (stageOfDragId), а не
+ * из `data` sortable — ось у досок разная, данные карточки её не знают.
  */
 export function BoardSortableCard({
   id,
-  stageId,
   disabled = false,
   children,
 }: {
   id: string;
-  stageId: string;
   /** Отключить drag (активный фильтр списка: перестановка по урезанному
    *  набору давала бы ложные индексы — фильтрация только сужает обзор). */
   disabled?: boolean;
@@ -51,7 +51,7 @@ export function BoardSortableCard({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id, data: { stageId }, disabled });
+  } = useSortable({ id, disabled });
   const mounted = useMountStatus();
   const mountedWhileDragging = isDragging && !mounted;
 

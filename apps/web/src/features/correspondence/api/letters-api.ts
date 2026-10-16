@@ -34,7 +34,7 @@ export interface CreateLetterVars {
 
 export function useMailboxes() {
   return useQuery({
-    queryKey: [...lettersKeys.all, 'mailboxes'],
+    queryKey: lettersKeys.mailboxes(),
     queryFn: () => api<Mailbox[]>('/mailboxes'),
   });
 }
@@ -51,8 +51,9 @@ export function useDocumentKinds() {
 }
 
 /** Ключ списка «Отправленные» без фильтра контрагента — целевой кэш
- *  оптимистичной вставки useCreateLetter (совпадает с shared useLettersList). */
-const outgoingListKey = [...lettersKeys.list('outgoing'), null] as const;
+ *  оптимистичной вставки useCreateLetter (совпадает с shared useLettersList:
+ *  оба — из фабрики lettersKeys.folderList). */
+const outgoingListKey = lettersKeys.folderList('outgoing');
 
 export function useLetterDetail(id: string) {
   return useQuery({

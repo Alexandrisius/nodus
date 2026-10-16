@@ -25,6 +25,8 @@ export const tasksKeys = {
   search: (q: string) => [...tasksKeys.all, 'search', q] as const,
   detail: (id: string) => [...tasksKeys.all, 'detail', id] as const,
   branch: (id: string) => [...tasksKeys.all, 'branch', id] as const,
+  /** Префикс всех веток навигатора — инвалидация (структура дерева меняется). */
+  branchAll: () => [...tasksKeys.all, 'branch'] as const,
   relations: (id: string) => [...tasksKeys.all, 'relations', id] as const,
   /** Доступные переходы маршрута задачи (кнопки бара, ADR-0020). */
   transitions: (id: string) => [...tasksKeys.all, 'transitions', id] as const,
@@ -46,7 +48,7 @@ export function taskDependentKeys(taskId: string) {
     tasksKeys.kanbanAll(),
     tasksKeys.personalStages(),
     tasksKeys.stages(),
-    [...tasksKeys.all, 'branch'] as const,
+    tasksKeys.branchAll(),
   ];
 }
 

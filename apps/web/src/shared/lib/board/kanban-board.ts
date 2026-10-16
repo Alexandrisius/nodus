@@ -24,6 +24,25 @@ export const personalAxis: BoardAxis = {
   withStage: (t, stage) => ({ ...t, personalStageId: stage.id }),
 };
 
+/** Колонка под dnd-идентификатором: id колонки (дроп на пустую колонку /
+ * на её фон) → сама колонка; id задачи → колонка задачи по оси; иначе —
+ * undefined. Колонка распознаётся ДО поиска задачи: ось не знает «пустых»
+ * задач — globalAxis на заглушке `{}` читал `stage.id` у undefined и ронял
+ * проектный канбан TypeError-ом на дропе в пустую колонку. */
+export function stageOfDragId<S extends TaskStage>(
+  id: string,
+  items: TaskListItem[],
+  stageById: ReadonlyMap<string, S>,
+  axis: BoardAxis,
+): S | undefined {
+  const column = stageById.get(id);
+  if (column) return column;
+  const task = items.find((t) => t.id === id);
+  if (!task) return undefined;
+  const key = axis.keyOf(task);
+  return key === null ? undefined : stageById.get(key);
+}
+
 /** Позиция задачи внутри её колонки. */
 export function indexOfInStage(items: TaskListItem[], taskId: string, axis: BoardAxis): number {
   const task = items.find((t) => t.id === taskId);

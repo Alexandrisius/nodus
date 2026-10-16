@@ -8,6 +8,7 @@ import { formatDate, withoutPatronymic } from '../../../shared/lib/format.js';
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
 import { TaskStatusBadge } from '../../../shared/ui/task-status-badge.js';
 import { useAddSubtask } from '../api/tasks-api.js';
+import { isTempId } from '../lib/temp-records.js';
 import { InlineAddRow } from './inline-add-row.js';
 
 const OPEN = new Set(['backlog', 'active', 'paused']);
@@ -44,16 +45,18 @@ export function TaskSubtasks({ task, onOpen }: { task: TaskDetail; onOpen: (id: 
             s.deadline !== null &&
             Date.parse(s.deadline) > parentDeadline;
           const done = !OPEN.has(s.stage.systemState);
+          const pending = isTempId(s.id);
           return (
             <button
               key={s.id}
               type="button"
-              disabled={s.id.startsWith('temp-')}
+              disabled={pending}
               onClick={() => onOpen(s.id)}
               className="group/sub -mx-2 flex min-h-8 items-center gap-2.5 rounded-md px-2 py-1 text-left transition-colors hover:bg-accent/40"
             >
+              {/* Номер темпа ещё не выдан сервером — плейсхолдер, не «0». */}
               <span className="w-10 shrink-0 font-mono text-label-sm text-muted-foreground tabular-nums">
-                {s.number}
+                {pending ? '…' : s.number}
               </span>
               <span
                 className={cn(

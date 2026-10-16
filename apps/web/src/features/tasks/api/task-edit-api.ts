@@ -24,25 +24,39 @@ export type TaskFieldsPatch = Pick<
 
 /** Правка полей задачи (I4): значение в карточке и журнале меняется сразу,
  *  откат по снапшоту; после ответа — переходы (гейты читают поля), доски и
- *  счётчики просрочки пересобираются инвалидацией. */
+ *  счётчики просрочки пересобираются инвалидацией.
+ *  Канон patterns.md: cancel → снапшот ВСЕХ патчимых кэшей → патч → откат
+ *  всех. Журналов несколько (префикс listPages: «мои», «все доступные»,
+ *  задачи проекта) — строка задачи патчится в каждом подгруженном; без
+ *  cancel летящий рефеч журнала затирал бы оптимистичное значение старым. */
 export function useUpdateTask(taskId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (patch: TaskFieldsPatch) =>
       api<TaskListItem>(`/tasks/${taskId}`, { method: 'PATCH', body: patch }),
     onMutate: async (patch) => {
-      await queryClient.cancelQueries({ queryKey: tasksKeys.detail(taskId) });
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: tasksKeys.detail(taskId) }),
+        queryClient.cancelQueries({ queryKey: tasksKeys.listPages() }),
+      ]);
       const previous = queryClient.getQueryData<TaskDetail>(tasksKeys.detail(taskId));
+      const previousPages = queryClient.getQueriesData<InfiniteData<Paginated<TaskListItem>>>({
+        queryKey: tasksKeys.listPages(),
+      });
       if (previous)
         queryClient.setQueryData<TaskDetail>(tasksKeys.detail(taskId), { ...previous, ...patch });
-      queryClient.setQueryData<InfiniteData<Paginated<TaskListItem>>>(
-        tasksKeys.listPages(),
-        (old) => mapTaskInPages(old, taskId, (t) => ({ ...t, ...listPatch(patch) })),
+      const row = listPatch(patch);
+      queryClient.setQueriesData<InfiniteData<Paginated<TaskListItem>>>(
+        { queryKey: tasksKeys.listPages() },
+        (old) => mapTaskInPages(old, taskId, (t) => ({ ...t, ...row })),
       );
-      return { previous };
+      return { previous, previousPages };
     },
     onError: (_error, _patch, context) => {
       if (context?.previous) queryClient.setQueryData(tasksKeys.detail(taskId), context.previous);
+      for (const [key, data] of context?.previousPages ?? []) {
+        queryClient.setQueryData(key, data);
+      }
       toast.error(ui.common.saveError);
     },
     onSettled: () => {

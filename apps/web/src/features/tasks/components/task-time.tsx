@@ -206,7 +206,8 @@ function TimeLog({ task }: { task: TaskDetail }) {
               <span className="shrink-0 font-mono text-label-sm text-muted-foreground tabular-nums">
                 {formatDate(e.date)}
               </span>
-              {e.user.id === meId ? (
+              {/* Идущий таймер не удаляется — сначала стоп (сервер ответит 409, #317). */}
+              {e.user.id === meId && !(e.method === 'timer' && e.endedAt === null) ? (
                 <button
                   type="button"
                   onClick={() => remove.mutate(e.id)}
