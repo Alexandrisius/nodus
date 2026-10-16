@@ -19,6 +19,13 @@ use tauri_plugin_opener::OpenerExt;
 
 use state::ShellState;
 
+/// Аргументы браузерного процесса WebView2 — ОДНИ для всех окон (окна делят
+/// data directory, разные аргументы = отказ создания окна). Заменяют дефолт
+/// wry, поэтому его отключения и автоплей повторены явно. HideCursorWhileTyping
+/// (Chromium 152+, «скрывать указатель при вводе») в HWND-хостинге WebView2
+/// гасит каретку при наборе (#309; WebView2Feedback #5687/#5708).
+pub(crate) const WEBVIEW2_BROWSER_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,HideCursorWhileTyping --autoplay-policy=no-user-gesture-required";
+
 /// Точка сборки оболочки (ADR-0019): тонкий клиент портала. Порядок плагинов:
 /// single-instance первым (канон плагина); лог перехватывает паники в файл.
 pub fn run() {
@@ -121,6 +128,7 @@ fn create_main_window(app: &AppHandle) -> tauri::Result<()> {
             .min_inner_size(1024.0, 660.0)
             .center()
             .visible(false)
+            .additional_browser_args(WEBVIEW2_BROWSER_ARGS)
             .initialization_script(bridge::initialization_script(&version))
             .on_navigation(move |url| navigation_allowed(&nav_app, url))
             .build()?;
