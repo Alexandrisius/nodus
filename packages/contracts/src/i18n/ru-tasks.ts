@@ -154,6 +154,7 @@ export const tasksStrings = {
   timeToday: 'Сегодня',
   timeYesterday: 'Вчера',
   timeDelete: 'Удалить запись',
+  timerRunning: 'Таймер идёт — остановите, чтобы удалить запись',
   timeLogged: 'Время внесено',
   timeByTimer: 'таймер',
   timerSwitched: 'Остановлен таймер задачи №',
