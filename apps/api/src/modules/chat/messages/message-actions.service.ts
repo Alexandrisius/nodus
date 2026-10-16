@@ -1,16 +1,12 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import {
-  CHAT_EVENTS,
-  type ForwardMessagesBody,
-  type MessagePin,
-  type MessageReactionToggleBody,
-  type UserRef,
-  type ThreadState,
-} from '@nodus/contracts';
+import { CHAT_EVENTS, type ForwardMessagesBody } from '@nodus/contracts';
 
 import { EventBus } from '../../../core/events/event-bus.js';
-import { TransactionRunner } from '../../../core/database/transaction-runner.js';
+import {
+  TransactionRunner,
+  type TransactionClient,
+} from '../../../core/database/transaction-runner.js';
 import { DomainException } from '../../../core/errors/domain-exception.js';
 import {
   USER_PROFILE_READER,
@@ -20,164 +16,37 @@ import {
   ConversationsRepository,
   type MemberRow,
 } from '../conversations/conversations.repository.js';
+import { ConversationMembersRepository } from '../conversations/conversation-members.repository.js';
 import { can, parsePermissions } from '../permissions.js';
 import { MessageDtoMapper } from './message-dto.mapper.js';
 import { addMentionWatchers, mentionTokenIds, resolveMentionTargets } from './mentions.js';
-import { MessagePinsRepository, type PinRecord } from './message-pins.repository.js';
-import { MessagesRepository, type MessageRow } from './messages.repository.js';
-import { MessagesReactionsRepository } from './messages-reactions.repository.js';
+import type { MessageRow } from './message-row.js';
+import { MessagesRepository } from './messages.repository.js';
+import { MessagesWriteRepository } from './messages-write.repository.js';
 import { ThreadParticipantsRepository } from './thread-participants.repository.js';
-import { VaultRepository } from '../vault/vault.repository.js';
+import { VaultWriteRepository } from '../vault/vault-write.repository.js';
 
 /**
- * Действия над сообщениями: закрепы (лента закрепов), реакции (toggle),
- * пересылка (серверные копии одним запросом), наблюдение трэдов
- * (watch-toggle и состояния — перенесены из MessagesService, I5: файл
- * отправки перевалил порог 500 кодовых строк, #100).
+ * Пересылка сообщений (серверные копии одним запросом, replay по
+ * идемпотентному ключу). Имя класса историческое (действия над
+ * сообщениями): закрепы, реакции и наблюдение трэдов выделены в
+ * MessagePinsService / MessageReactionsService / ThreadWatchService (I5);
+ * watch-toggle и состояния ранее перенесены сюда из MessagesService (#100).
  */
 @Injectable()
 export class MessageActionsService {
   constructor(
     private readonly messages: MessagesRepository,
-    private readonly reactionsRepo: MessagesReactionsRepository,
-    private readonly pins: MessagePinsRepository,
+    private readonly writes: MessagesWriteRepository,
     private readonly conversations: ConversationsRepository,
+    private readonly memberships: ConversationMembersRepository,
     private readonly mapper: MessageDtoMapper,
     private readonly txRunner: TransactionRunner,
     private readonly eventBus: EventBus,
     @Inject(USER_PROFILE_READER) private readonly userProfiles: UserProfileReader,
     private readonly threadParticipants: ThreadParticipantsRepository,
-    private readonly vault: VaultRepository,
+    private readonly vault: VaultWriteRepository,
   ) {}
-
-  // ===== Закрепы =====
-
-  /** Лента закрепов (снапшоты целых сообщений, свежие первыми). */
-  async listPins(userId: string, conversationId: string): Promise<MessagePin[]> {
-    if (!(await this.conversations.findMembership(conversationId, userId))) {
-      throw DomainException.notFound('Conversation not found');
-    }
-    const records = await this.pins.listWithMessages(conversationId);
-    const members = await this.conversations.listMembers([conversationId]);
-    const dtos = await this.mapper.toDtos(
-      records.map((r) => r.message),
-      { viewerId: userId, members },
-    );
-    const byId = new Map(dtos.map((dto) => [dto.id, dto]));
-    const pinnerIds = [...new Set(records.map((r) => r.pin.pinnedBy))];
-    const pinnerRefs = new Map(
-      (await this.userProfiles.findRefs(pinnerIds)).map((ref) => [ref.id, ref]),
-    );
-    return records.flatMap(({ pin }) => {
-      const message = byId.get(pin.messageId);
-      const pinnedBy = pinnerRefs.get(pin.pinnedBy);
-      return message && pinnedBy
-        ? [{ message, pinnedBy, pinnedAt: pin.pinnedAt.toISOString() }]
-        : [];
-    });
-  }
-
-  /** Закрепить (любое живое сообщение, даже чужое/ответ треда — мок); идемпотентно. */
-  async pin(
-    userId: string,
-    conversationId: string,
-    messageId: string,
-  ): Promise<{
-    pin: PinRecord;
-    message: MessageRow;
-    members: MemberRow[];
-    pinnedByRef: UserRef;
-  }> {
-    return this.txRunner.run(async (tx) => {
-      if (!(await this.conversations.findMembership(conversationId, userId, tx))) {
-        throw DomainException.notFound('Conversation not found');
-      }
-      const message = await this.messages.findByIdInConversation(conversationId, messageId, tx);
-      if (!message || message.deletedAt) throw DomainException.notFound('Message not found');
-      const created = await this.pins.pin(conversationId, messageId, userId, tx);
-      const pin = created
-        ? { conversationId, messageId, pinnedBy: userId, pinnedAt: new Date() }
-        : // tx — чтение по соединению транзакции (правило пула, раунд 3).
-          ((await this.pins.findByMessage(messageId, tx)) ?? {
-            conversationId,
-            messageId,
-            pinnedBy: userId,
-            pinnedAt: new Date(),
-          });
-      if (created) {
-        await this.eventBus.emit(
-          tx,
-          CHAT_EVENTS.MESSAGE_PINNED,
-          { conversationId, messageId, pinnedBy: userId },
-          { actorId: userId, aggregateType: 'conversation', aggregateId: conversationId },
-        );
-      }
-      const [pinnedByRef] = await this.userProfiles.findRefs([pin.pinnedBy], tx);
-      return {
-        pin,
-        message,
-        members: await this.conversations.listMembers([conversationId], tx),
-        pinnedByRef: pinnedByRef ?? {
-          id: pin.pinnedBy,
-          displayName: 'Пользователь',
-          avatarUrl: null,
-        },
-      };
-    });
-  }
-
-  /** Открепить; откреп незакреплённого — 404 (мок). */
-  async unpin(userId: string, conversationId: string, messageId: string): Promise<void> {
-    await this.txRunner.run(async (tx) => {
-      if (!(await this.conversations.findMembership(conversationId, userId, tx))) {
-        throw DomainException.notFound('Conversation not found');
-      }
-      if (!(await this.pins.unpin(conversationId, messageId, tx))) {
-        throw DomainException.notFound('Message not found');
-      }
-      await this.eventBus.emit(
-        tx,
-        CHAT_EVENTS.MESSAGE_UNPINNED,
-        { conversationId, messageId, unpinnedBy: userId },
-        { actorId: userId, aggregateType: 'conversation', aggregateId: conversationId },
-      );
-    });
-  }
-
-  // ===== Реакции =====
-
-  /** Toggle своей реакции (контракт messageReactionToggleBodySchema). */
-  async toggleReaction(
-    userId: string,
-    conversationId: string,
-    messageId: string,
-    body: MessageReactionToggleBody,
-  ): Promise<{ message: MessageRow; members: MemberRow[] }> {
-    return this.txRunner.run(async (tx) => {
-      if (!(await this.conversations.findMembership(conversationId, userId, tx))) {
-        throw DomainException.notFound('Conversation not found');
-      }
-      const message = await this.messages.findByIdInConversation(conversationId, messageId, tx);
-      if (!message || message.deletedAt) throw DomainException.notFound('Message not found');
-      const changed = body.remove
-        ? await this.reactionsRepo.removeReaction(messageId, userId, body.emoji, tx)
-        : await this.reactionsRepo.addReaction(messageId, userId, body.emoji, tx);
-      if (changed) {
-        await this.eventBus.emit(
-          tx,
-          body.remove ? CHAT_EVENTS.REACTION_REMOVED : CHAT_EVENTS.REACTION_ADDED,
-          { conversationId, messageId, emoji: body.emoji, userId },
-          { actorId: userId, aggregateType: 'conversation', aggregateId: conversationId },
-        );
-      }
-      const fresh =
-        (await this.messages.findByIdInConversation(conversationId, messageId, tx)) ?? message;
-      return {
-        message: fresh,
-        members: await this.conversations.listMembers([conversationId], tx),
-      };
-    });
-  }
 
   // ===== Пересылка =====
 
@@ -211,6 +80,19 @@ export class MessageActionsService {
     return this.txRunner.run(async (tx) => {
       const membership = await this.conversations.findMembership(targetConversationId, userId, tx);
       if (!membership) throw DomainException.notFound('Conversation not found');
+
+      // Быстрый replay (как send): тот же ключ уже зафиксирован — копии и
+      // побочные эффекты сделаны, отдаём их же (crash-окно между Redis-
+      // реплеем и фиксацией закрывает БД, а не 500 на ON CONFLICT).
+      const replayed = await this.findForwardReplay(
+        userId,
+        targetConversationId,
+        baseKey,
+        body,
+        tx,
+      );
+      if (replayed) return replayed;
+
       // Членство в исходной беседе обязательно: иначе пересылка читает чужое.
       if (!(await this.conversations.findMembership(body.sourceConversationId, userId, tx))) {
         throw DomainException.notFound('Conversation not found');
@@ -278,13 +160,13 @@ export class MessageActionsService {
         priorThreadReplies = await this.messages.countAllThreadReplies(threadRootId, tx);
       }
 
-      const firstSeq = await this.messages.allocateSeqs(targetConversationId, drafts.length, tx);
+      const firstSeq = await this.writes.allocateSeqs(targetConversationId, drafts.length, tx);
       const createdAt = Date.now();
       const created: MessageRow[] = [];
       const vaultCopies: { message: MessageRow; text: string; sourceId?: string }[] = [];
       for (let i = 0; i < drafts.length; i += 1) {
         const draft = drafts[i]!;
-        const row = await this.messages.insertMessage(
+        const row = await this.writes.insertMessage(
           {
             id: randomUUID(),
             conversationId: targetConversationId,
@@ -309,9 +191,22 @@ export class MessageActionsService {
           },
           tx,
         );
-        if (!row) throw new Error('forward: unexpected idempotency conflict on copy insert');
+        if (!row) {
+          // Редкая гонка: конкурент с тем же ключом зафиксировался между
+          // replay-проверкой и INSERT (ждал лок беседы) — реплей его блока.
+          // Частичный конфликт (часть копий уже вставлена этой tx) — ключ
+          // занят другим составом: откат всей пересылки.
+          const raced =
+            created.length === 0
+              ? await this.findForwardReplay(userId, targetConversationId, baseKey, body, tx)
+              : null;
+          if (!raced) {
+            throw DomainException.conflict('Idempotency-Key already used for another forward');
+          }
+          return raced;
+        }
         if (draft.sourceId) {
-          await this.messages.copyAttachments(draft.sourceId, row.id, tx);
+          await this.writes.copyAttachments(draft.sourceId, row.id, tx);
         }
         vaultCopies.push({
           message: row,
@@ -351,11 +246,11 @@ export class MessageActionsService {
           );
         }
       } else {
-        await this.messages.touchLastMessageAt(targetConversationId, tx);
+        await this.writes.touchLastMessageAt(targetConversationId, tx);
       }
-      await this.conversations.unsnooze(targetConversationId, userId, tx);
+      await this.memberships.unsnooze(targetConversationId, userId, tx);
       // Пересылка — активность: раскрывает беседу скрывшим её участникам (#103).
-      await this.conversations.revealHidden(targetConversationId, tx);
+      await this.memberships.revealHidden(targetConversationId, tx);
 
       const members = await this.conversations.listMembers([targetConversationId], tx);
       // Вложения копий одним батчем (для payload DTO, раунд 3).
@@ -401,47 +296,31 @@ export class MessageActionsService {
     });
   }
 
-  // ===== Треды: наблюдение и состояния (раунд 3) =====
-
   /**
-   * Состояния трэдов беседы для текущего пользователя: строка на каждый трэд,
-   * где он наблюдатель (автор корня / реплай / кнопка / @). Точка «есть новые»
-   * на посте и счётчик новым тоном — только по этим данным.
+   * Replay пересылки по (author, client_message_id): ключи блока —
+   * `${baseKey}:c` (комментарий) и `${baseKey}:${i}` (копии; i — позиция в
+   * блоке, со сдвигом на комментарий). Найдено — ответ тем же составом без
+   * побочных эффектов; ключ занят в ДРУГОЙ беседе — CONFLICT (как send).
    */
-  async threadStates(userId: string, conversationId: string): Promise<ThreadState[]> {
-    if (!(await this.conversations.findMembership(conversationId, userId))) {
-      throw DomainException.notFound('Conversation not found');
-    }
-    return this.threadParticipants.states(conversationId, userId);
-  }
-
-  /**
-   * Toggle наблюдения (кнопка «Следить/Перестать» в шапке окна треда):
-   * нет строки участия → добавить watcher; есть → снять наблюдение (строка
-   * удаляется целиком — реплай/@ добавят снова при следующем событии).
-   * Идемпотентность пары (пользователь, трэд) держит PK; повтор запроса с тем
-   * же Idempotency-Key возвращает первый результат (Redis-интерсептор).
-   */
-  async watchThread(
+  private async findForwardReplay(
     userId: string,
-    conversationId: string,
-    threadRootId: string,
-  ): Promise<{ watching: boolean }> {
-    return this.txRunner.run(async (tx) => {
-      if (!(await this.conversations.findMembership(conversationId, userId, tx))) {
-        throw DomainException.notFound('Conversation not found');
-      }
-      const root = await this.messages.findByIdInConversation(conversationId, threadRootId, tx);
-      if (!root || root.threadRootId !== null) {
-        throw DomainException.notFound('Thread root not found');
-      }
-      const watching = await this.threadParticipants.findLastRead(threadRootId, userId, tx);
-      if (watching === null) {
-        await this.threadParticipants.upsert(threadRootId, userId, 'watcher', tx);
-        return { watching: true };
-      }
-      await this.threadParticipants.delete(threadRootId, userId, tx);
-      return { watching: false };
-    });
+    targetConversationId: string,
+    baseKey: string,
+    body: ForwardMessagesBody,
+    tx: TransactionClient,
+  ): Promise<{ rows: MessageRow[]; members: MemberRow[] } | null> {
+    const keys = [
+      `${baseKey}:c`,
+      ...Array.from({ length: body.messageIds.length + 1 }, (_, i) => `${baseKey}:${i}`),
+    ];
+    const existing = await this.writes.findExistingByKeys(userId, keys, tx);
+    if (existing.length === 0) return null;
+    if (existing.some((row) => row.conversationId !== targetConversationId)) {
+      throw DomainException.conflict('Idempotency-Key already used for another message');
+    }
+    return {
+      rows: existing,
+      members: await this.conversations.listMembers([targetConversationId], tx),
+    };
   }
 }

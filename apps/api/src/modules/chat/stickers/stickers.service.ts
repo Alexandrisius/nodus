@@ -73,7 +73,10 @@ export class StickersService {
     }
     return this.txRunner.run(async (tx) => {
       if (body.scope === 'personal') {
-        const owned = await this.repository.countPersonalPacks(userId);
+        // Лок лимита владельца ДО подсчёта: параллельные create на границе
+        // лимита сериализуются (паттерн advisory #177/#195).
+        await this.repository.lockPersonalPackLimit(userId, tx);
+        const owned = await this.repository.countPersonalPacks(userId, tx);
         if (owned >= PERSONAL_PACKS_MAX) {
           throw new DomainException(
             ErrorCode.VALIDATION_FAILED,
@@ -82,13 +85,16 @@ export class StickersService {
           );
         }
       }
-      const pack = await this.repository.createPack({
-        id: randomUUID(),
-        title: body.title,
-        scope: body.scope,
-        ownerId: body.scope === 'corporate' ? null : userId,
-        createdBy: userId,
-      });
+      const pack = await this.repository.createPack(
+        {
+          id: randomUUID(),
+          title: body.title,
+          scope: body.scope,
+          ownerId: body.scope === 'corporate' ? null : userId,
+          createdBy: userId,
+        },
+        tx,
+      );
       await this.eventBus.emit(
         tx,
         CHAT_EVENTS.STICKER_PACK_CREATED,
@@ -111,7 +117,7 @@ export class StickersService {
       if (!canManagePack(pack, userId, canManageCorporate)) {
         throw DomainException.forbidden('Only pack owner or admin can manage this pack');
       }
-      await this.repository.renamePack(packId, title);
+      await this.repository.renamePack(packId, title, tx);
       await this.eventBus.emit(
         tx,
         CHAT_EVENTS.STICKER_PACK_UPDATED,
@@ -131,7 +137,7 @@ export class StickersService {
       if (!canManagePack(pack, userId, canManageCorporate)) {
         throw DomainException.forbidden('Only pack owner or admin can manage this pack');
       }
-      await this.repository.softDeletePack(packId);
+      await this.repository.softDeletePack(packId, tx);
       await this.eventBus.emit(
         tx,
         CHAT_EVENTS.STICKER_PACK_DELETED,
@@ -192,24 +198,30 @@ export class StickersService {
     );
     return this.txRunner.run(async (tx) => {
       // Перепроверка лимита в транзакции: параллельные загрузки в один пак
-      // не должны превысить потолок (проверка до IO — лишь fast-fail).
+      // не должны превысить потолок (проверка до IO — лишь fast-fail). Лок
+      // строки пака сериализует перечёт (без него READ COMMITTED пропускает
+      // обе загрузки на границе лимита).
+      await this.repository.lockPack(packId, tx);
       const live = await this.repository.countStickers(packId, tx);
       if (live >= STICKERS_PER_PACK_MAX) {
         throw new DomainException(ErrorCode.VALIDATION_FAILED, 'Sticker pack is full', {
           max: STICKERS_PER_PACK_MAX,
         });
       }
-      const sticker = await this.repository.insertSticker({
-        id: randomUUID(),
-        packId,
-        fileId,
-        emojis: input.emojis,
-        width: input.width ?? null,
-        height: input.height ?? null,
-        mime: verdict.mime,
-        size: bytes.length,
-        sortOrder: live,
-      });
+      const sticker = await this.repository.insertSticker(
+        {
+          id: randomUUID(),
+          packId,
+          fileId,
+          emojis: input.emojis,
+          width: input.width ?? null,
+          height: input.height ?? null,
+          mime: verdict.mime,
+          size: bytes.length,
+          sortOrder: live,
+        },
+        tx,
+      );
       await this.eventBus.emit(
         tx,
         CHAT_EVENTS.STICKER_ADDED,
@@ -239,7 +251,7 @@ export class StickersService {
       if (!canManagePack(hit.pack, userId, canManageCorporate)) {
         throw DomainException.forbidden('Only pack owner or admin can manage this pack');
       }
-      await this.repository.deleteSticker(stickerId);
+      await this.repository.deleteSticker(stickerId, tx);
       await this.eventBus.emit(
         tx,
         CHAT_EVENTS.STICKER_REMOVED,

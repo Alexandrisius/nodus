@@ -1,13 +1,8 @@
 import { Inject, Injectable } from '@nestjs/common';
 import {
-  attachmentPreviewKind,
-  isPdfDerivativeCandidate,
-  truncateMentionText,
   type ChatMessage,
   type MessageAttachment,
   type MessageReaction,
-  type ReplyPreview,
-  type StickerMeta,
   type UserRef,
 } from '@nodus/contracts';
 
@@ -18,25 +13,21 @@ import {
 import { SignedUrlService } from '../../../core/crypto/signed-url.service.js';
 import type { TransactionClient } from '../../../core/database/transaction-runner.js';
 import type { MemberRow } from '../conversations/conversations.repository.js';
-import { MessagesRepository, type MessageRow } from './messages.repository.js';
+import type { MessageRow } from './message-row.js';
+import { MessagesRepository } from './messages.repository.js';
 import { MessagesReactionsRepository, type ReactionRow } from './messages-reactions.repository.js';
 import { MessagePinsRepository } from './message-pins.repository.js';
 import { extractMessageUrls } from './link-extractor.js';
 import { LinkPreviewService } from '../link-previews/link-preview.service.js';
 import { normalizeUrl } from '../link-previews/url-normalize.js';
-
-/** Замороженный снапшот цитаты (поле reply_snapshot). */
-export interface ReplySnapshotValue {
-  authorId: string | null;
-  text: string;
-  quoteText: string | null;
-  attachmentKind: 'image' | 'file' | 'sticker' | null;
-  /** #288: мини-глиф оригинального стикера в цитате — fileId (url строится
-   *  подписью при чтении) + первый эмодзи пака. Старые снапшоты — без полей. */
-  stickerFileId?: string | null;
-  stickerEmoji?: string | null;
-  stickerMime?: string | null;
-}
+import { toAttachmentDto, type AttachmentDtoRow } from './message-attachment.dto.js';
+import { computeReadAt, computeReadBy } from './message-read-receipts.js';
+import {
+  buildForwardedFrom,
+  buildReplyPreview,
+  fallbackRef,
+  type ReplySnapshotValue,
+} from './message-reply-preview.js';
 
 /** userId упоминаний из JSONB-колонки (снапшот отправки, #100). */
 export function readMentionedUserIds(row: MessageRow): string[] {
@@ -48,51 +39,6 @@ export function readMentionedUserIds(row: MessageRow): string[] {
 export function readEverMentionedUserIds(row: MessageRow): string[] {
   const raw = (row.everMentionedUserIds ?? null) as string[] | null;
   return Array.isArray(raw) ? raw : [];
-}
-
-/** Строка вложения для DTO (стикер дополнительно несёт снапшот пака). */
-export interface AttachmentDtoRow {
-  id: string;
-  fileId: string;
-  name: string;
-  size: number;
-  mime: string;
-  kind: string;
-  width: number | null;
-  height: number | null;
-  thumbFileId: string | null;
-  stickerMeta?: unknown;
-}
-
-/** Сборка DTO вложения: подписанный url, вид по kind, снапшот стикера. */
-export function toAttachmentDto(
-  a: AttachmentDtoRow,
-  signedUrls: SignedUrlService,
-): MessageAttachment {
-  const stickerMeta = (a.stickerMeta as StickerMeta | null | undefined) ?? null;
-  const previewKind = attachmentPreviewKind(a.name, a.mime);
-  return {
-    id: a.id,
-    fileId: a.fileId,
-    name: a.name,
-    size: a.size,
-    mime: a.mime,
-    kind: a.kind as 'image' | 'file' | 'sticker',
-    url: signedUrls.fileContentUrl(a.fileId),
-    // Серверное превью-дериват (#150); null — не сгенерировано.
-    thumbnailUrl: a.thumbFileId ? signedUrls.fileContentUrl(a.thumbFileId) : null,
-    // Маршрут просмотрщика и fallback-ссылка (#139): подпись детерминирована
-    // от fileId — pdfUrl выдаётся КОНВЕРТИРУЕМЫМ офисным без похода в БД
-    // (таблицы не конвертятся — спека), неготовая производная отвечает 404.
-    previewKind,
-    pdfUrl:
-      previewKind === 'office' && isPdfDerivativeCandidate(a.name)
-        ? signedUrls.fileDerivativeUrl(a.fileId, 'pdf')
-        : null,
-    width: a.width,
-    height: a.height,
-    ...(a.kind === 'sticker' && stickerMeta ? { sticker: stickerMeta } : {}),
-  };
 }
 
 export interface MessageDtoContext {
@@ -108,11 +54,6 @@ export interface MessageDtoContext {
 /** Курсоры прочтения строки: своя беседа в смешанной странице, иначе members. */
 function membersFor(ctx: MessageDtoContext, conversationId: string): MemberRow[] {
   return ctx.membersByConversation?.get(conversationId) ?? ctx.members;
-}
-
-/** Fallback-профиль: пользователя нет в справочнике (крайний случай). */
-function fallbackRef(id: string): UserRef {
-  return { id, displayName: 'Пользователь', avatarUrl: null };
 }
 
 /**
@@ -314,115 +255,4 @@ function groupReactions(
   return [...byEmoji.entries()]
     .map(([emoji, { users, mine }]) => ({ emoji, count: users.length, mine, users }))
     .sort((a, b) => b.count - a.count || a.emoji.localeCompare(b.emoji));
-}
-
-/**
- * Цитата: текст/quoteText/attachmentKind заморожены в снапшоте на момент
- * отправки (правка оригинала не меняет — вердикт 24.09); удалённость
- * оригинала вычисляется по строке (удаление сильнее заморозки). Строки
- * оригиналов не удаляются физически (obliterated остаётся в БД) — автор
- * цитаты известен всегда из замороженного снапшота; null возможен только
- * у legacy-снапшотов без автора.
- */
-function buildReplyPreview(
-  row: MessageRow,
-  refs: Map<string, UserRef>,
-  originalById: Map<string, MessageRow>,
-  signedUrls: SignedUrlService,
-): ReplyPreview | null {
-  if (!row.replyToId) return null;
-  const snapshot = (row.replySnapshot ?? null) as ReplySnapshotValue | null;
-  const original = originalById.get(row.replyToId);
-  const deleted = original === undefined || original.deletedAt !== null;
-  // #163: obliterated-оригинала в ленте нет — клику по цитате некуда вести;
-  // deleted при надгробии (obliterated=false) — цитата кликабельна.
-  const obliterated = original === undefined || original.obliterated;
-  const authorId = snapshot?.authorId ?? original?.authorId ?? null;
-  return {
-    id: row.replyToId,
-    author: authorId === null ? null : (refs.get(authorId) ?? fallbackRef(authorId)),
-    // Фолбэк без снапшота — та же токен-знающая обрезка (#224): цитата
-    // без огрызков `@[Имя](user:…`.
-    text: deleted
-      ? ''
-      : (snapshot?.text ?? (original ? truncateMentionText(original.text, 160) : '')),
-    quoteText: deleted ? null : (snapshot?.quoteText ?? null),
-    attachmentKind: deleted ? null : (snapshot?.attachmentKind ?? null),
-    // #288: мини-глиф оригинального стикера; url подписывается при ЧТЕНИИ —
-    // снапшот хранит только fileId (протухающие ссылки замораживать нельзя).
-    stickerUrl:
-      !deleted && snapshot?.stickerFileId
-        ? signedUrls.fileContentUrl(snapshot.stickerFileId)
-        : null,
-    stickerEmoji: deleted ? null : (snapshot?.stickerEmoji ?? null),
-    stickerMime: deleted ? null : (snapshot?.stickerMime ?? null),
-    deleted,
-    obliterated,
-  };
-}
-
-function buildForwardedFrom(
-  row: MessageRow,
-  refs: Map<string, UserRef>,
-): ChatMessage['forwardedFrom'] {
-  if (!row.fwdMessageId || !row.fwdAuthorId || !row.fwdConversationId) return null;
-  return {
-    author: refs.get(row.fwdAuthorId) ?? fallbackRef(row.fwdAuthorId),
-    conversationId: row.fwdConversationId,
-    messageId: row.fwdMessageId,
-    threadRootId: row.fwdThreadRootId,
-  };
-}
-
-/**
- * Прочитанность СВОИХ сообщений (модель Битрикс24/Telegram, #102): прочитавшим
- * считается участник с lastReadSeq >= seq, прочитавший ПОСЛЕ правки
- * (editedAt; «повторный пуш прочитавшим», решение #41). readAt — момент
- * ПЕРВОГО прочитавшего (min; в direct он единственный); readBy — все
- * прочитавшие на момент выдачи, по времени прочтения. Для чужих сообщений
- * readAt=null, readBy=[] (прочитавших видит только автор).
- */
-export function computeReadAt(
-  row: Pick<MessageRow, 'authorId' | 'seq' | 'editedAt' | 'createdAt'>,
-  members: MemberRow[],
-  viewerId: string,
-): string | null {
-  if (row.authorId !== viewerId) return null;
-  if (!members.some((m) => m.userId !== row.authorId)) {
-    return row.createdAt.toISOString(); // «Избранное» (одиночная беседа)
-  }
-  let firstReaderAt: Date | null = null;
-  for (const reader of readCursors(row, members)) {
-    if (firstReaderAt === null || reader.lastReadAt < firstReaderAt) {
-      firstReaderAt = reader.lastReadAt;
-    }
-  }
-  return firstReaderAt?.toISOString() ?? null;
-}
-
-/** Прочитавшие своё сообщение (userId по возрастанию времени прочтения). */
-export function computeReadBy(
-  row: Pick<MessageRow, 'authorId' | 'seq' | 'editedAt'>,
-  members: MemberRow[],
-  viewerId: string,
-): { userId: string; lastReadAt: Date }[] {
-  if (row.authorId !== viewerId) return [];
-  return readCursors(row, members).sort((a, b) => a.lastReadAt.getTime() - b.lastReadAt.getTime());
-}
-
-function readCursors(
-  row: Pick<MessageRow, 'authorId' | 'seq' | 'editedAt'>,
-  members: MemberRow[],
-): { userId: string; lastReadAt: Date }[] {
-  const readers: { userId: string; lastReadAt: Date }[] = [];
-  for (const other of members) {
-    if (other.userId === row.authorId) continue;
-    const readCurrent = other.lastReadSeq >= row.seq;
-    const readAfterEdit =
-      row.editedAt === null || (other.lastReadAt !== null && other.lastReadAt >= row.editedAt);
-    if (readCurrent && readAfterEdit && other.lastReadAt !== null) {
-      readers.push({ userId: other.userId, lastReadAt: other.lastReadAt });
-    }
-  }
-  return readers;
 }

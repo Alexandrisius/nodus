@@ -4,7 +4,7 @@ import { ErrorCode, type SendMessageBody } from '@nodus/contracts';
 import { DEFAULT_CONVERSATION_PERMISSIONS } from '../permissions.js';
 import { MessagesService } from './messages.service.js';
 import type { MemberRow } from '../conversations/conversations.repository.js';
-import type { MessageRow } from './messages.repository.js';
+import type { MessageRow } from './message-row.js';
 
 /** Отправка «важного сообщения» (#100): лимит отправителя (C5), потолок
  *  группы (C10, I8), direct-исключение, обход лимитов обычной отправкой. */
@@ -126,8 +126,13 @@ describe('MessagesService: send urgent (#100)', () => {
     repo.countUrgentSentSince.mockResolvedValue(0);
     service = new MessagesService(
       repo as never,
+      repo as never, // запись (MessagesWriteRepository)
+      repo as never, // правка/удаление (MessagesLifecycleRepository)
+      repo as never, // прочитанность (MessagesReadStateRepository)
       { syncMessageAttachments: vi.fn(), renameMessageAttachments: vi.fn() } as never,
       conversations as never,
+      conversations as never, // запись участия (ConversationMembersRepository)
+      conversations as never, // черновики (ConversationDraftsRepository)
       { toDtos: vi.fn(), toFreshDto: vi.fn().mockResolvedValue(FRESH_DTO) } as never,
       txRunner as never,
       eventBus as never,

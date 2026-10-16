@@ -9,9 +9,11 @@ import {
   ConversationsRepository,
   type MemberRow,
 } from '../conversations/conversations.repository.js';
-import { MessagesRepository, type MessageRow } from './messages.repository.js';
+import type { MessageRow } from './message-row.js';
+import { MessagesRepository } from './messages.repository.js';
+import { MessagesLifecycleRepository } from './messages-lifecycle.repository.js';
 import { FavoritesRepository } from '../favorites/favorites.repository.js';
-import { VaultRepository } from '../vault/vault.repository.js';
+import { VaultWriteRepository } from '../vault/vault-write.repository.js';
 import { collapseAnchors } from './messages-delete-anchors.js';
 import { canDeleteForeignMessage } from './messages-delete.policy.js';
 
@@ -34,11 +36,12 @@ export interface DeleteResult {
 export class MessagesDeleteService {
   constructor(
     private readonly repo: MessagesRepository,
+    private readonly lifecycle: MessagesLifecycleRepository,
     private readonly conversations: ConversationsRepository,
     private readonly txRunner: TransactionRunner,
     private readonly eventBus: EventBus,
     private readonly favoritesRepo: FavoritesRepository,
-    private readonly vault: VaultRepository,
+    private readonly vault: VaultWriteRepository,
     private readonly audit: AuditRepository,
   ) {}
 
@@ -141,11 +144,11 @@ export class MessagesDeleteService {
       );
       const hasReplies = selfChat
         ? false
-        : await this.repo.hasLiveReplies(conversationId, messageId, tx);
+        : await this.lifecycle.hasLiveReplies(conversationId, messageId, tx);
       const obliterated = !hasReplies;
-      const tombstone = await this.repo.tombstone(conversationId, messageId, obliterated, tx);
-      await this.repo.deletePinByMessage(messageId, tx);
-      await this.repo.markRepliesDeleted(messageId, tx);
+      const tombstone = await this.lifecycle.tombstone(conversationId, messageId, obliterated, tx);
+      await this.lifecycle.deletePinByMessage(messageId, tx);
+      await this.lifecycle.markRepliesDeleted(messageId, tx);
       // Витрина #211: сообщение уходит из выдач (надгробие/бесследно) — его
       // вложения и ссылки гаснут: чистка строк ссылок + Δ счётчиков (та же tx).
       await this.vault.applyMessageDeleted(tx, conversationId, messageId);
@@ -168,7 +171,7 @@ export class MessagesDeleteService {
         { conversationId, messageId, obliterated },
         { actorId: userId, aggregateType: 'conversation', aggregateId: conversationId },
       );
-      await collapseAnchors(userId, conversationId, tombstone, this.repo, this.eventBus, tx);
+      await collapseAnchors(userId, conversationId, tombstone, this.lifecycle, this.eventBus, tx);
       return {
         message: tombstone,
         obliterated,

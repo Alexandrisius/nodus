@@ -16,7 +16,7 @@ import { decodeCursor, encodeCursor } from '../../../core/pagination/cursor.util
 import { SignedUrlService } from '../../../core/crypto/signed-url.service.js';
 import { DomainException } from '../../../core/errors/domain-exception.js';
 import { ConversationsRepository } from '../conversations/conversations.repository.js';
-import { toAttachmentDto } from '../messages/message-dto.mapper.js';
+import { toAttachmentDto } from '../messages/message-attachment.dto.js';
 import { LinkPreviewService } from '../link-previews/link-preview.service.js';
 import { normalizeUrl } from '../link-previews/url-normalize.js';
 import { VaultRepository } from './vault.repository.js';

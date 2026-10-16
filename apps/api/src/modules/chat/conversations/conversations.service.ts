@@ -28,6 +28,9 @@ import { ConversationItemMapper } from './conversation-item.mapper.js';
 import { requireConversationAction } from './conversation-guards.js';
 import type { ConversationListCursor } from './conversations-list.select.js';
 import { ConversationsRepository } from './conversations.repository.js';
+import { ConversationsWriteRepository } from './conversations-write.repository.js';
+import { ConversationMembersRepository } from './conversation-members.repository.js';
+import { ConversationDraftsRepository } from './conversation-drafts.repository.js';
 
 const conversationCursorSchema = z.object({
   at: z.string().nullable(),
@@ -45,6 +48,9 @@ const conversationCursorSchema = z.object({
 export class ConversationsService {
   constructor(
     private readonly repo: ConversationsRepository,
+    private readonly writes: ConversationsWriteRepository,
+    private readonly memberships: ConversationMembersRepository,
+    private readonly drafts: ConversationDraftsRepository,
     private readonly items: ConversationItemMapper,
     private readonly txRunner: TransactionRunner,
     private readonly eventBus: EventBus,
@@ -83,9 +89,10 @@ export class ConversationsService {
     const last = page.at(-1);
     return {
       items,
+      // Курсор — по оси сортировки репозитория (last_activity_at, #215).
       nextCursor:
         hasMore && last
-          ? encodeCursor({ at: last.last_message_at?.toISOString() ?? null, id: last.id })
+          ? encodeCursor({ at: last.last_activity_at?.toISOString() ?? null, id: last.id })
           : null,
     };
   }
@@ -100,7 +107,7 @@ export class ConversationsService {
     );
     const permissions = mergePermissions(body.permissions);
     const conversationId = await this.txRunner.run(async (tx) => {
-      const id = await this.repo.createGroup(
+      const id = await this.writes.createGroup(
         {
           type: body.type,
           title: body.title,
@@ -146,7 +153,7 @@ export class ConversationsService {
       throw DomainException.notFound('User not found');
     }
     const result = await this.txRunner.run(async (tx) => {
-      const created = await this.repo.findOrCreateDirect(userId, peerId, tx);
+      const created = await this.writes.findOrCreateDirect(userId, peerId, tx);
       if (created.created) {
         await this.eventBus.emit(
           tx,
@@ -175,7 +182,7 @@ export class ConversationsService {
     if (!(await this.repo.findMembership(conversationId, userId))) {
       throw DomainException.notFound('Conversation not found');
     }
-    await this.repo.updateMemberSettings(conversationId, userId, patch);
+    await this.memberships.updateMemberSettings(conversationId, userId, patch);
     return this.getItemOrThrow(conversationId, userId);
   }
 
@@ -188,7 +195,7 @@ export class ConversationsService {
     if (!(await this.repo.findMembership(conversationId, userId))) {
       throw DomainException.notFound('Conversation not found');
     }
-    const draft = await this.repo.putDraft(conversationId, userId, text);
+    const draft = await this.drafts.putDraft(conversationId, userId, text);
     return draft
       ? { text: draft.text, revision: draft.revision, updatedAt: draft.updatedAt.toISOString() }
       : null;
@@ -210,7 +217,7 @@ export class ConversationsService {
       'project_channel',
     ]);
     await this.txRunner.run(async (tx) => {
-      if (!(await this.repo.updateTitle(conversationId, body.title, tx))) {
+      if (!(await this.writes.updateTitle(conversationId, body.title, tx))) {
         throw DomainException.notFound('Conversation not found');
       }
       await this.emitUpdated(tx, conversationId, userId, { title: body.title });
@@ -239,7 +246,7 @@ export class ConversationsService {
       content,
     );
     await this.txRunner.run(async (tx) => {
-      if (!(await this.repo.updateAvatar(conversationId, fileId, tx))) {
+      if (!(await this.writes.updateAvatar(conversationId, fileId, tx))) {
         throw DomainException.notFound('Conversation not found');
       }
       await this.emitUpdated(tx, conversationId, userId, { avatarChanged: true });
@@ -254,7 +261,7 @@ export class ConversationsService {
       'project_channel',
     ]);
     await this.txRunner.run(async (tx) => {
-      if (!(await this.repo.updateAvatar(conversationId, null, tx))) {
+      if (!(await this.writes.updateAvatar(conversationId, null, tx))) {
         throw DomainException.notFound('Conversation not found');
       }
       await this.emitUpdated(tx, conversationId, userId, { avatarChanged: true });

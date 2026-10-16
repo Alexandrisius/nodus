@@ -94,6 +94,9 @@ function makeServices() {
   const userProfiles = makeProfileReader();
   const conversations = new ConversationsService(
     repo as never,
+    repo as never, // запись беседы (ConversationsWriteRepository)
+    repo as never, // запись участия (ConversationMembersRepository)
+    repo as never, // черновики (ConversationDraftsRepository)
     items as never,
     txRunner as never,
     eventBus as never,
@@ -102,6 +105,8 @@ function makeServices() {
   );
   const members = new ConversationMembersService(
     repo as never,
+    repo as never, // запись беседы (ConversationsWriteRepository)
+    repo as never, // запись участия (ConversationMembersRepository)
     items as never,
     txRunner as never,
     eventBus as never,

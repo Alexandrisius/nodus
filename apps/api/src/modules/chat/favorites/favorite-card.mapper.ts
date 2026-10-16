@@ -11,7 +11,7 @@ import {
   type UserProfileReader,
 } from '../../../core/ports/user-profile.port.js';
 import { SignedUrlService } from '../../../core/crypto/signed-url.service.js';
-import { toAttachmentDto } from '../messages/message-dto.mapper.js';
+import { toAttachmentDto } from '../messages/message-attachment.dto.js';
 import { MessagesRepository } from '../messages/messages.repository.js';
 import { ConversationsRepository } from '../conversations/conversations.repository.js';
 import type { FavoriteRow } from './favorites.repository.js';

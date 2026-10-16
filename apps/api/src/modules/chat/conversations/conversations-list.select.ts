@@ -50,24 +50,35 @@ export interface ConversationListRow {
   lm_created_at: Date | null;
 }
 
-/** Курсор списка бесед: keyset по (last_message_at NULLS LAST, id). */
+/** Курсор списка бесед: keyset по (last_activity_at NULLS LAST, id) — та же
+ *  ось, что отдаётся клиенту и по которой он сортирует (lastActivityAt). */
 export interface ConversationListCursor {
   at: string | null;
   id: string;
 }
+
+/**
+ * Активность беседы (#215) — ЕДИНОЕ выражение для выдачи, ORDER BY и
+ * keyset-курсора: last_message_at, для «Избранного» (direct с собой) —
+ * GREATEST с последней закладкой владельца (индекс favorites(user_id,
+ * created_at DESC) — max за O(1)). Сортировка по одной оси с выдачей:
+ * иначе граница страницы расходится с порядком клиента.
+ */
+export const ACTIVITY_EXPR = (userId: string): Prisma.Sql => Prisma.sql`
+  CASE WHEN c.type = 'direct' AND c.user_min = c.user_max AND c.user_min = ${userId}::uuid
+    THEN GREATEST(
+      c.last_message_at,
+      (SELECT max(f.created_at) FROM favorites f WHERE f.user_id = ${userId}::uuid)
+    )
+    ELSE c.last_message_at
+  END`;
 
 export const LIST_SELECT = (userId: string): Prisma.Sql => Prisma.sql`
   SELECT
     c.id, c.type, c.title, c.description, c.visibility, c.permissions, c.avatar_file_id,
     c.task_id,
     c.last_message_at,
-    CASE WHEN c.type = 'direct' AND c.user_min = c.user_max AND c.user_min = ${userId}::uuid
-      THEN GREATEST(
-        c.last_message_at,
-        (SELECT max(f.created_at) FROM favorites f WHERE f.user_id = ${userId}::uuid)
-      )
-      ELSE c.last_message_at
-    END AS last_activity_at,
+    ${ACTIVITY_EXPR(userId)} AS last_activity_at,
     cm.role, cm.pinned, cm.muted, cm.snoozed, cm.last_read_seq AS my_last_read_seq,
     d.text AS draft_text, d.revision AS draft_revision, d.updated_at AS draft_updated_at,
     (SELECT COUNT(*)::int FROM messages um

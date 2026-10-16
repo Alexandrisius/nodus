@@ -60,6 +60,8 @@ function makeService(repoOverrides: Partial<Record<string, unknown>> = {}): {
     findPack: vi.fn(async () => null),
     findPackAccessible: vi.fn(async () => null),
     countPersonalPacks: vi.fn(async () => 0),
+    lockPersonalPackLimit: vi.fn(async () => undefined),
+    lockPack: vi.fn(async () => undefined),
     createPack: vi.fn(async (row: StickerPackRow): Promise<StickerPackRow> => row),
     renamePack: vi.fn(async () => undefined),
     softDeletePack: vi.fn(async () => undefined),
@@ -104,6 +106,17 @@ describe('StickersService (#143)', () => {
       expect(repo.createPack).toHaveBeenCalledOnce();
     });
 
+    it('лимит личных: лок владельца ДО подсчёта, запись и подсчёт — в tx события', async () => {
+      const { service, repo } = makeService();
+      await service.create(ME, false, { title: 'Мемы', scope: 'personal' });
+      expect(repo.lockPersonalPackLimit).toHaveBeenCalledWith(ME, TX);
+      expect(repo.countPersonalPacks).toHaveBeenCalledWith(ME, TX);
+      expect(repo.createPack).toHaveBeenCalledWith(expect.anything(), TX);
+      const lockOrder = vi.mocked(repo.lockPersonalPackLimit).mock.invocationCallOrder[0]!;
+      const countOrder = vi.mocked(repo.countPersonalPacks).mock.invocationCallOrder[0]!;
+      expect(lockOrder).toBeLessThan(countOrder);
+    });
+
     it('корпоративный без права sticker.manage — FORBIDDEN (I8)', async () => {
       const { service } = makeService();
       await expect(
@@ -116,7 +129,10 @@ describe('StickersService (#143)', () => {
       await service.create(ME, true, { title: 'Nodus', scope: 'corporate' });
       expect(repo.createPack).toHaveBeenCalledWith(
         expect.objectContaining({ scope: 'corporate', ownerId: null }),
+        TX,
       );
+      // Корпоративные без лимита — лок владельца не нужен.
+      expect(repo.lockPersonalPackLimit).not.toHaveBeenCalled();
     });
 
     it(`лимит ${PERSONAL_PACKS_MAX} личных паков — VALIDATION_FAILED`, async () => {
@@ -131,11 +147,12 @@ describe('StickersService (#143)', () => {
 
   describe('rename / delete (права)', () => {
     it('владелец переименовывает; событие UPDATED в той же транзакции', async () => {
-      const { service, eventBus } = makeService({
+      const { service, repo, eventBus } = makeService({
         findPack: vi.fn(async () => ({ ...pack(), stickers: [] })),
       });
       const dto = await service.rename(ME, false, PACK_ID, 'Новое имя');
       expect(dto.title).toBe('Новое имя');
+      expect(repo.renamePack).toHaveBeenCalledWith(PACK_ID, 'Новое имя', TX);
       expect(eventBus.emit).toHaveBeenCalledWith(
         TX,
         'chat.sticker_pack_updated',
@@ -168,7 +185,7 @@ describe('StickersService (#143)', () => {
         findPack: vi.fn(async () => ({ ...pack(), stickers: [sticker()] })),
       });
       await service.delete(ME, false, PACK_ID);
-      expect(repo.softDeletePack).toHaveBeenCalledOnce();
+      expect(repo.softDeletePack).toHaveBeenCalledWith(PACK_ID, TX);
       expect(storage.remove).not.toHaveBeenCalled();
     });
   });
@@ -200,7 +217,10 @@ describe('StickersService (#143)', () => {
       );
       expect(repo.insertSticker).toHaveBeenCalledWith(
         expect.objectContaining({ mime: 'image/png' }),
+        TX,
       );
+      // Перечёт лимита — под локом строки пака в той же tx.
+      expect(repo.lockPack).toHaveBeenCalledWith(PACK_ID, TX);
       expect(eventBus.emit).toHaveBeenCalledWith(
         TX,
         'chat.sticker_added',
@@ -290,7 +310,7 @@ describe('StickersService (#143)', () => {
         }),
       });
       const dto = await service.removeSticker(ME, false, hit.id);
-      expect(repo.deleteSticker).toHaveBeenCalledWith(hit.id);
+      expect(repo.deleteSticker).toHaveBeenCalledWith(hit.id, TX);
       // Файл остаётся: отправленные сообщения рендерятся по file_id+снапшоту.
       expect(storage.remove).not.toHaveBeenCalled();
       expect(eventBus.emit).toHaveBeenCalledWith(

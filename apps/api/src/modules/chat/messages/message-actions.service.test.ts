@@ -20,6 +20,7 @@ function makeService() {
     // Возвращает вставленную строку (не true): payload читает clientMessageId (#239).
     insertMessage: vi.fn(async (draft: Record<string, unknown>) => ({ ...draft })),
     copyAttachments: vi.fn(),
+    findExistingByKeys: vi.fn(async (): Promise<Record<string, unknown>[]> => []),
     touchLastMessageAt: vi.fn(),
     countThreadReplies: vi.fn(),
     countAllThreadReplies: vi.fn(),
@@ -29,7 +30,6 @@ function makeService() {
       { id: 'src-1', text: 'текст', deletedAt: null, authorId: 'a-1', threadRootId: null },
     ]),
   };
-  const pins = { pinnedIds: vi.fn() };
   const threadParticipants = { upsert: vi.fn() };
   const conversations = {
     findMembership: vi.fn(async () => ({ role: 'owner' })),
@@ -53,9 +53,9 @@ function makeService() {
   };
   const service = new MessageActionsService(
     messages as never,
-    messages as never, // реакции (#239: MessagesReactionsRepository)
-    pins as never,
+    messages as never, // запись (MessagesWriteRepository)
     conversations as never,
+    conversations as never, // запись участия (ConversationMembersRepository)
     mapper as never,
     txRunner as never,
     eventBus as never,
@@ -151,5 +151,61 @@ describe('MessageActionsService.forward — упоминания коммент�
     const sent = eventBus.emit.mock.calls.filter(([, type]) => type === 'chat.message_sent');
     const commentEvent = sent.find(([, , payload]) => payload.forwarded === false)!;
     expect(commentEvent[2]!.mentionedUserIds).toEqual([ALICE]);
+  });
+});
+
+describe('MessageActionsService.forward — replay по идемпотентному ключу (аудит #317)', () => {
+  const body: ForwardMessagesBody = {
+    sourceConversationId: SOURCE,
+    messageIds: ['src-1'],
+    comment: 'вот это',
+  };
+
+  it('ключ уже зафиксирован в этой беседе → те же строки, без вставок и событий', async () => {
+    // Arrange: crash-окно — блок пересылки уже закоммичен, Redis-реплея нет.
+    const { service, messages, eventBus } = makeService();
+    const committed = [
+      { id: 'm-c', conversationId: TARGET, seq: 8n, clientMessageId: 'fwd-key:c' },
+      { id: 'm-1', conversationId: TARGET, seq: 9n, clientMessageId: 'fwd-key:1' },
+    ];
+    messages.findExistingByKeys.mockResolvedValue(committed);
+
+    // Act
+    const result = await service.forward(ME, TARGET, body, 'fwd-key');
+
+    // Assert: ключи блока (комментарий + позиции копий), ответ — те же строки.
+    expect(messages.findExistingByKeys).toHaveBeenCalledWith(
+      ME,
+      ['fwd-key:c', 'fwd-key:0', 'fwd-key:1'],
+      TX,
+    );
+    expect(result.rows).toEqual(committed);
+    expect(messages.allocateSeqs).not.toHaveBeenCalled();
+    expect(messages.insertMessage).not.toHaveBeenCalled();
+    expect(eventBus.emit).not.toHaveBeenCalled();
+  });
+
+  it('ключ занят в другой беседе → CONFLICT', async () => {
+    const { service, messages } = makeService();
+    messages.findExistingByKeys.mockResolvedValue([
+      { id: 'm-c', conversationId: 'conv-other', seq: 3n, clientMessageId: 'fwd-key:c' },
+    ]);
+
+    await expect(service.forward(ME, TARGET, body, 'fwd-key')).rejects.toMatchObject({
+      code: 'CONFLICT',
+    });
+    expect(messages.insertMessage).not.toHaveBeenCalled();
+  });
+
+  it('гонка: конкурент зафиксировался до INSERT → реплей его блока, не 500', async () => {
+    const { service, messages, eventBus } = makeService();
+    const raced = [{ id: 'm-c', conversationId: TARGET, seq: 8n, clientMessageId: 'fwd-key:c' }];
+    messages.findExistingByKeys.mockResolvedValueOnce([]).mockResolvedValueOnce(raced);
+    messages.insertMessage.mockResolvedValueOnce(null as never);
+
+    const result = await service.forward(ME, TARGET, body, 'fwd-key');
+
+    expect(result.rows).toEqual(raced);
+    expect(eventBus.emit).not.toHaveBeenCalled();
   });
 });

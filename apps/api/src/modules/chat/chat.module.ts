@@ -7,16 +7,25 @@ import { ConversationMembersController } from './conversations/conversation-memb
 import { ConversationMembersService } from './conversations/conversation-members.service.js';
 import { ConversationsController } from './conversations/conversations.controller.js';
 import { ConversationsRepository } from './conversations/conversations.repository.js';
+import { ConversationsWriteRepository } from './conversations/conversations-write.repository.js';
+import { ConversationMembersRepository } from './conversations/conversation-members.repository.js';
+import { ConversationDraftsRepository } from './conversations/conversation-drafts.repository.js';
 import { ConversationsService } from './conversations/conversations.service.js';
 import { AttachmentsController } from './messages/attachments.controller.js';
 import { AttachmentsRepository } from './messages/attachments.repository.js';
 import { AttachmentsService } from './messages/attachments.service.js';
 import { MessageActionsController } from './messages/message-actions.controller.js';
 import { MessageActionsService } from './messages/message-actions.service.js';
+import { MessagePinsService } from './messages/message-pins.service.js';
+import { MessageReactionsService } from './messages/message-reactions.service.js';
+import { ThreadWatchService } from './messages/thread-watch.service.js';
 import { MessageDtoMapper } from './messages/message-dto.mapper.js';
 import { MessagePinsRepository } from './messages/message-pins.repository.js';
 import { MessagesController } from './messages/messages.controller.js';
 import { MessagesRepository } from './messages/messages.repository.js';
+import { MessagesWriteRepository } from './messages/messages-write.repository.js';
+import { MessagesLifecycleRepository } from './messages/messages-lifecycle.repository.js';
+import { MessagesReadStateRepository } from './messages/messages-read-state.repository.js';
 import { MessagesReactionsRepository } from './messages/messages-reactions.repository.js';
 import { MessagesDeleteService } from './messages/messages-delete.service.js';
 import { MessagesService } from './messages/messages.service.js';
@@ -42,12 +51,14 @@ import { TaskChatService } from './task-chat/task-chat.service.js';
 import { FavoritesController } from './favorites/favorites.controller.js';
 import { FavoriteCardMapper } from './favorites/favorite-card.mapper.js';
 import { FavoritesRepository } from './favorites/favorites.repository.js';
+import { FavoriteSourcesRepository } from './favorites/favorite-sources.repository.js';
 import { FavoritesService } from './favorites/favorites.service.js';
 import { StickersController } from './stickers/stickers.controller.js';
 import { StickersRepository } from './stickers/stickers.repository.js';
 import { StickersService } from './stickers/stickers.service.js';
 import { VaultController } from './vault/vault.controller.js';
 import { VaultRepository } from './vault/vault.repository.js';
+import { VaultWriteRepository } from './vault/vault-write.repository.js';
 import { VaultService } from './vault/vault.service.js';
 import { LinkPreviewRepository } from './link-previews/link-preview.repository.js';
 import { LinkPreviewQueue } from './link-previews/link-preview.queue.js';
@@ -86,17 +97,30 @@ import {
     TaskChatController,
   ],
   providers: [
+    // Агрегат Conversation по ответственности (I5): чтение / запись беседы /
+    // запись участия / черновики.
     ConversationsRepository,
+    ConversationsWriteRepository,
+    ConversationMembersRepository,
+    ConversationDraftsRepository,
     ConversationsService,
     // Участники беседы (#186): добавление/роли/исключение — права матрицей.
     ConversationMembersService,
     ConversationItemMapper,
+    // Агрегат Message по ответственности (I5): чтение / запись отправки /
+    // правка-удаление / прочитанность; реакции и закрепы — свои репозитории.
     MessagesRepository,
+    MessagesWriteRepository,
+    MessagesLifecycleRepository,
+    MessagesReadStateRepository,
     MessagesReactionsRepository,
     ThreadParticipantsRepository,
     MessagesService,
     MessagesDeleteService,
     MessageActionsService,
+    MessagePinsService,
+    MessageReactionsService,
+    ThreadWatchService,
     MessagePinsRepository,
     AttachmentsRepository,
     AttachmentsService,
@@ -113,11 +137,13 @@ import {
     StickersService,
     // Избранное (#171): личные закладки-ссылки, витрина «Избранного».
     FavoritesRepository,
+    FavoriteSourcesRepository,
     FavoriteCardMapper,
     FavoritesService,
     // Витрина беседы (#211): серверные списки вложений/ссылок панели
     // «О чате» + денормализованные счётчики (Δ в транзакциях состава).
     VaultRepository,
+    VaultWriteRepository,
     VaultService,
     // Превью ссылок (#212, ADR-0018): кэш + очередь + воркер (linkpeek за
     // SSRF-гвардами) + слушатель message_sent/edited (ленивый прогрев).

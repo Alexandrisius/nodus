@@ -125,46 +125,69 @@ export class StickersRepository {
   }
 
   /** Живые личные паки пользователя (лимит 20 — спека #143). */
-  countPersonalPacks(ownerId: string): Promise<number> {
-    return this.prisma.stickerPack.count({
+  countPersonalPacks(ownerId: string, tx?: TransactionClient): Promise<number> {
+    return this.client(tx).stickerPack.count({
       where: { ownerId, scope: 'personal', deletedAt: null },
     });
   }
 
-  createPack(row: {
-    id: string;
-    title: string;
-    scope: string;
-    ownerId: string | null;
-    createdBy: string;
-  }): Promise<StickerPackRow> {
-    return this.prisma.stickerPack.create({ data: row });
+  /** Сериализация лимита личных паков ОДНОГО владельца (паттерн
+   *  lockUrgentLimit #177): без лока два параллельных create на границе
+   *  лимита оба проходят count (TOCTOU). Advisory-лок до конца tx. */
+  async lockPersonalPackLimit(ownerId: string, tx: TransactionClient): Promise<void> {
+    await tx.$executeRaw(Prisma.sql`
+      SELECT pg_advisory_xact_lock(143, hashtext(${ownerId}::text))
+    `);
   }
 
-  async renamePack(id: string, title: string): Promise<void> {
-    await this.prisma.stickerPack.update({ where: { id }, data: { title } });
+  /** Блокировка строки пака (только внутри tx): сериализует параллельные
+   *  загрузки в один пак — перечёт лимита стикеров под локом точен. */
+  async lockPack(packId: string, tx: TransactionClient): Promise<void> {
+    await tx.$queryRaw(Prisma.sql`
+      SELECT id FROM sticker_packs WHERE id = ${packId}::uuid FOR UPDATE
+    `);
   }
 
-  async softDeletePack(id: string): Promise<void> {
-    await this.prisma.stickerPack.update({ where: { id }, data: { deletedAt: new Date() } });
+  createPack(
+    row: {
+      id: string;
+      title: string;
+      scope: string;
+      ownerId: string | null;
+      createdBy: string;
+    },
+    tx?: TransactionClient,
+  ): Promise<StickerPackRow> {
+    return this.client(tx).stickerPack.create({ data: row });
+  }
+
+  async renamePack(id: string, title: string, tx?: TransactionClient): Promise<void> {
+    await this.client(tx).stickerPack.update({ where: { id }, data: { title } });
+  }
+
+  async softDeletePack(id: string, tx?: TransactionClient): Promise<void> {
+    await this.client(tx).stickerPack.update({ where: { id }, data: { deletedAt: new Date() } });
   }
 
   countStickers(packId: string, tx?: TransactionClient): Promise<number> {
     return this.client(tx).sticker.count({ where: { packId } });
   }
 
-  insertSticker(row: {
-    id: string;
-    packId: string;
-    fileId: string;
-    emojis: string[];
-    width: number | null;
-    height: number | null;
-    mime: string;
-    size: number;
-    sortOrder: number;
-  }): Promise<StickerRow> {
-    return this.prisma.sticker.create({ data: row });
+  insertSticker(
+    row: {
+      id: string;
+      packId: string;
+      fileId: string;
+      emojis: string[];
+      width: number | null;
+      height: number | null;
+      mime: string;
+      size: number;
+      sortOrder: number;
+    },
+    tx?: TransactionClient,
+  ): Promise<StickerRow> {
+    return this.client(tx).sticker.create({ data: row });
   }
 
   /** Стикер + пак для удаления из пака / отправки. */
@@ -175,8 +198,8 @@ export class StickersRepository {
     });
   }
 
-  async deleteSticker(stickerId: string): Promise<void> {
-    await this.prisma.sticker.delete({ where: { id: stickerId } });
+  async deleteSticker(stickerId: string, tx?: TransactionClient): Promise<void> {
+    await this.client(tx).sticker.delete({ where: { id: stickerId } });
   }
 
   /** Установить пак «себе» — идемпотентно (PK); false — уже стоял. */

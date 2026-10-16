@@ -21,6 +21,8 @@ import { CONVERSATION_ROLE_RANK } from '../permissions.js';
 import { requireConversationAction } from './conversation-guards.js';
 import { ConversationItemMapper } from './conversation-item.mapper.js';
 import { ConversationsRepository } from './conversations.repository.js';
+import { ConversationsWriteRepository } from './conversations-write.repository.js';
+import { ConversationMembersRepository } from './conversation-members.repository.js';
 
 /** Курсор страницы участников: keyset (rank, joined_at, user_id) — ранги
  *  ролей зеркалят ORDER BY listMembersPage. */
@@ -49,6 +51,8 @@ export const MAX_MEMBERS = 200;
 export class ConversationMembersService {
   constructor(
     private readonly repo: ConversationsRepository,
+    private readonly writes: ConversationsWriteRepository,
+    private readonly memberships: ConversationMembersRepository,
     private readonly items: ConversationItemMapper,
     private readonly txRunner: TransactionRunner,
     private readonly eventBus: EventBus,
@@ -120,7 +124,7 @@ export class ConversationMembersService {
       await this.txRunner.run(async (tx) => {
         // Лимит точный: блокировка строки беседы сериализует одновременные
         // add — перечёт под локом не может проскочить 200 (TOCTOU, #195).
-        await this.repo.lockConversation(conversationId, tx);
+        await this.writes.lockConversation(conversationId, tx);
         if ((await this.repo.countMembers(conversationId, tx)) + toAdd.length > MAX_MEMBERS) {
           throw new DomainException(
             ErrorCode.CHAT_MEMBERS_LIMIT_REACHED,
@@ -130,7 +134,7 @@ export class ConversationMembersService {
             },
           );
         }
-        const added = await this.repo.addMembers(conversationId, toAdd, tx);
+        const added = await this.memberships.addMembers(conversationId, toAdd, tx);
         if (added.length > 0) {
           await this.eventBus.emit(
             tx,
@@ -166,7 +170,7 @@ export class ConversationMembersService {
     }
     if (target.role !== body.role) {
       await this.txRunner.run(async (tx) => {
-        await this.repo.updateMemberRole(conversationId, memberUserId, body.role, tx);
+        await this.memberships.updateMemberRole(conversationId, memberUserId, body.role, tx);
         await this.eventBus.emit(
           tx,
           CHAT_EVENTS.MEMBER_ROLE_CHANGED,
@@ -208,7 +212,7 @@ export class ConversationMembersService {
       throw DomainException.forbidden('Actor rank must exceed target rank');
     }
     await this.txRunner.run(async (tx) => {
-      if (!(await this.repo.removeMember(conversationId, memberUserId, tx))) {
+      if (!(await this.memberships.removeMember(conversationId, memberUserId, tx))) {
         throw DomainException.notFound('Member not found');
       }
       await this.eventBus.emit(
