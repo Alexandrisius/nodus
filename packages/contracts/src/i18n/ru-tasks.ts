@@ -84,12 +84,15 @@ export const tasksStrings = {
     warning: 'Янтарный',
     danger: 'Красный',
   },
+  /** Системные состояния — по каталогу API (system-catalog.ts, шаблон «Моего
+   *  плана»): done — «Ждёт контроля» (работа сдана, ждёт приёмки), closed —
+   *  завершённые и отменённые. */
   stageStates: {
     backlog: 'Новые',
     active: 'В работе',
     paused: 'Отложенные',
-    done: 'Завершённые',
-    closed: 'Закрытые',
+    done: 'На контроле',
+    closed: 'Завершённые',
   },
   branch: 'Ветка задачи',
   branchRelations: 'Связи',

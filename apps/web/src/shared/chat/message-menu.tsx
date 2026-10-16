@@ -1,48 +1,30 @@
-import {
-  BadgeCheck,
-  CheckSquare,
-  Copy,
-  Eye,
-  Forward,
-  Link2,
-  ListTodo,
-  Pencil,
-  Pin,
-  Quote,
-  Reply,
-  Star,
-  Trash2,
-  X,
-} from 'lucide-react';
 import { useRef, useState, type ReactNode } from 'react';
-import type { ChatMessage, UserRef } from '@nodus/contracts';
+import type { ChatMessage } from '@nodus/contracts';
 import { stripMentionTokens, ui } from '@nodus/contracts';
 import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuSeparator,
-  ContextMenuSub,
-  ContextMenuSubContent,
-  ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from '@nodus/ui/components/context-menu';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
 import { openCardViaBridge } from '../lib/card-bridge.js';
-import { shortPersonName } from '../lib/format.js';
-import { PersonAvatar } from '../ui/person-avatar.js';
-import { cachedConversation, useMarkMessageAsResult, useMessageToTask } from './api.js';
+import { cachedConversation } from './chat-queries.js';
+import { useMarkMessageAsResult, useMessageToTask } from './conversation-actions.js';
 import { useChatDrafts } from './chat-drafts.js';
 import { startMessageEdit } from './message-edit.js';
 import { focusComposerWhenFree } from './composer-focus.js';
 import { useDeleteDialog, useForwardDialog, useUnpinDialog } from './dialog-stores.js';
 import { useAddFavorites, useFavoriteIds, useRemoveFavorite } from './favorites-api.js';
-import { usePinToggle } from './message-mutations.js';
+import { buildMessageItems, buildSelectionItems, type MenuItem } from './message-menu-items.js';
+import { usePinToggle } from './pin-mutations.js';
 import { useSelectionStore } from './selection-store.js';
 import { useCanModerateMessages } from './use-can-moderate.js';
 import { copyMessagesAsText } from './use-selection-keys.js';
+import { ViewersSubmenu } from './viewers-submenu.js';
 
 /**
  * Реестр действий над сообщением (вердикт владельца 2026-09-11, раунд 3 —
@@ -65,27 +47,9 @@ import { copyMessagesAsText } from './use-selection-keys.js';
  * часть слоя меню, фокус не воюет. Попап у счётчика «и ещё N» в pill'е
  * просмотров (views-line) не тронут.
  */
-
-interface Item {
-  id: string;
-  icon: typeof Reply;
-  label: string;
-  danger?: boolean;
-  separatorBefore?: boolean;
-  /** #243: серверная команда недоступна на летящем темпе (seq=0,
-   *  id=tempId) — сервер не знает tempId; дизейбл до подтверждения
-   *  (канон Telegram: с неотправленным ничего делать нельзя). */
-  disabled?: boolean;
-  /** #132 р.2: действие, переключающее режим селекта («Отменить выбор»/
-   *  «Выбрать»), выполняется ПОСЛЕ закрытия меню — иначе контент меню
-   *  морфится в противоположный набор прямо в анимации закрытия («старое
-   *  меню пропало, отрендерилось новое полное»). */
-  closeFirst?: boolean;
-  run: () => void;
-}
-// >300 строк — обоснование (I5): реестр действий + подменю «Кто просмотрел»
-// (раунд 4) — единая структура ОДНОГО меню (порядок пунктов зафиксирован
-// вердиктом); вынос подменю размывал бы условие вставки «над "Удалить"».
+// Состав/порядок пунктов — чистые билдеры message-menu-items.ts, подменю
+// «Кто просмотрел» — viewers-submenu.tsx; здесь — хост: сторы, мутации,
+// захват фрагмента, исполнение пунктов.
 
 export function MessageMenu({
   message,
@@ -166,246 +130,101 @@ export function MessageMenu({
   const selectionPending =
     selectedIds.length > 0 && confirmedSelectionIds().length !== selectedIds.length;
 
-  function selectionItems(): Item[] {
-    return [
-      // Витрина «Избранного» (hideFavorite): звезда на свои записи —
-      // self-reference, дизайн запрещает и в режиме селекта.
-      ...(hideFavorite
-        ? []
-        : [
-            {
-              id: 'favoriteSelected',
-              icon: Star,
-              label: ui.chat.favoriteSelected,
-              disabled: selectionPending,
-              run: () => {
-                // Порядок цепочки = порядок выделения → поток «Избранного» (#171).
-                addFavorites.mutate(confirmedSelectionIds());
-                useSelectionStore.getState().exit();
-              },
-            },
-          ]),
-      {
-        id: 'forwardSelected',
-        icon: Forward,
-        label: ui.chat.forwardSelected,
-        disabled: selectionPending,
-        run: () => {
-          const ids = confirmedSelectionIds();
-          if (ids.length > 0) useForwardDialog.getState().open(conversationId, ids);
-        },
-      },
-      {
-        id: 'deleteSelected',
-        icon: Trash2,
-        label: ui.chat.deleteSelected,
-        danger: true,
-        disabled: selectionPending,
-        run: () => {
-          const ids = confirmedSelectionIds();
-          if (ids.length > 0) useDeleteDialog.getState().ask(conversationId, ids);
-        },
-      },
-      {
-        id: 'copySelected',
-        icon: Copy,
-        label: ui.chat.copySelected,
-        run: () => copyMessagesAsText(messagesOfSelection?.() ?? []),
-      },
-      {
-        // #132: единственная команда выхода (модель Telegram «Отменить
-        // выбор»); дубль «Снять отметку» удалён — при одном выбранном они
-        // делали одно и то же (снятие последнего выходит из режима).
-        id: 'clearSelection',
-        icon: X,
-        label: ui.chat.clearSelection,
-        separatorBefore: true,
-        closeFirst: true,
-        run: () => useSelectionStore.getState().exit(),
-      },
-    ];
-  }
-
-  function normalItems(): { items: Item[]; showViewers: boolean } {
-    // Летящий темп (seq=0, id=tempId): серверных команд нет — сервер не
-    // знает tempId (#243; канон Telegram: с неотправленным ничего делать
-    // нельзя). Локальные (копировать, выделить) — доступны.
-    const pending = message.seq === 0;
-    const items: Item[] = [
-      {
-        id: 'reply',
-        icon: Reply,
-        label: ui.chat.menu.reply,
-        disabled: pending,
-        run: () => {
-          if (replyMode === 'thread') {
-            onOpenThread?.(message.threadRootId ?? message.id);
-            return;
-          }
-          setReply(null);
-        },
-      },
-    ];
-    if (fragment) {
-      items.push({
-        id: 'quoteFragment',
-        icon: Quote,
-        label: ui.chat.quoteFragment,
-        disabled: pending,
-        run: () => setReply(fragment),
-      });
-    }
-    items.push(
-      {
-        id: 'copy',
-        icon: Copy,
-        label: ui.chat.menu.copy,
-        run: () => {
-          navigator.clipboard
-            // Упоминания — отображаемым текстом без разметки (#176).
-            .writeText(stripMentionTokens(message.text))
-            .then(() => toast.success(ui.chat.copied))
-            .catch(() => toast.error(ui.common.copyError));
-          // «Вечный курсор» (баг #91): меню гасило фокус композера — возвращаем
-          // после освобождения оверлей-слоёв (канон #71).
-          focusComposerWhenFree(scope);
-        },
-      },
-      {
-        id: 'edit',
-        icon: Pencil,
-        label: ui.chat.menu.edit,
-        disabled: pending,
-        run: () => {
-          // Правка (#188): сообщение с вложениями — окно правки (состав +
-          // текст); без вложений — прежний инлайн-режим композера.
-          startMessageEdit(scope, message);
-          focusComposerWhenFree(scope);
-        },
-      },
-      {
-        id: 'forward',
-        icon: Forward,
-        label: ui.chat.menu.forward,
-        disabled: pending,
-        run: () => useForwardDialog.getState().open(conversationId, [message.id]),
-      },
-      {
-        id: 'toTask',
-        icon: ListTodo,
-        label: ui.chat.menu.createTask,
-        disabled: pending,
-        run: () => {
-          toTask.mutate(message, {
-            onSuccess: (task) => openCardViaBridge({ kind: 'task', id: task.id }),
-          });
-        },
-      },
-    );
-    // Чат задачи (#252): сообщение можно сделать результатом задачи.
-    const taskId = cachedConversation(queryClient, conversationId)?.task?.id;
-    if (taskId) {
-      items.push({
-        id: 'markResult',
-        icon: BadgeCheck,
-        label: ui.chat.menu.markResult,
-        disabled: pending,
-        run: () => markResult.mutate({ taskId, message }),
-      });
-    }
-    items.push(
-      {
-        id: 'pin',
-        icon: Pin,
-        label: message.pinned ? ui.chat.unpin : ui.chat.menu.pin,
-        disabled: pending,
-        run: () => {
-          if (message.pinned) {
-            // Открепление — диалог: курсор вернёт dialog-hosts после закрытия.
-            useUnpinDialog.getState().ask(conversationId, message.id);
-            return;
-          }
-          pinToggle.pin.mutate(message.id);
-          focusComposerWhenFree(scope);
-        },
-      },
-      {
-        id: 'copyLink',
-        icon: Link2,
-        label: ui.chat.menu.copyLink,
-        disabled: pending,
-        run: () => {
-          toast(ui.chat.actionSoon);
-          focusComposerWhenFree(scope);
-        },
-      },
-      {
-        id: 'favorite',
-        icon: Star,
-        label: isFavorite ? ui.chat.unfavorite : ui.chat.menu.favorite,
-        disabled: pending,
-        run: () => {
-          // Личная закладка-звезда (#171): toggle без диалогов («звезда мгновенна»).
-          if (isFavorite) {
-            removeFavorite.mutate(message.id);
-          } else {
-            addFavorites.mutate([message.id]);
-          }
-          focusComposerWhenFree(scope);
-        },
-      },
-      {
-        id: 'select',
-        icon: CheckSquare,
-        label: ui.chat.menu.select,
-        closeFirst: true,
-        run: () => useSelectionStore.getState().enter(scope, message.clientMessageId),
-      },
-      {
-        id: 'delete',
-        icon: Trash2,
-        label: ui.chat.menu.delete,
-        danger: true,
-        separatorBefore: true,
-        disabled: pending,
-        run: () => useDeleteDialog.getState().ask(conversationId, [message.id]),
-      },
-    );
-    // Пересланную копию нельзя править даже автору пересылки (#111): текст
-    // принадлежит оригинальному автору — правка позволила бы исказить чужие
-    // слова (модель Telegram: только удаление). Стикер (#143): править и
-    // копировать нечего (текст пуст) — оба пункта скрываются.
-    // «Удалить» на чужом — право модерации (#245): админ/владелец беседы или
-    // модератор портала (группы/каналы; серверная проверка та же, I8).
-    // Окно-источник (#237): только набор Telegram — copy/forward/select/
-    // delete (в т.ч. без «Редактировать»: правка живёт в витрине).
-    const isSticker = message.attachments.some((a) => a.kind === 'sticker');
-    const editable = mine && !message.forwardedFrom && !isSticker && variant !== 'source-window';
-    return {
-      items: items.filter((item) => {
-        if (item.id === 'edit') return editable;
-        if (item.id === 'copy') return !isSticker;
-        if (item.id === 'favorite') return !hideFavorite;
-        if (item.id === 'delete') return mine || canModerate;
-        if (variant === 'source-window') return SOURCE_WINDOW_ITEMS.has(item.id);
-        return true;
-      }),
-      // «Кто просмотрел» — подменю (раунд 4): только свои живые сообщения с
-      // непустым readBy (просмотры видит автор; пустой список показывать
-      // нечего). Вставляется над «Удалить» (недеструктивная группа).
-      showViewers:
-        mine && variant !== 'source-window' && !message.deletedAt && message.readBy.length > 0,
-    };
-  }
-
   const isFavorite = favoriteIds.has(message.id);
   const selection = selectionActive
-    ? { items: selectionItems(), showViewers: false }
-    : normalItems();
+    ? {
+        items: buildSelectionItems({
+          hideFavorite,
+          selectionPending,
+          onFavoriteSelected: () => {
+            // Порядок цепочки = порядок выделения → поток «Избранного» (#171).
+            addFavorites.mutate(confirmedSelectionIds());
+            useSelectionStore.getState().exit();
+          },
+          onForwardSelected: () => {
+            const ids = confirmedSelectionIds();
+            if (ids.length > 0) useForwardDialog.getState().open(conversationId, ids);
+          },
+          onDeleteSelected: () => {
+            const ids = confirmedSelectionIds();
+            if (ids.length > 0) useDeleteDialog.getState().ask(conversationId, ids);
+          },
+          onCopySelected: () => copyMessagesAsText(messagesOfSelection?.() ?? []),
+          onClearSelection: () => useSelectionStore.getState().exit(),
+        }),
+        showViewers: false,
+      }
+    : buildMessageItems({
+        message,
+        mine,
+        fragment,
+        isFavorite,
+        canModerate,
+        hideFavorite,
+        variant,
+        taskId: cachedConversation(queryClient, conversationId)?.task?.id,
+        actions: {
+          reply: () => {
+            if (replyMode === 'thread') {
+              onOpenThread?.(message.threadRootId ?? message.id);
+              return;
+            }
+            setReply(null);
+          },
+          quoteFragment: () => setReply(fragment),
+          copy: () => {
+            navigator.clipboard
+              // Упоминания — отображаемым текстом без разметки (#176).
+              .writeText(stripMentionTokens(message.text))
+              .then(() => toast.success(ui.chat.copied))
+              .catch(() => toast.error(ui.common.copyError));
+            // «Вечный курсор» (баг #91): меню гасило фокус композера — возвращаем
+            // после освобождения оверлей-слоёв (канон #71).
+            focusComposerWhenFree(scope);
+          },
+          edit: () => {
+            // Правка (#188): сообщение с вложениями — окно правки (состав +
+            // текст); без вложений — прежний инлайн-режим композера.
+            startMessageEdit(scope, message);
+            focusComposerWhenFree(scope);
+          },
+          forward: () => useForwardDialog.getState().open(conversationId, [message.id]),
+          toTask: () => {
+            toTask.mutate(message, {
+              onSuccess: (task) => openCardViaBridge({ kind: 'task', id: task.id }),
+            });
+          },
+          markResult: (taskId) => markResult.mutate({ taskId, message }),
+          pin: () => {
+            if (message.pinned) {
+              // Открепление — диалог: курсор вернёт dialog-hosts после закрытия.
+              useUnpinDialog.getState().ask(conversationId, message.id);
+              return;
+            }
+            pinToggle.pin.mutate(message.id);
+            focusComposerWhenFree(scope);
+          },
+          copyLink: () => {
+            toast(ui.chat.actionSoon);
+            focusComposerWhenFree(scope);
+          },
+          favorite: () => {
+            // Личная закладка-звезда (#171): toggle без диалогов («звезда мгновенна»).
+            if (isFavorite) {
+              removeFavorite.mutate(message.id);
+            } else {
+              addFavorites.mutate([message.id]);
+            }
+            focusComposerWhenFree(scope);
+          },
+          select: () => useSelectionStore.getState().enter(scope, message.clientMessageId),
+          delete: () => useDeleteDialog.getState().ask(conversationId, [message.id]),
+        },
+      });
 
   /** #132 р.2: closeFirst-пункты (смена режима селекта) — после ухода меню
    *  (клик по пункту закрывает его; exit-анимация ~100мс + запас). */
-  function runItem(item: Item) {
+  function runItem(item: MenuItem) {
     if (item.disabled) return;
     if (!item.closeFirst) {
       item.run();
@@ -485,36 +304,4 @@ export function MessageMenu({
   );
 }
 
-/** Список посмотревших в подменю «Кто просмотрел»: та же композиция строк,
- *  что в попапе pill'а просмотров (views-line) — аватар + ФИО, скролл для
- *  длинных списков. Часть слоя меню: не воюет с «вечным курсором». */
-function ViewersSubmenu({ viewers }: { viewers: readonly UserRef[] }) {
-  return (
-    <ContextMenuSub>
-      <ContextMenuSubTrigger>
-        <Eye className="size-4" strokeWidth={1.75} />
-        {ui.chat.whoViewed}
-      </ContextMenuSubTrigger>
-      <ContextMenuSubContent className="w-max min-w-44 p-1">
-        <div data-slot="views-submenu-list" className="max-h-56 overflow-y-auto px-0.5">
-          {viewers.map((viewer) => (
-            <span key={viewer.id} className="flex items-center gap-2 rounded-lg px-1.5 py-1.5">
-              <PersonAvatar
-                name={viewer.displayName}
-                avatarUrl={viewer.avatarUrl}
-                className="size-6 shrink-0"
-              />
-              <span className="min-w-0 truncate text-sm">
-                {shortPersonName(viewer.displayName)}
-              </span>
-            </span>
-          ))}
-        </div>
-      </ContextMenuSubContent>
-    </ContextMenuSub>
-  );
-}
-
 const EMPTY_IDS: string[] = [];
-/** #237: набор Telegram для окна-источника «Избранного». */
-const SOURCE_WINDOW_ITEMS = new Set(['copy', 'forward', 'select', 'delete']);
