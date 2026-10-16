@@ -40,7 +40,9 @@ export function TaskTitle({ taskId }: { taskId: string }) {
             setDraft(null);
           }
         }}
-        className="-mx-1.5 w-full min-w-0 rounded-md bg-accent/50 px-1.5 text-lg font-semibold text-foreground outline-none"
+        // Ширина поля — своя (обёртка хрома подгоняется под содержимое):
+        // длинному названию есть где редактироваться.
+        className="w-[min(60vw,48rem)] max-w-full min-w-0 rounded-md bg-accent/50 px-1.5 text-lg font-semibold text-foreground outline-none"
       />
     );
   }
@@ -50,7 +52,10 @@ export function TaskTitle({ taskId }: { taskId: string }) {
       type="button"
       title={ui.tasks.editTitle}
       onClick={() => setDraft(task.title)}
-      className="-mx-1.5 max-w-full cursor-text truncate rounded-md px-1.5 text-left transition-colors hover:bg-accent/50"
+      // БЕЗ отрицательных отступов и padding: обёртка хрома (truncate,
+      // ширина по содержимому) резала кнопку ровно на отступы — «т…» вместо
+      // названия (фидбек владельца #311). Режем только когда не влезает.
+      className="block max-w-full cursor-text truncate text-left decoration-muted-foreground/50 decoration-dotted underline-offset-4 hover:underline"
     >
       {task.title}
     </button>
