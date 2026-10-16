@@ -181,7 +181,7 @@ export function TaskQuickCreate({
                 {/* popper — список ПОД полем, как у соседних пикеров формы
                     (ответственный, срок): режим item-aligned клал единственный
                     пункт пилюлей прямо поверх значения (фидбек владельца #311). */}
-                <SelectContent position="popper" align="start" sideOffset={4} className="p-1">
+                <SelectContent position="popper" align="start" sideOffset={4}>
                   {(types ?? []).map((t) => (
                     <SelectItem key={t.id} value={t.id} className="py-1.5">
                       {t.name}
