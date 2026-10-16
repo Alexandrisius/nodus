@@ -17,4 +17,7 @@ export interface ChatMessageSnapshot {
 
 export interface ChatMessageAccess {
   snapshot(messageId: string, userId: string): Promise<ChatMessageSnapshot | null>;
+  /** Обсуждение задачи (#252): задача беседы `type='task'` и число живых
+   *  сообщений ленты (денорм `commentsCount`); null — беседа не задачи. */
+  taskDiscussion(conversationId: string): Promise<{ taskId: string; count: number } | null>;
 }

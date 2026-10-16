@@ -8,7 +8,7 @@ import { NodeLabel } from '@nodus/ui/components/node-label';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { formatDateTime } from '../../../shared/lib/format.js';
-import { useTaskMessages } from '../api/tasks-api.js';
+import { useConversationMessages, useTaskConversation } from '../../../shared/chat/api.js';
 
 function Section({
   icon: Icon,
@@ -44,7 +44,10 @@ export const TaskAboutDrawer = memo(function TaskAboutDrawer({
   task: TaskDetail;
   onClose: () => void;
 }) {
-  const { data } = useTaskMessages(task.id);
+  // Файлы и ссылки — из ленты беседы задачи (тот же кэш, что у обсуждения:
+  // вложения задачи = вложения её чата, #252).
+  const conversationId = useTaskConversation(task.id).data?.id ?? '';
+  const { data } = useConversationMessages(conversationId);
   const [favorite, setFavorite] = useState(false);
 
   const files = (data?.items ?? []).flatMap((m) => m.attachments);

@@ -73,11 +73,15 @@ export function ConversationPane({
   showAuthor = true,
   composerPlaceholder = ui.chat.newMessage,
   emptyLabel = ui.chat.directEmpty,
+  conversation,
 }: {
   conversationId: string;
   showAuthor?: boolean;
   composerPlaceholder?: string;
   emptyLabel?: string;
+  /** Строка беседы от find-or-create хоста (чат задачи, личка): якорь
+   *  непрочитанных и черновик, когда беседы нет в первой странице списка. */
+  conversation?: ConversationListItem;
 }) {
   return (
     <div className="flex h-full min-w-0 flex-1 flex-col">
@@ -90,6 +94,7 @@ export function ConversationPane({
         showAuthor={showAuthor}
         composerPlaceholder={composerPlaceholder}
         emptyLabel={emptyLabel}
+        fallback={conversation}
       />
     </div>
   );
@@ -105,19 +110,24 @@ function ConversationBody({
   showAuthor,
   composerPlaceholder,
   emptyLabel,
+  fallback,
 }: {
   conversationId: string;
   showAuthor: boolean;
   composerPlaceholder: string;
   emptyLabel: string;
+  fallback?: ConversationListItem;
 }) {
   const listQuery = useConversations();
-  const conversation = listQuery.data?.items.find((c) => c.id === conversationId) ?? null;
+  const conversation =
+    listQuery.data?.items.find((c) => c.id === conversationId) ?? fallback ?? null;
 
   // Гейт открытия (раунд 4): решение об якоре требует myLastReadSeq — до
   // разрешения списка лента стоит на скелетоне и НЕ открывается в низ.
+  // Строка от хоста (fallback) уже несёт myLastReadSeq — гейт не нужен.
   const [gateTimedOut, setGateTimedOut] = useState(false);
-  const gatePending = listQuery.data === undefined && !listQuery.isError && !gateTimedOut;
+  const gatePending =
+    !fallback && listQuery.data === undefined && !listQuery.isError && !gateTimedOut;
   useEffect(() => {
     if (!gatePending) return;
     const t = window.setTimeout(() => setGateTimedOut(true), LIST_GATE_TIMEOUT_MS);

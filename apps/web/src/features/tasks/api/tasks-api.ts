@@ -8,7 +8,6 @@ import {
   type InfiniteData,
 } from '@tanstack/react-query';
 import type {
-  ChatMessage,
   Paginated,
   TaskBranch,
   TaskDetail,
@@ -21,7 +20,6 @@ import { toast } from 'sonner';
 
 import { transitionErrorText } from './transitions-api.js';
 
-import { useAuthStore } from '../../../shared/auth-store.js';
 import { api } from '../../../shared/api-client.js';
 import { lettersKeys } from '../../../shared/api/letters-keys.js';
 import { mapTaskInPages, tasksKeys } from '../../../shared/api/tasks-keys.js';
@@ -71,17 +69,6 @@ export function useTaskDetail(id: string) {
     // Смена задачи в навигаторе ветки: прежний контент остаётся, пока грузится
     // новый — карточка не мигает скелетоном (плавность, I4).
     placeholderData: keepPreviousData,
-  });
-}
-
-export function useTaskMessages(id: string) {
-  return useQuery({
-    queryKey: tasksKeys.messages(id),
-    queryFn: () => api<Paginated<ChatMessage>>(`/tasks/${id}/messages`),
-    // На живом бэкенде маршрута нет (канон #252: чат задачи — беседа
-    // мессенджера); без ретраев обсуждение сразу показывает пустое
-    // состояние, а не трясущийся скелетон трёх повторов. Хук уходит в #252.
-    retry: false,
   });
 }
 
@@ -143,9 +130,10 @@ export function useUpdateTaskStage() {
   });
 }
 
-/** Префетч детали и обсуждения по ховеру строки/карточки: первое открытие
- *  слайдера рендерит контент одним проходом (без скелетон-релэйаута) —
- *  первая анимация не платит холодный fetch. */
+/** Префетч детали по ховеру строки/карточки: первое открытие слайдера
+ *  рендерит контент одним проходом (без скелетон-релэйаута) — первая
+ *  анимация не платит холодный fetch. Беседу задачи по ховеру не трогаем:
+ *  by-task — find-or-create, запись на наведение мыши недопустима. */
 export function usePrefetchTask() {
   const queryClient = useQueryClient();
   return useCallback(
@@ -153,10 +141,6 @@ export function usePrefetchTask() {
       void queryClient.prefetchQuery({
         queryKey: tasksKeys.detail(taskId),
         queryFn: () => api<TaskDetail>(`/tasks/${taskId}`),
-      });
-      void queryClient.prefetchQuery({
-        queryKey: tasksKeys.messages(taskId),
-        queryFn: () => api<Paginated<ChatMessage>>(`/tasks/${taskId}/messages`),
       });
     },
     [queryClient],
@@ -238,71 +222,6 @@ export function useAddSubtaskTo() {
       void queryClient.invalidateQueries({ queryKey: tasksKeys.detail(vars.parentId) });
       void queryClient.invalidateQueries({ queryKey: [...tasksKeys.all, 'branch'] });
       void queryClient.invalidateQueries({ queryKey: tasksKeys.listPages() });
-    },
-  });
-}
-
-/** Оптимистичная отправка комментария (I4, канон patterns.md). */
-export function useSendTaskMessage(taskId: string) {
-  const queryClient = useQueryClient();
-  const user = useAuthStore((s) => s.user);
-
-  return useMutation({
-    mutationFn: (text: string) =>
-      api<ChatMessage>(`/tasks/${taskId}/messages`, { method: 'POST', body: { text } }),
-
-    onMutate: async (text) => {
-      await queryClient.cancelQueries({ queryKey: tasksKeys.messages(taskId) });
-      const previous = queryClient.getQueryData<Paginated<ChatMessage>>(tasksKeys.messages(taskId));
-      const tempId = `temp-${crypto.randomUUID()}`;
-      const temp: ChatMessage = {
-        id: tempId,
-        conversationId: taskId,
-        seq: 0, // плейсхолдер: реальный seq придёт с ответом сервера
-        // Ключ отправки темпа (#243, контракт clientMessageId).
-        clientMessageId: tempId,
-        author: { id: user?.id ?? '', displayName: user?.displayName ?? '', avatarUrl: null },
-        text,
-        replyToId: null,
-        reply: null,
-        deletedAt: null,
-        pinned: false,
-        forwardedFrom: null,
-        threadRootId: null,
-        threadRepliesCount: 0,
-        reactions: [],
-        attachments: [],
-        editedAt: null,
-        readAt: null,
-        readBy: [],
-        urgent: false,
-        mentionedUserIds: [],
-        linkPreview: null,
-        createdAt: new Date().toISOString(),
-      };
-      queryClient.setQueryData<Paginated<ChatMessage>>(tasksKeys.messages(taskId), (old) => ({
-        items: [...(old?.items ?? []), temp],
-        nextCursor: old?.nextCursor ?? null,
-      }));
-      return { previous, tempId: temp.id };
-    },
-
-    onError: (_error, _text, context) => {
-      if (context?.previous) {
-        queryClient.setQueryData(tasksKeys.messages(taskId), context.previous);
-      }
-      toast.error(ui.common.sendError);
-    },
-
-    onSuccess: (server, _text, context) => {
-      queryClient.setQueryData<Paginated<ChatMessage>>(tasksKeys.messages(taskId), (old) => ({
-        items: old?.items.map((m) => (m.id === context?.tempId ? server : m)) ?? [],
-        nextCursor: old?.nextCursor ?? null,
-      }));
-    },
-
-    onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: tasksKeys.messages(taskId) });
     },
   });
 }

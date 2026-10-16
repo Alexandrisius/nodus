@@ -277,7 +277,27 @@ VALIDATION_FAILED; черновик при stickerId НЕ гасится (keepDr
 `video/webm` добавлен в INLINE_MIME отдачи файлов (проигрывание `<video>`).
 
 Вне контура до смежных треков:
-`POST .../to-task` (трек задач), автоканалы проектов.
+автоканалы проектов. «В задачу» — не эндпоинт чата: клиент создаёт задачу
+`POST /tasks` с `sourceMessageId` (доступ к сообщению — read-порт
+`CHAT_MESSAGE_ACCESS`, дедуп — в tasks).
+
+### Чат задачи (#252, `task-chat/`)
+
+Беседа задачи — обычная беседа `type='task'` (`conversations.task_id`,
+частичный unique — арбитр гонки). Состав = участники задачи через read-порт
+`TASK_CHAT_READER` (`modules/tasks/ports`): постановщик — owner, остальные —
+member, наблюдатель добавляется без звука (Битрикс24) и пишет наравне с
+остальными; выбывший участник теряет членство (история остаётся). Ручные
+мутации состава/инфо по типу недоступны — состав ведёт задача.
+Синхронизация идемпотентна: обработчики `task.created|assigned|
+participants_changed` и `GET /chat/conversations/by-task/:taskId`
+(find-or-create при первом открытии; задача не видна или пользователь не
+участник — 404). Переименование задачи (`task.updated` с `title`) —
+`chat.conversation_updated`. Вкладки мессенджера — серверный фильтр
+`GET /chat/conversations?scope=chats|entities` (`entities` = task + letter)
+со своей курсорной пагинацией; без `scope` — всё (пикеры, гейт ленты).
+Счётчик `commentsCount` задачи пересчитывает модуль tasks по
+`chat.message_sent|message_deleted` через `CHAT_MESSAGE_ACCESS.taskDiscussion`.
 Realtime-доставка/typing/presence — WS-gateway (#104, `apps/gateway`).
 TTL/автоудаление сообщений — вне продукта навсегда
 (решение владельца 24.09, #96).

@@ -1,5 +1,4 @@
 import type {
-  ChatMessage,
   Paginated,
   TaskBranch,
   TaskBranchNode,
@@ -21,7 +20,6 @@ import {
   deletePersonalStagePure,
   demoPersonalStages,
   demoSubtasks,
-  demoTaskMessages,
   demoTasks,
   detailsExtra,
   globalStageForPersonal,
@@ -293,13 +291,6 @@ export const tasksHandlers = [
     HttpResponse.json({ items: [], nextCursor: null } satisfies Paginated<TaskRelation>),
   ),
 
-  http.get('/api/v1/tasks/:id/messages', ({ params }) =>
-    HttpResponse.json({
-      items: demoTaskMessages.filter((m) => m.conversationId === params.id),
-      nextCursor: null,
-    }),
-  ),
-
   http.post('/api/v1/tasks/:id/subtasks', async ({ params, request }) => {
     const parent = demoTasks.find((t) => t.id === params.id);
     if (!parent) return notFound('Task not found');
@@ -355,40 +346,5 @@ export const tasksHandlers = [
     else if (last) demoTasks.splice(demoTasks.indexOf(last) + 1, 0, task);
     else demoTasks.push(task);
     return HttpResponse.json(task);
-  }),
-
-  http.post('/api/v1/tasks/:id/messages', async ({ params, request }) => {
-    const { text } = (await request.json()) as { text: string };
-    const seq =
-      Math.max(
-        0,
-        ...demoTaskMessages.filter((m) => m.conversationId === params.id).map((m) => m.seq),
-      ) + 1;
-    const message: ChatMessage = {
-      id: crypto.randomUUID(),
-      conversationId: String(params.id),
-      seq,
-      clientMessageId: crypto.randomUUID(),
-      author: userRef(currentAuthUser.id),
-      text,
-      replyToId: null,
-      reply: null,
-      deletedAt: null,
-      pinned: false,
-      forwardedFrom: null,
-      threadRootId: null,
-      threadRepliesCount: 0,
-      reactions: [],
-      attachments: [],
-      editedAt: null,
-      readAt: null,
-      readBy: [],
-      urgent: false,
-      mentionedUserIds: [],
-      linkPreview: null,
-      createdAt: new Date().toISOString(),
-    };
-    demoTaskMessages.push(message);
-    return HttpResponse.json(message, { status: 201 });
   }),
 ];

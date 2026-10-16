@@ -249,6 +249,7 @@ export const ui = {
     discussion: 'Обсуждение',
     addComment: 'Написать комментарий…',
     discussionEmpty: 'Нет обсуждения — напишите первое сообщение',
+    discussionMembersOnly: 'Обсуждение доступно участникам задачи',
     send: 'Отправить',
     task: 'Задача',
     instruction: 'Поручение',

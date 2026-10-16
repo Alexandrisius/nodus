@@ -24,7 +24,6 @@ export const tasksKeys = {
   /** Серверный поиск задач (палитра Ctrl+K). */
   search: (q: string) => [...tasksKeys.all, 'search', q] as const,
   detail: (id: string) => [...tasksKeys.all, 'detail', id] as const,
-  messages: (id: string) => [...tasksKeys.all, 'messages', id] as const,
   branch: (id: string) => [...tasksKeys.all, 'branch', id] as const,
   relations: (id: string) => [...tasksKeys.all, 'relations', id] as const,
   /** Доступные переходы маршрута задачи (кнопки бара, ADR-0020). */

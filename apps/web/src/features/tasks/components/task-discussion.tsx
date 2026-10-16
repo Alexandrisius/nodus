@@ -1,115 +1,39 @@
-import { Fragment, memo, useMemo } from 'react';
+import { memo } from 'react';
 import { ui } from '@nodus/contracts';
-import {
-  MessageScroller,
-  MessageScrollerButton,
-  MessageScrollerContent,
-  MessageScrollerItem,
-  MessageScrollerProvider,
-  MessageScrollerViewport,
-} from '@nodus/ui/components/message-scroller';
 import { Empty, EmptyTitle } from '@nodus/ui/components/empty';
-import { MessageGroup } from '@nodus/ui/components/message';
-import { Skeleton } from '@nodus/ui/components/skeleton';
 
-import { useAuthStore } from '../../../shared/auth-store.js';
-import { ChatComposer } from '../../../shared/chat/chat-composer.js';
-import { ScrollEndResponder } from '../../../shared/chat/scroll-end-responder.js';
-import { ChatMessageItem } from '../../../shared/chat/chat-message.js';
-import { DayChip } from '../../../shared/chat/day-chip.js';
-import {
-  buildMessageRuns,
-  formatDayLabel,
-  startsNewDay,
-} from '../../../shared/chat/message-groups.js';
-import { MessageRunView } from '../../../shared/chat/message-run.js';
-import { useSendTaskMessage, useTaskMessages } from '../api/tasks-api.js';
+import { useTaskConversation } from '../../../shared/chat/api.js';
+import { ConversationPane } from '../../../shared/chat/conversation-pane.js';
 
 /**
- * Обсуждение задачи — центр карточки: ТА ЖЕ анатомия чата, что в мессенджере
- * (вердикт владельца 14.09.2026: «все чаты в едином стиле»): серии одного
- * автора (имя — чужое и только первое, аватар и хвостик — у последнего),
- * дата-чипы при смене дня, зона bg-chat-zone, MessageScroller с кнопкой
- * «вниз» и общий композер (скрепка/смайл/микрофон, вечный курсор, Enter —
- * отправить). Контракт сообщений — общий ChatMessage.
+ * Обсуждение задачи — ОБЫЧНАЯ беседа мессенджера `type='task'` (канон
+ * владельца #252: один движок чата, без параллельного конвейера): та же
+ * лента, композер с вложениями/упоминаниями/цитатами, меню сообщения,
+ * треды, черновики и realtime, что в мессенджере. Беседа находится или
+ * создаётся сервером по задаче; её состав — участники задачи. Руководитель,
+ * видящий задачу по оргструктуре, но не участник — получает 404, и вместо
+ * ленты видит подсказку (обсуждение — для участников).
  */
 export const TaskDiscussion = memo(function TaskDiscussion({ taskId }: { taskId: string }) {
-  const { data, isLoading } = useTaskMessages(taskId);
-  const send = useSendTaskMessage(taskId);
-  const me = useAuthStore((s) => s.user);
+  const { data, isError } = useTaskConversation(taskId);
 
-  const rawItems = data?.items;
-  const items = useMemo(() => rawItems ?? [], [rawItems]);
-  const runs = useMemo(() => buildMessageRuns(items, me?.id), [items, me?.id]);
-
-  return (
-    <div className="flex h-full min-w-0 flex-1 flex-col">
-      <MessageScrollerProvider autoScroll>
-        <ScrollEndResponder scope={`task:${taskId}`} />
-        <MessageScroller className="min-h-0 flex-1 bg-chat-zone">
-          <MessageScrollerViewport>
-            <MessageScrollerContent className="p-4">
-              {isLoading ? (
-                <MessageGroup>
-                  {[0, 1, 2].map((i) => (
-                    <Skeleton key={i} className="h-14 w-2/3" />
-                  ))}
-                </MessageGroup>
-              ) : items.length === 0 ? (
-                <div className="flex h-full items-center justify-center">
-                  <Empty>
-                    <EmptyTitle>{ui.tasks.discussionEmpty}</EmptyTitle>
-                  </Empty>
-                </div>
-              ) : (
-                <MessageGroup className="gap-3">
-                  {runs.map((run, runIndex) => {
-                    const prevRun = runIndex === 0 ? undefined : runs[runIndex - 1];
-                    const { first } = run;
-                    return (
-                      <Fragment key={first.id}>
-                        {startsNewDay(prevRun?.last, first) ? (
-                          <MessageScrollerItem>
-                            <DayChip label={formatDayLabel(first.createdAt)} />
-                          </MessageScrollerItem>
-                        ) : null}
-                        <MessageRunView
-                          run={run}
-                          showName={!run.mine}
-                          renderItem={(message, attrs) => (
-                            <MessageScrollerItem style={attrs.style}>
-                              <ChatMessageItem
-                                message={message}
-                                mine={run.mine}
-                                showName={attrs.showName}
-                                avatarSlot="none"
-                                tail={attrs.tail}
-                              />
-                            </MessageScrollerItem>
-                          )}
-                        />
-                      </Fragment>
-                    );
-                  })}
-                </MessageGroup>
-              )}
-            </MessageScrollerContent>
-          </MessageScrollerViewport>
-          <MessageScrollerButton />
-        </MessageScroller>
-      </MessageScrollerProvider>
-      {/* В покое высота h-16 = высоте бара действий слева: верхние линии обоих
-          баров — одна горизонталь через границу зон (вердикт владельца);
-          при росте текста композер расширяется вверх, как в мессенджере. */}
-      <ChatComposer
-        key={taskId}
-        placeholder={ui.tasks.addComment}
-        onSubmit={(submit) => send.mutate(submit.text)}
-        focusId={`task:${taskId}`}
-        // Обсуждение задачи — задачи на tasks-API: стикеры (chat-API, #143)
-        // здесь не живут; вкладка пикера скрыта до завоза chat-контура.
-        stickersEnabled={false}
+  if (data) {
+    return (
+      <ConversationPane
+        conversationId={data.id}
+        conversation={data}
+        composerPlaceholder={ui.tasks.addComment}
+        emptyLabel={ui.tasks.discussionEmpty}
       />
+    );
+  }
+  return (
+    <div className="flex h-full min-w-0 flex-1 items-center justify-center bg-chat-zone">
+      {isError ? (
+        <Empty>
+          <EmptyTitle>{ui.tasks.discussionMembersOnly}</EmptyTitle>
+        </Empty>
+      ) : null}
     </div>
   );
 });

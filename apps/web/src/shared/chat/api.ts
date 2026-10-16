@@ -1,7 +1,17 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type InfiniteData,
+  type QueryClient,
+} from '@tanstack/react-query';
 import type {
+  TaskResult,
+  TaskResultCreateBody,
   ChatMessage,
   ConversationListItem,
+  CreateTaskBody,
   ConversationUpdateBody,
   MessageAttachment,
   Paginated,
@@ -11,7 +21,7 @@ import type {
   ThreadWatchResult,
   UrgentPolicy,
 } from '@nodus/contracts';
-import { ui } from '@nodus/contracts';
+import { stripMentionTokens, ui } from '@nodus/contracts';
 import { toast } from 'sonner';
 
 import { api } from '../api-client.js';
@@ -43,6 +53,11 @@ export const chatKeys = {
   threadStates: (id: string) => [...chatKeys.all, 'threadStates', id] as const,
   /** Личка с пользователем (открыть/создать direct по сотруднику). */
   direct: (userId: string) => [...chatKeys.conversations(), 'direct', userId] as const,
+  /** Беседа задачи (#252): find-or-create по задаче для карточки. */
+  byTask: (taskId: string) => [...chatKeys.conversations(), 'task', taskId] as const,
+  /** Вкладка мессенджера (#252): серверный фильтр и своя пагинация; под
+   *  префиксом conversations() — общие инвалидации списка её достают. */
+  scoped: (scope: ConversationScope) => [...chatKeys.conversations(), 'scope', scope] as const,
   /** Участники беседы (#186): панель с ролями; search — часть ключа. */
   members: (id: string) => [...chatKeys.all, 'members', id] as const,
   /** Политика важных (#177): счётчик дневного лимита попапа молнии. */
@@ -114,6 +129,37 @@ export function useConversations() {
     queryFn: () => api<Paginated<ConversationListItem>>('/chat/conversations'),
     refetchInterval: livePoll(LIVE_CHAT_POLL.conversations, socketConnected),
     refetchIntervalInBackground: false,
+  });
+}
+
+export type ConversationScope = 'chats' | 'entities';
+
+/** Вкладка мессенджера (#252): «Чаты» (люди и каналы) или «Чаты задач и
+ *  писем» — серверный фильтр типа и курсорная подгрузка по 50 (чаты задач
+ *  не вытесняют людей из первой страницы общего списка). */
+export function useScopedConversations(scope: ConversationScope) {
+  const socketConnected = useSocketStatusStore((s) => s.connected);
+  return useInfiniteQuery({
+    queryKey: chatKeys.scoped(scope),
+    queryFn: ({ pageParam }) =>
+      api<Paginated<ConversationListItem>>(
+        `/chat/conversations?scope=${scope}${pageParam ? `&cursor=${pageParam}` : ''}`,
+      ),
+    initialPageParam: null as string | null,
+    getNextPageParam: (last) => last.nextCursor,
+    refetchInterval: livePoll(LIVE_CHAT_POLL.conversations, socketConnected),
+    refetchIntervalInBackground: false,
+  });
+}
+
+/** Чат задачи (#252) — обычная беседа мессенджера: find-or-create на
+ *  стороне API (не участник задачи — 404), карточка рисует ConversationPane. */
+export function useTaskConversation(taskId: string) {
+  return useQuery({
+    queryKey: chatKeys.byTask(taskId),
+    queryFn: () => api<ConversationListItem>(`/chat/conversations/by-task/${taskId}`),
+    enabled: taskId.length > 0 && !taskId.startsWith('temp-'),
+    retry: false,
   });
 }
 
@@ -198,20 +244,79 @@ export function useWatchThread(conversationId: string) {
   });
 }
 
-/** Поток Б: «В задачу» из сообщения чата. */
+/** Поток Б: «В задачу» из сообщения чата — обычное создание задачи с
+ *  происхождением (sourceMessageId: сервер проверяет доступ к сообщению и
+ *  дедуплицирует — одна задача на сообщение у постановщика, #37/#252). */
 export function useMessageToTask() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (target: { conversationId: string; messageId: string }) =>
-      api<TaskListItem>(
-        `/chat/conversations/${target.conversationId}/messages/${target.messageId}/to-task`,
-        { method: 'POST' },
-      ),
+    mutationFn: (message: Pick<ChatMessage, 'id' | 'text'>) => {
+      const text = stripMentionTokens(message.text).trim();
+      const firstLine = text.split('\n')[0]?.trim() ?? '';
+      return api<TaskListItem>('/tasks', {
+        method: 'POST',
+        body: {
+          title: (firstLine || ui.chat.toTaskUntitled).slice(0, 200),
+          ...(text ? { description: text.slice(0, 5000) } : {}),
+          sourceMessageId: message.id,
+        } satisfies CreateTaskBody,
+      });
+    },
     onSuccess: () => {
       toast.success(ui.chat.toTaskDone);
     },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: tasksKeys.all });
+    },
+  });
+}
+
+/** Строка беседы из кэшей списка: общий список, вкладки (бесконечные
+ *  страницы) и find-or-create (direct/by-task) — все под conversations(). */
+export function cachedConversation(
+  queryClient: QueryClient,
+  conversationId: string,
+): ConversationListItem | undefined {
+  type Cached =
+    | Paginated<ConversationListItem>
+    | InfiniteData<Paginated<ConversationListItem>>
+    | ConversationListItem
+    | undefined;
+  for (const [, data] of queryClient.getQueriesData<Cached>({
+    queryKey: chatKeys.conversations(),
+  })) {
+    if (!data) continue;
+    const items =
+      'pages' in data ? data.pages.flatMap((p) => p.items) : 'items' in data ? data.items : [data];
+    const hit = items.find((c) => c.id === conversationId);
+    if (hit) return hit;
+  }
+  return undefined;
+}
+
+/** «Отметить как результат» (#252): сообщение чата задачи — новая ревизия
+ *  результата (текст + ссылка на сообщение); права — на сервере. */
+export function useMarkMessageAsResult() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      taskId,
+      message,
+    }: {
+      taskId: string;
+      message: Pick<ChatMessage, 'id' | 'text'>;
+    }) =>
+      api<TaskResult>(`/tasks/${taskId}/results`, {
+        method: 'POST',
+        body: {
+          text: stripMentionTokens(message.text).trim().slice(0, 5000),
+          messageIds: [message.id],
+        } satisfies TaskResultCreateBody,
+      }),
+    onSuccess: () => toast.success(ui.chat.markResultDone),
+    onError: () => toast.error(ui.common.saveError),
+    onSettled: (_data, _error, vars) => {
+      void queryClient.invalidateQueries({ queryKey: tasksKeys.detail(vars.taskId) });
     },
   });
 }
