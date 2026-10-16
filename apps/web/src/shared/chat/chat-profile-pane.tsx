@@ -1,4 +1,13 @@
-import { Bell, BellOff, FileText, Image as ImageIcon, Link2, Music, Video } from 'lucide-react';
+import {
+  Bell,
+  BellOff,
+  FileText,
+  Image as ImageIcon,
+  Link2,
+  Music,
+  Users,
+  Video,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import type { ConversationListItem, VaultItemType } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
@@ -23,12 +32,12 @@ export function ChatProfilePane({
   conversationId,
   conversation,
   onOpenVaultType,
-  compact = false,
+  onOpenMembers,
 }: {
   conversationId: string;
-  /** Встроенный вид (панель «О задаче», #252): без большого аватара и
-   *  названия — хост уже показывает сущность; пустые категории — «Пусто». */
-  compact?: boolean;
+  /** Строка «Участники · N» над категориями (хост без шапки беседы —
+   *  панель «О задаче», #252): открывает вид участников. */
+  onOpenMembers?: () => void;
   /** Беседа из кэша хоста; карточки-хосты могут не передать — берём из списка. */
   conversation?: ConversationListItem;
   onOpenVaultType: (type: VaultItemType) => void;
@@ -56,14 +65,7 @@ export function ChatProfilePane({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {item && compact ? (
-        <div className="flex shrink-0 items-center gap-2 pb-3">
-          <Button variant="outline" size="sm" onClick={toggleMute}>
-            {item.muted ? <BellOff data-testid="muted" /> : <Bell />}
-            {ui.chat.profileSound}
-          </Button>
-        </div>
-      ) : item ? (
+      {item ? (
         <div className="flex shrink-0 flex-col items-center gap-1.5 px-4 pb-4">
           <ConversationAvatar conversation={item} meId={meId} className="size-20" />
           <div className="mt-1 w-full text-center">
@@ -83,6 +85,19 @@ export function ChatProfilePane({
         </div>
       ) : null}
       <nav className="flex flex-col gap-0.5" aria-label={ui.chat.panelTitle}>
+        {item && onOpenMembers ? (
+          <button
+            type="button"
+            onClick={onOpenMembers}
+            className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-accent"
+          >
+            <Users className="size-4 shrink-0 text-muted-foreground" strokeWidth={1.75} />
+            <span className="flex-1 truncate text-sm">{ui.chat.membersPanelTitle}</span>
+            <span className="font-mono text-label-sm tabular-nums text-muted-foreground">
+              {item.membersCount}
+            </span>
+          </button>
+        ) : null}
         {(
           [
             ['image', ui.chat.vaultImages, ImageIcon],
@@ -110,9 +125,6 @@ export function ChatProfilePane({
             </button>
           );
         })}
-        {compact && counts.data && Object.values(counts.data).every((n) => !n) ? (
-          <span className="px-2 py-1.5 text-sm text-muted-foreground">{ui.common.empty}</span>
-        ) : null}
       </nav>
     </div>
   );

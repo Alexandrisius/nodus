@@ -1,4 +1,4 @@
-import { History, Paperclip, Star, X } from 'lucide-react';
+import { ArrowLeft, History, Star, X } from 'lucide-react';
 import { memo, useState } from 'react';
 import type { TaskDetail, VaultItemType } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
@@ -8,6 +8,7 @@ import { cn } from '@nodus/ui/lib/utils';
 
 import { useTaskConversation } from '../../../shared/chat/api.js';
 import { ChatProfilePane } from '../../../shared/chat/chat-profile-pane.js';
+import { ConversationMembersPanel } from '../../../shared/chat/conversation-members.js';
 import { VaultWindow } from '../../../shared/chat/vault-window.js';
 import { formatDateTime } from '../../../shared/lib/format.js';
 
@@ -34,11 +35,13 @@ function Section({
 /**
  * Выдвижная дополнительная панель «О задаче» — ВТАЛКИВАЮЩАЯ колонка справа
  * (не оверлей: чат и композер остаются доступны, вердикт владельца; плавный
- * пуш — transition-[width] на колонке-обёртке в task-card). Роль правой
- * панели беседы мессенджера (закон «где чат — там панель вложений»): та же
- * витрина беседы задачи (#252) — «Звук» и категории-счётчики картинок/видео/
- * аудио/файлов/ссылок с окном категории (VaultWindow поверх панели), плюс
- * история и избранное задачи. По умолчанию скрыта.
+ * пуш — transition-[width] на колонке-обёртке в task-card). Это ПАНЕЛЬ
+ * БЕСЕДЫ задачи, как у групповых чатов мессенджера (вердикт владельца
+ * 16.10, #252): профиль (аватар, «№ N · название», подпись с числом
+ * участников, «Звук»/«Копировать ссылку»), строка «Участники» с видом
+ * состава (тот же ConversationMembersPanel, состав ведёт задача — без
+ * ручных команд), категории вложений с окном категории (VaultWindow), ниже —
+ * история задачи. По умолчанию скрыта.
  */
 export const TaskAboutDrawer = memo(function TaskAboutDrawer({
   task,
@@ -52,6 +55,7 @@ export const TaskAboutDrawer = memo(function TaskAboutDrawer({
   const conversation = useTaskConversation(task.id).data;
   const conversationId = conversation?.id;
   const [vaultType, setVaultType] = useState<VaultItemType | null>(null);
+  const [membersOpen, setMembersOpen] = useState(false);
   const [favorite, setFavorite] = useState(false);
 
   return (
@@ -62,7 +66,19 @@ export const TaskAboutDrawer = memo(function TaskAboutDrawer({
     // нет, единственная вертикаль — структурная левая граница колонки.
     <aside className="relative flex h-full w-[22.5rem] flex-col border-l border-border bg-card">
       <div className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-3">
-        <NodeLabel label={ui.tasks.aboutTask} />
+        {membersOpen ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="shrink-0 hover:bg-accent"
+            onClick={() => setMembersOpen(false)}
+            aria-label={ui.common.back}
+            title={ui.common.back}
+          >
+            <ArrowLeft />
+          </Button>
+        ) : null}
+        <NodeLabel label={membersOpen ? ui.chat.membersPanelTitle : ui.tasks.aboutTask} />
         <div className="ml-auto flex shrink-0 items-center gap-1">
           <button
             type="button"
@@ -86,35 +102,38 @@ export const TaskAboutDrawer = memo(function TaskAboutDrawer({
           </Button>
         </div>
       </div>
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
-        <Section icon={Paperclip} title={ui.chat.filesMedia}>
+      {membersOpen && conversation ? (
+        <ConversationMembersPanel conversation={conversation} onAddMembers={() => {}} />
+      ) : (
+        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
           {conversationId ? (
-            <ChatProfilePane
-              conversationId={conversationId}
-              conversation={conversation}
-              onOpenVaultType={setVaultType}
-              compact
-            />
-          ) : (
-            <span className="text-sm text-muted-foreground">{ui.common.empty}</span>
-          )}
-        </Section>
+            // Профиль — по контенту: flex-1 панели беседы прижал бы историю к низу.
+            <div className="shrink-0">
+              <ChatProfilePane
+                conversationId={conversationId}
+                conversation={conversation}
+                onOpenVaultType={setVaultType}
+                onOpenMembers={() => setMembersOpen(true)}
+              />
+            </div>
+          ) : null}
 
-        <Section icon={History} title={ui.tasks.history}>
-          <span className="flex justify-between gap-2 text-sm">
-            <span className="text-muted-foreground">{ui.tasks.created}</span>
-            <span className="shrink-0 font-mono text-label-sm text-muted-foreground">
-              {formatDateTime(task.createdAt)}
+          <Section icon={History} title={ui.tasks.history}>
+            <span className="flex justify-between gap-2 text-sm">
+              <span className="text-muted-foreground">{ui.tasks.created}</span>
+              <span className="shrink-0 font-mono text-label-sm text-muted-foreground">
+                {formatDateTime(task.createdAt)}
+              </span>
             </span>
-          </span>
-          <span className="flex justify-between gap-2 text-sm">
-            <span className="text-muted-foreground">{ui.tasks.updated}</span>
-            <span className="shrink-0 font-mono text-label-sm text-muted-foreground">
-              {formatDateTime(task.updatedAt)}
+            <span className="flex justify-between gap-2 text-sm">
+              <span className="text-muted-foreground">{ui.tasks.updated}</span>
+              <span className="shrink-0 font-mono text-label-sm text-muted-foreground">
+                {formatDateTime(task.updatedAt)}
+              </span>
             </span>
-          </span>
-        </Section>
-      </div>
+          </Section>
+        </div>
+      )}
       {/* Окно категории витрины — поверх всей панели (канон панели беседы). */}
       {conversationId ? (
         <VaultWindow
