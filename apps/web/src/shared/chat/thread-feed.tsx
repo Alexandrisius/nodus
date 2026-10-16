@@ -31,6 +31,7 @@ import { MessageRunView } from './message-run.js';
 import { FeedPostRow } from './feed-post-row.js';
 import { PinBar } from './pin-bar.js';
 import { ScrollEndResponder } from './scroll-end-responder.js';
+import { useHistoryLoader } from './use-history-loader.js';
 import { useIncomingFollow } from './use-incoming-follow.js';
 import { useJumpResponder } from './use-jump-responder.js';
 import { useFeedViewportRead } from './use-viewport-read.js';
@@ -130,6 +131,15 @@ export const ThreadFeed = memo(function ThreadFeed({
     itemCount: roots.length,
     containerRef: viewportRef,
   });
+  // Догрузка истории постов при прокрутке вверх (#307): sentinel у верха,
+  // компенсация скролла общая с лентой беседы.
+  const { topSentinel } = useHistoryLoader({
+    conversationId,
+    viewportRef,
+    hasMore: (data?.nextCursor ?? null) !== null,
+    items,
+    enabled: !isLoading && roots.length > 0,
+  });
   // Квитанции просмотров (#102 р.2): IO по строкам постов, root=viewport
   // примитива (механика — use-viewport-read.ts).
   useFeedViewportRead(conversationId, viewportRef, roots);
@@ -212,6 +222,8 @@ export const ThreadFeed = memo(function ThreadFeed({
                   </div>
                 ) : (
                   <MessageGroup className="gap-3">
+                    {/* Sentinel истории — первый элемент ленты (#307). */}
+                    {topSentinel}
                     {/* Р.7: лента ЯКОРИТСЯ НИЗОМ (модель Telegram: переписка
                         растёт снизу вверх — первый пост внизу, пустоты под
                         контентом не бывает): якорение низа — канон

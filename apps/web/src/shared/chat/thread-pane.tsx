@@ -40,6 +40,7 @@ import { ConversationViewsLine } from './views-line.js';
 import { useConversations } from './api.js';
 import { typingKey, useTypingStore } from '../socket/typing-store.js';
 import { ScrollEndResponder } from './scroll-end-responder.js';
+import { useHistoryLoader } from './use-history-loader.js';
 import { JumpResponder } from './use-jump-responder.js';
 // >300 строк — обоснование (I5, валидатор #164): окно треда — шапка
 // (наблюдение/печать/закрытие), корневой пост + лента ответов на run-grid
@@ -136,6 +137,16 @@ export const ThreadPane = memo(function ThreadPane({
   // Квитанции просмотров (#102 р.2): watermark беседы («увидел где угодно»)
   // И трэда (threadRootId — гасит точку «есть новые», раунд 3).
   useFeedViewportRead(conversationId, viewportRef, items, threadRootId);
+  // Догрузка истории ответов при прокрутке вверх (#307): тот же sentinel,
+  // кэш треда — тот же плоский (chatKeys.thread).
+  const { topSentinel } = useHistoryLoader({
+    conversationId,
+    threadRootId,
+    viewportRef,
+    hasMore: (data?.nextCursor ?? null) !== null,
+    items,
+    enabled: !isLoading && items.length > 0,
+  });
 
   const lastMine = useCallback(
     () =>
@@ -283,6 +294,8 @@ export const ThreadPane = memo(function ThreadPane({
                     открытия, см. conversation-pane); пусто → feed-reveal. */}
                 {isLoading ? null : (
                   <MessageGroup className="gap-3">
+                    {/* Sentinel истории — первый элемент окна трэда (#307). */}
+                    {topSentinel}
                     {root ? (
                       <MessageScrollerItem messageId={root.id}>
                         {renderRoot(root)}

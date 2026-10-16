@@ -150,6 +150,9 @@ export const chatStrings = {
   pollSoon: 'Опросы появятся позже',
   voiceSoon: 'Голосовые сообщения появятся позже',
   quoteBubble: 'Цитировать выделенное',
+  // Автопрогрузка истории (#307, модель Telegram).
+  historyLoading: 'Загружаем историю',
+  historyStart: 'Начало истории',
   attachTooLarge: 'Файл больше 100 МБ — выберите меньший',
   attachTooMany: 'Не больше 20 файлов в одном сообщении',
   uploadFailed: 'Не удалось загрузить файл',
