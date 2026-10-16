@@ -57,6 +57,8 @@ export const notificationsStrings = {
     'action.assignment': 'Поручение',
     'action.approval': 'Согласование',
     'action.deadline': 'Срок',
+    'task.completed': 'Задача выполнена',
+    'task.returned': 'Возврат в работу',
   } satisfies Record<NotificationKind, string>,
   /** Колокольчик-поповер (быстрые последние 5–7; массового прочтения нет —
    *   важное гасится осознанно: входом в источник / «Ознакомлен», фидбек 01.10). */

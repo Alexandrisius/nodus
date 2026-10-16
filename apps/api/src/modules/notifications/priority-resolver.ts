@@ -47,6 +47,8 @@ export const KIND_PRIORITY: Record<NotificationKind, NotificationPriority> = {
   'action.assignment': 'medium',
   'action.approval': 'medium',
   'action.deadline': 'medium',
+  'task.completed': 'medium',
+  'task.returned': 'medium',
 };
 
 /** Приоритет kind при пересечении правил (urgent > mention > thread > direct > channel). */
