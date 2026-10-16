@@ -17,6 +17,8 @@ export interface ConversationListRow {
   visibility: string | null;
   permissions: Prisma.JsonValue;
   avatar_file_id: string | null;
+  /** Привязка беседы задачи (type=task, #252). */
+  task_id: string | null;
   last_message_at: Date | null;
   /** Активность для сортировки (#215): last_message_at, для «Избранного» —
    *  GREATEST с последней закладкой владельца (CASE ниже). */
@@ -57,6 +59,7 @@ export interface ConversationListCursor {
 export const LIST_SELECT = (userId: string): Prisma.Sql => Prisma.sql`
   SELECT
     c.id, c.type, c.title, c.description, c.visibility, c.permissions, c.avatar_file_id,
+    c.task_id,
     c.last_message_at,
     CASE WHEN c.type = 'direct' AND c.user_min = c.user_max AND c.user_min = ${userId}::uuid
       THEN GREATEST(

@@ -1,0 +1,112 @@
+import { Inject, Injectable } from '@nestjs/common';
+import { CHAT_EVENTS } from '@nodus/contracts';
+
+import { TransactionRunner } from '../../../core/database/transaction-runner.js';
+import { EventBus } from '../../../core/events/event-bus.js';
+import { DomainException } from '../../../core/errors/domain-exception.js';
+import { TASK_CHAT_READER, type TaskChatReader } from '../../tasks/ports/task-chat-reader.port.js';
+import { TaskChatRepository } from './task-chat.repository.js';
+
+/**
+ * Чат задачи = беседа мессенджера `type='task'` (канон владельца #252: «у
+ * нас не должно поддерживаться 2 или более чатов»). Состав = участники
+ * задачи (read-порт TASK_CHAT_READER): постановщик — owner, остальные —
+ * member; новый наблюдатель — без звука (Битрикс24). Синхронизация
+ * идемпотентна и вызывается обработчиками task.* и GET by-task (беседа
+ * старой задачи создаётся при первом открытии).
+ */
+@Injectable()
+export class TaskChatService {
+  constructor(
+    private readonly repo: TaskChatRepository,
+    private readonly txRunner: TransactionRunner,
+    private readonly eventBus: EventBus,
+    @Inject(TASK_CHAT_READER) private readonly tasks: TaskChatReader,
+  ) {}
+
+  /** Привести беседу задачи к составу задачи; null — задачи нет (удалена). */
+  async sync(taskId: string, actorId: string | null): Promise<string | null> {
+    const roster = await this.tasks.roster(taskId);
+    if (!roster) return null;
+    return this.txRunner.run(async (tx) => {
+      const { id, created } = await this.repo.findOrCreate(tx, taskId, roster.creatorId);
+      await this.repo.lock(tx, id);
+      const current = new Set(await this.repo.members(tx, id));
+      const desired = new Map(roster.members.map((m) => [m.userId, m]));
+      const added = await this.repo.addMembers(
+        tx,
+        id,
+        roster.members
+          .filter((m) => !current.has(m.userId))
+          .map((m) => ({
+            userId: m.userId,
+            role: m.userId === roster.creatorId ? 'owner' : 'member',
+            muted: m.muted,
+          })),
+      );
+      const removed = [...current].filter((userId) => !desired.has(userId));
+      await this.repo.removeMembers(tx, id, removed);
+      const meta = { actorId, aggregateType: 'conversation', aggregateId: id };
+      if (created) {
+        await this.eventBus.emit(
+          tx,
+          CHAT_EVENTS.CONVERSATION_CREATED,
+          {
+            conversationId: id,
+            type: 'task',
+            title: null,
+            createdBy: roster.creatorId,
+            memberIds: added,
+          },
+          meta,
+        );
+      } else if (added.length > 0) {
+        await this.eventBus.emit(
+          tx,
+          CHAT_EVENTS.MEMBER_ADDED,
+          { conversationId: id, userIds: added, role: 'member' },
+          meta,
+        );
+      }
+      for (const userId of removed) {
+        await this.eventBus.emit(
+          tx,
+          CHAT_EVENTS.MEMBER_REMOVED,
+          { conversationId: id, userId, actorId },
+          meta,
+        );
+      }
+      return id;
+    });
+  }
+
+  /** Название задачи изменилось: строки списка бесед у участников
+   *  перечитываются (ссылка на задачу — read-порт, хранить нечего). */
+  async touch(taskId: string, actorId: string | null): Promise<void> {
+    await this.txRunner.run(async (tx) => {
+      const id = await this.repo.find(tx, taskId);
+      if (!id) return;
+      await this.eventBus.emit(
+        tx,
+        CHAT_EVENTS.CONVERSATION_UPDATED,
+        { conversationId: id, taskChanged: true },
+        { actorId, aggregateType: 'conversation', aggregateId: id },
+      );
+    });
+  }
+
+  /** Беседа задачи для карточки: задача видна и пользователь — её участник
+   *  (руководитель, видящий задачу по оргструктуре, обсуждение не читает —
+   *  он не участник; 404 без различия). */
+  async openForUser(
+    taskId: string,
+    user: { id: string; permissions: readonly string[] },
+  ): Promise<string> {
+    if (!(await this.tasks.canView(taskId, user))) {
+      throw DomainException.notFound('Task not found');
+    }
+    const id = await this.sync(taskId, user.id);
+    if (!id) throw DomainException.notFound('Task not found');
+    return id;
+  }
+}

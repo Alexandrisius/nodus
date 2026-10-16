@@ -27,6 +27,17 @@ import { ThumbnailWorker } from './messages/thumbnail.worker.js';
 import { UrgentPolicyController } from './messages/urgent-policy.controller.js';
 import { UrgentPolicyReader } from './messages/urgent-policy.reader.js';
 import { FileVersionHandler } from './events/file-version.handler.js';
+import { TasksPortsModule } from '../tasks/tasks-ports.module.js';
+import { TaskChatController } from './task-chat/task-chat.controller.js';
+import {
+  TaskAssignedChatHandler,
+  TaskChatSyncRunner,
+  TaskCreatedChatHandler,
+  TaskParticipantsChatHandler,
+  TaskUpdatedChatHandler,
+} from './task-chat/task-chat.handlers.js';
+import { TaskChatRepository } from './task-chat/task-chat.repository.js';
+import { TaskChatService } from './task-chat/task-chat.service.js';
 import { FavoritesController } from './favorites/favorites.controller.js';
 import { FavoriteCardMapper } from './favorites/favorite-card.mapper.js';
 import { FavoritesRepository } from './favorites/favorites.repository.js';
@@ -57,6 +68,8 @@ import {
  * фичефлагом `chat` (I10) — гварды на контроллерах.
  */
 @Module({
+  // Read-порт задач (ADR-0012): состав, ссылки и видимость чата задачи (#252).
+  imports: [TasksPortsModule],
   // Вложения (#57): порт FILE_STORAGE — @Global FilesModule (как CryptoModule),
   // без межмодульного импорта (I3/I6); здесь chat знает только интерфейс.
   controllers: [
@@ -69,6 +82,7 @@ import {
     FavoritesController,
     UrgentPolicyController,
     VaultController,
+    TaskChatController,
   ],
   providers: [
     ConversationsRepository,
@@ -118,6 +132,14 @@ import {
     // Мост версий файлов в беседы (#182): file.version_created →
     // chat.attachment_updated (маршрутизация gateway'ем в conv-комнаты).
     FileVersionHandler,
+    // Чат задачи (#252): беседа type=task, состав = участники задачи.
+    TaskChatRepository,
+    TaskChatService,
+    TaskChatSyncRunner,
+    TaskCreatedChatHandler,
+    TaskAssignedChatHandler,
+    TaskParticipantsChatHandler,
+    TaskUpdatedChatHandler,
   ],
 })
 export class ChatModule {}

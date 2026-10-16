@@ -42,7 +42,7 @@ export function visibleTasksWhere(viewer: Viewer, scope: 'mine' | 'all'): Prisma
 export class ViewerResolver {
   constructor(@Inject(ORG_STRUCTURE_READER) private readonly org: OrgStructureReader) {}
 
-  async resolve(user: Pick<AuthUser, 'id' | 'permissions'>): Promise<Viewer> {
+  async resolve(user: { id: AuthUser['id']; permissions: readonly string[] }): Promise<Viewer> {
     return {
       id: user.id,
       permissions: user.permissions,
