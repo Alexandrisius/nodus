@@ -99,8 +99,14 @@ describe('routeEnvelope', () => {
     expect(calls.map((c) => c.room)).toEqual([`conv:${CONV}`, `user:${USER_A}`, `user:${USER_B}`]);
   });
 
-  it('member_removed (#186): комната беседы + user-комната исключённого', async () => {
+  it('member_removed (#186/#252): комнаты + сокеты исключённого выходят из беседы', async () => {
     const { io, calls } = fakeIo();
+    const socket = {
+      data: { convRooms: new Set([`conv:${CONV}`, 'conv:other']) },
+      leave: vi.fn(),
+    };
+    const inRoom = vi.fn(() => ({ fetchSockets: async () => [socket] }));
+    (io as unknown as { in: typeof inRoom }).in = inRoom;
     const store: MembershipStore = { isMember: vi.fn(), memberIds: vi.fn(), userRef: vi.fn() };
     await routeEnvelope(
       io,
@@ -108,6 +114,9 @@ describe('routeEnvelope', () => {
       envelope('chat.member_removed', { conversationId: CONV, userId: USER_B, actorId: USER_A }),
     );
     expect(calls.map((c) => c.room)).toEqual([`conv:${CONV}`, `user:${USER_B}`]);
+    expect(inRoom).toHaveBeenCalledWith(`user:${USER_B}`);
+    expect(socket.leave).toHaveBeenCalledWith(`conv:${CONV}`);
+    expect([...socket.data.convRooms]).toEqual(['conv:other']);
   });
 
   it('member_role_changed (#186): комната беседы + user-комната целевого', async () => {

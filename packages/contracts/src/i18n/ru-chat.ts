@@ -91,6 +91,9 @@ export const chatStrings = {
   channel: 'Канал',
   groupChat: 'Групповой чат',
   toTaskDone: 'Задача создана из сообщения',
+  /** Название задачи из сообщения без текста (только вложения). */
+  toTaskUntitled: 'Задача из сообщения',
+  markResultDone: 'Сообщение отмечено результатом задачи',
   discussion: 'Обсуждение',
   repliesOne: 'ответ',
   repliesFew: 'ответа',
@@ -291,6 +294,7 @@ export const chatStrings = {
     edit: 'Редактировать',
     forward: 'Переслать',
     createTask: 'Создать задачу',
+    markResult: 'Отметить как результат',
     pin: 'Закрепить',
     copyLink: 'Копировать ссылку',
     favorite: 'В избранное',

@@ -121,6 +121,16 @@ export class NotificationsService {
     });
   }
 
+  /** Открыта карточка сущности (#252): все её уведомления у пользователя
+   *  прочитаны — «Требуют внимания» не висят вечно. Идемпотентно. */
+  async readBySource(userId: string, sourceType: string, sourceId: string): Promise<number> {
+    return this.txRunner.run(async (tx) => {
+      const read = await this.repo.readByEntity(userId, sourceType, sourceId, tx);
+      if (read > 0) await this.emitRead(tx, userId, sourceId, null);
+      return read;
+    });
+  }
+
   /** Стоп повторов по реакции получателя (C3, обработчик chat.reaction_added). */
   async stopRepeatsByReaction(userId: string, messageId: string): Promise<void> {
     await this.repo.stopRepeats(userId, { messageId });
@@ -139,6 +149,19 @@ export class NotificationsService {
       const affected = [...new Set(await this.repo.deleteByMessage(messageId, tx))];
       for (const userId of affected) {
         await this.emitRead(tx, userId, conversationId, null);
+      }
+      return affected.length;
+    });
+  }
+
+  /** Чистка по удалённой задаче (#252, обработчик task.deleted): строки
+   *  журнала удаляются у всех, каждому затронутому — notification.read
+   *  (бейдж/лента/тосты синхронизируются штатным конвейером). Идемпотентно. */
+  async purgeBySource(sourceType: string, sourceId: string): Promise<number> {
+    return this.txRunner.run(async (tx) => {
+      const affected = [...new Set(await this.repo.deleteBySource(sourceType, sourceId, tx))];
+      for (const userId of affected) {
+        await this.emitRead(tx, userId, sourceId, null);
       }
       return affected.length;
     });

@@ -28,6 +28,9 @@ export const TASK_EVENTS = {
   PERSONAL_STAGE_CREATED: 'task.personal_stage_created',
   PERSONAL_STAGE_UPDATED: 'task.personal_stage_updated',
   PERSONAL_STAGE_ARCHIVED: 'task.personal_stage_archived',
+  /** Пересчитан счётчик комментариев (сообщений беседы задачи, #252):
+   *  клиент ставит точное значение без рефеча досок. */
+  COMMENTS_COUNTED: 'task.comments_counted',
 } as const;
 
 export type TaskEventType = (typeof TASK_EVENTS)[keyof typeof TASK_EVENTS];
@@ -111,3 +114,9 @@ export const taskPersonalStageEventPayloadSchema = z.object({
   audience: z.array(z.uuid()),
 });
 export type TaskPersonalStageEventPayload = z.infer<typeof taskPersonalStageEventPayloadSchema>;
+
+/** Счётчик комментариев задачи (#252): точное значение после пересчёта. */
+export const taskCommentsCountedPayloadSchema = taskEventBaseSchema.extend({
+  commentsCount: z.number().int().min(0),
+});
+export type TaskCommentsCountedPayload = z.infer<typeof taskCommentsCountedPayloadSchema>;

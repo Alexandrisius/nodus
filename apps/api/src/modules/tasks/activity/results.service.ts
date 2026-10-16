@@ -56,11 +56,13 @@ export class ResultsService {
     if (!taskAccess(actorRoles(row, user.id), user.permissions).canCheck) {
       throw DomainException.forbidden('Result change not allowed');
     }
-    // Закрепить можно только сообщение, которое автор видит сам (иначе
-    // результат стал бы окном в чужую беседу — находка security-гейта #37;
-    // #252 сузит до беседы самой задачи).
+    // Закрепить можно только видимое автору сообщение ИЗ БЕСЕДЫ САМОЙ
+    // задачи (иначе результат стал бы ссылкой в чужую переписку, видимой
+    // всем, кто видит задачу — security-гейты #37 и #252).
     for (const messageId of new Set(body.messageIds ?? [])) {
-      if (!(await this.messages.snapshot(messageId, user.id))) {
+      const snap = await this.messages.snapshot(messageId, user.id);
+      const discussion = snap ? await this.messages.taskDiscussion(snap.conversationId) : null;
+      if (discussion?.taskId !== taskId) {
         throw DomainException.notFound('Message not found');
       }
     }

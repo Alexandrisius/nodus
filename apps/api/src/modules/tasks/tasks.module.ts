@@ -13,6 +13,11 @@ import { TaskPartsController } from './activity/task-parts.controller.js';
 import { BulkService } from './bulk/bulk.service.js';
 import { CatalogBootstrap } from './catalog/catalog.bootstrap.js';
 import { ChecklistService } from './checklist/checklist.service.js';
+import {
+  TaskCommentDeletedHandler,
+  TaskCommentSentHandler,
+  TaskCommentsCounter,
+} from './events/comments-count.handler.js';
 import { OverdueScanner } from './events/overdue.scanner.js';
 import { ParticipantsService } from './participants/participants.service.js';
 import { PersonalStagesService } from './personal/personal-stages.service.js';
@@ -64,6 +69,10 @@ import { WorkflowRepository } from './workflow/workflow.repository.js';
     HistoryService,
     BulkService,
     OverdueScanner,
+    // Счётчик комментариев = сообщения беседы задачи (#252, события chat.*).
+    TaskCommentsCounter,
+    TaskCommentSentHandler,
+    TaskCommentDeletedHandler,
   ],
 })
 export class TasksModule {}

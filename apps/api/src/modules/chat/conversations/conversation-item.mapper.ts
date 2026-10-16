@@ -1,5 +1,10 @@
 import { Inject, Injectable } from '@nestjs/common';
-import type { ConversationListItem, ConversationPermissions, UserRef } from '@nodus/contracts';
+import type {
+  ConversationListItem,
+  ConversationPermissions,
+  TaskRef,
+  UserRef,
+} from '@nodus/contracts';
 
 import { SignedUrlService } from '../../../core/crypto/signed-url.service.js';
 import {
@@ -7,6 +12,7 @@ import {
   type UserProfileReader,
 } from '../../../core/ports/user-profile.port.js';
 import { parsePermissions } from '../permissions.js';
+import { TASK_CHAT_READER, type TaskChatReader } from '../../tasks/ports/task-chat-reader.port.js';
 import { MessageDtoMapper } from '../messages/message-dto.mapper.js';
 import type { ConversationListRow } from './conversations-list.select.js';
 import type { MemberRow } from './conversations.repository.js';
@@ -30,6 +36,7 @@ export class ConversationItemMapper {
     private readonly messageMapper: MessageDtoMapper,
     private readonly signedUrls: SignedUrlService,
     @Inject(USER_PROFILE_READER) private readonly userProfiles: UserProfileReader,
+    @Inject(TASK_CHAT_READER) private readonly tasks: TaskChatReader,
   ) {}
 
   async toItem(
@@ -61,6 +68,12 @@ export class ConversationItemMapper {
       { viewerId: ctx.viewerId, members: ctx.members, membersByConversation },
     );
     const dtoById = new Map(lastDtos.map((dto) => [dto.id, dto]));
+    // Ссылка на задачу беседы задачи (#252): номер и название — read-порт задач.
+    const taskRefs = new Map<string, TaskRef>(
+      (await this.tasks.refs(rows.flatMap((row) => (row.task_id ? [row.task_id] : [])))).map(
+        (ref) => [ref.id, ref],
+      ),
+    );
     const items: ConversationListItem[] = [];
     for (const row of rows) {
       const members = membersByConversation.get(row.id) ?? [];
@@ -85,7 +98,7 @@ export class ConversationItemMapper {
         visibility: (row.visibility as ConversationListItem['visibility']) ?? null,
         description: row.description,
         project: null,
-        task: null,
+        task: row.task_id ? (taskRefs.get(row.task_id) ?? null) : null,
         letter: null,
         membersPreview: preview,
         // Всего участников, считая зрителя (#186): кнопка «N участников».

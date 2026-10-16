@@ -59,7 +59,13 @@ export function memberRowActions(params: {
   meId: string | null | undefined;
 }): { makeAdmin: boolean; demoteAdmin: boolean; remove: boolean } {
   const { conversation, member, meId } = params;
-  if (member.user.id === meId || member.role === 'owner') {
+  // Чат задачи/письма: состав и роли ведёт сущность (#252) — без команд.
+  if (
+    member.user.id === meId ||
+    member.role === 'owner' ||
+    conversation.type === 'task' ||
+    conversation.type === 'letter'
+  ) {
     return { makeAdmin: false, demoteAdmin: false, remove: false };
   }
   const rank: Record<ConversationMember['role'], number> = { owner: 2, admin: 1, member: 0 };

@@ -1,7 +1,7 @@
 import type { QueryClient } from '@tanstack/react-query';
 import type { RealtimeEnvelope } from '@nodus/contracts';
 
-import { chatKeys } from '../chat/api.js';
+import { cachedConversation, chatKeys } from '../chat/api.js';
 import { favoriteKeys } from '../chat/favorites-api.js';
 import { vaultKeys } from '../chat/vault-api.js';
 import {
@@ -12,6 +12,7 @@ import {
   applySentMessage,
 } from '../chat/ws-apply.js';
 import { notificationsKeys } from '../notifications-keys.js';
+import { bumpCommentsOnce, useCommentsLive } from '../tasks/comments-live.js';
 import { createKeyBatcher, type KeyBatcher } from './invalidation-batcher.js';
 
 /**
@@ -42,6 +43,15 @@ export function createRealtimeInvalidator(queryClient: QueryClient): RealtimeInv
     else batcher.push(chatKeys.pins(conversationId), 'feed');
   }
 
+  /** Сообщение беседы задачи → живой счётчик комментариев (#252): задача
+   *  беседы — из кэшей списка (строка беседы несёт ссылку на задачу). */
+  function bumpTaskComments(payload: Record<string, unknown>, kind: string, by: number): void {
+    const conversationId = typeof payload.conversationId === 'string' ? payload.conversationId : '';
+    const messageId = typeof payload.messageId === 'string' ? payload.messageId : '';
+    const taskId = conversationId ? cachedConversation(queryClient, conversationId)?.task?.id : '';
+    if (taskId && messageId) bumpCommentsOnce(taskId, `${kind}:${messageId}`, by);
+  }
+
   return {
     handle(envelope: RealtimeEnvelope): void {
       const payload = (envelope.payload ?? {}) as Record<string, unknown>;
@@ -53,6 +63,7 @@ export function createRealtimeInvalidator(queryClient: QueryClient): RealtimeInv
           // Локальное применение по seq; дыра/нет DTO — коалесцированный рефеч.
           const applied = applySentMessage(queryClient, payload as never);
           if (!applied) push(conversationId, 'messages');
+          bumpTaskComments(payload, 'sent', 1);
           // Точка «есть новые»/счётчик трэда и превью списка — по окнам.
           push(conversationId, 'states');
           // Витрина #211: новое сообщение могло принести вложения/ссылки.
@@ -76,6 +87,7 @@ export function createRealtimeInvalidator(queryClient: QueryClient): RealtimeInv
         }
         case 'chat.message_edited':
         case 'chat.message_deleted':
+          if (envelope.type === 'chat.message_deleted') bumpTaskComments(payload, 'deleted', -1);
           push(conversationId, 'messages');
           // Витрина #211: правка меняет состав/ссылки, удаление гасит.
           if (conversationId) batcher.push(vaultKeys.all, 'feed');
@@ -84,6 +96,13 @@ export function createRealtimeInvalidator(queryClient: QueryClient): RealtimeInv
           batcher.push(favoriteKeys.all, 'feed');
           if (conversationId) batcher.push(chatKeys.conversations(), 'list');
           return;
+        case 'task.comments_counted': {
+          // Точное значение после серверного пересчёта (#252) — без рефеча досок.
+          if (typeof payload.taskId === 'string' && typeof payload.commentsCount === 'number') {
+            useCommentsLive.getState().setExact(payload.taskId, payload.commentsCount);
+          }
+          return;
+        }
         case 'chat.message_read': {
           // Шторм квитанций (аудит #123): чужое прочтение патчит readBy автора
           // ЛОКАЛЬНО (ws-apply) — без рефеча ленты и БЕЗ инвалидации списка

@@ -1,14 +1,16 @@
-import { useViewerStore } from '../../../shared/files/viewer-store.js';
-import { FileText, History, Link2, Star, X } from 'lucide-react';
+import { ArrowLeft, History, Star, X } from 'lucide-react';
 import { memo, useState } from 'react';
-import type { TaskDetail } from '@nodus/contracts';
+import type { TaskDetail, VaultItemType } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import { NodeLabel } from '@nodus/ui/components/node-label';
 import { cn } from '@nodus/ui/lib/utils';
 
+import { useTaskConversation } from '../../../shared/chat/api.js';
+import { ChatProfilePane } from '../../../shared/chat/chat-profile-pane.js';
+import { ConversationMembersPanel } from '../../../shared/chat/conversation-members.js';
+import { VaultWindow } from '../../../shared/chat/vault-window.js';
 import { formatDateTime } from '../../../shared/lib/format.js';
-import { useTaskMessages } from '../api/tasks-api.js';
 
 function Section({
   icon: Icon,
@@ -33,9 +35,13 @@ function Section({
 /**
  * Выдвижная дополнительная панель «О задаче» — ВТАЛКИВАЮЩАЯ колонка справа
  * (не оверлей: чат и композер остаются доступны, вердикт владельца; плавный
- * пуш — transition-[width] на колонке-обёртке в task-card): файлы и медиа,
- * ссылки, история + избранное. По умолчанию скрыта — обсуждение всегда
- * видно в своей колонке, а свойства достаются по кнопке.
+ * пуш — transition-[width] на колонке-обёртке в task-card). Это ПАНЕЛЬ
+ * БЕСЕДЫ задачи, как у групповых чатов мессенджера (вердикт владельца
+ * 16.10, #252): профиль (аватар, «№ N · название», подпись с числом
+ * участников, «Звук»/«Копировать ссылку»), строка «Участники» с видом
+ * состава (тот же ConversationMembersPanel, состав ведёт задача — без
+ * ручных команд), категории вложений с окном категории (VaultWindow), ниже —
+ * история задачи. По умолчанию скрыта.
  */
 export const TaskAboutDrawer = memo(function TaskAboutDrawer({
   task,
@@ -44,14 +50,13 @@ export const TaskAboutDrawer = memo(function TaskAboutDrawer({
   task: TaskDetail;
   onClose: () => void;
 }) {
-  const { data } = useTaskMessages(task.id);
+  // Вложения задачи = вложения её чата (#252): витрина беседы задачи,
+  // строка беседы — тот же кэш by-task, что у обсуждения.
+  const conversation = useTaskConversation(task.id).data;
+  const conversationId = conversation?.id;
+  const [vaultType, setVaultType] = useState<VaultItemType | null>(null);
+  const [membersOpen, setMembersOpen] = useState(false);
   const [favorite, setFavorite] = useState(false);
-
-  const files = (data?.items ?? []).flatMap((m) => m.attachments);
-  const openViewer = useViewerStore((s) => s.open);
-  const links = [task.description, ...(data?.items ?? []).map((m) => m.text)].flatMap(
-    (text) => text.match(/https?:\/\/\S+/g) ?? [],
-  );
 
   return (
     // Геометрия Битрикс24 (вердикт владельца 15.09.2026): панель —
@@ -59,9 +64,21 @@ export const TaskAboutDrawer = memo(function TaskAboutDrawer({
     // верхняя строка (название слева, избранное и крестик У КРАЯ справа) —
     // на высоте бара, border-b продолжает линию бара; внутренних перегородок
     // нет, единственная вертикаль — структурная левая граница колонки.
-    <aside className="flex h-full w-[22.5rem] flex-col border-l border-border bg-card">
+    <aside className="relative flex h-full w-[22.5rem] flex-col border-l border-border bg-card">
       <div className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-3">
-        <NodeLabel label={ui.tasks.aboutTask} />
+        {membersOpen ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="shrink-0 hover:bg-accent"
+            onClick={() => setMembersOpen(false)}
+            aria-label={ui.common.back}
+            title={ui.common.back}
+          >
+            <ArrowLeft />
+          </Button>
+        ) : null}
+        <NodeLabel label={membersOpen ? ui.chat.membersPanelTitle : ui.tasks.aboutTask} />
         <div className="ml-auto flex shrink-0 items-center gap-1">
           <button
             type="button"
@@ -85,68 +102,46 @@ export const TaskAboutDrawer = memo(function TaskAboutDrawer({
           </Button>
         </div>
       </div>
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
-        <Section icon={FileText} title={ui.chat.filesMedia}>
-          {files.length > 0 ? (
-            files.map((file) => (
-              <button
-                key={file.id}
-                type="button"
-                onClick={() =>
-                  openViewer({
-                    fileId: file.fileId,
-                    name: file.name,
-                    mime: file.mime,
-                    size: file.size,
-                    url: file.url,
-                    previewKind: file.previewKind,
-                    pdfUrl: file.pdfUrl,
-                  })
-                }
-                className="truncate text-left text-sm text-info hover:underline"
-                title={file.name}
-              >
-                {file.name}
-              </button>
-            ))
-          ) : (
-            <span className="text-sm text-muted-foreground">{ui.common.empty}</span>
-          )}
-        </Section>
+      {membersOpen && conversation ? (
+        <ConversationMembersPanel conversation={conversation} onAddMembers={() => {}} />
+      ) : (
+        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
+          {conversationId ? (
+            // Профиль — по контенту: flex-1 панели беседы прижал бы историю к низу.
+            <div className="shrink-0">
+              <ChatProfilePane
+                conversationId={conversationId}
+                conversation={conversation}
+                onOpenVaultType={setVaultType}
+                onOpenMembers={() => setMembersOpen(true)}
+              />
+            </div>
+          ) : null}
 
-        <Section icon={Link2} title={ui.chat.links}>
-          {links.length > 0 ? (
-            links.map((link) => (
-              <a
-                key={link}
-                href={link}
-                target="_blank"
-                rel="noreferrer"
-                className="truncate text-sm text-info hover:underline"
-              >
-                {link}
-              </a>
-            ))
-          ) : (
-            <span className="text-sm text-muted-foreground">{ui.common.empty}</span>
-          )}
-        </Section>
-
-        <Section icon={History} title={ui.tasks.history}>
-          <span className="flex justify-between gap-2 text-sm">
-            <span className="text-muted-foreground">{ui.tasks.created}</span>
-            <span className="shrink-0 font-mono text-label-sm text-muted-foreground">
-              {formatDateTime(task.createdAt)}
+          <Section icon={History} title={ui.tasks.history}>
+            <span className="flex justify-between gap-2 text-sm">
+              <span className="text-muted-foreground">{ui.tasks.created}</span>
+              <span className="shrink-0 font-mono text-label-sm text-muted-foreground">
+                {formatDateTime(task.createdAt)}
+              </span>
             </span>
-          </span>
-          <span className="flex justify-between gap-2 text-sm">
-            <span className="text-muted-foreground">{ui.tasks.updated}</span>
-            <span className="shrink-0 font-mono text-label-sm text-muted-foreground">
-              {formatDateTime(task.updatedAt)}
+            <span className="flex justify-between gap-2 text-sm">
+              <span className="text-muted-foreground">{ui.tasks.updated}</span>
+              <span className="shrink-0 font-mono text-label-sm text-muted-foreground">
+                {formatDateTime(task.updatedAt)}
+              </span>
             </span>
-          </span>
-        </Section>
-      </div>
+          </Section>
+        </div>
+      )}
+      {/* Окно категории витрины — поверх всей панели (канон панели беседы). */}
+      {conversationId ? (
+        <VaultWindow
+          conversationId={conversationId}
+          type={vaultType}
+          onClose={() => setVaultType(null)}
+        />
+      ) : null}
     </aside>
   );
 });

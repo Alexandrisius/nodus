@@ -15,7 +15,7 @@ import { Input } from '@nodus/ui/components/input';
 import { api } from '../../../shared/api-client.js';
 import { useAuthStore } from '../../../shared/auth-store.js';
 import { useUsersList } from '../../../shared/api/users-list.js';
-import { chatKeys } from '../../../shared/chat/api.js';
+import { chatKeys, useScopedConversations } from '../../../shared/chat/api.js';
 import { ChatHostNavigationContext } from '../../../shared/chat/chat-host.js';
 import { ConversationOpenResponder } from '../../../shared/chat/conversation-open-responder.js';
 import { withoutPatronymic } from '../../../shared/lib/format.js';
@@ -66,7 +66,14 @@ export function MessengerBody({
   onOpenThread: (rootId: string) => void;
   onCloseThread: () => void;
 }) {
-  const { data, isLoading } = useConversations();
+  // Общий список (scope=all) — для поиска активной беседы, открытой ссылкой
+  // из другой вкладки; строки вкладки — свой серверный фильтр (#252).
+  const { data } = useConversations();
+  const tabQuery = useScopedConversations(tab === 'tasks' ? 'entities' : 'chats');
+  const tabItems = useMemo(
+    () => tabQuery.data?.pages.flatMap((p) => p.items) ?? [],
+    [tabQuery.data],
+  );
   const meId = useAuthStore((s) => s.user?.id);
   // Локальный поиск по списку бесед (модель Битрикс24: «Найти сотрудника
   // или чат»): подстрока по названию и подписи (последнее сообщение).
@@ -90,13 +97,13 @@ export function MessengerBody({
   const queryClient = useQueryClient();
   const directPeerIds = useMemo(() => {
     const ids = new Set<string>();
-    for (const c of data?.items ?? []) {
+    for (const c of tabItems) {
       if (c.type === 'direct') {
         for (const m of c.membersPreview) ids.add(m.id);
       }
     }
     return ids;
-  }, [data]);
+  }, [tabItems]);
   const peopleMatches = useMemo(() => {
     if (q.length < 2 || tab === 'tasks') return [];
     return (usersData?.items ?? []).filter(
@@ -122,21 +129,18 @@ export function MessengerBody({
     }
   }
 
-  const items = (data?.items ?? [])
-    // Вкладка «Чаты задач и писем» — обсуждения сущностей (задачи + письма);
-    // основная вкладка — люди и каналы (модель v2 корреспонденции, #69).
-    .filter((c) =>
-      tab === 'tasks'
-        ? c.type === 'task' || c.type === 'letter'
-        : c.type !== 'task' && c.type !== 'letter',
-    )
-    .filter(
-      (c) =>
-        !q ||
-        conversationTitle(c, meId).toLowerCase().includes(q) ||
-        conversationSubtitle(c).toLowerCase().includes(q),
-    );
-  const active = data?.items.find((c) => c.id === conversationId);
+  // Вкладка «Чаты задач и писем» — обсуждения сущностей (задачи + письма);
+  // основная вкладка — люди и каналы (модель v2 корреспонденции, #69).
+  // Фильтр типа — серверный (scope, #252).
+  const items = tabItems.filter(
+    (c) =>
+      !q ||
+      conversationTitle(c, meId).toLowerCase().includes(q) ||
+      conversationSubtitle(c).toLowerCase().includes(q),
+  );
+  const active =
+    tabItems.find((c) => c.id === conversationId) ??
+    data?.items.find((c) => c.id === conversationId);
 
   // Внутренняя навигация мессенджера (вердикт 25.09): переход по пересланному
   // ведёт беседу ВНУТРИ хозяина — слайдер из мессенджера не вызывается.
@@ -292,7 +296,10 @@ export function MessengerBody({
           ) : null}
           <ConversationList
             conversations={items}
-            isLoading={isLoading}
+            isLoading={tabQuery.isLoading}
+            hasNextPage={tabQuery.hasNextPage}
+            isFetchingNextPage={tabQuery.isFetchingNextPage}
+            onLoadMore={() => void tabQuery.fetchNextPage()}
             activeId={conversationId}
             emptyLabel={tab === 'tasks' ? ui.chat.taskChatsEmpty : ui.common.empty}
             onSelect={(conversation) => onSelectConversation(conversation.id)}

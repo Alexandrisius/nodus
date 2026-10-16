@@ -1,4 +1,13 @@
-import { Bell, BellOff, FileText, Image as ImageIcon, Link2, Music, Video } from 'lucide-react';
+import {
+  Bell,
+  BellOff,
+  FileText,
+  Image as ImageIcon,
+  Link2,
+  Music,
+  Users,
+  Video,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import type { ConversationListItem, VaultItemType } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
@@ -23,8 +32,12 @@ export function ChatProfilePane({
   conversationId,
   conversation,
   onOpenVaultType,
+  onOpenMembers,
 }: {
   conversationId: string;
+  /** Строка «Участники · N» над категориями (хост без шапки беседы —
+   *  панель «О задаче», #252): открывает вид участников. */
+  onOpenMembers?: () => void;
   /** Беседа из кэша хоста; карточки-хосты могут не передать — берём из списка. */
   conversation?: ConversationListItem;
   onOpenVaultType: (type: VaultItemType) => void;
@@ -72,6 +85,19 @@ export function ChatProfilePane({
         </div>
       ) : null}
       <nav className="flex flex-col gap-0.5" aria-label={ui.chat.panelTitle}>
+        {item && onOpenMembers ? (
+          <button
+            type="button"
+            onClick={onOpenMembers}
+            className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-accent"
+          >
+            <Users className="size-4 shrink-0 text-muted-foreground" strokeWidth={1.75} />
+            <span className="flex-1 truncate text-sm">{ui.chat.membersPanelTitle}</span>
+            <span className="font-mono text-label-sm tabular-nums text-muted-foreground">
+              {item.membersCount}
+            </span>
+          </button>
+        ) : null}
         {(
           [
             ['image', ui.chat.vaultImages, ImageIcon],

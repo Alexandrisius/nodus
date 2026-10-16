@@ -1,9 +1,4 @@
-import type {
-  ChatMessage,
-  ConversationListItem,
-  MessageAttachment,
-  TaskListItem,
-} from '@nodus/contracts';
+import type { ChatMessage, ConversationListItem, MessageAttachment } from '@nodus/contracts';
 import {
   conversationUpdateBodySchema,
   createConversationBodySchema,
@@ -16,9 +11,7 @@ import {
 import { http, HttpResponse } from 'msw';
 
 import { demoConversations, demoMessages } from '../../../../shared/mocks/data/chat.js';
-import { isoIn } from '../../../../shared/mocks/data/dates.js';
-import { demoTasks, personalNew, stageNew, tid } from '../../../../shared/mocks/data/tasks.js';
-import { systemTaskType } from '../../../../shared/mocks/data/task-stages.js';
+import { demoTasks } from '../../../../shared/mocks/data/tasks.js';
 import { demoUserListItems, userRef } from '../../../../shared/mocks/data/users.js';
 import { actorUserRef, getMockActor } from '../../../../shared/mocks/mock-actor.js';
 import { chatMutationHandlers } from './chat-mutation-handlers.js';
@@ -41,20 +34,75 @@ import {
   watchThreadMock,
 } from './chat-mock-state.js';
 
-let chatTaskSeq = 60;
-
 const conversationHandlers = [
   // Политика важных (#177): счётчик попапа молнии. Мок отдаёт полный лимит
   // (NOTIFY_URGENT_DAILY_LIMIT дефолт) — исчерпание демонстрирует живой стек.
   http.get('/api/v1/chat/urgent/policy', () =>
     HttpResponse.json({ remaining: 3, limit: 3, resetAt: null, groupMax: 20 }),
   ),
-  http.get('/api/v1/chat/conversations', () =>
-    HttpResponse.json({
-      items: demoConversations.filter((c) => !hiddenConversations.has(c.id)),
+  /** Вкладки мессенджера (#252): scope=chats — люди и каналы, entities —
+   *  чаты задач и писем, без параметра — всё (пикеры, гейт ленты). */
+  http.get('/api/v1/chat/conversations', ({ request }) => {
+    const scope = new URL(request.url).searchParams.get('scope') ?? 'all';
+    const entity = (c: ConversationListItem) => c.type === 'task' || c.type === 'letter';
+    return HttpResponse.json({
+      items: demoConversations.filter(
+        (c) =>
+          !hiddenConversations.has(c.id) &&
+          (scope === 'all' || (scope === 'entities' ? entity(c) : !entity(c))),
+      ),
       nextCursor: null,
-    }),
-  ),
+    });
+  }),
+
+  /** Чат задачи (#252): find-or-create беседы `type='task'` по задаче;
+   *  состав — постановщик, ответственный и участники задачи. */
+  http.get('/api/v1/chat/conversations/by-task/:taskId', ({ params }) => {
+    const taskId = String(params.taskId);
+    const existing = demoConversations.find((c) => c.type === 'task' && c.task?.id === taskId);
+    if (existing) return HttpResponse.json(existing);
+    const task = demoTasks.find((t) => t.id === taskId);
+    if (!task)
+      return HttpResponse.json(
+        { code: ErrorCode.NOT_FOUND, message: 'Task not found' },
+        { status: 404 },
+      );
+    const members = [task.creator, task.assignee, ...task.participants].filter(
+      (m, i, all): m is NonNullable<typeof m> =>
+        m !== null && all.findIndex((x) => x?.id === m.id) === i,
+    );
+    const conversation: ConversationListItem = {
+      id: crypto.randomUUID(),
+      type: 'task',
+      title: null,
+      avatarUrl: null,
+      myRole: 'member',
+      permissions: {
+        changeInfo: 'admin',
+        addMembers: 'member',
+        removeMembers: 'admin',
+        post: 'member',
+        manageSettings: 'owner',
+      },
+      draft: null,
+      visibility: null,
+      description: null,
+      project: task.project,
+      task: { id: task.id, number: task.number, title: task.title },
+      letter: null,
+      membersPreview: members,
+      membersCount: members.length,
+      lastMessage: null,
+      lastActivityAt: null,
+      unreadCount: 0,
+      myLastReadSeq: 0,
+      pinned: false,
+      muted: false,
+      snoozed: false,
+    };
+    demoConversations.push(conversation);
+    return HttpResponse.json(conversation);
+  }),
 
   /** Личный диалог с сотрудником (карточка сотрудника — чат всегда справа):
    * find-or-create по участнику (идемпотентно); диалог с собой — «заметки
@@ -392,41 +440,6 @@ const conversationHandlers = [
       else hiddenConversations.delete(conversation.id);
     }
     return HttpResponse.json(conversation);
-  }),
-
-  /** Поток Б: сообщение → задача с предзаполненным описанием и ссылкой на переписку. */
-  http.post('/api/v1/chat/conversations/:id/messages/:messageId/to-task', ({ params }) => {
-    const message = demoMessages.find((m) => m.id === params.messageId);
-    if (!message)
-      return HttpResponse.json(
-        { code: 'NOT_FOUND', message: 'Message not found' },
-        { status: 404 },
-      );
-    const conversation = demoConversations.find((c) => c.id === params.id);
-    const task: TaskListItem = {
-      id: tid(chatTaskSeq),
-      number: 300 + chatTaskSeq,
-      title: message.text.slice(0, 80),
-      type: systemTaskType,
-      stage: stageNew,
-      personalStageId: personalNew.id,
-      priority: 'normal',
-      deadline: isoIn(3),
-      creator: actorUserRef(),
-      assignee: actorUserRef(),
-      participants: [message.author],
-      project: conversation?.project ?? null,
-      parentId: null,
-      spentMinutes: 0,
-      commentsCount: 0,
-      checklistDone: 0,
-      checklistTotal: 0,
-      source: 'chat_message',
-      updatedAt: new Date().toISOString(),
-    };
-    chatTaskSeq += 1;
-    demoTasks.unshift(task);
-    return HttpResponse.json(task, { status: 201 });
   }),
 ];
 

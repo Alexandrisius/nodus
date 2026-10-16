@@ -1,5 +1,5 @@
 import { BellOff, Clock, Pin } from 'lucide-react';
-import { Fragment } from 'react';
+import { Fragment, useRef } from 'react';
 import type { ConversationListItem } from '@nodus/contracts';
 import { stripMentionTokens, ui } from '@nodus/contracts';
 import { Empty, EmptyTitle } from '@nodus/ui/components/empty';
@@ -11,6 +11,7 @@ import { useAuthStore } from '../../../shared/auth-store.js';
 import { formatTime, withoutPatronymic } from '../../../shared/lib/format.js';
 import { ConversationAvatar } from '../../../shared/chat/conversation-avatar.js';
 import { useTypingStore } from '../../../shared/socket/typing-store.js';
+import { useInfiniteSentinel } from '../../../shared/views/use-infinite-sentinel.js';
 import { conversationTitle, sortByActivity } from '../lib/conversations.js';
 import { ConversationMenu } from './conversation-menu.js';
 
@@ -80,6 +81,9 @@ export function ConversationList({
   activeId,
   emptyLabel,
   onSelect,
+  hasNextPage,
+  isFetchingNextPage,
+  onLoadMore,
 }: {
   conversations: ConversationListItem[];
   isLoading: boolean;
@@ -87,8 +91,15 @@ export function ConversationList({
   /** Текст пустой вкладки (напр. «Нет активных обсуждений задач»). */
   emptyLabel?: string;
   onSelect: (conversation: ConversationListItem) => void;
+  /** Курсорная подгрузка вкладки (#252): sentinel у дна списка. */
+  hasNextPage?: boolean;
+  isFetchingNextPage?: boolean;
+  onLoadMore?: () => void;
 }) {
   const meId = useAuthStore((s) => s.user?.id);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  useInfiniteSentinel(scrollRef, sentinelRef, { hasNextPage, isFetchingNextPage, onLoadMore });
   // Подъём беседы с черновиком (сортировка) — ТОЛЬКО от серверного draft
   // (вердикт 25.09: во время набора список живёт своей жизнью; беседа
   // поднимается после ухода из чата, когда черновик зафиксирован сервером).
@@ -208,7 +219,11 @@ export function ConversationList({
   }
 
   return (
-    <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto" data-no-scrollbar>
+    <div
+      ref={scrollRef}
+      className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto"
+      data-no-scrollbar
+    >
       {/* overflow-x-hidden: горизонтального скролла в списке быть не должно
           (вертикальный скроллер по CSS Overflow вычисляет вторую ось в auto —
           gotchas); источник переполнения убран (строки без w-full поверх
@@ -255,6 +270,7 @@ export function ConversationList({
           {renderRow(conversation)}
         </Fragment>
       ))}
+      {hasNextPage ? <div ref={sentinelRef} aria-hidden className="h-px" /> : null}
     </div>
   );
 }

@@ -9,6 +9,8 @@ import {
   notificationSummarySchema,
   updateNotificationSettingsBodySchema,
   listNotificationsQuerySchema,
+  readNotificationsBySourceBodySchema,
+  type ReadNotificationsBySourceBody,
   type ListNotificationsQuery,
   type Notification,
   type NotificationDelivery,
@@ -88,6 +90,23 @@ export class NotificationsController {
     patch: UpdateNotificationSettingsBody,
   ): Promise<NotificationSettings> {
     return this.service.updateSettings(user.id, patch);
+  }
+
+  @Post('read-by-source')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Прочитать все свои уведомления сущности (открыта карточка задачи)' })
+  @ApiOkResponse({ standardSchema: z.object({ read: z.number().int() }) })
+  @ApiErrors(400, 401)
+  @ApiIdempotencyKey()
+  async readBySource(
+    @GetUser() user: AuthUser,
+    @Body({
+      schema: readNotificationsBySourceBodySchema,
+      pipes: [new ZodValidationPipe(readNotificationsBySourceBodySchema)],
+    })
+    body: ReadNotificationsBySourceBody,
+  ): Promise<{ read: number }> {
+    return { read: await this.service.readBySource(user.id, body.sourceType, body.sourceId) };
   }
 
   @Post(':id/read')

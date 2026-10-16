@@ -1,5 +1,5 @@
 import { ArrowLeft } from 'lucide-react';
-import { useMemo, useRef, useState, type RefObject } from 'react';
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import type { FavoriteCard, VaultItem, VaultItemType } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
@@ -55,6 +55,22 @@ export function VaultWindow({
   if (type !== null) openedRef.current = type;
   const ready = useFrameReady();
   const opened = openedRef.current;
+  // Esc закрывает ОКНО категории, а не карточку/слайдер под ним (#252):
+  // document-слушатель срабатывает раньше window-слушателя слайдера, тот
+  // пропускает defaultPrevented. Лайтбокс гасит Esc сам (capture), просмотрщик
+  // файла поверх — его Esc.
+  const isOpen = type !== null;
+  useEffect(() => {
+    if (!isOpen) return;
+    function onKey(event: KeyboardEvent) {
+      if (event.key !== 'Escape' || event.defaultPrevented) return;
+      if (useViewerStore.getState().target) return;
+      event.preventDefault();
+      onClose();
+    }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [isOpen, onClose]);
   const cardMode = cards !== undefined && cards !== null;
   const query = useConversationVault(conversationId, openedRef.current ?? 'image', null, !cardMode);
   const cardItems = useMemo(

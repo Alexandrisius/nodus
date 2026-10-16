@@ -6,7 +6,7 @@ import type { ChatMessage, ConversationListItem, MessagePin } from '@nodus/contr
 import { letterMessages, rawLetterConversations } from './chat-letters.js';
 import { channelMessages } from './chat-messages.js';
 import { isoAgo } from './dates.js';
-import { projectRefs, tid } from './tasks.js';
+import { demoTaskMessages, projectRefs, tid } from './tasks.js';
 import { userIds, userRef } from './users.js';
 
 // Реэкспорт cid для потребителей (projects.ts, letters.ts) — исторически
@@ -222,7 +222,12 @@ if (mutedDemo) mutedDemo.muted = true;
 
 /** Единый стор ленты: сообщения каналов/личных/задач + чаты писем
  *  (chat-letters.ts) —ConversationPane и мессенджер читают один массив. */
-export const demoMessages: ChatMessage[] = [...channelMessages, ...letterMessages];
+export const demoMessages: ChatMessage[] = [
+  ...channelMessages,
+  ...letterMessages,
+  // Обсуждение задачи 102 — сообщения её беседы (чат задачи = беседа, #252).
+  ...demoTaskMessages.map((m) => ({ ...m, conversationId: cid(10) })),
+];
 
 for (const conversation of demoConversations) {
   const last = [...demoMessages]

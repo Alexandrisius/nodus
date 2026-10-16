@@ -54,7 +54,7 @@ export class ConversationsService {
 
   async list(
     userId: string,
-    query: ListConversationsQuery,
+    query: Omit<ListConversationsQuery, 'scope'> & { scope?: ListConversationsQuery['scope'] },
   ): Promise<Paginated<ConversationListItem>> {
     let searchTitle: string | undefined;
     let searchUserIds: string[] | undefined;
@@ -71,6 +71,7 @@ export class ConversationsService {
       cursor: cursor as ConversationListCursor | undefined,
       searchTitle,
       searchUserIds,
+      scope: query.scope,
     });
     const hasMore = rows.length > query.limit;
     const page = hasMore ? rows.slice(0, query.limit) : rows;
@@ -258,6 +259,11 @@ export class ConversationsService {
       }
       await this.emitUpdated(tx, conversationId, userId, { avatarChanged: true });
     });
+    return this.getItemOrThrow(conversationId, userId);
+  }
+
+  /** Строка списка беседы для зрителя-участника (by-task, #252). */
+  item(conversationId: string, userId: string): Promise<ConversationListItem> {
     return this.getItemOrThrow(conversationId, userId);
   }
 

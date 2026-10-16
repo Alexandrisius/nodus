@@ -7,7 +7,7 @@ import {
 } from '@nodus/contracts';
 
 import type { MembershipStore } from './membership.ts';
-import { convRoom, userRoom } from './rooms.ts';
+import { convRoom, revokeConvRoom, userRoom } from './rooms.ts';
 
 /** Consumer group gateway в стриме событий чата. */
 const CONSUMER_GROUP = 'nodus:gateway';
@@ -90,6 +90,8 @@ export async function routeEnvelope(
     }
     if (typeof payload.userId === 'string') {
       io.to(userRoom(payload.userId)).emit(envelope.type, envelope);
+      // Событие доставлено — выводим его сокеты из комнаты беседы (#252).
+      if (conversationId) await revokeConvRoom(io, payload.userId, conversationId);
     }
     return;
   }

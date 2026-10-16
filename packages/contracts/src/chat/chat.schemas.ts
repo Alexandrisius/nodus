@@ -388,6 +388,9 @@ export type CreateConversationBody = z.infer<typeof createConversationBodySchema
 
 export const listConversationsQuerySchema = cursorQuerySchema.extend({
   search: z.string().trim().min(1).max(128).optional(),
+  /** Вкладка мессенджера (#252): chats — люди и каналы, entities — «Чаты
+   *  задач и писем» (своя серверная пагинация); all — всё (пикеры). */
+  scope: z.enum(['all', 'chats', 'entities']).default('all'),
 });
 
 export type ListConversationsQuery = z.infer<typeof listConversationsQuerySchema>;

@@ -18,7 +18,10 @@ function states(roots: string[]) {
   return { items: roots.map((r) => ({ threadRootId: r, watched: true, unreadCount: 0 })) };
 }
 
-function queryClient(cached: ReturnType<typeof states> | undefined, fetched?: ReturnType<typeof states> | Error) {
+function queryClient(
+  cached: ReturnType<typeof states> | undefined,
+  fetched?: ReturnType<typeof states> | Error,
+) {
   return {
     getQueryData: () => cached,
     fetchQuery: vi.fn(async () => {

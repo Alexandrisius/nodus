@@ -1,4 +1,5 @@
 import {
+  BadgeCheck,
   CheckSquare,
   Copy,
   Eye,
@@ -26,12 +27,13 @@ import {
   ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from '@nodus/ui/components/context-menu';
+import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
 import { openCardViaBridge } from '../lib/card-bridge.js';
 import { shortPersonName } from '../lib/format.js';
 import { PersonAvatar } from '../ui/person-avatar.js';
-import { useMessageToTask } from './api.js';
+import { cachedConversation, useMarkMessageAsResult, useMessageToTask } from './api.js';
 import { useChatDrafts } from './chat-drafts.js';
 import { startMessageEdit } from './message-edit.js';
 import { focusComposerWhenFree } from './composer-focus.js';
@@ -115,6 +117,8 @@ export function MessageMenu({
   children: ReactNode;
 }) {
   const toTask = useMessageToTask();
+  const markResult = useMarkMessageAsResult();
+  const queryClient = useQueryClient();
   const pinToggle = usePinToggle(conversationId);
   const favoriteIds = useFavoriteIds();
   const addFavorites = useAddFavorites();
@@ -292,12 +296,24 @@ export function MessageMenu({
         label: ui.chat.menu.createTask,
         disabled: pending,
         run: () => {
-          toTask.mutate(
-            { conversationId, messageId: message.id },
-            { onSuccess: (task) => openCardViaBridge({ kind: 'task', id: task.id }) },
-          );
+          toTask.mutate(message, {
+            onSuccess: (task) => openCardViaBridge({ kind: 'task', id: task.id }),
+          });
         },
       },
+    );
+    // Чат задачи (#252): сообщение можно сделать результатом задачи.
+    const taskId = cachedConversation(queryClient, conversationId)?.task?.id;
+    if (taskId) {
+      items.push({
+        id: 'markResult',
+        icon: BadgeCheck,
+        label: ui.chat.menu.markResult,
+        disabled: pending,
+        run: () => markResult.mutate({ taskId, message }),
+      });
+    }
+    items.push(
       {
         id: 'pin',
         icon: Pin,

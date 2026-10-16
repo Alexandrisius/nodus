@@ -73,11 +73,18 @@ export function ConversationPane({
   showAuthor = true,
   composerPlaceholder = ui.chat.newMessage,
   emptyLabel = ui.chat.directEmpty,
+  conversation,
+  composerClassName,
 }: {
   conversationId: string;
   showAuthor?: boolean;
   composerPlaceholder?: string;
   emptyLabel?: string;
+  /** Геометрия композера хоста (карточка задачи: высота покоя = бар действий). */
+  composerClassName?: string;
+  /** Строка беседы от find-or-create хоста (чат задачи, личка): якорь
+   *  непрочитанных и черновик, когда беседы нет в первой странице списка. */
+  conversation?: ConversationListItem;
 }) {
   return (
     <div className="flex h-full min-w-0 flex-1 flex-col">
@@ -90,6 +97,8 @@ export function ConversationPane({
         showAuthor={showAuthor}
         composerPlaceholder={composerPlaceholder}
         emptyLabel={emptyLabel}
+        fallback={conversation}
+        composerClassName={composerClassName}
       />
     </div>
   );
@@ -105,19 +114,26 @@ function ConversationBody({
   showAuthor,
   composerPlaceholder,
   emptyLabel,
+  fallback,
+  composerClassName,
 }: {
   conversationId: string;
   showAuthor: boolean;
   composerPlaceholder: string;
   emptyLabel: string;
+  fallback?: ConversationListItem;
+  composerClassName?: string;
 }) {
   const listQuery = useConversations();
-  const conversation = listQuery.data?.items.find((c) => c.id === conversationId) ?? null;
+  const conversation =
+    listQuery.data?.items.find((c) => c.id === conversationId) ?? fallback ?? null;
 
   // Гейт открытия (раунд 4): решение об якоре требует myLastReadSeq — до
   // разрешения списка лента стоит на скелетоне и НЕ открывается в низ.
+  // Строка от хоста (fallback) уже несёт myLastReadSeq — гейт не нужен.
   const [gateTimedOut, setGateTimedOut] = useState(false);
-  const gatePending = listQuery.data === undefined && !listQuery.isError && !gateTimedOut;
+  const gatePending =
+    !fallback && listQuery.data === undefined && !listQuery.isError && !gateTimedOut;
   useEffect(() => {
     if (!gatePending) return;
     const t = window.setTimeout(() => setGateTimedOut(true), LIST_GATE_TIMEOUT_MS);
@@ -134,6 +150,7 @@ function ConversationBody({
       showAuthor={showAuthor}
       composerPlaceholder={composerPlaceholder}
       emptyLabel={emptyLabel}
+      composerClassName={composerClassName}
     />
   );
 }
@@ -152,12 +169,14 @@ function ConversationFeed({
   showAuthor,
   composerPlaceholder,
   emptyLabel,
+  composerClassName,
 }: {
   conversationId: string;
   conversation: ConversationListItem | null;
   showAuthor: boolean;
   composerPlaceholder: string;
   emptyLabel: string;
+  composerClassName?: string;
 }) {
   const scope = `conversation:${conversationId}`;
 
@@ -437,6 +456,7 @@ function ConversationFeed({
         onEditLast={handleEditLast}
         selection={selectionComposerProps(conversationId, selection)}
         onSubmit={handleSubmit}
+        className={composerClassName}
       />
     </>
   );

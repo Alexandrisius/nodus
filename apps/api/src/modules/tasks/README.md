@@ -7,7 +7,7 @@
 - `TaskType` — глобальный справочник типов (ступень 1 — один системный `task` «Задача»; `structural` — задел узлов дерева проекта).
 - `Workflow` (`kind: task | personal`) → `WorkflowStage` (стадия = колонка, `systemState`, архивация вместо удаления) + `WorkflowTransition` (`fromStageId` null = из любой; `rules` — `conditions` / `validators` / `postFunctions` закрытого реестра `@nodus/contracts`).
 - `WorkflowScheme` + `WorkflowSchemeEntry` — «тип → маршрут»; системная схема по умолчанию для задач без проекта.
-- `Task` хранит `typeId + workflowId + stageId` и денормализует `systemState`, `spentMinutes`, `checklistDone/Total`, `commentsCount` в той же транзакции.
+- `Task` хранит `typeId + workflowId + stageId` и денормализует `systemState`, `spentMinutes`, `checklistDone/Total` в той же транзакции; `commentsCount` — пересчётом по событиям `chat.message_sent|message_deleted` (`events/comments-count.handler.ts`, read-порт чата, #252).
 - `TaskParticipant` (coexecutor | observer), `TaskPersonalPlacement` («Мой план»), `TaskChecklistItem`, `TaskRelation`, `TimeEntry`, `TaskResult`.
 - Ключи порядка (`stage_order`, `sort_order`) — fractional-index base62 (`lib/fractional-index.ts`), колонки `COLLATE "C"`; keyset `(order, id)`.
 

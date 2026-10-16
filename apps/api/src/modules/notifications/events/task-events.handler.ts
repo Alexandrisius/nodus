@@ -62,6 +62,7 @@ class TaskNotificationWriter {
               priority: row.priority,
               kind: row.kind,
               sourceId: row.source_id,
+              sourceType: 'task',
               conversationId: null,
               conversationTitle: null,
               messageId: null,

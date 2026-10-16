@@ -547,7 +547,14 @@ MAX_RATIO 0.66, `shared/ui/use-chat-width.ts`; при открытой пане�
   карточки сотрудника; диалог с собой — «заметки для себя»),
   `GET|POST /chat/conversations/:id/messages` (+`?threadRootId=` — корень
   первым, POST в тред инкрементирует счётчик корня),
-  `POST /chat/conversations/:id/messages/:messageId/to-task`.
+  `GET /chat/conversations?scope=chats|entities` (вкладки «Чаты» / «Чаты
+  задач и писем» — серверный фильтр типа и своя курсорная подгрузка,
+  `useScopedConversations` + sentinel списка, #252),
+  `GET /chat/conversations/by-task/:taskId` (find-or-create беседы задачи —
+  обсуждение карточки задачи, `useTaskConversation`). «В задачу» —
+  `POST /tasks` с `sourceMessageId` (`useMessageToTask`); «Отметить как
+  результат» (только в беседе задачи) — `POST /tasks/:id/results` с
+  `messageIds` (`useMarkMessageAsResult`).
 - В фиче остаются: список бесед (`components/conversation-list.tsx`),
   заголовки/подзаголовки/сортировка по активности (`lib/conversations.ts`),
   `useConversations`, тело мессенджера (`components/messenger-body.tsx`) и

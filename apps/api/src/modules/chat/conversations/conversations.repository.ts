@@ -35,6 +35,9 @@ interface ListOpts {
   cursor?: ConversationListCursor;
   searchTitle?: string;
   searchUserIds?: string[];
+  /** Вкладка мессенджера (#252): chats — люди и каналы, entities — чаты
+   *  задач и писем; all — без фильтра (пикеры, пересылка). */
+  scope?: 'all' | 'chats' | 'entities';
 }
 
 // >300 строк — обоснование (I5): один репозиторий на агрегат (канон skills/database-repository-pattern);
@@ -70,6 +73,11 @@ export class ConversationsRepository {
             AND sm.user_id = ANY(${searchUserIds}::uuid[])
         )
       )`);
+    }
+    if (opts.scope === 'entities') {
+      conditions.push(Prisma.sql`c.type IN ('task', 'letter')`);
+    } else if (opts.scope === 'chats') {
+      conditions.push(Prisma.sql`c.type NOT IN ('task', 'letter')`);
     }
     if (opts.cursor) {
       // NULLS LAST через infinity-сентинел: сравнение строк корректно для NULL.

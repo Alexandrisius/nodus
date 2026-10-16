@@ -16,6 +16,7 @@ import {
   MIN_CHAT_W,
 } from '../../../shared/ui/use-chat-width.js';
 import { uiPx } from '../../../shared/ui/ui-scale.js';
+import { useReadEntityNotifications } from '../../../shared/api/read-entity-notifications.js';
 import { useAddSubtask, useTaskDetail } from '../api/tasks-api.js';
 import { TaskAboutDrawer } from './task-about-drawer.js';
 import { TaskBranchDrawer } from './task-branch-drawer.js';
@@ -53,6 +54,8 @@ const BRANCH_W = uiPx(300);
  */
 export function TaskCard({ taskId }: { taskId: string }) {
   const { data: task, isLoading } = useTaskDetail(taskId);
+  // Открыл задачу — её уведомления прочитаны (#252: «Требуют внимания» не вечные).
+  useReadEntityNotifications('task', taskId);
   const addSubtask = useAddSubtask(taskId);
   const openCard = useOpenCard();
   const [subtaskTitle, setSubtaskTitle] = useState('');

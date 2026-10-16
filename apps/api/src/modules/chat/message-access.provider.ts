@@ -32,4 +32,16 @@ export class MessageAccessProvider implements ChatMessageAccess {
       excerpt: text.length > EXCERPT_MAX ? `${text.slice(0, EXCERPT_MAX - 1)}…` : text,
     };
   }
+
+  async taskDiscussion(conversationId: string): Promise<{ taskId: string; count: number } | null> {
+    const rows = await this.prisma.$queryRaw<{ task_id: string; count: number }[]>(Prisma.sql`
+      SELECT c.task_id,
+        (SELECT count(*)::int FROM messages m
+          WHERE m.conversation_id = c.id AND m.deleted_at IS NULL AND NOT m.obliterated) AS count
+      FROM conversations c
+      WHERE c.id = ${conversationId}::uuid AND c.type = 'task' AND c.task_id IS NOT NULL
+    `);
+    const row = rows[0];
+    return row ? { taskId: row.task_id, count: row.count } : null;
+  }
 }

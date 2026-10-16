@@ -1,5 +1,4 @@
 import type {
-  ChatMessage,
   Paginated,
   TaskBranch,
   TaskBranchNode,
@@ -11,6 +10,7 @@ import {
   createTaskBodySchema,
   personalStageCreateBodySchema,
   personalStageUpdateBodySchema,
+  taskParticipantAddBodySchema,
   taskUpdateBodySchema,
 } from '@nodus/contracts';
 
@@ -21,7 +21,6 @@ import {
   deletePersonalStagePure,
   demoPersonalStages,
   demoSubtasks,
-  demoTaskMessages,
   demoTasks,
   detailsExtra,
   globalStageForPersonal,
@@ -293,13 +292,6 @@ export const tasksHandlers = [
     HttpResponse.json({ items: [], nextCursor: null } satisfies Paginated<TaskRelation>),
   ),
 
-  http.get('/api/v1/tasks/:id/messages', ({ params }) =>
-    HttpResponse.json({
-      items: demoTaskMessages.filter((m) => m.conversationId === params.id),
-      nextCursor: null,
-    }),
-  ),
-
   http.post('/api/v1/tasks/:id/subtasks', async ({ params, request }) => {
     const parent = demoTasks.find((t) => t.id === params.id);
     if (!parent) return notFound('Task not found');
@@ -319,6 +311,15 @@ export const tasksHandlers = [
         { status: 422 },
       );
 
+    // Правка полей без переноса (смена ответственного из карточки).
+    if (!parsed.data.stageId && !parsed.data.personalStageId) {
+      if (parsed.data.assigneeId) {
+        task.assignee = userRef(parsed.data.assigneeId);
+        task.participants = task.participants.filter((p) => p.id !== parsed.data.assigneeId);
+      }
+      task.updatedAt = new Date().toISOString();
+      return HttpResponse.json(task);
+    }
     // Перенос по личной оси («Мой план»): глобальная стадия не трогается.
     const columnId = parsed.data.personalStageId ?? parsed.data.stageId;
     const column = parsed.data.personalStageId
@@ -357,38 +358,38 @@ export const tasksHandlers = [
     return HttpResponse.json(task);
   }),
 
-  http.post('/api/v1/tasks/:id/messages', async ({ params, request }) => {
-    const { text } = (await request.json()) as { text: string };
-    const seq =
-      Math.max(
-        0,
-        ...demoTaskMessages.filter((m) => m.conversationId === params.id).map((m) => m.seq),
-      ) + 1;
-    const message: ChatMessage = {
-      id: crypto.randomUUID(),
-      conversationId: String(params.id),
-      seq,
-      clientMessageId: crypto.randomUUID(),
-      author: userRef(currentAuthUser.id),
-      text,
-      replyToId: null,
-      reply: null,
-      deletedAt: null,
-      pinned: false,
-      forwardedFrom: null,
-      threadRootId: null,
-      threadRepliesCount: 0,
-      reactions: [],
-      attachments: [],
-      editedAt: null,
-      readAt: null,
-      readBy: [],
-      urgent: false,
-      mentionedUserIds: [],
-      linkPreview: null,
-      createdAt: new Date().toISOString(),
-    };
-    demoTaskMessages.push(message);
-    return HttpResponse.json(message, { status: 201 });
+  /** Участники (#252/#311): соисполнитель — в `participants`, наблюдатель —
+   *  в `observers` детали; повторное добавление меняет роль. */
+  http.post('/api/v1/tasks/:id/participants', async ({ params, request }) => {
+    const task = demoTasks.find((t) => t.id === params.id);
+    if (!task) return notFound('Task not found');
+    const parsed = taskParticipantAddBodySchema.safeParse(await request.json());
+    if (!parsed.success || parsed.data.userId === task.assignee?.id)
+      return HttpResponse.json(
+        { code: ErrorCode.VALIDATION_FAILED, message: 'Invalid body' },
+        { status: 400 },
+      );
+    const extra = (detailsExtra[task.id] ??= {
+      description: taskDetailOf(task).description,
+      observers: [],
+      checklist: [],
+      createdAt: task.updatedAt,
+    });
+    const { userId, role } = parsed.data;
+    task.participants = task.participants.filter((p) => p.id !== userId);
+    extra.observers = extra.observers.filter((p) => p.id !== userId);
+    if (role === 'coexecutor') task.participants.push(userRef(userId));
+    else extra.observers.push(userRef(userId));
+    return HttpResponse.json(taskDetailOf(task), { status: 201 });
+  }),
+
+  http.delete('/api/v1/tasks/:id/participants/:userId', ({ params }) => {
+    const task = demoTasks.find((t) => t.id === params.id);
+    if (!task) return notFound('Task not found');
+    const userId = String(params.userId);
+    task.participants = task.participants.filter((p) => p.id !== userId);
+    const extra = detailsExtra[task.id];
+    if (extra) extra.observers = extra.observers.filter((p) => p.id !== userId);
+    return HttpResponse.json(taskDetailOf(task));
   }),
 ];

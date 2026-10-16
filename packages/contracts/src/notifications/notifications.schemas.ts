@@ -48,6 +48,13 @@ export const notificationSourceSchema = z.enum([
 ]);
 export type NotificationSource = z.infer<typeof notificationSourceSchema>;
 
+/** Прочитать все уведомления сущности (открыта карточка задачи, #252). */
+export const readNotificationsBySourceBodySchema = z.object({
+  sourceType: z.enum(['task', 'letter']),
+  sourceId: z.uuid(),
+});
+export type ReadNotificationsBySourceBody = z.infer<typeof readNotificationsBySourceBodySchema>;
+
 /** Строка журнала уведомлений (единая выдача ленты Главной, колокольчика и дельты). */
 export const notificationSchema = z.object({
   id: z.uuid(),

@@ -237,6 +237,38 @@ export class NotificationsRepository {
     return rows.map((r) => r.user_id);
   }
 
+  /** Прочтение всех уведомлений сущности у пользователя (#252). */
+  async readByEntity(
+    userId: string,
+    sourceType: string,
+    sourceId: string,
+    tx?: TransactionClient,
+  ): Promise<number> {
+    const client = tx ?? this.prisma;
+    return client.$executeRaw(Prisma.sql`
+      UPDATE notifications SET read_at = now()
+      WHERE user_id = ${userId}::uuid AND source_type = ${sourceType}
+        AND source_id = ${sourceId}::uuid AND read_at IS NULL
+    `);
+  }
+
+  /** Чистка журнала по удалённому источнику-сущности (задача, #252): у
+   *  удалённой задачи открыть нечего — строки удаляются у всех получателей
+   *  (канон чистки удалённых сообщений #267). */
+  async deleteBySource(
+    sourceType: string,
+    sourceId: string,
+    tx?: TransactionClient,
+  ): Promise<string[]> {
+    const client = tx ?? this.prisma;
+    const rows = await client.$queryRaw<{ user_id: string }[]>(Prisma.sql`
+      DELETE FROM notifications
+      WHERE source_type = ${sourceType} AND source_id = ${sourceId}::uuid
+      RETURNING user_id
+    `);
+    return rows.map((r) => r.user_id);
+  }
+
   /** Стоп повторов важного (прочтение/ответ/реакция — «увидел где угодно»,
    *  C2/C3; ack-механика выпилена, ревизия модели 05.10). */
   async stopRepeats(
