@@ -1,4 +1,4 @@
-import { ListChecks, Plus } from 'lucide-react';
+import { ListChecks, Plus, Settings2 } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
@@ -187,6 +187,18 @@ export function TaskQuickCreate({
                       {t.name}
                     </SelectItem>
                   ))}
+                  {/* Задел модуля workflow (ступень 2, ADR-0020): настройка
+                      типов и маршрутов откроется отсюда; до редактора — видимая
+                      неактивная команда «скоро» (решение владельца 16.10). */}
+                  <SelectItem
+                    value="__configure"
+                    disabled
+                    className="mt-1 py-1.5 pr-2 *:[span]:last:w-full"
+                  >
+                    <Settings2 className="size-3.5 text-muted-foreground" strokeWidth={1.75} />
+                    {ui.tasks.configureTypes}
+                    <span className="ml-auto text-xs text-muted-foreground">{ui.tasks.soon}</span>
+                  </SelectItem>
                 </SelectContent>
               </Select>
               <NodeLabel label={ui.tasks.assignee} />
