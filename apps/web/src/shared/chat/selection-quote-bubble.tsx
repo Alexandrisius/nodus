@@ -2,13 +2,17 @@ import { Quote } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { Paginated } from '@nodus/contracts';
-import type { ChatMessage } from '@nodus/contracts';
+import type { ChatMessage, FavoriteCard } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, type InfiniteData, type QueryClient } from '@tanstack/react-query';
 
 import { chatKeys } from './api.js';
 import { useChatDrafts } from './chat-drafts.js';
+import { useConversationOpenStore } from './conversation-open-store.js';
+import { toFavoriteMessage } from './favorite-message.js';
+import { favoriteKeys } from './favorites-api.js';
 import { focusComposer } from './composer-focus.js';
+import { useJumpStore } from './jump-store.js';
 
 /**
  * Баббл-цитата над выделением (вердикт 24.09: модель Bitrix24 — выделил текст
@@ -20,6 +24,11 @@ import { focusComposer } from './composer-focus.js';
  * выделение в одном сообщении (anchor и focus в одном контейнере), пусто/
  * свёрнуто — баббл гаснет; скролл и клик мимо — гаснет; selectionchange во
  * время протяжки не рисует баббл раньше mouseup (канон Bitrix: после отжатия).
+ *
+ * Карточка избранного (#306): триггер FavoriteMenu несёт только
+ * data-chat-message + data-favorite-card (scope исходного чата у него нет) —
+ * клик = «Показать в чате» + ответ: снапшот строится из САМОЙ карточки
+ * (кэш ленты-источника не нужен), прыжок и открытие чата — через сторы.
  */
 
 const MESSAGE_SELECTOR = '[data-chat-message]';
@@ -30,6 +39,8 @@ interface BubbleState {
   scope: string;
   conversationId: string;
   messageId: string;
+  /** Выделение на карточке избранного — путь карточки (#306). */
+  favoriteCard: boolean;
 }
 
 function containerOf(node: Node | null): Element | null {
@@ -72,6 +83,7 @@ export function SelectionQuoteBubble() {
         scope: container.getAttribute('data-chat-scope') ?? '',
         conversationId: container.getAttribute('data-chat-conversation') ?? '',
         messageId: container.getAttribute('data-chat-message') ?? '',
+        favoriteCard: container.hasAttribute('data-favorite-card'),
       });
     }
 
@@ -111,7 +123,12 @@ export function SelectionQuoteBubble() {
     const fragment = window.getSelection()?.toString().trim() ?? '';
     window.getSelection()?.removeAllRanges();
     setBubble(null);
-    if (fragment.length === 0 || bubble.scope.length === 0) return;
+    if (fragment.length === 0) return;
+    if (bubble.favoriteCard) {
+      applyFavoriteCardQuote(queryClient, bubble.messageId, fragment);
+      return;
+    }
+    if (bubble.scope.length === 0) return;
     const cached = queryClient.getQueryData<Paginated<ChatMessage>>(
       chatKeys.messages(bubble.conversationId),
     );
@@ -136,4 +153,42 @@ export function SelectionQuoteBubble() {
     </button>,
     document.body,
   );
+}
+
+/**
+ * Цитата с карточки избранного (#306): карточка ищется в кэшах списка
+ * (витрина её уже отрисовала — данные гарантированно здесь), снапшот ответа
+ * строится из САМОЙ карточки (toFavoriteMessage — кэш ленты-источника не
+ * нужен), дальше как «Показать в чате»: прыжок к оригиналу + открытие
+ * беседы/окна треда; композер целевого scope подхватит черновик ответа на
+ * маунте. Удалённая/затёртая карточка и карточка вне кэшей — тихий no-op.
+ */
+export function applyFavoriteCardQuote(
+  queryClient: QueryClient,
+  messageId: string,
+  fragment: string,
+): void {
+  if (fragment.length === 0) return;
+  const caches = queryClient.getQueriesData<InfiniteData<Paginated<FavoriteCard>>>({
+    queryKey: favoriteKeys.all,
+  });
+  for (const [, data] of caches) {
+    // Префикс favoriteKeys.all накрывает и не-страничный labels-запрос —
+    // пропускаем (инцидент #171: .pages нет, падало TypeError'ом).
+    if (!data || !Array.isArray(data.pages)) continue;
+    const card = data.pages.flatMap((page) => page.items).find((c) => c.messageId === messageId);
+    if (!card) continue;
+    if (card.deletedAt || card.obliterated) return;
+    const scope = card.threadRootId
+      ? `thread:${card.threadRootId}`
+      : `conversation:${card.conversationId}`;
+    // threadRootId витрина зануляет в псевдо-сообщении (плоский поток) —
+    // возвращаем: replyDraftFrom пишет из него inThread (прыжок по цитате
+    // ответа должен открывать окно треда, а не ленту канала).
+    const message = { ...toFavoriteMessage(card), threadRootId: card.threadRootId ?? null };
+    useChatDrafts.getState().setReply(scope, message, fragment);
+    useJumpStore.getState().request(card.conversationId, card.messageId, card.threadRootId);
+    useConversationOpenStore.getState().open(card.conversationId, card.threadRootId ?? null);
+    return;
+  }
 }
