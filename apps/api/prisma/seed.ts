@@ -38,6 +38,9 @@ const ALL_PERMISSIONS = [
   'core.admin',
   'task.create',
   'task.assign',
+  'task.view_all',
+  'task.manage_any',
+  'task.override_gate',
   'directory.read',
   'directory.manage',
   'user.manage',
@@ -301,6 +304,14 @@ async function main(): Promise<void> {
     update: {},
     create: { key: 'chat', enabled: true },
   });
+  // Модуль задач (#37): маршруты и тип сеет бутстрап api (системный каталог
+  // ADR-0020), здесь — только флаг. Веб ходит в моки, пока домен tasks в
+  // VITE_API_MOCK (#311 переключает).
+  await prisma.featureFlag.upsert({
+    where: { key: 'tasks' },
+    update: {},
+    create: { key: 'tasks', enabled: true },
+  });
 
   // Канал новостей компании (Ф4; вердикт 24.09: «Новости» — КАНАЛ, публикация
   // post=admin, обсуждение в тредах всем). Участники — админ + пилотная группа.
@@ -385,6 +396,7 @@ async function main(): Promise<void> {
   const departments = await prisma.department.count();
   console.log(`Seed OK: ${users} пользователей, ${departments} подразделений`);
   console.log('Чат: флаг chat включён; канал «Новости компании» с приветствием пилоту');
+  console.log('Задачи: флаг tasks включён (каталог маршрутов создаёт api при старте)');
   if (createdCredentials.length > 0) {
     console.log(
       '--- Созданные учётки (пароли показать один раз, передать лично; смена при первом входе) ---',

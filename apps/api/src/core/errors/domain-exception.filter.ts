@@ -28,6 +28,13 @@ const CODE_TO_STATUS: Record<ErrorCode, number> = {
   [ErrorCode.DIRECTORY_EMAIL_TAKEN]: HttpStatus.CONFLICT,
   // Удаление единственной личной стадии «Моего плана» — конфликт состояния.
   [ErrorCode.TASK_LAST_STAGE]: HttpStatus.CONFLICT,
+  // Маршрут задачи (ADR-0020): переход недоступен / гейт не пройден — конфликт
+  // состояния (запрос корректен, задача сейчас так не ходит).
+  [ErrorCode.TASK_TRANSITION_NOT_ALLOWED]: HttpStatus.CONFLICT,
+  [ErrorCode.TASK_TRANSITION_BLOCKED]: HttpStatus.CONFLICT,
+  [ErrorCode.TASK_OVERRIDE_REASON_REQUIRED]: HttpStatus.BAD_REQUEST,
+  [ErrorCode.TASK_PARENT_CYCLE]: HttpStatus.CONFLICT,
+  [ErrorCode.TASK_TIMER_NOT_RUNNING]: HttpStatus.CONFLICT,
   // Вложения (#57, ADR-0013): лимит файла чата — 413; переполнение трея и
   // несовпадение размера — 400; карантин — 410 (файл был, больше не отдаётся).
   [ErrorCode.CHAT_ATTACHMENT_TOO_LARGE]: HttpStatus.PAYLOAD_TOO_LARGE,

@@ -54,3 +54,10 @@ export const demoStages: TaskStage[] = [
   stageDone,
   stagePostponed,
 ];
+
+/** Системный тип задачи (ADR-0020: ступень 1 — единственный «Задача»). */
+export const systemTaskType = {
+  id: '20000000-0000-4000-8000-000000000900',
+  code: 'task',
+  name: 'Задача',
+} as const;

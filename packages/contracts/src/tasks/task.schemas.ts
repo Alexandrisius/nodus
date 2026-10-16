@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { userRefSchema } from '../directory/user-ref.schema.js';
 import { cursorQuerySchema } from '../pagination/paginated.schema.js';
 import { projectColorSchema } from '../projects/project.schemas.js';
+import { taskTypeRefSchema } from './workflow.schemas.js';
 
 /**
  * Контракты модуля задач (tasks.Task). Системное состояние — скрытое (I15),
@@ -66,6 +67,8 @@ export const taskListItemSchema = z.object({
   id: z.uuid(),
   number: z.number().int().min(1),
   title: z.string().min(1),
+  /** Тип задачи (ADR-0020); ступень 1 — один системный «Задача». */
+  type: taskTypeRefSchema,
   stage: taskStageSchema,
   /** Размещение на личной доске «Мой план» текущего пользователя
    *  (TaskPersonalPlacement, ADR-0008); null — ещё не раскладывалась. */
@@ -74,6 +77,7 @@ export const taskListItemSchema = z.object({
   deadline: z.iso.datetime().nullable(),
   creator: userRefSchema,
   assignee: userRefSchema.nullable(),
+  /** Соисполнители (TaskParticipant role=coexecutor). */
   participants: z.array(userRefSchema),
   project: projectRefSchema.nullable(),
   /** Родительская задача (вложенность: граф уровней в списке). */
@@ -112,6 +116,38 @@ export const taskChainNodeSchema = z.object({
 
 export type TaskChainNode = z.infer<typeof taskChainNodeSchema>;
 
+/** Что текущий пользователь может делать с задачей (сервер — истина, I8;
+ *  UI прячет недоступные действия). */
+export const taskAccessSchema = z.object({
+  /** Правка полей (название, описание, срок, приоритет, план). */
+  canEdit: z.boolean(),
+  /** Смена ответственного, соисполнителей и наблюдателей. */
+  canManageParticipants: z.boolean(),
+  /** Запись времени и таймер. */
+  canLogTime: z.boolean(),
+  /** Отметка пунктов чек-листа (соисполнители — тоже). */
+  canCheck: z.boolean(),
+  canDelete: z.boolean(),
+});
+export type TaskAccess = z.infer<typeof taskAccessSchema>;
+
+/** Ревизия результата задачи (append-only; текущий результат — последняя). */
+export const taskResultSchema = z.object({
+  id: z.uuid(),
+  text: z.string(),
+  /** Закреплённые сообщения чата задачи как часть результата. */
+  messageIds: z.array(z.uuid()),
+  author: userRefSchema,
+  createdAt: z.iso.datetime(),
+});
+export type TaskResult = z.infer<typeof taskResultSchema>;
+
+export const taskResultCreateBodySchema = z.object({
+  text: z.string().trim().max(5000),
+  messageIds: z.array(z.uuid()).max(50).optional(),
+});
+export type TaskResultCreateBody = z.infer<typeof taskResultCreateBodySchema>;
+
 export const taskDetailSchema = taskListItemSchema.extend({
   description: z.string(),
   observers: z.array(userRefSchema),
@@ -119,6 +155,14 @@ export const taskDetailSchema = taskListItemSchema.extend({
   subtasks: z.array(taskListItemSchema),
   /** Доменная цепочка происхождения; последний узел — текущая задача. */
   chain: z.array(taskChainNodeSchema),
+  /** Плановое время, минуты. */
+  plannedMinutes: z.number().int().min(0).nullable(),
+  /** «Принять работу после завершения» (Битрикс): завершение ведёт в
+   *  «Ждёт контроля», постановщик принимает. */
+  acceptRequired: z.boolean(),
+  result: taskResultSchema.nullable(),
+  completedAt: z.iso.datetime().nullable(),
+  access: taskAccessSchema,
   createdAt: z.iso.datetime(),
 });
 
@@ -126,33 +170,44 @@ export type TaskDetail = z.infer<typeof taskDetailSchema>;
 
 export const createSubtaskBodySchema = z.object({
   title: z.string().trim().min(1).max(200),
+  assigneeId: z.uuid().optional(),
+  deadline: z.iso.datetime().optional(),
 });
 
 export type CreateSubtaskBody = z.infer<typeof createSubtaskBodySchema>;
 
-/** Быстрое создание задачи: из колонки доски (плюсик в шапке — название +
- *  колонка одной из осей) и из ЭКСПРЕСС-ФОРМЫ (вердикт владельца 15.09.2026,
- *  модель Битрикс24: название, описание, ответственный, крайний срок,
- *  проект, чек-лист). Личная ось («Мой план»: глобальная стадия подставляется
- *  по состоянию колонки) или глобальная (проектная доска: схема проекта).
- *  projectId — для создания в колонку проектной доски / привязки к проекту. */
-export const createTaskBodySchema = z
-  .object({
-    title: z.string().trim().min(1).max(200),
-    personalStageId: z.uuid().optional(),
-    stageId: z.uuid().optional(),
-    projectId: z.uuid().optional(),
-    /** Экспресс-форма (все поля опциональны — канбан-плюсик их не шлёт). */
-    description: z.string().trim().max(5000).optional(),
-    assigneeId: z.uuid().optional(),
-    deadline: z.iso.datetime().optional(),
-    /** Пункты чек-листа текстами; на детали задачи разворачиваются в
-     *  ChecklistItem[]. */
-    checklist: z.array(z.string().trim().min(1).max(300)).max(100).optional(),
-  })
-  .refine((v) => v.personalStageId !== undefined || v.stageId !== undefined, {
-    message: 'personalStageId or stageId required',
-  });
+/** Создание задачи: из колонки доски (плюсик в шапке — название + колонка
+ *  одной из осей), из ЭКСПРЕСС-ФОРМЫ (вердикт владельца 15.09.2026, модель
+ *  Битрикс24) и из сообщения чата («В задачу»: source + sourceId). Колонка
+ *  не обязательна: без неё задача встаёт в начальную стадию маршрута своего
+ *  типа (задача без проекта и доски — обычный случай). projectId —
+ *  необязательная привязка к проекту. */
+export const createTaskBodySchema = z.object({
+  title: z.string().trim().min(1).max(200),
+  personalStageId: z.uuid().optional(),
+  stageId: z.uuid().optional(),
+  projectId: z.uuid().optional(),
+  /** Тип задачи; по умолчанию — системный «Задача». */
+  typeId: z.uuid().optional(),
+  parentId: z.uuid().optional(),
+  /** Экспресс-форма (все поля опциональны — канбан-плюсик их не шлёт). */
+  description: z.string().trim().max(5000).optional(),
+  /** Ответственный; по умолчанию — постановщик. */
+  assigneeId: z.uuid().optional(),
+  coexecutorIds: z.array(z.uuid()).max(50).optional(),
+  observerIds: z.array(z.uuid()).max(50).optional(),
+  priority: taskPrioritySchema.optional(),
+  deadline: z.iso.datetime().optional(),
+  plannedMinutes: z.number().int().min(1).max(100_000).optional(),
+  acceptRequired: z.boolean().optional(),
+  /** Пункты чек-листа текстами; на детали задачи разворачиваются в
+   *  ChecklistItem[]. */
+  checklist: z.array(z.string().trim().min(1).max(300)).max(100).optional(),
+  /** Происхождение «В задачу» из сообщения чата: id сообщения (дедуп —
+   *  одна задача на сообщение). Поручения из писем создаёт обработчик
+   *  события корреспонденции, не клиент. */
+  sourceMessageId: z.uuid().optional(),
+});
 
 export type CreateTaskBody = z.infer<typeof createTaskBodySchema>;
 
@@ -163,29 +218,40 @@ export const checklistItemCreateBodySchema = z.object({
 
 export type ChecklistItemCreateBody = z.infer<typeof checklistItemCreateBodySchema>;
 
-/** Обновление пункта чек-листа (отметка выполнения / правка текста). */
+/** Обновление пункта чек-листа (отметка выполнения / правка текста /
+ *  перестановка: index — новая позиция в списке). */
 export const checklistItemUpdateBodySchema = z
   .object({
     done: z.boolean().optional(),
     text: z.string().trim().min(1).max(300).optional(),
+    index: z.number().int().min(0).optional(),
   })
   .refine((v) => Object.keys(v).length > 0, { message: 'empty update' });
 
 export type ChecklistItemUpdateBody = z.infer<typeof checklistItemUpdateBodySchema>;
 
-/** DTO обновления задачи: перенос между стадиями (канбан, drag-and-drop) —
- *  глобальной (stageId, степпер/проектная доска) или личной (personalStageId,
- *  «Мой план»). index — позиция внутри целевой колонки (порядок persistится,
- *  не «отщёлкивается» после refetch). Хотя бы одна ось обязательна. */
+/** DTO обновления задачи. Перенос между стадиями (канбан, drag-and-drop) —
+ *  глобальной оси (stageId: попытка ПЕРЕХОДА маршрута — нет перехода или не
+ *  пройден гейт → 409 TASK_TRANSITION_NOT_ALLOWED / TASK_TRANSITION_BLOCKED)
+ *  или личной (personalStageId, «Мой план»: колонка другого системного
+ *  состояния = переход в стадию этого состояния). index — позиция внутри
+ *  целевой колонки (порядок persistится). Поля карточки — правка (права:
+ *  постановщик, ответственный, task.manage_any). null — очистить поле. */
 export const taskUpdateBodySchema = z
   .object({
     stageId: z.uuid().optional(),
     personalStageId: z.uuid().optional(),
     index: z.number().int().min(0).optional(),
+    title: z.string().trim().min(1).max(200).optional(),
+    description: z.string().trim().max(5000).optional(),
+    priority: taskPrioritySchema.optional(),
+    deadline: z.iso.datetime().nullable().optional(),
+    plannedMinutes: z.number().int().min(1).max(100_000).nullable().optional(),
+    acceptRequired: z.boolean().optional(),
+    assigneeId: z.uuid().optional(),
+    parentId: z.uuid().nullable().optional(),
   })
-  .refine((v) => v.stageId !== undefined || v.personalStageId !== undefined, {
-    message: 'stageId or personalStageId required',
-  });
+  .refine((v) => Object.keys(v).some((k) => k !== 'index'), { message: 'empty update' });
 
 export type TaskUpdateBody = z.infer<typeof taskUpdateBodySchema>;
 
@@ -238,23 +304,42 @@ export const taskBranchNodeSchema: z.ZodType<TaskBranchNode> = z.lazy(() =>
 export const taskBranchSchema = z.object({ root: taskBranchNodeSchema });
 export type TaskBranch = z.infer<typeof taskBranchSchema>;
 
-/** Связь задачи (поле «Отношения», вкладка «Связи» навигатора ветки). Типы —
- *  задел под зависимости Ганта (#39): precedes — предшествует (finish-to-start);
- *  сейчас список пуст, вкладка показывает Empty. */
+/** Связь задачи (поле «Отношения», вкладка «Связи» навигатора ветки):
+ *  relates — связана, blocks — блокирует, precedes — предшествует
+ *  (finish-to-start, задел «порядка» ступени 2), duplicates — дублирует. */
 export const taskRelationKindSchema = z.enum(['relates', 'blocks', 'precedes', 'duplicates']);
 export type TaskRelationKind = z.infer<typeof taskRelationKindSchema>;
 
 export const taskRelationSchema = z.object({
   id: z.uuid(),
   kind: taskRelationKindSchema,
-  /** Связанная задача (target перехода). */
+  /** Связанная задача (на другом конце связи). */
   task: taskRefSchema,
+  /** out — связь из этой задачи; in — из связанной в эту. */
+  direction: z.enum(['out', 'in']),
 });
 export type TaskRelation = z.infer<typeof taskRelationSchema>;
 
+export const taskRelationCreateBodySchema = z.object({
+  toTaskId: z.uuid(),
+  kind: taskRelationKindSchema,
+});
+export type TaskRelationCreateBody = z.infer<typeof taskRelationCreateBodySchema>;
+
 export const listTasksQuerySchema = cursorQuerySchema.extend({
-  /** 'assignee' | 'creator' | 'participant' — роли текущего пользователя. */
+  /** mine — задачи, где я постановщик/ответственный/соисполнитель/наблюдатель;
+   *  all — всё, что мне видно (подчинённые по оргструктуре, task.view_all). */
   scope: z.enum(['mine', 'all']).default('mine'),
+  /** Уточнение «моих» по роли («делаю», «поручил», «помогаю», «наблюдаю»). */
+  role: z.enum(['assignee', 'creator', 'coexecutor', 'observer']).optional(),
+  /** Только просроченные (deadline < now, состояние ∉ done/closed). */
+  overdue: z
+    .enum(['true', 'false'])
+    .transform((v) => v === 'true')
+    .optional(),
+  /** Подзадачи родителя. */
+  parentId: z.uuid().optional(),
+  typeId: z.uuid().optional(),
   view: z.enum(['list', 'kanban']).default('kanban'),
   search: z.string().trim().min(1).max(128).optional(),
   /** Фид колонки канбана: курсорная подгрузка порциями (industry-паттерн:

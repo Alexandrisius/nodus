@@ -18,6 +18,7 @@ import { http, HttpResponse } from 'msw';
 import { demoConversations, demoMessages } from '../../../../shared/mocks/data/chat.js';
 import { isoIn } from '../../../../shared/mocks/data/dates.js';
 import { demoTasks, personalNew, stageNew, tid } from '../../../../shared/mocks/data/tasks.js';
+import { systemTaskType } from '../../../../shared/mocks/data/task-stages.js';
 import { demoUserListItems, userRef } from '../../../../shared/mocks/data/users.js';
 import { actorUserRef, getMockActor } from '../../../../shared/mocks/mock-actor.js';
 import { chatMutationHandlers } from './chat-mutation-handlers.js';
@@ -406,6 +407,7 @@ const conversationHandlers = [
       id: tid(chatTaskSeq),
       number: 300 + chatTaskSeq,
       title: message.text.slice(0, 80),
+      type: systemTaskType,
       stage: stageNew,
       personalStageId: personalNew.id,
       priority: 'normal',

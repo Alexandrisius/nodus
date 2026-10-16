@@ -22,6 +22,7 @@ import { FilesModule } from './modules/files/files.module.js';
 import { NotificationsModule } from './modules/notifications/notifications.module.js';
 import { DesktopModule } from './modules/desktop/desktop.module.js';
 import { HomeModule } from './modules/home/home.module.js';
+import { TasksModule } from './modules/tasks/tasks.module.js';
 
 @Module({
   imports: [
@@ -44,6 +45,8 @@ import { HomeModule } from './modules/home/home.module.js';
     // чата (ChatPortsModule внутри), подписан на события chat.*.
     NotificationsModule,
     HomeModule,
+    // Задачи (#37): самостоятельные задачи, движок маршрутов (ADR-0020).
+    TasksModule,
     // Десктоп-оболочка (#254): публичный конфиг для тонкого клиента.
     DesktopModule,
   ],

@@ -154,6 +154,18 @@ describe('routeEnvelope', () => {
     expect(calls.map((c) => c.room)).toEqual([`user:${USER_A}`, `user:${USER_B}`]);
   });
 
+  it('task.* (#37): user-комнаты аудитории задачи', async () => {
+    const { io, calls } = fakeIo();
+    const store: MembershipStore = { isMember: vi.fn(), memberIds: vi.fn(), userRef: vi.fn() };
+    await routeEnvelope(
+      io,
+      store,
+      envelope('task.stage_changed', { taskId: 't1', number: 1, audience: [USER_A, USER_B] }),
+    );
+    await routeEnvelope(io, store, envelope('task.updated', { taskId: 't1' }));
+    expect(calls.map((c) => c.room)).toEqual([`user:${USER_A}`, `user:${USER_B}`]);
+  });
+
   it('неизвестный доменный тип (стрим общий) — игнор без ошибок', async () => {
     const { io, calls } = fakeIo();
     const store: MembershipStore = { isMember: vi.fn(), memberIds: vi.fn(), userRef: vi.fn() };

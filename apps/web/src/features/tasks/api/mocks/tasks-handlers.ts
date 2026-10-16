@@ -30,7 +30,7 @@ import {
 } from '../../../../shared/mocks/data/tasks.js';
 import { demoProjects } from '../../../../shared/mocks/data/projects.js';
 import { letterIdByTaskId, syncLetterWithTasks } from '../../../../shared/mocks/data/letters.js';
-import { demoStages } from '../../../../shared/mocks/data/task-stages.js';
+import { demoStages, systemTaskType } from '../../../../shared/mocks/data/task-stages.js';
 import { currentAuthUser, userRef } from '../../../../shared/mocks/data/users.js';
 import { tasksChecklistHandlers } from './tasks-checklist-handlers.js';
 
@@ -131,7 +131,10 @@ export const tasksHandlers = [
     if (parsed.data.personalStageId && !personalColumn) return notFound('Stage not found');
     const stage = personalColumn
       ? globalStageForPersonal(personalColumn, demoStages)
-      : demoStages.find((s) => s.id === parsed.data.stageId);
+      : parsed.data.stageId
+        ? demoStages.find((s) => s.id === parsed.data.stageId)
+        : // Без колонки (экспресс-форма, «В задачу») — начальная стадия маршрута.
+          demoStages[0];
     if (!stage) return notFound('Stage not found');
     const checklist = (parsed.data.checklist ?? []).map((text) => ({
       id: crypto.randomUUID(),
@@ -152,6 +155,7 @@ export const tasksHandlers = [
       id: crypto.randomUUID(),
       number: Math.max(...demoTasks.map((t) => t.number)) + 1,
       title: parsed.data.title,
+      type: systemTaskType,
       stage,
       personalStageId: personalColumn?.id ?? null,
       priority: 'normal',

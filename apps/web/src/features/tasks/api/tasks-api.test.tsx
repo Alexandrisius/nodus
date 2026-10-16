@@ -13,6 +13,8 @@ import type { ChatMessage, Paginated, TaskListItem } from '@nodus/contracts';
 import { useAuthStore } from '../../../shared/auth-store.js';
 import { tasksKeys, useSendTaskMessage, useUpdateTaskStage } from './tasks-api.js';
 
+const systemTaskType = { id: '20000000-0000-4000-8000-000000000900', code: 'task', name: 'Задача' };
+
 const TASK_ID = '30000000-0000-4000-8000-000000000002';
 
 function jsonResponse(status: number, body: unknown): Response {
@@ -167,6 +169,7 @@ function taskInStage(stage: typeof STAGE_A | typeof STAGE_B): TaskListItem {
     id: TASK_ID,
     number: 101,
     title: 'Переносимая',
+    type: systemTaskType,
     stage: { ...stage },
     personalStageId: null,
     priority: 'normal',

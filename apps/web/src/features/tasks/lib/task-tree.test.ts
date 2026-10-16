@@ -3,6 +3,8 @@ import type { TaskListItem, TaskStage } from '@nodus/contracts';
 
 import { buildTaskRows, filterVisibleRows } from './task-tree.js';
 
+const systemTaskType = { id: '20000000-0000-4000-8000-000000000900', code: 'task', name: 'Задача' };
+
 const STAGE: TaskStage = {
   id: 's1',
   name: 'Новые',
@@ -18,6 +20,7 @@ function task(id: string, parentId: string | null = null): TaskListItem {
     id,
     number: seq,
     title: `Задача ${id}`,
+    type: systemTaskType,
     stage: STAGE,
     personalStageId: null,
     priority: 'normal',
