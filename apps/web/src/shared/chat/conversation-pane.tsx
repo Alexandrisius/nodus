@@ -33,6 +33,7 @@ import { MessageRunView } from './message-run.js';
 import { decideOpenAnchor } from './open-anchor.js';
 import { PinBar } from './pin-bar.js';
 import { ScrollEndResponder } from './scroll-end-responder.js';
+import { useHistoryLoader } from './use-history-loader.js';
 import { useFeedViewportRead } from './use-viewport-read.js';
 import { useIncomingFollow } from './use-incoming-follow.js';
 import { ConversationViewsLine } from './views-line.js';
@@ -185,6 +186,15 @@ function ConversationFeed({
   // Viewport ленты — цель прыжка (scroll-jump): «видно/не видно» и скролл
   // ВНУТРИ контейнера без отрыва низа (вердикт 25.09).
   const viewportRef = useRef<HTMLDivElement>(null);
+  // Догрузка истории при прокрутке вверх (#307, модель Telegram): sentinel
+  // у верха ленты, позиция просмотра сохраняется компенсацией скролла.
+  const { topSentinel } = useHistoryLoader({
+    conversationId,
+    viewportRef,
+    hasMore: (data?.nextCursor ?? null) !== null,
+    items,
+    enabled: !isLoading && items.length > 0,
+  });
   // Рамочное выделение (#132 р.6 — модель Telegram webk: старт «на строке»
   // или откуда угодно в режиме селекта; текст → выход за поверхность →
   // весь пузырь; якорь строк — viewport ленты).
@@ -319,6 +329,9 @@ function ConversationFeed({
                   </div>
                 ) : (
                   <MessageGroup className="gap-3">
+                    {/* Sentinel истории — первый элемент ленты (#307): у верха
+                        грузит старые страницы, «Начало истории» на исчерпании. */}
+                    {topSentinel}
                     {runs.map((run, runIndex) => {
                       const prevRun = runIndex === 0 ? undefined : runs[runIndex - 1];
                       const { first } = run;

@@ -17,6 +17,7 @@ import { useAuthStore } from '../../../shared/auth-store.js';
 import { useUsersList } from '../../../shared/api/users-list.js';
 import { chatKeys } from '../../../shared/chat/api.js';
 import { ChatHostNavigationContext } from '../../../shared/chat/chat-host.js';
+import { ConversationOpenResponder } from '../../../shared/chat/conversation-open-responder.js';
 import { withoutPatronymic } from '../../../shared/lib/format.js';
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
 import { TaskQuickCreate } from '../../../shared/tasks/task-quick-create.js';
@@ -165,6 +166,9 @@ export function MessengerBody({
 
   return (
     <ChatHostNavigationContext.Provider value={hostNavigation}>
+      {/* Глобальные запросы «открыть беседу» (цитата с карточки избранного,
+          #306) исполняются навигацией этого хоста. */}
+      <ConversationOpenResponder />
       <div className="relative flex h-full">
         {/* Список бесед — на тоне панели (`card`), как весь хром мессенджера:
           отдельная бежевая ступень колонки давала «зоопарк оттенков» в

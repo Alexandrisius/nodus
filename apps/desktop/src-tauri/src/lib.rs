@@ -97,6 +97,7 @@ pub fn run() {
             bridge::get_shell_info,
             bridge::shell_ready,
             popups::popup_get_data,
+            popups::popup_ready,
             popups::popup_close,
             popups::popup_set_expanded,
             popups::popup_set_hover,

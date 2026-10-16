@@ -20,7 +20,7 @@ import { tasksKeys } from '../api/tasks-keys.js';
 import { useAuthStore } from '../auth-store.js';
 import { useChatDrafts } from './chat-drafts.js';
 import { composerSendErrorCode, useComposerErrors } from './composer-errors.js';
-import { mergePendingIntoPage } from './pending-merge.js';
+import { mergeHistoryPage, type HistoryPage } from './feed-merge.js';
 import { enqueueSend } from './send-queue.js';
 import { useSocketStatusStore } from '../socket/socket-status-store.js';
 
@@ -89,18 +89,15 @@ export function useConversationMessages(id: string) {
   const socketConnected = useSocketStatusStore((s) => s.connected);
   return useQuery({
     queryKey: chatKeys.messages(id),
-    // limit=100 — максимум контракта (раунд 4: страница 50 резала историю,
-    // «старые сообщения пропадали»; полноценная догрузка при прокрутке — #117).
+    // Первое окно limit=100 — максимум контракта; история старее окна
+    // догружается по 50 при прокрутке вверх (#307, messages-history.ts).
     queryFn: async () => {
       const page = await api<Paginated<ChatMessage>>(
         `/chat/conversations/${id}/messages?limit=100`,
       );
-      // Рефеч не съедает летящие отправки (#243): темпы и локальные
-      // опережения переносятся в хвост серверной страницы.
-      return mergePendingIntoPage(
-        queryClient.getQueryData<Paginated<ChatMessage>>(chatKeys.messages(id))?.items,
-        page,
-      );
+      // Рефеч не съедает летящие отправки (#243) и догруженную историю
+      // (#307): свежее окно — истина своего диапазона, старше — живёт в кэше.
+      return mergeHistoryPage(queryClient.getQueryData<HistoryPage>(chatKeys.messages(id)), page);
     },
     enabled: id.length > 0,
     refetchInterval: livePoll(LIVE_CHAT_POLL.messages, socketConnected),
@@ -145,11 +142,10 @@ export function useThreadMessages(conversationId: string, threadRootId: string) 
       const page = await api<Paginated<ChatMessage>>(
         `/chat/conversations/${conversationId}/messages?threadRootId=${threadRootId}&limit=100`,
       );
-      // Как и лента: летящие ответы треда переживают рефеч (#243).
-      return mergePendingIntoPage(
-        queryClient.getQueryData<Paginated<ChatMessage>>(
-          chatKeys.thread(conversationId, threadRootId),
-        )?.items,
+      // Как и лента: летящие ответы и догруженная история переживают рефеч
+      // (#243/#307).
+      return mergeHistoryPage(
+        queryClient.getQueryData<HistoryPage>(chatKeys.thread(conversationId, threadRootId)),
         page,
       );
     },
@@ -331,16 +327,14 @@ export function useSendChatMessage(conversationId: string, draftScope?: string) 
         // Ответ виден в треде сразу темпом. Счётчик корня в ленте оптимистично
         // НЕ тикает: его +1 пишет WS-эхо (ws-apply, ровно один раз) — здесь
         // +1, там +1 и дубль доставки из user-комнаты считали одну отправку
-        // трижды (#303).
-        queryClient.setQueryData<Paginated<ChatMessage>>(threadKey, (old) => ({
-          items: [...(old?.items ?? []), temp],
-          nextCursor: old?.nextCursor ?? null,
-        }));
+        // трижды (#303). Спред old сохраняет границу истории (#307).
+        queryClient.setQueryData<Paginated<ChatMessage>>(threadKey, (old) =>
+          old ? { ...old, items: [...old.items, temp] } : { items: [temp], nextCursor: null },
+        );
       } else {
-        queryClient.setQueryData<Paginated<ChatMessage>>(listKey, (old) => ({
-          items: [...(old?.items ?? []), temp],
-          nextCursor: old?.nextCursor ?? null,
-        }));
+        queryClient.setQueryData<Paginated<ChatMessage>>(listKey, (old) =>
+          old ? { ...old, items: [...old.items, temp] } : { items: [temp], nextCursor: null },
+        );
       }
       // Новая попытка отправки гасит инлайн-ошибку предыдущей (#177).
       if (draftScope) useComposerErrors.getState().clear(draftScope);

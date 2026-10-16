@@ -29,8 +29,8 @@ commands.allow = ["run_updater"]
 
 [[permission]]
 identifier = "allow-popup-window"
-description = "Управление окном попапа: закрыть, изменить высоту (рост вверх), пауза угасания."
-commands.allow = ["popup_get_data", "popup_close", "popup_set_expanded", "popup_set_hover"]
+description = "Управление окном попапа: закрыть, изменить высоту (рост вверх), пауза угасания, сигнал готовности к показу."
+commands.allow = ["popup_get_data", "popup_close", "popup_set_expanded", "popup_set_hover", "popup_ready"]
 
 [[permission]]
 identifier = "allow-popup-actions"

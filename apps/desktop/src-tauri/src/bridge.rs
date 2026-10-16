@@ -171,6 +171,16 @@ pub fn set_unread_badge(app: AppHandle, count: Option<u32>) {
 /// хранит и применяет к живущим окнам и каждому новому попапу.
 static UI_THEME: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
 
+/// Тема портала для попапов: 'dark' | 'light' (None до первого set_ui_theme —
+/// дефолт светлый). Единственный источник для payload попапа (#305): тема
+/// приезжает с данными pull-моделью, гонки inline-скрипта и eval исчезают.
+pub fn ui_theme() -> &'static str {
+    match UI_THEME.lock().unwrap().as_deref() {
+        Some("dark") => "dark",
+        _ => "light",
+    }
+}
+
 fn theme_js() -> &'static str {
     match UI_THEME.lock().unwrap().as_deref() {
         Some("dark") => "document.documentElement.dataset.theme='dark'",

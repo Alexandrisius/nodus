@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ui } from '@nodus/contracts';
 import {
   MessageScroller,
@@ -10,6 +10,8 @@ import {
 import { Empty, EmptyTitle } from '@nodus/ui/components/empty';
 import { MessageGroup } from '@nodus/ui/components/message';
 
+import { useQueryClient } from '@tanstack/react-query';
+
 import { useAuthStore } from '../auth-store.js';
 import { useConversationMessages, useConversations, useSendChatMessage } from './api.js';
 import { ChatComposer } from './chat-composer.js';
@@ -19,6 +21,7 @@ import { DayChip } from './day-chip.js';
 import { toEditVars } from './message-edit.js';
 import { useEditMessage } from './message-mutations.js';
 import { toFavoriteMessage } from './favorite-message.js';
+import { ensureOlderPage } from './messages-history.js';
 import { useFavorites } from './favorites-api.js';
 import {
   useOptimisticFavoriteLabels,
@@ -26,6 +29,7 @@ import {
 } from './optimistic-favorite-labels.js';
 import { JumpResponder } from './use-jump-responder.js';
 import { ScrollEndResponder } from './scroll-end-responder.js';
+import { useHistoryLoader } from './use-history-loader.js';
 import { useIncomingFollow } from './use-incoming-follow.js';
 import { FavoriteRunMessage } from './notes-row.js';
 import { buildMessageRuns, formatDayLabel, startsNewDay } from './message-groups.js';
@@ -111,6 +115,30 @@ export function NotesPane({ conversationId }: { conversationId: string }) {
   // Viewport витрины — цель прыжка с подсветкой (панель поиска, клик по
   // строке выдачи; тот же резидент, что у ленты беседы) и якорь рамки.
   const viewportRef = useRef<HTMLDivElement>(null);
+  const queryClient = useQueryClient();
+
+  // Догрузка истории витрины при прокрутке вверх (#307): записи — курсором
+  // ленты заметок, карточки — следующей страницей избранного; поток
+  // пересобирается mergeNotesFlow, компенсация скролла — общая.
+  const fetchFavoritesNext = useCallback(() => {
+    if (!favoritesQuery.hasNextPage) return Promise.resolve(false);
+    return favoritesQuery
+      .fetchNextPage()
+      .then(() => true)
+      .catch(() => false);
+  }, [favoritesQuery.hasNextPage, favoritesQuery.fetchNextPage]);
+  const { topSentinel } = useHistoryLoader({
+    conversationId,
+    viewportRef,
+    hasMore: (messagesQuery.data?.nextCursor ?? null) !== null || favoritesQuery.hasNextPage,
+    items,
+    enabled: items.length > 0,
+    loadMore: useCallback(async () => {
+      const notesOlder = await ensureOlderPage(queryClient, conversationId, null);
+      const cardsOlder = await fetchFavoritesNext();
+      return notesOlder || cardsOlder;
+    }, [conversationId, fetchFavoritesNext, queryClient]),
+  });
 
   // Селект по КОМБИНИРОВАННОМУ потоку (#215): orderedIds покрывает и записи,
   // и карточки (Shift-диапазон и рамка — по порядку витрины); meId нужен
@@ -230,6 +258,8 @@ export function NotesPane({ conversationId }: { conversationId: string }) {
                 </div>
               ) : (
                 <MessageGroup className="gap-3">
+                  {/* Sentinel истории — первый элемент витрины (#307). */}
+                  {topSentinel}
                   {runs.map((run, runIndex) => {
                     const prevRun = runIndex === 0 ? undefined : runs[runIndex - 1];
                     return (
