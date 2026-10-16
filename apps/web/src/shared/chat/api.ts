@@ -154,6 +154,13 @@ export function useThreadMessages(conversationId: string, threadRootId: string) 
       );
     },
     enabled: conversationId.length > 0 && threadRootId.length > 0,
+    // Открытие окна трэда = момент интереса: ВСЕГДА сверяемся с сервером,
+    // даже когда кэш моложе staleTime (#303). Если WS-событие о ответе не
+    // дошло (разрыв сокета, гонка conv:join при открытии беседы), кэш окна
+    // никто не пометит протухшим — до фикса повторное открытие в течение
+    // 30 с показывало старый снимок («зашёл — сообщения нет, F5 — есть»).
+    // Кэш рисуется мгновенно, сверка идёт фоном — без мигания.
+    refetchOnMount: 'always',
     refetchInterval: livePoll(LIVE_CHAT_POLL.messages, socketConnected),
     refetchIntervalInBackground: false,
   });
