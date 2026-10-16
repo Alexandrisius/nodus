@@ -3,16 +3,24 @@ import {
   ErrorCode,
   Permission,
   TASK_EVENTS,
+  type AuthUser,
+  type ExecuteTransitionBody,
+  type TaskListItem,
   type TaskTransition,
   type TransitionBlockReason,
 } from '@nodus/contracts';
 
-import type { TransactionClient } from '../../../core/database/transaction-runner.js';
+import {
+  TransactionRunner,
+  type TransactionClient,
+} from '../../../core/database/transaction-runner.js';
 import { DomainException } from '../../../core/errors/domain-exception.js';
 import { EventBus } from '../../../core/events/event-bus.js';
 import { actorRoles, audienceIds, planHolderIds } from '../access/task-access.js';
 import { Placements } from '../personal/placements.js';
+import { TasksQueryService } from '../tasks/tasks-query.service.js';
 import { TasksRepository } from '../tasks/tasks.repository.js';
+import { TasksService } from '../tasks/tasks.service.js';
 import {
   effectiveTargetId,
   evaluateValidators,
@@ -39,15 +47,40 @@ const OPEN = new Set(['backlog', 'active', 'paused']);
  * блокировки) и выполнение перехода в транзакции — блокировка строки
  * задачи, условия, гейты (обход — task.override_gate + причина), смена
  * стадии и состояния, completedAt, автоперемещение «Моего плана», события.
+ * Сценарии API «кнопки маршрута» (listFor/executeFor) — здесь же: видимость,
+ * подготовка личных маршрутов, транзакция, ответ (контроллер тонкий).
  */
 @Injectable()
 export class TransitionsService {
   constructor(
+    private readonly txRunner: TransactionRunner,
     private readonly workflows: WorkflowRepository,
     private readonly tasks: TasksRepository,
     private readonly placements: Placements,
     private readonly eventBus: EventBus,
+    private readonly query: TasksQueryService,
+    private readonly taskService: TasksService,
   ) {}
+
+  /** GET /tasks/:id/transitions — кнопки маршрута видимой задачи. */
+  async listFor(user: AuthUser, taskId: string): Promise<TaskTransition[]> {
+    await this.query.visibleRow(user, taskId);
+    return this.txRunner.run((tx) => this.available(tx, taskId, user));
+  }
+
+  /** POST /tasks/:id/transitions/:transitionId — выполнить кнопку. Личные
+   *  маршруты держателей готовятся ДО транзакции (ensurePersonal). */
+  async executeFor(
+    user: AuthUser,
+    taskId: string,
+    transitionId: string,
+    body: ExecuteTransitionBody,
+  ): Promise<TaskListItem> {
+    const row = await this.query.visibleRow(user, taskId);
+    await this.placements.prepare(planHolderIds(row));
+    await this.txRunner.run((tx) => this.execute(tx, taskId, user, { transitionId }, body));
+    return this.taskService.listItem(user.id, taskId);
+  }
 
   async available(tx: TransactionClient, taskId: string, actor: Actor): Promise<TaskTransition[]> {
     const { task, workflow, facts, roles } = await this.context(tx, taskId, actor);
@@ -136,10 +169,7 @@ export class TransitionsService {
   }
 
   private async context(tx: TransactionClient, taskId: string, actor: Actor) {
-    const task = await tx.task.findUniqueOrThrow({
-      where: { id: taskId },
-      include: { participants: true },
-    });
+    const task = await this.tasks.findWithParticipants(taskId, tx);
     const [workflow, facts] = await Promise.all([
       this.workflows.load(task.workflowId, tx),
       this.tasks.gateFacts(taskId, tx),
@@ -166,15 +196,12 @@ export class TransitionsService {
   ): Promise<void> {
     const stateChanged = target.systemState !== task.systemState;
     const closing = !OPEN.has(target.systemState);
-    await tx.task.update({
-      where: { id: task.id },
-      data: {
-        stageId: target.id,
-        systemState: target.systemState,
-        stageOrder: await this.tasks.stageKeyAt(tx, target.id, 0, task.id),
-        ...(stateChanged ? { stateChangedAt: new Date() } : {}),
-        completedAt: closing ? (task.completedAt ?? new Date()) : null,
-      },
+    await this.tasks.moveToStage(tx, task.id, {
+      stageId: target.id,
+      systemState: target.systemState,
+      stageOrder: await this.tasks.stageKeyAt(tx, target.id, 0, task.id),
+      ...(stateChanged ? { stateChangedAt: new Date() } : {}),
+      completedAt: closing ? (task.completedAt ?? new Date()) : null,
     });
     if (stateChanged) {
       await this.placements.sync(

@@ -11,7 +11,6 @@ import {
   type TimeEntryCreateBody,
 } from '@nodus/contracts';
 
-import { PrismaService } from '../../../core/database/prisma.service.js';
 import {
   TransactionRunner,
   type TransactionClient,
@@ -25,6 +24,8 @@ import {
 } from '../../../core/ports/user-profile.port.js';
 import { actorRoles, audienceIds, taskAccess } from '../access/task-access.js';
 import { TasksQueryService } from '../tasks/tasks-query.service.js';
+import { TasksRepository } from '../tasks/tasks.repository.js';
+import { TimeEntriesRepository } from './time-entries.repository.js';
 
 /** Потолок одной записи таймера (забытый на ночь таймер не пишет сутки+). */
 const TIMER_CAP_MINUTES = 1440;
@@ -43,6 +44,11 @@ type EntryRow = {
   createdAt: Date;
 };
 
+/** Идущая запись таймера (ещё не остановлена). */
+export function isRunningTimer(entry: { method: string; endedAt: Date | null }): boolean {
+  return entry.method === 'timer' && entry.endedAt === null;
+}
+
 /**
  * Трудозатраты (I14): ручные записи и таймер (один идущий на сотрудника —
  * частичный unique; старт нового останавливает старый). spentMinutes задачи
@@ -51,10 +57,11 @@ type EntryRow = {
 @Injectable()
 export class TimeService {
   constructor(
-    private readonly prisma: PrismaService,
     private readonly txRunner: TransactionRunner,
     private readonly eventBus: EventBus,
     private readonly query: TasksQueryService,
+    private readonly repo: TimeEntriesRepository,
+    private readonly tasks: TasksRepository,
     @Inject(USER_PROFILE_READER) private readonly profiles: UserProfileReader,
   ) {}
 
@@ -66,21 +73,11 @@ export class TimeService {
   ): Promise<Paginated<TimeEntry>> {
     await this.query.visibleRow(user, taskId);
     const after = cursor ? decodeCursor(cursor, cursorSchema) : undefined;
-    const rows = await this.prisma.timeEntry.findMany({
-      where: {
-        taskId,
-        ...(after
-          ? {
-              OR: [
-                { createdAt: { lt: new Date(after.t) } },
-                { createdAt: new Date(after.t), id: { lt: after.id } },
-              ],
-            }
-          : {}),
-      },
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      take: limit + 1,
-    });
+    const rows = await this.repo.pageByTask(
+      taskId,
+      after ? { t: new Date(after.t), id: after.id } : undefined,
+      limit,
+    );
     const page = rows.slice(0, limit);
     const last = page[page.length - 1];
     return {
@@ -95,16 +92,13 @@ export class TimeService {
   async add(user: AuthUser, taskId: string, body: TimeEntryCreateBody): Promise<TimeEntry> {
     const row = await this.assertCanLog(user, taskId);
     const entry = await this.txRunner.run(async (tx) => {
-      const created = await tx.timeEntry.create({
-        data: {
-          taskId,
-          projectId: row.projectId,
-          userId: user.id,
-          minutes: body.minutes,
-          date: new Date(`${body.date}T00:00:00Z`),
-          method: 'manual',
-          comment: body.comment ?? null,
-        },
+      const created = await this.repo.createManual(tx, {
+        taskId,
+        projectId: row.projectId,
+        userId: user.id,
+        minutes: body.minutes,
+        date: new Date(`${body.date}T00:00:00Z`),
+        comment: body.comment ?? null,
       });
       await this.logged(tx, user.id, taskId, created.id, created.minutes);
       return created;
@@ -113,23 +107,26 @@ export class TimeService {
   }
 
   async remove(user: AuthUser, entryId: string): Promise<void> {
-    const entry = await this.prisma.timeEntry.findUnique({ where: { id: entryId } });
+    const entry = await this.repo.findById(entryId);
     if (!entry?.taskId) throw DomainException.notFound('Time entry not found');
     await this.query.visibleRow(user, entry.taskId);
     if (entry.userId !== user.id && !user.permissions.includes(Permission.TASK_MANAGE_ANY)) {
       throw DomainException.forbidden('Only author can delete time entry');
     }
+    // Идущий таймер удалением не снимается: запись исчезла бы без
+    // task.timer_stopped (виджет таймера у сотрудника завис бы). Сначала —
+    // «Стоп» (каноничная остановка с событиями), затем удаление записи.
+    if (isRunningTimer(entry)) {
+      throw DomainException.conflict('Running timer cannot be deleted, stop it first');
+    }
     await this.txRunner.run(async (tx) => {
-      await tx.timeEntry.delete({ where: { id: entryId } });
+      await this.repo.delete(tx, entryId);
       await this.logged(tx, user.id, entry.taskId!, entryId, -entry.minutes);
     });
   }
 
   async current(user: AuthUser): Promise<RunningTimer | null> {
-    const entry = await this.prisma.timeEntry.findFirst({
-      where: { userId: user.id, method: 'timer', endedAt: null },
-      include: { task: { select: { id: true, number: true, title: true } } },
-    });
+    const entry = await this.repo.findRunningTimerWithTask(user.id);
     if (!entry?.task || !entry.startedAt) return null;
     // Доступ к задаче потерян (сняли с задачи) — название не раскрываем;
     // запись остановится стартом следующего таймера или явной остановкой.
@@ -146,15 +143,12 @@ export class TimeService {
     await this.txRunner.run(async (tx) => {
       await this.stopRunning(tx, user.id);
       const now = new Date();
-      const entry = await tx.timeEntry.create({
-        data: {
-          taskId,
-          projectId: row.projectId,
-          userId: user.id,
-          date: new Date(`${now.toISOString().slice(0, 10)}T00:00:00Z`),
-          method: 'timer',
-          startedAt: now,
-        },
+      const entry = await this.repo.createTimer(tx, {
+        taskId,
+        projectId: row.projectId,
+        userId: user.id,
+        date: new Date(`${now.toISOString().slice(0, 10)}T00:00:00Z`),
+        startedAt: now,
       });
       await this.eventBus.emit(
         tx,
@@ -173,27 +167,22 @@ export class TimeService {
   }
 
   private async stopRunning(tx: TransactionClient, userId: string): Promise<boolean> {
-    const running = await tx.timeEntry.findFirst({
-      where: { userId, method: 'timer', endedAt: null },
-    });
+    const running = await this.repo.findRunningTimer(userId, tx);
     if (!running?.startedAt) return false;
     const now = new Date();
     const minutes = Math.min(
       TIMER_CAP_MINUTES,
       Math.max(1, Math.round((now.getTime() - running.startedAt.getTime()) / 60_000)),
     );
-    await tx.timeEntry.update({ where: { id: running.id }, data: { endedAt: now, minutes } });
+    await this.repo.closeTimer(tx, running.id, now, minutes);
     if (running.taskId) {
-      const task = await tx.task.findUniqueOrThrow({
-        where: { id: running.taskId },
-        select: { number: true },
-      });
+      const number = await this.tasks.numberOf(tx, running.taskId);
       await this.eventBus.emit(
         tx,
         TASK_EVENTS.TIMER_STOPPED,
         {
           taskId: running.taskId,
-          number: task.number,
+          number,
           audience: [userId],
           entryId: running.id,
           userId,
@@ -221,15 +210,7 @@ export class TimeService {
     entryId: string,
     delta: number,
   ) {
-    const agg = await tx.timeEntry.aggregate({
-      where: { taskId, NOT: { method: 'timer', endedAt: null } },
-      _sum: { minutes: true },
-    });
-    const task = await tx.task.update({
-      where: { id: taskId },
-      data: { spentMinutes: agg._sum.minutes ?? 0 },
-      include: { participants: true },
-    });
+    const task = await this.repo.recalcSpentMinutes(tx, taskId);
     await this.eventBus.emit(
       tx,
       TASK_EVENTS.TIME_LOGGED,

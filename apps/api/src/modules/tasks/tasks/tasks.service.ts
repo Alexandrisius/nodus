@@ -7,7 +7,6 @@ import {
   type TaskListItem,
 } from '@nodus/contracts';
 
-import { PrismaService } from '../../../core/database/prisma.service.js';
 import {
   TransactionRunner,
   type TransactionClient,
@@ -18,28 +17,31 @@ import {
   USER_PROFILE_READER,
   type UserProfileReader,
 } from '../../../core/ports/user-profile.port.js';
-import { keyBetween } from '../lib/fractional-index.js';
 import { actorRoles, audienceIds, planHolderIds, taskAccess } from '../access/task-access.js';
 import { CHAT_MESSAGE_ACCESS, type ChatMessageAccess } from '../../chat/message-access.port.js';
+import { ChecklistRepository } from '../checklist/checklist.repository.js';
 import { Placements } from '../personal/placements.js';
+import { PlacementsRepository } from '../personal/placements.repository.js';
 import { WorkflowRepository } from '../workflow/workflow.repository.js';
 import { TaskDtoMapper } from './task-dto.mapper.js';
-import { taskListInclude } from './task-row.js';
 import { TasksQueryService } from './tasks-query.service.js';
+import { DuplicateTaskSourceError, TasksRepository } from './tasks.repository.js';
 
 const OPEN_STATES = new Set(['backlog', 'active', 'paused']);
 
 /**
  * Создание и удаление задач (правка и перенос — TaskEditService). Задача без
  * проекта и без колонки — обычный случай: встаёт в начальную стадию
- * маршрута своего типа и в «Мой план» держателей.
+ * маршрута своего типа и в «Мой план» держателей (структурный тип — нет).
  */
 @Injectable()
 export class TasksService {
   constructor(
-    private readonly prisma: PrismaService,
     private readonly txRunner: TransactionRunner,
     private readonly eventBus: EventBus,
+    private readonly repo: TasksRepository,
+    private readonly checklist: ChecklistRepository,
+    private readonly placementsRepo: PlacementsRepository,
     private readonly workflows: WorkflowRepository,
     private readonly placements: Placements,
     private readonly query: TasksQueryService,
@@ -82,7 +84,9 @@ export class TasksService {
       const existing = await this.findBySource(user, body.sourceMessageId);
       if (existing) return existing;
     }
-    const { typeId, workflowId } = await this.workflows.resolveTypeWorkflow(body.typeId);
+    const { typeId, workflowId, structural } = await this.workflows.resolveTypeWorkflow(
+      body.typeId,
+    );
     const workflow = await this.workflows.load(workflowId);
     const personalColumn = body.personalStageId
       ? await this.personalColumn(user.id, body.personalStageId)
@@ -101,62 +105,69 @@ export class TasksService {
         : initial;
     if (!stage) throw DomainException.notFound('Stage not found');
     const holders = planHolderIds({ creatorId: user.id, assigneeId, participants });
-    await this.placements.prepare(holders);
+    await this.placements.prepare(structural ? [] : holders);
 
-    const id = await this.txRunner.run(async (tx) => {
-      const first = await tx.task.findFirst({
-        where: { stageId: stage.id },
-        orderBy: [{ stageOrder: 'asc' }, { id: 'asc' }],
+    const id = await this.txRunner
+      .run(async (tx) => {
+        const task = await this.repo.create(
+          {
+            title: body.title,
+            description: body.description ?? '',
+            typeId,
+            workflowId,
+            stageId: stage.id,
+            systemState: stage.systemState,
+            stageOrder: await this.repo.stageKeyAt(tx, stage.id, 0),
+            priority: body.priority ?? 'normal',
+            deadline: body.deadline ? new Date(body.deadline) : null,
+            plannedMinutes: body.plannedMinutes ?? null,
+            acceptRequired: body.acceptRequired ?? false,
+            creatorId: user.id,
+            assigneeId,
+            parentId: body.parentId ?? null,
+            projectId: body.projectId ?? null,
+            source: body.sourceMessageId ? 'chat_message' : 'manual',
+            sourceId: body.sourceMessageId ?? null,
+            checklistTotal: body.checklist?.length ?? 0,
+            participants,
+          },
+          tx,
+        );
+        await this.checklist.createInitial(tx, task.id, body.checklist ?? []);
+        await this.placements.sync(tx, task, holders, user.id);
+        // Структурная задача размещений не имеет — колонку «Моего плана» не ставим.
+        if (!structural && personalColumn?.systemState === task.systemState) {
+          await this.placeInColumn(tx, task.id, user.id, personalColumn.id);
+        }
+        await this.eventBus.emit(
+          tx,
+          TASK_EVENTS.CREATED,
+          {
+            taskId: task.id,
+            number: task.number,
+            audience: audienceIds({ creatorId: user.id, assigneeId, participants }),
+            title: task.title,
+            creatorId: user.id,
+            assigneeId,
+            coexecutorIds: participants.filter((p) => p.role === 'coexecutor').map((p) => p.userId),
+            observerIds: participants.filter((p) => p.role === 'observer').map((p) => p.userId),
+            projectId: task.projectId,
+            parentId: task.parentId,
+            source: task.source,
+            sourceId: task.sourceId,
+          },
+          { actorId: user.id, aggregateType: 'task', aggregateId: task.id },
+        );
+        return task.id;
+      })
+      .catch(async (error: unknown) => {
+        // Параллельный клик «В задачу» проиграл unique-индексу дедупа: отдаём
+        // задачу победителя — как первый ответ, без 409.
+        if (!(error instanceof DuplicateTaskSourceError) || !body.sourceMessageId) throw error;
+        const winner = await this.repo.findLiveIdBySource(user.id, body.sourceMessageId);
+        if (!winner) throw error;
+        return winner;
       });
-      const task = await tx.task.create({
-        data: {
-          title: body.title,
-          description: body.description ?? '',
-          typeId,
-          workflowId,
-          stageId: stage.id,
-          systemState: stage.systemState,
-          stageOrder: keyBetween(null, first?.stageOrder ?? null),
-          priority: body.priority ?? 'normal',
-          deadline: body.deadline ? new Date(body.deadline) : null,
-          plannedMinutes: body.plannedMinutes ?? null,
-          acceptRequired: body.acceptRequired ?? false,
-          creatorId: user.id,
-          assigneeId,
-          parentId: body.parentId ?? null,
-          projectId: body.projectId ?? null,
-          source: body.sourceMessageId ? 'chat_message' : 'manual',
-          sourceId: body.sourceMessageId ?? null,
-          checklistTotal: body.checklist?.length ?? 0,
-          participants: { create: participants },
-        },
-      });
-      await this.createChecklist(tx, task.id, body.checklist ?? []);
-      await this.placements.sync(tx, task, holders, user.id);
-      if (personalColumn?.systemState === task.systemState) {
-        await this.placeInColumn(tx, task.id, user.id, personalColumn.id);
-      }
-      await this.eventBus.emit(
-        tx,
-        TASK_EVENTS.CREATED,
-        {
-          taskId: task.id,
-          number: task.number,
-          audience: audienceIds({ creatorId: user.id, assigneeId, participants }),
-          title: task.title,
-          creatorId: user.id,
-          assigneeId,
-          coexecutorIds: participants.filter((p) => p.role === 'coexecutor').map((p) => p.userId),
-          observerIds: participants.filter((p) => p.role === 'observer').map((p) => p.userId),
-          projectId: task.projectId,
-          parentId: task.parentId,
-          source: task.source,
-          sourceId: task.sourceId,
-        },
-        { actorId: user.id, aggregateType: 'task', aggregateId: task.id },
-      );
-      return task.id;
-    });
     return this.listItem(user.id, id);
   }
 
@@ -166,9 +177,15 @@ export class TasksService {
       throw DomainException.forbidden('Only creator can delete task');
     }
     await this.txRunner.run(async (tx) => {
-      await tx.task.update({ where: { id }, data: { deletedAt: new Date() } });
-      await tx.task.updateMany({ where: { parentId: id }, data: { parentId: row.parentId } });
-      await tx.taskPersonalPlacement.deleteMany({ where: { taskId: id } });
+      // Дети поднимаются к ближайшему ЖИВОМУ предку (родитель мог быть мягко
+      // удалён параллельно — снимок row устаревает). Очередь дерева — та же
+      // advisory-блокировка, что у смены родителя: удаление и перепривязка
+      // не перекрещиваются.
+      await this.repo.lockTree(tx);
+      const heir = await this.repo.liveAncestorId(tx, id);
+      await this.repo.softDelete(tx, id, new Date());
+      await this.repo.reparentChildren(tx, id, heir);
+      await this.placementsRepo.removeAllForTask(tx, id);
       await this.eventBus.emit(
         tx,
         TASK_EVENTS.DELETED,
@@ -179,11 +196,7 @@ export class TasksService {
   }
 
   async listItem(viewerId: string, id: string, tx?: TransactionClient): Promise<TaskListItem> {
-    const db = tx ?? this.prisma;
-    const row = await db.task.findUniqueOrThrow({
-      where: { id },
-      include: taskListInclude(viewerId),
-    });
+    const row = await this.repo.findListRow(id, viewerId, tx);
     return (await this.mapper.toListItems([row], tx))[0]!;
   }
 
@@ -198,38 +211,22 @@ export class TasksService {
     return [...rows].map(([userId, role]) => ({ userId, role, muted: role === 'observer' }));
   }
 
-  private async createChecklist(tx: TransactionClient, taskId: string, texts: string[]) {
-    let prev: string | null = null;
-    const data = texts.map((text) => {
-      prev = keyBetween(prev, null);
-      return { taskId, text, sortOrder: prev };
-    });
-    if (data.length > 0) await tx.taskChecklistItem.createMany({ data });
-  }
-
   private async personalColumn(userId: string, stageId: string) {
-    const column = await this.prisma.workflowStage.findFirst({
-      where: { id: stageId, archivedAt: null, workflow: { kind: 'personal', ownerId: userId } },
-    });
+    const column = await this.workflows.findPersonalColumn(userId, stageId);
     if (!column) throw DomainException.notFound('Stage not found');
     return column;
   }
 
   async placeInColumn(tx: TransactionClient, taskId: string, userId: string, stageId: string) {
-    await tx.taskPersonalPlacement.update({
-      where: { taskId_userId: { taskId, userId } },
-      data: { stageId, sortOrder: await this.placements.topKey(tx, userId, stageId) },
-    });
+    const sortOrder = await this.placements.topKey(tx, userId, stageId);
+    await this.placementsRepo.move(tx, { taskId, userId, stageId, sortOrder });
   }
 
   /** Дедуп «В задачу»: одна живая задача на сообщение у постановщика
    *  (у другого сотрудника — своя; чужие задачи не раскрываются — без
    *  оракула существования). Индекс — частичный unique в миграции. */
   private async findBySource(user: AuthUser, messageId: string): Promise<TaskListItem | null> {
-    const found = await this.prisma.task.findFirst({
-      where: { source: 'chat_message', sourceId: messageId, creatorId: user.id, deletedAt: null },
-      select: { id: true },
-    });
-    return found ? this.listItem(user.id, found.id) : null;
+    const found = await this.repo.findLiveIdBySource(user.id, messageId);
+    return found ? this.listItem(user.id, found) : null;
   }
 }

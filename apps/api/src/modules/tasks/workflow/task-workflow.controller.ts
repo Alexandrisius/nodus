@@ -25,7 +25,6 @@ import {
   type TaskTransition,
 } from '@nodus/contracts';
 
-import { TransactionRunner } from '../../../core/database/transaction-runner.js';
 import { Audit } from '../../../core/decorators/audit.decorator.js';
 import { GetUser } from '../../../core/decorators/get-user.decorator.js';
 import { RequireFeature } from '../../../core/decorators/require-feature.decorator.js';
@@ -33,10 +32,6 @@ import { ApiErrors } from '../../../core/openapi/api-errors.decorator.js';
 import { ApiIdempotencyKey } from '../../../core/openapi/api-idempotency.decorator.js';
 import { ZodValidationPipe } from '../../../core/pipes/zod-validation.pipe.js';
 import { PersonalStagesService } from '../personal/personal-stages.service.js';
-import { Placements } from '../personal/placements.js';
-import { planHolderIds } from '../access/task-access.js';
-import { TasksQueryService } from '../tasks/tasks-query.service.js';
-import { TasksService } from '../tasks/tasks.service.js';
 import { TransitionsService } from './transitions.service.js';
 
 const uuid = new ZodValidationPipe(z.uuid());
@@ -51,11 +46,7 @@ const uuid = new ZodValidationPipe(z.uuid());
 @Controller('tasks')
 export class TaskWorkflowController {
   constructor(
-    private readonly txRunner: TransactionRunner,
     private readonly transitions: TransitionsService,
-    private readonly placements: Placements,
-    private readonly query: TasksQueryService,
-    private readonly tasks: TasksService,
     private readonly personal: PersonalStagesService,
   ) {}
 
@@ -123,12 +114,8 @@ export class TaskWorkflowController {
   @ApiOperation({ summary: 'Доступные переходы маршрута (с причинами блокировки)' })
   @ApiOkResponse({ standardSchema: z.array(taskTransitionSchema) })
   @ApiErrors(400, 401, 404)
-  async available(
-    @GetUser() user: AuthUser,
-    @Param('id', uuid) id: string,
-  ): Promise<TaskTransition[]> {
-    await this.query.visibleRow(user, id);
-    return this.txRunner.run((tx) => this.transitions.available(tx, id, user));
+  available(@GetUser() user: AuthUser, @Param('id', uuid) id: string): Promise<TaskTransition[]> {
+    return this.transitions.listFor(user, id);
   }
 
   @Post(':id/transitions/:transitionId')
@@ -138,7 +125,7 @@ export class TaskWorkflowController {
   @ApiOkResponse({ standardSchema: taskListItemSchema })
   @ApiErrors(400, 401, 403, 404, 409)
   @ApiIdempotencyKey()
-  async execute(
+  execute(
     @GetUser() user: AuthUser,
     @Param('id', uuid) id: string,
     @Param('transitionId', uuid) transitionId: string,
@@ -148,9 +135,6 @@ export class TaskWorkflowController {
     })
     body: ExecuteTransitionBody,
   ): Promise<TaskListItem> {
-    const row = await this.query.visibleRow(user, id);
-    await this.placements.prepare(planHolderIds(row));
-    await this.txRunner.run((tx) => this.transitions.execute(tx, id, user, { transitionId }, body));
-    return this.tasks.listItem(user.id, id);
+    return this.transitions.executeFor(user, id, transitionId, body);
   }
 }

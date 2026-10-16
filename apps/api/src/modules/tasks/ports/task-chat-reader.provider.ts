@@ -1,23 +1,21 @@
 import { Injectable } from '@nestjs/common';
 import type { TaskRef } from '@nodus/contracts';
 
-import { PrismaService } from '../../../core/database/prisma.service.js';
 import { ViewerResolver, visibleTasksWhere } from '../access/task-visibility.js';
+import { TasksQueryRepository } from '../tasks/tasks-query.repository.js';
 import type { TaskChatReader, TaskChatRoster } from './task-chat-reader.port.js';
 
-/** Реализация read-порта задач для чата (таблицы задач — только здесь). */
+/** Реализация read-порта задач для чата (таблицы задач — через репозиторий
+ *  чтений модуля, наружу — только интерфейс порта). */
 @Injectable()
 export class TaskChatReaderProvider implements TaskChatReader {
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly reads: TasksQueryRepository,
     private readonly viewers: ViewerResolver,
   ) {}
 
   async roster(taskId: string): Promise<TaskChatRoster | null> {
-    const task = await this.prisma.task.findFirst({
-      where: { id: taskId, deletedAt: null },
-      select: { creatorId: true, assigneeId: true, participants: true },
-    });
+    const task = await this.reads.findLiveRoster(taskId);
     if (!task) return null;
     const members = new Map<string, boolean>([
       [task.creatorId, false],
@@ -34,10 +32,7 @@ export class TaskChatReaderProvider implements TaskChatReader {
 
   refs(taskIds: string[]): Promise<TaskRef[]> {
     if (taskIds.length === 0) return Promise.resolve([]);
-    return this.prisma.task.findMany({
-      where: { id: { in: taskIds } },
-      select: { id: true, number: true, title: true },
-    });
+    return this.reads.findRefs(taskIds);
   }
 
   async canView(
@@ -45,10 +40,6 @@ export class TaskChatReaderProvider implements TaskChatReader {
     user: { id: string; permissions: readonly string[] },
   ): Promise<boolean> {
     const viewer = await this.viewers.resolve(user);
-    const row = await this.prisma.task.findFirst({
-      where: { AND: [{ id: taskId }, visibleTasksWhere(viewer, 'all')] },
-      select: { id: true },
-    });
-    return row !== null;
+    return this.reads.isVisible(taskId, visibleTasksWhere(viewer, 'all'));
   }
 }

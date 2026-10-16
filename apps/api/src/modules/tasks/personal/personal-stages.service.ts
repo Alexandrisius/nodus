@@ -9,7 +9,6 @@ import {
   type TaskStageWithCount,
 } from '@nodus/contracts';
 
-import { PrismaService } from '../../../core/database/prisma.service.js';
 import {
   TransactionRunner,
   type TransactionClient,
@@ -19,8 +18,10 @@ import { EventBus } from '../../../core/events/event-bus.js';
 import { visibleTasksWhere } from '../access/task-visibility.js';
 import { stageDto } from '../tasks/task-dto.mapper.js';
 import { TasksQueryService } from '../tasks/tasks-query.service.js';
-import { TasksRepository } from '../tasks/tasks.repository.js';
+import { TasksQueryRepository } from '../tasks/tasks-query.repository.js';
 import { WorkflowRepository } from '../workflow/workflow.repository.js';
+import { PersonalStagesRepository } from './personal-stages.repository.js';
+import { PlacementsRepository } from './placements.repository.js';
 
 /** Потолок колонок личной доски (анти-DoS, находка security-гейта #37). */
 const MAX_PERSONAL_STAGES = 30;
@@ -29,32 +30,28 @@ const MAX_PERSONAL_STAGES = 30;
  * Колонки «Моего плана» (ADR-0008): личный маршрут — личный инструмент,
  * правка прямо на доске. Последнюю колонку состояния удалить нельзя
  * (автоперемещению нужна цель, модель Linear); удаление = архивация (I15),
- * задачи колонки переезжают в первую колонку того же состояния.
+ * задачи колонки переезжают в первую колонку того же состояния. Мутации
+ * одной доски сериализуются advisory-локом владельца (проверки «последняя
+ * колонка» и лимит — по снимку внутри tx).
  */
 @Injectable()
 export class PersonalStagesService {
   constructor(
-    private readonly prisma: PrismaService,
     private readonly txRunner: TransactionRunner,
     private readonly eventBus: EventBus,
     private readonly workflows: WorkflowRepository,
-    private readonly repo: TasksRepository,
+    private readonly stagesRepo: PersonalStagesRepository,
+    private readonly placementsRepo: PlacementsRepository,
+    private readonly queryRepo: TasksQueryRepository,
     private readonly query: TasksQueryService,
   ) {}
-
-  private live(workflowId: string, tx?: TransactionClient) {
-    return (tx ?? this.prisma).workflowStage.findMany({
-      where: { workflowId, archivedAt: null },
-      orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
-    });
-  }
 
   async list(user: AuthUser): Promise<TaskStageWithCount[]> {
     const workflowId = await this.workflows.ensurePersonal(user.id);
     const viewer = await this.query.viewer(user);
     const [stages, counts] = await Promise.all([
-      this.live(workflowId),
-      this.repo.personalCounts(user.id, visibleTasksWhere(viewer, 'mine'), new Date()),
+      this.stagesRepo.liveStages(workflowId),
+      this.queryRepo.personalCounts(user.id, visibleTasksWhere(viewer, 'mine'), new Date()),
     ]);
     return stages.map((s, index) => ({
       ...stageDto({ ...s, sortOrder: index }),
@@ -66,24 +63,19 @@ export class PersonalStagesService {
   async create(user: AuthUser, body: PersonalStageCreateBody): Promise<TaskStage> {
     const workflowId = await this.workflows.ensurePersonal(user.id);
     return this.txRunner.run(async (tx) => {
-      const total = await tx.workflowStage.count({ where: { workflowId, archivedAt: null } });
+      await this.stagesRepo.lockBoard(user.id, tx);
+      const total = await this.stagesRepo.countLive(workflowId, tx);
       if (total >= MAX_PERSONAL_STAGES) {
         throw DomainException.conflict(
           `Personal board is limited to ${MAX_PERSONAL_STAGES} columns`,
         );
       }
-      const last = await tx.workflowStage.findFirst({
-        where: { workflowId },
-        orderBy: { sortOrder: 'desc' },
-      });
-      const stage = await tx.workflowStage.create({
-        data: {
-          workflowId,
-          name: body.name,
-          color: body.color,
-          systemState: body.systemState,
-          sortOrder: (last?.sortOrder ?? -1) + 1,
-        },
+      const stage = await this.stagesRepo.create(tx, {
+        workflowId,
+        name: body.name,
+        color: body.color,
+        systemState: body.systemState,
+        sortOrder: await this.stagesRepo.nextSortOrder(workflowId, tx),
       });
       await this.emit(tx, user.id, TASK_EVENTS.PERSONAL_STAGE_CREATED, stage.id);
       return stageDto(stage);
@@ -93,7 +85,8 @@ export class PersonalStagesService {
   async update(user: AuthUser, stageId: string, body: PersonalStageUpdateBody): Promise<TaskStage> {
     const workflowId = await this.workflows.ensurePersonal(user.id);
     return this.txRunner.run(async (tx) => {
-      const stages = await this.live(workflowId, tx);
+      await this.stagesRepo.lockBoard(user.id, tx);
+      const stages = await this.stagesRepo.liveStages(workflowId, tx);
       const stage = stages.find((s) => s.id === stageId);
       if (!stage) throw DomainException.notFound('Stage not found');
       if (body.systemState && body.systemState !== stage.systemState) {
@@ -106,16 +99,13 @@ export class PersonalStagesService {
         const rest = stages.filter((s) => s.id !== stageId);
         rest.splice(Math.min(body.order, rest.length), 0, stage);
         for (const [i, s] of rest.entries()) {
-          await tx.workflowStage.update({ where: { id: s.id }, data: { sortOrder: i } });
+          await this.stagesRepo.setSortOrder(tx, s.id, i);
         }
       }
-      const updated = await tx.workflowStage.update({
-        where: { id: stageId },
-        data: {
-          ...(body.name !== undefined ? { name: body.name } : {}),
-          ...(body.color !== undefined ? { color: body.color } : {}),
-          ...(body.systemState !== undefined ? { systemState: body.systemState } : {}),
-        },
+      const updated = await this.stagesRepo.update(tx, stageId, {
+        ...(body.name !== undefined ? { name: body.name } : {}),
+        ...(body.color !== undefined ? { color: body.color } : {}),
+        ...(body.systemState !== undefined ? { systemState: body.systemState } : {}),
       });
       await this.emit(tx, user.id, TASK_EVENTS.PERSONAL_STAGE_UPDATED, stageId);
       return stageDto(updated);
@@ -125,12 +115,13 @@ export class PersonalStagesService {
   async archive(user: AuthUser, stageId: string): Promise<{ ok: true; movedToStageId?: string }> {
     const workflowId = await this.workflows.ensurePersonal(user.id);
     return this.txRunner.run(async (tx) => {
-      const stages = await this.live(workflowId, tx);
+      await this.stagesRepo.lockBoard(user.id, tx);
+      const stages = await this.stagesRepo.liveStages(workflowId, tx);
       const stage = stages.find((s) => s.id === stageId);
       if (!stage) throw DomainException.notFound('Stage not found');
       this.assertNotLastOfState(stages, stage);
       const movedTo = await this.evacuate(tx, stages, stage);
-      await tx.workflowStage.update({ where: { id: stageId }, data: { archivedAt: new Date() } });
+      await this.stagesRepo.archive(tx, stageId, new Date());
       await this.emit(tx, user.id, TASK_EVENTS.PERSONAL_STAGE_ARCHIVED, stageId);
       return { ok: true, movedToStageId: movedTo };
     });
@@ -155,10 +146,7 @@ export class PersonalStagesService {
   ): Promise<string | undefined> {
     const target = stages.find((s) => s.id !== stage.id && s.systemState === stage.systemState);
     if (!target) return undefined;
-    await tx.taskPersonalPlacement.updateMany({
-      where: { stageId: stage.id },
-      data: { stageId: target.id },
-    });
+    await this.placementsRepo.moveColumn(tx, stage.id, target.id);
     return target.id;
   }
 

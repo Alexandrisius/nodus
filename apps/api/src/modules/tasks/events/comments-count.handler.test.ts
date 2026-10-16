@@ -3,22 +3,21 @@ import { TASK_EVENTS, type DomainEvent } from '@nodus/contracts';
 
 import { TaskCommentsCounter } from './comments-count.handler.js';
 
-const TX = {
-  task: {
-    findFirst: vi.fn(),
-    update: vi.fn(),
-  },
+const TX = { tx: true };
+const repo = {
+  findLiveRoster: vi.fn(),
+  setCommentsCount: vi.fn(),
 };
 
 function setup(discussion: { taskId: string; count: number } | null, enabled = true) {
-  TX.task.findFirst.mockReset().mockResolvedValue({
+  repo.findLiveRoster.mockReset().mockResolvedValue({
     id: 't1',
     number: 7,
     creatorId: 'alice',
     assigneeId: 'bob',
     participants: [{ userId: 'carol', role: 'observer' }],
   });
-  TX.task.update.mockReset();
+  repo.setCommentsCount.mockReset();
   const txRunner = { run: (fn: (tx: unknown) => unknown) => fn(TX) };
   const eventBus = { emit: vi.fn() };
   const flags = { isEnabled: vi.fn().mockResolvedValue(enabled) };
@@ -27,6 +26,7 @@ function setup(discussion: { taskId: string; count: number } | null, enabled = t
     txRunner as never,
     eventBus as never,
     flags as never,
+    repo as never,
     chat,
   );
   return { counter, eventBus };
@@ -40,11 +40,9 @@ describe('TaskCommentsCounter (#252)', () => {
     const { counter, eventBus } = setup({ taskId: 't1', count: 4 });
     await counter.recount(event({ conversationId: 'c1' }));
     await counter.recount(event({ conversationId: 'c1' }));
-    expect(TX.task.update).toHaveBeenCalledTimes(2);
-    expect(TX.task.update).toHaveBeenLastCalledWith({
-      where: { id: 't1' },
-      data: { commentsCount: 4 },
-    });
+    expect(repo.findLiveRoster).toHaveBeenLastCalledWith('t1', TX);
+    expect(repo.setCommentsCount).toHaveBeenCalledTimes(2);
+    expect(repo.setCommentsCount).toHaveBeenLastCalledWith(TX, 't1', 4);
     expect(eventBus.emit).toHaveBeenLastCalledWith(
       TX,
       TASK_EVENTS.COMMENTS_COUNTED,
@@ -56,15 +54,15 @@ describe('TaskCommentsCounter (#252)', () => {
   it('обычная беседа, флаг выключен или нет conversationId — без записи', async () => {
     const plain = setup(null);
     await plain.counter.recount(event({ conversationId: 'c1' }));
-    expect(TX.task.update).not.toHaveBeenCalled();
+    expect(repo.setCommentsCount).not.toHaveBeenCalled();
 
     const off = setup({ taskId: 't1', count: 1 }, false);
     await off.counter.recount(event({ conversationId: 'c1' }));
-    expect(TX.task.update).not.toHaveBeenCalled();
+    expect(repo.setCommentsCount).not.toHaveBeenCalled();
 
     const bad = setup({ taskId: 't1', count: 1 });
     await bad.counter.recount(event({}));
-    expect(TX.task.update).not.toHaveBeenCalled();
+    expect(repo.setCommentsCount).not.toHaveBeenCalled();
     expect(bad.eventBus.emit).not.toHaveBeenCalled();
   });
 });

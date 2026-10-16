@@ -2,13 +2,13 @@ import { Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod';
 import { TASK_EVENTS, type AuthUser, type Paginated, type TaskHistoryItem } from '@nodus/contracts';
 
-import { PrismaService } from '../../../core/database/prisma.service.js';
 import { decodeCursor, encodeCursor } from '../../../core/pagination/cursor.util.js';
 import {
   USER_PROFILE_READER,
   type UserProfileReader,
 } from '../../../core/ports/user-profile.port.js';
 import { TasksQueryService } from '../tasks/tasks-query.service.js';
+import { HistoryRepository } from './history.repository.js';
 
 /** Личные события (доска/таймер конкретного сотрудника) в общую историю не идут. */
 const PRIVATE_TYPES = [
@@ -22,7 +22,7 @@ const cursorSchema = z.object({ seq: z.string().regex(/^\d+$/) });
 @Injectable()
 export class HistoryService {
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly repo: HistoryRepository,
     private readonly query: TasksQueryService,
     @Inject(USER_PROFILE_READER) private readonly profiles: UserProfileReader,
   ) {}
@@ -35,16 +35,7 @@ export class HistoryService {
   ): Promise<Paginated<TaskHistoryItem>> {
     await this.query.visibleRow(user, taskId);
     const before = cursor ? BigInt(decodeCursor(cursor, cursorSchema).seq) : undefined;
-    const rows = await this.prisma.event.findMany({
-      where: {
-        aggregateType: 'task',
-        aggregateId: taskId,
-        type: { startsWith: 'task.', notIn: PRIVATE_TYPES },
-        ...(before !== undefined ? { seq: { lt: before } } : {}),
-      },
-      orderBy: { seq: 'desc' },
-      take: limit + 1,
-    });
+    const rows = await this.repo.pageTaskEvents(taskId, PRIVATE_TYPES, before, limit);
     const page = rows.slice(0, limit);
     const actorIds = page.map((r) => r.actorId).filter((id): id is string => id !== null);
     const refs = new Map(
