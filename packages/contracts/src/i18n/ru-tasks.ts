@@ -48,7 +48,6 @@ export const tasksStrings = {
   comments: 'Обсуждение',
   description: 'Описание',
   checklist: 'Чек-лист',
-  discussion: 'Обсуждение',
   addComment: 'Написать комментарий…',
   discussionEmpty: 'Нет обсуждения — напишите первое сообщение',
   discussionMembersOnly: 'Обсуждение доступно участникам задачи',
@@ -70,9 +69,6 @@ export const tasksStrings = {
   emptyColumn: 'Нет задач',
   dropHere: 'Отпустите задачу здесь',
   stageMoveError: 'Не удалось перенести задачу — вернули на прежнюю стадию',
-  stageComplete: 'Завершить задачу',
-  stageCompleted: 'Завершена',
-  stageReturn: 'Вернуть на доработку',
   quickTaskPlaceholder: 'Новая задача — Enter, чтобы создать',
   addStage: 'Добавить стадию',
   stageNamePlaceholder: 'Название колонки…',
@@ -130,11 +126,9 @@ export const tasksStrings = {
   cascadeKeep: 'Только эту задачу',
   cascadeDone: 'Сроки подзадач сдвинуты',
   subtaskLaterThanParent: 'Срок позже срока родительской задачи',
-  subtasksForms: ['подзадача', 'подзадачи', 'подзадач'],
   /** Чек-лист и подзадачи (#311). */
   checklistDelete: 'Удалить пункт',
   subtaskAdd: 'Добавить подзадачу',
-  subtasksEmpty: 'Разбейте задачу на шаги — у каждой подзадачи свой ответственный и срок',
   /** Учёт времени (#311, I14). */
   timeTitle: 'Учёт времени',
   timeMinutesPlaceholder: '1ч 30м',
@@ -145,7 +139,6 @@ export const tasksStrings = {
   timeDelete: 'Удалить запись',
   timeLogged: 'Время внесено',
   timeByTimer: 'таймер',
-  timerRunning: 'Идёт учёт времени',
   timerSwitched: 'Остановлен таймер задачи №',
   /** Результат (#311). */
   resultEmpty: 'Опишите, что сделано: итоги, ссылки, файлы. Постановщик увидит это при приёмке.',
