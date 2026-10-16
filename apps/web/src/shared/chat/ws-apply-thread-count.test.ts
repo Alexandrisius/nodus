@@ -10,7 +10,7 @@ import { applySentMessage } from './ws-apply.js';
  * РОВНО на +1. До фикса считали трижды: оптимистичный +1 onMutate, +1 от
  * WS-эха (conv-комната) и +1 от дубля эха (user-комната, at-least-once
  * fanout gateway) — 3 → 6 → 9 → 12, F5 ставил серверную цифру. Сюда же —
- * защитные semantics окна трэда (pendingRepared без темпа в окне).
+ * защитная семантика окна трэда (pendingReplaced без темпа в окне).
  */
 
 const CONV = 'conv-1';
