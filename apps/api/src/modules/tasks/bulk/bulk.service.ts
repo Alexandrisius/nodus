@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { PinoLogger } from 'nestjs-pino';
 import { ErrorCode, type AuthUser, type TaskBulkBody, type TaskBulkResult } from '@nodus/contracts';
 
 import { DomainException } from '../../../core/errors/domain-exception.js';
@@ -11,7 +12,12 @@ import { TaskEditService } from '../tasks/task-edit.service.js';
  */
 @Injectable()
 export class BulkService {
-  constructor(private readonly edit: TaskEditService) {}
+  constructor(
+    private readonly edit: TaskEditService,
+    private readonly logger: PinoLogger,
+  ) {
+    this.logger.setContext(BulkService.name);
+  }
 
   async run(user: AuthUser, body: TaskBulkBody): Promise<TaskBulkResult> {
     const results: TaskBulkResult['results'] = [];
@@ -31,6 +37,9 @@ export class BulkService {
         );
         results.push({ taskId, ok: true });
       } catch (error) {
+        if (!(error instanceof DomainException)) {
+          this.logger.error({ err: error, taskId }, 'Bulk task action failed unexpectedly');
+        }
         const code = error instanceof DomainException ? error.code : ErrorCode.INTERNAL_ERROR;
         results.push({ taskId, ok: false, code });
       }

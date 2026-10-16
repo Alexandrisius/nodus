@@ -252,7 +252,7 @@ CREATE INDEX "tasks_system_state_deadline_idx" ON "tasks"("system_state", "deadl
 CREATE INDEX "tasks_updated_at_id_idx" ON "tasks"("updated_at" DESC, "id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "tasks_source_source_id_key" ON "tasks"("source", "source_id");
+CREATE INDEX "tasks_source_source_id_idx" ON "tasks"("source", "source_id");
 
 -- CreateIndex
 CREATE INDEX "task_participants_user_id_role_idx" ON "task_participants"("user_id", "role");
@@ -347,6 +347,10 @@ CREATE UNIQUE INDEX "workflow_schemes_single_default_key" ON "workflow_schemes"(
 
 -- Один идущий таймер на сотрудника.
 CREATE UNIQUE INDEX "time_entries_running_timer_key" ON "time_entries"("user_id") WHERE "method" = 'timer' AND "ended_at" IS NULL;
+
+-- Дедуп происхождения: одна ЖИВАЯ задача на источник у постановщика
+-- (удалённая освобождает источник; другой сотрудник ставит свою).
+CREATE UNIQUE INDEX "tasks_source_dedup_key" ON "tasks"("source", "source_id", "creator_id") WHERE "source_id" IS NOT NULL AND "deleted_at" IS NULL;
 
 -- Кастомные поля (data-model.md: JSONB + GIN с первой миграции).
 CREATE INDEX "tasks_custom_fields_gin" ON "tasks" USING GIN ("custom_fields" jsonb_path_ops);

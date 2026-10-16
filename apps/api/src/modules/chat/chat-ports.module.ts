@@ -4,6 +4,8 @@ import { MembershipReaderProvider } from './membership-reader.provider.js';
 import { CHAT_MEMBERSHIP_READER } from './membership-reader.port.js';
 import { MessageLivenessProvider } from './message-liveness.provider.js';
 import { CHAT_MESSAGE_LIVENESS } from './message-liveness.port.js';
+import { MessageAccessProvider } from './message-access.provider.js';
+import { CHAT_MESSAGE_ACCESS } from './message-access.port.js';
 
 /**
  * Порты чтения чата (ADR-0012): тонкий модуль экспорта read-портов чужим
@@ -16,7 +18,10 @@ import { CHAT_MESSAGE_LIVENESS } from './message-liveness.port.js';
     { provide: CHAT_MEMBERSHIP_READER, useClass: MembershipReaderProvider },
     MessageLivenessProvider,
     { provide: CHAT_MESSAGE_LIVENESS, useClass: MessageLivenessProvider },
+    // Доступ к сообщению для «В задачу» и результата задачи (#37).
+    MessageAccessProvider,
+    { provide: CHAT_MESSAGE_ACCESS, useClass: MessageAccessProvider },
   ],
-  exports: [CHAT_MEMBERSHIP_READER, CHAT_MESSAGE_LIVENESS],
+  exports: [CHAT_MEMBERSHIP_READER, CHAT_MESSAGE_LIVENESS, CHAT_MESSAGE_ACCESS],
 })
 export class ChatPortsModule {}

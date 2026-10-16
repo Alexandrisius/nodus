@@ -1020,7 +1020,8 @@ model Task {
   parentId          String?   @map("parent_id") @db.Uuid
   projectId         String?   @map("project_id") @db.Uuid
   /// manual | chat_message | letter; sourceId — id сообщения/поручения
-  /// (дедуп unique(source, source_id)).
+  /// (дедуп: частичный unique (source, source_id, creator_id) по живым
+  /// задачам — в миграции).
   source            String    @default("manual")
   sourceId          String?   @map("source_id") @db.Uuid
   /// Снимок цепочки происхождения (TaskChainNode[] без узла самой задачи).
@@ -1032,7 +1033,8 @@ model Task {
   commentsCount     Int       @default(0) @map("comments_count")
   /// Кастомные поля (FieldDefinition, data-model.md); GIN — в миграции.
   customFields      Json      @default("{}") @map("custom_fields")
-  /// Крючок: конфиденциальная задача (не видна по task.view_all, ИИ не читает).
+  /// Крючок под будущий режим «конфиденциально» (ИИ-агент не читает; на
+  /// видимость пока НЕ влияет — правило появится вместе с потребителем).
   confidential      Boolean   @default(false)
   /// Ключ внешней системы (импорт из Битрикса: «b24:12345»).
   externalRef       String?   @unique @map("external_ref")
@@ -1057,7 +1059,7 @@ model Task {
   timeEntries   TimeEntry[]
   results       TaskResult[]
 
-  @@unique([source, sourceId])
+  @@index([source, sourceId])
   @@index([stageId, stageOrder, id])
   @@index([assigneeId, systemState])
   @@index([creatorId, systemState])

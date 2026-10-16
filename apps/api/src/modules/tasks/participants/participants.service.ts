@@ -56,12 +56,20 @@ export class ParticipantsService {
 
   async remove(user: AuthUser, taskId: string, userId: string): Promise<TaskDetail | null> {
     const row = await this.query.visibleRow(user, taskId);
-    const self = userId === user.id;
-    if (!self && !taskAccess(actorRoles(row, user.id), user.permissions).canManageParticipants) {
+    const manager = taskAccess(actorRoles(row, user.id), user.permissions).canManageParticipants;
+    // Самоснятие — только наблюдателю; соисполнителя снимает постановщик/
+    // ответственный (спека #37).
+    const selfObserver = userId === user.id && !manager;
+    if (userId !== user.id && !manager) {
       throw DomainException.forbidden('Participants change not allowed');
     }
     await this.txRunner.run(async (tx) => {
-      const { count } = await tx.taskParticipant.deleteMany({ where: { taskId, userId } });
+      const { count } = await tx.taskParticipant.deleteMany({
+        where: { taskId, userId, ...(selfObserver ? { role: 'observer' } : {}) },
+      });
+      if (count === 0 && selfObserver) {
+        throw DomainException.forbidden('Only observer can leave the task');
+      }
       if (count > 0) await this.afterChange(tx, user.id, taskId, [], [userId]);
     });
     // Снявший себя наблюдатель может потерять видимость — тогда ответ пустой.

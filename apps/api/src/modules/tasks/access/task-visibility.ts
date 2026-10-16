@@ -26,7 +26,7 @@ function involves(userIds: readonly string[]): Prisma.TaskWhereInput[] {
  * Единственная функция видимости задач (мини-спека #37) — на ВСЕ чтения:
  * список, деталь, ветка, поиск, счётчики, bulk. Видят: участники (постановщик,
  * ответственный, соисполнители, наблюдатели), их руководители по оргструктуре,
- * обладатели task.view_all (кроме конфиденциальных). scope=mine — только
+ * обладатели task.view_all — все задачи. scope=mine — только
  * собственное участие. Ступень 3 добавит ветку «видимые проекты».
  */
 export function visibleTasksWhere(viewer: Viewer, scope: 'mine' | 'all'): Prisma.TaskWhereInput {
@@ -34,7 +34,7 @@ export function visibleTasksWhere(viewer: Viewer, scope: 'mine' | 'all'): Prisma
   if (scope === 'mine') return { deletedAt: null, OR: mine };
   const or: Prisma.TaskWhereInput[] = [...mine];
   if (viewer.subordinateIds.length > 0) or.push(...involves(viewer.subordinateIds));
-  if (viewer.permissions.includes(Permission.TASK_VIEW_ALL)) or.push({ confidential: false });
+  if (viewer.permissions.includes(Permission.TASK_VIEW_ALL)) return { deletedAt: null };
   return { deletedAt: null, OR: or };
 }
 

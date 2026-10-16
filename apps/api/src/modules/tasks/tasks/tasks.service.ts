@@ -21,7 +21,8 @@ import {
   type UserProfileReader,
 } from '../../../core/ports/user-profile.port.js';
 import { keyBetween } from '../lib/fractional-index.js';
-import { audienceIds, planHolderIds } from '../access/task-access.js';
+import { actorRoles, audienceIds, planHolderIds, taskAccess } from '../access/task-access.js';
+import { CHAT_MESSAGE_ACCESS, type ChatMessageAccess } from '../../chat/message-access.port.js';
 import { Placements } from '../personal/placements.js';
 import { WorkflowRepository } from '../workflow/workflow.repository.js';
 import { TaskDtoMapper } from './task-dto.mapper.js';
@@ -44,7 +45,18 @@ export class TasksService {
     private readonly query: TasksQueryService,
     private readonly mapper: TaskDtoMapper,
     @Inject(USER_PROFILE_READER) private readonly profiles: UserProfileReader,
+    @Inject(CHAT_MESSAGE_ACCESS) private readonly messages: ChatMessageAccess,
   ) {}
+
+  /** Подзадача/перепривязка: родителя правят только те, кто может править
+   *  его самого (наблюдатель или руководитель не блокируют чужую задачу
+   *  гейтом «нет открытых подзадач» — находка security-гейта #37). */
+  async assertCanEditParent(user: AuthUser, parentId: string): Promise<void> {
+    const parent = await this.query.visibleRow(user, parentId);
+    if (!taskAccess(actorRoles(parent, user.id), user.permissions).canEdit) {
+      throw DomainException.forbidden('Parent task edit not allowed');
+    }
+  }
 
   /** Активные сотрудники из списка; иначе VALIDATION_FAILED (а не тихий пропуск). */
   async assertActiveUsers(ids: string[]): Promise<void> {
@@ -61,8 +73,12 @@ export class TasksService {
     const assigneeId = body.assigneeId ?? user.id;
     const participants = this.participantRows(body, user.id, assigneeId);
     await this.assertActiveUsers([assigneeId, ...participants.map((p) => p.userId)]);
-    if (body.parentId) await this.query.visibleRow(user, body.parentId);
+    if (body.parentId) await this.assertCanEditParent(user, body.parentId);
+    const message = body.sourceMessageId
+      ? await this.messages.snapshot(body.sourceMessageId, user.id)
+      : null;
     if (body.sourceMessageId) {
+      if (!message) throw DomainException.notFound('Message not found');
       const existing = await this.findBySource(user, body.sourceMessageId);
       if (existing) return existing;
     }
@@ -71,14 +87,14 @@ export class TasksService {
     const personalColumn = body.personalStageId
       ? await this.personalColumn(user.id, body.personalStageId)
       : null;
-    const live = workflow.stages.filter((s) => !s.archivedAt);
-    const stage =
-      (body.stageId && live.find((s) => s.id === body.stageId)) ||
-      (personalColumn && live.find((s) => s.systemState === personalColumn.systemState)) ||
-      live.find((s) => s.isInitial) ||
-      live[0];
-    if (!stage || (body.stageId && stage.id !== body.stageId))
-      throw DomainException.notFound('Stage not found');
+    // Новая задача стартует только в стадии «ещё не начата» (backlog): иначе
+    // создание обходило бы движок переходов (условия «кто» и гейты) —
+    // находка security-гейта #37. Колонка «Моего плана» — лишь размещение.
+    const starts = workflow.stages.filter((s) => !s.archivedAt && s.systemState === 'backlog');
+    const stage = body.stageId
+      ? starts.find((s) => s.id === body.stageId)
+      : (starts.find((s) => s.isInitial) ?? starts[0]);
+    if (!stage) throw DomainException.notFound('Stage not found');
     const holders = planHolderIds({ creatorId: user.id, assigneeId, participants });
     await this.placements.prepare(holders);
 
@@ -87,13 +103,13 @@ export class TasksService {
         where: { stageId: stage.id },
         orderBy: [{ stageOrder: 'asc' }, { id: 'asc' }],
       });
-      const origin: TaskChainNode[] | undefined = body.sourceMessageId
+      const origin: TaskChainNode[] | undefined = message
         ? [
             {
               kind: 'chat_message',
-              ref: 'Чат',
-              label: 'Сообщение чата',
-              entityId: body.sourceMessageId,
+              ref: message.conversationTitle ?? 'Чат',
+              label: message.excerpt || 'Сообщение чата',
+              entityId: message.conversationId,
             },
           ]
         : undefined;
@@ -123,7 +139,9 @@ export class TasksService {
       });
       await this.createChecklist(tx, task.id, body.checklist ?? []);
       await this.placements.sync(tx, task, holders, user.id);
-      if (personalColumn) await this.placeInColumn(tx, task.id, user.id, personalColumn.id);
+      if (personalColumn?.systemState === task.systemState) {
+        await this.placeInColumn(tx, task.id, user.id, personalColumn.id);
+      }
       await this.eventBus.emit(
         tx,
         TASK_EVENTS.CREATED,
@@ -150,8 +168,9 @@ export class TasksService {
 
   async remove(user: AuthUser, id: string): Promise<void> {
     const row = await this.query.visibleRow(user, id);
-    const detail = await this.query.detail(user, id);
-    if (!detail.access.canDelete) throw DomainException.forbidden('Only creator can delete task');
+    if (!taskAccess(actorRoles(row, user.id), user.permissions).canDelete) {
+      throw DomainException.forbidden('Only creator can delete task');
+    }
     await this.txRunner.run(async (tx) => {
       await tx.task.update({ where: { id }, data: { deletedAt: new Date() } });
       await tx.task.updateMany({ where: { parentId: id }, data: { parentId: row.parentId } });
@@ -209,13 +228,14 @@ export class TasksService {
     });
   }
 
+  /** Дедуп «В задачу»: одна живая задача на сообщение у постановщика
+   *  (у другого сотрудника — своя; чужие задачи не раскрываются — без
+   *  оракула существования). Индекс — частичный unique в миграции. */
   private async findBySource(user: AuthUser, messageId: string): Promise<TaskListItem | null> {
     const found = await this.prisma.task.findFirst({
-      where: { source: 'chat_message', sourceId: messageId, deletedAt: null },
+      where: { source: 'chat_message', sourceId: messageId, creatorId: user.id, deletedAt: null },
       select: { id: true },
     });
-    if (!found) return null;
-    await this.query.visibleRow(user, found.id);
-    return this.listItem(user.id, found.id);
+    return found ? this.listItem(user.id, found.id) : null;
   }
 }

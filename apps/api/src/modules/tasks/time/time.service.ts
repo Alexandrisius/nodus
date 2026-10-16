@@ -125,12 +125,19 @@ export class TimeService {
     });
   }
 
-  async current(userId: string): Promise<RunningTimer | null> {
+  async current(user: AuthUser): Promise<RunningTimer | null> {
     const entry = await this.prisma.timeEntry.findFirst({
-      where: { userId, method: 'timer', endedAt: null },
+      where: { userId: user.id, method: 'timer', endedAt: null },
       include: { task: { select: { id: true, number: true, title: true } } },
     });
     if (!entry?.task || !entry.startedAt) return null;
+    // Доступ к задаче потерян (сняли с задачи) — название не раскрываем;
+    // запись остановится стартом следующего таймера или явной остановкой.
+    const visible = await this.query.visibleRow(user, entry.task.id).then(
+      () => true,
+      () => false,
+    );
+    if (!visible) return null;
     return { entryId: entry.id, task: entry.task, startedAt: entry.startedAt.toISOString() };
   }
 
@@ -156,7 +163,7 @@ export class TimeService {
         { actorId: user.id, aggregateType: 'task', aggregateId: taskId },
       );
     });
-    return (await this.current(user.id))!;
+    return (await this.current(user))!;
   }
 
   async stop(user: AuthUser): Promise<void> {

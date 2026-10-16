@@ -57,7 +57,10 @@ export class TaskEditService {
     if (fields.length > 0 && !access.canEdit)
       throw DomainException.forbidden('Task edit not allowed');
     if (body.assigneeId) await this.tasks.assertActiveUsers([body.assigneeId]);
-    if (body.parentId) await this.assertParent(user, id, body.parentId);
+    if (body.parentId === id) {
+      throw new DomainException(ErrorCode.TASK_PARENT_CYCLE, 'Task cannot be its own parent');
+    }
+    if (body.parentId) await this.tasks.assertCanEditParent(user, body.parentId);
     const holdersAfter = planHolderIds({ ...row, assigneeId: body.assigneeId ?? row.assigneeId });
     await this.placements.prepare(holdersAfter);
 
@@ -78,7 +81,17 @@ export class TaskEditService {
     body: TaskUpdateBody,
     fields: readonly string[],
   ): Promise<void> {
-    await this.repo.lock(tx, row.id);
+    // Цикл родителя проверяется под блокировкой обеих строк (в порядке id —
+    // без взаимоблокировки): параллельные A→B и B→A сериализуются
+    // (находка security-гейта #37).
+    for (const id of [row.id, body.parentId].filter((x): x is string => !!x).sort()) {
+      await this.repo.lock(tx, id);
+    }
+    if (body.parentId) {
+      if (await this.repo.isDescendant(tx, row.id, body.parentId)) {
+        throw new DomainException(ErrorCode.TASK_PARENT_CYCLE, 'Parent is a descendant');
+      }
+    }
     const data: Prisma.TaskUncheckedUpdateInput = {};
     if (body.title !== undefined) data.title = body.title;
     if (body.description !== undefined) data.description = body.description;
@@ -192,13 +205,5 @@ export class TaskEditService {
       { taskId: row.id, userId: user.id, stageId, audience: [user.id] },
       { actorId: user.id, aggregateType: 'task', aggregateId: row.id },
     );
-  }
-
-  private async assertParent(user: AuthUser, id: string, parentId: string): Promise<void> {
-    if (parentId === id)
-      throw new DomainException(ErrorCode.TASK_PARENT_CYCLE, 'Task cannot be its own parent');
-    await this.query.visibleRow(user, parentId);
-    const cycle = await this.txRunner.run((tx) => this.repo.isDescendant(tx, id, parentId));
-    if (cycle) throw new DomainException(ErrorCode.TASK_PARENT_CYCLE, 'Parent is a descendant');
   }
 }

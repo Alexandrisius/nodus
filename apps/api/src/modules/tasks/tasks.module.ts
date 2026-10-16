@@ -4,6 +4,7 @@ import { ORG_STRUCTURE_READER } from '../../core/ports/org-structure.port.js';
 import { OrgStructureProvider } from '../../core/ports/org-structure.provider.js';
 import { USER_PROFILE_READER } from '../../core/ports/user-profile.port.js';
 import { UserProfileProvider } from '../../core/ports/user-profile.provider.js';
+import { ChatPortsModule } from '../chat/chat-ports.module.js';
 import { ViewerResolver } from './access/task-visibility.js';
 import { HistoryService } from './activity/history.service.js';
 import { RelationsService } from './activity/relations.service.js';
@@ -36,6 +37,8 @@ import { WorkflowRepository } from './workflow/workflow.repository.js';
  * чат задачи — модуль chat по событиям task.* (#252). Флаг `tasks` (I10).
  */
 @Module({
+  // Read-порты чата (ADR-0012): доступ к сообщению для «В задачу»/результата.
+  imports: [ChatPortsModule],
   controllers: [TasksController, TaskWorkflowController, TaskPartsController, TimeController],
   providers: [
     UserProfileProvider,

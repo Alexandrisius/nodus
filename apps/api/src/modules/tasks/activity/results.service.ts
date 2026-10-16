@@ -17,6 +17,7 @@ import {
 } from '../../../core/ports/user-profile.port.js';
 import { actorRoles, audienceIds, taskAccess } from '../access/task-access.js';
 import { TasksQueryService } from '../tasks/tasks-query.service.js';
+import { CHAT_MESSAGE_ACCESS, type ChatMessageAccess } from '../../chat/message-access.port.js';
 
 /** Результат задачи: append-only ревизии (текущий — последняя); пишут
  *  постановщик, ответственный, соисполнители (canCheck). */
@@ -28,6 +29,7 @@ export class ResultsService {
     private readonly eventBus: EventBus,
     private readonly query: TasksQueryService,
     @Inject(USER_PROFILE_READER) private readonly profiles: UserProfileReader,
+    @Inject(CHAT_MESSAGE_ACCESS) private readonly messages: ChatMessageAccess,
   ) {}
 
   async list(user: AuthUser, taskId: string): Promise<TaskResult[]> {
@@ -53,6 +55,14 @@ export class ResultsService {
     const row = await this.query.visibleRow(user, taskId);
     if (!taskAccess(actorRoles(row, user.id), user.permissions).canCheck) {
       throw DomainException.forbidden('Result change not allowed');
+    }
+    // Закрепить можно только сообщение, которое автор видит сам (иначе
+    // результат стал бы окном в чужую беседу — находка security-гейта #37;
+    // #252 сузит до беседы самой задачи).
+    for (const messageId of new Set(body.messageIds ?? [])) {
+      if (!(await this.messages.snapshot(messageId, user.id))) {
+        throw DomainException.notFound('Message not found');
+      }
     }
     const created = await this.txRunner.run(async (tx) => {
       const result = await tx.taskResult.create({

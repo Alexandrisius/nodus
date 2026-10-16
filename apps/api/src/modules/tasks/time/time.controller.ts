@@ -44,7 +44,7 @@ export class TimeController {
   @ApiOkResponse({ standardSchema: runningTimerSchema.nullable() })
   @ApiErrors(401)
   current(@GetUser() user: AuthUser): Promise<RunningTimer | null> {
-    return this.time.current(user.id);
+    return this.time.current(user);
   }
 
   @Post('timer/stop')

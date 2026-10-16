@@ -22,6 +22,9 @@ import { TasksQueryService } from '../tasks/tasks-query.service.js';
 import { TasksRepository } from '../tasks/tasks.repository.js';
 import { WorkflowRepository } from '../workflow/workflow.repository.js';
 
+/** Потолок колонок личной доски (анти-DoS, находка security-гейта #37). */
+const MAX_PERSONAL_STAGES = 30;
+
 /**
  * Колонки «Моего плана» (ADR-0008): личный маршрут — личный инструмент,
  * правка прямо на доске. Последнюю колонку состояния удалить нельзя
@@ -63,6 +66,12 @@ export class PersonalStagesService {
   async create(user: AuthUser, body: PersonalStageCreateBody): Promise<TaskStage> {
     const workflowId = await this.workflows.ensurePersonal(user.id);
     return this.txRunner.run(async (tx) => {
+      const total = await tx.workflowStage.count({ where: { workflowId, archivedAt: null } });
+      if (total >= MAX_PERSONAL_STAGES) {
+        throw DomainException.conflict(
+          `Personal board is limited to ${MAX_PERSONAL_STAGES} columns`,
+        );
+      }
       const last = await tx.workflowStage.findFirst({
         where: { workflowId },
         orderBy: { sortOrder: 'desc' },

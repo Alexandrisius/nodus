@@ -19,9 +19,10 @@ describe('visibleTasksWhere', () => {
     expect(JSON.stringify(where)).toContain('sub');
   });
 
-  it('task.view_all — всё неконфиденциальное', () => {
-    const where = visibleTasksWhere({ ...viewer, permissions: [Permission.TASK_VIEW_ALL] }, 'all');
-    expect(where.OR).toContainEqual({ confidential: false });
+  it('task.view_all — все живые задачи; mine — по-прежнему только своё', () => {
+    const viewAll = { ...viewer, permissions: [Permission.TASK_VIEW_ALL] };
+    expect(visibleTasksWhere(viewAll, 'all')).toEqual({ deletedAt: null });
+    expect(visibleTasksWhere(viewAll, 'mine').OR).toHaveLength(3);
   });
 
   it('без прав и подчинённых all = mine', () => {
