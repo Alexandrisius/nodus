@@ -44,10 +44,16 @@ export function bumpCommentsOnce(taskId: string, key: string, by: number): void 
   useCommentsLive.getState().bump(taskId, by);
 }
 
-/** Отображаемое число комментариев задачи. */
+/** Отображаемое число: точное серверное, иначе база кэша + живая дельта. */
+export function displayedComments(
+  state: Pick<CommentsLiveState, 'exact' | 'delta'>,
+  task: { id: string; commentsCount: number },
+): number {
+  return state.exact[task.id] ?? Math.max(0, task.commentsCount + (state.delta[task.id] ?? 0));
+}
+
+/** Отображаемое число комментариев задачи (сортировка таблиц — по базе
+ *  кэша: живая дельта живёт секунду до серверного значения). */
 export function useCommentsCount(task: { id: string; commentsCount: number }): number {
-  return useCommentsLive((s) => {
-    const exact = s.exact[task.id];
-    return exact ?? Math.max(0, task.commentsCount + (s.delta[task.id] ?? 0));
-  });
+  return useCommentsLive((s) => displayedComments(s, task));
 }

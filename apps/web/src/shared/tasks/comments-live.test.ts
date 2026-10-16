@@ -1,11 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { bumpCommentsOnce, useCommentsLive } from './comments-live.js';
+import { bumpCommentsOnce, displayedComments, useCommentsLive } from './comments-live.js';
 
-const display = (id: string, base: number) => {
-  const s = useCommentsLive.getState();
-  return s.exact[id] ?? Math.max(0, base + (s.delta[id] ?? 0));
-};
+const display = (id: string, base: number) =>
+  displayedComments(useCommentsLive.getState(), { id, commentsCount: base });
 
 describe('живой счётчик комментариев (#252)', () => {
   beforeEach(() => useCommentsLive.setState({ exact: {}, delta: {} }));
