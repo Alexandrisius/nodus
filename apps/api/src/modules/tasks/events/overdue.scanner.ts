@@ -7,6 +7,7 @@ import { TASK_EVENTS } from '@nodus/contracts';
 import { TransactionRunner } from '../../../core/database/transaction-runner.js';
 import { EventBus } from '../../../core/events/event-bus.js';
 import { audienceIds } from '../access/task-access.js';
+import { TasksRepository } from '../tasks/tasks.repository.js';
 
 export const OVERDUE_QUEUE = 'task-overdue';
 const PREFIX = 'nodus';
@@ -29,6 +30,7 @@ export class OverdueScanner implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly txRunner: TransactionRunner,
     private readonly eventBus: EventBus,
+    private readonly tasks: TasksRepository,
     private readonly logger: PinoLogger,
   ) {
     this.logger.setContext(OverdueScanner.name);
@@ -61,19 +63,9 @@ export class OverdueScanner implements OnModuleInit, OnModuleDestroy {
   /** Один проход (public для тестов): число уведомлённых задач. */
   async runOnce(now = new Date()): Promise<number> {
     return this.txRunner.run(async (tx) => {
-      const due = await tx.task.findMany({
-        where: {
-          deletedAt: null,
-          overdueNotifiedAt: null,
-          deadline: { lt: now },
-          systemState: { in: ['backlog', 'active', 'paused'] },
-        },
-        include: { participants: true },
-        orderBy: { deadline: 'asc' },
-        take: BATCH,
-      });
+      const due = await this.tasks.findOverdueToNotify(tx, now, BATCH);
       for (const task of due) {
-        await tx.task.update({ where: { id: task.id }, data: { overdueNotifiedAt: now } });
+        await this.tasks.markOverdueNotified(tx, task.id, now);
         await this.eventBus.emit(
           tx,
           TASK_EVENTS.OVERDUE,

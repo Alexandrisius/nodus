@@ -54,7 +54,8 @@ function isEditable(el: Element | null): el is HTMLElement {
 function debugSkip(guard: string): void {
   if (!wsDebugEnabled) return;
   const selection = window.getSelection();
-  console.log(
+  // warn — канон no-console (log запрещён); вывод только под ?wsdebug=1.
+  console.warn(
     '[ws] stealFocus skip:',
     guard,
     '| activeElement:',

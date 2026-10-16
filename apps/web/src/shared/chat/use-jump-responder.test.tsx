@@ -5,7 +5,7 @@ import { createElement, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { api } from '../api-client.js';
-import { chatKeys } from './api.js';
+import { chatKeys } from './chat-keys.js';
 import type { HistoryPage } from './feed-merge.js';
 import { useFlashStore, useJumpStore } from './jump-store.js';
 import { JumpResponder } from './use-jump-responder.js';

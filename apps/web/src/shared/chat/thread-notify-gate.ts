@@ -1,7 +1,8 @@
 import type { QueryClient } from '@tanstack/react-query';
 import type { ThreadStateList } from '@nodus/contracts';
 
-import { chatKeys, fetchThreadStates } from './api.js';
+import { chatKeys } from './chat-keys.js';
+import { fetchThreadStates } from './chat-queries.js';
 
 /**
  * Гейт «наблюдатель трэда» для всплытия уведомлений (#300, канон раунда 3):

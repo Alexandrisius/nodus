@@ -1,0 +1,62 @@
+// @vitest-environment jsdom
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { ui } from '@nodus/contracts';
+
+import { SliderPanel } from './slider-panel.js';
+
+// Видимость полосы читает роутер — вне RouterProvider подменяем (не предмет теста).
+vi.mock('./rail-visibility.js', () => ({ useRailHidden: () => false }));
+
+/** Поддельная WAAPI-анимация: события отпускаются тестом вручную. */
+interface FakeAnimation {
+  onfinish: (() => void) | null;
+  oncancel: (() => void) | null;
+}
+
+describe('SliderPanel: закрытие схлопыванием в источник', () => {
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  function openWithSource() {
+    const anims: FakeAnimation[] = [];
+    // jsdom не реализует Element.animate.
+    Object.defineProperty(HTMLElement.prototype, 'animate', {
+      configurable: true,
+      value: () => {
+        const anim: FakeAnimation = { onfinish: null, oncancel: null };
+        anims.push(anim);
+        return anim;
+      },
+    });
+    const onClose = vi.fn();
+    render(
+      <SliderPanel
+        title="Карточка"
+        onClose={onClose}
+        sourceRect={{ x: 0, y: 0, width: 10, height: 10 }}
+      >
+        <div />
+      </SliderPanel>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: ui.common.close }));
+    return { anims, onClose };
+  }
+
+  it('отменённая анимация (oncancel) тоже закрывает панель — не зависает в closing', () => {
+    const { anims, onClose } = openWithSource();
+    expect(anims).toHaveLength(1);
+    expect(onClose).not.toHaveBeenCalled();
+    act(() => anims[0]?.oncancel?.());
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('закрытие однократно: finish, затем cancel доигравшей — onClose один раз', () => {
+    const { anims, onClose } = openWithSource();
+    act(() => anims[0]?.onfinish?.());
+    act(() => anims[0]?.oncancel?.());
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+});

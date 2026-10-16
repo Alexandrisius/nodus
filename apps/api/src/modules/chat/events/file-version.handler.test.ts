@@ -20,7 +20,7 @@ function makeEvent(payload: Record<string, unknown> = {}) {
 }
 
 describe('FileVersionHandler (#182: мост версий в беседы)', () => {
-  const prisma = { messageAttachment: { findMany: vi.fn() } };
+  const attachments = { findConversationIdsWithFile: vi.fn() };
   const txRunner = { run: vi.fn((cb: (tx: string) => unknown) => cb(TX)) };
   const eventBus = { emit: vi.fn() };
   const logger = { setContext: vi.fn(), info: vi.fn() };
@@ -29,7 +29,7 @@ describe('FileVersionHandler (#182: мост версий в беседы)', () 
   beforeEach(() => {
     vi.clearAllMocks();
     handler = new FileVersionHandler(
-      prisma as never,
+      attachments as never,
       txRunner as never,
       eventBus as never,
       logger as never,
@@ -37,17 +37,11 @@ describe('FileVersionHandler (#182: мост версий в беседы)', () 
   });
 
   it('эмитит chat.attachment_updated в каждую беседу вложения (distinct)', async () => {
-    prisma.messageAttachment.findMany.mockResolvedValue([
-      { message: { conversationId: CONV_A } },
-      { message: { conversationId: CONV_A } }, // тот же файл дважды в беседе
-      { message: { conversationId: CONV_B } },
-    ]);
+    // distinct по беседам — забота репозитория (файл дважды в беседе A).
+    attachments.findConversationIdsWithFile.mockResolvedValue([CONV_A, CONV_B]);
     await handler.handle(makeEvent());
 
-    expect(prisma.messageAttachment.findMany).toHaveBeenCalledWith({
-      where: { fileId: FILE_ID, messageId: { not: null } },
-      select: { message: { select: { conversationId: true } } },
-    });
+    expect(attachments.findConversationIdsWithFile).toHaveBeenCalledWith(FILE_ID);
     expect(eventBus.emit).toHaveBeenCalledTimes(2);
     expect(eventBus.emit).toHaveBeenCalledWith(
       TX,
@@ -69,13 +63,13 @@ describe('FileVersionHandler (#182: мост версий в беседы)', () 
   });
 
   it('вложений в беседах нет (только «трей») — молча, без эмитов', async () => {
-    prisma.messageAttachment.findMany.mockResolvedValue([{ message: null }]);
+    attachments.findConversationIdsWithFile.mockResolvedValue([]);
     await handler.handle(makeEvent());
     expect(eventBus.emit).not.toHaveBeenCalled();
   });
 
   it('мусорный payload без fileId — игнор', async () => {
     await handler.handle(makeEvent({ fileId: undefined }));
-    expect(prisma.messageAttachment.findMany).not.toHaveBeenCalled();
+    expect(attachments.findConversationIdsWithFile).not.toHaveBeenCalled();
   });
 });

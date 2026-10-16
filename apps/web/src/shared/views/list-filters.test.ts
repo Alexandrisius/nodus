@@ -9,7 +9,7 @@ import {
   sameFilterState,
   type FilterFieldDef,
 } from './list-filters.js';
-import { isTaskOverdue, taskSearchText } from './task-filter-fields.js';
+import { isTaskOverdue, taskBuiltinPresets, taskSearchText } from './task-filter-fields.js';
 
 /** Минимальная задача для матчеров (поля вне матчей не используются). */
 function task(patch: Partial<TaskListItem>): TaskListItem {
@@ -101,7 +101,7 @@ describe('applyListFilters: запрос + поля', () => {
       id: 't-2',
       number: 102,
       title: 'Разработать модель',
-      stage: { id: 'st-done', name: 'Завершена', order: 5, systemState: 'done', color: 'success' },
+      stage: { id: 'st-done', name: 'Завершена', order: 3, systemState: 'closed', color: 'info' },
     }),
     task({ id: 't-3', number: 103, title: 'Каркас лестницы', deadline: null }),
   ];
@@ -197,13 +197,20 @@ describe('isTaskOverdue: просрочка задачи', () => {
           stage: {
             id: 'st-done',
             name: 'Завершена',
-            order: 5,
-            systemState: 'done',
-            color: 'success',
+            order: 3,
+            systemState: 'closed',
+            color: 'info',
           },
         }),
         now,
       ),
     ).toBe(false);
+  });
+});
+
+describe('taskBuiltinPresets: семантика состояний по каталогу API', () => {
+  it('«Завершённые» — systemState closed (done на бэке — «Ждёт контроля»)', () => {
+    const preset = taskBuiltinPresets.find((p) => p.id === 'done');
+    expect(preset?.state).toEqual({ systemState: 'closed' });
   });
 });

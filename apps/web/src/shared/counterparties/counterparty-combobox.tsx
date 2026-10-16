@@ -53,16 +53,15 @@ export function CounterpartyCombobox({
     setOpen(false);
   }
 
-  async function createInline() {
+  // mutate + onSuccess, не mutateAsync: ошибку показывает onError мутации,
+  // а отклонённый промис из onClick уходил бы необработанным (#317).
+  function createInline() {
     const name = text.trim();
     if (!name || create.isPending) return;
-    const card = await create.mutateAsync({
-      fullName: name,
-      shortName: name,
-      unp: null,
-      address: null,
-    });
-    choose({ id: card.id, name: card.shortName });
+    create.mutate(
+      { fullName: name, shortName: name, unp: null, address: null },
+      { onSuccess: (card) => choose({ id: card.id, name: card.shortName }) },
+    );
   }
 
   return (

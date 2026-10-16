@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import js from '@eslint/js';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
@@ -5,6 +6,15 @@ import boundaries from 'eslint-plugin-boundaries';
 import reactHooks from 'eslint-plugin-react-hooks';
 import eslintConfigPrettier from 'eslint-config-prettier';
 import { nodusInternal } from './nodus-internal.mjs';
+
+const BACKEND_ELEMENTS = [
+  'api-module',
+  'api-module-port',
+  'api-module-ports-module',
+  'api-core',
+  'gateway',
+];
+const WEB_ELEMENTS = ['web-feature', 'web-shared', 'web-app'];
 
 /**
  * Границы модулей (I3, I6): backend-модули и web-фичи не импортируют друг друга;
@@ -36,6 +46,8 @@ const boundariesConfig = {
         capture: ['module'],
       },
       { type: 'api-module', pattern: 'apps/api/src/modules/*', capture: ['module'] },
+      { type: 'api-core', pattern: 'apps/api/src/core/*', capture: [] },
+      { type: 'gateway', pattern: 'apps/gateway/src', capture: [] },
       { type: 'web-feature', pattern: 'apps/web/src/features/*', capture: ['feature'] },
       { type: 'web-app', pattern: 'apps/web/src/app/*', capture: [] },
       { type: 'web-shared', pattern: 'apps/web/src/shared/*', capture: [] },
@@ -88,6 +100,50 @@ const boundariesConfig = {
             message:
               'Shared не импортирует app (направление слоёв: app → features → shared, аудит #45)',
           },
+          // Приложения монорепо не импортируют код друг друга (I1, I6): общее
+          // между web, api и gateway — только packages/* (@nodus/contracts,
+          // @nodus/ui). Относительный `../../../api/src/...` проходил при
+          // default: 'allow' (аудит #317).
+          {
+            from: { element: { type: ['web-feature', 'web-shared', 'web-app'] } },
+            disallow: { to: { element: { type: BACKEND_ELEMENTS } } },
+            message:
+              'Веб не импортирует код бэкенда (I1, I6): обмен — только через @nodus/contracts',
+          },
+          {
+            from: { element: { type: BACKEND_ELEMENTS } },
+            disallow: { to: { element: { type: WEB_ELEMENTS } } },
+            message:
+              'Бэкенд не импортирует код веба (I1, I6): обмен — только через @nodus/contracts',
+          },
+          {
+            from: { element: { type: 'gateway' } },
+            disallow: {
+              to: {
+                element: {
+                  type: ['api-module', 'api-module-port', 'api-module-ports-module', 'api-core'],
+                },
+              },
+            },
+            message:
+              'Gateway — отдельный процесс (I1): код api не импортирует, общее — @nodus/contracts',
+          },
+          {
+            from: {
+              element: {
+                type: ['api-module', 'api-module-port', 'api-module-ports-module', 'api-core'],
+              },
+            },
+            disallow: { to: { element: { type: 'gateway' } } },
+            message: 'Api не импортирует код gateway (I1): общее — @nodus/contracts',
+          },
+          // Ядро api — нижний слой: модули зависят от core, не наоборот.
+          {
+            from: { element: { type: 'api-core' } },
+            disallow: { to: { element: { type: 'api-module' } } },
+            message:
+              'Core не импортирует модули (направление: modules → core); нужна обратная связь — порт в core/ports или событие',
+          },
         ],
       },
     ],
@@ -128,6 +184,70 @@ const reactHooksConfig = {
 };
 
 /**
+ * Repository pattern (patterns.md): PrismaService в модулях — только в
+ * `*.repository.ts` и адаптерах read-портов `*.provider.ts` (ADR-0012:
+ * реализация порта — репозиторий модуля-владельца для чужого потребителя).
+ * Сервисы, контроллеры и обработчики событий работают через репозитории —
+ * иначе канон «на бумаге» копируется новыми модулями (аудит #317: модуль
+ * задач первой итерации писал Prisma прямо в сервисах).
+ */
+const repositoryPatternConfig = {
+  files: ['apps/api/src/modules/**/*.ts'],
+  ignores: ['**/*.repository.ts', '**/*.provider.ts', '**/*.test.ts'],
+  rules: {
+    'no-restricted-imports': [
+      'error',
+      {
+        patterns: [
+          {
+            group: ['**/core/database/prisma.service*'],
+            message:
+              'PrismaService — только в *.repository.ts / адаптерах портов *.provider.ts (patterns.md: repository pattern)',
+          },
+        ],
+      },
+    ],
+  },
+};
+
+/** Браузерный код: браузерные глобали вместо node (`process`/`Buffer` в
+ *  бандле — ошибка сборки в рантайме), console.log не уезжает в прод
+ *  (warn/error — легальный канал диагностики). */
+const BROWSER_FILES = [
+  'apps/web/src/**/*.{ts,tsx}',
+  'apps/desktop/src/**/*.{ts,tsx}',
+  'packages/ui/src/**/*.{ts,tsx}',
+];
+const browserConfig = {
+  files: BROWSER_FILES,
+  languageOptions: {
+    globals: { ...globals.browser },
+  },
+  rules: {
+    'no-console': ['error', { allow: ['warn', 'error'] }],
+  },
+};
+
+/**
+ * Type-aware правила промисов (аудит #317): весь бэкенд — async (NestJS,
+ * BullMQ, Socket.IO), фронт — мутации и WS. Забытый await = потерянная
+ * ошибка, транзакция после ответа, необработанный rejection; линтер без
+ * типов этого не видит. projectService берёт ближайший tsconfig файла;
+ * цена — ~15 с на весь репо (замер 17.10.2026, 922 файла).
+ */
+const REPO_ROOT = fileURLToPath(new URL('../../..', import.meta.url));
+const promiseSafetyConfig = {
+  files: ['apps/api/src/**/*.ts', 'apps/gateway/src/**/*.ts', 'apps/web/src/**/*.{ts,tsx}'],
+  languageOptions: {
+    parserOptions: { projectService: true, tsconfigRootDir: REPO_ROOT },
+  },
+  rules: {
+    '@typescript-eslint/no-floating-promises': 'error',
+    '@typescript-eslint/no-misused-promises': 'error',
+  },
+};
+
+/**
  * Единый flat-config монорепо. Корень добавляет к нему только ignores;
  * tests/lint/fixtures использует как есть (паттерны boundaries cwd-относительны).
  */
@@ -135,11 +255,15 @@ export const nodusConfig = tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
+    ignores: BROWSER_FILES,
     languageOptions: {
       globals: { ...globals.node },
     },
   },
   boundariesConfig,
+  repositoryPatternConfig,
+  browserConfig,
+  promiseSafetyConfig,
   fileSizeConfig,
   reactHooksConfig,
   eslintConfigPrettier,

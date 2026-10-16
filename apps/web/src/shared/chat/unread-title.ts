@@ -6,7 +6,7 @@ import { api } from '../api-client.js';
 import { desktopSetUnreadBadge } from '../desktop/desktop-bridge.js';
 import { notificationsKeys } from '../notifications-keys.js';
 import { useSocketStatusStore } from '../socket/socket-status-store.js';
-import { useConversations } from './api.js';
+import { useConversations } from './chat-queries.js';
 
 /** Базовое имя вкладки (index.html). */
 const BASE_TITLE = 'Nodus';

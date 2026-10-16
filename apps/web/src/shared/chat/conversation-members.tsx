@@ -25,6 +25,7 @@ import { Input } from '@nodus/ui/components/input';
 import { NodeChip } from '@nodus/ui/components/node-chip';
 
 import { api } from '../api-client.js';
+import { usersKeys } from '../api/users-list.js';
 import { useAuthStore } from '../auth-store.js';
 import { withoutPatronymic } from '../lib/format.js';
 import type { Paginated } from '@nodus/contracts';
@@ -254,7 +255,7 @@ export function AddMembersDialog({
   }, [search]);
 
   const { data } = useQuery({
-    queryKey: ['directory', 'users', 'add-members', debounced],
+    queryKey: usersKeys.search('add-members', debounced),
     queryFn: () => {
       const params = new URLSearchParams({ limit: '50' });
       if (debounced) params.set('search', debounced);

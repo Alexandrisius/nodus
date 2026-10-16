@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ErrorCode } from '@nodus/contracts';
 
-import { MessageActionsService } from './message-actions.service.js';
+import { ThreadWatchService } from './thread-watch.service.js';
 import { MessagesService } from './messages.service.js';
 import type { MemberRow } from '../conversations/conversations.repository.js';
-import type { MessageRow } from './messages.repository.js';
+import type { MessageRow } from './message-row.js';
 
 /** Треды раунда 3 на сервисе сообщений: @упоминания → наблюдатели,
  *  квитанция из треда (watermark трэда), watch-toggle и состояния. */
@@ -123,8 +123,13 @@ describe('MessagesService: трэды раунда 3', () => {
     repo.insertMessage.mockResolvedValue(makeMessage({ id: 'msg-new', seq: 7n }));
     service = new MessagesService(
       repo as never,
+      repo as never, // запись (MessagesWriteRepository)
+      repo as never, // правка/удаление (MessagesLifecycleRepository)
+      repo as never, // прочитанность (MessagesReadStateRepository)
       { syncMessageAttachments: vi.fn(), renameMessageAttachments: vi.fn() } as never,
       conversations as never,
+      conversations as never, // запись участия (ConversationMembersRepository)
+      conversations as never, // черновики (ConversationDraftsRepository)
       mapper as never,
       txRunner as never,
       eventBus as never,
@@ -216,22 +221,17 @@ describe('MessagesService: трэды раунда 3', () => {
   });
 
   describe('watchThread / threadStates', () => {
-    // Раунд #100: watch/стособы перенесены в MessageActionsService (I5).
-    const actions = new MessageActionsService(
+    // Раунд #100: watch/стособы перенесены в MessageActionsService (I5),
+    // затем выделены в ThreadWatchService (одна ответственность).
+    const watch = new ThreadWatchService(
       repo as never,
-      {} as never, // реакции (#239: вынесены в MessagesReactionsRepository)
-      { listWithMessages: vi.fn() } as never,
       conversations as never,
-      { toDtos: vi.fn() } as never,
       txRunner as never,
-      eventBus as never,
-      userProfiles as never,
       threadParticipants as never,
-      {} as never,
     );
     const service = {
-      watchThread: (a: string, b: string, c: string) => actions.watchThread(a, b, c),
-      threadStates: (a: string, b: string) => actions.threadStates(a, b),
+      watchThread: (a: string, b: string, c: string) => watch.watchThread(a, b, c),
+      threadStates: (a: string, b: string) => watch.threadStates(a, b),
     };
     it('toggle: нет строки → watcher вставлен (watching:true); есть → снят (false)', async () => {
       repo.findByIdInConversation.mockResolvedValue(makeMessage({ id: ROOT, threadRootId: null }));

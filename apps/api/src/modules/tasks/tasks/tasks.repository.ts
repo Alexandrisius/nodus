@@ -5,17 +5,72 @@ import { PrismaService } from '../../../core/database/prisma.service.js';
 import type { TransactionClient } from '../../../core/database/transaction-runner.js';
 import { keyBetween } from '../lib/fractional-index.js';
 import type { TaskGateFacts } from '../workflow/transition-rules.js';
-import { taskListInclude, type TaskListRow } from './task-row.js';
+import { taskListInclude } from './task-row.js';
 
 const OPEN_STATES = ['backlog', 'active', 'paused'];
 
-/** Порядок выдачи списка: колонка глобальной оси, личной оси или номер. */
-export type TaskOrder =
-  | { kind: 'stage'; after?: { o: string; id: string } }
-  | { kind: 'personal'; userId: string; stageId: string; after?: { o: string; id: string } }
-  | { kind: 'number'; after?: { n: number } };
+/** Параллельное «В задачу» по тому же сообщению проиграло частичному unique
+ *  `tasks_source_dedup_key` (P2002): победитель уже создал задачу — сервис
+ *  дочитывает её вне упавшей транзакции. */
+export class DuplicateTaskSourceError extends Error {
+  constructor() {
+    super('Task for this source already exists');
+    this.name = 'DuplicateTaskSourceError';
+  }
+}
 
-/** Задачи: чтения через where видимости (task-visibility), записи — в tx сервиса. */
+/** Поля новой задачи (участники — вложенным созданием в том же INSERT). */
+export interface NewTaskData {
+  title: string;
+  description: string;
+  typeId: string;
+  workflowId: string;
+  stageId: string;
+  systemState: string;
+  stageOrder: string;
+  priority: string;
+  deadline: Date | null;
+  plannedMinutes: number | null;
+  acceptRequired: boolean;
+  creatorId: string;
+  assigneeId: string;
+  parentId: string | null;
+  projectId: string | null;
+  source: string;
+  sourceId: string | null;
+  checklistTotal: number;
+  participants: { userId: string; role: string; muted: boolean }[];
+}
+
+/** Правка полей задачи (PATCH): только переданные ключи. */
+export interface TaskFieldsPatch {
+  title?: string;
+  description?: string;
+  priority?: string;
+  plannedMinutes?: number | null;
+  acceptRequired?: boolean;
+  parentId?: string | null;
+  deadline?: Date | null;
+  overdueNotifiedAt?: null;
+  assigneeId?: string;
+}
+
+/** Смена стадии задачи (переход маршрута; проверки — у вызывающего). */
+export interface TaskStageMove {
+  stageId: string;
+  systemState: string;
+  stageOrder: string;
+  stateChangedAt?: Date;
+  completedAt: Date | null;
+}
+
+/**
+ * Таблица `tasks`: записи, блокировки и чтения внутри транзакций сервисов
+ * (чтения фидов/детали/ветки — TasksQueryRepository). Файл длиннее 200
+ * строк осознанно: единая точка доступа к строке задачи (локи, денормализации
+ * spent/checklist/comments, мягкое удаление) — дробление развело бы инварианты
+ * одной строки по файлам.
+ */
 @Injectable()
 export class TasksRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -24,62 +79,149 @@ export class TasksRepository {
     return (tx ?? this.prisma).task.findFirst({ where, include: taskListInclude(viewerId) });
   }
 
+  /** Строка задачи в форме DTO списка (после записи — внутри или вне tx). */
+  findListRow(id: string, viewerId: string, tx?: TransactionClient) {
+    return (tx ?? this.prisma).task.findUniqueOrThrow({
+      where: { id },
+      include: taskListInclude(viewerId),
+    });
+  }
+
+  /** Задача с участниками (роли актора, аудитория событий, держатели плана). */
+  findWithParticipants(id: string, tx: TransactionClient) {
+    return tx.task.findUniqueOrThrow({ where: { id }, include: { participants: true } });
+  }
+
+  /** Живая задача с составом (для событий по чужому триггеру); удалённая — null. */
+  findLiveRoster(id: string, tx: TransactionClient) {
+    return tx.task.findFirst({
+      where: { id, deletedAt: null },
+      select: { id: true, number: true, creatorId: true, assigneeId: true, participants: true },
+    });
+  }
+
   /** Блокировка строки задачи на время транзакции (сериализация переходов). */
   async lock(tx: TransactionClient, taskId: string): Promise<void> {
     await tx.$executeRaw`SELECT 1 FROM tasks WHERE id = ${taskId}::uuid FOR UPDATE`;
   }
 
-  async list(
-    where: Prisma.TaskWhereInput,
-    order: TaskOrder,
-    limit: number,
-    viewerId: string,
-  ): Promise<{ rows: TaskListRow[]; sortKeys: Map<string, string> }> {
-    const include = taskListInclude(viewerId);
-    if (order.kind === 'personal') {
-      const a = order.after;
-      const placements = await this.prisma.taskPersonalPlacement.findMany({
-        where: {
-          userId: order.userId,
-          stageId: order.stageId,
-          task: where,
-          ...(a
-            ? { OR: [{ sortOrder: { gt: a.o } }, { sortOrder: a.o, taskId: { gt: a.id } }] }
-            : {}),
-        },
-        orderBy: [{ sortOrder: 'asc' }, { taskId: 'asc' }],
-        take: limit + 1,
-        include: { task: { include } },
-      });
-      return {
-        rows: placements.map((p) => p.task),
-        sortKeys: new Map(placements.map((p) => [p.taskId, p.sortOrder])),
-      };
-    }
-    if (order.kind === 'stage') {
-      const a = order.after;
-      const rows = await this.prisma.task.findMany({
-        where: a
-          ? {
-              AND: [
-                where,
-                { OR: [{ stageOrder: { gt: a.o } }, { stageOrder: a.o, id: { gt: a.id } }] },
-              ],
-            }
-          : where,
-        orderBy: [{ stageOrder: 'asc' }, { id: 'asc' }],
-        take: limit + 1,
-        include,
-      });
-      return { rows, sortKeys: new Map(rows.map((r) => [r.id, r.stageOrder])) };
-    }
-    const rows = await this.prisma.task.findMany({
-      where: order.after ? { AND: [where, { number: { lt: order.after.n } }] } : where,
-      orderBy: { number: 'desc' },
-      take: limit + 1,
-      include,
+  /** Дедуп «В задачу»: живая задача постановщика по сообщению чата. */
+  async findLiveIdBySource(creatorId: string, messageId: string): Promise<string | null> {
+    const found = await this.prisma.task.findFirst({
+      where: { source: 'chat_message', sourceId: messageId, creatorId, deletedAt: null },
+      select: { id: true },
     });
-    return { rows, sortKeys: new Map() };
+    return found?.id ?? null;
+  }
+
+  async create(data: NewTaskData, tx: TransactionClient) {
+    const { participants, ...task } = data;
+    try {
+      return await tx.task.create({ data: { ...task, participants: { create: participants } } });
+    } catch (error) {
+      if (task.sourceId && (error as { code?: string }).code === 'P2002') {
+        throw new DuplicateTaskSourceError();
+      }
+      throw error;
+    }
+  }
+
+  async updateFields(tx: TransactionClient, id: string, patch: TaskFieldsPatch): Promise<void> {
+    await tx.task.update({ where: { id }, data: patch });
+  }
+
+  /** Текущий родитель (свежий, под блокировкой вызывающего). */
+  async parentIdOf(tx: TransactionClient, id: string): Promise<string | null> {
+    const row = await tx.task.findUniqueOrThrow({ where: { id }, select: { parentId: true } });
+    return row.parentId;
+  }
+
+  async stageIdOf(tx: TransactionClient, id: string): Promise<string> {
+    const row = await tx.task.findUniqueOrThrow({ where: { id }, select: { stageId: true } });
+    return row.stageId;
+  }
+
+  async systemStateOf(tx: TransactionClient, id: string): Promise<string> {
+    const row = await tx.task.findUniqueOrThrow({ where: { id }, select: { systemState: true } });
+    return row.systemState;
+  }
+
+  async numberOf(tx: TransactionClient, id: string): Promise<number> {
+    const row = await tx.task.findUniqueOrThrow({ where: { id }, select: { number: true } });
+    return row.number;
+  }
+
+  /** Структурный тип (узел дерева проекта) — в «Мой план» не попадает. */
+  async isStructural(tx: TransactionClient, id: string): Promise<boolean> {
+    const row = await tx.task.findUniqueOrThrow({
+      where: { id },
+      select: { type: { select: { structural: true } } },
+    });
+    return row.type.structural;
+  }
+
+  async setStageOrder(tx: TransactionClient, id: string, stageOrder: string): Promise<void> {
+    await tx.task.update({ where: { id }, data: { stageOrder } });
+  }
+
+  async moveToStage(tx: TransactionClient, id: string, move: TaskStageMove): Promise<void> {
+    await tx.task.update({ where: { id }, data: move });
+  }
+
+  /** Отметка «задача изменилась» (updatedAt) без правки полей. */
+  async touch(tx: TransactionClient, id: string): Promise<void> {
+    await tx.task.update({ where: { id }, data: { updatedAt: new Date() } });
+  }
+
+  async setCommentsCount(tx: TransactionClient, id: string, commentsCount: number): Promise<void> {
+    await tx.task.update({ where: { id }, data: { commentsCount } });
+  }
+
+  async softDelete(tx: TransactionClient, id: string, at: Date): Promise<void> {
+    await tx.task.update({ where: { id }, data: { deletedAt: at } });
+  }
+
+  async reparentChildren(
+    tx: TransactionClient,
+    parentId: string,
+    newParentId: string | null,
+  ): Promise<void> {
+    await tx.task.updateMany({ where: { parentId }, data: { parentId: newParentId } });
+  }
+
+  /** Ближайший ЖИВОЙ предок задачи (мягко удалённые звенья пропускаются);
+   *  нет — null. Глубина-предохранитель от испорченного дерева. */
+  async liveAncestorId(tx: TransactionClient, taskId: string): Promise<string | null> {
+    const rows = await tx.$queryRaw<{ id: string }[]>(Prisma.sql`
+      WITH RECURSIVE up AS (
+        SELECT p.id, p.parent_id, p.deleted_at, 1 AS depth
+          FROM tasks t JOIN tasks p ON p.id = t.parent_id WHERE t.id = ${taskId}::uuid
+        UNION ALL
+        SELECT p.id, p.parent_id, p.deleted_at, up.depth + 1
+          FROM tasks p JOIN up ON p.id = up.parent_id
+          WHERE up.deleted_at IS NOT NULL AND up.depth < 1000
+      ) SELECT id FROM up WHERE deleted_at IS NULL ORDER BY depth LIMIT 1`);
+    return rows[0]?.id ?? null;
+  }
+
+  /** Просроченные живые открытые задачи без уведомления (частичный индекс
+   *  tasks_overdue_scan_idx), старейший срок первым. */
+  findOverdueToNotify(tx: TransactionClient, now: Date, limit: number) {
+    return tx.task.findMany({
+      where: {
+        deletedAt: null,
+        overdueNotifiedAt: null,
+        deadline: { lt: now },
+        systemState: { in: OPEN_STATES },
+      },
+      include: { participants: true },
+      orderBy: { deadline: 'asc' },
+      take: limit,
+    });
+  }
+
+  async markOverdueNotified(tx: TransactionClient, id: string, at: Date): Promise<void> {
+    await tx.task.update({ where: { id }, data: { overdueNotifiedAt: at } });
   }
 
   async gateFacts(taskId: string, tx: TransactionClient): Promise<TaskGateFacts> {
@@ -132,58 +274,6 @@ export class TasksRepository {
       select: { stageOrder: true },
     });
     return keyBetween(near[0]?.stageOrder ?? null, near[1]?.stageOrder ?? null);
-  }
-
-  /** То же для личной колонки пользователя. */
-  async personalKeyAt(
-    tx: TransactionClient,
-    userId: string,
-    stageId: string,
-    index: number,
-    exceptTaskId: string,
-  ) {
-    const near = await tx.taskPersonalPlacement.findMany({
-      where: { userId, stageId, taskId: { not: exceptTaskId } },
-      orderBy: [{ sortOrder: 'asc' }, { taskId: 'asc' }],
-      skip: Math.max(index - 1, 0),
-      take: index === 0 ? 1 : 2,
-      select: { sortOrder: true },
-    });
-    return index === 0
-      ? keyBetween(null, near[0]?.sortOrder ?? null)
-      : keyBetween(near[0]?.sortOrder ?? null, near[1]?.sortOrder ?? null);
-  }
-
-  /** Счётчики колонок глобальной оси (count + overdue) в рамках видимости. */
-  async stageCounts(where: Prisma.TaskWhereInput, now: Date) {
-    const [all, overdue] = await Promise.all([
-      this.prisma.task.groupBy({ by: ['stageId'], where, _count: { _all: true } }),
-      this.prisma.task.groupBy({
-        by: ['stageId'],
-        where: { AND: [where, { deadline: { lt: now }, systemState: { in: OPEN_STATES } }] },
-        _count: { _all: true },
-      }),
-    ]);
-    return { all, overdue };
-  }
-
-  async personalCounts(userId: string, where: Prisma.TaskWhereInput, now: Date) {
-    const [all, overdue] = await Promise.all([
-      this.prisma.taskPersonalPlacement.groupBy({
-        by: ['stageId'],
-        where: { userId, task: where },
-        _count: { _all: true },
-      }),
-      this.prisma.taskPersonalPlacement.groupBy({
-        by: ['stageId'],
-        where: {
-          userId,
-          task: { AND: [where, { deadline: { lt: now }, systemState: { in: OPEN_STATES } }] },
-        },
-        _count: { _all: true },
-      }),
-    ]);
-    return { all, overdue };
   }
 
   /** Глобальная очередь смен родителя (pg_advisory_xact_lock до конца tx). */

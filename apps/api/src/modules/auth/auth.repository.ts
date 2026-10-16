@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
+import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../core/database/prisma.service.js';
 import type { TransactionClient } from '../../core/database/transaction-runner.js';
 
@@ -110,23 +111,42 @@ export class AuthRepository {
     return this.prisma.session.findUnique({ where: { id } });
   }
 
-  /** Ротация: предыдущий хэш ← текущий, текущий ← новый; скользящий expiresAt. */
-  async rotateSession(
+  /**
+   * Атомарная ротация compare-and-swap: предыдущий хэш ← текущий, текущий ←
+   * новый, скользящий expiresAt — ТОЛЬКО если текущий хэш всё ещё равен
+   * `expectedCurrentHash`, а сессия жива. Один UPDATE … WHERE: PostgreSQL
+   * при конкурентном апдейте той же строки ждёт row-lock и перепроверяет
+   * WHERE на свежей версии строки (READ COMMITTED), поэтому из двух
+   * параллельных refresh одной cookie выигрывает ровно один; проигравший
+   * получает false и перечитывает сессию (leeway-ветка сервиса).
+   * Сырой SQL осознанно: updateMany Prisma не гарантирует один оператор
+   * (исторически read-then-write по id), а CAS обязан быть одним UPDATE.
+   * `updated_at` — явно (Prisma @updatedAt не даёт DEFAULT в БД, gotcha);
+   * значение — часы приложения, как и у остальных записей сессии, чтобы
+   * leeway-окно сравнивалось в одной шкале времени.
+   */
+  async rotateSessionIfCurrent(
     id: string,
+    expectedCurrentHash: string,
     newHash: string,
-    currentHash: string,
     expiresAt: Date,
     tx?: TransactionClient,
-  ): Promise<SessionRow> {
+  ): Promise<boolean> {
     const client = tx ?? this.prisma;
-    return client.session.update({
-      where: { id },
-      data: {
-        previousRefreshTokenHash: currentHash,
-        refreshTokenHash: newHash,
-        expiresAt,
-      },
-    });
+    const now = new Date();
+    const rows = await client.$queryRaw<{ id: string }[]>(Prisma.sql`
+      UPDATE sessions SET
+        previous_refresh_token_hash = refresh_token_hash,
+        refresh_token_hash = ${newHash},
+        expires_at = ${expiresAt},
+        updated_at = ${now}
+      WHERE id = ${id}::uuid
+        AND refresh_token_hash = ${expectedCurrentHash}
+        AND revoked_at IS NULL
+        AND expires_at > ${now}
+      RETURNING id
+    `);
+    return rows.length === 1;
   }
 
   async revokeSession(id: string, tx?: TransactionClient): Promise<void> {

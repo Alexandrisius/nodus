@@ -101,12 +101,7 @@ export function ProjectKanban({
               }}
             >
               {cards.map((task) => (
-                <BoardSortableCard
-                  key={task.id}
-                  id={task.id}
-                  stageId={task.stage.id}
-                  disabled={filtering}
-                >
+                <BoardSortableCard key={task.id} id={task.id} disabled={filtering}>
                   {({ placeholder }) => (
                     <BoardTaskCard
                       task={task}

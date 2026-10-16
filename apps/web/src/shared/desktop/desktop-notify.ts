@@ -3,7 +3,7 @@ import { chatMessageSentPayloadSchema, stripMentionTokens, ui } from '@nodus/con
 
 import { useAuthStore } from '../auth-store.js';
 import { withoutPatronymic } from '../lib/format.js';
-import { chatKeys } from '../chat/api.js';
+import { chatKeys } from '../chat/chat-keys.js';
 import { getOpenConversation } from '../chat/notifications.js';
 import { threadNotifyAllowed } from '../chat/thread-notify-gate.js';
 import {

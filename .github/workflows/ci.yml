@@ -19,6 +19,7 @@ jobs:
   changes:
     name: Детектор изменений кода
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       code: ${{ steps.filter.outputs.code }}
     steps:
@@ -27,13 +28,20 @@ jobs:
           fetch-depth: 0
       - id: filter
         run: |
+          # Еженедельный cron существует ради аудита зависимостей — он не
+          # зависит от дифа последнего коммита (docs-only коммит в main
+          # молча отменял аудит, #317).
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
           else
             CHANGED=$(git diff --name-only HEAD~1)
           fi
           # Код = что угодно вне docs/**, *.md, .gitignore и ролей субагентов (канон без исполняемого кода)
-          if echo "$CHANGED" | grep -qv -e '^docs/' -e '\.md$' -e '^\.gitignore$' -e '^\.zcode/agents/'; then
+          if echo "$CHANGED" | grep -qv -e '^docs/' -e '\.md$' -e '^\.gitignore$' -e '^\.zcode/agents/' -e '^\.agents/agents/'; then
             echo "code=true" >> "$GITHUB_OUTPUT"
           else
             echo "code=false" >> "$GITHUB_OUTPUT"
@@ -44,6 +52,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     services:
       # Реальные PG/Redis для интеграционных тестов (outbox, идемпотентность — patterns.md).
       postgres:
@@ -85,8 +94,21 @@ jobs:
       - name: Установка зависимостей
         run: pnpm install --frozen-lockfile
 
+      # Межпрогонный кэш turbo (#247 Ф3): build/typecheck/test пакетов, не
+      # тронутых дифом, восстанавливаются из кэша вместо пересборки с нуля.
+      # Ключ по sha + restore-keys — берётся ближайший предыдущий прогон.
+      - name: Кэш turbo
+        uses: actions/cache@v6
+        with:
+          path: .turbo/cache
+          key: turbo-${{ runner.os }}-${{ github.sha }}
+          restore-keys: turbo-${{ runner.os }}-
+
       - name: Аудит зависимостей (high/critical блокируют)
         run: pnpm audit --audit-level high
+
+      - name: Форматирование (prettier)
+        run: pnpm format:check
 
       # Клиент генерируется в apps/api/src/generated (не коммитится) — нужен typecheck/тестам/сборке.
       - name: Генерация Prisma client
@@ -94,7 +116,13 @@ jobs:
         env:
           DATABASE_URL: postgresql://nodus:nodus_ci_password@localhost:5432/nodus
 
-      - name: Lint (границы модулей I6, размер файлов I5)
+      # Type-aware правила линтера (no-floating-promises) резолвят типы
+      # @nodus/contracts из dist — без сборки контрактов типы молча
+      # становятся any и правило слепнет.
+      - name: Сборка контрактов (типы для type-aware линтинга)
+        run: pnpm --filter @nodus/contracts build
+
+      - name: Lint (границы модулей I6, размер файлов I5, промисы)
         run: pnpm lint
 
       - name: Typecheck (strict)
@@ -152,6 +180,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     services:
       postgres:
         image: postgres:18-alpine

@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { Readable } from 'node:stream';
 import {
+  DIRECTORY_EVENTS,
   ErrorCode,
   type CreateUserDto,
   type ListUsersQuery,
@@ -160,7 +161,7 @@ export class UsersService {
       }
       await this.eventBus.emit(
         tx,
-        'directory.user.created',
+        DIRECTORY_EVENTS.USER_CREATED,
         { userId: created.id, email: created.email },
         { actorId, aggregateType: 'user', aggregateId: created.id },
       );
@@ -198,7 +199,7 @@ export class UsersService {
       }
       await this.eventBus.emit(
         tx,
-        'directory.user.updated',
+        DIRECTORY_EVENTS.USER_UPDATED,
         { userId: id, changedFields: Object.keys(dto) },
         { actorId, aggregateType: 'user', aggregateId: id },
       );
@@ -220,7 +221,7 @@ export class UsersService {
       await this.users.update(id, { status: 'deactivated' }, tx);
       await this.eventBus.emit(
         tx,
-        'directory.user.deactivated',
+        DIRECTORY_EVENTS.USER_DEACTIVATED,
         { userId: id },
         { actorId, aggregateType: 'user', aggregateId: id },
       );
@@ -238,7 +239,7 @@ export class UsersService {
       await this.users.update(userId, { ...dto }, tx);
       await this.eventBus.emit(
         tx,
-        'directory.user.updated',
+        DIRECTORY_EVENTS.USER_UPDATED,
         { userId, changedFields: Object.keys(dto) },
         { actorId: userId, aggregateType: 'user', aggregateId: userId },
       );
@@ -269,7 +270,7 @@ export class UsersService {
       await this.users.update(userId, { avatarFileId: fileId }, tx);
       await this.eventBus.emit(
         tx,
-        'directory.user.updated',
+        DIRECTORY_EVENTS.USER_UPDATED,
         { userId, changedFields: ['avatarFileId'] },
         { actorId: userId, aggregateType: 'user', aggregateId: userId },
       );
@@ -287,7 +288,7 @@ export class UsersService {
       await this.users.update(userId, { avatarFileId: null }, tx);
       await this.eventBus.emit(
         tx,
-        'directory.user.updated',
+        DIRECTORY_EVENTS.USER_UPDATED,
         { userId, changedFields: ['avatarFileId'] },
         { actorId: userId, aggregateType: 'user', aggregateId: userId },
       );

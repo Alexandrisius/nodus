@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import type { HomeSummary } from '@nodus/contracts';
 
-import { PrismaService } from '../../core/database/prisma.service.js';
 import { pickUpcomingBirthdays } from './birthdays.js';
+import { HomeRepository } from './home.repository.js';
 
 /**
  * Витрина Главной (#100): один агрегат `/home/summary`. Метрики — только из
@@ -12,21 +12,16 @@ import { pickUpcomingBirthdays } from './birthdays.js';
  */
 @Injectable()
 export class HomeService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly repository: HomeRepository) {}
 
   async getSummary(): Promise<HomeSummary> {
     const [employeeCount, birthdayUsers] = await Promise.all([
-      this.prisma.user.count({ where: { status: 'active' } }),
-      this.prisma.user.findMany({
-        where: { status: 'active', birthDate: { not: null } },
-        select: { id: true, displayName: true, avatarUrl: true, birthDate: true },
-      }),
+      this.repository.countActiveEmployees(),
+      this.repository.findActiveWithBirthDate(),
     ]);
     return {
       stats: { employeeCount, projectsDone: 0, dataNodes: 0 },
-      birthdays: pickUpcomingBirthdays(
-        birthdayUsers.filter((u): u is typeof u & { birthDate: Date } => u.birthDate !== null),
-      ),
+      birthdays: pickUpcomingBirthdays(birthdayUsers),
       labor: { weeks: [], topOvertime: [] },
     };
   }

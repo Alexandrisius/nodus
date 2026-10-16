@@ -6,7 +6,7 @@ import { Popover, PopoverAnchor, PopoverContent } from '@nodus/ui/components/pop
 import { PersonAvatar } from '../ui/person-avatar.js';
 import { formatTime, shortPersonName } from '../lib/format.js';
 import { useAuthStore } from '../auth-store.js';
-import { useConversations } from './api.js';
+import { useConversations } from './chat-queries.js';
 import { formatDayLabel } from './message-groups.js';
 import { ReadTicks } from './read-ticks.js';
 

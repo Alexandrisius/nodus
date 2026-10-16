@@ -1,13 +1,9 @@
-import { Mail, MessageSquare, PanelRight, Waypoints } from 'lucide-react';
 import { useCallback, useRef, useState } from 'react';
-import type { TaskChainNode } from '@nodus/contracts';
 import { ErrorCode, errorMessages, ui } from '@nodus/contracts';
-import { NodeChip } from '@nodus/ui/components/node-chip';
 import { cn } from '@nodus/ui/lib/utils';
 
-import { useOpenCard, useReplaceTopCard } from '../../../app/shell/use-card-stack.js';
+import { useReplaceTopCard } from '../../../app/shell/use-card-stack.js';
 import { useRailShrink } from '../../../app/shell/right-rail.js';
-import { DomainChain, type ChainNode } from '../../../shared/ui/domain-chain.js';
 import {
   useChatWidth,
   MIN_CHAT_WITH_PANEL,
@@ -19,8 +15,8 @@ import { useReadEntityNotifications } from '../../../shared/api/read-entity-noti
 import { useTaskDetail } from '../api/tasks-api.js';
 import { TaskAboutDrawer } from './task-about-drawer.js';
 import { TaskBranchDrawer } from './task-branch-drawer.js';
+import { TaskCardChainBar } from './task-card-chain-bar.js';
 import { TaskCardSkeleton } from './task-card-skeleton.js';
-import { TaskCardMenu } from './task-card-menu.js';
 import { TaskChecklist } from './task-checklist.js';
 import { TaskDescription } from './task-description.js';
 import { TaskResultSection } from './task-result.js';
@@ -28,14 +24,6 @@ import { TaskSubtasks } from './task-subtasks.js';
 import { TaskDiscussion } from './task-discussion.js';
 import { TaskFields } from './task-fields.js';
 import { TaskActionBar } from './task-stage-controls.js';
-
-const chainCaption: Record<TaskChainNode['kind'], string> = {
-  letter: ui.letters.letter,
-  resolution: ui.letters.resolution,
-  instruction: ui.tasks.instruction,
-  task: ui.tasks.task,
-  chat_message: ui.tasks.chatNode,
-};
 
 /** Ширина панели «О задаче»: на неё же сужается чат по общему канону буфера
  *  (ниже — пол чата, дальше двигается левая зона); панель полновысотная и
@@ -53,12 +41,13 @@ const BRANCH_W = uiPx(300);
  * кнопки панелей «Ветка»/«О задаче»; слева — название, описание, доска полей,
  * подзадачи и чек-лист + замоноличенный нижний бар действий; справа —
  * постоянная колонка обсуждения; «О задаче» — вталкивающая колонка справа.
+ * Полоса цепочки — `task-card-chain-bar.tsx`; здесь — раскладка зон и канон
+ * «чат — буфер сужений».
  */
 export function TaskCard({ taskId }: { taskId: string }) {
   const { data: task, isLoading, error } = useTaskDetail(taskId);
   // Открыл задачу — её уведомления прочитаны (#252: «Требуют внимания» не вечные).
   useReadEntityNotifications('task', taskId);
-  const openCard = useOpenCard();
   const [aboutOpen, setAboutOpen] = useState(false);
   // Панель «О задаче» монтируется раз и остаётся: колонка анимируется
   // 0↔360px (плавный пуш), состояние (избранное, скролл) не теряется.
@@ -130,19 +119,6 @@ export function TaskCard({ taskId }: { taskId: string }) {
     return <TaskCardSkeleton chatW={chatColumnW} />;
   }
 
-  const chainNodes: ChainNode[] = task.chain.map((node, i) => ({
-    caption: chainCaption[node.kind],
-    ref: node.ref,
-    // Само-узел (последний) — без повтора названия: оно один раз в заголовке.
-    label: i === task.chain.length - 1 ? undefined : node.label,
-    state: node.state,
-    active: i === task.chain.length - 1,
-    onClick:
-      node.kind === 'letter' && node.entityId
-        ? () => openCard({ kind: 'letter', id: node.entityId ?? '' })
-        : undefined,
-  }));
-
   return (
     // Панель «О задаче» — ПОЛНОВЫСОТНЫЙ сиблинг всей карточки (геометрия
     // Битрикс24, вердикт владельца 15.09.2026): занимает верхнюю полосу
@@ -150,55 +126,19 @@ export function TaskCard({ taskId }: { taskId: string }) {
     <div className="flex h-full min-w-0">
       <div className="flex h-full min-w-0 flex-1 flex-col">
         {/* Полоса цепочки: бордюр — структура (с первого кадра роста), контент — fade */}
-        <div className="shrink-0 border-b border-border">
-          <div className="content-fade flex h-14 items-center gap-3 px-5">
-            <button
-              type="button"
-              onClick={() => {
-                setBranchMounted(true);
-                setBranchOpen((v) => !v);
-              }}
-              aria-label={ui.tasks.branch}
-              title={ui.tasks.branch}
-              className={cn(
-                'shrink-0 rounded-lg p-2 transition-colors hover:bg-accent',
-                branchOpen ? 'text-foreground' : 'text-muted-foreground',
-              )}
-            >
-              <Waypoints className="size-4" strokeWidth={1.75} />
-            </button>
-            <div className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden">
-              <DomainChain nodes={chainNodes} />
-            </div>
-            {task.source === 'letter' ? (
-              <NodeChip tone="info" className="shrink-0">
-                <Mail className="size-3" />
-                {ui.tasks.instruction}
-              </NodeChip>
-            ) : task.source === 'chat_message' ? (
-              <NodeChip tone="info" className="shrink-0">
-                <MessageSquare className="size-3" />
-                {ui.tasks.fromChat}
-              </NodeChip>
-            ) : null}
-            <TaskCardMenu task={task} />
-            <button
-              type="button"
-              onClick={() => {
-                setAboutMounted(true);
-                setAboutOpen((v) => !v);
-              }}
-              aria-label={ui.tasks.aboutTask}
-              title={ui.tasks.aboutTask}
-              className={cn(
-                'shrink-0 rounded-lg p-2 transition-colors hover:bg-accent',
-                aboutOpen ? 'text-foreground' : 'text-muted-foreground',
-              )}
-            >
-              <PanelRight className="size-4" strokeWidth={1.75} />
-            </button>
-          </div>
-        </div>
+        <TaskCardChainBar
+          task={task}
+          branchOpen={branchOpen}
+          aboutOpen={aboutOpen}
+          onToggleBranch={() => {
+            setBranchMounted(true);
+            setBranchOpen((v) => !v);
+          }}
+          onToggleAbout={() => {
+            setAboutMounted(true);
+            setAboutOpen((v) => !v);
+          }}
+        />
 
         {/* Треки БЕЗ transition и БЕЗ setState на кадр: во время drag ширина
           чата выставляется императивно (el.style.width в rAF), React не

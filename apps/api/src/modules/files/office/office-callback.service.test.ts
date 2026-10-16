@@ -68,7 +68,11 @@ interface Harness {
   tx: Record<string, unknown>;
 }
 
-function makeHarness(file: FileObjectRow | null, versions: FileVersionRow[] = []): Harness {
+function makeHarness(
+  file: FileObjectRow | null,
+  versions: FileVersionRow[] = [],
+  configOverrides: Partial<OfficeConfig> = {},
+): Harness {
   const mocks = {
     findById: vi.fn(async () => file),
     findVersions: vi.fn(async () => versions),
@@ -102,6 +106,7 @@ function makeHarness(file: FileObjectRow | null, versions: FileVersionRow[] = []
     apiInternalUrl: 'http://api-internal:3001',
     internalUrl: 'http://ds-internal:80',
     maxViewBytes: 52_428_800,
+    ...configOverrides,
   };
   const tokens = new OfficeTokenService(config);
   const service = new OfficeCallbackService(
@@ -360,6 +365,55 @@ describe('OfficeCallbackService (#138)', () => {
     });
     expect(h.mocks.put).not.toHaveBeenCalled();
     expect(h.mocks.saveVersion).not.toHaveBeenCalled();
+  });
+
+  describe('SSRF: скачивание только с внутреннего origin DS (fail-closed)', () => {
+    it('url колбэка не парсится — VALIDATION_FAILED, fetch не вызывается', async () => {
+      const fetchMock = mockFetchOk(2);
+      vi.stubGlobal('fetch', fetchMock);
+      const h = makeHarness(makeFile(1));
+      await expect(
+        h.service.handle(FILE_ID, { status: 2, key: `${FILE_ID}.v1`, url: 'not a url' }),
+      ).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(h.mocks.put).not.toHaveBeenCalled();
+    });
+
+    it('не-http(s) схема (file:) — отказ, fetch не вызывается', async () => {
+      const fetchMock = mockFetchOk(2);
+      vi.stubGlobal('fetch', fetchMock);
+      const h = makeHarness(makeFile(1));
+      await expect(
+        h.service.handle(FILE_ID, { status: 2, key: `${FILE_ID}.v1`, url: 'file:///etc/passwd' }),
+      ).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('кривой OFFICE_INTERNAL_URL — ошибка, а не fetch сырого url', async () => {
+      const fetchMock = mockFetchOk(2);
+      vi.stubGlobal('fetch', fetchMock);
+      const h = makeHarness(makeFile(1), [], { internalUrl: 'ds-internal:80/no-scheme' });
+      await expect(
+        h.service.handle(FILE_ID, {
+          status: 2,
+          key: `${FILE_ID}.v1`,
+          url: 'http://attacker.example/steal',
+        }),
+      ).rejects.toThrow(/OFFICE_INTERNAL_URL/);
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('чужой хост в url колбэка — origin всё равно внутренний DS', async () => {
+      const fetchMock = mockFetchOk(2);
+      vi.stubGlobal('fetch', fetchMock);
+      const h = makeHarness(makeFile(1));
+      await h.service.handle(FILE_ID, {
+        status: 2,
+        key: `${FILE_ID}.v1`,
+        url: 'http://169.254.169.254/latest/meta-data?x=1',
+      });
+      expect(fetchMock).toHaveBeenCalledWith('http://ds-internal/latest/meta-data?x=1');
+    });
   });
 
   describe('verifySender', () => {

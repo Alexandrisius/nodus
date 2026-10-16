@@ -5,10 +5,11 @@ import {
   Injectable,
   type NestInterceptor,
 } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { Redis } from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
-import { of, tap, type Observable } from 'rxjs';
+import { defer, finalize, of, tap, type Observable } from 'rxjs';
 import { ErrorCode, type AuthUser } from '@nodus/contracts';
 
 import { REQUEST_USER_KEY } from '../decorators/get-user.decorator.js';
@@ -18,9 +19,25 @@ import { sha256Hex, stableStringify } from './stable-stringify.js';
 
 /** TTL сохранённого ответа и замка (ADR-0005). */
 const RESPONSE_TTL_SECONDS = 86_400; // 24 ч
-const LOCK_TTL_SECONDS = 5;
+/** Замок живёт 5 с без продления: упавший процесс освобождает ключ сам. */
+const LOCK_TTL_MS = 5_000;
+/** Heartbeat продления замка, пока исполняется хендлер (≈ TTL/3 — переживает
+ *  пропуск тика). Долгий запрос (multipart-аплоад) замок не теряет. */
+const LOCK_HEARTBEAT_MS = 1_500;
 const LOCK_WAIT_MS = 2_000;
 const LOCK_POLL_MS = 100;
+
+/** PEXPIRE только своего замка (токен владельца): чужой/протухший не трогаем. */
+const EXTEND_LOCK_SCRIPT = `if redis.call('get', KEYS[1]) == ARGV[1] then
+  return redis.call('pexpire', KEYS[1], ARGV[2])
+end
+return 0`;
+
+/** DEL только своего замка: истёкший и перехваченный повтором замок не сносим. */
+const RELEASE_LOCK_SCRIPT = `if redis.call('get', KEYS[1]) == ARGV[1] then
+  return redis.call('del', KEYS[1])
+end
+return 0`;
 
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
@@ -41,8 +58,15 @@ interface CachedResponse {
  * Идемпотентность мутаций (I7, ADR-0005): повтор с тем же `Idempotency-Key`
  * и тем же телом получает первый ответ (заголовок `Idempotent-Replay: true`),
  * с иным телом — CONFLICT. Ключ скоуплен актором+методом+путём+sha256(key).
- * Гонки закрыты замком SET NX; ошибки не кэшируются; недоступный Redis —
- * fail-open (запрос проходит, защита временно ослаблена, в лог — warn).
+ * Гонки закрыты замком SET NX с токеном владельца; пока хендлер исполняется,
+ * замок продлевается heartbeat-ом (PEXPIRE по токену). Повтор, заставший
+ * чужой замок, ждёт результат до 2 с и затем отвечает CONFLICT «ещё
+ * выполняется» (`details.reason = 'in_progress'`) — хендлер второй раз НЕ
+ * исполняется (канон draft-ietf-httpapi-idempotency-key-header: 409 на
+ * повтор во время обработки оригинала). Повтор исполняется, только если
+ * замок исчез без результата (оригинал упал — ошибки не кэшируются) и
+ * удалось взять его заново. Недоступный Redis — fail-open (запрос проходит,
+ * защита временно ослаблена, в лог — warn).
  */
 @Injectable()
 export class IdempotencyInterceptor implements NestInterceptor {
@@ -81,6 +105,8 @@ export class IdempotencyInterceptor implements NestInterceptor {
       return next.handle();
     }
 
+    const lockKey = `${scopedKey}:lock`;
+    const lockToken = randomUUID();
     try {
       const cached = await this.redis.get(scopedKey);
       if (cached) {
@@ -91,16 +117,9 @@ export class IdempotencyInterceptor implements NestInterceptor {
           scopedKey,
         );
       }
-      const lockAcquired = await this.redis.set(
-        `${scopedKey}:lock`,
-        '1',
-        'EX',
-        LOCK_TTL_SECONDS,
-        'NX',
-      );
-      if (!lockAcquired) {
-        const appeared = await this.waitForResult(scopedKey);
-        if (appeared) {
+      if (!(await this.tryLock(lockKey, lockToken))) {
+        const appeared = await this.waitForResultOrLock(scopedKey, lockKey, lockToken);
+        if (appeared !== null) {
           return this.replay(
             JSON.parse(appeared) as CachedResponse,
             bodyHash,
@@ -108,7 +127,7 @@ export class IdempotencyInterceptor implements NestInterceptor {
             scopedKey,
           );
         }
-        // Победитель упал, не записав результат — исполняемся (страховка — ограничения БД).
+        // null — замок взят нами после падения оригинала: исполняемся.
       }
     } catch (error) {
       if (error instanceof DomainException) {
@@ -118,27 +137,31 @@ export class IdempotencyInterceptor implements NestInterceptor {
       return next.handle();
     }
 
-    return next.handle().pipe(
-      tap({
-        next: (body: unknown) => {
-          // Успех обработчика (исключения уходят в ветку error) — кэшируем ответ.
-          // Статус-код не храним: в интерсепторе он ещё не финальный (Nest применит
-          // @HttpCode/дефолт 201 позже); при replay статус выставит сам Nest.
-          const record: CachedResponse = { body, bodyHash };
-          void this.redis
-            .pipeline()
-            .set(scopedKey, JSON.stringify(record), 'EX', RESPONSE_TTL_SECONDS)
-            .del(`${scopedKey}:lock`)
-            .exec()
-            .catch((error: unknown) =>
-              this.logger.warn({ err: error }, 'Failed to cache idempotent response'),
-            );
-        },
-        error: () => {
-          void this.redis.del(`${scopedKey}:lock`).catch(() => undefined);
-        },
-      }),
-    );
+    return defer(() => {
+      const stopHeartbeat = this.startHeartbeat(lockKey, lockToken);
+      return next.handle().pipe(
+        tap({
+          next: (body: unknown) => {
+            // Успех обработчика (исключения уходят в ветку error) — кэшируем ответ.
+            // Статус-код не храним: в интерсепторе он ещё не финальный (Nest применит
+            // @HttpCode/дефолт 201 позже); при replay статус выставит сам Nest.
+            const record: CachedResponse = { body, bodyHash };
+            void this.redis
+              .pipeline()
+              .set(scopedKey, JSON.stringify(record), 'EX', RESPONSE_TTL_SECONDS)
+              .eval(RELEASE_LOCK_SCRIPT, 1, lockKey, lockToken)
+              .exec()
+              .catch((error: unknown) =>
+                this.logger.warn({ err: error }, 'Failed to cache idempotent response'),
+              );
+          },
+          error: () => {
+            void this.releaseLock(lockKey, lockToken);
+          },
+        }),
+        finalize(stopHeartbeat),
+      );
+    });
   }
 
   /** Повтор с иным телом — CONFLICT с продлением TTL (переждать нельзя, ADR-0005). */
@@ -160,7 +183,50 @@ export class IdempotencyInterceptor implements NestInterceptor {
     return of(cached.body);
   }
 
-  private async waitForResult(scopedKey: string): Promise<string | null> {
+  private async tryLock(lockKey: string, token: string): Promise<boolean> {
+    return (await this.redis.set(lockKey, token, 'PX', LOCK_TTL_MS, 'NX')) === 'OK';
+  }
+
+  private async releaseLock(lockKey: string, token: string): Promise<void> {
+    await this.redis.eval(RELEASE_LOCK_SCRIPT, 1, lockKey, token).catch(() => undefined);
+  }
+
+  /**
+   * Продление замка, пока хендлер исполняется. Потеря замка (истёк при сбое
+   * Redis/подвисании цикла событий и перехвачен повтором) — warn и стоп:
+   * исполнение уже не остановить, дубль страхуют ограничения БД.
+   */
+  private startHeartbeat(lockKey: string, token: string): () => void {
+    const timer = setInterval(() => {
+      this.redis
+        .eval(EXTEND_LOCK_SCRIPT, 1, lockKey, token, LOCK_TTL_MS)
+        .then((extended) => {
+          if (Number(extended) !== 1) {
+            clearInterval(timer);
+            this.logger.warn({ lockKey }, 'Idempotency lock lost while handler is running');
+          }
+        })
+        .catch((error: unknown) => {
+          this.logger.warn({ err: error }, 'Idempotency lock heartbeat failed');
+        });
+    }, LOCK_HEARTBEAT_MS);
+    timer.unref();
+    return () => {
+      clearInterval(timer);
+    };
+  }
+
+  /**
+   * Ожидание повтора, заставшего чужой замок: результат появился → его
+   * реплей; замок исчез без результата (оригинал упал) и взят нами → null
+   * (исполняемся); оригинал всё ещё работает к дедлайну → CONFLICT «ещё
+   * выполняется» — второй раз хендлер параллельно не исполняется.
+   */
+  private async waitForResultOrLock(
+    scopedKey: string,
+    lockKey: string,
+    token: string,
+  ): Promise<string | null> {
     const deadline = Date.now() + LOCK_WAIT_MS;
     while (Date.now() < deadline) {
       await new Promise((resolve) => setTimeout(resolve, LOCK_POLL_MS));
@@ -168,7 +234,20 @@ export class IdempotencyInterceptor implements NestInterceptor {
       if (result) {
         return result;
       }
+      if (await this.tryLock(lockKey, token)) {
+        // Замок свободен, но результат мог записаться между GET и SET NX.
+        const late = await this.redis.get(scopedKey);
+        if (late) {
+          await this.releaseLock(lockKey, token);
+          return late;
+        }
+        return null;
+      }
     }
-    return null;
+    throw new DomainException(
+      ErrorCode.CONFLICT,
+      'A request with this idempotency key is still in progress',
+      { reason: 'in_progress' },
+    );
   }
 }

@@ -37,6 +37,9 @@ import { ApiErrors } from '../../../core/openapi/api-errors.decorator.js';
 import { ApiIdempotencyKey } from '../../../core/openapi/api-idempotency.decorator.js';
 import { ZodValidationPipe } from '../../../core/pipes/zod-validation.pipe.js';
 import { MessageActionsService } from './message-actions.service.js';
+import { MessagePinsService } from './message-pins.service.js';
+import { MessageReactionsService } from './message-reactions.service.js';
+import { ThreadWatchService } from './thread-watch.service.js';
 import { MessageDtoMapper } from './message-dto.mapper.js';
 import { MessagesService } from './messages.service.js';
 
@@ -54,6 +57,9 @@ const uuidSchema = z.uuid();
 export class MessageActionsController {
   constructor(
     private readonly actions: MessageActionsService,
+    private readonly pinning: MessagePinsService,
+    private readonly reactions: MessageReactionsService,
+    private readonly threads: ThreadWatchService,
     private readonly mapper: MessageDtoMapper,
     private readonly messages: MessagesService,
   ) {}
@@ -94,7 +100,7 @@ export class MessageActionsController {
     @GetUser() user: { id: string },
     @Param('id', new ZodValidationPipe(uuidSchema)) conversationId: string,
   ): Promise<ThreadStateList> {
-    return this.actions.threadStates(user.id, conversationId).then((items) => ({ items }));
+    return this.threads.threadStates(user.id, conversationId).then((items) => ({ items }));
   }
 
   @Post('threads/:rootId/watch')
@@ -109,7 +115,7 @@ export class MessageActionsController {
     @Param('id', new ZodValidationPipe(uuidSchema)) conversationId: string,
     @Param('rootId', new ZodValidationPipe(uuidSchema)) rootId: string,
   ): Promise<ThreadWatchResult> {
-    return this.actions.watchThread(user.id, conversationId, rootId);
+    return this.threads.watchThread(user.id, conversationId, rootId);
   }
 
   // ===== Закрепы =====
@@ -122,7 +128,7 @@ export class MessageActionsController {
     @GetUser() user: { id: string },
     @Param('id', new ZodValidationPipe(uuidSchema)) conversationId: string,
   ): Promise<{ items: MessagePin[]; nextCursor: null }> {
-    return { items: await this.actions.listPins(user.id, conversationId), nextCursor: null };
+    return { items: await this.pinning.listPins(user.id, conversationId), nextCursor: null };
   }
 
   @Post('messages/:messageId/pin')
@@ -136,7 +142,7 @@ export class MessageActionsController {
     @Param('id', new ZodValidationPipe(uuidSchema)) conversationId: string,
     @Param('messageId', new ZodValidationPipe(uuidSchema)) messageId: string,
   ): Promise<MessagePin> {
-    const { pin, message, members, pinnedByRef } = await this.actions.pin(
+    const { pin, message, members, pinnedByRef } = await this.pinning.pin(
       user.id,
       conversationId,
       messageId,
@@ -157,7 +163,7 @@ export class MessageActionsController {
     @Param('id', new ZodValidationPipe(uuidSchema)) conversationId: string,
     @Param('messageId', new ZodValidationPipe(uuidSchema)) messageId: string,
   ): Promise<void> {
-    return this.actions.unpin(user.id, conversationId, messageId);
+    return this.pinning.unpin(user.id, conversationId, messageId);
   }
 
   // ===== Реакции =====
@@ -179,7 +185,7 @@ export class MessageActionsController {
     })
     dto: MessageReactionToggleBody,
   ): Promise<ChatMessage> {
-    const result = await this.actions.toggleReaction(user.id, conversationId, messageId, dto);
+    const result = await this.reactions.toggleReaction(user.id, conversationId, messageId, dto);
     return this.mapper.toDto(result.message, { viewerId: user.id, members: result.members });
   }
 

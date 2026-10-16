@@ -1,11 +1,11 @@
 import type { TaskListItem, TaskStage } from '@nodus/contracts';
 
 import {
+  stageCancelled,
   stageDone,
   stageInProgress,
   stageNew,
   stageOnControl,
-  stagePlanned,
   stagePostponed,
 } from './task-stages.js';
 
@@ -14,8 +14,10 @@ const sid = (n: number): string => `20000000-0000-4000-8000-${String(n).padStart
 /** Личная схема «Мой план» демо-пользователя (экземпляр дефолтного шаблона,
  *  ADR-0008): та же форма стадии, что у проектной схемы; привязка к системному
  *  состоянию — основа встроенного автоперемещения (доска живая без роботов).
- *  Набор демонстрирует вольные личные колонки владельца («Стратегические»,
- *  «Проанализировано») внутри системных состояний. */
+ *  Каркас — шаблон API `PERSONAL_TEMPLATE` (system-catalog.ts: каждому из
+ *  пяти состояний — минимум одна колонка, «На контроле» = done, «Завершённые» =
+ *  closed); поверх — вольные личные колонки владельца («Стратегические»,
+ *  «Проанализировано») внутри состояния active. */
 export const personalNew: TaskStage = {
   id: sid(101),
   name: 'Новые',
@@ -51,12 +53,19 @@ export const personalWaiting: TaskStage = {
   systemState: 'paused',
   color: 'danger',
 };
-export const personalDone: TaskStage = {
+export const personalOnControl: TaskStage = {
   id: sid(106),
-  name: 'Готово',
+  name: 'На контроле',
   order: 5,
   systemState: 'done',
-  color: 'neutral',
+  color: 'warning',
+};
+export const personalDone: TaskStage = {
+  id: sid(107),
+  name: 'Завершённые',
+  order: 6,
+  systemState: 'closed',
+  color: 'info',
 };
 
 export const demoPersonalStages: TaskStage[] = [
@@ -65,6 +74,7 @@ export const demoPersonalStages: TaskStage[] = [
   personalInWork,
   personalAnalyzed,
   personalWaiting,
+  personalOnControl,
   personalDone,
 ];
 
@@ -72,11 +82,11 @@ export const demoPersonalStages: TaskStage[] = [
  *  осмысленную личную колонку того же системного состояния. */
 const byGlobalStage: Record<string, TaskStage> = {
   [stageNew.id]: personalNew,
-  [stagePlanned.id]: personalStrategic,
   [stageInProgress.id]: personalInWork,
-  [stageOnControl.id]: personalAnalyzed,
+  [stageOnControl.id]: personalOnControl,
   [stagePostponed.id]: personalWaiting,
   [stageDone.id]: personalDone,
+  [stageCancelled.id]: personalDone,
 };
 
 /** Первая личная колонка системного состояния (по порядку на доске). */

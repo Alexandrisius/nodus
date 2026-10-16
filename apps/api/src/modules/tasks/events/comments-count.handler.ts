@@ -6,6 +6,7 @@ import { EventBus } from '../../../core/events/event-bus.js';
 import { FeatureFlagService } from '../../../core/feature-flags/feature-flag.service.js';
 import { CHAT_MESSAGE_ACCESS, type ChatMessageAccess } from '../../chat/message-access.port.js';
 import { audienceIds } from '../access/task-access.js';
+import { TasksRepository } from '../tasks/tasks.repository.js';
 
 /**
  * `commentsCount` задачи = число живых сообщений её беседы (#252): chat
@@ -21,6 +22,7 @@ export class TaskCommentsCounter {
     private readonly txRunner: TransactionRunner,
     private readonly eventBus: EventBus,
     private readonly featureFlags: FeatureFlagService,
+    private readonly tasks: TasksRepository,
     @Inject(CHAT_MESSAGE_ACCESS) private readonly chat: ChatMessageAccess,
   ) {}
 
@@ -31,15 +33,9 @@ export class TaskCommentsCounter {
     const discussion = await this.chat.taskDiscussion(conversationId);
     if (!discussion) return;
     await this.txRunner.run(async (tx) => {
-      const task = await tx.task.findFirst({
-        where: { id: discussion.taskId, deletedAt: null },
-        select: { id: true, number: true, creatorId: true, assigneeId: true, participants: true },
-      });
+      const task = await this.tasks.findLiveRoster(discussion.taskId, tx);
       if (!task) return;
-      await tx.task.update({
-        where: { id: task.id },
-        data: { commentsCount: discussion.count },
-      });
+      await this.tasks.setCommentsCount(tx, task.id, discussion.count);
       await this.eventBus.emit(
         tx,
         TASK_EVENTS.COMMENTS_COUNTED,

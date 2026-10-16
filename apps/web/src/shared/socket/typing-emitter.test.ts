@@ -29,6 +29,22 @@ describe('emitTyping', () => {
     expect(emit).toHaveBeenCalledWith('chat.typing', { conversationId: 'conv-2' });
   });
 
+  it('чистка протухших отметок не ломает троттл соседей', () => {
+    vi.useFakeTimers();
+    try {
+      const emit = vi.fn();
+      socketMock.mockReturnValue({ connected: true, emit });
+      emitTyping('conv-a');
+      vi.advanceTimersByTime(2_100);
+      emitTyping('conv-b'); // вычищает протухшую conv-a
+      emitTyping('conv-b'); // свежая отметка conv-b жива — мимо
+      emitTyping('conv-a'); // окно conv-a истекло — проходит
+      expect(emit).toHaveBeenCalledTimes(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('отключённый сокет не эмитит', () => {
     const emit = vi.fn();
     socketMock.mockReturnValue({ connected: false, emit });

@@ -1,7 +1,6 @@
 import { Injectable, type OnApplicationBootstrap } from '@nestjs/common';
 import { PinoLogger } from 'nestjs-pino';
 
-import { Prisma } from '../../../generated/prisma/client.js';
 import {
   TransactionRunner,
   type TransactionClient,
@@ -14,20 +13,25 @@ import {
   type CatalogWorkflow,
 } from './system-catalog.js';
 import { parseRules } from '../workflow/transition-rules.js';
+import { CatalogRepository, type CatalogStageData } from './catalog.repository.js';
 
 /**
  * Бутстрап системного каталога (ADR-0020): при старте api создаёт
  * недостающие тип, маршруты (стадии + переходы) и схему по `code` и
- * синхронизирует имена/правила СИСТЕМНЫХ стадий и переходов с кодом (каталог
- * — данные кода; правка правила = правка system-catalog.ts, без миграции).
- * Шаблон «Мой план» синхронизируется только по составу (личные копии
- * сотрудников не трогаются). Идемпотентен; гонка двух стартов разрешается
- * уникальными ключами (повтор проходит по ветке «уже есть»).
+ * синхронизирует СИСТЕМНЫЕ стадии (имя, цвет, порядок, systemState,
+ * isInitial) и переходы (имя, правила, порядок, from/to) с кодом (каталог —
+ * данные кода; правка маршрута = правка system-catalog.ts, без миграции).
+ * Смена systemState стадии пересчитывает денормализацию задач в ней в той же
+ * транзакции. Шаблон «Мой план» синхронизируется только по составу (личные
+ * копии сотрудников не трогаются: у их колонок нет code). Идемпотентен; гонка
+ * двух стартов разрешается уникальными ключами (повтор проходит по ветке
+ * «уже есть»).
  */
 @Injectable()
 export class CatalogBootstrap implements OnApplicationBootstrap {
   constructor(
     private readonly txRunner: TransactionRunner,
+    private readonly repo: CatalogRepository,
     private readonly logger: PinoLogger,
   ) {
     this.logger.setContext(CatalogBootstrap.name);
@@ -44,86 +48,74 @@ export class CatalogBootstrap implements OnApplicationBootstrap {
 
   async ensure(): Promise<void> {
     await this.txRunner.run(async (tx) => {
-      const type =
-        (await tx.taskType.findUnique({ where: { code: SYSTEM_TASK_TYPE.code } })) ??
-        (await tx.taskType.create({ data: { ...SYSTEM_TASK_TYPE, isSystem: true } }));
+      const type = await this.repo.ensureType(tx, SYSTEM_TASK_TYPE);
       const workflowId = await this.ensureWorkflow(tx, DEFAULT_TASK_WORKFLOW);
       await this.ensureWorkflow(tx, PERSONAL_TEMPLATE);
-      const scheme =
-        (await tx.workflowScheme.findUnique({ where: { code: DEFAULT_SCHEME.code } })) ??
-        (await tx.workflowScheme.create({ data: { ...DEFAULT_SCHEME, isDefault: true } }));
-      await tx.workflowSchemeEntry.upsert({
-        where: { schemeId_taskTypeId: { schemeId: scheme.id, taskTypeId: type.id } },
-        update: {},
-        create: { schemeId: scheme.id, taskTypeId: type.id, workflowId },
-      });
+      const scheme = await this.repo.ensureDefaultScheme(tx, DEFAULT_SCHEME);
+      await this.repo.ensureSchemeEntry(tx, scheme.id, type.id, workflowId);
     });
     this.logger.info('tasks: системный каталог маршрутов на месте');
   }
 
   private async ensureWorkflow(tx: TransactionClient, def: CatalogWorkflow): Promise<string> {
-    const existing = await tx.workflow.findUnique({ where: { code: def.code } });
-    const workflow =
-      existing ??
-      (await tx.workflow.create({
-        data: {
-          code: def.code,
-          name: def.name,
-          kind: def.kind,
-          isSystem: true,
-          isTemplate: def.isTemplate ?? false,
-        },
-      }));
+    const workflow = await this.repo.ensureWorkflow(tx, {
+      code: def.code,
+      name: def.name,
+      kind: def.kind,
+      isTemplate: def.isTemplate ?? false,
+    });
     const stageIds = new Map<string, string>();
     for (const [index, s] of def.stages.entries()) {
-      const found = await tx.workflowStage.findUnique({
-        where: { workflowId_code: { workflowId: workflow.id, code: s.code } },
-      });
-      if (found && (found.name !== s.name || found.color !== s.color)) {
-        await tx.workflowStage.update({
-          where: { id: found.id },
-          data: { name: s.name, color: s.color },
-        });
-      }
-      const stage =
-        found ??
-        (await tx.workflowStage.create({
-          data: {
-            workflowId: workflow.id,
-            code: s.code,
-            name: s.name,
-            color: s.color,
-            sortOrder: index,
-            systemState: s.systemState,
-            isInitial: s.isInitial ?? false,
-          },
-        }));
-      stageIds.set(s.code, stage.id);
-    }
-    for (const [index, t] of def.transitions.entries()) {
-      const found = await tx.workflowTransition.findUnique({
-        where: { workflowId_code: { workflowId: workflow.id, code: t.code } },
-      });
-      const rules = parseRules(t.rules) as Prisma.InputJsonValue;
-      if (found) {
-        await tx.workflowTransition.update({
-          where: { id: found.id },
-          data: { name: t.name, rules, sortOrder: index },
-        });
+      const want: CatalogStageData = {
+        name: s.name,
+        color: s.color,
+        sortOrder: index,
+        systemState: s.systemState,
+        isInitial: s.isInitial ?? false,
+      };
+      const found = await this.repo.findStage(tx, workflow.id, s.code);
+      if (!found) {
+        const created = await this.repo.createStage(tx, workflow.id, s.code, want);
+        stageIds.set(s.code, created.id);
         continue;
       }
-      await tx.workflowTransition.create({
-        data: {
-          workflowId: workflow.id,
-          code: t.code,
-          name: t.name,
-          fromStageId: t.from === null ? null : stageIds.get(t.from)!,
-          toStageId: stageIds.get(t.to)!,
-          sortOrder: index,
-          rules,
-        },
-      });
+      const drift = stageDrift(found, want);
+      if (drift) await this.repo.updateStage(tx, found.id, drift);
+      if (drift?.systemState !== undefined) {
+        const moved = await this.repo.restateStageTasks(tx, found.id, want.systemState, new Date());
+        this.logger.warn(
+          { stage: s.code, workflow: def.code, systemState: want.systemState, tasks: moved },
+          'tasks: системное состояние стадии каталога изменено — задачи пересчитаны',
+        );
+      }
+      stageIds.set(s.code, found.id);
+    }
+    for (const [index, t] of def.transitions.entries()) {
+      const data = {
+        name: t.name,
+        fromStageId: t.from === null ? null : stageIds.get(t.from)!,
+        toStageId: stageIds.get(t.to)!,
+        sortOrder: index,
+        rules: parseRules(t.rules),
+      };
+      const found = await this.repo.findTransition(tx, workflow.id, t.code);
+      if (found) await this.repo.updateTransition(tx, found.id, data);
+      else await this.repo.createTransition(tx, workflow.id, t.code, data);
     }
     return workflow.id;
   }
+}
+
+/** Поля системной стадии, разошедшиеся с каталогом (null — совпадает). */
+export function stageDrift(
+  found: CatalogStageData,
+  want: CatalogStageData,
+): Partial<CatalogStageData> | null {
+  const drift: Partial<CatalogStageData> = {};
+  if (found.name !== want.name) drift.name = want.name;
+  if (found.color !== want.color) drift.color = want.color;
+  if (found.sortOrder !== want.sortOrder) drift.sortOrder = want.sortOrder;
+  if (found.systemState !== want.systemState) drift.systemState = want.systemState;
+  if (found.isInitial !== want.isInitial) drift.isInitial = want.isInitial;
+  return Object.keys(drift).length > 0 ? drift : null;
 }

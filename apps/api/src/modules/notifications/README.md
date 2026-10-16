@@ -19,7 +19,9 @@ kind → priority — декларативная таблица (`priority-resol
    новое имя события — сначала в каталог `docs/architecture/api-conventions.md`.
 2. **Хендлер** `events/<событие>.handler.ts` здесь: `static readonly eventType`,
    гейт фичефлага, получатели (read-порт или payload), сборка строк
-   `NotificationInsert` через `NotificationsService`, эмит
+   `NotificationInsert` через `NotificationsService` (тонкие обёртки над
+   чистыми сборщиками `notification-builders.ts` — логику и её тесты держим
+   там), эмит
    `notification.dispatch_requested` в той же транзакции. Идемпотентность —
    дедуп `(event_id, user_id)` в `createFromEvent`.
 3. **kind** — новое значение в `notificationKindSchema` (`packages/contracts`).
@@ -48,7 +50,9 @@ NotificationPriority>` не даст собрать код без строки.
   urgent_text (полный текст важного), read_at, repeats_stopped_at; дедуп
   `(event_id, user_id)`.
 - `notification_deliveries` — журнал доставок (канал ws/repeat + попытка).
-- `notification_settings` — DND-расписание per user.
+- `notification_settings` — DND-расписание per user. Частичный патч —
+  один `INSERT … ON CONFLICT DO UPDATE` с `COALESCE` (поле вне патча
+  остаётся из строки/дефолта; параллельные патчи разных полей не теряются).
 
 ## Механика
 
@@ -83,7 +87,9 @@ NotificationPriority>` не даст собрать код без строки.
   эндпоинтов нет — данные в существующих таблицах (I14).
 - **Уборка**: `notification-retention` cron 04:00 — низкий старше 7 дней
   помечается прочитанным (журнал жив для фильтра «Все»; `?q=` сервера —
-  до глобального поиска топбара #172).
+  до глобального поиска топбара #172). Батчами по 1000 строк (CTE с LIMIT +
+  `FOR UPDATE SKIP LOCKED`, цикл до неполного батча) — без одной долгой
+  транзакции с тысячами row-lock-ов поверх живых гашений.
 
 ## Фичефлаг (I10)
 

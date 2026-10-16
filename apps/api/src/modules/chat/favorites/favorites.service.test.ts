@@ -3,7 +3,7 @@ import { ErrorCode } from '@nodus/contracts';
 
 import { FavoritesService } from './favorites.service.js';
 import type { FavoriteRow, FavoritesRepository } from './favorites.repository.js';
-import type { MessageRow } from '../messages/messages.repository.js';
+import type { MessageRow } from '../messages/message-row.js';
 
 /** Избранное (#171): права (только сообщения своих бесед), идемпотентность
  *  звезды (PK), порядок цепочки (createdAt = now+i), тихое снятие, 404 правки
@@ -101,19 +101,22 @@ describe('FavoritesService (#171)', () => {
       favorites as unknown as FavoritesRepository,
       cards as never,
       messages as never,
+      messages as never, // запись (MessagesWriteRepository: touchLastMessageAt)
       conversations as never,
+      conversations as never, // запись беседы (findOrCreateDirect)
       eventBus as never,
       txRunner as never,
+      {} as never, // источники (FavoriteSourcesRepository) — не в скоупе тестов
     );
   });
 
   it('add: звезда на сообщения СВОИХ бесед; чужие/несуществующие молча пропускаются', async () => {
     messages.findByIds.mockResolvedValue([makeMessage('m1', CONV), makeMessage('m2', CONV_OTHER)]);
-    conversations.findMembership.mockImplementation(async (conversationId: string) =>
+    conversations.findMembership.mockImplementation((conversationId: string) =>
       conversationId === CONV ? { userId: ME } : null,
     );
     favorites.findRow.mockResolvedValue(makeRow('m1'));
-    cards.toDtos.mockImplementation(async (rows: FavoriteRow[]) =>
+    cards.toDtos.mockImplementation((rows: FavoriteRow[]) =>
       rows.map((row) => ({ messageId: row.messageId })),
     );
 
@@ -123,6 +126,30 @@ describe('FavoritesService (#171)', () => {
     expect(favorites.create).toHaveBeenCalledWith(ME, 'm1', expect.any(Date), 'tx-handle');
     // Карточки — только доступные (m2/m-missing отфильтрованы).
     expect(result.items).toEqual([{ messageId: 'm1' }]);
+  });
+
+  it('add: надгробие и бесследно удалённое не звездятся; идемпотентность — чтение в tx', async () => {
+    // Arrange: findByIds отдаёт и удалённые строки (оригиналы цитат).
+    messages.findByIds.mockResolvedValue([
+      { ...makeMessage('m-tomb', CONV), deletedAt: new Date('2026-10-04T02:00:00Z') },
+      {
+        ...makeMessage('m-gone', CONV),
+        deletedAt: new Date('2026-10-04T02:00:00Z'),
+        obliterated: true,
+      },
+      makeMessage('m-live', CONV),
+    ]);
+    conversations.findMembership.mockResolvedValue({ userId: ME });
+    favorites.findRow.mockResolvedValue(makeRow('m-live'));
+
+    // Act
+    await service.add(ME, { messageIds: ['m-tomb', 'm-gone', 'm-live'] });
+
+    // Assert: звезда только на живое; findExisting — по соединению транзакции.
+    expect(favorites.create).toHaveBeenCalledTimes(1);
+    expect(favorites.create).toHaveBeenCalledWith(ME, 'm-live', expect.any(Date), 'tx-handle');
+    expect(favorites.findExisting).toHaveBeenCalledWith(ME, ['m-live'], 'tx-handle');
+    expect(favorites.findRow).toHaveBeenCalledTimes(1);
   });
 
   it('add (#215): новая звезда — активность «Избранного»: беседа поднимается в списке', async () => {
@@ -158,8 +185,8 @@ describe('FavoritesService (#171)', () => {
       makeMessage('m3', CONV),
     ]);
     conversations.findMembership.mockResolvedValue({ userId: ME });
-    favorites.findRow.mockImplementation(async (_userId: string, id: string) => makeRow(id));
-    cards.toDtos.mockImplementation(async (rows: FavoriteRow[]) =>
+    favorites.findRow.mockImplementation((_userId: string, id: string) => makeRow(id));
+    cards.toDtos.mockImplementation((rows: FavoriteRow[]) =>
       rows.map((row) => ({ messageId: row.messageId })),
     );
 

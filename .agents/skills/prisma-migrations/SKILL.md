@@ -9,7 +9,9 @@ Hard project rules (violation = rejected PR):
 
 - **Never edit an applied migration.** New change = new migration (`prisma migrate dev --name <verb>_<what>`).
 - UUID surrogate PKs; `created_at/updated_at` everywhere; explicit `onDelete` on FKs.
-- `messages` is monthly-partitioned from the first migration (see data-model.md).
+- **Every FK column gets an index** (`@@index([fkColumn])` or a composite index leading with it). PostgreSQL does NOT index FKs automatically: without it every Restrict/SetNull/Cascade check on parent delete and every join is a seq scan (audit #317 found 17 such FKs).
+- `messages` is a plain table today; monthly partitioning is **trigger-based** — at tens of millions of rows (data-model.md «Правила схемы»). Cursor by `seq` and time filters are built in so the move to partitions does not change contracts. Partitioning recipe — `references/details.md`.
+- Before any `prisma` CLI command on the dev host check where `DATABASE_URL` points: the root `.env` targets the **prod** instance (gotchas). Data-carrying migrations — `migrate dev --create-only` + hand-written SQL; verify drift with `prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script` against `nodus_test` (empty output = schema matches migrations).
 - Every migration that changes required data ships with an updated `prisma/seed` — stale seed is a bug.
 - Environment policy (ADR-0002): local dev DB may be reset to seed freely (`migrate reset`); demo `nodus.by` and prod are **stable** — forward-only migrations, no resets.
 

@@ -5,7 +5,7 @@ import { CHAT_EVENTS, ErrorCode } from '@nodus/contracts';
 
 import { MessagesService } from './messages.service.js';
 import type { MemberRow } from '../conversations/conversations.repository.js';
-import type { MessageRow } from './messages.repository.js';
+import type { MessageRow } from './message-row.js';
 
 const CONV = 'conv-1';
 const ME = 'me-1';
@@ -108,8 +108,13 @@ describe('MessagesService.edit (#188: текст + состав вложений
     conversations.listMembers.mockResolvedValue([]);
     service = new MessagesService(
       repo as never,
+      repo as never, // запись (MessagesWriteRepository)
+      repo as never, // правка/удаление (MessagesLifecycleRepository)
+      repo as never, // прочитанность (MessagesReadStateRepository)
       attachmentsRepo as never,
       conversations as never,
+      conversations as never, // запись участия (ConversationMembersRepository)
+      conversations as never, // черновики (ConversationDraftsRepository)
       mapper as never,
       txRunner as never,
       eventBus as never,

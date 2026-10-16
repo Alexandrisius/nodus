@@ -30,10 +30,20 @@ export class AttachmentsRepository {
 
   /** Загруженные-но-неотправленные вложения пользователя (лимит 20 — вердикт
    *  владельца 24.09; серверная сверка клиентской проверки). */
-  async countUnclaimed(ownerId: string): Promise<number> {
-    return this.prisma.messageAttachment.count({
+  async countUnclaimed(ownerId: string, tx?: TransactionClient): Promise<number> {
+    return (tx ?? this.prisma).messageAttachment.count({
       where: { ownerId, messageId: null },
     });
+  }
+
+  /** Сериализация лимита неотправленных ОДНОГО владельца (паттерн
+   *  lockUrgentLimit #177): count и INSERT в одной tx, но без лока две
+   *  параллельные загрузки на границе лимита обе проходят (TOCTOU).
+   *  Advisory-лок до конца tx; чужие загрузки не ждут. */
+  async lockPendingLimit(ownerId: string, tx: TransactionClient): Promise<void> {
+    await tx.$executeRaw(Prisma.sql`
+      SELECT pg_advisory_xact_lock(57, hashtext(${ownerId}::text))
+    `);
   }
 
   /** Неотправленные старше порога — кандидаты на ленивую уборку (#57):
@@ -55,18 +65,21 @@ export class AttachmentsRepository {
     });
   }
 
-  async insertAttachment(row: {
-    id: string;
-    fileId: string;
-    ownerId: string;
-    name: string;
-    size: number;
-    mime: string;
-    kind: string;
-    width: number | null;
-    height: number | null;
-  }): Promise<AttachmentRow> {
-    return this.prisma.messageAttachment.create({ data: row });
+  async insertAttachment(
+    row: {
+      id: string;
+      fileId: string;
+      ownerId: string;
+      name: string;
+      size: number;
+      mime: string;
+      kind: string;
+      width: number | null;
+      height: number | null;
+    },
+    tx?: TransactionClient,
+  ): Promise<AttachmentRow> {
+    return (tx ?? this.prisma).messageAttachment.create({ data: row });
   }
 
   /** Любое вложение по id (воркер превью #150: работает и с отправленными —
@@ -84,6 +97,19 @@ export class AttachmentsRepository {
       select: { message: { select: { conversationId: true } } },
     });
     return row?.message?.conversationId ?? null;
+  }
+
+  /** Беседы, где файл отправлен вложением (мост версий files → чат, #182):
+   *  только отправленные (messageId ≠ null — «трей» композера аудитории не
+   *  имеет); distinct — файл может лежать в нескольких беседах/сообщениях. */
+  async findConversationIdsWithFile(fileId: string): Promise<string[]> {
+    const rows = await this.prisma.messageAttachment.findMany({
+      where: { fileId, messageId: { not: null } },
+      select: { message: { select: { conversationId: true } } },
+    });
+    return [
+      ...new Set(rows.map((row) => row.message?.conversationId).filter((id): id is string => !!id)),
+    ];
   }
 
   /** Фиксация превью (#150): thumbFileId + авторитетные серверные габариты

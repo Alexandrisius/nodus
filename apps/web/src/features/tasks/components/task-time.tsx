@@ -206,17 +206,31 @@ function TimeLog({ task }: { task: TaskDetail }) {
               <span className="shrink-0 font-mono text-label-sm text-muted-foreground tabular-nums">
                 {formatDate(e.date)}
               </span>
-              {e.user.id === meId ? (
-                <button
-                  type="button"
-                  onClick={() => remove.mutate(e.id)}
-                  aria-label={ui.tasks.timeDelete}
-                  title={ui.tasks.timeDelete}
-                  className="rounded p-0.5 text-muted-foreground opacity-0 transition-opacity group-hover/entry:opacity-100 hover:text-danger focus-visible:opacity-100"
-                >
-                  <Trash2 className="size-3.5" strokeWidth={1.75} />
-                </button>
-              ) : null}
+              {/* Слот действия фиксированной ширины у КАЖДОЙ строки — колонка
+                  дат ровная (ревью #317). Идущий таймер не удаляется — сначала
+                  стоп (сервер ответит 409): в слоте индикатор «идёт». */}
+              <span className="flex size-4.5 shrink-0 items-center justify-center">
+                {e.method === 'timer' && e.endedAt === null ? (
+                  <span
+                    role="img"
+                    aria-label={ui.tasks.timerRunning}
+                    title={ui.tasks.timerRunning}
+                    className="text-success"
+                  >
+                    <Play className="size-3.5" strokeWidth={1.75} />
+                  </span>
+                ) : e.user.id === meId ? (
+                  <button
+                    type="button"
+                    onClick={() => remove.mutate(e.id)}
+                    aria-label={ui.tasks.timeDelete}
+                    title={ui.tasks.timeDelete}
+                    className="rounded p-0.5 text-muted-foreground opacity-0 transition-opacity group-hover/entry:opacity-100 hover:text-danger focus-visible:opacity-100"
+                  >
+                    <Trash2 className="size-3.5" strokeWidth={1.75} />
+                  </button>
+                ) : null}
+              </span>
             </div>
           ))
         )}

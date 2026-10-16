@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ChatMessage, Paginated } from '@nodus/contracts';
 
 import { api } from '../api-client.js';
-import { chatKeys } from './api.js';
+import { chatKeys } from './chat-keys.js';
 import type { HistoryPage } from './feed-merge.js';
 import { ensureOlderPage, hasOlderMessages } from './messages-history.js';
 
@@ -95,7 +95,9 @@ describe('ensureOlderPage (#307)', () => {
       nextCursor: null,
     });
     await expect(ensureOlderPage(client, CONV)).resolves.toBe(false);
-    expect(ensureOlderPage(client, '00000000-0000-4000-8000-000000000000')).resolves.toBe(false);
+    await expect(ensureOlderPage(client, '00000000-0000-4000-8000-000000000000')).resolves.toBe(
+      false,
+    );
     expect(vi.mocked(api)).not.toHaveBeenCalled();
   });
 

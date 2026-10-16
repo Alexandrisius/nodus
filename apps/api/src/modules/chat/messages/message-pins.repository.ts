@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '../../../generated/prisma/client.js';
 import { PrismaService } from '../../../core/database/prisma.service.js';
 import type { TransactionClient } from '../../../core/database/transaction-runner.js';
-import type { MessageRow } from './messages.repository.js';
+import type { MessageRow } from './message-row.js';
 
 export interface PinRecord {
   conversationId: string;

@@ -8,7 +8,7 @@ import type {
 } from '@nodus/contracts';
 
 import { api } from '../api-client.js';
-import { chatKeys } from './api.js';
+import { chatKeys } from './chat-keys.js';
 import { favoriteKeys } from './favorites-api.js';
 
 /**

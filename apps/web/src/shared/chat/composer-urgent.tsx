@@ -3,7 +3,7 @@ import { ErrorCode, ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import { cn } from '@nodus/ui/lib/utils';
 
-import { useUrgentPolicy } from './api.js';
+import { useUrgentPolicy } from './chat-queries.js';
 import { useChatDrafts } from './chat-drafts.js';
 import { useComposerErrors } from './composer-errors.js';
 

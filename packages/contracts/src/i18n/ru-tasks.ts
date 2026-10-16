@@ -84,12 +84,16 @@ export const tasksStrings = {
     warning: 'Янтарный',
     danger: 'Красный',
   },
+  /** Системные состояния — подписи колонок шаблона «Моего плана» по каталогу
+   *  API (system-catalog.ts): done — «На контроле» (работа сдана, ждёт
+   *  приёмки; в маршруте задачи это стадия «Ждёт контроля»), closed —
+   *  завершённые и отменённые. */
   stageStates: {
     backlog: 'Новые',
     active: 'В работе',
     paused: 'Отложенные',
-    done: 'Завершённые',
-    closed: 'Закрытые',
+    done: 'На контроле',
+    closed: 'Завершённые',
   },
   branch: 'Ветка задачи',
   branchRelations: 'Связи',
@@ -150,6 +154,7 @@ export const tasksStrings = {
   timeToday: 'Сегодня',
   timeYesterday: 'Вчера',
   timeDelete: 'Удалить запись',
+  timerRunning: 'Таймер идёт — остановите, чтобы удалить запись',
   timeLogged: 'Время внесено',
   timeByTimer: 'таймер',
   timerSwitched: 'Остановлен таймер задачи №',

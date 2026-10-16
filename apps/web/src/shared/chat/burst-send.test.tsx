@@ -5,7 +5,8 @@ import type { ChatMessage, Paginated } from '@nodus/contracts';
 import { createElement, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { chatKeys, useSendChatMessage } from './api.js';
+import { chatKeys } from './chat-keys.js';
+import { useSendChatMessage } from './send-message.js';
 import { useAuthStore } from '../auth-store.js';
 import { applySentMessage } from './ws-apply.js';
 

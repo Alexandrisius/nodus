@@ -6,7 +6,7 @@ import { Button } from '@nodus/ui/components/button';
 import { NodeLabel } from '@nodus/ui/components/node-label';
 import { cn } from '@nodus/ui/lib/utils';
 
-import { useTaskConversation } from '../../../shared/chat/api.js';
+import { useTaskConversation } from '../../../shared/chat/chat-queries.js';
 import { ChatProfilePane } from '../../../shared/chat/chat-profile-pane.js';
 import { ConversationMembersPanel } from '../../../shared/chat/conversation-members.js';
 import { VaultWindow } from '../../../shared/chat/vault-window.js';

@@ -1,4 +1,38 @@
+import { isIP } from 'node:net';
 import { z } from 'zod';
+
+/** Доверенные хопы по умолчанию: loopback + link-local + приватные сети (RFC 1918, fc00::/7). */
+export const DEFAULT_TRUST_PROXY = 'loopback,linklocal,uniquelocal';
+
+const TRUST_PROXY_NAMES = new Set(['loopback', 'linklocal', 'uniquelocal']);
+
+/** Элемент списка trustProxy: имя диапазона proxy-addr, IP или IP/префикс. */
+function isTrustProxyItem(item: string): boolean {
+  if (TRUST_PROXY_NAMES.has(item)) return true;
+  const [ip, prefix, ...rest] = item.split('/');
+  const family = ip ? isIP(ip) : 0;
+  if (family === 0 || rest.length > 0) return false;
+  if (prefix === undefined) return true;
+  if (!/^\d+$/.test(prefix)) return isIP(prefix) === 4 && family === 4; // маска 255.255.0.0
+  return Number(prefix) <= (family === 4 ? 32 : 128);
+}
+
+/**
+ * TRUST_PROXY → значение Fastify `trustProxy`: boolean или строка-список
+ * (Fastify сам режет её по запятой в proxy-addr compile). Хоп-счётчик
+ * (число) не поддерживаем: Fastify 5 трактует его fail-closed (не проверяет
+ * ближайший хоп). null — невалидно.
+ */
+export function parseTrustProxy(raw: string): boolean | string | null {
+  const value = raw.trim();
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  const items = value.split(',').map((item) => item.trim());
+  if (items.length === 0 || !items.every((item) => item.length > 0 && isTrustProxyItem(item))) {
+    return null;
+  }
+  return items.join(',');
+}
 
 /**
  * Валидация env при старте (config-no-secrets: fail-fast, без секретов в коде).
@@ -24,6 +58,27 @@ const envSchema = z
      *  (вердикт владельца 25.09, раунд 2 #104). Брутфорс-логин защищён отдельно
      *  (Redis-счётчик AuthService), k6 поднимает планку выше через env. */
     RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(3000),
+    /** Каким хопам верить X-Forwarded-* (Fastify `trustProxy`, @fastify/proxy-addr):
+     *  `true`/`false` или список через запятую из имён `loopback`/`linklocal`/
+     *  `uniquelocal` и IP/CIDR. Дефолт — только приватные/локальные хопы: прод
+     *  api за nginx в docker-сети (приватный адрес) видит реальный IP как
+     *  раньше, а прямой клиент с публичного адреса подделать XFF не может
+     *  (обход per-IP rate-limit, грязный IP в аудите). */
+    TRUST_PROXY: z
+      .string()
+      .optional()
+      .transform((raw, ctx) => {
+        // Пустая строка (`TRUST_PROXY=` из шаблона) = не задано → дефолт.
+        const parsed = parseTrustProxy(raw?.trim() ? raw : DEFAULT_TRUST_PROXY);
+        if (parsed === null) {
+          ctx.addIssue({
+            code: 'custom',
+            message: 'true | false | список loopback/linklocal/uniquelocal/IP/CIDR через запятую',
+          });
+          return z.NEVER;
+        }
+        return parsed;
+      }),
     /** Файловое хранилище (#57, ADR-0013): MinIO/S3. Endpoint — по умолчанию
      *  host-dev (compose публикует MinIO на 127.0.0.1); в docker api получает
      *  STORAGE_ENDPOINT=nodus_minio из compose. */

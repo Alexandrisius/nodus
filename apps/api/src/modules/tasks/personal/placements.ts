@@ -3,20 +3,25 @@ import { TASK_EVENTS } from '@nodus/contracts';
 
 import type { TransactionClient } from '../../../core/database/transaction-runner.js';
 import { EventBus } from '../../../core/events/event-bus.js';
-import { keyBetween } from '../lib/fractional-index.js';
+import { TasksRepository } from '../tasks/tasks.repository.js';
 import { WorkflowRepository } from '../workflow/workflow.repository.js';
+import { PlacementsRepository } from './placements.repository.js';
 
 /**
  * Размещения «Моего плана» (ADR-0008): у каждого держателя плана
  * (постановщик, ответственный, соисполнители) задача лежит в одной из его
  * личных колонок. Встроенное автоперемещение — СИНХРОННО в транзакции смены
  * состояния (не outbox-обработчиком: гонки с ручным переносом, трек 1).
- * Новая/переехавшая карточка встаёт в начало колонки.
+ * Новая/переехавшая карточка встаёт в начало колонки. Задача структурного
+ * типа (узел дерева проекта, ADR-0020) в «Мой план» не попадает: держателей
+ * у неё нет, прежние размещения снимаются.
  */
 @Injectable()
 export class Placements {
   constructor(
     private readonly workflows: WorkflowRepository,
+    private readonly tasks: TasksRepository,
+    private readonly repo: PlacementsRepository,
     private readonly eventBus: EventBus,
   ) {}
 
@@ -25,13 +30,8 @@ export class Placements {
     for (const id of new Set(userIds)) await this.workflows.ensurePersonal(id);
   }
 
-  async topKey(tx: TransactionClient, userId: string, stageId: string): Promise<string> {
-    const first = await tx.taskPersonalPlacement.findFirst({
-      where: { userId, stageId },
-      orderBy: [{ sortOrder: 'asc' }, { taskId: 'asc' }],
-      select: { sortOrder: true },
-    });
-    return keyBetween(null, first?.sortOrder ?? null);
+  topKey(tx: TransactionClient, userId: string, stageId: string): Promise<string> {
+    return this.repo.topKey(tx, userId, stageId);
   }
 
   /** Привести размещения к составу держателей и состоянию задачи. */
@@ -41,26 +41,19 @@ export class Placements {
     holderIds: string[],
     actorId: string | null,
   ): Promise<void> {
-    await tx.taskPersonalPlacement.deleteMany({
-      where: { taskId: task.id, userId: { notIn: holderIds } },
-    });
-    const existing = await tx.taskPersonalPlacement.findMany({
-      where: { taskId: task.id },
-      include: { stage: { select: { systemState: true } } },
-    });
-    const stages = await this.workflows.personalStagesOf(holderIds, tx);
-    for (const userId of holderIds) {
+    const holders = (await this.tasks.isStructural(tx, task.id)) ? [] : holderIds;
+    await this.repo.removeExcept(tx, task.id, holders);
+    if (holders.length === 0) return;
+    const existing = await this.repo.listForTask(tx, task.id);
+    const stages = await this.workflows.personalStagesOf(holders, tx);
+    for (const userId of holders) {
       const current = existing.find((p) => p.userId === userId);
       if (current && current.stage.systemState === task.systemState) continue;
       const own = stages.filter((s) => s.workflow.ownerId === userId);
       const target = own.find((s) => s.systemState === task.systemState) ?? own[0];
       if (!target) continue; // маршрут не подготовлен — карточка появится при следующей синхронизации
-      const sortOrder = await this.topKey(tx, userId, target.id);
-      await tx.taskPersonalPlacement.upsert({
-        where: { taskId_userId: { taskId: task.id, userId } },
-        update: { stageId: target.id, sortOrder },
-        create: { taskId: task.id, userId, stageId: target.id, sortOrder },
-      });
+      const sortOrder = await this.repo.topKey(tx, userId, target.id);
+      await this.repo.place(tx, { taskId: task.id, userId, stageId: target.id, sortOrder });
       if (current) {
         await this.eventBus.emit(
           tx,

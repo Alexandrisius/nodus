@@ -13,7 +13,7 @@ import {
   attachmentKindDelta,
   emptyAttachmentDelta,
   type VaultAttachmentDelta,
-} from '../vault/vault.repository.js';
+} from '../vault/vault-kinds.js';
 
 /** Зависимости edit (сокращённые Pick — тестируемость без всего сервиса). */
 export interface EditAttachmentsDeps {
@@ -51,10 +51,7 @@ export async function syncEditAttachments(
     await deps.attachmentsRepo.renameMessageAttachments(messageId, body.attachmentRenames, tx);
   const after = await deps.repo.attachmentsFor([messageId], tx);
   if (body.text.trim().length === 0 && after.length === 0) {
-    throw new DomainException(
-      ErrorCode.VALIDATION_FAILED,
-      'Message must have text or attachments',
-    );
+    throw new DomainException(ErrorCode.VALIDATION_FAILED, 'Message must have text or attachments');
   }
   const signature = (rows: typeof before) => rows.map((a) => `${a.id}:${a.name}`).join('|');
   const changed = signature(before) !== signature(after);

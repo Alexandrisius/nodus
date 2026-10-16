@@ -6,7 +6,9 @@ import {
   indexOfInStage,
   isSamePlacement,
   moveTaskToStage,
+  personalAxis,
   reorderWithinStage,
+  stageOfDragId,
 } from './kanban-board.js';
 
 const systemTaskType = { id: '20000000-0000-4000-8000-000000000900', code: 'task', name: 'Задача' };
@@ -109,5 +111,26 @@ describe('kanban-board: перестановки борда', () => {
     const moved = moveTaskToStage(board(), 'b2', STAGE_C, 0, globalAxis);
     expect(moved.map((t) => t.id)).toEqual(board().map((t) => t.id));
     expect(isSamePlacement(board(), moved, globalAxis)).toBe(false);
+  });
+});
+
+describe('stageOfDragId: колонка под dnd-идентификатором', () => {
+  const stageById = new Map([STAGE_A, STAGE_B].map((s) => [s.id, s] as const));
+
+  it('id колонки (дроп на пустую колонку) — сама колонка на ОБЕИХ осях без TypeError (регрессия)', () => {
+    // globalAxis на заглушке `{}` читал stage.id у undefined — краш проектной доски.
+    expect(stageOfDragId('b', [], stageById, globalAxis)).toBe(STAGE_B);
+    expect(stageOfDragId('b', [], stageById, personalAxis)).toBe(STAGE_B);
+  });
+
+  it('id задачи — колонка задачи по оси', () => {
+    expect(stageOfDragId('a2', board(), stageById, globalAxis)).toBe(STAGE_A);
+    const personal = board().map((t) => ({ ...t, personalStageId: 'b' }));
+    expect(stageOfDragId('a2', personal, stageById, personalAxis)).toBe(STAGE_B);
+  });
+
+  it('неизвестный id и задача без колонки по оси — undefined', () => {
+    expect(stageOfDragId('nope', board(), stageById, globalAxis)).toBeUndefined();
+    expect(stageOfDragId('a1', board(), stageById, personalAxis)).toBeUndefined();
   });
 });

@@ -6,6 +6,7 @@ import { Users } from 'lucide-react';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { api } from '../api-client.js';
+import { usersKeys } from '../api/users-list.js';
 import { useAuthStore } from '../auth-store.js';
 import { PersonAvatar } from '../ui/person-avatar.js';
 
@@ -52,7 +53,7 @@ export function useMentionAutocomplete(
     [members.data],
   );
   const directory = useQuery({
-    queryKey: ['directory', 'users', 'mention-autocomplete', debounced],
+    queryKey: usersKeys.search('mention-autocomplete', debounced),
     queryFn: () => {
       const params = new URLSearchParams({ limit: '20' });
       if (debounced) params.set('search', debounced);

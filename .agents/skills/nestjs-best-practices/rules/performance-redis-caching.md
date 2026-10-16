@@ -120,9 +120,11 @@ TTL alone means up to `ttl` seconds of stale data. The platform already publishe
 
 ```typescript
 // ✅ File: apps/api/src/modules/tasks/events/task-updated.handler.ts
+// (CacheService — будущий core-примитив поверх core/redis/redis.module.ts:
+//  заводится с первым кэшем, I13; сейчас кэша в api нет)
 import { Injectable } from '@nestjs/common';
-import { EventEnvelope } from '../../../core/events/event-envelope';
-import { CacheService } from '../../../infra/redis/cache.service';
+import type { DomainEvent } from '@nodus/contracts';
+import { CacheService } from '../../../core/redis/cache.service.js';
 
 @Injectable()
 export class TaskUpdatedCacheHandler {
@@ -132,9 +134,9 @@ export class TaskUpdatedCacheHandler {
 
   constructor(private readonly cache: CacheService) {}
 
-  async handle(envelope: EventEnvelope<{ taskId: string }>): Promise<void> {
+  async handle(event: DomainEvent<{ taskId: string }>): Promise<void> {
     // ✅ idempotent: deleting an absent key is a no-op, safe on redelivery
-    await this.cache.del(`nodus:tasks:task:${envelope.payload.taskId}`);
+    await this.cache.del(`nodus:tasks:task:${event.payload.taskId}`);
   }
 }
 ```

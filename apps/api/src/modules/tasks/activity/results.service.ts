@@ -6,8 +6,6 @@ import {
   type TaskResultCreateBody,
 } from '@nodus/contracts';
 
-import type { Prisma } from '../../../generated/prisma/client.js';
-import { PrismaService } from '../../../core/database/prisma.service.js';
 import { TransactionRunner } from '../../../core/database/transaction-runner.js';
 import { DomainException } from '../../../core/errors/domain-exception.js';
 import { EventBus } from '../../../core/events/event-bus.js';
@@ -18,13 +16,14 @@ import {
 import { actorRoles, audienceIds, taskAccess } from '../access/task-access.js';
 import { TasksQueryService } from '../tasks/tasks-query.service.js';
 import { CHAT_MESSAGE_ACCESS, type ChatMessageAccess } from '../../chat/message-access.port.js';
+import { ResultsRepository } from './results.repository.js';
 
 /** Результат задачи: append-only ревизии (текущий — последняя); пишут
  *  постановщик, ответственный, соисполнители (canCheck). */
 @Injectable()
 export class ResultsService {
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly repo: ResultsRepository,
     private readonly txRunner: TransactionRunner,
     private readonly eventBus: EventBus,
     private readonly query: TasksQueryService,
@@ -34,11 +33,7 @@ export class ResultsService {
 
   async list(user: AuthUser, taskId: string): Promise<TaskResult[]> {
     await this.query.visibleRow(user, taskId);
-    const rows = await this.prisma.taskResult.findMany({
-      where: { taskId },
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      take: 50,
-    });
+    const rows = await this.repo.listRecent(taskId, 50);
     const refs = new Map(
       (await this.profiles.findRefs(rows.map((r) => r.authorId))).map((r) => [r.id, r]),
     );
@@ -67,13 +62,11 @@ export class ResultsService {
       }
     }
     const created = await this.txRunner.run(async (tx) => {
-      const result = await tx.taskResult.create({
-        data: {
-          taskId,
-          text: body.text,
-          messageIds: (body.messageIds ?? []) as Prisma.InputJsonValue,
-          authorId: user.id,
-        },
+      const result = await this.repo.create(tx, {
+        taskId,
+        text: body.text,
+        messageIds: body.messageIds ?? [],
+        authorId: user.id,
       });
       await this.eventBus.emit(
         tx,

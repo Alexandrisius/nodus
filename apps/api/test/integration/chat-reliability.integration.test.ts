@@ -301,9 +301,11 @@ describe.skipIf(!process.env.DATABASE_URL)(
       // Копий ровно 3: комментарий + две, дублирования нет.
       expect(await fx.prisma.message.count({ where: { conversationId: dst } })).toBe(3);
 
-      // Сет безопасности БД: тот же ключ напрямую в сервис (минуя Redis-реплей)
-      // не может создать копии — конфликт идемпотентной пары откатывает транзакцию.
-      await expect(actions.forward(alice.id, dst, body, key)).rejects.toThrow();
+      // Сет безопасности БД: тот же ключ напрямую в сервис (минуя Redis-реплей,
+      // crash-окно между коммитом и записью ответа) — replay по (author,
+      // client_message_id): те же строки, копий не прибавилось (#317).
+      const replay = await actions.forward(alice.id, dst, body, key);
+      expect(replay.rows.map((r) => r.id)).toEqual(firstIds);
       expect(await fx.prisma.message.count({ where: { conversationId: dst } })).toBe(3);
     });
 

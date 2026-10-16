@@ -23,6 +23,13 @@ services:
     depends_on:
       - api
       - gateway
+    # nginx жив ≠ контейнер «up» (#317): без проверки упавший nginx не виден
+    # в `docker compose ps`. 127.0.0.1, не localhost (alpine/musl → ::1, gotchas).
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '--spider', 'http://127.0.0.1/']
+      interval: 30s
+      timeout: 5s
+      retries: 3
     networks: [nodus_net]
 
   api:
@@ -37,6 +44,9 @@ services:
       # IP-rate-limit пробрасывается из .env (дефолт приложения 3000/мин — офис
       # за NAT; k6-прогоны поднимают планку). Не задан — код берёт свой дефолт.
       RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-3000}
+      # Доверенные прокси для X-Forwarded-For (#317): пусто = дефолт приложения
+      # 'loopback,linklocal,uniquelocal' (nginx в docker-сети — приватный адрес).
+      TRUST_PROXY: ${TRUST_PROXY:-}
       DATABASE_URL: postgresql://${POSTGRES_USER:?задайте в .env}:${POSTGRES_PASSWORD:?задайте в .env}@nodus_postgres:5432/${POSTGRES_DB:?задайте в .env}
       REDIS_URL: redis://:${REDIS_PASSWORD:?задайте в .env}@nodus_redis:6379
       JWT_SECRET: ${JWT_SECRET:?задайте в .env}

@@ -1,11 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { randomUUID } from 'node:crypto';
 import { Prisma } from '../../../generated/prisma/client.js';
 import { PrismaService } from '../../../core/database/prisma.service.js';
 import type { TransactionClient } from '../../../core/database/transaction-runner.js';
-import type { ConversationPermissions } from '@nodus/contracts';
-import { mergePermissions } from '../permissions.js';
 import {
+  ACTIVITY_EXPR,
   LIST_SELECT,
   type ConversationListCursor,
   type ConversationListRow,
@@ -24,12 +22,6 @@ export interface MemberRow {
   hidden: boolean;
 }
 
-export interface DraftRow {
-  text: string;
-  revision: number;
-  updatedAt: Date;
-}
-
 interface ListOpts {
   limit: number;
   cursor?: ConversationListCursor;
@@ -40,13 +32,14 @@ interface ListOpts {
   scope?: 'all' | 'chats' | 'entities';
 }
 
-// >300 строк — обоснование (I5): один репозиторий на агрегат (канон skills/database-repository-pattern);
-// raw-SQL список LATERAL, find-or-create direct с гонкоустойчивостью и черновики — части ОДНОГО агрегата.
 /**
- * Репозиторий агрегата Conversation: участники, настройки списка, черновики,
- * список бесед одним запросом (LATERAL для lastMessage и unread — индекс
- * (conversation_id, seq) обслуживает оба; масштаб 200–300 сотрудников не
- * требует денормализованных счётчиков, watermark last_read_seq каноничен).
+ * Репозиторий агрегата Conversation — ЧТЕНИЕ: список бесед одним запросом
+ * (LATERAL для lastMessage и unread — индекс (conversation_id, seq)
+ * обслуживает оба; масштаб 200–300 сотрудников не требует
+ * денормализованных счётчиков, watermark last_read_seq каноничен), атрибуты
+ * беседы, участие и состав. Запись разнесена по ответственности (I5):
+ * беседа — conversations-write.repository, участие — conversation-
+ * members.repository, черновики — conversation-drafts.repository.
  */
 @Injectable()
 export class ConversationsRepository {
@@ -79,20 +72,28 @@ export class ConversationsRepository {
     } else if (opts.scope === 'chats') {
       conditions.push(Prisma.sql`c.type NOT IN ('task', 'letter')`);
     }
+    // Ось сортировки = выдаваемая last_activity_at (#215: «Избранное» живёт
+    // и звёздами) — порядок/курсор совпадают с порядком клиента.
+    const activity = ACTIVITY_EXPR(userId);
     if (opts.cursor) {
-      // NULLS LAST через infinity-сентинел: сравнение строк корректно для NULL.
+      // Keyset под ORDER BY activity DESC NULLS LAST, id DESC: беседы без
+      // активности стоят в хвосте и идут ПОСЛЕ любого непустого курсора —
+      // NULL-ветка явная (сентинел-сравнение строк их терял, ревью #317).
       const at = opts.cursor.at ?? null;
-      conditions.push(Prisma.sql`(
-        COALESCE(c.last_message_at, 'infinity'::timestamptz), c.id
-      ) < (
-        COALESCE(${at}::timestamptz, 'infinity'::timestamptz), ${opts.cursor.id}::uuid
-      )`);
+      conditions.push(
+        at === null
+          ? Prisma.sql`(${activity} IS NULL AND c.id < ${opts.cursor.id}::uuid)`
+          : Prisma.sql`(
+              ${activity} IS NULL
+              OR (${activity}, c.id) < (${at}::timestamptz, ${opts.cursor.id}::uuid)
+            )`,
+      );
     }
     const where = Prisma.join(conditions, ' AND ');
     const rows = await this.prisma.$queryRaw<ConversationListRow[]>(Prisma.sql`
       ${LIST_SELECT(userId)}
       WHERE ${where}
-      ORDER BY c.last_message_at DESC NULLS LAST, c.id DESC
+      ORDER BY ${activity} DESC NULLS LAST, c.id DESC
       LIMIT ${opts.limit + 1}
     `);
     return rows;
@@ -145,112 +146,6 @@ export class ConversationsRepository {
     return rows[0]?.last_seq ?? null;
   }
 
-  /**
-   * Find-or-create direct: нормализованная пара (user_min <= user_max, равны
-   * у «Заметок») + частичный уникальный индекс. Гонку закрывает ON CONFLICT:
-   * INSERT ждёт конкурента, при его коммите возвращает 0 строк → повторный
-   * SELECT. Advisory-локи не нужны (уникальный индекс — арбитр).
-   */
-  async findOrCreateDirect(
-    userId: string,
-    peerId: string,
-    tx?: TransactionClient,
-  ): Promise<{ id: string; created: boolean }> {
-    const client = this.client(tx);
-    const userMin = userId < peerId ? userId : peerId;
-    const userMax = userId < peerId ? peerId : userId;
-    const existing = await client.$queryRaw<{ id: string }[]>(Prisma.sql`
-      SELECT id FROM conversations
-      WHERE type = 'direct' AND user_min = ${userMin}::uuid AND user_max = ${userMax}::uuid
-      LIMIT 1
-    `);
-    if (existing[0]) return { id: existing[0].id, created: false };
-
-    const permissions = mergePermissions();
-    const inserted = await client.$queryRaw<{ id: string }[]>(Prisma.sql`
-      INSERT INTO conversations (id, type, permissions, created_by, user_min, user_max, updated_at)
-      VALUES (${randomUUID()}::uuid, 'direct', ${JSON.stringify(permissions)}::jsonb,
-              ${userId}::uuid, ${userMin}::uuid, ${userMax}::uuid, now())
-      ON CONFLICT (user_min, user_max) WHERE type = 'direct' DO NOTHING
-      RETURNING id
-    `);
-    if (inserted[0]) {
-      await this.addDirectMembers(inserted[0].id, userMin, userMax, client);
-      return { id: inserted[0].id, created: true };
-    }
-    // Конкурент выиграл-insert: повторный SELECT видит его коммит (READ COMMITTED).
-    const raced = await client.$queryRaw<{ id: string }[]>(Prisma.sql`
-      SELECT id FROM conversations
-      WHERE type = 'direct' AND user_min = ${userMin}::uuid AND user_max = ${userMax}::uuid
-      LIMIT 1
-    `);
-    if (!raced[0]) {
-      // Обе ветки пусты: конкурент откатился между INSERT и SELECT — повторяем вставку.
-      const retry = await client.$queryRaw<{ id: string }[]>(Prisma.sql`
-        INSERT INTO conversations (id, type, permissions, created_by, user_min, user_max, updated_at)
-        VALUES (${randomUUID()}::uuid, 'direct', ${JSON.stringify(permissions)}::jsonb,
-                ${userId}::uuid, ${userMin}::uuid, ${userMax}::uuid, now())
-        ON CONFLICT (user_min, user_max) WHERE type = 'direct' DO NOTHING
-        RETURNING id
-      `);
-      if (!retry[0]) throw new Error('find-or-create direct: unexpected double race');
-      await this.addDirectMembers(retry[0].id, userMin, userMax, client);
-      return { id: retry[0].id, created: true };
-    }
-    return { id: raced[0].id, created: false };
-  }
-
-  private async addDirectMembers(
-    conversationId: string,
-    userMin: string,
-    userMax: string,
-    client: PrismaService | TransactionClient,
-  ): Promise<void> {
-    const role = 'member';
-    await client.$executeRaw(Prisma.sql`
-      INSERT INTO conversation_members (conversation_id, user_id, role, updated_at)
-      VALUES (${conversationId}::uuid, ${userMin}::uuid, ${role}, now()),
-             (${conversationId}::uuid, ${userMax}::uuid, ${role}, now())
-      ON CONFLICT DO NOTHING
-    `);
-  }
-
-  /** Создание группы/канала: создатель — owner, участники — member. */
-  async createGroup(
-    input: {
-      type: 'group' | 'project_channel';
-      title: string;
-      description: string | null;
-      visibility: string | null;
-      permissions: ConversationPermissions;
-      createdBy: string;
-      memberIds: string[];
-    },
-    tx?: TransactionClient,
-  ): Promise<string> {
-    const client = this.client(tx);
-    const id = randomUUID();
-    await client.conversation.create({
-      data: {
-        id,
-        type: input.type,
-        title: input.title,
-        description: input.description,
-        visibility: input.visibility,
-        permissions: input.permissions as Prisma.InputJsonValue,
-        createdBy: input.createdBy,
-        members: {
-          create: [
-            { userId: input.createdBy, role: 'owner' },
-            ...input.memberIds.map((userId) => ({ userId, role: 'member' })),
-          ],
-        },
-      },
-      select: { id: true },
-    });
-    return id;
-  }
-
   /** Участие пользователя (null — не член/беседы нет: одинаково, чтобы не палить). */
   async findMembership(
     conversationId: string,
@@ -279,34 +174,6 @@ export class ConversationsRepository {
     return Number(rows[0]?.count ?? 0);
   }
 
-  /** Блокировка строки беседы (только внутри tx): сериализует конкурирующие
-   *  мутации состава — перечёт лимита под локом точен (TOCTOU add, #195). */
-  async lockConversation(conversationId: string, tx: TransactionClient): Promise<void> {
-    await tx.$queryRaw(Prisma.sql`
-      SELECT id FROM conversations WHERE id = ${conversationId}::uuid FOR UPDATE
-    `);
-  }
-
-  /** Персьональные настройки списка (pinned/muted/snoozed/hidden). */
-  async updateMemberSettings(
-    conversationId: string,
-    userId: string,
-    patch: { pinned?: boolean; muted?: boolean; snoozed?: boolean; hidden?: boolean },
-    tx?: TransactionClient,
-  ): Promise<void> {
-    const client = this.client(tx);
-    const sets: Prisma.Sql[] = [];
-    if (patch.pinned !== undefined) sets.push(Prisma.sql`pinned = ${patch.pinned}`);
-    if (patch.muted !== undefined) sets.push(Prisma.sql`muted = ${patch.muted}`);
-    if (patch.snoozed !== undefined) sets.push(Prisma.sql`snoozed = ${patch.snoozed}`);
-    if (patch.hidden !== undefined) sets.push(Prisma.sql`hidden = ${patch.hidden}`);
-    if (sets.length === 0) return;
-    await client.$executeRaw(Prisma.sql`
-      UPDATE conversation_members SET ${Prisma.join(sets, ', ')}, updated_at = now()
-      WHERE conversation_id = ${conversationId}::uuid AND user_id = ${userId}::uuid
-    `);
-  }
-
   /** Участники бесед(ы) — membersPreview, курсоры прочтения, роли. */
   async listMembers(conversationIds: string[], tx?: TransactionClient): Promise<MemberRow[]> {
     const client = this.client(tx);
@@ -319,43 +186,6 @@ export class ConversationsRepository {
       WHERE conversation_id = ANY(${conversationIds}::uuid[])
       ORDER BY joined_at ASC, user_id ASC
     `);
-  }
-
-  /** Гашение snoozed при своей отправке/пересылке (мок-семантика). */
-  async unsnooze(conversationId: string, userId: string, tx?: TransactionClient): Promise<void> {
-    const client = this.client(tx);
-    await client.$executeRaw(Prisma.sql`
-      UPDATE conversation_members SET snoozed = false, updated_at = now()
-      WHERE conversation_id = ${conversationId}::uuid AND user_id = ${userId}::uuid AND snoozed
-    `);
-  }
-
-  /** Переименование (право changeInfo, #186); 0 строк — беседы нет. */
-  async updateTitle(
-    conversationId: string,
-    title: string,
-    tx?: TransactionClient,
-  ): Promise<boolean> {
-    const client = this.client(tx);
-    const count = await client.$executeRaw(Prisma.sql`
-      UPDATE conversations SET title = ${title}, updated_at = now()
-      WHERE id = ${conversationId}::uuid
-    `);
-    return count > 0;
-  }
-
-  /** Аватар беседы: fileId деривата или null («убрать», #186). */
-  async updateAvatar(
-    conversationId: string,
-    fileId: string | null,
-    tx?: TransactionClient,
-  ): Promise<boolean> {
-    const client = this.client(tx);
-    const count = await client.$executeRaw(Prisma.sql`
-      UPDATE conversations SET avatar_file_id = ${fileId}::uuid, updated_at = now()
-      WHERE id = ${conversationId}::uuid
-    `);
-    return count > 0;
   }
 
   /** Страница участников (#186): владелец → модераторы → участники, внутри
@@ -391,118 +221,6 @@ export class ConversationsRepository {
       WHERE ${Prisma.join(conditions, ' AND ')}
       ORDER BY CASE role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END, joined_at, user_id
       LIMIT ${opts.limit + 1}
-    `);
-  }
-
-  /** Добавление участников (#186): идемпотентно (ON CONFLICT DO NOTHING),
-   *  возвращает фактически вставленные id (для события member_added). */
-  async addMembers(
-    conversationId: string,
-    userIds: string[],
-    tx?: TransactionClient,
-  ): Promise<string[]> {
-    const client = this.client(tx);
-    if (userIds.length === 0) return [];
-    const values = Prisma.join(
-      userIds.map(
-        (userId) => Prisma.sql`(${conversationId}::uuid, ${userId}::uuid, 'member', now())`,
-      ),
-      ',',
-    );
-    const rows = await client.$queryRaw<{ user_id: string }[]>(Prisma.sql`
-      INSERT INTO conversation_members (conversation_id, user_id, role, updated_at)
-      VALUES ${values}
-      ON CONFLICT (conversation_id, user_id) DO NOTHING
-      RETURNING user_id
-    `);
-    return rows.map((row) => row.user_id);
-  }
-
-  /** Смена роли участника (модератор ⇄ участник, #186); 0 строк — не член. */
-  async updateMemberRole(
-    conversationId: string,
-    userId: string,
-    role: 'admin' | 'member',
-    tx?: TransactionClient,
-  ): Promise<boolean> {
-    const client = this.client(tx);
-    const count = await client.$executeRaw(Prisma.sql`
-      UPDATE conversation_members SET role = ${role}, updated_at = now()
-      WHERE conversation_id = ${conversationId}::uuid AND user_id = ${userId}::uuid
-    `);
-    return count > 0;
-  }
-
-  /** Исключение участника (#186): строка участия + черновик (user-FK нет —
-   *  чистим явно); 0 строк — не член. */
-  async removeMember(
-    conversationId: string,
-    userId: string,
-    tx?: TransactionClient,
-  ): Promise<boolean> {
-    const client = this.client(tx);
-    const count = await client.$executeRaw(Prisma.sql`
-      DELETE FROM conversation_members
-      WHERE conversation_id = ${conversationId}::uuid AND user_id = ${userId}::uuid
-    `);
-    if (count === 0) return false;
-    await client.$executeRaw(Prisma.sql`
-      DELETE FROM conversation_drafts
-      WHERE conversation_id = ${conversationId}::uuid AND user_id = ${userId}::uuid
-    `);
-    return true;
-  }
-
-  /**
-   * Активность раскрывает беседу у ВСЕХ скрывших её участников (модель
-   * Битрикс24, #103): чужая/своя отправка и пересылка возвращают беседу в
-   * список — скрывают только «старые» чаты, чтобы не висели сверху. Той же
-   * транзакцией, что и активность; список с `hidden=false` подхватит сам.
-   */
-  async revealHidden(conversationId: string, tx?: TransactionClient): Promise<void> {
-    const client = this.client(tx);
-    await client.$executeRaw(Prisma.sql`
-      UPDATE conversation_members SET hidden = false, updated_at = now()
-      WHERE conversation_id = ${conversationId}::uuid AND hidden
-    `);
-  }
-
-  /** Черновик пользователя в беседе. */
-  async findDraft(conversationId: string, userId: string): Promise<DraftRow | null> {
-    const rows = await this.prisma.$queryRaw<DraftRow[]>(Prisma.sql`
-      SELECT text, revision, updated_at AS "updatedAt"
-      FROM conversation_drafts
-      WHERE conversation_id = ${conversationId}::uuid AND user_id = ${userId}::uuid
-      LIMIT 1
-    `);
-    return rows[0] ?? null;
-  }
-
-  /** PUT черновика: пустой текст — удаление; revision монотонно растит сервер. */
-  async putDraft(conversationId: string, userId: string, text: string): Promise<DraftRow | null> {
-    if (text === '') {
-      await this.prisma.$executeRaw(Prisma.sql`
-        DELETE FROM conversation_drafts
-        WHERE conversation_id = ${conversationId}::uuid AND user_id = ${userId}::uuid
-      `);
-      return null;
-    }
-    const rows = await this.prisma.$queryRaw<DraftRow[]>(Prisma.sql`
-      INSERT INTO conversation_drafts (conversation_id, user_id, text, revision, updated_at)
-      VALUES (${conversationId}::uuid, ${userId}::uuid, ${text},
-              1, now())
-      ON CONFLICT (conversation_id, user_id)
-      DO UPDATE SET text = ${text}, revision = conversation_drafts.revision + 1, updated_at = now()
-      RETURNING text, revision, updated_at AS "updatedAt"
-    `);
-    return rows[0] ?? null;
-  }
-
-  /** Гашение черновика в транзакции отправки (урок tdesktop#26236). */
-  async clearDraft(conversationId: string, userId: string, tx: TransactionClient): Promise<void> {
-    await tx.$executeRaw(Prisma.sql`
-      DELETE FROM conversation_drafts
-      WHERE conversation_id = ${conversationId}::uuid AND user_id = ${userId}::uuid
     `);
   }
 }

@@ -12,6 +12,9 @@ import { TokenService } from './token.service.js';
 /** Окно «гонки» для предыдущего refresh-токена (мультитаб/ретрай — не взлом). */
 const REUSE_LEEWAY_MS = 10_000;
 
+/** Потолок попыток CAS-ротации на один refresh (гонка вкладок одной cookie). */
+const MAX_ROTATE_ATTEMPTS = 3;
+
 /** Результат успешной аутентификации/ротации — контроллер ставит cookie. */
 export interface IssuedSession {
   sessionId: string;
@@ -118,12 +121,63 @@ export class AuthService {
     if (!parsed) {
       throw this.sessionInvalid();
     }
-    const session = await this.authRepository.findSessionById(parsed.sessionId);
-    if (!session || session.revokedAt || session.expiresAt <= new Date()) {
-      throw this.sessionInvalid();
-    }
-
     const presentedHash = this.tokenService.hashRefreshToken(parsed.token);
+    const { token, hash } = this.tokenService.generateRefreshToken();
+
+    // Read → check → compare-and-swap. Проигрыш CAS = параллельный refresh той
+    // же cookie успел ротировать раньше (две вкладки): перечитываем сессию и
+    // проходим проверку заново — предъявленный токен теперь «предыдущий» и
+    // попадает в leeway-ветку (штатная ротация поверх выигравшей).
+    for (let attempt = 0; attempt < MAX_ROTATE_ATTEMPTS; attempt++) {
+      const session = await this.authRepository.findSessionById(parsed.sessionId);
+      if (!session || session.revokedAt || session.expiresAt <= new Date()) {
+        throw this.sessionInvalid();
+      }
+      const expected = await this.resolveRotationBase(session, presentedHash, ip, userAgent);
+
+      // Статус перечитывается на КАЖДОЙ попытке: деактивация между проигрышем
+      // CAS и повтором не должна выпустить access-токен (security-ревью #317).
+      const identity = await this.authRepository.findIdentityById(session.userId);
+      if (!identity || identity.status !== 'active') {
+        await this.authRepository.revokeSession(session.id);
+        throw this.sessionInvalid();
+      }
+
+      const expiresAt = this.refreshExpiresAt();
+      const rotated = await this.authRepository.rotateSessionIfCurrent(
+        session.id,
+        expected,
+        hash,
+        expiresAt,
+      );
+      if (!rotated) continue;
+
+      const user = toAuthUser(identity);
+      const accessToken = await this.tokenService.signAccessToken(user, session.id);
+      return {
+        sessionId: session.id,
+        refreshToken: token,
+        accessToken,
+        expiresIn: this.tokenService.config.accessTtlSeconds,
+        user,
+      };
+    }
+    // Сверх потолка — отказ этому запросу (сессия жива, cookie выдал выигравший).
+    throw this.sessionInvalid();
+  }
+
+  /**
+   * Проверка предъявленного токена против сессии → хэш, который ротация
+   * ожидает увидеть текущим (база CAS). Текущий токен — сам он; предыдущий в
+   * пределах leeway — текущий хэш сессии (ротируем поверх выигравшей гонку);
+   * предыдущий ПОЗЖЕ окна — компрометация: отзыв сессии + аудит.
+   */
+  private async resolveRotationBase(
+    session: SessionRow,
+    presentedHash: string,
+    ip: string,
+    userAgent: string | null,
+  ): Promise<string> {
     if (
       session.previousRefreshTokenHash &&
       this.tokenService.hashesEqual(presentedHash, session.previousRefreshTokenHash)
@@ -144,34 +198,13 @@ export class AuthService {
         });
         throw this.sessionInvalid();
       }
-      // в пределах leeway — падаем в штатную ротацию ниже
-    } else if (!this.tokenService.hashesEqual(presentedHash, session.refreshTokenHash)) {
-      throw this.sessionInvalid();
+      // в пределах leeway — штатная ротация поверх текущего хэша
+      return session.refreshTokenHash;
     }
-
-    const identity = await this.authRepository.findIdentityById(session.userId);
-    if (!identity || identity.status !== 'active') {
-      await this.authRepository.revokeSession(session.id);
-      throw this.sessionInvalid();
+    if (this.tokenService.hashesEqual(presentedHash, session.refreshTokenHash)) {
+      return session.refreshTokenHash;
     }
-
-    const { token, hash } = this.tokenService.generateRefreshToken();
-    await this.authRepository.rotateSession(
-      session.id,
-      hash,
-      session.refreshTokenHash,
-      this.refreshExpiresAt(),
-    );
-
-    const user = toAuthUser(identity);
-    const accessToken = await this.tokenService.signAccessToken(user, session.id);
-    return {
-      sessionId: session.id,
-      refreshToken: token,
-      accessToken,
-      expiresIn: this.tokenService.config.accessTtlSeconds,
-      user,
-    };
+    throw this.sessionInvalid();
   }
 
   /** Logout: отзыв сессии по refresh-cookie (access мог уже протухнуть). */

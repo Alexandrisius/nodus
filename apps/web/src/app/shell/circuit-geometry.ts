@@ -1,3 +1,11 @@
+// >300 строк — обоснование (I5): ПУБЛИЧНОЕ API каркаса для фич
+// (patterns.md: из app/shell фичам разрешён только этот файл —
+// CIRCUIT_REMEASURE, measureCircuit у страницы сотрудников). Замер DOM
+// (measureCircuit/measureCardCircuit) и построение пути/фокуса/вспышки
+// (framePath/currentFocus/transitionPulse) делят один тип CircuitGeometry и
+// константы засечек (TAB_DOT_DY); разнос по файлам дробил бы публичный
+// контракт на несколько разрешённых путей импорта. Функции чистые и покрыты
+// circuit-geometry.test.ts.
 import { orthPath, snapPx, type NodeEdgePoint } from '@nodus/ui/components/node-edge';
 
 import { navModuleForPath } from './nav-registry.js';

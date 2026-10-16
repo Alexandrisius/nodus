@@ -91,6 +91,9 @@ describe('ConversationsService', () => {
     userProfiles.findRefs.mockResolvedValue([]);
     service = new ConversationsService(
       repo as never,
+      repo as never, // запись беседы (ConversationsWriteRepository)
+      repo as never, // запись участия (ConversationMembersRepository)
+      repo as never, // черновики (ConversationDraftsRepository)
       items as never,
       txRunner as never,
       eventBus as never,
@@ -155,14 +158,40 @@ describe('ConversationsService', () => {
     it('hasMore (limit+1) → items ровно limit, nextCursor по последней строке страницы', async () => {
       repo.listForUser.mockResolvedValue([
         makeListRow({ id: 'c1' }),
-        makeListRow({ id: 'c2', last_message_at: new Date('2026-09-24T09:00:00Z') }),
-        makeListRow({ id: 'c3', last_message_at: new Date('2026-09-24T08:00:00Z') }),
+        makeListRow({
+          id: 'c2',
+          last_message_at: new Date('2026-09-24T09:00:00Z'),
+          last_activity_at: new Date('2026-09-24T09:00:00Z'),
+        }),
+        makeListRow({
+          id: 'c3',
+          last_message_at: new Date('2026-09-24T08:00:00Z'),
+          last_activity_at: new Date('2026-09-24T08:00:00Z'),
+        }),
       ]);
 
       const page = await service.list('me-1', { limit: 2 } as ListConversationsQuery);
 
       expect(page.items.map((item) => item.id)).toEqual(['c1', 'c2']);
       expect(page.nextCursor).toBe(encodeCursor({ at: '2026-09-24T09:00:00.000Z', id: 'c2' }));
+    });
+
+    it('nextCursor — по last_activity_at (ось сортировки), не last_message_at (#215)', async () => {
+      // Arrange: «Избранное» — последняя звезда свежее последнего сообщения.
+      repo.listForUser.mockResolvedValue([
+        makeListRow({
+          id: 'notes',
+          last_message_at: new Date('2026-09-24T08:00:00Z'),
+          last_activity_at: new Date('2026-09-24T11:00:00Z'),
+        }),
+        makeListRow({ id: 'c2' }),
+      ]);
+
+      // Act
+      const page = await service.list('me-1', { limit: 1 } as ListConversationsQuery);
+
+      // Assert
+      expect(page.nextCursor).toBe(encodeCursor({ at: '2026-09-24T11:00:00.000Z', id: 'notes' }));
     });
   });
 

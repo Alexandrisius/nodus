@@ -1,6 +1,6 @@
 import { truncateMentionText } from '@nodus/contracts';
 
-import type { ReplySnapshotValue } from './message-dto.mapper.js';
+import type { ReplySnapshotValue } from './message-reply-preview.js';
 
 /** Усечение сниппета цитаты и частичной цитаты (мок: REPLY_SNIPPET_MAX = 160). */
 export const REPLY_SNIPPET_MAX = 160;

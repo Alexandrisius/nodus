@@ -1,6 +1,6 @@
 import type { CallHandler, ExecutionContext } from '@nestjs/common';
-import { lastValueFrom, of } from 'rxjs';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { lastValueFrom, of, Subject, throwError } from 'rxjs';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ErrorCode } from '@nodus/contracts';
 
 import { DomainException } from '../errors/domain-exception.js';
@@ -41,6 +41,7 @@ function createRedis() {
   const pipeline = {
     set: vi.fn().mockReturnThis(),
     del: vi.fn().mockReturnThis(),
+    eval: vi.fn().mockReturnThis(),
     exec: vi.fn().mockResolvedValue([]),
   };
   return {
@@ -48,6 +49,7 @@ function createRedis() {
     set: vi.fn().mockResolvedValue('OK'),
     del: vi.fn().mockResolvedValue(1),
     expire: vi.fn().mockResolvedValue(1),
+    eval: vi.fn().mockResolvedValue(1),
     pipeline: vi.fn().mockReturnValue(pipeline),
     _pipeline: pipeline,
   };
@@ -59,6 +61,10 @@ const SCOPED = `nodus:core:idempotency:anonymous:POST:/api/v1/tasks:${sha256Hex(
 
 let redis: ReturnType<typeof createRedis>;
 let interceptor: IdempotencyInterceptor;
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 beforeEach(() => {
   redis = createRedis();
@@ -125,7 +131,8 @@ describe('IdempotencyInterceptor', () => {
     const { context } = createContext({ key: KEY, body: BODY });
     const result$ = await interceptor.intercept(context, createNext({ id: 't1' }));
     expect(await lastValueFrom(result$)).toEqual({ id: 't1' });
-    expect(redis.set).toHaveBeenCalledWith(`${SCOPED}:lock`, '1', 'EX', 5, 'NX');
+    expect(redis.set).toHaveBeenCalledWith(`${SCOPED}:lock`, expect.any(String), 'PX', 5000, 'NX');
+    const token = redis.set.mock.calls[0]![1] as string;
     expect(redis.pipeline).toHaveBeenCalled();
     expect(redis._pipeline.set).toHaveBeenCalledWith(
       SCOPED,
@@ -133,6 +140,98 @@ describe('IdempotencyInterceptor', () => {
       'EX',
       86400,
     );
+    // замок снимается только по своему токену (compare-and-del)
+    expect(redis._pipeline.eval).toHaveBeenCalledWith(
+      expect.stringContaining("'del'"),
+      1,
+      `${SCOPED}:lock`,
+      token,
+    );
+  });
+
+  it('долгий хендлер: замок продлевается heartbeat-ом по токену, после ответа — стоп', async () => {
+    vi.useFakeTimers();
+    const handler$ = new Subject<unknown>();
+    const { context } = createContext({ key: KEY, body: BODY });
+    const result$ = await interceptor.intercept(context, { handle: () => handler$ });
+    const done = lastValueFrom(result$);
+    const token = redis.set.mock.calls[0]![1] as string;
+
+    await vi.advanceTimersByTimeAsync(4_600); // три тика heartbeat (1.5 с)
+    const extendCalls = redis.eval.mock.calls.filter((c) => String(c[0]).includes('pexpire'));
+    expect(extendCalls).toHaveLength(3);
+    expect(extendCalls[0]).toEqual([expect.any(String), 1, `${SCOPED}:lock`, token, 5000]);
+
+    handler$.next({ id: 't1' });
+    handler$.complete();
+    await expect(done).resolves.toEqual({ id: 't1' });
+    redis.eval.mockClear();
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(redis.eval).not.toHaveBeenCalled();
+  });
+
+  it('ошибка хендлера: замок снимается по своему токену, ответ не кэшируется', async () => {
+    const { context } = createContext({ key: KEY, body: BODY });
+    const result$ = await interceptor.intercept(context, {
+      handle: () => throwError(() => new Error('boom')),
+    });
+    await expect(lastValueFrom(result$)).rejects.toThrow('boom');
+    const token = redis.set.mock.calls[0]![1] as string;
+    expect(redis.eval).toHaveBeenCalledWith(
+      expect.stringContaining("'del'"),
+      1,
+      `${SCOPED}:lock`,
+      token,
+    );
+    expect(redis.pipeline).not.toHaveBeenCalled();
+  });
+
+  it('повтор при чужом живом замке: ждёт 2 с и отвечает CONFLICT in_progress, хендлер не исполняет', async () => {
+    vi.useFakeTimers();
+    redis.set.mockResolvedValue(null); // замок держит оригинал (heartbeat)
+    const handle = vi.fn(() => of({ id: 'dup' }));
+    const { context } = createContext({ key: KEY, body: BODY });
+
+    const pending = interceptor.intercept(context, { handle });
+    const assertion = expect(pending).rejects.toSatisfy(
+      (error: unknown) =>
+        error instanceof DomainException &&
+        error.code === ErrorCode.CONFLICT &&
+        error.details?.reason === 'in_progress',
+    );
+    await vi.advanceTimersByTimeAsync(2_200);
+    await assertion;
+    expect(handle).not.toHaveBeenCalled();
+  });
+
+  it('повтор при чужом замке: результат появился в ожидании → реплей без исполнения', async () => {
+    vi.useFakeTimers();
+    const cached = { body: { id: 't1' }, bodyHash: sha256Hex(stableStringify(BODY)) };
+    redis.set.mockResolvedValue(null);
+    redis.get
+      .mockResolvedValueOnce(null) // до замка
+      .mockResolvedValueOnce(null) // первый опрос
+      .mockResolvedValue(JSON.stringify(cached));
+    const handle = vi.fn(() => of({ id: 'dup' }));
+    const { context, reply } = createContext({ key: KEY, body: BODY });
+
+    const pending = interceptor.intercept(context, { handle });
+    await vi.advanceTimersByTimeAsync(300);
+    expect(await lastValueFrom(await pending)).toEqual({ id: 't1' });
+    expect(reply.header).toHaveBeenCalledWith('Idempotent-Replay', 'true');
+    expect(handle).not.toHaveBeenCalled();
+  });
+
+  it('оригинал упал (замок исчез без результата) → повтор берёт замок и исполняется', async () => {
+    vi.useFakeTimers();
+    redis.set.mockResolvedValueOnce(null).mockResolvedValue('OK');
+    const handle = vi.fn(() => of({ id: 't2' }));
+    const { context } = createContext({ key: KEY, body: BODY });
+
+    const pending = interceptor.intercept(context, { handle });
+    await vi.advanceTimersByTimeAsync(150);
+    expect(await lastValueFrom(await pending)).toEqual({ id: 't2' });
+    expect(handle).toHaveBeenCalledTimes(1);
   });
 
   it('недоступный Redis → fail-open, запрос исполняется', async () => {

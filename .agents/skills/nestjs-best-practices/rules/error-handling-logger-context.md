@@ -418,53 +418,9 @@ export class OverdueTasksReportService {
 
 The production-grade answer is `nestjs-pino`: it binds `req.id`, method, url and any `logger.assign()`ed fields to **every** log line of the request automatically, without REQUEST-scoped providers. That setup — plus redaction of secrets — is in `error-handling-structured-logging.md`; prefer it over hand-rolled correlation once `core/logging` is in place.
 
-## Optional: Custom Logger Service
+## No Custom Logger Service
 
-When you need a custom format but not the full pino stack (e.g. a CLI script inside the repo), a transient `LoggerService` implementation is the seam:
-
-```typescript
-// ✅ OPTIONAL: custom logger with pluggable context
-// core/logging/app.logger.ts
-import { Injectable, LoggerService, Scope } from '@nestjs/common';
-
-@Injectable({ scope: Scope.TRANSIENT })
-export class AppLogger implements LoggerService {
-  private context = 'App';
-
-  setContext(context: string) {
-    this.context = context;
-  }
-
-  log(message: string, ...optionalParams: unknown[]) {
-    this.print(message, 'LOG', optionalParams);
-  }
-
-  error(message: string, ...optionalParams: unknown[]) {
-    this.print(message, 'ERROR', optionalParams);
-  }
-
-  warn(message: string, ...optionalParams: unknown[]) {
-    this.print(message, 'WARN', optionalParams);
-  }
-
-  debug(message: string, ...optionalParams: unknown[]) {
-    this.print(message, 'DEBUG', optionalParams);
-  }
-
-  verbose(message: string, ...optionalParams: unknown[]) {
-    this.print(message, 'VERBOSE', optionalParams);
-  }
-
-  private print(message: string, level: string, optionalParams: unknown[]) {
-    const timestamp = new Date().toISOString(); // UTC ISO 8601, like everywhere (I7)
-    process.stdout.write(
-      `[${timestamp}] [${this.context}] [${level}] ${message} ${optionalParams
-        .map((p) => (p instanceof Error ? p.stack : String(p)))
-        .join(' ')}\n`,
-    );
-  }
-}
-```
+Canon (patterns.md, core-primitives table): logging is `nestjs-pino` (`PinoLogger`, `core/logging/logging.module.ts`), traceId = Fastify `request.id`. A hand-rolled `AppLogger`/request-scoped `LoggerService` is **forbidden** — it forks the log format, loses redaction and request correlation. Scripts outside the Nest app (seed, perf tools) log with plain `console` — they are not part of the request pipeline.
 
 ## Best Practices Summary
 

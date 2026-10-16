@@ -9,7 +9,7 @@ import { createElement, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ChatMessage, ConversationListItem, FavoriteCard, Paginated } from '@nodus/contracts';
 
-import { chatKeys } from './api.js';
+import { chatKeys } from './chat-keys.js';
 import {
   favoriteKeys,
   useAddFavorites,

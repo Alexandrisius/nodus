@@ -3,7 +3,6 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import {
   CHAT_EVENTS,
-  ErrorCode,
   MENTION_ALL_ID,
   type ChatMessage,
   type EditMessageBody,
@@ -11,7 +10,6 @@ import {
   type Paginated,
   type ReadConversationResult,
   type SendMessageBody,
-  type StickerMeta,
 } from '@nodus/contracts';
 
 import { EventBus } from '../../../core/events/event-bus.js';
@@ -26,6 +24,8 @@ import {
   ConversationsRepository,
   type MemberRow,
 } from '../conversations/conversations.repository.js';
+import { ConversationMembersRepository } from '../conversations/conversation-members.repository.js';
+import { ConversationDraftsRepository } from '../conversations/conversation-drafts.repository.js';
 import { can, parsePermissions } from '../permissions.js';
 import {
   MessageDtoMapper,
@@ -34,23 +34,23 @@ import {
 } from './message-dto.mapper.js';
 import { addMentionWatchers, mentionTokenIds, resolveMentionTargets } from './mentions.js';
 import { assertUrgentSendAllowedBy } from './send-urgent.policy.js';
+import type { ClaimedAttachmentRow, MessageRow } from './message-row.js';
+import { MessagesRepository } from './messages.repository.js';
+import { MessagesWriteRepository } from './messages-write.repository.js';
+import { MessagesLifecycleRepository } from './messages-lifecycle.repository.js';
+import { MessagesReadStateRepository } from './messages-read-state.repository.js';
 import {
-  MessagesRepository,
-  type MessageRow,
-  type ClaimedAttachmentRow,
-} from './messages.repository.js';
+  applyThreadReplyEffects,
+  loadReplyQuote,
+  resolveSendSticker,
+} from './messages-send-prepare.js';
 import { AttachmentsRepository } from './attachments.repository.js';
 import { ThumbnailQueue } from './thumbnail.queue.js';
 import { warmMissingPreviews } from './preview-warmup.js';
 import { ThreadParticipantsRepository } from './thread-participants.repository.js';
-import { buildReplySnapshot } from './reply-snapshot.js';
-import { VaultRepository } from '../vault/vault.repository.js';
+import { VaultWriteRepository } from '../vault/vault-write.repository.js';
 import { syncEditAttachments } from './messages-edit-attachments.js';
-import {
-  StickersRepository,
-  type StickerAttachmentRow,
-  type StickerWithPackRow,
-} from '../stickers/stickers.repository.js';
+import { StickersRepository, type StickerAttachmentRow } from '../stickers/stickers.repository.js';
 
 const messageCursorSchema = z.object({ s: z.number().int().positive() });
 
@@ -62,6 +62,7 @@ export interface SendResult {
 
 // >300 строк — обоснование (I5): транзакция отправки (идемпотентность+seq+вложения+побочные+события)
 // неразрывна; правка/удаление разделяют те же инварианты правила следа — единый сервис агрегата.
+// Подготовка/эффекты отправки — messages-send-prepare.ts, удаление — messages-delete.service.ts.
 /**
  * Ядро сообщений: отправка (seq + идемпотентность в БД + outbox в одной
  * транзакции), лента/треды курсором по seq, квитанции просмотров (POST
@@ -73,15 +74,20 @@ export interface SendResult {
 export class MessagesService {
   constructor(
     private readonly repo: MessagesRepository,
+    private readonly writes: MessagesWriteRepository,
+    private readonly lifecycle: MessagesLifecycleRepository,
+    private readonly readState: MessagesReadStateRepository,
     private readonly attachmentsRepo: AttachmentsRepository,
     private readonly conversations: ConversationsRepository,
+    private readonly memberships: ConversationMembersRepository,
+    private readonly drafts: ConversationDraftsRepository,
     private readonly mapper: MessageDtoMapper,
     private readonly txRunner: TransactionRunner,
     private readonly eventBus: EventBus,
     @Inject(USER_PROFILE_READER) private readonly userProfiles: UserProfileReader,
     private readonly threadParticipants: ThreadParticipantsRepository,
     private readonly stickersRepo: StickersRepository,
-    private readonly vault: VaultRepository,
+    private readonly vault: VaultWriteRepository,
     private readonly thumbnailQueue: ThumbnailQueue,
   ) {}
 
@@ -108,9 +114,13 @@ export class MessagesService {
     const members = await this.conversations.listMembers([conversationId]);
     const items = await this.mapper.toDtos(rows, { viewerId: userId, members });
     warmMissingPreviews(items, this.thumbnailQueue);
+    // Курсор — по самому старому ОТВЕТУ страницы: на первой странице треда
+    // корень вставлен первым, а его seq меньше всех ответов — курсор по нему
+    // дал бы пустую вторую страницу при hasMore=true.
+    const oldest = query.threadRootId ? rows.find((row) => row.id !== query.threadRootId) : rows[0];
     return {
       items,
-      nextCursor: hasMore && rows.length > 0 ? encodeCursor({ s: Number(rows[0]!.seq) }) : null,
+      nextCursor: hasMore && oldest ? encodeCursor({ s: Number(oldest.seq) }) : null,
     };
   }
 
@@ -143,7 +153,7 @@ export class MessagesService {
           throw DomainException.notFound('Thread root not found');
         }
       }
-      const { advanced, lastReadAt } = await this.repo.advanceReadCursor(
+      const { advanced, lastReadAt } = await this.readState.advanceReadCursor(
         conversationId,
         userId,
         target,
@@ -194,7 +204,7 @@ export class MessagesService {
       if (!membership) throw DomainException.notFound('Conversation not found');
 
       // Быстрый replay: тот же ключ уже зафиксирован — побочные эффекты сделаны.
-      const existing = await this.repo.findExisting(userId, clientMessageId, tx);
+      const existing = await this.writes.findExisting(userId, clientMessageId, tx);
       if (existing) {
         if (existing.conversationId !== conversationId) {
           throw DomainException.conflict('Idempotency-Key already used for another message');
@@ -217,12 +227,12 @@ export class MessagesService {
       if (urgent) {
         // Лок лимита автора ДО подсчёта (#177): гонка параллельных отправок
         // на границе лимита закрыта (паттерн advisory/FOR UPDATE #195).
-        await this.repo.lockUrgentLimit(userId, tx);
+        await this.writes.lockUrgentLimit(userId, tx);
         await assertUrgentSendAllowedBy({
           conversationType: conversation.type,
           countMembers: () => this.conversations.countMembers(conversationId, tx),
           countUrgentSent: () =>
-            this.repo.countUrgentSentSince(userId, new Date(Date.now() - 24 * 3600 * 1000), tx),
+            this.writes.countUrgentSentSince(userId, new Date(Date.now() - 24 * 3600 * 1000), tx),
         });
       }
 
@@ -244,71 +254,17 @@ export class MessagesService {
         }
       }
 
-      // Стикер (#143): доступ проверяется в транзакции (корпоративный |
-      //  владеет | установлен); стикер-сообщение монолитно — текста и
-      //  обычных вложений не несёт (модель Telegram, клиентский контракт).
-      let stickerHit: StickerWithPackRow | null = null;
-      if (body.stickerId !== undefined) {
-        if (body.text.length > 0 || (body.attachmentIds?.length ?? 0) > 0) {
-          throw new DomainException(
-            ErrorCode.VALIDATION_FAILED,
-            'Sticker message cannot carry text or attachments',
-          );
-        }
-        stickerHit = await this.stickersRepo.findSticker(body.stickerId, tx);
-        if (!stickerHit) throw DomainException.notFound('Sticker not found');
-        const accessible = await this.stickersRepo.findPackAccessible(
-          stickerHit.pack.id,
-          userId,
-          tx,
-        );
-        if (!accessible) throw DomainException.notFound('Sticker not found');
-      }
+      // Стикер (#143) и снапшот цитаты — messages-send-prepare.ts (I5).
+      const stickerHit = await resolveSendSticker(this.stickersRepo, body, userId, tx);
+      const { replySnapshot, replyOriginalRow } = await loadReplyQuote(
+        this.repo,
+        conversationId,
+        body,
+        tx,
+      );
 
-      // Снапшот цитаты (оригинал — только этой беседы: чужое не утекает).
-      let replySnapshot: ReturnType<typeof buildReplySnapshot> | null = null;
-      let replyOriginalRow: MessageRow | null = null;
-      if (body.replyToId) {
-        replyOriginalRow = await this.repo.findByIdInConversation(
-          conversationId,
-          body.replyToId,
-          tx,
-        );
-        const originalAttachments =
-          replyOriginalRow && !replyOriginalRow.deletedAt
-            ? await this.repo.attachmentsFor([replyOriginalRow.id], tx)
-            : [];
-        replySnapshot = buildReplySnapshot(
-          replyOriginalRow
-            ? {
-                authorId: replyOriginalRow.authorId,
-                text: replyOriginalRow.text,
-                deleted: replyOriginalRow.deletedAt !== null,
-                attachmentKind:
-                  (originalAttachments[0]?.kind as 'image' | 'file' | 'sticker') ?? null,
-                // #288: мини-глиф оригинального стикера в цитате — fileId
-                // (url подписывается при чтении) + первый эмодзи пака.
-                stickerFileId:
-                  originalAttachments[0]?.kind === 'sticker'
-                    ? (originalAttachments[0]?.fileId ?? null)
-                    : null,
-                stickerEmoji:
-                  originalAttachments[0]?.kind === 'sticker'
-                    ? ((originalAttachments[0]?.stickerMeta as StickerMeta | null)?.emojis[0] ??
-                      null)
-                    : null,
-                stickerMime:
-                  originalAttachments[0]?.kind === 'sticker'
-                    ? (originalAttachments[0]?.mime ?? null)
-                    : null,
-              }
-            : null,
-          body.quoteText ?? null,
-        );
-      }
-
-      const seq = await this.repo.allocateSeqs(conversationId, 1, tx);
-      const inserted = await this.repo.insertMessage(
+      const seq = await this.writes.allocateSeqs(conversationId, 1, tx);
+      const inserted = await this.writes.insertMessage(
         {
           id: randomUUID(),
           conversationId,
@@ -329,7 +285,7 @@ export class MessagesService {
       );
       if (!inserted) {
         // Редкая гонка: фиксация конкурента между SELECT и INSERT — реплей.
-        const raced = await this.repo.findExisting(userId, clientMessageId, tx);
+        const raced = await this.writes.findExisting(userId, clientMessageId, tx);
         if (!raced) throw new Error('send: ON CONFLICT returned nothing and no existing row');
         return {
           message: raced,
@@ -350,39 +306,26 @@ export class MessagesService {
               tx,
             ),
           ]
-        : await this.repo.claimAttachments(inserted.id, body.attachmentIds ?? [], userId, tx);
+        : await this.writes.claimAttachments(inserted.id, body.attachmentIds ?? [], userId, tx);
       // Витрина #211: проекция ссылок + Δ денормализованных счётчиков (та же
       // tx; стикеры видом 'sticker' в счётчиках не участвуют).
       await this.vault.applyMessageSent(tx, inserted, claimedAttachments, body.text);
       // Стикер не гасит черновик композера (keepDraft, #143): набранный текст
       // остаётся жить в PUT /draft после отправки стикера.
       if (stickerHit === null) {
-        await this.conversations.clearDraft(conversationId, userId, tx);
+        await this.drafts.clearDraft(conversationId, userId, tx);
       }
-      await this.conversations.unsnooze(conversationId, userId, tx);
+      await this.memberships.unsnooze(conversationId, userId, tx);
       // Активность раскрывает беседу скрывшим её участникам (#103).
-      await this.conversations.revealHidden(conversationId, tx);
+      await this.memberships.revealHidden(conversationId, tx);
       if (threadRootId === null) {
-        await this.repo.touchLastMessageAt(conversationId, tx);
+        await this.writes.touchLastMessageAt(conversationId, tx);
       } else {
-        // Автор корня — участник треда с момента первого ответа (уведомления).
-        if (threadRoot && threadRoot.authorId !== userId) {
-          await this.threadParticipants.upsert(threadRootId, threadRoot.authorId, 'author', tx);
-        }
-        await this.threadParticipants.upsert(threadRootId, userId, 'replier', tx);
-        // Свой ответ = «я видел тред до сюда» (модель Telegram): watermark
-        // трэда реплайера доходит до seq ответа — прежние чужие ответы не
-        // вспыхивают «непрочитанными» у только что подключившегося.
-        await this.threadParticipants.advanceReadCursor(threadRootId, userId, inserted.seq, tx);
-        const priorReplies = await this.repo.countThreadReplies(threadRootId, inserted.id, tx);
-        if (priorReplies === 0) {
-          await this.eventBus.emit(
-            tx,
-            CHAT_EVENTS.THREAD_CREATED,
-            { conversationId, threadRootId, messageId: inserted.id },
-            { actorId: userId, aggregateType: 'conversation', aggregateId: conversationId },
-          );
-        }
+        await applyThreadReplyEffects(
+          { repo: this.repo, threadParticipants: this.threadParticipants, eventBus: this.eventBus },
+          { userId, conversationId, threadRootId, threadRoot, inserted },
+          tx,
+        );
       }
       // @упоминания (раунд 3): упомянутые — наблюдатели трэда этого сообщения
       // (для корневого — его будущего треда); соответствие решено до tx.
@@ -475,7 +418,7 @@ export class MessagesService {
           message.text !== body.text ? mentionMatches : readMentionedUserIds(message);
         const everMentioned = Array.from(new Set([...previousEver, ...tokenIds]));
         await this.vault.applyMessageEdited(tx, message, body, attachmentsChanged);
-        updated = await this.repo.updateEditText(
+        updated = await this.lifecycle.updateEditText(
           conversationId,
           messageId,
           userId,

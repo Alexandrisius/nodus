@@ -5,7 +5,7 @@ import type { ChatMessage } from '@nodus/contracts';
 import { api } from '../api-client.js';
 import { isDomainMocked } from '../api/api-mock-config.js';
 import { wsDebugLog } from '../socket/ws-debug.js';
-import { chatKeys } from './api.js';
+import { chatKeys } from './chat-keys.js';
 import {
   createReadReceiptScheduler,
   type ReadReceiptScheduler,
@@ -54,16 +54,23 @@ export function maxSeenSeq(
  * квитанции оставался неотправленным. Оболочка сигналит shell-visibility,
  * вызов дозаписывает увиденное немедленно.
  */
-let flushOnHide: (() => void) | null = null;
+// Реестр живых планировщиков (беседа + тред могут жить одновременно): одна
+// глобальная ячейка теряла беседу при открытом треде, а снятие регистрации
+// сравнивало с другой функцией (обёртка ≠ scheduler.flush) и не срабатывало —
+// ячейка держала мёртвый планировщик.
+const flushOnHide = new Set<() => void>();
 
-/** Регистрация колбэка «оболочка скрылась» (вызывает desktop-bridge). */
-export function setShellHiddenFlush(fn: (() => void) | null): void {
-  flushOnHide = fn;
+/** Регистрация колбэка «оболочка скрылась»; возвращает снятие регистрации. */
+export function registerShellHiddenFlush(fn: () => void): () => void {
+  flushOnHide.add(fn);
+  return () => {
+    flushOnHide.delete(fn);
+  };
 }
 
 /** Вызов из desktop-bridge при visible=false. */
 export function flushReadReceiptsOnShellHide(): void {
-  flushOnHide?.();
+  for (const fn of flushOnHide) fn();
 }
 
 /**
@@ -134,15 +141,12 @@ function useReadReceiptScheduler(
     };
     document.addEventListener('visibilitychange', onVisibility);
     window.addEventListener('pagehide', onVisibility);
-    const prevFlush = flushOnHide;
-    setShellHiddenFlush(() => scheduler.flush());
+    const unregisterShellFlush = registerShellHiddenFlush(() => scheduler.flush());
 
     return () => {
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('pagehide', onVisibility);
-      if (flushOnHide === scheduler.flush || prevFlush === null) {
-        setShellHiddenFlush(null);
-      }
+      unregisterShellFlush();
       scheduler.flush(); // смена беседы: хвост ниже вьюпорта не прочитан
       scheduler.dispose();
       schedulerRef.current = null;

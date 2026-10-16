@@ -1,7 +1,8 @@
 import type { QueryClient } from '@tanstack/react-query';
 import type { RealtimeEnvelope } from '@nodus/contracts';
 
-import { cachedConversation, chatKeys } from '../chat/api.js';
+import { chatKeys } from '../chat/chat-keys.js';
+import { cachedConversation } from '../chat/chat-queries.js';
 import { favoriteKeys } from '../chat/favorites-api.js';
 import { vaultKeys } from '../chat/vault-api.js';
 import {

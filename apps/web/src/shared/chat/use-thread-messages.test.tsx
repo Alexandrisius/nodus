@@ -5,7 +5,8 @@ import { createElement, type ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ChatMessage, Paginated } from '@nodus/contracts';
 
-import { chatKeys, useThreadMessages } from './api.js';
+import { chatKeys } from './chat-keys.js';
+import { useThreadMessages } from './chat-queries.js';
 import { api } from '../api-client.js';
 
 vi.mock('../api-client.js', () => ({ api: vi.fn() }));

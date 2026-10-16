@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { QueryClient } from '@tanstack/react-query';
 import type { ChatMessage, UserRef } from '@nodus/contracts';
 
-import { chatKeys } from './api.js';
+import { chatKeys } from './chat-keys.js';
 import { useAuthStore } from '../auth-store.js';
 import {
   applyAttachmentPreviewEvent,

@@ -159,13 +159,16 @@ export function ProjectFlow({ projectId }: { projectId: string }) {
 
   const counts = useMemo(() => {
     const items = data?.pages.flatMap((p) => p.items) ?? [];
-    const by = (predicate: (state: string, name: string) => boolean) =>
-      items.filter((t) => predicate(t.stage.systemState, t.stage.name)).length;
+    const by = (predicate: (state: string) => boolean) =>
+      items.filter((t) => predicate(t.stage.systemState)).length;
+    // Узлы — по systemState каталога API (system-catalog.ts): «Ждёт
+    // контроля» = done, «Завершена»/«Отменена» = closed. Матч по имени
+    // стадии ломался на переименовании и считал контроль дважды.
     return {
       new: by((s) => s === 'backlog'),
-      work: by((s, name) => s === 'active' && name !== ui.tasks.colOnControl),
-      review: by((_s, name) => name === ui.tasks.colOnControl),
-      done: by((s) => s === 'done' || s === 'closed'),
+      work: by((s) => s === 'active'),
+      review: by((s) => s === 'done'),
+      done: by((s) => s === 'closed'),
       paused: by((s) => s === 'paused'),
     } as Record<string, number>;
   }, [data]);

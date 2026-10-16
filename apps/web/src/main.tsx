@@ -34,10 +34,17 @@ if (!container) {
   throw new Error('Точка монтирования #root не найдена');
 }
 
-void enableMocking().then(() => {
-  createRoot(container).render(
-    <StrictMode>
-      <App />
-    </StrictMode>,
-  );
-});
+// Рендер — В ЛЮБОМ случае: упавший MSW-воркер (не зарегистрировался,
+// чанк не загрузился) не должен давать белую страницу — приложение
+// поднимется без моков, причина — в консоли.
+void enableMocking()
+  .catch((error: unknown) => {
+    console.error('[nodus] MSW не запустился — приложение стартует без моков', error);
+  })
+  .then(() => {
+    createRoot(container).render(
+      <StrictMode>
+        <App />
+      </StrictMode>,
+    );
+  });

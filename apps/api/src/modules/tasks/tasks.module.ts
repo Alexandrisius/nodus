@@ -6,12 +6,17 @@ import { USER_PROFILE_READER } from '../../core/ports/user-profile.port.js';
 import { UserProfileProvider } from '../../core/ports/user-profile.provider.js';
 import { ChatPortsModule } from '../chat/chat-ports.module.js';
 import { ViewerResolver } from './access/task-visibility.js';
+import { HistoryRepository } from './activity/history.repository.js';
 import { HistoryService } from './activity/history.service.js';
+import { RelationsRepository } from './activity/relations.repository.js';
 import { RelationsService } from './activity/relations.service.js';
+import { ResultsRepository } from './activity/results.repository.js';
 import { ResultsService } from './activity/results.service.js';
 import { TaskPartsController } from './activity/task-parts.controller.js';
 import { BulkService } from './bulk/bulk.service.js';
 import { CatalogBootstrap } from './catalog/catalog.bootstrap.js';
+import { CatalogRepository } from './catalog/catalog.repository.js';
+import { ChecklistRepository } from './checklist/checklist.repository.js';
 import { ChecklistService } from './checklist/checklist.service.js';
 import {
   TaskCommentDeletedHandler,
@@ -19,15 +24,20 @@ import {
   TaskCommentsCounter,
 } from './events/comments-count.handler.js';
 import { OverdueScanner } from './events/overdue.scanner.js';
+import { ParticipantsRepository } from './participants/participants.repository.js';
 import { ParticipantsService } from './participants/participants.service.js';
+import { PersonalStagesRepository } from './personal/personal-stages.repository.js';
 import { PersonalStagesService } from './personal/personal-stages.service.js';
 import { Placements } from './personal/placements.js';
+import { PlacementsRepository } from './personal/placements.repository.js';
 import { TaskDtoMapper } from './tasks/task-dto.mapper.js';
 import { TaskEditService } from './tasks/task-edit.service.js';
 import { TasksController } from './tasks/tasks.controller.js';
+import { TasksQueryRepository } from './tasks/tasks-query.repository.js';
 import { TasksQueryService } from './tasks/tasks-query.service.js';
 import { TasksRepository } from './tasks/tasks.repository.js';
 import { TasksService } from './tasks/tasks.service.js';
+import { TimeEntriesRepository } from './time/time-entries.repository.js';
 import { TimeController } from './time/time.controller.js';
 import { TimeService } from './time/time.service.js';
 import { TaskWorkflowController } from './workflow/task-workflow.controller.js';
@@ -50,12 +60,23 @@ import { WorkflowRepository } from './workflow/workflow.repository.js';
     { provide: USER_PROFILE_READER, useClass: UserProfileProvider },
     OrgStructureProvider,
     { provide: ORG_STRUCTURE_READER, useClass: OrgStructureProvider },
+    // Репозитории — единственная точка доступа к таблицам модуля (patterns.md).
+    CatalogRepository,
+    WorkflowRepository,
+    TasksRepository,
+    TasksQueryRepository,
+    PlacementsRepository,
+    PersonalStagesRepository,
+    ParticipantsRepository,
+    ChecklistRepository,
+    TimeEntriesRepository,
+    ResultsRepository,
+    RelationsRepository,
+    HistoryRepository,
     CatalogBootstrap,
     ViewerResolver,
-    WorkflowRepository,
     TransitionsService,
     Placements,
-    TasksRepository,
     TaskDtoMapper,
     TasksQueryService,
     TasksService,

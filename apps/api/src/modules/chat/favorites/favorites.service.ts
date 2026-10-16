@@ -18,9 +18,12 @@ import { EventBus } from '../../../core/events/event-bus.js';
 import { TransactionRunner } from '../../../core/database/transaction-runner.js';
 import { decodeCursor, encodeCursor } from '../../../core/pagination/cursor.util.js';
 import { ConversationsRepository } from '../conversations/conversations.repository.js';
+import { ConversationsWriteRepository } from '../conversations/conversations-write.repository.js';
 import { MessagesRepository } from '../messages/messages.repository.js';
+import { MessagesWriteRepository } from '../messages/messages-write.repository.js';
 import { FavoriteCardMapper } from './favorite-card.mapper.js';
 import { FavoritesRepository } from './favorites.repository.js';
+import { FavoriteSourcesRepository } from './favorite-sources.repository.js';
 
 const favoriteCursorSchema = z.object({ t: z.iso.datetime(), id: z.uuid() });
 
@@ -37,9 +40,12 @@ export class FavoritesService {
     private readonly favorites: FavoritesRepository,
     private readonly cards: FavoriteCardMapper,
     private readonly messages: MessagesRepository,
+    private readonly writes: MessagesWriteRepository,
     private readonly conversations: ConversationsRepository,
+    private readonly conversationWrites: ConversationsWriteRepository,
     private readonly eventBus: EventBus,
     private readonly txRunner: TransactionRunner,
+    private readonly sourcesRepo: FavoriteSourcesRepository,
   ) {}
 
   /** Список карточек: ключ по моменту закладки (свежие первыми). */
@@ -66,8 +72,8 @@ export class FavoritesService {
    */
   async sources(userId: string): Promise<FavoriteSources> {
     const [rows, summary] = await Promise.all([
-      this.favorites.sourceRows(userId),
-      this.favorites.sourcesSummary(userId),
+      this.sourcesRepo.sourceRows(userId),
+      this.sourcesRepo.sourcesSummary(userId),
     ]);
     return {
       notes: { count: summary.notesCount, lastAt: summary.notesLast?.toISOString() ?? null },
@@ -103,6 +109,9 @@ export class FavoritesService {
     for (const messageId of uniqueIds) {
       const row = byId.get(messageId);
       if (!row) continue;
+      // Надгробие/бесследно удалённое (findByIds отдаёт и их) — не звездим:
+      // карточка-призрак удалённого не должна появляться в витрине (#215).
+      if (row.deletedAt !== null || row.obliterated) continue;
       if (!(await this.conversations.findMembership(row.conversationId, userId))) continue;
       allowed.push({ messageId, conversationId: row.conversationId });
     }
@@ -111,6 +120,7 @@ export class FavoritesService {
       const existing = await this.favorites.findExisting(
         userId,
         allowed.map((a) => a.messageId),
+        tx,
       );
       const now = Date.now();
       const created: string[] = [];
@@ -138,8 +148,8 @@ export class FavoritesService {
       // рефечит список по событию favorite_added. Find-or-create: у самой
       // первой звезды чат появляется в списке сразу.
       if (created.length > 0) {
-        const notes = await this.conversations.findOrCreateDirect(userId, userId, tx);
-        await this.messages.touchLastMessageAt(notes.id, tx);
+        const notes = await this.conversationWrites.findOrCreateDirect(userId, userId, tx);
+        await this.writes.touchLastMessageAt(notes.id, tx);
       }
       return created;
     });

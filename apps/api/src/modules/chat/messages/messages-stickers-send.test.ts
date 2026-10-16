@@ -6,7 +6,7 @@ import { ErrorCode, type SendMessageBody } from '@nodus/contracts';
 import { DEFAULT_CONVERSATION_PERMISSIONS } from '../permissions.js';
 import { MessagesService } from './messages.service.js';
 import type { MemberRow } from '../conversations/conversations.repository.js';
-import type { MessageRow } from './messages.repository.js';
+import type { MessageRow } from './message-row.js';
 
 const CONV = 'conv-1';
 const ME = 'me-1';
@@ -113,8 +113,13 @@ describe('MessagesService.send: стикер (#143)', () => {
     stickersRepo = makeStickersRepo();
     service = new MessagesService(
       repo as never,
+      repo as never, // запись (MessagesWriteRepository)
+      repo as never, // правка/удаление (MessagesLifecycleRepository)
+      repo as never, // прочитанность (MessagesReadStateRepository)
       { syncMessageAttachments: vi.fn(), renameMessageAttachments: vi.fn() } as never,
       conversations as never,
+      conversations as never, // запись участия (ConversationMembersRepository)
+      conversations as never, // черновики (ConversationDraftsRepository)
       mapper as never,
       { run: vi.fn((cb: (tx: string) => unknown) => cb(TX)) } as never,
       { emit: vi.fn() } as never,

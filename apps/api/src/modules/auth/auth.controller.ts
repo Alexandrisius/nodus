@@ -121,7 +121,9 @@ export class AuthController {
   @Audit({ action: 'auth.logout_all' })
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Отзыв всех сессий пользователя' })
-  @ApiNoContentResponse({ description: 'Все сессии, кроме текущей, отозваны' })
+  @ApiNoContentResponse({
+    description: 'Отозваны все сессии пользователя, включая текущую; refresh-cookie очищена',
+  })
   @ApiErrors(401)
   @ApiIdempotencyKey()
   async logoutAll(

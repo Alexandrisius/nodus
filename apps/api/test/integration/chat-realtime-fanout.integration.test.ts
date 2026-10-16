@@ -12,7 +12,7 @@ import { setupChatFixture, type ChatTestFixture, type ChatUser } from './chat-fi
 
 /**
  * Realtime-фанут #104 на живом стеке: REST-отправка сообщения → outbox-строка
- * → RedisStreamPublisher публикует envelope в Redis Stream `nodus:chat:events`
+ * → RedisStreamPublisher публикует envelope в Redis Stream `nodus:domain:events`
  * (консьюмер — WS-gateway). Проверяются контракт envelope, монотонность seq
  * и полнота (последнее событие батча доходит).
  */

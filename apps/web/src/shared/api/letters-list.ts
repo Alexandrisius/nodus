@@ -16,7 +16,7 @@ export function useLettersList(folder?: LettersFolder, counterpartyId?: string) 
   if (counterpartyId) params.set('counterpartyId', counterpartyId);
   const qs = params.toString();
   return useQuery({
-    queryKey: [...lettersKeys.list(folder ?? 'all'), counterpartyId ?? null],
+    queryKey: lettersKeys.folderList(folder ?? 'all', counterpartyId ?? null),
     queryFn: () => api<Paginated<LetterListItem>>(`/letters${qs ? `?${qs}` : ''}`),
   });
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { validateEnv } from './env.schema.js';
+import { DEFAULT_TRUST_PROXY, parseTrustProxy, validateEnv } from './env.schema.js';
 
 const VALID = {
   DATABASE_URL: 'postgresql://u:p@localhost:5432/nodus',
@@ -39,5 +39,39 @@ describe('validateEnv', () => {
     expect(() => validateEnv({ ...VALID, DATABASE_URL: 'mysql://u:p@h/db' })).toThrow(
       /Невалидное окружение/,
     );
+  });
+
+  describe('TRUST_PROXY', () => {
+    it('по умолчанию — только приватные/локальные хопы (не true)', () => {
+      const env = validateEnv({ ...VALID });
+      expect(env.TRUST_PROXY).toBe(DEFAULT_TRUST_PROXY);
+      expect(env.TRUST_PROXY).toBe('loopback,linklocal,uniquelocal');
+      // пустая переменная из шаблона .env = не задана
+      expect(validateEnv({ ...VALID, TRUST_PROXY: '' }).TRUST_PROXY).toBe(DEFAULT_TRUST_PROXY);
+    });
+
+    it('true/false → boolean, список нормализуется', () => {
+      expect(validateEnv({ ...VALID, TRUST_PROXY: 'true' }).TRUST_PROXY).toBe(true);
+      expect(validateEnv({ ...VALID, TRUST_PROXY: 'false' }).TRUST_PROXY).toBe(false);
+      expect(
+        validateEnv({ ...VALID, TRUST_PROXY: ' loopback , 10.0.0.0/8, fd00::/8,172.18.0.5 ' })
+          .TRUST_PROXY,
+      ).toBe('loopback,10.0.0.0/8,fd00::/8,172.18.0.5');
+    });
+
+    it('мусор — понятная ошибка старта', () => {
+      expect(() => validateEnv({ ...VALID, TRUST_PROXY: 'everyone' })).toThrow(
+        /Невалидное окружение.*TRUST_PROXY/s,
+      );
+    });
+
+    it('parseTrustProxy: префиксы и маски валидируются', () => {
+      expect(parseTrustProxy('10.0.0.0/33')).toBeNull();
+      expect(parseTrustProxy('::1/129')).toBeNull();
+      expect(parseTrustProxy('10.0.0.0/255.0.0.0')).toBe('10.0.0.0/255.0.0.0');
+      expect(parseTrustProxy('2')).toBeNull(); // хоп-счётчик не поддерживаем
+      expect(parseTrustProxy('loopback,,uniquelocal')).toBeNull();
+      expect(parseTrustProxy('')).toBeNull();
+    });
   });
 });

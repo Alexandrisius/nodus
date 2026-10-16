@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { ChatMessage, ConversationListItem } from '@nodus/contracts';
 
 import { useAuthStore } from '../auth-store.js';
-import { chatKeys } from './api.js';
+import { chatKeys } from './chat-keys.js';
 import { ConversationViewsLine } from './views-line.js';
 
 /** Строка просмотров над композером (#102 раунд 2): одна строка на беседу для

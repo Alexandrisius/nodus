@@ -5,6 +5,7 @@ import { OrgStructureProvider } from '../../core/ports/org-structure.provider.js
 import { ViewerResolver } from './access/task-visibility.js';
 import { TASK_CHAT_READER } from './ports/task-chat-reader.port.js';
 import { TaskChatReaderProvider } from './ports/task-chat-reader.provider.js';
+import { TasksQueryRepository } from './tasks/tasks-query.repository.js';
 
 /**
  * Порты чтения задач (ADR-0012): тонкий модуль экспорта read-портов чужим
@@ -16,6 +17,7 @@ import { TaskChatReaderProvider } from './ports/task-chat-reader.provider.js';
     OrgStructureProvider,
     { provide: ORG_STRUCTURE_READER, useClass: OrgStructureProvider },
     ViewerResolver,
+    TasksQueryRepository,
     TaskChatReaderProvider,
     { provide: TASK_CHAT_READER, useClass: TaskChatReaderProvider },
   ],

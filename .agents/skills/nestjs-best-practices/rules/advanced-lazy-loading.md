@@ -39,12 +39,12 @@ export class AppModule {}
 ```typescript
 // app.module.ts
 import { Module } from '@nestjs/common';
-import { CoreModule } from './core/core.module';
+import { DatabaseModule } from './core/database/database.module.js';
 import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
-    CoreModule,      // ✅ Eager load - always needed
+    DatabaseModule,  // ✅ Eager load - always needed (core-примитивы — свои модули, единого CoreModule нет)
     UsersModule,     // ✅ Eager load - accessed immediately
   ],
 })

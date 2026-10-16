@@ -283,7 +283,7 @@ import {
 } from '@nodus/contracts';
 import { ZodValidationPipe } from '../../core/pipes/zod-validation.pipe';
 import { PermissionGuard } from '../../core/guards/permission.guard';
-import { RequirePermissions } from '../../core/guards/require-permissions.decorator';
+import { RequirePermissions } from '../../core/decorators/require-permissions.decorator';
 import { UsersService } from './users.service';
 
 @Controller('users') // global prefix /api/v1 is applied at bootstrap
@@ -566,8 +566,9 @@ await this.txRunner.run(async (tx) => {
 export class TaskCreatedNotificationHandler {
   static readonly eventType = TASK_EVENTS.CREATED;
 
-  async handle(envelope: EventEnvelope<TaskCreatedPayload>): Promise<void> {
-    // dedupe by envelope.id, then react — see architecture-event-driven for the full pattern
+  async handle(event: DomainEvent<TaskCreatedPayload>): Promise<void> {
+    // dispatcher dedupes (event_id, handler); the write itself stays idempotent
+    // (unique + ON CONFLICT) — see architecture-event-driven for the full pattern
   }
 }
 ```

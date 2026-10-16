@@ -5,7 +5,7 @@ import { CHAT_EVENTS, ErrorCode, type SendMessageBody } from '@nodus/contracts';
 import { DEFAULT_CONVERSATION_PERMISSIONS } from '../permissions.js';
 import { MessagesService } from './messages.service.js';
 import type { MemberRow } from '../conversations/conversations.repository.js';
-import type { MessageRow } from './messages.repository.js';
+import type { MessageRow } from './message-row.js';
 
 const CONV = 'conv-1';
 const ME = 'me-1';
@@ -127,8 +127,13 @@ describe('MessagesService', () => {
     repo.insertMessage.mockResolvedValue(makeMessage({ id: 'msg-new', seq: 7n }));
     service = new MessagesService(
       repo as never,
+      repo as never, // запись (MessagesWriteRepository)
+      repo as never, // правка/удаление (MessagesLifecycleRepository)
+      repo as never, // прочитанность (MessagesReadStateRepository)
       attachmentsRepo as never,
       conversations as never,
+      conversations as never, // запись участия (ConversationMembersRepository)
+      conversations as never, // черновики (ConversationDraftsRepository)
       mapper as never,
       txRunner as never,
       eventBus as never,

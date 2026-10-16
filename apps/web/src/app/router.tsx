@@ -102,7 +102,15 @@ async function requireAnonymous(): Promise<void> {
 
 async function requireAuth(): Promise<void> {
   await useAuthStore.getState().bootstrap();
-  if (useAuthStore.getState().status !== 'authenticated') {
+  const { status } = useAuthStore.getState();
+  // 'unknown' после bootstrap — сервер недоступен (обрыв сети, 5xx), а не
+  // мёртвая сессия: на /login не уводим (живая cookie, вход «сломан» лишь
+  // временно) — экран ошибки роутера с «Обновить страницу»; следующий
+  // заход повторит bootstrap (статус не залип в anonymous).
+  if (status === 'unknown') {
+    throw new Error('auth bootstrap: сервер недоступен');
+  }
+  if (status !== 'authenticated') {
     throw redirect({ to: '/login' });
   }
 }

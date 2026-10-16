@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { attachmentKindDelta, vaultKindOf } from './vault.repository.js';
+import { attachmentKindDelta, vaultKindOf } from './vault-kinds.js';
 
 /** Классификация витрины (ревизия 05.10): видео/аудио — файлы по mime,
  *  стикеры не считаются; Δ считается по составам ДО/ПОСЛЕ. */

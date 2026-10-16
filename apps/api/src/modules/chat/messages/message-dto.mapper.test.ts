@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest';
 
 import { SignedUrlService } from '../../../core/crypto/signed-url.service.js';
 import type { MemberRow } from '../conversations/conversations.repository.js';
-import type { MessageRow } from './messages.repository.js';
-import { computeReadAt, computeReadBy, MessageDtoMapper } from './message-dto.mapper.js';
+import type { MessageRow } from './message-row.js';
+import { MessageDtoMapper } from './message-dto.mapper.js';
+import { computeReadAt, computeReadBy } from './message-read-receipts.js';
 
 type ReadAtRow = Pick<MessageRow, 'authorId' | 'seq' | 'editedAt' | 'createdAt'>;
 

@@ -6,7 +6,7 @@ import { ErrorCode } from '@nodus/contracts';
 
 import { MessagesDeleteService } from './messages-delete.service.js';
 import type { MemberRow } from '../conversations/conversations.repository.js';
-import type { MessageRow } from './messages.repository.js';
+import type { MessageRow } from './message-row.js';
 
 const CONV = 'conv-1';
 const ME = 'me-1';
@@ -96,6 +96,7 @@ describe('MessagesDeleteService: модерация (#245)', () => {
     );
     service = new MessagesDeleteService(
       repo as never,
+      repo as never, // жизненный цикл (MessagesLifecycleRepository, I5)
       conversations as never,
       txRunner as never,
       eventBus as never,

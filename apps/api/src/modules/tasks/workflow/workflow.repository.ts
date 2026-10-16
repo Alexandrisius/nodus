@@ -61,7 +61,9 @@ export class WorkflowRepository {
 
   /** Тип (по умолчанию системный) и маршрут для него по схеме по умолчанию
    *  (задача без проекта; проектные схемы — ступень 3). */
-  async resolveTypeWorkflow(typeId?: string): Promise<{ typeId: string; workflowId: string }> {
+  async resolveTypeWorkflow(
+    typeId?: string,
+  ): Promise<{ typeId: string; workflowId: string; structural: boolean }> {
     const type = typeId
       ? await this.prisma.taskType.findFirst({ where: { id: typeId, archivedAt: null } })
       : await this.prisma.taskType.findUnique({ where: { code: SYSTEM_TASK_TYPE.code } });
@@ -70,7 +72,7 @@ export class WorkflowRepository {
       where: { taskTypeId: type.id, scheme: { isDefault: true } },
     });
     if (!entry) throw new DomainException(ErrorCode.NOT_FOUND, 'Workflow for task type not found');
-    return { typeId: type.id, workflowId: entry.workflowId };
+    return { typeId: type.id, workflowId: entry.workflowId, structural: type.structural };
   }
 
   /** Личный маршрут сотрудника; нет — копия шаблона (своя транзакция ДО
@@ -113,6 +115,22 @@ export class WorkflowRepository {
       select: { id: true },
     });
     return row?.id ?? null;
+  }
+
+  /** Активные стадии системного маршрута по коду каталога (порядок колонок). */
+  async liveStagesByCode(code: string) {
+    const workflow = await this.prisma.workflow.findUniqueOrThrow({ where: { code } });
+    return this.prisma.workflowStage.findMany({
+      where: { workflowId: workflow.id, archivedAt: null },
+      orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+    });
+  }
+
+  /** Активная колонка «Моего плана» именно этого сотрудника; чужая — null. */
+  findPersonalColumn(ownerId: string, stageId: string, tx?: TransactionClient) {
+    return (tx ?? this.prisma).workflowStage.findFirst({
+      where: { id: stageId, archivedAt: null, workflow: { kind: 'personal', ownerId } },
+    });
   }
 
   /** Активные колонки личных маршрутов пользователей (для автоперемещения). */

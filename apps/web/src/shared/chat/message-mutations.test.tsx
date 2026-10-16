@@ -10,13 +10,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ChatMessage, Paginated } from '@nodus/contracts';
 
 import { useAuthStore } from '../auth-store.js';
-import { chatKeys } from './api.js';
-import {
-  predictReactions,
-  useDeleteMessage,
-  useEditMessage,
-  useReactionToggle,
-} from './message-mutations.js';
+import { chatKeys } from './chat-keys.js';
+import { useDeleteMessage } from './delete-message-mutations.js';
+import { useEditMessage } from './edit-message-mutation.js';
+import { predictReactions, useReactionToggle } from './reaction-mutations.js';
 
 /**
  * Детерминированные тесты оптимистичности (канон I4/patterns.md): мутация

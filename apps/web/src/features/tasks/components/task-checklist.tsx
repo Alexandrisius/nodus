@@ -10,6 +10,7 @@ import {
   useDeleteChecklistItem,
   useToggleChecklistItem,
 } from '../api/checklist-api.js';
+import { isTempId } from '../lib/temp-records.js';
 import { InlineAddRow } from './inline-add-row.js';
 
 /**
@@ -48,40 +49,46 @@ export function TaskChecklist({ task }: { task: TaskDetail }) {
         ) : null}
       </div>
       <div className="mt-1 flex flex-col">
-        {task.checklist.map((item) => (
-          <div
-            key={item.id}
-            className="group/item -mx-2 flex min-h-8 items-center gap-2.5 rounded-md px-2 py-1 transition-colors hover:bg-accent/40"
-          >
-            <Checkbox
-              checked={item.done}
-              disabled={!canCheck}
-              aria-label={item.text}
-              onCheckedChange={(value) =>
-                toggleItem.mutate({ itemId: item.id, done: value === true })
-              }
-            />
-            <span
-              className={cn(
-                'min-w-0 flex-1 text-sm',
-                item.done && 'text-muted-foreground line-through',
-              )}
+        {task.checklist.map((item) => {
+          // Темп-пункт (летит POST): серверного id ещё нет — PATCH/DELETE на
+          // temp-id дали бы 404; отметка и удаление — после подтверждения.
+          const pending = isTempId(item.id);
+          return (
+            <div
+              key={item.id}
+              className="group/item -mx-2 flex min-h-8 items-center gap-2.5 rounded-md px-2 py-1 transition-colors hover:bg-accent/40"
             >
-              {item.text}
-            </span>
-            {canEdit && !item.id.startsWith('temp-') ? (
-              <button
-                type="button"
-                onClick={() => deleteItem.mutate({ itemId: item.id })}
-                aria-label={ui.tasks.checklistDelete}
-                title={ui.tasks.checklistDelete}
-                className="rounded p-0.5 text-muted-foreground opacity-0 transition-opacity group-hover/item:opacity-100 hover:text-foreground focus-visible:opacity-100"
+              <Checkbox
+                checked={item.done}
+                disabled={!canCheck || pending}
+                aria-label={item.text}
+                onCheckedChange={(value) => {
+                  if (pending) return;
+                  toggleItem.mutate({ itemId: item.id, done: value === true });
+                }}
+              />
+              <span
+                className={cn(
+                  'min-w-0 flex-1 text-sm',
+                  item.done && 'text-muted-foreground line-through',
+                )}
               >
-                <X className="size-3.5" strokeWidth={1.75} />
-              </button>
-            ) : null}
-          </div>
-        ))}
+                {item.text}
+              </span>
+              {canEdit && !pending ? (
+                <button
+                  type="button"
+                  onClick={() => deleteItem.mutate({ itemId: item.id })}
+                  aria-label={ui.tasks.checklistDelete}
+                  title={ui.tasks.checklistDelete}
+                  className="rounded p-0.5 text-muted-foreground opacity-0 transition-opacity group-hover/item:opacity-100 hover:text-foreground focus-visible:opacity-100"
+                >
+                  <X className="size-3.5" strokeWidth={1.75} />
+                </button>
+              ) : null}
+            </div>
+          );
+        })}
         {canEdit ? (
           <InlineAddRow
             label={ui.tasks.checklistAdd}

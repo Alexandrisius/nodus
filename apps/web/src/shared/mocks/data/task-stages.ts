@@ -2,57 +2,62 @@ import type { TaskStage } from '@nodus/contracts';
 
 const sid = (n: number): string => `20000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 
-/** Стадии статус-схемы по умолчанию (I15: в бою — справочник, не enum). */
+/** Стадии статус-схемы по умолчанию (I15: в бою — справочник, не enum).
+ *  Зеркало каталога API `DEFAULT_TASK_WORKFLOW`
+ *  (`apps/api/src/modules/tasks/catalog/system-catalog.ts`): имена, цвета,
+ *  systemState и порядок — 1:1 (мок ≠ контракту = баг, patterns.md).
+ *  «Ждёт контроля» — done (сдана, ждёт приёмки), «Завершена»/«Отменена» —
+ *  closed. Порядок order — порядок записей каталога. */
 export const stageNew: TaskStage = {
   id: sid(1),
-  name: 'Новые',
+  name: 'Новая',
   order: 0,
   systemState: 'backlog',
   color: 'neutral',
 };
-export const stagePlanned: TaskStage = {
-  id: sid(2),
-  name: 'Запланировано',
-  order: 1,
-  systemState: 'backlog',
-  color: 'info',
-};
 export const stageInProgress: TaskStage = {
   id: sid(3),
   name: 'В работе',
-  order: 2,
+  order: 1,
   systemState: 'active',
   color: 'success',
 };
 export const stageOnControl: TaskStage = {
   id: sid(4),
   name: 'Ждёт контроля',
-  order: 3,
-  systemState: 'active',
+  order: 2,
+  systemState: 'done',
   color: 'warning',
 };
 export const stageDone: TaskStage = {
   id: sid(5),
   name: 'Завершена',
-  order: 4,
-  systemState: 'done',
-  color: 'neutral',
+  order: 3,
+  systemState: 'closed',
+  color: 'info',
 };
 export const stagePostponed: TaskStage = {
   id: sid(6),
   name: 'Отложена',
-  order: 5,
+  order: 4,
   systemState: 'paused',
+  color: 'neutral',
+};
+export const stageCancelled: TaskStage = {
+  id: sid(7),
+  name: 'Отменена',
+  order: 5,
+  systemState: 'closed',
   color: 'danger',
 };
 
 export const demoStages: TaskStage[] = [
   stageNew,
-  stagePlanned,
   stageInProgress,
   stageOnControl,
   stageDone,
   stagePostponed,
+  stageCancelled,
 ];
 
 /** Системный тип задачи (ADR-0020: ступень 1 — единственный «Задача»). */

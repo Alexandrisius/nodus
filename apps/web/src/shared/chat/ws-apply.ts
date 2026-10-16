@@ -13,7 +13,7 @@ import type {
 } from '@nodus/contracts';
 
 import { useAuthStore } from '../auth-store.js';
-import { chatKeys } from './api.js';
+import { chatKeys } from './chat-keys.js';
 
 /**
  * Локальное применение chat.message_sent в кэш (раунд 3 «буря рефечей» +

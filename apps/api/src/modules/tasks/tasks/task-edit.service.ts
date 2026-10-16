@@ -7,7 +7,6 @@ import {
   type TaskUpdateBody,
 } from '@nodus/contracts';
 
-import type { Prisma } from '../../../generated/prisma/client.js';
 import {
   TransactionRunner,
   type TransactionClient,
@@ -15,11 +14,14 @@ import {
 import { DomainException } from '../../../core/errors/domain-exception.js';
 import { EventBus } from '../../../core/events/event-bus.js';
 import { actorRoles, audienceIds, planHolderIds, taskAccess } from '../access/task-access.js';
+import { ParticipantsRepository } from '../participants/participants.repository.js';
 import { Placements } from '../personal/placements.js';
+import { PlacementsRepository } from '../personal/placements.repository.js';
 import { TransitionsService } from '../workflow/transitions.service.js';
+import { WorkflowRepository } from '../workflow/workflow.repository.js';
 import type { TaskListRow } from './task-row.js';
 import { TasksQueryService } from './tasks-query.service.js';
-import { TasksRepository } from './tasks.repository.js';
+import { TasksRepository, type TaskFieldsPatch } from './tasks.repository.js';
 import { TasksService } from './tasks.service.js';
 
 const FIELD_KEYS = [
@@ -48,6 +50,9 @@ export class TaskEditService {
     private readonly tasks: TasksService,
     private readonly transitions: TransitionsService,
     private readonly placements: Placements,
+    private readonly placementsRepo: PlacementsRepository,
+    private readonly participantsRepo: ParticipantsRepository,
+    private readonly workflows: WorkflowRepository,
   ) {}
 
   async update(user: AuthUser, id: string, body: TaskUpdateBody): Promise<TaskListItem> {
@@ -97,11 +102,8 @@ export class TaskEditService {
     if (reparent) {
       // Права на прежнего родителя проверены по снимку до транзакции —
       // параллельная перепривязка их обесценивает: конфликт, а не обход.
-      const fresh = await tx.task.findUniqueOrThrow({
-        where: { id: row.id },
-        select: { parentId: true },
-      });
-      if (fresh.parentId !== row.parentId) {
+      const freshParentId = await this.repo.parentIdOf(tx, row.id);
+      if (freshParentId !== row.parentId) {
         throw DomainException.conflict('Task parent changed concurrently');
       }
     }
@@ -110,7 +112,7 @@ export class TaskEditService {
         throw new DomainException(ErrorCode.TASK_PARENT_CYCLE, 'Parent is a descendant');
       }
     }
-    const data: Prisma.TaskUncheckedUpdateInput = {};
+    const data: TaskFieldsPatch = {};
     if (body.title !== undefined) data.title = body.title;
     if (body.description !== undefined) data.description = body.description;
     if (body.priority !== undefined) data.priority = body.priority;
@@ -121,17 +123,15 @@ export class TaskEditService {
       data.deadline = body.deadline ? new Date(body.deadline) : null;
       data.overdueNotifiedAt = null; // новый срок — новое однократное уведомление
     }
-    const reassigned = body.assigneeId !== undefined && body.assigneeId !== row.assigneeId;
-    if (reassigned) {
-      data.assigneeId = body.assigneeId;
+    const newAssigneeId = body.assigneeId !== row.assigneeId ? body.assigneeId : undefined;
+    const reassigned = newAssigneeId !== undefined;
+    if (newAssigneeId !== undefined) {
+      data.assigneeId = newAssigneeId;
       // Новый ответственный перестаёт быть соисполнителем/наблюдателем.
-      await tx.taskParticipant.deleteMany({ where: { taskId: row.id, userId: body.assigneeId } });
+      await this.participantsRepo.remove(tx, row.id, newAssigneeId);
     }
-    await tx.task.update({ where: { id: row.id }, data });
-    const after = await tx.task.findUniqueOrThrow({
-      where: { id: row.id },
-      include: { participants: true },
-    });
+    await this.repo.updateFields(tx, row.id, data);
+    const after = await this.repo.findWithParticipants(row.id, tx);
     const base = {
       taskId: row.id,
       number: row.number,
@@ -173,18 +173,15 @@ export class TaskEditService {
     index: number | undefined,
     canEdit: boolean,
   ): Promise<void> {
-    const current = await tx.task.findUniqueOrThrow({
-      where: { id: row.id },
-      select: { stageId: true },
-    });
-    if (current.stageId !== stageId) {
+    const currentStageId = await this.repo.stageIdOf(tx, row.id);
+    if (currentStageId !== stageId) {
       await this.transitions.execute(tx, row.id, user, { stageId });
     } else if (!canEdit) {
       throw DomainException.forbidden('Reorder not allowed');
     }
     if (index !== undefined) {
       const stageOrder = await this.repo.stageKeyAt(tx, stageId, index, row.id);
-      await tx.task.update({ where: { id: row.id }, data: { stageOrder } });
+      await this.repo.setStageOrder(tx, row.id, stageOrder);
     }
   }
 
@@ -197,26 +194,16 @@ export class TaskEditService {
     stageId: string,
     index: number | undefined,
   ): Promise<void> {
-    const column = await tx.workflowStage.findFirst({
-      where: { id: stageId, archivedAt: null, workflow: { kind: 'personal', ownerId: user.id } },
-    });
+    const column = await this.workflows.findPersonalColumn(user.id, stageId, tx);
     if (!column) throw DomainException.notFound('Stage not found');
-    const placement = await tx.taskPersonalPlacement.findUnique({
-      where: { taskId_userId: { taskId: row.id, userId: user.id } },
-    });
+    const placement = await this.placementsRepo.findOne(tx, row.id, user.id);
     if (!placement) throw DomainException.notFound('Task is not in your plan');
-    const task = await tx.task.findUniqueOrThrow({
-      where: { id: row.id },
-      select: { systemState: true },
-    });
-    if (task.systemState !== column.systemState) {
+    const systemState = await this.repo.systemStateOf(tx, row.id);
+    if (systemState !== column.systemState) {
       await this.transitions.execute(tx, row.id, user, { systemState: column.systemState });
     }
-    const sortOrder = await this.repo.personalKeyAt(tx, user.id, stageId, index ?? 0, row.id);
-    await tx.taskPersonalPlacement.update({
-      where: { taskId_userId: { taskId: row.id, userId: user.id } },
-      data: { stageId, sortOrder },
-    });
+    const sortOrder = await this.placementsRepo.keyAt(tx, user.id, stageId, index ?? 0, row.id);
+    await this.placementsRepo.move(tx, { taskId: row.id, userId: user.id, stageId, sortOrder });
     await this.eventBus.emit(
       tx,
       TASK_EVENTS.PERSONAL_STAGE_CHANGED,

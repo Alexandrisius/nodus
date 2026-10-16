@@ -15,13 +15,17 @@ import { EventBus } from '../../../core/events/event-bus.js';
 import { actorRoles, audienceIds, planHolderIds, taskAccess } from '../access/task-access.js';
 import { Placements } from '../personal/placements.js';
 import { TasksQueryService } from '../tasks/tasks-query.service.js';
+import { TasksRepository } from '../tasks/tasks.repository.js';
 import { TasksService } from '../tasks/tasks.service.js';
+import { ParticipantsRepository } from './participants.repository.js';
 
 /**
  * Соисполнители и наблюдатели (мини-спека #37): менять — постановщик,
  * ответственный, task.manage_any; наблюдатель снимает себя сам. Новый
  * наблюдатель — без звука. Состав чата задачи синхронизирует модуль chat по
- * событию task.participants_changed (#252).
+ * событию task.participants_changed (#252). Ответственный участником не
+ * бывает; постановщик — только соисполнителем (так он может писать время,
+ * как при создании задачи), наблюдателем — нет: он и так видит задачу.
  */
 @Injectable()
 export class ParticipantsService {
@@ -31,6 +35,8 @@ export class ParticipantsService {
     private readonly placements: Placements,
     private readonly query: TasksQueryService,
     private readonly tasks: TasksService,
+    private readonly tasksRepo: TasksRepository,
+    private readonly repo: ParticipantsRepository,
   ) {}
 
   async add(user: AuthUser, taskId: string, body: TaskParticipantAddBody): Promise<TaskDetail> {
@@ -41,14 +47,13 @@ export class ParticipantsService {
     if (body.userId === row.assigneeId) {
       throw DomainException.conflict('Assignee is already on the task');
     }
+    if (body.userId === row.creatorId && body.role === 'observer') {
+      throw DomainException.conflict('Creator is already on the task');
+    }
     await this.tasks.assertActiveUsers([body.userId]);
     await this.placements.prepare([body.userId]);
     await this.txRunner.run(async (tx) => {
-      await tx.taskParticipant.upsert({
-        where: { taskId_userId: { taskId, userId: body.userId } },
-        update: { role: body.role },
-        create: { taskId, userId: body.userId, role: body.role, muted: body.role === 'observer' },
-      });
+      await this.repo.assignRole(tx, taskId, body.userId, body.role);
       await this.afterChange(tx, user.id, taskId, [{ userId: body.userId, role: body.role }], []);
     });
     return this.query.detail(user, taskId);
@@ -64,13 +69,18 @@ export class ParticipantsService {
       throw DomainException.forbidden('Participants change not allowed');
     }
     await this.txRunner.run(async (tx) => {
-      const { count } = await tx.taskParticipant.deleteMany({
-        where: { taskId, userId, ...(selfObserver ? { role: 'observer' } : {}) },
-      });
+      const count = await this.repo.remove(
+        tx,
+        taskId,
+        userId,
+        selfObserver ? 'observer' : undefined,
+      );
       if (count === 0 && selfObserver) {
         throw DomainException.forbidden('Only observer can leave the task');
       }
-      if (count > 0) await this.afterChange(tx, user.id, taskId, [], [userId]);
+      // Как у чек-листа и связей: снимать некого — 404, а не тихий успех.
+      if (count === 0) throw DomainException.notFound('Participant not found');
+      await this.afterChange(tx, user.id, taskId, [], [userId]);
     });
     // Снявший себя наблюдатель может потерять видимость — тогда ответ пустой.
     return this.query.detail(user, taskId).catch(() => null);
@@ -83,12 +93,9 @@ export class ParticipantsService {
     added: { userId: string; role: string }[],
     removed: string[],
   ): Promise<void> {
-    const task = await tx.task.findUniqueOrThrow({
-      where: { id: taskId },
-      include: { participants: true },
-    });
+    const task = await this.tasksRepo.findWithParticipants(taskId, tx);
     await this.placements.sync(tx, task, planHolderIds(task), actorId);
-    await tx.task.update({ where: { id: taskId }, data: { updatedAt: new Date() } });
+    await this.tasksRepo.touch(tx, taskId);
     await this.eventBus.emit(
       tx,
       TASK_EVENTS.PARTICIPANTS_CHANGED,

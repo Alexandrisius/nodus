@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 
-import { chatKeys } from './api.js';
+import { chatKeys } from './chat-keys.js';
 import { applyReadToCache } from './use-viewport-read.js';
 import { useUnreadTitle } from './unread-title.js';
 

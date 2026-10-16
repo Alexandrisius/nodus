@@ -13,20 +13,22 @@ import type {
   TaskType,
 } from '@nodus/contracts';
 
-import type { Prisma } from '../../../generated/prisma/client.js';
-import { PrismaService } from '../../../core/database/prisma.service.js';
 import { DomainException } from '../../../core/errors/domain-exception.js';
 import { decodeCursor, encodeCursor } from '../../../core/pagination/cursor.util.js';
 import { actorRoles, taskAccess } from '../access/task-access.js';
 import { ViewerResolver, visibleTasksWhere, type Viewer } from '../access/task-visibility.js';
 import { WorkflowRepository } from '../workflow/workflow.repository.js';
 import { selfChainNode, stageDto, TaskDtoMapper } from './task-dto.mapper.js';
-import { TasksRepository, type TaskOrder } from './tasks.repository.js';
+import { TasksQueryRepository, type TaskOrder } from './tasks-query.repository.js';
+import { TasksRepository } from './tasks.repository.js';
 import { DEFAULT_TASK_WORKFLOW_CODE } from '../catalog/system-catalog.js';
 import { CHAT_MESSAGE_ACCESS, type ChatMessageAccess } from '../../chat/message-access.port.js';
+import { ResultsRepository } from '../activity/results.repository.js';
 
 const keyCursor = z.object({ o: z.string(), id: z.uuid() });
 const numberCursor = z.object({ n: z.number().int() });
+/** Потолок подзадач в карточке (ранние — первыми, порядок номеров). */
+const SUBTASKS_LIMIT = 200;
 
 /**
  * Чтения задач (CQRS-лайт): списки-фиды обеих осей, деталь, ветка, каталоги
@@ -35,8 +37,9 @@ const numberCursor = z.object({ n: z.number().int() });
 @Injectable()
 export class TasksQueryService {
   constructor(
-    private readonly prisma: PrismaService,
     private readonly repo: TasksRepository,
+    private readonly reads: TasksQueryRepository,
+    private readonly results: ResultsRepository,
     private readonly workflows: WorkflowRepository,
     private readonly viewers: ViewerResolver,
     private readonly mapper: TaskDtoMapper,
@@ -60,35 +63,14 @@ export class TasksQueryService {
 
   async list(user: AuthUser, q: ListTasksQuery): Promise<Paginated<TaskListItem>> {
     const viewer = await this.viewer(user);
-    const and: Prisma.TaskWhereInput[] = [visibleTasksWhere(viewer, q.scope)];
     const me = user.id;
-    if (q.role === 'assignee') and.push({ assigneeId: me });
-    if (q.role === 'creator') and.push({ creatorId: me });
-    if (q.role === 'coexecutor' || q.role === 'observer') {
-      and.push({ participants: { some: { userId: me, role: q.role } } });
-    }
-    if (q.stageId) and.push({ stageId: q.stageId });
-    if (q.projectId) and.push({ projectId: q.projectId });
-    if (q.assigneeId) and.push({ assigneeId: q.assigneeId });
-    if (q.parentId) and.push({ parentId: q.parentId });
-    if (q.typeId) and.push({ typeId: q.typeId });
-    if (q.overdue) {
-      and.push({
-        deadline: { lt: new Date() },
-        systemState: { in: ['backlog', 'active', 'paused'] },
-      });
-    }
-    if (q.search) {
-      const n = Number(q.search.replace(/^ПП-/i, ''));
-      and.push({
-        OR: [
-          { title: { contains: q.search, mode: 'insensitive' } },
-          ...(Number.isSafeInteger(n) && n > 0 ? [{ number: n }] : []),
-        ],
-      });
-    }
     const order = this.order(q, me);
-    const { rows, sortKeys } = await this.repo.list({ AND: and }, order, q.limit, me);
+    const { rows, sortKeys } = await this.reads.list(
+      { AND: [visibleTasksWhere(viewer, q.scope), ...this.reads.feedFilters(q, me, new Date())] },
+      order,
+      q.limit,
+      me,
+    );
     const page = rows.slice(0, q.limit);
     const last = page[page.length - 1];
     let nextCursor: string | null = null;
@@ -116,21 +98,13 @@ export class TasksQueryService {
     const row = await this.visibleRow(user, id);
     const viewer = await this.viewer(user);
     const [full, children, result] = await Promise.all([
-      this.prisma.task.findUniqueOrThrow({
-        where: { id },
-        include: { checklist: { orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] } },
-      }),
-      this.repo.list(
-        { AND: [{ parentId: id }, visibleTasksWhere(viewer, 'all')] },
-        { kind: 'number' },
-        200,
-        user.id,
-      ),
-      this.prisma.taskResult.findFirst({ where: { taskId: id }, orderBy: { createdAt: 'desc' } }),
+      this.reads.findDetail(id),
+      this.reads.listSubtasks(id, visibleTasksWhere(viewer, 'all'), SUBTASKS_LIMIT, user.id),
+      this.results.findCurrent(id),
     ]);
     const observerIds = row.participants.filter((p) => p.role === 'observer').map((p) => p.userId);
     const refs = await this.mapper.refs([
-      ...this.mapper.userIdsOf([row, ...children.rows]),
+      ...this.mapper.userIdsOf([row, ...children]),
       ...observerIds,
       ...(result ? [result.authorId] : []),
     ]);
@@ -147,9 +121,7 @@ export class TasksQueryService {
       description: full.description,
       observers: observerIds.map((uid) => this.mapper.ref(refs, uid)),
       checklist: full.checklist.map((c) => ({ id: c.id, text: c.text, done: c.done })),
-      subtasks: children.rows
-        .sort((a, b) => a.number - b.number)
-        .map((c) => this.mapper.toListItem(c, refs)),
+      subtasks: children.map((c) => this.mapper.toListItem(c, refs)),
       chain: [...origin, selfChainNode({ ...row, stageName: row.stage.name })],
       plannedMinutes: full.plannedMinutes,
       acceptRequired: full.acceptRequired,
@@ -190,31 +162,16 @@ export class TasksQueryService {
     const viewer = await this.viewer(user);
     let rootId = id;
     for (let guard = 0; guard < 50; guard++) {
-      const node = await this.prisma.task.findUnique({
-        where: { id: rootId },
-        select: { parentId: true },
-      });
-      if (!node?.parentId) break;
-      rootId = node.parentId;
+      const parentId = await this.reads.parentIdOf(rootId);
+      if (!parentId) break;
+      rootId = parentId;
     }
-    const nodes = await this.prisma.$queryRaw<{ id: string }[]>`
-      WITH RECURSIVE tree AS (
-        SELECT id FROM tasks WHERE id = ${rootId}::uuid
-        UNION SELECT t.id FROM tasks t JOIN tree ON t.parent_id = tree.id WHERE t.deleted_at IS NULL
-      ) SELECT id FROM tree`;
-    const ids = nodes.map((n) => n.id);
+    const ids = await this.reads.subtreeIds(rootId);
     const [rows, visible] = await Promise.all([
-      this.prisma.task.findMany({
-        where: { id: { in: ids } },
-        include: { stage: true },
-        orderBy: { number: 'asc' },
-      }),
-      this.prisma.task.findMany({
-        where: { AND: [{ id: { in: ids } }, visibleTasksWhere(viewer, 'all')] },
-        select: { id: true },
-      }),
+      this.reads.branchRows(ids),
+      this.reads.visibleIdsAmong(ids, visibleTasksWhere(viewer, 'all')),
     ]);
-    const seen = new Set(visible.map((v) => v.id));
+    const seen = new Set(visible);
     const build = (nodeId: string): TaskBranchNode => {
       const r = rows.find((x) => x.id === nodeId)!;
       return {
@@ -233,14 +190,8 @@ export class TasksQueryService {
   /** Каталог стадий маршрута по умолчанию со счётчиками (scope как у фида). */
   async stages(user: AuthUser, scope: 'mine' | 'all'): Promise<TaskStageWithCount[]> {
     const viewer = await this.viewer(user);
-    const workflow = await this.prisma.workflow.findUniqueOrThrow({
-      where: { code: DEFAULT_TASK_WORKFLOW_CODE },
-    });
-    const stages = await this.prisma.workflowStage.findMany({
-      where: { workflowId: workflow.id, archivedAt: null },
-      orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
-    });
-    const counts = await this.repo.stageCounts(visibleTasksWhere(viewer, scope), new Date());
+    const stages = await this.workflows.liveStagesByCode(DEFAULT_TASK_WORKFLOW_CODE);
+    const counts = await this.reads.stageCounts(visibleTasksWhere(viewer, scope), new Date());
     return stages.map((s) => ({
       ...stageDto(s),
       count: counts.all.find((c) => c.stageId === s.id)?._count._all ?? 0,

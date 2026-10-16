@@ -5,6 +5,7 @@ import { attachmentPreviewKind, ErrorCode, type MessageAttachment } from '@nodus
 import { PinoLogger } from 'nestjs-pino';
 
 import { SignedUrlService } from '../../../core/crypto/signed-url.service.js';
+import { TransactionRunner } from '../../../core/database/transaction-runner.js';
 import { DomainException } from '../../../core/errors/domain-exception.js';
 import { FILE_STORAGE, type FileStorage } from '../../../core/ports/file-storage.port.js';
 import {
@@ -43,6 +44,7 @@ export class AttachmentsService {
     private readonly thumbnailQueue: ThumbnailQueue,
     private readonly thumbnails: ThumbnailService,
     private readonly logger: PinoLogger,
+    private readonly txRunner: TransactionRunner,
   ) {
     this.logger.setContext(AttachmentsService.name);
   }
@@ -64,14 +66,9 @@ export class AttachmentsService {
       );
     }
     await this.gcStaleUploads(ownerId);
-    const pending = await this.repository.countUnclaimed(ownerId);
-    if (pending >= MAX_PENDING_ATTACHMENTS) {
-      throw new DomainException(
-        ErrorCode.CHAT_ATTACHMENT_TOO_MANY,
-        'Too many unclaimed attachments',
-        { max: MAX_PENDING_ATTACHMENTS },
-      );
-    }
+    // Fast-fail до IO: заведомо полный трей не качаем в хранилище.
+    // Авторитетная проверка — ниже, под локом в транзакции вставки.
+    this.assertPendingBelowLimit(await this.repository.countUnclaimed(ownerId));
 
     const { fileId } = await this.storage.save(
       { ownerId, name: input.name, mime: input.mime, size: input.size },
@@ -79,17 +76,36 @@ export class AttachmentsService {
     );
     // Вид — явный (контракт): галерея для изображений, чип для остального.
     const kind = input.mime.startsWith('image/') ? 'image' : 'file';
-    let row: AttachmentRow = await this.repository.insertAttachment({
-      id: randomUUID(),
-      fileId,
-      ownerId,
-      name: input.name,
-      size: input.size,
-      mime: input.mime,
-      kind,
-      width: input.width ?? null,
-      height: input.height ?? null,
-    });
+    let row: AttachmentRow;
+    try {
+      // Лимит атомарно (аудит #317): лок владельца → перечёт → INSERT в одной
+      // tx — параллельные загрузки на границе лимита сериализуются. Поток
+      // файла в транзакцию не входит (долгий IO не держит соединение пула).
+      row = await this.txRunner.run(async (tx) => {
+        await this.repository.lockPendingLimit(ownerId, tx);
+        this.assertPendingBelowLimit(await this.repository.countUnclaimed(ownerId, tx));
+        return this.repository.insertAttachment(
+          {
+            id: randomUUID(),
+            fileId,
+            ownerId,
+            name: input.name,
+            size: input.size,
+            mime: input.mime,
+            kind,
+            width: input.width ?? null,
+            height: input.height ?? null,
+          },
+          tx,
+        );
+      });
+    } catch (error) {
+      // Строка не появилась — объект хранилища сирота: компенсируем сразу.
+      await this.storage.remove([fileId]).catch((err: unknown) => {
+        this.logger.warn({ err, fileId }, 'Не удалось убрать файл отклонённой загрузки');
+      });
+      throw error;
+    }
     if (kind === 'image') {
       if (input.size <= SYNC_PREVIEW_BYTES) {
         // Синхронное превью (#221): миниатюра рождается В ответе загрузки —
@@ -155,6 +171,17 @@ export class AttachmentsService {
       width: row.width,
       height: row.height,
     };
+  }
+
+  /** Лимит неотправленных (≤20, вердикт владельца 24.09). */
+  private assertPendingBelowLimit(pending: number): void {
+    if (pending >= MAX_PENDING_ATTACHMENTS) {
+      throw new DomainException(
+        ErrorCode.CHAT_ATTACHMENT_TOO_MANY,
+        'Too many unclaimed attachments',
+        { max: MAX_PENDING_ATTACHMENTS },
+      );
+    }
   }
 
   /** Гигиена брошенных загрузок: не валит новую загрузку при сбое. */

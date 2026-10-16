@@ -11,7 +11,7 @@ import {
 
 import { TransactionRunner } from '../../../core/database/transaction-runner.js';
 import { EventBus } from '../../../core/events/event-bus.js';
-import { PrismaService } from '../../../core/database/prisma.service.js';
+import { AttachmentsRepository } from '../messages/attachments.repository.js';
 
 /**
  * Подписка chat на `file.version_created` (мост files → клиенты, #182):
@@ -27,7 +27,7 @@ export class FileVersionHandler implements DomainEventHandler<FileVersionCreated
   static readonly eventType = FILE_EVENTS.VERSION_CREATED;
 
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly attachments: AttachmentsRepository,
     private readonly txRunner: TransactionRunner,
     private readonly eventBus: EventBus,
     private readonly logger: PinoLogger,
@@ -41,13 +41,7 @@ export class FileVersionHandler implements DomainEventHandler<FileVersionCreated
 
     // Только отправленные вложения (messageId ≠ null): «трей» композера
     // аудитории не имеет; distinct по беседам — файл может лежать в нескольких.
-    const rows = await this.prisma.messageAttachment.findMany({
-      where: { fileId, messageId: { not: null } },
-      select: { message: { select: { conversationId: true } } },
-    });
-    const conversationIds = [
-      ...new Set(rows.map((row) => row.message?.conversationId).filter((id): id is string => !!id)),
-    ];
+    const conversationIds = await this.attachments.findConversationIdsWithFile(fileId);
     if (conversationIds.length === 0) return;
 
     await this.txRunner.run(async (tx) => {

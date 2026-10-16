@@ -1,8 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Server } from 'socket.io';
-import type { RealtimeEnvelope } from '@nodus/contracts';
+import type { Redis } from 'ioredis';
+import { DOMAIN_EVENTS_STREAM, type RealtimeEnvelope } from '@nodus/contracts';
 
-import { routeEnvelope } from './fanout.js';
+import { ChatEventsConsumer } from './fanout.js';
+
+import { routeEnvelope, USER_DEACTIVATED_EVENT } from './route-envelope.js';
 import type { MembershipStore } from './membership.js';
 
 const CONV = '00000000-0000-4000-8000-0000000000c1';
@@ -180,5 +183,86 @@ describe('routeEnvelope', () => {
     const store: MembershipStore = { isMember: vi.fn(), memberIds: vi.fn(), userRef: vi.fn() };
     await routeEnvelope(io, store, envelope('file.preview_ready', { fileId: 'f1' }));
     expect(calls).toHaveLength(0);
+  });
+
+  it('directory.user.deactivated: все сокеты пользователя отключаются (с закрытием транспорта)', async () => {
+    const { io, calls } = fakeIo();
+    const disconnectSockets = vi.fn();
+    const inRoom = vi.fn(() => ({ disconnectSockets }));
+    (io as unknown as { in: typeof inRoom }).in = inRoom;
+    const store: MembershipStore = { isMember: vi.fn(), memberIds: vi.fn(), userRef: vi.fn() };
+
+    await routeEnvelope(io, store, envelope(USER_DEACTIVATED_EVENT, { userId: USER_B }));
+
+    expect(inRoom).toHaveBeenCalledWith(`user:${USER_B}`);
+    expect(disconnectSockets).toHaveBeenCalledWith(true);
+    expect(calls).toHaveLength(0); // событие клиентам не ретранслируется
+  });
+
+  it('directory.user.deactivated без userId — ничего не отключаем', async () => {
+    const { io } = fakeIo();
+    const inRoom = vi.fn();
+    (io as unknown as { in: typeof inRoom }).in = inRoom;
+    const store: MembershipStore = { isMember: vi.fn(), memberIds: vi.fn(), userRef: vi.fn() };
+
+    await routeEnvelope(io, store, envelope(USER_DEACTIVATED_EVENT, {}));
+
+    expect(inRoom).not.toHaveBeenCalled();
+  });
+});
+
+describe('ChatEventsConsumer.runMaintenance', () => {
+  function fakeRedis(overrides: Partial<Record<'xautoclaim' | 'xinfo' | 'xgroup', unknown>>) {
+    return {
+      xautoclaim: vi.fn(async () => ['0-0', [], []]),
+      xinfo: vi.fn(async () => []),
+      xgroup: vi.fn(async () => 0),
+      xack: vi.fn(async () => 1),
+      ...overrides,
+    };
+  }
+
+  it('брошенная pending-запись перехватывается, маршрутизируется и ACK-ается', async () => {
+    const { io, calls } = fakeIo();
+    const store: MembershipStore = {
+      isMember: vi.fn(),
+      memberIds: vi.fn(async () => [USER_A]),
+      userRef: vi.fn(),
+    };
+    const raw = JSON.stringify(envelope('chat.message_sent', { conversationId: CONV }));
+    const redis = fakeRedis({
+      xautoclaim: vi.fn(async () => ['0-0', [['1-0', ['envelope', raw]]], []]),
+    });
+    const consumer = new ChatEventsConsumer(redis as unknown as Redis, io, store, { group: 'g' });
+
+    await consumer.runMaintenance();
+
+    expect(redis.xautoclaim).toHaveBeenCalledWith(
+      DOMAIN_EVENTS_STREAM,
+      'g',
+      `gateway-${process.pid}`,
+      60_000,
+      '0-0',
+      'COUNT',
+      100,
+    );
+    expect(calls.map((c) => c.room)).toEqual([`conv:${CONV}`, `user:${USER_A}`]);
+    expect(redis.xack).toHaveBeenCalledWith(DOMAIN_EVENTS_STREAM, 'g', '1-0');
+  });
+
+  it('сбой обслуживания не пробрасывается (живое чтение не останавливается)', async () => {
+    const { io } = fakeIo();
+    const store: MembershipStore = { isMember: vi.fn(), memberIds: vi.fn(), userRef: vi.fn() };
+    const redis = fakeRedis({
+      xautoclaim: vi.fn(async () => {
+        throw new Error('NOGROUP');
+      }),
+    });
+    const consumer = new ChatEventsConsumer(redis as unknown as Redis, io, store, { group: 'g' });
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    await expect(consumer.runMaintenance()).resolves.toBeUndefined();
+    expect(errorSpy).toHaveBeenCalled();
+    errorSpy.mockRestore();
   });
 });

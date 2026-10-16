@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, Fragment } from 'react';
+import { memo, useEffect, useMemo, useRef, Fragment } from 'react';
 import { ui } from '@nodus/contracts';
 import {
   MessageScroller,
@@ -12,19 +12,14 @@ import { Empty, EmptyTitle } from '@nodus/ui/components/empty';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { useAuthStore } from '../auth-store.js';
-import { useConversationMessages, useSendChatMessage } from './api.js';
+import { useConversationMessages } from './chat-queries.js';
 import { ChatComposer } from './chat-composer.js';
-import type { ComposerSubmit } from './composer-submit.js';
 import { useChatPrefs } from './chat-prefs.js';
 import { acquireOpenConversation } from './notifications.js';
 import { ConversationViewsLine } from './views-line.js';
 import { addFiles } from './composer-files.js';
-import { toSendVars } from './composer-submit.js';
-import { registerScopeSubmit } from './submit-registry.js';
-import { startMessageEdit, toEditVars } from './message-edit.js';
 import { FeedDropzone } from './feed-dropzone.js';
 import { FeedScrollerButton } from './feed-scroller-button.js';
-import { useEditMessage } from './message-mutations.js';
 import { buildMessageRuns, formatDayLabel, startsNewDay } from './message-groups.js';
 import { DayChip } from './day-chip.js';
 import { MessageRunView } from './message-run.js';
@@ -37,8 +32,9 @@ import { useJumpResponder } from './use-jump-responder.js';
 import { useFeedViewportRead } from './use-viewport-read.js';
 import { selectionComposerProps, useFeedSelection } from './use-feed-selection.js';
 import { useBoxSelection } from './use-box-selection.js';
-import { useConversations, useThreadStates } from './api.js';
+import { useConversations, useThreadStates } from './chat-queries.js';
 import { canPostFeed } from './conversations.js';
+import { useFeedSubmit } from './use-feed-submit.js';
 
 /**
  * Лента канала (вердикт владельца 2026-09-10): каждое сообщение канала —
@@ -81,8 +77,6 @@ export const ThreadFeed = memo(function ThreadFeed({
   // Состояния трэдов текущего пользователя (раунд 3): точка «есть новые» на
   // счётчике ответов поста — только наблюдателям трэда.
   const { data: threadStates } = useThreadStates(conversationId);
-  const send = useSendChatMessage(conversationId, scope);
-  const edit = useEditMessage(conversationId, scope);
   const me = useAuthStore((s) => s.user);
   // «По обе стороны» (#151): свои посты каналов прижимаются вправо, как
   // пузыри чата; посты-карточки уважают ту же настройку, что и сообщения.
@@ -151,46 +145,14 @@ export const ThreadFeed = memo(function ThreadFeed({
     return roots.find((m) => m.seq > myLastReadSeq && !m.deletedAt)?.id ?? null;
   }, [roots, myLastReadSeq, conversation?.unreadCount]);
 
-  const lastMine = useCallback(
-    () =>
-      [...roots].reverse().find((m) => m.author.id === me?.id && !m.deletedAt && !m.forwardedFrom),
-    [roots, me?.id],
-  );
-
-  function handleSubmit(submit: ComposerSubmit) {
-    if (submit.edit) {
-      const vars = toEditVars(submit);
-      if (vars) edit.mutate(vars);
-      return;
-    }
-    send.mutate(toSendVars(submit));
-  }
-
-  // Окно отправки вложений (#144): глобальный диалог шлёт через хук хоста —
-  // оптимистичность/reply/идемпотентность в одном месте; send/edit — новый
-  // объект каждый рендер, реестру нужны стабильные колбэки: ref; правка окна
-  // (#188) маршрутизируется сюда же (editComposition).
-  const sendRef = useRef(send);
-  sendRef.current = send;
-  const editRef = useRef(edit);
-  editRef.current = edit;
-  useEffect(
-    () =>
-      registerScopeSubmit(scope, (submit) => {
-        if (submit.edit) {
-          const vars = toEditVars(submit);
-          return vars ? editRef.current.mutateAsync(vars) : Promise.resolve();
-        }
-        return sendRef.current.mutateAsync(toSendVars(submit));
-      }),
-    [scope],
-  );
-
-  function handleEditLast() {
-    const message = lastMine();
-    if (!message) return;
-    startMessageEdit(scope, message);
-  }
+  // Протокол хоста ленты: отправка/правка, submit окна вложений, ↑-правка
+  // последнего своего поста — use-feed-submit.ts.
+  const { handleSubmit, handleEditLast } = useFeedSubmit({
+    conversationId,
+    scope,
+    items: roots,
+    meId: me?.id,
+  });
 
   return (
     <div className="flex h-full min-w-0 flex-1 flex-col">

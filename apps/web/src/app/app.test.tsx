@@ -83,6 +83,72 @@ describe('auth-store', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it('tryRefresh: обрыв сети и 5xx НЕ делают анонимом (не выкидывает на /login); 401 — делает', async () => {
+    useAuthStore.setState({ status: 'authenticated', accessToken: 't', user: USER });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Promise.reject(new TypeError('Failed to fetch'))),
+    );
+    await expect(useAuthStore.getState().tryRefresh()).resolves.toBe(false);
+    expect(useAuthStore.getState().status).toBe('authenticated');
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse(503, { code: 'INTERNAL_ERROR' })),
+    );
+    await expect(useAuthStore.getState().tryRefresh()).resolves.toBe(false);
+    expect(useAuthStore.getState().status).toBe('authenticated');
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse(401, { code: 'AUTH_SESSION_INVALID', message: 'x' })),
+    );
+    await expect(useAuthStore.getState().tryRefresh()).resolves.toBe(false);
+    expect(useAuthStore.getState().status).toBe('anonymous');
+  });
+
+  it('bootstrap: сервер недоступен на старте → статус остаётся unknown (повтор на следующем заходе)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Promise.reject(new TypeError('Failed to fetch'))),
+    );
+    await useAuthStore.getState().bootstrap();
+    expect(useAuthStore.getState().status).toBe('unknown');
+  });
+
+  it('bootstrap: параллельные вызовы (гарды) — один /auth/refresh и один /auth/me', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith('/auth/refresh')) return jsonResponse(200, TOKENS);
+      return jsonResponse(200, USER);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await Promise.all([useAuthStore.getState().bootstrap(), useAuthStore.getState().bootstrap()]);
+
+    expect(useAuthStore.getState().status).toBe('authenticated');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('login: упавший /auth/me не оставляет токен в сторе (вход атомарен)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (url.endsWith('/auth/login')) return jsonResponse(200, TOKENS);
+        // /auth/me получает токен явным заголовком, не из стора.
+        const headers = init?.headers as Record<string, string> | undefined;
+        expect(headers?.authorization).toBe('Bearer access-jwt');
+        return jsonResponse(500, { code: 'INTERNAL_ERROR', message: 'x' });
+      }),
+    );
+
+    await expect(useAuthStore.getState().login('admin@nodus.by', 'secret')).rejects.toThrow();
+    const state = useAuthStore.getState();
+    expect(state.accessToken).toBeNull();
+    expect(state.status).toBe('unknown');
+  });
+
   it('logout: сбрасывает состояние даже при ошибке сети', async () => {
     useAuthStore.setState({ status: 'authenticated', accessToken: 't', user: USER });
     vi.stubGlobal(

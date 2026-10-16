@@ -22,7 +22,7 @@
 | Стили | Tailwind CSS 4 + shadcn/ui | Своя дизайн-система в `packages/ui`; темы — только дизайн-токенами |
 | Серверное состояние | TanStack Query | Оптимистичные мутации — штатный режим (I4) |
 | Клиентское состояние | Zustand | Локальное UI-состояние, черновики, presence |
-| Формы | react-hook-form + zod | zod-схемы общие с бэкендом через `@nodus/contracts` |
+| Формы | zod (+ react-hook-form с первой формой под серверную валидацию) | zod-схемы общие с бэкендом через `@nodus/contracts`; простые формы — контролируемые компоненты, RHF «про запас» не держим (patterns.md «Формы — честный канон») |
 | Роутинг | TanStack Router | Типобезопасный, code-splitting по модулям |
 | Моки API | MSW (Mock Service Worker) | Фронт разрабатывается на моках поверх контрактов (ADR-0001) |
 
@@ -66,7 +66,7 @@
 
 | Компонент | Выбор |
 |---|---|
-| Деплой | Docker Compose (одна команда), reverse proxy Caddy с автоматическим TLS |
+| Деплой | Docker Compose (одна команда); демо — nginx в контейнере web (`infra/nginx/web.conf`) за Cloudflare Tunnel; прод — reverse proxy Caddy с автоматическим TLS (к пилоту) |
 | Сервисы compose (полный профиль, прод/пилот) | `web, api, gateway, postgres, redis, minio, gotenberg, caddy, clamav, prometheus, grafana` |
 | Сервисы compose (dev/демо-профиль) | `web, api, gateway, postgres, redis, minio, gotenberg` **+ `cloudflared`** (туннель к `nodus.by`); `caddy`, `clamav`, `prometheus`, `grafana` подключаются к пилоту (ADR-0002) |
 | Среда разработки/демо | домашний сервер + Cloudflare Tunnel, домен `nodus.by` (см. ADR-0002) |

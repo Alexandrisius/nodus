@@ -9,7 +9,7 @@ vi.mock('../api-client.js', () => ({ api: apiMock, apiUpload: vi.fn() }));
 
 import { ChatComposer } from './chat-composer.js';
 import { useChatDrafts } from './chat-drafts.js';
-import { chatKeys } from './api.js';
+import { chatKeys } from './chat-keys.js';
 import { useComposerInputActions } from './composer-input-utils.js';
 
 /** Флуш черновика при ПЕРЕКЛЮЧЕНИИ бесед (дефект приёмки 25.09): ChatComposer

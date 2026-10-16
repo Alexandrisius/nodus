@@ -14,6 +14,7 @@ import {
 import type { ThumbnailService } from './thumbnail.service.js';
 
 const OWNER = '00000000-0000-0000-0000-000000000001';
+const TX = 'tx-handle';
 const THUMB_FILE_ID = '00000000-0000-0000-0000-00000000000e';
 
 function makeService(
@@ -35,6 +36,7 @@ function makeService(
   };
   const repo = {
     countUnclaimed: vi.fn(async () => 0),
+    lockPendingLimit: vi.fn(async () => undefined),
     findStaleUnclaimed: vi.fn(async () => []),
     deleteUnclaimedByIds: vi.fn(async () => undefined),
     insertAttachment: vi.fn(async (row: AttachmentRow): Promise<AttachmentRow> => row),
@@ -68,6 +70,7 @@ function makeService(
     thumbnailQueue as never,
     thumbnails as unknown as ThumbnailService,
     { setContext: vi.fn(), info: vi.fn(), warn: vi.fn() } as unknown as PinoLogger,
+    { run: vi.fn((cb: (tx: string) => unknown) => cb(TX)) } as never,
   );
   return { service, storage, repo, thumbnailQueue, thumbnails };
 }
@@ -188,6 +191,46 @@ describe('AttachmentsService (#57, синхронное превью #221)', () 
     await expect(
       service.upload(OWNER, { name: 'a.txt', mime: 'text/plain', size: 1 }, content()),
     ).rejects.toMatchObject({ code: 'CHAT_ATTACHMENT_TOO_MANY' });
+  });
+
+  it('лимит атомарен: лок владельца → перечёт → INSERT в одной tx (аудит #317)', async () => {
+    // Arrange
+    const { service, repo } = makeService();
+
+    // Act
+    await service.upload(OWNER, { name: 'a.txt', mime: 'text/plain', size: 1 }, content());
+
+    // Assert: перечёт и вставка — по соединению tx, лок — до перечёта.
+    expect(repo.lockPendingLimit).toHaveBeenCalledWith(OWNER, TX);
+    expect(repo.countUnclaimed).toHaveBeenLastCalledWith(OWNER, TX);
+    expect(repo.insertAttachment).toHaveBeenCalledWith(
+      expect.objectContaining({ ownerId: OWNER }),
+      TX,
+    );
+    const lockOrder = vi.mocked(repo.lockPendingLimit).mock.invocationCallOrder[0]!;
+    const recountOrder = vi.mocked(repo.countUnclaimed).mock.invocationCallOrder[1]!;
+    expect(lockOrder).toBeLessThan(recountOrder);
+  });
+
+  it('гонка на границе: перечёт под локом полон — отказ, объект хранилища убран', async () => {
+    // Arrange: fast-fail ещё пропускает (19), конкурент успел — под локом 20.
+    const fileId = '00000000-0000-0000-0000-00000000000f';
+    const { service, repo, storage } = makeService(
+      {},
+      {
+        countUnclaimed: vi
+          .fn()
+          .mockResolvedValueOnce(MAX_PENDING_ATTACHMENTS - 1)
+          .mockResolvedValueOnce(MAX_PENDING_ATTACHMENTS),
+      },
+    );
+
+    // Act + Assert
+    await expect(
+      service.upload(OWNER, { name: 'a.txt', mime: 'text/plain', size: 1 }, content()),
+    ).rejects.toMatchObject({ code: 'CHAT_ATTACHMENT_TOO_MANY' });
+    expect(repo.insertAttachment).not.toHaveBeenCalled();
+    expect(storage.remove).toHaveBeenCalledWith([fileId]);
   });
 
   it('отмена: удаляет строку и объект хранилища; чужое/отправленное — молча', async () => {

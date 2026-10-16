@@ -4,7 +4,7 @@ import { Skeleton } from '@nodus/ui/components/skeleton';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { useAssigneeTasks, useMemberProjects } from '../../../shared/api/user-relations.js';
-import { useDirectConversation } from '../../../shared/chat/api.js';
+import { useDirectConversation } from '../../../shared/chat/chat-queries.js';
 import { useAuthStore } from '../../../shared/auth-store.js';
 import { useRailShrink } from '../../../app/shell/right-rail.js';
 import {

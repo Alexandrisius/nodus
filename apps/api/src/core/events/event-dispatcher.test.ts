@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from 'vitest';
 import type { DomainEvent } from '@nodus/contracts';
 
 import type { PrismaService } from '../database/prisma.service.js';
-import type { TransactionRunner, TransactionClient } from '../database/transaction-runner.js';
 import { EventDispatcher } from './event-dispatcher.js';
 
 const EVENT = {
@@ -18,71 +17,141 @@ class TestHandler {
   handle = vi.fn().mockResolvedValue(undefined);
 }
 
-function createDispatcher(options: { delivered?: boolean; handlerError?: Error } = {}) {
-  const handler = new TestHandler();
-  const tx = {
-    eventDelivery: {
-      findUnique: vi.fn().mockResolvedValue(options.delivered ? { id: 1 } : null),
-      create: vi.fn().mockResolvedValue({}),
+class SecondHandler {
+  static readonly eventType = 'task.created';
+  handle = vi.fn().mockResolvedValue(undefined);
+}
+
+function createPrisma(options: { delivered?: Set<string>; events?: () => DomainEvent[] } = {}) {
+  const delivered = options.delivered ?? new Set<string>();
+  return {
+    event: {
+      findMany: vi
+        .fn()
+        .mockImplementation(async () => (options.events ? options.events() : [EVENT])),
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
     },
-    event: { update: vi.fn().mockResolvedValue({}) },
-  } as unknown as TransactionClient;
-  if (options.handlerError) {
-    handler.handle.mockRejectedValue(options.handlerError);
-  }
-  const txRunner = { run: vi.fn((fn: (tx: TransactionClient) => Promise<void>) => fn(tx)) };
-  const prisma = { event: { findMany: vi.fn().mockResolvedValue([EVENT]) } };
-  const discovery = { getProviders: () => [{ instance: handler }] };
+    eventDelivery: {
+      findUnique: vi
+        .fn()
+        .mockImplementation(async ({ where }) =>
+          delivered.has(where.eventId_handler.handler) ? { id: 1 } : null,
+        ),
+      createMany: vi.fn().mockImplementation(async ({ data }) => {
+        for (const row of data) delivered.add(row.handler);
+        return { count: 1 };
+      }),
+    },
+  };
+}
+
+function createDispatcher(
+  handlers: object[],
+  prisma = createPrisma(),
+): {
+  dispatcher: EventDispatcher;
+  prisma: ReturnType<typeof createPrisma>;
+  logger: {
+    setContext: ReturnType<typeof vi.fn>;
+    error: ReturnType<typeof vi.fn>;
+    debug: ReturnType<typeof vi.fn>;
+  };
+} {
+  const discovery = { getProviders: () => handlers.map((instance) => ({ instance })) };
   const logger = { setContext: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() };
   const dispatcher = new EventDispatcher(
     prisma as unknown as PrismaService,
-    txRunner as unknown as TransactionRunner,
     discovery as never,
     logger as never,
   );
   dispatcher.onModuleInit();
   dispatcher.onModuleDestroy();
-  return { dispatcher, handler, tx, txRunner, logger };
+  return { dispatcher, prisma, logger };
 }
 
 describe('EventDispatcher', () => {
   it('доставляет событие подписанному обработчику и помечает published', async () => {
-    const { dispatcher, handler, tx } = createDispatcher();
+    const handler = new TestHandler();
+    const { dispatcher, prisma } = createDispatcher([handler]);
     await dispatcher.dispatchPending();
     expect(handler.handle).toHaveBeenCalledWith(EVENT);
-    expect(tx.eventDelivery.create).toHaveBeenCalledWith({
-      data: { eventId: 'e1', handler: 'TestHandler' },
+    expect(prisma.eventDelivery.createMany).toHaveBeenCalledWith({
+      data: [{ eventId: 'e1', handler: 'TestHandler' }],
+      skipDuplicates: true,
     });
-    expect(tx.event.update).toHaveBeenCalledWith({
-      where: { id: 'e1' },
+    expect(prisma.event.updateMany).toHaveBeenCalledWith({
+      where: { id: 'e1', publishedAt: null },
       data: { publishedAt: expect.any(Date) },
     });
   });
 
+  it('выборка — по seq, детерминированно', async () => {
+    const { dispatcher, prisma } = createDispatcher([new TestHandler()]);
+    await dispatcher.dispatchPending();
+    expect(prisma.event.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { publishedAt: null }, orderBy: { seq: 'asc' } }),
+    );
+  });
+
   it('дедупликация: уже доставленное обработчику событие не вызывает его повторно', async () => {
-    const { dispatcher, handler } = createDispatcher({ delivered: true });
+    const handler = new TestHandler();
+    const { dispatcher } = createDispatcher(
+      [handler],
+      createPrisma({ delivered: new Set(['TestHandler']) }),
+    );
     await dispatcher.dispatchPending();
     expect(handler.handle).not.toHaveBeenCalled();
   });
 
   it('ошибка обработчика → событие остаётся неопубликованным (повтор позже)', async () => {
-    const { dispatcher, tx, logger } = createDispatcher({
-      handlerError: new Error('boom'),
-    });
+    const handler = new TestHandler();
+    handler.handle.mockRejectedValue(new Error('boom'));
+    const { dispatcher, prisma, logger } = createDispatcher([handler]);
     await dispatcher.dispatchPending();
-    expect(tx.event.update).not.toHaveBeenCalled();
+    expect(prisma.event.updateMany).not.toHaveBeenCalled();
     expect(logger.error).toHaveBeenCalledOnce();
   });
 
-  it('P2025 на tx (строку события удалили конкурентно) — тихий скип, без retry-шума', async () => {
-    const { dispatcher: d2, logger: log2, txRunner } = createDispatcher();
-    const p2025 = Object.assign(new Error('No record was found for an update.'), {
-      code: 'P2025',
-    });
-    txRunner.run.mockRejectedValue(p2025);
-    await d2.dispatchPending();
-    expect(log2.error).not.toHaveBeenCalled();
-    expect(log2.debug).toHaveBeenCalled();
+  it('прогресс по обработчику: успешный сосед не перевызывается при падении другого', async () => {
+    const ok = new TestHandler();
+    const failing = new SecondHandler();
+    failing.handle.mockRejectedValueOnce(new Error('boom'));
+    const { dispatcher, prisma } = createDispatcher([ok, failing]);
+
+    await dispatcher.dispatchPending(); // ok доставлен, failing упал
+    await dispatcher.dispatchPending(); // повтор: только failing
+
+    expect(ok.handle).toHaveBeenCalledTimes(1);
+    expect(failing.handle).toHaveBeenCalledTimes(2);
+    expect(prisma.event.updateMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('упорно падающее событие уходит в бэкофф и исключается из выборки', async () => {
+    const handler = new TestHandler();
+    handler.handle.mockRejectedValue(new Error('poison'));
+    const { dispatcher, prisma } = createDispatcher([handler]);
+
+    await dispatcher.dispatchPending(); // попытка 1 — без задержки
+    await dispatcher.dispatchPending(); // попытка 2 — без задержки
+    await dispatcher.dispatchPending(); // попытка 3 → бэкофф
+    expect(handler.handle).toHaveBeenCalledTimes(3);
+
+    await dispatcher.dispatchPending(); // событие в бэкоффе — исключено из выборки
+    expect(prisma.event.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ where: { publishedAt: null, id: { notIn: ['e1'] } } }),
+    );
+  });
+
+  it('FK-ошибка доставки (строку события удалили конкурентно) — тихий скип', async () => {
+    const handler = new TestHandler();
+    const prisma = createPrisma();
+    prisma.eventDelivery.createMany.mockRejectedValue(
+      Object.assign(new Error('Foreign key constraint violated'), { code: 'P2003' }),
+    );
+    const { dispatcher, logger } = createDispatcher([handler], prisma);
+    await dispatcher.dispatchPending();
+    expect(logger.error).not.toHaveBeenCalled();
+    expect(logger.debug).toHaveBeenCalled();
   });
 
   it('конкурентный вызов ДОЖИДАЕТСЯ in-flight прохода и делает свой (не no-op)', async () => {
@@ -97,30 +166,14 @@ describe('EventDispatcher', () => {
     handler.handle.mockImplementation(async () => {
       await gate;
     });
-    const tx = {
-      eventDelivery: { findUnique: vi.fn().mockResolvedValue(null), create: vi.fn() },
-      event: { update: vi.fn().mockResolvedValue({}) },
-    } as unknown as TransactionClient;
-    const txRunner = { run: vi.fn((fn: (tx: TransactionClient) => Promise<void>) => fn(tx)) };
     let findManyCalls = 0;
-    const prisma = {
-      event: {
-        findMany: vi.fn().mockImplementation(async () => {
-          findManyCalls += 1;
-          return findManyCalls === 1 ? [EVENT] : [];
-        }),
+    const prisma = createPrisma({
+      events: () => {
+        findManyCalls += 1;
+        return findManyCalls === 1 ? [EVENT] : [];
       },
-    };
-    const discovery = { getProviders: () => [{ instance: handler }] };
-    const logger = { setContext: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() };
-    const dispatcher = new EventDispatcher(
-      prisma as unknown as PrismaService,
-      txRunner as unknown as TransactionRunner,
-      discovery as never,
-      logger as never,
-    );
-    dispatcher.onModuleInit(); // регистрация хендлеров
-    dispatcher.onModuleDestroy();
+    });
+    const { dispatcher } = createDispatcher([handler], prisma);
 
     const background = dispatcher.dispatchPending(); // «тикер» начал проход
     await vi.waitFor(() => expect(handler.handle).toHaveBeenCalled()); // проход внутри хендла
@@ -131,8 +184,8 @@ describe('EventDispatcher', () => {
     // Свой проход после чужого — на старом булевом гварде foreground был
     // no-op (findManyCalls остался бы 1) — именно та гонка CI.
     expect(findManyCalls).toBe(2);
-    expect(tx.event.update).toHaveBeenCalledWith({
-      where: { id: 'e1' },
+    expect(prisma.event.updateMany).toHaveBeenCalledWith({
+      where: { id: 'e1', publishedAt: null },
       data: { publishedAt: expect.any(Date) },
     });
   });

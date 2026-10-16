@@ -5,7 +5,7 @@ import { createElement, type ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ui } from '@nodus/contracts';
 
-import { useMessageToTask } from './api.js';
+import { useMessageToTask } from './conversation-actions.js';
 
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 

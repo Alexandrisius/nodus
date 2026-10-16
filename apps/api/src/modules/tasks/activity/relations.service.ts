@@ -8,21 +8,34 @@ import {
   type TaskRelationKind,
 } from '@nodus/contracts';
 
-import { PrismaService } from '../../../core/database/prisma.service.js';
-import { TransactionRunner } from '../../../core/database/transaction-runner.js';
+import {
+  TransactionRunner,
+  type TransactionClient,
+} from '../../../core/database/transaction-runner.js';
 import { DomainException } from '../../../core/errors/domain-exception.js';
 import { EventBus } from '../../../core/events/event-bus.js';
 import { actorRoles, audienceIds, taskAccess } from '../access/task-access.js';
 import { visibleTasksWhere } from '../access/task-visibility.js';
 import { TasksQueryService } from '../tasks/tasks-query.service.js';
+import { TasksRepository } from '../tasks/tasks.repository.js';
+import { RelationsRepository } from './relations.repository.js';
 
-const ref = { select: { id: true, number: true, title: true } } as const;
+interface RosterRow {
+  id: string;
+  number: number;
+  creatorId: string;
+  assigneeId: string;
+  participants: { userId: string; role: string }[];
+}
 
-/** Связи задач: видны только связи с задачами, видимыми смотрящему. */
+/** Связи задач: видны только связи с задачами, видимыми смотрящему. Связь
+ *  меняет ОБЕ карточки — task.relation_changed уходит по каждой стороне
+ *  (своя аудитория, своя история). */
 @Injectable()
 export class RelationsService {
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly repo: RelationsRepository,
+    private readonly tasksRepo: TasksRepository,
     private readonly txRunner: TransactionRunner,
     private readonly eventBus: EventBus,
     private readonly query: TasksQueryService,
@@ -32,16 +45,8 @@ export class RelationsService {
     await this.query.visibleRow(user, taskId);
     const visible = visibleTasksWhere(await this.query.viewer(user), 'all');
     const [out, inc] = await Promise.all([
-      this.prisma.taskRelation.findMany({
-        where: { fromTaskId: taskId, toTask: visible },
-        include: { toTask: ref },
-        orderBy: { createdAt: 'asc' },
-      }),
-      this.prisma.taskRelation.findMany({
-        where: { toTaskId: taskId, fromTask: visible },
-        include: { fromTask: ref },
-        orderBy: { createdAt: 'asc' },
-      }),
+      this.repo.listOutgoing(taskId, visible),
+      this.repo.listIncoming(taskId, visible),
     ]);
     return {
       items: [
@@ -72,25 +77,16 @@ export class RelationsService {
       throw DomainException.forbidden('Relation change not allowed');
     }
     if (body.toTaskId === taskId) throw DomainException.conflict('Task cannot relate to itself');
-    await this.query.visibleRow(user, body.toTaskId);
+    const other = await this.query.visibleRow(user, body.toTaskId);
     await this.txRunner.run(async (tx) => {
-      await tx.taskRelation.upsert({
-        where: {
-          fromTaskId_toTaskId_kind: {
-            fromTaskId: taskId,
-            toTaskId: body.toTaskId,
-            kind: body.kind,
-          },
-        },
-        update: {},
-        create: {
-          fromTaskId: taskId,
-          toTaskId: body.toTaskId,
-          kind: body.kind,
-          createdBy: user.id,
-        },
+      await this.repo.ensure(tx, {
+        fromTaskId: taskId,
+        toTaskId: body.toTaskId,
+        kind: body.kind,
+        createdBy: user.id,
       });
       await this.emit(tx, user.id, row);
+      await this.emit(tx, user.id, other);
     });
     return this.list(user, taskId);
   }
@@ -101,25 +97,17 @@ export class RelationsService {
       throw DomainException.forbidden('Relation change not allowed');
     }
     await this.txRunner.run(async (tx) => {
-      const { count } = await tx.taskRelation.deleteMany({
-        where: { id: relationId, OR: [{ fromTaskId: taskId }, { toTaskId: taskId }] },
-      });
-      if (count === 0) throw DomainException.notFound('Relation not found');
+      const removed = await this.repo.removeOfTask(tx, relationId, taskId);
+      if (!removed) throw DomainException.notFound('Relation not found');
       await this.emit(tx, user.id, row);
+      const otherId = removed.fromTaskId === taskId ? removed.toTaskId : removed.fromTaskId;
+      // Вторая сторона могла быть удалена (мягко) — её карточку не обновлять.
+      const other = await this.tasksRepo.findLiveRoster(otherId, tx);
+      if (other) await this.emit(tx, user.id, other);
     });
   }
 
-  private emit(
-    tx: Parameters<Parameters<TransactionRunner['run']>[0]>[0],
-    actorId: string,
-    row: {
-      id: string;
-      number: number;
-      creatorId: string;
-      assigneeId: string;
-      participants: { userId: string; role: string }[];
-    },
-  ) {
+  private emit(tx: TransactionClient, actorId: string, row: RosterRow) {
     return this.eventBus.emit(
       tx,
       TASK_EVENTS.RELATION_CHANGED,

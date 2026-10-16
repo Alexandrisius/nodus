@@ -1,3 +1,10 @@
+// >300 строк — обоснование (I5): единственная геометрия карточек продукта
+// (ADR-0009) — один компонент с неразрывной хореографией раскрытия и
+// закрытия (FLIP из источника, фазы гашения контента и схлопывания, сигнал
+// cardClosing нижним карточкам), стеком Esc и фокус-трапом: всё это делит
+// panelRef/closingRef/sourceRect одного монтирования. Около половины объёма —
+// документация пропсов и канон-комментарии вердиктов владельца; публичное API
+// для фич (patterns.md) — этот файл, разнос дробил бы разрешённый путь.
 import { X } from 'lucide-react';
 import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { ui } from '@nodus/contracts';
@@ -148,7 +155,18 @@ export function SliderPanel({
       ],
       { duration: CLOSE_MS, delay: CONTENT_FADE_MS, easing: CLOSE_EASE, fill: 'both' },
     );
-    anim.onfinish = () => closeRef.current();
+    // Отменённая анимация (cancel() извне, display:none у предка) onfinish
+    // НЕ стреляет — без oncancel панель зависала бы в closing навсегда
+    // (контент погашен, клики глотаются). Закрытие — строго однократно:
+    // cancel уже доигравшей (fill: both) анимации не должен закрыть второй раз.
+    let closed = false;
+    const finishClose = () => {
+      if (closed) return;
+      closed = true;
+      closeRef.current();
+    };
+    anim.onfinish = finishClose;
+    anim.oncancel = finishClose;
   }
 
   const requestCloseRef = useRef(requestClose);

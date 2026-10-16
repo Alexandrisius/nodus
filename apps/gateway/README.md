@@ -1,7 +1,8 @@
 # apps/gateway — @nodus/gateway
 
 WebSocket-gateway портала (I1: отдельный процесс): Socket.IO — auth-хендшейк,
-комнаты бесед, fanout доменных событий чата из Redis Stream, «печатает…»,
+комнаты бесед, fanout доменных событий всех модулей (`chat.*`, `task.*`,
+`notification.*`, `directory.user.deactivated`) из Redis Stream, «печатает…»,
 presence. Спека — issue #104 (трек M13).
 
 ## Запуск
@@ -13,15 +14,27 @@ presence. Спека — issue #104 (трек M13).
 
 ## Архитектура
 
-- **Fanout**: api после коммита пишет `chat.*` в outbox (`events`); издатель
-  `RedisStreamPublisher` (apps/api, `core/events`) публикует их в Redis Stream
-  `nodus:chat:events` (опрос хвоста `fanout_at IS NULL`, 50 мс — бюджет
+- **Fanout**: api после коммита пишет доменные события в outbox (`events`); издатель
+  `RedisStreamPublisher` (apps/api, `core/events`) публикует ВСЕ события outbox
+  в Redis Stream `nodus:domain:events` (`DOMAIN_EVENTS_STREAM`; опрос хвоста `fanout_at IS NULL`, 50 мс — бюджет
   p95 доставки < 200 мс; метка ставится после XADD, поздно закоммиченное
   событие догоняет следующим тиком — аудит #123). Gateway — consumer group `nodus:gateway` (XREADGROUP
   BLOCK), рассылает envelope **`{ type, payload, seq, ts }`** (канон
   api-conventions.md; seq = events.seq, глобальный порядок) по комнатам из
-  payload. Группа создаётся на `$` — историю не ретранслируем: клиент,
+  payload (`route-envelope.ts`). Группа создаётся на `$` — историю не ретранслируем: клиент,
   пропустивший события, ресинхронизируется рефечем (сервер — истина).
+- **Обслуживание группы** (`stream-recovery.ts`; при старте и раз в 30 с,
+  МЕЖДУ чтениями на том же соединении — параллельно нельзя, команды встали
+  бы за XREADGROUP BLOCK): `XAUTOCLAIM` pending-записей с idle > 60 с —
+  падение/рестарт между XREADGROUP и XACK (а consumer-имя с pid после
+  рестарта новое) больше не теряет события: брошенные записи забирает
+  текущий consumer и обрабатывает штатно (эмит + XACK); затем GC сирот —
+  `XGROUP DELCONSUMER` чужих consumer'ов с pending = 0 и idle > 10 мин
+  (живой BLOCK-reader обновляет idle каждые ≤ 5 с и под порог не попадает).
+- **Деактивация сотрудника**: `directory.user.deactivated` из стрима →
+  `io.in(user:{id}).disconnectSockets(true)` — сокет, аутентифицированный
+  на хендшейке, не переживает деактивацию; клиент на `io server disconnect`
+  сам не переподключается, refresh-сессии отзывает auth тем же событием.
 - **READ-ONLY Postgres — осознанное исключение I3/I6** (зафиксировано спекой
   #104): gateway не тянет Nest/Prisma ради двух SELECT — `isMember` для
   подписки на комнату и `display_name/avatar_url` для presence-entries (кэш
@@ -56,9 +69,12 @@ user-рассылки исключён (свои вкладки свою печ�
 показывается и на клиенте. Печать с `threadRootId` (раунд 3) идёт ТОЛЬКО в
 conv-комнату (троттл-ключ включает root): индикатор — шапка окна треда, в
 список бесед и шапки каналов не попадает.
-Клиент применяет события **только как сигнал к рефечу** (invalidateQueries) —
-локального применения состояний нет; порядок seq может нарушаться поздними
-коммитами транзакций api — это безопасно.
+`task.*` → user-комнаты из `payload.audience`; `notification.*` → `user:{userId}`.
+Клиент применяет события с полным DTO локально в кэш (эхо `message_sent`
+заменяет темп по `clientMessageId`, канон api-conventions.md и
+`apps/web/src/shared/chat/ws-apply.ts`), остальные — сигнал к инвалидации/
+рефечу; порядок seq может нарушаться поздними коммитами транзакций api —
+клиент сверяет по seq сообщений беседы, это безопасно.
 
 ## Известные границы (заделы)
 
@@ -67,14 +83,19 @@ conv-комнату (троттл-ключ включает root): индика�
   чат-дерево ключей и рефечит. Появится при масштабировании истории.
 - **Auth**: stateless HS256 (тот же формат, что apps/api); сессии (sid) не
   проверяются — отозванная сессия живёт ≤ TTL access-токена (15 мин).
+  Деактивация рвёт уже открытые сокеты (см. выше), но новый хендшейк с ещё
+  живым access-токеном (перезагрузка вкладки) пройдёт до истечения TTL —
+  статус пользователя на хендшейке не перечитывается.
 - **Presence**: только online/offline (away в контракте — задел); эфемерно,
   в БД не хранится. Снимок приходит подключению, обновления — всем.
 - Структурное логирование (pino) — вместе с core-механизмами (issue #2/#3).
 
 ## Тесты
 
-- Unit (`pnpm test`): auth-верификатор, троттл typing, роутинг fanout,
-  presence-переходы, conv:join/leave (членство, потолок, идемпотентность).
+- Unit (`pnpm test`): auth-верификатор, троттл typing, роутинг fanout
+  (включая отключение сокетов деактивированного), обслуживание группы
+  (XAUTOCLAIM-перехват + GC сирот), presence-переходы, conv:join/leave
+  (членство, потолок, идемпотентность).
 - Integration (`pnpm test:integration`, живые PG/Redis): собственный контур —
   БД `nodus_gateway_test` с минимальным срезом читаемых таблиц; socket.io-client
   против живого сервера; публикация в стрим XADD-ом contract-ного envelope.
@@ -86,20 +107,20 @@ conv-комнату (троттл-ключ включает root): индика�
   - `perf/super-load.js` — стресс-лестница «предел прочности» (#117): ступени
     300→2000 сокетов, микс операций (отправка 55% / typing 15% / read 15% /
     реакции 10%), метрика доставки на собственном сокете; оркестрация
-    `tools/run-ladder.sh`;
+    `perf/tools/run-ladder.sh`;
   - `perf/churn-storm.js` — волны массовых connect/disconnect (presence-
     snapshot под нагрузкой, утренний вход офиса);
   - `perf/login-storm.js` — честный argon2-логин с постоянной интенсивностью;
   - `perf/hour-soak.js` — часовой профиль НФТ: 300 сокетов, ~500 сообщ/мин,
     p95 < 200 мс, саморазрывы сокетов + внешний рестарт gateway на 30-й
-    минуте (массовый реконнект, #119); оркестрация `tools/run-soak.sh`.
-- Мир нагрузки: `tools/bots.mjs` генерирует ботов-сотрудников и беседы в БД
+    минуте (массовый реконнект, #119); оркестрация `perf/tools/run-soak.sh`.
+- Мир нагрузки: `perf/tools/bots.mjs` генерирует ботов-сотрудников и беседы в БД
   напрямую (SQL для psql) и HS256-токены ботов (payload как у token.service,
-  permissions копией реального админа) в `run/world.json` (git-ignored).
-  Вычистка: `run/cleanup.sql`. Общий движок бота — `perf/lib/bot-engine.js`
+  permissions копией реального админа) в `perf/run/world.json` (git-ignored).
+  Вычистка: `perf/run/cleanup.sql`. Общий движок бота — `perf/lib/bot-engine.js`
   (engine.io-фрейминг, join по ack, pending-матчинг доставки — событие может
   прийти раньше HTTP-ответа отправки).
-- Мониторинг прогонов: `tools/monitor.sh` (CPU/RAM контейнеров, активные
+- Мониторинг прогонов: `perf/tools/monitor.sh` (CPU/RAM контейнеров, активные
   PG-сессии, события/мин, длина стрима и pending consumer-группы).
 
 ### Известная ловушка: два consumer'а в группе `nodus:gateway`
@@ -108,7 +129,8 @@ conv-комнату (троттл-ключ включает root): индика�
 `REDIS_URL=redis://localhost:6379`, контур портов это допускает) ЗАБИРАЕТ
 записи XREADGROUP'ом и ACK-ает их в никуда — события чата бесследно
 теряются для онлайн-клиентов, pending остаётся 0, ошибок в логах нет.
-Перед k6-прогонами против прода: `XINFO CONSUMERS nodus:chat:events
+Перед k6-прогонами против прода: `XINFO CONSUMERS nodus:domain:events
 nodus:gateway` — активен должен быть ровно один (`gateway-<pid>` контейнера).
-Мотивирует задел «GC мёртвых consumers» (#117) — но живой сирота опаснее
-мёртвых: молчаливая потеря данных.
+Мёртвых consumer'ов gateway чистит сам (GC сирот, см. «Обслуживание группы»),
+но живого сироту GC не лечит и лечить не может — он неотличим от второго
+инстанса: молчаливая потеря данных, детект — только pre-flight.

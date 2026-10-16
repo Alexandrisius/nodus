@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { AuthTokens, AuthUser } from '@nodus/contracts';
 
-import { api } from './api-client.js';
+import { api, ApiError } from './api-client.js';
 
 type AuthStatus = 'unknown' | 'authenticated' | 'anonymous';
 
@@ -12,7 +12,8 @@ interface AuthState {
   /** Логин: токены + карточка me. */
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
-  /** Прозрачное обновление access по refresh-cookie; false — сессия мертва. */
+  /** Прозрачное обновление access по refresh-cookie; false — обновить не
+   *  удалось (сессия мертва ИЛИ сервер недоступен — см. isSessionDead). */
   tryRefresh: () => Promise<boolean>;
   /** Стартовый bootstrap: есть ли живая сессия. */
   bootstrap: () => Promise<void>;
@@ -28,6 +29,20 @@ interface AuthState {
  * иначе отозвал бы сессию при двух refresh с одной cookie. */
 let refreshInFlight: Promise<boolean> | null = null;
 
+/** Дедуп параллельных bootstrap (гарды /login и оболочки, повторный
+ *  beforeLoad после invalidate): один /auth/refresh + /auth/me на всех. */
+let bootstrapInFlight: Promise<void> | null = null;
+
+/** Сессия МЕРТВА — только ответ сервера 401 (AUTH_SESSION_INVALID /
+ *  UNAUTHENTICATED). Обрыв сети (ApiError status 0 / TypeError fetch), 5xx,
+ *  429 — сервер недоступен, а не сессия: выкидывать на /login нельзя
+ *  (живая cookie осталась, следующий запрос обновит токен сам). */
+function isSessionDead(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 401;
+}
+
+const ANONYMOUS = { status: 'anonymous', accessToken: null, user: null } as const;
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   status: 'unknown',
   accessToken: null,
@@ -39,16 +54,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       body: { email, password },
       auth: false,
     });
-    set({ accessToken: tokens.accessToken });
-    const user = await api<AuthUser>('/auth/me');
-    set({ status: 'authenticated', user });
+    // Атомарно: токен попадает в стор ВМЕСТЕ с карточкой me — упавший /auth/me
+    // не оставляет «полувход» (токен без пользователя и статуса).
+    const user = await api<AuthUser>('/auth/me', { bearer: tokens.accessToken });
+    set({ status: 'authenticated', accessToken: tokens.accessToken, user });
   },
 
   async logout() {
     try {
       await api('/auth/logout', { method: 'POST', auth: false });
     } finally {
-      set({ status: 'anonymous', accessToken: null, user: null });
+      set(ANONYMOUS);
     }
   },
 
@@ -58,8 +74,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         const tokens = await api<AuthTokens>('/auth/refresh', { method: 'POST', auth: false });
         set({ accessToken: tokens.accessToken });
         return true;
-      } catch {
-        set({ status: 'anonymous', accessToken: null, user: null });
+      } catch (error) {
+        // Анонимом делает только мёртвая сессия; при недоступном сервере
+        // статус не трогаем (обрыв сети не выкидывает на /login).
+        if (isSessionDead(error)) set(ANONYMOUS);
         return false;
       } finally {
         refreshInFlight = null;
@@ -70,14 +88,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   async bootstrap() {
     if (get().status !== 'unknown') return;
-    const alive = await get().tryRefresh();
-    if (alive) {
+    bootstrapInFlight ??= (async () => {
       try {
-        const user = await api<AuthUser>('/auth/me');
-        set({ status: 'authenticated', user });
-      } catch {
-        set({ status: 'anonymous', accessToken: null, user: null });
+        const alive = await get().tryRefresh();
+        // Не обновили: мёртвая сессия → tryRefresh уже поставил anonymous;
+        // сервер недоступен → статус остаётся 'unknown' (гард оболочки
+        // показывает экран ошибки, следующий заход повторит bootstrap).
+        if (!alive) return;
+        try {
+          const user = await api<AuthUser>('/auth/me');
+          set({ status: 'authenticated', user });
+        } catch (error) {
+          set(
+            isSessionDead(error) ? ANONYMOUS : { status: 'unknown', accessToken: null, user: null },
+          );
+        }
+      } finally {
+        bootstrapInFlight = null;
       }
-    }
+    })();
+    return bootstrapInFlight;
   },
 }));

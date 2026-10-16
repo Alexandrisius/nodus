@@ -21,8 +21,8 @@ import { toast } from 'sonner';
 
 import { api, ApiError } from '../api-client.js';
 import { useAuthStore } from '../auth-store.js';
-import { chatKeys } from './api.js';
-import { useConversations } from './api.js';
+import { chatKeys } from './chat-keys.js';
+import { useConversations } from './chat-queries.js';
 import { isNotesConversation } from './conversations.js';
 import { useOptimisticFavoriteLabels } from './optimistic-favorite-labels.js';
 

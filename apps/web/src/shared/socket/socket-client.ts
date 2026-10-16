@@ -11,7 +11,7 @@ import {
 
 import { isDomainMocked } from '../api/api-mock-config.js';
 import { useAuthStore } from '../auth-store.js';
-import { chatKeys } from '../chat/api.js';
+import { chatKeys } from '../chat/chat-keys.js';
 import { usePresenceStore } from './presence-store.js';
 import { notifySentMessage } from '../chat/notifications.js';
 import { notifyDesktopMessage } from '../desktop/desktop-notify.js';
@@ -78,6 +78,18 @@ const joinedConversations = new Set<string>();
 /** Транспортный фолбэк уже включался (revert делаем один раз за сессию). */
 let revertedToClassicUpgrade = false;
 
+/** Повтор хендшейка, когда refresh не удался, а сессия жива (сервер
+ *  недоступен / 429): экспонента 1 → 30 с, сброс на успешном connect. */
+let authRetryTimer: ReturnType<typeof setTimeout> | null = null;
+let authRetryAttempt = 0;
+const AUTH_RETRY_BASE_MS = 1_000;
+const AUTH_RETRY_MAX_MS = 30_000;
+
+function clearAuthRetry(): void {
+  if (authRetryTimer !== null) clearTimeout(authRetryTimer);
+  authRetryTimer = null;
+}
+
 export function getChatSocket(): Socket | null {
   return socket;
 }
@@ -103,6 +115,8 @@ export function connectChatSocket(queryClient: QueryClient): void {
 
   client.on('connect', () => {
     status.setConnected(true);
+    clearAuthRetry();
+    authRetryAttempt = 0;
     wsDebugLog('connect', 'transport:', client.io.engine.transport.name);
     client.io.engine.once('upgrade', () => {
       wsDebugLog('upgrade →', client.io.engine.transport.name);
@@ -133,14 +147,29 @@ export function connectChatSocket(queryClient: QueryClient): void {
     if (error.message === 'unauthorized') {
       // Access-токен истёк: прозрачный refresh и НЕМЕДЛЕННЫЙ повтор (не ждём
       // бэкоффа) — function-auth возьмёт свежий токен уже в этой попытке.
-      // Мёртвый refresh (сессия закрыта) — повтор не нужен: иначе замкнутый
-      // клиент крутил бы хендшейк+refresh вхолостую (валидатор раунда 2).
+      // Мёртвый refresh (сессия закрыта → anonymous) — повтор не нужен: иначе
+      // замкнутый клиент крутил бы хендшейк+refresh вхолостую (валидатор
+      // раунда 2). Refresh не удался, но сессия жива (сеть/5xx/429 — статус
+      // остаётся authenticated) — повтор только с экспонентой: немедленный
+      // крутил бы ту же петлю и выжигал общий лимит офиса за NAT (ревью #317).
       void useAuthStore
         .getState()
         .tryRefresh()
         .then((refreshed) => {
-          if (refreshed || useAuthStore.getState().status === 'authenticated') {
+          if (socket !== client) return;
+          if (refreshed) {
+            authRetryAttempt = 0;
             client.connect();
+          } else if (
+            useAuthStore.getState().status === 'authenticated' &&
+            authRetryTimer === null
+          ) {
+            const delay = Math.min(AUTH_RETRY_BASE_MS * 2 ** authRetryAttempt, AUTH_RETRY_MAX_MS);
+            authRetryAttempt += 1;
+            authRetryTimer = setTimeout(() => {
+              authRetryTimer = null;
+              if (socket === client) client.connect();
+            }, delay);
           }
         })
         .catch(() => undefined);
@@ -251,6 +280,8 @@ export function disconnectChatSocket(): void {
   }
   socket.disconnect();
   socket = null;
+  clearAuthRetry();
+  authRetryAttempt = 0;
   invalidator?.dispose();
   invalidator = null;
   joinedConversations.clear();
