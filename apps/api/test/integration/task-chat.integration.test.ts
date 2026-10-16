@@ -129,4 +129,38 @@ describe.skipIf(!process.env.DATABASE_URL)('task chat (integration)', () => {
     });
     expect(send.status).toBe(404);
   });
+
+  it('результат: сообщение не из беседы задачи — 404', async () => {
+    const direct = conversationListItemSchema.parse(
+      await (await fx.api(alice, 'GET', `/chat/conversations/direct/${bob.id}`)).json(),
+    );
+    const sent = await fx.api(alice, 'POST', `/chat/conversations/${direct.id}/messages`, {
+      body: { text: 'личное' },
+    });
+    const messageId = ((await sent.json()) as { id: string }).id;
+    const res = await fx.api(alice, 'POST', `/tasks/${taskId}/results`, {
+      body: { text: 'итог', messageIds: [messageId] },
+      key: `it-task-chat-res-${fx.runId}`,
+    });
+    expect(res.status).toBe(404);
+  });
+
+  it('удаление задачи распускает беседу: из вкладки пропадает', async () => {
+    const res = await fx.api(alice, 'DELETE', `/tasks/${taskId}`, {
+      key: `it-task-chat-del-${fx.runId}`,
+    });
+    expect(res.status).toBe(204);
+    const gone = await fx.api(bob, 'GET', `/chat/conversations/by-task/${taskId}`);
+    expect(gone.status).toBe(404);
+    // Роспуск — обработчик task.deleted (outbox, асинхронно): ждём до 10 с.
+    let listed = true;
+    for (let i = 0; i < 50 && listed; i++) {
+      const page = paginatedSchema(conversationListItemSchema).parse(
+        await (await fx.api(bob, 'GET', '/chat/conversations?scope=entities&limit=100')).json(),
+      );
+      listed = page.items.some((c) => c.id === conversationId);
+      if (listed) await new Promise((r) => setTimeout(r, 200));
+    }
+    expect(listed).toBe(false);
+  }, 20_000);
 });

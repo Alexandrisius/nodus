@@ -296,6 +296,12 @@ participants_changed` и `GET /chat/conversations/by-task/:taskId`
 `chat.conversation_updated`. Вкладки мессенджера — серверный фильтр
 `GET /chat/conversations?scope=chats|entities` (`entities` = task + letter)
 со своей курсорной пагинацией; без `scope` — всё (пикеры, гейт ленты).
+Состав читается после `FOR UPDATE` беседы (гонка двух sync не возвращает
+выбывшего); видящий задачу не участник (руководитель, `task.view_all`)
+получает 404 без find-or-create. «Отметить как результат» принимает только
+сообщения беседы самой задачи.
+**Вне #252:** системные строки событий задачи (переход, ответственный,
+срок) — #313: у мессенджера пока нет вида служебных сообщений.
 Счётчик `commentsCount` задачи пересчитывает модуль tasks по
 `chat.message_sent|message_deleted` через `CHAT_MESSAGE_ACCESS.taskDiscussion`.
 Realtime-доставка/typing/presence — WS-gateway (#104, `apps/gateway`).

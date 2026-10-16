@@ -29,23 +29,32 @@ export class TaskChatService {
 
   /** Привести беседу задачи к составу задачи; null — задачи нет (удалена):
    *  состав беседы распускается — чат удалённой задачи пропадает из вкладки
-   *  «Чаты задач и писем» у всех (история остаётся в БД). */
+   *  «Чаты задач и писем» у всех (история остаётся в БД). Состав читается
+   *  ПОСЛЕ блокировки беседы (security-гейт #252): иначе sync со старым
+   *  составом, дождавшись блокировки, вернул бы выбывшего участника. */
   async sync(taskId: string, actorId: string | null): Promise<string | null> {
-    const roster = await this.tasks.roster(taskId);
-    if (!roster) {
-      await this.dissolve(taskId, actorId);
-      return null;
-    }
     return this.txRunner.run(async (tx) => {
-      const { id, created } = await this.repo.findOrCreate(tx, taskId, roster.creatorId);
+      let id = await this.repo.find(tx, taskId);
+      let created = false;
+      if (!id) {
+        const pre = await this.tasks.roster(taskId);
+        if (!pre) return null;
+        ({ id, created } = await this.repo.findOrCreate(tx, taskId, pre.creatorId));
+      }
       await this.repo.lock(tx, id);
-      const current = new Set(await this.repo.members(tx, id));
-      const desired = new Map(roster.members.map((m) => [m.userId, m]));
+      const current = await this.repo.members(tx, id);
+      const roster = await this.tasks.roster(taskId);
+      if (!roster) {
+        await this.removeMembers(tx, id, current, actorId);
+        return null;
+      }
+      const currentSet = new Set(current);
+      const desired = new Set(roster.members.map((m) => m.userId));
       const added = await this.repo.addMembers(
         tx,
         id,
         roster.members
-          .filter((m) => !current.has(m.userId))
+          .filter((m) => !currentSet.has(m.userId))
           .map((m) => ({
             userId: m.userId,
             role: m.userId === roster.creatorId ? 'owner' : 'member',
@@ -77,19 +86,10 @@ export class TaskChatService {
       await this.removeMembers(
         tx,
         id,
-        [...current].filter((userId) => !desired.has(userId)),
+        current.filter((userId) => !desired.has(userId)),
         actorId,
       );
       return id;
-    });
-  }
-
-  private async dissolve(taskId: string, actorId: string | null): Promise<void> {
-    await this.txRunner.run(async (tx) => {
-      const id = await this.repo.find(tx, taskId);
-      if (!id) return;
-      await this.repo.lock(tx, id);
-      await this.removeMembers(tx, id, await this.repo.members(tx, id), actorId);
     });
   }
 
@@ -125,17 +125,20 @@ export class TaskChatService {
     });
   }
 
-  /** Беседа задачи для карточки: задача видна и пользователь — её участник
-   *  (руководитель, видящий задачу по оргструктуре, обсуждение не читает —
-   *  он не участник; 404 без различия). */
+  /** Беседа задачи для карточки: задача видна И пользователь — её
+   *  участник. Руководитель по оргструктуре и `task.view_all` видят задачу,
+   *  но обсуждение не читают и записи (find-or-create) не вызывают — 404
+   *  тем же текстом, что и для невидимой задачи (без оракула). */
   async openForUser(
     taskId: string,
     user: { id: string; permissions: readonly string[] },
   ): Promise<string> {
-    if (!(await this.tasks.canView(taskId, user))) {
-      throw DomainException.notFound('Task not found');
-    }
-    const id = await this.sync(taskId, user.id);
+    const roster = (await this.tasks.canView(taskId, user))
+      ? await this.tasks.roster(taskId)
+      : null;
+    const id = roster?.members.some((m) => m.userId === user.id)
+      ? await this.sync(taskId, user.id)
+      : null;
     if (!id) throw DomainException.notFound('Task not found');
     return id;
   }

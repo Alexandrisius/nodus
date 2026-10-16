@@ -74,11 +74,14 @@ export function ConversationPane({
   composerPlaceholder = ui.chat.newMessage,
   emptyLabel = ui.chat.directEmpty,
   conversation,
+  composerClassName,
 }: {
   conversationId: string;
   showAuthor?: boolean;
   composerPlaceholder?: string;
   emptyLabel?: string;
+  /** Геометрия композера хоста (карточка задачи: высота покоя = бар действий). */
+  composerClassName?: string;
   /** Строка беседы от find-or-create хоста (чат задачи, личка): якорь
    *  непрочитанных и черновик, когда беседы нет в первой странице списка. */
   conversation?: ConversationListItem;
@@ -95,6 +98,7 @@ export function ConversationPane({
         composerPlaceholder={composerPlaceholder}
         emptyLabel={emptyLabel}
         fallback={conversation}
+        composerClassName={composerClassName}
       />
     </div>
   );
@@ -111,12 +115,14 @@ function ConversationBody({
   composerPlaceholder,
   emptyLabel,
   fallback,
+  composerClassName,
 }: {
   conversationId: string;
   showAuthor: boolean;
   composerPlaceholder: string;
   emptyLabel: string;
   fallback?: ConversationListItem;
+  composerClassName?: string;
 }) {
   const listQuery = useConversations();
   const conversation =
@@ -144,6 +150,7 @@ function ConversationBody({
       showAuthor={showAuthor}
       composerPlaceholder={composerPlaceholder}
       emptyLabel={emptyLabel}
+      composerClassName={composerClassName}
     />
   );
 }
@@ -162,12 +169,14 @@ function ConversationFeed({
   showAuthor,
   composerPlaceholder,
   emptyLabel,
+  composerClassName,
 }: {
   conversationId: string;
   conversation: ConversationListItem | null;
   showAuthor: boolean;
   composerPlaceholder: string;
   emptyLabel: string;
+  composerClassName?: string;
 }) {
   const scope = `conversation:${conversationId}`;
 
@@ -447,6 +456,7 @@ function ConversationFeed({
         onEditLast={handleEditLast}
         selection={selectionComposerProps(conversationId, selection)}
         onSubmit={handleSubmit}
+        className={composerClassName}
       />
     </>
   );
