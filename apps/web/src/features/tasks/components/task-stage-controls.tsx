@@ -1,4 +1,4 @@
-import { ArrowRight, Check, ChevronDown, Undo2 } from 'lucide-react';
+import { ArrowRight, Check, ChevronDown, MoreHorizontal, Undo2 } from 'lucide-react';
 import type { TaskDetail, TaskTransition } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import {
@@ -59,7 +59,10 @@ export function TaskActionBar({ task }: { task: TaskDetail }) {
           {task.stage.name}
         </span>
       ) : null}
-      {transitions.map((t) => {
+      {/* Две первые кнопки маршрута — на виду, остальные — в «⋯» (модель
+        Битрикс24 «Ещё»): бар не переполняется на узкой левой зоне, таймер
+        справа не обрезается (замер ui-гейта #311 на 1440). */}
+      {transitions.slice(0, VISIBLE).map((t) => {
         const blocked = t.blockedBy.length > 0;
         const Icon = closesTask(t, task) ? Check : reopensTask(t, task) ? Undo2 : ArrowRight;
         return (
@@ -79,11 +82,34 @@ export function TaskActionBar({ task }: { task: TaskDetail }) {
               blocked && 'opacity-50',
             )}
           >
-            <Icon className="size-4" strokeWidth={1.75} />
+            <Icon className="size-4 shrink-0" strokeWidth={1.75} />
             <span className="max-w-36 truncate">{t.name}</span>
           </button>
         );
       })}
+      {transitions.length > VISIBLE ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            aria-label={ui.tasks.moreActions}
+            title={ui.tasks.moreActions}
+            className={cn(btn, 'px-2 text-muted-foreground hover:bg-accent hover:text-foreground')}
+          >
+            <MoreHorizontal className="size-4" strokeWidth={1.75} />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" side="top" className="w-52">
+            {transitions.slice(VISIBLE).map((t) => (
+              <DropdownMenuItem
+                key={t.id}
+                className={cn(t.blockedBy.length > 0 && 'opacity-50')}
+                title={t.blockedBy.length > 0 ? gateReasonsText(t.blockedBy) : t.toStageName}
+                onSelect={() => runner.run(t)}
+              >
+                {t.name}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : null}
       <span className="ml-auto" />
       <TaskTimerButton task={task} />
     </div>
@@ -91,6 +117,8 @@ export function TaskActionBar({ task }: { task: TaskDetail }) {
 }
 
 const OPEN = new Set(['backlog', 'active', 'paused']);
+/** Сколько переходов маршрута — кнопками на виду (остальные — в «⋯»). */
+const VISIBLE = 2;
 
 /** Переход закрывает задачу (иконка «галочка») / возвращает в работу. */
 function closesTask(t: TaskTransition, task: TaskDetail): boolean {

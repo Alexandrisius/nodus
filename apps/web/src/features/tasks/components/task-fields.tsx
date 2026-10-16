@@ -78,7 +78,7 @@ export const TaskFields = memo(function TaskFields({ task }: { task: TaskDetail 
   const accept: EntityFieldDef = {
     key: 'accept',
     icon: <BadgeCheck className="size-3.5" />,
-    label: ui.tasks.acceptRequired,
+    label: ui.tasks.acceptField,
     render: () => <TaskAcceptField task={task} />,
   };
   const created: EntityFieldDef = {
