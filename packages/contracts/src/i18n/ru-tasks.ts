@@ -163,6 +163,7 @@ export const tasksStrings = {
   bulkDeadline: 'Срок',
   bulkPriority: 'Приоритет',
   bulkClear: 'Снять выделение',
+  bulkLimit: 'За один раз можно изменить не больше задач:',
   bulkDone: 'Изменено задач:',
   bulkSkipped: 'Не изменены — нет прав или не выполнены условия:',
   /** Пустой «Мой план» (#311). */

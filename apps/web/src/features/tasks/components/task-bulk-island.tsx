@@ -11,6 +11,7 @@ import {
 } from '@nodus/ui/components/dropdown-menu';
 import { NodeChip } from '@nodus/ui/components/node-chip';
 import { cn } from '@nodus/ui/lib/utils';
+import { toast } from 'sonner';
 
 import { useTaskStages } from '../../../shared/api/task-stages.js';
 import { stageTone } from '../../../shared/ui/board/stage-tone.js';
@@ -18,6 +19,8 @@ import { DateTimePicker } from '../../../shared/ui/date-time-picker.js';
 import { PeoplePicker } from '../../../shared/ui/people-picker.js';
 import { priorityTone } from '../../../shared/views/task-table-fields.js';
 import { useBulkTasks } from '../api/task-edit-api.js';
+
+const BULK_LIMIT = 100;
 
 const action =
   'inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground';
@@ -58,7 +61,12 @@ export function TaskBulkIsland({
   const visible = selectedIds.length > 0;
 
   function run(a: TaskBulkAction) {
-    bulk.mutate({ taskIds: selectedIds.slice(0, 100), action: a });
+    // Контракт bulk — до 100 задач за раз: больше не отбрасываем молча.
+    if (selectedIds.length > BULK_LIMIT) {
+      toast.error(`${ui.tasks.bulkLimit} ${BULK_LIMIT}`);
+      return;
+    }
+    bulk.mutate({ taskIds: [...selectedIds], action: a });
   }
 
   return (

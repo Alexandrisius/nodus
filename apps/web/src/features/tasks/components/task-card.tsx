@@ -1,7 +1,7 @@
 import { Mail, MessageSquare, PanelRight, Waypoints } from 'lucide-react';
 import { useCallback, useRef, useState } from 'react';
 import type { TaskChainNode } from '@nodus/contracts';
-import { ui } from '@nodus/contracts';
+import { ErrorCode, errorMessages, ui } from '@nodus/contracts';
 import { NodeChip } from '@nodus/ui/components/node-chip';
 import { cn } from '@nodus/ui/lib/utils';
 
@@ -14,6 +14,7 @@ import {
   MIN_CHAT_W,
 } from '../../../shared/ui/use-chat-width.js';
 import { uiPx } from '../../../shared/ui/ui-scale.js';
+import { ApiError } from '../../../shared/api-client.js';
 import { useReadEntityNotifications } from '../../../shared/api/read-entity-notifications.js';
 import { useTaskDetail } from '../api/tasks-api.js';
 import { TaskAboutDrawer } from './task-about-drawer.js';
@@ -53,7 +54,7 @@ const BRANCH_W = uiPx(300);
  * постоянная колонка обсуждения; «О задаче» — вталкивающая колонка справа.
  */
 export function TaskCard({ taskId }: { taskId: string }) {
-  const { data: task, isLoading } = useTaskDetail(taskId);
+  const { data: task, isLoading, error } = useTaskDetail(taskId);
   // Открыл задачу — её уведомления прочитаны (#252: «Требуют внимания» не вечные).
   useReadEntityNotifications('task', taskId);
   const openCard = useOpenCard();
@@ -115,6 +116,15 @@ export function TaskCard({ taskId }: { taskId: string }) {
   const closeBranch = useCallback(() => setBranchOpen(false), []);
   const closeAbout = useCallback(() => setAboutOpen(false), []);
 
+  // Задачи нет (удалена, сняли с участия, чужая ссылка): объяснение вместо
+  // вечного скелетона.
+  if (!task && error instanceof ApiError && error.status === 404) {
+    return (
+      <div className="flex h-full items-center justify-center p-6 text-center text-sm text-muted-foreground">
+        {errorMessages[ErrorCode.NOT_FOUND]}
+      </div>
+    );
+  }
   if (isLoading || !task) {
     return <TaskCardSkeleton chatW={chatColumnW} />;
   }
