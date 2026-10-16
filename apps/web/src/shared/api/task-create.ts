@@ -16,7 +16,10 @@ export function usePersonalStages() {
   });
 }
 
-/** Создание задачи (канбан-плюсик колонки и экспресс-форма). */
+/** Создание задачи (канбан-плюсик колонки и экспресс-форма). Доски
+ *  инвалидируются тоже: задача из экспресс-формы (топбар, мессенджер,
+ *  карточка сотрудника) должна появиться на «Моём плане» без перезагрузки
+ *  (вердикт владельца 16.10). Плюсик колонки вставляет карточку сразу сам. */
 export function useCreateTask() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -24,6 +27,8 @@ export function useCreateTask() {
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: tasksKeys.personalStages() });
       void queryClient.invalidateQueries({ queryKey: tasksKeys.listPages() });
+      void queryClient.invalidateQueries({ queryKey: tasksKeys.kanbanAll() });
+      void queryClient.invalidateQueries({ queryKey: tasksKeys.stages() });
     },
   });
 }

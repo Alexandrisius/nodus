@@ -9,6 +9,8 @@ import {
   reorderWithinStage,
 } from './kanban-board.js';
 
+const systemTaskType = { id: '20000000-0000-4000-8000-000000000900', code: 'task', name: 'Задача' };
+
 const STAGE_A: TaskStage = {
   id: 'a',
   name: 'Новые',
@@ -29,6 +31,7 @@ const task = (id: string, stage: TaskStage): TaskListItem =>
     id,
     number: 1,
     title: id,
+    type: systemTaskType,
     stage,
     personalStageId: null,
     priority: 'normal',

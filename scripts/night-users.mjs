@@ -62,7 +62,8 @@ await client.query(`
 `);
 await client.query(`
   INSERT INTO role_permissions (role_id, permission)
-  SELECT r.id, 'directory.read' FROM roles r WHERE r.code = 'employee'
+  SELECT r.id, p FROM roles r, unnest(ARRAY['directory.read', 'task.create']) AS p
+  WHERE r.code = 'employee'
   ON CONFLICT DO NOTHING
 `);
 await client.query(`
@@ -76,7 +77,8 @@ await client.query(`
 // не гоняет) — без строк гвард отдаёт 404 на маршрутах чата.
 await client.query(`
   INSERT INTO feature_flags (key, enabled, created_at, updated_at)
-  VALUES ('chat', true, now(), now()), ('notifications', true, now(), now())
+  VALUES ('chat', true, now(), now()), ('notifications', true, now(), now()),
+    ('tasks', true, now(), now())
   ON CONFLICT (key) DO NOTHING
 `);
 await client.end();

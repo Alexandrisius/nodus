@@ -33,6 +33,8 @@ dictionary.item_created / updated / archived
 project.created / updated / stage_changed / member_added
 task.created / updated / status_changed / stage_changed / personal_stage_changed / assigned / completed / overdue
 task.time_logged
+task.participants_changed / checklist_changed / result_set / relation_changed / deleted / timer_started / timer_stopped
+task.personal_stage_created / personal_stage_updated / personal_stage_archived  # личный маршрут «Мой план» (ADR-0008/0020); маршруты задач — модуль tasks, префикс task (workflow.* — модуль БП M7)
 chat.conversation_created / conversation_updated / member_added / member_removed / member_role_changed / message_sent / message_edited / message_deleted / message_read / message_pinned / message_unpinned / reaction_added / reaction_removed / thread_created
 chat.favorite_added / favorite_removed / favorite_updated  # личные закладки #171: только user-комната владельца (не рассылается участникам)
 chat.link_preview_ready  # превью ссылки дозрело фоном (#212, ADR-0018): комната беседы, клиенты патчат карточку без рефетча

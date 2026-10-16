@@ -860,3 +860,321 @@ model NotificationSetting {
 
   @@map("notification_settings")
 }
+
+// ===== Модуль tasks (issue #37, эпик M4 #49; ADR-0008, ADR-0020) =====
+// Системные константы (kind, systemState, role, method, source, priority,
+// color) — TEXT с проверкой zod-контрактами (I15: бизнес-списки — данные).
+// Пользователи и проекты — plain UUID без FK (I3). Порядковые ключи
+// (stage_order, sort_order) — fractional-index TEXT COLLATE "C" (байтовый
+// порядок; коллация задаётся в миграции — Prisma её не декларирует).
+
+/// Тип задачи — глобальный справочник (ADR-0020). code — стабильный ключ
+/// системного каталога (бутстрап модуля создаёт недостающее, не перезаписывает).
+model TaskType {
+  id         String    @id @default(uuid()) @db.Uuid
+  code       String    @unique
+  name       String
+  /// Узел дерева проекта (раздел/комплект, ступень 3): в «Мой план»
+  /// исполнителей не попадает.
+  structural Boolean   @default(false)
+  isSystem   Boolean   @default(false) @map("is_system")
+  sortOrder  Int       @default(0) @map("sort_order")
+  archivedAt DateTime? @map("archived_at") @db.Timestamptz()
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
+
+  schemeEntries WorkflowSchemeEntry[]
+  tasks         Task[]
+
+  @@map("task_types")
+}
+
+/// Маршрут: стадии + переходы. kind: task (маршрут типа задачи) | personal
+/// (личный «Мой план», ownerId; шаблон — isTemplate без владельца).
+/// Один личный маршрут на сотрудника — частичный unique в миграции.
+model Workflow {
+  id         String   @id @default(uuid()) @db.Uuid
+  /// Ключ системного каталога (null у личных экземпляров).
+  code       String?  @unique
+  name       String
+  kind       String
+  ownerId    String?  @map("owner_id") @db.Uuid
+  isSystem   Boolean  @default(false) @map("is_system")
+  isTemplate Boolean  @default(false) @map("is_template")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  stages        WorkflowStage[]
+  transitions   WorkflowTransition[]
+  schemeEntries WorkflowSchemeEntry[]
+  tasks         Task[]
+
+  @@index([kind, ownerId])
+  @@map("workflows")
+}
+
+/// Стадия маршрута = колонка канбана. Удаление = архивация (I15): задачи и
+/// история ссылаются на стадию навсегда.
+model WorkflowStage {
+  id          String    @id @default(uuid()) @db.Uuid
+  workflowId  String    @map("workflow_id") @db.Uuid
+  /// Ключ стадии системного каталога (null у пользовательских).
+  code        String?
+  name        String
+  /// Тон палитры темы (stageColorSchema).
+  color       String
+  sortOrder   Int       @map("sort_order")
+  /// backlog | active | paused | done | closed (скрытая ось, ADR-0008).
+  systemState String    @map("system_state")
+  /// Начальная стадия маршрута (новые задачи без колонки).
+  isInitial   Boolean   @default(false) @map("is_initial")
+  archivedAt  DateTime? @map("archived_at") @db.Timestamptz()
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
+
+  workflow        Workflow                @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  transitionsFrom WorkflowTransition[]    @relation("TransitionFrom")
+  transitionsTo   WorkflowTransition[]    @relation("TransitionTo")
+  tasks           Task[]
+  placements      TaskPersonalPlacement[]
+
+  @@unique([workflowId, code])
+  @@index([workflowId, sortOrder])
+  @@map("workflow_stages")
+}
+
+/// Переход маршрута (кнопка). fromStageId null — «из любой стадии».
+/// rules — {conditions, validators, postFunctions} закрытого реестра
+/// contracts (workflowTransitionRulesSchema); неизвестный вид сервер отвергает.
+model WorkflowTransition {
+  id          String   @id @default(uuid()) @db.Uuid
+  workflowId  String   @map("workflow_id") @db.Uuid
+  code        String?
+  name        String
+  fromStageId String?  @map("from_stage_id") @db.Uuid
+  toStageId   String   @map("to_stage_id") @db.Uuid
+  sortOrder   Int      @default(0) @map("sort_order")
+  rules       Json     @default("{}")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  workflow  Workflow       @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  fromStage WorkflowStage? @relation("TransitionFrom", fields: [fromStageId], references: [id], onDelete: Restrict)
+  toStage   WorkflowStage  @relation("TransitionTo", fields: [toStageId], references: [id], onDelete: Restrict)
+
+  @@unique([workflowId, code])
+  @@index([workflowId, fromStageId])
+  @@map("workflow_transitions")
+}
+
+/// Схема маршрутов: тип → маршрут. isDefault — системная схема задач без
+/// проекта (одна); проект выбирает свою (ступень 3).
+model WorkflowScheme {
+  id        String   @id @default(uuid()) @db.Uuid
+  code      String?  @unique
+  name      String
+  isDefault Boolean  @default(false) @map("is_default")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  entries WorkflowSchemeEntry[]
+
+  @@map("workflow_schemes")
+}
+
+model WorkflowSchemeEntry {
+  schemeId   String @map("scheme_id") @db.Uuid
+  taskTypeId String @map("task_type_id") @db.Uuid
+  workflowId String @map("workflow_id") @db.Uuid
+
+  scheme   WorkflowScheme @relation(fields: [schemeId], references: [id], onDelete: Cascade)
+  taskType TaskType       @relation(fields: [taskTypeId], references: [id], onDelete: Restrict)
+  workflow Workflow       @relation(fields: [workflowId], references: [id], onDelete: Restrict)
+
+  @@id([schemeId, taskTypeId])
+  @@map("workflow_scheme_entries")
+}
+
+/// Задача. Проект необязателен (projectId nullable, без FK — I3): задача без
+/// проекта — обычный случай. number — глобальный счётчик (sequence; дыры
+/// при откате допустимы), «ПП-N» — слой отображения. Удаление — мягкое.
+model Task {
+  id                String    @id @default(uuid()) @db.Uuid
+  number            Int       @unique @default(autoincrement())
+  title             String
+  description       String    @default("")
+  typeId            String    @map("type_id") @db.Uuid
+  workflowId        String    @map("workflow_id") @db.Uuid
+  stageId           String    @map("stage_id") @db.Uuid
+  /// Денормализация stage.systemState в той же tx (фильтры/счётчики, I14).
+  systemState       String    @map("system_state")
+  stateChangedAt    DateTime  @default(now()) @map("state_changed_at") @db.Timestamptz()
+  /// Порядок в колонке глобальной оси (fractional-index, COLLATE "C").
+  stageOrder        String    @map("stage_order")
+  priority          String    @default("normal")
+  deadline          DateTime? @db.Timestamptz()
+  plannedMinutes    Int?      @map("planned_minutes")
+  acceptRequired    Boolean   @default(false) @map("accept_required")
+  creatorId         String    @map("creator_id") @db.Uuid
+  assigneeId        String    @map("assignee_id") @db.Uuid
+  parentId          String?   @map("parent_id") @db.Uuid
+  projectId         String?   @map("project_id") @db.Uuid
+  /// manual | chat_message | letter; sourceId — id сообщения/поручения
+  /// (дедуп: частичный unique (source, source_id, creator_id) по живым
+  /// задачам — в миграции).
+  source            String    @default("manual")
+  sourceId          String?   @map("source_id") @db.Uuid
+  /// Снимок цепочки происхождения (TaskChainNode[] без узла самой задачи).
+  origin            Json?
+  spentMinutes      Int       @default(0) @map("spent_minutes")
+  checklistDone     Int       @default(0) @map("checklist_done")
+  checklistTotal    Int       @default(0) @map("checklist_total")
+  /// Сообщений в чате задачи (денорм подпиской на chat.message_sent, #252).
+  commentsCount     Int       @default(0) @map("comments_count")
+  /// Кастомные поля (FieldDefinition, data-model.md); GIN — в миграции.
+  customFields      Json      @default("{}") @map("custom_fields")
+  /// Крючок под будущий режим «конфиденциально» (ИИ-агент не читает; на
+  /// видимость пока НЕ влияет — правило появится вместе с потребителем).
+  confidential      Boolean   @default(false)
+  /// Ключ внешней системы (импорт из Битрикса: «b24:12345»).
+  externalRef       String?   @unique @map("external_ref")
+  completedAt       DateTime? @map("completed_at") @db.Timestamptz()
+  /// Однократное уведомление о просрочке; сбрасывается сменой срока.
+  overdueNotifiedAt DateTime? @map("overdue_notified_at") @db.Timestamptz()
+  deletedAt         DateTime? @map("deleted_at") @db.Timestamptz()
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
+
+  type     TaskType      @relation(fields: [typeId], references: [id], onDelete: Restrict)
+  workflow Workflow      @relation(fields: [workflowId], references: [id], onDelete: Restrict)
+  stage    WorkflowStage @relation(fields: [stageId], references: [id], onDelete: Restrict)
+  parent   Task?         @relation("TaskTree", fields: [parentId], references: [id], onDelete: Restrict)
+  children Task[]        @relation("TaskTree")
+
+  participants  TaskParticipant[]
+  placements    TaskPersonalPlacement[]
+  checklist     TaskChecklistItem[]
+  relationsFrom TaskRelation[]          @relation("RelationFrom")
+  relationsTo   TaskRelation[]          @relation("RelationTo")
+  timeEntries   TimeEntry[]
+  results       TaskResult[]
+
+  @@index([source, sourceId])
+  @@index([stageId, stageOrder, id])
+  @@index([assigneeId, systemState])
+  @@index([creatorId, systemState])
+  @@index([parentId])
+  @@index([projectId])
+  @@index([systemState, deadline])
+  @@index([updatedAt(sort: Desc), id])
+  @@index([customFields(ops: JsonbPathOps)], type: Gin, map: "tasks_custom_fields_gin")
+  @@map("tasks")
+}
+
+/// Соисполнитель / наблюдатель. Ответственный и постановщик — колонки Task.
+model TaskParticipant {
+  taskId    String   @map("task_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  /// coexecutor | observer.
+  role      String
+  /// Новый наблюдатель — без звука (Битрикс24); уведомления только явные.
+  muted     Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, userId])
+  @@index([userId, role])
+  @@map("task_participants")
+}
+
+/// Размещение задачи на личной доске «Мой план» (ADR-0008).
+model TaskPersonalPlacement {
+  taskId    String   @map("task_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  stageId   String   @map("stage_id") @db.Uuid
+  sortOrder String   @map("sort_order")
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  task  Task          @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  stage WorkflowStage @relation(fields: [stageId], references: [id], onDelete: Restrict)
+
+  @@id([taskId, userId])
+  @@index([userId, stageId, sortOrder, taskId])
+  @@map("task_personal_placements")
+}
+
+model TaskChecklistItem {
+  id        String    @id @default(uuid()) @db.Uuid
+  taskId    String    @map("task_id") @db.Uuid
+  text      String
+  done      Boolean   @default(false)
+  sortOrder String    @map("sort_order")
+  doneBy    String?   @map("done_by") @db.Uuid
+  doneAt    DateTime? @map("done_at") @db.Timestamptz()
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, sortOrder])
+  @@map("task_checklist_items")
+}
+
+/// Связь задач (relates | blocks | precedes | duplicates).
+model TaskRelation {
+  id         String   @id @default(uuid()) @db.Uuid
+  fromTaskId String   @map("from_task_id") @db.Uuid
+  toTaskId   String   @map("to_task_id") @db.Uuid
+  kind       String
+  createdBy  String   @map("created_by") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  fromTask Task @relation("RelationFrom", fields: [fromTaskId], references: [id], onDelete: Cascade)
+  toTask   Task @relation("RelationTo", fields: [toTaskId], references: [id], onDelete: Cascade)
+
+  @@unique([fromTaskId, toTaskId, kind])
+  @@index([toTaskId])
+  @@map("task_relations")
+}
+
+/// Трудозатраты (I14). taskId и projectId необязательны (задел «раскида
+/// дня» без миграций). Идущий таймер — method=timer, ended_at NULL; один на
+/// сотрудника — частичный unique в миграции.
+model TimeEntry {
+  id        String    @id @default(uuid()) @db.Uuid
+  taskId    String?   @map("task_id") @db.Uuid
+  projectId String?   @map("project_id") @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  minutes   Int       @default(0)
+  /// День работы сотрудника (не момент).
+  date      DateTime  @db.Date
+  /// manual | timer.
+  method    String
+  startedAt DateTime? @map("started_at") @db.Timestamptz()
+  endedAt   DateTime? @map("ended_at") @db.Timestamptz()
+  comment   String?
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
+
+  task Task? @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, createdAt(sort: Desc), id])
+  @@index([userId, date])
+  @@map("time_entries")
+}
+
+/// Ревизии результата задачи (append-only; текущий — последний).
+model TaskResult {
+  id         String   @id @default(uuid()) @db.Uuid
+  taskId     String   @map("task_id") @db.Uuid
+  text       String
+  messageIds Json     @default("[]") @map("message_ids")
+  authorId   String   @map("author_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, createdAt(sort: Desc)])
+  @@map("task_results")
+}

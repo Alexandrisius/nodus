@@ -31,6 +31,16 @@ export const ErrorCode = {
   DIRECTORY_EMAIL_TAKEN: 'DIRECTORY_EMAIL_TAKEN',
   /** Удаление единственной личной стадии «Моего плана» запрещено (ADR-0008). */
   TASK_LAST_STAGE: 'TASK_LAST_STAGE',
+  /** Перехода в целевую стадию нет в маршруте или условия «кто» не пройдены (ADR-0020). */
+  TASK_TRANSITION_NOT_ALLOWED: 'TASK_TRANSITION_NOT_ALLOWED',
+  /** Гейт DoR/DoD не пройден; details.reasons — TransitionBlockReason[] (ADR-0020). */
+  TASK_TRANSITION_BLOCKED: 'TASK_TRANSITION_BLOCKED',
+  /** Обход гейта без причины или без права task.override_gate. */
+  TASK_OVERRIDE_REASON_REQUIRED: 'TASK_OVERRIDE_REASON_REQUIRED',
+  /** Родитель задачи образует цикл (задача — предок самой себя). */
+  TASK_PARENT_CYCLE: 'TASK_PARENT_CYCLE',
+  /** Остановка таймера, который не идёт (старт нового сам останавливает старый). */
+  TASK_TIMER_NOT_RUNNING: 'TASK_TIMER_NOT_RUNNING',
   /** Вложение чата больше лимита (100 МБ на файл; серверная сверка, #57). */
   CHAT_ATTACHMENT_TOO_LARGE: 'CHAT_ATTACHMENT_TOO_LARGE',
   /** Больше 20 загруженных-но-неотправленных вложений у пользователя (#57). */

@@ -5,7 +5,7 @@ import type { ProjectRef } from '@nodus/contracts';
 import { isoAgo } from './dates.js';
 import { personalNew, personalStageFor } from './personal-stages.js';
 import { kjSubtask, tid } from './task-items.js';
-import { stageNew } from './task-stages.js';
+import { stageNew, systemTaskType } from './task-stages.js';
 import { currentAuthUser, userIds, userRef } from './users.js';
 
 export * from './task-stages.js';
@@ -17,6 +17,7 @@ export function makeSubtask(parent: TaskListItem, title: string): TaskListItem {
     id: crypto.randomUUID(),
     number: parent.number * 100 + ((demoSubtasks[parent.id]?.length ?? 0) + 1),
     title,
+    type: systemTaskType,
     stage: stageNew,
     // Новая подзадача — в первую личную колонку состояния backlog (ADR-0008).
     personalStageId: personalNew.id,
@@ -56,6 +57,7 @@ export function makeInstructionTask(opts: {
     id: opts.id,
     number: opts.number,
     title: opts.title,
+    type: systemTaskType,
     stage: stageNew,
     personalStageId: personalStageFor(stageNew),
     priority: 'normal',
@@ -154,7 +156,25 @@ export function taskDetailOf(task: TaskListItem): TaskDetail {
     checklist: [],
     createdAt: task.updatedAt,
   };
-  return { ...task, ...extra, subtasks: demoSubtasks[task.id] ?? [], chain: chainOf(task) };
+  const closed = task.stage.systemState === 'done' || task.stage.systemState === 'closed';
+  return {
+    ...task,
+    ...extra,
+    subtasks: demoSubtasks[task.id] ?? [],
+    chain: chainOf(task),
+    plannedMinutes: null,
+    acceptRequired: false,
+    result: null,
+    completedAt: closed ? task.updatedAt : null,
+    // Мок-мир: демо-пользователь — полный доступ (права проверяет бэкенд, #37).
+    access: {
+      canEdit: true,
+      canManageParticipants: true,
+      canLogTime: true,
+      canCheck: true,
+      canDelete: true,
+    },
+  };
 }
 
 const mid = (n: number): string => `60000000-0000-4000-8000-${String(n).padStart(12, '0')}`;

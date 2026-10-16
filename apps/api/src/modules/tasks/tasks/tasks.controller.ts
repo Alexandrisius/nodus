@@ -1,0 +1,192 @@
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiCreatedResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
+import { z } from 'zod';
+import {
+  Permission,
+  createSubtaskBodySchema,
+  createTaskBodySchema,
+  listTasksQuerySchema,
+  paginatedSchema,
+  taskBranchSchema,
+  taskBulkBodySchema,
+  taskBulkResultSchema,
+  taskDetailSchema,
+  taskListItemSchema,
+  taskStageWithCountSchema,
+  taskTypeSchema,
+  taskUpdateBodySchema,
+  type AuthUser,
+  type CreateSubtaskBody,
+  type CreateTaskBody,
+  type ListTasksQuery,
+  type Paginated,
+  type TaskBranch,
+  type TaskBulkBody,
+  type TaskBulkResult,
+  type TaskDetail,
+  type TaskListItem,
+  type TaskStageWithCount,
+  type TaskType,
+  type TaskUpdateBody,
+} from '@nodus/contracts';
+
+import { Audit } from '../../../core/decorators/audit.decorator.js';
+import { GetUser } from '../../../core/decorators/get-user.decorator.js';
+import { RequireFeature } from '../../../core/decorators/require-feature.decorator.js';
+import { RequirePermissions } from '../../../core/decorators/require-permissions.decorator.js';
+import { ApiErrors } from '../../../core/openapi/api-errors.decorator.js';
+import { ApiIdempotencyKey } from '../../../core/openapi/api-idempotency.decorator.js';
+import { ZodValidationPipe } from '../../../core/pipes/zod-validation.pipe.js';
+import { BulkService } from '../bulk/bulk.service.js';
+import { TaskEditService } from './task-edit.service.js';
+import { TasksQueryService } from './tasks-query.service.js';
+import { TasksService } from './tasks.service.js';
+
+const uuid = new ZodValidationPipe(z.uuid());
+const scopeQuery = z.object({ scope: z.enum(['mine', 'all']).default('mine') });
+
+/**
+ * Задачи (`/api/v1/tasks`, #37): фиды обеих осей, каталоги, CRUD, ветка,
+ * подзадачи, массовые операции. Модуль за флагом `tasks` (I10).
+ */
+@ApiTags('tasks')
+@ApiBearerAuth()
+@RequireFeature('tasks')
+@Controller('tasks')
+export class TasksController {
+  constructor(
+    private readonly tasks: TasksService,
+    private readonly edit: TaskEditService,
+    private readonly query: TasksQueryService,
+    private readonly bulk: BulkService,
+  ) {}
+
+  @Get()
+  @ApiOperation({ summary: 'Список/фид колонки задач (курсор, видимость, фильтры)' })
+  @ApiOkResponse({ standardSchema: paginatedSchema(taskListItemSchema) })
+  @ApiErrors(400, 401)
+  list(
+    @GetUser() user: AuthUser,
+    @Query({ schema: listTasksQuerySchema, pipes: [new ZodValidationPipe(listTasksQuerySchema)] })
+    q: ListTasksQuery,
+  ): Promise<Paginated<TaskListItem>> {
+    return this.query.list(user, q);
+  }
+
+  @Get('stages')
+  @ApiOperation({ summary: 'Стадии маршрута по умолчанию со счётчиками' })
+  @ApiOkResponse({ standardSchema: z.array(taskStageWithCountSchema) })
+  @ApiErrors(401)
+  stages(
+    @GetUser() user: AuthUser,
+    @Query({ schema: scopeQuery, pipes: [new ZodValidationPipe(scopeQuery)] })
+    q: z.infer<typeof scopeQuery>,
+  ): Promise<TaskStageWithCount[]> {
+    return this.query.stages(user, q.scope);
+  }
+
+  @Get('types')
+  @ApiOperation({ summary: 'Типы задач (ступень 1 — один системный)' })
+  @ApiOkResponse({ standardSchema: z.array(taskTypeSchema) })
+  @ApiErrors(401)
+  types(): Promise<TaskType[]> {
+    return this.query.types();
+  }
+
+  @Post()
+  @RequirePermissions(Permission.TASK_CREATE)
+  @Audit({ action: 'task.create', entity: 'task' })
+  @ApiOperation({ summary: 'Создание задачи (проект и колонка необязательны)' })
+  @ApiCreatedResponse({ standardSchema: taskListItemSchema })
+  @ApiErrors(400, 401, 403, 404)
+  @ApiIdempotencyKey()
+  create(
+    @GetUser() user: AuthUser,
+    @Body({ schema: createTaskBodySchema, pipes: [new ZodValidationPipe(createTaskBodySchema)] })
+    body: CreateTaskBody,
+  ): Promise<TaskListItem> {
+    return this.tasks.create(user, body);
+  }
+
+  @Post('bulk')
+  @HttpCode(200)
+  @Audit({ action: 'task.bulk', entity: 'task' })
+  @ApiOperation({ summary: 'Массовая операция (до 100 задач, результат по каждой)' })
+  @ApiOkResponse({ standardSchema: taskBulkResultSchema })
+  @ApiErrors(400, 401)
+  @ApiIdempotencyKey()
+  runBulk(
+    @GetUser() user: AuthUser,
+    @Body({ schema: taskBulkBodySchema, pipes: [new ZodValidationPipe(taskBulkBodySchema)] })
+    body: TaskBulkBody,
+  ): Promise<TaskBulkResult> {
+    return this.bulk.run(user, body);
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Карточка задачи' })
+  @ApiOkResponse({ standardSchema: taskDetailSchema })
+  @ApiErrors(400, 401, 404)
+  detail(@GetUser() user: AuthUser, @Param('id', uuid) id: string): Promise<TaskDetail> {
+    return this.query.detail(user, id);
+  }
+
+  @Patch(':id')
+  @HttpCode(200)
+  @Audit({ action: 'task.update', entity: 'task' })
+  @ApiOperation({ summary: 'Правка полей и перенос по осям (перенос = переход маршрута)' })
+  @ApiOkResponse({ standardSchema: taskListItemSchema })
+  @ApiErrors(400, 401, 403, 404, 409)
+  @ApiIdempotencyKey()
+  update(
+    @GetUser() user: AuthUser,
+    @Param('id', uuid) id: string,
+    @Body({ schema: taskUpdateBodySchema, pipes: [new ZodValidationPipe(taskUpdateBodySchema)] })
+    body: TaskUpdateBody,
+  ): Promise<TaskListItem> {
+    return this.edit.update(user, id, body);
+  }
+
+  @Delete(':id')
+  @HttpCode(204)
+  @Audit({ action: 'task.delete', entity: 'task' })
+  @ApiOperation({ summary: 'Удаление задачи (мягкое; подзадачи поднимаются к деду)' })
+  @ApiErrors(400, 401, 403, 404)
+  @ApiIdempotencyKey()
+  remove(@GetUser() user: AuthUser, @Param('id', uuid) id: string): Promise<void> {
+    return this.tasks.remove(user, id);
+  }
+
+  @Get(':id/branch')
+  @ApiOperation({ summary: 'Ветка задачи от корневого предка' })
+  @ApiOkResponse({ standardSchema: taskBranchSchema })
+  @ApiErrors(400, 401, 404)
+  branch(@GetUser() user: AuthUser, @Param('id', uuid) id: string): Promise<TaskBranch> {
+    return this.query.branch(user, id);
+  }
+
+  @Post(':id/subtasks')
+  @RequirePermissions(Permission.TASK_CREATE)
+  @Audit({ action: 'task.create', entity: 'task' })
+  @ApiOperation({ summary: 'Подзадача (ответственный по умолчанию — постановщик)' })
+  @ApiCreatedResponse({ standardSchema: taskListItemSchema })
+  @ApiErrors(400, 401, 403, 404)
+  @ApiIdempotencyKey()
+  subtask(
+    @GetUser() user: AuthUser,
+    @Param('id', uuid) id: string,
+    @Body({
+      schema: createSubtaskBodySchema,
+      pipes: [new ZodValidationPipe(createSubtaskBodySchema)],
+    })
+    body: CreateSubtaskBody,
+  ): Promise<TaskListItem> {
+    return this.tasks.create(user, { ...body, parentId: id });
+  }
+}

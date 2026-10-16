@@ -1,7 +1,7 @@
 ---
 name: code-reviewer
 description: "Независимый валидатор готовой работы Nodus перед PR: сверка diff ветки с issue, инвариантами и DoD, самостоятельный прогон lint/typecheck/test/build, вердикт с серьёзностью замечаний. ОБЯЗАТЕЛЕН для каждого issue с изменениями кода и для правок канона/правил процесса (workflow п.6) — использовать всегда вместо рукописного промпта валидатору."
-model: sonnet
+model: claude-sonnet-5-medium
 allowed-tools:
   - read
   - grep

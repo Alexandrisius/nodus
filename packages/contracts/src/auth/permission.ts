@@ -10,6 +10,13 @@ export const Permission = {
   TASK_CREATE: 'task.create',
   /** Назначение/смена ответственного задачи. */
   TASK_ASSIGN: 'task.assign',
+  /** Видеть все задачи портала — вне участия и оргструктуры (#37). */
+  TASK_VIEW_ALL: 'task.view_all',
+  /** Управлять любой видимой задачей как постановщик: правка, участники,
+   *  переходы, удаление (#37). */
+  TASK_MANAGE_ANY: 'task.manage_any',
+  /** Обход гейта DoR/DoD перехода с обязательной причиной (аудит, ADR-0020). */
+  TASK_OVERRIDE_GATE: 'task.override_gate',
   /** Чтение справочника сотрудников и оргструктуры. */
   DIRECTORY_READ: 'directory.read',
   /** Управление пользователями, отделами и должностями (directory). */

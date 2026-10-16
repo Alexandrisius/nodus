@@ -62,6 +62,13 @@ export async function routeEnvelope(
     return;
   }
 
+  // Задачи (#37): адресаты — payload.audience (участники задачи, при снятии —
+  // и снятый), user-комнаты; клиент инвалидирует кэш задач.
+  if (envelope.type.startsWith('task.')) {
+    emitToUsers(io, envelope, memberIdsOf(payload.audience));
+    return;
+  }
+
   const conversationId = typeof payload.conversationId === 'string' ? payload.conversationId : null;
 
   if (envelope.type === 'chat.conversation_created') {

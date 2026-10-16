@@ -30,9 +30,10 @@ import {
 } from '../../../../shared/mocks/data/tasks.js';
 import { demoProjects } from '../../../../shared/mocks/data/projects.js';
 import { letterIdByTaskId, syncLetterWithTasks } from '../../../../shared/mocks/data/letters.js';
-import { demoStages } from '../../../../shared/mocks/data/task-stages.js';
+import { demoStages, systemTaskType } from '../../../../shared/mocks/data/task-stages.js';
 import { currentAuthUser, userRef } from '../../../../shared/mocks/data/users.js';
 import { tasksChecklistHandlers } from './tasks-checklist-handlers.js';
+import { tasksTransitionsHandlers } from './tasks-transitions-handlers.js';
 
 function notFound(message: string) {
   return HttpResponse.json({ code: ErrorCode.NOT_FOUND, message }, { status: 404 });
@@ -131,7 +132,10 @@ export const tasksHandlers = [
     if (parsed.data.personalStageId && !personalColumn) return notFound('Stage not found');
     const stage = personalColumn
       ? globalStageForPersonal(personalColumn, demoStages)
-      : demoStages.find((s) => s.id === parsed.data.stageId);
+      : parsed.data.stageId
+        ? demoStages.find((s) => s.id === parsed.data.stageId)
+        : // Без колонки (экспресс-форма, «В задачу») — начальная стадия маршрута.
+          demoStages[0];
     if (!stage) return notFound('Stage not found');
     const checklist = (parsed.data.checklist ?? []).map((text) => ({
       id: crypto.randomUUID(),
@@ -152,6 +156,7 @@ export const tasksHandlers = [
       id: crypto.randomUUID(),
       number: Math.max(...demoTasks.map((t) => t.number)) + 1,
       title: parsed.data.title,
+      type: systemTaskType,
       stage,
       personalStageId: personalColumn?.id ?? null,
       priority: 'normal',
@@ -184,6 +189,8 @@ export const tasksHandlers = [
   /** Пункты чек-листа карточки (вердикт владельца 15.09.2026: чек-листу —
    *  важное место) — вынесены в tasks-checklist-handlers (I5). */
   ...tasksChecklistHandlers,
+  // Кнопки маршрута карточки (ADR-0020).
+  ...tasksTransitionsHandlers,
 
   // Личная схема «Мой план» (ADR-0008): каталог колонок со счётчиками.
   // Маршруты personal-stages — ДО '/api/v1/tasks/:id' (:id захватил бы их).

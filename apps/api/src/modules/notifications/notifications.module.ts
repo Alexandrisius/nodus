@@ -9,6 +9,14 @@ import { MessageEditedHandler } from './events/message-edited.handler.js';
 import { MessageReadHandler } from './events/message-read.handler.js';
 import { MessageSentHandler } from './events/message-sent.handler.js';
 import { ReactionAddedHandler } from './events/reaction-added.handler.js';
+import {
+  TaskAssignedNotifyHandler,
+  TaskCreatedNotifyHandler,
+  TaskNotificationWriter,
+  TaskOverdueNotifyHandler,
+  TaskParticipantsNotifyHandler,
+  TaskStageNotifyHandler,
+} from './events/task-events.handler.js';
 import { NotificationsController } from './notifications.controller.js';
 import { NotificationsRepository } from './notifications.repository.js';
 import { NotificationsService } from './notifications.service.js';
@@ -41,6 +49,13 @@ import { UrgentRepeatWorker } from './urgent-repeat.worker.js';
     MessageReadHandler,
     ReactionAddedHandler,
     DispatchHandler,
+    // Задачи (#37): назначение/выполнение/возврат/просрочка — по событиям task.*.
+    TaskNotificationWriter,
+    TaskCreatedNotifyHandler,
+    TaskAssignedNotifyHandler,
+    TaskParticipantsNotifyHandler,
+    TaskStageNotifyHandler,
+    TaskOverdueNotifyHandler,
     UrgentRepeatQueue,
     UrgentRepeatWorker,
     BackgroundRetentionJob,
