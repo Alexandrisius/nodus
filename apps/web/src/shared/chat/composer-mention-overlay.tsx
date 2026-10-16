@@ -141,7 +141,13 @@ export function MentionFieldOverlay({
       <div
         ref={overlayRef}
         aria-hidden
-        className="pointer-events-none absolute inset-0 overflow-hidden px-1.5 py-1.5 text-base leading-normal whitespace-pre-wrap break-words md:text-sm"
+        // Метрики — РОВНО классы textarea (базовые text-base md:text-sm +
+        // композерные px-1.5 py-1.5), без собственных модификаторов
+        // line-height: leading-normal давал 21px против 20px поля на text-sm
+        // → 1px дрейфа на строку — построчно уезжали полоска ::selection и
+        // глифы от каретки (#303). Любое изменение классов поля — менять и
+        // здесь (пара обязана stay 1:1).
+        className="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words px-1.5 py-1.5 text-base md:text-sm"
       >
         {renderSegments(text, mentions)}
         {/* Хвостовой перенос строки: pre-wrap textarea держит строку. */}
