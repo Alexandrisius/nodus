@@ -5,6 +5,16 @@ import { z } from 'zod';
  * Правила паролей — по навыку auth-password-hashing (Argon2id + zod на границе).
  */
 
+/**
+ * Email на ВХОДЕ (логин, создание сотрудника, приглашение): обрезка пробелов
+ * и нижний регистр ДО проверки формата — адрес один независимо от того, как
+ * его набрали (`Ivanov@nodus.by` ≡ `ivanov@nodus.by`, #321). В БД хранится
+ * только нормализованная форма (CHECK `users_email_normalized`), поэтому
+ * обычный unique-индекс `users.email` уже без учёта регистра. Ответы API
+ * отдают сохранённое значение — схемы ответов остаются `z.email()`.
+ */
+export const emailInputSchema = z.string().trim().toLowerCase().check(z.email());
+
 export const PASSWORD_MIN_LENGTH = 12;
 export const PASSWORD_MAX_LENGTH = 128;
 
@@ -18,7 +28,7 @@ export const passwordSchema = z
   });
 
 export const loginSchema = z.object({
-  email: z.email(),
+  email: emailInputSchema,
   password: z.string().min(1).max(PASSWORD_MAX_LENGTH),
 });
 

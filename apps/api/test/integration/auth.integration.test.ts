@@ -13,6 +13,7 @@ import {
   departmentNodeSchema,
   ErrorCode,
   paginatedSchema,
+  userCardSchema,
   userListItemSchema,
 } from '@nodus/contracts';
 
@@ -208,6 +209,46 @@ describe('auth + directory (integration)', () => {
       headers: { cookie: reloginCookie },
     });
     expect(afterLogout.status).toBe(401);
+  });
+
+  it('email без учёта регистра (#321): логин в другом регистре, дубль — 409, БД хранит нижний', async () => {
+    const shouted = await login(baseUrl, `  ${ADMIN.email.toUpperCase()} `, ADMIN.password);
+    expect(shouted.status).toBe(200);
+    const { accessToken } = authTokensSchema.parse(await shouted.json());
+
+    const email = `case-it-${crypto.randomUUID().slice(0, 8)}@test.nodus.local`;
+    const create = (address: string) =>
+      fetch(`${baseUrl}/directory/users`, {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${accessToken}`,
+          'content-type': 'application/json',
+          'idempotency-key': crypto.randomUUID(),
+        },
+        body: JSON.stringify({
+          email: address,
+          password: 'Start!23456789',
+          lastName: 'Регистров',
+          firstName: 'Тест',
+        }),
+      });
+    const first = await create(` ${email.toUpperCase()}`);
+    expect(first.status).toBe(201);
+    const card = userCardSchema.parse(await first.json());
+    try {
+      expect(card.email).toBe(email);
+      const dup = await create(email);
+      expect(dup.status).toBe(409);
+      expect(apiErrorResponseSchema.parse(await dup.json()).code).toBe(
+        ErrorCode.DIRECTORY_EMAIL_TAKEN,
+      );
+      // Гарантия БД: мимо контракта ненормализованный адрес не записать.
+      await expect(
+        prisma.user.update({ where: { id: card.id }, data: { email: email.toUpperCase() } }),
+      ).rejects.toThrow();
+    } finally {
+      await prisma.user.delete({ where: { id: card.id } });
+    }
   });
 
   it('деактивация пользователя отзывает его сессии событием', async () => {

@@ -9,16 +9,16 @@
 
 ## Эндпоинты (`/api/v1/auth`)
 
-| Метод  | Маршрут            | Доступ          | Назначение                                            |
-| ------ | ------------------ | --------------- | ----------------------------------------------------- |
-| POST   | `/login`           | public          | email+пароль → access-JWT + refresh-cookie            |
-| POST   | `/refresh`         | public (cookie) | ротация refresh, новый access                         |
-| POST   | `/logout`          | public (cookie) | отзыв текущей сессии (идемпотентен)                   |
-| POST   | `/logout-all`      | auth            | отзыв всех сессий                                     |
-| GET    | `/me`              | auth            | AuthUser (перечитывается из БД — свежие права/статус) |
-| GET    | `/sessions`        | auth            | активные сессии (current помечена)                    |
-| DELETE | `/sessions/:id`    | auth            | отзыв чужой сессии (текущую — только logout)          |
-| POST   | `/change-password` | auth            | проверка старого; отзыв остальных сессий              |
+| Метод  | Маршрут            | Доступ          | Назначение                                                                               |
+| ------ | ------------------ | --------------- | ---------------------------------------------------------------------------------------- |
+| POST   | `/login`           | public          | email (без учёта регистра и крайних пробелов, #321)+пароль → access-JWT + refresh-cookie |
+| POST   | `/refresh`         | public (cookie) | ротация refresh, новый access                                                            |
+| POST   | `/logout`          | public (cookie) | отзыв текущей сессии (идемпотентен)                                                      |
+| POST   | `/logout-all`      | auth            | отзыв всех сессий                                                                        |
+| GET    | `/me`              | auth            | AuthUser (перечитывается из БД — свежие права/статус)                                    |
+| GET    | `/sessions`        | auth            | активные сессии (current помечена)                                                       |
+| DELETE | `/sessions/:id`    | auth            | отзыв чужой сессии (текущую — только logout)                                             |
+| POST   | `/change-password` | auth            | проверка старого; отзыв остальных сессий                                                 |
 
 ## Механика
 
