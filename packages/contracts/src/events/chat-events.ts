@@ -220,7 +220,8 @@ export type ChatThreadCreatedPayload = z.infer<typeof chatThreadCreatedPayloadSc
 /** Адресаты событий содержимого пака (#318): у пикера пака видят те же, кто
  *  видит пак. Корпоративный — все сотрудники (gateway шлёт в общую комнату
  *  аутентифицированных сокетов, `audience` пуст); личный — владелец и
- *  установившие его «себе» (user-комнаты из `audience`). */
+ *  установившие его «себе» (user-комнаты из `audience`). `audience` клиенту
+ *  не доставляется — gateway вырезает его до emit (#318, #328). */
 const stickerPackAudienceShape = {
   scope: z.enum(['corporate', 'personal']),
   audience: z.array(z.uuid()),

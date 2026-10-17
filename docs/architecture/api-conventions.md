@@ -54,6 +54,8 @@ workflow.instance_started / step_completed / approved / rejected / escalated
 custom_field.definition_changed / value_changed  # агрегат + код поля + старое/новое значение
 ```
 
+Поле `audience` в payload событий (`task.*`, `chat.sticker_*`) — служебная адресация для gateway (user-комнаты); клиенту не доставляется — gateway вырезает его до отправки (#328). Доменные данные события (составы `memberIds`/`userIds` событий беседы) уходят клиенту как есть.
+
 **Правила событий:**
 - Префикс = имя модуля-владельца в единственном числе (`tasks` → `task`, `workflows` → `workflow`, `correspondence` → `correspondence`); дефисы в имени модуля заменяются подчёркиваниями (`custom-fields` → `custom_field.*`).
 - Событие — факт в прошедшем времени; payload минимальный (id + ключевые поля), подробности подписчик дочитывает через API.
