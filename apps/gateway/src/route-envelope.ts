@@ -155,12 +155,16 @@ function routeStickerEvent(
     }
     return;
   }
+  // `audience` — служебный список адресатов: кто ещё установил чужой личный
+  // пак, клиенту знать незачем (API этого не раскрывает) — вырезаем до emit.
+  const { audience, ...visible } = payload;
+  const outgoing: RealtimeEnvelope = { ...envelope, payload: visible };
   if (payload.scope === 'corporate') {
-    io.to(PRESENCE_ROOM).emit(envelope.type, envelope);
+    io.to(PRESENCE_ROOM).emit(envelope.type, outgoing);
     return;
   }
   // Личный пак: только видящие его; без scope/audience (старый формат) — никому.
-  emitToUsers(io, envelope, memberIdsOf(payload.audience));
+  emitToUsers(io, outgoing, memberIdsOf(audience));
 }
 
 function emitToUsers(io: Server, envelope: RealtimeEnvelope, userIds: string[]): void {

@@ -213,6 +213,11 @@ describe('routeEnvelope', () => {
       ['chat.sticker_added', `user:${USER_B}`],
       ['chat.sticker_pack_installed', `user:${USER_B}`],
     ]);
+    // Список адресатов (кто установил чужой пак) клиенту не уходит.
+    for (const call of calls) {
+      expect(call.envelope.payload).not.toHaveProperty('audience');
+    }
+    expect(calls[1]?.envelope.payload).toMatchObject({ packId: 'p1', stickerId: 's1' });
   });
 
   it('неизвестный доменный тип (стрим общий) — игнор без ошибок', async () => {

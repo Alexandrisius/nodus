@@ -29,6 +29,8 @@ export class PresenceTracker {
     }
     const wasOffline = sockets.size === 0;
     sockets.add(socket.id);
+    // Комната = все аутентифицированные сокеты: на неё опирается и рассылка
+    // корпоративных стикер-паков (#318) — сужать её только вместе с ней.
     await socket.join(PRESENCE_ROOM);
     const ref = await this.store.userRef(userId);
     if (!ref) {
