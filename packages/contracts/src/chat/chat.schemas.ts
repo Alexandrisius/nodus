@@ -415,7 +415,9 @@ export const sendMessageBodySchema = z
     stickerId: z.uuid().optional(),
     replyToId: z.uuid().nullable().optional(),
     /** Частичная цитата: фрагмент текста оригинала, выделенный автором
-     *  ответа (модель Telegram Replies 2.0); сервер усекает снапшот. */
+     *  ответа (модель Telegram Replies 2.0); сервер усекает снапшот, а не
+     *  найденный в отображаемом тексте оригинала фрагмент отбрасывает —
+     *  ответ становится цитатой всего сообщения (#346). */
     quoteText: z.string().trim().max(1024).nullable().optional(),
     threadRootId: z.uuid().nullable().optional(),
     /** «Важное сообщение» (#100): прямые беседы и группы ≤20 участников;
