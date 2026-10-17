@@ -4,7 +4,7 @@ import { isolateIntegrationRedis } from '@nodus/config/test-env';
 
 // Интеграционным тестам нужны DATABASE_URL/REDIS_URL/JWT_SECRET — корневой .env.
 loadEnv({ path: new URL('../../.env', import.meta.url) });
-// Redis тест-контура — свой db, не db живого стека из .env (#332).
+// Redis и бакет хранилища тест-контура — свои, не живого стека из .env (#332, #324).
 isolateIntegrationRedis();
 
 /**
