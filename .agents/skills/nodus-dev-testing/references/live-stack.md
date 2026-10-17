@@ -7,9 +7,9 @@
 
 1. Проверка сирот: живые pid из pids.json → «сначала down»; чужой процесс на порту :3011/:3012/:4173 → громкий отказ с рецептом (`netstat -ano | findstr :4173` → `taskkill /PID <pid> /F`).
 2. **Авто-изоляция** (без явного env процесса): из корневого `.env` берутся прод-значения и переписываются — `DATABASE_URL`: база `nodus` → **`nodus_night`**; `REDIS_URL`: суффикс БД → **`/1`**. Логирует каждую подмену. Явный env процесса главнее; если он указывает на прод-базу `nodus` — ОТКАЗ (осознанный прод: `SANDBOX_ON_PROD=1`).
-3. **Бутстрап** (идемпотентно, безопасно повторять): создать БД `nodus_night`, если нет (docker exec nodus_postgres) → `prisma migrate deploy` (schema `apps/api/prisma`) → `scripts/night-users.mjs` (night-a/night-b, upsert).
+3. **Бутстрап** (идемпотентно, безопасно повторять): создать БД `nodus_night`, если нет (docker exec nodus_postgres) → `prisma migrate deploy` (schema `apps/api/prisma`) → `db:seed` с паролями из `tests/e2e/e2e-users.json` (роли, флаги, пользователи CI-e2e; ТОЛЬКО на `nodus_night` — на другой БД сид пропускается, иначе перезаписал бы пароль боевого админа) → `scripts/night-users.mjs` (night-a/night-b, upsert).
 4. Сборка: `@nodus/api` build, `@nodus/gateway` build, web — `VITE_API_MOCK=false vite build` (напрямую, мимо turbo-кэша).
-5. Старт api (:3011, RATE_LIMIT_MAX=30000 для двухбраузерных прогонов, COOKIE_SECURE=false) + gateway (:3012) + `vite preview` (:4173, strictPort) c прокси на api/gateway.
+5. Старт api (:3011, RATE_LIMIT_MAX=30000 для двухбраузерных прогонов, COOKIE_SECURE=false) + gateway (:3012) + web :4173 (strictPort) c прокси на api/gateway: `up --dev` — vite dev-сервер (`VITE_API_MOCK=false` из env процесса перекрывает `.env`; dist не пишет), `up` / `up --preview` — `vite build` + `vite preview`. Режим — в `pnpm live-stack status` (файл `.live-stack/mode`).
 6. Health-гейты: `/api/v1/health/ready`, gateway, web — «Ready» только когда всё живо.
 
 `down` — taskkill по дереву pid'ов. `status` — жив/мёртв/порт занят чужим. `bootstrap` — только шаг 3.
@@ -23,7 +23,7 @@
 
 ## Данные песочницы
 
-- Пользователи проб: `night-a@nodus.local` (Анна Ночная) / `night-b@nodus.local` (Борис Ночной), пароль `Night-Probe-100!`. Пересоздаются `pnpm live-stack bootstrap`; пароль — секрет одноразовой песочницы.
+- Пользователи проб: `night-a@nodus.local` (Анна Ночная) / `night-b@nodus.local` (Борис Ночной) + CI-пользователи e2e (`admin@nodus.by`, `a.klimovich@passatproekt.by`); пароли — `tests/e2e/e2e-users.json` (единый источник сред, #247). Пересоздаются `pnpm live-stack bootstrap`.
 - Права: пользователи «голые» (без ролей) — REST-логин и чат работают; административное (стикерпаки «manage», справочники) — недоступно. Нужно админ-поведение → STOP & ASK владельцу (не повышать права вживую молча).
 - Сущности под пробу — через API от night-пользователя: канал `POST /chat/conversations {type:'project_channel', title:'Проба …', memberIds:[<id night-b>]}` (участник добавляется ТОЛЬКО при создании — отдельного members-эндпоинта нет), посты `POST /chat/conversations/:id/messages`.
 - Идентификатор night-b в песочнице может меняться после DROP DATABASE — не хардкодить, брать из БД/логина.
@@ -35,7 +35,7 @@
 | Симптом | Причина | Лечение |
 |---|---|---|
 | `Port :4173 is taken by a FOREIGN process` | сирота прошлой сессии (preview жив) | netstat+taskkill по рецепту из ошибки |
-| «на 4173 не поменялось» после правок | preview держит СТАРУЮ сборку | `down` + `up` (не F5) |
+| «на 4173 не поменялось» после правок | preview держит СТАРУЮ сборку (или правка в api/gateway — dist) | цикл правок фронта — `up --dev`; иначе `down` + `up` (не F5) |
 | api не healthy | docker/БД/миграции | `docker ps` (nodus_postgres жив?), хвост `.live-stack/api.log`; `pnpm live-stack bootstrap` |
 | Логин night не проходит | БД пересоздана без юзеров | `pnpm live-stack bootstrap` |
 | `EADDRINUSE` у свежего процесса | занятый порт молча валит процесс — до старта live-stack проверяет и кричит | видеть ошибку live-stack ДО запуска своих процессов |

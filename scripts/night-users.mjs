@@ -19,7 +19,9 @@ const require = createRequire(path.join(ROOT, 'apps/api/package.json'));
 const pg = require('pg');
 const argon2 = require('argon2');
 
-const PASS = 'Night-Probe-100!';
+// Пароль — единый источник тестовых пользователей сред (#247).
+const PASS = JSON.parse(readFileSync(path.join(ROOT, 'tests/e2e/e2e-users.json'), 'utf8')).nightA
+  .password;
 const url =
   process.env.DATABASE_URL ??
   (() => {

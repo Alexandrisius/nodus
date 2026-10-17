@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { ADMIN, SECOND } from '../e2e-users.js';
 
 /**
  * Живое превью ссылок (#212, критичный путь): отправка со ссылкой
@@ -11,14 +12,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 const LIVE = Boolean(process.env.E2E_LIVE_API);
 const BASE_URL = process.env.NODUS_BASE_URL ?? 'http://localhost:3000';
-const ADMIN = {
-  email: process.env.E2E_ADMIN_EMAIL ?? 'admin@nodus.by',
-  password: process.env.E2E_ADMIN_PASSWORD ?? '',
-};
-const PEER = {
-  email: process.env.E2E_SECOND_EMAIL ?? 'a.klimovich@passatproekt.by',
-  password: process.env.E2E_SECOND_PASSWORD ?? '',
-};
+const PEER = SECOND;
 const RUN = Date.now().toString(36);
 
 test.skip(!LIVE, 'Пропущено: задай E2E_LIVE_API=1 и NODUS_BASE_URL на живую сборку');
