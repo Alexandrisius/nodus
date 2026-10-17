@@ -225,6 +225,25 @@ describe('buildReplyPreview — различие надгробие/бессле
     expect(dtos[0]?.reply).toMatchObject({ id: 'orig-1', deleted: true, obliterated: true });
   });
 
+  it('оригинал из ЧУЖОЙ беседы (legacy-ссылка, #344) — не раскрывается: ни автора, ни состояния', async () => {
+    const foreignRow = fullRow({
+      id: 'r-2',
+      text: 'ответ',
+      replyToId: 'orig-x',
+      replySnapshot: { authorId: null, text: '', quoteText: null, attachmentKind: null },
+    });
+    const dtos = await stubMapper([
+      fullRow({ id: 'orig-x', conversationId: 'conv-secret', authorId: 'boss-1', text: 'тайна' }),
+    ]).toDtos([foreignRow], { viewerId: 'me-1', members });
+    expect(dtos[0]?.reply).toMatchObject({
+      id: 'orig-x',
+      author: null,
+      text: '',
+      deleted: true,
+      obliterated: true,
+    });
+  });
+
   it('оригинала нет в выдаче вовсе (гонка) — считаем бесследным', async () => {
     const dtos = await stubMapper([]).toDtos([replyRow], { viewerId: 'me-1', members });
     expect(dtos[0]?.reply).toMatchObject({ id: 'orig-1', deleted: true, obliterated: true });

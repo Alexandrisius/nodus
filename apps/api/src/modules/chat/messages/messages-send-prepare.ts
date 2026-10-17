@@ -41,7 +41,9 @@ export async function resolveSendSticker(
 }
 
 /** Снапшот цитаты (оригинал — только этой беседы: чужое не утекает).
- *  replyOriginalRow — для DTO payload (toFreshDto); null у обоих — без цитаты. */
+ *  replyOriginalRow — для DTO payload (toFreshDto); null у обоих — без цитаты.
+ *  Оригинала нет в этой беседе — 404 (#344): иначе ссылка на сообщение чужой
+ *  беседы сохранялась бы и раскрывала его автора/состояние при чтении. */
 export async function loadReplyQuote(
   repo: Pick<MessagesRepository, 'findByIdInConversation' | 'attachmentsFor'>,
   conversationId: string,
@@ -53,6 +55,7 @@ export async function loadReplyQuote(
 }> {
   if (!body.replyToId) return { replySnapshot: null, replyOriginalRow: null };
   const replyOriginalRow = await repo.findByIdInConversation(conversationId, body.replyToId, tx);
+  if (!replyOriginalRow) throw DomainException.notFound('Reply target not found');
   const originalAttachments =
     replyOriginalRow && !replyOriginalRow.deletedAt
       ? await repo.attachmentsFor([replyOriginalRow.id], tx)
