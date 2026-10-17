@@ -13,55 +13,20 @@
  * Команды: up [--dev|--preview] | down | status | bootstrap (pnpm live-stack <команда>).
  */
 import { spawn, spawnSync } from 'node:child_process';
-import { randomBytes } from 'node:crypto';
 import { createRequire } from 'node:module';
 import net from 'node:net';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { dbName, sandboxSecrets } from './live-stack-env.mjs';
+
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const STATE_DIR = path.join(ROOT, '.live-stack');
 const PID_FILE = path.join(STATE_DIR, 'pids.json');
 const MODE_FILE = path.join(STATE_DIR, 'mode');
-const SECRETS_FILE = path.join(STATE_DIR, 'secrets.json');
 /** Единый источник тестовых пользователей сред (#247): CI, песочница, e2e. */
 const E2E_USERS = JSON.parse(fs.readFileSync(path.join(ROOT, 'tests/e2e/e2e-users.json'), 'utf8'));
-
-/** Имя базы из DATABASE_URL (pathname, не подстрока: `?x=/nodus_night` не
- *  должен выдавать прод-базу за песочную). */
-function dbName(url) {
-  try {
-    return new URL(url).pathname.replace(/^\//, '');
-  } catch {
-    return '';
-  }
-}
-
-/** Секреты подписи песочницы (#247, security-ревью): НЕ из `.env` — там
- *  прод-значения. С общим JWT_SECRET токен песочницы (тестовые пароли
- *  публичны) принимал бы прод: JwtAuthGuard верит правам из payload.
- *  Генерируются один раз в gitignored `.live-stack/secrets.json`. */
-function sandboxSecrets(dotenv) {
-  const keys = ['JWT_SECRET', 'STORAGE_URL_SECRET'];
-  let secrets = {};
-  if (fs.existsSync(SECRETS_FILE)) secrets = JSON.parse(fs.readFileSync(SECRETS_FILE, 'utf8'));
-  let changed = false;
-  for (const key of keys) {
-    if (!secrets[key]) {
-      secrets[key] = randomBytes(32).toString('hex');
-      changed = true;
-    }
-    if (dotenv[key] && secrets[key] === dotenv[key]) {
-      throw new Error(`секрет песочницы ${key} совпадает с .env (прод) — удалите ${SECRETS_FILE}`);
-    }
-  }
-  if (changed) {
-    fs.mkdirSync(STATE_DIR, { recursive: true });
-    fs.writeFileSync(SECRETS_FILE, JSON.stringify(secrets, null, 2));
-  }
-  return secrets;
-}
 
 const PORTS = { api: 3011, gateway: 3012, web: 4173 };
 const HEALTH = {
@@ -264,7 +229,7 @@ async function up(mode) {
   }
   bootstrapNight(base);
   // Свои секреты подписи (#247): явный env процесса главнее (осознанный запуск).
-  const secrets = sandboxSecrets(dotenv);
+  const secrets = sandboxSecrets(dotenv, STATE_DIR);
   if (!process.env.JWT_SECRET) base.JWT_SECRET = secrets.JWT_SECRET;
   if (!process.env.STORAGE_URL_SECRET) base.STORAGE_URL_SECRET = secrets.STORAGE_URL_SECRET;
 
