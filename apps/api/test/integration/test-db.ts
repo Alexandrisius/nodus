@@ -1,6 +1,6 @@
 import { execSync } from 'node:child_process';
 import pg from 'pg';
-import { assertIsolatedTestRedis } from '@nodus/config/test-env';
+import { assertIsolatedTestEnv } from '@nodus/config/test-env';
 
 export const TEST_DB_NAME = 'nodus_test';
 
@@ -20,7 +20,7 @@ export function testDatabaseUrl(): string {
  * Идемпотентно — вызывается в beforeAll каждого набора, работающего с БД.
  */
 export async function ensureTestDatabase(appRoot: string): Promise<string> {
-  assertIsolatedTestRedis();
+  assertIsolatedTestEnv();
   const testUrl = testDatabaseUrl();
   const adminUrl = new URL(testUrl);
   adminUrl.pathname = '/postgres';

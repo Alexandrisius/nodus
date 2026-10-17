@@ -28,6 +28,12 @@ updates:
       # апстрима — тогда правило снять.
       - dependency-name: 'jsdom'
         update-types: ['version-update:semver-minor', 'version-update:semver-major']
+      # @swc/core 1.16 не грузится на Windows-хосте разработки (проверка прав
+      # кэша нативного аддона, swc-project/swc#12442/#12534) — интеграционные
+      # тесты не стартуют локально. Держим 1.15.x (#324); снять после
+      # стабильного 1.16.19+ с проверкой `node -e "require('@swc/core')"` на хосте.
+      - dependency-name: '@swc/core'
+        update-types: ['version-update:semver-minor', 'version-update:semver-major']
     groups:
       production-dependencies:
         dependency-type: 'production'
