@@ -148,6 +148,17 @@ export function connectChatSocket(queryClient: QueryClient): void {
     status.setConnected(false);
     wsDebugLog('disconnect:', reason);
   });
+  /** Повтор хендшейка с экспонентой (один таймер на клиент). */
+  const scheduleRetry = () => {
+    if (authRetryTimer !== null) return;
+    const delay = Math.min(AUTH_RETRY_BASE_MS * 2 ** authRetryAttempt, AUTH_RETRY_MAX_MS);
+    authRetryAttempt += 1;
+    authRetryTimer = setTimeout(() => {
+      authRetryTimer = null;
+      if (socket === client) client.connect();
+    }, delay);
+  };
+
   client.on('connect_error', (error: Error) => {
     // Ошибка подключения = соединения нет: статус вниз, чтобы поллинг-fallback
     // ушёл в частый интервал (раньше залипал на редком 60-с опросе).
@@ -169,19 +180,15 @@ export function connectChatSocket(queryClient: QueryClient): void {
           if (refreshed) {
             authRetryAttempt = 0;
             client.connect();
-          } else if (
-            useAuthStore.getState().status === 'authenticated' &&
-            authRetryTimer === null
-          ) {
-            const delay = Math.min(AUTH_RETRY_BASE_MS * 2 ** authRetryAttempt, AUTH_RETRY_MAX_MS);
-            authRetryAttempt += 1;
-            authRetryTimer = setTimeout(() => {
-              authRetryTimer = null;
-              if (socket === client) client.connect();
-            }, delay);
+          } else if (useAuthStore.getState().status === 'authenticated') {
+            scheduleRetry();
           }
         })
         .catch(() => undefined);
+    } else if (error.message === 'unavailable') {
+      // Gateway не смог проверить учётку (сбой БД, #320): отказ middleware —
+      // Socket.IO сам НЕ переподключается; повтор с экспонентой, без refresh.
+      scheduleRetry();
     } else if (!revertedToClassicUpgrade) {
       // websocket-first в современных браузерах не фолбэчится на polling
       // (докам Socket.IO): при транспортной ошибке один раз возвращаем

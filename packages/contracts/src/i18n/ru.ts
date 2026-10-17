@@ -317,6 +317,13 @@ export const ui = {
     noTasks: 'Нет задач в работе',
     noProjects: 'Не участвует в проектах',
   },
+  /** Отладочная точка сокета (`?wsdebug=1`, #104) — не продуктовый индикатор. */
+  wsDebug: {
+    connectedLabel: 'WS: подключено',
+    disconnectedLabel: 'WS: нет соединения',
+    connectedHint: 'WS-сокет подключён (?wsdebug=1)',
+    disconnectedHint: 'WS-сокет отключён — реконнект/фолбэк (?wsdebug=1)',
+  },
   desktop: {
     appTitle: 'Nodus',
     connectTitle: 'Подключение к порталу',

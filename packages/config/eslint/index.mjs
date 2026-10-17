@@ -7,13 +7,7 @@ import reactHooks from 'eslint-plugin-react-hooks';
 import eslintConfigPrettier from 'eslint-config-prettier';
 import { nodusInternal } from './nodus-internal.mjs';
 
-const BACKEND_ELEMENTS = [
-  'api-module',
-  'api-module-port',
-  'api-module-ports-module',
-  'api-core',
-  'gateway',
-];
+const BACKEND_ELEMENTS = ['api-module', 'api-core', 'gateway'];
 const WEB_ELEMENTS = ['web-feature', 'web-shared', 'web-app'];
 
 /**
@@ -29,28 +23,23 @@ const boundariesConfig = {
   plugins: { boundaries },
   settings: {
     'boundaries/elements': [
-      // Read-порты модулей-владельцев (ADR-0012): токен + интерфейс порта и
-      // тонкий *-ports.module.ts — ЕДИНСТВЕННАЯ допустимая форма межмодульного
-      // импорта на бэке (первый случай: chat → notifications, #100). Специфичные
-      // file-паттерны стоят выше общего api-module (порядок разрешения).
-      {
-        type: 'api-module-port',
-        pattern: 'apps/api/src/modules/**/*.port.ts',
-        mode: 'file',
-        capture: ['module'],
-      },
-      {
-        type: 'api-module-ports-module',
-        pattern: 'apps/api/src/modules/**/*-ports.module.ts',
-        mode: 'file',
-        capture: ['module'],
-      },
       { type: 'api-module', pattern: 'apps/api/src/modules/*', capture: ['module'] },
       { type: 'api-core', pattern: 'apps/api/src/core/*', capture: [] },
       { type: 'gateway', pattern: 'apps/gateway/src', capture: [] },
       { type: 'web-feature', pattern: 'apps/web/src/features/*', capture: ['feature'] },
       { type: 'web-app', pattern: 'apps/web/src/app/*', capture: [] },
       { type: 'web-shared', pattern: 'apps/web/src/shared/*', capture: [] },
+    ],
+    // Read-порты модулей-владельцев (ADR-0012): токен + интерфейс порта и
+    // тонкий *-ports.module.ts — ЕДИНСТВЕННАЯ допустимая форма межмодульного
+    // импорта на бэке (первый случай: chat → notifications, #100). Файловые
+    // категории внутри элемента api-module (v7: file-дескрипторы вместо
+    // устаревшего `mode: 'file'` у элементов, #320).
+    'boundaries/files': [
+      // Паттерн файла — от любого уровня (`**/`): путь целиком не матчится;
+      // область (только модули api) задаёт элемент в политике ниже.
+      { pattern: '**/*.port.ts', category: 'module-port' },
+      { pattern: '**/*-ports.module.ts', category: 'module-port' },
     ],
     'import/resolver': {
       typescript: { alwaysTryTypes: true },
@@ -74,6 +63,12 @@ const boundariesConfig = {
             },
             message:
               'Cross-module импорт запрещён (I3, I6): модули общаются событиями и @nodus/contracts; исключение — read-порты (*.port.ts, *-ports.module.ts, ADR-0012)',
+          },
+          // Исключение из запрета выше (политика ниже по списку побеждает):
+          // read-порт модуля-владельца доступен чужому модулю (ADR-0012).
+          {
+            from: { element: { type: 'api-module' } },
+            allow: { to: { element: { type: 'api-module' }, file: { categories: 'module-port' } } },
           },
           {
             from: { element: { type: 'web-feature' } },
@@ -120,20 +115,14 @@ const boundariesConfig = {
             from: { element: { type: 'gateway' } },
             disallow: {
               to: {
-                element: {
-                  type: ['api-module', 'api-module-port', 'api-module-ports-module', 'api-core'],
-                },
+                element: { type: ['api-module', 'api-core'] },
               },
             },
             message:
               'Gateway — отдельный процесс (I1): код api не импортирует, общее — @nodus/contracts',
           },
           {
-            from: {
-              element: {
-                type: ['api-module', 'api-module-port', 'api-module-ports-module', 'api-core'],
-              },
-            },
+            from: { element: { type: ['api-module', 'api-core'] } },
             disallow: { to: { element: { type: 'gateway' } } },
             message: 'Api не импортирует код gateway (I1): общее — @nodus/contracts',
           },
@@ -179,7 +168,8 @@ const reactHooksConfig = {
   plugins: { 'react-hooks': reactHooks },
   rules: {
     'react-hooks/rules-of-hooks': 'error',
-    'react-hooks/exhaustive-deps': 'warn',
+    // error с #320: нарушений 0 после аудита #317 — не даём им вернуться.
+    'react-hooks/exhaustive-deps': 'error',
   },
 };
 
@@ -229,6 +219,40 @@ const browserConfig = {
 };
 
 /**
+ * Никаких хард-строк интерфейса (I15, #320): кириллица в тексте JSX, в
+ * строковых атрибутах/выражениях JSX и в тостах — только из i18n
+ * (`packages/contracts/src/i18n`). Литерал в логике (сравнения, ключи,
+ * регэкспы) правило не трогает — только то, что видит пользователь.
+ * Тесты и MSW-моки (демо-данные) — вне правила.
+ */
+const CYRILLIC = '/[А-Яа-яЁё]/';
+const I18N_MESSAGE =
+  'Строка интерфейса — из i18n (@nodus/contracts ui.*), не литералом в коде (I15)';
+const i18nLiteralsConfig = {
+  files: BROWSER_FILES,
+  ignores: ['**/*.test.{ts,tsx}', '**/mocks/**'],
+  rules: {
+    'no-restricted-syntax': [
+      'error',
+      ...[
+        `JSXText[value=${CYRILLIC}]`,
+        `JSXAttribute > Literal[value=${CYRILLIC}]`,
+        `JSXExpressionContainer > Literal[value=${CYRILLIC}]`,
+        `JSXExpressionContainer > TemplateLiteral > TemplateElement[value.raw=${CYRILLIC}]`,
+        // Ветки тернарника/логического выражения в разметке — самая частая
+        // форма текста интерфейса (`{ok ? 'Да' : 'Нет'}`, `{x || 'Пусто'}`).
+        `JSXExpressionContainer :matches(ConditionalExpression, LogicalExpression) > Literal[value=${CYRILLIC}]`,
+        `JSXExpressionContainer :matches(ConditionalExpression, LogicalExpression) > TemplateLiteral > TemplateElement[value.raw=${CYRILLIC}]`,
+        `CallExpression[callee.object.name='toast'] > Literal[value=${CYRILLIC}]`,
+        `CallExpression[callee.name='toast'] > Literal[value=${CYRILLIC}]`,
+        `CallExpression[callee.object.name='toast'] > TemplateLiteral > TemplateElement[value.raw=${CYRILLIC}]`,
+        `CallExpression[callee.name='toast'] > TemplateLiteral > TemplateElement[value.raw=${CYRILLIC}]`,
+      ].map((selector) => ({ selector, message: I18N_MESSAGE })),
+    ],
+  },
+};
+
+/**
  * Type-aware правила промисов (аудит #317): весь бэкенд — async (NestJS,
  * BullMQ, Socket.IO), фронт — мутации и WS. Забытый await = потерянная
  * ошибка, транзакция после ответа, необработанный rejection; линтер без
@@ -263,6 +287,7 @@ export const nodusConfig = tseslint.config(
   boundariesConfig,
   repositoryPatternConfig,
   browserConfig,
+  i18nLiteralsConfig,
   promiseSafetyConfig,
   fileSizeConfig,
   reactHooksConfig,

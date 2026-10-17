@@ -6,14 +6,14 @@ import { REALTIME_EVENTS } from '@nodus/contracts';
 import { createAccessTokenVerifier, type AccessTokenVerifier } from './auth.ts';
 import { ChatEventsConsumer } from './fanout.ts';
 import { buildHealthPayload } from './health-payload.ts';
-import type { MembershipStore } from './membership.ts';
+import type { MembershipStore, UserStatusReader } from './membership.ts';
 import { PresenceTracker } from './presence.ts';
 import { registerRoomHandlers, userRoom } from './rooms.ts';
 import { TypingThrottler } from './typing.ts';
 
 export interface GatewayDeps {
   jwtSecret: string;
-  store: MembershipStore;
+  store: MembershipStore & UserStatusReader;
   redis: Redis;
   /** Имя consumer group стрима (тесты подставляют изолированное). */
   consumerGroup?: string;
@@ -50,21 +50,31 @@ export function createGatewayServer(deps: GatewayDeps): GatewayServer {
   const presence = new PresenceTracker(deps.store, io);
 
   io.use((socket, next) => {
-    // Middleware socket.io ждёт void: промис верификатора разворачиваем сами,
-    // сбой верификации = отказ хендшейка (а не необработанный reject).
-    verify(socket.handshake.auth?.token).then(
-      (identity) => {
-        if (!identity) {
-          next(new Error('unauthorized')); // connect_error у клиента, сессии нет
-          return;
-        }
-        socket.data.userId = identity.userId;
-        next();
-      },
-      () => {
-        next(new Error('unauthorized'));
-      },
-    );
+    // Middleware socket.io ждёт void: промис проверки разворачиваем сами.
+    // 'unauthorized' — токен не годен или учётка деактивирована (#320: access-
+    // JWT живёт до 15 мин, статус перечитывается на каждом хендшейке) —
+    // клиент делает refresh, у деактивированного он не проходит;
+    // 'unavailable' — сбой БД: хендшейк закрыт (fail-closed), клиент
+    // повторяет с экспонентой, без шторма refresh.
+    void (async () => {
+      const identity = await verify(socket.handshake.auth?.token);
+      if (!identity) return next(new Error('unauthorized'));
+      let active: boolean;
+      try {
+        active = await deps.store.isActiveUser(identity.userId);
+      } catch (error: unknown) {
+        console.error('[gateway] user status check failed:', error);
+        return next(new Error('unavailable'));
+      }
+      if (!active) return next(new Error('unauthorized'));
+      socket.data.userId = identity.userId;
+      next();
+    })().catch((error: unknown) => {
+      // Страховка: неожиданный сбой проверки — отказ, а не unhandled
+      // rejection (Node роняет процесс — gateway лёг бы для всех).
+      console.error('[gateway] handshake check failed:', error);
+      next(new Error('unauthorized'));
+    });
   });
 
   io.on('connection', (socket: Socket) => {
