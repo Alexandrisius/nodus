@@ -3,9 +3,8 @@
  *  проб и приёмки (двухпользовательские сценарии: WS-догон, реакции, треды).
  *  Идемпотентно: существующим перегенерирует пароль и имя.
  *
- *  БД по умолчанию — ИЗОЛИРОВАННАЯ nodus_night (из .env заменой базы);
- *  прод-база допустима только явным DATABASE_URL (сделать это случайностью
- *  нельзя — тот же принцип, что гвард live-stack).
+ *  БД — ТОЛЬКО ИЗОЛИРОВАННАЯ nodus_night (из .env заменой базы); другая
+ *  база — отказ (пароли публичны, security-ревью #247).
  *
  *  Пароль — тестовый секрет одноразовой песочницы, не репо-секрет: пользователи
  *  живут только в nodus_night и сбрасываются вместе с ней. */
@@ -19,7 +18,8 @@ const require = createRequire(path.join(ROOT, 'apps/api/package.json'));
 const pg = require('pg');
 const argon2 = require('argon2');
 
-const PASS = 'Night-Probe-100!';
+// Пароли — единый источник тестовых пользователей сред (#247).
+const USERS = JSON.parse(readFileSync(path.join(ROOT, 'tests/e2e/e2e-users.json'), 'utf8'));
 const url =
   process.env.DATABASE_URL ??
   (() => {
@@ -29,10 +29,15 @@ const url =
     return m[1].trim().replace(/\/nodus(\?|$)/, '/nodus_night$1');
   })();
 
+// Публичный пароль — только в песочной базе (security-ревью #247): прод-база
+// с известными учётками = вход для любого, кто читал репозиторий.
+if (new URL(url).pathname !== '/nodus_night') {
+  throw new Error('night-users: только БД nodus_night (публичные тестовые пароли)');
+}
 const client = new pg.Client({ connectionString: url });
 await client.connect();
-async function mk(email, first, last) {
-  const hash = await argon2.hash(PASS, { type: argon2.argon2id });
+async function mk({ email, password }, first, last) {
+  const hash = await argon2.hash(password, { type: argon2.argon2id });
   const existing = await client.query('SELECT id FROM users WHERE email = $1', [email]);
   if (existing.rowCount > 0) {
     await client.query(
@@ -48,13 +53,13 @@ async function mk(email, first, last) {
   );
   console.log('created', email, res.rows[0].id);
 }
-await mk('night-a@nodus.local', 'Анна', 'Ночная');
-await mk('night-b@nodus.local', 'Борис', 'Ночной');
+await mk(USERS.nightA, 'Анна', 'Ночная');
+await mk(USERS.nightB, 'Борис', 'Ночной');
 // Роль employee (directory.read): пикеры людей и журнал сотрудников в
 // песочнице работают как у пилотов — без роли справочник отдаёт 403 и окна
 // «Добавить участников»/создания чата выглядят пустыми (приёмка #186).
-// Роли сеет только prisma/seed (бутстрап песочницы его не гоняет) —
-// создаём минимальную роль здесь, идемпотентно.
+// Роли сеет prisma/seed (бутстрап live-stack гоняет его перед этим
+// скриптом, #247); минимальная роль здесь — страховка ручного запуска.
 await client.query(`
   INSERT INTO roles (id, code, name, is_system, created_at, updated_at)
   VALUES (gen_random_uuid(), 'employee', 'Сотрудник', true, now(), now())
@@ -72,9 +77,9 @@ await client.query(`
   WHERE u.email LIKE 'night-%@nodus.local' AND r.code = 'employee'
   ON CONFLICT DO NOTHING
 `);
-// Фича-флаги модулей: прод держит chat/notifications включёнными, свежая
-// nodus_night — пустая таблица (флаги сеет только prisma/seed, бутстрап его
-// не гоняет) — без строк гвард отдаёт 404 на маршрутах чата.
+// Фича-флаги модулей: без строк гвард отдаёт 404 на маршрутах чата. Флаги
+// сеет prisma/seed (бутстрап live-stack гоняет его перед этим скриптом, #247);
+// здесь — страховка для ручного запуска скрипта.
 await client.query(`
   INSERT INTO feature_flags (key, enabled, created_at, updated_at)
   VALUES ('chat', true, now(), now()), ('notifications', true, now(), now()),

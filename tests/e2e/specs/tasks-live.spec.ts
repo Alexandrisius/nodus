@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { NIGHT_A } from '../e2e-users.js';
 
 /**
  * Живой e2e «создание задачи» (#311, критичный путь модуля задач): песочница
@@ -10,8 +11,8 @@ import { expect, test } from '@playwright/test';
  */
 
 const LIVE = Boolean(process.env.E2E_LIVE_API);
-const EMAIL = process.env.E2E_USER_EMAIL ?? 'night-a@nodus.local';
-const PASSWORD = process.env.E2E_USER_PASSWORD ?? 'Night-Probe-100!';
+const EMAIL = process.env.E2E_USER_EMAIL ?? NIGHT_A.email;
+const PASSWORD = process.env.E2E_USER_PASSWORD ?? NIGHT_A.password;
 
 test.skip(!LIVE, 'Пропущено: задай E2E_LIVE_API=1 и NODUS_BASE_URL на живую сборку');
 

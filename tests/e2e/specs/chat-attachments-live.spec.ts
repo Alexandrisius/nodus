@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { ADMIN, SECOND } from '../e2e-users.js';
 
 /**
  * Живые вложения чата (#57, приёмка: upload → send → download на реальном
@@ -13,15 +14,8 @@ import { expect, test, type Page } from '@playwright/test';
  */
 
 const LIVE = Boolean(process.env.E2E_LIVE_API);
-const BASE_URL = process.env.NODUS_BASE_URL ?? 'http://localhost:3000';
-const ADMIN = {
-  email: process.env.E2E_ADMIN_EMAIL ?? 'admin@nodus.by',
-  password: process.env.E2E_ADMIN_PASSWORD ?? '',
-};
-const PEER = {
-  email: process.env.E2E_SECOND_EMAIL ?? 'a.klimovich@passatproekt.by',
-  password: process.env.E2E_SECOND_PASSWORD ?? '',
-};
+const BASE_URL = process.env.NODUS_BASE_URL ?? 'http://127.0.0.1:4173';
+const PEER = SECOND;
 const RUN = Date.now().toString(36);
 const TITLE = `e2e-att-${RUN}`;
 const FILE_NAME = `e2e-att-${RUN}.png`;

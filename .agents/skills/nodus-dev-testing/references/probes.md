@@ -29,7 +29,7 @@ try {
 
 ## Логин
 
-**UI (нужна страница):** `getByLabel('Рабочая почта')` / `getByLabel('Пароль')` → кнопка «Войти» → `waitForURL(/home/)`. Креды — `night-a@nodus.local` / `night-b@nodus.local`, пароль `Night-Probe-100!`.
+**UI (нужна страница):** `getByLabel('Рабочая почта')` / `getByLabel('Пароль')` → кнопка «Войти» → `waitForURL(/home/)`. Креды — `night-a@nodus.local` / `night-b@nodus.local` (или CI-пользователи e2e); пароли — `tests/e2e/e2e-users.json` (единый источник сред, #247; в TS-спеках — `import { NIGHT_A } from '../e2e-users.js'`).
 
 **REST (нужны только API-вызовы):** `POST /api/v1/auth/login {email,password}` → `body.accessToken`. Токен SPA живёт ТОЛЬКО в памяти стора (не localStorage!) — из скрипта в страницу его не подсунуть, ходи с `authorization: Bearer <token>` из node-fetch.
 

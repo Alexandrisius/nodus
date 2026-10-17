@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
+import { ADMIN } from '../e2e-users.js';
 
 /**
  * Просмотрщик вложений (#138, приёмка: клик по чипу → модалка, PDF → pdf.js,
@@ -12,11 +13,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
  */
 
 const LIVE = Boolean(process.env.E2E_LIVE_API);
-const BASE_URL = process.env.NODUS_BASE_URL ?? 'http://localhost:3000';
-const ADMIN = {
-  email: process.env.E2E_ADMIN_EMAIL ?? 'admin@nodus.by',
-  password: process.env.E2E_ADMIN_PASSWORD ?? '',
-};
+const BASE_URL = process.env.NODUS_BASE_URL ?? 'http://127.0.0.1:4173';
 const RUN = Date.now().toString(36);
 
 /** Минимальный валидный PDF (1 страница, «NODUS E2E») — оффсеты xref и

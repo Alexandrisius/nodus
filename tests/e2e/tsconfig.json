@@ -3,5 +3,5 @@
   "compilerOptions": {
     "lib": ["ES2022", "DOM"]
   },
-  "include": ["playwright.config.ts", "specs/**/*.ts"]
+  "include": ["playwright.config.ts", "e2e-users.ts", "specs/**/*.ts"]
 }

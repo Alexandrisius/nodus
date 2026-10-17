@@ -1,17 +1,18 @@
 import { expect, test } from '@playwright/test';
+import { NIGHT_A, NIGHT_B } from '../e2e-users.js';
 
 /**
  * Живые e2e уведомлений #100 (Ф5, чек-лист E/H): песочница live-stack
  * (:4173, изолированная БД nodus_night, Redis db1). Запуск:
  * E2E_LIVE_API=1 NODUS_BASE_URL=http://127.0.0.1:4173
  * Пробные пользователи: night-a@nodus.local (Анна) / night-b@nodus.local
- * (Борис), пароль Night-Probe-100! (канон песочницы: свои юзеры Prisma).
+ * (Борис), пароли — tests/e2e/e2e-users.json (единый источник сред, #247).
  * SPA-навигация без reload (сессия короткая — память live-stack).
  */
 
 const LIVE = Boolean(process.env.E2E_LIVE_API);
-const EMAIL = process.env.E2E_USER_EMAIL ?? 'night-b@nodus.local';
-const PASSWORD = process.env.E2E_USER_PASSWORD ?? 'Night-Probe-100!';
+const EMAIL = process.env.E2E_USER_EMAIL ?? NIGHT_B.email;
+const PASSWORD = process.env.E2E_USER_PASSWORD ?? NIGHT_B.password;
 
 test.skip(!LIVE, 'Пропущено: задай E2E_LIVE_API=1 и NODUS_BASE_URL на живую сборку');
 
@@ -58,7 +59,7 @@ test.describe('уведомления: живой контур (#100)', () => {
     await expect(page).toHaveURL(/\/home$/);
 
     const login = await request.post('/api/v1/auth/login', {
-      data: { email: 'night-a@nodus.local', password: 'Night-Probe-100!' },
+      data: { email: NIGHT_A.email, password: NIGHT_A.password },
     });
     const { accessToken } = (await login.json()) as { accessToken: string };
     // Беседа a→b: получатель night-b (id из логина получателя, не отправителя).

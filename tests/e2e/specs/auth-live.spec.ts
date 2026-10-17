@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { ADMIN } from '../e2e-users.js';
 
 /**
  * Живой логин (#48): критичный путь на ЖИВОМ API — сборка без MSW-воркера
@@ -9,8 +10,7 @@ import { expect, test } from '@playwright/test';
  */
 
 const LIVE = Boolean(process.env.E2E_LIVE_API);
-const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL ?? 'admin@nodus.by';
-const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD ?? '';
+const { email: ADMIN_EMAIL, password: ADMIN_PASSWORD } = ADMIN;
 
 test.describe('живой логин (#48)', () => {
   // Понятный пропуск вместо молчаливого: почему тест не выполнялся.

@@ -1,13 +1,16 @@
 #!/usr/bin/env node
 /**
  * Песочница агента — контур разработки ветки (ADR-0002, карта портов в
- * AGENTS.md): api :3011 + gateway :3012 + web preview :4173 (non-mock).
+ * AGENTS.md): api :3011 + gateway :3012 + web :4173 (non-mock). Режимы web
+ * (#247): `up --dev` — vite dev-сервер (правки фронта видны за секунды, цикл
+ * приёмки и правок), `up` / `up --preview` — собранная копия (финальная
+ * проверка перед вердиктом владельцу).
  * Живой стек для приёмки владельцем и локальных e2e; прод-контейнеры docker
  * НЕ трогает. PID-файл .live-stack/pids.json убивает «сирот» прошлых сессий:
  * перед up порты проверяются, чужой процесс на порту = громкая ошибка, а не
  * молчаливый EADDRINUSE свежеподнятого.
  *
- * Команды: up | down | status (pnpm live-stack <команда>).
+ * Команды: up [--dev|--preview] | down | status | bootstrap (pnpm live-stack <команда>).
  */
 import { spawn, spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
@@ -16,9 +19,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { dbName, sandboxSecrets } from './live-stack-env.mjs';
+
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const STATE_DIR = path.join(ROOT, '.live-stack');
 const PID_FILE = path.join(STATE_DIR, 'pids.json');
+const MODE_FILE = path.join(STATE_DIR, 'mode');
+/** Единый источник тестовых пользователей сред (#247): CI, песочница, e2e. */
+const E2E_USERS = JSON.parse(fs.readFileSync(path.join(ROOT, 'tests/e2e/e2e-users.json'), 'utf8'));
 
 const PORTS = { api: 3011, gateway: 3012, web: 4173 };
 const HEALTH = {
@@ -100,7 +108,7 @@ function startService(name, args, env, cwd = ROOT) {
   return child.pid;
 }
 
-function vitePreviewBin() {
+function viteBin() {
   // Резолв из пакета web (pnpm-симлинки) — без pnpm/cmd-цепочек в процессах.
   const require = createRequire(path.join(ROOT, 'apps/web/package.json'));
   return path.join(path.dirname(require.resolve('vite/package.json')), 'bin/vite.js');
@@ -112,9 +120,10 @@ function run(command, args = [], env = process.env) {
 }
 
 /** Идемпотентный бутстрап изолированной БД песочницы (#178): создать
- *  nodus_night, если нет -> применить миграции -> night-пользователи для
- *  проб (scripts/night-users.mjs). Работает и как авто-шаг `up`, и как
- *  отдельная команда `pnpm live-stack bootstrap`. */
+ *  nodus_night, если нет -> применить миграции -> сид (роли, флаги, CI-
+ *  пользователи e2e с паролями из tests/e2e/e2e-users.json, #247) ->
+ *  night-пользователи для проб (scripts/night-users.mjs). Работает и как
+ *  авто-шаг `up`, и как отдельная команда `pnpm live-stack bootstrap`. */
 function bootstrapNight(env) {
   const user = env.POSTGRES_USER ?? 'nodus';
   const probe = spawnSync(
@@ -144,11 +153,29 @@ function bootstrapNight(env) {
     ...process.env,
     DATABASE_URL: env.DATABASE_URL,
   });
+  // Пользователи с ПУБЛИЧНЫМИ паролями (сид, night-a/b) — ТОЛЬКО в
+  // nodus_night: на любой другой БД (SANDBOX_ON_PROD, явный DATABASE_URL у
+  // bootstrap) они перезаписали бы пароль боевого admin@nodus.by и завели бы
+  // известные учётки в проде.
+  if (dbName(env.DATABASE_URL ?? '') !== 'nodus_night') {
+    console.warn('sandbox: БД не nodus_night — сид и night-пользователи пропущены.');
+    return;
+  }
+  // Клиент Prisma (gitignored) — до сида: свежий клон/worktree или смена
+  // схемы на ветке, а `build` (generate) идёт позже бутстрапа.
+  run('pnpm --filter @nodus/api db:generate');
+  console.log('sandbox: сид nodus_night — роли, флаги, пользователи e2e (idempotent)...');
+  run('pnpm --filter @nodus/api db:seed', [], {
+    ...process.env,
+    DATABASE_URL: env.DATABASE_URL,
+    SEED_ADMIN_PASSWORD: E2E_USERS.admin.password,
+    SEED_DEMO_PASSWORD: E2E_USERS.second.password,
+  });
   console.log('sandbox: night-пользователи для проб (idempotent)...');
   run('node scripts/night-users.mjs', [], { ...process.env, DATABASE_URL: env.DATABASE_URL });
 }
 
-async function up() {
+async function up(mode) {
   const existing = Object.entries(readPids()).filter(([, pid]) => pidAlive(pid));
   if (existing.length > 0) {
     console.error(
@@ -192,7 +219,7 @@ async function up() {
       console.log('sandbox: REDIS_URL -> db1 (авто-изоляция стрима/очередей от прода)');
     }
   }
-  if (/\/nodus(\?|$)/.test(base.DATABASE_URL ?? '') && !process.env.SANDBOX_ON_PROD) {
+  if (dbName(base.DATABASE_URL ?? '') === 'nodus' && !process.env.SANDBOX_ON_PROD) {
     console.error(
       `DATABASE_URL указывает на прод-базу 'nodus' (${base.DATABASE_URL.replace(/\/\/[^@]*@/, '//***@')}).\n` +
         `Песочница live-stack работает на изолированной БД nodus_night (авто при запуске без env).\n` +
@@ -201,13 +228,27 @@ async function up() {
     process.exit(1);
   }
   bootstrapNight(base);
+  // Свои секреты подписи (#247): явный env процесса главнее (осознанный запуск).
+  const secrets = sandboxSecrets(dotenv, STATE_DIR);
+  if (!process.env.JWT_SECRET) base.JWT_SECRET = secrets.JWT_SECRET;
+  if (!process.env.STORAGE_URL_SECRET) base.STORAGE_URL_SECRET = secrets.STORAGE_URL_SECRET;
+  // Итоговое значение, а не только сгенерированное: прод-секрет мог прийти
+  // и из env процесса (`set -a; . .env`).
+  for (const key of ['JWT_SECRET', 'STORAGE_URL_SECRET']) {
+    if (base[key] && base[key] === dotenv[key] && !process.env.SANDBOX_ON_PROD) {
+      console.error(`${key} песочницы совпадает с .env (прод) — уберите его из env процесса.`);
+      process.exit(1);
+    }
+  }
 
-  console.log('Building api + gateway + web (non-mock)...');
+  console.log(`Building api + gateway${mode === 'preview' ? ' + web (non-mock)' : ''}...`);
   run('pnpm --filter @nodus/api build');
   run('pnpm --filter @nodus/gateway build');
-  // Прямой vite build: non-mock явно (turbo-кэш тоже видит env — turbo.json —
-  // но здесь не хотим пересобирать остальной граф).
-  run('pnpm --filter @nodus/web exec vite build', [], { ...process.env, VITE_API_MOCK: 'false' });
+  if (mode === 'preview') {
+    // Прямой vite build: non-mock явно (turbo-кэш тоже видит env — turbo.json —
+    // но здесь не хотим пересобирать остальной граф).
+    run('pnpm --filter @nodus/web exec vite build', [], { ...process.env, VITE_API_MOCK: 'false' });
+  }
 
   const pids = {
     api: startService('api', ['apps/api/dist/main.js'], {
@@ -230,8 +271,10 @@ async function up() {
     web: startService(
       'web',
       [
-        vitePreviewBin(),
-        'preview',
+        viteBin(),
+        // dev: vite dev-сервер (HMR, dist не пишет — инцидент «мок-сборка
+        // перетирала dist» не рецидивирует); preview: собранная копия.
+        ...(mode === 'dev' ? [] : ['preview']),
         '--host',
         '127.0.0.1',
         '--port',
@@ -240,6 +283,9 @@ async function up() {
       ],
       {
         ...base,
+        // Песочница всегда живая: в dev-режиме VITE_API_MOCK из .env (моки
+        // dev-сервера владельца) перекрывается env процесса (приоритет vite).
+        VITE_API_MOCK: 'false',
         NODUS_API_DEV_TARGET: `http://127.0.0.1:${PORTS.api}`,
         NODUS_GATEWAY_DEV_TARGET: `http://127.0.0.1:${PORTS.gateway}`,
       },
@@ -247,13 +293,14 @@ async function up() {
     ),
   };
   fs.writeFileSync(PID_FILE, JSON.stringify(pids, null, 2));
+  fs.writeFileSync(MODE_FILE, mode);
 
   console.log('Waiting for stack health...');
   await waitHealthy('api', HEALTH.api, 60_000);
   await waitHealthy('gateway', HEALTH.gateway, 30_000);
   await waitHealthy('web', HEALTH.web, 30_000);
   console.log(
-    `Ready: web http://127.0.0.1:${PORTS.web} (api :${PORTS.api}, gateway :${PORTS.gateway}); logs in .live-stack/`,
+    `Ready (${mode}): web http://127.0.0.1:${PORTS.web} (api :${PORTS.api}, gateway :${PORTS.gateway}); logs in .live-stack/`,
   );
 }
 
@@ -280,6 +327,7 @@ function down() {
     }
   }
   fs.rmSync(PID_FILE, { force: true });
+  fs.rmSync(MODE_FILE, { force: true });
   console.log(
     stopped === 0 ? 'Stack was not running (no/empty PID file).' : `Stopped processes: ${stopped}`,
   );
@@ -287,6 +335,9 @@ function down() {
 
 async function status() {
   const pids = readPids();
+  if (fs.existsSync(MODE_FILE) && Object.values(pids).some(pidAlive)) {
+    console.log(`mode     ${fs.readFileSync(MODE_FILE, 'utf8')}`);
+  }
   for (const [name, port] of Object.entries(PORTS)) {
     const pid = pids[name];
     const busy = await portBusy(port);
@@ -301,7 +352,7 @@ async function status() {
 
 const command = process.argv[2];
 try {
-  if (command === 'up') await up();
+  if (command === 'up') await up(process.argv.includes('--dev') ? 'dev' : 'preview');
   else if (command === 'down') down();
   else if (command === 'status') await status();
   else if (command === 'bootstrap') {
@@ -313,7 +364,7 @@ try {
     }
     bootstrapNight(env);
   } else {
-    console.error('Usage: pnpm live-stack <up|down|status|bootstrap>');
+    console.error('Usage: pnpm live-stack <up [--dev|--preview]|down|status|bootstrap>');
     process.exit(1);
   }
 } catch (error) {
