@@ -367,6 +367,23 @@ describe.skipIf(!process.env.DATABASE_URL)('chat: сообщения (integratio
     expect(dstFeed.items).toHaveLength(0);
   });
 
+  it('частичная цитата: фрагмент оригинала сохраняется, подделка отбрасывается (#346)', async () => {
+    const conv = await makeGroup();
+    const orig = await send(alice, conv, { text: 'Сдам отчёт в пятницу' });
+    const legit = await send(bob, conv, {
+      text: 'ок',
+      replyToId: orig.id,
+      quoteText: 'в пятницу',
+    });
+    expect(legit.reply?.quoteText).toBe('в пятницу');
+    const forged = await send(carol, conv, {
+      text: 'ну-ну',
+      replyToId: orig.id,
+      quoteText: 'Сдам отчёт никогда',
+    });
+    expect(forged.reply).toMatchObject({ quoteText: null, text: 'Сдам отчёт в пятницу' });
+  });
+
   it('цитата сообщения из чужой беседы → NOT_FOUND, в ленте ничего (#344)', async () => {
     const srcRes = await fx.api(alice, 'POST', '/chat/conversations', {
       body: { type: 'group', title: `Закрытая ${fx.runId}-reply`, memberIds: [bob.id] },
