@@ -121,6 +121,15 @@ function sourceFiles(dir: string): string[] {
   });
 }
 
+/** Методы класса с унаследованными (Nest регистрирует маршруты базового класса). */
+function methodNames(proto: object): string[] {
+  const names = new Set<string>();
+  for (let p: object | null = proto; p && p !== Object.prototype; p = Object.getPrototypeOf(p)) {
+    for (const name of Object.getOwnPropertyNames(p)) names.add(name);
+  }
+  return [...names];
+}
+
 const joinPath = (...parts: string[]): string =>
   `/${parts.join('/')}`.replace(/\/+/g, '/').replace(/(.)\/$/, '$1');
 
@@ -132,9 +141,11 @@ async function allRoutes(): Promise<RouteDecision[]> {
     for (const controller of Object.values(exported)) {
       if (typeof controller !== 'function') continue;
       const base: unknown = Reflect.getMetadata(PATH_METADATA, controller);
-      if (typeof base !== 'string') continue;
+      if (base === undefined) continue;
+      // Путь-массив (`@Controller(['a','b'])`) молча выпал бы из инвентаризации.
+      if (typeof base !== 'string') throw new Error(`${file}: путь контроллера не строка`);
       const proto = controller.prototype as Record<string, unknown>;
-      for (const name of Object.getOwnPropertyNames(proto)) {
+      for (const name of methodNames(proto)) {
         const handler = proto[name];
         if (name === 'constructor' || typeof handler !== 'function') continue;
         const method: unknown = Reflect.getMetadata(METHOD_METADATA, handler);
@@ -164,6 +175,8 @@ describe('RBAC-инвентаризация маршрутов (I8, #320)', () =
     routes = await allRoutes();
   }, 60_000);
 
+  // Поиск по тексту `@Controller(`: алиас импорта или обёртка applyDecorators
+  // его обойдут — контроллеры объявляются только напрямую (канон patterns.md).
   it('контроллер живёт только в *.controller.ts (иначе ускользнёт от инвентаризации)', () => {
     const misplaced = sourceFiles(SRC).filter(
       (f) => !f.endsWith('.controller.ts') && readFileSync(f, 'utf8').includes('@Controller('),

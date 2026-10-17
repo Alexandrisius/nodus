@@ -69,9 +69,10 @@ export function createGatewayServer(deps: GatewayDeps): GatewayServer {
       if (!active) return next(new Error('unauthorized'));
       socket.data.userId = identity.userId;
       next();
-    })().catch(() => {
+    })().catch((error: unknown) => {
       // Страховка: неожиданный сбой проверки — отказ, а не unhandled
       // rejection (Node роняет процесс — gateway лёг бы для всех).
+      console.error('[gateway] handshake check failed:', error);
       next(new Error('unauthorized'));
     });
   });
