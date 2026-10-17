@@ -15,7 +15,7 @@ import { ADMIN, SECOND } from '../e2e-users.js';
  */
 
 const LIVE = Boolean(process.env.E2E_LIVE_API);
-const BASE_URL = process.env.NODUS_BASE_URL ?? 'http://localhost:3000';
+const BASE_URL = process.env.NODUS_BASE_URL ?? 'http://127.0.0.1:4173';
 const PEER = SECOND;
 const RUN = Date.now().toString(36);
 const TITLE = `e2e-ws-${RUN}`;

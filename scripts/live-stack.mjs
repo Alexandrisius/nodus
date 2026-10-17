@@ -13,6 +13,7 @@
  * Команды: up [--dev|--preview] | down | status | bootstrap (pnpm live-stack <команда>).
  */
 import { spawn, spawnSync } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import { createRequire } from 'node:module';
 import net from 'node:net';
 import fs from 'node:fs';
@@ -23,8 +24,44 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const STATE_DIR = path.join(ROOT, '.live-stack');
 const PID_FILE = path.join(STATE_DIR, 'pids.json');
 const MODE_FILE = path.join(STATE_DIR, 'mode');
+const SECRETS_FILE = path.join(STATE_DIR, 'secrets.json');
 /** Единый источник тестовых пользователей сред (#247): CI, песочница, e2e. */
 const E2E_USERS = JSON.parse(fs.readFileSync(path.join(ROOT, 'tests/e2e/e2e-users.json'), 'utf8'));
+
+/** Имя базы из DATABASE_URL (pathname, не подстрока: `?x=/nodus_night` не
+ *  должен выдавать прод-базу за песочную). */
+function dbName(url) {
+  try {
+    return new URL(url).pathname.replace(/^\//, '');
+  } catch {
+    return '';
+  }
+}
+
+/** Секреты подписи песочницы (#247, security-ревью): НЕ из `.env` — там
+ *  прод-значения. С общим JWT_SECRET токен песочницы (тестовые пароли
+ *  публичны) принимал бы прод: JwtAuthGuard верит правам из payload.
+ *  Генерируются один раз в gitignored `.live-stack/secrets.json`. */
+function sandboxSecrets(dotenv) {
+  const keys = ['JWT_SECRET', 'STORAGE_URL_SECRET'];
+  let secrets = {};
+  if (fs.existsSync(SECRETS_FILE)) secrets = JSON.parse(fs.readFileSync(SECRETS_FILE, 'utf8'));
+  let changed = false;
+  for (const key of keys) {
+    if (!secrets[key]) {
+      secrets[key] = randomBytes(32).toString('hex');
+      changed = true;
+    }
+    if (dotenv[key] && secrets[key] === dotenv[key]) {
+      throw new Error(`секрет песочницы ${key} совпадает с .env (прод) — удалите ${SECRETS_FILE}`);
+    }
+  }
+  if (changed) {
+    fs.mkdirSync(STATE_DIR, { recursive: true });
+    fs.writeFileSync(SECRETS_FILE, JSON.stringify(secrets, null, 2));
+  }
+  return secrets;
+}
 
 const PORTS = { api: 3011, gateway: 3012, web: 4173 };
 const HEALTH = {
@@ -151,19 +188,24 @@ function bootstrapNight(env) {
     ...process.env,
     DATABASE_URL: env.DATABASE_URL,
   });
-  // Сид с известными паролями — ТОЛЬКО в nodus_night: на любой другой БД
-  // (SANDBOX_ON_PROD) он перезаписал бы пароль боевого admin@nodus.by.
-  if (/\/nodus_night(\?|$)/.test(env.DATABASE_URL ?? '')) {
-    console.log('sandbox: сид nodus_night — роли, флаги, пользователи e2e (idempotent)...');
-    run('pnpm --filter @nodus/api db:seed', [], {
-      ...process.env,
-      DATABASE_URL: env.DATABASE_URL,
-      SEED_ADMIN_PASSWORD: E2E_USERS.admin.password,
-      SEED_DEMO_PASSWORD: E2E_USERS.second.password,
-    });
-  } else {
-    console.warn('sandbox: БД не nodus_night — сид с тестовыми паролями пропущен.');
+  // Пользователи с ПУБЛИЧНЫМИ паролями (сид, night-a/b) — ТОЛЬКО в
+  // nodus_night: на любой другой БД (SANDBOX_ON_PROD, явный DATABASE_URL у
+  // bootstrap) они перезаписали бы пароль боевого admin@nodus.by и завели бы
+  // известные учётки в проде.
+  if (dbName(env.DATABASE_URL ?? '') !== 'nodus_night') {
+    console.warn('sandbox: БД не nodus_night — сид и night-пользователи пропущены.');
+    return;
   }
+  // Клиент Prisma (gitignored) — до сида: свежий клон/worktree или смена
+  // схемы на ветке, а `build` (generate) идёт позже бутстрапа.
+  run('pnpm --filter @nodus/api db:generate');
+  console.log('sandbox: сид nodus_night — роли, флаги, пользователи e2e (idempotent)...');
+  run('pnpm --filter @nodus/api db:seed', [], {
+    ...process.env,
+    DATABASE_URL: env.DATABASE_URL,
+    SEED_ADMIN_PASSWORD: E2E_USERS.admin.password,
+    SEED_DEMO_PASSWORD: E2E_USERS.second.password,
+  });
   console.log('sandbox: night-пользователи для проб (idempotent)...');
   run('node scripts/night-users.mjs', [], { ...process.env, DATABASE_URL: env.DATABASE_URL });
 }
@@ -212,7 +254,7 @@ async function up(mode) {
       console.log('sandbox: REDIS_URL -> db1 (авто-изоляция стрима/очередей от прода)');
     }
   }
-  if (/\/nodus(\?|$)/.test(base.DATABASE_URL ?? '') && !process.env.SANDBOX_ON_PROD) {
+  if (dbName(base.DATABASE_URL ?? '') === 'nodus' && !process.env.SANDBOX_ON_PROD) {
     console.error(
       `DATABASE_URL указывает на прод-базу 'nodus' (${base.DATABASE_URL.replace(/\/\/[^@]*@/, '//***@')}).\n` +
         `Песочница live-stack работает на изолированной БД nodus_night (авто при запуске без env).\n` +
@@ -221,6 +263,10 @@ async function up(mode) {
     process.exit(1);
   }
   bootstrapNight(base);
+  // Свои секреты подписи (#247): явный env процесса главнее (осознанный запуск).
+  const secrets = sandboxSecrets(dotenv);
+  if (!process.env.JWT_SECRET) base.JWT_SECRET = secrets.JWT_SECRET;
+  if (!process.env.STORAGE_URL_SECRET) base.STORAGE_URL_SECRET = secrets.STORAGE_URL_SECRET;
 
   console.log(`Building api + gateway${mode === 'preview' ? ' + web (non-mock)' : ''}...`);
   run('pnpm --filter @nodus/api build');

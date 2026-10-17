@@ -13,7 +13,7 @@ import { ADMIN } from '../e2e-users.js';
  */
 
 const LIVE = Boolean(process.env.E2E_LIVE_API);
-const BASE_URL = process.env.NODUS_BASE_URL ?? 'http://localhost:3000';
+const BASE_URL = process.env.NODUS_BASE_URL ?? 'http://127.0.0.1:4173';
 const RUN = Date.now().toString(36);
 
 /** Минимальный валидный PDF (1 страница, «NODUS E2E») — оффсеты xref и
