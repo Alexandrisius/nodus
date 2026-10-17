@@ -70,7 +70,7 @@ const INTENTIONALLY_WITHOUT_PERMISSION: Record<string, string> = {
   'GET /tasks/stages': TASK_STAGES,
   'GET /tasks/types': CATALOG,
   'GET /tasks/:id': TASK_VISIBLE_ONE,
-  'GET /tasks/:id/branch': TASK_VISIBLE_ONE,
+  'GET /tasks/:id/branch': `${TASK_VISIBLE_ONE}; маскировка невидимых узлов ветки — #343`,
   'GET /tasks/:id/relations': TASK_VISIBLE_ONE,
   'GET /tasks/:id/results': TASK_VISIBLE_ONE,
   'GET /tasks/:id/history': TASK_VISIBLE_ONE,
