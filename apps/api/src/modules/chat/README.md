@@ -279,6 +279,9 @@ WebM ≤256КБ (длительность — клиентская пре-вал
 reply-цитаты); стикер монолитен — текст/обычные вложения с ним →
 VALIDATION_FAILED; черновик при stickerId НЕ гасится (keepDraft: набранный
 текст живёт).
+События `chat.sticker_pack_*`/`sticker_added|removed` несут `scope` и `audience` (#318):
+личный пак — владелец + установившие (читаются в транзакции изменения), корпоративный —
+`audience: []`, gateway шлёт всем; `sticker_pack_installed|uninstalled` — только установившему.
 Право `sticker.manage` сидится роли admin (PK-идемпотентный досев в seed);
 `video/webm` добавлен в INLINE_MIME отдачи файлов (проигрывание `<video>`).
 

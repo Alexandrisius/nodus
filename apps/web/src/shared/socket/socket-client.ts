@@ -30,7 +30,7 @@ import { wsDebugLog } from './ws-debug.js';
  * (точка-индикатор + console-журнал, раунд 2 #104).
  */
 
-const DOMAIN_EVENTS = [
+export const DOMAIN_EVENTS = [
   'chat.message_sent',
   'chat.message_edited',
   'chat.message_deleted',
@@ -60,6 +60,15 @@ const DOMAIN_EVENTS = [
   'chat.link_preview_ready',
   // Фоновая миниатюра вложения готова (#221): плитка патчится на месте.
   'chat.attachment_preview_ready',
+  // Стикеры (#318): корпоративные паки — всем, личные — владельцу и
+  // установившим, установка/снятие — своим устройствам (роутинг gateway).
+  CHAT_EVENTS.STICKER_PACK_CREATED,
+  CHAT_EVENTS.STICKER_PACK_UPDATED,
+  CHAT_EVENTS.STICKER_PACK_DELETED,
+  CHAT_EVENTS.STICKER_ADDED,
+  CHAT_EVENTS.STICKER_REMOVED,
+  CHAT_EVENTS.STICKER_PACK_INSTALLED,
+  CHAT_EVENTS.STICKER_PACK_UNINSTALLED,
   // Живые уведомления (#100): user-комната получает весь журнал-будил.
   'notification.dispatch_requested',
   'notification.read',

@@ -217,19 +217,29 @@ export const chatThreadCreatedPayloadSchema = z.object({
 });
 export type ChatThreadCreatedPayload = z.infer<typeof chatThreadCreatedPayloadSchema>;
 
+/** Адресаты событий содержимого пака (#318): у пикера пака видят те же, кто
+ *  видит пак. Корпоративный — все сотрудники (gateway шлёт в общую комнату
+ *  аутентифицированных сокетов, `audience` пуст); личный — владелец и
+ *  установившие его «себе» (user-комнаты из `audience`). */
+const stickerPackAudienceShape = {
+  scope: z.enum(['corporate', 'personal']),
+  audience: z.array(z.uuid()),
+};
+
 /** Стикер-паки (#143): payload минимальный и клиентски видим. Изменения пака
  *  (переименование, состав) — одно UPDATED-событие; стикер-сообщение rides
  *  на обычном chat.message_sent (вложение kind='sticker' несёт метаданные). */
 export const chatStickerPackPayloadSchema = z.object({
   packId: z.uuid(),
-  scope: z.enum(['corporate', 'personal']),
   title: z.string().min(1).max(64),
   /** Инициатор (создатель/редактор/установивший). */
   actorId: z.uuid(),
+  ...stickerPackAudienceShape,
 });
 export type ChatStickerPackPayload = z.infer<typeof chatStickerPackPayloadSchema>;
 
-/** Установка/снятие пака пользователем (личная коллекция). */
+/** Установка/снятие пака пользователем (личная коллекция): меняется только
+ *  его набор «моих» паков — gateway шлёт в user-комнату `userId`. */
 export const chatStickerPackInstallPayloadSchema = z.object({
   packId: z.uuid(),
   userId: z.uuid(),
@@ -241,6 +251,7 @@ export const chatStickerAddedPayloadSchema = z.object({
   packId: z.uuid(),
   stickerId: z.uuid(),
   actorId: z.uuid(),
+  ...stickerPackAudienceShape,
 });
 export type ChatStickerAddedPayload = z.infer<typeof chatStickerAddedPayloadSchema>;
 

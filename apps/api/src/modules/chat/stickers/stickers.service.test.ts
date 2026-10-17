@@ -6,6 +6,7 @@ import { EventBus } from '../../../core/events/event-bus.js';
 import { TransactionRunner } from '../../../core/database/transaction-runner.js';
 import type { FileStorage } from '../../../core/ports/file-storage.port.js';
 import type { StickerPackRow, StickerRow, StickersRepository } from './stickers.repository.js';
+import { StickerPackEvents } from './sticker-pack-events.js';
 import { PERSONAL_PACKS_MAX, STICKERS_PER_PACK_MAX, StickersService } from './stickers.service.js';
 
 const ME = '00000000-0000-0000-0000-000000000001';
@@ -71,6 +72,7 @@ function makeService(repoOverrides: Partial<Record<string, unknown>> = {}): {
     deleteSticker: vi.fn(async () => undefined),
     install: vi.fn(async () => true),
     uninstall: vi.fn(async () => true),
+    listInstallerIds: vi.fn(async () => []),
     insertAttachmentForMessage: vi.fn(),
     ...repoOverrides,
   } as unknown as StickersRepository;
@@ -86,7 +88,7 @@ function makeService(repoOverrides: Partial<Record<string, unknown>> = {}): {
   const service = new StickersService(
     repo,
     txRunner,
-    eventBus as unknown as EventBus,
+    new StickerPackEvents(repo, eventBus as unknown as EventBus),
     new SignedUrlService({ STORAGE_URL_SECRET: 'test-secret-32-chars-aaaaaaaaaaaa' }),
     storage,
   );
@@ -157,6 +159,36 @@ describe('StickersService (#143)', () => {
         TX,
         'chat.sticker_pack_updated',
         expect.objectContaining({ packId: PACK_ID, title: 'Новое имя' }),
+        expect.anything(),
+      );
+    });
+
+    it('адресаты события (#318): личный — установившие + владелец без дублей, корпоративный — всем', async () => {
+      const personal = makeService({
+        findPack: vi.fn(async () => ({ ...pack(), stickers: [] })),
+        listInstallerIds: vi.fn(async () => [OTHER, ME]),
+      });
+      await personal.service.rename(ME, false, PACK_ID, 'Новое имя');
+      expect(personal.repo.listInstallerIds).toHaveBeenCalledWith(PACK_ID, TX);
+      expect(personal.eventBus.emit).toHaveBeenCalledWith(
+        TX,
+        'chat.sticker_pack_updated',
+        expect.objectContaining({ scope: 'personal', audience: [OTHER, ME] }),
+        expect.anything(),
+      );
+
+      const corporate = makeService({
+        findPack: vi.fn(async () => ({
+          ...pack({ scope: 'corporate', ownerId: null }),
+          stickers: [],
+        })),
+      });
+      await corporate.service.delete(ME, true, PACK_ID);
+      expect(corporate.repo.listInstallerIds).not.toHaveBeenCalled();
+      expect(corporate.eventBus.emit).toHaveBeenCalledWith(
+        TX,
+        'chat.sticker_pack_deleted',
+        expect.objectContaining({ scope: 'corporate', audience: [] }),
         expect.anything(),
       );
     });
@@ -316,7 +348,13 @@ describe('StickersService (#143)', () => {
       expect(eventBus.emit).toHaveBeenCalledWith(
         TX,
         'chat.sticker_removed',
-        { packId: PACK_ID, stickerId: hit.id, actorId: ME },
+        {
+          packId: PACK_ID,
+          stickerId: hit.id,
+          actorId: ME,
+          scope: 'personal',
+          audience: [ME],
+        },
         expect.anything(),
       );
       expect(dto.stickers).toHaveLength(0);

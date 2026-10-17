@@ -290,8 +290,23 @@ describe.skipIf(!process.env.DATABASE_URL || !process.env.STORAGE_ACCESS_KEY)(
       expect(sent.status).toBe(201);
       const dto = messageSchema.parse(await sent.json());
 
+      const installers = await fx.prisma.userStickerPack.findMany({
+        where: { packId: pack.id },
+        select: { userId: true },
+      });
       const removed = await fx.api(alice, 'DELETE', `/chat/stickers/packs/${pack.id}`);
       expect(removed.status).toBe(204);
+
+      // Живое событие (#318): адресаты личного пака — владелец + установившие.
+      const deletedEvent = await fx.prisma.event.findFirst({
+        where: { type: 'chat.sticker_pack_deleted', aggregateId: pack.id },
+        select: { payload: true },
+      });
+      const payload = deletedEvent?.payload as { scope: string; audience: string[] };
+      expect(payload.scope).toBe('personal');
+      expect([...payload.audience].sort()).toEqual(
+        [...new Set([alice.id, ...installers.map((i) => i.userId)])].sort(),
+      );
 
       // Из списков обоих пак пропал; отправка его стикера — 404.
       for (const user of [alice, bob]) {

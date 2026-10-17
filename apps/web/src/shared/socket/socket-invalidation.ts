@@ -4,6 +4,7 @@ import type { RealtimeEnvelope } from '@nodus/contracts';
 import { chatKeys } from '../chat/chat-keys.js';
 import { cachedConversation } from '../chat/chat-queries.js';
 import { favoriteKeys } from '../chat/favorites-api.js';
+import { stickerKeys } from '../chat/sticker-api.js';
 import { vaultKeys } from '../chat/vault-api.js';
 import {
   applyAttachmentPreviewEvent,
@@ -177,6 +178,21 @@ export function createRealtimeInvalidator(queryClient: QueryClient): RealtimeInv
           // Личное состояние (#171): событие приходит только в свою
           // user-комнату — обновляем витрины и звёзды-индикаторы.
           batcher.push(favoriteKeys.all, 'feed');
+          return;
+        case 'chat.sticker_pack_created':
+        case 'chat.sticker_pack_updated':
+        case 'chat.sticker_pack_deleted':
+        case 'chat.sticker_added':
+        case 'chat.sticker_removed':
+        case 'chat.sticker_pack_installed':
+        case 'chat.sticker_pack_uninstalled':
+          // Стикеры (#318): коллега создал/пополнил/удалил пак (корпоративный —
+          // у всех, личный — у владельца и установивших) или набор «моих»
+          // сменился с другого устройства — пикер и открытое окно пака.
+          batcher.push(stickerKeys.packs(), 'feed');
+          if (typeof payload.packId === 'string') {
+            batcher.push(stickerKeys.pack(payload.packId), 'feed');
+          }
           return;
         case 'notification.dispatch_requested':
         case 'notification.read':

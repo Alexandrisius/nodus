@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
+import { CHAT_EVENTS, TASK_EVENTS } from '@nodus/contracts';
 
-import { isFirstDelivery } from './socket-client.js';
+import { DOMAIN_EVENTS, isFirstDelivery } from './socket-client.js';
 
 /**
  * Дедуп доставки message_sent (#254): gateway fanout шлёт событие и в
@@ -67,5 +68,18 @@ describe('isFirstDelivery (дедуп fanout conv+user)', () => {
     expect(isFirstDelivery(null)).toBe(true);
     // Валидное сообщение после мусора — первая доставка как обычно.
     expect(isFirstDelivery(messagePayload('00000000-0000-4000-8000-0000000000c3'))).toBe(true);
+  });
+});
+
+describe('DOMAIN_EVENTS: подписка клиента (gotcha #311, #318)', () => {
+  // Событие без строки в списке до роутера инвалидаций не доходит — молча
+  // теряется (так жили task.* до #311 и стикеры до #318). Новое событие
+  // каталога chat/task обязано быть подписано или явно исключено здесь.
+  it('каждое событие каталогов chat.* и task.* подписано', () => {
+    const subscribed = new Set<string>(DOMAIN_EVENTS);
+    const missing = [...Object.values(CHAT_EVENTS), ...Object.values(TASK_EVENTS)].filter(
+      (type) => !subscribed.has(type),
+    );
+    expect(missing).toEqual([]);
   });
 });
