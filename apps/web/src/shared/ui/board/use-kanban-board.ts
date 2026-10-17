@@ -39,9 +39,10 @@ interface UseKanbanBoardParams<S extends TaskStage> {
   /** Ось доски (globalAxis | personalAxis, ADR-0008). */
   axis: BoardAxis;
   stages: S[] | undefined;
-  /** queryKey первых страниц колонок (фича: tasksKeys.kanban(scope));
-   *  инвалидация ключа пересобирает борд из свежих фидов (перенос задачи
-   *  степпером из карточки, CRUD колонок — доска не протухает). */
+  /** Ключ доски (фича: tasksKeys.kanban(scope)); колонка — отдельный запрос
+   *  `kanbanColumnKey(queryKey, stageId)` (#322). Инвалидация ключа доски
+   *  пересобирает все колонки (перенос степпером, CRUD колонок), колонки —
+   *  только её (WS-событие задачи). */
   queryKey: readonly unknown[];
   /** URL фида колонки (cursor=null — первая страница). */
   feedUrl: (stageId: string, cursor: string | null) => string;
@@ -88,6 +89,7 @@ export function useKanbanBoard<S extends TaskStage>({
 
   // Фиды колонок (первые страницы, курсоры, sentinel-догрузка) — свой хук.
   const { cursors, loadingMore, loadMore } = useKanbanFeeds({
+    axis,
     stageList,
     queryKey,
     feedUrl,

@@ -7,17 +7,22 @@ import {
   type RefObject,
   type SetStateAction,
 } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQueries } from '@tanstack/react-query';
 import type { Paginated, TaskListItem, TaskStage } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { toast } from 'sonner';
 
 import { api } from '../../api-client.js';
+import type { BoardAxis } from '../../lib/board/kanban-board.js';
+import { kanbanColumnKey } from '../../lib/board/kanban-column-key.js';
+import { mergeRefreshedColumns } from '../../lib/board/kanban-merge.js';
 
 interface UseKanbanFeedsParams {
+  /** Ось доски: по ней определяется колонка карточки при точечной пересборке. */
+  axis: BoardAxis;
   /** Колонки доски в порядке отображения. */
   stageList: TaskStage[];
-  /** queryKey первых страниц (см. UseKanbanBoardParams.queryKey). */
+  /** Ключ доски (см. UseKanbanBoardParams.queryKey); колонка — `kanbanColumnKey`. */
   queryKey: readonly unknown[];
   feedUrl: (stageId: string, cursor: string | null) => string;
   /** Идёт перенос: свежие страницы не применяются до дропа. */
@@ -27,12 +32,16 @@ interface UseKanbanFeedsParams {
 }
 
 /**
- * Фиды колонок канбана (часть движка use-kanban-board): первые страницы
- * через React Query, курсоры и sentinel-догрузка следующих страниц с
- * обработкой ошибок. Борд — владение движка: фиды пишут в него через
- * setBoard (пересборка из первых страниц, дописывание догрузок).
+ * Фиды колонок канбана (часть движка use-kanban-board): первая страница
+ * КАЖДОЙ колонки — свой запрос React Query (#322), курсоры и sentinel-догрузка
+ * следующих страниц с обработкой ошибок. Префикс доски (мутации —
+ * tasksKeys.kanbanAll) перезапрашивает все колонки, WS-событие задачи —
+ * только затронутые (`shared/socket/task-invalidation.ts`): одна карточка
+ * у коллеги = 1–2 запроса, а не по запросу на каждую колонку. Пересборка
+ * точечная: обновлённые колонки заменяются, догрузки остальных живут.
  */
 export function useKanbanFeeds({
+  axis,
   stageList,
   queryKey,
   feedUrl,
@@ -49,45 +58,63 @@ export function useKanbanFeeds({
   // ref loadMore сохраняет стабильную идентичность (см. ниже).
   const feedUrlRef = useRef(feedUrl);
   feedUrlRef.current = feedUrl;
+  const axisRef = useRef(axis);
+  axisRef.current = axis;
 
-  // Подпись набора колонок — часть queryKey: CRUD колонок пересобирает фиды.
+  // Подпись набора колонок: CRUD колонок пересобирает борд целиком.
   const stageSignature = stageList.map((s) => s.id).join('|');
-  // stageList — по ссылке для эффекта синхронизации: триггер пересборки —
-  // ПОДПИСЬ/данные, а не идентичность массива (переименование колонки даёт
-  // новый stages без смены набора — борд с догруженными страницами не
-  // должен сбрасываться).
   const stageListRef = useRef(stageList);
   stageListRef.current = stageList;
 
-  // Первые страницы колонок — через React Query: кэш, инвалидации мутаций
-  // (перенос степпером — tasksKeys.kanbanAll), дедуп. Инвалидация/смена
-  // подписи → новые первые страницы → борд пересобирается (ручные догрузки
-  // sentinel-ом сбрасываются — то же поведение, что при смене набора колонок).
-  const { data: firstPages } = useQuery({
-    queryKey: [...queryKey, stageSignature],
-    queryFn: () =>
-      Promise.all(
-        stageListRef.current.map((s) =>
-          api<Paginated<TaskListItem>>(feedUrlRef.current(s.id, null)),
-        ),
-      ),
-    enabled: stageSignature.length > 0,
-    staleTime: 30_000,
+  const columns = useQueries({
+    queries: stageList.map((s) => ({
+      queryKey: kanbanColumnKey(queryKey, s.id),
+      queryFn: () => api<Paginated<TaskListItem>>(feedUrlRef.current(s.id, null)),
+      staleTime: 30_000,
+    })),
+  });
+  const columnsRef = useRef(columns);
+  columnsRef.current = columns;
+  // Момент получения страницы каждой колонки — триггер точечной пересборки.
+  const updatedSignature = columns.map((c) => c.dataUpdatedAt).join('|');
+
+  /** Применённые версии колонок (dataUpdatedAt) и набор колонок борда. */
+  const appliedRef = useRef<{ signature: string; at: Record<string, number> }>({
+    signature: '',
+    at: {},
   });
 
   useEffect(() => {
-    if (!firstPages || draggingRef.current) return;
     // Во время переноса борд — локальный (живая сортировка); свежие страницы
-    // применятся синхронизацией после дропа (инвалидация мутации).
-    setBoard(firstPages.flatMap((p) => p.items));
-    const cur = Object.fromEntries(
-      stageListRef.current.map((s, i) => [s.id, firstPages[i]?.nextCursor ?? null]),
-    );
+    // применятся после дропа (инвалидация мутации даст новые версии).
+    if (draggingRef.current) return;
+    const stages = stageListRef.current;
+    const current = columnsRef.current;
+    // Борд показываем, когда у всех колонок есть первая страница (без
+    // поколоночного «мигания» при первой загрузке и смене набора колонок).
+    if (stages.length === 0 || current.length !== stages.length) return;
+    if (current.some((c) => !c.data)) return;
+    const applied = appliedRef.current;
+    const full = applied.signature !== stageSignature;
+    const fresh = new Map<string, TaskListItem[]>();
+    const nextCursors: Record<string, string | null> = {};
+    stages.forEach((s, i) => {
+      const column = current[i];
+      if (!column?.data) return;
+      if (!full && applied.at[s.id] === column.dataUpdatedAt) return;
+      fresh.set(s.id, column.data.items);
+      nextCursors[s.id] = column.data.nextCursor;
+      applied.at[s.id] = column.dataUpdatedAt;
+      // Свежий фид — повод снова пробовать догрузку сбойной колонки.
+      delete failedRef.current[s.id];
+    });
+    if (fresh.size === 0) return;
+    applied.signature = stageSignature;
+    setBoard((prev) => mergeRefreshedColumns(full ? [] : (prev ?? []), fresh, axisRef.current));
+    const cur = full ? nextCursors : { ...cursorsRef.current, ...nextCursors };
     setCursors(cur);
     cursorsRef.current = cur;
-    // Свежие фиды — повод снова пробовать догрузку сбойных колонок.
-    failedRef.current = {};
-  }, [firstPages, stageSignature, draggingRef, setBoard]);
+  }, [updatedSignature, stageSignature, draggingRef, setBoard]);
 
   /** Подгрузка следующей страницы колонки (sentinel в скролл-контейнере).
    *  Стабильная идентичность: уходит в колонки как проп, новая стрелка на
@@ -115,8 +142,8 @@ export function useKanbanFeeds({
           // unhandled rejection), колонка помечается сбойной — sentinel
           // пересоздаёт observer при смене loadingMore и сразу дёрнул бы
           // догрузку снова (шквал запросов и тостов при обрыве сети).
-          // Пометка снимается пересборкой борда из свежих фидов (рефеч,
-          // инвалидация) — тогда догрузка снова разрешена.
+          // Пометка снимается свежей страницей колонки (рефеч, инвалидация)
+          // — тогда догрузка снова разрешена.
           failedRef.current = { ...failedRef.current, [stageId]: true };
           settle();
           toast.error(ui.common.loadError);

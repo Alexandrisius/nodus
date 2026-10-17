@@ -12,6 +12,7 @@ import type { TaskListItem, TaskStage } from '@nodus/contracts';
 import { toast } from 'sonner';
 
 import { globalAxis } from '../../lib/board/kanban-board.js';
+import { kanbanColumnKey } from '../../lib/board/kanban-column-key.js';
 import { useKanbanBoard } from './use-kanban-board.js';
 
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
@@ -59,8 +60,10 @@ function stubFeeds(nextPage: () => Promise<Response>) {
   );
 }
 
-function renderBoard(onMove = vi.fn()) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+function renderBoard(
+  onMove = vi.fn(),
+  client = new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+) {
   return renderHook(
     () =>
       useKanbanBoard({
@@ -139,5 +142,42 @@ describe('useKanbanBoard', () => {
     act(() => result.current.loadMore('a'));
     expect(result.current.loadingMore.a).toBe(false);
     expect(calls).toBe(1);
+  });
+
+  it('инвалидация ОДНОЙ колонки (#322): запрос только её фида, догрузки соседней живут', async () => {
+    const urls: string[] = [];
+    let bFeed: TaskListItem[] = [task('b1', B)];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        urls.push(url);
+        if (url.includes('stage=a') && url.includes('cursor='))
+          return jsonResponse(200, { items: [task('t2', A)], nextCursor: null });
+        if (url.includes('stage=a'))
+          return jsonResponse(200, { items: [task('t1', A)], nextCursor: 'c1' });
+        return jsonResponse(200, { items: bFeed, nextCursor: null });
+      }),
+    );
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { result } = renderBoard(vi.fn(), client);
+    await waitFor(() => expect(result.current.ready).toBe(true));
+    act(() => result.current.loadMore('a'));
+    await waitFor(() => expect(result.current.items.map((t) => t.id)).toContain('t2'));
+
+    urls.length = 0;
+    // Коллега перенёс t1 из A в B: WS-событие инвалидирует только колонку B —
+    // карточка не дублируется (уходит из A), догруженная t2 в A остаётся.
+    bFeed = [task('t1', B), task('b1', B)];
+    await act(() => client.invalidateQueries({ queryKey: kanbanColumnKey(['test-board'], 'b') }));
+    await waitFor(() =>
+      expect(result.current.items.filter((t) => t.stage.id === 'b').map((t) => t.id)).toEqual([
+        't1',
+        'b1',
+      ]),
+    );
+    expect(urls).toEqual(['/api/v1/feed?stage=b']);
+    expect(result.current.items.filter((t) => t.stage.id === 'a').map((t) => t.id)).toEqual(['t2']);
+    expect(result.current.items.filter((t) => t.id === 't1')).toHaveLength(1);
   });
 });
