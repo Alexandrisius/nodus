@@ -37,6 +37,26 @@ afterAll(() => {
   rmSync(generatedDir, { recursive: true, force: true });
 });
 
+describe('строки интерфейса только из i18n (I15, #320)', () => {
+  it('ловит кириллицу в тексте/атрибуте/шаблоне JSX и в тосте', async () => {
+    const messages = await lintFile('apps/web/src/features/profile/hardcoded-ui.tsx');
+    const lines = messages
+      .filter((m) => m.ruleId === 'no-restricted-syntax' && m.severity === 2)
+      .map((m) => m.line)
+      .sort((a, b) => a - b);
+
+    // Тост (5), атрибут (7), текст JSX (узел начинается переводом строки
+    // после тега — тоже 7), шаблон в выражении (9).
+    expect(lines).toEqual([5, 7, 7, 9]);
+  });
+
+  it('не трогает кириллицу в логике (сравнения, ключи)', async () => {
+    const messages = await lintFile('apps/web/src/features/profile/logic-literals.tsx');
+
+    expect(messages.filter((m) => m.ruleId === 'no-restricted-syntax')).toHaveLength(0);
+  });
+});
+
 describe('границы модулей (I3, I6)', () => {
   it('ловит cross-module импорт в apps/api', async () => {
     const messages = await lintFile('apps/api/src/modules/alpha/alpha.service.ts');
@@ -52,6 +72,12 @@ describe('границы модулей (I3, I6)', () => {
     expect(messages.some((m) => m.ruleId === 'boundaries/dependencies' && m.severity === 2)).toBe(
       true,
     );
+  });
+
+  it('разрешает read-порт чужого модуля (*.port.ts, *-ports.module.ts — ADR-0012)', async () => {
+    const messages = await lintFile('apps/api/src/modules/alpha/uses-beta-port.ts');
+
+    expect(messages.filter((m) => m.ruleId === 'boundaries/dependencies')).toHaveLength(0);
   });
 
   it('разрешает импорт внутри своего модуля', async () => {

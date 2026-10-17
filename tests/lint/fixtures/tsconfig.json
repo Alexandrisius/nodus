@@ -1,6 +1,6 @@
 {
   "//": "TS-проект фикстур: type-aware правила линтера (projectService) требуют, чтобы файл принадлежал проекту. В typecheck пакета не входит.",
   "extends": "@nodus/config/tsconfig/node.json",
-  "compilerOptions": { "noEmit": true },
-  "include": ["apps/**/*.ts"]
+  "compilerOptions": { "noEmit": true, "jsx": "react-jsx" },
+  "include": ["apps/**/*.ts", "apps/**/*.tsx"]
 }

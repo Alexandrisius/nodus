@@ -70,4 +70,19 @@ describe('socket-client: повтор хендшейка после refresh', ()
     vi.advanceTimersByTime(60_000);
     expect(fakeSocket.connect).not.toHaveBeenCalled();
   });
+
+  it('gateway не смог проверить учётку (unavailable, #320) → без refresh, повтор с экспонентой', async () => {
+    handlers.get('connect_error')!(new Error('unavailable'));
+    expect(auth.tryRefresh).not.toHaveBeenCalled();
+    expect(fakeSocket.connect).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(1_000);
+    expect(fakeSocket.connect).toHaveBeenCalledTimes(1);
+    // Второй отказ подряд — пауза удваивается.
+    handlers.get('connect_error')!(new Error('unavailable'));
+    vi.advanceTimersByTime(1_000);
+    expect(fakeSocket.connect).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(1_000);
+    expect(fakeSocket.connect).toHaveBeenCalledTimes(2);
+  });
 });
