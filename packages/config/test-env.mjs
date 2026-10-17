@@ -7,6 +7,11 @@
  * уходит в собственный db, независимо от того, что пришло в env.
  */
 export const INTEGRATION_TEST_REDIS_DB = 15;
+/** Бакет объектного хранилища тест-контура (#324): тот же MinIO, свой бакет —
+ *  файлы тестов не оседают в бакете живого стека. api создаёт бакет сам, если
+ *  у учётки есть право (CI — root MinIO); сервисная учётка живого стека прав
+ *  на него не имеет — нужна тестовая учётка (вопрос владельцу в #324). */
+export const INTEGRATION_TEST_BUCKET = 'nodus-test-files';
 
 /** Тот же Redis-сервер, но db тест-контура. */
 export function isolatedTestRedisUrl(url) {
@@ -15,20 +20,28 @@ export function isolatedTestRedisUrl(url) {
   return parsed.toString();
 }
 
-/** Переписывает `process.env.REDIS_URL` (если задан) на db тест-контура. */
-export function isolateIntegrationRedis() {
+/** Переписывает `process.env.REDIS_URL` (если задан) на db тест-контура и
+ *  бакет хранилища — на бакет тест-контура. */
+export function isolateIntegrationEnv() {
   if (process.env.REDIS_URL) {
     process.env.REDIS_URL = isolatedTestRedisUrl(process.env.REDIS_URL);
   }
+  process.env.STORAGE_BUCKET = INTEGRATION_TEST_BUCKET;
 }
 
-/** Громкий отказ, если тест-контур всё-таки смотрит в чужой Redis db
- *  (конфиг без `isolateIntegrationRedis`, ручной запуск с env). */
-export function assertIsolatedTestRedis() {
+/** Громкий отказ, если тест-контур всё-таки смотрит в чужой Redis db или бакет
+ *  (конфиг без `isolateIntegrationEnv`, ручной запуск с env). */
+export function assertIsolatedTestEnv() {
   const url = process.env.REDIS_URL;
   if (url && new URL(url).pathname !== `/${INTEGRATION_TEST_REDIS_DB}`) {
     throw new Error(
       `REDIS_URL указывает не на db ${INTEGRATION_TEST_REDIS_DB} тест-контура — интеграционный тест писал бы в Redis живого стека (#332)`,
+    );
+  }
+  // Строго: пустой бакет = дефолт `nodus-files` (бакет живого стека).
+  if (process.env.STORAGE_BUCKET !== INTEGRATION_TEST_BUCKET) {
+    throw new Error(
+      `STORAGE_BUCKET не ${INTEGRATION_TEST_BUCKET} — интеграционный тест писал бы файлы в бакет живого стека (#324)`,
     );
   }
 }

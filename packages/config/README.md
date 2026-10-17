@@ -11,7 +11,7 @@
 
 **Храповик предупреждений I5 (#320):** корневой `pnpm lint` = `eslint . --max-warnings N`, где N — текущее число предупреждений (все они — `max-lines-warn`). Новый файл > 300 строк валит lint и CI. Раздробил файл и число упало — уменьши N в корневом `package.json` в том же PR (храповик идёт только вниз).
 
-- `test-env.mjs` (`@nodus/config/test-env`) — изоляция Redis интеграционных тестов (#332): `isolateIntegrationRedis()` в `vitest.integration.config.ts` переписывает `REDIS_URL` на db 15, `assertIsolatedTestRedis()` в хелперах тестовых БД — громкий отказ при чужом db (корневой `.env` смотрит в Redis живого стека).
+- `test-env.mjs` (`@nodus/config/test-env`) — изоляция Redis интеграционных тестов (#332): `isolateIntegrationEnv()` в `vitest.integration.config.ts` переписывает `REDIS_URL` на db 15 и `STORAGE_BUCKET` на `nodus-test-files` (#324), `assertIsolatedTestEnv()` в хелперах тестовых БД — громкий отказ при чужом db или бакете (корневой `.env` смотрит в Redis живого стека).
 
 ## Использование
 
