@@ -1,3 +1,4 @@
+import { ui } from '@nodus/contracts';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@nodus/ui/components/tooltip';
 
 import { useSocketStatusStore } from './socket-status-store.js';
@@ -23,14 +24,12 @@ function WsDebugDot() {
         <TooltipTrigger asChild>
           <span
             data-slot="ws-debug-badge"
-            aria-label={connected ? 'WS: подключено' : 'WS: нет соединения'}
+            aria-label={connected ? ui.wsDebug.connectedLabel : ui.wsDebug.disconnectedLabel}
             className={`block size-3 rounded-full ${connected ? 'bg-emerald-500' : 'bg-red-500'}`}
           />
         </TooltipTrigger>
         <TooltipContent>
-          {connected
-            ? 'WS-сокет подключён (?wsdebug=1)'
-            : 'WS-сокет отключён — реконнект/фолбэк (?wsdebug=1)'}
+          {connected ? ui.wsDebug.connectedHint : ui.wsDebug.disconnectedHint}
         </TooltipContent>
       </Tooltip>
     </div>

@@ -13,6 +13,8 @@ export interface GatewayTestDb {
   url: string;
   /** UUID, засеянные в БД: пользователи и беседа. */
   users: { id: string; displayName: string }[];
+  /** Деактивированная учётка (#320): валидный JWT не открывает хендшейк. */
+  deactivatedUserId: string;
   conversationId: string;
   cleanup(): Promise<void>;
 }
@@ -39,6 +41,7 @@ export async function ensureGatewayTestDatabase(rootUrl: string): Promise<Gatewa
       display_name text NOT NULL,
       avatar_url text
     );
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'active';
     CREATE TABLE IF NOT EXISTS conversation_members (
       conversation_id uuid NOT NULL,
       user_id uuid NOT NULL,
@@ -59,6 +62,11 @@ export async function ensureGatewayTestDatabase(rootUrl: string): Promise<Gatewa
       user.displayName,
     ]);
   }
+  const deactivatedUserId = crypto.randomUUID();
+  await client.query(
+    "INSERT INTO users (id, display_name, avatar_url, status) VALUES ($1, $2, NULL, 'deactivated')",
+    [deactivatedUserId, `Гейт ${runId} Уволен`],
+  );
   // Члены беседы — первый и второй; третий (не-член) для негативного кейса.
   await client.query(
     'INSERT INTO conversation_members (conversation_id, user_id) VALUES ($1, $2), ($1, $3)',
@@ -68,6 +76,7 @@ export async function ensureGatewayTestDatabase(rootUrl: string): Promise<Gatewa
   return {
     url,
     users,
+    deactivatedUserId,
     conversationId,
     async cleanup() {
       await client.query('DELETE FROM conversation_members');

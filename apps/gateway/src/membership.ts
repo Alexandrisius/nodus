@@ -14,6 +14,14 @@ export interface MembershipStore {
   userRef(userId: string): Promise<UserRef | null>;
 }
 
+/** Статус учётки на хендшейке (#320): деактивация рвёт открытые сокеты
+ *  событием, но access-JWT живёт до 15 минут — без проверки статуса новый
+ *  хендшейк деактивированного прошёл бы. Один SELECT на подключение, без кэша
+ *  (кэш вернул бы окно, которое проверка закрывает). */
+export interface UserStatusReader {
+  isActiveUser(userId: string): Promise<boolean>;
+}
+
 const USER_REF_TTL_MS = 60_000;
 const POOL_MAX = 10;
 
@@ -23,7 +31,7 @@ interface UserRefRow {
   avatar_url: string | null;
 }
 
-export class PgMembershipStore implements MembershipStore {
+export class PgMembershipStore implements MembershipStore, UserStatusReader {
   private readonly pool: Pool;
   private readonly refCache = new Map<string, { ref: UserRef | null; expiresAt: number }>();
 
@@ -45,6 +53,14 @@ export class PgMembershipStore implements MembershipStore {
       [conversationId],
     );
     return rows.map((row) => row.user_id);
+  }
+
+  async isActiveUser(userId: string): Promise<boolean> {
+    const { rows } = await this.pool.query<{ status: string }>(
+      'SELECT status FROM users WHERE id = $1',
+      [userId],
+    );
+    return rows[0]?.status === 'active';
   }
 
   async userRef(userId: string): Promise<UserRef | null> {

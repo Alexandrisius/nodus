@@ -147,6 +147,21 @@ describe.skipIf(!process.env.DATABASE_URL || !process.env.REDIS_URL || !process.
       expect(socket.connected).toBe(true);
     });
 
+    it('хендшейк: деактивированный с живым JWT отклонён (#320)', async () => {
+      const socket = clientIo(baseUrl, {
+        auth: { token: await token(testDb.deactivatedUserId) },
+        transports: ['websocket'],
+        reconnection: false,
+        forceNew: true,
+      });
+      sockets.push(socket);
+      const error = await new Promise<Error>((resolve) => {
+        socket.once('connect_error', resolve);
+      });
+      expect(error.message).toBe('unauthorized');
+      expect(socket.connected).toBe(false);
+    });
+
     it('conv:join: член — ok, не-член — forbidden', async () => {
       const member = await connect(testDb.users[0]!.id);
       const outsider = await connect(testDb.users[2]!.id);
