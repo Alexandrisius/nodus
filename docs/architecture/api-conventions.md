@@ -45,7 +45,7 @@ notification.acked       # выпилено ревизией 05.10 (ack-меха
 directory.department.created / updated / archived
 directory.position.created / updated / archived
 directory.role.created / updated / deleted
-dictionary.created / updated
+dictionary.created / updated                 # модуль есть (#54, чтение); эмиттер — управление справочниками (M12)
 dictionary.item_created / updated / archived
 project.created / updated / stage_changed / member_added
 correspondence.letter_received / letter_registered / letter_sent

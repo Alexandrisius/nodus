@@ -9,6 +9,7 @@ import { createElement, type ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   CreateLetterBody,
+  DictionaryItem,
   LetterDetail,
   LetterListItem,
   Mailbox,
@@ -17,7 +18,7 @@ import type {
 
 import { useAuthStore } from '../../../shared/auth-store.js';
 import { lettersKeys } from '../../../shared/api/letters-keys.js';
-import { useCreateLetter, type CreateLetterVars } from './letters-api.js';
+import { useCreateLetter, useDocumentKinds, type CreateLetterVars } from './letters-api.js';
 
 const MAILBOX: Mailbox = {
   id: 'f0000000-0000-4000-8000-000000000001',
@@ -204,5 +205,36 @@ describe('useCreateLetter: оптимистичность простого пи�
     await waitFor(() => {
       expect(client.getQueryData(lettersKeys.detail(SERVER_ID))).toBeTruthy();
     });
+  });
+});
+
+describe('useDocumentKinds: справочник «вид документа» по контракту dictionaries (#54)', () => {
+  it('читает элементы системного справочника одной страницей; порядок — серверный', async () => {
+    const kind = (id: string, name: string, sortOrder: number): DictionaryItem => ({
+      id,
+      dictionaryId: 'e0000000-0000-4000-8000-0000000000d0',
+      parentId: null,
+      code: null,
+      name,
+      sortOrder,
+      isActive: true,
+    });
+    const page: Paginated<DictionaryItem> = {
+      items: [kind(CP_ID, 'Письмо', 10), kind(SERVER_ID, 'Договор', 20)],
+      nextCursor: null,
+    };
+    const fetchMock = vi.fn(async () => jsonResponse(200, page));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { result } = renderHook(() => useDocumentKinds(), {
+      wrapper: makeWrapper(new QueryClient()),
+    });
+
+    await waitFor(() =>
+      expect(result.current.data?.map((k) => k.name)).toEqual(['Письмо', 'Договор']),
+    );
+    expect(String((fetchMock.mock.calls[0] as unknown[])[0])).toContain(
+      '/dictionaries/document-kind/items?limit=100',
+    );
   });
 });

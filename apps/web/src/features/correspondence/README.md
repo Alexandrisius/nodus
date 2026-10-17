@@ -72,7 +72,8 @@ inReplyToId), `src/counterparties/` (справочник контрагенто
 (createLetterBodySchema v2), `POST /letters/:id/register` (повторно — 409),
 `POST /letters/:id/resolutions` (не-документ — 409),
 `POST /letters/:id/archive` (не «исполнено» — 409), `GET /mailboxes`,
-`GET /dictionaries/document-kinds`.
+`GET /dictionaries/document-kind/items` (живой контракт справочников #54;
+мок — в домене letters: мок регистрации принимает только свои id видов).
 
 ## Мутации
 

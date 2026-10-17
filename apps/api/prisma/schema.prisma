@@ -1202,3 +1202,49 @@ model TaskResult {
   @@index([taskId, createdAt(sort: Desc)])
   @@map("task_results")
 }
+
+// ===== Модуль dictionaries (issue #54, ядро; I15) =====
+// Бизнес-списки — данные, не код: справочник адресуется стабильным `code`,
+// элемент — по UUID (ссылающиеся модули хранят plain UUID без FK, I3).
+// Удаления нет — архивация is_active; поэтому FK — Restrict.
+
+/// Справочник: системные (is_system) создаёт миграция — их ждёт код-потребитель.
+model Dictionary {
+  id           String  @id @default(uuid()) @db.Uuid
+  code         String  @unique
+  name         String
+  hierarchical Boolean @default(false)
+  isSystem     Boolean @default(false) @map("is_system")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  items DictionaryItem[]
+
+  @@map("dictionaries")
+}
+
+/// Элемент справочника; parent_id — только у иерархических справочников.
+model DictionaryItem {
+  id           String  @id @default(uuid()) @db.Uuid
+  dictionaryId String  @map("dictionary_id") @db.Uuid
+  parentId     String? @map("parent_id") @db.Uuid
+  /// Необязательный машинный ключ (системные элементы сида) — уникален в справочнике.
+  code         String?
+  name         String
+  sortOrder    Int     @default(0) @map("sort_order")
+  isActive     Boolean @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  dictionary Dictionary       @relation(fields: [dictionaryId], references: [id], onDelete: Restrict)
+  parent     DictionaryItem?  @relation("DictionaryItemTree", fields: [parentId], references: [id], onDelete: Restrict)
+  children   DictionaryItem[] @relation("DictionaryItemTree")
+
+  @@unique([dictionaryId, code])
+  /// Список элементов справочника в порядке выдачи (keyset sort_order, name, id) + FK.
+  @@index([dictionaryId, sortOrder, name, id])
+  @@index([parentId])
+  @@map("dictionary_items")
+}

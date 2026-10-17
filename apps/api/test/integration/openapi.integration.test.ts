@@ -12,6 +12,8 @@ import { RedisHealthIndicator } from '../../src/health/redis-health.indicator.js
 import { AuthController } from '../../src/modules/auth/auth.controller.js';
 import { AuthService } from '../../src/modules/auth/auth.service.js';
 import { TokenService } from '../../src/modules/auth/token.service.js';
+import { DictionariesController } from '../../src/modules/dictionaries/dictionaries.controller.js';
+import { DictionariesService } from '../../src/modules/dictionaries/dictionaries.service.js';
 import { DepartmentsController } from '../../src/modules/directory/departments.controller.js';
 import { DepartmentsService } from '../../src/modules/directory/departments.service.js';
 import { PositionsController } from '../../src/modules/directory/positions.controller.js';
@@ -55,6 +57,7 @@ type OpenApiPaths = Record<string, Record<string, OpenApiOperation>>;
     DepartmentsController,
     PositionsController,
     RolesController,
+    DictionariesController,
   ],
   providers: [
     { provide: HealthCheckService, useValue: { check: async () => ({ status: 'ok' }) } },
@@ -66,6 +69,7 @@ type OpenApiPaths = Record<string, Record<string, OpenApiOperation>>;
     { provide: DepartmentsService, useValue: {} },
     { provide: PositionsService, useValue: {} },
     { provide: RolesService, useValue: {} },
+    { provide: DictionariesService, useValue: {} },
   ],
 })
 class OpenApiTestModule {}
@@ -125,6 +129,8 @@ describe('OpenAPI: генерация из кода и публикация /api
       '/api/v1/directory/positions/{id}/archive',
       '/api/v1/directory/roles',
       '/api/v1/directory/roles/{id}',
+      '/api/v1/dictionaries',
+      '/api/v1/dictionaries/{code}/items',
     ]) {
       expect(paths, `нет маршрута ${expected}`).toContain(expected);
     }

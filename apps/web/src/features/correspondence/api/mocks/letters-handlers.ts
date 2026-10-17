@@ -1,6 +1,13 @@
-import type { LetterAttachment, LetterListItem, Resolution } from '@nodus/contracts';
+import type {
+  DictionaryItem,
+  LetterAttachment,
+  LetterListItem,
+  Paginated,
+  Resolution,
+} from '@nodus/contracts';
 import {
   ErrorCode,
+  SystemDictionary,
   createLetterBodySchema,
   issueResolutionBodySchema,
   registerLetterBodySchema,
@@ -52,6 +59,19 @@ const validationError = { code: ErrorCode.VALIDATION_FAILED, message: 'Invalid b
 const notFound = { code: ErrorCode.NOT_FOUND, message: 'Letter not found' };
 const conflict = (message: string) => ({ code: ErrorCode.CONFLICT, message });
 
+/** Виды документа ответом контракта `GET /dictionaries/:code/items`. */
+const documentKindItems: Paginated<DictionaryItem> = {
+  items: demoDocumentKinds.map((kind, index) => ({
+    ...kind,
+    dictionaryId: 'e0000000-0000-4000-8000-0000000000d0',
+    parentId: null,
+    code: null,
+    sortOrder: (index + 1) * 10,
+    isActive: true,
+  })),
+  nextCursor: null,
+};
+
 function projectRefById(id: string | null) {
   if (!id) return null;
   const project = demoProjects.find((p) => p.id === id);
@@ -70,9 +90,12 @@ export const lettersHandlers = [
    *  переключатель «Общий / Личная» — задел направления). */
   http.get('/api/v1/mailboxes', () => HttpResponse.json([sharedMailbox])),
 
-  /** Словарь «вид документа» (сид — бэкенд-issue #54): дефолт «Письмо»,
-   *  секретарь словарь не трогает. */
-  http.get('/api/v1/dictionaries/document-kinds', () => HttpResponse.json(demoDocumentKinds)),
+  /** Словарь «вид документа» (контракт dictionaries #54): дефолт «Письмо»,
+   *  секретарь словарь не трогает. Живёт в домене letters — мок регистрации
+   *  принимает только эти id (живой справочник + мок писем несовместимы). */
+  http.get(`/api/v1/dictionaries/${SystemDictionary.DOCUMENT_KIND}/items`, () =>
+    HttpResponse.json(documentKindItems),
+  ),
 
   http.get('/api/v1/letters', ({ request }) => {
     const params = new URL(request.url).searchParams;
