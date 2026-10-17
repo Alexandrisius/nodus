@@ -43,7 +43,7 @@
 | Таблица outbox | `events`: id, type, actor_id, aggregate_type, aggregate_id, payload JSONB, created_at, published_at | Append-only, по `data-model.md`; пишется только через EventBus |
 | Валидация | `ZodValidationPipe` — `core/pipes/zod-validation.pipe.ts` | Схема из contracts передаётся явно: `@UsePipes(new ZodValidationPipe(createTaskSchema))` |
 | Текущий пользователь | `@GetUser()` декоратор; тип `AuthUser` — `packages/contracts` | Не `@CurrentUser`/`SessionUser` |
-| Права | `Permission` enum в contracts (`task.create` — точечная нотация); guard — `core/guards/permission.guard.ts`; декоратор `@RequirePermissions(Permission.TASK_CREATE)`; мутирующий маршрут без права — только строкой с причиной в `apps/api/src/rbac-inventory.test.ts` (проверка доступа в сервисе: членство/владение/участие, #320) | Не строковые литералы прав; маршрут без решения по правам (тест-инвентаризация красная) |
+| Права | `Permission` enum в contracts (`task.create` — точечная нотация); guard — `core/guards/permission.guard.ts`; декоратор `@RequirePermissions(Permission.TASK_CREATE)`; маршрут без права (мутирующий и читающий) — только строкой с причиной в `apps/api/src/rbac-inventory.test.ts` (проверка доступа или фильтр видимости в сервисе: членство/владение/участие, #320/#334) | Не строковые литералы прав; маршрут без решения по правам (тест-инвентаризация красная) |
 | Логирование | nestjs-pino (`PinoLogger`); `traceId` = Fastify `request.id` | Не кастомный AppLogger в request-scope |
 | Ответ списка | `{ items, nextCursor }` | Без totals/offset/pageInfo |
 | OpenAPI-ошибки | `ApiErrors(...статусы)` — `core/openapi/api-errors.decorator.ts` | Общая схема `apiErrorResponseSchema`, без ручных `@ApiResponse` |

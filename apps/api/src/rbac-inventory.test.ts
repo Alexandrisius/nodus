@@ -9,10 +9,10 @@ import { IS_PUBLIC_KEY } from './core/decorators/public.decorator.js';
 import { PERMISSIONS_KEY } from './core/decorators/require-permissions.decorator.js';
 
 /**
- * Инвентаризация RBAC (I8, #320): каждый мутирующий маршрут API либо требует
- * право (`@RequirePermissions`), либо публичный (`@Public`), либо стоит в
- * списке ниже с причиной — проверка доступа живёт в сервисе (членство,
- * владение, участие). Новый маршрут без решения валит тест: «забыл право»
+ * Инвентаризация RBAC (I8, #320, #334): каждый маршрут API — мутирующий и
+ * читающий — либо требует право (`@RequirePermissions`), либо публичный
+ * (`@Public`), либо стоит в списке ниже с причиной — проверка доступа живёт
+ * в сервисе (членство, владение, участие, фильтр видимости). Новый маршрут без решения валит тест: «забыл право»
  * больше не проходит гейты молча (класс находки аудита #317).
  */
 
@@ -22,8 +22,54 @@ const OWN_FAVORITES = 'своё «Избранное» — только запи
 const STICKER_OWNER = 'владелец личного пака; корпоративный — право sticker.manage в сервисе';
 const TASK_ACCESS = 'участие в задаче — политика доступа задач в сервисе (по задаче)';
 const PERSONAL_PLAN = 'личная схема «Моего плана» — только свои стадии';
+const CATALOG = 'общий справочник/каталог для всех сотрудников, без персональных данных (I15)';
+const VISIBLE_STICKERS = 'видимые паки: корпоративные + свои/установленные (фильтр в сервисе)';
+const TASK_VISIBILITY = 'фильтр видимости задач в сервисе (участие, проекты)';
+const FILE_ACCESS = 'доступ к файлу — resolveAccess (владелец или участник беседы вложения)';
+const HOME =
+  'витрина Главной: число сотрудников и ближайшие дни рождения (видны всем в справочнике)';
 
 const INTENTIONALLY_WITHOUT_PERMISSION: Record<string, string> = {
+  // Чтение (#334)
+  'GET /auth/me': SELF,
+  'GET /auth/sessions': SELF,
+  'GET /notifications': SELF,
+  'GET /notifications/summary': SELF,
+  'GET /notifications/settings': SELF,
+  'GET /notifications/:id/deliveries': SELF,
+  'GET /tasks/timer': SELF,
+  'GET /chat/conversations': CHAT_MEMBERSHIP,
+  'GET /chat/conversations/direct/:userId': CHAT_MEMBERSHIP,
+  'GET /chat/conversations/:id/members': CHAT_MEMBERSHIP,
+  'GET /chat/conversations/:id/messages': CHAT_MEMBERSHIP,
+  'GET /chat/conversations/:id/pins': CHAT_MEMBERSHIP,
+  'GET /chat/conversations/:id/threads/state': CHAT_MEMBERSHIP,
+  'GET /chat/conversations/:id/attachments': CHAT_MEMBERSHIP,
+  'GET /chat/conversations/:id/attachments/counts': CHAT_MEMBERSHIP,
+  'GET /chat/conversations/by-task/:taskId': TASK_ACCESS,
+  'GET /chat/favorites': OWN_FAVORITES,
+  'GET /chat/favorites/labels': OWN_FAVORITES,
+  'GET /chat/favorites/sources': OWN_FAVORITES,
+  'GET /chat/stickers/packs': VISIBLE_STICKERS,
+  'GET /chat/stickers/packs/:id': VISIBLE_STICKERS,
+  'GET /chat/urgent/policy': CATALOG,
+  'GET /dictionaries': CATALOG,
+  'GET /dictionaries/:code/items': CATALOG,
+  'GET /files/:id/office-session': FILE_ACCESS,
+  'GET /files/:id/versions': FILE_ACCESS,
+  'GET /home/summary': HOME,
+  'GET /tasks': TASK_VISIBILITY,
+  'GET /tasks/stages': CATALOG,
+  'GET /tasks/types': CATALOG,
+  'GET /tasks/:id': TASK_ACCESS,
+  'GET /tasks/:id/branch': TASK_ACCESS,
+  'GET /tasks/:id/relations': TASK_ACCESS,
+  'GET /tasks/:id/results': TASK_ACCESS,
+  'GET /tasks/:id/history': TASK_ACCESS,
+  'GET /tasks/:id/time-entries': TASK_ACCESS,
+  'GET /tasks/:id/transitions': TASK_ACCESS,
+  'GET /tasks/personal-stages': PERSONAL_PLAN,
+  // Изменения (#320)
   'POST /auth/logout-all': SELF,
   'DELETE /auth/sessions/:id': SELF,
   'POST /auth/change-password': SELF,
@@ -166,7 +212,7 @@ async function allRoutes(): Promise<RouteDecision[]> {
   return routes;
 }
 
-describe('RBAC-инвентаризация маршрутов (I8, #320)', () => {
+describe('RBAC-инвентаризация маршрутов (I8, #320, #334)', () => {
   let routes: RouteDecision[];
 
   // Импорт всех контроллеров (граф модулей api) — секунды под параллельной
@@ -185,9 +231,9 @@ describe('RBAC-инвентаризация маршрутов (I8, #320)', () =
     expect(routes.filter((r) => r.mutating).length).toBeGreaterThan(50);
   });
 
-  it('каждый мутирующий маршрут — право, @Public или осознанное исключение с причиной', () => {
+  it('каждый маршрут — право, @Public или осознанное исключение с причиной', () => {
     const undecided = routes
-      .filter((r) => r.mutating && !r.hasPermission && !r.isPublic)
+      .filter((r) => !r.hasPermission && !r.isPublic)
       .filter((r) => !(r.route in INTENTIONALLY_WITHOUT_PERMISSION))
       .map((r) => r.route);
     expect(undecided, 'добавь @RequirePermissions или строку в список с причиной').toEqual([]);
@@ -203,7 +249,7 @@ describe('RBAC-инвентаризация маршрутов (I8, #320)', () =
 
   it('списки исключений не протухают', () => {
     const unguarded = new Set(
-      routes.filter((r) => r.mutating && !r.hasPermission && !r.isPublic).map((r) => r.route),
+      routes.filter((r) => !r.hasPermission && !r.isPublic).map((r) => r.route),
     );
     const publicSet = new Set(routes.filter((r) => r.isPublic).map((r) => r.route));
     expect(
