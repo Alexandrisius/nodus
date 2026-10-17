@@ -35,7 +35,7 @@ chat.conversation_created / conversation_updated / member_added / member_removed
 chat.favorite_added / favorite_removed / favorite_updated  # личные закладки #171: только user-комната владельца (не рассылается участникам)
 chat.link_preview_ready  # превью ссылки дозрело фоном (#212, ADR-0018): комната беседы, клиенты патчат карточку без рефетча
 chat.attachment_preview_ready  # серверная миниатюра вложения догенерилась фоном (#221): комната беседы, патч thumbnailUrl без рефетча
-chat.sticker_pack_created / updated / deleted · chat.sticker_added / removed · chat.sticker_pack_installed / uninstalled  # стикер-сообщение rides на message_sent (вложение kind='sticker' со снапшотом пака, #143)
+chat.sticker_pack_created / updated / deleted · chat.sticker_added / removed · chat.sticker_pack_installed / uninstalled  # стикер-сообщение rides на message_sent (вложение kind='sticker' со снапшотом пака, #143); payload пака несёт scope+audience: корпоративный — всем, личный — владелец+установившие (#318)
 chat.attachment_updated  # мост file.version_created → беседы с этим вложением (#182)
 file.version_created     # новая версия файла (колбэк ONLYOFFICE, #138)
 notification.dispatch_requested / read  # dispatch — снимок для тоста; read — синхронизация вкладок

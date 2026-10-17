@@ -11,11 +11,11 @@ import {
 } from '@nodus/contracts';
 
 import { SignedUrlService } from '../../../core/crypto/signed-url.service.js';
-import { EventBus } from '../../../core/events/event-bus.js';
 import { TransactionRunner } from '../../../core/database/transaction-runner.js';
 import { DomainException } from '../../../core/errors/domain-exception.js';
 import { FILE_STORAGE, type FileStorage } from '../../../core/ports/file-storage.port.js';
 import { STICKER_STATIC_MAX_BYTES, validateStickerBytes } from './sticker-file-rules.js';
+import { StickerPackEvents } from './sticker-pack-events.js';
 import { StickersRepository, type StickerPackRow, type StickerRow } from './stickers.repository.js';
 
 /** Лимиты (спека #143, лимиты Telegram/Битрикса): 120 стикеров в паке,
@@ -42,7 +42,7 @@ export class StickersService {
   constructor(
     private readonly repository: StickersRepository,
     private readonly txRunner: TransactionRunner,
-    private readonly eventBus: EventBus,
+    private readonly events: StickerPackEvents,
     private readonly signedUrls: SignedUrlService,
     @Inject(FILE_STORAGE) private readonly storage: FileStorage,
   ) {}
@@ -95,12 +95,7 @@ export class StickersService {
         },
         tx,
       );
-      await this.eventBus.emit(
-        tx,
-        CHAT_EVENTS.STICKER_PACK_CREATED,
-        { packId: pack.id, scope: pack.scope, title: pack.title, actorId: userId },
-        { actorId: userId, aggregateType: 'sticker_pack', aggregateId: pack.id },
-      );
+      await this.events.packChanged(tx, CHAT_EVENTS.STICKER_PACK_CREATED, pack, pack.title, userId);
       return this.toDto(pack, [], userId, new Set());
     });
   }
@@ -118,12 +113,7 @@ export class StickersService {
         throw DomainException.forbidden('Only pack owner or admin can manage this pack');
       }
       await this.repository.renamePack(packId, title, tx);
-      await this.eventBus.emit(
-        tx,
-        CHAT_EVENTS.STICKER_PACK_UPDATED,
-        { packId, scope: pack.scope, title, actorId: userId },
-        { actorId: userId, aggregateType: 'sticker_pack', aggregateId: packId },
-      );
+      await this.events.packChanged(tx, CHAT_EVENTS.STICKER_PACK_UPDATED, pack, title, userId);
       return this.toDto({ ...pack, title }, pack.stickers, userId, new Set());
     });
   }
@@ -138,12 +128,7 @@ export class StickersService {
         throw DomainException.forbidden('Only pack owner or admin can manage this pack');
       }
       await this.repository.softDeletePack(packId, tx);
-      await this.eventBus.emit(
-        tx,
-        CHAT_EVENTS.STICKER_PACK_DELETED,
-        { packId, scope: pack.scope, title: pack.title, actorId: userId },
-        { actorId: userId, aggregateType: 'sticker_pack', aggregateId: packId },
-      );
+      await this.events.packChanged(tx, CHAT_EVENTS.STICKER_PACK_DELETED, pack, pack.title, userId);
     });
   }
 
@@ -222,12 +207,7 @@ export class StickersService {
         },
         tx,
       );
-      await this.eventBus.emit(
-        tx,
-        CHAT_EVENTS.STICKER_ADDED,
-        { packId, stickerId: sticker.id, actorId: userId },
-        { actorId: userId, aggregateType: 'sticker_pack', aggregateId: packId },
-      );
+      await this.events.stickerChanged(tx, CHAT_EVENTS.STICKER_ADDED, pack, sticker.id, userId);
       const fresh = await this.repository.findPack(packId, tx);
       return this.toDto(
         fresh ?? { ...pack, updatedAt: new Date() },
@@ -252,11 +232,12 @@ export class StickersService {
         throw DomainException.forbidden('Only pack owner or admin can manage this pack');
       }
       await this.repository.deleteSticker(stickerId, tx);
-      await this.eventBus.emit(
+      await this.events.stickerChanged(
         tx,
         CHAT_EVENTS.STICKER_REMOVED,
-        { packId: hit.pack.id, stickerId, actorId: userId },
-        { actorId: userId, aggregateType: 'sticker_pack', aggregateId: hit.pack.id },
+        hit.pack,
+        stickerId,
+        userId,
       );
       const fresh = await this.repository.findPack(hit.pack.id, tx);
       if (!fresh) throw new Error('removeSticker: pack disappeared mid-transaction');
@@ -272,12 +253,7 @@ export class StickersService {
       if (!pack) throw DomainException.notFound('Sticker pack not found');
       const inserted = await this.repository.install(userId, packId, tx);
       if (inserted) {
-        await this.eventBus.emit(
-          tx,
-          CHAT_EVENTS.STICKER_PACK_INSTALLED,
-          { packId, userId },
-          { actorId: userId, aggregateType: 'sticker_pack', aggregateId: packId },
-        );
+        await this.events.installChanged(tx, CHAT_EVENTS.STICKER_PACK_INSTALLED, packId, userId);
       }
       return this.toDto(pack, pack.stickers, userId, new Set([packId]));
     });
@@ -289,12 +265,7 @@ export class StickersService {
       if (!pack) throw DomainException.notFound('Sticker pack not found');
       const removed = await this.repository.uninstall(userId, packId, tx);
       if (removed) {
-        await this.eventBus.emit(
-          tx,
-          CHAT_EVENTS.STICKER_PACK_UNINSTALLED,
-          { packId, userId },
-          { actorId: userId, aggregateType: 'sticker_pack', aggregateId: packId },
-        );
+        await this.events.installChanged(tx, CHAT_EVENTS.STICKER_PACK_UNINSTALLED, packId, userId);
       }
       return this.toDto(pack, pack.stickers, userId, new Set());
     });

@@ -1,7 +1,7 @@
 # apps/gateway — @nodus/gateway
 
 WebSocket-gateway портала (I1: отдельный процесс): Socket.IO — auth-хендшейк,
-комнаты бесед, fanout доменных событий всех модулей (`chat.*`, `task.*`,
+комнаты бесед, fanout доменных событий всех модулей (`chat.*` включая стикеры, `task.*`,
 `notification.*`, `directory.user.deactivated`) из Redis Stream, «печатает…»,
 presence. Спека — issue #104 (трек M13).
 
@@ -70,6 +70,9 @@ user-рассылки исключён (свои вкладки свою печ�
 conv-комнату (троттл-ключ включает root): индикатор — шапка окна треда, в
 список бесед и шапки каналов не попадает.
 `task.*` → user-комнаты из `payload.audience`; `notification.*` → `user:{userId}`.
+`chat.sticker_*` (#318, беседы нет): установка/снятие пака → `user:{userId}`;
+содержимое пака — корпоративный → комната `presence` (все аутентифицированные
+сокеты), личный → user-комнаты `payload.audience` (владелец + установившие).
 Клиент применяет события с полным DTO локально в кэш (эхо `message_sent`
 заменяет темп по `clientMessageId`, канон api-conventions.md и
 `apps/web/src/shared/chat/ws-apply.ts`), остальные — сигнал к инвалидации/

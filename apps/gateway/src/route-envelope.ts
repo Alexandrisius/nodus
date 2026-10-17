@@ -1,11 +1,17 @@
 import type { Server } from 'socket.io';
-import { DIRECTORY_EVENTS, type RealtimeEnvelope } from '@nodus/contracts';
+import { CHAT_EVENTS, DIRECTORY_EVENTS, type RealtimeEnvelope } from '@nodus/contracts';
 
 import type { MembershipStore } from './membership.ts';
-import { convRoom, revokeConvRoom, userRoom } from './rooms.ts';
+import { convRoom, PRESENCE_ROOM, revokeConvRoom, userRoom } from './rooms.ts';
 
 /** Деактивация сотрудника (directory, payload `{ userId }`) — каталог contracts. */
 export const USER_DEACTIVATED_EVENT = DIRECTORY_EVENTS.USER_DEACTIVATED;
+
+/** Установка/снятие пака «себе» (#318): меняется только набор владельца. */
+const STICKER_INSTALL_EVENTS = new Set<string>([
+  CHAT_EVENTS.STICKER_PACK_INSTALLED,
+  CHAT_EVENTS.STICKER_PACK_UNINSTALLED,
+]);
 
 /** События, меняющие список бесед (lastMessage/unread/название/аватар) → дублируем в user-комнаты участников. */
 const LIST_EVENTS = new Set([
@@ -25,6 +31,9 @@ const LIST_EVENTS = new Set([
  * - notification.* (#100) → user-комната получателя (payload.userId или
  *   snapshot.userId); прочие типы — игнор (стрим несёт все доменные события,
  *   gateway расходует только адресованные ему);
+ * - chat.sticker_* (#318) — беседы у них нет: установка/снятие → user-комната
+ *   установившего; содержимое пака → корпоративный всем (комната presence =
+ *   все аутентифицированные сокеты), личный — user-комнаты payload.audience;
  * - directory.user.deactivated → принудительное отключение всех сокетов
  *   пользователя (сокет аутентифицирован один раз на хендшейке и иначе
  *   пережил бы деактивацию; клиент на `io server disconnect` сам не
@@ -61,6 +70,11 @@ export async function routeEnvelope(
   // и снятый), user-комнаты; клиент инвалидирует кэш задач.
   if (envelope.type.startsWith('task.')) {
     emitToUsers(io, envelope, memberIdsOf(payload.audience));
+    return;
+  }
+
+  if (envelope.type.startsWith('chat.sticker_')) {
+    routeStickerEvent(io, envelope, payload);
     return;
   }
 
@@ -128,6 +142,29 @@ export async function routeEnvelope(
   if (LIST_EVENTS.has(envelope.type)) {
     emitToUsers(io, envelope, await store.memberIds(conversationId));
   }
+}
+
+function routeStickerEvent(
+  io: Server,
+  envelope: RealtimeEnvelope,
+  payload: Record<string, unknown>,
+): void {
+  if (STICKER_INSTALL_EVENTS.has(envelope.type)) {
+    if (typeof payload.userId === 'string') {
+      io.to(userRoom(payload.userId)).emit(envelope.type, envelope);
+    }
+    return;
+  }
+  // `audience` — служебный список адресатов: кто ещё установил чужой личный
+  // пак, клиенту знать незачем (API этого не раскрывает) — вырезаем до emit.
+  const { audience, ...visible } = payload;
+  const outgoing: RealtimeEnvelope = { ...envelope, payload: visible };
+  if (payload.scope === 'corporate') {
+    io.to(PRESENCE_ROOM).emit(envelope.type, outgoing);
+    return;
+  }
+  // Личный пак: только видящие его; без scope/audience (старый формат) — никому.
+  emitToUsers(io, outgoing, memberIdsOf(audience));
 }
 
 function emitToUsers(io: Server, envelope: RealtimeEnvelope, userIds: string[]): void {

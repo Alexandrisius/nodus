@@ -211,6 +211,15 @@ export class StickersRepository {
     return result.count > 0;
   }
 
+  /** Кто установил пак «себе» — адресаты живых событий личного пака (#318). */
+  async listInstallerIds(packId: string, tx?: TransactionClient): Promise<string[]> {
+    const rows = await this.client(tx).userStickerPack.findMany({
+      where: { packId },
+      select: { userId: true },
+    });
+    return rows.map((row) => row.userId);
+  }
+
   /** Снять пак «у себя»; false — не был установлен. */
   async uninstall(userId: string, packId: string, tx?: TransactionClient): Promise<boolean> {
     const result = await this.client(tx).userStickerPack.deleteMany({

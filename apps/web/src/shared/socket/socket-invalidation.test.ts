@@ -204,4 +204,22 @@ describe('createRealtimeInvalidator (коалесцинг, раунд 3)', () =>
     invalidator.dispose();
     vi.useRealTimers();
   });
+
+  it('chat.sticker_* (#318): пикер паков и окно затронутого пака — по быстрому окну', () => {
+    vi.useFakeTimers();
+    const { client, invalidateQueries } = fakeQueryClient();
+    const invalidator = createRealtimeInvalidator(client as never);
+    invalidator.handle(envelope('chat.sticker_added', { packId: 'p-1', stickerId: 's-1' }));
+    invalidator.handle(envelope('chat.sticker_pack_installed', { packId: 'p-1', userId: ME }));
+    flushWindows();
+    const keys = invalidateQueries.mock.calls.map((c) => JSON.stringify(c[0].queryKey));
+    expect(keys.sort()).toEqual(
+      [
+        JSON.stringify(['chat', 'stickers', 'packs']),
+        JSON.stringify(['chat', 'stickers', 'packs', 'p-1']),
+      ].sort(),
+    );
+    invalidator.dispose();
+    vi.useRealTimers();
+  });
 });

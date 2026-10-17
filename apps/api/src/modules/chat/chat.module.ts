@@ -54,6 +54,7 @@ import { FavoritesRepository } from './favorites/favorites.repository.js';
 import { FavoriteSourcesRepository } from './favorites/favorite-sources.repository.js';
 import { FavoritesService } from './favorites/favorites.service.js';
 import { StickersController } from './stickers/stickers.controller.js';
+import { StickerPackEvents } from './stickers/sticker-pack-events.js';
 import { StickersRepository } from './stickers/stickers.repository.js';
 import { StickersService } from './stickers/stickers.service.js';
 import { VaultController } from './vault/vault.controller.js';
@@ -134,6 +135,7 @@ import {
     ThumbnailWorker,
     // Стикер-паки (#143): CRUD/установка/загрузка + чтение для отправки.
     StickersRepository,
+    StickerPackEvents,
     StickersService,
     // Избранное (#171): личные закладки-ссылки, витрина «Избранного».
     FavoritesRepository,
