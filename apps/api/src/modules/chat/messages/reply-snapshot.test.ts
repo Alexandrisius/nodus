@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { REPLY_SNIPPET_MAX, buildReplySnapshot, isQuoteOf } from './reply-snapshot.js';
+import { REPLY_SNIPPET_MAX, buildReplySnapshot, canonicalQuote } from './reply-snapshot.js';
 
 function original(
   overrides: Partial<{
@@ -66,13 +66,29 @@ describe('buildReplySnapshot', () => {
     expect(snap.text).toBe('Сдам отчёт в пятницу');
   });
 
-  it('isQuoteOf: выделение из пузыря — подписи чипов вместо токенов, пробелы/переносы нормализуются', () => {
+  it('canonicalQuote: выделение из пузыря — подписи чипов вместо токенов, пробелы/переносы нормализуются', () => {
     const text = 'Привет, @[Артём](user:11111111-1111-1111-1111-111111111111)!\nГлянь  макет';
-    expect(isQuoteOf(text, 'Артём!')).toBe(true);
-    expect(isQuoteOf(text, 'Артём! Глянь макет')).toBe(true);
-    expect(isQuoteOf(text, '@[Артём](user:11111111-1111-1111-1111-111111111111)!')).toBe(true);
-    expect(isQuoteOf(text, 'Глянь договор')).toBe(false);
-    expect(isQuoteOf(text, '   ')).toBe(false);
+    expect(canonicalQuote(text, 'Артём!')).toBe('Артём!');
+    expect(canonicalQuote(text, 'Артём!\nГлянь макет')).toBe('Артём! Глянь макет');
+    expect(canonicalQuote(text, 'Глянь договор')).toBeNull();
+    expect(canonicalQuote(text, '   ')).toBeNull();
+  });
+
+  it('canonicalQuote (security-ревью #346): хранится сверенная форма — без чужих токенов и невидимых символов', () => {
+    // Токен с ЧУЖИМ id к оригиналу без упоминания: подпись совпадает, но
+    // в снапшот уходит обычный текст — автору не приписать упоминание.
+    const forgedToken = '@[Артём](user:22222222-2222-2222-2222-222222222222) сделает';
+    expect(canonicalQuote('Артём сделает', forgedToken)).toBe('Артём сделает');
+    expect(canonicalQuote('Все молодцы', '@[Все](user:all) молодцы')).toBe('Все молодцы');
+    // Невидимый U+FEFF вместо пробела не склеит слова в сохранённой цитате.
+    expect(canonicalQuote('не делать', `не${String.fromCharCode(0xfeff)}делать`)).toBe('не делать');
+  });
+
+  it('canonicalQuote: фрагмент через ссылку на сущность (в пузыре её место — карточка)', () => {
+    const text = 'Ответьте на portal://letter/80000000-0000-4000-8000-000000000003 до пятницы';
+    expect(canonicalQuote(text, 'на  до пятницы')).toBe('на до пятницы');
+    expect(canonicalQuote(text, 'Ответьте на portal://letter')).toBe('Ответьте на portal://letter');
+    expect(canonicalQuote(text, 'на письмо до пятницы')).toBeNull();
   });
 
   it('вид вложения прокидывается как есть', () => {

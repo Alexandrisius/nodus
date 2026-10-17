@@ -1,4 +1,4 @@
-import { stripMentionTokens, truncateMentionText } from '@nodus/contracts';
+import { stripEntityLinks, stripMentionTokens, truncateMentionText } from '@nodus/contracts';
 
 import type { ReplySnapshotValue } from './message-reply-preview.js';
 
@@ -19,20 +19,26 @@ export interface ReplyOriginalInput {
   stickerMime: string | null;
 }
 
-/** Отображаемый текст для сверки цитаты: токены упоминаний → подписи чипов
- *  (как в пузыре и в выделении браузера), пробельные серии → один пробел. */
+/** Отображаемая форма: токены упоминаний → подписи чипов (как в пузыре и в
+ *  выделении браузера), любые пробельные серии (в т.ч. невидимые U+FEFF,
+ *  NBSP) → один пробел. */
 function displayText(text: string): string {
   return stripMentionTokens(text).replace(/\s+/g, ' ').trim();
 }
 
 /**
- * Частичная цитата — фрагмент ОТОБРАЖАЕМОГО текста оригинала (#346, модель
- * Telegram Replies 2.0): клиент присылает выделение из пузыря. Иначе автор
- * ответа мог бы приписать коллеге слова, которых тот не писал.
+ * Частичная цитата (#346, модель Telegram Replies 2.0) — фрагмент
+ * ОТОБРАЖАЕМОГО текста оригинала: клиент присылает выделение из пузыря.
+ * Пузырь прячет ссылки на сущности (их место — карточка), поэтому сверка и
+ * с текстом без них. Возвращает каноническую форму цитаты (её и хранить:
+ * сверенная строка = сохранённая, без токенов и невидимых символов) или
+ * null, если фрагмента в оригинале нет.
  */
-export function isQuoteOf(originalText: string, quoteText: string): boolean {
+export function canonicalQuote(originalText: string, quoteText: string): string | null {
   const quote = displayText(quoteText);
-  return quote.length > 0 && displayText(originalText).includes(quote);
+  if (quote.length === 0) return null;
+  const visible = [displayText(originalText), displayText(stripEntityLinks(originalText))];
+  return visible.some((text) => text.includes(quote)) ? quote : null;
 }
 
 /**
@@ -66,13 +72,15 @@ export function buildReplySnapshot(
   return {
     authorId: original.authorId,
     text: truncateMentionText(original.text, REPLY_SNIPPET_MAX),
-    quoteText:
-      quoteText && isQuoteOf(original.text, quoteText)
-        ? truncateMentionText(quoteText, REPLY_SNIPPET_MAX)
-        : null,
+    quoteText: quoteText ? quoteSnippet(original.text, quoteText) : null,
     attachmentKind: original.attachmentKind,
     stickerFileId: original.stickerFileId,
     stickerEmoji: original.stickerEmoji,
     stickerMime: original.stickerMime,
   };
+}
+
+function quoteSnippet(originalText: string, quoteText: string): string | null {
+  const quote = canonicalQuote(originalText, quoteText);
+  return quote === null ? null : Array.from(quote).slice(0, REPLY_SNIPPET_MAX).join('');
 }

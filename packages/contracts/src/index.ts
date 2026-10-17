@@ -31,6 +31,7 @@ export * from './correspondence/letter.schemas.js';
 export * from './dictionaries/dictionary.schemas.js';
 export * from './chat/chat.schemas.js';
 export * from './chat/mention-tokens.js';
+export * from './chat/entity-links.js';
 export * from './chat/favorite.schemas.js';
 export * from './chat/sticker.schemas.js';
 export * from './chat/vault.schemas.js';
