@@ -232,6 +232,14 @@ async function up(mode) {
   const secrets = sandboxSecrets(dotenv, STATE_DIR);
   if (!process.env.JWT_SECRET) base.JWT_SECRET = secrets.JWT_SECRET;
   if (!process.env.STORAGE_URL_SECRET) base.STORAGE_URL_SECRET = secrets.STORAGE_URL_SECRET;
+  // Итоговое значение, а не только сгенерированное: прод-секрет мог прийти
+  // и из env процесса (`set -a; . .env`).
+  for (const key of ['JWT_SECRET', 'STORAGE_URL_SECRET']) {
+    if (base[key] && base[key] === dotenv[key] && !process.env.SANDBOX_ON_PROD) {
+      console.error(`${key} песочницы совпадает с .env (прод) — уберите его из env процесса.`);
+      process.exit(1);
+    }
+  }
 
   console.log(`Building api + gateway${mode === 'preview' ? ' + web (non-mock)' : ''}...`);
   run('pnpm --filter @nodus/api build');
