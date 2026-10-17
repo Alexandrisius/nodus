@@ -5,20 +5,20 @@ import { tasksKeys } from '../api/tasks-keys.js';
 import { stageIdOfColumnKey } from '../lib/board/kanban-column-key.js';
 import type { KeyBatcher } from './invalidation-batcher.js';
 
-/** Задача могла ВПЕРВЫЕ появиться на доске (или исчезнуть из догруженной
- *  страницы) в колонке, которую событие не называет: точечно не вычислить —
- *  доска перезапрашивается целиком (редкие события). */
-const UNKNOWN_COLUMN_EVENTS = new Set<string>([
+/** Задача могла ВПЕРВЫЕ появиться на доске в колонке, которую событие не
+ *  называет: точечно не вычислить — доски перезапрашиваются целиком (редкие
+ *  события: новая задача, смена ответственного, новый участник). */
+const NEW_ON_BOARD_EVENTS = new Set<string>([
   TASK_EVENTS.CREATED,
   TASK_EVENTS.ASSIGNED,
   TASK_EVENTS.PARTICIPANTS_CHANGED,
-  TASK_EVENTS.DELETED,
 ]);
 
 /** События, меняющие раскладку по колонкам или «просрочено» — счётчики
  *  шапок «n из m» и каталоги стадий; правки содержимого карточки их не трогают. */
 const COUNT_EVENTS = new Set<string>([
-  ...UNKNOWN_COLUMN_EVENTS,
+  ...NEW_ON_BOARD_EVENTS,
+  TASK_EVENTS.DELETED,
   TASK_EVENTS.STAGE_CHANGED,
   TASK_EVENTS.STATUS_CHANGED,
   TASK_EVENTS.PERSONAL_STAGE_CHANGED,
@@ -29,11 +29,39 @@ const COUNT_EVENTS = new Set<string>([
 const stringsOf = (...values: unknown[]): string[] =>
   values.filter((v): v is string => typeof v === 'string');
 
+interface ColumnInCache {
+  key: readonly unknown[];
+  stageId: string;
+  page: Paginated<TaskListItem> | undefined;
+}
+
+/** Колонки досок в кэше, сгруппированные по доске (ключ доски = ключ колонки
+ *  без хвоста `'column', stageId`). */
+function boardsInCache(queryClient: QueryClient): Map<string, ColumnInCache[]> {
+  const boards = new Map<string, ColumnInCache[]>();
+  for (const query of queryClient.getQueryCache().findAll({ queryKey: tasksKeys.kanbanAll() })) {
+    const stageId = stageIdOfColumnKey(query.queryKey);
+    if (!stageId) continue;
+    const board = JSON.stringify(query.queryKey.slice(0, -2));
+    const columns = boards.get(board) ?? [];
+    columns.push({
+      key: query.queryKey,
+      stageId,
+      page: query.state.data as Paginated<TaskListItem> | undefined,
+    });
+    boards.set(board, columns);
+  }
+  return boards;
+}
+
 /**
- * Колонки досок под событие задачи (#322): та, где карточка лежит сейчас
- * (по кэшу первых страниц), и те, куда она пришла (`toStageId`/`fromStageId`
- * глобальной оси, `stageId` личной). Колонка — отдельный запрос
- * (`kanbanColumnKey`), поэтому событие у открытой доски — 1–2 запроса.
+ * Колонки досок под событие задачи (#322), по каждой доске отдельно: та, где
+ * карточка лежит (по кэшу первых страниц), и те, куда она пришла
+ * (`toStageId`/`fromStageId` глобальной оси, `stageId` личной). Не нашлась
+ * в первых страницах доски — она может быть только в догруженной странице
+ * колонки с продолжением (`nextCursor`): перезапрашиваются такие колонки
+ * (догрузка колонки в кэш не попадает — живёт в борде). Колонка — отдельный
+ * запрос (`kanbanColumnKey`): событие у открытой доски — 1–2 запроса.
  */
 function pushKanbanKeys(
   batcher: KeyBatcher,
@@ -42,18 +70,21 @@ function pushKanbanKeys(
   taskId: string | null,
   payload: Record<string, unknown>,
 ): void {
-  const targets = new Set(stringsOf(payload.fromStageId, payload.toStageId, payload.stageId));
-  let onBoard = false;
-  for (const query of queryClient.getQueryCache().findAll({ queryKey: tasksKeys.kanbanAll() })) {
-    const stageId = stageIdOfColumnKey(query.queryKey);
-    if (!stageId) continue;
-    const page = query.state.data as Paginated<TaskListItem> | undefined;
-    const holds = taskId !== null && (page?.items.some((t) => t.id === taskId) ?? false);
-    onBoard ||= holds;
-    if (holds || targets.has(stageId)) batcher.push(query.queryKey, 'list');
-  }
-  if (UNKNOWN_COLUMN_EVENTS.has(type) && !(type === TASK_EVENTS.DELETED && onBoard)) {
+  if (NEW_ON_BOARD_EVENTS.has(type)) {
     batcher.push(tasksKeys.kanbanAll(), 'list');
+    return;
+  }
+  const targets = new Set(stringsOf(payload.fromStageId, payload.toStageId, payload.stageId));
+  for (const columns of boardsInCache(queryClient).values()) {
+    const holds = (c: ColumnInCache) =>
+      taskId !== null && (c.page?.items.some((t) => t.id === taskId) ?? false);
+    const onBoard = columns.some(holds);
+    for (const column of columns) {
+      const mayHide = !onBoard && taskId !== null && Boolean(column.page?.nextCursor);
+      if (holds(column) || targets.has(column.stageId) || mayHide) {
+        batcher.push(column.key, 'list');
+      }
+    }
   }
 }
 

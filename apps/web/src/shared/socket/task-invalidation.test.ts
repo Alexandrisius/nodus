@@ -26,6 +26,11 @@ const page = (...ids: string[]): Paginated<TaskListItem> => ({
   items: ids.map((id) => ({ id }) as TaskListItem),
   nextCursor: null,
 });
+/** Колонка с продолжением: дальше первой страницы есть догружаемые карточки. */
+const longPage = (...ids: string[]): Paginated<TaskListItem> => ({
+  ...page(...ids),
+  nextCursor: 'c',
+});
 
 const PERSONAL = tasksKeys.kanban('personal');
 const PROJECT = tasksKeys.kanban('project:p1');
@@ -35,7 +40,7 @@ function boardsInCache(): QueryClient {
   const client = new QueryClient();
   client.setQueryData(kanbanColumnKey(PERSONAL, 'm1'), page('t1', 't2'));
   client.setQueryData(kanbanColumnKey(PERSONAL, 'm2'), page('t3'));
-  client.setQueryData(kanbanColumnKey(PERSONAL, 'm3'), page());
+  client.setQueryData(kanbanColumnKey(PERSONAL, 'm3'), longPage('t5'));
   client.setQueryData(kanbanColumnKey(PERSONAL, 'm4'), page());
   client.setQueryData(kanbanColumnKey(PROJECT, 's1'), page('t1'));
   client.setQueryData(kanbanColumnKey(PROJECT, 's2'), page());
@@ -93,8 +98,11 @@ describe('pushTaskKeys: точечные колонки досок (#322)', () =
       fromStageId: 's3',
       toStageId: 's4',
     });
+    // «Мой план» карточки в первых страницах не держит — только колонка с
+    // продолжением m3 (возможная догрузка).
     expect(kanbanKeys(keys).sort()).toEqual(
       [
+        JSON.stringify(kanbanColumnKey(PERSONAL, 'm3')),
         JSON.stringify(kanbanColumnKey(PROJECT, 's3')),
         JSON.stringify(kanbanColumnKey(PROJECT, 's4')),
       ].sort(),
@@ -124,14 +132,20 @@ describe('pushTaskKeys: точечные колонки досок (#322)', () =
     }
   });
 
-  it('удаление: карточка на доске — её колонки; не найдена (догруженная страница) — целиком', () => {
-    const found = recordingBatcher();
-    pushTaskKeys(found.batcher, boardsInCache(), 'task.deleted', { taskId: 't3' });
-    expect(kanbanKeys(found.keys)).toEqual([JSON.stringify(kanbanColumnKey(PERSONAL, 'm2'))]);
-
-    const missing = recordingBatcher();
-    pushTaskKeys(missing.batcher, boardsInCache(), 'task.deleted', { taskId: 't9' });
-    expect(has(missing.keys, tasksKeys.kanbanAll())).toBe(true);
+  it('карточки нет в первых страницах доски — колонки этой доски с продолжением (догрузки)', () => {
+    for (const type of ['task.updated', 'task.deleted', 'task.checklist_changed']) {
+      const { batcher, keys } = recordingBatcher();
+      // t4 — на проектной доске (s3), на «Моём плане» её нет в первых страницах:
+      // там она может прятаться только в догрузке колонки m3.
+      pushTaskKeys(batcher, boardsInCache(), type, { taskId: 't4' });
+      expect(kanbanKeys(keys).sort(), type).toEqual(
+        [
+          JSON.stringify(kanbanColumnKey(PERSONAL, 'm3')),
+          JSON.stringify(kanbanColumnKey(PROJECT, 's3')),
+        ].sort(),
+      );
+      expect(has(keys, tasksKeys.kanbanAll()), type).toBe(false);
+    }
   });
 
   it('срок изменён — счётчики «просрочено» пересчитываются; заголовок — нет', () => {
