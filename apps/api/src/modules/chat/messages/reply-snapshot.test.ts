@@ -84,11 +84,20 @@ describe('buildReplySnapshot', () => {
     expect(canonicalQuote('не делать', `не${String.fromCharCode(0xfeff)}делать`)).toBe('не делать');
   });
 
-  it('canonicalQuote: фрагмент через ссылку на сущность (в пузыре её место — карточка)', () => {
-    const text = 'Ответьте на portal://letter/80000000-0000-4000-8000-000000000003 до пятницы';
-    expect(canonicalQuote(text, 'на  до пятницы')).toBe('на до пятницы');
-    expect(canonicalQuote(text, 'Ответьте на portal://letter')).toBe('Ответьте на portal://letter');
-    expect(canonicalQuote(text, 'на письмо до пятницы')).toBeNull();
+  it('canonicalQuote: ссылка на сущность — фрагменты по сторонам да, склейка через скрытую ссылку нет', () => {
+    const text =
+      'Это неportal://task/80000000-0000-4000-8000-000000000003правда, ответьте до пятницы';
+    expect(canonicalQuote(text, 'до пятницы')).toBe('до пятницы');
+    expect(canonicalQuote(text, 'Это не')).toBe('Это не');
+    expect(canonicalQuote(text, 'неправда')).toBeNull();
+  });
+
+  it('canonicalQuote: снятие токенов не собирает новый токен (перевод строки в подписи, вложенность)', () => {
+    const multiline = 'see @[Все\n](user:all) ok';
+    expect(canonicalQuote(multiline, '@[Все\n](user:all)')).not.toMatch(/\]\(user:/);
+    const id = '11111111-1111-1111-1111-111111111111';
+    const nested = `@[@[x](user:${id})](user:${id})`;
+    expect(canonicalQuote(nested, nested)).not.toMatch(/\]\(user:/);
   });
 
   it('вид вложения прокидывается как есть', () => {

@@ -1,4 +1,4 @@
-import { stripEntityLinks, stripMentionTokens, truncateMentionText } from '@nodus/contracts';
+import { stripMentionTokens, truncateMentionText } from '@nodus/contracts';
 
 import type { ReplySnapshotValue } from './message-reply-preview.js';
 
@@ -19,26 +19,34 @@ export interface ReplyOriginalInput {
   stickerMime: string | null;
 }
 
-/** Отображаемая форма: токены упоминаний → подписи чипов (как в пузыре и в
- *  выделении браузера), любые пробельные серии (в т.ч. невидимые U+FEFF,
- *  NBSP) → один пробел. */
+/** Отображаемая форма: любые пробельные серии (в т.ч. невидимые U+FEFF,
+ *  NBSP) → один пробел, токены упоминаний → подписи чипов (как в пузыре и
+ *  в выделении браузера). Пробелы — ДО токенов (подпись не содержит
+ *  перевода строки: схлопнутый `\n` иначе собрал бы токен заново), токены —
+ *  до неподвижной точки (снятие внешнего токена не должно склеить новый). */
 function displayText(text: string): string {
-  return stripMentionTokens(text).replace(/\s+/g, ' ').trim();
+  let out = text.replace(/\s+/g, ' ');
+  for (let i = 0; i < 8; i += 1) {
+    const next = stripMentionTokens(out);
+    if (next === out) break;
+    out = next;
+  }
+  return out.replace(/\s+/g, ' ').trim();
 }
 
 /**
  * Частичная цитата (#346, модель Telegram Replies 2.0) — фрагмент
  * ОТОБРАЖАЕМОГО текста оригинала: клиент присылает выделение из пузыря.
- * Пузырь прячет ссылки на сущности (их место — карточка), поэтому сверка и
- * с текстом без них. Возвращает каноническую форму цитаты (её и хранить:
- * сверенная строка = сохранённая, без токенов и невидимых символов) или
- * null, если фрагмента в оригинале нет.
+ * Возвращает каноническую форму (её и хранить: сверенная строка =
+ * сохранённая, без токенов и невидимых символов) или null, если фрагмента
+ * в оригинале нет. Выделение ЧЕРЕЗ ссылку на сущность, которую пузырь
+ * заменил карточкой, не засчитывается — ответ на всё сообщение: склейка
+ * слов по обе стороны скрытой ссылки дала бы фразу, которой автор не писал.
  */
 export function canonicalQuote(originalText: string, quoteText: string): string | null {
   const quote = displayText(quoteText);
   if (quote.length === 0) return null;
-  const visible = [displayText(originalText), displayText(stripEntityLinks(originalText))];
-  return visible.some((text) => text.includes(quote)) ? quote : null;
+  return displayText(originalText).includes(quote) ? quote : null;
 }
 
 /**

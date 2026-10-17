@@ -1,13 +1,9 @@
 import { useMemo } from 'react';
 
-import {
-  parseEntityLinks,
-  parseMentionSegments,
-  type MentionSegment,
-  type MessageSegment,
-} from '@nodus/contracts';
+import { parseMentionSegments, type MentionSegment } from '@nodus/contracts';
 import { cn } from '@nodus/ui/lib/utils';
 
+import { parseEntityLinks, type MessageSegment } from './entity-links.js';
 import { httpUrlSegments } from './link-preview-card.js';
 import { linkPreviewFor } from './link-previews.js';
 import { MentionChip } from './mention-chip.js';

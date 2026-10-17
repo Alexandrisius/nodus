@@ -7,9 +7,7 @@
  *  - веб deep-link стека карточек `…?cards=<вид>:<uuid>,…` (to, что копирует
  *    «Копировать ссылку» меню строк/карточек — card-link.ts).
  *  Парсер вид-независим: какие виды разворачивать превью — решает реестр
- *  link-previews веба (фичи регистрируют свои компоненты). Живёт в contracts
- *  (#346): грамматика нужна и вебу (рендер пузыря), и api (сверка частичной
- *  цитаты с ОТОБРАЖАЕМЫМ текстом) — одна грамматика на потребителей (I3). */
+ *  link-previews (фичи регистрируют свои компоненты). */
 
 const UUID = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}';
 const LINK_RE = new RegExp(`portal://([a-z_]+)/(${UUID})|https?://\\S*cards=\\S*`, 'g');
@@ -46,13 +44,4 @@ export function parseEntityLinks(text: string): MessageSegment[] {
   }
   if (cursor < text.length) segments.push({ kind: 'text', value: text.slice(cursor) });
   return segments.filter((s) => s.kind !== 'text' || s.value.length > 0);
-}
-
-/** Текст без ссылок на сущности (их место в пузыре занимает карточка-превью):
- *  то, что пользователь видит и может выделить для частичной цитаты (#346).
- *  Deep-link без валидных пар остаётся текстом — как в рендере. */
-export function stripEntityLinks(text: string): string {
-  return parseEntityLinks(text)
-    .map((segment) => (segment.kind === 'text' ? segment.value : ''))
-    .join('');
 }
