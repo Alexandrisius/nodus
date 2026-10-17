@@ -312,6 +312,15 @@ describe('MessagesService', () => {
       );
     });
 
+    it('цитата сообщения НЕ из этой беседы (#344) → 404, сообщение не создаётся', async () => {
+      repo.findByIdInConversation.mockResolvedValue(null);
+      await expect(
+        service.send(ME, CONV, { text: 'Ответ', replyToId: 'foreign-1' }, 'key-fr'),
+      ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+      expect(repo.findByIdInConversation).toHaveBeenCalledWith(CONV, 'foreign-1', TX);
+      expect(repo.insertMessage).not.toHaveBeenCalled();
+    });
+
     it('цитата-на-стикер: снапшот несёт fileId/эмодзи/mime для мини-глифа (#288)', async () => {
       repo.findByIdInConversation.mockResolvedValue(
         makeMessage({ id: 'orig-st', authorId: PEER, text: '' }),

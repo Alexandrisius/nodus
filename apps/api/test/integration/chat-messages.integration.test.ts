@@ -367,6 +367,23 @@ describe.skipIf(!process.env.DATABASE_URL)('chat: сообщения (integratio
     expect(dstFeed.items).toHaveLength(0);
   });
 
+  it('цитата сообщения из чужой беседы → NOT_FOUND, в ленте ничего (#344)', async () => {
+    const srcRes = await fx.api(alice, 'POST', '/chat/conversations', {
+      body: { type: 'group', title: `Закрытая ${fx.runId}-reply`, memberIds: [bob.id] },
+    });
+    expect(srcRes.status).toBe(201);
+    const src = ((await srcRes.json()) as { id: string }).id;
+    const secret = await send(alice, src, { text: 'внутреннее' });
+    const dst = await makeGroup();
+
+    const res = await fx.api(carol, 'POST', `/chat/conversations/${dst}/messages`, {
+      body: { text: 'цитирую чужое', replyToId: secret.id },
+    });
+    expect(res.status).toBe(404);
+    expect(apiErrorResponseSchema.parse(await res.json()).code).toBe(ErrorCode.NOT_FOUND);
+    expect((await feed(carol, dst, '?limit=50')).items).toHaveLength(0);
+  });
+
   it('пересылка пропускает надгробия; всё пропущено без комментария → NOT_FOUND', async () => {
     const src = await makeGroup();
     const dst = await makeGroup();
