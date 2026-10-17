@@ -24,10 +24,18 @@ const TASK_ACCESS = 'участие в задаче — политика дос�
 const PERSONAL_PLAN = 'личная схема «Моего плана» — только свои стадии';
 const CATALOG = 'общий справочник/каталог для всех сотрудников, без персональных данных (I15)';
 const VISIBLE_STICKERS = 'видимые паки: корпоративные + свои/установленные (фильтр в сервисе)';
-const TASK_VISIBILITY = 'фильтр видимости задач в сервисе (участие, проекты)';
+const TASK_VISIBILITY =
+  'фильтр видимости задач в сервисе (участие, подчинённые по оргструктуре, task.view_all)';
+const TASK_VISIBLE_ONE =
+  'видимость задачи (visibleRow: участие, оргструктура, task.view_all), чужая — 404';
+const TASK_STAGES = 'каталог стадий + счётчики по фильтру видимости задач';
+const STICKER_BY_ID =
+  'любой неудалённый пак по id — раздача «из чата»; личные паки не секретны (осознанно, findPack)';
+const DIRECT_CHAT =
+  'find-or-create личной беседы с любым сотрудником (канон мессенджера); замечания — #343';
 const FILE_ACCESS = 'доступ к файлу — resolveAccess (владелец или участник беседы вложения)';
 const HOME =
-  'витрина Главной: число сотрудников и ближайшие дни рождения (видны всем в справочнике)';
+  'витрина Главной: число сотрудников и дни рождения — видны ЛЮБОМУ вошедшему, вне directory.read (вопрос владельцу — #342)';
 
 const INTENTIONALLY_WITHOUT_PERMISSION: Record<string, string> = {
   // Чтение (#334)
@@ -39,7 +47,7 @@ const INTENTIONALLY_WITHOUT_PERMISSION: Record<string, string> = {
   'GET /notifications/:id/deliveries': SELF,
   'GET /tasks/timer': SELF,
   'GET /chat/conversations': CHAT_MEMBERSHIP,
-  'GET /chat/conversations/direct/:userId': CHAT_MEMBERSHIP,
+  'GET /chat/conversations/direct/:userId': DIRECT_CHAT,
   'GET /chat/conversations/:id/members': CHAT_MEMBERSHIP,
   'GET /chat/conversations/:id/messages': CHAT_MEMBERSHIP,
   'GET /chat/conversations/:id/pins': CHAT_MEMBERSHIP,
@@ -51,23 +59,23 @@ const INTENTIONALLY_WITHOUT_PERMISSION: Record<string, string> = {
   'GET /chat/favorites/labels': OWN_FAVORITES,
   'GET /chat/favorites/sources': OWN_FAVORITES,
   'GET /chat/stickers/packs': VISIBLE_STICKERS,
-  'GET /chat/stickers/packs/:id': VISIBLE_STICKERS,
-  'GET /chat/urgent/policy': CATALOG,
+  'GET /chat/stickers/packs/:id': STICKER_BY_ID,
+  'GET /chat/urgent/policy': SELF,
   'GET /dictionaries': CATALOG,
   'GET /dictionaries/:code/items': CATALOG,
   'GET /files/:id/office-session': FILE_ACCESS,
   'GET /files/:id/versions': FILE_ACCESS,
   'GET /home/summary': HOME,
   'GET /tasks': TASK_VISIBILITY,
-  'GET /tasks/stages': CATALOG,
+  'GET /tasks/stages': TASK_STAGES,
   'GET /tasks/types': CATALOG,
-  'GET /tasks/:id': TASK_ACCESS,
-  'GET /tasks/:id/branch': TASK_ACCESS,
-  'GET /tasks/:id/relations': TASK_ACCESS,
-  'GET /tasks/:id/results': TASK_ACCESS,
-  'GET /tasks/:id/history': TASK_ACCESS,
-  'GET /tasks/:id/time-entries': TASK_ACCESS,
-  'GET /tasks/:id/transitions': TASK_ACCESS,
+  'GET /tasks/:id': TASK_VISIBLE_ONE,
+  'GET /tasks/:id/branch': TASK_VISIBLE_ONE,
+  'GET /tasks/:id/relations': TASK_VISIBLE_ONE,
+  'GET /tasks/:id/results': TASK_VISIBLE_ONE,
+  'GET /tasks/:id/history': TASK_VISIBLE_ONE,
+  'GET /tasks/:id/time-entries': TASK_VISIBLE_ONE,
+  'GET /tasks/:id/transitions': TASK_VISIBLE_ONE,
   'GET /tasks/personal-stages': PERSONAL_PLAN,
   // Изменения (#320)
   'POST /auth/logout-all': SELF,
