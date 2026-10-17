@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { passwordSchema } from '../auth/auth.schemas.js';
+import { emailInputSchema, passwordSchema } from '../auth/auth.schemas.js';
 import { cursorQuerySchema } from '../pagination/paginated.schema.js';
 
 /**
@@ -106,7 +106,7 @@ export type ListUsersQuery = z.infer<typeof listUsersQuerySchema>;
 
 /** Создание сотрудника администратором (directory.manage). */
 export const createUserSchema = z.object({
-  email: z.email(),
+  email: emailInputSchema,
   /** Начальный пароль — та же политика, что и при смене (сотрудник сменит при первом входе — V2). */
   password: passwordSchema,
   lastName: z.string().trim().min(1).max(128),
@@ -152,6 +152,6 @@ export type UpdateMyProfileDto = z.infer<typeof updateMyProfileSchema>;
 /** Приглашение сотрудника (кнопка «Пригласить»): минимум — рабочая почта;
  *  роль/подразделение/письмо-инвайт — полный поток с бэкендом. */
 export const createInvitationSchema = z.object({
-  email: z.email(),
+  email: emailInputSchema,
 });
 export type CreateInvitationDto = z.infer<typeof createInvitationSchema>;
