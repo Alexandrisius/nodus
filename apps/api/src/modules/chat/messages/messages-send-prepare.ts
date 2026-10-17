@@ -56,33 +56,23 @@ export async function loadReplyQuote(
   if (!body.replyToId) return { replySnapshot: null, replyOriginalRow: null };
   const replyOriginalRow = await repo.findByIdInConversation(conversationId, body.replyToId, tx);
   if (!replyOriginalRow) throw DomainException.notFound('Reply target not found');
-  const originalAttachments =
-    replyOriginalRow && !replyOriginalRow.deletedAt
-      ? await repo.attachmentsFor([replyOriginalRow.id], tx)
-      : [];
+  const originalAttachments = replyOriginalRow.deletedAt
+    ? []
+    : await repo.attachmentsFor([replyOriginalRow.id], tx);
+  const firstAttachment = originalAttachments[0];
+  const sticker = firstAttachment?.kind === 'sticker' ? firstAttachment : null;
   const replySnapshot = buildReplySnapshot(
-    replyOriginalRow
-      ? {
-          authorId: replyOriginalRow.authorId,
-          text: replyOriginalRow.text,
-          deleted: replyOriginalRow.deletedAt !== null,
-          attachmentKind: (originalAttachments[0]?.kind as 'image' | 'file' | 'sticker') ?? null,
-          // #288: мини-глиф оригинального стикера в цитате — fileId
-          // (url подписывается при чтении) + первый эмодзи пака.
-          stickerFileId:
-            originalAttachments[0]?.kind === 'sticker'
-              ? (originalAttachments[0]?.fileId ?? null)
-              : null,
-          stickerEmoji:
-            originalAttachments[0]?.kind === 'sticker'
-              ? ((originalAttachments[0]?.stickerMeta as StickerMeta | null)?.emojis[0] ?? null)
-              : null,
-          stickerMime:
-            originalAttachments[0]?.kind === 'sticker'
-              ? (originalAttachments[0]?.mime ?? null)
-              : null,
-        }
-      : null,
+    {
+      authorId: replyOriginalRow.authorId,
+      text: replyOriginalRow.text,
+      deleted: replyOriginalRow.deletedAt !== null,
+      attachmentKind: (firstAttachment?.kind as 'image' | 'file' | 'sticker') ?? null,
+      // #288: мини-глиф оригинального стикера в цитате — fileId
+      // (url подписывается при чтении) + первый эмодзи пака.
+      stickerFileId: sticker?.fileId ?? null,
+      stickerEmoji: (sticker?.stickerMeta as StickerMeta | null | undefined)?.emojis[0] ?? null,
+      stickerMime: sticker?.mime ?? null,
+    },
     body.quoteText ?? null,
   );
   return { replySnapshot, replyOriginalRow };
