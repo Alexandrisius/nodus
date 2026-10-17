@@ -104,7 +104,8 @@ conv-комнату (троттл-ключ включает root): индика�
   (XAUTOCLAIM-перехват + GC сирот), presence-переходы, conv:join/leave
   (членство, потолок, идемпотентность).
 - Integration (`pnpm test:integration`, живые PG/Redis): собственный контур —
-  БД `nodus_gateway_test` с минимальным срезом читаемых таблиц; socket.io-client
+  БД `nodus_gateway_test` с минимальным срезом читаемых таблиц, Redis — db 15
+  (`@nodus/config/test-env`, громкий отказ при чужом db, #332); socket.io-client
   против живого сервера; публикация в стрим XADD-ом contract-ного envelope.
   api-сторона публикации покрыта apps/api/test/integration/chat-realtime-fanout.
 - Нагрузка (k6 0.58, `docker run --rm grafana/k6:0.58.0`, из репо
