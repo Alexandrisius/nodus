@@ -5,6 +5,10 @@
   "type": "module",
   "exports": {
     "./eslint": "./eslint/index.mjs",
+    "./test-env": {
+      "types": "./test-env.d.mts",
+      "default": "./test-env.mjs"
+    },
     "./tsconfig/*": "./tsconfig/*"
   },
   "dependencies": {
