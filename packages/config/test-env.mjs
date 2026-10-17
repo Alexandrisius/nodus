@@ -30,7 +30,7 @@ export function isolateIntegrationEnv() {
 }
 
 /** Громкий отказ, если тест-контур всё-таки смотрит в чужой Redis db или бакет
- *  (конфиг без `isolateIntegrationRedis`, ручной запуск с env). */
+ *  (конфиг без `isolateIntegrationEnv`, ручной запуск с env). */
 export function assertIsolatedTestEnv() {
   const url = process.env.REDIS_URL;
   if (url && new URL(url).pathname !== `/${INTEGRATION_TEST_REDIS_DB}`) {
