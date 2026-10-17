@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   CreateLetterBody,
+  DictionaryItem,
   DocumentKind,
   IssueResolutionBody,
   LetterDetail,
@@ -10,7 +11,7 @@ import type {
   RegisterLetterBody,
   Resolution,
 } from '@nodus/contracts';
-import { ui } from '@nodus/contracts';
+import { PAGINATION_MAX_LIMIT, SystemDictionary, ui } from '@nodus/contracts';
 import { toast } from 'sonner';
 
 import { api } from '../../../shared/api-client.js';
@@ -39,14 +40,21 @@ export function useMailboxes() {
   });
 }
 
-/** Словарь «вид документа» (dictionaries, сид #54): ключ shared-стиля
- *  (образец usersListKey) — потребитель один, но словарь общий домена. */
-export const documentKindsKey = ['dictionaries', 'document-kinds'] as const;
+/** Словарь «вид документа» (dictionaries, сид миграцией #54): ключ shared-стиля
+ *  (образец usersListKey) — потребитель один, но словарь общий домена.
+ *  Видов — единицы: одна страница максимального лимита, архивные скрыты. */
+export const documentKindsKey = ['dictionaries', SystemDictionary.DOCUMENT_KIND, 'items'] as const;
+
+const documentKindsPath = `/dictionaries/${SystemDictionary.DOCUMENT_KIND}/items?limit=${PAGINATION_MAX_LIMIT}`;
+
+/** Стабильная ссылка select: элементы страницы в порядке справочника. */
+const selectDocumentKinds = (page: Paginated<DictionaryItem>): DocumentKind[] => page.items;
 
 export function useDocumentKinds() {
   return useQuery({
     queryKey: documentKindsKey,
-    queryFn: () => api<DocumentKind[]>('/dictionaries/document-kinds'),
+    queryFn: () => api<Paginated<DictionaryItem>>(documentKindsPath),
+    select: selectDocumentKinds,
   });
 }
 
