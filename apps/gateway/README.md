@@ -36,7 +36,7 @@ presence. Спека — issue #104 (трек M13).
   на хендшейке, не переживает деактивацию; клиент на `io server disconnect`
   сам не переподключается, refresh-сессии отзывает auth тем же событием.
 - **READ-ONLY Postgres — осознанное исключение I3/I6** (зафиксировано спекой
-  #104): gateway не тянет Nest/Prisma ради двух SELECT — `isMember` для
+  #104): gateway не тянет Nest/Prisma ради нескольких SELECT — `isMember` для
   подписки на комнату, `status` учётки на хендшейке и `display_name/avatar_url` для presence-entries (кэш
   60 с). Пишет в чужие таблицы никогда.
 - **Stateless, но пилот — один инстанс**: горизонтальное масштабирование —

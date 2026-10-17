@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { readdirSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { RequestMethod } from '@nestjs/common';
 import { METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants';
@@ -85,28 +85,49 @@ const INTENTIONALLY_WITHOUT_PERMISSION: Record<string, string> = {
   'DELETE /tasks/personal-stages/:stageId': PERSONAL_PLAN,
 };
 
+/** Публичные маршруты (`@Public`: без аутентификации вообще) — любой метод. */
+const INTENTIONALLY_PUBLIC: Record<string, string> = {
+  'GET /health': 'проба живости для docker/мониторинга',
+  'GET /health/live': 'проба живости для docker/мониторинга',
+  'GET /health/ready': 'проба готовности для docker/мониторинга',
+  'POST /auth/login': 'вход — до аутентификации по определению',
+  'POST /auth/refresh': 'ротация по httpOnly refresh-cookie (access истёк)',
+  'POST /auth/logout': 'отзыв сессии по refresh-cookie (access мог истечь)',
+  'GET /desktop/config': 'оболочка читает имя сервера и минимальную версию до входа',
+  'GET /files/:id/content': 'подписанная ссылка (HMAC + срок) — доступ проверен при выдаче',
+  'GET /files/:id/derivative/:kind':
+    'подписанная ссылка (HMAC + срок) — доступ проверен при выдаче',
+  'GET /files/office-config': 'параметры движка просмотра без данных пользователя',
+  'POST /files/:id/office-callback':
+    'вызов ONLYOFFICE DS — отправитель проверяется verifySender (JWT DS)',
+};
+
 interface RouteDecision {
   route: string;
-  guarded: boolean;
+  mutating: boolean;
+  hasPermission: boolean;
+  isPublic: boolean;
 }
 
 type Handler = (...args: unknown[]) => unknown;
 
-function controllerFiles(dir: string): string[] {
+const SRC = import.meta.dirname;
+
+function sourceFiles(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const path = join(dir, entry.name);
-    if (entry.isDirectory()) return controllerFiles(path);
-    return entry.name.endsWith('.controller.ts') ? [path] : [];
+    if (entry.isDirectory()) return sourceFiles(path);
+    return entry.name.endsWith('.ts') && !entry.name.endsWith('.test.ts') ? [path] : [];
   });
 }
 
 const joinPath = (...parts: string[]): string =>
   `/${parts.join('/')}`.replace(/\/+/g, '/').replace(/(.)\/$/, '$1');
 
-/** Мутирующие маршруты всех контроллеров (метаданные декораторов Nest). */
-async function mutatingRoutes(): Promise<RouteDecision[]> {
+/** Все маршруты всех контроллеров `src/**` (метаданные декораторов Nest). */
+async function allRoutes(): Promise<RouteDecision[]> {
   const routes: RouteDecision[] = [];
-  for (const file of controllerFiles(join(import.meta.dirname, 'modules'))) {
+  for (const file of sourceFiles(SRC).filter((f) => f.endsWith('.controller.ts'))) {
     const exported = (await import(file)) as Record<string, unknown>;
     for (const controller of Object.values(exported)) {
       if (typeof controller !== 'function') continue;
@@ -117,16 +138,16 @@ async function mutatingRoutes(): Promise<RouteDecision[]> {
         const handler = proto[name];
         if (name === 'constructor' || typeof handler !== 'function') continue;
         const method: unknown = Reflect.getMetadata(METHOD_METADATA, handler);
-        if (typeof method !== 'number' || method === RequestMethod.GET) continue;
+        if (typeof method !== 'number') continue;
         const marker = (key: string): unknown =>
           Reflect.getMetadata(key, handler as Handler) ?? Reflect.getMetadata(key, controller);
         const permissions = marker(PERMISSIONS_KEY);
         const path: unknown = Reflect.getMetadata(PATH_METADATA, handler);
         routes.push({
           route: `${RequestMethod[method]} ${joinPath(base, typeof path === 'string' ? path : '')}`,
-          guarded:
-            (Array.isArray(permissions) && permissions.length > 0) ||
-            marker(IS_PUBLIC_KEY) === true,
+          mutating: method !== RequestMethod.GET,
+          hasPermission: Array.isArray(permissions) && permissions.length > 0,
+          isPublic: marker(IS_PUBLIC_KEY) === true,
         });
       }
     }
@@ -134,26 +155,48 @@ async function mutatingRoutes(): Promise<RouteDecision[]> {
   return routes;
 }
 
-describe('RBAC-инвентаризация мутирующих маршрутов (I8, #320)', () => {
+describe('RBAC-инвентаризация маршрутов (I8, #320)', () => {
   let routes: RouteDecision[];
 
   // Импорт всех контроллеров (граф модулей api) — секунды под параллельной
   // нагрузкой turbo: один раз на файл и с запасом над дефолтными 5 с.
   beforeAll(async () => {
-    routes = await mutatingRoutes();
+    routes = await allRoutes();
   }, 60_000);
 
+  it('контроллер живёт только в *.controller.ts (иначе ускользнёт от инвентаризации)', () => {
+    const misplaced = sourceFiles(SRC).filter(
+      (f) => !f.endsWith('.controller.ts') && readFileSync(f, 'utf8').includes('@Controller('),
+    );
+    expect(misplaced).toEqual([]);
+    expect(routes.filter((r) => r.mutating).length).toBeGreaterThan(50);
+  });
+
   it('каждый мутирующий маршрут — право, @Public или осознанное исключение с причиной', () => {
-    expect(routes.length).toBeGreaterThan(50);
     const undecided = routes
-      .filter((r) => !r.guarded && !(r.route in INTENTIONALLY_WITHOUT_PERMISSION))
+      .filter((r) => r.mutating && !r.hasPermission && !r.isPublic)
+      .filter((r) => !(r.route in INTENTIONALLY_WITHOUT_PERMISSION))
       .map((r) => r.route);
     expect(undecided, 'добавь @RequirePermissions или строку в список с причиной').toEqual([]);
   });
 
-  it('список исключений не протухает: только существующие маршруты без права', () => {
-    const unguarded = new Set(routes.filter((r) => !r.guarded).map((r) => r.route));
-    const stale = Object.keys(INTENTIONALLY_WITHOUT_PERMISSION).filter((r) => !unguarded.has(r));
-    expect(stale, 'маршрут удалён или получил право — убери строку').toEqual([]);
+  it('@Public — только из списка с причиной и никогда вместе с правом (guard его не проверит)', () => {
+    const publicRoutes = routes.filter((r) => r.isPublic);
+    expect(
+      publicRoutes.filter((r) => !(r.route in INTENTIONALLY_PUBLIC)).map((r) => r.route),
+    ).toEqual([]);
+    expect(publicRoutes.filter((r) => r.hasPermission).map((r) => r.route)).toEqual([]);
+  });
+
+  it('списки исключений не протухают', () => {
+    const unguarded = new Set(
+      routes.filter((r) => r.mutating && !r.hasPermission && !r.isPublic).map((r) => r.route),
+    );
+    const publicSet = new Set(routes.filter((r) => r.isPublic).map((r) => r.route));
+    expect(
+      Object.keys(INTENTIONALLY_WITHOUT_PERMISSION).filter((r) => !unguarded.has(r)),
+      'маршрут удалён или получил право — убери строку',
+    ).toEqual([]);
+    expect(Object.keys(INTENTIONALLY_PUBLIC).filter((r) => !publicSet.has(r))).toEqual([]);
   });
 });

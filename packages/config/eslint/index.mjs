@@ -239,9 +239,14 @@ const i18nLiteralsConfig = {
         `JSXAttribute > Literal[value=${CYRILLIC}]`,
         `JSXExpressionContainer > Literal[value=${CYRILLIC}]`,
         `JSXExpressionContainer > TemplateLiteral > TemplateElement[value.raw=${CYRILLIC}]`,
+        // Ветки тернарника/логического выражения в разметке — самая частая
+        // форма текста интерфейса (`{ok ? 'Да' : 'Нет'}`, `{x || 'Пусто'}`).
+        `JSXExpressionContainer :matches(ConditionalExpression, LogicalExpression) > Literal[value=${CYRILLIC}]`,
+        `JSXExpressionContainer :matches(ConditionalExpression, LogicalExpression) > TemplateLiteral > TemplateElement[value.raw=${CYRILLIC}]`,
         `CallExpression[callee.object.name='toast'] > Literal[value=${CYRILLIC}]`,
         `CallExpression[callee.name='toast'] > Literal[value=${CYRILLIC}]`,
         `CallExpression[callee.object.name='toast'] > TemplateLiteral > TemplateElement[value.raw=${CYRILLIC}]`,
+        `CallExpression[callee.name='toast'] > TemplateLiteral > TemplateElement[value.raw=${CYRILLIC}]`,
       ].map((selector) => ({ selector, message: I18N_MESSAGE })),
     ],
   },

@@ -69,7 +69,11 @@ export function createGatewayServer(deps: GatewayDeps): GatewayServer {
       if (!active) return next(new Error('unauthorized'));
       socket.data.userId = identity.userId;
       next();
-    })();
+    })().catch(() => {
+      // Страховка: неожиданный сбой проверки — отказ, а не unhandled
+      // rejection (Node роняет процесс — gateway лёг бы для всех).
+      next(new Error('unauthorized'));
+    });
   });
 
   io.on('connection', (socket: Socket) => {
