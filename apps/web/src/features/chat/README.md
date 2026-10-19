@@ -455,7 +455,7 @@ rehydrate, аудит #45).
 **Персист-ключи модуля:** `nodus-chat-prefs-v1` (выравнивание),
 `nodus-card-chat-w-v1` (ширина чата карточек, дефолт 680, MIN_W 420,
 MAX_RATIO 0.66, `shared/ui/use-chat-width.ts`; при открытой панели «О задаче»
-пол чата карточки задачи — `MIN_CHAT_WITH_PANEL = 280`), `nodus-thread-w-v1`
+или навигаторе ветки пол чата карточки задачи — `MIN_CHAT_WITH_PANEL = 280`), `nodus-thread-w-v1`
 (перегородка окна треда, `use-pane-width.ts`; потолок окна — `THREAD_MAX_W`/
 `threadMaxW`, порог side-by-side — `MIN_SIDE_BY_SIDE`,
 `shared/chat/channel-layout.ts`).
