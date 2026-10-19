@@ -1,4 +1,4 @@
-import { Link2, MoreHorizontal, Trash2 } from 'lucide-react';
+import { Link2, MoreHorizontal, Repeat, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import type { TaskDetail } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
@@ -21,14 +21,16 @@ import {
 import { useCloseCard } from '../../../app/shell/use-card-stack.js';
 import { copyCardLink } from '../../../shared/lib/card-link.js';
 import { useDeleteTask } from '../api/task-edit-api.js';
+import { TaskChangeTypeDialog } from './task-change-type-dialog.js';
 
-/** Меню «⋯» шапки карточки (#311, пилот): ссылка на задачу и удаление
- *  (право canDelete — постановщик/task.manage_any). Диалог подтверждения —
- *  сиблинг меню, не внутри его слоя (канон диалогов из оверлеев). */
+/** Меню «⋯» шапки карточки (#311, пилот): ссылка на задачу, смена типа
+ *  (#378, доступна тем, кто может править) и удаление. Диалоги — сиблинги
+ *  меню, не внутри его слоя (канон диалогов из оверлеев). */
 export function TaskCardMenu({ task }: { task: TaskDetail }) {
   const remove = useDeleteTask(task.id);
   const closeCard = useCloseCard();
   const [confirm, setConfirm] = useState(false);
+  const [changeType, setChangeType] = useState(false);
 
   return (
     <>
@@ -45,6 +47,12 @@ export function TaskCardMenu({ task }: { task: TaskDetail }) {
             <Link2 className="size-3.5" />
             {ui.common.copyLink}
           </DropdownMenuItem>
+          {task.access.canEdit ? (
+            <DropdownMenuItem onSelect={() => setChangeType(true)}>
+              <Repeat className="size-3.5" />
+              {ui.tasks.changeTypeMenu}
+            </DropdownMenuItem>
+          ) : null}
           {task.access.canDelete ? (
             <DropdownMenuItem variant="destructive" onSelect={() => setConfirm(true)}>
               <Trash2 className="size-3.5" />
@@ -80,6 +88,9 @@ export function TaskCardMenu({ task }: { task: TaskDetail }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {changeType ? (
+        <TaskChangeTypeDialog task={task} onClose={() => setChangeType(false)} />
+      ) : null}
     </>
   );
 }

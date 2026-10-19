@@ -255,7 +255,11 @@ export function TaskList({
         {/* Запас под островок: последняя строка не прячется под ним. */}
         {selected.size > 0 ? <div aria-hidden className="h-24" /> : null}
       </div>
-      <TaskBulkIsland selectedIds={selectedIds} onClear={clear} />
+      <TaskBulkIsland
+        selectedIds={selectedIds}
+        selectedTasks={visible.filter((row) => selected.has(row.task.id)).map((row) => row.task)}
+        onClear={clear}
+      />
     </div>
   );
 }

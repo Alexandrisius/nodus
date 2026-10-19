@@ -12,11 +12,22 @@ import {
 } from '../../../../shared/mocks/data/tasks.js';
 import { demoProjects } from '../../../../shared/mocks/data/projects.js';
 import { demoStages, systemTaskType } from '../../../../shared/mocks/data/task-stages.js';
+import { demoTaskTypes, demoWorkflowDetails } from '../../../../shared/mocks/data/workflows.js';
+import type { WorkflowDetail } from '@nodus/contracts';
 import { currentAuthUser, userRef } from '../../../../shared/mocks/data/users.js';
 
 function notFound(message: string) {
   return HttpResponse.json({ code: ErrorCode.NOT_FOUND, message }, { status: 404 });
 }
+
+/** workflowId живого типа (архивный каталог стадий не отдаёт). */
+function workflowIdOfType(typeId: string): string | null {
+  return demoTaskTypes.find((t) => t.id === typeId && !t.archivedAt)?.workflowId ?? null;
+}
+function typeNameOf(typeId: string): string | undefined {
+  return demoTaskTypes.find((t) => t.id === typeId)?.name;
+}
+const archivedTypeIds = new Set(demoTaskTypes.filter((t) => t.archivedAt).map((t) => t.workflowId));
 
 /** Открытые состояния: новая задача стартует только в них (API #37,
  *  security-гейт: создание сразу «завершённой» обходило бы гейты DoD). */
@@ -68,9 +79,27 @@ export const tasksListHandlers = [
     return HttpResponse.json({ items, nextCursor: next });
   }),
 
-  http.get('/api/v1/tasks/stages', () =>
-    HttpResponse.json(
-      demoStages.map((s) => ({
+  // Межтиповой каталог стадий (#378): без typeId — статусы всех живых типов
+  // с полями typeId/typeName; с typeId — статусы одного типа.
+  http.get('/api/v1/tasks/stages', ({ request }) => {
+    const typeId = new URL(request.url).searchParams.get('typeId');
+    const sources = typeId
+      ? [demoWorkflowDetails[workflowIdOfType(typeId) ?? '']]
+      : Object.values(demoWorkflowDetails).filter((d) => !archivedTypeIds.has(d.id));
+    const stages = (sources.filter(Boolean) as WorkflowDetail[]).flatMap((detail) =>
+      detail.document.stages.map((s) => ({
+        id: s.id,
+        name: s.name,
+        order: s.sortOrder,
+        systemState: s.systemState,
+        color: s.color,
+        outcome: s.outcome,
+        typeId: detail.typeIds[0],
+        typeName: typeNameOf(detail.typeIds[0] ?? ''),
+      })),
+    );
+    return HttpResponse.json(
+      stages.map((s) => ({
         ...s,
         count: demoTasks.filter((t) => t.stage.id === s.id).length,
         overdueCount: demoTasks.filter(
@@ -82,8 +111,8 @@ export const tasksListHandlers = [
             s.systemState !== 'closed',
         ).length,
       })),
-    ),
-  ),
+    );
+  }),
 
   /** Быстрое создание задачи из колонки доски (плюсик в шапке): личная
    *  колонка «Моего плана» — глобальная стадия подставляется по состоянию

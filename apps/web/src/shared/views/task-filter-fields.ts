@@ -26,6 +26,12 @@ export const taskBuiltinPresets: FilterPreset[] = [
   { id: 'mine-assignee', name: ui.tasks.roles.assignee, state: { role: 'assignee' } },
   { id: 'mine-creator', name: ui.tasks.roles.creator, state: { role: 'creator' } },
   { id: 'overdue', name: ui.tasks.presetOverdue, state: { overdue: 'yes' } },
+  // «Ждут моего утверждения» (#378): я постановщик × этап «Утверждение».
+  {
+    id: 'awaiting',
+    name: ui.tasks.presetAwaiting,
+    state: { role: 'creator', systemState: 'done' },
+  },
   // «Завершённые» — состояние closed (каталог API: «Завершена»/«Отменена»);
   // done на бэке — «Ждёт контроля», работа ещё не принята.
   { id: 'done', name: ui.tasks.stageStates.closed, state: { systemState: 'closed' } },
@@ -68,7 +74,12 @@ export function useTaskFilterDefs({
         id: 'stage',
         label: ui.tasks.fieldStage,
         type: 'select',
-        options: (stages ?? []).map((s) => ({ value: s.id, label: s.name })),
+        // Межтиповой каталог (#378): подписи «Тип · Статус», чтобы статусы
+        // разных маршрутов не сливались в один список.
+        options: (stages ?? []).map((s) => ({
+          value: s.id,
+          label: s.typeName && s.typeId ? `${s.typeName} · ${s.name}` : s.name,
+        })),
         match: (t, v) => t.stage.id === v,
       },
       {

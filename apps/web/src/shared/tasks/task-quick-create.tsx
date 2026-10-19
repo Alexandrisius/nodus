@@ -1,4 +1,5 @@
 import { ListChecks, Plus, Settings2 } from 'lucide-react';
+import { useNavigate } from '@tanstack/react-router';
 import { useState, type FormEvent } from 'react';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
@@ -16,9 +17,12 @@ import { Textarea } from '@nodus/ui/components/textarea';
 import { toast } from 'sonner';
 
 import { projectsAvailable } from '../api/projects-available.js';
-import { useCreateTask, usePersonalStages, useTaskTypes } from '../api/task-create.js';
+import { useCreateTask, usePersonalStages } from '../api/task-create.js';
+import { useCreatableTaskTypes } from '../api/task-types-api.js';
 import { useUsersList } from '../api/users-list.js';
 import { useAuthStore } from '../auth-store.js';
+import { Permission } from '@nodus/contracts';
+import { TaskTypeGlyph } from '../workflow/task-type-icon.js';
 import { DateTimePicker } from '../ui/date-time-picker.js';
 import { ProjectPicker } from '../ui/project-picker.js';
 import { FilterCombobox } from '../views/filter-combobox.js';
@@ -57,7 +61,12 @@ export function TaskQuickCreate({
   const { data: users } = useUsersList();
   // Первая личная колонка — приёмник новых задач (глобальная «Новые»).
   const { data: personalStages } = usePersonalStages();
-  const { data: types } = useTaskTypes();
+  // Типы для создания: живые creatable, значок + название (#378).
+  const { data: types } = useCreatableTaskTypes();
+  const navigate = useNavigate();
+  const canManageTypes = (useAuthStore((s) => s.user?.permissions) ?? []).includes(
+    Permission.TASK_WORKFLOW_MANAGE,
+  );
 
   const [title, setTitle] = useState('');
   const [descriptionOpen, setDescriptionOpen] = useState(false);
@@ -171,36 +180,50 @@ export function TaskQuickCreate({
               {/* Тип (ADR-0020): ступень 1 — один системный «Задача», выбор
                   уже здесь — «Разработка/Изменение» ступени 2 встанут сюда же. */}
               <NodeLabel label={ui.tasks.type} />
-              <Select
-                value={typeId ?? types?.find((t) => t.isSystem)?.id ?? ''}
-                onValueChange={setTypeId}
-              >
-                <SelectTrigger aria-label={ui.tasks.type} className="w-full">
-                  <SelectValue placeholder={ui.tasks.task} />
-                </SelectTrigger>
-                {/* popper — список ПОД полем, как у соседних пикеров формы
-                    (ответственный, срок): режим item-aligned клал единственный
-                    пункт пилюлей прямо поверх значения (фидбек владельца #311). */}
-                <SelectContent position="popper" align="start" sideOffset={4}>
-                  {(types ?? []).map((t) => (
-                    <SelectItem key={t.id} value={t.id} className="py-1.5">
-                      {t.name}
-                    </SelectItem>
-                  ))}
-                  {/* Задел модуля workflow (ступень 2, ADR-0020): настройка
-                      типов и маршрутов откроется отсюда; до редактора — видимая
-                      неактивная команда «скоро» (решение владельца 16.10). */}
-                  <SelectItem
-                    value="__configure"
-                    disabled
-                    className="mt-1 py-1.5 pr-2 *:[span]:last:w-full"
+              <div className="flex min-w-0 items-center gap-1.5">
+                <Select
+                  value={typeId ?? types?.find((t) => t.isSystem)?.id ?? types?.[0]?.id ?? ''}
+                  onValueChange={setTypeId}
+                >
+                  <SelectTrigger aria-label={ui.tasks.type} className="min-w-0 flex-1">
+                    <SelectValue placeholder={ui.tasks.task} />
+                  </SelectTrigger>
+                  {/* popper — список ПОД полем, как у соседних пикеров формы
+                      (ответственный, срок): режим item-aligned клал единственный
+                      пункт пилюлей прямо поверх значения (фидбек владельца #311). */}
+                  <SelectContent position="popper" align="start" sideOffset={4}>
+                    {(types ?? []).map((t) => (
+                      <SelectItem key={t.id} value={t.id} className="py-1.5">
+                        <TaskTypeGlyph icon={t.icon} className="size-3.5 text-muted-foreground" />
+                        {t.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {/* ⚙ «Настроить типы» — в редактор библиотеки (#378), только с
+                    правом; заполненная форма — подтверждение. */}
+                {canManageTypes ? (
+                  <button
+                    type="button"
+                    aria-label={ui.tasks.configureTypes}
+                    title={ui.tasks.configureTypes}
+                    onClick={() => {
+                      const filled =
+                        title.trim() || description.trim() || checklist.length > 0 || deadline;
+                      if (!filled || window.confirm(ui.common.close)) {
+                        onOpenChange(false);
+                        void navigate({
+                          to: '/automation',
+                          search: (prev) => ({ ...prev, tab: 'types' }),
+                        });
+                      }
+                    }}
+                    className="shrink-0 rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                   >
-                    <Settings2 className="size-3.5 text-muted-foreground" strokeWidth={1.75} />
-                    {ui.tasks.configureTypes}
-                    <span className="ml-auto text-xs text-muted-foreground">{ui.tasks.soon}</span>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
+                    <Settings2 className="size-4" strokeWidth={1.75} />
+                  </button>
+                ) : null}
+              </div>
               <NodeLabel label={ui.tasks.assignee} />
               <FilterCombobox
                 options={(users?.items ?? []).map((u) => ({

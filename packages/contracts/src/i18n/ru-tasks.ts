@@ -188,6 +188,7 @@ export const tasksStrings = {
   bulkLimit: 'За один раз можно изменить не больше задач:',
   bulkDone: 'Изменено задач:',
   bulkSkipped: 'Не изменены — нет прав или не выполнены условия:',
+  bulkSingleType: 'Выберите задачи одного типа',
   /** Пустой «Мой план» (#311). */
   boardEmptyTitle: 'Здесь появятся ваши задачи',
   boardEmptyText:

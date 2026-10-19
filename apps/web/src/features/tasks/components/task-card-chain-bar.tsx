@@ -7,6 +7,7 @@ import { cn } from '@nodus/ui/lib/utils';
 import { useOpenCard } from '../../../app/shell/use-card-stack.js';
 import { DomainChain, type ChainNode } from '../../../shared/ui/domain-chain.js';
 import { TaskCardMenu } from './task-card-menu.js';
+import { TaskTimerButton } from './task-time.js';
 
 const chainCaption: Record<TaskChainNode['kind'], string> = {
   letter: ui.letters.letter,
@@ -79,6 +80,9 @@ export function TaskCardChainBar({
             {ui.tasks.fromChat}
           </NodeChip>
         ) : null}
+        {/* Таймер уехал из панели процесса в шапку карточки (#378): панель —
+            только кнопки маршрута. */}
+        <TaskTimerButton task={task} />
         <TaskCardMenu task={task} />
         <button
           type="button"

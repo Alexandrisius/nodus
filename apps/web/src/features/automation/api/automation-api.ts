@@ -3,7 +3,6 @@ import type {
   CreateTaskTypeBody,
   PublishWorkflowBody,
   PublishWorkflowResult,
-  TaskDetail,
   TaskType,
   UpdateTaskTypeBody,
 } from '@nodus/contracts';
@@ -109,32 +108,5 @@ export function usePublishWorkflow(workflowId: string) {
         result.scheduledMoves > 0 ? ui.automation.movingTasksToast : ui.automation.publishedToast,
       );
     },
-  });
-}
-
-/** Смена типа задачи (#378): если текущего статуса нет в новом маршруте —
- *  обязателен stageId. */
-export function useChangeTaskType(taskId: string) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (body: { typeId: string; stageId?: string }) =>
-      api<TaskDetail>(`/tasks/${taskId}/type`, { method: 'POST', body }),
-    onSuccess: (detail) => {
-      queryClient.setQueryData<TaskDetail>(tasksKeys.detail(taskId), detail);
-      void queryClient.invalidateQueries({ queryKey: tasksKeys.listPages() });
-      void queryClient.invalidateQueries({ queryKey: tasksKeys.transitions(taskId) });
-      void queryClient.invalidateQueries({ queryKey: tasksKeys.kanbanAll() });
-    },
-    onError: () => toast.error(ui.common.saveError),
-  });
-}
-
-/** Доступные при создании типы (экспресс-форма): живые creatable. */
-export function useCreatableTaskTypes() {
-  return useQuery({
-    queryKey: automationKeys.types(),
-    queryFn: () => api<TaskType[]>('/tasks/types'),
-    staleTime: 60_000,
-    select: (types: TaskType[]) => types.filter((t) => t.creatable),
   });
 }

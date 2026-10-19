@@ -6,6 +6,7 @@ import { projectColorSchema } from '../projects/project.schemas.js';
 import { taskTypeRefSchema } from './task-type.schemas.js';
 import {
   stageColorSchema,
+  stageOutcomeSchema,
   taskSystemStateSchema,
   type StageColor,
   type TaskSystemState,
@@ -36,6 +37,13 @@ export const taskStageSchema = z.object({
   order: z.number().int().min(0),
   systemState: taskSystemStateSchema,
   color: stageColorSchema,
+  /** Итог этапа «Итог» (closed): выполнена/отменена — чип закрытой задачи
+   *  (#378); у открытых стадий отсутствует. */
+  outcome: stageOutcomeSchema.nullable().optional(),
+  /** Тип-владелец стадии: межтиповой каталог GET /tasks/stages без typeId
+   *  (#378); у запроса одного типа отсутствует. */
+  typeId: z.uuid().optional(),
+  typeName: z.string().min(1).optional(),
 });
 
 export type TaskStage = z.infer<typeof taskStageSchema>;
