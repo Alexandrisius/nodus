@@ -49,4 +49,4 @@
 - Unit — рядом с кодом (`*.test.ts`), `pnpm --filter @nodus/api test`.
 - Интеграционные — `test/integration/` на реальных PG/Redis (`pnpm --filter @nodus/api test:integration`);
   локально используют docker-контейнеры `nodus_postgres`/`nodus_redis`, отдельную БД `nodus_test`, Redis db 15 и бакет `nodus-test-files`
-  (`@nodus/config/test-env`: конфиг переписывает `REDIS_URL`/`STORAGE_BUCKET`, хелпер БД падает при чужом значении, #332).
+  (`@nodus/config/test-env`: конфиг переписывает `REDIS_URL`/`STORAGE_BUCKET` и учётку хранилища на `STORAGE_TEST_*`, если задана, — хелпер БД падает при чужом значении, #332/#324).

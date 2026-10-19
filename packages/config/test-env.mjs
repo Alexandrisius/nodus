@@ -8,9 +8,9 @@
  */
 export const INTEGRATION_TEST_REDIS_DB = 15;
 /** Бакет объектного хранилища тест-контура (#324): тот же MinIO, свой бакет —
- *  файлы тестов не оседают в бакете живого стека. api создаёт бакет сам, если
- *  у учётки есть право (CI — root MinIO); сервисная учётка живого стека прав
- *  на него не имеет — нужна тестовая учётка (вопрос владельцу в #324). */
+ *  файлы тестов не оседают в бакете живого стека. CI — root MinIO (создаёт
+ *  бакет сам); машина разработки — учётка тест-контура `STORAGE_TEST_*` с
+ *  правами только на этот бакет (бакет и учётку создаёт minio-init). */
 export const INTEGRATION_TEST_BUCKET = 'nodus-test-files';
 
 /** Тот же Redis-сервер, но db тест-контура. */
@@ -20,13 +20,24 @@ export function isolatedTestRedisUrl(url) {
   return parsed.toString();
 }
 
-/** Переписывает `process.env.REDIS_URL` (если задан) на db тест-контура и
- *  бакет хранилища — на бакет тест-контура. */
+/** Переписывает `process.env.REDIS_URL` (если задан) на db тест-контура,
+ *  бакет хранилища — на бакет тест-контура, а учётку хранилища — на учётку
+ *  тест-контура, если она задана (`STORAGE_TEST_*`, машина разработки: учётка
+ *  api в тестовый бакет не пускает). */
 export function isolateIntegrationEnv() {
   if (process.env.REDIS_URL) {
     process.env.REDIS_URL = isolatedTestRedisUrl(process.env.REDIS_URL);
   }
   process.env.STORAGE_BUCKET = INTEGRATION_TEST_BUCKET;
+  if (process.env.STORAGE_TEST_ACCESS_KEY && process.env.STORAGE_TEST_SECRET_KEY) {
+    if (process.env.STORAGE_TEST_ACCESS_KEY === process.env.STORAGE_ACCESS_KEY) {
+      throw new Error(
+        'STORAGE_TEST_ACCESS_KEY совпадает с учёткой api — нужна отдельная учётка тест-контура (#324)',
+      );
+    }
+    process.env.STORAGE_ACCESS_KEY = process.env.STORAGE_TEST_ACCESS_KEY;
+    process.env.STORAGE_SECRET_KEY = process.env.STORAGE_TEST_SECRET_KEY;
+  }
 }
 
 /** Громкий отказ, если тест-контур всё-таки смотрит в чужой Redis db или бакет
