@@ -55,11 +55,18 @@ async function mk({ email, password }, first, last) {
 }
 await mk(USERS.nightA, 'Анна', 'Ночная');
 await mk(USERS.nightB, 'Борис', 'Ночной');
-// Роль employee (directory.read): пикеры людей и журнал сотрудников в
-// песочнице работают как у пилотов — без роли справочник отдаёт 403 и окна
-// «Добавить участников»/создания чата выглядят пустыми (приёмка #186).
-// Роли сеет prisma/seed (бутстрап live-stack гоняет его перед этим
-// скриптом, #247); минимальная роль здесь — страховка ручного запуска.
+// Роль admin: песочница — место приёмки владельца, night-учёткам нужен
+// полный доступ (task.workflow_manage #378: типы/маршруты/публикация;
+// task.manage_any/override_gate: любые задачи и обход гейтов). БД только
+// nodus_night — публичные пароли админов живут в одноразовой песочнице
+// (security-ревью #247: на проде скрипт не запускается вовсе).
+await client.query(`
+  INSERT INTO user_roles (user_id, role_id)
+  SELECT u.id, r.id FROM users u, roles r
+  WHERE u.email LIKE 'night-%@nodus.local' AND r.code = 'admin'
+  ON CONFLICT DO NOTHING
+`);
+// Страховка ролей/флагов при ручном запуске (обычно сеет prisma/seed).
 await client.query(`
   INSERT INTO roles (id, code, name, is_system, created_at, updated_at)
   VALUES (gen_random_uuid(), 'employee', 'Сотрудник', true, now(), now())
@@ -69,12 +76,6 @@ await client.query(`
   INSERT INTO role_permissions (role_id, permission)
   SELECT r.id, p FROM roles r, unnest(ARRAY['directory.read', 'task.create']) AS p
   WHERE r.code = 'employee'
-  ON CONFLICT DO NOTHING
-`);
-await client.query(`
-  INSERT INTO user_roles (user_id, role_id)
-  SELECT u.id, r.id FROM users u, roles r
-  WHERE u.email LIKE 'night-%@nodus.local' AND r.code = 'employee'
   ON CONFLICT DO NOTHING
 `);
 // Фича-флаги модулей: без строк гвард отдаёт 404 на маршрутах чата. Флаги
