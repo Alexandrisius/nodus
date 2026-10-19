@@ -34,6 +34,11 @@ updates:
       # стабильного 1.16.19+ с проверкой `node -e "require('@swc/core')"` на хосте.
       - dependency-name: '@swc/core'
         update-types: ['version-update:semver-minor', 'version-update:semver-major']
+      # fastify — ТОЧНЫЙ пин @nestjs/platform-fastify (12.1.3 → 5.12.5): прямой
+      # fastify новее пина даёт две копии в дереве и TS2345 на регистрации
+      # плагинов (#340, nestjs/nest#13607). Версию меняем вручную в PR, где
+      # обновление Nest меняет пин (gotchas «Бэкенд», #367).
+      - dependency-name: 'fastify'
     groups:
       production-dependencies:
         dependency-type: 'production'
