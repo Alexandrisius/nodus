@@ -73,6 +73,9 @@ conv-комнату (троттл-ключ включает root): индика�
 `chat.sticker_*` (#318, беседы нет): установка/снятие пака → `user:{userId}`;
 содержимое пака — корпоративный → комната `presence` (все аутентифицированные
 сокеты), личный → user-комнаты `payload.audience` (владелец + установившие).
+`audience` — служебное поле адресации: gateway вырезает его из envelope до
+emit для ВСЕХ событий (#328); доменные составы событий беседы
+(`memberIds`/`userIds`) — данные события, клиенту остаются.
 Клиент применяет события с полным DTO локально в кэш (эхо `message_sent`
 заменяет темп по `clientMessageId`, канон api-conventions.md и
 `apps/web/src/shared/chat/ws-apply.ts`), остальные — сигнал к инвалидации/
@@ -104,7 +107,8 @@ conv-комнату (троттл-ключ включает root): индика�
   (XAUTOCLAIM-перехват + GC сирот), presence-переходы, conv:join/leave
   (членство, потолок, идемпотентность).
 - Integration (`pnpm test:integration`, живые PG/Redis): собственный контур —
-  БД `nodus_gateway_test` с минимальным срезом читаемых таблиц; socket.io-client
+  БД `nodus_gateway_test` с минимальным срезом читаемых таблиц, Redis — db 15
+  (`@nodus/config/test-env`, громкий отказ при чужом db, #332); socket.io-client
   против живого сервера; публикация в стрим XADD-ом contract-ного envelope.
   api-сторона публикации покрыта apps/api/test/integration/chat-realtime-fanout.
 - Нагрузка (k6 0.58, `docker run --rm grafana/k6:0.58.0`, из репо

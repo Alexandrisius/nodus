@@ -42,9 +42,12 @@ const LIST_EVENTS = new Set([
 export async function routeEnvelope(
   io: Server,
   store: MembershipStore,
-  envelope: RealtimeEnvelope,
+  incoming: RealtimeEnvelope,
 ): Promise<void> {
-  const payload = (envelope.payload ?? {}) as Record<string, unknown>;
+  // Адресация читается из исходного payload, клиенту уходит envelope без
+  // служебного `audience` (#328, #318): список адресатов — для gateway.
+  const payload = (incoming.payload ?? {}) as Record<string, unknown>;
+  const envelope = withoutAudience(incoming, payload);
 
   if (envelope.type === USER_DEACTIVATED_EVENT) {
     if (typeof payload.userId === 'string') {
@@ -155,16 +158,28 @@ function routeStickerEvent(
     }
     return;
   }
-  // `audience` — служебный список адресатов: кто ещё установил чужой личный
-  // пак, клиенту знать незачем (API этого не раскрывает) — вырезаем до emit.
-  const { audience, ...visible } = payload;
-  const outgoing: RealtimeEnvelope = { ...envelope, payload: visible };
   if (payload.scope === 'corporate') {
-    io.to(PRESENCE_ROOM).emit(envelope.type, outgoing);
+    io.to(PRESENCE_ROOM).emit(envelope.type, envelope);
     return;
   }
   // Личный пак: только видящие его; без scope/audience (старый формат) — никому.
-  emitToUsers(io, outgoing, memberIdsOf(audience));
+  emitToUsers(io, envelope, memberIdsOf(payload.audience));
+}
+
+/**
+ * `audience` — служебное поле адресации (task.*, chat.sticker_*): клиенту
+ * не нужно и может раскрывать лишнее (кто ещё установил чужой личный пак,
+ * текущий состав задачи для снятого участника). Доменные составы
+ * (`memberIds`/`userIds` событий беседы) — данные события, их видят и так.
+ */
+function withoutAudience(
+  envelope: RealtimeEnvelope,
+  payload: Record<string, unknown>,
+): RealtimeEnvelope {
+  if (!('audience' in payload)) return envelope;
+  const visible = { ...payload };
+  delete visible.audience;
+  return { ...envelope, payload: visible };
 }
 
 function emitToUsers(io: Server, envelope: RealtimeEnvelope, userIds: string[]): void {

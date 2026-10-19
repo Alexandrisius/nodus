@@ -1,4 +1,5 @@
 import { Client } from 'pg';
+import { assertIsolatedTestEnv } from '@nodus/config/test-env';
 
 /**
  * Тест-контур gateway: отдельная БД `nodus_gateway_test` с МИНИМАЛЬНЫМ срезом
@@ -26,6 +27,7 @@ function withDatabase(url: string, database: string): string {
 }
 
 export async function ensureGatewayTestDatabase(rootUrl: string): Promise<GatewayTestDb> {
+  assertIsolatedTestEnv();
   const admin = new Client({ connectionString: withDatabase(rootUrl, 'postgres') });
   await admin.connect();
   await admin.query(`CREATE DATABASE ${TEST_DB}`).catch(() => undefined);

@@ -1,0 +1,7 @@
+{
+  "$comment": "Единый источник тестовых пользователей всех сред (#247): CI-сид и e2e-спеки, сид песочницы live-stack, night-пробы. Пароли — тестовые секреты одноразовых стендов (CI, nodus_night), НЕ прода: прод сеется без SEED_*_PASSWORD (случайные пароли).",
+  "admin": { "email": "admin@nodus.by", "password": "ci-e2e-admin-2026" },
+  "second": { "email": "a.klimovich@passatproekt.by", "password": "ci-e2e-demo-2026" },
+  "nightA": { "email": "night-a@nodus.local", "password": "Night-Probe-100!" },
+  "nightB": { "email": "night-b@nodus.local", "password": "Night-Probe-100!" }
+}

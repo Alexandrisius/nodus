@@ -367,6 +367,40 @@ describe.skipIf(!process.env.DATABASE_URL)('chat: сообщения (integratio
     expect(dstFeed.items).toHaveLength(0);
   });
 
+  it('частичная цитата: фрагмент оригинала сохраняется, подделка отбрасывается (#346)', async () => {
+    const conv = await makeGroup();
+    const orig = await send(alice, conv, { text: 'Сдам отчёт в пятницу' });
+    const legit = await send(bob, conv, {
+      text: 'ок',
+      replyToId: orig.id,
+      quoteText: 'в пятницу',
+    });
+    expect(legit.reply?.quoteText).toBe('в пятницу');
+    const forged = await send(carol, conv, {
+      text: 'ну-ну',
+      replyToId: orig.id,
+      quoteText: 'Сдам отчёт никогда',
+    });
+    expect(forged.reply).toMatchObject({ quoteText: null, text: 'Сдам отчёт в пятницу' });
+  });
+
+  it('цитата сообщения из чужой беседы → NOT_FOUND, в ленте ничего (#344)', async () => {
+    const srcRes = await fx.api(alice, 'POST', '/chat/conversations', {
+      body: { type: 'group', title: `Закрытая ${fx.runId}-reply`, memberIds: [bob.id] },
+    });
+    expect(srcRes.status).toBe(201);
+    const src = ((await srcRes.json()) as { id: string }).id;
+    const secret = await send(alice, src, { text: 'внутреннее' });
+    const dst = await makeGroup();
+
+    const res = await fx.api(carol, 'POST', `/chat/conversations/${dst}/messages`, {
+      body: { text: 'цитирую чужое', replyToId: secret.id },
+    });
+    expect(res.status).toBe(404);
+    expect(apiErrorResponseSchema.parse(await res.json()).code).toBe(ErrorCode.NOT_FOUND);
+    expect((await feed(carol, dst, '?limit=50')).items).toHaveLength(0);
+  });
+
   it('пересылка пропускает надгробия; всё пропущено без комментария → NOT_FOUND', async () => {
     const src = await makeGroup();
     const dst = await makeGroup();

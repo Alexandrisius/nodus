@@ -17,8 +17,9 @@ export const DOMAIN_EVENTS_STREAM = 'nodus:domain:events';
 /**
  * Envelope WS-доставки (канон api-conventions.md): seq — глобальный
  * монотонный порядок события (`events.seq`); клиент хранит seq для будущей
- * догрузки пропущенного после reconnect. Клиент применяет события ТОЛЬКО
- * как сигнал к рефечу (сервер — единственная истина).
+ * догрузки пропущенного после reconnect (такой канал обязан, как gateway,
+ * вырезать служебное `audience` из payload — #328). Клиент применяет события
+ * ТОЛЬКО как сигнал к рефечу (сервер — единственная истина).
  */
 export const realtimeEnvelopeSchema = z.object({
   type: z.string().min(1),

@@ -228,12 +228,13 @@ jobs:
         run: pnpm build
 
       - name: Миграции и сидинг тестовой БД
-        run: pnpm --filter @nodus/api db:deploy && pnpm --filter @nodus/api db:seed
-        env:
-          # Креды e2e-стенда (только CI): сид без env генерирует случайные
-          # пароли — тесты ниже входят этими же значениями.
-          SEED_ADMIN_PASSWORD: ci-e2e-admin-2026
-          SEED_DEMO_PASSWORD: ci-e2e-demo-2026
+        # Креды e2e-стенда — единый источник сред tests/e2e/e2e-users.json
+        # (#247): его же читают спеки и сид песочницы live-stack. Сид без env
+        # генерирует случайные пароли (прод).
+        run: |
+          export SEED_ADMIN_PASSWORD="$(node -p "require('./tests/e2e/e2e-users.json').admin.password")"
+          export SEED_DEMO_PASSWORD="$(node -p "require('./tests/e2e/e2e-users.json').second.password")"
+          pnpm --filter @nodus/api db:deploy && pnpm --filter @nodus/api db:seed
 
       # S3 SILO (#57, форк MinIO): service-контейнеры GH Actions не умеют
       # command, а CMD образа без аргумента только печатает версию — поднимаем
@@ -297,6 +298,4 @@ jobs:
         env:
           NODUS_BASE_URL: http://localhost:4173
           E2E_LIVE_API: '1'
-          # Креды e2e-стенда — те же, что SEED_*_PASSWORD на шаге сида выше.
-          E2E_ADMIN_PASSWORD: ci-e2e-admin-2026
-          E2E_SECOND_PASSWORD: ci-e2e-demo-2026
+          # Креды — дефолты tests/e2e/e2e-users.ts из e2e-users.json (те же, что у сида выше, #247).

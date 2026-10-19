@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { REPLY_SNIPPET_MAX, buildReplySnapshot } from './reply-snapshot.js';
+import { REPLY_SNIPPET_MAX, buildReplySnapshot, canonicalQuote } from './reply-snapshot.js';
 
 function original(
   overrides: Partial<{
@@ -48,14 +48,56 @@ describe('buildReplySnapshot', () => {
     );
   });
 
-  it('частичная цитата: значение как есть, пустая/нулла → null, длинная → усечение', () => {
-    expect(buildReplySnapshot(original(), 'фрагмент').quoteText).toBe('фрагмент');
+  it('частичная цитата: фрагмент как есть, пустая/нулла → null, длинная → усечение', () => {
+    expect(buildReplySnapshot(original(), 'текст').quoteText).toBe('текст');
     expect(buildReplySnapshot(original(), null).quoteText).toBeNull();
     expect(buildReplySnapshot(original(), undefined).quoteText).toBeNull();
     expect(buildReplySnapshot(original(), '').quoteText).toBeNull();
-    expect(buildReplySnapshot(original(), 'ц'.repeat(200)).quoteText).toHaveLength(
-      REPLY_SNIPPET_MAX,
+    const long = original({ text: 'ц'.repeat(300) });
+    expect(buildReplySnapshot(long, 'ц'.repeat(200)).quoteText).toHaveLength(REPLY_SNIPPET_MAX);
+  });
+
+  it('подделка (#346): «цитата» не из текста оригинала отбрасывается — ответ на всё сообщение', () => {
+    const snap = buildReplySnapshot(
+      original({ text: 'Сдам отчёт в пятницу' }),
+      'Сдам отчёт никогда',
     );
+    expect(snap.quoteText).toBeNull();
+    expect(snap.text).toBe('Сдам отчёт в пятницу');
+  });
+
+  it('canonicalQuote: выделение из пузыря — подписи чипов вместо токенов, пробелы/переносы нормализуются', () => {
+    const text = 'Привет, @[Артём](user:11111111-1111-1111-1111-111111111111)!\nГлянь  макет';
+    expect(canonicalQuote(text, 'Артём!')).toBe('Артём!');
+    expect(canonicalQuote(text, 'Артём!\nГлянь макет')).toBe('Артём! Глянь макет');
+    expect(canonicalQuote(text, 'Глянь договор')).toBeNull();
+    expect(canonicalQuote(text, '   ')).toBeNull();
+  });
+
+  it('canonicalQuote (security-ревью #346): хранится сверенная форма — без чужих токенов и невидимых символов', () => {
+    // Токен с ЧУЖИМ id к оригиналу без упоминания: подпись совпадает, но
+    // в снапшот уходит обычный текст — автору не приписать упоминание.
+    const forgedToken = '@[Артём](user:22222222-2222-2222-2222-222222222222) сделает';
+    expect(canonicalQuote('Артём сделает', forgedToken)).toBe('Артём сделает');
+    expect(canonicalQuote('Все молодцы', '@[Все](user:all) молодцы')).toBe('Все молодцы');
+    // Невидимый U+FEFF вместо пробела не склеит слова в сохранённой цитате.
+    expect(canonicalQuote('не делать', `не${String.fromCharCode(0xfeff)}делать`)).toBe('не делать');
+  });
+
+  it('canonicalQuote: ссылка на сущность — фрагменты по сторонам да, склейка через скрытую ссылку нет', () => {
+    const text =
+      'Это неportal://task/80000000-0000-4000-8000-000000000003правда, ответьте до пятницы';
+    expect(canonicalQuote(text, 'до пятницы')).toBe('до пятницы');
+    expect(canonicalQuote(text, 'Это не')).toBe('Это не');
+    expect(canonicalQuote(text, 'неправда')).toBeNull();
+  });
+
+  it('canonicalQuote: снятие токенов не собирает новый токен (перевод строки в подписи, вложенность)', () => {
+    const multiline = 'see @[Все\n](user:all) ok';
+    expect(canonicalQuote(multiline, '@[Все\n](user:all)')).not.toMatch(/\]\(user:/);
+    const id = '11111111-1111-1111-1111-111111111111';
+    const nested = `@[@[x](user:${id})](user:${id})`;
+    expect(canonicalQuote(nested, nested)).not.toMatch(/\]\(user:/);
   });
 
   it('вид вложения прокидывается как есть', () => {
@@ -90,11 +132,11 @@ describe('buildReplySnapshot', () => {
     });
   });
 
-  it('цитата без текста оригинала: text пуст, quoteText сохранён', () => {
+  it('цитата без текста оригинала: text пуст, частичной цитаты быть не может (#346)', () => {
     expect(buildReplySnapshot(original({ text: '' }), 'фрагмент')).toEqual({
       authorId: 'orig-1',
       text: '',
-      quoteText: 'фрагмент',
+      quoteText: null,
       attachmentKind: null,
       stickerFileId: null,
       stickerEmoji: null,

@@ -1,9 +1,12 @@
 import { config as loadEnv } from 'dotenv';
 import swc from 'unplugin-swc';
 import { defineConfig } from 'vitest/config';
+import { isolateIntegrationEnv } from '@nodus/config/test-env';
 
 // Интеграционным тестам нужны DATABASE_URL/REDIS_URL — подхватываем корневой .env.
 loadEnv({ path: new URL('../../.env', import.meta.url) });
+// Redis и бакет хранилища тест-контура — свои, не живого стека из .env (#332, #324).
+isolateIntegrationEnv();
 
 /**
  * Интеграционные тесты (patterns.md): реальные PostgreSQL/Redis, не моки.

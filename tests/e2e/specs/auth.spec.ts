@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { ADMIN } from '../e2e-users.js';
 
 /**
  * Критичный путь №1 (DoD, issue #3): логин.
@@ -6,8 +7,7 @@ import { expect, test } from '@playwright/test';
  * logout → снова /login. Данные — сидинг (SEED_ADMIN_PASSWORD или дефолт).
  */
 
-const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL ?? 'admin@nodus.by';
-const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD ?? '';
+const { email: ADMIN_EMAIL, password: ADMIN_PASSWORD } = ADMIN;
 
 test.describe('логин (критичный путь)', () => {
   test('аноним → /login → вход → справочник → выход', async ({ page }) => {

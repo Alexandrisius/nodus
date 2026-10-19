@@ -48,7 +48,10 @@ export function buildReplyPreview(
 ): ReplyPreview | null {
   if (!row.replyToId) return null;
   const snapshot = (row.replySnapshot ?? null) as ReplySnapshotValue | null;
-  const original = originalById.get(row.replyToId);
+  // Оригинал засчитывается только из той же беседы (#344): legacy-ссылка на
+  // сообщение чужой беседы не раскрывает его автора и состояние.
+  const candidate = originalById.get(row.replyToId);
+  const original = candidate?.conversationId === row.conversationId ? candidate : undefined;
   const deleted = original === undefined || original.deletedAt !== null;
   // #163: obliterated-оригинала в ленте нет — клику по цитате некуда вести;
   // deleted при надгробии (obliterated=false) — цитата кликабельна.

@@ -173,6 +173,22 @@ describe('routeEnvelope', () => {
     );
     await routeEnvelope(io, store, envelope('task.updated', { taskId: 't1' }));
     expect(calls.map((c) => c.room)).toEqual([`user:${USER_A}`, `user:${USER_B}`]);
+    // Список адресатов — для gateway, клиенту не уходит (#328); данные события целы.
+    for (const call of calls) {
+      expect(call.envelope.payload).not.toHaveProperty('audience');
+      expect(call.envelope.payload).toMatchObject({ taskId: 't1', number: 1 });
+    }
+  });
+
+  it('доменные составы событий беседы (memberIds/userIds) клиенту остаются (#328)', async () => {
+    const { io, calls } = fakeIo();
+    const store: MembershipStore = { isMember: vi.fn(), memberIds: vi.fn(), userRef: vi.fn() };
+    await routeEnvelope(
+      io,
+      store,
+      envelope('chat.member_added', { conversationId: CONV, userIds: [USER_B], role: 'member' }),
+    );
+    for (const call of calls) expect(call.envelope.payload).toMatchObject({ userIds: [USER_B] });
   });
 
   it('chat.sticker_* (#318): корпоративный пак — всем, личный — аудитории, установка — себе', async () => {
