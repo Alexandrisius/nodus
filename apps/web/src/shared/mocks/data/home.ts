@@ -31,6 +31,6 @@ export const demoLabor: HomeSummary['labor'] = {
 };
 
 export const demoBirthdays: BirthdayEntry[] = [
-  { user: userRef(userIds.karpovich), birthDate: isoDateIn(0), isToday: true },
-  { user: userRef(userIds.klimovich), birthDate: isoDateIn(5), isToday: false },
+  { user: userRef(userIds.karpovich), date: isoDateIn(0), isToday: true },
+  { user: userRef(userIds.klimovich), date: isoDateIn(5), isToday: false },
 ];
