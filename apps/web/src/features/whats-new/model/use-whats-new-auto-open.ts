@@ -18,7 +18,11 @@ export function useWhatsNewAutoOpen(): void {
   const unseen = useWhatsNewStore((s) => isUnseen(s.seen, userId, LATEST_RELEASE?.version));
 
   useEffect(() => {
-    if (!unseen || !userId || !LATEST_RELEASE) return;
+    // Под автоматизацией браузера (Playwright/WebDriver: navigator.webdriver)
+    // автопоказа нет — панель поверх рабочего места перехватывала фокус и
+    // клики e2e критичных путей (репро #386: «супер-курсор» чата). Кнопка
+    // топбара работает как обычно; автопоказ покрыт unit-тестом.
+    if (!unseen || !userId || !LATEST_RELEASE || navigator.webdriver) return;
     const version = LATEST_RELEASE.version;
     const timer = window.setTimeout(
       () => useWhatsNewStore.getState().show(userId, version, 'auto'),
