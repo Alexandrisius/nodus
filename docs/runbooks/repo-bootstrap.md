@@ -131,7 +131,10 @@ gh api -X PUT repos/Alexandrisius/nodus/branches/main/protection \
   icacls $p /grant:r "${env:USERDOMAIN}\${env:USERNAME}:(OI)(CI)F" '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' /Q
   icacls $p /inheritance:r /Q   # дочерние наследуют новый DACL автоматически
   icacls $p\.env               # ожидаемо: Администраторы, СИСТЕМА, вы — и никого больше
+  icacls $p /findsid *S-1-5-11 /T /C /Q   # «Прошедшие проверку» во всём дереве: ожидаемо «не найдено»
   ```
+
+  **Каждый новый worktree** (`git worktree add ../nodus-…`, параллельные сессии — gotchas) — те же команды с `$p` = путь worktree сразу после создания, ДО `pnpm install` и копирования `.env`: соседние каталоги наследуют слабые права от `D:\Project\AI`.
 
   Откат — `icacls $p /reset /T`. Docker Desktop (bind-mount `infra/desktop-dist`) и git работают от вашей учётки — не задеваются (проверено 19.10). Пин `@swc/core` 1.15.x (#324) это НЕ снимает: SWC ≥ 1.16 проверяет кэш в профиле (`%LOCALAPPDATA%\swc`), а не в проекте.
 
