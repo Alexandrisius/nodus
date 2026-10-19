@@ -25,10 +25,10 @@ import { TaskDiscussion } from './task-discussion.js';
 import { TaskFields } from './task-fields.js';
 import { TaskActionBar } from './task-stage-controls.js';
 import {
-  BRANCH_MIN_W,
   MIN_TASK_MAIN_W,
   SHRINK_ORDER,
   chatColumnWidth,
+  rowMinWidthsCss,
 } from '../lib/task-card-layout.js';
 import { useBranchWidth } from '../lib/use-branch-width.js';
 
@@ -116,6 +116,7 @@ export function TaskCard({ taskId }: { taskId: string }) {
     chatColumnWidth(chatW, fixedShrink + branchW, chatFloor);
   const chatColumnW = chatWidthFor(branchColumnW);
   const resizing = dragging || branch.dragging;
+  const rowMins = rowMinWidthsCss(chatFloor, branchOpen);
   // Стабильные колбэки: дочерние панели мемоизированы (memo).
   const closeBranch = useCallback(() => setBranchOpen(false), []);
   const closeAbout = useCallback(() => setAboutOpen(false), []);
@@ -154,16 +155,12 @@ export function TaskCard({ taskId }: { taskId: string }) {
           }}
         />
 
-        {/* Ряд «навигатор | данные задачи | чат» — flex с ПОРЯДКОМ УСТУПОК
-          (#365, SHRINK_ORDER): хватает места — центр забирает остаток, ширины
-          панелей и чата заданы каноном буфера сужений; не хватает — CSS сам
-          ужимает навигатор до его минимума, затем чат до пола, и только в
-          крайнем случае центр ниже MIN_TASK_MAIN_W (не выдавливая чат за
-          край, gotchas #63). Без замеров и setState на кадр; во время drag
-          перегородок ширины идут императивно в rAF, transition снят (gotchas:
-          transition при ручном ресайзе = фризы). Пуш панелей — transition
-          ширины и min-width на их колонках (min-width — тем же темпом, иначе
-          пол прыгает раньше ширины). */}
+        {/* Ряд «навигатор | данные задачи | чат» (#365): хватает места — центр
+          забирает остаток (канон буфера сужений); не хватает — CSS сам ужимает
+          навигатор, затем чат до пола (SHRINK_ORDER); минимумы колонок —
+          rowMinWidthsCss (центр ≥ MIN_TASK_MAIN_W, пока ряд вмещает). Без
+          замеров и setState на кадр; drag перегородок — императивно в rAF без
+          transition (gotchas). min-width — тем же темпом, что ширина. */}
         <div ref={rowRef} className="relative flex min-h-0 flex-1">
           <div
             ref={branchRef}
@@ -173,7 +170,7 @@ export function TaskCard({ taskId }: { taskId: string }) {
             )}
             style={{
               width: branchColumnW,
-              minWidth: branchOpen ? BRANCH_MIN_W : 0,
+              minWidth: rowMins.branch,
               flexShrink: SHRINK_ORDER.branch,
             }}
           >
@@ -196,8 +193,11 @@ export function TaskCard({ taskId }: { taskId: string }) {
             границы (внутри этой зоны, не съедает трек).
             @container — сетка полей перестраивается от ширины зоны (ресайз чата) */}
           <div
-            className="relative flex min-h-0 min-w-0 flex-col border-r border-border @container"
-            style={{ flex: `1 ${SHRINK_ORDER.main} ${MIN_TASK_MAIN_W}px` }}
+            className={cn(
+              'relative flex min-h-0 flex-col border-r border-border @container',
+              !resizing && 'transition-[min-width] duration-200 ease-out',
+            )}
+            style={{ flex: `1 ${SHRINK_ORDER.main} ${MIN_TASK_MAIN_W}px`, minWidth: rowMins.main }}
           >
             {/* Перегородка навигатора ветки (#365): оверлей поверх его границы
               (border-r панели = левый край этой зоны), механика ручки чата;

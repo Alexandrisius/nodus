@@ -6,6 +6,8 @@ import {
   branchMaxWidth,
   chatColumnWidth,
   clampBranchWidth,
+  rowMinWidths,
+  rowMinWidthsCss,
 } from './task-card-layout.js';
 
 describe('chatColumnWidth — чат буфер сужений', () => {
@@ -41,5 +43,47 @@ describe('clampBranchWidth', () => {
   });
   it('вырожденный предел меньше минимума — минимум', () => {
     expect(clampBranchWidth(500, 100)).toBe(BRANCH_MIN_W);
+  });
+});
+
+describe('rowMinWidths — минимумы колонок ряда', () => {
+  const floor = 350;
+  const fits = (row: number, open: boolean) => {
+    const m = rowMinWidths(row, floor, open);
+    return m.branch + m.main + floor <= row;
+  };
+
+  it('ряд вмещает всё: навигатор и центр на своих минимумах', () => {
+    expect(rowMinWidths(2000, floor, true)).toEqual({
+      branch: BRANCH_MIN_W,
+      main: MIN_TASK_MAIN_W,
+    });
+  });
+  it('ряд тесен: первым ниже минимума уходит навигатор, центр держит свой', () => {
+    const row = MIN_TASK_MAIN_W + floor + 100;
+    expect(rowMinWidths(row, floor, true)).toEqual({ branch: 100, main: MIN_TASK_MAIN_W });
+  });
+  it('не помещается даже без навигатора — только тогда уступает центр', () => {
+    const row = MIN_TASK_MAIN_W + floor - 50;
+    expect(rowMinWidths(row, floor, true)).toEqual({ branch: 0, main: MIN_TASK_MAIN_W - 50 });
+  });
+  it('навигатор закрыт: центр держит минимум, пока ряд вмещает его с чатом', () => {
+    expect(rowMinWidths(1500, floor, false)).toEqual({ branch: 0, main: MIN_TASK_MAIN_W });
+  });
+  it('сумма минимумов никогда не выдавливает чат за край ряда', () => {
+    for (let row = floor; row <= 2500; row += 37) {
+      expect(fits(row, true)).toBe(true);
+      expect(fits(row, false)).toBe(true);
+    }
+  });
+  it('CSS-зеркало несёт те же пороги', () => {
+    const css = rowMinWidthsCss(floor, true);
+    expect(css.branch).toBe(
+      `clamp(0px, calc(100% - ${MIN_TASK_MAIN_W + floor}px), ${BRANCH_MIN_W}px)`,
+    );
+    expect(css.main).toBe(
+      `clamp(0px, calc(100% - ${floor}px - ${css.branch}), ${MIN_TASK_MAIN_W}px)`,
+    );
+    expect(rowMinWidthsCss(floor, false).branch).toBe('0px');
   });
 });
