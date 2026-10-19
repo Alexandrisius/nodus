@@ -129,7 +129,13 @@ export const TaskBranchDrawer = memo(function TaskBranchDrawer({
           <span className="shrink-0 font-mono text-label-sm text-muted-foreground tabular-nums">
             {node.number}
           </span>
-          {node.hidden ? null : (
+          {node.hidden ? (
+            // Пустышка той же ширины, что «+» (p-0.5 + size-3.5): колонка
+            // номеров не съезжает у скрытого узла (приёмка #343).
+            <span aria-hidden className="shrink-0 p-0.5">
+              <span className="block size-3.5" />
+            </span>
+          ) : (
             <button
               type="button"
               aria-label={ui.tasks.subtasks}
