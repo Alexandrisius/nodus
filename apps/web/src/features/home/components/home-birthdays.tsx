@@ -25,7 +25,7 @@ export function HomeBirthdays({ birthdays }: { birthdays: BirthdayEntry[] }) {
             <div className="min-w-0 text-sm">
               <div className="truncate font-medium">{entry.user.displayName}</div>
               <div className="text-xs text-muted-foreground tabular-nums first-letter:uppercase">
-                {entry.isToday ? ui.home.today : formatDate(entry.birthDate)}
+                {entry.isToday ? ui.home.today : formatDate(entry.date)}
               </div>
             </div>
             {entry.isToday && (

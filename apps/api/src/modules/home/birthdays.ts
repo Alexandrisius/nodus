@@ -37,7 +37,8 @@ export function pickUpcomingBirthdays(
       daysUntil,
       entry: {
         user: { id: u.id, displayName: u.displayName, avatarUrl: u.avatarUrl },
-        birthDate: u.birthDate.toISOString().slice(0, 10),
+        // Годовщина, не дата рождения: год рождения не покидает сервер (#342).
+        date: anniversary.toISOString().slice(0, 10),
         isToday: daysUntil === 0,
       },
     });

@@ -29,7 +29,9 @@ describe('pickUpcomingBirthdays', () => {
     );
     expect(got.map((x) => x.user.id)).toEqual(['b', 'c', 'a']);
     expect(got[0]!.isToday).toBe(true);
-    expect(got[0]!.birthDate).toBe('1985-10-01');
+    // Год рождения не отдаётся — только ближайшая годовщина (#342).
+    expect(got[0]!.date).toBe('2026-10-01');
+    expect(JSON.stringify(got)).not.toContain('1985');
     expect(got[1]!.isToday).toBe(false);
   });
 
