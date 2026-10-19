@@ -24,15 +24,18 @@ import { TaskSubtasks } from './task-subtasks.js';
 import { TaskDiscussion } from './task-discussion.js';
 import { TaskFields } from './task-fields.js';
 import { TaskActionBar } from './task-stage-controls.js';
+import {
+  MIN_TASK_MAIN_W,
+  SHRINK_ORDER,
+  chatColumnWidth,
+  rowMinWidthsCss,
+} from '../lib/task-card-layout.js';
+import { useBranchWidth } from '../lib/use-branch-width.js';
 
 /** Ширина панели «О задаче»: на неё же сужается чат по общему канону буфера
  *  (ниже — пол чата, дальше двигается левая зона); панель полновысотная и
  *  занимает верхний бар, геометрия Битрикс24 15.09.2026. */
 const ABOUT_W = uiPx(360);
-/** Ширина навигатора ветки — тоже за счёт ЧАТА (канон «чат — буфер сужений»,
- *  issue #63: любое сужение ряда — рельса, ветка, «О задаче» — сначала ест
- *  колонку обсуждения до её пола; дальше движется ЛЕВАЯ зона). */
-const BRANCH_W = uiPx(300);
 
 /**
  * Карточка задачи (универсальный слайдер-слой): шапка — доменная цепочка
@@ -87,22 +90,34 @@ export function TaskCard({ taskId }: { taskId: string }) {
     });
   }, [replaceTopCard]);
   const chatRef = useRef<HTMLDivElement>(null);
+  const rowRef = useRef<HTMLDivElement>(null);
+  const branchRef = useRef<HTMLDivElement>(null);
   // КАНОН «чат — буфер сужений» (issue #63, вердикт владельца 21.09.2026):
-  // ЛЮБОЕ стоящее сужение ряда — рельса, навигатор ветки, «О задаче» — сначала
-  // съедает колонку обсуждения ДО ЕЁ МИНИМУМА (общий пол = drag-минимум
-  // MIN_CHAT_W; глубже — только временное исключение открытой «О задаче»
-  // MIN_CHAT_WITH_PANEL); после упора чата двигается ЛЕВАЯ зона (без пола:
-  // жёсткий пол выталкивал чат за край карточки — обрезка ниже минимума).
-  // Рендер-ширина и drag-формула хука ходят по ОДНОМУ shrink и ОДНОМУ полу,
-  // transition колонки — те же 200мс ease-out, что у рельсы/панелей: сумма
-  // «ряд − чат» постоянна покадрово, граница зон не дёргается.
+  // ЛЮБОЕ стоящее сужение ряда — рельса, навигатор ветки (его ТЕКУЩАЯ
+  // тянущаяся ширина, #365), «О задаче» — сначала съедает колонку обсуждения
+  // ДО ЕЁ МИНИМУМА (общий пол = drag-минимум MIN_CHAT_W; глубже — только
+  // временное исключение открытой ПАНЕЛИ — «О задаче» или навигатора —
+  // MIN_CHAT_WITH_PANEL); дальше —
+  // порядок уступок flex-ряда (SHRINK_ORDER, разметка ниже). Рендер и оба
+  // drag (чата и навигатора) ходят по ОДНОЙ формуле chatWidthFor, transition
+  // колонки — те же 200мс ease-out, что у рельсы/панелей: сумма «ряд − чат»
+  // постоянна покадрово, граница зон не дёргается.
   const railShrink = useRailShrink();
-  const shrink = (aboutOpen ? ABOUT_W : 0) + (branchOpen ? BRANCH_W : 0) + railShrink;
-  const chatFloor = aboutOpen ? MIN_CHAT_WITH_PANEL : MIN_CHAT_W;
-  const { chatW, onDividerDown, dragging } = useChatWidth(chatRef, shrink, chatFloor);
-  const chatColumnW = Math.max(chatW - shrink, chatFloor);
-  // Стабильные колбэки: дочерние панели мемоизированы, инлайн-стрелки
-  // ломали бы memo на каждом рендере.
+  const chatFloor = aboutOpen || branchOpen ? MIN_CHAT_WITH_PANEL : MIN_CHAT_W;
+  const fixedShrink = (aboutOpen ? ABOUT_W : 0) + railShrink;
+  const branch = useBranchWidth({ rowRef, branchRef, chatRef });
+  const branchColumnW = branchOpen ? branch.branchW : 0;
+  const { chatW, onDividerDown, dragging } = useChatWidth(
+    chatRef,
+    fixedShrink + branchColumnW,
+    chatFloor,
+  );
+  const chatWidthFor = (branchW: number) =>
+    chatColumnWidth(chatW, fixedShrink + branchW, chatFloor);
+  const chatColumnW = chatWidthFor(branchColumnW);
+  const resizing = dragging || branch.dragging;
+  const rowMins = rowMinWidthsCss(chatFloor, branchOpen);
+  // Стабильные колбэки: дочерние панели мемоизированы (memo).
   const closeBranch = useCallback(() => setBranchOpen(false), []);
   const closeAbout = useCallback(() => setAboutOpen(false), []);
 
@@ -140,21 +155,24 @@ export function TaskCard({ taskId }: { taskId: string }) {
           }}
         />
 
-        {/* Треки БЕЗ transition и БЕЗ setState на кадр: во время drag ширина
-          чата выставляется императивно (el.style.width в rAF), React не
-          рендерит карточку (gotchas: transition при ручном ресайзе = фризы).
-          Пуш панелей изолирован transition-[width] на их колонках. Левый
-          трек minmax(0,1fr) — БЕЗ пола: после упора чата в свой минимум
-          дальнейшее сужение двигает ЛЕВУЮ зону (вердикт владельца 21.09). */}
-        <div
-          className="relative grid min-h-0 flex-1"
-          style={{ gridTemplateColumns: 'auto minmax(0,1fr) auto' }}
-        >
+        {/* Ряд «навигатор | данные задачи | чат» (#365): хватает места — центр
+          забирает остаток (канон буфера сужений); не хватает — CSS сам ужимает
+          навигатор, затем чат до пола (SHRINK_ORDER); минимумы колонок —
+          rowMinWidthsCss (центр ≥ MIN_TASK_MAIN_W, пока ряд вмещает). Без
+          замеров и setState на кадр; drag перегородок — императивно в rAF без
+          transition (gotchas). min-width — тем же темпом, что ширина. */}
+        <div ref={rowRef} className="relative flex min-h-0 flex-1">
           <div
+            ref={branchRef}
             className={cn(
-              'min-h-0 overflow-hidden transition-[width] duration-200 ease-out',
-              branchOpen ? 'w-[18.75rem]' : 'w-0',
+              'min-h-0 overflow-hidden',
+              !resizing && 'transition-[width,min-width] duration-200 ease-out',
             )}
+            style={{
+              width: branchColumnW,
+              minWidth: rowMins.branch,
+              flexShrink: SHRINK_ORDER.branch,
+            }}
           >
             {branchMounted ? (
               <TaskBranchDrawer
@@ -174,7 +192,31 @@ export function TaskCard({ taskId }: { taskId: string }) {
             владельца о несходящихся линиях). Ручка ресайза — оверлей поверх
             границы (внутри этой зоны, не съедает трек).
             @container — сетка полей перестраивается от ширины зоны (ресайз чата) */}
-          <div className="relative flex min-h-0 flex-col border-r border-border @container">
+          <div
+            className={cn(
+              'relative flex min-h-0 flex-col border-r border-border @container',
+              !resizing && 'transition-[min-width] duration-200 ease-out',
+            )}
+            style={{ flex: `1 ${SHRINK_ORDER.main} ${MIN_TASK_MAIN_W}px`, minWidth: rowMins.main }}
+          >
+            {/* Перегородка навигатора ветки (#365): оверлей поверх его границы
+              (border-r панели = левый край этой зоны), механика ручки чата;
+              двойной клик — дефолтная ширина. */}
+            {branchOpen ? (
+              <div
+                onPointerDown={(e) =>
+                  branch.onDividerDown(e, { floor: chatFloor, widthFor: chatWidthFor })
+                }
+                onDoubleClick={branch.onDividerReset}
+                role="separator"
+                aria-orientation="vertical"
+                aria-label={ui.common.resizePanel}
+                title={ui.common.resizePanel}
+                className="group absolute top-0 left-0 z-10 h-full w-3 -translate-x-1/2 cursor-col-resize"
+              >
+                <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-port/60 opacity-0 transition-opacity group-hover:opacity-100" />
+              </div>
+            ) : null}
             <div className="content-fade min-h-0 flex-1 overflow-y-auto p-6">
               {/* Колонка контента — max-w-4xl, ОДНА вертикаль с сеткой полей
                 (#311, вердикт «огромные широкие пункты на широком экране»):
@@ -222,17 +264,17 @@ export function TaskCard({ taskId }: { taskId: string }) {
             БУФЕР СУЖЕНИЙ (issue #63): рельса/ветка/«О задаче» сужают ЭТУ
             колонку (chatColumnW, те же 200мс ease-out, что у источника
             сужения) — левая зона и разделитель стоят на месте; после упора
-            чата в его минимум (MIN_CHAT_W, при «О задаче» —
-            MIN_CHAT_WITH_PANEL) сужение двигает левую зону. */}
+            чата в его минимум (MIN_CHAT_W, при открытой панели —
+            MIN_CHAT_WITH_PANEL) — порядок уступок ряда. */}
           <div
             ref={chatRef}
             className={cn(
               'min-h-0 overflow-hidden',
               // transition — ТОЛЬКО для программного toggle панелей;
               // во время ручного drag — снят, ширина идёт императивно (gotchas)
-              !dragging && 'transition-[width] duration-200 ease-out',
+              !resizing && 'transition-[width,min-width] duration-200 ease-out',
             )}
-            style={{ width: chatColumnW }}
+            style={{ width: chatColumnW, minWidth: chatFloor, flexShrink: SHRINK_ORDER.chat }}
           >
             <div className="h-full w-full bg-background">
               <div className="content-fade h-full">
