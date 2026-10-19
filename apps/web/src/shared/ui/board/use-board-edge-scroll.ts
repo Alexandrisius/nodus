@@ -100,7 +100,8 @@ export function useBoardEdgeScroll(ref: RefObject<HTMLDivElement | null>) {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       const first = el.firstElementChild as HTMLElement | null;
       const gap = Number.parseFloat(getComputedStyle(el).columnGap) || 0;
-      const step = (first?.offsetWidth ?? el.clientWidth / 3) + gap;
+      // Шаг — колонка с зазором; колонки ещё нет (0) — треть видимой области.
+      const step = (first?.offsetWidth || el.clientWidth / 3) + gap;
       const tick = () => {
         const hit = hitRef.current;
         if (!hit || !canGo(hit.side)) return stop();

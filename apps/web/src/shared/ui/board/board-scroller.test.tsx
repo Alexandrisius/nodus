@@ -2,7 +2,7 @@
 import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { EDGE_DELAY_MS } from '../../lib/board/edge-scroll.js';
+import { EDGE_DELAY_MS, EDGE_STEP_MS } from '../../lib/board/edge-scroll.js';
 import { BoardScroller } from './board-scroller.js';
 
 /**
@@ -54,7 +54,14 @@ function mount() {
     },
     setPointerCapture: { configurable: true, value: vi.fn() },
     releasePointerCapture: { configurable: true, value: vi.fn() },
+    scrollBy: {
+      configurable: true,
+      value: ({ left: dx = 0 }: ScrollToOptions) => {
+        left = clamp(left + dx);
+      },
+    },
   });
+  Object.defineProperty(el.firstElementChild!, 'offsetWidth', { configurable: true, value: 288 });
   // Флаги зон пересчитываются по scroll — после подмены геометрии.
   fireEvent.scroll(el);
   const hint = (side: string) => view.container.querySelector(`[data-edge-hint="${side}"]`)!;
@@ -135,6 +142,32 @@ describe('BoardScroller — прокрутка у края', () => {
     });
     flushFrames(10);
     expect(el.scrollLeft).toBe(0);
+  });
+});
+
+describe('BoardScroller — prefers-reduced-motion', () => {
+  it('без плавности: шаг на колонку после паузы и далее раз в EDGE_STEP_MS, кадров нет', () => {
+    vi.stubGlobal('matchMedia', () => ({ matches: true }));
+    const { el } = mount();
+    move(el, 995);
+    act(() => {
+      vi.advanceTimersByTime(EDGE_DELAY_MS);
+    });
+    expect(el.scrollLeft).toBe(288);
+    expect(frames).toHaveLength(0);
+    act(() => {
+      vi.advanceTimersByTime(EDGE_STEP_MS - 1);
+    });
+    expect(el.scrollLeft).toBe(288);
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(el.scrollLeft).toBe(576);
+    move(el, 500);
+    act(() => {
+      vi.advanceTimersByTime(EDGE_STEP_MS * 3);
+    });
+    expect(el.scrollLeft).toBe(576);
   });
 });
 
