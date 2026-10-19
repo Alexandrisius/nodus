@@ -53,6 +53,8 @@ export interface CatalogTaskType {
   icon: string;
   color: 'neutral' | 'info' | 'success' | 'warning' | 'danger';
   description: string;
+  /** Порядок в библиотеке типов (дефолт выбора — первый). */
+  sortOrder: number;
 }
 
 export const DEFAULT_SCHEME = { code: 'default', name: 'Схема по умолчанию' } as const;
@@ -140,6 +142,7 @@ export const STANDARD_TASK_TYPE: CatalogTaskType = {
   icon: 'square-check',
   color: 'neutral',
   description: 'С утверждением постановщиком',
+  sortOrder: 0,
 };
 
 const STANDARD_WORKFLOW: CatalogWorkflow = {

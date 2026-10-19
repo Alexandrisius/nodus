@@ -105,6 +105,7 @@ export class CatalogBootstrap implements OnApplicationBootstrap {
           icon: type.def.icon,
           color: type.def.color,
           description: type.def.description,
+          ...(type.def.sortOrder !== undefined ? { sortOrder: type.def.sortOrder } : {}),
           catalogRevision: CATALOG_REVISION,
         },
       });

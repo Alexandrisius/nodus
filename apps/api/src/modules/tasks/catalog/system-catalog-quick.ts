@@ -8,6 +8,7 @@ export const QUICK_TASK_TYPE: CatalogTaskType = {
   icon: 'zap',
   color: 'success',
   description: 'Без утверждения — для мелких поручений',
+  sortOrder: 1,
 };
 
 export function buildQuickWorkflow(stages: {
