@@ -14,7 +14,7 @@
 6. `app/mocks-handlers.ts` — +хендлеры фичи (тела мутаций — safeParse схемами contracts).
 7. Демо-данные — `shared/mocks/data/<domain>.ts` (по канону существующих).
 8. Реестр полей, используемый >1 фичей — в `shared/views/` (канон локации: кросс-модульные — shared, свои — `features/<name>/lib/`).
-9. Доска-канбан (если есть) — конфиг `shared/ui/board/use-kanban-board.ts`, НЕ копия контейнера.
+9. Доска-канбан (если есть) — конфиг `shared/ui/board/use-kanban-board.ts` + ряд колонок в `BoardScroller` (`autoScroll={board.autoScroll}` в `DndContext`), НЕ копия контейнера.
 10. Дальше — шаги «Экран модуля» ниже (компоненты, проверки, кадры, вердикт).
 
 ## Шаги — экран модуля

@@ -3,6 +3,7 @@ import { DndContext, DragOverlay } from '@dnd-kit/core';
 
 import { personalAxis } from '../../../shared/lib/board/kanban-board.js';
 import { tasksKeys } from '../../../shared/api/tasks-keys.js';
+import { BoardScroller } from '../../../shared/ui/board/board-scroller.js';
 import { BoardSortableCard } from '../../../shared/ui/board/board-sortable-card.js';
 import { KanbanSkeleton } from '../../../shared/ui/board/kanban-skeleton.js';
 import { KANBAN_FEED_LIMIT, useKanbanBoard } from '../../../shared/ui/board/use-kanban-board.js';
@@ -110,6 +111,7 @@ export function TaskKanban({
       sensors={board.sensors}
       collisionDetection={board.collision}
       measuring={board.measuring}
+      autoScroll={board.autoScroll}
       {...board.dndHandlers}
     >
       {empty ? (
@@ -117,7 +119,7 @@ export function TaskKanban({
           <TasksEmpty onCreate={onCreate} className="pointer-events-auto" />
         </div>
       ) : null}
-      <div className="flex h-full gap-5 overflow-x-auto px-6 pt-1 pb-4">
+      <BoardScroller className="pt-1">
         {board.stageList.map((stage) => {
           const cards = visibleItems.filter((t) => t.personalStageId === stage.id);
           const totalCount = stage.count + (countDelta[stage.id] ?? 0);
@@ -172,7 +174,7 @@ export function TaskKanban({
           creating={createStage.isPending}
           onCreate={(body) => createStage.mutate(body)}
         />
-      </div>
+      </BoardScroller>
       <DragOverlay>
         {board.activeTask ? (
           <TaskKanbanCard
