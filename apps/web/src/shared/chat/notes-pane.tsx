@@ -33,7 +33,6 @@ import { buildMessageRuns, formatDayLabel, startsNewDay } from './message-groups
 import { MessageRunView } from './message-run.js';
 import { notesSelectionIds, mergeNotesFlow, splitNotesSelection } from './notes-flow.js';
 import { reconcileServerDraft } from './draft-sync.js';
-import { acquireOpenConversation } from './notifications.js';
 import { useFeedSelection } from './use-feed-selection.js';
 import { useBoxSelection } from './use-box-selection.js';
 import { useDeleteDialog, useForwardDialog } from './dialog-stores.js';
@@ -41,6 +40,7 @@ import { copyMessagesAsText } from './use-selection-keys.js';
 import { useSelectionStore } from './selection-store.js';
 import { cn } from '@nodus/ui/lib/utils';
 import { useFeedSubmit } from './use-feed-submit.js';
+import { useConversationHost } from './use-conversation-host.js';
 
 /**
  * Витрина «Избранного» (#171, ревизия 04.10): беседа с собой = плоский
@@ -67,7 +67,7 @@ export function NotesPane({ conversationId }: { conversationId: string }) {
     reconcileServerDraft(scope, conversation);
     return true;
   });
-  useEffect(() => acquireOpenConversation(conversationId), [conversationId]);
+  useConversationHost(conversationId);
 
   const messagesQuery = useConversationMessages(conversationId);
   const favoritesQuery = useFavorites();

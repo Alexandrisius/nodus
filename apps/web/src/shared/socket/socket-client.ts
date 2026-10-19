@@ -83,6 +83,10 @@ let invalidator: RealtimeInvalidator | null = null;
 
 /** Беседы, подписанные этим клиентом (пере-join после reconnect). */
 const joinedConversations = new Set<string>();
+/** Счётчик хостов одной беседы (#351): беседа может быть открыта сразу в
+ *  мессенджере и в карточке задачи — закрытие одного хоста не выводит
+ *  другой из комнаты. */
+const conversationRoomRefs = new Map<string, number>();
 
 /** Транспортный фолбэк уже включался (revert делаем один раз за сессию). */
 let revertedToClassicUpgrade = false;
@@ -301,6 +305,7 @@ export function disconnectChatSocket(): void {
   invalidator?.dispose();
   invalidator = null;
   joinedConversations.clear();
+  conversationRoomRefs.clear();
   revertedToClassicUpgrade = false;
   useSocketStatusStore.getState().setConnected(false);
   useTypingStore.getState().reset();
@@ -309,6 +314,7 @@ export function disconnectChatSocket(): void {
 
 /** Подписка на комнату беседы (членство проверяет gateway). */
 export function joinConversation(conversationId: string): void {
+  conversationRoomRefs.set(conversationId, (conversationRoomRefs.get(conversationId) ?? 0) + 1);
   if (joinedConversations.has(conversationId)) {
     return;
   }
@@ -317,6 +323,12 @@ export function joinConversation(conversationId: string): void {
 }
 
 export function leaveConversation(conversationId: string): void {
+  const refs = (conversationRoomRefs.get(conversationId) ?? 1) - 1;
+  if (refs > 0) {
+    conversationRoomRefs.set(conversationId, refs);
+    return;
+  }
+  conversationRoomRefs.delete(conversationId);
   joinedConversations.delete(conversationId);
   socket?.emit('conv:leave', { conversationId });
 }
