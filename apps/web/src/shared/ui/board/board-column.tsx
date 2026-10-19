@@ -155,7 +155,10 @@ export function BoardColumn({
             />
           ) : null}
           {children}
-          {count === 0 && !loadingMore ? (
+          {/* Пустота — по ОТРИСОВАННЫМ карточкам, не только по счётчику:
+              счётчик стадий догоняет перенос позже ленты, и заглушка
+              висела под только что брошенной карточкой (приёмка #322). */}
+          {count === 0 && cardIds.length === 0 && !loadingMore ? (
             <span className="rounded-md border border-dashed border-border px-3 py-6 text-center text-xs text-muted-foreground/70">
               {overInColumn ? dropLabel : emptyLabel}
             </span>
