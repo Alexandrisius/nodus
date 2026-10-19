@@ -278,14 +278,18 @@ export const personalStageUpdateBodySchema = z
 export type PersonalStageUpdateBody = z.infer<typeof personalStageUpdateBodySchema>;
 
 /** Ветка задачи для панели-навигатора: дерево от корневого предка,
- *  вложенность любой глубины; текущая задача резолвится на клиенте по id. */
+ *  вложенность любой глубины; текущая задача резолвится на клиенте по id.
+ *  Узел, который зрителю не виден (`hidden`), раскрывает только номер:
+ *  ни названия, ни стадии (#343, канон владельца 19.10: не участник —
+ *  задачу не видит). */
 export interface TaskBranchNode {
   id: string;
   number: number;
   title: string;
-  stageName: string;
-  stageColor: StageColor;
-  systemState: TaskSystemState;
+  hidden: boolean;
+  stageName: string | null;
+  stageColor: StageColor | null;
+  systemState: TaskSystemState | null;
   children: TaskBranchNode[];
 }
 
@@ -294,9 +298,10 @@ export const taskBranchNodeSchema: z.ZodType<TaskBranchNode> = z.lazy(() =>
     id: z.uuid(),
     number: z.number().int().min(1),
     title: z.string().min(1),
-    stageName: z.string().min(1),
-    stageColor: stageColorSchema,
-    systemState: taskSystemStateSchema,
+    hidden: z.boolean(),
+    stageName: z.string().min(1).nullable(),
+    stageColor: stageColorSchema.nullable(),
+    systemState: taskSystemStateSchema.nullable(),
     children: z.array(taskBranchNodeSchema),
   }),
 );

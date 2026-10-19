@@ -97,8 +97,12 @@ export class ConversationsController {
     return this.conversations.create(user.id, dto);
   }
 
-  @Get('direct/:userId')
-  @ApiOperation({ summary: 'Find-or-create личной беседы (включая «Избранное» с собой)' })
+  @Post('direct/:userId')
+  @HttpCode(200)
+  @ApiOperation({
+    summary:
+      'Find-or-create личной беседы (включая «Избранное» с собой); новая — только с действующим сотрудником',
+  })
   @ApiOkResponse({ standardSchema: conversationListItemSchema, description: 'Существующая беседа' })
   @ApiCreatedResponse({
     standardSchema: conversationListItemSchema,

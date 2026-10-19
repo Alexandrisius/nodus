@@ -132,7 +132,7 @@ describe.skipIf(!process.env.DATABASE_URL)('task chat (integration)', () => {
 
   it('результат: сообщение не из беседы задачи — 404', async () => {
     const direct = conversationListItemSchema.parse(
-      await (await fx.api(alice, 'GET', `/chat/conversations/direct/${bob.id}`)).json(),
+      await (await fx.api(alice, 'POST', `/chat/conversations/direct/${bob.id}`)).json(),
     );
     const sent = await fx.api(alice, 'POST', `/chat/conversations/${direct.id}/messages`, {
       body: { text: 'личное' },

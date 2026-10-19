@@ -248,7 +248,7 @@ describe.skipIf(!process.env.DATABASE_URL || !process.env.STORAGE_ACCESS_KEY)(
       const star1 = await send(alice, conv, { text: 'Звёздное https://fav.example/a' });
       const star2 = await send(bob, conv, { text: 'Вторая звезда' });
       // Запись в «Избранном» alice (direct с собой) + звёзды.
-      const notes = await fx.api(alice, 'GET', `/chat/conversations/direct/${alice.id}`);
+      const notes = await fx.api(alice, 'POST', `/chat/conversations/direct/${alice.id}`);
       expect(notes.status).toBeLessThan(300);
       await send(alice, ((await notes.json()) as { id: string }).id, {
         text: 'Моя запись',

@@ -30,7 +30,8 @@ export class ConversationsWriteRepository {
     userId: string,
     peerId: string,
     tx?: TransactionClient,
-  ): Promise<{ id: string; created: boolean }> {
+    allowCreate = true,
+  ): Promise<{ id: string; created: boolean } | null> {
     const client = this.client(tx);
     const userMin = userId < peerId ? userId : peerId;
     const userMax = userId < peerId ? peerId : userId;
@@ -40,6 +41,7 @@ export class ConversationsWriteRepository {
       LIMIT 1
     `);
     if (existing[0]) return { id: existing[0].id, created: false };
+    if (!allowCreate) return null;
 
     const permissions = mergePermissions();
     const inserted = await client.$queryRaw<{ id: string }[]>(Prisma.sql`

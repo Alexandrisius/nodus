@@ -71,6 +71,7 @@ describe('ConversationsService', () => {
   const avatars = { process: vi.fn() };
   const userProfiles = {
     findRefs: vi.fn(),
+    filterActiveUserIds: vi.fn(async (ids: string[]) => ids),
     searchByDisplayName: vi.fn(),
     findMentionMatches: vi.fn(),
   };
@@ -294,7 +295,25 @@ describe('ConversationsService', () => {
 
       expect(result.created).toBe(false);
       expect(result.item).toEqual({ id: 'conv-d' });
-      expect(repo.findOrCreateDirect).toHaveBeenCalledWith('me-1', 'u-2', TX);
+      expect(repo.findOrCreateDirect).toHaveBeenCalledWith('me-1', 'u-2', TX, true);
+      expect(eventBus.emit).not.toHaveBeenCalled();
+    });
+
+    it('уволенный peer (#343): новой беседы нет — 404; существующая открывается (история)', async () => {
+      userProfiles.findRefs.mockResolvedValue([
+        { id: 'u-x', displayName: 'Уволен', avatarUrl: null },
+      ]);
+      userProfiles.filterActiveUserIds.mockResolvedValueOnce([]);
+      repo.findOrCreateDirect.mockResolvedValueOnce(null);
+      await expect(service.findOrCreateDirect('me-1', 'u-x')).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND,
+      });
+      expect(repo.findOrCreateDirect).toHaveBeenCalledWith('me-1', 'u-x', TX, false);
+
+      userProfiles.filterActiveUserIds.mockResolvedValueOnce([]);
+      repo.findOrCreateDirect.mockResolvedValueOnce({ id: 'conv-old', created: false });
+      const result = await service.findOrCreateDirect('me-1', 'u-x');
+      expect(result.created).toBe(false);
       expect(eventBus.emit).not.toHaveBeenCalled();
     });
 

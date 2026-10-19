@@ -156,7 +156,8 @@ export class TasksQueryService {
       : { kind: 'chat_message', ref: 'Чат', label: 'Сообщение чата' };
   }
 
-  /** Ветка от корневого предка; невидимые узлы маскируются (номер без названия). */
+  /** Ветка от корневого предка; невидимые узлы маскируются: только номер,
+   *  без названия и стадии (#343 — ход чужих задач не раскрывается). */
   async branch(user: AuthUser, id: string): Promise<TaskBranch> {
     await this.visibleRow(user, id);
     const viewer = await this.viewer(user);
@@ -174,13 +175,16 @@ export class TasksQueryService {
     const seen = new Set(visible);
     const build = (nodeId: string): TaskBranchNode => {
       const r = rows.find((x) => x.id === nodeId)!;
+      const visible = seen.has(r.id);
+      const stage = visible ? stageDto(r.stage) : null;
       return {
         id: r.id,
         number: r.number,
-        title: seen.has(r.id) ? r.title : `ПП-${r.number}`,
-        stageName: r.stage.name,
-        stageColor: stageDto(r.stage).color,
-        systemState: stageDto(r.stage).systemState,
+        title: visible ? r.title : `ПП-${r.number}`,
+        hidden: !visible,
+        stageName: visible ? r.stage.name : null,
+        stageColor: stage?.color ?? null,
+        systemState: stage?.systemState ?? null,
         children: rows.filter((c) => c.parentId === r.id).map((c) => build(c.id)),
       };
     };

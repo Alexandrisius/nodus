@@ -71,7 +71,7 @@ test.describe('уведомления: живой контур (#100)', () => {
       headers: { Authorization: `Bearer ${tokenB}` },
     });
     const bId = ((await meB.json()) as { id: string }).id;
-    const direct = await request.get(`/api/v1/chat/conversations/direct/${bId}`, {
+    const direct = await request.post(`/api/v1/chat/conversations/direct/${bId}`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
     const convId = ((await direct.json()) as { id: string }).id;

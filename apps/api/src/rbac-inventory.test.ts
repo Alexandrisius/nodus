@@ -32,7 +32,7 @@ const TASK_STAGES = 'каталог стадий + счётчики по фил�
 const STICKER_BY_ID =
   'любой неудалённый пак по id — раздача «из чата»; личные паки не секретны (осознанно, findPack)';
 const DIRECT_CHAT =
-  'find-or-create личной беседы с любым сотрудником (канон мессенджера); замечания — #343';
+  'find-or-create личной беседы с сотрудником (канон мессенджера): новая — только с действующим, существующая — и с уволенным (история), #343';
 const FILE_ACCESS = 'доступ к файлу — resolveAccess (владелец или участник беседы вложения)';
 const HOME =
   'витрина Главной: число сотрудников и ближайшие дни рождения (день и месяц, без года — решение владельца #342) — любому вошедшему';
@@ -47,7 +47,7 @@ const INTENTIONALLY_WITHOUT_PERMISSION: Record<string, string> = {
   'GET /notifications/:id/deliveries': SELF,
   'GET /tasks/timer': SELF,
   'GET /chat/conversations': CHAT_MEMBERSHIP,
-  'GET /chat/conversations/direct/:userId': DIRECT_CHAT,
+  'POST /chat/conversations/direct/:userId': DIRECT_CHAT,
   'GET /chat/conversations/:id/members': CHAT_MEMBERSHIP,
   'GET /chat/conversations/:id/messages': CHAT_MEMBERSHIP,
   'GET /chat/conversations/:id/pins': CHAT_MEMBERSHIP,

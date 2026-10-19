@@ -115,7 +115,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
     });
 
     it('поиск людей: клик возвращает скрытую личку в список (find-or-create + PATCH)', async () => {
-      const direct = await fx.api(alice, 'GET', `/chat/conversations/direct/${bob.id}`);
+      const direct = await fx.api(alice, 'POST', `/chat/conversations/direct/${bob.id}`);
       expect([200, 201]).toContain(direct.status); // 200 существующая / 201 созданная
       const conversation = (await direct.json()) as { id: string };
       await send(alice, conversation.id, 'direct-warm');
@@ -126,7 +126,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
       expect((await listIds(alice)).includes(conversation.id)).toBe(false);
 
       // Сценарий клиента (#103): find-or-create → PATCH hidden:false → список.
-      const again = await fx.api(alice, 'GET', `/chat/conversations/direct/${bob.id}`);
+      const again = await fx.api(alice, 'POST', `/chat/conversations/direct/${bob.id}`);
       expect(again.status).toBe(200);
       const patch = await fx.api(alice, 'PATCH', `/chat/conversations/${conversation.id}`, {
         body: { hidden: false },

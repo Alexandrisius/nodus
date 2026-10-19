@@ -102,31 +102,46 @@ export const TaskBranchDrawer = memo(function TaskBranchDrawer({
           )}
           <span
             aria-hidden
-            className={cn('size-1.5 shrink-0 rounded-full', stageTone[node.stageColor].dot)}
-            title={node.stageName}
+            className={cn(
+              'size-1.5 shrink-0 rounded-full',
+              stageTone[node.stageColor ?? 'neutral'].dot,
+            )}
+            title={node.stageName ?? undefined}
           />
-          <button
-            type="button"
-            onClick={() => openTask(node.id)}
-            className="min-w-0 flex-1 truncate text-left text-sm"
-            title={node.title}
-          >
-            {node.title}
-          </button>
+          {node.hidden ? (
+            // Задача зрителю не видна (#343): только номер, без перехода.
+            <span
+              className="min-w-0 flex-1 truncate text-left text-sm text-muted-foreground"
+              title={ui.tasks.branchHiddenNode}
+            >
+              {node.title}
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={() => openTask(node.id)}
+              className="min-w-0 flex-1 truncate text-left text-sm"
+              title={node.title}
+            >
+              {node.title}
+            </button>
+          )}
           <span className="shrink-0 font-mono text-label-sm text-muted-foreground tabular-nums">
             {node.number}
           </span>
-          <button
-            type="button"
-            aria-label={ui.tasks.subtasks}
-            onClick={() => {
-              setAddingTo(node.id);
-              setDraft('');
-            }}
-            className="shrink-0 rounded p-0.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 hover:bg-accent hover:text-foreground"
-          >
-            <Plus className="size-3.5" strokeWidth={1.75} />
-          </button>
+          {node.hidden ? null : (
+            <button
+              type="button"
+              aria-label={ui.tasks.subtasks}
+              onClick={() => {
+                setAddingTo(node.id);
+                setDraft('');
+              }}
+              className="shrink-0 rounded p-0.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 hover:bg-accent hover:text-foreground"
+            >
+              <Plus className="size-3.5" strokeWidth={1.75} />
+            </button>
+          )}
         </div>
         {addingTo === node.id ? (
           <InlineAdd

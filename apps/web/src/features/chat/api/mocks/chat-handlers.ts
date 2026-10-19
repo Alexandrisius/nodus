@@ -107,7 +107,7 @@ const conversationHandlers = [
   /** Личный диалог с сотрудником (карточка сотрудника — чат всегда справа):
    * find-or-create по участнику (идемпотентно); диалог с собой — «заметки
    * для себя» (модель «Избранного» мессенджеров). */
-  http.get('/api/v1/chat/conversations/direct/:userId', ({ params }) => {
+  http.post('/api/v1/chat/conversations/direct/:userId', ({ params }) => {
     const userId = String(params.userId);
     const actorId = getMockActor().id;
     const existing = demoConversations.find(

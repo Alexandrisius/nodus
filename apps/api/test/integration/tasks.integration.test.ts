@@ -5,6 +5,7 @@ import {
   Permission,
   taskDetailSchema,
   taskListItemSchema,
+  taskBranchSchema,
   taskTransitionSchema,
 } from '@nodus/contracts';
 import { z } from 'zod';
@@ -138,5 +139,29 @@ describe.skipIf(!process.env.DATABASE_URL)('tasks (integration)', () => {
     );
     expect(detail.subtasks).toHaveLength(1);
     expect(detail.access.canDelete).toBe(false);
+  });
+  it('ветка: невидимый зрителю узел — только номер, без названия и стадии (#343)', async () => {
+    const parentId = taskIds[0]!;
+    const res = await fx.api(alice, 'POST', `/tasks/${parentId}/subtasks`, {
+      body: { title: `Чужая подзадача ${fx.runId}`, assigneeId: carol.id },
+      key: `it-sub-hidden-${fx.runId}`,
+    });
+    expect(res.status).toBe(201);
+    const hiddenId = taskListItemSchema.parse(await res.json()).id;
+    taskIds.push(hiddenId);
+
+    const branch = taskBranchSchema.parse(
+      await (await fx.api(bob, 'GET', `/tasks/${parentId}/branch`)).json(),
+    );
+    expect(branch.root).toMatchObject({ id: parentId, hidden: false });
+    expect(branch.root.stageName).not.toBeNull();
+    const node = branch.root.children.find((c) => c.id === hiddenId);
+    expect(node).toMatchObject({
+      hidden: true,
+      title: `ПП-${node?.number}`,
+      stageName: null,
+      stageColor: null,
+      systemState: null,
+    });
   });
 });

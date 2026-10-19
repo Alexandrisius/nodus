@@ -16,6 +16,7 @@ export const tasksStrings = {
   chatNode: 'Чат',
   collapseBranch: 'Свернуть подзадачи',
   expandBranch: 'Развернуть подзадачи',
+  branchHiddenNode: 'Нет доступа к задаче',
   roleLabel: 'Роль',
   roles: {
     assignee: 'Я — ответственный',

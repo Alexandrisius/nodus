@@ -193,11 +193,13 @@ export function cachedConversation(
 }
 
 /** Личный диалог с сотрудником (карточка сотрудника — чат всегда справа):
- *  find-or-create на стороне API, клиент читает как query. */
+ *  find-or-create на стороне API (POST — у вызова есть побочный эффект,
+ *  #343), клиент читает как query: повтор идемпотентен. */
 export function useDirectConversation(userId: string) {
   return useQuery({
     queryKey: chatKeys.direct(userId),
-    queryFn: () => api<ConversationListItem>(`/chat/conversations/direct/${userId}`),
+    queryFn: () =>
+      api<ConversationListItem>(`/chat/conversations/direct/${userId}`, { method: 'POST' }),
     enabled: userId.length > 0,
   });
 }

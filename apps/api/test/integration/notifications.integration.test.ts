@@ -97,7 +97,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
 
     /** Find-or-create личной беседы (GET /direct/:userId, канон чата). */
     async function directId(user: ChatUser, peer: ChatUser): Promise<string> {
-      const res = await fx.api(user, 'GET', `/chat/conversations/direct/${peer.id}`);
+      const res = await fx.api(user, 'POST', `/chat/conversations/direct/${peer.id}`);
       expect([200, 201]).toContain(res.status);
       return ((await res.json()) as { id: string }).id;
     }

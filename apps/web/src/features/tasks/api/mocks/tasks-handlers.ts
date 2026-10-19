@@ -46,6 +46,7 @@ function branchNodeOf(task: TaskListItem): TaskBranchNode {
     id: task.id,
     number: task.number,
     title: task.title,
+    hidden: false,
     stageName: task.stage.name,
     stageColor: task.stage.color,
     systemState: task.stage.systemState,
