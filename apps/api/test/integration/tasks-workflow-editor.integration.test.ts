@@ -197,6 +197,73 @@ describe.skipIf(!process.env.DATABASE_URL)('tasks workflow editor (integration, 
     expect(moved).toBe(true);
   });
 
+  it('смена типа: без stageId — 422; со stageId — переезд; скрытый тип — 409', async () => {
+    const quick = (
+      (await (await fx.api(admin, 'GET', '/tasks/types?archived=include')).json()) as {
+        id: string;
+        code: string;
+        workflowId: string;
+      }[]
+    ).find((t) => t.code === 'quick')!;
+    const quickStages = (await (
+      await fx.api(admin, 'GET', `/tasks/stages?typeId=${quick.id}`)
+    ).json()) as { id: string; name: string }[];
+    const quickWork = quickStages.find((s) => s.name === 'В работе')!;
+
+    // Текущей стадии задачи нет в новом маршруте (uuid всегда разные) → 422.
+    const noStage = await fx.api(admin, 'POST', `/tasks/${taskId}/type`, {
+      body: { typeId: quick.id },
+      key: `it-type-no-stage-${fx.runId}`,
+    });
+    expect(noStage.status).toBe(422);
+    expect(((await noStage.json()) as { code: string }).code).toBe(
+      ErrorCode.WORKFLOW_MIGRATION_REQUIRED,
+    );
+
+    // Со stageId — задача переезжает в стадию нового маршрута.
+    const changed = await fx.api(admin, 'POST', `/tasks/${taskId}/type`, {
+      body: { typeId: quick.id, stageId: quickWork.id },
+      key: `it-type-change-${fx.runId}`,
+    });
+    expect(changed.status).toBe(200);
+    const moved = (await changed.json()) as {
+      type: { name: string };
+      stage: { id: string; name: string };
+    };
+    expect(moved.type.name).toBe('Быстрый');
+    expect(moved.stage.id).toBe(quickWork.id);
+
+    // Скрытый тип (creatable=false) недоступен смене и на сервере.
+    const hiddenRes = await fx.api(admin, 'POST', '/tasks/types', {
+      body: {
+        name: `IT-скрытый ${fx.runId}`,
+        icon: 'star',
+        color: 'neutral',
+        base: { kind: 'simple' },
+      },
+      key: `it-hidden-type-${fx.runId}`,
+    });
+    const hidden = (await hiddenRes.json()) as { id: string };
+    const refused = await fx.api(admin, 'POST', `/tasks/${taskId}/type`, {
+      body: { typeId: hidden.id },
+      key: `it-type-hidden-${fx.runId}`,
+    });
+    expect(refused.status).toBe(409);
+    // Чистим скрытый тип за собой.
+    await fx.prisma.workflowSchemeEntry.deleteMany({ where: { taskTypeId: hidden.id } });
+    const hiddenWf = await fx.prisma.workflow.findFirst({
+      where: { kind: 'task', code: null },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true },
+    });
+    if (hiddenWf) {
+      await fx.prisma.workflowTransition.deleteMany({ where: { workflowId: hiddenWf.id } });
+      await fx.prisma.workflowStage.deleteMany({ where: { workflowId: hiddenWf.id } });
+      await fx.prisma.workflow.deleteMany({ where: { id: hiddenWf.id } });
+    }
+    await fx.prisma.taskType.deleteMany({ where: { id: hidden.id } });
+  });
+
   it('конфликт версий (409) на устаревшую baseVersion; идемпотентный повтор — тот же ответ', async () => {
     const detail = (await (
       await fx.api(admin, 'GET', `/tasks/workflows/${workflowId}`)
