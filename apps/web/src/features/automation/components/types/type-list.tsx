@@ -1,15 +1,32 @@
 import { useState } from 'react';
-import { useNavigate, useSearch } from '@tanstack/react-router';
 import type { TaskType } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
-import { NodeChip } from '@nodus/ui/components/node-chip';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@nodus/ui/components/dropdown-menu';
+import { Input } from '@nodus/ui/components/input';
 import { cn } from '@nodus/ui/lib/utils';
-import { ChevronDown } from 'lucide-react';
+import {
+  Archive,
+  ArchiveRestore,
+  Copy,
+  MoreHorizontal,
+  Plus,
+  Search,
+  Settings2,
+  X,
+} from 'lucide-react';
 
+import { useArchiveTaskType } from '../../api/automation-api.js';
 import { useCanManageWorkflows } from '../../lib/use-can-manage-workflows.js';
 import { TaskTypeGlyph } from '../../../../shared/workflow/task-type-icon.js';
 import { TaskTypeCreateDialog } from './type-create-dialog.js';
 import { pluralRu } from '../../lib/plural-ru.js';
+import { toneOf } from './tone-of.js';
 
 /** Мета строки: «7 статусов · 128 задач». */
 export function typeMeta(stages: number, tasks: number): string {
@@ -17,117 +34,200 @@ export function typeMeta(stages: number, tasks: number): string {
 }
 
 /**
- * Левая колонка «Типы задач» (канон списковых колонок: bg-muted, ~288px):
- * строка — значок в цветном квадрате, название, мета, бейджи «Системный» и
- * «Скрыт»; архив — свёрнутой группой внизу. «+ Новый тип» — только с правом
- * `task.workflow_manage`.
+ * Левая колонка типов задач — грамматика списка бесед мессенджера: шапка
+ * h-14 с поиском и кнопкой «+», строки «плитка-значок + название + мета»,
+ * меню «⋯» по ховеру строки (настройки/копировать/архив), архив — свёрнутой
+ * группой внизу. Название раздела НЕ дублируется (вкладка — в топбаре).
  */
 export function TypeList({
   types,
   stageCounts,
   taskCounts,
+  dirtyIds,
+  selectedId,
+  isLoading,
+  onSelect,
+  onOpenSettings,
+  onCopyType,
 }: {
   types: TaskType[];
   stageCounts: Record<string, number>;
   taskCounts: Record<string, number>;
+  /** Типы с несохранённым черновиком маршрута (точка в строке). */
+  dirtyIds: ReadonlySet<string>;
+  selectedId: string | undefined;
+  isLoading: boolean;
+  onSelect: (id: string) => void;
+  onOpenSettings: () => void;
+  onCopyType: (id: string) => void;
 }) {
   const canManage = useCanManageWorkflows();
-  const navigate = useNavigate();
-  const search = useSearch({ strict: false }) as { type?: string };
+  const [query, setQuery] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
+  const archive = useArchiveTaskType(true);
+  const restore = useArchiveTaskType(false);
 
-  const alive = types.filter((t) => !t.archivedAt);
-  const archived = types.filter((t) => t.archivedAt);
+  const q = query.trim().toLowerCase();
+  const alive = types.filter((t) => !t.archivedAt && (!q || t.name.toLowerCase().includes(q)));
+  const archived = types.filter((t) => t.archivedAt && (!q || t.name.toLowerCase().includes(q)));
 
   const row = (type: TaskType) => {
-    const selected = search.type === type.id;
+    const selected = type.id === selectedId;
+    const dirty = dirtyIds.has(type.id);
+    const rowArchived = type.archivedAt !== null;
     return (
-      <button
-        key={type.id}
-        type="button"
-        onClick={() => {
-          void navigate({
-            to: '/automation',
-            search: (prev) => ({ ...prev, tab: 'types', type: type.id }),
-          });
-        }}
-        aria-current={selected || undefined}
-        className={cn(
-          'flex w-full flex-col gap-1 rounded-lg px-2.5 py-2 text-left transition-colors',
-          selected ? 'bg-accent' : 'hover:bg-accent/50',
-        )}
-      >
-        <span className="flex w-full items-center gap-2">
+      <div key={type.id} className="group/row relative">
+        <button
+          type="button"
+          onClick={() => !rowArchived && onSelect(type.id)}
+          aria-current={selected || undefined}
+          className={cn(
+            'flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left transition-colors',
+            !rowArchived && 'cursor-pointer',
+            selected ? 'bg-accent' : !rowArchived && 'hover:bg-accent/40',
+          )}
+        >
           <span
             aria-hidden
             className={cn(
-              'flex size-6 shrink-0 items-center justify-center rounded-md border',
+              'flex size-9 shrink-0 items-center justify-center rounded-lg border',
               toneOf(type.color),
             )}
           >
-            <TaskTypeGlyph icon={type.icon} className="size-3.5" />
+            <TaskTypeGlyph icon={type.icon} className="size-4" />
           </span>
-          <span className="min-w-0 flex-1 truncate text-sm">{type.name}</span>
-          {type.isSystem ? <NodeChip tone="muted">{ui.automation.badgeSystem}</NodeChip> : null}
-          {!type.creatable ? <NodeChip tone="muted">{ui.automation.badgeHidden}</NodeChip> : null}
-        </span>
-        <span className="pl-8 text-xs text-muted-foreground">
-          {typeMeta(stageCounts[type.id] ?? 0, taskCounts[type.id] ?? 0)}
-        </span>
-      </button>
+          <span className="min-w-0 flex-1">
+            <span className="flex items-center gap-1.5">
+              <span className="min-w-0 truncate text-sm font-medium">{type.name}</span>
+              {dirty ? (
+                <span
+                  aria-hidden
+                  className="size-1.5 shrink-0 rounded-full bg-warning"
+                  title={ui.automation.chipDraft}
+                />
+              ) : null}
+              {type.isSystem ? (
+                <span className="shrink-0 rounded border border-border px-1 text-[10px] leading-4 text-muted-foreground">
+                  {ui.automation.badgeSystem}
+                </span>
+              ) : null}
+              {!type.creatable && !rowArchived ? (
+                <span className="shrink-0 text-[10px] leading-4 text-muted-foreground">
+                  {ui.automation.badgeHidden}
+                </span>
+              ) : null}
+            </span>
+            <span className="mt-0.5 block truncate text-label-sm text-muted-foreground">
+              {typeMeta(stageCounts[type.id] ?? 0, taskCounts[type.id] ?? 0)}
+            </span>
+          </span>
+        </button>
+        {canManage ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              aria-label={ui.common.rowMenu}
+              className={cn(
+                'absolute top-1/2 right-1.5 -translate-y-1/2 rounded-lg p-1.5 text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground focus-visible:opacity-100 group-hover/row:opacity-100',
+                selected && 'opacity-100',
+              )}
+            >
+              <MoreHorizontal className="size-4" strokeWidth={1.75} />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              {!rowArchived ? (
+                <>
+                  <DropdownMenuItem onSelect={onOpenSettings}>
+                    <Settings2 className="size-3.5" />
+                    {ui.automation.typeSettings}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => onCopyType(type.id)}>
+                    <Copy className="size-3.5" />
+                    {ui.automation.menuCopyType}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              ) : null}
+              <DropdownMenuItem
+                disabled={type.isSystem}
+                title={type.isSystem ? ui.automation.archiveSystemLocked : undefined}
+                onSelect={() => (rowArchived ? restore.mutate(type.id) : archive.mutate(type.id))}
+              >
+                {rowArchived ? (
+                  <ArchiveRestore className="size-3.5" />
+                ) : (
+                  <Archive className="size-3.5" />
+                )}
+                {rowArchived ? ui.automation.restoreFromArchive : ui.automation.menuArchive}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : null}
+      </div>
     );
   };
 
   return (
-    <aside className="flex h-full w-72 shrink-0 flex-col gap-1 bg-muted p-2">
-      <div className="flex items-center justify-between px-1.5 py-1">
-        <span className="text-label font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-          {ui.automation.typesListTitle}
-        </span>
-        <span className="font-mono text-xs tabular-nums text-muted-foreground">{alive.length}</span>
+    <aside className="flex w-80 shrink-0 flex-col border-r border-border bg-card">
+      <div className="flex h-14 shrink-0 items-center border-b border-border px-2">
+        <div className="relative min-w-0 flex-1">
+          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={ui.automation.searchTypes}
+            aria-label={ui.automation.searchTypes}
+            className="h-8 pr-7 pl-8 text-sm"
+          />
+          {query ? (
+            <button
+              type="button"
+              onClick={() => setQuery('')}
+              aria-label={ui.filters.reset}
+              className="absolute top-1/2 right-1.5 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground"
+            >
+              <X className="size-3.5" strokeWidth={1.75} />
+            </button>
+          ) : null}
+        </div>
+        {canManage ? (
+          <button
+            type="button"
+            onClick={() => setCreateOpen(true)}
+            aria-label={ui.automation.newType}
+            title={ui.automation.newType}
+            className="ml-1.5 flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          >
+            <Plus className="size-4" strokeWidth={1.75} />
+          </button>
+        ) : null}
       </div>
-      {canManage ? (
-        <button
-          type="button"
-          onClick={() => setCreateOpen(true)}
-          className="rounded-lg border border-dashed border-border px-2.5 py-1.5 text-left text-sm text-muted-foreground transition-colors hover:border-input hover:text-foreground"
-        >
-          + {ui.automation.newType}
-        </button>
-      ) : null}
-      <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto">
-        {alive.map(row)}
+
+      <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto p-1.5">
+        {isLoading ? (
+          <div className="px-2 py-2 text-sm text-muted-foreground">…</div>
+        ) : alive.length > 0 ? (
+          alive.map(row)
+        ) : (
+          <div className="px-2 py-2 text-sm text-muted-foreground">{ui.common.empty}</div>
+        )}
         {archived.length > 0 ? (
-          <div className="mt-auto">
+          <div className="mt-1">
             <button
               type="button"
               onClick={() => setArchiveOpen((v) => !v)}
               aria-expanded={archiveOpen}
-              className="flex w-full items-center gap-1.5 rounded-lg px-2.5 py-2 text-left text-xs text-muted-foreground transition-colors hover:bg-accent/50"
+              className="flex w-full items-center gap-1.5 rounded-lg px-2.5 py-2 text-left text-xs text-muted-foreground transition-colors hover:bg-accent/40"
             >
-              <ChevronDown
-                className={cn('size-3.5 transition-transform', !archiveOpen && '-rotate-90')}
-                strokeWidth={1.75}
-              />
+              <Archive className="size-3.5" strokeWidth={1.75} />
               {ui.automation.archiveGroup} · {archived.length}
             </button>
             {archiveOpen ? archived.map(row) : null}
           </div>
         ) : null}
       </div>
+
       {createOpen ? <TaskTypeCreateDialog onClose={() => setCreateOpen(false)} /> : null}
     </aside>
   );
-}
-
-function toneOf(color: TaskType['color']): string {
-  const tones: Record<TaskType['color'], string> = {
-    neutral: 'border-border bg-muted text-muted-foreground',
-    info: 'border-info/40 bg-info-soft/60 text-info',
-    success: 'border-success/40 bg-success-soft/60 text-success',
-    warning: 'border-warning/40 bg-warning-soft/60 text-warning',
-    danger: 'border-danger/40 bg-danger-soft/60 text-danger',
-  };
-  return tones[color];
 }

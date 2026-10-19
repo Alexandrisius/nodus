@@ -16,6 +16,15 @@
   --xy-minimap-background-background-color-default: var(--muted);
 }
 
+/* Точечная сетка канвы (Background dots): цвет — только токеном (var() в
+   fill-атрибуте не работает, переопределяем из CSS). */
+.react-flow__background circle {
+  fill: var(--edge);
+  opacity: 0.7;
+}
+
+/* Атрибуция React Flow: маленькая, в правом нижнем углу; навигационные
+   кнопки живут в тулбаре над холстом — пересечений нет. */
 .react-flow__attribution {
   font-size: 10px;
   opacity: 0.45;

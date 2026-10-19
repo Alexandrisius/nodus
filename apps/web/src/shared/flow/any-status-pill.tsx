@@ -2,9 +2,9 @@ import { ui } from '@nodus/contracts';
 import { cn } from '@nodus/ui/lib/utils';
 
 /**
- * Пилюля кнопки «из любого статуса» (`fromStageId = null`, #378): рёбрами
- * такие кнопки не рисуются — висят стопкой над целевым узлом; клик выбирает
- * переход (только у настройщика).
+ * Пилюля кнопки «из любого статуса» (`fromStageId = null`, #378, реф Jira
+ * «Any»-лозенг): рёбрами такие кнопки не рисуются — висят у правого верхнего
+ * угла целевого узла; клик выбирает переход (только у настройщика).
  */
 export function AnyFromPill({
   name,
@@ -23,7 +23,7 @@ export function AnyFromPill({
       disabled={!interactive}
       onClick={onClick}
       className={cn(
-        'nodrag max-w-full rounded-full border px-2 py-0.5 text-left text-[11px] leading-4 transition-colors',
+        'nodrag max-w-full rounded-full border py-0.5 pr-2 pl-1.5 text-left text-[11px] leading-4 transition-colors',
         active
           ? 'border-transparent bg-primary text-primary-foreground'
           : 'border-border bg-card text-muted-foreground',

@@ -15,8 +15,8 @@ export interface StartNodeData extends Record<string, unknown> {
 export type StartFlowNode = Node<StartNodeData, 'start'>;
 
 /**
- * Терминал старта слева от первой колонки: «Создание задачи», стрелка в
- * начальный статус рисуется ребром; клик выбирает начальный статус.
+ * Старт маршрута (реф Jira «Create»): компактная пунктирная пилюля слева от
+ * начального статуса; клик выбирает начальный статус.
  */
 export const StartNode = memo(function StartNode({ data }: NodeProps<StartFlowNode>) {
   const interactive = data.onSelect !== undefined;
@@ -26,15 +26,16 @@ export const StartNode = memo(function StartNode({ data }: NodeProps<StartFlowNo
       disabled={!interactive}
       onClick={data.onSelect}
       className={cn(
-        'nodrag rounded-[10px] border px-3 py-2 text-left transition-colors',
+        'nodrag flex h-10 w-[128px] items-center gap-2 rounded-full border border-dashed px-3 text-left transition-colors',
         data.active
           ? 'border-ring bg-accent text-foreground ring-1 ring-ring/30'
-          : 'border-dashed border-border bg-transparent text-muted-foreground',
+          : 'border-border bg-transparent text-muted-foreground',
         interactive && 'hover:border-input hover:text-foreground',
       )}
       title={ui.automation.startNode}
     >
-      <span className="block text-[10px] font-medium uppercase tracking-[0.08em] opacity-70">
+      <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-muted-foreground" />
+      <span className="truncate text-[11px] font-medium uppercase leading-none tracking-[0.08em] pt-[1px]">
         {ui.automation.startNode}
       </span>
       {/* Якорь ребра в начальный статус (невидимый порт справа). */}

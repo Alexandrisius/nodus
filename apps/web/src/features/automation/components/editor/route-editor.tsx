@@ -8,38 +8,52 @@ import {
   type OnNodeDrag,
 } from '@xyflow/react';
 import { checkWorkflowDocument } from '@nodus/contracts';
-import type { TaskSystemState, WorkflowDetail, WorkflowProblem } from '@nodus/contracts';
+import type { WorkflowDetail, WorkflowProblem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 
 import { useQueryClient } from '@tanstack/react-query';
 import { usePublishWorkflow } from '../../api/automation-api.js';
 import { useCanManageWorkflows } from '../../lib/use-can-manage-workflows.js';
 import { useRouteDocStore } from '../../model/route-doc-store.js';
-import { NavigationGuard, DraftBanner, TargetPicker, ZoomControls } from './editor-parts.js';
-import { EditorToolbar } from './editor-toolbar.js';
+import { AddTransitionDialog, DraftBanner, NavigationGuard, TargetPicker } from './editor-parts.js';
+import { RouteToolbar } from './route-toolbar.js';
 import { PublishDialog } from './publish-dialog.js';
 import { StageInspector } from './stage-inspector.js';
 import { TransitionInspector } from './transition-inspector.js';
 import { FlowCanvas } from '../../../../shared/flow/flow-canvas.js';
 import { workflowKeys } from '../../../../shared/workflow/workflow-api.js';
 import { buildRouteGraph } from '../../../../shared/flow/route-graph.js';
-import { layoutBands, slotIndexAt } from '../../../../shared/flow/band-layout.js';
 
 /**
- * Редактор маршрута на холсте (#378): рабочая копия в сторе, живые проверки
- * `checkWorkflowDocument`, инспекторы статуса и кнопки, публикация с
- * переносами. Раскладка автоматическая (колонки этапов), «Упорядочить» —
- * вписать схему в экран.
+ * Редактор маршрута на холсте (#378, реф Jira workflow editor): рабочая
+ * копия в сторе, свободное перетаскивание статусов (позиции — черновик),
+ * живые проверки `checkWorkflowDocument`, инспекторы статуса и кнопки,
+ * публикация с переносами. Строка инструментов над холстом — h-14 с
+ * разделителем (горизонталь шапок).
  */
-export function RouteEditor({ workflow }: { workflow: WorkflowDetail }) {
+export function RouteEditor({
+  workflow,
+  settings,
+}: {
+  workflow: WorkflowDetail;
+  /** Панель «Настройки типа» — хостится в контейнере канваса, чтобы
+   *  всплывать ПОД строкой инструментов (канон внутриоконных панелей). */
+  settings?: React.ReactNode;
+}) {
   return (
     <ReactFlowProvider>
-      <RouteEditorInner workflow={workflow} />
+      <RouteEditorInner workflow={workflow} settings={settings} />
     </ReactFlowProvider>
   );
 }
 
-function RouteEditorInner({ workflow }: { workflow: WorkflowDetail }) {
+function RouteEditorInner({
+  workflow,
+  settings,
+}: {
+  workflow: WorkflowDetail;
+  settings?: React.ReactNode;
+}) {
   const canManage = useCanManageWorkflows();
   const store = useRouteDocStore();
   const publish = usePublishWorkflow(workflow.id);
@@ -47,6 +61,7 @@ function RouteEditorInner({ workflow }: { workflow: WorkflowDetail }) {
   const { fitView } = useReactFlow();
   const [publishOpen, setPublishOpen] = useState(false);
   const [addTransitionFor, setAddTransitionFor] = useState<string | null>(null);
+  const [addTransitionOpen, setAddTransitionOpen] = useState(false);
 
   // Загрузка/перезагрузка маршрута в стор (смена типа или версии на сервере).
   useEffect(() => {
@@ -64,13 +79,14 @@ function RouteEditorInner({ workflow }: { workflow: WorkflowDetail }) {
 
   // Выделение (кольцо узла, подсветка ребра) — из selection стора: в
   // controlled-режиме без onNodesChange React Flow сам его не переключает.
+  // Позиции — раскладка + ручные из черновика (drag живьём их обновляет).
   const graph = useMemo(() => {
     const built = buildRouteGraph(store.document, {
       readOnly: !canManage,
       problemStageIds,
+      positions: store.positions,
       onSelectStage: (id) => useRouteDocStore.getState().select({ kind: 'stage', id }),
       onSelectTransition: (id) => useRouteDocStore.getState().select({ kind: 'transition', id }),
-      onAddStage: (band: TaskSystemState) => useRouteDocStore.getState().addStage(band),
     });
     const selection = store.selection;
     return {
@@ -83,7 +99,7 @@ function RouteEditorInner({ workflow }: { workflow: WorkflowDetail }) {
           : edge,
       ),
     };
-  }, [store.document, store.selection, canManage, problemStageIds]);
+  }, [store.document, store.selection, store.positions, canManage, problemStageIds]);
 
   const onConnect = useCallback(
     (connection: Connection) => {
@@ -99,12 +115,18 @@ function RouteEditorInner({ workflow }: { workflow: WorkflowDetail }) {
     [canManage],
   );
 
+  // Живой drag: позиции идут в стор без истории, персист — на отпускании.
+  const onNodeDrag: OnNodeDrag<Node> = useCallback(
+    (_event, node: Node) => {
+      if (!canManage || node.type !== 'status') return;
+      useRouteDocStore.getState().setStagePosition(node.id, node.position, false);
+    },
+    [canManage],
+  );
   const onNodeDragStop: OnNodeDrag<Node> = useCallback(
     (_event, node: Node) => {
-      if (!canManage || node.type !== 'status' || !node.parentId) return;
-      const s = useRouteDocStore.getState();
-      const layout = layoutBands(s.document.stages);
-      s.moveStage(node.id, slotIndexAt(layout, node.id, node.position.y));
+      if (!canManage || node.type !== 'status') return;
+      useRouteDocStore.getState().setStagePosition(node.id, node.position, true);
     },
     [canManage],
   );
@@ -166,89 +188,104 @@ function RouteEditorInner({ workflow }: { workflow: WorkflowDetail }) {
   };
 
   return (
-    <div className="relative min-h-0 flex-1">
-      <FlowCanvas
-        nodes={graph.nodes}
-        edges={graph.edges}
-        onConnect={onConnect}
-        onNodeClick={onNodeClick}
-        onNodeDragStop={onNodeDragStop}
-        onPaneClick={() => store.select(null)}
-        onEdgeClick={(_event, edge) => {
-          if (edge.type === 'transition') store.select({ kind: 'transition', id: edge.id });
-        }}
-        interactive={canManage}
-        fitView
-      >
-        <ZoomControls />
-      </FlowCanvas>
+    <div className="flex min-h-0 flex-1 flex-col">
+      <RouteToolbar
+        canManage={canManage}
+        dirty={store.dirty}
+        publishedAt={store.dirty ? null : workflow.publishedAt}
+        publishedBy={workflow.publishedBy?.displayName ?? null}
+        problems={problems}
+        canUndo={store.past.length > 0}
+        canRedo={store.future.length > 0}
+        publishBlocked={!store.dirty}
+        onUndo={() => store.undo()}
+        onRedo={() => store.redo()}
+        onTidy={() => void fitView({ duration: 200, padding: 0.2 })}
+        onProblemClick={onProblemClick}
+        onDiscard={() => store.discard()}
+        onPublish={() => setPublishOpen(true)}
+        onAddStage={(band) => useRouteDocStore.getState().addStage(band)}
+        onAddTransition={() => setAddTransitionOpen(true)}
+      />
 
-      <div className="absolute bottom-2 left-2 z-10">
-        <EditorToolbar
-          canManage={canManage}
-          dirty={store.dirty}
-          problems={problems}
-          canUndo={store.past.length > 0}
-          canRedo={store.future.length > 0}
-          publishBlocked={!store.dirty}
-          onUndo={() => store.undo()}
-          onRedo={() => store.redo()}
-          onTidy={() => void fitView({ duration: 200, padding: 0.2 })}
-          onProblemClick={onProblemClick}
-          onDiscard={() => store.discard()}
-          onPublish={() => setPublishOpen(true)}
+      <div className="relative min-h-0 flex-1">
+        <FlowCanvas
+          nodes={graph.nodes}
+          edges={graph.edges}
+          onConnect={onConnect}
+          onNodeClick={onNodeClick}
+          onNodeDrag={onNodeDrag}
+          onNodeDragStop={onNodeDragStop}
+          onPaneClick={() => store.select(null)}
+          onEdgeClick={(_event, edge) => {
+            if (edge.type === 'transition') store.select({ kind: 'transition', id: edge.id });
+          }}
+          interactive={canManage}
+          fitView
         />
+
+        {store.dirty && store.draftSavedAt ? (
+          <DraftBanner savedAt={store.draftSavedAt} onReset={() => store.discard()} />
+        ) : null}
+        {store.staleDraftAt && !store.dirty ? (
+          <div className="absolute left-1/2 top-3 z-10 flex -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-accent/40 px-3 py-1.5 text-xs text-muted-foreground">
+            {ui.automation.draftStale}
+            <button
+              type="button"
+              onClick={() => store.discard()}
+              className="font-medium underline underline-offset-2"
+            >
+              {ui.automation.draftReset}
+            </button>
+          </div>
+        ) : null}
+        <NavigationGuard dirty={store.dirty} />
+
+        <StageInspector
+          stage={selectedStage}
+          document={store.document}
+          taskCount={selectedStage ? (workflow.stageTaskCounts[selectedStage.id] ?? 0) : 0}
+          selection={store.selection}
+          readOnly={!canManage}
+          onClose={() => store.select(null)}
+          onPatch={(id, patch) => store.patchStage(id, patch)}
+          onRemove={(id) => store.removeStage(id)}
+          onMoveTransition={(id, index) => store.moveTransition(id, index)}
+          onSelectTransition={(ref) => store.select(ref)}
+          onAddTransition={(fromStageId) => setAddTransitionFor(fromStageId)}
+        />
+        <TransitionInspector
+          transition={selectedTransition}
+          document={store.document}
+          readOnly={!canManage}
+          onClose={() => store.select(null)}
+          onPatch={(id, patch) => store.patchTransition(id, patch)}
+          onSetPrimary={(id) => store.setTransitionPrimary(id)}
+          onRemove={(id) => store.removeTransition(id)}
+        />
+
+        {addTransitionFor ? (
+          <TargetPicker
+            document={store.document}
+            fromStageId={addTransitionFor}
+            onPick={(toStageId) => {
+              store.addTransition(addTransitionFor, toStageId);
+              setAddTransitionFor(null);
+            }}
+            onClose={() => setAddTransitionFor(null)}
+          />
+        ) : null}
+        {settings}
       </div>
 
-      {store.dirty && store.draftSavedAt ? (
-        <DraftBanner savedAt={store.draftSavedAt} onReset={() => store.discard()} />
-      ) : null}
-      {store.staleDraftAt && !store.dirty ? (
-        <div className="absolute left-2 top-2 z-10 flex items-center gap-2 rounded-full border border-border bg-accent/40 px-3 py-1.5 text-xs text-muted-foreground">
-          {ui.automation.draftStale}
-          <button
-            type="button"
-            onClick={() => store.discard()}
-            className="font-medium underline underline-offset-2"
-          >
-            {ui.automation.draftReset}
-          </button>
-        </div>
-      ) : null}
-      <NavigationGuard dirty={store.dirty} />
-
-      <StageInspector
-        stage={selectedStage}
-        document={store.document}
-        taskCount={selectedStage ? (workflow.stageTaskCounts[selectedStage.id] ?? 0) : 0}
-        selection={store.selection}
-        readOnly={!canManage}
-        onClose={() => store.select(null)}
-        onPatch={(id, patch) => store.patchStage(id, patch)}
-        onRemove={(id) => store.removeStage(id)}
-        onMoveTransition={(id, index) => store.moveTransition(id, index)}
-        onSelectTransition={(ref) => store.select(ref)}
-        onAddTransition={(fromStageId) => setAddTransitionFor(fromStageId)}
-      />
-      <TransitionInspector
-        transition={selectedTransition}
-        document={store.document}
-        readOnly={!canManage}
-        onClose={() => store.select(null)}
-        onPatch={(id, patch) => store.patchTransition(id, patch)}
-        onSetPrimary={(id) => store.setTransitionPrimary(id)}
-        onRemove={(id) => store.removeTransition(id)}
-      />
-
-      {addTransitionFor ? (
-        <TargetPicker
+      {addTransitionOpen ? (
+        <AddTransitionDialog
           document={store.document}
-          fromStageId={addTransitionFor}
-          onPick={(toStageId) => {
-            store.addTransition(addTransitionFor, toStageId);
-            setAddTransitionFor(null);
+          onClose={() => setAddTransitionOpen(false)}
+          onPick={(from, to) => {
+            setAddTransitionOpen(false);
+            useRouteDocStore.getState().addTransition(from, to);
           }}
-          onClose={() => setAddTransitionFor(null)}
         />
       ) : null}
 

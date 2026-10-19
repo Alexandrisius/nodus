@@ -2,6 +2,8 @@ import '@xyflow/react/dist/base.css';
 import './flow-theme.css';
 
 import {
+  Background,
+  BackgroundVariant,
   ConnectionMode,
   ReactFlow,
   type EdgeTypes,
@@ -15,7 +17,6 @@ import {
 import type { Edge, Node } from '@xyflow/react';
 import { cn } from '@nodus/ui/lib/utils';
 
-import { BandNode } from './band-node.js';
 import { StartNode } from './start-node.js';
 import { StatusNode } from './status-node.js';
 import { TransitionEdge } from './transition-edge.js';
@@ -28,7 +29,6 @@ import { TransitionEdge } from './transition-edge.js';
  */
 const nodeTypes: NodeTypes = {
   status: StatusNode,
-  band: BandNode,
   start: StartNode,
 };
 const edgeTypes: EdgeTypes = { transition: TransitionEdge };
@@ -39,6 +39,7 @@ export interface FlowCanvasProps {
   onNodesChange?: OnNodesChange;
   onEdgesChange?: OnEdgesChange;
   onConnect?: OnConnect;
+  onNodeDrag?: OnNodeDrag<Node>;
   onNodeDragStop?: OnNodeDrag<Node>;
   onNodeClick?: NodeMouseHandler<Node>;
   onEdgeClick?: (event: React.MouseEvent, edge: Edge) => void;
@@ -56,6 +57,7 @@ export function FlowCanvas({
   onNodesChange,
   onEdgesChange,
   onConnect,
+  onNodeDrag,
   onNodeDragStop,
   onNodeClick,
   onEdgeClick,
@@ -75,6 +77,7 @@ export function FlowCanvas({
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        onNodeDrag={onNodeDrag}
         onNodeDragStop={onNodeDragStop}
         onNodeClick={onNodeClick}
         onEdgeClick={onEdgeClick}
@@ -85,7 +88,7 @@ export function FlowCanvas({
         nodesFocusable
         edgesFocusable
         connectionMode={ConnectionMode.Loose}
-        minZoom={0.4}
+        minZoom={0.3}
         maxZoom={1.6}
         fitView={fitView}
         fitViewOptions={{ padding: 0.2, maxZoom: 1 }}
@@ -96,6 +99,7 @@ export function FlowCanvas({
         zoomOnScroll={false}
         preventScrolling
       >
+        <Background variant={BackgroundVariant.Dots} gap={28} size={1} />
         {children}
       </ReactFlow>
     </div>

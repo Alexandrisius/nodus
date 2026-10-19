@@ -14,7 +14,7 @@ import { Check, CircleAlert, X } from 'lucide-react';
 import { stageTone } from '../ui/board/stage-tone.js';
 import { AnyFromPill } from './any-status-pill.js';
 
-/** Данные узла статуса на холсте схем (#378). */
+/** Данные узла статуса на холсте маршрута (#378). */
 export interface StatusNodeData extends Record<string, unknown> {
   name: string;
   color: StageColor;
@@ -34,7 +34,7 @@ export interface StatusNodeData extends Record<string, unknown> {
 
 export type StatusFlowNode = Node<StatusNodeData, 'status'>;
 
-const bandLabel: Record<TaskSystemState, string> = {
+const stateLabel: Record<TaskSystemState, string> = {
   backlog: ui.automation.bands.backlog,
   active: ui.automation.bands.active,
   paused: ui.automation.bands.paused,
@@ -42,7 +42,8 @@ const bandLabel: Record<TaskSystemState, string> = {
   closed: ui.automation.bands.closed,
 };
 
-/** Порты с четырёх сторон — видны на наведении у настройщика (r=3). */
+/** Порты с четырёх сторон — всегда в DOM (якоря рёбер); видны на наведении
+ *  у настройщика (r=3, канон связей). */
 const HANDLES: readonly { id: string; position: Position }[] = [
   { id: 'l', position: Position.Left },
   { id: 'r', position: Position.Right },
@@ -51,9 +52,10 @@ const HANDLES: readonly { id: string; position: Position }[] = [
 ];
 
 /**
- * Узел статуса маршрута (канон «Холст схем»): карточка ~200×56 — точка
- * цвета + название; маркеры справа: начальный, итог (✓/✕), бейдж проблемы.
- * Выбранный — кольцо и свечение (свечение только у активного узла).
+ * Узел статуса маршрута: карточка 208×52 с цветной полосой слева (цвет
+ * статуса), названием и подписью этапа; маркеры справа — начальный, итог
+ * (✓/✕), бейдж проблемы. Выбранный — кольцо, текущий статус задачи —
+ * свечение (только у активного узла).
  */
 export const StatusNode = memo(function StatusNode({
   id,
@@ -64,9 +66,9 @@ export const StatusNode = memo(function StatusNode({
   const active = selected || data.current;
   return (
     <div className="group relative" data-status-id={id}>
-      {/* Пилюли «из любого» стопкой над карточкой. */}
+      {/* Пилюли «из любого» стопкой над карточкой (правый край). */}
       {data.pills.length > 0 ? (
-        <div className="absolute bottom-full left-0 right-0 z-1 mb-1.5 flex flex-col items-start gap-1">
+        <div className="absolute bottom-full right-0 z-1 mb-1.5 flex flex-col items-end gap-1">
           {data.pills.map((pill) => (
             <AnyFromPill
               key={pill.id}
@@ -80,35 +82,43 @@ export const StatusNode = memo(function StatusNode({
       <div
         role="button"
         tabIndex={0}
-        aria-label={`${ui.automation.stageAria} «${data.name}», ${ui.automation.bandAria} «${bandLabel[data.systemState]}»`}
+        aria-label={`${ui.automation.stageAria} «${data.name}», ${ui.automation.bandAria} «${stateLabel[data.systemState]}»`}
         className={cn(
-          'flex h-14 w-[200px] items-center gap-2 rounded-[10px] border bg-card px-3 transition-colors',
+          'flex h-[52px] w-[208px] items-stretch overflow-hidden rounded-[10px] border bg-card transition-colors',
           active ? 'border-ring ring-1 ring-ring/30 drop-shadow-(--glow)' : 'border-border',
         )}
       >
-        <span aria-hidden className={cn('size-2 shrink-0 rounded-full', tone.dot)} />
-        <span className="min-w-0 flex-1 truncate text-sm" title={data.name}>
-          {data.name}
+        <span aria-hidden className={cn('w-1 shrink-0', tone.dot)} />
+        <span className="flex min-w-0 flex-1 flex-col justify-center gap-1 px-3 py-2">
+          <span
+            className="truncate text-[13px] font-medium leading-none pt-[1px]"
+            title={data.name}
+          >
+            {data.name}
+          </span>
+          <span className="truncate text-[10px] font-medium uppercase leading-none tracking-[0.08em] text-muted-foreground">
+            {stateLabel[data.systemState]}
+          </span>
         </span>
-        <span className="flex shrink-0 items-center gap-1.5 text-muted-foreground">
+        <span className="flex shrink-0 flex-col items-end justify-center gap-1 pr-2.5">
           {data.isInitial ? (
             <span
-              className="text-[10px] font-medium uppercase tracking-[0.08em]"
+              className="text-[9px] font-semibold uppercase leading-none tracking-[0.1em] text-muted-foreground"
               title={ui.automation.initialMark}
             >
               {ui.automation.initialMark}
             </span>
           ) : null}
-          {data.outcome === 'success' ? (
-            <Check className="size-3.5" aria-label={ui.automation.outcomeSuccess} />
-          ) : data.outcome === 'cancelled' ? (
-            <X className="size-3.5" aria-label={ui.automation.outcomeCancelled} />
-          ) : null}
-          {data.hasProblem ? <CircleAlert className="size-3.5 text-danger" aria-hidden /> : null}
+          <span className="flex items-center gap-1 text-muted-foreground">
+            {data.outcome === 'success' ? (
+              <Check className="size-3.5 text-success" aria-label={ui.automation.outcomeSuccess} />
+            ) : data.outcome === 'cancelled' ? (
+              <X className="size-3.5 text-danger" aria-label={ui.automation.outcomeCancelled} />
+            ) : null}
+            {data.hasProblem ? <CircleAlert className="size-3.5 text-danger" aria-hidden /> : null}
+          </span>
         </span>
       </div>
-      {/* Порты — всегда в DOM: это якоря рёбер React Flow (координаты
-          считаются по Handle); видны на наведении у настройщика. */}
       {HANDLES.map((handle) => (
         <Handle
           key={handle.id}

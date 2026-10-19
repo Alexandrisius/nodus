@@ -11,11 +11,16 @@ export const workflowKeys = {
   detail: (id: string) => [...workflowKeys.all, 'detail', id] as const,
 };
 
+/** Загрузка одного маршрута (queryFn реестра и префетча меты списка типов). */
+export function fetchWorkflowDetail(workflowId: string): Promise<WorkflowDetail> {
+  return api<WorkflowDetail>(`/tasks/workflows/${workflowId}`);
+}
+
 /** Документ маршрута типа задачи (редактор и «Схема маршрута»). */
 export function useWorkflowDetail(workflowId: string | null) {
   return useQuery({
     queryKey: workflowKeys.detail(workflowId ?? 'none'),
-    queryFn: () => api<WorkflowDetail>(`/tasks/workflows/${workflowId}`),
+    queryFn: () => fetchWorkflowDetail(workflowId!),
     enabled: workflowId !== null,
     staleTime: 30_000,
   });

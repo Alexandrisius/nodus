@@ -5,8 +5,8 @@ export const automationStrings = {
   title: 'Автоматизация',
   /** Вкладки раздела («Права доступа» добавит #379). */
   tabTypes: 'Типы задач',
-  /** Список типов слева. */
-  typesListTitle: 'Типы задач',
+  /** Список типов слева (грамматика списка бесед: шапка с поиском). */
+  searchTypes: 'Поиск типа…',
   newType: 'Новый тип',
   badgeSystem: 'Системный',
   badgeHidden: 'Скрыт',
@@ -36,6 +36,8 @@ export const automationStrings = {
   menuArchive: 'В архив',
   archiveSystemLocked: 'Системный тип нельзя убрать в архив',
   typeSettings: 'Настройки типа',
+  workflowUnavailable: 'Маршрут недоступен',
+  createFirstType: 'Создайте первый тип задачи',
   /** Холст: колонки этапов. */
   bands: {
     backlog: 'Ожидание',
@@ -82,6 +84,8 @@ export const automationStrings = {
   isInitialHint: 'Включение переносит флаг с прежнего начального статуса',
   buttonsFromStage: 'Кнопки из этого статуса',
   addTransition: 'Кнопка',
+  addTransitionTitle: 'Новая кнопка перехода',
+  addTransitionSubmit: 'Добавить',
   deleteStage: 'Удалить статус',
   deleteStageTasksNote: 'задач — при публикации выберете, куда их перенести',
   previewTitle: 'Как увидят панель процесса',
@@ -159,6 +163,7 @@ export const automationStrings = {
   draftReset: 'Сбросить',
   draftStale: 'Черновик устарел — маршрут опубликовали позже',
   unsavedTitle: 'Есть неопубликованные изменения',
+  unsavedBody: 'Уйти без публикации? Черновик останется на этом компьютере.',
   /** Диалог «Схема маршрута» из карточки задачи. */
   routeViewTitle: 'Схема маршрута',
   routeViewOfType: 'Маршрут типа',
