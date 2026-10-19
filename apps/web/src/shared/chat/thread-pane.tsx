@@ -1,4 +1,4 @@
-import { Fragment, memo, useMemo, useRef, useEffect } from 'react';
+import { Fragment, memo, useMemo, useRef } from 'react';
 import { ArrowLeft, Eye, EyeOff, X } from 'lucide-react';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
@@ -20,7 +20,6 @@ import { useThreadMessages, useThreadStates } from './chat-queries.js';
 import { useWatchThread } from './conversation-actions.js';
 import { ChatComposer } from './chat-composer.js';
 import { ChatMessageItem } from './chat-message.js';
-import { acquireOpenConversation } from './notifications.js';
 import { addFiles } from './composer-files.js';
 import { DayChip } from './day-chip.js';
 import { FeedDropzone } from './feed-dropzone.js';
@@ -39,6 +38,7 @@ import { ScrollEndResponder } from './scroll-end-responder.js';
 import { useHistoryLoader } from './use-history-loader.js';
 import { JumpResponder } from './use-jump-responder.js';
 import { useFeedSubmit } from './use-feed-submit.js';
+import { useConversationHost } from './use-conversation-host.js';
 // >300 строк — обоснование (I5, валидатор #164): окно треда — шапка
 // (наблюдение/печать/закрытие), корневой пост + лента ответов на run-grid
 // и композер в одном колонке-хосте; деление размыло бы поток колонки.
@@ -89,7 +89,7 @@ export const ThreadPane = memo(function ThreadPane({
 
   // Открытая беседа для гейта уведомлений (#124/#300): реестр хостов —
   // закрытие окна треда не гасит признак, пока жива лента беседы.
-  useEffect(() => acquireOpenConversation(conversationId), [conversationId]);
+  useConversationHost(conversationId);
   const { data, isLoading } = useThreadMessages(conversationId, threadRootId);
   // Guardrail молнии (#177): размер беседы треда = размеру беседы.
   const me = useAuthStore((s) => s.user);

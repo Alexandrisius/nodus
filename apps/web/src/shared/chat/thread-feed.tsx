@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useRef, Fragment } from 'react';
+import { memo, useMemo, useRef, Fragment } from 'react';
 import { ui } from '@nodus/contracts';
 import {
   MessageScroller,
@@ -15,7 +15,6 @@ import { useAuthStore } from '../auth-store.js';
 import { useConversationMessages } from './chat-queries.js';
 import { ChatComposer } from './chat-composer.js';
 import { useChatPrefs } from './chat-prefs.js';
-import { acquireOpenConversation } from './notifications.js';
 import { ConversationViewsLine } from './views-line.js';
 import { addFiles } from './composer-files.js';
 import { FeedDropzone } from './feed-dropzone.js';
@@ -35,6 +34,7 @@ import { useBoxSelection } from './use-box-selection.js';
 import { useConversations, useThreadStates } from './chat-queries.js';
 import { canPostFeed } from './conversations.js';
 import { useFeedSubmit } from './use-feed-submit.js';
+import { useConversationHost } from './use-conversation-host.js';
 
 /**
  * Лента канала (вердикт владельца 2026-09-10): каждое сообщение канала —
@@ -68,7 +68,7 @@ export const ThreadFeed = memo(function ThreadFeed({
 
   // Открытая беседа для гейта уведомлений (#124/#300): реестр хостов —
   // анмаунт одного хоста не гасит признак, пока жив другой (лента+тред).
-  useEffect(() => acquireOpenConversation(conversationId), [conversationId]);
+  useConversationHost(conversationId);
   const { data, isLoading } = useConversationMessages(conversationId);
   // Право публикации в ленту (I8 на клиенте — только UX; сервер проверяет
   // матрицу сам): без post композер ленты гасится, обсуждение — в тредах.

@@ -16,7 +16,6 @@ import { useAuthStore } from '../auth-store.js';
 import { useConversationMessages, useConversations } from './chat-queries.js';
 import { ChatComposer } from './chat-composer.js';
 import { ChatMessageItem } from './chat-message.js';
-import { acquireOpenConversation } from './notifications.js';
 import { addFiles } from './composer-files.js';
 import { DayChip } from './day-chip.js';
 import { FeedDropzone } from './feed-dropzone.js';
@@ -39,6 +38,7 @@ import { reconcileServerDraft } from './draft-sync.js';
 import { JumpResponder } from './use-jump-responder.js';
 import { useJumpStore } from './jump-store.js';
 import { useFeedSubmit } from './use-feed-submit.js';
+import { useConversationHost } from './use-conversation-host.js';
 // >300 строк — обоснование (I5): лента беседы — якорь открытия (раунд 4),
 // селект/рамка/прочтения/jump-резиденты в одном потоке; серия вынесена
 // в message-run.tsx, оставшееся — хост-обвязка, деление размыло бы её.
@@ -186,7 +186,7 @@ function ConversationFeed({
 
   // Открытая беседа для гейта уведомлений (#124/#300): реестр хостов —
   // анмаунт одного хоста не гасит признак, пока жив другой (лента+тред).
-  useEffect(() => acquireOpenConversation(conversationId), [conversationId]);
+  useConversationHost(conversationId);
   const { data, isLoading } = useConversationMessages(conversationId);
   const me = useAuthStore((s) => s.user);
 

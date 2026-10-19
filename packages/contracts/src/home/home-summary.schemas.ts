@@ -9,7 +9,10 @@ import { userRefSchema } from '../directory/user-ref.schema.js';
 
 export const birthdayEntrySchema = z.object({
   user: userRefSchema,
-  birthDate: z.iso.date(),
+  /** Ближайшая годовщина (этот или следующий год), НЕ дата рождения: год
+   *  рождения — персональные данные, на Главной не нужен (вердикт владельца
+   *  19.10, #342); клиент показывает день и месяц. */
+  date: z.iso.date(),
   isToday: z.boolean(),
 });
 export type BirthdayEntry = z.infer<typeof birthdayEntrySchema>;

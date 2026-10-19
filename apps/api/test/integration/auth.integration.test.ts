@@ -25,7 +25,8 @@ import { ensureTestDatabase } from './test-db.js';
 /**
  * Критерии приёмки issue #3 на живом стеке (реальные PG/Redis, nodus_test):
  * логин → refresh-ротация → reuse-detection → logout; RBAC на уровне API (I8);
- * деактивация пользователя отзывает сессии событием directory.user.deactivated.
+ * деактивация пользователя отзывает сессии и действующие access-токены
+ * событием directory.user.deactivated (стоп-лист Redis, #333).
  */
 
 // Креды тестового стенда (nodus_test): сид запускается с ними же ниже —
@@ -272,7 +273,16 @@ describe('auth + directory (integration)', () => {
     expect(deactivate.status).toBe(200);
 
     // Диспетчер доставляет directory.user.deactivated → auth отзывает сессии
+    // и ставит стоп-лист access-токенов (#333): старый, ещё не истёкший access
+    // отвергается произвольным эндпоинтом именно стоп-листом (не подписью/сроком).
     await app.get(EventDispatcher).dispatchPending();
+    const revoked = await fetch(`${baseUrl}/home/summary`, {
+      headers: { authorization: `Bearer ${employeeTokens.accessToken}` },
+    });
+    expect(revoked.status).toBe(401);
+    const revokedError = apiErrorResponseSchema.parse(await revoked.json());
+    expect(revokedError.code).toBe(ErrorCode.UNAUTHENTICATED);
+    expect(revokedError.message).toBe('Access token revoked');
 
     const refresh = await fetch(`${baseUrl}/auth/refresh`, {
       method: 'POST',
@@ -284,8 +294,7 @@ describe('auth + directory (integration)', () => {
     const reLogin = await login(baseUrl, EMPLOYEE.email, EMPLOYEE.password);
     expect(reLogin.status).toBe(401);
 
-    // /me перечитывает статус из БД → 401 сразу; произвольные защищённые
-    // эндпоинты принимали бы access до его TTL (stateless-компромисс, README).
+    // /me перечитывает статус из БД → 401 сразу (и стоп-лист — тоже).
     const meWithOldToken = await fetch(`${baseUrl}/auth/me`, {
       headers: { authorization: `Bearer ${employeeTokens.accessToken}` },
     });
