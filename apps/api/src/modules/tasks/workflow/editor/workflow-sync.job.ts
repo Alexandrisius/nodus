@@ -33,8 +33,10 @@ interface SyncJobData {
  */
 @Injectable()
 export class WorkflowSyncJob implements OnModuleInit, OnModuleDestroy {
-  private readonly connection: Redis;
-  private readonly queue: Queue<SyncJobData>;
+  // Подключения живут с onModuleInit (не с конструктора): юнит-тесты
+  // конструируют задание без Redis, прод — валидирует env на старте.
+  private connection?: Redis;
+  private queue?: Queue<SyncJobData>;
   private worker?: Worker<SyncJobData>;
 
   constructor(
@@ -46,6 +48,9 @@ export class WorkflowSyncJob implements OnModuleInit, OnModuleDestroy {
     private readonly logger: PinoLogger,
   ) {
     this.logger.setContext(WorkflowSyncJob.name);
+  }
+
+  async onModuleInit(): Promise<void> {
     const url = process.env.REDIS_URL;
     if (!url) throw new Error('REDIS_URL не задан');
     this.connection = new Redis(url, { maxRetriesPerRequest: null });
@@ -53,9 +58,6 @@ export class WorkflowSyncJob implements OnModuleInit, OnModuleDestroy {
       connection: this.connection,
       prefix: PREFIX,
     });
-  }
-
-  async onModuleInit(): Promise<void> {
     this.worker = new Worker<SyncJobData>(
       WORKFLOW_SYNC_QUEUE,
       async (job) => void (await this.run(job.data)),
@@ -69,7 +71,7 @@ export class WorkflowSyncJob implements OnModuleInit, OnModuleDestroy {
   /** Постановка задания после коммита публикации (jobId = дедуп версии). */
   async schedule(outcome: PublishOutcome): Promise<void> {
     if (outcome.moves.length === 0 && outcome.restates.length === 0) return;
-    await this.queue.add(
+    await this.queue!.add(
       'sync',
       {
         workflowId: outcome.workflowId,
@@ -78,7 +80,9 @@ export class WorkflowSyncJob implements OnModuleInit, OnModuleDestroy {
         restates: outcome.restates,
       },
       {
-        jobId: `${outcome.workflowId}:${outcome.version}`,
+        // BullMQ запрещает ':' в custom jobId («Custom Id cannot contain :»,
+        // поймано интеграционным тестом #378) — дедуп-ключ через '__'.
+        jobId: `${outcome.workflowId}__v${outcome.version}`,
         removeOnComplete: 20,
         removeOnFail: 100,
       },
@@ -170,7 +174,7 @@ export class WorkflowSyncJob implements OnModuleInit, OnModuleDestroy {
 
   async onModuleDestroy(): Promise<void> {
     await this.worker?.close();
-    await this.queue.close();
-    this.connection.disconnect();
+    await this.queue?.close();
+    this.connection?.disconnect();
   }
 }

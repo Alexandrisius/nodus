@@ -112,9 +112,6 @@ export const tasksStrings = {
   overrideGate: 'Выполнить всё равно',
   overrideReason: 'Причина (попадёт в историю)',
   plannedTime: 'Плановое время',
-  acceptRequired: 'Принять работу после завершения',
-  /** Короткая метка поля (полная фраза — подпись переключателя). */
-  acceptField: 'Приёмка постановщиком',
   moreActions: 'Ещё действия',
   taskActions: 'Действия задачи',
   deleteTask: 'Удалить задачу',
@@ -201,8 +198,7 @@ export const tasksStrings = {
   processBlockedMissing: 'Не хватает:',
   processOutcomeSuccess: 'Завершена',
   processOutcomeCancelled: 'Отменена',
-  /** Смена типа задачи (#378). */
-  changeTypeMenu: 'Сменить тип…',
+  /** Смена типа задачи (#378) — поле «Тип» карточки. */
   changeTypeTitle: 'Сменить тип',
   changeTypeStage: 'Статус в новом маршруте',
   changeTypeSubmit: 'Сменить',

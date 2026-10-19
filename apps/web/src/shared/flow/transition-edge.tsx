@@ -75,14 +75,11 @@ export const TransitionEdge = memo(function TransitionEdge({
         <EdgeLabelRenderer>
           <button
             type="button"
-            className={cn(
-              'nodrag nopan edge-label pointer-events-auto',
-              style.labelClass,
-              selected && 'drop-shadow(0 0 6px var(--glow))',
-            )}
+            className={cn('nodrag nopan edge-label pointer-events-auto', style.labelClass)}
             style={{
               transform: `translate(-50%, -50%) translate(${d.label.x}px, ${d.label.y}px)`,
               opacity,
+              ...(selected ? { filter: 'drop-shadow(0 0 6px var(--glow))' } : {}),
             }}
             onClick={d.onSelect}
             disabled={d.onSelect === undefined}

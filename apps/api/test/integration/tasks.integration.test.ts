@@ -109,7 +109,7 @@ describe.skipIf(!process.env.DATABASE_URL)('tasks (integration)', () => {
     const list = z
       .array(taskTransitionSchema)
       .parse(await (await fx.api(bob, 'GET', `/tasks/${parentId}/transitions`)).json());
-    const start = list.find((t) => t.name === 'Начать')!;
+    const start = list.find((t) => t.name === 'Взять в работу')!;
     const started = await fx.api(bob, 'POST', `/tasks/${parentId}/transitions/${start.id}`, {
       body: {},
       key: `it-start-${fx.runId}`,

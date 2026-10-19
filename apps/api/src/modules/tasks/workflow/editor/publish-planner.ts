@@ -87,7 +87,6 @@ export function planWorkflowPublish(
   document: WorkflowDocument,
   migrations: readonly WorkflowMigration[],
 ): WorkflowPublishPlan {
-  const docStagesById = new Map(document.stages.map((s) => [s.id, s]));
   const currentStagesById = new Map(current.stages.map((s) => [s.id, s]));
   const currentTransitionsById = new Map(current.transitions.map((t) => [t.id, t]));
 
@@ -168,9 +167,6 @@ export function planWorkflowPublish(
   const moves = migrations
     .filter((m) => archivedIds.has(m.fromStageId))
     .map((m) => ({ fromStageId: m.fromStageId, toDocId: m.toStageId }));
-
-  // Стадии-цели переносов обязаны быть живыми стадиями документа.
-  void docStagesById;
 
   return {
     stageCreates,

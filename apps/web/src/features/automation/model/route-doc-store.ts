@@ -60,6 +60,8 @@ interface RouteDocState {
   removeTransition: (id: string) => void;
   moveTransition: (id: string, targetIndex: number) => void;
 
+  /** «Упорядочить»: сброс ручных позиций к слоевой раскладке (без истории). */
+  resetPositions: () => void;
   undo: () => void;
   redo: () => void;
   discard: () => void;
@@ -273,6 +275,11 @@ export function createRouteDocStore(workflowId: string) {
         );
         return withHistory(s, { ...s.document, transitions });
       });
+      commitDraft(get());
+    },
+
+    resetPositions: () => {
+      set({ positions: {} });
       commitDraft(get());
     },
 

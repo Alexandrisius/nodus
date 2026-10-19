@@ -34,8 +34,11 @@ export class WorkflowRepository {
   async load(workflowId: string, tx?: TransactionClient): Promise<LoadedWorkflow> {
     const db = tx ?? this.prisma;
     const [stages, transitions] = await Promise.all([
+      // Архивные стадии — только для истории (задачи/события ссылаются);
+      // движку, редактору и копиям основ нужны ЖИВЫЕ (блокер ревью: призрак
+      // архивной стадии возвращался на холст и воскрешался копией типа).
       db.workflowStage.findMany({
-        where: { workflowId },
+        where: { workflowId, archivedAt: null },
         orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
       }),
       db.workflowTransition.findMany({ where: { workflowId, archivedAt: null } }),

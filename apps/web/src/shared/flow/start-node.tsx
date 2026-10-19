@@ -26,7 +26,7 @@ export const StartNode = memo(function StartNode({ data }: NodeProps<StartFlowNo
       disabled={!interactive}
       onClick={data.onSelect}
       className={cn(
-        'nodrag flex h-10 w-[156px] items-center gap-2 rounded-full border border-dashed px-3 text-left transition-colors',
+        'nodrag flex h-10 w-auto min-w-[156px] items-center gap-2 whitespace-nowrap rounded-full border border-dashed px-3 text-left transition-colors',
         data.active
           ? 'border-ring bg-accent text-foreground ring-1 ring-ring/30'
           : 'border-border bg-transparent text-muted-foreground',

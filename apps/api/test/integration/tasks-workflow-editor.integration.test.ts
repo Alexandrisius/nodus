@@ -1,0 +1,228 @@
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { ErrorCode, Permission } from '@nodus/contracts';
+
+import { TokenService } from '../../src/modules/auth/token.service.js';
+import { setupChatFixture, type ChatTestFixture, type ChatUser } from './chat-fixtures.js';
+
+/**
+ * Интеграционный сценарий редактора маршрутов #378 (живое HTTP + БД):
+ * права (403 без task.workflow_manage), публикация с обязательным переносом
+ * (422 → миграция → 200), фоновый перенос задач BullMQ-заданием, конфликт
+ * версий (409), идемпотентный повтор. Чистит за собой по runId.
+ */
+describe.skipIf(!process.env.DATABASE_URL)('tasks workflow editor (integration, #378)', () => {
+  let fx: ChatTestFixture<'admin' | 'alice'>;
+  let admin: ChatUser;
+  let alice: ChatUser;
+  let standardId = '';
+  let customTypeId = '';
+  let workflowId = '';
+  let taskId = '';
+  let initialStageId = '';
+  let workStageId = '';
+
+  beforeAll(async () => {
+    fx = await setupChatFixture(['admin', 'alice']);
+    await fx.prisma.featureFlag.upsert({
+      where: { key: 'tasks' },
+      update: { enabled: true },
+      create: { key: 'tasks', enabled: true },
+    });
+    const tokens = fx.app.get(TokenService);
+    const sign = async (u: ChatUser, permissions: string[]) => ({
+      ...u,
+      token: await tokens.signAccessToken(
+        { id: u.id, email: u.email, displayName: u.displayName, permissions },
+        'integration-test-session',
+      ),
+    });
+    admin = await sign(fx.users.admin, [
+      Permission.TASK_CREATE,
+      Permission.TASK_WORKFLOW_MANAGE,
+      Permission.TASK_MANAGE_ANY,
+    ]);
+    alice = await sign(fx.users.alice, [Permission.TASK_CREATE]);
+
+    const typesRes = await fx.api(admin, 'GET', '/tasks/types?archived=include');
+    const typesBody = await typesRes.json();
+    if (!Array.isArray(typesBody)) {
+      throw new Error(`GET /tasks/types → ${typesRes.status}: ${JSON.stringify(typesBody)}`);
+    }
+    const types = typesBody as { id: string; code: string; workflowId: string }[];
+    standardId = types.find((t) => t.code === 'task')!.id;
+  }, 120_000);
+
+  afterAll(async () => {
+    if (fx) {
+      if (taskId) await fx.prisma.task.deleteMany({ where: { id: taskId } }).catch(() => {});
+      if (customTypeId) {
+        await fx.prisma.workflowSchemeEntry.deleteMany({ where: { taskTypeId: customTypeId } });
+        await fx.prisma.taskType.deleteMany({ where: { id: customTypeId } });
+      }
+      if (workflowId) {
+        await fx.prisma.workflowTransition.deleteMany({ where: { workflowId } });
+        await fx.prisma.workflowStage.deleteMany({ where: { workflowId } });
+        await fx.prisma.workflow.deleteMany({ where: { id: workflowId } });
+      }
+      await fx.cleanup();
+    }
+  });
+
+  it('без права типы не создаются (403), с правом — копия «Стандартного»', async () => {
+    const body = {
+      name: `IT-тип ${fx.runId}`,
+      icon: 'zap',
+      color: 'info',
+      base: { kind: 'copy', typeId: standardId },
+    };
+    const denied = await fx.api(alice, 'POST', '/tasks/types', {
+      body,
+      key: `it-type-${fx.runId}`,
+    });
+    expect(denied.status).toBe(403);
+
+    const created = await fx.api(admin, 'POST', '/tasks/types', {
+      body,
+      key: `it-type-${fx.runId}`,
+    });
+    expect(created.status).toBe(201);
+    const type = (await created.json()) as {
+      id: string;
+      workflowId: string;
+      creatable: boolean;
+    };
+    expect(type.creatable).toBe(false);
+    customTypeId = type.id;
+    workflowId = type.workflowId;
+  });
+
+  it('документ маршрута: версии и стадии живые', async () => {
+    const res = await fx.api(admin, 'GET', `/tasks/workflows/${workflowId}`);
+    expect(res.status).toBe(200);
+    const detail = (await res.json()) as {
+      version: number;
+      document: {
+        stages: { id: string; name: string; isInitial: boolean }[];
+      };
+    };
+    expect(detail.version).toBe(1);
+    expect(detail.document.stages).toHaveLength(7);
+    const initial = detail.document.stages.find((s) => s.isInitial)!;
+    expect(initial.name).toBe('Ожидает');
+    initialStageId = initial.id;
+    workStageId = detail.document.stages.find((s) => s.name === 'В работе')!.id;
+  });
+
+  it('задача нового типа: скрытый тип отвергается, включённый — работает', async () => {
+    const hidden = await fx.api(admin, 'POST', '/tasks', {
+      body: { title: `IT-задача ${fx.runId}`, typeId: customTypeId },
+      key: `it-task-hidden-${fx.runId}`,
+    });
+    expect(hidden.status).toBe(409);
+
+    await fx.api(admin, 'PATCH', `/tasks/types/${customTypeId}`, {
+      body: { creatable: true },
+      key: `it-creat-${fx.runId}`,
+    });
+    const created = await fx.api(admin, 'POST', '/tasks', {
+      body: { title: `IT-задача ${fx.runId}`, typeId: customTypeId },
+      key: `it-task-${fx.runId}`,
+    });
+    expect(created.status).toBe(201);
+    taskId = ((await created.json()) as { id: string }).id;
+  });
+
+  it('публикация: перенос обязателен (422) → миграция (200) → задачи переехали фоном', async () => {
+    const base = (await (await fx.api(admin, 'GET', `/tasks/workflows/${workflowId}`)).json()) as {
+      version: number;
+      document: {
+        stages: unknown[];
+        transitions: unknown[];
+      };
+    };
+    // Убираем начальную стадию (в ней задача) — без миграции откажет.
+    const gone = (x: { fromStageId?: string | null; toStageId?: string } | { id: string }) =>
+      'fromStageId' in x || 'toStageId' in x
+        ? (x as { fromStageId?: string | null; toStageId?: string }).fromStageId ===
+            initialStageId || (x as { toStageId?: string }).toStageId === initialStageId
+        : (x as { id: string }).id === initialStageId;
+    const doc = {
+      stages: base.document.stages.filter((s) => !gone(s as { id: string })),
+      transitions: base.document.transitions.filter(
+        (t) => !gone(t as { fromStageId?: string | null; toStageId?: string }),
+      ),
+    };
+    for (const stage of doc.stages as { id: string; isInitial?: boolean }[]) {
+      if (stage.id === workStageId) stage.isInitial = true;
+    }
+    const publishKey = `it-pub-${fx.runId}`;
+    const refused = await fx.api(admin, 'POST', `/tasks/workflows/${workflowId}/publish`, {
+      body: { baseVersion: base.version, document: doc, migrations: [] },
+      key: `${publishKey}-1`,
+    });
+    expect(refused.status).toBe(422);
+    const refusedBody = (await refused.json()) as { code: string; details?: unknown };
+    if (refusedBody.code !== ErrorCode.WORKFLOW_MIGRATION_REQUIRED) {
+      throw new Error(`Не тот отказ: ${JSON.stringify(refusedBody).slice(0, 1200)}`);
+    }
+
+    const published = await fx.api(admin, 'POST', `/tasks/workflows/${workflowId}/publish`, {
+      body: {
+        baseVersion: base.version,
+        document: doc,
+        migrations: [{ fromStageId: initialStageId, toStageId: workStageId }],
+      },
+      key: `${publishKey}-2`,
+    });
+    if (published.status !== 200) {
+      throw new Error(
+        `publish → ${published.status}: ${JSON.stringify(await published.json()).slice(0, 800)}`,
+      );
+    }
+    const result = (await published.json()) as { version: number; scheduledMoves: number };
+    expect(result.version).toBe(2);
+    expect(result.scheduledMoves).toBeGreaterThanOrEqual(1);
+
+    // Фоновый перенос (BullMQ): задача покидает архивную стадию (≤15 с).
+    const moved = await new Promise<boolean>((resolve) => {
+      const started = Date.now();
+      const poll = async () => {
+        const task = await fx.prisma.task.findUnique({ where: { id: taskId } });
+        if (task?.stageId === workStageId) return resolve(true);
+        if (Date.now() - started > 15_000) return resolve(false);
+        setTimeout(() => void poll(), 250);
+      };
+      void poll();
+    });
+    expect(moved).toBe(true);
+  });
+
+  it('конфликт версий (409) на устаревшую baseVersion; идемпотентный повтор — тот же ответ', async () => {
+    const detail = (await (
+      await fx.api(admin, 'GET', `/tasks/workflows/${workflowId}`)
+    ).json()) as { version: number; document: unknown };
+    const conflict = await fx.api(admin, 'POST', `/tasks/workflows/${workflowId}/publish`, {
+      body: { baseVersion: 1, document: detail.document, migrations: [] },
+      key: `it-conflict-${fx.runId}`,
+    });
+    expect(conflict.status).toBe(409);
+    expect(((await conflict.json()) as { code: string }).code).toBe(
+      ErrorCode.WORKFLOW_VERSION_CONFLICT,
+    );
+
+    const key = `it-idem-${fx.runId}`;
+    const first = await fx.api(admin, 'POST', `/tasks/workflows/${workflowId}/publish`, {
+      body: { baseVersion: detail.version, document: detail.document, migrations: [] },
+      key,
+    });
+    const replay = await fx.api(admin, 'POST', `/tasks/workflows/${workflowId}/publish`, {
+      body: { baseVersion: detail.version, document: detail.document, migrations: [] },
+      key,
+    });
+    expect(first.status).toBe(200);
+    expect(replay.status).toBe(200);
+    expect(((await replay.json()) as { version: number }).version).toBe(
+      ((await first.json()) as { version: number }).version,
+    );
+  });
+});

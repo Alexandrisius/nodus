@@ -201,7 +201,11 @@ function RouteEditorInner({
         publishBlocked={!store.dirty}
         onUndo={() => store.undo()}
         onRedo={() => store.redo()}
-        onTidy={() => void fitView({ duration: 200, padding: 0.2 })}
+        onTidy={() => {
+          // «Упорядочить»: вернуть слоевую раскладку (сброс ручных позиций) и вписать.
+          useRouteDocStore.getState().resetPositions();
+          void fitView({ duration: 200, padding: 0.2 });
+        }}
         onProblemClick={onProblemClick}
         onDiscard={() => store.discard()}
         onPublish={() => setPublishOpen(true)}

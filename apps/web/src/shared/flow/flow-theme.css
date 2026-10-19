@@ -35,7 +35,7 @@
 
 /* Открытый инспектор справа: атрибуция уезжает левее панели (не под ней). */
 .flow-inspector-open .react-flow__attribution {
-  right: 344px;
+  right: 400px;
 }
 
 .react-flow__attribution:hover {
