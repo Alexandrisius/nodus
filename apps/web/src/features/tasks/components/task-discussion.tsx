@@ -5,6 +5,7 @@ import { Empty, EmptyTitle } from '@nodus/ui/components/empty';
 import { ApiError } from '../../../shared/api-client.js';
 import { useTaskConversation } from '../../../shared/chat/chat-queries.js';
 import { ConversationPane } from '../../../shared/chat/conversation-pane.js';
+import { useConvRoom } from '../../../shared/socket/use-conv-room.js';
 
 /**
  * Обсуждение задачи — ОБЫЧНАЯ беседа мессенджера `type='task'` (канон
@@ -17,6 +18,10 @@ import { ConversationPane } from '../../../shared/chat/conversation-pane.js';
  */
 export const TaskDiscussion = memo(function TaskDiscussion({ taskId }: { taskId: string }) {
   const { data, error } = useTaskConversation(taskId);
+  // Комната беседы — как у мессенджера (#351): без неё не доходят события,
+  // которые gateway шлёт только в conv-комнату (прочтение → галочки
+  // отправителя, «печатает…», реакции, закрепы).
+  useConvRoom(data?.id);
 
   if (data) {
     return (
