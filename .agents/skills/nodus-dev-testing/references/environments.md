@@ -21,7 +21,8 @@
 
 ### Интеграционные тесты — `pnpm --filter @nodus/api|@nodus/gateway test:integration`
 - Читают корневой `.env` (он смотрит в ПРОД-контейнеры `nodus_*`), поэтому контур изолирован принудительно: PG — свои БД `nodus_test` / `nodus_gateway_test` на том же сервере, Redis — **db 15**, файлы — бакет **`nodus-test-files`** (`@nodus/config/test-env`: конфиг vitest переписывает `REDIS_URL`/`STORAGE_BUCKET`, хелперы БД громко падают при чужом значении, #332/#324). До #332 тесты писали доменные события в боевой стрим db0 (их читал прод-gateway) и делили очереди BullMQ с прод-api.
-- В CI — service-контейнеры, та же изоляция (db 15 на пустом Redis безвредна).
+- **Хранилище на машине разработки — учётка тест-контура** `STORAGE_TEST_ACCESS_KEY`/`STORAGE_TEST_SECRET_KEY` в корневом `.env` (#324): права ТОЛЬКО на бакет `nodus-test-files`; бакет и учётку создаёт `minio-init`, если обе переменные заданы (после правки `.env` — `docker compose up -d --no-deps minio-init`, идемпотентно, прод-бакет и учётку api не трогает; имя обязано отличаться от `STORAGE_ACCESS_KEY`/`MINIO_ROOT_USER` — иначе громкий отказ и в `minio-init`, и в тест-конфиге; на проде переменные пустые, отзыв — консоль MinIO → Identity → Users). Конфиг vitest подставляет её вместо `STORAGE_ACCESS_KEY` (учётка api в тестовый бакет не пускает — без тест-учётки наборы падают на старте `S3Error: Valid and authorized credentials required`). Полный прогон api локально: 20 файлов / 130 тестов, ~4 мин (19.10).
+- В CI — service-контейнеры, та же изоляция (db 15 на пустом Redis безвредна); хранилище — root MinIO, `STORAGE_TEST_*` не задаются.
 
 ## Что чем проверять — развёрнуто
 
