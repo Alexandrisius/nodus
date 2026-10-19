@@ -171,7 +171,8 @@ export const TaskBranchDrawer = memo(function TaskBranchDrawer({
   ];
 
   return (
-    <div className="flex h-full w-[18.75rem] flex-col border-r border-border bg-card">
+    // Ширина — колонки карточки (#365); min-w: анимация обрезает, не перекладывает.
+    <div className="flex h-full w-full min-w-[18.75rem] flex-col border-r border-border bg-card">
       {/* Шапка: «←» — шаг назад по переходам сессии; вкладки; закрытие */}
       <div className="flex h-10 shrink-0 items-center gap-1 border-b border-border pr-2 pl-1.5">
         <button
