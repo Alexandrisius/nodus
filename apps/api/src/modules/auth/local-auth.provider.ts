@@ -35,6 +35,10 @@ export class LocalAuthProvider implements AuthProvider {
       await this.authRepository.updatePassword(credentials.id, newHash);
     }
 
-    return this.authRepository.findIdentityById(credentials.id);
+    // Статус — ещё раз ПОСЛЕ argon2 (секунды под нагрузкой): деактивация,
+    // закоммиченная во время проверки пароля, не должна выпустить токен мимо
+    // стоп-листа #333 (его запас покрывает только «перечитал → подписал»).
+    const identity = await this.authRepository.findIdentityById(credentials.id);
+    return identity?.status === 'active' ? identity : null;
   }
 }

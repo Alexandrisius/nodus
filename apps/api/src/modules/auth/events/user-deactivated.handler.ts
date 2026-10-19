@@ -26,7 +26,9 @@ export class UserDeactivatedHandler implements DomainEventHandler<UserDeactivate
   async handle(event: DomainEvent<UserDeactivatedPayload>): Promise<void> {
     const { userId } = event.payload;
     if (!userId) return;
-    await this.revokedUsers.revoke(userId, new Date(event.createdAt));
+    // Сначала PG: отзыв сессий не ждёт упавший Redis (стоп-лист бросит —
+    // диспетчер повторит событие, updateMany идемпотентен).
     await this.authRepository.revokeAllSessions(userId);
+    await this.revokedUsers.revoke(userId, new Date(event.createdAt));
   }
 }

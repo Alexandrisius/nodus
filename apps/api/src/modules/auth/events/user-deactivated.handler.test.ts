@@ -17,5 +17,9 @@ describe('UserDeactivatedHandler', () => {
     });
     expect(revoked.revoke).toHaveBeenCalledWith('u1', new Date('2026-10-19T10:00:00.000Z'));
     expect(repo.revokeAllSessions).toHaveBeenCalledWith('u1');
+    // PG — первым: отзыв сессий не зависит от Redis.
+    expect(repo.revokeAllSessions.mock.invocationCallOrder[0]).toBeLessThan(
+      revoked.revoke.mock.invocationCallOrder[0]!,
+    );
   });
 });
