@@ -46,6 +46,15 @@ describe('@nodus/config/test-env', () => {
     expect(process.env.STORAGE_SECRET_KEY).toBe('test-secret');
   });
 
+  it('тест-учётка совпадает с учёткой api — громкий отказ', () => {
+    setEnv({
+      STORAGE_ACCESS_KEY: 'nodus-api',
+      STORAGE_TEST_ACCESS_KEY: 'nodus-api',
+      STORAGE_TEST_SECRET_KEY: 'x',
+    });
+    expect(() => isolateIntegrationEnv()).toThrow(/совпадает/);
+  });
+
   it('учётки тест-контура нет (CI — root) → учётка не трогается', () => {
     setEnv({ STORAGE_ACCESS_KEY: 'root', STORAGE_SECRET_KEY: 'root-secret' });
     isolateIntegrationEnv();

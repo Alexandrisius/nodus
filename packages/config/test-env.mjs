@@ -30,6 +30,11 @@ export function isolateIntegrationEnv() {
   }
   process.env.STORAGE_BUCKET = INTEGRATION_TEST_BUCKET;
   if (process.env.STORAGE_TEST_ACCESS_KEY && process.env.STORAGE_TEST_SECRET_KEY) {
+    if (process.env.STORAGE_TEST_ACCESS_KEY === process.env.STORAGE_ACCESS_KEY) {
+      throw new Error(
+        'STORAGE_TEST_ACCESS_KEY совпадает с учёткой api — нужна отдельная учётка тест-контура (#324)',
+      );
+    }
     process.env.STORAGE_ACCESS_KEY = process.env.STORAGE_TEST_ACCESS_KEY;
     process.env.STORAGE_SECRET_KEY = process.env.STORAGE_TEST_SECRET_KEY;
   }

@@ -237,6 +237,12 @@ services:
         # Тест-контур разработчика (#324): свой бакет и учётка ТОЛЬКО на него
         # (+ CreateBucket не нужен — бакет создаёт root здесь). Пусто — пропуск.
         if [ -n "$$STORAGE_TEST_ACCESS_KEY" ] && [ -n "$$STORAGE_TEST_SECRET_KEY" ]; then
+          # Опечатка в dev-переменной не должна переписать секрет учётки api
+          # или root (user add — упсерт): громкий отказ, а не тихая поломка.
+          if [ "$$STORAGE_TEST_ACCESS_KEY" = "$$STORAGE_ACCESS_KEY" ] || [ "$$STORAGE_TEST_ACCESS_KEY" = "$$MINIO_ROOT_USER" ]; then
+            echo 'minio-init: STORAGE_TEST_ACCESS_KEY должна отличаться от STORAGE_ACCESS_KEY и MINIO_ROOT_USER' >&2
+            exit 1
+          fi
           mcli mb --ignore-existing local/nodus-test-files
           printf '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["s3:GetObject","s3:PutObject","s3:DeleteObject","s3:AbortMultipartUpload","s3:ListBucket","s3:GetBucketLocation"],"Resource":["arn:aws:s3:::nodus-test-files","arn:aws:s3:::nodus-test-files/*"]}]}' > /tmp/nodus-storage-test-rw.json
           mcli admin user add local "$$STORAGE_TEST_ACCESS_KEY" "$$STORAGE_TEST_SECRET_KEY"
