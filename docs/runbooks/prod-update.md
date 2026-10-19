@@ -38,7 +38,7 @@ Release) — навык `nodus-release`; этот runbook — шаги выка�
 ```bash
 curl -fsS http://localhost:3001/api/v1/health          # api жив, JSON 200
 curl -fsS -o /dev/null -w "%{http_code}\n" https://nodus.by/   # 200 через туннель
-docker exec nodus_web sh -c "grep -l '\"X.Y.Z\"' /usr/share/nginx/html/assets/*.js" \
+docker exec nodus_web sh -c "grep -l 'releases/X.Y.Z.json' /usr/share/nginx/html/assets/*.js" \
   | head -1                                             # бандл несёт новый выпуск
 docker logs --since 5m nodus_api 2>&1 | grep -iE "error|migrat" | tail -20
 ```
