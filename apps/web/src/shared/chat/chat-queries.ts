@@ -13,7 +13,7 @@ import type {
   UrgentPolicy,
 } from '@nodus/contracts';
 
-import { api } from '../api-client.js';
+import { api, ApiError } from '../api-client.js';
 import { isDomainMocked } from '../api/api-mock-config.js';
 import { useSocketStatusStore } from '../socket/socket-status-store.js';
 import { chatKeys, type ConversationScope } from './chat-keys.js';
@@ -193,11 +193,16 @@ export function cachedConversation(
 }
 
 /** Личный диалог с сотрудником (карточка сотрудника — чат всегда справа):
- *  find-or-create на стороне API, клиент читает как query. */
+ *  find-or-create на стороне API (POST — у вызова есть побочный эффект,
+ *  #343), клиент читает как query: повтор идемпотентен. */
 export function useDirectConversation(userId: string) {
   return useQuery({
     queryKey: chatKeys.direct(userId),
-    queryFn: () => api<ConversationListItem>(`/chat/conversations/direct/${userId}`),
+    queryFn: () =>
+      api<ConversationListItem>(`/chat/conversations/direct/${userId}`, { method: 'POST' }),
     enabled: userId.length > 0,
+    // 404 — уволенный без истории переписки (#343): ответ окончательный.
+    retry: (failureCount, error) =>
+      !(error instanceof ApiError && error.status === 404) && failureCount < 1,
   });
 }

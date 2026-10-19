@@ -187,17 +187,17 @@ describe.skipIf(!process.env.DATABASE_URL)('chat: беседы (integration)', (
   });
 
   it('find-or-create direct: повтор идемпотентен, (a,b)==(b,a), «с собой» отдельная', async () => {
-    const first = await fx.api(alice, 'GET', `/chat/conversations/direct/${bob.id}`);
+    const first = await fx.api(alice, 'POST', `/chat/conversations/direct/${bob.id}`);
     expect(first.status).toBe(201);
     const direct = conversationListItemSchema.parse(await first.json());
     expect(direct.type).toBe('direct');
 
-    const repeat = await fx.api(alice, 'GET', `/chat/conversations/direct/${bob.id}`);
+    const repeat = await fx.api(alice, 'POST', `/chat/conversations/direct/${bob.id}`);
     expect(repeat.status).toBe(200); // существующая — не 201
     expect(conversationListItemSchema.parse(await repeat.json()).id).toBe(direct.id);
 
     // Пара симметрична: вызов от второго участника даёт ту же беседу.
-    const fromBob = await fx.api(bob, 'GET', `/chat/conversations/direct/${alice.id}`);
+    const fromBob = await fx.api(bob, 'POST', `/chat/conversations/direct/${alice.id}`);
     expect(fromBob.status).toBe(200);
     const forBob = conversationListItemSchema.parse(await fromBob.json());
     expect(forBob.id).toBe(direct.id);
@@ -217,7 +217,7 @@ describe.skipIf(!process.env.DATABASE_URL)('chat: беседы (integration)', (
     expect(new Set(members.map((m) => m.userId))).toEqual(new Set([alice.id, bob.id]));
 
     // «Заметки»: отдельная беседа, user_min == user_max, превью — сам зритель.
-    const self = await fx.api(alice, 'GET', `/chat/conversations/direct/${alice.id}`);
+    const self = await fx.api(alice, 'POST', `/chat/conversations/direct/${alice.id}`);
     expect(self.status).toBe(201);
     const notes = conversationListItemSchema.parse(await self.json());
     expect(notes.id).not.toBe(direct.id);
@@ -228,7 +228,7 @@ describe.skipIf(!process.env.DATABASE_URL)('chat: беседы (integration)', (
   });
 
   it('поиск: по названию беседы и по имени участника', async () => {
-    const notes = await fx.api(alice, 'GET', `/chat/conversations/direct/${alice.id}`);
+    const notes = await fx.api(alice, 'POST', `/chat/conversations/direct/${alice.id}`);
     const notesItem = conversationListItemSchema.parse(await notes.json());
 
     // По подстроке названия находят оба участника.
@@ -266,7 +266,7 @@ describe.skipIf(!process.env.DATABASE_URL)('chat: беседы (integration)', (
   it('чужая беседа неотличима от несуществующей (404, не палит наличие)', async () => {
     // carol не состоит в direct alice↔bob — но в group состоит; создаём пару без неё.
     const outsider = carol;
-    const directRes = await fx.api(alice, 'GET', `/chat/conversations/direct/${bob.id}`);
+    const directRes = await fx.api(alice, 'POST', `/chat/conversations/direct/${bob.id}`);
     const direct = conversationListItemSchema.parse(await directRes.json());
     const feed = await fx.api(outsider, 'GET', `/chat/conversations/${direct.id}/messages`);
     expect(feed.status).toBe(404);
@@ -275,5 +275,35 @@ describe.skipIf(!process.env.DATABASE_URL)('chat: беседы (integration)', (
       body: { pinned: true },
     });
     expect(apiErrorResponseSchema.parse(await patch.json()).code).toBe(ErrorCode.NOT_FOUND);
+  });
+  it('новая личка: собеседник не видит пустую беседу до первого сообщения (#343)', async () => {
+    const listOf = async (user: ChatUser): Promise<string[]> =>
+      paginatedSchema(conversationListItemSchema)
+        .parse(await (await fx.api(user, 'GET', '/chat/conversations?limit=100')).json())
+        .items.map((i) => i.id);
+    const created = await fx.api(alice, 'POST', `/chat/conversations/direct/${carol.id}`);
+    expect(created.status).toBe(201);
+    const direct = conversationListItemSchema.parse(await created.json());
+    expect(await listOf(carol)).not.toContain(direct.id);
+
+    const sent = await fx.api(alice, 'POST', `/chat/conversations/${direct.id}/messages`, {
+      body: { text: 'Привет' },
+    });
+    expect(sent.status).toBe(201);
+    expect(await listOf(carol)).toContain(direct.id);
+  });
+
+  it('уволенный: новой лички нет (404), существующая открывается (#343)', async () => {
+    await prisma.user.update({ where: { id: bob.id }, data: { status: 'deactivated' } });
+    try {
+      const fresh = await fx.api(carol, 'POST', `/chat/conversations/direct/${bob.id}`);
+      expect(fresh.status).toBe(404);
+      expect(apiErrorResponseSchema.parse(await fresh.json()).code).toBe(ErrorCode.NOT_FOUND);
+      // alice↔bob создана раньше в этом наборе — история доступна.
+      const existing = await fx.api(alice, 'POST', `/chat/conversations/direct/${bob.id}`);
+      expect(existing.status).toBe(200);
+    } finally {
+      await prisma.user.update({ where: { id: bob.id }, data: { status: 'active' } });
+    }
   });
 });

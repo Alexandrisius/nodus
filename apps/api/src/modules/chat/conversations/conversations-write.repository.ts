@@ -30,7 +30,8 @@ export class ConversationsWriteRepository {
     userId: string,
     peerId: string,
     tx?: TransactionClient,
-  ): Promise<{ id: string; created: boolean }> {
+    allowCreate = true,
+  ): Promise<{ id: string; created: boolean } | null> {
     const client = this.client(tx);
     const userMin = userId < peerId ? userId : peerId;
     const userMax = userId < peerId ? peerId : userId;
@@ -40,6 +41,7 @@ export class ConversationsWriteRepository {
       LIMIT 1
     `);
     if (existing[0]) return { id: existing[0].id, created: false };
+    if (!allowCreate) return null;
 
     const permissions = mergePermissions();
     const inserted = await client.$queryRaw<{ id: string }[]>(Prisma.sql`
@@ -50,7 +52,7 @@ export class ConversationsWriteRepository {
       RETURNING id
     `);
     if (inserted[0]) {
-      await this.addDirectMembers(inserted[0].id, userMin, userMax, client);
+      await this.addDirectMembers(inserted[0].id, userMin, userMax, userId, client);
       return { id: inserted[0].id, created: true };
     }
     // Конкурент выиграл-insert: повторный SELECT видит его коммит (READ COMMITTED).
@@ -69,7 +71,7 @@ export class ConversationsWriteRepository {
         RETURNING id
       `);
       if (!retry[0]) throw new Error('find-or-create direct: unexpected double race');
-      await this.addDirectMembers(retry[0].id, userMin, userMax, client);
+      await this.addDirectMembers(retry[0].id, userMin, userMax, userId, client);
       return { id: retry[0].id, created: true };
     }
     return { id: raced[0].id, created: false };
@@ -79,13 +81,18 @@ export class ConversationsWriteRepository {
     conversationId: string,
     userMin: string,
     userMax: string,
+    creatorId: string,
     client: PrismaService | TransactionClient,
   ): Promise<void> {
     const role = 'member';
+    // Собеседник не видит пустую личку, пока в ней нет сообщений (#343):
+    // просмотр карточки сотрудника создаёт беседу, но не сообщает ему об
+    // этом. Первая активность раскрывает скрытую у всех (модель «Скрыть»,
+    // #103) — беседа появится у него вместе с сообщением.
     await client.$executeRaw(Prisma.sql`
-      INSERT INTO conversation_members (conversation_id, user_id, role, updated_at)
-      VALUES (${conversationId}::uuid, ${userMin}::uuid, ${role}, now()),
-             (${conversationId}::uuid, ${userMax}::uuid, ${role}, now())
+      INSERT INTO conversation_members (conversation_id, user_id, role, hidden, updated_at)
+      VALUES (${conversationId}::uuid, ${userMin}::uuid, ${role}, ${userMin !== creatorId}, now()),
+             (${conversationId}::uuid, ${userMax}::uuid, ${role}, ${userMax !== creatorId}, now())
       ON CONFLICT DO NOTHING
     `);
   }

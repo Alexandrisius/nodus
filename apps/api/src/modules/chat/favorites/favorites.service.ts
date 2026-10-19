@@ -149,7 +149,7 @@ export class FavoritesService {
       // первой звезды чат появляется в списке сразу.
       if (created.length > 0) {
         const notes = await this.conversationWrites.findOrCreateDirect(userId, userId, tx);
-        await this.writes.touchLastMessageAt(notes.id, tx);
+        if (notes) await this.writes.touchLastMessageAt(notes.id, tx);
       }
       return created;
     });

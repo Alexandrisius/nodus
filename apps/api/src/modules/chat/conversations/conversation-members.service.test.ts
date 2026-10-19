@@ -78,6 +78,7 @@ function makeProfileReader() {
       async (): Promise<Array<{ id: string; displayName: string; avatarUrl: string | null }>> => [],
     ),
     findMentionMatches: vi.fn(async () => []),
+    filterActiveUserIds: vi.fn(async (ids: string[]) => ids),
   };
 }
 
@@ -190,7 +191,7 @@ describe('участники: addMembers=member, manageSettings=owner, removeMem
 
   it('member МОЖЕТ добавить участника (дефолт addMembers)', async () => {
     s.repo.findMembership.mockResolvedValue(membershipOf(MEMBER, 'member'));
-    s.userProfiles.findRefs.mockResolvedValue([{ id: PEER, displayName: 'Имя', avatarUrl: null }]);
+    s.userProfiles.filterActiveUserIds.mockResolvedValue([PEER]);
     s.repo.findListItem.mockResolvedValue({ id: CONV });
     await s.members.add(MEMBER, CONV, { userIds: [PEER] });
     expect(s.repo.addMembers).toHaveBeenCalledWith(CONV, [PEER], TX);
@@ -202,11 +203,9 @@ describe('участники: addMembers=member, manageSettings=owner, removeMem
     );
   });
 
-  it('уже состоящих и неизвестных пропускает молча', async () => {
+  it('уже состоящих, неизвестных и уволенных пропускает молча (#343)', async () => {
     s.repo.findMembership.mockResolvedValue(membershipOf(MEMBER, 'member'));
-    s.userProfiles.findRefs.mockResolvedValue([
-      { id: 'ghost-known', displayName: 'Имя', avatarUrl: null },
-    ]);
+    s.userProfiles.filterActiveUserIds.mockResolvedValue(['ghost-known']);
     s.repo.findListItem.mockResolvedValue({ id: CONV });
     await s.members.add(MEMBER, CONV, { userIds: [OWNER, 'ghost-known', 'unknown'] });
     expect(s.repo.addMembers).toHaveBeenCalledWith(CONV, ['ghost-known'], TX);
@@ -297,7 +296,7 @@ describe('мутации состава direct-беседы запрещены (
 
   it('add на direct → VALIDATION_FAILED, вставки и события нет', async () => {
     s.repo.findMembership.mockResolvedValue(membershipOf(MEMBER, 'member'));
-    s.userProfiles.findRefs.mockResolvedValue([{ id: PEER, displayName: 'Имя', avatarUrl: null }]);
+    s.userProfiles.filterActiveUserIds.mockResolvedValue([PEER]);
     await expect(s.members.add(MEMBER, CONV, { userIds: [PEER] })).rejects.toMatchObject({
       code: ErrorCode.VALIDATION_FAILED,
     });
@@ -401,10 +400,7 @@ describe('участники: лимит 200 точный (перечёт в tx 
     s = makeServices();
     vi.clearAllMocks();
     s.repo.findMembership.mockResolvedValue(membershipOf(MEMBER, 'member'));
-    s.userProfiles.findRefs.mockResolvedValue([
-      { id: PEER, displayName: 'Имя', avatarUrl: null },
-      { id: PEER2, displayName: 'Имя 2', avatarUrl: null },
-    ]);
+    s.userProfiles.filterActiveUserIds.mockResolvedValue([PEER, PEER2]);
     s.repo.listMembers.mockResolvedValue([]);
   });
 

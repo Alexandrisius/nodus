@@ -546,7 +546,7 @@ MAX_RATIO 0.66, `shared/ui/use-chat-width.ts`; при открытой пане�
   `POST /chat/conversations` (создание группы/канала, #91),
   `PUT /chat/conversations/:id/draft` (черновик, #91; POST messages гасит
   черновик),
-  `GET /chat/conversations/direct/:userId` (find-or-create диалога — чат
+  `POST /chat/conversations/direct/:userId` (find-or-create диалога — чат
   карточки сотрудника; диалог с собой — «заметки для себя»),
   `GET|POST /chat/conversations/:id/messages` (+`?threadRootId=` — корень
   первым, POST в тред инкрементирует счётчик корня),

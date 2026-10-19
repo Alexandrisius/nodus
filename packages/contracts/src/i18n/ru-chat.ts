@@ -104,6 +104,7 @@ export const chatStrings = {
   backToFeed: 'К ленте',
   feedEmpty: 'В канале пока нет сообщений',
   directEmpty: 'Сообщений пока нет — напишите первое',
+  directUnavailable: 'Сотрудник деактивирован — новой переписки нет',
   notes: 'Избранное',
   tabSettings: 'Настройка',
   settingsAppearance: 'Оформление',

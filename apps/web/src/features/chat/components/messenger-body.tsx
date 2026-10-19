@@ -109,12 +109,19 @@ export function MessengerBody({
     if (q.length < 2 || tab === 'tasks') return [];
     return (usersData?.items ?? []).filter(
       (u: UserListItem) =>
-        u.id !== meId && u.displayName.toLowerCase().includes(q) && !directPeerIds.has(u.id),
+        // Новую личку — только с действующим (#343); с уволенным беседа,
+        // если была, уже в списке бесед.
+        u.status === 'active' &&
+        u.id !== meId &&
+        u.displayName.toLowerCase().includes(q) &&
+        !directPeerIds.has(u.id),
     );
   }, [q, tab, usersData, directPeerIds, meId]);
   async function openDirectChat(userId: string): Promise<void> {
     try {
-      const conversation = await api<ConversationListItem>(`/chat/conversations/direct/${userId}`);
+      const conversation = await api<ConversationListItem>(`/chat/conversations/direct/${userId}`, {
+        method: 'POST',
+      });
       // Беседа могла быть скрыта (архив): открытие из поиска людей возвращает
       // её в список ДО перехода (#103) — иначе рабочий экран не найдёт её
       // в кэше списка (gotchas: find-or-create + navigate без инвалидации).
