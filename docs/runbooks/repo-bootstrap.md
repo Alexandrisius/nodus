@@ -124,6 +124,16 @@ gh api -X PUT repos/Alexandrisius/nodus/branches/main/protection \
 - Node 24 (≥ **24.15** — требование schematics NestJS 12 для `nest generate`/`upgrade`; пин мажорки — `.node-version`), pnpm 11 (`npm i -g pnpm@11`; corepack необязателен).
 - `cp .env.example .env` и заполнить пароли — требуется для `docker compose up`.
 - Pre-commit хук ставится сам при `pnpm install` (Husky). Скрипты и хуки — всегда LF (см. Gotchas в AGENTS.md).
+- **Windows: права на каталог проекта** (#337). Каталог на диске `D:\` по умолчанию наследует `Прошедшие проверку:(M)` и `Пользователи:(RX)`: любая локальная учётка читает `.env` с прод-секретами и может подменить JS/бинарники в `node_modules` (выполнятся при следующем `pnpm`). Сразу после клонирования, в PowerShell от своей учётки:
+
+  ```powershell
+  $p = 'D:\Project\AI\nodus'   # путь клона
+  icacls $p /grant:r "${env:USERDOMAIN}\${env:USERNAME}:(OI)(CI)F" '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' /Q
+  icacls $p /inheritance:r /Q   # дочерние наследуют новый DACL автоматически
+  icacls $p\.env               # ожидаемо: Администраторы, СИСТЕМА, вы — и никого больше
+  ```
+
+  Откат — `icacls $p /reset /T`. Docker Desktop (bind-mount `infra/desktop-dist`) и git работают от вашей учётки — не задеваются (проверено 19.10). Пин `@swc/core` 1.15.x (#324) это НЕ снимает: SWC ≥ 1.16 проверяет кэш в профиле (`%LOCALAPPDATA%\swc`), а не в проекте.
 
 ## Проверка результата
 
