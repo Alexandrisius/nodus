@@ -54,7 +54,9 @@ workflow.instance_started / step_completed / approved / rejected / escalated
 custom_field.definition_changed / value_changed  # агрегат + код поля + старое/новое значение
 ```
 
-Поле `audience` в payload событий (`task.*`, `chat.sticker_*`) — служебная адресация для gateway (user-комнаты); клиенту не доставляется — gateway вырезает его до отправки (#328). Доменные данные события (составы `memberIds`/`userIds` событий беседы) уходят клиенту как есть.
+Поле `audience` в payload событий (`task.*`, `chat.sticker_*`) — служебная адресация для gateway (user-комнаты); клиенту не доставляется — gateway вырезает его до отправки (#328).
+
+**Каталожные события #378** — `task.type_created / type_updated / type_archived / task.workflow_published` — БЕЗ `audience`: каталог типов и маршрутов виден всем, gateway рассылает их всем авторизованным сокетам (комната presence, паттерн корпоративных стикерпаков); клиент инвалидирует типы/статусы/маршруты. Доменные данные события (составы `memberIds`/`userIds` событий беседы) уходят клиенту как есть.
 
 **Правила событий:**
 - Префикс = имя модуля-владельца в единственном числе (`tasks` → `task`, `workflows` → `workflow`, `correspondence` → `correspondence`); дефисы в имени модуля заменяются подчёркиваниями (`custom-fields` → `custom_field.*`).
