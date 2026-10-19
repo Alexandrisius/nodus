@@ -72,8 +72,9 @@ test.describe('редактор маршрутов: от типа до зада�
     await page.keyboard.press('Escape');
 
     // 6. Задача нового типа (экспресс-форма журнала задач).
-    await page.goto('/tasks');
-    await page.getByRole('button', { name: 'Создать', exact: true }).click();
+    await page.goto('/tasks?view=list');
+    // Тулбарная «Создать» (у колонок канбана свои плюсики).
+    await page.getByRole('button', { name: 'Создать', exact: true }).first().click();
     await page.getByPlaceholder('Название задачи').fill(`Задача ${typeName}`);
     await page.getByRole('combobox', { name: 'Тип' }).click();
     await page.getByRole('option', { name: new RegExp(typeName) }).click();
