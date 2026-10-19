@@ -272,19 +272,17 @@ describe('auth + directory (integration)', () => {
     });
     expect(deactivate.status).toBe(200);
 
-    // До доставки события старый access ещё принимается произвольным эндпоинтом.
-    const anyEndpoint = (): Promise<Response> =>
-      fetch(`${baseUrl}/home/summary`, {
-        headers: { authorization: `Bearer ${employeeTokens.accessToken}` },
-      });
-    expect((await anyEndpoint()).status).toBe(200);
-
     // Диспетчер доставляет directory.user.deactivated → auth отзывает сессии
-    // и ставит стоп-лист access-токенов (#333).
+    // и ставит стоп-лист access-токенов (#333): старый, ещё не истёкший access
+    // отвергается произвольным эндпоинтом именно стоп-листом (не подписью/сроком).
     await app.get(EventDispatcher).dispatchPending();
-    const revoked = await anyEndpoint();
+    const revoked = await fetch(`${baseUrl}/home/summary`, {
+      headers: { authorization: `Bearer ${employeeTokens.accessToken}` },
+    });
     expect(revoked.status).toBe(401);
-    expect(apiErrorResponseSchema.parse(await revoked.json()).code).toBe(ErrorCode.UNAUTHENTICATED);
+    const revokedError = apiErrorResponseSchema.parse(await revoked.json());
+    expect(revokedError.code).toBe(ErrorCode.UNAUTHENTICATED);
+    expect(revokedError.message).toBe('Access token revoked');
 
     const refresh = await fetch(`${baseUrl}/auth/refresh`, {
       method: 'POST',
