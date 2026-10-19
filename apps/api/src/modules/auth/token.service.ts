@@ -13,6 +13,8 @@ export interface AccessTokenPayload {
   permissions: string[];
   /** Сессия, которой выдан токен (для отзыва цепочки). */
   sid: string;
+  /** Момент выпуска (секунды epoch) — ставит jsonwebtoken; стоп-лист #333. */
+  iat?: number;
 }
 
 /**

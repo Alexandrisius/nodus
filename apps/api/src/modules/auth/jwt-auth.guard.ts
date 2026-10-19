@@ -6,13 +6,15 @@ import type { AuthUser } from '@nodus/contracts';
 import { REQUEST_USER_KEY } from '../../core/decorators/get-user.decorator.js';
 import { IS_PUBLIC_KEY } from '../../core/decorators/public.decorator.js';
 import { DomainException } from '../../core/errors/domain-exception.js';
+import { RevokedUsersStore } from './revoked-users.store.js';
 import { TokenService, type AccessTokenPayload } from './token.service.js';
 
 /**
  * Глобальная аутентификация (default-deny, I8): каждый маршрут требует
  * валидный access-JWT, кроме помеченных `@Public()`. Верификация stateless
- * (подпись+срок); деактивация пользователя срабатывает в пределах TTL
- * access-токена (≤15 мин) — README модуля. Кладёт AuthUser в request
+ * (подпись+срок) + стоп-лист уволенных в Redis (#333): токен, выданный до
+ * деактивации владельца, отвергается сразу, не дожидаясь TTL (≤15 мин) —
+ * README модуля. Кладёт AuthUser в request
  * (REQUEST_USER_KEY) для `@GetUser()` и PermissionGuard.
  *
  * Регистрация — APP_GUARD в AppModule ПЕРЕД PermissionGuard.
@@ -22,6 +24,7 @@ export class JwtAuthGuard implements CanActivate {
   constructor(
     private readonly tokenService: TokenService,
     private readonly reflector: Reflector,
+    private readonly revokedUsers: RevokedUsersStore,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -42,6 +45,9 @@ export class JwtAuthGuard implements CanActivate {
       payload = await this.tokenService.verifyAccessToken(token);
     } catch {
       throw DomainException.unauthenticated('Access token expired or invalid');
+    }
+    if (await this.revokedUsers.isRevoked(payload.sub, payload.iat)) {
+      throw DomainException.unauthenticated('Access token revoked');
     }
 
     const user: AuthUser = {
