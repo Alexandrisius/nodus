@@ -71,7 +71,9 @@ export class EventDispatcher implements OnModuleInit, OnModuleDestroy {
   onModuleInit(): void {
     this.registerHandlers();
     this.timer = setInterval(() => {
-      void this.dispatchPending();
+      // Фоновый тик при живом проходе — пропуск, не очередь (медленный
+      // обработчик не копит ожидающие тики); ждёт только ручной вход.
+      if (!this.pass) void this.dispatchPending();
     }, POLL_INTERVAL_MS);
     this.timer.unref();
   }
