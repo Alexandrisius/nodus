@@ -202,7 +202,8 @@ export function createRealtimeInvalidator(queryClient: QueryClient): RealtimeInv
           // Живые задачи (#311): коллега сменил стадию/срок/состав — у
           // аудитории задачи деталь и переходы догоняют быстро, доски,
           // журнал и счётчики — по медленному ярусу (одна пересборка на пачку).
-          if (envelope.type.startsWith('task.')) pushTaskKeys(batcher, envelope.type, payload);
+          if (envelope.type.startsWith('task.'))
+            pushTaskKeys(batcher, queryClient, envelope.type, payload);
           return;
       }
     },
