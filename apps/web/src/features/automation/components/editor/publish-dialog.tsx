@@ -4,6 +4,7 @@ import { errorMessages, ui } from '@nodus/contracts';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@nodus/ui/components/dialog';
 import { Button } from '@nodus/ui/components/button';
 import { ApiError } from '../../../../shared/api-client.js';
+import { pluralRu } from '../../lib/plural-ru.js';
 
 import type { usePublishWorkflow } from '../../api/automation-api.js';
 import type { WorkflowDraftDocument } from '@nodus/contracts';
@@ -24,7 +25,7 @@ function defaultTargetOf(
   );
 }
 
-/** Сводка «+2 статуса, −1 статус, 3 кнопки изменены». */
+/** Сводка по спеке: «+2 статуса, −1 статус, 3 кнопки изменены». */
 export function publishSummary(
   baseline: WorkflowDraftDocument,
   next: WorkflowDraftDocument,
@@ -33,23 +34,20 @@ export function publishSummary(
   const removedStages = baseline.stages.filter(
     (s) => !next.stages.some((n) => n.id === s.id),
   ).length;
-  const addedTransitions = next.transitions.filter(
-    (t) => !baseline.transitions.some((b) => b.id === t.id),
-  ).length;
-  const removedTransitions = baseline.transitions.filter(
-    (t) => !next.transitions.some((n) => n.id === t.id),
-  ).length;
   const changedTransitions = next.transitions.filter((t) => {
     const before = baseline.transitions.find((b) => b.id === t.id);
     return before && JSON.stringify(before) !== JSON.stringify(t);
   }).length;
 
   const parts: string[] = [];
-  if (addedStages) parts.push(`+${addedStages}`);
-  if (removedStages) parts.push(`−${removedStages}`);
-  const stagesWord = `${ui.automation.stageName.toLowerCase()}: ${parts.join(' ') || '0'}`;
-  const buttonsWord = `${ui.automation.addTransition.toLowerCase()} +${addedTransitions} −${removedTransitions} ~${changedTransitions}`;
-  return `${stagesWord} · ${buttonsWord}`;
+  if (addedStages) parts.push(`+${addedStages} ${pluralRu(addedStages, ui.automation.statStages)}`);
+  if (removedStages)
+    parts.push(`−${removedStages} ${pluralRu(removedStages, ui.automation.statStages)}`);
+  if (changedTransitions)
+    parts.push(
+      `${changedTransitions} ${pluralRu(changedTransitions, ui.automation.buttonsChangedForms)}`,
+    );
+  return parts.length > 0 ? parts.join(', ') : ui.automation.publishNothingChanged;
 }
 
 /**

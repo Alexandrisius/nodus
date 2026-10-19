@@ -85,7 +85,6 @@ export function FlowCanvas({
         nodesFocusable
         edgesFocusable
         connectionMode={ConnectionMode.Loose}
-        deleteKeyCode={interactive ? ['Delete', 'Backspace'] : null}
         minZoom={0.4}
         maxZoom={1.6}
         fitView={fitView}

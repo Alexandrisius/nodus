@@ -228,7 +228,7 @@ function StageFields({
                 <span className="flex shrink-0 flex-col opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
                   <button
                     type="button"
-                    aria-label={ui.automation.undo}
+                    aria-label={ui.automation.moveUp}
                     disabled={index === 0}
                     onClick={() => onMoveTransition(t.id, index - 1)}
                     className="rounded p-0.5 hover:bg-accent"
@@ -237,7 +237,7 @@ function StageFields({
                   </button>
                   <button
                     type="button"
-                    aria-label={ui.automation.redo}
+                    aria-label={ui.automation.moveDown}
                     disabled={index === outgoing.length - 1}
                     onClick={() => onMoveTransition(t.id, index + 1)}
                     className="rounded p-0.5 hover:bg-accent"

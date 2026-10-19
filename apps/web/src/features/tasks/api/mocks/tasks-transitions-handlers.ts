@@ -9,7 +9,8 @@ import {
   demoTasks,
 } from '../../../../shared/mocks/data/tasks.js';
 import { letterIdByTaskId, syncLetterWithTasks } from '../../../../shared/mocks/data/letters.js';
-import { standardDocument } from '../../../../shared/mocks/data/workflows.js';
+import { quickDocument, standardDocument } from '../../../../shared/mocks/data/workflows.js';
+import { quickTaskType } from '../../../../shared/mocks/data/task-stages.js';
 
 function findTask(id: string): TaskListItem | undefined {
   return (
@@ -20,22 +21,27 @@ function findTask(id: string): TaskListItem | undefined {
   );
 }
 
-/** Маршрут «Стандартный» ревизии 2 (#378): зеркало `standardDocument`
- *  (workflows.ts ← каталог API system-catalog.ts). Условия «кто» в моке не
+/** Маршрут задачи по её типу (#378): «Стандартный» или «Быстрый» —
+ *  зеркало документов workflows.ts (каталог API). Условия «кто» в моке не
  *  проверяются (демо-пользователь — полный доступ), показ (`display`) и
  *  порядок — как у сервера: кнопки статуса по sortOrder, затем «из любого»;
  *  встроенное правило «итог → итог» прячет «Отменить» у закрытых. */
+function documentOfTask(task: TaskListItem) {
+  return task.type.id === quickTaskType.id ? quickDocument : standardDocument;
+}
+
 function transitionsOf(task: TaskListItem): TaskTransition[] {
+  const route = documentOfTask(task);
   const closed = task.stage.systemState === 'closed';
-  const stageIds = new Set(standardDocument.stages.map((s) => s.id));
+  const stageIds = new Set(route.stages.map((s) => s.id));
   const own: TaskTransition[] = [];
   const anyFrom: TaskTransition[] = [];
-  for (const t of standardDocument.transitions) {
+  for (const t of route.transitions) {
     if (!stageIds.has(task.stage.id) || !stageIds.has(t.toStageId)) continue;
     if (t.fromStageId !== null && t.fromStageId !== task.stage.id) continue;
     if (t.fromStageId === null && closed) continue; // «итог → итог» скрыт
     if (t.toStageId === task.stage.id) continue;
-    const target = stageDoc(t.toStageId);
+    const target = stageDocOf(route, t.toStageId);
     const item: TaskTransition = {
       id: t.id,
       name: t.name,
@@ -49,33 +55,34 @@ function transitionsOf(task: TaskListItem): TaskTransition[] {
     };
     (t.fromStageId === null ? anyFrom : own).push(item);
   }
-  own.sort((a, b) => orderOf(a.id) - orderOf(b.id));
+  own.sort((a, b) => orderOf(route, a.id) - orderOf(route, b.id));
   return [...own, ...anyFrom];
 }
 
-function stageDoc(id: string) {
-  return standardDocument.stages.find((s) => s.id === id)!;
+function stageDocOf(route: typeof standardDocument, id: string) {
+  return route.stages.find((s) => s.id === id)!;
 }
 
-function orderOf(transitionId: string): number {
-  return standardDocument.transitions.find((t) => t.id === transitionId)?.sortOrder ?? 0;
+function orderOf(route: typeof standardDocument, transitionId: string): number {
+  return route.transitions.find((t) => t.id === transitionId)?.sortOrder ?? 0;
 }
 
 /** Пост-эффект `route_if` («Завершить»): постановщик сам себе исполнитель —
  *  цель подменяется (утверждение пропускается, #378). */
 function resolveTarget(task: TaskListItem, transition: TaskTransition): TaskStage {
-  const doc = standardDocument.transitions.find((t) => t.id === transition.id);
+  const route = documentOfTask(task);
+  const doc = route.transitions.find((t) => t.id === transition.id);
   const routeIf = doc?.rules.postFunctions.find((p) => p.kind === 'route_if');
   if (
     routeIf &&
     routeIf.kind === 'route_if' &&
     task.creator.id === task.assignee?.id &&
-    standardDocument.stages.some((s) => s.id === routeIf.toStageId)
+    route.stages.some((s) => s.id === routeIf.toStageId)
   ) {
-    const substituted = stageDoc(routeIf.toStageId);
+    const substituted = stageDocOf(route, routeIf.toStageId);
     return { ...substituted, order: substituted.sortOrder };
   }
-  const target = stageDoc(transition.toStageId);
+  const target = stageDocOf(route, transition.toStageId);
   return { ...target, order: target.sortOrder };
 }
 

@@ -106,13 +106,13 @@ describe('checkWorkflowDocument: валидный документ', () => {
 describe('checkWorkflowDocument: ошибки публикации', () => {
   it('no_initial — нет начального статуса', () => {
     const doc = baseDocument();
-    doc.stages[0].isInitial = false;
+    doc.stages[0]!.isInitial = false;
     expect(codes(checkWorkflowDocument(doc))).toContain('no_initial');
   });
 
   it('multiple_initial — два начальных', () => {
     const doc = baseDocument();
-    doc.stages[1].isInitial = true;
+    doc.stages[1]!.isInitial = true;
     expect(codes(checkWorkflowDocument(doc))).toContain('multiple_initial');
   });
 
@@ -152,8 +152,8 @@ describe('checkWorkflowDocument: ошибки публикации', () => {
 
   it('empty_name — пустое название статуса и кнопки', () => {
     const doc = baseDocument();
-    doc.stages[1].name = '   ';
-    doc.transitions[0].name = '';
+    doc.stages[1]!.name = '   ';
+    doc.transitions[0]!.name = '';
     const problems = checkWorkflowDocument(doc);
     expect(problems).toContainEqual(expect.objectContaining({ code: 'empty_name', stageId: 's2' }));
     expect(problems).toContainEqual(
@@ -163,7 +163,7 @@ describe('checkWorkflowDocument: ошибки публикации', () => {
 
   it('duplicate_stage_name — два статуса с одним названием', () => {
     const doc = baseDocument();
-    doc.stages[5].name = 'Завершена';
+    doc.stages[5]!.name = 'Завершена';
     const problems = checkWorkflowDocument(doc);
     expect(problems).toContainEqual(
       expect.objectContaining({ code: 'duplicate_stage_name', stageId: 's6' }),
@@ -238,8 +238,8 @@ describe('checkWorkflowDocument: ошибки публикации', () => {
 
   it('outcome_mismatch — итог задан не у «Итога» и не задан у «Итога»', () => {
     const doc = baseDocument();
-    doc.stages[1].outcome = 'success';
-    doc.stages[4].outcome = null;
+    doc.stages[1]!.outcome = 'success';
+    doc.stages[4]!.outcome = null;
     const problems = checkWorkflowDocument(doc);
     expect(problems).toContainEqual(
       expect.objectContaining({ code: 'outcome_mismatch', stageId: 's2' }),

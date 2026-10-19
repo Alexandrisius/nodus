@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { z } from 'zod';
 import type {
   TaskSystemState,
   TransitionDisplay,
@@ -8,16 +7,12 @@ import type {
   WorkflowDraftStage,
   WorkflowDraftTransition,
 } from '@nodus/contracts';
-import { workflowDraftDocumentSchema, ui } from '@nodus/contracts';
+import { ui } from '@nodus/contracts';
+import { clearDraft, persistDraft, readDraft, readStaleDraft } from './route-draft-storage.js';
+import { newId, normalize, stepHistory, withHistory } from './route-doc-helpers.js';
 
-/**
- * Стор рабочей копии маршрута (#378, ADR-0021): документ живёт на клиенте,
- * история — снимки (до 100 шагов), черновик автосохраняется в localStorage
- * (`nodus-workflow-draft-v1:<workflowId>`) с zod-валидацией rehydrate;
- * публикация и «Отменить изменения» сбрасывают dirty.
- */
-
-const HISTORY_LIMIT = 100;
+/** Стор рабочей копии маршрута (#378, ADR-0021): документ, история-снимки,
+ *  черновик в localStorage (route-draft-storage), публикация/отмена → сброс dirty. */
 
 export type SelectionRef = { kind: 'stage' | 'transition'; id: string } | null;
 
@@ -33,6 +28,8 @@ interface RouteDocState {
   future: WorkflowDraftDocument[];
   /** Когда черновик сохранён (баннер «Продолжить черновик от …»). */
   draftSavedAt: string | null;
+  /** Устаревший черновик (версия ушла) — баннер «Черновик устарел». */
+  staleDraftAt: string | null;
 
   load: (detail: WorkflowDetail) => void;
   select: (ref: SelectionRef) => void;
@@ -57,81 +54,6 @@ interface RouteDocState {
   markPublished: (version: number) => void;
 }
 
-function newId(): string {
-  return `new:${crypto.randomUUID()}`;
-}
-
-/** sortOrder = индекс внутри колонки этапа (нормализуется после каждой
- *  структурной правки — раскладка и публикация читают одно и то же). */
-function normalize(doc: WorkflowDraftDocument): WorkflowDraftDocument {
-  const counters = new Map<TaskSystemState, number>();
-  const stages = doc.stages.map((stage) => {
-    const next = counters.get(stage.systemState) ?? 0;
-    counters.set(stage.systemState, next + 1);
-    return { ...stage, sortOrder: next };
-  });
-  return { stages, transitions: doc.transitions };
-}
-
-function withHistory(
-  state: Pick<RouteDocState, 'document' | 'past' | 'future' | 'dirty'>,
-  next: WorkflowDraftDocument,
-): Pick<RouteDocState, 'document' | 'past' | 'future' | 'dirty'> {
-  return {
-    document: next,
-    past: [...state.past, state.document].slice(-HISTORY_LIMIT),
-    future: [],
-    dirty: true,
-  };
-}
-
-/** Черновик в localStorage: envelope с базовой версией (zod на границе, I7). */
-const draftEnvelopeSchema = z.object({
-  document: workflowDraftDocumentSchema,
-  baseVersion: z.number().int().min(1),
-  savedAt: z.string(),
-});
-
-function readDraft(
-  workflowId: string,
-  version: number,
-): { document: WorkflowDraftDocument; savedAt: string } | null {
-  try {
-    const raw = localStorage.getItem(draftKey(workflowId));
-    if (!raw) return null;
-    const parsed = draftEnvelopeSchema.safeParse(JSON.parse(raw));
-    if (!parsed.success || parsed.data.baseVersion !== version) return null;
-    return { document: parsed.data.document, savedAt: parsed.data.savedAt };
-  } catch {
-    return null;
-  }
-}
-
-function draftKey(workflowId: string): string {
-  return `nodus-workflow-draft-v1:${workflowId}`;
-}
-
-function persistDraft(state: RouteDocState): void {
-  const payload = {
-    document: state.document,
-    baseVersion: state.baseVersion,
-    savedAt: new Date().toISOString(),
-  };
-  try {
-    localStorage.setItem(draftKey(state.workflowId), JSON.stringify(payload));
-  } catch {
-    // localStorage недоступен (приватный режим) — черновик живёт в сессии.
-  }
-}
-
-function clearDraft(workflowId: string): void {
-  try {
-    localStorage.removeItem(draftKey(workflowId));
-  } catch {
-    /* noop */
-  }
-}
-
 /** Фабрика стора на маршрут (черновик персистится на каждый документ-шаг). */
 export function createRouteDocStore(workflowId: string) {
   return create<RouteDocState>()((set, get) => ({
@@ -144,6 +66,7 @@ export function createRouteDocStore(workflowId: string) {
     past: [],
     future: [],
     draftSavedAt: null,
+    staleDraftAt: null,
 
     load: (detail) => {
       const baseline: WorkflowDraftDocument = {
@@ -155,10 +78,11 @@ export function createRouteDocStore(workflowId: string) {
         workflowId: detail.id,
         baseVersion: detail.version,
         baseline,
-        // Черновик той же версии подхватывается сразу (баннер предлагает
-        // «Сбросить»); устаревший — игнорируется.
+        // Черновик той же версии — подхватывается (баннер «Сбросить»);
+        // устаревший — игнорируется, но о нём сообщаем (staleDraftAt).
         document: draft?.document ?? baseline,
         draftSavedAt: draft?.savedAt ?? null,
+        staleDraftAt: draft ? null : readStaleDraft(detail.id, detail.version),
         selection: null,
         dirty: draft !== null,
         past: [],
@@ -168,7 +92,7 @@ export function createRouteDocStore(workflowId: string) {
 
     select: (ref) => set({ selection: ref }),
 
-    addStage: (band) => {
+    addStage: (band: TaskSystemState) => {
       const id = newId();
       set((s) => {
         const stage: WorkflowDraftStage = {
@@ -184,7 +108,7 @@ export function createRouteDocStore(workflowId: string) {
         const next = normalize({ ...s.document, stages: [...s.document.stages, stage] });
         return { ...withHistory(s, next), selection: { kind: 'stage', id } };
       });
-      persistDraft(get());
+      persistDraft(get().workflowId, get().document, get().baseVersion);
       return id;
     },
 
@@ -198,7 +122,7 @@ export function createRouteDocStore(workflowId: string) {
         const next = normalize({ ...s.document, stages: touched });
         return withHistory(s, next);
       });
-      persistDraft(get());
+      persistDraft(get().workflowId, get().document, get().baseVersion);
     },
 
     moveStage: (id, targetIndex) => {
@@ -214,7 +138,7 @@ export function createRouteDocStore(workflowId: string) {
         const stages = s.document.stages.map((st) => byId.get(st.id) ?? st);
         return withHistory(s, normalize({ ...s.document, stages }));
       });
-      persistDraft(get());
+      persistDraft(get().workflowId, get().document, get().baseVersion);
     },
 
     removeStage: (id) => {
@@ -229,7 +153,7 @@ export function createRouteDocStore(workflowId: string) {
           selection: s.selection?.kind === 'stage' && s.selection.id === id ? null : s.selection,
         };
       });
-      persistDraft(get());
+      persistDraft(get().workflowId, get().document, get().baseVersion);
     },
 
     addTransition: (from, to) => {
@@ -256,7 +180,7 @@ export function createRouteDocStore(workflowId: string) {
         ...withHistory(s, { ...s.document, transitions: [...s.document.transitions, transition] }),
         selection: { kind: 'transition', id },
       }));
-      persistDraft(get());
+      persistDraft(get().workflowId, get().document, get().baseVersion);
       return id;
     },
 
@@ -267,7 +191,7 @@ export function createRouteDocStore(workflowId: string) {
         );
         return withHistory(s, { ...s.document, transitions });
       });
-      persistDraft(get());
+      persistDraft(get().workflowId, get().document, get().baseVersion);
     },
 
     setTransitionPrimary: (id) => {
@@ -284,7 +208,7 @@ export function createRouteDocStore(workflowId: string) {
         });
         return withHistory(s, { ...s.document, transitions });
       });
-      persistDraft(get());
+      persistDraft(get().workflowId, get().document, get().baseVersion);
     },
 
     removeTransition: (id) => {
@@ -296,7 +220,7 @@ export function createRouteDocStore(workflowId: string) {
             s.selection?.kind === 'transition' && s.selection.id === id ? null : s.selection,
         };
       });
-      persistDraft(get());
+      persistDraft(get().workflowId, get().document, get().baseVersion);
     },
 
     /** Порядок кнопок внутри статуса (sortOrder переназначается группе). */
@@ -317,35 +241,25 @@ export function createRouteDocStore(workflowId: string) {
         );
         return withHistory(s, { ...s.document, transitions });
       });
-      persistDraft(get());
+      persistDraft(get().workflowId, get().document, get().baseVersion);
     },
 
     undo: () => {
       set((s) => {
-        const previous = s.past[s.past.length - 1];
+        const previous = s.past.at(-1);
         if (!previous) return {};
-        return {
-          document: previous,
-          past: s.past.slice(0, -1),
-          future: [s.document, ...s.future].slice(0, HISTORY_LIMIT),
-          dirty: JSON.stringify(previous) !== JSON.stringify(s.baseline),
-        };
+        return stepHistory(s, previous, s.past.slice(0, -1), [s.document, ...s.future]);
       });
-      persistDraft(get());
+      persistDraft(get().workflowId, get().document, get().baseVersion);
     },
 
     redo: () => {
       set((s) => {
         const [next, ...rest] = s.future;
         if (!next) return {};
-        return {
-          document: next,
-          past: [...s.past, s.document].slice(-HISTORY_LIMIT),
-          future: rest,
-          dirty: JSON.stringify(next) !== JSON.stringify(s.baseline),
-        };
+        return stepHistory(s, next, [...s.past, s.document], rest);
       });
-      persistDraft(get());
+      persistDraft(get().workflowId, get().document, get().baseVersion);
     },
 
     discard: () => {
@@ -355,6 +269,7 @@ export function createRouteDocStore(workflowId: string) {
         past: [],
         future: [],
         draftSavedAt: null,
+        staleDraftAt: null,
         selection: null,
       }));
       clearDraft(get().workflowId);

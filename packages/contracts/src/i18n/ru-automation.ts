@@ -65,6 +65,8 @@ export const automationStrings = {
   tidyUp: 'Упорядочить',
   undo: 'Отменить',
   redo: 'Повторить',
+  moveUp: 'Выше',
+  moveDown: 'Ниже',
   publish: 'Опубликовать',
   discard: 'Отменить изменения',
   problemsChip: 'Проблемы',
@@ -142,6 +144,8 @@ export const automationStrings = {
   },
   /** Публикация. */
   publishTitle: 'Публикация маршрута',
+  buttonsChangedForms: ['кнопка изменена', 'кнопки изменены', 'кнопок изменено'],
+  publishNothingChanged: 'Изменений нет',
   publishMigrateTo: 'перенести в',
   publishRestate: 'сменится этап',
   publishRestateNote: '«Мой план» сотрудников обновится',
@@ -154,6 +158,7 @@ export const automationStrings = {
   draftContinue: 'Продолжить черновик от',
   draftReset: 'Сбросить',
   draftStale: 'Черновик устарел — маршрут опубликовали позже',
+  unsavedTitle: 'Есть неопубликованные изменения',
   /** Диалог «Схема маршрута» из карточки задачи. */
   routeViewTitle: 'Схема маршрута',
   routeViewOfType: 'Маршрут типа',

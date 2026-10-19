@@ -10,16 +10,18 @@ import {
 import { checkWorkflowDocument } from '@nodus/contracts';
 import type { TaskSystemState, WorkflowDetail, WorkflowProblem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
-import { cn } from '@nodus/ui/lib/utils';
 
+import { useQueryClient } from '@tanstack/react-query';
 import { usePublishWorkflow } from '../../api/automation-api.js';
 import { useCanManageWorkflows } from '../../lib/use-can-manage-workflows.js';
 import { useRouteDocStore } from '../../model/route-doc-store.js';
+import { NavigationGuard, DraftBanner, TargetPicker, ZoomControls } from './editor-parts.js';
 import { EditorToolbar } from './editor-toolbar.js';
 import { PublishDialog } from './publish-dialog.js';
 import { StageInspector } from './stage-inspector.js';
 import { TransitionInspector } from './transition-inspector.js';
 import { FlowCanvas } from '../../../../shared/flow/flow-canvas.js';
+import { workflowKeys } from '../../../../shared/workflow/workflow-api.js';
 import { buildRouteGraph } from '../../../../shared/flow/route-graph.js';
 import { layoutBands, slotIndexAt } from '../../../../shared/flow/band-layout.js';
 
@@ -41,6 +43,7 @@ function RouteEditorInner({ workflow }: { workflow: WorkflowDetail }) {
   const canManage = useCanManageWorkflows();
   const store = useRouteDocStore();
   const publish = usePublishWorkflow(workflow.id);
+  const queryClient = useQueryClient();
   const { fitView } = useReactFlow();
   const [publishOpen, setPublishOpen] = useState(false);
   const [addTransitionFor, setAddTransitionFor] = useState<string | null>(null);
@@ -59,17 +62,28 @@ function RouteEditorInner({ workflow }: { workflow: WorkflowDetail }) {
     [problems],
   );
 
-  const graph = useMemo(
-    () =>
-      buildRouteGraph(store.document, {
-        readOnly: !canManage,
-        problemStageIds,
-        onSelectStage: (id) => useRouteDocStore.getState().select({ kind: 'stage', id }),
-        onSelectTransition: (id) => useRouteDocStore.getState().select({ kind: 'transition', id }),
-        onAddStage: (band: TaskSystemState) => useRouteDocStore.getState().addStage(band),
-      }),
-    [store.document, canManage, problemStageIds],
-  );
+  // Выделение (кольцо узла, подсветка ребра) — из selection стора: в
+  // controlled-режиме без onNodesChange React Flow сам его не переключает.
+  const graph = useMemo(() => {
+    const built = buildRouteGraph(store.document, {
+      readOnly: !canManage,
+      problemStageIds,
+      onSelectStage: (id) => useRouteDocStore.getState().select({ kind: 'stage', id }),
+      onSelectTransition: (id) => useRouteDocStore.getState().select({ kind: 'transition', id }),
+      onAddStage: (band: TaskSystemState) => useRouteDocStore.getState().addStage(band),
+    });
+    const selection = store.selection;
+    return {
+      nodes: built.nodes.map((node) =>
+        selection && node.id === selection.id ? { ...node, selected: true } : node,
+      ),
+      edges: built.edges.map((edge) =>
+        selection?.kind === 'transition' && edge.id === selection.id
+          ? { ...edge, selected: true }
+          : edge,
+      ),
+    };
+  }, [store.document, store.selection, canManage, problemStageIds]);
 
   const onConnect = useCallback(
     (connection: Connection) => {
@@ -99,12 +113,22 @@ function RouteEditorInner({ workflow }: { workflow: WorkflowDetail }) {
     if (node.type === 'status') useRouteDocStore.getState().select({ kind: 'stage', id: node.id });
   }, []);
 
-  // Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y — вне полей ввода.
+  // Ctrl+Z/Ctrl+Shift+Z/Ctrl+Y и Delete/Backspace — вне полей ввода.
+  // Удаление — СВОЙ хендлер: React Flow в controlled-режиме применяет
+  // deleteKeyCode только через onNodesChange/onEdgesChange (которых нет —
+  // источником правды служит стор), поэтому штатный путь выключен.
   useEffect(() => {
     if (!canManage) return;
     const handler = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
+      const selection = useRouteDocStore.getState().selection;
+      if ((event.key === 'Delete' || event.key === 'Backspace') && selection) {
+        event.preventDefault();
+        if (selection.kind === 'stage') useRouteDocStore.getState().removeStage(selection.id);
+        else useRouteDocStore.getState().removeTransition(selection.id);
+        return;
+      }
       if (!(event.ctrlKey || event.metaKey)) return;
       const key = event.key.toLowerCase();
       if (key === 'z' && !event.shiftKey) {
@@ -177,11 +201,11 @@ function RouteEditorInner({ workflow }: { workflow: WorkflowDetail }) {
       </div>
 
       {store.dirty && store.draftSavedAt ? (
-        <div className="absolute left-2 top-2 z-10 flex items-center gap-2 rounded-full border border-warning/40 bg-warning-soft/60 px-3 py-1.5 text-xs text-warning">
-          {ui.automation.draftContinue}{' '}
-          {new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit' }).format(
-            new Date(store.draftSavedAt),
-          )}
+        <DraftBanner savedAt={store.draftSavedAt} onReset={() => store.discard()} />
+      ) : null}
+      {store.staleDraftAt && !store.dirty ? (
+        <div className="absolute left-2 top-2 z-10 flex items-center gap-2 rounded-full border border-border bg-accent/40 px-3 py-1.5 text-xs text-muted-foreground">
+          {ui.automation.draftStale}
           <button
             type="button"
             onClick={() => store.discard()}
@@ -191,6 +215,7 @@ function RouteEditorInner({ workflow }: { workflow: WorkflowDetail }) {
           </button>
         </div>
       ) : null}
+      <NavigationGuard dirty={store.dirty} />
 
       <StageInspector
         stage={selectedStage}
@@ -239,97 +264,16 @@ function RouteEditorInner({ workflow }: { workflow: WorkflowDetail }) {
           onPublished={(result) => store.markPublished(result.version)}
           onConflictLoad={() => {
             setPublishOpen(false);
+            // Свежая версия: сброс правок + рефеч маршрута (useEffect загрузки
+            // подхватит новую версию и baseVersion — повторный 409 исключён).
             store.discard();
             publish.reset();
+            void queryClient.invalidateQueries({
+              queryKey: workflowKeys.detail(workflow.id),
+            });
           }}
         />
       ) : null}
-    </div>
-  );
-}
-
-/** Кнопки масштаба и «вписать» — правый нижний угол холста. */
-function ZoomControls() {
-  const { zoomIn, zoomOut, fitView } = useReactFlow();
-  const btn =
-    'flex size-8 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:border-input hover:text-foreground';
-  return (
-    <div className="absolute bottom-2 right-2 z-10 flex flex-col gap-1">
-      <button
-        type="button"
-        aria-label={ui.automation.zoomIn}
-        className={btn}
-        onClick={() => void zoomIn({ duration: 150 })}
-      >
-        +
-      </button>
-      <button
-        type="button"
-        aria-label={ui.automation.zoomOut}
-        className={btn}
-        onClick={() => void zoomOut({ duration: 150 })}
-      >
-        −
-      </button>
-      <button
-        type="button"
-        aria-label={ui.automation.fitView}
-        className={btn}
-        onClick={() => void fitView({ duration: 200, padding: 0.2 })}
-      >
-        ⤢
-      </button>
-    </div>
-  );
-}
-
-/** Выбор целевого статуса новой кнопки («+ Кнопка» инспектора статуса). */
-function TargetPicker({
-  document: doc,
-  fromStageId,
-  onPick,
-  onClose,
-}: {
-  document: ReturnType<typeof useRouteDocStore.getState>['document'];
-  fromStageId: string;
-  onPick: (toStageId: string) => void;
-  onClose: () => void;
-}) {
-  return (
-    <div
-      className="absolute inset-0 z-20 flex items-center justify-center bg-background/60"
-      role="dialog"
-      aria-label={ui.automation.toStage}
-    >
-      <div className="w-72 rounded-[14px] border bg-card p-2">
-        <p className="px-2 pb-1.5 text-label text-muted-foreground">{ui.automation.toStage}</p>
-        <div className="flex max-h-64 flex-col gap-0.5 overflow-y-auto">
-          {doc.stages
-            .filter((s) => s.id !== fromStageId)
-            .map((stage) => (
-              <button
-                key={stage.id}
-                type="button"
-                onClick={() => onPick(stage.id)}
-                className={cn(
-                  'rounded-lg px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent',
-                )}
-              >
-                {stage.name}
-                <span className="ml-2 text-xs text-muted-foreground">
-                  {ui.automation.bands[stage.systemState]}
-                </span>
-              </button>
-            ))}
-        </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="mt-1 w-full rounded-lg px-2 py-1.5 text-left text-xs text-muted-foreground hover:bg-accent"
-        >
-          {ui.common.cancel}
-        </button>
-      </div>
     </div>
   );
 }
