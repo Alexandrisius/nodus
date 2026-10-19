@@ -30,7 +30,6 @@ const FIELD_KEYS = [
   'priority',
   'deadline',
   'plannedMinutes',
-  'acceptRequired',
   'assigneeId',
   'parentId',
 ] as const;
@@ -117,7 +116,6 @@ export class TaskEditService {
     if (body.description !== undefined) data.description = body.description;
     if (body.priority !== undefined) data.priority = body.priority;
     if (body.plannedMinutes !== undefined) data.plannedMinutes = body.plannedMinutes;
-    if (body.acceptRequired !== undefined) data.acceptRequired = body.acceptRequired;
     if (body.parentId !== undefined) data.parentId = body.parentId;
     if (body.deadline !== undefined) {
       data.deadline = body.deadline ? new Date(body.deadline) : null;

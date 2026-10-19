@@ -894,6 +894,17 @@ model TaskType {
   /// исполнителей не попадает.
   structural Boolean   @default(false)
   isSystem   Boolean   @default(false) @map("is_system")
+  /// Значок-ключ закрытого реестра contracts (taskTypeIconSchema, #378).
+  icon       String    @default("square-check")
+  /// Тон плитки-значка (stageColorSchema).
+  color      String    @default("neutral")
+  description String   @default("")
+  /// Доступен в экспресс-форме создания задач (#378).
+  creatable  Boolean   @default(true)
+  /// Правился руками (редактор): каталог «засев один раз» не трогает (#378).
+  customizedAt DateTime? @map("customized_at") @db.Timestamptz()
+  /// Ревизия каталога, последняя применённая к типу (ADR-0021).
+  catalogRevision Int  @default(0) @map("catalog_revision")
   sortOrder  Int       @default(0) @map("sort_order")
   archivedAt DateTime? @map("archived_at") @db.Timestamptz()
   createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz()
@@ -917,6 +928,15 @@ model Workflow {
   ownerId    String?  @map("owner_id") @db.Uuid
   isSystem   Boolean  @default(false) @map("is_system")
   isTemplate Boolean  @default(false) @map("is_template")
+  /// Версия публикации (#378, ADR-0021): optimistic concurrency — публикация
+  /// сверяет baseVersion, конфликт → 409.
+  version    Int      @default(1)
+  publishedAt  DateTime? @map("published_at") @db.Timestamptz()
+  publishedById String?  @map("published_by_id") @db.Uuid
+  /// Правился руками (редактор): каталог «засев один раз» не трогает (#378).
+  customizedAt DateTime? @map("customized_at") @db.Timestamptz()
+  /// Ревизия каталога, последняя применённая к маршруту (ADR-0021).
+  catalogRevision Int @default(0) @map("catalog_revision")
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz()
 
@@ -942,6 +962,9 @@ model WorkflowStage {
   sortOrder   Int       @map("sort_order")
   /// backlog | active | paused | done | closed (скрытая ось, ADR-0008).
   systemState String    @map("system_state")
+  /// Итог закрытой стадии (#378): success | cancelled; только у этапа
+  /// «Итог» (CHECK в миграции: (system_state = 'closed') = (outcome NOT NULL)).
+  outcome     String?
   /// Начальная стадия маршрута (новые задачи без колонки).
   isInitial   Boolean   @default(false) @map("is_initial")
   archivedAt  DateTime? @map("archived_at") @db.Timestamptz()
@@ -969,6 +992,10 @@ model WorkflowTransition {
   name        String
   fromStageId String?  @map("from_stage_id") @db.Uuid
   toStageId   String   @map("to_stage_id") @db.Uuid
+  /// Показ кнопки (#378): primary | button | menu.
+  display     String   @default("button")
+  /// Удаление в редакторе = архивация: история и события ссылаются (#378).
+  archivedAt  DateTime? @map("archived_at") @db.Timestamptz()
   sortOrder   Int      @default(0) @map("sort_order")
   rules       Json     @default("{}")
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()

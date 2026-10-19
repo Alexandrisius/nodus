@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 import {
   ErrorCode,
   Permission,
-  TASK_EVENTS,
   type AuthUser,
   type ExecuteTransitionBody,
   type TaskListItem,
@@ -15,12 +14,12 @@ import {
   type TransactionClient,
 } from '../../../core/database/transaction-runner.js';
 import { DomainException } from '../../../core/errors/domain-exception.js';
-import { EventBus } from '../../../core/events/event-bus.js';
-import { actorRoles, audienceIds, planHolderIds } from '../access/task-access.js';
+import { actorRoles, planHolderIds } from '../access/task-access.js';
 import { Placements } from '../personal/placements.js';
 import { TasksQueryService } from '../tasks/tasks-query.service.js';
 import { TasksRepository } from '../tasks/tasks.repository.js';
 import { TasksService } from '../tasks/tasks.service.js';
+import { StageMover } from './stage-mover.js';
 import {
   effectiveTargetId,
   evaluateValidators,
@@ -40,15 +39,13 @@ export interface Actor {
 export type TransitionChoice =
   { transitionId: string } | { stageId: string } | { systemState: string };
 
-const OPEN = new Set(['backlog', 'active', 'paused']);
-
 /**
  * Исполнитель маршрутов (ADR-0020): доступные переходы (кнопки с причинами
- * блокировки) и выполнение перехода в транзакции — блокировка строки
- * задачи, условия, гейты (обход — task.override_gate + причина), смена
- * стадии и состояния, completedAt, автоперемещение «Моего плана», события.
- * Сценарии API «кнопки маршрута» (listFor/executeFor) — здесь же: видимость,
- * подготовка личных маршрутов, транзакция, ответ (контроллер тонкий).
+ * блокировки, показом и итогом цели) и выполнение перехода в транзакции —
+ * блокировка строки задачи, условия, гейты (обход — task.override_gate +
+ * причина), смена стадии (общий помощник StageMover). Сценарии API «кнопки
+ * маршрута» (listFor/executeFor) — здесь же: видимость, подготовка личных
+ * маршрутов, транзакция, ответ (контроллер тонкий).
  */
 @Injectable()
 export class TransitionsService {
@@ -57,9 +54,9 @@ export class TransitionsService {
     private readonly workflows: WorkflowRepository,
     private readonly tasks: TasksRepository,
     private readonly placements: Placements,
-    private readonly eventBus: EventBus,
     private readonly query: TasksQueryService,
     private readonly taskService: TasksService,
+    private readonly mover: StageMover,
   ) {}
 
   /** GET /tasks/:id/transitions — кнопки маршрута видимой задачи. */
@@ -88,13 +85,18 @@ export class TransitionsService {
     return outgoingTransitions(workflow.transitions, facts, workflow.stages)
       .filter((t) => passesConditions(t.rules, { roles, permissions: actor.permissions }))
       .map((t) => {
-        const target = this.stage(workflow, effectiveTargetId(t, task, workflow.stages));
+        const target = this.stage(
+          workflow,
+          effectiveTargetId(t, this.routeFacts(task), workflow.stages),
+        );
         return {
           id: t.id,
           name: t.name,
           toStageId: target.id,
           toStageName: target.name,
           toStageState: target.systemState as TaskTransition['toStageState'],
+          toStageOutcome: (target.outcome ?? null) as TaskTransition['toStageOutcome'],
+          display: t.display,
           blockedBy: evaluateValidators(t.rules, facts),
           canOverride,
         };
@@ -120,11 +122,14 @@ export class TransitionsService {
     const scored = candidates.map((t) => ({ t, reasons: evaluateValidators(t.rules, facts) }));
     const pick = scored.find((s) => s.reasons.length === 0) ?? scored[0]!;
     if (pick.reasons.length > 0) this.assertOverride(pick.reasons, actor, opts);
-    const target = this.stage(workflow, effectiveTargetId(pick.t, task, workflow.stages));
-    await this.applyStage(tx, task, target, actor.id, {
+    const target = this.stage(
+      workflow,
+      effectiveTargetId(pick.t, this.routeFacts(task), workflow.stages),
+    );
+    await this.mover.apply(tx, task, target, actor.id, {
       transitionId: pick.t.id,
       overridden: pick.reasons.map((r) => r.kind),
-      reason: pick.reasons.length > 0 ? opts.reason : undefined,
+      reason: 'transition',
     });
     return target;
   }
@@ -153,13 +158,25 @@ export class TransitionsService {
   private matches(
     t: TransitionDef,
     choice: TransitionChoice,
-    task: { acceptRequired: boolean },
+    task: { acceptRequired: boolean; creatorId: string; assigneeId: string | null },
     workflow: LoadedWorkflow,
   ): boolean {
     if ('transitionId' in choice) return t.id === choice.transitionId;
-    const target = effectiveTargetId(t, task, workflow.stages);
+    const target = effectiveTargetId(t, this.routeFacts(task), workflow.stages);
     if ('stageId' in choice) return target === choice.stageId;
     return this.stage(workflow, target).systemState === choice.systemState;
+  }
+
+  /** Факты route_if из задачи (creator_is_assignee, #378). */
+  private routeFacts(task: {
+    acceptRequired: boolean;
+    creatorId: string;
+    assigneeId: string | null;
+  }) {
+    return {
+      acceptRequired: task.acceptRequired,
+      creatorIsAssignee: task.creatorId === task.assigneeId,
+    };
   }
 
   private stage(workflow: LoadedWorkflow, id: string): StageRow {
@@ -175,78 +192,5 @@ export class TransitionsService {
       this.tasks.gateFacts(taskId, tx),
     ]);
     return { task, workflow, facts, roles: actorRoles(task, actor.id) };
-  }
-
-  /** Смена стадии без проверок маршрута (вызывающий уже проверил). */
-  async applyStage(
-    tx: TransactionClient,
-    task: {
-      id: string;
-      number: number;
-      stageId: string;
-      systemState: string;
-      creatorId: string;
-      assigneeId: string;
-      completedAt: Date | null;
-      participants: { userId: string; role: string }[];
-    },
-    target: StageRow,
-    actorId: string,
-    meta: { transitionId: string | null; overridden?: string[]; reason?: string },
-  ): Promise<void> {
-    const stateChanged = target.systemState !== task.systemState;
-    const closing = !OPEN.has(target.systemState);
-    await this.tasks.moveToStage(tx, task.id, {
-      stageId: target.id,
-      systemState: target.systemState,
-      stageOrder: await this.tasks.stageKeyAt(tx, target.id, 0, task.id),
-      ...(stateChanged ? { stateChangedAt: new Date() } : {}),
-      completedAt: closing ? (task.completedAt ?? new Date()) : null,
-    });
-    if (stateChanged) {
-      await this.placements.sync(
-        tx,
-        { id: task.id, systemState: target.systemState },
-        planHolderIds(task),
-        actorId,
-      );
-    }
-    const base = { taskId: task.id, number: task.number, audience: audienceIds(task) };
-    const meta2 = { actorId, aggregateType: 'task', aggregateId: task.id };
-    await this.eventBus.emit(
-      tx,
-      TASK_EVENTS.STAGE_CHANGED,
-      {
-        ...base,
-        fromStageId: task.stageId,
-        toStageId: target.id,
-        toStageName: target.name,
-        fromState: task.systemState,
-        toState: target.systemState,
-        transitionId: meta.transitionId,
-        creatorId: task.creatorId,
-        assigneeId: task.assigneeId,
-        ...(meta.overridden?.length
-          ? { overriddenGates: meta.overridden, reason: meta.reason }
-          : {}),
-      },
-      meta2,
-    );
-    if (stateChanged) {
-      await this.eventBus.emit(
-        tx,
-        TASK_EVENTS.STATUS_CHANGED,
-        { ...base, fromState: task.systemState, toState: target.systemState },
-        meta2,
-      );
-    }
-    if (closing && OPEN.has(task.systemState)) {
-      await this.eventBus.emit(
-        tx,
-        TASK_EVENTS.COMPLETED,
-        { ...base, toState: target.systemState, stageName: target.name, creatorId: task.creatorId },
-        meta2,
-      );
-    }
   }
 }

@@ -13,8 +13,9 @@ import {
 } from './transition-rules.js';
 
 const facts: TaskGateFacts = {
-  stageId: 's-work',
+  stageId: '00000000-0000-4000-8000-000000000001',
   acceptRequired: false,
+  creatorIsAssignee: false,
   openSubtasks: 0,
   checklistDone: 2,
   checklistTotal: 2,
@@ -27,23 +28,50 @@ const facts: TaskGateFacts = {
 };
 
 const stages: StageDef[] = [
-  { id: 's-work', code: 'in_progress', name: 'В работе', systemState: 'active', archivedAt: null },
   {
-    id: 's-ctrl',
+    id: '00000000-0000-4000-8000-000000000001',
+    code: 'in_progress',
+    name: 'В работе',
+    systemState: 'active',
+    archivedAt: null,
+  },
+  {
+    id: '00000000-0000-4000-8000-000000000002',
     code: 'on_control',
-    name: 'Ждёт контроля',
+    name: 'На утверждении',
     systemState: 'done',
     archivedAt: null,
   },
-  { id: 's-done', code: 'done', name: 'Завершена', systemState: 'closed', archivedAt: null },
+  {
+    id: '00000000-0000-4000-8000-000000000003',
+    code: 'done',
+    name: 'Завершена',
+    systemState: 'closed',
+    archivedAt: null,
+  },
+  {
+    id: '00000000-0000-4000-8000-000000000004',
+    code: 'cancelled',
+    name: 'Отменена',
+    systemState: 'closed',
+    archivedAt: null,
+  },
+  {
+    id: '00000000-0000-4000-8000-000000000005',
+    code: 'dead',
+    name: 'Мёртвая',
+    systemState: 'active',
+    archivedAt: new Date(),
+  },
 ];
 
 function transition(partial: Partial<TransitionDef>): TransitionDef {
   return {
     id: 't',
     name: 'Завершить',
-    fromStageId: 's-work',
-    toStageId: 's-done',
+    fromStageId: '00000000-0000-4000-8000-000000000001',
+    toStageId: '00000000-0000-4000-8000-000000000003',
+    display: 'button',
     sortOrder: 0,
     rules: parseRules({}),
     ...partial,
@@ -110,29 +138,141 @@ describe('evaluateValidators (гейты DoR/DoD)', () => {
   });
 });
 
-describe('цель перехода и исходящие', () => {
-  const complete = transition({
-    rules: parseRules({
-      postFunctions: [{ kind: 'route_if_accept_required', stageCode: 'on_control' }],
-    }),
+describe('цель перехода (route_if, #378)', () => {
+  it('постановщик = исполнитель — route_if ведёт в свою цель; мёртвая цель игнорируется', () => {
+    const complete = transition({
+      rules: parseRules({
+        postFunctions: [
+          {
+            kind: 'route_if',
+            when: 'creator_is_assignee',
+            toStageId: '00000000-0000-4000-8000-000000000003',
+          },
+        ],
+      }),
+    });
+    expect(
+      effectiveTargetId(complete, { acceptRequired: false, creatorIsAssignee: true }, stages),
+    ).toBe('00000000-0000-4000-8000-000000000003');
+    expect(
+      effectiveTargetId(complete, { acceptRequired: false, creatorIsAssignee: false }, stages),
+    ).toBe('00000000-0000-4000-8000-000000000003');
+    // Цель по умолчанию — стадия контроля; route_if подменяет её.
+    const toControl = transition({
+      toStageId: '00000000-0000-4000-8000-000000000002',
+      rules: parseRules({
+        postFunctions: [
+          {
+            kind: 'route_if',
+            when: 'creator_is_assignee',
+            toStageId: '00000000-0000-4000-8000-000000000003',
+          },
+        ],
+      }),
+    });
+    expect(
+      effectiveTargetId(toControl, { acceptRequired: false, creatorIsAssignee: true }, stages),
+    ).toBe('00000000-0000-4000-8000-000000000003');
+    expect(
+      effectiveTargetId(toControl, { acceptRequired: false, creatorIsAssignee: false }, stages),
+    ).toBe('00000000-0000-4000-8000-000000000002');
+    // Архивная цель route_if — игнор (публикация проверяет, но движок добрый).
+    const dead = transition({
+      toStageId: '00000000-0000-4000-8000-000000000002',
+      rules: parseRules({
+        postFunctions: [
+          {
+            kind: 'route_if',
+            when: 'creator_is_assignee',
+            toStageId: '00000000-0000-4000-8000-000000000005',
+          },
+        ],
+      }),
+    });
+    expect(
+      effectiveTargetId(dead, { acceptRequired: false, creatorIsAssignee: true }, stages),
+    ).toBe('00000000-0000-4000-8000-000000000002');
   });
 
-  it('«принять после завершения» уводит в стадию контроля', () => {
-    expect(effectiveTargetId(complete, { acceptRequired: true }, stages)).toBe('s-ctrl');
-    expect(effectiveTargetId(complete, { acceptRequired: false }, stages)).toBe('s-done');
+  it('устаревший route_if_accept_required продолжает работать (архивные каталоги)', () => {
+    const legacy = transition({
+      toStageId: '00000000-0000-4000-8000-000000000003',
+      rules: parseRules({
+        postFunctions: [{ kind: 'route_if_accept_required', stageCode: 'on_control' }],
+      }),
+    });
+    expect(
+      effectiveTargetId(legacy, { acceptRequired: true, creatorIsAssignee: false }, stages),
+    ).toBe('00000000-0000-4000-8000-000000000002');
+    expect(
+      effectiveTargetId(legacy, { acceptRequired: false, creatorIsAssignee: false }, stages),
+    ).toBe('00000000-0000-4000-8000-000000000003');
   });
+});
 
-  it('из любой стадии + из текущей, без петли, по порядку', () => {
+describe('исходящие кнопки (#378)', () => {
+  it('кнопки статуса впереди «из любого», внутри — по sortOrder; петля скрыта', () => {
     const list = outgoingTransitions(
       [
-        transition({ id: 'b', sortOrder: 2 }),
-        transition({ id: 'any', fromStageId: null, toStageId: 's-ctrl', sortOrder: 1 }),
-        transition({ id: 'loop', fromStageId: null, toStageId: 's-work' }),
-        transition({ id: 'other', fromStageId: 's-ctrl' }),
+        transition({
+          id: 'any-early',
+          fromStageId: null,
+          toStageId: '00000000-0000-4000-8000-000000000002',
+          sortOrder: 0,
+        }),
+        transition({ id: 'stage-late', sortOrder: 5 }),
+        transition({ id: 'stage-early', sortOrder: 1 }),
+        transition({
+          id: 'any-late',
+          fromStageId: null,
+          toStageId: '00000000-0000-4000-8000-000000000003',
+          sortOrder: 9,
+        }),
+        transition({
+          id: 'loop',
+          fromStageId: null,
+          toStageId: '00000000-0000-4000-8000-000000000001',
+        }),
+        transition({ id: 'other', fromStageId: '00000000-0000-4000-8000-000000000002' }),
       ],
       facts,
       stages,
     );
-    expect(list.map((t) => t.id)).toEqual(['any', 'b']);
+    expect(list.map((t) => t.id)).toEqual(['stage-early', 'stage-late', 'any-early', 'any-late']);
+  });
+
+  it('«из любого» скрыт между двумя этапами «Итог» (закрытую не отменяют)', () => {
+    const list = outgoingTransitions(
+      [
+        transition({
+          id: 'cancel',
+          fromStageId: null,
+          toStageId: '00000000-0000-4000-8000-000000000004',
+        }),
+        transition({
+          id: 'reopen',
+          fromStageId: '00000000-0000-4000-8000-000000000003',
+          toStageId: '00000000-0000-4000-8000-000000000001',
+        }),
+      ],
+      { ...facts, stageId: '00000000-0000-4000-8000-000000000003' },
+      stages,
+    );
+    expect(list.map((t) => t.id)).toEqual(['reopen']);
+  });
+
+  it('«из любого» в открытую цель из закрытой стадии виден', () => {
+    const list = outgoingTransitions(
+      [
+        transition({
+          id: 'reopen-any',
+          fromStageId: null,
+          toStageId: '00000000-0000-4000-8000-000000000001',
+        }),
+      ],
+      { ...facts, stageId: '00000000-0000-4000-8000-000000000003' },
+      stages,
+    );
+    expect(list.map((t) => t.id)).toEqual(['reopen-any']);
   });
 });

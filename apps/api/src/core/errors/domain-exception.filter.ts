@@ -59,6 +59,14 @@ const CODE_TO_STATUS: Record<ErrorCode, number> = {
   [ErrorCode.FILE_OFFICE_DISABLED]: HttpStatus.SERVICE_UNAVAILABLE,
   [ErrorCode.FILE_OFFICE_UNSUPPORTED]: HttpStatus.BAD_REQUEST,
   [ErrorCode.FILE_OFFICE_TOO_LARGE]: HttpStatus.PAYLOAD_TOO_LARGE,
+  // Редактор маршрутов (#378, ADR-0021): конфликт версии — 409; невалидный
+  // документ и обязательный перенос — 422 (семантика документа, не поля);
+  // блокировки системного типа и занятое имя — 409.
+  [ErrorCode.WORKFLOW_VERSION_CONFLICT]: HttpStatus.CONFLICT,
+  [ErrorCode.WORKFLOW_INVALID]: HttpStatus.UNPROCESSABLE_ENTITY,
+  [ErrorCode.WORKFLOW_MIGRATION_REQUIRED]: HttpStatus.UNPROCESSABLE_ENTITY,
+  [ErrorCode.TASK_TYPE_SYSTEM_LOCKED]: HttpStatus.CONFLICT,
+  [ErrorCode.TASK_TYPE_NAME_TAKEN]: HttpStatus.CONFLICT,
 };
 
 /** Код для HTTP-исключений Nest/Fastify (400 у нас — всегда валидация входа). */

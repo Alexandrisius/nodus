@@ -1,5 +1,10 @@
 import type { Server } from 'socket.io';
-import { CHAT_EVENTS, DIRECTORY_EVENTS, type RealtimeEnvelope } from '@nodus/contracts';
+import {
+  CHAT_EVENTS,
+  DIRECTORY_EVENTS,
+  TASK_EVENTS,
+  type RealtimeEnvelope,
+} from '@nodus/contracts';
 
 import type { MembershipStore } from './membership.ts';
 import { convRoom, PRESENCE_ROOM, revokeConvRoom, userRoom } from './rooms.ts';
@@ -11,6 +16,16 @@ export const USER_DEACTIVATED_EVENT = DIRECTORY_EVENTS.USER_DEACTIVATED;
 const STICKER_INSTALL_EVENTS = new Set<string>([
   CHAT_EVENTS.STICKER_PACK_INSTALLED,
   CHAT_EVENTS.STICKER_PACK_UNINSTALLED,
+]);
+
+/** Каталожные события библиотеки типов (#378): без audience — рассылка всем
+ *  аутентифицированным сокетам (паттерн корпоративных стикерпаков); клиенты
+ *  инвалидируют типы, статусы и маршруты. */
+const TASK_CATALOG_EVENTS = new Set<string>([
+  TASK_EVENTS.TYPE_CREATED,
+  TASK_EVENTS.TYPE_UPDATED,
+  TASK_EVENTS.TYPE_ARCHIVED,
+  TASK_EVENTS.WORKFLOW_PUBLISHED,
 ]);
 
 /** События, меняющие список бесед (lastMessage/unread/название/аватар) → дублируем в user-комнаты участников. */
@@ -66,6 +81,13 @@ export async function routeEnvelope(
     if (target) {
       io.to(userRoom(target)).emit(envelope.type, envelope);
     }
+    return;
+  }
+
+  // Каталожные события типов задач (#378): схемы и типы видят все —
+  // широковещательно в комнату presence (все аутентифицированные сокеты).
+  if (TASK_CATALOG_EVENTS.has(envelope.type)) {
+    io.to(PRESENCE_ROOM).emit(envelope.type, envelope);
     return;
   }
 

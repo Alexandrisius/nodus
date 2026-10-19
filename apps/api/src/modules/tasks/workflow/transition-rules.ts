@@ -4,14 +4,17 @@ import {
   type TaskActorRole,
   type TaskRequirableField,
   type TransitionBlockReason,
+  type TransitionDisplay,
   type WorkflowTransitionRules,
 } from '@nodus/contracts';
 
 /**
- * Движок правил перехода (ADR-0020) — чистые функции: условия «кто»
- * (conditions), гейты DoR/DoD (validators), выбор фактической цели
- * (postFunctions route_if_accept_required). Сервис кормит их фактами задачи
- * и исполняет результат в транзакции.
+ * Движок правил перехода (ADR-0020, редактор #378) — чистые функции: условия
+ * «кто» (conditions), гейты DoR/DoD (validators), показ кнопки (display) и
+ * выбор фактической цели (postFunctions route_if). Архивные переходы
+ * отфильтровываются репозиторием ДО parseRules — правила мёртвых кнопок не
+ * исполняются. Сервис кормит функции фактами задачи и исполняет результат
+ * в транзакции.
  */
 
 export interface TransitionDef {
@@ -19,6 +22,7 @@ export interface TransitionDef {
   name: string;
   fromStageId: string | null;
   toStageId: string;
+  display: TransitionDisplay;
   sortOrder: number;
   rules: WorkflowTransitionRules;
 }
@@ -31,10 +35,12 @@ export interface StageDef {
   archivedAt: Date | null;
 }
 
-/** Факты задачи для гейтов (собираются репозиторием одним запросом). */
+/** Факты задачи для гейтов и route_if (собираются репозиторием). */
 export interface TaskGateFacts {
   stageId: string;
   acceptRequired: boolean;
+  /** Постановщик сам себе исполнитель — особый случай route_if (#378). */
+  creatorIsAssignee: boolean;
   openSubtasks: number;
   checklistDone: number;
   checklistTotal: number;
@@ -111,14 +117,20 @@ export function evaluateValidators(
   return reasons;
 }
 
-/** Фактическая цель перехода: «Завершить» при acceptRequired ведёт в
- *  стадию контроля (postFunction route_if_accept_required). */
+/** Фактическая цель перехода: пост-функции route_if подменяют цель при
+ *  совпадении условия (цель мертва — игнор и warn вызывающему; маршрут
+ *  проверяет принадлежность при публикации). Устаревший
+ *  route_if_accept_required работает как раньше (каталог ревизии 1). */
 export function effectiveTargetId(
   transition: TransitionDef,
-  facts: Pick<TaskGateFacts, 'acceptRequired'>,
+  facts: Pick<TaskGateFacts, 'acceptRequired' | 'creatorIsAssignee'>,
   stages: readonly StageDef[],
 ): string {
   for (const pf of transition.rules.postFunctions) {
+    if (pf.kind === 'route_if' && facts.creatorIsAssignee) {
+      const target = stages.find((s) => s.id === pf.toStageId && !s.archivedAt);
+      if (target) return target.id;
+    }
     if (pf.kind === 'route_if_accept_required' && facts.acceptRequired) {
       const target = stages.find((s) => s.code === pf.stageCode && !s.archivedAt);
       if (target) return target.id;
@@ -127,14 +139,37 @@ export function effectiveTargetId(
   return transition.toStageId;
 }
 
-/** Переходы из текущей стадии (включая «из любой»), кроме петли в себя. */
+/** Живая стадия по id (архивная — как отсутствующая). */
+export function liveStage(stages: readonly StageDef[], id: string): StageDef | undefined {
+  return stages.find((s) => s.id === id && !s.archivedAt);
+}
+
+const CLOSED = 'closed';
+
+/**
+ * Кнопки из текущей стадии: сначала кнопки статуса, затем «из любого»,
+ * внутри групп — по sortOrder; петля в себя скрыта; кнопка «из любого»
+ * скрыта между двумя этапами «Итог» (закрытую задачу «отменять» нельзя).
+ */
 export function outgoingTransitions(
   transitions: readonly TransitionDef[],
-  facts: Pick<TaskGateFacts, 'stageId' | 'acceptRequired'>,
+  facts: Pick<TaskGateFacts, 'stageId' | 'acceptRequired' | 'creatorIsAssignee'>,
   stages: readonly StageDef[],
 ): TransitionDef[] {
-  return transitions
-    .filter((t) => t.fromStageId === null || t.fromStageId === facts.stageId)
-    .filter((t) => effectiveTargetId(t, facts, stages) !== facts.stageId)
+  const current = stages.find((s) => s.id === facts.stageId);
+  const currentClosed = current?.systemState === CLOSED;
+  const fromStage = transitions
+    .filter((t) => t.fromStageId === facts.stageId)
     .sort((a, b) => a.sortOrder - b.sortOrder);
+  const fromAny = transitions
+    .filter((t) => t.fromStageId === null)
+    .filter((t) => {
+      if (!currentClosed) return true;
+      const target = liveStage(stages, effectiveTargetId(t, facts, stages));
+      return target?.systemState !== CLOSED;
+    })
+    .sort((a, b) => a.sortOrder - b.sortOrder);
+  return [...fromStage, ...fromAny].filter(
+    (t) => effectiveTargetId(t, facts, stages) !== facts.stageId,
+  );
 }

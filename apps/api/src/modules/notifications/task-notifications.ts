@@ -42,7 +42,18 @@ export function taskNotices(type: string, p: Payload, actorId: string | null): T
     case 'task.stage_changed': {
       const from = str(p.fromState) ?? '';
       const to = str(p.toState) ?? '';
-      if (OPEN.has(from) && !OPEN.has(to)) add(str(p.creatorId), 'task.completed');
+      const outcome = str(p.toStageOutcome);
+      // Итог (#378): «выполнена» — постановщику, «отменена» — исполнителю и
+      // соисполнителям (кроме нажавшего; add исключает actor).
+      if (OPEN.has(from) && to === 'closed') {
+        if (outcome === 'cancelled') {
+          for (const id of ids(p.audience)) add(id, 'task.cancelled');
+        } else {
+          add(str(p.creatorId), 'task.completed');
+        }
+      }
+      // Вход в этап «Утверждение» (done без итога) — постановщику (#378).
+      if (to === 'done' && from !== 'done') add(str(p.creatorId), 'task.awaiting_approval');
       if (!OPEN.has(from) && OPEN.has(to)) add(str(p.assigneeId), 'task.returned');
       break;
     }

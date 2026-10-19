@@ -121,7 +121,8 @@ export class TasksService {
             priority: body.priority ?? 'normal',
             deadline: body.deadline ? new Date(body.deadline) : null,
             plannedMinutes: body.plannedMinutes ?? null,
-            acceptRequired: body.acceptRequired ?? false,
+            // Утверждение — статус маршрута (#378); поле БД живёт до #383.
+            acceptRequired: false,
             creatorId: user.id,
             assigneeId,
             parentId: body.parentId ?? null,

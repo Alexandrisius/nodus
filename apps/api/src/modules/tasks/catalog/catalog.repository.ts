@@ -11,6 +11,7 @@ export interface CatalogStageData {
   color: string;
   sortOrder: number;
   systemState: string;
+  outcome: string | null;
   isInitial: boolean;
 }
 
@@ -18,6 +19,7 @@ export interface CatalogTransitionData {
   name: string;
   fromStageId: string | null;
   toStageId: string;
+  display: string;
   sortOrder: number;
   rules: WorkflowTransitionRules;
 }
@@ -28,16 +30,27 @@ function json(data: CatalogTransitionData) {
 }
 
 /**
- * Системный каталог маршрутов (ADR-0020): записи по `code` — тип, схема,
- * маршруты, стадии, переходы. Только для бутстрапа (CatalogBootstrap), всё
- * внутри его транзакции.
+ * Системный каталог маршрутов (ADR-0020/0021): записи по `code` — типы,
+ * схема, маршруты, стадии, переходы. Только для бутстрапа (CatalogBootstrap),
+ * всё внутри его транзакции; применение — «засев один раз» по ревизии.
  */
 @Injectable()
 export class CatalogRepository {
-  async ensureType(tx: TransactionClient, def: { code: string; name: string }) {
+  async ensureType(
+    tx: TransactionClient,
+    def: {
+      code: string;
+      name: string;
+      icon: string;
+      color: string;
+      description: string;
+    },
+  ) {
     return (
       (await tx.taskType.findUnique({ where: { code: def.code } })) ??
-      (await tx.taskType.create({ data: { ...def, isSystem: true } }))
+      (await tx.taskType.create({
+        data: { ...def, isSystem: true, catalogRevision: 2 },
+      }))
     );
   }
 
@@ -68,7 +81,9 @@ export class CatalogRepository {
   ) {
     return (
       (await tx.workflow.findUnique({ where: { code: def.code } })) ??
-      (await tx.workflow.create({ data: { ...def, isSystem: true } }))
+      (await tx.workflow.create({
+        data: { ...def, isSystem: true, catalogRevision: 2 },
+      }))
     );
   }
 
@@ -119,6 +134,14 @@ export class CatalogRepository {
     return tx.workflowTransition.findUnique({ where: { workflowId_code: { workflowId, code } } });
   }
 
+  /** Живые переходы маршрута (для архивации неcatalogочных при посеве). */
+  liveTransitions(tx: TransactionClient, workflowId: string) {
+    return tx.workflowTransition.findMany({
+      where: { workflowId, archivedAt: null },
+      select: { id: true, code: true },
+    });
+  }
+
   async createTransition(
     tx: TransactionClient,
     workflowId: string,
@@ -133,6 +156,16 @@ export class CatalogRepository {
     transitionId: string,
     data: CatalogTransitionData,
   ): Promise<void> {
-    await tx.workflowTransition.update({ where: { id: transitionId }, data: json(data) });
+    await tx.workflowTransition.update({
+      where: { id: transitionId },
+      data: { ...json(data), archivedAt: null },
+    });
+  }
+
+  async archiveTransition(tx: TransactionClient, transitionId: string, now: Date): Promise<void> {
+    await tx.workflowTransition.update({
+      where: { id: transitionId },
+      data: { archivedAt: now },
+    });
   }
 }

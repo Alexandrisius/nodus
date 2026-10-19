@@ -41,6 +41,7 @@ const ALL_PERMISSIONS = [
   'task.view_all',
   'task.manage_any',
   'task.override_gate',
+  'task.workflow_manage',
   'directory.read',
   'directory.manage',
   'user.manage',

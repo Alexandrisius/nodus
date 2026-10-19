@@ -46,6 +46,8 @@ const INTENTIONALLY_WITHOUT_PERMISSION: Record<string, string> = {
   'GET /notifications/settings': SELF,
   'GET /notifications/:id/deliveries': SELF,
   'GET /tasks/timer': SELF,
+  'GET /tasks/workflows/:id':
+    'схема маршрута без персональных данных — решение владельца: типы и схемы видят все (#378)',
   'GET /chat/conversations': CHAT_MEMBERSHIP,
   'POST /chat/conversations/direct/:userId': DIRECT_CHAT,
   'GET /chat/conversations/:id/members': CHAT_MEMBERSHIP,
@@ -130,6 +132,7 @@ const INTENTIONALLY_WITHOUT_PERMISSION: Record<string, string> = {
   'DELETE /tasks/:id/relations/:relationId': TASK_ACCESS,
   'POST /tasks/:id/results': TASK_ACCESS,
   'POST /tasks/:id/transitions/:transitionId': TASK_ACCESS,
+  'POST /tasks/:id/type': TASK_ACCESS,
   'POST /tasks/:id/time-entries': TASK_ACCESS,
   'DELETE /tasks/time-entries/:entryId': TASK_ACCESS,
   'POST /tasks/:id/timer/start': TASK_ACCESS,

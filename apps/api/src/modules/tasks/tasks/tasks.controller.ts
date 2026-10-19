@@ -9,6 +9,7 @@ import {
 import { z } from 'zod';
 import {
   Permission,
+  changeTaskTypeBodySchema,
   createSubtaskBodySchema,
   createTaskBodySchema,
   listTasksQuerySchema,
@@ -19,9 +20,11 @@ import {
   taskDetailSchema,
   taskListItemSchema,
   taskStageWithCountSchema,
+  taskTypeListQuerySchema,
   taskTypeSchema,
   taskUpdateBodySchema,
   type AuthUser,
+  type ChangeTaskTypeBody,
   type CreateSubtaskBody,
   type CreateTaskBody,
   type ListTasksQuery,
@@ -33,6 +36,7 @@ import {
   type TaskListItem,
   type TaskStageWithCount,
   type TaskType,
+  type TaskTypeListQuery,
   type TaskUpdateBody,
 } from '@nodus/contracts';
 
@@ -44,12 +48,17 @@ import { ApiErrors } from '../../../core/openapi/api-errors.decorator.js';
 import { ApiIdempotencyKey } from '../../../core/openapi/api-idempotency.decorator.js';
 import { ZodValidationPipe } from '../../../core/pipes/zod-validation.pipe.js';
 import { BulkService } from '../bulk/bulk.service.js';
+import { TaskTypeChangeService } from '../types/task-type-change.service.js';
+import { TaskTypesService } from '../types/task-types.service.js';
 import { TaskEditService } from './task-edit.service.js';
 import { TasksQueryService } from './tasks-query.service.js';
 import { TasksService } from './tasks.service.js';
 
 const uuid = new ZodValidationPipe(z.uuid());
-const scopeQuery = z.object({ scope: z.enum(['mine', 'all']).default('mine') });
+const scopeQuery = z.object({
+  scope: z.enum(['mine', 'all']).default('mine'),
+  typeId: z.uuid().optional(),
+});
 
 /**
  * Задачи (`/api/v1/tasks`, #37): фиды обеих осей, каталоги, CRUD, ветка,
@@ -65,6 +74,8 @@ export class TasksController {
     private readonly edit: TaskEditService,
     private readonly query: TasksQueryService,
     private readonly bulk: BulkService,
+    private readonly typeChange: TaskTypeChangeService,
+    private readonly taskTypes: TaskTypesService,
   ) {}
 
   @Get()
@@ -80,23 +91,52 @@ export class TasksController {
   }
 
   @Get('stages')
-  @ApiOperation({ summary: 'Стадии маршрута по умолчанию со счётчиками' })
+  @ApiOperation({
+    summary: 'Стадии со счётчиками: ?typeId= — одного типа; без — всех живых типов',
+  })
   @ApiOkResponse({ standardSchema: z.array(taskStageWithCountSchema) })
-  @ApiErrors(401)
+  @ApiErrors(400, 401)
   stages(
     @GetUser() user: AuthUser,
     @Query({ schema: scopeQuery, pipes: [new ZodValidationPipe(scopeQuery)] })
     q: z.infer<typeof scopeQuery>,
   ): Promise<TaskStageWithCount[]> {
-    return this.query.stages(user, q.scope);
+    return this.query.stages(user, q.scope, q.typeId);
   }
 
   @Get('types')
-  @ApiOperation({ summary: 'Типы задач (ступень 1 — один системный)' })
+  @ApiOperation({ summary: 'Типы задач (расширенный DTO; archived — include/only)' })
   @ApiOkResponse({ standardSchema: z.array(taskTypeSchema) })
-  @ApiErrors(401)
-  types(): Promise<TaskType[]> {
-    return this.query.types();
+  @ApiErrors(400, 401)
+  types(
+    @Query({
+      schema: taskTypeListQuerySchema,
+      pipes: [new ZodValidationPipe(taskTypeListQuerySchema)],
+    })
+    q: TaskTypeListQuery,
+  ): Promise<TaskType[]> {
+    return this.taskTypes.list(q.archived ?? 'exclude');
+  }
+
+  @Post(':id/type')
+  @HttpCode(200)
+  @Audit({ action: 'task.type_change', entity: 'task' })
+  @ApiOperation({
+    summary: 'Смена типа (право правки; без текущего статуса в новом маршруте — stageId)',
+  })
+  @ApiOkResponse({ standardSchema: taskListItemSchema })
+  @ApiErrors(400, 401, 403, 404, 422)
+  @ApiIdempotencyKey()
+  changeType(
+    @GetUser() user: AuthUser,
+    @Param('id', uuid) id: string,
+    @Body({
+      schema: changeTaskTypeBodySchema,
+      pipes: [new ZodValidationPipe(changeTaskTypeBodySchema)],
+    })
+    body: ChangeTaskTypeBody,
+  ): Promise<TaskListItem> {
+    return this.typeChange.change(user, id, body);
   }
 
   @Post()

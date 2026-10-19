@@ -239,6 +239,7 @@ export class TasksRepository {
     return {
       stageId: task.stageId,
       acceptRequired: task.acceptRequired,
+      creatorIsAssignee: task.creatorId === task.assigneeId,
       openSubtasks,
       checklistDone: task.checklistDone,
       checklistTotal: task.checklistTotal,

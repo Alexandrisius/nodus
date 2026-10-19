@@ -3,8 +3,8 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../core/database/prisma.service.js';
 import type { TransactionClient } from '../../../core/database/transaction-runner.js';
 import { DomainException } from '../../../core/errors/domain-exception.js';
-import { ErrorCode } from '@nodus/contracts';
-import { PERSONAL_TEMPLATE_CODE, SYSTEM_TASK_TYPE } from '../catalog/system-catalog.js';
+import { ErrorCode, type TransitionDisplay } from '@nodus/contracts';
+import { PERSONAL_TEMPLATE_CODE, STANDARD_TASK_TYPE } from '../catalog/system-catalog.js';
 import { parseRules, type StageDef, type TransitionDef } from './transition-rules.js';
 
 export interface StageRow extends StageDef {
@@ -12,6 +12,7 @@ export interface StageRow extends StageDef {
   color: string;
   sortOrder: number;
   isInitial: boolean;
+  outcome: string | null;
 }
 
 export interface LoadedWorkflow {
@@ -22,8 +23,9 @@ export interface LoadedWorkflow {
 
 /**
  * Маршруты, типы и личные маршруты «Мой план» (ADR-0008/0020). Маршрут
- * задачи читается целиком (стадии + переходы с разобранными правилами) —
- * объём единицы-десятки строк.
+ * задачи читается целиком (стадии + ЖИВЫЕ переходы с разобранными
+ * правилами — архивные фильтруются до parseRules) — объём единицы-десятки
+ * строк.
  */
 @Injectable()
 export class WorkflowRepository {
@@ -36,7 +38,7 @@ export class WorkflowRepository {
         where: { workflowId },
         orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
       }),
-      db.workflowTransition.findMany({ where: { workflowId } }),
+      db.workflowTransition.findMany({ where: { workflowId, archivedAt: null } }),
     ]);
     return {
       id: workflowId,
@@ -46,15 +48,97 @@ export class WorkflowRepository {
         name: t.name,
         fromStageId: t.fromStageId,
         toStageId: t.toStageId,
+        display: t.display as TransitionDisplay,
         sortOrder: t.sortOrder,
         rules: parseRules(t.rules),
       })),
     };
   }
 
-  listTypes() {
+  /** Блокировка строки маршрута на публикацию (optimistic concurrency). */
+  async lockForUpdate(tx: TransactionClient, workflowId: string): Promise<void> {
+    await tx.$queryRaw`SELECT id FROM workflows WHERE id = ${workflowId} FOR UPDATE`;
+  }
+
+  /** Мета публикации маршрута (read редактора). */
+  async findMeta(
+    workflowId: string,
+    tx?: TransactionClient,
+  ): Promise<{ version: number; publishedAt: Date | null; publishedById: string | null } | null> {
+    return (tx ?? this.prisma).workflow.findUnique({
+      where: { id: workflowId },
+      select: { version: true, publishedAt: true, publishedById: true },
+    });
+  }
+
+  /** Живая стадия по id (цель переноса, смена типа). */
+  findStageById(stageId: string, tx?: TransactionClient) {
+    return (tx ?? this.prisma).workflowStage.findUnique({ where: { id: stageId } });
+  }
+
+  /** Живые стадии маршрута по id маршрута (каталог статусов, смена типа). */
+  findStages(workflowId: string, tx?: TransactionClient) {
+    return (tx ?? this.prisma).workflowStage.findMany({
+      where: { workflowId, archivedAt: null },
+      orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+    });
+  }
+
+  /** Типы, идущие по маршруту (payload публикации, read редактора). */
+  async typeIdsOf(workflowId: string, tx?: TransactionClient): Promise<string[]> {
+    const entries = await (tx ?? this.prisma).workflowSchemeEntry.findMany({
+      where: { workflowId },
+      select: { taskTypeId: true },
+    });
+    return entries.map((e) => e.taskTypeId);
+  }
+
+  /** Задачи стадии пачкой keyset (перенос публикации, идемпотентный повтор). */
+  taskIdsOfStage(stageId: string, take: number, tx?: TransactionClient) {
+    return (tx ?? this.prisma).task.findMany({
+      where: { stageId },
+      orderBy: { id: 'asc' },
+      take,
+      select: { id: true },
+    });
+  }
+
+  /** Задачи стадии с чужим системным состоянием (смена этапа, пачка). */
+  taskIdsToRestate(stageId: string, systemState: string, take: number, tx?: TransactionClient) {
+    return (tx ?? this.prisma).task.findMany({
+      where: { stageId, systemState: { not: systemState } },
+      orderBy: { id: 'asc' },
+      take,
+      select: { id: true },
+    });
+  }
+
+  /** Задачи по живым стадиям маршрута (для документа редактора). */
+  async stageTaskCounts(
+    workflowId: string,
+    tx?: TransactionClient,
+  ): Promise<Record<string, number>> {
+    const db = tx ?? this.prisma;
+    const stages = await db.workflowStage.findMany({
+      where: { workflowId, archivedAt: null },
+      select: { id: true },
+    });
+    if (stages.length === 0) return {};
+    const rows = await db.task.groupBy({
+      by: ['stageId'],
+      where: { stageId: { in: stages.map((s) => s.id) } },
+      _count: { _all: true },
+    });
+    const counts: Record<string, number> = {};
+    for (const row of rows) {
+      if (row.stageId) counts[row.stageId] = row._count._all;
+    }
+    return counts;
+  }
+
+  listTypes(archived: 'exclude' | 'include' = 'exclude') {
     return this.prisma.taskType.findMany({
-      where: { archivedAt: null },
+      where: archived === 'include' ? {} : { archivedAt: null },
       orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }, { id: 'asc' }],
     });
   }
@@ -66,13 +150,22 @@ export class WorkflowRepository {
   ): Promise<{ typeId: string; workflowId: string; structural: boolean }> {
     const type = typeId
       ? await this.prisma.taskType.findFirst({ where: { id: typeId, archivedAt: null } })
-      : await this.prisma.taskType.findUnique({ where: { code: SYSTEM_TASK_TYPE.code } });
+      : await this.prisma.taskType.findUnique({ where: { code: STANDARD_TASK_TYPE.code } });
     if (!type) throw new DomainException(ErrorCode.NOT_FOUND, 'Task type not found');
     const entry = await this.prisma.workflowSchemeEntry.findFirst({
       where: { taskTypeId: type.id, scheme: { isDefault: true } },
     });
     if (!entry) throw new DomainException(ErrorCode.NOT_FOUND, 'Workflow for task type not found');
     return { typeId: type.id, workflowId: entry.workflowId, structural: type.structural };
+  }
+
+  /** Живые типы с их маршрутами по схеме по умолчанию. */
+  async typeWorkflowMap(): Promise<Map<string, string>> {
+    const entries = await this.prisma.workflowSchemeEntry.findMany({
+      where: { scheme: { isDefault: true }, taskType: { archivedAt: null } },
+      select: { taskTypeId: true, workflowId: true },
+    });
+    return new Map(entries.map((e) => [e.taskTypeId, e.workflowId]));
   }
 
   /** Личный маршрут сотрудника; нет — копия шаблона (своя транзакция ДО
@@ -97,6 +190,7 @@ export class WorkflowRepository {
             color: s.color,
             sortOrder: s.sortOrder,
             systemState: s.systemState,
+            outcome: s.outcome,
             isInitial: s.isInitial,
           })),
         });

@@ -17,9 +17,13 @@ describe('taskNotices', () => {
   });
 
   it('завершение — постановщику, возврат — ответственному', () => {
-    const base = { number: 1, toStageName: 'Ждёт контроля', creatorId: 'cr', assigneeId: 'as' };
+    const base = { number: 1, toStageName: 'Завершена', creatorId: 'cr', assigneeId: 'as' };
     expect(
-      taskNotices('task.stage_changed', { ...base, fromState: 'active', toState: 'done' }, 'as'),
+      taskNotices(
+        'task.stage_changed',
+        { ...base, fromState: 'active', toState: 'closed', toStageOutcome: 'success' },
+        'as',
+      ),
     ).toMatchObject([{ userId: 'cr', kind: 'task.completed' }]);
     expect(
       taskNotices('task.stage_changed', { ...base, fromState: 'done', toState: 'active' }, 'cr'),
@@ -27,6 +31,61 @@ describe('taskNotices', () => {
     expect(
       taskNotices('task.stage_changed', { ...base, fromState: 'backlog', toState: 'active' }, 'as'),
     ).toEqual([]);
+  });
+
+  it('вход в «Утверждение» — постановщику awaiting_approval, кроме нажавшего (#378)', () => {
+    const base = { number: 3, toStageName: 'На утверждении', creatorId: 'cr', assigneeId: 'as' };
+    expect(
+      taskNotices(
+        'task.stage_changed',
+        { ...base, fromState: 'active', toState: 'done', toStageOutcome: null },
+        'as',
+      ),
+    ).toMatchObject([{ userId: 'cr', kind: 'task.awaiting_approval' }]);
+    // Постановщик сам нажал — тишина.
+    expect(
+      taskNotices(
+        'task.stage_changed',
+        { ...base, fromState: 'active', toState: 'done', toStageOutcome: null },
+        'cr',
+      ),
+    ).toEqual([]);
+  });
+
+  it('отмена — исполнителю и соисполнителям, кроме нажавшего (#378)', () => {
+    const base = {
+      number: 4,
+      toStageName: 'Отменена',
+      creatorId: 'cr',
+      assigneeId: 'as',
+      audience: ['cr', 'as', 'co'],
+    };
+    expect(
+      taskNotices(
+        'task.stage_changed',
+        { ...base, fromState: 'active', toState: 'closed', toStageOutcome: 'cancelled' },
+        'cr',
+      ),
+    ).toMatchObject([
+      { userId: 'as', kind: 'task.cancelled' },
+      { userId: 'co', kind: 'task.cancelled' },
+    ]);
+    // Выполнена — прежнее правило (постановщику), не «отменена».
+    expect(
+      taskNotices(
+        'task.stage_changed',
+        {
+          number: 5,
+          toStageName: 'Завершена',
+          creatorId: 'cr',
+          assigneeId: 'as',
+          fromState: 'active',
+          toState: 'closed',
+          toStageOutcome: 'success',
+        },
+        'as',
+      ),
+    ).toMatchObject([{ userId: 'cr', kind: 'task.completed' }]);
   });
 
   it('просрочка — обоим без дублей; наблюдатель в составе — без уведомления', () => {
