@@ -48,9 +48,9 @@ export class CatalogRepository {
   ) {
     return (
       (await tx.taskType.findUnique({ where: { code: def.code } })) ??
-      (await tx.taskType.create({
-        data: { ...def, isSystem: true, catalogRevision: 2 },
-      }))
+      // Создаётся с ревизией 0: seedOnce применит ревизию каталога и
+      // проставит 2 (создание ≠ применённая ревизия).
+      (await tx.taskType.create({ data: { ...def, isSystem: true, catalogRevision: 0 } }))
     );
   }
 
@@ -81,9 +81,9 @@ export class CatalogRepository {
   ) {
     return (
       (await tx.workflow.findUnique({ where: { code: def.code } })) ??
-      (await tx.workflow.create({
-        data: { ...def, isSystem: true, catalogRevision: 2 },
-      }))
+      // Ревизия 0 при создании: seedOnce посеет стадии/переходы и поднимет
+      // до 2 (создание с 2 пропускало бы посев содержимого).
+      (await tx.workflow.create({ data: { ...def, isSystem: true, catalogRevision: 0 } }))
     );
   }
 

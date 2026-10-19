@@ -20,8 +20,6 @@ import {
   taskDetailSchema,
   taskListItemSchema,
   taskStageWithCountSchema,
-  taskTypeListQuerySchema,
-  taskTypeSchema,
   taskUpdateBodySchema,
   type AuthUser,
   type ChangeTaskTypeBody,
@@ -35,8 +33,6 @@ import {
   type TaskDetail,
   type TaskListItem,
   type TaskStageWithCount,
-  type TaskType,
-  type TaskTypeListQuery,
   type TaskUpdateBody,
 } from '@nodus/contracts';
 
@@ -49,7 +45,6 @@ import { ApiIdempotencyKey } from '../../../core/openapi/api-idempotency.decorat
 import { ZodValidationPipe } from '../../../core/pipes/zod-validation.pipe.js';
 import { BulkService } from '../bulk/bulk.service.js';
 import { TaskTypeChangeService } from '../types/task-type-change.service.js';
-import { TaskTypesService } from '../types/task-types.service.js';
 import { TaskEditService } from './task-edit.service.js';
 import { TasksQueryService } from './tasks-query.service.js';
 import { TasksService } from './tasks.service.js';
@@ -75,7 +70,6 @@ export class TasksController {
     private readonly query: TasksQueryService,
     private readonly bulk: BulkService,
     private readonly typeChange: TaskTypeChangeService,
-    private readonly taskTypes: TaskTypesService,
   ) {}
 
   @Get()
@@ -102,20 +96,6 @@ export class TasksController {
     q: z.infer<typeof scopeQuery>,
   ): Promise<TaskStageWithCount[]> {
     return this.query.stages(user, q.scope, q.typeId);
-  }
-
-  @Get('types')
-  @ApiOperation({ summary: 'Типы задач (расширенный DTO; archived — include/only)' })
-  @ApiOkResponse({ standardSchema: z.array(taskTypeSchema) })
-  @ApiErrors(400, 401)
-  types(
-    @Query({
-      schema: taskTypeListQuerySchema,
-      pipes: [new ZodValidationPipe(taskTypeListQuerySchema)],
-    })
-    q: TaskTypeListQuery,
-  ): Promise<TaskType[]> {
-    return this.taskTypes.list(q.archived ?? 'exclude');
   }
 
   @Post(':id/type')
