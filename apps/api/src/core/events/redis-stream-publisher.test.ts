@@ -110,4 +110,18 @@ describe('RedisStreamPublisher', () => {
     expect(queryRaw).toHaveBeenCalledTimes(2);
     expect(redis.xadd).toHaveBeenCalledTimes(1);
   });
+  it('фоновый тик при живом проходе — пропуск, не очередь (зависший Redis не копит тики)', async () => {
+    vi.useFakeTimers();
+    try {
+      await publisher.onModuleInit();
+      queryRaw.mockClear();
+      queryRaw.mockImplementationOnce(() => new Promise(() => undefined)); // проход завис
+      void publisher.publishPending();
+      await vi.advanceTimersByTimeAsync(1_000); // 20 тиков по 50 мс
+      expect(queryRaw).toHaveBeenCalledTimes(1);
+    } finally {
+      publisher.onModuleDestroy();
+      vi.useRealTimers();
+    }
+  });
 });

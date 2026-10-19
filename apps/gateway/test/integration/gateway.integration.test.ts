@@ -1,7 +1,7 @@
 import { SignJWT } from 'jose';
 import { io as clientIo, type Socket as ClientSocket } from 'socket.io-client';
 import { Redis } from 'ioredis';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { DOMAIN_EVENTS_STREAM, type RealtimeEnvelope } from '@nodus/contracts';
 
 import { createGatewayServer, type GatewayServer } from '../../src/gateway-server.js';
@@ -261,9 +261,15 @@ describe.skipIf(!process.env.DATABASE_URL || !process.env.REDIS_URL || !process.
       for (const socket of sockets.splice(0)) {
         socket.disconnect();
       }
-      await new Promise((resolve) => {
-        setTimeout(resolve, 200);
-      });
+      // Ждём по условию, не по таймеру (#358): сервер обработал разрывы —
+      // у него не осталось ни одного сокета (presence чистит соединения в
+      // том же обработчике disconnect).
+      await vi.waitFor(
+        async () => {
+          expect(await gateway.io.fetchSockets()).toHaveLength(0);
+        },
+        { timeout: 5_000, interval: 20 },
+      );
 
       const first = await connectWithSnapshot(testDb.users[0]!.id);
       expect(first.snapshot.entries.some((e) => e.user.id === testDb.users[0]!.id)).toBe(true);

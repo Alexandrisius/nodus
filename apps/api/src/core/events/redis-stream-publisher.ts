@@ -72,7 +72,10 @@ export class RedisStreamPublisher implements OnModuleInit, OnModuleDestroy {
     );
     this.logger.info({ marked }, 'fanout bootstrap: history marked published');
     this.timer = setInterval(() => {
-      void this.publishPending();
+      // Фоновый тик при живом проходе — пропуск, не очередь: иначе при
+      // зависшем Redis (offline-очередь ioredis) копились бы тысячи
+      // ожидающих тиков. Ждёт чужой проход только ручной вход (тесты).
+      if (!this.pass) void this.publishPending();
     }, POLL_INTERVAL_MS);
     this.timer.unref();
   }

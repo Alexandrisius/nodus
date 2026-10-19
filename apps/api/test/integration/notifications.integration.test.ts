@@ -340,12 +340,8 @@ describe.skipIf(!process.env.DATABASE_URL)(
     });
 
     it('D4: повторная диспетчеризация события не плодит уведомления', async () => {
-      // Раскрутить хвост до пустого (фон-тик диспетчера живёт в app — гонка).
-      for (let i = 0; i < 3; i += 1) {
-        await dispatcher.dispatchPending();
-        const pending = await prisma.event.count({ where: { publishedAt: null } });
-        if (pending === 0) break;
-      }
+      // Раскрутить хвост до тишины (фон-тик диспетчера живёт в app — гонка).
+      await runPipeline();
       const before = await prisma.notification.count({ where: { userId: bob.id } });
       await dispatcher.dispatchPending(); // повтор тех же событий
       await dispatcher.dispatchPending();
