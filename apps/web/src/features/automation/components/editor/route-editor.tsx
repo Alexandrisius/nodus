@@ -10,6 +10,7 @@ import {
 import { checkWorkflowDocument } from '@nodus/contracts';
 import type { WorkflowDetail, WorkflowProblem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
+import { cn } from '@nodus/ui/lib/utils';
 
 import { useQueryClient } from '@tanstack/react-query';
 import { usePublishWorkflow } from '../../api/automation-api.js';
@@ -208,7 +209,7 @@ function RouteEditorInner({
         onAddTransition={() => setAddTransitionOpen(true)}
       />
 
-      <div className="relative min-h-0 flex-1">
+      <div className={cn('relative min-h-0 flex-1', store.selection && 'flow-inspector-open')}>
         <FlowCanvas
           nodes={graph.nodes}
           edges={graph.edges}

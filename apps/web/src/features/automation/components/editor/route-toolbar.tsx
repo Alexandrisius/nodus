@@ -9,7 +9,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from '@nodus/ui/components/dropdown-menu';
-import { Minus, Plus, Redo2, Undo2 } from 'lucide-react';
+import { Maximize2, Minus, Plus, Redo2, Undo2 } from 'lucide-react';
 
 import { ProblemsChip } from './problems-chip.js';
 
@@ -77,7 +77,7 @@ export function RouteToolbar({
   const warnings = problems.length - errors;
 
   return (
-    <div className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-3">
+    <div className="flex h-14 shrink-0 items-center gap-1.5 border-b border-border px-3">
       {canManage ? (
         <>
           <DropdownMenu>
@@ -147,10 +147,10 @@ export function RouteToolbar({
         </span>
       ) : publishedAt ? (
         <span
-          className="shrink-0 rounded-full border border-border bg-accent/40 px-2.5 py-1 text-xs text-muted-foreground"
-          title={publishedBy ?? undefined}
+          className="shrink-0 rounded-full border border-border bg-accent/40 px-2.5 py-1 font-mono text-xs tabular-nums text-muted-foreground"
+          title={`${ui.automation.chipPublishedAt} ${formatDate(publishedAt)}${publishedBy ? ` · ${publishedBy}` : ''}`}
         >
-          {ui.automation.chipPublishedAt} {formatDate(publishedAt)}
+          {formatDate(publishedAt)}
         </span>
       ) : null}
 
@@ -191,13 +191,12 @@ export function RouteToolbar({
         </Button>
         <Button
           variant="ghost"
-          size="sm"
-          className="px-2"
+          size="icon"
           aria-label={ui.automation.fitView}
           title={ui.automation.fitView}
           onClick={() => void fitView({ duration: 200, padding: 0.2 })}
         >
-          {ui.automation.fitView}
+          <Maximize2 className="size-4" strokeWidth={1.75} />
         </Button>
         <Button
           variant="ghost"

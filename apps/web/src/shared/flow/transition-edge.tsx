@@ -78,7 +78,7 @@ export const TransitionEdge = memo(function TransitionEdge({
             className={cn(
               'nodrag nopan edge-label pointer-events-auto',
               style.labelClass,
-              selected && 'drop-shadow-(--glow)',
+              selected && 'drop-shadow(0 0 6px var(--glow))',
             )}
             style={{
               transform: `translate(-50%, -50%) translate(${d.label.x}px, ${d.label.y}px)`,

@@ -33,6 +33,49 @@ export interface RouteGraphOptions {
 
 const HANDLE_ID = { l: 'l', r: 'r', t: 't', b: 'b' } as const;
 
+/** Ширина чипа-подписи (12px моно-подобный + поля) — для раздвижки коллизий. */
+function chipWidth(name: string): number {
+  return name.length * 6.6 + 24;
+}
+
+/** Подписи нижних магистралей не наезжают друг на друга: кластер по полосе
+ *  (laneY), раздвижка по X слева направо (шаг — ширина чипа + зазор). */
+function spreadLaneLabels(edges: TransitionFlowEdge[]): void {
+  const lanes = new Map<number, { name: string; x: number; index: number }[]>();
+  edges.forEach((edge, index) => {
+    const d = edge.data;
+    const pts = d?.points ?? [];
+    const elbow1 = pts[1];
+    const elbow2 = pts[2];
+    if (
+      !d ||
+      edge.sourceHandle !== 'b' ||
+      edge.targetHandle !== 'b' ||
+      !elbow1 ||
+      !elbow2 ||
+      elbow1.y !== elbow2.y
+    )
+      return;
+    const lane = elbow1.y;
+    const labelX = d.label?.x ?? 0;
+    const list = lanes.get(lane) ?? [];
+    list.push({ name: d.name, x: labelX, index });
+    lanes.set(lane, list);
+  });
+  for (const list of lanes.values()) {
+    if (list.length < 2) continue;
+    list.sort((a, b) => a.x - b.x);
+    let prevRight = -Infinity;
+    for (const item of list) {
+      const half = chipWidth(item.name) / 2;
+      const x = Math.max(item.x, prevRight + half + 8);
+      prevRight = x + half;
+      const data = edges[item.index]!.data!;
+      data.label = { x, y: data.label?.y ?? 0 };
+    }
+  }
+}
+
 export function buildRouteGraph(
   doc: WorkflowDraftDocument,
   options: RouteGraphOptions,
@@ -111,6 +154,8 @@ export function buildRouteGraph(
       },
     };
   });
+
+  spreadLaneLabels(transitionEdges);
 
   // Старт-терминал и стрелка в начальный статус.
   const initial = doc.stages.find((s) => s.isInitial);

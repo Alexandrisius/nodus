@@ -85,7 +85,9 @@ export const StatusNode = memo(function StatusNode({
         aria-label={`${ui.automation.stageAria} «${data.name}», ${ui.automation.bandAria} «${stateLabel[data.systemState]}»`}
         className={cn(
           'flex h-[52px] w-[208px] items-stretch overflow-hidden rounded-[10px] border bg-card transition-colors',
-          active ? 'border-ring ring-1 ring-ring/30 drop-shadow-(--glow)' : 'border-border',
+          active
+            ? 'border-ring ring-1 ring-ring/30 drop-shadow(0 0 6px var(--glow))'
+            : 'border-border',
         )}
       >
         <span aria-hidden className={cn('w-1 shrink-0', tone.dot)} />

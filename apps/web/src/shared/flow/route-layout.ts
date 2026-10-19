@@ -20,7 +20,7 @@ export const ROUTE_GEOMETRY = {
   /** Поля раскладки от нуля холста. */
   margin: 48,
   /** Старт-терминал «Создание задачи». */
-  startWidth: 128,
+  startWidth: 156,
   startHeight: 40,
   /** Зазор между стартом и начальным статусом. */
   startGap: 56,

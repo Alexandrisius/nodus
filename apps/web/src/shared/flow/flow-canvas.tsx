@@ -91,7 +91,7 @@ export function FlowCanvas({
         minZoom={0.3}
         maxZoom={1.6}
         fitView={fitView}
-        fitViewOptions={{ padding: 0.2, maxZoom: 1 }}
+        fitViewOptions={{ padding: 0.2, minZoom: 0.7, maxZoom: 1 }}
         proOptions={{ hideAttribution: false }}
         // Выделение рамкой не нужно: выбор — клик по узлу/ребру.
         selectionOnDrag={false}

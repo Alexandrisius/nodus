@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate, useSearch } from '@tanstack/react-router';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueries } from '@tanstack/react-query';
 import { ui } from '@nodus/contracts';
 import { Empty, EmptyTitle } from '@nodus/ui/components/empty';
 
@@ -27,7 +27,6 @@ import {
 export function AutomationPage() {
   const navigate = useNavigate();
   const search = useSearch({ strict: false }) as { type?: string };
-  const queryClient = useQueryClient();
   const { data: types, isLoading } = useTaskTypes('include');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
@@ -41,39 +40,33 @@ export function AutomationPage() {
   const workflowQuery = useWorkflowDetail(selected?.workflowId ?? null);
   const workflow = workflowQuery.data;
 
-  // Мета строк списка («N статусов · M задач») читает кэш деталей — грейим
-  // все маршруты раздела, чтобы невыбранные типы не показывали нули.
-  useEffect(() => {
-    for (const type of types ?? []) {
-      void queryClient.ensureQueryData({
-        queryKey: workflowKeys.detail(type.workflowId),
-        queryFn: () => fetchWorkflowDetail(type.workflowId),
-      });
-    }
-  }, [types, queryClient]);
-
-  // Мета строк списка: стадии и задачи каждого типа (кэш деталей маршрутов).
+  // Мета строк списка («N статусов · M задач») реактивна: детали всех
+  // маршрутов грузятся useQueries (один кэш с редактором и «Схемой»).
+  const details = useQueries({
+    queries: (types ?? []).map((type) => ({
+      queryKey: workflowKeys.detail(type.workflowId),
+      queryFn: () => fetchWorkflowDetail(type.workflowId),
+      staleTime: 30_000,
+    })),
+  });
   const stageCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    for (const type of types ?? []) {
-      const detail = queryClient.getQueryData(workflowKeys.detail(type.workflowId)) as
-        { document: { stages: unknown[] } } | undefined;
-      counts[type.id] = detail?.document.stages.length ?? 0;
-    }
+    (types ?? []).forEach((type, i) => {
+      counts[type.id] = details[i]?.data?.document.stages.length ?? 0;
+    });
     if (workflow && selected) counts[selected.id] = workflow.document.stages.length;
     return counts;
-  }, [types, queryClient, workflow, selected]);
+  }, [types, details, workflow, selected]);
   const taskCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    for (const type of types ?? []) {
-      const detail = queryClient.getQueryData(workflowKeys.detail(type.workflowId)) as
-        { stageTaskCounts: Record<string, number> } | undefined;
+    (types ?? []).forEach((type, i) => {
+      const detail = details[i]?.data;
       counts[type.id] = detail
         ? Object.values(detail.stageTaskCounts).reduce((a, b) => a + b, 0)
         : 0;
-    }
+    });
     return counts;
-  }, [types, queryClient]);
+  }, [types, details]);
 
   const editorDirty = useRouteDocStore((s) => s.dirty);
   const editorWorkflowId = useRouteDocStore((s) => s.workflowId);

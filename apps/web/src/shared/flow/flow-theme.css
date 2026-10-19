@@ -28,7 +28,14 @@
 .react-flow__attribution {
   font-size: 10px;
   opacity: 0.45;
-  transition: opacity 150ms ease;
+  transition:
+    opacity 150ms ease,
+    right 200ms ease;
+}
+
+/* Открытый инспектор справа: атрибуция уезжает левее панели (не под ней). */
+.flow-inspector-open .react-flow__attribution {
+  right: 344px;
 }
 
 .react-flow__attribution:hover {
@@ -79,7 +86,7 @@
 .react-flow__edge:focus .react-flow__edge-path {
   stroke-width: 1.5;
   stroke: var(--port);
-  filter: drop-shadow(var(--glow));
+  filter: drop-shadow(0 0 6px var(--glow));
 }
 
 /* Подписи-чипы на рёбрах (transition-edge.tsx): показ кнопки задаёт вид. */

@@ -34,6 +34,12 @@ export function publishSummary(
   const removedStages = baseline.stages.filter(
     (s) => !next.stages.some((n) => n.id === s.id),
   ).length;
+  const addedTransitions = next.transitions.filter(
+    (t) => !baseline.transitions.some((b) => b.id === t.id),
+  ).length;
+  const removedTransitions = baseline.transitions.filter(
+    (t) => !next.transitions.some((n) => n.id === t.id),
+  ).length;
   const changedTransitions = next.transitions.filter((t) => {
     const before = baseline.transitions.find((b) => b.id === t.id);
     return before && JSON.stringify(before) !== JSON.stringify(t);
@@ -43,6 +49,10 @@ export function publishSummary(
   if (addedStages) parts.push(`+${addedStages} ${pluralRu(addedStages, ui.automation.statStages)}`);
   if (removedStages)
     parts.push(`−${removedStages} ${pluralRu(removedStages, ui.automation.statStages)}`);
+  if (addedTransitions)
+    parts.push(`+${addedTransitions} ${pluralRu(addedTransitions, ui.automation.statButtons)}`);
+  if (removedTransitions)
+    parts.push(`−${removedTransitions} ${pluralRu(removedTransitions, ui.automation.statButtons)}`);
   if (changedTransitions)
     parts.push(
       `${changedTransitions} ${pluralRu(changedTransitions, ui.automation.buttonsChangedForms)}`,

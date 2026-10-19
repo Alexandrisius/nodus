@@ -48,7 +48,7 @@ export function RouteViewDialog({
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-      <DialogContent className="flex h-[80vh] max-w-[1200px] flex-col">
+      <DialogContent className="flex h-[80vh] w-[92vw] max-w-[1200px] flex-col sm:max-w-[1200px]">
         <DialogHeader className="flex-row items-center justify-between space-y-0">
           <DialogTitle>
             {ui.automation.routeViewOfType} «{task.type.name}»

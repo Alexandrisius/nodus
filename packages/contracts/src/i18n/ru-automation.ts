@@ -14,6 +14,7 @@ export const automationStrings = {
   restoreFromArchive: 'Вернуть из архива',
   statStages: ['статус', 'статуса', 'статусов'],
   statTasks: ['задача', 'задачи', 'задач'],
+  statButtons: ['кнопка', 'кнопки', 'кнопок'],
   /** Диалог создания типа. */
   createTitle: 'Новый тип задачи',
   fieldName: 'Название',
