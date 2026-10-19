@@ -115,9 +115,8 @@ export class ConversationMembersService {
       'group',
       'project_channel',
     ]);
-    const known = new Set(
-      (await this.userProfiles.findRefs([...new Set(body.userIds)])).map((r) => r.id),
-    );
+    // Только действующие сотрудники (#343): уволенного в беседу не добавить.
+    const known = new Set(await this.userProfiles.filterActiveUserIds([...new Set(body.userIds)]));
     const existing = new Set((await this.repo.listMembers([conversationId])).map((m) => m.userId));
     const toAdd = [...new Set(body.userIds)].filter((id) => known.has(id) && !existing.has(id));
     if (toAdd.length > 0) {

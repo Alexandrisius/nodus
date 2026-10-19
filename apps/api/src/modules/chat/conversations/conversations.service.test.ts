@@ -204,15 +204,18 @@ describe('ConversationsService', () => {
       permissions: { post: 'admin' },
     };
 
-    it('дедуп участников, создатель и неизвестные исключены', async () => {
+    it('дедуп участников, создатель, неизвестные и уволенные исключены (#343)', async () => {
       repo.createGroup.mockResolvedValue('conv-new');
-      userProfiles.findRefs.mockResolvedValue([
-        { id: 'u-1', displayName: 'Один', avatarUrl: null },
-      ]);
+      userProfiles.filterActiveUserIds.mockResolvedValueOnce(['u-1']);
 
       const item = await service.create('me-1', body);
 
-      expect(userProfiles.findRefs).toHaveBeenCalledWith(['u-1', 'u-1', 'me-1', 'ghost-id']);
+      expect(userProfiles.filterActiveUserIds).toHaveBeenCalledWith([
+        'u-1',
+        'u-1',
+        'me-1',
+        'ghost-id',
+      ]);
       expect(repo.createGroup).toHaveBeenCalledWith(
         expect.objectContaining({
           type: 'group',
@@ -228,9 +231,7 @@ describe('ConversationsService', () => {
 
     it('события CONVERSATION_CREATED и MEMBER_ADDED — в той же транзакции', async () => {
       repo.createGroup.mockResolvedValue('conv-new');
-      userProfiles.findRefs.mockResolvedValue([
-        { id: 'u-1', displayName: 'Один', avatarUrl: null },
-      ]);
+      userProfiles.filterActiveUserIds.mockResolvedValueOnce(['u-1']);
 
       await service.create('me-1', body);
 

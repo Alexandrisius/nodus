@@ -276,4 +276,34 @@ describe.skipIf(!process.env.DATABASE_URL)('chat: беседы (integration)', (
     });
     expect(apiErrorResponseSchema.parse(await patch.json()).code).toBe(ErrorCode.NOT_FOUND);
   });
+  it('новая личка: собеседник не видит пустую беседу до первого сообщения (#343)', async () => {
+    const listOf = async (user: ChatUser): Promise<string[]> =>
+      paginatedSchema(conversationListItemSchema)
+        .parse(await (await fx.api(user, 'GET', '/chat/conversations?limit=100')).json())
+        .items.map((i) => i.id);
+    const created = await fx.api(alice, 'POST', `/chat/conversations/direct/${carol.id}`);
+    expect(created.status).toBe(201);
+    const direct = conversationListItemSchema.parse(await created.json());
+    expect(await listOf(carol)).not.toContain(direct.id);
+
+    const sent = await fx.api(alice, 'POST', `/chat/conversations/${direct.id}/messages`, {
+      body: { text: 'Привет' },
+    });
+    expect(sent.status).toBe(201);
+    expect(await listOf(carol)).toContain(direct.id);
+  });
+
+  it('уволенный: новой лички нет (404), существующая открывается (#343)', async () => {
+    await prisma.user.update({ where: { id: bob.id }, data: { status: 'deactivated' } });
+    try {
+      const fresh = await fx.api(carol, 'POST', `/chat/conversations/direct/${bob.id}`);
+      expect(fresh.status).toBe(404);
+      expect(apiErrorResponseSchema.parse(await fresh.json()).code).toBe(ErrorCode.NOT_FOUND);
+      // alice↔bob создана раньше в этом наборе — история доступна.
+      const existing = await fx.api(alice, 'POST', `/chat/conversations/direct/${bob.id}`);
+      expect(existing.status).toBe(200);
+    } finally {
+      await prisma.user.update({ where: { id: bob.id }, data: { status: 'active' } });
+    }
+  });
 });

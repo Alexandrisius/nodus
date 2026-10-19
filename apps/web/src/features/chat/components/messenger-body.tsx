@@ -109,7 +109,12 @@ export function MessengerBody({
     if (q.length < 2 || tab === 'tasks') return [];
     return (usersData?.items ?? []).filter(
       (u: UserListItem) =>
-        u.id !== meId && u.displayName.toLowerCase().includes(q) && !directPeerIds.has(u.id),
+        // Новую личку — только с действующим (#343); с уволенным беседа,
+        // если была, уже в списке бесед.
+        u.status === 'active' &&
+        u.id !== meId &&
+        u.displayName.toLowerCase().includes(q) &&
+        !directPeerIds.has(u.id),
     );
   }, [q, tab, usersData, directPeerIds, meId]);
   async function openDirectChat(userId: string): Promise<void> {

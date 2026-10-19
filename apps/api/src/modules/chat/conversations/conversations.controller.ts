@@ -99,6 +99,7 @@ export class ConversationsController {
 
   @Post('direct/:userId')
   @HttpCode(200)
+  @ApiIdempotencyKey()
   @ApiOperation({
     summary:
       'Find-or-create личной беседы (включая «Избранное» с собой); новая — только с действующим сотрудником',

@@ -1,9 +1,11 @@
 import { useMemo, useRef, useState } from 'react';
 import { ui } from '@nodus/contracts';
+import { Empty, EmptyTitle } from '@nodus/ui/components/empty';
 import { Skeleton } from '@nodus/ui/components/skeleton';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { useAssigneeTasks, useMemberProjects } from '../../../shared/api/user-relations.js';
+import { ApiError } from '../../../shared/api-client.js';
 import { useDirectConversation } from '../../../shared/chat/chat-queries.js';
 import { useAuthStore } from '../../../shared/auth-store.js';
 import { useRailShrink } from '../../../app/shell/right-rail.js';
@@ -199,6 +201,16 @@ export function EmployeeCard({ userId }: { userId: string }) {
                     showAuthor={false}
                     emptyLabel={ui.chat.directEmpty}
                   />
+                ) : directQuery.isError ? (
+                  <div className="flex h-full items-center justify-center bg-chat-zone">
+                    <Empty>
+                      <EmptyTitle>
+                        {directQuery.error instanceof ApiError && directQuery.error.status === 404
+                          ? ui.chat.directUnavailable
+                          : ui.common.loadError}
+                      </EmptyTitle>
+                    </Empty>
+                  </div>
                 ) : (
                   <div className="flex flex-col gap-3 p-4">
                     {[0, 1, 2].map((i) => (

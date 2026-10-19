@@ -99,11 +99,11 @@ export class ConversationsService {
 
   /** Создание группы/канала: создатель owner, участники member (мок: без них). */
   async create(userId: string, body: CreateConversationBody): Promise<ConversationListItem> {
-    const known = new Map(
-      (await this.userProfiles.findRefs(body.memberIds ?? [])).map((r) => [r.id, r]),
-    );
+    // Участники — только действующие сотрудники (#343): несуществующие и
+    // уволенные молча отбрасываются.
+    const active = new Set(await this.userProfiles.filterActiveUserIds(body.memberIds ?? []));
     const memberIds = [...new Set(body.memberIds ?? [])].filter(
-      (id) => id !== userId && known.has(id),
+      (id) => id !== userId && active.has(id),
     );
     const permissions = mergePermissions(body.permissions);
     const conversationId = await this.txRunner.run(async (tx) => {
