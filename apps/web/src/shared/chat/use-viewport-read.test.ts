@@ -1,10 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
-import {
-  flushReadReceiptsOnShellHide,
-  maxSeenSeq,
-  registerShellHiddenFlush,
-} from './use-viewport-read.js';
+import { maxSeenSeq } from './use-viewport-read.js';
 
 /** Честная видимость (раунд 3): строка просмотрена ⇔ её НИЖНИЙ КРАЙ виден —
  *  «верхушка пузыря» не считается просмотром (замечание владельца 4). */
@@ -42,27 +38,5 @@ describe('maxSeenSeq (геометрия просмотренности)', () =>
   it('ничего не видно → null', () => {
     expect(maxSeenSeq([], fold)).toBe(null);
     expect(maxSeenSeq([{ seq: 1, bottom: 900 }], fold)).toBe(null);
-  });
-});
-
-describe('registerShellHiddenFlush (сокрытие оболочки)', () => {
-  it('флашит все живые планировщики; снятая регистрация не вызывается', () => {
-    const conversation = vi.fn();
-    const thread = vi.fn();
-    const offConversation = registerShellHiddenFlush(conversation);
-    const offThread = registerShellHiddenFlush(thread);
-
-    flushReadReceiptsOnShellHide();
-    expect(conversation).toHaveBeenCalledTimes(1);
-    expect(thread).toHaveBeenCalledTimes(1);
-
-    offThread();
-    flushReadReceiptsOnShellHide();
-    expect(conversation).toHaveBeenCalledTimes(2);
-    expect(thread).toHaveBeenCalledTimes(1);
-
-    offConversation();
-    flushReadReceiptsOnShellHide();
-    expect(conversation).toHaveBeenCalledTimes(2);
   });
 });

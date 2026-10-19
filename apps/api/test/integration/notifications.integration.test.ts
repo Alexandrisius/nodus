@@ -51,12 +51,20 @@ describe.skipIf(!process.env.DATABASE_URL)(
       await fx?.cleanup();
     });
 
-    /** Прогнать конвейер до событий второго порядка (журнал → будило →
-     *  журнал доставок): диспетчер и издатель — по два раунда. */
+    /** Прогнать конвейер ДО ТИШИНЫ (журнал → будило → журнал доставок):
+     *  раунды диспетчер+издатель, пока в outbox есть неразобранное или
+     *  неопубликованное (событие порождает событие). Фиксированные «два
+     *  раунда» флакали под нагрузкой: хвост чужих событий в батче или
+     *  фоновый тикер отодвигали событие второго порядка за последний раунд
+     *  (#358). Потолок раундов — страховка от ядовитого события в бэкоффе. */
     async function runPipeline(): Promise<void> {
-      for (let round = 0; round < 2; round += 1) {
+      for (let round = 0; round < 8; round += 1) {
         await dispatcher.dispatchPending();
         await publisher.publishPending();
+        const pending = await prisma.event.count({
+          where: { OR: [{ publishedAt: null }, { fanoutAt: null }] },
+        });
+        if (pending === 0 && round >= 1) return;
       }
     }
 

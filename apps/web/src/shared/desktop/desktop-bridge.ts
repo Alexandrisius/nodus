@@ -10,6 +10,7 @@ import {
   type PopupReplyEvent,
   type ShellUpdateState,
 } from '@nodus/contracts';
+import { flushOnShellHidden } from './shell-hidden.js';
 
 /**
  * Мост «портал ↔ десктоп-оболочка» (ADR-0019): веб-приложение при наличии
@@ -173,7 +174,7 @@ export function setShellVisibleFromShell(visible: boolean): void {
   // просмотров чата дозаписываем немедленно, иначе хвост непрочитанного
   // оставался «зомби-бейджем» до следующей активности (фидбек 08.10).
   if (!visible) {
-    void import('../chat/use-viewport-read.js').then((m) => m.flushReadReceiptsOnShellHide());
+    flushOnShellHidden();
   }
 }
 

@@ -93,4 +93,21 @@ describe('RedisStreamPublisher', () => {
     // Только bootstrap-метка: батч не помечен и повторится следующим тиком.
     expect(executeRaw).toHaveBeenCalledTimes(1);
   });
+  it('параллельный вызов ждёт чужой проход и делает СВОЙ — не пустой no-op (#358)', async () => {
+    let releaseFirst!: (rows: unknown[]) => void;
+    queryRaw.mockImplementationOnce(
+      () => new Promise((resolve) => (releaseFirst = resolve as (rows: unknown[]) => void)),
+    );
+    const createdAt = new Date();
+    queryRaw.mockResolvedValueOnce([
+      { id: 'late', seq: 10n, type: 'notification.dispatch_requested', payload: {}, createdAt },
+    ]);
+    const background = publisher.publishPending(); // фоновый тик: SELECT ещё до свежего события
+    const manual = publisher.publishPending(); // ручной прогон теста
+    releaseFirst([]);
+    await Promise.all([background, manual]);
+
+    expect(queryRaw).toHaveBeenCalledTimes(2);
+    expect(redis.xadd).toHaveBeenCalledTimes(1);
+  });
 });

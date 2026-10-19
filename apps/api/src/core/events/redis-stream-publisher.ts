@@ -50,7 +50,12 @@ interface PendingEventRow {
 @Injectable()
 export class RedisStreamPublisher implements OnModuleInit, OnModuleDestroy {
   private timer: NodeJS.Timeout | null = null;
-  private publishing = false;
+  /** In-flight проход публикации (null — прохода нет). Параллельный вызов
+   *  ЖДЁТ чужой проход и делает свой, а не уходит молча no-op'ом: ручной
+   *  прогон поверх фонового тикера читал «пусто» до записи свежих событий —
+   *  тот же класс гонки, что у диспетчера (#212), флейк интеграционных CI
+   *  (#358). */
+  private pass: Promise<void> | null = null;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -78,12 +83,22 @@ export class RedisStreamPublisher implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  /** Один проход публикации (также используется интеграционными тестами). */
+  /** Один проход публикации (также используется интеграционными тестами).
+   *  Проходы не накладываются, но конкурентный вызов ДОЖИДАЕТСЯ чужого прохода
+   *  и стартует свой — вызов никогда не «пустой». */
   async publishPending(): Promise<void> {
-    if (this.publishing) {
-      return; // защита от наложения опросов
+    while (this.pass) {
+      await this.pass;
     }
-    this.publishing = true;
+    this.pass = this.runPass();
+    try {
+      await this.pass;
+    } finally {
+      this.pass = null;
+    }
+  }
+
+  private async runPass(): Promise<void> {
     try {
       const rows = await this.prisma.$queryRaw<PendingEventRow[]>(
         Prisma.sql`SELECT id, seq, type, payload, created_at AS "createdAt"
@@ -127,8 +142,6 @@ export class RedisStreamPublisher implements OnModuleInit, OnModuleDestroy {
       );
     } catch (error) {
       this.logger.error({ err: error }, 'chat fanout publish failed, will retry');
-    } finally {
-      this.publishing = false;
     }
   }
 }
