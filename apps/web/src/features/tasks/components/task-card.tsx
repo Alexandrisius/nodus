@@ -96,13 +96,14 @@ export function TaskCard({ taskId }: { taskId: string }) {
   // ЛЮБОЕ стоящее сужение ряда — рельса, навигатор ветки (его ТЕКУЩАЯ
   // тянущаяся ширина, #365), «О задаче» — сначала съедает колонку обсуждения
   // ДО ЕЁ МИНИМУМА (общий пол = drag-минимум MIN_CHAT_W; глубже — только
-  // временное исключение открытой «О задаче» MIN_CHAT_WITH_PANEL); дальше —
+  // временное исключение открытой ПАНЕЛИ — «О задаче» или навигатора —
+  // MIN_CHAT_WITH_PANEL); дальше —
   // порядок уступок flex-ряда (SHRINK_ORDER, разметка ниже). Рендер и оба
   // drag (чата и навигатора) ходят по ОДНОЙ формуле chatWidthFor, transition
   // колонки — те же 200мс ease-out, что у рельсы/панелей: сумма «ряд − чат»
   // постоянна покадрово, граница зон не дёргается.
   const railShrink = useRailShrink();
-  const chatFloor = aboutOpen ? MIN_CHAT_WITH_PANEL : MIN_CHAT_W;
+  const chatFloor = aboutOpen || branchOpen ? MIN_CHAT_WITH_PANEL : MIN_CHAT_W;
   const fixedShrink = (aboutOpen ? ABOUT_W : 0) + railShrink;
   const branch = useBranchWidth({ rowRef, branchRef, chatRef });
   const branchColumnW = branchOpen ? branch.branchW : 0;
@@ -115,8 +116,7 @@ export function TaskCard({ taskId }: { taskId: string }) {
     chatColumnWidth(chatW, fixedShrink + branchW, chatFloor);
   const chatColumnW = chatWidthFor(branchColumnW);
   const resizing = dragging || branch.dragging;
-  // Стабильные колбэки: дочерние панели мемоизированы, инлайн-стрелки
-  // ломали бы memo на каждом рендере.
+  // Стабильные колбэки: дочерние панели мемоизированы (memo).
   const closeBranch = useCallback(() => setBranchOpen(false), []);
   const closeAbout = useCallback(() => setAboutOpen(false), []);
 
@@ -264,8 +264,8 @@ export function TaskCard({ taskId }: { taskId: string }) {
             БУФЕР СУЖЕНИЙ (issue #63): рельса/ветка/«О задаче» сужают ЭТУ
             колонку (chatColumnW, те же 200мс ease-out, что у источника
             сужения) — левая зона и разделитель стоят на месте; после упора
-            чата в его минимум (MIN_CHAT_W, при «О задаче» —
-            MIN_CHAT_WITH_PANEL) сужение двигает левую зону. */}
+            чата в его минимум (MIN_CHAT_W, при открытой панели —
+            MIN_CHAT_WITH_PANEL) — порядок уступок ряда. */}
           <div
             ref={chatRef}
             className={cn(
