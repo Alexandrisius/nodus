@@ -26,3 +26,8 @@ export type StageOutcome = z.infer<typeof stageOutcomeSchema>;
  *  одна на статус) / видна / в меню «Ещё» (#378). */
 export const transitionDisplaySchema = z.enum(['primary', 'button', 'menu']);
 export type TransitionDisplay = z.infer<typeof transitionDisplaySchema>;
+
+/** Ид элемента документа маршрута: uuid существующей записи или временный
+ *  `new:*` нового (разрешается в uuid при публикации, #378). */
+export const docIdSchema = z.union([z.uuid(), z.string().regex(/^new:[a-z0-9-]{1,36}$/)]);
+export type DocId = z.infer<typeof docIdSchema>;

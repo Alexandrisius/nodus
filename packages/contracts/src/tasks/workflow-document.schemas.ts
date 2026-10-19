@@ -17,10 +17,11 @@ import { workflowTransitionRulesSchema } from './workflow.schemas.js';
  * показывает живая проверка `checkWorkflowDocument`, а не zod).
  */
 
-/** Ид элемента документа: uuid существующей записи или временный `new:*`
- *  нового (разрешается в uuid при публикации). */
-export const docIdSchema = z.union([z.uuid(), z.string().regex(/^new:[a-z0-9-]{1,36}$/)]);
-export type DocId = z.infer<typeof docIdSchema>;
+// docIdSchema (uuid | new:*) — примитив workflow-primitives: им пользуются
+// и документ, и правила route_if (цель может быть новой стадией черновика).
+export { docIdSchema } from './workflow-primitives.schemas.js';
+export type { DocId } from './workflow-primitives.schemas.js';
+import { docIdSchema } from './workflow-primitives.schemas.js';
 
 /** Стадия черновика (пустое имя допустимо — проверка покажет empty_name). */
 export const workflowDraftStageSchema = z.object({

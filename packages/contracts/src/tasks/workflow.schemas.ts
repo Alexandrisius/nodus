@@ -1,6 +1,10 @@
 import { z } from 'zod';
 
-import { stageOutcomeSchema, transitionDisplaySchema } from './workflow-primitives.schemas.js';
+import {
+  docIdSchema,
+  stageOutcomeSchema,
+  transitionDisplaySchema,
+} from './workflow-primitives.schemas.js';
 
 /**
  * Движок маршрутов задач (ADR-0020): глобальный тип → маршрут (стадии +
@@ -56,11 +60,13 @@ export const workflowPostFunctionSchema = z.discriminatedUnion('kind', [
    *  архивных переходах истории — новые маршруты его не несут. */
   z.object({ kind: z.literal('route_if_accept_required'), stageCode: z.string().min(1) }),
   /** Если условие выполнено, цель подменяется стадией `toStageId` —
-   *  утверждение пропускается, когда постановщик сам себе исполнитель (#378). */
+   *  утверждение пропускается, когда постановщик сам себе исполнитель (#378).
+   *  docId: в черновике цель может быть новой стадией `new:*` (разрешается
+   *  в uuid при публикации); uuid-only рвал rehydrate черновика. */
   z.object({
     kind: z.literal('route_if'),
     when: z.literal('creator_is_assignee'),
-    toStageId: z.uuid(),
+    toStageId: docIdSchema,
   }),
 ]);
 export type WorkflowPostFunction = z.infer<typeof workflowPostFunctionSchema>;
