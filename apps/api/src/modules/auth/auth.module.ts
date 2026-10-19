@@ -10,6 +10,7 @@ import { UserDeactivatedHandler } from './events/user-deactivated.handler.js';
 import { JwtAuthGuard } from './jwt-auth.guard.js';
 import { LocalAuthProvider } from './local-auth.provider.js';
 import { LoginThrottleService } from './login-throttle.service.js';
+import { RevokedUsersStore } from './revoked-users.store.js';
 import { TokenService } from './token.service.js';
 
 /**
@@ -33,6 +34,7 @@ import { TokenService } from './token.service.js';
     JwtAuthGuard,
     UserDeactivatedHandler,
     LoginThrottleService,
+    RevokedUsersStore,
     { provide: AUTH_PROVIDER, useClass: LocalAuthProvider },
   ],
   exports: [JwtAuthGuard, TokenService, JwtModule],

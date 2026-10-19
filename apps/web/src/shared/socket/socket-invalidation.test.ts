@@ -15,8 +15,10 @@ function fakeQueryClient() {
   const setQueriesData = vi.fn();
   // Поиск беседы задачи по кэшам списка (#252) — кэшей нет.
   const getQueriesData = vi.fn(() => []);
+  // Колонки досок в кэше (#322) — досок нет.
+  const getQueryCache = vi.fn(() => ({ findAll: () => [] }));
   return {
-    client: { invalidateQueries, getQueryData, setQueriesData, getQueriesData },
+    client: { invalidateQueries, getQueryData, setQueriesData, getQueriesData, getQueryCache },
     invalidateQueries,
   };
 }
@@ -188,7 +190,7 @@ describe('createRealtimeInvalidator (коалесцинг, раунд 3)', () =>
     vi.useRealTimers();
   });
 
-  it('task.* (#311): деталь и переходы задачи + доски/журнал, каждый ключ один раз', () => {
+  it('task.* (#311, #322): деталь и переходы задачи + счётчики/журнал, каждый ключ один раз', () => {
     vi.useFakeTimers();
     const { client, invalidateQueries } = fakeQueryClient();
     const invalidator = createRealtimeInvalidator(client as never);
@@ -198,7 +200,9 @@ describe('createRealtimeInvalidator (коалесцинг, раунд 3)', () =>
     const keys = invalidateQueries.mock.calls.map((c) => JSON.stringify(c[0].queryKey));
     expect(keys).toContain(JSON.stringify(['tasks', 'detail', 't-1']));
     expect(keys).toContain(JSON.stringify(['tasks', 'transitions', 't-1']));
-    expect(keys).toContain(JSON.stringify(['tasks', 'kanban']));
+    // Досок в кэше нет — колонки не рефечатся; стадия сменилась → счётчики.
+    expect(keys).not.toContain(JSON.stringify(['tasks', 'kanban']));
+    expect(keys).toContain(JSON.stringify(['tasks', 'personal-stages']));
     expect(keys).toContain(JSON.stringify(['tasks', 'list-pages']));
     expect(new Set(keys).size).toBe(keys.length);
     invalidator.dispose();
