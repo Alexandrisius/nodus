@@ -7,21 +7,9 @@ import {
   demoPersonalStages,
   demoSubtasks,
   demoTasks,
-  detailsExtra,
 } from '../../../../shared/mocks/data/tasks.js';
 import { letterIdByTaskId, syncLetterWithTasks } from '../../../../shared/mocks/data/letters.js';
-import {
-  demoStages,
-  stageCancelled,
-  stageDone,
-  stageInProgress,
-  stageNew,
-  stageOnControl,
-  stagePostponed,
-} from '../../../../shared/mocks/data/task-stages.js';
-
-/** id перехода мока = id целевой стадии с префиксом 21… (детерминированно). */
-const transitionId = (stage: TaskStage) => stage.id.replace(/^20/, '21');
+import { standardDocument } from '../../../../shared/mocks/data/workflows.js';
 
 function findTask(id: string): TaskListItem | undefined {
   return (
@@ -32,45 +20,63 @@ function findTask(id: string): TaskListItem | undefined {
   );
 }
 
-/** Переходы маршрута «Задача» — зеркало `DEFAULT_TASK_WORKFLOW.transitions`
- *  каталога API (system-catalog.ts): from null — из любой стадии. Условия
- *  «кто» и гейты в моке не проверяются (демо-пользователь — полный доступ). */
-const ROUTE: { name: string; from: TaskStage | null; to: TaskStage }[] = [
-  { name: 'Начать', from: stageNew, to: stageInProgress },
-  { name: 'Начать', from: stagePostponed, to: stageInProgress },
-  { name: 'Завершить', from: stageInProgress, to: stageDone },
-  { name: 'Завершить', from: stageNew, to: stageDone },
-  { name: 'Принять', from: stageOnControl, to: stageDone },
-  { name: 'Вернуть в работу', from: stageOnControl, to: stageInProgress },
-  { name: 'Вернуть в работу', from: stageDone, to: stageInProgress },
-  { name: 'Отложить', from: stageInProgress, to: stagePostponed },
-  { name: 'Отложить', from: stageNew, to: stagePostponed },
-  { name: 'Возобновить', from: stageCancelled, to: stageNew },
-  { name: 'Отменить', from: null, to: stageCancelled },
-];
-
-/** Мок-маршрут (ADR-0020): доступные из текущей стадии переходы каталога;
- *  id перехода — от целевой стадии (из одной стадии в одну цель ведёт не
- *  больше одного перехода). */
+/** Маршрут «Стандартный» ревизии 2 (#378): зеркало `standardDocument`
+ *  (workflows.ts ← каталог API system-catalog.ts). Условия «кто» в моке не
+ *  проверяются (демо-пользователь — полный доступ), показ (`display`) и
+ *  порядок — как у сервера: кнопки статуса по sortOrder, затем «из любого»;
+ *  встроенное правило «итог → итог» прячет «Отменить» у закрытых. */
 function transitionsOf(task: TaskListItem): TaskTransition[] {
-  return ROUTE.filter(
-    (r) => (r.from === null || r.from.id === task.stage.id) && r.to.id !== task.stage.id,
-  ).map((r) => ({
-    id: transitionId(r.to),
-    name: r.name,
-    toStageId: r.to.id,
-    toStageName: r.to.name,
-    toStageState: r.to.systemState,
-    blockedBy: [],
-    canOverride: false,
-  }));
+  const closed = task.stage.systemState === 'closed';
+  const stageIds = new Set(standardDocument.stages.map((s) => s.id));
+  const own: TaskTransition[] = [];
+  const anyFrom: TaskTransition[] = [];
+  for (const t of standardDocument.transitions) {
+    if (!stageIds.has(task.stage.id) || !stageIds.has(t.toStageId)) continue;
+    if (t.fromStageId !== null && t.fromStageId !== task.stage.id) continue;
+    if (t.fromStageId === null && closed) continue; // «итог → итог» скрыт
+    if (t.toStageId === task.stage.id) continue;
+    const target = stageDoc(t.toStageId);
+    const item: TaskTransition = {
+      id: t.id,
+      name: t.name,
+      toStageId: t.toStageId,
+      toStageName: target.name,
+      toStageState: target.systemState,
+      toStageOutcome: target.outcome,
+      display: t.display,
+      blockedBy: [],
+      canOverride: false,
+    };
+    (t.fromStageId === null ? anyFrom : own).push(item);
+  }
+  own.sort((a, b) => orderOf(a.id) - orderOf(b.id));
+  return [...own, ...anyFrom];
 }
 
-/** Пост-функция `route_if_accept_required` «Завершить»: флаг «Принять
- *  работу после завершения» уводит задачу в «Ждёт контроля». */
-function resolveTarget(task: TaskListItem, to: TaskStage): TaskStage {
-  const completing = to.id === stageDone.id && task.stage.id !== stageOnControl.id;
-  return completing && detailsExtra[task.id]?.acceptRequired ? stageOnControl : to;
+function stageDoc(id: string) {
+  return standardDocument.stages.find((s) => s.id === id)!;
+}
+
+function orderOf(transitionId: string): number {
+  return standardDocument.transitions.find((t) => t.id === transitionId)?.sortOrder ?? 0;
+}
+
+/** Пост-эффект `route_if` («Завершить»): постановщик сам себе исполнитель —
+ *  цель подменяется (утверждение пропускается, #378). */
+function resolveTarget(task: TaskListItem, transition: TaskTransition): TaskStage {
+  const doc = standardDocument.transitions.find((t) => t.id === transition.id);
+  const routeIf = doc?.rules.postFunctions.find((p) => p.kind === 'route_if');
+  if (
+    routeIf &&
+    routeIf.kind === 'route_if' &&
+    task.creator.id === task.assignee?.id &&
+    standardDocument.stages.some((s) => s.id === routeIf.toStageId)
+  ) {
+    const substituted = stageDoc(routeIf.toStageId);
+    return { ...substituted, order: substituted.sortOrder };
+  }
+  const target = stageDoc(transition.toStageId);
+  return { ...target, order: target.sortOrder };
 }
 
 export const tasksTransitionsHandlers = [
@@ -89,14 +95,13 @@ export const tasksTransitionsHandlers = [
     const transition = task
       ? transitionsOf(task).find((t) => t.id === params.transitionId)
       : undefined;
-    const target = transition ? demoStages.find((s) => s.id === transition.toStageId) : undefined;
-    if (!task || !target) {
+    if (!task || !transition) {
       return HttpResponse.json(
         { code: ErrorCode.TASK_TRANSITION_NOT_ALLOWED, message: 'Transition not allowed' },
         { status: 409 },
       );
     }
-    task.stage = resolveTarget(task, target);
+    task.stage = resolveTarget(task, transition);
     // Встроенное автоперемещение «Моего плана» (ADR-0008) и синхронизация
     // письма-поручения — как у переноса по глобальной оси.
     autoMovePersonalPlacement(task, demoPersonalStages);

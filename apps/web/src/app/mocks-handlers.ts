@@ -1,5 +1,6 @@
 import type { HttpHandler } from 'msw';
 
+import { automationHandlers } from '../features/automation/api/mocks/automation-handlers.js';
 import { authHandlers } from '../features/auth/api/mocks/auth-handlers.js';
 import { chatHandlers } from '../features/chat/api/mocks/chat-handlers.js';
 import { lettersHandlers } from '../features/correspondence/api/mocks/letters-handlers.js';
@@ -21,7 +22,7 @@ import { API_MOCK_DOMAINS, type ApiMockDomain } from '../shared/api/api-mock-con
 const domainHandlers: Record<ApiMockDomain, HttpHandler[]> = {
   auth: authHandlers,
   directory: directoryHandlers,
-  tasks: tasksHandlers,
+  tasks: [...tasksHandlers, ...automationHandlers],
   letters: lettersHandlers,
   counterparties: counterpartiesHandlers,
   projects: projectsHandlers,

@@ -2,15 +2,14 @@ import type { TaskStage } from '@nodus/contracts';
 
 const sid = (n: number): string => `20000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 
-/** Стадии статус-схемы по умолчанию (I15: в бою — справочник, не enum).
- *  Зеркало каталога API `DEFAULT_TASK_WORKFLOW`
- *  (`apps/api/src/modules/tasks/catalog/system-catalog.ts`): имена, цвета,
- *  systemState и порядок — 1:1 (мок ≠ контракту = баг, patterns.md).
- *  «Ждёт контроля» — done (сдана, ждёт приёмки), «Завершена»/«Отменена» —
- *  closed. Порядок order — порядок записей каталога. */
+/** Стадии маршрута «Стандартный» (ревизия 2, #378) — зеркало каталога API
+ *  `DEFAULT_TASK_WORKFLOW` (system-catalog.ts): имена, цвета, systemState,
+ *  итог и порядок — 1:1 (мок ≠ контракту = баг, patterns.md). Коды стадий
+ *  сохранены между ревизиями — задачи никуда не переезжают. Экспортные имена
+ *  исторические (stageNew = стадия `new` «Ожидает»). */
 export const stageNew: TaskStage = {
   id: sid(1),
-  name: 'Новая',
+  name: 'Ожидает',
   order: 0,
   systemState: 'backlog',
   color: 'neutral',
@@ -22,31 +21,38 @@ export const stageInProgress: TaskStage = {
   systemState: 'active',
   color: 'success',
 };
+export const stagePaused: TaskStage = {
+  id: sid(8),
+  name: 'Приостановлена',
+  order: 2,
+  systemState: 'paused',
+  color: 'warning',
+};
+export const stagePostponed: TaskStage = {
+  id: sid(6),
+  name: 'Отложена',
+  order: 3,
+  systemState: 'paused',
+  color: 'neutral',
+};
 export const stageOnControl: TaskStage = {
   id: sid(4),
-  name: 'Ждёт контроля',
-  order: 2,
+  name: 'На утверждении',
+  order: 4,
   systemState: 'done',
   color: 'warning',
 };
 export const stageDone: TaskStage = {
   id: sid(5),
   name: 'Завершена',
-  order: 3,
+  order: 5,
   systemState: 'closed',
   color: 'info',
-};
-export const stagePostponed: TaskStage = {
-  id: sid(6),
-  name: 'Отложена',
-  order: 4,
-  systemState: 'paused',
-  color: 'neutral',
 };
 export const stageCancelled: TaskStage = {
   id: sid(7),
   name: 'Отменена',
-  order: 5,
+  order: 6,
   systemState: 'closed',
   color: 'danger',
 };
@@ -54,15 +60,23 @@ export const stageCancelled: TaskStage = {
 export const demoStages: TaskStage[] = [
   stageNew,
   stageInProgress,
+  stagePaused,
+  stagePostponed,
   stageOnControl,
   stageDone,
-  stagePostponed,
   stageCancelled,
 ];
 
-/** Системный тип задачи (ADR-0020: ступень 1 — единственный «Задача»). */
+/** Системные типы задач (ревизия 2): «Стандартный» — с утверждением,
+ *  «Быстрый» — без. Полные DTO — в workflows.ts (библиотека типов). */
 export const systemTaskType = {
   id: '20000000-0000-4000-8000-000000000900',
   code: 'task',
-  name: 'Задача',
+  name: 'Стандартный',
+} as const;
+
+export const quickTaskType = {
+  id: '20000000-0000-4000-8000-000000000901',
+  code: 'quick',
+  name: 'Быстрый',
 } as const;

@@ -18,7 +18,6 @@ import {
   DropdownMenuTrigger,
 } from '@nodus/ui/components/dropdown-menu';
 import { NodeChip } from '@nodus/ui/components/node-chip';
-import { Switch } from '@nodus/ui/components/switch';
 import { toast } from 'sonner';
 
 import { DateTimePicker } from '../../../shared/ui/date-time-picker.js';
@@ -178,19 +177,5 @@ export function TaskPlannedField({ task }: { task: TaskDetail }) {
     >
       {text}
     </button>
-  );
-}
-
-/** «Принять работу после завершения» (Битрикс24): завершение ведёт в
- *  «Ждёт контроля», постановщик принимает. */
-export function TaskAcceptField({ task }: { task: TaskDetail }) {
-  const update = useUpdateTask(task.id);
-  return (
-    <Switch
-      checked={task.acceptRequired}
-      disabled={!task.access.canEdit}
-      aria-label={ui.tasks.acceptRequired}
-      onCheckedChange={(value) => update.mutate({ acceptRequired: value })}
-    />
   );
 }

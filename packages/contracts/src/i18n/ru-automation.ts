@@ -25,6 +25,7 @@ export const automationStrings = {
   baseCopy: 'Копия типа',
   baseSimple: 'Простой: Ожидает → В работе → Завершена',
   createSubmit: 'Создать',
+  nameTaken: 'Тип с таким названием уже существует',
   createdHint:
     'Тип скрыт от сотрудников. Настройте маршрут, опубликуйте и включите «Доступен при создании задач».',
   /** Шапка типа над холстом. */
@@ -33,6 +34,7 @@ export const automationStrings = {
   creatableToggle: 'Доступен при создании задач',
   menuCopyType: 'Копировать тип',
   menuArchive: 'В архив',
+  archiveSystemLocked: 'Системный тип нельзя убрать в архив',
   typeSettings: 'Настройки типа',
   /** Холст: колонки этапов. */
   bands: {
@@ -50,8 +52,11 @@ export const automationStrings = {
     closed: 'задача закрыта',
   },
   addStage: 'Добавить статус',
+  newStageName: 'Новый статус',
   startNode: 'Создание задачи',
   initialMark: 'Начальный',
+  stageAria: 'Статус',
+  bandAria: 'этап',
   anyFrom: 'из любого',
   readOnly: 'Только просмотр',
   zoomIn: 'Приблизить',

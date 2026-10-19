@@ -1,0 +1,112 @@
+/*
+ * Тема холста схем (#378, ADR-0022): React Flow подключён через base.css
+ * (только структура), внешний вид — наш, через --xy-* → токены «Инструмент».
+ * Обе темы читаются из глобальных токенов; тени React Flow отключены
+ * (плоскость канона).
+ */
+
+.react-flow {
+  --xy-background-color: transparent;
+  --xy-edge-stroke-default: var(--edge);
+  --xy-edge-stroke-selected-default: var(--port);
+  --xy-handle-background-color-default: var(--background);
+  --xy-handle-border-color-default: var(--port);
+  --xy-controls-button-background-color-default: transparent;
+  --xy-attribution-background-color-default: transparent;
+  --xy-minimap-background-background-color-default: var(--muted);
+}
+
+.react-flow__attribution {
+  font-size: 10px;
+  opacity: 0.45;
+  transition: opacity 150ms ease;
+}
+
+.react-flow__attribution:hover {
+  opacity: 0.85;
+}
+
+/* Узлы статусов — наши карточки (status-node.tsx); служебные обводки
+   React Flow выключаем, выделенность несёт сам узел (кольцо + свечение). */
+.react-flow__node {
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  border-radius: 0;
+  padding: 0;
+  font-family: inherit;
+}
+
+.react-flow__node:focus,
+.react-flow__node:focus-visible {
+  outline: none;
+}
+
+.react-flow__handle {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  border: 1px solid var(--port);
+  min-width: 0;
+  min-height: 0;
+}
+
+/* Рёбра: линия 1px токена связи; стрелка — у цели. */
+.react-flow__edge-path {
+  stroke-width: 1;
+}
+
+/* Маркеры-стрелки: цвет через CSS (в fill-атрибуте var() не работает). */
+.react-flow__arrowclosed path {
+  fill: var(--edge);
+}
+
+.react-flow__edge.selected .react-flow__arrowclosed path,
+.react-flow__edge:focus .react-flow__arrowclosed path {
+  fill: var(--port);
+}
+
+.react-flow__edge.selected .react-flow__edge-path,
+.react-flow__edge:focus .react-flow__edge-path {
+  stroke-width: 1.5;
+  stroke: var(--port);
+  filter: drop-shadow(var(--glow));
+}
+
+/* Подписи-чипы на рёбрах (transition-edge.tsx): показ кнопки задаёт вид. */
+.edge-label {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  white-space: nowrap;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.edge-label-primary {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-radius: 9999px;
+  padding: 5px 10px;
+}
+
+.edge-label-button {
+  background: var(--card);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px 9px;
+}
+
+.edge-label-menu {
+  background: var(--muted);
+  color: var(--muted-foreground);
+  border-radius: 9999px;
+  padding: 5px 10px;
+}
+
+/* Рамка выделения соединения при протягивании (порты), поле притяжения. */
+.react-flow__handle.connectingfrom,
+.react-flow__handle.connectingto {
+  box-shadow: 0 0 0 3px var(--glow);
+}

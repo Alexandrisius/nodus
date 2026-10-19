@@ -1,5 +1,4 @@
 import {
-  BadgeCheck,
   CalendarClock,
   CalendarPlus,
   Eye,
@@ -23,12 +22,7 @@ import { formatDateTime } from '../../../shared/lib/format.js';
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
 import { EntityFields, type EntityFieldDef } from '../../../shared/ui/entity-fields.js';
 import { identityTone } from '../../../shared/ui/identity-tone.js';
-import {
-  TaskAcceptField,
-  TaskDeadlineField,
-  TaskPlannedField,
-  TaskPriorityField,
-} from './task-field-editors.js';
+import { TaskDeadlineField, TaskPlannedField, TaskPriorityField } from './task-field-editors.js';
 import { TaskAssigneeField, TaskPeopleField } from './task-people-field.js';
 import { TaskStageField } from './task-stage-controls.js';
 import { TaskSpentField } from './task-time.js';
@@ -74,12 +68,6 @@ export const TaskFields = memo(function TaskFields({ task }: { task: TaskDetail 
     icon: <Shapes className="size-3.5" />,
     label: ui.tasks.type,
     render: () => <span>{task.type.name}</span>,
-  };
-  const accept: EntityFieldDef = {
-    key: 'accept',
-    icon: <BadgeCheck className="size-3.5" />,
-    label: ui.tasks.acceptField,
-    render: () => <TaskAcceptField task={task} />,
   };
   const created: EntityFieldDef = {
     key: 'created',
@@ -158,7 +146,7 @@ export const TaskFields = memo(function TaskFields({ task }: { task: TaskDetail 
       label: ui.tasks.plannedTime,
       render: () => <TaskPlannedField task={task} />,
     },
-    ...(withProject ? [type, accept, created] : [accept, created]),
+    ...(withProject ? [type, created] : [created]),
   ];
 
   return <EntityFields defs={defs} storageKey={VISIBILITY_KEY} />;

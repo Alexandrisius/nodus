@@ -6,6 +6,7 @@ import { isoAgo } from './dates.js';
 import { personalNew, personalStageFor } from './personal-stages.js';
 import { kjSubtask, tid } from './task-items.js';
 import { stageNew, systemTaskType } from './task-stages.js';
+import { STANDARD_WORKFLOW_ID } from './workflows.js';
 import { currentAuthUser, userIds, userRef } from './users.js';
 
 export * from './task-stages.js';
@@ -165,6 +166,7 @@ export function taskDetailOf(task: TaskListItem): TaskDetail {
     ...extra,
     subtasks: demoSubtasks[task.id] ?? [],
     chain: chainOf(task),
+    workflowId: STANDARD_WORKFLOW_ID,
     plannedMinutes: extra.plannedMinutes ?? null,
     acceptRequired: extra.acceptRequired ?? false,
     result: extra.result ?? null,

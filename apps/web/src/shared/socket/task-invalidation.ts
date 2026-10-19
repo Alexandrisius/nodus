@@ -2,8 +2,20 @@ import type { QueryClient } from '@tanstack/react-query';
 import { TASK_EVENTS, type Paginated, type TaskListItem } from '@nodus/contracts';
 
 import { tasksKeys } from '../api/tasks-keys.js';
+import { automationKeys } from '../api/automation-keys.js';
 import { stageIdOfColumnKey } from '../lib/board/kanban-column-key.js';
+import { workflowKeys } from '../workflow/workflow-api.js';
 import type { KeyBatcher } from './invalidation-batcher.js';
+
+/** Каталожные события библиотеки типов (#378): рассылаются всем —
+ *  инвалидируются каталоги (типы, стадии, маршруты) и переходы всех задач
+ *  (кнопки зависят от маршрута). */
+const CATALOG_EVENTS = new Set<string>([
+  TASK_EVENTS.TYPE_CREATED,
+  TASK_EVENTS.TYPE_UPDATED,
+  TASK_EVENTS.TYPE_ARCHIVED,
+  TASK_EVENTS.WORKFLOW_PUBLISHED,
+]);
 
 /** Задача могла ВПЕРВЫЕ появиться на доске в колонке, которую событие не
  *  называет: точечно не вычислить — доски перезапрашиваются целиком (редкие
@@ -98,6 +110,16 @@ export function pushTaskKeys(
   type: string,
   payload: Record<string, unknown>,
 ): void {
+  // Каталожные события: каталоги типов/стадий/маршрутов и переходы всех задач.
+  if (CATALOG_EVENTS.has(type)) {
+    batcher.push(automationKeys.all, 'list');
+    batcher.push(workflowKeys.all, 'list');
+    batcher.push(tasksKeys.types(), 'list');
+    batcher.push(tasksKeys.stages(), 'list');
+    batcher.push([tasksKeys.all[0], 'transitions'], 'list');
+    batcher.push(tasksKeys.listPages(), 'list');
+    return;
+  }
   const taskId = typeof payload.taskId === 'string' ? payload.taskId : null;
   if (type.startsWith('task.personal_stage_') && type !== TASK_EVENTS.PERSONAL_STAGE_CHANGED) {
     batcher.push(tasksKeys.personalStages(), 'list');

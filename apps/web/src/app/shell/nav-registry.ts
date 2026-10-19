@@ -6,6 +6,7 @@ import {
   Mail,
   MessageSquare,
   Users,
+  Workflow,
   type LucideIcon,
 } from 'lucide-react';
 import { ui } from '@nodus/contracts';
@@ -183,6 +184,22 @@ export const NAV_MODULES: NavModuleDef[] = [
         label: ui.employees.viewList,
         search: { view: 'list' },
         isActive: (s) => s.get('view') === 'list',
+      },
+    ],
+  },
+  {
+    id: 'automation',
+    to: '/automation',
+    label: ui.nav.automation,
+    icon: Workflow,
+    // Единый дом настройки процессов (#377): вкладки сверху, не модули в
+    // меню; «Права доступа» добавит #379, «Схемы проектов» — #38 (V2).
+    tabs: [
+      {
+        id: 'types',
+        label: ui.automation.tabTypes,
+        search: { tab: 'types' },
+        isActive: (s) => (s.get('tab') ?? 'types') === 'types',
       },
     ],
   },
