@@ -1,0 +1,28 @@
+import { z } from 'zod';
+
+/**
+ * Примитивы схем маршрутов (ADR-0020/0021): системное состояние, палитра
+ * тонов, итог статуса, показ кнопки перехода. Живут отдельным файлом без
+ * зависимостей — на них опираются task.schemas, task-type.schemas,
+ * workflow.schemas и workflow-document.schemas, а циклы импортов в
+ * contracts запрещены (инициализация zod-схем на границе модуля).
+ */
+
+/** Скрытая ось аналитики (status category, ADR-0008); в маршруте задач
+ *  этапы: Ожидание / В работе / Пауза / Утверждение / Итог (#378). */
+export const taskSystemStateSchema = z.enum(['backlog', 'active', 'paused', 'done', 'closed']);
+export type TaskSystemState = z.infer<typeof taskSystemStateSchema>;
+
+/** Цвет стадии/типа — ключ палитры тонов темы (не hex: тема подменяет значения). */
+export const stageColorSchema = z.enum(['neutral', 'info', 'success', 'warning', 'danger']);
+export type StageColor = z.infer<typeof stageColorSchema>;
+
+/** Итог статуса — только у этапа «Итог» (closed): выполнена / отменена;
+ *  от него зависят уведомления и аналитика (ADR-0020 дополнение, #378). */
+export const stageOutcomeSchema = z.enum(['success', 'cancelled']);
+export type StageOutcome = z.infer<typeof stageOutcomeSchema>;
+
+/** Показ кнопки перехода в панели процесса карточки: главная (залитая,
+ *  одна на статус) / видна / в меню «Ещё» (#378). */
+export const transitionDisplaySchema = z.enum(['primary', 'button', 'menu']);
+export type TransitionDisplay = z.infer<typeof transitionDisplaySchema>;

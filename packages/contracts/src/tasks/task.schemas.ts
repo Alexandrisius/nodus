@@ -3,25 +3,29 @@ import { z } from 'zod';
 import { userRefSchema } from '../directory/user-ref.schema.js';
 import { cursorQuerySchema } from '../pagination/paginated.schema.js';
 import { projectColorSchema } from '../projects/project.schemas.js';
-import { taskTypeRefSchema } from './workflow.schemas.js';
+import { taskTypeRefSchema } from './task-type.schemas.js';
+import {
+  stageColorSchema,
+  taskSystemStateSchema,
+  type StageColor,
+  type TaskSystemState,
+} from './workflow-primitives.schemas.js';
 
 /**
  * Контракты модуля задач (tasks.Task). Системное состояние — скрытое (I15),
  * видимые стадии — из статус-схемы (WorkflowStage); в MVP — одна схема по умолчанию.
  */
 
-export const taskSystemStateSchema = z.enum(['backlog', 'active', 'paused', 'done', 'closed']);
-export type TaskSystemState = z.infer<typeof taskSystemStateSchema>;
+// Примитивы палитры и состояний живут в workflow-primitives (общие для
+// схем задач, типов и документов маршрута) — переэкспорт для потребителей.
+export { stageColorSchema, taskSystemStateSchema };
+export type { StageColor, TaskSystemState } from './workflow-primitives.schemas.js';
 
 export const taskPrioritySchema = z.enum(['low', 'normal', 'high', 'urgent']);
 export type TaskPriority = z.infer<typeof taskPrioritySchema>;
 
 export const taskSourceSchema = z.enum(['manual', 'chat_message', 'letter']);
 export type TaskSource = z.infer<typeof taskSourceSchema>;
-
-/** Цвет стадии — ключ палитры тонов темы (не hex: тема подменяет значения). */
-export const stageColorSchema = z.enum(['neutral', 'info', 'success', 'warning', 'danger']);
-export type StageColor = z.infer<typeof stageColorSchema>;
 
 /** Стадия workflow-схемы = колонка канбана (ADR-0008: схемы двух масштабов —
  *  проектная и личная «Мой план»; у личной та же форма + привязка к
@@ -155,10 +159,12 @@ export const taskDetailSchema = taskListItemSchema.extend({
   subtasks: z.array(taskListItemSchema),
   /** Доменная цепочка происхождения; последний узел — текущая задача. */
   chain: z.array(taskChainNodeSchema),
+  /** Маршрут типа задачи — «Схема маршрута» в карточке (#378). */
+  workflowId: z.uuid(),
   /** Плановое время, минуты. */
   plannedMinutes: z.number().int().min(0).nullable(),
-  /** «Принять работу после завершения» (Битрикс): завершение ведёт в
-   *  «Ждёт контроля», постановщик принимает. */
+  /** УСТАРЕВШЕЕ (#378): утверждение — статус маршрута, флаг не используется;
+   *  поле в выдаче живёт до контракта #383 (колонка в БД остаётся). */
   acceptRequired: z.boolean(),
   result: taskResultSchema.nullable(),
   completedAt: z.iso.datetime().nullable(),
@@ -199,7 +205,6 @@ export const createTaskBodySchema = z.object({
   priority: taskPrioritySchema.optional(),
   deadline: z.iso.datetime().optional(),
   plannedMinutes: z.number().int().min(1).max(100_000).optional(),
-  acceptRequired: z.boolean().optional(),
   /** Пункты чек-листа текстами; на детали задачи разворачиваются в
    *  ChecklistItem[]. */
   checklist: z.array(z.string().trim().min(1).max(300)).max(100).optional(),
@@ -247,7 +252,6 @@ export const taskUpdateBodySchema = z
     priority: taskPrioritySchema.optional(),
     deadline: z.iso.datetime().nullable().optional(),
     plannedMinutes: z.number().int().min(1).max(100_000).nullable().optional(),
-    acceptRequired: z.boolean().optional(),
     assigneeId: z.uuid().optional(),
     parentId: z.uuid().nullable().optional(),
   })

@@ -36,6 +36,10 @@ export const notificationKindSchema = z.enum([
   'task.completed',
   /** Задача возвращена в работу — ответственному (#37). */
   'task.returned',
+  /** Задача вошла в этап «Утверждение» — постановщику (#378). */
+  'task.awaiting_approval',
+  /** Задача отменена (итог «отменена») — исполнителю и соисполнителям (#378). */
+  'task.cancelled',
 ]);
 export type NotificationKind = z.infer<typeof notificationKindSchema>;
 

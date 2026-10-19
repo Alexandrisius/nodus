@@ -1,11 +1,14 @@
 import { z } from 'zod';
 
+import { stageOutcomeSchema, transitionDisplaySchema } from './workflow-primitives.schemas.js';
+
 /**
  * Движок маршрутов задач (ADR-0020): глобальный тип → маршрут (стадии +
  * переходы с правилами) через схему «тип → маршрут». Реестр видов правил
  * ЗАКРЫТ: новый вид = расширение union + обработчик в сервисе; сервер
  * отвергает неизвестный вид при чтении (правило в данных без исполнителя в
- * коде — ложная безопасность).
+ * коде — ложная безопасность). Типы задач — `task-type.schemas.ts`; документ
+ * редактора — `workflow-document.schemas.ts`.
  */
 
 /** Роль пользователя относительно задачи (вход условий переходов и прав). */
@@ -48,9 +51,17 @@ export type WorkflowValidatorKind = WorkflowValidator['kind'];
  *  Встроенное (не правило): completedAt ставится входом в done/closed и
  *  снимается выходом; личные доски участников переезжают по состоянию. */
 export const workflowPostFunctionSchema = z.discriminatedUnion('kind', [
-  /** Переход «Завершить» с ветвлением по флагу «принять после завершения»:
-   *  при acceptRequired цель подменяется стадией `stageCode`. */
+  /** УСТАРЕВШИЙ (#378): ветвление по флагу задачи «принять после завершения»
+   *  (accept_required уходит, ADR-0020 дополнение); остаётся только в
+   *  архивных переходах истории — новые маршруты его не несут. */
   z.object({ kind: z.literal('route_if_accept_required'), stageCode: z.string().min(1) }),
+  /** Если условие выполнено, цель подменяется стадией `toStageId` —
+   *  утверждение пропускается, когда постановщик сам себе исполнитель (#378). */
+  z.object({
+    kind: z.literal('route_if'),
+    when: z.literal('creator_is_assignee'),
+    toStageId: z.uuid(),
+  }),
 ]);
 export type WorkflowPostFunction = z.infer<typeof workflowPostFunctionSchema>;
 
@@ -60,20 +71,6 @@ export const workflowTransitionRulesSchema = z.object({
   postFunctions: z.array(workflowPostFunctionSchema).default([]),
 });
 export type WorkflowTransitionRules = z.infer<typeof workflowTransitionRulesSchema>;
-
-/** Тип задачи (глобальный справочник, I15). */
-export const taskTypeSchema = z.object({
-  id: z.uuid(),
-  code: z.string().min(1),
-  name: z.string().min(1),
-  /** Узел дерева проекта (ступень 3): в «Мой план» исполнителей не попадает. */
-  structural: z.boolean(),
-  isSystem: z.boolean(),
-});
-export type TaskType = z.infer<typeof taskTypeSchema>;
-
-export const taskTypeRefSchema = taskTypeSchema.pick({ id: true, code: true, name: true });
-export type TaskTypeRef = z.infer<typeof taskTypeRefSchema>;
 
 /** Причина, по которой переход недоступен/заблокирован (UI — подпись
  *  кнопки и диалог перехода; коды — i18n ui.tasks.gate.*). */
@@ -94,7 +91,8 @@ export type TransitionBlockReason = z.infer<typeof transitionBlockReasonSchema>;
 
 /** Доступный текущему пользователю переход задачи (кнопка маршрута).
  *  Переходы, чьи условия «кто» не пройдены, в выдачу не попадают; гейты —
- *  попадают с `blockedBy` (кнопка видна, объясняет причину). */
+ *  попадают с `blockedBy` (кнопка видна, объясняет причину). Порядок задаёт
+ *  сервер: кнопки статуса по `sortOrder`, затем «из любого» (#378). */
 export const taskTransitionSchema = z.object({
   id: z.uuid(),
   name: z.string().min(1),
@@ -102,6 +100,10 @@ export const taskTransitionSchema = z.object({
   toStageName: z.string().min(1),
   /** Системное состояние цели (иконка кнопки: закрыть / вернуть / вперёд). */
   toStageState: z.enum(['backlog', 'active', 'paused', 'done', 'closed']),
+  /** Итог целевой стадии (null — не «Итог»): «✓ Завершена» / «✕ Отменена». */
+  toStageOutcome: stageOutcomeSchema.nullable(),
+  /** Показ в панели процесса: главная / видна / в меню «Ещё» (#378). */
+  display: transitionDisplaySchema,
   blockedBy: z.array(transitionBlockReasonSchema),
   /** Можно ли пройти гейт с причиной (право task.override_gate). */
   canOverride: z.boolean(),
