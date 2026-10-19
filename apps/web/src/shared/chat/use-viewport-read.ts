@@ -3,6 +3,7 @@ import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import type { ChatMessage } from '@nodus/contracts';
 
 import { api } from '../api-client.js';
+import { registerShellHiddenFlush } from '../desktop/shell-hidden.js';
 import { isDomainMocked } from '../api/api-mock-config.js';
 import { wsDebugLog } from '../socket/ws-debug.js';
 import { chatKeys } from './chat-keys.js';
@@ -45,32 +46,6 @@ export function maxSeenSeq(
     }
   }
   return max;
-}
-
-/**
- * Форс-дозапись квитанций всех бесед (фидбек 08.10: «счётчик висит на 1,
- * пропадает только после отправки»): сокрытие оболочки в трей не меняет
- * document.hidden в WebView2 — visibilitychange не стреляет и хвост
- * квитанции оставался неотправленным. Оболочка сигналит shell-visibility,
- * вызов дозаписывает увиденное немедленно.
- */
-// Реестр живых планировщиков (беседа + тред могут жить одновременно): одна
-// глобальная ячейка теряла беседу при открытом треде, а снятие регистрации
-// сравнивало с другой функцией (обёртка ≠ scheduler.flush) и не срабатывало —
-// ячейка держала мёртвый планировщик.
-const flushOnHide = new Set<() => void>();
-
-/** Регистрация колбэка «оболочка скрылась»; возвращает снятие регистрации. */
-export function registerShellHiddenFlush(fn: () => void): () => void {
-  flushOnHide.add(fn);
-  return () => {
-    flushOnHide.delete(fn);
-  };
-}
-
-/** Вызов из desktop-bridge при visible=false. */
-export function flushReadReceiptsOnShellHide(): void {
-  for (const fn of flushOnHide) fn();
 }
 
 /**

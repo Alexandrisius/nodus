@@ -96,11 +96,11 @@ describe.skipIf(!process.env.DATABASE_URL)(
         ).json(),
       );
 
-      // Флэйк-иммунитет («expected null not to be null» в CI): ручной
-      // publishPending — no-op, пока фоновый 50-мс поллер держит замок
-      // publishing, а батч LIMIT 200 при длинном хвосте outbox кладёт наши
-      // события не с первого прохода. Ждём долёта ограниченно: в норме
-      // первый проход находит оба envelope.
+      // Флэйк-иммунитет («expected null not to be null» в CI): корень —
+      // ручной publishPending был no-op, пока фоновый поллер держал замок
+      // (исправлено в издателе, #358: параллельный вызов ждёт и делает свой
+      // проход). Цикл остаётся на длинный хвост outbox (батч LIMIT 200 кладёт
+      // наши события не с первого прохода); в норме хватает одного прохода.
       let found1: { id: string; envelope: RealtimeEnvelope } | null = null;
       let found2: { id: string; envelope: RealtimeEnvelope } | null = null;
       for (let attempt = 0; attempt < 50 && !(found1 && found2); attempt++) {
