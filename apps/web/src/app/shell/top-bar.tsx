@@ -8,6 +8,7 @@ import { cn } from '@nodus/ui/lib/utils';
 import { HomeGreeting } from '../../features/home/components/home-greeting.js';
 import { BellPopover } from '../../features/notifications/components/bell-popover.js';
 import { RunningTimerChip } from '../../features/tasks/components/running-timer-chip.js';
+import { WhatsNewButton } from '../../features/whats-new/components/whats-new-button.js';
 import { CIRCUIT_REMEASURE } from './circuit-geometry.js';
 import { DownloadAppButton } from './download-app-button.js';
 import { navModuleForPath } from './nav-registry.js';
@@ -109,6 +110,10 @@ export function TopBar() {
             {theme === 'dark' ? <Moon /> : <Sun />}
           </span>
         </Button>
+
+        {/* «Что нового» (#386): история обновлений портала; точка — последнее
+            обновление ещё не просмотрено */}
+        <WhatsNewButton />
 
         <BellPopover />
 

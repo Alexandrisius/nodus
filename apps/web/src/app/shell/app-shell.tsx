@@ -11,6 +11,8 @@ import { ChatDialogHosts } from '../../shared/chat/dialog-hosts.js';
 import { AttachmentViewer } from '../../shared/files/attachment-viewer.js';
 import { NotificationToasts } from '../../features/notifications/components/notification-toasts.js';
 import { useNotificationSink } from '../../features/notifications/model/use-notification-sink.js';
+import { WhatsNewPanel } from '../../features/whats-new/components/whats-new-panel.js';
+import { useWhatsNewAutoOpen } from '../../features/whats-new/model/use-whats-new-auto-open.js';
 import { useUnreadTitle } from '../../shared/chat/unread-title.js';
 import { useDesktopBridge } from '../../shared/desktop/use-desktop-bridge.js';
 import { desktopSetUiTheme } from '../../shared/desktop/desktop-bridge.js';
@@ -55,6 +57,8 @@ export function AppShell() {
   // WS чата (#104): живёт с сессией, тихий статус; поллинг — fallback.
   useChatSocket();
   useNotificationSink();
+  // «Что нового» (#386): после обновления прода панель выезжает сама один раз.
+  useWhatsNewAutoOpen();
   // Диагностика «карточка дёргается» (#132 р.11): только ?wsdebug=1 — кадровые
   // логи [jitter] смещений ключевых контейнеров (см. layout-jitter-logger).
   useEffect(() => {
@@ -155,6 +159,7 @@ export function AppShell() {
       <WsDebugBadge />
       <NotificationToasts />
       <CommandPalette />
+      <WhatsNewPanel />
       <ChatDialogHosts />
       <AttachmentViewer stripW={viewerStripW} />
       <Toaster richColors theme={theme} />

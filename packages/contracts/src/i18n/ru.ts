@@ -5,6 +5,7 @@ import { counterpartiesStrings, lettersStrings } from './ru-correspondence.js';
 import { filesStrings } from './ru-files.js';
 import { notificationsStrings } from './ru-notifications.js';
 import { tasksStrings } from './ru-tasks.js';
+import { whatsNewStrings } from './ru-whats-new.js';
 
 /**
  * Русские UI-строки для системных кодов ошибок (I15: `message` в ответе —
@@ -256,6 +257,7 @@ export const ui = {
   chat: chatStrings,
   files: filesStrings,
   notifications: notificationsStrings,
+  whatsNew: whatsNewStrings,
   employees: {
     title: 'Сотрудники',
     structure: 'Структура',

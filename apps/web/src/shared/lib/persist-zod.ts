@@ -40,6 +40,12 @@ export const shellEnvelopeSchema = z.object({
   edgeOpen: z.boolean().catch(false),
 });
 
+/** «Что нового» (#386): последний просмотренный выпуск по пользователю
+ *  (userId → semver); сломанная карта → {} (покажем последний выпуск снова). */
+export const whatsNewEnvelopeSchema = z.object({
+  seen: z.record(z.string(), z.string()).catch({}),
+});
+
 /** Настройки ленты чата. */
 export const chatPrefsEnvelopeSchema = z.object({
   align: z.enum(['one', 'both']).catch('one'),
