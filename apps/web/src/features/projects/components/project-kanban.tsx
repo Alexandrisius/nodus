@@ -7,6 +7,7 @@ import { tasksKeys } from '../../../shared/api/tasks-keys.js';
 import { useTaskStages } from '../../../shared/api/task-stages.js';
 import { globalAxis } from '../../../shared/lib/board/kanban-board.js';
 import { BoardColumn } from '../../../shared/ui/board/board-column.js';
+import { BoardScroller } from '../../../shared/ui/board/board-scroller.js';
 import { BoardSortableCard } from '../../../shared/ui/board/board-sortable-card.js';
 import { BoardTaskCard } from '../../../shared/ui/board/board-task-card.js';
 import { KanbanSkeleton } from '../../../shared/ui/board/kanban-skeleton.js';
@@ -70,9 +71,10 @@ export function ProjectKanban({
       sensors={board.sensors}
       collisionDetection={board.collision}
       measuring={board.measuring}
+      autoScroll={board.autoScroll}
       {...board.dndHandlers}
     >
-      <div className="flex h-full gap-5 overflow-x-auto px-6 pt-3 pb-4">
+      <BoardScroller className="pt-3">
         {board.stageList.map((stage) => {
           const totalCards = board.items.filter((t) => t.stage.id === stage.id).length;
           const cards = visibleItems.filter((t) => t.stage.id === stage.id);
@@ -116,7 +118,7 @@ export function ProjectKanban({
             </BoardColumn>
           );
         })}
-      </div>
+      </BoardScroller>
       <DragOverlay>
         {board.activeTask ? (
           <BoardTaskCard

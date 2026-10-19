@@ -9,6 +9,7 @@ import {
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
+  type AutoScrollOptions,
   type UniqueIdentifier,
 } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
@@ -23,11 +24,22 @@ import {
   type BoardAxis,
 } from '../../lib/board/kanban-board.js';
 import { makeKanbanCollision } from '../../lib/board/kanban-collision.js';
+import { BOARD_SCROLLER_SELECTOR } from '../../lib/board/edge-scroll.js';
 import { useKanbanFeeds } from './use-kanban-feeds.js';
 
 /** Лимит страницы фида колонки (industry: колонки держат тысячи карточек —
  *  целиком не грузим; дальше sentinel-подгрузка в колонке, как в Битриксе). */
 export const KANBAN_FEED_LIMIT = 30;
+
+/** Автопрокрутка при переносе карточки (#366): листаются ТОЛЬКО доска
+ *  (по X) и колонки (по Y) — дефолт dnd-kit цеплял всех прокручиваемых
+ *  предков, вплоть до скроллера страницы. Порог — доля габарита контейнера:
+ *  дефолтные 20% на доске шириной 1400px — «горячая» полоса 280px, почти
+ *  колонка; 8% ≈ 110px. */
+const BOARD_AUTO_SCROLL: AutoScrollOptions = {
+  threshold: { x: 0.08, y: 0.12 },
+  canScroll: (element) => element.closest(BOARD_SCROLLER_SELECTOR) !== null,
+};
 
 export interface KanbanMoveVars {
   taskId: string;
@@ -243,6 +255,7 @@ export function useKanbanBoard<S extends TaskStage>({
      *  дефолт меряет дропаблы один раз на старте → коллизия лагала бы на
      *  устаревших rect (фризы на границах). Always — перемер каждый цикл. */
     measuring: { droppable: { strategy: MeasuringStrategy.Always } },
+    autoScroll: BOARD_AUTO_SCROLL,
     dndHandlers: { onDragStart, onDragOver, onDragEnd, onDragCancel },
     activeTask,
     activeParent,
