@@ -21,6 +21,7 @@ import {
 import { serverChecksOf } from './publish-checks.js';
 import {
   missingMigrations,
+  resolveRules,
   planWorkflowPublish,
   resolveDocId,
   type PlannerSnapshot,
@@ -53,8 +54,7 @@ export class WorkflowEditorService {
   /** GET /tasks/workflows/:id — документ живого маршрута + счётчики. */
   async read(workflowId: string): Promise<WorkflowDetail> {
     const row = await this.workflows.load(workflowId);
-    const workflow = await this.workflows.findMeta(workflowId);
-    if (!workflow) throw DomainException.notFound('Workflow not found');
+    const workflow = await this.findTaskWorkflow(workflowId);
     const typeIds = await this.workflows.typeIdsOf(workflowId);
     const refs = workflow.publishedById
       ? await this.profiles.findRefs([workflow.publishedById], undefined)
@@ -79,8 +79,7 @@ export class WorkflowEditorService {
   ): Promise<PublishWorkflowResult> {
     const outcome = await this.txRunner.run(async (tx) => {
       await this.workflows.lockForUpdate(tx, workflowId);
-      const workflow = await this.workflows.findMeta(workflowId, tx);
-      if (!workflow) throw DomainException.notFound('Workflow not found');
+      const workflow = await this.findTaskWorkflow(workflowId, tx);
       if (workflow.version !== body.baseVersion) {
         throw new DomainException(
           ErrorCode.WORKFLOW_VERSION_CONFLICT,
@@ -165,8 +164,14 @@ export class WorkflowEditorService {
       const resolve = (docId: string | null): string | null =>
         docId === null ? null : (resolveDocId(docId, createdIds) ?? docId);
       const rulesOf = (id: string): Prisma.InputJsonValue =>
-        (body.document.transitions.find((tr) => tr.id === id)?.rules ??
-          {}) as Prisma.InputJsonValue;
+        resolveRules(
+          body.document.transitions.find((tr) => tr.id === id)?.rules ?? {
+            conditions: [],
+            validators: [],
+            postFunctions: [],
+          },
+          createdIds,
+        ) as Prisma.InputJsonValue;
       for (const write of plan.transitionCreates) {
         await tx.workflowTransition.create({
           data: {
@@ -255,6 +260,19 @@ export class WorkflowEditorService {
       publishedAt: outcome.publishedAt,
       scheduledMoves: outcome.scheduledMoves,
     };
+  }
+
+  /** Редактору доступны только маршруты задач: личные доски и шаблон — 404
+   *  (security #378; uuid personal-маршрутов API не отдаёт, гвард добивает). */
+  private async findTaskWorkflow(
+    workflowId: string,
+    tx?: Parameters<Parameters<TransactionRunner['run']>[0]>[0],
+  ) {
+    const workflow = await this.workflows.findMeta(workflowId, tx);
+    if (!workflow || workflow.kind !== 'task') {
+      throw DomainException.notFound('Workflow not found');
+    }
+    return workflow;
   }
 
   serverChecks = serverChecksOf;

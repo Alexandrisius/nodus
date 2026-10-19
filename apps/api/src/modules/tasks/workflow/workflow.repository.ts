@@ -60,14 +60,21 @@ export class WorkflowRepository {
     await tx.$queryRaw`SELECT id FROM workflows WHERE id = ${workflowId} FOR UPDATE`;
   }
 
-  /** Мета публикации маршрута (read редактора). */
+  /** Мета публикации маршрута (read редактора). kind — гвард редактора:
+   *  публикуемый/читаемый маршрут обязан быть `task` (security #378 — чужие
+   *  личные доски «Моего плана» и шаблон недоступны даже с правом). */
   async findMeta(
     workflowId: string,
     tx?: TransactionClient,
-  ): Promise<{ version: number; publishedAt: Date | null; publishedById: string | null } | null> {
+  ): Promise<{
+    kind: string;
+    version: number;
+    publishedAt: Date | null;
+    publishedById: string | null;
+  } | null> {
     return (tx ?? this.prisma).workflow.findUnique({
       where: { id: workflowId },
-      select: { version: true, publishedAt: true, publishedById: true },
+      select: { kind: true, version: true, publishedAt: true, publishedById: true },
     });
   }
 
@@ -144,14 +151,20 @@ export class WorkflowRepository {
   }
 
   /** Тип (по умолчанию системный) и маршрут для него по схеме по умолчанию
-   *  (задача без проекта; проектные схемы — ступень 3). */
+   *  (задача без проекта; проектные схемы — ступень 3). `requireCreatable` —
+   *  пути создания/смены типа: скрытый тип (`creatable=false`) сервер
+   *  отвергает (гвард не только в UI, security #378). */
   async resolveTypeWorkflow(
     typeId?: string,
+    opts: { requireCreatable?: boolean } = {},
   ): Promise<{ typeId: string; workflowId: string; structural: boolean }> {
     const type = typeId
       ? await this.prisma.taskType.findFirst({ where: { id: typeId, archivedAt: null } })
       : await this.prisma.taskType.findUnique({ where: { code: STANDARD_TASK_TYPE.code } });
     if (!type) throw new DomainException(ErrorCode.NOT_FOUND, 'Task type not found');
+    if (opts.requireCreatable && !type.creatable) {
+      throw new DomainException(ErrorCode.CONFLICT, 'Task type is not available for task creation');
+    }
     const entry = await this.prisma.workflowSchemeEntry.findFirst({
       where: { taskTypeId: type.id, scheme: { isDefault: true } },
     });

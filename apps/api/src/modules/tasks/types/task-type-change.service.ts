@@ -45,7 +45,10 @@ export class TaskTypeChangeService {
     if (!access.canEdit) throw DomainException.forbidden('Task edit not allowed');
     const nextType = await this.typeRepo.findLiveById(body.typeId);
     if (!nextType) throw DomainException.notFound('Task type not found');
-    const resolved = await this.workflows.resolveTypeWorkflow(nextType.id);
+    const resolved = await this.workflows.resolveTypeWorkflow(nextType.id, {
+      // Скрытый тип недоступен смене и на сервере (security #378).
+      requireCreatable: true,
+    });
     const workflow = await this.workflows.load(resolved.workflowId);
     const sameStage = workflow.stages.find((s) => s.id === row.stage.id && !s.archivedAt);
     const stageId = sameStage?.id ?? body.stageId;
@@ -64,6 +67,12 @@ export class TaskTypeChangeService {
     await this.txRunner.run(async (tx) => {
       await this.tasks.lock(tx, taskId);
       const task = await this.tasks.findWithParticipants(taskId, tx);
+      // Стадию перечитываем в транзакции: параллельная публикация могла
+      // архивировать её после проверки выше (security #378, целостность).
+      const target = await this.workflows.findStageById(stageId, tx);
+      if (!target || target.archivedAt) {
+        throw DomainException.notFound('Stage not found');
+      }
       await tx.task.update({
         where: { id: taskId },
         data: { typeId: nextType.id, workflowId: resolved.workflowId },

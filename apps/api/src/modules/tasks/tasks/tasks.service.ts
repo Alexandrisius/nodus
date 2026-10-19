@@ -86,6 +86,8 @@ export class TasksService {
     }
     const { typeId, workflowId, structural } = await this.workflows.resolveTypeWorkflow(
       body.typeId,
+      // Скрытый тип недоступен созданию и на сервере (security #378).
+      { requireCreatable: true },
     );
     const workflow = await this.workflows.load(workflowId);
     const personalColumn = body.personalStageId

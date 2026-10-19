@@ -197,3 +197,26 @@ export function resolveDocId(docId: string, createdIds: Map<string, string>): st
   if (docId.startsWith('new:')) return createdIds.get(docId);
   return docId;
 }
+
+/** Правила перехода к публикации: цели route_if `new:*` резолвятся в
+ *  созданные uuid — иначе опубликованная схема ≠ исполняемая (security
+ *  #378, целостность: пост-функция молча не находила цель). */
+export function resolveRules<T extends { postFunctions: readonly unknown[] }>(
+  rules: T,
+  createdIds: Map<string, string>,
+): T {
+  const posts = rules.postFunctions as readonly { kind?: string; toStageId?: string }[];
+  const needsResolve = posts.some(
+    (pf) =>
+      pf.kind === 'route_if' && typeof pf.toStageId === 'string' && pf.toStageId.startsWith('new:'),
+  );
+  if (!needsResolve) return rules;
+  return {
+    ...rules,
+    postFunctions: (posts as readonly Record<string, unknown>[]).map((pf) =>
+      pf.kind === 'route_if' && typeof pf.toStageId === 'string'
+        ? { ...pf, toStageId: resolveDocId(pf.toStageId, createdIds) ?? pf.toStageId }
+        : pf,
+    ),
+  } as T;
+}

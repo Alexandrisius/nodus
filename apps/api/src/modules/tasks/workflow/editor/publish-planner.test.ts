@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { missingMigrations, planWorkflowPublish, type PlannerSnapshot } from './publish-planner.js';
+import {
+  missingMigrations,
+  planWorkflowPublish,
+  resolveRules,
+  type PlannerSnapshot,
+} from './publish-planner.js';
 
 const S1 = '00000000-0000-4000-8000-000000000001';
 const S2 = '00000000-0000-4000-8000-000000000002';
@@ -177,5 +182,21 @@ describe('planWorkflowPublish (#378)', () => {
     );
     expect(plan.transitionCreates.map((t) => t.id)).toEqual(['new:back']);
     expect(plan.transitionUpdates.map((t) => [t.id, t.name])).toEqual([[T1, 'Начать']]);
+  });
+
+  it('route_if с целью new:* резолвится в созданный uuid (security #378)', () => {
+    const created = new Map([['new:gip', S3]]);
+    const rules = {
+      conditions: [],
+      validators: [],
+      postFunctions: [{ kind: 'route_if', when: 'creator_is_assignee', toStageId: 'new:gip' }],
+    } as never;
+    const resolved = resolveRules(rules, created) as {
+      postFunctions: { toStageId: string }[];
+    };
+    expect(resolved.postFunctions[0]!.toStageId).toBe(S3);
+    // Без new:* правила не копируются зря (та же ссылка).
+    const plain = { conditions: [], validators: [], postFunctions: [] } as never;
+    expect(resolveRules(plain, created)).toBe(plain);
   });
 });
