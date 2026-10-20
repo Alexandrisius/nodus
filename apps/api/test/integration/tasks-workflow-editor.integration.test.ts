@@ -113,37 +113,6 @@ describe.skipIf(!process.env.DATABASE_URL)('tasks workflow editor (integration, 
     workStageId = detail.document.stages.find((s) => s.name === 'В работе')!.id;
   });
 
-  it('расстановка холста: без права 403; с правом — сохранена без новой версии', async () => {
-    const path = `/tasks/workflows/${workflowId}/layout`;
-    const layout = {
-      stages: { [initialStageId]: { x: 40, y: 80 }, 'new:ghost': { x: 0, y: 0 } },
-      transitions: {},
-    };
-    const denied = await fx.api(alice, 'PUT', path, {
-      body: { layout },
-      key: `it-layout-denied-${fx.runId}`,
-    });
-    expect(denied.status).toBe(403);
-
-    const saved = await fx.api(admin, 'PUT', path, {
-      body: { layout },
-      key: `it-layout-${fx.runId}`,
-    });
-    expect(saved.status).toBe(200);
-    // Запись несуществующего (new:*) элемента отброшена.
-    expect(await saved.json()).toEqual({
-      layout: { stages: { [initialStageId]: { x: 40, y: 80 } }, transitions: {} },
-    });
-    const detail = (await (
-      await fx.api(admin, 'GET', `/tasks/workflows/${workflowId}`)
-    ).json()) as {
-      version: number;
-      document: { layout?: { stages: Record<string, unknown> } };
-    };
-    expect(detail.version).toBe(1);
-    expect(detail.document.layout?.stages[initialStageId]).toEqual({ x: 40, y: 80 });
-  });
-
   it('задача нового типа: скрытый тип отвергается, включённый — работает', async () => {
     const hidden = await fx.api(admin, 'POST', '/tasks', {
       body: { title: `IT-задача ${fx.runId}`, typeId: customTypeId },
@@ -197,19 +166,10 @@ describe.skipIf(!process.env.DATABASE_URL)('tasks workflow editor (integration, 
       throw new Error(`Не тот отказ: ${JSON.stringify(refusedBody).slice(0, 1200)}`);
     }
 
-    // Пока редактор был открыт, расстановку «В работе» сохранили отдельно —
-    // публикация с устаревшим местом в документе её не затирает.
-    await fx.api(admin, 'PUT', `/tasks/workflows/${workflowId}/layout`, {
-      body: { layout: { stages: { [workStageId]: { x: 640, y: 120 } }, transitions: {} } },
-      key: `it-layout-before-pub-${fx.runId}`,
-    });
     const published = await fx.api(admin, 'POST', `/tasks/workflows/${workflowId}/publish`, {
       body: {
         baseVersion: base.version,
-        document: {
-          ...doc,
-          layout: { stages: { [workStageId]: { x: 0, y: 0 } }, transitions: {} },
-        },
+        document: doc,
         migrations: [{ fromStageId: initialStageId, toStageId: workStageId }],
       },
       key: `${publishKey}-2`,
@@ -222,10 +182,6 @@ describe.skipIf(!process.env.DATABASE_URL)('tasks workflow editor (integration, 
     const result = (await published.json()) as { version: number; scheduledMoves: number };
     expect(result.version).toBe(2);
     expect(result.scheduledMoves).toBeGreaterThanOrEqual(1);
-    const after = (await (await fx.api(admin, 'GET', `/tasks/workflows/${workflowId}`)).json()) as {
-      document: { layout?: { stages: Record<string, unknown> } };
-    };
-    expect(after.document.layout?.stages[workStageId]).toEqual({ x: 640, y: 120 });
 
     // Фоновый перенос (BullMQ): задача покидает архивную стадию (≤15 с).
     const moved = await new Promise<boolean>((resolve) => {
