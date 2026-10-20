@@ -1,12 +1,14 @@
 import { cn } from '@nodus/ui/lib/utils';
 import { ChevronRight, Trash2 } from 'lucide-react';
 import { Button } from '@nodus/ui/components/button';
+import { Switch } from '@nodus/ui/components/switch';
 
 /**
- * Примитивы правой панели редактора (#378 ред. 2): поле с подписью, строка
- * раздела «Название ›» со сводкой (переход внутрь, модель Трекера),
- * сегменты, опасное действие внизу. Всё переносится — без обрезки по
- * горизонтали (`min-w-0`, `break-words`).
+ * Примитивы правой панели редактора (#378 ред. 2) — ОДНА грамматика для
+ * панелей статуса и кнопки: поле с подписью, строка-переключатель, строка
+ * «Название ›» со сводкой (раздел или связанный элемент — переход внутрь,
+ * модель Трекера), сегменты, опасное действие внизу. Всё переносится — без
+ * обрезки по горизонтали (`min-w-0`, `break-words`).
  */
 
 /** Фокус в название нового элемента — БЕЗ прокрутки: панель ещё выезжает
@@ -35,28 +37,68 @@ export function PanelField({
   );
 }
 
-/** Строка раздела: название, сводка текущих настроек, шеврон. */
+/** Строка-переключатель: название, пояснение, тумблер справа. */
+export function SwitchRow({
+  title,
+  hint,
+  checked,
+  disabled,
+  onChange,
+}: {
+  title: string;
+  hint?: string;
+  checked: boolean;
+  disabled?: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <label className="flex min-w-0 cursor-pointer items-start justify-between gap-3">
+      <span className="flex min-w-0 flex-col gap-0.5">
+        <span className="text-sm">{title}</span>
+        {hint ? <span className="text-xs break-words text-muted-foreground">{hint}</span> : null}
+      </span>
+      <Switch checked={checked} disabled={disabled} onCheckedChange={onChange} />
+    </label>
+  );
+}
+
+/** Строка «Название ›»: раздел панели или связанный элемент (кнопка
+ *  статуса); сводка — текущие настройки; `actions` — доп. кнопки строки. */
 export function SectionLink({
   title,
   summary,
   onClick,
+  actions,
 }: {
   title: string;
   summary: string;
   onClick: () => void;
+  actions?: React.ReactNode;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="-mx-2 flex min-w-0 items-center gap-2 rounded-lg px-2 py-2 text-left transition-colors hover:bg-accent/60"
-    >
-      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="text-sm">{title}</span>
-        <span className="text-xs break-words text-muted-foreground">{summary}</span>
-      </span>
-      <ChevronRight className="size-4 shrink-0 text-muted-foreground" strokeWidth={1.75} />
-    </button>
+    <div className="group -mx-2 flex min-w-0 items-center gap-1 rounded-lg px-2 transition-colors hover:bg-accent/60">
+      <button
+        type="button"
+        onClick={onClick}
+        className="flex min-w-0 flex-1 items-center gap-2 py-2 text-left"
+      >
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="text-sm break-words">{title}</span>
+          <span className="text-xs break-words text-muted-foreground">{summary}</span>
+        </span>
+      </button>
+      {actions}
+      {/* Шеврон — часть кликабельной строки (дубль основной кнопки для мыши). */}
+      <button
+        type="button"
+        tabIndex={-1}
+        aria-hidden
+        onClick={onClick}
+        className="flex self-stretch items-center"
+      >
+        <ChevronRight className="size-4 shrink-0 text-muted-foreground" strokeWidth={1.75} />
+      </button>
+    </div>
   );
 }
 

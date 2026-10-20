@@ -8,7 +8,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@nodus/ui/components/select';
-import { Switch } from '@nodus/ui/components/switch';
 
 import { useRouteDocStore } from '../../../model/route-doc-store.js';
 import {
@@ -25,7 +24,7 @@ import {
   toggleValidator,
   validatorOf,
 } from '../../../model/transition-rules.js';
-import { PanelField } from './panel-kit.js';
+import { PanelField, SwitchRow } from './panel-kit.js';
 
 /**
  * Разделы панели кнопки (#378 ред. 2, «переход внутрь» как в Трекере):
@@ -173,23 +172,17 @@ export function RulesSection({
   const target = routeIfOf(transition.rules);
   return (
     <>
-      <label className="flex min-w-0 items-start justify-between gap-3">
-        <span className="flex min-w-0 flex-col gap-0.5">
-          <span className="text-sm">{ui.automation.panel.routeIfToggle}</span>
-          <span className="text-xs break-words text-muted-foreground">
-            {ui.automation.panel.routeIfHint}
-          </span>
-        </span>
-        <Switch
-          checked={target !== null}
-          disabled={readOnly}
-          onCheckedChange={(checked) =>
-            patch(
-              setRouteIf(transition.rules, checked ? defaultRouteIfTarget(doc, transition) : null),
-            )
-          }
-        />
-      </label>
+      <SwitchRow
+        title={ui.automation.panel.routeIfToggle}
+        hint={ui.automation.panel.routeIfHint}
+        checked={target !== null}
+        disabled={readOnly}
+        onChange={(checked) =>
+          patch(
+            setRouteIf(transition.rules, checked ? defaultRouteIfTarget(doc, transition) : null),
+          )
+        }
+      />
       {target !== null ? (
         <PanelField label={ui.automation.panel.routeIfTarget}>
           <Select

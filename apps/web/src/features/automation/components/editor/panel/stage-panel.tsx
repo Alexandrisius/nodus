@@ -5,7 +5,6 @@ import type {
   WorkflowDraftStage,
 } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
-import { Button } from '@nodus/ui/components/button';
 import { Input } from '@nodus/ui/components/input';
 import {
   Select,
@@ -14,15 +13,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@nodus/ui/components/select';
-import { Switch } from '@nodus/ui/components/switch';
 import { cn } from '@nodus/ui/lib/utils';
-import { ArrowDown, ArrowUp, Plus } from 'lucide-react';
 
 import { stageColorOrder, stageTone } from '../../../../../shared/ui/board/stage-tone.js';
 import { useRouteDocStore } from '../../../model/route-doc-store.js';
-import { AddTransitionPopover } from '../add-transition-popover.js';
-import { ProcessPreview } from '../process-preview.js';
-import { PanelDanger, PanelField, Segmented, focusName } from './panel-kit.js';
+import {
+  PanelDanger,
+  PanelField,
+  SectionLink,
+  Segmented,
+  SwitchRow,
+  focusName,
+} from './panel-kit.js';
+import { stageButtonsSummary } from './stage-buttons-section.js';
 
 const GROUPS: readonly TaskSystemState[] = ['backlog', 'active', 'paused', 'done', 'closed'];
 
@@ -34,10 +37,12 @@ function groupHint(group: TaskSystemState): string {
 }
 
 /**
- * Панель статуса (#378 ред. 2): имя, группа (смысловая категория с
- * пояснением, зачем она), цвет, «Начальный статус», «Можно перейти из
- * любого статуса» (на схеме — метка «Любой статус»), итог у группы «Итог»,
- * кнопки из статуса (клик выделяет стрелку), превью панели, удаление.
+ * Панель статуса (#378 ред. 2) — та же грамматика, что у панели кнопки:
+ * поля самого статуса (имя, группа с пояснением, цвет, итог у «Итога»,
+ * начальный, «из любого статуса»), дальше строки «›» — кнопка «из любого
+ * статуса» (её настройки — в панели кнопки, здесь не дублируются) и раздел
+ * «Кнопки из статуса» (список, порядок, добавление, вид в карточке), внизу —
+ * удаление.
  */
 export function StagePanel({
   stage,
@@ -45,20 +50,18 @@ export function StagePanel({
   taskCount,
   readOnly,
   autoFocusName,
+  onOpenButtons,
 }: {
   stage: WorkflowDraftStage;
   document: WorkflowDraftDocument;
   taskCount: number;
   readOnly: boolean;
   autoFocusName: boolean;
+  onOpenButtons: () => void;
 }) {
   const store = useRouteDocStore.getState;
   const patch = (value: Partial<WorkflowDraftStage>) => store().patchStage(stage.id, value);
-  const outgoing = doc.transitions
-    .filter((t) => t.fromStageId === stage.id)
-    .sort((a, b) => a.sortOrder - b.sortOrder);
   const anyButton = doc.transitions.find((t) => t.fromStageId === null && t.toStageId === stage.id);
-  const stageName = (id: string) => doc.stages.find((s) => s.id === id)?.name ?? '';
 
   return (
     <>
@@ -133,108 +136,36 @@ export function StagePanel({
         </PanelField>
       ) : null}
 
-      <label className="flex min-w-0 items-start justify-between gap-3">
-        <span className="flex min-w-0 flex-col gap-0.5">
-          <span className="text-sm">{ui.automation.isInitial}</span>
-          <span className="text-xs break-words text-muted-foreground">
-            {ui.automation.isInitialHint}
-          </span>
-        </span>
-        <Switch
-          checked={stage.isInitial}
-          disabled={readOnly}
-          onCheckedChange={(checked) => patch({ isInitial: checked })}
-        />
-      </label>
+      <SwitchRow
+        title={ui.automation.isInitial}
+        hint={ui.automation.isInitialHint}
+        checked={stage.isInitial}
+        disabled={readOnly}
+        onChange={(checked) => patch({ isInitial: checked })}
+      />
 
-      <div className="flex min-w-0 flex-col gap-2">
-        <label className="flex min-w-0 items-start justify-between gap-3">
-          <span className="flex min-w-0 flex-col gap-0.5">
-            <span className="text-sm">{ui.automation.panel.canAnyFrom}</span>
-            <span className="text-xs break-words text-muted-foreground">
-              {ui.automation.panel.canAnyFromHint}
-            </span>
-          </span>
-          <Switch
-            checked={anyButton !== undefined}
-            disabled={readOnly}
-            onCheckedChange={(checked) => store().toggleAny(stage.id, checked)}
-          />
-        </label>
+      <SwitchRow
+        title={ui.automation.panel.canAnyFrom}
+        hint={ui.automation.panel.canAnyFromHint}
+        checked={anyButton !== undefined}
+        disabled={readOnly}
+        onChange={(checked) => store().toggleAny(stage.id, checked)}
+      />
+
+      <div className="flex min-w-0 flex-col">
         {anyButton ? (
-          <PanelField label={ui.automation.panel.anyButtonName}>
-            <Input
-              value={anyButton.name}
-              maxLength={32}
-              readOnly={readOnly}
-              onChange={(event) =>
-                store().patchTransition(anyButton.id, { name: event.target.value })
-              }
-            />
-          </PanelField>
-        ) : null}
-      </div>
-
-      <PanelField label={ui.automation.buttonsFromStage}>
-        <div className="flex min-w-0 flex-col gap-0.5">
-          {outgoing.map((t, index) => (
-            <div
-              key={t.id}
-              className="group -mx-2 flex min-w-0 items-center gap-1.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-accent/60"
-            >
-              <button
-                type="button"
-                onClick={() => store().select({ kind: 'transition', id: t.id })}
-                className="flex min-w-0 flex-1 flex-col items-start gap-0.5 text-left"
-              >
-                <span className="w-full text-sm break-words">{t.name}</span>
-                <span className="w-full text-xs break-words text-muted-foreground">
-                  → {stageName(t.toStageId)} · {ui.automation.panel.displaySegments[t.display]}
-                </span>
-              </button>
-              {!readOnly ? (
-                <span className="flex shrink-0 flex-col opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
-                  <button
-                    type="button"
-                    aria-label={ui.automation.moveUp}
-                    disabled={index === 0}
-                    onClick={() => store().moveTransition(t.id, index - 1)}
-                    className="rounded p-0.5 hover:bg-accent disabled:opacity-30"
-                  >
-                    <ArrowUp className="size-3" strokeWidth={1.75} />
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={ui.automation.moveDown}
-                    disabled={index === outgoing.length - 1}
-                    onClick={() => store().moveTransition(t.id, index + 1)}
-                    className="rounded p-0.5 hover:bg-accent disabled:opacity-30"
-                  >
-                    <ArrowDown className="size-3" strokeWidth={1.75} />
-                  </button>
-                </span>
-              ) : null}
-            </div>
-          ))}
-        </div>
-        {!readOnly ? (
-          <AddTransitionPopover
-            document={doc}
-            defaultFrom={stage.id}
-            onPick={(from, to) => store().addTransition(from, to)}
-            trigger={
-              <Button variant="ghost" size="sm" className="-ml-2 self-start">
-                <Plus className="size-3.5" strokeWidth={1.75} />
-                {ui.automation.addTransitionLabel}
-              </Button>
-            }
+          <SectionLink
+            title={anyButton.name}
+            summary={`${ui.automation.panel.anyButtonSummary} · ${ui.automation.panel.displaySegments[anyButton.display]}`}
+            onClick={() => store().select({ kind: 'transition', id: anyButton.id })}
           />
         ) : null}
-      </PanelField>
-
-      <PanelField label={ui.automation.previewTitle}>
-        <ProcessPreview transitions={outgoing} />
-      </PanelField>
+        <SectionLink
+          title={ui.automation.panel.sectionButtons}
+          summary={stageButtonsSummary(doc, stage.id)}
+          onClick={onOpenButtons}
+        />
+      </div>
 
       {!readOnly ? (
         <PanelDanger onClick={() => store().removeStage(stage.id)}>

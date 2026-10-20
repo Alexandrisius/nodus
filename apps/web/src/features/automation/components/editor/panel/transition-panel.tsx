@@ -22,7 +22,6 @@ import {
   routeIfOf,
   validatorOf,
 } from '../../../model/transition-rules.js';
-import { ProcessPreview } from '../process-preview.js';
 import { PanelDanger, PanelField, SectionLink, Segmented, focusName } from './panel-kit.js';
 
 export type TransitionSection = 'root' | 'roles' | 'conditions' | 'rules';
@@ -54,10 +53,11 @@ export function sectionSummaries(transition: WorkflowDraftTransition, doc: Workf
 }
 
 /**
- * Панель кнопки-перехода (#378 ред. 2): сверху «Откуда → Куда», ниже
- * название (подпись кнопки в карточке), показ сегментами, разделы «Кто
- * видит ›», «Условия перехода ›», «Особые правила ›» со сводками, превью
- * панели процесса исходного статуса, удаление.
+ * Панель кнопки-перехода (#378 ред. 2) — та же грамматика, что у панели
+ * статуса: сверху «Откуда → Куда», название, показ сегментами, разделы
+ * «Кто видит ›», «Условия перехода ›», «Особые правила ›» со сводками,
+ * удаление. Вид кнопок статуса в карточке — в разделе «Кнопки из статуса»
+ * панели статуса (здесь не дублируется).
  */
 export function TransitionPanel({
   transition: t,
@@ -75,9 +75,6 @@ export function TransitionPanel({
   const store = useRouteDocStore.getState;
   const patch = (value: Partial<WorkflowDraftTransition>) => store().patchTransition(t.id, value);
   const summaries = sectionSummaries(t, doc);
-  const siblings = doc.transitions
-    .filter((x) => x.fromStageId === t.fromStageId)
-    .sort((a, b) => a.sortOrder - b.sortOrder);
 
   return (
     <>
@@ -126,7 +123,7 @@ export function TransitionPanel({
         </PanelField>
       </div>
 
-      <PanelField label={ui.automation.transitionName} hint={ui.automation.transitionNameHint}>
+      <PanelField label={ui.automation.transitionName}>
         <Input
           key={t.id}
           value={t.name}
@@ -171,12 +168,6 @@ export function TransitionPanel({
           onClick={() => onOpenSection('rules')}
         />
       </div>
-
-      {t.fromStageId !== null ? (
-        <PanelField label={ui.automation.previewTitle}>
-          <ProcessPreview transitions={siblings} />
-        </PanelField>
-      ) : null}
 
       {!readOnly ? (
         <PanelDanger onClick={() => store().removeTransition(t.id)}>

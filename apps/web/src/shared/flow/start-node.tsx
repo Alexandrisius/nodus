@@ -14,12 +14,17 @@ export type StartFlowNode = Node<StartNodeData, 'start'>;
 /**
  * Старт маршрута (реф Jira «Create»): пунктирная пилюля РОВНО h-10 слева от
  * начального статуса, центр — на одной линии с его центром (стрелка прямая).
- * В правке из точки справа тянется связь — так выбирается начальный статус.
+ * В правке из точки справа тянется связь — так выбирается начальный статус;
+ * клик — панель начального статуса.
  */
 export const StartNode = memo(function StartNode({ data }: NodeProps<StartFlowNode>) {
   return (
     <div
-      className="flex h-[40px] w-[156px] items-center gap-2 rounded-full border border-dashed border-border px-3 text-muted-foreground"
+      className={cn(
+        'flex h-[40px] w-[156px] items-center gap-2 rounded-full border border-dashed border-border px-3 text-muted-foreground',
+        !data.readOnly &&
+          'cursor-pointer transition-colors hover:border-input hover:text-foreground',
+      )}
       title={ui.automation.startNode}
     >
       <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-muted-foreground" />
