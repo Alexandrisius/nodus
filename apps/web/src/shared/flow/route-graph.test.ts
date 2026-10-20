@@ -88,7 +88,7 @@ describe('route-graph: холст из документа (#378 ред. 2)', () 
   it('сохранённые позиции и точки — закон; подпись — в своей доле стрелки', () => {
     const { nodes, edges } = buildRouteGraph(
       doc({
-        stages: { [A]: { x: 10, y: 20 }, [B]: { x: 600, y: 20 } },
+        stages: { [A]: { x: 10, y: 20 }, [B]: { x: 600, y: 20 }, [C]: { x: 10, y: 500 } },
         transitions: { 't-start': { sourceHandle: 'b3', targetHandle: 't1', labelT: 0.3 } },
       }),
       { readOnly: false },
@@ -99,6 +99,19 @@ describe('route-graph: холст из документа (#378 ред. 2)', () 
       targetHandle: 't1',
       data: { labelT: 0.3 },
     });
+  });
+
+  it('сохранённое место подписи занято статусом — подпись на ближайшем свободном месте своей стрелки', () => {
+    // C стоит ровно там, где на стрелке «Взять в работу» сохранена подпись (0.3).
+    const { edges } = buildRouteGraph(
+      doc({
+        stages: { [A]: { x: 10, y: 20 }, [B]: { x: 600, y: 20 }, [C]: { x: 250, y: 60 } },
+        transitions: { 't-start': { sourceHandle: 'b3', targetHandle: 't1', labelT: 0.3 } },
+      }),
+      { readOnly: false },
+    );
+    const labelT = (edges.find((e) => e.id === 't-start')!.data as { labelT: number }).labelT;
+    expect(labelT).not.toBe(0.3);
   });
 
   it('кнопка из любого статуса — метка «Любой статус» со стрелкой; у неё меняется только цель', () => {

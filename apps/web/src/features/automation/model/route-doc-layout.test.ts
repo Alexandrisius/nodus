@@ -118,6 +118,24 @@ describe('route-doc-layout: подписи и автосохранение (#378
     expect(next.layout?.transitions.ba?.labelT).toBe(base.layout?.transitions.ba?.labelT);
   });
 
+  it('после шага в документе — картинка без наездов (данные = холст)', () => {
+    const base = freezeLayout(doc(pinned), setStagePosition(doc(pinned), A, { x: 0, y: 0 }));
+    // C подвинули под стрелки соседей — подписи могли бы лечь друг на друга.
+    const next = settleLabels(base, setStagePosition(base, C, { x: 420, y: 60 }));
+    const route = resolveRoute(next);
+    const boxes = next.transitions.map((t) =>
+      labelBoxAt(
+        route.paths.get(t.id)!,
+        next.layout!.transitions[t.id]!.labelT!,
+        labelWidth(t.name),
+      ),
+    );
+    boxes.forEach((box, i) => {
+      const others = boxes.filter((_, j) => j !== i);
+      expect(labelCost(box, [...route.nodeBoxes, ...others])).toBe(0);
+    });
+  });
+
   it('автосохранение: места опубликованных элементов; новые — с публикацией', () => {
     const baseline = doc(pinned);
     const draft: WorkflowDraftDocument = {

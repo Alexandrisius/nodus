@@ -13,8 +13,11 @@ import { handleRatio, handleSide, type FlowBox } from './flow-handles.js';
 const PORT_R = 3.5;
 const LABEL_H = 22;
 const LABEL_PAD = 4;
-/** Кандидаты доли пути: от середины к краям, симметрично. */
-const CANDIDATES = [0.5, 0.42, 0.58, 0.34, 0.66, 0.26, 0.74, 0.18, 0.82];
+/** Кандидаты доли пути: от середины к краям симметрично, шаг 0.03 — чтобы
+ *  найти место и на коротком колене стрелки между карточками. */
+const CANDIDATES = [0.5].concat(
+  Array.from({ length: 16 }, (_, i) => [0.5 - 0.03 * (i + 1), 0.5 + 0.03 * (i + 1)]).flat(),
+);
 
 /** Ширина чипа подписи по тексту (Onest 12px ≈ 6.6px на знак + поля). */
 export function labelWidth(name: string): number {

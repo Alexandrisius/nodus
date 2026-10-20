@@ -1,16 +1,9 @@
 import type {
   WorkflowDraftDocument,
-  WorkflowDraftTransition,
   WorkflowLayout,
   WorkflowLayoutTransition,
 } from '@nodus/contracts';
 
-import {
-  labelBoxAt,
-  labelCost,
-  labelWidth,
-  placeLabel,
-} from '../../../shared/flow/route-labels.js';
 import { freeDepth, type Placed } from '../../../shared/flow/route-loops.js';
 import {
   frozenLayout,
@@ -67,8 +60,9 @@ export function freezeLayout(
 /**
  * Обходы, чьи концы сдвинулись этим шагом (перетаскивание статуса или метки,
  * перенос конца стрелки), держат свою глубину, а при наложении на соседний
- * обход уходят на ступень глубже. Обходы, которых шаг не касался, не меняются
- * никогда — «фантомных» перестроений чужих стрелок нет.
+ * обход или проходе сквозь карточку уходят на ступень глубже. Обходы,
+ * которых шаг не касался, не меняются никогда — «фантомных» перестроений
+ * чужих стрелок нет.
  */
 export function settleLoops(
   prev: WorkflowDraftDocument,
@@ -86,7 +80,7 @@ export function settleLoops(
   const transitions = { ...layout.transitions };
   for (const id of moved) {
     const loop = after.loops.get(id)!;
-    const offset = freeDepth(loop, after.spread.get(id)!.offset, placed);
+    const offset = freeDepth(loop, after.spread.get(id)!.offset, placed, after.nodeBoxes);
     placed.push({ loop, offset });
     transitions[id] = { ...transitions[id], offset };
   }
@@ -94,49 +88,34 @@ export function settleLoops(
 }
 
 /**
- * Подписи после шага: подпись стрелки, чей путь изменился, держит свою долю,
- * а если теперь наезжает на узел или другую подпись — переезжает на
- * ближайшее свободное место СВОЕЙ стрелки. Подпись неизменной стрелки
- * трогается, только если на неё положили узел (иначе её не видно); место,
- * куда подпись перетащил пользователь, этим шагом не меняется.
+ * Подписи после шага: в документ ложится ровно та картинка, что на холсте
+ * (`resolveRoute` наездов не допускает). Уступают подписи стрелок, которые
+ * этим шагом сдвинули (их путь изменился): держат свою долю, а если теперь
+ * наезжают на узел или чужую подпись — переезжают на ближайшее свободное
+ * место СВОЕЙ стрелки. Подписи несдвинутых стрелок не трогаются, кроме
+ * одной, на которую положили узел (иначе её не видно).
  */
 export function settleLabels(
   prev: WorkflowDraftDocument,
   next: WorkflowDraftDocument,
 ): WorkflowDraftDocument {
   const before = resolveRoute(prev);
-  const after = resolveRoute(next);
-  const named = next.transitions.filter((t) => t.name !== '' && after.paths.has(t.id));
-  const pathOf = (route: typeof after, id: string) => JSON.stringify(route.paths.get(id));
-  const boxOf = (route: typeof after, t: WorkflowDraftTransition) =>
-    labelBoxAt(route.paths.get(t.id)!, route.labels.get(t.id)!, labelWidth(t.name));
-  const moving = new Set(
-    named
-      .filter((t) => {
-        if (pathOf(before, t.id) !== pathOf(after, t.id)) return true;
-        const coveredNow = labelCost(boxOf(after, t), after.nodeBoxes) > 0;
-        return coveredNow && labelCost(boxOf(before, t), before.nodeBoxes) === 0;
-      })
+  const pathOf = (route: typeof before, id: string) => JSON.stringify(route.paths.get(id));
+  const probe = resolveRoute(next);
+  const moved = new Set(
+    next.transitions
+      .filter((t) => probe.paths.has(t.id) && pathOf(before, t.id) !== pathOf(probe, t.id))
       .map((t) => t.id),
   );
-  if (moving.size === 0) return next;
-  const obstacles = [
-    ...after.nodeBoxes,
-    ...named.filter((t) => !moving.has(t.id)).map((t) => boxOf(after, t)),
-  ];
+  const after = resolveRoute(next, { yieldLabels: moved });
   const layout = layoutOf(next);
-  const transitions = { ...layout.transitions };
-  for (const t of named) {
-    if (!moving.has(t.id)) continue;
-    const points = after.paths.get(t.id)!;
-    const width = labelWidth(t.name);
-    const current = after.labels.get(t.id)!;
-    const free = labelCost(labelBoxAt(points, current, width), obstacles) === 0;
-    const at = free ? current : placeLabel(points, width, obstacles, current);
-    obstacles.push(labelBoxAt(points, at, width));
-    transitions[t.id] = { ...transitions[t.id], labelT: at };
+  let transitions: WorkflowLayout['transitions'] | null = null;
+  for (const [id, t] of after.labels) {
+    if (layout.transitions[id]?.labelT === t) continue;
+    transitions ??= { ...layout.transitions };
+    transitions[id] = { ...transitions[id], labelT: t };
   }
-  return { ...next, layout: { ...layout, transitions } };
+  return transitions ? { ...next, layout: { ...layout, transitions } } : next;
 }
 
 const EMPTY: WorkflowLayout = { stages: {}, transitions: {} };

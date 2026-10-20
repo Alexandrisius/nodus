@@ -15,7 +15,7 @@ import {
 } from './flow-handles.js';
 import type { FlowPt } from './edge-geometry.js';
 import { ROUTE_GEOMETRY, resolvePositions, type FlowPosition } from './route-layout.js';
-import { edgePath, labelBoxAt, labelWidth, placeLabel } from './route-labels.js';
+import { edgePath, labelBoxAt, labelCost, labelWidth, placeLabel } from './route-labels.js';
 import { U_BASE, edgeSpread, type RouteLoop } from './route-loops.js';
 
 export { U_BASE } from './route-loops.js';
@@ -74,7 +74,10 @@ export function startBoxOf(initial: FlowPosition): FlowBox {
   };
 }
 
-export function resolveRoute(doc: WorkflowDraftDocument): ResolvedRoute {
+export function resolveRoute(
+  doc: WorkflowDraftDocument,
+  options: { yieldLabels?: ReadonlySet<string> } = {},
+): ResolvedRoute {
   const layout = doc.layout ?? EMPTY_LAYOUT;
   const { stageWidth: W, stageHeight: H, anyWidth, anyHeight } = ROUTE_GEOMETRY;
   const positions = resolvePositions(doc.stages, doc.transitions, layout.stages);
@@ -140,25 +143,37 @@ export function resolveRoute(doc: WorkflowDraftDocument): ResolvedRoute {
     paths.set(input.id, edgePath(a, h.sourceHandle, b, h.targetHandle, s));
   }
 
-  // Подписи: сохранённое место — закон (стоит первым), новые — на своей
-  // стрелке без наезда на узлы и уже стоящие подписи.
+  // Подписи: сохранённое место держится, пока свободно (сначала — подписи
+  // вне `yieldLabels`: уступают те, чьи стрелки сейчас сдвинули); занятое
+  // (на подпись положили статус, чужая подпись встала раньше) и новые —
+  // ближайшее свободное место своей стрелки. Наездов нет никогда.
   const initial = doc.stages.find((s) => s.isInitial);
   const nodeBoxes = [...boxes.values()];
   if (initial && positions.has(initial.id)) nodeBoxes.push(startBoxOf(positions.get(initial.id)!));
   const labels = new Map<string, number>();
   const taken: FlowBox[] = [...nodeBoxes];
   const named = doc.transitions.filter((t) => t.name !== '' && paths.has(t.id));
-  for (const t of named) {
+  const yieldLabels = options.yieldLabels;
+  const ordered = yieldLabels
+    ? [
+        ...named.filter((t) => !yieldLabels.has(t.id)),
+        ...named.filter((t) => yieldLabels.has(t.id)),
+      ]
+    : named;
+  const pending: typeof named = [];
+  for (const t of ordered) {
     const saved = layout.transitions[t.id]?.labelT;
-    if (saved === undefined) continue;
-    labels.set(t.id, saved);
-    taken.push(labelBoxAt(paths.get(t.id)!, saved, labelWidth(t.name)));
+    const box =
+      saved === undefined ? null : labelBoxAt(paths.get(t.id)!, saved, labelWidth(t.name));
+    if (saved !== undefined && box && labelCost(box, taken) === 0) {
+      labels.set(t.id, saved);
+      taken.push(box);
+    } else pending.push(t);
   }
-  for (const t of named) {
-    if (labels.has(t.id)) continue;
+  for (const t of pending) {
     const points = paths.get(t.id)!;
     const width = labelWidth(t.name);
-    const at = placeLabel(points, width, taken);
+    const at = placeLabel(points, width, taken, layout.transitions[t.id]?.labelT);
     labels.set(t.id, at);
     taken.push(labelBoxAt(points, at, width));
   }

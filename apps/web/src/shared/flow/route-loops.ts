@@ -16,6 +16,8 @@ const U_MAX = 400;
 const PARALLEL_STEP = 16;
 /** Обходы «слиплись»: линии глубины ближе этого и пролёты перекрываются. */
 const LOOP_CLEARANCE = 12;
+/** Линия глубины не проходит ближе этого к чужому узлу (сквозь карточку). */
+const NODE_CLEARANCE = 10;
 
 /** U-обход: сторона, пролёт вдоль стороны и базовая линия (край узлов). */
 export interface RouteLoop {
@@ -74,10 +76,34 @@ export function loopsCollide(a: RouteLoop, ao: number, b: RouteLoop, bo: number)
   );
 }
 
-/** Первая свободная глубина от `start`: ступенями U_STEP, пока слипается. */
-export function freeDepth(loop: RouteLoop, start: number, placed: readonly Placed[]): number {
+/** Линия глубины обхода прошла бы сквозь узел (пролёт над/под карточкой). */
+export function crossesNode(loop: RouteLoop, offset: number, nodes: readonly FlowBox[]): boolean {
+  const depth = depthOf(loop, offset);
+  const alongX = loop.side === 't' || loop.side === 'b';
+  return nodes.some((n) => {
+    const [lo, hi, near, far] = alongX
+      ? [n.x, n.x + n.w, n.y, n.y + n.h]
+      : [n.y, n.y + n.h, n.x, n.x + n.w];
+    return (
+      lo < loop.hi && loop.lo < hi && depth > near - NODE_CLEARANCE && depth < far + NODE_CLEARANCE
+    );
+  });
+}
+
+/** Первая свободная глубина от `start`: ступенями U_STEP, пока слипается с
+ *  другим обходом или линия идёт сквозь узел. */
+export function freeDepth(
+  loop: RouteLoop,
+  start: number,
+  placed: readonly Placed[],
+  nodes: readonly FlowBox[] = [],
+): number {
   let offset = start;
-  while (offset < U_MAX && placed.some((p) => loopsCollide(loop, offset, p.loop, p.offset))) {
+  while (
+    offset < U_MAX &&
+    (placed.some((p) => loopsCollide(loop, offset, p.loop, p.offset)) ||
+      crossesNode(loop, offset, nodes))
+  ) {
     offset += U_STEP;
   }
   return offset;
@@ -120,6 +146,7 @@ export function edgeSpread(
   }
 
   const placed: Placed[] = [];
+  const nodes = [...boxes.values()];
   for (const loop of loops.values()) {
     const offset = saved(loop.id);
     if (offset === undefined) continue;
@@ -135,7 +162,7 @@ export function edgeSpread(
       .filter((o) => levels.has(o.id) && o.side === loop.side && o.lo < loop.hi && loop.lo < o.hi)
       .reduce((max, o) => Math.max(max, levels.get(o.id)! + 1), 0);
     levels.set(loop.id, level);
-    const offset = freeDepth(loop, U_BASE + U_STEP * level, placed);
+    const offset = freeDepth(loop, U_BASE + U_STEP * level, placed, nodes);
     spread.set(loop.id, { offset, shift: 0 });
     placed.push({ loop, offset });
   }
