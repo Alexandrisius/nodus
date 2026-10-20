@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   apiErrorResponseSchema,
+  executeTransitionResultSchema,
   ErrorCode,
   Permission,
   taskDetailSchema,
@@ -114,7 +115,10 @@ describe.skipIf(!process.env.DATABASE_URL)('tasks (integration)', () => {
       body: {},
       key: `it-start-${fx.runId}`,
     });
-    expect(taskListItemSchema.parse(await started.json()).stage.systemState).toBe('active');
+    const startedBody = executeTransitionResultSchema.parse(await started.json());
+    expect(startedBody.task.stage.systemState).toBe('active');
+    // Новые кнопки нажавшего — в том же ответе (панель процесса без второго GET).
+    expect(startedBody.transitions.map((t) => t.name)).toContain('Завершить');
     const bobPlacement = await fx.prisma.taskPersonalPlacement.findUniqueOrThrow({
       where: { taskId_userId: { taskId: parentId, userId: bob.id } },
       include: { stage: true },

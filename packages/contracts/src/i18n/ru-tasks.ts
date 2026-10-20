@@ -70,6 +70,9 @@ export const tasksStrings = {
   emptyColumn: 'Нет задач',
   dropHere: 'Отпустите задачу здесь',
   stageMoveError: 'Не удалось перенести задачу — вернули на прежнюю стадию',
+  /** «Из статуса «В работе» так перейти нельзя — в маршруте нет такой кнопки». */
+  transitionNotAllowedFrom: 'Из статуса',
+  transitionNotAllowedTail: 'так перейти нельзя — в маршруте нет такой кнопки',
   quickTaskPlaceholder: 'Новая задача — Enter, чтобы создать',
   addStage: 'Добавить стадию',
   stageNamePlaceholder: 'Название колонки…',

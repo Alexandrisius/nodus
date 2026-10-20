@@ -4,7 +4,7 @@ import {
   Permission,
   type AuthUser,
   type ExecuteTransitionBody,
-  type TaskListItem,
+  type ExecuteTransitionResult,
   type TaskTransition,
   type TransitionBlockReason,
 } from '@nodus/contracts';
@@ -66,17 +66,21 @@ export class TransitionsService {
   }
 
   /** POST /tasks/:id/transitions/:transitionId — выполнить кнопку. Личные
-   *  маршруты держателей готовятся ДО транзакции (ensurePersonal). */
+   *  маршруты держателей готовятся ДО транзакции (ensurePersonal). В ответе
+   *  — новые кнопки нажавшего: панель процесса обновляется одним ходом. */
   async executeFor(
     user: AuthUser,
     taskId: string,
     transitionId: string,
     body: ExecuteTransitionBody,
-  ): Promise<TaskListItem> {
+  ): Promise<ExecuteTransitionResult> {
     const row = await this.query.visibleRow(user, taskId);
     await this.placements.prepare(planHolderIds(row));
-    await this.txRunner.run((tx) => this.execute(tx, taskId, user, { transitionId }, body));
-    return this.taskService.listItem(user.id, taskId);
+    const transitions = await this.txRunner.run(async (tx) => {
+      await this.execute(tx, taskId, user, { transitionId }, body);
+      return this.available(tx, taskId, user);
+    });
+    return { task: await this.taskService.listItem(user.id, taskId), transitions };
   }
 
   async available(tx: TransactionClient, taskId: string, actor: Actor): Promise<TaskTransition[]> {
@@ -96,6 +100,8 @@ export class TransitionsService {
           toStageName: target.name,
           toStageState: target.systemState as TaskTransition['toStageState'],
           toStageOutcome: (target.outcome ?? null) as TaskTransition['toStageOutcome'],
+          toStageColor: target.color as TaskTransition['toStageColor'],
+          toStageOrder: target.sortOrder,
           display: t.display,
           blockedBy: evaluateValidators(t.rules, facts),
           canOverride,
@@ -117,7 +123,12 @@ export class TransitionsService {
       .filter((t) => passesConditions(t.rules, { roles, permissions: actor.permissions }))
       .filter((t) => this.matches(t, choice, task, workflow));
     if (candidates.length === 0) {
-      throw new DomainException(ErrorCode.TASK_TRANSITION_NOT_ALLOWED, 'Transition not allowed');
+      // Имя текущего статуса — клиент собирает понятную строку (I15):
+      // «Из статуса «В работе» так перейти нельзя» (перенос в «Моём плане»).
+      const from = workflow.stages.find((s) => s.id === task.stageId);
+      throw new DomainException(ErrorCode.TASK_TRANSITION_NOT_ALLOWED, 'Transition not allowed', {
+        ...(from ? { fromStageName: from.name } : {}),
+      });
     }
     const scored = candidates.map((t) => ({ t, reasons: evaluateValidators(t.rules, facts) }));
     const pick = scored.find((s) => s.reasons.length === 0) ?? scored[0]!;
@@ -128,8 +139,9 @@ export class TransitionsService {
     );
     await this.mover.apply(tx, task, target, actor.id, {
       transitionId: pick.t.id,
+      cause: 'transition',
       overridden: pick.reasons.map((r) => r.kind),
-      reason: 'transition',
+      overrideReason: pick.reasons.length > 0 ? opts.reason?.trim() : undefined,
     });
     return target;
   }

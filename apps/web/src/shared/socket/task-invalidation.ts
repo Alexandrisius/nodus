@@ -3,6 +3,7 @@ import { TASK_EVENTS, type Paginated, type TaskListItem } from '@nodus/contracts
 
 import { tasksKeys } from '../api/tasks-keys.js';
 import { automationKeys } from '../api/automation-keys.js';
+import { isFreshFromMutation } from '../api/fresh-from-mutation.js';
 import { stageIdOfColumnKey } from '../lib/board/kanban-column-key.js';
 import { workflowKeys } from '../workflow/workflow-api.js';
 import type { KeyBatcher } from './invalidation-batcher.js';
@@ -126,9 +127,13 @@ export function pushTaskKeys(
     batcher.push(tasksKeys.kanbanAll(), 'list');
     return;
   }
-  if (taskId) {
+  // Деталь и кнопки, только что записанные из ответа своей мутации, эхо не
+  // перезапрашивает (отклик панели процесса, #378).
+  if (taskId && !isFreshFromMutation(taskId)) {
     batcher.push(tasksKeys.detail(taskId), 'feed');
     batcher.push(tasksKeys.transitions(taskId), 'feed');
+  }
+  if (taskId) {
     if (type.startsWith('task.time') || type.startsWith('task.timer')) {
       batcher.push(tasksKeys.timeEntries(taskId), 'feed');
       batcher.push(tasksKeys.timer(), 'feed');

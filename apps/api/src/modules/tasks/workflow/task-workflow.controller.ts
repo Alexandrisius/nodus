@@ -9,17 +9,17 @@ import {
 import { z } from 'zod';
 import {
   executeTransitionBodySchema,
+  executeTransitionResultSchema,
   personalStageCreateBodySchema,
   personalStageUpdateBodySchema,
-  taskListItemSchema,
   taskStageSchema,
   taskStageWithCountSchema,
   taskTransitionSchema,
   type AuthUser,
   type ExecuteTransitionBody,
+  type ExecuteTransitionResult,
   type PersonalStageCreateBody,
   type PersonalStageUpdateBody,
-  type TaskListItem,
   type TaskStage,
   type TaskStageWithCount,
   type TaskTransition,
@@ -122,7 +122,7 @@ export class TaskWorkflowController {
   @HttpCode(200)
   @Audit({ action: 'task.transition', entity: 'task' })
   @ApiOperation({ summary: 'Выполнить переход (обход гейта — override + reason)' })
-  @ApiOkResponse({ standardSchema: taskListItemSchema })
+  @ApiOkResponse({ standardSchema: executeTransitionResultSchema })
   @ApiErrors(400, 401, 403, 404, 409)
   @ApiIdempotencyKey()
   execute(
@@ -134,7 +134,7 @@ export class TaskWorkflowController {
       pipes: [new ZodValidationPipe(executeTransitionBodySchema)],
     })
     body: ExecuteTransitionBody,
-  ): Promise<TaskListItem> {
+  ): Promise<ExecuteTransitionResult> {
     return this.transitions.executeFor(user, id, transitionId, body);
   }
 }

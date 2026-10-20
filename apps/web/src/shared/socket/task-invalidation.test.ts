@@ -2,6 +2,7 @@ import { QueryClient } from '@tanstack/react-query';
 import { describe, expect, it } from 'vitest';
 import type { Paginated, TaskListItem } from '@nodus/contracts';
 
+import { isFreshFromMutation, markFreshFromMutation } from '../api/fresh-from-mutation.js';
 import { tasksKeys } from '../api/tasks-keys.js';
 import { kanbanColumnKey } from '../lib/board/kanban-column-key.js';
 import type { InvalidationTier, KeyBatcher } from './invalidation-batcher.js';
@@ -53,6 +54,21 @@ const kanbanKeys = (keys: Array<[unknown[], InvalidationTier]>) =>
   keys.filter(([k]) => k[1] === 'kanban').map(([k]) => JSON.stringify(k));
 
 describe('pushTaskKeys (#311, #317)', () => {
+  it('эхо своей кнопки: деталь и кнопки не перезапрашиваются (свежие из ответа), доски — да (#378)', () => {
+    markFreshFromMutation('t-fresh');
+    const { batcher, keys } = recordingBatcher();
+    pushTaskKeys(batcher, new QueryClient(), 'task.stage_changed', {
+      taskId: 't-fresh',
+      fromStageId: 's1',
+      toStageId: 's2',
+    });
+    expect(has(keys, tasksKeys.detail('t-fresh'))).toBe(false);
+    expect(has(keys, tasksKeys.transitions('t-fresh'))).toBe(false);
+    expect(has(keys, tasksKeys.listPages())).toBe(true);
+    // Окно свежести истекло — эхо снова обновляет деталь.
+    expect(isFreshFromMutation('t-fresh', Date.now() + 5_000)).toBe(false);
+  });
+
   it('task.relation_changed обновляет список связей своей карточки', () => {
     const { batcher, keys } = recordingBatcher();
     pushTaskKeys(batcher, new QueryClient(), 'task.relation_changed', { taskId: 't1' });

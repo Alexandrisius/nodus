@@ -117,7 +117,9 @@ export class TasksQueryService {
     ];
     return {
       ...this.mapper.toListItem(row, refs),
-      workflowId: (await this.workflows.resolveTypeWorkflow(row.type.id)).workflowId,
+      // Свой маршрут задачи (по нему работают кнопки): тип может быть в
+      // архиве — его задачи обязаны открываться (код-ревью #378).
+      workflowId: full.workflowId,
       description: full.description,
       observers: observerIds.map((uid) => this.mapper.ref(refs, uid)),
       checklist: full.checklist.map((c) => ({ id: c.id, text: c.text, done: c.done })),

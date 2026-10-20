@@ -46,7 +46,9 @@ import { WorkflowRepository } from './workflow/workflow.repository.js';
 import { StageMover } from './workflow/stage-mover.js';
 import { WorkflowEditorController } from './workflow/editor/workflow-editor.controller.js';
 import { WorkflowEditorService } from './workflow/editor/publish.service.js';
+import { WorkflowPublishRepository } from './workflow/editor/publish.repository.js';
 import { WorkflowSyncJob } from './workflow/editor/workflow-sync.job.js';
+import { WorkflowPublishedHandler } from './events/workflow-published.handler.js';
 import { TaskTypesController } from './types/task-types.controller.js';
 import { TaskTypesRepository } from './types/task-types.repository.js';
 import { TaskTypesService } from './types/task-types.service.js';
@@ -80,6 +82,7 @@ import { TaskTypeChangeService } from './types/task-type-change.service.js';
     // Репозитории — единственная точка доступа к таблицам модуля (patterns.md).
     CatalogRepository,
     WorkflowRepository,
+    WorkflowPublishRepository,
     TaskTypesRepository,
     TasksRepository,
     TasksQueryRepository,
@@ -97,6 +100,8 @@ import { TaskTypeChangeService } from './types/task-type-change.service.js';
     TransitionsService,
     WorkflowEditorService,
     WorkflowSyncJob,
+    // Фоновый перенос задач публикации ставится из outbox (at-least-once).
+    WorkflowPublishedHandler,
     TaskTypesService,
     TaskTypeChangeService,
     Placements,

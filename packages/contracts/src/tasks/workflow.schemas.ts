@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import {
   docIdSchema,
+  stageColorSchema,
   stageOutcomeSchema,
   transitionDisplaySchema,
 } from './workflow-primitives.schemas.js';
@@ -108,6 +109,9 @@ export const taskTransitionSchema = z.object({
   toStageState: z.enum(['backlog', 'active', 'paused', 'done', 'closed']),
   /** Итог целевой стадии (null — не «Итог»): «✓ Завершена» / «✕ Отменена». */
   toStageOutcome: stageOutcomeSchema.nullable(),
+  /** Цвет и порядок цели — клиент строит оптимистичную стадию без каталога. */
+  toStageColor: stageColorSchema,
+  toStageOrder: z.number().int().min(0),
   /** Показ в панели процесса: главная / видна / в меню «Ещё» (#378). */
   display: transitionDisplaySchema,
   blockedBy: z.array(transitionBlockReasonSchema),

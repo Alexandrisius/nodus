@@ -4,6 +4,11 @@ import { Prisma } from '../../../generated/prisma/client.js';
 import { PrismaService } from '../../../core/database/prisma.service.js';
 import type { TransactionClient } from '../../../core/database/transaction-runner.js';
 
+/** CHECK `(system_state='closed') = (outcome IS NOT NULL)` (#378): колонка
+ *  «Итога» в «Моём плане» — всегда «выполнена» (отмена — свойство маршрута). */
+const outcomeOf = (systemState: string): 'success' | null =>
+  systemState === 'closed' ? 'success' : null;
+
 /**
  * Колонки личного маршрута «Мой план» (`workflow_stages` личного workflow,
  * ADR-0008): чтение активных, лимит, создание, порядок, правка, архивация.
@@ -54,7 +59,7 @@ export class PersonalStagesRepository {
       sortOrder: number;
     },
   ) {
-    return tx.workflowStage.create({ data });
+    return tx.workflowStage.create({ data: { ...data, outcome: outcomeOf(data.systemState) } });
   }
 
   async setSortOrder(tx: TransactionClient, stageId: string, sortOrder: number): Promise<void> {
@@ -66,7 +71,9 @@ export class PersonalStagesRepository {
     stageId: string,
     patch: { name?: string; color?: string; systemState?: string },
   ) {
-    return tx.workflowStage.update({ where: { id: stageId }, data: patch });
+    const data =
+      patch.systemState === undefined ? patch : { ...patch, outcome: outcomeOf(patch.systemState) };
+    return tx.workflowStage.update({ where: { id: stageId }, data });
   }
 
   async archive(tx: TransactionClient, stageId: string, at: Date): Promise<void> {

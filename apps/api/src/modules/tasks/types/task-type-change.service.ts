@@ -23,7 +23,7 @@ import { WorkflowRepository } from '../workflow/workflow.repository.js';
  * Смена типа задачи (#378): право правки (постановщик / исполнитель /
  * task.manage_any — как у PATCH). Если текущего статуса нет в новом маршруте
  * — обязателен `stageId`; переезд стадии — общий помощник StageMover
- * (reason=type_change), событие `task.type_changed` участникам.
+ * (cause=type_change), событие `task.type_changed` участникам.
  */
 @Injectable()
 export class TaskTypeChangeService {
@@ -45,6 +45,7 @@ export class TaskTypeChangeService {
     if (!access.canEdit) throw DomainException.forbidden('Task edit not allowed');
     const nextType = await this.typeRepo.findLiveById(body.typeId);
     if (!nextType) throw DomainException.notFound('Task type not found');
+    if (nextType.id === row.type.id) return this.taskService.listItem(user.id, taskId);
     const resolved = await this.workflows.resolveTypeWorkflow(nextType.id, {
       // Скрытый тип недоступен смене и на сервере (security #378).
       requireCreatable: true,
@@ -73,14 +74,17 @@ export class TaskTypeChangeService {
       if (!target || target.archivedAt) {
         throw DomainException.notFound('Stage not found');
       }
-      await tx.task.update({
-        where: { id: taskId },
-        data: { typeId: nextType.id, workflowId: resolved.workflowId },
+      await this.tasks.setType(tx, taskId, {
+        typeId: nextType.id,
+        workflowId: resolved.workflowId,
       });
-      await this.mover.apply(tx, task, target, user.id, {
-        transitionId: null,
-        reason: 'type_change',
-      });
+      // Статус есть и в новом маршруте — стадия не меняется (без шума событий).
+      if (target.id !== task.stageId) {
+        await this.mover.apply(tx, task, target, user.id, {
+          transitionId: null,
+          cause: 'type_change',
+        });
+      }
       await this.eventBus.emit(
         tx,
         TASK_EVENTS.TYPE_CHANGED,

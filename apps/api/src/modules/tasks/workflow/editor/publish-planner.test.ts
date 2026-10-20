@@ -11,6 +11,11 @@ const S1 = '00000000-0000-4000-8000-000000000001';
 const S2 = '00000000-0000-4000-8000-000000000002';
 const S3 = '00000000-0000-4000-8000-000000000003';
 const T1 = '00000000-0000-4000-8000-000000000011';
+const RULES = {
+  conditions: [{ kind: 'role_in', roles: ['assignee'] }],
+  validators: [],
+  postFunctions: [],
+};
 
 function snapshot(overrides: Partial<PlannerSnapshot> = {}): PlannerSnapshot {
   return {
@@ -51,6 +56,7 @@ function snapshot(overrides: Partial<PlannerSnapshot> = {}): PlannerSnapshot {
         toStageId: S2,
         display: 'primary',
         sortOrder: 0,
+        rules: RULES,
       },
     ],
     taskCounts: { [S1]: 2, [S2]: 5, [S3]: 1 },
@@ -73,10 +79,11 @@ function doc(
     fromStageId: string | null;
     toStageId: string;
     display?: string;
+    rules?: unknown;
   }[] = [],
 ) {
   const stageBase = { code: null, color: 'neutral', outcome: null, isInitial: false };
-  const transitionBase = { code: null, display: 'button' as const };
+  const transitionBase = { code: null, display: 'button' as const, rules: RULES };
   return {
     stages: stages.map((s, i) => ({ ...stageBase, sortOrder: i, ...s })),
     transitions: transitions.map((t, i) => ({ ...transitionBase, sortOrder: i, ...t })),
@@ -84,6 +91,47 @@ function doc(
 }
 
 describe('planWorkflowPublish (#378)', () => {
+  const stagesAsIs = [
+    { id: S1, name: 'Ожидает', color: 'neutral', systemState: 'backlog', isInitial: true },
+    { id: S2, name: 'В работе', color: 'success', systemState: 'active' },
+    { id: S3, name: 'Завершена', color: 'info', systemState: 'closed', outcome: 'success' },
+  ];
+  const takeWork = {
+    id: T1,
+    name: 'Взять в работу',
+    fromStageId: S1,
+    toStageId: S2,
+    display: 'primary',
+  };
+
+  it('правка только правил кнопки (кто видит, условия) — в обновление (код-ревью #378)', () => {
+    const rules = { ...RULES, conditions: [{ kind: 'role_in', roles: ['assignee', 'creator'] }] };
+    const plan = planWorkflowPublish(snapshot(), doc(stagesAsIs, [{ ...takeWork, rules }]), []);
+    expect(plan.transitionUpdates.map((t) => t.id)).toEqual([T1]);
+
+    const dor = { ...RULES, validators: [{ kind: 'fields_required', fields: ['deadline'] }] };
+    const dorPlan = planWorkflowPublish(
+      snapshot(),
+      doc(stagesAsIs, [{ ...takeWork, rules: dor }]),
+      [],
+    );
+    expect(dorPlan.transitionUpdates.map((t) => t.id)).toEqual([T1]);
+  });
+
+  it('те же правила с другим порядком ключей — без обновления', () => {
+    const shuffled = {
+      postFunctions: [],
+      validators: [],
+      conditions: [{ roles: ['assignee'], kind: 'role_in' }],
+    };
+    const plan = planWorkflowPublish(
+      snapshot(),
+      doc(stagesAsIs, [{ ...takeWork, rules: shuffled }]),
+      [],
+    );
+    expect(plan.transitionUpdates).toHaveLength(0);
+  });
+
   it('без изменений — пустой план', () => {
     const plan = planWorkflowPublish(
       snapshot(),

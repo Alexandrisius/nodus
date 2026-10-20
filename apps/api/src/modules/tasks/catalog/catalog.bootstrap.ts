@@ -79,6 +79,7 @@ export class CatalogBootstrap implements OnApplicationBootstrap {
     workflowId: string,
     def: CatalogWorkflow,
   ): Promise<void> {
+    await this.repo.lockWorkflow(tx, workflowId);
     const workflow = await tx.workflow.findUniqueOrThrow({
       where: { id: workflowId },
       select: { customizedAt: true, catalogRevision: true },

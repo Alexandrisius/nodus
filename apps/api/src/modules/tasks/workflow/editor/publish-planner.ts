@@ -24,6 +24,8 @@ export interface PlannerTransition {
   toStageId: string;
   display: string;
   sortOrder: number;
+  /** Разобранные правила (кто видит, условия, особые правила). */
+  rules: unknown;
 }
 
 export interface PlannerSnapshot {
@@ -154,7 +156,8 @@ export function planWorkflowPublish(
       existing.fromStageId === write.fromStageId &&
       existing.toStageId === write.toStageId &&
       existing.display === write.display &&
-      existing.sortOrder === write.sortOrder;
+      existing.sortOrder === write.sortOrder &&
+      sameRules(existing.rules, t.rules);
     if (!unchanged) transitionUpdates.push(write);
   }
   const docTransitionIds = new Set(document.transitions.map((t) => t.id));
@@ -178,6 +181,25 @@ export function planWorkflowPublish(
     moves,
     restates,
   };
+}
+
+/** Канонический JSON (ключи по алфавиту) — сравнение правил без шума порядка. */
+export function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
+  if (value !== null && typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, v]) => v !== undefined)
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+    return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonicalJson(v)}`).join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
+/** Правила кнопки не менялись. Ссылка на новый статус (`new:*`) — заведомо
+ *  изменение: прежние правила не могли ссылаться на несуществующий статус. */
+function sameRules(existing: unknown, next: unknown): boolean {
+  const nextJson = canonicalJson(next);
+  return !nextJson.includes('"new:') && canonicalJson(existing) === nextJson;
 }
 
 /** Обязательные переносы: архивируемые стадии с задачами без переноса. */

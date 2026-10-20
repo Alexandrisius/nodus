@@ -10,7 +10,7 @@ import {
 import { http, HttpResponse } from 'msw';
 
 import { demoStages } from '../../../../shared/mocks/data/task-stages.js';
-import { demoSubtasks, demoTasks, taskDetailOf } from '../../../../shared/mocks/data/tasks.js';
+import { demoSubtasks, demoTasks } from '../../../../shared/mocks/data/tasks.js';
 import { demoTaskTypes, demoWorkflowDetails } from '../../../../shared/mocks/data/workflows.js';
 
 /** Моки «Автоматизации» (#378): библиотека типов, чтение/публикация
@@ -279,11 +279,17 @@ export const automationHandlers = [
     if (!task || !type) return notFound();
     const detail = workflows.get(type.workflowId);
     if (!detail) return notFound();
+    // Как сервер: тот же статус есть в новом маршруте — остаётся; иначе
+    // stageId обязателен (422 WORKFLOW_MIGRATION_REQUIRED).
     const stages = detail.document.stages;
     const stageDoc =
-      stages.find((s) => s.id === body.stageId) ??
-      stages.find((s) => s.systemState === task.stage.systemState) ??
-      stages.find((s) => s.isInitial)!;
+      stages.find((s) => s.id === task.stage.id) ?? stages.find((s) => s.id === body.stageId);
+    if (!stageDoc) {
+      return HttpResponse.json(
+        { code: ErrorCode.WORKFLOW_MIGRATION_REQUIRED, message: 'stageId is required' },
+        { status: 422 },
+      );
+    }
     task.type = { id: type.id, code: type.code, name: type.name };
     task.stage = {
       id: stageDoc.id,
@@ -292,6 +298,7 @@ export const automationHandlers = [
       systemState: stageDoc.systemState,
       color: stageDoc.color,
     };
-    return HttpResponse.json(taskDetailOf(task));
+    // Контракт POST /tasks/:id/type — строка задачи (TaskListItem).
+    return HttpResponse.json(task);
   }),
 ];

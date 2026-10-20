@@ -52,13 +52,14 @@ describe('taskNotices', () => {
     ).toEqual([]);
   });
 
-  it('отмена — исполнителю и соисполнителям, кроме нажавшего (#378)', () => {
+  it('отмена — исполнителю и соисполнителям, кроме нажавшего; наблюдателю — нет (#378)', () => {
     const base = {
       number: 4,
       toStageName: 'Отменена',
       creatorId: 'cr',
       assigneeId: 'as',
-      audience: ['cr', 'as', 'co'],
+      coexecutorIds: ['co'],
+      audience: ['cr', 'as', 'co', 'ob'],
     };
     expect(
       taskNotices(

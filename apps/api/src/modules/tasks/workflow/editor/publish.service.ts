@@ -11,51 +11,56 @@ import {
 } from '@nodus/contracts';
 
 import type { Prisma } from '../../../../generated/prisma/client.js';
-import { TransactionRunner } from '../../../../core/database/transaction-runner.js';
+import {
+  TransactionRunner,
+  type TransactionClient,
+} from '../../../../core/database/transaction-runner.js';
 import { DomainException } from '../../../../core/errors/domain-exception.js';
 import { EventBus } from '../../../../core/events/event-bus.js';
 import {
   USER_PROFILE_READER,
   type UserProfileReader,
 } from '../../../../core/ports/user-profile.port.js';
+import { liveLayout, resolveLayout } from './layout.js';
 import { serverChecksOf } from './publish-checks.js';
 import {
   missingMigrations,
-  resolveRules,
   planWorkflowPublish,
   resolveDocId,
+  resolveRules,
   type PlannerSnapshot,
+  type WorkflowPublishPlan,
 } from './publish-planner.js';
+import { WorkflowPublishRepository } from './publish.repository.js';
 import { WorkflowRepository, type LoadedWorkflow } from '../workflow.repository.js';
 
-/** Внутренний результат публикации: тело BullMQ-задания переноса. */
-export interface PublishOutcome extends PublishWorkflowResult {
-  workflowId: string;
-  moves: { fromStageId: string; toStageId: string }[];
-  restates: { stageId: string; systemState: string }[];
-}
+const NO_RULES = { conditions: [], validators: [], postFunctions: [] };
 
 /**
  * Чтение и публикация маршрута (#378, ADR-0021). Публикация — одна
- * транзакция: блокировка строки, оптимистичная версия, серверные проверки
+ * транзакция: блокировка строки, оптимистичная версия, серверские проверки
  * (uuid-принадлежность, цели переносов), план и применение (архив вместо
- * удаления), событие `task.workflow_published`; после коммита ставится
- * BullMQ-задание `tasks-workflow-sync` (workflow-sync.job.ts).
+ * удаления), раскладка холста (общая для всех), событие
+ * `task.workflow_published` — его outbox-обработчик ставит фоновый перенос.
  */
 @Injectable()
 export class WorkflowEditorService {
   constructor(
     private readonly txRunner: TransactionRunner,
     private readonly workflows: WorkflowRepository,
+    private readonly writes: WorkflowPublishRepository,
     private readonly eventBus: EventBus,
     @Inject(USER_PROFILE_READER) private readonly profiles: UserProfileReader,
   ) {}
 
   /** GET /tasks/workflows/:id — документ живого маршрута + счётчики. */
   async read(workflowId: string): Promise<WorkflowDetail> {
-    const row = await this.workflows.load(workflowId);
     const workflow = await this.findTaskWorkflow(workflowId);
-    const typeIds = await this.workflows.typeIdsOf(workflowId);
+    const [row, typeIds, stageTaskCounts] = await Promise.all([
+      this.workflows.load(workflowId),
+      this.workflows.typeIdsOf(workflowId),
+      this.workflows.stageTaskCounts(workflowId),
+    ]);
     const refs = workflow.publishedById
       ? await this.profiles.findRefs([workflow.publishedById], undefined)
       : [];
@@ -65,8 +70,8 @@ export class WorkflowEditorService {
       version: workflow.version,
       publishedAt: workflow.publishedAt?.toISOString() ?? null,
       publishedBy: refs[0] ?? null,
-      document: documentOf(row),
-      stageTaskCounts: await this.workflows.stageTaskCounts(workflowId),
+      document: documentOf(row, workflow.layout),
+      stageTaskCounts,
     };
   }
 
@@ -75,9 +80,8 @@ export class WorkflowEditorService {
     user: AuthUser,
     workflowId: string,
     body: PublishWorkflowBody,
-    afterCommit?: (outcome: PublishOutcome) => Promise<void>,
   ): Promise<PublishWorkflowResult> {
-    const outcome = await this.txRunner.run(async (tx) => {
+    return this.txRunner.run(async (tx) => {
       await this.workflows.lockForUpdate(tx, workflowId);
       const workflow = await this.findTaskWorkflow(workflowId, tx);
       if (workflow.version !== body.baseVersion) {
@@ -87,37 +91,16 @@ export class WorkflowEditorService {
           { currentVersion: workflow.version },
         );
       }
-
       const problems = checkWorkflowDocument(body.document);
       if (problems.some((p) => p.severity === 'error')) {
         throw new DomainException(ErrorCode.WORKFLOW_INVALID, 'Workflow document is invalid', {
           problems,
         });
       }
-
       const loaded = await this.workflows.load(workflowId, tx);
-      this.serverChecks(loaded, body.document, body.migrations);
+      serverChecksOf(loaded, body.document, body.migrations);
 
-      const snapshot: PlannerSnapshot = {
-        stages: loaded.stages.map((s) => ({
-          id: s.id,
-          name: s.name,
-          color: s.color,
-          systemState: s.systemState,
-          outcome: s.outcome,
-          isInitial: s.isInitial,
-          sortOrder: s.sortOrder,
-        })),
-        transitions: loaded.transitions.map((t) => ({
-          id: t.id,
-          name: t.name,
-          fromStageId: t.fromStageId,
-          toStageId: t.toStageId,
-          display: t.display,
-          sortOrder: t.sortOrder,
-        })),
-        taskCounts: await this.workflows.stageTaskCounts(workflowId, tx),
-      };
+      const snapshot = await this.snapshotOf(tx, loaded);
       const plan = planWorkflowPublish(snapshot, body.document, body.migrations);
       const gaps = missingMigrations(plan);
       if (gaps.length > 0) {
@@ -129,157 +112,127 @@ export class WorkflowEditorService {
       }
 
       const now = new Date();
-      // Новые стадии: кода нет — клиентский `code` не читается, сервер верит
-      // только своим кодам каталога.
-      const createdIds = new Map<string, string>();
-      for (const create of plan.stageCreates) {
-        const created = await tx.workflowStage.create({
-          data: {
-            workflowId,
-            code: null,
-            name: create.name,
-            color: create.color,
-            sortOrder: create.sortOrder,
-            systemState: create.systemState,
-            outcome: create.outcome,
-            isInitial: create.isInitial,
-          },
-        });
-        createdIds.set(create.docId, created.id);
-      }
-      for (const update of plan.stageUpdates) {
-        await tx.workflowStage.update({
-          where: { id: update.stageId },
-          data: {
-            name: update.name,
-            color: update.color,
-            sortOrder: update.sortOrder,
-            systemState: update.systemState,
-            outcome: update.outcome,
-            isInitial: update.isInitial,
-          },
-        });
-      }
-
-      const resolve = (docId: string | null): string | null =>
-        docId === null ? null : (resolveDocId(docId, createdIds) ?? docId);
-      const rulesOf = (id: string): Prisma.InputJsonValue =>
-        resolveRules(
-          body.document.transitions.find((tr) => tr.id === id)?.rules ?? {
-            conditions: [],
-            validators: [],
-            postFunctions: [],
-          },
-          createdIds,
-        ) as Prisma.InputJsonValue;
-      for (const write of plan.transitionCreates) {
-        await tx.workflowTransition.create({
-          data: {
-            workflowId,
-            code: null,
-            name: write.name,
-            fromStageId: resolve(write.fromStageId),
-            toStageId: resolve(write.toStageId)!,
-            display: write.display,
-            sortOrder: write.sortOrder,
-            rules: rulesOf(write.id),
-          },
-        });
-      }
-      for (const write of plan.transitionUpdates) {
-        await tx.workflowTransition.update({
-          where: { id: write.id },
-          data: {
-            name: write.name,
-            fromStageId: resolve(write.fromStageId),
-            toStageId: resolve(write.toStageId)!,
-            display: write.display,
-            sortOrder: write.sortOrder,
-            archivedAt: null,
-            rules: rulesOf(write.id),
-          },
-        });
-      }
-      for (const archive of plan.transitionArchives) {
-        await tx.workflowTransition.update({
-          where: { id: archive.transitionId },
-          data: { archivedAt: now },
-        });
-      }
-      for (const archive of plan.stageArchives) {
-        await tx.workflowStage.update({
-          where: { id: archive.stageId },
-          data: { archivedAt: now, isInitial: false },
-        });
-      }
-
-      const published = await tx.workflow.update({
-        where: { id: workflowId },
-        data: {
-          version: { increment: 1 },
-          publishedAt: now,
-          publishedById: user.id,
-          customizedAt: now,
-        },
-        select: { version: true },
+      const created = await this.apply(tx, workflowId, body.document, plan, now);
+      const live = {
+        stageIds: new Set(body.document.stages.map((s) => created.resolve(s.id)!)),
+        transitionIds: new Set(
+          body.document.transitions.map((t) => created.transitions.get(t.id) ?? t.id),
+        ),
+      };
+      const layout = resolveLayout(body.document.layout, created, live);
+      const version = await this.writes.bumpVersion(tx, workflowId, {
+        userId: user.id,
+        at: now,
+        layout: layout as Prisma.InputJsonValue,
       });
-
-      const entries = await this.workflows.typeIdsOf(workflowId, tx);
+      const moves = plan.moves.map((m) => ({
+        fromStageId: m.fromStageId,
+        toStageId: created.resolve(m.toDocId)!,
+      }));
       await this.eventBus.emit(
         tx,
         TASK_EVENTS.WORKFLOW_PUBLISHED,
         {
           workflowId,
-          typeIds: entries,
-          version: published.version,
-          moves: plan.moves.length,
-          restates: plan.restates.length,
+          typeIds: await this.workflows.typeIdsOf(workflowId, tx),
+          version,
+          moves,
+          restates: plan.restates,
         },
         { actorId: user.id, aggregateType: 'workflow', aggregateId: workflowId },
       );
-
       return {
-        workflowId,
-        version: published.version,
+        version,
         publishedAt: now.toISOString(),
         scheduledMoves: plan.moves.reduce(
           (sum, move) => sum + (snapshot.taskCounts[move.fromStageId] ?? 0),
           0,
         ),
-        moves: plan.moves.map((m) => ({
-          fromStageId: m.fromStageId,
-          toStageId: resolve(m.toDocId)!,
-        })),
-        restates: plan.restates,
-      } satisfies PublishOutcome;
+      };
     });
+  }
 
-    if (afterCommit) await afterCommit(outcome);
+  /** Снимок живого маршрута для планировщика (с правилами кнопок). */
+  private async snapshotOf(
+    tx: TransactionClient,
+    loaded: LoadedWorkflow,
+  ): Promise<PlannerSnapshot> {
     return {
-      version: outcome.version,
-      publishedAt: outcome.publishedAt,
-      scheduledMoves: outcome.scheduledMoves,
+      stages: loaded.stages.map((s) => ({
+        id: s.id,
+        name: s.name,
+        color: s.color,
+        systemState: s.systemState,
+        outcome: s.outcome,
+        isInitial: s.isInitial,
+        sortOrder: s.sortOrder,
+      })),
+      transitions: loaded.transitions.map((t) => ({
+        id: t.id,
+        name: t.name,
+        fromStageId: t.fromStageId,
+        toStageId: t.toStageId,
+        display: t.display,
+        sortOrder: t.sortOrder,
+        rules: t.rules,
+      })),
+      taskCounts: await this.workflows.stageTaskCounts(loaded.id, tx),
     };
+  }
+
+  /** Применение плана: создание (new:* → uuid), правки, архив. */
+  private async apply(
+    tx: TransactionClient,
+    workflowId: string,
+    document: WorkflowDocument,
+    plan: WorkflowPublishPlan,
+    now: Date,
+  ) {
+    const stages = new Map<string, string>();
+    const transitions = new Map<string, string>();
+    for (const { docId, ...stage } of plan.stageCreates) {
+      stages.set(docId, await this.writes.createStage(tx, workflowId, stage));
+    }
+    for (const update of plan.stageUpdates) await this.writes.updateStage(tx, update);
+
+    const resolve = (docId: string): string | undefined => resolveDocId(docId, stages);
+    const rowOf = (write: WorkflowPublishPlan['transitionCreates'][number]) => ({
+      name: write.name,
+      fromStageId: write.fromStageId === null ? null : (resolve(write.fromStageId) ?? null),
+      toStageId: resolve(write.toStageId)!,
+      display: write.display,
+      sortOrder: write.sortOrder,
+      rules: resolveRules(
+        document.transitions.find((t) => t.id === write.id)?.rules ?? NO_RULES,
+        stages,
+      ) as Prisma.InputJsonValue,
+    });
+    for (const write of plan.transitionCreates) {
+      transitions.set(write.id, await this.writes.createTransition(tx, workflowId, rowOf(write)));
+    }
+    for (const write of plan.transitionUpdates) {
+      await this.writes.updateTransition(tx, write.id, rowOf(write));
+    }
+    for (const { transitionId } of plan.transitionArchives) {
+      await this.writes.archiveTransition(tx, transitionId, now);
+    }
+    for (const { stageId } of plan.stageArchives) await this.writes.archiveStage(tx, stageId, now);
+    return { stages, transitions, resolve };
   }
 
   /** Редактору доступны только маршруты задач: личные доски и шаблон — 404
    *  (security #378; uuid personal-маршрутов API не отдаёт, гвард добивает). */
-  private async findTaskWorkflow(
-    workflowId: string,
-    tx?: Parameters<Parameters<TransactionRunner['run']>[0]>[0],
-  ) {
+  private async findTaskWorkflow(workflowId: string, tx?: TransactionClient) {
     const workflow = await this.workflows.findMeta(workflowId, tx);
     if (!workflow || workflow.kind !== 'task') {
       throw DomainException.notFound('Workflow not found');
     }
     return workflow;
   }
-
-  serverChecks = serverChecksOf;
 }
 
-/** Документ живого маршрута → документ контракта. */
-export function documentOf(row: LoadedWorkflow): WorkflowDocument {
+/** Документ живого маршрута → документ контракта (+ раскладка холста). */
+export function documentOf(row: LoadedWorkflow, layout?: unknown): WorkflowDocument {
   return {
     stages: row.stages.map((s) => ({
       id: s.id,
@@ -301,5 +254,9 @@ export function documentOf(row: LoadedWorkflow): WorkflowDocument {
       sortOrder: t.sortOrder,
       rules: t.rules,
     })),
+    layout: liveLayout(layout, {
+      stageIds: new Set(row.stages.map((s) => s.id)),
+      transitionIds: new Set(row.transitions.map((t) => t.id)),
+    }),
   };
 }

@@ -74,10 +74,11 @@ export class WorkflowRepository {
     version: number;
     publishedAt: Date | null;
     publishedById: string | null;
+    layout: unknown;
   } | null> {
     return (tx ?? this.prisma).workflow.findUnique({
       where: { id: workflowId },
-      select: { kind: true, version: true, publishedAt: true, publishedById: true },
+      select: { kind: true, version: true, publishedAt: true, publishedById: true, layout: true },
     });
   }
 

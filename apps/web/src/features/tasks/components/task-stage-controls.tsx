@@ -2,6 +2,7 @@ import { useState } from 'react';
 import {
   Check,
   ChevronDown,
+  Loader2,
   MoreHorizontal,
   Pause,
   Play,
@@ -23,7 +24,6 @@ import { cn } from '@nodus/ui/lib/utils';
 import type { LucideIcon } from 'lucide-react';
 
 import { gateReasonsText, useTaskTransitions } from '../api/transitions-api.js';
-import { useTaskStages } from '../../../shared/api/task-stages.js';
 import { stageTone } from '../../../shared/ui/board/stage-tone.js';
 import { groupProcessButtons } from '../../../shared/workflow/process-buttons.js';
 import { RouteViewDialog } from '../../../shared/workflow/route-view-dialog.js';
@@ -71,12 +71,15 @@ export function TaskActionBar({ task }: { task: TaskDetail }) {
 
   const renderButton = (t: TaskTransition, main: boolean) => {
     const blocked = t.blockedBy.length > 0;
-    const Icon = transitionIcon(t);
+    const running = runner.runningId === t.id;
+    const Icon = running ? Loader2 : transitionIcon(t);
     return (
       <button
         key={t.id}
         type="button"
-        disabled={runner.isPending}
+        // Панель не гаснет во время хода (чип уже сменился оптимистично):
+        // повторный клик гасит сам runner; у нажатой — спиннер.
+        aria-busy={running || undefined}
         // НЕ aria-disabled: кнопка работает — открывает диалог причин.
         data-blocked={blocked || undefined}
         aria-label={t.name}
@@ -94,7 +97,7 @@ export function TaskActionBar({ task }: { task: TaskDetail }) {
           blocked && 'opacity-50',
         )}
       >
-        <Icon className="size-4 shrink-0" strokeWidth={1.75} />
+        <Icon className={cn('size-4 shrink-0', running && 'animate-spin')} strokeWidth={1.75} />
         {/* Узкая левая зона: вторичная кнопка — только значок с подсказкой. */}
         <span className={cn('max-w-36 min-w-0 truncate', !main && '@max-[420px]:hidden')}>
           {t.name}
@@ -181,7 +184,6 @@ export function TaskActionBar({ task }: { task: TaskDetail }) {
 export function TaskStageField({ task }: { task: TaskDetail }) {
   const { data: transitions } = useTaskTransitions(task.id);
   const runner = useTransitionRunner(task);
-  const { data: stages } = useTaskStages();
   const [routeOpen, setRouteOpen] = useState(false);
   const tone = stageTone[task.stage.color];
 
@@ -207,7 +209,7 @@ export function TaskStageField({ task }: { task: TaskDetail }) {
             <Check className="ml-auto size-3.5 shrink-0 text-port" strokeWidth={2} />
           </DropdownMenuItem>
           {transitions?.map((t) => {
-            const color = stages?.find((s) => s.id === t.toStageId)?.color ?? 'neutral';
+            const color = t.toStageColor;
             return (
               <DropdownMenuItem
                 key={t.id}

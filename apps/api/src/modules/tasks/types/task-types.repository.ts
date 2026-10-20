@@ -34,6 +34,23 @@ export class TaskTypesRepository {
     return this.prisma.taskType.findFirst({ where: { id, archivedAt: null } });
   }
 
+  /** Тип по id, включая архивные (настройки, архивация/восстановление). */
+  findById(id: string) {
+    return this.prisma.taskType.findUnique({ where: { id } });
+  }
+
+  createType(tx: TransactionClient, data: Prisma.TaskTypeUncheckedCreateInput) {
+    return tx.taskType.create({ data });
+  }
+
+  async updateType(
+    tx: TransactionClient,
+    id: string,
+    data: Prisma.TaskTypeUncheckedUpdateInput,
+  ): Promise<void> {
+    await tx.taskType.update({ where: { id }, data });
+  }
+
   findLiveByName(name: string, exceptId?: string) {
     return this.prisma.taskType.findFirst({
       where: { name, archivedAt: null, ...(exceptId ? { id: { not: exceptId } } : {}) },

@@ -168,6 +168,24 @@ export class TasksRepository {
     await tx.task.update({ where: { id }, data: move });
   }
 
+  /** Смена типа задачи и её маршрута (#378; стадия — отдельно StageMover). */
+  async setType(
+    tx: TransactionClient,
+    id: string,
+    type: { typeId: string; workflowId: string },
+  ): Promise<void> {
+    await tx.task.update({ where: { id }, data: type });
+  }
+
+  /** Пересчёт состояния без смены стадии (стадия сменила группу, #378). */
+  async setState(
+    tx: TransactionClient,
+    id: string,
+    state: Omit<TaskStageMove, 'stageId' | 'stageOrder'>,
+  ): Promise<void> {
+    await tx.task.update({ where: { id }, data: state });
+  }
+
   /** Отметка «задача изменилась» (updatedAt) без правки полей. */
   async touch(tx: TransactionClient, id: string): Promise<void> {
     await tx.task.update({ where: { id }, data: { updatedAt: new Date() } });

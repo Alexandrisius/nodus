@@ -61,18 +61,16 @@ export class TaskTypesService {
     }
     const sortOrder = await this.repo.maxSortOrder();
     const created = await this.txRunner.run(async (tx) => {
-      const type = await tx.taskType.create({
-        data: {
-          code: `custom-${randomBytes(4).toString('hex')}`,
-          name: body.name,
-          icon: body.icon,
-          color: body.color,
-          description: body.description ?? '',
-          creatable: false,
-          customizedAt: new Date(),
-          catalogRevision: 2,
-          sortOrder,
-        },
+      const type = await this.repo.createType(tx, {
+        code: `custom-${randomBytes(4).toString('hex')}`,
+        name: body.name,
+        icon: body.icon,
+        color: body.color,
+        description: body.description ?? '',
+        creatable: false,
+        customizedAt: new Date(),
+        catalogRevision: 2,
+        sortOrder,
       });
       const workflowId = await this.copyBase(tx, user.id, type.name, body);
       await this.repo.attachToDefaultScheme(tx, type.id, workflowId);
@@ -115,7 +113,7 @@ export class TaskTypesService {
   }
 
   async update(user: AuthUser, id: string, body: UpdateTaskTypeBody): Promise<void> {
-    const type = await this.repo.list('include').then((rows) => rows.find((t) => t.id === id));
+    const type = await this.repo.findById(id);
     if (!type) throw DomainException.notFound('Task type not found');
     if (body.name !== undefined && body.name !== type.name) {
       if (await this.repo.findLiveByName(body.name, id)) {
@@ -125,14 +123,11 @@ export class TaskTypesService {
     const fields = Object.keys(body) as (keyof UpdateTaskTypeBody)[];
     const { description, ...rest } = body;
     await this.txRunner.run(async (tx) => {
-      await tx.taskType.update({
-        where: { id },
-        data: {
-          ...rest,
-          // Контракт разрешает null (сброс), поле БД NOT NULL — пустая строка.
-          ...(description !== undefined ? { description: description ?? '' } : {}),
-          customizedAt: new Date(),
-        },
+      await this.repo.updateType(tx, id, {
+        ...rest,
+        // Контракт разрешает null (сброс), поле БД NOT NULL — пустая строка.
+        ...(description !== undefined ? { description: description ?? '' } : {}),
+        customizedAt: new Date(),
       });
       await this.eventBus.emit(
         tx,
@@ -144,7 +139,7 @@ export class TaskTypesService {
   }
 
   async setArchived(user: AuthUser, id: string, archived: boolean): Promise<void> {
-    const type = await this.repo.list('include').then((rows) => rows.find((t) => t.id === id));
+    const type = await this.repo.findById(id);
     if (!type) throw DomainException.notFound('Task type not found');
     if (type.isSystem && archived) {
       throw new DomainException(
@@ -153,9 +148,9 @@ export class TaskTypesService {
       );
     }
     await this.txRunner.run(async (tx) => {
-      await tx.taskType.update({
-        where: { id },
-        data: { archivedAt: archived ? new Date() : null, customizedAt: new Date() },
+      await this.repo.updateType(tx, id, {
+        archivedAt: archived ? new Date() : null,
+        customizedAt: new Date(),
       });
       await this.eventBus.emit(
         tx,

@@ -49,6 +49,8 @@ function transitionsOf(task: TaskListItem): TaskTransition[] {
       toStageName: target.name,
       toStageState: target.systemState,
       toStageOutcome: target.outcome,
+      toStageColor: target.color,
+      toStageOrder: target.sortOrder,
       display: t.display,
       blockedBy: [],
       canOverride: false,
@@ -115,6 +117,7 @@ export const tasksTransitionsHandlers = [
     const letterId = letterIdByTaskId(task.id);
     if (letterId) syncLetterWithTasks(letterId);
     task.updatedAt = new Date().toISOString();
-    return HttpResponse.json(task);
+    // Контракт: строка задачи + НОВЫЕ кнопки нажавшего (одним ходом).
+    return HttpResponse.json({ task, transitions: transitionsOf(task) });
   }),
 ];

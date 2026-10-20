@@ -85,12 +85,17 @@ export const taskStageChangedPayloadSchema = taskEventBaseSchema.extend({
   toStageOutcome: z.enum(['success', 'cancelled']).nullable().optional(),
   /** Почему сменилась стадия: кнопка маршрута / перенос публикации /
    *  смена типа (#378, ADR-0021). */
-  reason: z.enum(['transition', 'workflow_migration', 'type_change']).optional(),
+  cause: z.enum(['transition', 'workflow_migration', 'type_change']).optional(),
   transitionId: z.uuid().nullable(),
   /** Гейт пройден обходом с причиной (task.override_gate). */
   overriddenGates: z.array(z.string()).optional(),
+  /** Текст причины обхода гейта («Выполнить всё равно») — история и аудит
+   *  (ADR-0020); есть только вместе с overriddenGates. */
+  reason: z.string().max(500).optional(),
   creatorId: z.uuid(),
   assigneeId: z.uuid(),
+  /** Соисполнители — адресаты «задача отменена» (наблюдатели — без звука). */
+  coexecutorIds: z.array(z.uuid()).optional(),
 });
 export type TaskStageChangedPayload = z.infer<typeof taskStageChangedPayloadSchema>;
 
@@ -163,10 +168,11 @@ export const taskWorkflowPublishedPayloadSchema = z.object({
   /** Типы, идущие по маршруту. */
   typeIds: z.array(z.uuid()),
   version: z.number().int().min(1),
-  /** Сколько задач поставлено в фоновый перенос (архив стадий). */
-  moves: z.number().int().min(0),
-  /** Сколько стадий сменили этап (задачи пересчитываются фоном). */
-  restates: z.number().int().min(0),
+  /** Переносы задач из архивированных статусов (≤ 20) — вход фонового
+   *  задания: его ставит outbox-обработчик события (доставка at-least-once). */
+  moves: z.array(z.object({ fromStageId: z.uuid(), toStageId: z.uuid() })),
+  /** Статусы со сменой группы (задачи пересчитываются фоном). */
+  restates: z.array(z.object({ stageId: z.uuid(), systemState: z.string() })),
 });
 export type TaskWorkflowPublishedPayload = z.infer<typeof taskWorkflowPublishedPayloadSchema>;
 

@@ -86,8 +86,10 @@ export class TasksService {
     }
     const { typeId, workflowId, structural } = await this.workflows.resolveTypeWorkflow(
       body.typeId,
-      // Скрытый тип недоступен созданию и на сервере (security #378).
-      { requireCreatable: true },
+      // Скрытый тип недоступен ЯВНОМУ выбору и на сервере (security #378);
+      // неявный «Стандартный» (плюсики колонок, подзадачи, «В задачу» из
+      // чата) — системный запасной тип, создание по нему не ломается.
+      { requireCreatable: body.typeId !== undefined },
     );
     const workflow = await this.workflows.load(workflowId);
     const personalColumn = body.personalStageId

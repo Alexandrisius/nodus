@@ -4,6 +4,7 @@ import { userRefSchema } from '../directory/user-ref.schema.js';
 import { cursorQuerySchema } from '../pagination/paginated.schema.js';
 import { projectColorSchema } from '../projects/project.schemas.js';
 import { taskTypeRefSchema } from './task-type.schemas.js';
+import { taskTransitionSchema } from './workflow.schemas.js';
 import {
   stageColorSchema,
   stageOutcomeSchema,
@@ -266,6 +267,15 @@ export const taskUpdateBodySchema = z
   .refine((v) => Object.keys(v).some((k) => k !== 'index'), { message: 'empty update' });
 
 export type TaskUpdateBody = z.infer<typeof taskUpdateBodySchema>;
+
+/** Ответ кнопки маршрута: строка задачи + НОВЫЕ кнопки нажавшего (панель
+ *  процесса обновляется одним ходом, без повторного GET /transitions). */
+export const executeTransitionResultSchema = z.object({
+  task: taskListItemSchema,
+  transitions: z.array(taskTransitionSchema),
+});
+
+export type ExecuteTransitionResult = z.infer<typeof executeTransitionResultSchema>;
 
 /** CRUD личных стадий «Моего плана» (личная схема пользователя, ADR-0008).
  *  Удаление — DELETE /tasks/personal-stages/:id (последняя запрещена — 409);

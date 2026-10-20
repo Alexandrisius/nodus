@@ -26,7 +26,7 @@ function makeService(
 }
 
 describe('TransitionsService — сценарии API кнопок маршрута', () => {
-  it('executeFor: видимость → личные маршруты держателей → переход в tx → строка списка', async () => {
+  it('executeFor: видимость → личные маршруты → переход и НОВЫЕ кнопки в одной tx → строка', async () => {
     const order: string[] = [];
     const row = { id: 't1', creatorId: 'alice', assigneeId: 'bob', participants: [] };
     const query = {
@@ -39,8 +39,13 @@ describe('TransitionsService — сценарии API кнопок маршру�
     const taskService = { listItem: vi.fn(async () => (order.push('item'), { id: 't1' })) };
     const service = makeService({ txRunner, placements, query, taskService });
     const execute = vi.spyOn(service, 'execute').mockResolvedValue({} as never);
-    const item = await service.executeFor(USER, 't1', 'tr1', { override: true, reason: 'срочно' });
-    expect(item).toEqual({ id: 't1' });
+    const available = vi.spyOn(service, 'available').mockResolvedValue([{ id: 'next' }] as never);
+    const result = await service.executeFor(USER, 't1', 'tr1', {
+      override: true,
+      reason: 'срочно',
+    });
+    expect(result).toEqual({ task: { id: 't1' }, transitions: [{ id: 'next' }] });
+    expect(available).toHaveBeenCalledWith(TX, 't1', USER);
     expect(order).toEqual(['visible', 'prepare', 'tx', 'item']);
     expect(placements.prepare).toHaveBeenCalledWith(['alice', 'bob']);
     expect(execute).toHaveBeenCalledWith(
@@ -136,5 +141,45 @@ describe('TransitionsService — сценарии API кнопок маршру�
       toStageOutcome: 'success',
       toStageState: 'closed',
     });
+
+    // Обход гейта: причина уходит в событие (история/аудит, ADR-0020).
+    workflows.load.mockResolvedValueOnce({
+      ...(await workflows.load()),
+      transitions: [
+        {
+          id: '00000000-0000-4000-8000-000000000011',
+          name: 'Завершить',
+          fromStageId: '00000000-0000-4000-8000-000000000001',
+          toStageId: target.id,
+          display: 'primary',
+          sortOrder: 0,
+          rules: {
+            conditions: [],
+            validators: [{ kind: 'result_present' }],
+            postFunctions: [],
+          } as never,
+        },
+      ],
+    });
+    const mover = { apply: vi.fn(async () => void 0) };
+    const gated = makeService({ workflows, tasks, mover });
+    await gated.execute(
+      TX as never,
+      't1',
+      { id: 'bob', permissions: ['task.override_gate'] },
+      { transitionId: '00000000-0000-4000-8000-000000000011' },
+      { override: true, reason: '  срочно  ' },
+    );
+    expect(mover.apply).toHaveBeenCalledWith(
+      TX,
+      expect.objectContaining({ id: 't1' }),
+      expect.objectContaining({ id: target.id }),
+      'bob',
+      expect.objectContaining({
+        cause: 'transition',
+        overridden: ['result_present'],
+        overrideReason: 'срочно',
+      }),
+    );
   });
 });

@@ -21,6 +21,9 @@ export interface MovableTask {
   participants: { userId: string; role: string }[];
 }
 
+/** Почему меняется стадия (поле `cause` события stage_changed). */
+export type StageChangeCause = 'transition' | 'workflow_migration' | 'type_change';
+
 /**
  * Общий доменный помощник смены стадии задачи (#378, спека фазы 3): правила
  * completedAt, автоперемещение «Моего плана» и события — в ОДНОЙ точке для
@@ -36,7 +39,7 @@ export class StageMover {
   ) {}
 
   /** Смена стадии без проверок маршрута (вызывающий уже проверил).
-   *  `reason` маркирует событие stage_changed: кнопка / миграция / тип. */
+   *  `overrideReason` — текст причины обхода гейта (история, ADR-0020). */
   async apply(
     tx: TransactionClient,
     task: MovableTask,
@@ -44,29 +47,20 @@ export class StageMover {
     actorId: string | null,
     meta: {
       transitionId: string | null;
+      cause: StageChangeCause;
       overridden?: string[];
-      reason?: 'transition' | 'workflow_migration' | 'type_change';
+      overrideReason?: string;
     },
   ): Promise<void> {
     const stateChanged = target.systemState !== task.systemState;
-    const closing = !OPEN.has(target.systemState);
     await this.tasks.moveToStage(tx, task.id, {
       stageId: target.id,
-      systemState: target.systemState,
       stageOrder: await this.tasks.stageKeyAt(tx, target.id, 0, task.id),
-      ...(stateChanged ? { stateChangedAt: new Date() } : {}),
-      completedAt: closing ? (task.completedAt ?? new Date()) : null,
+      ...this.stateFields(task, target.systemState),
     });
-    if (stateChanged) {
-      await this.placements.sync(
-        tx,
-        { id: task.id, systemState: target.systemState },
-        planHolderIds(task),
-        actorId,
-      );
-    }
     const base = { taskId: task.id, number: task.number, audience: audienceIds(task) };
     const meta2 = { actorId, aggregateType: 'task', aggregateId: task.id };
+    const overridden = meta.overridden?.length ? meta.overridden : undefined;
     await this.eventBus.emit(
       tx,
       TASK_EVENTS.STAGE_CHANGED,
@@ -81,20 +75,16 @@ export class StageMover {
         transitionId: meta.transitionId,
         creatorId: task.creatorId,
         assigneeId: task.assigneeId,
-        ...(meta.reason ? { reason: meta.reason } : {}),
-        ...(meta.overridden?.length ? { overriddenGates: meta.overridden } : {}),
+        coexecutorIds: task.participants
+          .filter((p) => p.role === 'coexecutor')
+          .map((p) => p.userId),
+        cause: meta.cause,
+        ...(overridden ? { overriddenGates: overridden, reason: meta.overrideReason } : {}),
       },
       meta2,
     );
-    if (stateChanged) {
-      await this.eventBus.emit(
-        tx,
-        TASK_EVENTS.STATUS_CHANGED,
-        { ...base, fromState: task.systemState, toState: target.systemState },
-        meta2,
-      );
-    }
-    if (closing && OPEN.has(task.systemState)) {
+    if (stateChanged) await this.afterStateChange(tx, task, target.systemState, actorId);
+    if (!OPEN.has(target.systemState) && OPEN.has(task.systemState)) {
       await this.eventBus.emit(
         tx,
         TASK_EVENTS.COMPLETED,
@@ -102,5 +92,39 @@ export class StageMover {
         meta2,
       );
     }
+  }
+
+  /** Стадия сменила группу (публикация маршрута): задача остаётся в своей
+   *  стадии, пересчитываются состояние, completedAt и «Мой план». */
+  async restate(tx: TransactionClient, task: MovableTask, systemState: string): Promise<void> {
+    if (task.systemState === systemState) return;
+    await this.tasks.setState(tx, task.id, this.stateFields(task, systemState));
+    await this.afterStateChange(tx, task, systemState, null);
+  }
+
+  private stateFields(task: MovableTask, systemState: string) {
+    const closing = !OPEN.has(systemState);
+    return {
+      systemState,
+      ...(systemState !== task.systemState ? { stateChangedAt: new Date() } : {}),
+      completedAt: closing ? (task.completedAt ?? new Date()) : null,
+    };
+  }
+
+  private async afterStateChange(
+    tx: TransactionClient,
+    task: MovableTask,
+    systemState: string,
+    actorId: string | null,
+  ): Promise<void> {
+    await this.placements.sync(tx, { id: task.id, systemState }, planHolderIds(task), actorId);
+    const base = { taskId: task.id, number: task.number, audience: audienceIds(task) };
+    const meta = { actorId, aggregateType: 'task', aggregateId: task.id };
+    await this.eventBus.emit(
+      tx,
+      TASK_EVENTS.STATUS_CHANGED,
+      { ...base, fromState: task.systemState, toState: systemState },
+      meta,
+    );
   }
 }

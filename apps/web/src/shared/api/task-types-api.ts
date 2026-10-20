@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { TaskDetail, TaskType } from '@nodus/contracts';
+import type { TaskDetail, TaskListItem, TaskType } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { toast } from 'sonner';
 
@@ -39,9 +39,14 @@ export function useChangeTaskType(taskId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (body: { typeId: string; stageId?: string }) =>
-      api<TaskDetail>(`/tasks/${taskId}/type`, { method: 'POST', body }),
-    onSuccess: (detail) => {
-      queryClient.setQueryData<TaskDetail>(tasksKeys.detail(taskId), detail);
+      api<TaskListItem>(`/tasks/${taskId}/type`, { method: 'POST', body }),
+    onSuccess: (item) => {
+      // Ответ — строка задачи (контракт), не деталь: мержим поля строки,
+      // деталь (маршрут задачи сменился) — перезапрос.
+      queryClient.setQueryData<TaskDetail>(tasksKeys.detail(taskId), (prev) =>
+        prev ? { ...prev, ...item } : prev,
+      );
+      void queryClient.invalidateQueries({ queryKey: tasksKeys.detail(taskId) });
       void queryClient.invalidateQueries({ queryKey: tasksKeys.listPages() });
       void queryClient.invalidateQueries({ queryKey: tasksKeys.transitions(taskId) });
       void queryClient.invalidateQueries({ queryKey: tasksKeys.kanbanAll() });

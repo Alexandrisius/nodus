@@ -20,7 +20,6 @@ import { ApiErrors } from '../../../../core/openapi/api-errors.decorator.js';
 import { ApiIdempotencyKey } from '../../../../core/openapi/api-idempotency.decorator.js';
 import { ZodValidationPipe } from '../../../../core/pipes/zod-validation.pipe.js';
 import { WorkflowEditorService } from './publish.service.js';
-import { WorkflowSyncJob } from './workflow-sync.job.js';
 
 const uuid = new ZodValidationPipe(z.uuid());
 
@@ -34,10 +33,7 @@ const uuid = new ZodValidationPipe(z.uuid());
 @RequireFeature('tasks')
 @Controller('tasks')
 export class WorkflowEditorController {
-  constructor(
-    private readonly editor: WorkflowEditorService,
-    private readonly sync: WorkflowSyncJob,
-  ) {}
+  constructor(private readonly editor: WorkflowEditorService) {}
 
   @Get('workflows/:id')
   @ApiOperation({ summary: 'Документ маршрута + версия + счётчики задач по статусам' })
@@ -64,6 +60,6 @@ export class WorkflowEditorController {
     })
     body: PublishWorkflowBody,
   ): Promise<PublishWorkflowResult> {
-    return this.editor.publish(user, id, body, (outcome) => this.sync.schedule(outcome));
+    return this.editor.publish(user, id, body);
   }
 }

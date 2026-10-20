@@ -3,6 +3,7 @@ import { ErrorCode } from '@nodus/contracts';
 
 import type { PublishWorkflowBody, WorkflowDocument } from '@nodus/contracts';
 import { parseRules } from '../transition-rules.js';
+import { WorkflowPublishRepository } from './publish.repository.js';
 import { WorkflowEditorService } from './publish.service.js';
 import type { LoadedWorkflow } from '../workflow.repository.js';
 
@@ -173,7 +174,6 @@ function makeService(
     transitionUpdate: vi.fn(async () => ({})),
     workflowUpdate: vi.fn(async () => ({ version: version + 1 })),
     emit: vi.fn(async () => void 0),
-    afterCommit: vi.fn(async () => void 0),
   };
   const tx = {
     workflowStage: { create: calls.stageCreate, update: calls.stageUpdate },
@@ -191,6 +191,7 @@ function makeService(
   const service = new WorkflowEditorService(
     { run: vi.fn(async (fn: (t: unknown) => unknown) => fn(tx)) } as never,
     workflows as never,
+    new WorkflowPublishRepository(),
     { emit: calls.emit } as never,
     { findRefs: vi.fn(async () => []) } as never,
   );
@@ -200,14 +201,14 @@ function makeService(
 describe('WorkflowEditorService.publish (#378)', () => {
   it('конфликт версии — WORKFLOW_VERSION_CONFLICT', async () => {
     const { service } = makeService({ version: 3 });
-    await expect(service.publish(USER, WID, body({}), undefined)).rejects.toMatchObject({
+    await expect(service.publish(USER, WID, body({}))).rejects.toMatchObject({
       code: ErrorCode.WORKFLOW_VERSION_CONFLICT,
     });
   });
 
   it('личный маршрут (kind=personal) — 404 даже с правом', async () => {
     const { service } = makeService({ kind: 'personal' });
-    await expect(service.publish(USER, WID, body({}), undefined)).rejects.toMatchObject({
+    await expect(service.publish(USER, WID, body({}))).rejects.toMatchObject({
       code: ErrorCode.NOT_FOUND,
     });
   });
@@ -216,14 +217,14 @@ describe('WorkflowEditorService.publish (#378)', () => {
     const { service } = makeService();
     const doc = document();
     doc.stages[0]!.name = '   ';
-    await expect(
-      service.publish(USER, WID, body({ document: doc }), undefined),
-    ).rejects.toMatchObject({ code: ErrorCode.WORKFLOW_INVALID });
+    await expect(service.publish(USER, WID, body({ document: doc }))).rejects.toMatchObject({
+      code: ErrorCode.WORKFLOW_INVALID,
+    });
   });
 
   it('архив стадии с задачами без переноса — WORKFLOW_MIGRATION_REQUIRED', async () => {
     const { service } = makeService();
-    await expect(service.publish(USER, WID, body({}), undefined)).rejects.toMatchObject({
+    await expect(service.publish(USER, WID, body({}))).rejects.toMatchObject({
       code: ErrorCode.WORKFLOW_MIGRATION_REQUIRED,
       details: { stages: [{ stageId: S3, count: 2 }] },
     });
@@ -235,7 +236,6 @@ describe('WorkflowEditorService.publish (#378)', () => {
       USER,
       WID,
       body({ migrations: [{ fromStageId: S3, toStageId: S1 }] }),
-      calls.afterCommit,
     );
     expect(outcome).toMatchObject({ version: 2, scheduledMoves: 2 });
     // Новая стадия создана с кодом null.
@@ -262,17 +262,20 @@ describe('WorkflowEditorService.publish (#378)', () => {
     };
     expect(archiveCall.where.id).toBe(S3);
     expect(archiveCall.data.archivedAt).toBeInstanceOf(Date);
-    // Событие публикации и afterCommit с переносами.
+    // Событие публикации несёт переносы (вход outbox-обработчика задания).
     expect(calls.emit).toHaveBeenCalledWith(
       expect.anything(),
       'task.workflow_published',
-      expect.objectContaining({ workflowId: WID, version: 2, moves: 1 }),
-      expect.anything(),
-    );
-    expect(calls.afterCommit).toHaveBeenCalledWith(
       expect.objectContaining({
+        workflowId: WID,
+        version: 2,
         moves: [{ fromStageId: S3, toStageId: S1 }],
       }),
+      expect.anything(),
+    );
+    // Раскладка холста сохраняется вместе с версией (общая для всех).
+    expect(calls.workflowUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ layout: expect.anything() }) }),
     );
   });
 });

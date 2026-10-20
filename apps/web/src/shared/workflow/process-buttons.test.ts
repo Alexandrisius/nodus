@@ -10,6 +10,8 @@ const t = (id: string, display: TaskTransition['display']): TaskTransition => ({
   toStageName: 'В работе',
   toStageState: 'active',
   toStageOutcome: null,
+  toStageColor: 'success',
+  toStageOrder: 1,
   display,
   blockedBy: [],
   canOverride: false,

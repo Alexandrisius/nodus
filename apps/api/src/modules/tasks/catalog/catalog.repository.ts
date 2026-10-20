@@ -75,6 +75,12 @@ export class CatalogRepository {
     });
   }
 
+  /** Блокировка строки маршрута на засев: публикация (тоже FOR UPDATE)
+   *  и старт приложения не перетирают друг друга (код-ревью #378). */
+  async lockWorkflow(tx: TransactionClient, workflowId: string): Promise<void> {
+    await tx.$queryRaw`SELECT id FROM workflows WHERE id = ${workflowId}::uuid FOR UPDATE`;
+  }
+
   async ensureWorkflow(
     tx: TransactionClient,
     def: { code: string; name: string; kind: string; isTemplate: boolean },

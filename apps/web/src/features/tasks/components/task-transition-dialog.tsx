@@ -27,6 +27,7 @@ export function useTransitionRunner(task: TaskDetail) {
   const [pending, setPending] = useState<TaskTransition | null>(null);
 
   function run(t: TaskTransition) {
+    if (execute.isPending) return; // повторный клик во время хода — не дублируем
     if (t.blockedBy.length === 0) execute.mutate({ transition: t });
     else setPending(t);
   }
@@ -40,7 +41,9 @@ export function useTransitionRunner(task: TaskDetail) {
       executing={execute.isPending}
     />
   );
-  return { run, dialog, isPending: execute.isPending };
+  /** Кнопка в ходе (спиннер на ней; панель не гаснет — чип уже сменился). */
+  const runningId = execute.isPending ? (execute.variables?.transition.id ?? null) : null;
+  return { run, dialog, isPending: execute.isPending, runningId };
 }
 
 function TransitionDialog({

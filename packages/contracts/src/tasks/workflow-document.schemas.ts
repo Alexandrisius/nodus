@@ -50,9 +50,55 @@ export const workflowDraftTransitionSchema = z.object({
 });
 export type WorkflowDraftTransition = z.infer<typeof workflowDraftTransitionSchema>;
 
+/** Точка подключения стрелки на статусе: сторона (t/r/b/l) + слот 1..3 —
+ *  12 точек, как в редакторе Яндекс Трекера (#378, ред. 2). */
+export const flowHandleIdSchema = z.enum([
+  't1',
+  't2',
+  't3',
+  'r1',
+  'r2',
+  'r3',
+  'b1',
+  'b2',
+  'b3',
+  'l1',
+  'l2',
+  'l3',
+]);
+export type FlowHandleId = z.infer<typeof flowHandleIdSchema>;
+
+const flowCoordSchema = z.number().finite().min(-100_000).max(100_000);
+export const flowPointSchema = z.object({ x: flowCoordSchema, y: flowCoordSchema });
+export type FlowPoint = z.infer<typeof flowPointSchema>;
+
+export const workflowLayoutTransitionSchema = z.object({
+  sourceHandle: flowHandleIdSchema.optional(),
+  targetHandle: flowHandleIdSchema.optional(),
+  /** Положение подписи вдоль стрелки: 0 — у источника, 1 — у цели. */
+  labelT: z.number().min(0).max(1).optional(),
+  /** Метка «Любой статус» кнопки из любого статуса — позиция на холсте. */
+  anchor: flowPointSchema.optional(),
+});
+export type WorkflowLayoutTransition = z.infer<typeof workflowLayoutTransitionSchema>;
+
+/** Раскладка холста — ОБЩАЯ для всех (публикуется вместе с маршрутом):
+ *  позиции статусов, точки подключения, подписи. Нет записи элемента —
+ *  авторасстановка. Ключи — docId (new:* разрешаются при публикации). */
+export const workflowLayoutSchema = z
+  .object({
+    stages: z.record(docIdSchema, flowPointSchema),
+    transitions: z.record(docIdSchema, workflowLayoutTransitionSchema),
+  })
+  .refine((v) => Object.keys(v.stages).length <= 40 && Object.keys(v.transitions).length <= 160, {
+    message: 'layout too large',
+  });
+export type WorkflowLayout = z.infer<typeof workflowLayoutSchema>;
+
 export const workflowDraftDocumentSchema = z.object({
   stages: z.array(workflowDraftStageSchema),
   transitions: z.array(workflowDraftTransitionSchema),
+  layout: workflowLayoutSchema.optional(),
 });
 export type WorkflowDraftDocument = z.infer<typeof workflowDraftDocumentSchema>;
 
@@ -69,6 +115,7 @@ export const workflowDocTransitionSchema = workflowDraftTransitionSchema.extend(
 export const workflowDocumentSchema = z.object({
   stages: z.array(workflowDocStageSchema).min(1).max(20),
   transitions: z.array(workflowDocTransitionSchema).max(80),
+  layout: workflowLayoutSchema.optional(),
 });
 export type WorkflowDocument = z.infer<typeof workflowDocumentSchema>;
 

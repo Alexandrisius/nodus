@@ -937,6 +937,10 @@ model Workflow {
   customizedAt DateTime? @map("customized_at") @db.Timestamptz()
   /// Ревизия каталога, последняя применённая к маршруту (ADR-0021).
   catalogRevision Int @default(0) @map("catalog_revision")
+  /// Раскладка холста редактора — общая для всех (#378 ред. 2, ADR-0022):
+  /// позиции статусов, точки подключения и положение подписей кнопок
+  /// (схема `workflowLayoutSchema`). Пусто — авторасстановка.
+  layout     Json     @default("{}")
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz()
 

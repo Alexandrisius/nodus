@@ -47,7 +47,9 @@ export function taskNotices(type: string, p: Payload, actorId: string | null): T
       // соисполнителям (кроме нажавшего; add исключает actor).
       if (OPEN.has(from) && to === 'closed') {
         if (outcome === 'cancelled') {
-          for (const id of ids(p.audience)) add(id, 'task.cancelled');
+          // Исполнителю и соисполнителям; наблюдатели — без звука (канон модуля).
+          add(str(p.assigneeId), 'task.cancelled');
+          for (const id of ids(p.coexecutorIds)) add(id, 'task.cancelled');
         } else {
           add(str(p.creatorId), 'task.completed');
         }

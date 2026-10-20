@@ -18,6 +18,8 @@ interface DbState {
   stageOverrides: Record<string, StageOverride>;
   /** Живые переходы вне каталога (ревизия 1: complete_new, postpone_new). */
   legacyTransitions: { id: string; code: string }[];
+  /** Маршруты без стадий в БД (новая установка): id workflow. */
+  emptyWorkflows: string[];
 }
 
 const STANDARD = CATALOG_TASK_TYPES[0]!.workflow;
@@ -79,6 +81,7 @@ function setup(state: Partial<DbState> = {}) {
       ),
     ensureDefaultScheme: vi.fn().mockResolvedValue({ id: 'scheme' }),
     ensureSchemeEntry: vi.fn(),
+    lockWorkflow: vi.fn(),
     ensureWorkflow: vi.fn().mockImplementation((_tx: unknown, def: { code: string }) =>
       Promise.resolve({
         id:
@@ -92,7 +95,7 @@ function setup(state: Partial<DbState> = {}) {
     findStage: vi
       .fn()
       .mockImplementation((_tx: unknown, wf: string, code: string) =>
-        Promise.resolve(stageRow(wf, code)),
+        Promise.resolve((state.emptyWorkflows ?? []).includes(wf) ? null : stageRow(wf, code)),
       ),
     createStage: vi.fn().mockImplementation((_tx: unknown, wf: string) => {
       created.push(wf);
@@ -106,7 +109,11 @@ function setup(state: Partial<DbState> = {}) {
         Promise.resolve(wf === 'wf-standard' ? (state.legacyTransitions ?? []) : []),
       ),
     archiveTransition: vi.fn(),
-    findTransition: vi.fn().mockResolvedValue({ id: 'tr' }),
+    findTransition: vi
+      .fn()
+      .mockImplementation((_tx: unknown, wf: string) =>
+        Promise.resolve((state.emptyWorkflows ?? []).includes(wf) ? null : { id: 'tr' }),
+      ),
     updateTransition: vi.fn(),
     createTransition: vi.fn(),
   };
@@ -179,6 +186,21 @@ describe('CatalogBootstrap — «засев один раз» (ADR-0021)', () =>
     expect(repo.restateStageTasks).not.toHaveBeenCalled();
     // Переход ревизии 1, не вошедший в ревизию 2, — архивируется.
     expect(repo.archiveTransition).toHaveBeenCalledWith(tx, 'tr-complete-new', expect.any(Date));
+  });
+
+  it('новая установка: «Быстрый» засевается с нуля (все статусы и кнопки каталога)', async () => {
+    const { bootstrap, repo } = setup({
+      workflows: {
+        'task.default': { customizedAt: null, catalogRevision: 2 },
+        'task.quick': { customizedAt: null, catalogRevision: 0 },
+        'personal.template': { customizedAt: null, catalogRevision: 2 },
+      },
+      emptyWorkflows: ['wf-quick'],
+    });
+    await bootstrap.ensure();
+    const quickStages = repo.createStage.mock.calls.filter((c) => c[1] === 'wf-quick');
+    expect(quickStages).toHaveLength(QUICK.stages.length);
+    expect(repo.createTransition).toHaveBeenCalledTimes(QUICK.transitions.length);
   });
 
   it('настроенное (customizedAt) не трогается никогда', async () => {
