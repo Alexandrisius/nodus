@@ -89,6 +89,9 @@ export function useExecuteTransition(taskId: string) {
         body: { override: vars.override, reason: vars.reason },
       }),
     onMutate: async ({ transition }) => {
+      // Свежесть — с момента отправки: WS-эхо события может обогнать HTTP-ответ
+      // (замер при 150 мс сети: эхо раньше ответа → лишний GET детали и кнопок).
+      markFreshFromMutation(taskId);
       await queryClient.cancelQueries({ queryKey: tasksKeys.detail(taskId) });
       const previous = queryClient.getQueryData<TaskDetail>(tasksKeys.detail(taskId));
       if (previous) patchTask(queryClient, taskId, { stage: stageOf(transition, previous.stage) });
