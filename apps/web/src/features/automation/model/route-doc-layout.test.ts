@@ -4,6 +4,7 @@ import type { WorkflowDraftDocument, WorkflowLayout } from '@nodus/contracts';
 import { resolveRoute } from '../../../shared/flow/route-resolve.js';
 import { labelBoxAt, labelCost, labelWidth } from '../../../shared/flow/route-labels.js';
 import {
+  adoptSavedLayout,
   freezeLayout,
   layoutFingerprint,
   persistedLayout,
@@ -150,6 +151,27 @@ describe('route-doc-layout: подписи и автосохранение (#378
     expect(out.stages[B]).toEqual({ x: 444, y: 10 });
     expect(out.stages['new:x']).toBeUndefined();
     expect(Object.keys(out.transitions)).toEqual(['ba', 'ca']);
+  });
+
+  it('чужая расстановка: записи сервера — кроме изменённых здесь и ещё не отправленных', () => {
+    const prev: WorkflowLayout = {
+      stages: { [A]: { x: 0, y: 0 }, [B]: { x: 400, y: 0 } },
+      transitions: {},
+    };
+    const own: WorkflowLayout = {
+      stages: { [A]: { x: 0, y: 0 }, [B]: { x: 444, y: 4 }, 'new:x': { x: 9, y: 9 } },
+      transitions: {},
+    };
+    const server: WorkflowLayout = {
+      stages: { [A]: { x: 50, y: 50 }, [B]: { x: 1, y: 1 }, [C]: { x: 800, y: 0 } },
+      transitions: { t: { labelT: 0.3 } },
+    };
+    const out = adoptSavedLayout(own, prev, server);
+    expect(out.stages[A]).toEqual({ x: 50, y: 50 });
+    expect(out.stages[B]).toEqual({ x: 444, y: 4 });
+    expect(out.stages[C]).toEqual({ x: 800, y: 0 });
+    expect(out.stages['new:x']).toEqual({ x: 9, y: 9 });
+    expect(out.transitions.t).toEqual({ labelT: 0.3 });
   });
 
   it('отпечаток раскладки не зависит от порядка ключей (jsonb их переставляет)', () => {

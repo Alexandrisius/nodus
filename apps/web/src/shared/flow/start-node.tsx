@@ -21,7 +21,7 @@ export const StartNode = memo(function StartNode({ data }: NodeProps<StartFlowNo
   return (
     <div
       className={cn(
-        'flex h-[40px] w-[156px] items-center gap-2 rounded-full border border-dashed border-border px-3 text-muted-foreground',
+        'flow-node-card flex h-[40px] w-[156px] items-center gap-2 rounded-full border border-dashed border-border px-3 text-muted-foreground',
         !data.readOnly &&
           'cursor-pointer transition-colors hover:border-input hover:text-foreground',
       )}

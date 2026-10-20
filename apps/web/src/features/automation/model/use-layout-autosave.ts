@@ -12,6 +12,14 @@ import { useRouteDocStore } from './route-doc-store.js';
 /** Тишина после последнего движения до отправки. */
 const DEBOUNCE_MS = 600;
 
+const flushers = new Map<string, () => Promise<void>>();
+
+/** Отправить несохранённую расстановку сразу — перед публикацией: места уже
+ *  стоящих элементов сервер берёт из сохранённой раскладки. */
+export function flushLayoutAutosave(workflowId: string): Promise<void> {
+  return flushers.get(workflowId)?.() ?? Promise.resolve();
+}
+
 /**
  * Автосохранение расстановки холста (#378 ред. 2, вердикт владельца 20.10):
  * перестановка статусов, стрелок и подписей — оформление, а не правка
@@ -43,18 +51,33 @@ export function useLayoutAutosave(workflowId: string, enabled: boolean): void {
     }
   }, [workflowId, queryClient]);
 
-  useEffect(() => {
+  /** Несохранённое из стора прямо сейчас (null — всё сохранено). */
+  const unsaved = useCallback((): WorkflowLayout | null => {
     const store = useRouteDocStore.getState();
-    if (!enabled || store.workflowId !== workflowId) return;
+    if (store.workflowId !== workflowId) return null;
     const next = persistedLayout(store.document, store.baseline);
-    if (layoutFingerprint(next) === layoutFingerprint(store.baseline.layout)) {
-      pending.current = null;
-      return;
-    }
-    pending.current = next;
+    return layoutFingerprint(next) === layoutFingerprint(store.baseline.layout) ? null : next;
+  }, [workflowId]);
+
+  useEffect(() => {
+    if (!enabled) return;
+    pending.current = unsaved();
+    if (!pending.current) return;
     const timer = window.setTimeout(() => void flush(), DEBOUNCE_MS);
     return () => window.clearTimeout(timer);
-  }, [layout, saved, enabled, workflowId, flush]);
+  }, [layout, saved, enabled, unsaved, flush]);
+
+  useEffect(() => {
+    if (!enabled) return;
+    const flushNow = async () => {
+      pending.current = unsaved();
+      await flush();
+    };
+    flushers.set(workflowId, flushNow);
+    return () => {
+      if (flushers.get(workflowId) === flushNow) flushers.delete(workflowId);
+    };
+  }, [enabled, workflowId, unsaved, flush]);
 
   // Смена маршрута или уход со страницы — несохранённое уходит сразу.
   useEffect(() => () => void flush(), [flush]);

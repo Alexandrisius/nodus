@@ -28,67 +28,37 @@ const rules = (extra: Record<string, unknown> = {}) =>
     ...extra,
   });
 
+const liveStage = (
+  id: string,
+  code: string,
+  name: string,
+  systemState: string,
+  sortOrder: number,
+) => ({
+  id,
+  code,
+  name,
+  systemState,
+  archivedAt: null,
+  workflowId: WID,
+  color: systemState === 'active' ? 'success' : 'neutral',
+  sortOrder,
+  isInitial: sortOrder === 0,
+  outcome: null,
+});
+
 const loaded: LoadedWorkflow = {
   id: WID,
   stages: [
-    {
-      id: S1,
-      code: 'new',
-      name: 'Ожидает',
-      systemState: 'backlog',
-      archivedAt: null,
-      workflowId: WID,
-      color: 'neutral',
-      sortOrder: 0,
-      isInitial: true,
-      outcome: null,
-    },
-    {
-      id: S2,
-      code: 'in_progress',
-      name: 'В работе',
-      systemState: 'active',
-      archivedAt: null,
-      workflowId: WID,
-      color: 'success',
-      sortOrder: 1,
-      isInitial: false,
-      outcome: null,
-    },
-    {
-      id: S3,
-      code: 'old',
-      name: 'Старая',
-      systemState: 'paused',
-      archivedAt: null,
-      workflowId: WID,
-      color: 'neutral',
-      sortOrder: 2,
-      isInitial: false,
-      outcome: null,
-    },
+    liveStage(S1, 'new', 'Ожидает', 'backlog', 0),
+    liveStage(S2, 'in_progress', 'В работе', 'active', 1),
+    liveStage(S3, 'old', 'Старая', 'paused', 2),
   ],
   transitions: [
-    {
-      id: T1,
-      name: 'Взять в работу',
-      fromStageId: S1,
-      toStageId: S2,
-      display: 'primary',
-      sortOrder: 0,
-      rules: rules(),
-    },
-    {
-      id: T2,
-      name: 'В архив',
-      fromStageId: S2,
-      toStageId: S3,
-      display: 'button',
-      sortOrder: 1,
-      rules: rules(),
-    },
-  ],
-};
+    { id: T1, name: 'Взять в работу', fromStageId: S1, toStageId: S2, display: 'primary' },
+    { id: T2, name: 'В архив', fromStageId: S2, toStageId: S3, display: 'button' },
+  ].map((t, sortOrder) => ({ ...t, sortOrder, rules: rules() })),
+} as LoadedWorkflow;
 
 /** Валидный документ (по схеме каталога «Завершить» с route_if): S1
  *  остаётся, S2/S3-путь меняется: new:ctrl (Утверждение) + new:done (Итог);
@@ -288,6 +258,33 @@ describe('WorkflowEditorService.publish (#378)', () => {
     expect(calls.workflowUpdate).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ layout: expect.anything() }) }),
     );
+  });
+
+  it('расстановка: места стоящих — из сохранённой (чужое автосохранение не затирается), новых — из документа', async () => {
+    // Пока редактор был открыт, другой администратор переставил S1 и подпись T1.
+    const { service, calls } = makeService({
+      layout: { stages: { [S1]: { x: 500, y: 60 } }, transitions: { [T1]: { labelT: 0.7 } } },
+    });
+    const doc = document();
+    doc.layout = {
+      stages: { [S1]: { x: 0, y: 0 }, 'new:ctrl': { x: 300, y: 0 } },
+      transitions: { [T1]: { labelT: 0.2 } },
+    };
+    await service.publish(
+      USER,
+      WID,
+      body({ document: doc, migrations: [{ fromStageId: S3, toStageId: S1 }] }),
+    );
+    const update = calls.workflowUpdate.mock.calls.at(-1) as unknown as [
+      {
+        data: { layout: { stages: Record<string, unknown>; transitions: Record<string, unknown> } };
+      },
+    ];
+    const saved = update[0].data.layout;
+    expect(saved.stages[S1]).toEqual({ x: 500, y: 60 });
+    expect(saved.transitions[T1]).toEqual({ labelT: 0.7 });
+    // Место новой стадии — из документа публикации (new:ctrl → uuid).
+    expect(saved.stages[CREATED]).toEqual({ x: 300, y: 0 });
   });
 });
 

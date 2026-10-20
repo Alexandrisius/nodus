@@ -121,7 +121,15 @@ export class WorkflowEditorService {
           body.document.transitions.map((t) => created.transitions.get(t.id) ?? t.id),
         ),
       };
-      const layout = resolveLayout(body.document.layout, created, live);
+      // Места уже стоящих элементов — у сервера: их пишет PUT .../layout (и
+      // чужие правки, пока этот редактор был открыт, — ревью #378); из
+      // документа — места новых элементов и пробелы без сохранённой записи.
+      const fromDocument = resolveLayout(body.document.layout, created, live);
+      const saved = liveLayout(workflow.layout, live);
+      const layout = {
+        stages: { ...fromDocument.stages, ...saved.stages },
+        transitions: { ...fromDocument.transitions, ...saved.transitions },
+      };
       const version = await this.writes.bumpVersion(tx, workflowId, {
         userId: user.id,
         at: now,

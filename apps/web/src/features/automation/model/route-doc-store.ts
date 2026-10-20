@@ -10,7 +10,7 @@ import type {
   WorkflowLayout,
 } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
-import { clearDraft, persistDraft, readDraft, readStaleDraft } from './route-draft-storage.js';
+import { clearDraft, persistDraft } from './route-draft-storage.js';
 import {
   newId,
   normalize,
@@ -20,6 +20,7 @@ import {
 } from './route-doc-helpers.js';
 import * as ops from './route-doc-ops.js';
 import { freezeLayout, settleLabels, settleLoops } from './route-doc-layout.js';
+import { adoptedLayoutState, loadedState } from './route-doc-load.js';
 
 /** Стор рабочей копии маршрута (#378, ADR-0021): документ (статусы, кнопки
  *  и ОБЩАЯ раскладка холста — ред. 2, ADR-0022), история-снимки, черновик в
@@ -164,38 +165,16 @@ export function createRouteDocStore(workflowId: string) {
       staleDraftAt: null,
       pendingReload: false,
 
-      load: (detail) => {
-        const baseline: WorkflowDraftDocument = {
-          stages: detail.document.stages.map((s) => ({ ...s })),
-          transitions: detail.document.transitions.map((t) => ({ ...t })),
-          layout: detail.document.layout ?? ops.EMPTY_LAYOUT,
-        };
-        const draft = readDraft(detail.id, detail.version);
-        const document = draft
-          ? { ...draft.document, layout: ops.layoutOf(draft.document) }
-          : baseline;
-        set({
-          workflowId: detail.id,
-          baseVersion: detail.version,
-          baseline,
-          // Черновик той же версии — подхватывается (баннер «Сбросить», если
-          // в нём правки маршрута; несохранённую расстановку из него
-          // автосохранение отправит само); устаревший — игнорируется, но о
-          // нём сообщаем (staleDraftAt).
-          document,
-          draftSavedAt: draft?.savedAt ?? null,
-          staleDraftAt: draft ? null : readStaleDraft(detail.id, detail.version),
-          selection: null,
-          dirty: structureChanged(document, baseline),
-          past: [],
-          future: [],
-          pendingReload: false,
-        });
-      },
+      load: (detail) => set(loadedState(detail)),
 
       sync: (detail) => {
         const s = get();
-        if (s.workflowId !== detail.id || s.baseVersion !== detail.version) s.load(detail);
+        if (s.workflowId !== detail.id || s.baseVersion !== detail.version) {
+          s.load(detail);
+          return;
+        }
+        const adopted = adoptedLayoutState(s, detail);
+        if (adopted) set(adopted);
       },
 
       select: (ref) => set({ selection: ref, freshId: null }),

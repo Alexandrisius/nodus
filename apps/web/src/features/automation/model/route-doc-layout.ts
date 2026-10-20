@@ -144,15 +144,51 @@ export function persistedLayout(
   return { stages, transitions };
 }
 
+/** Ключ значения без учёта порядка ключей объектов (jsonb их переставляет). */
+function stableKey(value: unknown): string {
+  const sorted = (v: unknown): unknown =>
+    v && typeof v === 'object' && !Array.isArray(v)
+      ? Object.fromEntries(
+          Object.keys(v)
+            .sort()
+            .map((key) => [key, sorted((v as Record<string, unknown>)[key])]),
+        )
+      : v;
+  return JSON.stringify(sorted(value) ?? null);
+}
+
 /** Отпечаток раскладки без учёта порядка ключей (jsonb их переставляет). */
 export function layoutFingerprint(layout: WorkflowLayout | undefined): string {
-  const sorted = (value: unknown): unknown =>
-    value && typeof value === 'object' && !Array.isArray(value)
-      ? Object.fromEntries(
-          Object.keys(value)
-            .sort()
-            .map((key) => [key, sorted((value as Record<string, unknown>)[key])]),
-        )
-      : value;
-  return JSON.stringify(sorted(layout ?? EMPTY));
+  return stableKey(layout ?? EMPTY);
+}
+
+/**
+ * Чужая сохранённая расстановка в открытом редакторе (та же версия,
+ * `task.workflow_layout_changed`): записи сервера приходят в документ, кроме
+ * тех, что здесь изменены и ещё не отправлены (отличаются от прошлой
+ * сохранённой) — их отправит автосохранение.
+ */
+export function adoptSavedLayout(
+  own: WorkflowLayout | undefined,
+  prevSaved: WorkflowLayout | undefined,
+  server: WorkflowLayout,
+): WorkflowLayout {
+  const mine = own ?? EMPTY;
+  const before = prevSaved ?? EMPTY;
+  const adopt = <T>(
+    ownMap: Record<string, T>,
+    prevMap: Record<string, T>,
+    serverMap: Record<string, T>,
+  ) => {
+    const out = { ...ownMap };
+    for (const [id, entry] of Object.entries(serverMap)) {
+      if (ownMap[id] === undefined || stableKey(ownMap[id]) === stableKey(prevMap[id]))
+        out[id] = entry;
+    }
+    return out;
+  };
+  return {
+    stages: adopt(mine.stages, before.stages, server.stages),
+    transitions: adopt(mine.transitions, before.transitions, server.transitions),
+  };
 }

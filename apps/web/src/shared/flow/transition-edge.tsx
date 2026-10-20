@@ -102,7 +102,7 @@ export const TransitionEdge = memo(function TransitionEdge({
               'nodrag nopan edge-label pointer-events-auto',
               classes.label,
               selected && 'edge-label-selected',
-              onLabelT && 'cursor-grab active:cursor-grabbing',
+              onLabelT && 'edge-label-editable cursor-grab active:cursor-grabbing',
             )}
             style={{
               transform: `translate(-50%, -50%) translate(${label.x}px, ${label.y}px)`,

@@ -19,6 +19,7 @@ import {
 import { ApiError } from '../../../../shared/api-client.js';
 import { pluralRu } from '../../lib/plural-ru.js';
 import type { usePublishWorkflow } from '../../api/automation-api.js';
+import { flushLayoutAutosave } from '../../model/use-layout-autosave.js';
 
 /** Дефолт переноса: первый живой статус того же этапа, иначе начальный. */
 function defaultTargetOf(
@@ -151,7 +152,13 @@ export function PublishDialog({
     error?.code !== ErrorCode.WORKFLOW_INVALID &&
     error?.code !== ErrorCode.WORKFLOW_MIGRATION_REQUIRED;
 
-  const submit = () =>
+  // Сначала — несохранённая расстановка (места стоящих элементов сервер
+  // берёт из сохранённой раскладки), затем публикация структуры.
+  const [flushing, setFlushing] = useState(false);
+  const submit = async () => {
+    setFlushing(true);
+    await flushLayoutAutosave(workflow.id);
+    setFlushing(false);
     publish.mutate(
       { baseVersion, document: doc, migrations },
       {
@@ -165,6 +172,7 @@ export function PublishDialog({
         },
       },
     );
+  };
 
   if (conflict) {
     return (
@@ -265,7 +273,7 @@ export function PublishDialog({
           <Button variant="ghost" onClick={onClose}>
             {ui.common.cancel}
           </Button>
-          <Button disabled={publish.isPending} onClick={submit}>
+          <Button disabled={publish.isPending || flushing} onClick={() => void submit()}>
             {ui.automation.publish}
           </Button>
         </div>

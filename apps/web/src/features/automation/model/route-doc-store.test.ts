@@ -5,6 +5,27 @@ import type { WorkflowDetail } from '@nodus/contracts';
 import { createRouteDocStore } from './route-doc-store.js';
 import { isLayoutComplete, resolveRoute } from '../../../shared/flow/route-resolve.js';
 
+const S1 = '00000000-0000-4000-8000-000000000001';
+const S2 = '00000000-0000-4000-8000-000000000002';
+const S3 = '00000000-0000-4000-8000-000000000003';
+
+const stage = (
+  n: number,
+  code: string,
+  name: string,
+  color: 'neutral' | 'success' | 'info',
+  systemState: 'backlog' | 'active' | 'closed',
+) => ({
+  id: `00000000-0000-4000-8000-00000000000${n}`,
+  code,
+  name,
+  color,
+  systemState,
+  outcome: systemState === 'closed' ? ('success' as const) : null,
+  isInitial: n === 1,
+  sortOrder: 0,
+});
+
 const detail = (): WorkflowDetail => ({
   id: '00000000-0000-4000-8000-0000000000aa',
   typeIds: ['00000000-0000-4000-8000-0000000000bb'],
@@ -13,44 +34,17 @@ const detail = (): WorkflowDetail => ({
   publishedBy: null,
   document: {
     stages: [
-      {
-        id: '00000000-0000-4000-8000-000000000001',
-        code: 'new',
-        name: 'Ожидает',
-        color: 'neutral',
-        systemState: 'backlog',
-        outcome: null,
-        isInitial: true,
-        sortOrder: 0,
-      },
-      {
-        id: '00000000-0000-4000-8000-000000000002',
-        code: 'in_progress',
-        name: 'В работе',
-        color: 'success',
-        systemState: 'active',
-        outcome: null,
-        isInitial: false,
-        sortOrder: 0,
-      },
-      {
-        id: '00000000-0000-4000-8000-000000000003',
-        code: 'done',
-        name: 'Завершена',
-        color: 'info',
-        systemState: 'closed',
-        outcome: 'success',
-        isInitial: false,
-        sortOrder: 0,
-      },
+      stage(1, 'new', 'Ожидает', 'neutral', 'backlog'),
+      stage(2, 'in_progress', 'В работе', 'success', 'active'),
+      stage(3, 'done', 'Завершена', 'info', 'closed'),
     ],
     transitions: [
       {
         id: '00000000-0000-4000-8000-000000000011',
         code: 'start',
         name: 'Взять в работу',
-        fromStageId: '00000000-0000-4000-8000-000000000001',
-        toStageId: '00000000-0000-4000-8000-000000000002',
+        fromStageId: S1,
+        toStageId: S2,
         display: 'primary',
         sortOrder: 0,
         rules: {
@@ -92,45 +86,30 @@ describe('route-doc-store: рабочая копия маршрута (#378)', (
 
   it('соединение портов создаёт кнопку; петля в свой статус отвергается', () => {
     const store = freshStore();
-    const created = store
-      .getState()
-      .addTransition(
-        '00000000-0000-4000-8000-000000000002',
-        '00000000-0000-4000-8000-000000000003',
-      );
+    const created = store.getState().addTransition(S2, S3);
     expect(created).not.toBeNull();
     expect(store.getState().document.transitions.length).toBe(2);
 
-    const loop = store
-      .getState()
-      .addTransition(
-        '00000000-0000-4000-8000-000000000002',
-        '00000000-0000-4000-8000-000000000002',
-      );
+    const loop = store.getState().addTransition(S2, S2);
     expect(loop).toBeNull();
   });
 
   it('удаление статуса сносит его кнопки', () => {
     const store = freshStore();
-    store.getState().removeStage('00000000-0000-4000-8000-000000000001');
+    store.getState().removeStage(S1);
     expect(store.getState().document.transitions.length).toBe(0);
   });
 
   it('включение начального переносит флаг с прежнего', () => {
     const store = freshStore();
-    store.getState().patchStage('00000000-0000-4000-8000-000000000002', { isInitial: true });
+    store.getState().patchStage(S2, { isInitial: true });
     const initials = store.getState().document.stages.filter((s) => s.isInitial);
-    expect(initials.map((s) => s.id)).toEqual(['00000000-0000-4000-8000-000000000002']);
+    expect(initials.map((s) => s.id)).toEqual([S2]);
   });
 
   it('setTransitionPrimary: прежняя главная статуса становится «Видна»', () => {
     const store = freshStore();
-    store
-      .getState()
-      .addTransition(
-        '00000000-0000-4000-8000-000000000001',
-        '00000000-0000-4000-8000-000000000003',
-      );
+    store.getState().addTransition(S1, S3);
     const doc = store.getState().document;
     const newId = doc.transitions[1]!.id;
     store.getState().setTransitionPrimary(newId);
@@ -189,9 +168,6 @@ describe('route-doc-store: рабочая копия маршрута (#378)', (
 
   it('холст: соединение точек, перенос конца, подпись и позиция — шагами истории', () => {
     const store = freshStore();
-    const S1 = '00000000-0000-4000-8000-000000000001';
-    const S2 = '00000000-0000-4000-8000-000000000002';
-    const S3 = '00000000-0000-4000-8000-000000000003';
     const id = store
       .getState()
       .connect({ source: S2, target: S3, sourceHandle: 'r1', targetHandle: 'l3' })!;
@@ -222,8 +198,6 @@ describe('route-doc-store: рабочая копия маршрута (#378)', (
 
   it('перетаскивание одного статуса не двигает остальные и не перестраивает стрелки', () => {
     const store = freshStore();
-    const S1 = '00000000-0000-4000-8000-000000000001';
-    const S2 = '00000000-0000-4000-8000-000000000002';
     const before = resolveRoute(store.getState().document);
     store.getState().setStagePosition(S2, { x: 900, y: 500 });
     const after = resolveRoute(store.getState().document);
@@ -244,7 +218,6 @@ describe('route-doc-store: рабочая копия маршрута (#378)', (
 
   it('ввод названия подряд — один шаг отмены, а не «по букве»', () => {
     const store = freshStore();
-    const S2 = '00000000-0000-4000-8000-000000000002';
     const before = store.getState().past.length;
     for (const name of ['В', 'В р', 'В раб', 'В работе!'])
       store.getState().patchStage(S2, { name });
@@ -255,8 +228,6 @@ describe('route-doc-store: рабочая копия маршрута (#378)', (
 
   it('«из любого статуса»: переключатель статуса, у кнопки меняется только цель', () => {
     const store = freshStore();
-    const S2 = '00000000-0000-4000-8000-000000000002';
-    const S3 = '00000000-0000-4000-8000-000000000003';
     store.getState().toggleAny(S3, true);
     const any = store.getState().document.transitions.find((t) => t.fromStageId === null)!;
     expect(any).toMatchObject({ toStageId: S3, name: 'Завершена' });
@@ -273,8 +244,6 @@ describe('route-doc-store: рабочая копия маршрута (#378)', (
 
   it('удаление статуса сносит его кнопки и их раскладку; «Упорядочить» пишет позиции всех', () => {
     const store = freshStore();
-    const S1 = '00000000-0000-4000-8000-000000000001';
-    const S2 = '00000000-0000-4000-8000-000000000002';
     store.getState().setLabelT('00000000-0000-4000-8000-000000000011', 0.8);
     store.getState().removeElements([S1], []);
     expect(store.getState().document.transitions).toHaveLength(0);
@@ -292,14 +261,12 @@ describe('route-doc-store: рабочая копия маршрута (#378)', (
         document: first.document,
         baseVersion: first.version,
         savedAt: '2026-10-20T10:00:00Z',
-        positions: { '00000000-0000-4000-8000-000000000002': { x: 333, y: 44 } },
+        positions: { [S2]: { x: 333, y: 44 } },
       }),
     );
     const store = createRouteDocStore('pending');
     store.getState().load(first);
-    expect(
-      store.getState().document.layout?.stages['00000000-0000-4000-8000-000000000002'],
-    ).toEqual({
+    expect(store.getState().document.layout?.stages[S2]).toEqual({
       x: 333,
       y: 44,
     });
@@ -310,21 +277,46 @@ describe('route-doc-store: рабочая копия маршрута (#378)', (
 
   it('расстановка — не черновик маршрута: перетаскивание не делает dirty, правка — делает', () => {
     const store = freshStore();
-    store.getState().setStagePosition('00000000-0000-4000-8000-000000000002', { x: 500, y: 90 });
+    store.getState().setStagePosition(S2, { x: 500, y: 90 });
     expect(store.getState().dirty).toBe(false);
-    store.getState().patchStage('00000000-0000-4000-8000-000000000002', { name: 'Иначе' });
+    store.getState().patchStage(S2, { name: 'Иначе' });
     expect(store.getState().dirty).toBe(true);
     // Отмена правки имени — снова не dirty, хотя расстановка осталась новой.
     store.getState().undo();
     expect(store.getState().dirty).toBe(false);
-    expect(
-      store.getState().document.layout?.stages['00000000-0000-4000-8000-000000000002'],
-    ).toEqual({ x: 500, y: 90 });
+    expect(store.getState().document.layout?.stages[S2]).toEqual({ x: 500, y: 90 });
+  });
+
+  it('чужая сохранённая расстановка (та же версия) приходит в открытый редактор, свои неотправленные места остаются', () => {
+    const store = freshStore();
+    const mine = S2;
+    // Первая правка зафиксировала картинку и ушла автосохранением…
+    store.getState().setStagePosition(mine, { x: 300, y: 90 });
+    store.getState().markLayoutSaved(store.getState().document.layout!);
+    // …следующее перемещение ещё не отправлено.
+    store.getState().setStagePosition(mine, { x: 500, y: 90 });
+    const own = store.getState().document.layout!;
+    // Сервер: кто-то другой переставил остальные статусы (своё место ещё не ушло).
+    const server = {
+      stages: Object.fromEntries(
+        Object.keys(own.stages).map((id) => [id, id === mine ? { x: 1, y: 1 } : { x: 7, y: 7 }]),
+      ),
+      transitions: {},
+    };
+    const base = detail();
+    store.getState().sync({ ...base, document: { ...base.document, layout: server } });
+    const layout = store.getState().document.layout!;
+    expect(layout.stages[mine]).toEqual({ x: 500, y: 90 });
+    for (const id of Object.keys(own.stages)) {
+      if (id !== mine) expect(layout.stages[id]).toEqual({ x: 7, y: 7 });
+    }
+    expect(store.getState().baseline.layout).toEqual(server);
+    expect(store.getState().dirty).toBe(false);
   });
 
   it('сохранённая расстановка — новая точка «Сбросить»', () => {
     const store = freshStore();
-    const id = '00000000-0000-4000-8000-000000000002';
+    const id = S2;
     store.getState().setStagePosition(id, { x: 500, y: 90 });
     store.getState().markLayoutSaved(store.getState().document.layout!);
     store.getState().patchStage(id, { name: 'Иначе' });

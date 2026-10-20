@@ -25,7 +25,7 @@ export const AnyNode = memo(function AnyNode({ selected, data }: NodeProps<AnyFl
   return (
     <div
       className={cn(
-        'flex h-[28px] w-[128px] items-center justify-center rounded-full border border-dashed bg-card px-3 transition-colors',
+        'flow-node-card flex h-[28px] w-[128px] items-center justify-center rounded-full border border-dashed bg-card px-3 transition-colors',
         selected
           ? 'border-primary text-foreground ring-1 ring-primary/30'
           : 'border-input text-muted-foreground',

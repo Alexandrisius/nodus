@@ -97,6 +97,13 @@
   outline: none;
 }
 
+/* Фокус с клавиатуры (Tab по узлам, Enter — выделить) — кольцо на карточке
+   узла, как у выделения: канон «фокус = border-ring + ring-1 ring-ring/30». */
+.react-flow__node:focus-visible .flow-node-card {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--ring) 30%, transparent);
+}
+
 /* Точки подключения (12 шт. у статуса): кружок r=3.5 ПО ЦЕНТРУ границы узла
    (канон портов связей). Занятая — залита тоном линии: стрелка начинается и
    упирается в кружок без зазора. Свободная в правке — приглушена, ярче на
@@ -209,6 +216,19 @@
   border: 1px dashed var(--input);
   border-radius: 9999px;
   padding: 4px 10px;
+}
+
+/* В правке подпись выделяют и тянут вдоль стрелки — наведение и фокус с
+   клавиатуры дают отклик (канон фокуса: ring + ring/30). */
+.edge-label-editable:hover:not(.edge-label-selected) {
+  box-shadow: 0 0 0 1px var(--input);
+}
+
+.edge-label:focus-visible:not(.edge-label-selected) {
+  outline: none;
+  box-shadow:
+    0 0 0 1px var(--ring),
+    0 0 0 3px color-mix(in oklab, var(--ring) 30%, transparent);
 }
 
 .edge-label-selected {
