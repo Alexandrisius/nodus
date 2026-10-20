@@ -1,7 +1,7 @@
 import '@xyflow/react/dist/base.css';
 import './flow-theme.css';
 
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Background,
   BackgroundVariant,
@@ -12,6 +12,7 @@ import {
   useReactFlow,
   useStore,
   type AriaLabelConfig,
+  type Dimensions,
   type EdgeTypes,
   type IsValidConnection,
   type NodeMouseHandler,
@@ -19,6 +20,7 @@ import {
   type OnConnect,
   type OnDelete,
   type OnNodeDrag,
+  type OnNodesChange,
   type OnReconnect,
 } from '@xyflow/react';
 import type { Edge, Node } from '@xyflow/react';
@@ -82,6 +84,52 @@ export interface FlowCanvasProps {
 }
 
 /**
+ * Размеры узлов, измеренные React Flow, — обратно в объекты узлов
+ * (контролируемый режим, наши узлы — производные от документа). Без
+ * `measured` каждый новый объект узла (кадр перетаскивания, пересборка графа)
+ * считался неизмеренным: React Flow прятал узел и терял его точки
+ * подключения до перемера — узлы и стрелки мерцали при перетаскивании, а
+ * «узлы измерены» не наступало (холст не вписывался). Объект узла
+ * пересоздаётся, только если сменился сам узел или его размер.
+ */
+function useMeasuredNodes(nodes: Node[]): { nodes: Node[]; onNodesChange: OnNodesChange } {
+  const [measured, setMeasured] = useState<ReadonlyMap<string, Dimensions>>(() => new Map());
+  const cache = useRef(new WeakMap<Node, { size: Dimensions; node: Node }>());
+
+  const onNodesChange: OnNodesChange = useCallback((changes) => {
+    const sizes = changes.flatMap((c) =>
+      c.type === 'dimensions' && c.dimensions ? [{ id: c.id, size: c.dimensions }] : [],
+    );
+    if (sizes.length === 0) return;
+    setMeasured((prev) => {
+      const fresh = sizes.filter(({ id, size }) => {
+        const old = prev.get(id);
+        return !old || old.width !== size.width || old.height !== size.height;
+      });
+      if (fresh.length === 0) return prev;
+      const next = new Map(prev);
+      for (const { id, size } of fresh) next.set(id, size);
+      return next;
+    });
+  }, []);
+
+  const withSizes = useMemo(
+    () =>
+      nodes.map((node) => {
+        const size = measured.get(node.id);
+        if (!size || node.measured) return node;
+        const hit = cache.current.get(node);
+        if (hit && hit.size === size) return hit.node;
+        const next = { ...node, measured: size };
+        cache.current.set(node, { size, node: next });
+        return next;
+      }),
+    [nodes, measured],
+  );
+  return { nodes: withSizes, onNodesChange };
+}
+
+/**
  * Вписывание: первое — когда узлы измерены; дальше — только при смене
  * размера контейнера (окно, раскрытие диалога) и пока пользователь сам не
  * двигал холст. Добавление статуса вид не дёргает. Без минимального масштаба
@@ -123,10 +171,12 @@ export function FlowCanvas({
 }: FlowCanvasProps) {
   const userMoved = useRef(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const measured = useMeasuredNodes(nodes);
   return (
     <div ref={wrapperRef} className={cn('h-full w-full', className)}>
       <ReactFlow
-        nodes={nodes}
+        nodes={measured.nodes}
+        onNodesChange={measured.onNodesChange}
         edges={edges}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}

@@ -26,6 +26,13 @@ import { PanelDanger, PanelField, Segmented, focusName } from './panel-kit.js';
 
 const GROUPS: readonly TaskSystemState[] = ['backlog', 'active', 'paused', 'done', 'closed'];
 
+/** Подсказка под выбором группы: смысл выбранной группы + зачем она нужна
+ *  (в списке — только названия, одной строкой). */
+function groupHint(group: TaskSystemState): string {
+  const meaning = ui.automation.bandHints[group];
+  return `${meaning.charAt(0).toUpperCase()}${meaning.slice(1)}. ${ui.automation.panel.stageGroupWhy}`;
+}
+
 /**
  * Панель статуса (#378 ред. 2): имя, группа (смысловая категория с
  * пояснением, зачем она), цвет, «Начальный статус», «Можно перейти из
@@ -66,7 +73,7 @@ export function StagePanel({
         />
       </PanelField>
 
-      <PanelField label={ui.automation.panel.stageGroup} hint={ui.automation.panel.stageGroupWhy}>
+      <PanelField label={ui.automation.panel.stageGroup} hint={groupHint(stage.systemState)}>
         <Select
           value={stage.systemState}
           disabled={readOnly}
@@ -81,15 +88,10 @@ export function StagePanel({
           <SelectTrigger className="w-full min-w-0" aria-label={ui.automation.panel.stageGroup}>
             <SelectValue />
           </SelectTrigger>
-          <SelectContent position="popper" className="nokey max-w-[352px]">
+          <SelectContent position="popper" className="nokey">
             {GROUPS.map((group) => (
-              <SelectItem key={group} value={group} className="items-start py-1.5">
-                <span className="flex min-w-0 flex-col gap-0.5">
-                  <span>{ui.automation.bands[group]}</span>
-                  <span className="text-xs whitespace-normal text-muted-foreground">
-                    {ui.automation.bandHints[group]}
-                  </span>
-                </span>
+              <SelectItem key={group} value={group}>
+                {ui.automation.bands[group]}
               </SelectItem>
             ))}
           </SelectContent>

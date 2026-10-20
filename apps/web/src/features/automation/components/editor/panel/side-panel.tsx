@@ -9,22 +9,28 @@ import { measureCircuit } from '../../../../../app/shell/circuit-geometry.js';
 /** Ширина правой панели редактора (резерв строки инструментов — от неё). */
 export const SIDE_PANEL_WIDTH = 384;
 
+/** Зазор панели от оси контура — как справа и снизу (right-2/bottom-2): в
+ *  окне-сплите ось идёт на всю ширину, и касание читалось наездом на линию
+ *  (вердикт владельца 20.10.2026). */
+const AXIS_GAP = 8;
+
 /** Открыт ли сейчас оверлей Radix (меню, поповер, список, диалог) — Esc его. */
 function overlayOpen(): boolean {
   return document.querySelector('[data-radix-popper-content-wrapper], [role="dialog"]') !== null;
 }
 
-/** Сдвиг верха панели к оси контура: axisY (тот же замер, что рисует
- *  контур) минус верх контейнера панели; пересчёт на resize. */
+/** Верх панели от оси контура: axisY (тот же замер, что рисует контур)
+ *  минус верх контейнера панели плюс зазор; пересчёт на resize. */
 function useAxisTop(ref: React.RefObject<HTMLDivElement | null>): number {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const [top, setTop] = useState(0);
+  const [top, setTop] = useState(AXIS_GAP);
   useLayoutEffect(() => {
     const update = () => {
       const axisY = measureCircuit(pathname, false)?.axisY;
       const parent = ref.current?.offsetParent;
       const parentTop = parent?.getBoundingClientRect().top;
-      setTop(axisY !== undefined && parentTop !== undefined ? Math.max(0, axisY - parentTop) : 0);
+      const shift = axisY !== undefined && parentTop !== undefined ? axisY - parentTop : 0;
+      setTop(Math.max(0, shift) + AXIS_GAP);
     };
     update();
     window.addEventListener('resize', update);
@@ -35,8 +41,8 @@ function useAxisTop(ref: React.RefObject<HTMLDivElement | null>): number {
 
 /**
  * Внутриоконная боковая панель (канон #84, вердикт 24.09.2026): absolute
- * поверх холста — перекрывает, не двигает; верх — на горизонтали оси контура,
- * бордер по периметру, радиус 14, крестик у края шапки. Обёртка монтирована
+ * поверх холста — перекрывает, не двигает; верх — на 8px ниже оси контура
+ * (не касается линии), бордер по периметру, радиус 14, крестик у края шапки. Обёртка монтирована
  * всегда (закон выдвижных поверхностей: ширина плавно и в первое открытие),
  * прокрутка только вертикальная — горизонтальной нет. Esc: сначала «назад»
  * из раздела, потом закрыть.
