@@ -158,9 +158,9 @@ export interface FlowPosition {
 }
 
 /**
- * Позиции статусов на холсте: сохранённые — как есть; без сохранённых
- * совсем — авторасстановка целиком; статусы без позиции при частичной
- * раскладке — рядом ниже расставленных (не поверх них).
+ * Позиции статусов на холсте: сохранённые — закон, их не двигает ничто;
+ * статус без позиции — на своё место авторасстановки, а если оно занято —
+ * ниже, до первого свободного (на расставленные не наезжает и их не сдвигает).
  */
 export function resolvePositions(
   stages: readonly LayoutStageInput[],
@@ -168,27 +168,25 @@ export function resolvePositions(
   saved: Readonly<Record<string, FlowPosition>>,
 ): Map<string, FlowPosition> {
   const auto = layoutRoute(stages, transitions);
+  const { stageHeight: h, stageWidth: w, rowGap } = ROUTE_GEOMETRY;
   const result = new Map<string, FlowPosition>();
-  const placed = stages.filter((s) => saved[s.id] !== undefined);
-  if (placed.length === 0) {
-    for (const [id, entry] of auto) result.set(id, { x: entry.x, y: entry.y });
-    return result;
-  }
-  const { stageHeight, stageWidth, rowGap, layerGap, margin } = ROUTE_GEOMETRY;
-  const bottom = Math.max(...placed.map((s) => saved[s.id]!.y + stageHeight));
-  const left = Math.min(...placed.map((s) => saved[s.id]!.x));
-  let column = 0;
+  const taken: FlowPosition[] = [];
   for (const stage of stages) {
     const position = saved[stage.id];
     if (position) {
       result.set(stage.id, position);
-      continue;
+      taken.push(position);
     }
-    result.set(stage.id, {
-      x: (Number.isFinite(left) ? left : margin) + column * (stageWidth + layerGap / 2),
-      y: bottom + rowGap,
-    });
-    column += 1;
+  }
+  for (const stage of stages) {
+    if (result.has(stage.id)) continue;
+    const entry = auto.get(stage.id)!;
+    const position = { x: entry.x, y: entry.y };
+    while (taken.some((p) => Math.abs(p.x - position.x) < w && Math.abs(p.y - position.y) < h)) {
+      position.y += h + rowGap;
+    }
+    result.set(stage.id, position);
+    taken.push(position);
   }
   return result;
 }

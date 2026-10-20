@@ -120,7 +120,12 @@ describe('route-layout: слоевая раскладка холста (#378)', 
     });
     expect(saved.get('a')).toEqual({ x: 10, y: 20 });
     expect(saved.get('b')).toEqual({ x: 500, y: 300 });
-    // Без позиции при частичной раскладке — ниже расставленных, не поверх.
-    expect(saved.get('c')!.y).toBeGreaterThan(300 + ROUTE_GEOMETRY.stageHeight);
+    // Без позиции — своё место авторасстановки: расставленные его не двигают.
+    const autoC = layoutRoute(stages, transitions).get('c')!;
+    expect(saved.get('c')).toEqual({ x: autoC.x, y: autoC.y });
+    // Место занято сохранённым статусом — ниже, до свободного, не поверх.
+    const blocked = resolvePositions(stages, transitions, { b: { x: autoC.x, y: autoC.y } });
+    expect(blocked.get('c')!.x).toBe(autoC.x);
+    expect(blocked.get('c')!.y).toBeGreaterThanOrEqual(autoC.y + ROUTE_GEOMETRY.stageHeight);
   });
 });

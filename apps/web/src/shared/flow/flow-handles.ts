@@ -94,11 +94,13 @@ export interface HandleEdgeInput {
 /**
  * Точки всех рёбер: сохранённые — как есть; недостающие — сторона по
  * `autoSides`, слот — по порядку вторых концов вдоль стороны (верхний
- * сосед — к верхней точке, левый — к левой). Узлы без бокса пропускаются.
+ * сосед — к верхней точке, левый — к левой). Узлы без бокса пропускаются;
+ * `isObstacle` — какие боксы занимают коридор (по умолчанию все).
  */
 export function assignHandles(
   edges: readonly HandleEdgeInput[],
   boxes: ReadonlyMap<string, FlowBox>,
+  isObstacle: (id: string) => boolean = () => true,
 ): Map<string, { sourceHandle: string; targetHandle: string }> {
   type End = {
     edgeId: string;
@@ -109,13 +111,15 @@ export function assignHandles(
   };
   const result = new Map<string, { sourceHandle: string; targetHandle: string }>();
   const pending: End[] = [];
-  const all = [...boxes.entries()];
+  const obstacles = [...boxes.entries()].filter(([id]) => isObstacle(id));
 
   for (const edge of edges) {
     const from = boxes.get(edge.source);
     const to = boxes.get(edge.target);
     if (!from || !to) continue;
-    const others = all.filter(([id]) => id !== edge.source && id !== edge.target).map(([, b]) => b);
+    const others = obstacles
+      .filter(([id]) => id !== edge.source && id !== edge.target)
+      .map(([, b]) => b);
     const [sSide, tSide] = autoSides(from, to, others);
     result.set(edge.id, {
       sourceHandle: edge.sourceHandle ?? `${sSide}2`,

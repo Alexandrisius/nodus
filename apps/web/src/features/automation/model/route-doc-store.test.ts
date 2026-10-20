@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import type { WorkflowDetail } from '@nodus/contracts';
 
 import { createRouteDocStore } from './route-doc-store.js';
+import { isLayoutComplete, resolveRoute } from '../../../shared/flow/route-resolve.js';
 
 const detail = (): WorkflowDetail => ({
   id: '00000000-0000-4000-8000-0000000000aa',
@@ -213,8 +214,30 @@ describe('route-doc-store: рабочая копия маршрута (#378)', (
     expect(store.getState().document.layout?.transitions[id]?.labelT).toBe(0.25);
 
     store.getState().undo();
-    expect(store.getState().document.layout?.stages[S3]).toBeUndefined();
+    expect(store.getState().document.layout?.stages[S3]).not.toEqual({ x: 640, y: 121 });
     expect(store.getState().dirty).toBe(true);
+  });
+
+  it('перетаскивание одного статуса не двигает остальные и не перестраивает стрелки', () => {
+    const store = freshStore();
+    const S1 = '00000000-0000-4000-8000-000000000001';
+    const S2 = '00000000-0000-4000-8000-000000000002';
+    const before = resolveRoute(store.getState().document);
+    store.getState().setStagePosition(S2, { x: 900, y: 500 });
+    const after = resolveRoute(store.getState().document);
+    expect(after.positions.get(S2)).toEqual({ x: 900, y: 500 });
+    // Остальные статусы стоят, где стояли (видимая авторасстановка зафиксирована).
+    expect(after.positions.get(S1)).toEqual(before.positions.get(S1));
+    // Точки всех стрелок — те же, что были до перетаскивания.
+    for (const [id, handles] of before.handles) expect(after.handles.get(id)).toEqual(handles);
+    expect(isLayoutComplete(store.getState().document)).toBe(true);
+
+    // «Упорядочить» — единственный путь обратно к авторасстановке.
+    store.getState().arrange();
+    expect(store.getState().document.layout?.transitions).toEqual({});
+    expect(resolveRoute(store.getState().document).positions.get(S2)).toEqual(
+      before.positions.get(S2),
+    );
   });
 
   it('ввод названия подряд — один шаг отмены, а не «по букве»', () => {

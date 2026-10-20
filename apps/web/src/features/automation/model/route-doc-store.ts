@@ -100,13 +100,18 @@ export function createRouteDocStore(workflowId: string) {
   return create<RouteDocState>()((set, get) => {
     /** Шаг документа: история + черновик (без шага — если операция отказала).
      *  `coalesce` — ключ ввода текста: нажатия подряд (< 1 с) сливаются в
-     *  один шаг отмены, а не «по букве». */
+     *  один шаг отмены, а не «по букве». `freeze` — видимая расстановка
+     *  фиксируется, сдвинутые обходы не слипаются с соседними (выключено
+     *  только у «Упорядочить»). */
     const commit = (
-      next: WorkflowDraftDocument | null,
+      proposed: WorkflowDraftDocument | null,
       extra: Partial<RouteDocState> = {},
       coalesce?: string,
+      freeze = true,
     ) => {
-      if (!next) return;
+      if (!proposed) return;
+      const prev = get().document;
+      const next = freeze ? ops.settleLoops(prev, ops.freezeLayout(prev, proposed)) : proposed;
       const now = Date.now();
       set((s) => {
         const merge =
@@ -282,7 +287,7 @@ export function createRouteDocStore(workflowId: string) {
         commit(next, { selection: dropSelectionOf(gone) });
       },
 
-      arrange: () => commit(ops.arrange(get().document)),
+      arrange: () => commit(ops.arrange(get().document), {}, undefined, false),
 
       undo: () => {
         set((s) => {

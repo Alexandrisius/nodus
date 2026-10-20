@@ -79,6 +79,9 @@ export const workflowLayoutTransitionSchema = z.object({
   labelT: z.number().min(0).max(1).optional(),
   /** Метка «Любой статус» кнопки из любого статуса — позиция на холсте. */
   anchor: flowPointSchema.optional(),
+  /** Глубина обхода U-стрелки (вход и выход с одной стороны), px холста:
+   *  фиксируется, чтобы перестановка соседей не перестраивала стрелку. */
+  offset: z.number().int().min(0).max(400).optional(),
 });
 export type WorkflowLayoutTransition = z.infer<typeof workflowLayoutTransitionSchema>;
 

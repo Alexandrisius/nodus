@@ -10,6 +10,12 @@ import type {
 import { flowHandleIdSchema } from '@nodus/contracts';
 
 import { layoutRoute } from '../../../shared/flow/route-layout.js';
+import { freeDepth, type Placed } from '../../../shared/flow/route-loops.js';
+import {
+  frozenLayout,
+  isLayoutComplete,
+  resolveRoute,
+} from '../../../shared/flow/route-resolve.js';
 import { newId, normalize } from './route-doc-helpers.js';
 
 /**
@@ -58,6 +64,73 @@ export function pruneLayout(doc: WorkflowDraftDocument): WorkflowDraftDocument {
       ),
     },
   };
+}
+
+/**
+ * «Что видишь — то и стоит»: правка документа фиксирует видимую картинку
+ * предыдущего шага — позиции всех статусов и точки всех стрелок. Иначе
+ * перетаскивание одного статуса (или любая правка) переставляло остальные
+ * авторасстановкой и перестраивало чужие стрелки. Явные значения нового шага
+ * главнее; у стрелки со сменённым концом точка этого конца не переносится.
+ * Вернуть авторасстановку — только «Упорядочить».
+ */
+export function freezeLayout(
+  prev: WorkflowDraftDocument,
+  next: WorkflowDraftDocument,
+): WorkflowDraftDocument {
+  if (isLayoutComplete(prev)) return next;
+  const frozen = frozenLayout(prev);
+  const layout = layoutOf(next);
+  const before = new Map(prev.transitions.map((t) => [t.id, t]));
+  const transitions: WorkflowLayout['transitions'] = { ...layout.transitions };
+  for (const t of next.transitions) {
+    const old = before.get(t.id);
+    const pinned = frozen.transitions[t.id];
+    if (!old || !pinned) continue;
+    const keep: WorkflowLayoutTransition = {};
+    if (old.fromStageId === t.fromStageId && pinned.sourceHandle) {
+      keep.sourceHandle = pinned.sourceHandle;
+    }
+    if (old.toStageId === t.toStageId && pinned.targetHandle) {
+      keep.targetHandle = pinned.targetHandle;
+    }
+    const endsKept = (t.fromStageId === null || keep.sourceHandle) && keep.targetHandle;
+    if (endsKept && pinned.offset !== undefined) keep.offset = pinned.offset;
+    transitions[t.id] = { ...keep, ...layout.transitions[t.id] };
+  }
+  return pruneLayout({
+    ...next,
+    layout: { stages: { ...frozen.stages, ...layout.stages }, transitions },
+  });
+}
+
+/**
+ * Обходы, чьи концы сдвинулись этим шагом (перетаскивание статуса или метки,
+ * перенос конца стрелки), держат свою глубину, а при наложении на соседний
+ * обход уходят на ступень глубже. Обходы, которых шаг не касался, не меняются
+ * никогда — «фантомных» перестроений чужих стрелок нет.
+ */
+export function settleLoops(
+  prev: WorkflowDraftDocument,
+  next: WorkflowDraftDocument,
+): WorkflowDraftDocument {
+  const before = resolveRoute(prev);
+  const after = resolveRoute(next);
+  const moved = [...after.loops.keys()].filter((id) => before.ends.get(id) !== after.ends.get(id));
+  if (moved.length === 0) return next;
+  const touched = new Set(moved);
+  const placed: Placed[] = [...after.loops.values()]
+    .filter((loop) => !touched.has(loop.id))
+    .map((loop) => ({ loop, offset: after.spread.get(loop.id)!.offset }));
+  const layout = layoutOf(next);
+  const transitions = { ...layout.transitions };
+  for (const id of moved) {
+    const loop = after.loops.get(id)!;
+    const offset = freeDepth(loop, after.spread.get(id)!.offset, placed);
+    placed.push({ loop, offset });
+    transitions[id] = { ...transitions[id], offset };
+  }
+  return { ...next, layout: { ...layout, transitions } };
 }
 
 export function setStagePosition(

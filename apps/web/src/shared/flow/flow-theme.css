@@ -74,9 +74,12 @@
   max-height: 14px;
 }
 
-/* Значки React Flow — заливкой, lucide (отмена/повтор) — обводкой. */
-.flow-controls .react-flow__controls-button svg:not(.lucide) {
-  fill: currentColor;
+/* Значки React Flow — заливкой (base.css красит fill всем svg кнопок);
+   lucide-стрелки отмены/повтора — только обводкой, иначе заливка
+   превращала контур стрелки в кляксу. */
+.flow-controls .react-flow__controls-button svg.lucide {
+  fill: none;
+  stroke: currentColor;
 }
 
 .flow-controls .react-flow__controls-button:disabled {
