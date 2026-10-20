@@ -1,4 +1,5 @@
 import type { ChatMessage, TaskChainNode, TaskDetail, TaskListItem } from '@nodus/contracts';
+import { isFinalState } from '@nodus/contracts';
 
 import type { ProjectRef } from '@nodus/contracts';
 
@@ -6,6 +7,8 @@ import { isoAgo } from './dates.js';
 import { personalNew, personalStageFor } from './personal-stages.js';
 import { kjSubtask, tid } from './task-items.js';
 import { stageNew, systemTaskType } from './task-stages.js';
+import { QUICK_WORKFLOW_ID, STANDARD_WORKFLOW_ID } from './workflows.js';
+import { quickTaskType } from './task-stages.js';
 import { currentAuthUser, userIds, userRef } from './users.js';
 
 export * from './task-stages.js';
@@ -159,12 +162,14 @@ export function taskDetailOf(task: TaskListItem): TaskDetail {
     checklist: [],
     createdAt: task.updatedAt,
   };
-  const closed = task.stage.systemState === 'done' || task.stage.systemState === 'closed';
+  // completedAt — только у «Итога»: «Утверждение» не завершение (ADR-0020 доп. 2).
+  const closed = isFinalState(task.stage.systemState);
   return {
     ...task,
     ...extra,
     subtasks: demoSubtasks[task.id] ?? [],
     chain: chainOf(task),
+    workflowId: task.type.id === quickTaskType.id ? QUICK_WORKFLOW_ID : STANDARD_WORKFLOW_ID,
     plannedMinutes: extra.plannedMinutes ?? null,
     acceptRequired: extra.acceptRequired ?? false,
     result: extra.result ?? null,

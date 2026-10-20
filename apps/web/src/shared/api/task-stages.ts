@@ -3,16 +3,24 @@ import type { TaskStageWithCount } from '@nodus/contracts';
 
 import { api } from '../api-client.js';
 
-/** Каталог стадий статус-схемы по умолчанию со счётчиками колонок
- *  (шапки канбанов, сводка страницы задач). Общий: потребители — задачи
- *  (страница, карточка) и проектная доска (колонки = стадии схемы проекта,
- *  ADR-0008). Ключ совпадает с tasksKeys.stages() — общий кэш. */
+/** Каталог стадий со счётчиками колонок (шапки канбанов, сводка страницы
+ *  задач). Общий: потребители — задачи (страница, карточка) и проектная
+ *  доска (колонки = стадии схемы проекта, ADR-0008). Ключ совпадает с
+ *  tasksKeys.stages() — общий кэш; каталог одного типа — подключ (сброс
+ *  префиксом задевает оба). */
 export const taskStagesKey = ['tasks', 'stages'] as const;
 
-export function useTaskStages() {
+/** Без typeId — статусы всех живых типов (подписи «Тип · Статус» там, где
+ *  типов больше одного); с typeId — статусы маршрута одного типа (колонки
+ *  доски, массовая смена стадии). */
+export function useTaskStages(typeId?: string, options?: { enabled?: boolean }) {
   return useQuery({
-    queryKey: taskStagesKey,
-    queryFn: () => api<TaskStageWithCount[]>('/tasks/stages'),
+    queryKey: typeId ? [...taskStagesKey, typeId] : taskStagesKey,
+    enabled: options?.enabled ?? true,
+    queryFn: () =>
+      api<TaskStageWithCount[]>(
+        typeId ? `/tasks/stages?typeId=${encodeURIComponent(typeId)}` : '/tasks/stages',
+      ),
     // Справочник: редко меняется в сессии — без staleTime каждый маунт доски
     // переспрашивал стадии (аудит #45: 301 запрос на 50 переключений вида).
     staleTime: 60_000,

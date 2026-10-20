@@ -6,6 +6,7 @@ import {
   Mail,
   MessageSquare,
   Users,
+  Workflow,
   type LucideIcon,
 } from 'lucide-react';
 import { ui } from '@nodus/contracts';
@@ -28,6 +29,9 @@ export interface NavModuleDef {
   exact?: boolean;
   /** Источник счётчика-значка (считается в рейке по живым данным). */
   badge?: 'tasks' | 'letters' | 'chat' | 'notifications';
+  /** Окно-сплит (мессенджер, Автоматизация): ось контура идёт до правого
+   *  края рамы — она же верхняя граница окна (канон `references/circuit.md`). */
+  splitWindow?: boolean;
   tabs: NavTabDef[];
 }
 
@@ -134,6 +138,7 @@ export const NAV_MODULES: NavModuleDef[] = [
     label: ui.nav.chat,
     icon: MessageSquare,
     badge: 'chat',
+    splitWindow: true,
     tabs: [
       {
         id: 'chats',
@@ -183,6 +188,24 @@ export const NAV_MODULES: NavModuleDef[] = [
         label: ui.employees.viewList,
         search: { view: 'list' },
         isActive: (s) => s.get('view') === 'list',
+      },
+    ],
+  },
+  {
+    id: 'automation',
+    to: '/automation',
+    label: ui.nav.automation,
+    icon: Workflow,
+    // Окно-сплит: колонка типов + холст, ось — верхняя граница окна.
+    splitWindow: true,
+    // Единый дом настройки процессов (#377): вкладки сверху, не модули в
+    // меню; «Права доступа» добавит #379, «Схемы проектов» — #38 (V2).
+    tabs: [
+      {
+        id: 'types',
+        label: ui.automation.tabTypes,
+        search: { tab: 'types' },
+        isActive: (s) => (s.get('tab') ?? 'types') === 'types',
       },
     ],
   },

@@ -1,6 +1,6 @@
 import { AlertTriangle, Plus } from 'lucide-react';
 import type { TaskDetail } from '@nodus/contracts';
-import { ui } from '@nodus/contracts';
+import { isFinalState, ui } from '@nodus/contracts';
 import { NodeLabel } from '@nodus/ui/components/node-label';
 import { cn } from '@nodus/ui/lib/utils';
 
@@ -11,19 +11,19 @@ import { useAddSubtask } from '../api/tasks-api.js';
 import { isTempId } from '../lib/temp-records.js';
 import { InlineAddRow } from './inline-add-row.js';
 
-const OPEN = new Set(['backlog', 'active', 'paused']);
-
 /**
  * Подзадачи в теле карточки (#311): плотные строки-«мини-журнал» — №,
  * название (целиком, перенос — канон значений), ответственный, срок, стадия.
  * Срок позже срока родителя — предупреждение (план не сходится). Глубокое
  * дерево — в навигаторе ветки (левая панель): здесь прямые дети, переход —
- * ЗАМЕНОЙ карточки (ADR-0009). Добавление — строкой в списке.
+ * ЗАМЕНОЙ карточки (ADR-0009). Добавление — строкой в списке. Готовыми
+ * (счётчик, зачёркивание) считаются только подзадачи в «Итоге»: сданная на
+ * утверждение видна своим статусом, но не готова (ADR-0020, дополнение 2).
  */
 export function TaskSubtasks({ task, onOpen }: { task: TaskDetail; onOpen: (id: string) => void }) {
   const addSubtask = useAddSubtask(task.id);
   const total = task.subtasks.length;
-  const closed = task.subtasks.filter((s) => !OPEN.has(s.stage.systemState)).length;
+  const closed = task.subtasks.filter((s) => isFinalState(s.stage.systemState)).length;
   const parentDeadline = task.deadline ? Date.parse(task.deadline) : null;
 
   if (total === 0 && !task.access.canEdit) return null;
@@ -44,7 +44,7 @@ export function TaskSubtasks({ task, onOpen }: { task: TaskDetail; onOpen: (id: 
             parentDeadline !== null &&
             s.deadline !== null &&
             Date.parse(s.deadline) > parentDeadline;
-          const done = !OPEN.has(s.stage.systemState);
+          const done = isFinalState(s.stage.systemState);
           const pending = isTempId(s.id);
           return (
             <button

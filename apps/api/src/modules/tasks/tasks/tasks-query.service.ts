@@ -10,7 +10,6 @@ import type {
   TaskDetail,
   TaskListItem,
   TaskStageWithCount,
-  TaskType,
 } from '@nodus/contracts';
 
 import { DomainException } from '../../../core/errors/domain-exception.js';
@@ -19,9 +18,9 @@ import { actorRoles, taskAccess } from '../access/task-access.js';
 import { ViewerResolver, visibleTasksWhere, type Viewer } from '../access/task-visibility.js';
 import { WorkflowRepository } from '../workflow/workflow.repository.js';
 import { selfChainNode, stageDto, TaskDtoMapper } from './task-dto.mapper.js';
+import { stagesCatalog } from './task-stages-catalog.js';
 import { TasksQueryRepository, type TaskOrder } from './tasks-query.repository.js';
 import { TasksRepository } from './tasks.repository.js';
-import { DEFAULT_TASK_WORKFLOW_CODE } from '../catalog/system-catalog.js';
 import { CHAT_MESSAGE_ACCESS, type ChatMessageAccess } from '../../chat/message-access.port.js';
 import { ResultsRepository } from '../activity/results.repository.js';
 
@@ -118,6 +117,9 @@ export class TasksQueryService {
     ];
     return {
       ...this.mapper.toListItem(row, refs),
+      // Свой маршрут задачи (по нему работают кнопки): тип может быть в
+      // архиве — его задачи обязаны открываться (код-ревью #378).
+      workflowId: full.workflowId,
       description: full.description,
       observers: observerIds.map((uid) => this.mapper.ref(refs, uid)),
       checklist: full.checklist.map((c) => ({ id: c.id, text: c.text, done: c.done })),
@@ -191,26 +193,19 @@ export class TasksQueryService {
     return { root: build(rootId) };
   }
 
-  /** Каталог стадий маршрута по умолчанию со счётчиками (scope как у фида). */
-  async stages(user: AuthUser, scope: 'mine' | 'all'): Promise<TaskStageWithCount[]> {
+  /** Каталог стадий со счётчиками: `typeId` — одного типа; без — всех
+   *  живых типов с полями typeId/typeName (#378). Реализация — чистый
+   *  помощник task-stages-catalog.ts. */
+  async stages(
+    user: AuthUser,
+    scope: 'mine' | 'all',
+    typeId?: string,
+  ): Promise<TaskStageWithCount[]> {
     const viewer = await this.viewer(user);
-    const stages = await this.workflows.liveStagesByCode(DEFAULT_TASK_WORKFLOW_CODE);
-    const counts = await this.reads.stageCounts(visibleTasksWhere(viewer, scope), new Date());
-    return stages.map((s) => ({
-      ...stageDto(s),
-      count: counts.all.find((c) => c.stageId === s.id)?._count._all ?? 0,
-      overdueCount: counts.overdue.find((c) => c.stageId === s.id)?._count._all ?? 0,
-    }));
-  }
-
-  async types(): Promise<TaskType[]> {
-    const rows = await this.workflows.listTypes();
-    return rows.map((t) => ({
-      id: t.id,
-      code: t.code,
-      name: t.name,
-      structural: t.structural,
-      isSystem: t.isSystem,
-    }));
+    return stagesCatalog(
+      this.workflows,
+      () => this.reads.stageCounts(visibleTasksWhere(viewer, scope), new Date()),
+      typeId,
+    );
   }
 }

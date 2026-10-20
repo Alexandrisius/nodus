@@ -22,6 +22,7 @@
     "@nodus/ui": "workspace:*",
     "@tanstack/react-query": "^5.104.3",
     "@tanstack/react-router": "^1.170.44",
+    "@xyflow/react": "12.12.0",
     "lucide-react": "^1.58.0",
     "pdfjs-dist": "^6.4.299",
     "react": "^19.3.1",

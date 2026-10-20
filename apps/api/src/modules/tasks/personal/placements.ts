@@ -27,7 +27,7 @@ export class Placements {
 
   /** Личные маршруты держателей — до бизнес-транзакции (ensurePersonal). */
   async prepare(userIds: string[]): Promise<void> {
-    for (const id of new Set(userIds)) await this.workflows.ensurePersonal(id);
+    await Promise.all([...new Set(userIds)].map((id) => this.workflows.ensurePersonal(id)));
   }
 
   topKey(tx: TransactionClient, userId: string, stageId: string): Promise<string> {

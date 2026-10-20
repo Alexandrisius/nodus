@@ -74,7 +74,9 @@ export function BoardTaskCard({
         </span>
       ) : null}
       <span className="line-clamp-2 text-sm font-medium">{task.title}</span>
-      {isVisible('deadline') ? <DeadlineChip deadline={task.deadline} /> : null}
+      {isVisible('deadline') ? (
+        <DeadlineChip deadline={task.deadline} state={task.stage.systemState} />
+      ) : null}
       {isVisible('project') && task.project ? (
         <span className="flex min-w-0 items-center gap-1.5 text-body-xs text-info/80">
           <span

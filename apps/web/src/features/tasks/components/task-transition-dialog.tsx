@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { TaskDetail, TaskTransition } from '@nodus/contracts';
-import { ui } from '@nodus/contracts';
+import { isCompletedState, isFinalState, ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import {
   Dialog,
@@ -16,8 +16,6 @@ import { toast } from 'sonner';
 import { useBulkTasks } from '../api/task-edit-api.js';
 import { useExecuteTransition } from '../api/transitions-api.js';
 
-const OPEN = new Set(['backlog', 'active', 'paused']);
-
 /** Запуск перехода маршрута с объяснением гейтов (ADR-0020, #311):
  *  свободный переход — сразу; заблокированный — диалог с причинами и
  *  выходами: «Завершить вместе с подзадачами» (гейт подзадач при закрытии)
@@ -27,6 +25,7 @@ export function useTransitionRunner(task: TaskDetail) {
   const [pending, setPending] = useState<TaskTransition | null>(null);
 
   function run(t: TaskTransition) {
+    if (execute.isPending) return; // повторный клик во время хода — не дублируем
     if (t.blockedBy.length === 0) execute.mutate({ transition: t });
     else setPending(t);
   }
@@ -40,7 +39,9 @@ export function useTransitionRunner(task: TaskDetail) {
       executing={execute.isPending}
     />
   );
-  return { run, dialog, isPending: execute.isPending };
+  /** Кнопка в ходе (спиннер на ней; панель не гаснет — чип уже сменился). */
+  const runningId = execute.isPending ? (execute.variables?.transition.id ?? null) : null;
+  return { run, dialog, isPending: execute.isPending, runningId };
 }
 
 function TransitionDialog({
@@ -59,12 +60,14 @@ function TransitionDialog({
   const bulk = useBulkTasks();
   const [reason, setReason] = useState('');
   const reasons = transition?.blockedBy ?? [];
-  const openSubtasks = task.subtasks.filter((s) => OPEN.has(s.stage.systemState));
+  const openSubtasks = task.subtasks.filter((s) => !isFinalState(s.stage.systemState));
   // Закрыть вместе с подзадачами — только если подзадачи единственный гейт
-  // и переход закрывает задачу (подзадачи идут в ту же стадию).
+  // и переход ЗАВЕРШАЕТ задачу (итог «выполнена»; подзадачи идут в ту же
+  // стадию). Сдача на утверждение — нет: строгий гейт считает и подзадачи
+  // на утверждении (ADR-0020, дополнение 2) — родитель снова упёрся бы.
   const closesWithSubtasks =
     transition !== null &&
-    !OPEN.has(transition.toStageState) &&
+    isCompletedState(transition.toStageState, transition.toStageOutcome) &&
     reasons.length === 1 &&
     reasons[0]?.kind === 'no_open_subtasks' &&
     openSubtasks.length > 0;

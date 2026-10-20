@@ -87,7 +87,7 @@ export const taskListFields: ListFieldDef[] = [
     defaultVisible: true,
     defaultWidth: 172,
     minWidth: 140,
-    render: (task) => <DeadlineChip deadline={task.deadline} />,
+    render: (task) => <DeadlineChip deadline={task.deadline} state={task.stage.systemState} />,
     sortValue: (task) => task.deadline,
   },
   {

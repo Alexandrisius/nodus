@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { statesOfPhase } from '@nodus/contracts';
 
 import { Prisma } from '../../../generated/prisma/client.js';
 import { PrismaService } from '../../../core/database/prisma.service.js';
@@ -6,8 +7,6 @@ import type { TransactionClient } from '../../../core/database/transaction-runne
 import { keyBetween } from '../lib/fractional-index.js';
 import type { TaskGateFacts } from '../workflow/transition-rules.js';
 import { taskListInclude } from './task-row.js';
-
-const OPEN_STATES = ['backlog', 'active', 'paused'];
 
 /** Параллельное «В задачу» по тому же сообщению проиграло частичному unique
  *  `tasks_source_dedup_key` (P2002): победитель уже создал задачу — сервис
@@ -168,6 +167,24 @@ export class TasksRepository {
     await tx.task.update({ where: { id }, data: move });
   }
 
+  /** Смена типа задачи и её маршрута (#378; стадия — отдельно StageMover). */
+  async setType(
+    tx: TransactionClient,
+    id: string,
+    type: { typeId: string; workflowId: string },
+  ): Promise<void> {
+    await tx.task.update({ where: { id }, data: type });
+  }
+
+  /** Пересчёт состояния без смены стадии (стадия сменила группу, #378). */
+  async setState(
+    tx: TransactionClient,
+    id: string,
+    state: Omit<TaskStageMove, 'stageId' | 'stageOrder'>,
+  ): Promise<void> {
+    await tx.task.update({ where: { id }, data: state });
+  }
+
   /** Отметка «задача изменилась» (updatedAt) без правки полей. */
   async touch(tx: TransactionClient, id: string): Promise<void> {
     await tx.task.update({ where: { id }, data: { updatedAt: new Date() } });
@@ -204,15 +221,16 @@ export class TasksRepository {
     return rows[0]?.id ?? null;
   }
 
-  /** Просроченные живые открытые задачи без уведомления (частичный индекс
-   *  tasks_overdue_scan_idx), старейший срок первым. */
+  /** Просроченные живые задачи фазы open без уведомления (частичный индекс
+   *  tasks_overdue_scan_idx), старейший срок первым. Сданная работа
+   *  («Утверждение») и итог не просрочены (ADR-0020, дополнение 2). */
   findOverdueToNotify(tx: TransactionClient, now: Date, limit: number) {
     return tx.task.findMany({
       where: {
         deletedAt: null,
         overdueNotifiedAt: null,
         deadline: { lt: now },
-        systemState: { in: OPEN_STATES },
+        systemState: { in: statesOfPhase('open') },
       },
       include: { participants: true },
       orderBy: { deadline: 'asc' },
@@ -225,11 +243,14 @@ export class TasksRepository {
   }
 
   async gateFacts(taskId: string, tx: TransactionClient): Promise<TaskGateFacts> {
-    const [task, openSubtasks, result] = await Promise.all([
-      tx.task.findUniqueOrThrow({ where: { id: taskId } }),
+    const children = (phase: 'open' | 'review') =>
       tx.task.count({
-        where: { parentId: taskId, deletedAt: null, systemState: { in: OPEN_STATES } },
-      }),
+        where: { parentId: taskId, deletedAt: null, systemState: { in: statesOfPhase(phase) } },
+      });
+    const [task, openSubtasks, reviewSubtasks, result] = await Promise.all([
+      tx.task.findUniqueOrThrow({ where: { id: taskId } }),
+      children('open'),
+      children('review'),
       tx.taskResult.findFirst({
         where: { taskId },
         orderBy: { createdAt: 'desc' },
@@ -239,7 +260,9 @@ export class TasksRepository {
     return {
       stageId: task.stageId,
       acceptRequired: task.acceptRequired,
+      creatorIsAssignee: task.creatorId === task.assigneeId,
       openSubtasks,
+      reviewSubtasks,
       checklistDone: task.checklistDone,
       checklistTotal: task.checklistTotal,
       spentMinutes: task.spentMinutes,

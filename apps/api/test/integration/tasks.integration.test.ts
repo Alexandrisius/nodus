@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   apiErrorResponseSchema,
+  executeTransitionResultSchema,
   ErrorCode,
   Permission,
   taskDetailSchema,
@@ -109,12 +110,15 @@ describe.skipIf(!process.env.DATABASE_URL)('tasks (integration)', () => {
     const list = z
       .array(taskTransitionSchema)
       .parse(await (await fx.api(bob, 'GET', `/tasks/${parentId}/transitions`)).json());
-    const start = list.find((t) => t.name === 'Начать')!;
+    const start = list.find((t) => t.name === 'Взять в работу')!;
     const started = await fx.api(bob, 'POST', `/tasks/${parentId}/transitions/${start.id}`, {
       body: {},
       key: `it-start-${fx.runId}`,
     });
-    expect(taskListItemSchema.parse(await started.json()).stage.systemState).toBe('active');
+    const startedBody = executeTransitionResultSchema.parse(await started.json());
+    expect(startedBody.task.stage.systemState).toBe('active');
+    // Новые кнопки нажавшего — в том же ответе (панель процесса без второго GET).
+    expect(startedBody.transitions.map((t) => t.name)).toContain('Завершить');
     const bobPlacement = await fx.prisma.taskPersonalPlacement.findUniqueOrThrow({
       where: { taskId_userId: { taskId: parentId, userId: bob.id } },
       include: { stage: true },
@@ -139,6 +143,71 @@ describe.skipIf(!process.env.DATABASE_URL)('tasks (integration)', () => {
     );
     expect(detail.subtasks).toHaveLength(1);
     expect(detail.access.canDelete).toBe(false);
+  });
+
+  /** Нажать кнопку маршрута по имени (как пользователь в панели процесса). */
+  async function press(user: ChatUser, taskId: string, name: string, key: string) {
+    const list = z
+      .array(taskTransitionSchema)
+      .parse(await (await fx.api(user, 'GET', `/tasks/${taskId}/transitions`)).json());
+    const button = list.find((t) => t.name === name);
+    expect(button, `кнопка «${name}»`).toBeDefined();
+    const res = await fx.api(user, 'POST', `/tasks/${taskId}/transitions/${button!.id}`, {
+      body: {},
+      key: `${key}-${fx.runId}`,
+    });
+    expect(res.status).toBe(200);
+    return executeTransitionResultSchema.parse(await res.json());
+  }
+
+  async function createTask(title: string, key: string, parentId?: string): Promise<string> {
+    const res = await fx.api(alice, 'POST', parentId ? `/tasks/${parentId}/subtasks` : '/tasks', {
+      body: { title: `${title} ${fx.runId}`, assigneeId: bob.id },
+      key: `${key}-${fx.runId}`,
+    });
+    expect(res.status).toBe(201);
+    const id = taskListItemSchema.parse(await res.json()).id;
+    taskIds.push(id);
+    return id;
+  }
+
+  it('«Утверждение» — не завершение: completedAt и task.completed только на «Итоге» (#378)', async () => {
+    const taskId = await createTask('Сдать отчёт', 'it-review');
+    await press(bob, taskId, 'Взять в работу', 'it-review-start');
+    const submitted = await press(bob, taskId, 'Завершить', 'it-review-submit');
+    expect(submitted.task.stage.systemState).toBe('done');
+    const inReview = await fx.prisma.task.findUniqueOrThrow({ where: { id: taskId } });
+    expect(inReview.completedAt).toBeNull();
+    const completedEvents = () =>
+      fx.prisma.event.count({ where: { type: 'task.completed', aggregateId: taskId } });
+    expect(await completedEvents()).toBe(0);
+    // Постановщику — «Утвердить» и «Вернуть на доработку» (утверждающий каталога).
+    const forCreator = z
+      .array(taskTransitionSchema)
+      .parse(await (await fx.api(alice, 'GET', `/tasks/${taskId}/transitions`)).json());
+    expect(forCreator.map((t) => t.name)).toEqual(
+      expect.arrayContaining(['Утвердить', 'Вернуть на доработку']),
+    );
+
+    const approved = await press(alice, taskId, 'Утвердить', 'it-review-accept');
+    expect(approved.task.stage).toMatchObject({ systemState: 'closed', outcome: 'success' });
+    const closed = await fx.prisma.task.findUniqueOrThrow({ where: { id: taskId } });
+    expect(closed.completedAt).not.toBeNull();
+    expect(await completedEvents()).toBe(1);
+  });
+
+  it('строгий гейт: подзадача на утверждении не даёт сдать родителя (#378)', async () => {
+    const parentId = await createTask('Комплект', 'it-strict-parent');
+    const subId = await createTask('Раздел', 'it-strict-sub', parentId);
+    await press(bob, subId, 'Взять в работу', 'it-strict-sub-start');
+    await press(bob, subId, 'Завершить', 'it-strict-sub-submit');
+    await press(bob, parentId, 'Взять в работу', 'it-strict-parent-start');
+    const buttons = z
+      .array(taskTransitionSchema)
+      .parse(await (await fx.api(bob, 'GET', `/tasks/${parentId}/transitions`)).json());
+    expect(buttons.find((t) => t.name === 'Завершить')?.blockedBy).toEqual([
+      { kind: 'no_open_subtasks', count: 1 },
+    ]);
   });
   it('ветка: невидимый зрителю узел — только номер, без названия и стадии (#343)', async () => {
     const parentId = taskIds[0]!;

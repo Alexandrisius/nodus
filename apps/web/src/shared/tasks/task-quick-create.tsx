@@ -1,28 +1,23 @@
-import { ListChecks, Plus, Settings2 } from 'lucide-react';
+import { ListChecks, Plus } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import { Dialog, DialogContent, DialogTitle } from '@nodus/ui/components/dialog';
 import { Input } from '@nodus/ui/components/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@nodus/ui/components/select';
 import { NodeLabel } from '@nodus/ui/components/node-label';
 import { Textarea } from '@nodus/ui/components/textarea';
 import { toast } from 'sonner';
 
 import { projectsAvailable } from '../api/projects-available.js';
-import { useCreateTask, usePersonalStages, useTaskTypes } from '../api/task-create.js';
+import { useCreateTask, usePersonalStages } from '../api/task-create.js';
+import { defaultTaskType, useCreatableTaskTypes } from '../api/task-types-api.js';
 import { useUsersList } from '../api/users-list.js';
 import { useAuthStore } from '../auth-store.js';
 import { DateTimePicker } from '../ui/date-time-picker.js';
 import { ProjectPicker } from '../ui/project-picker.js';
 import { FilterCombobox } from '../views/filter-combobox.js';
 import { TaskChecklistSheet, type DraftChecklistItem } from './task-checklist-sheet.js';
+import { TaskTypeField } from './task-type-field.js';
 
 /**
  * Экспресс-форма создания задачи (вердикт владельца 15.09.2026, модель
@@ -57,7 +52,8 @@ export function TaskQuickCreate({
   const { data: users } = useUsersList();
   // Первая личная колонка — приёмник новых задач (глобальная «Новые»).
   const { data: personalStages } = usePersonalStages();
-  const { data: types } = useTaskTypes();
+  // Типы для создания: живые creatable, значок + название (#378).
+  const { data: types } = useCreatableTaskTypes();
 
   const [title, setTitle] = useState('');
   const [descriptionOpen, setDescriptionOpen] = useState(false);
@@ -88,6 +84,10 @@ export function TaskQuickCreate({
   }
 
   const valid = title.trim().length > 0;
+  // Показанный тип уходит в запрос всегда: без явного typeId сервер взял бы
+  // свой тип по умолчанию, и форма разошлась бы с созданной задачей.
+  const shownTypeId = typeId ?? defaultTaskType(types)?.id;
+  const filled = Boolean(title.trim() || description.trim() || checklist.length > 0 || deadline);
 
   function submit(event?: FormEvent) {
     event?.preventDefault();
@@ -98,7 +98,7 @@ export function TaskQuickCreate({
         title: title.trim(),
         personalStageId: stage.id,
         ...(projectId ? { projectId } : {}),
-        ...(typeId ? { typeId } : {}),
+        ...(shownTypeId ? { typeId: shownTypeId } : {}),
         ...(description.trim() ? { description: description.trim() } : {}),
         ...(assigneeId ? { assigneeId } : {}),
         ...(deadline ? { deadline: deadline.toISOString() } : {}),
@@ -171,36 +171,13 @@ export function TaskQuickCreate({
               {/* Тип (ADR-0020): ступень 1 — один системный «Задача», выбор
                   уже здесь — «Разработка/Изменение» ступени 2 встанут сюда же. */}
               <NodeLabel label={ui.tasks.type} />
-              <Select
-                value={typeId ?? types?.find((t) => t.isSystem)?.id ?? ''}
-                onValueChange={setTypeId}
-              >
-                <SelectTrigger aria-label={ui.tasks.type} className="w-full">
-                  <SelectValue placeholder={ui.tasks.task} />
-                </SelectTrigger>
-                {/* popper — список ПОД полем, как у соседних пикеров формы
-                    (ответственный, срок): режим item-aligned клал единственный
-                    пункт пилюлей прямо поверх значения (фидбек владельца #311). */}
-                <SelectContent position="popper" align="start" sideOffset={4}>
-                  {(types ?? []).map((t) => (
-                    <SelectItem key={t.id} value={t.id} className="py-1.5">
-                      {t.name}
-                    </SelectItem>
-                  ))}
-                  {/* Задел модуля workflow (ступень 2, ADR-0020): настройка
-                      типов и маршрутов откроется отсюда; до редактора — видимая
-                      неактивная команда «скоро» (решение владельца 16.10). */}
-                  <SelectItem
-                    value="__configure"
-                    disabled
-                    className="mt-1 py-1.5 pr-2 *:[span]:last:w-full"
-                  >
-                    <Settings2 className="size-3.5 text-muted-foreground" strokeWidth={1.75} />
-                    {ui.tasks.configureTypes}
-                    <span className="ml-auto text-xs text-muted-foreground">{ui.tasks.soon}</span>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
+              <TaskTypeField
+                types={types ?? []}
+                value={shownTypeId ?? ''}
+                onChange={setTypeId}
+                formFilled={filled}
+                onLeave={() => onOpenChange(false)}
+              />
               <NodeLabel label={ui.tasks.assignee} />
               <FilterCombobox
                 options={(users?.items ?? []).map((u) => ({

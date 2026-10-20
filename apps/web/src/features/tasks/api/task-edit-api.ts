@@ -17,9 +17,8 @@ import { lettersKeys } from '../../../shared/api/letters-keys.js';
 import { mapTaskInPages, taskDependentKeys, tasksKeys } from '../../../shared/api/tasks-keys.js';
 
 /** Правка полей карточки — подмножество PATCH без переноса по осям. */
-export type TaskFieldsPatch = Pick<
-  TaskUpdateBody,
-  'title' | 'description' | 'priority' | 'deadline' | 'plannedMinutes' | 'acceptRequired'
+export type TaskFieldsPatch = Partial<
+  Pick<TaskUpdateBody, 'title' | 'description' | 'priority' | 'deadline' | 'plannedMinutes'>
 >;
 
 /** Правка полей задачи (I4): значение в карточке и журнале меняется сразу,

@@ -1,0 +1,56 @@
+import { describe, expect, it } from 'vitest';
+
+import {
+  rolesOf,
+  routeIfOf,
+  setAllowReview,
+  setRouteIf,
+  toggleField,
+  toggleRole,
+  toggleValidator,
+  validatorOf,
+} from './transition-rules.js';
+
+const base = {
+  conditions: [{ kind: 'role_in' as const, roles: ['assignee' as const] }],
+  validators: [],
+  postFunctions: [],
+};
+
+describe('transition-rules: правки правил кнопки (#378)', () => {
+  it('роли: добавить, снять; последнюю снять нельзя', () => {
+    const both = toggleRole(base, 'creator');
+    expect([...rolesOf(both)]).toEqual(['creator', 'assignee']);
+    expect(toggleRole(base, 'assignee')).toBe(base);
+  });
+
+  it('гейт подзадач: строгий по умолчанию, галочка — мягкий', () => {
+    const strict = toggleValidator(base, 'no_open_subtasks');
+    expect(validatorOf(strict, 'no_open_subtasks')).toEqual({ kind: 'no_open_subtasks' });
+    const soft = setAllowReview(strict, true);
+    expect(validatorOf(soft, 'no_open_subtasks')).toEqual({
+      kind: 'no_open_subtasks',
+      allowReview: true,
+    });
+    expect(validatorOf(setAllowReview(soft, false), 'no_open_subtasks')).toEqual({
+      kind: 'no_open_subtasks',
+    });
+    expect(
+      validatorOf(toggleValidator(soft, 'no_open_subtasks'), 'no_open_subtasks'),
+    ).toBeUndefined();
+  });
+
+  it('поля: по умолчанию описание; последнее поле не снимается', () => {
+    const withFields = toggleValidator(base, 'fields_required');
+    expect(validatorOf(withFields, 'fields_required')?.fields).toEqual(['description']);
+    const two = toggleField(withFields, 'result');
+    expect(validatorOf(two, 'fields_required')?.fields).toEqual(['description', 'result']);
+    expect(toggleField(withFields, 'description')).toBe(withFields);
+  });
+
+  it('особое правило: включить с целью и выключить', () => {
+    const on = setRouteIf(base, 'stage-done');
+    expect(routeIfOf(on)).toBe('stage-done');
+    expect(routeIfOf(setRouteIf(on, null))).toBeNull();
+  });
+});

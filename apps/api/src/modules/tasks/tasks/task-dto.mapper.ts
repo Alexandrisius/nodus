@@ -27,6 +27,7 @@ export function stageDto(s: {
   sortOrder: number;
   systemState: string;
   color: string;
+  outcome?: string | null;
 }): TaskStage {
   return {
     id: s.id,
@@ -34,6 +35,7 @@ export function stageDto(s: {
     order: s.sortOrder,
     systemState: s.systemState as TaskSystemState,
     color: s.color as StageColor,
+    ...(s.outcome ? { outcome: s.outcome as 'success' | 'cancelled' } : {}),
   };
 }
 

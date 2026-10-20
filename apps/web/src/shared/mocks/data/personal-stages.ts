@@ -15,7 +15,7 @@ const sid = (n: number): string => `20000000-0000-4000-8000-${String(n).padStart
  *  ADR-0008): та же форма стадии, что у проектной схемы; привязка к системному
  *  состоянию — основа встроенного автоперемещения (доска живая без роботов).
  *  Каркас — шаблон API `PERSONAL_TEMPLATE` (system-catalog.ts: каждому из
- *  пяти состояний — минимум одна колонка, «На контроле» = done, «Завершённые» =
+ *  пяти состояний — минимум одна колонка, «На утверждении» = done, «Завершённые» =
  *  closed); поверх — вольные личные колонки владельца («Стратегические»,
  *  «Проанализировано») внутри состояния active. */
 export const personalNew: TaskStage = {
@@ -55,7 +55,7 @@ export const personalWaiting: TaskStage = {
 };
 export const personalOnControl: TaskStage = {
   id: sid(106),
-  name: 'На контроле',
+  name: 'На утверждении',
   order: 5,
   systemState: 'done',
   color: 'warning',

@@ -72,6 +72,11 @@ const EmployeesPage = pageLoader(() =>
     default: m.EmployeesPage,
   })),
 );
+const AutomationPage = pageLoader(() =>
+  import('../features/automation/pages/automation-page.js').then((m) => ({
+    default: m.AutomationPage,
+  })),
+);
 
 /**
  * Роутер SPA (TanStack Router, code-splitting по разделам).
@@ -201,6 +206,12 @@ const employeesRoute = createRoute({
   component: EmployeesPage,
 });
 
+const automationRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/automation',
+  component: AutomationPage,
+});
+
 const routeTree = rootRoute.addChildren([
   loginRoute,
   shellRoute.addChildren([
@@ -213,6 +224,7 @@ const routeTree = rootRoute.addChildren([
     chatRoute,
     chatConversationRoute,
     employeesRoute,
+    automationRoute,
   ]),
 ]);
 

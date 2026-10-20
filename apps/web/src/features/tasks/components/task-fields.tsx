@@ -1,5 +1,4 @@
 import {
-  BadgeCheck,
   CalendarClock,
   CalendarPlus,
   Eye,
@@ -7,13 +6,14 @@ import {
   FolderKanban,
   Hourglass,
   Milestone,
+  ChevronDown,
   Shapes,
   Timer,
   User,
   UserPen,
   Users,
 } from 'lucide-react';
-import { memo } from 'react';
+import { memo, useState } from 'react';
 import type { TaskDetail } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 
@@ -23,12 +23,8 @@ import { formatDateTime } from '../../../shared/lib/format.js';
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
 import { EntityFields, type EntityFieldDef } from '../../../shared/ui/entity-fields.js';
 import { identityTone } from '../../../shared/ui/identity-tone.js';
-import {
-  TaskAcceptField,
-  TaskDeadlineField,
-  TaskPlannedField,
-  TaskPriorityField,
-} from './task-field-editors.js';
+import { TaskDeadlineField, TaskPlannedField, TaskPriorityField } from './task-field-editors.js';
+import { TaskChangeTypeDialog } from './task-change-type-dialog.js';
 import { TaskAssigneeField, TaskPeopleField } from './task-people-field.js';
 import { TaskStageField } from './task-stage-controls.js';
 import { TaskSpentField } from './task-time.js';
@@ -69,17 +65,32 @@ export const TaskFields = memo(function TaskFields({ task }: { task: TaskDetail 
   };
   // Тип задачи (ADR-0020): ступень 1 — один системный «Задача»; смена типа
   // = смена маршрута — придёт со ступенью 2 вместе с редактором схем.
+  // Тип меняется ЗДЕСЬ, в поле карточки (решение владельца 19.10: смена типа —
+  // осознанная операция с синхронизацией статуса, ей место в поле, не в «⋯»).
+  const [changeTypeOpen, setChangeTypeOpen] = useState(false);
   const type: EntityFieldDef = {
     key: 'type',
     icon: <Shapes className="size-3.5" />,
     label: ui.tasks.type,
-    render: () => <span>{task.type.name}</span>,
-  };
-  const accept: EntityFieldDef = {
-    key: 'accept',
-    icon: <BadgeCheck className="size-3.5" />,
-    label: ui.tasks.acceptField,
-    render: () => <TaskAcceptField task={task} />,
+    render: () =>
+      task.access.canEdit ? (
+        <>
+          <button
+            type="button"
+            onClick={() => setChangeTypeOpen(true)}
+            className="inline-flex min-w-0 items-center gap-1 rounded px-0.5 -mx-0.5 text-left transition-colors hover:bg-accent/50"
+            aria-label={`${ui.tasks.changeTypeTitle}: ${task.type.name}`}
+          >
+            <span className="truncate">{task.type.name}</span>
+            <ChevronDown className="size-3 shrink-0 opacity-70" strokeWidth={1.75} />
+          </button>
+          {changeTypeOpen ? (
+            <TaskChangeTypeDialog task={task} onClose={() => setChangeTypeOpen(false)} />
+          ) : null}
+        </>
+      ) : (
+        <span>{task.type.name}</span>
+      ),
   };
   const created: EntityFieldDef = {
     key: 'created',
@@ -158,7 +169,7 @@ export const TaskFields = memo(function TaskFields({ task }: { task: TaskDetail 
       label: ui.tasks.plannedTime,
       render: () => <TaskPlannedField task={task} />,
     },
-    ...(withProject ? [type, accept, created] : [accept, created]),
+    ...(withProject ? [type, created] : [created]),
   ];
 
   return <EntityFields defs={defs} storageKey={VISIBILITY_KEY} />;

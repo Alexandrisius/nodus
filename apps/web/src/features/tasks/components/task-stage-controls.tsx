@@ -1,103 +1,138 @@
-import { ArrowRight, Check, ChevronDown, MoreHorizontal, Undo2 } from 'lucide-react';
+import { useState } from 'react';
+import {
+  Check,
+  ChevronDown,
+  Loader2,
+  MoreHorizontal,
+  Pause,
+  Play,
+  Send,
+  Undo2,
+  Waypoints,
+  X,
+} from 'lucide-react';
 import type { TaskDetail, TaskTransition } from '@nodus/contracts';
-import { ui } from '@nodus/contracts';
+import { isFinalState, isReviewState, ui } from '@nodus/contracts';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@nodus/ui/components/dropdown-menu';
 import { cn } from '@nodus/ui/lib/utils';
+import type { LucideIcon } from 'lucide-react';
 
 import { gateReasonsText, useTaskTransitions } from '../api/transitions-api.js';
-import { useTaskStages } from '../../../shared/api/task-stages.js';
 import { stageTone } from '../../../shared/ui/board/stage-tone.js';
-import { TaskTimerButton } from './task-time.js';
+import { groupProcessButtons } from '../../../shared/workflow/process-buttons.js';
+import { RouteViewDialog } from '../../../shared/workflow/route-view-dialog.js';
 import { useTransitionRunner } from './task-transition-dialog.js';
 
-/* Главные CTA задачи — ОДНОЙ высоты со вторичными: h-8 = 40px при --ui-scale
- * 1.25 = основные кнопки Битрикс24 (замер владельца 20.09.2026); важность —
- * заливкой, не размером (research Carbon/EUI; вердикт раунда 2: h-9=45px
- * «чуть больше, чем надо»). */
+/* Кнопки панели — ОДНОЙ высоты: h-8 = 40px при --ui-scale 1.25 (замер
+ * Битрикс24); важность — заливкой, не размером. Главная — одна (залитая),
+ * видимые — по порядку, «Ещё ⋯» — меню; порядок и показ задаёт сервер
+ * (`display`, sortOrder) — эвристик клиента нет (#378). */
 const btn =
   'inline-flex h-8 shrink-0 items-center gap-2 rounded-md px-3 text-sm font-medium transition-colors disabled:opacity-40';
 const valueChip =
   'inline-flex h-6 max-w-full cursor-pointer items-center gap-1.5 rounded border px-1.5 font-mono text-label font-medium tracking-[0.08em] transition-colors hover:brightness-125 data-[state=open]:brightness-125';
 
+/** Иконка кнопки — по этапу цели (#378): вперёд/пауза/на утверждение/
+ *  итог (✓ выполнена, ✕ отменена)/возврат в ожидание. */
+function transitionIcon(t: TaskTransition): LucideIcon {
+  if (t.toStageState === 'active') return Play;
+  if (t.toStageState === 'paused') return Pause;
+  if (isReviewState(t.toStageState)) return Send;
+  if (isFinalState(t.toStageState)) return t.toStageOutcome === 'cancelled' ? X : Check;
+  return Undo2;
+}
+
 /**
- * Замоноличенный нижний бар действий задачи (модель Битрикса: бар не
- * скроллится, всегда под рукой). Кнопки = ПЕРЕХОДЫ маршрута типа задачи
- * (ADR-0020), доступные текущему пользователю: сервер решает, кому какие
- * («Начать» — исполнителю, «Принять» — постановщику). Первая доступная —
- * основная; заблокированная гейтом (DoR/DoD) видна приглушённой, клик —
- * диалог с причинами и выходами (#311: закрыть с подзадачами, обойти гейт
- * по праву). Справа — таймер учёта времени. Личная колонка «Моего плана»
- * здесь НЕ показывается и из карточки не меняется — только DnD на доске.
+ * Панель процесса — замоноличенный нижний бар карточки (модель Битрикса):
+ * кнопки = переходы маршрута типа (ADR-0020) с показом `display`. Главная
+ * слева залитой, далее видимые по порядку, «Ещё ⋯» — меню. Заблокированная
+ * гейтом кнопка видна приглушённой, клик — диалог причин и выходов; в
+ * правом конце — «Схема маршрута». Личная колонка «Моего плана» здесь не
+ * показывается (только DnD на доске).
  */
 export function TaskActionBar({ task }: { task: TaskDetail }) {
   const { data: transitions } = useTaskTransitions(task.id);
   const runner = useTransitionRunner(task);
+  const [routeOpen, setRouteOpen] = useState(false);
 
   if (!transitions) {
     return <div className="h-8" aria-hidden />;
   }
 
-  const closed = task.stage.systemState === 'closed';
-  const primaryId = transitions.find((t) => t.blockedBy.length === 0)?.id;
+  const { primary, visible, menu } = groupProcessButtons(transitions);
+  const closed = isFinalState(task.stage.systemState);
+  const cancelled = closed && task.stage.outcome === 'cancelled';
+
+  const renderButton = (t: TaskTransition, main: boolean) => {
+    const blocked = t.blockedBy.length > 0;
+    const running = runner.runningId === t.id;
+    const Icon = running ? Loader2 : transitionIcon(t);
+    return (
+      <button
+        key={t.id}
+        type="button"
+        // Панель не гаснет во время хода (чип уже сменился оптимистично):
+        // повторный клик гасит сам runner; у нажатой — спиннер.
+        aria-busy={running || undefined}
+        // НЕ aria-disabled: кнопка работает — открывает диалог причин.
+        data-blocked={blocked || undefined}
+        aria-label={t.name}
+        title={
+          blocked
+            ? `${ui.tasks.processBlockedMissing} ${gateReasonsText(t.blockedBy)}`
+            : `${t.name}: ${t.toStageName}`
+        }
+        onClick={() => runner.run(t)}
+        className={cn(
+          btn,
+          main
+            ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+            : 'min-w-0 shrink text-muted-foreground hover:bg-accent hover:text-foreground',
+          blocked && 'opacity-50',
+        )}
+      >
+        <Icon className={cn('size-4 shrink-0', running && 'animate-spin')} strokeWidth={1.75} />
+        {/* Узкая левая зона: вторичная кнопка — только значок с подсказкой. */}
+        <span className={cn('max-w-36 min-w-0 truncate', !main && '@max-[420px]:hidden')}>
+          {t.name}
+        </span>
+      </button>
+    );
+  };
 
   return (
     <div className="flex w-full min-w-0 items-center gap-1.5">
       {runner.dialog}
+      <RouteViewDialog
+        open={routeOpen}
+        onClose={() => setRouteOpen(false)}
+        task={task}
+        transitions={transitions}
+      />
       {closed ? (
         <span
           className={cn(
             'inline-flex h-8 shrink-0 items-center gap-2 rounded-md border px-3 text-sm font-medium',
-            stageTone.success.chip,
+            cancelled ? stageTone.danger.chip : stageTone.success.chip,
           )}
         >
-          <Check className="size-4" strokeWidth={2} />
+          {cancelled ? (
+            <X className="size-4" strokeWidth={2} />
+          ) : (
+            <Check className="size-4" strokeWidth={2} />
+          )}
           {task.stage.name}
         </span>
       ) : null}
-      {/* Две первые кнопки маршрута — на виду, остальные — в «⋯» (модель
-        Битрикс24 «Ещё»): бар не переполняется на узкой левой зоне, таймер
-        справа не обрезается (замер ui-гейта #311 на 1440). */}
-      {transitions.slice(0, VISIBLE).map((t) => {
-        const blocked = t.blockedBy.length > 0;
-        const Icon = closesTask(t, task) ? Check : reopensTask(t, task) ? Undo2 : ArrowRight;
-        return (
-          <button
-            key={t.id}
-            type="button"
-            disabled={runner.isPending}
-            // НЕ aria-disabled: кнопка работает — открывает диалог причин.
-            data-blocked={blocked || undefined}
-            aria-label={t.name}
-            title={blocked ? gateReasonsText(t.blockedBy) : `${t.name}: ${t.toStageName}`}
-            onClick={() => runner.run(t)}
-            className={cn(
-              btn,
-              t.id === primaryId
-                ? 'bg-primary text-primary-foreground hover:bg-primary/90'
-                : 'min-w-0 shrink text-muted-foreground hover:bg-accent hover:text-foreground',
-              blocked && 'opacity-50',
-            )}
-          >
-            <Icon className="size-4 shrink-0" strokeWidth={1.75} />
-            {/* Узкая левая зона (ноутбук, широкий чат): вторичная кнопка —
-              только значок с подсказкой; таймер справа не обрезается. */}
-            <span
-              className={cn(
-                'max-w-36 min-w-0 truncate',
-                t.id !== primaryId && '@max-[420px]:hidden',
-              )}
-            >
-              {t.name}
-            </span>
-          </button>
-        );
-      })}
-      {transitions.length > VISIBLE ? (
+      {primary ? renderButton(primary, true) : null}
+      {visible.map((t) => renderButton(t, false))}
+      {menu.length > 0 ? (
         <DropdownMenu>
           <DropdownMenuTrigger
             aria-label={ui.tasks.moreActions}
@@ -107,11 +142,15 @@ export function TaskActionBar({ task }: { task: TaskDetail }) {
             <MoreHorizontal className="size-4" strokeWidth={1.75} />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" side="top" className="w-52">
-            {transitions.slice(VISIBLE).map((t) => (
+            {menu.map((t) => (
               <DropdownMenuItem
                 key={t.id}
                 className={cn(t.blockedBy.length > 0 && 'opacity-50')}
-                title={t.blockedBy.length > 0 ? gateReasonsText(t.blockedBy) : t.toStageName}
+                title={
+                  t.blockedBy.length > 0
+                    ? `${ui.tasks.processBlockedMissing} ${gateReasonsText(t.blockedBy)}`
+                    : t.toStageName
+                }
                 onSelect={() => runner.run(t)}
               >
                 {t.name}
@@ -120,37 +159,43 @@ export function TaskActionBar({ task }: { task: TaskDetail }) {
           </DropdownMenuContent>
         </DropdownMenu>
       ) : null}
+      {transitions.length === 0 ? (
+        <span className="px-1 text-sm text-muted-foreground">
+          {task.access.canEdit ? ui.tasks.processNoActions : ui.tasks.processObserving}
+        </span>
+      ) : null}
       <span className="ml-auto" />
-      <TaskTimerButton task={task} />
+      <button
+        type="button"
+        onClick={() => setRouteOpen(true)}
+        aria-label={ui.tasks.processRouteView}
+        title={ui.tasks.processRouteView}
+        className="shrink-0 rounded-lg p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+      >
+        <Waypoints className="size-4" strokeWidth={1.75} />
+      </button>
     </div>
   );
 }
 
-const OPEN = new Set(['backlog', 'active', 'paused']);
-/** Сколько переходов маршрута — кнопками на виду (остальные — в «⋯»). */
-const VISIBLE = 2;
-
-/** Переход закрывает задачу (иконка «галочка») / возвращает в работу. */
-function closesTask(t: TaskTransition, task: TaskDetail): boolean {
-  return OPEN.has(task.stage.systemState) && !OPEN.has(t.toStageState);
-}
-
-function reopensTask(t: TaskTransition, task: TaskDetail): boolean {
-  return !OPEN.has(task.stage.systemState) && OPEN.has(t.toStageState);
-}
-
 /** Поле «Стадия» (глобальная ось): чип текущей стадии + список стадий,
- *  в которые ведут доступные переходы маршрута (модель Битрикса/Jira:
- *  выбор стадии = выполнение перехода, недоступные не показываются). */
+ *  в которые ведут доступные переходы маршрута; последним пунктом —
+ *  «Схема маршрута…» (#378). */
 export function TaskStageField({ task }: { task: TaskDetail }) {
   const { data: transitions } = useTaskTransitions(task.id);
   const runner = useTransitionRunner(task);
-  const { data: stages } = useTaskStages();
+  const [routeOpen, setRouteOpen] = useState(false);
   const tone = stageTone[task.stage.color];
 
   return (
     <>
       {runner.dialog}
+      <RouteViewDialog
+        open={routeOpen}
+        onClose={() => setRouteOpen(false)}
+        task={task}
+        transitions={transitions}
+      />
       <DropdownMenu>
         <DropdownMenuTrigger aria-label={ui.tasks.fieldStage} className={cn(valueChip, tone.chip)}>
           <span aria-hidden className={cn('size-1.5 shrink-0 rounded-full', tone.dot)} />
@@ -164,7 +209,7 @@ export function TaskStageField({ task }: { task: TaskDetail }) {
             <Check className="ml-auto size-3.5 shrink-0 text-port" strokeWidth={2} />
           </DropdownMenuItem>
           {transitions?.map((t) => {
-            const color = stages?.find((s) => s.id === t.toStageId)?.color ?? 'neutral';
+            const color = t.toStageColor;
             return (
               <DropdownMenuItem
                 key={t.id}
@@ -180,6 +225,11 @@ export function TaskStageField({ task }: { task: TaskDetail }) {
               </DropdownMenuItem>
             );
           })}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onSelect={() => setRouteOpen(true)}>
+            <Waypoints className="size-3.5" />
+            {ui.tasks.processRouteView}
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </>

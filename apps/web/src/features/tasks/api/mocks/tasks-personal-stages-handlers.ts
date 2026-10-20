@@ -1,5 +1,6 @@
 import {
   ErrorCode,
+  isOpenState,
   personalStageCreateBodySchema,
   personalStageUpdateBodySchema,
 } from '@nodus/contracts';
@@ -39,8 +40,7 @@ export const tasksPersonalStagesHandlers = [
             t.personalStageId === s.id &&
             t.deadline !== null &&
             new Date(t.deadline) < new Date() &&
-            s.systemState !== 'done' &&
-            s.systemState !== 'closed',
+            isOpenState(s.systemState),
         ).length,
       })),
     ),

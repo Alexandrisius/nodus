@@ -1,6 +1,6 @@
 import { CalendarClock, ChevronDown, Flag, Milestone, User, X } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
-import type { TaskBulkAction } from '@nodus/contracts';
+import type { TaskBulkAction, TaskListItem } from '@nodus/contracts';
 import { taskPrioritySchema, ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import {
@@ -46,13 +46,19 @@ function ActionLabel({ icon, children }: { icon: ReactNode; children: ReactNode 
  */
 export function TaskBulkIsland({
   selectedIds,
+  selectedTasks,
   onClear,
 }: {
   selectedIds: readonly string[];
+  /** Снапшоты выбранных строк: массовая «Стадия» — только одного типа (#378). */
+  selectedTasks: readonly TaskListItem[];
   onClear: () => void;
 }) {
   const bulk = useBulkTasks();
-  const { data: stages } = useTaskStages();
+  const typeIds = new Set(selectedTasks.map((t) => t.type.id));
+  const singleType = typeIds.size <= 1;
+  // Статусы маршрута выбранного типа: у разных типов свои «В работе».
+  const { data: stages } = useTaskStages(singleType ? [...typeIds][0] : undefined);
   // Счётчик фазы выхода: островок уезжает с последним числом, а не с нулём.
   const [shownCount, setShownCount] = useState(selectedIds.length);
   if (selectedIds.length > 0 && shownCount !== selectedIds.length) {
@@ -84,7 +90,12 @@ export function TaskBulkIsland({
         {shownCount}
       </span>
       <DropdownMenu>
-        <DropdownMenuTrigger className={action} tabIndex={visible ? 0 : -1}>
+        <DropdownMenuTrigger
+          className={action}
+          tabIndex={visible ? 0 : -1}
+          disabled={!singleType}
+          title={!singleType ? ui.tasks.bulkSingleType : undefined}
+        >
           <ActionLabel icon={<Milestone className="size-4" strokeWidth={1.75} />}>
             {ui.tasks.bulkStage}
           </ActionLabel>

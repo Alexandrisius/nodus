@@ -153,7 +153,6 @@ export const tasksHandlers = [
       });
       if (body.description !== undefined) extra.description = body.description;
       if (body.plannedMinutes !== undefined) extra.plannedMinutes = body.plannedMinutes;
-      if (body.acceptRequired !== undefined) extra.acceptRequired = body.acceptRequired;
       task.updatedAt = new Date().toISOString();
       return HttpResponse.json(task);
     }

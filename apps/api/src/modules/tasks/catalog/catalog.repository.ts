@@ -4,13 +4,12 @@ import type { WorkflowTransitionRules } from '@nodus/contracts';
 import type { Prisma } from '../../../generated/prisma/client.js';
 import type { TransactionClient } from '../../../core/database/transaction-runner.js';
 
-const OPEN_STATES = ['backlog', 'active', 'paused'];
-
 export interface CatalogStageData {
   name: string;
   color: string;
   sortOrder: number;
   systemState: string;
+  outcome: string | null;
   isInitial: boolean;
 }
 
@@ -18,6 +17,7 @@ export interface CatalogTransitionData {
   name: string;
   fromStageId: string | null;
   toStageId: string;
+  display: string;
   sortOrder: number;
   rules: WorkflowTransitionRules;
 }
@@ -28,16 +28,27 @@ function json(data: CatalogTransitionData) {
 }
 
 /**
- * Системный каталог маршрутов (ADR-0020): записи по `code` — тип, схема,
- * маршруты, стадии, переходы. Только для бутстрапа (CatalogBootstrap), всё
- * внутри его транзакции.
+ * Системный каталог маршрутов (ADR-0020/0021): записи по `code` — типы,
+ * схема, маршруты, стадии, переходы. Только для бутстрапа (CatalogBootstrap),
+ * всё внутри его транзакции; применение — «засев один раз» по ревизии.
  */
 @Injectable()
 export class CatalogRepository {
-  async ensureType(tx: TransactionClient, def: { code: string; name: string }) {
+  async ensureType(
+    tx: TransactionClient,
+    def: {
+      code: string;
+      name: string;
+      icon: string;
+      color: string;
+      description: string;
+    },
+  ) {
     return (
       (await tx.taskType.findUnique({ where: { code: def.code } })) ??
-      (await tx.taskType.create({ data: { ...def, isSystem: true } }))
+      // Создаётся с ревизией 0: seedOnce применит текущую ревизию каталога
+      // (создание ≠ применённая ревизия).
+      (await tx.taskType.create({ data: { ...def, isSystem: true, catalogRevision: 0 } }))
     );
   }
 
@@ -62,13 +73,65 @@ export class CatalogRepository {
     });
   }
 
+  /** Блокировка строки маршрута на засев: публикация (тоже FOR UPDATE)
+   *  и старт приложения не перетирают друг друга (код-ревью #378). */
+  async lockWorkflow(tx: TransactionClient, workflowId: string): Promise<void> {
+    await tx.$queryRaw`SELECT id FROM workflows WHERE id = ${workflowId}::uuid FOR UPDATE`;
+  }
+
+  /** Состояние засева маршрута (правили ли руками, какая ревизия применена). */
+  seedState(tx: TransactionClient, workflowId: string) {
+    return tx.workflow.findUniqueOrThrow({
+      where: { id: workflowId },
+      select: { customizedAt: true, catalogRevision: true },
+    });
+  }
+
+  async isTypeCustomized(tx: TransactionClient, typeId: string): Promise<boolean> {
+    const row = await tx.taskType.findUniqueOrThrow({
+      where: { id: typeId },
+      select: { customizedAt: true },
+    });
+    return row.customizedAt !== null;
+  }
+
+  /** Свойства типа по ревизии каталога (только поля, которыми владеет каталог). */
+  async applyTypeRevision(
+    tx: TransactionClient,
+    typeId: string,
+    def: { name: string; icon: string; color: string; description: string; sortOrder: number },
+    revision: number,
+  ): Promise<void> {
+    await tx.taskType.update({
+      where: { id: typeId },
+      data: { ...def, catalogRevision: revision },
+    });
+  }
+
+  /** Ревизия применена к маршруту: новая версия (системная публикация —
+   *  открытый у кого-то черновик получит конфликт версии, а не затрёт). */
+  async applyWorkflowRevision(
+    tx: TransactionClient,
+    workflowId: string,
+    revision: number,
+  ): Promise<number> {
+    const row = await tx.workflow.update({
+      where: { id: workflowId },
+      data: { catalogRevision: revision, version: { increment: 1 } },
+      select: { version: true },
+    });
+    return row.version;
+  }
+
   async ensureWorkflow(
     tx: TransactionClient,
     def: { code: string; name: string; kind: string; isTemplate: boolean },
   ) {
     return (
       (await tx.workflow.findUnique({ where: { code: def.code } })) ??
-      (await tx.workflow.create({ data: { ...def, isSystem: true } }))
+      // Ревизия 0 при создании: seedOnce посеет стадии/переходы и поднимет
+      // до текущей (создание с текущей пропускало бы посев содержимого).
+      (await tx.workflow.create({ data: { ...def, isSystem: true, catalogRevision: 0 } }))
     );
   }
 
@@ -88,35 +151,16 @@ export class CatalogRepository {
     await tx.workflowStage.update({ where: { id: stageId }, data });
   }
 
-  /** Стадия сменила системное состояние — денормализация задач в ней
-   *  (`tasks.system_state` + completedAt по канону applyStage: закрытое
-   *  состояние — момент завершения, открытое — сброс). Число задач. */
-  async restateStageTasks(
-    tx: TransactionClient,
-    stageId: string,
-    systemState: string,
-    now: Date,
-  ): Promise<number> {
-    const { count } = await tx.task.updateMany({
-      where: { stageId, systemState: { not: systemState } },
-      data: { systemState, stateChangedAt: now },
-    });
-    if (OPEN_STATES.includes(systemState)) {
-      await tx.task.updateMany({
-        where: { stageId, completedAt: { not: null } },
-        data: { completedAt: null },
-      });
-    } else {
-      await tx.task.updateMany({
-        where: { stageId, completedAt: null },
-        data: { completedAt: now },
-      });
-    }
-    return count;
-  }
-
   findTransition(tx: TransactionClient, workflowId: string, code: string) {
     return tx.workflowTransition.findUnique({ where: { workflowId_code: { workflowId, code } } });
+  }
+
+  /** Живые переходы маршрута (для архивации неcatalogочных при посеве). */
+  liveTransitions(tx: TransactionClient, workflowId: string) {
+    return tx.workflowTransition.findMany({
+      where: { workflowId, archivedAt: null },
+      select: { id: true, code: true },
+    });
   }
 
   async createTransition(
@@ -133,6 +177,16 @@ export class CatalogRepository {
     transitionId: string,
     data: CatalogTransitionData,
   ): Promise<void> {
-    await tx.workflowTransition.update({ where: { id: transitionId }, data: json(data) });
+    await tx.workflowTransition.update({
+      where: { id: transitionId },
+      data: { ...json(data), archivedAt: null },
+    });
+  }
+
+  async archiveTransition(tx: TransactionClient, transitionId: string, now: Date): Promise<void> {
+    await tx.workflowTransition.update({
+      where: { id: transitionId },
+      data: { archivedAt: now },
+    });
   }
 }

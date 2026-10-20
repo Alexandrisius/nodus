@@ -22,9 +22,9 @@ import { useCloseCard } from '../../../app/shell/use-card-stack.js';
 import { copyCardLink } from '../../../shared/lib/card-link.js';
 import { useDeleteTask } from '../api/task-edit-api.js';
 
-/** Меню «⋯» шапки карточки (#311, пилот): ссылка на задачу и удаление
- *  (право canDelete — постановщик/task.manage_any). Диалог подтверждения —
- *  сиблинг меню, не внутри его слоя (канон диалогов из оверлеев). */
+/** Меню «⋯» шапки карточки (#311, пилот): ссылка на задачу, смена типа
+ *  (#378, доступна тем, кто может править) и удаление. Диалоги — сиблинги
+ *  меню, не внутри его слоя (канон диалогов из оверлеев). */
 export function TaskCardMenu({ task }: { task: TaskDetail }) {
   const remove = useDeleteTask(task.id);
   const closeCard = useCloseCard();

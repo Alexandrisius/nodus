@@ -1,15 +1,20 @@
 import { CalendarClock } from 'lucide-react';
-import { ui } from '@nodus/contracts';
+import { isOpenState, ui, type TaskSystemState } from '@nodus/contracts';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { formatDateTime } from '../lib/format.js';
 
-/** Чип срока: просрочен — красный, сегодня — оранжевый, далее — нейтральный. */
+/** Чип срока: просрочен — красный, сегодня — оранжевый, далее — нейтральный.
+ *  Срочность — только пока работа не сдана (фаза open): у задачи на
+ *  утверждении и закрытой срок нейтральный (ADR-0020, дополнение 2). */
 export function DeadlineChip({
   deadline,
+  state,
   className,
 }: {
   deadline: string | null;
+  /** Системное состояние задачи — решает, горит ли срок. */
+  state: TaskSystemState;
   className?: string;
 }) {
   if (!deadline) {
@@ -21,8 +26,9 @@ export function DeadlineChip({
   const now = new Date();
   const dayEnd = new Date();
   dayEnd.setHours(23, 59, 59, 999);
-  const overdue = date < now;
-  const today = !overdue && date <= dayEnd;
+  const urgent = isOpenState(state);
+  const overdue = urgent && date < now;
+  const today = urgent && !overdue && date <= dayEnd;
 
   return (
     <span

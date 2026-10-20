@@ -43,18 +43,37 @@ import { TimeService } from './time/time.service.js';
 import { TaskWorkflowController } from './workflow/task-workflow.controller.js';
 import { TransitionsService } from './workflow/transitions.service.js';
 import { WorkflowRepository } from './workflow/workflow.repository.js';
+import { StageMover } from './workflow/stage-mover.js';
+import { WorkflowEditorController } from './workflow/editor/workflow-editor.controller.js';
+import { WorkflowEditorService } from './workflow/editor/publish.service.js';
+import { WorkflowPublishRepository } from './workflow/editor/publish.repository.js';
+import { WorkflowSyncJob } from './workflow/editor/workflow-sync.job.js';
+import { WorkflowPublishedHandler } from './events/workflow-published.handler.js';
+import { TaskTypesController } from './types/task-types.controller.js';
+import { TaskTypesRepository } from './types/task-types.repository.js';
+import { TaskTypesService } from './types/task-types.service.js';
+import { TaskTypeChangeService } from './types/task-type-change.service.js';
 
 /**
  * Модуль tasks (#37, эпик M4 #49; ADR-0008, ADR-0020): самостоятельные
  * задачи (проект необязателен), движок маршрутов с гейтами DoR/DoD,
  * «Мой план», участники, чек-лист, время, результат, связи, история, bulk.
- * Изоляция (I3/I6): профили и оргструктура — read-порты core (ADR-0012);
- * чат задачи — модуль chat по событиям task.* (#252). Флаг `tasks` (I10).
+ * Редактор маршрутов и библиотека типов (#378, ADR-0021) — та же композиция
+ * API модуля (I13, отдельный backend-модуль не заводим). Изоляция (I3/I6):
+ * профили и оргструктура — read-порты core (ADR-0012); чат задачи — модуль
+ * chat по событиям task.* (#252). Флаг `tasks` (I10).
  */
 @Module({
   // Read-порты чата (ADR-0012): доступ к сообщению для «В задачу»/результата.
   imports: [ChatPortsModule],
-  controllers: [TasksController, TaskWorkflowController, TaskPartsController, TimeController],
+  controllers: [
+    TasksController,
+    TaskWorkflowController,
+    TaskPartsController,
+    TimeController,
+    TaskTypesController,
+    WorkflowEditorController,
+  ],
   providers: [
     UserProfileProvider,
     { provide: USER_PROFILE_READER, useClass: UserProfileProvider },
@@ -63,6 +82,8 @@ import { WorkflowRepository } from './workflow/workflow.repository.js';
     // Репозитории — единственная точка доступа к таблицам модуля (patterns.md).
     CatalogRepository,
     WorkflowRepository,
+    WorkflowPublishRepository,
+    TaskTypesRepository,
     TasksRepository,
     TasksQueryRepository,
     PlacementsRepository,
@@ -75,7 +96,14 @@ import { WorkflowRepository } from './workflow/workflow.repository.js';
     HistoryRepository,
     CatalogBootstrap,
     ViewerResolver,
+    StageMover,
     TransitionsService,
+    WorkflowEditorService,
+    WorkflowSyncJob,
+    // Фоновый перенос задач публикации ставится из outbox (at-least-once).
+    WorkflowPublishedHandler,
+    TaskTypesService,
+    TaskTypeChangeService,
     Placements,
     TaskDtoMapper,
     TasksQueryService,

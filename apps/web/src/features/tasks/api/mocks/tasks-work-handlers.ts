@@ -14,7 +14,7 @@ import {
   detailsExtra,
   taskDetailOf,
 } from '../../../../shared/mocks/data/tasks.js';
-import { demoStages, systemTaskType } from '../../../../shared/mocks/data/task-stages.js';
+import { demoStages } from '../../../../shared/mocks/data/task-stages.js';
 import { currentAuthUser, userRef } from '../../../../shared/mocks/data/users.js';
 
 /** Работа по задаче в демо-режиме (#311): типы, учёт времени и таймер,
@@ -76,9 +76,9 @@ function timerDto(): RunningTimer | null {
 }
 
 export const tasksWorkHandlers = [
-  http.get('/api/v1/tasks/types', () =>
-    HttpResponse.json([{ ...systemTaskType, structural: false, isSystem: true }]),
-  ),
+  // GET /tasks/types переехал в automation-handlers (#378): расширенный DTO
+  // с icon/color/creatable/архивом; MSW матчит по порядку — дубль здесь
+  // перехватывал запрос и ронял UI старой формой.
 
   http.get('/api/v1/tasks/timer', () => HttpResponse.json(timerDto())),
 

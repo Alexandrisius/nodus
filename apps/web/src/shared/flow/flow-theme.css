@@ -1,0 +1,243 @@
+/*
+ * Тема холста схем (#378, ADR-0022): React Flow подключён через base.css
+ * (только структура), внешний вид — наш, через --xy-* → токены «Инструмент».
+ * Обе темы читаются из глобальных токенов; тени React Flow отключены
+ * (плоскость канона). Цвет стрелок-маркеров задаёт route-graph (style
+ * маркера понимает var()).
+ */
+
+.react-flow {
+  --xy-background-color: transparent;
+  --xy-edge-stroke-default: var(--edge);
+  --xy-edge-stroke-selected-default: var(--primary);
+  --xy-handle-background-color-default: var(--background);
+  --xy-handle-border-color-default: var(--port);
+  --xy-controls-button-background-color-default: var(--card);
+  --xy-controls-button-background-color-hover-default: var(--accent);
+  --xy-controls-button-color-default: var(--muted-foreground);
+  --xy-controls-button-color-hover-default: var(--foreground);
+  --xy-controls-button-border-color-default: var(--border);
+  --xy-controls-box-shadow-default: none;
+  --xy-attribution-background-color-default: transparent;
+  --xy-minimap-background-background-color-default: var(--muted);
+}
+
+/* Точечная сетка канвы (Background dots): цвет — только токеном (var() в
+   fill-атрибуте не работает, переопределяем из CSS). */
+.react-flow__background circle {
+  fill: var(--edge);
+  opacity: 0.7;
+}
+
+/* Атрибуция React Flow: маленькая, справа внизу С ОТСТУПОМ от угла холста
+   (холст сужается панелью — атрибуция едет вместе с его краем). */
+.react-flow__attribution {
+  margin: 0 12px 10px 0;
+  font-size: 10px;
+  opacity: 0.45;
+  transition: opacity 150ms ease;
+}
+
+.react-flow__attribution:hover {
+  opacity: 0.85;
+}
+
+/* Панель масштаба слева внизу: масштаб, «вписать», отмена/повтор —
+   плоская карточка с бордером, кнопки 32px (канон контролов). */
+.flow-controls.react-flow__controls {
+  margin: 0 0 12px 12px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card);
+}
+
+.flow-controls .react-flow__controls-button {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.flow-controls .react-flow__controls-button:last-child {
+  border-bottom: none;
+}
+
+.flow-controls .react-flow__controls-button svg {
+  max-width: 14px;
+  max-height: 14px;
+}
+
+/* Значки React Flow — заливкой (base.css красит fill всем svg кнопок);
+   lucide-стрелки отмены/повтора — только обводкой, иначе заливка
+   превращала контур стрелки в кляксу. */
+.flow-controls .react-flow__controls-button svg.lucide {
+  fill: none;
+  stroke: currentColor;
+}
+
+.flow-controls .react-flow__controls-button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* Узлы — наши карточки; служебные обводки React Flow выключены,
+   выделенность несёт сам узел (кольцо + свечение). */
+.react-flow__node {
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  border-radius: 0;
+  padding: 0;
+  font-family: inherit;
+}
+
+.react-flow__node:focus,
+.react-flow__node:focus-visible {
+  outline: none;
+}
+
+/* Фокус с клавиатуры (Tab по узлам, Enter — выделить) — кольцо на карточке
+   узла, как у выделения: канон «фокус = border-ring + ring-1 ring-ring/30». */
+.react-flow__node:focus-visible .flow-node-card {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--ring) 30%, transparent);
+}
+
+/* Точки подключения (12 шт. у статуса): кружок r=3.5 ПО ЦЕНТРУ границы узла
+   (канон портов связей). Занятая — залита тоном линии: стрелка начинается и
+   упирается в кружок без зазора. Свободная в правке — приглушена, ярче на
+   наведении узла/выделении/протягивании связи. */
+.react-flow__handle.flow-port {
+  width: 7px;
+  height: 7px;
+  min-width: 0;
+  min-height: 0;
+  border-radius: 9999px;
+  border: 1px solid var(--edge-solid);
+  background: var(--card);
+  transition:
+    opacity 120ms ease,
+    background-color 120ms ease;
+}
+
+.react-flow__handle.flow-port-used {
+  background: var(--edge-solid);
+}
+
+.react-flow__handle.flow-port-idle {
+  opacity: 0.45;
+}
+
+.react-flow__node:hover .react-flow__handle.flow-port-idle {
+  opacity: 1;
+}
+
+.react-flow__handle.flow-port:hover,
+.react-flow__handle.connectingto,
+.react-flow__handle.valid {
+  background: var(--primary);
+  border-color: var(--primary);
+  opacity: 1;
+}
+
+/* Наконечники стрелок (flow-markers.tsx): заливка токеном — CSS-свойство
+   понимает var(), атрибут fill маркера — нет; тон НЕпрозрачный
+   (--edge-solid): полупрозрачный наконечник просвечивал и темнел там, где
+   лежит на конце линии. */
+.flow-arrow {
+  fill: var(--edge-solid);
+  stroke: none;
+}
+
+.flow-arrow-selected {
+  fill: var(--primary);
+}
+
+/* Рёбра по показу кнопки: главная — толстая, видна — сплошная, в «Ещё» —
+   пунктир. Выделенная — тон primary и толще. */
+.react-flow__edge-path {
+  stroke-width: 1;
+}
+
+.react-flow__edge-path.flow-edge-primary {
+  stroke-width: 1.75;
+}
+
+.react-flow__edge-path.flow-edge-menu {
+  stroke-dasharray: 4 3;
+}
+
+.react-flow__edge-path.flow-edge-selected {
+  stroke: var(--primary);
+  stroke-width: 2;
+}
+
+/* Концы выделенной стрелки — перетаскиваемые (переподключение). */
+.react-flow__edge.selected .react-flow__edgeupdater {
+  fill: var(--background);
+  stroke: var(--primary);
+  stroke-width: 1.5px;
+  cursor: grab;
+}
+
+/* Подписи-чипы на своих стрелках (transition-edge.tsx): слой подписей —
+   над ВСЕМИ линиями (выделенное ребро не поднимается z-index'ом, а рисуется
+   последним), под узлами; фон чипов непрозрачный — линия под ним не видна. */
+.edge-label {
+  position: absolute;
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  line-height: 1;
+  user-select: none;
+}
+
+.edge-label-primary {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-radius: 9999px;
+  padding: 5px 10px;
+}
+
+.edge-label-button {
+  background: var(--card);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px 9px;
+}
+
+.edge-label-menu {
+  background: var(--muted);
+  color: var(--muted-foreground);
+  border: 1px dashed var(--input);
+  border-radius: 9999px;
+  padding: 4px 10px;
+}
+
+/* В правке подпись выделяют и тянут вдоль стрелки — наведение и фокус с
+   клавиатуры дают отклик (канон фокуса: ring + ring/30). */
+.edge-label-editable:hover:not(.edge-label-selected) {
+  box-shadow: 0 0 0 1px var(--input);
+}
+
+.edge-label:focus-visible:not(.edge-label-selected) {
+  outline: none;
+  box-shadow:
+    0 0 0 1px var(--ring),
+    0 0 0 3px color-mix(in oklab, var(--ring) 30%, transparent);
+}
+
+.edge-label-selected {
+  box-shadow:
+    0 0 0 2px var(--background),
+    0 0 0 3.5px var(--primary);
+}
+
+/* Поле притяжения при протягивании связи. */
+.react-flow__handle.connectingfrom {
+  box-shadow: 0 0 0 3px var(--glow);
+}

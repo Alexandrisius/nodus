@@ -17,6 +17,9 @@ export const Permission = {
   TASK_MANAGE_ANY: 'task.manage_any',
   /** Обход гейта DoR/DoD перехода с обязательной причиной (аудит, ADR-0020). */
   TASK_OVERRIDE_GATE: 'task.override_gate',
+  /** Управление библиотекой типов задач: создание, свойства, публикация
+   *  маршрутов (#378); до матрицы #379 — только роль администратора. */
+  TASK_WORKFLOW_MANAGE: 'task.workflow_manage',
   /** Чтение справочника сотрудников и оргструктуры. */
   DIRECTORY_READ: 'directory.read',
   /** Управление пользователями, отделами и должностями (directory). */

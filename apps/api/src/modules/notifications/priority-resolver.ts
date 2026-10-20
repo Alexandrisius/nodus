@@ -49,6 +49,11 @@ export const KIND_PRIORITY: Record<NotificationKind, NotificationPriority> = {
   'action.deadline': 'medium',
   'task.completed': 'medium',
   'task.returned': 'medium',
+  // #378: утверждение — наравне с выполнением; отмена — фоновая, но не
+  // мусорная (исполнитель теряет задачу).
+  'task.awaiting_approval': 'medium',
+  'task.cancelled': 'medium',
+  'task.approved': 'medium',
 };
 
 /** Приоритет kind при пересечении правил (urgent > mention > thread > direct > channel). */

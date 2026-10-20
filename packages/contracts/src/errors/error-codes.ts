@@ -41,6 +41,16 @@ export const ErrorCode = {
   TASK_PARENT_CYCLE: 'TASK_PARENT_CYCLE',
   /** Остановка таймера, который не идёт (старт нового сам останавливает старый). */
   TASK_TIMER_NOT_RUNNING: 'TASK_TIMER_NOT_RUNNING',
+  /** Публикация маршрута: версия ушла вперёд (409; ADR-0021, #378). */
+  WORKFLOW_VERSION_CONFLICT: 'WORKFLOW_VERSION_CONFLICT',
+  /** Документ маршрута не проходит проверки; details.problems — WorkflowProblem[] (#378). */
+  WORKFLOW_INVALID: 'WORKFLOW_INVALID',
+  /** У архивируемых стадий есть задачи, а перенос не задан; details.stages — [{ stageId, count }] (#378). */
+  WORKFLOW_MIGRATION_REQUIRED: 'WORKFLOW_MIGRATION_REQUIRED',
+  /** Системный тип задачи нельзя архивировать (#378). */
+  TASK_TYPE_SYSTEM_LOCKED: 'TASK_TYPE_SYSTEM_LOCKED',
+  /** Название типа задачи уже занято живым типом (#378). */
+  TASK_TYPE_NAME_TAKEN: 'TASK_TYPE_NAME_TAKEN',
   /** Вложение чата больше лимита (100 МБ на файл; серверная сверка, #57). */
   CHAT_ATTACHMENT_TOO_LARGE: 'CHAT_ATTACHMENT_TOO_LARGE',
   /** Больше 20 загруженных-но-неотправленных вложений у пользователя (#57). */

@@ -1,5 +1,6 @@
 import { ErrorCode } from '../errors/error-codes.js';
 
+import { automationStrings } from './ru-automation.js';
 import { chatStrings } from './ru-chat.js';
 import { counterpartiesStrings, lettersStrings } from './ru-correspondence.js';
 import { filesStrings } from './ru-files.js';
@@ -29,6 +30,12 @@ export const errorMessages: Record<ErrorCode, string> = {
   [ErrorCode.TASK_OVERRIDE_REASON_REQUIRED]: 'Чтобы обойти условие, укажите причину',
   [ErrorCode.TASK_PARENT_CYCLE]: 'Задачу нельзя сделать подзадачей её же подзадачи',
   [ErrorCode.TASK_TIMER_NOT_RUNNING]: 'Таймер не запущен',
+  [ErrorCode.WORKFLOW_VERSION_CONFLICT]: 'Маршрут уже изменили — загрузите свежую версию',
+  [ErrorCode.WORKFLOW_INVALID]: 'Схема маршрута содержит проблемы — исправьте их',
+  [ErrorCode.WORKFLOW_MIGRATION_REQUIRED]:
+    'Удаляемые статусы содержат задачи — выберите, куда их перенести',
+  [ErrorCode.TASK_TYPE_SYSTEM_LOCKED]: 'Системный тип нельзя убрать в архив',
+  [ErrorCode.TASK_TYPE_NAME_TAKEN]: 'Тип с таким названием уже существует',
   [ErrorCode.CHAT_ATTACHMENT_TOO_LARGE]:
     'Файл больше 100 МБ — вложения такого размера не поддерживаются',
   [ErrorCode.CHAT_ATTACHMENT_TOO_MANY]:
@@ -142,6 +149,7 @@ export const ui = {
     projects: 'Проекты',
     chat: 'Мессенджер',
     employees: 'Сотрудники',
+    automation: 'Автоматизация',
     collapse: 'Свернуть меню',
     expand: 'Развернуть меню',
     settings: 'Настройки',
@@ -203,6 +211,7 @@ export const ui = {
     birthdaysEmpty: 'Дни рождения не заполнены в справочнике',
   },
   tasks: tasksStrings,
+  automation: automationStrings,
   letters: lettersStrings,
   counterparties: counterpartiesStrings,
   projects: {
