@@ -1,32 +1,23 @@
-import { ListChecks, Plus, Settings2 } from 'lucide-react';
-import { useNavigate } from '@tanstack/react-router';
+import { ListChecks, Plus } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import { Dialog, DialogContent, DialogTitle } from '@nodus/ui/components/dialog';
 import { Input } from '@nodus/ui/components/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@nodus/ui/components/select';
 import { NodeLabel } from '@nodus/ui/components/node-label';
 import { Textarea } from '@nodus/ui/components/textarea';
 import { toast } from 'sonner';
 
 import { projectsAvailable } from '../api/projects-available.js';
 import { useCreateTask, usePersonalStages } from '../api/task-create.js';
-import { useCreatableTaskTypes } from '../api/task-types-api.js';
+import { defaultTaskType, useCreatableTaskTypes } from '../api/task-types-api.js';
 import { useUsersList } from '../api/users-list.js';
 import { useAuthStore } from '../auth-store.js';
-import { Permission } from '@nodus/contracts';
-import { TaskTypeGlyph } from '../workflow/task-type-icon.js';
 import { DateTimePicker } from '../ui/date-time-picker.js';
 import { ProjectPicker } from '../ui/project-picker.js';
 import { FilterCombobox } from '../views/filter-combobox.js';
 import { TaskChecklistSheet, type DraftChecklistItem } from './task-checklist-sheet.js';
+import { TaskTypeField } from './task-type-field.js';
 
 /**
  * Экспресс-форма создания задачи (вердикт владельца 15.09.2026, модель
@@ -63,10 +54,6 @@ export function TaskQuickCreate({
   const { data: personalStages } = usePersonalStages();
   // Типы для создания: живые creatable, значок + название (#378).
   const { data: types } = useCreatableTaskTypes();
-  const navigate = useNavigate();
-  const canManageTypes = (useAuthStore((s) => s.user?.permissions) ?? []).includes(
-    Permission.TASK_WORKFLOW_MANAGE,
-  );
 
   const [title, setTitle] = useState('');
   const [descriptionOpen, setDescriptionOpen] = useState(false);
@@ -97,6 +84,10 @@ export function TaskQuickCreate({
   }
 
   const valid = title.trim().length > 0;
+  // Показанный тип уходит в запрос всегда: без явного typeId сервер взял бы
+  // свой тип по умолчанию, и форма разошлась бы с созданной задачей.
+  const shownTypeId = typeId ?? defaultTaskType(types)?.id;
+  const filled = Boolean(title.trim() || description.trim() || checklist.length > 0 || deadline);
 
   function submit(event?: FormEvent) {
     event?.preventDefault();
@@ -107,7 +98,7 @@ export function TaskQuickCreate({
         title: title.trim(),
         personalStageId: stage.id,
         ...(projectId ? { projectId } : {}),
-        ...(typeId ? { typeId } : {}),
+        ...(shownTypeId ? { typeId: shownTypeId } : {}),
         ...(description.trim() ? { description: description.trim() } : {}),
         ...(assigneeId ? { assigneeId } : {}),
         ...(deadline ? { deadline: deadline.toISOString() } : {}),
@@ -180,50 +171,13 @@ export function TaskQuickCreate({
               {/* Тип (ADR-0020): ступень 1 — один системный «Задача», выбор
                   уже здесь — «Разработка/Изменение» ступени 2 встанут сюда же. */}
               <NodeLabel label={ui.tasks.type} />
-              <div className="flex min-w-0 items-center gap-1.5">
-                <Select
-                  value={typeId ?? types?.find((t) => t.isSystem)?.id ?? types?.[0]?.id ?? ''}
-                  onValueChange={setTypeId}
-                >
-                  <SelectTrigger aria-label={ui.tasks.type} className="min-w-0 flex-1">
-                    <SelectValue placeholder={ui.tasks.task} />
-                  </SelectTrigger>
-                  {/* popper — список ПОД полем, как у соседних пикеров формы
-                      (ответственный, срок): режим item-aligned клал единственный
-                      пункт пилюлей прямо поверх значения (фидбек владельца #311). */}
-                  <SelectContent position="popper" align="start" sideOffset={4}>
-                    {(types ?? []).map((t) => (
-                      <SelectItem key={t.id} value={t.id} className="py-1.5">
-                        <TaskTypeGlyph icon={t.icon} className="size-3.5 text-muted-foreground" />
-                        {t.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {/* ⚙ «Настроить типы» — в редактор библиотеки (#378), только с
-                    правом; заполненная форма — подтверждение. */}
-                {canManageTypes ? (
-                  <button
-                    type="button"
-                    aria-label={ui.tasks.configureTypes}
-                    title={ui.tasks.configureTypes}
-                    onClick={() => {
-                      const filled =
-                        title.trim() || description.trim() || checklist.length > 0 || deadline;
-                      if (!filled || window.confirm(ui.common.close)) {
-                        onOpenChange(false);
-                        void navigate({
-                          to: '/automation',
-                          search: (prev) => ({ ...prev, tab: 'types' }),
-                        });
-                      }
-                    }}
-                    className="shrink-0 rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                  >
-                    <Settings2 className="size-4" strokeWidth={1.75} />
-                  </button>
-                ) : null}
-              </div>
+              <TaskTypeField
+                types={types ?? []}
+                value={shownTypeId ?? ''}
+                onChange={setTypeId}
+                formFilled={filled}
+                onLeave={() => onOpenChange(false)}
+              />
               <NodeLabel label={ui.tasks.assignee} />
               <FilterCombobox
                 options={(users?.items ?? []).map((u) => ({

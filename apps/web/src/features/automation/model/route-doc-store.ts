@@ -39,8 +39,14 @@ interface RouteDocState {
   draftSavedAt: string | null;
   /** Устаревший черновик (версия ушла) — баннер «Черновик устарел». */
   staleDraftAt: string | null;
+  /** Опубликовано, свежий документ сервера ещё не пришёл: правки закрыты —
+   *  иначе вторая публикация повторила бы `new:*` статусы и кнопки. */
+  pendingReload: boolean;
 
   load: (detail: WorkflowDetail) => void;
+  /** Свежий документ сервера: перечитать, если сменились маршрут или версия
+   *  (после публикации и после чужой публикации). */
+  sync: (detail: WorkflowDetail) => void;
   select: (ref: SelectionRef) => void;
 
   addStage: (band: TaskSystemState) => string;
@@ -65,7 +71,9 @@ interface RouteDocState {
   undo: () => void;
   redo: () => void;
   discard: () => void;
-  markPublished: (version: number) => void;
+  /** Публикация прошла: черновик снят, правки закрыты до sync() свежей
+   *  версии (baseVersion — только из документа сервера). */
+  markPublished: () => void;
 }
 
 /** Персист черновика текущего состояния стора. */
@@ -92,6 +100,7 @@ export function createRouteDocStore(workflowId: string) {
     future: [],
     draftSavedAt: null,
     staleDraftAt: null,
+    pendingReload: false,
 
     load: (detail) => {
       const baseline: WorkflowDraftDocument = {
@@ -113,7 +122,13 @@ export function createRouteDocStore(workflowId: string) {
         dirty: draft !== null,
         past: [],
         future: [],
+        pendingReload: false,
       });
+    },
+
+    sync: (detail) => {
+      const s = get();
+      if (s.workflowId !== detail.id || s.baseVersion !== detail.version) s.load(detail);
     },
 
     select: (ref) => set({ selection: ref }),
@@ -315,14 +330,18 @@ export function createRouteDocStore(workflowId: string) {
       clearDraft(get().workflowId);
     },
 
-    markPublished: (version) => {
+    markPublished: () => {
+      // Документ остаётся на экране до свежей версии (без мигания холста),
+      // но с `new:*` id — поэтому правки и повторная публикация закрыты.
       set((s) => ({
-        baseVersion: version,
         baseline: s.document,
         dirty: false,
         past: [],
         future: [],
         draftSavedAt: null,
+        staleDraftAt: null,
+        selection: null,
+        pendingReload: true,
       }));
       clearDraft(get().workflowId);
     },

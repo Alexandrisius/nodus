@@ -12,6 +12,7 @@ import { http, HttpResponse } from 'msw';
 import { demoStages } from '../../../../shared/mocks/data/task-stages.js';
 import { demoSubtasks, demoTasks } from '../../../../shared/mocks/data/tasks.js';
 import { demoTaskTypes, demoWorkflowDetails } from '../../../../shared/mocks/data/workflows.js';
+import { resolvePublishedDocument } from './publish-resolve.js';
 
 /** Моки «Автоматизации» (#378): библиотека типов, чтение/публикация
  *  маршрутов (проверки, конфликт версий, переносы), смена типа задачи.
@@ -259,10 +260,19 @@ export const automationHandlers = [
     }
 
     const scheduledMoves = archivedWithTasks.reduce((sum, row) => sum + row.count, 0);
-    detail.document = document;
+    const resolved = resolvePublishedDocument(document, migrations, nextId);
+    // Счётчики: оставшиеся статусы сохраняют задачи, цели переносов — получают.
+    const counts = Object.fromEntries(
+      resolved.document.stages.map((s) => [s.id, detail.stageTaskCounts[s.id] ?? 0]),
+    );
+    for (const m of resolved.migrations) {
+      counts[m.toStageId] =
+        (counts[m.toStageId] ?? 0) + (detail.stageTaskCounts[m.fromStageId] ?? 0);
+    }
+    detail.document = resolved.document;
     detail.version += 1;
     detail.publishedAt = new Date().toISOString();
-    detail.stageTaskCounts = Object.fromEntries(document.stages.map((s) => [s.id, 0]));
+    detail.stageTaskCounts = counts;
     return HttpResponse.json({
       version: detail.version,
       publishedAt: detail.publishedAt,

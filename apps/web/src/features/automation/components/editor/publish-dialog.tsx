@@ -1,13 +1,24 @@
 import { useMemo, useState } from 'react';
-import type { PublishWorkflowResult, WorkflowDetail } from '@nodus/contracts';
-import { errorMessages, ui } from '@nodus/contracts';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@nodus/ui/components/dialog';
+import type {
+  PublishWorkflowResult,
+  WorkflowDetail,
+  WorkflowDraftDocument,
+  WorkflowProblem,
+} from '@nodus/contracts';
+import { ErrorCode, errorMessages, ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@nodus/ui/components/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@nodus/ui/components/select';
+
 import { ApiError } from '../../../../shared/api-client.js';
 import { pluralRu } from '../../lib/plural-ru.js';
-
 import type { usePublishWorkflow } from '../../api/automation-api.js';
-import type { WorkflowDraftDocument } from '@nodus/contracts';
 
 /** Дефолт переноса: первый живой статус того же этапа, иначе начальный. */
 function defaultTargetOf(
@@ -60,10 +71,21 @@ export function publishSummary(
   return parts.length > 0 ? parts.join(', ') : ui.automation.publishNothingChanged;
 }
 
+/** Задачи в удаляемых статусах, о которых сервер сообщил отказом 422. */
+function migrationGaps(error: unknown): Record<string, number> {
+  if (!(error instanceof ApiError) || error.code !== ErrorCode.WORKFLOW_MIGRATION_REQUIRED) {
+    return {};
+  }
+  const stages = (error.details?.stages ?? []) as { stageId: string; count: number }[];
+  return Object.fromEntries(stages.map((s) => [s.stageId, s.count]));
+}
+
 /**
  * Диалог публикации — сводка изменений; для каждого удаляемого статуса с
- * задачами — обязательный выбор «куда перенести»; конфликт версий (409) —
- * «Загрузить свежую версию» (локальные правки сбрасываются).
+ * задачами — обязательный выбор «куда перенести». Отказы сервера понятны:
+ * конфликт версий (409) — «Загрузить свежую версию» (локальные правки
+ * сбрасываются); задачи появились в удаляемых статусах (422) — выбор
+ * переноса для них; проблемы схемы (422) — список; прочее — текст ошибки.
  */
 export function PublishDialog({
   open,
@@ -87,8 +109,12 @@ export function PublishDialog({
   /** 409: загрузить свежую версию (локальные правки сбрасываются). */
   onConflictLoad: () => void;
 }) {
+  // Счётчики, присланные сервером в отказе, переживают повторную попытку.
+  const [serverCounts, setServerCounts] = useState<Record<string, number>>({});
+  const countOf = (stageId: string) =>
+    serverCounts[stageId] ?? workflow.stageTaskCounts[stageId] ?? 0;
   const removed = baseline.stages.filter((s) => !doc.stages.some((n) => n.id === s.id));
-  const removedWithTasks = removed.filter((s) => (workflow.stageTaskCounts[s.id] ?? 0) > 0);
+  const removedWithTasks = removed.filter((s) => countOf(s.id) > 0);
   const restates = baseline.stages
     .map((before) => ({
       before,
@@ -109,8 +135,17 @@ export function PublishDialog({
     [removedWithTasks, targets, baseline, doc],
   );
 
-  const conflict =
-    publish.error instanceof ApiError && publish.error.code === 'WORKFLOW_VERSION_CONFLICT';
+  const error = publish.error instanceof ApiError ? publish.error : null;
+  const conflict = error?.code === ErrorCode.WORKFLOW_VERSION_CONFLICT;
+  const serverProblems =
+    error?.code === ErrorCode.WORKFLOW_INVALID
+      ? ((error.details?.problems ?? []) as WorkflowProblem[])
+      : [];
+  const otherError =
+    publish.isError &&
+    !conflict &&
+    error?.code !== ErrorCode.WORKFLOW_INVALID &&
+    error?.code !== ErrorCode.WORKFLOW_MIGRATION_REQUIRED;
 
   const submit = () =>
     publish.mutate(
@@ -119,6 +154,10 @@ export function PublishDialog({
         onSuccess: (result) => {
           onPublished(result);
           onClose();
+        },
+        onError: (failure) => {
+          const gaps = migrationGaps(failure);
+          if (Object.keys(gaps).length > 0) setServerCounts((prev) => ({ ...prev, ...gaps }));
         },
       },
     );
@@ -150,26 +189,41 @@ export function PublishDialog({
         </DialogHeader>
         <p className="text-sm text-muted-foreground">{publishSummary(baseline, doc)}</p>
 
+        {Object.keys(serverCounts).length > 0 ? (
+          <p role="alert" className="text-sm text-warning">
+            {ui.automation.publishMigrationsAppeared}
+          </p>
+        ) : null}
+
         {removedWithTasks.length > 0 ? (
           <div className="flex flex-col gap-2">
             {removedWithTasks.map((stage) => (
-              <label key={stage.id} className="flex flex-col gap-1">
+              <div key={stage.id} className="flex min-w-0 flex-col gap-1">
                 <span className="text-sm">
-                  {stage.name} — {workflow.stageTaskCounts[stage.id]}{' '}
-                  {ui.automation.publishMigrateTo}:
+                  {stage.name} — {countOf(stage.id)} {ui.automation.publishMigrateTo}:
                 </span>
-                <select
+                <Select
                   value={targets[stage.id] ?? defaultTargetOf(baseline, doc, stage.id)}
-                  onChange={(e) => setTargets((prev) => ({ ...prev, [stage.id]: e.target.value }))}
-                  className="h-8 rounded-md border border-input bg-transparent px-2 text-sm"
+                  onValueChange={(value) => setTargets((prev) => ({ ...prev, [stage.id]: value }))}
                 >
-                  {doc.stages.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                  <SelectTrigger
+                    className="w-full"
+                    aria-label={`${stage.name} — ${ui.automation.publishMigrateTo}`}
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent position="popper">
+                    {doc.stages.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.name}
+                        <span className="ml-2 text-xs text-muted-foreground">
+                          {ui.automation.bands[s.systemState]}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             ))}
           </div>
         ) : null}
@@ -183,6 +237,24 @@ export function PublishDialog({
               </p>
             ))}
           </div>
+        ) : null}
+
+        {serverProblems.length > 0 ? (
+          <div role="alert" className="flex flex-col gap-1 text-sm text-danger">
+            <span>{ui.automation.publishServerProblems}</span>
+            <ul className="flex flex-col gap-0.5 pl-4">
+              {serverProblems.map((problem, index) => (
+                <li key={`${problem.code}-${index}`} className="list-disc">
+                  {ui.automation.problems[problem.code]}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+        {otherError ? (
+          <p role="alert" className="text-sm text-danger">
+            {(error ? errorMessages[error.code as ErrorCode] : undefined) ?? ui.common.saveError}
+          </p>
         ) : null}
 
         <div className="flex justify-end gap-2">

@@ -23,6 +23,13 @@ export function useCreatableTaskTypes() {
   });
 }
 
+/** Тип по умолчанию (экспресс-форма, доска проекта): первый системный по
+ *  порядку библиотеки («Стандартный»), иначе первый. Сервер без typeId
+ *  берёт тот же «Стандартный», но форма шлёт выбранный тип явно. */
+export function defaultTaskType(types: readonly TaskType[] | undefined): TaskType | undefined {
+  return types?.find((t) => t.isSystem) ?? types?.[0];
+}
+
 /** Все живые типы (без фильтра creatable — для смены типа). */
 export function useAliveTaskTypes() {
   return useQuery({

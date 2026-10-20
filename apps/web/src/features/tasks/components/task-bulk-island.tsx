@@ -55,8 +55,10 @@ export function TaskBulkIsland({
   onClear: () => void;
 }) {
   const bulk = useBulkTasks();
-  const { data: stages } = useTaskStages();
-  const singleType = new Set(selectedTasks.map((t) => t.type.id)).size <= 1;
+  const typeIds = new Set(selectedTasks.map((t) => t.type.id));
+  const singleType = typeIds.size <= 1;
+  // Статусы маршрута выбранного типа: у разных типов свои «В работе».
+  const { data: stages } = useTaskStages(singleType ? [...typeIds][0] : undefined);
   // Счётчик фазы выхода: островок уезжает с последним числом, а не с нулём.
   const [shownCount, setShownCount] = useState(selectedIds.length);
   if (selectedIds.length > 0 && shownCount !== selectedIds.length) {

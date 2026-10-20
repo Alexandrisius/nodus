@@ -151,6 +151,41 @@ describe('route-doc-store: рабочая копия маршрута (#378)', (
     expect(reloaded.getState().dirty).toBe(false);
   });
 
+  it('две публикации подряд: после первой документ перечитывается с сервера, new:* не повторяются', () => {
+    const store = freshStore();
+    const added = store.getState().addStage('paused');
+    expect(added.startsWith('new:')).toBe(true);
+
+    store.getState().markPublished();
+    expect(store.getState()).toMatchObject({ pendingReload: true, dirty: false, baseVersion: 3 });
+    expect(localStorage.length).toBe(0);
+    // Ответ той же версии (рефетч ещё не догнал) — документ не трогаем.
+    store.getState().sync(detail());
+    expect(store.getState().pendingReload).toBe(true);
+
+    // Свежая версия сервера: постоянные id вместо new:*, правки снова открыты.
+    const fresh = detail();
+    fresh.version = 4;
+    fresh.document.stages.push({
+      ...fresh.document.stages[1]!,
+      id: '00000000-0000-4000-8000-000000000004',
+      code: null,
+      name: 'Новый статус',
+      systemState: 'paused',
+      color: 'neutral',
+    });
+    store.getState().sync(fresh);
+    const state = store.getState();
+    expect(state).toMatchObject({ pendingReload: false, dirty: false, baseVersion: 4 });
+    expect(state.document.stages.some((s) => s.id.startsWith('new:'))).toBe(false);
+    expect(state.staleDraftAt).toBeNull();
+
+    // Вторая правка и публикация уходят от версии 4 с id сервера.
+    store.getState().patchStage('00000000-0000-4000-8000-000000000004', { name: 'Ждёт ответа' });
+    expect(store.getState().dirty).toBe(true);
+    expect(store.getState().baseVersion).toBe(4);
+  });
+
   it('устаревший черновик (версия ушла) не подхватывается', () => {
     const store = freshStore();
     store.getState().addStage('paused');

@@ -55,8 +55,9 @@ function RouteEditorInner({
   workflow: WorkflowDetail;
   settings?: React.ReactNode;
 }) {
-  const canManage = useCanManageWorkflows();
   const store = useRouteDocStore();
+  // Правка закрыта без права и пока после публикации не пришла свежая версия.
+  const canManage = useCanManageWorkflows() && !store.pendingReload;
   const publish = usePublishWorkflow(workflow.id);
   const queryClient = useQueryClient();
   const { fitView } = useReactFlow();
@@ -64,12 +65,10 @@ function RouteEditorInner({
   const [addTransitionFor, setAddTransitionFor] = useState<string | null>(null);
   const [addTransitionOpen, setAddTransitionOpen] = useState(false);
 
-  // Загрузка/перезагрузка маршрута в стор (смена типа или версии на сервере).
+  // Загрузка/перезагрузка маршрута в стор (смена типа, своя или чужая
+  // публикация — новая версия сервера).
   useEffect(() => {
-    const state = useRouteDocStore.getState();
-    if (state.workflowId !== workflow.id || state.baseVersion !== workflow.version) {
-      state.load(workflow);
-    }
+    useRouteDocStore.getState().sync(workflow);
   }, [workflow]);
 
   const problems = useMemo(() => checkWorkflowDocument(store.document), [store.document]);
@@ -303,7 +302,7 @@ function RouteEditorInner({
           document={store.document}
           baseVersion={store.baseVersion}
           publish={publish}
-          onPublished={(result) => store.markPublished(result.version)}
+          onPublished={() => store.markPublished()}
           onConflictLoad={() => {
             setPublishOpen(false);
             // Свежая версия: сброс правок + рефеч маршрута (useEffect загрузки

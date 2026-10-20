@@ -156,6 +156,11 @@ export const automationStrings = {
   publishRestateNote: '«Мой план» сотрудников обновится',
   publishedToast: 'Маршрут опубликован',
   movingTasksToast: 'Переносим задачи…',
+  /** 422 WORKFLOW_MIGRATION_REQUIRED: задачи появились после открытия редактора. */
+  publishMigrationsAppeared:
+    'Пока вы правили схему, в удаляемых статусах появились задачи — выберите, куда их перенести',
+  /** 422 WORKFLOW_INVALID: проверка сервера строже живой проверки редактора. */
+  publishServerProblems: 'Сервер не принял схему:',
   conflictTitle: 'Маршрут уже изменили',
   conflictLoad: 'Загрузить свежую версию',
   conflictCancel: 'Отмена',
