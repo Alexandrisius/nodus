@@ -31,6 +31,8 @@ task.time_logged
 task.participants_changed / checklist_changed / result_set / relation_changed / deleted / timer_started / timer_stopped
 task.comments_counted  # пересчитан счётчик комментариев = сообщения беседы задачи (#252): клиенты ставят значение без рефеча досок
 task.personal_stage_created / personal_stage_updated / personal_stage_archived  # личный маршрут «Мой план» (ADR-0008/0020); маршруты задач — модуль tasks, префикс task (workflow.* — модуль БП M7)
+task.type_created / type_updated / type_archived / workflow_published / workflow_layout_changed  # каталог типов и маршрутов (#378, ADR-0020/0021): без audience — всем; type_changed — задачное (участники)
+task.type_changed
 chat.conversation_created / conversation_updated / member_added / member_removed / member_role_changed / message_sent / message_edited / message_deleted / message_read / message_pinned / message_unpinned / reaction_added / reaction_removed / thread_created
 chat.favorite_added / favorite_removed / favorite_updated  # личные закладки #171: только user-комната владельца (не рассылается участникам)
 chat.link_preview_ready  # превью ссылки дозрело фоном (#212, ADR-0018): комната беседы, клиенты патчат карточку без рефетча
@@ -56,7 +58,7 @@ custom_field.definition_changed / value_changed  # агрегат + код по�
 
 Поле `audience` в payload событий (`task.*`, `chat.sticker_*`) — служебная адресация для gateway (user-комнаты); клиенту не доставляется — gateway вырезает его до отправки (#328).
 
-**Каталожные события #378** — `task.type_created / type_updated / type_archived / task.workflow_published` — БЕЗ `audience`: каталог типов и маршрутов виден всем, gateway рассылает их всем авторизованным сокетам (комната presence, паттерн корпоративных стикерпаков); клиент инвалидирует типы/статусы/маршруты. Доменные данные события (составы `memberIds`/`userIds` событий беседы) уходят клиенту как есть.
+**Каталожные события #378** — `task.type_created / type_updated / type_archived / task.workflow_published / task.workflow_layout_changed` — БЕЗ `audience` (`workflow_layout_changed` — сохранена расстановка холста без новой версии: клиент перечитывает только документ этого маршрута, кнопки задач не трогает): каталог типов и маршрутов виден всем, gateway рассылает их всем авторизованным сокетам (комната presence, паттерн корпоративных стикерпаков); клиент инвалидирует типы/статусы/маршруты. Доменные данные события (составы `memberIds`/`userIds` событий беседы) уходят клиенту как есть.
 
 **Правила событий:**
 - Префикс = имя модуля-владельца в единственном числе (`tasks` → `task`, `workflows` → `workflow`, `correspondence` → `correspondence`); дефисы в имени модуля заменяются подчёркиваниями (`custom-fields` → `custom_field.*`).
