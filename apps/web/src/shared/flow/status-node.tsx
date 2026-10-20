@@ -23,6 +23,8 @@ export interface StatusNodeData extends Record<string, unknown> {
   readOnly: boolean;
   /** Сколько задач стоит в статусе (редактор; 0 — не показывается). */
   taskCount?: number;
+  /** Занятые точки подключения (к ним приходят стрелки) — кружки всегда. */
+  ports?: readonly string[];
 }
 
 export type StatusFlowNode = Node<StatusNodeData, 'status'>;
@@ -39,9 +41,11 @@ const stateLabel: Record<TaskSystemState, string> = {
  * Узел статуса маршрута: карточка 208×52 с цветной полосой слева (цвет
  * статуса), названием и подписью этапа; справа — «Начальный», итог (✓/✕),
  * проблема, счётчик задач. 12 точек подключения (по три на сторону, как в
- * Трекере): в правке видны на наведении, у выделенного и во время
- * протягивания связи; в просмотре скрыты. Выбранный — кольцо, текущий статус
- * задачи — свечение (только у активного узла).
+ * Трекере) — кружки на границе: занятые (к ним приходят стрелки) видны
+ * всегда и залиты тоном линии — стрелка упирается в кружок без зазора;
+ * свободные в правке — приглушённые, ярче на наведении, у выделенного и при
+ * протягивании связи; в просмотре свободных нет. Выбранный — кольцо,
+ * текущий статус задачи — свечение (только у активного узла).
  */
 export const StatusNode = memo(function StatusNode({
   id,
@@ -103,6 +107,7 @@ export const StatusNode = memo(function StatusNode({
       {FLOW_HANDLE_IDS.map((handle) => {
         const side = handleSide(handle);
         const along = `${handleRatio(handle) * 100}%`;
+        const used = data.ports?.includes(handle) ?? false;
         return (
           <Handle
             key={handle}
@@ -112,12 +117,11 @@ export const StatusNode = memo(function StatusNode({
             isConnectable={!data.readOnly}
             style={side === 't' || side === 'b' ? { left: along } : { top: along }}
             className={cn(
-              'flow-handle',
+              'flow-port',
+              used && 'flow-port-used',
               data.readOnly
-                ? 'pointer-events-none opacity-0'
-                : showHandles
-                  ? 'opacity-100'
-                  : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100',
+                ? cn('pointer-events-none', !used && 'opacity-0')
+                : !used && !showHandles && 'flow-port-idle',
             )}
           />
         );

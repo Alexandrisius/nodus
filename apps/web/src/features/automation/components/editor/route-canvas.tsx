@@ -161,6 +161,7 @@ export function RouteCanvas({
     <FlowCanvas
       nodes={nodes}
       edges={graph.edges}
+      fitKey={workflow.id}
       interactive={editable}
       onConnect={onConnect}
       onReconnect={onReconnect}

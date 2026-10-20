@@ -26,6 +26,7 @@ const TASK_CATALOG_EVENTS = new Set<string>([
   TASK_EVENTS.TYPE_UPDATED,
   TASK_EVENTS.TYPE_ARCHIVED,
   TASK_EVENTS.WORKFLOW_PUBLISHED,
+  TASK_EVENTS.WORKFLOW_LAYOUT_CHANGED,
 ]);
 
 /** События, меняющие список бесед (lastMessage/unread/название/аватар) → дублируем в user-комнаты участников. */

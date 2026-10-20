@@ -38,7 +38,12 @@ describe('routeEnvelope', () => {
       store,
       envelope('task.workflow_published', { workflowId: USER_B, version: 2 }),
     );
-    expect(calls.map((c) => c.room)).toEqual(['presence', 'presence']);
+    await routeEnvelope(
+      io,
+      store,
+      envelope('task.workflow_layout_changed', { workflowId: USER_B }),
+    );
+    expect(calls.map((c) => c.room)).toEqual(['presence', 'presence', 'presence']);
   });
 
   it('message_sent: комната беседы + user-комнаты участников (список бесед)', async () => {

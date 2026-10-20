@@ -111,6 +111,14 @@ export function pushTaskKeys(
   type: string,
   payload: Record<string, unknown>,
 ): void {
+  // Расстановка холста (без новой версии): только документ этого маршрута —
+  // «Схема маршрута» и список типов; кнопки и задачи не меняются.
+  if (type === TASK_EVENTS.WORKFLOW_LAYOUT_CHANGED) {
+    if (typeof payload.workflowId === 'string') {
+      batcher.push(workflowKeys.detail(payload.workflowId), 'list');
+    }
+    return;
+  }
   // Каталожные события: каталоги типов/стадий/маршрутов и переходы всех задач.
   if (CATALOG_EVENTS.has(type)) {
     batcher.push(automationKeys.all, 'list');

@@ -36,7 +36,7 @@ export const StartNode = memo(function StartNode({ data }: NodeProps<StartFlowNo
         type="source"
         position={Position.Right}
         isConnectable={!data.readOnly}
-        className={cn('flow-handle', data.readOnly ? 'opacity-0' : 'opacity-60')}
+        className={cn('flow-port flow-port-used', data.readOnly && 'pointer-events-none')}
       />
     </div>
   );

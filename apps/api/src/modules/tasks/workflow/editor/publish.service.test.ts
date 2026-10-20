@@ -164,9 +164,14 @@ function body(overrides: Partial<PublishWorkflowBody>): PublishWorkflowBody {
 }
 
 function makeService(
-  opts: { version?: number; kind?: string; taskCounts?: Record<string, number> } = {},
+  opts: {
+    version?: number;
+    kind?: string;
+    taskCounts?: Record<string, number>;
+    layout?: unknown;
+  } = {},
 ) {
-  const { version = 1, kind = 'task', taskCounts = { [S3]: 2 } } = opts;
+  const { version = 1, kind = 'task', taskCounts = { [S3]: 2 }, layout = null } = opts;
   const calls = {
     stageCreate: vi.fn(async () => ({ id: CREATED })),
     stageUpdate: vi.fn(async () => ({})),
@@ -183,7 +188,13 @@ function makeService(
   };
   const workflows = {
     lockForUpdate: vi.fn(async () => void 0),
-    findMeta: vi.fn(async () => ({ kind, version, publishedAt: new Date(), publishedById: null })),
+    findMeta: vi.fn(async () => ({
+      kind,
+      version,
+      publishedAt: new Date(),
+      publishedById: null,
+      layout,
+    })),
     load: vi.fn(async () => loaded),
     stageTaskCounts: vi.fn(async () => taskCounts),
     typeIdsOf: vi.fn(async () => ['type-1']),
@@ -277,5 +288,43 @@ describe('WorkflowEditorService.publish (#378)', () => {
     expect(calls.workflowUpdate).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ layout: expect.anything() }) }),
     );
+  });
+});
+
+describe('WorkflowEditorService.saveLayout (#378 ред. 2)', () => {
+  const layout = {
+    stages: { [S1]: { x: 10, y: 20 }, 'new:x': { x: 0, y: 0 }, [CREATED]: { x: 1, y: 1 } },
+    transitions: { [T1]: { sourceHandle: 'r2' as const, labelT: 0.4 }, 'new:y': { labelT: 0.5 } },
+  };
+
+  it('сохраняет только живые элементы, версию не трогает, событие — layout_changed', async () => {
+    const { service, calls } = makeService({
+      layout: { stages: { [S2]: { x: 300, y: 20 } }, transitions: { [T2]: { labelT: 0.7 } } },
+    });
+    const result = await service.saveLayout(USER, WID, { layout });
+    // Слияние с сохранённым: S2/T2 запрос не трогал — их места остались.
+    expect(result.layout).toEqual({
+      stages: { [S1]: { x: 10, y: 20 }, [S2]: { x: 300, y: 20 } },
+      transitions: { [T1]: { sourceHandle: 'r2', labelT: 0.4 }, [T2]: { labelT: 0.7 } },
+    });
+    // Только раскладка: ни версии, ни даты/автора публикации.
+    expect(calls.workflowUpdate).toHaveBeenCalledWith({
+      where: { id: WID },
+      data: { layout: result.layout },
+    });
+    expect(calls.emit).toHaveBeenCalledWith(
+      expect.anything(),
+      'task.workflow_layout_changed',
+      { workflowId: WID },
+      expect.objectContaining({ aggregateId: WID }),
+    );
+  });
+
+  it('личный маршрут (kind=personal) — 404', async () => {
+    const { service, calls } = makeService({ kind: 'personal' });
+    await expect(service.saveLayout(USER, WID, { layout })).rejects.toMatchObject({
+      code: ErrorCode.NOT_FOUND,
+    });
+    expect(calls.workflowUpdate).not.toHaveBeenCalled();
   });
 });

@@ -21,6 +21,19 @@ export function normalize(doc: WorkflowDraftDocument): WorkflowDraftDocument {
   return { ...doc, stages };
 }
 
+/** Сменилась ли СТРУКТУРА маршрута (статусы и кнопки) против опубликованной.
+ *  Расстановка холста — оформление: она сохраняется сама, без публикации, и
+ *  черновиком маршрута не считается. */
+export function structureChanged(
+  document: WorkflowDraftDocument,
+  baseline: WorkflowDraftDocument,
+): boolean {
+  return (
+    JSON.stringify([document.stages, document.transitions]) !==
+    JSON.stringify([baseline.stages, baseline.transitions])
+  );
+}
+
 export interface HistoryTail {
   document: WorkflowDraftDocument;
   past: WorkflowDraftDocument[];
@@ -31,9 +44,9 @@ export interface HistoryTail {
 export function withHistory(
   state: {
     document: WorkflowDraftDocument;
+    baseline: WorkflowDraftDocument;
     past: WorkflowDraftDocument[];
     future: WorkflowDraftDocument[];
-    dirty: boolean;
   },
   next: WorkflowDraftDocument,
 ): HistoryTail {
@@ -41,11 +54,12 @@ export function withHistory(
     document: next,
     past: [...state.past, state.document].slice(-HISTORY_LIMIT),
     future: [],
-    dirty: true,
+    dirty: structureChanged(next, state.baseline),
   };
 }
 
-/** Шаг истории: новый документ, границы past/future, dirty против baseline. */
+/** Шаг истории: новый документ, границы past/future, dirty — структура
+ *  против baseline. */
 export function stepHistory(
   state: { document: WorkflowDraftDocument; baseline: WorkflowDraftDocument; dirty: boolean },
   document: WorkflowDraftDocument,
@@ -61,6 +75,6 @@ export function stepHistory(
     document,
     past: past.slice(-HISTORY_LIMIT),
     future: future.slice(0, HISTORY_LIMIT),
-    dirty: JSON.stringify(document) !== JSON.stringify(state.baseline),
+    dirty: structureChanged(document, state.baseline),
   };
 }

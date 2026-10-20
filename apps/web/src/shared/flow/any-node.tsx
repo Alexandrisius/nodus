@@ -9,6 +9,8 @@ import { SIDE_POSITION } from './flow-handles.js';
 export interface AnyNodeData extends Record<string, unknown> {
   transitionId: string;
   readOnly: boolean;
+  /** Точка, из которой выходит стрелка в статус (кружок, как у статусов). */
+  port?: string | null;
 }
 
 export type AnyFlowNode = Node<AnyNodeData, 'any'>;
@@ -19,7 +21,7 @@ export type AnyFlowNode = Node<AnyNodeData, 'any'>;
  * правке перетаскивается (место — общая раскладка); выделение метки =
  * выделение её кнопки. Точки подключения служебные: соединять нельзя.
  */
-export const AnyNode = memo(function AnyNode({ selected }: NodeProps<AnyFlowNode>) {
+export const AnyNode = memo(function AnyNode({ selected, data }: NodeProps<AnyFlowNode>) {
   return (
     <div
       className={cn(
@@ -40,7 +42,9 @@ export const AnyNode = memo(function AnyNode({ selected }: NodeProps<AnyFlowNode
           type="source"
           position={SIDE_POSITION[side]}
           isConnectable={false}
-          className="invisible"
+          className={
+            data.port === `${side}2` ? 'flow-port flow-port-used pointer-events-none' : 'invisible'
+          }
         />
       ))}
     </div>

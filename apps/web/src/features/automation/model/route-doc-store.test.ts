@@ -195,10 +195,12 @@ describe('route-doc-store: рабочая копия маршрута (#378)', (
     const id = store
       .getState()
       .connect({ source: S2, target: S3, sourceHandle: 'r1', targetHandle: 'l3' })!;
-    expect(store.getState().document.layout?.transitions[id]).toEqual({
+    // Точки — те, к которым подключили; подпись встала на свободное место.
+    expect(store.getState().document.layout?.transitions[id]).toMatchObject({
       sourceHandle: 'r1',
       targetHandle: 'l3',
     });
+    expect(store.getState().document.layout?.transitions[id]?.labelT).toBeTypeOf('number');
     expect(store.getState().connect({ source: S2, target: S2 })).toBeNull();
 
     store
@@ -301,7 +303,34 @@ describe('route-doc-store: рабочая копия маршрута (#378)', (
       x: 333,
       y: 44,
     });
+    // Только расстановка — не правка маршрута: публиковать нечего, её
+    // отправит автосохранение.
+    expect(store.getState().dirty).toBe(false);
+  });
+
+  it('расстановка — не черновик маршрута: перетаскивание не делает dirty, правка — делает', () => {
+    const store = freshStore();
+    store.getState().setStagePosition('00000000-0000-4000-8000-000000000002', { x: 500, y: 90 });
+    expect(store.getState().dirty).toBe(false);
+    store.getState().patchStage('00000000-0000-4000-8000-000000000002', { name: 'Иначе' });
     expect(store.getState().dirty).toBe(true);
+    // Отмена правки имени — снова не dirty, хотя расстановка осталась новой.
+    store.getState().undo();
+    expect(store.getState().dirty).toBe(false);
+    expect(
+      store.getState().document.layout?.stages['00000000-0000-4000-8000-000000000002'],
+    ).toEqual({ x: 500, y: 90 });
+  });
+
+  it('сохранённая расстановка — новая точка «Сбросить»', () => {
+    const store = freshStore();
+    const id = '00000000-0000-4000-8000-000000000002';
+    store.getState().setStagePosition(id, { x: 500, y: 90 });
+    store.getState().markLayoutSaved(store.getState().document.layout!);
+    store.getState().patchStage(id, { name: 'Иначе' });
+    store.getState().discard();
+    expect(store.getState().document.layout?.stages[id]).toEqual({ x: 500, y: 90 });
+    expect(store.getState().document.stages.find((s) => s.id === id)?.name).not.toBe('Иначе');
   });
 
   it('устаревший черновик (версия ушла) не подхватывается', () => {

@@ -1,7 +1,6 @@
 import type { TaskType, WorkflowProblem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
-import { cn } from '@nodus/ui/lib/utils';
 import { LayoutGrid, Plus } from 'lucide-react';
 
 import { TaskTypeGlyph } from '../../../../shared/workflow/task-type-icon.js';
@@ -17,13 +16,14 @@ function formatDate(iso: string): string {
 }
 
 /**
- * Строка инструментов редактора (#378 ред. 2, как в Трекере): одна строка
- * h-14 без нижней границы (верх окна — ось контура). Слева — тип и состояние
- * (черновик / опубликовано, проблемы), затем «+ Статус», «+ Переход»,
- * «Упорядочить»; справа — «Сбросить» и «Опубликовать». Масштаб и отмена — на
- * холсте слева внизу. На узкой ширине подписи действий прячутся (контейнерные
- * брейкпоинты), левая часть обрезается — «Опубликовать» не уезжает никогда.
- * Открытая правая панель — резерв справа, инструменты не прячутся под ней.
+ * Верхний бар окна редактора (#378 ред. 2) — как бар беседы мессенджера:
+ * h-14 с линией border-b (её продолжают шапка списка типов слева и шапка
+ * правой панели справа). Слева — тип и состояние (черновик / опубликовано,
+ * проблемы), затем «+ Статус», «+ Переход», «Упорядочить» (как в Трекере);
+ * справа — «Сбросить» и «Опубликовать». Масштаб и отмена — на холсте слева
+ * внизу. Бар живёт в колонке холста и сужается вместе с ней, когда выезжает
+ * панель: подписи действий прячутся (контейнерные брейкпоинты), левая часть
+ * обрезается — «Опубликовать» не уезжает никогда.
  */
 export function RouteToolbar({
   type,
@@ -33,7 +33,6 @@ export function RouteToolbar({
   publishedBy,
   problems,
   publishBlocked,
-  panelOpen,
   addTransition,
   onAddStage,
   onTidy,
@@ -48,7 +47,6 @@ export function RouteToolbar({
   publishedBy: string | null;
   problems: readonly WorkflowProblem[];
   publishBlocked: boolean;
-  panelOpen: boolean;
   /** Кнопка-поповер «+ Переход» (хостит редактор). */
   addTransition: React.ReactNode;
   onAddStage: () => void;
@@ -59,12 +57,9 @@ export function RouteToolbar({
 }) {
   const errors = problems.filter((p) => p.severity === 'error').length;
   return (
-    <div
+    <header
       // nokey: клавиши на кнопках строки не удаляют выделенное на холсте.
-      className={cn(
-        'nokey @container flex h-14 shrink-0 items-center gap-2 pl-4 transition-[padding] duration-200 ease-out',
-        panelOpen ? 'pr-[396px]' : 'pr-4',
-      )}
+      className="nokey @container flex h-14 shrink-0 items-center gap-2 border-b border-border px-4"
     >
       <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
         <span className="flex min-w-0 shrink items-center gap-2" title={type.name}>
@@ -134,6 +129,6 @@ export function RouteToolbar({
           </Button>
         </div>
       ) : null}
-    </div>
+    </header>
   );
 }

@@ -6,6 +6,8 @@ import {
   type AuthUser,
   type PublishWorkflowBody,
   type PublishWorkflowResult,
+  type SaveWorkflowLayoutBody,
+  type SaveWorkflowLayoutResult,
   type WorkflowDetail,
   type WorkflowDocument,
 } from '@nodus/contracts';
@@ -149,6 +151,47 @@ export class WorkflowEditorService {
           0,
         ),
       };
+    });
+  }
+
+  /**
+   * PUT /tasks/workflows/:id/layout — расстановка холста без новой версии
+   * (вердикт владельца 20.10: перестановка «для красоты» версию не выпускает).
+   * Записи элементов СЛИВАЮТСЯ с сохранёнными (элемент заменяется целиком,
+   * остальные остаются): запрос, ушедший до чужой/своей публикации, не
+   * затирает места только что опубликованных статусов. Под той же
+   * блокировкой строки, что публикация, и по живым элементам на момент
+   * записи — записей удалённых статусов и кнопок не остаётся.
+   */
+  async saveLayout(
+    user: AuthUser,
+    workflowId: string,
+    body: SaveWorkflowLayoutBody,
+  ): Promise<SaveWorkflowLayoutResult> {
+    return this.txRunner.run(async (tx) => {
+      await this.workflows.lockForUpdate(tx, workflowId);
+      const workflow = await this.findTaskWorkflow(workflowId, tx);
+      const loaded = await this.workflows.load(workflowId, tx);
+      const live = {
+        stageIds: new Set(loaded.stages.map((s) => s.id)),
+        transitionIds: new Set(loaded.transitions.map((t) => t.id)),
+      };
+      const current = liveLayout(workflow.layout, live);
+      const layout = liveLayout(
+        {
+          stages: { ...current.stages, ...body.layout.stages },
+          transitions: { ...current.transitions, ...body.layout.transitions },
+        },
+        live,
+      );
+      await this.writes.saveLayout(tx, workflowId, layout as Prisma.InputJsonValue);
+      await this.eventBus.emit(
+        tx,
+        TASK_EVENTS.WORKFLOW_LAYOUT_CHANGED,
+        { workflowId },
+        { actorId: user.id, aggregateType: 'workflow', aggregateId: workflowId },
+      );
+      return { layout };
     });
   }
 

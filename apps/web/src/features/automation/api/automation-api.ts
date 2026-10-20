@@ -3,8 +3,10 @@ import type {
   CreateTaskTypeBody,
   PublishWorkflowBody,
   PublishWorkflowResult,
+  SaveWorkflowLayoutResult,
   TaskType,
   UpdateTaskTypeBody,
+  WorkflowLayout,
 } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { toast } from 'sonner';
@@ -108,5 +110,17 @@ export function usePublishWorkflow(workflowId: string) {
         result.scheduledMoves > 0 ? ui.automation.movingTasksToast : ui.automation.publishedToast,
       );
     },
+  });
+}
+
+/** Расстановка холста — сразу на сервер, без новой версии маршрута
+ *  (`PUT /tasks/workflows/:id/layout`, #378 ред. 2). */
+export function saveWorkflowLayout(
+  workflowId: string,
+  layout: WorkflowLayout,
+): Promise<SaveWorkflowLayoutResult> {
+  return api<SaveWorkflowLayoutResult>(`/tasks/workflows/${workflowId}/layout`, {
+    method: 'PUT',
+    body: { layout },
   });
 }

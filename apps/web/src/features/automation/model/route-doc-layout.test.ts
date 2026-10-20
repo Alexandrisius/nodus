@@ -2,7 +2,15 @@ import { describe, expect, it } from 'vitest';
 import type { WorkflowDraftDocument, WorkflowLayout } from '@nodus/contracts';
 
 import { resolveRoute } from '../../../shared/flow/route-resolve.js';
-import { freezeLayout, setStagePosition, settleLoops } from './route-doc-ops.js';
+import { labelBoxAt, labelCost, labelWidth } from '../../../shared/flow/route-labels.js';
+import {
+  freezeLayout,
+  layoutFingerprint,
+  persistedLayout,
+  settleLabels,
+  settleLoops,
+} from './route-doc-layout.js';
+import { setStagePosition } from './route-doc-ops.js';
 
 const A = '00000000-0000-4000-8000-000000000001';
 const B = '00000000-0000-4000-8000-000000000002';
@@ -78,5 +86,63 @@ describe('route-doc-ops: «что видишь — то и стоит» (#378 р
     const ba = depth.loops.get('ba')!;
     const ca = depth.loops.get('ca')!;
     expect(Math.abs(ca.base + depth.spread.get('ca')!.offset - (ba.base + 24))).toBeGreaterThan(11);
+  });
+});
+
+describe('route-doc-layout: подписи и автосохранение (#378 ред. 2)', () => {
+  it('статус положили на подпись чужой стрелки — подпись уходит на свободное место своей стрелки', () => {
+    const base = freezeLayout(doc(pinned), setStagePosition(doc(pinned), A, { x: 0, y: 0 }));
+    const route = resolveRoute(base);
+    const victim = base.transitions.find((t) => t.id === 'ca')!;
+    const box = labelBoxAt(
+      route.paths.get('ca')!,
+      route.labels.get('ca')!,
+      labelWidth(victim.name),
+    );
+    // B кладём ровно на подпись «ca».
+    const moved = setStagePosition(base, B, { x: box.x, y: box.y - 15 });
+    const next = settleLabels(base, moved);
+    const after = resolveRoute(next);
+    const nodes = after.nodeBoxes;
+    const label = labelBoxAt(
+      after.paths.get('ca')!,
+      after.labels.get('ca')!,
+      labelWidth(victim.name),
+    );
+    expect(labelCost(label, nodes)).toBe(0);
+  });
+
+  it('несдвинутые стрелки держат подписи на месте', () => {
+    const base = freezeLayout(doc(pinned), setStagePosition(doc(pinned), A, { x: 0, y: 0 }));
+    const next = settleLabels(base, setStagePosition(base, C, { x: 820, y: 0 }));
+    expect(next.layout?.transitions.ba?.labelT).toBe(base.layout?.transitions.ba?.labelT);
+  });
+
+  it('автосохранение: места опубликованных элементов; новые — с публикацией', () => {
+    const baseline = doc(pinned);
+    const draft: WorkflowDraftDocument = {
+      ...baseline,
+      stages: [...baseline.stages, stage('new:x', 'Новый')],
+      layout: {
+        stages: { ...pinned.stages, [B]: { x: 444, y: 10 }, 'new:x': { x: 1, y: 1 } },
+        transitions: pinned.transitions,
+      },
+    };
+    const out = persistedLayout(draft, baseline);
+    expect(out.stages[B]).toEqual({ x: 444, y: 10 });
+    expect(out.stages['new:x']).toBeUndefined();
+    expect(Object.keys(out.transitions)).toEqual(['ba', 'ca']);
+  });
+
+  it('отпечаток раскладки не зависит от порядка ключей (jsonb их переставляет)', () => {
+    const a: WorkflowLayout = {
+      stages: { [A]: { x: 1, y: 2 } },
+      transitions: { t: { labelT: 0.5, sourceHandle: 'r1' } },
+    };
+    const b: WorkflowLayout = {
+      transitions: { t: { sourceHandle: 'r1', labelT: 0.5 } },
+      stages: { [A]: { y: 2, x: 1 } },
+    };
+    expect(layoutFingerprint(a)).toBe(layoutFingerprint(b));
   });
 });

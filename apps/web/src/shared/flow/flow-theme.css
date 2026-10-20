@@ -29,19 +29,13 @@
   opacity: 0.7;
 }
 
-/* Атрибуция React Flow: маленькая, справа внизу С ОТСТУПОМ от угла. */
+/* Атрибуция React Flow: маленькая, справа внизу С ОТСТУПОМ от угла холста
+   (холст сужается панелью — атрибуция едет вместе с его краем). */
 .react-flow__attribution {
   margin: 0 12px 10px 0;
   font-size: 10px;
   opacity: 0.45;
-  transition:
-    opacity 150ms ease,
-    right 200ms ease;
-}
-
-/* Открытая правая панель редактора: атрибуция уезжает левее панели. */
-.flow-inspector-open .react-flow__attribution {
-  right: 392px;
+  transition: opacity 150ms ease;
 }
 
 .react-flow__attribution:hover {
@@ -103,23 +97,54 @@
   outline: none;
 }
 
-/* Точки подключения статуса (12 шт.): кружок r=3 по канону связей. */
-.react-flow__handle {
+/* Точки подключения (12 шт. у статуса): кружок r=3.5 ПО ЦЕНТРУ границы узла
+   (канон портов связей). Занятая — залита тоном линии: стрелка начинается и
+   упирается в кружок без зазора. Свободная в правке — приглушена, ярче на
+   наведении узла/выделении/протягивании связи. */
+.react-flow__handle.flow-port {
   width: 7px;
   height: 7px;
-  border-radius: 9999px;
-  border: 1px solid var(--port);
-  background: var(--background);
   min-width: 0;
   min-height: 0;
-  transition: opacity 120ms ease;
+  border-radius: 9999px;
+  border: 1px solid var(--edge-solid);
+  background: var(--card);
+  transition:
+    opacity 120ms ease,
+    background-color 120ms ease;
 }
 
-.react-flow__handle.flow-handle:hover,
+.react-flow__handle.flow-port-used {
+  background: var(--edge-solid);
+}
+
+.react-flow__handle.flow-port-idle {
+  opacity: 0.45;
+}
+
+.react-flow__node:hover .react-flow__handle.flow-port-idle {
+  opacity: 1;
+}
+
+.react-flow__handle.flow-port:hover,
 .react-flow__handle.connectingto,
 .react-flow__handle.valid {
   background: var(--primary);
   border-color: var(--primary);
+  opacity: 1;
+}
+
+/* Наконечники стрелок (flow-markers.tsx): заливка токеном — CSS-свойство
+   понимает var(), атрибут fill маркера — нет; тон НЕпрозрачный
+   (--edge-solid): полупрозрачный наконечник просвечивал и темнел там, где
+   лежит на конце линии. */
+.flow-arrow {
+  fill: var(--edge-solid);
+  stroke: none;
+}
+
+.flow-arrow-selected {
+  fill: var(--primary);
 }
 
 /* Рёбра по показу кнопки: главная — толстая, видна — сплошная, в «Ещё» —
@@ -149,7 +174,9 @@
   cursor: grab;
 }
 
-/* Подписи-чипы на своих стрелках (transition-edge.tsx). */
+/* Подписи-чипы на своих стрелках (transition-edge.tsx): слой подписей —
+   над ВСЕМИ линиями (выделенное ребро не поднимается z-index'ом, а рисуется
+   последним), под узлами; фон чипов непрозрачный — линия под ним не видна. */
 .edge-label {
   position: absolute;
   max-width: 240px;

@@ -39,6 +39,9 @@ export const TASK_EVENTS = {
   TYPE_UPDATED: 'task.type_updated',
   TYPE_ARCHIVED: 'task.type_archived',
   WORKFLOW_PUBLISHED: 'task.workflow_published',
+  /** Сохранена расстановка холста маршрута (без новой версии, #378 ред. 2):
+   *  открытые редакторы и «Схемы маршрута» перечитывают раскладку. */
+  WORKFLOW_LAYOUT_CHANGED: 'task.workflow_layout_changed',
   /** Задачное: смена типа у задачи (audience — участники, #378). */
   TYPE_CHANGED: 'task.type_changed',
 } as const;
@@ -175,6 +178,13 @@ export const taskWorkflowPublishedPayloadSchema = z.object({
   restates: z.array(z.object({ stageId: z.uuid(), systemState: z.string() })),
 });
 export type TaskWorkflowPublishedPayload = z.infer<typeof taskWorkflowPublishedPayloadSchema>;
+
+export const taskWorkflowLayoutChangedPayloadSchema = z.object({
+  workflowId: z.uuid(),
+});
+export type TaskWorkflowLayoutChangedPayload = z.infer<
+  typeof taskWorkflowLayoutChangedPayloadSchema
+>;
 
 /** Смена типа задачи (#378): задачное событие с обычной аудиторией; стадия
  *  меняется только если прежней нет в новом маршруте. */

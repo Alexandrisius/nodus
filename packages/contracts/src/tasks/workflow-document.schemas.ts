@@ -85,9 +85,10 @@ export const workflowLayoutTransitionSchema = z.object({
 });
 export type WorkflowLayoutTransition = z.infer<typeof workflowLayoutTransitionSchema>;
 
-/** Раскладка холста — ОБЩАЯ для всех (публикуется вместе с маршрутом):
- *  позиции статусов, точки подключения, подписи. Нет записи элемента —
- *  авторасстановка. Ключи — docId (new:* разрешаются при публикации). */
+/** Раскладка холста — ОБЩАЯ для всех: позиции статусов, точки подключения,
+ *  подписи, глубины обходов. Это оформление, не маршрут: сохраняется сразу,
+ *  БЕЗ новой версии (`PUT .../layout`), а записи новых элементов (new:*) —
+ *  вместе с их публикацией. Нет записи элемента — авторасстановка. */
 export const workflowLayoutSchema = z
   .object({
     stages: z.record(docIdSchema, flowPointSchema),
@@ -161,6 +162,16 @@ export const publishWorkflowResultSchema = z.object({
   scheduledMoves: z.number().int().min(0),
 });
 export type PublishWorkflowResult = z.infer<typeof publishWorkflowResultSchema>;
+
+/** `PUT /tasks/workflows/:id/layout` — расстановка холста сохраняется сразу,
+ *  без новой версии маршрута (#378 ред. 2, вердикт владельца 20.10:
+ *  перестановка «для красоты» версию не выпускает). Записи удалённых и
+ *  new:* элементов сервер отбрасывает; ответ — сохранённая раскладка. */
+export const saveWorkflowLayoutBodySchema = z.object({ layout: workflowLayoutSchema });
+export type SaveWorkflowLayoutBody = z.infer<typeof saveWorkflowLayoutBodySchema>;
+
+export const saveWorkflowLayoutResultSchema = z.object({ layout: workflowLayoutSchema });
+export type SaveWorkflowLayoutResult = z.infer<typeof saveWorkflowLayoutResultSchema>;
 
 /** Коды проблем схемы маршрута: ошибки запрещают публикацию, предупреждения
  *  — нет. Тексты — i18n `ui.automation.problems.<code>`; список закрыт

@@ -4,6 +4,7 @@ import {
   checkWorkflowDocument,
   createTaskTypeBodySchema,
   publishWorkflowBodySchema,
+  saveWorkflowLayoutBodySchema,
   updateTaskTypeBodySchema,
   hasBlockingProblems,
 } from '@nodus/contracts';
@@ -278,6 +279,32 @@ export const automationHandlers = [
       publishedAt: detail.publishedAt,
       scheduledMoves,
     });
+  }),
+
+  // Расстановка холста — без новой версии; слияние по элементам, только
+  // живые статусы и кнопки (как на сервере).
+  http.put('/api/v1/tasks/workflows/:id/layout', async ({ request, params }) => {
+    const detail = workflows.get(String(params.id));
+    if (!detail) return notFound();
+    const parsed = saveWorkflowLayoutBodySchema.safeParse(await request.json());
+    if (!parsed.success) return validationFailed();
+    const current = detail.document.layout ?? { stages: {}, transitions: {} };
+    const stageIds = new Set(detail.document.stages.map((s) => s.id));
+    const transitionIds = new Set(detail.document.transitions.map((t) => t.id));
+    const merged = {
+      stages: Object.fromEntries(
+        Object.entries({ ...current.stages, ...parsed.data.layout.stages }).filter(([id]) =>
+          stageIds.has(id),
+        ),
+      ),
+      transitions: Object.fromEntries(
+        Object.entries({ ...current.transitions, ...parsed.data.layout.transitions }).filter(
+          ([id]) => transitionIds.has(id),
+        ),
+      ),
+    };
+    detail.document = { ...detail.document, layout: merged };
+    return HttpResponse.json({ layout: merged });
   }),
 
   // --- Смена типа задачи ----------------------------------------------------

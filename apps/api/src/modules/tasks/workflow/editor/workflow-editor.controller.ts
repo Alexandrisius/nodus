@@ -1,14 +1,18 @@
-import { Body, Controller, Get, HttpCode, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Post, Put } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
 import {
   Permission,
   publishWorkflowBodySchema,
   publishWorkflowResultSchema,
+  saveWorkflowLayoutBodySchema,
+  saveWorkflowLayoutResultSchema,
   workflowDetailSchema,
   type AuthUser,
   type PublishWorkflowBody,
   type PublishWorkflowResult,
+  type SaveWorkflowLayoutBody,
+  type SaveWorkflowLayoutResult,
   type WorkflowDetail,
 } from '@nodus/contracts';
 
@@ -61,5 +65,25 @@ export class WorkflowEditorController {
     body: PublishWorkflowBody,
   ): Promise<PublishWorkflowResult> {
     return this.editor.publish(user, id, body);
+  }
+
+  @Put('workflows/:id/layout')
+  @HttpCode(200)
+  @RequirePermissions(Permission.TASK_WORKFLOW_MANAGE)
+  @Audit({ action: 'task.workflow_layout_save', entity: 'workflow' })
+  @ApiOperation({ summary: 'Расстановка холста маршрута — без новой версии' })
+  @ApiOkResponse({ standardSchema: saveWorkflowLayoutResultSchema })
+  @ApiErrors(400, 401, 403, 404)
+  @ApiIdempotencyKey()
+  saveLayout(
+    @GetUser() user: AuthUser,
+    @Param('id', uuid) id: string,
+    @Body({
+      schema: saveWorkflowLayoutBodySchema,
+      pipes: [new ZodValidationPipe(saveWorkflowLayoutBodySchema)],
+    })
+    body: SaveWorkflowLayoutBody,
+  ): Promise<SaveWorkflowLayoutResult> {
+    return this.editor.saveLayout(user, id, body);
   }
 }

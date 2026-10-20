@@ -28,6 +28,7 @@ import { ui } from '@nodus/contracts';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { AnyNode } from './any-node.js';
+import { FlowMarkers } from './flow-markers.js';
 import { StartNode } from './start-node.js';
 import { StatusNode } from './status-node.js';
 import { TransitionEdge } from './transition-edge.js';
@@ -79,6 +80,8 @@ export interface FlowCanvasProps {
   interactive: boolean;
   /** Доп. кнопки панели масштаба (отмена/повтор редактора). */
   controls?: React.ReactNode;
+  /** Ключ схемы: сменился — вписать заново (смена типа в редакторе). */
+  fitKey?: string;
   className?: string;
   children?: React.ReactNode;
 }
@@ -130,25 +133,22 @@ function useMeasuredNodes(nodes: Node[]): { nodes: Node[]; onNodesChange: OnNode
 }
 
 /**
- * Вписывание: первое — когда узлы измерены; дальше — только при смене
- * размера контейнера (окно, раскрытие диалога) и пока пользователь сам не
- * двигал холст. Добавление статуса вид не дёргает. Без минимального масштаба
- * подгонки — края схемы («Создание задачи», подписи справа) не обрезаются.
+ * Вписывание — ОДИН раз, когда узлы измерены, и заново только при смене
+ * схемы (`fitKey`). Смена размера холста (выезд правой панели, окно) вид НЕ
+ * трогает: граф стоит, край холста его просто обрезает (вердикт владельца
+ * 20.10 — «чтобы не дёргалось ничего лишний раз»). Добавление статуса вид
+ * тоже не дёргает.
  */
-function AutoFit({ userMoved }: { userMoved: React.RefObject<boolean> }) {
+function AutoFit({ fitKey }: { fitKey: string }) {
   const initialized = useNodesInitialized();
-  const width = useStore((s) => s.width);
-  const height = useStore((s) => s.height);
+  const sized = useStore((s) => s.width > 0 && s.height > 0);
   const { fitView } = useReactFlow();
-  const fitted = useRef<{ width: number; height: number } | null>(null);
+  const fitted = useRef<string | null>(null);
   useEffect(() => {
-    if (!initialized || width === 0 || height === 0) return;
-    const previous = fitted.current;
-    if (previous && previous.width === width && previous.height === height) return;
-    fitted.current = { width, height };
-    if (previous && userMoved.current) return;
+    if (!initialized || !sized || fitted.current === fitKey) return;
+    fitted.current = fitKey;
     void fitView(FIT);
-  }, [initialized, width, height, fitView, userMoved]);
+  }, [initialized, sized, fitKey, fitView]);
   return null;
 }
 
@@ -166,14 +166,15 @@ export function FlowCanvas({
   onPaneClick,
   interactive,
   controls,
+  fitKey = '',
   className,
   children,
 }: FlowCanvasProps) {
-  const userMoved = useRef(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const measured = useMeasuredNodes(nodes);
   return (
-    <div ref={wrapperRef} className={cn('h-full w-full', className)}>
+    <div ref={wrapperRef} className={cn('relative h-full w-full', className)}>
+      <FlowMarkers />
       <ReactFlow
         nodes={measured.nodes}
         onNodesChange={measured.onNodesChange}
@@ -197,10 +198,6 @@ export function FlowCanvas({
         onNodeClick={onNodeClick}
         onEdgeClick={onEdgeClick}
         onPaneClick={onPaneClick}
-        onMoveStart={(event) => {
-          // Двигал сам пользователь (у программного fitView события нет).
-          if (event) userMoved.current = true;
-        }}
         nodesDraggable={interactive}
         nodesConnectable={interactive}
         edgesReconnectable={interactive}
@@ -230,7 +227,7 @@ export function FlowCanvas({
         >
           {controls}
         </Controls>
-        <AutoFit userMoved={userMoved} />
+        <AutoFit fitKey={fitKey} />
         {children}
       </ReactFlow>
     </div>

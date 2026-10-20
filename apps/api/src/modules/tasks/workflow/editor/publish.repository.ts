@@ -74,6 +74,16 @@ export class WorkflowPublishRepository {
     await tx.workflowTransition.update({ where: { id }, data: { archivedAt: at } });
   }
 
+  /** Только раскладка холста — версия, дата и автор публикации не меняются
+   *  (оформление, не маршрут; #378 ред. 2). */
+  async saveLayout(
+    tx: TransactionClient,
+    workflowId: string,
+    layout: Prisma.InputJsonValue,
+  ): Promise<void> {
+    await tx.workflow.update({ where: { id: workflowId }, data: { layout } });
+  }
+
   /** Новая версия маршрута + раскладка холста (общая для всех). */
   async bumpVersion(
     tx: TransactionClient,

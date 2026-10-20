@@ -1,51 +1,31 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { useRouterState } from '@tanstack/react-router';
+import { useEffect } from 'react';
 import { ui } from '@nodus/contracts';
+import { Button } from '@nodus/ui/components/button';
+import { NodeLabel } from '@nodus/ui/components/node-label';
 import { cn } from '@nodus/ui/lib/utils';
 import { ArrowLeft, X } from 'lucide-react';
 
-import { measureCircuit } from '../../../../../app/shell/circuit-geometry.js';
+import { useFrameReady } from '../../../../../shared/ui/use-frame-ready.js';
 
-/** Ширина правой панели редактора (резерв строки инструментов — от неё). */
+/** Ширина правой панели редактора. */
 export const SIDE_PANEL_WIDTH = 384;
-
-/** Зазор панели от оси контура — как справа и снизу (right-2/bottom-2): в
- *  окне-сплите ось идёт на всю ширину, и касание читалось наездом на линию
- *  (вердикт владельца 20.10.2026). */
-const AXIS_GAP = 8;
 
 /** Открыт ли сейчас оверлей Radix (меню, поповер, список, диалог) — Esc его. */
 function overlayOpen(): boolean {
   return document.querySelector('[data-radix-popper-content-wrapper], [role="dialog"]') !== null;
 }
 
-/** Верх панели от оси контура: axisY (тот же замер, что рисует контур)
- *  минус верх контейнера панели плюс зазор; пересчёт на resize. */
-function useAxisTop(ref: React.RefObject<HTMLDivElement | null>): number {
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const [top, setTop] = useState(AXIS_GAP);
-  useLayoutEffect(() => {
-    const update = () => {
-      const axisY = measureCircuit(pathname, false)?.axisY;
-      const parent = ref.current?.offsetParent;
-      const parentTop = parent?.getBoundingClientRect().top;
-      const shift = axisY !== undefined && parentTop !== undefined ? axisY - parentTop : 0;
-      setTop(Math.max(0, shift) + AXIS_GAP);
-    };
-    update();
-    window.addEventListener('resize', update);
-    return () => window.removeEventListener('resize', update);
-  }, [pathname, ref]);
-  return top;
-}
-
 /**
- * Внутриоконная боковая панель (канон #84, вердикт 24.09.2026): absolute
- * поверх холста — перекрывает, не двигает; верх — на 8px ниже оси контура
- * (не касается линии), бордер по периметру, радиус 14, крестик у края шапки. Обёртка монтирована
- * всегда (закон выдвижных поверхностей: ширина плавно и в первое открытие),
- * прокрутка только вертикальная — горизонтальной нет. Esc: сначала «назад»
- * из раздела, потом закрыть.
+ * Правая панель окна-сплита — канон панели беседы мессенджера (вердикт
+ * владельца 20.10.2026: «как в мессенджере»): ПОЛНОВЫСОТНАЯ колонка-сиблинг
+ * рабочей области, занимает и верхний бар — её шапка h-14 (название слева,
+ * крестик у края справа) продолжает линию border-b бара окна; border-l
+ * отделяет от холста. Выезжает справа налево шириной и СУЖАЕТ холст: граф не
+ * двигается, край холста его просто обрезает. Обёртка монтирована всегда
+ * (w-0), класс раскрытия — после двух кадров (`useFrameReady`): первое
+ * открытие после перезагрузки тоже плавное (закон выдвижных поверхностей).
+ * Прокрутка только вертикальная. Esc: сначала «назад» из раздела, потом
+ * закрыть.
  */
 export function SidePanel({
   open,
@@ -61,8 +41,7 @@ export function SidePanel({
   onBack?: () => void;
   children: React.ReactNode;
 }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const top = useAxisTop(ref);
+  const ready = useFrameReady();
 
   useEffect(() => {
     if (!open) return;
@@ -78,44 +57,44 @@ export function SidePanel({
 
   return (
     <div
-      ref={ref}
       aria-hidden={!open}
-      style={{ top }}
+      inert={!open}
       className={cn(
-        'absolute right-2 bottom-2 z-20 overflow-hidden transition-[width] duration-200 ease-out',
-        open ? 'w-[384px]' : 'pointer-events-none w-0',
+        'h-full shrink-0 overflow-hidden transition-[width] duration-200 ease-out',
+        open && ready ? 'w-[384px]' : 'w-0',
       )}
     >
       {/* nokey: Delete/Backspace на контролах панели (Select, Switch) не
           удаляют выделенное на холсте (фильтр клавиш React Flow). */}
-      <div className="nokey flex h-full w-[384px] flex-col rounded-[14px] border border-border bg-card">
-        <div className="flex h-14 shrink-0 items-center gap-1 pr-2 pl-4">
+      <aside className="nokey flex h-full w-[384px] flex-col border-l border-border bg-card">
+        <div className="flex h-14 shrink-0 items-center gap-1 border-b border-border px-3">
           {onBack ? (
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="icon"
+              className="shrink-0 hover:bg-accent"
               onClick={onBack}
               aria-label={ui.automation.panel.back}
-              className="-ml-2 rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              title={ui.automation.panel.back}
             >
-              <ArrowLeft className="size-4" strokeWidth={1.75} />
-            </button>
+              <ArrowLeft />
+            </Button>
           ) : null}
-          <span className="min-w-0 flex-1 truncate text-[15px] font-medium" title={title}>
-            {title}
-          </span>
-          <button
-            type="button"
+          <NodeLabel label={title} className="min-w-0 truncate pl-1" />
+          <Button
+            variant="ghost"
+            size="icon"
+            className="ml-auto shrink-0 hover:bg-accent"
             onClick={onClose}
             aria-label={ui.common.close}
-            className="shrink-0 rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           >
-            <X className="size-4" strokeWidth={1.75} />
-          </button>
+            <X />
+          </Button>
         </div>
-        <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-x-hidden overflow-y-auto px-4 pb-4 *:min-w-0">
+        <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-x-hidden overflow-y-auto p-4 *:min-w-0">
           {children}
         </div>
-      </div>
+      </aside>
     </div>
   );
 }

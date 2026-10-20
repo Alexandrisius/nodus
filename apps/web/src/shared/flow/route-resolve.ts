@@ -13,8 +13,10 @@ import {
   type FlowBox,
   type HandleEdgeInput,
 } from './flow-handles.js';
+import type { FlowPt } from './edge-geometry.js';
 import { ROUTE_GEOMETRY, resolvePositions, type FlowPosition } from './route-layout.js';
-import { edgeSpread, type RouteLoop } from './route-loops.js';
+import { edgePath, labelBoxAt, labelWidth, placeLabel } from './route-labels.js';
+import { U_BASE, edgeSpread, type RouteLoop } from './route-loops.js';
 
 export { U_BASE } from './route-loops.js';
 
@@ -53,6 +55,23 @@ export interface ResolvedRoute {
   loops: Map<string, RouteLoop>;
   /** Отпечаток концов стрелки: боксы и точки (сдвинулась ли стрелка). */
   ends: Map<string, string>;
+  /** Пути стрелок (как их рисует холст) — для подписей. */
+  paths: Map<string, FlowPt[]>;
+  /** Узлы холста — статусы, метки, «Создание задачи» (препятствия подписей). */
+  nodeBoxes: FlowBox[];
+  /** Доля пути подписи каждой кнопки с названием. */
+  labels: Map<string, number>;
+}
+
+/** Бокс старта «Создание задачи» у начального статуса (как в route-graph). */
+export function startBoxOf(initial: FlowPosition): FlowBox {
+  const g = ROUTE_GEOMETRY;
+  return {
+    x: initial.x - g.startWidth - g.startGap,
+    y: initial.y + (g.stageHeight - g.startHeight) / 2,
+    w: g.startWidth,
+    h: g.startHeight,
+  };
 }
 
 export function resolveRoute(doc: WorkflowDraftDocument): ResolvedRoute {
@@ -110,15 +129,52 @@ export function resolveRoute(doc: WorkflowDraftDocument): ResolvedRoute {
     (id) => layout.transitions[id]?.offset,
   );
   const ends = new Map<string, string>();
+  const paths = new Map<string, FlowPt[]>();
   for (const input of inputs) {
     const h = handles.get(input.id);
     const a = boxes.get(input.source);
     const b = boxes.get(input.target);
-    if (h && a && b) {
-      ends.set(input.id, `${a.x},${a.y},${h.sourceHandle}|${b.x},${b.y},${h.targetHandle}`);
-    }
+    if (!h || !a || !b) continue;
+    ends.set(input.id, `${a.x},${a.y},${h.sourceHandle}|${b.x},${b.y},${h.targetHandle}`);
+    const s = spread.get(input.id) ?? { offset: U_BASE, shift: 0 };
+    paths.set(input.id, edgePath(a, h.sourceHandle, b, h.targetHandle, s));
   }
-  return { layout, positions, anchors, inputs, handles, spread, loops, ends };
+
+  // Подписи: сохранённое место — закон (стоит первым), новые — на своей
+  // стрелке без наезда на узлы и уже стоящие подписи.
+  const initial = doc.stages.find((s) => s.isInitial);
+  const nodeBoxes = [...boxes.values()];
+  if (initial && positions.has(initial.id)) nodeBoxes.push(startBoxOf(positions.get(initial.id)!));
+  const labels = new Map<string, number>();
+  const taken: FlowBox[] = [...nodeBoxes];
+  const named = doc.transitions.filter((t) => t.name !== '' && paths.has(t.id));
+  for (const t of named) {
+    const saved = layout.transitions[t.id]?.labelT;
+    if (saved === undefined) continue;
+    labels.set(t.id, saved);
+    taken.push(labelBoxAt(paths.get(t.id)!, saved, labelWidth(t.name)));
+  }
+  for (const t of named) {
+    if (labels.has(t.id)) continue;
+    const points = paths.get(t.id)!;
+    const width = labelWidth(t.name);
+    const at = placeLabel(points, width, taken);
+    labels.set(t.id, at);
+    taken.push(labelBoxAt(points, at, width));
+  }
+  return {
+    layout,
+    positions,
+    anchors,
+    inputs,
+    handles,
+    spread,
+    loops,
+    ends,
+    paths,
+    nodeBoxes,
+    labels,
+  };
 }
 
 function asHandle(id: string | undefined): FlowHandleId | undefined {
@@ -128,9 +184,9 @@ function asHandle(id: string | undefined): FlowHandleId | undefined {
 
 /**
  * Полная раскладка ровно той картинки, что сейчас на холсте: позиции всех
- * статусов, точки всех стрелок (у кнопки «из любого» — только цель) и глубины
- * обходов. Место метки и подписи не фиксируются — они следуют за своим
- * статусом/стрелкой.
+ * статусов, точки всех стрелок (у кнопки «из любого» — только цель), глубины
+ * обходов и места подписей на стрелках. Место метки «Любой статус» не
+ * фиксируется — она следует за своим статусом.
  */
 export function frozenLayout(doc: WorkflowDraftDocument): WorkflowLayout {
   const route = resolveRoute(doc);
@@ -144,6 +200,8 @@ export function frozenLayout(doc: WorkflowDraftDocument): WorkflowLayout {
     if (t.fromStageId !== null) entry.sourceHandle ??= asHandle(h.sourceHandle);
     entry.targetHandle ??= asHandle(h.targetHandle);
     if (route.loops.has(t.id)) entry.offset ??= route.spread.get(t.id)?.offset;
+    const label = route.labels.get(t.id);
+    if (label !== undefined) entry.labelT ??= label;
     transitions[t.id] = entry;
   }
   return { stages, transitions };
@@ -157,6 +215,7 @@ export function isLayoutComplete(doc: WorkflowDraftDocument): boolean {
     doc.transitions.every((t) => {
       const entry = layout.transitions[t.id];
       if (entry?.targetHandle === undefined) return false;
+      if (t.name !== '' && entry.labelT === undefined) return false;
       if (t.fromStageId === null) return true;
       if (entry.sourceHandle === undefined) return false;
       // U-обход (вход и выход с одной стороны) — ещё и с глубиной.

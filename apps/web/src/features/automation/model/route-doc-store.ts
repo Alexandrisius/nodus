@@ -7,17 +7,26 @@ import type {
   WorkflowDraftDocument,
   WorkflowDraftStage,
   WorkflowDraftTransition,
+  WorkflowLayout,
 } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { clearDraft, persistDraft, readDraft, readStaleDraft } from './route-draft-storage.js';
-import { newId, normalize, stepHistory, withHistory } from './route-doc-helpers.js';
+import {
+  newId,
+  normalize,
+  stepHistory,
+  structureChanged,
+  withHistory,
+} from './route-doc-helpers.js';
 import * as ops from './route-doc-ops.js';
+import { freezeLayout, settleLabels, settleLoops } from './route-doc-layout.js';
 
 /** Стор рабочей копии маршрута (#378, ADR-0021): документ (статусы, кнопки
  *  и ОБЩАЯ раскладка холста — ред. 2, ADR-0022), история-снимки, черновик в
  *  localStorage (route-draft-storage), публикация/отмена → сброс dirty.
- *  Перетаскивание на холсте живёт локально в React Flow; в документ — одним
- *  шагом истории на отпускании. */
+ *  `dirty` — только правки МАРШРУТА: расстановка холста сохраняется сама
+ *  (use-layout-autosave, без новой версии). Перетаскивание на холсте живёт
+ *  локально в React Flow; в документ — одним шагом истории на отпускании. */
 
 export type SelectionRef = { kind: 'stage' | 'transition'; id: string } | null;
 
@@ -93,6 +102,8 @@ interface RouteDocState {
   /** Публикация прошла: черновик снят, правки закрыты до sync() свежей
    *  версии (baseVersion — только из документа сервера). */
   markPublished: () => void;
+  /** Расстановка автосохранена (PUT .../layout) — ответ сервера. */
+  markLayoutSaved: (layout: WorkflowLayout) => void;
 }
 
 /** Фабрика стора на маршрут (черновик персистится на каждый документ-шаг). */
@@ -101,8 +112,8 @@ export function createRouteDocStore(workflowId: string) {
     /** Шаг документа: история + черновик (без шага — если операция отказала).
      *  `coalesce` — ключ ввода текста: нажатия подряд (< 1 с) сливаются в
      *  один шаг отмены, а не «по букве». `freeze` — видимая расстановка
-     *  фиксируется, сдвинутые обходы не слипаются с соседними (выключено
-     *  только у «Упорядочить»). */
+     *  фиксируется, сдвинутые обходы не слипаются с соседними, подписи не
+     *  наезжают на узлы и друг на друга (выключено только у «Упорядочить»). */
     const commit = (
       proposed: WorkflowDraftDocument | null,
       extra: Partial<RouteDocState> = {},
@@ -111,13 +122,15 @@ export function createRouteDocStore(workflowId: string) {
     ) => {
       if (!proposed) return;
       const prev = get().document;
-      const next = freeze ? ops.settleLoops(prev, ops.freezeLayout(prev, proposed)) : proposed;
+      const next = freeze
+        ? settleLabels(prev, settleLoops(prev, freezeLayout(prev, proposed)))
+        : proposed;
       const now = Date.now();
       set((s) => {
         const merge =
           coalesce !== undefined && s.lastEdit?.key === coalesce && now - s.lastEdit.at < 1000;
         const history = merge
-          ? { document: next, past: s.past, future: [], dirty: true }
+          ? { document: next, past: s.past, future: [], dirty: structureChanged(next, s.baseline) }
           : withHistory(s, next);
         return { ...history, ...extra, lastEdit: coalesce ? { key: coalesce, at: now } : null };
       });
@@ -158,17 +171,22 @@ export function createRouteDocStore(workflowId: string) {
           layout: detail.document.layout ?? ops.EMPTY_LAYOUT,
         };
         const draft = readDraft(detail.id, detail.version);
+        const document = draft
+          ? { ...draft.document, layout: ops.layoutOf(draft.document) }
+          : baseline;
         set({
           workflowId: detail.id,
           baseVersion: detail.version,
           baseline,
-          // Черновик той же версии — подхватывается (баннер «Сбросить»);
-          // устаревший — игнорируется, но о нём сообщаем (staleDraftAt).
-          document: draft ? { ...draft.document, layout: ops.layoutOf(draft.document) } : baseline,
+          // Черновик той же версии — подхватывается (баннер «Сбросить», если
+          // в нём правки маршрута; несохранённую расстановку из него
+          // автосохранение отправит само); устаревший — игнорируется, но о
+          // нём сообщаем (staleDraftAt).
+          document,
           draftSavedAt: draft?.savedAt ?? null,
           staleDraftAt: draft ? null : readStaleDraft(detail.id, detail.version),
           selection: null,
-          dirty: draft !== null,
+          dirty: structureChanged(document, baseline),
           past: [],
           future: [],
           pendingReload: false,
@@ -337,6 +355,12 @@ export function createRouteDocStore(workflowId: string) {
           pendingReload: true,
         }));
         clearDraft(get().workflowId);
+      },
+
+      markLayoutSaved: (layout) => {
+        // Сохранённая расстановка — новая точка «Сбросить»; история и
+        // черновик маршрута не трогаются.
+        set((s) => ({ baseline: { ...s.baseline, layout } }));
       },
     };
   });

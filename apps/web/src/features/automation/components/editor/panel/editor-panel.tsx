@@ -63,11 +63,12 @@ export function EditorPanel({
   const back = useCallback(() => setSection('root'), []);
   const inSection = (stage !== null || transition !== null) && section !== 'root';
 
+  // Шапка — вид элемента или раздел; название — первое поле панели.
   const title = inSection
     ? SECTION_TITLE[section as Exclude<PanelSection, 'root'>]
     : stage
-      ? stage.name || ui.automation.newStageName
-      : (transition?.name ?? '');
+      ? ui.automation.panel.kindStage
+      : ui.automation.panel.kindTransition;
 
   return (
     <SidePanel open={open} title={title} onClose={close} onBack={inSection ? back : undefined}>

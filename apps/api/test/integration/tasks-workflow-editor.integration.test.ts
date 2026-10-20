@@ -113,6 +113,37 @@ describe.skipIf(!process.env.DATABASE_URL)('tasks workflow editor (integration, 
     workStageId = detail.document.stages.find((s) => s.name === 'В работе')!.id;
   });
 
+  it('расстановка холста: без права 403; с правом — сохранена без новой версии', async () => {
+    const path = `/tasks/workflows/${workflowId}/layout`;
+    const layout = {
+      stages: { [initialStageId]: { x: 40, y: 80 }, 'new:ghost': { x: 0, y: 0 } },
+      transitions: {},
+    };
+    const denied = await fx.api(alice, 'PUT', path, {
+      body: { layout },
+      key: `it-layout-denied-${fx.runId}`,
+    });
+    expect(denied.status).toBe(403);
+
+    const saved = await fx.api(admin, 'PUT', path, {
+      body: { layout },
+      key: `it-layout-${fx.runId}`,
+    });
+    expect(saved.status).toBe(200);
+    // Запись несуществующего (new:*) элемента отброшена.
+    expect(await saved.json()).toEqual({
+      layout: { stages: { [initialStageId]: { x: 40, y: 80 } }, transitions: {} },
+    });
+    const detail = (await (
+      await fx.api(admin, 'GET', `/tasks/workflows/${workflowId}`)
+    ).json()) as {
+      version: number;
+      document: { layout?: { stages: Record<string, unknown> } };
+    };
+    expect(detail.version).toBe(1);
+    expect(detail.document.layout?.stages[initialStageId]).toEqual({ x: 40, y: 80 });
+  });
+
   it('задача нового типа: скрытый тип отвергается, включённый — работает', async () => {
     const hidden = await fx.api(admin, 'POST', '/tasks', {
       body: { title: `IT-задача ${fx.runId}`, typeId: customTypeId },
