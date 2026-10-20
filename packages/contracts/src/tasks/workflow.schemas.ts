@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { Permission } from '../auth/permission.js';
 import {
   docIdSchema,
   stageColorSchema,
@@ -15,6 +16,8 @@ import {
  * коде — ложная безопасность). Типы задач — `task-type.schemas.ts`; документ
  * редактора — `workflow-document.schemas.ts`.
  */
+
+const PERMISSION_VALUES = Object.values(Permission) as [Permission, ...Permission[]];
 
 /** Роль пользователя относительно задачи (вход условий переходов и прав). */
 export const taskActorRoleSchema = z.enum(['creator', 'assignee', 'coexecutor', 'observer']);
@@ -34,7 +37,9 @@ export type TaskRequirableField = z.infer<typeof taskRequirableFieldSchema>;
  *  любой, кто может править задачу. Несколько условий — ИЛИ. */
 export const workflowConditionSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('role_in'), roles: z.array(taskActorRoleSchema).min(1) }),
-  z.object({ kind: z.literal('permission'), permission: z.string().min(1) }),
+  // Только право из каталога (`auth/permission.ts`): опечатка или выдуманное
+  // право сделало бы кнопку невидимой всем (security-ревью #378).
+  z.object({ kind: z.literal('permission'), permission: z.enum(PERMISSION_VALUES) }),
 ]);
 export type WorkflowCondition = z.infer<typeof workflowConditionSchema>;
 

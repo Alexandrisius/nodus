@@ -107,6 +107,10 @@ export class TaskTypesService {
     if (body.base.kind === 'simple') {
       return this.repo.createSimpleWorkflow(tx, { name, publishedById: actorId });
     }
+    // Основа — только живой тип (как в диалоге создания): архивный — вне
+    // употребления, его маршрут сначала восстанавливают.
+    const base = await this.repo.findById(body.base.typeId);
+    if (!base || base.archivedAt) throw DomainException.notFound('Base task type not found');
     const workflowId = await this.repo.workflowIdOf(body.base.typeId);
     const source = await this.workflows.load(workflowId, tx);
     return this.repo.copyWorkflow(tx, source, { name, publishedById: actorId });

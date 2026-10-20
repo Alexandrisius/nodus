@@ -74,6 +74,14 @@ describe('TaskTypesService (#378)', () => {
     expect(created.workflowId).toBe('wf-copy');
   });
 
+  it('основа — архивный тип: 404, ничего не создаётся', async () => {
+    const { service, repo } = setup({ type: { id: 'src-type', archivedAt: new Date() } });
+    await expect(
+      service.create(USER, body({ kind: 'copy', typeId: 'src-type' })),
+    ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND });
+    expect(repo.copyWorkflow).not.toHaveBeenCalled();
+  });
+
   it('системный тип в архив нельзя — TASK_TYPE_SYSTEM_LOCKED', async () => {
     const { service, repo } = setup({ type: { id: 't', isSystem: true } });
     await expect(service.setArchived(USER, 't', true)).rejects.toMatchObject({
