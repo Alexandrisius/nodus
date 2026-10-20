@@ -1,0 +1,188 @@
+import type {
+  TransitionDisplay,
+  WorkflowDraftDocument,
+  WorkflowDraftTransition,
+} from '@nodus/contracts';
+import { ui } from '@nodus/contracts';
+import { Input } from '@nodus/ui/components/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@nodus/ui/components/select';
+import { ArrowRight } from 'lucide-react';
+
+import { useRouteDocStore } from '../../../model/route-doc-store.js';
+import {
+  ACTOR_ROLES,
+  VALIDATOR_KINDS,
+  rolesOf,
+  routeIfOf,
+  validatorOf,
+} from '../../../model/transition-rules.js';
+import { ProcessPreview } from '../process-preview.js';
+import { PanelDanger, PanelField, SectionLink, Segmented, focusName } from './panel-kit.js';
+
+export type TransitionSection = 'root' | 'roles' | 'conditions' | 'rules';
+
+const ANY = 'any';
+const DISPLAYS: readonly TransitionDisplay[] = ['primary', 'button', 'menu'];
+
+/** Сводки разделов (строка под названием раздела). */
+export function sectionSummaries(transition: WorkflowDraftTransition, doc: WorkflowDraftDocument) {
+  const roles = rolesOf(transition.rules);
+  const validators = VALIDATOR_KINDS.filter((kind) => validatorOf(transition.rules, kind));
+  const routeIf = routeIfOf(transition.rules);
+  return {
+    roles:
+      roles.size > 0
+        ? ACTOR_ROLES.filter((r) => roles.has(r))
+            .map((r) => ui.automation.roles[r])
+            .join(', ')
+        : ui.automation.panel.nobody,
+    conditions:
+      validators.length > 0
+        ? validators.map((kind) => ui.automation.validators[kind]).join(', ')
+        : ui.automation.panel.noConditions,
+    rules:
+      routeIf !== null
+        ? `${ui.automation.panel.routeIfSummary} ${doc.stages.find((s) => s.id === routeIf)?.name ?? ''}`
+        : ui.automation.panel.noRules,
+  };
+}
+
+/**
+ * Панель кнопки-перехода (#378 ред. 2): сверху «Откуда → Куда», ниже
+ * название (подпись кнопки в карточке), показ сегментами, разделы «Кто
+ * видит ›», «Условия перехода ›», «Особые правила ›» со сводками, превью
+ * панели процесса исходного статуса, удаление.
+ */
+export function TransitionPanel({
+  transition: t,
+  document: doc,
+  readOnly,
+  autoFocusName,
+  onOpenSection,
+}: {
+  transition: WorkflowDraftTransition;
+  document: WorkflowDraftDocument;
+  readOnly: boolean;
+  autoFocusName: boolean;
+  onOpenSection: (section: Exclude<TransitionSection, 'root'>) => void;
+}) {
+  const store = useRouteDocStore.getState;
+  const patch = (value: Partial<WorkflowDraftTransition>) => store().patchTransition(t.id, value);
+  const summaries = sectionSummaries(t, doc);
+  const siblings = doc.transitions
+    .filter((x) => x.fromStageId === t.fromStageId)
+    .sort((a, b) => a.sortOrder - b.sortOrder);
+
+  return (
+    <>
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-2">
+        <PanelField label={ui.automation.fromStage}>
+          <Select
+            value={t.fromStageId ?? ANY}
+            disabled={readOnly}
+            onValueChange={(value) => patch({ fromStageId: value === ANY ? null : value })}
+          >
+            <SelectTrigger className="w-full min-w-0" aria-label={ui.automation.fromStage}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent position="popper" className="nokey">
+              <SelectItem value={ANY}>{ui.automation.anyStatus}</SelectItem>
+              {doc.stages
+                .filter((s) => s.id !== t.toStageId)
+                .map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.name}
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
+        </PanelField>
+        <ArrowRight className="mb-2 size-4 text-muted-foreground" strokeWidth={1.75} aria-hidden />
+        <PanelField label={ui.automation.toStage}>
+          <Select
+            value={t.toStageId}
+            disabled={readOnly}
+            onValueChange={(value) => patch({ toStageId: value })}
+          >
+            <SelectTrigger className="w-full min-w-0" aria-label={ui.automation.toStage}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent position="popper" className="nokey">
+              {doc.stages
+                .filter((s) => s.id !== t.fromStageId)
+                .map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.name}
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
+        </PanelField>
+      </div>
+
+      <PanelField label={ui.automation.transitionName} hint={ui.automation.transitionNameHint}>
+        <Input
+          key={t.id}
+          value={t.name}
+          maxLength={32}
+          readOnly={readOnly}
+          ref={autoFocusName ? focusName : undefined}
+          onChange={(event) => patch({ name: event.target.value })}
+        />
+      </PanelField>
+
+      <PanelField
+        label={ui.automation.panel.display}
+        hint={ui.automation.panel.displayHints[t.display]}
+      >
+        <Segmented
+          value={t.display}
+          disabled={readOnly}
+          options={DISPLAYS.map((d) => ({
+            value: d,
+            label: ui.automation.panel.displaySegments[d],
+          }))}
+          onChange={(display) =>
+            display === 'primary' ? store().setTransitionPrimary(t.id) : patch({ display })
+          }
+        />
+      </PanelField>
+
+      <div className="flex min-w-0 flex-col">
+        <SectionLink
+          title={ui.automation.panel.sectionWhoSees}
+          summary={summaries.roles}
+          onClick={() => onOpenSection('roles')}
+        />
+        <SectionLink
+          title={ui.automation.panel.sectionConditions}
+          summary={summaries.conditions}
+          onClick={() => onOpenSection('conditions')}
+        />
+        <SectionLink
+          title={ui.automation.panel.sectionRules}
+          summary={summaries.rules}
+          onClick={() => onOpenSection('rules')}
+        />
+      </div>
+
+      {t.fromStageId !== null ? (
+        <PanelField label={ui.automation.previewTitle}>
+          <ProcessPreview transitions={siblings} />
+        </PanelField>
+      ) : null}
+
+      {!readOnly ? (
+        <PanelDanger onClick={() => store().removeTransition(t.id)}>
+          {ui.automation.deleteTransition}
+        </PanelDanger>
+      ) : null}
+    </>
+  );
+}

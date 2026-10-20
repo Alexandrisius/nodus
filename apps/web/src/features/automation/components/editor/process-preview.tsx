@@ -34,8 +34,8 @@ export function ProcessPreview({
   };
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex flex-wrap gap-1">
+    <div className="flex min-w-0 flex-col gap-2">
+      <div className="flex min-w-0 flex-wrap gap-1">
         {PREVIEW_ROLES.map((r) => (
           <button
             key={r.id}
@@ -53,14 +53,18 @@ export function ProcessPreview({
           </button>
         ))}
       </div>
-      <div className="flex items-center gap-1.5 rounded-lg border border-border bg-background p-2">
+      {/* Панель переносится строками — горизонтальной прокрутки нет. */}
+      <div className="flex min-w-0 flex-wrap items-center gap-1.5 rounded-lg border border-border bg-background p-2">
         {groups.primary ? (
-          <span className="rounded-md bg-primary px-2.5 py-1 text-xs text-primary-foreground">
+          <span className="max-w-full rounded-md bg-primary px-2.5 py-1 text-xs break-words text-primary-foreground">
             {groups.primary.name}
           </span>
         ) : null}
         {groups.visible.map((t) => (
-          <span key={t.id} className="rounded-md px-2.5 py-1 text-xs text-muted-foreground">
+          <span
+            key={t.id}
+            className="max-w-full rounded-md px-2.5 py-1 text-xs break-words text-muted-foreground"
+          >
             {t.name}
           </span>
         ))}

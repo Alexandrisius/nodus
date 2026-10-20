@@ -1,37 +1,51 @@
-import { memo } from 'react';
+import { memo, useMemo, useRef, useState } from 'react';
 import {
   BaseEdge,
   EdgeLabelRenderer,
-  getSmoothStepPath,
+  useReactFlow,
   type Edge,
   type EdgeProps,
 } from '@xyflow/react';
 import type { TransitionDisplay } from '@nodus/contracts';
 import { cn } from '@nodus/ui/lib/utils';
 
-import { displayEdgeStyle, roundedOrthPath, type RoutePoint } from './edge-routing.js';
+import { orthogonalPoints, pointAt, projectT, roundedPath } from './edge-geometry.js';
+import { sideOfPosition } from './flow-handles.js';
 
-/** Данные ребра-кнопки: маршрут проложен заранее (edge-routing) — точки
- *  ломаной и координаты подписи в абсолютных координатах канвы. */
+/** Данные ребра-кнопки: геометрия — от реальных точек подключения (React
+ *  Flow), здесь только параметры разноса и положение подписи. */
 export interface TransitionEdgeData extends Record<string, unknown> {
   name: string;
   display: TransitionDisplay;
-  /** Ломаная маршрута (пусто — прямая по портам, стартовое ребро). */
-  points: readonly RoutePoint[];
-  /** Точка подписи (пусто — подписи нет). */
-  label: RoutePoint | null;
+  /** Подпись вдоль стрелки: 0 — у источника, 1 — у цели. */
+  labelT: number;
+  /** Вылет из точки / глубина U-обхода (разнос вложенных обходов). */
+  offset: number;
+  /** Сдвиг излома (параллельные кнопки одной пары). */
+  shift: number;
   /** Приглушение («Схема маршрута»: кнопка недоступна пользователю). */
   dim?: boolean;
   onSelect?: () => void;
+  /** Перетаскивание подписи (только редактор): t на отпускании. */
+  onLabelT?: (t: number) => void;
 }
 
 export type TransitionFlowEdge = Edge<TransitionEdgeData, 'transition'>;
 
+const DRAG_THRESHOLD = 3;
+
+function displayClasses(display: TransitionDisplay): { line: string; label: string } {
+  if (display === 'primary') return { line: 'flow-edge-primary', label: 'edge-label-primary' };
+  if (display === 'menu') return { line: 'flow-edge-menu', label: 'edge-label-menu' };
+  return { line: 'flow-edge-button', label: 'edge-label-button' };
+}
+
 /**
- * Ребро-кнопка холста: ортогональная линия с мягкими локтями и стрелкой у
- * цели; подпись — чип в точке, гарантированно свободной от карточек (коридор
- * между слоями или нижняя магистраль). Вид по показу: главная — залитый чип,
- * видна — карточка с рамкой, в «Ещё» — пунктир и приглушённый чип.
+ * Ребро-кнопка холста: ортогональная линия с мягкими локтями между точками
+ * подключения, стрелка у цели. Подпись — чип НА СВОЕЙ стрелке в доле `labelT`
+ * длины; в правке тянется вдоль неё (проекция курсора на ломаную), клик —
+ * выбор кнопки. Вид по показу: главная — толстая линия и залитый чип, видна —
+ * сплошная, в «Ещё» — пунктир. Выделенная — тон primary, толще, кольцо чипа.
  */
 export const TransitionEdge = memo(function TransitionEdge({
   id,
@@ -45,47 +59,95 @@ export const TransitionEdge = memo(function TransitionEdge({
   selected,
   data,
 }: EdgeProps<TransitionFlowEdge>) {
-  const d = data ?? { name: '', display: 'button' as TransitionDisplay, points: [], label: null };
-  const style = displayEdgeStyle(d.display);
-  const path =
-    d.points.length >= 2
-      ? roundedOrthPath(d.points)
-      : getSmoothStepPath({
-          sourceX,
-          sourceY,
-          targetX,
-          targetY,
-          sourcePosition,
-          targetPosition,
-          borderRadius: 8,
-        })[0];
-  const opacity = d.dim ? 0.4 : 1;
+  const name = data?.name ?? '';
+  const display = data?.display ?? 'button';
+  const offset = data?.offset ?? 24;
+  const shift = data?.shift ?? 0;
+  const points = useMemo(
+    () =>
+      orthogonalPoints(
+        { x: sourceX, y: sourceY },
+        sideOfPosition(sourcePosition),
+        { x: targetX, y: targetY },
+        sideOfPosition(targetPosition),
+        { offset, shift },
+      ),
+    [sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, offset, shift],
+  );
+  const { screenToFlowPosition } = useReactFlow();
+  const [dragT, setDragT] = useState<number | null>(null);
+  const drag = useRef<{ x: number; y: number; moved: boolean } | null>(null);
+  const suppressClick = useRef(false);
+
+  const classes = displayClasses(display);
+  const label = pointAt(points, dragT ?? data?.labelT ?? 0.5);
+  const onLabelT = data?.onLabelT;
+  const tAt = (event: React.PointerEvent) =>
+    projectT(points, screenToFlowPosition({ x: event.clientX, y: event.clientY }));
 
   return (
     <>
-      {/* Широкая невидимая линия — область попадания клика/ховера. */}
-      <BaseEdge id={`${id}-hit`} path={path} style={{ strokeWidth: 16, stroke: 'transparent' }} />
       <BaseEdge
         id={id}
-        path={path}
+        path={roundedPath(points)}
         markerEnd={markerEnd}
-        style={{ strokeDasharray: style.dashed ? '4 3' : undefined, opacity }}
+        interactionWidth={18}
+        className={cn(classes.line, selected && 'flow-edge-selected', data?.dim && 'opacity-40')}
       />
-      {d.label && d.name ? (
+      {name ? (
         <EdgeLabelRenderer>
           <button
             type="button"
-            className={cn('nodrag nopan edge-label pointer-events-auto', style.labelClass)}
+            className={cn(
+              'nodrag nopan edge-label pointer-events-auto',
+              classes.label,
+              selected && 'edge-label-selected',
+              onLabelT && 'cursor-grab active:cursor-grabbing',
+            )}
             style={{
-              transform: `translate(-50%, -50%) translate(${d.label.x}px, ${d.label.y}px)`,
-              opacity,
-              ...(selected ? { filter: 'drop-shadow(0 0 6px var(--glow))' } : {}),
+              transform: `translate(-50%, -50%) translate(${label.x}px, ${label.y}px)`,
+              opacity: data?.dim ? 0.4 : 1,
             }}
-            onClick={d.onSelect}
-            disabled={d.onSelect === undefined}
-            title={d.name}
+            disabled={data?.onSelect === undefined}
+            title={name}
+            onPointerDown={(event) => {
+              if (!onLabelT || event.button !== 0) return;
+              event.currentTarget.setPointerCapture(event.pointerId);
+              drag.current = { x: event.clientX, y: event.clientY, moved: false };
+            }}
+            onPointerMove={(event) => {
+              const state = drag.current;
+              if (!state) return;
+              if (
+                !state.moved &&
+                Math.hypot(event.clientX - state.x, event.clientY - state.y) < DRAG_THRESHOLD
+              ) {
+                return;
+              }
+              state.moved = true;
+              setDragT(tAt(event));
+            }}
+            onPointerUp={(event) => {
+              const state = drag.current;
+              drag.current = null;
+              if (!state?.moved || !onLabelT) return;
+              suppressClick.current = true;
+              onLabelT(tAt(event));
+              setDragT(null);
+            }}
+            onPointerCancel={() => {
+              drag.current = null;
+              setDragT(null);
+            }}
+            onClick={() => {
+              if (suppressClick.current) {
+                suppressClick.current = false;
+                return;
+              }
+              data?.onSelect?.();
+            }}
           >
-            {d.name}
+            {name}
           </button>
         </EdgeLabelRenderer>
       ) : null}

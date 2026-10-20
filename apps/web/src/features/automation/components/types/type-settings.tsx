@@ -7,12 +7,13 @@ import { Textarea } from '@nodus/ui/components/textarea';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { useUpdateTaskType } from '../../api/automation-api.js';
-import { InspectorPanel } from '../editor/inspector-panel.js';
+import { SidePanel } from '../editor/panel/side-panel.js';
 import { stageColorOrder, stageTone } from '../../../../shared/ui/board/stage-tone.js';
 import { TaskTypeGlyph } from '../../../../shared/workflow/task-type-icon.js';
 
-/** Настройки типа в инспекторе: свойства сохраняются СРАЗУ (оптимистично,
- *  PATCH), публикации требует только маршрут. */
+/** Настройки типа — та же внутриоконная панель справа, что у статуса и
+ *  кнопки (монтирована всегда: открытие плавное и в первый раз); свойства
+ *  сохраняются СРАЗУ (оптимистично, PATCH), публикации требует только маршрут. */
 export function TypeSettingsPanel({
   open,
   type,
@@ -32,9 +33,9 @@ export function TypeSettingsPanel({
   }, [type.id, type.name, type.description]);
 
   return (
-    <InspectorPanel open={open} title={ui.automation.typeSettings} onClose={onClose}>
+    <SidePanel open={open} title={ui.automation.typeSettings} onClose={onClose}>
       <label className="flex flex-col gap-1.5">
-        <span className="text-label text-muted-foreground">{ui.automation.fieldName}</span>
+        <span className="text-[13px] text-muted-foreground">{ui.automation.fieldName}</span>
         <Input
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -47,7 +48,7 @@ export function TypeSettingsPanel({
       </label>
 
       <div className="flex flex-col gap-1.5">
-        <span className="text-label text-muted-foreground">{ui.automation.fieldIcon}</span>
+        <span className="text-[13px] text-muted-foreground">{ui.automation.fieldIcon}</span>
         <div className="grid grid-cols-8 gap-1.5">
           {taskTypeIconSchema.options.map((key: TaskTypeIcon) => (
             <button
@@ -69,7 +70,7 @@ export function TypeSettingsPanel({
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <span className="text-label text-muted-foreground">{ui.automation.fieldColor}</span>
+        <span className="text-[13px] text-muted-foreground">{ui.automation.fieldColor}</span>
         <div className="flex gap-2">
           {stageColorOrder.map((tone: StageColor) => (
             <button
@@ -78,9 +79,9 @@ export function TypeSettingsPanel({
               aria-pressed={type.color === tone}
               onClick={() => update.mutate({ id: type.id, body: { color: tone } })}
               className={cn(
-                'size-6 rounded-full border-2 transition-transform',
+                'size-6 rounded-full border-2 transition-colors',
                 stageTone[tone].swatch,
-                type.color === tone ? 'scale-110 border-foreground' : 'border-transparent',
+                type.color === tone ? 'border-foreground' : 'border-transparent',
               )}
             />
           ))}
@@ -88,7 +89,7 @@ export function TypeSettingsPanel({
       </div>
 
       <label className="flex flex-col gap-1.5">
-        <span className="text-label text-muted-foreground">{ui.automation.fieldDescription}</span>
+        <span className="text-[13px] text-muted-foreground">{ui.automation.fieldDescription}</span>
         <Textarea
           value={description}
           rows={3}
@@ -109,6 +110,6 @@ export function TypeSettingsPanel({
           }
         />
       </label>
-    </InspectorPanel>
+    </SidePanel>
   );
 }

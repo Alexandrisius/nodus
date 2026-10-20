@@ -68,6 +68,10 @@ export function publishSummary(
     parts.push(
       `${changedTransitions} ${pluralRu(changedTransitions, ui.automation.buttonsChangedForms)}`,
     );
+  // Расстановка общая для всех — её правка тоже публикация.
+  if (JSON.stringify(baseline.layout ?? null) !== JSON.stringify(next.layout ?? null)) {
+    parts.push(ui.automation.publishLayoutChanged);
+  }
   return parts.length > 0 ? parts.join(', ') : ui.automation.publishNothingChanged;
 }
 
@@ -212,7 +216,7 @@ export function PublishDialog({
                   >
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent position="popper">
+                  <SelectContent position="popper" className="nokey">
                     {doc.stages.map((s) => (
                       <SelectItem key={s.id} value={s.id}>
                         {s.name}

@@ -1,69 +1,64 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  ReactFlowProvider,
-  useReactFlow,
-  type Connection,
-  type Node,
-  type NodeMouseHandler,
-  type OnNodeDrag,
-} from '@xyflow/react';
-import { checkWorkflowDocument } from '@nodus/contracts';
-import type { WorkflowDetail, WorkflowProblem } from '@nodus/contracts';
-import { ui } from '@nodus/contracts';
-import { cn } from '@nodus/ui/lib/utils';
-
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ReactFlowProvider, useReactFlow } from '@xyflow/react';
 import { useQueryClient } from '@tanstack/react-query';
+import { checkWorkflowDocument } from '@nodus/contracts';
+import type { TaskType, WorkflowDetail, WorkflowProblem } from '@nodus/contracts';
+import { ui } from '@nodus/contracts';
+import { Button } from '@nodus/ui/components/button';
+import { cn } from '@nodus/ui/lib/utils';
+import { Plus } from 'lucide-react';
+
+import { workflowKeys } from '../../../../shared/workflow/workflow-api.js';
+import { ROUTE_GEOMETRY } from '../../../../shared/flow/route-layout.js';
 import { usePublishWorkflow } from '../../api/automation-api.js';
 import { useCanManageWorkflows } from '../../lib/use-can-manage-workflows.js';
 import { useRouteDocStore } from '../../model/route-doc-store.js';
-import { AddTransitionDialog, DraftBanner, NavigationGuard, TargetPicker } from './editor-parts.js';
-import { RouteToolbar } from './route-toolbar.js';
+import { AddTransitionPopover } from './add-transition-popover.js';
+import { DraftBanner, NavigationGuard, StaleDraftBanner } from './editor-parts.js';
+import { EditorPanel } from './panel/editor-panel.js';
+import { SIDE_PANEL_WIDTH } from './panel/side-panel.js';
 import { PublishDialog } from './publish-dialog.js';
-import { StageInspector } from './stage-inspector.js';
-import { TransitionInspector } from './transition-inspector.js';
-import { FlowCanvas } from '../../../../shared/flow/flow-canvas.js';
-import { workflowKeys } from '../../../../shared/workflow/workflow-api.js';
-import { buildRouteGraph } from '../../../../shared/flow/route-graph.js';
+import { RouteCanvas } from './route-canvas.js';
+import { RouteToolbar } from './route-toolbar.js';
 
 /**
- * Редактор маршрута на холсте (#378, реф Jira workflow editor): рабочая
- * копия в сторе, свободное перетаскивание статусов (позиции — черновик),
- * живые проверки `checkWorkflowDocument`, инспекторы статуса и кнопки,
- * публикация с переносами. Строка инструментов над холстом — h-14 с
- * разделителем (горизонталь шапок).
+ * Редактор маршрута (#378 ред. 2, реф Jira workflow editor / Трекер):
+ * строка инструментов (добавление сверху, публикация не уезжает), холст
+ * `RouteCanvas` (общая раскладка, точки подключения, подписи на стрелках,
+ * масштаб и отмена слева внизу), правая панель выделенного (разделы с
+ * переходом внутрь), живые проверки `checkWorkflowDocument`, публикация.
  */
-export function RouteEditor({
-  workflow,
-  settings,
-}: {
+interface RouteEditorProps {
+  type: TaskType;
   workflow: WorkflowDetail;
-  /** Панель «Настройки типа» — хостится в контейнере канваса, чтобы
-   *  всплывать ПОД строкой инструментов (канон внутриоконных панелей). */
+  /** Панель «Настройки типа» (та же внутриоконная панель справа, монтирована
+   *  всегда) и открыта ли она сейчас — резерв строки инструментов. */
   settings?: React.ReactNode;
-}) {
+  settingsOpen?: boolean;
+}
+
+export function RouteEditor(props: RouteEditorProps) {
   return (
     <ReactFlowProvider>
-      <RouteEditorInner workflow={workflow} settings={settings} />
+      <RouteEditorInner {...props} />
     </ReactFlowProvider>
   );
 }
 
-function RouteEditorInner({
-  workflow,
-  settings,
-}: {
-  workflow: WorkflowDetail;
-  settings?: React.ReactNode;
-}) {
-  const store = useRouteDocStore();
+function RouteEditorInner({ type, workflow, settings, settingsOpen = false }: RouteEditorProps) {
+  const doc = useRouteDocStore((s) => s.document);
+  const dirty = useRouteDocStore((s) => s.dirty);
+  const selection = useRouteDocStore((s) => s.selection);
+  const draftSavedAt = useRouteDocStore((s) => s.draftSavedAt);
+  const staleDraftAt = useRouteDocStore((s) => s.staleDraftAt);
+  const pendingReload = useRouteDocStore((s) => s.pendingReload);
   // Правка закрыта без права и пока после публикации не пришла свежая версия.
-  const canManage = useCanManageWorkflows() && !store.pendingReload;
+  const canManage = useCanManageWorkflows() && !pendingReload;
   const publish = usePublishWorkflow(workflow.id);
   const queryClient = useQueryClient();
-  const { fitView } = useReactFlow();
+  const { fitView, screenToFlowPosition } = useReactFlow();
+  const canvasRef = useRef<HTMLDivElement>(null);
   const [publishOpen, setPublishOpen] = useState(false);
-  const [addTransitionFor, setAddTransitionFor] = useState<string | null>(null);
-  const [addTransitionOpen, setAddTransitionOpen] = useState(false);
 
   // Загрузка/перезагрузка маршрута в стор (смена типа, своя или чужая
   // публикация — новая версия сервера).
@@ -71,247 +66,121 @@ function RouteEditorInner({
     useRouteDocStore.getState().sync(workflow);
   }, [workflow]);
 
-  const problems = useMemo(() => checkWorkflowDocument(store.document), [store.document]);
+  const problems = useMemo(() => checkWorkflowDocument(doc), [doc]);
   const problemStageIds = useMemo(
     () => new Set(problems.filter((p) => p.stageId).map((p) => p.stageId as string)),
     [problems],
   );
 
-  // Выделение (кольцо узла, подсветка ребра) — из selection стора: в
-  // controlled-режиме без onNodesChange React Flow сам его не переключает.
-  // Позиции — раскладка + ручные из черновика (drag живьём их обновляет).
-  const graph = useMemo(() => {
-    const built = buildRouteGraph(store.document, {
-      readOnly: !canManage,
-      problemStageIds,
-      positions: store.positions,
-      onSelectStage: (id) => useRouteDocStore.getState().select({ kind: 'stage', id }),
-      onSelectTransition: (id) => useRouteDocStore.getState().select({ kind: 'transition', id }),
-    });
-    const selection = store.selection;
-    return {
-      nodes: built.nodes.map((node) =>
-        selection && node.id === selection.id ? { ...node, selected: true } : node,
-      ),
-      edges: built.edges.map((edge) =>
-        selection?.kind === 'transition' && edge.id === selection.id
-          ? { ...edge, selected: true }
-          : edge,
-      ),
-    };
-  }, [store.document, store.selection, store.positions, canManage, problemStageIds]);
-
-  const onConnect = useCallback(
-    (connection: Connection) => {
-      if (!canManage) return;
-      const s = useRouteDocStore.getState();
-      if (connection.source === 'route-start') {
-        if (connection.target) s.patchStage(connection.target, { isInitial: true });
-        return;
-      }
-      if (connection.source && connection.target)
-        s.addTransition(connection.source, connection.target);
-    },
-    [canManage],
-  );
-
-  // Живой drag: позиции идут в стор без истории, персист — на отпускании.
-  const onNodeDrag: OnNodeDrag<Node> = useCallback(
-    (_event, node: Node) => {
-      if (!canManage || node.type !== 'status') return;
-      useRouteDocStore.getState().setStagePosition(node.id, node.position, false);
-    },
-    [canManage],
-  );
-  const onNodeDragStop: OnNodeDrag<Node> = useCallback(
-    (_event, node: Node) => {
-      if (!canManage || node.type !== 'status') return;
-      useRouteDocStore.getState().setStagePosition(node.id, node.position, true);
-    },
-    [canManage],
-  );
-
-  const onNodeClick: NodeMouseHandler = useCallback((_event, node: Node) => {
-    if (node.type === 'status') useRouteDocStore.getState().select({ kind: 'stage', id: node.id });
-  }, []);
-
-  // Ctrl+Z/Ctrl+Shift+Z/Ctrl+Y и Delete/Backspace — вне полей ввода.
-  // Удаление — СВОЙ хендлер: React Flow в controlled-режиме применяет
-  // deleteKeyCode только через onNodesChange/onEdgesChange (которых нет —
-  // источником правды служит стор), поэтому штатный путь выключен.
-  useEffect(() => {
-    if (!canManage) return;
-    const handler = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null;
-      if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
-      const selection = useRouteDocStore.getState().selection;
-      if ((event.key === 'Delete' || event.key === 'Backspace') && selection) {
-        event.preventDefault();
-        if (selection.kind === 'stage') useRouteDocStore.getState().removeStage(selection.id);
-        else useRouteDocStore.getState().removeTransition(selection.id);
-        return;
-      }
-      if (!(event.ctrlKey || event.metaKey)) return;
-      const key = event.key.toLowerCase();
-      if (key === 'z' && !event.shiftKey) {
-        event.preventDefault();
-        useRouteDocStore.getState().undo();
-      } else if ((key === 'z' && event.shiftKey) || key === 'y') {
-        event.preventDefault();
-        useRouteDocStore.getState().redo();
-      }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [canManage]);
-
   // Несохранённые правки: предупреждение при закрытии вкладки.
   useEffect(() => {
-    if (!store.dirty) return;
+    if (!dirty) return;
     const handler = (event: BeforeUnloadEvent) => event.preventDefault();
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
-  }, [store.dirty]);
+  }, [dirty]);
 
-  const selectedStage =
-    store.selection?.kind === 'stage'
-      ? (store.document.stages.find((s) => s.id === store.selection?.id) ?? null)
-      : null;
-  const selectedTransition =
-    store.selection?.kind === 'transition'
-      ? (store.document.transitions.find((t) => t.id === store.selection?.id) ?? null)
-      : null;
+  /** «Добавить статус»: «Новый статус» группы «В работе» в центре видимой
+   *  части холста (левее открывающейся панели), без наложения на соседей. */
+  const addStage = () => {
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const center = screenToFlowPosition({
+      x: rect.left + Math.max(rect.width - SIDE_PANEL_WIDTH, rect.width / 2) / 2,
+      y: rect.top + rect.height / 2,
+    });
+    const { stageWidth: w, stageHeight: h, rowGap } = ROUTE_GEOMETRY;
+    const taken = Object.values(useRouteDocStore.getState().document.layout?.stages ?? {});
+    const position = { x: center.x - w / 2, y: center.y - h / 2 };
+    while (taken.some((p) => Math.abs(p.x - position.x) < w && Math.abs(p.y - position.y) < h)) {
+      position.y += h + rowGap / 2;
+    }
+    useRouteDocStore.getState().addStage('active', position);
+  };
 
   const onProblemClick = (problem: WorkflowProblem) => {
+    const store = useRouteDocStore.getState();
     if (problem.transitionId) store.select({ kind: 'transition', id: problem.transitionId });
     else if (problem.stageId) store.select({ kind: 'stage', id: problem.stageId });
   };
 
+  const panelOpen = selection !== null || settingsOpen;
+
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div
+      className={cn('relative flex min-h-0 flex-1 flex-col', panelOpen && 'flow-inspector-open')}
+    >
       <RouteToolbar
+        type={type}
         canManage={canManage}
-        dirty={store.dirty}
-        publishedAt={store.dirty ? null : workflow.publishedAt}
+        dirty={dirty}
+        publishedAt={dirty ? null : workflow.publishedAt}
         publishedBy={workflow.publishedBy?.displayName ?? null}
         problems={problems}
-        canUndo={store.past.length > 0}
-        canRedo={store.future.length > 0}
-        publishBlocked={!store.dirty}
-        onUndo={() => store.undo()}
-        onRedo={() => store.redo()}
+        publishBlocked={!dirty}
+        panelOpen={panelOpen}
+        onAddStage={addStage}
+        addTransition={
+          <AddTransitionPopover
+            document={doc}
+            onPick={(from, to) => useRouteDocStore.getState().addTransition(from, to)}
+            trigger={
+              <Button
+                variant="ghost"
+                size="sm"
+                className="shrink-0"
+                title={ui.automation.addTransitionLabel}
+              >
+                <Plus className="size-3.5" strokeWidth={1.75} />
+                <span className="@max-[760px]:hidden">{ui.automation.addTransitionLabel}</span>
+              </Button>
+            }
+          />
+        }
         onTidy={() => {
-          // «Упорядочить»: вернуть слоевую раскладку (сброс ручных позиций) и вписать.
-          useRouteDocStore.getState().resetPositions();
-          void fitView({ duration: 200, padding: 0.2 });
+          // «Упорядочить»: авторасстановка в общую раскладку и вписать.
+          useRouteDocStore.getState().arrange();
+          void fitView({ duration: 200, padding: 0.2, maxZoom: 1 });
         }}
         onProblemClick={onProblemClick}
-        onDiscard={() => store.discard()}
+        onDiscard={() => useRouteDocStore.getState().discard()}
         onPublish={() => setPublishOpen(true)}
-        onAddStage={(band) => useRouteDocStore.getState().addStage(band)}
-        onAddTransition={() => setAddTransitionOpen(true)}
       />
 
-      <div className={cn('relative min-h-0 flex-1', store.selection && 'flow-inspector-open')}>
-        <FlowCanvas
-          nodes={graph.nodes}
-          edges={graph.edges}
-          onConnect={onConnect}
-          onNodeClick={onNodeClick}
-          onNodeDrag={onNodeDrag}
-          onNodeDragStop={onNodeDragStop}
-          onPaneClick={() => store.select(null)}
-          onEdgeClick={(_event, edge) => {
-            if (edge.type === 'transition') store.select({ kind: 'transition', id: edge.id });
-          }}
-          interactive={canManage}
-          fitView
-        />
-
-        {store.dirty && store.draftSavedAt ? (
-          <DraftBanner savedAt={store.draftSavedAt} onReset={() => store.discard()} />
-        ) : null}
-        {store.staleDraftAt && !store.dirty ? (
-          <div className="absolute left-1/2 top-3 z-10 flex -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-accent/40 px-3 py-1.5 text-xs text-muted-foreground">
-            {ui.automation.draftStale}
-            <button
-              type="button"
-              onClick={() => store.discard()}
-              className="font-medium underline underline-offset-2"
-            >
-              {ui.automation.draftReset}
-            </button>
-          </div>
-        ) : null}
-        <NavigationGuard dirty={store.dirty} />
-
-        <StageInspector
-          stage={selectedStage}
-          document={store.document}
-          taskCount={selectedStage ? (workflow.stageTaskCounts[selectedStage.id] ?? 0) : 0}
-          selection={store.selection}
-          readOnly={!canManage}
-          onClose={() => store.select(null)}
-          onPatch={(id, patch) => store.patchStage(id, patch)}
-          onRemove={(id) => store.removeStage(id)}
-          onMoveTransition={(id, index) => store.moveTransition(id, index)}
-          onSelectTransition={(ref) => store.select(ref)}
-          onAddTransition={(fromStageId) => setAddTransitionFor(fromStageId)}
-        />
-        <TransitionInspector
-          transition={selectedTransition}
-          document={store.document}
-          readOnly={!canManage}
-          onClose={() => store.select(null)}
-          onPatch={(id, patch) => store.patchTransition(id, patch)}
-          onSetPrimary={(id) => store.setTransitionPrimary(id)}
-          onRemove={(id) => store.removeTransition(id)}
-        />
-
-        {addTransitionFor ? (
-          <TargetPicker
-            document={store.document}
-            fromStageId={addTransitionFor}
-            onPick={(toStageId) => {
-              store.addTransition(addTransitionFor, toStageId);
-              setAddTransitionFor(null);
-            }}
-            onClose={() => setAddTransitionFor(null)}
+      <div ref={canvasRef} className="relative min-h-0 flex-1">
+        <RouteCanvas workflow={workflow} editable={canManage} problemStageIds={problemStageIds} />
+        {dirty && draftSavedAt ? (
+          <DraftBanner
+            savedAt={draftSavedAt}
+            onReset={() => useRouteDocStore.getState().discard()}
           />
         ) : null}
-        {settings}
+        {staleDraftAt && !dirty ? (
+          <StaleDraftBanner onReset={() => useRouteDocStore.getState().discard()} />
+        ) : null}
       </div>
 
-      {addTransitionOpen ? (
-        <AddTransitionDialog
-          document={store.document}
-          onClose={() => setAddTransitionOpen(false)}
-          onPick={(from, to) => {
-            setAddTransitionOpen(false);
-            useRouteDocStore.getState().addTransition(from, to);
-          }}
-        />
-      ) : null}
+      <EditorPanel workflow={workflow} readOnly={!canManage} />
+      {settings}
+      <NavigationGuard dirty={dirty} />
 
       {publishOpen ? (
         <PublishDialog
           open
           onClose={() => setPublishOpen(false)}
           workflow={workflow}
-          baseline={store.baseline}
-          document={store.document}
-          baseVersion={store.baseVersion}
+          baseline={useRouteDocStore.getState().baseline}
+          document={doc}
+          baseVersion={useRouteDocStore.getState().baseVersion}
           publish={publish}
-          onPublished={() => store.markPublished()}
+          onPublished={() => useRouteDocStore.getState().markPublished()}
           onConflictLoad={() => {
             setPublishOpen(false);
             // Свежая версия: сброс правок + рефеч маршрута (useEffect загрузки
             // подхватит новую версию и baseVersion — повторный 409 исключён).
-            store.discard();
+            useRouteDocStore.getState().discard();
             publish.reset();
-            void queryClient.invalidateQueries({
-              queryKey: workflowKeys.detail(workflow.id),
-            });
+            void queryClient.invalidateQueries({ queryKey: workflowKeys.detail(workflow.id) });
           }}
         />
       ) : null}

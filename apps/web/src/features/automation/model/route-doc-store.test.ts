@@ -186,6 +186,101 @@ describe('route-doc-store: рабочая копия маршрута (#378)', (
     expect(store.getState().baseVersion).toBe(4);
   });
 
+  it('холст: соединение точек, перенос конца, подпись и позиция — шагами истории', () => {
+    const store = freshStore();
+    const S1 = '00000000-0000-4000-8000-000000000001';
+    const S2 = '00000000-0000-4000-8000-000000000002';
+    const S3 = '00000000-0000-4000-8000-000000000003';
+    const id = store
+      .getState()
+      .connect({ source: S2, target: S3, sourceHandle: 'r1', targetHandle: 'l3' })!;
+    expect(store.getState().document.layout?.transitions[id]).toEqual({
+      sourceHandle: 'r1',
+      targetHandle: 'l3',
+    });
+    expect(store.getState().connect({ source: S2, target: S2 })).toBeNull();
+
+    store
+      .getState()
+      .reconnect(id, { source: S1, target: S3, sourceHandle: 'b2', targetHandle: 'b1' });
+    const moved = store.getState().document.transitions.find((t) => t.id === id)!;
+    expect(moved.fromStageId).toBe(S1);
+    expect(store.getState().document.layout?.transitions[id]).toMatchObject({ sourceHandle: 'b2' });
+
+    store.getState().setLabelT(id, 0.25);
+    store.getState().setStagePosition(S3, { x: 640.4, y: 120.6 });
+    expect(store.getState().document.layout?.stages[S3]).toEqual({ x: 640, y: 121 });
+    expect(store.getState().document.layout?.transitions[id]?.labelT).toBe(0.25);
+
+    store.getState().undo();
+    expect(store.getState().document.layout?.stages[S3]).toBeUndefined();
+    expect(store.getState().dirty).toBe(true);
+  });
+
+  it('ввод названия подряд — один шаг отмены, а не «по букве»', () => {
+    const store = freshStore();
+    const S2 = '00000000-0000-4000-8000-000000000002';
+    const before = store.getState().past.length;
+    for (const name of ['В', 'В р', 'В раб', 'В работе!'])
+      store.getState().patchStage(S2, { name });
+    expect(store.getState().past.length).toBe(before + 1);
+    store.getState().undo();
+    expect(store.getState().document.stages.find((s) => s.id === S2)?.name).toBe('В работе');
+  });
+
+  it('«из любого статуса»: переключатель статуса, у кнопки меняется только цель', () => {
+    const store = freshStore();
+    const S2 = '00000000-0000-4000-8000-000000000002';
+    const S3 = '00000000-0000-4000-8000-000000000003';
+    store.getState().toggleAny(S3, true);
+    const any = store.getState().document.transitions.find((t) => t.fromStageId === null)!;
+    expect(any).toMatchObject({ toStageId: S3, name: 'Завершена' });
+    store.getState().setAnyAnchor(any.id, { x: 100, y: 40 });
+
+    store.getState().reconnect(any.id, { source: `any:${any.id}`, target: S2, targetHandle: 't2' });
+    const moved = store.getState().document.transitions.find((t) => t.id === any.id)!;
+    expect(moved).toMatchObject({ fromStageId: null, toStageId: S2 });
+
+    store.getState().toggleAny(S2, false);
+    expect(store.getState().document.transitions.some((t) => t.fromStageId === null)).toBe(false);
+    expect(store.getState().document.layout?.transitions[any.id]).toBeUndefined();
+  });
+
+  it('удаление статуса сносит его кнопки и их раскладку; «Упорядочить» пишет позиции всех', () => {
+    const store = freshStore();
+    const S1 = '00000000-0000-4000-8000-000000000001';
+    const S2 = '00000000-0000-4000-8000-000000000002';
+    store.getState().setLabelT('00000000-0000-4000-8000-000000000011', 0.8);
+    store.getState().removeElements([S1], []);
+    expect(store.getState().document.transitions).toHaveLength(0);
+    expect(store.getState().document.layout?.transitions).toEqual({});
+
+    store.getState().arrange();
+    expect(Object.keys(store.getState().document.layout?.stages ?? {})).toContain(S2);
+  });
+
+  it('черновик v1 с ручными позициями переносится в раскладку документа', () => {
+    const first = detail();
+    localStorage.setItem(
+      `nodus-workflow-draft-v1:${first.id}`,
+      JSON.stringify({
+        document: first.document,
+        baseVersion: first.version,
+        savedAt: '2026-10-20T10:00:00Z',
+        positions: { '00000000-0000-4000-8000-000000000002': { x: 333, y: 44 } },
+      }),
+    );
+    const store = createRouteDocStore('pending');
+    store.getState().load(first);
+    expect(
+      store.getState().document.layout?.stages['00000000-0000-4000-8000-000000000002'],
+    ).toEqual({
+      x: 333,
+      y: 44,
+    });
+    expect(store.getState().dirty).toBe(true);
+  });
+
   it('устаревший черновик (версия ушла) не подхватывается', () => {
     const store = freshStore();
     store.getState().addStage('paused');

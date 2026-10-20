@@ -18,7 +18,7 @@ export function normalize(doc: WorkflowDraftDocument): WorkflowDraftDocument {
     counters.set(stage.systemState, next + 1);
     return { ...stage, sortOrder: next };
   });
-  return { stages, transitions: doc.transitions };
+  return { ...doc, stages };
 }
 
 export interface HistoryTail {

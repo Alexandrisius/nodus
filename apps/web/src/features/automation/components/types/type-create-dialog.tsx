@@ -4,6 +4,13 @@ import { ui } from '@nodus/contracts';
 import { taskTypeIconSchema, type TaskTypeIcon } from '@nodus/contracts';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@nodus/ui/components/dialog';
 import { Button } from '@nodus/ui/components/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@nodus/ui/components/select';
 import { Input } from '@nodus/ui/components/input';
 import { cn } from '@nodus/ui/lib/utils';
 import { toast } from 'sonner';
@@ -124,9 +131,9 @@ export function TaskTypeCreateDialog({
                   aria-pressed={color === tone}
                   onClick={() => setColor(tone)}
                   className={cn(
-                    'size-6 rounded-full border-2 transition-transform',
+                    'size-6 rounded-full border-2 transition-colors',
                     colorTone(tone),
-                    color === tone ? 'scale-110 border-foreground' : 'border-transparent',
+                    color === tone ? 'border-foreground' : 'border-transparent',
                   )}
                 />
               ))}
@@ -135,24 +142,24 @@ export function TaskTypeCreateDialog({
 
           <label className="flex flex-col gap-1.5">
             <span className="text-label text-muted-foreground">{ui.automation.fieldBase}</span>
-            <select
+            <Select
               value={base.kind === 'copy' ? base.typeId : 'simple'}
-              onChange={(e) =>
-                setBase(
-                  e.target.value === 'simple'
-                    ? { kind: 'simple' }
-                    : { kind: 'copy', typeId: e.target.value },
-                )
+              onValueChange={(value) =>
+                setBase(value === 'simple' ? { kind: 'simple' } : { kind: 'copy', typeId: value })
               }
-              className="h-8 rounded-md border border-input bg-transparent px-2 text-sm"
             >
-              <option value="simple">{ui.automation.baseSimple}</option>
-              {baseTypes.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {ui.automation.baseCopy}: {t.name}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger className="w-full min-w-0" aria-label={ui.automation.fieldBase}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent position="popper">
+                <SelectItem value="simple">{ui.automation.baseSimple}</SelectItem>
+                {baseTypes.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>
+                    {ui.automation.baseCopy}: {t.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </label>
         </div>
         <div className="flex justify-end gap-2">

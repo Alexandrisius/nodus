@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearch } from '@tanstack/react-router';
 import { useQueries } from '@tanstack/react-query';
 import { ui } from '@nodus/contracts';
@@ -18,9 +18,10 @@ import {
 
 /**
  * Раздел «Автоматизация» (эпик #377): единый дом настройки процессов.
- * Каркас — как окно мессенджера: слева колонка типов (bg-card, border-r,
- * шапка h-14 с поиском), справа редактор маршрута выбранного типа со своей
- * строкой инструментов (h-14, border-b — горизонталь шапок совпадает).
+ * Каркас — окно-сплит как мессенджер: слева колонка типов (bg-card,
+ * border-r, шапка h-14 с поиском), справа редактор маршрута выбранного типа
+ * со своей строкой инструментов h-14; ось контура идёт до правого края рамы
+ * и служит верхней границей окна (флаг `splitWindow` реестра навигации).
  * Вкладка раздела живёт в топбаре шелла — здесь названий не дублируем.
  * Глубокая ссылка `/automation?type=<id>`.
  */
@@ -68,6 +69,13 @@ export function AutomationPage() {
     return counts;
   }, [types, details]);
 
+  // Одна правая панель за раз: выделение на холсте закрывает «Настройки
+  // типа», открытие настроек снимает выделение.
+  const editorSelection = useRouteDocStore((s) => s.selection);
+  useEffect(() => {
+    if (editorSelection) setSettingsOpen(false);
+  }, [editorSelection]);
+
   const editorDirty = useRouteDocStore((s) => s.dirty);
   const editorWorkflowId = useRouteDocStore((s) => s.workflowId);
   const dirtyTypeIds = useMemo(() => {
@@ -88,7 +96,10 @@ export function AutomationPage() {
         onSelect={(id) => {
           void navigate({ to: '/automation', search: (prev) => ({ ...prev, type: id }) });
         }}
-        onOpenSettings={() => setSettingsOpen(true)}
+        onOpenSettings={() => {
+          useRouteDocStore.getState().select(null);
+          setSettingsOpen(true);
+        }}
         onCopyType={(id) => {
           setCreateBaseTypeId(id);
           setCreateOpen(true);
@@ -98,11 +109,15 @@ export function AutomationPage() {
       <main className="flex min-w-0 flex-1 flex-col">
         {selected && workflow ? (
           <RouteEditor
+            type={selected}
             workflow={workflow}
+            settingsOpen={settingsOpen}
             settings={
-              settingsOpen ? (
-                <TypeSettingsPanel open type={selected} onClose={() => setSettingsOpen(false)} />
-              ) : undefined
+              <TypeSettingsPanel
+                open={settingsOpen}
+                type={selected}
+                onClose={() => setSettingsOpen(false)}
+              />
             }
           />
         ) : (

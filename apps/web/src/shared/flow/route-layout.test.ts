@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { ROUTE_GEOMETRY, layoutBottom, layoutRoute } from './route-layout.js';
+import { ROUTE_GEOMETRY, layoutRoute, resolvePositions } from './route-layout.js';
 
 const stage = (
   id: string,
@@ -102,15 +102,25 @@ describe('route-layout: слоевая раскладка холста (#378)', 
     expect(first.get('a2')!.y).toBeLessThan(first.get('p')!.y);
   });
 
-  it('layoutBottom — низ самой нижней карточки', () => {
-    const layout = layoutRoute(
-      [{ ...stage('a', 'backlog'), isInitial: true }, stage('b', 'active'), stage('c', 'active')],
-      [tr('a', 'b'), tr('a', 'c')],
-    );
-    const bottom = layoutBottom([{ id: 'a' }, { id: 'b' }, { id: 'c' }], layout);
-    const maxCardBottom = Math.max(
-      ...['a', 'b', 'c'].map((id) => layout.get(id)!.y + ROUTE_GEOMETRY.stageHeight),
-    );
-    expect(bottom).toBe(maxCardBottom);
+  it('resolvePositions: сохранённые — закон; без раскладки — авторасстановка', () => {
+    const stages = [
+      { ...stage('a', 'backlog'), isInitial: true },
+      stage('b', 'active'),
+      stage('c', 'closed'),
+    ];
+    const transitions = [tr('a', 'b'), tr('b', 'c')];
+    const auto = resolvePositions(stages, transitions, {});
+    expect(auto.get('b')).toEqual({
+      x: layoutRoute(stages, transitions).get('b')!.x,
+      y: layoutRoute(stages, transitions).get('b')!.y,
+    });
+    const saved = resolvePositions(stages, transitions, {
+      a: { x: 10, y: 20 },
+      b: { x: 500, y: 300 },
+    });
+    expect(saved.get('a')).toEqual({ x: 10, y: 20 });
+    expect(saved.get('b')).toEqual({ x: 500, y: 300 });
+    // Без позиции при частичной раскладке — ниже расставленных, не поверх.
+    expect(saved.get('c')!.y).toBeGreaterThan(300 + ROUTE_GEOMETRY.stageHeight);
   });
 });

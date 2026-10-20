@@ -3,6 +3,13 @@ import type { TaskDetail, TaskType } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@nodus/ui/components/dialog';
 import { Button } from '@nodus/ui/components/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@nodus/ui/components/select';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { useAliveTaskTypes, useChangeTaskType } from '../../../shared/api/task-types-api.js';
@@ -65,17 +72,18 @@ export function TaskChangeTypeDialog({ task, onClose }: { task: TaskDetail; onCl
         {stageMissing && stages.length > 0 ? (
           <label className="flex flex-col gap-1.5">
             <span className="text-label text-muted-foreground">{ui.tasks.changeTypeStage}</span>
-            <select
-              value={stageId ?? defaultStage?.id ?? ''}
-              onChange={(e) => setStageId(e.target.value)}
-              className="h-8 rounded-md border border-input bg-transparent px-2 text-sm"
-            >
-              {stages.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
+            <Select value={stageId ?? defaultStage?.id ?? ''} onValueChange={setStageId}>
+              <SelectTrigger className="w-full min-w-0" aria-label={ui.tasks.changeTypeStage}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent position="popper">
+                {stages.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </label>
         ) : null}
         <div className="flex justify-end gap-2">

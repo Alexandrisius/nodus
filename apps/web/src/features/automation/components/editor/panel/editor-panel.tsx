@@ -1,0 +1,100 @@
+import { useCallback, useState } from 'react';
+import type { WorkflowDetail } from '@nodus/contracts';
+import { ui } from '@nodus/contracts';
+
+import { useRouteDocStore, type SelectionRef } from '../../../model/route-doc-store.js';
+import { SidePanel } from './side-panel.js';
+import { StagePanel } from './stage-panel.js';
+import { TransitionPanel, type TransitionSection } from './transition-panel.js';
+import { ConditionsSection, RolesSection, RulesSection } from './transition-sections.js';
+
+const SECTION_TITLE: Record<Exclude<TransitionSection, 'root'>, string> = {
+  roles: ui.automation.panel.sectionWhoSees,
+  conditions: ui.automation.panel.sectionConditions,
+  rules: ui.automation.panel.sectionRules,
+};
+
+const keyOf = (ref: SelectionRef) => (ref ? `${ref.kind}:${ref.id}` : null);
+
+/**
+ * Правая панель редактора (#378 ред. 2, модель Трекера): что выделено на
+ * холсте — то и настраивается; у кнопки — разделы с переходом внутрь (стек
+ * `root | roles | conditions | rules`, сброс к корню при смене выделения).
+ * На время закрытия держит последнее содержимое — ширина уезжает плавно, а не
+ * пустой рамкой. Новый элемент — фокус сразу в названии.
+ */
+export function EditorPanel({
+  workflow,
+  readOnly,
+}: {
+  workflow: WorkflowDetail;
+  readOnly: boolean;
+}) {
+  const selection = useRouteDocStore((s) => s.selection);
+  const doc = useRouteDocStore((s) => s.document);
+  const freshId = useRouteDocStore((s) => s.freshId);
+  const [section, setSection] = useState<TransitionSection>('root');
+  const [shown, setShown] = useState<SelectionRef>(selection);
+  const [shownKey, setShownKey] = useState(keyOf(selection));
+
+  // Смена выделения: раздел — к корню; закрытие — последнее содержимое
+  // остаётся до конца анимации ширины (derive-during-render, без эффекта).
+  const key = keyOf(selection);
+  if (selection && key !== shownKey) {
+    setShown(selection);
+    setShownKey(key);
+    setSection('root');
+  }
+
+  const stage =
+    shown?.kind === 'stage' ? (doc.stages.find((s) => s.id === shown.id) ?? null) : null;
+  const transition =
+    shown?.kind === 'transition' ? (doc.transitions.find((t) => t.id === shown.id) ?? null) : null;
+  const open = selection !== null && (stage !== null || transition !== null);
+
+  const close = useCallback(() => useRouteDocStore.getState().select(null), []);
+  const back = useCallback(() => setSection('root'), []);
+  const inSection = transition !== null && section !== 'root';
+
+  const title = stage
+    ? stage.name || ui.automation.newStageName
+    : transition
+      ? inSection
+        ? SECTION_TITLE[section as Exclude<TransitionSection, 'root'>]
+        : transition.name
+      : '';
+
+  return (
+    <SidePanel open={open} title={title} onClose={close} onBack={inSection ? back : undefined}>
+      {stage ? (
+        <StagePanel
+          key={stage.id}
+          stage={stage}
+          document={doc}
+          taskCount={workflow.stageTaskCounts[stage.id] ?? 0}
+          readOnly={readOnly}
+          autoFocusName={freshId === stage.id}
+        />
+      ) : null}
+      {transition && section === 'root' ? (
+        <TransitionPanel
+          key={transition.id}
+          transition={transition}
+          document={doc}
+          readOnly={readOnly}
+          autoFocusName={freshId === transition.id}
+          onOpenSection={setSection}
+        />
+      ) : null}
+      {transition && section === 'roles' ? (
+        <RolesSection transition={transition} readOnly={readOnly} />
+      ) : null}
+      {transition && section === 'conditions' ? (
+        <ConditionsSection transition={transition} readOnly={readOnly} />
+      ) : null}
+      {transition && section === 'rules' ? (
+        <RulesSection transition={transition} document={doc} readOnly={readOnly} />
+      ) : null}
+    </SidePanel>
+  );
+}

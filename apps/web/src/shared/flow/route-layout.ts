@@ -1,33 +1,32 @@
 import type { TaskSystemState } from '@nodus/contracts';
 
 /**
- * Слоевая раскладка холста маршрута (#378, реф Jira workflow editor):
+ * Слоевая авторасстановка холста маршрута (#378, реф Jira workflow editor):
  * свободный канвас без колонок — статусы раскладываются слоями слева направо
- * по длиннейшему пути от начального; между слоями — широкие коридоры, где
- * живут вертикальные участки рёбер и подписи кнопок. Чистая функция —
- * редактор и «Схема маршрута» получают одинаковые координаты, а ручное
- * перетаскивание (позиции черновика) лишь подменяет отдельные точки.
+ * по длиннейшему пути от начального; между слоями — широкие коридоры под
+ * подписи кнопок. Расстановка — ОБЩАЯ (раскладка документа, ADR-0022):
+ * сохранённая позиция статуса — закон, авторасстановка — только для
+ * статусов без позиции и для «Упорядочить». Чистые функции.
  */
 
 /** Геометрия холста, дизайн-px (масштаб — зумом React Flow, не токенами). */
 export const ROUTE_GEOMETRY = {
   stageWidth: 208,
   stageHeight: 52,
-  /** Коридор между слоями: вертикальные участки рёбер + подписи кнопок. */
-  layerGap: 132,
+  /** Коридор между слоями: изломы рёбер + подписи кнопок. */
+  layerGap: 176,
   /** Вертикальный ритм статусов одного слоя. */
-  rowGap: 64,
+  rowGap: 72,
   /** Поля раскладки от нуля холста. */
   margin: 48,
-  /** Старт-терминал «Создание задачи». */
+  /** Старт-терминал «Создание задачи» (высота — ровно h-10: центр на линии). */
   startWidth: 156,
   startHeight: 40,
   /** Зазор между стартом и начальным статусом. */
-  startGap: 56,
-  /** Нижняя магистраль обратных/дальних рёбер: отступ под узлами. */
-  laneOffset: 48,
-  /** Шаг параллельных магистралей. */
-  laneStep: 28,
+  startGap: 64,
+  /** Метка «Любой статус» (пилюля) и её место по умолчанию у цели. */
+  anyWidth: 128,
+  anyHeight: 28,
 } as const;
 
 /** Порядок системных состояний внутри слоя (стабильность раскладки). */
@@ -153,12 +152,43 @@ export function layoutRoute(
   return result;
 }
 
-/** Низ раскладки (для нижней магистрали обратных рёбер). */
-export function layoutBottom(stages: readonly { id: string }[], layout: RouteLayout): number {
-  let bottom = 0;
-  for (const stage of stages) {
-    const entry = layout.get(stage.id);
-    if (entry) bottom = Math.max(bottom, entry.y + ROUTE_GEOMETRY.stageHeight);
+export interface FlowPosition {
+  x: number;
+  y: number;
+}
+
+/**
+ * Позиции статусов на холсте: сохранённые — как есть; без сохранённых
+ * совсем — авторасстановка целиком; статусы без позиции при частичной
+ * раскладке — рядом ниже расставленных (не поверх них).
+ */
+export function resolvePositions(
+  stages: readonly LayoutStageInput[],
+  transitions: readonly { fromStageId: string | null; toStageId: string }[],
+  saved: Readonly<Record<string, FlowPosition>>,
+): Map<string, FlowPosition> {
+  const auto = layoutRoute(stages, transitions);
+  const result = new Map<string, FlowPosition>();
+  const placed = stages.filter((s) => saved[s.id] !== undefined);
+  if (placed.length === 0) {
+    for (const [id, entry] of auto) result.set(id, { x: entry.x, y: entry.y });
+    return result;
   }
-  return bottom;
+  const { stageHeight, stageWidth, rowGap, layerGap, margin } = ROUTE_GEOMETRY;
+  const bottom = Math.max(...placed.map((s) => saved[s.id]!.y + stageHeight));
+  const left = Math.min(...placed.map((s) => saved[s.id]!.x));
+  let column = 0;
+  for (const stage of stages) {
+    const position = saved[stage.id];
+    if (position) {
+      result.set(stage.id, position);
+      continue;
+    }
+    result.set(stage.id, {
+      x: (Number.isFinite(left) ? left : margin) + column * (stageWidth + layerGap / 2),
+      y: bottom + rowGap,
+    });
+    column += 1;
+  }
+  return result;
 }

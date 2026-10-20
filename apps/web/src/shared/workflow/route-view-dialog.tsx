@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { ReactFlowProvider } from '@xyflow/react';
 import { useNavigate } from '@tanstack/react-router';
 import type { TaskDetail, TaskTransition } from '@nodus/contracts';
 import { Permission, ui } from '@nodus/contracts';
@@ -13,9 +14,10 @@ import { useWorkflowDetail } from './workflow-api.js';
 
 /**
  * «Схема маршрута» задачи (#378): большой диалог (~1200×80vh) с холстом
- * только для чтения — текущий статус светится, кнопки, доступные
- * пользователю, — в силе, остальные приглушены. «Открыть в редакторе» —
- * только с правом `task.workflow_manage`.
+ * только для чтения — расстановка общая (как её оставил настройщик),
+ * текущий статус светится, кнопки, доступные пользователю, — в силе,
+ * остальные приглушены. Холст вписывается после раскрытия диалога.
+ * «Открыть в редакторе» — только с правом `task.workflow_manage`.
  */
 export function RouteViewDialog({
   open,
@@ -40,7 +42,6 @@ export function RouteViewDialog({
       readOnly: true,
       currentStageId: task.stage.id,
       highlightedTransitionIds: new Set(transitions?.map((t) => t.id) ?? []),
-      showPills: true,
     });
   }, [workflow.data, task.stage.id, transitions]);
 
@@ -72,7 +73,9 @@ export function RouteViewDialog({
         </DialogHeader>
         <div className="min-h-0 flex-1 rounded-[14px] border">
           {graph ? (
-            <FlowCanvas nodes={graph.nodes} edges={graph.edges} interactive={false} fitView />
+            <ReactFlowProvider>
+              <FlowCanvas nodes={graph.nodes} edges={graph.edges} interactive={false} />
+            </ReactFlowProvider>
           ) : null}
         </div>
       </DialogContent>

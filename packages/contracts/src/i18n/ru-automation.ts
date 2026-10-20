@@ -2,7 +2,6 @@
  *  задач, редактор маршрутов на холсте, публикация. Секция вынесена из
  *  ru.ts (лимит строк, I5). */
 export const automationStrings = {
-  title: 'Автоматизация',
   /** Вкладки раздела («Права доступа» добавит #379). */
   tabTypes: 'Типы задач',
   /** Список типов слева (грамматика списка бесед: шапка с поиском). */
@@ -39,7 +38,8 @@ export const automationStrings = {
   typeSettings: 'Настройки типа',
   workflowUnavailable: 'Маршрут недоступен',
   createFirstType: 'Создайте первый тип задачи',
-  /** Холст: колонки этапов. */
+  /** Группы статусов — пять смысловых категорий (системные фазы задачи):
+   *  подпись в узле холста и выбор в панели статуса. */
   bands: {
     backlog: 'Ожидание',
     active: 'В работе',
@@ -59,8 +59,16 @@ export const automationStrings = {
   startNode: 'Создание задачи',
   initialMark: 'Начальный',
   stageAria: 'Статус',
-  bandAria: 'этап',
-  anyFrom: 'из любого',
+  bandAria: 'группа',
+  /** Метка кнопки из любого статуса на холсте (реф Jira/Трекер). */
+  anyStatus: 'Любой статус',
+  stageTasksCount: 'Задач в статусе',
+  /** Доступность холста (aria React Flow). */
+  canvasControls: 'Масштаб схемы',
+  canvasHandle: 'Точка подключения',
+  canvasNodeHint: 'Enter или пробел — выбрать статус, Delete — удалить, Esc — снять выбор',
+  canvasEdgeHint: 'Enter или пробел — выбрать кнопку, Delete — удалить, Esc — снять выбор',
+  canvasNodeMoved: 'Статус сдвинут',
   readOnly: 'Только просмотр',
   zoomIn: 'Приблизить',
   zoomOut: 'Отдалить',
@@ -72,11 +80,14 @@ export const automationStrings = {
   moveDown: 'Ниже',
   publish: 'Опубликовать',
   discard: 'Отменить изменения',
+  /** Строка инструментов: сброс черновика к опубликованной версии. */
+  discardShort: 'Сбросить',
+  /** Строка инструментов: «Добавить переход» (поповер «Откуда / Куда»). */
+  addTransitionLabel: 'Добавить переход',
   problemsChip: 'Проблемы',
   problemsFixFirst: 'Исправьте проблемы:',
   /** Инспектор статуса. */
   stageName: 'Название',
-  stageBand: 'Этап',
   stageColor: 'Цвет',
   stageOutcome: 'Итог',
   outcomeSuccess: 'Выполнена',
@@ -84,7 +95,6 @@ export const automationStrings = {
   isInitial: 'Начальный статус',
   isInitialHint: 'Включение переносит флаг с прежнего начального статуса',
   buttonsFromStage: 'Кнопки из этого статуса',
-  addTransition: 'Кнопка',
   addTransitionTitle: 'Новая кнопка перехода',
   addTransitionSubmit: 'Добавить',
   deleteStage: 'Удалить статус',
@@ -96,10 +106,6 @@ export const automationStrings = {
   transitionNameHint: 'Так кнопка подписана в карточке',
   fromStage: 'Откуда',
   toStage: 'Куда',
-  anyStage: 'Любой статус',
-  displayLabel: 'Как показывать',
-  display: { primary: 'Главная', button: 'Видна', menu: 'В меню «Ещё»' },
-  whoSees: 'Кто видит кнопку',
   whoSeesHint: 'Сотрудники с правом «Управлять любой задачей» видят все кнопки',
   roles: {
     creator: 'Постановщик',
@@ -108,7 +114,6 @@ export const automationStrings = {
     observer: 'Наблюдатели',
   },
   roleCreatorAssignee: 'Постановщик = исполнитель',
-  conditions: 'Условия перехода',
   conditionsHint:
     'Если условие не выполнено, кнопка видна, но приглушена; при нажатии сотрудник увидит, чего не хватает',
   validators: {
@@ -124,8 +129,43 @@ export const automationStrings = {
     assignee: 'Исполнитель',
     plannedMinutes: 'Плановое время',
   },
-  specialCase: 'Если постановщик сам себе исполнитель — сразу в',
   deleteTransition: 'Удалить кнопку',
+  /** Правая панель редактора (#378 ред. 2): разделы с переходом внутрь. */
+  panel: {
+    back: 'Назад',
+    stageGroup: 'Группа статуса',
+    stageGroupWhy:
+      'По группе система понимает, что с задачей: от неё зависят просрочка, колонки «Моего плана» и отчёты',
+    canAnyFrom: 'Можно перейти из любого статуса',
+    canAnyFromHint: 'На схеме — метка «Любой статус» со стрелкой в этот статус',
+    anyButtonName: 'Название кнопки',
+    display: 'Как показывать',
+    displaySegments: { primary: 'Главная', button: 'Кнопка', menu: 'В «Ещё»' },
+    displayHints: {
+      primary: 'Заметная кнопка панели процесса — одна на статус',
+      button: 'Обычная кнопка рядом с главной',
+      menu: 'Спрятана в меню «Ещё»',
+    },
+    sectionWhoSees: 'Кто видит',
+    sectionConditions: 'Условия перехода',
+    sectionRules: 'Особые правила',
+    nobody: 'Никто',
+    noConditions: 'Без условий',
+    noRules: 'Нет',
+    conditionsLead: 'Что должно быть готово, чтобы кнопка сработала',
+    allowReviewSubtasks: 'Подзадачи на утверждении не мешают',
+    validatorHints: {
+      no_open_subtasks: 'Все подзадачи завершены или отменены',
+      checklist_complete: 'Все пункты чек-листа отмечены',
+      time_logged: 'Есть хотя бы одна запись времени',
+      result_present: 'Заполнен итог задачи',
+      fields_required: 'Выбранные поля карточки заполнены',
+    },
+    routeIfToggle: 'Если постановщик сам себе исполнитель',
+    routeIfHint: 'Задача сразу перейдёт в выбранный статус — утверждать самому себе не нужно',
+    routeIfTarget: 'Сразу перейти в',
+    routeIfSummary: 'Постановщик = исполнитель →',
+  },
   /** Тексты проблем схемы (код → строка; UI — чип и список). */
   problems: {
     no_initial: 'Не задан начальный статус',
@@ -150,9 +190,9 @@ export const automationStrings = {
   /** Публикация. */
   publishTitle: 'Публикация маршрута',
   buttonsChangedForms: ['кнопка изменена', 'кнопки изменены', 'кнопок изменено'],
+  publishLayoutChanged: 'изменена расстановка',
   publishNothingChanged: 'Изменений нет',
   publishMigrateTo: 'перенести в',
-  publishRestate: 'сменится этап',
   publishRestateNote: '«Мой план» сотрудников обновится',
   publishedToast: 'Маршрут опубликован',
   movingTasksToast: 'Переносим задачи…',
@@ -171,8 +211,6 @@ export const automationStrings = {
   unsavedTitle: 'Есть неопубликованные изменения',
   unsavedBody: 'Уйти без публикации? Черновик останется на этом компьютере.',
   /** Диалог «Схема маршрута» из карточки задачи. */
-  routeViewTitle: 'Схема маршрута',
   routeViewOfType: 'Маршрут типа',
   openInEditor: 'Открыть в редакторе',
-  currentStage: 'Текущий статус',
 } as const;
