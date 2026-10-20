@@ -1,5 +1,5 @@
 import type { TaskListItem, TaskStage, TaskTransition } from '@nodus/contracts';
-import { ErrorCode } from '@nodus/contracts';
+import { ErrorCode, isFinalState } from '@nodus/contracts';
 import { http, HttpResponse } from 'msw';
 
 import {
@@ -32,7 +32,7 @@ function documentOfTask(task: TaskListItem) {
 
 function transitionsOf(task: TaskListItem): TaskTransition[] {
   const route = documentOfTask(task);
-  const closed = task.stage.systemState === 'closed';
+  const closed = isFinalState(task.stage.systemState);
   const stageIds = new Set(route.stages.map((s) => s.id));
   const own: TaskTransition[] = [];
   const anyFrom: TaskTransition[] = [];

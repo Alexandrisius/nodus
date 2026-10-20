@@ -51,8 +51,8 @@ export const automationStrings = {
     backlog: 'задачу поставили, работа не начата',
     active: 'идёт работа',
     paused: 'работа начата и стоит / отложена',
-    done: 'работа сдана и ждёт проверки',
-    closed: 'задача закрыта',
+    done: 'работа сдана и ждёт утверждения — ещё не завершена',
+    closed: 'итог: выполнена или отменена',
   },
   addStage: 'Добавить статус',
   newStageName: 'Новый статус',
@@ -112,7 +112,7 @@ export const automationStrings = {
   conditionsHint:
     'Если условие не выполнено, кнопка видна, но приглушена; при нажатии сотрудник увидит, чего не хватает',
   validators: {
-    no_open_subtasks: 'Нет открытых подзадач',
+    no_open_subtasks: 'Нет незавершённых подзадач',
     checklist_complete: 'Чек-лист выполнен',
     time_logged: 'Есть трудозатраты',
     result_present: 'Есть итог',

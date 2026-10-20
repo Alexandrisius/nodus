@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import type { TaskListItem } from '@nodus/contracts';
-import { ui } from '@nodus/contracts';
+import { isOpenState, ui } from '@nodus/contracts';
 
 import { useProjectsList } from '../api/projects-list.js';
 import { useTaskStages } from '../api/task-stages.js';
@@ -12,10 +12,10 @@ import type { FilterPreset } from './use-list-toolbar.js';
 /** Поисковая строка задачи: номер + название (подстрока, без регистра). */
 export const taskSearchText = (t: TaskListItem) => `${t.number} ${t.title}`;
 
-/** Просрочена: дедлайн в прошлом и задача не завершена/не закрыта. */
+/** Просрочена: срок в прошлом, а работа не сдана (фаза open). Сданная на
+ *  утверждение и закрытая — не просрочены (ADR-0020, дополнение 2). */
 export function isTaskOverdue(t: TaskListItem, now: number): boolean {
-  if (!t.deadline) return false;
-  if (t.stage.systemState === 'done' || t.stage.systemState === 'closed') return false;
+  if (!t.deadline || !isOpenState(t.stage.systemState)) return false;
   return new Date(t.deadline).getTime() < now;
 }
 
@@ -33,7 +33,7 @@ export const taskBuiltinPresets: FilterPreset[] = [
     state: { role: 'creator', systemState: 'done' },
   },
   // «Завершённые» — состояние closed (каталог API: «Завершена»/«Отменена»);
-  // done на бэке — «Ждёт контроля», работа ещё не принята.
+  // done — «На утверждении», работа ещё не принята.
   { id: 'done', name: ui.tasks.stageStates.closed, state: { systemState: 'closed' } },
 ];
 

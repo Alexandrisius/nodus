@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { TaskDetail, TaskTransition } from '@nodus/contracts';
-import { ui } from '@nodus/contracts';
+import { isCompletedState, isFinalState, ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import {
   Dialog,
@@ -15,8 +15,6 @@ import { toast } from 'sonner';
 
 import { useBulkTasks } from '../api/task-edit-api.js';
 import { useExecuteTransition } from '../api/transitions-api.js';
-
-const OPEN = new Set(['backlog', 'active', 'paused']);
 
 /** Запуск перехода маршрута с объяснением гейтов (ADR-0020, #311):
  *  свободный переход — сразу; заблокированный — диалог с причинами и
@@ -62,12 +60,14 @@ function TransitionDialog({
   const bulk = useBulkTasks();
   const [reason, setReason] = useState('');
   const reasons = transition?.blockedBy ?? [];
-  const openSubtasks = task.subtasks.filter((s) => OPEN.has(s.stage.systemState));
+  const openSubtasks = task.subtasks.filter((s) => !isFinalState(s.stage.systemState));
   // Закрыть вместе с подзадачами — только если подзадачи единственный гейт
-  // и переход закрывает задачу (подзадачи идут в ту же стадию).
+  // и переход ЗАВЕРШАЕТ задачу (итог «выполнена»; подзадачи идут в ту же
+  // стадию). Сдача на утверждение — нет: строгий гейт считает и подзадачи
+  // на утверждении (ADR-0020, дополнение 2) — родитель снова упёрся бы.
   const closesWithSubtasks =
     transition !== null &&
-    !OPEN.has(transition.toStageState) &&
+    isCompletedState(transition.toStageState, transition.toStageOutcome) &&
     reasons.length === 1 &&
     reasons[0]?.kind === 'no_open_subtasks' &&
     openSubtasks.length > 0;

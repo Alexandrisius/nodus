@@ -1,5 +1,5 @@
 import type { TaskListItem, TaskStage } from '@nodus/contracts';
-import { ErrorCode, createTaskBodySchema } from '@nodus/contracts';
+import { ErrorCode, createTaskBodySchema, isOpenState } from '@nodus/contracts';
 
 import { http, HttpResponse } from 'msw';
 
@@ -29,19 +29,16 @@ function typeNameOf(typeId: string): string | undefined {
 }
 const archivedTypeIds = new Set(demoTaskTypes.filter((t) => t.archivedAt).map((t) => t.workflowId));
 
-/** Открытые состояния: новая задача стартует только в них (API #37,
- *  security-гейт: создание сразу «завершённой» обходило бы гейты DoD). */
-const OPEN_STATES = new Set<TaskStage['systemState']>(['backlog', 'active', 'paused']);
-
-/** Стадия новой задачи — как `TasksService.create` API: явная stageId —
- *  только открытая; личная колонка открытого состояния — первая стадия
- *  схемы того же состояния; иначе (закрытая колонка, без колонки) —
+/** Стадия новой задачи — как `TasksService.create` API: только фаза open
+ *  (security-гейт #37: создание сразу «на утверждении» или «завершённой»
+ *  обходило бы гейты DoD). Явная stageId — только открытая; личная колонка
+ *  открытого состояния — первая стадия схемы того же состояния; иначе —
  *  начальная стадия маршрута. */
 function initialStageFor(stageId: string | undefined, column: TaskStage | undefined) {
-  const starts = demoStages.filter((s) => OPEN_STATES.has(s.systemState));
+  const starts = demoStages.filter((s) => isOpenState(s.systemState));
   const initial = starts[0];
   if (stageId) return starts.find((s) => s.id === stageId);
-  if (column && OPEN_STATES.has(column.systemState)) {
+  if (column && isOpenState(column.systemState)) {
     return globalStageForPersonal(column, starts);
   }
   return initial;
@@ -107,8 +104,7 @@ export const tasksListHandlers = [
             t.stage.id === s.id &&
             t.deadline !== null &&
             new Date(t.deadline) < new Date() &&
-            s.systemState !== 'done' &&
-            s.systemState !== 'closed',
+            isOpenState(s.systemState),
         ).length,
       })),
     );

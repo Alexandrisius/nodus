@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import {
   ErrorCode,
+  isOpenState,
   TASK_EVENTS,
   type AuthUser,
   type CreateTaskBody,
@@ -26,8 +27,6 @@ import { WorkflowRepository } from '../workflow/workflow.repository.js';
 import { TaskDtoMapper } from './task-dto.mapper.js';
 import { TasksQueryService } from './tasks-query.service.js';
 import { DuplicateTaskSourceError, TasksRepository } from './tasks.repository.js';
-
-const OPEN_STATES = new Set(['backlog', 'active', 'paused']);
 
 /**
  * Создание и удаление задач (правка и перенос — TaskEditService). Задача без
@@ -95,16 +94,16 @@ export class TasksService {
     const personalColumn = body.personalStageId
       ? await this.personalColumn(user.id, body.personalStageId)
       : null;
-    // Новая задача стартует только в ОТКРЫТОМ состоянии (backlog/active/
-    // paused): создание сразу «завершённой» обходило бы гейты DoD
-    // (security-гейт #37). Колонка «Моего плана» открытого состояния задаёт
-    // стадию (плюсик в «В работе» = задача в работе); закрытая колонка —
-    // начальная стадия.
-    const starts = workflow.stages.filter((s) => !s.archivedAt && OPEN_STATES.has(s.systemState));
+    // Новая задача стартует только в фазе open (backlog/active/paused):
+    // создание сразу «на утверждении» или «завершённой» обходило бы гейты
+    // DoD (security-гейт #37). Колонка «Моего плана» открытого состояния
+    // задаёт стадию (плюсик в «В работе» = задача в работе); колонка
+    // утверждения или итога — начальная стадия.
+    const starts = workflow.stages.filter((s) => !s.archivedAt && isOpenState(s.systemState));
     const initial = starts.find((s) => s.isInitial) ?? starts[0];
     const stage = body.stageId
       ? starts.find((s) => s.id === body.stageId)
-      : personalColumn && OPEN_STATES.has(personalColumn.systemState)
+      : personalColumn && isOpenState(personalColumn.systemState)
         ? (starts.find((s) => s.systemState === personalColumn.systemState) ?? initial)
         : initial;
     if (!stage) throw DomainException.notFound('Stage not found');

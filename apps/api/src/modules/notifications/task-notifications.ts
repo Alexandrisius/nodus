@@ -1,17 +1,16 @@
-import type { NotificationKind } from '@nodus/contracts';
+import { isFinalState, isOpenState, isReviewState, type NotificationKind } from '@nodus/contracts';
 
 /**
  * Адресаты уведомлений о задачах (#37) — чистая функция над событием task.*
  * (I3: notifications знает только payload события, не таблицы задач).
  * Сам себе не уведомляется; наблюдатели — без звука (их канал — чат задачи).
+ * Смены состояния — по фазам контракта (ADR-0020, дополнение 2).
  */
 export interface TaskNotice {
   userId: string;
   kind: NotificationKind;
   preview: string;
 }
-
-const OPEN = new Set(['backlog', 'active', 'paused']);
 
 type Payload = Record<string, unknown>;
 
@@ -40,23 +39,29 @@ export function taskNotices(type: string, p: Payload, actorId: string | null): T
       }
       break;
     case 'task.stage_changed': {
+      // Фоновый перенос публикации маршрута — не действие человека: без звука.
+      if (p.cause === 'workflow_migration') break;
       const from = str(p.fromState) ?? '';
       const to = str(p.toState) ?? '';
-      const outcome = str(p.toStageOutcome);
-      // Итог (#378): «выполнена» — постановщику, «отменена» — исполнителю и
-      // соисполнителям (кроме нажавшего; add исключает actor).
-      if (OPEN.has(from) && to === 'closed') {
-        if (outcome === 'cancelled') {
-          // Исполнителю и соисполнителям; наблюдатели — без звука (канон модуля).
+      // Вход в «Итог» из незавершённого (add исключает нажавшего):
+      // «отменена» — исполнителю и соисполнителям; утверждение (с этапа
+      // «Утверждение») — исполнителю «работа принята»; «выполнена» без
+      // утверждения — постановщику.
+      if (isFinalState(to) && !isFinalState(from)) {
+        if (str(p.toStageOutcome) === 'cancelled') {
           add(str(p.assigneeId), 'task.cancelled');
           for (const id of ids(p.coexecutorIds)) add(id, 'task.cancelled');
+        } else if (isReviewState(from)) {
+          add(str(p.assigneeId), 'task.approved');
         } else {
           add(str(p.creatorId), 'task.completed');
         }
       }
-      // Вход в этап «Утверждение» (done без итога) — постановщику (#378).
-      if (to === 'done' && from !== 'done') add(str(p.creatorId), 'task.awaiting_approval');
-      if (!OPEN.has(from) && OPEN.has(to)) add(str(p.assigneeId), 'task.returned');
+      // Вход в этап «Утверждение» — утверждающему (в #378 — постановщик).
+      if (isReviewState(to) && !isReviewState(from)) {
+        add(str(p.creatorId), 'task.awaiting_approval');
+      }
+      if (!isOpenState(from) && isOpenState(to)) add(str(p.assigneeId), 'task.returned');
       break;
     }
     case 'task.overdue':

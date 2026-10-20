@@ -4,8 +4,6 @@ import type { WorkflowTransitionRules } from '@nodus/contracts';
 import type { Prisma } from '../../../generated/prisma/client.js';
 import type { TransactionClient } from '../../../core/database/transaction-runner.js';
 
-const OPEN_STATES = ['backlog', 'active', 'paused'];
-
 export interface CatalogStageData {
   name: string;
   color: string;
@@ -48,8 +46,8 @@ export class CatalogRepository {
   ) {
     return (
       (await tx.taskType.findUnique({ where: { code: def.code } })) ??
-      // Создаётся с ревизией 0: seedOnce применит ревизию каталога и
-      // проставит 2 (создание ≠ применённая ревизия).
+      // Создаётся с ревизией 0: seedOnce применит текущую ревизию каталога
+      // (создание ≠ применённая ревизия).
       (await tx.taskType.create({ data: { ...def, isSystem: true, catalogRevision: 0 } }))
     );
   }
@@ -81,6 +79,50 @@ export class CatalogRepository {
     await tx.$queryRaw`SELECT id FROM workflows WHERE id = ${workflowId}::uuid FOR UPDATE`;
   }
 
+  /** Состояние засева маршрута (правили ли руками, какая ревизия применена). */
+  seedState(tx: TransactionClient, workflowId: string) {
+    return tx.workflow.findUniqueOrThrow({
+      where: { id: workflowId },
+      select: { customizedAt: true, catalogRevision: true },
+    });
+  }
+
+  async isTypeCustomized(tx: TransactionClient, typeId: string): Promise<boolean> {
+    const row = await tx.taskType.findUniqueOrThrow({
+      where: { id: typeId },
+      select: { customizedAt: true },
+    });
+    return row.customizedAt !== null;
+  }
+
+  /** Свойства типа по ревизии каталога (только поля, которыми владеет каталог). */
+  async applyTypeRevision(
+    tx: TransactionClient,
+    typeId: string,
+    def: { name: string; icon: string; color: string; description: string; sortOrder: number },
+    revision: number,
+  ): Promise<void> {
+    await tx.taskType.update({
+      where: { id: typeId },
+      data: { ...def, catalogRevision: revision },
+    });
+  }
+
+  /** Ревизия применена к маршруту: новая версия (системная публикация —
+   *  открытый у кого-то черновик получит конфликт версии, а не затрёт). */
+  async applyWorkflowRevision(
+    tx: TransactionClient,
+    workflowId: string,
+    revision: number,
+  ): Promise<number> {
+    const row = await tx.workflow.update({
+      where: { id: workflowId },
+      data: { catalogRevision: revision, version: { increment: 1 } },
+      select: { version: true },
+    });
+    return row.version;
+  }
+
   async ensureWorkflow(
     tx: TransactionClient,
     def: { code: string; name: string; kind: string; isTemplate: boolean },
@@ -88,7 +130,7 @@ export class CatalogRepository {
     return (
       (await tx.workflow.findUnique({ where: { code: def.code } })) ??
       // Ревизия 0 при создании: seedOnce посеет стадии/переходы и поднимет
-      // до 2 (создание с 2 пропускало бы посев содержимого).
+      // до текущей (создание с текущей пропускало бы посев содержимого).
       (await tx.workflow.create({ data: { ...def, isSystem: true, catalogRevision: 0 } }))
     );
   }
@@ -107,33 +149,6 @@ export class CatalogRepository {
     data: Partial<CatalogStageData>,
   ): Promise<void> {
     await tx.workflowStage.update({ where: { id: stageId }, data });
-  }
-
-  /** Стадия сменила системное состояние — денормализация задач в ней
-   *  (`tasks.system_state` + completedAt по канону applyStage: закрытое
-   *  состояние — момент завершения, открытое — сброс). Число задач. */
-  async restateStageTasks(
-    tx: TransactionClient,
-    stageId: string,
-    systemState: string,
-    now: Date,
-  ): Promise<number> {
-    const { count } = await tx.task.updateMany({
-      where: { stageId, systemState: { not: systemState } },
-      data: { systemState, stateChangedAt: now },
-    });
-    if (OPEN_STATES.includes(systemState)) {
-      await tx.task.updateMany({
-        where: { stageId, completedAt: { not: null } },
-        data: { completedAt: null },
-      });
-    } else {
-      await tx.task.updateMany({
-        where: { stageId, completedAt: null },
-        data: { completedAt: now },
-      });
-    }
-    return count;
   }
 
   findTransition(tx: TransactionClient, workflowId: string, code: string) {

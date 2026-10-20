@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import type { TaskListItem } from '@nodus/contracts';
-import { ui } from '@nodus/contracts';
+import { isFinalState, isOpenState, ui } from '@nodus/contracts';
 import { Empty, EmptyTitle } from '@nodus/ui/components/empty';
 import { Skeleton } from '@nodus/ui/components/skeleton';
 import { cn } from '@nodus/ui/lib/utils';
@@ -60,12 +60,12 @@ export function ProjectGantt({ projectId }: { projectId: string }) {
       .map((task) => {
         const endDay = startOfDay(new Date(task.deadline ?? 0).getTime());
         const duration = syntheticDurationDays(task.id);
-        const done = task.stage.systemState === 'done' || task.stage.systemState === 'closed';
         return {
           task,
           startDay: endDay - duration * DAY_MS,
           endDay,
-          overdue: !done && endDay < today,
+          // Просрочка — только у несданной работы (утверждение не краснеет).
+          overdue: isOpenState(task.stage.systemState) && endDay < today,
         };
       })
       .sort((a, b) => a.endDay - b.endDay);
@@ -174,8 +174,7 @@ export function ProjectGantt({ projectId }: { projectId: string }) {
                   className={cn(
                     'absolute top-1/2 h-4 -translate-y-1/2 rounded-full',
                     overdue ? stageTone.danger.dot : stageTone[task.stage.color].dot,
-                    (task.stage.systemState === 'done' || task.stage.systemState === 'closed') &&
-                      'opacity-45',
+                    isFinalState(task.stage.systemState) && 'opacity-45',
                   )}
                   style={{
                     left: ((startDay - model.firstDay) / DAY_MS) * DAY_W,

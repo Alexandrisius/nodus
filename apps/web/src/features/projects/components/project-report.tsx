@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import type { TaskListItem } from '@nodus/contracts';
-import { ui } from '@nodus/contracts';
+import { isCompletedState, isOpenState, ui } from '@nodus/contracts';
 import { NodeLabel } from '@nodus/ui/components/node-label';
 import { Skeleton } from '@nodus/ui/components/skeleton';
 import { cn } from '@nodus/ui/lib/utils';
@@ -10,8 +10,15 @@ import { stageTone } from '../../../shared/ui/board/stage-tone.js';
 import { chartRowTone } from '../../../shared/ui/identity-tone.js';
 import { useProjectTaskPages } from '../api/projects-api.js';
 
+/** «Завершено» — итог «выполнена»: сданная на утверждении работа и отменённые
+ *  задачи выполненными не считаются (ADR-0020, дополнение 2). */
 function isDone(task: TaskListItem): boolean {
-  return task.stage.systemState === 'done' || task.stage.systemState === 'closed';
+  return isCompletedState(task.stage.systemState, task.stage.outcome);
+}
+
+/** Работа не сдана — нагрузка исполнителя и возможная просрочка. */
+function isOpen(task: TaskListItem): boolean {
+  return isOpenState(task.stage.systemState);
 }
 
 function KpiTile({ label, value, danger }: { label: string; value: string; danger?: boolean }) {
@@ -86,7 +93,7 @@ export function ProjectReport({ projectId }: { projectId: string }) {
       };
       stage.count += 1;
       byStage.set(task.stage.id, stage);
-      if (!isDone(task)) {
+      if (isOpen(task)) {
         const name = task.assignee?.displayName ?? ui.common.notSet;
         byAssignee.set(name, (byAssignee.get(name) ?? 0) + 1);
       }
@@ -97,7 +104,7 @@ export function ProjectReport({ projectId }: { projectId: string }) {
       active: items.filter((t) => t.stage.systemState === 'active').length,
       done: items.filter(isDone).length,
       overdue: items.filter(
-        (t) => !isDone(t) && t.deadline !== null && new Date(t.deadline).getTime() < today,
+        (t) => isOpen(t) && t.deadline !== null && new Date(t.deadline).getTime() < today,
       ).length,
       stages: [...byStage.values()],
       assignees: [...byAssignee.entries()]

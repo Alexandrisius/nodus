@@ -8,14 +8,16 @@ import type {
 import { buildQuickWorkflow, QUICK_TASK_TYPE } from './system-catalog-quick.js';
 
 /**
- * Системный каталог маршрутов (ADR-0020, ревизия 2 — редактор #378/ADR-0021):
- * данные, которыми владеет код, — «засев один раз» (CatalogBootstrap
- * применяет ревизию только пока маршрут не правили руками, `customizedAt`).
- * Тип «Быстрый» — в system-catalog-quick.ts (лимит строк I5). Цели route_if
- * задаются КОДАМИ стадий (routeTo) — в БД хранится uuid (резолв при посеве).
+ * Системный каталог маршрутов (ADR-0020; ревизия 2 — редактор #378/ADR-0021,
+ * ревизия 3 — колонка «На утверждении» шаблона «Моего плана», ADR-0020
+ * дополнение 2): данные, которыми владеет код, — «засев один раз»
+ * (CatalogBootstrap применяет ревизию только пока маршрут не правили руками,
+ * `customizedAt`). Тип «Быстрый» — в system-catalog-quick.ts (лимит строк
+ * I5). Цели route_if задаются КОДАМИ стадий (routeTo) — в БД хранится uuid
+ * (резолв при посеве).
  */
 
-export const CATALOG_REVISION = 2;
+export const CATALOG_REVISION = 3;
 
 export interface CatalogStage {
   code: string;
@@ -238,7 +240,7 @@ const STANDARD_WORKFLOW: CatalogWorkflow = {
   ],
 };
 
-/** Каталог задач ревизии 2: оба типа + маршруты (спека #378, раздел 10). */
+/** Каталог задач: оба типа + маршруты (спека #378, раздел 10). */
 export const CATALOG_TASK_TYPES: readonly {
   type: CatalogTaskType;
   workflow: CatalogWorkflow;
@@ -258,7 +260,8 @@ export const CATALOG_TASK_TYPES: readonly {
 ];
 
 /** Шаблон «Моего плана» (ADR-0008): каждому состоянию — минимум одна колонка
- *  (автоперемещение). Переходов у личного маршрута нет. */
+ *  (автоперемещение). Переходов у личного маршрута нет. Колонка этапа
+ *  «Утверждение» — «На утверждении»: работа сдана, не завершена. */
 export const PERSONAL_TEMPLATE: CatalogWorkflow = {
   code: PERSONAL_TEMPLATE_CODE,
   name: 'Мой план',
@@ -268,7 +271,7 @@ export const PERSONAL_TEMPLATE: CatalogWorkflow = {
     { code: 'backlog', name: 'Новые', color: 'neutral', systemState: 'backlog', isInitial: true },
     { code: 'active', name: 'В работе', color: 'success', systemState: 'active' },
     { code: 'paused', name: 'Отложенные', color: 'danger', systemState: 'paused' },
-    { code: 'done', name: 'На контроле', color: 'warning', systemState: 'done' },
+    { code: 'done', name: 'На утверждении', color: 'warning', systemState: 'done' },
     {
       code: 'closed',
       name: 'Завершённые',

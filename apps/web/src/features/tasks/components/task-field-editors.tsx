@@ -1,7 +1,7 @@
 import { ChevronDown } from 'lucide-react';
 import { useState } from 'react';
 import type { TaskDetail, TaskPriority } from '@nodus/contracts';
-import { taskPrioritySchema, ui } from '@nodus/contracts';
+import { isOpenState, taskPrioritySchema, ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import {
   Dialog,
@@ -31,8 +31,6 @@ import { formatDuration, parseDuration } from '../lib/minutes.js';
 const valueButton =
   '-mx-1 inline-flex h-6 max-w-full items-center gap-1 rounded-md px-1 transition-colors hover:bg-accent';
 
-const OPEN = new Set(['backlog', 'active', 'paused']);
-
 /** Срок: чип — триггер календаря (DateTimePicker). Сдвиг срока родителя
  *  предлагает сдвинуть сроки открытых подзадач на тот же интервал (каскад
  *  #311, модель MS Project/Битрикс24 «сдвинуть связанные»). */
@@ -41,7 +39,9 @@ export function TaskDeadlineField({ task }: { task: TaskDetail }) {
   const shift = useShiftSubtaskDeadlines();
   const [cascade, setCascade] = useState<{ id: string; deadline: string }[] | null>(null);
 
-  if (!task.access.canEdit) return <DeadlineChip deadline={task.deadline} />;
+  if (!task.access.canEdit) {
+    return <DeadlineChip deadline={task.deadline} state={task.stage.systemState} />;
+  }
 
   function onChange(next: Date | null) {
     const deadline = next?.toISOString() ?? null;
@@ -50,7 +50,7 @@ export function TaskDeadlineField({ task }: { task: TaskDetail }) {
     if (!next || !task.deadline) return;
     const delta = next.getTime() - Date.parse(task.deadline);
     const moved = task.subtasks
-      .filter((s) => s.deadline && OPEN.has(s.stage.systemState))
+      .filter((s) => s.deadline && isOpenState(s.stage.systemState))
       .map((s) => ({
         id: s.id,
         deadline: new Date(Date.parse(s.deadline ?? '') + delta).toISOString(),
@@ -67,7 +67,7 @@ export function TaskDeadlineField({ task }: { task: TaskDetail }) {
         clearLabel={ui.tasks.removeDeadline}
       >
         <button type="button" className={valueButton}>
-          <DeadlineChip deadline={task.deadline} />
+          <DeadlineChip deadline={task.deadline} state={task.stage.systemState} />
         </button>
       </DateTimePicker>
       <Dialog open={cascade !== null} onOpenChange={(open) => !open && setCascade(null)}>

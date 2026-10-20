@@ -53,6 +53,7 @@ export const KIND_PRIORITY: Record<NotificationKind, NotificationPriority> = {
   // мусорная (исполнитель теряет задачу).
   'task.awaiting_approval': 'medium',
   'task.cancelled': 'medium',
+  'task.approved': 'medium',
 };
 
 /** Приоритет kind при пересечении правил (urgent > mention > thread > direct > channel). */

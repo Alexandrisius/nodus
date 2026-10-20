@@ -1,4 +1,5 @@
 import {
+  isFinalState,
   Permission,
   workflowTransitionRulesSchema,
   type TaskActorRole,
@@ -41,7 +42,11 @@ export interface TaskGateFacts {
   acceptRequired: boolean;
   /** Постановщик сам себе исполнитель — особый случай route_if (#378). */
   creatorIsAssignee: boolean;
+  /** Живые подзадачи фазы open (работа не сдана). */
   openSubtasks: number;
+  /** Живые подзадачи фазы review (на утверждении) — мешают в строгом
+   *  режиме гейта no_open_subtasks (ADR-0020, дополнение 2). */
+  reviewSubtasks: number;
   checklistDone: number;
   checklistTotal: number;
   spentMinutes: number;
@@ -95,9 +100,11 @@ export function evaluateValidators(
   const reasons: TransitionBlockReason[] = [];
   for (const v of rules.validators) {
     switch (v.kind) {
-      case 'no_open_subtasks':
-        if (facts.openSubtasks > 0) reasons.push({ kind: v.kind, count: facts.openSubtasks });
+      case 'no_open_subtasks': {
+        const count = facts.openSubtasks + (v.allowReview ? 0 : facts.reviewSubtasks);
+        if (count > 0) reasons.push({ kind: v.kind, count });
         break;
+      }
       case 'checklist_complete':
         if (facts.checklistDone < facts.checklistTotal) reasons.push({ kind: v.kind });
         break;
@@ -144,8 +151,6 @@ export function liveStage(stages: readonly StageDef[], id: string): StageDef | u
   return stages.find((s) => s.id === id && !s.archivedAt);
 }
 
-const CLOSED = 'closed';
-
 /**
  * Кнопки из текущей стадии: сначала кнопки статуса, затем «из любого»,
  * внутри групп — по sortOrder; петля в себя скрыта; кнопка «из любого»
@@ -157,16 +162,16 @@ export function outgoingTransitions(
   stages: readonly StageDef[],
 ): TransitionDef[] {
   const current = stages.find((s) => s.id === facts.stageId);
-  const currentClosed = current?.systemState === CLOSED;
+  const currentFinal = current !== undefined && isFinalState(current.systemState);
   const fromStage = transitions
     .filter((t) => t.fromStageId === facts.stageId)
     .sort((a, b) => a.sortOrder - b.sortOrder);
   const fromAny = transitions
     .filter((t) => t.fromStageId === null)
     .filter((t) => {
-      if (!currentClosed) return true;
+      if (!currentFinal) return true;
       const target = liveStage(stages, effectiveTargetId(t, facts, stages));
-      return target?.systemState !== CLOSED;
+      return target === undefined || !isFinalState(target.systemState);
     })
     .sort((a, b) => a.sortOrder - b.sortOrder);
   return [...fromStage, ...fromAny].filter(

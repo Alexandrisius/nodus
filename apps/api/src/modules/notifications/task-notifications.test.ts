@@ -89,6 +89,62 @@ describe('taskNotices', () => {
     ).toMatchObject([{ userId: 'cr', kind: 'task.completed' }]);
   });
 
+  it('утверждение (с «Утверждения» в итог «выполнена») — исполнителю «работа принята»', () => {
+    const base = { number: 6, toStageName: 'Завершена', creatorId: 'cr', assigneeId: 'as' };
+    expect(
+      taskNotices(
+        'task.stage_changed',
+        { ...base, fromState: 'done', toState: 'closed', toStageOutcome: 'success' },
+        'cr',
+      ),
+    ).toEqual([expect.objectContaining({ userId: 'as', kind: 'task.approved' })]);
+  });
+
+  it('отмена с этапа «Утверждение» — тоже исполнителю и соисполнителям', () => {
+    const n = taskNotices(
+      'task.stage_changed',
+      {
+        number: 8,
+        toStageName: 'Отменена',
+        creatorId: 'cr',
+        assigneeId: 'as',
+        coexecutorIds: ['co'],
+        fromState: 'done',
+        toState: 'closed',
+        toStageOutcome: 'cancelled',
+      },
+      'cr',
+    );
+    expect(n.map((x) => [x.userId, x.kind])).toEqual([
+      ['as', 'task.cancelled'],
+      ['co', 'task.cancelled'],
+    ]);
+  });
+
+  it('итог → итог и фоновый перенос публикации — без уведомлений', () => {
+    const base = { number: 9, toStageName: 'Завершена', creatorId: 'cr', assigneeId: 'as' };
+    expect(
+      taskNotices(
+        'task.stage_changed',
+        { ...base, fromState: 'closed', toState: 'closed', toStageOutcome: 'success' },
+        'cr',
+      ),
+    ).toEqual([]);
+    expect(
+      taskNotices(
+        'task.stage_changed',
+        {
+          ...base,
+          fromState: 'active',
+          toState: 'closed',
+          toStageOutcome: 'success',
+          cause: 'workflow_migration',
+        },
+        null,
+      ),
+    ).toEqual([]);
+  });
+
   it('просрочка — обоим без дублей; наблюдатель в составе — без уведомления', () => {
     expect(
       taskNotices('task.overdue', { number: 2, title: 'T', assigneeId: 'x', creatorId: 'x' }, null),

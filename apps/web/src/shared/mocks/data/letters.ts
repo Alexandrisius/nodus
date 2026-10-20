@@ -1,4 +1,5 @@
 import type { LetterDetail, LetterListItem, UserRef } from '@nodus/contracts';
+import { isFinalState } from '@nodus/contracts';
 
 import { cid, demoConversations } from './chat.js';
 import {
@@ -269,9 +270,10 @@ export function createLetterConversation(letter: LetterListItem, members: UserRe
 }
 
 /** Синхронизация документа с его поручениями-задачами: снапшоты стадий в
- *  строках поручений + статус «исполнено», когда все задачи завершены
- *  («в дело» — только вручную, архив не трогаем). Вызывается из моков задач
- *  при смене стадии задачи с source 'letter'. */
+ *  строках поручений + статус «исполнено», когда все задачи в «Итоге»
+ *  (сданная на утверждение — ещё не исполнена; «в дело» — только вручную,
+ *  архив не трогаем). Вызывается из моков задач при смене стадии задачи с
+ *  source 'letter'. */
 export function syncLetterWithTasks(letterId: string): void {
   const letter = demoLetters.find((l) => l.id === letterId);
   if (!letter || letter.documentStatus === null || letter.documentStatus === 'archived') return;
@@ -285,9 +287,7 @@ export function syncLetterWithTasks(letterId: string): void {
         if (instruction.task?.id === taskId) instruction.taskStage = stage;
       }
     }
-    if (!stage || (stage.systemState !== 'done' && stage.systemState !== 'closed')) {
-      allDone = false;
-    }
+    if (!stage || !isFinalState(stage.systemState)) allDone = false;
   }
   letter.documentStatus = allDone ? 'executed' : 'in_work';
 }

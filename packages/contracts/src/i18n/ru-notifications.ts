@@ -61,6 +61,7 @@ export const notificationsStrings = {
     'task.returned': 'Возврат в работу',
     'task.awaiting_approval': 'Ждёт утверждения',
     'task.cancelled': 'Задача отменена',
+    'task.approved': 'Работа принята',
   } satisfies Record<NotificationKind, string>,
   /** Колокольчик-поповер (быстрые последние 5–7; массового прочтения нет —
    *   важное гасится осознанно: входом в источник / «Ознакомлен», фидбек 01.10). */

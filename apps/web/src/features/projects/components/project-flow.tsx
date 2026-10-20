@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { Zap } from 'lucide-react';
-import { ui } from '@nodus/contracts';
+import { isFinalState, isReviewState, ui } from '@nodus/contracts';
 import { NodeLabel } from '@nodus/ui/components/node-label';
 import { Skeleton } from '@nodus/ui/components/skeleton';
 import { cn } from '@nodus/ui/lib/utils';
@@ -161,14 +161,14 @@ export function ProjectFlow({ projectId }: { projectId: string }) {
     const items = data?.pages.flatMap((p) => p.items) ?? [];
     const by = (predicate: (state: string) => boolean) =>
       items.filter((t) => predicate(t.stage.systemState)).length;
-    // Узлы — по systemState каталога API (system-catalog.ts): «Ждёт
-    // контроля» = done, «Завершена»/«Отменена» = closed. Матч по имени
-    // стадии ломался на переименовании и считал контроль дважды.
+    // Узлы — по системному состоянию и его фазе (ADR-0020, дополнение 2):
+    // «На утверждении» = review, «Завершена»/«Отменена» = final. Матч по
+    // имени стадии ломался на переименовании и считал утверждение дважды.
     return {
       new: by((s) => s === 'backlog'),
       work: by((s) => s === 'active'),
-      review: by((s) => s === 'done'),
-      done: by((s) => s === 'closed'),
+      review: by(isReviewState),
+      done: by(isFinalState),
       paused: by((s) => s === 'paused'),
     } as Record<string, number>;
   }, [data]);

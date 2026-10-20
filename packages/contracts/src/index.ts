@@ -20,6 +20,7 @@ export * from './directory/presence.schemas.js';
 export * from './home/home-summary.schemas.js';
 export * from './tasks/task.schemas.js';
 export * from './tasks/workflow-primitives.schemas.js';
+export * from './tasks/task-state-phase.js';
 export * from './tasks/task-type.schemas.js';
 export * from './tasks/workflow.schemas.js';
 export * from './tasks/workflow-document.schemas.js';

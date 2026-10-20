@@ -1,10 +1,12 @@
 import { Injectable, type OnApplicationBootstrap } from '@nestjs/common';
+import { TASK_EVENTS } from '@nodus/contracts';
 import { PinoLogger } from 'nestjs-pino';
 
 import {
   TransactionRunner,
   type TransactionClient,
 } from '../../../core/database/transaction-runner.js';
+import { EventBus } from '../../../core/events/event-bus.js';
 import {
   CATALOG_REVISION,
   CATALOG_TASK_TYPES,
@@ -19,20 +21,31 @@ import {
 import { parseRules } from '../workflow/transition-rules.js';
 import { CatalogRepository, type CatalogStageData } from './catalog.repository.js';
 
+/** Стадия засеяна; `restate` — каталог сменил её группу (задачи — фоном). */
+interface SeededStage {
+  id: string;
+  restate: boolean;
+}
+
 /**
  * Бутстрап системного каталога (ADR-0020/0021): «засев один раз». Пока
  * сущность не правили руками (`customizedAt IS NULL`) и её ревизия меньше
  * текущей — применяется ревизия каталога (создание недостающего, обновление
  * по `code`, архивация живых переходов вне каталога). Настроенное не
  * трогается НИКОГДА (лог `catalog.skip_customized`) — правки владельца
- * переживают рестарты. Идемпотентен; гонка двух стартов разрешается
- * уникальными ключами (повтор проходит по ветке «уже есть»).
+ * переживают рестарты. Применённая ревизия маршрута задач — системная
+ * публикация: версия++ и событие `task.workflow_published`, чей
+ * outbox-обработчик пересчитывает задачи стадий со сменой группы тем же
+ * фоновым заданием, что и публикация редактора (события, «Мой план»,
+ * completedAt — одна точка StageMover). Идемпотентен; гонка двух стартов
+ * разрешается уникальными ключами (повтор проходит по ветке «уже есть»).
  */
 @Injectable()
 export class CatalogBootstrap implements OnApplicationBootstrap {
   constructor(
     private readonly txRunner: TransactionRunner,
     private readonly repo: CatalogRepository,
+    private readonly eventBus: EventBus,
     private readonly logger: PinoLogger,
   ) {
     this.logger.setContext(CatalogBootstrap.name);
@@ -80,18 +93,8 @@ export class CatalogBootstrap implements OnApplicationBootstrap {
     def: CatalogWorkflow,
   ): Promise<void> {
     await this.repo.lockWorkflow(tx, workflowId);
-    const workflow = await tx.workflow.findUniqueOrThrow({
-      where: { id: workflowId },
-      select: { customizedAt: true, catalogRevision: true },
-    });
-    let typeCustomized = false;
-    if (type) {
-      const row = await tx.taskType.findUniqueOrThrow({
-        where: { id: type.id },
-        select: { customizedAt: true },
-      });
-      typeCustomized = row.customizedAt !== null;
-    }
+    const workflow = await this.repo.seedState(tx, workflowId);
+    const typeCustomized = type ? await this.repo.isTypeCustomized(tx, type.id) : false;
     if (workflow.customizedAt !== null || typeCustomized) {
       this.logger.info({ workflow: def.code }, 'catalog.skip_customized: каталог не трогает');
       return;
@@ -99,22 +102,21 @@ export class CatalogBootstrap implements OnApplicationBootstrap {
     if (workflow.catalogRevision >= CATALOG_REVISION) return;
 
     if (type) {
-      await tx.taskType.update({
-        where: { id: type.id },
-        data: {
-          name: type.def.name,
-          icon: type.def.icon,
-          color: type.def.color,
-          description: type.def.description,
-          ...(type.def.sortOrder !== undefined ? { sortOrder: type.def.sortOrder } : {}),
-          catalogRevision: CATALOG_REVISION,
-        },
-      });
+      const { name, icon, color, description, sortOrder } = type.def;
+      await this.repo.applyTypeRevision(
+        tx,
+        type.id,
+        { name, icon, color, description, sortOrder },
+        CATALOG_REVISION,
+      );
     }
 
     const stageIds = new Map<string, string>();
+    const restates: { stageId: string; systemState: string }[] = [];
     for (const [index, s] of def.stages.entries()) {
-      stageIds.set(s.code, await this.seedStage(tx, workflowId, s, index));
+      const seeded = await this.seedStage(tx, workflowId, s, index);
+      stageIds.set(s.code, seeded.id);
+      if (seeded.restate) restates.push({ stageId: seeded.id, systemState: s.systemState });
     }
 
     const now = new Date();
@@ -132,10 +134,15 @@ export class CatalogBootstrap implements OnApplicationBootstrap {
       await this.seedTransition(tx, workflowId, t, index, stageIds);
     }
 
-    await tx.workflow.update({
-      where: { id: workflowId },
-      data: { catalogRevision: CATALOG_REVISION },
-    });
+    const version = await this.repo.applyWorkflowRevision(tx, workflowId, CATALOG_REVISION);
+    if (type && def.kind === 'task') {
+      await this.eventBus.emit(
+        tx,
+        TASK_EVENTS.WORKFLOW_PUBLISHED,
+        { workflowId, typeIds: [type.id], version, moves: [], restates },
+        { actorId: null, aggregateType: 'workflow', aggregateId: workflowId },
+      );
+    }
   }
 
   private async seedStage(
@@ -143,7 +150,7 @@ export class CatalogBootstrap implements OnApplicationBootstrap {
     workflowId: string,
     s: CatalogStage,
     index: number,
-  ): Promise<string> {
+  ): Promise<SeededStage> {
     const want: CatalogStageData = {
       name: s.name,
       color: s.color,
@@ -155,7 +162,7 @@ export class CatalogBootstrap implements OnApplicationBootstrap {
     const found = await this.repo.findStage(tx, workflowId, s.code);
     if (!found) {
       const created = await this.repo.createStage(tx, workflowId, s.code, want);
-      return created.id;
+      return { id: created.id, restate: false };
     }
     const drift = stageDrift(
       {
@@ -169,14 +176,14 @@ export class CatalogBootstrap implements OnApplicationBootstrap {
       want,
     );
     if (drift) await this.repo.updateStage(tx, found.id, drift);
-    if (drift?.systemState !== undefined) {
-      const moved = await this.repo.restateStageTasks(tx, found.id, want.systemState, new Date());
+    const restate = drift?.systemState !== undefined;
+    if (restate) {
       this.logger.warn(
-        { workflow: workflowId, stage: s.code, systemState: want.systemState, tasks: moved },
-        'tasks: системное состояние стадии каталога изменено — задачи пересчитаны',
+        { workflow: workflowId, stage: s.code, systemState: want.systemState },
+        'tasks: каталог сменил группу статуса — задачи пересчитаются фоном',
       );
     }
-    return found.id;
+    return { id: found.id, restate };
   }
 
   private async seedTransition(

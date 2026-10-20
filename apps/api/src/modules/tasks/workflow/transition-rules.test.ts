@@ -17,6 +17,7 @@ const facts: TaskGateFacts = {
   acceptRequired: false,
   creatorIsAssignee: false,
   openSubtasks: 0,
+  reviewSubtasks: 0,
   checklistDone: 2,
   checklistTotal: 2,
   spentMinutes: 30,
@@ -107,6 +108,24 @@ describe('evaluateValidators (гейты DoR/DoD)', () => {
       { kind: 'no_open_subtasks', count: 3 },
     ]);
     expect(evaluateValidators(rules, facts)).toEqual([]);
+  });
+
+  it('строгий режим (по умолчанию): подзадачи на утверждении тоже мешают (ADR-0020 доп. 2)', () => {
+    const rules = parseRules({ validators: [{ kind: 'no_open_subtasks' }] });
+    expect(evaluateValidators(rules, { ...facts, reviewSubtasks: 2 })).toEqual([
+      { kind: 'no_open_subtasks', count: 2 },
+    ]);
+    expect(evaluateValidators(rules, { ...facts, openSubtasks: 1, reviewSubtasks: 2 })).toEqual([
+      { kind: 'no_open_subtasks', count: 3 },
+    ]);
+  });
+
+  it('allowReview: подзадачи на утверждении не мешают, открытые — мешают', () => {
+    const rules = parseRules({ validators: [{ kind: 'no_open_subtasks', allowReview: true }] });
+    expect(evaluateValidators(rules, { ...facts, reviewSubtasks: 2 })).toEqual([]);
+    expect(evaluateValidators(rules, { ...facts, openSubtasks: 1, reviewSubtasks: 2 })).toEqual([
+      { kind: 'no_open_subtasks', count: 1 },
+    ]);
   });
 
   it('чек-лист, время, результат и обязательные поля', () => {
@@ -259,6 +278,21 @@ describe('исходящие кнопки (#378)', () => {
       stages,
     );
     expect(list.map((t) => t.id)).toEqual(['reopen']);
+  });
+
+  it('с этапа «Утверждение» «Отменить» из любого виден (утверждение — не итог)', () => {
+    const list = outgoingTransitions(
+      [
+        transition({
+          id: 'cancel',
+          fromStageId: null,
+          toStageId: '00000000-0000-4000-8000-000000000004',
+        }),
+      ],
+      { ...facts, stageId: '00000000-0000-4000-8000-000000000002' },
+      stages,
+    );
+    expect(list.map((t) => t.id)).toEqual(['cancel']);
   });
 
   it('«из любого» в открытую цель из закрытой стадии виден', () => {

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { TASK_EVENTS } from '@nodus/contracts';
+import { isCompletedState, isFinalState, TASK_EVENTS } from '@nodus/contracts';
 
 import type { TransactionClient } from '../../../core/database/transaction-runner.js';
 import { EventBus } from '../../../core/events/event-bus.js';
@@ -7,8 +7,6 @@ import { audienceIds, planHolderIds } from '../access/task-access.js';
 import { Placements } from '../personal/placements.js';
 import { TasksRepository } from '../tasks/tasks.repository.js';
 import type { StageRow } from './workflow.repository.js';
-
-const OPEN = new Set(['backlog', 'active', 'paused']);
 
 export interface MovableTask {
   id: string;
@@ -27,8 +25,11 @@ export type StageChangeCause = 'transition' | 'workflow_migration' | 'type_chang
 /**
  * Общий доменный помощник смены стадии задачи (#378, спека фазы 3): правила
  * completedAt, автоперемещение «Моего плана» и события — в ОДНОЙ точке для
- * кнопок маршрута, фонового переноса публикации и смены типа (иначе — три
- * копии правил). Вызывается ТОЛЬКО внутри транзакции вызывающего сервиса.
+ * кнопок маршрута, фонового переноса публикации, смены типа и пересчёта
+ * группы статуса (иначе — копии правил). Завершение — только вход в «Итог»
+ * (фаза final, ADR-0020 дополнение 2): «Утверждение» (review) не ставит
+ * completedAt и не шлёт task.completed. Вызывается ТОЛЬКО внутри
+ * транзакции вызывающего сервиса.
  */
 @Injectable()
 export class StageMover {
@@ -84,7 +85,12 @@ export class StageMover {
       meta2,
     );
     if (stateChanged) await this.afterStateChange(tx, task, target.systemState, actorId);
-    if (!OPEN.has(target.systemState) && OPEN.has(task.systemState)) {
+    // Выполнена: вход в «Итог» с исходом «выполнена» из незавершённого
+    // (из работы или с утверждения); отмена — только stage_changed с
+    // toStageOutcome: cancelled.
+    const completes =
+      isCompletedState(target.systemState, target.outcome) && !isFinalState(task.systemState);
+    if (completes) {
       await this.eventBus.emit(
         tx,
         TASK_EVENTS.COMPLETED,
@@ -102,12 +108,15 @@ export class StageMover {
     await this.afterStateChange(tx, task, systemState, null);
   }
 
+  /** completedAt — момент входа в «Итог»: ставится при входе, сохраняется
+   *  между итогами (отменена ↔ выполнена), снимается при выходе. */
   private stateFields(task: MovableTask, systemState: string) {
-    const closing = !OPEN.has(systemState);
+    const now = new Date();
+    const stayedFinal = isFinalState(task.systemState) && task.completedAt !== null;
     return {
       systemState,
-      ...(systemState !== task.systemState ? { stateChangedAt: new Date() } : {}),
-      completedAt: closing ? (task.completedAt ?? new Date()) : null,
+      ...(systemState !== task.systemState ? { stateChangedAt: now } : {}),
+      completedAt: isFinalState(systemState) ? (stayedFinal ? task.completedAt : now) : null,
     };
   }
 

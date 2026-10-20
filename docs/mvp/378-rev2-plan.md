@@ -18,7 +18,7 @@
    - `AGENTS.md`;
    - навыки: `nodus-ui-style` (плюс `references/flow-canvas.md` и `references/circuit.md`), `nodus-dev-testing`, `react-best-practices`, `react-composition-patterns`, `shadcn`, `nestjs-best-practices`, `prisma-migrations`.
 3. **Порядок работ:**
-   1. **A2** — семантика «Утверждения».
+   1. ~~**A2** — семантика «Утверждения»~~ — сделано (§2).
    2. **C5** — данные веба.
    3. **C2 → C3 → C4** — холст, оболочка, панель.
    4. Документация.
@@ -109,11 +109,28 @@
 
 contracts: 64 теста. API: unit 670, integration 139 (изолированный контур `nodus_test` + Redis db15). Web: 975. Typecheck api/web/gateway. Lint: 0 ошибок.
 
+### Фаза A2 — «Утверждение» не завершение (сделано, коммит после `db7d836b`)
+
+| Что | Где |
+|---|---|
+| Фазы `open / review / final` — единственная классификация | `contracts/tasks/task-state-phase.ts`: `taskStatePhase`, `isOpenState` / `isReviewState` / `isFinalState`, `isCompletedState(state, outcome)`, `statesOfPhase` (для `IN (...)`). Все локальные `OPEN` / `done \|\| closed` в API и вебе заменены |
+| `completedAt` — момент входа в «Итог» | `StageMover.stateFields`: вход в final — сейчас (устаревшее значение с утверждения не переносится), итог → итог — сохраняется, выход — `null` |
+| `task.completed` — только итог «выполнена» из незавершённого | `StageMover.apply` через `isCompletedState` |
+| Строгий гейт подзадач + `allowReview` | контракт `no_open_subtasks.allowReview?`, `gateFacts.reviewSubtasks`, `evaluateValidators`; каталог — строгий |
+| Просрочка — только `open` | сканер, фильтр, счётчики колонок (`overdueWhere`), веб `isTaskOverdue`, **чип срока** (`DeadlineChip` получил `state`: у сданной и закрытой срок нейтральный) |
+| Каталог ревизии 3 | «На контроле» → «На утверждении» в шаблоне «Моего плана». Применённая ревизия маршрута задач — **системная публикация**: `version++` + `task.workflow_published`, смена группы статуса (`restates`) пересчитывается тем же фоновым заданием, что и публикация (события, «Мой план»). `restateStageTasks` удалён, Prisma из бутстрапа — в `CatalogRepository` |
+| Миграция `20261020140000_review_not_completed` | `completed_at = NULL` у задач в `done`; колонки «Моего плана» `На контроле` (этап done, не переименованные) → «На утверждении» |
+| Уведомления по фазам | новое **«Работа принята»** (`task.approved`) — исполнителю при утверждении; «Отменена» — и с этапа «Утверждение»; фоновый перенос публикации (`cause: workflow_migration`) — без уведомлений |
+| Веб | отчёт проекта: «Завершено» = итог «выполнена» (отменённые не считаются), нагрузка и просрочка — `open`; Гант: красный — `open`, приглушён — `final`; подзадачи: счётчик и зачёркивание — `final`; «Завершить вместе с подзадачами» — только когда переход ведёт в итог «выполнена» (при сдаче на утверждение строгий гейт снова упёрся бы); i18n «На утверждении», «Нет незавершённых подзадач» |
+| Документы | README tasks (раздел «Фазы», каталог, перенос, события) и notifications, `data-model.md`, schema.prisma (doc-комментарии) |
+
+Гейты A2: contracts 69, API unit 173 (модули tasks + notifications), integration 141 (+2: «Утверждение» без `completedAt` → «Утвердить» с ним; строгий гейт подзадачи на утверждении), web 976, typecheck api/web, drift-check миграций пуст.
+
 ## 3. План оставшегося
 
-### A2. Семантика этапа «Утверждение» — делать первой
+### A2. Семантика этапа «Утверждение» — СДЕЛАНО (итог — §2 «Фаза A2»)
 
-ADR-0020 «Дополнение 2» — канон. Шаги:
+ADR-0020 «Дополнение 2» — канон. Шаги (исходный план; отклонения и добавки — в §2):
 
 1. **Контракты** (`workflow-primitives.schemas.ts`).
    - `TaskStatePhase = 'open' | 'review' | 'final'`.
@@ -262,7 +279,7 @@ ADR-0020 «Дополнение 2» — канон. Шаги:
   - подпись на ребре с t;
   - ANY — переключатель статуса плюс пилюля;
   - контролы внизу слева, ось до края.
-- **ADR-0021:** outbox-обработчик, payload с массивами, attempts/backoff, ответ кнопки `{task, transitions}`.
+- **ADR-0021:** outbox-обработчик, payload с массивами, attempts/backoff, ответ кнопки `{task, transitions}`; применённая ревизия каталога = системная публикация (`version++`, событие, `restates` через то же задание).
 - **`nodus-ui-style`:** абзац «Холст схем» в SKILL.md переписать — старый канон «магистраль / позиции в браузере / зум в тулбаре» отменён. Обновить `references/flow-canvas.md` и `references/circuit.md`.
 - **README tasks:** события `cause`/`reason`/`coexecutorIds`, payload `workflow_published`, ответ кнопки, outbox-задание, фазы состояния.
 - **README `features/automation`.**

@@ -9,7 +9,10 @@ import { z } from 'zod';
  */
 
 /** Скрытая ось аналитики (status category, ADR-0008); в маршруте задач
- *  этапы: Ожидание / В работе / Пауза / Утверждение / Итог (#378). */
+ *  этапы: Ожидание / В работе / Пауза / Утверждение / Итог (#378).
+ *  `done` = «Утверждение» — работа сдана и ждёт приёмки, НЕ завершение
+ *  (фаза review; завершение — только `closed`). Классификация — только
+ *  хелперами фаз `task-state-phase.ts` (ADR-0020, дополнение 2). */
 export const taskSystemStateSchema = z.enum(['backlog', 'active', 'paused', 'done', 'closed']);
 export type TaskSystemState = z.infer<typeof taskSystemStateSchema>;
 

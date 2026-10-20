@@ -1,11 +1,16 @@
 import { Injectable } from '@nestjs/common';
-import type { ListTasksQuery, TaskRef } from '@nodus/contracts';
+import { statesOfPhase, type ListTasksQuery, type TaskRef } from '@nodus/contracts';
 
 import type { Prisma } from '../../../generated/prisma/client.js';
 import { PrismaService } from '../../../core/database/prisma.service.js';
 import { taskListInclude, type TaskListRow } from './task-row.js';
 
-const OPEN_STATES = ['backlog', 'active', 'paused'];
+/** Просрочка — только у фазы open (сданная работа и итог не краснеют,
+ *  ADR-0020 дополнение 2). */
+const overdueWhere = (now: Date): Prisma.TaskWhereInput => ({
+  deadline: { lt: now },
+  systemState: { in: statesOfPhase('open') },
+});
 
 /** Порядок выдачи списка: колонка глобальной оси, личной оси или номер. */
 export type TaskOrder =
@@ -36,9 +41,7 @@ export class TasksQueryRepository {
     if (q.assigneeId) and.push({ assigneeId: q.assigneeId });
     if (q.parentId) and.push({ parentId: q.parentId });
     if (q.typeId) and.push({ typeId: q.typeId });
-    if (q.overdue) {
-      and.push({ deadline: { lt: now }, systemState: { in: OPEN_STATES } });
-    }
+    if (q.overdue) and.push(overdueWhere(now));
     if (q.search) {
       const n = Number(q.search.replace(/^ПП-/i, ''));
       and.push({
@@ -190,7 +193,7 @@ export class TasksQueryRepository {
       this.prisma.task.groupBy({ by: ['stageId'], where, _count: { _all: true } }),
       this.prisma.task.groupBy({
         by: ['stageId'],
-        where: { AND: [where, { deadline: { lt: now }, systemState: { in: OPEN_STATES } }] },
+        where: { AND: [where, overdueWhere(now)] },
         _count: { _all: true },
       }),
     ]);
@@ -206,10 +209,7 @@ export class TasksQueryRepository {
       }),
       this.prisma.taskPersonalPlacement.groupBy({
         by: ['stageId'],
-        where: {
-          userId,
-          task: { AND: [where, { deadline: { lt: now }, systemState: { in: OPEN_STATES } }] },
-        },
+        where: { userId, task: { AND: [where, overdueWhere(now)] } },
         _count: { _all: true },
       }),
     ]);

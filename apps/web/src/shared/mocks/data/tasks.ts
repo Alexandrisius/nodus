@@ -1,4 +1,5 @@
 import type { ChatMessage, TaskChainNode, TaskDetail, TaskListItem } from '@nodus/contracts';
+import { isFinalState } from '@nodus/contracts';
 
 import type { ProjectRef } from '@nodus/contracts';
 
@@ -161,7 +162,8 @@ export function taskDetailOf(task: TaskListItem): TaskDetail {
     checklist: [],
     createdAt: task.updatedAt,
   };
-  const closed = task.stage.systemState === 'done' || task.stage.systemState === 'closed';
+  // completedAt — только у «Итога»: «Утверждение» не завершение (ADR-0020 доп. 2).
+  const closed = isFinalState(task.stage.systemState);
   return {
     ...task,
     ...extra,

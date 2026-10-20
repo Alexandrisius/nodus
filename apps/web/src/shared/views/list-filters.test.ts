@@ -206,10 +206,28 @@ describe('isTaskOverdue: просрочка задачи', () => {
       ),
     ).toBe(false);
   });
+
+  it('на утверждении с дедлайном в прошлом — НЕ просрочена: работа сдана', () => {
+    expect(
+      isTaskOverdue(
+        task({
+          deadline: '2026-09-01T18:00:00Z',
+          stage: {
+            id: 'st-review',
+            name: 'На утверждении',
+            order: 4,
+            systemState: 'done',
+            color: 'warning',
+          },
+        }),
+        now,
+      ),
+    ).toBe(false);
+  });
 });
 
 describe('taskBuiltinPresets: семантика состояний по каталогу API', () => {
-  it('«Завершённые» — systemState closed (done на бэке — «Ждёт контроля»)', () => {
+  it('«Завершённые» — systemState closed (done — «На утверждении», не завершена)', () => {
     const preset = taskBuiltinPresets.find((p) => p.id === 'done');
     expect(preset?.state).toEqual({ systemState: 'closed' });
   });

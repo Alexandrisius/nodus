@@ -40,7 +40,11 @@ export type WorkflowCondition = z.infer<typeof workflowConditionSchema>;
 
 /** Валидаторы — гейты DoR/DoD: все должны пройти (И). */
 export const workflowValidatorSchema = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('no_open_subtasks') }),
+  /** Нет незавершённых подзадач. Строго (по умолчанию) мешают подзадачи и
+   *  в работе, и на утверждении; `allowReview` — подзадачи на утверждении
+   *  не мешают (ADR-0020, дополнение 2). Нет ключа = строго (редактор
+   *  пишет только `true`). */
+  z.object({ kind: z.literal('no_open_subtasks'), allowReview: z.boolean().optional() }),
   z.object({ kind: z.literal('checklist_complete') }),
   z.object({
     kind: z.literal('fields_required'),
@@ -53,8 +57,9 @@ export type WorkflowValidator = z.infer<typeof workflowValidatorSchema>;
 export type WorkflowValidatorKind = WorkflowValidator['kind'];
 
 /** Пост-действия — что сделать после перехода (в той же транзакции).
- *  Встроенное (не правило): completedAt ставится входом в done/closed и
- *  снимается выходом; личные доски участников переезжают по состоянию. */
+ *  Встроенное (не правило): completedAt ставится входом в «Итог» (closed)
+ *  и снимается выходом из него — «Утверждение» (done) не завершение;
+ *  личные доски участников переезжают по состоянию. */
 export const workflowPostFunctionSchema = z.discriminatedUnion('kind', [
   /** УСТАРЕВШИЙ (#378): ветвление по флагу задачи «принять после завершения»
    *  (accept_required уходит, ADR-0020 дополнение); остаётся только в
@@ -91,7 +96,8 @@ export const transitionBlockReasonSchema = z.object({
   ]),
   /** Для fields_required — какие поля не заполнены. */
   fields: z.array(taskRequirableFieldSchema).optional(),
-  /** Для no_open_subtasks — сколько открытых подзадач. */
+  /** Для no_open_subtasks — сколько подзадач мешают (в строгом режиме
+   *  вместе с подзадачами на утверждении). */
   count: z.number().int().min(0).optional(),
 });
 export type TransitionBlockReason = z.infer<typeof transitionBlockReasonSchema>;

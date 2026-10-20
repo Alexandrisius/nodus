@@ -12,7 +12,7 @@ import {
   X,
 } from 'lucide-react';
 import type { TaskDetail, TaskTransition } from '@nodus/contracts';
-import { ui } from '@nodus/contracts';
+import { isFinalState, isReviewState, ui } from '@nodus/contracts';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -43,8 +43,8 @@ const valueChip =
 function transitionIcon(t: TaskTransition): LucideIcon {
   if (t.toStageState === 'active') return Play;
   if (t.toStageState === 'paused') return Pause;
-  if (t.toStageState === 'done') return Send;
-  if (t.toStageState === 'closed') return t.toStageOutcome === 'cancelled' ? X : Check;
+  if (isReviewState(t.toStageState)) return Send;
+  if (isFinalState(t.toStageState)) return t.toStageOutcome === 'cancelled' ? X : Check;
   return Undo2;
 }
 
@@ -66,7 +66,7 @@ export function TaskActionBar({ task }: { task: TaskDetail }) {
   }
 
   const { primary, visible, menu } = groupProcessButtons(transitions);
-  const closed = task.stage.systemState === 'closed';
+  const closed = isFinalState(task.stage.systemState);
   const cancelled = closed && task.stage.outcome === 'cancelled';
 
   const renderButton = (t: TaskTransition, main: boolean) => {

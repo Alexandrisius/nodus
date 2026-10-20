@@ -123,6 +123,7 @@ describe('TransitionsService — сценарии API кнопок маршру�
         acceptRequired: false,
         creatorIsAssignee: false,
         openSubtasks: 0,
+        reviewSubtasks: 0,
         checklistDone: 0,
         checklistTotal: 0,
         spentMinutes: 0,

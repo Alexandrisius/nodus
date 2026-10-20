@@ -964,7 +964,8 @@ model WorkflowStage {
   /// Тон палитры темы (stageColorSchema).
   color       String
   sortOrder   Int       @map("sort_order")
-  /// backlog | active | paused | done | closed (скрытая ось, ADR-0008).
+  /// backlog | active | paused | done | closed (скрытая ось, ADR-0008);
+  /// фазы open / review (done = «Утверждение») / final — ADR-0020 доп. 2.
   systemState String    @map("system_state")
   /// Итог закрытой стадии (#378): success | cancelled; только у этапа
   /// «Итог» (CHECK в миграции: (system_state = 'closed') = (outcome NOT NULL)).
@@ -1088,6 +1089,8 @@ model Task {
   confidential      Boolean   @default(false)
   /// Ключ внешней системы (импорт из Битрикса: «b24:12345»).
   externalRef       String?   @unique @map("external_ref")
+  /// Момент входа в «Итог» (closed: выполнена/отменена); снимается выходом.
+  /// «Утверждение» (done) — не завершение (ADR-0020, дополнение 2).
   completedAt       DateTime? @map("completed_at") @db.Timestamptz()
   /// Однократное уведомление о просрочке; сбрасывается сменой срока.
   overdueNotifiedAt DateTime? @map("overdue_notified_at") @db.Timestamptz()

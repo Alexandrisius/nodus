@@ -29,7 +29,7 @@ export const tasksStrings = {
   showOverdue: 'Показать просроченные',
   colNew: 'Новые',
   colInProgress: 'В работе',
-  colOnControl: 'Ждёт контроля',
+  colOnControl: 'На утверждении',
   colDone: 'Завершена',
   colPostponed: 'Отложена',
   priority: { low: 'Низкий', normal: 'Обычный', high: 'Высокий', urgent: 'Срочный' },
@@ -89,14 +89,14 @@ export const tasksStrings = {
     danger: 'Красный',
   },
   /** Системные состояния — подписи колонок шаблона «Моего плана» по каталогу
-   *  API (system-catalog.ts): done — «На контроле» (работа сдана, ждёт
-   *  приёмки; в маршруте задачи это стадия «Ждёт контроля»), closed —
-   *  завершённые и отменённые. */
+   *  API (system-catalog.ts): done — «На утверждении» (работа сдана, ждёт
+   *  приёмки, НЕ завершена — ADR-0020 дополнение 2), closed — завершённые и
+   *  отменённые. */
   stageStates: {
     backlog: 'Новые',
     active: 'В работе',
     paused: 'Отложенные',
-    done: 'На контроле',
+    done: 'На утверждении',
     closed: 'Завершённые',
   },
   branch: 'Ветка задачи',
