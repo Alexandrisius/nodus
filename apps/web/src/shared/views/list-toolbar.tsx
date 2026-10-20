@@ -41,7 +41,7 @@ export function ListToolbar<T>({
   className?: string;
 }) {
   const [panelOpen, setPanelOpen] = useState(false);
-  // Gotcha (docs/gotchas.md «Radix Popover из фокуса»): открывать панель
+  // Gotcha (docs/gotchas/frontend.md «Radix Popover из фокуса»): открывать панель
   // НА onFocus нельзя — focus приходит на mousedown, слой DismissableLayer
   // монтируется между pointerdown и click, и завершающий click той же
   // мыши дисмиссит панель как «взаимодействие снаружи» (вспышка+закрытие).

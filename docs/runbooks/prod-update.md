@@ -14,7 +14,12 @@ Release) — навык `nodus-release`; этот runbook — шаги выка�
 - рабочее дерево чистое (`git status` пуст): прод собирается ИЗ рабочего
   дерева этого каталога — незакоммиченное уедет на прод;
 - `.env` заполнен, `NODUS_WEB_MOCK=false` (боевой режим web — build-arg,
-  gotchas «VITE_* — build-time»).
+  gotchas «VITE_* — build-time»);
+- выпуск содержит миграции — сначала бэкап БД: `docker exec nodus_postgres
+  pg_dump -U <pguser> nodus | gzip > ../nodus-backup-$(date +%Y%m%d-%H%M).sql.gz`
+  (файл вне репо); «No pending migrations» в логе — не доказательство:
+  применённость верифицируется по `_prisma_migrations` (список = локальные
+  миграции `apps/api/prisma/migrations/`).
 
 ## Шаги
 

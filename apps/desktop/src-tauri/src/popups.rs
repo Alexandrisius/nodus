@@ -312,7 +312,7 @@ pub fn on_popup_destroyed(app: &AppHandle, label: &str) {
     // Хвост (док очереди строит ОКНО, reposition двигает/создаёт капсулу) —
     // ТОЛЬКО из async-контекста: сюда приходит синхронный обработчик
     // WindowEvent::Destroyed (event loop, main thread) — создание окна здесь
-    // дедлокит WebView2 (gotcha «Десктоп», docs/gotchas.md).
+    // дедлокит WebView2 (gotcha «Десктоп», docs/gotchas/desktop.md).
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         if let Some(payload) = next {

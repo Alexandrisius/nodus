@@ -13,7 +13,7 @@
 1. `.agents/skills/nodus-ui-style/SKILL.md` + `references/primitives.md` +
    `references/circuit.md` — канон: анатомия карточки-слайдера, канбан,
    таблицы, хореография анимаций. Это живая база, синхронизированная с кодом.
-2. `docs/gotchas.md` — оплаченные ловушки: канон ресайза (императивный drag,
+2. `docs/gotchas/` — оплаченные ловушки: канон ресайза (императивный drag,
    transitions только для toggle), slider-expand transform-only, vite HMR
    и `export *`, EOL/husky.
 3. `docs/adr/0008-workflow-schemes-two-scopes.md` — двухосная модель стадий
