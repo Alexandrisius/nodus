@@ -69,6 +69,7 @@ export const automationStrings = {
   canvasNodeHint: 'Enter или пробел — выбрать статус, Delete — удалить, Esc — снять выбор',
   canvasEdgeHint: 'Enter или пробел — выбрать кнопку, Delete — удалить, Esc — снять выбор',
   canvasNodeMoved: 'Статус сдвинут',
+  bendHint: 'Потяните, чтобы отодвинуть стрелку; двойной клик — вернуть на место',
   readOnly: 'Только просмотр',
   zoomIn: 'Приблизить',
   zoomOut: 'Отдалить',

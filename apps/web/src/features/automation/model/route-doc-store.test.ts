@@ -216,6 +216,23 @@ describe('route-doc-store: рабочая копия маршрута (#378)', (
     );
   });
 
+  it('участок стрелки отодвинули (#395): сдвиг — в раскладке и пути, отмена; перенос конца сбрасывает', () => {
+    const store = freshStore();
+    const id = '00000000-0000-4000-8000-000000000011';
+    store.getState().setEdgeBend(id, 'shift', 30.4);
+    expect(resolveRoute(store.getState().document).spread.get(id)?.shift).toBe(30);
+
+    store.getState().setEdgeBend(id, 'shift', null);
+    expect(store.getState().document.layout?.transitions[id]?.shift).toBeUndefined();
+    store.getState().undo();
+    expect(store.getState().document.layout?.transitions[id]?.shift).toBe(30);
+
+    store
+      .getState()
+      .reconnect(id, { source: S1, target: S3, sourceHandle: 'b2', targetHandle: 't2' });
+    expect(store.getState().document.layout?.transitions[id]?.shift).toBeUndefined();
+  });
+
   it('ввод названия подряд — один шаг отмены, а не «по букве»', () => {
     const store = freshStore();
     const before = store.getState().past.length;

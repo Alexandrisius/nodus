@@ -130,6 +130,7 @@ export function resolveRoute(
     handles,
     boxes,
     (id) => layout.transitions[id]?.offset,
+    (id) => layout.transitions[id]?.shift,
   );
   const ends = new Map<string, string>();
   const paths = new Map<string, FlowPt[]>();

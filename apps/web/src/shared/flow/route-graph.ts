@@ -37,6 +37,8 @@ export interface RouteGraphOptions {
   onSelectTransition?: (id: string) => void;
   /** Подпись перетащили вдоль стрелки (только редактор). */
   onLabelT?: (transitionId: string, t: number) => void;
+  /** Свободный участок стрелки отодвинули (только редактор). */
+  onBend?: (transitionId: string, param: 'shift' | 'offset', value: number | null) => void;
 }
 
 export function buildRouteGraph(
@@ -149,6 +151,7 @@ export function buildRouteGraph(
         dim: options.highlightedTransitionIds ? !options.highlightedTransitionIds.has(t.id) : false,
         onSelect: options.onSelectTransition ? () => options.onSelectTransition!(t.id) : undefined,
         onLabelT: options.onLabelT ? (value) => options.onLabelT!(t.id, value) : undefined,
+        onBend: options.onBend ? (param, value) => options.onBend!(t.id, param, value) : undefined,
       },
     });
   }

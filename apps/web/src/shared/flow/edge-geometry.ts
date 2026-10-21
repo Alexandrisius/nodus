@@ -51,6 +51,12 @@ export function simplify(points: readonly FlowPt[]): FlowPt[] {
   });
 }
 
+/** Излом «ступеньки» — между вылетами концов: сдвинутый участок не уходит
+ *  за вылет (иначе линия шла назад петлёй, когда статусы сблизили). */
+function clampMid(value: number, a: number, b: number): number {
+  return Math.min(Math.max(a, b), Math.max(Math.min(a, b), value));
+}
+
 /**
  * Ортогональная ломаная от `src` (выход стороной `sSide`) к `dst` (вход
  * стороной `dSide`). Соосные встречные концы — прямая; встречные стороны —
@@ -101,13 +107,13 @@ export function orthogonalPoints(
         ];
       }
     } else if (horizontal) {
-      const x = (src.x + dst.x) / 2 + shift;
+      const x = clampMid((src.x + dst.x) / 2 + shift, sg.x, tg.x);
       middle = [
         { x, y: sg.y },
         { x, y: tg.y },
       ];
     } else {
-      const y = (src.y + dst.y) / 2 + shift;
+      const y = clampMid((src.y + dst.y) / 2 + shift, sg.y, tg.y);
       middle = [
         { x: sg.x, y },
         { x: tg.x, y },
@@ -141,6 +147,103 @@ export function orthogonalPoints(
     }
   }
   return simplify([src, sg, ...middle, tg, dst]);
+}
+
+/**
+ * Свободный участок стрелки (#395) — тот, что можно отодвинуть, не меняя
+ * форму: средний у «ступеньки», дальний у обхода «за спиной», линия глубины
+ * у U-обхода. У «уголка» свободного участка нет (null). `at` — середина
+ * участка (место ручки), `axis` — направление перетаскивания, `valueFor` —
+ * новое значение параметра (`shift` или `offset`) для точки курсора, а
+ * `lineFor` — координата участка по оси при этом значении.
+ */
+export interface EdgeBend {
+  param: 'shift' | 'offset';
+  axis: 'x' | 'y';
+  at: FlowPt;
+  valueFor: (p: FlowPt) => number;
+  lineFor: (value: number) => number;
+}
+
+export const OFFSET_MIN = 12;
+export const OFFSET_MAX = 400;
+
+export function edgeBend(
+  src: FlowPt,
+  sSide: FlowSide,
+  dst: FlowPt,
+  dSide: FlowSide,
+  options: OrthogonalOptions = {},
+): EdgeBend | null {
+  const offset = options.offset ?? 24;
+  const shift = options.shift ?? 0;
+  const sd = DIR[sSide];
+  const dd = DIR[dSide];
+  const horizontal = sd.x !== 0;
+  const axis = horizontal ? 'x' : 'y';
+  const cross = horizontal ? 'y' : 'x';
+  const sg = { x: src.x + sd.x * offset, y: src.y + sd.y * offset };
+  const tg = { x: dst.x + dd.x * offset, y: dst.y + dd.y * offset };
+  const midCross = (src[cross] + dst[cross]) / 2;
+  const pt = (along: number, across: number): FlowPt =>
+    horizontal ? { x: along, y: across } : { x: across, y: along };
+
+  if (sSide === dSide) {
+    const out = sd[axis];
+    const base = out > 0 ? Math.max(src[axis], dst[axis]) : Math.min(src[axis], dst[axis]);
+    const lineFor = (value: number) => base + out * value;
+    return {
+      param: 'offset',
+      axis,
+      at: pt(lineFor(offset), midCross),
+      valueFor: (p) =>
+        Math.round(Math.min(OFFSET_MAX, Math.max(OFFSET_MIN, (p[axis] - base) * out))),
+      lineFor,
+    };
+  }
+  if (sd[axis] * dd[axis] !== -1) return null;
+
+  if ((tg[axis] - sg[axis]) * sd[axis] < 0) {
+    // Обход «за спиной»: участок идёт вдоль оси сторон, двигается поперёк.
+    const base = horizontal
+      ? Math.max(src.y, dst.y) + (options.clearY ?? 52)
+      : Math.max(src.x, dst.x) + (options.clearX ?? 128);
+    const lineFor = (value: number) => base + value;
+    return {
+      param: 'shift',
+      axis: cross,
+      at: pt((sg[axis] + tg[axis]) / 2, lineFor(shift)),
+      valueFor: (p) => Math.round(p[cross] - base),
+      lineFor,
+    };
+  }
+
+  // Прямая (соосные концы): участок вырожден — двигать нечего.
+  if (Math.abs(src[cross] - dst[cross]) < EPS) return null;
+  const mid = (src[axis] + dst[axis]) / 2;
+  const lineFor = (value: number) => clampMid(mid + value, sg[axis], tg[axis]);
+  return {
+    param: 'shift',
+    axis,
+    at: pt(lineFor(shift), midCross),
+    valueFor: (p) => Math.round(lineFor(p[axis] - mid) - mid),
+    lineFor,
+  };
+}
+
+/** Отрезок ломаной, лежащий на линии `line` поперёк оси `axis` (свободный
+ *  участок), или null (прямая стрелка — участок вырожден). */
+export function segmentOnLine(
+  points: readonly FlowPt[],
+  axis: 'x' | 'y',
+  line: number,
+): [FlowPt, FlowPt] | null {
+  for (let i = 0; i < points.length - 1; i += 1) {
+    const a = points[i]!;
+    const b = points[i + 1]!;
+    if (Math.abs(a[axis] - line) < EPS && Math.abs(b[axis] - line) < EPS) return [a, b];
+  }
+  return null;
 }
 
 /** SVG-путь с мягкими локтями (квадратичная кривая в углах; радиус

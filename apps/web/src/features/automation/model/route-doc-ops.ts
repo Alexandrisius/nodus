@@ -154,10 +154,25 @@ export function reconnect(
   const transitions = doc.transitions.map((t) =>
     t.id === id ? { ...t, fromStageId: from, toStageId: connection.target } : t,
   );
+  // Ручной сдвиг участка относился к прежней форме стрелки — сбрасывается.
   return withTransitionLayout({ ...doc, transitions }, id, {
     ...(any ? {} : { sourceHandle: connection.sourceHandle }),
     targetHandle: connection.targetHandle,
+    shift: undefined,
   });
+}
+
+/**
+ * Свободный участок стрелки отодвинули (#395): `shift` — «ступенька» и обход
+ * «за спиной», `offset` — глубина U-обхода; `null` — вернуть авто.
+ */
+export function setEdgeBend(
+  doc: WorkflowDraftDocument,
+  id: string,
+  param: 'shift' | 'offset',
+  value: number | null,
+): WorkflowDraftDocument {
+  return withTransitionLayout(doc, id, { [param]: value === null ? undefined : Math.round(value) });
 }
 
 /** «Можно перейти из любого статуса»: вкл — кнопка с именем статуса, выкл —

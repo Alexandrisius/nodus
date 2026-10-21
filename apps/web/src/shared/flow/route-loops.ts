@@ -121,6 +121,7 @@ export function edgeSpread(
   handles: ReadonlyMap<string, { sourceHandle: string; targetHandle: string }>,
   boxes: ReadonlyMap<string, FlowBox>,
   saved: (id: string) => number | undefined,
+  savedShift: (id: string) => number | undefined = () => undefined,
 ): EdgeSpread {
   const spread = new Map<string, { offset: number; shift: number }>();
   const loops = new Map<string, RouteLoop>();
@@ -140,8 +141,12 @@ export function edgeSpread(
     pairs.set(key, [...(pairs.get(key) ?? []), input.id]);
   }
   for (const ids of pairs.values()) {
+    // Сдвиг, заданный вручную (#395), — закон; остальные параллельные — авто.
     ids.forEach((id, i) =>
-      spread.set(id, { offset: U_BASE, shift: (i - (ids.length - 1) / 2) * PARALLEL_STEP }),
+      spread.set(id, {
+        offset: U_BASE,
+        shift: savedShift(id) ?? (i - (ids.length - 1) / 2) * PARALLEL_STEP,
+      }),
     );
   }
 

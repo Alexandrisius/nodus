@@ -54,6 +54,9 @@ export function RouteCanvas({
         stageTaskCounts: workflow.stageTaskCounts,
         onSelectTransition: (id) => useRouteDocStore.getState().select({ kind: 'transition', id }),
         onLabelT: editable ? (id, t) => useRouteDocStore.getState().setLabelT(id, t) : undefined,
+        onBend: editable
+          ? (id, param, value) => useRouteDocStore.getState().setEdgeBend(id, param, value)
+          : undefined,
       }),
     [doc, selection, editable, problemStageIds, workflow.stageTaskCounts],
   );

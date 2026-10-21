@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
-import { orthogonalPoints, pointAt, projectT, roundedPath, simplify } from './edge-geometry.js';
+import {
+  edgeBend,
+  orthogonalPoints,
+  pointAt,
+  projectT,
+  roundedPath,
+  segmentOnLine,
+  simplify,
+} from './edge-geometry.js';
 
 describe('edge-geometry: ортогональные рёбра холста (#378)', () => {
   it('соосные встречные концы — одна прямая', () => {
@@ -102,5 +110,41 @@ describe('edge-geometry: ортогональные рёбра холста (#37
         { x: 100, y: 100 },
       ]),
     ).toContain('Q 100 0');
+  });
+});
+
+describe('edgeBend: свободный участок стрелки (#395)', () => {
+  const src = { x: 208, y: 26 };
+  const dst = { x: 384, y: 142 };
+
+  it('«ступенька»: средний участок двигается по x, сдвиг — от середины, не за вылет', () => {
+    const bend = edgeBend(src, 'r', dst, 'l')!;
+    expect(bend).toMatchObject({ param: 'shift', axis: 'x', at: { x: 296, y: 84 } });
+    expect(bend.valueFor({ x: 330, y: 0 })).toBe(34);
+    // Дальше вылета цели (384 - 24) — упор.
+    expect(bend.valueFor({ x: 900, y: 0 })).toBe(360 - 296);
+    const points = orthogonalPoints(src, 'r', dst, 'l', { shift: 34 });
+    expect(segmentOnLine(points, 'x', bend.lineFor(34))).toEqual([
+      { x: 330, y: 26 },
+      { x: 330, y: 142 },
+    ]);
+  });
+
+  it('прямая стрелка — участок вырожден, ручки нет', () => {
+    expect(edgeBend({ x: 208, y: 26 }, 'r', { x: 400, y: 26 }, 'l')).toBeNull();
+  });
+
+  it('U-обход: глубина offset от дальнего края, в пределах', () => {
+    const bend = edgeBend({ x: 100, y: 52 }, 'b', { x: 400, y: 80 }, 'b', { offset: 24 })!;
+    expect(bend).toMatchObject({ param: 'offset', axis: 'y', at: { x: 250, y: 104 } });
+    expect(bend.valueFor({ x: 0, y: 140 })).toBe(60);
+    expect(bend.valueFor({ x: 0, y: 0 })).toBe(12);
+  });
+
+  it('обход «за спиной»: участок двигается поперёк; «уголок» — без участка', () => {
+    const behind = edgeBend({ x: 400, y: 26 }, 'r', { x: 100, y: 26 }, 'l')!;
+    expect(behind).toMatchObject({ param: 'shift', axis: 'y' });
+    expect(behind.valueFor({ x: 0, y: 26 + 52 + 30 })).toBe(30);
+    expect(edgeBend({ x: 208, y: 26 }, 'r', { x: 400, y: 200 }, 't')).toBeNull();
   });
 });
