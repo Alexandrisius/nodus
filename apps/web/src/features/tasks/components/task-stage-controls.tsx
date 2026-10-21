@@ -4,11 +4,10 @@ import {
   ChevronDown,
   Loader2,
   MoreHorizontal,
-  Pause,
   Play,
   Send,
   Undo2,
-  Waypoints,
+  Workflow,
   X,
 } from 'lucide-react';
 import type { TaskDetail, TaskTransition } from '@nodus/contracts';
@@ -24,9 +23,11 @@ import { cn } from '@nodus/ui/lib/utils';
 import type { LucideIcon } from 'lucide-react';
 
 import { gateReasonsText, useTaskTransitions } from '../api/transitions-api.js';
+import { PauseGlyph } from '../../../shared/ui/pause-glyph.js';
 import { stageTone } from '../../../shared/ui/board/stage-tone.js';
 import { groupProcessButtons } from '../../../shared/workflow/process-buttons.js';
 import { RouteViewDialog } from '../../../shared/workflow/route-view-dialog.js';
+import { TaskTimerButton } from './task-time.js';
 import { useTransitionRunner } from './task-transition-dialog.js';
 
 /* Кнопки панели — ОДНОЙ высоты: h-8 = 40px при --ui-scale 1.25 (замер
@@ -40,9 +41,9 @@ const valueChip =
 
 /** Иконка кнопки — по этапу цели (#378): вперёд/пауза/на утверждение/
  *  итог (✓ выполнена, ✕ отменена)/возврат в ожидание. */
-function transitionIcon(t: TaskTransition): LucideIcon {
+function transitionIcon(t: TaskTransition): LucideIcon | typeof PauseGlyph {
   if (t.toStageState === 'active') return Play;
-  if (t.toStageState === 'paused') return Pause;
+  if (t.toStageState === 'paused') return PauseGlyph;
   if (isReviewState(t.toStageState)) return Send;
   if (isFinalState(t.toStageState)) return t.toStageOutcome === 'cancelled' ? X : Check;
   return Undo2;
@@ -53,16 +54,20 @@ function transitionIcon(t: TaskTransition): LucideIcon {
  * кнопки = переходы маршрута типа (ADR-0020) с показом `display`. Главная
  * слева залитой, далее видимые по порядку, «Ещё ⋯» — меню. Заблокированная
  * гейтом кнопка видна приглушённой, клик — диалог причин и выходов; в
- * правом конце — «Схема маршрута». Личная колонка «Моего плана» здесь не
- * показывается (только DnD на доске).
+ * правом конце — таймер учёта времени. Личная колонка «Моего плана» здесь
+ * не показывается (только DnD на доске).
  */
 export function TaskActionBar({ task }: { task: TaskDetail }) {
   const { data: transitions } = useTaskTransitions(task.id);
   const runner = useTransitionRunner(task);
-  const [routeOpen, setRouteOpen] = useState(false);
 
   if (!transitions) {
-    return <div className="h-8" aria-hidden />;
+    return (
+      <div className="flex w-full min-w-0 items-center gap-1.5">
+        <span className="ml-auto" />
+        <TaskTimerButton task={task} />
+      </div>
+    );
   }
 
   const { primary, visible, menu } = groupProcessButtons(transitions);
@@ -109,12 +114,6 @@ export function TaskActionBar({ task }: { task: TaskDetail }) {
   return (
     <div className="flex w-full min-w-0 items-center gap-1.5">
       {runner.dialog}
-      <RouteViewDialog
-        open={routeOpen}
-        onClose={() => setRouteOpen(false)}
-        task={task}
-        transitions={transitions}
-      />
       {closed ? (
         <span
           className={cn(
@@ -165,15 +164,7 @@ export function TaskActionBar({ task }: { task: TaskDetail }) {
         </span>
       ) : null}
       <span className="ml-auto" />
-      <button
-        type="button"
-        onClick={() => setRouteOpen(true)}
-        aria-label={ui.tasks.processRouteView}
-        title={ui.tasks.processRouteView}
-        className="shrink-0 rounded-lg p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-      >
-        <Waypoints className="size-4" strokeWidth={1.75} />
-      </button>
+      <TaskTimerButton task={task} />
     </div>
   );
 }
@@ -227,7 +218,7 @@ export function TaskStageField({ task }: { task: TaskDetail }) {
           })}
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={() => setRouteOpen(true)}>
-            <Waypoints className="size-3.5" />
+            <Workflow className="size-3.5" />
             {ui.tasks.processRouteView}
           </DropdownMenuItem>
         </DropdownMenuContent>

@@ -1,4 +1,4 @@
-import { Pause, Play, Trash2 } from 'lucide-react';
+import { Play, Trash2 } from 'lucide-react';
 import { useEffect, useState, type FormEvent } from 'react';
 import type { TaskDetail } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 
 import { useAuthStore } from '../../../shared/auth-store.js';
 import { formatDate, formatMinutes } from '../../../shared/lib/format.js';
+import { PauseGlyph } from '../../../shared/ui/pause-glyph.js';
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
 import {
   useAddTimeEntry,
@@ -44,7 +45,9 @@ export function useElapsed(startedAt: string | undefined): string {
 
 /** Таймер в баре действий (модель Битрикс24 «Начать учёт времени»): у
  *  сотрудника один таймер — запуск здесь останавливает идущий на другой
- *  задаче. Идущий таймер этой задачи — зелёный тон и живые ЧЧ:ММ:СС. */
+ *  задаче. В покое — сумма «Ч:ММ», при работе — живые «ЧЧ:ММ:СС»; габарит
+ *  кнопки и позиция иконки постоянны, слот времени заранее широкий —
+ *  никаких смещений и layout-анимаций при старте/остановке. */
 export function TaskTimerButton({ task }: { task: TaskDetail }) {
   const { data: timer } = useRunningTimer();
   const start = useStartTimer(task.id);
@@ -62,24 +65,20 @@ export function TaskTimerButton({ task }: { task: TaskDetail }) {
       title={runningHere ? ui.tasks.timer.stop : ui.tasks.timer.start}
       aria-label={runningHere ? ui.tasks.timer.stop : ui.tasks.timer.start}
       className={cn(
-        'inline-flex h-8 shrink-0 items-center gap-2 rounded-md px-3 text-sm font-medium transition-colors disabled:opacity-40',
+        'inline-flex h-8 w-[6.75rem] shrink-0 items-center gap-2 rounded-md border border-transparent px-3 text-sm font-medium transition-colors outline-none focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/30 disabled:opacity-40',
         runningHere
           ? 'bg-success-soft text-success hover:brightness-110'
           : 'text-muted-foreground hover:bg-accent hover:text-foreground',
       )}
     >
       {runningHere ? (
-        <Pause className="size-4" strokeWidth={1.75} />
+        <PauseGlyph className="size-4 shrink-0" />
       ) : (
-        <Play className="size-4" strokeWidth={1.75} />
+        <Play className="size-4 shrink-0" strokeWidth={1.75} />
       )}
-      {runningHere ? (
-        <span className="font-mono text-label-sm tabular-nums">{elapsed}</span>
-      ) : (
-        <span className="font-mono text-label-sm tabular-nums">
-          {formatMinutes(task.spentMinutes)}
-        </span>
-      )}
+      <span className="w-[8ch] text-left font-mono text-label-sm tabular-nums">
+        {runningHere ? elapsed : formatMinutes(task.spentMinutes)}
+      </span>
     </button>
   );
 }
