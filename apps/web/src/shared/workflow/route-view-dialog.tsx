@@ -5,7 +5,7 @@ import type { TaskDetail, TaskTransition } from '@nodus/contracts';
 import { Permission, ui } from '@nodus/contracts';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@nodus/ui/components/dialog';
 import { Button } from '@nodus/ui/components/button';
-import { Workflow } from 'lucide-react';
+import { Workflow, X } from 'lucide-react';
 
 import { useAuthStore } from '../auth-store.js';
 import { FlowCanvas } from '../flow/flow-canvas.js';
@@ -49,30 +49,44 @@ export function RouteViewDialog({
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-      <DialogContent className="flex h-[80vh] w-[92vw] max-w-[1200px] flex-col sm:max-w-[1200px]">
-        <DialogHeader className="flex-row items-center justify-between space-y-0 pr-10">
-          {/* pr-10 — зона крестика DialogContent (absolute top-2 right-2):
-              без резерва кнопка «Открыть в редакторе» упиралась в крестик и
-              перекрывалась им (#409). */}
+      <DialogContent
+        showCloseButton={false}
+        className="flex h-[80vh] w-[92vw] max-w-[1200px] flex-col sm:max-w-[1200px]"
+      >
+        {/* Крестик — в СТРОКЕ шапки, а не absolute-углом корпуса: он стоит
+            на одной линии с заголовком и «Открыть в редакторе» (вердикт
+            владельца 22.10, скриншот «крестик выше надписей»). */}
+        <DialogHeader className="flex-row items-center justify-between gap-3 space-y-0">
           <DialogTitle>
             {ui.automation.routeViewOfType} «{task.type.name}»
           </DialogTitle>
-          {canManage && typeId ? (
+          <span className="flex shrink-0 items-center gap-1">
+            {canManage && typeId ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  onClose();
+                  void navigate({
+                    to: '/automation',
+                    search: (prev) => ({ ...prev, tab: 'types', type: typeId }),
+                  });
+                }}
+              >
+                <Workflow className="size-3.5" strokeWidth={1.75} />
+                {ui.automation.openInEditor}
+              </Button>
+            ) : null}
             <Button
               variant="ghost"
-              size="sm"
-              onClick={() => {
-                onClose();
-                void navigate({
-                  to: '/automation',
-                  search: (prev) => ({ ...prev, tab: 'types', type: typeId }),
-                });
-              }}
+              size="icon-sm"
+              aria-label={ui.common.close}
+              title={ui.common.close}
+              onClick={onClose}
             >
-              <Workflow className="size-3.5" strokeWidth={1.75} />
-              {ui.automation.openInEditor}
+              <X className="size-4" strokeWidth={1.75} />
             </Button>
-          ) : null}
+          </span>
         </DialogHeader>
         <div className="min-h-0 flex-1 rounded-[14px] border">
           {graph ? (
