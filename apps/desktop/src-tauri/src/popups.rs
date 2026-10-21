@@ -13,12 +13,17 @@ use crate::bridge::{self, PopupPayload, PopupReply};
 // показа, угасание, поле ответа, IPC мини-UI), ~95 строк — inline-тесты;
 // разрез на файлы размазал бы мьютекс стека и инварианты once-показа.
 
-/// Геометрия попапа (логические px): карточка ~360×88 (аватар 40, имя
-/// вверху, 2 строки превью, воздух снизу pb-3.5), с полем ответа ~360×124.
+/// Геометрия попапа (логические px). Ширина фиксирована дизайном; ВЫСОТА —
+/// по факту контента: мини-UI измеряет карточку и сообщает её командой
+/// `popup_set_height` (#406). Константы: стартовая высота скрытого окна до
+/// измерения и границы валидации (защита от мусора в IPC).
 /// Окно прозрачное — скругления несёт карточка; скролл запрещён в UI.
 pub(crate) const POPUP_W: f64 = 360.0;
+/// Стартовая высота скрытого окна (до `popup_set_height`): окно показывается
+/// только после измерения и `popup_ready`, поэтому кадров «обрезано» нет.
 pub(crate) const POPUP_H: f64 = 88.0;
-pub(crate) const POPUP_H_REPLY: f64 = 124.0;
+pub(crate) const POPUP_MIN_H: f64 = 64.0;
+pub(crate) const POPUP_MAX_H: f64 = 400.0;
 pub(crate) const HIDE_ALL_H: f64 = 28.0;
 pub(crate) const MARGIN: f64 = 14.0;
 pub(crate) const GAP: f64 = 5.0;
@@ -43,6 +48,10 @@ pub(crate) struct ActivePopup {
     pub(crate) counter: u64,
     conversation_id: String,
     pub(crate) created_ms: u64,
+    /// Фактическая высота окна (логические px): мини-UI измерил контент и
+    /// прислал `popup_set_height`. Стек раскладывается по ЭТИМ высотам —
+    /// никаких захардкоженных «88/124», которые разъезжаются с ui-scale.
+    pub(crate) height: f64,
     /// Начало текущего угасания (None — полная яркость).
     pub(crate) fading: Option<Instant>,
     /// Курсор на попапе: угасание на паузе, яркость восстановлена.
@@ -165,6 +174,7 @@ pub(crate) fn show(app: &AppHandle, payload: crate::bridge::PopupPayload) {
             counter,
             conversation_id,
             created_ms: activity::monotonic_ms(),
+            height: POPUP_H,
             fading: None,
             hover: false,
             replying: false,
@@ -403,9 +413,39 @@ pub fn popup_close(app: AppHandle, window: WebviewWindow) {
     refocus_portal(&app);
 }
 
-/// Высота окна под режим ответа: кумулятив в reposition_all поднимет верхние.
-/// Открыли поле — снимаем NOACTIVATE и даём фокус (пользователь явно кликнул
-/// «Ответить»: печать требует активного окна); закрытие поля — обратно.
+/// Фактическая высота окна от мини-UI (#406): карточка измерила контент
+/// (заголовок+превью+поле ответа) и прислала ВЕРХНЮЮ границу окна в
+/// логических px. Высота хранится на попапе, стек раскладывается по ней —
+/// рост поля ответа поднимает верхние попапы кумулятивно, без «дыр».
+/// Валидация на границе IPC: конечное число в разумных пределах.
+#[tauri::command]
+pub fn popup_set_height(app: AppHandle, window: WebviewWindow, height: f64) -> Result<(), String> {
+    if !height.is_finite() || !(POPUP_MIN_H..=POPUP_MAX_H).contains(&height) {
+        return Err("invalid_payload".into());
+    }
+    let label = window.label().to_string();
+    let changed = {
+        let mut s = stack(&app);
+        match s.active.iter_mut().find(|p| p.label == label) {
+            Some(p) => {
+                let next = height.clamp(POPUP_MIN_H, POPUP_MAX_H);
+                let changed = (p.height - next).abs() > 0.25;
+                p.height = next;
+                changed
+            }
+            None => false,
+        }
+    };
+    if changed {
+        crate::layout::reposition_all(&app);
+    }
+    Ok(())
+}
+
+/// Режим ответа: пауза угасания и фокус окна (печать требует активности).
+/// Высоту окна задаёт НЕ эта команда, а `popup_set_height` по измерению
+/// мини-UI: константы «88/124» разъезжались с реальным ui-scale (#406).
+/// Открыли поле — снимаем NOACTIVATE и даём фокус; закрытие — обратно.
 #[tauri::command]
 pub fn popup_set_expanded(app: AppHandle, window: WebviewWindow, expanded: bool) {
     let label = window.label().to_string();
@@ -495,6 +535,7 @@ mod tests {
                 counter: k as u64,
                 conversation_id: format!("conv-{k}"),
                 created_ms: 0,
+                height: POPUP_H,
                 fading: None,
                 hover: false,
                 replying: false,

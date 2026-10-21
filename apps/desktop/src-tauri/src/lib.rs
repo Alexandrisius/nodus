@@ -107,6 +107,7 @@ pub fn run() {
             popups::popup_ready,
             popups::popup_close,
             popups::popup_set_expanded,
+            popups::popup_set_height,
             popups::popup_set_hover,
             popups::popup_close_all,
             popups::popup_submit_reply,
