@@ -20,6 +20,7 @@ import { randomBytes } from 'node:crypto';
 import { PrismaPg } from '@prisma/adapter-pg';
 
 import { PrismaClient } from '../src/generated/prisma/client.js';
+import { ALL_PERMISSIONS } from './all-permissions.js';
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
@@ -33,25 +34,6 @@ const ARGON2_OPTIONS = {
   timeCost: 3,
   parallelism: 4,
 } as const;
-
-const ALL_PERMISSIONS = [
-  'core.admin',
-  'task.create',
-  'task.assign',
-  'task.view_all',
-  'task.manage_any',
-  'task.override_gate',
-  'task.workflow_manage',
-  'directory.read',
-  'directory.manage',
-  'user.manage',
-  'role.manage',
-  'dictionary.manage',
-  'correspondence.create',
-  'correspondence.archive',
-  'sticker.manage',
-  'chat.moderate',
-];
 
 /** Созданные этой прогоном учётки с паролями — печать в конце сида
  * (только реально созданные записи — пуш в user()). */
