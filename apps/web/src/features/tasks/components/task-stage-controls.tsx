@@ -97,7 +97,7 @@ export function TaskActionBar({ task }: { task: TaskDetail }) {
         className={cn(
           btn,
           main
-            ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+            ? 'bg-primary text-primary-foreground hover:bg-primary-hover'
             : 'min-w-0 shrink text-muted-foreground hover:bg-accent hover:text-foreground',
           blocked && 'opacity-50',
         )}

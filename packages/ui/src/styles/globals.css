@@ -74,6 +74,7 @@
   --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
+  --color-primary-hover: var(--primary-hover);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
@@ -157,10 +158,13 @@
  * НЕТ вовсе (аудит 12.09.2026, Exa-research: большие площади #FFFFFF — блик
  * и «однотонная белизна»; off-white с тёплым подтоном — комфорт для долгих
  * экранов; ступени MD3 — тоном поверхности): белый из рефов команды взят как
- * ОБРАМЛЁННЫЙ «лист» на углублённом холсте, а не как поле вьюпорта. Фирменный
- * navy #16233A — хирургический акцент: primary, фокус, чекбоксы, активный
- * модуль; контур и порты — «чертёжный синий» (navy с alpha): чертёж на кальке.
- * Цвет — только в слоях данных и статусов (chart-*, семантика, идентичность).
+ * ОБРАМЛЁННЫЙ «лист» на углублённом холсте, а не как поле вьюпорта. Акцент
+ * действия — индиго в обеих темах (#4B57C8 светлая / #5E6AD2 тёмная, вердикт
+ * владельца 21.10.2026 #404, Linear-модель: один hue с тональной подстройкой;
+ * подпись белая, ховер --primary-hover темнее базы — WCAG AA во всех
+ * состояниях): primary, фокус, чекбоксы, активный модуль. Фирменный navy
+ * #16233A — только чертёжный контур, порты и лого. Цвет — только в слоях
+ * данных и статусов (chart-*, семантика, идентичность).
  */
 :root {
   /* Глобальный масштаб интерфейса (issue #60, ADR-предложение «Масштаб
@@ -192,8 +196,11 @@
   --card-foreground: #26272a;
   --popover: #fbfaf9;
   --popover-foreground: #26272a;
-  --primary: #16233a;
+  /* Акцент действия — индиго обеих тем (#404): ховер темнее базы, подпись
+     белая — контраст подписи 6.0:1 (база) / 7.0:1 (ховер), WCAG AA. */
+  --primary: #4b57c8;
   --primary-foreground: #fbfaf8;
+  --primary-hover: #434eb5;
   --secondary: #edebe8;
   --secondary-foreground: #43454a;
   --muted: #edebe8;
@@ -204,7 +211,7 @@
   --destructive-foreground: #fbfaf8;
   --border: rgb(0 0 0 / 0.09);
   --input: rgb(0 0 0 / 0.14);
-  --ring: #16233a;
+  --ring: #4b57c8;
   --success: #2e7d57;
   --success-soft: #e2f0e8;
   --warning: #8f6a10;
@@ -265,14 +272,14 @@
      рейки несут плашки (sidebar-accent), а не ступень тона. */
   --sidebar: #f4f2f0;
   --sidebar-foreground: #43454a;
-  --sidebar-primary: #16233a;
+  --sidebar-primary: #4b57c8;
   --sidebar-primary-foreground: #fbfaf8;
   /* Ховер/активный ряд рейки — тёплый почти-белый (реф команды: белая плашка
      по серому шеллу; чистый #FFF не нужен — плашка мала, но блик ни к чему). */
   --sidebar-accent: #f7f6f4;
   --sidebar-accent-foreground: #26272a;
   --sidebar-border: rgb(0 0 0 / 0.07);
-  --sidebar-ring: #16233a;
+  --sidebar-ring: #4b57c8;
 
   /* Контур: чертёжный синий (navy с alpha) вместо чёрной «проволоки». */
   --edge: rgb(22 35 58 / 0.3);
@@ -329,8 +336,11 @@
   --card-foreground: #e8e8e6;
   --popover: #121214;
   --popover-foreground: #e8e8e6;
-  --primary: #e8e8e6;
-  --primary-foreground: #0a0a0b;
+  /* Индиго-акцент действия (#404): белая подпись 4.7:1 (база) / 5.6:1
+     (ховер темнее базы); кнопка к фону #0A0A0B — 4.2:1 (≥ 3:1 UI). */
+  --primary: #5e6ad2;
+  --primary-foreground: #fbfaf8;
+  --primary-hover: #525ec4;
   --secondary: #17171a;
   --secondary-foreground: #c9c9c6;
   --muted: #141416;
@@ -341,7 +351,7 @@
   --destructive-foreground: #0a0a0b;
   --border: rgb(255 255 255 / 0.09);
   --input: rgb(255 255 255 / 0.14);
-  --ring: #d9d9d6;
+  --ring: #828fff;
   --success: #6fa287;
   --success-soft: #1c2b24;
   --warning: #c9a45b;
@@ -361,8 +371,8 @@
   --selection-bg: #3a679f;
   --selection-fg: #ffffff;
   /* Пузыри — канон Telegram dark (issue #127): исходящие — синий #2B5278,
-     входящие — тёмно-синий #182533 (мобильные клиенты; фирменный navy остаётся
-     хирургическим акцентом хрома). Акцент своих — светло-синий hue телеграмовских
+     входящие — тёмно-синий #182533 (мобильные клиенты; акцент действия хрома —
+     индиго, #404). Акцент своих — светло-синий hue телеграмовских
      галочек/времени, тон осветлён до WCAG AA ≥ 4.5 на #2B5278. */
   --bubble-in: #182533;
   --bubble-in-foreground: #e8e8e6;
@@ -394,12 +404,12 @@
   --chart-6: #e08a66;
   --sidebar: #0a0a0b;
   --sidebar-foreground: #c9c9c6;
-  --sidebar-primary: #e8e8e6;
-  --sidebar-primary-foreground: #0a0a0b;
+  --sidebar-primary: #5e6ad2;
+  --sidebar-primary-foreground: #fbfaf8;
   --sidebar-accent: #1a1a1e;
   --sidebar-accent-foreground: #e8e8e6;
   --sidebar-border: rgb(255 255 255 / 0.07);
-  --sidebar-ring: #d9d9d6;
+  --sidebar-ring: #828fff;
   --edge: rgb(255 255 255 / 0.28);
   --edge-solid: #545456;
   --port: #d9d9d6;
