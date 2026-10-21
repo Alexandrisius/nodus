@@ -73,6 +73,30 @@ export const ACTIVITY_EXPR = (userId: string): Prisma.Sql => Prisma.sql`
     ELSE c.last_message_at
   END`;
 
+/**
+ * Непрочитанные сообщения беседы для зрителя — ЕДИНЫЙ предикат списка и
+ * сводки вкладок (unread-summary): правка «что считается непрочитанным»
+ * меняет обе выдачи в одном месте. Правленное чужое сообщение считается
+ * непрочитанным по last_read_at (канон #124); в канале — только корневые
+ * сообщения либо треды, которые зритель читает (thread_participants).
+ */
+export const UNREAD_COUNT_EXPR = (userId: string): Prisma.Sql => Prisma.sql`
+  (SELECT COUNT(*)::int FROM messages um
+     WHERE um.conversation_id = c.id
+       AND um.author_id <> ${userId}::uuid
+       AND um.deleted_at IS NULL
+       AND (um.seq > cm.last_read_seq
+            OR (um.edited_at IS NOT NULL
+                AND (cm.last_read_at IS NULL OR um.edited_at > cm.last_read_at)))
+       AND (c.type <> 'project_channel'
+            OR um.thread_root_id IS NULL
+            OR EXISTS (
+              SELECT 1 FROM thread_participants tp
+              WHERE tp.thread_root_id = um.thread_root_id
+                AND tp.user_id = ${userId}::uuid
+                AND um.seq > tp.last_read_seq)))
+`;
+
 export const LIST_SELECT = (userId: string): Prisma.Sql => Prisma.sql`
   SELECT
     c.id, c.type, c.title, c.description, c.visibility, c.permissions, c.avatar_file_id,
@@ -81,20 +105,7 @@ export const LIST_SELECT = (userId: string): Prisma.Sql => Prisma.sql`
     ${ACTIVITY_EXPR(userId)} AS last_activity_at,
     cm.role, cm.pinned, cm.muted, cm.snoozed, cm.last_read_seq AS my_last_read_seq,
     d.text AS draft_text, d.revision AS draft_revision, d.updated_at AS draft_updated_at,
-    (SELECT COUNT(*)::int FROM messages um
-       WHERE um.conversation_id = c.id
-         AND um.author_id <> ${userId}::uuid
-         AND um.deleted_at IS NULL
-         AND (um.seq > cm.last_read_seq
-              OR (um.edited_at IS NOT NULL
-                  AND (cm.last_read_at IS NULL OR um.edited_at > cm.last_read_at)))
-         AND (c.type <> 'project_channel'
-              OR um.thread_root_id IS NULL
-              OR EXISTS (
-                SELECT 1 FROM thread_participants tp
-                WHERE tp.thread_root_id = um.thread_root_id
-                  AND tp.user_id = ${userId}::uuid
-                  AND um.seq > tp.last_read_seq))) AS unread_count,
+    ${UNREAD_COUNT_EXPR(userId)} AS unread_count,
     lm.id AS lm_id, lm.seq AS lm_seq, lm.author_id AS lm_author_id,
     lm.client_message_id AS lm_client_message_id, lm.text AS lm_text,
     lm.urgent AS lm_urgent,

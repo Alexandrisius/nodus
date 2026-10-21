@@ -1,6 +1,6 @@
 import { useEffect, useRef, type RefObject } from 'react';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
-import type { ChatMessage } from '@nodus/contracts';
+import type { ChatMessage, ChatUnreadSummary } from '@nodus/contracts';
 
 import { api } from '../api-client.js';
 import { registerShellHiddenFlush } from '../desktop/shell-hidden.js';
@@ -53,8 +53,14 @@ export function maxSeenSeq(
  * зануляется сразу (квитанция покрывает всю видимость). Гонка «GET ушёл
  * раньше коммита read» возвращала старый unreadCount, и заголовок/бейдж
  * оболочки зависали до F5 (зомби-бейдж #254). Чистая функция — юнит-тест.
+ * Сводка вкладок (#409) уменьшается на прочитанное сразу же; скрытая из
+ * счётчиков snoozed-беседа не вычитается, рефеч после инвалидации уточнит.
  */
 export function applyReadToCache(queryClient: QueryClient, conversationId: string): void {
+  const list = queryClient.getQueryData<{
+    items?: { id: string; type: string; unreadCount: number; snoozed: boolean }[];
+  }>(chatKeys.conversations());
+  const target = list?.items?.find((c) => c.id === conversationId);
   queryClient.setQueryData<{ items?: { id: string; unreadCount: number }[] }>(
     chatKeys.conversations(),
     (old) =>
@@ -65,6 +71,16 @@ export function applyReadToCache(queryClient: QueryClient, conversationId: strin
           }
         : old,
   );
+  const cleared = target?.snoozed ? 0 : (target?.unreadCount ?? 0);
+  if (cleared > 0) {
+    const entity = target?.type === 'task' || target?.type === 'letter';
+    queryClient.setQueryData<ChatUnreadSummary>(chatKeys.unreadSummary(), (old) => {
+      if (!old) return old;
+      const chats = Math.max(0, old.chats - (entity ? 0 : cleared));
+      const entities = Math.max(0, old.entities - (entity ? cleared : 0));
+      return { chats, entities, total: chats + entities };
+    });
+  }
 }
 
 function useReadReceiptScheduler(

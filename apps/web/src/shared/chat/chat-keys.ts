@@ -22,6 +22,9 @@ export const chatKeys = {
   /** Вкладка мессенджера (#252): серверный фильтр и своя пагинация; под
    *  префиксом conversations() — общие инвалидации списка её достают. */
   scoped: (scope: ConversationScope) => [...chatKeys.conversations(), 'scope', scope] as const,
+  /** Сводка непрочитанных по вкладкам (#409): точная сумма по всем беседам;
+   *  под префиксом conversations() — WS-инвалидации списка её достают. */
+  unreadSummary: () => [...chatKeys.conversations(), 'unread-summary'] as const,
   /** Участники беседы (#186): панель с ролями; search — часть ключа. */
   members: (id: string) => [...chatKeys.all, 'members', id] as const,
   /** Политика важных (#177): счётчик дневного лимита попапа молнии. */

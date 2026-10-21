@@ -395,6 +395,20 @@ export const listConversationsQuerySchema = cursorQuerySchema.extend({
 
 export type ListConversationsQuery = z.infer<typeof listConversationsQuerySchema>;
 
+/** Сводка непрочитанных по вкладкам мессенджера
+ *  (GET /chat/conversations/unread-summary): сумма непрочитанных СООБЩЕНИЙ,
+ *  тот же предикат, что `unread_count` списка бесед (включая семантику
+ *  тредов канала); скрытые и «посмотреть позже» беседы не входят. Отдельный
+ *  агрегат, потому что список пагинирован и сумма по первой странице врёт. */
+export const chatUnreadSummarySchema = z.object({
+  /** Вкладка «Чаты»: люди, группы, каналы. */
+  chats: z.number().int().min(0),
+  /** Вкладка «Чаты задач и писем»: type=task/letter. */
+  entities: z.number().int().min(0),
+  total: z.number().int().min(0),
+});
+export type ChatUnreadSummary = z.infer<typeof chatUnreadSummarySchema>;
+
 export const listMessagesQuerySchema = cursorQuerySchema.extend({
   /** Тред канала: корневое сообщение + его ответы (ровно один уровень). */
   threadRootId: z.uuid().optional(),

@@ -49,6 +49,8 @@ const INTENTIONALLY_WITHOUT_PERMISSION: Record<string, string> = {
   'GET /tasks/workflows/:id':
     'схема маршрута без персональных данных — решение владельца: типы и схемы видят все (#378)',
   'GET /chat/conversations': CHAT_MEMBERSHIP,
+  'GET /chat/conversations/unread-summary':
+    'сводка непрочитанных ТОЛЬКО своих бесед — та же граница членства, что у списка',
   'POST /chat/conversations/direct/:userId': DIRECT_CHAT,
   'GET /chat/conversations/:id/members': CHAT_MEMBERSHIP,
   'GET /chat/conversations/:id/messages': CHAT_MEMBERSHIP,
