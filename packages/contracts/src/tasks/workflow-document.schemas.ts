@@ -82,6 +82,9 @@ export const workflowLayoutTransitionSchema = z.object({
   /** Глубина обхода U-стрелки (вход и выход с одной стороны), px холста:
    *  фиксируется, чтобы перестановка соседей не перестраивала стрелку. */
   offset: z.number().int().min(0).max(400).optional(),
+  /** Сдвиг свободного участка «ступеньки»/обхода «за спиной» от авто-
+   *  положения, px холста: стрелку отодвинули вручную (#395). */
+  shift: z.number().int().min(-2000).max(2000).optional(),
 });
 export type WorkflowLayoutTransition = z.infer<typeof workflowLayoutTransitionSchema>;
 

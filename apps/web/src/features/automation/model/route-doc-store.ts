@@ -90,6 +90,8 @@ interface RouteDocState {
   setLabelT: (id: string, t: number) => void;
   /** Метка «Любой статус» кнопки из любого статуса — место на холсте. */
   setAnyAnchor: (id: string, anchor: FlowPoint) => void;
+  /** Свободный участок стрелки отодвинули (null — вернуть авто). */
+  setEdgeBend: (id: string, param: 'shift' | 'offset', value: number | null) => void;
   /** «Можно перейти из любого статуса» в настройках статуса. */
   toggleAny: (stageId: string, on: boolean) => void;
   /** Удаление выделенного с холста (Delete) — одним шагом. */
@@ -265,6 +267,8 @@ export function createRouteDocStore(workflowId: string) {
       setLabelT: (id, t) => commit(ops.setLabelT(get().document, id, t)),
 
       setAnyAnchor: (id, anchor) => commit(ops.setAnyAnchor(get().document, id, anchor)),
+
+      setEdgeBend: (id, param, value) => commit(ops.setEdgeBend(get().document, id, param, value)),
 
       toggleAny: (stageId, on) => {
         const result = ops.toggleAny(get().document, stageId, on);

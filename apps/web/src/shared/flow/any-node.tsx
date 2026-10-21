@@ -11,6 +11,8 @@ export interface AnyNodeData extends Record<string, unknown> {
   readOnly: boolean;
   /** Точка, из которой выходит стрелка в статус (кружок, как у статусов). */
   port?: string | null;
+  /** Стрелка метки выделена — точка подсвечена. */
+  portSelected?: boolean;
 }
 
 export type AnyFlowNode = Node<AnyNodeData, 'any'>;
@@ -43,7 +45,12 @@ export const AnyNode = memo(function AnyNode({ selected, data }: NodeProps<AnyFl
           position={SIDE_POSITION[side]}
           isConnectable={false}
           className={
-            data.port === `${side}2` ? 'flow-port flow-port-used pointer-events-none' : 'invisible'
+            data.port === `${side}2`
+              ? cn(
+                  'flow-port flow-port-used pointer-events-none',
+                  data.portSelected && 'flow-port-selected',
+                )
+              : 'invisible'
           }
         />
       ))}

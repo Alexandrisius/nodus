@@ -37,6 +37,8 @@ export interface RouteGraphOptions {
   onSelectTransition?: (id: string) => void;
   /** Подпись перетащили вдоль стрелки (только редактор). */
   onLabelT?: (transitionId: string, t: number) => void;
+  /** Свободный участок стрелки отодвинули (только редактор). */
+  onBend?: (transitionId: string, param: 'shift' | 'offset', value: number | null) => void;
 }
 
 export function buildRouteGraph(
@@ -61,6 +63,21 @@ export function buildRouteGraph(
   }
   if (initial) markPort(initial.id, START_TARGET);
 
+  // Точки на концах выделенной стрелки — подсвечиваются на узлах.
+  const selectedPorts = new Map<string, string[]>();
+  const selectedInput =
+    options.selection?.kind === 'transition'
+      ? route.inputs.find((i) => i.id === options.selection!.id)
+      : undefined;
+  const selectedHandles = selectedInput ? route.handles.get(selectedInput.id) : undefined;
+  if (selectedInput && selectedHandles) {
+    selectedPorts.set(selectedInput.source, [selectedHandles.sourceHandle]);
+    selectedPorts.set(selectedInput.target, [
+      ...(selectedPorts.get(selectedInput.target) ?? []),
+      selectedHandles.targetHandle,
+    ]);
+  }
+
   const nodes: Node[] = doc.stages.map(
     (stage) =>
       ({
@@ -82,6 +99,7 @@ export function buildRouteGraph(
           readOnly,
           taskCount: options.stageTaskCounts?.[stage.id] ?? 0,
           ports: [...(ports.get(stage.id) ?? [])],
+          selectedPorts: selectedPorts.get(stage.id) ?? [],
         },
       }) satisfies StatusFlowNode,
   );
@@ -96,7 +114,12 @@ export function buildRouteGraph(
       draggable: !readOnly,
       connectable: false,
       deletable: !readOnly,
-      data: { transitionId, readOnly, port: [...(ports.get(id) ?? [])][0] ?? null },
+      data: {
+        transitionId,
+        readOnly,
+        port: [...(ports.get(id) ?? [])][0] ?? null,
+        portSelected: selectedPorts.has(id),
+      },
     } satisfies AnyFlowNode);
   }
 
@@ -128,6 +151,7 @@ export function buildRouteGraph(
         dim: options.highlightedTransitionIds ? !options.highlightedTransitionIds.has(t.id) : false,
         onSelect: options.onSelectTransition ? () => options.onSelectTransition!(t.id) : undefined,
         onLabelT: options.onLabelT ? (value) => options.onLabelT!(t.id, value) : undefined,
+        onBend: options.onBend ? (param, value) => options.onBend!(t.id, param, value) : undefined,
       },
     });
   }

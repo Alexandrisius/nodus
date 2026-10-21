@@ -118,19 +118,28 @@
   background: var(--card);
   transition:
     opacity 120ms ease,
+    border-color 120ms ease,
     background-color 120ms ease;
+}
+
+/* Левые точки лежат на цветной полосе статуса: ободок цвета карточки
+   отделяет кружок от заливки (иначе полоса сливалась с кружком). */
+.react-flow__handle.flow-port.react-flow__handle-left {
+  box-shadow: 0 0 0 1.5px var(--card);
 }
 
 .react-flow__handle.flow-port-used {
   background: var(--edge-solid);
 }
 
+/* Приглушение свободной точки — тоном обводки, НЕ прозрачностью: сквозь
+   полупрозрачный кружок просвечивала цветная полоса и кружок «мылился». */
 .react-flow__handle.flow-port-idle {
-  opacity: 0.45;
+  border-color: color-mix(in oklab, var(--edge-solid) 50%, var(--card));
 }
 
 .react-flow__node:hover .react-flow__handle.flow-port-idle {
-  opacity: 1;
+  border-color: var(--edge-solid);
 }
 
 .react-flow__handle.flow-port:hover,
@@ -173,12 +182,29 @@
   stroke-width: 2;
 }
 
-/* Концы выделенной стрелки — перетаскиваемые (переподключение). */
+/* Концы выделенной стрелки — перетаскиваемые (переподключение), но
+   невидимые: конец отмечает сама точка узла (flow-port-selected), второй
+   кружок React Flow касался её и прятал наконечник. */
 .react-flow__edge.selected .react-flow__edgeupdater {
-  fill: var(--background);
-  stroke: var(--primary);
-  stroke-width: 1.5px;
   cursor: grab;
+}
+
+/* Свободный участок выделенной стрелки (#395): невидимая широкая полоса
+   ловит перетаскивание; подсказка — курсор-ресайз, отдельной ручки нет. */
+.flow-bend-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 14;
+  pointer-events: stroke;
+}
+
+/* Точки узлов, к которым подключена выделенная стрелка, — залиты primary
+   с мягким свечением; размер прежний — наконечник не перекрывается. */
+.react-flow__handle.flow-port.flow-port-selected {
+  background: var(--primary);
+  border-color: var(--primary);
+  opacity: 1;
+  filter: drop-shadow(0 0 3px var(--glow));
 }
 
 /* Подписи-чипы на своих стрелках (transition-edge.tsx): слой подписей —
@@ -235,6 +261,27 @@
   box-shadow:
     0 0 0 2px var(--background),
     0 0 0 3.5px var(--primary);
+}
+
+/* Направляющие выравнивания при перетаскивании узла (snap-guides.ts):
+   волосяной пунктир 1px в экранных координатах (crispEdges — без
+   сглаживания), поверх холста, клики не ловит. */
+.flow-snap-guides {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.flow-snap-guides line {
+  stroke: var(--primary);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  shape-rendering: crispEdges;
+  opacity: 0.6;
 }
 
 /* Поле притяжения при протягивании связи. */

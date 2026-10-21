@@ -134,6 +134,15 @@ describe('route-graph: холст из документа (#378 ред. 2)', () 
       selected: true,
     });
 
+    expect(selected.nodes.find((n) => n.id === anyNodeId('t-cancel'))!.data).toMatchObject({
+      portSelected: true,
+    });
+    const target = selected.nodes.find((n) => n.id === C)!.data as { selectedPorts: string[] };
+    expect(target.selectedPorts).toEqual([
+      selected.edges.find((e) => e.id === 't-cancel')!.targetHandle,
+    ]);
+    expect(selected.nodes.find((n) => n.id === A)!.data).toMatchObject({ selectedPorts: [] });
+
     const view = buildRouteGraph(doc(), { readOnly: true });
     expect(view.nodes.every((n) => n.draggable === false)).toBe(true);
     expect(view.edges.every((e) => e.reconnectable === false)).toBe(true);
