@@ -190,25 +190,12 @@
 }
 
 /* Свободный участок выделенной стрелки (#395): невидимая широкая полоса
-   ловит перетаскивание, ручка-капсула — видимая подсказка. */
+   ловит перетаскивание; подсказка — курсор-ресайз, отдельной ручки нет. */
 .flow-bend-hit {
   fill: none;
   stroke: transparent;
   stroke-width: 14;
   pointer-events: stroke;
-}
-
-.flow-bend-grip {
-  fill: var(--card);
-  stroke: var(--primary);
-  stroke-width: 1.5;
-  vector-effect: non-scaling-stroke;
-  pointer-events: all;
-  transition: fill 120ms ease;
-}
-
-.flow-bend-grip:hover {
-  fill: var(--primary);
 }
 
 /* Точки узлов, к которым подключена выделенная стрелка, — залиты primary

@@ -105,8 +105,9 @@ export const TransitionEdge = memo(function TransitionEdge({
     projectT(points, screenToFlowPosition({ x: event.clientX, y: event.clientY }));
 
   // Свободный участок (#395): у выделенной стрелки в правке — широкая
-  // невидимая полоса вдоль участка (курсор-ресайз) и ручка в стороне от
-  // подписи; тянется поперёк, магнитится к краям и центрам узлов.
+  // невидимая полоса вдоль участка (курсор-ресайз, без отдельной ручки —
+  // вердикт владельца 21.10); тянется поперёк, магнитится к краям и
+  // центрам узлов.
   const onBend = data?.onBend;
   const bendActive = Boolean(selected && onBend && bend);
   const bendValue = bend?.param === 'offset' ? offset : shift;
@@ -126,21 +127,6 @@ export const TransitionEdge = memo(function TransitionEdge({
     }
     return bend!.valueFor(best ? { ...p, [axis]: best.line } : p);
   };
-  const grip = (() => {
-    if (!bend) return null;
-    if (!bendSegment) return bend.at;
-    const [a, b] = bendSegment;
-    const length = Math.hypot(b.x - a.x, b.y - a.y);
-    const along = (k: number) => ({ x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k });
-    if (!name || length < 60) return along(0.5);
-    return [0.5, 0.3, 0.7, 0.18, 0.82]
-      .map(along)
-      .reduce((far, c) =>
-        Math.hypot(c.x - label.x, c.y - label.y) > Math.hypot(far.x - label.x, far.y - label.y)
-          ? c
-          : far,
-      );
-  })();
   const bendHandlers = {
     onPointerDown: (event: React.PointerEvent) => {
       if (event.button !== 0 || !bend) return;
@@ -178,25 +164,15 @@ export const TransitionEdge = memo(function TransitionEdge({
         interactionWidth={18}
         className={cn(classes.line, selected && 'flow-edge-selected', data?.dim && 'opacity-40')}
       />
-      {bendActive && grip ? (
-        <g className="nodrag nopan" style={{ cursor: bendCursor }} {...bendHandlers}>
-          {bendSegment ? (
-            <path
-              className="flow-bend-hit"
-              d={`M ${bendSegment[0].x} ${bendSegment[0].y} L ${bendSegment[1].x} ${bendSegment[1].y}`}
-            />
-          ) : null}
-          <rect
-            className="flow-bend-grip"
-            x={grip.x - (bend!.axis === 'x' ? 3 : 10)}
-            y={grip.y - (bend!.axis === 'x' ? 10 : 3)}
-            width={bend!.axis === 'x' ? 6 : 20}
-            height={bend!.axis === 'x' ? 20 : 6}
-            rx={3}
-          >
-            <title>{ui.automation.bendHint}</title>
-          </rect>
-        </g>
+      {bendActive && bendSegment ? (
+        <path
+          className="flow-bend-hit nodrag nopan"
+          style={{ cursor: bendCursor }}
+          d={`M ${bendSegment[0].x} ${bendSegment[0].y} L ${bendSegment[1].x} ${bendSegment[1].y}`}
+          {...bendHandlers}
+        >
+          <title>{ui.automation.bendHint}</title>
+        </path>
       ) : null}
       {name ? (
         <EdgeLabelRenderer>
