@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Check, Trash2, X } from 'lucide-react';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
@@ -44,13 +44,16 @@ function renderSegments(text: string, mentions: DraftMention[]): ReactNode[] {
 
 /** Чип в поле: ИМЯ персонального тона с мягким точечным подчёркиванием —
  *  без «@», без заливки и без полей (метрика зеркала = поле без компенсаций;
- *  зазор после чипа — честный пробел текста). Заливка — в пузыре отправки. */
+ *  зазор после чипа — честный пробел текста). Заливка — в пузыре отправки.
+ *  НАЧЕРТАНИЕ НЕ МЕНЯЕТСЯ (без font-medium): другая ширина глифов сдвигала
+ *  переносы зеркала относительно поля и копила дрейф каретки на длинном
+ *  тексте (#409). Тон и подчёркивание на метрику не влияют. */
 function Pill({ mention }: { mention: DraftMention }) {
   const tone = mention.id === 'all' ? 'text-foreground' : personTone(mention.id);
   return (
     <span
       className={cn(
-        'font-medium underline decoration-dotted decoration-from-font underline-offset-[3px]',
+        'underline decoration-dotted decoration-from-font underline-offset-[3px]',
         tone,
       )}
     >
@@ -97,7 +100,9 @@ export function MentionFieldOverlay({
   }, [editing]);
 
   // Скролл синхронно с textarea: поле скроллится (текст > 45vh) — окно
-  // оверлея повторяет scrollTop покадрово.
+  // оверлея повторяет scrollTop. Скролл-событие приходит асинхронно и при
+  // выделении мышью отставало кадром; layout-effect после каждого рендера
+  // (каждое нажатие = новый text) выравнивает немедленно, до отрисовки.
   useEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
@@ -107,6 +112,10 @@ export function MentionFieldOverlay({
     el.addEventListener('scroll', sync);
     return () => el.removeEventListener('scroll', sync);
   }, [textareaRef]);
+  useLayoutEffect(() => {
+    const el = textareaRef.current;
+    if (el && overlayRef.current) overlayRef.current.scrollTop = el.scrollTop;
+  });
 
   function closePopover(caretEnd?: number) {
     const token = editing;

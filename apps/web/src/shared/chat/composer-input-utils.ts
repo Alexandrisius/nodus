@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, type ClipboardEvent, type RefObject } from 'react';
+import { useLayoutEffect, useState, type ClipboardEvent, type RefObject } from 'react';
 import { toast } from 'sonner';
 
 import { ui } from '@nodus/contracts';
@@ -13,13 +13,15 @@ import type { StickerSubmitPayload } from './sticker-api.js';
  *  Вынесено из chat-composer.tsx (I5, #177). */
 export function useGrown(inputRef: RefObject<HTMLTextAreaElement | null>): boolean {
   const [grown, setGrown] = useState(false);
-  const baseHeight = useRef(0);
   useLayoutEffect(() => {
     const el = inputRef.current;
     if (!el) return;
     const ro = new ResizeObserver(() => {
-      if (baseHeight.current === 0) baseHeight.current = el.clientHeight;
-      setGrown(el.clientHeight > baseHeight.current + 4);
+      // База — min-height ОДНОЙ строки, а не первый замер: при монтаже с
+      // восстановленным длинным черновиком первый кадр уже вырос, и иконки
+      // навсегда залипали внизу (#409, попутная находка).
+      const base = Number.parseFloat(getComputedStyle(el).minHeight) || el.clientHeight;
+      setGrown(el.clientHeight > base + 4);
     });
     ro.observe(el);
     return () => ro.disconnect();

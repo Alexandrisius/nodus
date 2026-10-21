@@ -41,7 +41,6 @@ function recent(id: string, emojis: string[]): RecentSticker {
     packTitle: 'x',
     packScope: 'corporate',
     emojis,
-    url: `/s/${id}.png`,
     mime: 'image/png',
     width: null,
     height: null,

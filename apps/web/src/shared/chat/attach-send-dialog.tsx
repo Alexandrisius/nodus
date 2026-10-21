@@ -321,8 +321,11 @@ export function AttachSendDialogHost() {
                паддинги = метрике зеркала (px-1.5 py-1.5, канон композера). */
             /* max-h-[45vh] — канон композера 15.09 (#277): field-sizing-рост
                поля по вертикали ограничен высотой зоны (габарит окна не прыгает,
-               §39), дальше скролл внутри поля (оверлей синхронит scrollTop). */
-            className="min-h-16 max-h-[45vh] resize-none border-input bg-transparent px-1.5 py-1.5 text-transparent caret-foreground shadow-none focus-visible:border-input focus-visible:ring-0 dark:bg-transparent"
+               §39), дальше скролл внутри поля (оверлей синхронит scrollTop).
+               Скроллбар скрыт: его 3px сужали контентную ширину поля, а
+               зеркало (overflow-hidden) ширину не меняло — переносы
+               расходились, каретка уезжала на строку (#409). */
+            className="min-h-16 max-h-[45vh] resize-none border-input bg-transparent px-1.5 py-1.5 text-transparent caret-foreground shadow-none [scrollbar-width:none] focus-visible:border-input focus-visible:ring-0 dark:bg-transparent [&::-webkit-scrollbar]:hidden"
           />
         </span>
         {limit.counter ? (
