@@ -71,7 +71,12 @@ export function ComposerTextField({
       <Textarea
         ref={registerInput}
         value={text}
-        className="max-h-[45vh] min-h-8 flex-1 resize-none rounded-lg border-0 bg-transparent px-1.5 py-1.5 text-transparent caret-foreground shadow-none ring-0 focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent"
+        // Скроллбар СКРЫТ намеренно: при появлении он сужал контентную
+        // ширину поля на 3px, а зеркало (overflow-hidden, без скроллбара)
+        // сохраняло полную — переносы расходились, и на длинном тексте
+        // каретка/выделение уезжали на строку (#409). Ширина пары обязана
+        // совпадать всегда; прокрутка остаётся колесом/клавишами/выделением.
+        className="max-h-[45vh] min-h-8 flex-1 resize-none rounded-lg border-0 bg-transparent px-1.5 py-1.5 text-base text-transparent caret-foreground shadow-none ring-0 [scrollbar-width:none] focus-visible:border-0 focus-visible:ring-0 md:text-sm dark:bg-transparent [&::-webkit-scrollbar]:hidden"
         onFocus={onInputFocus}
         onChange={(e) => {
           useChatDrafts.getState().setText(focusId, e.target.value);

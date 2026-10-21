@@ -216,7 +216,13 @@ export function ImageLightbox({
       aria-modal="true"
       aria-label={image.name}
       tabIndex={-1}
-      onClick={onClose}
+      /* Клик по заднику закрывает лайтбокс и НЕ всплывает дальше: портал
+         живёт в body, но React-событие всплывает по дереву компонентов до
+         карточки поста, и та открывала обсуждение (#409). */
+      onClick={(event) => {
+        event.stopPropagation();
+        onClose();
+      }}
       /* Поверх Radix-модалки (окно отправки вложений, #144): модал ставит
          body pointer-events:none, портал в body наследует это — лайтбокс
          был «прозрачен» для мыши, а клики мимо уходили в html и закрывали

@@ -9,6 +9,8 @@ import { HomeGreeting } from '../../features/home/components/home-greeting.js';
 import { BellPopover } from '../../features/notifications/components/bell-popover.js';
 import { RunningTimerChip } from '../../features/tasks/components/running-timer-chip.js';
 import { WhatsNewButton } from '../../features/whats-new/components/whats-new-button.js';
+import { useChatUnreadSummary } from '../../shared/chat/chat-queries.js';
+import { TabUnreadBadge } from '../../shared/chat/tab-unread-badge.js';
 import { CIRCUIT_REMEASURE } from './circuit-geometry.js';
 import { DownloadAppButton } from './download-app-button.js';
 import { navModuleForPath } from './nav-registry.js';
@@ -31,6 +33,15 @@ export function TopBar() {
   const theme = useShellStore((s) => s.theme);
   const toggleTheme = useShellStore((s) => s.toggleTheme);
   const setCommandOpen = useShellStore((s) => s.setCommandOpen);
+  const { data: unread } = useChatUnreadSummary();
+
+  /** Счётчик вкладки (#409): только у мессенджера; «Настройка» — без числа. */
+  const tabCount = (moduleId: string | undefined, tabId: string): number => {
+    if (moduleId !== 'chat') return 0;
+    if (tabId === 'chats') return unread?.chats ?? 0;
+    if (tabId === 'tasks') return unread?.entities ?? 0;
+    return 0;
+  };
 
   const search = new URLSearchParams(searchStr);
   const module = navModuleForPath(pathname);
@@ -69,7 +80,8 @@ export function TopBar() {
                   : 'text-muted-foreground hover:text-foreground/80',
               )}
             >
-              {tab.label}
+              <span data-tab-label>{tab.label}</span>
+              <TabUnreadBadge count={tabCount(module?.id, tab.id)} />
             </Link>
           ))
         )}

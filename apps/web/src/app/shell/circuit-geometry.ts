@@ -71,6 +71,17 @@ function centerOf(el: Element): NodeEdgePoint {
   return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
 }
 
+/** Подпись вкладки — только метка (`data-tab-label`), БЕЗ счётчика
+ *  непрочитанных (#409): число живёт в отдельном бейдже и не должно менять
+ *  сигнатуру фокуса — иначе каждый новый unread давал бы ложную вспышку. */
+function tabLabelOf(el: HTMLElement): string {
+  return (
+    el.querySelector<HTMLElement>('[data-tab-label]')?.textContent?.trim() ??
+    el.textContent?.trim() ??
+    ''
+  );
+}
+
 /** Маршрут виртуального модуля (схлопнутая рейка/режим карточки): базовый
  *  путь модуля по реестру — совпадает с data-module-port порта развёрнутой
  *  рейки, чтобы сигнатура фокуса не менялась на сворачивание (#235). */
@@ -96,10 +107,11 @@ export function measureCircuit(pathname = '/', cardMode = false): CircuitGeometr
   // Вкладки — ТОЛЬКО из топбара шелла: глобальный запрос ловил порты вкладок
   // закрывающейся фулскрин-карточки (на wake-замере она ещё в DOM) — после
   // закрытия слайдера на основном окне оставались «отростки» засечек (баг #91).
+  // Подпись — только метка, без счётчика непрочитанных (tabLabelOf).
   const tabs = [...header.querySelectorAll<HTMLElement>('[data-tab-port]')].map((el) => ({
     active: el.dataset.active === 'true',
     x: centerOf(el).x,
-    label: el.textContent?.trim() ?? '',
+    label: tabLabelOf(el),
   }));
   const leftEl = document.querySelector<HTMLElement>('[data-left-node]');
   const leftNode = leftEl ? centerOf(leftEl) : null;
@@ -168,7 +180,7 @@ function measureCardCircuit(pathname: string): CircuitGeometry | null {
   const tabs = [...header.querySelectorAll<HTMLElement>('[data-tab-port]')].map((el) => ({
     active: el.dataset.active === 'true',
     x: centerOf(el).x,
-    label: el.textContent?.trim() ?? '',
+    label: tabLabelOf(el),
   }));
   return {
     junction,

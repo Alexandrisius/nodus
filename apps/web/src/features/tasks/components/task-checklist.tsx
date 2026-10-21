@@ -39,7 +39,9 @@ export function TaskChecklist({ task }: { task: TaskDetail }) {
             <span className="font-mono text-label-sm text-muted-foreground tabular-nums">
               {task.checklistDone}/{total}
             </span>
-            <span className="h-1 w-24 overflow-hidden rounded-full bg-muted">
+            {/* Дорожка — hairline-токен (--edge/40): bg-muted в тёмной теме
+                #141416 сливался с карточкой #121214 (#409). */}
+            <span className="h-1 w-24 overflow-hidden rounded-full bg-edge/40">
               <span
                 className="block h-full rounded-full bg-success transition-[width] duration-300"
                 style={{ width: `${Math.round((task.checklistDone / total) * 100)}%` }}

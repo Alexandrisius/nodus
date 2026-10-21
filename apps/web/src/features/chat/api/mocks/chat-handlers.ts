@@ -55,6 +55,19 @@ const conversationHandlers = [
     });
   }),
 
+  /** Сводка непрочитанных по вкладкам (#409): та же семантика, что у
+   *  серверного unread-summary — сумма unreadCount по всем видимым беседам,
+   *  скрытые и «посмотреть позже» не входят. */
+  http.get('/api/v1/chat/conversations/unread-summary', () => {
+    const visible = demoConversations.filter((c) => !hiddenConversations.has(c.id) && !c.snoozed);
+    const entity = (c: ConversationListItem) => c.type === 'task' || c.type === 'letter';
+    const sum = (items: ConversationListItem[]) =>
+      items.reduce((total, c) => total + c.unreadCount, 0);
+    const chats = sum(visible.filter((c) => !entity(c)));
+    const entities = sum(visible.filter(entity));
+    return HttpResponse.json({ chats, entities, total: chats + entities });
+  }),
+
   /** Чат задачи (#252): find-or-create беседы `type='task'` по задаче;
    *  состав — постановщик, ответственный и участники задачи. */
   http.get('/api/v1/chat/conversations/by-task/:taskId', ({ params }) => {

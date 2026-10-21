@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import type { WorkflowDetail } from '@nodus/contracts';
 
 import { createRouteDocStore } from './route-doc-store.js';
+import { draftKey } from './route-draft-storage.js';
 import { isLayoutComplete, resolveRoute } from '../../../shared/flow/route-resolve.js';
 
 const S1 = '00000000-0000-4000-8000-000000000001';
@@ -57,6 +58,51 @@ const detail = (): WorkflowDetail => ({
   },
   stageTaskCounts: {},
 });
+
+/** Тот же маршрут, но с ГЛОБАЛЬНОЙ нумерацией сортировки — так отдаёт
+ *  сервер (system-catalog: sortOrder = index по всем статусам). Клиент после
+ *  правок нумерует группы заново — источник ложного dirty (#409). */
+function detailWithGlobalOrder(): WorkflowDetail {
+  const base = detail();
+  return {
+    ...base,
+    document: {
+      ...base.document,
+      stages: base.document.stages.map((s, index) => ({ ...s, sortOrder: index })),
+      transitions: [
+        { ...base.document.transitions[0]!, sortOrder: 0 },
+        {
+          ...base.document.transitions[0]!,
+          id: '00000000-0000-4000-8000-000000000012',
+          code: null,
+          name: 'Отклонить',
+          fromStageId: S2,
+          toStageId: S3,
+          display: 'button',
+          sortOrder: 2,
+        },
+      ],
+    },
+  };
+}
+
+function saveDraft(detailValue: WorkflowDetail, sortOrderOf: (index: number) => number): void {
+  localStorage.setItem(
+    draftKey(detailValue.id),
+    JSON.stringify({
+      document: {
+        ...detailValue.document,
+        stages: detailValue.document.stages.map((s, i) => ({ ...s, sortOrder: sortOrderOf(i) })),
+        transitions: detailValue.document.transitions.map((t, i) => ({
+          ...t,
+          sortOrder: sortOrderOf(i),
+        })),
+      },
+      baseVersion: detailValue.version,
+      savedAt: new Date().toISOString(),
+    }),
+  );
+}
 
 function freshStore() {
   const store = createRouteDocStore('pending');
@@ -350,5 +396,36 @@ describe('route-doc-store: рабочая копия маршрута (#378)', (
     reloaded.getState().load(next);
     expect(reloaded.getState().document.stages.length).toBe(3);
     expect(reloaded.getState().dirty).toBe(false);
+  });
+
+  it('серверный глобальный sortOrder + групповой черновик — НЕ dirty при входе (#409)', () => {
+    const base = detailWithGlobalOrder();
+    // Черновик клиента: та же структура, но нумерация групповая (0,0,0) —
+    // визуально ничего не изменилось, и «есть изменения» показывать нельзя.
+    saveDraft(base, () => 0);
+
+    const store = createRouteDocStore('pending');
+    store.getState().load(base);
+
+    expect(store.getState().dirty).toBe(false);
+    expect(store.getState().document.stages.map((s) => s.sortOrder)).toEqual([0, 0, 0]);
+  });
+
+  it('правка имени и возврат к исходному — НЕ dirty (канонизация stage/button)', () => {
+    const store = createRouteDocStore('pending');
+    store.getState().load(detailWithGlobalOrder());
+
+    store.getState().patchStage(S2, { name: 'Иначе' });
+    expect(store.getState().dirty).toBe(true);
+
+    store.getState().patchStage(S2, { name: 'В работе' });
+    expect(store.getState().dirty).toBe(false);
+  });
+
+  it('реальная структурная правка остаётся dirty после канонизации', () => {
+    const store = createRouteDocStore('pending');
+    store.getState().load(detailWithGlobalOrder());
+    store.getState().addStage('paused');
+    expect(store.getState().dirty).toBe(true);
   });
 });

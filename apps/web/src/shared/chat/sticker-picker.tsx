@@ -1,21 +1,25 @@
-import { Clock, Plus, Trash2 } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { Clock, Plus } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import type { StickerPack } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
-import { Popover, PopoverAnchor, PopoverContent } from '@nodus/ui/components/popover';
 import { Spinner } from '@nodus/ui/components/spinner';
 import { cn } from '@nodus/ui/lib/utils';
 
 import {
-  useCanManageStickerPacks,
-  useRemoveSticker,
   useStickerPacks,
   type StickerSubmitPayload,
   buildStickerAttachment,
 } from './sticker-api.js';
+import { PackCells, SectionTitle } from './sticker-pack-cells.js';
 import { StickerGlyph } from './sticker-message.js';
-import { pushRecentSticker, recentStickers, type RecentSticker } from './sticker-recent.js';
+import {
+  pruneRecentStickers,
+  pushRecentSticker,
+  recentStickers,
+  resolveRecentStickers,
+  type ResolvedRecentSticker,
+} from './sticker-recent.js';
 import { StickerPackMenu, type PackDialogRequest } from './sticker-pack-menu.js';
 
 /**
@@ -45,7 +49,7 @@ export function StickerPanel({
   disabled?: boolean;
 }) {
   const packsQuery = useStickerPacks();
-  const [recent, setRecent] = useState<RecentSticker[]>(() => recentStickers());
+  const [recent, setRecent] = useState<ResolvedRecentSticker[]>([]);
   // Активная вкладка — ВИЗУАЛЬНЫЙ синхрон прокрутки (не фильтр списка).
   const [activeId, setActiveId] = useState<string>(RECENT_TAB);
   const scrollerRef = useRef<HTMLDivElement>(null);
@@ -55,11 +59,16 @@ export function StickerPanel({
   const corporate = packs.filter((p) => p.scope === 'corporate');
   const personal = packs.filter((p) => p.scope !== 'corporate');
   const ordered = [...corporate, ...personal];
-  // «Недавние» живы, пока их стикеры есть в доступных пакетах (soft-delete
-  // пака чистит список) — id-фильтр по актуальному набору.
-  const aliveIds = new Set(packs.flatMap((p) => p.stickers.map((s) => s.id)));
-  const recentAlive = recent.filter((r) => aliveIds.has(r.id));
-  const hasRecent = recentAlive.length > 0;
+  // «Недавние» — ТОЛЬКО стикеры актуальных паков: подписанный URL в
+  // localStorage истекает (≤24 ч) и после удаления пака мёртв (#409).
+  // Сверка идёт по любому ответу паков (ключ «Недавних» — id).
+  const packsData = packsQuery.data;
+  useEffect(() => {
+    if (!packsData) return;
+    setRecent(resolveRecentStickers(recentStickers(), packsData.items));
+    pruneRecentStickers(new Set(packsData.items.flatMap((p) => p.stickers.map((s) => s.id))));
+  }, [packsData]);
+  const hasRecent = recent.length > 0;
 
   const sectionIds = [...(hasRecent ? [RECENT_TAB] : []), ...ordered.map((p) => p.id)];
 
@@ -68,19 +77,15 @@ export function StickerPanel({
     const sticker = pack.stickers.find((s) => s.id === stickerId);
     if (!sticker) return;
     pushRecentSticker(sticker, pack);
-    setRecent(recentStickers());
+    setRecent(resolveRecentStickers(recentStickers(), packs));
     onPick({ stickerId, attachment: buildStickerAttachment(sticker, sticker.emojis, pack) });
   }
 
-  function pickRecentSticker(entry: RecentSticker) {
+  function pickRecentSticker(entry: ResolvedRecentSticker) {
     if (disabled) return;
     onPick({
-      stickerId: entry.id,
-      attachment: buildStickerAttachment(entry, entry.emojis, {
-        id: entry.packId,
-        title: entry.packTitle,
-        scope: entry.packScope,
-      }),
+      stickerId: entry.sticker.id,
+      attachment: buildStickerAttachment(entry.sticker, entry.sticker.emojis, entry.pack),
     });
   }
 
@@ -231,19 +236,19 @@ export function StickerPanel({
                     disabled && 'pointer-events-none opacity-50',
                   )}
                 >
-                  {recentAlive.map((entry) => (
+                  {recent.map((entry) => (
                     <button
-                      key={`recent:${entry.id}`}
+                      key={`recent:${entry.sticker.id}`}
                       type="button"
-                      aria-label={entry.packTitle}
-                      title={entry.packTitle}
+                      aria-label={entry.pack.title}
+                      title={entry.pack.title}
                       onClick={() => pickRecentSticker(entry)}
                       className="flex cursor-pointer items-center justify-center rounded-lg p-1 transition-colors hover:bg-accent"
                     >
                       <StickerGlyph
-                        url={entry.url}
-                        mime={entry.mime}
-                        alt={entry.packTitle}
+                        url={entry.sticker.url}
+                        mime={entry.sticker.mime}
+                        alt={entry.pack.title}
                         className="size-14 object-contain"
                       />
                     </button>
@@ -277,97 +282,6 @@ export function StickerPanel({
           </>
         )}
       </div>
-    </div>
-  );
-}
-
-/** Заголовок секции единого списка: название + «⋯» управления (без счётчика —
- *  ревизия 30.09: «некрасиво и ненужно»). */
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return (
-    <h3 className="flex items-center gap-1 px-1 text-xs font-medium text-muted-foreground">
-      {children}
-    </h3>
-  );
-}
-
-/** Ячейки пака: клик — отправка; ПКМ по управляемому паку — мини-меню
- *  «Убрать из пака» (компактный попап реакций — не узкий кастом). */
-function PackCells({
-  pack,
-  disabled,
-  onPick,
-}: {
-  pack: StickerPack;
-  disabled: boolean;
-  onPick: (pack: StickerPack, stickerId: string) => void;
-}) {
-  const canManage = useCanManageStickerPacks();
-  const manageable = pack.owned || (pack.scope === 'corporate' && canManage);
-  const remove = useRemoveSticker();
-  const [menuStickerId, setMenuStickerId] = useState<string | null>(null);
-
-  return (
-    <div className={cn('grid grid-cols-4 gap-1', disabled && 'pointer-events-none opacity-50')}>
-      {pack.stickers.map((sticker) => {
-        const menuOpen = menuStickerId === sticker.id;
-        return (
-          <Popover
-            key={sticker.id}
-            open={menuOpen}
-            onOpenChange={(open) => setMenuStickerId(open ? sticker.id : null)}
-          >
-            <PopoverAnchor asChild>
-              <button
-                type="button"
-                aria-label={`${pack.title}: ${sticker.emojis.join(' ')}`}
-                title={
-                  manageable
-                    ? `${sticker.emojis.join(' ')} · ${ui.chat.stickerRemoveHint}`
-                    : sticker.emojis.join(' ')
-                }
-                onClick={() => onPick(pack, sticker.id)}
-                onContextMenu={
-                  manageable
-                    ? (event) => {
-                        event.preventDefault();
-                        setMenuStickerId((prev) => (prev === sticker.id ? null : sticker.id));
-                      }
-                    : undefined
-                }
-                className="flex cursor-pointer items-center justify-center rounded-lg p-1 transition-colors hover:bg-accent"
-              >
-                <StickerGlyph
-                  url={sticker.url}
-                  mime={sticker.mime}
-                  alt={sticker.emojis.join(' ')}
-                  className="size-14 object-contain"
-                />
-              </button>
-            </PopoverAnchor>
-            {manageable ? (
-              <PopoverContent
-                side="top"
-                align="start"
-                className="w-max min-w-44 p-1"
-                onOpenAutoFocus={(event) => event.preventDefault()}
-              >
-                <button
-                  type="button"
-                  className="flex w-full cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-lg px-1.5 py-1 text-sm text-destructive hover:bg-destructive/10"
-                  onClick={() => {
-                    remove.mutate(sticker.id);
-                    setMenuStickerId(null);
-                  }}
-                >
-                  <Trash2 className="size-4" strokeWidth={1.75} />
-                  {ui.chat.stickerRemoveFromPack}
-                </button>
-              </PopoverContent>
-            ) : null}
-          </Popover>
-        );
-      })}
     </div>
   );
 }

@@ -3,6 +3,8 @@ import { cn } from '@nodus/ui/lib/utils';
 
 import { CIRCUIT_REMEASURE } from '../../../app/shell/circuit-geometry.js';
 import { NAV_MODULES } from '../../../app/shell/nav-registry.js';
+import { useChatUnreadSummary } from '../../../shared/chat/chat-queries.js';
+import { TabUnreadBadge } from '../../../shared/chat/tab-unread-badge.js';
 import type { ChatTab } from './messenger-body.js';
 
 const CHAT_TABS = NAV_MODULES.find((m) => m.id === 'chat')?.tabs ?? [];
@@ -25,6 +27,13 @@ export function MessengerTabs({
   tab: ChatTab;
   onChange: (tab: ChatTab) => void;
 }) {
+  const { data: unread } = useChatUnreadSummary();
+  const countFor = (id: string): number => {
+    if (id === 'chats') return unread?.chats ?? 0;
+    if (id === 'tasks') return unread?.entities ?? 0;
+    return 0;
+  };
+
   useEffect(() => {
     window.dispatchEvent(new Event(CIRCUIT_REMEASURE));
   }, [tab]);
@@ -43,7 +52,8 @@ export function MessengerTabs({
             tab === t.id ? 'text-foreground' : 'text-muted-foreground hover:text-foreground/80',
           )}
         >
-          {t.label}
+          <span data-tab-label>{t.label}</span>
+          <TabUnreadBadge count={countFor(t.id)} />
         </button>
       ))}
     </nav>

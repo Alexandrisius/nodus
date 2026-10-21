@@ -23,6 +23,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { MultipartFile } from '@fastify/multipart';
 import { z } from 'zod';
 import {
+  chatUnreadSummarySchema,
   conversationDraftSchema,
   conversationInfoBodySchema,
   conversationListItemSchema,
@@ -31,6 +32,7 @@ import {
   paginatedSchema,
   saveConversationDraftBodySchema,
   conversationUpdateBodySchema,
+  type ChatUnreadSummary,
   type ConversationDraft,
   type ConversationInfoBody,
   type ConversationListItem,
@@ -78,6 +80,18 @@ export class ConversationsController {
     query: ListConversationsQuery,
   ): Promise<Paginated<ConversationListItem>> {
     return this.conversations.list(user.id, query);
+  }
+
+  /** Сводка непрочитанных для вкладок мессенджера: точная сумма по всем
+   *  беседам, а не по первой странице пагинированного списка. Объявлена ДО
+   *  параметрических маршрутов (:id), чтобы «unread-summary» не был принят
+   *  за идентификатор. */
+  @Get('unread-summary')
+  @ApiOperation({ summary: 'Сводка непрочитанных: «Чаты» / «Чаты задач и писем»' })
+  @ApiOkResponse({ standardSchema: chatUnreadSummarySchema })
+  @ApiErrors(401)
+  unreadSummary(@GetUser() user: { id: string }): Promise<ChatUnreadSummary> {
+    return this.conversations.unreadSummary(user.id);
   }
 
   @Post()

@@ -5,6 +5,7 @@ import type { TransactionClient } from '../../../core/database/transaction-runne
 import {
   ACTIVITY_EXPR,
   LIST_SELECT,
+  UNREAD_COUNT_EXPR,
   type ConversationListCursor,
   type ConversationListRow,
 } from './conversations-list.select.js';
@@ -20,6 +21,13 @@ export interface MemberRow {
   muted: boolean;
   snoozed: boolean;
   hidden: boolean;
+}
+
+/** Сумма непрочитанных по вкладкам (unread-summary): не пагинирована. */
+export interface UnreadSummaryRow {
+  chats: number;
+  entities: number;
+  total: number;
 }
 
 interface ListOpts {
@@ -97,6 +105,30 @@ export class ConversationsRepository {
       LIMIT ${opts.limit + 1}
     `);
     return rows;
+  }
+
+  /**
+   * Сводка непрочитанных по вкладкам мессенджера: сумма `unread_count` по
+   * ВСЕМ беседам пользователя (список пагинирован — сумма первой страницы
+   * врёт). Предикат непрочитанного — общий с LIST_SELECT (UNREAD_COUNT_EXPR),
+   * поэтому треды каналов и правленные сообщения считаются одинаково.
+   * Скрытые и «посмотреть позже» беседы не входят: счётчик по ним скрыт и в
+   * списке (строка сообщает о новом сообщении только после снятия snooze).
+   */
+  async unreadSummaryForUser(userId: string): Promise<UnreadSummaryRow> {
+    const rows = await this.prisma.$queryRaw<UnreadSummaryRow[]>(Prisma.sql`
+      SELECT
+        COALESCE(SUM(u.unread) FILTER (WHERE c.type NOT IN ('task', 'letter')), 0)::int AS chats,
+        COALESCE(SUM(u.unread) FILTER (WHERE c.type IN ('task', 'letter')), 0)::int AS entities,
+        COALESCE(SUM(u.unread), 0)::int AS total
+      FROM conversation_members cm
+      JOIN conversations c ON c.id = cm.conversation_id
+      CROSS JOIN LATERAL (SELECT ${UNREAD_COUNT_EXPR(userId)} AS unread) u
+      WHERE cm.user_id = ${userId}::uuid
+        AND cm.hidden = false
+        AND cm.snoozed = false
+    `);
+    return rows[0] ?? { chats: 0, entities: 0, total: 0 };
   }
 
   /** Одна беседа в форме строки списка (ответ PATCH/создания; null — не член). */

@@ -1,6 +1,6 @@
 import type { WorkflowDetail, WorkflowDraftDocument } from '@nodus/contracts';
 
-import { structureChanged } from './route-doc-helpers.js';
+import { canonicalDocument, structureChanged } from './route-doc-helpers.js';
 import { adoptSavedLayout, layoutFingerprint } from './route-doc-layout.js';
 import { EMPTY_LAYOUT, layoutOf } from './route-doc-ops.js';
 import { readDraft, readStaleDraft } from './route-draft-storage.js';
@@ -10,15 +10,20 @@ import { readDraft, readStaleDraft } from './route-draft-storage.js';
  * подхватывается (баннер «Сбросить», если в нём правки маршрута;
  * несохранённую расстановку из него автосохранение отправит само);
  * устаревший — игнорируется, но о нём сообщаем (staleDraftAt).
+ * Baseline и документ канонизируются ОДНОЙ функцией: сервер отдаёт
+ * глобальный sortOrder, клиент после правок — групповой; без этого
+ * сравнение видело ложную разницу и вход показывал «есть изменения» (#409).
  */
 export function loadedState(detail: WorkflowDetail) {
-  const baseline: WorkflowDraftDocument = {
+  const baseline = canonicalDocument({
     stages: detail.document.stages.map((s) => ({ ...s })),
     transitions: detail.document.transitions.map((t) => ({ ...t })),
     layout: detail.document.layout ?? EMPTY_LAYOUT,
-  };
+  });
   const draft = readDraft(detail.id, detail.version);
-  const document = draft ? { ...draft.document, layout: layoutOf(draft.document) } : baseline;
+  const document = canonicalDocument(
+    draft ? { ...draft.document, layout: layoutOf(draft.document) } : baseline,
+  );
   return {
     workflowId: detail.id,
     baseVersion: detail.version,

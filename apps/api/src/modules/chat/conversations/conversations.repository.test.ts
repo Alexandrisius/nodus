@@ -71,3 +71,50 @@ describe('ConversationsRepository.listForUser — ось сортировки', 
     expect(where).not.toMatch(/infinity/);
   });
 });
+
+describe('ConversationsRepository.unreadSummaryForUser — сводка вкладок (#409)', () => {
+  const prisma = { $queryRaw: vi.fn() };
+  let repo: ConversationsRepository;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    prisma.$queryRaw.mockResolvedValue([{ chats: 3, entities: 2, total: 5 }]);
+    repo = new ConversationsRepository(prisma as never);
+  });
+
+  it('суммирует ТОТ ЖЕ предикат непрочитанного, что список (треды канала + правленные)', async () => {
+    await repo.unreadSummaryForUser(ME);
+
+    const sql = sqlOf(prisma.$queryRaw.mock.calls[0]!);
+    expect(sql).toMatch(/FROM messages um/);
+    expect(sql).toMatch(/um\.author_id <> \?::uuid/);
+    expect(sql).toMatch(/um\.seq > cm\.last_read_seq/);
+    expect(sql).toMatch(/thread_participants tp/);
+    expect(sql).toMatch(/tp\.seq > tp\.last_read_seq|um\.seq > tp\.last_read_seq/);
+  });
+
+  it('раскладывает по вкладкам: task/letter — entities, остальное — chats', async () => {
+    await repo.unreadSummaryForUser(ME);
+
+    const sql = sqlOf(prisma.$queryRaw.mock.calls[0]!);
+    expect(sql).toMatch(/FILTER \(WHERE c\.type NOT IN \('task', 'letter'\)\)/);
+    expect(sql).toMatch(/FILTER \(WHERE c\.type IN \('task', 'letter'\)\)/);
+  });
+
+  it('скрытые и snoozed беседы не входят в счётчики', async () => {
+    await repo.unreadSummaryForUser(ME);
+
+    const sql = sqlOf(prisma.$queryRaw.mock.calls[0]!);
+    expect(sql).toMatch(/cm\.hidden = false/);
+    expect(sql).toMatch(/cm\.snoozed = false/);
+  });
+
+  it('нет бесед — нулевая сводка, а не undefined', async () => {
+    prisma.$queryRaw.mockResolvedValue([]);
+    await expect(repo.unreadSummaryForUser(ME)).resolves.toEqual({
+      chats: 0,
+      entities: 0,
+      total: 0,
+    });
+  });
+});

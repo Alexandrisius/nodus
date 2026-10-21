@@ -150,6 +150,10 @@ export function PostCard({
         role="button"
         tabIndex={0}
         onClick={(e) => {
+          // Клик из React-портала (лайтбокс, меню) всплывает по ДЕРЕВУ
+          // React, хотя target лежит вне DOM карточки: такой клик НЕ
+          // открывает тред (#409 — клик мимо картинки открывал обсуждение).
+          if (!e.currentTarget.contains(e.target as Node)) return;
           // Р.7: завершение выделения текста — НЕ клик по карточке; интерактивы
           // (галерея, реакции, ссылки) отсекаются гвардом.
           if (!window.getSelection()?.isCollapsed) return;

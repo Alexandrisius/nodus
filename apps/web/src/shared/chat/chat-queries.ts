@@ -7,6 +7,7 @@ import {
 } from '@tanstack/react-query';
 import type {
   ChatMessage,
+  ChatUnreadSummary,
   ConversationListItem,
   Paginated,
   ThreadStateList,
@@ -85,6 +86,19 @@ export function useConversations() {
   return useQuery({
     queryKey: chatKeys.conversations(),
     queryFn: () => api<Paginated<ConversationListItem>>('/chat/conversations'),
+    refetchInterval: livePoll(LIVE_CHAT_POLL.conversations, socketConnected),
+    refetchIntervalInBackground: false,
+  });
+}
+
+/** Сводка непрочитанных по вкладкам «Чаты» / «Чаты задач и писем» (#409):
+ *  точная сумма по всем беседам — список пагинирован, сумма первой страницы
+ *  врёт. Опрос и WS-инвалидации — те же, что у списка (ключ под его префиксом). */
+export function useChatUnreadSummary() {
+  const socketConnected = useSocketStatusStore((s) => s.connected);
+  return useQuery({
+    queryKey: chatKeys.unreadSummary(),
+    queryFn: () => api<ChatUnreadSummary>('/chat/conversations/unread-summary'),
     refetchInterval: livePoll(LIVE_CHAT_POLL.conversations, socketConnected),
     refetchIntervalInBackground: false,
   });

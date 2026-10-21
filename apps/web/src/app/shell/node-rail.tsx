@@ -17,7 +17,7 @@ import {
 } from '@nodus/ui/components/dropdown-menu';
 import { cn } from '@nodus/ui/lib/utils';
 
-import { useConversations } from '../../features/chat/api/chat-api.js';
+import { useChatUnreadSummary } from '../../shared/chat/chat-queries.js';
 import { useNotificationSummary } from '../../features/notifications/api/notifications-api.js';
 import { useAuthStore } from '../../shared/auth-store.js';
 import { CIRCUIT_REMEASURE } from './circuit-geometry.js';
@@ -63,7 +63,7 @@ export function NodeRail() {
   const toggle = useShellStore((s) => s.toggleMenu);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { data: notificationSummary } = useNotificationSummary();
-  const { data: chats } = useConversations();
+  const { data: unreadSummary } = useChatUnreadSummary();
 
   const personal = useUiPrefsStore((s) => s.personal);
   const company = useUiPrefsStore((s) => s.company);
@@ -105,7 +105,8 @@ export function NodeRail() {
     // вернутся с их собственными API.
     if (m.badge === 'tasks' || m.badge === 'letters') return undefined;
     if (m.badge === 'chat') {
-      const n = (chats?.items ?? []).reduce((sum, c) => sum + c.unreadCount, 0);
+      // Точная сумма по всем беседам (#409), не по первой странице списка.
+      const n = unreadSummary?.total ?? 0;
       return n || undefined;
     }
     // Главная (#100): число важного (срочно+личное+действия) — индикация

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { Readable } from 'node:stream';
 import {
   CHAT_EVENTS,
+  type ChatUnreadSummary,
   type ConversationDraft,
   type ConversationListItem,
   type CreateConversationBody,
@@ -95,6 +96,12 @@ export class ConversationsService {
           ? encodeCursor({ at: last.last_activity_at?.toISOString() ?? null, id: last.id })
           : null,
     };
+  }
+
+  /** Сводка непрочитанных по вкладкам мессенджера: точная сумма по всем
+   *  беседам (см. unreadSummaryForUser — список пагинирован). */
+  async unreadSummary(userId: string): Promise<ChatUnreadSummary> {
+    return this.repo.unreadSummaryForUser(userId);
   }
 
   /** Создание группы/канала: создатель owner, участники member (мок: без них). */

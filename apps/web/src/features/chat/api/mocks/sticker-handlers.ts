@@ -37,6 +37,19 @@ function validationFailed() {
   );
 }
 
+/** Файл → durable data-URL для мок-хранилища: blob-URL превью умирает при
+ *  закрытии диалога создания пака (URL.revokeObjectURL) и после перезагрузки —
+ *  стикер в паке и «Недавних» оставался битым (#409). Живой сервер отдаёт
+ *  подписанный URL; мок эмулирует «файл сохранён» data-URL'ом. */
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error ?? new Error('FileReader failed'));
+    reader.readAsDataURL(file);
+  });
+}
+
 export const stickerHandlers = [
   /** Мои паки: корпоративные + свои + установленные (со стикерами). */
   http.get('/api/v1/chat/stickers/packs', () => HttpResponse.json({ items: listPacks() })),
@@ -85,13 +98,15 @@ export const stickerHandlers = [
       emojis = [];
     }
     if (emojis.length === 0 || emojis.length > 3) return validationFailed();
-    const url = form.get('previewUrl');
+    // previewUrl клиента — blob: живёт до закрытия диалога; храним durable
+    // data-URL самого файла (мок-аналог сохранённого файла, #409).
+    const url = await fileToDataUrl(file);
     const width = Number(form.get('width'));
     const height = Number(form.get('height'));
     const pack = addSticker(String(params.id), {
       file,
       emojis,
-      url: typeof url === 'string' && url ? url : null,
+      url,
       width: Number.isFinite(width) && width > 0 ? Math.round(width) : null,
       height: Number.isFinite(height) && height > 0 ? Math.round(height) : null,
     });

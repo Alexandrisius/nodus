@@ -58,7 +58,7 @@ export function TypeList({
   selectedId: string | undefined;
   isLoading: boolean;
   onSelect: (id: string) => void;
-  onOpenSettings: () => void;
+  onOpenSettings: (id: string) => void;
   onCopyType: (id: string) => void;
 }) {
   const canManage = useCanManageWorkflows();
@@ -137,7 +137,7 @@ export function TypeList({
             <DropdownMenuContent align="end" className="w-52">
               {!rowArchived ? (
                 <>
-                  <DropdownMenuItem onSelect={onOpenSettings}>
+                  <DropdownMenuItem onSelect={() => onOpenSettings(type.id)}>
                     <Settings2 className="size-3.5" />
                     {ui.automation.typeSettings}
                   </DropdownMenuItem>
