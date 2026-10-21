@@ -29,7 +29,10 @@ export function AutomationPage() {
   const navigate = useNavigate();
   const search = useSearch({ strict: false }) as { type?: string };
   const { data: types, isLoading } = useTaskTypes('include');
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  // Настройки типа открываются ДЛЯ КОНКРЕТНОЙ строки (#409): boolean терял
+  // id, и панель всегда показывала selected — не тот тип, у которого нажали
+  // «⋯ → Настройки типа». Выделение редактора при этом не меняется.
+  const [settingsTypeId, setSettingsTypeId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [createBaseTypeId, setCreateBaseTypeId] = useState<string | undefined>();
 
@@ -38,6 +41,15 @@ export function AutomationPage() {
     () => alive.find((t) => t.id === search.type) ?? alive[0],
     [alive, search.type],
   );
+  const settingsType = useMemo(
+    () => alive.find((t) => t.id === settingsTypeId) ?? null,
+    [alive, settingsTypeId],
+  );
+  const settingsOpen = settingsType !== null;
+  // Тип заархивировали/удалили, пока панель открыта — панель закрывается.
+  useEffect(() => {
+    if (settingsTypeId !== null && settingsType === null) setSettingsTypeId(null);
+  }, [settingsTypeId, settingsType]);
   const workflowQuery = useWorkflowDetail(selected?.workflowId ?? null);
   const workflow = workflowQuery.data;
 
@@ -73,7 +85,7 @@ export function AutomationPage() {
   // типа», открытие настроек снимает выделение.
   const editorSelection = useRouteDocStore((s) => s.selection);
   useEffect(() => {
-    if (editorSelection) setSettingsOpen(false);
+    if (editorSelection) setSettingsTypeId(null);
   }, [editorSelection]);
 
   const editorDirty = useRouteDocStore((s) => s.dirty);
@@ -94,11 +106,12 @@ export function AutomationPage() {
         selectedId={selected?.id}
         isLoading={isLoading}
         onSelect={(id) => {
+          setSettingsTypeId(null);
           void navigate({ to: '/automation', search: (prev) => ({ ...prev, type: id }) });
         }}
-        onOpenSettings={() => {
+        onOpenSettings={(id) => {
           useRouteDocStore.getState().select(null);
-          setSettingsOpen(true);
+          setSettingsTypeId(id);
         }}
         onCopyType={(id) => {
           setCreateBaseTypeId(id);
@@ -115,8 +128,8 @@ export function AutomationPage() {
             settings={
               <TypeSettingsPanel
                 open={settingsOpen}
-                type={selected}
-                onClose={() => setSettingsOpen(false)}
+                type={settingsType ?? selected}
+                onClose={() => setSettingsTypeId(null)}
               />
             }
           />

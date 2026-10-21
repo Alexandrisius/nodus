@@ -50,7 +50,10 @@ export function RouteViewDialog({
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
       <DialogContent className="flex h-[80vh] w-[92vw] max-w-[1200px] flex-col sm:max-w-[1200px]">
-        <DialogHeader className="flex-row items-center justify-between space-y-0">
+        <DialogHeader className="flex-row items-center justify-between space-y-0 pr-10">
+          {/* pr-10 — зона крестика DialogContent (absolute top-2 right-2):
+              без резерва кнопка «Открыть в редакторе» упиралась в крестик и
+              перекрывалась им (#409). */}
           <DialogTitle>
             {ui.automation.routeViewOfType} «{task.type.name}»
           </DialogTitle>

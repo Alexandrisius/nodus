@@ -71,7 +71,7 @@ export function TaskChecklistSheet({
         </button>
       </div>
       {items.length > 0 ? (
-        <div className="mx-3 mt-2 h-0.5 shrink-0 overflow-hidden rounded-full bg-muted">
+        <div className="mx-3 mt-2 h-0.5 shrink-0 overflow-hidden rounded-full bg-edge/40">
           <div className="h-full w-0 bg-primary" />
         </div>
       ) : null}
