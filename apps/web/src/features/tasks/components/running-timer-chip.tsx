@@ -1,7 +1,7 @@
-import { Pause } from 'lucide-react';
 import { ui } from '@nodus/contracts';
 
 import { useOpenCard } from '../../../app/shell/use-card-stack.js';
+import { PauseGlyph } from '../../../shared/ui/pause-glyph.js';
 import { useRunningTimer, useStopTimer } from '../api/time-api.js';
 import { useElapsed } from './task-time.js';
 
@@ -34,7 +34,7 @@ export function RunningTimerChip() {
         title={ui.tasks.timer.stop}
         className="flex h-full items-center rounded-r-md pr-2 pl-1 transition-[filter] hover:brightness-110 disabled:opacity-50"
       >
-        <Pause className="size-3.5" strokeWidth={2} />
+        <PauseGlyph className="size-3.5" />
       </button>
     </span>
   );

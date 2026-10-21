@@ -5,7 +5,7 @@ import type { TaskDetail, TaskTransition } from '@nodus/contracts';
 import { Permission, ui } from '@nodus/contracts';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@nodus/ui/components/dialog';
 import { Button } from '@nodus/ui/components/button';
-import { Waypoints } from 'lucide-react';
+import { Workflow } from 'lucide-react';
 
 import { useAuthStore } from '../auth-store.js';
 import { FlowCanvas } from '../flow/flow-canvas.js';
@@ -66,7 +66,7 @@ export function RouteViewDialog({
                 });
               }}
             >
-              <Waypoints className="size-3.5" strokeWidth={1.75} />
+              <Workflow className="size-3.5" strokeWidth={1.75} />
               {ui.automation.openInEditor}
             </Button>
           ) : null}
