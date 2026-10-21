@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render } from '@testing-library/react';
+import { cleanup, fireEvent, render } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { TooltipProvider } from '@nodus/ui/components/tooltip';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -156,6 +156,43 @@ describe('PostCard — карточка поста канала с аватар�
     );
     const card = container.querySelector('[data-slot="post-surface"]')!;
     expect(card.textContent).toContain('Иван Петров');
+  });
+
+  it('клик по заднику лайтбокса закрывает его и НЕ открывает тред (#409)', () => {
+    const onOpenThread = vi.fn();
+    const img = {
+      id: 'f1',
+      fileId: '00000000-0000-4000-8000-000000000001',
+      name: 'foto.png',
+      size: 1000,
+      mime: 'image/png',
+      kind: 'image' as const,
+      url: '/demo/site-1.png',
+      thumbnailUrl: '/demo/site-1.png',
+      previewKind: 'image' as const,
+      pdfUrl: null,
+      width: 1200,
+      height: 800,
+    };
+    const { container } = renderCard(
+      <PostCard
+        {...base}
+        message={message({ attachments: [img], text: '' })}
+        onOpenThread={onOpenThread}
+      />,
+    );
+    const card = container.querySelector('[data-slot="post-surface"]') as HTMLElement;
+    // Плитка галереи — единственная кнопка карточки в соло-медиа.
+    fireEvent.click(card.querySelector('button')!);
+    const dialog = document.querySelector('[role="dialog"][aria-modal="true"]') as HTMLElement;
+    expect(dialog).not.toBeNull();
+
+    // Клик мимо картинки: лайтбокс — портал, его React-событие всплывает
+    // через дерево компонентов в карточку поста — та не должна открыть тред.
+    fireEvent.click(dialog);
+
+    expect(document.querySelector('[role="dialog"][aria-modal="true"]')).toBeNull();
+    expect(onOpenThread).not.toHaveBeenCalled();
   });
 
   it('соло-медиа пост с реакциями: чипы ПОД карточкой, не бар внутри (р.5 п.6)', () => {
