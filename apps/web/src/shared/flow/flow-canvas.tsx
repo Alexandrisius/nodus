@@ -22,6 +22,7 @@ import {
   type OnNodeDrag,
   type OnNodesChange,
   type OnReconnect,
+  type XYPosition,
 } from '@xyflow/react';
 import type { Edge, Node } from '@xyflow/react';
 import { ui } from '@nodus/contracts';
@@ -29,6 +30,7 @@ import { cn } from '@nodus/ui/lib/utils';
 
 import { AnyNode } from './any-node.js';
 import { FlowMarkers } from './flow-markers.js';
+import { snapToGuides, type SnapGuide } from './snap-guides.js';
 import { StartNode } from './start-node.js';
 import { StatusNode } from './status-node.js';
 import { TransitionEdge } from './transition-edge.js';
@@ -132,6 +134,106 @@ function useMeasuredNodes(nodes: Node[]): { nodes: Node[]; onNodesChange: OnNode
   return { nodes: withSizes, onNodesChange };
 }
 
+/** Экранный порог притяжения направляющих, px. */
+const SNAP_PX = 6;
+/** Вынос направляющей за крайние узлы, px экрана. */
+const GUIDE_OVERHANG = 12;
+
+/**
+ * Направляющие выравнивания — волосяная линия 1 device-px (как Figma/tldraw):
+ * рисуются в экранных координатах поверх холста, координата округлена к
+ * центру пикселя (+0.5) — без размазывания сглаживанием на дробном зуме
+ * (в координатах холста линия ложилась между пикселями и выглядела жирной).
+ */
+function SnapGuideLines({ guides }: { guides: readonly SnapGuide[] }) {
+  const [tx, ty, zoom] = useStore((s) => s.transform);
+  if (guides.length === 0) return null;
+  const crisp = (v: number) => Math.round(v) + 0.5;
+  const sx = (x: number) => x * zoom + tx;
+  const sy = (y: number) => y * zoom + ty;
+  return (
+    <svg className="flow-snap-guides" aria-hidden>
+      {guides.map((g) =>
+        g.orientation === 'v' ? (
+          <line
+            key="v"
+            x1={crisp(sx(g.at))}
+            x2={crisp(sx(g.at))}
+            y1={sy(g.from) - GUIDE_OVERHANG}
+            y2={sy(g.to) + GUIDE_OVERHANG}
+          />
+        ) : (
+          <line
+            key="h"
+            x1={sx(g.from) - GUIDE_OVERHANG}
+            x2={sx(g.to) + GUIDE_OVERHANG}
+            y1={crisp(sy(g.at))}
+            y2={crisp(sy(g.at))}
+          />
+        ),
+      )}
+    </svg>
+  );
+}
+
+/** Текущий масштаб холста — в ref (порог притяжения в единицах холста). */
+function ZoomProbe({ zoomRef }: { zoomRef: React.RefObject<number> }) {
+  const zoom = useStore((s) => s.transform[2]);
+  useEffect(() => {
+    zoomRef.current = zoom;
+  }, [zoom, zoomRef]);
+  return null;
+}
+
+/**
+ * Притяжение перетаскиваемого узла к краям и центрам соседей: потребитель
+ * получает уже примагниченную позицию и в кадрах, и на отпускании (React
+ * Flow сам отдал бы сырую). Неперетаскиваемые узлы («Создание задачи» едет
+ * за начальным статусом) — не ориентиры.
+ */
+function useSnapDrag(
+  nodes: Node[],
+  onNodeDrag: OnNodeDrag<Node> | undefined,
+  onNodeDragStop: OnNodeDrag<Node> | undefined,
+) {
+  const [guides, setGuides] = useState<SnapGuide[]>([]);
+  const zoomRef = useRef(1);
+  const last = useRef<{ id: string; position: XYPosition } | null>(null);
+  const boxOf = (n: Node) => ({
+    x: n.position.x,
+    y: n.position.y,
+    w: n.measured?.width ?? n.width ?? 0,
+    h: n.measured?.height ?? n.height ?? 0,
+  });
+
+  const drag: OnNodeDrag<Node> = (event, node, dragged) => {
+    const others = nodes
+      .filter(
+        (n) => n.id !== node.id && n.draggable !== false && !dragged.some((d) => d.id === n.id),
+      )
+      .map(boxOf)
+      .filter((b) => b.w > 0);
+    const snap = snapToGuides(
+      boxOf(node),
+      dragged.length > 1 ? [] : others,
+      SNAP_PX / (zoomRef.current || 1),
+    );
+    const position = { x: snap.x, y: snap.y };
+    last.current = { id: node.id, position };
+    setGuides(snap.guides);
+    onNodeDrag?.(event, { ...node, position }, dragged);
+  };
+
+  const stop: OnNodeDrag<Node> = (event, node, dragged) => {
+    const position = last.current?.id === node.id ? last.current.position : node.position;
+    last.current = null;
+    setGuides([]);
+    onNodeDragStop?.(event, { ...node, position }, dragged);
+  };
+
+  return { guides, zoomRef, onNodeDrag: drag, onNodeDragStop: stop };
+}
+
 /**
  * Вписывание — ОДИН раз, когда узлы измерены, и заново только при смене
  * схемы (`fitKey`). Смена размера холста (выезд правой панели, окно) вид НЕ
@@ -172,6 +274,7 @@ export function FlowCanvas({
 }: FlowCanvasProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const measured = useMeasuredNodes(nodes);
+  const snap = useSnapDrag(measured.nodes, onNodeDrag, onNodeDragStop);
   return (
     <div ref={wrapperRef} className={cn('relative h-full w-full', className)}>
       <FlowMarkers />
@@ -193,8 +296,8 @@ export function FlowCanvas({
             !active || active === document.body || (wrapperRef.current?.contains(active) ?? false)
           );
         }}
-        onNodeDrag={onNodeDrag}
-        onNodeDragStop={onNodeDragStop}
+        onNodeDrag={snap.onNodeDrag}
+        onNodeDragStop={snap.onNodeDragStop}
         onNodeClick={onNodeClick}
         onEdgeClick={onEdgeClick}
         onPaneClick={onPaneClick}
@@ -228,6 +331,8 @@ export function FlowCanvas({
           {controls}
         </Controls>
         <AutoFit fitKey={fitKey} />
+        <ZoomProbe zoomRef={snap.zoomRef} />
+        <SnapGuideLines guides={snap.guides} />
         {children}
       </ReactFlow>
     </div>

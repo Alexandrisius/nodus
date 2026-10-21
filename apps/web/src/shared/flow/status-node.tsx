@@ -25,6 +25,8 @@ export interface StatusNodeData extends Record<string, unknown> {
   taskCount?: number;
   /** Занятые точки подключения (к ним приходят стрелки) — кружки всегда. */
   ports?: readonly string[];
+  /** Точки на концах выделенной стрелки — подсвечены. */
+  selectedPorts?: readonly string[];
 }
 
 export type StatusFlowNode = Node<StatusNodeData, 'status'>;
@@ -118,6 +120,7 @@ export const StatusNode = memo(function StatusNode({
             className={cn(
               'flow-port',
               used && 'flow-port-used',
+              data.selectedPorts?.includes(handle) && 'flow-port-selected',
               data.readOnly
                 ? cn('pointer-events-none', !used && 'opacity-0')
                 : !used && !showHandles && 'flow-port-idle',

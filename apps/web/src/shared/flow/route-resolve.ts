@@ -84,7 +84,7 @@ export function resolveRoute(
   const boxes = new Map<string, FlowBox>();
   for (const [id, p] of positions) boxes.set(id, { ...p, w: W, h: H });
 
-  // Метки «Любой статус»: по умолчанию над и левее цели, стопкой; место,
+  // Метки «Любой статус»: по умолчанию строго над целью (стрелка — прямая вертикаль), стопкой; место,
   // куда метку перетащили, — сохранённое.
   const inputs: HandleEdgeInput[] = [];
   const anchors = new Map<string, FlowPosition>();
@@ -106,7 +106,7 @@ export function resolveRoute(
     const index = anyPerTarget.get(t.toStageId) ?? 0;
     anyPerTarget.set(t.toStageId, index + 1);
     const anchor = saved?.anchor ?? {
-      x: target.x - anyWidth / 2,
+      x: target.x + (W - anyWidth) / 2,
       y: target.y - 72 - index * (anyHeight + 8),
     };
     const pill = { ...anchor, w: anyWidth, h: anyHeight };
