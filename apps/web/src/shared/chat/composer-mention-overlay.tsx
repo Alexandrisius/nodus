@@ -73,6 +73,7 @@ export function MentionFieldOverlay({
   onEditClose,
   onRename,
   onRemove,
+  className,
 }: {
   text: string;
   /** Реестр чипов черновика (#228). */
@@ -84,6 +85,12 @@ export function MentionFieldOverlay({
   onRename: (index: number, label: string) => void;
   /** Удаление чипа целиком (корзина поповера). */
   onRemove: (index: number) => void;
+  /** Метрическая поправка зеркала под поле-хозяин: если у textarea есть
+   *  ВИДИМАЯ рамка (`border-input`), зеркало обязано повторить её толщину
+   *  прозрачной рамкой — иначе его content-box на 1px выше/левее, и полоска
+   *  выделения с цветной «копией» текста идут со сдвигом (текст «размыт»,
+   *  #409). Композер с border-0 ничего не передаёт. */
+  className?: string;
 }) {
   const overlayRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -155,8 +162,12 @@ export function MentionFieldOverlay({
         // line-height: leading-normal давал 21px против 20px поля на text-sm
         // → 1px дрейфа на строку — построчно уезжали полоска ::selection и
         // глифы от каретки (#303). Любое изменение классов поля — менять и
-        // здесь (пара обязана stay 1:1).
-        className="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words px-1.5 py-1.5 text-base md:text-sm"
+        // здесь (пара обязана stay 1:1); рамка поля-хозяина передаётся
+        // через className (#409).
+        className={cn(
+          'pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words px-1.5 py-1.5 text-base md:text-sm',
+          className,
+        )}
       >
         {renderSegments(text, mentions)}
         {/* Хвостовой перенос строки: pre-wrap textarea держит строку. */}

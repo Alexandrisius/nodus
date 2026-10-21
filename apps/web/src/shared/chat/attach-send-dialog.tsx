@@ -285,6 +285,10 @@ export function AttachSendDialogHost() {
             mentions={mentionList}
             textareaRef={captionRef}
             editToken={editToken}
+            // У поля подписи ВИДИМАЯ рамка (border-input, 1px) — зеркало
+            // повторяет её прозрачной: иначе content-box зеркала на 1px
+            // выше/левее, и выделенный текст «двоится»/размывается (#409).
+            className="border border-transparent"
             onRename={captionMentions.renameMention}
             onRemove={captionMentions.removeMention}
             onEditClose={() => {
