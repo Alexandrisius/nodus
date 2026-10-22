@@ -35,6 +35,12 @@ jobs:
         with:
           fetch-depth: 0
       - id: filter
+        env:
+          # Внешние контексты — через env, не интерполяцией в run: прямая
+          # подстановка в shell — паттерн script-injection (security-ревью
+          # #412). event_name — закрытый набор значений GitHub, можно напрямую.
+          BASE_REF: ${{ github.base_ref }}
+          BEFORE_SHA: ${{ github.event.before }}
         run: |
           # Еженедельный cron существует ради аудита зависимостей — он не
           # зависит от дифа последнего коммита (docs-only коммит в main
@@ -45,9 +51,18 @@ jobs:
             exit 0
           fi
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
+            CHANGED=$(git diff --name-only "origin/${BASE_REF}...HEAD")
           else
-            CHANGED=$(git diff --name-only HEAD~1)
+            # Весь пуш целиком, а не только последний коммит (security-ревью
+            # #412): код в ранних коммитах мультикоммитного пуша не должен
+            # ускользать от полного прогона. before обнуляется только при
+            # создании ветки/force-push — для main оба запрещены protection,
+            # fallback HEAD~1 оставлен для надёжности.
+            if [ -n "$BEFORE_SHA" ] && [ "$BEFORE_SHA" != "0000000000000000000000000000000000000000" ]; then
+              CHANGED=$(git diff --name-only "$BEFORE_SHA" HEAD)
+            else
+              CHANGED=$(git diff --name-only HEAD~1)
+            fi
           fi
           # Код = что угодно вне docs/**, *.md, .gitignore, ролей субагентов
           # (канон без исполняемого кода) и данных «Что нового» — их проверяет
@@ -152,9 +167,12 @@ jobs:
         # PR — affected-only по дифу с base-веткой (turbo учитывает граф зависимостей:
         # правка contracts запускает и тесты зависимых пакетов). Push в main — всегда
         # полный прогон: main проверен целиком (issue #23).
+        # BASE_REF через env — не интерполяцией в shell (script-injection, security #412).
+        env:
+          BASE_REF: ${{ github.base_ref }}
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            pnpm turbo test --filter='!@nodus/e2e' --filter="[origin/${{ github.base_ref }}...HEAD]"
+            pnpm turbo test --filter='!@nodus/e2e' --filter="[origin/${BASE_REF}...HEAD]"
           else
             pnpm test
           fi
