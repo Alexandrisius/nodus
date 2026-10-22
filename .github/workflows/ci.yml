@@ -8,6 +8,11 @@ on:
   schedule:
     - cron: '17 5 * * 1'
 
+# Least-privilege (гайд GitHub «effective CI»): этому воркфлоу не нужно
+# ничего, кроме чтения репозитория — токен джоб по умолчанию не может писать.
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -16,14 +21,17 @@ jobs:
   # Детектор «есть ли код в дифе» (issue #23): docs-only PR пропускает тяжёлые
   # джобы — skipped job засчитывается за success обязательного check (protection
   # не блокируется, в отличие от paths-ignore, который убивает check совсем).
+  # Третья полоса — «данные-only» (#412): диф только из релизных JSON «Что
+  # нового» идёт в лёгкую джобу data вместо полного конвейера.
   changes:
     name: Детектор изменений кода
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
       code: ${{ steps.filter.outputs.code }}
+      data: ${{ steps.filter.outputs.data }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
       - id: filter
@@ -33,6 +41,7 @@ jobs:
           # молча отменял аудит, #317).
           if [ "${{ github.event_name }}" = "schedule" ]; then
             echo "code=true" >> "$GITHUB_OUTPUT"
+            echo "data=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           if [ "${{ github.event_name }}" = "pull_request" ]; then
@@ -40,11 +49,20 @@ jobs:
           else
             CHANGED=$(git diff --name-only HEAD~1)
           fi
-          # Код = что угодно вне docs/**, *.md, .gitignore и ролей субагентов (канон без исполняемого кода)
-          if echo "$CHANGED" | grep -qv -e '^docs/' -e '\.md$' -e '^\.gitignore$' -e '^\.zcode/agents/' -e '^\.agents/agents/'; then
+          # Код = что угодно вне docs/**, *.md, .gitignore, ролей субагентов
+          # (канон без исполняемого кода) и данных «Что нового» — их проверяет
+          # лёгкая полоса data ниже: JSON вшиты в бандл web eager-glob, ломает
+          # их только сборка web и тест-страж, не полный конвейер.
+          if echo "$CHANGED" | grep -qvE -e '^docs/' -e '\.md$' -e '^\.gitignore$' -e '^\.zcode/agents/' -e '^\.agents/agents/' -e '^apps/web/src/features/whats-new/releases/[^/]+\.json$'; then
             echo "code=true" >> "$GITHUB_OUTPUT"
           else
             echo "code=false" >> "$GITHUB_OUTPUT"
+          fi
+          # Данные-only = кода нет, но выпуск «Что нового» в диффе есть.
+          if echo "$CHANGED" | grep -qE '^apps/web/src/features/whats-new/releases/[^/]+\.json$'; then
+            echo "data=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "data=false" >> "$GITHUB_OUTPUT"
           fi
 
   quality:
@@ -78,15 +96,15 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           # Полная история — turbo affected-фильтру нужен merge-base с main (issue #23).
           fetch-depth: 0
 
       # Версия pnpm берётся из поля packageManager в package.json.
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version-file: .node-version
           cache: pnpm
@@ -98,17 +116,19 @@ jobs:
       # тронутых дифом, восстанавливаются из кэша вместо пересборки с нуля.
       # Ключ по sha + restore-keys — берётся ближайший предыдущий прогон.
       - name: Кэш turbo
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: .turbo/cache
           key: turbo-${{ runner.os }}-${{ github.sha }}
           restore-keys: turbo-${{ runner.os }}-
 
-      - name: Аудит зависимостей (high/critical блокируют)
-        run: pnpm audit --audit-level high
-
+      # Fail-fast (гайд GitHub «effective CI»): самая дешёвая и самая частая
+      # ошибка проверяется первой, секунды — до сетевого аудита и генераций.
       - name: Форматирование (prettier)
         run: pnpm format:check
+
+      - name: Аудит зависимостей (high/critical блокируют)
+        run: pnpm audit --audit-level high
 
       # Клиент генерируется в apps/api/src/generated (не коммитится) — нужен typecheck/тестам/сборке.
       - name: Генерация Prisma client
@@ -175,6 +195,47 @@ jobs:
       - name: Build
         run: pnpm build
 
+  # Лёгкая полоса «данные-only» (#412): диф состоит только из релизных JSON
+  # «Что нового» (+ docs). Оба риска этих файлов покрываются дёшево: сломанный
+  # JSON-синтаксис роняет сборку web (файлы вшиты в бандл eager-glob), кривую
+  # схему/имя/жаргон ловит тест-страж releases.test.ts. Эквивалент полного
+  # прогона: код в дереве идентичен уже зелёному main, меняются только данные
+  # (осознанное сужение «push в main — всегда полный» из #23). Релизные PR
+  # (навык nodus-release) и их merge-пуши проходят здесь за минуты.
+  data:
+    name: Страж данных (только JSON «Что нового»)
+    needs: changes
+    if: needs.changes.outputs.code == 'false' && needs.changes.outputs.data == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      # Версия pnpm берётся из поля packageManager в package.json.
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Установка зависимостей
+        run: pnpm install --frozen-lockfile
+
+      # Как в quality (#247 Ф3), но отдельный префикс ключа: набор задач другой
+      # (только web), пересечение с кэшем quality джоб не критично.
+      - name: Кэш turbo
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: .turbo/cache
+          key: turbo-data-${{ runner.os }}-${{ github.sha }}
+          restore-keys: turbo-data-${{ runner.os }}-
+
+      # ^build подтянет контракты, test — тест-страж данных, build — валидный
+      # бандл с новым JSON: ровно те две проверки, которые нужны данным.
+      - name: Тест-страж данных + сборка web
+        run: pnpm turbo test build --filter=@nodus/web
+
   e2e:
     name: 'E2E (Playwright — критичный путь: логин)'
     needs: changes
@@ -212,11 +273,11 @@ jobs:
       NODE_ENV: production
       COOKIE_SECURE: 'false'
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version-file: .node-version
           cache: pnpm
@@ -272,7 +333,7 @@ jobs:
           timeout 30 bash -c 'until curl -fsS http://127.0.0.1:4173 > /dev/null; do sleep 1; done' || { echo '--- Web log ---'; cat /tmp/nodus-web.log; exit 1; }
 
       - name: Кэш браузеров Playwright
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         id: playwright-cache
         with:
           path: ~/.cache/ms-playwright
