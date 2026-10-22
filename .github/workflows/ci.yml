@@ -240,6 +240,13 @@ jobs:
       - name: Установка зависимостей
         run: pnpm install --frozen-lockfile
 
+      # Fail-fast и паритет с quality: релизные JSON входят в зону prettier
+      # полного прогона (не в .prettierignore) — дрейф формата, смерженный
+      # лёгкой полосой, не должен ронять format:check следующего чужого
+      # кодового PR (code-review #412).
+      - name: Форматирование релизных JSON (prettier)
+        run: pnpm exec prettier --check apps/web/src/features/whats-new/releases
+
       # Как в quality (#247 Ф3), но отдельный префикс ключа: набор задач другой
       # (только web), пересечение с кэшем quality джоб не критично.
       - name: Кэш turbo
