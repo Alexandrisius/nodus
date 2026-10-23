@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ErrorCode } from '@nodus/contracts';
 
 import { DomainException } from '../errors/domain-exception.js';
+import { REDIS_COMMAND_TIMEOUT_MS } from '../redis/redis-command.js';
 import { IdempotencyInterceptor } from './idempotency.interceptor.js';
 import { sha256Hex, stableStringify } from './stable-stringify.js';
 
@@ -45,6 +46,7 @@ function createRedis() {
     exec: vi.fn().mockResolvedValue([]),
   };
   return {
+    status: 'ready',
     get: vi.fn().mockResolvedValue(null),
     set: vi.fn().mockResolvedValue('OK'),
     del: vi.fn().mockResolvedValue(1),
@@ -238,6 +240,24 @@ describe('IdempotencyInterceptor', () => {
     redis.get.mockRejectedValue(new Error('redis down'));
     const { context } = createContext({ key: KEY, body: BODY });
     const result$ = await interceptor.intercept(context, createNext({ id: 't9' }));
+    expect(await lastValueFrom(result$)).toEqual({ id: 't9' });
+  });
+
+  it('Redis не готов → fail-open, команда не вызывается', async () => {
+    redis.status = 'reconnecting';
+    const { context } = createContext({ key: KEY, body: BODY });
+    const result$ = await interceptor.intercept(context, createNext({ id: 't9' }));
+    expect(await lastValueFrom(result$)).toEqual({ id: 't9' });
+    expect(redis.get).not.toHaveBeenCalled();
+  });
+
+  it('Redis завис → fail-open по таймауту', async () => {
+    vi.useFakeTimers();
+    redis.get.mockReturnValue(new Promise(() => undefined));
+    const { context } = createContext({ key: KEY, body: BODY });
+    const pending = interceptor.intercept(context, createNext({ id: 't9' }));
+    await vi.advanceTimersByTimeAsync(REDIS_COMMAND_TIMEOUT_MS);
+    const result$ = await pending;
     expect(await lastValueFrom(result$)).toEqual({ id: 't9' });
   });
 });

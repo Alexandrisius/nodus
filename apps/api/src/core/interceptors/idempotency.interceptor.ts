@@ -14,6 +14,7 @@ import { ErrorCode, type AuthUser } from '@nodus/contracts';
 
 import { REQUEST_USER_KEY } from '../decorators/get-user.decorator.js';
 import { DomainException } from '../errors/domain-exception.js';
+import { runRedisCommand } from '../redis/redis-command.js';
 import { REDIS_CLIENT } from '../redis/redis.module.js';
 import { sha256Hex, stableStringify } from './stable-stringify.js';
 
@@ -108,7 +109,7 @@ export class IdempotencyInterceptor implements NestInterceptor {
     const lockKey = `${scopedKey}:lock`;
     const lockToken = randomUUID();
     try {
-      const cached = await this.redis.get(scopedKey);
+      const cached = await this.getCached(scopedKey);
       if (cached) {
         return this.replay(
           JSON.parse(cached) as CachedResponse,
@@ -146,14 +147,15 @@ export class IdempotencyInterceptor implements NestInterceptor {
             // Статус-код не храним: в интерсепторе он ещё не финальный (Nest применит
             // @HttpCode/дефолт 201 позже); при replay статус выставит сам Nest.
             const record: CachedResponse = { body, bodyHash };
-            void this.redis
-              .pipeline()
-              .set(scopedKey, JSON.stringify(record), 'EX', RESPONSE_TTL_SECONDS)
-              .eval(RELEASE_LOCK_SCRIPT, 1, lockKey, lockToken)
-              .exec()
-              .catch((error: unknown) =>
-                this.logger.warn({ err: error }, 'Failed to cache idempotent response'),
-              );
+            void runRedisCommand(this.redis, () =>
+              this.redis
+                .pipeline()
+                .set(scopedKey, JSON.stringify(record), 'EX', RESPONSE_TTL_SECONDS)
+                .eval(RELEASE_LOCK_SCRIPT, 1, lockKey, lockToken)
+                .exec(),
+            ).catch((error: unknown) =>
+              this.logger.warn({ err: error }, 'Failed to cache idempotent response'),
+            );
           },
           error: () => {
             void this.releaseLock(lockKey, lockToken);
@@ -172,7 +174,9 @@ export class IdempotencyInterceptor implements NestInterceptor {
     scopedKey: string,
   ): Observable<unknown> {
     if (cached.bodyHash !== bodyHash) {
-      void this.redis.expire(scopedKey, RESPONSE_TTL_SECONDS).catch(() => undefined);
+      void runRedisCommand(this.redis, () =>
+        this.redis.expire(scopedKey, RESPONSE_TTL_SECONDS),
+      ).catch(() => undefined);
       throw new DomainException(
         ErrorCode.CONFLICT,
         'Idempotency key was used with a different payload',
@@ -183,12 +187,21 @@ export class IdempotencyInterceptor implements NestInterceptor {
     return of(cached.body);
   }
 
+  private getCached(key: string): Promise<string | null> {
+    return runRedisCommand(this.redis, () => this.redis.get(key));
+  }
+
   private async tryLock(lockKey: string, token: string): Promise<boolean> {
-    return (await this.redis.set(lockKey, token, 'PX', LOCK_TTL_MS, 'NX')) === 'OK';
+    const result = await runRedisCommand(this.redis, () =>
+      this.redis.set(lockKey, token, 'PX', LOCK_TTL_MS, 'NX'),
+    );
+    return result === 'OK';
   }
 
   private async releaseLock(lockKey: string, token: string): Promise<void> {
-    await this.redis.eval(RELEASE_LOCK_SCRIPT, 1, lockKey, token).catch(() => undefined);
+    await runRedisCommand(this.redis, () =>
+      this.redis.eval(RELEASE_LOCK_SCRIPT, 1, lockKey, token),
+    ).catch(() => undefined);
   }
 
   /**
@@ -198,8 +211,9 @@ export class IdempotencyInterceptor implements NestInterceptor {
    */
   private startHeartbeat(lockKey: string, token: string): () => void {
     const timer = setInterval(() => {
-      this.redis
-        .eval(EXTEND_LOCK_SCRIPT, 1, lockKey, token, LOCK_TTL_MS)
+      runRedisCommand(this.redis, () =>
+        this.redis.eval(EXTEND_LOCK_SCRIPT, 1, lockKey, token, LOCK_TTL_MS),
+      )
         .then((extended) => {
           if (Number(extended) !== 1) {
             clearInterval(timer);
@@ -230,13 +244,13 @@ export class IdempotencyInterceptor implements NestInterceptor {
     const deadline = Date.now() + LOCK_WAIT_MS;
     while (Date.now() < deadline) {
       await new Promise((resolve) => setTimeout(resolve, LOCK_POLL_MS));
-      const result = await this.redis.get(scopedKey);
+      const result = await this.getCached(scopedKey);
       if (result) {
         return result;
       }
       if (await this.tryLock(lockKey, token)) {
         // Замок свободен, но результат мог записаться между GET и SET NX.
-        const late = await this.redis.get(scopedKey);
+        const late = await this.getCached(scopedKey);
         if (late) {
           await this.releaseLock(lockKey, token);
           return late;
