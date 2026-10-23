@@ -9,7 +9,9 @@
 ```
 nodus/
 ├── AGENTS.md                  # правила для ИИ-агентов (карта проекта)
-├── README.md                  # для людей
+├── README.md                  # витрина продукта для людей
+├── CONTRIBUTING.md            # быстрый старт, команды и процесс для контрибьюторов
+├── LICENSE                    # Elastic License 2.0 (ADR-0023)
 ├── docker-compose.yml         # все сервисы — с префиксом nodus_ (Gotchas в AGENTS.md)
 ├── .env.example               # шаблон окружения; секреты не коммитятся
 ├── apps/
