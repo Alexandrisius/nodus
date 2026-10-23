@@ -147,6 +147,7 @@
 - Conventional commits: `feat|fix|chore|docs|test|refactor(<scope>): <описание> (#N)`.
 - Один PR = один issue; описание PR — что/зачем/как проверить + `Closes #N` (шаблон `.github/PULL_REQUEST_TEMPLATE.md`).
 - Перед каждым push — проверка дрейфа `main` (указание 04.10.2026): `fetch` → `origin/main` ушёл от точки ветвления → rebase + гейты по свежему дереву, затем push (`main` часто движется docs-байпасом — stale-PR зря жжёт очередь CI; детали — workflow п. 8).
+- **Ловушка незапушенного `main`** (указание 23.10.2026, второй инцидент): прямой docs-коммит в `main` пушится **сразу же тем же шагом**; `git pull --ff-only` на `main` упал («have N and M different commits») → `git pull --rebase origin main` — никаких merge-коммитов и force-push, чужие оставшиеся коммиты — STOP & ASK. Механика — workflow, «Гигиена main».
 - `main` всегда рабочий: CI зелёный до мержа.
 
 ## STOP & ASK — остановись и спроси владельца перед:
