@@ -170,9 +170,14 @@ export class TimeService {
     const running = await this.repo.findRunningTimer(userId, tx);
     if (!running?.startedAt) return false;
     const now = new Date();
+    // Округление честное, без принудительного минимума: пробежка <30 сек
+    // закрывается записью на 0 мин — след запуска в журнале есть, а
+    // фантомных минут в spent нет (10 старт-стопов по секунде ≠ +10 мин,
+    // вердикт владельца 24.10.2026). Гейт time_logged на spent>0 такая
+    // запись не откроет — клик туда-сюда «учёт времени» не имитирует.
     const minutes = Math.min(
       TIMER_CAP_MINUTES,
-      Math.max(1, Math.round((now.getTime() - running.startedAt.getTime()) / 60_000)),
+      Math.round((now.getTime() - running.startedAt.getTime()) / 60_000),
     );
     await this.repo.closeTimer(tx, running.id, now, minutes);
     if (running.taskId) {
