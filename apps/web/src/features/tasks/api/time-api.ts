@@ -1,5 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { Paginated, RunningTimer, TimeEntry, TimeEntryCreateBody } from '@nodus/contracts';
+import type {
+  Paginated,
+  RunningTimer,
+  TaskDetail,
+  TimeEntry,
+  TimeEntryCreateBody,
+} from '@nodus/contracts';
 import { errorMessages, ui, type ErrorCode } from '@nodus/contracts';
 import { toast } from 'sonner';
 
@@ -75,7 +81,23 @@ export function useStartTimer(taskId: string) {
   const settle = useSettleTime();
   return useMutation({
     mutationFn: () => api<RunningTimer>(`/tasks/${taskId}/timer/start`, { method: 'POST' }),
-    onMutate: () => queryClient.getQueryData<RunningTimer | null>(tasksKeys.timer()) ?? null,
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: tasksKeys.timer() });
+      const previous = queryClient.getQueryData<RunningTimer | null>(tasksKeys.timer()) ?? null;
+      // Оптимистичный старт: кнопка/чип раскрываются с клика, без ожидания
+      // ответа; ошибка откатывает к previous. Деталь задачи в кэше есть
+      // всегда — кнопка живёт на её карточке; нет — ждём сервер как раньше.
+      const detail = queryClient.getQueryData<TaskDetail>(tasksKeys.detail(taskId));
+      if (detail) {
+        queryClient.setQueryData(tasksKeys.timer(), {
+          // entryId синтетический до ответа сервера — сейчас его никто не читает.
+          entryId: crypto.randomUUID(),
+          task: { id: detail.id, number: detail.number, title: detail.title },
+          startedAt: new Date().toISOString(),
+        });
+      }
+      return previous;
+    },
     onSuccess: (timer, _vars, previous) => {
       queryClient.setQueryData(tasksKeys.timer(), timer);
       // Таймер один на сотрудника: прежний остановлен — его минуты записаны.
@@ -84,7 +106,10 @@ export function useStartTimer(taskId: string) {
         settle(previous.task.id);
       }
     },
-    onError: (error) => toast.error(errorText(error)),
+    onError: (error, _vars, previous) => {
+      queryClient.setQueryData(tasksKeys.timer(), previous);
+      toast.error(errorText(error));
+    },
     onSettled: () => settle(taskId),
   });
 }
@@ -94,7 +119,8 @@ export function useStopTimer() {
   const settle = useSettleTime();
   return useMutation({
     mutationFn: () => api<void>('/tasks/timer/stop', { method: 'POST' }),
-    onMutate: () => {
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: tasksKeys.timer() });
       const previous = queryClient.getQueryData<RunningTimer | null>(tasksKeys.timer()) ?? null;
       queryClient.setQueryData(tasksKeys.timer(), null);
       return previous;

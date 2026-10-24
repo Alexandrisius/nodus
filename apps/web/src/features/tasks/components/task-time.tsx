@@ -1,5 +1,5 @@
 import { Play, Trash2 } from 'lucide-react';
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { TaskDetail } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
@@ -45,39 +45,77 @@ export function useElapsed(startedAt: string | undefined): string {
 
 /** Таймер в баре действий (модель Битрикс24 «Начать учёт времени»): у
  *  сотрудника один таймер — запуск здесь останавливает идущий на другой
- *  задаче. В покое — сумма «Ч:ММ», при работе — живые «ЧЧ:ММ:СС»; габарит
- *  кнопки и позиция иконки постоянны, слот времени заранее широкий —
- *  никаких смещений и layout-анимаций при старте/остановке. */
+ *  задаче. В покое — значок + сумма «Ч:ММ» затраченного; при работе слот
+ *  дорастает до живых «ЧЧ:ММ:СС», кнопка растёт ВЛЕВО от прибитого
+ *  правого края бара. Ширина слота = длине текста в ch (шрифт моно —
+ *  точный fit при любой длине), transition-[width] ведёт её плавно;
+ *  иконки play↔pause кроссфейдятся. Старт/стоп оптимистичны — рост идёт
+ *  с клика, без ожидания ответа сервера. */
 export function TaskTimerButton({ task }: { task: TaskDetail }) {
   const { data: timer } = useRunningTimer();
   const start = useStartTimer(task.id);
   const stop = useStopTimer();
   const runningHere = timer?.task.id === task.id;
   const elapsed = useElapsed(runningHere ? timer?.startedAt : undefined);
+  // Слой тикающих секунд при сворачивании держит последний тик: он тает
+  // в кроссфейде, а не сменяется рывком на сумму в первом же кадре.
+  const lastTick = useRef(elapsed);
+  useEffect(() => {
+    if (elapsed) lastTick.current = elapsed;
+  }, [elapsed]);
   if (!task.access.canLogTime) return null;
   const busy = start.isPending || stop.isPending;
+  const spent = formatMinutes(task.spentMinutes);
+  const text = runningHere ? elapsed : spent;
 
   return (
     <button
       type="button"
-      disabled={busy}
-      onClick={() => (runningHere ? stop.mutate() : start.mutate())}
+      aria-busy={busy || undefined}
+      onClick={() => {
+        if (busy) return;
+        if (runningHere) stop.mutate();
+        else start.mutate();
+      }}
       title={runningHere ? ui.tasks.timer.stop : ui.tasks.timer.start}
       aria-label={runningHere ? ui.tasks.timer.stop : ui.tasks.timer.start}
       className={cn(
-        'inline-flex h-8 w-[6.75rem] shrink-0 items-center gap-2 rounded-md border border-transparent px-3 text-sm font-medium transition-colors outline-none focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/30 disabled:opacity-40',
+        'inline-flex h-8 shrink-0 items-center gap-2 rounded-md border border-transparent text-sm font-medium outline-none transition-[color,background-color,border-color,box-shadow,padding,opacity,filter] duration-200 ease-out focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/30',
         runningHere
-          ? 'bg-success-soft text-success hover:brightness-110'
-          : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+          ? 'bg-success-soft pr-3 pl-2 text-success hover:brightness-110'
+          : 'px-2 text-muted-foreground hover:bg-accent hover:text-foreground',
       )}
     >
-      {runningHere ? (
-        <PauseGlyph className="size-4 shrink-0" />
-      ) : (
-        <Play className="size-4 shrink-0" strokeWidth={1.75} />
-      )}
-      <span className="w-[8ch] text-left font-mono text-label-sm tabular-nums">
-        {runningHere ? elapsed : formatMinutes(task.spentMinutes)}
+      <span className="relative block size-4 shrink-0">
+        <Play
+          strokeWidth={1.75}
+          className={cn(
+            'absolute inset-0 size-4 transition-opacity duration-200',
+            runningHere && 'opacity-0',
+          )}
+        />
+        <PauseGlyph
+          className={cn(
+            'absolute inset-0 size-4 transition-opacity duration-200',
+            !runningHere && 'opacity-0',
+          )}
+        />
+      </span>
+      <span
+        style={{ width: `${text.length}ch` }}
+        className="relative overflow-hidden font-mono text-label-sm whitespace-nowrap tabular-nums transition-[width] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]"
+      >
+        <span className={cn('transition-opacity duration-200', runningHere && 'opacity-0')}>
+          {spent}
+        </span>
+        <span
+          className={cn(
+            'absolute top-0 left-0 transition-opacity duration-200',
+            !runningHere && 'opacity-0',
+          )}
+        >
+          {elapsed || lastTick.current || '00:00:00'}
+        </span>
       </span>
     </button>
   );
