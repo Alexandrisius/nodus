@@ -9,10 +9,11 @@ packages:
 overrides:
   deepmerge-ts: '>=8.0.0'
   mysql2: '>=3.22.0'
-  # undici high (GHSA-rfgv-xxqx-mfg5 и др., 30.09): транзитивно из vitest/jsdom (8.x)
-  # и shadcn/@dotenvx (7.x) — селективно, без смены мейджора у потребителей.
-  undici@>=8.0.0: 8.10.2
-  undici@<8.0.0: 7.29.1
+  # undici high (GHSA-xjj6-f33q-929c: DoS через content-encodings, 15.10;
+  # до того GHSA-rfgv-xxqx-mfg5 и др., 30.09): прямая зависимость api + транзитивно
+  # из vitest/jsdom (8.x) и shadcn/@dotenvx (7.x) — селективно, без смены мейджора.
+  undici@>=8.0.0: 8.12.2
+  undici@<8.0.0: 7.30.1
   # brace-expansion high (DoS рекурсией, 09.2026) + moderate GHSA-q2hr-2g5m-vwhr
   # (квадратичная развёртка `{a},b}`, патч 5.0.12): транзитивно из eslint/minimatch
   # и @fastify/static>glob (рантайм api, #372);
@@ -24,6 +25,10 @@ overrides:
   # не рантайм прода) — свежие advisories блокировали CI-аудит всех веток (#212).
   proxy-addr@>=1.1.0 <2.0.8: 2.0.8
   source-map-js@>=1.0.0 <1.2.2: 1.2.2
+  # body-parser high (GHSA-27r3-jxmh-p828: DoS trailing bytes после сжатого тела,
+  # 22.10.2026): транзитивно из shadcn CLI > @modelcontextprotocol/sdk > express —
+  # dev-инструментарий, не рантайм прода. Патч свежий (2.4.0), альтернатива — ignore.
+  body-parser@>=2.0.0 <2.4.0: 2.4.0
   # @modelcontextprotocol/sdk high (GHSA-6qxp-vccf-f47h: OAuth-клиент может
   # слить креды на сервер авторизации, выбранный MCP-сервером, 10.2026):
   # транзитивно из shadcn CLI (ui-инструментарий, не рантайм прода) — блокировал
