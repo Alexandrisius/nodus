@@ -348,6 +348,10 @@ async function status() {
         : 'free';
     console.log(`${name.padEnd(8)} :${port}  ${state}`);
   }
+  // Контур владельца (чужой процесс — только проба порта): сюда отсылают на
+  // приёмку, а он может быть выключен — видимость вместо предположения.
+  const devUp = await portBusy(5173);
+  console.log(`dev-owner :5173  ${devUp ? 'up (владельца)' : 'down — приёмку отдавать на :4173'}`);
 }
 
 const command = process.argv[2];
