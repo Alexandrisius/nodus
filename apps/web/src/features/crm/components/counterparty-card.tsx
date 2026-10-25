@@ -135,6 +135,7 @@ function CardBottomBar({
  */
 export function CounterpartyCard({ counterpartyId }: { counterpartyId: string }) {
   const { data: card, isLoading } = useCounterpartyCard(counterpartyId);
+  const canManage = useCanManageCounterparties();
 
   if (isLoading) return <CardSkeleton />;
   if (!card) return <CardNotFound />;
@@ -170,9 +171,13 @@ export function CounterpartyCard({ counterpartyId }: { counterpartyId: string })
               </div>
             </div>
 
-            <div className="flex h-16 shrink-0 items-center gap-2 border-t border-border px-5">
-              <CardBottomBar counterpartyId={card.id} archived={archived} />
-            </div>
+            {/* Нижний бар — только когда есть действия (или пояснение в
+                архиве): пустая полоса у сотрудника без прав — мусор. */}
+            {canManage || archived ? (
+              <div className="flex h-16 shrink-0 items-center gap-2 border-t border-border px-5">
+                <CardBottomBar counterpartyId={card.id} archived={archived} />
+              </div>
+            ) : null}
           </div>
 
           <ContactPersonsPanel
