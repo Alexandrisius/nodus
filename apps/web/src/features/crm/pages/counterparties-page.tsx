@@ -139,22 +139,27 @@ export function CounterpartiesPage() {
           }
         />
       </div>
-      {selection.selected.size > 0 ? <div aria-hidden className="h-24" /> : null}
+      {selectedRows.length > 0 ? <div aria-hidden className="h-24" /> : null}
       <CounterpartyBulkIsland
-        selectedIds={[...selection.selected]}
+        selectedIds={selectedRows.map((row) => row.id)}
         hasActive={hasActive}
         hasArchived={hasArchived}
-        visible={selection.selected.size > 0}
+        visible={selectedRows.length > 0}
         onClear={selection.clear}
       />
       <CounterpartyFormDialog open={createOpen} onOpenChange={setCreateOpen} />
-      <CounterpartyFormDialog
-        open={editTarget !== null}
-        onOpenChange={(open) => {
-          if (!open) setEditTarget(null);
-        }}
-        target={editTarget}
-      />
+      {/* Окно правки монтируется только при выбранной строке: иначе на
+          анимации закрытия оно перерисовывалось в режим «Создать» (другой
+          заголовок, панель «Похожие», выше) — мигание за окном (баг 25.10.2026). */}
+      {editTarget ? (
+        <CounterpartyFormDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setEditTarget(null);
+          }}
+          target={editTarget}
+        />
+      ) : null}
 
       <Dialog
         open={deleteTarget !== null}
@@ -177,7 +182,9 @@ export function CounterpartiesPage() {
               onClick={() =>
                 remove.mutate(deleteTarget?.id ?? '', {
                   onSuccess: () => {
-                    selection.toggle(deleteTarget?.id ?? '');
+                    // Снять выбор с удалённой строки (deselect, не toggle:
+                    // toggle на неудалённом ключе ДОБАВЛЯЕТ его в выбор).
+                    if (deleteTarget) selection.deselect(deleteTarget.id);
                     setDeleteTarget(null);
                   },
                 })
