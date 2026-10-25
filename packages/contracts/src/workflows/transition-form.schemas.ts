@@ -1,5 +1,11 @@
 import { z } from 'zod';
 
+import { customFieldKeySchema } from '../custom-fields/custom-field-key.js';
+import {
+  customFieldValuesInputSchema,
+  CUSTOM_FIELD_LIMITS,
+} from '../custom-fields/custom-field-values.js';
+
 /**
  * Окно перехода (#380, ADR-0021/ADR-0024): часть документа маршрута —
  * настройка публикуется вместе с кнопкой и исполняется движком в той же
@@ -20,6 +26,14 @@ export const transitionWindowFieldSchema = z.enum([
 ]);
 export type TransitionWindowField = z.infer<typeof transitionWindowFieldSchema>;
 
+/** Ключ поля раздела: системное поле или кастомное `cf.<uuid>` (#431, Р7).
+ *  Union — надмножество: документы маршрутов до #431 остаются валидными. */
+export const transitionWindowFieldKeySchema = z.union([
+  transitionWindowFieldSchema,
+  customFieldKeySchema,
+]);
+export type TransitionWindowFieldKey = z.infer<typeof transitionWindowFieldKeySchema>;
+
 /** Порядок разделов в окне фиксированный (не порядок массива документа). */
 export const TRANSITION_FORM_SECTION_ORDER = [
   'fields',
@@ -39,7 +53,7 @@ export const transitionFormSectionSchema = z.discriminatedUnion('kind', [
   z
     .object({
       kind: z.literal('fields'),
-      fields: z.array(transitionWindowFieldSchema).min(1).max(4),
+      fields: z.array(transitionWindowFieldKeySchema).min(1).max(CUSTOM_FIELD_LIMITS.windowFields),
     })
     .strict()
     .refine((v) => new Set(v.fields).size === v.fields.length, { message: 'duplicate fields' }),
@@ -57,7 +71,7 @@ export const transitionFormSectionDraftSchema = z.discriminatedUnion('kind', [
   z
     .object({
       kind: z.literal('fields'),
-      fields: z.array(transitionWindowFieldSchema).min(1).max(4),
+      fields: z.array(transitionWindowFieldKeySchema).min(1).max(CUSTOM_FIELD_LIMITS.windowFields),
     })
     .strict()
     .refine((v) => new Set(v.fields).size === v.fields.length, { message: 'duplicate fields' }),
@@ -94,7 +108,8 @@ export const DEFAULT_TRANSITION_FORM = { enabled: false, sections: [] } as const
 /** Введённое в окне (тело выполнения перехода). Время — копия
  *  `timeEntryCreateBodySchema` без импорта из `tasks/*`: иначе цикл
  *  `workflow.schemas → task.schemas → workflow.schemas`. Поведение совпадает
- *  (тест паритета). */
+ *  (тест паритета). Кастомные поля — общая форма значений по id определения
+ *  (#431); `cf.<id>` в теле не передаётся. */
 export const transitionFormInputSchema = z
   .object({
     fields: z
@@ -103,11 +118,17 @@ export const transitionFormInputSchema = z
         deadline: z.iso.datetime().optional(),
         assigneeId: z.uuid().optional(),
         plannedMinutes: z.number().int().min(1).max(100_000).optional(),
+        customFields: customFieldValuesInputSchema.optional(),
       })
       .strict()
-      .refine((v) => Object.values(v).some((value) => value !== undefined), {
-        message: 'empty fields',
-      })
+      .refine(
+        (v) =>
+          [v.description, v.deadline, v.assigneeId, v.plannedMinutes].some(
+            (value) => value !== undefined,
+          ) ||
+          (v.customFields !== undefined && Object.keys(v.customFields).length > 0),
+        { message: 'empty fields' },
+      )
       .optional(),
     time: z
       .object({

@@ -71,3 +71,27 @@ describe('gateFixableBy (#380)', () => {
     expect(gateFixableBy('checklist_complete')).toBeNull();
   });
 });
+
+describe('effectiveWindowSections: кастомные поля (#431, Р7)', () => {
+  const CF = '60000000-0000-4000-8000-000000000001';
+
+  it('ключ cf.* живёт в тех же массивах, что системные поля', () => {
+    const sections = effectiveWindowSections(
+      form([{ kind: 'fields', fields: [`cf.${CF}`] }]),
+      rules([{ kind: 'fields_required', fields: ['deadline', `cf.${CF}`] }]),
+    );
+    expect(sections[0]).toMatchObject({
+      kind: 'fields',
+      fields: [`cf.${CF}`, 'deadline'],
+      origin: 'form',
+    });
+  });
+
+  it('гейт с одним кастомным полем открывает раздел «Поля»', () => {
+    const sections = effectiveWindowSections(
+      null,
+      rules([{ kind: 'fields_required', fields: [`cf.${CF}`] }]),
+    );
+    expect(sections[0]).toMatchObject({ kind: 'fields', origin: 'gate' });
+  });
+});

@@ -1,12 +1,20 @@
-import type { TaskAccess, UserRef } from '@nodus/contracts';
+import type {
+  CustomFieldDefinition,
+  CustomFieldRef,
+  CustomFieldValues,
+  TaskAccess,
+  UserRef,
+} from '@nodus/contracts';
 
-/** Значения полей карточки, которые окно может дозаполнить (#380). */
+/** Значения полей карточки, которые окно может дозаполнить (#380).
+ *  Кастомные поля (#431) — в тех же полях по id определения. */
 export interface WindowFieldValues {
   description: string;
   /** ISO datetime; null — срока нет. */
   deadline: string | null;
   assigneeId: string | null;
   plannedMinutes: number | null;
+  customFields: CustomFieldValues;
 }
 
 /** Сдача исполнителя для блока «Что сдаёт исполнитель». */
@@ -19,7 +27,8 @@ export interface WindowSubmission {
 /**
  * Контекст окна перехода (#380): всё, что окно знает о сущности. Окно не
  * импортирует задачу — карточка собирает контекст; задел #434: «моя отметка»
- * = другой контекст и `scope`, те же разделы.
+ * = другой контекст и `scope`, те же разделы. Определения полей области
+ * (#431) приходят готовыми: окно не знает модуля custom-fields.
  */
 export interface TransitionWindowContext {
   entityId: string;
@@ -34,4 +43,8 @@ export interface TransitionWindowContext {
   /** Этап «Утверждение» и есть итог — блок сдачи сверху. */
   submission: WindowSubmission | null;
   scope: 'entity';
+  /** Активные определения полей области — для раздела «Поля» (Р7). */
+  customFieldDefinitions: readonly CustomFieldDefinition[];
+  /** Ссылки значений (имя/аватар) — показ выбранного до ответа сервера. */
+  customFieldRefs: readonly CustomFieldRef[];
 }

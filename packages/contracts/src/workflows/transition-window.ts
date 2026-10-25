@@ -1,7 +1,7 @@
 import type {
   TransitionForm,
   TransitionFormSectionKind,
-  TransitionWindowField,
+  TransitionWindowFieldKey,
 } from './transition-form.schemas.js';
 import { TRANSITION_FORM_SECTION_ORDER } from './transition-form.schemas.js';
 import type { TransitionBlockReason, WorkflowTransitionRules } from './workflow.schemas.js';
@@ -18,7 +18,7 @@ import type { TransitionBlockReason, WorkflowTransitionRules } from './workflow.
 /** Раздел эффективного окна: `origin` — настройка кнопки или гейт (веб
  *  показывает подпись по умолчанию для гейтового раздела). */
 export type EffectiveSection =
-  | { kind: 'fields'; fields: TransitionWindowField[]; origin: 'form' | 'gate' }
+  | { kind: 'fields'; fields: TransitionWindowFieldKey[]; origin: 'form' | 'gate' }
   | { kind: 'time'; mode: 'if_empty' | 'always'; origin: 'form' | 'gate' }
   | { kind: 'result'; origin: 'form' | 'gate' }
   | { kind: 'result_files'; label: string; origin: 'form' | 'gate' }
@@ -34,7 +34,7 @@ export function effectiveWindowSections(
     for (const section of form.sections) sections.set(section.kind, { ...section, origin: 'form' });
   }
 
-  const gateFields = new Set<TransitionWindowField>();
+  const gateFields = new Set<TransitionWindowFieldKey>();
   let gateResult = false;
   let gateTime = false;
   let gateFiles = false;
@@ -60,7 +60,7 @@ export function effectiveWindowSections(
 
   if (gateFields.size > 0) {
     const existing = sections.get('fields');
-    const fields = new Set<TransitionWindowField>(
+    const fields = new Set<TransitionWindowFieldKey>(
       existing?.kind === 'fields' ? existing.fields : [],
     );
     for (const field of gateFields) fields.add(field);

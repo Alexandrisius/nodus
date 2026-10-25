@@ -49,6 +49,9 @@ export const Permission = {
   /** Вести справочник: правка реквизитов, архивация/возврат контрагентов
    *  и контактных лиц (ADR-0033). */
   CRM_MANAGE: 'crm.manage',
+  /** Создание и правка кастомных полей (#431, ADR-0029): реестр «Поля» и
+   *  редактор определения. Читают определения все. */
+  CUSTOM_FIELD_MANAGE: 'custom_field.manage',
 } as const;
 
 export type Permission = (typeof Permission)[keyof typeof Permission];

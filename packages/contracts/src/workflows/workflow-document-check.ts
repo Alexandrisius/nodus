@@ -1,3 +1,4 @@
+import { customFieldIdOfKey } from '../custom-fields/custom-field-key.js';
 import type {
   WorkflowDraftDocument,
   WorkflowDraftStage,
@@ -15,6 +16,18 @@ import type {
 
 const MAX_STAGES = 20;
 const MAX_TRANSITIONS = 80;
+
+/** Факты кастомных полей для проверки ссылок (#431, Р7): активные id и
+ *  архивные id. Без `customFields` проверки полей пропускаются (старые
+ *  вызовы и тесты остаются валидными). */
+export interface WorkflowCustomFieldFacts {
+  active: ReadonlySet<string>;
+  archived: ReadonlySet<string>;
+}
+
+export interface WorkflowCheckOptions {
+  customFields?: WorkflowCustomFieldFacts;
+}
 
 function error(
   code: WorkflowProblem['code'],
@@ -43,7 +56,10 @@ function exitsFrom(stage: WorkflowDraftStage, transitions: readonly WorkflowDraf
  * Порядок детерминирован: правила по порядку таблицы спеки, элементы — по
  * массиву документа (устойчивые подсказки в UI).
  */
-export function checkWorkflowDocument(doc: WorkflowDraftDocument): WorkflowProblem[] {
+export function checkWorkflowDocument(
+  doc: WorkflowDraftDocument,
+  opts: WorkflowCheckOptions = {},
+): WorkflowProblem[] {
   const { stages, transitions } = doc;
   const problems: WorkflowProblem[] = [];
   const byId = new Map(stages.map((s) => [s.id as string, s]));
@@ -143,6 +159,33 @@ export function checkWorkflowDocument(doc: WorkflowDraftDocument): WorkflowProbl
     const messages = form.sections.find((s) => s.kind === 'result_messages');
     if (messages?.kind === 'result_messages' && !messages.required && !hasResult) {
       problems.push(warning('form_useless_section', { transitionId: t.id }));
+    }
+  }
+
+  // --- Кастомные поля в окне и гейтах (#431, Р7) ---------------------------
+
+  const fields = opts.customFields;
+  if (fields) {
+    const checkKey = (key: string, refs: Pick<WorkflowProblem, 'transitionId'>): void => {
+      const id = customFieldIdOfKey(key);
+      if (id === null) return;
+      if (fields.archived.has(id)) {
+        problems.push(warning('custom_field_archived', refs));
+      } else if (!fields.active.has(id)) {
+        problems.push(error('custom_field_unknown', refs));
+      }
+    };
+    for (const t of transitions) {
+      for (const section of t.form?.enabled ? t.form.sections : []) {
+        if (section.kind === 'fields') {
+          for (const key of section.fields) checkKey(key, { transitionId: t.id });
+        }
+      }
+      for (const validator of t.rules.validators) {
+        if (validator.kind === 'fields_required') {
+          for (const key of validator.fields) checkKey(key, { transitionId: t.id });
+        }
+      }
     }
   }
 

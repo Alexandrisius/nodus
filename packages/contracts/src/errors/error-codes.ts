@@ -89,6 +89,23 @@ export const ErrorCode = {
   /** Удалить нельзя: на контрагента ссылаются письма или проекты —
    *  перенесите в архив, история должна сохраниться (#460). */
   CRM_COUNTERPARTY_IN_USE: 'CRM_COUNTERPARTY_IN_USE',
+  /** Значение кастомного поля не прошло проверку (#431, ADR-0029):
+   *  details.issues[] — { fieldId, reason: unknown|archived|invalid|not_found|inactive, message }. */
+  CUSTOM_FIELD_VALUE_INVALID: 'CUSTOM_FIELD_VALUE_INVALID',
+  /** Тип поля недоступен: «Проект» до модуля проектов (#431, Р11). */
+  CUSTOM_FIELD_TYPE_UNAVAILABLE: 'CUSTOM_FIELD_TYPE_UNAVAILABLE',
+  /** Имя занято активным полем области; details — { definitionId, archived } (#431). */
+  CUSTOM_FIELD_NAME_TAKEN: 'CUSTOM_FIELD_NAME_TAKEN',
+  /** Смена типа несовместима с хранимыми значениями; details — { from, to } (#431, Р3). */
+  CUSTOM_FIELD_TYPE_CHANGE_INCOMPATIBLE: 'CUSTOM_FIELD_TYPE_CHANGE_INCOMPATIBLE',
+  /** Больше 100 активных полей в области (#431). */
+  CUSTOM_FIELD_LIMIT_REACHED: 'CUSTOM_FIELD_LIMIT_REACHED',
+  /** Поле в архиве — только чтение; сначала верните из архива (#431). */
+  CUSTOM_FIELD_ARCHIVED: 'CUSTOM_FIELD_ARCHIVED',
+  /** Системный справочник защищён от архивации и переименования (#431, Р10). */
+  DICTIONARY_SYSTEM_LOCKED: 'DICTIONARY_SYSTEM_LOCKED',
+  /** Вариант с таким названием уже есть среди активных (#431). */
+  DICTIONARY_ITEM_NAME_TAKEN: 'DICTIONARY_ITEM_NAME_TAKEN',
 } as const;
 
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];
