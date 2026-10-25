@@ -73,6 +73,8 @@ const CODE_TO_STATUS: Record<ErrorCode, number> = {
   // состояния (запрос корректен, запись сейчас так менять нельзя).
   [ErrorCode.CRM_UNP_TAKEN]: HttpStatus.CONFLICT,
   [ErrorCode.CRM_COUNTERPARTY_ARCHIVED]: HttpStatus.CONFLICT,
+  // Удаление связанного контрагента — конфликт состояния (архив вместо удаления).
+  [ErrorCode.CRM_COUNTERPARTY_IN_USE]: HttpStatus.CONFLICT,
 };
 
 /** Код для HTTP-исключений Nest/Fastify (400 у нас — всегда валидация входа). */

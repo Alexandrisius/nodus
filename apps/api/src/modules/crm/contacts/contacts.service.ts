@@ -121,6 +121,20 @@ export class ContactsService {
     });
   }
 
+  /**
+   * Удаление контактного лица (вердикт владельца 25.10.2026): внутренняя
+   * запись карточки, наружу не ссылается — удаляется физически. Контакт
+   * обязан принадлежать контрагенту из пути (иначе 404, IDOR-граница).
+   */
+  async remove(counterpartyId: string, contactId: string, actorId: string): Promise<void> {
+    await this.requireActiveCounterparty(counterpartyId);
+    await this.findOwned(counterpartyId, contactId);
+    await this.txRunner.run(async (tx) => {
+      await this.contacts.delete(contactId, tx);
+      await this.emit(tx, counterpartyId, contactId, 'deleted', actorId);
+    });
+  }
+
   private async requireActiveCounterparty(counterpartyId: string): Promise<void> {
     const row = await this.counterparties.findById(counterpartyId);
     if (!row) throw DomainException.notFound('Counterparty not found');
@@ -141,7 +155,7 @@ export class ContactsService {
     tx: Parameters<EventBus['emit']>[0],
     counterpartyId: string,
     contactId: string,
-    change: 'added' | 'updated' | 'archived' | 'restored',
+    change: 'added' | 'updated' | 'archived' | 'restored' | 'deleted',
     actorId: string,
     fields?: string[],
   ): Promise<void> {

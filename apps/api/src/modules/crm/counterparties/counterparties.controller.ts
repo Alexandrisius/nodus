@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiCreatedResponse,
@@ -183,6 +183,25 @@ export class CounterpartiesController {
     @GetUser() actor: AuthUser,
   ): Promise<CounterpartyCard> {
     return this.counterparties.setArchived(id, true, actor.id);
+  }
+
+  @Delete(':id')
+  @HttpCode(204)
+  @RequirePermissions(Permission.CRM_MANAGE)
+  @Audit({ action: 'crm.counterparty_delete', entity: 'counterparty' })
+  @ApiOperation({ summary: 'Удаление контрагента (только без связей; связанный — архив)' })
+  @ApiParam({
+    name: 'id',
+    description: 'UUID контрагента',
+    schema: { type: 'string', format: 'uuid' },
+  })
+  @ApiErrors(401, 403, 404, 409)
+  @ApiIdempotencyKey()
+  async remove(
+    @Param('id', new ZodValidationPipe(idParamSchema)) id: string,
+    @GetUser() actor: AuthUser,
+  ): Promise<void> {
+    await this.counterparties.remove(id, actor.id);
   }
 
   @Post(':id/restore')

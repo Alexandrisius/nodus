@@ -106,6 +106,21 @@ export function useSetCounterpartyArchived(id: string) {
   });
 }
 
+/** Удаление контрагента (только без связей; связанный — 409, UI ведёт к архиву). */
+export function useDeleteCounterparty(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api<void>(`/counterparties/${id}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      toast.success(ui.counterparties.deletedDone);
+    },
+    onError: (error) => toastApiError(error),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: counterpartiesKeys.all });
+    },
+  });
+}
+
 /** Патч контактного лица в карточке (правка/архив/возврат). */
 function patchContact(
   queryClient: ReturnType<typeof useQueryClient>,
@@ -148,6 +163,36 @@ export function useUpdateContactPerson(counterpartyId: string, contactId: string
     onSuccess: (contact) => {
       patchContact(queryClient, detailKey, contactId, contact);
       toast.success(ui.counterparties.contactUpdated);
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: counterpartiesKeys.all });
+    },
+  });
+}
+
+/** Удаление контактного лица (физически, из карточки). */
+export function useDeleteContactPerson(counterpartyId: string, contactId: string) {
+  const queryClient = useQueryClient();
+  const detailKey = counterpartiesKeys.detail(counterpartyId);
+  return useMutation({
+    mutationFn: () =>
+      api<void>(`/counterparties/${counterpartyId}/contacts/${contactId}`, { method: 'DELETE' }),
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: detailKey });
+      const previous = queryClient.getQueryData<CounterpartyCard>(detailKey);
+      queryClient.setQueryData<CounterpartyCard>(detailKey, (data) =>
+        data
+          ? { ...data, contactPersons: data.contactPersons.filter((p) => p.id !== contactId) }
+          : data,
+      );
+      return { previous };
+    },
+    onError: (error, _vars, context) => {
+      if (context?.previous !== undefined) queryClient.setQueryData(detailKey, context.previous);
+      toastApiError(error);
+    },
+    onSuccess: () => {
+      toast.success(ui.counterparties.contactDeletedDone);
     },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: counterpartiesKeys.all });

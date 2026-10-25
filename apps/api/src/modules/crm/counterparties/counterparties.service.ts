@@ -159,6 +159,32 @@ export class CounterpartiesService {
   }
 
   /**
+   * Удаление записи (вердикт владельца 25.10.2026): разрешено ТОЛЬКО без
+   * связей — если на контрагента ссылаются письма или проекты, история
+   * должна сохраниться, и ответ 409 `CRM_COUNTERPARTY_IN_USE` ведёт к архиву.
+   */
+  async remove(id: string, actorId: string): Promise<void> {
+    const before = await this.counterparties.findById(id);
+    if (!before) throw DomainException.notFound('Counterparty not found');
+    if (await this.counterparties.hasUsages(id)) {
+      throw new DomainException(
+        ErrorCode.CRM_COUNTERPARTY_IN_USE,
+        'Counterparty is referenced by letters or projects',
+        { counterpartyId: id },
+      );
+    }
+    await this.txRunner.run(async (tx) => {
+      await this.counterparties.deleteWithContacts(id, tx);
+      await this.eventBus.emit(
+        tx,
+        CRM_EVENTS.COUNTERPARTY_DELETED,
+        { counterpartyId: id, shortName: before.shortName },
+        { actorId, aggregateType: 'counterparty', aggregateId: id },
+      );
+    });
+  }
+
+  /**
    * Массовые операции (до 100 записей): каждая — через тот же `setArchived`
    * (права и существование проверяются индивидуально, архив идемпотентен).
    * Частичный успех — норма, ответ по записи.
@@ -171,7 +197,8 @@ export class CounterpartiesService {
     const results: CounterpartyBulkResult['results'] = [];
     for (const id of new Set(ids)) {
       try {
-        await this.setArchived(id, action.kind === 'archive', actorId);
+        if (action.kind === 'delete') await this.remove(id, actorId);
+        else await this.setArchived(id, action.kind === 'archive', actorId);
         results.push({ counterpartyId: id, ok: true });
       } catch (error) {
         if (!(error instanceof DomainException)) {

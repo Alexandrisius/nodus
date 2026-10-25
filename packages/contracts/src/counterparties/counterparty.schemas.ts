@@ -177,6 +177,8 @@ export type UpdateContactPersonBody = z.infer<typeof updateContactPersonBodySche
 export const counterpartyBulkActionSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('archive') }),
   z.object({ kind: z.literal('restore') }),
+  /** Физическое удаление; записи со связями пропускаются (код причины). */
+  z.object({ kind: z.literal('delete') }),
 ]);
 
 export type CounterpartyBulkAction = z.infer<typeof counterpartyBulkActionSchema>;

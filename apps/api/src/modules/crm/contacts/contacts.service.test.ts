@@ -24,6 +24,7 @@ describe('ContactsService (#460)', () => {
     update: vi.fn(),
     setArchivedAt: vi.fn(),
     findOwned: vi.fn(),
+    delete: vi.fn(),
   };
   const counterparties = { findById: vi.fn() };
   const txRunner = { run: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn({})) };
@@ -103,6 +104,24 @@ describe('ContactsService (#460)', () => {
       {},
       CRM_EVENTS.CONTACT_CHANGED,
       { counterpartyId: CP, contactId: CONTACT, change: 'updated', fields: ['position'] },
+      { actorId: 'actor', aggregateType: 'counterparty', aggregateId: CP },
+    );
+  });
+
+  it('удаление: чужой контакт → NOT_FOUND; свой — физически + change deleted', async () => {
+    contacts.findOwned.mockResolvedValueOnce(null);
+    await expect(service.remove(CP, CONTACT, 'actor')).rejects.toMatchObject({
+      code: ErrorCode.NOT_FOUND,
+    });
+    expect(contacts.delete).not.toHaveBeenCalled();
+
+    contacts.findOwned.mockResolvedValueOnce(contact());
+    await service.remove(CP, CONTACT, 'actor');
+    expect(contacts.delete).toHaveBeenCalledWith(CONTACT, {});
+    expect(eventBus.emit).toHaveBeenCalledWith(
+      {},
+      CRM_EVENTS.CONTACT_CHANGED,
+      { counterpartyId: CP, contactId: CONTACT, change: 'deleted' },
       { actorId: 'actor', aggregateType: 'counterparty', aggregateId: CP },
     );
   });

@@ -12,6 +12,8 @@ export const CRM_EVENTS = {
   COUNTERPARTY_UPDATED: 'crm.counterparty_updated',
   COUNTERPARTY_ARCHIVED: 'crm.counterparty_archived',
   COUNTERPARTY_RESTORED: 'crm.counterparty_restored',
+  /** Физическое удаление записи без связей (у связанных — только архив). */
+  COUNTERPARTY_DELETED: 'crm.counterparty_deleted',
   CONTACT_CHANGED: 'crm.contact_changed',
 } as const;
 
@@ -39,7 +41,7 @@ export type CounterpartyArchivedPayload = z.infer<typeof counterpartyArchivedPay
 export const contactChangedPayloadSchema = z.object({
   counterpartyId: z.uuid(),
   contactId: z.uuid(),
-  change: z.enum(['added', 'updated', 'archived', 'restored']),
+  change: z.enum(['added', 'updated', 'archived', 'restored', 'deleted']),
   /** Для `updated` — изменённые поля контактного лица. */
   fields: z.array(z.string()).optional(),
 });

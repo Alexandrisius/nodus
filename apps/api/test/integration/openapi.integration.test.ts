@@ -151,6 +151,7 @@ describe('OpenAPI: генерация из кода и публикация /api
       '/api/v1/counterparties/{counterpartyId}/contacts/{contactId}',
       '/api/v1/counterparties/{counterpartyId}/contacts/{contactId}/archive',
       '/api/v1/counterparties/{counterpartyId}/contacts/{contactId}/restore',
+      '/api/v1/counterparties/{counterpartyId}/contacts/{contactId}',
     ]) {
       expect(paths, `нет маршрута ${expected}`).toContain(expected);
     }

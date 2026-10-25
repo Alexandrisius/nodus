@@ -86,6 +86,9 @@ export const ErrorCode = {
   CRM_UNP_TAKEN: 'CRM_UNP_TAKEN',
   /** Контрагент в архиве: сначала верните его из архива (#460). */
   CRM_COUNTERPARTY_ARCHIVED: 'CRM_COUNTERPARTY_ARCHIVED',
+  /** Удалить нельзя: на контрагента ссылаются письма или проекты —
+   *  перенесите в архив, история должна сохраниться (#460). */
+  CRM_COUNTERPARTY_IN_USE: 'CRM_COUNTERPARTY_IN_USE',
 } as const;
 
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];

@@ -52,7 +52,7 @@ dictionary.created / updated                 # модуль есть (#54, чт�
 dictionary.item_created / updated / archived
 workflow.press_recorded / press_round_completed   # «кнопку жмут несколько» (ADR-0025): отметка участника, кворум набран
 project.created / updated / archived / participants_changed / roles_changed / node_created / node_updated / node_archived / schema_published  # ADR-0030
-crm.counterparty_created / counterparty_updated / counterparty_archived / counterparty_restored / contact_changed  # ADR-0033, реализованы #460
+crm.counterparty_created / counterparty_updated / counterparty_archived / counterparty_restored / counterparty_deleted / contact_changed  # ADR-0033, реализованы #460
 correspondence.letter_received / letter_registered / letter_closed_unregistered / letter_stage_changed / letter_updated / letter_sent  # ADR-0027
 correspondence.assignments_requested        # «Расписать сразу»: черновики поручений с id → модуль задач создаёт задачи (source=letter), идемпотентно
 correspondence.relation_changed / confidentiality_changed

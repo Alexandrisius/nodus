@@ -25,9 +25,13 @@ Master-данные внешних организаций (ADR-0033, #460): за
 | `POST /counterparties/:id/contacts/:contactId/archive`, `…/restore` | `crm.manage` | архив / возврат контакта (идемпотентно)                                               |
 
 Чтение открыто всем сотрудникам: справочник общий, без персональных данных
-(north-star §6, «читают все, меняет администратор»). Удаления нет — архивация
-(ADR-0033); архивный контрагент не выбирается в подсказках и ссылках, но
-виден в истории писем/проектов.
+(north-star §6, «читают все, меняет администратор»). **Удаление** (вердикт
+владельца 25.10.2026) разрешено только записям без связей: если на
+контрагента ссылаются письма или проекты (`counterparty_usages`), ответ
+409 `CRM_COUNTERPARTY_IN_USE` — история неприкосновенна, путь — архив.
+Контактное лицо удаляется физически (внутренняя запись карточки). Архивный
+контрагент не выбирается в подсказках и ссылках, но виден в истории
+писем/проектов.
 
 ## Данные
 
@@ -62,7 +66,8 @@ Master-данные внешних организаций (ADR-0033, #460): за
 `crm.counterparty_updated {counterpartyId, fields}` ·
 `crm.counterparty_archived {counterpartyId}` ·
 `crm.counterparty_restored {counterpartyId}` ·
-`crm.contact_changed {counterpartyId, contactId, change, fields?}`.
+`crm.counterparty_deleted {counterpartyId, shortName}` ·
+`crm.contact_changed {counterpartyId, contactId, change: added|updated|archived|restored|deleted, fields?}`.
 Без `audience` (realtime-рассылка CRM не нужна: свежесть — staleTime и
 инвалидации мутаций). Персональных данных контактов в payload нет.
 Подписчиков в #460 нет; первый — счётчики писем в #55.

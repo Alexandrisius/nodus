@@ -51,6 +51,11 @@ export const counterpartiesStrings = {
   restore: 'Вернуть из архива',
   archivedDone: 'Контрагент в архиве',
   restoredDone: 'Контрагент возвращён из архива',
+  delete: 'Удалить',
+  deleteConfirmTitle: 'Удалить контрагента?',
+  deleteConfirmText:
+    'Запись исчезнет из справочника навсегда. Если на неё ссылаются письма или проекты — удаление запрещено, перенесите в архив.',
+  deletedDone: 'Контрагент удалён',
   archiveConfirmTitle: 'Перенести контрагента в архив?',
   archiveConfirmText:
     'Он пропадёт из подсказок и выбора, но останется в истории писем и проектов. Вернуть можно в любой момент.',
@@ -69,6 +74,7 @@ export const counterpartiesStrings = {
   // Массовые операции (островок выделения)
   bulkArchive: 'В архив',
   bulkRestore: 'Из архива',
+  bulkDelete: 'Удалить',
   bulkDone: 'Изменено записей: {n}',
   bulkPartial: 'Изменено {done} из {total} — часть записей не удалось изменить',
   bulkLimit: 'За один раз можно изменить не больше записей:',
@@ -79,6 +85,10 @@ export const counterpartiesStrings = {
   contactArchive: 'Перенести в архив',
   contactRestore: 'Вернуть из архива',
   contactsArchived: 'Архивные контактные лица',
+  contactDelete: 'Удалить контактное лицо',
+  contactDeleteConfirmTitle: 'Удалить контактное лицо?',
+  contactDeleteConfirmText: 'Запись исчезнет из карточки навсегда. Вернуть её будет нельзя.',
+  contactDeletedDone: 'Контактное лицо удалено',
   contactArchiveConfirmTitle: 'Перенести контактное лицо в архив?',
   contactArchiveConfirmText: 'Оно пропадёт из подсказок и выбора, история сохранится.',
 } as const;

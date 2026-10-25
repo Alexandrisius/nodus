@@ -42,6 +42,14 @@ export function CounterpartiesPage() {
   const rows = useMemo(() => data?.pages.flatMap((page) => page.items) ?? [], [data]);
   const rowKeys = useMemo(() => rows.map((row) => row.id), [rows]);
   const selection = useRowSelection(rowKeys);
+  // Действия островка зависят от состава выделения (вердикт владельца
+  // 25.10.2026): «Из архива» не висит, когда архивных среди выбранных нет.
+  const selectedRows = useMemo(
+    () => rows.filter((row) => selection.selected.has(row.id)),
+    [rows, selection.selected],
+  );
+  const hasActive = selectedRows.some((row) => row.archivedAt === null);
+  const hasArchived = selectedRows.some((row) => row.archivedAt !== null);
 
   return (
     <div className="relative flex h-full flex-col">
@@ -102,6 +110,8 @@ export function CounterpartiesPage() {
       {selection.selected.size > 0 ? <div aria-hidden className="h-24" /> : null}
       <CounterpartyBulkIsland
         selectedIds={[...selection.selected]}
+        hasActive={hasActive}
+        hasArchived={hasArchived}
         visible={selection.selected.size > 0}
         onClear={selection.clear}
       />

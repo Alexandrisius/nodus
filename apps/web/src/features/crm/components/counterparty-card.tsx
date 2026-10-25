@@ -1,4 +1,4 @@
-import { Archive, Building2, Pencil, RotateCcw } from 'lucide-react';
+import { Archive, Building2, Pencil, RotateCcw, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
@@ -13,9 +13,10 @@ import {
 import { NodeChip } from '@nodus/ui/components/node-chip';
 import { Skeleton } from '@nodus/ui/components/skeleton';
 
+import { useCloseCard } from '../../../app/shell/use-card-stack.js';
 import { useCounterpartyCard } from '../../../shared/counterparties/queries.js';
 import { useCanManageCounterparties } from '../../../shared/counterparties/use-crm-permissions.js';
-import { useSetCounterpartyArchived } from '../api/counterparty-edit.js';
+import { useDeleteCounterparty, useSetCounterpartyArchived } from '../api/counterparty-edit.js';
 import { ContactPersonsPanel } from './contact-persons.js';
 import { CounterpartyFormDialog } from './counterparty-form-dialog.js';
 import { CounterpartyRelated } from './counterparty-related.js';
@@ -54,8 +55,11 @@ function CardBottomBar({
 }) {
   const canManage = useCanManageCounterparties();
   const setArchived = useSetCounterpartyArchived(counterpartyId);
+  const remove = useDeleteCounterparty(counterpartyId);
+  const closeCard = useCloseCard();
   const [editOpen, setEditOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const { data: card } = useCounterpartyCard(counterpartyId);
   if (!canManage) {
     return archived ? (
@@ -90,6 +94,15 @@ function CardBottomBar({
             <Archive data-icon="inline-start" />
             {ui.counterparties.archive}
           </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-muted-foreground hover:text-destructive"
+            onClick={() => setDeleteOpen(true)}
+          >
+            <Trash2 data-icon="inline-start" />
+            {ui.counterparties.delete}
+          </Button>
         </>
       )}
       {archived ? (
@@ -99,6 +112,34 @@ function CardBottomBar({
       ) : null}
 
       <CounterpartyFormDialog open={editOpen} onOpenChange={setEditOpen} card={card ?? null} />
+
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{ui.counterparties.deleteConfirmTitle}</DialogTitle>
+            <DialogDescription>{ui.counterparties.deleteConfirmText}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setDeleteOpen(false)}>
+              {ui.common.cancel}
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={remove.isPending}
+              onClick={() =>
+                remove.mutate(undefined, {
+                  onSuccess: () => {
+                    setDeleteOpen(false);
+                    closeCard();
+                  },
+                })
+              }
+            >
+              {ui.counterparties.delete}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent className="max-w-md">

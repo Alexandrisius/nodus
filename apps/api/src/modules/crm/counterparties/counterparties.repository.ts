@@ -170,6 +170,21 @@ export class CounterpartiesRepository {
     return counts;
   }
 
+  /** Есть ли ссылки из писем/проектов (удаление связанной записи запрещено). */
+  async hasUsages(id: string): Promise<boolean> {
+    const row = await this.prisma.counterpartyUsage.findFirst({
+      where: { counterpartyId: id },
+      select: { counterpartyId: true },
+    });
+    return row !== null;
+  }
+
+  /** Физическое удаление записи (связи предварительно проверены сервисом). */
+  async deleteWithContacts(id: string, tx: TransactionClient): Promise<void> {
+    await tx.contactPerson.deleteMany({ where: { counterpartyId: id } });
+    await tx.counterparty.delete({ where: { id } });
+  }
+
   /** Ссылки для DTO чужих модулей (включая архивных: история рендерится). */
   findRefs(ids: readonly string[]): Promise<{ id: string; shortName: string }[]> {
     if (ids.length === 0) return Promise.resolve([]);

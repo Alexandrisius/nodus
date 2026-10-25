@@ -86,6 +86,11 @@ export class ContactsRepository {
     return tx.contactPerson.update({ where: { id }, data, select: contactSelect });
   }
 
+  /** Физическое удаление контактного лица (внутренняя запись карточки). */
+  async delete(id: string, tx: TransactionClient): Promise<void> {
+    await tx.contactPerson.delete({ where: { id } });
+  }
+
   setArchivedAt(
     id: string,
     archivedAt: Date | null,

@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, HttpCode, Param, Patch, Post } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiCreatedResponse,
@@ -121,6 +121,31 @@ export class ContactsController {
     @GetUser() actor: AuthUser,
   ): Promise<ContactPerson> {
     return this.contacts.setArchived(counterpartyId, contactId, true, actor.id);
+  }
+
+  @Delete(':contactId')
+  @HttpCode(204)
+  @RequirePermissions(Permission.CRM_MANAGE)
+  @Audit({ action: 'crm.contact_delete', entity: 'contact_person' })
+  @ApiOperation({ summary: 'Удалить контактное лицо (физически, из карточки)' })
+  @ApiParam({
+    name: 'counterpartyId',
+    description: 'UUID контрагента',
+    schema: { type: 'string', format: 'uuid' },
+  })
+  @ApiParam({
+    name: 'contactId',
+    description: 'UUID контактного лица',
+    schema: { type: 'string', format: 'uuid' },
+  })
+  @ApiErrors(401, 403, 404, 409)
+  @ApiIdempotencyKey()
+  async remove(
+    @Param('counterpartyId', new ZodValidationPipe(idParamSchema)) counterpartyId: string,
+    @Param('contactId', new ZodValidationPipe(idParamSchema)) contactId: string,
+    @GetUser() actor: AuthUser,
+  ): Promise<void> {
+    await this.contacts.remove(counterpartyId, contactId, actor.id);
   }
 
   @Post(':contactId/restore')

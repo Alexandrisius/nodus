@@ -1,14 +1,23 @@
-import { Archive, Mail, Pencil, Phone, Plus, RotateCcw, UserRound } from 'lucide-react';
+import { Archive, Mail, Pencil, Phone, Plus, RotateCcw, Trash2, UserRound } from 'lucide-react';
 import { useState } from 'react';
 import type { ContactPerson } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
+import { Button } from '@nodus/ui/components/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@nodus/ui/components/dialog';
 import { cn } from '@nodus/ui/lib/utils';
 
 import {
   useCanCreateCounterparties,
   useCanManageCounterparties,
 } from '../../../shared/counterparties/use-crm-permissions.js';
-import { useSetContactArchived } from '../api/counterparty-edit.js';
+import { useDeleteContactPerson, useSetContactArchived } from '../api/counterparty-edit.js';
 import { ContactForm } from './contact-form.js';
 
 function ContactActions({
@@ -21,6 +30,8 @@ function ContactActions({
   onEdit: () => void;
 }) {
   const setArchived = useSetContactArchived(counterpartyId, contact.id);
+  const remove = useDeleteContactPerson(counterpartyId, contact.id);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const archived = contact.archivedAt !== null;
   return (
     <span className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
@@ -49,6 +60,36 @@ function ContactActions({
           <Archive className="size-3.5" strokeWidth={1.75} />
         )}
       </button>
+      <button
+        type="button"
+        onClick={() => setDeleteOpen(true)}
+        aria-label={ui.counterparties.contactDelete}
+        title={ui.counterparties.contactDelete}
+        className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-destructive"
+      >
+        <Trash2 className="size-3.5" strokeWidth={1.75} />
+      </button>
+
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{ui.counterparties.contactDeleteConfirmTitle}</DialogTitle>
+            <DialogDescription>{ui.counterparties.contactDeleteConfirmText}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setDeleteOpen(false)}>
+              {ui.common.cancel}
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={remove.isPending}
+              onClick={() => remove.mutate(undefined, { onSuccess: () => setDeleteOpen(false) })}
+            >
+              {ui.counterparties.delete}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </span>
   );
 }

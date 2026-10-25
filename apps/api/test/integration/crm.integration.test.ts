@@ -3,6 +3,7 @@ import {
   CRM_EVENTS,
   ErrorCode,
   apiErrorResponseSchema,
+  counterpartyBulkResultSchema,
   counterpartyCardSchema,
   counterpartyListItemSchema,
   counterpartyMatchSchema,
@@ -139,6 +140,59 @@ describe.skipIf(!process.env.DATABASE_URL)('crm: создание, подска�
     expect(archivedDup.status).toBe(409);
     expect(apiErrorResponseSchema.parse(await archivedDup.json()).details).toMatchObject({
       archived: true,
+    });
+  });
+
+  it('удаление: без связей — физически, со связью — 409 и запись остаётся', async () => {
+    const free = await create({ fullName: name('Удаляемый'), shortName: name('Удаляемый') });
+    const contact = contactPersonSchema.parse(
+      await json(
+        await fx.api(manager, 'POST', `/counterparties/${free.id}/contacts`, {
+          body: { fullName: 'Удаляемое лицо' },
+        }),
+      ),
+    );
+    // Контакт удаляется физически (204), карточка его больше не отдаёт.
+    const contactDelete = await fx.api(
+      manager,
+      'DELETE',
+      `/counterparties/${free.id}/contacts/${contact.id}`,
+    );
+    expect(contactDelete.status).toBe(204);
+    const afterContact = counterpartyCardSchema.parse(
+      await json(await fx.api(manager, 'GET', `/counterparties/${free.id}`)),
+    );
+    expect(afterContact.contactPersons).toEqual([]);
+
+    // Контрагент без связей удаляется (204) и пропадает из реестра.
+    expect((await fx.api(manager, 'DELETE', `/counterparties/${free.id}`)).status).toBe(204);
+    expect((await fx.api(manager, 'GET', `/counterparties/${free.id}`)).status).toBe(404);
+    expect((await fx.api(manager, 'DELETE', `/counterparties/${free.id}`)).status).toBe(404);
+
+    // Со ссылкой (проекция usages) — 409 CRM_COUNTERPARTY_IN_USE, запись жива.
+    const used = await create({ fullName: name('Связанный'), shortName: name('Связанный') });
+    await fx.prisma.counterpartyUsage.create({
+      data: { sourceKind: 'project', sourceId: crypto.randomUUID(), counterpartyId: used.id },
+    });
+    const inUse = await fx.api(manager, 'DELETE', `/counterparties/${used.id}`);
+    expect(inUse.status).toBe(409);
+    expect(apiErrorResponseSchema.parse(await inUse.json()).code).toBe(
+      ErrorCode.CRM_COUNTERPARTY_IN_USE,
+    );
+    expect((await fx.api(manager, 'GET', `/counterparties/${used.id}`)).status).toBe(200);
+
+    // Массовое удаление: свободная удаляется, связанная — пропущена с причиной.
+    const bulk = counterpartyBulkResultSchema.parse(
+      await json(
+        await fx.api(manager, 'POST', '/counterparties/bulk', {
+          body: { counterpartyIds: [used.id], action: { kind: 'delete' } },
+        }),
+      ),
+    );
+    expect(bulk.results[0]).toMatchObject({
+      counterpartyId: used.id,
+      ok: false,
+      code: ErrorCode.CRM_COUNTERPARTY_IN_USE,
     });
   });
 

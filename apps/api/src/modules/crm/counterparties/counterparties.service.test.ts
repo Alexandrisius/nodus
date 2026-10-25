@@ -30,6 +30,8 @@ describe('CounterpartiesService (#460)', () => {
     create: vi.fn(),
     update: vi.fn(),
     setArchivedAt: vi.fn(),
+    hasUsages: vi.fn(),
+    deleteWithContacts: vi.fn(),
   };
   const queries = { buildCard: vi.fn() };
   const txRunner = { run: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn({})) };
@@ -147,6 +149,35 @@ describe('CounterpartiesService (#460)', () => {
       repo.update.mockResolvedValue(row());
       await service.update(ID, { unp: '100123456' }, 'actor');
       expect(repo.update).not.toHaveBeenCalled(); // значение не изменилось
+    });
+  });
+
+  describe('удаление (вердикт владельца 25.10.2026)', () => {
+    it('нет записи → NOT_FOUND; есть связи → CRM_COUNTERPARTY_IN_USE, удаления нет', async () => {
+      repo.findById.mockResolvedValueOnce(null);
+      await expect(service.remove(ID, 'actor')).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND,
+      });
+
+      repo.findById.mockResolvedValueOnce(row());
+      repo.hasUsages.mockResolvedValueOnce(true);
+      await expect(service.remove(ID, 'actor')).rejects.toMatchObject({
+        code: ErrorCode.CRM_COUNTERPARTY_IN_USE,
+      });
+      expect(repo.deleteWithContacts).not.toHaveBeenCalled();
+    });
+
+    it('без связей — физическое удаление в транзакции + событие', async () => {
+      repo.findById.mockResolvedValue(row());
+      repo.hasUsages.mockResolvedValue(false);
+      await service.remove(ID, 'actor');
+      expect(repo.deleteWithContacts).toHaveBeenCalledWith(ID, {});
+      expect(eventBus.emit).toHaveBeenCalledWith(
+        {},
+        CRM_EVENTS.COUNTERPARTY_DELETED,
+        { counterpartyId: ID, shortName: 'ООО «Тест»' },
+        { actorId: 'actor', aggregateType: 'counterparty', aggregateId: ID },
+      );
     });
   });
 

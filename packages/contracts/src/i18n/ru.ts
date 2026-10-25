@@ -57,6 +57,8 @@ export const errorMessages: Record<ErrorCode, string> = {
   [ErrorCode.FILE_AVATAR_INVALID]: 'Фото не подошло: нужно PNG, JPEG или WebP до 10 МБ',
   [ErrorCode.CRM_UNP_TAKEN]: 'Контрагент с таким УНП уже есть в справочнике',
   [ErrorCode.CRM_COUNTERPARTY_ARCHIVED]: 'Контрагент в архиве — сначала верните его',
+  [ErrorCode.CRM_COUNTERPARTY_IN_USE]:
+    'У контрагента есть письма или проекты — удалить нельзя, перенесите в архив',
 };
 
 /**
