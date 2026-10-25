@@ -41,8 +41,8 @@ describe.skipIf(!process.env.DATABASE_URL)('crm: создание, подска�
 
   it('создаю контрагента и контакт; чтение отдельными запросами (критерии 1–2)', async () => {
     const card = await create({
-      fullName: name('Открытое акционерное общество «Галургия»'),
-      shortName: name('АО «Галургия»'),
+      fullName: name('Открытое акционерное общество «Белэнергомонтаж»'),
+      shortName: name('АО «Белэнергомонтаж»'),
       unp: 'УНП 100 123 456',
       address: '220004, г. Минск, ул. Притыцкого, 62',
       email: ' Info@Galurgiya.BY ',
@@ -75,7 +75,7 @@ describe.skipIf(!process.env.DATABASE_URL)('crm: создание, подска�
       await json(await fx.api(employee, 'GET', '/counterparties?limit=100')),
     );
     expect(list.items.find((i) => i.id === card.id)).toMatchObject({
-      shortName: name('АО «Галургия»'),
+      shortName: name('АО «Белэнергомонтаж»'),
       contactsCount: 1,
     });
 
@@ -91,6 +91,9 @@ describe.skipIf(!process.env.DATABASE_URL)('crm: создание, подска�
   });
 
   it('похожие: опечатка кириллицей находит существующего, точный УНП — первым, архивный помечен', async () => {
+    // Имя первого кейса намеренно другое: два контрагента с одинаковым
+    // названием в одном прогоне дают равный `word_similarity`, и «первый»
+    // в выдаче решается UUID-тай-брейком — тест был флаки (#486).
     const galurgiya = await create({
       fullName: name('Открытое акционерное общество «Галургия»'),
       shortName: name('АО «Галургия»'),
