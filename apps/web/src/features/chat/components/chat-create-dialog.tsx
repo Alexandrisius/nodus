@@ -86,7 +86,7 @@ function RoleSelect({
         <SelectTrigger className="w-56">
           <SelectValue />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent position="popper" align="end" sideOffset={4}>
           <SelectItem value="member">{ui.chat.roleMember}</SelectItem>
           <SelectItem value="admin">{ui.chat.roleAdmin}</SelectItem>
           <SelectItem value="owner">{ui.chat.roleOwner}</SelectItem>

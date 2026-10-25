@@ -198,7 +198,10 @@ export function FieldDialog({
       <DialogContent
         showCloseButton={false}
         onInteractOutside={(event) => event.preventDefault()}
-        className="flex h-[min(40rem,88vh)] max-w-[52rem] flex-col gap-5 overflow-hidden p-6 sm:max-w-[52rem]"
+        // Габарит — по содержимому с нижней границей «самая высокая обычная
+        // форма»: обычные типы окно не меняет, у списка с вариантами оно
+        // подрастает до 92vh, а не прокручивается (вердикт 25.10.2026).
+        className="flex max-h-[92vh] min-h-[min(34rem,88vh)] max-w-[56rem] flex-col gap-5 overflow-hidden p-5 sm:max-w-[56rem]"
       >
         <DialogHeader className="shrink-0">
           <DialogTitle>{definition ? `${title} · ${definition.name}` : title}</DialogTitle>
@@ -221,7 +224,9 @@ export function FieldDialog({
               }
             />
           </aside>
-          <div className="-mr-2 min-h-0 min-w-0 flex-1 overflow-y-auto pr-2">
+          {/* overflow-x-hidden: вертикальная прокрутка иначе включает
+              горизонтальную полосу от долей пикселя (баг 25.10.2026). */}
+          <div className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto pr-1">
             <FieldDialogForm
               draft={draft}
               scope={scope}

@@ -36,7 +36,6 @@ export function FieldOptionsEditor({
   defaultIds,
   multiple,
   disabled,
-  invalid,
   onChange,
   onDefaultChange,
 }: {
@@ -44,7 +43,6 @@ export function FieldOptionsEditor({
   defaultIds: readonly string[];
   multiple: boolean;
   disabled: boolean;
-  invalid: boolean;
   onChange: (options: OptionDraft[]) => void;
   onDefaultChange: (ids: string[]) => void;
 }) {
@@ -80,43 +78,35 @@ export function FieldOptionsEditor({
 
   return (
     <div className="flex flex-col gap-1">
-      {options.length > 0 ? (
-        // Шапка колонок — та же сетка, что у строки: подпись стоит ровно
-        // над флажками «По умолчанию».
-        <div aria-hidden className="flex items-center gap-1.5">
-          <span className="w-4.5 shrink-0" />
-          <span className="flex-1" />
-          <span className="w-[4.5rem] shrink-0 text-center text-label-sm whitespace-nowrap text-muted-foreground">
-            {ui.customFields.dialog.optionDefault}
-          </span>
-          <span className="w-8 shrink-0" />
-        </div>
-      ) : null}
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+        {/* Длинный список прокручивается ВНУТРИ себя: окно не растёт и не
+            прыгает при добавлении вариантов (канон габарита окна). */}
         <SortableContext
           items={options.map((option) => option.id)}
           strategy={verticalListSortingStrategy}
         >
-          {options.map((option) => (
-            <OptionRow
-              key={option.id}
-              option={option}
-              disabled={disabled}
-              isDefault={defaultIds.includes(option.id)}
-              onRename={(name) =>
-                onChange(
-                  options.map((entry) => (entry.id === option.id ? { ...entry, name } : entry)),
-                )
-              }
-              onToggleDefault={() => toggleDefault(option.id)}
-              onDelete={() => {
-                onChange(options.filter((entry) => entry.id !== option.id));
-                if (defaultIds.includes(option.id)) {
-                  onDefaultChange(defaultIds.filter((id) => id !== option.id));
+          <div className="flex max-h-[8.5rem] flex-col gap-1 overflow-y-auto pr-0.5">
+            {options.map((option) => (
+              <OptionRow
+                key={option.id}
+                option={option}
+                disabled={disabled}
+                isDefault={defaultIds.includes(option.id)}
+                onRename={(name) =>
+                  onChange(
+                    options.map((entry) => (entry.id === option.id ? { ...entry, name } : entry)),
+                  )
                 }
-              }}
-            />
-          ))}
+                onToggleDefault={() => toggleDefault(option.id)}
+                onDelete={() => {
+                  onChange(options.filter((entry) => entry.id !== option.id));
+                  if (defaultIds.includes(option.id)) {
+                    onDefaultChange(defaultIds.filter((id) => id !== option.id));
+                  }
+                }}
+              />
+            ))}
+          </div>
         </SortableContext>
       </DndContext>
 
@@ -127,7 +117,6 @@ export function FieldOptionsEditor({
             maxLength={120}
             placeholder={ui.customFields.dialog.optionPlaceholder}
             aria-label={ui.customFields.dialog.optionAdd}
-            aria-invalid={(invalid && options.length === 0) || undefined}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {

@@ -39,6 +39,11 @@ export function NumberEditor(props: EditorProps) {
     moneyValue?.currencyId ?? props.definition.settings.currencyId ?? '',
   );
   const [error, setError] = useState<string | null>(null);
+  // Список валют открыт: правка суммы не должна завершаться на его открытии
+  // (иначе селект размонтируется и валюту не сменить — баг 25.10.2026).
+  const [selectOpen, setSelectOpen] = useState(false);
+  const skipBlur = useRef(false);
+  const committedText = useRef(initial);
   const inputRef = useRef<HTMLInputElement>(null);
   const { data: currencies = [] } = useDictionaryItems(SystemDictionary.CURRENCY);
   const activeCurrencies = currencies.filter((c) => c.isActive);
@@ -77,7 +82,16 @@ export function NumberEditor(props: EditorProps) {
     } else {
       props.onCommit(next);
     }
+    committedText.current = text;
     if (props.variant === 'inline') setEditing(false);
+  }
+
+  /** Закрытие списка валют: правка завершается (сумма уже сохранена выбором
+   *  валюты; изменившийся текст — коммитим). */
+  function finishAfterSelect() {
+    if (props.variant !== 'inline') return;
+    if (text !== committedText.current) commit();
+    else setEditing(false);
   }
 
   function cancel() {
@@ -118,7 +132,15 @@ export function NumberEditor(props: EditorProps) {
             money ? ui.customFields.value.amountPlaceholder : ui.customFields.dialog.precision
           }
           onChange={(e) => setText(e.target.value)}
-          onBlur={commit}
+          onBlur={(e) => {
+            if (skipBlur.current) {
+              skipBlur.current = false;
+              return;
+            }
+            // Фокус ушёл на выбор валюты — редактор живёт дальше.
+            if ((e.relatedTarget as Element | null)?.closest('[data-slot=select-trigger]')) return;
+            commit();
+          }}
           onKeyDown={(e) => {
             if (e.key === 'Escape') {
               e.preventDefault();
@@ -133,22 +155,32 @@ export function NumberEditor(props: EditorProps) {
         />
         {money ? (
           <Select
+            open={selectOpen}
             value={effectiveCurrency || undefined}
             disabled={props.disabled || activeCurrencies.length === 0}
+            onOpenChange={(open) => {
+              setSelectOpen(open);
+              if (!open) finishAfterSelect();
+            }}
             onValueChange={(id) => {
               setCurrencyId(id);
               const next = parseNumber(text, 2);
-              if (next !== null)
+              if (next !== null) {
                 props.onCommit({ amount: next, currencyId: id } satisfies MoneyValue);
+                committedText.current = text;
+              }
             }}
           >
             <SelectTrigger
               className={cn(props.variant === 'inline' ? 'h-7' : 'h-8', 'w-24 shrink-0 text-sm')}
               aria-label={ui.customFields.dialog.currency}
+              onPointerDown={() => {
+                skipBlur.current = true;
+              }}
             >
               <SelectValue placeholder={ui.customFields.dialog.currency} />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent position="popper" align="end" sideOffset={4}>
               {activeCurrencies.map((currency) => (
                 <SelectItem key={currency.id} value={currency.id}>
                   {currency.name}

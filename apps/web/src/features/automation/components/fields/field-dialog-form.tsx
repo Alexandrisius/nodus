@@ -6,6 +6,7 @@ import { NodeLabel } from '@nodus/ui/components/node-label';
 import { Skeleton } from '@nodus/ui/components/skeleton';
 import { Switch } from '@nodus/ui/components/switch';
 import { Textarea } from '@nodus/ui/components/textarea';
+import { cn } from '@nodus/ui/lib/utils';
 
 import {
   draftDefinition,
@@ -87,7 +88,7 @@ export function FieldDialogForm({
     (familyModifier(family) !== null || family === 'number' || family === 'money');
 
   return (
-    <div className="flex flex-col gap-7 pb-1">
+    <div className="flex flex-col gap-5 pb-1">
       <Section label={ui.customFields.dialog.main}>
         <Labeled label={ui.customFields.dialog.name}>
           <Input
@@ -110,26 +111,65 @@ export function FieldDialogForm({
             rows={2}
             placeholder={ui.customFields.dialog.hintPlaceholder}
             onChange={(e) => onChange({ hint: e.target.value })}
-            className="min-h-16 resize-none text-sm"
+            className="resize-none text-sm"
           />
         </Labeled>
       </Section>
-      {family && hasSettings ? (
-        <Section label={ui.customFields.dialog.settings}>
-          <FieldSettings
-            family={family}
-            settings={draft.settings}
-            modifier={draft.modifier}
-            modifierLocked={savedModifier}
-            disabled={disabled}
-            onSettingsChange={(settings) => onChange({ settings })}
-            onModifierChange={(modifier) => onChange({ modifier })}
-          />
-        </Section>
-      ) : null}
+      {/* Настройки типа и видимость — в две колонки: правый столбец окна
+          широкий, а так форма списка с вариантами помещается без прокрутки
+          (вердикт 25.10.2026 — «скроллов, которых можно избежать»). */}
+      {family ? (
+        <div className={cn('grid gap-5', hasSettings && 'grid-cols-2')}>
+          {hasSettings ? (
+            <Section label={ui.customFields.dialog.settings}>
+              <FieldSettings
+                family={family}
+                settings={draft.settings}
+                modifier={draft.modifier}
+                modifierLocked={savedModifier}
+                disabled={disabled}
+                onSettingsChange={(settings) => onChange({ settings })}
+                onModifierChange={(modifier) => onChange({ modifier })}
+              />
+            </Section>
+          ) : null}
+          <Section label={ui.customFields.dialog.visibility}>
+            <SettingRow
+              label={ui.customFields.dialog.hidden}
+              hint={ui.customFields.dialog.hiddenHint}
+            >
+              <Switch
+                checked={draft.hidden}
+                disabled={disabled}
+                aria-label={ui.customFields.dialog.hidden}
+                onCheckedChange={(hidden) => onChange({ hidden })}
+              />
+            </SettingRow>
+            <SettingRow
+              label={ui.customFields.dialog.reportIndexed}
+              hint={ui.customFields.dialog.reportIndexedHint}
+            >
+              <Switch
+                checked={draft.reportIndexed}
+                disabled={disabled}
+                aria-label={ui.customFields.dialog.reportIndexed}
+                onCheckedChange={(reportIndexed) => onChange({ reportIndexed })}
+              />
+            </SettingRow>
+          </Section>
+        </div>
+      ) : (
+        <p className="text-sm text-muted-foreground">{ui.customFields.dialog.pickType}</p>
+      )}
 
       {list ? (
-        <Section label={ui.customFields.dialog.options}>
+        <section className="flex flex-col gap-3">
+          <div className="flex items-center justify-between gap-3">
+            <NodeLabel label={ui.customFields.dialog.options} />
+            <span className="text-label-sm text-muted-foreground">
+              {ui.customFields.dialog.optionDefault}
+            </span>
+          </div>
           {shared ? (
             <p className="text-xs text-muted-foreground">{ui.customFields.dialog.optionsShared}</p>
           ) : null}
@@ -138,7 +178,6 @@ export function FieldDialogForm({
             defaultIds={draft.defaultOptionIds}
             multiple={type === 'multienum'}
             disabled={disabled}
-            invalid={issues.includes('options')}
             onChange={(options) => onChange({ options })}
             onDefaultChange={(defaultOptionIds) => onChange({ defaultOptionIds })}
           />
@@ -153,7 +192,7 @@ export function FieldDialogForm({
           ) : draft.options.length === 0 ? (
             <p className="text-xs text-muted-foreground">{ui.customFields.dialog.optionsEmpty}</p>
           ) : null}
-        </Section>
+        </section>
       ) : null}
 
       {family && !list && preview ? (
@@ -172,35 +211,6 @@ export function FieldDialogForm({
           />
         </Section>
       ) : null}
-
-      {family ? (
-        <Section label={ui.customFields.dialog.visibility}>
-          <SettingRow
-            label={ui.customFields.dialog.hidden}
-            hint={ui.customFields.dialog.hiddenHint}
-          >
-            <Switch
-              checked={draft.hidden}
-              disabled={disabled}
-              aria-label={ui.customFields.dialog.hidden}
-              onCheckedChange={(hidden) => onChange({ hidden })}
-            />
-          </SettingRow>
-          <SettingRow
-            label={ui.customFields.dialog.reportIndexed}
-            hint={ui.customFields.dialog.reportIndexedHint}
-          >
-            <Switch
-              checked={draft.reportIndexed}
-              disabled={disabled}
-              aria-label={ui.customFields.dialog.reportIndexed}
-              onCheckedChange={(reportIndexed) => onChange({ reportIndexed })}
-            />
-          </SettingRow>
-        </Section>
-      ) : (
-        <p className="text-sm text-muted-foreground">{ui.customFields.dialog.pickType}</p>
-      )}
     </div>
   );
 }

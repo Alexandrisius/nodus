@@ -93,7 +93,9 @@ export function FieldSettings({
             <SelectTrigger className="w-24" aria-label={ui.customFields.dialog.precision}>
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+            {/* `popper`, а не дефолтный item-aligned: меню встаёт ПОД
+                контролом (канон селектов портала), а не уезжает к краю окна. */}
+            <SelectContent position="popper" align="end" sideOffset={4}>
               {Array.from({ length: 7 }, (_, value) => (
                 <SelectItem key={value} value={String(value)}>
                   {value}
@@ -140,7 +142,7 @@ function CurrencySelect({
         <SelectTrigger className="w-28" aria-label={ui.customFields.dialog.currency}>
           <SelectValue placeholder={ui.customFields.dialog.currency} />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent position="popper" align="end" sideOffset={4}>
           {active.map((currency) => (
             <SelectItem key={currency.id} value={currency.id}>
               {currency.name}
