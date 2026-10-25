@@ -239,4 +239,8 @@
 
 | Что | Результат |
 |---|---|
-| План (этот файл) | закоммичен 25.10 |
+| План (этот файл) | закоммичен в main 25.10 (0ed4972a) |
+| Ч1 — канон | issue #427; ветка `chore/427-process-model-canon`: ADR 0024–0033 + индекс и статусы 0008/0020/0021/0022, modules, data-model, api-conventions, glossary, north-star, roadmap, core-flows, ux-principles, workflow.md + AGENTS.md (метки), process-map (дельта А), incubator — закоммичено локально; дальше: code-reviewer → push → PR → CI → squash-мерж |
+| Метки | создать `module:custom-fields`, `module:esign`, `module:resources` |
+| Эпики | переписать #377, #50, #49, #18; создать M14, M16 — номера сюда |
+| Issues | порядок создания: П0, П4–П11, З2–З4, О1–О3, К1, К3, К5–К9, Пр2–Пр4, Пр6, Б1, Р1–Р2, Э1–Э5, Д1–Д12; переписать #380, #381, #403, #55 (→К2), #56 (→К4), #52 (→Пр1), #38 (→Пр5) — номера сюда |

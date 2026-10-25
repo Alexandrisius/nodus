@@ -30,8 +30,8 @@ task.created / updated / status_changed / stage_changed / personal_stage_changed
 task.time_logged
 task.participants_changed / checklist_changed / result_set / relation_changed / deleted / timer_started / timer_stopped
 task.comments_counted  # пересчитан счётчик комментариев = сообщения беседы задачи (#252): клиенты ставят значение без рефеча досок
-task.personal_stage_created / personal_stage_updated / personal_stage_archived  # личный маршрут «Мой план» (ADR-0008/0020); маршруты задач — модуль tasks, префикс task (workflow.* — модуль БП M7)
-task.type_created / type_updated / type_archived / workflow_published / workflow_layout_changed  # каталог типов и маршрутов (#378, ADR-0020/0021): без audience — всем; type_changed — задачное (участники)
+task.personal_stage_created / personal_stage_updated / personal_stage_archived / personal_stage_changed  # УСТАРЕВШИЕ после «Моих действий» (ADR-0026): личные колонки сняты; имена зарезервированы
+task.type_created / type_updated / type_archived / workflow_published / workflow_layout_changed  # УСТАРЕВШИЕ (ADR-0024): движок перенесён в модуль «Процессы» — эмитятся `workflow.*`; имена зарезервированы, не эмитятся после переноса (П0)
 task.type_changed
 chat.conversation_created / conversation_updated / member_added / member_removed / member_role_changed / message_sent / message_edited / message_deleted / message_read / message_pinned / message_unpinned / reaction_added / reaction_removed / thread_created
 chat.favorite_added / favorite_removed / favorite_updated  # личные закладки #171: только user-комната владельца (не рассылается участникам)
@@ -49,16 +49,19 @@ directory.position.created / updated / archived
 directory.role.created / updated / deleted
 dictionary.created / updated                 # модуль есть (#54, чтение); эмиттер — управление справочниками (M12)
 dictionary.item_created / updated / archived
-project.created / updated / stage_changed / member_added
-correspondence.letter_received / letter_registered / letter_sent
-correspondence.resolution_issued            # → порождает task.created (source=letter)
-workflow.instance_started / step_completed / approved / rejected / escalated
-custom_field.definition_changed / value_changed  # агрегат + код поля + старое/новое значение
+workflow.type_created / type_updated / type_archived / published / layout_changed  # «Процессы» (ADR-0024): каталог типов и маршрутов, без audience — всем; заменяют task.type_* / task.workflow_*
+workflow.press_recorded / press_round_completed   # «кнопку жмут несколько» (ADR-0025): отметка участника, кворум набран
+project.created / updated / archived / participants_changed / roles_changed / node_created / node_updated / node_archived / schema_published  # ADR-0030
+crm.counterparty_created / counterparty_updated / contact_changed  # ADR-0033
+correspondence.letter_received / letter_registered / letter_closed_unregistered / letter_stage_changed / letter_updated / letter_sent  # ADR-0027
+correspondence.assignments_requested        # «Расписать сразу»: черновики поручений с id → модуль задач создаёт задачи (source=letter), идемпотентно
+correspondence.relation_changed / confidentiality_changed
+custom_field.definition_changed  # значение поля — в событии изменения сущности (код поля, старое/новое)
 ```
 
 Поле `audience` в payload событий (`task.*`, `chat.sticker_*`) — служебная адресация для gateway (user-комнаты); клиенту не доставляется — gateway вырезает его до отправки (#328).
 
-**Каталожные события #378** — `task.type_created / type_updated / type_archived / task.workflow_published / task.workflow_layout_changed` — БЕЗ `audience` (`workflow_layout_changed` — сохранена расстановка холста без новой версии: клиент перечитывает только документ этого маршрута, кнопки задач не трогает): каталог типов и маршрутов виден всем, gateway рассылает их всем авторизованным сокетам (комната presence, паттерн корпоративных стикерпаков); клиент инвалидирует типы/статусы/маршруты. Доменные данные события (составы `memberIds`/`userIds` событий беседы) уходят клиенту как есть.
+**Каталожные события** — `workflow.type_created / type_updated / type_archived / published / layout_changed` (до переноса движка — `task.type_* / task.workflow_*`, #378) — БЕЗ `audience` (`workflow_layout_changed` — сохранена расстановка холста без новой версии: клиент перечитывает только документ этого маршрута, кнопки задач не трогает): каталог типов и маршрутов виден всем, gateway рассылает их всем авторизованным сокетам (комната presence, паттерн корпоративных стикерпаков); клиент инвалидирует типы/статусы/маршруты. Доменные данные события (составы `memberIds`/`userIds` событий беседы) уходят клиенту как есть.
 
 **Правила событий:**
 - Префикс = имя модуля-владельца в единственном числе (`tasks` → `task`, `workflows` → `workflow`, `correspondence` → `correspondence`); дефисы в имени модуля заменяются подчёркиваниями (`custom-fields` → `custom_field.*`).
