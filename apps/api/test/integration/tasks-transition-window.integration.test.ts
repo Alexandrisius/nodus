@@ -55,6 +55,13 @@ describe.skipIf(!process.env.DATABASE_URL)('tasks: окно перехода (in
     bob = await withCreate(fx.users.bob);
     carol = await withCreate(fx.users.carol);
     dispatcher = fx.app.get(EventDispatcher);
+    // Блок в чате пишется только при включённом флаге chat (I10); фикстура
+    // включает его, но другой набор мог выключить — держим детерминизм.
+    await fx.prisma.featureFlag.upsert({
+      where: { key: 'chat' },
+      update: { enabled: true },
+      create: { key: 'chat', enabled: true },
+    });
     // Детерминизм против прошлых прогонов/ручных правок песочницы: у системных
     // кнопок формы сбрасываются, тест настраивает нужные сам.
     const standard = await fx.prisma.workflow.findUnique({ where: { code: 'task.default' } });
