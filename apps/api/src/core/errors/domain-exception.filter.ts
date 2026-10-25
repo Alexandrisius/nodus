@@ -69,6 +69,10 @@ const CODE_TO_STATUS: Record<ErrorCode, number> = {
   [ErrorCode.WORKFLOW_MIGRATION_REQUIRED]: HttpStatus.UNPROCESSABLE_ENTITY,
   [ErrorCode.PROCESS_TYPE_SYSTEM_LOCKED]: HttpStatus.CONFLICT,
   [ErrorCode.PROCESS_TYPE_NAME_TAKEN]: HttpStatus.CONFLICT,
+  // CRM (#460): занятый УНП и мутация архивного контрагента — конфликт
+  // состояния (запрос корректен, запись сейчас так менять нельзя).
+  [ErrorCode.CRM_UNP_TAKEN]: HttpStatus.CONFLICT,
+  [ErrorCode.CRM_COUNTERPARTY_ARCHIVED]: HttpStatus.CONFLICT,
 };
 
 /** Код для HTTP-исключений Nest/Fastify (400 у нас — всегда валидация входа). */

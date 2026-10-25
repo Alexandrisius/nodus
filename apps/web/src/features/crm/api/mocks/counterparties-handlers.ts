@@ -1,4 +1,4 @@
-import type { ContactPerson, CounterpartyListItem } from '@nodus/contracts';
+import type { ContactPerson, CounterpartyCard, CounterpartyListItem } from '@nodus/contracts';
 import {
   ErrorCode,
   addContactPersonBodySchema,
@@ -19,6 +19,10 @@ function toListItem(card: (typeof demoCounterpartyCards)[number]): CounterpartyL
     fullName: card.fullName,
     shortName: card.shortName,
     unp: card.unp,
+    address: card.address,
+    email: card.email,
+    phone: card.phone,
+    archivedAt: card.archivedAt,
     lettersCount: demoLetters.filter((l) => l.counterparty.id === card.id).length,
     projectsCount: demoProjects.filter((p) => p.client?.id === card.id).length,
     contactsCount: card.contactPersons.length,
@@ -57,7 +61,23 @@ export const counterpartiesHandlers = [
   http.post('/api/v1/counterparties', async ({ request }) => {
     const parsed = createCounterpartyBodySchema.safeParse(await request.json());
     if (!parsed.success) return HttpResponse.json(validationError, { status: 422 });
-    const card = { ...parsed.data, id: crypto.randomUUID(), contactPersons: [] as ContactPerson[] };
+    const now = new Date().toISOString();
+    const card: CounterpartyCard = {
+      fullName: parsed.data.fullName,
+      shortName: parsed.data.shortName,
+      unp: parsed.data.unp ?? null,
+      address: parsed.data.address ?? null,
+      email: parsed.data.email ?? null,
+      phone: parsed.data.phone ?? null,
+      id: crypto.randomUUID(),
+      contactPersons: [] as ContactPerson[],
+      customFields: {},
+      lettersCount: 0,
+      projectsCount: 0,
+      archivedAt: null,
+      createdAt: now,
+      updatedAt: now,
+    };
     demoCounterpartyCards.push(card);
     return HttpResponse.json(card, { status: 201 });
   }),
@@ -71,7 +91,14 @@ export const counterpartiesHandlers = [
       );
     const parsed = addContactPersonBodySchema.safeParse(await request.json());
     if (!parsed.success) return HttpResponse.json(validationError, { status: 422 });
-    const contact: ContactPerson = { id: crypto.randomUUID(), ...parsed.data };
+    const contact: ContactPerson = {
+      id: crypto.randomUUID(),
+      fullName: parsed.data.fullName,
+      position: parsed.data.position ?? null,
+      phone: parsed.data.phone ?? null,
+      email: parsed.data.email ?? null,
+      archivedAt: null,
+    };
     card.contactPersons.push(contact);
     return HttpResponse.json(contact, { status: 201 });
   }),

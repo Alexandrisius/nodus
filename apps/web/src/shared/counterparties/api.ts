@@ -55,7 +55,11 @@ export function useCreateCounterparty() {
         id: tempId,
         fullName: body.fullName,
         shortName: body.shortName,
-        unp: body.unp,
+        unp: body.unp ?? null,
+        address: body.address ?? null,
+        email: body.email ?? null,
+        phone: body.phone ?? null,
+        archivedAt: null,
         lettersCount: 0,
         projectsCount: 0,
         contactsCount: 0,
@@ -106,7 +110,14 @@ export function useAddContactPerson(counterpartyId: string) {
       const detailKey = counterpartiesKeys.detail(counterpartyId);
       await queryClient.cancelQueries({ queryKey: detailKey });
       const previous = queryClient.getQueryData<CounterpartyCard>(detailKey);
-      const temp: ContactPerson = { id: `temp-${crypto.randomUUID()}`, ...body };
+      const temp: ContactPerson = {
+        id: `temp-${crypto.randomUUID()}`,
+        fullName: body.fullName,
+        position: body.position ?? null,
+        phone: body.phone ?? null,
+        email: body.email ?? null,
+        archivedAt: null,
+      };
       queryClient.setQueryData<CounterpartyCard>(detailKey, (data) =>
         data ? { ...data, contactPersons: [...data.contactPersons, temp] } : data,
       );

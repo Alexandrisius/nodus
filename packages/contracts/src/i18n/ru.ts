@@ -2,7 +2,8 @@ import { ErrorCode } from '../errors/error-codes.js';
 
 import { automationStrings } from './ru-automation.js';
 import { chatStrings } from './ru-chat.js';
-import { counterpartiesStrings, lettersStrings } from './ru-correspondence.js';
+import { lettersStrings } from './ru-correspondence.js';
+import { counterpartiesStrings } from './ru-crm.js';
 import { filesStrings } from './ru-files.js';
 import { notificationsStrings } from './ru-notifications.js';
 import { tasksStrings } from './ru-tasks.js';
@@ -54,6 +55,8 @@ export const errorMessages: Record<ErrorCode, string> = {
   [ErrorCode.FILE_OFFICE_UNSUPPORTED]: 'Этот формат не открывается в браузере — скачайте файл',
   [ErrorCode.FILE_OFFICE_TOO_LARGE]: 'Файл слишком большой для просмотра — скачайте его',
   [ErrorCode.FILE_AVATAR_INVALID]: 'Фото не подошло: нужно PNG, JPEG или WebP до 10 МБ',
+  [ErrorCode.CRM_UNP_TAKEN]: 'Контрагент с таким УНП уже есть в справочнике',
+  [ErrorCode.CRM_COUNTERPARTY_ARCHIVED]: 'Контрагент в архиве — сначала верните его',
 };
 
 /**

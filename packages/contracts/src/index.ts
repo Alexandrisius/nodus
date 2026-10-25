@@ -33,6 +33,7 @@ export * from './tasks/task-bulk.schemas.js';
 export * from './tasks/task-history.schemas.js';
 export * from './events/task-events.js';
 export * from './events/workflow-events.js';
+export * from './events/crm-events.js';
 export * from './projects/project.schemas.js';
 export * from './counterparties/counterparty.schemas.js';
 export * from './correspondence/letter.schemas.js';
