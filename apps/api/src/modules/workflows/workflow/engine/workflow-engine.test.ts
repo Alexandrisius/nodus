@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ErrorCode } from '@nodus/contracts';
+import { ErrorCode, Permission } from '@nodus/contracts';
 
 import type {
   WorkflowActor,
@@ -167,6 +167,26 @@ describe('WorkflowEngine (#428, ADR-0024)', () => {
     await expect(
       engine.execute(TX as never, 't1', 'task', USER, { transitionId: TRANSITION }),
     ).rejects.toMatchObject({ code: ErrorCode.TASK_TRANSITION_BLOCKED });
+  });
+
+  it('условие permission: available и execute согласованы (права актора — в обоих)', async () => {
+    const { engine, adapter, workflows } = makeEngine({
+      roles: new Set(),
+      actsWithoutConditions: false,
+    });
+    const gated = structuredClone(workflow);
+    gated.transitions[0]!.rules = {
+      conditions: [{ kind: 'permission', permission: Permission.TASK_MANAGE_ANY }],
+      validators: [],
+      postFunctions: [],
+    } as never;
+    workflows.load.mockResolvedValue(gated);
+    const actor = { id: 'bob', permissions: [Permission.TASK_MANAGE_ANY] };
+    await expect(engine.available(TX as never, 't1', 'task', actor)).resolves.toHaveLength(1);
+    await expect(
+      engine.execute(TX as never, 't1', 'task', actor, { transitionId: TRANSITION }),
+    ).resolves.toMatchObject({ id: STAGE_DONE });
+    expect(adapter.applyStage).toHaveBeenCalled();
   });
 
   it('нет перехода из статуса — 409 TASK_TRANSITION_NOT_ALLOWED', async () => {

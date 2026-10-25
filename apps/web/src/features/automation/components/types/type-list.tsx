@@ -9,6 +9,7 @@ import {
   DropdownMenuTrigger,
 } from '@nodus/ui/components/dropdown-menu';
 import { Input } from '@nodus/ui/components/input';
+import { NodeLabel } from '@nodus/ui/components/node-label';
 import { cn } from '@nodus/ui/lib/utils';
 import {
   Archive,
@@ -81,9 +82,10 @@ export function TypeList({
     groups.length > 1
       ? groups.map((group) => (
           <div key={group.category} className="flex flex-col gap-0.5">
-            <div className="px-2.5 pt-2 pb-1 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
-              {ui.automation.categoryGroups[group.category]}
-            </div>
+            <NodeLabel
+              label={ui.automation.categoryGroups[group.category]}
+              className="px-2.5 pt-2 pb-1"
+            />
             {group.types.map(row)}
           </div>
         ))

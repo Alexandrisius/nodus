@@ -283,13 +283,14 @@ export class WorkflowEditorService {
     return { stages, transitions, resolve };
   }
 
-  /** Редактору доступны только маршруты типов: личные доски «Моего плана»
-   *  и шаблон — 404 (security #378; uuid personal-маршрутов API не отдаёт,
-   *  гвард добивает). Личные маршруты — временное исключение модуля задач
-   *  до #438/#439 (ADR-0024). */
+  /** Редактору доступны только маршруты типов — allow-list `task | letter`:
+   *  личные доски «Моего плана» и шаблон — 404 (security #378; uuid
+   *  personal-маршрутов API не отдаёт, гвард добивает), а любой новый `kind`
+   *  не становится доступным молча. Личные маршруты — временное исключение
+   *  модуля задач до #438/#439 (ADR-0024). */
   private async findTypeWorkflow(workflowId: string, tx?: TransactionClient) {
     const workflow = await this.workflows.findMeta(workflowId, tx);
-    if (!workflow || workflow.kind === 'personal') {
+    if (!workflow || !['task', 'letter'].includes(workflow.kind)) {
       throw DomainException.notFound('Workflow not found');
     }
     return workflow;

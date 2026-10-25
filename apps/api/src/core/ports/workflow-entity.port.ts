@@ -51,6 +51,10 @@ export interface WorkflowActorSubject {
   canOverrideGates: boolean;
   /** Пустые условия «кто» означают «может» (постановщик/ответственный). */
   actsWithoutConditions: boolean;
+  /** Права актора из токена — условия `permission` проверяет движок
+   *  одинаково в `available` и `execute`; заполняет движок (адаптер прав
+   *  портала не знает), поэтому поле необязательно у адаптера. */
+  permissions?: readonly string[];
   facts: WorkflowGateFacts;
 }
 

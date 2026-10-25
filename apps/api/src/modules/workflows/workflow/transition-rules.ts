@@ -50,7 +50,7 @@ export function parseRules(raw: unknown): WorkflowTransitionRules {
 export function passesConditions(
   rules: WorkflowTransitionRules,
   subject: Pick<WorkflowActorSubject, 'roles' | 'bypassConditions' | 'actsWithoutConditions'> & {
-    permissions?: readonly string[];
+    permissions: readonly string[];
   },
 ): boolean {
   if (subject.bypassConditions) return true;
@@ -58,7 +58,7 @@ export function passesConditions(
   return rules.conditions.some((c) =>
     c.kind === 'role_in'
       ? c.roles.some((role) => subject.roles.has(role))
-      : (subject.permissions ?? []).includes(c.permission),
+      : subject.permissions.includes(c.permission),
   );
 }
 

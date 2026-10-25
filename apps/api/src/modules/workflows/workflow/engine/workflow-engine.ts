@@ -28,6 +28,10 @@ import { WorkflowRepository, type LoadedWorkflow, type StageRow } from '../workf
  * Движок не знает ни таблиц сущностей, ни их прав и ролей: всё это отдаёт
  * адаптер (порт `WorkflowEntityAdapter`). Журнал переходов — #380.
  */
+/** Субъект адаптера + права актора: движок заполняет `permissions` сам —
+ *  условия `permission` проверяются одинаково в `available` и `execute`. */
+type EngineSubject = WorkflowActorSubject & { permissions: readonly string[] };
+
 @Injectable()
 export class WorkflowEngine implements WorkflowEnginePort {
   constructor(
@@ -42,7 +46,7 @@ export class WorkflowEngine implements WorkflowEnginePort {
     actor: WorkflowActor,
   ): Promise<WorkflowTransition[]> {
     const { workflow, subject } = await this.context(tx, entityId, category, actor);
-    return this.options(workflow, subject, actor);
+    return this.options(workflow, subject);
   }
 
   async execute(
@@ -55,7 +59,7 @@ export class WorkflowEngine implements WorkflowEnginePort {
   ): Promise<WorkflowEntityStage> {
     const adapter = this.adapters.get(category);
     await adapter.lock(tx, entityId);
-    const subject = await adapter.subject(tx, entityId, actor);
+    const subject = await this.subjectWithPermissions(tx, entityId, category, actor);
     const workflow = await this.workflows.load(subject.workflowId, tx);
     const candidates = outgoingTransitions(workflow.transitions, subject.facts, workflow.stages)
       .filter((t) => passesConditions(t.rules, subject))
@@ -117,14 +121,9 @@ export class WorkflowEngine implements WorkflowEnginePort {
     return this.stage(workflow, target).systemState === choice.systemState;
   }
 
-  private options(
-    workflow: LoadedWorkflow,
-    subject: WorkflowActorSubject,
-    actor: WorkflowActor,
-  ): WorkflowTransition[] {
-    const withPermissions = { ...subject, permissions: actor.permissions };
+  private options(workflow: LoadedWorkflow, subject: EngineSubject): WorkflowTransition[] {
     return outgoingTransitions(workflow.transitions, subject.facts, workflow.stages)
-      .filter((t) => passesConditions(t.rules, withPermissions))
+      .filter((t) => passesConditions(t.rules, subject))
       .map((t) => {
         const target = this.stage(workflow, effectiveTargetId(t, subject.facts, workflow.stages));
         return {
@@ -154,8 +153,20 @@ export class WorkflowEngine implements WorkflowEnginePort {
     entityId: string,
     category: ProcessCategory,
     actor: WorkflowActor,
-  ): Promise<{ workflow: LoadedWorkflow; subject: WorkflowActorSubject }> {
-    const subject = await this.adapters.get(category).subject(tx, entityId, actor);
+  ): Promise<{ workflow: LoadedWorkflow; subject: EngineSubject }> {
+    const subject = await this.subjectWithPermissions(tx, entityId, category, actor);
     return { workflow: await this.workflows.load(subject.workflowId, tx), subject };
+  }
+
+  /** Субъект адаптера + права актора: условия `permission` проверяет движок,
+   *  и в `available`, и в `execute` — иначе кнопка видна, а нажатие падает. */
+  private async subjectWithPermissions(
+    tx: TransactionClient,
+    entityId: string,
+    category: ProcessCategory,
+    actor: WorkflowActor,
+  ): Promise<EngineSubject> {
+    const subject = await this.adapters.get(category).subject(tx, entityId, actor);
+    return { ...subject, permissions: actor.permissions };
   }
 }

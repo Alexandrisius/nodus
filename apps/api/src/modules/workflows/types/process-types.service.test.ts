@@ -34,6 +34,7 @@ function setup(opts: { taken?: boolean; type?: Record<string, unknown> | null } 
     { run: vi.fn(async (fn: (tx: unknown) => unknown) => fn(TX)) } as never,
     repo as never,
     workflows as never,
+    { has: vi.fn(() => true) } as never,
     { emit } as never,
   );
   return { service, repo, workflows, emit };
@@ -99,6 +100,16 @@ describe('ProcessTypesService (#378)', () => {
       service.create(USER, body({ kind: 'copy', typeId: 'src-type' })),
     ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND });
     expect(repo.copyWorkflow).not.toHaveBeenCalled();
+  });
+
+  it('категория без адаптера сущности — 409 (письма до #55)', async () => {
+    const { service, repo } = setup();
+    const svc = service as unknown as { adapters: { has: (c: string) => boolean } };
+    svc.adapters.has = () => false;
+    await expect(
+      service.create(USER, body({ kind: 'simple' }, { category: 'letter', direction: 'incoming' })),
+    ).rejects.toMatchObject({ code: ErrorCode.CONFLICT });
+    expect(repo.createType).not.toHaveBeenCalled();
   });
 
   it('системный тип в архив нельзя — PROCESS_TYPE_SYSTEM_LOCKED', async () => {

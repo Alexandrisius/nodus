@@ -13,6 +13,7 @@ import {
 import { TransactionRunner } from '../../../core/database/transaction-runner.js';
 import { DomainException } from '../../../core/errors/domain-exception.js';
 import { EventBus } from '../../../core/events/event-bus.js';
+import { WorkflowEntityRegistry } from '../workflow/engine/entity-adapter.registry.js';
 import { WorkflowRepository } from '../workflow/workflow.repository.js';
 import { processTypeDto } from './process-type.mapper.js';
 import { ProcessTypesRepository } from './process-types.repository.js';
@@ -32,6 +33,7 @@ export class ProcessTypesService {
     private readonly txRunner: TransactionRunner,
     private readonly repo: ProcessTypesRepository,
     private readonly workflows: WorkflowRepository,
+    private readonly adapters: WorkflowEntityRegistry,
     private readonly eventBus: EventBus,
   ) {}
 
@@ -47,6 +49,11 @@ export class ProcessTypesService {
   }
 
   async create(user: AuthUser, body: CreateProcessTypeBody): Promise<ProcessType> {
+    // Категория без адаптера сущности (письма — #55) пока не исполнима:
+    // тип создался бы, а маршрут нельзя ни прочитать, ни опубликовать.
+    if (!this.adapters.has(body.category)) {
+      throw new DomainException(ErrorCode.CONFLICT, 'Process category is not available yet');
+    }
     if (await this.repo.findLiveByName(body.name)) {
       throw new DomainException(ErrorCode.PROCESS_TYPE_NAME_TAKEN, 'Type name already taken');
     }

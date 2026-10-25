@@ -901,7 +901,7 @@ model ProcessType {
   /// (ADR-0030), флаг не читается; колонка снимается contract-chore #439.
   structural Boolean   @default(false)
   isSystem   Boolean   @default(false) @map("is_system")
-  /// Значок-ключ закрытого реестра contracts (taskTypeIconSchema, #378).
+  /// Значок-ключ закрытого реестра contracts (processTypeIconSchema, #378).
   icon       String    @default("square-check")
   /// Тон плитки-значка (stageColorSchema).
   color      String    @default("neutral")

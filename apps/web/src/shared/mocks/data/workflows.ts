@@ -286,6 +286,11 @@ const simpleDocument: WorkflowDocument = {
 };
 
 const publishedAt = '2026-10-18T14:05:00Z';
+const publishedBy = {
+  id: '00000000-0000-4000-8000-000000000001',
+  displayName: 'Климович А.',
+  avatarUrl: null,
+};
 
 export const demoWorkflowDetails: Record<string, WorkflowDetail> = {
   [STANDARD_WORKFLOW_ID]: {
@@ -293,11 +298,7 @@ export const demoWorkflowDetails: Record<string, WorkflowDetail> = {
     typeIds: [standardProcessType.id],
     version: 3,
     publishedAt,
-    publishedBy: {
-      id: '00000000-0000-4000-8000-000000000001',
-      displayName: 'Климович А.',
-      avatarUrl: null,
-    },
+    publishedBy,
     document: standardDocument,
     stageEntityCounts: {},
   },
@@ -306,11 +307,7 @@ export const demoWorkflowDetails: Record<string, WorkflowDetail> = {
     typeIds: [quickTypeDto.id],
     version: 2,
     publishedAt,
-    publishedBy: {
-      id: '00000000-0000-4000-8000-000000000001',
-      displayName: 'Климович А.',
-      avatarUrl: null,
-    },
+    publishedBy,
     document: quickDocument,
     stageEntityCounts: {},
   },
