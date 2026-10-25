@@ -124,9 +124,9 @@ export class TaskWorkflowController {
   @Post(':id/transitions/:transitionId')
   @HttpCode(200)
   @Audit({ action: 'task.transition', entity: 'task' })
-  @ApiOperation({ summary: 'Выполнить переход (обход гейта — override + reason)' })
+  @ApiOperation({ summary: 'Выполнить переход (окно — form; обход — override + reason)' })
   @ApiOkResponse({ standardSchema: executeTransitionResultSchema })
-  @ApiErrors(400, 401, 403, 404, 409)
+  @ApiErrors(400, 401, 403, 404, 409, 422)
   @ApiIdempotencyKey()
   execute(
     @GetUser() user: AuthUser,

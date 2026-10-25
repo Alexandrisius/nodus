@@ -22,6 +22,8 @@ function makeMessage(overrides: Partial<MessageRow> = {}): MessageRow {
     authorId: PEER,
     clientMessageId: 'key-1',
     text: 'Чужое сообщение',
+    kind: 'text',
+    payload: null,
     replyToId: null,
     replySnapshot: null,
     threadRootId: null,

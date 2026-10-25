@@ -48,6 +48,7 @@ const mkTransition = (
   display: 'button',
   sortOrder: 0,
   rules: roles('assignee'),
+  form: { enabled: false, sections: [] },
   ...extra,
 });
 

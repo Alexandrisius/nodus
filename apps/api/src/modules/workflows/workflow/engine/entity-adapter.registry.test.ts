@@ -27,6 +27,10 @@ class FakeTaskAdapter implements WorkflowEntityAdapter {
     return Promise.resolve();
   }
 
+  applyForm(): Promise<never> {
+    return Promise.reject(new Error('not used'));
+  }
+
   countByStages(): Promise<Record<string, number>> {
     return Promise.resolve({});
   }

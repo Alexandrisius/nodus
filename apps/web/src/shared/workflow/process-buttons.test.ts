@@ -15,6 +15,8 @@ const t = (id: string, display: WorkflowTransition['display']): WorkflowTransiti
   display,
   blockedBy: [],
   canOverride: false,
+  form: null,
+  validators: [],
 });
 
 const doc = (
@@ -34,6 +36,7 @@ const doc = (
     validators: [],
     postFunctions: [],
   },
+  form: { enabled: false, sections: [] },
 });
 
 describe('process-buttons: панель процесса (#378)', () => {

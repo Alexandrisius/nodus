@@ -89,6 +89,23 @@ export const taskStageChangedPayloadSchema = taskEventBaseSchema.extend({
   assigneeId: z.uuid(),
   /** Соисполнители — адресаты «задача отменена» (наблюдатели — без звука). */
   coexecutorIds: z.array(z.uuid()).optional(),
+  /** Журнал перехода (#380): id строки `transition_records`; блок в чате
+   *  пишется только для событий с ним (старые события его не несут). */
+  recordId: z.uuid().optional(),
+  /** Названия для блока перехода в чате (лимиты — контракт блока). */
+  transitionName: z.string().min(1).max(32).optional(),
+  fromStageName: z.string().min(1).max(40).optional(),
+  /** Текст раздела «Причина / комментарий» окна перехода и его подпись. */
+  comment: z.string().max(2000).optional(),
+  commentLabel: z.string().max(60).optional(),
+  /** Итог, созданный переходом: файлы считаются по живым вложениям. */
+  result: z
+    .object({
+      resultId: z.uuid(),
+      fileCount: z.number().int().min(0),
+      messageCount: z.number().int().min(0).max(50),
+    })
+    .optional(),
 });
 export type TaskStageChangedPayload = z.infer<typeof taskStageChangedPayloadSchema>;
 

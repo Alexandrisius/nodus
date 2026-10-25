@@ -108,6 +108,7 @@ function document(): WorkflowDocument {
         toStageId: 'new:ctrl',
         display: 'primary',
         sortOrder: 0,
+        form: { enabled: false, sections: [] },
         rules: rules({
           postFunctions: [{ kind: 'route_if', when: 'creator_is_assignee', toStageId: 'new:done' }],
         }),
@@ -120,6 +121,7 @@ function document(): WorkflowDocument {
         toStageId: 'new:done',
         display: 'primary',
         sortOrder: 1,
+        form: { enabled: false, sections: [] },
         rules: parseRules({ conditions: [{ kind: 'role_in', roles: ['creator'] }] }),
       },
     ],

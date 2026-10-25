@@ -3,7 +3,6 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { TaskDetail } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
-import { Input } from '@nodus/ui/components/input';
 import { NodeLabel } from '@nodus/ui/components/node-label';
 import { Popover, PopoverContent, PopoverTrigger } from '@nodus/ui/components/popover';
 import { cn } from '@nodus/ui/lib/utils';
@@ -11,6 +10,12 @@ import { toast } from 'sonner';
 
 import { useAuthStore } from '../../../shared/auth-store.js';
 import { formatDate, formatMinutes } from '../../../shared/lib/format.js';
+import {
+  EMPTY_TIME_ENTRY,
+  TimeEntryFields,
+  timeEntryBody,
+  type TimeEntryDraft,
+} from '../../../shared/tasks/time-entry-fields.js';
 import { PauseGlyph } from '../../../shared/ui/pause-glyph.js';
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
 import {
@@ -21,13 +26,7 @@ import {
   useStopTimer,
   useTimeEntries,
 } from '../api/time-api.js';
-import { formatDuration, parseDuration } from '../lib/minutes.js';
-
-function isoDate(daysAgo: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() - daysAgo);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
+import { formatDuration } from '../../../shared/lib/minutes.js';
 
 /** «ЧЧ:ММ:СС» идущего таймера — тикает раз в секунду только пока виден. */
 export function useElapsed(startedAt: string | undefined): string {
@@ -152,27 +151,17 @@ function TimeLog({ task }: { task: TaskDetail }) {
   const { data } = useTimeEntries(task.id);
   const add = useAddTimeEntry(task.id);
   const remove = useDeleteTimeEntry(task.id);
-  const [amount, setAmount] = useState('');
-  const [comment, setComment] = useState('');
-  const [daysAgo, setDaysAgo] = useState(0);
+  const [draft, setDraft] = useState<TimeEntryDraft>(EMPTY_TIME_ENTRY);
   const entries = data?.items ?? [];
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    const minutes = parseDuration(amount);
-    if (minutes === null || minutes > 1440) {
+    const body = timeEntryBody(draft);
+    if (!body) {
       toast.error(ui.tasks.minutesInvalid);
       return;
     }
-    add.mutate(
-      { minutes, date: isoDate(daysAgo), ...(comment.trim() ? { comment: comment.trim() } : {}) },
-      {
-        onSuccess: () => {
-          setAmount('');
-          setComment('');
-        },
-      },
-    );
+    add.mutate(body, { onSuccess: () => setDraft(EMPTY_TIME_ENTRY) });
   }
 
   return (
@@ -180,41 +169,9 @@ function TimeLog({ task }: { task: TaskDetail }) {
       <NodeLabel label={ui.tasks.timeTitle} />
       {task.access.canLogTime ? (
         <form onSubmit={submit} className="flex flex-col gap-2">
-          <div className="flex items-center gap-2">
-            <Input
-              autoFocus
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder={ui.tasks.timeMinutesPlaceholder}
-              aria-label={ui.tasks.timeAdd}
-              className="h-8 w-28 font-mono text-sm"
-            />
-            {[ui.tasks.timeToday, ui.tasks.timeYesterday].map((label, i) => (
-              <button
-                key={label}
-                type="button"
-                onClick={() => setDaysAgo(i)}
-                aria-pressed={daysAgo === i}
-                className={cn(
-                  'h-8 rounded-md px-2.5 text-sm transition-colors',
-                  daysAgo === i
-                    ? 'bg-accent text-foreground'
-                    : 'text-muted-foreground hover:bg-accent/50',
-                )}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          <div className="flex items-center gap-2">
-            <Input
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-              placeholder={ui.tasks.timeComment}
-              aria-label={ui.tasks.timeComment}
-              className="h-8 text-sm"
-            />
-            <Button size="sm" type="submit" disabled={!amount.trim() || add.isPending}>
+          <TimeEntryFields value={draft} onChange={setDraft} autoFocus />
+          <div className="flex items-center justify-end">
+            <Button size="sm" type="submit" disabled={!draft.amount.trim() || add.isPending}>
               {ui.tasks.timeAdd}
             </Button>
           </div>

@@ -81,6 +81,10 @@ export class MessagesWriteRepository {
        *  прямой тэг ≠ broadcast; на отправке = токенам текста. */
       everMentionedUserIds: string[];
       createdAt: Date;
+      /** Вид сообщения (#380): обычная отправка — 'text'. */
+      kind?: string;
+      /** Данные блока (task_transition) — JSONB payload. */
+      payload?: object | null;
     },
     tx: TransactionClient,
   ): Promise<MessageRow | null> {
@@ -89,9 +93,12 @@ export class MessagesWriteRepository {
     // ever = ТОКЕНЫ текста (#239): личный тэг и сентинел «Все», без
     // разворота — broadcast не глушит будущий первый личный тэг.
     const ever = JSON.stringify(input.everMentionedUserIds);
+    const payload =
+      input.payload === undefined || input.payload === null ? null : JSON.stringify(input.payload);
     const rows = await tx.$queryRaw<MessageRow[]>(Prisma.sql`
       INSERT INTO messages (
         id, conversation_id, seq, author_id, client_message_id, text,
+        kind, payload,
         reply_to_id, reply_snapshot, thread_root_id,
         fwd_conversation_id, fwd_message_id, fwd_author_id, fwd_thread_root_id,
         urgent, mentioned_user_ids, ever_mentioned_user_ids,
@@ -99,6 +106,7 @@ export class MessagesWriteRepository {
       ) VALUES (
         ${input.id}::uuid, ${input.conversationId}::uuid, ${input.seq}::bigint,
         ${input.authorId}::uuid, ${input.clientMessageId}, ${input.text},
+        ${input.kind ?? 'text'}, ${payload}::jsonb,
         ${input.replyToId}::uuid, ${snapshot}::jsonb, ${input.threadRootId}::uuid,
         ${input.fwd?.conversationId ?? null}::uuid, ${input.fwd?.messageId ?? null}::uuid,
         ${input.fwd?.authorId ?? null}::uuid, ${input.fwd?.threadRootId ?? null}::uuid,

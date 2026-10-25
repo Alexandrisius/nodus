@@ -6,6 +6,7 @@ import { EventBus } from '../../../core/events/event-bus.js';
 import type {
   WorkflowEntityStage,
   WorkflowStageChangeCause,
+  WorkflowStageChangeMeta,
 } from '../../../core/ports/workflow-entity.port.js';
 import { audienceIds, planHolderIds } from '../access/task-access.js';
 import { Placements } from '../personal/placements.js';
@@ -43,18 +44,13 @@ export class StageMover {
   ) {}
 
   /** Смена стадии без проверок маршрута (вызывающий уже проверил).
-   *  `overrideReason` — текст причины обхода гейта (история, ADR-0020). */
+   *  `meta` — общий тип движка (#380): типы сходятся TS-ом, а не глазами. */
   async apply(
     tx: TransactionClient,
     task: MovableTask,
     target: WorkflowEntityStage,
     actorId: string | null,
-    meta: {
-      transitionId: string | null;
-      cause: StageChangeCause;
-      overridden?: string[];
-      overrideReason?: string;
-    },
+    meta: WorkflowStageChangeMeta,
   ): Promise<void> {
     const stateChanged = target.systemState !== task.systemState;
     await this.tasks.moveToStage(tx, task.id, {
@@ -64,7 +60,9 @@ export class StageMover {
     });
     const base = { taskId: task.id, number: task.number, audience: audienceIds(task) };
     const meta2 = { actorId, aggregateType: 'task', aggregateId: task.id };
-    const overridden = meta.overridden?.length ? meta.overridden : undefined;
+    // Регресс #428: движок передаёт `overriddenGates`/`overrideReason`, а
+    // помощник читал чужие имена — обход гейта терялся в событии.
+    const overridden = meta.overriddenGates?.length ? meta.overriddenGates : undefined;
     await this.eventBus.emit(
       tx,
       TASK_EVENTS.STAGE_CHANGED,
@@ -84,6 +82,13 @@ export class StageMover {
           .map((p) => p.userId),
         cause: meta.cause,
         ...(overridden ? { overriddenGates: overridden, reason: meta.overrideReason } : {}),
+        // Блок перехода в чате (#380): длины — лимиты контракта события.
+        ...(meta.recordId ? { recordId: meta.recordId } : {}),
+        ...(meta.transitionName ? { transitionName: meta.transitionName.slice(0, 32) } : {}),
+        ...(meta.fromStageName ? { fromStageName: meta.fromStageName.slice(0, 40) } : {}),
+        ...(meta.comment ? { comment: meta.comment.slice(0, 2000) } : {}),
+        ...(meta.commentLabel ? { commentLabel: meta.commentLabel.slice(0, 60) } : {}),
+        ...(meta.result ? { result: meta.result } : {}),
       },
       meta2,
     );

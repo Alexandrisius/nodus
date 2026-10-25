@@ -110,6 +110,7 @@ function newTransition(
       validators: [],
       postFunctions: [],
     },
+    form: { enabled: false, sections: [] },
   };
 }
 

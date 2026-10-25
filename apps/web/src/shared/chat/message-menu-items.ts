@@ -253,7 +253,14 @@ export function buildMessageItems(input: MessageMenuInput): {
   // Окно-источник (#237): только набор Telegram — copy/forward/select/
   // delete (в т.ч. без «Редактировать»: правка живёт в витрине).
   const isSticker = message.attachments.some((a) => a.kind === 'sticker');
-  const editable = mine && !message.forwardedFrom && !isSticker && variant !== 'source-window';
+  // Блок перехода (#380) — запись журнала, не текст: правка разошлась бы
+  // с transition_records (сервер тоже отвечает 403).
+  const editable =
+    mine &&
+    !message.forwardedFrom &&
+    !isSticker &&
+    message.kind !== 'task_transition' &&
+    variant !== 'source-window';
   return {
     items: items.filter((item) => {
       if (item.id === 'edit') return editable;

@@ -48,6 +48,24 @@ export class MessagesRepository {
     `);
   }
 
+  /** Живые сообщения беседы по id в порядке seq (#380: окно перехода —
+   *  файлы/сообщения итога бывают вне загруженной ленты). */
+  async findLiveByIdsInConversation(
+    conversationId: string,
+    messageIds: readonly string[],
+    tx?: TransactionClient,
+  ): Promise<MessageRow[]> {
+    if (messageIds.length === 0) return [];
+    const client = this.client(tx);
+    return client.$queryRaw<MessageRow[]>(Prisma.sql`
+      SELECT ${MESSAGE_COLS} FROM messages
+      WHERE conversation_id = ${conversationId}::uuid
+        AND id = ANY(${[...messageIds]}::uuid[])
+        AND deleted_at IS NULL AND NOT obliterated
+      ORDER BY seq ASC
+    `);
+  }
+
   /** Живые (не obliterated) источники пересылки в исходной беседе, порядок запроса. */
   async findForwardSources(
     sourceConversationId: string,

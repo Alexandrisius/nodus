@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { DiscoveryModule } from '@nestjs/core';
 
 import { WorkflowEntityRegistry } from './workflow/engine/entity-adapter.registry.js';
+import { TransitionRecordsRepository } from './workflow/engine/transition-records.repository.js';
 import { WorkflowEngine } from './workflow/engine/workflow-engine.js';
 import { WorkflowRepository } from './workflow/workflow.repository.js';
 import { ProcessCatalogReaderProvider } from './ports/process-catalog-reader.provider.js';
@@ -27,6 +28,7 @@ import { ProcessTypesRepository } from './types/process-types.repository.js';
     WorkflowRepository,
     ProcessTypesRepository,
     WorkflowEntityRegistry,
+    TransitionRecordsRepository,
     WorkflowEngine,
     ProcessCatalogReaderProvider,
     { provide: WORKFLOW_ENGINE, useExisting: WorkflowEngine },

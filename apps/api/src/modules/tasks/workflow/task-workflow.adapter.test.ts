@@ -37,6 +37,7 @@ const facts = {
   assigneeId: 'u2',
   plannedMinutes: null,
   hasResult: false,
+  resultMessageIds: [],
 };
 
 function makeAdapter() {
@@ -54,11 +55,15 @@ function makeAdapter() {
     ]),
   };
   const placements = { prepare: vi.fn(async () => void 0) };
+  const forms = { apply: vi.fn() };
+  const messages = { countAttachments: vi.fn(async () => 0) };
   const adapter = new TaskWorkflowAdapter(
     { run: vi.fn(async (fn: (t: unknown) => unknown) => fn({})) } as never,
     tasks as never,
     placements as never,
     mover as never,
+    forms as never,
+    messages as never,
   );
   return { adapter, mover, tasks, placements };
 }
@@ -80,7 +85,11 @@ describe('TaskWorkflowAdapter (#428, ADR-0024)', () => {
     expect(subject.bypassConditions).toBe(true);
     expect(subject.canOverrideGates).toBe(false);
     expect(subject.actsWithoutConditions).toBe(true);
-    expect(subject.facts).toBe(facts);
+    const gateFacts = Object.fromEntries(
+      Object.entries(facts).filter(([key]) => key !== 'resultMessageIds'),
+    );
+    expect(subject.facts).toMatchObject(gateFacts);
+    expect(subject.facts.resultFileCount).toBe(0);
   });
 
   it('смена стадии — общий StageMover в транзакции вызывающего', async () => {

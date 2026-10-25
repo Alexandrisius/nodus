@@ -1,11 +1,13 @@
 import type {
   TransitionDisplay,
+  TransitionForm,
   WorkflowCondition,
   WorkflowTransitionRules,
   WorkflowValidator,
 } from '@nodus/contracts';
 
 import { buildQuickWorkflow, QUICK_PROCESS_TYPE } from './system-catalog-quick.js';
+import { commentWindow, resultWindow } from './catalog-forms.js';
 
 /**
  * Системный каталог маршрутов (ADR-0020; ревизия 2 — редактор #378/ADR-0021,
@@ -17,7 +19,7 @@ import { buildQuickWorkflow, QUICK_PROCESS_TYPE } from './system-catalog-quick.j
  * (резолв при посеве).
  */
 
-export const CATALOG_REVISION = 3;
+export const CATALOG_REVISION = 4;
 
 export interface CatalogStage {
   code: string;
@@ -38,6 +40,8 @@ export interface CatalogTransition {
   rules: Partial<WorkflowTransitionRules>;
   /** Цель пост-функции route_if (код стадии; резолвится при посеве). */
   routeTo?: string;
+  /** Окно при нажатии (#380, ревизия 4); пусто — окно выключено. */
+  form?: TransitionForm;
 }
 
 export interface CatalogWorkflow {
@@ -126,7 +130,10 @@ const cancel = (): CatalogTransition => ({
   to: 'cancelled',
   display: 'menu',
   rules: { conditions: [creator] },
+  form: commentWindow('Причина отмены', true),
 });
+
+export { commentWindow, resultWindow } from './catalog-forms.js';
 
 const reopen = (): CatalogTransition => ({
   code: 'reopen',
@@ -177,6 +184,7 @@ const STANDARD_WORKFLOW: CatalogWorkflow = {
       // Постановщик сам себе исполнитель — сразу «Завершена».
       rules: { conditions: [assignee], validators: [noOpenSubtasks] },
       routeTo: 'done',
+      form: resultWindow(),
     },
     {
       code: 'pause',
@@ -185,6 +193,7 @@ const STANDARD_WORKFLOW: CatalogWorkflow = {
       to: 'paused',
       display: 'button',
       rules: { conditions: [doers] },
+      form: commentWindow('Причина приостановки', true),
     },
     {
       code: 'continue',
@@ -217,6 +226,8 @@ const STANDARD_WORKFLOW: CatalogWorkflow = {
       to: 'done',
       display: 'primary',
       rules: { conditions: [creator], validators: [noOpenSubtasks] },
+      // О9: без окна утверждающий не увидит «Что сдаёт исполнитель».
+      form: commentWindow('Комментарий', false),
     },
     {
       code: 'return_control',
@@ -225,6 +236,7 @@ const STANDARD_WORKFLOW: CatalogWorkflow = {
       to: 'in_progress',
       display: 'button',
       rules: { conditions: [creator] },
+      form: commentWindow('Причина возврата', true),
     },
     {
       code: 'return_done',

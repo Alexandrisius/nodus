@@ -11,6 +11,8 @@ export interface TransitionRow {
   display: string;
   sortOrder: number;
   rules: Prisma.InputJsonValue;
+  /** Окно при нажатии (#380) — часть документа маршрута. */
+  form: Prisma.InputJsonValue;
 }
 
 /**

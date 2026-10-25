@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { userRefSchema } from '../directory/user-ref.schema.js';
+import { transitionFormDraftSchema, transitionFormSchema } from './transition-form.schemas.js';
 import {
   stageColorSchema,
   stageOutcomeSchema,
@@ -47,6 +48,8 @@ export const workflowDraftTransitionSchema = z.object({
   display: transitionDisplaySchema,
   sortOrder: z.number().int().min(0),
   rules: workflowTransitionRulesSchema,
+  /** Окно при нажатии (#380): публикуется вместе с кнопкой (ADR-0021). */
+  form: transitionFormDraftSchema.default({ enabled: false, sections: [] }),
 });
 export type WorkflowDraftTransition = z.infer<typeof workflowDraftTransitionSchema>;
 
@@ -117,6 +120,8 @@ export const workflowDocStageSchema = workflowDraftStageSchema.extend({
 });
 export const workflowDocTransitionSchema = workflowDraftTransitionSchema.extend({
   name: z.string().trim().min(1).max(32),
+  /** Строгая форма границы публикации: пустые подписи отвергаются. */
+  form: transitionFormSchema.default({ enabled: false, sections: [] }),
 });
 
 export const workflowDocumentSchema = z.object({
@@ -198,6 +203,9 @@ export const workflowProblemCodeSchema = z.enum([
   'no_primary',
   'closed_without_exit',
   'duplicate_with_any',
+  'form_empty_label',
+  'form_useless_section',
+  'form_duplicate_section',
 ]);
 export type WorkflowProblemCode = z.infer<typeof workflowProblemCodeSchema>;
 

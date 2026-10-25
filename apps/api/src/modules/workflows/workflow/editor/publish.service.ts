@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import {
   checkWorkflowDocument,
+  DEFAULT_TRANSITION_FORM,
   ErrorCode,
   WORKFLOW_EVENTS,
   type AuthUser,
@@ -235,6 +236,7 @@ export class WorkflowEditorService {
         display: t.display,
         sortOrder: t.sortOrder,
         rules: t.rules,
+        form: t.form,
       })),
       taskCounts: await this.adapters.get(category).countByStages(
         loaded.stages.map((s) => s.id),
@@ -269,6 +271,8 @@ export class WorkflowEditorService {
         document.transitions.find((t) => t.id === write.id)?.rules ?? NO_RULES,
         stages,
       ) as Prisma.InputJsonValue,
+      form: (document.transitions.find((t) => t.id === write.id)?.form ??
+        DEFAULT_TRANSITION_FORM) as Prisma.InputJsonValue,
     });
     for (const write of plan.transitionCreates) {
       transitions.set(write.id, await this.writes.createTransition(tx, workflowId, rowOf(write)));
@@ -319,6 +323,7 @@ export function documentOf(row: LoadedWorkflow, layout?: unknown): WorkflowDocum
       display: t.display,
       sortOrder: t.sortOrder,
       rules: t.rules,
+      form: t.form ?? { enabled: false, sections: [] },
     })),
     layout: liveLayout(layout, {
       stageIds: new Set(row.stages.map((s) => s.id)),

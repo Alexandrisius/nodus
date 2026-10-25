@@ -1,4 +1,9 @@
-import type { ProcessCategory, ProcessType, WorkflowTransition } from '@nodus/contracts';
+import type {
+  ProcessCategory,
+  ProcessType,
+  TransitionFormInput,
+  WorkflowTransition,
+} from '@nodus/contracts';
 
 import type { TransactionClient } from '../../../core/database/transaction-runner.js';
 import type {
@@ -10,6 +15,12 @@ import type {
  *  «Моего плана» (системное состояние). */
 export type TransitionChoice =
   { transitionId: string } | { stageId: string } | { systemState: string };
+
+/** Итог выполнения перехода: целевая стадия и строка журнала (#380). */
+export interface TransitionExecution {
+  stage: WorkflowEntityStage;
+  recordId: string;
+}
 
 /**
  * Порт движка маршрутов для модулей-владельцев сущностей (ADR-0012,
@@ -30,16 +41,17 @@ export interface WorkflowEnginePort {
     actor: WorkflowActor,
   ): Promise<WorkflowTransition[]>;
 
-  /** Выполнить переход: замок, условия, гейты (обход — флаг + причина),
-   *  смена стадии адаптером. Возвращает целевую стадию. */
+  /** Выполнить переход: замок, условия, форма окна, гейты (обход — флаг +
+   *  причина), смена стадии адаптером, запись журнала. Возвращает целевую
+   *  стадию и id строки журнала. */
   execute(
     tx: TransactionClient,
     entityId: string,
     category: ProcessCategory,
     actor: WorkflowActor,
     choice: TransitionChoice,
-    opts?: { override?: boolean; reason?: string },
-  ): Promise<WorkflowEntityStage>;
+    opts?: { override?: boolean; reason?: string; form?: TransitionFormInput },
+  ): Promise<TransitionExecution>;
 }
 
 /** Тип процесса с маршрутом — то, что нужно модулю-владельцу для создания

@@ -12,6 +12,7 @@ import { HistoryService } from './activity/history.service.js';
 import { RelationsRepository } from './activity/relations.repository.js';
 import { RelationsService } from './activity/relations.service.js';
 import { ResultsRepository } from './activity/results.repository.js';
+import { ResultRevisions } from './activity/result-revisions.js';
 import { ResultsService } from './activity/results.service.js';
 import { TaskPartsController } from './activity/task-parts.controller.js';
 import { BulkService } from './bulk/bulk.service.js';
@@ -32,6 +33,7 @@ import { Placements } from './personal/placements.js';
 import { PlacementsRepository } from './personal/placements.repository.js';
 import { TaskDtoMapper } from './tasks/task-dto.mapper.js';
 import { TaskEditService } from './tasks/task-edit.service.js';
+import { TaskFieldsWriter } from './tasks/task-fields.writer.js';
 import { TasksController } from './tasks/tasks.controller.js';
 import { TasksQueryRepository } from './tasks/tasks-query.repository.js';
 import { TasksQueryService } from './tasks/tasks-query.service.js';
@@ -42,6 +44,7 @@ import { TimeController } from './time/time.controller.js';
 import { TimeService } from './time/time.service.js';
 import { TaskTypeChangeService } from './types/task-type-change.service.js';
 import { StageMover } from './workflow/stage-mover.js';
+import { TaskFormApplier } from './workflow/task-form.applier.js';
 import { TaskTransitionsService } from './workflow/task-transitions.service.js';
 import { TaskWorkflowAdapter } from './workflow/task-workflow.adapter.js';
 import { TaskWorkflowController } from './workflow/task-workflow.controller.js';
@@ -81,6 +84,11 @@ import { TaskWorkflowController } from './workflow/task-workflow.controller.js';
     HistoryRepository,
     ViewerResolver,
     StageMover,
+    // Общие писатели полей/времени/итога (#380): окно перехода и PATCH
+    // правят задачу одной доменной логикой, а не копиями.
+    TaskFieldsWriter,
+    TaskFormApplier,
+    ResultRevisions,
     // Адаптер задач для движка «Процессов» (ADR-0024): регистрируется
     // DiscoveryService по статическому workflowCategory.
     TaskWorkflowAdapter,

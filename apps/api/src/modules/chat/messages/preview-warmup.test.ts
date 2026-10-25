@@ -13,6 +13,8 @@ const msg = (attId: string, thumbnailUrl: string | null): ChatMessage =>
     clientMessageId: `m-${attId}`,
     author: { id: 'u1', displayName: 'А', avatarUrl: null },
     text: '',
+    kind: 'text',
+    block: null,
     replyToId: null,
     reply: null,
     threadRootId: null,

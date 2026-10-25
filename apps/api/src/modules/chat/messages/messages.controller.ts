@@ -27,6 +27,8 @@ import {
   batchDeleteMessagesResultSchema,
   editMessageBodySchema,
   listMessagesQuerySchema,
+  lookupMessagesQuerySchema,
+  messageLookupResultSchema,
   messageSchema,
   paginatedSchema,
   sendMessageBodySchema,
@@ -36,6 +38,8 @@ import {
   type ChatMessage,
   type EditMessageBody,
   type ListMessagesQuery,
+  type LookupMessagesQuery,
+  type MessageLookupResult,
   type Paginated,
   type SendMessageBody,
 } from '@nodus/contracts';
@@ -83,6 +87,30 @@ export class MessagesController {
     query: ListMessagesQuery,
   ): Promise<Paginated<ChatMessage>> {
     return this.messages.list(user.id, conversationId, query);
+  }
+
+  @Get('lookup')
+  @ApiOperation({
+    summary: 'Живые сообщения беседы по id (только участник; окно перехода #380)',
+  })
+  @ApiOkResponse({ standardSchema: messageLookupResultSchema })
+  @ApiErrors(400, 401, 404)
+  async lookup(
+    @GetUser() user: { id: string },
+    @Param('id', new ZodValidationPipe(uuidSchema)) conversationId: string,
+    @Query({
+      schema: lookupMessagesQuerySchema,
+      pipes: [new ZodValidationPipe(lookupMessagesQuerySchema)],
+    })
+    query: LookupMessagesQuery,
+  ): Promise<MessageLookupResult> {
+    const result = await this.messages.lookup(user.id, conversationId, query.ids);
+    return {
+      items: await this.mapper.toDtos(result.messages, {
+        viewerId: user.id,
+        members: result.members,
+      }),
+    };
   }
 
   @Post()

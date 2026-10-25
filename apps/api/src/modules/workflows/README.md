@@ -65,5 +65,12 @@
 
 - Движок не пишет таблицы сущностей и не знает их прав/ролей — только через адаптер.
 - Личные маршруты «Моего плана» — не здесь (временное исключение ADR-0024).
-- Журнал переходов создан, но пуст: пишет #380.
+- Журнал `transition_records` пишет **движок** в транзакции перехода (адаптеры его не трогают): одна строка на каждый `execute` — кнопка, DnD, «Мой план». Колонки: `entity_kind/entity_id`, `transition_id`, `from_stage_id/to_stage_id` (фактическая цель после `route_if`), актор или правило, `record_kind`, `comment`, `result_id` (ревизия итога, uuid), `fields` (только изменённое окном), `time_entry_id`, `answers` (задел #381). Индекс `(entity_kind, entity_id, created_at DESC)` покрывает историю карточки и «кто сдал работу» (#430).
+
+## Окно перехода (#380)
+
+`WorkflowTransition.form` — часть документа маршрута (ADR-0021): `{ enabled, title?, sections[] }`, разделы закрытого реестра (`fields | time | result | result_files | result_messages | comment`). Публикуется вместе с кнопкой; `GET /workflows/:id` отдаёт форму, DTO кнопки (`WorkflowTransition`) — `form` (null — выключено) и `validators`.
+
+Порядок `execute` (одна транзакция): замок → субъект по состоянию ДО окна → условия «кто» → сверка `form` с эффективным окном (`effectiveWindowSections`: настройка ∪ гейты) → `adapter.applyForm` (поля/время/итог) → субъект ПОСЛЕ окна → гейты и обход → `applyStage` → журнал. Ошибки: 422 `TASK_TRANSITION_FORM_INVALID` (`details { transitionId, missing[], unexpected[] }`) — лишний/пропущенный обязательный раздел или DnD в кнопку с обязательным окном; 409 `TASK_TRANSITION_BLOCKED` — гейт после окна. Обязательность содержимого — только гейты (Р3): новый валидатор `result_files { min 1..5 }` считает живые вложения итога (стикеры не считаются).
+
 - Письма (категория `letter`) подключаются адаптером модуля `correspondence` (#55); API типов уже принимает `category: 'letter'` + `direction`.

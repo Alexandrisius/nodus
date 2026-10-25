@@ -170,6 +170,27 @@ const conversationHandlers = [
     return HttpResponse.json(conversation, { status: 201 });
   }),
 
+  /** Живые сообщения беседы по id (окно перехода, #380): только участник —
+   *  мок считает демо-юзера участником всех бесед. Отсутствующие выпадают. */
+  http.get('/api/v1/chat/conversations/:id/messages/lookup', ({ params, request }) => {
+    const ids = new Set(
+      (new URL(request.url).searchParams.get('ids') ?? '')
+        .split(',')
+        .map((id) => id.trim())
+        .filter(Boolean),
+    );
+    const conversation = demoConversations.find((c) => c.id === params.id);
+    if (!conversation)
+      return HttpResponse.json(
+        { code: ErrorCode.NOT_FOUND, message: 'Conversation not found' },
+        { status: 404 },
+      );
+    const items = demoMessages
+      .filter((m) => m.conversationId === params.id && ids.has(m.id) && !m.deletedAt)
+      .sort((a, b) => a.seq - b.seq);
+    return HttpResponse.json({ items });
+  }),
+
   /** Сообщения беседы; с threadRootId — тред канала: корень + ответы
    *  (ровно один уровень, корень первым). Просмотры (readAt/readBy) —
    *  watermark-модель #102 раунд 2: двигаются ТОЛЬКО квитанциями

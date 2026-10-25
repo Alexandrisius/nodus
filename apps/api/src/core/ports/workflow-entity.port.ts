@@ -1,3 +1,5 @@
+import type { TransitionFormInput } from '@nodus/contracts';
+
 import type { TransactionClient } from '../database/transaction-runner.js';
 
 /**
@@ -35,6 +37,8 @@ export interface WorkflowGateFacts {
   assigneeId: string | null;
   plannedMinutes: number | null;
   hasResult: boolean;
+  /** Живых вложений текущей ревизии итога (#380): гейт `result_files`. */
+  resultFileCount: number;
 }
 
 /** Кто актор относительно сущности и что ему можно в маршруте. */
@@ -76,6 +80,26 @@ export interface WorkflowStageChangeMeta {
   overriddenGates?: string[];
   /** Текст причины обхода гейта (обязателен на API при обходе). */
   overrideReason?: string;
+  /** Строка общего журнала (#380): блок в чате пишется только с ней. */
+  recordId?: string;
+  /** Названия кнопки и исходного статуса — для блока перехода в чате. */
+  transitionName?: string;
+  fromStageName?: string;
+  /** Текст раздела «Причина / комментарий» окна и его подпись. */
+  comment?: string;
+  commentLabel?: string;
+  /** Итог, созданный переходом (файлы — по живым вложениям). */
+  result?: { resultId: string; fileCount: number; messageCount: number };
+}
+
+/** Что применило окно перехода (#380): дифф полей, запись времени, ревизия
+ *  итога. Движок кладёт это в журнал и в событие; адаптер — единственный,
+ *  кто пишет поля сущности (ADR-0024 п.3). */
+export interface WorkflowFormApplied {
+  /** Только реально изменённые поля: `{ deadline: { from, to } }`. */
+  fields: Record<string, { from: unknown; to: unknown }>;
+  timeEntryId: string | null;
+  result: { resultId: string; fileCount: number; messageCount: number } | null;
 }
 
 export interface WorkflowActor {
@@ -106,6 +130,16 @@ export interface WorkflowEntityAdapter {
     actorId: string | null,
     meta: WorkflowStageChangeMeta,
   ): Promise<void>;
+
+  /** Применить введённое в окне перехода (#380) в транзакции движка:
+   *  поля, трудозатраты, ревизия итога. Права разделов перепроверяются
+   *  здесь по свежим ролям; ошибка откатывает весь переход. */
+  applyForm(
+    tx: TransactionClient,
+    entityId: string,
+    actor: WorkflowActor,
+    input: TransitionFormInput,
+  ): Promise<WorkflowFormApplied>;
 
   /** Сколько сущностей в каждой из стадий (диалог публикации, мета списка). */
   countByStages(

@@ -48,6 +48,8 @@ import {
 } from './task-chat/task-chat.handlers.js';
 import { TaskChatRepository } from './task-chat/task-chat.repository.js';
 import { TaskChatService } from './task-chat/task-chat.service.js';
+import { TaskTransitionBlockHandler } from './task-chat/task-transition-block.handler.js';
+import { TaskTransitionBlockService } from './task-chat/task-transition-block.service.js';
 import { FavoritesController } from './favorites/favorites.controller.js';
 import { FavoriteCardMapper } from './favorites/favorite-card.mapper.js';
 import { FavoritesRepository } from './favorites/favorites.repository.js';
@@ -165,6 +167,9 @@ import {
     TaskChatRepository,
     TaskChatService,
     TaskChatSyncRunner,
+    // Блок перехода задачи в ленте (#380): kind='task_transition'.
+    TaskTransitionBlockService,
+    TaskTransitionBlockHandler,
     TaskCreatedChatHandler,
     TaskAssignedChatHandler,
     TaskParticipantsChatHandler,

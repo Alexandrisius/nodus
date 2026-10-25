@@ -57,6 +57,7 @@ function snapshot(overrides: Partial<PlannerSnapshot> = {}): PlannerSnapshot {
         display: 'primary',
         sortOrder: 0,
         rules: RULES,
+        form: { enabled: false, sections: [] },
       },
     ],
     taskCounts: { [S1]: 2, [S2]: 5, [S3]: 1 },
@@ -80,10 +81,16 @@ function doc(
     toStageId: string;
     display?: string;
     rules?: unknown;
+    form?: unknown;
   }[] = [],
 ) {
   const stageBase = { code: null, color: 'neutral', outcome: null, isInitial: false };
-  const transitionBase = { code: null, display: 'button' as const, rules: RULES };
+  const transitionBase = {
+    code: null,
+    display: 'button' as const,
+    rules: RULES,
+    form: { enabled: false, sections: [] },
+  };
   return {
     stages: stages.map((s, i) => ({ ...stageBase, sortOrder: i, ...s })),
     transitions: transitions.map((t, i) => ({ ...transitionBase, sortOrder: i, ...t })),
@@ -246,5 +253,40 @@ describe('planWorkflowPublish (#378)', () => {
     // Без new:* правила не копируются зря (та же ссылка).
     const plain = { conditions: [], validators: [], postFunctions: [] } as never;
     expect(resolveRules(plain, created)).toBe(plain);
+  });
+});
+
+describe('planWorkflowPublish — форма окна (#380)', () => {
+  const stages = [
+    { id: S1, name: 'Ожидает', color: 'neutral', systemState: 'backlog', isInitial: true },
+    { id: S2, name: 'В работе', color: 'success', systemState: 'active' },
+    { id: S3, name: 'Завершена', color: 'info', systemState: 'closed', outcome: 'success' },
+  ];
+  const base = {
+    id: T1,
+    name: 'Взять в работу',
+    fromStageId: S1,
+    toStageId: S2,
+    display: 'primary',
+    form: { enabled: false, sections: [] },
+  };
+
+  it('смена формы окна — обновление кнопки; та же форма — без изменений', () => {
+    const changed = planWorkflowPublish(
+      snapshot(),
+      doc(stages, [
+        {
+          ...base,
+          form: {
+            enabled: true,
+            sections: [{ kind: 'comment', label: 'Причина', required: true }],
+          },
+        },
+      ]),
+      [],
+    );
+    expect(changed.transitionUpdates).toHaveLength(1);
+    const same = planWorkflowPublish(snapshot(), doc(stages, [base]), []);
+    expect(same.transitionUpdates).toHaveLength(0);
   });
 });

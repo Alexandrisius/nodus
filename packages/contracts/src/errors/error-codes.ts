@@ -37,6 +37,9 @@ export const ErrorCode = {
   TASK_TRANSITION_NOT_ALLOWED: 'TASK_TRANSITION_NOT_ALLOWED',
   /** Гейт DoR/DoD не пройден; details.reasons — TransitionBlockReason[] (ADR-0020). */
   TASK_TRANSITION_BLOCKED: 'TASK_TRANSITION_BLOCKED',
+  /** Введённое в окне перехода не совпало с настройкой кнопки: лишний или
+   *  пропущенный обязательный раздел; details — { transitionId, missing[], unexpected[] } (#380). */
+  TASK_TRANSITION_FORM_INVALID: 'TASK_TRANSITION_FORM_INVALID',
   /** Обход гейта без причины или без права task.override_gate. */
   TASK_OVERRIDE_REASON_REQUIRED: 'TASK_OVERRIDE_REASON_REQUIRED',
   /** Родитель задачи образует цикл (задача — предок самой себя). */

@@ -37,6 +37,7 @@ const back = (id: string, from: string, sortOrder: number) => ({
   display: 'button' as const,
   sortOrder,
   rules,
+  form: { enabled: false, sections: [] },
 });
 
 /** A — B — C в ряд, две обратные стрелки в A понизу (U-обходы). */

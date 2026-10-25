@@ -32,6 +32,8 @@ const CODE_TO_STATUS: Record<ErrorCode, number> = {
   // состояния (запрос корректен, задача сейчас так не ходит).
   [ErrorCode.TASK_TRANSITION_NOT_ALLOWED]: HttpStatus.CONFLICT,
   [ErrorCode.TASK_TRANSITION_BLOCKED]: HttpStatus.CONFLICT,
+  // Окно перехода (#380): состав введённого не совпал с настройкой — 422.
+  [ErrorCode.TASK_TRANSITION_FORM_INVALID]: HttpStatus.UNPROCESSABLE_ENTITY,
   [ErrorCode.TASK_OVERRIDE_REASON_REQUIRED]: HttpStatus.BAD_REQUEST,
   [ErrorCode.TASK_PARENT_CYCLE]: HttpStatus.CONFLICT,
   [ErrorCode.TASK_TIMER_NOT_RUNNING]: HttpStatus.CONFLICT,

@@ -18,6 +18,7 @@ import {
   type CatalogWorkflow,
 } from './system-catalog.js';
 import { parseRules } from '../workflow/transition-rules.js';
+import { parseForm } from '../workflow/transition-form.js';
 import { CatalogRepository, type CatalogStageData } from './catalog.repository.js';
 
 /** Стадия засеяна; `restate` — каталог сменил её группу (задачи — фоном). */
@@ -199,6 +200,7 @@ export class CatalogBootstrap implements OnApplicationBootstrap {
         ...t.rules,
         postFunctions: catalogPostFunctions(t, stageIds),
       }),
+      form: parseForm(t.form ?? {}),
     };
     const found = await this.repo.findTransition(tx, workflowId, t.code);
     if (found) await this.repo.updateTransition(tx, found.id, data);

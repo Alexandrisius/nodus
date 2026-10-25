@@ -4,6 +4,7 @@ import type { ProcessCategory, TransitionDisplay } from '@nodus/contracts';
 import { PrismaService } from '../../../core/database/prisma.service.js';
 import type { TransactionClient } from '../../../core/database/transaction-runner.js';
 import { parseRules, type StageDef, type TransitionDef } from './transition-rules.js';
+import { parseForm } from './transition-form.js';
 
 export interface StageRow extends StageDef {
   workflowId: string;
@@ -53,6 +54,7 @@ export class WorkflowRepository {
         display: t.display as TransitionDisplay,
         sortOrder: t.sortOrder,
         rules: parseRules(t.rules),
+        form: parseForm(t.form),
       })),
     };
   }

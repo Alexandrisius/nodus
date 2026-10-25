@@ -53,6 +53,7 @@ const doc = (layout?: WorkflowDraftDocument['layout']): WorkflowDraftDocument =>
       display: 'primary',
       sortOrder: 0,
       rules,
+      form: { enabled: false, sections: [] },
     },
     {
       id: 't-cancel',
@@ -63,6 +64,7 @@ const doc = (layout?: WorkflowDraftDocument['layout']): WorkflowDraftDocument =>
       display: 'menu',
       sortOrder: 1,
       rules,
+      form: { enabled: false, sections: [] },
     },
   ],
   ...(layout ? { layout } : {}),

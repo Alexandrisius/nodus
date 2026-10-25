@@ -8,6 +8,7 @@ import { StageButtonsSection } from './stage-buttons-section.js';
 import { StagePanel } from './stage-panel.js';
 import { TransitionPanel, type TransitionSection } from './transition-panel.js';
 import { ConditionsSection, RolesSection, RulesSection } from './transition-sections.js';
+import { WindowSection } from './window-section.js';
 
 /** Раздел панели: корень или переход внутрь (у кнопки — три раздела, у
  *  статуса — «Кнопки из статуса»). */
@@ -17,6 +18,7 @@ const SECTION_TITLE: Record<Exclude<PanelSection, 'root'>, string> = {
   roles: ui.automation.panel.sectionWhoSees,
   conditions: ui.automation.panel.sectionConditions,
   rules: ui.automation.panel.sectionRules,
+  window: ui.automation.panel.sectionWindow,
   buttons: ui.automation.panel.sectionButtons,
 };
 
@@ -104,6 +106,9 @@ export function EditorPanel({
       ) : null}
       {transition && section === 'rules' ? (
         <RulesSection transition={transition} document={doc} readOnly={readOnly} />
+      ) : null}
+      {transition && section === 'window' ? (
+        <WindowSection transition={transition} document={doc} readOnly={readOnly} />
       ) : null}
     </SidePanel>
   );

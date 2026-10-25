@@ -83,3 +83,10 @@ INTERNAL_ERROR      # непредвиденное (без деталей нар
 ```
 
 Доменные коды — по маске `MODULE_REASON` (`TASK_INVALID_STAGE_TRANSITION`, `LETTER_ALREADY_REGISTERED`), регистрируются в том же enum contracts. `message` — английский технический (для логов/отладки); русские UI-строки клиент берёт из i18n по `code` (I15).
+
+### Окно перехода и блок чата (#380)
+
+- `POST /tasks/:id/transitions/:transitionId` принимает `form` (`.strict()`): `fields` (только поля раздела), `time` (1..1440 мин + дата), `result` (`text ≤ 5000`, `messageIds ≤ 50` уникальных), `comment ≤ 2000`. Состав сверяется с эффективным окном кнопки: лишнее или пропущенное обязательное — `422 TASK_TRANSITION_FORM_INVALID` (`details { transitionId, missing[], unexpected[] }`); гейт после окна — прежний `409 TASK_TRANSITION_BLOCKED` (`details.reasons`).
+- `task.stage_changed` расширен (все поля optional — старые события их не несут): `recordId`, `transitionName ≤32`, `fromStageName ≤40`, `comment ≤2000`, `commentLabel ≤60`, `result { resultId, fileCount, messageCount }`. По ним чат пишет блок перехода.
+- Вид сообщения: `kind` (`text | task_transition`; #313 добавит `system`) + `payload JSONB`; DTO сообщения — `kind` и `block` (закрытый union по виду, `null` при выключенном/битом payload). Правка блока запрещена (403).
+- `GET /chat/conversations/:id/messages/lookup?ids=` — до 50 id, только участник (иначе 404), живые сообщения в порядке `seq`; отсутствующие молча выпадают.

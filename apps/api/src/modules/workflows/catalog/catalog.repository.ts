@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { WorkflowTransitionRules } from '@nodus/contracts';
+import type { TransitionForm, WorkflowTransitionRules } from '@nodus/contracts';
 
 import type { Prisma } from '../../../generated/prisma/client.js';
 import type { TransactionClient } from '../../../core/database/transaction-runner.js';
@@ -20,11 +20,17 @@ export interface CatalogTransitionData {
   display: string;
   sortOrder: number;
   rules: WorkflowTransitionRules;
+  form: TransitionForm;
 }
 
-/** Правила перехода — JSONB (разобраны parseRules — закрытый реестр contracts). */
+/** Правила и форма перехода — JSONB (разобраны parseRules/parseForm —
+ *  закрытые реестры contracts). */
 function json(data: CatalogTransitionData) {
-  return { ...data, rules: data.rules as Prisma.InputJsonValue };
+  return {
+    ...data,
+    rules: data.rules as Prisma.InputJsonValue,
+    form: data.form as Prisma.InputJsonValue,
+  };
 }
 
 /**

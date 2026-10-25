@@ -382,6 +382,10 @@ model Message {
   authorId       String   @map("author_id") @db.Uuid
   clientMessageId String  @map("client_message_id")
   text           String   @default("")
+  /// Вид сообщения (#380): text | task_transition (#313 добавит system).
+  kind           String   @default("text")
+  /// Данные блока по виду сообщения (task_transition: TaskTransitionBlock).
+  payload        Json?
   replyToId      String?  @map("reply_to_id") @db.Uuid
   /// Замороженный снапшот цитаты {authorId, text, quoteText, attachmentKind}:
   /// правка оригинала снапшот не меняет (вердикт 24.09); удалённость оригинала
@@ -1007,6 +1011,8 @@ model WorkflowTransition {
   archivedAt  DateTime? @map("archived_at") @db.Timestamptz()
   sortOrder   Int      @default(0) @map("sort_order")
   rules       Json     @default("{}")
+  /// Окно при нажатии (#380): часть документа маршрута, публикуется с ним.
+  form        Json     @default("{}")
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz()
 
@@ -1169,13 +1175,13 @@ model TransitionRecord {
   /// Участник сбора отметок (press/return/withdraw/exclude).
   participantId String?  @map("participant_id") @db.Uuid
   comment       String?
-  /// Итог перехода (success | cancelled | rejected), если стадия итоговая.
-  resultId      String?  @map("result_id")
+  /// Итог перехода — id ревизии итога сущности (TaskResult у задач), а не исход.
+  resultId      String?  @map("result_id") @db.Uuid
   /// Изменённые поля (закрытый словарь категории), JSONB.
   fields        Json     @default("{}")
   timeEntryId   String?  @map("time_entry_id") @db.Uuid
-  /// Ответы на вопросы окна перехода (#380), JSONB.
-  answers       Json     @default("{}")
+  /// Ответы на вопросы окна перехода (#381), JSONB-массив.
+  answers       Json     @default("[]")
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz()
 
   @@index([entityKind, entityId, createdAt(sort: Desc)])

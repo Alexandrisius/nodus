@@ -91,19 +91,31 @@ export class TimeService {
 
   async add(user: AuthUser, taskId: string, body: TimeEntryCreateBody): Promise<TimeEntry> {
     const row = await this.assertCanLog(user, taskId);
-    const entry = await this.txRunner.run(async (tx) => {
-      const created = await this.repo.createManual(tx, {
-        taskId,
-        projectId: row.projectId,
-        userId: user.id,
-        minutes: body.minutes,
-        date: new Date(`${body.date}T00:00:00Z`),
-        comment: body.comment ?? null,
-      });
-      await this.logged(tx, user.id, taskId, created.id, created.minutes);
-      return created;
-    });
+    const entry = await this.txRunner.run((tx) =>
+      this.addManualInTx(tx, user.id, { id: row.id, projectId: row.projectId }, body),
+    );
     return (await this.toDtos([entry]))[0]!;
+  }
+
+  /** Ручная запись в транзакции вызывающего (#380: окно перехода пишет время
+   *  той же логикой, что и «Внести время»; право canLogTime проверяет
+   *  вызывающий по свежим ролям). Возвращает созданную строку. */
+  async addManualInTx(
+    tx: TransactionClient,
+    actorId: string,
+    task: { id: string; projectId: string | null },
+    body: TimeEntryCreateBody,
+  ): Promise<EntryRow> {
+    const created = await this.repo.createManual(tx, {
+      taskId: task.id,
+      projectId: task.projectId,
+      userId: actorId,
+      minutes: body.minutes,
+      date: new Date(`${body.date}T00:00:00Z`),
+      comment: body.comment ?? null,
+    });
+    await this.logged(tx, actorId, task.id, created.id, created.minutes);
+    return created;
   }
 
   async remove(user: AuthUser, entryId: string): Promise<void> {

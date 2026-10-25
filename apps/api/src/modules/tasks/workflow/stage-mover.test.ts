@@ -112,3 +112,50 @@ describe('StageMover — «Утверждение» не завершение (A
     expect(state).toMatchObject({ systemState: 'done', completedAt: null });
   });
 });
+
+describe('StageMover — payload stage_changed (#380)', () => {
+  it('обход гейта: overriddenGates и reason (регресс #428), поля окна и recordId', async () => {
+    const { mover, eventBus } = setup();
+    const recordId = '00000000-0000-4000-8000-0000000000aa';
+    await mover.apply(TX, task('active'), REVIEW, 'bob', {
+      transitionId: 'tr',
+      cause: 'transition',
+      overriddenGates: ['no_open_subtasks'],
+      overrideReason: 'срочно',
+      recordId,
+      transitionName: 'Завершить',
+      fromStageName: 'В работе',
+      comment: 'Готово',
+      commentLabel: 'Комментарий',
+      result: { resultId: '00000000-0000-4000-8000-0000000000bb', fileCount: 2, messageCount: 1 },
+    });
+    const payload = (eventBus.emit.mock.calls[0] as unknown[])[2] as Record<string, unknown>;
+    expect(payload).toMatchObject({
+      overriddenGates: ['no_open_subtasks'],
+      reason: 'срочно',
+      recordId,
+      transitionName: 'Завершить',
+      fromStageName: 'В работе',
+      comment: 'Готово',
+      commentLabel: 'Комментарий',
+      result: { fileCount: 2, messageCount: 1 },
+    });
+  });
+
+  it('длинные строки обрезаются до лимитов контракта события', async () => {
+    const { mover, eventBus } = setup();
+    await mover.apply(TX, task('active'), REVIEW, 'bob', {
+      transitionId: 'tr',
+      cause: 'transition',
+      transitionName: 'я'.repeat(50),
+      fromStageName: 'я'.repeat(60),
+      comment: 'я'.repeat(2100),
+      commentLabel: 'я'.repeat(70),
+    });
+    const payload = (eventBus.emit.mock.calls[0] as unknown[])[2] as Record<string, unknown>;
+    expect((payload.transitionName as string).length).toBe(32);
+    expect((payload.fromStageName as string).length).toBe(40);
+    expect((payload.comment as string).length).toBe(2000);
+    expect((payload.commentLabel as string).length).toBe(60);
+  });
+});

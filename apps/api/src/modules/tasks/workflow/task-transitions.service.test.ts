@@ -64,3 +64,39 @@ describe('TaskTransitionsService — сценарии API кнопок марш�
     expect(txRunner.run).not.toHaveBeenCalled();
   });
 });
+
+describe('TaskTransitionsService — окно перехода (#380)', () => {
+  it('новый ответственный из формы: активность и личные маршруты — до транзакции', async () => {
+    const row = {
+      id: 't1',
+      creatorId: 'alice',
+      assigneeId: 'bob',
+      participants: [{ userId: 'carol', role: 'coexecutor' }],
+    };
+    const query = { visibleRow: vi.fn(async () => row) };
+    const placements = { prepare: vi.fn(async () => void 0) };
+    const taskService = {
+      assertActiveUsers: vi.fn(async () => void 0),
+      listItem: vi.fn(async () => ({ id: 't1' })),
+    };
+    const engine = {
+      execute: vi.fn(async () => ({ stage: { id: 's' }, recordId: 'r' })),
+      available: vi.fn(async () => []),
+    };
+    const txRunner = { run: vi.fn(async (fn: (tx: unknown) => unknown) => fn(TX)) };
+    const service = makeService({ txRunner, placements, query, taskService, engine });
+    await service.executeFor(USER, 't1', 'tr1', {
+      form: { fields: { assigneeId: 'dave' } },
+    });
+    expect(taskService.assertActiveUsers).toHaveBeenCalledWith(['dave']);
+    expect(placements.prepare).toHaveBeenCalledWith(['alice', 'dave', 'carol']);
+    expect(engine.execute).toHaveBeenCalledWith(
+      TX,
+      't1',
+      'task',
+      USER,
+      { transitionId: 'tr1' },
+      { form: { fields: { assigneeId: 'dave' } } },
+    );
+  });
+});

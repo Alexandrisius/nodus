@@ -20,6 +20,7 @@ import { linkCardVisible, MessageLinkPreview } from './link-preview-card.js';
 import { ReactionPicker } from './reaction-picker.js';
 import { stickerAttachmentOf, StickerMessageView } from './sticker-message.js';
 import { TombstoneBubble } from './tombstone.js';
+import { TransitionBlock } from './transition-block.js';
 import { PersonAvatar } from '../ui/person-avatar.js';
 import { MediaMessage, MetaGhost, MetaPin } from './message-media-bubble.js';
 import { hasEntityPreviews } from './message-text.js';
@@ -116,6 +117,14 @@ export const ChatMessageItem = memo(function ChatMessageItem({
         avatarSlot={avatarSlot}
         tail={tail}
       />
+    );
+  }
+
+  // Блок перехода задачи (#380): запись журнала, не пузырь — компактный
+  // блок во всех хостах (карточка задачи и «Чаты задач и писем»).
+  if (message.kind === 'task_transition' && message.block?.kind === 'task_transition') {
+    return (
+      <TransitionBlock message={message} mine={mine} showName={showName} avatarSlot={avatarSlot} />
     );
   }
 

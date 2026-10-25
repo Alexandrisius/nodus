@@ -54,6 +54,7 @@ const INTENTIONALLY_WITHOUT_PERMISSION: Record<string, string> = {
   'POST /chat/conversations/direct/:userId': DIRECT_CHAT,
   'GET /chat/conversations/:id/members': CHAT_MEMBERSHIP,
   'GET /chat/conversations/:id/messages': CHAT_MEMBERSHIP,
+  'GET /chat/conversations/:id/messages/lookup': CHAT_MEMBERSHIP,
   'GET /chat/conversations/:id/pins': CHAT_MEMBERSHIP,
   'GET /chat/conversations/:id/threads/state': CHAT_MEMBERSHIP,
   'GET /chat/conversations/:id/attachments': CHAT_MEMBERSHIP,
