@@ -1,4 +1,4 @@
-import { useMemo, useRef, type ReactNode } from 'react';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { Skeleton } from '@nodus/ui/components/skeleton';
 import { Checkbox } from '@nodus/ui/components/checkbox';
 import { Empty, EmptyTitle } from '@nodus/ui/components/empty';
@@ -11,6 +11,8 @@ import { useAutoFitColumn } from './use-autofit-column.js';
 import { useInfiniteSentinel } from './use-infinite-sentinel.js';
 import { useRowSelection, type RowSelection } from './use-row-selection.js';
 import { useViewFields, type FieldDef } from './use-view-fields.js';
+import { EdgeHints } from '../ui/board/board-scroller.js';
+import { useBoardEdgeScroll } from '../ui/board/use-board-edge-scroll.js';
 import { uiPx } from '../ui/ui-scale.js';
 import { cn } from '@nodus/ui/lib/utils';
 
@@ -86,6 +88,11 @@ export function DataTable<T>({
   const { visibleFields, sort, setWidth, cycleSort, commitOrder } = useViewFields(viewKey, defs);
   const containerRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const [hovered, setHovered] = useState(false);
+  const edge = useBoardEdgeScroll(containerRef, {
+    pan: false,
+    mounted: !isLoading && rows.length > 0,
+  });
 
   // Сортировка строк (клиентская, концепт #4; ?sort= на бэке — отдельный
   // issue): стабильная, null — в конец (sort-rows).
@@ -131,84 +138,99 @@ export function DataTable<T>({
   return (
     // Семантика таблицы (аудит #45: div-grid без ролей; aria-sort жил на
     // span-кнопке — невалидно). Роли: table/row/columnheader(в хедере)/cell.
-    <div ref={containerRef} role="table" aria-label={emptyTitle} className="h-full overflow-auto">
-      <DataTableHeader
-        fields={visibleFields}
-        sort={sort}
-        headerChecked={headerChecked}
-        hasActions={actions !== undefined}
-        style={{ gridTemplateColumns }}
-        onToggleAll={toggleAll}
-        onResize={(fieldId, w) => setWidth(fieldId, w)}
-        onAutoFit={autoFitColumn}
-        onCycleSort={cycleSort}
-        onReorder={commitOrder}
-      />
-      {sortedRows.map((row) => {
-        const key = rowKey(row);
-        const isSelected = selected.has(key);
-        return (
-          <div
-            key={key}
-            role="row"
-            tabIndex={0}
-            onClick={(e) => onOpenRow(row, e.currentTarget)}
-            onPointerEnter={() => onHoverRow?.(row)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                onOpenRow(row, e.currentTarget);
-              }
-            }}
-            className={cn(
-              'grid h-12 w-max min-w-full cursor-pointer items-stretch gap-3 border-b border-border/60 px-4 transition-colors [content-visibility:auto] [contain-intrinsic-size:auto_3rem] last:border-b-0 hover:bg-accent/40 focus-visible:outline-2 focus-visible:outline-ring',
-              isSelected && 'bg-accent/50',
-            )}
-            style={{ gridTemplateColumns }}
-          >
-            {/* Ведущая ячейка: чекбокс выбора + «шашка» меню (клики не
-              всплывают до строки — открытие карточки не срабатывает). */}
-            <span
-              role="cell"
-              className="flex items-center gap-1"
-              onClick={(e) => e.stopPropagation()}
-              onKeyDown={(e) => e.stopPropagation()}
+    // Широкая таблица листается подводом курсора к краю — та же механика,
+    // что у канбана (индикаторы — соседи скролл-контейнера).
+    <div
+      className="relative h-full"
+      onPointerEnter={() => setHovered(true)}
+      onPointerLeave={() => setHovered(false)}
+    >
+      <div
+        ref={containerRef}
+        role="table"
+        aria-label={emptyTitle}
+        className="h-full overflow-auto"
+        {...edge.handlers}
+      >
+        <DataTableHeader
+          fields={visibleFields}
+          sort={sort}
+          headerChecked={headerChecked}
+          hasActions={actions !== undefined}
+          style={{ gridTemplateColumns }}
+          onToggleAll={toggleAll}
+          onResize={(fieldId, w) => setWidth(fieldId, w)}
+          onAutoFit={autoFitColumn}
+          onCycleSort={cycleSort}
+          onReorder={commitOrder}
+        />
+        {sortedRows.map((row) => {
+          const key = rowKey(row);
+          const isSelected = selected.has(key);
+          return (
+            <div
+              key={key}
+              role="row"
+              tabIndex={0}
+              onClick={(e) => onOpenRow(row, e.currentTarget)}
+              onPointerEnter={() => onHoverRow?.(row)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onOpenRow(row, e.currentTarget);
+                }
+              }}
+              className={cn(
+                'grid h-12 w-max min-w-full cursor-pointer items-stretch gap-3 border-b border-border/60 px-4 transition-colors [content-visibility:auto] [contain-intrinsic-size:auto_3rem] last:border-b-0 hover:bg-accent/40 focus-visible:outline-2 focus-visible:outline-ring',
+                isSelected && 'bg-accent/50',
+              )}
+              style={{ gridTemplateColumns }}
             >
-              <Checkbox
-                checked={isSelected}
-                onCheckedChange={() => toggle(key)}
-                aria-label={ui.common.selectRow}
-              />
-              <RowMenu items={rowMenu?.(row) ?? []} />
-            </span>
-            {visibleFields.map((field) => (
-              <span
-                key={field.id}
-                role="cell"
-                data-cell-field={field.id}
-                className="flex min-w-0 items-center gap-2 overflow-hidden"
-              >
-                {field.render(row)}
-              </span>
-            ))}
-            {actions ? (
+              {/* Ведущая ячейка: чекбокс выбора + «шашка» меню (клики не
+              всплывают до строки — открытие карточки не срабатывает). */}
               <span
                 role="cell"
-                className="flex items-center"
+                className="flex items-center gap-1"
                 onClick={(e) => e.stopPropagation()}
                 onKeyDown={(e) => e.stopPropagation()}
               >
-                {actions(row)}
+                <Checkbox
+                  checked={isSelected}
+                  onCheckedChange={() => toggle(key)}
+                  aria-label={ui.common.selectRow}
+                />
+                <RowMenu items={rowMenu?.(row) ?? []} />
               </span>
-            ) : null}
+              {visibleFields.map((field) => (
+                <span
+                  key={field.id}
+                  role="cell"
+                  data-cell-field={field.id}
+                  className="flex min-w-0 items-center gap-2 overflow-hidden"
+                >
+                  {field.render(row)}
+                </span>
+              ))}
+              {actions ? (
+                <span
+                  role="cell"
+                  className="flex items-center"
+                  onClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => e.stopPropagation()}
+                >
+                  {actions(row)}
+                </span>
+              ) : null}
+            </div>
+          );
+        })}
+        {hasNextPage ? (
+          <div ref={sentinelRef} className="flex justify-center py-3">
+            {isFetchingNextPage ? <Skeleton className="h-8 w-48" /> : <span className="h-1" />}
           </div>
-        );
-      })}
-      {hasNextPage ? (
-        <div ref={sentinelRef} className="flex justify-center py-3">
-          {isFetchingNextPage ? <Skeleton className="h-8 w-48" /> : <span className="h-1" />}
-        </div>
-      ) : null}
+        ) : null}
+      </div>
+      <EdgeHints room={edge.room} hot={edge.hot} show={hovered} />
     </div>
   );
 }

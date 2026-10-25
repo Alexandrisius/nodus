@@ -1,9 +1,12 @@
 import {
+  customFieldIdOfKey,
+  isCustomFieldValueFilled,
   isFinalState,
   workflowTransitionRulesSchema,
   type TransitionBlockReason,
   type TransitionDisplay,
   type TransitionForm,
+  type WorkflowFieldKey,
   type WorkflowRequirableField,
   type WorkflowTransitionRules,
 } from '@nodus/contracts';
@@ -67,10 +70,7 @@ export function passesConditions(
   );
 }
 
-function missingFields(
-  fields: WorkflowRequirableField[],
-  facts: WorkflowGateFacts,
-): WorkflowRequirableField[] {
+function missingFields(fields: WorkflowFieldKey[], facts: WorkflowGateFacts): WorkflowFieldKey[] {
   const filled: Record<WorkflowRequirableField, boolean> = {
     description: facts.description.trim().length > 0,
     deadline: facts.deadline !== null,
@@ -78,7 +78,18 @@ function missingFields(
     plannedMinutes: facts.plannedMinutes !== null,
     result: facts.hasResult,
   };
-  return fields.filter((f) => !filled[f]);
+  return fields.filter((f) => {
+    const fieldId = customFieldIdOfKey(f);
+    // Атрибут (#431, Р7): неизвестный/удалённый ключ не блокирует переход —
+    // маршрут не должен ломаться из-за удалённого поля (публикация такое
+    // ловит ошибкой `custom_field_unknown`, но старые документы живут).
+    // Скрытый атрибут блокирует: условие процесса видит служебные значения.
+    if (fieldId !== null) {
+      if (!facts.activeCustomFieldIds.has(fieldId)) return false;
+      return !isCustomFieldValueFilled(facts.customFields[fieldId]);
+    }
+    return !filled[f as WorkflowRequirableField];
+  });
 }
 
 /** Гейты DoR/DoD: список невыполненных (пусто — переход разрешён). */

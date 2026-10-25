@@ -1,4 +1,5 @@
 import {
+  customFieldKey,
   effectiveWindowSections,
   requiredWindowSections,
   transitionFormSchema,
@@ -27,12 +28,12 @@ export interface FormInputCheck {
   unexpected: string[];
 }
 
-const FIELD_KEYS: Record<keyof NonNullable<TransitionFormInput['fields']>, string> = {
+const FIELD_KEYS = {
   description: 'description',
   deadline: 'deadline',
   assigneeId: 'assignee',
   plannedMinutes: 'plannedMinutes',
-};
+} satisfies Partial<Record<keyof NonNullable<TransitionFormInput['fields']>, string>>;
 
 /** Разрешённое и обязательное содержимое окна по эффективным разделам. */
 export function checkFormInput(
@@ -73,8 +74,20 @@ export function checkFormInput(
 
   const unexpected: string[] = [];
   if (input.fields) {
-    for (const key of Object.keys(input.fields) as (keyof typeof FIELD_KEYS)[]) {
-      if (!allowed.has(`fields.${FIELD_KEYS[key]}`)) unexpected.push(`fields.${key}`);
+    for (const key of Object.keys(input.fields)) {
+      // Значения кастомных атрибутов (#431, Р7): клиент шлёт их вложенной
+      // картой `fields.customFields.<id>`, окно и гейт адресуют ключом
+      // `cf.<id>` — сверяем по приведённому ключу.
+      if (key === 'customFields') {
+        for (const fieldId of Object.keys(input.fields.customFields ?? {})) {
+          if (!allowed.has(`fields.${customFieldKey(fieldId)}`)) {
+            unexpected.push(`fields.customFields.${fieldId}`);
+          }
+        }
+        continue;
+      }
+      const mapped = FIELD_KEYS[key as keyof typeof FIELD_KEYS];
+      if (!mapped || !allowed.has(`fields.${mapped}`)) unexpected.push(`fields.${key}`);
     }
   }
   if (input.time && !allowed.has('time')) unexpected.push('time');

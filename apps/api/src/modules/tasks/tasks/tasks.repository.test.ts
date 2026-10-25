@@ -20,6 +20,7 @@ describe('TasksRepository.create', () => {
         title: 'T',
         sourceId: 'm1',
         source: 'chat_message',
+        customFields: {},
         participants: { create: DATA.participants },
       },
     });

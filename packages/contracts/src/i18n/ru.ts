@@ -4,6 +4,7 @@ import { automationStrings } from './ru-automation.js';
 import { chatStrings } from './ru-chat.js';
 import { lettersStrings } from './ru-correspondence.js';
 import { counterpartiesStrings } from './ru-crm.js';
+import { customFieldsStrings } from './ru-custom-fields.js';
 import { filesStrings } from './ru-files.js';
 import { notificationsStrings } from './ru-notifications.js';
 import { tasksStrings } from './ru-tasks.js';
@@ -59,6 +60,16 @@ export const errorMessages: Record<ErrorCode, string> = {
   [ErrorCode.CRM_COUNTERPARTY_ARCHIVED]: 'Контрагент в архиве — сначала верните его',
   [ErrorCode.CRM_COUNTERPARTY_IN_USE]:
     'У контрагента есть письма или проекты — удалить нельзя, перенесите в архив',
+  [ErrorCode.CUSTOM_FIELD_VALUE_INVALID]: 'Значение атрибута не подходит — проверьте отмеченные',
+  [ErrorCode.CUSTOM_FIELD_TYPE_UNAVAILABLE]: 'Этот тип атрибута пока недоступен',
+  [ErrorCode.CUSTOM_FIELD_NAME_TAKEN]: 'Атрибут с таким названием уже есть',
+  [ErrorCode.CUSTOM_FIELD_TYPE_CHANGE_INCOMPATIBLE]:
+    'Тип нельзя сузить без потери данных — создайте новый атрибут',
+  [ErrorCode.CUSTOM_FIELD_LIMIT_REACHED]: 'Атрибутов уже 100 — больше нельзя',
+  [ErrorCode.CUSTOM_FIELD_IN_USE]:
+    'Атрибут стоит в маршрутах процессов — сначала уберите его оттуда',
+  [ErrorCode.DICTIONARY_SYSTEM_LOCKED]: 'Системный справочник изменить нельзя',
+  [ErrorCode.DICTIONARY_ITEM_NAME_TAKEN]: 'Такой вариант уже есть в списке',
 };
 
 /**
@@ -144,6 +155,10 @@ export const ui = {
     deletePreset: 'Удалить фильтр',
     dateFrom: 'С',
     dateTo: 'По',
+    numberFrom: 'От',
+    numberTo: 'До',
+    /** Заголовок группы фильтров «Атрибуты» (кастомные поля, #431). */
+    groupFields: 'Атрибуты',
     any: 'Все',
     yes: 'Да',
     notFound: 'Ничего не найдено',
@@ -220,6 +235,7 @@ export const ui = {
   },
   tasks: tasksStrings,
   automation: automationStrings,
+  customFields: customFieldsStrings,
   letters: lettersStrings,
   counterparties: counterpartiesStrings,
   projects: {

@@ -3,10 +3,12 @@ import { useState } from 'react';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import { Input } from '@nodus/ui/components/input';
+import { NodeLabel } from '@nodus/ui/components/node-label';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { FilterCombobox } from './filter-combobox.js';
-import type { FilterFieldDef, FilterValue } from './list-filters.js';
+import { NumberRangeControl } from './filter-number-range.js';
+import type { DateRangeValue, FilterFieldDef, FilterValue } from './list-filters.js';
 import { sameFilterState } from './list-filters.js';
 import type { FilterPreset, ListToolbarState } from './use-list-toolbar.js';
 
@@ -42,11 +44,11 @@ export function FilterPanel<T>({
   }
 
   return (
-    <div className="flex">
+    <div className="flex max-h-[var(--radix-popover-content-available-height)] min-h-0">
       {/* Левая колонка — пресеты: быстрое применение (модель Битрикс24).
           Зона отделена тоном (bg-muted/40) и кеглем 13px — единым с подписями
           полей справа, чтобы колонки читались одним приложением. */}
-      <div className="flex w-44 shrink-0 flex-col border-r border-border bg-muted/40 py-1.5">
+      <div className="flex w-44 shrink-0 flex-col overflow-y-auto border-r border-border bg-muted/40 py-1.5">
         {allPresets.map((preset) => {
           const active = sameFilterState(toolbar.filters, preset.state);
           const pinned = toolbar.pinnedId === preset.id;
@@ -141,16 +143,22 @@ export function FilterPanel<T>({
         </div>
       </div>
 
-      {/* Правая колонка — поля фильтра по атрибутам (мгновенное применение) */}
-      <div className="flex min-w-0 flex-1 flex-col gap-2.5 p-3">
-        {visibleDefs.map((def) => (
-          <FilterFieldControl
-            key={def.id}
-            def={def}
-            value={toolbar.filters[def.id]}
-            onChange={(v) => toolbar.setFilter(def.id, v)}
-          />
-        ))}
+      {/* Правая колонка — поля фильтра по атрибутам (мгновенное применение).
+          Поля с группой идут подряд под моно-заголовком (атрибуты — «Атрибуты», #431). */}
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2.5 overflow-y-auto p-3">
+        {visibleDefs.map((def, index) => {
+          const newGroup = def.group !== undefined && def.group !== visibleDefs[index - 1]?.group;
+          return (
+            <div key={def.id} className="flex flex-col gap-2.5">
+              {newGroup ? <NodeLabel label={def.group!} className="pt-1" /> : null}
+              <FilterFieldControl
+                def={def}
+                value={toolbar.filters[def.id]}
+                onChange={(v) => toolbar.setFilter(def.id, v)}
+              />
+            </div>
+          );
+        })}
         <div className="flex items-center pt-2.5">
           <Button variant="ghost" size="sm" className="h-7" onClick={toolbar.resetAll}>
             {ui.filters.reset}
@@ -186,7 +194,8 @@ function FilterFieldControl<T>({
     );
   }
   if (def.type === 'dateRange') {
-    const range = typeof value === 'object' && value !== undefined ? value : {};
+    const range: DateRangeValue =
+      typeof value === 'object' && value !== undefined ? (value as DateRangeValue) : {};
     return (
       <div className="flex items-center gap-2">
         <span className="w-28 shrink-0 text-body-xs text-muted-foreground">{def.label}</span>
@@ -206,6 +215,9 @@ function FilterFieldControl<T>({
         />
       </div>
     );
+  }
+  if (def.type === 'numberRange') {
+    return <NumberRangeControl def={def} value={value} onChange={onChange} />;
   }
   return (
     <label className="flex items-center gap-2">

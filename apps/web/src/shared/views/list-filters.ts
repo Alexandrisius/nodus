@@ -8,9 +8,11 @@
  * (`?q=`, `?filter[<поле>]=`) фиксируются в api-conventions (I2, API-first).
  */
 
-/** Значение фильтра: строка (select/person/text) или диапазон дат ISO. */
+/** Значение фильтра: строка (select/person/text) или диапазон дат ISO /
+ *  чисел (`{ from?, to? }`). */
 export type DateRangeValue = { from?: string; to?: string };
-export type FilterValue = string | DateRangeValue | undefined;
+export type NumberRangeValue = { from?: number; to?: number };
+export type FilterValue = string | DateRangeValue | NumberRangeValue | undefined;
 export type FilterState = Record<string, FilterValue>;
 
 export interface FilterOption {
@@ -20,7 +22,7 @@ export interface FilterOption {
   avatarUrl?: string | null;
 }
 
-export type FilterFieldType = 'select' | 'person' | 'dateRange' | 'text';
+export type FilterFieldType = 'select' | 'person' | 'dateRange' | 'text' | 'numberRange';
 
 /** Поле фильтра сущности: контрол + чистый предикат совпадения. */
 export interface FilterFieldDef<T> {
@@ -31,6 +33,10 @@ export interface FilterFieldDef<T> {
   options?: FilterOption[];
   /** Плейсхолдер для text. */
   placeholder?: string;
+  /** Заголовок группы в панели фильтра (атрибуты — «Атрибуты», #431). */
+  group?: string;
+  /** Диапазон чисел в «ч:мм» (продолжительность кастомного поля). */
+  numberFormat?: 'duration';
   /** Скрытое поле: в панель не выводится (служебные — пресеты/счётчики),
    *  но участвует в фильтрации и чипах (напр. «Просроченные»). */
   hidden?: boolean;
@@ -41,7 +47,7 @@ export interface FilterFieldDef<T> {
 /** Фильтр «активен» (влияет на список и считается в бейдже/чипах). */
 export function isActiveFilter(value: FilterValue): boolean {
   if (value === undefined || value === '') return false;
-  if (typeof value === 'object') return Boolean(value.from || value.to);
+  if (typeof value === 'object') return value.from !== undefined || value.to !== undefined;
   return true;
 }
 
@@ -49,11 +55,23 @@ export function isActiveFilter(value: FilterValue): boolean {
 export function filterValueLabel<T>(def: FilterFieldDef<T>, value: FilterValue): string {
   if (value === undefined) return '';
   if (typeof value === 'object') {
-    const from = value.from ?? '…';
-    const to = value.to ?? '…';
-    return `${from} — ${to}`;
+    if ('from' in value || 'to' in value) {
+      const format = (n: number | undefined) =>
+        n === undefined ? '…' : def.numberFormat === 'duration' ? formatMinutes(n) : String(n);
+      const isNumber = def.type === 'numberRange';
+      const from = isNumber ? format(value.from as number | undefined) : (value.from ?? '…');
+      const to = isNumber ? format(value.to as number | undefined) : (value.to ?? '…');
+      return `${from} — ${to}`;
+    }
   }
-  return def.options?.find((o) => o.value === value)?.label ?? value;
+  return def.options?.find((o) => o.value === value)?.label ?? String(value);
+}
+
+/** «ч:мм» для чипов диапазона продолжительности (без зависимости от
+ *  custom-fields: фильтры живут в shared/views). */
+function formatMinutes(minutes: number): string {
+  const hours = Math.floor(minutes / 60);
+  return `${hours}:${String(minutes % 60).padStart(2, '0')}`;
 }
 
 /** Универсальная фильтрация: подстрока запроса (без регистра) по searchText +

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { parseApiMockEnv } from './api-mock-config.js';
+import { API_MOCK_DOMAINS, parseApiMockEnv } from './api-mock-config.js';
 
 /**
  * Разбор VITE_API_MOCK (#48): 'true' — все домены (демо), 'false'/пусто —
@@ -41,6 +41,14 @@ describe('parseApiMockEnv (#48)', () => {
     } finally {
       warn.mockRestore();
     }
+  });
+
+  it('домены полей, справочников и CRM доступны для моков (#431)', () => {
+    const config = parseApiMockEnv('custom-fields,dictionaries,crm');
+    expect(config.enabled).toBe(true);
+    expect(config.domains).toEqual(new Set(['custom-fields', 'dictionaries', 'crm']));
+    // Новые домены — в конце списка: буквальные маршруты писем остаются первыми.
+    expect(API_MOCK_DOMAINS.slice(-3)).toEqual(['custom-fields', 'dictionaries', 'crm']);
   });
 
   it('список только из мусора — воркер не нужен (enabled: false)', () => {

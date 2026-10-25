@@ -1,24 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import type { WorkflowGateFacts } from '../../../core/ports/workflow-entity.port.js';
+import { gateFacts } from './gate-facts.test-helper.js';
 import { evaluateValidators, parseRules } from './transition-rules.js';
 
-const facts: WorkflowGateFacts = {
-  stageId: '00000000-0000-4000-8000-000000000001',
-  acceptRequired: false,
-  creatorIsAssignee: false,
-  openSubtasks: 0,
-  reviewSubtasks: 0,
-  checklistDone: 0,
-  checklistTotal: 0,
-  spentMinutes: 0,
-  description: '',
-  deadline: null,
-  assigneeId: 'u1',
-  plannedMinutes: null,
-  hasResult: false,
-  resultFileCount: 0,
-};
+const facts = gateFacts({ assigneeId: 'u1' });
 
 describe('гейт result_files (#380)', () => {
   const rules = parseRules({ validators: [{ kind: 'result_files', min: 2 }] });

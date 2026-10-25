@@ -1,5 +1,6 @@
 import type { WorkflowCondition, WorkflowDocument, WorkflowValidator } from '@nodus/contracts';
 
+import { fieldIds } from './custom-fields.js';
 import {
   stageCancelled,
   stageDone,
@@ -62,10 +63,24 @@ export const standardDocument: WorkflowDocument = {
       sortOrder: 0,
       rules: {
         conditions: [executor],
-        validators: [noOpenSubtasks],
+        validators: [
+          noOpenSubtasks,
+          // Демо кастомного поля в гейте (#431): «Заполнены поля» —
+          // «№ накладной» задачи.
+          { kind: 'fields_required', fields: [`cf.${fieldIds.invoiceNumber}`] },
+        ],
         postFunctions: [{ kind: 'route_if', when: 'creator_is_assignee', toStageId: stageDone.id }],
       },
-      form: { enabled: false, sections: [] },
+      // Окно «Завершение» показывает поле процесса в разделе «Поля» (#431).
+      form: {
+        enabled: true,
+        title: 'Завершение работы',
+        sections: [
+          { kind: 'fields', fields: ['description', `cf.${fieldIds.invoiceNumber}`] },
+          { kind: 'result' },
+          { kind: 'comment', label: 'Комментарий', required: false },
+        ],
+      },
     },
     {
       id: trid('pause'),

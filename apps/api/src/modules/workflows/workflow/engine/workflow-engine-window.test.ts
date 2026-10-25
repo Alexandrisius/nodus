@@ -10,6 +10,7 @@ import { WorkflowEngine } from './workflow-engine.js';
 import type { TransitionDef } from '../transition-rules.js';
 import { parseRules } from '../transition-rules.js';
 import { parseForm } from '../transition-form.js';
+import { gateFacts } from '../gate-facts.test-helper.js';
 
 const TX = { tx: true } as never;
 const ACTIVE = '00000000-0000-4000-8000-000000000001';
@@ -30,22 +31,7 @@ const stage = (id: string, name: string, systemState: string) => ({
   outcome: systemState === 'closed' ? 'success' : null,
 });
 
-const facts = {
-  stageId: ACTIVE,
-  acceptRequired: false,
-  creatorIsAssignee: false,
-  openSubtasks: 0,
-  reviewSubtasks: 0,
-  checklistDone: 0,
-  checklistTotal: 0,
-  spentMinutes: 0,
-  description: '',
-  deadline: null,
-  assigneeId: 'bob',
-  plannedMinutes: null,
-  hasResult: false,
-  resultFileCount: 0,
-};
+const facts = gateFacts({ assigneeId: 'bob' });
 
 function transition(partial: Partial<TransitionDef>): TransitionDef {
   return {

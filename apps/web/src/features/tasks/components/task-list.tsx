@@ -16,6 +16,8 @@ import type { ActiveListFilter } from '../../../shared/views/list-filters.js';
 import { useFilteredList } from '../../../shared/views/use-list-toolbar.js';
 import { useViewFields } from '../../../shared/views/use-view-fields.js';
 import { uiPx } from '../../../shared/ui/ui-scale.js';
+import { EdgeHints } from '../../../shared/ui/board/board-scroller.js';
+import { useBoardEdgeScroll } from '../../../shared/ui/board/use-board-edge-scroll.js';
 import { useTasksPages, usePrefetchTask } from '../api/tasks-api.js';
 import type { TaskListItem } from '@nodus/contracts';
 import { taskListFields } from '../lib/task-fields.js';
@@ -117,6 +119,9 @@ export function TaskList({
   /** Автоподбор ширины (двойной клик на ручке): shared-хук, сдвиг на
    *  ведущую колонку (выбор+меню) и колонку графа. */
   const autoFitColumn = useAutoFitColumn(containerRef, 2, setWidth);
+  // Подвод курсора к краю листает широкий журнал (механика канбана).
+  const [hovered, setHovered] = useState(false);
+  const edge = useBoardEdgeScroll(containerRef, { pan: false, mounted: !isLoading });
 
   function openTask(row: TaskRow, rowEl: HTMLElement) {
     openCard({ kind: 'task', id: row.task.id }, rowEl.getBoundingClientRect());
@@ -156,12 +161,17 @@ export function TaskList({
   return (
     // Островок массовых действий живёт ВНЕ скролл-контейнера таблицы:
     // висит над низом зоны, не уезжает со строками (#311).
-    <div className="relative h-full">
+    <div
+      className="relative h-full"
+      onPointerEnter={() => setHovered(true)}
+      onPointerLeave={() => setHovered(false)}
+    >
       <div
         ref={containerRef}
         role="table"
         aria-label={ui.tasks.title}
         className="h-full overflow-auto"
+        {...edge.handlers}
       >
         <DataTableHeader
           fields={visibleFields}
@@ -279,6 +289,7 @@ export function TaskList({
         {/* Запас под островок: последняя строка не прячется под ним. */}
         {selected.size > 0 ? <div aria-hidden className="h-24" /> : null}
       </div>
+      <EdgeHints room={edge.room} hot={edge.hot} show={hovered} />
       <TaskBulkIsland
         selectedIds={selectedIds}
         selectedTasks={visible.filter((row) => selected.has(row.task.id)).map((row) => row.task)}

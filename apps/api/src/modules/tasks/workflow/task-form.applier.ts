@@ -75,8 +75,15 @@ export class TaskFormApplier {
         keys.push('assigneeId');
         fields.assignee = { from: task.assigneeId, to: input.fields.assigneeId };
       }
-      if (keys.length > 0) {
-        await this.writer.apply(tx, actor.id, task, patch, keys);
+      // Кастомные атрибуты окна (#431, Р7): значения идут общим писателем —
+      // проверка типов и ссылок, журнал изменений и событие там же.
+      const customPatch = input.fields.customFields ?? {};
+      if (Object.keys(customPatch).length > 0) patch.customFields = customPatch;
+      if (keys.length > 0 || patch.customFields) {
+        const written = await this.writer.apply(tx, actor.id, task, patch, keys);
+        for (const change of written.customFieldChanges) {
+          fields[`cf.${change.fieldId}`] = { from: change.from, to: change.to };
+        }
         // Смена ответственного меняет права на СЛЕДУЮЩИЕ разделы: время и
         // итог перепроверяются по свежим ролям (иначе актор, передавший
         // задачу, дописал бы время/итог уже после передачи).

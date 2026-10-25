@@ -8,6 +8,7 @@ import { Button } from '@nodus/ui/components/button';
 import { Plus } from 'lucide-react';
 
 import { workflowKeys } from '../../../../shared/workflow/workflow-api.js';
+import { useCustomFieldDefinitions } from '../../../../shared/custom-fields/queries.js';
 import { ROUTE_GEOMETRY } from '../../../../shared/flow/route-layout.js';
 import { usePublishWorkflow } from '../../api/automation-api.js';
 import { useCanManageWorkflows } from '../../lib/use-can-manage-workflows.js';
@@ -70,7 +71,23 @@ function RouteEditorInner({ type, workflow, settings, settingsOpen = false }: Ro
   // Расстановка холста сохраняется сама — без черновика и новой версии.
   useLayoutAutosave(workflow.id, canManage);
 
-  const problems = useMemo(() => checkWorkflowDocument(doc), [doc]);
+  // Атрибуты в окне и гейтах (#431, Р7): неизвестный — ошибка публикации,
+  // скрытый в окне — предупреждение; факты — из реестра области.
+  const { data: customFieldDefinitions } = useCustomFieldDefinitions(type.category);
+  const customFieldFacts = useMemo(
+    () =>
+      customFieldDefinitions
+        ? {
+            active: new Set(customFieldDefinitions.map((d) => d.id)),
+            hidden: new Set(customFieldDefinitions.filter((d) => d.hidden).map((d) => d.id)),
+          }
+        : undefined,
+    [customFieldDefinitions],
+  );
+  const problems = useMemo(
+    () => checkWorkflowDocument(doc, { customFields: customFieldFacts }),
+    [doc, customFieldFacts],
+  );
   const problemStageIds = useMemo(
     () => new Set(problems.filter((p) => p.stageId).map((p) => p.stageId as string)),
     [problems],
@@ -167,7 +184,7 @@ function RouteEditorInner({ type, workflow, settings, settingsOpen = false }: Ro
         </div>
       </div>
 
-      <EditorPanel workflow={workflow} readOnly={!canManage} />
+      <EditorPanel workflow={workflow} scope={type.category} readOnly={!canManage} />
       {settings}
       <NavigationGuard dirty={dirty} />
 

@@ -38,9 +38,30 @@ export function BoardScroller({
       >
         {children}
       </div>
-      <EdgeHint side="left" visible={room.left} hot={hot === 'left'} />
-      <EdgeHint side="right" visible={room.right} hot={hot === 'right'} />
+      <EdgeHints room={room} hot={hot} />
     </div>
+  );
+}
+
+/** Индикаторы краёв широкой области (доски и таблицы журналов): кладутся
+ *  СОСЕДЯМИ скролл-контейнера в relative-обёртку — стоят на месте при
+ *  вертикальной прокрутке, указатель не перехватывают. */
+export function EdgeHints({
+  room,
+  hot,
+  show = true,
+}: {
+  room: { left: boolean; right: boolean };
+  hot: EdgeSide | null;
+  /** Таблицы: индикатор всплывает только при наведении на список (вердикт
+   *  владельца 25.10.2026 — «невидимые кнопки»); доска — всегда. */
+  show?: boolean;
+}) {
+  return (
+    <>
+      <EdgeHint side="left" visible={room.left && show} hot={hot === 'left'} />
+      <EdgeHint side="right" visible={room.right && show} hot={hot === 'right'} />
+    </>
   );
 }
 

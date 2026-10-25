@@ -10,6 +10,7 @@ import type {
   TaskDetail,
   TaskListItem,
   TaskStageWithCount,
+  CustomFieldValues,
 } from '@nodus/contracts';
 
 import { DomainException } from '../../../core/errors/domain-exception.js';
@@ -20,6 +21,10 @@ import {
   PROCESS_CATALOG_READER,
   type ProcessCatalogReader,
 } from '../../workflows/ports/process-catalog-reader.port.js';
+import {
+  CUSTOM_FIELD_REGISTRY,
+  type CustomFieldRegistry,
+} from '../../custom-fields/ports/custom-field-registry.port.js';
 import { selfChainNode, stageDto, TaskDtoMapper } from './task-dto.mapper.js';
 import { stagesCatalog } from './task-stages-catalog.js';
 import { TasksQueryRepository, type TaskOrder } from './tasks-query.repository.js';
@@ -46,6 +51,7 @@ export class TasksQueryService {
     private readonly mapper: TaskDtoMapper,
     @Inject(PROCESS_CATALOG_READER) private readonly catalog: ProcessCatalogReader,
     @Inject(CHAT_MESSAGE_ACCESS) private readonly messages: ChatMessageAccess,
+    @Inject(CUSTOM_FIELD_REGISTRY) private readonly customFields: CustomFieldRegistry,
   ) {}
 
   viewer(user: Pick<AuthUser, 'id' | 'permissions'>): Promise<Viewer> {
@@ -111,6 +117,12 @@ export class TasksQueryService {
       ...(result ? [result.authorId] : []),
     ]);
     const catalog = await this.mapper.catalogOf([row, ...children]);
+    // Ссылки значений атрибутов (Р6): имена сотрудников, подразделений,
+    // вариантов и контрагентов — пачками через порты, а не по строке.
+    const customFieldRefs = await this.customFields.refs(
+      'task',
+      (row.customFields ?? {}) as CustomFieldValues,
+    );
     const origin = [
       // Узлы чата строятся только при чтении (по правам смотрящего); старые
       // снимки в origin, если есть, не отдаются (security-гейт #37, р.3).
@@ -147,6 +159,7 @@ export class TasksQueryService {
           }
         : null,
       completedAt: full.completedAt?.toISOString() ?? null,
+      customFieldRefs,
       access: taskAccess(actorRoles(row, user.id), user.permissions),
       createdAt: full.createdAt.toISOString(),
     };

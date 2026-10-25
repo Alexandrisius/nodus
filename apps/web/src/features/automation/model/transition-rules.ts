@@ -1,10 +1,12 @@
 import type {
   WorkflowActorRole,
+  WorkflowFieldKey,
   WorkflowRequirableField,
   WorkflowDraftDocument,
   WorkflowDraftTransition,
   WorkflowValidator,
 } from '@nodus/contracts';
+import { CUSTOM_FIELD_LIMITS } from '@nodus/contracts';
 
 /**
  * Чистые правки правил кнопки (#378): кто видит (роли — минимум одна),
@@ -102,19 +104,23 @@ export function setAllowReview(rules: Rules, allow: boolean): Rules {
   };
 }
 
-/** Поле обязательного заполнения вкл/выкл (последнее не снимается). */
-export function toggleField(rules: Rules, field: WorkflowRequirableField): Rules {
+/** Поле обязательного заполнения вкл/выкл (последнее не снимается). Ключи
+ *  системных полей и `cf.<id>` (#431) живут в одном массиве; лимит — 20 (Р7). */
+export function toggleField(rules: Rules, field: WorkflowFieldKey): Rules {
   const validator = validatorOf(rules, 'fields_required');
   if (!validator) return rules;
-  const fields = new Set(validator.fields);
+  const fields = new Set<string>(validator.fields);
   if (fields.has(field)) fields.delete(field);
-  else fields.add(field);
+  else {
+    if (fields.size >= CUSTOM_FIELD_LIMITS.gateFields) return rules;
+    fields.add(field);
+  }
   if (fields.size === 0) return rules;
   return {
     ...rules,
     validators: rules.validators.map((v) =>
       v.kind === 'fields_required'
-        ? { kind: v.kind, fields: REQUIRABLE_FIELDS.filter((f) => fields.has(f)) }
+        ? { kind: v.kind, fields: [...fields] as WorkflowFieldKey[] }
         : v,
     ),
   };

@@ -21,6 +21,7 @@ import {
 import { letterIdByTaskId, syncLetterWithTasks } from '../../../../shared/mocks/data/letters.js';
 import { demoStages } from '../../../../shared/mocks/data/task-stages.js';
 import { userRef } from '../../../../shared/mocks/data/users.js';
+import { applyDemoPatch } from '../../../../shared/mocks/data/custom-fields-rules.js';
 import { tasksChecklistHandlers } from './tasks-checklist-handlers.js';
 import { tasksListHandlers } from './tasks-list-handlers.js';
 import { tasksParticipantsHandlers } from './tasks-participants-handlers.js';
@@ -153,6 +154,22 @@ export const tasksHandlers = [
       });
       if (body.description !== undefined) extra.description = body.description;
       if (body.plannedMinutes !== undefined) extra.plannedMinutes = body.plannedMinutes;
+      // Кастомные поля (#431): слияние по ключам, null удаляет; проверяются
+      // только изменившиеся значения — правила те же, что у сервера (Р2).
+      if (body.customFields) {
+        const { next, issues } = applyDemoPatch('task', task.customFields, body.customFields);
+        if (issues.length > 0) {
+          return HttpResponse.json(
+            {
+              code: ErrorCode.CUSTOM_FIELD_VALUE_INVALID,
+              message: 'Custom field value is invalid',
+              details: { issues },
+            },
+            { status: 422 },
+          );
+        }
+        task.customFields = next;
+      }
       task.updatedAt = new Date().toISOString();
       return HttpResponse.json(task);
     }

@@ -20,6 +20,10 @@ import { Textarea } from '@nodus/ui/components/textarea';
 import { toast } from 'sonner';
 
 import { useTaskConversation } from '../../../shared/chat/chat-queries.js';
+import {
+  visibleDefinitions,
+  useCustomFieldDefinitions,
+} from '../../../shared/custom-fields/queries.js';
 import { TransitionWindow } from '../../../shared/workflow/transition-window/transition-window.js';
 import { routeTransition } from '../../../shared/workflow/transition-window/window-can-unblock.js';
 import type { TransitionWindowContext } from '../../../shared/workflow/transition-window/window-context.js';
@@ -30,8 +34,13 @@ import {
   useSubmitTransitionWindow,
 } from '../api/transitions-api.js';
 
-/** Контекст окна из карточки (#380): поля, итог, права, сдача утверждающему. */
-function windowContextOf(task: TaskDetail, conversationId: string | null): TransitionWindowContext {
+/** Контекст окна из карточки (#380): поля, итог, права, сдача утверждающему;
+ *  определения полей области — из реестра (#431), ссылки — из детали. */
+function windowContextOf(
+  task: TaskDetail,
+  conversationId: string | null,
+  customFieldDefinitions: TransitionWindowContext['customFieldDefinitions'],
+): TransitionWindowContext {
   return {
     entityId: task.id,
     conversationId,
@@ -41,6 +50,7 @@ function windowContextOf(task: TaskDetail, conversationId: string | null): Trans
       deadline: task.deadline,
       assigneeId: task.assignee?.id ?? null,
       plannedMinutes: task.plannedMinutes,
+      customFields: task.customFields ?? {},
     },
     spentMinutes: task.spentMinutes,
     lastResult: task.result ? { text: task.result.text, messageIds: task.result.messageIds } : null,
@@ -58,6 +68,8 @@ function windowContextOf(task: TaskDetail, conversationId: string | null): Trans
           }
         : null,
     scope: 'entity',
+    customFieldDefinitions,
+    customFieldRefs: task.customFieldRefs ?? [],
   };
 }
 
@@ -70,6 +82,7 @@ export function useTransitionRunner(task: TaskDetail) {
   const execute = useExecuteTransition(task.id);
   const submit = useSubmitTransitionWindow(task.id);
   const { data: conversation } = useTaskConversation(task.id);
+  const { data: definitions } = useCustomFieldDefinitions('task');
   const [pending, setPending] = useState<WorkflowTransition | null>(null);
   const [windowTransition, setWindowTransition] = useState<WorkflowTransition | null>(null);
 
@@ -104,7 +117,7 @@ export function useTransitionRunner(task: TaskDetail) {
           open
           mode="live"
           transition={windowTransition}
-          context={windowContextOf(task, conversation?.id ?? null)}
+          context={windowContextOf(task, conversation?.id ?? null, visibleDefinitions(definitions))}
           submitting={submit.isPending}
           error={submit.error ? transitionWindowError(submit.error) : null}
           onCancel={closeWindow}

@@ -39,6 +39,11 @@ export interface WorkflowGateFacts {
   hasResult: boolean;
   /** Живых вложений текущей ревизии итога (#380): гейт `result_files`. */
   resultFileCount: number;
+  /** Значения кастомных атрибутов сущности (#431, Р7): ключ — id атрибута. */
+  customFields: Readonly<Record<string, unknown>>;
+  /** Все id атрибутов области, включая скрытые: скрытый в условии гейта
+   *  допустим, а неизвестный/удалённый ключ перехода не блокирует. */
+  activeCustomFieldIds: ReadonlySet<string>;
 }
 
 /** Кто актор относительно сущности и что ему можно в маршруте. */

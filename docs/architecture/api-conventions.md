@@ -48,20 +48,19 @@ notification.acked       # выпилено ревизией 05.10 (ack-меха
 directory.department.created / updated / archived
 directory.position.created / updated / archived
 directory.role.created / updated / deleted
-dictionary.created / updated                 # модуль есть (#54, чтение); эмиттер — управление справочниками (M12)
-dictionary.item_created / updated / archived
+dictionary.created / updated · dictionary.item_created / updated / deleted  # реализованы #431 (Р10): запись вариантов атрибутов; reorder эмитит dictionary.updated
 workflow.press_recorded / press_round_completed   # «кнопку жмут несколько» (ADR-0025): отметка участника, кворум набран
 project.created / updated / archived / participants_changed / roles_changed / node_created / node_updated / node_archived / schema_published  # ADR-0030
 crm.counterparty_created / counterparty_updated / counterparty_archived / counterparty_restored / counterparty_deleted / contact_changed  # ADR-0033, реализованы #460
 correspondence.letter_received / letter_registered / letter_closed_unregistered / letter_stage_changed / letter_updated / letter_sent  # ADR-0027
 correspondence.assignments_requested        # «Расписать сразу»: черновики поручений с id → модуль задач создаёт задачи (source=letter), идемпотентно
 correspondence.relation_changed / confidentiality_changed
-custom_field.definition_changed  # значение поля — в событии изменения сущности (код поля, старое/новое)
+custom_field.definition_changed  # #431: {definitionId, scope, change: created|updated|deleted|reordered, fields?} — каталожное; значение атрибута — в событии изменения сущности (task.updated.customFieldChanges[{fieldId, from, to}], ≤ 50, long_text обрезан до 500)
 ```
 
 Поле `audience` в payload событий (`task.*`, `chat.sticker_*`) — служебная адресация для gateway (user-комнаты); клиенту не доставляется — gateway вырезает его до отправки (#328).
 
-**Каталожные события** — `workflow.type_created / type_updated / type_archived / published / layout_changed` (модуль «Процессы», #428; прежде — `task.type_* / task.workflow_*`, #378) — БЕЗ `audience` (`workflow.layout_changed` — сохранена расстановка холста без новой версии: клиент перечитывает только документ этого маршрута, кнопки задач не трогает): каталог типов и маршрутов виден всем, gateway рассылает их всем авторизованным сокетам (комната presence, паттерн корпоративных стикерпаков). Список каталожных событий у gateway — **явный** (`WORKFLOW_CATALOG_EVENTS`), а не префикс `workflow.`: у ADR-0025 будут некаталожные `workflow.*` со своей адресацией. Клиент инвалидирует типы/статусы/маршруты. Доменные данные события (составы `memberIds`/`userIds` событий беседы) уходят клиенту как есть.
+**Каталожные события** — `workflow.type_created / type_updated / type_archived / published / layout_changed`, `custom_field.definition_changed` и `dictionary.*` (реестр атрибутов и справочники видят все — gateway рассылает в presence-комнату, явный список `CUSTOM_FIELD_CATALOG_EVENTS`/`DICTIONARY_CATALOG_EVENTS`) (модуль «Процессы», #428; прежде — `task.type_* / task.workflow_*`, #378) — БЕЗ `audience` (`workflow.layout_changed` — сохранена расстановка холста без новой версии: клиент перечитывает только документ этого маршрута, кнопки задач не трогает): каталог типов и маршрутов виден всем, gateway рассылает их всем авторизованным сокетам (комната presence, паттерн корпоративных стикерпаков). Список каталожных событий у gateway — **явный** (`WORKFLOW_CATALOG_EVENTS`), а не префикс `workflow.`: у ADR-0025 будут некаталожные `workflow.*` со своей адресацией. Клиент инвалидирует типы/статусы/маршруты. Доменные данные события (составы `memberIds`/`userIds` событий беседы) уходят клиенту как есть.
 
 **Правила событий:**
 - Префикс = имя модуля-владельца в единственном числе (`tasks` → `task`, `workflows` → `workflow`, `correspondence` → `correspondence`); дефисы в имени модуля заменяются подчёркиваниями (`custom-fields` → `custom_field.*`).

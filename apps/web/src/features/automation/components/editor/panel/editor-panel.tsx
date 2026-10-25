@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import type { WorkflowDetail } from '@nodus/contracts';
+import type { CustomFieldScope, WorkflowDetail } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 
 import { useRouteDocStore, type SelectionRef } from '../../../model/route-doc-store.js';
@@ -34,9 +34,12 @@ const keyOf = (ref: SelectionRef) => (ref ? `${ref.kind}:${ref.id}` : null);
  */
 export function EditorPanel({
   workflow,
+  scope,
   readOnly,
 }: {
   workflow: WorkflowDetail;
+  /** Область кастомных полей по категории маршрута (#431, Р7). */
+  scope: CustomFieldScope;
   readOnly: boolean;
 }) {
   const selection = useRouteDocStore((s) => s.selection);
@@ -102,13 +105,13 @@ export function EditorPanel({
         <RolesSection transition={transition} readOnly={readOnly} />
       ) : null}
       {transition && section === 'conditions' ? (
-        <ConditionsSection transition={transition} readOnly={readOnly} />
+        <ConditionsSection transition={transition} scope={scope} readOnly={readOnly} />
       ) : null}
       {transition && section === 'rules' ? (
         <RulesSection transition={transition} document={doc} readOnly={readOnly} />
       ) : null}
       {transition && section === 'window' ? (
-        <WindowSection transition={transition} document={doc} readOnly={readOnly} />
+        <WindowSection transition={transition} document={doc} scope={scope} readOnly={readOnly} />
       ) : null}
     </SidePanel>
   );

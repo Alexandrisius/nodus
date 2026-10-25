@@ -1,5 +1,11 @@
 import { z } from 'zod';
 
+import {
+  customFieldValuesInputSchema,
+  customFieldValuesPatchSchema,
+  customFieldValuesSchema,
+} from '../custom-fields/custom-field-values.js';
+import { customFieldRefSchema } from '../custom-fields/custom-field-refs.js';
 import { userRefSchema } from '../directory/user-ref.schema.js';
 import { cursorQuerySchema } from '../pagination/paginated.schema.js';
 import { projectColorSchema } from '../projects/project.schemas.js';
@@ -101,6 +107,8 @@ export const taskListItemSchema = z.object({
   checklistDone: z.number().int().min(0),
   checklistTotal: z.number().int().min(0),
   source: taskSourceSchema,
+  /** Значения кастомных полей по id определения (#431, ADR-0029). */
+  customFields: customFieldValuesSchema,
   updatedAt: z.iso.datetime(),
 });
 
@@ -178,6 +186,8 @@ export const taskDetailSchema = taskListItemSchema.extend({
   result: taskResultSchema.nullable(),
   completedAt: z.iso.datetime().nullable(),
   access: taskAccessSchema,
+  /** Ссылки для показа значений кастомных полей (Р6): имя/аватар/архив. */
+  customFieldRefs: z.array(customFieldRefSchema),
   createdAt: z.iso.datetime(),
 });
 
@@ -221,6 +231,8 @@ export const createTaskBodySchema = z.object({
    *  одна задача на сообщение). Поручения из писем создаёт обработчик
    *  события корреспонденции, не клиент. */
   sourceMessageId: z.uuid().optional(),
+  /** Значения кастомных полей области задачи; умолчания подставляет сервер. */
+  customFields: customFieldValuesInputSchema.optional(),
 });
 
 export type CreateTaskBody = z.infer<typeof createTaskBodySchema>;
@@ -263,6 +275,8 @@ export const taskUpdateBodySchema = z
     plannedMinutes: z.number().int().min(1).max(100_000).nullable().optional(),
     assigneeId: z.uuid().optional(),
     parentId: z.uuid().nullable().optional(),
+    /** Патч значений кастомных полей: `null` — очистить поле (#431). */
+    customFields: customFieldValuesPatchSchema.optional(),
   })
   .refine((v) => Object.keys(v).some((k) => k !== 'index'), { message: 'empty update' });
 

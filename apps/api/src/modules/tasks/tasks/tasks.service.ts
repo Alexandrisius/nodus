@@ -24,6 +24,10 @@ import {
   PROCESS_CATALOG_READER,
   type ProcessCatalogReader,
 } from '../../workflows/ports/process-catalog-reader.port.js';
+import {
+  CUSTOM_FIELD_REGISTRY,
+  type CustomFieldRegistry,
+} from '../../custom-fields/ports/custom-field-registry.port.js';
 import { ChecklistRepository } from '../checklist/checklist.repository.js';
 import { PersonalBoardsRepository } from '../personal/personal-boards.repository.js';
 import { Placements } from '../personal/placements.js';
@@ -53,6 +57,7 @@ export class TasksService {
     private readonly mapper: TaskDtoMapper,
     @Inject(USER_PROFILE_READER) private readonly profiles: UserProfileReader,
     @Inject(CHAT_MESSAGE_ACCESS) private readonly messages: ChatMessageAccess,
+    @Inject(CUSTOM_FIELD_REGISTRY) private readonly customFields: CustomFieldRegistry,
   ) {}
 
   /** Подзадача/перепривязка: родителя правят только те, кто может править
@@ -119,6 +124,13 @@ export class TasksService {
 
     const id = await this.txRunner
       .run(async (tx) => {
+        // Кастомные атрибуты (#431, Р5): умолчания области + ввод, проверка
+        // ссылок портом реестра — до записи строки, в той же транзакции.
+        const customFields = await this.customFields.prepareCreate(
+          'task',
+          { input: body.customFields ?? {}, authorId: user.id },
+          tx,
+        );
         const task = await this.repo.create(
           {
             title: body.title,
@@ -141,6 +153,7 @@ export class TasksService {
             sourceId: body.sourceMessageId ?? null,
             checklistTotal: body.checklist?.length ?? 0,
             participants,
+            customFields,
           },
           tx,
         );

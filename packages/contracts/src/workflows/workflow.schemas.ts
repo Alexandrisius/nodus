@@ -1,6 +1,8 @@
 import { z } from 'zod';
 
 import { Permission } from '../auth/permission.js';
+import { customFieldKeySchema } from '../custom-fields/custom-field-key.js';
+import { CUSTOM_FIELD_LIMITS } from '../custom-fields/custom-field-values.js';
 import { transitionFormInputSchema, transitionFormSchema } from './transition-form.schemas.js';
 import {
   docIdSchema,
@@ -39,6 +41,14 @@ export const workflowRequirableFieldSchema = z.enum([
 ]);
 export type WorkflowRequirableField = z.infer<typeof workflowRequirableFieldSchema>;
 
+/** Ключ поля гейта «Заполнены поля»: системное поле или кастомное `cf.<uuid>`
+ *  (#431, Р7). Union — надмножество: старые документы остаются валидными. */
+export const workflowFieldKeySchema = z.union([
+  workflowRequirableFieldSchema,
+  customFieldKeySchema,
+]);
+export type WorkflowFieldKey = z.infer<typeof workflowFieldKeySchema>;
+
 /** Условия — КТО видит и может нажать кнопку перехода. Пустой список —
  *  любой, кто может править сущность. Несколько условий — ИЛИ. */
 export const workflowConditionSchema = z.discriminatedUnion('kind', [
@@ -59,7 +69,7 @@ export const workflowValidatorSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('checklist_complete') }),
   z.object({
     kind: z.literal('fields_required'),
-    fields: z.array(workflowRequirableFieldSchema).min(1),
+    fields: z.array(workflowFieldKeySchema).min(1).max(CUSTOM_FIELD_LIMITS.gateFields),
   }),
   z.object({ kind: z.literal('time_logged') }),
   z.object({ kind: z.literal('result_present') }),
@@ -109,8 +119,8 @@ export const transitionBlockReasonSchema = z.object({
     'result_present',
     'result_files',
   ]),
-  /** Для fields_required — какие поля не заполнены. */
-  fields: z.array(workflowRequirableFieldSchema).optional(),
+  /** Для fields_required — какие поля не заполнены (системные и `cf.<id>`). */
+  fields: z.array(workflowFieldKeySchema).optional(),
   /** Для no_open_subtasks — сколько подзадач мешают (в строгом режиме
    *  вместе с подзадачами на утверждении). */
   count: z.number().int().min(0).optional(),

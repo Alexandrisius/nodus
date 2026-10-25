@@ -38,7 +38,7 @@ Master-данные внешних организаций (ADR-0033, #460): за
 - `counterparties` — краткое/полное название, УНП (`UNIQUE`, нормализуется
   контрактом `unpInputSchema`: «УНП 100 123 456» → `100123456`; NULL-ы
   различны → «уникален, если указан»), адрес, e-mail, телефон, `custom_fields`
-  JSONB (запись — с #431), `archived_at`.
+  JSONB (запись значений — Н2: отдельный issue после #431), `archived_at`.
 - `contact_persons` — контрагент (FK Restrict), ФИО, должность, e-mail,
   телефон, `archived_at`.
 - `counterparty_usages` — проекция «кто ссылается»: PK

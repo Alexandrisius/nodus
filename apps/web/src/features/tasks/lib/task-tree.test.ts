@@ -28,6 +28,7 @@ function task(id: string, parentId: string | null = null): TaskListItem {
     type: systemProcessType,
     stage: STAGE,
     personalStageId: null,
+    customFields: {},
     priority: 'normal',
     deadline: null,
     creator: { id: 'u1', displayName: 'Тест Тест', avatarUrl: null },

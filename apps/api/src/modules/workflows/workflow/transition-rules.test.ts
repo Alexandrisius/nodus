@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Permission } from '@nodus/contracts';
 
-import type { WorkflowGateFacts } from '../../../core/ports/workflow-entity.port.js';
 import {
   effectiveTargetId,
   evaluateValidators,
@@ -11,24 +10,17 @@ import {
   type StageDef,
   type TransitionDef,
 } from './transition-rules.js';
+import { gateFacts } from './gate-facts.test-helper.js';
 import { parseForm } from './transition-form.js';
 
-const facts: WorkflowGateFacts = {
-  stageId: '00000000-0000-4000-8000-000000000001',
-  acceptRequired: false,
-  creatorIsAssignee: false,
-  openSubtasks: 0,
-  reviewSubtasks: 0,
+const facts = gateFacts({
   checklistDone: 2,
   checklistTotal: 2,
   spentMinutes: 30,
   description: 'Сделать',
   deadline: new Date(),
   assigneeId: 'u1',
-  plannedMinutes: null,
-  hasResult: false,
-  resultFileCount: 0,
-};
+});
 
 const stages: StageDef[] = [
   {
@@ -82,7 +74,7 @@ function transition(partial: Partial<TransitionDef>): TransitionDef {
   };
 }
 
-/** Субъект актора в форме адаптера задачи: роли + флаги прав категории. */
+/** Субъект актора в форме адаптера: роли + флаги прав категории. */
 function actor(roles: string[], permissions: string[] = []) {
   return {
     roles: new Set(roles),

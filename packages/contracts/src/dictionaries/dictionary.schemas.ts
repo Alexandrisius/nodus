@@ -24,6 +24,8 @@ export type DictionaryCode = z.infer<typeof dictionaryCodeSchema>;
 export const SystemDictionary = {
   /** Вид документа корреспонденции (Инструкция РБ по делопроизводству). */
   DOCUMENT_KIND: 'document-kind',
+  /** Валюты денежных полей (#431, Р10): BYN первым, затем RUB/USD/EUR/CNY. */
+  CURRENCY: 'currency',
 } as const;
 
 export type SystemDictionary = (typeof SystemDictionary)[keyof typeof SystemDictionary];
@@ -65,3 +67,41 @@ export type ListDictionaryItemsQuery = z.infer<typeof listDictionaryItemsQuerySc
 export const listDictionariesQuerySchema = cursorQuerySchema;
 
 export type ListDictionariesQuery = z.infer<typeof listDictionariesQuerySchema>;
+
+/** Запись справочников (#431, Р10): минимальный набор для вариантов
+ *  атрибутов. Код генерирует сервер (`list-<8hex>`) и не меняет. Вариант
+ *  несистемного справочника УДАЛЯЕТСЯ (`DELETE …/items/:id`, вердикт
+ *  владельца 25.10.2026: никакого архива у вариантов атрибутов) — значения
+ *  с ним читаются пустыми; системный справочник защищён (DICTIONARY_SYSTEM_LOCKED). */
+export const createDictionaryBodySchema = z
+  .object({
+    name: z.string().trim().min(1).max(80),
+    /** Начальные варианты; порядок — порядок ввода. */
+    items: z.array(z.string().trim().min(1).max(120)).max(200).optional(),
+  })
+  .strict();
+export type CreateDictionaryBody = z.infer<typeof createDictionaryBodySchema>;
+
+export const updateDictionaryBodySchema = z
+  .object({ name: z.string().trim().min(1).max(80) })
+  .strict();
+export type UpdateDictionaryBody = z.infer<typeof updateDictionaryBodySchema>;
+
+export const createDictionaryItemBodySchema = z
+  .object({
+    name: z.string().trim().min(1).max(120),
+    code: z.string().trim().min(1).max(64).optional(),
+  })
+  .strict();
+export type CreateDictionaryItemBody = z.infer<typeof createDictionaryItemBodySchema>;
+
+export const updateDictionaryItemBodySchema = z
+  .object({ name: z.string().trim().min(1).max(120) })
+  .strict();
+export type UpdateDictionaryItemBody = z.infer<typeof updateDictionaryItemBodySchema>;
+
+/** Порядок вариантов — перетаскиванием: ids = ровно активные элементы. */
+export const reorderDictionaryItemsBodySchema = z
+  .object({ ids: z.array(z.uuid()).min(1).max(500) })
+  .strict();
+export type ReorderDictionaryItemsBody = z.infer<typeof reorderDictionaryItemsBodySchema>;

@@ -24,4 +24,6 @@ export const ALL_PERMISSIONS = [
   'settings.uiDefaults',
   'crm.create',
   'crm.manage',
+  // #431: управление атрибутами; роли admin выдаётся миграцией 20261028120000_custom_fields.
+  'custom_field.manage',
 ] as const;

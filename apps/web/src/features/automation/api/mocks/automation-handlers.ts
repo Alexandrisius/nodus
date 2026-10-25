@@ -1,4 +1,4 @@
-import type { ProcessType, WorkflowDetail, WorkflowDocument } from '@nodus/contracts';
+import type { ProcessType, WorkflowDocument } from '@nodus/contracts';
 import {
   ErrorCode,
   checkWorkflowDocument,
@@ -10,12 +10,10 @@ import {
 } from '@nodus/contracts';
 import { http, HttpResponse } from 'msw';
 
+import { demoCustomFieldDefinitions } from '../../../../shared/mocks/data/custom-fields.js';
 import { demoSubtasks, demoTasks } from '../../../../shared/mocks/data/tasks.js';
-import {
-  demoProcessTypes,
-  demoWorkflowDetails,
-  quickDocument,
-} from '../../../../shared/mocks/data/workflows.js';
+import { demoProcessTypes, quickDocument } from '../../../../shared/mocks/data/workflows.js';
+import { mockWorkflows } from '../../../../shared/mocks/data/workflows-store.js';
 import { resolvePublishedDocument } from './publish-resolve.js';
 
 /** Моки «Автоматизации» (#378): библиотека типов, чтение/публикация
@@ -23,31 +21,7 @@ import { resolvePublishedDocument } from './publish-resolve.js';
  *  Тела валидируются схемами contracts (мок ≠ контракту = баг). */
 
 const mockTypes: ProcessType[] = structuredClone(demoProcessTypes);
-const workflows = new Map<string, WorkflowDetail>();
-
-function stageCountDemo(id: string): number {
-  const demoCounts: Record<string, number> = {
-    '20000000-0000-4000-8000-000000000001': 3,
-    '20000000-0000-4000-8000-000000000003': 5,
-    '20000000-0000-4000-8000-000000000004': 2,
-    '20000000-0000-4000-8000-000000000005': 12,
-    '20000000-0000-4000-8000-000000000006': 2,
-    '20000000-0000-4000-8000-000000000007': 1,
-  };
-  return demoCounts[id] ?? 0;
-}
-
-for (const [id, detail] of Object.entries(demoWorkflowDetails)) {
-  workflows.set(
-    id,
-    structuredClone({
-      ...detail,
-      stageEntityCounts: Object.fromEntries(
-        detail.document.stages.map((s) => [s.id, stageCountDemo(s.id)]),
-      ),
-    }),
-  );
-}
+const workflows = mockWorkflows;
 
 const invalid = (status: number, code: keyof typeof ErrorCode, details?: unknown) =>
   HttpResponse.json({ code: ErrorCode[code], message: code, details }, { status });
@@ -205,7 +179,16 @@ export const automationHandlers = [
     if (baseVersion !== detail.version) {
       return invalid(409, 'WORKFLOW_VERSION_CONFLICT');
     }
-    const problems = checkWorkflowDocument(document);
+    // Кастомные поля в окне и гейтах (#431): факты области — из реестра мока
+    // (категория маршрута = область полей: task/letter).
+    const scope =
+      demoProcessTypes.find((type) => type.workflowId === detail.id)?.category ?? 'task';
+    const scoped = demoCustomFieldDefinitions.filter((entry) => entry.scope === scope);
+    const facts = {
+      active: new Set(scoped.map((entry) => entry.id)),
+      hidden: new Set(scoped.filter((entry) => entry.hidden).map((entry) => entry.id)),
+    };
+    const problems = checkWorkflowDocument(document, { customFields: facts });
     if (hasBlockingProblems(problems)) {
       return invalid(422, 'WORKFLOW_INVALID', { problems });
     }

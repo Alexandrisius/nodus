@@ -1,0 +1,41 @@
+import { Module } from '@nestjs/common';
+
+import { ORG_STRUCTURE_READER } from '../../core/ports/org-structure.port.js';
+import { OrgStructureProvider } from '../../core/ports/org-structure.provider.js';
+import { USER_PROFILE_READER } from '../../core/ports/user-profile.port.js';
+import { UserProfileProvider } from '../../core/ports/user-profile.provider.js';
+import { CrmPortsModule } from '../crm/crm-ports.module.js';
+import { DictionariesPortsModule } from '../dictionaries/dictionaries-ports.module.js';
+import { TasksPortsModule } from '../tasks/tasks-ports.module.js';
+import { WorkflowsPortsModule } from '../workflows/workflows-ports.module.js';
+import { DefinitionsController } from './definitions/definitions.controller.js';
+import { DefinitionMapper } from './definitions/definition.mapper.js';
+import { DefinitionsRepository } from './definitions/definitions.repository.js';
+import { DefinitionsService } from './definitions/definitions.service.js';
+import { CustomFieldDefaults } from './values/defaults.js';
+import { CustomFieldRefsHydrator } from './values/refs-hydrator.js';
+import { CustomFieldValueValidator } from './values/value-validator.js';
+
+/**
+ * Реестр кастомных атрибутов (#431, ADR-0029): HTTP-контур `/custom-fields`
+ * и сервис определений. Модуль ядра без feature flag (modules.md): атрибуты
+ * нужны карточкам, фильтрам и окнам переходов задач, а те уже под флагом
+ * `tasks`. Порты для чужих модулей — `CustomFieldsPortsModule`.
+ */
+@Module({
+  imports: [DictionariesPortsModule, CrmPortsModule, TasksPortsModule, WorkflowsPortsModule],
+  controllers: [DefinitionsController],
+  providers: [
+    UserProfileProvider,
+    { provide: USER_PROFILE_READER, useClass: UserProfileProvider },
+    OrgStructureProvider,
+    { provide: ORG_STRUCTURE_READER, useClass: OrgStructureProvider },
+    DefinitionsRepository,
+    DefinitionMapper,
+    CustomFieldValueValidator,
+    CustomFieldDefaults,
+    CustomFieldRefsHydrator,
+    DefinitionsService,
+  ],
+})
+export class CustomFieldsModule {}

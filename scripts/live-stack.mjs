@@ -4,13 +4,16 @@
  * AGENTS.md): api :3011 + gateway :3012 + web :4173 (non-mock). Режимы web
  * (#247): `up --dev` — vite dev-сервер (правки фронта видны за секунды, цикл
  * приёмки и правок), `up` / `up --preview` — собранная копия (финальная
- * проверка перед вердиктом владельцу).
+ * проверка перед вердиктом владельцу). Исключение «песочница non-mock» —
+ * `up --dev --mock <домены|all>` (#431, ADR-0001): UI-чекпоинт ДО бэкенда —
+ * MSW в vite dev, вход любыми данными; пробы поведения и e2e — без моков.
  * Живой стек для приёмки владельцем и локальных e2e; прод-контейнеры docker
  * НЕ трогает. PID-файл .live-stack/pids.json убивает «сирот» прошлых сессий:
  * перед up порты проверяются, чужой процесс на порту = громкая ошибка, а не
  * молчаливый EADDRINUSE свежеподнятого.
  *
- * Команды: up [--dev|--preview] | down | status | bootstrap (pnpm live-stack <команда>).
+ * Команды: up [--dev] [--mock <домены|all>] | up [--preview] | down | status |
+ * bootstrap (pnpm live-stack <команда>).
  */
 import { spawn, spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
@@ -19,7 +22,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { dbName, sandboxSecrets } from './live-stack-env.mjs';
+import { dbName, loadDotEnv, sandboxSecrets } from './live-stack-env.mjs';
+import { mockEnvOf } from './live-stack-mock.mjs';
+import { printStatus } from './live-stack-status.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const STATE_DIR = path.join(ROOT, '.live-stack');
@@ -34,19 +39,6 @@ const HEALTH = {
   gateway: 'http://127.0.0.1:3012/health',
   web: 'http://127.0.0.1:4173/',
 };
-
-/** Корневой .env (без dotenv-зависимости: простой парсер KEY=VALUE). */
-function loadDotEnv() {
-  const file = path.join(ROOT, '.env');
-  const env = {};
-  if (!fs.existsSync(file)) return env;
-  for (const line of fs.readFileSync(file, 'utf-8').split(/\r?\n/)) {
-    if (line.trim().startsWith('#')) continue;
-    const match = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
-    if (match) env[match[1]] = match[2];
-  }
-  return env;
-}
 
 /** Прослушивает ли кто-то порт (connect-проба; ошибка соединения = свободен). */
 function portBusy(port) {
@@ -175,7 +167,7 @@ function bootstrapNight(env) {
   run('node scripts/night-users.mjs', [], { ...process.env, DATABASE_URL: env.DATABASE_URL });
 }
 
-async function up(mode) {
+async function up(mode, mock) {
   const existing = Object.entries(readPids()).filter(([, pid]) => pidAlive(pid));
   if (existing.length > 0) {
     console.error(
@@ -198,7 +190,7 @@ async function up(mode) {
   // (там прод-значения) конструируем песочные. Явный env процесса главнее;
   // осознанный прогон против прода — SANDBOX_ON_PROD=1 (не рекомендуется:
   // два outbox-диспетчера на одной БД воруют события, пробные данные — в прод).
-  const dotenv = loadDotEnv();
+  const dotenv = loadDotEnv(ROOT);
   const base = { ...dotenv, ...process.env };
   const nightUrl = (url) => url.replace(/\/nodus(\?|$)/, '/nodus_night$1');
   if (!process.env.DATABASE_URL && base.DATABASE_URL) {
@@ -285,7 +277,9 @@ async function up(mode) {
         ...base,
         // Песочница всегда живая: в dev-режиме VITE_API_MOCK из .env (моки
         // dev-сервера владельца) перекрывается env процесса (приоритет vite).
-        VITE_API_MOCK: 'false',
+        // Моки — только явный `--dev --mock` (#431); иначе песочница живая.
+        // `all` — это `true` (контракт разбора VITE_API_MOCK), не имя домена.
+        VITE_API_MOCK: mock === 'all' ? 'true' : (mock ?? 'false'),
         NODUS_API_DEV_TARGET: `http://127.0.0.1:${PORTS.api}`,
         NODUS_GATEWAY_DEV_TARGET: `http://127.0.0.1:${PORTS.gateway}`,
       },
@@ -293,14 +287,15 @@ async function up(mode) {
     ),
   };
   fs.writeFileSync(PID_FILE, JSON.stringify(pids, null, 2));
-  fs.writeFileSync(MODE_FILE, mode);
+  fs.writeFileSync(MODE_FILE, mock ? `${mode}+mock:${mock}` : mode);
 
   console.log('Waiting for stack health...');
   await waitHealthy('api', HEALTH.api, 60_000);
   await waitHealthy('gateway', HEALTH.gateway, 30_000);
   await waitHealthy('web', HEALTH.web, 30_000);
   console.log(
-    `Ready (${mode}): web http://127.0.0.1:${PORTS.web} (api :${PORTS.api}, gateway :${PORTS.gateway}); logs in .live-stack/`,
+    `Ready (${mode}${mock ? `, моки: ${mock}` : ''}): web http://127.0.0.1:${PORTS.web} ` +
+      `(api :${PORTS.api}, gateway :${PORTS.gateway}); logs in .live-stack/`,
   );
 }
 
@@ -335,40 +330,35 @@ function down() {
 
 async function status() {
   const pids = readPids();
-  if (fs.existsSync(MODE_FILE) && Object.values(pids).some(pidAlive)) {
-    console.log(`mode     ${fs.readFileSync(MODE_FILE, 'utf8')}`);
-  }
-  for (const [name, port] of Object.entries(PORTS)) {
-    const pid = pids[name];
-    const busy = await portBusy(port);
-    const state = pidAlive(pid)
-      ? `running (pid ${pid})`
-      : busy
-        ? 'port taken by FOREIGN process (orphan?)'
-        : 'free';
-    console.log(`${name.padEnd(8)} :${port}  ${state}`);
-  }
-  // Контур владельца (чужой процесс — только проба порта): сюда отсылают на
-  // приёмку, а он может быть выключен — видимость вместо предположения.
-  const devUp = await portBusy(5173);
-  console.log(`dev-owner :5173  ${devUp ? 'up (владельца)' : 'down — приёмку отдавать на :4173'}`);
+  const alive = Object.values(pids).some(pidAlive);
+  const mode = fs.existsSync(MODE_FILE) && alive ? fs.readFileSync(MODE_FILE, 'utf8') : null;
+  await printStatus({ pids, pidAlive, portBusy, ports: PORTS, mode });
 }
 
 const command = process.argv[2];
 try {
-  if (command === 'up') await up(process.argv.includes('--dev') ? 'dev' : 'preview');
-  else if (command === 'down') down();
+  if (command === 'up') {
+    const mock = mockEnvOf(process.argv);
+    const dev = process.argv.includes('--dev');
+    if (mock && !dev) {
+      console.error('моки работают только в vite dev (#171): используйте `up --dev --mock …`');
+      process.exit(1);
+    }
+    await up(dev ? 'dev' : 'preview', mock);
+  } else if (command === 'down') down();
   else if (command === 'status') await status();
   else if (command === 'bootstrap') {
     // Ручной бутстрап изоляции (up делает это сам): env — как у up.
-    const dotenv = loadDotEnv();
+    const dotenv = loadDotEnv(ROOT);
     const env = { ...dotenv, ...process.env };
     if (!process.env.DATABASE_URL && env.DATABASE_URL) {
       env.DATABASE_URL = env.DATABASE_URL.replace(/\/nodus(\?|$)/, '/nodus_night$1');
     }
     bootstrapNight(env);
   } else {
-    console.error('Usage: pnpm live-stack <up [--dev|--preview]|down|status|bootstrap>');
+    console.error(
+      'Usage: pnpm live-stack <up [--dev] [--mock <домены|all>] | up [--preview] | down | status | bootstrap>',
+    );
     process.exit(1);
   }
 } catch (error) {

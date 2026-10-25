@@ -54,3 +54,29 @@ describe('transition-rules: правки правил кнопки (#378)', () =
     expect(routeIfOf(setRouteIf(on, null))).toBeNull();
   });
 });
+
+describe('поля процесса в гейте «Заполнены поля» (#431, Р7)', () => {
+  const CF = '50000000-0000-4000-8000-000000000001';
+
+  it('ключ cf.* живёт в том же массиве и снимается', () => {
+    const withFields = toggleValidator(base, 'fields_required');
+    const withCustom = toggleField(withFields, `cf.${CF}`);
+    expect(validatorOf(withCustom, 'fields_required')?.fields).toEqual(['description', `cf.${CF}`]);
+    expect(validatorOf(toggleField(withCustom, `cf.${CF}`), 'fields_required')?.fields).toEqual([
+      'description',
+    ]);
+  });
+
+  it('лимит условия — 20 полей (Р7)', () => {
+    let rules = toggleValidator(base, 'fields_required');
+    for (let index = 0; index < 19; index += 1) {
+      rules = toggleField(
+        rules,
+        `cf.50000000-0000-4000-8000-${String(index + 10).padStart(12, '0')}`,
+      );
+    }
+    expect(validatorOf(rules, 'fields_required')?.fields).toHaveLength(20);
+    const overflow = toggleField(rules, `cf.50000000-0000-4000-8000-000000000099`);
+    expect(overflow).toEqual(rules);
+  });
+});

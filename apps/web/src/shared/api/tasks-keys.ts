@@ -24,6 +24,8 @@ export const tasksKeys = {
   /** Серверный поиск задач (палитра Ctrl+K). */
   search: (q: string) => [...tasksKeys.all, 'search', q] as const,
   detail: (id: string) => [...tasksKeys.all, 'detail', id] as const,
+  /** Префикс всех деталей — каталожные события полей (#431). */
+  detailsAll: () => [...tasksKeys.all, 'detail'] as const,
   branch: (id: string) => [...tasksKeys.all, 'branch', id] as const,
   /** Префикс всех веток навигатора — инвалидация (структура дерева меняется). */
   branchAll: () => [...tasksKeys.all, 'branch'] as const,

@@ -46,6 +46,7 @@ export function buildTempSubtask(
     type: parent.type,
     stage: initialStageOf(stages) ?? parent.stage,
     personalStageId: null,
+    customFields: {},
     priority: 'normal',
     deadline: null,
     creator: actor ?? parent.creator,

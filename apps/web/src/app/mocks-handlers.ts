@@ -8,6 +8,9 @@ import { directoryHandlers } from '../features/directory/api/mocks/directory-han
 import { homeHandlers } from '../features/home/api/mocks/home-handlers.js';
 import { notificationsHandlers } from '../features/notifications/api/mocks/notifications-handlers.js';
 import { filesHandlers } from '../shared/files/mocks/files-handlers.js';
+import { crmReadHandlers } from '../shared/counterparties/mocks/crm-read-handlers.js';
+import { customFieldsHandlers } from '../shared/custom-fields/mocks/custom-fields-handlers.js';
+import { dictionariesHandlers } from '../shared/dictionaries/mocks/dictionaries-handlers.js';
 import { projectsHandlers } from '../features/projects/api/mocks/projects-handlers.js';
 import { tasksHandlers } from '../features/tasks/api/mocks/tasks-handlers.js';
 import { API_MOCK_DOMAINS, type ApiMockDomain } from '../shared/api/api-mock-config.js';
@@ -31,6 +34,9 @@ const domainHandlers: Record<ApiMockDomain, HttpHandler[]> = {
   home: homeHandlers,
   files: filesHandlers,
   notifications: notificationsHandlers,
+  'custom-fields': customFieldsHandlers,
+  dictionaries: dictionariesHandlers,
+  crm: crmReadHandlers,
 };
 
 /** Хендлеры мокаемых доменов (#48): 'all' — все (демо-сборка nodus.by),

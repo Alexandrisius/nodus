@@ -1,17 +1,23 @@
-import type { EffectiveSection, TransitionWindowField } from '@nodus/contracts';
-import { ui } from '@nodus/contracts';
+import type { EffectiveSection, TransitionWindowFieldKey } from '@nodus/contracts';
+import { customFieldIdOfKey, ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import { Input } from '@nodus/ui/components/input';
 import { Textarea } from '@nodus/ui/components/textarea';
 
 import { formatDuration, parseDuration } from '../../../lib/minutes.js';
 import { useUsersList } from '../../../api/users-list.js';
+import { CustomFieldEditor } from '../../../custom-fields/value-editor.js';
 import { DateTimePicker } from '../../../ui/date-time-picker.js';
 import { PeoplePicker } from '../../../ui/people-picker.js';
 import type { WindowDraft } from '../use-window-draft.js';
 import type { TransitionWindowContext, WindowFieldValues } from '../window-context.js';
 
-/** «Дозаполнить поля»: текущие значения, меняются только выбранные в окне. */
+/**
+ * «Дозаполнить поля»: текущие значения, меняются только выбранные в окне.
+ * Сначала системные поля, затем поля процесса (#431, Р7): редакторы
+ * `variant="form"` в той же грамматике, подсказка поля — мелким текстом.
+ * Архивные определения в контекст не попадают и не показываются.
+ */
 export function FieldsSection({
   section,
   context,
@@ -27,20 +33,50 @@ export function FieldsSection({
 }) {
   const patch = (next: Partial<WindowFieldValues>) => setFields({ ...draft.fields, ...next });
   const editable = !disabled && context.access.canEdit;
+  const systemKeys = section.fields.filter((key) => customFieldIdOfKey(key) === null);
+  const customKeys = section.fields.filter((key) => customFieldIdOfKey(key) !== null);
 
   return (
     <div className="flex flex-col gap-3">
-      {section.fields.map((field) => (
+      {systemKeys.map((field) => (
         <div key={field} className="flex flex-col gap-1">
           <span className="text-xs text-muted-foreground">{labelOf(field)}</span>
           <FieldEditor field={field} value={draft.fields} editable={editable} onChange={patch} />
         </div>
       ))}
+      {customKeys.map((key) => {
+        const id = customFieldIdOfKey(key);
+        const definition = id
+          ? context.customFieldDefinitions.find((item) => item.id === id)
+          : undefined;
+        if (!definition) return null;
+        return (
+          <div key={key} className="flex flex-col gap-1">
+            <span className="text-xs text-muted-foreground">{definition.name}</span>
+            <CustomFieldEditor
+              definition={definition}
+              value={draft.fields.customFields[definition.id]}
+              refs={context.customFieldRefs}
+              disabled={!editable}
+              variant="form"
+              onCommit={(value) => {
+                const next = { ...draft.fields.customFields };
+                if (value === null) delete next[definition.id];
+                else next[definition.id] = value;
+                patch({ customFields: next });
+              }}
+            />
+            {definition.hint ? (
+              <p className="text-xs text-muted-foreground">{definition.hint}</p>
+            ) : null}
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-function labelOf(field: TransitionWindowField): string {
+function labelOf(field: TransitionWindowFieldKey): string {
   switch (field) {
     case 'description':
       return ui.tasks.description;
@@ -50,6 +86,8 @@ function labelOf(field: TransitionWindowField): string {
       return ui.tasks.assignee;
     case 'plannedMinutes':
       return ui.tasks.plannedTime;
+    default:
+      return field;
   }
 }
 
@@ -59,7 +97,7 @@ function FieldEditor({
   editable,
   onChange,
 }: {
-  field: TransitionWindowField;
+  field: TransitionWindowFieldKey;
   value: WindowFieldValues;
   editable: boolean;
   onChange: (next: Partial<WindowFieldValues>) => void;
@@ -104,6 +142,8 @@ function FieldEditor({
           onChange={(minutes) => onChange({ plannedMinutes: minutes })}
         />
       );
+    default:
+      return null;
   }
 }
 

@@ -89,6 +89,25 @@ export const ErrorCode = {
   /** Удалить нельзя: на контрагента ссылаются письма или проекты —
    *  перенесите в архив, история должна сохраниться (#460). */
   CRM_COUNTERPARTY_IN_USE: 'CRM_COUNTERPARTY_IN_USE',
+  /** Значение кастомного поля не прошло проверку (#431, ADR-0029):
+   *  details.issues[] — { fieldId, reason: unknown|invalid|not_found|inactive, message }. */
+  CUSTOM_FIELD_VALUE_INVALID: 'CUSTOM_FIELD_VALUE_INVALID',
+  /** Тип атрибута недоступен: «Проект» до модуля проектов (#431, Р11). */
+  CUSTOM_FIELD_TYPE_UNAVAILABLE: 'CUSTOM_FIELD_TYPE_UNAVAILABLE',
+  /** Имя занято атрибутом той же области; details — { definitionId } (#431). */
+  CUSTOM_FIELD_NAME_TAKEN: 'CUSTOM_FIELD_NAME_TAKEN',
+  /** Смена типа несовместима с хранимыми значениями; details — { from, to } (#431, Р3). */
+  CUSTOM_FIELD_TYPE_CHANGE_INCOMPATIBLE: 'CUSTOM_FIELD_TYPE_CHANGE_INCOMPATIBLE',
+  /** Больше 100 атрибутов в области (#431). */
+  CUSTOM_FIELD_LIMIT_REACHED: 'CUSTOM_FIELD_LIMIT_REACHED',
+  /** Удалить нельзя: атрибут стоит в окне перехода или условии маршрута;
+   *  details — { workflows: [{ id, name }] } (#431, вердикт владельца
+   *  25.10.2026: сначала убрать из процессов). */
+  CUSTOM_FIELD_IN_USE: 'CUSTOM_FIELD_IN_USE',
+  /** Системный справочник защищён от удаления вариантов и переименования (#431, Р10). */
+  DICTIONARY_SYSTEM_LOCKED: 'DICTIONARY_SYSTEM_LOCKED',
+  /** Вариант с таким названием уже есть среди активных (#431). */
+  DICTIONARY_ITEM_NAME_TAKEN: 'DICTIONARY_ITEM_NAME_TAKEN',
 } as const;
 
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];

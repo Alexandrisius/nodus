@@ -1,4 +1,4 @@
-import type { ProjectRef, TaskListItem } from '@nodus/contracts';
+import type { CustomFieldValues, ProjectRef, TaskListItem } from '@nodus/contracts';
 
 import { personalStageFor } from './personal-stages.js';
 
@@ -36,10 +36,18 @@ export const projectRefs = {
 } as const satisfies Record<string, ProjectRef>;
 
 /** Личное размещение «Мой план» — из глобальной стадии (ADR-0008); явная
- *  колонка — для демонстрации вольных личных колонок того же состояния. */
+ *  колонка — для демонстрации вольных личных колонок того же состояния.
+ *  Значения кастомных полей (#431) — необязательны: у большинства демо-задач
+ *  их нет (`{}`), заполненные добавляются точечно. */
 export function mk(
-  task: Omit<TaskListItem, 'personalStageId'>,
+  task: Omit<TaskListItem, 'personalStageId' | 'customFields'> & {
+    customFields?: CustomFieldValues;
+  },
   personalStageId?: string,
 ): TaskListItem {
-  return { ...task, personalStageId: personalStageId ?? personalStageFor(task.stage) };
+  return {
+    ...task,
+    customFields: task.customFields ?? {},
+    personalStageId: personalStageId ?? personalStageFor(task.stage),
+  };
 }

@@ -76,7 +76,9 @@ export function ListToolbar<T>({
           <div
             ref={anchorRef}
             className={cn(
-              'relative min-w-0 shrink-0 transition-[width] duration-200',
+              // Сжимается (до min-w-56), а не выталкивает слот `right` за край
+              // рамы, когда шапка тесная (переключатель сущности, #431).
+              'relative min-w-56 shrink transition-[width] duration-200',
               panelOpen ? 'w-[min(36rem,calc(100vw-3rem))]' : 'w-[28rem]',
             )}
           >
@@ -145,7 +147,7 @@ export function ListToolbar<T>({
         </PopoverAnchor>
         <PopoverContent
           align="start"
-          className="w-[min(36rem,calc(100vw-2rem))] p-0"
+          className="max-h-[var(--radix-popover-content-available-height)] w-[min(36rem,calc(100vw-2rem))] overflow-hidden p-0"
           // Фокус остаётся в поисковой строке: печатать можно сразу (Битрикс).
           onOpenAutoFocus={(e) => e.preventDefault()}
           // Клик по якорю (само поле) — НЕ «взаимодействие снаружи»

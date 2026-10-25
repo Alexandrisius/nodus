@@ -22,6 +22,7 @@ import { TaskDescription } from './task-description.js';
 import { TaskResultSection } from './task-result.js';
 import { TaskSubtasks } from './task-subtasks.js';
 import { TaskDiscussion } from './task-discussion.js';
+import { TaskCustomFields } from './task-custom-fields.js';
 import { TaskFields } from './task-fields.js';
 import { TaskActionBar } from './task-stage-controls.js';
 import {
@@ -227,6 +228,9 @@ export function TaskCard({ taskId }: { taskId: string }) {
               <div className="mx-auto max-w-4xl pb-4">
                 <TaskDescription task={task} />
                 <TaskFields task={task} />
+                {/* Поля процесса (#431) — сразу после системных полей: тот же
+                    реестр-грамматика, своя секция с настройкой. */}
+                <TaskCustomFields task={task} />
                 {/* Чек-лист — сразу после полей, ДО подзадач (вердикт
                   владельца 15.09.2026: «чек-листам — важное место»). */}
                 <TaskChecklist task={task} />

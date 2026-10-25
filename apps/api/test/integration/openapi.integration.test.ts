@@ -17,8 +17,11 @@ import { ContactsService } from '../../src/modules/crm/contacts/contacts.service
 import { CounterpartiesController } from '../../src/modules/crm/counterparties/counterparties.controller.js';
 import { CounterpartiesQueryService } from '../../src/modules/crm/counterparties/counterparties-query.service.js';
 import { CounterpartiesService } from '../../src/modules/crm/counterparties/counterparties.service.js';
+import { DefinitionsController } from '../../src/modules/custom-fields/definitions/definitions.controller.js';
+import { DefinitionsService } from '../../src/modules/custom-fields/definitions/definitions.service.js';
 import { DictionariesController } from '../../src/modules/dictionaries/dictionaries.controller.js';
 import { DictionariesService } from '../../src/modules/dictionaries/dictionaries.service.js';
+import { DictionaryItemsService } from '../../src/modules/dictionaries/dictionary-items.service.js';
 import { DepartmentsController } from '../../src/modules/directory/departments.controller.js';
 import { DepartmentsService } from '../../src/modules/directory/departments.service.js';
 import { PositionsController } from '../../src/modules/directory/positions.controller.js';
@@ -63,6 +66,7 @@ type OpenApiPaths = Record<string, Record<string, OpenApiOperation>>;
     PositionsController,
     RolesController,
     DictionariesController,
+    DefinitionsController,
     CounterpartiesController,
     ContactsController,
   ],
@@ -77,6 +81,8 @@ type OpenApiPaths = Record<string, Record<string, OpenApiOperation>>;
     { provide: PositionsService, useValue: {} },
     { provide: RolesService, useValue: {} },
     { provide: DictionariesService, useValue: {} },
+    { provide: DictionaryItemsService, useValue: {} },
+    { provide: DefinitionsService, useValue: {} },
     { provide: CounterpartiesQueryService, useValue: {} },
     { provide: CounterpartiesService, useValue: {} },
     { provide: ContactsService, useValue: {} },

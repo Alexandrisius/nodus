@@ -1,5 +1,10 @@
 import { z } from 'zod';
 
+import {
+  customFieldChangeSchema,
+  CUSTOM_FIELD_LIMITS,
+} from '../custom-fields/custom-field-values.js';
+
 /**
  * Каталог доменных событий модуля tasks (I9; каталог api-conventions.md,
  * только расширяется). Payload минимальный и клиентски видим (gateway
@@ -59,11 +64,14 @@ export const taskCreatedPayloadSchema = taskEventBaseSchema.extend({
 });
 export type TaskCreatedPayload = z.infer<typeof taskCreatedPayloadSchema>;
 
-/** Правка полей: список изменённых ключей (значения — дочитываются API). */
+/** Правка полей: список изменённых ключей (значения — дочитываются API).
+ *  Кастомные поля (#431): в `fields` — ключи `cf.<id>`, реальные изменения
+ *  значений — в `customFieldChanges` (long_text обрезан до 500, ≤ 50). */
 export const taskUpdatedPayloadSchema = taskEventBaseSchema.extend({
   fields: z.array(z.string()),
   title: z.string().optional(),
   deadline: z.iso.datetime().nullable().optional(),
+  customFieldChanges: z.array(customFieldChangeSchema).max(CUSTOM_FIELD_LIMITS.changes).optional(),
 });
 export type TaskUpdatedPayload = z.infer<typeof taskUpdatedPayloadSchema>;
 

@@ -206,6 +206,9 @@ export const workflowProblemCodeSchema = z.enum([
   'form_empty_label',
   'form_useless_section',
   'form_duplicate_section',
+  /** Атрибуты в окне и гейтах (#431): неизвестный — ошибка, скрытый в окне — предупреждение. */
+  'custom_field_unknown',
+  'custom_field_hidden',
 ]);
 export type WorkflowProblemCode = z.infer<typeof workflowProblemCodeSchema>;
 

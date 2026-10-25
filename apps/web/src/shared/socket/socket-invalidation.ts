@@ -16,6 +16,7 @@ import {
 import { notificationsKeys } from '../notifications-keys.js';
 import { bumpCommentsOnce, useCommentsLive } from '../tasks/comments-live.js';
 import { createKeyBatcher, type KeyBatcher } from './invalidation-batcher.js';
+import { pushCustomFieldKeys } from './custom-fields-invalidation.js';
 import { pushTaskKeys } from './task-invalidation.js';
 import { pushWorkflowKeys } from './workflow-invalidation.js';
 
@@ -204,8 +205,10 @@ export function createRealtimeInvalidator(queryClient: QueryClient): RealtimeInv
           // аудитории задачи деталь и переходы догоняют быстро, доски,
           // журнал и счётчики — по медленному ярусу (одна пересборка на пачку).
           // Каталог «Процессов» (#428): типы/маршруты/стадии — своим роутером.
+          // Каталог «Полей» и справочников (#431) — тоже.
           if (envelope.type.startsWith('task.'))
             pushTaskKeys(batcher, queryClient, envelope.type, payload);
+          else if (pushCustomFieldKeys(batcher, queryClient, envelope.type)) return;
           else pushWorkflowKeys(batcher, queryClient, envelope.type, payload);
           return;
       }

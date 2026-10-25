@@ -24,6 +24,11 @@ import {
   USER_PROFILE_READER,
   type UserProfileReader,
 } from '../../../../core/ports/user-profile.port.js';
+import {
+  CUSTOM_FIELD_REGISTRY,
+  type CustomFieldRegistry,
+} from '../../../custom-fields/ports/custom-field-registry.port.js';
+import { customFieldFactsOf } from './custom-field-facts.js';
 import { liveLayout, resolveLayout } from './layout.js';
 import { serverChecksOf } from './publish-checks.js';
 import {
@@ -57,6 +62,7 @@ export class WorkflowEditorService {
     private readonly eventBus: EventBus,
     private readonly adapters: WorkflowEntityRegistry,
     @Inject(USER_PROFILE_READER) private readonly profiles: UserProfileReader,
+    @Inject(CUSTOM_FIELD_REGISTRY) private readonly customFields: CustomFieldRegistry,
   ) {}
 
   /** GET /workflows/:id — документ живого маршрута + счётчики. */
@@ -100,7 +106,11 @@ export class WorkflowEditorService {
           { currentVersion: workflow.version },
         );
       }
-      const problems = checkWorkflowDocument(body.document);
+      // Неизвестное поле в окне/гейте — ошибка публикации, скрытое в ОКНЕ —
+      // предупреждение (в условии скрытое допустимо, Р7).
+      const category = await this.workflows.categoryOf(workflowId, tx);
+      const customFields = await customFieldFactsOf(this.customFields, category, tx);
+      const problems = checkWorkflowDocument(body.document, { customFields });
       if (problems.some((p) => p.severity === 'error')) {
         throw new DomainException(ErrorCode.WORKFLOW_INVALID, 'Workflow document is invalid', {
           problems,
@@ -109,7 +119,6 @@ export class WorkflowEditorService {
       const loaded = await this.workflows.load(workflowId, tx);
       serverChecksOf(loaded, body.document, body.migrations);
 
-      const category = await this.workflows.categoryOf(workflowId, tx);
       const snapshot = await this.snapshotOf(tx, loaded, category);
       const plan = planWorkflowPublish(snapshot, body.document, body.migrations);
       const gaps = missingMigrations(plan);

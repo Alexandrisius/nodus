@@ -11,6 +11,10 @@ import {
   globalStageForPersonal,
 } from '../../../../shared/mocks/data/tasks.js';
 import { demoProjects } from '../../../../shared/mocks/data/projects.js';
+import {
+  checkDemoValues,
+  demoDefaults,
+} from '../../../../shared/mocks/data/custom-fields-rules.js';
 import { demoStages, systemProcessType } from '../../../../shared/mocks/data/task-stages.js';
 import { demoProcessTypes, demoWorkflowDetails } from '../../../../shared/mocks/data/workflows.js';
 import type { WorkflowDetail } from '@nodus/contracts';
@@ -162,6 +166,7 @@ export const tasksListHandlers = [
       type: systemProcessType,
       stage,
       personalStageId,
+      customFields: {},
       priority: 'normal',
       deadline: parsed.data.deadline ?? null,
       creator: userRef(currentAuthUser.id),
@@ -178,6 +183,21 @@ export const tasksListHandlers = [
       source: 'manual',
       updatedAt: new Date().toISOString(),
     };
+    // Кастомные поля (#431): умолчания области подставляет «сервер» (Р5),
+    // явный ввод важнее; невалидное значение — 422 с перечнем полей.
+    const values = demoDefaults('task', parsed.data.customFields ?? {});
+    const fieldIssues = checkDemoValues('task', values);
+    if (fieldIssues.length > 0) {
+      return HttpResponse.json(
+        {
+          code: ErrorCode.CUSTOM_FIELD_VALUE_INVALID,
+          message: 'Custom field value is invalid',
+          details: { issues: fieldIssues },
+        },
+        { status: 422 },
+      );
+    }
+    task.customFields = values;
     demoTasks.push(task);
     // Деталь (описание/чек-лист экспресс-формы) — карточка видит их сразу.
     detailsExtra[task.id] = {

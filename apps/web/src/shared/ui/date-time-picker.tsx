@@ -52,6 +52,7 @@ export function DateTimePicker({
   placeholder = ui.common.noDeadline,
   children,
   clearLabel,
+  withTime = true,
 }: {
   value: Date | null;
   onChange: (value: Date | null) => void;
@@ -61,6 +62,9 @@ export function DateTimePicker({
   children?: ReactNode;
   /** Кнопка очистки внутри поповера (у своего триггера крестика нет). */
   clearLabel?: string;
+  /** false — «только дата» (кастомные поля типа «Дата», #431): без поля
+   *  времени, значение — локальная полночь выбранного дня. */
+  withTime?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   // «Сейчас» — на момент открытия поповера (подсветка today, быстрые варианты).
@@ -88,6 +92,11 @@ export function DateTimePicker({
   const cells = useMemo(() => monthGridCells(view.year, view.month), [view]);
 
   function commit(day: Date) {
+    if (!withTime) {
+      onChange(new Date(day.getFullYear(), day.getMonth(), day.getDate(), 0, 0));
+      setOpen(false);
+      return;
+    }
     const time = parseTime(timeStr) ?? { hours: 17, minutes: 0 };
     onChange(new Date(day.getFullYear(), day.getMonth(), day.getDate(), time.hours, time.minutes));
     setOpen(false);
@@ -113,7 +122,11 @@ export function DateTimePicker({
             <span
               className={cn('min-w-0 flex-1 truncate text-left', !value && 'text-muted-foreground')}
             >
-              {value ? `${dayMonthFmt.format(value)} ${timeStr}` : placeholder}
+              {value
+                ? withTime
+                  ? `${dayMonthFmt.format(value)} ${timeStr}`
+                  : dayMonthFmt.format(value)
+                : placeholder}
             </span>
             {value ? (
               <span
@@ -187,17 +200,19 @@ export function DateTimePicker({
                 );
               })}
             </div>
-            <div className="mt-2 flex items-center gap-2">
-              <span className="text-xs font-medium text-muted-foreground">
-                {ui.common.timeLabel}
-              </span>
-              <Input
-                value={timeStr}
-                onChange={(e) => setTimeStr(e.target.value)}
-                aria-label={ui.common.timeLabel}
-                className="h-7 w-20 text-sm tabular-nums"
-              />
-            </div>
+            {withTime ? (
+              <div className="mt-2 flex items-center gap-2">
+                <span className="text-xs font-medium text-muted-foreground">
+                  {ui.common.timeLabel}
+                </span>
+                <Input
+                  value={timeStr}
+                  onChange={(e) => setTimeStr(e.target.value)}
+                  aria-label={ui.common.timeLabel}
+                  className="h-7 w-20 text-sm tabular-nums"
+                />
+              </div>
+            ) : null}
           </div>
           <div className="flex w-44 shrink-0 flex-col gap-1 border-l border-border pl-3">
             {QUICK.map((q) => {

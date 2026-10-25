@@ -70,6 +70,7 @@ function taskInStage(stage: typeof STAGE_A | typeof STAGE_B): TaskListItem {
     type: systemProcessType,
     stage: { ...stage },
     personalStageId: null,
+    customFields: {},
     priority: 'normal',
     deadline: null,
     creator: { id: 'u1', displayName: 'Тест Тест', avatarUrl: null },

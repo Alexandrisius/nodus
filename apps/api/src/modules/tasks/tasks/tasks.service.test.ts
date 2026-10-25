@@ -78,6 +78,11 @@ function setup() {
     taskDiscussion: vi.fn(),
   };
   const eventBus = { emit: vi.fn() };
+  const customFields = {
+    prepareCreate: vi
+      .fn()
+      .mockImplementation((_scope, args: { input: unknown }) => Promise.resolve(args.input)),
+  };
   const txRunner = { run: vi.fn((fn: (tx: unknown) => unknown) => fn(TX)) };
   const service = new TasksService(
     txRunner as never,
@@ -92,6 +97,7 @@ function setup() {
     mapper as never,
     profiles as never,
     messages as never,
+    customFields as never,
   );
   return { service, repo, placements, placementsRepo, txRunner, eventBus, catalog };
 }

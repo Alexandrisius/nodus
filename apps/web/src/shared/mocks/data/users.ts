@@ -238,15 +238,18 @@ export const currentAuthUser: AuthUser = {
   email: me.email,
   displayName: me.displayName,
   // Мок-концепт: текущий пользователь — админ, галочка «Для всех» видна (#4);
-  // стикеры (#143) и редактор маршрутов (#378) — права UI-фазы на моках.
+  // стикеры (#143), редактор маршрутов (#378) и реестр полей (#431) — права
+  // UI-фазы на моках. Строк вне каталога Permission нет (I15/Р13).
   permissions: [
-    'task.create',
-    'task.update',
-    'letter.register',
-    'resolution.issue',
+    Permission.TASK_CREATE,
+    Permission.TASK_MANAGE_ANY,
+    Permission.CORRESPONDENCE_CREATE,
     Permission.SETTINGS_UI_DEFAULTS,
     Permission.STICKER_MANAGE,
     Permission.WORKFLOW_MANAGE,
+    Permission.CUSTOM_FIELD_MANAGE,
+    Permission.DICTIONARY_MANAGE,
+    Permission.CRM_MANAGE,
   ],
 };
 

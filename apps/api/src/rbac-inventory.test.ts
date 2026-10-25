@@ -27,6 +27,9 @@ const COUNTERPARTIES =
   'общий справочник контрагентов: на него ссылаются письма и проекты, читают все сотрудники; ' +
   'карточка отдаёт контакты ВНЕШНИХ лиц (ФИО/телефон/почта) — осознанное решение ADR-0033; ' +
   'мутации — crm.create/crm.manage';
+const CUSTOM_FIELDS =
+  'реестр определений атрибутов — общий каталог без персональных данных: нужен карточкам, ' +
+  'фильтрам и окнам переходов каждому сотруднику; мутации — custom_field.manage (#431)';
 const VISIBLE_STICKERS = 'видимые паки: корпоративные + свои/установленные (фильтр в сервисе)';
 const TASK_VISIBILITY =
   'фильтр видимости задач в сервисе (участие, подчинённые по оргструктуре, task.view_all)';
@@ -75,6 +78,7 @@ const INTENTIONALLY_WITHOUT_PERMISSION: Record<string, string> = {
   'GET /counterparties/similar': COUNTERPARTIES,
   'GET /counterparties/:id': COUNTERPARTIES,
   'GET /dictionaries/:code/items': CATALOG,
+  'GET /custom-fields/definitions': CUSTOM_FIELDS,
   'GET /files/:id/office-session': FILE_ACCESS,
   'GET /files/:id/versions': FILE_ACCESS,
   'GET /home/summary': HOME,

@@ -1,3 +1,4 @@
+import { customFieldIdOfKey } from '../custom-fields/custom-field-key.js';
 import type {
   WorkflowDraftDocument,
   WorkflowDraftStage,
@@ -15,6 +16,18 @@ import type {
 
 const MAX_STAGES = 20;
 const MAX_TRANSITIONS = 80;
+
+/** Факты атрибутов для проверки ссылок (#431, Р7): все id области и id
+ *  скрытых. Без `customFields` проверки пропускаются (старые вызовы и
+ *  тесты остаются валидными). */
+export interface WorkflowCustomFieldFacts {
+  active: ReadonlySet<string>;
+  hidden: ReadonlySet<string>;
+}
+
+export interface WorkflowCheckOptions {
+  customFields?: WorkflowCustomFieldFacts;
+}
 
 function error(
   code: WorkflowProblem['code'],
@@ -43,7 +56,10 @@ function exitsFrom(stage: WorkflowDraftStage, transitions: readonly WorkflowDraf
  * Порядок детерминирован: правила по порядку таблицы спеки, элементы — по
  * массиву документа (устойчивые подсказки в UI).
  */
-export function checkWorkflowDocument(doc: WorkflowDraftDocument): WorkflowProblem[] {
+export function checkWorkflowDocument(
+  doc: WorkflowDraftDocument,
+  opts: WorkflowCheckOptions = {},
+): WorkflowProblem[] {
   const { stages, transitions } = doc;
   const problems: WorkflowProblem[] = [];
   const byId = new Map(stages.map((s) => [s.id as string, s]));
@@ -143,6 +159,39 @@ export function checkWorkflowDocument(doc: WorkflowDraftDocument): WorkflowProbl
     const messages = form.sections.find((s) => s.kind === 'result_messages');
     if (messages?.kind === 'result_messages' && !messages.required && !hasResult) {
       problems.push(warning('form_useless_section', { transitionId: t.id }));
+    }
+  }
+
+  // --- Кастомные поля в окне и гейтах (#431, Р7) ---------------------------
+
+  const fields = opts.customFields;
+  if (fields) {
+    // Скрытый атрибут в ОКНЕ — предупреждение: окно его не покажет, заполнить
+    // нечем. В условии скрытый допустим (служебные значения ставит автоматика).
+    const checkKey = (
+      key: string,
+      refs: Pick<WorkflowProblem, 'transitionId'>,
+      inWindow: boolean,
+    ): void => {
+      const id = customFieldIdOfKey(key);
+      if (id === null) return;
+      if (!fields.active.has(id)) {
+        problems.push(error('custom_field_unknown', refs));
+      } else if (inWindow && fields.hidden.has(id)) {
+        problems.push(warning('custom_field_hidden', refs));
+      }
+    };
+    for (const t of transitions) {
+      for (const section of t.form?.enabled ? t.form.sections : []) {
+        if (section.kind === 'fields') {
+          for (const key of section.fields) checkKey(key, { transitionId: t.id }, true);
+        }
+      }
+      for (const validator of t.rules.validators) {
+        if (validator.kind === 'fields_required') {
+          for (const key of validator.fields) checkKey(key, { transitionId: t.id }, false);
+        }
+      }
     }
   }
 
