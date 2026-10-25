@@ -198,14 +198,21 @@ export const NAV_MODULES: NavModuleDef[] = [
     icon: Workflow,
     // Окно-сплит: колонка типов + холст, ось — верхняя граница окна.
     splitWindow: true,
-    // Единый дом настройки процессов (#377): вкладки сверху, не модули в
-    // меню; «Права доступа» добавит #379, «Схемы проектов» — #38 (V2).
+    // Единый дом настройки (#377): вкладки сверху, не модули в меню;
+    // «Поля» — реестр кастомных полей (#431), «Права доступа» добавит #379,
+    // «Схемы проектов» — #38 (V2).
     tabs: [
       {
         id: 'processes',
         label: ui.automation.tabProcesses,
         search: { tab: 'processes' },
         isActive: (s) => (s.get('tab') ?? 'processes') === 'processes',
+      },
+      {
+        id: 'fields',
+        label: ui.automation.tabFields,
+        search: { tab: 'fields' },
+        isActive: (s) => s.get('tab') === 'fields',
       },
     ],
   },
