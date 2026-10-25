@@ -15,6 +15,14 @@ import { DomainException } from '../../core/errors/domain-exception.js';
 import { EventBus } from '../../core/events/event-bus.js';
 import { DictionariesRepository } from './dictionaries.repository.js';
 
+/** Системный справочник — правка вариантов запрещена (код-потребитель). */
+function assertEditable(dictionary: Dictionary, code: string): void {
+  if (!dictionary.isSystem) return;
+  throw new DomainException(ErrorCode.DICTIONARY_SYSTEM_LOCKED, 'System dictionary is locked', {
+    code,
+  });
+}
+
 /** Справочник по коду или 404 (единая точка для мутаций). */
 async function requireDictionary(
   repository: DictionariesRepository,
@@ -32,9 +40,9 @@ async function requireDictionary(
  * + outbox-событие `dictionary.*` (I9), аудит — контроллером (@Audit).
  *
  * Правила:
- * - системный справочник (`isSystem`) защищён от переименования и удаления
- *   вариантов (409 `DICTIONARY_SYSTEM_LOCKED`): на его коды и элементы
- *   ссылается код-потребитель;
+ * - системный справочник (`isSystem`) защищён от ЛЮБОЙ правки вариантов и
+ *   переименования (409 `DICTIONARY_SYSTEM_LOCKED`): на его коды и элементы
+ *   ссылается код-потребитель (валюта `currency`, вид документа);
  * - имя варианта уникально среди активных в справочнике (lower + trim) —
  *   проверка и запись под advisory-локом справочника (гонка двух
  *   администраторов даёт 409, а не дубль);
@@ -72,11 +80,7 @@ export class DictionaryItemsService {
   /** Переименование несистемного справочника. */
   async rename(code: string, dto: UpdateDictionaryBody, actorId: string): Promise<Dictionary> {
     const dictionary = await requireDictionary(this.dictionaries, code);
-    if (dictionary.isSystem) {
-      throw new DomainException(ErrorCode.DICTIONARY_SYSTEM_LOCKED, 'System dictionary is locked', {
-        code,
-      });
-    }
+    assertEditable(dictionary, code);
     return this.txRunner.run(async (tx) => {
       const updated = await this.dictionaries.renameDictionary(
         dictionary.id,
@@ -100,6 +104,7 @@ export class DictionaryItemsService {
     actorId: string,
   ): Promise<DictionaryItem> {
     const dictionary = await requireDictionary(this.dictionaries, code);
+    assertEditable(dictionary, code);
     return this.txRunner.run(async (tx) => {
       await this.dictionaries.lockDictionary(dictionary.id, tx);
       if (await this.dictionaries.findActiveItemByName(dictionary.id, dto.name, null, tx)) {
@@ -128,6 +133,7 @@ export class DictionaryItemsService {
     actorId: string,
   ): Promise<DictionaryItem> {
     const dictionary = await requireDictionary(this.dictionaries, code);
+    assertEditable(dictionary, code);
     return this.txRunner.run(async (tx) => {
       await this.dictionaries.lockDictionary(dictionary.id, tx);
       const item = await this.dictionaries.findItemById(itemId, tx);
@@ -155,11 +161,7 @@ export class DictionaryItemsService {
    */
   async deleteItem(code: string, itemId: string, actorId: string): Promise<void> {
     const dictionary = await requireDictionary(this.dictionaries, code);
-    if (dictionary.isSystem) {
-      throw new DomainException(ErrorCode.DICTIONARY_SYSTEM_LOCKED, 'System dictionary is locked', {
-        code,
-      });
-    }
+    assertEditable(dictionary, code);
     await this.txRunner.run(async (tx) => {
       const item = await this.dictionaries.findItemById(itemId, tx);
       if (!item || item.dictionaryId !== dictionary.id) throw itemNotFound(itemId);
@@ -185,6 +187,7 @@ export class DictionaryItemsService {
     actorId: string,
   ): Promise<void> {
     const dictionary = await requireDictionary(this.dictionaries, code);
+    assertEditable(dictionary, code);
     await this.txRunner.run(async (tx) => {
       const active = (await this.dictionaries.allItems(dictionary.id, tx)).filter(
         (item) => item.isActive,

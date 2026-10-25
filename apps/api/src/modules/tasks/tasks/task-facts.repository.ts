@@ -62,11 +62,23 @@ export class TaskFactsRepository {
     return (row.customFields ?? {}) as CustomFieldValues;
   }
 
-  /** Уборка значения удалённого атрибута (#431): ключ убирается у всех задач. */
-  async removeCustomFieldValues(fieldId: string): Promise<number> {
-    return this.prisma.$executeRaw(Prisma.sql`
-      UPDATE tasks SET custom_fields = custom_fields - ${fieldId}
-      WHERE custom_fields ? ${fieldId}
-    `);
+  /**
+   * Уборка значения удалённого атрибута (#431): ключ убирается у всех задач
+   * пачками по `BATCH` строк — одна транзакция на всю таблицу держала бы
+   * блокировки на объёме 10⁵ задач (замечание security-гейта). Пачка ищет
+   * строки подзапросом по GIN-индексу `tasks_custom_fields_gin`.
+   */
+  async removeCustomFieldValues(fieldId: string, batch = 500): Promise<number> {
+    let removed = 0;
+    for (;;) {
+      const affected = await this.prisma.$executeRaw(Prisma.sql`
+        UPDATE tasks SET custom_fields = custom_fields - ${fieldId}
+        WHERE id IN (
+          SELECT id FROM tasks WHERE custom_fields ? ${fieldId} LIMIT ${batch}::int
+        )
+      `);
+      removed += affected;
+      if (affected === 0) return removed;
+    }
   }
 }

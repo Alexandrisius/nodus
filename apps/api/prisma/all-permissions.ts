@@ -24,7 +24,6 @@ export const ALL_PERMISSIONS = [
   'settings.uiDefaults',
   'crm.create',
   'crm.manage',
-  // #431 UI-пакет: заглушка до бэкенд-пакета — право в каталоге уже есть,
-  // выдача роли admin миграцией — B1.
+  // #431: управление атрибутами; роли admin выдаётся миграцией 20261028120000_custom_fields.
   'custom_field.manage',
 ] as const;

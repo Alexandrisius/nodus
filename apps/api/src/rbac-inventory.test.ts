@@ -79,7 +79,6 @@ const INTENTIONALLY_WITHOUT_PERMISSION: Record<string, string> = {
   'GET /counterparties/:id': COUNTERPARTIES,
   'GET /dictionaries/:code/items': CATALOG,
   'GET /custom-fields/definitions': CUSTOM_FIELDS,
-  'GET /custom-fields/definitions/:id/usage': CUSTOM_FIELDS,
   'GET /files/:id/office-session': FILE_ACCESS,
   'GET /files/:id/versions': FILE_ACCESS,
   'GET /home/summary': HOME,

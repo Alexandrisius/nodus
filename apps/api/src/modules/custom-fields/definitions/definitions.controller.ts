@@ -110,6 +110,7 @@ export class DefinitionsController {
   }
 
   @Get(':id/usage')
+  @RequirePermissions(Permission.CUSTOM_FIELD_MANAGE)
   @ApiOperation({ summary: 'Где используется атрибут: заполненные карточки и процессы' })
   @ApiParam({
     name: 'id',
@@ -117,7 +118,7 @@ export class DefinitionsController {
     schema: { type: 'string', format: 'uuid' },
   })
   @ApiOkResponse({ standardSchema: customFieldUsageSchema })
-  @ApiErrors(400, 401, 404)
+  @ApiErrors(400, 401, 403, 404)
   usage(@Param('id', new ZodValidationPipe(idParamSchema)) id: string): Promise<CustomFieldUsage> {
     return this.definitions.usage(id);
   }
