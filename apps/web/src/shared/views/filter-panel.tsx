@@ -1,12 +1,18 @@
 import { Check, Pin, PinOff, Plus, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import { Input } from '@nodus/ui/components/input';
+import { NodeLabel } from '@nodus/ui/components/node-label';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { FilterCombobox } from './filter-combobox.js';
-import type { FilterFieldDef, FilterValue } from './list-filters.js';
+import type {
+  DateRangeValue,
+  FilterFieldDef,
+  FilterValue,
+  NumberRangeValue,
+} from './list-filters.js';
 import { sameFilterState } from './list-filters.js';
 import type { FilterPreset, ListToolbarState } from './use-list-toolbar.js';
 
@@ -42,11 +48,11 @@ export function FilterPanel<T>({
   }
 
   return (
-    <div className="flex">
+    <div className="flex max-h-[var(--radix-popover-content-available-height)] min-h-0">
       {/* Левая колонка — пресеты: быстрое применение (модель Битрикс24).
           Зона отделена тоном (bg-muted/40) и кеглем 13px — единым с подписями
           полей справа, чтобы колонки читались одним приложением. */}
-      <div className="flex w-44 shrink-0 flex-col border-r border-border bg-muted/40 py-1.5">
+      <div className="flex w-44 shrink-0 flex-col overflow-y-auto border-r border-border bg-muted/40 py-1.5">
         {allPresets.map((preset) => {
           const active = sameFilterState(toolbar.filters, preset.state);
           const pinned = toolbar.pinnedId === preset.id;
@@ -141,16 +147,22 @@ export function FilterPanel<T>({
         </div>
       </div>
 
-      {/* Правая колонка — поля фильтра по атрибутам (мгновенное применение) */}
-      <div className="flex min-w-0 flex-1 flex-col gap-2.5 p-3">
-        {visibleDefs.map((def) => (
-          <FilterFieldControl
-            key={def.id}
-            def={def}
-            value={toolbar.filters[def.id]}
-            onChange={(v) => toolbar.setFilter(def.id, v)}
-          />
-        ))}
+      {/* Правая колонка — поля фильтра по атрибутам (мгновенное применение).
+          Поля с группой идут подряд под моно-заголовком (кастомные — «Поля», #431). */}
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2.5 overflow-y-auto p-3">
+        {visibleDefs.map((def, index) => {
+          const newGroup = def.group !== undefined && def.group !== visibleDefs[index - 1]?.group;
+          return (
+            <div key={def.id} className="flex flex-col gap-2.5">
+              {newGroup ? <NodeLabel label={def.group!} className="pt-1" /> : null}
+              <FilterFieldControl
+                def={def}
+                value={toolbar.filters[def.id]}
+                onChange={(v) => toolbar.setFilter(def.id, v)}
+              />
+            </div>
+          );
+        })}
         <div className="flex items-center pt-2.5">
           <Button variant="ghost" size="sm" className="h-7" onClick={toolbar.resetAll}>
             {ui.filters.reset}
@@ -186,7 +198,8 @@ function FilterFieldControl<T>({
     );
   }
   if (def.type === 'dateRange') {
-    const range = typeof value === 'object' && value !== undefined ? value : {};
+    const range: DateRangeValue =
+      typeof value === 'object' && value !== undefined ? (value as DateRangeValue) : {};
     return (
       <div className="flex items-center gap-2">
         <span className="w-28 shrink-0 text-body-xs text-muted-foreground">{def.label}</span>
@@ -207,6 +220,9 @@ function FilterFieldControl<T>({
       </div>
     );
   }
+  if (def.type === 'numberRange') {
+    return <NumberRangeControl def={def} value={value} onChange={onChange} />;
+  }
   return (
     <label className="flex items-center gap-2">
       <span className="w-28 shrink-0 text-body-xs text-muted-foreground">{def.label}</span>
@@ -218,4 +234,104 @@ function FilterFieldControl<T>({
       />
     </label>
   );
+}
+
+/** Диапазон чисел (кастомные «Число», «Деньги», «Продолжительность», #431):
+ *  у продолжительности ввод и показ — «ч:мм», хранение — минуты. */
+function NumberRangeControl<T>({
+  def,
+  value,
+  onChange,
+}: {
+  def: FilterFieldDef<T>;
+  value: FilterValue;
+  onChange: (v: FilterValue) => void;
+}) {
+  const range: NumberRangeValue =
+    typeof value === 'object' && value !== undefined ? (value as NumberRangeValue) : {};
+  const duration = def.numberFormat === 'duration';
+  const [fromText, setFromText] = useState(
+    duration
+      ? range.from !== undefined
+        ? formatDurationFilter(range.from)
+        : ''
+      : (range.from ?? '').toString(),
+  );
+  const [toText, setToText] = useState(
+    duration
+      ? range.to !== undefined
+        ? formatDurationFilter(range.to)
+        : ''
+      : (range.to ?? '').toString(),
+  );
+
+  // Пресет/«Сбросить» меняют значение снаружи — поля догоняют (иначе чип
+  // активен, а ввод пустой). Сравниваем по разобранным значениям.
+  useEffect(() => {
+    if (parse(fromText) !== range.from) {
+      setFromText(
+        duration && range.from !== undefined
+          ? formatDurationFilter(range.from)
+          : (range.from ?? '').toString(),
+      );
+    }
+    if (parse(toText) !== range.to) {
+      setToText(
+        duration && range.to !== undefined
+          ? formatDurationFilter(range.to)
+          : (range.to ?? '').toString(),
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- текст — локальный ввод
+  }, [range.from, range.to, duration]);
+
+  const parse = (text: string): number | undefined => {
+    const trimmed = text.trim();
+    if (trimmed === '') return undefined;
+    if (duration) {
+      const match = /^(\d{1,5})(?::(\d{1,2}))?$/.exec(trimmed);
+      if (!match) return undefined;
+      return Number(match[1]) * 60 + (match[2] ? Number(match[2]) : 0);
+    }
+    const normalized = trimmed.replace(/[\s\u00a0]/g, '').replace(',', '.');
+    const n = Number(normalized);
+    return Number.isFinite(n) ? n : undefined;
+  };
+
+  const emit = (from: string, to: string) => {
+    const next = { from: parse(from), to: parse(to) };
+    onChange(next.from === undefined && next.to === undefined ? undefined : next);
+  };
+
+  return (
+    <div className="flex items-center gap-2">
+      <span className="w-28 shrink-0 text-body-xs text-muted-foreground">{def.label}</span>
+      <Input
+        value={fromText}
+        inputMode={duration ? 'text' : 'decimal'}
+        placeholder={ui.filters.numberFrom}
+        aria-label={`${def.label}: ${ui.filters.numberFrom}`}
+        onChange={(e) => {
+          setFromText(e.target.value);
+          emit(e.target.value, toText);
+        }}
+        className="h-8 flex-1 text-sm tabular-nums"
+      />
+      <Input
+        value={toText}
+        inputMode={duration ? 'text' : 'decimal'}
+        placeholder={ui.filters.numberTo}
+        aria-label={`${def.label}: ${ui.filters.numberTo}`}
+        onChange={(e) => {
+          setToText(e.target.value);
+          emit(fromText, e.target.value);
+        }}
+        className="h-8 flex-1 text-sm tabular-nums"
+      />
+    </div>
+  );
+}
+
+function formatDurationFilter(minutes: number): string {
+  return `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, '0')}`;
 }

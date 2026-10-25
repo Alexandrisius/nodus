@@ -14,12 +14,15 @@ const context: TransitionWindowContext = {
     deadline: '2026-10-30T10:00:00.000Z',
     assigneeId: 'bob',
     plannedMinutes: 60,
+    customFields: {},
   },
   spentMinutes: 0,
   lastResult: { text: 'Прошлый итог', messageIds: ['m-old'] },
   access: { canEdit: true, canLogTime: true, canCheck: true },
   submission: null,
   scope: 'entity',
+  customFieldDefinitions: [],
+  customFieldRefs: [],
 };
 
 const draft = (patch: Partial<WindowDraft> = {}): WindowDraft => ({
@@ -90,5 +93,42 @@ describe('buildExecuteBody (#380)', () => {
     });
     expect(body.form?.time?.minutes).toBe(45);
     expect(body.form?.comment).toBeUndefined();
+  });
+});
+
+describe('поля процесса в теле перехода (#431, Р7)', () => {
+  const CF = '50000000-0000-4000-8000-000000000001';
+  const CF_CLEARED = '50000000-0000-4000-8000-000000000002';
+
+  it('уходят только изменённые значения; пустые и очистка — нет', () => {
+    const body = buildExecuteBody({
+      sections: sections({
+        kind: 'fields',
+        fields: [`cf.${CF}`, `cf.${CF_CLEARED}`],
+        origin: 'form',
+      }),
+      context: {
+        ...context,
+        fields: { ...context.fields, customFields: { [CF_CLEARED]: 'было' } },
+      },
+      draft: draft({
+        fields: {
+          ...context.fields,
+          customFields: { [CF]: '№ 12', [CF_CLEARED]: undefined as never },
+        },
+      }),
+    });
+    expect(body.form?.fields?.customFields).toEqual({ [CF]: '№ 12' });
+  });
+
+  it('поле вне окна не отправляется', () => {
+    const body = buildExecuteBody({
+      sections: sections({ kind: 'fields', fields: ['deadline'], origin: 'form' }),
+      context,
+      draft: draft({
+        fields: { ...context.fields, customFields: { [CF]: '№ 12' } },
+      }),
+    });
+    expect(body).toEqual({});
   });
 });

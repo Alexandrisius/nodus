@@ -46,7 +46,13 @@ export function useWindowDraft(context: TransitionWindowContext | null) {
     context
       ? emptyDraft(context)
       : {
-          fields: { description: '', deadline: null, assigneeId: null, plannedMinutes: null },
+          fields: {
+            description: '',
+            deadline: null,
+            assigneeId: null,
+            plannedMinutes: null,
+            customFields: {},
+          },
           time: { ...EMPTY_TIME_ENTRY },
           resultText: '',
           files: [],

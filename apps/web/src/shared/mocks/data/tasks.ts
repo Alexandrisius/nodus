@@ -3,9 +3,11 @@ import { isFinalState } from '@nodus/contracts';
 
 import type { ProjectRef } from '@nodus/contracts';
 
+import { demoTaskCustomFields } from './custom-fields.js';
+import { demoRefsForValues } from './custom-fields-refs.js';
 import { isoAgo } from './dates.js';
 import { personalNew, personalStageFor } from './personal-stages.js';
-import { kjSubtask, tid } from './task-items.js';
+import { demoTasks, kjSubtask, tid } from './task-items.js';
 import { stageNew, systemProcessType } from './task-stages.js';
 import { QUICK_WORKFLOW_ID, STANDARD_WORKFLOW_ID } from './workflows.js';
 import { quickProcessType } from './task-stages.js';
@@ -14,6 +16,12 @@ import { currentAuthUser, userIds, userRef } from './users.js';
 export * from './task-stages.js';
 export * from './personal-stages.js';
 export * from './task-items.js';
+
+/** Заполненные кастомные поля демо-задач (#431): у части задач есть
+ *  значения, у остальных — `{}` (блок «Поля» показывает «Не задано»). */
+for (const task of demoTasks) {
+  task.customFields = demoTaskCustomFields[task.id] ?? {};
+}
 
 export function makeSubtask(parent: TaskListItem, title: string): TaskListItem {
   return {
@@ -38,6 +46,7 @@ export function makeSubtask(parent: TaskListItem, title: string): TaskListItem {
     checklistDone: 0,
     checklistTotal: 0,
     source: 'manual',
+    customFields: {},
     updatedAt: new Date().toISOString(),
   };
 }
@@ -77,6 +86,7 @@ export function makeInstructionTask(opts: {
     checklistDone: 0,
     checklistTotal: 0,
     source: 'letter',
+    customFields: {},
     updatedAt: new Date().toISOString(),
   };
 }
@@ -164,9 +174,12 @@ export function taskDetailOf(task: TaskListItem): TaskDetail {
   };
   // completedAt — только у «Итога»: «Утверждение» не завершение (ADR-0020 доп. 2).
   const closed = isFinalState(task.stage.systemState);
+  const customFields = task.customFields ?? {};
   return {
     ...task,
     ...extra,
+    customFields,
+    customFieldRefs: demoRefsForValues(customFields),
     subtasks: demoSubtasks[task.id] ?? [],
     chain: chainOf(task),
     workflowId: task.type.id === quickProcessType.id ? QUICK_WORKFLOW_ID : STANDARD_WORKFLOW_ID,

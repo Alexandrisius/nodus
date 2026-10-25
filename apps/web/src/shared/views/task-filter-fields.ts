@@ -6,6 +6,8 @@ import { useProjectsList } from '../api/projects-list.js';
 import { useTaskStages } from '../api/task-stages.js';
 import { useUsersList } from '../api/users-list.js';
 import { useAuthStore } from '../auth-store.js';
+import { useCustomFieldFilterDefs } from '../custom-fields/filter-defs.js';
+import { customFieldValuesOf } from '../custom-fields/queries.js';
 import type { FilterFieldDef, FilterValue } from './list-filters.js';
 import type { FilterPreset } from './use-list-toolbar.js';
 
@@ -62,6 +64,8 @@ export function useTaskFilterDefs({
   const { data: users } = useUsersList();
   const { data: projects } = useProjectsList();
   const meId = useAuthStore((s) => s.user?.id);
+  // Кастомные поля области «Задачи» — группой «Поля» в конце панели (#431, Р8).
+  const customDefs = useCustomFieldFilterDefs('task', customFieldValuesOf);
 
   return useMemo(() => {
     const people = (users?.items ?? []).map((u) => ({
@@ -159,6 +163,6 @@ export function useTaskFilterDefs({
         match: (t, v) => t.project?.id === v,
       });
     }
-    return defs;
-  }, [stages, users, projects, meId, projectVisible, assigneeVisible]);
+    return [...defs, ...customDefs];
+  }, [stages, users, projects, meId, projectVisible, assigneeVisible, customDefs]);
 }

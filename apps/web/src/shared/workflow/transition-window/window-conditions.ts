@@ -4,7 +4,7 @@ import type {
   WorkflowTransition,
   WorkflowValidator,
 } from '@nodus/contracts';
-import { gateFixableBy } from '@nodus/contracts';
+import { customFieldIdOfKey, gateFixableBy, isCustomFieldValueFilled } from '@nodus/contracts';
 
 import { timeEntryBody } from '../../tasks/time-entry-fields.js';
 import { draftMessageIds, type WindowDraft } from './use-window-draft.js';
@@ -43,6 +43,13 @@ function fieldsFilled(
         return draft.fields.plannedMinutes !== null;
       case 'result':
         return draft.resultText.trim().length > 0;
+      default: {
+        // Поле процесса (#431, Р7): неизвестный/архивный ключ не блокирует —
+        // гейт на сервере тоже пропускает неактивное определение.
+        const id = customFieldIdOfKey(field);
+        if (id === null) return true;
+        return isCustomFieldValueFilled(draft.fields.customFields[id]);
+      }
     }
   });
 }

@@ -42,12 +42,20 @@ const PREVIEW_CONTEXT: TransitionWindowContext = {
   entityId: '',
   conversationId: null,
   currentStageName: '—',
-  fields: { description: '', deadline: null, assigneeId: null, plannedMinutes: null },
+  fields: {
+    description: '',
+    deadline: null,
+    assigneeId: null,
+    plannedMinutes: null,
+    customFields: {},
+  },
   spentMinutes: 0,
   lastResult: null,
   access: { canEdit: true, canLogTime: true, canCheck: true },
   submission: null,
   scope: 'entity',
+  customFieldDefinitions: [],
+  customFieldRefs: [],
 };
 
 /**

@@ -41,6 +41,7 @@ const task = (id: string, stage: TaskStage): TaskListItem =>
     type: systemProcessType,
     stage,
     personalStageId: null,
+    customFields: {},
     priority: 'normal',
     deadline: null,
     creator: { id: 'u', displayName: 'U', avatarUrl: null },

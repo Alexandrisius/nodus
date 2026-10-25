@@ -1,5 +1,6 @@
 import { Check, Search } from 'lucide-react';
 import { useDeferredValue, useState, type ReactNode } from 'react';
+import type { UserListItem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { Input } from '@nodus/ui/components/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@nodus/ui/components/popover';
@@ -27,7 +28,9 @@ export function PeoplePicker({
   selectedIds: readonly string[];
   /** Кого нельзя выбрать в этом поле (постановщик/ответственный и т.п.). */
   excludeIds?: readonly string[];
-  onToggle: (userId: string) => void;
+  /** Второй аргумент — выбранный человек: кастомным полям нужна ссылка для
+   *  оптимистичной правки (имя и аватар до ответа сервера, #431). */
+  onToggle: (userId: string, user?: UserListItem) => void;
   multiple?: boolean;
   ariaLabel: string;
   /** Триггер (кнопка «+» или текущее значение поля). */
@@ -80,7 +83,7 @@ export function PeoplePicker({
                   key={u.id}
                   type="button"
                   onClick={() => {
-                    onToggle(u.id);
+                    onToggle(u.id, u);
                     if (!multiple) setOpen(false);
                   }}
                   className={cn(

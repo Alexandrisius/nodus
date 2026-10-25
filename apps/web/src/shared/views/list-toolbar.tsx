@@ -145,7 +145,7 @@ export function ListToolbar<T>({
         </PopoverAnchor>
         <PopoverContent
           align="start"
-          className="w-[min(36rem,calc(100vw-2rem))] p-0"
+          className="max-h-[var(--radix-popover-content-available-height)] w-[min(36rem,calc(100vw-2rem))] overflow-hidden p-0"
           // Фокус остаётся в поисковой строке: печатать можно сразу (Битрикс).
           onOpenAutoFocus={(e) => e.preventDefault()}
           // Клик по якорю (само поле) — НЕ «взаимодействие снаружи»
