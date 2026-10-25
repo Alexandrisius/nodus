@@ -1401,3 +1401,43 @@ model CounterpartyUsage {
   @@index([counterpartyId, sourceKind])
   @@map("counterparty_usages")
 }
+
+// ===== Модуль custom-fields (#431, ADR-0029) =====
+// Реестр определений атрибутов: область, тип, настройки типа, умолчание,
+// видимость. Значения НЕ здесь: они живут в JSONB сущности-владельца
+// (tasks.custom_fields, …) по id определения — переименование безопасно,
+// «code» у атрибута нет (О10). Скрытие (hidden) заменяет архив (вердикт
+// владельца 25.10.2026): значения живут и доступны процессам/отчётам, но
+// карточки, фильтры и окна переходов атрибут не видят.
+
+/// Определение кастомного атрибута. Удаление — физическое, вместе со
+/// значениями (стираются владельцем при следующем чтении: ключа нет в
+/// реестре), поэтому отдельной таблицы значений нет.
+model FieldDefinition {
+  id   String @id @default(uuid()) @db.Uuid
+  /// task | letter | project | counterparty — домен в CHECK миграции.
+  scope String
+  /// Тип из `customFieldTypeSchema` (16 значений) — домен в CHECK миграции.
+  type  String
+  name  String
+  hint  String?
+  /// Настройки типа: precision (число), currencyId (деньги), dictionaryId (список).
+  settings Json @default("{}")
+  /// Умолчание: {kind:'static', value} | {kind:'author_department'}.
+  defaultValue Json? @map("default_value")
+  /// Флаг «индексировать для отчётов» (Р9): материализация — по триггеру (Н4).
+  reportIndexed Boolean @default(false) @map("report_indexed")
+  /// Скрытый (служебный) атрибут: не виден никому в карточках, фильтрах и
+  /// окнах переходов; процессы, автоматика и отчёты значения видят.
+  hidden        Boolean @default(false)
+  sortOrder     Int     @default(0) @map("sort_order")
+  /// Автор определения — plain UUID без FK (пользователь живёт в auth, I3).
+  createdById String? @map("created_by_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  /// Выдача реестра области в порядке карточки: (scope, sort_order, id).
+  @@index([scope, sortOrder, id])
+  @@map("field_definitions")
+}
