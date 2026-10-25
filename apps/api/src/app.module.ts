@@ -17,6 +17,7 @@ import { AuthModule } from './modules/auth/auth.module.js';
 import { JwtAuthGuard } from './modules/auth/jwt-auth.guard.js';
 import { ChatFileAccessModule } from './modules/chat/file-access/chat-file-access.module.js';
 import { ChatModule } from './modules/chat/chat.module.js';
+import { CrmModule } from './modules/crm/crm.module.js';
 import { DictionariesModule } from './modules/dictionaries/dictionaries.module.js';
 import { DirectoryModule } from './modules/directory/directory.module.js';
 import { FilesModule } from './modules/files/files.module.js';
@@ -45,6 +46,9 @@ import { WorkflowsModule } from './modules/workflows/workflows.module.js';
     DirectoryModule,
     // Справочники (#54): бизнес-списки как данные (I15), модуль ядра.
     DictionariesModule,
+    // CRM (#460, ADR-0033): контрагенты и контактные лица — master-данные,
+    // на которые ссылаются письма (#55) и проекты (#52); за флагом `crm`.
+    CrmModule,
     // Уведомления (#100): журнал + ярусы; читает состав бесед read-портом
     // чата (ChatPortsModule внутри), подписан на события chat.*.
     NotificationsModule,
