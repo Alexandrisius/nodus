@@ -1,5 +1,5 @@
 import { Archive, Building2, Pencil, RotateCcw, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import {
@@ -18,6 +18,7 @@ import { useCloseCard } from '../../../app/shell/use-card-stack.js';
 import { isDomainMocked } from '../../../shared/api/api-mock-config.js';
 import { useClientProjects } from '../../../shared/api/counterparty-relations.js';
 import { useLettersList } from '../../../shared/api/letters-list.js';
+import { useSplitWidth } from '../../../shared/ui/use-split-width.js';
 import { useCounterpartyCard } from '../../../shared/counterparties/queries.js';
 import { useCanManageCounterparties } from '../../../shared/counterparties/use-crm-permissions.js';
 import { useDeleteCounterparty, useSetCounterpartyArchived } from '../api/counterparty-edit.js';
@@ -201,6 +202,14 @@ export function CounterpartyCard({ counterpartyId }: { counterpartyId: string })
   const projectsQuery = useClientProjects(counterpartyId, {
     enabled: card !== undefined && (isDomainMocked('projects') || card.projectsCount > 0),
   });
+  // Перегородка «данные | вкладки»: дефолт 50/50, ширина помнится (закон
+  // выдвижных поверхностей — разделитель всегда тянется, вердикт 25.10.2026).
+  const dataRef = useRef<HTMLDivElement>(null);
+  const split = useSplitWidth(dataRef, {
+    storeKey: 'nodus-card-counterparty-split-v1',
+    min: 360,
+    minOther: 420,
+  });
 
   if (isLoading) return <CardSkeleton />;
   if (!card) return <CardNotFound />;
@@ -228,7 +237,14 @@ export function CounterpartyCard({ counterpartyId }: { counterpartyId: string })
 
   return (
     <div className="flex h-full min-w-0">
-      <div className="flex h-full w-[min(30rem,42%)] shrink-0 flex-col border-r border-border @container">
+      <div
+        ref={dataRef}
+        style={split.style}
+        className={cn(
+          'relative flex h-full shrink-0 flex-col border-r border-border @container',
+          !split.dragging && 'transition-[width] duration-200 ease-out',
+        )}
+      >
         <div className="content-fade min-h-0 flex-1 overflow-y-auto p-6">
           <div className="flex items-start gap-3">
             <span className="node-panel flex size-10 shrink-0 items-center justify-center">
@@ -255,6 +271,19 @@ export function CounterpartyCard({ counterpartyId }: { counterpartyId: string })
             <CardBottomBar counterpartyId={card.id} archived={archived} />
           </div>
         ) : null}
+
+        {/* Ручка перегородки: оверлей ПОВЕРХ структурной границы (канон
+            карточки задачи/сотрудника — та же ручка, память своя). */}
+        <div
+          onPointerDown={split.onDividerDown}
+          role="separator"
+          aria-orientation="vertical"
+          aria-label={ui.common.resizePanel}
+          title={ui.common.resizePanel}
+          className="group absolute top-0 right-0 z-10 h-full w-3 translate-x-1/2 cursor-col-resize"
+        >
+          <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-port/60 opacity-0 transition-opacity group-hover:opacity-100" />
+        </div>
       </div>
 
       <div className="flex h-full min-w-0 flex-1 flex-col">

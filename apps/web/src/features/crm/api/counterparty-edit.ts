@@ -274,3 +274,48 @@ export function useBulkCounterparties() {
     },
   });
 }
+
+/** Массовое действие по контактным лицам карточки (островок вкладки
+ *  «Контакты»): контактов у организации единицы, отдельный bulk-эндпоинт не
+ *  нужен — идём существующими ручками по записи (`Promise.allSettled`),
+ *  частичный успех — норма. Тост «изменено n из m», после — инвалидация
+ *  карточки (архив/возврат/удаление меняют и счётчики реестра). */
+export function useBulkContacts(counterpartyId: string) {
+  const queryClient = useQueryClient();
+  const detailKey = counterpartiesKeys.detail(counterpartyId);
+  return useMutation({
+    mutationFn: async ({
+      ids,
+      action,
+    }: {
+      ids: readonly string[];
+      action: 'archive' | 'restore' | 'delete';
+    }) => {
+      const results = await Promise.allSettled(
+        ids.map((id) =>
+          action === 'delete'
+            ? api<void>(`/counterparties/${counterpartyId}/contacts/${id}`, { method: 'DELETE' })
+            : api<ContactPerson>(`/counterparties/${counterpartyId}/contacts/${id}/${action}`, {
+                method: 'POST',
+              }),
+        ),
+      );
+      return results.filter((result) => result.status === 'fulfilled').length;
+    },
+    onSuccess: (done, { ids }) => {
+      const total = ids.length;
+      if (done === total) toast.success(ui.counterparties.bulkDone.replace('{n}', String(done)));
+      else
+        toast.warning(
+          ui.counterparties.bulkPartial
+            .replace('{done}', String(done))
+            .replace('{total}', String(total)),
+        );
+    },
+    onError: (error) => toastApiError(error),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: detailKey });
+      void queryClient.invalidateQueries({ queryKey: counterpartiesKeys.all });
+    },
+  });
+}

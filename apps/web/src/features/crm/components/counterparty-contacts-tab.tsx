@@ -21,9 +21,11 @@ import { ListToolbar } from '../../../shared/views/list-toolbar.js';
 import type { ActiveListFilter, FilterFieldDef } from '../../../shared/views/list-filters.js';
 import type { RowMenuItem } from '../../../shared/views/row-menu.js';
 import { useFilteredList, useListToolbar } from '../../../shared/views/use-list-toolbar.js';
+import { useRowSelection } from '../../../shared/views/use-row-selection.js';
 import { ViewSettings } from '../../../shared/views/view-settings.js';
 import { useDeleteContactPerson, useSetContactArchived } from '../api/counterparty-edit.js';
 import { contactFields } from '../lib/contact-fields.js';
+import { ContactBulkIsland } from './contact-bulk-island.js';
 import { ContactFormDialog } from './contact-form.js';
 
 const VIEW_KEY = 'crm.contacts';
@@ -80,6 +82,12 @@ export function CounterpartyContactsTab({
     [contacts],
   );
   const rows = useFilteredList(ordered, filter);
+  // Массовые действия — общий островок (как в реестре контрагентов и задачах):
+  // выбор ведёт DataTable, действия зависят от состава выделения.
+  const selection = useRowSelection(rows.map((contact) => contact.id));
+  const selectedRows = rows.filter((contact) => selection.selected.has(contact.id));
+  const hasActive = selectedRows.some((contact) => contact.archivedAt === null);
+  const hasArchived = selectedRows.some((contact) => contact.archivedAt !== null);
 
   const rowMenu = (contact: ContactPerson): RowMenuItem[] => {
     if (!canManage) return [];
@@ -113,7 +121,7 @@ export function CounterpartyContactsTab({
   };
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="relative flex h-full flex-col">
       <ListToolbar
         toolbar={toolbar}
         defs={noFilterDefs}
@@ -134,12 +142,23 @@ export function CounterpartyContactsTab({
           rows={rows}
           rowKey={(contact) => contact.id}
           emptyTitle={ui.counterparties.noContacts}
+          selection={selection}
           rowMenu={rowMenu}
           onOpenRow={(contact) => {
             if (canManage && contact.archivedAt === null) setForm({ mode: 'edit', contact });
           }}
         />
       </div>
+
+      {selectedRows.length > 0 ? <div aria-hidden className="h-24 shrink-0" /> : null}
+      <ContactBulkIsland
+        counterpartyId={counterpartyId}
+        selectedIds={selectedRows.map((contact) => contact.id)}
+        hasActive={hasActive}
+        hasArchived={hasArchived}
+        visible={selectedRows.length > 0}
+        onClear={selection.clear}
+      />
 
       {form.mode === 'closed' ? null : (
         <ContactFormDialog
@@ -167,7 +186,12 @@ export function CounterpartyContactsTab({
               disabled={remove.isPending}
               onClick={() => {
                 if (!deleting) return;
-                remove.mutate(deleting.id, { onSuccess: () => setDeleting(null) });
+                remove.mutate(deleting.id, {
+                  onSuccess: () => {
+                    selection.deselect(deleting.id);
+                    setDeleting(null);
+                  },
+                });
               }}
             >
               {ui.counterparties.delete}
