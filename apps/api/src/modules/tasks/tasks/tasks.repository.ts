@@ -18,6 +18,12 @@ export class DuplicateTaskSourceError extends Error {
   }
 }
 
+/** Факты гейтов задачи + id сообщений текущей ревизии итога: вложения
+ *  считает порт чата (адаптер), поэтому `resultFileCount` добавляет он. */
+export type TaskGateFacts = Omit<WorkflowGateFacts, 'resultFileCount'> & {
+  resultMessageIds: string[];
+};
+
 /** Поля новой задачи (участники — вложенным созданием в том же INSERT). */
 export interface NewTaskData {
   title: string;
@@ -266,7 +272,7 @@ export class TasksRepository {
     await tx.task.update({ where: { id }, data: { overdueNotifiedAt: at } });
   }
 
-  async gateFacts(taskId: string, tx: TransactionClient): Promise<WorkflowGateFacts> {
+  async gateFacts(taskId: string, tx: TransactionClient): Promise<TaskGateFacts> {
     const children = (phase: 'open' | 'review') =>
       tx.task.count({
         where: { parentId: taskId, deletedAt: null, systemState: { in: statesOfPhase(phase) } },
@@ -278,7 +284,7 @@ export class TasksRepository {
       tx.taskResult.findFirst({
         where: { taskId },
         orderBy: { createdAt: 'desc' },
-        select: { text: true },
+        select: { text: true, messageIds: true },
       }),
     ]);
     return {
@@ -295,6 +301,9 @@ export class TasksRepository {
       assigneeId: task.assigneeId,
       plannedMinutes: task.plannedMinutes,
       hasResult: Boolean(result?.text.trim()),
+      // Файлы итога — вложения сообщений ревизии (#380); считает порт чата
+      // (задача чужих таблиц не читает — I3/I6).
+      resultMessageIds: Array.isArray(result?.messageIds) ? (result.messageIds as string[]) : [],
     };
   }
 

@@ -1,4 +1,4 @@
-import { MessageSquareQuote, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { useState } from 'react';
 import type { TaskDetail } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
@@ -6,8 +6,9 @@ import { Button } from '@nodus/ui/components/button';
 import { NodeLabel } from '@nodus/ui/components/node-label';
 import { Textarea } from '@nodus/ui/components/textarea';
 
-import { LinkifiedText } from '../../../shared/chat/message-text.js';
-import { formatDateTime, plural, withoutPatronymic } from '../../../shared/lib/format.js';
+import { useTaskConversation } from '../../../shared/chat/chat-queries.js';
+import { formatDateTime, withoutPatronymic } from '../../../shared/lib/format.js';
+import { TaskResultView } from '../../../shared/tasks/task-result-view.js';
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
 import { useSaveTaskResult } from '../api/task-edit-api.js';
 
@@ -17,6 +18,7 @@ import { useSaveTaskResult } from '../api/task-edit-api.js';
  *  Писать могут постановщик, ответственный и соисполнители (`canCheck`). */
 export function TaskResultSection({ task }: { task: TaskDetail }) {
   const save = useSaveTaskResult(task.id);
+  const { data: conversation } = useTaskConversation(task.id);
   const [draft, setDraft] = useState<string | null>(null);
   const result = task.result;
   const canWrite = task.access.canCheck;
@@ -74,18 +76,7 @@ export function TaskResultSection({ task }: { task: TaskDetail }) {
         </div>
       ) : result ? (
         <div className="mt-2 rounded-lg bg-success-soft/40 px-3 py-2.5">
-          {result.text ? (
-            <p className="text-sm leading-relaxed wrap-anywhere whitespace-pre-wrap">
-              <LinkifiedText text={result.text} />
-            </p>
-          ) : null}
-          {result.messageIds.length > 0 ? (
-            <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-              <MessageSquareQuote className="size-3.5" strokeWidth={1.75} />
-              {result.messageIds.length}{' '}
-              {plural(result.messageIds.length, ui.tasks.resultMessagesForms)}
-            </p>
-          ) : null}
+          <TaskResultView result={result} conversationId={conversation?.id ?? null} />
           <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
             <PersonAvatar
               name={result.author.displayName}

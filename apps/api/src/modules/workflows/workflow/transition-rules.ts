@@ -3,6 +3,7 @@ import {
   workflowTransitionRulesSchema,
   type TransitionBlockReason,
   type TransitionDisplay,
+  type TransitionForm,
   type WorkflowRequirableField,
   type WorkflowTransitionRules,
 } from '@nodus/contracts';
@@ -29,6 +30,10 @@ export interface TransitionDef {
   display: TransitionDisplay;
   sortOrder: number;
   rules: WorkflowTransitionRules;
+  /** Окно при нажатии (#380); выключенное — `{ enabled: false, sections: [] }`.
+   *  Необязательное — толерантность к снимкам до #380 и тестовым фикстурам;
+   *  репозиторий маршрута всегда заполняет. */
+  form?: TransitionForm;
 }
 
 export interface StageDef {
@@ -102,6 +107,10 @@ export function evaluateValidators(
         break;
       case 'result_present':
         if (!facts.hasResult) reasons.push({ kind: v.kind });
+        break;
+      case 'result_files':
+        if (facts.resultFileCount < v.min)
+          reasons.push({ kind: v.kind, count: facts.resultFileCount, min: v.min });
         break;
     }
   }

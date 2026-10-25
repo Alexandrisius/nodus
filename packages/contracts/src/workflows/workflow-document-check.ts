@@ -116,6 +116,36 @@ export function checkWorkflowDocument(doc: WorkflowDraftDocument): WorkflowProbl
     }
   }
 
+  // --- Окно при нажатии (#380) --------------------------------------------
+
+  for (const t of transitions) {
+    const form = t.form;
+    if (!form?.enabled) continue;
+    const kinds = new Set<string>();
+    for (const section of form.sections) {
+      if (kinds.has(section.kind)) {
+        problems.push(error('form_duplicate_section', { transitionId: t.id }));
+      }
+      kinds.add(section.kind);
+      if (
+        (section.kind === 'result_files' || section.kind === 'comment') &&
+        section.label.trim().length === 0
+      ) {
+        problems.push(error('form_empty_label', { transitionId: t.id }));
+      }
+    }
+    const hasResult = kinds.has('result');
+    const files = form.sections.find((s) => s.kind === 'result_files');
+    const hasFilesGate = t.rules.validators.some((v) => v.kind === 'result_files');
+    if (files && !hasFilesGate && !hasResult) {
+      problems.push(warning('form_useless_section', { transitionId: t.id }));
+    }
+    const messages = form.sections.find((s) => s.kind === 'result_messages');
+    if (messages?.kind === 'result_messages' && !messages.required && !hasResult) {
+      problems.push(warning('form_useless_section', { transitionId: t.id }));
+    }
+  }
+
   // --- Итог ----------------------------------------------------------------
 
   for (const s of stages) {

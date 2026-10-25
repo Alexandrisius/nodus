@@ -150,6 +150,8 @@ function rowToMessageRow(row: ConversationListRow): Parameters<MessageDtoMapper[
     authorId: row.lm_author_id!,
     clientMessageId: row.lm_client_message_id!,
     text: row.lm_text ?? '',
+    kind: 'text',
+    payload: null,
     urgent: row.lm_urgent ?? false,
     mentionedUserIds: null,
     everMentionedUserIds: null,

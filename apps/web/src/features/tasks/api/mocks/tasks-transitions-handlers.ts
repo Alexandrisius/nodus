@@ -1,5 +1,11 @@
 import type { TaskListItem, TaskStage, WorkflowTransition } from '@nodus/contracts';
-import { ErrorCode, isFinalState } from '@nodus/contracts';
+import {
+  effectiveWindowSections,
+  ErrorCode,
+  executeTransitionBodySchema,
+  isFinalState,
+  ui,
+} from '@nodus/contracts';
 import { http, HttpResponse } from 'msw';
 
 import {
@@ -11,6 +17,7 @@ import {
 import { letterIdByTaskId, syncLetterWithTasks } from '../../../../shared/mocks/data/letters.js';
 import { quickDocument, standardDocument } from '../../../../shared/mocks/data/workflows.js';
 import { quickProcessType } from '../../../../shared/mocks/data/task-stages.js';
+import { applyForm, blockedByOf, checkWindow, postBlock } from './tasks-transitions-gates.js';
 
 function findTask(id: string): TaskListItem | undefined {
   return (
@@ -52,8 +59,10 @@ function transitionsOf(task: TaskListItem): WorkflowTransition[] {
       toStageColor: target.color,
       toStageOrder: target.sortOrder,
       display: t.display,
-      blockedBy: [],
-      canOverride: false,
+      blockedBy: blockedByOf(task, route, t.id),
+      canOverride: true,
+      form: t.form.enabled ? t.form : null,
+      validators: t.rules.validators,
     };
     (t.fromStageId === null ? anyFrom : own).push(item);
   }
@@ -99,7 +108,7 @@ export const tasksTransitionsHandlers = [
     return HttpResponse.json(transitionsOf(task));
   }),
 
-  http.post('/api/v1/tasks/:id/transitions/:transitionId', ({ params }) => {
+  http.post('/api/v1/tasks/:id/transitions/:transitionId', async ({ params, request }) => {
     const task = findTask(String(params.id));
     const transition = task
       ? transitionsOf(task).find((t) => t.id === params.transitionId)
@@ -110,6 +119,40 @@ export const tasksTransitionsHandlers = [
         { status: 409 },
       );
     }
+    const parsed = executeTransitionBodySchema.safeParse(await request.json().catch(() => ({})));
+    if (!parsed.success) {
+      return HttpResponse.json(
+        { code: ErrorCode.VALIDATION_FAILED, message: 'Invalid body' },
+        { status: 400 },
+      );
+    }
+    const sections = effectiveWindowSections(transition.form, {
+      validators: transition.validators,
+    });
+    const check = checkWindow(sections, parsed.data.form ?? {});
+    if (check.missing.length > 0 || check.unexpected.length > 0) {
+      return HttpResponse.json(
+        {
+          code: ErrorCode.TASK_TRANSITION_FORM_INVALID,
+          message: ui.tasks.transitionNeedsWindow,
+          details: { transitionId: transition.id, ...check },
+        },
+        { status: 422 },
+      );
+    }
+    applyForm(task, parsed.data.form ?? {});
+    const reasons = blockedByOf(task, documentOfTask(task), transition.id);
+    if (reasons.length > 0 && !(parsed.data.override && parsed.data.reason?.trim())) {
+      return HttpResponse.json(
+        {
+          code: ErrorCode.TASK_TRANSITION_BLOCKED,
+          message: 'Transition gates not passed',
+          details: { reasons },
+        },
+        { status: 409 },
+      );
+    }
+    postBlock(task, transition, parsed.data.form ?? {});
     task.stage = resolveTarget(task, transition);
     // Встроенное автоперемещение «Моего плана» (ADR-0008) и синхронизация
     // письма-поручения — как у переноса по глобальной оси.

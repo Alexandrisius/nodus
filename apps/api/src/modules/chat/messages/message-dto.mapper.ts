@@ -1,6 +1,8 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import {
+  chatMessageBlockSchema,
   type ChatMessage,
+  type ChatMessageBlock,
   type MessageAttachment,
   type MessageReaction,
   type UserRef,
@@ -63,6 +65,8 @@ function membersFor(ctx: MessageDtoContext, conversationId: string): MemberRow[]
  */
 @Injectable()
 export class MessageDtoMapper {
+  private readonly logger = new Logger(MessageDtoMapper.name);
+
   constructor(
     private readonly messages: MessagesRepository,
     private readonly reactions: MessagesReactionsRepository,
@@ -138,6 +142,8 @@ export class MessageDtoMapper {
         ),
         urgent: row.urgent,
         mentionedUserIds: tombstone ? [] : readMentionedUserIds(row),
+        kind: row.kind as ChatMessage['kind'],
+        block: tombstone ? null : this.blockOf(row),
         linkPreview: tombstone
           ? null
           : ((firstUrls[index] ? previews.get(normalizeUrl(firstUrls[index]!) ?? '') : null) ??
@@ -204,11 +210,28 @@ export class MessageDtoMapper {
       readBy: [],
       urgent: row.urgent,
       mentionedUserIds: readMentionedUserIds(row),
+      kind: row.kind as ChatMessage['kind'],
+      block: this.blockOf(row),
       // Свежая отправка: превью ещё нет (конвейер фоновый, #212) — клиент
       // рисует скелетон по наличию URL и патчит по chat.link_preview_ready.
       linkPreview: null,
       createdAt: row.createdAt.toISOString(),
     };
+  }
+
+  /** Блок сообщения по виду (#380): payload не разобрался — не роняем ленту,
+   *  отдаём обычный пузырь и пишем warn (битый payload виден в логах). */
+  private blockOf(row: MessageRow): ChatMessageBlock | null {
+    if (row.kind === 'text' || row.payload === null) return null;
+    const parsed = chatMessageBlockSchema.safeParse(row.payload);
+    if (!parsed.success) {
+      this.logger.warn(
+        { messageId: row.id, kind: row.kind },
+        'chat: payload сообщения не разобрался — блок не отдаём',
+      );
+      return null;
+    }
+    return parsed.data;
   }
 
   private async loadRefs(

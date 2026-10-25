@@ -91,11 +91,13 @@ function makeEngine(subject: Partial<WorkflowActorSubject> = {}) {
   };
   const registry = { get: vi.fn(() => adapter) };
   const workflows = { load: vi.fn(async () => structuredClone(workflow)) };
+  const records = { insert: vi.fn(async () => void 0) };
   return {
-    engine: new WorkflowEngine(workflows as never, registry as never),
+    engine: new WorkflowEngine(workflows as never, registry as never, records as never),
     adapter,
     registry,
     workflows,
+    records,
   };
 }
 
@@ -185,7 +187,7 @@ describe('WorkflowEngine (#428, ADR-0024)', () => {
     await expect(engine.available(TX as never, 't1', 'task', actor)).resolves.toHaveLength(1);
     await expect(
       engine.execute(TX as never, 't1', 'task', actor, { transitionId: TRANSITION }),
-    ).resolves.toMatchObject({ id: STAGE_DONE });
+    ).resolves.toMatchObject({ stage: { id: STAGE_DONE } });
     expect(adapter.applyStage).toHaveBeenCalled();
   });
 

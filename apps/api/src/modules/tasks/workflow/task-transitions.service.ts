@@ -11,7 +11,7 @@ import {
   WORKFLOW_ENGINE,
   type WorkflowEnginePort,
 } from '../../workflows/ports/workflow-engine.port.js';
-import { planHolderIds } from '../access/task-access.js';
+import { actorRoles, planHolderIds, taskAccess } from '../access/task-access.js';
 import { Placements } from '../personal/placements.js';
 import { TasksQueryService } from '../tasks/tasks-query.service.js';
 import { TasksService } from '../tasks/tasks.service.js';
@@ -49,7 +49,17 @@ export class TaskTransitionsService {
     body: ExecuteTransitionBody,
   ): Promise<ExecuteTransitionResult> {
     const row = await this.query.visibleRow(user, taskId);
-    await this.placements.prepare(planHolderIds(row));
+    // Новый ответственный из окна — только если актор вправе править поля
+    // (как PATCH: сначала право, потом проверка пользователя — иначе ответ
+    // «нет такого пользователя» стал бы оракулом для наблюдателя).
+    const access = taskAccess(actorRoles(row, user.id), user.permissions);
+    const assigneeId = access.canEdit ? body.form?.fields?.assigneeId : undefined;
+    if (assigneeId) await this.taskService.assertActiveUsers([assigneeId]);
+    // Личные маршруты держателей готовятся ДО транзакции (ensurePersonal);
+    // новый ответственный из окна — тоже держатель плана (как в PATCH).
+    await this.placements.prepare(
+      planHolderIds({ ...row, assigneeId: assigneeId ?? row.assigneeId }),
+    );
     const transitions = await this.txRunner.run(async (tx) => {
       await this.engine.execute(tx, taskId, 'task', user, { transitionId }, body);
       return this.engine.available(tx, taskId, 'task', user);

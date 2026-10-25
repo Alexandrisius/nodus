@@ -44,6 +44,7 @@ describe('resolvePublishedDocument — мок публикации как сер
             validators: [],
             postFunctions: [{ kind: 'route_if', when: 'creator_is_assignee', toStageId: 'new:a' }],
           },
+          form: { enabled: false, sections: [] },
         },
       ],
       layout: { stages: { 'new:a': { x: 10, y: 20 } }, transitions: { 'new:t': { labelT: 0.3 } } },

@@ -27,6 +27,8 @@ function makeMessage(overrides: Partial<MessageRow> = {}): MessageRow {
     authorId: ME,
     clientMessageId: 'k',
     text: 'текст',
+    kind: 'text',
+    payload: null,
     replyToId: null,
     replySnapshot: null,
     threadRootId: null,

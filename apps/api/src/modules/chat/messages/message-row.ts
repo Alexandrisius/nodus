@@ -15,6 +15,10 @@ export interface MessageRow {
   authorId: string;
   clientMessageId: string;
   text: string;
+  /** Вид сообщения (#380): text | task_transition. */
+  kind: string;
+  /** Данные блока (task_transition); null — обычное сообщение. */
+  payload: Prisma.JsonValue | null;
   replyToId: string | null;
   replySnapshot: Prisma.JsonValue | null;
   threadRootId: string | null;
@@ -65,6 +69,8 @@ export const MESSAGE_COLS = Prisma.sql`
   author_id AS "authorId",
   client_message_id AS "clientMessageId",
   text,
+  kind,
+  payload,
   reply_to_id AS "replyToId",
   reply_snapshot AS "replySnapshot",
   thread_root_id AS "threadRootId",

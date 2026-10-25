@@ -29,6 +29,10 @@ export const chatKeys = {
   members: (id: string) => [...chatKeys.all, 'members', id] as const,
   /** Политика важных (#177): счётчик дневного лимита попапа молнии. */
   urgentPolicy: () => [...chatKeys.all, 'urgentPolicy'] as const,
+  /** Сообщения по id (окно перехода, #380): файлы/сообщения итога вне
+   *  загруженной ленты. Под chatKeys.all — WS-события сообщений её сбрасывают. */
+  lookup: (id: string, ids: readonly string[]) =>
+    [...chatKeys.all, 'lookup', id, [...ids].sort().join(',')] as const,
 };
 
 export type ConversationScope = 'chats' | 'entities';

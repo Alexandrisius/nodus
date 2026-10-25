@@ -1,6 +1,7 @@
 import type { WorkflowDraftDocument, WorkflowDraftTransition } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { Checkbox } from '@nodus/ui/components/checkbox';
+import { Input } from '@nodus/ui/components/input';
 import {
   Select,
   SelectContent,
@@ -18,6 +19,7 @@ import {
   rolesOf,
   routeIfOf,
   setAllowReview,
+  setMinFiles,
   setRouteIf,
   toggleField,
   toggleRole,
@@ -115,6 +117,7 @@ export function ConditionsSection({
   const rules = transition.rules;
   const subtasks = validatorOf(rules, 'no_open_subtasks');
   const fields = validatorOf(rules, 'fields_required');
+  const files = validatorOf(rules, 'result_files');
   return (
     <>
       <p className="text-sm break-words text-muted-foreground">
@@ -136,6 +139,19 @@ export function ConditionsSection({
               title={ui.automation.panel.allowReviewSubtasks}
               onChange={(checked) => patch(setAllowReview(rules, checked))}
             />
+          ) : null}
+          {kind === 'result_files' && files ? (
+            <PanelField label={ui.automation.window.minFiles}>
+              <Input
+                type="number"
+                min={1}
+                max={5}
+                value={files.min}
+                disabled={readOnly}
+                aria-label={ui.automation.window.minFiles}
+                onChange={(e) => patch(setMinFiles(rules, Number(e.target.value)))}
+              />
+            </PanelField>
           ) : null}
           {kind === 'fields_required' && fields
             ? REQUIRABLE_FIELDS.map((field) => (

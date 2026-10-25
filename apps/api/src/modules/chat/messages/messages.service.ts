@@ -180,6 +180,26 @@ export class MessagesService {
     });
   }
 
+  // ===== Поиск по id (окно перехода, #380) =====
+
+  /** Живые сообщения беседы по id: только участник (иначе 404 — без оракула);
+   *  отсутствующие/удалённые молча выпадают. Нужно окну перехода, чтобы
+   *  показать файлы/сообщения итога вне загруженной ленты. */
+  async lookup(
+    userId: string,
+    conversationId: string,
+    messageIds: readonly string[],
+  ): Promise<{ messages: MessageRow[]; members: MemberRow[] }> {
+    return this.txRunner.run(async (tx) => {
+      const membership = await this.conversations.findMembership(conversationId, userId, tx);
+      if (!membership) throw DomainException.notFound('Conversation not found');
+      return {
+        messages: await this.repo.findLiveByIdsInConversation(conversationId, messageIds, tx),
+        members: await this.conversations.listMembers([conversationId], tx),
+      };
+    });
+  }
+
   // ===== Отправка =====
 
   /**
@@ -386,6 +406,11 @@ export class MessagesService {
         throw DomainException.notFound('Conversation not found');
       const message = await this.repo.findByIdInConversation(conversationId, messageId, tx);
       if (!message || message.deletedAt) throw DomainException.notFound('Message not found');
+      // Блок перехода (#380) — запись журнала, а не текст: правка разошлась
+      // бы с transition_records. Удаление — по общим правилам чата.
+      if (message.kind !== 'text') {
+        throw DomainException.forbidden('Only text messages can be edited');
+      }
       if (message.authorId !== userId) {
         throw DomainException.forbidden('Only author can modify this message');
       }

@@ -1,5 +1,5 @@
-import { Injectable } from '@nestjs/common';
-import { Permission } from '@nodus/contracts';
+import { Inject, Injectable } from '@nestjs/common';
+import { Permission, type TransitionFormInput } from '@nodus/contracts';
 
 import {
   TransactionRunner,
@@ -10,12 +10,15 @@ import type {
   WorkflowActorSubject,
   WorkflowEntityAdapter,
   WorkflowEntityStage,
+  WorkflowFormApplied,
   WorkflowStageChangeMeta,
 } from '../../../core/ports/workflow-entity.port.js';
+import { CHAT_MESSAGE_ACCESS, type ChatMessageAccess } from '../../chat/message-access.port.js';
 import { actorRoles, planHolderIds } from '../access/task-access.js';
 import { Placements } from '../personal/placements.js';
 import { TasksRepository } from '../tasks/tasks.repository.js';
 import { StageMover } from './stage-mover.js';
+import { TaskFormApplier } from './task-form.applier.js';
 
 /** Пачка переноса/пересчёта задач публикации (своя транзакция на задачу). */
 const BATCH = 100;
@@ -38,6 +41,8 @@ export class TaskWorkflowAdapter implements WorkflowEntityAdapter {
     private readonly tasks: TasksRepository,
     private readonly placements: Placements,
     private readonly mover: StageMover,
+    private readonly forms: TaskFormApplier,
+    @Inject(CHAT_MESSAGE_ACCESS) private readonly messages: ChatMessageAccess,
   ) {}
 
   lock(tx: TransactionClient, taskId: string): Promise<void> {
@@ -51,6 +56,8 @@ export class TaskWorkflowAdapter implements WorkflowEntityAdapter {
   ): Promise<WorkflowActorSubject> {
     const task = await this.tasks.findWithParticipants(taskId, tx);
     const roles = actorRoles(task, actor.id);
+    const facts = await this.tasks.gateFacts(taskId, tx);
+    const { resultMessageIds, ...gateFacts } = facts;
     return {
       workflowId: task.workflowId,
       stageId: task.stageId,
@@ -58,8 +65,20 @@ export class TaskWorkflowAdapter implements WorkflowEntityAdapter {
       bypassConditions: actor.permissions.includes(Permission.TASK_MANAGE_ANY),
       canOverrideGates: actor.permissions.includes(Permission.TASK_OVERRIDE_GATE),
       actsWithoutConditions: roles.has('creator') || roles.has('assignee'),
-      facts: await this.tasks.gateFacts(taskId, tx),
+      facts: {
+        ...gateFacts,
+        resultFileCount: await this.messages.countAttachments(resultMessageIds, tx),
+      },
     };
+  }
+
+  applyForm(
+    tx: TransactionClient,
+    taskId: string,
+    actor: WorkflowActor,
+    input: TransitionFormInput,
+  ): Promise<WorkflowFormApplied> {
+    return this.forms.apply(tx, taskId, actor, input);
   }
 
   async applyStage(

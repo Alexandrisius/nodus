@@ -1,15 +1,26 @@
+import { randomUUID } from 'node:crypto';
+
 import { Injectable } from '@nestjs/common';
-import { ErrorCode, type ProcessCategory, type WorkflowTransition } from '@nodus/contracts';
+import {
+  ErrorCode,
+  type ProcessCategory,
+  type TransitionFormInput,
+  type WorkflowTransition,
+} from '@nodus/contracts';
 
 import type { TransactionClient } from '../../../../core/database/transaction-runner.js';
 import { DomainException } from '../../../../core/errors/domain-exception.js';
 import type {
   WorkflowActor,
   WorkflowActorSubject,
-  WorkflowEntityStage,
+  WorkflowFormApplied,
   WorkflowStageChangeMeta,
 } from '../../../../core/ports/workflow-entity.port.js';
-import type { TransitionChoice, WorkflowEnginePort } from '../../ports/workflow-engine.port.js';
+import type {
+  TransitionChoice,
+  TransitionExecution,
+  WorkflowEnginePort,
+} from '../../ports/workflow-engine.port.js';
 import {
   effectiveTargetId,
   evaluateValidators,
@@ -17,26 +28,40 @@ import {
   passesConditions,
   type TransitionDef,
 } from '../transition-rules.js';
+import { checkFormInput, windowOf } from '../transition-form.js';
 import { WorkflowEntityRegistry } from './entity-adapter.registry.js';
+import { TransitionRecordsRepository } from './transition-records.repository.js';
 import { WorkflowRepository, type LoadedWorkflow, type StageRow } from '../workflow.repository.js';
 
 /**
  * Движок маршрутов «Процессов» (ADR-0020/ADR-0024): доступные переходы
  * (кнопки с причинами блокировки, показом и итогом цели) и выполнение
- * перехода в транзакции вызывающего — блокировка сущности, условия, гейты
- * (обход — флаг адаптера + причина), смена стадии адаптером категории.
- * Движок не знает ни таблиц сущностей, ни их прав и ролей: всё это отдаёт
- * адаптер (порт `WorkflowEntityAdapter`). Журнал переходов — #380.
+ * перехода в транзакции вызывающего — блокировка сущности, условия, окно
+ * перехода (#380), гейты (обход — флаг адаптера + причина), смена стадии
+ * адаптером, запись общего журнала `transition_records`. Движок не знает ни
+ * таблиц сущностей, ни их прав и ролей: всё это отдаёт адаптер (порт
+ * `WorkflowEntityAdapter`). Журнал пишет движок — таблица модуля «Процессы».
  */
 /** Субъект адаптера + права актора: движок заполняет `permissions` сам —
  *  условия `permission` проверяются одинаково в `available` и `execute`. */
 type EngineSubject = WorkflowActorSubject & { permissions: readonly string[] };
+
+const EMPTY_APPLIED: WorkflowFormApplied = { fields: {}, timeEntryId: null, result: null };
+
+const hasApplied = (applied: WorkflowFormApplied): boolean =>
+  Object.keys(applied.fields).length > 0 || applied.timeEntryId !== null || applied.result !== null;
+
+/** Кнопка без обязательного окна не блокирует жест DnD/«Мой план». */
+function requiresWindow(t: TransitionDef): boolean {
+  return windowOf(t.form, t.rules).required.length > 0;
+}
 
 @Injectable()
 export class WorkflowEngine implements WorkflowEnginePort {
   constructor(
     private readonly workflows: WorkflowRepository,
     private readonly adapters: WorkflowEntityRegistry,
+    private readonly records: TransitionRecordsRepository,
   ) {}
 
   async available(
@@ -55,37 +80,148 @@ export class WorkflowEngine implements WorkflowEnginePort {
     category: ProcessCategory,
     actor: WorkflowActor,
     choice: TransitionChoice,
-    opts: { override?: boolean; reason?: string } = {},
-  ): Promise<WorkflowEntityStage> {
+    opts: { override?: boolean; reason?: string; form?: TransitionFormInput } = {},
+  ): Promise<TransitionExecution> {
     const adapter = this.adapters.get(category);
     await adapter.lock(tx, entityId);
-    const subject = await this.subjectWithPermissions(tx, entityId, category, actor);
-    const workflow = await this.workflows.load(subject.workflowId, tx);
-    const candidates = outgoingTransitions(workflow.transitions, subject.facts, workflow.stages)
-      .filter((t) => passesConditions(t.rules, subject))
-      .filter((t) => this.matches(t, choice, subject, workflow));
+    const subject0 = await this.subjectWithPermissions(tx, entityId, category, actor);
+    const workflow = await this.workflows.load(subject0.workflowId, tx);
+    const candidates = outgoingTransitions(workflow.transitions, subject0.facts, workflow.stages)
+      .filter((t) => passesConditions(t.rules, subject0))
+      .filter((t) => this.matches(t, choice, subject0, workflow));
     if (candidates.length === 0) {
       // Имя текущего статуса — клиент собирает понятную строку (I15):
       // «Из статуса «В работе» так перейти нельзя» (перенос в «Моём плане»).
-      const from = workflow.stages.find((s) => s.id === subject.stageId);
+      const from = workflow.stages.find((s) => s.id === subject0.stageId);
       throw new DomainException(ErrorCode.TASK_TRANSITION_NOT_ALLOWED, 'Transition not allowed', {
         ...(from ? { fromStageName: from.name } : {}),
       });
     }
-    const scored = candidates.map((t) => ({
+
+    const picked = this.pick(candidates, choice, opts.form);
+    const applied = await this.applyForm(adapter, category, tx, entityId, actor, picked, opts.form);
+    // Гейты видят факты ПОСЛЕ окна (Р2): смена исполнителя в окне не отнимает
+    // право нажать (условия «кто» проверены по состоянию до окна), а
+    // дозаполненные поля/итог снимают блокировку.
+    const subject1 = hasApplied(applied)
+      ? await this.subjectWithPermissions(tx, entityId, category, actor)
+      : subject0;
+    // Выбранная кнопка — первой: DnD предпочёл кандидата без обязательного
+    // окна, и гейты не должны «переиграть» выбор на другую кнопку.
+    const ordered = [picked, ...candidates.filter((t) => t.id !== picked.id)];
+    const scored = ordered.map((t) => ({
       t,
-      reasons: evaluateValidators(t.rules, subject.facts),
+      reasons: evaluateValidators(t.rules, subject1.facts),
     }));
     const pick = scored.find((s) => s.reasons.length === 0) ?? scored[0]!;
-    if (pick.reasons.length > 0) this.assertOverride(pick.reasons, subject, opts);
-    const target = this.stage(workflow, effectiveTargetId(pick.t, subject.facts, workflow.stages));
+    if (pick.reasons.length > 0) this.assertOverride(pick.reasons, subject1, opts);
+
+    const target = this.stage(workflow, effectiveTargetId(pick.t, subject1.facts, workflow.stages));
+    const recordId = randomUUID();
+    const fromStage =
+      workflow.stages.find((s) => s.id === subject0.stageId) ??
+      (await this.workflows.findStageById(subject0.stageId, tx));
     await adapter.applyStage(tx, entityId, target, actor.id, {
       transitionId: pick.t.id,
       cause: 'transition',
       overriddenGates: pick.reasons.map((r) => r.kind),
       overrideReason: pick.reasons.length > 0 ? opts.reason?.trim() : undefined,
+      recordId,
+      transitionName: pick.t.name,
+      fromStageName: fromStage?.name,
+      comment: opts.form?.comment,
+      commentLabel: this.commentLabelOf(pick.t),
+      result: applied.result ?? undefined,
     } satisfies WorkflowStageChangeMeta);
-    return target;
+    await this.records.insert(tx, {
+      id: recordId,
+      entityKind: category,
+      entityId,
+      transitionId: pick.t.id,
+      fromStageId: subject0.stageId,
+      toStageId: target.id,
+      actorId: actor.id,
+      rule: null,
+      recordKind: 'transition',
+      participantId: null,
+      comment: opts.form?.comment ?? null,
+      resultId: applied.result?.resultId ?? null,
+      fields: applied.fields,
+      timeEntryId: applied.timeEntryId,
+    });
+    return { stage: target, recordId };
+  }
+
+  /** Выбор кнопки: явная — она; DnD/«Мой план» — первая без обязательного
+   *  окна, иначе 422 (жест не открывает окно). */
+  private pick(
+    candidates: TransitionDef[],
+    choice: TransitionChoice,
+    form: TransitionFormInput | undefined,
+  ): TransitionDef {
+    if ('transitionId' in choice) {
+      const picked = candidates[0]!;
+      this.assertFormAllowed(picked, form);
+      return picked;
+    }
+    const ordered = [...candidates].sort(
+      (a, b) => Number(requiresWindow(a)) - Number(requiresWindow(b)),
+    );
+    const picked = ordered[0]!;
+    if (requiresWindow(picked)) {
+      const { sections } = windowOf(picked.form, picked.rules);
+      const { missing } = checkFormInput(sections, {});
+      throw new DomainException(
+        ErrorCode.TASK_TRANSITION_FORM_INVALID,
+        'Transition window is required',
+        { transitionId: picked.id, missing, unexpected: [] },
+      );
+    }
+    return picked;
+  }
+
+  private assertFormAllowed(t: TransitionDef, form: TransitionFormInput | undefined): void {
+    const { sections } = windowOf(t.form, t.rules);
+    const { missing, unexpected } = checkFormInput(sections, form ?? {});
+    if (missing.length > 0 || unexpected.length > 0) {
+      throw new DomainException(
+        ErrorCode.TASK_TRANSITION_FORM_INVALID,
+        'Transition window input does not match its form',
+        { transitionId: t.id, missing, unexpected },
+      );
+    }
+  }
+
+  private async applyForm(
+    adapter: ReturnType<WorkflowEntityRegistry['get']>,
+    category: ProcessCategory,
+    tx: TransactionClient,
+    entityId: string,
+    actor: WorkflowActor,
+    t: TransitionDef,
+    form: TransitionFormInput | undefined,
+  ): Promise<WorkflowFormApplied> {
+    if (!form || Object.keys(form).length === 0) return EMPTY_APPLIED;
+    // Раздел «Трудозатраты» режима «если ещё не списаны»: сервер решает по
+    // факту, а не по вере клиента (запись времени не задваивается).
+    if (form.time && t.form?.enabled) {
+      const section = t.form.sections.find((s) => s.kind === 'time');
+      if (section?.kind === 'time' && section.mode === 'if_empty') {
+        const subject = await this.subjectWithPermissions(tx, entityId, category, actor);
+        if (subject.facts.spentMinutes > 0) {
+          const rest = { ...form };
+          delete rest.time;
+          if (Object.keys(rest).length === 0) return EMPTY_APPLIED;
+          return adapter.applyForm(tx, entityId, actor, rest);
+        }
+      }
+    }
+    return adapter.applyForm(tx, entityId, actor, form);
+  }
+
+  private commentLabelOf(t: TransitionDef): string | undefined {
+    const section = t.form?.enabled ? t.form.sections.find((s) => s.kind === 'comment') : undefined;
+    return section?.kind === 'comment' ? section.label : undefined;
   }
 
   private assertOverride(
@@ -138,6 +274,8 @@ export class WorkflowEngine implements WorkflowEnginePort {
           display: t.display,
           blockedBy: evaluateValidators(t.rules, subject.facts),
           canOverride: subject.canOverrideGates,
+          form: t.form?.enabled ? t.form : null,
+          validators: t.rules.validators,
         };
       });
   }

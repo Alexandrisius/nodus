@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { useRef } from 'react';
 import type {
   ErrorCode,
+  ExecuteTransitionBody,
   ExecuteTransitionResult,
   TaskDetail,
   TaskListItem,
@@ -26,6 +28,7 @@ export function gateReasonsText(reasons: readonly TransitionBlockReason[]): stri
  *  строка по коду (I15) или общий фолбэк «вернули на прежнюю стадию». */
 export function transitionErrorText(error: unknown): string {
   if (error instanceof ApiError) {
+    if (error.code === 'TASK_TRANSITION_FORM_INVALID') return ui.tasks.transitionNeedsWindow;
     const reasons = (error.details?.reasons ?? []) as TransitionBlockReason[];
     if (reasons.length > 0)
       return `${errorMessages[error.code as ErrorCode]}: ${gateReasonsText(reasons)}`;
@@ -74,6 +77,67 @@ function patchTask(queryClient: QueryClient, taskId: string, patch: Partial<Task
       ...patch,
     })),
   );
+}
+
+/** Ошибка окна перехода для показа внутри окна (422 — недостающие разделы,
+ *  409 — причины гейтов). Остальное — тостом, окно остаётся открытым. */
+export function transitionWindowError(
+  error: unknown,
+): { missing?: string[]; reasons?: TransitionBlockReason[] } | null {
+  if (!(error instanceof ApiError)) return null;
+  const missing = error.details?.missing;
+  const reasons = error.details?.reasons;
+  if (error.code === 'TASK_TRANSITION_FORM_INVALID' && Array.isArray(missing)) {
+    return { missing: missing.filter((m): m is string => typeof m === 'string') };
+  }
+  if (error.code === 'TASK_TRANSITION_BLOCKED' && Array.isArray(reasons)) {
+    return { reasons: reasons as TransitionBlockReason[] };
+  }
+  return null;
+}
+
+/**
+ * Выполнение перехода из окна (#380, Р7): ПЕССИМИСТИЧНАЯ отправка — без
+ * `onMutate`; окно ждёт ответа сервера. Окно собирает данные, решает сервер:
+ * оптимистичное закрытие с последующей ошибкой потеряло бы ввод. Один
+ * `Idempotency-Key` на попытку (ref): повтор после обрыва сети не задвоит
+ * запись времени, ревизию итога и строку журнала.
+ */
+export function useSubmitTransitionWindow(taskId: string) {
+  const queryClient = useQueryClient();
+  const idempotencyKey = useRef<string | null>(null);
+  return useMutation({
+    mutationFn: (vars: { transition: WorkflowTransition; body: ExecuteTransitionBody }) => {
+      idempotencyKey.current ??= crypto.randomUUID();
+      return api<ExecuteTransitionResult>(`/tasks/${taskId}/transitions/${vars.transition.id}`, {
+        method: 'POST',
+        body: vars.body,
+        idempotencyKey: idempotencyKey.current,
+      });
+    },
+    onSuccess: (result) => {
+      idempotencyKey.current = null;
+      markFreshFromMutation(taskId);
+      patchTask(queryClient, taskId, result.task);
+      queryClient.setQueryData(tasksKeys.transitions(taskId), result.transitions);
+      void queryClient.invalidateQueries({ queryKey: tasksKeys.detail(taskId) });
+      void queryClient.invalidateQueries({ queryKey: tasksKeys.timeEntries(taskId) });
+      void queryClient.invalidateQueries({ queryKey: tasksKeys.transitions(taskId) });
+      for (const key of [
+        tasksKeys.listPages(),
+        tasksKeys.kanbanAll(),
+        tasksKeys.personalStages(),
+        lettersKeys.all,
+      ]) {
+        void queryClient.invalidateQueries({ queryKey: key, refetchType: 'none' });
+      }
+    },
+    onError: (error) => {
+      // Окно остаётся открытым: 422/409 показывает строки внутри, остальное —
+      // тостом. Ключ попытки не сбрасываем — повтор идёт с тем же ключом.
+      if (!transitionWindowError(error)) toast.error(transitionErrorText(error));
+    },
+  });
 }
 
 /** Выполнение перехода (I4): чип стадии и строка журнала меняются сразу;

@@ -1,0 +1,124 @@
+import { Inject, Injectable } from '@nestjs/common';
+import type { TransitionFormInput } from '@nodus/contracts';
+
+import type { TransactionClient } from '../../../core/database/transaction-runner.js';
+import { DomainException } from '../../../core/errors/domain-exception.js';
+import type {
+  WorkflowActor,
+  WorkflowFormApplied,
+} from '../../../core/ports/workflow-entity.port.js';
+import { CHAT_MESSAGE_ACCESS, type ChatMessageAccess } from '../../chat/message-access.port.js';
+import { actorRoles, taskAccess } from '../access/task-access.js';
+import { ResultRevisions } from '../activity/result-revisions.js';
+import { TasksRepository } from '../tasks/tasks.repository.js';
+import { TaskFieldsWriter, type TaskFieldsWrite } from '../tasks/task-fields.writer.js';
+import { TimeService } from '../time/time.service.js';
+
+/**
+ * Окно перехода задачи (#380): применение введённого в транзакции движка.
+ * Поля — общий писатель правки (права `canEdit`), трудозатраты — логика
+ * учёта времени (`canLogTime`), итог — ревизия с проверкой сообщений беседы
+ * задачи (`canCheck`); любая ошибка откатывает весь переход. В журнал
+ * уходит только реально изменённое.
+ */
+@Injectable()
+export class TaskFormApplier {
+  constructor(
+    private readonly tasks: TasksRepository,
+    private readonly writer: TaskFieldsWriter,
+    private readonly time: TimeService,
+    private readonly revisions: ResultRevisions,
+    @Inject(CHAT_MESSAGE_ACCESS) private readonly messages: ChatMessageAccess,
+  ) {}
+
+  async apply(
+    tx: TransactionClient,
+    taskId: string,
+    actor: WorkflowActor,
+    input: TransitionFormInput,
+  ): Promise<WorkflowFormApplied> {
+    const task = await this.tasks.findWithParticipants(taskId, tx);
+    let current = task;
+    let access = taskAccess(actorRoles(task, actor.id), actor.permissions);
+    const fields: Record<string, { from: unknown; to: unknown }> = {};
+    let timeEntryId: string | null = null;
+    let result: WorkflowFormApplied['result'] = null;
+
+    if (input.fields) {
+      if (!access.canEdit) throw DomainException.forbidden('Task edit not allowed');
+      const patch: TaskFieldsWrite = {};
+      const keys: string[] = [];
+      if (input.fields.description !== undefined && input.fields.description !== task.description) {
+        patch.description = input.fields.description;
+        keys.push('description');
+        fields.description = { from: task.description, to: input.fields.description };
+      }
+      if (input.fields.deadline !== undefined) {
+        const to = new Date(input.fields.deadline);
+        const current = task.deadline?.toISOString() ?? null;
+        if (to.toISOString() !== current) {
+          patch.deadline = to.toISOString();
+          keys.push('deadline');
+          fields.deadline = { from: current, to: to.toISOString() };
+        }
+      }
+      if (
+        input.fields.plannedMinutes !== undefined &&
+        input.fields.plannedMinutes !== task.plannedMinutes
+      ) {
+        patch.plannedMinutes = input.fields.plannedMinutes;
+        keys.push('plannedMinutes');
+        fields.plannedMinutes = { from: task.plannedMinutes, to: input.fields.plannedMinutes };
+      }
+      if (input.fields.assigneeId !== undefined && input.fields.assigneeId !== task.assigneeId) {
+        patch.assigneeId = input.fields.assigneeId;
+        keys.push('assigneeId');
+        fields.assignee = { from: task.assigneeId, to: input.fields.assigneeId };
+      }
+      if (keys.length > 0) {
+        await this.writer.apply(tx, actor.id, task, patch, keys);
+        // Смена ответственного меняет права на СЛЕДУЮЩИЕ разделы: время и
+        // итог перепроверяются по свежим ролям (иначе актор, передавший
+        // задачу, дописал бы время/итог уже после передачи).
+        const fresh = await this.tasks.findWithParticipants(taskId, tx);
+        current = fresh;
+        access = taskAccess(actorRoles(fresh, actor.id), actor.permissions);
+      }
+    }
+
+    if (input.time) {
+      if (!access.canLogTime) throw DomainException.forbidden('Time logging not allowed');
+      const entry = await this.time.addManualInTx(
+        tx,
+        actor.id,
+        { id: task.id, projectId: task.projectId },
+        input.time,
+      );
+      timeEntryId = entry.id;
+    }
+
+    if (input.result) {
+      if (!access.canCheck) throw DomainException.forbidden('Result change not allowed');
+      const messageIds = [...new Set(input.result.messageIds)];
+      // Чужое/удалённое/чужая беседа — одинаковый 404 (без оракула).
+      const snaps = await this.messages.taskMessages(taskId, messageIds, actor.id, tx);
+      if (snaps.length !== messageIds.length) {
+        throw DomainException.notFound('Message not found');
+      }
+      const created = await this.revisions.create(
+        tx,
+        actor.id,
+        current,
+        { text: input.result.text, messageIds },
+        snaps,
+      );
+      result = {
+        resultId: created.result.id,
+        fileCount: created.fileCount,
+        messageCount: messageIds.length,
+      };
+    }
+
+    return { fields, timeEntryId, result };
+  }
+}

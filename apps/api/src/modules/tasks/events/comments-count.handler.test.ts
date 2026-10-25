@@ -21,7 +21,12 @@ function setup(discussion: { taskId: string; count: number } | null, enabled = t
   const txRunner = { run: (fn: (tx: unknown) => unknown) => fn(TX) };
   const eventBus = { emit: vi.fn() };
   const flags = { isEnabled: vi.fn().mockResolvedValue(enabled) };
-  const chat = { snapshot: vi.fn(), taskDiscussion: vi.fn().mockResolvedValue(discussion) };
+  const chat = {
+    snapshot: vi.fn(),
+    taskDiscussion: vi.fn().mockResolvedValue(discussion),
+    taskMessages: vi.fn(),
+    countAttachments: vi.fn(),
+  };
   const counter = new TaskCommentsCounter(
     txRunner as never,
     eventBus as never,

@@ -1,4 +1,5 @@
 import type { CatalogStage, CatalogProcessType, CatalogWorkflow } from './system-catalog.js';
+import { commentWindow, resultWindow } from './catalog-forms.js';
 
 /** Тип «Быстрый» (#378, ревизия 2): без этапа «Утверждение» — завершение
  *  сразу в «Завершена». Стадии — общие константы system-catalog.ts. */
@@ -50,6 +51,7 @@ export function buildQuickWorkflow(stages: {
           conditions: [{ kind: 'role_in', roles: ['assignee'] }],
           validators: [{ kind: 'no_open_subtasks' }],
         },
+        form: resultWindow(),
       },
       {
         code: 'complete_waiting',
@@ -61,6 +63,7 @@ export function buildQuickWorkflow(stages: {
           conditions: [{ kind: 'role_in', roles: ['assignee'] }],
           validators: [{ kind: 'no_open_subtasks' }],
         },
+        form: resultWindow(),
       },
       {
         code: 'pause',
@@ -69,6 +72,7 @@ export function buildQuickWorkflow(stages: {
         to: 'paused',
         display: 'button',
         rules: { conditions: [{ kind: 'role_in', roles: ['assignee', 'coexecutor'] }] },
+        form: commentWindow('Причина приостановки', true),
       },
       {
         code: 'continue',
@@ -111,6 +115,7 @@ export function buildQuickWorkflow(stages: {
         to: 'cancelled',
         display: 'menu',
         rules: { conditions: [{ kind: 'role_in', roles: ['creator'] }] },
+        form: commentWindow('Причина отмены', true),
       },
       {
         code: 'reopen',

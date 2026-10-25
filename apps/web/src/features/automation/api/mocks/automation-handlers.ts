@@ -10,9 +10,12 @@ import {
 } from '@nodus/contracts';
 import { http, HttpResponse } from 'msw';
 
-import { demoStages } from '../../../../shared/mocks/data/task-stages.js';
 import { demoSubtasks, demoTasks } from '../../../../shared/mocks/data/tasks.js';
-import { demoProcessTypes, demoWorkflowDetails } from '../../../../shared/mocks/data/workflows.js';
+import {
+  demoProcessTypes,
+  demoWorkflowDetails,
+  quickDocument,
+} from '../../../../shared/mocks/data/workflows.js';
 import { resolvePublishedDocument } from './publish-resolve.js';
 
 /** Моки «Автоматизации» (#378): библиотека типов, чтение/публикация
@@ -79,53 +82,13 @@ function cloneDocument(source: WorkflowDocument): WorkflowDocument {
 }
 
 function simpleDocument(): WorkflowDocument {
-  const waiting = demoStages[0]!;
-  const running = demoStages[1]!;
-  const done = demoStages[5]!;
-  const s = (stage: (typeof demoStages)[number], code: string, isInitial: boolean) => ({
-    id: nextId(),
-    code,
-    name: stage.name,
-    color: stage.color,
-    systemState: stage.systemState,
-    outcome: stage.systemState === 'closed' ? ('success' as const) : null,
-    isInitial,
-    sortOrder: 0,
-  });
-  const w = s(waiting, 'new', true);
-  const r = s(running, 'in_progress', false);
-  const d = s(done, 'done', false);
+  // Архивный демо-маршрут: те же стартовые статусы и кнопки, что у «Быстрого»
+  // (Ожидает → В работе → Завершена) — документ не дублирует литералы.
   return {
-    stages: [w, r, d],
+    stages: quickDocument.stages,
     transitions: [
-      {
-        id: nextId(),
-        code: null,
-        name: 'Взять в работу',
-        fromStageId: w.id,
-        toStageId: r.id,
-        display: 'primary',
-        sortOrder: 0,
-        rules: {
-          conditions: [{ kind: 'role_in', roles: ['assignee'] }],
-          validators: [],
-          postFunctions: [],
-        },
-      },
-      {
-        id: nextId(),
-        code: null,
-        name: 'Завершить',
-        fromStageId: r.id,
-        toStageId: d.id,
-        display: 'primary',
-        sortOrder: 0,
-        rules: {
-          conditions: [{ kind: 'role_in', roles: ['assignee'] }],
-          validators: [],
-          postFunctions: [],
-        },
-      },
+      quickDocument.transitions.find((t) => t.code === 'start')!,
+      quickDocument.transitions.find((t) => t.code === 'complete')!,
     ],
   };
 }

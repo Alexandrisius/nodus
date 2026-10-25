@@ -409,3 +409,9 @@ SILO (без хотлинков); кэш `link_previews` (нормализова
 (батч-кэш в `message-dto.mapper.ts`; toFreshDto — null, скелетон на
 клиенте), витрина `GET ?type=link` — `preview` в элементах (батч).
 Ленивый прогрев: только новые события, бэкфилла нет.
+
+## Вид сообщения и блок перехода (#380)
+
+`messages.kind` (`text | task_transition`; #313 добавит `system`) + `payload JSONB`. Обработчик `task.stage_changed` с `recordId` и непустой причиной/итогом пишет в беседу задачи сообщение `kind='task_transition'`: автор — нажавший, `text` — причина (поиск/цитаты/превью уведомлений работают по тексту), `payload` — `TaskTransitionBlock` (кнопка, статусы, подпись, счётчики файлов/сообщений). Идемпотентность — `client_message_id = task-transition:<event.id>` в существующем unique `(author_id, client_message_id)`; повтор доставки outbox блок не дублирует. Правка блока — 403 (журнал и чат не расходятся), удаление — по общим правилам.
+
+`GET /chat/conversations/:id/messages/lookup?ids=` — живые сообщения беседы по id (≤50, только участник, иначе 404): окну перехода нужны файлы/сообщения итога вне загруженной ленты. Read-порт `CHAT_MESSAGE_ACCESS` получил `attachmentCount`, батч `taskMessages` (один SQL с членством и `task_id`) и `countAttachments` (факт задачи, без проверки зрителя); методы принимают `tx`, чтобы чтение шло клиентом транзакции (gotcha realtime).

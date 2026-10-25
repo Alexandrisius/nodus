@@ -53,6 +53,7 @@ const detail = (): WorkflowDetail => ({
           validators: [],
           postFunctions: [],
         },
+        form: { enabled: false, sections: [] },
       },
     ],
   },

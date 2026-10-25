@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { Permission } from '../auth/permission.js';
+import { transitionFormInputSchema, transitionFormSchema } from './transition-form.schemas.js';
 import {
   docIdSchema,
   stageColorSchema,
@@ -62,6 +63,9 @@ export const workflowValidatorSchema = z.discriminatedUnion('kind', [
   }),
   z.object({ kind: z.literal('time_logged') }),
   z.object({ kind: z.literal('result_present') }),
+  /** Приложены файлы итога (#380): у текущей ревизии итога не меньше `min`
+   *  живых вложений (kind image|file; стикеры не считаются). */
+  z.object({ kind: z.literal('result_files'), min: z.number().int().min(1).max(5) }),
 ]);
 export type WorkflowValidator = z.infer<typeof workflowValidatorSchema>;
 export type WorkflowValidatorKind = WorkflowValidator['kind'];
@@ -103,12 +107,15 @@ export const transitionBlockReasonSchema = z.object({
     'fields_required',
     'time_logged',
     'result_present',
+    'result_files',
   ]),
   /** Для fields_required — какие поля не заполнены. */
   fields: z.array(workflowRequirableFieldSchema).optional(),
   /** Для no_open_subtasks — сколько подзадач мешают (в строгом режиме
    *  вместе с подзадачами на утверждении). */
   count: z.number().int().min(0).optional(),
+  /** Для result_files — сколько файлов итога есть (нужно `min`). */
+  min: z.number().int().min(1).max(5).optional(),
 });
 export type TransitionBlockReason = z.infer<typeof transitionBlockReasonSchema>;
 
@@ -133,12 +140,22 @@ export const workflowTransitionSchema = z.object({
   blockedBy: z.array(transitionBlockReasonSchema),
   /** Можно ли пройти гейт с причиной (право task.override_gate). */
   canOverride: z.boolean(),
+  /** Окно при нажатии (#380): null — окно выключено. Эффективные разделы
+   *  (настройка ∪ гейты) собирает `effectiveWindowSections`. */
+  form: transitionFormSchema.nullable(),
+  /** Гейты кнопки — для живого списка условий в окне. */
+  validators: z.array(workflowValidatorSchema),
 });
 export type WorkflowTransition = z.infer<typeof workflowTransitionSchema>;
 
-/** Выполнение перехода. reason — обязательна при обходе гейта (аудит). */
-export const executeTransitionBodySchema = z.object({
-  override: z.boolean().optional(),
-  reason: z.string().trim().min(1).max(500).optional(),
-});
+/** Выполнение перехода. reason — обязательна при обходе гейта (аудит).
+ *  form — введённое в окне; сервер сверяет состав с эффективным окном
+ *  (лишнее/пропущенное обязательное → 422 TASK_TRANSITION_FORM_INVALID). */
+export const executeTransitionBodySchema = z
+  .object({
+    override: z.boolean().optional(),
+    reason: z.string().trim().min(1).max(500).optional(),
+    form: transitionFormInputSchema.optional(),
+  })
+  .strict();
 export type ExecuteTransitionBody = z.infer<typeof executeTransitionBodySchema>;

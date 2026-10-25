@@ -236,3 +236,41 @@ describe('stageDrift', () => {
     expect(stageDrift(base, { ...base, outcome: 'success' })).toEqual({ outcome: 'success' });
   });
 });
+
+describe('CatalogBootstrap — ревизия 4: окна перехода (#380)', () => {
+  it('сиды пишут формы: причина у паузы/возврата/отмены, итог у завершения, окно у утверждения', async () => {
+    const { bootstrap, repo } = setup({ workflows: stale('task.default') });
+    await bootstrap.ensure();
+    const formOf = (name: string) =>
+      (
+        repo.updateTransition.mock.calls.find(
+          (call) => (call[2] as { name: string }).name === name,
+        )?.[2] as {
+          form: {
+            enabled: boolean;
+            sections: { kind: string; required?: boolean; label?: string }[];
+          };
+        }
+      )?.form;
+    expect(formOf('Приостановить')).toMatchObject({
+      enabled: true,
+      sections: [{ kind: 'comment', required: true, label: 'Причина приостановки' }],
+    });
+    expect(formOf('Вернуть на доработку')).toMatchObject({
+      sections: [{ kind: 'comment', required: true, label: 'Причина возврата' }],
+    });
+    expect(formOf('Отменить')).toMatchObject({
+      sections: [{ kind: 'comment', required: true, label: 'Причина отмены' }],
+    });
+    expect(formOf('Завершить')).toMatchObject({
+      sections: [
+        { kind: 'result' },
+        { kind: 'result_files', label: 'Файлы итога' },
+        { kind: 'result_messages', required: false },
+      ],
+    });
+    expect(formOf('Утвердить')).toMatchObject({
+      sections: [{ kind: 'comment', required: false, label: 'Комментарий' }],
+    });
+  });
+});

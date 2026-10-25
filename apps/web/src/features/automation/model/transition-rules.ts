@@ -26,6 +26,7 @@ export const VALIDATOR_KINDS = [
   'checklist_complete',
   'time_logged',
   'result_present',
+  'result_files',
   'fields_required',
 ] as const;
 export type ValidatorKind = (typeof VALIDATOR_KINDS)[number];
@@ -66,8 +67,29 @@ export function toggleValidator(rules: Rules, kind: ValidatorKind): Rules {
     return { ...rules, validators: rules.validators.filter((v) => v.kind !== kind) };
   }
   const added: WorkflowValidator =
-    kind === 'fields_required' ? { kind, fields: ['description'] } : { kind };
+    kind === 'fields_required'
+      ? { kind, fields: ['description'] }
+      : kind === 'result_files'
+        ? { kind, min: 1 }
+        : { kind };
   return { ...rules, validators: [...rules.validators, added] };
+}
+
+/** «Минимум файлов» гейта result_files (0 — снять условие). */
+export function setMinFiles(rules: Rules, min: number): Rules {
+  const validator = validatorOf(rules, 'result_files');
+  if (min <= 0) {
+    return { ...rules, validators: rules.validators.filter((v) => v.kind !== 'result_files') };
+  }
+  const next = Math.min(5, Math.max(1, Math.round(min)));
+  if (!validator)
+    return { ...rules, validators: [...rules.validators, { kind: 'result_files', min: next }] };
+  return {
+    ...rules,
+    validators: rules.validators.map((v) =>
+      v.kind === 'result_files' ? { kind: v.kind, min: next } : v,
+    ),
+  };
 }
 
 /** Мягкий гейт: подзадачи на утверждении не мешают (по умолчанию — мешают). */

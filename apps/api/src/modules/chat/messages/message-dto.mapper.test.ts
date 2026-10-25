@@ -149,6 +149,8 @@ function fullRow(overrides: Partial<MessageRow> = {}): MessageRow {
     authorId: 'me-1',
     clientMessageId: '',
     text: 'текст',
+    kind: 'text',
+    payload: null,
     replyToId: null,
     replySnapshot: null,
     threadRootId: null,

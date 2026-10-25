@@ -27,6 +27,7 @@ export const errorMessages: Record<ErrorCode, string> = {
   [ErrorCode.TASK_LAST_STAGE]: 'Единственную стадию удалить нельзя',
   [ErrorCode.TASK_TRANSITION_NOT_ALLOWED]: 'Такой переход для задачи недоступен',
   [ErrorCode.TASK_TRANSITION_BLOCKED]: 'Переход заблокирован: не выполнены условия',
+  [ErrorCode.TASK_TRANSITION_FORM_INVALID]: 'Заполните окно перехода',
   [ErrorCode.TASK_OVERRIDE_REASON_REQUIRED]: 'Чтобы обойти условие, укажите причину',
   [ErrorCode.TASK_PARENT_CYCLE]: 'Задачу нельзя сделать подзадачей её же подзадачи',
   [ErrorCode.TASK_TIMER_NOT_RUNNING]: 'Таймер не запущен',

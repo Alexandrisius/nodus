@@ -26,6 +26,8 @@ export interface PlannerTransition {
   sortOrder: number;
   /** Разобранные правила (кто видит, условия, особые правила). */
   rules: unknown;
+  /** Разобранная форма окна (#380): публикуется вместе с кнопкой. */
+  form: unknown;
 }
 
 export interface PlannerSnapshot {
@@ -65,6 +67,8 @@ export interface TransitionWrite {
   toStageId: string;
   display: string;
   sortOrder: number;
+  /** Окно при нажатии (#380) — часть документа, пишется вместе с кнопкой. */
+  form: unknown;
 }
 
 export interface WorkflowPublishPlan {
@@ -145,6 +149,7 @@ export function planWorkflowPublish(
       toStageId: t.toStageId,
       display: t.display,
       sortOrder: t.sortOrder,
+      form: t.form,
     };
     if (isNew(t.id) || !currentTransitionsById.has(t.id)) {
       transitionCreates.push(write);
@@ -157,7 +162,8 @@ export function planWorkflowPublish(
       existing.toStageId === write.toStageId &&
       existing.display === write.display &&
       existing.sortOrder === write.sortOrder &&
-      sameRules(existing.rules, t.rules);
+      sameRules(existing.rules, t.rules) &&
+      sameForm(existing.form, write.form);
     if (!unchanged) transitionUpdates.push(write);
   }
   const docTransitionIds = new Set(document.transitions.map((t) => t.id));
@@ -200,6 +206,11 @@ export function canonicalJson(value: unknown): string {
 function sameRules(existing: unknown, next: unknown): boolean {
   const nextJson = canonicalJson(next);
   return !nextJson.includes('"new:') && canonicalJson(existing) === nextJson;
+}
+
+/** Форма окна не менялась (канонический JSON — порядок ключей не шумит). */
+function sameForm(existing: unknown, next: unknown): boolean {
+  return canonicalJson(existing) === canonicalJson(next);
 }
 
 /** Обязательные переносы: архивируемые стадии с задачами без переноса. */

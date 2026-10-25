@@ -24,7 +24,7 @@ import {
 } from '../../../model/transition-rules.js';
 import { PanelDanger, PanelField, SectionLink, Segmented, focusName } from './panel-kit.js';
 
-export type TransitionSection = 'root' | 'roles' | 'conditions' | 'rules';
+export type TransitionSection = 'root' | 'roles' | 'conditions' | 'rules' | 'window';
 
 const ANY = 'any';
 const DISPLAYS: readonly TransitionDisplay[] = ['primary', 'button', 'menu'];
@@ -34,6 +34,13 @@ export function sectionSummaries(transition: WorkflowDraftTransition, doc: Workf
   const roles = rolesOf(transition.rules);
   const validators = VALIDATOR_KINDS.filter((kind) => validatorOf(transition.rules, kind));
   const routeIf = routeIfOf(transition.rules);
+  const windowSummary = !transition.form.enabled
+    ? ui.automation.window.summaryOff
+    : transition.form.sections.length === 0
+      ? ui.automation.window.summaryEmpty
+      : transition.form.sections
+          .map((section) => ui.automation.window.sections[section.kind])
+          .join(', ');
   return {
     roles:
       roles.size > 0
@@ -49,6 +56,7 @@ export function sectionSummaries(transition: WorkflowDraftTransition, doc: Workf
       routeIf !== null
         ? `${ui.automation.panel.routeIfSummary} ${doc.stages.find((s) => s.id === routeIf)?.name ?? ''}`
         : ui.automation.panel.noRules,
+    window: windowSummary,
   };
 }
 
@@ -166,6 +174,11 @@ export function TransitionPanel({
           title={ui.automation.panel.sectionRules}
           summary={summaries.rules}
           onClick={() => onOpenSection('rules')}
+        />
+        <SectionLink
+          title={ui.automation.panel.sectionWindow}
+          summary={summaries.window}
+          onClick={() => onOpenSection('window')}
         />
       </div>
 

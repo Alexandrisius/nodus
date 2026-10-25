@@ -21,6 +21,8 @@ function makeMessage(overrides: Partial<MessageRow> = {}): MessageRow {
     authorId: ME,
     clientMessageId: 'key-1',
     text: 'Текст',
+    kind: 'text',
+    payload: null,
     replyToId: null,
     replySnapshot: null,
     threadRootId: null,
@@ -154,6 +156,18 @@ describe('MessagesService.edit (#188: текст + состав вложений
     ).rejects.toMatchObject({
       code: ErrorCode.FORBIDDEN,
       message: 'Forwarded messages cannot be edited',
+    });
+    expect(repo.updateEditText).not.toHaveBeenCalled();
+    expect(eventBus.emit).not.toHaveBeenCalled();
+  });
+
+  it('блок перехода (#380) не правится: журнал и чат не расходятся', async () => {
+    repo.findByIdInConversation.mockResolvedValue(
+      makeMessage({ kind: 'task_transition', payload: { kind: 'task_transition' } }),
+    );
+    await expect(service.edit(ME, CONV, 'msg-1', { text: 'переписано' })).rejects.toMatchObject({
+      code: ErrorCode.FORBIDDEN,
+      message: 'Only text messages can be edited',
     });
     expect(repo.updateEditText).not.toHaveBeenCalled();
     expect(eventBus.emit).not.toHaveBeenCalled();

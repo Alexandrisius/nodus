@@ -17,14 +17,14 @@ import {
   WORKFLOW_ENGINE,
   type WorkflowEnginePort,
 } from '../../workflows/ports/workflow-engine.port.js';
-import { actorRoles, audienceIds, planHolderIds, taskAccess } from '../access/task-access.js';
-import { ParticipantsRepository } from '../participants/participants.repository.js';
+import { actorRoles, planHolderIds, taskAccess } from '../access/task-access.js';
 import { PersonalBoardsRepository } from '../personal/personal-boards.repository.js';
 import { Placements } from '../personal/placements.js';
 import { PlacementsRepository } from '../personal/placements.repository.js';
 import type { TaskListRow } from './task-row.js';
+import { TaskFieldsWriter } from './task-fields.writer.js';
 import { TasksQueryService } from './tasks-query.service.js';
-import { TasksRepository, type TaskFieldsPatch } from './tasks.repository.js';
+import { TasksRepository } from './tasks.repository.js';
 import { TasksService } from './tasks.service.js';
 
 const FIELD_KEYS = [
@@ -52,8 +52,8 @@ export class TaskEditService {
     private readonly tasks: TasksService,
     private readonly placements: Placements,
     private readonly placementsRepo: PlacementsRepository,
-    private readonly participantsRepo: ParticipantsRepository,
     private readonly boards: PersonalBoardsRepository,
+    private readonly writer: TaskFieldsWriter,
     @Inject(WORKFLOW_ENGINE) private readonly engine: WorkflowEnginePort,
   ) {}
 
@@ -94,75 +94,22 @@ export class TaskEditService {
     body: TaskUpdateBody,
     fields: readonly string[],
   ): Promise<void> {
-    const reparent = body.parentId !== undefined;
-    // Смены родителя сериализуются одной advisory-блокировкой транзакции
-    // (построчные локи не ловят циклы из 4+ узлов) — и берётся она ДО замка
-    // строки: единый порядок захвата во всех транзакциях, без 40P01 с
-    // FK-проверкой parent_id (security-гейт #37, р.2–3). Смены редки.
-    if (reparent) await this.repo.lockTree(tx);
-    await this.repo.lock(tx, row.id);
-    if (reparent) {
-      // Права на прежнего родителя проверены по снимку до транзакции —
-      // параллельная перепривязка их обесценивает: конфликт, а не обход.
-      const freshParentId = await this.repo.parentIdOf(tx, row.id);
-      if (freshParentId !== row.parentId) {
-        throw DomainException.conflict('Task parent changed concurrently');
-      }
-    }
-    if (body.parentId) {
-      if (await this.repo.isDescendant(tx, row.id, body.parentId)) {
-        throw new DomainException(ErrorCode.TASK_PARENT_CYCLE, 'Parent is a descendant');
-      }
-    }
-    const data: TaskFieldsPatch = {};
-    if (body.title !== undefined) data.title = body.title;
-    if (body.description !== undefined) data.description = body.description;
-    if (body.priority !== undefined) data.priority = body.priority;
-    if (body.plannedMinutes !== undefined) data.plannedMinutes = body.plannedMinutes;
-    if (body.parentId !== undefined) data.parentId = body.parentId;
-    if (body.deadline !== undefined) {
-      data.deadline = body.deadline ? new Date(body.deadline) : null;
-      data.overdueNotifiedAt = null; // новый срок — новое однократное уведомление
-    }
-    const newAssigneeId = body.assigneeId !== row.assigneeId ? body.assigneeId : undefined;
-    const reassigned = newAssigneeId !== undefined;
-    if (newAssigneeId !== undefined) {
-      data.assigneeId = newAssigneeId;
-      // Новый ответственный перестаёт быть соисполнителем/наблюдателем.
-      await this.participantsRepo.remove(tx, row.id, newAssigneeId);
-    }
-    await this.repo.updateFields(tx, row.id, data);
-    const after = await this.repo.findWithParticipants(row.id, tx);
-    const base = {
-      taskId: row.id,
-      number: row.number,
-      audience: audienceIds(after, [row.assigneeId]),
-    };
-    const meta = { actorId: user.id, aggregateType: 'task', aggregateId: row.id };
-    if (reassigned) {
-      await this.placements.sync(tx, after, planHolderIds(after), user.id);
-      await this.eventBus.emit(
-        tx,
-        TASK_EVENTS.ASSIGNED,
-        {
-          ...base,
-          title: after.title,
-          assigneeId: after.assigneeId,
-          previousAssigneeId: row.assigneeId,
-        },
-        meta,
-      );
-    }
-    await this.eventBus.emit(
+    // Доменная логика правки полей — общий писатель (#380): окно перехода
+    // правит поля тем же кодом (локи, перепривязка, события).
+    await this.writer.apply(
       tx,
-      TASK_EVENTS.UPDATED,
+      user.id,
+      row,
       {
-        ...base,
-        fields,
-        ...(body.title !== undefined ? { title: after.title } : {}),
-        ...(body.deadline !== undefined ? { deadline: after.deadline?.toISOString() ?? null } : {}),
+        title: body.title,
+        description: body.description,
+        priority: body.priority,
+        plannedMinutes: body.plannedMinutes,
+        parentId: body.parentId,
+        deadline: body.deadline,
+        assigneeId: body.assigneeId,
       },
-      meta,
+      fields,
     );
   }
 

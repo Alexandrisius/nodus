@@ -24,7 +24,7 @@ import { DateTimePicker } from '../../../shared/ui/date-time-picker.js';
 import { DeadlineChip } from '../../../shared/ui/deadline-chip.js';
 import { priorityTone } from '../../../shared/views/task-table-fields.js';
 import { useShiftSubtaskDeadlines, useUpdateTask } from '../api/task-edit-api.js';
-import { formatDuration, parseDuration } from '../lib/minutes.js';
+import { formatDuration, parseDuration } from '../../../shared/lib/minutes.js';
 
 /** Кликабельное значение поля: та же строка, ховер-подложка (без рамок —
  *  канон полей-строк карточки). */

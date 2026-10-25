@@ -5,6 +5,7 @@ import { userRefSchema } from '../directory/user-ref.schema.js';
 import { projectRefSchema, taskRefSchema } from '../tasks/task.schemas.js';
 import { cursorQuerySchema } from '../pagination/paginated.schema.js';
 import { stickerMetaSchema } from './sticker.schemas.js';
+import { chatMessageBlockSchema, chatMessageKindSchema } from './chat-block.schemas.js';
 
 /** Контракты модуля чата (chat.Conversation/Message). */
 
@@ -167,10 +168,21 @@ export const messageSchema = z.object({
    *  null — ссылок нет/надгробие; pending — скелетон; failed/blocked —
    *  заглушка из домена. */
   linkPreview: z.lazy(() => linkPreviewSchema).nullable(),
+  /** Вид сообщения (#380): у блока перехода правка запрещена. Optional —
+   *  толерантность к старым записям events-лога и кэшам до #380
+   *  (`undefined` читается как `text`). */
+  kind: chatMessageKindSchema.optional(),
+  /** Данные блока (по виду); null — обычное сообщение или payload не разобрался. */
+  block: chatMessageBlockSchema.nullable().optional(),
   createdAt: z.iso.datetime(),
 });
 
 export type ChatMessage = z.infer<typeof messageSchema>;
+
+/** Ответ поиска сообщений по id (окно перехода, #380): отсутствующие и
+ *  недоступные молча выпадают (без оракула). */
+export const messageLookupResultSchema = z.object({ items: z.array(messageSchema) });
+export type MessageLookupResult = z.infer<typeof messageLookupResultSchema>;
 
 /** Снимок превью ссылки (#212): в DTO сообщения и в payload WS-события
  *  chat.link_preview_ready (общая схема). */

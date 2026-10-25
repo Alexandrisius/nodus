@@ -11,6 +11,7 @@ import {
   type StageDef,
   type TransitionDef,
 } from './transition-rules.js';
+import { parseForm } from './transition-form.js';
 
 const facts: WorkflowGateFacts = {
   stageId: '00000000-0000-4000-8000-000000000001',
@@ -26,6 +27,7 @@ const facts: WorkflowGateFacts = {
   assigneeId: 'u1',
   plannedMinutes: null,
   hasResult: false,
+  resultFileCount: 0,
 };
 
 const stages: StageDef[] = [
@@ -75,6 +77,7 @@ function transition(partial: Partial<TransitionDef>): TransitionDef {
     display: 'button',
     sortOrder: 0,
     rules: parseRules({}),
+    form: parseForm({}),
     ...partial,
   };
 }
