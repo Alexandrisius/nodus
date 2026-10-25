@@ -17,7 +17,7 @@ export async function resolveCounterpartyRef(
   if (demo) return demo;
   try {
     const res = await fetch(
-      bypass(new URL(`/api/v1/counterparties/${counterpartyId}`, request.url), {
+      bypass(new URL(`/api/v1/counterparties/${encodeURIComponent(counterpartyId)}`, request.url), {
         headers: { authorization: request.headers.get('authorization') ?? '' },
       }),
     );

@@ -173,15 +173,29 @@ export class CounterpartiesService {
         { counterpartyId: id },
       );
     }
-    await this.txRunner.run(async (tx) => {
-      await this.counterparties.deleteWithContacts(id, tx);
-      await this.eventBus.emit(
-        tx,
-        CRM_EVENTS.COUNTERPARTY_DELETED,
-        { counterpartyId: id, shortName: before.shortName },
-        { actorId, aggregateType: 'counterparty', aggregateId: id },
-      );
-    });
+    try {
+      await this.txRunner.run(async (tx) => {
+        await this.counterparties.deleteWithContacts(id, tx);
+        await this.eventBus.emit(
+          tx,
+          CRM_EVENTS.COUNTERPARTY_DELETED,
+          { counterpartyId: id, shortName: before.shortName },
+          { actorId, aggregateType: 'counterparty', aggregateId: id },
+        );
+      });
+    } catch (error) {
+      // Гонка с проекциями связей (#55/#52): связь появилась между проверкой
+      // `hasUsages` и удалением — FK ON DELETE RESTRICT вернёт P2003. Отвечаем
+      // тем же 409 «есть связи, переносите в архив», а не 400/500.
+      if ((error as { code?: string }).code === 'P2003') {
+        throw new DomainException(
+          ErrorCode.CRM_COUNTERPARTY_IN_USE,
+          'Counterparty is referenced by letters or projects',
+          { counterpartyId: id },
+        );
+      }
+      throw error;
+    }
   }
 
   /**
