@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type {
+  ProcessTypeRef,
   StageColor,
   TaskChainNode,
   TaskListItem,
@@ -15,11 +16,42 @@ import {
   USER_PROFILE_READER,
   type UserProfileReader,
 } from '../../../core/ports/user-profile.port.js';
+import {
+  PROCESS_CATALOG_READER,
+  type CatalogStage,
+  type ProcessCatalogReader,
+} from '../../workflows/ports/process-catalog-reader.port.js';
 import type { TaskListRow } from './task-row.js';
 
 export type RefMap = Map<string, UserRef>;
 
+/** Каталоги для строки DTO: тип и стадия — данные модуля «Процессы». */
+export interface CatalogMaps {
+  types: Map<string, ProcessTypeRef>;
+  stages: Map<string, CatalogStage>;
+}
+
 const UNKNOWN_USER = (id: string): UserRef => ({ id, displayName: '—', avatarUrl: null });
+
+const UNKNOWN_TYPE = (id: string): ProcessTypeRef => ({
+  id,
+  code: 'unknown',
+  name: '—',
+  category: 'task',
+});
+
+const UNKNOWN_STAGE = (id: string): CatalogStage => ({
+  id,
+  workflowId: '',
+  code: null,
+  name: '—',
+  color: 'neutral',
+  sortOrder: 0,
+  systemState: 'backlog',
+  outcome: null,
+  isInitial: false,
+  archivedAt: null,
+});
 
 export function stageDto(s: {
   id: string;
@@ -58,11 +90,15 @@ export function selfChainNode(row: {
 /**
  * Строки задач → DTO контракта (projectRef — null до бэкенда проектов,
  * ступень 3: projectId хранится, привязка отдаётся с появлением модуля).
- * Профили — одним батчем через read-порт (ADR-0012).
+ * Профили — одним батчем через read-порт (ADR-0012); тип и стадия — батчем
+ * через read-порт «Процессов» (ADR-0024: FK между модулями нет).
  */
 @Injectable()
 export class TaskDtoMapper {
-  constructor(@Inject(USER_PROFILE_READER) private readonly profiles: UserProfileReader) {}
+  constructor(
+    @Inject(USER_PROFILE_READER) private readonly profiles: UserProfileReader,
+    @Inject(PROCESS_CATALOG_READER) private readonly catalog: ProcessCatalogReader,
+  ) {}
 
   async refs(userIds: Iterable<string>, tx?: TransactionClient): Promise<RefMap> {
     const list = await this.profiles.findRefs([...new Set(userIds)], tx);
@@ -77,18 +113,33 @@ export class TaskDtoMapper {
     return rows.flatMap((r) => [r.creatorId, r.assigneeId, ...r.participants.map((p) => p.userId)]);
   }
 
-  async toListItems(rows: TaskListRow[], tx?: TransactionClient): Promise<TaskListItem[]> {
-    const map = await this.refs(this.userIdsOf(rows), tx);
-    return rows.map((r) => this.toListItem(r, map));
+  /** Каталоги типов и стадий для набора строк (один запрос на каждый). */
+  async catalogOf(rows: TaskListRow[]): Promise<CatalogMaps> {
+    const [types, stages] = await Promise.all([
+      this.catalog.typeRefs([...new Set(rows.map((r) => r.typeId))]),
+      this.catalog.stagesByIds([...new Set(rows.map((r) => r.stageId))]),
+    ]);
+    return {
+      types: new Map(types.map((t) => [t.id, t])),
+      stages: new Map(stages.map((s) => [s.id, s])),
+    };
   }
 
-  toListItem(r: TaskListRow, map: RefMap): TaskListItem {
+  async toListItems(rows: TaskListRow[], tx?: TransactionClient): Promise<TaskListItem[]> {
+    const [map, catalog] = await Promise.all([
+      this.refs(this.userIdsOf(rows), tx),
+      this.catalogOf(rows),
+    ]);
+    return rows.map((r) => this.toListItem(r, map, catalog));
+  }
+
+  toListItem(r: TaskListRow, map: RefMap, catalog: CatalogMaps): TaskListItem {
     return {
       id: r.id,
       number: r.number,
       title: r.title,
-      type: r.type,
-      stage: stageDto(r.stage),
+      type: catalog.types.get(r.typeId) ?? UNKNOWN_TYPE(r.typeId),
+      stage: stageDto(catalog.stages.get(r.stageId) ?? UNKNOWN_STAGE(r.stageId)),
       personalStageId: r.placements[0]?.stageId ?? null,
       priority: r.priority as TaskPriority,
       deadline: r.deadline?.toISOString() ?? null,

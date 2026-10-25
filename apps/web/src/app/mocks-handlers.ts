@@ -22,9 +22,9 @@ import { API_MOCK_DOMAINS, type ApiMockDomain } from '../shared/api/api-mock-con
 const domainHandlers: Record<ApiMockDomain, HttpHandler[]> = {
   auth: authHandlers,
   directory: directoryHandlers,
-  // automation-хендлеры ПЕРВЫМИ: их буквальные пути (/tasks/types,
-  // /tasks/workflows/*) иначе перехватывает параметрический /tasks/:id
-  // из tasks-агрегата (MSW матчит по порядку, gotcha #378).
+  // automation-хендлеры ПЕРВЫМИ: буквальный /workflows/types должен стоять
+  // раньше параметрического /workflows/:id (MSW матчит по порядку массива,
+  // специфичность не учитывается — gotcha msw-query).
   tasks: [...automationHandlers, ...tasksHandlers],
   letters: lettersHandlers,
   counterparties: counterpartiesHandlers,

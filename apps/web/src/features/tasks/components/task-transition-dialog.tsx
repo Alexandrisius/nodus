@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { TaskDetail, TaskTransition } from '@nodus/contracts';
+import type { TaskDetail, WorkflowTransition } from '@nodus/contracts';
 import { isCompletedState, isFinalState, ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import {
@@ -22,9 +22,9 @@ import { useExecuteTransition } from '../api/transitions-api.js';
  *  и «Выполнить всё равно» с причиной в историю (право task.override_gate). */
 export function useTransitionRunner(task: TaskDetail) {
   const execute = useExecuteTransition(task.id);
-  const [pending, setPending] = useState<TaskTransition | null>(null);
+  const [pending, setPending] = useState<WorkflowTransition | null>(null);
 
-  function run(t: TaskTransition) {
+  function run(t: WorkflowTransition) {
     if (execute.isPending) return; // повторный клик во время хода — не дублируем
     if (t.blockedBy.length === 0) execute.mutate({ transition: t });
     else setPending(t);
@@ -52,9 +52,13 @@ function TransitionDialog({
   executing,
 }: {
   task: TaskDetail;
-  transition: TaskTransition | null;
+  transition: WorkflowTransition | null;
   onClose: () => void;
-  onExecute: (vars: { transition: TaskTransition; override?: boolean; reason?: string }) => void;
+  onExecute: (vars: {
+    transition: WorkflowTransition;
+    override?: boolean;
+    reason?: string;
+  }) => void;
   executing: boolean;
 }) {
   const bulk = useBulkTasks();

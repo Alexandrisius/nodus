@@ -149,7 +149,6 @@ export class TasksQueryRepository {
   branchRows(ids: string[]) {
     return this.prisma.task.findMany({
       where: { id: { in: ids } },
-      include: { stage: true },
       orderBy: { number: 'asc' },
     });
   }

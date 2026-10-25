@@ -1,0 +1,42 @@
+import { Module } from '@nestjs/common';
+
+import { USER_PROFILE_READER } from '../../core/ports/user-profile.port.js';
+import { UserProfileProvider } from '../../core/ports/user-profile.provider.js';
+import { CatalogBootstrap } from './catalog/catalog.bootstrap.js';
+import { CatalogRepository } from './catalog/catalog.repository.js';
+import { WorkflowPublishedHandler } from './events/workflow-published.handler.js';
+import { ProcessTypesController } from './types/process-types.controller.js';
+import { ProcessTypesService } from './types/process-types.service.js';
+import { WorkflowEditorController } from './workflow/editor/workflow-editor.controller.js';
+import { WorkflowEditorService } from './workflow/editor/publish.service.js';
+import { WorkflowPublishRepository } from './workflow/editor/publish.repository.js';
+import { WorkflowSyncJob } from './workflow/editor/workflow-sync.job.js';
+import { WorkflowsPortsModule } from './workflows-ports.module.js';
+
+/**
+ * Модуль «Процессы» (ADR-0024) — ядро платформы (I10, фичефлага нет): типы
+ * процессов (задача | письмо), маршруты (стадии, переходы, правила),
+ * редактор и публикация версиями (ADR-0021), холст (ADR-0022), системный
+ * каталог «засев один раз», фоновый перенос сущностей публикации. Движок
+ * работает с сущностями модулей-владельцев через адаптеры (порт
+ * `WorkflowEntityAdapter`, регистрация по `workflowCategory`); чужих таблиц
+ * не пишет. Порты для владельцев — `WorkflowsPortsModule` (ADR-0012).
+ */
+@Module({
+  imports: [WorkflowsPortsModule],
+  controllers: [ProcessTypesController, WorkflowEditorController],
+  providers: [
+    UserProfileProvider,
+    { provide: USER_PROFILE_READER, useClass: UserProfileProvider },
+    // Репозитории — единственная точка доступа к таблицам модуля (patterns.md).
+    CatalogRepository,
+    WorkflowPublishRepository,
+    CatalogBootstrap,
+    ProcessTypesService,
+    WorkflowEditorService,
+    WorkflowSyncJob,
+    // Фоновый перенос сущностей публикации ставится из outbox (at-least-once).
+    WorkflowPublishedHandler,
+  ],
+})
+export class WorkflowsModule {}

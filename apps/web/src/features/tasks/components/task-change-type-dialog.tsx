@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import type { TaskDetail, TaskType } from '@nodus/contracts';
+import type { TaskDetail, ProcessType } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@nodus/ui/components/dialog';
 import { Button } from '@nodus/ui/components/button';
@@ -12,9 +12,12 @@ import {
 } from '@nodus/ui/components/select';
 import { cn } from '@nodus/ui/lib/utils';
 
-import { useAliveTaskTypes, useChangeTaskType } from '../../../shared/api/task-types-api.js';
+import {
+  useAliveProcessTypes,
+  useChangeProcessType,
+} from '../../../shared/api/process-types-api.js';
 import { useWorkflowDetail } from '../../../shared/workflow/workflow-api.js';
-import { TaskTypeGlyph } from '../../../shared/workflow/task-type-icon.js';
+import { ProcessTypeGlyph } from '../../../shared/workflow/process-type-icon.js';
 
 /**
  * Смена типа задачи (#378): список доступных типов (значок, название,
@@ -22,8 +25,8 @@ import { TaskTypeGlyph } from '../../../shared/workflow/task-type-icon.js';
  * (дефолт: первый живой того же этапа, иначе начальный).
  */
 export function TaskChangeTypeDialog({ task, onClose }: { task: TaskDetail; onClose: () => void }) {
-  const { data: types } = useAliveTaskTypes();
-  const change = useChangeTaskType(task.id);
+  const { data: types } = useAliveProcessTypes();
+  const change = useChangeProcessType(task.id);
   const [typeId, setTypeId] = useState(task.type.id);
   const selected = useMemo(() => (types ?? []).find((t) => t.id === typeId), [types, typeId]);
   const workflow = useWorkflowDetail(selected?.workflowId ?? null);
@@ -42,7 +45,7 @@ export function TaskChangeTypeDialog({ task, onClose }: { task: TaskDetail; onCl
         <div className="flex flex-col gap-1">
           {(types ?? [])
             .filter((t) => t.id !== task.type.id)
-            .map((type: TaskType) => (
+            .map((type: ProcessType) => (
               <button
                 key={type.id}
                 type="button"
@@ -56,7 +59,7 @@ export function TaskChangeTypeDialog({ task, onClose }: { task: TaskDetail; onCl
                   typeId === type.id ? 'border-ring bg-accent' : 'border-border hover:border-input',
                 )}
               >
-                <TaskTypeGlyph
+                <ProcessTypeGlyph
                   icon={type.icon}
                   className="mt-0.5 size-4 shrink-0 text-muted-foreground"
                 />

@@ -14,7 +14,7 @@ import {
   personalStageUpdateBodySchema,
   taskStageSchema,
   taskStageWithCountSchema,
-  taskTransitionSchema,
+  workflowTransitionSchema,
   type AuthUser,
   type ExecuteTransitionBody,
   type ExecuteTransitionResult,
@@ -22,7 +22,7 @@ import {
   type PersonalStageUpdateBody,
   type TaskStage,
   type TaskStageWithCount,
-  type TaskTransition,
+  type WorkflowTransition,
 } from '@nodus/contracts';
 
 import { Audit } from '../../../core/decorators/audit.decorator.js';
@@ -32,7 +32,7 @@ import { ApiErrors } from '../../../core/openapi/api-errors.decorator.js';
 import { ApiIdempotencyKey } from '../../../core/openapi/api-idempotency.decorator.js';
 import { ZodValidationPipe } from '../../../core/pipes/zod-validation.pipe.js';
 import { PersonalStagesService } from '../personal/personal-stages.service.js';
-import { TransitionsService } from './transitions.service.js';
+import { TaskTransitionsService } from './task-transitions.service.js';
 
 const uuid = new ZodValidationPipe(z.uuid());
 
@@ -46,7 +46,7 @@ const uuid = new ZodValidationPipe(z.uuid());
 @Controller('tasks')
 export class TaskWorkflowController {
   constructor(
-    private readonly transitions: TransitionsService,
+    private readonly transitions: TaskTransitionsService,
     private readonly personal: PersonalStagesService,
   ) {}
 
@@ -112,9 +112,12 @@ export class TaskWorkflowController {
 
   @Get(':id/transitions')
   @ApiOperation({ summary: 'Доступные переходы маршрута (с причинами блокировки)' })
-  @ApiOkResponse({ standardSchema: z.array(taskTransitionSchema) })
+  @ApiOkResponse({ standardSchema: z.array(workflowTransitionSchema) })
   @ApiErrors(400, 401, 404)
-  available(@GetUser() user: AuthUser, @Param('id', uuid) id: string): Promise<TaskTransition[]> {
+  available(
+    @GetUser() user: AuthUser,
+    @Param('id', uuid) id: string,
+  ): Promise<WorkflowTransition[]> {
     return this.transitions.listFor(user, id);
   }
 

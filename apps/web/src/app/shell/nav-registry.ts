@@ -202,10 +202,10 @@ export const NAV_MODULES: NavModuleDef[] = [
     // меню; «Права доступа» добавит #379, «Схемы проектов» — #38 (V2).
     tabs: [
       {
-        id: 'types',
-        label: ui.automation.tabTypes,
-        search: { tab: 'types' },
-        isActive: (s) => (s.get('tab') ?? 'types') === 'types',
+        id: 'processes',
+        label: ui.automation.tabProcesses,
+        search: { tab: 'processes' },
+        isActive: (s) => (s.get('tab') ?? 'processes') === 'processes',
       },
     ],
   },

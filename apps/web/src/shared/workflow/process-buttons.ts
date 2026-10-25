@@ -1,6 +1,6 @@
 import type {
-  TaskActorRole,
-  TaskTransition,
+  WorkflowActorRole,
+  WorkflowTransition,
   WorkflowCondition,
   WorkflowDraftTransition,
 } from '@nodus/contracts';
@@ -20,7 +20,7 @@ export interface ProcessGroups<T> {
   menu: T[];
 }
 
-export function groupByDisplay<T extends { display: TaskTransition['display'] }>(
+export function groupByDisplay<T extends { display: WorkflowTransition['display'] }>(
   transitions: readonly T[],
 ): ProcessGroups<T> {
   return {
@@ -31,10 +31,10 @@ export function groupByDisplay<T extends { display: TaskTransition['display'] }>
 }
 
 /** Панель процесса карточки: серверные переходы уже отфильтрованы по «кто». */
-export const groupProcessButtons = groupByDisplay<TaskTransition>;
+export const groupProcessButtons = groupByDisplay<WorkflowTransition>;
 
 /** Роли предпросмотра «Как увидят панель процесса» (инспектор статуса). */
-export const PREVIEW_ROLES: readonly { id: string; roles: readonly TaskActorRole[] }[] = [
+export const PREVIEW_ROLES: readonly { id: string; roles: readonly WorkflowActorRole[] }[] = [
   { id: 'creator', roles: ['creator'] },
   { id: 'assignee', roles: ['assignee'] },
   { id: 'coexecutor', roles: ['coexecutor'] },
@@ -47,7 +47,7 @@ export const PREVIEW_ROLES: readonly { id: string; roles: readonly TaskActorRole
  *  условия-права в превью проходят. Порядок сохранён. */
 export function previewForRole(
   transitions: readonly WorkflowDraftTransition[],
-  roles: readonly TaskActorRole[],
+  roles: readonly WorkflowActorRole[],
 ): WorkflowDraftTransition[] {
   return transitions.filter((t) => {
     const conditions = t.rules.conditions;

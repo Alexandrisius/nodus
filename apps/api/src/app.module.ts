@@ -24,6 +24,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { DesktopModule } from './modules/desktop/desktop.module.js';
 import { HomeModule } from './modules/home/home.module.js';
 import { TasksModule } from './modules/tasks/tasks.module.js';
+import { WorkflowsModule } from './modules/workflows/workflows.module.js';
 
 @Module({
   imports: [
@@ -48,7 +49,11 @@ import { TasksModule } from './modules/tasks/tasks.module.js';
     // чата (ChatPortsModule внутри), подписан на события chat.*.
     NotificationsModule,
     HomeModule,
-    // Задачи (#37): самостоятельные задачи, движок маршрутов (ADR-0020).
+    // «Процессы» (#428, ADR-0024): типы процессов, маршруты, редактор,
+    // публикация, общий движок; ядро — фичефлага нет (I10).
+    WorkflowsModule,
+    // Задачи (#37): самостоятельные задачи; движок маршрутов — в workflows,
+    // задачи подключаются адаптером сущности (ADR-0024).
     TasksModule,
     // Десктоп-оболочка (#254): публичный конфиг для тонкого клиента.
     DesktopModule,

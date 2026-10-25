@@ -5,7 +5,7 @@ import { ui } from '@nodus/contracts';
 import { useOpenCard } from '../../../app/shell/use-card-stack.js';
 import { tasksKeys } from '../../../shared/api/tasks-keys.js';
 import { useTaskStages } from '../../../shared/api/task-stages.js';
-import { defaultTaskType, useAliveTaskTypes } from '../../../shared/api/task-types-api.js';
+import { defaultProcessType, useAliveProcessTypes } from '../../../shared/api/process-types-api.js';
 import { globalAxis } from '../../../shared/lib/board/kanban-board.js';
 import { BoardColumn } from '../../../shared/ui/board/board-column.js';
 import { BoardScroller } from '../../../shared/ui/board/board-scroller.js';
@@ -42,8 +42,8 @@ export function ProjectKanban({
   // Колонки — статусы типа по умолчанию («Стандартный»): у каждого типа свой
   // маршрут, общий каталог задваивал колонки («В работе» ×2). Доску по
   // схеме проекта (тип → маршрут) даст ступень 3 (#38).
-  const { data: types } = useAliveTaskTypes();
-  const defaultType = defaultTaskType(types);
+  const { data: types } = useAliveProcessTypes();
+  const defaultType = defaultProcessType(types);
   const { data: stages } = useTaskStages(defaultType?.id, { enabled: defaultType !== undefined });
   const move = useMoveProjectTask();
   const create = useCreateProjectTask(projectId);

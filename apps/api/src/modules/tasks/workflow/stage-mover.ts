@@ -3,10 +3,13 @@ import { isCompletedState, isFinalState, TASK_EVENTS } from '@nodus/contracts';
 
 import type { TransactionClient } from '../../../core/database/transaction-runner.js';
 import { EventBus } from '../../../core/events/event-bus.js';
+import type {
+  WorkflowEntityStage,
+  WorkflowStageChangeCause,
+} from '../../../core/ports/workflow-entity.port.js';
 import { audienceIds, planHolderIds } from '../access/task-access.js';
 import { Placements } from '../personal/placements.js';
 import { TasksRepository } from '../tasks/tasks.repository.js';
-import type { StageRow } from './workflow.repository.js';
 
 export interface MovableTask {
   id: string;
@@ -20,7 +23,7 @@ export interface MovableTask {
 }
 
 /** Почему меняется стадия (поле `cause` события stage_changed). */
-export type StageChangeCause = 'transition' | 'workflow_migration' | 'type_change';
+export type StageChangeCause = WorkflowStageChangeCause;
 
 /**
  * Общий доменный помощник смены стадии задачи (#378, спека фазы 3): правила
@@ -44,7 +47,7 @@ export class StageMover {
   async apply(
     tx: TransactionClient,
     task: MovableTask,
-    target: Pick<StageRow, 'id' | 'name' | 'systemState' | 'outcome'>,
+    target: WorkflowEntityStage,
     actorId: string | null,
     meta: {
       transitionId: string | null;

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { TaskType } from '@nodus/contracts';
+import type { ProcessType } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import {
   DropdownMenu,
@@ -9,6 +9,7 @@ import {
   DropdownMenuTrigger,
 } from '@nodus/ui/components/dropdown-menu';
 import { Input } from '@nodus/ui/components/input';
+import { NodeLabel } from '@nodus/ui/components/node-label';
 import { cn } from '@nodus/ui/lib/utils';
 import {
   Archive,
@@ -21,10 +22,11 @@ import {
   X,
 } from 'lucide-react';
 
-import { useArchiveTaskType } from '../../api/automation-api.js';
+import { useArchiveProcessType } from '../../api/automation-api.js';
+import { groupByCategory } from '../../lib/group-by-category.js';
 import { useCanManageWorkflows } from '../../lib/use-can-manage-workflows.js';
-import { TaskTypeGlyph } from '../../../../shared/workflow/task-type-icon.js';
-import { TaskTypeCreateDialog } from './type-create-dialog.js';
+import { ProcessTypeGlyph } from '../../../../shared/workflow/process-type-icon.js';
+import { ProcessTypeCreateDialog } from './type-create-dialog.js';
 import { pluralRu } from '../../lib/plural-ru.js';
 import { toneOf } from './tone-of.js';
 
@@ -34,10 +36,11 @@ export function typeMeta(stages: number, tasks: number): string {
 }
 
 /**
- * Левая колонка типов задач — грамматика списка бесед мессенджера: шапка
- * h-14 с поиском и кнопкой «+», строки «плитка-значок + название + мета»,
- * меню «⋯» по ховеру строки (настройки/копировать/архив), архив — свёрнутой
- * группой внизу. Название раздела НЕ дублируется (вкладка — в топбаре).
+ * Левая колонка типов процессов — грамматика списка бесед мессенджера:
+ * шапка h-14 с поиском и кнопкой «+», строки «плитка-значок + название +
+ * мета», меню «⋯» по ховеру строки (настройки/копировать/архив), архив —
+ * свёрнутой группой внизу. Название раздела НЕ дублируется (вкладка — в
+ * топбаре). Категории — группами с заголовками при двух и больше.
  */
 export function TypeList({
   types,
@@ -50,7 +53,7 @@ export function TypeList({
   onOpenSettings,
   onCopyType,
 }: {
-  types: TaskType[];
+  types: ProcessType[];
   stageCounts: Record<string, number>;
   taskCounts: Record<string, number>;
   /** Типы с несохранённым черновиком маршрута (точка в строке). */
@@ -65,14 +68,30 @@ export function TypeList({
   const [query, setQuery] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
-  const archive = useArchiveTaskType(true);
-  const restore = useArchiveTaskType(false);
+  const archive = useArchiveProcessType(true);
+  const restore = useArchiveProcessType(false);
 
   const q = query.trim().toLowerCase();
   const alive = types.filter((t) => !t.archivedAt && (!q || t.name.toLowerCase().includes(q)));
   const archived = types.filter((t) => t.archivedAt && (!q || t.name.toLowerCase().includes(q)));
+  const aliveGroups = groupByCategory(alive);
+  const archivedGroups = groupByCategory(archived);
 
-  const row = (type: TaskType) => {
+  /** Список с заголовками категорий, когда их две и больше. */
+  const list = (items: ProcessType[], groups: ReturnType<typeof groupByCategory>) =>
+    groups.length > 1
+      ? groups.map((group) => (
+          <div key={group.category} className="flex flex-col gap-0.5">
+            <NodeLabel
+              label={ui.automation.categoryGroups[group.category]}
+              className="px-2.5 pt-2 pb-1"
+            />
+            {group.types.map(row)}
+          </div>
+        ))
+      : items.map(row);
+
+  const row = (type: ProcessType) => {
     const selected = type.id === selectedId;
     const dirty = dirtyIds.has(type.id);
     const rowArchived = type.archivedAt !== null;
@@ -95,7 +114,7 @@ export function TypeList({
               toneOf(type.color),
             )}
           >
-            <TaskTypeGlyph icon={type.icon} className="size-4" />
+            <ProcessTypeGlyph icon={type.icon} className="size-4" />
           </span>
           <span className="min-w-0 flex-1">
             <span className="flex items-center gap-1.5">
@@ -207,7 +226,7 @@ export function TypeList({
         {isLoading ? (
           <div className="px-2 py-2 text-sm text-muted-foreground">…</div>
         ) : alive.length > 0 ? (
-          alive.map(row)
+          list(alive, aliveGroups)
         ) : (
           <div className="px-2 py-2 text-sm text-muted-foreground">{ui.common.empty}</div>
         )}
@@ -222,12 +241,12 @@ export function TypeList({
               <Archive className="size-3.5" strokeWidth={1.75} />
               {ui.automation.archiveGroup} · {archived.length}
             </button>
-            {archiveOpen ? archived.map(row) : null}
+            {archiveOpen ? list(archived, archivedGroups) : null}
           </div>
         ) : null}
       </div>
 
-      {createOpen ? <TaskTypeCreateDialog onClose={() => setCreateOpen(false)} /> : null}
+      {createOpen ? <ProcessTypeCreateDialog onClose={() => setCreateOpen(false)} /> : null}
     </aside>
   );
 }

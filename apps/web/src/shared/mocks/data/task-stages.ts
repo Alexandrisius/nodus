@@ -69,14 +69,16 @@ export const demoStages: TaskStage[] = [
 
 /** Системные типы задач (ревизия 2): «Стандартный» — с утверждением,
  *  «Быстрый» — без. Полные DTO — в workflows.ts (библиотека типов). */
-export const systemTaskType = {
+export const systemProcessType = {
   id: '20000000-0000-4000-8000-000000000900',
   code: 'task',
   name: 'Стандартный',
+  category: 'task',
 } as const;
 
-export const quickTaskType = {
+export const quickProcessType = {
   id: '20000000-0000-4000-8000-000000000901',
   code: 'quick',
   name: 'Быстрый',
+  category: 'task',
 } as const;

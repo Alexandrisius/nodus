@@ -242,6 +242,7 @@
 | Что | Результат |
 |---|---|
 | План (этот файл) | закоммичен в main 25.10 (0ed4972a) |
+| П0 — #428 модуль «Процессы» | ветка `chore/428-workflows-module` (25.10): контракты `workflows/`, `process_types` + 4 миграции, модуль `workflows` (порт адаптера сущности, `WORKFLOW_ENGINE`, `PROCESS_CATALOG_READER`), адаптер задач, API `/workflows/*`, события `workflow.*`, право `workflow.manage`, веб-вкладка «Процессы» с группировкой категорий; дальше — гейты (code/security/ui) и вердикт владельца |
 | Ч1 — канон | issue #427; ветка `chore/427-process-model-canon`: ADR 0024–0033 + индекс и статусы 0008/0020/0021/0022, modules, data-model, api-conventions, glossary, north-star, roadmap, core-flows, ux-principles, workflow.md + AGENTS.md (метки), process-map (дельта А), incubator — закоммичено локально; дальше: code-reviewer → push → PR → CI → squash-мерж |
 | Метки | создать `module:custom-fields`, `module:esign`, `module:resources` |
 | Эпики | переписать #377, #50, #49, #18; создать M14, M16 — номера сюда |

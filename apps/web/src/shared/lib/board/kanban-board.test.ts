@@ -11,7 +11,12 @@ import {
   stageOfDragId,
 } from './kanban-board.js';
 
-const systemTaskType = { id: '20000000-0000-4000-8000-000000000900', code: 'task', name: 'Задача' };
+const systemProcessType = {
+  id: '20000000-0000-4000-8000-000000000900',
+  code: 'task',
+  name: 'Задача',
+  category: 'task',
+} as const;
 
 const STAGE_A: TaskStage = {
   id: 'a',
@@ -33,7 +38,7 @@ const task = (id: string, stage: TaskStage): TaskListItem =>
     id,
     number: 1,
     title: id,
-    type: systemTaskType,
+    type: systemProcessType,
     stage,
     personalStageId: null,
     priority: 'normal',

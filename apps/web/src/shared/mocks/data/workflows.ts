@@ -1,7 +1,7 @@
-import type { TaskType, WorkflowDetail, WorkflowDocument } from '@nodus/contracts';
+import type { ProcessType, WorkflowDetail, WorkflowDocument } from '@nodus/contracts';
 
 import {
-  quickTaskType,
+  quickProcessType,
   stageCancelled,
   stageDone,
   stageInProgress,
@@ -9,7 +9,7 @@ import {
   stageOnControl,
   stagePaused,
   stagePostponed,
-  systemTaskType,
+  systemProcessType,
 } from './task-stages.js';
 
 /** Библиотека типов задач и их маршрутов (ревизия 2, #378) — мок-данные
@@ -25,37 +25,39 @@ export const STANDARD_WORKFLOW_ID = wid(50);
 export const QUICK_WORKFLOW_ID = wid(51);
 export const ARCHIVED_WORKFLOW_ID = wid(52);
 
-export const standardTaskType: TaskType = {
-  id: systemTaskType.id,
+export const standardProcessType: ProcessType = {
+  id: systemProcessType.id,
   code: 'task',
   name: 'Стандартный',
   icon: 'square-check',
   color: 'neutral',
   description: 'С утверждением постановщиком',
   creatable: true,
-  structural: false,
+  category: 'task',
+  direction: null,
   isSystem: true,
   sortOrder: 0,
   archivedAt: null,
   workflowId: STANDARD_WORKFLOW_ID,
 };
 
-export const quickTypeDto: TaskType = {
-  id: quickTaskType.id,
+export const quickTypeDto: ProcessType = {
+  id: quickProcessType.id,
   code: 'quick',
   name: 'Быстрый',
   icon: 'zap',
   color: 'success',
   description: 'Без утверждения — для мелких поручений',
   creatable: true,
-  structural: false,
+  category: 'task',
+  direction: null,
   isSystem: true,
   sortOrder: 1,
   archivedAt: null,
   workflowId: QUICK_WORKFLOW_ID,
 };
 
-export const archivedDemoType: TaskType = {
+export const archivedDemoType: ProcessType = {
   id: '20000000-0000-4000-8000-000000000902',
   code: 'custom-check-docs',
   name: 'Проверка документации',
@@ -63,14 +65,19 @@ export const archivedDemoType: TaskType = {
   color: 'warning',
   description: 'Старый маршрут проверки',
   creatable: false,
-  structural: false,
+  category: 'task',
+  direction: null,
   isSystem: false,
   sortOrder: 2,
   archivedAt: '2026-10-01T10:00:00Z',
   workflowId: ARCHIVED_WORKFLOW_ID,
 };
 
-export const demoTaskTypes: TaskType[] = [standardTaskType, quickTypeDto, archivedDemoType];
+export const demoProcessTypes: ProcessType[] = [
+  standardProcessType,
+  quickTypeDto,
+  archivedDemoType,
+];
 
 /** Правила-сокращения ревизии 2. */
 import type { WorkflowCondition, WorkflowValidator } from '@nodus/contracts';
@@ -279,33 +286,30 @@ const simpleDocument: WorkflowDocument = {
 };
 
 const publishedAt = '2026-10-18T14:05:00Z';
+const publishedBy = {
+  id: '00000000-0000-4000-8000-000000000001',
+  displayName: 'Климович А.',
+  avatarUrl: null,
+};
 
 export const demoWorkflowDetails: Record<string, WorkflowDetail> = {
   [STANDARD_WORKFLOW_ID]: {
     id: STANDARD_WORKFLOW_ID,
-    typeIds: [standardTaskType.id],
+    typeIds: [standardProcessType.id],
     version: 3,
     publishedAt,
-    publishedBy: {
-      id: '00000000-0000-4000-8000-000000000001',
-      displayName: 'Климович А.',
-      avatarUrl: null,
-    },
+    publishedBy,
     document: standardDocument,
-    stageTaskCounts: {},
+    stageEntityCounts: {},
   },
   [QUICK_WORKFLOW_ID]: {
     id: QUICK_WORKFLOW_ID,
     typeIds: [quickTypeDto.id],
     version: 2,
     publishedAt,
-    publishedBy: {
-      id: '00000000-0000-4000-8000-000000000001',
-      displayName: 'Климович А.',
-      avatarUrl: null,
-    },
+    publishedBy,
     document: quickDocument,
-    stageTaskCounts: {},
+    stageEntityCounts: {},
   },
   [ARCHIVED_WORKFLOW_ID]: {
     id: ARCHIVED_WORKFLOW_ID,
@@ -314,6 +318,6 @@ export const demoWorkflowDetails: Record<string, WorkflowDetail> = {
     publishedAt,
     publishedBy: null,
     document: simpleDocument,
-    stageTaskCounts: {},
+    stageEntityCounts: {},
   },
 };

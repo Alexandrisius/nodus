@@ -12,7 +12,7 @@ ADR-0008 зафиксировал две оси (скрытое `systemState` + 
 
 Модель Jira (issue type → workflow через workflow scheme; status category = наш `systemState`), четыре таблицы модуля `tasks`:
 
-1. **`TaskType`** — глобальный справочник типов (I15): `code`, `name`, `structural` (узел дерева проекта, ступень 3; в «Мой план» исполнителей не попадает), `isSystem`, `archivedAt`. Тип не принадлежит схеме — один «Задание» живёт во всех проектах.
+1. **`TaskType`** — глобальный справочник типов (I15): `code`, `name`, `structural` (узел дерева проекта, ступень 3; в «Мой план» исполнителей не попадает), `isSystem`, `archivedAt`. Тип не принадлежит схеме — один «Задание» живёт во всех проектах. *(#428/ADR-0024: `TaskType` → `ProcessType` с категорией `task | letter`, `structural` больше не читается; движок — модуль `workflows`.)*
 2. **`Workflow`** — маршрут: `kind: task | personal` (личный «Мой план» — маршрут пользователя, `ownerId`), набор **`WorkflowStage`** (имя, цвет-тон, порядок, `systemState`, `isInitial`, `archivedAt` — удаление = архивация) и **`WorkflowTransition`** (`fromStageId` | `null` = «из любой стадии», `toStageId`, имя кнопки, порядок, `rules` JSONB).
 3. **`WorkflowScheme`** + **`WorkflowSchemeEntry`** — «тип → маршрут». Одна системная схема по умолчанию для всех задач; задача без проекта берёт её, проект (ступень 3) выберет свою. Задача хранит `typeId` + `workflowId` + `stageId` — смена схемы проекта не ломает задачи в полёте.
 4. **Правила перехода** (`rules`) — закрытый реестр видов в `@nodus/contracts` (`workflowRuleSchema`, дискриминатор `kind`), три списка как в Jira:

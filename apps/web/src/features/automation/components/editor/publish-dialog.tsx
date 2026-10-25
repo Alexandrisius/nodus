@@ -117,14 +117,14 @@ export function PublishDialog({
   // Счётчики, присланные сервером в отказе, переживают повторную попытку.
   const [serverCounts, setServerCounts] = useState<Record<string, number>>({});
   const countOf = (stageId: string) =>
-    serverCounts[stageId] ?? workflow.stageTaskCounts[stageId] ?? 0;
+    serverCounts[stageId] ?? workflow.stageEntityCounts[stageId] ?? 0;
   const removed = baseline.stages.filter((s) => !doc.stages.some((n) => n.id === s.id));
   const removedWithTasks = removed.filter((s) => countOf(s.id) > 0);
   const restates = baseline.stages
     .map((before) => ({
       before,
       after: doc.stages.find((n) => n.id === before.id),
-      count: workflow.stageTaskCounts[before.id] ?? 0,
+      count: workflow.stageEntityCounts[before.id] ?? 0,
     }))
     .filter(
       (row) => row.after && row.after.systemState !== row.before.systemState && row.count > 0,

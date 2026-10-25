@@ -11,8 +11,8 @@ import {
   globalStageForPersonal,
 } from '../../../../shared/mocks/data/tasks.js';
 import { demoProjects } from '../../../../shared/mocks/data/projects.js';
-import { demoStages, systemTaskType } from '../../../../shared/mocks/data/task-stages.js';
-import { demoTaskTypes, demoWorkflowDetails } from '../../../../shared/mocks/data/workflows.js';
+import { demoStages, systemProcessType } from '../../../../shared/mocks/data/task-stages.js';
+import { demoProcessTypes, demoWorkflowDetails } from '../../../../shared/mocks/data/workflows.js';
 import type { WorkflowDetail } from '@nodus/contracts';
 import { currentAuthUser, userRef } from '../../../../shared/mocks/data/users.js';
 
@@ -22,12 +22,14 @@ function notFound(message: string) {
 
 /** workflowId живого типа (архивный каталог стадий не отдаёт). */
 function workflowIdOfType(typeId: string): string | null {
-  return demoTaskTypes.find((t) => t.id === typeId && !t.archivedAt)?.workflowId ?? null;
+  return demoProcessTypes.find((t) => t.id === typeId && !t.archivedAt)?.workflowId ?? null;
 }
 function typeNameOf(typeId: string): string | undefined {
-  return demoTaskTypes.find((t) => t.id === typeId)?.name;
+  return demoProcessTypes.find((t) => t.id === typeId)?.name;
 }
-const archivedTypeIds = new Set(demoTaskTypes.filter((t) => t.archivedAt).map((t) => t.workflowId));
+const archivedTypeIds = new Set(
+  demoProcessTypes.filter((t) => t.archivedAt).map((t) => t.workflowId),
+);
 
 /** Стадия новой задачи — как `TasksService.create` API: только фаза open
  *  (security-гейт #37: создание сразу «на утверждении» или «завершённой»
@@ -157,7 +159,7 @@ export const tasksListHandlers = [
       id: crypto.randomUUID(),
       number: Math.max(...demoTasks.map((t) => t.number)) + 1,
       title: parsed.data.title,
-      type: systemTaskType,
+      type: systemProcessType,
       stage,
       personalStageId,
       priority: 'normal',

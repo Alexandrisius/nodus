@@ -3,15 +3,15 @@ import { z } from 'zod';
 import { userRefSchema } from '../directory/user-ref.schema.js';
 import { cursorQuerySchema } from '../pagination/paginated.schema.js';
 import { projectColorSchema } from '../projects/project.schemas.js';
-import { taskTypeRefSchema } from './task-type.schemas.js';
-import { taskTransitionSchema } from './workflow.schemas.js';
+import { processTypeRefSchema } from '../workflows/process-type.schemas.js';
+import { workflowTransitionSchema } from '../workflows/workflow.schemas.js';
 import {
   stageColorSchema,
   stageOutcomeSchema,
   taskSystemStateSchema,
   type StageColor,
   type TaskSystemState,
-} from './workflow-primitives.schemas.js';
+} from '../workflows/workflow-primitives.schemas.js';
 
 /**
  * Контракты модуля задач (tasks.Task). Системное состояние — скрытое (I15),
@@ -21,7 +21,7 @@ import {
 // Примитивы палитры и состояний живут в workflow-primitives (общие для
 // схем задач, типов и документов маршрута) — переэкспорт для потребителей.
 export { stageColorSchema, taskSystemStateSchema };
-export type { StageColor, TaskSystemState } from './workflow-primitives.schemas.js';
+export type { StageColor, TaskSystemState } from '../workflows/workflow-primitives.schemas.js';
 
 export const taskPrioritySchema = z.enum(['low', 'normal', 'high', 'urgent']);
 export type TaskPriority = z.infer<typeof taskPrioritySchema>;
@@ -80,8 +80,8 @@ export const taskListItemSchema = z.object({
   id: z.uuid(),
   number: z.number().int().min(1),
   title: z.string().min(1),
-  /** Тип задачи (ADR-0020); ступень 1 — один системный «Задача». */
-  type: taskTypeRefSchema,
+  /** Тип процесса (ADR-0020/0024); категория задачи. */
+  type: processTypeRefSchema,
   stage: taskStageSchema,
   /** Размещение на личной доске «Мой план» текущего пользователя
    *  (TaskPersonalPlacement, ADR-0008); null — ещё не раскладывалась. */
@@ -272,10 +272,20 @@ export type TaskUpdateBody = z.infer<typeof taskUpdateBodySchema>;
  *  процесса обновляется одним ходом, без повторного GET /transitions). */
 export const executeTransitionResultSchema = z.object({
   task: taskListItemSchema,
-  transitions: z.array(taskTransitionSchema),
+  transitions: z.array(workflowTransitionSchema),
 });
 
 export type ExecuteTransitionResult = z.infer<typeof executeTransitionResultSchema>;
+
+/** `POST /tasks/:id/type` — смена типа задачи. Если текущего статуса нет в
+ *  новом маршруте — обязателен `stageId` (куда встать; подсказка дефолта —
+ *  первый живой статус того же этапа, иначе начальный). Тип чужой категории
+ *  (письмо) сервер отвергает: 404 — сущность другого модуля. */
+export const changeTaskTypeBodySchema = z.object({
+  typeId: z.uuid(),
+  stageId: z.uuid().optional(),
+});
+export type ChangeTaskTypeBody = z.infer<typeof changeTaskTypeBodySchema>;
 
 /** CRUD личных стадий «Моего плана» (личная схема пользователя, ADR-0008).
  *  Удаление — DELETE /tasks/personal-stages/:id (последняя запрещена — 409);

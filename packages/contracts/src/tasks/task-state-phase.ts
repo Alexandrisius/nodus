@@ -1,4 +1,7 @@
-import { taskSystemStateSchema, type TaskSystemState } from './workflow-primitives.schemas.js';
+import {
+  taskSystemStateSchema,
+  type TaskSystemState,
+} from '../workflows/workflow-primitives.schemas.js';
 
 /**
  * Фазы системного состояния задачи (ADR-0020, дополнение 2) — ЕДИНСТВЕННЫЙ

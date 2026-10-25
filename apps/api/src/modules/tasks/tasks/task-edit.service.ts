@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import {
   ErrorCode,
   TASK_EVENTS,
@@ -13,12 +13,15 @@ import {
 } from '../../../core/database/transaction-runner.js';
 import { DomainException } from '../../../core/errors/domain-exception.js';
 import { EventBus } from '../../../core/events/event-bus.js';
+import {
+  WORKFLOW_ENGINE,
+  type WorkflowEnginePort,
+} from '../../workflows/ports/workflow-engine.port.js';
 import { actorRoles, audienceIds, planHolderIds, taskAccess } from '../access/task-access.js';
 import { ParticipantsRepository } from '../participants/participants.repository.js';
+import { PersonalBoardsRepository } from '../personal/personal-boards.repository.js';
 import { Placements } from '../personal/placements.js';
 import { PlacementsRepository } from '../personal/placements.repository.js';
-import { TransitionsService } from '../workflow/transitions.service.js';
-import { WorkflowRepository } from '../workflow/workflow.repository.js';
 import type { TaskListRow } from './task-row.js';
 import { TasksQueryService } from './tasks-query.service.js';
 import { TasksRepository, type TaskFieldsPatch } from './tasks.repository.js';
@@ -47,11 +50,11 @@ export class TaskEditService {
     private readonly repo: TasksRepository,
     private readonly query: TasksQueryService,
     private readonly tasks: TasksService,
-    private readonly transitions: TransitionsService,
     private readonly placements: Placements,
     private readonly placementsRepo: PlacementsRepository,
     private readonly participantsRepo: ParticipantsRepository,
-    private readonly workflows: WorkflowRepository,
+    private readonly boards: PersonalBoardsRepository,
+    @Inject(WORKFLOW_ENGINE) private readonly engine: WorkflowEnginePort,
   ) {}
 
   async update(user: AuthUser, id: string, body: TaskUpdateBody): Promise<TaskListItem> {
@@ -173,7 +176,7 @@ export class TaskEditService {
   ): Promise<void> {
     const currentStageId = await this.repo.stageIdOf(tx, row.id);
     if (currentStageId !== stageId) {
-      await this.transitions.execute(tx, row.id, user, { stageId });
+      await this.engine.execute(tx, row.id, 'task', user, { stageId });
     } else if (!canEdit) {
       throw DomainException.forbidden('Reorder not allowed');
     }
@@ -192,13 +195,13 @@ export class TaskEditService {
     stageId: string,
     index: number | undefined,
   ): Promise<void> {
-    const column = await this.workflows.findPersonalColumn(user.id, stageId, tx);
+    const column = await this.boards.findColumn(user.id, stageId, tx);
     if (!column) throw DomainException.notFound('Stage not found');
     const placement = await this.placementsRepo.findOne(tx, row.id, user.id);
     if (!placement) throw DomainException.notFound('Task is not in your plan');
     const systemState = await this.repo.systemStateOf(tx, row.id);
     if (systemState !== column.systemState) {
-      await this.transitions.execute(tx, row.id, user, { systemState: column.systemState });
+      await this.engine.execute(tx, row.id, 'task', user, { systemState: column.systemState });
     }
     const sortOrder = await this.placementsRepo.keyAt(tx, user.id, stageId, index ?? 0, row.id);
     await this.placementsRepo.move(tx, { taskId: row.id, userId: user.id, stageId, sortOrder });

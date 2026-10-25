@@ -9,7 +9,7 @@ import {
   stageNew,
   stageOnControl,
   stagePostponed,
-  systemTaskType,
+  systemProcessType,
 } from './task-stages.js';
 import { userIds, userRef } from './users.js';
 
@@ -61,7 +61,7 @@ export function makeBulkDemoTasks(): TaskListItem[] {
         id: tid(1000 + n),
         number: n,
         title: `${title} (${1 + (i % 4)})`,
-        type: systemTaskType,
+        type: systemProcessType,
         stage: i < 55 ? stageDone : (BULK_STAGES[i % BULK_STAGES.length] ?? stageNew),
         priority: (['low', 'normal', 'high', 'urgent'] as const)[i % 4] ?? 'normal',
         deadline: i % 3 === 0 ? isoIn((i % 14) - 3, 12 + (i % 8)) : null,

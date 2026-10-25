@@ -19,8 +19,7 @@ import { visibleTasksWhere } from '../access/task-visibility.js';
 import { stageDto } from '../tasks/task-dto.mapper.js';
 import { TasksQueryService } from '../tasks/tasks-query.service.js';
 import { TasksQueryRepository } from '../tasks/tasks-query.repository.js';
-import { WorkflowRepository } from '../workflow/workflow.repository.js';
-import { PersonalStagesRepository } from './personal-stages.repository.js';
+import { PersonalBoardsRepository } from './personal-boards.repository.js';
 import { PlacementsRepository } from './placements.repository.js';
 
 /** Потолок колонок личной доски (анти-DoS, находка security-гейта #37). */
@@ -39,15 +38,15 @@ export class PersonalStagesService {
   constructor(
     private readonly txRunner: TransactionRunner,
     private readonly eventBus: EventBus,
-    private readonly workflows: WorkflowRepository,
-    private readonly stagesRepo: PersonalStagesRepository,
+    private readonly boards: PersonalBoardsRepository,
+    private readonly stagesRepo: PersonalBoardsRepository,
     private readonly placementsRepo: PlacementsRepository,
     private readonly queryRepo: TasksQueryRepository,
     private readonly query: TasksQueryService,
   ) {}
 
   async list(user: AuthUser): Promise<TaskStageWithCount[]> {
-    const workflowId = await this.workflows.ensurePersonal(user.id);
+    const workflowId = await this.boards.ensurePersonal(user.id);
     const viewer = await this.query.viewer(user);
     const [stages, counts] = await Promise.all([
       this.stagesRepo.liveStages(workflowId),
@@ -61,7 +60,7 @@ export class PersonalStagesService {
   }
 
   async create(user: AuthUser, body: PersonalStageCreateBody): Promise<TaskStage> {
-    const workflowId = await this.workflows.ensurePersonal(user.id);
+    const workflowId = await this.boards.ensurePersonal(user.id);
     return this.txRunner.run(async (tx) => {
       await this.stagesRepo.lockBoard(user.id, tx);
       const total = await this.stagesRepo.countLive(workflowId, tx);
@@ -83,7 +82,7 @@ export class PersonalStagesService {
   }
 
   async update(user: AuthUser, stageId: string, body: PersonalStageUpdateBody): Promise<TaskStage> {
-    const workflowId = await this.workflows.ensurePersonal(user.id);
+    const workflowId = await this.boards.ensurePersonal(user.id);
     return this.txRunner.run(async (tx) => {
       await this.stagesRepo.lockBoard(user.id, tx);
       const stages = await this.stagesRepo.liveStages(workflowId, tx);
@@ -113,7 +112,7 @@ export class PersonalStagesService {
   }
 
   async archive(user: AuthUser, stageId: string): Promise<{ ok: true; movedToStageId?: string }> {
-    const workflowId = await this.workflows.ensurePersonal(user.id);
+    const workflowId = await this.boards.ensurePersonal(user.id);
     return this.txRunner.run(async (tx) => {
       await this.stagesRepo.lockBoard(user.id, tx);
       const stages = await this.stagesRepo.liveStages(workflowId, tx);

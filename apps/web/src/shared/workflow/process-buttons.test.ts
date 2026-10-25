@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import type { TaskTransition, WorkflowDraftTransition } from '@nodus/contracts';
+import type { WorkflowTransition, WorkflowDraftTransition } from '@nodus/contracts';
 
 import { groupByDisplay, previewForRole, PREVIEW_ROLES } from './process-buttons.js';
 
-const t = (id: string, display: TaskTransition['display']): TaskTransition => ({
+const t = (id: string, display: WorkflowTransition['display']): WorkflowTransition => ({
   id,
   name: id,
   toStageId: '00000000-0000-4000-8000-000000000001',

@@ -1,4 +1,4 @@
-import { Permission, type TaskAccess, type TaskActorRole } from '@nodus/contracts';
+import { Permission, type TaskAccess, type WorkflowActorRole } from '@nodus/contracts';
 
 /**
  * Права на задачу (мини-спека #37) — чистые функции над ролями актора.
@@ -12,8 +12,8 @@ export interface TaskRoleFacts {
   participants: readonly { userId: string; role: string }[];
 }
 
-export function actorRoles(task: TaskRoleFacts, userId: string): Set<TaskActorRole> {
-  const roles = new Set<TaskActorRole>();
+export function actorRoles(task: TaskRoleFacts, userId: string): Set<WorkflowActorRole> {
+  const roles = new Set<WorkflowActorRole>();
   if (task.creatorId === userId) roles.add('creator');
   if (task.assigneeId === userId) roles.add('assignee');
   for (const p of task.participants) {
@@ -25,7 +25,7 @@ export function actorRoles(task: TaskRoleFacts, userId: string): Set<TaskActorRo
 }
 
 export function taskAccess(
-  roles: ReadonlySet<TaskActorRole>,
+  roles: ReadonlySet<WorkflowActorRole>,
   permissions: readonly string[],
 ): TaskAccess {
   const manageAny = permissions.includes(Permission.TASK_MANAGE_ANY);

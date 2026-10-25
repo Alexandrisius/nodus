@@ -1,9 +1,9 @@
-import type { TaskType, WorkflowProblem } from '@nodus/contracts';
+import type { ProcessType, WorkflowProblem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import { LayoutGrid, Plus } from 'lucide-react';
 
-import { TaskTypeGlyph } from '../../../../shared/workflow/task-type-icon.js';
+import { ProcessTypeGlyph } from '../../../../shared/workflow/process-type-icon.js';
 import { ProblemsChip } from './problems-chip.js';
 
 function formatDate(iso: string): string {
@@ -40,7 +40,7 @@ export function RouteToolbar({
   onDiscard,
   onPublish,
 }: {
-  type: TaskType;
+  type: ProcessType;
   canManage: boolean;
   dirty: boolean;
   publishedAt: string | null;
@@ -63,7 +63,7 @@ export function RouteToolbar({
     >
       <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
         <span className="flex min-w-0 shrink items-center gap-2" title={type.name}>
-          <TaskTypeGlyph icon={type.icon} className="size-4 shrink-0 text-muted-foreground" />
+          <ProcessTypeGlyph icon={type.icon} className="size-4 shrink-0 text-muted-foreground" />
           <span className="truncate text-sm font-medium">{type.name}</span>
         </span>
         {!canManage ? (

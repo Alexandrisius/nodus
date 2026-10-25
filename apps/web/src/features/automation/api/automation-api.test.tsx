@@ -1,20 +1,20 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
-import type { TaskType } from '@nodus/contracts';
+import type { ProcessType } from '@nodus/contracts';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderHook, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 
 import { automationKeys } from '../../../shared/api/automation-keys.js';
-import { useUpdateTaskType } from './automation-api.js';
+import { useUpdateProcessType } from './automation-api.js';
 
 /** Детерминированный тест оптимистичной правки свойств типа (I4, #378):
  *  creatable меняется в кэше ДО ответа сервера (контролируемый deferred);
  *  ошибка сервера откатывает снапшот. */
 const server = setupServer();
 
-const makeType = (n: string): TaskType => ({
+const makeType = (n: string): ProcessType => ({
   id: `00000000-0000-4000-8000-0000000000c${n}`,
   code: 'task',
   name: 'Стандартный',
@@ -22,7 +22,8 @@ const makeType = (n: string): TaskType => ({
   color: 'neutral',
   description: '',
   creatable: false,
-  structural: false,
+  category: 'task',
+  direction: null,
   isSystem: true,
   sortOrder: 0,
   archivedAt: null,
@@ -30,19 +31,19 @@ const makeType = (n: string): TaskType => ({
 });
 
 function hook(client: QueryClient) {
-  return renderHook(() => useUpdateTaskType(), {
+  return renderHook(() => useUpdateProcessType(), {
     wrapper: ({ children }) => (
       <QueryClientProvider client={client}>{children}</QueryClientProvider>
     ),
   });
 }
 
-describe('useUpdateTaskType: оптимистичность (#378)', () => {
+describe('useUpdateProcessType: оптимистичность (#378)', () => {
   it('creatable применяется до ответа сервера и подтверждается', async () => {
-    let resolvePatch!: (type: TaskType) => void;
+    let resolvePatch!: (type: ProcessType) => void;
     server.use(
-      http.patch('/api/v1/tasks/types/:id', () =>
-        new Promise<TaskType>((resolve) => {
+      http.patch('/api/v1/workflows/types/:id', () =>
+        new Promise<ProcessType>((resolve) => {
           resolvePatch = resolve;
         }).then((type) => HttpResponse.json(type)),
       ),
@@ -58,7 +59,7 @@ describe('useUpdateTaskType: оптимистичность (#378)', () => {
 
     // До resolve — в кэше уже новое значение (I4), мутация ещё в полёте.
     await waitFor(() => {
-      expect(client.getQueryData<TaskType[]>(automationKeys.types())?.[0]?.creatable).toBe(true);
+      expect(client.getQueryData<ProcessType[]>(automationKeys.types())?.[0]?.creatable).toBe(true);
     });
     expect(result.current.isPending).toBe(true);
 
@@ -69,7 +70,7 @@ describe('useUpdateTaskType: оптимистичность (#378)', () => {
 
   it('ошибка сервера откатывает снапшот', async () => {
     server.use(
-      http.patch('/api/v1/tasks/types/:id', () =>
+      http.patch('/api/v1/workflows/types/:id', () =>
         HttpResponse.json({ code: 'VALIDATION_FAILED', message: 'nope' }, { status: 422 }),
       ),
     );
@@ -84,7 +85,7 @@ describe('useUpdateTaskType: оптимистичность (#378)', () => {
 
     await waitFor(() => expect(result.current.isError).toBe(true));
     // Снапшот возвращён: в кэше прежнее значение.
-    expect(client.getQueryData<TaskType[]>(automationKeys.types())?.[0]?.creatable).toBe(false);
+    expect(client.getQueryData<ProcessType[]>(automationKeys.types())?.[0]?.creatable).toBe(false);
     server.close();
   });
 });

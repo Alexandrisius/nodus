@@ -76,7 +76,7 @@ function timerDto(): RunningTimer | null {
 }
 
 export const tasksWorkHandlers = [
-  // GET /tasks/types переехал в automation-handlers (#378): расширенный DTO
+  // GET /workflows/types переехал в automation-handlers (#378): расширенный DTO
   // с icon/color/creatable/архивом; MSW матчит по порядку — дубль здесь
   // перехватывал запрос и ронял UI старой формой.
 
