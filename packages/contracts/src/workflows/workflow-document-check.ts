@@ -17,12 +17,12 @@ import type {
 const MAX_STAGES = 20;
 const MAX_TRANSITIONS = 80;
 
-/** Факты кастомных полей для проверки ссылок (#431, Р7): активные id и
- *  архивные id. Без `customFields` проверки полей пропускаются (старые
- *  вызовы и тесты остаются валидными). */
+/** Факты атрибутов для проверки ссылок (#431, Р7): все id области и id
+ *  скрытых. Без `customFields` проверки пропускаются (старые вызовы и
+ *  тесты остаются валидными). */
 export interface WorkflowCustomFieldFacts {
   active: ReadonlySet<string>;
-  archived: ReadonlySet<string>;
+  hidden: ReadonlySet<string>;
 }
 
 export interface WorkflowCheckOptions {
@@ -166,24 +166,30 @@ export function checkWorkflowDocument(
 
   const fields = opts.customFields;
   if (fields) {
-    const checkKey = (key: string, refs: Pick<WorkflowProblem, 'transitionId'>): void => {
+    // Скрытый атрибут в ОКНЕ — предупреждение: окно его не покажет, заполнить
+    // нечем. В условии скрытый допустим (служебные значения ставит автоматика).
+    const checkKey = (
+      key: string,
+      refs: Pick<WorkflowProblem, 'transitionId'>,
+      inWindow: boolean,
+    ): void => {
       const id = customFieldIdOfKey(key);
       if (id === null) return;
-      if (fields.archived.has(id)) {
-        problems.push(warning('custom_field_archived', refs));
-      } else if (!fields.active.has(id)) {
+      if (!fields.active.has(id)) {
         problems.push(error('custom_field_unknown', refs));
+      } else if (inWindow && fields.hidden.has(id)) {
+        problems.push(warning('custom_field_hidden', refs));
       }
     };
     for (const t of transitions) {
       for (const section of t.form?.enabled ? t.form.sections : []) {
         if (section.kind === 'fields') {
-          for (const key of section.fields) checkKey(key, { transitionId: t.id });
+          for (const key of section.fields) checkKey(key, { transitionId: t.id }, true);
         }
       }
       for (const validator of t.rules.validators) {
         if (validator.kind === 'fields_required') {
-          for (const key of validator.fields) checkKey(key, { transitionId: t.id });
+          for (const key of validator.fields) checkKey(key, { transitionId: t.id }, false);
         }
       }
     }

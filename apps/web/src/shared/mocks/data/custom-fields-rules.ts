@@ -13,11 +13,12 @@ import { demoDepartments } from './departments.js';
 import { projectRefs } from './task-item-factory.js';
 import { demoUserListItems } from './users.js';
 
-/** Правила значений в моке — те же, что у сервера (#431, Р2): неизвестное,
- *  архивное, неверный тип, неактивная ссылка. Мок обязан совпадать с API. */
+/** Правила значений в моке — те же, что у сервера (#431, Р2): неизвестный
+ *  атрибут, неверный тип, неактивная ссылка. Скрытый атрибут принимает
+ *  значения (служебные значения ставит автоматика). Мок обязан совпадать с API. */
 export interface DemoFieldIssue {
   fieldId: string;
-  reason: 'unknown' | 'archived' | 'invalid' | 'not_found' | 'inactive';
+  reason: 'unknown' | 'invalid' | 'not_found' | 'inactive';
   message: string;
 }
 
@@ -33,10 +34,6 @@ export function checkDemoValues(
     const definition = demoFieldById(fieldId);
     if (!definition || definition.scope !== scope) {
       issues.push({ fieldId, reason: 'unknown', message: 'Unknown custom field' });
-      continue;
-    }
-    if (definition.archivedAt !== null) {
-      issues.push({ fieldId, reason: 'archived', message: 'Field is archived' });
       continue;
     }
     if (!customFieldValueSchemaOf(definition).safeParse(value).success) {
@@ -133,7 +130,7 @@ export function applyDemoPatch(
 export function demoDefaults(scope: CustomFieldScope, input: CustomFieldValues): CustomFieldValues {
   const values: CustomFieldValues = {};
   for (const definition of demoFieldsOfScope(scope)) {
-    if (definition.archivedAt !== null || definition.defaultValue === null) continue;
+    if (definition.defaultValue === null) continue;
     if (input[definition.id] !== undefined) continue;
     if (definition.defaultValue.kind === 'author_department') {
       values[definition.id] = demoAuthorDepartment();

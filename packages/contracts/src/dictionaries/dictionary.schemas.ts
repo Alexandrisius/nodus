@@ -68,9 +68,11 @@ export const listDictionariesQuerySchema = cursorQuerySchema;
 
 export type ListDictionariesQuery = z.infer<typeof listDictionariesQuerySchema>;
 
-/** Запись справочников (#431, Р10): минимальный набор для вариантов полей.
- *  Код генерирует сервер (`list-<8hex>`) и не меняет; системный справочник
- *  не архивируется и не переименовывается. */
+/** Запись справочников (#431, Р10): минимальный набор для вариантов
+ *  атрибутов. Код генерирует сервер (`list-<8hex>`) и не меняет. Вариант
+ *  несистемного справочника УДАЛЯЕТСЯ (`DELETE …/items/:id`, вердикт
+ *  владельца 25.10.2026: никакого архива у вариантов атрибутов) — значения
+ *  с ним читаются пустыми; системный справочник защищён (DICTIONARY_SYSTEM_LOCKED). */
 export const createDictionaryBodySchema = z
   .object({
     name: z.string().trim().min(1).max(80),

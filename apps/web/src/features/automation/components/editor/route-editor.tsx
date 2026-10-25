@@ -71,19 +71,15 @@ function RouteEditorInner({ type, workflow, settings, settingsOpen = false }: Ro
   // Расстановка холста сохраняется сама — без черновика и новой версии.
   useLayoutAutosave(workflow.id, canManage);
 
-  // Кастомные поля в окне и гейтах (#431, Р7): неизвестное — ошибка
-  // публикации, архивное — предупреждение; факты — из реестра области.
+  // Атрибуты в окне и гейтах (#431, Р7): неизвестный — ошибка публикации,
+  // скрытый в окне — предупреждение; факты — из реестра области.
   const { data: customFieldDefinitions } = useCustomFieldDefinitions(type.category);
   const customFieldFacts = useMemo(
     () =>
       customFieldDefinitions
         ? {
-            active: new Set(
-              customFieldDefinitions.filter((d) => d.archivedAt === null).map((d) => d.id),
-            ),
-            archived: new Set(
-              customFieldDefinitions.filter((d) => d.archivedAt !== null).map((d) => d.id),
-            ),
+            active: new Set(customFieldDefinitions.map((d) => d.id)),
+            hidden: new Set(customFieldDefinitions.filter((d) => d.hidden).map((d) => d.id)),
           }
         : undefined,
     [customFieldDefinitions],

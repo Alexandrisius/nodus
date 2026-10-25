@@ -45,9 +45,22 @@ const sameRoom = (a: ScrollRoom, b: ScrollRoom) => a.left === b.left && a.right 
  * Miro). Только мышь: тач листает доску нативно. Перетаскивание карточки
  * сюда не относится — у края доску листает autoScroll dnd-kit (движок доски).
  * Покадровая прокрутка — императивно (scrollLeft в rAF), React рендерит
- * только смену флагов зон.
+ * только смену флагов зон. Общая механика ВСЕХ широких списков (вердикт
+ * владельца 25.10.2026: «везде, как в канбане»): таблицы журналов берут
+ * только край (`pan: false` — фон строк кликабелен, заголовки тянутся).
  */
-export function useBoardEdgeScroll(ref: RefObject<HTMLDivElement | null>) {
+export function useBoardEdgeScroll(
+  ref: RefObject<HTMLDivElement | null>,
+  {
+    pan: panEnabled = true,
+    mounted = true,
+  }: {
+    pan?: boolean;
+    /** Контейнер смонтирован (таблица без скелета/пустого состояния):
+     *  смена флага переподписывает слежение за прокруткой. */
+    mounted?: boolean;
+  } = {},
+) {
   const [room, setRoom] = useState<ScrollRoom>({ left: false, right: false });
   const [hot, setHot] = useState<EdgeSide | null>(null);
   const [panning, setPanning] = useState(false);
@@ -76,7 +89,7 @@ export function useBoardEdgeScroll(ref: RefObject<HTMLDivElement | null>) {
       resize.disconnect();
       columns.disconnect();
     };
-  }, [ref]);
+  }, [ref, mounted]);
 
   const stop = () => {
     clearLoop(loopRef.current);
@@ -169,7 +182,7 @@ export function useBoardEdgeScroll(ref: RefObject<HTMLDivElement | null>) {
     onPointerDown: (e: PointerEvent<HTMLDivElement>) => {
       stop();
       const el = ref.current;
-      if (!el || e.button !== 0 || e.pointerType !== 'mouse') return;
+      if (!panEnabled || !el || e.button !== 0 || e.pointerType !== 'mouse') return;
       if ((e.target as Element).closest(INTERACTIVE)) return;
       panRef.current = {
         pointerId: e.pointerId,

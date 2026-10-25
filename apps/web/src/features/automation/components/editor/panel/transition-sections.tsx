@@ -181,6 +181,7 @@ export function ConditionsSection({
                 disabled={readOnly}
                 limit={CUSTOM_FIELD_LIMITS.gateFields}
                 limitHint={ui.automation.panel.gateFieldsLimit}
+                includeHidden
                 onToggle={(key) => patch(toggleField(rules, key))}
               />
             </>

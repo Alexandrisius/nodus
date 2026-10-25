@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { MoneyValue } from '@nodus/contracts';
 import { SystemDictionary, ui } from '@nodus/contracts';
 import { Input } from '@nodus/ui/components/input';
+import { cn } from '@nodus/ui/lib/utils';
 import {
   Select,
   SelectContent,
@@ -13,7 +14,7 @@ import {
 import { useDictionaryItems } from '../../dictionaries/queries.js';
 import { formatNumber, parseNumber } from '../value-format.js';
 import { CustomFieldValueView, refsById } from '../value-view.js';
-import { EditorError, EditorTrigger, type EditorProps } from './editor-kit.js';
+import { EditorError, EditorTrigger, editorInputClass, type EditorProps } from './editor-kit.js';
 
 /**
  * Число и деньги: ввод в русской записи (пробелы групп, запятая), точность —
@@ -114,7 +115,7 @@ export function NumberEditor(props: EditorProps) {
           aria-invalid={error !== null || undefined}
           aria-describedby={error ? errorId : undefined}
           placeholder={
-            money ? ui.customFields.value.amountPlaceholder : ui.customFields.editor.precision
+            money ? ui.customFields.value.amountPlaceholder : ui.customFields.dialog.precision
           }
           onChange={(e) => setText(e.target.value)}
           onBlur={commit}
@@ -128,7 +129,7 @@ export function NumberEditor(props: EditorProps) {
               commit();
             }
           }}
-          className="h-8 min-w-0 flex-1 text-sm tabular-nums"
+          className={cn(editorInputClass(props.variant), 'min-w-0 flex-1 text-sm tabular-nums')}
         />
         {money ? (
           <Select
@@ -142,10 +143,10 @@ export function NumberEditor(props: EditorProps) {
             }}
           >
             <SelectTrigger
-              className="h-8 w-24 shrink-0 text-sm"
-              aria-label={ui.customFields.editor.currency}
+              className={cn(props.variant === 'inline' ? 'h-7' : 'h-8', 'w-24 shrink-0 text-sm')}
+              aria-label={ui.customFields.dialog.currency}
             >
-              <SelectValue placeholder={ui.customFields.editor.currency} />
+              <SelectValue placeholder={ui.customFields.dialog.currency} />
             </SelectTrigger>
             <SelectContent>
               {activeCurrencies.map((currency) => (

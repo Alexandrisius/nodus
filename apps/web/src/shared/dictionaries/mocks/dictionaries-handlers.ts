@@ -23,10 +23,11 @@ import {
   itemById,
   nextDictionaryCode,
 } from '../../mocks/data/dictionaries.js';
+import { demoSubtasks, demoTasks } from '../../mocks/data/tasks.js';
 
-/** Запись справочников (#431, Р10): минимальный набор для вариантов полей.
- *  Системный справочник защищён (409), имя варианта уникально среди
- *  активных, порядок — по sortOrder. */
+/** Запись справочников (#431, Р10): минимальный набор для вариантов
+ *  атрибутов. Системный справочник защищён (409), имя варианта уникально
+ *  среди активных, порядок — по sortOrder, вариант удаляется. */
 
 function error(code: string, message: string, status: number) {
   return HttpResponse.json({ code, message }, { status });
@@ -168,20 +169,31 @@ export const dictionariesHandlers = [
     return HttpResponse.json(item);
   }),
 
-  http.post('/api/v1/dictionaries/:code/items/:id/archive', ({ params }) => {
+  // Удаление варианта несистемного справочника (вердикт владельца
+  // 25.10.2026: у вариантов атрибутов архива нет). Значения с ним читаются
+  // пустыми — терпимое чтение; мок чистит ссылки у демо-задач, как сервер.
+  http.delete('/api/v1/dictionaries/:code/items/:id', ({ params }) => {
+    const dictionary = dictionaryByCode(String(params.code));
     const item = itemById(String(params.id));
-    if (!item) return error(ErrorCode.NOT_FOUND, 'Item not found', 404);
-    item.isActive = false;
-    return HttpResponse.json(item);
-  }),
-
-  http.post('/api/v1/dictionaries/:code/items/:id/restore', ({ params }) => {
-    const item = itemById(String(params.id));
-    if (!item) return error(ErrorCode.NOT_FOUND, 'Item not found', 404);
-    if (nameTaken(item.dictionaryId, item.name, item.id)) {
-      return error(ErrorCode.DICTIONARY_ITEM_NAME_TAKEN, 'Item name is taken', 409);
+    if (!dictionary || !item || item.dictionaryId !== dictionary.id) {
+      return error(ErrorCode.NOT_FOUND, 'Item not found', 404);
     }
-    item.isActive = true;
-    return HttpResponse.json(item);
+    if (dictionary.isSystem) {
+      return error(ErrorCode.DICTIONARY_SYSTEM_LOCKED, 'System dictionary is locked', 409);
+    }
+    demoDictionaryItems.splice(demoDictionaryItems.indexOf(item), 1);
+    for (const task of [...demoTasks, ...Object.values(demoSubtasks).flat()]) {
+      const values = task.customFields;
+      if (!values) continue;
+      for (const [fieldId, value] of Object.entries(values)) {
+        if (value === item.id) delete values[fieldId];
+        else if (Array.isArray(value) && value.some((entry) => entry === item.id)) {
+          const rest = value.filter((entry) => entry !== item.id);
+          if (rest.length > 0) values[fieldId] = rest as typeof value;
+          else delete values[fieldId];
+        }
+      }
+    }
+    return new HttpResponse(null, { status: 204 });
   }),
 ];

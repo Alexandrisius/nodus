@@ -1,4 +1,3 @@
-import { Settings2 } from 'lucide-react';
 import type {
   CustomFieldRef,
   CustomFieldScope,
@@ -11,15 +10,19 @@ import { Skeleton } from '@nodus/ui/components/skeleton';
 
 import { FieldRow } from '../ui/entity-fields.js';
 import { CustomFieldTypeIcon } from './field-type-icon.js';
-import { activeDefinitions, useCustomFieldDefinitions } from './queries.js';
+import { visibleDefinitions, useCustomFieldDefinitions } from './queries.js';
 import { CustomFieldEditor } from './value-editor.js';
 
 /**
- * Блок «Поля» карточки сущности (#431, Р1/Р6): сетка строк той же
+ * Блок «Атрибуты» карточки сущности (#431, Р1/Р6): сетка строк той же
  * грамматики, что `EntityFields` (иконка + моно-метка w-44 + значение,
- * 1→2 колонки по @container), правка по месту. Нет активных полей — блока
- * нет вовсе; загрузка — два скелета; ошибка — строка с повтором (карточка
- * живёт дальше). Значения правит вызывающий (оптимистично, I4).
+ * 1→2 колонки по @container), правка по месту. Многострочный текст — на
+ * всю ширину сетки, как описание. Скрытые (служебные) атрибуты не
+ * показываются никому; настройка атрибутов — только во вкладке «Атрибуты»
+ * «Автоматизации» (кнопки «Настроить» в карточке нет — вердикт владельца
+ * 25.10.2026: она уводила из карточки). Нет видимых атрибутов — блока нет;
+ * загрузка — два скелета; ошибка — строка с повтором. Значения правит
+ * вызывающий (оптимистично, I4).
  */
 export function CustomFieldsBlock({
   scope,
@@ -27,19 +30,15 @@ export function CustomFieldsBlock({
   refs,
   canEdit,
   onChange,
-  onConfigure,
 }: {
   scope: CustomFieldScope;
   values: CustomFieldValues;
   refs: readonly CustomFieldRef[];
   canEdit: boolean;
   onChange: (fieldId: string, value: CustomFieldValue | null, refs?: CustomFieldRef[]) => void;
-  /** «Настроить» — только у тех, кто может править поля (право
-   *  custom_field.manage проверяет вызывающий); переход делает хост. */
-  onConfigure?: () => void;
 }) {
   const query = useCustomFieldDefinitions(scope);
-  const definitions = activeDefinitions(query.data);
+  const definitions = visibleDefinitions(query.data);
 
   if (query.isLoading) {
     return (
@@ -71,19 +70,7 @@ export function CustomFieldsBlock({
 
   return (
     <section className="mt-7">
-      <div className="flex items-center justify-between gap-3">
-        <NodeLabel label={ui.customFields.block.title} count={definitions.length} />
-        {onConfigure ? (
-          <button
-            type="button"
-            onClick={onConfigure}
-            className="flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent/40 hover:text-foreground"
-          >
-            <Settings2 className="size-3.5" strokeWidth={1.75} aria-hidden />
-            {ui.customFields.block.configure}
-          </button>
-        ) : null}
-      </div>
+      <NodeLabel label={ui.customFields.block.title} count={definitions.length} />
       <div className="mt-1 grid grid-cols-1 gap-x-12 gap-y-0.5 @min-[55rem]:grid-cols-2">
         {definitions.map((definition) => {
           const hintId = `cf-hint-${definition.id}`;
@@ -94,6 +81,7 @@ export function CustomFieldsBlock({
               label={definition.name}
               hint={definition.hint}
               hintId={hintId}
+              wide={definition.type === 'long_text'}
             >
               <CustomFieldEditor
                 definition={definition}

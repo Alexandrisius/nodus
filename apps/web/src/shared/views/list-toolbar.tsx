@@ -76,7 +76,9 @@ export function ListToolbar<T>({
           <div
             ref={anchorRef}
             className={cn(
-              'relative min-w-0 shrink-0 transition-[width] duration-200',
+              // Сжимается (до min-w-56), а не выталкивает слот `right` за край
+              // рамы, когда шапка тесная (переключатель сущности, #431).
+              'relative min-w-56 shrink transition-[width] duration-200',
               panelOpen ? 'w-[min(36rem,calc(100vw-3rem))]' : 'w-[28rem]',
             )}
           >

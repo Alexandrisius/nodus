@@ -21,7 +21,7 @@ import { toast } from 'sonner';
 
 import { useTaskConversation } from '../../../shared/chat/chat-queries.js';
 import {
-  activeDefinitions,
+  visibleDefinitions,
   useCustomFieldDefinitions,
 } from '../../../shared/custom-fields/queries.js';
 import { TransitionWindow } from '../../../shared/workflow/transition-window/transition-window.js';
@@ -117,7 +117,7 @@ export function useTransitionRunner(task: TaskDetail) {
           open
           mode="live"
           transition={windowTransition}
-          context={windowContextOf(task, conversation?.id ?? null, activeDefinitions(definitions))}
+          context={windowContextOf(task, conversation?.id ?? null, visibleDefinitions(definitions))}
           submitting={submit.isPending}
           error={submit.error ? transitionWindowError(submit.error) : null}
           onCancel={closeWindow}

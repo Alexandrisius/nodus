@@ -60,13 +60,14 @@ export const errorMessages: Record<ErrorCode, string> = {
   [ErrorCode.CRM_COUNTERPARTY_ARCHIVED]: 'Контрагент в архиве — сначала верните его',
   [ErrorCode.CRM_COUNTERPARTY_IN_USE]:
     'У контрагента есть письма или проекты — удалить нельзя, перенесите в архив',
-  [ErrorCode.CUSTOM_FIELD_VALUE_INVALID]: 'Значение поля не подходит — проверьте отмеченные поля',
-  [ErrorCode.CUSTOM_FIELD_TYPE_UNAVAILABLE]: 'Этот тип поля пока недоступен',
-  [ErrorCode.CUSTOM_FIELD_NAME_TAKEN]: 'Поле с таким названием уже есть',
+  [ErrorCode.CUSTOM_FIELD_VALUE_INVALID]: 'Значение атрибута не подходит — проверьте отмеченные',
+  [ErrorCode.CUSTOM_FIELD_TYPE_UNAVAILABLE]: 'Этот тип атрибута пока недоступен',
+  [ErrorCode.CUSTOM_FIELD_NAME_TAKEN]: 'Атрибут с таким названием уже есть',
   [ErrorCode.CUSTOM_FIELD_TYPE_CHANGE_INCOMPATIBLE]:
-    'Тип нельзя сузить без потери данных — создайте новое поле',
-  [ErrorCode.CUSTOM_FIELD_LIMIT_REACHED]: 'В этой области уже 100 полей — больше нельзя',
-  [ErrorCode.CUSTOM_FIELD_ARCHIVED]: 'Поле в архиве — сначала верните его',
+    'Тип нельзя сузить без потери данных — создайте новый атрибут',
+  [ErrorCode.CUSTOM_FIELD_LIMIT_REACHED]: 'Атрибутов уже 100 — больше нельзя',
+  [ErrorCode.CUSTOM_FIELD_IN_USE]:
+    'Атрибут стоит в маршрутах процессов — сначала уберите его оттуда',
   [ErrorCode.DICTIONARY_SYSTEM_LOCKED]: 'Системный справочник изменить нельзя',
   [ErrorCode.DICTIONARY_ITEM_NAME_TAKEN]: 'Такой вариант уже есть в списке',
 };
@@ -156,8 +157,8 @@ export const ui = {
     dateTo: 'По',
     numberFrom: 'От',
     numberTo: 'До',
-    /** Заголовок группы фильтров «Поля» (кастомные поля, #431). */
-    groupFields: 'Поля',
+    /** Заголовок группы фильтров «Атрибуты» (кастомные поля, #431). */
+    groupFields: 'Атрибуты',
     any: 'Все',
     yes: 'Да',
     notFound: 'Ничего не найдено',

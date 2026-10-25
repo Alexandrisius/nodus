@@ -10,7 +10,7 @@ import { Checkbox } from '@nodus/ui/components/checkbox';
 import { Input } from '@nodus/ui/components/input';
 
 import {
-  activeDefinitions,
+  visibleDefinitions,
   useCustomFieldDefinitions,
 } from '../../../../../shared/custom-fields/queries.js';
 import { useRouteDocStore } from '../../../model/route-doc-store.js';
@@ -235,7 +235,7 @@ export function WindowSection({
             open={previewOpen}
             mode="preview"
             transition={previewTransition(transition, doc)}
-            context={previewContext(transition, doc, activeDefinitions(definitions))}
+            context={previewContext(transition, doc, visibleDefinitions(definitions))}
             onCancel={() => setPreviewOpen(false)}
             onSubmit={() => {}}
           />

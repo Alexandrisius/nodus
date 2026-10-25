@@ -13,8 +13,8 @@ import { projectRefs, tid } from './task-item-factory.js';
 import { userIds } from './users.js';
 
 /** Демо-реестр кастомных полей (#431) — по полю каждого типа для задач,
- *  поля писем и контрагентов. Определения живут массивом: мок-хендлеры
- *  создают, правят и архивируют их как сервер. */
+ *  поля писем и контрагентов; один скрытый (служебный). Определения живут
+ *  массивом: мок-хендлеры создают, правят и удаляют их как сервер. */
 
 const fid = (n: number): string => `c0000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 
@@ -60,9 +60,10 @@ function definition(
     settings: {},
     dictionary: null,
     defaultValue: null,
+    defaultRefs: [],
     reportIndexed: false,
+    hidden: false,
     sortOrder,
-    archivedAt: null,
     createdAt: STAMP,
     updatedAt: STAMP,
     ...extra,
@@ -97,6 +98,7 @@ export const demoCustomFieldDefinitions: CustomFieldDefinition[] = [
   definition(fieldIds.workKind, 'task', 'enum', 'Вид работ', 4, {
     settings: { dictionaryId: dictionaryByCode('work-kind')!.id },
     dictionary: dictionaryRef('work-kind'),
+    defaultValue: { kind: 'static', value: workKindIds.design },
   }),
   definition(fieldIds.objects, 'task', 'multienum', 'Объекты', 5, {
     settings: { dictionaryId: dictionaryByCode('object')!.id },
@@ -116,8 +118,9 @@ export const demoCustomFieldDefinitions: CustomFieldDefinition[] = [
   definition(fieldIds.customerObservers, 'task', 'users', 'Наблюдатели заказчика', 13),
   definition(fieldIds.sourceProject, 'task', 'project', 'Проект-источник', 14),
   definition(fieldIds.contractor, 'task', 'counterparty', 'Подрядчик', 15),
-  definition(fieldIds.legacyCode, 'task', 'text', 'Старый шифр', 16, {
-    archivedAt: '2026-09-01T09:00:00.000Z',
+  definition(fieldIds.legacyCode, 'task', 'text', 'Шифр сметы (служебный)', 16, {
+    hint: 'Заполняет автоматика из сметной программы',
+    hidden: true,
   }),
   definition(fieldIds.letterReplyNumber, 'letter', 'text', 'Исх. номер контрагента', 0),
   definition(fieldIds.letterReplyDate, 'letter', 'date', 'Дата ответа', 1),
@@ -153,6 +156,7 @@ export const demoTaskCustomFields: Record<string, CustomFieldValues> = {
     [fieldIds.customerObservers]: [userIds.karpovich, userIds.matorin],
     [fieldIds.sourceProject]: projectRefs.p4.id,
     [fieldIds.contractor]: 'd0000000-0000-4000-8000-000000000001',
+    [fieldIds.legacyCode]: 'СМ-0359-14',
   },
   [tid(5)]: {
     [fieldIds.invoiceNumber]: '№ 77',

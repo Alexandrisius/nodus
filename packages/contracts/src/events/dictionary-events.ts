@@ -11,7 +11,9 @@ export const DICTIONARY_EVENTS = {
   UPDATED: 'dictionary.updated',
   ITEM_CREATED: 'dictionary.item_created',
   ITEM_UPDATED: 'dictionary.item_updated',
-  ITEM_ARCHIVED: 'dictionary.item_archived',
+  /** Вариант удалён (несистемный справочник, #431): значения с ним
+   *  читаются пустыми — терпимое чтение. */
+  ITEM_DELETED: 'dictionary.item_deleted',
 } as const;
 
 export type DictionaryEventType = (typeof DICTIONARY_EVENTS)[keyof typeof DICTIONARY_EVENTS];
@@ -21,7 +23,7 @@ export const DICTIONARY_CATALOG_EVENTS: readonly string[] = [
   DICTIONARY_EVENTS.UPDATED,
   DICTIONARY_EVENTS.ITEM_CREATED,
   DICTIONARY_EVENTS.ITEM_UPDATED,
-  DICTIONARY_EVENTS.ITEM_ARCHIVED,
+  DICTIONARY_EVENTS.ITEM_DELETED,
 ];
 
 export const dictionaryChangedPayloadSchema = z.object({
@@ -33,7 +35,7 @@ export type DictionaryChangedPayload = z.infer<typeof dictionaryChangedPayloadSc
 export const dictionaryItemChangedPayloadSchema = z.object({
   dictionaryId: z.uuid(),
   itemId: z.uuid(),
-  /** Изменённые ключи элемента (у архивного — `isActive`). */
+  /** Изменённые ключи элемента (updated). */
   fields: z.array(z.string()).optional(),
 });
 export type DictionaryItemChangedPayload = z.infer<typeof dictionaryItemChangedPayloadSchema>;

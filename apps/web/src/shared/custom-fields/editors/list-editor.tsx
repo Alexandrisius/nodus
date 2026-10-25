@@ -19,7 +19,7 @@ import { EditorTrigger, type EditorProps } from './editor-kit.js';
 export function ListEditor(props: EditorProps) {
   const multiple = props.definition.type === 'multienum';
   const code = props.definition.dictionary?.code ?? null;
-  const { data: items = [] } = useDictionaryItems(code, { includeArchived: true });
+  const { data: items = [] } = useDictionaryItems(code);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const selected = new Set<string>(
@@ -117,15 +117,9 @@ export function ListEditor(props: EditorProps) {
                   className={cn(
                     'flex w-full items-center gap-2 rounded-md px-1.5 py-1.5 text-left text-sm hover:bg-accent/60',
                     on ? 'text-port' : 'text-secondary-foreground',
-                    !item.isActive && 'opacity-60',
                   )}
                 >
                   <span className="min-w-0 flex-1 truncate">{item.name}</span>
-                  {!item.isActive ? (
-                    <span className="shrink-0 text-label-sm text-muted-foreground">
-                      {ui.customFields.list.archivedBadge}
-                    </span>
-                  ) : null}
                   {on ? <Check className="size-3.5 shrink-0" strokeWidth={1.75} /> : null}
                 </button>
               );

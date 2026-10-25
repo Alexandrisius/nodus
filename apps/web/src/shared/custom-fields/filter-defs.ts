@@ -14,10 +14,10 @@ import { useProjectsList } from '../api/projects-list.js';
 import { useUsersList } from '../api/users-list.js';
 import { dictionariesKeys, fetchDictionaryItems } from '../dictionaries/queries.js';
 import type { FilterFieldDef, FilterOption } from '../views/list-filters.js';
-import { activeDefinitions, useCustomFieldDefinitions } from './queries.js';
+import { visibleDefinitions, useCustomFieldDefinitions } from './queries.js';
 
 /**
- * Фильтры по кастомным полям области (#431, Р8) — в группе «Поля» панели
+ * Фильтры по кастомным полям области (#431, Р8) — в группе «Атрибуты» панели
  * фильтра: «содержит» для текстов и ссылок, диапазоны чисел/денег/
  * продолжительности/дат, выбор для списков и подразделений, сотрудник.
  * Клиентские, по загруженным страницам — как все фильтры списков (О4);
@@ -28,7 +28,7 @@ export function useCustomFieldFilterDefs<T>(
   valuesOf: (item: T) => CustomFieldValues,
 ): FilterFieldDef<T>[] {
   const { data } = useCustomFieldDefinitions(scope);
-  const definitions = activeDefinitions(data);
+  const definitions = visibleDefinitions(data);
   const { data: users } = useUsersList();
   const departments = useDepartmentsList();
   const projectsAvailableNow = projectsAvailable();

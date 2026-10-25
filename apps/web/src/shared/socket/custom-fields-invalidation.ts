@@ -7,7 +7,7 @@ import { tasksKeys } from '../api/tasks-keys.js';
 import type { KeyBatcher } from './invalidation-batcher.js';
 
 /** Каталожные события «Полей» и справочников (#431, ADR-0029): рассылаются
- *  всем — инвалидируются определения полей, справочники и блок «Поля»
+ *  всем — инвалидируются определения полей, справочники и блок «Атрибуты»
  *  карточек (детали задач и строки списков несут значения). */
 const CATALOG_EVENTS = new Set<string>([
   ...CUSTOM_FIELD_CATALOG_EVENTS,

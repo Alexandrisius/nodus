@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { customFieldValueSchemaOf, linkKindOf, ui } from '@nodus/contracts';
 import { Input } from '@nodus/ui/components/input';
+import { cn } from '@nodus/ui/lib/utils';
 
 import { CustomFieldValueView, refsById } from '../value-view.js';
-import { EditorError, EditorTrigger, type EditorProps } from './editor-kit.js';
+import { EditorError, EditorTrigger, editorInputClass, type EditorProps } from './editor-kit.js';
 
 /**
  * Ссылка или путь (Р11): `http(s)://…` открывается в новой вкладке, путь
@@ -91,7 +92,7 @@ export function LinkEditor(props: EditorProps) {
             commit();
           }
         }}
-        className="h-8 text-sm"
+        className={cn(editorInputClass(props.variant), 'text-sm')}
       />
       {error ? <EditorError id={errorId} text={ui.customFields.value.invalidLink} /> : null}
     </div>

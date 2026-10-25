@@ -19,14 +19,36 @@ export interface EditorProps {
   onCommit: (value: CustomFieldValue | null, refs?: CustomFieldRef[]) => void;
 }
 
+/**
+ * Ввод правки по месту — ТОГО ЖЕ габарита, что строка-значение триггера
+ * (баг-вердикт владельца 25.10.2026: поле многострочного текста при
+ * активации было выше строки и сдвигало карточку): h-7, внешний -mx-1,
+ * отступ px-1 за вычетом рамки 1px — текст не смещается ни по X, ни по Y.
+ * В форме (окно перехода, умолчание) — обычный контрол h-8.
+ */
+export function editorInputClass(variant: EditorVariant): string {
+  return variant === 'inline' ? '-mx-1 h-7 px-[calc(0.25rem-1px)] py-0' : 'h-8';
+}
+
+/** Многострочный ввод: строка + py (0.25rem − рамка) + рамка = высота строки
+ *  многострочного триггера (py-1 + строка); рост — по тексту. Класс ставить
+ *  ПОСЛЕ text-sm: tailwind-merge иначе выбрасывает leading-5. */
+export function editorTextareaClass(variant: EditorVariant): string {
+  return variant === 'inline'
+    ? '-mx-1 min-h-7 w-[calc(100%+0.5rem)] resize-none px-[calc(0.25rem-1px)] py-[calc(0.25rem-1px)] leading-5'
+    : 'min-h-16';
+}
+
 /** Триггер выбора: в карточке — строка-значение с ховер-заливкой, в форме —
- *  контрол в рамке, как у системных полей окна. */
+ *  контрол в рамке, как у системных полей окна. `multiline` — абзацы на всю
+ *  ширину (многострочный текст): без обрезки, вертикальный отступ под ввод. */
 export function EditorTrigger({
   children,
   variant,
   disabled,
   ariaLabel,
   open,
+  multiline = false,
   onClick,
   ref,
 }: {
@@ -35,6 +57,7 @@ export function EditorTrigger({
   disabled: boolean;
   ariaLabel: string;
   open?: boolean;
+  multiline?: boolean;
   onClick?: () => void;
   /** React 19: ref — обычный проп; нужен Radix `asChild` (поповеры пикеров). */
   ref?: Ref<HTMLButtonElement>;
@@ -51,10 +74,15 @@ export function EditorTrigger({
         variant === 'inline'
           ? '-mx-1 min-h-7 rounded-md px-1 hover:bg-accent/40 focus-visible:bg-accent/40'
           : 'h-8 w-full rounded-lg border border-input bg-transparent px-2.5 hover:bg-accent/40 dark:bg-input/30',
+        multiline && variant === 'inline' && 'w-[calc(100%+0.5rem)] items-start py-1 leading-5',
         open && 'bg-accent/40',
       )}
     >
-      <span className="min-w-0 flex-1 truncate">{children}</span>
+      <span
+        className={cn('min-w-0 flex-1', multiline ? 'break-words whitespace-pre-line' : 'truncate')}
+      >
+        {children}
+      </span>
       {variant === 'form' ? (
         <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.75} />
       ) : null}

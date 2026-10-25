@@ -43,7 +43,7 @@ export interface TransitionWindowContext {
   /** Этап «Утверждение» и есть итог — блок сдачи сверху. */
   submission: WindowSubmission | null;
   scope: 'entity';
-  /** Активные определения полей области — для раздела «Поля» (Р7). */
+  /** Видимые атрибуты области — для раздела «Поля» окна (Р7; скрытые окно не показывает). */
   customFieldDefinitions: readonly CustomFieldDefinition[];
   /** Ссылки значений (имя/аватар) — показ выбранного до ответа сервера. */
   customFieldRefs: readonly CustomFieldRef[];

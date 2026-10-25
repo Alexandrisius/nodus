@@ -3,6 +3,7 @@ import type {
   CreateCustomFieldBody,
   CustomFieldDefinition,
   CustomFieldScope,
+  CustomFieldUsage,
   ReorderCustomFieldsBody,
   UpdateCustomFieldBody,
 } from '@nodus/contracts';
@@ -18,10 +19,14 @@ import {
 import { projectsAvailable } from '../../api/projects-available.js';
 import { dictionaryById } from '../../mocks/data/dictionaries.js';
 import { demoCustomFieldDefinitions, demoFieldById } from '../../mocks/data/custom-fields.js';
+import { demoRefsForValues } from '../../mocks/data/custom-fields-refs.js';
+import { demoSubtasks, demoTasks } from '../../mocks/data/tasks.js';
+import { workflowsUsingField } from '../../mocks/data/workflows-store.js';
 
-/** Мок-сервер реестра полей (#431): правила те же, что у бэкенда —
- *  имя среди активных, лимит области, белый список смены типа, справочник
- *  неизменен, «Проект» доступен только в мок-мире проектов. */
+/** Мок-сервер реестра атрибутов (#431): правила те же, что у бэкенда —
+ *  имя уникально в области, лимит области, белый список смены типа,
+ *  справочник неизменен, «Проект» доступен только в мок-мире проектов,
+ *  удаление запрещено, пока атрибут стоит в маршрутах процессов. */
 
 const SCOPE_ORDER: CustomFieldScope[] = ['task', 'letter', 'project', 'counterparty'];
 
@@ -31,8 +36,13 @@ function dto(definition: CustomFieldDefinition): CustomFieldDefinition {
     : definition.type === 'money' && definition.settings.currencyId
       ? dictionaryById('d1000000-0000-4000-8000-000000000001')
       : undefined;
+  const defaultRefs =
+    definition.defaultValue?.kind === 'static'
+      ? demoRefsForValues({ [definition.id]: definition.defaultValue.value })
+      : [];
   return {
     ...definition,
+    defaultRefs,
     dictionary: dictionary
       ? {
           id: dictionary.id,
@@ -52,27 +62,28 @@ function nameTaken(scope: CustomFieldScope, name: string, exceptId?: string): bo
   const key = name.trim().toLowerCase();
   return demoCustomFieldDefinitions.some(
     (entry) =>
-      entry.scope === scope &&
-      entry.archivedAt === null &&
-      entry.id !== exceptId &&
-      entry.name.trim().toLowerCase() === key,
+      entry.scope === scope && entry.id !== exceptId && entry.name.trim().toLowerCase() === key,
   );
 }
 
-function activeCount(scope: CustomFieldScope): number {
-  return demoCustomFieldDefinitions.filter(
-    (entry) => entry.scope === scope && entry.archivedAt === null,
-  ).length;
+function scopeCount(scope: CustomFieldScope): number {
+  return demoCustomFieldDefinitions.filter((entry) => entry.scope === scope).length;
+}
+
+/** Сущности со значением атрибута (мок хранит значения только у задач). */
+function entitiesWithValue(definition: CustomFieldDefinition) {
+  if (definition.scope !== 'task') return [];
+  return [...demoTasks, ...Object.values(demoSubtasks).flat()].filter(
+    (task) => task.customFields?.[definition.id] !== undefined,
+  );
 }
 
 export const customFieldsHandlers = [
   http.get('/api/v1/custom-fields/definitions', ({ request }) => {
     const url = new URL(request.url);
     const scope = url.searchParams.get('scope') as CustomFieldScope | null;
-    const archived = url.searchParams.get('archived');
     const items = demoCustomFieldDefinitions
       .filter((entry) => (scope ? entry.scope === scope : true))
-      .filter((entry) => (archived === 'only' ? entry.archivedAt !== null : true))
       .sort(
         (a, b) =>
           SCOPE_ORDER.indexOf(a.scope) - SCOPE_ORDER.indexOf(b.scope) ||
@@ -98,7 +109,7 @@ export const customFieldsHandlers = [
     if (nameTaken(body.scope, body.name)) {
       return error(ErrorCode.CUSTOM_FIELD_NAME_TAKEN, 'Name is taken', 409);
     }
-    if (activeCount(body.scope) >= CUSTOM_FIELD_LIMITS.perScope) {
+    if (scopeCount(body.scope) >= CUSTOM_FIELD_LIMITS.perScope) {
       return error(ErrorCode.CUSTOM_FIELD_LIMIT_REACHED, 'Field limit reached', 409);
     }
     const now = new Date().toISOString();
@@ -117,9 +128,10 @@ export const customFieldsHandlers = [
       settings: body.settings,
       dictionary: null,
       defaultValue: body.defaultValue ?? null,
+      defaultRefs: [],
       reportIndexed: body.reportIndexed,
+      hidden: body.hidden,
       sortOrder: maxOrder + 1,
-      archivedAt: null,
       createdAt: now,
       updatedAt: now,
     };
@@ -134,10 +146,11 @@ export const customFieldsHandlers = [
       return error(ErrorCode.VALIDATION_FAILED, 'Invalid body', 422);
     }
     const body: ReorderCustomFieldsBody = parsed.data;
-    const active = demoCustomFieldDefinitions.filter(
-      (entry) => entry.scope === body.scope && entry.archivedAt === null,
+    const ids = new Set(
+      demoCustomFieldDefinitions
+        .filter((entry) => entry.scope === body.scope)
+        .map((entry) => entry.id),
     );
-    const ids = new Set(active.map((entry) => entry.id));
     if (body.ids.length !== ids.size || body.ids.some((id) => !ids.has(id))) {
       return error(ErrorCode.CONFLICT, 'Order is stale', 409);
     }
@@ -156,9 +169,6 @@ export const customFieldsHandlers = [
       return error(ErrorCode.VALIDATION_FAILED, 'Invalid body', 422, parsed.error.issues);
     }
     const body: UpdateCustomFieldBody = parsed.data;
-    if (definition.archivedAt !== null) {
-      return error(ErrorCode.CUSTOM_FIELD_ARCHIVED, 'Field is archived', 409);
-    }
     if (body.type && !isCompatibleTypeChange(definition.type, body.type)) {
       return error(
         ErrorCode.CUSTOM_FIELD_TYPE_CHANGE_INCOMPATIBLE,
@@ -177,6 +187,7 @@ export const customFieldsHandlers = [
     if (body.hint !== undefined) definition.hint = body.hint;
     if (body.type !== undefined) definition.type = body.type;
     if (body.reportIndexed !== undefined) definition.reportIndexed = body.reportIndexed;
+    if (body.hidden !== undefined) definition.hidden = body.hidden;
     if (body.defaultValue !== undefined) definition.defaultValue = body.defaultValue;
     if (body.settings !== undefined)
       definition.settings = { ...definition.settings, ...body.settings };
@@ -184,29 +195,31 @@ export const customFieldsHandlers = [
     return HttpResponse.json(dto(definition));
   }),
 
-  http.post('/api/v1/custom-fields/definitions/:id/archive', ({ params }) => {
+  http.get('/api/v1/custom-fields/definitions/:id/usage', ({ params }) => {
     const definition = demoFieldById(String(params.id));
     if (!definition) return error(ErrorCode.NOT_FOUND, 'Field not found', 404);
-    if (definition.archivedAt === null) {
-      definition.archivedAt = new Date().toISOString();
-      definition.updatedAt = definition.archivedAt;
-    }
-    return HttpResponse.json(dto(definition));
+    const usage: CustomFieldUsage = {
+      valueCount: entitiesWithValue(definition).length,
+      workflows: workflowsUsingField(definition.id),
+    };
+    return HttpResponse.json(usage);
   }),
 
-  http.post('/api/v1/custom-fields/definitions/:id/restore', ({ params }) => {
+  http.delete('/api/v1/custom-fields/definitions/:id', ({ params }) => {
     const definition = demoFieldById(String(params.id));
     if (!definition) return error(ErrorCode.NOT_FOUND, 'Field not found', 404);
-    if (definition.archivedAt !== null) {
-      if (nameTaken(definition.scope, definition.name, definition.id)) {
-        return error(ErrorCode.CUSTOM_FIELD_NAME_TAKEN, 'Name is taken', 409);
-      }
-      if (activeCount(definition.scope) >= CUSTOM_FIELD_LIMITS.perScope) {
-        return error(ErrorCode.CUSTOM_FIELD_LIMIT_REACHED, 'Field limit reached', 409);
-      }
-      definition.archivedAt = null;
-      definition.updatedAt = new Date().toISOString();
+    const workflows = workflowsUsingField(definition.id);
+    if (workflows.length > 0) {
+      return error(ErrorCode.CUSTOM_FIELD_IN_USE, 'Field is used by workflows', 409, {
+        workflows,
+      });
     }
-    return HttpResponse.json(dto(definition));
+    for (const task of entitiesWithValue(definition)) {
+      const next = { ...task.customFields };
+      delete next[definition.id];
+      task.customFields = next;
+    }
+    demoCustomFieldDefinitions.splice(demoCustomFieldDefinitions.indexOf(definition), 1);
+    return new HttpResponse(null, { status: 204 });
   }),
 ];

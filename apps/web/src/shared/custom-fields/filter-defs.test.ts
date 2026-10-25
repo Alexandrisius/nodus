@@ -21,9 +21,10 @@ function definition(
     settings: {},
     dictionary: null,
     defaultValue: null,
+    defaultRefs: [],
     reportIndexed: false,
+    hidden: false,
     sortOrder: 0,
-    archivedAt: null,
     createdAt: '2026-10-25T00:00:00.000Z',
     updatedAt: '2026-10-25T00:00:00.000Z',
     ...extra,
@@ -222,7 +223,7 @@ describe('фильтры кастомных полей (#431, Р8)', () => {
     ).toEqual([]);
   });
 
-  it('группа «Поля» у всех фильтров', () => {
+  it('группа «Атрибуты» у всех фильтров', () => {
     const [def] = customFieldFilterDef<Row>(
       definition('text'),
       (row) => row.customFields ?? {},
@@ -231,6 +232,6 @@ describe('фильтры кастомных полей (#431, Р8)', () => {
       [],
       [],
     );
-    expect(def?.group).toBe('Поля');
+    expect(def?.group).toBe('Атрибуты');
   });
 });

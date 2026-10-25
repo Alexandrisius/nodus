@@ -18,7 +18,7 @@ export * from './personal-stages.js';
 export * from './task-items.js';
 
 /** Заполненные кастомные поля демо-задач (#431): у части задач есть
- *  значения, у остальных — `{}` (блок «Поля» показывает «Не задано»). */
+ *  значения, у остальных — `{}` (блок «Атрибуты» показывает «Не задано»). */
 for (const task of demoTasks) {
   task.customFields = demoTaskCustomFields[task.id] ?? {};
 }

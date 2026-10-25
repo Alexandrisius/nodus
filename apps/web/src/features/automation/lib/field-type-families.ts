@@ -84,8 +84,3 @@ export function familyModifier(family: FieldFamily): 'multiline' | 'multiple' | 
   if (family === 'list' || family === 'employee') return 'multiple';
   return null;
 }
-
-/** Семейство имеет настройки типа (точность/валюта/справочник). */
-export function familyHasSettings(family: FieldFamily): boolean {
-  return family === 'number' || family === 'money' || family === 'list';
-}

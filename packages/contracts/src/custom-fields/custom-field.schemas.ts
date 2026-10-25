@@ -5,6 +5,7 @@ import {
   customFieldValueSchemaOf,
   CUSTOM_FIELD_LIMITS,
 } from './custom-field-values.js';
+import { customFieldRefSchema } from './custom-field-refs.js';
 
 /**
  * Реестр определений кастомных полей (#431, ADR-0029): область (задача,
@@ -85,10 +86,16 @@ export const customFieldDefinitionSchema = z.object({
   settings: customFieldSettingsSchema,
   dictionary: customFieldDictionaryRefSchema.nullable(),
   defaultValue: customFieldDefaultSchema.nullable(),
+  /** Ссылки статического умолчания (сотрудник, вариант, валюта…): имена для
+   *  колонки «По умолчанию» и окна атрибута, как `customFieldRefs` детали (Р6). */
+  defaultRefs: z.array(customFieldRefSchema),
   /** Флаг «индексировать для отчётов» (Р9): материализация — по триггеру (Н4). */
   reportIndexed: z.boolean(),
+  /** Скрытый (служебный) атрибут: значения живут и доступны процессам,
+   *  автоматизации и отчётам, но в карточках, фильтрах и окнах переходов
+   *  его не видит никто (вердикт владельца 25.10.2026 — замена архива). */
+  hidden: z.boolean(),
   sortOrder: z.number().int().min(0),
-  archivedAt: z.iso.datetime().nullable(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
 });
@@ -97,9 +104,22 @@ export type CustomFieldDefinition = z.infer<typeof customFieldDefinitionSchema>;
 /** `GET /custom-fields/definitions` — массив без курсора (О9: ≤ 100 на область). */
 export const listCustomFieldsQuerySchema = z.object({
   scope: customFieldScopeSchema.optional(),
-  archived: z.enum(['include', 'only']).optional(),
 });
 export type ListCustomFieldsQuery = z.infer<typeof listCustomFieldsQuerySchema>;
+
+/**
+ * `GET /custom-fields/definitions/:id/usage` — где используется атрибут
+ * (окно удаления): число сущностей со значением и маршруты процессов,
+ * ссылающиеся на `cf.<id>` в окне перехода или условии опубликованной
+ * версии (`id` — маршрут, `name` — название его типа процесса). Непустой
+ * `workflows` блокирует удаление (409 CUSTOM_FIELD_IN_USE с тем же списком
+ * в details); `DELETE /custom-fields/definitions/:id` → 204.
+ */
+export const customFieldUsageSchema = z.object({
+  valueCount: z.number().int().min(0),
+  workflows: z.array(z.object({ id: z.uuid(), name: z.string().min(1) })),
+});
+export type CustomFieldUsage = z.infer<typeof customFieldUsageSchema>;
 
 /** Проблема формы определения: код + поле (тексты — i18n веба/сервера). */
 export interface CustomFieldShapeIssue {
@@ -213,6 +233,7 @@ export const createCustomFieldBodySchema = z
     settings: customFieldSettingsSchema.default({}),
     defaultValue: customFieldDefaultSchema.nullable().optional(),
     reportIndexed: z.boolean().default(false),
+    hidden: z.boolean().default(false),
   })
   .strict()
   .superRefine(refineShape);
@@ -226,12 +247,14 @@ export const updateCustomFieldBodySchema = z
     settings: customFieldSettingsPatchSchema.optional(),
     defaultValue: customFieldDefaultSchema.nullable().optional(),
     reportIndexed: z.boolean().optional(),
+    hidden: z.boolean().optional(),
   })
   .strict()
   .refine((v) => Object.keys(v).length > 0, { message: 'empty update' });
 export type UpdateCustomFieldBody = z.infer<typeof updateCustomFieldBodySchema>;
 
-/** Порядок — перетаскиванием в группе области: ids = ровно активные области. */
+/** Порядок атрибутов области (карточка, фильтры, окна): ids = ровно все
+ *  атрибуты области. */
 export const reorderCustomFieldsBodySchema = z
   .object({
     scope: customFieldScopeSchema,
@@ -240,7 +263,7 @@ export const reorderCustomFieldsBodySchema = z
   .strict();
 export type ReorderCustomFieldsBody = z.infer<typeof reorderCustomFieldsBodySchema>;
 
-/** Сколько активных полей осталось до лимита области (подсказка формы). */
+/** Сколько атрибутов осталось до лимита области (подсказка формы). */
 export function customFieldLimitLeft(activeInScope: number): number {
   return Math.max(0, CUSTOM_FIELD_LIMITS.perScope - activeInScope);
 }

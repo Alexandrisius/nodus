@@ -15,108 +15,119 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Archive, ArchiveRestore, GripVertical, Plus } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import type { CustomFieldDefinition, DictionaryItem } from '@nodus/contracts';
+import { GripVertical, Plus, X } from 'lucide-react';
+import { useState } from 'react';
 import { ui } from '@nodus/contracts';
+import { Checkbox } from '@nodus/ui/components/checkbox';
 import { Input } from '@nodus/ui/components/input';
 import { cn } from '@nodus/ui/lib/utils';
 
-import {
-  useArchiveDictionaryItem,
-  useCreateDictionaryItem,
-  useReorderDictionaryItems,
-  useUpdateDictionaryItem,
-} from '../../api/dictionaries-api.js';
-import { useDictionaryItems } from '../../../../shared/dictionaries/queries.js';
+import { DRAFT_PREFIX, type OptionDraft } from '../../lib/field-draft.js';
 
 /**
- * Варианты списка (#431, Р10): справочник поля, правка по месту —
- * добавить, переименовать, порядок перетаскиванием (dnd-kit, клавиатура),
- * архив и возврат. Подписи меняются во всех полях с этим списком —
- * честная подсказка, когда справочник общий.
+ * Варианты списка в окне атрибута — ЧЕРНОВИК (сервер получит по
+ * «Сохранить»): строка = поле ввода названия, порядок перетаскиванием
+ * (dnd-kit, клавиатура), отметка «По умолчанию» (модель Битрикс24: у
+ * одиночного списка — один вариант, у множественного — несколько) и
+ * удаление крестиком — архива у вариантов нет (вердикт владельца 25.10.2026).
  */
 export function FieldOptionsEditor({
-  definition,
-  shared,
+  options,
+  defaultIds,
+  multiple,
   disabled,
+  invalid,
+  onChange,
+  onDefaultChange,
 }: {
-  definition: CustomFieldDefinition;
-  shared: boolean;
+  options: readonly OptionDraft[];
+  defaultIds: readonly string[];
+  multiple: boolean;
   disabled: boolean;
+  invalid: boolean;
+  onChange: (options: OptionDraft[]) => void;
+  onDefaultChange: (ids: string[]) => void;
 }) {
-  const code = definition.dictionary?.code ?? '';
-  const { data: items = [] } = useDictionaryItems(code || null, { includeArchived: true });
-  const create = useCreateDictionaryItem(code);
-  const update = useUpdateDictionaryItem(code);
-  const reorder = useReorderDictionaryItems(code);
-  const archive = useArchiveDictionaryItem(code);
   const [draft, setDraft] = useState('');
-  const [editingId, setEditingId] = useState<string | null>(null);
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
-  const active = items.filter((item) => item.isActive);
-  const archived = items.filter((item) => !item.isActive);
-
   function add() {
     const name = draft.trim();
-    if (!name || create.isPending) return;
-    create.mutate({ name }, { onSuccess: () => setDraft('') });
+    if (!name) return;
+    onChange([...options, { id: `${DRAFT_PREFIX}${crypto.randomUUID()}`, name }]);
+    setDraft('');
   }
 
   function onDragEnd(event: DragEndEvent) {
-    const { active: dragged, over } = event;
-    if (!over || dragged.id === over.id) return;
-    const from = active.findIndex((item) => item.id === dragged.id);
-    const to = active.findIndex((item) => item.id === over.id);
-    if (from < 0 || to < 0) return;
-    const next = arrayMove(active, from, to);
-    reorder.mutate({ ids: next.map((item) => item.id) });
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const from = options.findIndex((option) => option.id === active.id);
+    const to = options.findIndex((option) => option.id === over.id);
+    if (from >= 0 && to >= 0) onChange(arrayMove([...options], from, to));
+  }
+
+  function toggleDefault(id: string) {
+    const on = defaultIds.includes(id);
+    if (multiple) {
+      onDefaultChange(on ? defaultIds.filter((value) => value !== id) : [...defaultIds, id]);
+    } else {
+      onDefaultChange(on ? [] : [id]);
+    }
   }
 
   return (
-    <div className="flex flex-col gap-2">
-      {shared ? (
-        <p className="text-xs text-muted-foreground">{ui.customFields.editor.optionsShared}</p>
+    <div className="flex flex-col gap-1">
+      {options.length > 0 ? (
+        // Шапка колонок — та же сетка, что у строки: подпись стоит ровно
+        // над флажками «По умолчанию».
+        <div aria-hidden className="flex items-center gap-1.5">
+          <span className="w-4.5 shrink-0" />
+          <span className="flex-1" />
+          <span className="w-[4.5rem] shrink-0 text-center text-label-sm whitespace-nowrap text-muted-foreground">
+            {ui.customFields.dialog.optionDefault}
+          </span>
+          <span className="w-8 shrink-0" />
+        </div>
       ) : null}
-      {active.length === 0 ? (
-        <p className="text-xs text-muted-foreground">{ui.customFields.editor.optionEmpty}</p>
-      ) : (
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-          <SortableContext
-            items={active.map((item) => item.id)}
-            strategy={verticalListSortingStrategy}
-          >
-            <div className="flex flex-col gap-1">
-              {active.map((item) => (
-                <SortableOption
-                  key={item.id}
-                  item={item}
-                  disabled={disabled}
-                  editing={editingId === item.id}
-                  onEdit={() => setEditingId(item.id)}
-                  onRename={(name) => {
-                    update.mutate({ id: item.id, body: { name } });
-                    setEditingId(null);
-                  }}
-                  onArchive={() => archive.mutate({ id: item.id, archived: true })}
-                />
-              ))}
-            </div>
-          </SortableContext>
-        </DndContext>
-      )}
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+        <SortableContext
+          items={options.map((option) => option.id)}
+          strategy={verticalListSortingStrategy}
+        >
+          {options.map((option) => (
+            <OptionRow
+              key={option.id}
+              option={option}
+              disabled={disabled}
+              isDefault={defaultIds.includes(option.id)}
+              onRename={(name) =>
+                onChange(
+                  options.map((entry) => (entry.id === option.id ? { ...entry, name } : entry)),
+                )
+              }
+              onToggleDefault={() => toggleDefault(option.id)}
+              onDelete={() => {
+                onChange(options.filter((entry) => entry.id !== option.id));
+                if (defaultIds.includes(option.id)) {
+                  onDefaultChange(defaultIds.filter((id) => id !== option.id));
+                }
+              }}
+            />
+          ))}
+        </SortableContext>
+      </DndContext>
 
       {!disabled ? (
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 pl-6">
           <Input
             value={draft}
             maxLength={120}
-            placeholder={ui.customFields.editor.optionPlaceholder}
-            aria-label={ui.customFields.editor.optionAdd}
+            placeholder={ui.customFields.dialog.optionPlaceholder}
+            aria-label={ui.customFields.dialog.optionAdd}
+            aria-invalid={(invalid && options.length === 0) || undefined}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
@@ -129,124 +140,86 @@ export function FieldOptionsEditor({
           <button
             type="button"
             onClick={add}
-            disabled={!draft.trim() || create.isPending}
-            aria-label={ui.customFields.editor.optionAdd}
-            title={ui.customFields.editor.optionAdd}
+            disabled={!draft.trim()}
+            aria-label={ui.customFields.dialog.optionAdd}
+            title={ui.customFields.dialog.optionAdd}
             className="flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
           >
             <Plus className="size-4" strokeWidth={1.75} />
           </button>
         </div>
       ) : null}
-
-      {archived.length > 0 ? (
-        <div className="mt-1 flex flex-col gap-1">
-          <span className="text-xs font-medium text-muted-foreground">
-            {ui.customFields.list.archiveGroup} · {archived.length}
-          </span>
-          {archived.map((item) => (
-            <div key={item.id} className="flex items-center gap-2 text-sm text-muted-foreground">
-              <span className="min-w-0 flex-1 truncate">{item.name}</span>
-              {!disabled ? (
-                <button
-                  type="button"
-                  onClick={() => archive.mutate({ id: item.id, archived: false })}
-                  aria-label={ui.customFields.editor.optionRestore}
-                  title={ui.customFields.editor.optionRestore}
-                  className="rounded p-1 transition-colors hover:bg-accent hover:text-foreground"
-                >
-                  <ArchiveRestore className="size-3.5" strokeWidth={1.75} />
-                </button>
-              ) : null}
-            </div>
-          ))}
-        </div>
-      ) : null}
     </div>
   );
 }
 
-function SortableOption({
-  item,
+function OptionRow({
+  option,
   disabled,
-  editing,
-  onEdit,
+  isDefault,
   onRename,
-  onArchive,
+  onToggleDefault,
+  onDelete,
 }: {
-  item: DictionaryItem;
+  option: OptionDraft;
   disabled: boolean;
-  editing: boolean;
-  onEdit: () => void;
+  isDefault: boolean;
   onRename: (name: string) => void;
-  onArchive: () => void;
+  onToggleDefault: () => void;
+  onDelete: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: item.id,
+    id: option.id,
     disabled,
   });
-  const [text, setText] = useState(item.name);
-  useEffect(() => setText(item.name), [item.name]);
 
   return (
     <div
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={cn(
-        'group/option flex items-center gap-1.5 rounded-md px-1.5 py-1 text-sm hover:bg-accent/40',
-        isDragging && 'bg-accent',
+        'group/option flex items-center gap-1.5 rounded-lg',
+        isDragging && 'relative z-10 bg-card',
       )}
     >
-      {!disabled ? (
-        <button
-          type="button"
-          aria-label={ui.customFields.list.reorder}
-          title={ui.customFields.list.reorder}
-          className="shrink-0 cursor-grab touch-none rounded p-0.5 text-muted-foreground opacity-0 transition-opacity group-hover/option:opacity-100 focus-visible:opacity-100 active:cursor-grabbing"
-          {...attributes}
-          {...listeners}
-        >
-          <GripVertical className="size-3.5" strokeWidth={1.75} />
-        </button>
-      ) : null}
-      {editing && !disabled ? (
-        <Input
-          autoFocus
-          defaultValue={item.name}
-          maxLength={120}
-          aria-label={ui.customFields.editor.optionRename}
-          onChange={(e) => setText(e.target.value)}
-          onBlur={() => onRename(text.trim() || item.name)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              onRename(text.trim() || item.name);
-            }
-            if (e.key === 'Escape') onRename(item.name);
-          }}
-          className="h-7 flex-1 text-sm"
-        />
-      ) : (
-        <button
-          type="button"
-          onClick={onEdit}
+      <button
+        type="button"
+        disabled={disabled}
+        aria-label={ui.customFields.dialog.optionReorder}
+        title={ui.customFields.dialog.optionReorder}
+        className="flex w-4.5 shrink-0 cursor-grab touch-none justify-center text-muted-foreground opacity-50 transition-opacity group-hover/option:opacity-100 focus-visible:opacity-100 active:cursor-grabbing disabled:invisible"
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical className="size-3.5" strokeWidth={1.75} />
+      </button>
+      <Input
+        value={option.name}
+        maxLength={120}
+        disabled={disabled}
+        aria-label={ui.customFields.dialog.options}
+        aria-invalid={option.name.trim().length === 0 || undefined}
+        onChange={(e) => onRename(e.target.value)}
+        className="h-8 flex-1 text-sm"
+      />
+      <span className="flex w-[4.5rem] shrink-0 justify-center">
+        <Checkbox
+          checked={isDefault}
           disabled={disabled}
-          className="min-w-0 flex-1 truncate text-left"
-        >
-          {item.name}
-        </button>
-      )}
-      {!disabled ? (
-        <button
-          type="button"
-          onClick={onArchive}
-          aria-label={ui.customFields.editor.optionArchive}
-          title={ui.customFields.editor.optionArchive}
-          className="shrink-0 rounded p-1 text-muted-foreground opacity-0 transition-opacity group-hover/option:opacity-100 focus-visible:opacity-100 hover:text-foreground"
-        >
-          <Archive className="size-3.5" strokeWidth={1.75} />
-        </button>
-      ) : null}
+          aria-label={ui.customFields.dialog.optionDefault}
+          onCheckedChange={onToggleDefault}
+        />
+      </span>
+      <button
+        type="button"
+        onClick={onDelete}
+        disabled={disabled}
+        aria-label={ui.customFields.dialog.optionDelete}
+        title={ui.customFields.dialog.optionDelete}
+        className="flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:invisible"
+      >
+        <X className="size-4" strokeWidth={1.75} />
+      </button>
     </div>
   );
 }

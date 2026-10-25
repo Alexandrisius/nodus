@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import type {
   CustomFieldDefault,
   CustomFieldDefinition,
@@ -6,103 +5,81 @@ import type {
   CustomFieldValue,
 } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
-import { cn } from '@nodus/ui/lib/utils';
 
 import { CustomFieldEditor } from '../../../../shared/custom-fields/value-editor.js';
+import { SegmentedControl } from '../../../../shared/ui/segmented-control.js';
+import type { DefaultMode } from '../../lib/field-draft.js';
 
-type Mode = 'none' | 'static' | 'author_department';
-
-function modeOf(value: CustomFieldDefault | null): Mode {
-  return value?.kind ?? 'none';
-}
+type Mode = DefaultMode;
 
 /**
- * Значение по умолчанию (#431, Р5): «нет», статическое значение или
- * «подразделение автора» (только у поля «Подразделение»). Статическое
- * значение задаётся тем же редактором, что и в карточке, — одна грамматика.
+ * Значение по умолчанию в окне атрибута (#431, Р5): «Нет», «Значение»
+ * (тот же редактор, что в карточке, — одна грамматика) и «Подразделение
+ * автора» (только у подразделения). Режим — общий сегментированный
+ * переключатель; правка идёт в черновик окна, не на сервер.
  */
 export function FieldDefaultValue({
   definition,
+  value,
+  refs,
+  mode,
   disabled,
+  onModeChange,
   onChange,
 }: {
   definition: CustomFieldDefinition;
+  value: CustomFieldDefault | null;
+  refs: readonly CustomFieldRef[];
+  mode: Mode;
   disabled: boolean;
-  onChange: (value: CustomFieldDefault | null) => void;
+  onModeChange: (mode: Mode) => void;
+  onChange: (value: CustomFieldDefault | null, refs: CustomFieldRef[]) => void;
 }) {
-  const [mode, setMode] = useState<Mode>(modeOf(definition.defaultValue));
-  const [syncedFrom, setSyncedFrom] = useState(definition.defaultValue);
-  if (syncedFrom !== definition.defaultValue) {
-    setSyncedFrom(definition.defaultValue);
-    setMode(modeOf(definition.defaultValue));
-  }
-  const authorDepartment = definition.type === 'department';
-  const staticValue =
-    definition.defaultValue?.kind === 'static' ? definition.defaultValue.value : undefined;
-
-  function choose(next: Mode) {
-    setMode(next);
-    if (next === 'none') onChange(null);
-    if (next === 'author_department') onChange({ kind: 'author_department' });
-    if (next === 'static' && staticValue !== undefined)
-      onChange({ kind: 'static', value: staticValue });
-  }
-
-  const option = (value: Mode, label: string, disabledOption = false) => (
-    <button
-      key={value}
-      type="button"
-      role="radio"
-      aria-checked={mode === value}
-      disabled={disabled || disabledOption}
-      onClick={() => choose(value)}
-      className={cn(
-        'flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-left text-sm transition-colors',
-        mode === value ? 'border-primary bg-primary/5' : 'border-border hover:bg-accent/60',
-        disabledOption && 'cursor-not-allowed opacity-50',
-      )}
-    >
-      <span
-        aria-hidden
-        className={cn(
-          'size-3.5 shrink-0 rounded-full border',
-          mode === value
-            ? 'border-primary bg-primary ring-2 ring-primary/20'
-            : 'border-muted-foreground/50',
-        )}
-      />
-      {label}
-    </button>
-  );
+  const options: { value: Mode; label: string }[] = [
+    { value: 'none', label: ui.customFields.dialog.defaultNone },
+    { value: 'static', label: ui.customFields.dialog.defaultStatic },
+    ...(definition.type === 'department'
+      ? [
+          {
+            value: 'author_department' as const,
+            label: ui.customFields.dialog.defaultAuthorDepartment,
+          },
+        ]
+      : []),
+  ];
+  const staticValue = value?.kind === 'static' ? value.value : undefined;
 
   return (
     <div className="flex flex-col gap-2">
-      <div
-        role="radiogroup"
-        aria-label={ui.customFields.editor.defaultValue}
-        className="flex flex-wrap gap-1.5"
-      >
-        {option('none', ui.customFields.editor.defaultNone)}
-        {option('static', ui.customFields.editor.defaultStatic)}
-        {authorDepartment
-          ? option('author_department', ui.customFields.editor.defaultAuthorDepartment)
-          : null}
-      </div>
+      <SegmentedControl
+        value={mode}
+        options={options}
+        disabled={disabled}
+        ariaLabel={ui.customFields.dialog.defaultValue}
+        className="w-fit [&>button]:flex-none"
+        size="sm"
+        activeClassName="bg-accent text-foreground"
+        onChange={(next) => {
+          onModeChange(next);
+          if (next === 'none') onChange(null, []);
+          if (next === 'author_department') onChange({ kind: 'author_department' }, []);
+        }}
+      />
       {mode === 'static' ? (
         <CustomFieldEditor
           definition={definition}
           value={staticValue}
-          refs={[] as CustomFieldRef[]}
+          refs={refs}
           disabled={disabled}
           variant="form"
-          onCommit={(value: CustomFieldValue | null) =>
-            onChange(value === null ? null : { kind: 'static', value })
+          onCommit={(next: CustomFieldValue | null, picked?: CustomFieldRef[]) =>
+            onChange(next === null ? null : { kind: 'static', value: next }, picked ?? [])
           }
         />
       ) : null}
       {mode === 'author_department' ? (
         <p className="text-xs text-muted-foreground">
-          {ui.customFields.editor.defaultAuthorDepartmentHint}
+          {ui.customFields.dialog.defaultAuthorDepartmentHint}
         </p>
       ) : null}
     </div>

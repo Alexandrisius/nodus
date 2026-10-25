@@ -2,14 +2,22 @@ import { useEffect, useRef, useState } from 'react';
 import { CUSTOM_FIELD_LIMITS } from '@nodus/contracts';
 import { Input } from '@nodus/ui/components/input';
 import { Textarea } from '@nodus/ui/components/textarea';
+import { cn } from '@nodus/ui/lib/utils';
 
 import { CustomFieldValueView, refsById } from '../value-view.js';
-import { EditorTrigger, type EditorProps } from './editor-kit.js';
+import {
+  EditorTrigger,
+  editorInputClass,
+  editorTextareaClass,
+  type EditorProps,
+} from './editor-kit.js';
 
 /**
  * Текст и многострочный текст: правка по месту. Одиночная строка
  * фиксируется Enter или уходом фокуса, многострочная — уходом фокуса
  * (Enter внутри текста — перенос). Escape возвращает прежнее значение.
+ * Ввод в карточке — того же габарита, что строка-значение: активация не
+ * сдвигает карточку (editor-kit).
  */
 export function TextEditor(props: EditorProps) {
   const multiline = props.definition.type === 'long_text';
@@ -47,6 +55,7 @@ export function TextEditor(props: EditorProps) {
         variant={props.variant}
         disabled={props.disabled}
         ariaLabel={props.definition.name}
+        multiline={multiline}
         onClick={() => !props.disabled && setEditing(true)}
       >
         <CustomFieldValueView
@@ -79,8 +88,11 @@ export function TextEditor(props: EditorProps) {
   } as const;
 
   return multiline ? (
-    <Textarea {...shared} className="min-h-16 text-sm [field-sizing:content]" />
+    <Textarea
+      {...shared}
+      className={cn('text-sm [field-sizing:content]', editorTextareaClass(props.variant))}
+    />
   ) : (
-    <Input {...shared} className="h-8 text-sm" />
+    <Input {...shared} className={cn(editorInputClass(props.variant), 'text-sm')} />
   );
 }

@@ -7,10 +7,12 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from '@nodus/ui/components/dropdown-menu';
+import { cn } from '@nodus/ui/lib/utils';
 
 /** Поле инспектора сущности: дескриптор (иконка + метка + рендер значения).
- *  Системные поля сущности описываются реестром в фиче; кастомные поля живут
- *  отдельным блоком `CustomFieldsBlock` (#431) в той же грамматике строки. */
+ *  Системные поля сущности описываются реестром в фиче; кастомные поля
+ *  (атрибуты) живут отдельным блоком `CustomFieldsBlock` (#431) в той же
+ *  грамматике строки. */
 export interface EntityFieldDef {
   key: string;
   icon: ReactNode;
@@ -47,24 +49,35 @@ export function useFieldVisibility(storageKey: string) {
  *  без табличных рамок, ховер-заливка строки. Значения НЕ сокращаются:
  *  на узкой зоне значение переносится под метку (min-w, вердикт владельца).
  *  Подсказка поля (#431) — title метки и aria-describedby значения (id
- *  скрытого текста даёт вызывающий). */
+ *  скрытого текста даёт вызывающий). `wide` — строка на всю ширину сетки
+ *  (многострочный текст, как описание задачи): метка у первой строки. */
 export function FieldRow({
   icon,
   label,
   hint,
   hintId,
+  wide = false,
   children,
 }: {
   icon: ReactNode;
   label: string;
   hint?: string | null;
   hintId?: string;
+  wide?: boolean;
   children: ReactNode;
 }) {
   return (
-    <div className="-mx-2 flex flex-wrap items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-accent/40">
+    <div
+      className={cn(
+        '-mx-2 flex flex-wrap items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-accent/40',
+        wide && 'items-start @min-[55rem]:col-span-2',
+      )}
+    >
       <span
-        className="flex w-44 shrink-0 items-center gap-2 text-xs font-medium text-muted-foreground"
+        className={cn(
+          'flex w-44 shrink-0 items-center gap-2 text-xs font-medium text-muted-foreground',
+          wide && 'min-h-7',
+        )}
         title={hint ?? undefined}
       >
         <span aria-hidden className="shrink-0 opacity-70">
@@ -76,7 +89,10 @@ export function FieldRow({
         ) : null}
       </span>
       <span
-        className="flex min-w-[10rem] flex-1 items-center gap-2 text-sm"
+        className={cn(
+          'flex min-w-[10rem] flex-1 items-center gap-2 text-sm',
+          wide && 'items-start',
+        )}
         aria-describedby={hint && hintId ? hintId : undefined}
       >
         {children}

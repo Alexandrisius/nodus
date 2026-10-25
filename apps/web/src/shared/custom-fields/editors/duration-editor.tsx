@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { ui } from '@nodus/contracts';
 import { Input } from '@nodus/ui/components/input';
+import { cn } from '@nodus/ui/lib/utils';
 
 import { formatDuration, parseDurationInput } from '../value-format.js';
 import { CustomFieldValueView, refsById } from '../value-view.js';
-import { EditorError, EditorTrigger, type EditorProps } from './editor-kit.js';
+import { EditorError, EditorTrigger, editorInputClass, type EditorProps } from './editor-kit.js';
 
 /**
  * Продолжительность: минуты хранятся целыми (1..100000), показ и ввод —
@@ -87,7 +88,7 @@ export function DurationEditor(props: EditorProps) {
             commit();
           }
         }}
-        className="h-8 w-32 text-sm tabular-nums"
+        className={cn(editorInputClass(props.variant), 'w-32 text-sm tabular-nums')}
       />
       {error ? <EditorError id={errorId} text={ui.customFields.value.invalidDuration} /> : null}
     </div>
