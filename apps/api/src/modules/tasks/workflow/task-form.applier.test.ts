@@ -18,7 +18,7 @@ const TASK = {
 
 function setup(overrides: Record<string, unknown> = {}) {
   const tasks = { findWithParticipants: vi.fn(async () => ({ ...TASK, ...overrides })) };
-  const writer = { apply: vi.fn(async () => void 0) };
+  const writer = { apply: vi.fn(async () => ({ customFieldChanges: [] })) };
   const time = { addManualInTx: vi.fn(async () => ({ id: 'entry-1' })) };
   const revisions = {
     create: vi.fn(async () => ({

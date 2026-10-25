@@ -23,6 +23,7 @@ import {
   TaskCommentSentHandler,
   TaskCommentsCounter,
 } from './events/comments-count.handler.js';
+import { CustomFieldValuesCleanupHandler } from './events/custom-field-values-cleanup.handler.js';
 import { OverdueScanner } from './events/overdue.scanner.js';
 import { ParticipantsRepository } from './participants/participants.repository.js';
 import { ParticipantsService } from './participants/participants.service.js';
@@ -32,6 +33,7 @@ import { PersonalTemplateBootstrap } from './personal/personal-template.bootstra
 import { Placements } from './personal/placements.js';
 import { PlacementsRepository } from './personal/placements.repository.js';
 import { TaskDtoMapper } from './tasks/task-dto.mapper.js';
+import { TaskFactsRepository } from './tasks/task-facts.repository.js';
 import { TaskEditService } from './tasks/task-edit.service.js';
 import { TaskFieldsWriter } from './tasks/task-fields.writer.js';
 import { TasksController } from './tasks/tasks.controller.js';
@@ -74,6 +76,7 @@ import { TaskWorkflowController } from './workflow/task-workflow.controller.js';
     // Репозитории — единственная точка доступа к таблицам модуля (patterns.md).
     TasksRepository,
     TasksQueryRepository,
+    TaskFactsRepository,
     PlacementsRepository,
     PersonalBoardsRepository,
     ParticipantsRepository,
@@ -113,6 +116,8 @@ import { TaskWorkflowController } from './workflow/task-workflow.controller.js';
     TaskCommentsCounter,
     TaskCommentSentHandler,
     TaskCommentDeletedHandler,
+    // Уборка значений удалённого атрибута (#431): событие custom_field.definition_changed.
+    CustomFieldValuesCleanupHandler,
   ],
 })
 export class TasksModule {}

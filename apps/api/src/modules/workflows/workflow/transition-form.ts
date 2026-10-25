@@ -1,4 +1,5 @@
 import {
+  customFieldKey,
   effectiveWindowSections,
   requiredWindowSections,
   transitionFormSchema,
@@ -74,10 +75,15 @@ export function checkFormInput(
   const unexpected: string[] = [];
   if (input.fields) {
     for (const key of Object.keys(input.fields)) {
-      // #431 UI-пакет: заглушка до бэкенд-пакета — значения полей процесса
-      // ещё не принимаются (маппинг в `fields.cf.<id>` — B6).
+      // Значения кастомных атрибутов (#431, Р7): клиент шлёт их вложенной
+      // картой `fields.customFields.<id>`, окно и гейт адресуют ключом
+      // `cf.<id>` — сверяем по приведённому ключу.
       if (key === 'customFields') {
-        unexpected.push('fields.customFields');
+        for (const fieldId of Object.keys(input.fields.customFields ?? {})) {
+          if (!allowed.has(`fields.${customFieldKey(fieldId)}`)) {
+            unexpected.push(`fields.customFields.${fieldId}`);
+          }
+        }
         continue;
       }
       const mapped = FIELD_KEYS[key as keyof typeof FIELD_KEYS];

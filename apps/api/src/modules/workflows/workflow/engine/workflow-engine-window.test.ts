@@ -45,6 +45,8 @@ const facts = {
   plannedMinutes: null,
   hasResult: false,
   resultFileCount: 0,
+  customFields: {},
+  activeCustomFieldIds: new Set<string>(),
 };
 
 function transition(partial: Partial<TransitionDef>): TransitionDef {

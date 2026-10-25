@@ -14,8 +14,13 @@ import type {
   WorkflowStageChangeMeta,
 } from '../../../core/ports/workflow-entity.port.js';
 import { CHAT_MESSAGE_ACCESS, type ChatMessageAccess } from '../../chat/message-access.port.js';
+import {
+  CUSTOM_FIELD_REGISTRY,
+  type CustomFieldRegistry,
+} from '../../custom-fields/ports/custom-field-registry.port.js';
 import { actorRoles, planHolderIds } from '../access/task-access.js';
 import { Placements } from '../personal/placements.js';
+import { TaskFactsRepository } from '../tasks/task-facts.repository.js';
 import { TasksRepository } from '../tasks/tasks.repository.js';
 import { StageMover } from './stage-mover.js';
 import { TaskFormApplier } from './task-form.applier.js';
@@ -39,10 +44,12 @@ export class TaskWorkflowAdapter implements WorkflowEntityAdapter {
   constructor(
     private readonly txRunner: TransactionRunner,
     private readonly tasks: TasksRepository,
+    private readonly facts: TaskFactsRepository,
     private readonly placements: Placements,
     private readonly mover: StageMover,
     private readonly forms: TaskFormApplier,
     @Inject(CHAT_MESSAGE_ACCESS) private readonly messages: ChatMessageAccess,
+    @Inject(CUSTOM_FIELD_REGISTRY) private readonly customFields: CustomFieldRegistry,
   ) {}
 
   lock(tx: TransactionClient, taskId: string): Promise<void> {
@@ -56,8 +63,12 @@ export class TaskWorkflowAdapter implements WorkflowEntityAdapter {
   ): Promise<WorkflowActorSubject> {
     const task = await this.tasks.findWithParticipants(taskId, tx);
     const roles = actorRoles(task, actor.id);
-    const facts = await this.tasks.gateFacts(taskId, tx);
+    const facts = await this.facts.gateFacts(taskId, tx);
     const { resultMessageIds, ...gateFacts } = facts;
+    // Реестр атрибутов области (#431, Р7): гейт «Заполнены поля» знает,
+    // какие ключи `cf.<id>` существуют. Скрытые входят — условие процесса
+    // видит служебные значения, а несуществующий ключ не блокирует переход.
+    const definitions = await this.customFields.definitions('task', tx);
     return {
       workflowId: task.workflowId,
       stageId: task.stageId,
@@ -67,6 +78,7 @@ export class TaskWorkflowAdapter implements WorkflowEntityAdapter {
       actsWithoutConditions: roles.has('creator') || roles.has('assignee'),
       facts: {
         ...gateFacts,
+        activeCustomFieldIds: new Set(definitions.map((definition) => definition.id)),
         resultFileCount: await this.messages.countAttachments(resultMessageIds, tx),
       },
     };

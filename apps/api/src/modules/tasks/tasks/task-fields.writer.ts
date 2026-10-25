@@ -1,5 +1,10 @@
-import { Injectable } from '@nestjs/common';
-import { ErrorCode, TASK_EVENTS } from '@nodus/contracts';
+import { Inject, Injectable } from '@nestjs/common';
+import {
+  CUSTOM_FIELD_LIMITS,
+  ErrorCode,
+  TASK_EVENTS,
+  type CustomFieldValue,
+} from '@nodus/contracts';
 
 import type { TransactionClient } from '../../../core/database/transaction-runner.js';
 import { DomainException } from '../../../core/errors/domain-exception.js';
@@ -7,6 +12,12 @@ import { EventBus } from '../../../core/events/event-bus.js';
 import { audienceIds, planHolderIds } from '../access/task-access.js';
 import { ParticipantsRepository } from '../participants/participants.repository.js';
 import { Placements } from '../personal/placements.js';
+import {
+  CUSTOM_FIELD_REGISTRY,
+  type CustomFieldRegistry,
+  type RegistryFieldChange,
+} from '../../custom-fields/ports/custom-field-registry.port.js';
+import { TaskFactsRepository } from './task-facts.repository.js';
 import { TasksRepository, type TaskFieldsPatch } from './tasks.repository.js';
 
 /** Строка задачи для правки полей: хватает идентичности и текущих значений,
@@ -28,6 +39,8 @@ export interface TaskFieldsWrite {
   parentId?: string | null;
   deadline?: string | null;
   assigneeId?: string;
+  /** Патч кастомных атрибутов (#431): `null` удаляет ключ, проверка — порт. */
+  customFields?: Record<string, CustomFieldValue | null>;
 }
 
 /**
@@ -40,9 +53,11 @@ export interface TaskFieldsWrite {
 export class TaskFieldsWriter {
   constructor(
     private readonly repo: TasksRepository,
+    private readonly facts: TaskFactsRepository,
     private readonly eventBus: EventBus,
     private readonly participantsRepo: ParticipantsRepository,
     private readonly placements: Placements,
+    @Inject(CUSTOM_FIELD_REGISTRY) private readonly customFields: CustomFieldRegistry,
   ) {}
 
   async apply(
@@ -51,7 +66,7 @@ export class TaskFieldsWriter {
     row: TaskFieldsRow,
     patch: TaskFieldsWrite,
     fields: readonly string[],
-  ): Promise<void> {
+  ): Promise<{ customFieldChanges: RegistryFieldChange[] }> {
     const reparent = patch.parentId !== undefined;
     // Смены родителя сериализуются одной advisory-блокировкой транзакции
     // (построчные локи не ловят циклы из 4+ узлов) — и берётся она ДО замка
@@ -73,6 +88,9 @@ export class TaskFieldsWriter {
       }
     }
     const data: TaskFieldsPatch = {};
+    // Значения атрибутов читаются и пишутся под замком строки: параллельные
+    // PATCH сливаются по ключам, а не перетирают карту целиком (#431).
+    let fieldChanges: RegistryFieldChange[] = [];
     if (patch.title !== undefined) data.title = patch.title;
     if (patch.description !== undefined) data.description = patch.description;
     if (patch.priority !== undefined) data.priority = patch.priority as TaskFieldsPatch['priority'];
@@ -91,6 +109,16 @@ export class TaskFieldsWriter {
       data.assigneeId = newAssigneeId;
       // Новый ответственный перестаёт быть соисполнителем/наблюдателем.
       await this.participantsRepo.remove(tx, row.id, newAssigneeId);
+    }
+    if (patch.customFields && Object.keys(patch.customFields).length > 0) {
+      const current = await this.facts.customFieldsOf(tx, row.id);
+      const prepared = await this.customFields.prepareUpdate(
+        'task',
+        { current, patch: patch.customFields },
+        tx,
+      );
+      fieldChanges = prepared.changes;
+      if (prepared.changes.length > 0) data.customFields = prepared.next;
     }
     await this.repo.updateFields(tx, row.id, data);
     const after = await this.repo.findWithParticipants(row.id, tx);
@@ -114,12 +142,17 @@ export class TaskFieldsWriter {
         meta,
       );
     }
+    const changedKeys = fieldChanges.map((change) => `cf.${change.fieldId}`);
     await this.eventBus.emit(
       tx,
       TASK_EVENTS.UPDATED,
       {
         ...base,
-        fields,
+        fields: changedKeys.length > 0 ? [...fields, ...changedKeys] : fields,
+        // Обрезка длинного текста и числа изменений — лимит события (Р12).
+        ...(fieldChanges.length > 0
+          ? { customFieldChanges: fieldChanges.map(eventSafeChange) }
+          : {}),
         ...(patch.title !== undefined ? { title: after.title } : {}),
         ...(patch.deadline !== undefined
           ? { deadline: after.deadline?.toISOString() ?? null }
@@ -127,5 +160,15 @@ export class TaskFieldsWriter {
       },
       meta,
     );
+    return { customFieldChanges: fieldChanges };
   }
+}
+
+/** Значение в событии: длинный текст обрезается, изменений — не больше лимита. */
+function eventSafeChange(change: RegistryFieldChange) {
+  const clip = (value: CustomFieldValue | null): CustomFieldValue | null =>
+    typeof value === 'string' && value.length > CUSTOM_FIELD_LIMITS.eventText
+      ? value.slice(0, CUSTOM_FIELD_LIMITS.eventText)
+      : value;
+  return { fieldId: change.fieldId, from: clip(change.from), to: clip(change.to) };
 }

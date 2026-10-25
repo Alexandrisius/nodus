@@ -28,6 +28,8 @@ const facts: WorkflowGateFacts = {
   plannedMinutes: null,
   hasResult: false,
   resultFileCount: 0,
+  customFields: {},
+  activeCustomFieldIds: new Set<string>(),
 };
 
 const stages: StageDef[] = [

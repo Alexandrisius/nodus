@@ -46,7 +46,6 @@ function makeAdapter() {
     lock: vi.fn(async () => void 0),
     findWithParticipants: vi.fn(async () => task),
     findLiveRoster: vi.fn(async () => task),
-    gateFacts: vi.fn(async () => facts),
     idsByStage: vi.fn(),
     idsToRestate: vi.fn(),
     countByStages: vi.fn(async () => [
@@ -54,16 +53,20 @@ function makeAdapter() {
       { stageId: TO, count: 0 },
     ]),
   };
+  const factRepo = { gateFacts: vi.fn(async () => facts) };
   const placements = { prepare: vi.fn(async () => void 0) };
   const forms = { apply: vi.fn() };
   const messages = { countAttachments: vi.fn(async () => 0) };
+  const customFields = { definitions: vi.fn(async () => []) };
   const adapter = new TaskWorkflowAdapter(
     { run: vi.fn(async (fn: (t: unknown) => unknown) => fn({})) } as never,
     tasks as never,
+    factRepo as never,
     placements as never,
     mover as never,
     forms as never,
     messages as never,
+    customFields as never,
   );
   return { adapter, mover, tasks, placements };
 }

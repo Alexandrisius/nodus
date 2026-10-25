@@ -1,5 +1,6 @@
 import {
   customFieldIdOfKey,
+  isCustomFieldValueFilled,
   isFinalState,
   workflowTransitionRulesSchema,
   type TransitionBlockReason,
@@ -78,9 +79,15 @@ function missingFields(fields: WorkflowFieldKey[], facts: WorkflowGateFacts): Wo
     result: facts.hasResult,
   };
   return fields.filter((f) => {
-    // #431 UI-пакет: заглушка до бэкенд-пакета — кастомное поле не блокирует
-    // переход; факты значений даст адаптер сущности в B6.
-    if (customFieldIdOfKey(f) !== null) return false;
+    const fieldId = customFieldIdOfKey(f);
+    // Атрибут (#431, Р7): неизвестный/удалённый ключ не блокирует переход —
+    // маршрут не должен ломаться из-за удалённого поля (публикация такое
+    // ловит ошибкой `custom_field_unknown`, но старые документы живут).
+    // Скрытый атрибут блокирует: условие процесса видит служебные значения.
+    if (fieldId !== null) {
+      if (!facts.activeCustomFieldIds.has(fieldId)) return false;
+      return !isCustomFieldValueFilled(facts.customFields[fieldId]);
+    }
     return !filled[f as WorkflowRequirableField];
   });
 }

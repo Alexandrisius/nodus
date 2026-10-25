@@ -4,9 +4,10 @@ import { statesOfPhase } from '@nodus/contracts';
 import { Prisma } from '../../../generated/prisma/client.js';
 import { PrismaService } from '../../../core/database/prisma.service.js';
 import type { TransactionClient } from '../../../core/database/transaction-runner.js';
-import type { WorkflowGateFacts } from '../../../core/ports/workflow-entity.port.js';
 import { keyBetween } from '../lib/fractional-index.js';
 import { taskListInclude } from './task-row.js';
+export type { NewTaskData, TaskFieldsPatch, TaskStageMove } from './task-write.types.js';
+import type { NewTaskData, TaskFieldsPatch, TaskStageMove } from './task-write.types.js';
 
 /** Параллельное «В задачу» по тому же сообщению проиграло частичному unique
  *  `tasks_source_dedup_key` (P2002): победитель уже создал задачу — сервис
@@ -16,57 +17,6 @@ export class DuplicateTaskSourceError extends Error {
     super('Task for this source already exists');
     this.name = 'DuplicateTaskSourceError';
   }
-}
-
-/** Факты гейтов задачи + id сообщений текущей ревизии итога: вложения
- *  считает порт чата (адаптер), поэтому `resultFileCount` добавляет он. */
-export type TaskGateFacts = Omit<WorkflowGateFacts, 'resultFileCount'> & {
-  resultMessageIds: string[];
-};
-
-/** Поля новой задачи (участники — вложенным созданием в том же INSERT). */
-export interface NewTaskData {
-  title: string;
-  description: string;
-  typeId: string;
-  workflowId: string;
-  stageId: string;
-  systemState: string;
-  stageOrder: string;
-  priority: string;
-  deadline: Date | null;
-  plannedMinutes: number | null;
-  acceptRequired: boolean;
-  creatorId: string;
-  assigneeId: string;
-  parentId: string | null;
-  projectId: string | null;
-  source: string;
-  sourceId: string | null;
-  checklistTotal: number;
-  participants: { userId: string; role: string; muted: boolean }[];
-}
-
-/** Правка полей задачи (PATCH): только переданные ключи. */
-export interface TaskFieldsPatch {
-  title?: string;
-  description?: string;
-  priority?: string;
-  plannedMinutes?: number | null;
-  acceptRequired?: boolean;
-  parentId?: string | null;
-  deadline?: Date | null;
-  overdueNotifiedAt?: null;
-  assigneeId?: string;
-}
-
-/** Смена стадии задачи (переход маршрута; проверки — у вызывающего). */
-export interface TaskStageMove {
-  stageId: string;
-  systemState: string;
-  stageOrder: string;
-  stateChangedAt?: Date;
-  completedAt: Date | null;
 }
 
 /**
@@ -120,9 +70,16 @@ export class TasksRepository {
   }
 
   async create(data: NewTaskData, tx: TransactionClient) {
-    const { participants, ...task } = data;
+    const { participants, customFields, ...task } = data;
     try {
-      return await tx.task.create({ data: { ...task, participants: { create: participants } } });
+      return await tx.task.create({
+        data: {
+          ...task,
+          // JSONB-колонка: значения уже проверены портом реестра (#431).
+          customFields: (customFields ?? {}) as Prisma.InputJsonValue,
+          participants: { create: participants },
+        },
+      });
     } catch (error) {
       if (task.sourceId && (error as { code?: string }).code === 'P2002') {
         throw new DuplicateTaskSourceError();
@@ -132,7 +89,16 @@ export class TasksRepository {
   }
 
   async updateFields(tx: TransactionClient, id: string, patch: TaskFieldsPatch): Promise<void> {
-    await tx.task.update({ where: { id }, data: patch });
+    const { customFields, ...rest } = patch;
+    await tx.task.update({
+      where: { id },
+      data: {
+        ...rest,
+        ...(customFields === undefined
+          ? {}
+          : { customFields: customFields as Prisma.InputJsonValue }),
+      },
+    });
   }
 
   /** Текущий родитель (свежий, под блокировкой вызывающего). */
@@ -270,41 +236,6 @@ export class TasksRepository {
 
   async markOverdueNotified(tx: TransactionClient, id: string, at: Date): Promise<void> {
     await tx.task.update({ where: { id }, data: { overdueNotifiedAt: at } });
-  }
-
-  async gateFacts(taskId: string, tx: TransactionClient): Promise<TaskGateFacts> {
-    const children = (phase: 'open' | 'review') =>
-      tx.task.count({
-        where: { parentId: taskId, deletedAt: null, systemState: { in: statesOfPhase(phase) } },
-      });
-    const [task, openSubtasks, reviewSubtasks, result] = await Promise.all([
-      tx.task.findUniqueOrThrow({ where: { id: taskId } }),
-      children('open'),
-      children('review'),
-      tx.taskResult.findFirst({
-        where: { taskId },
-        orderBy: { createdAt: 'desc' },
-        select: { text: true, messageIds: true },
-      }),
-    ]);
-    return {
-      stageId: task.stageId,
-      acceptRequired: task.acceptRequired,
-      creatorIsAssignee: task.creatorId === task.assigneeId,
-      openSubtasks,
-      reviewSubtasks,
-      checklistDone: task.checklistDone,
-      checklistTotal: task.checklistTotal,
-      spentMinutes: task.spentMinutes,
-      description: task.description,
-      deadline: task.deadline,
-      assigneeId: task.assigneeId,
-      plannedMinutes: task.plannedMinutes,
-      hasResult: Boolean(result?.text.trim()),
-      // Файлы итога — вложения сообщений ревизии (#380); считает порт чата
-      // (задача чужих таблиц не читает — I3/I6).
-      resultMessageIds: Array.isArray(result?.messageIds) ? (result.messageIds as string[]) : [],
-    };
   }
 
   /** Ключ порядка для позиции index в колонке глобальной оси (без самой задачи). */

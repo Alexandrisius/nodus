@@ -46,6 +46,26 @@ describe('routeEnvelope', () => {
     expect(calls.map((c) => c.room)).toEqual(['presence', 'presence', 'presence']);
   });
 
+  it('каталог атрибутов и справочников (#431): всем аутентифицированным (presence)', async () => {
+    const { io, calls } = fakeIo();
+    const store: MembershipStore = { isMember: vi.fn(), memberIds: vi.fn(), userRef: vi.fn() };
+    await routeEnvelope(
+      io,
+      store,
+      envelope('custom_field.definition_changed', {
+        definitionId: USER_A,
+        scope: 'task',
+        change: 'created',
+      }),
+    );
+    await routeEnvelope(
+      io,
+      store,
+      envelope('dictionary.item_deleted', { dictionaryId: USER_B, itemId: USER_A }),
+    );
+    expect(calls.map((c) => c.room)).toEqual(['presence', 'presence']);
+  });
+
   it('message_sent: комната беседы + user-комнаты участников (список бесед)', async () => {
     const { io, calls } = fakeIo();
     const store: MembershipStore = {

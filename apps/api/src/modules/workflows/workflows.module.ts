@@ -12,6 +12,7 @@ import { WorkflowEditorService } from './workflow/editor/publish.service.js';
 import { WorkflowPublishRepository } from './workflow/editor/publish.repository.js';
 import { WorkflowSyncJob } from './workflow/editor/workflow-sync.job.js';
 import { WorkflowsPortsModule } from './workflows-ports.module.js';
+import { CustomFieldsPortsModule } from '../custom-fields/custom-fields-ports.module.js';
 
 /**
  * Модуль «Процессы» (ADR-0024) — ядро платформы (I10, фичефлага нет): типы
@@ -23,7 +24,9 @@ import { WorkflowsPortsModule } from './workflows-ports.module.js';
  * не пишет. Порты для владельцев — `WorkflowsPortsModule` (ADR-0012).
  */
 @Module({
-  imports: [WorkflowsPortsModule],
+  // Реестр атрибутов (#431): публикация проверяет ключи `cf.<id>` окна и
+  // гейтов по определениям области маршрута.
+  imports: [WorkflowsPortsModule, CustomFieldsPortsModule],
   controllers: [ProcessTypesController, WorkflowEditorController],
   providers: [
     UserProfileProvider,

@@ -58,21 +58,12 @@ export class TaskEditService {
   ) {}
 
   async update(user: AuthUser, id: string, body: TaskUpdateBody): Promise<TaskListItem> {
-    // #431 UI-пакет: заглушка до бэкенд-пакета — определений полей ещё нет,
-    // любое значение невалидно (верно и после бэкенда, пока полей нет).
-    if (body.customFields && Object.keys(body.customFields).length > 0) {
-      throw new DomainException(ErrorCode.CUSTOM_FIELD_VALUE_INVALID, 'Unknown custom field', {
-        issues: Object.keys(body.customFields).map((fieldId) => ({
-          fieldId,
-          reason: 'unknown',
-          message: 'Unknown custom field',
-        })),
-      });
-    }
     const row = await this.query.visibleRow(user, id);
     const access = taskAccess(actorRoles(row, user.id), user.permissions);
     const fields = FIELD_KEYS.filter((k) => body[k] !== undefined);
-    if (fields.length > 0 && !access.canEdit)
+    const hasCustomFields =
+      body.customFields !== undefined && Object.keys(body.customFields).length > 0;
+    if ((fields.length > 0 || hasCustomFields) && !access.canEdit)
       throw DomainException.forbidden('Task edit not allowed');
     if (body.assigneeId) await this.tasks.assertActiveUsers([body.assigneeId]);
     if (body.parentId === id) {
@@ -89,7 +80,7 @@ export class TaskEditService {
     await this.placements.prepare(holdersAfter);
 
     await this.txRunner.run(async (tx) => {
-      if (fields.length > 0) await this.applyFields(tx, user, row, body, fields);
+      if (fields.length > 0 || hasCustomFields) await this.applyFields(tx, user, row, body, fields);
       if (body.stageId)
         await this.moveGlobal(tx, user, row, body.stageId, body.index, access.canEdit);
       if (body.personalStageId)
@@ -119,6 +110,7 @@ export class TaskEditService {
         parentId: body.parentId,
         deadline: body.deadline,
         assigneeId: body.assigneeId,
+        customFields: body.customFields,
       },
       fields,
     );

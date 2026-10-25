@@ -182,6 +182,7 @@ function makeService(
     { emit: calls.emit } as never,
     adapters as never,
     { findRefs: vi.fn(async () => []) } as never,
+    { definitions: vi.fn(async () => []) } as never,
   );
   return { service, calls };
 }

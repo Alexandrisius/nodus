@@ -1,6 +1,8 @@
 import type { Server } from 'socket.io';
 import {
   CHAT_EVENTS,
+  CUSTOM_FIELD_CATALOG_EVENTS,
+  DICTIONARY_CATALOG_EVENTS,
   DIRECTORY_EVENTS,
   WORKFLOW_CATALOG_EVENTS,
   type RealtimeEnvelope,
@@ -23,6 +25,17 @@ const STICKER_INSTALL_EVENTS = new Set<string>([
  *  клиенты инвалидируют типы, статусы и маршруты. Явный список, а не префикс
  *  `workflow.`: у ADR-0025 будут некаталожные workflow.* с адресацией. */
 const WORKFLOW_CATALOG = new Set<string>(WORKFLOW_CATALOG_EVENTS);
+
+/**
+ * Каталог атрибутов и справочников (#431): определения и варианты списков
+ * видят все — широковещательно в presence-комнату, как `workflow.*`.
+ * Клиенты инвалидируют реестр атрибутов, блок «Атрибуты» карточек и
+ * подписи вариантов во всех полях с этим списком.
+ */
+const CUSTOM_FIELD_CATALOG = new Set<string>([
+  ...CUSTOM_FIELD_CATALOG_EVENTS,
+  ...DICTIONARY_CATALOG_EVENTS,
+]);
 
 /** События, меняющие список бесед (lastMessage/unread/название/аватар) → дублируем в user-комнаты участников. */
 const LIST_EVENTS = new Set([
@@ -82,7 +95,7 @@ export async function routeEnvelope(
 
   // Каталожные события «Процессов» (#428): схемы и типы видят все —
   // широковещательно в комнату presence (все аутентифицированные сокеты).
-  if (WORKFLOW_CATALOG.has(envelope.type)) {
+  if (WORKFLOW_CATALOG.has(envelope.type) || CUSTOM_FIELD_CATALOG.has(envelope.type)) {
     io.to(PRESENCE_ROOM).emit(envelope.type, envelope);
     return;
   }
