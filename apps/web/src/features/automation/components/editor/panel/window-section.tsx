@@ -1,10 +1,18 @@
 import { useState } from 'react';
-import type { WorkflowDraftDocument, WorkflowDraftTransition } from '@nodus/contracts';
-import { ui } from '@nodus/contracts';
+import type {
+  CustomFieldScope,
+  WorkflowDraftDocument,
+  WorkflowDraftTransition,
+} from '@nodus/contracts';
+import { CUSTOM_FIELD_LIMITS, ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import { Checkbox } from '@nodus/ui/components/checkbox';
 import { Input } from '@nodus/ui/components/input';
 
+import {
+  activeDefinitions,
+  useCustomFieldDefinitions,
+} from '../../../../../shared/custom-fields/queries.js';
 import { useRouteDocStore } from '../../../model/route-doc-store.js';
 import {
   WINDOW_FIELDS,
@@ -21,6 +29,7 @@ import { setMinFiles, validatorOf } from '../../../model/transition-rules.js';
 import { TransitionWindow } from '../../../../../shared/workflow/transition-window/transition-window.js';
 import type { TransitionWindowContext } from '../../../../../shared/workflow/transition-window/window-context.js';
 import { PanelField, SwitchRow } from './panel-kit.js';
+import { CustomFieldChecks } from './custom-fields-checks.js';
 import {
   GateCheck,
   ModeChoices,
@@ -34,18 +43,22 @@ import {
  * заголовок, шесть разделов в фиксированном порядке. «Обязательно» у
  * времени/итога/файлов правит ГЕЙТЫ (Р3: обязательность — только
  * валидаторы), у причины и сообщений — собственную настройку раздела.
+ * Поля процесса (#431) — подгруппой в разделе «Поля».
  */
 export function WindowSection({
   transition,
   document: doc,
+  scope,
   readOnly,
 }: {
   transition: WorkflowDraftTransition;
   document: WorkflowDraftDocument;
+  scope: CustomFieldScope;
   readOnly: boolean;
 }) {
   const form = transition.form;
   const [previewOpen, setPreviewOpen] = useState(false);
+  const { data: definitions } = useCustomFieldDefinitions(scope);
   const patch = (next: Partial<WorkflowDraftTransition['form']>) =>
     useRouteDocStore.getState().patchTransition(transition.id, { form: { ...form, ...next } });
   const toggle = (kind: Parameters<typeof toggleSection>[1]) => patch(toggleSection(form, kind));
@@ -92,6 +105,13 @@ export function WindowSection({
                   </label>
                 );
               })}
+              <CustomFieldChecks
+                scope={scope}
+                selected={sectionOf(form, 'fields')?.fields ?? []}
+                disabled={readOnly}
+                limit={CUSTOM_FIELD_LIMITS.windowFields}
+                onToggle={(key) => patch(toggleWindowField(form, key))}
+              />
               <p className="text-xs text-muted-foreground">{ui.automation.window.fieldsHint}</p>
             </div>
           </SectionToggle>
@@ -215,7 +235,7 @@ export function WindowSection({
             open={previewOpen}
             mode="preview"
             transition={previewTransition(transition, doc)}
-            context={previewContext(transition, doc)}
+            context={previewContext(transition, doc, activeDefinitions(definitions))}
             onCancel={() => setPreviewOpen(false)}
             onSubmit={() => {}}
           />
@@ -229,17 +249,28 @@ export function WindowSection({
 function previewContext(
   t: WorkflowDraftTransition,
   doc: WorkflowDraftDocument,
+  customFieldDefinitions: TransitionWindowContext['customFieldDefinitions'],
 ): TransitionWindowContext {
   return {
     entityId: '',
     conversationId: null,
     currentStageName:
       doc.stages.find((s) => s.id === t.fromStageId)?.name ?? ui.automation.anyStatus,
-    fields: { description: '', deadline: null, assigneeId: null, plannedMinutes: null },
+    fields: {
+      description: '',
+      deadline: null,
+      assigneeId: null,
+      plannedMinutes: null,
+      customFields: {},
+    },
     spentMinutes: 0,
     lastResult: null,
     access: { canEdit: false, canLogTime: false, canCheck: false },
     submission: null,
     scope: 'entity',
+    // Превью окна в редакторе показывает и поля процесса (#431): значения
+    // пустые, определения — живые для области маршрута.
+    customFieldDefinitions,
+    customFieldRefs: [],
   };
 }

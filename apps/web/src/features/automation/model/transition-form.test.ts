@@ -66,3 +66,29 @@ describe('правки окна в редакторе (#380)', () => {
     expect(hasFilesSection(toggleSection(form, 'result_files'))).toBe(true);
   });
 });
+
+describe('поля процесса в окне (#431, Р7)', () => {
+  const CF = '50000000-0000-4000-8000-000000000001';
+
+  it('ключ cf.* добавляется в тот же раздел и снимается', () => {
+    let form = toggleSection(empty, 'fields');
+    form = toggleWindowField(form, `cf.${CF}`);
+    expect(sectionOf(form, 'fields')?.fields).toEqual(['deadline', `cf.${CF}`]);
+    form = toggleWindowField(form, `cf.${CF}`);
+    expect(sectionOf(form, 'fields')?.fields).toEqual(['deadline']);
+  });
+
+  it('лимит раздела — 12 полей (Р7)', () => {
+    let form = toggleSection(empty, 'fields');
+    for (let index = 0; index < 11; index += 1) {
+      form = toggleWindowField(
+        form,
+        `cf.50000000-0000-4000-8000-${String(index + 10).padStart(12, '0')}`,
+      );
+    }
+    expect(sectionOf(form, 'fields')?.fields).toHaveLength(12);
+    const overflow = toggleWindowField(form, `cf.50000000-0000-4000-8000-000000000099`);
+    expect(sectionOf(overflow, 'fields')?.fields).toHaveLength(12);
+    expect(overflow).toEqual(form);
+  });
+});

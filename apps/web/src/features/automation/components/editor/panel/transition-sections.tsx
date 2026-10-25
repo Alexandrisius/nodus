@@ -1,5 +1,9 @@
-import type { WorkflowDraftDocument, WorkflowDraftTransition } from '@nodus/contracts';
-import { ui } from '@nodus/contracts';
+import type {
+  CustomFieldScope,
+  WorkflowDraftDocument,
+  WorkflowDraftTransition,
+} from '@nodus/contracts';
+import { CUSTOM_FIELD_LIMITS, ui } from '@nodus/contracts';
 import { Checkbox } from '@nodus/ui/components/checkbox';
 import { Input } from '@nodus/ui/components/input';
 import {
@@ -27,6 +31,7 @@ import {
   validatorOf,
 } from '../../../model/transition-rules.js';
 import { PanelField, SwitchRow } from './panel-kit.js';
+import { CustomFieldChecks } from './custom-fields-checks.js';
 
 /**
  * Разделы панели кнопки (#378 ред. 2, «переход внутрь» как в Трекере):
@@ -108,9 +113,11 @@ export function RolesSection({
 
 export function ConditionsSection({
   transition,
+  scope,
   readOnly,
 }: {
   transition: WorkflowDraftTransition;
+  scope: CustomFieldScope;
   readOnly: boolean;
 }) {
   const patch = usePatchRules(transition);
@@ -153,8 +160,9 @@ export function ConditionsSection({
               />
             </PanelField>
           ) : null}
-          {kind === 'fields_required' && fields
-            ? REQUIRABLE_FIELDS.map((field) => (
+          {kind === 'fields_required' && fields ? (
+            <>
+              {REQUIRABLE_FIELDS.map((field) => (
                 <CheckRow
                   key={field}
                   checked={fields.fields.includes(field)}
@@ -166,8 +174,17 @@ export function ConditionsSection({
                   }
                   onChange={() => patch(toggleField(rules, field))}
                 />
-              ))
-            : null}
+              ))}
+              <CustomFieldChecks
+                scope={scope}
+                selected={fields.fields}
+                disabled={readOnly}
+                limit={CUSTOM_FIELD_LIMITS.gateFields}
+                limitHint={ui.automation.panel.gateFieldsLimit}
+                onToggle={(key) => patch(toggleField(rules, key))}
+              />
+            </>
+          ) : null}
         </CheckRow>
       ))}
       <p className="text-xs break-words text-muted-foreground">{ui.automation.conditionsHint}</p>

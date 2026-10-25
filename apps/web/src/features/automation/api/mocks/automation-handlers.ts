@@ -10,6 +10,7 @@ import {
 } from '@nodus/contracts';
 import { http, HttpResponse } from 'msw';
 
+import { demoCustomFieldDefinitions } from '../../../../shared/mocks/data/custom-fields.js';
 import { demoSubtasks, demoTasks } from '../../../../shared/mocks/data/tasks.js';
 import {
   demoProcessTypes,
@@ -205,7 +206,23 @@ export const automationHandlers = [
     if (baseVersion !== detail.version) {
       return invalid(409, 'WORKFLOW_VERSION_CONFLICT');
     }
-    const problems = checkWorkflowDocument(document);
+    // Кастомные поля в окне и гейтах (#431): факты области — из реестра мока
+    // (категория маршрута = область полей: task/letter).
+    const scope =
+      demoProcessTypes.find((type) => type.workflowId === detail.id)?.category ?? 'task';
+    const facts = {
+      active: new Set(
+        demoCustomFieldDefinitions
+          .filter((entry) => entry.scope === scope && entry.archivedAt === null)
+          .map((entry) => entry.id),
+      ),
+      archived: new Set(
+        demoCustomFieldDefinitions
+          .filter((entry) => entry.scope === scope && entry.archivedAt !== null)
+          .map((entry) => entry.id),
+      ),
+    };
+    const problems = checkWorkflowDocument(document, { customFields: facts });
     if (hasBlockingProblems(problems)) {
       return invalid(422, 'WORKFLOW_INVALID', { problems });
     }

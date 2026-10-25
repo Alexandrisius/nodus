@@ -2,9 +2,10 @@ import type {
   TransitionFormSectionDraft,
   TransitionFormSectionKind,
   TransitionWindowField,
+  TransitionWindowFieldKey,
   WorkflowDraftTransition,
 } from '@nodus/contracts';
-import { TRANSITION_FORM_SECTION_ORDER, ui } from '@nodus/contracts';
+import { CUSTOM_FIELD_LIMITS, TRANSITION_FORM_SECTION_ORDER, ui } from '@nodus/contracts';
 
 /**
  * Чистые правки «Окна при нажатии» в черновике кнопки (#380): панель
@@ -95,18 +96,23 @@ export function setRequired(
   };
 }
 
-export function toggleWindowField(form: Form, field: TransitionWindowField): Form {
+/** Поле раздела вкл/выкл: системные и поля процесса (`cf.<id>`, #431) — в
+ *  одном массиве; последнее не снимается, лимит раздела — 12 (Р7). */
+export function toggleWindowField(form: Form, field: TransitionWindowFieldKey): Form {
   const section = sectionOf(form, 'fields');
   if (!section) return form;
-  const fields = new Set(section.fields);
+  const fields = new Set<string>(section.fields);
   if (fields.has(field)) fields.delete(field);
-  else fields.add(field);
+  else {
+    if (fields.size >= CUSTOM_FIELD_LIMITS.windowFields) return form;
+    fields.add(field);
+  }
   if (fields.size === 0) return form; // раздел без полей бессмыслен — не снимаем последнее
   return {
     ...form,
     sections: form.sections.map((s) =>
       s.kind === 'fields'
-        ? { kind: 'fields', fields: WINDOW_FIELDS.filter((f) => fields.has(f)) }
+        ? { kind: 'fields', fields: [...fields] as TransitionWindowFieldKey[] }
         : s,
     ),
   };
