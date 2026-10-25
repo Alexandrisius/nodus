@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import type { CounterpartyCard } from '@nodus/contracts';
+import type { CounterpartyListItem } from '@nodus/contracts';
 import { normalizeUnp, ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import { Dialog, DialogContent, DialogTitle } from '@nodus/ui/components/dialog';
@@ -20,6 +20,12 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
+/** Что правим: карточка или строка реестра (реквизиты совпадают по составу). */
+export type CounterpartyEditTarget = Pick<
+  CounterpartyListItem,
+  'id' | 'fullName' | 'shortName' | 'unp' | 'address' | 'email' | 'phone'
+>;
+
 interface Draft {
   fullName: string;
   shortName: string;
@@ -29,14 +35,14 @@ interface Draft {
   phone: string;
 }
 
-function draftOf(card: CounterpartyCard | null): Draft {
+function draftOf(target: CounterpartyEditTarget | null): Draft {
   return {
-    fullName: card?.fullName ?? '',
-    shortName: card?.shortName ?? '',
-    unp: card?.unp ?? '',
-    address: card?.address ?? '',
-    email: card?.email ?? '',
-    phone: card?.phone ?? '',
+    fullName: target?.fullName ?? '',
+    shortName: target?.shortName ?? '',
+    unp: target?.unp ?? '',
+    address: target?.address ?? '',
+    email: target?.email ?? '',
+    phone: target?.phone ?? '',
   };
 }
 
@@ -50,23 +56,23 @@ function draftOf(card: CounterpartyCard | null): Draft {
 export function CounterpartyFormDialog({
   open,
   onOpenChange,
-  card = null,
+  target = null,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Карточка для правки; null — создание. */
-  card?: CounterpartyCard | null;
+  /** Что правим (карточка или строка реестра); null — создание. */
+  target?: CounterpartyEditTarget | null;
 }) {
   const create = useCreateCounterparty();
-  const update = useUpdateCounterparty(card?.id ?? '');
+  const update = useUpdateCounterparty(target?.id ?? '');
   const openCard = useOpenCard();
-  const [draft, setDraft] = useState<Draft>(() => draftOf(card));
+  const [draft, setDraft] = useState<Draft>(() => draftOf(target));
   const [prevOpen, setPrevOpen] = useState(open);
 
   // Сброс черновика при каждом открытии (рендер-тайм по переходу open, #45).
   if (prevOpen !== open) {
     setPrevOpen(open);
-    if (open) setDraft(draftOf(card));
+    if (open) setDraft(draftOf(target));
   }
 
   const set = (key: keyof Draft) => (value: string) =>
@@ -80,7 +86,7 @@ export function CounterpartyFormDialog({
     unp: draft.unp,
   });
   const unpTaken =
-    card || isPlaceholderData || unp.length === 0
+    target || isPlaceholderData || unp.length === 0
       ? null
       : (byUnp.find((match) => match.matchedBy === 'unp') ?? null);
   const valid = draft.fullName.trim().length > 0 && draft.shortName.trim().length > 0;
@@ -99,7 +105,7 @@ export function CounterpartyFormDialog({
 
   function submit() {
     if (!valid || unpTaken || pending) return;
-    if (card) {
+    if (target) {
       update.mutate(body(), { onSuccess: () => onOpenChange(false) });
       return;
     }
@@ -119,7 +125,7 @@ export function CounterpartyFormDialog({
         onInteractOutside={(e) => e.preventDefault()}
       >
         <DialogTitle className="text-base font-semibold text-foreground">
-          {card ? ui.counterparties.editTitle : ui.counterparties.create}
+          {target ? ui.counterparties.editTitle : ui.counterparties.create}
         </DialogTitle>
         <div className="mt-2 flex flex-col gap-3">
           <Field label={ui.counterparties.fieldFullName}>
@@ -198,7 +204,7 @@ export function CounterpartyFormDialog({
             />
           </Field>
 
-          {card ? null : (
+          {target ? null : (
             <SimilarCounterparties
               name={draft.fullName}
               unp={draft.unp}
@@ -214,7 +220,7 @@ export function CounterpartyFormDialog({
             {ui.common.cancel}
           </Button>
           <Button size="sm" disabled={!valid || Boolean(unpTaken) || pending} onClick={submit}>
-            {card ? ui.common.save : ui.common.create}
+            {target ? ui.common.save : ui.common.create}
           </Button>
         </div>
       </DialogContent>

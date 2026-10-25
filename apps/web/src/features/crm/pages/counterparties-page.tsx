@@ -1,22 +1,38 @@
 import { useMemo, useState } from 'react';
 import { Plus } from 'lucide-react';
+import type { CounterpartyListItem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import { Checkbox } from '@nodus/ui/components/checkbox';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@nodus/ui/components/dialog';
 
 import { useOpenCard } from '../../../app/shell/use-card-stack.js';
 import { useDebouncedValue } from '../../../shared/lib/use-debounced-value.js';
 import { useCounterpartiesPages } from '../../../shared/counterparties/queries.js';
-import { useCanCreateCounterparties } from '../../../shared/counterparties/use-crm-permissions.js';
+import {
+  useCanCreateCounterparties,
+  useCanManageCounterparties,
+} from '../../../shared/counterparties/use-crm-permissions.js';
 import { DataTable } from '../../../shared/views/data-table.js';
-import { makeCardRowMenuItems } from '../../../shared/views/card-row-menu.js';
 import { ListToolbar } from '../../../shared/views/list-toolbar.js';
 import { useListToolbar } from '../../../shared/views/use-list-toolbar.js';
 import { useRowSelection } from '../../../shared/views/use-row-selection.js';
 import { ViewSettings } from '../../../shared/views/view-settings.js';
+import { useDeleteCounterparty, useSetCounterpartyArchived } from '../api/counterparty-edit.js';
 import { CounterpartyBulkIsland } from '../components/counterparty-bulk-island.js';
-import { CounterpartyFormDialog } from '../components/counterparty-form-dialog.js';
+import {
+  CounterpartyFormDialog,
+  type CounterpartyEditTarget,
+} from '../components/counterparty-form-dialog.js';
 import { counterpartyFields } from '../lib/counterparty-fields.js';
+import { counterpartyRowMenu } from '../lib/counterparty-row-menu.js';
 
 /**
  * Контрагенты — вкладка раздела CRM (#83): справочник внешних организаций
@@ -37,7 +53,14 @@ export function CounterpartiesPage() {
     useCounterpartiesPages({ search: search || undefined, includeArchived });
   const openCard = useOpenCard();
   const canCreate = useCanCreateCounterparties();
+  const canManage = useCanManageCounterparties();
   const [createOpen, setCreateOpen] = useState(false);
+  // Действия строки: правка — окно формы, архив/возврат — сразу (обратимо),
+  // удаление — с подтверждением (необратимо, канон диалогов).
+  const [editTarget, setEditTarget] = useState<CounterpartyEditTarget | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<CounterpartyListItem | null>(null);
+  const setArchived = useSetCounterpartyArchived();
+  const remove = useDeleteCounterparty();
 
   const rows = useMemo(() => data?.pages.flatMap((page) => page.items) ?? [], [data]);
   const rowKeys = useMemo(() => rows.map((row) => row.id), [rows]);
@@ -104,7 +127,16 @@ export function CounterpartiesPage() {
             openCard({ kind: 'counterparty', id: c.id }, rowEl.getBoundingClientRect())
           }
           emptyTitle={search ? ui.counterparties.emptySearch : ui.counterparties.empty}
-          rowMenu={(c) => makeCardRowMenuItems({ kind: 'counterparty', id: c.id }, openCard)}
+          rowMenu={(c) =>
+            counterpartyRowMenu({
+              row: c,
+              openCard,
+              canManage,
+              onEdit: (row) => setEditTarget(row),
+              onArchive: (row, archived) => setArchived.mutate({ id: row.id, archived }),
+              onDelete: (row) => setDeleteTarget(row),
+            })
+          }
         />
       </div>
       {selection.selected.size > 0 ? <div aria-hidden className="h-24" /> : null}
@@ -116,6 +148,46 @@ export function CounterpartiesPage() {
         onClear={selection.clear}
       />
       <CounterpartyFormDialog open={createOpen} onOpenChange={setCreateOpen} />
+      <CounterpartyFormDialog
+        open={editTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setEditTarget(null);
+        }}
+        target={editTarget}
+      />
+
+      <Dialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{ui.counterparties.deleteConfirmTitle}</DialogTitle>
+            <DialogDescription>{ui.counterparties.deleteConfirmText}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setDeleteTarget(null)}>
+              {ui.common.cancel}
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={remove.isPending}
+              onClick={() =>
+                remove.mutate(deleteTarget?.id ?? '', {
+                  onSuccess: () => {
+                    selection.toggle(deleteTarget?.id ?? '');
+                    setDeleteTarget(null);
+                  },
+                })
+              }
+            >
+              {ui.counterparties.delete}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

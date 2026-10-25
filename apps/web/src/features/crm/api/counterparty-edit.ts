@@ -72,30 +72,33 @@ export function useUpdateCounterparty(id: string) {
   });
 }
 
-/** Архив / возврат контрагента (идемпотентно на сервере). */
-export function useSetCounterpartyArchived(id: string) {
+/** Архив / возврат контрагента (идемпотентно на сервере): id — переменная,
+ *  чтобы одна мутация обслуживала и карточку, и строку реестра. */
+export function useSetCounterpartyArchived() {
   const queryClient = useQueryClient();
-  const detailKey = counterpartiesKeys.detail(id);
   return useMutation({
-    mutationFn: (archived: boolean) =>
+    mutationFn: ({ id, archived }: { id: string; archived: boolean }) =>
       api<CounterpartyCard>(`/counterparties/${id}/${archived ? 'archive' : 'restore'}`, {
         method: 'POST',
       }),
-    onMutate: async (archived) => {
+    onMutate: async ({ id, archived }) => {
       await queryClient.cancelQueries({ queryKey: counterpartiesKeys.all });
+      const detailKey = counterpartiesKeys.detail(id);
       const previous = queryClient.getQueryData<CounterpartyCard>(detailKey);
       const archivedAt = archived ? new Date().toISOString() : null;
       if (previous)
         queryClient.setQueryData<CounterpartyCard>(detailKey, { ...previous, archivedAt });
       patchLists(queryClient, id, { archivedAt });
-      return { previous };
+      return { previous, id };
     },
-    onError: (error, _archived, context) => {
-      if (context?.previous !== undefined) queryClient.setQueryData(detailKey, context.previous);
+    onError: (error, _vars, context) => {
+      if (context?.previous !== undefined) {
+        queryClient.setQueryData(counterpartiesKeys.detail(context.id), context.previous);
+      }
       toastApiError(error);
     },
     onSuccess: (card) => {
-      queryClient.setQueryData(detailKey, card);
+      queryClient.setQueryData(counterpartiesKeys.detail(card.id), card);
       toast.success(
         card.archivedAt ? ui.counterparties.archivedDone : ui.counterparties.restoredDone,
       );
@@ -107,10 +110,10 @@ export function useSetCounterpartyArchived(id: string) {
 }
 
 /** Удаление контрагента (только без связей; связанный — 409, UI ведёт к архиву). */
-export function useDeleteCounterparty(id: string) {
+export function useDeleteCounterparty() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => api<void>(`/counterparties/${id}`, { method: 'DELETE' }),
+    mutationFn: (id: string) => api<void>(`/counterparties/${id}`, { method: 'DELETE' }),
     onSuccess: () => {
       toast.success(ui.counterparties.deletedDone);
     },

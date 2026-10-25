@@ -54,8 +54,8 @@ function CardBottomBar({
   archived: boolean;
 }) {
   const canManage = useCanManageCounterparties();
-  const setArchived = useSetCounterpartyArchived(counterpartyId);
-  const remove = useDeleteCounterparty(counterpartyId);
+  const setArchived = useSetCounterpartyArchived();
+  const remove = useDeleteCounterparty();
   const closeCard = useCloseCard();
   const [editOpen, setEditOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -74,7 +74,7 @@ function CardBottomBar({
           size="sm"
           variant="outline"
           disabled={setArchived.isPending}
-          onClick={() => setArchived.mutate(false)}
+          onClick={() => setArchived.mutate({ id: counterpartyId, archived: false })}
         >
           <RotateCcw data-icon="inline-start" />
           {ui.counterparties.restore}
@@ -111,7 +111,7 @@ function CardBottomBar({
         </span>
       ) : null}
 
-      <CounterpartyFormDialog open={editOpen} onOpenChange={setEditOpen} card={card ?? null} />
+      <CounterpartyFormDialog open={editOpen} onOpenChange={setEditOpen} target={card ?? null} />
 
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent className="max-w-md">
@@ -127,7 +127,7 @@ function CardBottomBar({
               variant="destructive"
               disabled={remove.isPending}
               onClick={() =>
-                remove.mutate(undefined, {
+                remove.mutate(counterpartyId, {
                   onSuccess: () => {
                     setDeleteOpen(false);
                     closeCard();
@@ -154,7 +154,12 @@ function CardBottomBar({
             <Button
               variant="destructive"
               disabled={setArchived.isPending}
-              onClick={() => setArchived.mutate(true, { onSuccess: () => setConfirmOpen(false) })}
+              onClick={() =>
+                setArchived.mutate(
+                  { id: counterpartyId, archived: true },
+                  { onSuccess: () => setConfirmOpen(false) },
+                )
+              }
             >
               {ui.counterparties.archive}
             </Button>
