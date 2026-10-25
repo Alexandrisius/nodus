@@ -345,8 +345,7 @@ try {
       process.exit(1);
     }
     await up(dev ? 'dev' : 'preview', mock);
-  }
-  else if (command === 'down') down();
+  } else if (command === 'down') down();
   else if (command === 'status') await status();
   else if (command === 'bootstrap') {
     // Ручной бутстрап изоляции (up делает это сам): env — как у up.
