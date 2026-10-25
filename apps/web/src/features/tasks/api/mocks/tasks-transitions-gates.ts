@@ -5,9 +5,10 @@ import type {
   TransitionFormInput,
   WorkflowTransition,
 } from '@nodus/contracts';
-import { isFinalState } from '@nodus/contracts';
+import { customFieldIdOfKey, isCustomFieldValueFilled, isFinalState } from '@nodus/contracts';
 
 import { demoConversations, demoMessages } from '../../../../shared/mocks/data/chat.js';
+import { applyDemoPatch } from '../../../../shared/mocks/data/custom-fields-rules.js';
 import { demoSubtasks, detailsExtra, taskDetailOf } from '../../../../shared/mocks/data/tasks.js';
 import { userRef } from '../../../../shared/mocks/data/users.js';
 import { getMockActor } from '../../../../shared/mocks/mock-actor.js';
@@ -40,8 +41,12 @@ function fieldFilled(task: TaskListItem, field: string): boolean {
       return detail.plannedMinutes !== null;
     case 'result':
       return Boolean(detail.result?.text.trim());
-    default:
-      return true;
+    default: {
+      // Поле процесса (#431): неизвестное/архивное не блокирует (Р7).
+      const id = customFieldIdOfKey(field);
+      if (id === null) return true;
+      return isCustomFieldValueFilled(task.customFields[id]);
+    }
   }
 }
 
@@ -131,6 +136,15 @@ export function checkWindow(
       assigneeId: 'assignee',
     };
     for (const key of Object.keys(input.fields)) {
+      if (key === 'customFields') {
+        // Поля процесса (#431): каждый ключ — в своём разрешённом поле.
+        for (const fieldId of Object.keys(input.fields.customFields ?? {})) {
+          if (!allowed.has(`fields.cf.${fieldId}`)) {
+            unexpected.push(`fields.customFields.${fieldId}`);
+          }
+        }
+        continue;
+      }
       if (!allowed.has(`fields.${map[key] ?? key}`)) unexpected.push(`fields.${key}`);
     }
   }
@@ -155,6 +169,10 @@ export function applyForm(task: TaskListItem, input: TransitionFormInput): void 
   }
   if (input.fields?.deadline !== undefined) task.deadline = input.fields.deadline;
   if (input.fields?.assigneeId !== undefined) task.assignee = userRef(input.fields.assigneeId);
+  if (input.fields?.customFields) {
+    const { next } = applyDemoPatch('task', task.customFields, input.fields.customFields);
+    task.customFields = next;
+  }
   if (input.time) task.spentMinutes += input.time.minutes;
   if (input.result) {
     extra.result = {

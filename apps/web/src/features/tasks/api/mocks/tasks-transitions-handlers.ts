@@ -17,6 +17,7 @@ import {
 import { letterIdByTaskId, syncLetterWithTasks } from '../../../../shared/mocks/data/letters.js';
 import { quickDocument, standardDocument } from '../../../../shared/mocks/data/workflows.js';
 import { quickProcessType } from '../../../../shared/mocks/data/task-stages.js';
+import { applyDemoPatch } from '../../../../shared/mocks/data/custom-fields-rules.js';
 import { applyForm, blockedByOf, checkWindow, postBlock } from './tasks-transitions-gates.js';
 
 function findTask(id: string): TaskListItem | undefined {
@@ -139,6 +140,21 @@ export const tasksTransitionsHandlers = [
         },
         { status: 422 },
       );
+    }
+    // Поля процесса (#431): проверка значений до применения окна.
+    const customPatch = parsed.data.form?.fields?.customFields;
+    if (customPatch) {
+      const { issues } = applyDemoPatch('task', task.customFields, customPatch);
+      if (issues.length > 0) {
+        return HttpResponse.json(
+          {
+            code: ErrorCode.CUSTOM_FIELD_VALUE_INVALID,
+            message: 'Custom field value is invalid',
+            details: { issues },
+          },
+          { status: 422 },
+        );
+      }
     }
     applyForm(task, parsed.data.form ?? {});
     const reasons = blockedByOf(task, documentOfTask(task), transition.id);

@@ -24,7 +24,14 @@
 systemState (моки эмулируют автоперемещение при смене глобальной стадии).
 Поля карточки — реестр дескрипторов с настройкой видимости («+ Поле»; каркас
 общий — `shared/ui/entity-fields.tsx`, потребители: задача, письмо, проект,
-сотрудник): любое количество полей, кастомные после MVP — те же дескрипторы.
+сотрудник). **Кастомные поля (#431)** — отдельный блок `TaskCustomFields`
+(`task-custom-fields.tsx` → `shared/custom-fields/custom-fields-block.tsx`)
+сразу после системных: та же грамматика строки, правка по месту
+оптимистично (`useUpdateTaskCustomField`: значение и ссылка выбора в кэше до
+ответа, `null` удаляет ключ, откат по снапшотам), «Настроить» — только с
+правом `custom_field.manage` и ведёт во вкладку «Поля» области «Задачи».
+Старый API без `customFields` терпится (`customFieldValuesOf`) — блок живёт
+пустым, карточка не падает.
 
 - Контракты: `TaskListItem` (+`parentId`, +`personalStageId`), `TaskDetail`
   (+`chain`), `TaskStage` (+`color: StageColor`), `TaskChainNode`,
