@@ -31,7 +31,7 @@ task.time_logged
 task.participants_changed / checklist_changed / result_set / relation_changed / deleted / timer_started / timer_stopped
 task.comments_counted  # пересчитан счётчик комментариев = сообщения беседы задачи (#252): клиенты ставят значение без рефеча досок
 task.personal_stage_created / personal_stage_updated / personal_stage_archived / personal_stage_changed  # УСТАРЕВШИЕ после «Моих действий» (ADR-0026): личные колонки сняты; имена зарезервированы
-task.type_created / type_updated / type_archived / workflow_published / workflow_layout_changed  # УСТАРЕВШИЕ (ADR-0024): движок перенесён в модуль «Процессы» — эмитятся `workflow.*`; имена зарезервированы, не эмитятся после переноса (П0)
+task.type_created / type_updated / type_archived / workflow_published / workflow_layout_changed  # УСТАРЕВШИЕ (ADR-0024): движок перенесён в модуль «Процессы» — эмитятся `workflow.*`; имена зарезервированы, не эмитятся после переноса (#428)
 task.type_changed
 chat.conversation_created / conversation_updated / member_added / member_removed / member_role_changed / message_sent / message_edited / message_deleted / message_read / message_pinned / message_unpinned / reaction_added / reaction_removed / thread_created
 chat.favorite_added / favorite_removed / favorite_updated  # личные закладки #171: только user-комната владельца (не рассылается участникам)
