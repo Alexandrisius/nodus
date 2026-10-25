@@ -295,6 +295,13 @@ async function main(): Promise<void> {
     update: {},
     create: { key: 'tasks', enabled: true },
   });
+  // CRM (#460, ADR-0033): справочник контрагентов. На проде флаг и права
+  // доезжают миграцией (#311/#398), здесь — свежая установка.
+  await prisma.featureFlag.upsert({
+    where: { key: 'crm' },
+    update: {},
+    create: { key: 'crm', enabled: true },
+  });
 
   // Канал новостей компании (Ф4; вердикт 24.09: «Новости» — КАНАЛ, публикация
   // post=admin, обсуждение в тредах всем). Участники — админ + пилотная группа.

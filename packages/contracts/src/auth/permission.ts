@@ -43,6 +43,12 @@ export const Permission = {
   CORRESPONDENCE_ARCHIVE: 'correspondence.archive',
   /** Общие настройки UI компании (порядок модулей/вкладок «Для всех») — admin. */
   SETTINGS_UI_DEFAULTS: 'settings.uiDefaults',
+  /** Создать контрагента (в т.ч. «на лету» при регистрации письма) и
+   *  добавить контактное лицо; чтение справочника открыто всем (ADR-0033). */
+  CRM_CREATE: 'crm.create',
+  /** Вести справочник: правка реквизитов, архивация/возврат контрагентов
+   *  и контактных лиц (ADR-0033). */
+  CRM_MANAGE: 'crm.manage',
 } as const;
 
 export type Permission = (typeof Permission)[keyof typeof Permission];
