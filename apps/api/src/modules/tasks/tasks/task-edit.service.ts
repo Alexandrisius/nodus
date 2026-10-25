@@ -58,6 +58,17 @@ export class TaskEditService {
   ) {}
 
   async update(user: AuthUser, id: string, body: TaskUpdateBody): Promise<TaskListItem> {
+    // #431 UI-пакет: заглушка до бэкенд-пакета — определений полей ещё нет,
+    // любое значение невалидно (верно и после бэкенда, пока полей нет).
+    if (body.customFields && Object.keys(body.customFields).length > 0) {
+      throw new DomainException(ErrorCode.CUSTOM_FIELD_VALUE_INVALID, 'Unknown custom field', {
+        issues: Object.keys(body.customFields).map((fieldId) => ({
+          fieldId,
+          reason: 'unknown',
+          message: 'Unknown custom field',
+        })),
+      });
+    }
     const row = await this.query.visibleRow(user, id);
     const access = taskAccess(actorRoles(row, user.id), user.permissions);
     const fields = FIELD_KEYS.filter((k) => body[k] !== undefined);

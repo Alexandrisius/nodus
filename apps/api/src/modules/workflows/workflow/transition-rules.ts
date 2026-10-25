@@ -1,9 +1,11 @@
 import {
+  customFieldIdOfKey,
   isFinalState,
   workflowTransitionRulesSchema,
   type TransitionBlockReason,
   type TransitionDisplay,
   type TransitionForm,
+  type WorkflowFieldKey,
   type WorkflowRequirableField,
   type WorkflowTransitionRules,
 } from '@nodus/contracts';
@@ -67,10 +69,7 @@ export function passesConditions(
   );
 }
 
-function missingFields(
-  fields: WorkflowRequirableField[],
-  facts: WorkflowGateFacts,
-): WorkflowRequirableField[] {
+function missingFields(fields: WorkflowFieldKey[], facts: WorkflowGateFacts): WorkflowFieldKey[] {
   const filled: Record<WorkflowRequirableField, boolean> = {
     description: facts.description.trim().length > 0,
     deadline: facts.deadline !== null,
@@ -78,7 +77,12 @@ function missingFields(
     plannedMinutes: facts.plannedMinutes !== null,
     result: facts.hasResult,
   };
-  return fields.filter((f) => !filled[f]);
+  return fields.filter((f) => {
+    // #431 UI-пакет: заглушка до бэкенд-пакета — кастомное поле не блокирует
+    // переход; факты значений даст адаптер сущности в B6.
+    if (customFieldIdOfKey(f) !== null) return false;
+    return !filled[f as WorkflowRequirableField];
+  });
 }
 
 /** Гейты DoR/DoD: список невыполненных (пусто — переход разрешён). */

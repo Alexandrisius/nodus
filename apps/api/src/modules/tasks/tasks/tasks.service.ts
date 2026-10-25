@@ -77,6 +77,17 @@ export class TasksService {
   }
 
   async create(user: AuthUser, body: CreateTaskBody): Promise<TaskListItem> {
+    // #431 UI-пакет: заглушка до бэкенд-пакета — умолчания и валидацию
+    // значений даст порт CUSTOM_FIELD_REGISTRY.prepareCreate в B5.
+    if (body.customFields && Object.keys(body.customFields).length > 0) {
+      throw new DomainException(ErrorCode.CUSTOM_FIELD_VALUE_INVALID, 'Unknown custom field', {
+        issues: Object.keys(body.customFields).map((fieldId) => ({
+          fieldId,
+          reason: 'unknown',
+          message: 'Unknown custom field',
+        })),
+      });
+    }
     const assigneeId = body.assigneeId ?? user.id;
     const participants = this.participantRows(body, user.id, assigneeId);
     await this.assertActiveUsers([assigneeId, ...participants.map((p) => p.userId)]);

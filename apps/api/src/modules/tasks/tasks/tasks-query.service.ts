@@ -147,6 +147,9 @@ export class TasksQueryService {
           }
         : null,
       completedAt: full.completedAt?.toISOString() ?? null,
+      // #431 UI-пакет: заглушка до бэкенд-пакета — ссылки значений собирает
+      // порт CUSTOM_FIELD_REGISTRY.refs в B5.
+      customFieldRefs: [],
       access: taskAccess(actorRoles(row, user.id), user.permissions),
       createdAt: full.createdAt.toISOString(),
     };

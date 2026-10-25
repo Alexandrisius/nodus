@@ -1,4 +1,5 @@
-import type { EffectiveSection, ExecuteTransitionBody } from '@nodus/contracts';
+import type { CustomFieldValue, EffectiveSection, ExecuteTransitionBody } from '@nodus/contracts';
+import { customFieldIdOfKey } from '@nodus/contracts';
 
 import { timeEntryBody } from '../../tasks/time-entry-fields.js';
 import { draftMessageIds, type WindowDraft } from './use-window-draft.js';
@@ -42,6 +43,18 @@ export function buildExecuteBody({
     ) {
       if (draft.fields.plannedMinutes) fields.plannedMinutes = draft.fields.plannedMinutes;
     }
+    // Поля процесса (#431, Р7): уходят только реально изменённые значения;
+    // очистка в окне не выражается (раздел «дозаполнить», не «очистить»).
+    const customFields: Record<string, CustomFieldValue> = {};
+    for (const key of allowed) {
+      const id = customFieldIdOfKey(key);
+      if (id === null) continue;
+      const next = draft.fields.customFields[id];
+      const previous = context.fields.customFields[id];
+      if (next === undefined || next === null) continue;
+      if (JSON.stringify(next) !== JSON.stringify(previous)) customFields[id] = next;
+    }
+    if (Object.keys(customFields).length > 0) fields.customFields = customFields;
     if (Object.keys(fields).length > 0) form.fields = fields;
   }
 

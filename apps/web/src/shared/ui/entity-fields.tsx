@@ -1,4 +1,4 @@
-import { Plus } from 'lucide-react';
+import { Info, Plus } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { ui } from '@nodus/contracts';
 import {
@@ -9,8 +9,8 @@ import {
 } from '@nodus/ui/components/dropdown-menu';
 
 /** Поле инспектора сущности: дескриптор (иконка + метка + рендер значения).
- *  Реестр дескрипторов — точка расширения под кастомные поля из справочника
- *  после MVP (I13/I15): новое поле = +1 запись в реестре сущности. */
+ *  Системные поля сущности описываются реестром в фиче; кастомные поля живут
+ *  отдельным блоком `CustomFieldsBlock` (#431) в той же грамматике строки. */
 export interface EntityFieldDef {
   key: string;
   icon: ReactNode;
@@ -45,25 +45,42 @@ export function useFieldVisibility(storageKey: string) {
 
 /** Строка поля: «иконка (lucide 3.5, muted) + моно-метка w-44 / значение»
  *  без табличных рамок, ховер-заливка строки. Значения НЕ сокращаются:
- *  на узкой зоне значение переносится под метку (min-w, вердикт владельца). */
+ *  на узкой зоне значение переносится под метку (min-w, вердикт владельца).
+ *  Подсказка поля (#431) — title метки и aria-describedby значения (id
+ *  скрытого текста даёт вызывающий). */
 export function FieldRow({
   icon,
   label,
+  hint,
+  hintId,
   children,
 }: {
   icon: ReactNode;
   label: string;
+  hint?: string | null;
+  hintId?: string;
   children: ReactNode;
 }) {
   return (
     <div className="-mx-2 flex flex-wrap items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-accent/40">
-      <span className="flex w-44 shrink-0 items-center gap-2 text-xs font-medium text-muted-foreground">
+      <span
+        className="flex w-44 shrink-0 items-center gap-2 text-xs font-medium text-muted-foreground"
+        title={hint ?? undefined}
+      >
         <span aria-hidden className="shrink-0 opacity-70">
           {icon}
         </span>
         <span className="truncate">{label}</span>
+        {hint ? (
+          <Info className="size-3 shrink-0 opacity-50" strokeWidth={1.75} aria-hidden />
+        ) : null}
       </span>
-      <span className="flex min-w-[10rem] flex-1 items-center gap-2 text-sm">{children}</span>
+      <span
+        className="flex min-w-[10rem] flex-1 items-center gap-2 text-sm"
+        aria-describedby={hint && hintId ? hintId : undefined}
+      >
+        {children}
+      </span>
     </div>
   );
 }

@@ -75,6 +75,17 @@ const CODE_TO_STATUS: Record<ErrorCode, number> = {
   [ErrorCode.CRM_COUNTERPARTY_ARCHIVED]: HttpStatus.CONFLICT,
   // Удаление связанного контрагента — конфликт состояния (архив вместо удаления).
   [ErrorCode.CRM_COUNTERPARTY_IN_USE]: HttpStatus.CONFLICT,
+  // Кастомные поля (#431, ADR-0029): невалидное значение и недоступный тип —
+  // 422 (семантика значения, не форма запроса); имя, лимит, архивное поле и
+  // несовместимая смена типа — конфликт состояния; справочники — конфликт.
+  [ErrorCode.CUSTOM_FIELD_VALUE_INVALID]: HttpStatus.UNPROCESSABLE_ENTITY,
+  [ErrorCode.CUSTOM_FIELD_TYPE_UNAVAILABLE]: HttpStatus.UNPROCESSABLE_ENTITY,
+  [ErrorCode.CUSTOM_FIELD_NAME_TAKEN]: HttpStatus.CONFLICT,
+  [ErrorCode.CUSTOM_FIELD_TYPE_CHANGE_INCOMPATIBLE]: HttpStatus.CONFLICT,
+  [ErrorCode.CUSTOM_FIELD_LIMIT_REACHED]: HttpStatus.CONFLICT,
+  [ErrorCode.CUSTOM_FIELD_ARCHIVED]: HttpStatus.CONFLICT,
+  [ErrorCode.DICTIONARY_SYSTEM_LOCKED]: HttpStatus.CONFLICT,
+  [ErrorCode.DICTIONARY_ITEM_NAME_TAKEN]: HttpStatus.CONFLICT,
 };
 
 /** Код для HTTP-исключений Nest/Fastify (400 у нас — всегда валидация входа). */
