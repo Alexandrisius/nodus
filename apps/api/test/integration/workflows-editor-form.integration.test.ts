@@ -58,7 +58,9 @@ describe.skipIf(!process.env.DATABASE_URL)(
       };
       const document = {
         ...detail.document,
-        transitions: detail.document.transitions.map((t, i) => (i === 0 ? { ...t, form } : t)),
+        transitions: detail.document.transitions.map((t) =>
+          (t as { name?: string }).name === 'Завершить' ? { ...t, form } : t,
+        ),
       };
       const published = await fx.api(admin, 'POST', `/workflows/${workflowId}/publish`, {
         body: { baseVersion: detail.version, document, migrations: [] },
@@ -66,17 +68,21 @@ describe.skipIf(!process.env.DATABASE_URL)(
       });
       expect(published.status).toBe(200);
       const fresh = (await (await fx.api(admin, 'GET', `/workflows/${workflowId}`)).json()) as {
-        document: { transitions: { form?: unknown }[] };
+        document: { transitions: { name: string; form?: unknown }[] };
       };
-      expect(fresh.document.transitions[0]?.form).toMatchObject(form);
+      expect(fresh.document.transitions.find((t) => t.name === 'Завершить')?.form).toMatchObject(
+        form,
+      );
 
       const invalid = await fx.api(admin, 'POST', `/workflows/${workflowId}/publish`, {
         body: {
           baseVersion: ((await published.json()) as { version: number }).version,
           document: {
             ...document,
-            transitions: document.transitions.map((t, i) =>
-              i === 0 ? { ...t, form: { enabled: true, sections: [{ kind: 'questions' }] } } : t,
+            transitions: document.transitions.map((t) =>
+              (t as { name?: string }).name === 'Завершить'
+                ? { ...t, form: { enabled: true, sections: [{ kind: 'questions' }] } }
+                : t,
             ),
           },
           migrations: [],

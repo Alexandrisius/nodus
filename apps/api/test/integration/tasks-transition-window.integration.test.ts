@@ -55,6 +55,15 @@ describe.skipIf(!process.env.DATABASE_URL)('tasks: окно перехода (in
     bob = await withCreate(fx.users.bob);
     carol = await withCreate(fx.users.carol);
     dispatcher = fx.app.get(EventDispatcher);
+    // Детерминизм против прошлых прогонов/ручных правок песочницы: у системных
+    // кнопок формы сбрасываются, тест настраивает нужные сам.
+    const standard = await fx.prisma.workflow.findUnique({ where: { code: 'task.default' } });
+    if (standard) {
+      await fx.prisma.workflowTransition.updateMany({
+        where: { workflowId: standard.id },
+        data: { form: {} },
+      });
+    }
   }, 120_000);
 
   afterAll(async () => {
@@ -124,6 +133,26 @@ describe.skipIf(!process.env.DATABASE_URL)('tasks: окно перехода (in
     expect(res.status).toBe(200);
   }
 
+  /** Форма/правила системной кнопки — тест настраивает нужное сам (детерминизм). */
+  async function configure(workflowId: string, name: string, form: unknown, rules?: unknown) {
+    const row = await fx.prisma.workflowTransition.findFirstOrThrow({
+      where: { workflowId, name, archivedAt: null },
+    });
+    await fx.prisma.workflowTransition.update({
+      where: { id: row.id },
+      data: {
+        form: form as never,
+        ...(rules === undefined ? {} : { rules: rules as never }),
+      },
+    });
+    return row;
+  }
+
+  const pauseForm = {
+    enabled: true,
+    sections: [{ kind: 'comment', label: 'Причина приостановки', required: true }],
+  };
+
   async function completeTransition(workflowId: string) {
     const row = await fx.prisma.workflowTransition.findFirstOrThrow({
       where: { workflowId, name: 'Завершить', archivedAt: null },
@@ -135,6 +164,7 @@ describe.skipIf(!process.env.DATABASE_URL)('tasks: окно перехода (in
   it('«Приостановить» требует причину: 422 без неё, журнал и блок в чате — с ней', async () => {
     const task = await createTask('pause', 'Пауза');
     await start(bob, task.id);
+    await configure(task.workflowId, 'Приостановить', pauseForm);
     const pause = (await transitionsOf(bob, task.id)).find((t) => t.name === 'Приостановить')!;
     expect(pause.form).toMatchObject({ enabled: true });
 
@@ -162,7 +192,10 @@ describe.skipIf(!process.env.DATABASE_URL)('tasks: окно перехода (in
     expect(record.comment).toBe('Ждём согласование заказчика');
     expect(record.transitionId).toBe(pause.id);
 
-    // Outbox → обработчик блока: сообщение kind=task_transition в беседе задачи.
+    // Беседа задачи создаётся явно (не полагаемся на порядок outbox-доставки):
+    // блок пишется в неё обработчиком события.
+    const opened = await fx.api(bob, 'GET', `/chat/conversations/by-task/${task.id}`);
+    expect(opened.status).toBe(200);
     await dispatcher.dispatchPending();
     const chat = await fx.prisma.conversation.findFirstOrThrow({
       where: { type: 'task', taskId: task.id },
@@ -374,6 +407,7 @@ describe.skipIf(!process.env.DATABASE_URL)('tasks: окно перехода (in
   it('идемпотентность: тот же Idempotency-Key — одна запись времени и одна строка журнала', async () => {
     const task = await createTask('idem', 'Идемпотентность');
     await start(bob, task.id);
+    await configure(task.workflowId, 'Приостановить', pauseForm);
     const pause = (await transitionsOf(bob, task.id)).find((t) => t.name === 'Приостановить')!;
     const key = `it-idem-${fx.runId}`;
     const body = { form: { comment: 'Повтор после обрыва' } };
@@ -402,6 +436,7 @@ describe.skipIf(!process.env.DATABASE_URL)('tasks: окно перехода (in
   it('DnD в стадию с обязательным окном — 422 (жест окно не открывает)', async () => {
     const task = await createTask('dnd', 'DnD');
     await start(bob, task.id);
+    await configure(task.workflowId, 'Приостановить', pauseForm);
     const paused = await fx.prisma.workflowStage.findFirstOrThrow({
       where: { name: 'Приостановлена', archivedAt: null },
     });
