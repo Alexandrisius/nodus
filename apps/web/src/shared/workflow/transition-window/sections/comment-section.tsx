@@ -22,7 +22,7 @@ export function CommentSection({
       autoFocus={autoFocus}
       data-required-empty={required && !value.trim() ? 'true' : undefined}
       value={value}
-      readOnly={disabled}
+      disabled={disabled}
       maxLength={2000}
       onChange={(e) => onChange(e.target.value)}
       placeholder={label || ui.tasks.window.commentLabel}

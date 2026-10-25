@@ -133,7 +133,7 @@ export const automationStrings = {
     assignee: 'Исполнитель',
     plannedMinutes: 'Плановое время',
   },
-  /** Раздел «Окно при нажатии» инспектора кнопки (#380). */
+  /** Раздел «Окно перехода» инспектора кнопки (#380). */
   window: {
     enable: 'Открывать окно',
     titleLabel: 'Заголовок окна',
@@ -194,7 +194,7 @@ export const automationStrings = {
     sectionWhoSees: 'Кто видит',
     sectionConditions: 'Условия перехода',
     sectionRules: 'Особые правила',
-    sectionWindow: 'Окно при нажатии',
+    sectionWindow: 'Окно перехода',
     nobody: 'Никто',
     noConditions: 'Без условий',
     noRules: 'Нет',

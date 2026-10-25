@@ -38,7 +38,7 @@ export function ConditionsList({
               <X className="mt-0.5 size-3.5 shrink-0 text-warning" strokeWidth={2} />
             )}
             <span className={cn('min-w-0', line.ok ? 'text-muted-foreground' : 'text-foreground')}>
-              {ui.tasks.gate[kind]}
+              {ui.tasks.window.conditionLabels[kind]}
               {action?.onClick ? (
                 <Button
                   type="button"

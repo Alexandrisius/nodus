@@ -46,7 +46,7 @@ export function ChatMessagePicker({
         aria-label={ui.tasks.window.searchMessages}
         className="h-8 text-sm"
       />
-      <div className="flex max-h-56 flex-col gap-0.5 overflow-y-auto rounded-lg border border-border p-1">
+      <div className="flex h-56 flex-col gap-0.5 overflow-y-auto rounded-lg border border-border p-1">
         {messages.length === 0 ? (
           <p className="px-2 py-4 text-center text-xs text-muted-foreground">
             {isLoading ? ui.common.search : ui.tasks.window.messagesEmpty}

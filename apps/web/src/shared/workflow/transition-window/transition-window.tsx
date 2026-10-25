@@ -79,7 +79,7 @@ export function TransitionWindow({
   onOpenChecklist?: () => void;
   onOpenSubtasks?: () => void;
 }) {
-  const effectiveContext = mode === 'preview' ? PREVIEW_CONTEXT : context;
+  const effectiveContext = mode === 'preview' ? (context ?? PREVIEW_CONTEXT) : context;
   const {
     draft,
     setFields,
@@ -166,9 +166,9 @@ export function TransitionWindow({
       <DialogContent
         showCloseButton={false}
         onInteractOutside={(event) => event.preventDefault()}
-        className="max-h-[90vh] max-w-[640px] gap-4 overflow-y-auto rounded-[14px] p-5 sm:max-w-[640px]"
+        className="flex max-h-[90vh] max-w-[640px] flex-col gap-4 overflow-hidden rounded-[14px] p-5 sm:max-w-[640px]"
       >
-        <DialogHeader>
+        <DialogHeader className="shrink-0">
           <DialogTitle>{transition.form?.title || transition.name}</DialogTitle>
           <DialogDescription>
             {effectiveContext?.currentStageName} {ui.tasks.window.stageArrow}{' '}
@@ -176,34 +176,36 @@ export function TransitionWindow({
           </DialogDescription>
         </DialogHeader>
 
-        {effectiveContext?.submission ? (
-          <SubmissionBlock
-            submission={effectiveContext.submission}
-            conversationId={effectiveContext.conversationId}
-          />
-        ) : null}
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pr-1">
+          {effectiveContext?.submission ? (
+            <SubmissionBlock
+              submission={effectiveContext.submission}
+              conversationId={effectiveContext.conversationId}
+            />
+          ) : null}
 
-        {api ? (
-          <div className="flex flex-col gap-4">
-            {sections.map((section) => (
-              <section key={section.kind} className="flex flex-col gap-1.5">
-                <NodeLabel label={sectionTitle(section)} />
-                <WindowSection section={section} api={api} />
-              </section>
-            ))}
-          </div>
-        ) : null}
+          {api ? (
+            <div className="flex flex-col gap-4">
+              {sections.map((section) => (
+                <section key={section.kind} className="flex flex-col gap-1.5">
+                  <NodeLabel label={sectionTitle(section)} />
+                  <WindowSection section={section} api={api} />
+                </section>
+              ))}
+            </div>
+          ) : null}
 
-        {error ? (
-          <p className="text-xs text-danger" role="alert">
-            {ui.tasks.window.submitFailed}
-            {error.missing && error.missing.length > 0
-              ? ` (${error.missing.map(missingLabel).join(', ')})`
-              : ''}
-          </p>
-        ) : null}
+          {error ? (
+            <p className="text-xs text-danger" role="alert">
+              {ui.tasks.window.submitFailed}
+              {error.missing && error.missing.length > 0
+                ? ` (${error.missing.map(missingLabel).join(', ')})`
+                : ''}
+            </p>
+          ) : null}
+        </div>
 
-        <div className="flex flex-col gap-3 border-t-0 pt-1">
+        <div className="flex shrink-0 flex-col gap-3 border-t-0 pt-1">
           <ConditionsList
             lines={lines}
             onOpenChecklist={onOpenChecklist}

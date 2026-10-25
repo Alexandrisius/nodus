@@ -17,7 +17,7 @@ export function ResultSection({
     <Textarea
       autoFocus={autoFocus}
       value={value}
-      readOnly={disabled}
+      disabled={disabled}
       maxLength={5000}
       onChange={(e) => onChange(e.target.value)}
       placeholder={ui.tasks.window.resultPlaceholder}

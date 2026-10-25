@@ -51,7 +51,7 @@ export function ChatFilePicker({
           </Button>
         ))}
       </div>
-      <div className="grid max-h-56 grid-cols-2 gap-1.5 overflow-y-auto rounded-lg border border-border p-1.5">
+      <div className="grid h-56 grid-cols-2 content-start gap-1.5 overflow-y-auto rounded-lg border border-border p-1.5">
         {items.length === 0 ? (
           <p className="col-span-2 px-2 py-4 text-center text-xs text-muted-foreground">
             {query.isLoading ? ui.common.search : ui.tasks.window.filesEmpty}

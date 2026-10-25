@@ -69,7 +69,7 @@ function FieldEditor({
       return (
         <Textarea
           value={value.description}
-          readOnly={!editable}
+          disabled={!editable}
           maxLength={5000}
           onChange={(e) => onChange({ description: e.target.value })}
           placeholder={ui.tasks.descriptionPlaceholder}

@@ -230,6 +230,16 @@ export const tasksStrings = {
     messagesEmpty: 'Сообщений пока нет',
     loadMore: 'Загрузить ещё',
     conditions: 'Условия',
+    /** Положительные формулировки условий (✓ — выполнено); тексты отказов —
+     *  ui.tasks.gate.*, они для диалога блокировки, не для живого списка. */
+    conditionLabels: {
+      no_open_subtasks: 'Нет незавершённых подзадач',
+      checklist_complete: 'Чек-лист выполнен',
+      fields_required: 'Обязательные поля заполнены',
+      time_logged: 'Трудозатраты внесены',
+      result_present: 'Итог заполнен',
+      result_files: 'Приложены файлы итога',
+    },
     openChecklist: 'Открыть чек-лист',
     openSubtasks: 'Открыть подзадачи',
     filesMembersOnly: 'Файлы и сообщения доступны участникам обсуждения задачи',

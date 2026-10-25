@@ -109,7 +109,7 @@ export function ResultFilesSection({
           }}
         />
       </div>
-      {conversationId === null ? (
+      {conversationId === null && !disabled ? (
         <p className="text-xs text-muted-foreground">{ui.tasks.window.noConversation}</p>
       ) : (
         <Button

@@ -16,7 +16,9 @@ export function ResultMessagesSection({
   disabled: boolean;
 }) {
   if (conversationId === null) {
-    return <p className="text-xs text-muted-foreground">{ui.tasks.window.noConversation}</p>;
+    return disabled ? null : (
+      <p className="text-xs text-muted-foreground">{ui.tasks.window.noConversation}</p>
+    );
   }
   return (
     <ChatMessagePicker

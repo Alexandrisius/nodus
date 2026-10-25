@@ -19,6 +19,7 @@ import {
 } from '../../../model/transition-form.js';
 import { setMinFiles, validatorOf } from '../../../model/transition-rules.js';
 import { TransitionWindow } from '../../../../../shared/workflow/transition-window/transition-window.js';
+import type { TransitionWindowContext } from '../../../../../shared/workflow/transition-window/window-context.js';
 import { PanelField, SwitchRow } from './panel-kit.js';
 import {
   GateCheck,
@@ -29,7 +30,7 @@ import {
 } from './window-section-rows.js';
 
 /**
- * Раздел «Окно при нажатии» инспектора кнопки (#380): тумблер окна,
+ * Раздел «Окно перехода» инспектора кнопки (#380): тумблер окна,
  * заголовок, шесть разделов в фиксированном порядке. «Обязательно» у
  * времени/итога/файлов правит ГЕЙТЫ (Р3: обязательность — только
  * валидаторы), у причины и сообщений — собственную настройку раздела.
@@ -214,7 +215,7 @@ export function WindowSection({
             open={previewOpen}
             mode="preview"
             transition={previewTransition(transition, doc)}
-            context={null}
+            context={previewContext(transition, doc)}
             onCancel={() => setPreviewOpen(false)}
             onSubmit={() => {}}
           />
@@ -222,4 +223,23 @@ export function WindowSection({
       ) : null}
     </>
   );
+}
+
+/** Контекст превью: «Откуда» — статус, из которого идёт кнопка; данных нет. */
+function previewContext(
+  t: WorkflowDraftTransition,
+  doc: WorkflowDraftDocument,
+): TransitionWindowContext {
+  return {
+    entityId: '',
+    conversationId: null,
+    currentStageName:
+      doc.stages.find((s) => s.id === t.fromStageId)?.name ?? ui.automation.anyStatus,
+    fields: { description: '', deadline: null, assigneeId: null, plannedMinutes: null },
+    spentMinutes: 0,
+    lastResult: null,
+    access: { canEdit: false, canLogTime: false, canCheck: false },
+    submission: null,
+    scope: 'entity',
+  };
 }
