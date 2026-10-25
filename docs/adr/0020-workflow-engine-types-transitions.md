@@ -95,7 +95,7 @@ ADR-0008 зафиксировал две оси (скрытое `systemState` + 
 
 ## Дополнение 3 (#380): формы переходов
 
-Окно перехода — часть документа маршрута (ADR-0021), а не отдельная сущность: `WorkflowTransition.form = { enabled, title?, sections[] }`, разделы — закрытый реестр (`fields | time | result | result_files | result_messages | comment`). Неизвестный `kind` отвергается при чтении (правило в данных без исполнителя — ложная безопасность), расширение — только новым видом (`#381 questions`, `#436 next_task`, письма — регистрация/резолюция).
+Окно перехода — часть документа маршрута (ADR-0021), а не отдельная сущность: `WorkflowTransition.form = { enabled, title?, sections[] }`, разделы — закрытый реестр (`fields | time | result | result_files | result_messages | comment`). Неизвестный `kind` отвергается при чтении (правило в данных без исполнителя — ложная безопасность), расширение — только новым видом (`#436 next_task`, письма — регистрация/резолюция; `#381 questions` — отложено, draft).
 
 **Эффективное окно** (`effectiveWindowSections`) = разделы настройки ∪ разделы, выводимые из гейтов (`fields_required` → fields, `result_present`/`fields_required[result]` → result, `time_logged` → time, `result_files` → result_files). Одна грамматика веба и сервера: заблокированная кнопка, которую окно может разблокировать, открывает окно даже без настройки.
 
