@@ -4,7 +4,6 @@ import { automationHandlers } from '../features/automation/api/mocks/automation-
 import { authHandlers } from '../features/auth/api/mocks/auth-handlers.js';
 import { chatHandlers } from '../features/chat/api/mocks/chat-handlers.js';
 import { lettersHandlers } from '../features/correspondence/api/mocks/letters-handlers.js';
-import { counterpartiesHandlers } from '../features/crm/api/mocks/counterparties-handlers.js';
 import { directoryHandlers } from '../features/directory/api/mocks/directory-handlers.js';
 import { homeHandlers } from '../features/home/api/mocks/home-handlers.js';
 import { notificationsHandlers } from '../features/notifications/api/mocks/notifications-handlers.js';
@@ -27,7 +26,6 @@ const domainHandlers: Record<ApiMockDomain, HttpHandler[]> = {
   // специфичность не учитывается — gotcha msw-query).
   tasks: [...automationHandlers, ...tasksHandlers],
   letters: lettersHandlers,
-  counterparties: counterpartiesHandlers,
   projects: projectsHandlers,
   chat: chatHandlers,
   home: homeHandlers,

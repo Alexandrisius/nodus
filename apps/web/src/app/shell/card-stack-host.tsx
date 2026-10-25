@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { ui } from '@nodus/contracts';
 
 import { ProjectIdentityIcon } from '../../shared/ui/project-identity-icon.js';
-import { useCounterpartyCard } from '../../shared/counterparties/api.js';
+import { useCounterpartyCard } from '../../shared/counterparties/queries.js';
 import { useLetterDetail } from '../../features/correspondence/api/letters-api.js';
 import { LetterCard } from '../../features/correspondence/components/letter-card.js';
 import { CounterpartyCard } from '../../features/crm/components/counterparty-card.js';

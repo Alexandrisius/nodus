@@ -15,7 +15,6 @@ export const API_MOCK_DOMAINS = [
   'directory',
   'tasks',
   'letters',
-  'counterparties',
   'projects',
   'chat',
   'home',

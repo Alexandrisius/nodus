@@ -32,6 +32,7 @@ export function ListToolbar<T>({
   left,
   right,
   className,
+  searchPlaceholder = ui.common.searchPlaceholder,
 }: {
   toolbar: ListToolbarState;
   defs: FilterFieldDef<T>[];
@@ -39,6 +40,8 @@ export function ListToolbar<T>({
   left?: ReactNode;
   right?: ReactNode;
   className?: string;
+  /** Подсказка поиска — по полям серверного поиска сущности (I15: строка из i18n). */
+  searchPlaceholder?: string;
 }) {
   const [panelOpen, setPanelOpen] = useState(false);
   // Gotcha (docs/gotchas/frontend.md «Radix Popover из фокуса»): открывать панель
@@ -55,11 +58,16 @@ export function ListToolbar<T>({
   // сам делает для триггера).
   const anchorRef = useRef<HTMLDivElement>(null);
   const activeDefs = defs.filter((d) => isActiveFilter(toolbar.filters[d.id]));
+  // Панель фильтра открывается, только когда фильтровать есть чем: у списка
+  // без полей и пресетов (справочник контрагентов — поиск и архивные
+  // серверные, #460) пустая панель была бы мусором под строкой поиска.
+  const hasPanel =
+    defs.some((d) => !d.hidden) || builtinPresets.length > 0 || toolbar.presets.length > 0;
 
   return (
     <div className={cn('flex h-10 shrink-0 items-center gap-2 px-4', className)}>
       {left}
-      <Popover open={panelOpen} onOpenChange={setPanelOpen}>
+      <Popover open={hasPanel && panelOpen} onOpenChange={setPanelOpen}>
         <PopoverAnchor asChild>
           {/* Поисковая строка — композитный контрол (модель Битрикс24):
               применённые фильтры — ЧИПАМИ ВНУТРИ поля слева, текст запроса —
@@ -112,13 +120,13 @@ export function ListToolbar<T>({
                   fromPointer.current = true;
                 }}
                 onFocus={() => {
-                  if (!fromPointer.current) setPanelOpen(true);
+                  if (!fromPointer.current && hasPanel) setPanelOpen(true);
                 }}
                 onClick={() => {
                   fromPointer.current = false;
-                  setPanelOpen(true);
+                  if (hasPanel) setPanelOpen(true);
                 }}
-                placeholder={ui.common.searchPlaceholder}
+                placeholder={searchPlaceholder}
                 aria-label={ui.common.search}
                 className="min-w-0 flex-1 bg-transparent px-1 text-sm outline-none placeholder:text-muted-foreground"
               />

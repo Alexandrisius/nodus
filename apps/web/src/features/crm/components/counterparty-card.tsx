@@ -1,215 +1,163 @@
-import { Building2, Mail, Phone, Plus, UserRound } from 'lucide-react';
+import { Archive, Building2, Pencil, RotateCcw } from 'lucide-react';
 import { useState } from 'react';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
-import { Input } from '@nodus/ui/components/input';
-import { NodeLabel } from '@nodus/ui/components/node-label';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@nodus/ui/components/dialog';
 import { Skeleton } from '@nodus/ui/components/skeleton';
 
-import { useOpenCard } from '../../../app/shell/use-card-stack.js';
-import { useCounterpartyCard, useAddContactPerson } from '../../../shared/counterparties/api.js';
-import { useLettersList } from '../../../shared/api/letters-list.js';
-import { useProjectsList } from '../../../shared/api/projects-list.js';
-import { formatDate } from '../../../shared/lib/format.js';
-import { monoCell } from '../../../shared/ui/person-cell.js';
-import { ProjectIdentityIcon } from '../../../shared/ui/project-identity-icon.js';
+import { ApiError } from '../../../shared/api-client.js';
+import { useCounterpartyCard } from '../../../shared/counterparties/queries.js';
+import { useCanManageCounterparties } from '../../../shared/counterparties/use-crm-permissions.js';
+import { useSetCounterpartyArchived } from '../api/counterparty-edit.js';
+import { ContactPersons } from './contact-persons.js';
+import { CounterpartyFormDialog } from './counterparty-form-dialog.js';
+import { CounterpartyRelated } from './counterparty-related.js';
+import { CounterpartyRequisites } from './counterparty-requisites.js';
 
-/** Форма контактного лица (раскрывается кнопкой «Добавить»). */
-function ContactForm({ counterpartyId, onDone }: { counterpartyId: string; onDone: () => void }) {
-  const add = useAddContactPerson(counterpartyId);
-  const [fullName, setFullName] = useState('');
-  const [position, setPosition] = useState('');
-  const [phone, setPhone] = useState('');
-  const [email, setEmail] = useState('');
-
-  function submit() {
-    if (!fullName.trim() || add.isPending) return;
-    add.mutate(
-      {
-        fullName: fullName.trim(),
-        position: position.trim() || null,
-        phone: phone.trim() || null,
-        email: email.trim() || null,
-      },
-      { onSuccess: onDone },
-    );
-  }
-
+function CardSkeleton() {
   return (
-    <div className="node-panel flex flex-col gap-2 p-3">
-      <div className="grid grid-cols-2 gap-2">
-        <Input
-          autoFocus
-          value={fullName}
-          onChange={(e) => setFullName(e.target.value)}
-          placeholder={ui.counterparties.contactName}
-          className="h-8 text-sm"
-        />
-        <Input
-          value={position}
-          onChange={(e) => setPosition(e.target.value)}
-          placeholder={ui.counterparties.contactPosition}
-          className="h-8 text-sm"
-        />
-        <Input
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-          placeholder={ui.counterparties.contactPhone}
-          className="h-8 font-mono text-label-sm"
-        />
-        <Input
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder={ui.counterparties.contactEmail}
-          className="h-8 font-mono text-label-sm"
-        />
-      </div>
-      <div className="flex justify-end gap-2">
-        <Button variant="ghost" size="sm" onClick={onDone}>
-          {ui.common.cancel}
-        </Button>
-        <Button size="sm" disabled={!fullName.trim() || add.isPending} onClick={submit}>
-          {ui.common.add}
-        </Button>
-      </div>
+    <div className="content-fade flex h-full flex-col gap-4 overflow-y-auto p-6">
+      <Skeleton className="h-10 w-64" />
+      <Skeleton className="h-4 w-96" />
+      <Skeleton className="h-32 w-full max-w-2xl" />
     </div>
   );
 }
 
-/** Карточка контрагента (стек, ADR-0009): реквизиты организации, контактные
- *  лица (добавление инлайн), связанные письма и проекты. НЕ CRM — только
- *  справочник и связи (вердикт владельца 22.09.2026). */
-export function CounterpartyCard({ counterpartyId }: { counterpartyId: string }) {
-  const { data: card, isLoading } = useCounterpartyCard(counterpartyId);
-  const { data: letters } = useLettersList(undefined, counterpartyId);
-  const { data: projects } = useProjectsList();
-  const openCard = useOpenCard();
-  const [contactFormOpen, setContactFormOpen] = useState(false);
+/** Состояние «не найден / нет доступа»: архив не отдаётся только при
+ *  выключенном модуле или устаревшей ссылке — вечного скелетона нет (Д2). */
+function CardNotFound() {
+  return (
+    <div className="content-fade flex h-full flex-col items-center justify-center gap-2 p-6 text-center">
+      <Building2 className="size-6 text-muted-foreground" strokeWidth={1.5} />
+      <p className="text-sm font-medium text-foreground">{ui.counterparties.notFound}</p>
+      <p className="max-w-sm text-xs text-muted-foreground">{ui.counterparties.notFoundHint}</p>
+    </div>
+  );
+}
 
-  if (isLoading || !card) {
-    return (
-      <div className="content-fade flex h-full flex-col gap-4 overflow-y-auto p-6">
-        <Skeleton className="h-10 w-64" />
-        <Skeleton className="h-4 w-96" />
-        <Skeleton className="h-32 w-full max-w-2xl" />
+/** Действия шапки карточки: правка, архив/возврат (право `crm.manage`). */
+function CardActions({ counterpartyId, archived }: { counterpartyId: string; archived: boolean }) {
+  const canManage = useCanManageCounterparties();
+  const setArchived = useSetCounterpartyArchived(counterpartyId);
+  const [editOpen, setEditOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const { data: card } = useCounterpartyCard(counterpartyId);
+  if (!canManage) return null;
+
+  return (
+    <>
+      <div className="flex shrink-0 items-center gap-2">
+        {archived ? (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={setArchived.isPending}
+            onClick={() => setArchived.mutate(false)}
+          >
+            <RotateCcw data-icon="inline-start" />
+            {ui.counterparties.restore}
+          </Button>
+        ) : (
+          <>
+            <Button size="sm" variant="outline" onClick={() => setEditOpen(true)}>
+              <Pencil data-icon="inline-start" />
+              {ui.counterparties.edit}
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-muted-foreground hover:text-foreground"
+              onClick={() => setConfirmOpen(true)}
+            >
+              <Archive data-icon="inline-start" />
+              {ui.counterparties.archive}
+            </Button>
+          </>
+        )}
       </div>
-    );
-  }
 
-  const relatedProjects = (projects?.items ?? []).filter((p) => p.client?.id === card.id);
+      <CounterpartyFormDialog open={editOpen} onOpenChange={setEditOpen} card={card ?? null} />
+
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{ui.counterparties.archiveConfirmTitle}</DialogTitle>
+            <DialogDescription>{ui.counterparties.archiveConfirmText}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setConfirmOpen(false)}>
+              {ui.common.cancel}
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={setArchived.isPending}
+              onClick={() => setArchived.mutate(true, { onSuccess: () => setConfirmOpen(false) })}
+            >
+              {ui.counterparties.archive}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+/**
+ * Карточка контрагента (стек, ADR-0009): реквизиты (реестр полей с настройкой
+ * видимости), контактные лица (добавление/правка/архив), связанные письма и
+ * проекты — только при непустых счётчиках (#460). Состояния: загрузка,
+ * «не найден / нет доступа», архивная карточка (read-only + «Вернуть из
+ * архива»), действия правки — по праву `crm.manage` (сервер — истина, I8).
+ */
+export function CounterpartyCard({ counterpartyId }: { counterpartyId: string }) {
+  const { data: card, isLoading, error } = useCounterpartyCard(counterpartyId);
+
+  if (isLoading) return <CardSkeleton />;
+  if (!card) {
+    if (error instanceof ApiError && error.status === 404) return <CardNotFound />;
+    return <CardNotFound />;
+  }
+  const archived = card.archivedAt !== null;
 
   return (
     <div className="content-fade h-full overflow-y-auto">
-      <div className="mx-auto w-full max-w-3xl p-6">
-        {/* Реквизиты организации */}
+      <div className="@container mx-auto w-full max-w-4xl p-6">
         <div className="flex items-start gap-3">
           <span className="node-panel flex size-10 shrink-0 items-center justify-center">
             <Building2 className="size-4.5 text-muted-foreground" strokeWidth={1.5} />
           </span>
           <div className="min-w-0 flex-1">
-            <div className="text-sm font-semibold text-foreground">{card.shortName}</div>
-            <div className="mt-0.5 text-xs text-muted-foreground">{card.fullName}</div>
-            <div className="mt-1 flex flex-col gap-0.5 text-xs text-muted-foreground">
-              {card.unp ? (
-                <span>
-                  {ui.counterparties.unp}: <span className={monoCell}>{card.unp}</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-lg font-semibold text-foreground">{card.shortName}</h2>
+              {archived ? (
+                <span className="rounded bg-muted px-1.5 py-0.5 text-label-sm text-muted-foreground">
+                  {ui.counterparties.archivedBadge}
                 </span>
               ) : null}
-              {card.address ? <span className="truncate">{card.address}</span> : null}
             </div>
+            <div className="mt-0.5 text-sm text-muted-foreground">{card.fullName}</div>
+            {archived ? (
+              <p className="mt-1 text-xs text-muted-foreground">{ui.counterparties.archivedHint}</p>
+            ) : null}
           </div>
+          <CardActions counterpartyId={card.id} archived={archived} />
         </div>
 
-        {/* Контактные лица */}
-        <div className="mt-8 flex items-center gap-3">
-          <NodeLabel label={ui.counterparties.contactPersons} count={card.contactPersons.length} />
-          <button
-            type="button"
-            onClick={() => setContactFormOpen(true)}
-            className="inline-flex items-center gap-1 text-xs font-medium text-info hover:underline"
-          >
-            <Plus className="size-3" />
-            {ui.counterparties.contactPersonAdd}
-          </button>
-        </div>
-        <div className="mt-2.5 flex flex-col gap-1.5">
-          {card.contactPersons.length === 0 && !contactFormOpen ? (
-            <p className="text-sm text-muted-foreground">{ui.counterparties.noContacts}</p>
-          ) : null}
-          {card.contactPersons.map((person) => (
-            <div key={person.id} className="node-panel flex items-center gap-3 px-3 py-2">
-              <UserRound className="size-4 shrink-0 text-muted-foreground" strokeWidth={1.5} />
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-sm">{person.fullName}</div>
-                {person.position ? (
-                  <div className="truncate text-xs text-muted-foreground">{person.position}</div>
-                ) : null}
-              </div>
-              {person.phone ? (
-                <span className="flex shrink-0 items-center gap-1 font-mono text-label-sm text-muted-foreground">
-                  <Phone className="size-3" strokeWidth={1.5} />
-                  {person.phone}
-                </span>
-              ) : null}
-              {person.email ? (
-                <span className="flex min-w-0 shrink items-center gap-1 font-mono text-label-sm text-muted-foreground">
-                  <Mail className="size-3 shrink-0" strokeWidth={1.5} />
-                  <span className="truncate">{person.email}</span>
-                </span>
-              ) : null}
-            </div>
-          ))}
-          {contactFormOpen ? (
-            <ContactForm counterpartyId={card.id} onDone={() => setContactFormOpen(false)} />
-          ) : null}
-        </div>
-
-        {/* Связанные письма */}
-        <div className="mt-8">
-          <NodeLabel label={ui.counterparties.relatedLetters} count={letters?.items.length ?? 0} />
-        </div>
-        <div className="mt-2.5 flex flex-col gap-1.5">
-          {(letters?.items ?? []).length === 0 ? (
-            <p className="text-sm text-muted-foreground">{ui.counterparties.noLetters}</p>
-          ) : null}
-          {(letters?.items ?? []).map((letter) => (
-            <button
-              key={letter.id}
-              type="button"
-              onClick={() => openCard({ kind: 'letter', id: letter.id })}
-              className="flex items-center gap-2 rounded-md px-1.5 py-1 text-left text-sm hover:bg-accent/50"
-            >
-              <span className="w-24 shrink-0 font-mono text-label-sm text-muted-foreground tabular-nums">
-                {letter.registration?.regNumber ?? '—'}
-              </span>
-              <span className="min-w-0 flex-1 truncate">{letter.subject}</span>
-              <span className="shrink-0 font-mono text-label-sm text-muted-foreground tabular-nums">
-                {formatDate(letter.date)}
-              </span>
-            </button>
-          ))}
-        </div>
-
-        {/* Связанные проекты (поле «Заказчик») */}
-        <div className="mt-8">
-          <NodeLabel label={ui.counterparties.relatedProjects} count={relatedProjects.length} />
-        </div>
-        <div className="mt-2.5 flex flex-col gap-1.5">
-          {relatedProjects.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{ui.counterparties.noProjects}</p>
-          ) : null}
-          {relatedProjects.map((project) => (
-            <button
-              key={project.id}
-              type="button"
-              onClick={() => openCard({ kind: 'project', id: project.id })}
-              className="flex items-center gap-2 rounded-md px-1.5 py-1 text-left text-sm hover:bg-accent/50"
-            >
-              <ProjectIdentityIcon color={project.color} />
-              <span className="min-w-0 flex-1 truncate">{project.name}</span>
-            </button>
-          ))}
-        </div>
+        <CounterpartyRequisites card={card} />
+        <ContactPersons
+          counterpartyId={card.id}
+          contacts={card.contactPersons}
+          readOnly={archived}
+        />
+        <CounterpartyRelated card={card} />
       </div>
     </div>
   );

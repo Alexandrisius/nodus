@@ -1,52 +1,43 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Plus } from 'lucide-react';
-import type { CounterpartyListItem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
+import { Checkbox } from '@nodus/ui/components/checkbox';
 
 import { useOpenCard } from '../../../app/shell/use-card-stack.js';
-import { useCounterpartiesList } from '../../../shared/counterparties/api.js';
+import { useDebouncedValue } from '../../../shared/lib/use-debounced-value.js';
+import { useCounterpartiesPages } from '../../../shared/counterparties/queries.js';
+import { useCanCreateCounterparties } from '../../../shared/counterparties/use-crm-permissions.js';
 import { DataTable } from '../../../shared/views/data-table.js';
-import type { FilterFieldDef, FilterValue } from '../../../shared/views/list-filters.js';
-import { ListToolbar } from '../../../shared/views/list-toolbar.js';
-import { useFilteredList, useListToolbar } from '../../../shared/views/use-list-toolbar.js';
-import { ViewSettings } from '../../../shared/views/view-settings.js';
 import { makeCardRowMenuItems } from '../../../shared/views/card-row-menu.js';
+import { ListToolbar } from '../../../shared/views/list-toolbar.js';
+import { useListToolbar } from '../../../shared/views/use-list-toolbar.js';
+import { ViewSettings } from '../../../shared/views/view-settings.js';
+import { CounterpartyFormDialog } from '../components/counterparty-form-dialog.js';
 import { counterpartyFields } from '../lib/counterparty-fields.js';
-import { CounterpartyCreateDialog } from '../components/counterparty-create-dialog.js';
 
-/** Контрагенты — вкладка раздела CRM (#83): справочник внешних организаций
- *  (заказчики, подрядчики, поставщики, госорганы). Реестр — каноническая
- *  таблица shared/views (ключ `counterparties.list`), поиск по названию/УНП,
- *  карточка — в стеке. */
+/**
+ * Контрагенты — вкладка раздела CRM (#83): справочник внешних организаций
+ * (заказчики, подрядчики, поставщики, госорганы) на живом API модуля crm
+ * (#460). Реестр — каноническая таблица shared/views (ключ
+ * `counterparties.list`): бесконечная прокрутка по курсору, СЕРВЕРНЫЙ поиск
+ * (название, полное название, УНП) с задержкой 250 мс, переключатель
+ * «Показывать архивные»; счётчик в заголовке — N, при недогруженных
+ * страницах N+ (истинное число строк сервер не отдаёт — totals нет).
+ * «Создать» — только с правом `crm.create` (сервер — истина, I8).
+ */
 export function CounterpartiesPage() {
-  const { data, isLoading } = useCounterpartiesList();
-  const openCard = useOpenCard();
-  const [createOpen, setCreateOpen] = useState(false);
   const toolbar = useListToolbar('counterparties.list');
+  const search = useDebouncedValue(toolbar.query.trim(), 250);
+  const [includeArchived, setIncludeArchived] = useState(false);
+  const { data, isLoading, hasNextPage, isFetchingNextPage, fetchNextPage } =
+    useCounterpartiesPages({ search: search || undefined, includeArchived });
+  const openCard = useOpenCard();
+  const canCreate = useCanCreateCounterparties();
+  const [createOpen, setCreateOpen] = useState(false);
 
-  const defs = useMemo<FilterFieldDef<CounterpartyListItem>[]>(
-    () => [
-      {
-        id: 'unp',
-        label: ui.counterparties.unp,
-        type: 'text' as const,
-        placeholder: ui.counterparties.unpHint,
-        match: (c: CounterpartyListItem, v: FilterValue) =>
-          typeof v !== 'string' || (c.unp ?? '').includes(v),
-      },
-    ],
-    [],
-  );
-  const searchText = useMemo(
-    () => (c: CounterpartyListItem) => `${c.shortName} ${c.fullName} ${c.unp ?? ''}`,
-    [],
-  );
-  const filter = useMemo(
-    () => ({ defs, state: toolbar.filters, query: toolbar.query, searchText }),
-    [defs, toolbar.filters, toolbar.query, searchText],
-  );
-  const rows = useFilteredList(data?.items ?? [], filter);
+  const rows = data?.pages.flatMap((page) => page.items) ?? [];
+  const total = rows.length;
 
   return (
     <div className="relative flex h-full flex-col">
@@ -54,20 +45,36 @@ export function CounterpartiesPage() {
         <h1 className="shrink-0 text-xl font-semibold text-balance text-foreground">
           {ui.counterparties.title}
           <span className="ml-2 align-middle font-mono text-label-lg font-normal text-muted-foreground tabular-nums">
-            {data?.items.length ?? 0}
+            {total}
+            {hasNextPage ? '+' : ''}
           </span>
         </h1>
         <ListToolbar
           className="min-w-0 flex-1 px-0"
           toolbar={toolbar}
-          defs={defs}
+          defs={[]}
+          searchPlaceholder={ui.counterparties.searchPlaceholder}
           left={
-            <Button onClick={() => setCreateOpen(true)}>
-              <Plus data-icon="inline-start" />
-              {ui.counterparties.create}
-            </Button>
+            canCreate ? (
+              <Button onClick={() => setCreateOpen(true)}>
+                <Plus data-icon="inline-start" />
+                {ui.common.create}
+              </Button>
+            ) : undefined
           }
-          right={<ViewSettings viewKey="counterparties.list" defs={counterpartyFields} />}
+          right={
+            <>
+              <label className="flex shrink-0 cursor-pointer items-center gap-1.5 text-xs text-muted-foreground select-none">
+                <Checkbox
+                  checked={includeArchived}
+                  onCheckedChange={(checked) => setIncludeArchived(checked === true)}
+                  aria-label={ui.counterparties.showArchived}
+                />
+                {ui.counterparties.showArchived}
+              </label>
+              <ViewSettings viewKey="counterparties.list" defs={counterpartyFields} />
+            </>
+          }
         />
       </div>
       <div className="min-h-0 flex-1">
@@ -77,14 +84,17 @@ export function CounterpartiesPage() {
           rows={rows}
           rowKey={(c) => c.id}
           isLoading={isLoading}
+          hasNextPage={hasNextPage}
+          isFetchingNextPage={isFetchingNextPage}
+          onLoadMore={() => void fetchNextPage()}
           onOpenRow={(c, rowEl) =>
             openCard({ kind: 'counterparty', id: c.id }, rowEl.getBoundingClientRect())
           }
-          emptyTitle={ui.counterparties.empty}
+          emptyTitle={search ? ui.counterparties.emptySearch : ui.counterparties.empty}
           rowMenu={(c) => makeCardRowMenuItems({ kind: 'counterparty', id: c.id }, openCard)}
         />
       </div>
-      <CounterpartyCreateDialog open={createOpen} onOpenChange={setCreateOpen} />
+      <CounterpartyFormDialog open={createOpen} onOpenChange={setCreateOpen} />
     </div>
   );
 }

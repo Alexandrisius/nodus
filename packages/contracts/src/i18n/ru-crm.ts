@@ -17,6 +17,7 @@ export const counterpartiesStrings = {
   address: 'Адрес',
   email: 'Эл. почта',
   phone: 'Телефон',
+  createdAt: 'В справочнике с',
   contactPersons: 'Контактные лица',
   contactPersonAdd: 'Добавить контактное лицо',
   contactName: 'Ф.И.О.',
