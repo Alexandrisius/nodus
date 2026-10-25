@@ -6,7 +6,7 @@ import {
   DICTIONARY_READER,
   type DictionaryReader,
 } from '../../dictionaries/ports/dictionary-reader.port.js';
-import type { CustomFieldRefsHydrator } from '../values/refs-hydrator.js';
+import { CustomFieldRefsHydrator } from '../values/refs-hydrator.js';
 
 /** Строка `field_definitions` в объёме DTO (схема — ADR-0029). */
 export interface FieldDefinitionRow {

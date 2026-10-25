@@ -70,7 +70,7 @@ export class DefinitionsService {
 
   async create(dto: CreateCustomFieldBody, actorId: string): Promise<CustomFieldDefinition> {
     if (dto.type === 'project') throw typeUnavailable('project');
-    await this.assertSettingsUsable(dto.type, dto.settings.dictionaryId, dto.settings.currencyId);
+    await this.assertSettingsUsable(dto.type, dto.settings?.dictionaryId, dto.settings?.currencyId);
 
     return this.txRunner.run(async (tx) => {
       await this.definitions.lockScope(dto.scope, tx);

@@ -106,6 +106,8 @@ export class CustomFieldValueValidator {
     const itemIds = new Set<string>();
     const currencyIds = new Set<string>();
     const counterpartyIds = new Set<string>();
+    // Проектов нет до #52: значение такого типа всегда отвергается (Р11).
+    let hasProjectValue = false;
 
     const scalarIds = (value: CustomFieldValue): string[] =>
       Array.isArray(value) ? value : [String(value)];
@@ -129,9 +131,23 @@ export class CustomFieldValueValidator {
         case 'counterparty':
           counterpartyIds.add(String(value));
           break;
+        case 'project':
+          hasProjectValue = true;
+          break;
         default:
           break;
       }
+    }
+
+    if (
+      userIds.size === 0 &&
+      departmentIds.size === 0 &&
+      itemIds.size === 0 &&
+      currencyIds.size === 0 &&
+      counterpartyIds.size === 0 &&
+      !hasProjectValue
+    ) {
+      return []; // ссылок нет — порты не нужны
     }
 
     const [userRefs, activeUserIds, departments, items, currencies, counterparties] =

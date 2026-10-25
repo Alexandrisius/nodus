@@ -5,6 +5,7 @@ import { OrgStructureProvider } from '../../core/ports/org-structure.provider.js
 import { USER_PROFILE_READER } from '../../core/ports/user-profile.port.js';
 import { UserProfileProvider } from '../../core/ports/user-profile.provider.js';
 import { ChatPortsModule } from '../chat/chat-ports.module.js';
+import { CustomFieldsPortsModule } from '../custom-fields/custom-fields-ports.module.js';
 import { WorkflowsPortsModule } from '../workflows/workflows-ports.module.js';
 import { ViewerResolver } from './access/task-visibility.js';
 import { HistoryRepository } from './activity/history.repository.js';
@@ -66,7 +67,8 @@ import { TaskWorkflowController } from './workflow/task-workflow.controller.js';
 @Module({
   // Read-порты чата (ADR-0012): доступ к сообщению для «В задачу»/результата.
   // WorkflowsPortsModule — порты «Процессов»: движок и читатель каталога.
-  imports: [ChatPortsModule, WorkflowsPortsModule],
+  // Реестр атрибутов (#431): значения, умолчания и проверка — порт, не таблица.
+  imports: [ChatPortsModule, WorkflowsPortsModule, CustomFieldsPortsModule],
   controllers: [TasksController, TaskWorkflowController, TaskPartsController, TimeController],
   providers: [
     UserProfileProvider,
