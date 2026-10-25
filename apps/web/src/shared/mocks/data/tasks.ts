@@ -6,9 +6,9 @@ import type { ProjectRef } from '@nodus/contracts';
 import { isoAgo } from './dates.js';
 import { personalNew, personalStageFor } from './personal-stages.js';
 import { kjSubtask, tid } from './task-items.js';
-import { stageNew, systemTaskType } from './task-stages.js';
+import { stageNew, systemProcessType } from './task-stages.js';
 import { QUICK_WORKFLOW_ID, STANDARD_WORKFLOW_ID } from './workflows.js';
-import { quickTaskType } from './task-stages.js';
+import { quickProcessType } from './task-stages.js';
 import { currentAuthUser, userIds, userRef } from './users.js';
 
 export * from './task-stages.js';
@@ -20,7 +20,7 @@ export function makeSubtask(parent: TaskListItem, title: string): TaskListItem {
     id: crypto.randomUUID(),
     number: parent.number * 100 + ((demoSubtasks[parent.id]?.length ?? 0) + 1),
     title,
-    type: systemTaskType,
+    type: systemProcessType,
     stage: stageNew,
     // Новая подзадача — в первую личную колонку состояния backlog (ADR-0008).
     personalStageId: personalNew.id,
@@ -62,7 +62,7 @@ export function makeInstructionTask(opts: {
     id: opts.id,
     number: opts.number,
     title: opts.title,
-    type: systemTaskType,
+    type: systemProcessType,
     stage: stageNew,
     personalStageId: personalStageFor(stageNew),
     priority: 'normal',
@@ -169,7 +169,7 @@ export function taskDetailOf(task: TaskListItem): TaskDetail {
     ...extra,
     subtasks: demoSubtasks[task.id] ?? [],
     chain: chainOf(task),
-    workflowId: task.type.id === quickTaskType.id ? QUICK_WORKFLOW_ID : STANDARD_WORKFLOW_ID,
+    workflowId: task.type.id === quickProcessType.id ? QUICK_WORKFLOW_ID : STANDARD_WORKFLOW_ID,
     plannedMinutes: extra.plannedMinutes ?? null,
     acceptRequired: extra.acceptRequired ?? false,
     result: extra.result ?? null,

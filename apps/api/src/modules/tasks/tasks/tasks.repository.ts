@@ -4,8 +4,8 @@ import { statesOfPhase } from '@nodus/contracts';
 import { Prisma } from '../../../generated/prisma/client.js';
 import { PrismaService } from '../../../core/database/prisma.service.js';
 import type { TransactionClient } from '../../../core/database/transaction-runner.js';
+import type { WorkflowGateFacts } from '../../../core/ports/workflow-entity.port.js';
 import { keyBetween } from '../lib/fractional-index.js';
-import type { TaskGateFacts } from '../workflow/transition-rules.js';
 import { taskListInclude } from './task-row.js';
 
 /** Параллельное «В задачу» по тому же сообщению проиграло частичному unique
@@ -150,13 +150,37 @@ export class TasksRepository {
     return row.number;
   }
 
-  /** Структурный тип (узел дерева проекта) — в «Мой план» не попадает. */
-  async isStructural(tx: TransactionClient, id: string): Promise<boolean> {
-    const row = await tx.task.findUniqueOrThrow({
-      where: { id },
-      select: { type: { select: { structural: true } } },
+  /** Задачи стадии пачкой keyset (перенос публикации, идемпотентный повтор). */
+  idsByStage(stageId: string, take: number) {
+    return this.prisma.task.findMany({
+      where: { stageId },
+      orderBy: { id: 'asc' },
+      take,
+      select: { id: true },
     });
-    return row.type.structural;
+  }
+
+  /** Задачи стадии с чужим системным состоянием (смена группы, пачка). */
+  idsToRestate(stageId: string, systemState: string, take: number) {
+    return this.prisma.task.findMany({
+      where: { stageId, systemState: { not: systemState } },
+      orderBy: { id: 'asc' },
+      take,
+      select: { id: true },
+    });
+  }
+
+  /** Счётчики задач по стадиям (диалог публикации, мета списка типов). */
+  async countByStages(
+    stageIds: readonly string[],
+    tx?: TransactionClient,
+  ): Promise<{ stageId: string; count: number }[]> {
+    const rows = await (tx ?? this.prisma).task.groupBy({
+      by: ['stageId'],
+      where: { stageId: { in: [...stageIds] } },
+      _count: { _all: true },
+    });
+    return rows.map((row) => ({ stageId: row.stageId, count: row._count._all }));
   }
 
   async setStageOrder(tx: TransactionClient, id: string, stageOrder: string): Promise<void> {
@@ -242,7 +266,7 @@ export class TasksRepository {
     await tx.task.update({ where: { id }, data: { overdueNotifiedAt: at } });
   }
 
-  async gateFacts(taskId: string, tx: TransactionClient): Promise<TaskGateFacts> {
+  async gateFacts(taskId: string, tx: TransactionClient): Promise<WorkflowGateFacts> {
     const children = (phase: 'open' | 'review') =>
       tx.task.count({
         where: { parentId: taskId, deletedAt: null, systemState: { in: statesOfPhase(phase) } },

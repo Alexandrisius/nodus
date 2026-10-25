@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ReactFlowProvider, useReactFlow } from '@xyflow/react';
 import { useQueryClient } from '@tanstack/react-query';
 import { checkWorkflowDocument } from '@nodus/contracts';
-import type { TaskType, WorkflowDetail, WorkflowProblem } from '@nodus/contracts';
+import type { ProcessType, WorkflowDetail, WorkflowProblem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import { Plus } from 'lucide-react';
@@ -31,7 +31,7 @@ import { RouteToolbar } from './route-toolbar.js';
  * `checkWorkflowDocument`, публикация.
  */
 interface RouteEditorProps {
-  type: TaskType;
+  type: ProcessType;
   workflow: WorkflowDetail;
   /** Панель «Настройки типа» (та же колонка справа, монтирована всегда) и
    *  открыта ли она сейчас — новый статус ставится в видимую часть холста. */

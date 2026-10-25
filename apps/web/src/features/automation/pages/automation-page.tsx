@@ -4,11 +4,11 @@ import { useQueries } from '@tanstack/react-query';
 import { ui } from '@nodus/contracts';
 import { Empty, EmptyTitle } from '@nodus/ui/components/empty';
 
-import { useTaskTypes } from '../api/automation-api.js';
+import { useProcessTypes } from '../api/automation-api.js';
 import { useRouteDocStore } from '../model/route-doc-store.js';
 import { RouteEditor } from '../components/editor/route-editor.js';
 import { TypeList } from '../components/types/type-list.js';
-import { TaskTypeCreateDialog } from '../components/types/type-create-dialog.js';
+import { ProcessTypeCreateDialog } from '../components/types/type-create-dialog.js';
 import { TypeSettingsPanel } from '../components/types/type-settings.js';
 import {
   fetchWorkflowDetail,
@@ -28,7 +28,7 @@ import {
 export function AutomationPage() {
   const navigate = useNavigate();
   const search = useSearch({ strict: false }) as { type?: string };
-  const { data: types, isLoading } = useTaskTypes('include');
+  const { data: types, isLoading } = useProcessTypes('include');
   // Настройки типа открываются ДЛЯ КОНКРЕТНОЙ строки (#409): boolean терял
   // id, и панель всегда показывала selected — не тот тип, у которого нажали
   // «⋯ → Настройки типа». Выделение редактора при этом не меняется.
@@ -75,7 +75,7 @@ export function AutomationPage() {
     (types ?? []).forEach((type, i) => {
       const detail = details[i]?.data;
       counts[type.id] = detail
-        ? Object.values(detail.stageTaskCounts).reduce((a, b) => a + b, 0)
+        ? Object.values(detail.stageEntityCounts).reduce((a, b) => a + b, 0)
         : 0;
     });
     return counts;
@@ -145,7 +145,7 @@ export function AutomationPage() {
       </main>
 
       {createOpen ? (
-        <TaskTypeCreateDialog
+        <ProcessTypeCreateDialog
           defaultBaseTypeId={createBaseTypeId}
           onClose={() => {
             setCreateOpen(false);

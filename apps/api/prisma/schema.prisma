@@ -884,14 +884,21 @@ model NotificationSetting {
 // (stage_order, sort_order) — fractional-index TEXT COLLATE "C" (байтовый
 // порядок; коллация задаётся в миграции — Prisma её не декларирует).
 
-/// Тип задачи — глобальный справочник (ADR-0020). code — стабильный ключ
-/// системного каталога (бутстрап модуля создаёт недостающее, не перезаписывает).
-model TaskType {
+/// Тип процесса — глобальный справочник (ADR-0020, ADR-0024): задача или
+/// письмо. code — стабильный ключ системного каталога (бутстрап модуля
+/// создаёт недостающее, не перезаписывает).
+model ProcessType {
   id         String    @id @default(uuid()) @db.Uuid
   code       String    @unique
   name       String
-  /// Узел дерева проекта (раздел/комплект, ступень 3): в «Мой план»
-  /// исполнителей не попадает.
+  /// Категория сущности (ADR-0024): task | letter. Неизменяема после
+  /// создания — от неё зависят карточка, реестры и адаптер движка.
+  category   String    @default("task")
+  /// Направление письма: incoming | outgoing; null у задач (CHECK в
+  /// миграции: (category = 'letter') = (direction IS NOT NULL)).
+  direction  String?
+  /// УСТАРЕЛО (#428): узлы дерева проекта — сущность модуля проектов
+  /// (ADR-0030), флаг не читается; колонка снимается contract-chore #439.
   structural Boolean   @default(false)
   isSystem   Boolean   @default(false) @map("is_system")
   /// Значок-ключ закрытого реестра contracts (taskTypeIconSchema, #378).
@@ -911,9 +918,8 @@ model TaskType {
   updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
 
   schemeEntries WorkflowSchemeEntry[]
-  tasks         Task[]
 
-  @@map("task_types")
+  @@map("process_types")
 }
 
 /// Маршрут: стадии + переходы. kind: task (маршрут типа задачи) | personal
@@ -947,7 +953,6 @@ model Workflow {
   stages        WorkflowStage[]
   transitions   WorkflowTransition[]
   schemeEntries WorkflowSchemeEntry[]
-  tasks         Task[]
 
   @@index([kind, ownerId])
   @@map("workflows")
@@ -979,7 +984,6 @@ model WorkflowStage {
   workflow        Workflow                @relation(fields: [workflowId], references: [id], onDelete: Cascade)
   transitionsFrom WorkflowTransition[]    @relation("TransitionFrom")
   transitionsTo   WorkflowTransition[]    @relation("TransitionTo")
-  tasks           Task[]
   placements      TaskPersonalPlacement[]
 
   @@unique([workflowId, code])
@@ -1032,16 +1036,16 @@ model WorkflowScheme {
 }
 
 model WorkflowSchemeEntry {
-  schemeId   String @map("scheme_id") @db.Uuid
-  taskTypeId String @map("task_type_id") @db.Uuid
-  workflowId String @map("workflow_id") @db.Uuid
+  schemeId      String @map("scheme_id") @db.Uuid
+  processTypeId String @map("process_type_id") @db.Uuid
+  workflowId    String @map("workflow_id") @db.Uuid
 
-  scheme   WorkflowScheme @relation(fields: [schemeId], references: [id], onDelete: Cascade)
-  taskType TaskType       @relation(fields: [taskTypeId], references: [id], onDelete: Restrict)
-  workflow Workflow       @relation(fields: [workflowId], references: [id], onDelete: Restrict)
+  scheme      WorkflowScheme @relation(fields: [schemeId], references: [id], onDelete: Cascade)
+  processType ProcessType    @relation(fields: [processTypeId], references: [id], onDelete: Restrict)
+  workflow    Workflow       @relation(fields: [workflowId], references: [id], onDelete: Restrict)
 
-  @@id([schemeId, taskTypeId])
-  @@index([taskTypeId])
+  @@id([schemeId, processTypeId])
+  @@index([processTypeId])
   @@index([workflowId])
   @@map("workflow_scheme_entries")
 }
@@ -1049,6 +1053,9 @@ model WorkflowSchemeEntry {
 /// Задача. Проект необязателен (projectId nullable, без FK — I3): задача без
 /// проекта — обычный случай. number — глобальный счётчик (sequence; дыры
 /// при откате допустимы), «ПП-N» — слой отображения. Удаление — мягкое.
+/// type_id / workflow_id / stage_id — plain UUID без FK (ADR-0024): типы,
+/// маршруты и стадии принадлежат модулю «Процессы» (I3); целостность держится
+/// тем, что они архивируются, а не удаляются.
 model Task {
   id                String    @id @default(uuid()) @db.Uuid
   number            Int       @unique @default(autoincrement())
@@ -1098,9 +1105,6 @@ model Task {
   createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
 
-  type     TaskType      @relation(fields: [typeId], references: [id], onDelete: Restrict)
-  workflow Workflow      @relation(fields: [workflowId], references: [id], onDelete: Restrict)
-  stage    WorkflowStage @relation(fields: [stageId], references: [id], onDelete: Restrict)
   parent   Task?         @relation("TaskTree", fields: [parentId], references: [id], onDelete: Restrict)
   children Task[]        @relation("TaskTree")
 
@@ -1118,7 +1122,7 @@ model Task {
   @@index([creatorId, systemState])
   @@index([parentId])
   @@index([projectId])
-  /// FK Restrict-проверки (архивация типа/маршрута) и фильтр по типу.
+  /// Фильтр по типу и маршруту (FK между модулями нет — ADR-0024).
   @@index([typeId])
   @@index([workflowId])
   @@index([systemState, deadline])
@@ -1142,6 +1146,40 @@ model TaskParticipant {
   @@id([taskId, userId])
   @@index([userId, role])
   @@map("task_participants")
+}
+
+/// Общий журнал переходов «Процессов» (ADR-0024 п.4): пишет движок (#380).
+/// Сущность — (entity_kind, entity_id) plain UUID: задачи и письма живут в
+/// своих модулях. Переход null — запись сбора отметок. Создана пустой в #428.
+model TransitionRecord {
+  id            String   @id @default(uuid()) @db.Uuid
+  /// task | letter — категория сущности (словарь ProcessType.category).
+  entityKind    String   @map("entity_kind")
+  entityId      String   @map("entity_id") @db.Uuid
+  /// Переход маршрута; null — отметка сбора/возврат/снятие.
+  transitionId  String?  @map("transition_id") @db.Uuid
+  fromStageId   String   @map("from_stage_id") @db.Uuid
+  toStageId     String   @map("to_stage_id") @db.Uuid
+  /// Актёр (сотрудник) или null, когда запись породило правило/система.
+  actorId       String?  @map("actor_id") @db.Uuid
+  /// Правило, породившее запись (postFunction/validator), если актёра нет.
+  rule          String?
+  /// transition | press | return | withdraw | exclude (ADR-0024/0025).
+  recordKind    String   @map("record_kind")
+  /// Участник сбора отметок (press/return/withdraw/exclude).
+  participantId String?  @map("participant_id") @db.Uuid
+  comment       String?
+  /// Итог перехода (success | cancelled | rejected), если стадия итоговая.
+  resultId      String?  @map("result_id")
+  /// Изменённые поля (закрытый словарь категории), JSONB.
+  fields        Json     @default("{}")
+  timeEntryId   String?  @map("time_entry_id") @db.Uuid
+  /// Ответы на вопросы окна перехода (#380), JSONB.
+  answers       Json     @default("{}")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  @@index([entityKind, entityId, createdAt(sort: Desc)])
+  @@map("transition_records")
 }
 
 /// Размещение задачи на личной доске «Мой план» (ADR-0008).

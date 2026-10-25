@@ -46,8 +46,8 @@ const INTENTIONALLY_WITHOUT_PERMISSION: Record<string, string> = {
   'GET /notifications/settings': SELF,
   'GET /notifications/:id/deliveries': SELF,
   'GET /tasks/timer': SELF,
-  'GET /tasks/workflows/:id':
-    'схема маршрута без персональных данных — решение владельца: типы и схемы видят все (#378)',
+  'GET /workflows/:id':
+    'схема маршрута без персональных данных — решение владельца: типы и схемы видят все (#378, #428)',
   'GET /chat/conversations': CHAT_MEMBERSHIP,
   'GET /chat/conversations/unread-summary':
     'сводка непрочитанных ТОЛЬКО своих бесед — та же граница членства, что у списка',
@@ -72,7 +72,7 @@ const INTENTIONALLY_WITHOUT_PERMISSION: Record<string, string> = {
   'GET /home/summary': HOME,
   'GET /tasks': TASK_VISIBILITY,
   'GET /tasks/stages': TASK_STAGES,
-  'GET /tasks/types': CATALOG,
+  'GET /workflows/types': CATALOG,
   'GET /tasks/:id': TASK_VISIBLE_ONE,
   'GET /tasks/:id/branch': `${TASK_VISIBLE_ONE}; маскировка невидимых узлов ветки — #343`,
   'GET /tasks/:id/relations': TASK_VISIBLE_ONE,

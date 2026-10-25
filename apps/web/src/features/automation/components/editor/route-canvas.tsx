@@ -51,14 +51,14 @@ export function RouteCanvas({
         readOnly: !editable,
         problemStageIds,
         selection,
-        stageTaskCounts: workflow.stageTaskCounts,
+        stageEntityCounts: workflow.stageEntityCounts,
         onSelectTransition: (id) => useRouteDocStore.getState().select({ kind: 'transition', id }),
         onLabelT: editable ? (id, t) => useRouteDocStore.getState().setLabelT(id, t) : undefined,
         onBend: editable
           ? (id, param, value) => useRouteDocStore.getState().setEdgeBend(id, param, value)
           : undefined,
       }),
-    [doc, selection, editable, problemStageIds, workflow.stageTaskCounts],
+    [doc, selection, editable, problemStageIds, workflow.stageEntityCounts],
   );
 
   // Живой drag: узел (и старт за начальным статусом) едут локально.

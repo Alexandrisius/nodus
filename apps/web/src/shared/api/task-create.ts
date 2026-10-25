@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { CreateTaskBody, TaskListItem, TaskStageWithCount, TaskType } from '@nodus/contracts';
+import type { CreateTaskBody, TaskListItem, TaskStageWithCount } from '@nodus/contracts';
 
 import { api } from '../api-client.js';
 import { tasksKeys } from './tasks-keys.js';
@@ -30,15 +30,5 @@ export function useCreateTask() {
       void queryClient.invalidateQueries({ queryKey: tasksKeys.kanbanAll() });
       void queryClient.invalidateQueries({ queryKey: tasksKeys.stages() });
     },
-  });
-}
-
-/** Каталог типов задач: ступень 1 — один системный «Задача» (ADR-0020);
- *  выбор типа уже в форме — задел под «Разработка/Изменение» ступени 2. */
-export function useTaskTypes() {
-  return useQuery({
-    queryKey: tasksKeys.types(),
-    queryFn: () => api<TaskType[]>('/tasks/types'),
-    staleTime: 5 * 60_000,
   });
 }

@@ -77,7 +77,7 @@ export function EditorPanel({
           key={stage.id}
           stage={stage}
           document={doc}
-          taskCount={workflow.stageTaskCounts[stage.id] ?? 0}
+          taskCount={workflow.stageEntityCounts[stage.id] ?? 0}
           readOnly={readOnly}
           autoFocusName={freshId === stage.id}
           onOpenButtons={() => setSection('buttons')}

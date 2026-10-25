@@ -246,7 +246,7 @@ export const currentAuthUser: AuthUser = {
     'resolution.issue',
     Permission.SETTINGS_UI_DEFAULTS,
     Permission.STICKER_MANAGE,
-    Permission.TASK_WORKFLOW_MANAGE,
+    Permission.WORKFLOW_MANAGE,
   ],
 };
 

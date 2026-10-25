@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { ReactFlowProvider } from '@xyflow/react';
 import { useNavigate } from '@tanstack/react-router';
-import type { TaskDetail, TaskTransition } from '@nodus/contracts';
+import type { TaskDetail, WorkflowTransition } from '@nodus/contracts';
 import { Permission, ui } from '@nodus/contracts';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@nodus/ui/components/dialog';
 import { Button } from '@nodus/ui/components/button';
@@ -28,12 +28,12 @@ export function RouteViewDialog({
   open: boolean;
   onClose: () => void;
   task: TaskDetail;
-  transitions: readonly TaskTransition[] | undefined;
+  transitions: readonly WorkflowTransition[] | undefined;
 }) {
   const workflow = useWorkflowDetail(open ? task.workflowId : null);
   const navigate = useNavigate();
   const canManage = (useAuthStore((s) => s.user?.permissions) ?? []).includes(
-    Permission.TASK_WORKFLOW_MANAGE,
+    Permission.WORKFLOW_MANAGE,
   );
 
   const graph = useMemo(() => {
@@ -69,7 +69,7 @@ export function RouteViewDialog({
                   onClose();
                   void navigate({
                     to: '/automation',
-                    search: (prev) => ({ ...prev, tab: 'types', type: typeId }),
+                    search: (prev) => ({ ...prev, tab: 'processes', type: typeId }),
                   });
                 }}
               >

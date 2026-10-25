@@ -31,7 +31,7 @@ export interface RouteGraphOptions {
   /** Кнопки, доступные текущему пользователю (выделены в «Схеме маршрута»). */
   highlightedTransitionIds?: ReadonlySet<string>;
   /** Счётчики задач по статусам (редактор). */
-  stageTaskCounts?: Readonly<Record<string, number>>;
+  stageEntityCounts?: Readonly<Record<string, number>>;
   /** Выделение редактора (кольцо узла, подсветка стрелки и её подписи). */
   selection?: { kind: 'stage' | 'transition'; id: string } | null;
   onSelectTransition?: (id: string) => void;
@@ -97,7 +97,7 @@ export function buildRouteGraph(
           hasProblem: options.problemStageIds?.has(stage.id) ?? false,
           current: options.currentStageId === stage.id,
           readOnly,
-          taskCount: options.stageTaskCounts?.[stage.id] ?? 0,
+          taskCount: options.stageEntityCounts?.[stage.id] ?? 0,
           ports: [...(ports.get(stage.id) ?? [])],
           selectedPorts: selectedPorts.get(stage.id) ?? [],
         },

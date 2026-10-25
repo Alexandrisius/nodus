@@ -4,32 +4,26 @@ import { Placements } from './placements.js';
 
 const TX = { tx: true };
 
-function setup(structural: boolean) {
+function setup() {
   const repo = {
     removeExcept: vi.fn(),
     listForTask: vi.fn().mockResolvedValue([]),
     topKey: vi.fn().mockResolvedValue('k0'),
     place: vi.fn(),
   };
-  const workflows = {
+  const boards = {
     personalStagesOf: vi.fn().mockResolvedValue([
       { id: 'a-b', systemState: 'backlog', workflow: { ownerId: 'alice' } },
       { id: 'b-b', systemState: 'backlog', workflow: { ownerId: 'bob' } },
     ]),
   };
-  const tasks = { isStructural: vi.fn().mockResolvedValue(structural) };
-  const placements = new Placements(
-    workflows as never,
-    tasks as never,
-    repo as never,
-    { emit: vi.fn() } as never,
-  );
-  return { placements, repo };
+  const placements = new Placements(boards as never, repo as never, { emit: vi.fn() } as never);
+  return { placements, repo, boards };
 }
 
 describe('Placements.sync', () => {
   it('обычная задача — карточка у каждого держателя в колонке его состояния', async () => {
-    const { placements, repo } = setup(false);
+    const { placements, repo } = setup();
     await placements.sync(
       TX as never,
       { id: 't1', systemState: 'backlog' },
@@ -46,14 +40,9 @@ describe('Placements.sync', () => {
     });
   });
 
-  it('структурный тип (узел дерева проекта) в «Мой план» не попадает: размещения снимаются', async () => {
-    const { placements, repo } = setup(true);
-    await placements.sync(
-      TX as never,
-      { id: 't1', systemState: 'backlog' },
-      ['alice', 'bob'],
-      'alice',
-    );
+  it('без держателей плана размещения снимаются (карточка уходит из «Моего плана»)', async () => {
+    const { placements, repo } = setup();
+    await placements.sync(TX as never, { id: 't1', systemState: 'backlog' }, [], 'alice');
     expect(repo.removeExcept).toHaveBeenCalledWith(TX, 't1', []);
     expect(repo.place).not.toHaveBeenCalled();
   });

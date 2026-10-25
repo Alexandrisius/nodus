@@ -1,4 +1,4 @@
-import type { TaskListItem, TaskStage, TaskTransition } from '@nodus/contracts';
+import type { TaskListItem, TaskStage, WorkflowTransition } from '@nodus/contracts';
 import { ErrorCode, isFinalState } from '@nodus/contracts';
 import { http, HttpResponse } from 'msw';
 
@@ -10,7 +10,7 @@ import {
 } from '../../../../shared/mocks/data/tasks.js';
 import { letterIdByTaskId, syncLetterWithTasks } from '../../../../shared/mocks/data/letters.js';
 import { quickDocument, standardDocument } from '../../../../shared/mocks/data/workflows.js';
-import { quickTaskType } from '../../../../shared/mocks/data/task-stages.js';
+import { quickProcessType } from '../../../../shared/mocks/data/task-stages.js';
 
 function findTask(id: string): TaskListItem | undefined {
   return (
@@ -27,22 +27,22 @@ function findTask(id: string): TaskListItem | undefined {
  *  порядок — как у сервера: кнопки статуса по sortOrder, затем «из любого»;
  *  встроенное правило «итог → итог» прячет «Отменить» у закрытых. */
 function documentOfTask(task: TaskListItem) {
-  return task.type.id === quickTaskType.id ? quickDocument : standardDocument;
+  return task.type.id === quickProcessType.id ? quickDocument : standardDocument;
 }
 
-function transitionsOf(task: TaskListItem): TaskTransition[] {
+function transitionsOf(task: TaskListItem): WorkflowTransition[] {
   const route = documentOfTask(task);
   const closed = isFinalState(task.stage.systemState);
   const stageIds = new Set(route.stages.map((s) => s.id));
-  const own: TaskTransition[] = [];
-  const anyFrom: TaskTransition[] = [];
+  const own: WorkflowTransition[] = [];
+  const anyFrom: WorkflowTransition[] = [];
   for (const t of route.transitions) {
     if (!stageIds.has(task.stage.id) || !stageIds.has(t.toStageId)) continue;
     if (t.fromStageId !== null && t.fromStageId !== task.stage.id) continue;
     if (t.fromStageId === null && closed) continue; // «итог → итог» скрыт
     if (t.toStageId === task.stage.id) continue;
     const target = stageDocOf(route, t.toStageId);
-    const item: TaskTransition = {
+    const item: WorkflowTransition = {
       id: t.id,
       name: t.name,
       toStageId: t.toStageId,
@@ -71,7 +71,7 @@ function orderOf(route: typeof standardDocument, transitionId: string): number {
 
 /** Пост-эффект `route_if` («Завершить»): постановщик сам себе исполнитель —
  *  цель подменяется (утверждение пропускается, #378). */
-function resolveTarget(task: TaskListItem, transition: TaskTransition): TaskStage {
+function resolveTarget(task: TaskListItem, transition: WorkflowTransition): TaskStage {
   const route = documentOfTask(task);
   const doc = route.transitions.find((t) => t.id === transition.id);
   const routeIf = doc?.rules.postFunctions.find((p) => p.kind === 'route_if');

@@ -7,7 +7,7 @@ import {
   taskDetailSchema,
   taskListItemSchema,
   taskBranchSchema,
-  taskTransitionSchema,
+  workflowTransitionSchema,
 } from '@nodus/contracts';
 import { z } from 'zod';
 
@@ -108,7 +108,7 @@ describe.skipIf(!process.env.DATABASE_URL)('tasks (integration)', () => {
     taskIds.push(taskListItemSchema.parse(await sub.json()).id);
 
     const list = z
-      .array(taskTransitionSchema)
+      .array(workflowTransitionSchema)
       .parse(await (await fx.api(bob, 'GET', `/tasks/${parentId}/transitions`)).json());
     const start = list.find((t) => t.name === 'Взять в работу')!;
     const started = await fx.api(bob, 'POST', `/tasks/${parentId}/transitions/${start.id}`, {
@@ -126,7 +126,7 @@ describe.skipIf(!process.env.DATABASE_URL)('tasks (integration)', () => {
     expect(bobPlacement.stage.systemState).toBe('active');
 
     const after = z
-      .array(taskTransitionSchema)
+      .array(workflowTransitionSchema)
       .parse(await (await fx.api(bob, 'GET', `/tasks/${parentId}/transitions`)).json());
     const complete = after.find((t) => t.name === 'Завершить')!;
     expect(complete.blockedBy).toEqual([{ kind: 'no_open_subtasks', count: 1 }]);
@@ -148,7 +148,7 @@ describe.skipIf(!process.env.DATABASE_URL)('tasks (integration)', () => {
   /** Нажать кнопку маршрута по имени (как пользователь в панели процесса). */
   async function press(user: ChatUser, taskId: string, name: string, key: string) {
     const list = z
-      .array(taskTransitionSchema)
+      .array(workflowTransitionSchema)
       .parse(await (await fx.api(user, 'GET', `/tasks/${taskId}/transitions`)).json());
     const button = list.find((t) => t.name === name);
     expect(button, `кнопка «${name}»`).toBeDefined();
@@ -183,7 +183,7 @@ describe.skipIf(!process.env.DATABASE_URL)('tasks (integration)', () => {
     expect(await completedEvents()).toBe(0);
     // Постановщику — «Утвердить» и «Вернуть на доработку» (утверждающий каталога).
     const forCreator = z
-      .array(taskTransitionSchema)
+      .array(workflowTransitionSchema)
       .parse(await (await fx.api(alice, 'GET', `/tasks/${taskId}/transitions`)).json());
     expect(forCreator.map((t) => t.name)).toEqual(
       expect.arrayContaining(['Утвердить', 'Вернуть на доработку']),
@@ -203,7 +203,7 @@ describe.skipIf(!process.env.DATABASE_URL)('tasks (integration)', () => {
     await press(bob, subId, 'Завершить', 'it-strict-sub-submit');
     await press(bob, parentId, 'Взять в работу', 'it-strict-parent-start');
     const buttons = z
-      .array(taskTransitionSchema)
+      .array(workflowTransitionSchema)
       .parse(await (await fx.api(bob, 'GET', `/tasks/${parentId}/transitions`)).json());
     expect(buttons.find((t) => t.name === 'Завершить')?.blockedBy).toEqual([
       { kind: 'no_open_subtasks', count: 1 },

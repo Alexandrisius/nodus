@@ -10,14 +10,14 @@ import { toast } from 'sonner';
 
 import { projectsAvailable } from '../api/projects-available.js';
 import { useCreateTask, usePersonalStages } from '../api/task-create.js';
-import { defaultTaskType, useCreatableTaskTypes } from '../api/task-types-api.js';
+import { defaultProcessType, useCreatableProcessTypes } from '../api/process-types-api.js';
 import { useUsersList } from '../api/users-list.js';
 import { useAuthStore } from '../auth-store.js';
 import { DateTimePicker } from '../ui/date-time-picker.js';
 import { ProjectPicker } from '../ui/project-picker.js';
 import { FilterCombobox } from '../views/filter-combobox.js';
 import { TaskChecklistSheet, type DraftChecklistItem } from './task-checklist-sheet.js';
-import { TaskTypeField } from './task-type-field.js';
+import { ProcessTypeField } from './process-type-field.js';
 
 /**
  * Экспресс-форма создания задачи (вердикт владельца 15.09.2026, модель
@@ -53,7 +53,7 @@ export function TaskQuickCreate({
   // Первая личная колонка — приёмник новых задач (глобальная «Новые»).
   const { data: personalStages } = usePersonalStages();
   // Типы для создания: живые creatable, значок + название (#378).
-  const { data: types } = useCreatableTaskTypes();
+  const { data: types } = useCreatableProcessTypes();
 
   const [title, setTitle] = useState('');
   const [descriptionOpen, setDescriptionOpen] = useState(false);
@@ -86,7 +86,7 @@ export function TaskQuickCreate({
   const valid = title.trim().length > 0;
   // Показанный тип уходит в запрос всегда: без явного typeId сервер взял бы
   // свой тип по умолчанию, и форма разошлась бы с созданной задачей.
-  const shownTypeId = typeId ?? defaultTaskType(types)?.id;
+  const shownTypeId = typeId ?? defaultProcessType(types)?.id;
   const filled = Boolean(title.trim() || description.trim() || checklist.length > 0 || deadline);
 
   function submit(event?: FormEvent) {
@@ -171,7 +171,7 @@ export function TaskQuickCreate({
               {/* Тип (ADR-0020): ступень 1 — один системный «Задача», выбор
                   уже здесь — «Разработка/Изменение» ступени 2 встанут сюда же. */}
               <NodeLabel label={ui.tasks.type} />
-              <TaskTypeField
+              <ProcessTypeField
                 types={types ?? []}
                 value={shownTypeId ?? ''}
                 onChange={setTypeId}

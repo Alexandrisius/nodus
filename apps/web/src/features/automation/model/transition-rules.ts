@@ -1,6 +1,6 @@
 import type {
-  TaskActorRole,
-  TaskRequirableField,
+  WorkflowActorRole,
+  WorkflowRequirableField,
   WorkflowDraftDocument,
   WorkflowDraftTransition,
   WorkflowValidator,
@@ -15,7 +15,7 @@ import type {
 
 type Rules = WorkflowDraftTransition['rules'];
 
-export const ACTOR_ROLES: readonly TaskActorRole[] = [
+export const ACTOR_ROLES: readonly WorkflowActorRole[] = [
   'creator',
   'assignee',
   'coexecutor',
@@ -29,7 +29,7 @@ export const VALIDATOR_KINDS = [
   'fields_required',
 ] as const;
 export type ValidatorKind = (typeof VALIDATOR_KINDS)[number];
-export const REQUIRABLE_FIELDS: readonly TaskRequirableField[] = [
+export const REQUIRABLE_FIELDS: readonly WorkflowRequirableField[] = [
   'description',
   'deadline',
   'assignee',
@@ -37,12 +37,12 @@ export const REQUIRABLE_FIELDS: readonly TaskRequirableField[] = [
   'result',
 ];
 
-export function rolesOf(rules: Rules): Set<TaskActorRole> {
+export function rolesOf(rules: Rules): Set<WorkflowActorRole> {
   return new Set(rules.conditions.flatMap((c) => (c.kind === 'role_in' ? c.roles : [])));
 }
 
 /** Роль вкл/выкл; последнюю снять нельзя (кнопку должен кто-то видеть). */
-export function toggleRole(rules: Rules, role: TaskActorRole): Rules {
+export function toggleRole(rules: Rules, role: WorkflowActorRole): Rules {
   const roles = rolesOf(rules);
   if (roles.has(role)) roles.delete(role);
   else roles.add(role);
@@ -81,7 +81,7 @@ export function setAllowReview(rules: Rules, allow: boolean): Rules {
 }
 
 /** Поле обязательного заполнения вкл/выкл (последнее не снимается). */
-export function toggleField(rules: Rules, field: TaskRequirableField): Rules {
+export function toggleField(rules: Rules, field: WorkflowRequirableField): Rules {
   const validator = validatorOf(rules, 'fields_required');
   if (!validator) return rules;
   const fields = new Set(validator.fields);

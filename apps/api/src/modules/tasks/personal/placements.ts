@@ -3,8 +3,7 @@ import { TASK_EVENTS } from '@nodus/contracts';
 
 import type { TransactionClient } from '../../../core/database/transaction-runner.js';
 import { EventBus } from '../../../core/events/event-bus.js';
-import { TasksRepository } from '../tasks/tasks.repository.js';
-import { WorkflowRepository } from '../workflow/workflow.repository.js';
+import { PersonalBoardsRepository } from './personal-boards.repository.js';
 import { PlacementsRepository } from './placements.repository.js';
 
 /**
@@ -12,22 +11,21 @@ import { PlacementsRepository } from './placements.repository.js';
  * (постановщик, ответственный, соисполнители) задача лежит в одной из его
  * личных колонок. Встроенное автоперемещение — СИНХРОННО в транзакции смены
  * состояния (не outbox-обработчиком: гонки с ручным переносом, трек 1).
- * Новая/переехавшая карточка встаёт в начало колонки. Задача структурного
- * типа (узел дерева проекта, ADR-0020) в «Мой план» не попадает: держателей
- * у неё нет, прежние размещения снимаются.
+ * Новая/переехавшая карточка встаёт в начало колонки. Личные маршруты —
+ * временное исключение ADR-0024 (данные задач в таблицах «Процессов» до
+ * #438/#439), поэтому доступ к ним — через PersonalBoardsRepository.
  */
 @Injectable()
 export class Placements {
   constructor(
-    private readonly workflows: WorkflowRepository,
-    private readonly tasks: TasksRepository,
+    private readonly boards: PersonalBoardsRepository,
     private readonly repo: PlacementsRepository,
     private readonly eventBus: EventBus,
   ) {}
 
   /** Личные маршруты держателей — до бизнес-транзакции (ensurePersonal). */
   async prepare(userIds: string[]): Promise<void> {
-    await Promise.all([...new Set(userIds)].map((id) => this.workflows.ensurePersonal(id)));
+    await Promise.all([...new Set(userIds)].map((id) => this.boards.ensurePersonal(id)));
   }
 
   topKey(tx: TransactionClient, userId: string, stageId: string): Promise<string> {
@@ -41,12 +39,11 @@ export class Placements {
     holderIds: string[],
     actorId: string | null,
   ): Promise<void> {
-    const holders = (await this.tasks.isStructural(tx, task.id)) ? [] : holderIds;
-    await this.repo.removeExcept(tx, task.id, holders);
-    if (holders.length === 0) return;
+    await this.repo.removeExcept(tx, task.id, holderIds);
+    if (holderIds.length === 0) return;
     const existing = await this.repo.listForTask(tx, task.id);
-    const stages = await this.workflows.personalStagesOf(holders, tx);
-    for (const userId of holders) {
+    const stages = await this.boards.personalStagesOf(holderIds, tx);
+    for (const userId of holderIds) {
       const current = existing.find((p) => p.userId === userId);
       if (current && current.stage.systemState === task.systemState) continue;
       const own = stages.filter((s) => s.workflow.ownerId === userId);

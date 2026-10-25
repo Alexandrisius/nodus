@@ -5,7 +5,7 @@ import type {
   TaskDetail,
   TaskListItem,
   TaskStage,
-  TaskTransition,
+  WorkflowTransition,
   TransitionBlockReason,
 } from '@nodus/contracts';
 import { errorMessages, ui } from '@nodus/contracts';
@@ -42,17 +42,17 @@ export function transitionErrorText(error: unknown): string {
 /** Доступные текущему пользователю переходы маршрута (ADR-0020): кнопки бара
  *  и список поля «Стадия» — сервер решает, кому какие (условия «кто»).
  *  Свежесть держат ответ кнопки и WS-события — без рефетча на каждый маунт. */
-export function useTaskTransitions(taskId: string) {
+export function useWorkflowTransitions(taskId: string) {
   return useQuery({
     queryKey: tasksKeys.transitions(taskId),
-    queryFn: () => api<TaskTransition[]>(`/tasks/${taskId}/transitions`),
+    queryFn: () => api<WorkflowTransition[]>(`/tasks/${taskId}/transitions`),
     staleTime: 30_000,
   });
 }
 
 /** Стадия-цель кнопки — из самой кнопки (цвет/порядок в DTO): чип меняется
  *  мгновенно и без каталога стадий в кэше. */
-function stageOf(t: TaskTransition, current: TaskStage): TaskStage {
+function stageOf(t: WorkflowTransition, current: TaskStage): TaskStage {
   return {
     ...current,
     id: t.toStageId,
@@ -83,7 +83,7 @@ function patchTask(queryClient: QueryClient, taskId: string, patch: Partial<Task
 export function useExecuteTransition(taskId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (vars: { transition: TaskTransition; override?: boolean; reason?: string }) =>
+    mutationFn: (vars: { transition: WorkflowTransition; override?: boolean; reason?: string }) =>
       api<ExecuteTransitionResult>(`/tasks/${taskId}/transitions/${vars.transition.id}`, {
         method: 'POST',
         body: { override: vars.override, reason: vars.reason },

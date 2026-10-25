@@ -56,7 +56,7 @@ const detail = (): WorkflowDetail => ({
       },
     ],
   },
-  stageTaskCounts: {},
+  stageEntityCounts: {},
 });
 
 /** Тот же маршрут, но с ГЛОБАЛЬНОЙ нумерацией сортировки — так отдаёт

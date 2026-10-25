@@ -20,10 +20,14 @@ import {
 } from '../../../core/ports/user-profile.port.js';
 import { actorRoles, audienceIds, planHolderIds, taskAccess } from '../access/task-access.js';
 import { CHAT_MESSAGE_ACCESS, type ChatMessageAccess } from '../../chat/message-access.port.js';
+import {
+  PROCESS_CATALOG_READER,
+  type ProcessCatalogReader,
+} from '../../workflows/ports/process-catalog-reader.port.js';
 import { ChecklistRepository } from '../checklist/checklist.repository.js';
+import { PersonalBoardsRepository } from '../personal/personal-boards.repository.js';
 import { Placements } from '../personal/placements.js';
 import { PlacementsRepository } from '../personal/placements.repository.js';
-import { WorkflowRepository } from '../workflow/workflow.repository.js';
 import { TaskDtoMapper } from './task-dto.mapper.js';
 import { TasksQueryService } from './tasks-query.service.js';
 import { DuplicateTaskSourceError, TasksRepository } from './tasks.repository.js';
@@ -31,7 +35,8 @@ import { DuplicateTaskSourceError, TasksRepository } from './tasks.repository.js
 /**
  * Создание и удаление задач (правка и перенос — TaskEditService). Задача без
  * проекта и без колонки — обычный случай: встаёт в начальную стадию
- * маршрута своего типа и в «Мой план» держателей (структурный тип — нет).
+ * маршрута своего типа (типы и стадии — данные модуля «Процессы», читаются
+ * портом PROCESS_CATALOG_READER, ADR-0024) и в «Мой план» держателей.
  */
 @Injectable()
 export class TasksService {
@@ -41,7 +46,8 @@ export class TasksService {
     private readonly repo: TasksRepository,
     private readonly checklist: ChecklistRepository,
     private readonly placementsRepo: PlacementsRepository,
-    private readonly workflows: WorkflowRepository,
+    private readonly boards: PersonalBoardsRepository,
+    @Inject(PROCESS_CATALOG_READER) private readonly catalog: ProcessCatalogReader,
     private readonly placements: Placements,
     private readonly query: TasksQueryService,
     private readonly mapper: TaskDtoMapper,
@@ -83,14 +89,15 @@ export class TasksService {
       const existing = await this.findBySource(user, body.sourceMessageId);
       if (existing) return existing;
     }
-    const { typeId, workflowId, structural } = await this.workflows.resolveTypeWorkflow(
-      body.typeId,
+    const type = await this.catalog.resolveType(body.typeId, {
+      category: 'task',
       // Скрытый тип недоступен ЯВНОМУ выбору и на сервере (security #378);
       // неявный «Стандартный» (плюсики колонок, подзадачи, «В задачу» из
       // чата) — системный запасной тип, создание по нему не ломается.
-      { requireCreatable: body.typeId !== undefined },
-    );
-    const workflow = await this.workflows.load(workflowId);
+      requireCreatable: body.typeId !== undefined,
+    });
+    const { id: typeId, workflowId } = type;
+    const workflowStages = await this.catalog.liveStages(workflowId);
     const personalColumn = body.personalStageId
       ? await this.personalColumn(user.id, body.personalStageId)
       : null;
@@ -99,7 +106,7 @@ export class TasksService {
     // DoD (security-гейт #37). Колонка «Моего плана» открытого состояния
     // задаёт стадию (плюсик в «В работе» = задача в работе); колонка
     // утверждения или итога — начальная стадия.
-    const starts = workflow.stages.filter((s) => !s.archivedAt && isOpenState(s.systemState));
+    const starts = workflowStages.filter((s) => isOpenState(s.systemState));
     const initial = starts.find((s) => s.isInitial) ?? starts[0];
     const stage = body.stageId
       ? starts.find((s) => s.id === body.stageId)
@@ -108,7 +115,7 @@ export class TasksService {
         : initial;
     if (!stage) throw DomainException.notFound('Stage not found');
     const holders = planHolderIds({ creatorId: user.id, assigneeId, participants });
-    await this.placements.prepare(structural ? [] : holders);
+    await this.placements.prepare(holders);
 
     const id = await this.txRunner
       .run(async (tx) => {
@@ -139,8 +146,7 @@ export class TasksService {
         );
         await this.checklist.createInitial(tx, task.id, body.checklist ?? []);
         await this.placements.sync(tx, task, holders, user.id);
-        // Структурная задача размещений не имеет — колонку «Моего плана» не ставим.
-        if (!structural && personalColumn?.systemState === task.systemState) {
+        if (personalColumn?.systemState === task.systemState) {
           await this.placeInColumn(tx, task.id, user.id, personalColumn.id);
         }
         await this.eventBus.emit(
@@ -216,7 +222,7 @@ export class TasksService {
   }
 
   private async personalColumn(userId: string, stageId: string) {
-    const column = await this.workflows.findPersonalColumn(userId, stageId);
+    const column = await this.boards.findColumn(userId, stageId);
     if (!column) throw DomainException.notFound('Stage not found');
     return column;
   }

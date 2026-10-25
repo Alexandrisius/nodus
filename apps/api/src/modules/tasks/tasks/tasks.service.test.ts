@@ -16,7 +16,7 @@ const STAGE = {
   archivedAt: null,
 };
 
-function setup(opts: { structural?: boolean } = {}) {
+function setup() {
   const repo = {
     stageKeyAt: vi.fn().mockResolvedValue('a0'),
     create: vi.fn().mockResolvedValue({
@@ -38,12 +38,19 @@ function setup(opts: { structural?: boolean } = {}) {
   };
   const checklist = { createInitial: vi.fn() };
   const placementsRepo = { move: vi.fn(), removeAllForTask: vi.fn() };
-  const workflows = {
-    resolveTypeWorkflow: vi
-      .fn()
-      .mockResolvedValue({ typeId: 'type', workflowId: 'wf', structural: !!opts.structural }),
-    load: vi.fn().mockResolvedValue({ id: 'wf', stages: [STAGE], transitions: [] }),
-    findPersonalColumn: vi.fn().mockResolvedValue({ id: 'p-new', systemState: 'backlog' }),
+  const catalog = {
+    resolveType: vi.fn().mockResolvedValue({
+      id: 'type',
+      code: 'task.default',
+      name: 'Стандартный',
+      category: 'task',
+      direction: null,
+      workflowId: 'wf',
+    }),
+    liveStages: vi.fn().mockResolvedValue([STAGE]),
+  };
+  const boards = {
+    findColumn: vi.fn().mockResolvedValue({ id: 'p-new', systemState: 'backlog' }),
   };
   const placements = {
     prepare: vi.fn(),
@@ -78,14 +85,15 @@ function setup(opts: { structural?: boolean } = {}) {
     repo as never,
     checklist as never,
     placementsRepo as never,
-    workflows as never,
+    boards as never,
+    catalog as never,
     placements as never,
     query as never,
     mapper as never,
     profiles as never,
     messages as never,
   );
-  return { service, repo, placements, placementsRepo, txRunner, eventBus };
+  return { service, repo, placements, placementsRepo, txRunner, eventBus, catalog };
 }
 
 describe('TasksService', () => {
@@ -131,11 +139,18 @@ describe('TasksService', () => {
     });
   });
 
-  it('структурный тип: в «Мой план» не ставится (ни подготовки, ни колонки)', async () => {
-    const { service, placements, placementsRepo } = setup({ structural: true });
-    await service.create(USER, { title: 'Раздел', personalStageId: 'p-new' } as never);
-    expect(placements.prepare).toHaveBeenCalledWith([]);
-    expect(placementsRepo.move).not.toHaveBeenCalled();
+  it('тип резолвится портом «Процессов»: явный выбор — с проверкой creatable, неявный — без', async () => {
+    const { service, catalog } = setup();
+    await service.create(USER, { title: 'Т' } as never);
+    expect(catalog.resolveType).toHaveBeenCalledWith(undefined, {
+      category: 'task',
+      requireCreatable: false,
+    });
+    await service.create(USER, { title: 'Т', typeId: 'type' } as never);
+    expect(catalog.resolveType).toHaveBeenCalledWith('type', {
+      category: 'task',
+      requireCreatable: true,
+    });
   });
 
   it('удаление: дети — к ближайшему ЖИВОМУ предку под очередью дерева', async () => {

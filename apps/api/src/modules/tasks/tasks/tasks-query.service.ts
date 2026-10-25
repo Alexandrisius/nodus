@@ -16,7 +16,10 @@ import { DomainException } from '../../../core/errors/domain-exception.js';
 import { decodeCursor, encodeCursor } from '../../../core/pagination/cursor.util.js';
 import { actorRoles, taskAccess } from '../access/task-access.js';
 import { ViewerResolver, visibleTasksWhere, type Viewer } from '../access/task-visibility.js';
-import { WorkflowRepository } from '../workflow/workflow.repository.js';
+import {
+  PROCESS_CATALOG_READER,
+  type ProcessCatalogReader,
+} from '../../workflows/ports/process-catalog-reader.port.js';
 import { selfChainNode, stageDto, TaskDtoMapper } from './task-dto.mapper.js';
 import { stagesCatalog } from './task-stages-catalog.js';
 import { TasksQueryRepository, type TaskOrder } from './tasks-query.repository.js';
@@ -39,9 +42,9 @@ export class TasksQueryService {
     private readonly repo: TasksRepository,
     private readonly reads: TasksQueryRepository,
     private readonly results: ResultsRepository,
-    private readonly workflows: WorkflowRepository,
     private readonly viewers: ViewerResolver,
     private readonly mapper: TaskDtoMapper,
+    @Inject(PROCESS_CATALOG_READER) private readonly catalog: ProcessCatalogReader,
     @Inject(CHAT_MESSAGE_ACCESS) private readonly messages: ChatMessageAccess,
   ) {}
 
@@ -107,6 +110,7 @@ export class TasksQueryService {
       ...observerIds,
       ...(result ? [result.authorId] : []),
     ]);
+    const catalog = await this.mapper.catalogOf([row, ...children]);
     const origin = [
       // Узлы чата строятся только при чтении (по правам смотрящего); старые
       // снимки в origin, если есть, не отдаются (security-гейт #37, р.3).
@@ -116,15 +120,21 @@ export class TasksQueryService {
         : []),
     ];
     return {
-      ...this.mapper.toListItem(row, refs),
+      ...this.mapper.toListItem(row, refs, catalog),
       // Свой маршрут задачи (по нему работают кнопки): тип может быть в
       // архиве — его задачи обязаны открываться (код-ревью #378).
       workflowId: full.workflowId,
       description: full.description,
       observers: observerIds.map((uid) => this.mapper.ref(refs, uid)),
       checklist: full.checklist.map((c) => ({ id: c.id, text: c.text, done: c.done })),
-      subtasks: children.map((c) => this.mapper.toListItem(c, refs)),
-      chain: [...origin, selfChainNode({ ...row, stageName: row.stage.name })],
+      subtasks: children.map((c) => this.mapper.toListItem(c, refs, catalog)),
+      chain: [
+        ...origin,
+        selfChainNode({
+          ...row,
+          stageName: catalog.stages.get(row.stageId)?.name ?? row.stageId,
+        }),
+      ],
       plannedMinutes: full.plannedMinutes,
       acceptRequired: full.acceptRequired,
       result: result
@@ -175,16 +185,23 @@ export class TasksQueryService {
       this.reads.visibleIdsAmong(ids, visibleTasksWhere(viewer, 'all')),
     ]);
     const seen = new Set(visible);
+    const stages = new Map(
+      (await this.catalog.stagesByIds([...new Set(rows.map((r) => r.stageId))])).map((s) => [
+        s.id,
+        s,
+      ]),
+    );
     const build = (nodeId: string): TaskBranchNode => {
       const r = rows.find((x) => x.id === nodeId)!;
       const visible = seen.has(r.id);
-      const stage = visible ? stageDto(r.stage) : null;
+      const stageRow = stages.get(r.stageId);
+      const stage = visible && stageRow ? stageDto(stageRow) : null;
       return {
         id: r.id,
         number: r.number,
         title: visible ? r.title : `ПП-${r.number}`,
         hidden: !visible,
-        stageName: visible ? r.stage.name : null,
+        stageName: visible ? (stageRow?.name ?? null) : null,
         stageColor: stage?.color ?? null,
         systemState: stage?.systemState ?? null,
         children: rows.filter((c) => c.parentId === r.id).map((c) => build(c.id)),
@@ -203,7 +220,7 @@ export class TasksQueryService {
   ): Promise<TaskStageWithCount[]> {
     const viewer = await this.viewer(user);
     return stagesCatalog(
-      this.workflows,
+      this.catalog,
       () => this.reads.stageCounts(visibleTasksWhere(viewer, scope), new Date()),
       typeId,
     );

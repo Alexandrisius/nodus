@@ -7,5 +7,5 @@ import { useAuthStore } from '../../../shared/auth-store.js';
  *  инструменты настройки в UI. */
 export function useCanManageWorkflows(): boolean {
   const permissions = useAuthStore((s) => s.user?.permissions);
-  return (permissions ?? []).includes(Permission.TASK_WORKFLOW_MANAGE);
+  return (permissions ?? []).includes(Permission.WORKFLOW_MANAGE);
 }

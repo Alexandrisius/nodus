@@ -1,15 +1,15 @@
 import { useEffect, useState } from 'react';
-import type { StageColor, TaskType, TaskTypeIcon } from '@nodus/contracts';
-import { taskTypeIconSchema, ui } from '@nodus/contracts';
+import type { StageColor, ProcessType, ProcessTypeIcon } from '@nodus/contracts';
+import { processTypeIconSchema, ui } from '@nodus/contracts';
 import { Input } from '@nodus/ui/components/input';
 import { Switch } from '@nodus/ui/components/switch';
 import { Textarea } from '@nodus/ui/components/textarea';
 import { cn } from '@nodus/ui/lib/utils';
 
-import { useUpdateTaskType } from '../../api/automation-api.js';
+import { useUpdateProcessType } from '../../api/automation-api.js';
 import { SidePanel } from '../editor/panel/side-panel.js';
 import { stageColorOrder, stageTone } from '../../../../shared/ui/board/stage-tone.js';
-import { TaskTypeGlyph } from '../../../../shared/workflow/task-type-icon.js';
+import { ProcessTypeGlyph } from '../../../../shared/workflow/process-type-icon.js';
 
 /** Настройки типа — та же внутриоконная панель справа, что у статуса и
  *  кнопки (монтирована всегда: открытие плавное и в первый раз); свойства
@@ -20,10 +20,10 @@ export function TypeSettingsPanel({
   onClose,
 }: {
   open: boolean;
-  type: TaskType;
+  type: ProcessType;
   onClose: () => void;
 }) {
-  const update = useUpdateTaskType();
+  const update = useUpdateProcessType();
   const [name, setName] = useState(type.name);
   const [description, setDescription] = useState(type.description);
 
@@ -50,7 +50,7 @@ export function TypeSettingsPanel({
       <div className="flex flex-col gap-1.5">
         <span className="text-[13px] text-muted-foreground">{ui.automation.fieldIcon}</span>
         <div className="grid grid-cols-8 gap-1.5">
-          {taskTypeIconSchema.options.map((key: TaskTypeIcon) => (
+          {processTypeIconSchema.options.map((key: ProcessTypeIcon) => (
             <button
               key={key}
               type="button"
@@ -63,7 +63,7 @@ export function TypeSettingsPanel({
                   : 'border-border text-muted-foreground hover:border-input',
               )}
             >
-              <TaskTypeGlyph icon={key} className="size-4" />
+              <ProcessTypeGlyph icon={key} className="size-4" />
             </button>
           ))}
         </div>

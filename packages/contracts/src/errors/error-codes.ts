@@ -4,7 +4,9 @@
  * Системные коды обязательны к единому использованию всеми механизмами
  * (фильтр ошибок, пайпы, гварды, rate-limit). Доменные коды добавляются
  * модулями по маске `MODULE_REASON` (`TASK_INVALID_STAGE_TRANSITION`).
- * Каталог только расширяется: переименование кода ломает клиентов (i18n по коду, I15).
+ * Каталог только расширяется: переименование кода ломает клиентов (i18n по
+ * коду, I15). До пилота переименования допустимы решением владельца —
+ * `TASK_TYPE_*` → `PROCESS_TYPE_*` в #428 (ADR-0024).
  */
 export const ErrorCode = {
   /** zod/валидация входа; details.issues — список нарушений. */
@@ -47,10 +49,10 @@ export const ErrorCode = {
   WORKFLOW_INVALID: 'WORKFLOW_INVALID',
   /** У архивируемых стадий есть задачи, а перенос не задан; details.stages — [{ stageId, count }] (#378). */
   WORKFLOW_MIGRATION_REQUIRED: 'WORKFLOW_MIGRATION_REQUIRED',
-  /** Системный тип задачи нельзя архивировать (#378). */
-  TASK_TYPE_SYSTEM_LOCKED: 'TASK_TYPE_SYSTEM_LOCKED',
-  /** Название типа задачи уже занято живым типом (#378). */
-  TASK_TYPE_NAME_TAKEN: 'TASK_TYPE_NAME_TAKEN',
+  /** Системный тип процесса нельзя архивировать (#378, #428). */
+  PROCESS_TYPE_SYSTEM_LOCKED: 'PROCESS_TYPE_SYSTEM_LOCKED',
+  /** Название типа процесса уже занято живым типом (#378, #428). */
+  PROCESS_TYPE_NAME_TAKEN: 'PROCESS_TYPE_NAME_TAKEN',
   /** Вложение чата больше лимита (100 МБ на файл; серверная сверка, #57). */
   CHAT_ATTACHMENT_TOO_LARGE: 'CHAT_ATTACHMENT_TOO_LARGE',
   /** Больше 20 загруженных-но-неотправленных вложений у пользователя (#57). */

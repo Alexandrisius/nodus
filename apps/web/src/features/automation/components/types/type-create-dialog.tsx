@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { ui } from '@nodus/contracts';
-import { taskTypeIconSchema, type TaskTypeIcon } from '@nodus/contracts';
+import { processTypeIconSchema, type ProcessTypeIcon } from '@nodus/contracts';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@nodus/ui/components/dialog';
 import { Button } from '@nodus/ui/components/button';
 import {
@@ -15,18 +15,19 @@ import { Input } from '@nodus/ui/components/input';
 import { cn } from '@nodus/ui/lib/utils';
 import { toast } from 'sonner';
 
-import { useCreateTaskType, useTaskTypes } from '../../api/automation-api.js';
+import { useCreateProcessType, useProcessTypes } from '../../api/automation-api.js';
 import { useCanManageWorkflows } from '../../lib/use-can-manage-workflows.js';
 import { stageColorOrder } from '../../../../shared/ui/board/stage-tone.js';
-import { TaskTypeGlyph } from '../../../../shared/workflow/task-type-icon.js';
+import { ProcessTypeGlyph } from '../../../../shared/workflow/process-type-icon.js';
 
-const ICONS = taskTypeIconSchema.options;
+const ICONS = processTypeIconSchema.options;
 
 /**
- * Диалог создания типа: название, значок (закрытый набор), цвет (5 тонов),
- * основа маршрута — копия типа или «Простой». Созданный тип скрыт и выбран.
+ * Диалог создания типа процесса: название, значок (закрытый набор), цвет
+ * (5 тонов), основа маршрута — копия типа той же категории или «Простой».
+ * Созданный тип скрыт и выбран. Категория здесь — задача (письма — #55).
  */
-export function TaskTypeCreateDialog({
+export function ProcessTypeCreateDialog({
   onClose,
   defaultBaseTypeId,
 }: {
@@ -35,12 +36,12 @@ export function TaskTypeCreateDialog({
   defaultBaseTypeId?: string;
 }) {
   const canManage = useCanManageWorkflows();
-  const { data: types } = useTaskTypes();
-  const create = useCreateTaskType();
+  const { data: types } = useProcessTypes();
+  const create = useCreateProcessType();
   const navigate = useNavigate();
 
   const [name, setName] = useState('');
-  const [icon, setIcon] = useState<TaskTypeIcon>('square-check');
+  const [icon, setIcon] = useState<ProcessTypeIcon>('square-check');
   const [color, setColor] = useState<'neutral' | 'info' | 'success' | 'warning' | 'danger'>(
     'neutral',
   );
@@ -57,6 +58,8 @@ export function TaskTypeCreateDialog({
     create.mutate(
       {
         name: trimmed,
+        // Категория на этом экране одна — задача (письма — #55).
+        category: 'task',
         icon,
         color,
         base: base.kind === 'copy' && base.typeId ? base : { kind: 'simple' },
@@ -66,7 +69,7 @@ export function TaskTypeCreateDialog({
           toast.success(ui.automation.createdHint);
           void navigate({
             to: '/automation',
-            search: (prev) => ({ ...prev, tab: 'types', type: type.id }),
+            search: (prev) => ({ ...prev, tab: 'processes', type: type.id }),
           });
           onClose();
         },
@@ -115,7 +118,7 @@ export function TaskTypeCreateDialog({
                       : 'border-border text-muted-foreground hover:border-input',
                   )}
                 >
-                  <TaskTypeGlyph icon={key} className="size-4" />
+                  <ProcessTypeGlyph icon={key} className="size-4" />
                 </button>
               ))}
             </div>

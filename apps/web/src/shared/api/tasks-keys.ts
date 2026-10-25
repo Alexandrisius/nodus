@@ -31,7 +31,6 @@ export const tasksKeys = {
   /** Доступные переходы маршрута задачи (кнопки бара, ADR-0020). */
   transitions: (id: string) => [...tasksKeys.all, 'transitions', id] as const,
   /** Каталог типов задач (ступень 1 — один системный «Задача»). */
-  types: () => [...tasksKeys.all, 'types'] as const,
   /** Записи времени задачи (I14). */
   timeEntries: (id: string) => [...tasksKeys.all, 'time-entries', id] as const,
   /** Идущий таймер текущего пользователя (один на сотрудника). */

@@ -1,9 +1,12 @@
-/** UI-строки раздела «Автоматизация» (#378, эпик #377): библиотека типов
- *  задач, редактор маршрутов на холсте, публикация. Секция вынесена из
- *  ru.ts (лимит строк, I5). */
+/** UI-строки раздела «Автоматизация» (#378, эпик #377; «Процессы» — #428,
+ *  ADR-0024): библиотека типов процессов, редактор маршрутов на холсте,
+ *  публикация. Секция вынесена из ru.ts (лимит строк, I5). */
 export const automationStrings = {
   /** Вкладки раздела («Права доступа» добавит #379). */
-  tabTypes: 'Типы задач',
+  tabProcesses: 'Процессы',
+  /** Заголовки групп списка типов по категории: показываются, только когда
+   *  категорий в списке две и больше (решение владельца 25.10). */
+  categoryGroups: { task: 'Задачи', letter: 'Письма' },
   /** Список типов слева (грамматика списка бесед: шапка с поиском). */
   searchTypes: 'Поиск типа…',
   newType: 'Новый тип',
@@ -15,7 +18,7 @@ export const automationStrings = {
   statTasks: ['задача', 'задачи', 'задач'],
   statButtons: ['кнопка', 'кнопки', 'кнопок'],
   /** Диалог создания типа. */
-  createTitle: 'Новый тип задачи',
+  createTitle: 'Новый процесс',
   fieldName: 'Название',
   fieldNamePlaceholder: 'Например: Задание сметчикам',
   fieldIcon: 'Значок',
@@ -31,13 +34,13 @@ export const automationStrings = {
   /** Шапка типа над холстом. */
   chipPublishedAt: 'Опубликовано',
   chipDraft: 'Есть неопубликованные изменения',
-  creatableToggle: 'Доступен при создании задач',
+  creatableToggle: 'Доступен при создании',
   menuCopyType: 'Копировать тип',
   menuArchive: 'В архив',
   archiveSystemLocked: 'Системный тип нельзя убрать в архив',
   typeSettings: 'Настройки типа',
   workflowUnavailable: 'Маршрут недоступен',
-  createFirstType: 'Создайте первый тип задачи',
+  createFirstType: 'Создайте первый процесс',
   /** Группы статусов — пять смысловых категорий (системные фазы задачи):
    *  подпись в узле холста и выбор в панели статуса. */
   bands: {
@@ -56,13 +59,13 @@ export const automationStrings = {
   },
   addStage: 'Добавить статус',
   newStageName: 'Новый статус',
-  startNode: 'Создание задачи',
+  startNode: 'Создание',
   initialMark: 'Начальный',
   stageAria: 'Статус',
   bandAria: 'группа',
   /** Метка кнопки из любого статуса на холсте (реф Jira/Трекер). */
   anyStatus: 'Любой статус',
-  stageTasksCount: 'Задач в статусе',
+  stageTasksCount: 'Карточек в статусе',
   /** Доступность холста (aria React Flow). */
   canvasControls: 'Масштаб схемы',
   canvasHandle: 'Точка подключения',
@@ -94,14 +97,14 @@ export const automationStrings = {
   outcomeSuccess: 'Выполнена',
   outcomeCancelled: 'Отменена',
   isInitial: 'Начальный статус',
-  isInitialHint: 'Новая задача создаётся в этом статусе',
+  isInitialHint: 'Новая карточка создаётся в этом статусе',
   addTransitionTitle: 'Новая кнопка перехода',
   addTransitionSubmit: 'Добавить',
   deleteStage: 'Удалить статус',
-  deleteStageTasksNote: 'задач — при публикации выберете, куда их перенести',
-  previewTitle: 'Как увидят в карточке задачи',
+  deleteStageTasksNote: 'карточек — при публикации выберете, куда их перенести',
+  previewTitle: 'Как увидят в карточке',
   layoutSaveFailed: 'Не удалось сохранить расстановку схемы — повторим при следующем изменении',
-  previewNote: 'Условия проверяются на конкретной задаче',
+  previewNote: 'Условия проверяются на конкретной карточке',
   /** Инспектор кнопки. */
   transitionName: 'Название кнопки',
   fromStage: 'Откуда',
@@ -202,7 +205,7 @@ export const automationStrings = {
   publishMigrateTo: 'перенести в',
   publishRestateNote: '«Мой план» сотрудников обновится',
   publishedToast: 'Маршрут опубликован',
-  movingTasksToast: 'Переносим задачи…',
+  movingTasksToast: 'Переносим карточки…',
   /** 422 WORKFLOW_MIGRATION_REQUIRED: задачи появились после открытия редактора. */
   publishMigrationsAppeared:
     'Пока вы правили схему, в удаляемых статусах появились задачи — выберите, куда их перенести',

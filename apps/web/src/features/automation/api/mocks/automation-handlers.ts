@@ -1,25 +1,25 @@
-import type { TaskType, WorkflowDetail, WorkflowDocument } from '@nodus/contracts';
+import type { ProcessType, WorkflowDetail, WorkflowDocument } from '@nodus/contracts';
 import {
   ErrorCode,
   checkWorkflowDocument,
-  createTaskTypeBodySchema,
+  createProcessTypeBodySchema,
   publishWorkflowBodySchema,
   saveWorkflowLayoutBodySchema,
-  updateTaskTypeBodySchema,
+  updateProcessTypeBodySchema,
   hasBlockingProblems,
 } from '@nodus/contracts';
 import { http, HttpResponse } from 'msw';
 
 import { demoStages } from '../../../../shared/mocks/data/task-stages.js';
 import { demoSubtasks, demoTasks } from '../../../../shared/mocks/data/tasks.js';
-import { demoTaskTypes, demoWorkflowDetails } from '../../../../shared/mocks/data/workflows.js';
+import { demoProcessTypes, demoWorkflowDetails } from '../../../../shared/mocks/data/workflows.js';
 import { resolvePublishedDocument } from './publish-resolve.js';
 
 /** Моки «Автоматизации» (#378): библиотека типов, чтение/публикация
  *  маршрутов (проверки, конфликт версий, переносы), смена типа задачи.
  *  Тела валидируются схемами contracts (мок ≠ контракту = баг). */
 
-const mockTypes: TaskType[] = structuredClone(demoTaskTypes);
+const mockTypes: ProcessType[] = structuredClone(demoProcessTypes);
 const workflows = new Map<string, WorkflowDetail>();
 
 function stageCountDemo(id: string): number {
@@ -39,7 +39,7 @@ for (const [id, detail] of Object.entries(demoWorkflowDetails)) {
     id,
     structuredClone({
       ...detail,
-      stageTaskCounts: Object.fromEntries(
+      stageEntityCounts: Object.fromEntries(
         detail.document.stages.map((s) => [s.id, stageCountDemo(s.id)]),
       ),
     }),
@@ -142,23 +142,22 @@ function findTask(id: unknown) {
 export const automationHandlers = [
   // --- Библиотека типов -----------------------------------------------------
 
-  http.get('/api/v1/tasks/types', ({ request }) => {
-    const archived = new URL(request.url).searchParams.get('archived');
-    const alive = mockTypes.filter((t) => !t.archivedAt);
-    if (archived === 'only') {
-      return HttpResponse.json(mockTypes.filter((t) => t.archivedAt));
-    }
-    if (archived === 'include') return HttpResponse.json(mockTypes);
-    return HttpResponse.json(alive);
+  http.get('/api/v1/workflows/types', ({ request }) => {
+    const params = new URL(request.url).searchParams;
+    const archived = params.get('archived');
+    const category = params.get('category');
+    const scoped = category ? mockTypes.filter((t) => t.category === category) : mockTypes;
+    if (archived === 'only') return HttpResponse.json(scoped.filter((t) => t.archivedAt));
+    if (archived === 'include') return HttpResponse.json(scoped);
+    return HttpResponse.json(scoped.filter((t) => !t.archivedAt));
   }),
 
-  http.post('/api/v1/tasks/types', async ({ request }) => {
-    const parsed = createTaskTypeBodySchema.safeParse(await request.json());
+  http.post('/api/v1/workflows/types', async ({ request }) => {
+    const parsed = createProcessTypeBodySchema.safeParse(await request.json());
     if (!parsed.success) return validationFailed();
-    const { name, icon, color, description, base } = parsed.data;
-    if (mockTypes.some((t) => !t.archivedAt && t.name === name)) {
-      return invalid(409, 'TASK_TYPE_NAME_TAKEN');
-    }
+    const { name, category, direction, icon, color, description, base } = parsed.data;
+    if (mockTypes.some((t) => !t.archivedAt && t.name === name))
+      return invalid(409, 'PROCESS_TYPE_NAME_TAKEN');
     const baseType = base.kind === 'copy' ? mockTypes.find((t) => t.id === base.typeId) : null;
     const workflowId = nextId();
     const document =
@@ -172,9 +171,9 @@ export const automationHandlers = [
       publishedAt: null,
       publishedBy: null,
       document,
-      stageTaskCounts: Object.fromEntries(document.stages.map((s) => [s.id, 0])),
+      stageEntityCounts: Object.fromEntries(document.stages.map((s) => [s.id, 0])),
     });
-    const type: TaskType = {
+    const type: ProcessType = {
       id: nextId(),
       // Код генерирует сервер; в UI не показывается.
       code: `custom-${String(mockSeq)}`,
@@ -183,7 +182,8 @@ export const automationHandlers = [
       color,
       description: description ?? '',
       creatable: false,
-      structural: false,
+      category,
+      direction: direction ?? null,
       isSystem: false,
       sortOrder: mockTypes.length,
       archivedAt: null,
@@ -195,8 +195,8 @@ export const automationHandlers = [
     return HttpResponse.json(type, { status: 201 });
   }),
 
-  http.patch('/api/v1/tasks/types/:id', async ({ request, params }) => {
-    const parsed = updateTaskTypeBodySchema.safeParse(await request.json());
+  http.patch('/api/v1/workflows/types/:id', async ({ request, params }) => {
+    const parsed = updateProcessTypeBodySchema.safeParse(await request.json());
     if (!parsed.success) return validationFailed();
     const type = mockTypes.find((t) => t.id === params.id);
     if (!type) return notFound();
@@ -204,21 +204,21 @@ export const automationHandlers = [
       parsed.data.name !== undefined &&
       mockTypes.some((t) => t.id !== type.id && !t.archivedAt && t.name === parsed.data.name)
     ) {
-      return invalid(409, 'TASK_TYPE_NAME_TAKEN');
+      return invalid(409, 'PROCESS_TYPE_NAME_TAKEN');
     }
     Object.assign(type, parsed.data);
     return HttpResponse.json(type);
   }),
 
-  http.post('/api/v1/tasks/types/:id/archive', ({ params }) => {
+  http.post('/api/v1/workflows/types/:id/archive', ({ params }) => {
     const type = mockTypes.find((t) => t.id === params.id);
     if (!type) return notFound();
-    if (type.isSystem) return invalid(409, 'TASK_TYPE_SYSTEM_LOCKED');
+    if (type.isSystem) return invalid(409, 'PROCESS_TYPE_SYSTEM_LOCKED');
     type.archivedAt = new Date().toISOString();
     return HttpResponse.json(type);
   }),
 
-  http.post('/api/v1/tasks/types/:id/restore', ({ params }) => {
+  http.post('/api/v1/workflows/types/:id/restore', ({ params }) => {
     const type = mockTypes.find((t) => t.id === params.id);
     if (!type) return notFound();
     type.archivedAt = null;
@@ -227,12 +227,12 @@ export const automationHandlers = [
 
   // --- Маршрут: чтение и публикация ----------------------------------------
 
-  http.get('/api/v1/tasks/workflows/:id', ({ params }) => {
+  http.get('/api/v1/workflows/:id', ({ params }) => {
     const detail = workflows.get(String(params.id));
     return detail ? HttpResponse.json(structuredClone(detail)) : notFound();
   }),
 
-  http.post('/api/v1/tasks/workflows/:id/publish', async ({ request, params }) => {
+  http.post('/api/v1/workflows/:id/publish', async ({ request, params }) => {
     const detail = workflows.get(String(params.id));
     if (!detail) return notFound();
     const parsed = publishWorkflowBodySchema.safeParse(await request.json());
@@ -250,7 +250,7 @@ export const automationHandlers = [
     // счётчикам документа; перенос «выполняется» мгновенно).
     const archivedWithTasks = detail.document.stages
       .filter((old) => !document.stages.some((s) => s.id === old.id))
-      .map((old) => ({ stageId: old.id, count: detail.stageTaskCounts[old.id] ?? 0 }))
+      .map((old) => ({ stageId: old.id, count: detail.stageEntityCounts[old.id] ?? 0 }))
       .filter((row) => row.count > 0);
     if (archivedWithTasks.length > 0) {
       const covered = new Set(migrations.map((m) => m.fromStageId));
@@ -264,16 +264,16 @@ export const automationHandlers = [
     const resolved = resolvePublishedDocument(document, migrations, nextId);
     // Счётчики: оставшиеся статусы сохраняют задачи, цели переносов — получают.
     const counts = Object.fromEntries(
-      resolved.document.stages.map((s) => [s.id, detail.stageTaskCounts[s.id] ?? 0]),
+      resolved.document.stages.map((s) => [s.id, detail.stageEntityCounts[s.id] ?? 0]),
     );
     for (const m of resolved.migrations) {
       counts[m.toStageId] =
-        (counts[m.toStageId] ?? 0) + (detail.stageTaskCounts[m.fromStageId] ?? 0);
+        (counts[m.toStageId] ?? 0) + (detail.stageEntityCounts[m.fromStageId] ?? 0);
     }
     detail.document = resolved.document;
     detail.version += 1;
     detail.publishedAt = new Date().toISOString();
-    detail.stageTaskCounts = counts;
+    detail.stageEntityCounts = counts;
     return HttpResponse.json({
       version: detail.version,
       publishedAt: detail.publishedAt,
@@ -283,7 +283,7 @@ export const automationHandlers = [
 
   // Расстановка холста — без новой версии; слияние по элементам, только
   // живые статусы и кнопки (как на сервере).
-  http.put('/api/v1/tasks/workflows/:id/layout', async ({ request, params }) => {
+  http.put('/api/v1/workflows/:id/layout', async ({ request, params }) => {
     const detail = workflows.get(String(params.id));
     if (!detail) return notFound();
     const parsed = saveWorkflowLayoutBodySchema.safeParse(await request.json());
@@ -327,7 +327,7 @@ export const automationHandlers = [
         { status: 422 },
       );
     }
-    task.type = { id: type.id, code: type.code, name: type.name };
+    task.type = { id: type.id, code: type.code, name: type.name, category: type.category };
     task.stage = {
       id: stageDoc.id,
       name: stageDoc.name,

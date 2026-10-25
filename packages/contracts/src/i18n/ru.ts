@@ -34,8 +34,8 @@ export const errorMessages: Record<ErrorCode, string> = {
   [ErrorCode.WORKFLOW_INVALID]: 'Схема маршрута содержит проблемы — исправьте их',
   [ErrorCode.WORKFLOW_MIGRATION_REQUIRED]:
     'Удаляемые статусы содержат задачи — выберите, куда их перенести',
-  [ErrorCode.TASK_TYPE_SYSTEM_LOCKED]: 'Системный тип нельзя убрать в архив',
-  [ErrorCode.TASK_TYPE_NAME_TAKEN]: 'Тип с таким названием уже существует',
+  [ErrorCode.PROCESS_TYPE_SYSTEM_LOCKED]: 'Системный тип нельзя убрать в архив',
+  [ErrorCode.PROCESS_TYPE_NAME_TAKEN]: 'Тип с таким названием уже существует',
   [ErrorCode.CHAT_ATTACHMENT_TOO_LARGE]:
     'Файл больше 100 МБ — вложения такого размера не поддерживаются',
   [ErrorCode.CHAT_ATTACHMENT_TOO_MANY]:

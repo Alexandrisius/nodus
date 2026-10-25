@@ -12,7 +12,12 @@ import type { Paginated, TaskListItem } from '@nodus/contracts';
 
 import { tasksKeys, useUpdateTaskStage } from './tasks-api.js';
 
-const systemTaskType = { id: '20000000-0000-4000-8000-000000000900', code: 'task', name: 'Задача' };
+const systemProcessType = {
+  id: '20000000-0000-4000-8000-000000000900',
+  code: 'task',
+  name: 'Задача',
+  category: 'task',
+} as const;
 
 const TASK_ID = '30000000-0000-4000-8000-000000000002';
 
@@ -62,7 +67,7 @@ function taskInStage(stage: typeof STAGE_A | typeof STAGE_B): TaskListItem {
     id: TASK_ID,
     number: 101,
     title: 'Переносимая',
-    type: systemTaskType,
+    type: systemProcessType,
     stage: { ...stage },
     personalStageId: null,
     priority: 'normal',

@@ -10,7 +10,7 @@ import {
   Workflow,
   X,
 } from 'lucide-react';
-import type { TaskDetail, TaskTransition } from '@nodus/contracts';
+import type { TaskDetail, WorkflowTransition } from '@nodus/contracts';
 import { isFinalState, isReviewState, ui } from '@nodus/contracts';
 import {
   DropdownMenu,
@@ -22,7 +22,7 @@ import {
 import { cn } from '@nodus/ui/lib/utils';
 import type { LucideIcon } from 'lucide-react';
 
-import { gateReasonsText, useTaskTransitions } from '../api/transitions-api.js';
+import { gateReasonsText, useWorkflowTransitions } from '../api/transitions-api.js';
 import { PauseGlyph } from '../../../shared/ui/pause-glyph.js';
 import { stageTone } from '../../../shared/ui/board/stage-tone.js';
 import { groupProcessButtons } from '../../../shared/workflow/process-buttons.js';
@@ -41,7 +41,7 @@ const valueChip =
 
 /** Иконка кнопки — по этапу цели (#378): вперёд/пауза/на утверждение/
  *  итог (✓ выполнена, ✕ отменена)/возврат в ожидание. */
-function transitionIcon(t: TaskTransition): LucideIcon | typeof PauseGlyph {
+function transitionIcon(t: WorkflowTransition): LucideIcon | typeof PauseGlyph {
   if (t.toStageState === 'active') return Play;
   if (t.toStageState === 'paused') return PauseGlyph;
   if (isReviewState(t.toStageState)) return Send;
@@ -58,7 +58,7 @@ function transitionIcon(t: TaskTransition): LucideIcon | typeof PauseGlyph {
  * не показывается (только DnD на доске).
  */
 export function TaskActionBar({ task }: { task: TaskDetail }) {
-  const { data: transitions } = useTaskTransitions(task.id);
+  const { data: transitions } = useWorkflowTransitions(task.id);
   const runner = useTransitionRunner(task);
 
   if (!transitions) {
@@ -74,7 +74,7 @@ export function TaskActionBar({ task }: { task: TaskDetail }) {
   const closed = isFinalState(task.stage.systemState);
   const cancelled = closed && task.stage.outcome === 'cancelled';
 
-  const renderButton = (t: TaskTransition, main: boolean) => {
+  const renderButton = (t: WorkflowTransition, main: boolean) => {
     const blocked = t.blockedBy.length > 0;
     const running = runner.runningId === t.id;
     const Icon = running ? Loader2 : transitionIcon(t);
@@ -173,7 +173,7 @@ export function TaskActionBar({ task }: { task: TaskDetail }) {
  *  в которые ведут доступные переходы маршрута; последним пунктом —
  *  «Схема маршрута…» (#378). */
 export function TaskStageField({ task }: { task: TaskDetail }) {
-  const { data: transitions } = useTaskTransitions(task.id);
+  const { data: transitions } = useWorkflowTransitions(task.id);
   const runner = useTransitionRunner(task);
   const [routeOpen, setRouteOpen] = useState(false);
   const tone = stageTone[task.stage.color];
