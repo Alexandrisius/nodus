@@ -1,9 +1,11 @@
 import { useMemo, useRef, useState } from 'react';
-import { ui } from '@nodus/contracts';
+import { Permission, ui } from '@nodus/contracts';
+import { Trash2 } from 'lucide-react';
 import { Skeleton } from '@nodus/ui/components/skeleton';
 import { Checkbox } from '@nodus/ui/components/checkbox';
 
 import { useOpenCard } from '../../../app/shell/use-card-stack.js';
+import { useAuthStore } from '../../../shared/auth-store.js';
 import { DataTableHeader } from '../../../shared/views/data-table-header.js';
 import { LEADING_COL_W, RowMenu, type RowMenuItem } from '../../../shared/views/row-menu.js';
 import { sortRows } from '../../../shared/views/sort-rows.js';
@@ -22,6 +24,7 @@ import { graphWidth, graphX, TaskListTree } from './task-list-graph.js';
 import { cn } from '@nodus/ui/lib/utils';
 import { makeCardRowMenuItems } from '../../../shared/views/card-row-menu.js';
 import { TaskBulkIsland } from './task-bulk-island.js';
+import { TaskDeleteDialog } from './task-delete-dialog.js';
 import { TasksEmpty } from './tasks-empty.js';
 
 /**
@@ -46,6 +49,12 @@ export function TaskList({
   const { data, isLoading, hasNextPage, isFetchingNextPage, fetchNextPage } = useTasksPages(scope);
   const openCard = useOpenCard();
   const prefetch = usePrefetchTask();
+  // Удаление из журнала (канон меню строки, 25.10.2026): пункт виден тому, кому
+  // сервер разрешит удаление — постановщику или держателю task.manage_any.
+  const meId = useAuthStore((s) => s.user?.id);
+  const permissions = useAuthStore((s) => s.user?.permissions);
+  const canManageAny = (permissions ?? []).includes(Permission.TASK_MANAGE_ANY);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
   /** Каскадное построение графа: база = индекс первой раскрытой строки,
    *  key перезапускает draw-on только нового раскрытия. */
@@ -113,10 +122,25 @@ export function TaskList({
     openCard({ kind: 'task', id: row.task.id }, rowEl.getBoundingClientRect());
   }
 
-  /** Меню строки («шашка», модель Битрикс24): стандартная пара — открытие
-   *  карточки и deep-link в стек (ADR-0009, shared/views/card-row-menu). */
+  /** Меню строки («шашка», модель Битрикса24) — ПОЛНЫЙ набор команд сущности
+   *  (вердикт владельца 25.10.2026): открытие карточки и deep-link в стек
+   *  (shared/views/card-row-menu) + «Удалить задачу», если сервер это
+   *  разрешит (постановщик или task.manage_any). */
   function taskRowMenu(row: TaskRow): RowMenuItem[] {
-    return makeCardRowMenuItems({ kind: 'task', id: row.task.id }, (ref) => openCard(ref));
+    const base = makeCardRowMenuItems({ kind: 'task', id: row.task.id }, (ref) => openCard(ref));
+    const canDelete = canManageAny || (meId !== undefined && row.task.creator.id === meId);
+    if (!canDelete) return base;
+    return [
+      ...base,
+      {
+        id: 'delete',
+        icon: <Trash2 className="size-3.5" />,
+        label: ui.tasks.deleteTask,
+        danger: true,
+        separatorBefore: true,
+        onSelect: () => setDeleteTarget(row.task.id),
+      },
+    ];
   }
 
   if (isLoading) {
@@ -260,6 +284,9 @@ export function TaskList({
         selectedTasks={visible.filter((row) => selected.has(row.task.id)).map((row) => row.task)}
         onClear={clear}
       />
+      {deleteTarget ? (
+        <TaskDeleteDialog taskId={deleteTarget} open onClose={() => setDeleteTarget(null)} />
+      ) : null}
     </div>
   );
 }

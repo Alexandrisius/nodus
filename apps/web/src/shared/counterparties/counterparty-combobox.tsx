@@ -6,14 +6,19 @@ import { Input } from '@nodus/ui/components/input';
 import { Popover, PopoverAnchor, PopoverContent } from '@nodus/ui/components/popover';
 import { cn } from '@nodus/ui/lib/utils';
 
-import { useCounterpartiesList, useCreateCounterparty } from './api.js';
+import { useDebouncedValue } from '../lib/use-debounced-value.js';
+import { useCreateCounterparty } from './mutations.js';
+import { useCounterpartyOptions, useSimilarCounterparties } from './queries.js';
+import { useCanCreateCounterparties } from './use-crm-permissions.js';
 
 /**
  * Автокомплит контрагента из справочника (textbox с подсказками — модель
  * Битрикс24, тот же указательный гард Radix Popover, что у FilterCombobox):
- * ввод фильтрует по краткому/полному названию и УНП; отсутствующего
- * контрагента секретарь создаёт «на лету» одной строкой (имя = введённый
- * текст, реквизиты дополняются в карточке). Живёт в shared: потребители —
+ * серверный поиск по краткому/полному названию и УНП с задержкой 250 мс,
+ * группа «Похожие» (нечёткое сходство — опечатки, кавычки) и создание
+ * «на лету» одной строкой по праву `crm.create` (без права — подсказка, кто
+ * может добавить; сервер — истина, I8). Архивные контрагенты видны в
+ * «Похожих» с пометкой, но не выбираются. Живёт в shared: потребители —
  * корреспонденция (регистрация, композер) и фича контрагентов (I6).
  */
 export function CounterpartyCombobox({
@@ -27,25 +32,22 @@ export function CounterpartyCombobox({
   ariaLabel: string;
   className?: string;
 }) {
-  const { data } = useCounterpartiesList();
-  const create = useCreateCounterparty();
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
   const fromPointer = useRef(false);
   const anchorRef = useRef<HTMLDivElement>(null);
-  const items = data?.items ?? [];
-  const q = text.trim().toLowerCase();
-  const filtered = q
-    ? items.filter(
-        (c) =>
-          c.shortName.toLowerCase().includes(q) ||
-          c.fullName.toLowerCase().includes(q) ||
-          (c.unp ?? '').includes(q),
-      )
-    : items;
+  const query = useDebouncedValue(text.trim(), 250);
+  const { data: options = [] } = useCounterpartyOptions(query);
+  const { data: similar = [] } = useSimilarCounterparties({ name: query, unp: '' });
+  const create = useCreateCounterparty();
+  const canCreate = useCanCreateCounterparties();
+
+  const q = query.toLowerCase();
   const exact =
     q !== '' &&
-    items.some((c) => c.shortName.toLowerCase() === q || c.fullName.toLowerCase() === q);
+    options.some((c) => c.shortName.toLowerCase() === q || c.fullName.toLowerCase() === q);
+  const similarOnly =
+    q !== '' && !exact ? similar.filter((m) => !options.some((o) => o.id === m.id)) : [];
 
   function choose(ref: CounterpartyRef | null) {
     onChange(ref);
@@ -63,6 +65,8 @@ export function CounterpartyCombobox({
       { onSuccess: (card) => choose({ id: card.id, name: card.shortName }) },
     );
   }
+
+  const canCreateInline = q !== '' && !exact && canCreate;
 
   return (
     <Popover
@@ -112,9 +116,9 @@ export function CounterpartyCombobox({
         onInteractOutside={(e) => {
           if (anchorRef.current?.contains(e.target as Node)) e.preventDefault();
         }}
-        className="max-h-64 w-(--radix-popover-anchor-width) overflow-y-auto p-1"
+        className="max-h-72 w-(--radix-popover-anchor-width) overflow-y-auto p-1"
       >
-        {filtered.map((c) => (
+        {options.map((c) => (
           <button
             key={c.id}
             type="button"
@@ -133,7 +137,40 @@ export function CounterpartyCombobox({
             {c.id === value?.id ? <Check className="size-3.5 shrink-0" strokeWidth={1.75} /> : null}
           </button>
         ))}
-        {q !== '' && !exact ? (
+
+        {similarOnly.length > 0 ? (
+          <>
+            <div className="px-1.5 pt-2 pb-1 text-label-sm font-medium text-muted-foreground uppercase">
+              {ui.counterparties.similarTitle}
+            </div>
+            {similarOnly.map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                disabled={m.archivedAt !== null}
+                onClick={() => choose({ id: m.id, name: m.shortName })}
+                title={m.archivedAt ? ui.counterparties.similarArchived : m.fullName}
+                className={cn(
+                  'flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-sm hover:bg-accent/60',
+                  m.archivedAt ? 'text-muted-foreground' : 'text-secondary-foreground',
+                )}
+              >
+                <span className="min-w-0 flex-1 truncate">{m.shortName}</span>
+                {m.archivedAt ? (
+                  <span className="shrink-0 rounded bg-muted px-1 py-0.5 text-label-sm text-muted-foreground">
+                    {ui.counterparties.similarArchived}
+                  </span>
+                ) : m.unp ? (
+                  <span className="shrink-0 font-mono text-label-sm text-muted-foreground tabular-nums">
+                    {m.unp}
+                  </span>
+                ) : null}
+              </button>
+            ))}
+          </>
+        ) : null}
+
+        {canCreateInline ? (
           <button
             type="button"
             disabled={create.isPending}
@@ -146,7 +183,14 @@ export function CounterpartyCombobox({
             </span>
           </button>
         ) : null}
-        {filtered.length === 0 && q === '' ? (
+
+        {q !== '' && !exact && !canCreate ? (
+          <p className="px-2 py-2 text-center text-xs text-muted-foreground">
+            {ui.counterparties.noCreatePermission}
+          </p>
+        ) : null}
+
+        {options.length === 0 && similarOnly.length === 0 && q === '' ? (
           <p className="px-2 py-3 text-center text-xs text-muted-foreground">
             {ui.counterparties.empty}
           </p>

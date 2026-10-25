@@ -13,7 +13,10 @@ import { z } from 'zod';
  * обычный unique-индекс `users.email` уже без учёта регистра. Ответы API
  * отдают сохранённое значение — схемы ответов остаются `z.email()`.
  */
-export const emailInputSchema = z.string().trim().toLowerCase().check(z.email());
+/** Адрес эл. почты: RFC 5321 ограничивает длину 254 символами — без лимита
+ *  поле принимало бы строку до лимита тела запроса и возвращалось бы в каждом
+ *  списке/карточке (замечание security-ревью #460). */
+export const emailInputSchema = z.string().trim().toLowerCase().max(254).check(z.email());
 
 export const PASSWORD_MIN_LENGTH = 12;
 export const PASSWORD_MAX_LENGTH = 128;

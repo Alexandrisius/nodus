@@ -22,4 +22,6 @@ export const ALL_PERMISSIONS = [
   'sticker.manage',
   'chat.moderate',
   'settings.uiDefaults',
+  'crm.create',
+  'crm.manage',
 ] as const;

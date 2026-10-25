@@ -9,7 +9,7 @@ import { LEADING_COL_W, RowMenu, type RowMenuItem } from './row-menu.js';
 import { sortRows } from './sort-rows.js';
 import { useAutoFitColumn } from './use-autofit-column.js';
 import { useInfiniteSentinel } from './use-infinite-sentinel.js';
-import { useRowSelection } from './use-row-selection.js';
+import { useRowSelection, type RowSelection } from './use-row-selection.js';
 import { useViewFields, type FieldDef } from './use-view-fields.js';
 import { uiPx } from '../ui/ui-scale.js';
 import { cn } from '@nodus/ui/lib/utils';
@@ -60,6 +60,7 @@ export function DataTable<T>({
   actions,
   rowMenu,
   emptyTitle = ui.common.empty,
+  selection: externalSelection,
 }: {
   viewKey: string;
   defs: DataTableField<T>[];
@@ -78,6 +79,9 @@ export function DataTable<T>({
   /** Пункты контекстного меню строки («шашка» в ведущей ячейке). */
   rowMenu?: (row: T) => RowMenuItem[];
   emptyTitle?: string;
+  /** Внешнее управление выбором (островок массовых действий модуля): если не
+   *  передан — таблица держит выбор сама. Один механизм во всех реестрах. */
+  selection?: RowSelection;
 }) {
   const { visibleFields, sort, setWidth, cycleSort, commitOrder } = useViewFields(viewKey, defs);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -88,7 +92,8 @@ export function DataTable<T>({
   const sortedRows = useMemo(() => sortRows(rows, sort, defs, rowKey), [rows, sort, defs, rowKey]);
 
   const rowKeys = useMemo(() => sortedRows.map(rowKey), [sortedRows, rowKey]);
-  const { selected, toggle, toggleAll, headerChecked } = useRowSelection(rowKeys);
+  const internalSelection = useRowSelection(rowKeys);
+  const { selected, toggle, toggleAll, headerChecked } = externalSelection ?? internalSelection;
 
   // Бесконечная подгрузка страниц: sentinel у дна контейнера (shared-хук).
   useInfiniteSentinel(containerRef, sentinelRef, { hasNextPage, isFetchingNextPage, onLoadMore });

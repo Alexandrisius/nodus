@@ -81,6 +81,14 @@ export const ErrorCode = {
   FILE_OFFICE_UNSUPPORTED: 'FILE_OFFICE_UNSUPPORTED',
   /** Файл больше потолка открытия в редакторе (#138; открывается скачиванием). */
   FILE_OFFICE_TOO_LARGE: 'FILE_OFFICE_TOO_LARGE',
+  /** Контрагент с таким УНП уже есть в справочнике (в т.ч. в архиве);
+   *  details — { counterpartyId, shortName, archived } (#460). */
+  CRM_UNP_TAKEN: 'CRM_UNP_TAKEN',
+  /** Контрагент в архиве: сначала верните его из архива (#460). */
+  CRM_COUNTERPARTY_ARCHIVED: 'CRM_COUNTERPARTY_ARCHIVED',
+  /** Удалить нельзя: на контрагента ссылаются письма или проекты —
+   *  перенесите в архив, история должна сохраниться (#460). */
+  CRM_COUNTERPARTY_IN_USE: 'CRM_COUNTERPARTY_IN_USE',
 } as const;
 
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];

@@ -12,6 +12,11 @@ import { RedisHealthIndicator } from '../../src/health/redis-health.indicator.js
 import { AuthController } from '../../src/modules/auth/auth.controller.js';
 import { AuthService } from '../../src/modules/auth/auth.service.js';
 import { TokenService } from '../../src/modules/auth/token.service.js';
+import { ContactsController } from '../../src/modules/crm/contacts/contacts.controller.js';
+import { ContactsService } from '../../src/modules/crm/contacts/contacts.service.js';
+import { CounterpartiesController } from '../../src/modules/crm/counterparties/counterparties.controller.js';
+import { CounterpartiesQueryService } from '../../src/modules/crm/counterparties/counterparties-query.service.js';
+import { CounterpartiesService } from '../../src/modules/crm/counterparties/counterparties.service.js';
 import { DictionariesController } from '../../src/modules/dictionaries/dictionaries.controller.js';
 import { DictionariesService } from '../../src/modules/dictionaries/dictionaries.service.js';
 import { DepartmentsController } from '../../src/modules/directory/departments.controller.js';
@@ -58,6 +63,8 @@ type OpenApiPaths = Record<string, Record<string, OpenApiOperation>>;
     PositionsController,
     RolesController,
     DictionariesController,
+    CounterpartiesController,
+    ContactsController,
   ],
   providers: [
     { provide: HealthCheckService, useValue: { check: async () => ({ status: 'ok' }) } },
@@ -70,6 +77,9 @@ type OpenApiPaths = Record<string, Record<string, OpenApiOperation>>;
     { provide: PositionsService, useValue: {} },
     { provide: RolesService, useValue: {} },
     { provide: DictionariesService, useValue: {} },
+    { provide: CounterpartiesQueryService, useValue: {} },
+    { provide: CounterpartiesService, useValue: {} },
+    { provide: ContactsService, useValue: {} },
   ],
 })
 class OpenApiTestModule {}
@@ -131,6 +141,17 @@ describe('OpenAPI: генерация из кода и публикация /api
       '/api/v1/directory/roles/{id}',
       '/api/v1/dictionaries',
       '/api/v1/dictionaries/{code}/items',
+      '/api/v1/counterparties',
+      '/api/v1/counterparties/similar',
+      '/api/v1/counterparties/bulk',
+      '/api/v1/counterparties/{id}',
+      '/api/v1/counterparties/{id}/archive',
+      '/api/v1/counterparties/{id}/restore',
+      '/api/v1/counterparties/{counterpartyId}/contacts',
+      '/api/v1/counterparties/{counterpartyId}/contacts/{contactId}',
+      '/api/v1/counterparties/{counterpartyId}/contacts/{contactId}/archive',
+      '/api/v1/counterparties/{counterpartyId}/contacts/{contactId}/restore',
+      '/api/v1/counterparties/{counterpartyId}/contacts/{contactId}',
     ]) {
       expect(paths, `нет маршрута ${expected}`).toContain(expected);
     }

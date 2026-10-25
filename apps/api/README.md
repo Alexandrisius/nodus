@@ -11,7 +11,7 @@ Backend портала: модульный монолит на NestJS 12 (ада
 
 - `src/main.ts` — bootstrap: Fastify-адаптер, глобальный префикс `/api/v1`, подключение OpenAPI.
 - `src/core/` — сквозные механизмы (ошибки, EventBus, guards RBAC, аудит, openapi, `ports/` — read-порты кросс-модульного чтения, ADR-0012).
-- `src/modules/<name>/` — доменные модули (controller/service/repository/dto/events, паттерн — `docs/architecture/patterns.md`): `auth`, `directory`, `chat` (M6, за фичефлагом `chat`).
+- `src/modules/<name>/` — доменные модули (controller/service/repository/dto/events, паттерн — `docs/architecture/patterns.md`): `auth`, `directory`, `dictionaries`, `notifications`, `files`, `home`, `desktop`, `workflows` («Процессы», ядро), `tasks` (флаг `tasks`), `chat` (флаг `chat`), `crm` (контрагенты, флаг `crm`).
 - `src/infra/` — клиенты инфраструктуры (Prisma, Redis, MinIO, mail).
 - `src/health/` — проверка живости `GET /api/v1/health` (используется Docker healthcheck).
 

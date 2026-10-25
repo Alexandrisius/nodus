@@ -1,15 +1,9 @@
-import type {
-  ContactPerson,
-  CounterpartyCard,
-  CounterpartyRef,
-  DocumentKind,
-  Mailbox,
-} from '@nodus/contracts';
+import type { CounterpartyRef, DocumentKind, Mailbox } from '@nodus/contracts';
 
-/** Демо-справочник контрагентов (модель v2 корреспонденции, вердикт
- *  владельца 22.09.2026): заказчики, подрядчики, поставщики, госорганы —
- *  живая история компании из писем и проектов. НЕ CRM: только карточка
- *  организации и контактные лица. */
+/** Справочник контрагентов живёт на бэкенде CRM (#460) — моками остались
+ *  только ССЫЛКИ: демо-письма и демо-проекты ссылаются на контрагентов по id
+ *  (домены letters/projects на моках до #55/#52). Новых контрагентов в моках
+ *  нет: создание идёт в живой справочник. */
 
 const did = (n: number): string => `d0000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const kid = (n: number): string => `e0000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
@@ -38,105 +32,15 @@ export function documentKindById(id: string): DocumentKind | undefined {
   return demoDocumentKinds.find((k) => k.id === id);
 }
 
-function contact(
-  n: number,
-  fullName: string,
-  position: string | null,
-  phone: string | null,
-  email: string | null,
-): ContactPerson {
-  return { id: kid(100 + n), fullName, position, phone, email };
-}
-
-export const demoCounterpartyCards: CounterpartyCard[] = [
-  {
-    id: did(1),
-    fullName: 'Открытое акционерное общество «Галургия»',
-    shortName: 'АО «Галургия»',
-    unp: '100123456',
-    address: '220004, г. Минск, ул. Притыцкого, 62, офис 410',
-    contactPersons: [
-      contact(
-        1,
-        'Малевич Ростислав Тарасович',
-        'Начальник отдела экспертизы',
-        '+375291234567',
-        'malevich@galurgiya.by',
-      ),
-      contact(
-        2,
-        'Кузьменко Ирина Олеговна',
-        'Инженер технадзора',
-        '+375293345678',
-        'kuzmenko@galurgiya.by',
-      ),
-    ],
-  },
-  {
-    id: did(2),
-    fullName: 'Общество с ограниченной ответственностью «СтройЗаказчик»',
-    shortName: 'ООО «СтройЗаказчик»',
-    unp: '190654321',
-    address: '220020, г. Минск, пр-т Победителей, 100, офис 412',
-    contactPersons: [
-      contact(
-        3,
-        'Савельев Николай Петрович',
-        'Главный инженер проекта',
-        '+375297654321',
-        'savelev@stroyzakaz.by',
-      ),
-    ],
-  },
-  {
-    id: did(3),
-    fullName: 'Министерство архитектуры и строительства Республики Беларусь',
-    shortName: 'Минстройархитектуры',
-    unp: null,
-    address: '220048, г. Минск, ул. Мясникова, 39',
-    contactPersons: [
-      contact(
-        4,
-        'Гордон Виктор Андреевич',
-        'Председатель проверочной комиссии',
-        '+375172001122',
-        null,
-      ),
-    ],
-  },
-  {
-    id: did(4),
-    fullName: 'Общество с ограниченной ответственностью «ТехСнаб»',
-    shortName: 'ООО «ТехСнаб»',
-    unp: '192334455',
-    address: '220113, г. Минск, ул. Мележа, 1, офис 415',
-    contactPersons: [
-      contact(
-        5,
-        'Прудникова Ирина Леонидовна',
-        'Коммерческий директор',
-        '+375296789012',
-        'prudnikova@tehsnab.by',
-      ),
-    ],
-  },
-  {
-    id: did(5),
-    fullName: 'Общество с ограниченной ответственностью «ПромСтройМонтаж»',
-    shortName: 'ООО «ПромСтройМонтаж»',
-    unp: '191778899',
-    address: '220123, г. Минск, ул. В. Хоружей, 25/3, офис 18',
-    contactPersons: [
-      contact(
-        6,
-        'Гриневич Сергей Иванович',
-        'Главный инженер',
-        '+375295566778',
-        'grinevich@psm.by',
-      ),
-    ],
-  },
-];
+/** Витринные имена демо-контрагентов (живая история компании из писем и
+ *  проектов): только для ссылок в мок-данных, реквизитов здесь нет. */
+const demoCounterpartyNames: Record<string, string> = {
+  [did(1)]: 'АО «Галургия»',
+  [did(2)]: 'ООО «СтройЗаказчик»',
+  [did(3)]: 'Минстройархитектуры',
+  [did(4)]: 'ООО «ТехСнаб»',
+  [did(5)]: 'ООО «ПромСтройМонтаж»',
+};
 
 export const counterpartyIds = {
   galurgiya: did(1),
@@ -147,6 +51,6 @@ export const counterpartyIds = {
 };
 
 export function counterpartyRefById(id: string): CounterpartyRef | undefined {
-  const card = demoCounterpartyCards.find((c) => c.id === id);
-  return card ? { id: card.id, name: card.shortName } : undefined;
+  const name = demoCounterpartyNames[id];
+  return name ? { id, name } : undefined;
 }

@@ -17,7 +17,7 @@ import { toast } from 'sonner';
 import { api } from '../../../shared/api-client.js';
 import { toastApiError } from '../../../shared/api/error-toast.js';
 import { useLettersList } from '../../../shared/api/letters-list.js';
-import { counterpartiesKeys } from '../../../shared/counterparties/api.js';
+import { counterpartiesKeys } from '../../../shared/counterparties/keys.js';
 import { homeKeys } from '../../../shared/api/home-keys.js';
 import { lettersKeys } from '../../../shared/api/letters-keys.js';
 import { tasksKeys } from '../../../shared/api/tasks-keys.js';

@@ -1326,3 +1326,78 @@ model DictionaryItem {
   @@index([parentId])
   @@map("dictionary_items")
 }
+
+// ===== Модуль crm (#460, ADR-0033) =====
+// Master-данные внешних организаций: контрагенты и контактные лица.
+// Потребители ссылаются по id (plain UUID, I3): корреспондент и подписант
+// письма (#55), заказчик проекта (#52). Удаления нет — архивация.
+
+/// Контрагент. УНП нормализован контрактом (`unpInputSchema`) и уникален
+/// среди ВСЕХ записей, включая архив (NULL-ы в PostgreSQL различны →
+/// «уникален, если указан»; архив держит УНП → «вернуть из архива», не дубль).
+model Counterparty {
+  id        String  @id @default(uuid()) @db.Uuid
+  shortName String  @map("short_name")
+  fullName  String  @map("full_name")
+  unp       String? @unique
+  address   String?
+  email     String?
+  phone     String?
+  /// Кастомные поля области `counterparty` (ADR-0029); запись — с #431.
+  customFields Json      @default("{}") @map("custom_fields")
+  archivedAt   DateTime? @map("archived_at") @db.Timestamptz()
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
+
+  contacts ContactPerson[]
+  usages   CounterpartyUsage[]
+
+  /// Реестр: keyset по (short_name, id).
+  @@index([shortName, id])
+  /// Подсказка похожих (pg_trgm): нечёткое сходство названий.
+  @@index([shortName(ops: raw("gin_trgm_ops"))], type: Gin, map: "counterparties_short_name_trgm")
+  @@index([fullName(ops: raw("gin_trgm_ops"))], type: Gin, map: "counterparties_full_name_trgm")
+  /// Кастомные поля (#431): поиск по ключам JSONB.
+  @@index([customFields(ops: JsonbPathOps)], type: Gin, map: "counterparties_custom_fields_gin")
+  @@map("counterparties")
+}
+
+/// Контактное лицо контрагента (подписант письма — #55, адреса — #464).
+model ContactPerson {
+  id             String    @id @default(uuid()) @db.Uuid
+  counterpartyId String    @map("counterparty_id") @db.Uuid
+  fullName       String    @map("full_name")
+  position       String?
+  email          String?
+  phone          String?
+  archivedAt     DateTime? @map("archived_at") @db.Timestamptz()
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
+
+  counterparty Counterparty @relation(fields: [counterpartyId], references: [id], onDelete: Restrict)
+
+  @@index([counterpartyId, fullName, id])
+  @@map("contact_persons")
+}
+
+/// Проекция «кто ссылается на контрагента» — источник lettersCount/projectsCount
+/// (ADR-0033 п.3). Пишут обработчики событий писем (#55) и проектов (#52);
+/// в #460 таблица пуста. PK (source_kind, source_id): у письма один
+/// корреспондент, у проекта один заказчик — повторная доставка события
+/// безвредна (upsert/delete).
+model CounterpartyUsage {
+  /// letter | project — системная константа (zod в обработчике).
+  sourceKind String @map("source_kind")
+  /// id письма/проекта — plain UUID без FK (чужой модуль, I3).
+  sourceId   String @map("source_id") @db.Uuid
+
+  counterpartyId String   @map("counterparty_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  counterparty Counterparty @relation(fields: [counterpartyId], references: [id], onDelete: Restrict)
+
+  @@id([sourceKind, sourceId])
+  @@index([counterpartyId, sourceKind])
+  @@map("counterparty_usages")
+}

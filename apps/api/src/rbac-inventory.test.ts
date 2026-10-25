@@ -23,6 +23,10 @@ const STICKER_OWNER = 'владелец личного пака; корпора�
 const TASK_ACCESS = 'участие в задаче — политика доступа задач в сервисе (по задаче)';
 const PERSONAL_PLAN = 'личная схема «Моего плана» — только свои стадии';
 const CATALOG = 'общий справочник/каталог для всех сотрудников, без персональных данных (I15)';
+const COUNTERPARTIES =
+  'общий справочник контрагентов: на него ссылаются письма и проекты, читают все сотрудники; ' +
+  'карточка отдаёт контакты ВНЕШНИХ лиц (ФИО/телефон/почта) — осознанное решение ADR-0033; ' +
+  'мутации — crm.create/crm.manage';
 const VISIBLE_STICKERS = 'видимые паки: корпоративные + свои/установленные (фильтр в сервисе)';
 const TASK_VISIBILITY =
   'фильтр видимости задач в сервисе (участие, подчинённые по оргструктуре, task.view_all)';
@@ -67,6 +71,9 @@ const INTENTIONALLY_WITHOUT_PERMISSION: Record<string, string> = {
   'GET /chat/stickers/packs/:id': STICKER_BY_ID,
   'GET /chat/urgent/policy': SELF,
   'GET /dictionaries': CATALOG,
+  'GET /counterparties': COUNTERPARTIES,
+  'GET /counterparties/similar': COUNTERPARTIES,
+  'GET /counterparties/:id': COUNTERPARTIES,
   'GET /dictionaries/:code/items': CATALOG,
   'GET /files/:id/office-session': FILE_ACCESS,
   'GET /files/:id/versions': FILE_ACCESS,

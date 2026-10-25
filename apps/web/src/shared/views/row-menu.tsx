@@ -1,10 +1,11 @@
 import { Menu } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { Fragment, type ReactNode } from 'react';
 import { ui } from '@nodus/contracts';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@nodus/ui/components/dropdown-menu';
 import { cn } from '@nodus/ui/lib/utils';
@@ -16,12 +17,17 @@ export const LEADING_COL_W = uiPx(48);
 
 /** Пункт контекстного меню строки журнала. Только РЕАЛЬНЫЕ действия
  *  (заглушек в меню нет — канон): открыть, скопировать ссылку, доменные
- *  мутации вроде «Зарегистрировать» у писем очереди. */
+ *  мутации вроде «Зарегистрировать» у писем очереди, «В архив»/«Удалить».
+ *  Меню строки — ПОЛНЫЙ набор команд сущности, доступных пользователю в этом
+ *  контексте (вердикт владельца 25.10.2026): модуль обязан отдать свои
+ *  действия следом за базовой парой `makeCardRowMenuItems`. */
 export interface RowMenuItem {
   id: string;
   icon?: ReactNode;
   label: string;
   danger?: boolean;
+  /** Отбить пункт разделителем (группировка «базовые | доменные»). */
+  separatorBefore?: boolean;
   onSelect: () => void;
 }
 
@@ -51,14 +57,16 @@ export function RowMenu({ items }: { items: RowMenuItem[] }) {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-44" onClick={(e) => e.stopPropagation()}>
         {items.map((item) => (
-          <DropdownMenuItem
-            key={item.id}
-            onSelect={item.onSelect}
-            className={cn(item.danger && 'text-destructive focus:text-destructive')}
-          >
-            {item.icon}
-            {item.label}
-          </DropdownMenuItem>
+          <Fragment key={item.id}>
+            {item.separatorBefore ? <DropdownMenuSeparator /> : null}
+            <DropdownMenuItem
+              onSelect={item.onSelect}
+              className={cn(item.danger && 'text-destructive focus:text-destructive')}
+            >
+              {item.icon}
+              {item.label}
+            </DropdownMenuItem>
+          </Fragment>
         ))}
       </DropdownMenuContent>
     </DropdownMenu>

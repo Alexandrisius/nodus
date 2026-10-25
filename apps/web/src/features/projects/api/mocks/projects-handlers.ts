@@ -1,17 +1,25 @@
 import { http, HttpResponse } from 'msw';
 
 import { demoProjects } from '../../../../shared/mocks/data/projects.js';
+import { counterpartyMatcher } from '../../../../shared/mocks/live-counterparty.js';
 
 export const projectsHandlers = [
   /** Список проектов; memberId — проекты сотрудника (руководит или участник —
    *  в концепте по membersPreview, полная членская связь — с бэкендом). */
-  http.get('/api/v1/projects', ({ request }) => {
-    const memberId = new URL(request.url).searchParams.get('memberId');
-    const items = memberId
+  //  clientId — проекты заказчика (вкладка «Проекты» карточки контрагента).
+  http.get('/api/v1/projects', async ({ request }) => {
+    const params = new URL(request.url).searchParams;
+    const memberId = params.get('memberId');
+    const clientId = params.get('clientId');
+    let items = memberId
       ? demoProjects.filter(
           (p) => p.manager?.id === memberId || p.membersPreview.some((m) => m.id === memberId),
         )
       : demoProjects;
+    if (clientId) {
+      const matches = await counterpartyMatcher(clientId, request);
+      items = items.filter((p) => matches(p.client));
+    }
     return HttpResponse.json({ items, nextCursor: null });
   }),
 
