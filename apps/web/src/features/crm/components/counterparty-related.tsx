@@ -1,80 +1,117 @@
-import type { CounterpartyCard } from '@nodus/contracts';
+import { useMemo } from 'react';
+import type { LetterListItem, ProjectListItem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
-import { NodeLabel } from '@nodus/ui/components/node-label';
 
 import { useOpenCard } from '../../../app/shell/use-card-stack.js';
-import { useLettersList } from '../../../shared/api/letters-list.js';
-import { useProjectsList } from '../../../shared/api/projects-list.js';
-import { formatDate } from '../../../shared/lib/format.js';
-import { ProjectIdentityIcon } from '../../../shared/ui/project-identity-icon.js';
+import { makeCardRowMenuItems } from '../../../shared/views/card-row-menu.js';
+import { DataTable } from '../../../shared/views/data-table.js';
+import { ListToolbar } from '../../../shared/views/list-toolbar.js';
+import type { ActiveListFilter, FilterFieldDef } from '../../../shared/views/list-filters.js';
+import { projectListFields } from '../../../shared/views/project-table-fields.js';
+import { useFilteredList, useListToolbar } from '../../../shared/views/use-list-toolbar.js';
+import { ViewSettings } from '../../../shared/views/view-settings.js';
+import { relatedLetterFields } from '../lib/related-letter-fields.js';
+
+const LETTERS_VIEW = 'crm.letters';
+const PROJECTS_VIEW = 'crm.projects';
+const noLetterDefs: FilterFieldDef<LetterListItem>[] = [];
+const noProjectDefs: FilterFieldDef<ProjectListItem>[] = [];
+
+const letterSearchText = (l: LetterListItem) =>
+  [l.subject, l.registration?.regNumber].filter(Boolean).join(' ');
+const projectSearchText = (p: ProjectListItem) => `${p.code} ${p.name}`;
+
+function useSearch<T>(
+  viewKey: string,
+  items: T[],
+  defs: FilterFieldDef<T>[],
+  text: (row: T) => string,
+) {
+  const toolbar = useListToolbar(viewKey);
+  const filter = useMemo<ActiveListFilter<T>>(
+    () => ({ defs, state: toolbar.filters, query: toolbar.query, searchText: text }),
+    [defs, toolbar.filters, toolbar.query, text],
+  );
+  return { toolbar, rows: useFilteredList(items, filter) };
+}
 
 /**
- * Связанные письма и проекты контрагента (#460): блок запрашивается ТОЛЬКО
- * при непустом счётчике — пока модулей писем (#55) и проектов (#52) нет,
- * счётчики нулевые и запросов к несуществующим API не происходит (в живом
- * режиме это были бы 404 в консоли). Фильтр проектов по заказчику — пока
- * клиентский по первой странице; `?customerId=` придёт с #52.
+ * Вкладка «Письма» карточки контрагента (#460) — обратная связь: переписка
+ * с организацией списком с колонками (поиск + шестерёнка, «модули не
+ * отличаются»). Письма здесь НЕ создаются: письмо рождается в почте/журнале
+ * корреспонденции, контрагент в нём — поле (с #55 возможна кнопка «Написать»
+ * с подставленным корреспондентом). Клик — карточка письма поверх стека.
  */
-export function CounterpartyRelated({ card }: { card: CounterpartyCard }) {
+export function CounterpartyLettersTab({
+  letters,
+  isLoading,
+}: {
+  letters: LetterListItem[];
+  isLoading: boolean;
+}) {
   const openCard = useOpenCard();
-  const { data: letters } = useLettersList(undefined, card.id, {
-    enabled: card.lettersCount > 0,
-  });
-  const { data: projects } = useProjectsList({ enabled: card.projectsCount > 0 });
-  const relatedProjects = (projects?.items ?? []).filter((p) => p.client?.id === card.id);
-
-  if (card.lettersCount === 0 && card.projectsCount === 0) return null;
-
+  const { toolbar, rows } = useSearch(LETTERS_VIEW, letters, noLetterDefs, letterSearchText);
   return (
-    <>
-      {card.lettersCount > 0 ? (
-        <section className="mt-8">
-          <NodeLabel label={ui.counterparties.relatedLetters} count={card.lettersCount} />
-          <div className="mt-2.5 flex flex-col gap-1.5">
-            {(letters?.items ?? []).length === 0 ? (
-              <p className="text-sm text-muted-foreground">{ui.counterparties.noLetters}</p>
-            ) : null}
-            {(letters?.items ?? []).map((letter) => (
-              <button
-                key={letter.id}
-                type="button"
-                onClick={() => openCard({ kind: 'letter', id: letter.id })}
-                className="flex items-center gap-2 rounded-md px-1.5 py-1 text-left text-sm hover:bg-accent/50"
-              >
-                <span className="w-24 shrink-0 font-mono text-label-sm text-muted-foreground tabular-nums">
-                  {letter.registration?.regNumber ?? '—'}
-                </span>
-                <span className="min-w-0 flex-1 truncate">{letter.subject}</span>
-                <span className="shrink-0 font-mono text-label-sm text-muted-foreground tabular-nums">
-                  {formatDate(letter.date)}
-                </span>
-              </button>
-            ))}
-          </div>
-        </section>
-      ) : null}
+    <div className="flex h-full flex-col">
+      <ListToolbar
+        toolbar={toolbar}
+        defs={noLetterDefs}
+        right={<ViewSettings viewKey={LETTERS_VIEW} defs={relatedLetterFields} />}
+      />
+      <div className="min-h-0 flex-1">
+        <DataTable
+          viewKey={LETTERS_VIEW}
+          defs={relatedLetterFields}
+          rows={rows}
+          rowKey={(letter) => letter.id}
+          isLoading={isLoading}
+          emptyTitle={ui.counterparties.noLetters}
+          rowMenu={(letter) => makeCardRowMenuItems({ kind: 'letter', id: letter.id }, openCard)}
+          onOpenRow={(letter, rowEl) =>
+            openCard({ kind: 'letter', id: letter.id }, rowEl.getBoundingClientRect())
+          }
+        />
+      </div>
+    </div>
+  );
+}
 
-      {card.projectsCount > 0 ? (
-        <section className="mt-8">
-          <NodeLabel label={ui.counterparties.relatedProjects} count={card.projectsCount} />
-          <div className="mt-2.5 flex flex-col gap-1.5">
-            {relatedProjects.length === 0 ? (
-              <p className="text-sm text-muted-foreground">{ui.counterparties.noProjects}</p>
-            ) : null}
-            {relatedProjects.map((project) => (
-              <button
-                key={project.id}
-                type="button"
-                onClick={() => openCard({ kind: 'project', id: project.id })}
-                className="flex items-center gap-2 rounded-md px-1.5 py-1 text-left text-sm hover:bg-accent/50"
-              >
-                <ProjectIdentityIcon color={project.color} />
-                <span className="min-w-0 flex-1 truncate">{project.name}</span>
-              </button>
-            ))}
-          </div>
-        </section>
-      ) : null}
-    </>
+/**
+ * Вкладка «Проекты» карточки контрагента (#460) — проекты, где организация —
+ * заказчик; единый реестр колонок проектов (`projectListFields`, память
+ * колонок — своя). Проекты здесь не создаются: это редкое действие
+ * руководителя в модуле «Проекты», заказчик — поле проекта.
+ */
+export function CounterpartyProjectsTab({
+  projects,
+  isLoading,
+}: {
+  projects: ProjectListItem[];
+  isLoading: boolean;
+}) {
+  const openCard = useOpenCard();
+  const { toolbar, rows } = useSearch(PROJECTS_VIEW, projects, noProjectDefs, projectSearchText);
+  return (
+    <div className="flex h-full flex-col">
+      <ListToolbar
+        toolbar={toolbar}
+        defs={noProjectDefs}
+        right={<ViewSettings viewKey={PROJECTS_VIEW} defs={projectListFields} />}
+      />
+      <div className="min-h-0 flex-1">
+        <DataTable
+          viewKey={PROJECTS_VIEW}
+          defs={projectListFields}
+          rows={rows}
+          rowKey={(project) => project.id}
+          isLoading={isLoading}
+          emptyTitle={ui.counterparties.noProjects}
+          rowMenu={(project) => makeCardRowMenuItems({ kind: 'project', id: project.id }, openCard)}
+          onOpenRow={(project, rowEl) =>
+            openCard({ kind: 'project', id: project.id }, rowEl.getBoundingClientRect())
+          }
+        />
+      </div>
+    </div>
   );
 }

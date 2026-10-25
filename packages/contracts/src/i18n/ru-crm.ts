@@ -20,6 +20,13 @@ export const counterpartiesStrings = {
   createdAt: 'В справочнике с',
   contactPersons: 'Контактные лица',
   contactPersonAdd: 'Добавить контактное лицо',
+  // Вкладки правой зоны карточки (связи контрагента)
+  tabContacts: 'Контакты',
+  tabLetters: 'Письма',
+  tabProjects: 'Проекты',
+  contactNewTitle: 'Новое контактное лицо',
+  contactEditTitle: 'Изменить контактное лицо',
+  contactFormHint: 'Человек со стороны контрагента: кому писать и звонить по делам',
   contactName: 'Ф.И.О.',
   contactPosition: 'Должность',
   contactPhone: 'Телефон',

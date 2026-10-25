@@ -12,14 +12,18 @@ import {
 } from '@nodus/ui/components/dialog';
 import { NodeChip } from '@nodus/ui/components/node-chip';
 import { Skeleton } from '@nodus/ui/components/skeleton';
+import { cn } from '@nodus/ui/lib/utils';
 
 import { useCloseCard } from '../../../app/shell/use-card-stack.js';
+import { isDomainMocked } from '../../../shared/api/api-mock-config.js';
+import { useClientProjects } from '../../../shared/api/counterparty-relations.js';
+import { useLettersList } from '../../../shared/api/letters-list.js';
 import { useCounterpartyCard } from '../../../shared/counterparties/queries.js';
 import { useCanManageCounterparties } from '../../../shared/counterparties/use-crm-permissions.js';
 import { useDeleteCounterparty, useSetCounterpartyArchived } from '../api/counterparty-edit.js';
-import { ContactPersonsPanel } from './contact-persons.js';
+import { CounterpartyContactsTab } from './counterparty-contacts-tab.js';
 import { CounterpartyFormDialog } from './counterparty-form-dialog.js';
-import { CounterpartyRelated } from './counterparty-related.js';
+import { CounterpartyLettersTab, CounterpartyProjectsTab } from './counterparty-related.js';
 import { CounterpartyRequisites } from './counterparty-requisites.js';
 
 function CardSkeleton() {
@@ -170,67 +174,131 @@ function CardBottomBar({
   );
 }
 
+type CounterpartyTab = 'contacts' | 'letters' | 'projects';
+
 /**
  * Карточка контрагента (стек, ADR-0009) — анатомия карточки письма/задачи
- * (вердикт владельца 25.10.2026): ЛЕВАЯ зона — данные (реквизиты реестром
- * полей, связанные письма и проекты при непустых счётчиках) и нижний бар h-16
- * с действиями СЛЕВА; ПРАВАЯ колонка — панель данных «Контакты» (как чат у
- * письма: полновысотная, своя шапка с линией бара, своя прокрутка).
+ * (вердикт владельца 25.10.2026): ЛЕВАЯ колонка — данные (шапка + реквизиты
+ * реестром полей) и нижний бар h-16 с действиями СЛЕВА; ПРАВАЯ зона —
+ * ВКЛАДКИ связей (эксперимент владельца 25.10.2026 перед вкладками карточки
+ * письма): «Контакты» (сущность для создания — «Создать» в строке
+ * инструментов), «Письма» и «Проекты» (обратные ссылки — только просмотр и
+ * переход в карточку). Каждая вкладка — полноценный список с колонками на
+ * shared-реестрах. Данных у справочника мало — правая зона забирает
+ * основную ширину. Письма/проекты запрашиваются, только когда домен уже
+ * отвечает (моки dev-контура) или счётчик связей не пуст — до #55/#52 в
+ * живом контуре запроса к несуществующему API нет.
  * Состояния: загрузка, «не найден / нет доступа», архивная карточка
  * (read-only + «Вернуть из архива»).
  */
 export function CounterpartyCard({ counterpartyId }: { counterpartyId: string }) {
   const { data: card, isLoading } = useCounterpartyCard(counterpartyId);
   const canManage = useCanManageCounterparties();
+  const [tab, setTab] = useState<CounterpartyTab>('contacts');
+  const lettersQuery = useLettersList(undefined, counterpartyId, {
+    enabled: card !== undefined && (isDomainMocked('letters') || card.lettersCount > 0),
+  });
+  const projectsQuery = useClientProjects(counterpartyId, {
+    enabled: card !== undefined && (isDomainMocked('projects') || card.projectsCount > 0),
+  });
 
   if (isLoading) return <CardSkeleton />;
   if (!card) return <CardNotFound />;
   const archived = card.archivedAt !== null;
+  const letters = lettersQuery.data?.items ?? [];
+  const projects = projectsQuery.data?.items ?? [];
+
+  const tabs: { id: CounterpartyTab; label: string; count: number }[] = [
+    {
+      id: 'contacts',
+      label: ui.counterparties.tabContacts,
+      count: card.contactPersons.filter((p) => p.archivedAt === null).length,
+    },
+    {
+      id: 'letters',
+      label: ui.counterparties.tabLetters,
+      count: lettersQuery.data ? letters.length : card.lettersCount,
+    },
+    {
+      id: 'projects',
+      label: ui.counterparties.tabProjects,
+      count: projectsQuery.data ? projects.length : card.projectsCount,
+    },
+  ];
 
   return (
     <div className="flex h-full min-w-0">
-      <div className="flex h-full min-w-0 flex-1 flex-col">
-        <div
-          className="relative grid min-h-0 flex-1"
-          style={{ gridTemplateColumns: 'minmax(0,1fr) auto' }}
-        >
-          <div className="relative flex min-h-0 flex-col border-r border-border @container">
-            <div className="content-fade min-h-0 flex-1 overflow-y-auto p-6">
-              <div className="mx-auto max-w-3xl">
-                <div className="flex items-start gap-3">
-                  <span className="node-panel flex size-10 shrink-0 items-center justify-center">
-                    <Building2 className="size-4.5 text-muted-foreground" strokeWidth={1.5} />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="text-lg font-semibold text-foreground">{card.shortName}</h2>
-                      {archived ? (
-                        <NodeChip tone="muted">{ui.counterparties.archivedBadge}</NodeChip>
-                      ) : null}
-                    </div>
-                    <div className="mt-0.5 text-sm text-muted-foreground">{card.fullName}</div>
-                  </div>
-                </div>
-
-                <CounterpartyRequisites card={card} />
-                <CounterpartyRelated card={card} />
+      <div className="flex h-full w-[min(30rem,42%)] shrink-0 flex-col border-r border-border @container">
+        <div className="content-fade min-h-0 flex-1 overflow-y-auto p-6">
+          <div className="flex items-start gap-3">
+            <span className="node-panel flex size-10 shrink-0 items-center justify-center">
+              <Building2 className="size-4.5 text-muted-foreground" strokeWidth={1.5} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-lg font-semibold text-foreground">{card.shortName}</h2>
+                {archived ? (
+                  <NodeChip tone="muted">{ui.counterparties.archivedBadge}</NodeChip>
+                ) : null}
               </div>
+              <div className="mt-0.5 text-sm text-muted-foreground">{card.fullName}</div>
             </div>
-
-            {/* Нижний бар — только когда есть действия (или пояснение в
-                архиве): пустая полоса у сотрудника без прав — мусор. */}
-            {canManage || archived ? (
-              <div className="flex h-16 shrink-0 items-center gap-2 border-t border-border px-5">
-                <CardBottomBar counterpartyId={card.id} archived={archived} />
-              </div>
-            ) : null}
           </div>
 
-          <ContactPersonsPanel
-            counterpartyId={card.id}
-            contacts={card.contactPersons}
-            readOnly={archived}
-          />
+          <CounterpartyRequisites card={card} />
+        </div>
+
+        {/* Нижний бар — только когда есть действия (или пояснение в
+            архиве): пустая полоса у сотрудника без прав — мусор. */}
+        {canManage || archived ? (
+          <div className="flex h-16 shrink-0 items-center gap-2 border-t border-border px-5">
+            <CardBottomBar counterpartyId={card.id} archived={archived} />
+          </div>
+        ) : null}
+      </div>
+
+      <div className="flex h-full min-w-0 flex-1 flex-col">
+        {/* Бар вкладок h-10 — тот же, что у карточек проекта/сотрудника. */}
+        <div
+          role="tablist"
+          className="content-fade flex h-10 shrink-0 items-center gap-1 overflow-x-auto overflow-y-hidden border-b border-border px-4"
+        >
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              aria-selected={tab === t.id}
+              onClick={() => setTab(t.id)}
+              className={cn(
+                'flex h-10 shrink-0 items-center gap-2 rounded-none border-b-2 px-3 text-body-xs font-medium transition-colors',
+                tab === t.id
+                  ? 'border-port text-foreground'
+                  : 'border-transparent text-muted-foreground hover:text-foreground/80',
+              )}
+            >
+              {t.label}
+              <span className="font-mono text-label-sm text-muted-foreground tabular-nums">
+                {t.count}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        <div className="content-fade min-h-0 flex-1 overflow-hidden">
+          {tab === 'contacts' ? (
+            <CounterpartyContactsTab
+              counterpartyId={card.id}
+              contacts={card.contactPersons}
+              readOnly={archived}
+            />
+          ) : null}
+          {tab === 'letters' ? (
+            <CounterpartyLettersTab letters={letters} isLoading={lettersQuery.isLoading} />
+          ) : null}
+          {tab === 'projects' ? (
+            <CounterpartyProjectsTab projects={projects} isLoading={projectsQuery.isLoading} />
+          ) : null}
         </div>
       </div>
     </div>

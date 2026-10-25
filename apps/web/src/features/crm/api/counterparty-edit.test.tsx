@@ -85,7 +85,7 @@ describe('патч списка в onMutate не падает на InfiniteData 
   it('архив: строка реестра помечается ДО ответа, запрос уходит', async () => {
     const client = new QueryClient();
     seed(client);
-    const fetchMock = vi.fn(async () =>
+    const fetchMock = vi.fn<(input: RequestInfo | URL) => Promise<Response>>(async () =>
       jsonResponse(200, { ...card, archivedAt: '2026-10-25T12:00:00.000Z' }),
     );
     vi.stubGlobal('fetch', fetchMock);

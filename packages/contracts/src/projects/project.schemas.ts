@@ -45,6 +45,8 @@ export const listProjectsQuerySchema = cursorQuerySchema.extend({
   /** Проекты сотрудника (вкладка «Проекты» карточки сотрудника): руководит
    *  или участник. */
   memberId: z.uuid().optional(),
+  /** Проекты заказчика (вкладка «Проекты» карточки контрагента, #460). */
+  clientId: z.uuid().optional(),
 });
 
 export type ListProjectsQuery = z.infer<typeof listProjectsQuerySchema>;

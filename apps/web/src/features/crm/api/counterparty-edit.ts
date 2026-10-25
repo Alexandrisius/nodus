@@ -183,14 +183,15 @@ export function useUpdateContactPerson(counterpartyId: string, contactId: string
   });
 }
 
-/** Удаление контактного лица (физически, из карточки). */
-export function useDeleteContactPerson(counterpartyId: string, contactId: string) {
+/** Удаление контактного лица (физически, из карточки): id — в мутации, один
+ *  хук на всю вкладку «Контакты» (меню строки любой записи). */
+export function useDeleteContactPerson(counterpartyId: string) {
   const queryClient = useQueryClient();
   const detailKey = counterpartiesKeys.detail(counterpartyId);
   return useMutation({
-    mutationFn: () =>
+    mutationFn: (contactId: string) =>
       api<void>(`/counterparties/${counterpartyId}/contacts/${contactId}`, { method: 'DELETE' }),
-    onMutate: async () => {
+    onMutate: async (contactId) => {
       await queryClient.cancelQueries({ queryKey: detailKey });
       const previous = queryClient.getQueryData<CounterpartyCard>(detailKey);
       queryClient.setQueryData<CounterpartyCard>(detailKey, (data) =>
@@ -214,16 +215,16 @@ export function useDeleteContactPerson(counterpartyId: string, contactId: string
 }
 
 /** Архив / возврат контактного лица (идемпотентно на сервере). */
-export function useSetContactArchived(counterpartyId: string, contactId: string) {
+export function useSetContactArchived(counterpartyId: string) {
   const queryClient = useQueryClient();
   const detailKey = counterpartiesKeys.detail(counterpartyId);
   return useMutation({
-    mutationFn: (archived: boolean) =>
+    mutationFn: ({ contactId, archived }: { contactId: string; archived: boolean }) =>
       api<ContactPerson>(
         `/counterparties/${counterpartyId}/contacts/${contactId}/${archived ? 'archive' : 'restore'}`,
         { method: 'POST' },
       ),
-    onMutate: async (archived) => {
+    onMutate: async ({ contactId, archived }) => {
       await queryClient.cancelQueries({ queryKey: detailKey });
       const previous = queryClient.getQueryData<CounterpartyCard>(detailKey);
       patchContact(queryClient, detailKey, contactId, {
@@ -231,12 +232,12 @@ export function useSetContactArchived(counterpartyId: string, contactId: string)
       });
       return { previous };
     },
-    onError: (error, _archived, context) => {
+    onError: (error, _vars, context) => {
       if (context?.previous !== undefined) queryClient.setQueryData(detailKey, context.previous);
       toastApiError(error);
     },
     onSuccess: (contact) => {
-      patchContact(queryClient, detailKey, contactId, contact);
+      patchContact(queryClient, detailKey, contact.id, contact);
       toast.success(
         contact.archivedAt
           ? ui.counterparties.contactArchivedDone

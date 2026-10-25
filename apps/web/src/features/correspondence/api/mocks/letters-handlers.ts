@@ -13,13 +13,15 @@ import {
   registerLetterBodySchema,
 } from '@nodus/contracts';
 
-import { bypass, http, HttpResponse } from 'msw';
+import { http, HttpResponse } from 'msw';
 
 import { demoConversations } from '../../../../shared/mocks/data/chat.js';
-import type { CounterpartyRef } from '@nodus/contracts';
+import {
+  counterpartyMatcher,
+  resolveCounterpartyRef,
+} from '../../../../shared/mocks/live-counterparty.js';
 
 import {
-  counterpartyRefById,
   defaultDocumentKind,
   demoDocumentKinds,
   documentKindById,
@@ -74,31 +76,6 @@ const documentKindItems: Paginated<DictionaryItem> = {
   nextCursor: null,
 };
 
-/** До #55: домен писем на моках, а справочник контрагентов — живой (CRM,
- *  #460). Демо-ссылка резолвится из мок-данных; живой контрагент — запросом
- *  к API через bypass (MSW его не перехватывает) с авторизацией исходного
- *  запроса: после перехода CRM на живой API регистрация письма на :5173
- *  иначе падала бы 422 на живых контрагентах (находка Д7). */
-async function resolveCounterpartyRef(
-  counterpartyId: string,
-  request: Request,
-): Promise<CounterpartyRef | null> {
-  const demo = counterpartyRefById(counterpartyId);
-  if (demo) return demo;
-  try {
-    const res = await fetch(
-      bypass(new URL(`/api/v1/counterparties/${counterpartyId}`, request.url), {
-        headers: { authorization: request.headers.get('authorization') ?? '' },
-      }),
-    );
-    if (!res.ok) return null;
-    const card = (await res.json()) as { id?: string; shortName?: string };
-    return card.id && card.shortName ? { id: card.id, name: card.shortName } : null;
-  } catch {
-    return null;
-  }
-}
-
 function projectRefById(id: string | null) {
   if (!id) return null;
   const project = demoProjects.find((p) => p.id === id);
@@ -124,7 +101,7 @@ export const lettersHandlers = [
     HttpResponse.json(documentKindItems),
   ),
 
-  http.get('/api/v1/letters', ({ request }) => {
+  http.get('/api/v1/letters', async ({ request }) => {
     const params = new URL(request.url).searchParams;
     // Без folder — все письма (связанные письма в карточке контрагента).
     const folder = params.get('folder');
@@ -134,7 +111,10 @@ export const lettersHandlers = [
     else if (folder === 'outgoing') items = items.filter((l) => l.type === 'outgoing');
     // Журнал — реестр ТОЛЬКО документов (регистрация ≠ null), почта не попадает.
     else if (folder === 'registry') items = items.filter((l) => l.registration !== null);
-    if (counterpartyId) items = items.filter((l) => l.counterparty.id === counterpartyId);
+    if (counterpartyId) {
+      const matches = await counterpartyMatcher(counterpartyId, request);
+      items = items.filter((l) => matches(l.counterparty));
+    }
     return HttpResponse.json({ items, nextCursor: null });
   }),
 
