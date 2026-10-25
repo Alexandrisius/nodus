@@ -1,0 +1,178 @@
+import { Copy, ExternalLink } from 'lucide-react';
+import type { CustomFieldDefinition, CustomFieldRef, CustomFieldValue } from '@nodus/contracts';
+import { linkKindOf, ui } from '@nodus/contracts';
+import { cn } from '@nodus/ui/lib/utils';
+import { toast } from 'sonner';
+
+import { PersonAvatar } from '../ui/person-avatar.js';
+import {
+  formatDuration,
+  formatIsoDate,
+  formatIsoDateTime,
+  formatMoney,
+  formatNumber,
+} from './value-format.js';
+
+/** Карта ссылок детали по id (Р6): имя, аватар, архив. */
+export function refsById(refs: readonly CustomFieldRef[]): ReadonlyMap<string, CustomFieldRef> {
+  return new Map(refs.map((ref) => [ref.id, ref]));
+}
+
+function RefName({
+  refs,
+  id,
+  withAvatar,
+}: {
+  refs: ReadonlyMap<string, CustomFieldRef>;
+  id: string;
+  withAvatar: boolean;
+}) {
+  const ref = refs.get(id);
+  if (!ref || ref.name === null) {
+    return <span className="text-muted-foreground">{ui.customFields.block.unavailable}</span>;
+  }
+  return (
+    <span className={cn('inline-flex min-w-0 items-center gap-1.5', ref.archived && 'opacity-60')}>
+      {withAvatar ? (
+        <PersonAvatar name={ref.name} avatarUrl={ref.avatarUrl} className="size-5" />
+      ) : null}
+      <span className="truncate">{ref.name}</span>
+    </span>
+  );
+}
+
+function CopyPathButton({ path }: { path: string }) {
+  return (
+    <button
+      type="button"
+      aria-label={ui.customFields.value.copyPath}
+      title={ui.customFields.value.copyPath}
+      onClick={() => {
+        void navigator.clipboard.writeText(path).then(
+          () => toast.success(ui.customFields.value.pathCopied),
+          () => toast.error(ui.common.copyError),
+        );
+      }}
+      className="rounded p-1 text-muted-foreground opacity-0 transition-opacity group-hover/field:opacity-100 focus-visible:opacity-100 hover:text-foreground"
+    >
+      <Copy className="size-3.5" strokeWidth={1.75} />
+    </button>
+  );
+}
+
+/**
+ * Значение кастомного поля в карточке, превью и (compact) строке списка.
+ * Ссылки (сотрудник, подразделение, вариант, проект, контрагент) показываются
+ * именем из `refs`; недоступная запись — «Запись недоступна» (Р6).
+ * URL открывается текстом в новой вкладке (noopener), путь копируется (Р11).
+ */
+export function CustomFieldValueView({
+  definition,
+  value,
+  refs,
+  compact = false,
+  interactive = true,
+}: {
+  definition: CustomFieldDefinition;
+  value: CustomFieldValue | undefined;
+  refs: ReadonlyMap<string, CustomFieldRef>;
+  compact?: boolean;
+  /** false — без ссылки и кнопки копирования: значение внутри триггера
+   *  редактора (кнопка в кнопке запрещена, React DOM nesting). */
+  interactive?: boolean;
+}) {
+  const empty = value === undefined || value === null;
+  if (empty) return <span className="text-muted-foreground">{ui.customFields.value.empty}</span>;
+
+  const line = cn('min-w-0', compact && 'truncate');
+
+  switch (definition.type) {
+    case 'text':
+    case 'long_text':
+      return (
+        <span className={cn(line, definition.type === 'long_text' && 'whitespace-pre-line')}>
+          {String(value)}
+        </span>
+      );
+    case 'number':
+      return (
+        <span className={cn(line, 'font-mono text-[13px] tabular-nums')}>
+          {formatNumber(Number(value), definition.settings.precision ?? 0)}
+        </span>
+      );
+    case 'money': {
+      const money = value as { amount: number; currencyId: string };
+      const currency = refs.get(money.currencyId);
+      return (
+        <span className={cn(line, 'font-mono text-[13px] tabular-nums')}>
+          {formatMoney(money, currency?.name ?? null)}
+        </span>
+      );
+    }
+    case 'date':
+      return (
+        <span className={cn(line, 'font-mono text-[13px] tabular-nums')}>
+          {formatIsoDate(String(value))}
+        </span>
+      );
+    case 'datetime':
+      return (
+        <span className={cn(line, 'font-mono text-[13px] tabular-nums')}>
+          {formatIsoDateTime(String(value))}
+        </span>
+      );
+    case 'duration':
+      return (
+        <span className={cn(line, 'font-mono text-[13px] tabular-nums')}>
+          {formatDuration(Number(value))}
+        </span>
+      );
+    case 'bool':
+      return <span className={line}>{ui.customFields.value.yes}</span>;
+    case 'enum':
+    case 'user':
+    case 'department':
+    case 'project':
+    case 'counterparty':
+      return (
+        <span className={cn(line, 'inline-flex')}>
+          <RefName refs={refs} id={String(value)} withAvatar={definition.type === 'user'} />
+        </span>
+      );
+    case 'multienum':
+    case 'users': {
+      const ids = Array.isArray(value) ? value : [];
+      return (
+        <span className={cn(line, 'inline-flex flex-wrap items-center gap-x-3 gap-y-1')}>
+          {ids.map((id) => (
+            <RefName key={id} refs={refs} id={id} withAvatar={definition.type === 'users'} />
+          ))}
+        </span>
+      );
+    }
+    case 'link': {
+      const text = String(value);
+      const kind = linkKindOf(text);
+      if (kind === 'url' && interactive) {
+        return (
+          <a
+            href={text}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex min-w-0 items-center gap-1 text-info underline-offset-2 hover:underline"
+            title={ui.customFields.value.openLink}
+          >
+            <span className="truncate">{text}</span>
+            <ExternalLink className="size-3 shrink-0" strokeWidth={1.75} aria-hidden />
+          </a>
+        );
+      }
+      return (
+        <span className="inline-flex min-w-0 items-center gap-1">
+          <span className="truncate font-mono text-[13px]">{text}</span>
+          {interactive && kind === 'path' ? <CopyPathButton path={text} /> : null}
+        </span>
+      );
+    }
+  }
+}

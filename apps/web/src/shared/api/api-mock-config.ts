@@ -20,6 +20,11 @@ export const API_MOCK_DOMAINS = [
   'home',
   'files',
   'notifications',
+  // Новые домены — В КОНЦЕ: порядок сохраняет приоритет буквальных маршрутов
+  // писем (`/dictionaries/document-kind/items` побеждает общий словарный).
+  'custom-fields',
+  'dictionaries',
+  'crm',
 ] as const;
 
 export type ApiMockDomain = (typeof API_MOCK_DOMAINS)[number];
