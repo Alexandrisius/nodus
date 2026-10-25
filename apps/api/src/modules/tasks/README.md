@@ -80,9 +80,21 @@
 
 Автоперемещение «Моего плана» — синхронно в транзакции смены состояния (`personal/placements.ts`). Просрочка — `events/overdue.scanner.ts` (BullMQ, каждые 5 минут, однократно, только фаза `open`; смена срока сбрасывает метку).
 
+## Кастомные атрибуты (#431, ADR-0029)
+
+Значения живут в `tasks.custom_fields` (JSONB, ключ — id определения; GIN `jsonb_path_ops`). Читает и пишет их только модуль задач, а валидирует **порт реестра** `CUSTOM_FIELD_REGISTRY` (модуль `custom-fields`): таблицу `field_definitions` задачи не читают (I3).
+
+- **Создание** (`TasksService.create` — единственный путь, включая подзадачи и «В задачу»): `prepareCreate` подставляет умолчания области (включая снимок «подразделение автора»), ввод важнее умолчания; ошибка — `422 CUSTOM_FIELD_VALUE_INVALID` до записи строки.
+- **Правка** (`PATCH /tasks/:id` и окно перехода): `prepareUpdate` под замком строки — параллельные патчи сливаются по ключам, `null` удаляет ключ, проверяются только изменённые значения (архивный сотрудник в старом значении не блокирует соседнее поле).
+- **Деталь** несёт `customFieldRefs` (имена/аватары/архивность) — пачками через порты; строка списка несёт только значения.
+- **Событие:** `task.updated` получает `fields` с ключами `cf.<id>` и `customFieldChanges[{fieldId, from, to}]` (≤ 50, `long_text` обрезан до 500).
+- **Удаление атрибута** чистит значения обработчиком `custom_field.definition_changed` (`change='deleted'`) — `custom-field-values-cleanup.handler.ts`; повторная доставка безвредна.
+- **Гейт «Заполнены поля»** видит атрибуты через факты адаптера (`customFields`, `activeCustomFieldIds`); неизвестный ключ переход не блокирует, скрытый — блокирует по значению.
+- Права: правка значений — как у полей задачи (`canEdit`); управление реестром — `custom_field.manage` (не здесь).
+
 ## Окно перехода (#380)
 
-`POST /tasks/:id/transitions/:transitionId` принимает `form` (поля, время, итог, причина) и выполняет переход **одной транзакцией**: сверка с эффективным окном кнопки, `TaskFormApplier` (права `canEdit`/`canLogTime`/`canCheck`, дифф полей через общий `TaskFieldsWriter`, время через `TimeService.addManualInTx`, итог через `ResultRevisions` с проверкой сообщений беседы задачи), гейты по новым фактам, смена стадии, журнал `transition_records`, события. Чужое/удалённое сообщение итога — одинаковый 404; 422 — состав окна, 409 — гейт. DnD и «Мой план» в кнопку с обязательным окном отвечают 422. `task.stage_changed` несёт `recordId`, `transitionName`, `fromStageName`, `comment`, `commentLabel`, `result { resultId, fileCount, messageCount }` — по ним чат пишет блок перехода.
+`POST /tasks/:id/transitions/:transitionId` принимает `form` (поля, время, итог, причина; значения атрибутов — `form.fields.customFields.<id>`, ключ окна — `cf.<id>`) и выполняет переход **одной транзакцией**: сверка с эффективным окном кнопки, `TaskFormApplier` (права `canEdit`/`canLogTime`/`canCheck`, дифф полей через общий `TaskFieldsWriter`, время через `TimeService.addManualInTx`, итог через `ResultRevisions` с проверкой сообщений беседы задачи), гейты по новым фактам, смена стадии, журнал `transition_records`, события. Чужое/удалённое сообщение итога — одинаковый 404; 422 — состав окна, 409 — гейт. DnD и «Мой план» в кнопку с обязательным окном отвечают 422. `task.stage_changed` несёт `recordId`, `transitionName`, `fromStageName`, `comment`, `commentLabel`, `result { resultId, fileCount, messageCount }` — по ним чат пишет блок перехода.
 
 ## Лимиты и границы
 
