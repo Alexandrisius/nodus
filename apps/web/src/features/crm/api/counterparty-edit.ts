@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import type {
   BulkCounterpartiesBody,
   ContactPerson,
@@ -17,26 +17,36 @@ import { toastApiError } from '../../../shared/api/error-toast.js';
 import { counterpartiesKeys } from '../../../shared/counterparties/keys.js';
 
 type ListPage = Paginated<CounterpartyListItem>;
+type ListPages = InfiniteData<ListPage, string | null>;
 
-/** Патч записи реестра во всех закэшированных списках (правка реквизитов). */
+const patchRow = (row: CounterpartyListItem, id: string, patch: Partial<CounterpartyListItem>) =>
+  row.id === id ? { ...row, ...patch } : row;
+
+/** Патч записи реестра во всех закэшированных списках (правка реквизитов,
+ *  архив/возврат). ВАЖНО: кэш страниц — InfiniteData (`pages[]`), а не одна
+ *  страница: обращение к `data.items` бросало TypeError и мутация падала ДО
+ *  запроса («Не удалось отправить», баг 25.10.2026). */
 function patchLists(
   queryClient: ReturnType<typeof useQueryClient>,
   id: string,
   patch: Partial<CounterpartyListItem>,
 ): void {
-  queryClient.setQueriesData<ListPage>(
+  queryClient.setQueriesData<ListPages>(
     { queryKey: [...counterpartiesKeys.all, 'pages'] },
     (data) =>
       data
-        ? { ...data, items: data.items.map((row) => (row.id === id ? { ...row, ...patch } : row)) }
+        ? {
+            ...data,
+            pages: data.pages.map((page) => ({
+              ...page,
+              items: page.items.map((row) => patchRow(row, id, patch)),
+            })),
+          }
         : data,
   );
   queryClient.setQueriesData<ListPage>(
     { queryKey: [...counterpartiesKeys.all, 'options'] },
-    (data) =>
-      data
-        ? { ...data, items: data.items.map((row) => (row.id === id ? { ...row, ...patch } : row)) }
-        : data,
+    (data) => (data ? { ...data, items: data.items.map((row) => patchRow(row, id, patch)) } : data),
   );
 }
 
