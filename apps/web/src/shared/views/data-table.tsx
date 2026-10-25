@@ -1,4 +1,4 @@
-import { useMemo, useRef, type ReactNode } from 'react';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { Skeleton } from '@nodus/ui/components/skeleton';
 import { Checkbox } from '@nodus/ui/components/checkbox';
 import { Empty, EmptyTitle } from '@nodus/ui/components/empty';
@@ -88,6 +88,7 @@ export function DataTable<T>({
   const { visibleFields, sort, setWidth, cycleSort, commitOrder } = useViewFields(viewKey, defs);
   const containerRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const [hovered, setHovered] = useState(false);
   const edge = useBoardEdgeScroll(containerRef, {
     pan: false,
     mounted: !isLoading && rows.length > 0,
@@ -139,7 +140,11 @@ export function DataTable<T>({
     // span-кнопке — невалидно). Роли: table/row/columnheader(в хедере)/cell.
     // Широкая таблица листается подводом курсора к краю — та же механика,
     // что у канбана (индикаторы — соседи скролл-контейнера).
-    <div className="relative h-full">
+    <div
+      className="relative h-full"
+      onPointerEnter={() => setHovered(true)}
+      onPointerLeave={() => setHovered(false)}
+    >
       <div
         ref={containerRef}
         role="table"
@@ -225,7 +230,7 @@ export function DataTable<T>({
           </div>
         ) : null}
       </div>
-      <EdgeHints room={edge.room} hot={edge.hot} />
+      <EdgeHints room={edge.room} hot={edge.hot} show={hovered} />
     </div>
   );
 }

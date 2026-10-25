@@ -49,14 +49,18 @@ export function BoardScroller({
 export function EdgeHints({
   room,
   hot,
+  show = true,
 }: {
   room: { left: boolean; right: boolean };
   hot: EdgeSide | null;
+  /** Таблицы: индикатор всплывает только при наведении на список (вердикт
+   *  владельца 25.10.2026 — «невидимые кнопки»); доска — всегда. */
+  show?: boolean;
 }) {
   return (
     <>
-      <EdgeHint side="left" visible={room.left} hot={hot === 'left'} />
-      <EdgeHint side="right" visible={room.right} hot={hot === 'right'} />
+      <EdgeHint side="left" visible={room.left && show} hot={hot === 'left'} />
+      <EdgeHint side="right" visible={room.right && show} hot={hot === 'right'} />
     </>
   );
 }

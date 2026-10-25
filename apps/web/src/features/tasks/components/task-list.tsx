@@ -120,6 +120,7 @@ export function TaskList({
    *  ведущую колонку (выбор+меню) и колонку графа. */
   const autoFitColumn = useAutoFitColumn(containerRef, 2, setWidth);
   // Подвод курсора к краю листает широкий журнал (механика канбана).
+  const [hovered, setHovered] = useState(false);
   const edge = useBoardEdgeScroll(containerRef, { pan: false, mounted: !isLoading });
 
   function openTask(row: TaskRow, rowEl: HTMLElement) {
@@ -160,7 +161,11 @@ export function TaskList({
   return (
     // Островок массовых действий живёт ВНЕ скролл-контейнера таблицы:
     // висит над низом зоны, не уезжает со строками (#311).
-    <div className="relative h-full">
+    <div
+      className="relative h-full"
+      onPointerEnter={() => setHovered(true)}
+      onPointerLeave={() => setHovered(false)}
+    >
       <div
         ref={containerRef}
         role="table"
@@ -284,7 +289,7 @@ export function TaskList({
         {/* Запас под островок: последняя строка не прячется под ним. */}
         {selected.size > 0 ? <div aria-hidden className="h-24" /> : null}
       </div>
-      <EdgeHints room={edge.room} hot={edge.hot} />
+      <EdgeHints room={edge.room} hot={edge.hot} show={hovered} />
       <TaskBulkIsland
         selectedIds={selectedIds}
         selectedTasks={visible.filter((row) => selected.has(row.task.id)).map((row) => row.task)}
