@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { PinoLogger } from 'nestjs-pino';
 import {
   CRM_EVENTS,
   ErrorCode,
@@ -62,7 +63,10 @@ export class CounterpartiesService {
     private readonly queries: CounterpartiesQueryService,
     private readonly txRunner: TransactionRunner,
     private readonly eventBus: EventBus,
-  ) {}
+    private readonly logger: PinoLogger,
+  ) {
+    this.logger.setContext(CounterpartiesService.name);
+  }
 
   async create(dto: CreateCounterpartyBody, actorId: string): Promise<CounterpartyCard> {
     const data: CounterpartyWriteData = {
@@ -170,6 +174,10 @@ export class CounterpartiesService {
         await this.setArchived(id, action.kind === 'archive', actorId);
         results.push({ counterpartyId: id, ok: true });
       } catch (error) {
+        if (!(error instanceof DomainException)) {
+          // Не-доменный сбой (БД и пр.) — в лог без PII, наружу только код.
+          this.logger.error({ err: error, counterpartyId: id }, 'Bulk counterparty action failed');
+        }
         const code = error instanceof DomainException ? error.code : ErrorCode.INTERNAL_ERROR;
         results.push({ counterpartyId: id, ok: false, code });
       }

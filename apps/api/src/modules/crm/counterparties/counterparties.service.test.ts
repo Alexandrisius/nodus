@@ -34,6 +34,7 @@ describe('CounterpartiesService (#460)', () => {
   const queries = { buildCard: vi.fn() };
   const txRunner = { run: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn({})) };
   const eventBus = { emit: vi.fn() };
+  const logger = { setContext: vi.fn(), error: vi.fn(), warn: vi.fn() };
   let service: CounterpartiesService;
 
   beforeEach(() => {
@@ -44,6 +45,7 @@ describe('CounterpartiesService (#460)', () => {
       queries as never,
       txRunner as never,
       eventBus as never,
+      logger as never,
     );
   });
 

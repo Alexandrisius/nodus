@@ -90,6 +90,33 @@ describe.skipIf(!process.env.DATABASE_URL)('crm: реестр и жизненн�
     );
     expect(byUnp.items.some((i) => i.unp === '400123456')).toBe(true);
 
+    // «%» в названии ищется как литерал (не двойное экранирование).
+    const percent = await create({
+      fullName: name('Скидка 10%'),
+      shortName: name('Скидка 10%'),
+    });
+    const byPercent = cardPage.parse(
+      await json(
+        await fx.api(employee, 'GET', `/counterparties?search=${encodeURIComponent('10%')}`),
+      ),
+    );
+    expect(byPercent.items.map((i) => i.id)).toContain(percent.id);
+
+    // Спецсимволы LIKE — литералы, а не шаблон (security-ревью #460):
+    // «%» находит только запись с процентом в названии, «_» — ничего.
+    const percentOnly = cardPage.parse(
+      await json(
+        await fx.api(employee, 'GET', '/counterparties?search=%25&includeArchived=true&limit=100'),
+      ),
+    );
+    expect(percentOnly.items.map((i) => i.id)).toEqual([percent.id]);
+    const underscore = cardPage.parse(
+      await json(
+        await fx.api(employee, 'GET', '/counterparties?search=_&includeArchived=true&limit=100'),
+      ),
+    );
+    expect(underscore.items).toEqual([]);
+
     await fx.api(manager, 'POST', `/counterparties/${ids[1]}/restore`);
   });
 

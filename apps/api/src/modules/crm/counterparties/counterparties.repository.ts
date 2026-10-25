@@ -49,6 +49,15 @@ export interface CounterpartyCounts {
   contactsCount: number;
 }
 
+/**
+ * Экранирование спецсимволов LIKE (`%`, `_`, `\`) в поисковой строке:
+ * Prisma `contains` их не экранирует, и «%» работал бы как «все записи»
+ * (security-ревью #460). После экранирования — литералы.
+ */
+export function escapeLike(value: string): string {
+  return value.replace(/[\\%_]/gu, (ch) => `\\${ch}`);
+}
+
 export interface CounterpartyWriteData {
   shortName: string;
   fullName: string;
@@ -74,13 +83,14 @@ export class CounterpartiesRepository {
     limit: number,
   ): Promise<CounterpartyRow[]> {
     const search = filter.search?.trim();
+    const pattern = search ? escapeLike(search) : '';
     // Поиск по УНП включаем только при цифрах в запросе: название цифр не
     // содержит, лишнее условие лишь мешает планировщику (GIN-триграммы).
     const searchWhere: Prisma.CounterpartyWhereInput[] = search
       ? [
-          { shortName: { contains: search, mode: 'insensitive' } },
-          { fullName: { contains: search, mode: 'insensitive' } },
-          ...(/\d/u.test(search) ? [{ unp: { contains: search } }] : []),
+          { shortName: { contains: pattern, mode: 'insensitive' } },
+          { fullName: { contains: pattern, mode: 'insensitive' } },
+          ...(/\d/u.test(search) ? [{ unp: { contains: pattern } }] : []),
         ]
       : [];
     return this.prisma.counterparty.findMany({
