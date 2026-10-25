@@ -5,6 +5,7 @@ import {
   ErrorCode,
   executeTransitionResultSchema,
   Permission,
+  TASK_EVENTS,
   taskDetailSchema,
   taskListItemSchema,
   workflowTransitionSchema,
@@ -15,6 +16,7 @@ import { z } from 'zod';
 import { EventDispatcher } from '../../src/core/events/event-dispatcher.js';
 import { TokenService } from '../../src/modules/auth/token.service.js';
 import { setupChatFixture, type ChatTestFixture, type ChatUser } from './chat-fixtures.js';
+import { dispatchOwnEvent, eventIdOf } from './outbox-test-utils.js';
 
 /**
  * Окно перехода на живом HTTP (#380): форма в одной транзакции с переходом,
@@ -203,7 +205,13 @@ describe.skipIf(!process.env.DATABASE_URL)('tasks: окно перехода (in
     // блок пишется в неё обработчиком события.
     const opened = await fx.api(bob, 'GET', `/chat/conversations/by-task/${task.id}`);
     expect(opened.status).toBe(200);
-    await dispatcher.dispatchPending();
+    // Своё событие, а не «один проход»: общий outbox тест-БД может отдать
+    // проходу чужие события (#486).
+    const stageEventId = await eventIdOf(fx.prisma, {
+      type: TASK_EVENTS.STAGE_CHANGED,
+      aggregateId: task.id,
+    });
+    await dispatchOwnEvent(dispatcher, fx.prisma, stageEventId);
     const chat = await fx.prisma.conversation.findFirstOrThrow({
       where: { type: 'task', taskId: task.id },
     });
@@ -218,7 +226,7 @@ describe.skipIf(!process.env.DATABASE_URL)('tasks: окно перехода (in
       where: { type: 'task.stage_changed', aggregateId: task.id },
       data: { publishedAt: null },
     });
-    await dispatcher.dispatchPending();
+    await dispatchOwnEvent(dispatcher, fx.prisma, stageEventId);
     expect(
       await fx.prisma.message.count({
         where: { conversationId: chat.id, kind: 'task_transition' },
