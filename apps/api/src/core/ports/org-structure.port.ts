@@ -1,5 +1,15 @@
 import type { InjectionToken } from '@nestjs/common';
 
+import type { TransactionClient } from '../database/transaction-runner.js';
+
+/** Подразделение для показа ссылки (Р6): имя и признак активности —
+ *  архивное подразделение у старого значения остаётся читаемым. */
+export interface DepartmentRef {
+  id: string;
+  name: string;
+  isActive: boolean;
+}
+
 /**
  * Порт чтения оргструктуры (ADR-0012): модулю задач нужно «кто мои
  * подчинённые» для видимости задач (канон Битрикса: руководитель видит
@@ -12,6 +22,14 @@ export interface OrgStructureReader {
    *  руководителей (manager_id вниз на любую глубину) и члены подразделений
    *  (с дочерними), где он руководитель или заместитель. */
   subordinateIds(userId: string): Promise<string[]>;
+
+  /** Управленческое подразделение сотрудника (#431, Р5): значение по
+   *  умолчанию «подразделение автора» и валидация типа «Подразделение».
+   *  null — сотрудник без действующего управленческого подразделения. */
+  departmentOf(userId: string, tx?: TransactionClient): Promise<string | null>;
+
+  /** Подразделения по id — пачкой для DTO (Р6); отсутствующие пропущены. */
+  departmentRefs(ids: readonly string[], tx?: TransactionClient): Promise<DepartmentRef[]>;
 }
 
 export const ORG_STRUCTURE_READER: InjectionToken = 'ORG_STRUCTURE_READER';

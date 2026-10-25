@@ -1,0 +1,47 @@
+import type { InjectionToken } from '@nestjs/common';
+
+import type { TransactionClient } from '../../../core/database/transaction-runner.js';
+
+/**
+ * Read-порт справочников (ADR-0012): модулю кастомных атрибутов нужны
+ * подписи вариантов и валют для DTO определений и значений, но таблицы
+ * dictionaries принадлежат модулю-владельцу (I3/I6). Порт читает пачками
+ * (одна деталь задачи — один запрос на вид ссылки, Р6).
+ *
+ * Порт работает независимо от фичефлагов: справочники — ядро (I15).
+ */
+export const DICTIONARY_READER: InjectionToken = 'DICTIONARY_READER';
+
+/** Справочник для подписи в DTO определения (Р10). */
+export interface DictionaryRef {
+  id: string;
+  code: string;
+  name: string;
+  isSystem: boolean;
+}
+
+/** Элемент справочника для показа значения: имя и признак активности
+ *  (архивный/удалённый элемент остаётся читаемым у старых записей). */
+export interface DictionaryItemRef {
+  id: string;
+  dictionaryId: string;
+  name: string;
+  isActive: boolean;
+}
+
+export interface DictionaryReader {
+  /** Справочники по id; отсутствующие пропущены. Пустой вход — без запроса. */
+  dictionaryRefs(ids: readonly string[], tx?: TransactionClient): Promise<DictionaryRef[]>;
+
+  /** Элементы по id (включая архивные и удалённые: значения с ними читаются
+   *  пустыми — терпимое чтение). Пустой вход — без запроса. */
+  itemRefs(ids: readonly string[], tx?: TransactionClient): Promise<DictionaryItemRef[]>;
+
+  /** Действующий элемент справочника — для записи значения (Р1: «элемент
+   *  активный»). null — элемента нет, он архивный или из чужого справочника. */
+  activeItemRef(
+    dictionaryId: string,
+    itemId: string,
+    tx?: TransactionClient,
+  ): Promise<DictionaryItemRef | null>;
+}
