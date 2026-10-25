@@ -6,6 +6,7 @@ import type {
 } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { Checkbox } from '@nodus/ui/components/checkbox';
+import { cn } from '@nodus/ui/lib/utils';
 
 import { useRouteDocStore } from '../../../model/route-doc-store.js';
 import { toggleValidator, validatorOf } from '../../../model/transition-rules.js';
@@ -120,4 +121,54 @@ export function previewTransition(
     form: t.form.enabled ? t.form : null,
     validators: t.rules.validators,
   };
+}
+
+/** Выбор режима раздела: полные строки, а не сегменты — длинная подпись
+ *  «Если ещё не списаны» в сегменте обрезалась (#380, замечание владельца). */
+export function ModeChoices<T extends string>({
+  value,
+  options,
+  disabled,
+  onChange,
+}: {
+  value: T;
+  options: readonly { value: T; label: string; hint: string }[];
+  disabled: boolean;
+  onChange: (value: T) => void;
+}) {
+  return (
+    <div role="radiogroup" className="flex min-w-0 flex-col gap-1">
+      {options.map((option) => {
+        const active = option.value === value;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            disabled={disabled}
+            onClick={() => onChange(option.value)}
+            className={cn(
+              'flex min-w-0 items-start gap-2.5 rounded-md border px-2.5 py-2 text-left transition-colors',
+              active ? 'border-primary bg-primary/5' : 'border-border hover:bg-accent/60',
+            )}
+          >
+            <span
+              aria-hidden
+              className={cn(
+                'mt-0.5 size-3.5 shrink-0 rounded-full border',
+                active
+                  ? 'border-primary bg-primary ring-2 ring-primary/20'
+                  : 'border-muted-foreground/50',
+              )}
+            />
+            <span className="flex min-w-0 flex-col gap-0.5">
+              <span className="text-sm">{option.label}</span>
+              <span className="text-xs break-words text-muted-foreground">{option.hint}</span>
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
 }

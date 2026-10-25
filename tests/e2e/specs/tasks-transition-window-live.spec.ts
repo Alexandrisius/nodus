@@ -22,6 +22,47 @@ const PNG = Buffer.from(
   'base64',
 );
 
+interface Session {
+  token: string;
+  id: string;
+}
+
+/** API-сессия: access-токен живёт в памяти SPA, page.request его не видит. */
+async function apiLogin(user: { email: string; password: string }): Promise<Session> {
+  const login = await fetch(`${API}/auth/login`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ email: user.email, password: user.password }),
+  });
+  expect(login.status, `login ${user.email} → ${login.status}`).toBe(200);
+  const tokens = (await login.json()) as { accessToken: string };
+  const me = await fetch(`${API}/auth/me`, {
+    headers: { authorization: `Bearer ${tokens.accessToken}` },
+  });
+  expect(me.status).toBe(200);
+  const profile = (await me.json()) as { id: string };
+  return { token: tokens.accessToken, id: profile.id };
+}
+
+async function api<T>(
+  session: Session,
+  method: 'GET' | 'POST',
+  path: string,
+  data?: unknown,
+): Promise<T> {
+  const response = await fetch(`${API}${path}`, {
+    method,
+    headers: {
+      authorization: `Bearer ${session.token}`,
+      'content-type': 'application/json',
+      'Idempotency-Key': crypto.randomUUID(),
+    },
+    body: data === undefined ? undefined : JSON.stringify(data),
+  });
+  expect(response.status, `${method} ${path} → ${response.status}`).toBeLessThan(300);
+  return (await response.json()) as T;
+}
+
 async function login(page: Page, user: { email: string; password: string }) {
   await page.goto('/');
   await page.getByLabel('Рабочая почта').fill(user.email);
@@ -30,39 +71,24 @@ async function login(page: Page, user: { email: string; password: string }) {
   await expect(page).toHaveURL(/\/home$/);
 }
 
-/** JSON-вызов API из сессии страницы (cookie-auth). */
-async function api<T>(
-  page: Page,
-  method: 'GET' | 'POST',
-  path: string,
-  data?: unknown,
-): Promise<T> {
-  const response = await page.request.fetch(`${API}${path}`, {
-    method,
-    data: data as never,
-    headers: { 'content-type': 'application/json' },
-  });
-  expect(response.status(), `${method} ${path} → ${response.status()}`).toBeLessThan(300);
-  return (await response.json()) as T;
-}
-
 test.describe('окно перехода (#380)', () => {
   test.skip(!LIVE, 'Пропущено: задай E2E_LIVE_API=1 и NODUS_BASE_URL на живую сборку');
 
   test('акт из чата: окно «Завершить» → утверждение видит сдачу', async ({ browser }) => {
     test.setTimeout(180_000);
+    const adminSession = await apiLogin(ADMIN);
     const adminContext = await browser.newContext();
     const adminPage = await adminContext.newPage();
     await login(adminPage, ADMIN);
 
     // 1. Окно у «Завершить»: файлы итога, минимум 1 (публикация через API —
     //    та же доменная публикация, что кнопка «Опубликовать» редактора).
-    const types = await api<{ items: { code: string | null; workflowId: string }[] }>(
-      adminPage,
+    const types = await api<{ code: string | null; workflowId: string }[]>(
+      adminSession,
       'GET',
       '/workflows/types',
     );
-    const standard = types.items.find((t) => t.code === 'task')!;
+    const standard = types.find((t) => t.code === 'task')!;
     const detail = await api<{
       version: number;
       document: {
@@ -70,7 +96,7 @@ test.describe('окно перехода (#380)', () => {
         transitions: { name: string; form?: unknown }[];
         layout?: unknown;
       };
-    }>(adminPage, 'GET', `/workflows/${standard.workflowId}`);
+    }>(adminSession, 'GET', `/workflows/${standard.workflowId}`);
     const document = {
       ...detail.document,
       transitions: detail.document.transitions.map((t) =>
@@ -88,7 +114,7 @@ test.describe('окно перехода (#380)', () => {
           : t,
       ),
     };
-    await api(adminPage, 'POST', `/workflows/${standard.workflowId}/publish`, {
+    await api(adminSession, 'POST', `/workflows/${standard.workflowId}/publish`, {
       baseVersion: detail.version,
       document,
       migrations: [],
@@ -96,33 +122,38 @@ test.describe('окно перехода (#380)', () => {
 
     // 2. Задача постановщика (админ) на исполнителя NIGHT_A.
     const people = await api<{ items: { id: string; email: string }[] }>(
-      adminPage,
+      adminSession,
       'GET',
       `/directory/users?status=active&search=${encodeURIComponent(NIGHT_A.email)}`,
     );
     const executor = people.items[0]!;
     const title = `E2E окно ${Date.now() % 100000}`;
-    const task = await api<{ id: string }>(adminPage, 'POST', '/tasks', {
+    const task = await api<{ id: string }>(adminSession, 'POST', '/tasks', {
       title,
       assigneeId: executor.id,
     });
     const chat = await api<{ id: string }>(
-      adminPage,
+      adminSession,
       'GET',
       `/chat/conversations/by-task/${task.id}`,
     );
 
     // 3. «Акт» уже в чате задачи: загрузка + сообщение (файлы задачи — вложения
     //    её чата, канон #252).
-    const upload = await adminPage.request.post(`${API}/chat/attachments`, {
-      multipart: {
-        size: String(PNG.length),
-        file: { name: 'akt.png', mimeType: 'image/png', buffer: PNG },
+    const form = new FormData();
+    form.set('size', String(PNG.length));
+    form.set('file', new Blob([PNG], { type: 'image/png' }), 'akt.png');
+    const upload = await fetch(`${API}/chat/attachments`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${adminSession.token}`,
+        'Idempotency-Key': crypto.randomUUID(),
       },
+      body: form,
     });
-    expect(upload.status()).toBe(201);
+    expect(upload.status).toBe(201);
     const attachment = (await upload.json()) as { id: string };
-    await api(adminPage, 'POST', `/chat/conversations/${chat.id}/messages`, {
+    await api(adminSession, 'POST', `/chat/conversations/${chat.id}/messages`, {
       text: 'Акт выполненных работ',
       attachmentIds: [attachment.id],
     });
@@ -139,8 +170,9 @@ test.describe('окно перехода (#380)', () => {
     await card.getByRole('button', { name: 'Завершить' }).click();
 
     const window = executorPage.getByRole('dialog').filter({ hasText: 'Завершить' });
-    await expect(window.getByText('Файлы итога')).toBeVisible();
+    await expect(window.getByText('Акт выполненных работ')).toBeVisible();
     await window.getByRole('button', { name: 'Выбрать из чата задачи' }).click();
+    await window.getByRole('tab', { name: 'Изображения' }).click();
     await window.getByRole('button', { name: /akt\.png/ }).click();
     await window.getByRole('button', { name: 'Завершить', exact: true }).click();
     await expect(executorPage.getByText('На утверждении').first()).toBeVisible({
@@ -162,13 +194,14 @@ test.describe('окно перехода (#380)', () => {
 
   test('«Приостановить» требует причину, причина видна блоком в чате', async ({ browser }) => {
     test.setTimeout(120_000);
+    const session = await apiLogin(NIGHT_A);
     const context = await browser.newContext();
     const page = await context.newPage();
     await login(page, NIGHT_A);
     const title = `E2E пауза ${Date.now() % 100000}`;
-    const task = await api<{ id: string }>(page, 'POST', '/tasks', {
+    const task = await api<{ id: string }>(session, 'POST', '/tasks', {
       title,
-      assigneeId: (await api<{ id: string }>(page, 'GET', '/directory/me')).id,
+      assigneeId: session.id,
     });
     await page.goto('/tasks');
     await page.getByText(title).first().click();

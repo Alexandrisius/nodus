@@ -19,9 +19,10 @@ import {
 } from '../../../model/transition-form.js';
 import { setMinFiles, validatorOf } from '../../../model/transition-rules.js';
 import { TransitionWindow } from '../../../../../shared/workflow/transition-window/transition-window.js';
-import { PanelField, Segmented, SwitchRow } from './panel-kit.js';
+import { PanelField, SwitchRow } from './panel-kit.js';
 import {
   GateCheck,
+  ModeChoices,
   RequiredCheck,
   SectionToggle,
   previewTransition,
@@ -101,12 +102,20 @@ export function WindowSection({
             onToggle={() => toggle('time')}
           >
             <div className="flex flex-col gap-2">
-              <Segmented
+              <ModeChoices
                 value={sectionOf(form, 'time')?.mode ?? 'if_empty'}
                 disabled={readOnly}
                 options={[
-                  { value: 'if_empty', label: ui.automation.window.modeIfEmpty },
-                  { value: 'always', label: ui.automation.window.modeAlways },
+                  {
+                    value: 'if_empty',
+                    label: ui.automation.window.modeIfEmpty,
+                    hint: ui.automation.window.modeIfEmptyHint,
+                  },
+                  {
+                    value: 'always',
+                    label: ui.automation.window.modeAlways,
+                    hint: ui.automation.window.modeAlwaysHint,
+                  },
                 ]}
                 onChange={(mode) => patch(setTimeMode(form, mode))}
               />

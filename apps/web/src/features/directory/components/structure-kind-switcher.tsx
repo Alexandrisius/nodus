@@ -1,6 +1,6 @@
 import type { OrgUnitKind } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
-import { cn } from '@nodus/ui/lib/utils';
+import { SegmentedControl } from '../../../shared/ui/segmented-control.js';
 
 /**
  * Переключатель управленческая/юридическая структура — пилюля ТОГО же образца,
@@ -17,27 +17,17 @@ export function StructureKindSwitcher({
   onChange: (kind: OrgUnitKind) => void;
 }) {
   return (
-    <div
-      role="group"
-      aria-label={ui.employees.structure}
-      className="flex shrink-0 items-center gap-0.5 rounded-lg border border-border p-0.5"
-    >
-      {(['management', 'legal'] as const).map((value) => (
-        <button
-          key={value}
-          type="button"
-          aria-pressed={kind === value}
-          onClick={() => onChange(value)}
-          className={cn(
-            'rounded-md px-2 py-0.5 text-xs font-medium transition-colors',
-            kind === value
-              ? 'bg-accent text-foreground'
-              : 'text-muted-foreground hover:text-foreground',
-          )}
-        >
-          {value === 'management' ? ui.employees.kindManagement : ui.employees.kindLegal}
-        </button>
-      ))}
-    </div>
+    <SegmentedControl
+      value={kind}
+      options={[
+        { value: 'management', label: ui.employees.kindManagement },
+        { value: 'legal', label: ui.employees.kindLegal },
+      ]}
+      onChange={onChange}
+      ariaLabel={ui.employees.structure}
+      className="shrink-0"
+      size="sm"
+      activeClassName="bg-accent text-foreground"
+    />
   );
 }

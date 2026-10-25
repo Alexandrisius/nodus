@@ -1,7 +1,8 @@
-import { cn } from '@nodus/ui/lib/utils';
 import { ChevronRight, Trash2 } from 'lucide-react';
 import { Button } from '@nodus/ui/components/button';
 import { Switch } from '@nodus/ui/components/switch';
+
+import { SegmentedControl } from '../../../../../shared/ui/segmented-control.js';
 
 /**
  * Примитивы правой панели редактора (#378 ред. 2) — ОДНА грамматика для
@@ -114,26 +115,7 @@ export function Segmented<T extends string>({
   onChange: (value: T) => void;
 }) {
   return (
-    <div role="radiogroup" className="flex min-w-0 rounded-[10px] border border-border p-0.5">
-      {options.map((option) => (
-        <button
-          key={option.value}
-          type="button"
-          role="radio"
-          aria-checked={value === option.value}
-          disabled={disabled}
-          onClick={() => onChange(option.value)}
-          className={cn(
-            'min-w-0 flex-1 truncate rounded-lg px-2 py-1.5 text-xs transition-colors',
-            value === option.value
-              ? 'bg-primary text-primary-foreground'
-              : 'text-muted-foreground hover:bg-accent',
-          )}
-        >
-          {option.label}
-        </button>
-      ))}
-    </div>
+    <SegmentedControl value={value} options={options} disabled={disabled} onChange={onChange} />
   );
 }
 
