@@ -41,6 +41,9 @@ nodus/
 │   │       └── modules/
 │   │           └── <module>/  # controller / service / repository / events / README.md
 │   │                          # (внешние клиенты — внутри модуля-владельца: files/storage)
+│   │                          # порты: ports/*.port.ts + *-ports.module.ts (ADR-0012)
+│   │                          # адаптер сущности для чужого движка: *-workflow.adapter.ts
+│   │                          # + static workflowCategory (patterns.md, ADR-0024)
 │   ├── gateway/               # WebSocket gateway (Socket.IO): auth, presence, fanout; perf/ — k6
 │   └── desktop/               # Tauri-оболочка портала (M17)
 ├── packages/
@@ -74,7 +77,7 @@ nodus/
 
 - Один файл = одна ответственность. Цель ≤ 200 строк, ориентир ≤ 300; линтер: предупреждение > 300, ошибка > 500; 300–500 — только с комментарием-обоснованием.
 - Один компонент / класс / сущность на файл. Имя файла = имя сущности (kebab-case).
-- Запрещены импорты `apps/api/src/modules/X/*` из модуля `Y` — только события и `@nodus/contracts` (исключение — read-порты `*.port.ts`/`*-ports.module.ts`, ADR-0012). Запрещены импорты между приложениями (`web` ↔ `api` ↔ `gateway`) и `core` → `modules`. Контроль: `eslint-plugin-boundaries` + CI, тест-кейсы — `tests/lint`.
+- Запрещены импорты `apps/api/src/modules/X/*` из модуля `Y` — только события и `@nodus/contracts` (исключение — read-порты `*.port.ts`/`*-ports.module.ts`, ADR-0012). Платформенные движки с сущностями чужих модулей работают через **адаптер сущности**: интерфейс — `core/ports/<область>.port.ts`, реализация — у владельца данных (`<модуль>/**/*-workflow.adapter.ts`), регистрация — `DiscoveryService` по статическому маркеру (ADR-0024, patterns.md). Запрещены импорты между приложениями (`web` ↔ `api` ↔ `gateway`) и `core` → `modules`. Контроль: `eslint-plugin-boundaries` + CI, тест-кейсы — `tests/lint`.
 - Barrel `index.ts` допускается только на границе модуля (публичный контракт), не внутри.
 - Генерируемое (Prisma client, OpenAPI) в репозиторий не коммитится.
 - Любая новая папка модуля содержит `README.md`: назначение, контракты, события, лимиты.

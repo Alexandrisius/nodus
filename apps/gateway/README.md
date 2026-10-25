@@ -2,8 +2,8 @@
 
 WebSocket-gateway портала (I1: отдельный процесс): Socket.IO — auth-хендшейк,
 комнаты бесед, fanout доменных событий всех модулей (`chat.*` включая стикеры, `task.*`,
-`notification.*`, `directory.user.deactivated`) из Redis Stream, «печатает…»,
-presence. Спека — issue #104 (трек M13).
+`workflow.*`, `notification.*`, `directory.user.deactivated`) из Redis Stream,
+«печатает…», presence. Спека — issue #104 (трек M13).
 
 ## Запуск
 
@@ -70,6 +70,10 @@ user-рассылки исключён (свои вкладки свою печ�
 conv-комнату (троттл-ключ включает root): индикатор — шапка окна треда, в
 список бесед и шапки каналов не попадает.
 `task.*` → user-комнаты из `payload.audience`; `notification.*` → `user:{userId}`.
+`workflow.*` (#428, ADR-0024) — только каталожные события (`WORKFLOW_CATALOG_EVENTS`:
+`type_created / type_updated / type_archived / published / layout_changed`) → комната
+`presence` (схемы видят все); список явный, а не префикс: у ADR-0025 будут
+некаталожные `workflow.*` со своей адресацией.
 `chat.sticker_*` (#318, беседы нет): установка/снятие пака → `user:{userId}`;
 содержимое пака — корпоративный → комната `presence` (все аутентифицированные
 сокеты), личный → user-комнаты `payload.audience` (владелец + установившие).
