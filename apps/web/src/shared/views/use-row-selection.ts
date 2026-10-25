@@ -6,7 +6,16 @@ import { useCallback, useMemo, useState } from 'react';
  *  и подгрузку страниц (ключи не сбрасываются) — групповые действия островка
  *  (#311) получают стабильный набор. Потребители: DataTable и TaskList (одинаковая
  *  механика во всех списках — принцип одного прохода). */
-export function useRowSelection(rowKeys: readonly string[]) {
+/** Состояние выбора строк журнала — контракт DataTable и островка действий. */
+export interface RowSelection {
+  selected: ReadonlySet<string>;
+  toggle: (key: string) => void;
+  toggleAll: () => void;
+  clear: () => void;
+  headerChecked: boolean | 'indeterminate';
+}
+
+export function useRowSelection(rowKeys: readonly string[]): RowSelection {
   const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set());
 
   const toggle = useCallback((key: string) => {

@@ -170,3 +170,33 @@ export const updateContactPersonBodySchema = addContactPersonBodySchema
   .refine((v) => Object.keys(v).length > 0, { message: 'empty update' });
 
 export type UpdateContactPersonBody = z.infer<typeof updateContactPersonBodySchema>;
+
+/** Массовые операции над контрагентами (#460): архив и возврат пачкой.
+ *  Каждая запись проверяется отдельно (права, существование) — частичный
+ *  успех норма, ответ по записи (как у задач, `taskBulkResultSchema`). */
+export const counterpartyBulkActionSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('archive') }),
+  z.object({ kind: z.literal('restore') }),
+]);
+
+export type CounterpartyBulkAction = z.infer<typeof counterpartyBulkActionSchema>;
+
+export const bulkCounterpartiesBodySchema = z.object({
+  counterpartyIds: z.array(z.uuid()).min(1).max(100),
+  action: counterpartyBulkActionSchema,
+});
+
+export type BulkCounterpartiesBody = z.infer<typeof bulkCounterpartiesBodySchema>;
+
+export const counterpartyBulkResultSchema = z.object({
+  results: z.array(
+    z.object({
+      counterpartyId: z.uuid(),
+      ok: z.boolean(),
+      /** Код ошибки (ErrorCode) при ok=false. */
+      code: z.string().optional(),
+    }),
+  ),
+});
+
+export type CounterpartyBulkResult = z.infer<typeof counterpartyBulkResultSchema>;

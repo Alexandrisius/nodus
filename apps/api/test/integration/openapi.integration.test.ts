@@ -143,6 +143,7 @@ describe('OpenAPI: генерация из кода и публикация /api
       '/api/v1/dictionaries/{code}/items',
       '/api/v1/counterparties',
       '/api/v1/counterparties/similar',
+      '/api/v1/counterparties/bulk',
       '/api/v1/counterparties/{id}',
       '/api/v1/counterparties/{id}/archive',
       '/api/v1/counterparties/{id}/restore',

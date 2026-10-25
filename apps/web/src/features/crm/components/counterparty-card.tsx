@@ -10,13 +10,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@nodus/ui/components/dialog';
+import { NodeChip } from '@nodus/ui/components/node-chip';
 import { Skeleton } from '@nodus/ui/components/skeleton';
 
-import { ApiError } from '../../../shared/api-client.js';
 import { useCounterpartyCard } from '../../../shared/counterparties/queries.js';
 import { useCanManageCounterparties } from '../../../shared/counterparties/use-crm-permissions.js';
 import { useSetCounterpartyArchived } from '../api/counterparty-edit.js';
-import { ContactPersons } from './contact-persons.js';
+import { ContactPersonsPanel } from './contact-persons.js';
 import { CounterpartyFormDialog } from './counterparty-form-dialog.js';
 import { CounterpartyRelated } from './counterparty-related.js';
 import { CounterpartyRequisites } from './counterparty-requisites.js';
@@ -43,46 +43,60 @@ function CardNotFound() {
   );
 }
 
-/** Действия шапки карточки: правка, архив/возврат (право `crm.manage`). */
-function CardActions({ counterpartyId, archived }: { counterpartyId: string; archived: boolean }) {
+/** Действия карточки — нижний бар h-16, кнопки СЛЕВА (анатомия карточки
+ *  письма/задачи); право `crm.manage` (сервер — истина, I8). */
+function CardBottomBar({
+  counterpartyId,
+  archived,
+}: {
+  counterpartyId: string;
+  archived: boolean;
+}) {
   const canManage = useCanManageCounterparties();
   const setArchived = useSetCounterpartyArchived(counterpartyId);
   const [editOpen, setEditOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const { data: card } = useCounterpartyCard(counterpartyId);
-  if (!canManage) return null;
+  if (!canManage) {
+    return archived ? (
+      <span className="text-xs text-muted-foreground">{ui.counterparties.archivedHint}</span>
+    ) : null;
+  }
 
   return (
     <>
-      <div className="flex shrink-0 items-center gap-2">
-        {archived ? (
+      {archived ? (
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={setArchived.isPending}
+          onClick={() => setArchived.mutate(false)}
+        >
+          <RotateCcw data-icon="inline-start" />
+          {ui.counterparties.restore}
+        </Button>
+      ) : (
+        <>
+          <Button size="sm" variant="outline" onClick={() => setEditOpen(true)}>
+            <Pencil data-icon="inline-start" />
+            {ui.counterparties.edit}
+          </Button>
           <Button
             size="sm"
-            variant="outline"
-            disabled={setArchived.isPending}
-            onClick={() => setArchived.mutate(false)}
+            variant="ghost"
+            className="text-muted-foreground hover:text-foreground"
+            onClick={() => setConfirmOpen(true)}
           >
-            <RotateCcw data-icon="inline-start" />
-            {ui.counterparties.restore}
+            <Archive data-icon="inline-start" />
+            {ui.counterparties.archive}
           </Button>
-        ) : (
-          <>
-            <Button size="sm" variant="outline" onClick={() => setEditOpen(true)}>
-              <Pencil data-icon="inline-start" />
-              {ui.counterparties.edit}
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="text-muted-foreground hover:text-foreground"
-              onClick={() => setConfirmOpen(true)}
-            >
-              <Archive data-icon="inline-start" />
-              {ui.counterparties.archive}
-            </Button>
-          </>
-        )}
-      </div>
+        </>
+      )}
+      {archived ? (
+        <span className="ml-2 min-w-0 truncate text-xs text-muted-foreground">
+          {ui.counterparties.archivedHint}
+        </span>
+      ) : null}
 
       <CounterpartyFormDialog open={editOpen} onOpenChange={setEditOpen} card={card ?? null} />
 
@@ -111,53 +125,62 @@ function CardActions({ counterpartyId, archived }: { counterpartyId: string; arc
 }
 
 /**
- * Карточка контрагента (стек, ADR-0009): реквизиты (реестр полей с настройкой
- * видимости), контактные лица (добавление/правка/архив), связанные письма и
- * проекты — только при непустых счётчиках (#460). Состояния: загрузка,
- * «не найден / нет доступа», архивная карточка (read-only + «Вернуть из
- * архива»), действия правки — по праву `crm.manage` (сервер — истина, I8).
+ * Карточка контрагента (стек, ADR-0009) — анатомия карточки письма/задачи
+ * (вердикт владельца 25.10.2026): ЛЕВАЯ зона — данные (реквизиты реестром
+ * полей, связанные письма и проекты при непустых счётчиках) и нижний бар h-16
+ * с действиями СЛЕВА; ПРАВАЯ колонка — панель данных «Контакты» (как чат у
+ * письма: полновысотная, своя шапка с линией бара, своя прокрутка).
+ * Состояния: загрузка, «не найден / нет доступа», архивная карточка
+ * (read-only + «Вернуть из архива»).
  */
 export function CounterpartyCard({ counterpartyId }: { counterpartyId: string }) {
-  const { data: card, isLoading, error } = useCounterpartyCard(counterpartyId);
+  const { data: card, isLoading } = useCounterpartyCard(counterpartyId);
 
   if (isLoading) return <CardSkeleton />;
-  if (!card) {
-    if (error instanceof ApiError && error.status === 404) return <CardNotFound />;
-    return <CardNotFound />;
-  }
+  if (!card) return <CardNotFound />;
   const archived = card.archivedAt !== null;
 
   return (
-    <div className="content-fade h-full overflow-y-auto">
-      <div className="@container mx-auto w-full max-w-4xl p-6">
-        <div className="flex items-start gap-3">
-          <span className="node-panel flex size-10 shrink-0 items-center justify-center">
-            <Building2 className="size-4.5 text-muted-foreground" strokeWidth={1.5} />
-          </span>
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-lg font-semibold text-foreground">{card.shortName}</h2>
-              {archived ? (
-                <span className="rounded bg-muted px-1.5 py-0.5 text-label-sm text-muted-foreground">
-                  {ui.counterparties.archivedBadge}
-                </span>
-              ) : null}
-            </div>
-            <div className="mt-0.5 text-sm text-muted-foreground">{card.fullName}</div>
-            {archived ? (
-              <p className="mt-1 text-xs text-muted-foreground">{ui.counterparties.archivedHint}</p>
-            ) : null}
-          </div>
-          <CardActions counterpartyId={card.id} archived={archived} />
-        </div>
+    <div className="flex h-full min-w-0">
+      <div className="flex h-full min-w-0 flex-1 flex-col">
+        <div
+          className="relative grid min-h-0 flex-1"
+          style={{ gridTemplateColumns: 'minmax(0,1fr) auto' }}
+        >
+          <div className="relative flex min-h-0 flex-col border-r border-border @container">
+            <div className="content-fade min-h-0 flex-1 overflow-y-auto p-6">
+              <div className="mx-auto max-w-3xl">
+                <div className="flex items-start gap-3">
+                  <span className="node-panel flex size-10 shrink-0 items-center justify-center">
+                    <Building2 className="size-4.5 text-muted-foreground" strokeWidth={1.5} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="text-lg font-semibold text-foreground">{card.shortName}</h2>
+                      {archived ? (
+                        <NodeChip tone="muted">{ui.counterparties.archivedBadge}</NodeChip>
+                      ) : null}
+                    </div>
+                    <div className="mt-0.5 text-sm text-muted-foreground">{card.fullName}</div>
+                  </div>
+                </div>
 
-        <CounterpartyRequisites card={card} />
-        <ContactPersons
-          counterpartyId={card.id}
-          contacts={card.contactPersons}
-          readOnly={archived}
-        />
-        <CounterpartyRelated card={card} />
+                <CounterpartyRequisites card={card} />
+                <CounterpartyRelated card={card} />
+              </div>
+            </div>
+
+            <div className="flex h-16 shrink-0 items-center gap-2 border-t border-border px-5">
+              <CardBottomBar counterpartyId={card.id} archived={archived} />
+            </div>
+          </div>
+
+          <ContactPersonsPanel
+            counterpartyId={card.id}
+            contacts={card.contactPersons}
+            readOnly={archived}
+          />
+        </div>
       </div>
     </div>
   );

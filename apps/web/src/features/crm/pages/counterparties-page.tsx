@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
@@ -12,7 +12,9 @@ import { DataTable } from '../../../shared/views/data-table.js';
 import { makeCardRowMenuItems } from '../../../shared/views/card-row-menu.js';
 import { ListToolbar } from '../../../shared/views/list-toolbar.js';
 import { useListToolbar } from '../../../shared/views/use-list-toolbar.js';
+import { useRowSelection } from '../../../shared/views/use-row-selection.js';
 import { ViewSettings } from '../../../shared/views/view-settings.js';
+import { CounterpartyBulkIsland } from '../components/counterparty-bulk-island.js';
 import { CounterpartyFormDialog } from '../components/counterparty-form-dialog.js';
 import { counterpartyFields } from '../lib/counterparty-fields.js';
 
@@ -24,7 +26,8 @@ import { counterpartyFields } from '../lib/counterparty-fields.js';
  * (название, полное название, УНП) с задержкой 250 мс, переключатель
  * «Показывать архивные»; счётчик в заголовке — N, при недогруженных
  * страницах N+ (истинное число строк сервер не отдаёт — totals нет).
- * «Создать» — только с правом `crm.create` (сервер — истина, I8).
+ * Выделение строк ведёт ОБЩИЙ островок массовых действий (архив/возврат
+ * пачкой, до 100). «Создать» — только с правом `crm.create` (I8).
  */
 export function CounterpartiesPage() {
   const toolbar = useListToolbar('counterparties.list');
@@ -36,16 +39,17 @@ export function CounterpartiesPage() {
   const canCreate = useCanCreateCounterparties();
   const [createOpen, setCreateOpen] = useState(false);
 
-  const rows = data?.pages.flatMap((page) => page.items) ?? [];
-  const total = rows.length;
+  const rows = useMemo(() => data?.pages.flatMap((page) => page.items) ?? [], [data]);
+  const rowKeys = useMemo(() => rows.map((row) => row.id), [rows]);
+  const selection = useRowSelection(rowKeys);
 
   return (
     <div className="relative flex h-full flex-col">
       <div className="flex h-14 shrink-0 items-center gap-3 px-6">
-        <h1 className="shrink-0 text-xl font-semibold text-balance text-foreground">
+        <h1 className="flex shrink-0 items-baseline gap-2 text-xl font-semibold text-balance text-foreground">
           {ui.counterparties.title}
-          <span className="ml-2 align-middle font-mono text-label-lg font-normal text-muted-foreground tabular-nums">
-            {total}
+          <span className="inline-block min-w-8 font-mono text-label-lg font-normal text-muted-foreground tabular-nums">
+            {rows.length}
             {hasNextPage ? '+' : ''}
           </span>
         </h1>
@@ -83,6 +87,7 @@ export function CounterpartiesPage() {
           defs={counterpartyFields}
           rows={rows}
           rowKey={(c) => c.id}
+          selection={selection}
           isLoading={isLoading}
           hasNextPage={hasNextPage}
           isFetchingNextPage={isFetchingNextPage}
@@ -94,6 +99,12 @@ export function CounterpartiesPage() {
           rowMenu={(c) => makeCardRowMenuItems({ kind: 'counterparty', id: c.id }, openCard)}
         />
       </div>
+      {selection.selected.size > 0 ? <div aria-hidden className="h-24" /> : null}
+      <CounterpartyBulkIsland
+        selectedIds={[...selection.selected]}
+        visible={selection.selected.size > 0}
+        onClear={selection.clear}
+      />
       <CounterpartyFormDialog open={createOpen} onOpenChange={setCreateOpen} />
     </div>
   );

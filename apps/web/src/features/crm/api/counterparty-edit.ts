@@ -1,6 +1,8 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type {
+  BulkCounterpartiesBody,
   ContactPerson,
+  CounterpartyBulkResult,
   CounterpartyCard,
   CounterpartyListItem,
   Paginated,
@@ -183,6 +185,31 @@ export function useSetContactArchived(counterpartyId: string, contactId: string)
           : ui.counterparties.contactRestoredDone,
       );
     },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: counterpartiesKeys.all });
+    },
+  });
+}
+
+/** Массовый архив/возврат (островок массовых действий реестра): один запрос,
+ *  результат по записи — частичный успех норма. Тост «изменено n из m». */
+export function useBulkCounterparties() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: BulkCounterpartiesBody) =>
+      api<CounterpartyBulkResult>('/counterparties/bulk', { method: 'POST', body }),
+    onSuccess: (result) => {
+      const done = result.results.filter((row) => row.ok).length;
+      const total = result.results.length;
+      if (done === total) toast.success(ui.counterparties.bulkDone.replace('{n}', String(done)));
+      else
+        toast.warning(
+          ui.counterparties.bulkPartial
+            .replace('{done}', String(done))
+            .replace('{total}', String(total)),
+        );
+    },
+    onError: (error) => toastApiError(error),
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: counterpartiesKeys.all });
     },

@@ -1,8 +1,7 @@
-import { CalendarClock, ChevronDown, Flag, Milestone, User, X } from 'lucide-react';
+import { CalendarClock, ChevronDown, Flag, Milestone, User } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import type { TaskBulkAction, TaskListItem } from '@nodus/contracts';
 import { taskPrioritySchema, ui } from '@nodus/contracts';
-import { Button } from '@nodus/ui/components/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,6 +13,7 @@ import { cn } from '@nodus/ui/lib/utils';
 import { toast } from 'sonner';
 
 import { useTaskStages } from '../../../shared/api/task-stages.js';
+import { BulkIsland, bulkActionClass as action } from '../../../shared/views/bulk-island.js';
 import { stageTone } from '../../../shared/ui/board/stage-tone.js';
 import { DateTimePicker } from '../../../shared/ui/date-time-picker.js';
 import { PeoplePicker } from '../../../shared/ui/people-picker.js';
@@ -21,9 +21,6 @@ import { priorityTone } from '../../../shared/views/task-table-fields.js';
 import { useBulkTasks } from '../api/task-edit-api.js';
 
 const BULK_LIMIT = 100;
-
-const action =
-  'inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground';
 
 function ActionLabel({ icon, children }: { icon: ReactNode; children: ReactNode }) {
   return (
@@ -36,13 +33,11 @@ function ActionLabel({ icon, children }: { icon: ReactNode; children: ReactNode 
 }
 
 /**
- * Островок массовых действий журнала (#311, вердикт владельца: «как
- * островок мультиселекта сообщений в чате»): выделил строки — снизу по
- * центру всплывает узкое облако команд (счётчик, стадия, ответственный,
- * срок, приоритет, ×). Каждая задача проверяется сервером отдельно
- * (права, гейты маршрута): отчёт «изменено n из m» + сколько пропущено.
- * Обёртка смонтирована ВСЕГДА (закон выдвижных поверхностей): появление —
- * flip классов существующего элемента, плавно с первого раза.
+ * Островок массовых действий журнала задач (#311): каркас — общий
+ * `shared/views/bulk-island` (одна механика во всех модулях), здесь —
+ * только действия задачи: стадия, ответственный, срок, приоритет. Каждая
+ * задача проверяется сервером отдельно (права, гейты маршрута): отчёт
+ * «изменено n из m» + сколько пропущено.
  */
 export function TaskBulkIsland({
   selectedIds,
@@ -76,19 +71,13 @@ export function TaskBulkIsland({
   }
 
   return (
-    <div
-      role="toolbar"
-      aria-label={ui.tasks.title}
-      aria-hidden={!visible}
-      className={cn(
-        'absolute bottom-6 left-1/2 z-20 flex -translate-x-1/2 items-center gap-0.5 rounded-2xl border border-border bg-card p-1.5 shadow-sm transition-[opacity,translate] duration-200 ease-out',
-        visible ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-4 opacity-0',
-        bulk.isPending && 'pointer-events-none opacity-70',
-      )}
+    <BulkIsland
+      visible={visible}
+      count={shownCount}
+      ariaLabel={ui.tasks.title}
+      pending={bulk.isPending}
+      onClear={onClear}
     >
-      <span className="px-2.5 font-mono text-label-sm text-foreground tabular-nums">
-        {shownCount}
-      </span>
       <DropdownMenu>
         <DropdownMenuTrigger
           className={action}
@@ -152,18 +141,6 @@ export function TaskBulkIsland({
           ))}
         </DropdownMenuContent>
       </DropdownMenu>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        tabIndex={visible ? 0 : -1}
-        className="ml-1 shrink-0 text-muted-foreground"
-        aria-label={ui.tasks.bulkClear}
-        title={ui.tasks.bulkClear}
-        onClick={onClear}
-      >
-        <X className="size-4" strokeWidth={1.75} />
-      </Button>
-    </div>
+    </BulkIsland>
   );
 }

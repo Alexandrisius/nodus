@@ -3,6 +3,7 @@ import {
   ErrorCode,
   apiErrorResponseSchema,
   counterpartyCardSchema,
+  counterpartyBulkResultSchema,
   counterpartyListItemSchema,
   contactPersonSchema,
   paginatedSchema,
@@ -163,6 +164,44 @@ describe.skipIf(!process.env.DATABASE_URL)('crm: реестр и жизненн�
       await json(await fx.api(manager, 'POST', `${contactPath}/restore`)),
     );
     expect(contactRestored.archivedAt).toBeNull();
+  });
+
+  it('массовый архив/возврат: результат по записи, частичный успех — норма', async () => {
+    const a = await create({ fullName: name('Пачка А'), shortName: name('Пачка А') });
+    const b = await create({ fullName: name('Пачка Б'), shortName: name('Пачка Б') });
+    const missing = crypto.randomUUID();
+
+    const archived = await fx.api(manager, 'POST', '/counterparties/bulk', {
+      body: { counterpartyIds: [a.id, b.id, missing], action: { kind: 'archive' } },
+    });
+    expect(archived.status).toBe(200);
+    const result = counterpartyBulkResultSchema.parse(await archived.json());
+    expect(result.results.filter((row) => row.ok).map((row) => row.counterpartyId)).toEqual([
+      a.id,
+      b.id,
+    ]);
+    expect(result.results.find((row) => !row.ok)).toMatchObject({
+      counterpartyId: missing,
+      code: ErrorCode.NOT_FOUND,
+    });
+
+    const restored = counterpartyBulkResultSchema.parse(
+      await json(
+        await fx.api(manager, 'POST', '/counterparties/bulk', {
+          body: { counterpartyIds: [a.id, b.id], action: { kind: 'restore' } },
+        }),
+      ),
+    );
+    expect(restored.results.every((row) => row.ok)).toBe(true);
+
+    // Право crm.manage обязательно (островок скрыт без права, сервер — истина).
+    expect(
+      (
+        await fx.api(employee, 'POST', '/counterparties/bulk', {
+          body: { counterpartyIds: [a.id], action: { kind: 'archive' } },
+        })
+      ).status,
+    ).toBe(403);
   });
 
   it('проекция счётчиков: строка counterparty_usages даёт lettersCount в реестре и карточке', async () => {

@@ -100,6 +100,8 @@ export const ui = {
     linkCopied: 'Ссылка скопирована',
     selectAll: 'Выбрать все строки',
     selectRow: 'Выбрать строку',
+    clearSelection: 'Снять выделение',
+    bulkLimit: 'За один раз можно изменить не больше записей:',
     rowMenu: 'Действия строки',
     dateToday: 'Сегодня',
     dateTomorrow: 'Завтра',

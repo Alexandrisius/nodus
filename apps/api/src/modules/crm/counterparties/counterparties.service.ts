@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import {
   CRM_EVENTS,
   ErrorCode,
+  type CounterpartyBulkAction,
+  type CounterpartyBulkResult,
   type CounterpartyCard,
   type CreateCounterpartyBody,
   type UpdateCounterpartyBody,
@@ -150,6 +152,29 @@ export class CounterpartiesService {
       );
       return this.queries.buildCard(updated, tx);
     });
+  }
+
+  /**
+   * Массовые операции (до 100 записей): каждая — через тот же `setArchived`
+   * (права и существование проверяются индивидуально, архив идемпотентен).
+   * Частичный успех — норма, ответ по записи.
+   */
+  async bulk(
+    ids: readonly string[],
+    action: CounterpartyBulkAction,
+    actorId: string,
+  ): Promise<CounterpartyBulkResult> {
+    const results: CounterpartyBulkResult['results'] = [];
+    for (const id of new Set(ids)) {
+      try {
+        await this.setArchived(id, action.kind === 'archive', actorId);
+        results.push({ counterpartyId: id, ok: true });
+      } catch (error) {
+        const code = error instanceof DomainException ? error.code : ErrorCode.INTERNAL_ERROR;
+        results.push({ counterpartyId: id, ok: false, code });
+      }
+    }
+    return { results };
   }
 
   private async assertUnpFree(unp: string): Promise<void> {

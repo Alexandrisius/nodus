@@ -10,6 +10,8 @@ import {
 import { z } from 'zod';
 import {
   Permission,
+  bulkCounterpartiesBodySchema,
+  counterpartyBulkResultSchema,
   counterpartyCardSchema,
   counterpartyListItemSchema,
   counterpartyMatchSchema,
@@ -18,6 +20,8 @@ import {
   paginatedSchema,
   similarCounterpartiesQuerySchema,
   updateCounterpartyBodySchema,
+  type BulkCounterpartiesBody,
+  type CounterpartyBulkResult,
   type CounterpartyCard,
   type CounterpartyListItem,
   type CounterpartyMatch,
@@ -85,6 +89,25 @@ export class CounterpartiesController {
     query: SimilarCounterpartiesQuery,
   ): Promise<CounterpartyMatch[]> {
     return this.queries.similar(query);
+  }
+
+  @Post('bulk')
+  @HttpCode(200)
+  @RequirePermissions(Permission.CRM_MANAGE)
+  @Audit({ action: 'crm.counterparty_bulk', entity: 'counterparty' })
+  @ApiOperation({ summary: 'Массовая операция: архив/возврат до 100 контрагентов' })
+  @ApiOkResponse({ standardSchema: counterpartyBulkResultSchema })
+  @ApiErrors(400, 401, 403)
+  @ApiIdempotencyKey()
+  bulk(
+    @Body({
+      schema: bulkCounterpartiesBodySchema,
+      pipes: [new ZodValidationPipe(bulkCounterpartiesBodySchema)],
+    })
+    dto: BulkCounterpartiesBody,
+    @GetUser() actor: AuthUser,
+  ): Promise<CounterpartyBulkResult> {
+    return this.counterparties.bulk(dto.counterpartyIds, dto.action, actor.id);
   }
 
   @Get(':id')

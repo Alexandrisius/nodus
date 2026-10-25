@@ -72,8 +72,17 @@ export function CounterpartyFormDialog({
   const set = (key: keyof Draft) => (value: string) =>
     setDraft((current) => ({ ...current, [key]: value }));
   const unp = normalizeUnp(draft.unp);
-  const { data: byUnp = [] } = useSimilarCounterparties({ name: '', unp: draft.unp });
-  const unpTaken = card ? null : (byUnp.find((match) => match.matchedBy === 'unp') ?? null);
+  // Проверка занятости УНП — только по СВЕЖИМ данным непустого поля:
+  // у выключенного запроса остаются прошлые данные (keepPreviousData), и
+  // пустая форма показывала бы чужое «УНП занят» (находка ui-гейта).
+  const { data: byUnp = [], isPlaceholderData } = useSimilarCounterparties({
+    name: '',
+    unp: draft.unp,
+  });
+  const unpTaken =
+    card || isPlaceholderData || unp.length === 0
+      ? null
+      : (byUnp.find((match) => match.matchedBy === 'unp') ?? null);
   const valid = draft.fullName.trim().length > 0 && draft.shortName.trim().length > 0;
   const pending = create.isPending || update.isPending;
 
@@ -110,7 +119,7 @@ export function CounterpartyFormDialog({
         onInteractOutside={(e) => e.preventDefault()}
       >
         <DialogTitle className="text-base font-semibold text-foreground">
-          {card ? ui.counterparties.edit : ui.counterparties.create}
+          {card ? ui.counterparties.editTitle : ui.counterparties.create}
         </DialogTitle>
         <div className="mt-2 flex flex-col gap-3">
           <Field label={ui.counterparties.fieldFullName}>
@@ -141,25 +150,27 @@ export function CounterpartyFormDialog({
             </Field>
           </div>
 
-          {unpTaken ? (
-            <div className="flex flex-wrap items-center gap-2 text-xs text-warning">
-              <span>
-                {unpTaken.archivedAt
-                  ? ui.counterparties.unpTakenArchived
-                  : ui.counterparties.unpTaken}
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  onOpenChange(false);
-                  openCard({ kind: 'counterparty', id: unpTaken.id });
-                }}
-                className="font-medium text-info hover:underline"
-              >
-                {unpTaken.shortName} — {ui.counterparties.openExisting}
-              </button>
-            </div>
-          ) : null}
+          <div className="flex h-5 flex-wrap items-center gap-2 text-xs text-warning">
+            {unpTaken ? (
+              <>
+                <span>
+                  {unpTaken.archivedAt
+                    ? ui.counterparties.unpTakenArchived
+                    : ui.counterparties.unpTaken}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onOpenChange(false);
+                    openCard({ kind: 'counterparty', id: unpTaken.id });
+                  }}
+                  className="font-medium text-info hover:underline"
+                >
+                  {unpTaken.shortName} — {ui.counterparties.openExisting}
+                </button>
+              </>
+            ) : null}
+          </div>
 
           <div className="grid grid-cols-2 gap-3">
             <Field label={ui.counterparties.email}>
