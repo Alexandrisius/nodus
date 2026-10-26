@@ -136,9 +136,7 @@ export function ModuleAccessMatrix({ module }: { module: AccessModule }) {
         )}
       </div>
 
-      {createRole ? (
-        <CreateRoleDialog roles={roles.data ?? []} onClose={() => setCreateRole(false)} />
-      ) : null}
+      {createRole ? <CreateRoleDialog onClose={() => setCreateRole(false)} /> : null}
 
       <p className="shrink-0 px-6 pb-4 pt-2 text-xs text-muted-foreground">{ui.access.footnote}</p>
     </div>

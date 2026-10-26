@@ -170,6 +170,7 @@ describe('roles-handlers (#379)', () => {
   });
 
   it('состав: добавить сотрудника и подразделение, счётчики и аватары', async () => {
+    actor(Object.values(Permission));
     const gip = demoRoles.find((role) => role.code === 'office')!;
     const before = (await listRoles()).find((role) => role.id === gip.id)!;
     const added = await fetch(`${BASE}/${gip.id}/members/users/${userIds.matorin}`, {
@@ -204,5 +205,28 @@ describe('roles-handlers (#379)', () => {
     );
     expect((await fetch(`${BASE}/${other.id}`, { method: 'DELETE' })).status).toBe(204);
     expect(empty.code).toBe('temporary');
+  });
+
+  it('назначение роли: только с правами, которые есть у актора; последнего администратора не убрать', async () => {
+    actor([Permission.ROLE_MANAGE]);
+    const office = demoRoles.find((role) => role.code === 'office')!;
+    const denied = await fetch(`${BASE}/${office.id}/members/users/${userIds.matorin}`, {
+      method: 'PUT',
+    });
+    expect(denied.status).toBe(403);
+    expect(((await denied.json()) as { code: string }).code).toBe(
+      ErrorCode.ROLE_PERMISSION_NOT_HELD,
+    );
+
+    actor(Object.values(Permission));
+    for (const id of [userIds.shaiderova, userIds.klimovich]) {
+      const res = await fetch(`${BASE}/${adminRole.id}/members/users/${id}`, { method: 'DELETE' });
+      if (id === userIds.klimovich) {
+        expect(res.status).toBe(409);
+        expect(((await res.json()) as { code: string }).code).toBe(ErrorCode.ROLE_LAST_ADMIN);
+      } else {
+        expect(res.status).toBe(200);
+      }
+    }
   });
 });

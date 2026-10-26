@@ -73,6 +73,7 @@ export const errorMessages: Record<ErrorCode, string> = {
   [ErrorCode.DICTIONARY_ITEM_NAME_TAKEN]: 'Такой вариант уже есть в списке',
   [ErrorCode.ROLE_LOCKED]: 'Права администратора не меняются — у него всегда все права',
   [ErrorCode.ROLE_PERMISSION_NOT_HELD]: 'Выдать можно только право, которое есть у вас',
+  [ErrorCode.ROLE_LAST_ADMIN]: 'Нельзя убрать последнего администратора портала',
 };
 
 /**

@@ -11,17 +11,7 @@ import {
   DialogTitle,
 } from '@nodus/ui/components/dialog';
 import { Input } from '@nodus/ui/components/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@nodus/ui/components/select';
-
 import { useCreateRole, useDeleteRole, useUpdateRole } from '../api/role-admin.js';
-
-const NO_COPY = '__none';
 
 /** Окна пополняются данными — мимо-клик их не закрывает (правило 30.09). */
 const DIALOG_PROPS = {
@@ -30,24 +20,16 @@ const DIALOG_PROPS = {
   onInteractOutside: (event: Event) => event.preventDefault(),
 } as const;
 
-/** Создание роли (в т.ч. «Копировать из роли»): название, описание, источник прав. */
-export function CreateRoleDialog({
-  roles,
-  onClose,
-}: {
-  roles: readonly Role[];
-  onClose: () => void;
-}) {
+/** Создание роли: название и описание. Копия существующей — в меню самой роли. */
+export function CreateRoleDialog({ onClose }: { onClose: () => void }) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [copyId, setCopyId] = useState(NO_COPY);
   const create = useCreateRole();
   const trimmed = name.trim();
 
   const submit = () => {
     if (!trimmed) return;
-    const source = roles.find((role) => role.id === copyId);
-    create.mutate({ name: trimmed, description, permissions: source?.permissions });
+    create.mutate({ name: trimmed, description });
     onClose();
   };
 
@@ -80,22 +62,6 @@ export function CreateRoleDialog({
               maxLength={512}
             />
           </label>
-          <div className="flex flex-col gap-1.5">
-            <span className="text-label text-muted-foreground">{ui.access.createCopyLabel}</span>
-            <Select value={copyId} onValueChange={setCopyId}>
-              <SelectTrigger aria-label={ui.access.createCopyLabel}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NO_COPY}>{ui.access.createCopyNone}</SelectItem>
-                {roles.map((role) => (
-                  <SelectItem key={role.id} value={role.id}>
-                    {role.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
         </div>
         <DialogFooter>
           <Button variant="ghost" onClick={onClose}>

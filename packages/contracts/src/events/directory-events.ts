@@ -28,6 +28,8 @@ export const DIRECTORY_EVENTS = {
   ROLE_DELETED: 'directory.role.deleted',
   /** Любое реальное изменение состава прав роли — по событию на право (#379). */
   ROLE_PERMISSIONS_CHANGED: 'directory.role.permissions_changed',
+  /** Сотрудника или подразделение добавили в роль / убрали из неё (#379). */
+  ROLE_MEMBERS_CHANGED: 'directory.role.members_changed',
 } as const;
 
 export const userDeactivatedPayloadSchema = z.object({
@@ -42,3 +44,12 @@ export const rolePermissionsChangedPayloadSchema = z.object({
   granted: z.boolean(),
 });
 export type RolePermissionsChangedPayload = z.infer<typeof rolePermissionsChangedPayloadSchema>;
+
+/** Payload `directory.role.members_changed`: `kind` — кого именно, `targetId` — его id. */
+export const roleMembersChangedPayloadSchema = z.object({
+  roleId: z.uuid(),
+  kind: z.enum(['user', 'department']),
+  targetId: z.uuid(),
+  added: z.boolean(),
+});
+export type RoleMembersChangedPayload = z.infer<typeof roleMembersChangedPayloadSchema>;

@@ -133,6 +133,22 @@ async function toggleMember(
   if (!z.uuid().safeParse(targetId).success || !exists) return validation();
   const membership = members[role.id] ?? { userIds: [], departmentIds: [] };
   const key = kind === 'users' ? 'userIds' : 'departmentIds';
+  // Назначить роль можно, только если у актора есть все её права (bind, ADR-0034).
+  const missing = add ? notHeld(role.permissions) : [];
+  if (missing.length > 0) {
+    return error(ErrorCode.ROLE_PERMISSION_NOT_HELD, 'Permissions are not held by actor', 403, {
+      permissions: missing,
+    });
+  }
+  // Портал не остаётся без администратора.
+  if (
+    !add &&
+    role.code === SystemRole.ADMIN &&
+    kind === 'users' &&
+    membership.userIds.length <= 1
+  ) {
+    return error(ErrorCode.ROLE_LAST_ADMIN, 'Last administrator', 409);
+  }
   const rest = membership[key].filter((id) => id !== targetId);
   members[role.id] = { ...membership, [key]: add ? [...rest, targetId] : rest };
   return HttpResponse.json(view(role));
