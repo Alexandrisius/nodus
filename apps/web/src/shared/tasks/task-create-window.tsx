@@ -161,6 +161,8 @@ export function TaskCreateWindow({
       <DialogContent
         className="max-w-lg gap-0 overflow-hidden p-0"
         aria-describedby={undefined}
+        // Заполняемое окно: крестика нет, отмена — «Отмена» или Esc (канон).
+        showCloseButton={false}
         onInteractOutside={(e) => e.preventDefault()}
       >
         <DialogTitle className="sr-only">{ui.taskCreate.title}</DialogTitle>

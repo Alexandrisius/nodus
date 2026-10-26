@@ -104,16 +104,42 @@ export function TypeAccessSection({ type, readOnly }: { type: ProcessType; readO
       </PanelField>
 
       <PanelField label={ui.automation.typeSettings.access.create}>
-        <Segmented
-          value={createMode}
-          disabled={locked}
-          options={[
-            { value: 'all', label: ui.automation.typeSettings.access.all },
-            { value: 'roles', label: ui.automation.typeSettings.access.roles },
-            { value: 'nobody', label: ui.automation.typeSettings.access.nobody },
-          ]}
-          onChange={setCreateMode}
-        />
+        {/* Три смысловых варианта — строками: длинные подписи не режутся
+            (канон: смысловой выбор не обрезается). */}
+        <div role="radiogroup" aria-label={ui.automation.typeSettings.access.create}>
+          {(
+            [
+              ['all', ui.automation.typeSettings.access.all],
+              ['roles', ui.automation.typeSettings.access.roles],
+              ['nobody', ui.automation.typeSettings.access.nobody],
+            ] as const
+          ).map(([mode, label]) => (
+            <button
+              key={mode}
+              type="button"
+              role="radio"
+              aria-checked={createMode === mode}
+              disabled={locked}
+              onClick={() => setCreateMode(mode)}
+              className={cn(
+                'flex w-full items-center gap-2 rounded-md px-1.5 py-1.5 text-left text-sm transition-colors',
+                createMode === mode
+                  ? 'bg-accent text-foreground'
+                  : 'text-secondary-foreground hover:bg-accent/60',
+                locked && 'cursor-default opacity-70',
+              )}
+            >
+              <span
+                aria-hidden
+                className={cn(
+                  'size-3.5 shrink-0 rounded-full border',
+                  createMode === mode ? 'border-primary bg-primary' : 'border-input',
+                )}
+              />
+              <span className="min-w-0">{label}</span>
+            </button>
+          ))}
+        </div>
         {createMode === 'roles' ? (
           <RoleChips
             roleIds={access.create ?? []}

@@ -294,7 +294,7 @@ export const chatStrings = {
     copy: 'Копировать',
     edit: 'Редактировать',
     forward: 'Переслать',
-    createTask: 'Создать задачу',
+    createTask: 'В задачу',
     markResult: 'Отметить как результат',
     pin: 'Закрепить',
     copyLink: 'Копировать ссылку',

@@ -98,7 +98,7 @@ export function CreationSlotRow({
       </div>
 
       {expanded ? (
-        <div className="flex flex-col gap-3 border-t border-border px-3 py-2.5">
+        <div className="flex flex-col gap-3 px-3 pb-2.5">
           <label className="flex flex-col gap-1.5">
             <span className="text-[13px] text-muted-foreground">
               {ui.automation.creation.labelTitle}
@@ -165,7 +165,7 @@ export function CreationSlotRow({
             <Button
               variant="ghost"
               size="sm"
-              className="h-auto justify-start self-start py-1.5 text-danger hover:text-danger"
+              className="-ml-2 h-auto justify-start self-start py-1.5 text-danger hover:text-danger"
               onClick={onRemove}
             >
               <Trash2 className="size-3.5" strokeWidth={1.75} />

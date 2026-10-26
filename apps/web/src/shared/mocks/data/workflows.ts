@@ -83,7 +83,7 @@ export const overtimeType: DemoProcessType = {
   config: {
     card: {
       hiddenBlocks: ['checklist', 'subtasks', 'time'],
-      roleLabels: { assignee: 'Заявитель' },
+      roleLabels: { creator: 'Заявитель' },
     },
     access: allAccess,
     pulse: false,

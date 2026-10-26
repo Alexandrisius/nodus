@@ -73,7 +73,9 @@ export function SlotControl({
         <Textarea
           value={typeof value === 'string' ? value : ''}
           onChange={(e) => onChange(e.target.value)}
-          placeholder={ui.tasks.descriptionPlaceholder}
+          placeholder={
+            slot.label ? ui.taskCreate.valuePlaceholder : ui.tasks.descriptionPlaceholder
+          }
           aria-label={label}
           aria-invalid={invalid || undefined}
           rows={3}
