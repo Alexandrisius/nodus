@@ -27,16 +27,10 @@ import {
   toggleWindowField,
 } from '../../../model/transition-form.js';
 import { setMinFiles, validatorOf } from '../../../model/transition-rules.js';
-import { TransitionWindow } from '../../../../../shared/workflow/transition-window/transition-window.js';
-import type { TransitionWindowContext } from '../../../../../shared/workflow/transition-window/window-context.js';
 import { ModeChoices, PanelAction, PanelField, SwitchRow } from './panel-kit.js';
 import { CustomFieldChecks } from './custom-fields-checks.js';
-import {
-  GateCheck,
-  RequiredCheck,
-  SectionToggle,
-  previewTransition,
-} from './window-section-rows.js';
+import { GateCheck, RequiredCheck, SectionToggle } from './window-section-rows.js';
+import { WindowPreview } from './window-preview.js';
 
 /**
  * Раздел «Окно перехода» инспектора кнопки (#380): тумблер окна,
@@ -266,46 +260,15 @@ export function WindowSection({
           <PanelAction icon={Eye} onClick={() => setPreviewOpen(true)}>
             {ui.automation.window.preview}
           </PanelAction>
-          <TransitionWindow
+          <WindowPreview
             open={previewOpen}
-            mode="preview"
-            transition={previewTransition(transition, doc)}
-            context={previewContext(transition, doc, visibleDefinitions(definitions))}
-            onCancel={() => setPreviewOpen(false)}
-            onSubmit={() => {}}
+            transition={transition}
+            document={doc}
+            definitions={visibleDefinitions(definitions)}
+            onClose={() => setPreviewOpen(false)}
           />
         </>
       ) : null}
     </>
   );
-}
-
-/** Контекст превью: «Откуда» — статус, из которого идёт кнопка; данных нет. */
-function previewContext(
-  t: WorkflowDraftTransition,
-  doc: WorkflowDraftDocument,
-  customFieldDefinitions: TransitionWindowContext['customFieldDefinitions'],
-): TransitionWindowContext {
-  return {
-    entityId: '',
-    conversationId: null,
-    currentStageName:
-      doc.stages.find((s) => s.id === t.fromStageId)?.name ?? ui.automation.anyStatus,
-    fields: {
-      description: '',
-      deadline: null,
-      assigneeId: null,
-      plannedMinutes: null,
-      customFields: {},
-    },
-    spentMinutes: 0,
-    lastResult: null,
-    access: { canEdit: false, canLogTime: false, canCheck: false },
-    submission: null,
-    scope: 'entity',
-    // Превью окна в редакторе показывает и поля процесса (#431): значения
-    // пустые, определения — живые для области маршрута.
-    customFieldDefinitions,
-    customFieldRefs: [],
-  };
 }

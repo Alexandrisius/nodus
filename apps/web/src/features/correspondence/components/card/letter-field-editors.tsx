@@ -1,6 +1,6 @@
-import { ChevronDown, Pencil, X } from 'lucide-react';
-import { useState, type ComponentProps, type ReactNode } from 'react';
-import type { ContactRef, CounterpartyRef, LetterDetail } from '@nodus/contracts';
+import { ChevronDown } from 'lucide-react';
+import { useState, type ReactNode } from 'react';
+import type { LetterDetail } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import {
   DropdownMenu,
@@ -10,56 +10,15 @@ import {
 } from '@nodus/ui/components/dropdown-menu';
 import { cn } from '@nodus/ui/lib/utils';
 
-import { useOpenCard } from '../../../../app/shell/use-card-stack.js';
-import { CounterpartyCombobox } from '../../../../shared/counterparties/counterparty-combobox.js';
 import { fromIsoDate } from '../../../../shared/custom-fields/value-format.js';
 import { DateTimePicker } from '../../../../shared/ui/date-time-picker.js';
-import { identityTone } from '../../../../shared/ui/identity-tone.js';
-import { ProjectPicker } from '../../../../shared/ui/project-picker.js';
 import { useReceiptMethods } from '../../api/letters-queries.js';
 import { todayIso } from '../../lib/letter-format.js';
-import { SignerField } from '../registration/signer-field.js';
+import { editLabel, notSet, valueButton } from './letter-value-bits.js';
 
 /** Правка полей письма по месту (#55, U7): грамматика полей карточки задачи —
  *  значение строкой, ховер-подложка, без рамок; Esc гасит правку, а не
  *  карточку. Сохранение — оптимистично у хозяина (`useUpdateLetter`). */
-
-const valueButton =
-  '-mx-1 inline-flex h-6 max-w-full min-w-0 items-center gap-1 rounded-md px-1 text-left transition-colors hover:bg-accent';
-
-export const notSet = <span className="text-muted-foreground">{ui.common.notSet}</span>;
-
-const editLabel = (label: string) => `${ui.letters.card.editHint}: ${label}`;
-
-/** Карандаш значения-ссылки (клик по самому значению открывает карточку).
- *  Пропсы и ref прокидываются: кнопка бывает триггером поповера (asChild). */
-function EditButton({ label, ...props }: ComponentProps<'button'> & { label: string }) {
-  return (
-    <button
-      type="button"
-      aria-label={editLabel(label)}
-      title={editLabel(label)}
-      {...props}
-      className="shrink-0 rounded p-1 text-muted-foreground opacity-50 transition-opacity group-hover/value:opacity-100 hover:bg-accent hover:text-foreground focus-visible:opacity-100 data-[state=open]:opacity-100"
-    >
-      <Pencil className="size-3" strokeWidth={1.75} />
-    </button>
-  );
-}
-
-function ClearButton({ label, onClick }: { label: string; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={`${ui.filters.reset}: ${label}`}
-      title={`${ui.filters.reset}: ${label}`}
-      className="shrink-0 rounded p-1 text-muted-foreground opacity-0 transition-opacity group-hover/value:opacity-100 hover:bg-accent hover:text-foreground focus-visible:opacity-100"
-    >
-      <X className="size-3" strokeWidth={1.75} />
-    </button>
-  );
-}
 
 /** Строка правки: ввод по месту — Enter/уход сохраняют, Esc — отмена;
  *  пустое значение обязательного поля — отмена (сервер его не примет). */
@@ -205,159 +164,5 @@ export function ReceiptMethodValue({
           ))}
       </DropdownMenuContent>
     </DropdownMenu>
-  );
-}
-
-/** Корреспондент: имя — ссылка на карточку контрагента (CRM), карандаш —
- *  смена корреспондента комбобоксом по месту (с созданием на лету). */
-export function CounterpartyValue({
-  letter,
-  editable,
-  onCommit,
-}: {
-  letter: LetterDetail;
-  editable: boolean;
-  onCommit: (ref: CounterpartyRef) => void;
-}) {
-  const openCard = useOpenCard();
-  const [editing, setEditing] = useState(false);
-  const label = ui.letters.fields.counterparty;
-
-  if (editing) {
-    return (
-      <CounterpartyCombobox
-        value={letter.counterparty}
-        autoFocus
-        ariaLabel={label}
-        placeholder={ui.letters.form.counterpartyPlaceholder}
-        className="max-w-80"
-        onDismiss={() => setEditing(false)}
-        onChange={(ref) => {
-          setEditing(false);
-          if (ref && ref.id !== letter.counterparty?.id) onCommit(ref);
-        }}
-      />
-    );
-  }
-  return (
-    <span className="group/value flex min-w-0 items-center gap-1">
-      {letter.counterparty ? (
-        <button
-          type="button"
-          title={letter.counterparty.name}
-          onClick={() => openCard({ kind: 'counterparty', id: letter.counterparty?.id ?? '' })}
-          className="min-w-0 truncate text-left text-sm text-info hover:underline"
-        >
-          {letter.counterparty.name}
-        </button>
-      ) : (
-        notSet
-      )}
-      {editable ? <EditButton label={label} onClick={() => setEditing(true)} /> : null}
-    </span>
-  );
-}
-
-/** Подписант — контакт корреспондента (с «Создать контакт»); сброс — крестик. */
-export function SignerValue({
-  letter,
-  editable,
-  onCommit,
-}: {
-  letter: LetterDetail;
-  editable: boolean;
-  onCommit: (signer: ContactRef | null) => void;
-}) {
-  const [editing, setEditing] = useState(false);
-  const label = ui.letters.fields.signer;
-  const signer = letter.signer;
-  const text = signer ? (
-    <span className="min-w-0 truncate">
-      {signer.fullName}
-      {signer.position ? <span className="text-muted-foreground">, {signer.position}</span> : null}
-    </span>
-  ) : (
-    notSet
-  );
-  if (!editable || !letter.counterparty) return text;
-
-  if (editing) {
-    return (
-      <div className="w-80 max-w-full">
-        <SignerField
-          counterpartyId={letter.counterparty.id}
-          value={signer}
-          autoFocus
-          onDismiss={() => setEditing(false)}
-          onChange={(next) => {
-            setEditing(false);
-            if (next?.id !== signer?.id) onCommit(next);
-          }}
-        />
-      </div>
-    );
-  }
-  return (
-    <span className="group/value flex min-w-0 items-center gap-1">
-      <button
-        type="button"
-        className={valueButton}
-        aria-label={editLabel(label)}
-        onClick={() => setEditing(true)}
-      >
-        {text}
-      </button>
-      {signer ? <ClearButton label={label} onClick={() => onCommit(null)} /> : null}
-    </span>
-  );
-}
-
-/** Проект (Р15): ссылка на карточку проекта, карандаш — общий выбор проекта,
- *  крестик — без проекта. */
-export function ProjectValue({
-  letter,
-  editable,
-  onCommit,
-}: {
-  letter: LetterDetail;
-  editable: boolean;
-  onCommit: (projectId: string | null) => void;
-}) {
-  const openCard = useOpenCard();
-  const label = ui.letters.fields.project;
-  const project = letter.project;
-  return (
-    <span className="group/value flex min-w-0 items-center gap-1">
-      {project ? (
-        <button
-          type="button"
-          title={`${project.code} — ${project.name}`}
-          onClick={() => openCard({ kind: 'project', id: project.id })}
-          className="flex min-w-0 items-center gap-1.5 text-sm text-info hover:underline"
-        >
-          <span
-            aria-hidden
-            className={cn('size-1.5 shrink-0 rounded-full', identityTone[project.color].dot)}
-          />
-          <span className="truncate">{project.name}</span>
-        </button>
-      ) : (
-        notSet
-      )}
-      {editable ? (
-        <>
-          <ProjectPicker
-            value={project?.id}
-            ariaLabel={label}
-            onChange={(projectId) => {
-              if ((projectId ?? null) !== (project?.id ?? null)) onCommit(projectId ?? null);
-            }}
-          >
-            <EditButton label={label} />
-          </ProjectPicker>
-          {project ? <ClearButton label={label} onClick={() => onCommit(null)} /> : null}
-        </>
-      ) : null}
-    </span>
   );
 }

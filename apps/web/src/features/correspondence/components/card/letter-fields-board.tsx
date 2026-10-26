@@ -30,15 +30,9 @@ import { useUpdateLetter } from '../../api/letters-mutations.js';
 import { boxOfLetter } from '../../api/letters-cache.js';
 import { formatIsoDate } from '../../lib/letter-format.js';
 import { registrationReasonText } from '../../lib/registration-draft.js';
-import {
-  CounterpartyValue,
-  DateFieldValue,
-  ProjectValue,
-  ReceiptMethodValue,
-  SignerValue,
-  TextFieldValue,
-  notSet,
-} from './letter-field-editors.js';
+import { CounterpartyValue, ProjectValue, SignerValue } from './letter-entity-values.js';
+import { DateFieldValue, ReceiptMethodValue, TextFieldValue } from './letter-field-editors.js';
+import { notSet } from './letter-value-bits.js';
 
 const VISIBILITY_KEY = 'nodus-letter-fields-v1';
 
