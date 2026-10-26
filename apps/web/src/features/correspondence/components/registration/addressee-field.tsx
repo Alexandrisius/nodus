@@ -53,6 +53,10 @@ export function AddresseeField({
   }, [nav.active]);
 
   function choose(user: UserRef | null) {
+    // Возврат фокуса из поповера Radix — не повод открывать список снова:
+    // после выбора адресата он оставался раскрытым и перехватывал Ctrl+Enter
+    // (живая проверка #55). Следующий клик по полю снимет флаг.
+    fromPointer.current = true;
     onChange(user);
     setText('');
     setOpen(false);

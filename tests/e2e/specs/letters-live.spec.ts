@@ -19,8 +19,11 @@ const COUNTERPARTY = `E2E Контрагент ${RUN}`;
 const THEIR_NUMBER = `E2E-${RUN}`;
 const SUBJECT = `E2E письмо ${RUN}`;
 
-/** Минимальные валидные PDF-байты — хранилищу достаточно сигнатуры. */
-const PDF_BYTES = Buffer.from('%PDF-1.4\n%%EOF\n', 'utf8');
+/** Валидный 1×1 PNG: скан бумаги, который реально открывается вьювером. */
+const PNG_BYTES = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+  'base64',
+);
 
 test.skip(!LIVE, 'Пропущено: задай E2E_LIVE_API=1 и NODUS_BASE_URL на живую сборку (без моков)');
 
@@ -81,7 +84,7 @@ test.describe('живая корреспонденция (#55)', () => {
     const form = new FormData();
     form.append('typeId', incoming!.id);
     form.append('mainIndex', '0');
-    form.append('files', new Blob([PDF_BYTES], { type: 'application/pdf' }), `e2e-${RUN}.pdf`);
+    form.append('files', new Blob([PNG_BYTES], { type: 'image/png' }), `e2e-${RUN}.png`);
     const created = await fetch(`${BASE_URL}/api/v1/letters`, {
       method: 'POST',
       headers: { authorization: `Bearer ${adminToken}`, 'Idempotency-Key': `e2e-letter-${RUN}` },
@@ -112,18 +115,23 @@ test.describe('живая корреспонденция (#55)', () => {
       .click();
 
     await page.getByLabel('Их №').fill(THEIR_NUMBER);
-    await page.getByLabel('Их дата').fill('01.10.2026');
-    await page.getByLabel('Тема').fill(SUBJECT);
+    await page.getByRole('textbox', { name: 'Их дата' }).fill('01.10.2026');
+    await page.getByRole('textbox', { name: 'Тема', exact: true }).fill(SUBJECT);
 
     // Способ поступления — системный справочник; «Почта» засеяна миграцией.
     await page.getByRole('combobox', { name: 'Способ поступления' }).click();
-    await page.getByRole('option', { name: 'Почта' }).click();
+    await page.getByRole('option', { name: 'Почта', exact: true }).click();
 
     await page.getByRole('combobox', { name: 'Адресат' }).click();
+    // Список «Принимают решения» — держатели correspondence.resolve; админ
+    // в сиде — «Системный Администратор».
     await page
-      .getByRole('option', { name: new RegExp(ADMIN.email.split('@')[0]!, 'i') })
+      .getByRole('option', { name: /Администратор Системный/ })
       .first()
       .click();
+    // Список закрывается и возвращает фокус в поле — ждём, иначе Ctrl+Enter
+    // придёт в поповер и конвейер (правило «поверх — окно») его пропустит.
+    await expect(page.getByRole('listbox', { name: 'Адресат' })).toHaveCount(0);
 
     // Сценарий «≤ 30 секунд»: Ctrl+Enter регистрирует без мыши.
     await page.keyboard.press('Control+Enter');
@@ -157,8 +165,8 @@ test.describe('живая корреспонденция (#55)', () => {
     try {
       await loginUi(page, SECOND.email, SECOND.password);
       await page.goto('/letters');
-      await expect(page.getByRole('tab', { name: 'Входящие' })).toBeVisible();
-      await expect(page.getByRole('tab', { name: 'Новые' })).toHaveCount(0);
+      await expect(page.getByRole('link', { name: 'Входящие' })).toBeVisible();
+      await expect(page.getByRole('link', { name: 'Новые' })).toHaveCount(0);
       await expect(page.getByText(regNumber).first()).toBeVisible({ timeout: 15_000 });
     } finally {
       await context.close();
