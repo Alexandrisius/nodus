@@ -34,6 +34,7 @@ import { Placements } from '../personal/placements.js';
 import { PlacementsRepository } from '../personal/placements.repository.js';
 import { TaskDtoMapper } from './task-dto.mapper.js';
 import { TasksQueryService } from './tasks-query.service.js';
+import { TaskCreatePolicy } from './task-create.policy.js';
 import { DuplicateTaskSourceError, TasksRepository } from './tasks.repository.js';
 
 /**
@@ -58,6 +59,7 @@ export class TasksService {
     @Inject(USER_PROFILE_READER) private readonly profiles: UserProfileReader,
     @Inject(CHAT_MESSAGE_ACCESS) private readonly messages: ChatMessageAccess,
     @Inject(CUSTOM_FIELD_REGISTRY) private readonly customFields: CustomFieldRegistry,
+    private readonly policy: TaskCreatePolicy,
   ) {}
 
   /** Подзадача/перепривязка: родителя правят только те, кто может править
@@ -81,7 +83,16 @@ export class TasksService {
     }
   }
 
-  async create(user: AuthUser, body: CreateTaskBody): Promise<TaskListItem> {
+  async create(user: AuthUser, input: CreateTaskBody): Promise<TaskListItem> {
+    // Тип и доступ к нему (Р6): явный выбор — 403 при невидимом/закрытом,
+    // неявный «Стандартный» доступен всем (это тип быстрых входов).
+    const type = await this.catalog.resolveType(input.typeId, {
+      category: 'task',
+      requireCreatable: input.typeId !== undefined,
+      actorId: user.id,
+    });
+    // Скрытые значения формы важнее введённого (Р4) — до всех проверок тела.
+    const body = await this.policy.withPresets(type, input);
     const assigneeId = body.assigneeId ?? user.id;
     const participants = this.participantRows(body, user.id, assigneeId);
     await this.assertActiveUsers([assigneeId, ...participants.map((p) => p.userId)]);
@@ -94,13 +105,6 @@ export class TasksService {
       const existing = await this.findBySource(user, body.sourceMessageId);
       if (existing) return existing;
     }
-    const type = await this.catalog.resolveType(body.typeId, {
-      category: 'task',
-      // Скрытый тип недоступен ЯВНОМУ выбору и на сервере (security #378);
-      // неявный «Стандартный» (плюсики колонок, подзадачи, «В задачу» из
-      // чата) — системный запасной тип, создание по нему не ломается.
-      requireCreatable: body.typeId !== undefined,
-    });
     const { id: typeId, workflowId } = type;
     const workflowStages = await this.catalog.liveStages(workflowId);
     const personalColumn = body.personalStageId
@@ -132,6 +136,9 @@ export class TasksService {
           { input: body.customFields ?? {}, authorId: user.id, typeId },
           tx,
         );
+        // Обязательные поля — после умолчаний: если сервер заполнил значение
+        // сам, «не хватает» его не считает (Р5).
+        this.policy.assertComplete(type, { ...body, customFields });
         const task = await this.repo.create(
           {
             title: body.title,

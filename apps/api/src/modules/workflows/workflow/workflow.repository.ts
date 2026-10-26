@@ -77,10 +77,18 @@ export class WorkflowRepository {
     publishedAt: Date | null;
     publishedById: string | null;
     layout: unknown;
+    creation: unknown;
   } | null> {
     return (tx ?? this.prisma).workflow.findUnique({
       where: { id: workflowId },
-      select: { kind: true, version: true, publishedAt: true, publishedById: true, layout: true },
+      select: {
+        kind: true,
+        version: true,
+        publishedAt: true,
+        publishedById: true,
+        layout: true,
+        creation: true,
+      },
     });
   }
 
@@ -113,6 +121,15 @@ export class WorkflowRepository {
       select: { processTypeId: true },
     });
     return entries.map((e) => e.processTypeId);
+  }
+
+  /** Опубликованная форма создания маршрута (#432) — копия типа её несёт. */
+  async creationOf(workflowId: string, tx?: TransactionClient): Promise<unknown> {
+    const row = await (tx ?? this.prisma).workflow.findUnique({
+      where: { id: workflowId },
+      select: { creation: true },
+    });
+    return row?.creation ?? null;
   }
 
   /** Категория сущностей маршрута — по его типам (все типы маршрута одной

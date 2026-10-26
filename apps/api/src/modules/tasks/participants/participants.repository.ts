@@ -27,6 +27,11 @@ export class ParticipantsRepository {
     });
   }
 
+  /** Сколько участников осталось в роли (#432: обязательные участники). */
+  countRole(tx: TransactionClient, taskId: string, role: ParticipantRole): Promise<number> {
+    return tx.taskParticipant.count({ where: { taskId, role } });
+  }
+
   /** Снять участника (onlyRole — только в этой роли); число снятых строк. */
   async remove(
     tx: TransactionClient,

@@ -1,22 +1,31 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
 import {
   ErrorCode,
+  isDefaultProcessType,
+  normalizeTypeConfig,
+  Permission,
   WORKFLOW_EVENTS,
   type AuthUser,
   type CreateProcessTypeBody,
   type ProcessCategory,
   type ProcessType,
   type UpdateProcessTypeBody,
+  type UpdateProcessTypeConfigBody,
 } from '@nodus/contracts';
 
 import { TransactionRunner } from '../../../core/database/transaction-runner.js';
 import { DomainException } from '../../../core/errors/domain-exception.js';
 import { EventBus } from '../../../core/events/event-bus.js';
+import {
+  ROLE_MEMBERSHIP_READER,
+  type RoleMembershipReader,
+} from '../../../core/ports/role-membership.port.js';
 import { WorkflowEntityRegistry } from '../workflow/engine/entity-adapter.registry.js';
 import { WorkflowRepository } from '../workflow/workflow.repository.js';
-import { processTypeDto } from './process-type.mapper.js';
+import { processTypeDto, type ProcessTypeRow } from './process-type.mapper.js';
 import { ProcessTypesRepository } from './process-types.repository.js';
+import { typeSubjectOf } from './type-subject.js';
 
 /**
  * Библиотека типов процессов (#378, ADR-0024): список читают все вошедшие
@@ -26,6 +35,10 @@ import { ProcessTypesRepository } from './process-types.repository.js';
  * (`task | letter`) неизменяема: от неё зависят карточка и адаптер движка.
  * Свойства сохраняются сразу и ставят `customizedAt` — каталог «засев один
  * раз» больше не трогает тип и его маршрут.
+ *
+ * #432: DTO несёт конфигурацию типа (карточка и доступ), опубликованную
+ * форму создания маршрута и права зрителя. Без `workflow.manage` список
+ * отдаёт только видимые типы — невидимые не раскрываются даже названием.
  */
 @Injectable()
 export class ProcessTypesService {
@@ -35,17 +48,30 @@ export class ProcessTypesService {
     private readonly workflows: WorkflowRepository,
     private readonly adapters: WorkflowEntityRegistry,
     private readonly eventBus: EventBus,
+    @Inject(ROLE_MEMBERSHIP_READER) private readonly membership: RoleMembershipReader,
   ) {}
 
   async list(
+    user: AuthUser,
     archived: 'exclude' | 'include' | 'only',
     category?: ProcessCategory,
   ): Promise<ProcessType[]> {
-    const [rows, workflowMap] = await Promise.all([
+    const [rows, workflowMap, subject] = await Promise.all([
       this.repo.list(archived, category),
       this.repo.workflowMap(),
+      this.subjectOf(user.id),
     ]);
-    return rows.map((t) => processTypeDto(t, workflowMap.get(t.id) ?? ''));
+    const creations = await this.repo.creationMap([...workflowMap.values()]);
+    const manage = user.permissions.includes(Permission.WORKFLOW_MANAGE);
+    return rows
+      .map((row) => {
+        const workflowId = workflowMap.get(row.id) ?? '';
+        return processTypeDto(row, workflowId, {
+          creation: creations.get(workflowId),
+          subject,
+        });
+      })
+      .filter((type) => manage || type.viewer.canView);
   }
 
   async create(user: AuthUser, body: CreateProcessTypeBody): Promise<ProcessType> {
@@ -82,7 +108,7 @@ export class ProcessTypesService {
       );
       return { type, workflowId };
     });
-    return processTypeDto(created.type, created.workflowId);
+    return this.dtoOf(user.id, created.type, created.workflowId);
   }
 
   private async copyBase(
@@ -104,12 +130,21 @@ export class ProcessTypesService {
     }
     const workflowId = await this.repo.workflowIdOf(body.base.typeId);
     const source = await this.workflows.load(workflowId, tx);
-    return this.repo.copyWorkflow(tx, source, { name, publishedById: actorId, kind });
+    // Копия типа работает как оригинал: форма создания едет вместе с маршрутом.
+    const creation = await this.workflows.creationOf(workflowId, tx);
+    return this.repo.copyWorkflow(tx, source, { name, publishedById: actorId, kind, creation });
   }
 
-  async update(user: AuthUser, id: string, body: UpdateProcessTypeBody): Promise<void> {
+  async update(user: AuthUser, id: string, body: UpdateProcessTypeBody): Promise<ProcessType> {
     const type = await this.repo.findById(id);
     if (!type) throw DomainException.notFound('Process type not found');
+    // «Стандартный» — тип быстрых входов: выключить создание нельзя (О8),
+    // иначе плюсики колонок, подзадачи и «В задачу» остались бы без типа.
+    if (isDefaultProcessType(type) && body.creatable === false) {
+      throw new DomainException(ErrorCode.PROCESS_TYPE_SYSTEM_LOCKED, 'Default type is locked', {
+        reason: 'default_type',
+      });
+    }
     if (body.name !== undefined && body.name !== type.name) {
       if (await this.repo.findLiveByName(body.name, id)) {
         throw new DomainException(ErrorCode.PROCESS_TYPE_NAME_TAKEN, 'Type name already taken');
@@ -131,9 +166,42 @@ export class ProcessTypesService {
         { actorId: user.id, aggregateType: 'process_type', aggregateId: id },
       );
     });
+    return this.byId(user.id, id);
   }
 
-  async setArchived(user: AuthUser, id: string, archived: boolean): Promise<void> {
+  /**
+   * «Настройки типа» (#432, Р11): разделы заменяются ЦЕЛИКОМ и сохраняются
+   * сразу — публикации требует только форма создания (она часть маршрута).
+   * «Стандартный»: доступ у него всегда «всем» (О8) — закрыть его значило бы
+   * сломать быстрые входы, которыми пользуется весь штат.
+   */
+  async updateConfig(
+    user: AuthUser,
+    id: string,
+    body: UpdateProcessTypeConfigBody,
+  ): Promise<ProcessType> {
+    const type = await this.repo.findById(id);
+    if (!type) throw DomainException.notFound('Process type not found');
+    const access = body.access;
+    if (isDefaultProcessType(type) && access && (access.view !== null || access.create !== null)) {
+      throw new DomainException(ErrorCode.PROCESS_TYPE_SYSTEM_LOCKED, 'Default type is locked', {
+        reason: 'default_type',
+      });
+    }
+    const config = { ...normalizeTypeConfig(type.config), ...body };
+    await this.txRunner.run(async (tx) => {
+      await this.repo.updateConfig(tx, id, config);
+      await this.eventBus.emit(
+        tx,
+        WORKFLOW_EVENTS.TYPE_UPDATED,
+        { typeId: id, fields: Object.keys(body).map((section) => `config.${section}`) },
+        { actorId: user.id, aggregateType: 'process_type', aggregateId: id },
+      );
+    });
+    return this.byId(user.id, id);
+  }
+
+  async setArchived(user: AuthUser, id: string, archived: boolean): Promise<ProcessType> {
     const type = await this.repo.findById(id);
     if (!type) throw DomainException.notFound('Process type not found');
     if (type.isSystem && archived) {
@@ -154,5 +222,30 @@ export class ProcessTypesService {
         { actorId: user.id, aggregateType: 'process_type', aggregateId: id },
       );
     });
+    return this.byId(user.id, id);
+  }
+
+  /** DTO типа по id — ответ мутаций (веб кладёт его в кэш как есть). */
+  private async byId(userId: string, id: string): Promise<ProcessType> {
+    const type = await this.repo.findById(id);
+    if (!type) throw DomainException.notFound('Process type not found');
+    const workflowId = await this.repo.workflowIdOf(id).catch(() => '');
+    return this.dtoOf(userId, type, workflowId);
+  }
+
+  private async dtoOf(
+    userId: string,
+    type: ProcessTypeRow,
+    workflowId: string,
+  ): Promise<ProcessType> {
+    const [creation, subject] = await Promise.all([
+      workflowId ? this.workflows.creationOf(workflowId) : Promise.resolve(null),
+      this.subjectOf(userId),
+    ]);
+    return processTypeDto(type, workflowId, { creation, subject });
+  }
+
+  private subjectOf(userId: string) {
+    return typeSubjectOf(this.membership, userId);
   }
 }

@@ -28,7 +28,9 @@ import {
   CUSTOM_FIELD_REGISTRY,
   type CustomFieldRegistry,
 } from '../../../custom-fields/ports/custom-field-registry.port.js';
+import { creationFactsOf } from './creation-facts.js';
 import { customFieldFactsOf } from './custom-field-facts.js';
+import { documentOf } from './document-of.js';
 import { liveLayout, resolveLayout } from './layout.js';
 import { serverChecksOf } from './publish-checks.js';
 import {
@@ -85,7 +87,7 @@ export class WorkflowEditorService {
       version: workflow.version,
       publishedAt: workflow.publishedAt?.toISOString() ?? null,
       publishedBy: refs[0] ?? null,
-      document: documentOf(row, workflow.layout),
+      document: documentOf(row, workflow.layout, workflow.creation),
       stageEntityCounts,
     };
   }
@@ -109,8 +111,27 @@ export class WorkflowEditorService {
       // Неизвестное поле в окне/гейте — ошибка публикации, скрытое в ОКНЕ —
       // предупреждение (в условии скрытое допустимо, Р7).
       const category = await this.workflows.categoryOf(workflowId, tx);
-      const customFields = await customFieldFactsOf(this.customFields, category, tx);
-      const problems = checkWorkflowDocument(body.document, { customFields });
+      // Форма создания проверяется против типа этого маршрута (#432): форма
+      // ссылается на атрибуты, привязанные к типу, а пресеты — на живых.
+      const typeIds = await this.workflows.typeIdsOf(workflowId, tx);
+      const typeId = typeIds[0];
+      const customFields = await customFieldFactsOf(this.customFields, category, tx, typeId);
+      const creationFacts = await creationFactsOf(
+        this.customFields,
+        this.profiles,
+        category,
+        body.document.creation,
+        tx,
+      );
+      const problems = checkWorkflowDocument(body.document, {
+        customFields,
+        category,
+        definitions: creationFacts.definitions,
+        activeUserIds: creationFacts.activeUserIds,
+        // Проект — plain UUID без FK: значение сохраняется и до модуля #52,
+        // окно показывает подсказку «недоступно» (веб, projectsAvailable).
+        projectsAvailable: true,
+      });
       if (problems.some((p) => p.severity === 'error')) {
         throw new DomainException(ErrorCode.WORKFLOW_INVALID, 'Workflow document is invalid', {
           problems,
@@ -151,6 +172,9 @@ export class WorkflowEditorService {
         userId: user.id,
         at: now,
         layout: layout as Prisma.InputJsonValue,
+        // Форма создания — часть документа: публикуется тем же шагом, что
+        // стадии и кнопки (ADR-0024 п.5). null — форма по умолчанию.
+        creation: (body.document.creation ?? null) as Prisma.InputJsonValue | null,
       });
       const moves = plan.moves.map((m) => ({
         fromStageId: m.fromStageId,
@@ -308,35 +332,4 @@ export class WorkflowEditorService {
     }
     return workflow;
   }
-}
-
-/** Документ живого маршрута → документ контракта (+ раскладка холста). */
-export function documentOf(row: LoadedWorkflow, layout?: unknown): WorkflowDocument {
-  return {
-    stages: row.stages.map((s) => ({
-      id: s.id,
-      code: s.code,
-      name: s.name,
-      color: s.color as WorkflowDocument['stages'][number]['color'],
-      systemState: s.systemState as WorkflowDocument['stages'][number]['systemState'],
-      outcome: (s.outcome as 'success' | 'cancelled' | null) ?? null,
-      isInitial: s.isInitial,
-      sortOrder: s.sortOrder,
-    })),
-    transitions: row.transitions.map((t) => ({
-      id: t.id,
-      code: null,
-      name: t.name,
-      fromStageId: t.fromStageId,
-      toStageId: t.toStageId,
-      display: t.display,
-      sortOrder: t.sortOrder,
-      rules: t.rules,
-      form: t.form ?? { enabled: false, sections: [] },
-    })),
-    layout: liveLayout(layout, {
-      stageIds: new Set(row.stages.map((s) => s.id)),
-      transitionIds: new Set(row.transitions.map((t) => t.id)),
-    }),
-  };
 }

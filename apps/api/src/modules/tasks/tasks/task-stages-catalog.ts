@@ -20,10 +20,15 @@ export async function stagesCatalog(
   catalog: ProcessCatalogReader,
   countsOf: StageCountsGetter,
   typeId?: string,
+  viewerId?: string,
 ): Promise<TaskStageWithCount[]> {
   const [counts, entries] = await Promise.all([
     countsOf(),
-    catalog.stagesCatalog({ typeId, category: 'task' }),
+    catalog.stagesCatalog({
+      category: 'task',
+      ...(typeId ? { typeId } : {}),
+      ...(viewerId ? { viewerId } : {}),
+    }),
   ]);
   return entries.map((stage) => ({
     ...stageDto(stage),

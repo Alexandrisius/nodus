@@ -10,34 +10,53 @@ import { ProcessTypesService } from './process-types.service.js';
 const USER = { id: 'u1', permissions: [] } as never;
 const TX = { tx: true };
 
-function setup(opts: { taken?: boolean; type?: Record<string, unknown> | null } = {}) {
+function setup(
+  opts: {
+    taken?: boolean;
+    type?: Record<string, unknown> | null;
+    rows?: Record<string, unknown>[];
+    roles?: { id: string; code: string }[];
+  } = {},
+) {
   const repo = {
     findLiveByName: vi.fn(async () => (opts.taken ? { id: 'other' } : null)),
     maxSortOrder: vi.fn(async () => 5),
     createType: vi.fn(async (_tx: unknown, data: Record<string, unknown>) => ({
       id: 'new-type',
       isSystem: false,
+      config: {},
       ...data,
     })),
     updateType: vi.fn(async () => void 0),
+    updateConfig: vi.fn(async () => void 0),
     findById: vi.fn(async () =>
-      opts.type === undefined ? { id: 't', name: 'A', category: 'task' } : opts.type,
+      opts.type === undefined
+        ? { id: 't', name: 'A', category: 'task', code: 'custom-1', config: {} }
+        : opts.type,
     ),
+    list: vi.fn(async () => opts.rows ?? []),
+    workflowMap: vi.fn(async () => new Map<string, string>()),
+    creationMap: vi.fn(async () => new Map<string, unknown>()),
     attachToDefaultScheme: vi.fn(async () => void 0),
     createSimpleWorkflow: vi.fn(async () => 'wf-simple'),
     workflowIdOf: vi.fn(async () => 'wf-src'),
     copyWorkflow: vi.fn(async () => 'wf-copy'),
   };
-  const workflows = { load: vi.fn(async () => ({ id: 'wf-src', stages: [], transitions: [] })) };
+  const workflows = {
+    load: vi.fn(async () => ({ id: 'wf-src', stages: [], transitions: [] })),
+    creationOf: vi.fn<() => Promise<unknown>>(async () => null),
+  };
   const emit = vi.fn(async () => void 0);
+  const membership = { effectiveRoles: vi.fn(async () => opts.roles ?? []) };
   const service = new ProcessTypesService(
     { run: vi.fn(async (fn: (tx: unknown) => unknown) => fn(TX)) } as never,
     repo as never,
     workflows as never,
     { has: vi.fn(() => true) } as never,
     { emit } as never,
+    membership as never,
   );
-  return { service, repo, workflows, emit };
+  return { service, repo, workflows, emit, membership };
 }
 
 const body = (base: unknown, extra: Record<string, unknown> = {}) =>
@@ -128,5 +147,110 @@ describe('ProcessTypesService (#378)', () => {
       't',
       expect.objectContaining({ creatable: true, customizedAt: expect.any(Date) }),
     );
+  });
+});
+
+describe('ProcessTypesService: конфигурация типа и доступ (#432)', () => {
+  const ADMIN_ROLE = { id: '11111111-1111-4111-8111-111111111111', code: 'admin' };
+  const OTHER_ROLE = '22222222-2222-4222-8222-222222222222';
+
+  it('настройки типа сохраняются сразу и эмитят поля разделов', async () => {
+    const { service, repo, emit } = setup();
+    await service.updateConfig(USER, 't', {
+      card: { hiddenBlocks: ['chat'], roleLabels: { creator: 'Заявитель' } },
+    } as never);
+    expect(repo.updateConfig).toHaveBeenCalledWith(
+      TX,
+      't',
+      expect.objectContaining({ card: expect.objectContaining({ hiddenBlocks: ['chat'] }) }),
+    );
+    expect(emit).toHaveBeenCalledWith(
+      TX,
+      'workflow.type_updated',
+      { typeId: 't', fields: ['config.card'] },
+      expect.anything(),
+    );
+  });
+
+  it('«Стандартный»: доступ не закрывается — 409 default_type', async () => {
+    const { service, repo } = setup({
+      type: { id: 't', name: 'Стандартный', code: 'task', category: 'task', config: {} },
+    });
+    await expect(
+      service.updateConfig(USER, 't', { access: { view: ['r-1'], create: null } } as never),
+    ).rejects.toMatchObject({
+      code: ErrorCode.PROCESS_TYPE_SYSTEM_LOCKED,
+      details: { reason: 'default_type' },
+    });
+    expect(repo.updateConfig).not.toHaveBeenCalled();
+  });
+
+  it('«Стандартный»: выключить создание нельзя — 409', async () => {
+    const { service } = setup({
+      type: { id: 't', name: 'Стандартный', code: 'task', category: 'task', config: {} },
+    });
+    await expect(service.update(USER, 't', { creatable: false } as never)).rejects.toMatchObject({
+      code: ErrorCode.PROCESS_TYPE_SYSTEM_LOCKED,
+    });
+  });
+
+  it('«Стандартный»: карточку менять можно (блоки — представление, не доступ)', async () => {
+    const { service, repo } = setup({
+      type: { id: 't', name: 'Стандартный', code: 'task', category: 'task', config: {} },
+    });
+    await service.updateConfig(USER, 't', {
+      card: { hiddenBlocks: ['time'], roleLabels: {} },
+    } as never);
+    expect(repo.updateConfig).toHaveBeenCalled();
+  });
+
+  it('список: невидимый тип скрыт от сотрудника и виден администратору', async () => {
+    const rows = [
+      { id: 't-open', code: 'c1', name: 'Открытый', category: 'task', config: {}, creatable: true },
+      {
+        id: 't-closed',
+        code: 'c2',
+        name: 'Закрытый',
+        category: 'task',
+        config: { access: { view: [OTHER_ROLE], create: null } },
+        creatable: true,
+      },
+    ];
+    const employee = setup({ rows });
+    const seen = await employee.service.list(USER, 'exclude');
+    expect(seen.map((type) => type.id)).toEqual(['t-open']);
+    expect(seen[0]!.viewer).toEqual({ canView: true, canCreate: true });
+
+    const admin = setup({ rows, roles: [ADMIN_ROLE] });
+    const all = await admin.service.list(
+      { id: 'u1', permissions: ['workflow.manage'] } as never,
+      'exclude',
+    );
+    expect(all.map((type) => type.id)).toEqual(['t-open', 't-closed']);
+    expect(all[1]!.viewer).toEqual({ canView: true, canCreate: true });
+  });
+
+  it('DTO списка несёт опубликованную форму создания маршрута', async () => {
+    const rows = [
+      { id: 't-1', code: 'c1', name: 'Переработка', category: 'task', config: {}, creatable: true },
+    ];
+    const { service, repo, workflows } = setup({ rows });
+    repo.workflowMap.mockResolvedValue(new Map([['t-1', 'wf-1']]));
+    workflows.creationOf.mockResolvedValue({
+      fields: [{ key: 'deadline', label: null, required: true, preset: null }],
+      chips: [],
+    });
+    repo.creationMap.mockResolvedValue(
+      new Map([
+        [
+          'wf-1',
+          { fields: [{ key: 'deadline', label: null, required: true, preset: null }], chips: [] },
+        ],
+      ]),
+    );
+    const [type] = await service.list(USER, 'exclude');
+    expect(type!.creationForm.fields).toEqual([
+      { key: 'deadline', label: null, required: true, preset: null },
+    ]);
   });
 });

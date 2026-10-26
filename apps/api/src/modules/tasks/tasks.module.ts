@@ -33,6 +33,7 @@ import { PersonalStagesService } from './personal/personal-stages.service.js';
 import { PersonalTemplateBootstrap } from './personal/personal-template.bootstrap.js';
 import { Placements } from './personal/placements.js';
 import { PlacementsRepository } from './personal/placements.repository.js';
+import { TaskCreatePolicy } from './tasks/task-create.policy.js';
 import { TaskDtoMapper } from './tasks/task-dto.mapper.js';
 import { TaskFactsRepository } from './tasks/task-facts.repository.js';
 import { TaskEditService } from './tasks/task-edit.service.js';
@@ -93,6 +94,9 @@ import { TaskWorkflowController } from './workflow/task-workflow.controller.js';
     // правят задачу одной доменной логикой, а не копиями.
     TaskFieldsWriter,
     TaskFormApplier,
+    // Политика создания по типу (#432): скрытые значения и обязательность
+    // на всех путях создания — одна точка.
+    TaskCreatePolicy,
     ResultRevisions,
     // Адаптер задач для движка «Процессов» (ADR-0024): регистрируется
     // DiscoveryService по статическому workflowCategory.
