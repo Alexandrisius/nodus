@@ -99,7 +99,7 @@ export function AccessMatrix({
           className="sticky top-0 z-10 grid h-12 w-max min-w-full items-center gap-3 border-b border-border/60 bg-card px-4"
           style={{ gridTemplateColumns }}
         >
-          <span role="columnheader" className="sticky left-0 z-20 bg-card px-1">
+          <span role="columnheader" className="sticky left-4 z-20 bg-card px-1">
             <NodeLabel label={rowHeader} />
           </span>
           {columns.map((column) => {
@@ -108,7 +108,7 @@ export function AccessMatrix({
               <span
                 role="columnheader"
                 key={column.id}
-                className="flex min-w-0 items-center gap-1.5 px-1"
+                className="flex min-w-0 items-center justify-center gap-1.5 px-1"
                 title={column.title}
               >
                 <NodeLabel label={column.name} className="block min-w-0 truncate" />
@@ -145,7 +145,7 @@ export function AccessMatrix({
           >
             <span
               role="rowheader"
-              className="relative sticky left-0 z-10 flex flex-col justify-center gap-0.5 bg-card px-1 py-2 after:pointer-events-none after:absolute after:inset-0 after:-z-10 after:bg-accent/40 after:opacity-0 after:transition-opacity after:content-[''] group-hover:after:opacity-100"
+              className="relative sticky left-4 z-10 flex flex-col justify-center gap-0.5 bg-card px-1 py-2 after:pointer-events-none after:absolute after:inset-0 after:-z-10 after:bg-accent/40 after:opacity-0 after:transition-opacity after:content-[''] group-hover:after:opacity-100"
             >
               <span className="text-body-xs font-medium">{row.label}</span>
               <span className="text-xs text-muted-foreground">{row.description}</span>
