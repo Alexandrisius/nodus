@@ -20,11 +20,14 @@ import { currentAuthUser, demoUserListItems } from './data/users.js';
  * статичного актёра не выполняются.
  */
 
-/** Минимальный «кто я»: живой профиль может не иметь полей мок-юзера. */
+/** Минимальный «кто я»: живой профиль может не иметь полей мок-юзера.
+ *  `permissions` нужен домену ролей (#379): в покомпонентном режиме живой
+ *  сотрудник видит «только просмотр», если у него нет `role.manage`. */
 export interface MockActor {
   id: string;
   displayName: string;
   email: string;
+  permissions: readonly string[];
 }
 
 /** Текущий актёр моков: живой юзер из auth-стора (когда auth НЕ мокается),

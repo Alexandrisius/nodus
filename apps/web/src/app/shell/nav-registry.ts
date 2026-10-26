@@ -9,7 +9,7 @@ import {
   Workflow,
   type LucideIcon,
 } from 'lucide-react';
-import { ui } from '@nodus/contracts';
+import { permissionsOfModule, ui, type AccessModule } from '@nodus/contracts';
 
 /** Вкладка модуля топбара (подмодуль): search-параметр + предикат активности. */
 export interface NavTabDef {
@@ -199,7 +199,8 @@ export const NAV_MODULES: NavModuleDef[] = [
     // Окно-сплит: колонка типов + холст, ось — верхняя граница окна.
     splitWindow: true,
     // Единый дом настройки (#377): вкладки сверху, не модули в меню;
-    // «Атрибуты» — реестр кастомных полей (#431), «Права доступа» добавит #379,
+    // «Атрибуты» — реестр кастомных полей (#431), «Права доступа» — матрица
+    // прав раздела (#379, ADR-0034) — последняя, появляется по каталогу,
     // «Схемы проектов» — #38 (V2).
     tabs: [
       {
@@ -214,9 +215,27 @@ export const NAV_MODULES: NavModuleDef[] = [
         search: { tab: 'fields' },
         isActive: (s) => s.get('tab') === 'fields',
       },
+      ...accessTab('automation'),
     ],
   },
 ];
+
+/**
+ * Вкладка «Права доступа» раздела (#379, ADR-0034): срез каталога прав по
+ * модулю. У раздела без прав вкладки НЕТ по построению — модуль получает её
+ * одной строкой `...accessTab('<раздел>')` в своём `tabs` (всегда последней).
+ */
+function accessTab(module: AccessModule): NavTabDef[] {
+  if (permissionsOfModule(module).length === 0) return [];
+  return [
+    {
+      id: 'access',
+      label: ui.access.tab,
+      search: { tab: 'access' },
+      isActive: (s) => s.get('tab') === 'access',
+    },
+  ];
+}
 
 /** Модуль по pathname (префикс маршрута; Главная — точное совпадение). */
 export function navModuleForPath(pathname: string): NavModuleDef | undefined {
