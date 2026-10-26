@@ -95,6 +95,11 @@ export const customFieldDefinitionSchema = z.object({
    *  автоматизации и отчётам, но в карточках, фильтрах и окнах переходов
    *  его не видит никто (вердикт владельца 25.10.2026 — замена архива). */
   hidden: z.boolean(),
+  /** Типы процессов, которым принадлежит атрибут (#432, В2): карточка,
+   *  форма создания, окна и условия показывают только свои атрибуты.
+   *  Пусто — атрибут нигде не показывается. У проектов и контрагентов
+   *  типов процессов нет: там список пуст и не настраивается. */
+  typeIds: z.array(z.uuid()).max(50),
   sortOrder: z.number().int().min(0),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
@@ -234,6 +239,9 @@ export const createCustomFieldBodySchema = z
     defaultValue: customFieldDefaultSchema.nullable().optional(),
     reportIndexed: z.boolean().default(false),
     hidden: z.boolean().default(false),
+    /** Типы процессов, которым принадлежит атрибут (#432): живые типы
+     *  своей категории (проверяет сервер — 422 CUSTOM_FIELD_BINDING_INVALID). */
+    typeIds: z.array(z.uuid()).max(50).optional(),
   })
   .strict()
   .superRefine(refineShape);
@@ -248,6 +256,9 @@ export const updateCustomFieldBodySchema = z
     defaultValue: customFieldDefaultSchema.nullable().optional(),
     reportIndexed: z.boolean().optional(),
     hidden: z.boolean().optional(),
+    /** Полный список типов (замена целиком); точечные привязки —
+     *  PUT/DELETE .../types/:typeId. */
+    typeIds: z.array(z.uuid()).max(50).optional(),
   })
   .strict()
   .refine((v) => Object.keys(v).length > 0, { message: 'empty update' });

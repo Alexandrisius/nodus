@@ -1,4 +1,7 @@
 import { customFieldIdOfKey } from '../custom-fields/custom-field-key.js';
+import type { CustomFieldDefinition } from '../custom-fields/custom-field.schemas.js';
+import { checkCreationForm } from './creation-form.js';
+import type { ProcessCategory } from './process-type.schemas.js';
 import type {
   WorkflowDraftDocument,
   WorkflowDraftStage,
@@ -19,14 +22,27 @@ const MAX_TRANSITIONS = 80;
 
 /** Факты атрибутов для проверки ссылок (#431, Р7): все id области и id
  *  скрытых. Без `customFields` проверки пропускаются (старые вызовы и
- *  тесты остаются валидными). */
+ *  тесты остаются валидными). С #432 — ещё и привязка к типу: атрибут,
+ *  которого нет у типа, не выбирается в его форме, окнах и условиях. */
 export interface WorkflowCustomFieldFacts {
   active: ReadonlySet<string>;
   hidden: ReadonlySet<string>;
+  /** id атрибутов, привязанных к типу процесса (Р8); без набора проверка
+   *  привязки пропускается. */
+  inType?: ReadonlySet<string>;
 }
 
 export interface WorkflowCheckOptions {
   customFields?: WorkflowCustomFieldFacts;
+  /** Категория типа — нужна для формы создания (#432). Без неё раздел
+   *  `creation` не проверяется (старые вызовы валидны). */
+  category?: ProcessCategory;
+  /** Определения области — тип и настройки для проверки пресетов. */
+  definitions?: readonly Pick<CustomFieldDefinition, 'id' | 'type' | 'settings' | 'hidden'>[];
+  /** Модуль проектов включён (поле «Проект» доступно в форме). */
+  projectsAvailable?: boolean;
+  /** Живые сотрудники — пресеты «ответственный/соисполнители/наблюдатели». */
+  activeUserIds?: ReadonlySet<string>;
 }
 
 function error(
@@ -177,6 +193,9 @@ export function checkWorkflowDocument(
       if (id === null) return;
       if (!fields.active.has(id)) {
         problems.push(error('custom_field_unknown', refs));
+      } else if (fields.inType && !fields.inType.has(id)) {
+        // Атрибут чужого типа не выбирается в его окнах и условиях (#432, Р8).
+        problems.push(error('custom_field_not_in_type', refs));
       } else if (inWindow && fields.hidden.has(id)) {
         problems.push(warning('custom_field_hidden', refs));
       }
@@ -193,6 +212,24 @@ export function checkWorkflowDocument(
         }
       }
     }
+  }
+
+  // --- Форма создания типа (#432, Р2/Р4/Р8) -------------------------------
+
+  if (doc.creation && opts.category && fields) {
+    problems.push(
+      ...checkCreationForm(doc.creation, {
+        category: opts.category,
+        customFields: {
+          active: fields.active,
+          hidden: fields.hidden,
+          inType: fields.inType ?? new Set(fields.active),
+        },
+        definitions: opts.definitions,
+        projectsAvailable: opts.projectsAvailable,
+        activeUserIds: opts.activeUserIds,
+      }),
+    );
   }
 
   // --- Итог ----------------------------------------------------------------

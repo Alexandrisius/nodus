@@ -106,6 +106,8 @@ export class DefinitionMapper {
       defaultValue: (row.defaultValue ?? null) as CustomFieldDefinition['defaultValue'],
       reportIndexed: row.reportIndexed,
       hidden: row.hidden,
+      // #432 UI-пакет: заглушка до бэкенд-пакета — привязка к типам процессов.
+      typeIds: [],
       sortOrder: row.sortOrder,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),

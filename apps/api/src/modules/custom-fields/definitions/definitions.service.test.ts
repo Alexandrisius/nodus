@@ -38,6 +38,7 @@ const DTO = {
   defaultRefs: [],
   reportIndexed: false,
   hidden: false,
+  typeIds: [],
   sortOrder: 0,
   createdAt: '2026-10-26T00:00:00.000Z',
   updatedAt: '2026-10-26T00:00:00.000Z',

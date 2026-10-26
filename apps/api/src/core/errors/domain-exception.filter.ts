@@ -69,6 +69,13 @@ const CODE_TO_STATUS: Record<ErrorCode, number> = {
   [ErrorCode.WORKFLOW_MIGRATION_REQUIRED]: HttpStatus.UNPROCESSABLE_ENTITY,
   [ErrorCode.PROCESS_TYPE_SYSTEM_LOCKED]: HttpStatus.CONFLICT,
   [ErrorCode.PROCESS_TYPE_NAME_TAKEN]: HttpStatus.CONFLICT,
+  // Типы процессов (#432): доступ к типу — 403; не хватает обязательных при
+  // создании полей и негодное скрытое значение — 422 (семантика запроса);
+  // привязка атрибута к чужому типу — 422.
+  [ErrorCode.PROCESS_TYPE_FORBIDDEN]: HttpStatus.FORBIDDEN,
+  [ErrorCode.PROCESS_TYPE_FIELDS_REQUIRED]: HttpStatus.UNPROCESSABLE_ENTITY,
+  [ErrorCode.PROCESS_TYPE_PRESET_INVALID]: HttpStatus.UNPROCESSABLE_ENTITY,
+  [ErrorCode.CUSTOM_FIELD_BINDING_INVALID]: HttpStatus.UNPROCESSABLE_ENTITY,
   // CRM (#460): занятый УНП и мутация архивного контрагента — конфликт
   // состояния (запрос корректен, запись сейчас так менять нельзя).
   [ErrorCode.CRM_UNP_TAKEN]: HttpStatus.CONFLICT,

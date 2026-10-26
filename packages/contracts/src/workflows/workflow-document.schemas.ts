@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { userRefSchema } from '../directory/user-ref.schema.js';
+import { creationFormSchema } from './creation-form.js';
 import { transitionFormDraftSchema, transitionFormSchema } from './transition-form.schemas.js';
 import {
   stageColorSchema,
@@ -109,6 +110,10 @@ export const workflowDraftDocumentSchema = z.object({
   stages: z.array(workflowDraftStageSchema),
   transitions: z.array(workflowDraftTransitionSchema),
   layout: workflowLayoutSchema.optional(),
+  /** Окно узла «Создание» (#432, В1): форма создания типа — раздел
+   *  документа, публикуется версиями вместе с маршрутом; `null` — форма по
+   *  умолчанию категории. Старые черновики без раздела валидны. */
+  creation: creationFormSchema.nullable().optional(),
 });
 export type WorkflowDraftDocument = z.infer<typeof workflowDraftDocumentSchema>;
 
@@ -128,6 +133,8 @@ export const workflowDocumentSchema = z.object({
   stages: z.array(workflowDocStageSchema).min(1).max(20),
   transitions: z.array(workflowDocTransitionSchema).max(80),
   layout: workflowLayoutSchema.optional(),
+  /** Форма создания типа (#432): публикуется вместе с маршрутом. */
+  creation: creationFormSchema.nullable().optional(),
 });
 export type WorkflowDocument = z.infer<typeof workflowDocumentSchema>;
 
@@ -209,6 +216,20 @@ export const workflowProblemCodeSchema = z.enum([
   /** Атрибуты в окне и гейтах (#431): неизвестный — ошибка, скрытый в окне — предупреждение. */
   'custom_field_unknown',
   'custom_field_hidden',
+  /** Атрибут не привязан к типу процесса (#432, Р8): в его форме, окнах и
+   *  условиях такой атрибут не выбирается — ошибка публикации. */
+  'custom_field_not_in_type',
+  /** Форма создания типа (#432, Р2/Р4): дубль слота, «обязательно» у поля,
+   *  которое всегда заполнено, скрытое значение у срока, обязательное и
+   *  скрытое одновременно, скрытый атрибут видимым полем, недоступное поле
+   *  (проекты выключены) и негодное значение пресета. */
+  'creation_duplicate_field',
+  'creation_required_not_allowed',
+  'creation_preset_not_allowed',
+  'creation_preset_invalid',
+  'creation_hidden_required',
+  'creation_hidden_attribute_visible',
+  'creation_field_unavailable',
 ]);
 export type WorkflowProblemCode = z.infer<typeof workflowProblemCodeSchema>;
 
@@ -217,5 +238,7 @@ export const workflowProblemSchema = z.object({
   severity: z.enum(['error', 'warning']),
   stageId: docIdSchema.optional(),
   transitionId: docIdSchema.optional(),
+  /** Ключ слота формы создания (#432); `'*'` — форма целиком. */
+  creationField: z.string().min(1).optional(),
 });
 export type WorkflowProblem = z.infer<typeof workflowProblemSchema>;

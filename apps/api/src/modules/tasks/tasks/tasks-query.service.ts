@@ -12,6 +12,7 @@ import type {
   TaskStageWithCount,
   CustomFieldValues,
 } from '@nodus/contracts';
+import { DEFAULT_TASK_CARD_LAYOUT } from '@nodus/contracts';
 
 import { DomainException } from '../../../core/errors/domain-exception.js';
 import { decodeCursor, encodeCursor } from '../../../core/pagination/cursor.util.js';
@@ -160,6 +161,8 @@ export class TasksQueryService {
         : null,
       completedAt: full.completedAt?.toISOString() ?? null,
       customFieldRefs,
+      // #432 UI-пакет: заглушка до бэкенд-пакета — состав карточки по типу.
+      layout: DEFAULT_TASK_CARD_LAYOUT,
       access: taskAccess(actorRoles(row, user.id), user.permissions),
       createdAt: full.createdAt.toISOString(),
     };

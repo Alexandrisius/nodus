@@ -54,6 +54,18 @@ export const ErrorCode = {
   WORKFLOW_MIGRATION_REQUIRED: 'WORKFLOW_MIGRATION_REQUIRED',
   /** Системный тип процесса нельзя архивировать (#378, #428). */
   PROCESS_TYPE_SYSTEM_LOCKED: 'PROCESS_TYPE_SYSTEM_LOCKED',
+  /** Доступ к типу процесса закрыт (#432, Р6): не видит (`view`), не создаёт
+   *  (`create`) или тип скрыт от создания (`not_creatable`); details — { typeId, reason }. */
+  PROCESS_TYPE_FORBIDDEN: 'PROCESS_TYPE_FORBIDDEN',
+  /** Не заполнены обязательные при создании поля формы типа (#432, Р5);
+   *  details — { typeId, fields, reason: create|clear }. */
+  PROCESS_TYPE_FIELDS_REQUIRED: 'PROCESS_TYPE_FIELDS_REQUIRED',
+  /** Скрытое значение формы стало недействительным — уволенный сотрудник,
+   *  удалённый вариант (#432, Р4); details — { typeId, fields }. */
+  PROCESS_TYPE_PRESET_INVALID: 'PROCESS_TYPE_PRESET_INVALID',
+  /** Привязка атрибута к типам процессов неверна (#432, Р8): чужой тип,
+   *  архивный тип, тип другой категории; details — { typeIds }. */
+  CUSTOM_FIELD_BINDING_INVALID: 'CUSTOM_FIELD_BINDING_INVALID',
   /** Название типа процесса уже занято живым типом (#378, #428). */
   PROCESS_TYPE_NAME_TAKEN: 'PROCESS_TYPE_NAME_TAKEN',
   /** Вложение чата больше лимита (100 МБ на файл; серверная сверка, #57). */
@@ -90,7 +102,7 @@ export const ErrorCode = {
    *  перенесите в архив, история должна сохраниться (#460). */
   CRM_COUNTERPARTY_IN_USE: 'CRM_COUNTERPARTY_IN_USE',
   /** Значение кастомного поля не прошло проверку (#431, ADR-0029):
-   *  details.issues[] — { fieldId, reason: unknown|invalid|not_found|inactive, message }. */
+   *  details.issues[] — { fieldId, reason: unknown|invalid|not_found|inactive|not_in_type, message }. */
   CUSTOM_FIELD_VALUE_INVALID: 'CUSTOM_FIELD_VALUE_INVALID',
   /** Тип атрибута недоступен: «Проект» до модуля проектов (#431, Р11). */
   CUSTOM_FIELD_TYPE_UNAVAILABLE: 'CUSTOM_FIELD_TYPE_UNAVAILABLE',

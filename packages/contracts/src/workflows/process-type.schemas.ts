@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { creationFormSchema } from './creation-form.js';
+import { processTypeConfigSchema, processTypeViewerSchema } from './process-type-config.js';
 import { stageColorSchema } from './workflow-primitives.schemas.js';
 
 /**
@@ -63,6 +65,14 @@ export const processTypeSchema = z.object({
   archivedAt: z.iso.datetime().nullable(),
   /** Маршрут типа — холст редактора. */
   workflowId: z.uuid(),
+  /** Состав карточки, доступ и пульс — настройки типа (#432, В6). */
+  config: processTypeConfigSchema,
+  /** Эффективная форма создания опубликованного маршрута (#432): окно
+   *  узла «Создание»; у типа без формы — форма по умолчанию категории. */
+  creationForm: creationFormSchema,
+  /** Что может текущий пользователь (сервер — истина, I8): веб прячет
+   *  невидимые типы и недоступное создание. */
+  viewer: processTypeViewerSchema,
 });
 export type ProcessType = z.infer<typeof processTypeSchema>;
 
