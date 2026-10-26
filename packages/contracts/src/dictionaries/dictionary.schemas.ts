@@ -26,9 +26,23 @@ export const SystemDictionary = {
   DOCUMENT_KIND: 'document-kind',
   /** Валюты денежных полей (#431, Р10): BYN первым, затем RUB/USD/EUR/CNY. */
   CURRENCY: 'currency',
+  /** Способы поступления письма (#55, Р14): поле регистрации. */
+  RECEIPT_METHOD: 'receipt-method',
 } as const;
 
 export type SystemDictionary = (typeof SystemDictionary)[keyof typeof SystemDictionary];
+
+/** Коды элементов справочника способов поступления (#55, Р14): по коду
+ *  подставляется умолчание формы — ручное создание (бумага) → `post`,
+ *  почта (#56) → `email`. Названия — данные справочника. */
+export const RECEIPT_METHOD_CODES = {
+  email: 'email',
+  post: 'post',
+  courier: 'courier',
+  smdo: 'smdo',
+} as const;
+
+export type ReceiptMethodCode = (typeof RECEIPT_METHOD_CODES)[keyof typeof RECEIPT_METHOD_CODES];
 
 export const dictionarySchema = z.object({
   id: z.uuid(),

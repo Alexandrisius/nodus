@@ -136,7 +136,7 @@ describe.skipIf(!process.env.DATABASE_URL)('tasks (integration)', () => {
     });
     expect(blocked.status).toBe(409);
     const error = apiErrorResponseSchema.parse(await blocked.json());
-    expect(error.code).toBe(ErrorCode.TASK_TRANSITION_BLOCKED);
+    expect(error.code).toBe(ErrorCode.WORKFLOW_TRANSITION_BLOCKED);
 
     const detail = taskDetailSchema.parse(
       await (await fx.api(bob, 'GET', `/tasks/${parentId}`)).json(),

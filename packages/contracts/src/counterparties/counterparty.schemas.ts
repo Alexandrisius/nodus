@@ -54,6 +54,16 @@ export const contactPersonSchema = z.object({
 
 export type ContactPerson = z.infer<typeof contactPersonSchema>;
 
+/** Денормализованная ссылка на контактное лицо в чужих DTO (подписант
+ *  письма, #55): ФИО и должность на момент чтения. */
+export const contactRefSchema = z.object({
+  id: z.uuid(),
+  fullName: z.string().min(1),
+  position: z.string().nullable(),
+});
+
+export type ContactRef = z.infer<typeof contactRefSchema>;
+
 export const counterpartyListItemSchema = z.object({
   id: z.uuid(),
   fullName: z.string().min(1),

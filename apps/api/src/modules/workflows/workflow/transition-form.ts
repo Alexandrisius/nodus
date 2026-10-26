@@ -45,6 +45,12 @@ export function checkFormInput(
 
   for (const section of sections) {
     switch (section.kind) {
+      // #55 UI-пакет: заглушка до бэкенд-пакета — ключ разрешён и обязателен;
+      // содержимое проверяет адаптер письма (B3/B4).
+      case 'registration':
+        allowed.add('registration');
+        if (!input.registration) missing.push('registration');
+        break;
       case 'fields':
         for (const field of section.fields) allowed.add(`fields.${field}`);
         break;
@@ -93,6 +99,7 @@ export function checkFormInput(
   if (input.time && !allowed.has('time')) unexpected.push('time');
   if (input.result && !allowed.has('result')) unexpected.push('result');
   if (input.comment && !allowed.has('comment')) unexpected.push('comment');
+  if (input.registration && !allowed.has('registration')) unexpected.push('registration');
 
   return { missing, unexpected };
 }

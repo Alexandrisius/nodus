@@ -17,8 +17,9 @@ export const ALL_PERMISSIONS = [
   'user.manage',
   'role.manage',
   'dictionary.manage',
-  'correspondence.create',
-  'correspondence.archive',
+  // #55: права корреспонденции v3; админу — миграцией 20261031120000_correspondence_permissions.
+  'correspondence.register',
+  'correspondence.resolve',
   'sticker.manage',
   'chat.moderate',
   'settings.uiDefaults',

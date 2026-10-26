@@ -64,6 +64,8 @@ export function processTypeDto(
     viewer: opts.subject
       ? typeAccessFor({ config, creatable: row.creatable }, opts.subject)
       : { canView: true, canCreate: row.creatable },
+    // #55 UI-пакет: заглушка до бэкенд-пакета — серию гидрирует B3 из config.numbering.
+    numbering: null,
   };
 }
 

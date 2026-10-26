@@ -1,0 +1,77 @@
+import { describe, expect, it } from 'vitest';
+
+import { transitionFormInputSchema } from '../workflows/transition-form.schemas.js';
+import { checkLetterDates, letterRegistrationInputSchema } from './letter-registration.schemas.js';
+
+const id = () => crypto.randomUUID();
+
+const input = {
+  counterpartyId: id(),
+  signerId: null,
+  theirNumber: ' 0359-КЖ/147 ',
+  theirDate: '2026-10-20',
+  subject: 'Замечания по разделу КЖ',
+  receiptMethodId: id(),
+  projectId: null,
+  addresseeId: id(),
+  responseDeadline: null,
+};
+
+describe('ввод регистрации письма (#55, Р1)', () => {
+  it('обязательные поля и обрезка пробелов; адресат обязателен (В1)', () => {
+    const parsed = letterRegistrationInputSchema.parse(input);
+    expect(parsed.theirNumber).toBe('0359-КЖ/147');
+    expect(letterRegistrationInputSchema.safeParse({ ...input, addresseeId: null }).success).toBe(
+      false,
+    );
+    expect(letterRegistrationInputSchema.safeParse({ ...input, subject: '   ' }).success).toBe(
+      false,
+    );
+  });
+
+  it('лишний ключ отвергается (strict); лимиты номера и темы', () => {
+    expect(letterRegistrationInputSchema.safeParse({ ...input, regNumber: 'Вх-1' }).success).toBe(
+      false,
+    );
+    expect(
+      letterRegistrationInputSchema.safeParse({ ...input, theirNumber: '1'.repeat(65) }).success,
+    ).toBe(false);
+    expect(
+      letterRegistrationInputSchema.safeParse({ ...input, subject: 'я'.repeat(501) }).success,
+    ).toBe(false);
+  });
+
+  it('раздел регистрации — часть тела перехода движка', () => {
+    const body = transitionFormInputSchema.parse({ registration: input });
+    expect(body.registration?.addresseeId).toBe(input.addresseeId);
+    expect(transitionFormInputSchema.safeParse({ registration: { subject: 'x' } }).success).toBe(
+      false,
+    );
+  });
+});
+
+describe('checkLetterDates (одна грамматика веба, моков и сервера)', () => {
+  const today = '2026-10-26';
+
+  it('дата корреспондента — не позже сегодня; срок ответа — не раньше', () => {
+    expect(checkLetterDates({ theirDate: today, responseDeadline: today }, today)).toEqual([]);
+    expect(checkLetterDates({ theirDate: '2026-10-27' }, today)).toEqual([
+      { field: 'theirDate', reason: 'in_future' },
+    ]);
+    expect(checkLetterDates({ responseDeadline: '2026-10-25' }, today)).toEqual([
+      { field: 'responseDeadline', reason: 'in_past' },
+    ]);
+  });
+
+  it('пустые даты не проверяются — обязательность решает схема', () => {
+    expect(checkLetterDates({ theirDate: null, responseDeadline: null }, today)).toEqual([]);
+    expect(checkLetterDates({}, today)).toEqual([]);
+  });
+
+  it('граница года сравнивается корректно (ISO-строки)', () => {
+    expect(checkLetterDates({ theirDate: '2026-12-31' }, '2027-01-01')).toEqual([]);
+    expect(checkLetterDates({ responseDeadline: '2026-12-31' }, '2027-01-01')).toEqual([
+      { field: 'responseDeadline', reason: 'in_past' },
+    ]);
+  });
+});

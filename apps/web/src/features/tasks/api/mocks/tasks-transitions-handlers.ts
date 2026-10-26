@@ -116,7 +116,7 @@ export const tasksTransitionsHandlers = [
       : undefined;
     if (!task || !transition) {
       return HttpResponse.json(
-        { code: ErrorCode.TASK_TRANSITION_NOT_ALLOWED, message: 'Transition not allowed' },
+        { code: ErrorCode.WORKFLOW_TRANSITION_NOT_ALLOWED, message: 'Transition not allowed' },
         { status: 409 },
       );
     }
@@ -134,7 +134,7 @@ export const tasksTransitionsHandlers = [
     if (check.missing.length > 0 || check.unexpected.length > 0) {
       return HttpResponse.json(
         {
-          code: ErrorCode.TASK_TRANSITION_FORM_INVALID,
+          code: ErrorCode.WORKFLOW_TRANSITION_FORM_INVALID,
           message: ui.tasks.transitionNeedsWindow,
           details: { transitionId: transition.id, ...check },
         },
@@ -161,7 +161,7 @@ export const tasksTransitionsHandlers = [
     if (reasons.length > 0 && !(parsed.data.override && parsed.data.reason?.trim())) {
       return HttpResponse.json(
         {
-          code: ErrorCode.TASK_TRANSITION_BLOCKED,
+          code: ErrorCode.WORKFLOW_TRANSITION_BLOCKED,
           message: 'Transition gates not passed',
           details: { reasons },
         },

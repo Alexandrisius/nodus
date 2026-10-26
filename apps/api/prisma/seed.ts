@@ -74,9 +74,9 @@ async function main(): Promise<void> {
       description: 'Руководитель подразделения: постановка и назначение задач',
       isSystem: true,
       permissions: {
-        create: ['directory.read', 'task.create', 'task.assign', 'correspondence.create'].map(
-          (permission) => ({ permission }),
-        ),
+        create: ['directory.read', 'task.create', 'task.assign'].map((permission) => ({
+          permission,
+        })),
       },
     },
   });

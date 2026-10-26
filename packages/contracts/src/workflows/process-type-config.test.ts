@@ -50,6 +50,15 @@ describe('normalizeTypeConfig', () => {
     expect(config).toEqual(DEFAULT_PROCESS_TYPE_CONFIG);
     expect('pulse' in config).toBe(false);
   });
+
+  it('нумерация письма (#55): валидная серия читается, битая — тип без серии', () => {
+    const seriesId = '33333333-3333-4333-8333-333333333333';
+    expect(normalizeTypeConfig({ numbering: { seriesId } }).numbering).toEqual({ seriesId });
+    const broken = normalizeTypeConfig({ numbering: { seriesId: 'Вх' } });
+    expect('numbering' in broken).toBe(false);
+    expect(broken.card).toEqual(DEFAULT_PROCESS_TYPE_CONFIG.card);
+    expect('numbering' in normalizeTypeConfig({})).toBe(false);
+  });
 });
 
 describe('typeAccessFor', () => {

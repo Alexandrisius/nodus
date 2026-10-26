@@ -30,11 +30,13 @@ const CODE_TO_STATUS: Record<ErrorCode, number> = {
   [ErrorCode.TASK_LAST_STAGE]: HttpStatus.CONFLICT,
   // Маршрут задачи (ADR-0020): переход недоступен / гейт не пройден — конфликт
   // состояния (запрос корректен, задача сейчас так не ходит).
-  [ErrorCode.TASK_TRANSITION_NOT_ALLOWED]: HttpStatus.CONFLICT,
-  [ErrorCode.TASK_TRANSITION_BLOCKED]: HttpStatus.CONFLICT,
+  [ErrorCode.WORKFLOW_TRANSITION_NOT_ALLOWED]: HttpStatus.CONFLICT,
+  [ErrorCode.WORKFLOW_TRANSITION_BLOCKED]: HttpStatus.CONFLICT,
   // Окно перехода (#380): состав введённого не совпал с настройкой — 422.
-  [ErrorCode.TASK_TRANSITION_FORM_INVALID]: HttpStatus.UNPROCESSABLE_ENTITY,
-  [ErrorCode.TASK_OVERRIDE_REASON_REQUIRED]: HttpStatus.BAD_REQUEST,
+  [ErrorCode.WORKFLOW_TRANSITION_FORM_INVALID]: HttpStatus.UNPROCESSABLE_ENTITY,
+  [ErrorCode.WORKFLOW_OVERRIDE_REASON_REQUIRED]: HttpStatus.BAD_REQUEST,
+  // Нумерация (#55, Р2): у типа нет серии — конфликт конфигурации.
+  [ErrorCode.WORKFLOW_NUMBERING_NOT_CONFIGURED]: HttpStatus.CONFLICT,
   [ErrorCode.TASK_PARENT_CYCLE]: HttpStatus.CONFLICT,
   [ErrorCode.TASK_TIMER_NOT_RUNNING]: HttpStatus.CONFLICT,
   // Вложения (#57, ADR-0013): лимит файла чата — 413; переполнение трея и
@@ -82,6 +84,13 @@ const CODE_TO_STATUS: Record<ErrorCode, number> = {
   [ErrorCode.CRM_COUNTERPARTY_ARCHIVED]: HttpStatus.CONFLICT,
   // Удаление связанного контрагента — конфликт состояния (архив вместо удаления).
   [ErrorCode.CRM_COUNTERPARTY_IN_USE]: HttpStatus.CONFLICT,
+  [ErrorCode.CRM_CONTACT_IN_USE]: HttpStatus.CONFLICT,
+  // Письма (#55): повторная регистрация, удаление/правка не в том состоянии —
+  // конфликт состояния; негодный ввод регистрации — 422 (семантика значения).
+  [ErrorCode.LETTER_ALREADY_REGISTERED]: HttpStatus.CONFLICT,
+  [ErrorCode.LETTER_REGISTRATION_INVALID]: HttpStatus.UNPROCESSABLE_ENTITY,
+  [ErrorCode.LETTER_NOT_DELETABLE]: HttpStatus.CONFLICT,
+  [ErrorCode.LETTER_NOT_EDITABLE]: HttpStatus.CONFLICT,
   // Кастомные поля (#431, ADR-0029): невалидное значение и недоступный тип —
   // 422 (семантика значения, не форма запроса); имя, лимит, архивное поле и
   // несовместимая смена типа — конфликт состояния; справочники — конфликт.

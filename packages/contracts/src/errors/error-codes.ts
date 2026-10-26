@@ -33,15 +33,18 @@ export const ErrorCode = {
   DIRECTORY_EMAIL_TAKEN: 'DIRECTORY_EMAIL_TAKEN',
   /** Удаление единственной личной стадии «Моего плана» запрещено (ADR-0008). */
   TASK_LAST_STAGE: 'TASK_LAST_STAGE',
-  /** Перехода в целевую стадию нет в маршруте или условия «кто» не пройдены (ADR-0020). */
-  TASK_TRANSITION_NOT_ALLOWED: 'TASK_TRANSITION_NOT_ALLOWED',
+  /** Перехода в целевую стадию нет в маршруте или условия «кто» не пройдены
+   *  (ADR-0020; общий код движка любой категории — с #55, O7). */
+  WORKFLOW_TRANSITION_NOT_ALLOWED: 'WORKFLOW_TRANSITION_NOT_ALLOWED',
   /** Гейт DoR/DoD не пройден; details.reasons — TransitionBlockReason[] (ADR-0020). */
-  TASK_TRANSITION_BLOCKED: 'TASK_TRANSITION_BLOCKED',
+  WORKFLOW_TRANSITION_BLOCKED: 'WORKFLOW_TRANSITION_BLOCKED',
   /** Введённое в окне перехода не совпало с настройкой кнопки: лишний или
    *  пропущенный обязательный раздел; details — { transitionId, missing[], unexpected[] } (#380). */
-  TASK_TRANSITION_FORM_INVALID: 'TASK_TRANSITION_FORM_INVALID',
+  WORKFLOW_TRANSITION_FORM_INVALID: 'WORKFLOW_TRANSITION_FORM_INVALID',
   /** Обход гейта без причины или без права task.override_gate. */
-  TASK_OVERRIDE_REASON_REQUIRED: 'TASK_OVERRIDE_REASON_REQUIRED',
+  WORKFLOW_OVERRIDE_REASON_REQUIRED: 'WORKFLOW_OVERRIDE_REASON_REQUIRED',
+  /** Пост-действие «Присвоить номер», а у типа нет серии номеров (#55, Р2). */
+  WORKFLOW_NUMBERING_NOT_CONFIGURED: 'WORKFLOW_NUMBERING_NOT_CONFIGURED',
   /** Родитель задачи образует цикл (задача — предок самой себя). */
   TASK_PARENT_CYCLE: 'TASK_PARENT_CYCLE',
   /** Остановка таймера, который не идёт (старт нового сам останавливает старый). */
@@ -52,7 +55,9 @@ export const ErrorCode = {
   WORKFLOW_INVALID: 'WORKFLOW_INVALID',
   /** У архивируемых стадий есть задачи, а перенос не задан; details.stages — [{ stageId, count }] (#378). */
   WORKFLOW_MIGRATION_REQUIRED: 'WORKFLOW_MIGRATION_REQUIRED',
-  /** Системный тип процесса нельзя архивировать (#378, #428). */
+  /** Системный тип процесса нельзя архивировать (#378, #428); типы и
+   *  маршруты писем до #463/#464 — только просмотр: details.reason =
+   *  'letter_catalog' (#55, Р4). */
   PROCESS_TYPE_SYSTEM_LOCKED: 'PROCESS_TYPE_SYSTEM_LOCKED',
   /** Доступ к типу процесса закрыт (#432, Р6): не видит (`view`), не создаёт
    *  (`create`) или тип скрыт от создания (`not_creatable`); details — { typeId, reason }. */
@@ -101,6 +106,17 @@ export const ErrorCode = {
   /** Удалить нельзя: на контрагента ссылаются письма или проекты —
    *  перенесите в архив, история должна сохраниться (#460). */
   CRM_COUNTERPARTY_IN_USE: 'CRM_COUNTERPARTY_IN_USE',
+  /** Удалить нельзя: контакт — подписант писем; архивируйте контакт (#55). */
+  CRM_CONTACT_IN_USE: 'CRM_CONTACT_IN_USE',
+  /** Повторная регистрация: письмо уже зарегистрировано; details — { regNumber } (#55, Р3). */
+  LETTER_ALREADY_REGISTERED: 'LETTER_ALREADY_REGISTERED',
+  /** Ввод регистрации или правки не прошёл проверку (дата, подписант не из
+   *  контактов корреспондента, уволенный адресат); details — { field, reason } (#55). */
+  LETTER_REGISTRATION_INVALID: 'LETTER_REGISTRATION_INVALID',
+  /** Удалить как спам можно только незарегистрированное письмо из «Новых» (#55, Р12). */
+  LETTER_NOT_DELETABLE: 'LETTER_NOT_DELETABLE',
+  /** Править регистрационные данные можно только у зарегистрированного письма (#55, Р11). */
+  LETTER_NOT_EDITABLE: 'LETTER_NOT_EDITABLE',
   /** Значение кастомного поля не прошло проверку (#431, ADR-0029):
    *  details.issues[] — { fieldId, reason: unknown|invalid|not_found|inactive|not_in_type, message }. */
   CUSTOM_FIELD_VALUE_INVALID: 'CUSTOM_FIELD_VALUE_INVALID',

@@ -1,10 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { Permission, type TransitionFormInput } from '@nodus/contracts';
+import { ErrorCode, Permission, type TransitionFormInput } from '@nodus/contracts';
 
 import {
   TransactionRunner,
   type TransactionClient,
 } from '../../../core/database/transaction-runner.js';
+import { DomainException } from '../../../core/errors/domain-exception.js';
 import type {
   WorkflowActor,
   WorkflowActorSubject,
@@ -90,6 +91,15 @@ export class TaskWorkflowAdapter implements WorkflowEntityAdapter {
     actor: WorkflowActor,
     input: TransitionFormInput,
   ): Promise<WorkflowFormApplied> {
+    // #55 UI-пакет: заглушка до бэкенд-пакета — раздел «Регистрация» есть
+    // только у писем; задача его не исполняет (страховка поверх сверки окна).
+    if (input.registration) {
+      throw new DomainException(
+        ErrorCode.WORKFLOW_TRANSITION_FORM_INVALID,
+        'Registration section is not applicable to tasks',
+        { missing: [], unexpected: ['registration'] },
+      );
+    }
     return this.forms.apply(tx, taskId, actor, input);
   }
 
