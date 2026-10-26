@@ -2,12 +2,15 @@ import type {
   TransitionDisplay,
   TransitionForm,
   WorkflowCondition,
+  WorkflowPostFunction,
   WorkflowTransitionRules,
   WorkflowValidator,
 } from '@nodus/contracts';
 
-import { buildQuickWorkflow, QUICK_PROCESS_TYPE } from './system-catalog-quick.js';
+import { TASK_CATALOG_REVISION } from './catalog-revisions.js';
 import { commentWindow, resultWindow } from './catalog-forms.js';
+import { LETTER_CATALOG_PROCESS_TYPES } from './system-catalog-letters.js';
+import { buildQuickWorkflow, QUICK_PROCESS_TYPE } from './system-catalog-quick.js';
 
 /**
  * Системный каталог маршрутов (ADR-0020; ревизия 2 — редактор #378/ADR-0021,
@@ -19,7 +22,7 @@ import { commentWindow, resultWindow } from './catalog-forms.js';
  * (резолв при посеве).
  */
 
-export const CATALOG_REVISION = 4;
+export { TASK_CATALOG_REVISION as CATALOG_REVISION } from './catalog-revisions.js';
 
 export interface CatalogStage {
   code: string;
@@ -42,6 +45,8 @@ export interface CatalogTransition {
   routeTo?: string;
   /** Окно при нажатии (#380, ревизия 4); пусто — окно выключено. */
   form?: TransitionForm;
+  /** Пост-действия сверх route_if (#55: `assign_number` у регистрации). */
+  postFunctions?: WorkflowPostFunction[];
 }
 
 export interface CatalogWorkflow {
@@ -49,6 +54,9 @@ export interface CatalogWorkflow {
   name: string;
   /** Вид маршрута = категория типа процесса (task | letter). */
   kind: 'task' | 'letter';
+  /** Ревизия каталога этого маршрута (#55): у задач и писем она своя —
+   *  правка писем в #463/#464 не поднимает версии маршрутов задач. */
+  revision: number;
   stages: CatalogStage[];
   transitions: CatalogTransition[];
 }
@@ -56,11 +64,19 @@ export interface CatalogWorkflow {
 export interface CatalogProcessType {
   code: string;
   name: string;
+  /** Категория типа процесса (ADR-0024); у задач — умолчание БД, но
+   *  каталог пишет её явно: письма не должны зависеть от дефолта. */
+  category: 'task' | 'letter';
+  /** Направление письма (у задач null). */
+  direction?: 'incoming' | 'outgoing';
   icon: string;
   color: 'neutral' | 'info' | 'success' | 'warning' | 'danger';
   description: string;
   /** Порядок в библиотеке типов (дефолт выбора — первый). */
   sortOrder: number;
+  /** Серия нумерации (#55): каталог создаёт её по коду и пишет id в
+   *  `config.numbering` типа. Только у писем. */
+  numbering?: { code: string; prefix: string };
 }
 
 export const DEFAULT_SCHEME = { code: 'default', name: 'Схема по умолчанию' } as const;
@@ -147,6 +163,7 @@ const reopen = (): CatalogTransition => ({
 export const STANDARD_PROCESS_TYPE: CatalogProcessType = {
   code: 'task',
   name: 'Стандартный',
+  category: 'task',
   icon: 'square-check',
   color: 'neutral',
   description: 'С утверждением постановщиком',
@@ -157,6 +174,7 @@ const STANDARD_WORKFLOW: CatalogWorkflow = {
   code: DEFAULT_TASK_WORKFLOW_CODE,
   name: 'Стандартный',
   kind: 'task',
+  revision: TASK_CATALOG_REVISION,
   stages: [
     STAGE_NEW,
     STAGE_IN_PROGRESS,
@@ -251,7 +269,7 @@ const STANDARD_WORKFLOW: CatalogWorkflow = {
   ],
 };
 
-/** Каталог задач: оба типа + маршруты (спека #378, раздел 10). */
+/** Каталог: задачи (спека #378, раздел 10) и письма (#55, Р5). */
 export const CATALOG_PROCESS_TYPES: readonly {
   type: CatalogProcessType;
   workflow: CatalogWorkflow;
@@ -268,15 +286,18 @@ export const CATALOG_PROCESS_TYPES: readonly {
       cancelled: STAGE_CANCELLED,
     }),
   },
+  ...LETTER_CATALOG_PROCESS_TYPES,
 ];
 
-/** Пост-функции каталога: route_if с целью по коду стадии → uuid при посеве. */
+/** Пост-функции каталога: явные (#55 `assign_number`) + route_if с целью по
+ *  коду стадии → uuid при посеве. */
 export function catalogPostFunctions(
   t: CatalogTransition,
   stageIdByCode: Map<string, string>,
 ): WorkflowTransitionRules['postFunctions'] {
-  if (!t.routeTo) return [];
+  const explicit = t.postFunctions ?? [];
+  if (!t.routeTo) return [...explicit];
   const target = stageIdByCode.get(t.routeTo);
-  if (!target) return [];
-  return [{ kind: 'route_if', when: 'creator_is_assignee', toStageId: target }];
+  if (!target) return [...explicit];
+  return [...explicit, { kind: 'route_if', when: 'creator_is_assignee', toStageId: target }];
 }

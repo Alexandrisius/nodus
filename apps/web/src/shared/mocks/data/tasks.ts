@@ -1,12 +1,11 @@
 import type { ChatMessage, TaskChainNode, TaskDetail, TaskListItem } from '@nodus/contracts';
 import { isFinalState } from '@nodus/contracts';
 
-import type { ProjectRef } from '@nodus/contracts';
-
 import { demoTaskCustomFields } from './custom-fields.js';
 import { demoRefsForValues } from './custom-fields-refs.js';
 import { isoAgo } from './dates.js';
-import { personalNew, personalStageFor } from './personal-stages.js';
+import { lid } from './letter-ids.js';
+import { personalNew } from './personal-stages.js';
 import { demoTasks, kjSubtask, tid } from './task-items.js';
 import { stageNew, systemProcessType } from './task-stages.js';
 import { layoutOf } from './task-layout.js';
@@ -56,45 +55,10 @@ export const demoSubtasks: Record<string, TaskListItem[]> = {
   [tid(2)]: [kjSubtask],
 };
 
-/** Задача-поручение из резолюции письма (модель v2): чистый конструктор —
- *  мок-хендлер POST /letters/:id/resolutions и unit-тесты ходят через него.
- *  Срок поручения — дата (yyyy-mm-dd), в задаче становится дедлайном 18:00
- *  локального дня. */
-export function makeInstructionTask(opts: {
-  id: string;
-  number: number;
-  title: string;
-  assigneeId: string;
-  deadline: string | null;
-  project: ProjectRef | null;
-}): TaskListItem {
-  return {
-    id: opts.id,
-    number: opts.number,
-    title: opts.title,
-    type: systemProcessType,
-    stage: stageNew,
-    personalStageId: personalStageFor(stageNew),
-    priority: 'normal',
-    deadline: opts.deadline ? new Date(`${opts.deadline}T18:00:00`).toISOString() : null,
-    creator: userRef(currentAuthUser.id),
-    assignee: userRef(opts.assigneeId),
-    participants: [],
-    project: opts.project,
-    parentId: null,
-    spentMinutes: 0,
-    commentsCount: 0,
-    checklistDone: 0,
-    checklistTotal: 0,
-    source: 'letter',
-    customFields: {},
-    updatedAt: new Date().toISOString(),
-  };
-}
-
 /** Задачи-поручения из письма lid(3) («Замечания по разделу КЖ», Вх-2026/115):
- *  резолюция Р-57 породила три поручения разным людям (tid 5/12/13). */
-const LETTER_ID_3 = '80000000-0000-4000-8000-000000000003'; // lid(3), см. letter-bodies.ts
+ *  резолюция Р-57 породила три поручения разным людям (tid 5/12/13). Узлы
+ *  «Резолюция»/«Поручение» — модель v2 цепочки (пересмотр в #463). */
+const LETTER_ID_3 = lid(3);
 const LETTER_3_NODE: TaskChainNode = {
   kind: 'letter',
   ref: 'Вх-2026/115',
@@ -107,10 +71,8 @@ const RESOLUTION_57_NODE: TaskChainNode = {
   label: 'Устранить замечания по КЖ, срок — до конца недели',
 };
 
-/** Префиксы доменных цепочек задач-поручений (Письмо → Резолюция → Поручение):
- *  сид демо-набора здесь, рантим-пополнение — мок-хендлером резолюций
- *  (POST /letters/:id/resolutions). */
-export const letterChainPrefix: Record<string, TaskChainNode[]> = {
+/** Префиксы доменных цепочек задач-поручений (Письмо → Резолюция → Поручение). */
+const letterChainPrefix: Record<string, TaskChainNode[]> = {
   [tid(5)]: [
     LETTER_3_NODE,
     RESOLUTION_57_NODE,

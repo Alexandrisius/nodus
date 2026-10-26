@@ -41,6 +41,14 @@ describe('validateEnv', () => {
     );
   });
 
+  it('COMPANY_TIMEZONE: дефолт Минск, кривой пояс — ошибка старта (#55)', () => {
+    expect(validateEnv({ ...VALID }).COMPANY_TIMEZONE).toBe('Europe/Minsk');
+    expect(validateEnv({ ...VALID, COMPANY_TIMEZONE: 'UTC' }).COMPANY_TIMEZONE).toBe('UTC');
+    expect(() => validateEnv({ ...VALID, COMPANY_TIMEZONE: 'Минск' })).toThrow(
+      /Невалидное окружение.*COMPANY_TIMEZONE/s,
+    );
+  });
+
   describe('TRUST_PROXY', () => {
     it('по умолчанию — только приватные/локальные хопы (не true)', () => {
       const env = validateEnv({ ...VALID });

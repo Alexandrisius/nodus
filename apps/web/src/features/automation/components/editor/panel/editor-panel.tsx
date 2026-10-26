@@ -133,12 +133,13 @@ export function EditorPanel({
           transition={transition}
           document={doc}
           readOnly={readOnly}
+          category={type.category}
           autoFocusName={freshId === transition.id}
           onOpenSection={setSection}
         />
       ) : null}
       {transition && section === 'roles' ? (
-        <RolesSection transition={transition} readOnly={readOnly} />
+        <RolesSection transition={transition} readOnly={readOnly} category={type.category} />
       ) : null}
       {transition && section === 'conditions' ? (
         <ConditionsSection
@@ -146,10 +147,16 @@ export function EditorPanel({
           scope={scope}
           typeId={type.id}
           readOnly={readOnly}
+          category={type.category}
         />
       ) : null}
       {transition && section === 'rules' ? (
-        <RulesSection transition={transition} document={doc} readOnly={readOnly} />
+        <RulesSection
+          transition={transition}
+          document={doc}
+          readOnly={readOnly}
+          category={type.category}
+        />
       ) : null}
       {transition && section === 'window' ? (
         <WindowSection
@@ -158,6 +165,7 @@ export function EditorPanel({
           scope={scope}
           typeId={type.id}
           readOnly={readOnly}
+          category={type.category}
         />
       ) : null}
     </SidePanel>

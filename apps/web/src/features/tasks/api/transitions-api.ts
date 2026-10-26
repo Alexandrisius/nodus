@@ -15,7 +15,6 @@ import { toast } from 'sonner';
 
 import { api, ApiError } from '../../../shared/api-client.js';
 import { markFreshFromMutation } from '../../../shared/api/fresh-from-mutation.js';
-import { lettersKeys } from '../../../shared/api/letters-keys.js';
 import { mapTaskInPages, tasksKeys } from '../../../shared/api/tasks-keys.js';
 
 /** Причины блокировки гейтов одной строкой (подпись кнопки и тост). */
@@ -28,16 +27,18 @@ export function gateReasonsText(reasons: readonly TransitionBlockReason[]): stri
  *  строка по коду (I15) или общий фолбэк «вернули на прежнюю стадию». */
 export function transitionErrorText(error: unknown): string {
   if (error instanceof ApiError) {
-    if (error.code === 'TASK_TRANSITION_FORM_INVALID') return ui.tasks.transitionNeedsWindow;
+    if (error.code === 'WORKFLOW_TRANSITION_FORM_INVALID') return ui.tasks.transitionNeedsWindow;
     const reasons = (error.details?.reasons ?? []) as TransitionBlockReason[];
     if (reasons.length > 0)
       return `${errorMessages[error.code as ErrorCode]}: ${gateReasonsText(reasons)}`;
     const from = error.details?.fromStageName;
-    if (error.code === 'TASK_TRANSITION_NOT_ALLOWED' && typeof from === 'string') {
+    if (error.code === 'WORKFLOW_TRANSITION_NOT_ALLOWED' && typeof from === 'string') {
       return `${ui.tasks.transitionNotAllowedFrom} «${from}» ${ui.tasks.transitionNotAllowedTail}`;
     }
     const known = errorMessages[error.code as ErrorCode];
-    if (known && error.code.startsWith('TASK_')) return known;
+    if (known && (error.code.startsWith('TASK_') || error.code.startsWith('WORKFLOW_'))) {
+      return known;
+    }
   }
   return ui.tasks.stageMoveError;
 }
@@ -87,10 +88,10 @@ export function transitionWindowError(
   if (!(error instanceof ApiError)) return null;
   const missing = error.details?.missing;
   const reasons = error.details?.reasons;
-  if (error.code === 'TASK_TRANSITION_FORM_INVALID' && Array.isArray(missing)) {
+  if (error.code === 'WORKFLOW_TRANSITION_FORM_INVALID' && Array.isArray(missing)) {
     return { missing: missing.filter((m): m is string => typeof m === 'string') };
   }
-  if (error.code === 'TASK_TRANSITION_BLOCKED' && Array.isArray(reasons)) {
+  if (error.code === 'WORKFLOW_TRANSITION_BLOCKED' && Array.isArray(reasons)) {
     return { reasons: reasons as TransitionBlockReason[] };
   }
   return null;
@@ -127,7 +128,6 @@ export function useSubmitTransitionWindow(taskId: string) {
         tasksKeys.listPages(),
         tasksKeys.kanbanAll(),
         tasksKeys.personalStages(),
-        lettersKeys.all,
       ]) {
         void queryClient.invalidateQueries({ queryKey: key, refetchType: 'none' });
       }
@@ -181,7 +181,6 @@ export function useExecuteTransition(taskId: string) {
         tasksKeys.listPages(),
         tasksKeys.kanbanAll(),
         tasksKeys.personalStages(),
-        lettersKeys.all,
       ]) {
         void queryClient.invalidateQueries({ queryKey: key, refetchType: 'none' });
       }

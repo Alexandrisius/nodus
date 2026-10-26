@@ -14,7 +14,6 @@ import {
   demoSubtasks,
   demoTasks,
 } from '../../../../shared/mocks/data/tasks.js';
-import { letterIdByTaskId, syncLetterWithTasks } from '../../../../shared/mocks/data/letters.js';
 import { quickDocument, standardDocument } from '../../../../shared/mocks/data/workflows.js';
 import { quickProcessType } from '../../../../shared/mocks/data/task-stages.js';
 import { applyDemoPatch } from '../../../../shared/mocks/data/custom-fields-rules.js';
@@ -116,7 +115,7 @@ export const tasksTransitionsHandlers = [
       : undefined;
     if (!task || !transition) {
       return HttpResponse.json(
-        { code: ErrorCode.TASK_TRANSITION_NOT_ALLOWED, message: 'Transition not allowed' },
+        { code: ErrorCode.WORKFLOW_TRANSITION_NOT_ALLOWED, message: 'Transition not allowed' },
         { status: 409 },
       );
     }
@@ -134,7 +133,7 @@ export const tasksTransitionsHandlers = [
     if (check.missing.length > 0 || check.unexpected.length > 0) {
       return HttpResponse.json(
         {
-          code: ErrorCode.TASK_TRANSITION_FORM_INVALID,
+          code: ErrorCode.WORKFLOW_TRANSITION_FORM_INVALID,
           message: ui.tasks.transitionNeedsWindow,
           details: { transitionId: transition.id, ...check },
         },
@@ -161,7 +160,7 @@ export const tasksTransitionsHandlers = [
     if (reasons.length > 0 && !(parsed.data.override && parsed.data.reason?.trim())) {
       return HttpResponse.json(
         {
-          code: ErrorCode.TASK_TRANSITION_BLOCKED,
+          code: ErrorCode.WORKFLOW_TRANSITION_BLOCKED,
           message: 'Transition gates not passed',
           details: { reasons },
         },
@@ -170,11 +169,9 @@ export const tasksTransitionsHandlers = [
     }
     postBlock(task, transition, parsed.data.form ?? {});
     task.stage = resolveTarget(task, transition);
-    // Встроенное автоперемещение «Моего плана» (ADR-0008) и синхронизация
-    // письма-поручения — как у переноса по глобальной оси.
+    // Встроенное автоперемещение «Моего плана» (ADR-0008) — как у переноса
+    // по глобальной оси.
     autoMovePersonalPlacement(task, demoPersonalStages);
-    const letterId = letterIdByTaskId(task.id);
-    if (letterId) syncLetterWithTasks(letterId);
     task.updatedAt = new Date().toISOString();
     // Контракт: строка задачи + НОВЫЕ кнопки нажавшего (одним ходом).
     return HttpResponse.json({ task, transitions: transitionsOf(task) });

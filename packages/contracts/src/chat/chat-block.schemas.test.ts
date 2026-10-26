@@ -41,6 +41,25 @@ describe('вид сообщения и блок перехода (#380)', () => 
     ).toThrow();
   });
 
+  it('блок перехода письма (#55, Р10): цвет цели — ключ палитры, вид — letter_transition', () => {
+    const letterBlock = {
+      kind: 'letter_transition',
+      letterId: crypto.randomUUID(),
+      recordId: crypto.randomUUID(),
+      transitionName: 'Закрыть без регистрации',
+      fromStageName: 'Новое',
+      toStageName: 'Не зарегистрировано',
+      toStageColor: 'neutral',
+      commentLabel: 'Причина',
+    };
+    expect(chatMessageKindSchema.parse('letter_transition')).toBe('letter_transition');
+    expect(chatMessageBlockSchema.parse(letterBlock)).toEqual(letterBlock);
+    expect(() =>
+      chatMessageBlockSchema.parse({ ...letterBlock, toStageColor: '#ff0000' }),
+    ).toThrow();
+    expect(() => chatMessageBlockSchema.parse({ ...letterBlock, letterId: undefined })).toThrow();
+  });
+
   it('ids lookup: 1..50 уникальных, разбор строки', () => {
     const ids = [crypto.randomUUID(), crypto.randomUUID()];
     expect(lookupMessagesQuerySchema.parse({ ids: ids.join(',') }).ids).toEqual(ids);

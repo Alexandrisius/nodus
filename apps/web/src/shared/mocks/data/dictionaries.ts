@@ -1,11 +1,9 @@
 import type { Dictionary, DictionaryItem } from '@nodus/contracts';
-import { SystemDictionary } from '@nodus/contracts';
+import { RECEIPT_METHOD_CODES, SystemDictionary, type ReceiptMethodCode } from '@nodus/contracts';
 
-import { demoDocumentKinds } from './counterparties.js';
-
-/** Демо-справочники (#431, Р10): системные `currency` и `document-kind`
- *  (id элементов совпадают с моками писем) и пользовательские «Виды работ»,
- *  «Объекты». Значения полей ссылаются на id элементов (I15). */
+/** Демо-справочники (#431, Р10): системные `currency`, `document-kind`,
+ *  `receipt-method` (способы поступления писем, #55 Р14) и пользовательские
+ *  «Виды работ», «Объекты». Значения полей ссылаются на id элементов (I15). */
 
 const did = (n: number): string => `d1000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const iid = (n: number): string => `d2000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
@@ -15,7 +13,19 @@ export const dictionaryIds = {
   documentKind: did(2),
   workKind: did(3),
   object: did(4),
+  receiptMethod: did(5),
 };
+
+const kid = (n: number): string => `e0000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+
+/** Способы поступления (Р14): коды стабильны — умолчание формы регистрации
+ *  берётся по коду (бумага → «Почта», почта #56 → «Электронная почта»). */
+export const receiptMethodIds = {
+  email: iid(31),
+  post: iid(32),
+  courier: iid(33),
+  smdo: iid(34),
+} as const satisfies Record<ReceiptMethodCode, string>;
 
 export const currencyIds = {
   byn: iid(1),
@@ -53,6 +63,13 @@ export const demoDictionaries: Dictionary[] = [
     isSystem: true,
   },
   {
+    id: dictionaryIds.receiptMethod,
+    code: SystemDictionary.RECEIPT_METHOD,
+    name: 'Способы поступления',
+    hierarchical: false,
+    isSystem: true,
+  },
+  {
     id: dictionaryIds.workKind,
     code: 'work-kind',
     name: 'Виды работ',
@@ -74,9 +91,12 @@ function item(
   name: string,
   sortOrder: number,
   isActive = true,
+  code: string | null = null,
 ): DictionaryItem {
-  return { id, dictionaryId, parentId: null, code: null, name, sortOrder, isActive };
+  return { id, dictionaryId, parentId: null, code, name, sortOrder, isActive };
 }
+
+const documentKinds = ['Письмо', 'Договор', 'Приказ', 'Запрос', 'Акт'];
 
 export const demoDictionaryItems: DictionaryItem[] = [
   item(currencyIds.byn, dictionaryIds.currency, 'BYN', 0),
@@ -84,8 +104,40 @@ export const demoDictionaryItems: DictionaryItem[] = [
   item(currencyIds.usd, dictionaryIds.currency, 'USD', 2),
   item(currencyIds.eur, dictionaryIds.currency, 'EUR', 3),
   item(currencyIds.cny, dictionaryIds.currency, 'CNY', 4),
-  ...demoDocumentKinds.map((kind, index) =>
-    item(kind.id, dictionaryIds.documentKind, kind.name, index),
+  ...documentKinds.map((name, index) =>
+    item(kid(index + 1), dictionaryIds.documentKind, name, index),
+  ),
+  item(
+    receiptMethodIds.email,
+    dictionaryIds.receiptMethod,
+    'Электронная почта',
+    0,
+    true,
+    RECEIPT_METHOD_CODES.email,
+  ),
+  item(
+    receiptMethodIds.post,
+    dictionaryIds.receiptMethod,
+    'Почта',
+    1,
+    true,
+    RECEIPT_METHOD_CODES.post,
+  ),
+  item(
+    receiptMethodIds.courier,
+    dictionaryIds.receiptMethod,
+    'Нарочным',
+    2,
+    true,
+    RECEIPT_METHOD_CODES.courier,
+  ),
+  item(
+    receiptMethodIds.smdo,
+    dictionaryIds.receiptMethod,
+    'СМДО',
+    3,
+    true,
+    RECEIPT_METHOD_CODES.smdo,
   ),
   item(workKindIds.design, dictionaryIds.workKind, 'Проектирование', 0),
   item(workKindIds.approval, dictionaryIds.workKind, 'Согласование', 1),

@@ -15,6 +15,7 @@ import { useUpdateProcessType } from '../../api/automation-api.js';
 import {
   accessSummary,
   blocksSummary,
+  numberingSummary,
   roleLabelsSummary,
 } from '../../lib/type-settings-summary.js';
 import { CommitInput, CommitTextarea } from '../editor/panel/commit-field.js';
@@ -23,7 +24,7 @@ import { SidePanel } from '../editor/panel/side-panel.js';
 import { TypeAccessSection } from '../editor/panel/type-settings-access.js';
 import { TypeBlocksSection, TypeRoleLabelsSection } from '../editor/panel/type-settings-card.js';
 
-type Section = 'root' | 'access' | 'blocks' | 'roles';
+type Section = 'root' | 'access' | 'blocks' | 'roles' | 'numbering';
 
 const t = ui.automation.typeSettings;
 
@@ -65,6 +66,10 @@ export function TypeSettingsPanel({
   }, [roles]);
   const back = () => setSection('root');
   const task = type.category === 'task';
+  // Каталог писем системный (#55, Р4): настройки типа письма — только чтение,
+  // включая серию номеров (её правка — #504).
+  const locked = !task;
+  const canEdit = readOnly || locked;
 
   return (
     <SidePanel
@@ -75,13 +80,20 @@ export function TypeSettingsPanel({
     >
       {section === 'root' ? (
         <>
-          <TypeBasics type={type} readOnly={readOnly} />
+          <TypeBasics type={type} readOnly={canEdit} />
           <div className="flex min-w-0 flex-col">
             <SectionLink
               title={t.sections.access}
               summary={accessSummary(type, roleName)}
               onClick={() => setSection('access')}
             />
+            {!task ? (
+              <SectionLink
+                title={t.sections.numbering}
+                summary={numberingSummary(type)}
+                onClick={() => setSection('numbering')}
+              />
+            ) : null}
             {task ? (
               <>
                 <SectionLink
@@ -99,9 +111,10 @@ export function TypeSettingsPanel({
           </div>
         </>
       ) : null}
-      {section === 'access' ? <TypeAccessSection type={type} readOnly={readOnly} /> : null}
-      {section === 'blocks' ? <TypeBlocksSection type={type} readOnly={readOnly} /> : null}
-      {section === 'roles' ? <TypeRoleLabelsSection type={type} readOnly={readOnly} /> : null}
+      {section === 'access' ? <TypeAccessSection type={type} readOnly={canEdit} /> : null}
+      {section === 'blocks' ? <TypeBlocksSection type={type} readOnly={canEdit} /> : null}
+      {section === 'roles' ? <TypeRoleLabelsSection type={type} readOnly={canEdit} /> : null}
+      {section === 'numbering' ? <TypeNumberingSection type={type} /> : null}
     </SidePanel>
   );
 }
@@ -183,6 +196,25 @@ function TypeBasics({ type, readOnly }: { type: ProcessType; readOnly: boolean }
           onCommit={(description) => patch({ description })}
         />
       </PanelField>
+    </>
+  );
+}
+
+/** Раздел «Нумерация» (#55, Р2): формат серии и сброс счётчика — только
+ *  чтение до #504; серию выдаёт кнопка маршрута с «Присвоить номер». */
+function TypeNumberingSection({ type }: { type: ProcessType }) {
+  return (
+    <>
+      <PanelField label={t.numbering.format}>
+        <p className="font-mono text-sm text-secondary-foreground tabular-nums">
+          {numberingSummary(type)}
+        </p>
+      </PanelField>
+      <PanelField label={t.numbering.reset}>
+        <p className="text-sm text-secondary-foreground">{t.numbering.resetYear}</p>
+      </PanelField>
+      <p className="text-xs break-words text-muted-foreground">{t.numbering.lead}</p>
+      <p className="text-xs break-words text-muted-foreground">{t.numbering.readOnly}</p>
     </>
   );
 }

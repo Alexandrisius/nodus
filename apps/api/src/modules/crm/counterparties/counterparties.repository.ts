@@ -194,6 +194,23 @@ export class CounterpartiesRepository {
     });
   }
 
+  /** Id живых контрагентов по подстроке названия (#55, поиск писем). */
+  async searchIds(query: string, limit: number): Promise<string[]> {
+    const rows = await this.prisma.counterparty.findMany({
+      where: {
+        archivedAt: null,
+        OR: [
+          { shortName: { contains: escapeLike(query), mode: 'insensitive' } },
+          { fullName: { contains: escapeLike(query), mode: 'insensitive' } },
+        ],
+      },
+      orderBy: [{ shortName: 'asc' }, { id: 'asc' }],
+      take: limit,
+      select: { id: true },
+    });
+    return rows.map((row) => row.id);
+  }
+
   /** Действующий контрагент для записи ссылки (корреспондент, заказчик). */
   findActiveRef(id: string): Promise<{ id: string; shortName: string } | null> {
     return this.prisma.counterparty.findFirst({

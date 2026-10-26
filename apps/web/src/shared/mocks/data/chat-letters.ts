@@ -5,7 +5,9 @@ import type { ChatMessage, ConversationListItem } from '@nodus/contracts';
 
 import { cid, mid } from './chat-ids.js';
 import { isoAgo } from './dates.js';
-import { lid } from './letter-bodies.js';
+import { letterStages } from './letter-catalog.js';
+import { MISTAKE_REASON } from './letter-history-seed.js';
+import { lid } from './letter-ids.js';
 import { userIds, userRef } from './users.js';
 
 // draft/visibility/description доливаются map-ом в chat.ts (контракт #91):
@@ -25,46 +27,11 @@ type RawConversation = Omit<
   | 'lastActivityAt'
 >;
 
-/** Чаты писем (type=letter): обсуждение письма — только внутренние
- *  сотрудники (получатели/копии/адресат/позванные), наружу не уходит.
- *  Беседа есть у каждого письма демо-набора (cid(100+n) ↔ lid(n)). */
+/** Чаты писем (type=letter, #55 Р10): беседа есть только у
+ *  зарегистрированных писем с обсуждением; состав — адресат и
+ *  присоединившиеся (регистратор — нет, В2). Остальные беседы создаёт
+ *  find-or-create `GET /chat/conversations/by-letter/:id`. */
 export const rawLetterConversations: RawConversation[] = [
-  {
-    id: cid(101),
-    type: 'letter',
-    title: null,
-    avatarUrl: null,
-    project: null,
-    task: null,
-    letter: {
-      id: lid(1),
-      regNumber: null,
-      subject: 'О согласовании изменений в проектную документацию (корпус Б)',
-    },
-    membersPreview: [
-      userRef(userIds.shaiderova),
-      userRef(userIds.klimovich),
-      userRef(userIds.vinnichek),
-    ],
-    lastMessage: null,
-    unreadCount: 2,
-  },
-  {
-    id: cid(102),
-    type: 'letter',
-    title: null,
-    avatarUrl: null,
-    project: null,
-    task: null,
-    letter: {
-      id: lid(2),
-      regNumber: null,
-      subject: 'О проведении плановой проверки проектной организации',
-    },
-    membersPreview: [userRef(userIds.shaiderova), userRef(userIds.karpovich)],
-    lastMessage: null,
-    unreadCount: 0,
-  },
   {
     id: cid(103),
     type: 'letter',
@@ -86,34 +53,18 @@ export const rawLetterConversations: RawConversation[] = [
     unreadCount: 1,
   },
   {
-    id: cid(104),
+    id: cid(102),
     type: 'letter',
     title: null,
     avatarUrl: null,
     project: null,
     task: null,
     letter: {
-      id: lid(4),
-      regNumber: 'Вх-2026/116',
-      subject: 'Коммерческое предложение по вентиляционному оборудованию',
+      id: lid(2),
+      regNumber: 'Вх-2026/109',
+      subject: 'О согласовании изменений в проектную документацию (корпус Б)',
     },
-    membersPreview: [userRef(userIds.vinnichek), userRef(userIds.klimovich)],
-    lastMessage: null,
-    unreadCount: 0,
-  },
-  {
-    id: cid(105),
-    type: 'letter',
-    title: null,
-    avatarUrl: null,
-    project: null,
-    task: null,
-    letter: {
-      id: lid(5),
-      regNumber: 'Исх-2026/41',
-      subject: 'О готовности раздела АР к передаче заказчику',
-    },
-    membersPreview: [userRef(userIds.klimovich)],
+    membersPreview: [userRef(userIds.klimovich), userRef(userIds.vinnichek)],
     lastMessage: null,
     unreadCount: 0,
   },
@@ -126,26 +77,10 @@ export const rawLetterConversations: RawConversation[] = [
     task: null,
     letter: {
       id: lid(6),
-      regNumber: 'Исх-2026/40',
-      subject: 'О рассмотрении коммерческого предложения',
+      regNumber: 'Вх-2026/112',
+      subject: 'Счёт-фактура № 418 за сентябрь 2026 года',
     },
-    membersPreview: [userRef(userIds.vinnichek)],
-    lastMessage: null,
-    unreadCount: 0,
-  },
-  {
-    id: cid(107),
-    type: 'letter',
-    title: null,
-    avatarUrl: null,
-    project: null,
-    task: null,
-    letter: {
-      id: lid(7),
-      regNumber: 'Вх-2026/117',
-      subject: 'О графике монтажа металлоконструкций (этап 0359)',
-    },
-    membersPreview: [userRef(userIds.matorin), userRef(userIds.klimovich)],
+    membersPreview: [userRef(userIds.klimovich)],
     lastMessage: null,
     unreadCount: 0,
   },
@@ -186,8 +121,8 @@ function msg(
   };
 }
 
-/** Обсуждения под письмами (внутренние): разбор замечаний КЖ, очередь
- *  регистрации письма заказчика, рассмотрение КП. */
+/** Внутренние обсуждения писем: разбор замечаний КЖ, изменения по корпусу Б,
+ *  блок отмены регистрации с причиной (Р10, как блок перехода задачи #380). */
 export const letterMessages: ChatMessage[] = [
   msg(
     40,
@@ -213,24 +148,23 @@ export const letterMessages: ChatMessage[] = [
     isoAgo(1, 17, 45),
   ),
   msg(
-    43,
-    101,
-    userIds.shaiderova,
-    'Письмо заказчика по корпусу Б — регистрирую сегодня, адресат Александр.',
-    isoAgo(0, 9, 40),
-  ),
-  msg(
     44,
-    101,
+    102,
     userIds.klimovich,
-    'Посмотрел состав изменений по ОВиК — готовы к регистрации, возражений нет.',
-    isoAgo(0, 9, 58),
+    'Посмотрел состав изменений по ОВиК — готовы обсудить на совещании, возражений нет.',
+    isoAgo(6, 9, 58),
   ),
-  msg(
-    45,
-    104,
-    userIds.vinnichek,
-    'КП по вентиляции: сравню с проектной спецификацией, итог рассмотрения — к пятнице.',
-    isoAgo(1, 10, 30),
-  ),
+  msg(46, 106, userIds.karpovich, MISTAKE_REASON, isoAgo(4, 11, 20), {
+    kind: 'letter_transition',
+    block: {
+      kind: 'letter_transition',
+      letterId: lid(6),
+      recordId: 'c6000000-0000-4000-8000-000000000046',
+      transitionName: 'Отменить регистрацию',
+      fromStageName: letterStages.onResolution.name,
+      toStageName: letterStages.registeredByMistake.name,
+      toStageColor: letterStages.registeredByMistake.color,
+      commentLabel: 'Причина',
+    },
+  }),
 ];

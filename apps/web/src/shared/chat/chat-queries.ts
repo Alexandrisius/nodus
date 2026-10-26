@@ -133,6 +133,18 @@ export function useTaskConversation(taskId: string) {
   });
 }
 
+/** Чат письма (#55, Р10): find-or-create беседы по письму на стороне API;
+ *  не участнику — 404, поэтому хост включает запрос только участнику
+ *  (`access.isParticipant`), остальным — «Присоединиться к обсуждению». */
+export function useLetterConversation(letterId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: chatKeys.byLetter(letterId),
+    queryFn: () => api<ConversationListItem>(`/chat/conversations/by-letter/${letterId}`),
+    enabled: enabled && letterId.length > 0,
+    retry: false,
+  });
+}
+
 /** Тред канала: корневое сообщение + ответы (ровно один уровень). */
 export function useThreadMessages(conversationId: string, threadRootId: string) {
   const queryClient = useQueryClient();

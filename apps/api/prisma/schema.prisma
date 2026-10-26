@@ -158,9 +158,9 @@ model User {
   legalDepartment Department? @relation("LegalDepartmentMembers", fields: [legalDepartmentId], references: [id], onDelete: SetNull)
   legalPosition   Position?   @relation("LegalPosition", fields: [legalPositionId], references: [id], onDelete: SetNull)
 
-  roles              UserRole[]
-  sessions           Session[]
-  headedDepartments  Department[] @relation("DepartmentHead")
+  roles               UserRole[]
+  sessions            Session[]
+  headedDepartments   Department[] @relation("DepartmentHead")
   deputiedDepartments Department[] @relation("DepartmentDeputy")
 
   /// Список сотрудников: фильтр по статусу + детерминированная сортировка курсора.
@@ -251,8 +251,8 @@ model Role {
 /// действует на сотрудников подразделения и всех вложенных. Юридическая
 /// структура не участвует; архивная привязка прав не даёт.
 model DepartmentRole {
-  departmentId String @map("department_id") @db.Uuid
-  roleId       String @map("role_id") @db.Uuid
+  departmentId String   @map("department_id") @db.Uuid
+  roleId       String   @map("role_id") @db.Uuid
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz()
 
   department Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
@@ -290,16 +290,16 @@ model RolePermission {
 /// Храним хэши текущего и предыдущего refresh-токена: предъявление предыдущего
 /// после ротации = компрометация → отзыв всей сессии (подход Auth0).
 model Session {
-  id       String @id @default(uuid()) @db.Uuid
-  userId   String @map("user_id") @db.Uuid
+  id                       String    @id @default(uuid()) @db.Uuid
+  userId                   String    @map("user_id") @db.Uuid
   /// SHA-256 текущего refresh-токена (сам токен — только в httpOnly-cookie).
-  refreshTokenHash String @map("refresh_token_hash")
+  refreshTokenHash         String    @map("refresh_token_hash")
   /// SHA-256 предыдущего токена (grace-окно ротации + reuse-detection).
-  previousRefreshTokenHash String? @map("previous_refresh_token_hash")
-  userAgent String? @map("user_agent")
-  ip        String?
-  expiresAt DateTime @map("expires_at") @db.Timestamptz()
-  revokedAt DateTime? @map("revoked_at") @db.Timestamptz()
+  previousRefreshTokenHash String?   @map("previous_refresh_token_hash")
+  userAgent                String?   @map("user_agent")
+  ip                       String?
+  expiresAt                DateTime  @map("expires_at") @db.Timestamptz()
+  revokedAt                DateTime? @map("revoked_at") @db.Timestamptz()
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
@@ -319,44 +319,44 @@ model Session {
 /// (user_min, user_max) WHERE type='direct' + CHECK user_min <= user_max
 /// («диалог с собой» разрешён) — ДDL в миграции (Prisma не декларирует).
 model Conversation {
-  id       String  @id @default(uuid()) @db.Uuid
+  id            String    @id @default(uuid()) @db.Uuid
   /// direct | group | project_channel | task | letter.
-  type     String
-  title    String?
-  description String?
+  type          String
+  title         String?
+  description   String?
   /// closed | open (null у direct/task/letter).
-  visibility String?
-  projectId String? @map("project_id") @db.Uuid
-  taskId    String? @map("task_id") @db.Uuid
-  letterId  String? @map("letter_id") @db.Uuid
+  visibility    String?
+  projectId     String?   @map("project_id") @db.Uuid
+  taskId        String?   @map("task_id") @db.Uuid
+  letterId      String?   @map("letter_id") @db.Uuid
   /// Матрица прав беседы: {changeInfo,addMembers,removeMembers,post,manageSettings}
   /// → минимальная роль (owner>admin>member); дефолты — contracts.
-  permissions Json
+  permissions   Json
   /// Счётчик порядка сообщений: seq сообщений = last_seq после инкремента
   /// В ТОЙ ЖЕ транзакции отправки. Лок этой строки сериализует вставки беседы
   /// → порядок seq == порядок коммита (глобальный bigserial этого не даёт:
   /// значение выделяется до коммита, конкурентные транзакции коммитятся вне
   /// порядка seq — курсор «всё после N» навсегда пропускает поздние вставки
   /// с меньшим seq; postgres.org/docs/functions-sequence + Sequin).
-  lastSeq   BigInt  @default(0) @map("last_seq")
+  lastSeq       BigInt    @default(0) @map("last_seq")
   /// Момент последнего корневого сообщения — ось курсора списка бесед.
   lastMessageAt DateTime? @map("last_message_at") @db.Timestamptz()
   /// Инициатор создания (для direct — кто нашёл/создал).
-  createdBy String  @map("created_by") @db.Uuid
+  createdBy     String    @map("created_by") @db.Uuid
   /// Нормализованная пара direct: min/max id участников (равны у «Заметок»).
-  userMin String? @map("user_min") @db.Uuid
-  userMax String? @map("user_max") @db.Uuid
+  userMin       String?   @map("user_min") @db.Uuid
+  userMax       String?   @map("user_max") @db.Uuid
   /// Аватар беседы (группа/канал, #186): файл модуля files — квадратный
   /// WebP-дериват; plain UUID без FK (I3). null — заглушка из инициалов.
-  avatarFileId String? @map("avatar_file_id") @db.Uuid
+  avatarFileId  String?   @map("avatar_file_id") @db.Uuid
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
 
-  members ConversationMember[]
-  messages Message[]
-  pins    ConversationPin[]
-  drafts  ConversationDraft[]
+  members    ConversationMember[]
+  messages   Message[]
+  pins       ConversationPin[]
+  drafts     ConversationDraft[]
   vaultStats ConversationVaultStats?
 
   @@index([lastMessageAt(sort: Desc), id])
@@ -367,22 +367,22 @@ model Conversation {
 /// last_read_seq — watermark (монотонный GREATEST, не откатывается): unread =
 /// сообщения с seq > last_read_seq ИЛИ отредактированные после last_read_at.
 model ConversationMember {
-  conversationId String @map("conversation_id") @db.Uuid
-  userId   String  @map("user_id") @db.Uuid
+  conversationId String    @map("conversation_id") @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
   /// owner | admin | member.
-  role     String
-  lastReadSeq BigInt @default(0) @map("last_read_seq")
+  role           String
+  lastReadSeq    BigInt    @default(0) @map("last_read_seq")
   /// Момент последнего продвижения курсора (для readAt и «правка → непрочитано»).
-  lastReadAt  DateTime? @map("last_read_at") @db.Timestamptz()
-  pinned   Boolean @default(false)
-  muted    Boolean @default(false)
+  lastReadAt     DateTime? @map("last_read_at") @db.Timestamptz()
+  pinned         Boolean   @default(false)
+  muted          Boolean   @default(false)
   /// «Посмотреть позже»: гасится своей отправкой/пересылкой (мок-семантика).
-  snoozed  Boolean @default(false)
+  snoozed        Boolean   @default(false)
   /// Архив беседы (история сохраняется). Раскрывается активностью (отправка/
   /// пересылка — revealHidden, #103) и открытием из поиска людей (PATCH).
-  hidden   Boolean @default(false)
-  joinedAt DateTime @default(now()) @map("joined_at") @db.Timestamptz()
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+  hidden         Boolean   @default(false)
+  joinedAt       DateTime  @default(now()) @map("joined_at") @db.Timestamptz()
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
@@ -396,60 +396,60 @@ model ConversationMember {
 /// Idempotency-Key запроса (+суффикс «:i» у копий пересылки) — crash-окно
 /// между Redis-реплеем и фиксацией закрывает БД (ADR-0005).
 model Message {
-  id             String   @id @default(uuid()) @db.Uuid
-  conversationId String   @map("conversation_id") @db.Uuid
-  seq            BigInt
-  authorId       String   @map("author_id") @db.Uuid
-  clientMessageId String  @map("client_message_id")
-  text           String   @default("")
+  id                   String    @id @default(uuid()) @db.Uuid
+  conversationId       String    @map("conversation_id") @db.Uuid
+  seq                  BigInt
+  authorId             String    @map("author_id") @db.Uuid
+  clientMessageId      String    @map("client_message_id")
+  text                 String    @default("")
   /// Вид сообщения (#380): text | task_transition (#313 добавит system).
-  kind           String   @default("text")
+  kind                 String    @default("text")
   /// Данные блока по виду сообщения (task_transition: TaskTransitionBlock).
-  payload        Json?
-  replyToId      String?  @map("reply_to_id") @db.Uuid
+  payload              Json?
+  replyToId            String?   @map("reply_to_id") @db.Uuid
   /// Замороженный снапшот цитаты {authorId, text, quoteText, attachmentKind}:
   /// правка оригинала снапшот не меняет (вердикт 24.09); удалённость оригинала
   /// (deleted: true) вычисляется при чтении — «удаление сильнее заморозки».
-  replySnapshot  Json?    @map("reply_snapshot")
+  replySnapshot        Json?     @map("reply_snapshot")
   /// Тред ровно одного уровня: ссылка на корневое сообщение.
-  threadRootId   String?  @map("thread_root_id") @db.Uuid
+  threadRootId         String?   @map("thread_root_id") @db.Uuid
   /// Атрибуция пересылки (источник может быть удалён — переход решает сервис).
-  fwdConversationId String? @map("fwd_conversation_id") @db.Uuid
-  fwdMessageId      String? @map("fwd_message_id") @db.Uuid
-  fwdAuthorId       String? @map("fwd_author_id") @db.Uuid
-  fwdThreadRootId   String? @map("fwd_thread_root_id") @db.Uuid
-  editedAt     DateTime? @map("edited_at") @db.Timestamptz()
-  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz()
+  fwdConversationId    String?   @map("fwd_conversation_id") @db.Uuid
+  fwdMessageId         String?   @map("fwd_message_id") @db.Uuid
+  fwdAuthorId          String?   @map("fwd_author_id") @db.Uuid
+  fwdThreadRootId      String?   @map("fwd_thread_root_id") @db.Uuid
+  editedAt             DateTime? @map("edited_at") @db.Timestamptz()
+  deletedAt            DateTime? @map("deleted_at") @db.Timestamptz()
   /// Бесследное удаление (нет живых ответов, #163): строка остаётся ради
   /// непрерывности seq, ссылок тредов/цитат/пинов и аудита, но исключается
   /// из всех выдач. false у надгробия (видно как «Сообщение удалено»).
-  obliterated  Boolean   @default(false)
+  obliterated          Boolean   @default(false)
   /// «Важное сообщение» (#100, ревизия модели 05.10): пробивается через
   /// mute/DND верхним ярусом; непрочитавшим повторяем пуш каждые 5 минут
   /// до часа (аналитика прочтений — watermark/readBy); действий получателя
   /// не требует (ack-механика выпилена решением владельца 05.10).
-  urgent       Boolean   @default(false)
+  urgent               Boolean   @default(false)
   /// userId упомянутых @Имя — снапшот текущей версии (#100, канон
   /// Discord/Zulip; правка пересчитывает, #176).
-  mentionedUserIds Json?  @map("mentioned_user_ids")
+  mentionedUserIds     Json?     @map("mentioned_user_ids")
   /// Накопительное множество упомянутых за ВСЮ историю сообщения (#239):
   /// дифф-уведомления правок пингуют только при ПЕРВОМ упоминании человека
   /// (вердикт владельца: «убрали-вернули того же — не дёргается»).
-  everMentionedUserIds Json? @map("ever_mentioned_user_ids")
-  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz()
-  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
+  everMentionedUserIds Json?     @map("ever_mentioned_user_ids")
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt            DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
 
-  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  replyTo  Message?  @relation("MessageReply", fields: [replyToId], references: [id], onDelete: Restrict)
-  replies  Message[] @relation("MessageReply")
-  threadRoot Message?  @relation("ThreadTree", fields: [threadRootId], references: [id], onDelete: Restrict)
-  threadReplies Message[] @relation("ThreadTree")
+  conversation       Conversation        @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  replyTo            Message?            @relation("MessageReply", fields: [replyToId], references: [id], onDelete: Restrict)
+  replies            Message[]           @relation("MessageReply")
+  threadRoot         Message?            @relation("ThreadTree", fields: [threadRootId], references: [id], onDelete: Restrict)
+  threadReplies      Message[]           @relation("ThreadTree")
   threadParticipants ThreadParticipant[] @relation("ThreadParticipants")
-  reactions    MessageReaction[]
-  messagePins  ConversationPin[]
-  attachments  MessageAttachment[]
-  favorites    Favorite[]
-  links        MessageLink[]
+  reactions          MessageReaction[]
+  messagePins        ConversationPin[]
+  attachments        MessageAttachment[]
+  favorites          Favorite[]
+  links              MessageLink[]
 
   @@unique([conversationId, seq])
   @@unique([authorId, clientMessageId])
@@ -463,8 +463,8 @@ model Message {
 /// Реакция (toggle, контракт messageReactionToggleBodySchema): PK исключает
 /// дубль своей реакции тем же эмодзи.
 model MessageReaction {
-  messageId String @map("message_id") @db.Uuid
-  userId    String @map("user_id") @db.Uuid
+  messageId String   @map("message_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
   emoji     String
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
 
@@ -492,11 +492,11 @@ model ConversationPin {
 /// last_read_* не пухнет от TOAST-текста. revision монотонно растит сервер
 /// (last-write-wins между устройствами); пустой текст = удаление (мок-модель).
 model ConversationDraft {
-  conversationId String @map("conversation_id") @db.Uuid
-  userId   String  @map("user_id") @db.Uuid
-  text     String
-  revision Int     @default(0)
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+  conversationId String   @map("conversation_id") @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  text           String
+  revision       Int      @default(0)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz()
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
@@ -508,8 +508,8 @@ model ConversationDraft {
 /// автор корня | ответивший | наблюдатель. Заполняется с первого ответа;
 /// потребитель — трек уведомлений (после M13).
 model ThreadParticipant {
-  threadRootId String @map("thread_root_id") @db.Uuid
-  userId       String @map("user_id") @db.Uuid
+  threadRootId String   @map("thread_root_id") @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
   /// author | replier | watcher | mentioned (@-упоминание — тоже наблюдатель,
   /// раунд 3).
   source       String
@@ -530,27 +530,27 @@ model ThreadParticipant {
 /// отправленное живёт с message_id IS NULL у владельца; привязка при отправке
 /// ОДНОРАЗОВАЯ (мок-модель). file_id → сущность модуля files, plain UUID (I3).
 model MessageAttachment {
-  id         String  @id @default(uuid()) @db.Uuid
-  messageId  String? @map("message_id") @db.Uuid
-  fileId     String  @map("file_id") @db.Uuid
+  id          String   @id @default(uuid()) @db.Uuid
+  messageId   String?  @map("message_id") @db.Uuid
+  fileId      String   @map("file_id") @db.Uuid
   /// Кто загрузил (валидация одноразовой привязки).
-  ownerId    String  @map("owner_id") @db.Uuid
-  name       String
-  size       Int
-  mime       String
+  ownerId     String   @map("owner_id") @db.Uuid
+  name        String
+  size        Int
+  mime        String
   /// image | file | sticker — явный вид (НЕ выводится из mime; контракт).
-  kind       String
-  width      Int?
-  height     Int?
+  kind        String
+  width       Int?
+  height      Int?
   /// FileObject серверного превью (WebP-дериват, #150); null — не сгенерировано
   /// (воркер ещё не дошёл / формат не декодируется). Пересылка копирует ссылку.
-  thumbFileId String? @map("thumb_file_id") @db.Uuid
+  thumbFileId String?  @map("thumb_file_id") @db.Uuid
   /// Снапшот метаданных стикера (kind='sticker', #143): {packId, packTitle,
   /// packScope, emojis} — заморожен на момент отправки, как reply-цитаты;
   /// удаление пака рендер отправленных сообщений не ломает.
   stickerMeta Json?    @map("sticker_meta")
-  sortOrder  Int     @default(0) @map("sort_order")
-  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
 
   message Message? @relation(fields: [messageId], references: [id], onDelete: Cascade)
 
@@ -569,18 +569,18 @@ model MessageAttachment {
 /// переиспользуется превью ссылок #212). Удаление/бесследие сообщения
 /// чистит строки физически (восстановления нет, #163).
 model MessageLink {
-  id         String   @id @default(uuid()) @db.Uuid
-  messageId  String   @map("message_id") @db.Uuid
+  id             String   @id @default(uuid()) @db.Uuid
+  messageId      String   @map("message_id") @db.Uuid
   /// Денормализация для keyset-списка витрины без join на навигацию.
-  conversationId String @map("conversation_id") @db.Uuid
+  conversationId String   @map("conversation_id") @db.Uuid
   /// Денормализация треда (скоуп «Этот тред», null у корней ленты).
-  threadRootId   String? @map("thread_root_id") @db.Uuid
+  threadRootId   String?  @map("thread_root_id") @db.Uuid
   /// Порядок в тексте сообщения (устойчивый ключ страницы внутри seq).
-  position   Int
-  url        String
+  position       Int
+  url            String
   /// Автор сообщения — контекст строки витрины (кто отправил).
-  authorId   String   @map("author_id") @db.Uuid
-  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  authorId       String   @map("author_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz()
 
   message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
 
@@ -683,7 +683,7 @@ model StickerPack {
   deletedAt DateTime? @map("deleted_at") @db.Timestamptz()
   createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz()
 
-  stickers        Sticker[]
+  stickers         Sticker[]
   installedByUsers UserStickerPack[]
 
   @@index([ownerId])
@@ -733,30 +733,30 @@ model UserStickerPack {
 /// Право на файл решает модуль-потребитель (chat: message_attachments
 /// plain file_id, I3 — без FK между модулями).
 model FileObject {
-  id        String    @id @default(uuid()) @db.Uuid
-  ownerId   String    @map("owner_id") @db.Uuid
-  bucket    String
+  id          String    @id @default(uuid()) @db.Uuid
+  ownerId     String    @map("owner_id") @db.Uuid
+  bucket      String
   /// Ключ ТЕКУЩЕЙ версии в бакете (указатель; история — в FileVersion).
-  key       String    @unique
+  key         String    @unique
   /// Номер текущей версии (указатель на FileObject.versions[N]; растёт при
   /// сохранениях ONLYOFFICE, #138). Миграция 28.09: существующие файлы = v1.
-  version   Int       @default(1)
-  name      String
-  mime      String
-  size      Int
+  version     Int       @default(1)
+  name        String
+  mime        String
+  size        Int
   /// pending | clean | infected — гейт отдачи (ADR-0013): infected не
   /// отдаётся никогда (410); pending отдаётся, пока сканера нет (ClamAV —
   /// фаза 2, M14). Карантин — префикс ключа quarantine/, фаза 2.
-  scanStatus String   @default("pending") @map("scan_status")
+  scanStatus  String    @default("pending") @map("scan_status")
   /// Дериват: FileObject порождён из файла derivedFrom (превью вложений
   /// #150). null — «пользовательский» файл; дериваты исключаются из
   /// выборок «файлов пользователя» и живут вместе с оригиналом (plain UUID,
   /// между модулями без FK, I3).
-  derivedFrom String? @map("derived_from") @db.Uuid
-  deletedAt DateTime? @map("deleted_at") @db.Timestamptz()
-  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  derivedFrom String?   @map("derived_from") @db.Uuid
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz()
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz()
 
-  versions FileVersion[]
+  versions    FileVersion[]
   derivatives FileDerivative[]
 
   @@index([ownerId])
@@ -769,21 +769,21 @@ model FileObject {
 /// ONLYOFFICE создают новую версию → конвейер перегенерирует. Миниатюры
 /// изображений — отдельный конвейер чата (#150, WebP), здесь не дублируются.
 model FileDerivative {
-  id          String   @id @default(uuid()) @db.Uuid
-  fileObjectId String  @map("file_object_id") @db.Uuid
-  version     Int
+  id           String   @id @default(uuid()) @db.Uuid
+  fileObjectId String   @map("file_object_id") @db.Uuid
+  version      Int
   /// pdf | icon (спека #139; thumbnail живёт в конвейере #150).
-  kind        String
+  kind         String
   /// pending | ready | failed (ретраи очереди — attempts).
-  status      String   @default("pending")
+  status       String   @default("pending")
   /// Ключ объекта в хранилище (SILO); null, пока не ready.
-  key         String?
-  size        Int      @default(0)
-  mime        String
-  error       String?
-  attempts    Int      @default(0)
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
-  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
+  key          String?
+  size         Int      @default(0)
+  mime         String
+  error        String?
+  attempts     Int      @default(0)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz()
 
   fileObject FileObject @relation(fields: [fileObjectId], references: [id], onDelete: Cascade)
 
@@ -796,21 +796,21 @@ model FileDerivative {
 /// таблица с первого дня — версии (перегрузки писем и пр.) не потребуют
 /// миграций и смены контрактов.
 model FileVersion {
-  id          String   @id @default(uuid()) @db.Uuid
-  fileObjectId String  @map("file_object_id") @db.Uuid
+  id             String   @id @default(uuid()) @db.Uuid
+  fileObjectId   String   @map("file_object_id") @db.Uuid
   /// 1.. — монотонно; уникально в пределах файла.
-  version     Int
-  key         String
-  size        Int
-  mime        String
+  version        Int
+  key            String
+  size           Int
+  mime           String
   /// Ключ документа ONLYOFFICE, из которого сохранена версия (#138):
   /// `${fileId}.v{N}` на момент правки — дедуп повторных колбэков
   /// (алфавит ключа DS без двоеточия — см. office-session.service).
-  sourceKey   String?  @map("source_key")
+  sourceKey      String?  @map("source_key")
   /// lastsave колбэка (мс epoch): повторная доставка того же сохранения
   /// (forcesave → закрытие) не создаёт дубликат-версию.
-  sourceLastsave BigInt? @map("source_lastsave")
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  sourceLastsave BigInt?  @map("source_lastsave")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz()
 
   fileObject FileObject @relation(fields: [fileObjectId], references: [id], onDelete: Cascade)
 
@@ -829,39 +829,39 @@ model FileVersion {
 /// персистентно; WS только будит. seq — bigserial (курсор дельты после
 /// reconnect); (event_id, user_id) — дедуп повторной доставки события (D4).
 model Notification {
-  id           String    @id @default(uuid()) @db.Uuid
+  id                String    @id @default(uuid()) @db.Uuid
   /// Глобальный порядок журнала: курсор дельты `?afterSeq=` (D1/D3).
-  seq          BigInt    @unique @default(autoincrement())
-  userId       String    @map("user_id") @db.Uuid
+  seq               BigInt    @unique @default(autoincrement())
+  userId            String    @map("user_id") @db.Uuid
   /// urgent | high | medium | low (zod-контракт, ADR-0017).
-  priority     String
+  priority          String
   /// Механика источника (urgent.message, chat.mention, action.assignment…).
-  kind         String
+  kind              String
   /// conversation | message | task | letter | workflow.
-  sourceType   String    @map("source_type")
+  sourceType        String    @map("source_type")
   /// Id агрегата источника (переход по клику, группировка строк).
-  sourceId     String    @map("source_id") @db.Uuid
+  sourceId          String    @map("source_id") @db.Uuid
   /// seq события-источника в беседе (гашение по watermark прочтения).
-  sourceSeq    BigInt    @map("source_seq")
-  actorId      String?   @map("actor_id") @db.Uuid
+  sourceSeq         BigInt    @map("source_seq")
+  actorId           String?   @map("actor_id") @db.Uuid
   /// Превью текста (поиск, строка ленты).
-  preview      String?
+  preview           String?
   /// Полный текст важного — тело строки журнала/пуша (только urgent).
-  urgentText   String?   @map("urgent_text")
-  conversationId String? @map("conversation_id") @db.Uuid
-  conversationTitle String? @map("conversation_title")
-  messageId    String?  @map("message_id") @db.Uuid
-  threadRootId String?  @map("thread_root_id") @db.Uuid
+  urgentText        String?   @map("urgent_text")
+  conversationId    String?   @map("conversation_id") @db.Uuid
+  conversationTitle String?   @map("conversation_title")
+  messageId         String?   @map("message_id") @db.Uuid
+  threadRootId      String?   @map("thread_root_id") @db.Uuid
   /// Событие-первоисточник: дедуп (event_id, user_id) = один экземпляр.
-  eventId      String    @map("event_id") @db.Uuid
-  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz()
-  readAt       DateTime? @map("read_at") @db.Timestamptz()
+  eventId           String    @map("event_id") @db.Uuid
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  readAt            DateTime? @map("read_at") @db.Timestamptz()
   /// Ознакомление (СЭД-паттерн): только urgent; отдельный от readAt акт.
-  ackAt        DateTime? @map("ack_at") @db.Timestamptz()
+  ackAt             DateTime? @map("ack_at") @db.Timestamptz()
   /// Повторы срочного остановлены (прочтение/ответ/реакция/потолок, C2/C3).
-  repeatsStoppedAt DateTime? @map("repeats_stopped_at") @db.Timestamptz()
+  repeatsStoppedAt  DateTime? @map("repeats_stopped_at") @db.Timestamptz()
 
-  deliveries   NotificationDelivery[]
+  deliveries NotificationDelivery[]
 
   @@unique([eventId, userId])
   @@index([userId, readAt, seq(sort: Desc)])
@@ -892,11 +892,11 @@ model NotificationDelivery {
 
 /// Настройки уведомлений пользователя (DND-расписание; ADR-0016 §3).
 model NotificationSetting {
-  userId     String   @id @map("user_id") @db.Uuid
-  dndEnabled Boolean  @default(false) @map("dnd_enabled")
+  userId     String  @id @map("user_id") @db.Uuid
+  dndEnabled Boolean @default(false) @map("dnd_enabled")
   /// Окно «не беспокоить», локальное «HH:mm» (подавление на клиенте).
-  dndStart   String   @default("22:00") @map("dnd_start")
-  dndEnd     String   @default("08:00") @map("dnd_end")
+  dndStart   String  @default("22:00") @map("dnd_start")
+  dndEnd     String  @default("08:00") @map("dnd_end")
 
   @@map("notification_settings")
 }
@@ -912,38 +912,38 @@ model NotificationSetting {
 /// письмо. code — стабильный ключ системного каталога (бутстрап модуля
 /// создаёт недостающее, не перезаписывает).
 model ProcessType {
-  id         String    @id @default(uuid()) @db.Uuid
-  code       String    @unique
-  name       String
+  id              String    @id @default(uuid()) @db.Uuid
+  code            String    @unique
+  name            String
   /// Категория сущности (ADR-0024): task | letter. Неизменяема после
   /// создания — от неё зависят карточка, реестры и адаптер движка.
-  category   String    @default("task")
+  category        String    @default("task")
   /// Направление письма: incoming | outgoing; null у задач (CHECK в
   /// миграции: (category = 'letter') = (direction IS NOT NULL)).
-  direction  String?
+  direction       String?
   /// УСТАРЕЛО (#428): узлы дерева проекта — сущность модуля проектов
   /// (ADR-0030), флаг не читается; колонка снимается contract-chore #439.
-  structural Boolean   @default(false)
-  isSystem   Boolean   @default(false) @map("is_system")
+  structural      Boolean   @default(false)
+  isSystem        Boolean   @default(false) @map("is_system")
   /// Значок-ключ закрытого реестра contracts (processTypeIconSchema, #378).
-  icon       String    @default("square-check")
+  icon            String    @default("square-check")
   /// Тон плитки-значка (stageColorSchema).
-  color      String    @default("neutral")
-  description String   @default("")
+  color           String    @default("neutral")
+  description     String    @default("")
   /// Доступен в экспресс-форме создания задач (#378).
-  creatable  Boolean   @default(true)
+  creatable       Boolean   @default(true)
   /// Правился руками (редактор): каталог «засев один раз» не трогает (#378).
-  customizedAt DateTime? @map("customized_at") @db.Timestamptz()
+  customizedAt    DateTime? @map("customized_at") @db.Timestamptz()
   /// Ревизия каталога, последняя применённая к типу (ADR-0021).
-  catalogRevision Int  @default(0) @map("catalog_revision")
-  sortOrder  Int       @default(0) @map("sort_order")
+  catalogRevision Int       @default(0) @map("catalog_revision")
+  sortOrder       Int       @default(0) @map("sort_order")
   /// Конфигурация типа (#432, ADR-0024 п.5): состав карточки (`card`) и
   /// доступ (`access`). Сохраняется сразу, публикации не требует; схема
   /// `processTypeConfigSchema`, битый раздел читается как умолчание.
-  config     Json      @default("{}")
-  archivedAt DateTime? @map("archived_at") @db.Timestamptz()
-  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz()
-  updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
+  config          Json      @default("{}")
+  archivedAt      DateTime? @map("archived_at") @db.Timestamptz()
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
 
   schemeEntries WorkflowSchemeEntry[]
   fieldBindings FieldDefinitionType[]
@@ -955,32 +955,32 @@ model ProcessType {
 /// (личный «Мой план», ownerId; шаблон — isTemplate без владельца).
 /// Один личный маршрут на сотрудника — частичный unique в миграции.
 model Workflow {
-  id         String   @id @default(uuid()) @db.Uuid
+  id              String    @id @default(uuid()) @db.Uuid
   /// Ключ системного каталога (null у личных экземпляров).
-  code       String?  @unique
-  name       String
-  kind       String
-  ownerId    String?  @map("owner_id") @db.Uuid
-  isSystem   Boolean  @default(false) @map("is_system")
-  isTemplate Boolean  @default(false) @map("is_template")
+  code            String?   @unique
+  name            String
+  kind            String
+  ownerId         String?   @map("owner_id") @db.Uuid
+  isSystem        Boolean   @default(false) @map("is_system")
+  isTemplate      Boolean   @default(false) @map("is_template")
   /// Версия публикации (#378, ADR-0021): optimistic concurrency — публикация
   /// сверяет baseVersion, конфликт → 409.
-  version    Int      @default(1)
-  publishedAt  DateTime? @map("published_at") @db.Timestamptz()
-  publishedById String?  @map("published_by_id") @db.Uuid
+  version         Int       @default(1)
+  publishedAt     DateTime? @map("published_at") @db.Timestamptz()
+  publishedById   String?   @map("published_by_id") @db.Uuid
   /// Правился руками (редактор): каталог «засев один раз» не трогает (#378).
-  customizedAt DateTime? @map("customized_at") @db.Timestamptz()
+  customizedAt    DateTime? @map("customized_at") @db.Timestamptz()
   /// Ревизия каталога, последняя применённая к маршруту (ADR-0021).
-  catalogRevision Int @default(0) @map("catalog_revision")
+  catalogRevision Int       @default(0) @map("catalog_revision")
   /// Раскладка холста редактора — общая для всех (#378 ред. 2, ADR-0022):
   /// позиции статусов, точки подключения и положение подписей кнопок
   /// (схема `workflowLayoutSchema`). Пусто — авторасстановка.
-  layout     Json     @default("{}")
+  layout          Json      @default("{}")
   /// Форма создания — окно узла «Создание» (#432): слоты и чипы. null —
   /// форма по умолчанию (нынешняя экспресс-форма). Публикуется версией.
-  creation   Json?
-  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz()
-  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+  creation        Json?
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
 
   stages        WorkflowStage[]
   transitions   WorkflowTransition[]
@@ -1027,22 +1027,22 @@ model WorkflowStage {
 /// rules — {conditions, validators, postFunctions} закрытого реестра
 /// contracts (workflowTransitionRulesSchema); неизвестный вид сервер отвергает.
 model WorkflowTransition {
-  id          String   @id @default(uuid()) @db.Uuid
-  workflowId  String   @map("workflow_id") @db.Uuid
+  id          String    @id @default(uuid()) @db.Uuid
+  workflowId  String    @map("workflow_id") @db.Uuid
   code        String?
   name        String
-  fromStageId String?  @map("from_stage_id") @db.Uuid
-  toStageId   String   @map("to_stage_id") @db.Uuid
+  fromStageId String?   @map("from_stage_id") @db.Uuid
+  toStageId   String    @map("to_stage_id") @db.Uuid
   /// Показ кнопки (#378): primary | button | menu.
-  display     String   @default("button")
+  display     String    @default("button")
   /// Удаление в редакторе = архивация: история и события ссылаются (#378).
   archivedAt  DateTime? @map("archived_at") @db.Timestamptz()
-  sortOrder   Int      @default(0) @map("sort_order")
-  rules       Json     @default("{}")
+  sortOrder   Int       @default(0) @map("sort_order")
+  rules       Json      @default("{}")
   /// Окно при нажатии (#380): часть документа маршрута, публикуется с ним.
-  form        Json     @default("{}")
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
-  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+  form        Json      @default("{}")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
 
   workflow  Workflow       @relation(fields: [workflowId], references: [id], onDelete: Cascade)
   fromStage WorkflowStage? @relation("TransitionFrom", fields: [fromStageId], references: [id], onDelete: Restrict)
@@ -1082,6 +1082,39 @@ model WorkflowSchemeEntry {
   @@index([processTypeId])
   @@index([workflowId])
   @@map("workflow_scheme_entries")
+}
+
+/// Серия номеров «Процессов» (#55, ADR-0027 доп. O1): префикс и правило
+/// сброса. Регистрационный номер письма выдаёт движок в транзакции перехода
+/// (`assign_number`), поэтому серии живут в модуле процессов, а не в письмах.
+/// Серии `letter-incoming` «Вх» и `letter-outgoing` «Исх» засевает каталог.
+model NumberSeries {
+  id        String   @id @default(uuid()) @db.Uuid
+  code      String   @unique
+  /// Префикс номера: «Вх» → «Вх-2026/118».
+  prefix    String
+  /// Правило сброса счётчика: year (единственное в #55; CHECK в миграции).
+  reset     String   @default("year")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  counters NumberCounter[]
+
+  @@map("number_series")
+}
+
+/// Счётчик серии на год. Строка сериализует регистрации серии (upsert с
+/// `last_value + 1`): откат транзакции не сдвигает счётчик → номеров без
+/// пропусков. Год — по часовому поясу компании (`COMPANY_TIMEZONE`).
+model NumberCounter {
+  seriesId  String @map("series_id") @db.Uuid
+  year      Int
+  lastValue Int    @default(0) @map("last_value")
+
+  series NumberSeries @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+
+  @@id([seriesId, year])
+  @@map("number_counters")
 }
 
 /// Задача. Проект необязателен (projectId nullable, без FK — I3): задача без
@@ -1139,8 +1172,8 @@ model Task {
   createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
 
-  parent   Task?         @relation("TaskTree", fields: [parentId], references: [id], onDelete: Restrict)
-  children Task[]        @relation("TaskTree")
+  parent   Task?  @relation("TaskTree", fields: [parentId], references: [id], onDelete: Restrict)
+  children Task[] @relation("TaskTree")
 
   participants  TaskParticipant[]
   placements    TaskPersonalPlacement[]
@@ -1364,13 +1397,13 @@ model DictionaryItem {
 /// среди ВСЕХ записей, включая архив (NULL-ы в PostgreSQL различны →
 /// «уникален, если указан»; архив держит УНП → «вернуть из архива», не дубль).
 model Counterparty {
-  id        String  @id @default(uuid()) @db.Uuid
-  shortName String  @map("short_name")
-  fullName  String  @map("full_name")
-  unp       String? @unique
-  address   String?
-  email     String?
-  phone     String?
+  id           String    @id @default(uuid()) @db.Uuid
+  shortName    String    @map("short_name")
+  fullName     String    @map("full_name")
+  unp          String?   @unique
+  address      String?
+  email        String?
+  phone        String?
   /// Кастомные поля области `counterparty` (ADR-0029); запись — с #431.
   customFields Json      @default("{}") @map("custom_fields")
   archivedAt   DateTime? @map("archived_at") @db.Timestamptz()
@@ -1420,6 +1453,9 @@ model CounterpartyUsage {
   sourceId   String @map("source_id") @db.Uuid
 
   counterpartyId String   @map("counterparty_id") @db.Uuid
+  /// Подписант письма (ContactPerson, #55): «в этом письме подписал X».
+  /// null у проектов и у письма без подписанта.
+  contactId      String?  @map("contact_id") @db.Uuid
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz()
 
@@ -1427,6 +1463,7 @@ model CounterpartyUsage {
 
   @@id([sourceKind, sourceId])
   @@index([counterpartyId, sourceKind])
+  @@index([contactId])
   @@map("counterparty_usages")
 }
 
@@ -1442,17 +1479,17 @@ model CounterpartyUsage {
 /// значениями (стираются владельцем при следующем чтении: ключа нет в
 /// реестре), поэтому отдельной таблицы значений нет.
 model FieldDefinition {
-  id   String @id @default(uuid()) @db.Uuid
+  id            String  @id @default(uuid()) @db.Uuid
   /// task | letter | project | counterparty — домен в CHECK миграции.
-  scope String
+  scope         String
   /// Тип из `customFieldTypeSchema` (16 значений) — домен в CHECK миграции.
-  type  String
-  name  String
-  hint  String?
+  type          String
+  name          String
+  hint          String?
   /// Настройки типа: precision (число), currencyId (деньги), dictionaryId (список).
-  settings Json @default("{}")
+  settings      Json    @default("{}")
   /// Умолчание: {kind:'static', value} | {kind:'author_department'}.
-  defaultValue Json? @map("default_value")
+  defaultValue  Json?   @map("default_value")
   /// Флаг «индексировать для отчётов» (Р9): материализация — по триггеру (Н4).
   reportIndexed Boolean @default(false) @map("report_indexed")
   /// Скрытый (служебный) атрибут: не виден никому в карточках, фильтрах и
@@ -1460,7 +1497,7 @@ model FieldDefinition {
   hidden        Boolean @default(false)
   sortOrder     Int     @default(0) @map("sort_order")
   /// Автор определения — plain UUID без FK (пользователь живёт в auth, I3).
-  createdById String? @map("created_by_id") @db.Uuid
+  createdById   String? @map("created_by_id") @db.Uuid
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
@@ -1488,4 +1525,104 @@ model FieldDefinitionType {
   @@id([definitionId, processTypeId])
   @@index([processTypeId])
   @@map("field_definition_types")
+}
+
+// ===== Модуль корреспонденции (#55, ADR-0027) =====
+// Письмо — сущность на движке «Процессы»: тип/маршрут/стадия — plain UUID без
+// FK (I3, как задачи). Регистрационный номер выдаёт движок (assign_number),
+// письмо хранит его денормализацией ради реестров и уникальности.
+
+/// Письмо: «Новое» (не зарегистрировано) → регистрация → маршрут.
+/// Удаление — физическое (спам, только из «Новое»); история — event log.
+model Letter {
+  id             String   @id @default(uuid()) @db.Uuid
+  typeId         String   @map("type_id") @db.Uuid
+  workflowId     String   @map("workflow_id") @db.Uuid
+  stageId        String   @map("stage_id") @db.Uuid
+  /// Денормализация stage.systemState в той же tx (фильтры, I14).
+  systemState    String   @map("system_state")
+  stateChangedAt DateTime @default(now()) @map("state_changed_at") @db.Timestamptz()
+  /// incoming | outgoing (совпадает с ProcessType.direction; CHECK в миграции).
+  direction      String
+
+  /// Регистрационный номер «Вх-2026/118»: выдаётся один раз, неизменяем.
+  /// Поля reg_* заполняются вместе (CHECK в миграции).
+  regNumber    String?   @map("reg_number")
+  regSeriesId  String?   @map("reg_series_id") @db.Uuid
+  regYear      Int?      @map("reg_year")
+  regSeq       Int?      @map("reg_seq")
+  /// Дата регистрации (день Минска) — печатается в карточке.
+  regDate      DateTime? @map("reg_date") @db.Date
+  registeredAt DateTime? @map("registered_at") @db.Timestamptz()
+  registrarId  String?   @map("registrar_id") @db.Uuid
+
+  subject          String?
+  theirNumber      String?   @map("their_number")
+  theirDate        DateTime? @map("their_date") @db.Date
+  counterpartyId   String?   @map("counterparty_id") @db.Uuid
+  signerId         String?   @map("signer_id") @db.Uuid
+  receiptMethodId  String?   @map("receipt_method_id") @db.Uuid
+  projectId        String?   @map("project_id") @db.Uuid
+  addresseeId      String?   @map("addressee_id") @db.Uuid
+  responseDeadline DateTime? @map("response_deadline") @db.Date
+  /// Кастомные поля (FieldDefinition области `letter`); GIN — в миграции.
+  customFields     Json      @default("{}") @map("custom_fields")
+
+  /// manual (создано в портале) | mail (#56, CHECK в миграции).
+  source     String   @default("manual")
+  createdBy  String   @map("created_by") @db.Uuid
+  /// Момент поступления — ось очереди «Новые» (у ручного = создания).
+  receivedAt DateTime @default(now()) @map("received_at") @db.Timestamptz()
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  attachments  LetterAttachment[]
+  participants LetterParticipant[]
+
+  @@unique([regSeriesId, regYear, regSeq])
+  /// Очередь «Новые» и реестр зарегистрированных (keyset, id — tiebreak).
+  @@index([receivedAt(sort: Desc), id])
+  @@index([registeredAt(sort: Desc), id])
+  @@index([counterpartyId, registeredAt(sort: Desc), id])
+  @@index([addresseeId, systemState])
+  @@index([stageId])
+  @@index([typeId])
+  @@index([customFields(ops: JsonbPathOps)], type: Gin, map: "letters_custom_fields_gin")
+  @@map("letters")
+}
+
+/// Файл письма. Роль: main — основной документ («Письмо» во вьювере), body —
+/// HTML/текст тела, attachment — приложение, source — исходник почты (#56).
+/// Частичные unique «один main и один body на письмо» — в миграции.
+model LetterAttachment {
+  id        String   @id @default(uuid()) @db.Uuid
+  letterId  String   @map("letter_id") @db.Uuid
+  /// Файл модуля files — plain UUID без FK (I3).
+  fileId    String   @map("file_id") @db.Uuid
+  /// main | body | attachment | source (CHECK в миграции).
+  role      String
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  letter Letter @relation(fields: [letterId], references: [id], onDelete: Cascade)
+
+  @@index([letterId, sortOrder])
+  @@index([fileId])
+  @@map("letter_attachments")
+}
+
+/// Участник обсуждения письма («Присоединиться к обсуждению»). Состав чата —
+/// адресат + участники; регистратор в чат не входит (В2).
+model LetterParticipant {
+  letterId  String   @map("letter_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  /// participant (в #55 единственная роль; задел #461/#463).
+  role      String   @default("participant")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  letter Letter @relation(fields: [letterId], references: [id], onDelete: Cascade)
+
+  @@id([letterId, userId])
+  @@index([userId])
+  @@map("letter_participants")
 }

@@ -66,6 +66,9 @@ export const chatConversationUpdatedPayloadSchema = z.object({
   title: z.string().nullable().optional(),
   /** Аватар установлен/сменён/убран — поле к рефечу. */
   avatarChanged: z.boolean().optional(),
+  /** Ссылка беседы письма изменилась (тема или номер после регистрации,
+   *  #55): клиенты рефечат список — подпись «Чатов задач и писем». */
+  letterChanged: z.boolean().optional(),
 });
 export type ChatConversationUpdatedPayload = z.infer<typeof chatConversationUpdatedPayloadSchema>;
 

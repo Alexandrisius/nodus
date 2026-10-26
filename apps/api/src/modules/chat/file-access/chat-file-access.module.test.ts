@@ -4,20 +4,14 @@ import { Test } from '@nestjs/testing';
 
 import { DatabaseModule } from '../../../core/database/database.module.js';
 import { PrismaService } from '../../../core/database/prisma.service.js';
-import {
-  FILE_ACCESS_CONTRIBUTORS,
-  type FileAccessContributor,
-} from '../../../core/ports/file-access.port.js';
 import { ChatFileAccessModule } from './chat-file-access.module.js';
+import { ChatFileAccess } from './chat-file-access.provider.js';
 
-/** Потребитель-зонд: инжектит токен БЕЗ @Optional — при исчезновении
+/** Потребитель-зонд: инжектит контрибьютора БЕЗ @Optional — при исчезновении
  *  exports у ChatFileAccessModule компиляция контейнера упадёт (Nest can't
  *  resolve dependencies), а не молча вернёт owner-only режим. */
 class ProbeConsumer {
-  constructor(
-    @Inject(FILE_ACCESS_CONTRIBUTORS)
-    readonly contributors: FileAccessContributor[],
-  ) {}
+  constructor(@Inject(ChatFileAccess) readonly access: ChatFileAccess) {}
 }
 
 @Module({
@@ -27,13 +21,14 @@ class ProbeConsumer {
 class ProbeModule {}
 
 describe('ChatFileAccessModule (#138)', () => {
-  it('экспортирует FILE_ACCESS_CONTRIBUTORS глобально: потребитель чужого модуля видит chat-контрибьютора', async () => {
+  it('экспортирует контрибьютора глобально, маркер контекста — chat (#55)', async () => {
     const app = await Test.createTestingModule({ imports: [ProbeModule] })
       .overrideProvider(PrismaService)
       .useValue({})
       .compile();
     const probe = app.get(ProbeConsumer);
-    expect(probe.contributors.length).toBeGreaterThanOrEqual(1);
+    expect(probe.access.fileAccessContext).toBe('chat');
+    expect(typeof probe.access.check).toBe('function');
     await app.close();
   });
 });

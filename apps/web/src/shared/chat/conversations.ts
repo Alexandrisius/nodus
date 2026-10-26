@@ -34,7 +34,9 @@ export function conversationTitle(
   }
   if (conversation.type === 'letter' && conversation.letter) {
     const ref = conversation.letter.regNumber;
-    return ref ? `${ref} · ${conversation.letter.subject}` : conversation.letter.subject;
+    // Бумажный скан до регистрации может быть без темы (#55).
+    const subject = conversation.letter.subject ?? ui.letters.noSubject;
+    return ref ? `${ref} · ${subject}` : subject;
   }
   if (isNotesConversation(conversation, meId)) return ui.chat.notes;
   return conversation.title ?? withoutPatronymic(conversation.membersPreview[0]?.displayName ?? '');

@@ -1,9 +1,15 @@
 import type {
   CustomFieldScope,
+  ProcessCategory,
   WorkflowDraftDocument,
   WorkflowDraftTransition,
 } from '@nodus/contracts';
-import { CUSTOM_FIELD_LIMITS, ui } from '@nodus/contracts';
+import {
+  CUSTOM_FIELD_LIMITS,
+  WORKFLOW_ROLES_BY_CATEGORY,
+  WORKFLOW_VALIDATORS_BY_CATEGORY,
+  ui,
+} from '@nodus/contracts';
 import { Checkbox } from '@nodus/ui/components/checkbox';
 import { Input } from '@nodus/ui/components/input';
 import {
@@ -16,7 +22,6 @@ import {
 
 import { useRouteDocStore } from '../../../model/route-doc-store.js';
 import {
-  ACTOR_ROLES,
   REQUIRABLE_FIELDS,
   VALIDATOR_KINDS,
   defaultRouteIfTarget,
@@ -88,22 +93,27 @@ function CheckRow({
 export function RolesSection({
   transition,
   readOnly,
+  category = 'task',
 }: {
   transition: WorkflowDraftTransition;
   readOnly: boolean;
+  /** Словарь ролей категории (Р6): у письма — регистратор, адресат,
+   *  исполнитель, расписавший, автор, участник. */
+  category?: ProcessCategory;
 }) {
   const patch = usePatchRules(transition);
   const roles = rolesOf(transition.rules);
+  const allowed = WORKFLOW_ROLES_BY_CATEGORY[category];
   return (
     <>
-      {ACTOR_ROLES.map((role) => (
+      {allowed.map((role) => (
         <CheckRow
           key={role}
           checked={roles.has(role)}
           // Последнюю роль снять нельзя — кнопку должен кто-то видеть.
           disabled={readOnly || (roles.has(role) && roles.size === 1)}
           title={ui.automation.roles[role]}
-          onChange={() => patch(toggleRole(transition.rules, role))}
+          onChange={() => patch(toggleRole(transition.rules, role, allowed))}
         />
       ))}
       <p className="text-xs break-words text-muted-foreground">{ui.automation.whoSeesHint}</p>
@@ -116,24 +126,37 @@ export function ConditionsSection({
   scope,
   typeId,
   readOnly,
+  category = 'task',
 }: {
   transition: WorkflowDraftTransition;
   scope: CustomFieldScope;
   /** Тип процесса: в гейт выбираются только его атрибуты (#432, Р8). */
   typeId?: string;
   readOnly: boolean;
+  /** Гейты категории (Р6): у писем в #55 их нет — задачные факты не считаются. */
+  category?: ProcessCategory;
 }) {
   const patch = usePatchRules(transition);
   const rules = transition.rules;
   const subtasks = validatorOf(rules, 'no_open_subtasks');
   const fields = validatorOf(rules, 'fields_required');
   const files = validatorOf(rules, 'result_files');
+  const kinds = VALIDATOR_KINDS.filter((kind) =>
+    (WORKFLOW_VALIDATORS_BY_CATEGORY[category] as readonly string[]).includes(kind),
+  );
+  if (kinds.length === 0) {
+    return (
+      <p className="text-sm break-words text-muted-foreground">
+        {ui.automation.panel.noConditions}
+      </p>
+    );
+  }
   return (
     <>
       <p className="text-sm break-words text-muted-foreground">
         {ui.automation.panel.conditionsLead}
       </p>
-      {VALIDATOR_KINDS.map((kind) => (
+      {kinds.map((kind) => (
         <CheckRow
           key={kind}
           checked={validatorOf(rules, kind) !== undefined}
@@ -201,13 +224,36 @@ export function RulesSection({
   transition,
   document: doc,
   readOnly,
+  category = 'task',
 }: {
   transition: WorkflowDraftTransition;
   document: WorkflowDraftDocument;
   readOnly: boolean;
+  /** Пост-действия категории (Р6): у письма — только «Присвоить номер»,
+   *  правка каталога закрыта — показываем, что делает кнопка. */
+  category?: ProcessCategory;
 }) {
   const patch = usePatchRules(transition);
   const target = routeIfOf(transition.rules);
+  if (category !== 'task') {
+    const posts = transition.rules.postFunctions;
+    return (
+      <>
+        {posts.length > 0 ? (
+          posts.map((post) => (
+            <p key={post.kind} className="text-sm">
+              {ui.automation.postFunctions[post.kind as keyof typeof ui.automation.postFunctions]}
+            </p>
+          ))
+        ) : (
+          <p className="text-sm text-muted-foreground">{ui.automation.panel.noRules}</p>
+        )}
+        <p className="text-xs break-words text-muted-foreground">
+          {ui.automation.letterCatalogLockedShort}
+        </p>
+      </>
+    );
+  }
   return (
     <>
       <SwitchRow

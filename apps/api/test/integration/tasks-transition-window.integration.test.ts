@@ -180,7 +180,7 @@ describe.skipIf(!process.env.DATABASE_URL)('tasks: окно перехода (in
     const denied = await press(bob, task.id, pause.id, { form: {} }, `it-pause-deny-${fx.runId}`);
     expect(denied.status).toBe(422);
     expect(apiErrorResponseSchema.parse(await denied.json()).code).toBe(
-      ErrorCode.TASK_TRANSITION_FORM_INVALID,
+      ErrorCode.WORKFLOW_TRANSITION_FORM_INVALID,
     );
 
     const ok = await press(
@@ -277,7 +277,7 @@ describe.skipIf(!process.env.DATABASE_URL)('tasks: окно перехода (in
     );
     expect(blocked.status).toBe(409);
     expect(apiErrorResponseSchema.parse(await blocked.json()).code).toBe(
-      ErrorCode.TASK_TRANSITION_BLOCKED,
+      ErrorCode.WORKFLOW_TRANSITION_BLOCKED,
     );
     expect(await fx.prisma.timeEntry.count({ where: { taskId: task.id, userId: bob.id } })).toBe(0);
     expect(await fx.prisma.taskResult.count({ where: { taskId: task.id } })).toBe(0);
@@ -461,7 +461,7 @@ describe.skipIf(!process.env.DATABASE_URL)('tasks: окно перехода (in
     });
     expect(res.status).toBe(422);
     expect(apiErrorResponseSchema.parse(await res.json()).code).toBe(
-      ErrorCode.TASK_TRANSITION_FORM_INVALID,
+      ErrorCode.WORKFLOW_TRANSITION_FORM_INVALID,
     );
   });
 });

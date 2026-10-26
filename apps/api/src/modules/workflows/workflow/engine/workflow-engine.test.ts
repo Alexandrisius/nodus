@@ -79,6 +79,7 @@ function makeEngine(subject: Partial<WorkflowActorSubject> = {}) {
     lock: vi.fn(async () => void 0),
     subject: vi.fn(async () => ({
       workflowId: 'wf',
+      typeId: 'type',
       stageId: STAGE_ACTIVE,
       roles: new Set(['assignee']),
       bypassConditions: false,
@@ -93,7 +94,14 @@ function makeEngine(subject: Partial<WorkflowActorSubject> = {}) {
   const workflows = { load: vi.fn(async () => structuredClone(workflow)) };
   const records = { insert: vi.fn(async () => void 0) };
   return {
-    engine: new WorkflowEngine(workflows as never, registry as never, records as never),
+    engine: new WorkflowEngine(
+      workflows as never,
+      registry as never,
+      records as never,
+      {
+        nextForType: vi.fn(),
+      } as never,
+    ),
     adapter,
     registry,
     workflows,
@@ -157,7 +165,7 @@ describe('WorkflowEngine (#428, ADR-0024)', () => {
     );
   });
 
-  it('гейт не пройден без обхода — 409 TASK_TRANSITION_BLOCKED', async () => {
+  it('гейт не пройден без обхода — 409 WORKFLOW_TRANSITION_BLOCKED', async () => {
     const { engine, workflows } = makeEngine();
     const gated = structuredClone(workflow);
     gated.transitions[0]!.rules = {
@@ -168,7 +176,7 @@ describe('WorkflowEngine (#428, ADR-0024)', () => {
     workflows.load.mockResolvedValueOnce(gated);
     await expect(
       engine.execute(TX as never, 't1', 'task', USER, { transitionId: TRANSITION }),
-    ).rejects.toMatchObject({ code: ErrorCode.TASK_TRANSITION_BLOCKED });
+    ).rejects.toMatchObject({ code: ErrorCode.WORKFLOW_TRANSITION_BLOCKED });
   });
 
   it('условие permission: available и execute согласованы (права актора — в обоих)', async () => {
@@ -191,10 +199,10 @@ describe('WorkflowEngine (#428, ADR-0024)', () => {
     expect(adapter.applyStage).toHaveBeenCalled();
   });
 
-  it('нет перехода из статуса — 409 TASK_TRANSITION_NOT_ALLOWED', async () => {
+  it('нет перехода из статуса — 409 WORKFLOW_TRANSITION_NOT_ALLOWED', async () => {
     const { engine } = makeEngine();
     await expect(
       engine.execute(TX as never, 't1', 'task', USER, { stageId: STAGE_ACTIVE }),
-    ).rejects.toMatchObject({ code: ErrorCode.TASK_TRANSITION_NOT_ALLOWED });
+    ).rejects.toMatchObject({ code: ErrorCode.WORKFLOW_TRANSITION_NOT_ALLOWED });
   });
 });

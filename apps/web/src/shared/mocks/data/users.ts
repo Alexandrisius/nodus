@@ -243,7 +243,8 @@ export const currentAuthUser: AuthUser = {
   permissions: [
     Permission.TASK_CREATE,
     Permission.TASK_MANAGE_ANY,
-    Permission.CORRESPONDENCE_CREATE,
+    Permission.CORRESPONDENCE_REGISTER,
+    Permission.CORRESPONDENCE_RESOLVE,
     Permission.SETTINGS_UI_DEFAULTS,
     Permission.STICKER_MANAGE,
     Permission.WORKFLOW_MANAGE,

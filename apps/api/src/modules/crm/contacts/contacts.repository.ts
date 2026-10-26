@@ -54,6 +54,28 @@ export class ContactsRepository {
     });
   }
 
+  /** Подписанты пачкой для DTO писем и истории (#55), включая архивных. */
+  findRefs(
+    ids: readonly string[],
+  ): Promise<{ id: string; fullName: string; position: string | null }[]> {
+    if (ids.length === 0) return Promise.resolve([]);
+    return this.prisma.contactPerson.findMany({
+      where: { id: { in: [...ids] } },
+      select: { id: true, fullName: true, position: true },
+    });
+  }
+
+  /** Действующий контакт своего контрагента — запись подписанта письма (#55). */
+  findActiveRef(
+    counterpartyId: string,
+    contactId: string,
+  ): Promise<{ id: string; fullName: string; position: string | null } | null> {
+    return this.prisma.contactPerson.findFirst({
+      where: { id: contactId, counterpartyId, archivedAt: null },
+      select: { id: true, fullName: true, position: true },
+    });
+  }
+
   /** Счётчики активных контактов пачкой по id страницы реестра. */
   async countActiveByCounterparties(ids: readonly string[]): Promise<Map<string, number>> {
     const counts = new Map<string, number>();

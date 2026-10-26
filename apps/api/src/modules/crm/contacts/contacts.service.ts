@@ -12,6 +12,7 @@ import { DomainException } from '../../../core/errors/domain-exception.js';
 import { EventBus } from '../../../core/events/event-bus.js';
 import { toContactPerson } from '../counterparties/counterparty-dto.mapper.js';
 import { CounterpartiesRepository } from '../counterparties/counterparties.repository.js';
+import { CounterpartyUsagesRepository } from '../counterparties/counterparty-usages.repository.js';
 import {
   ContactsRepository,
   type ContactPersonRow,
@@ -37,6 +38,7 @@ export class ContactsService {
   constructor(
     private readonly contacts: ContactsRepository,
     private readonly counterparties: CounterpartiesRepository,
+    private readonly usages: CounterpartyUsagesRepository,
     private readonly txRunner: TransactionRunner,
     private readonly eventBus: EventBus,
   ) {}
@@ -129,6 +131,15 @@ export class ContactsService {
   async remove(counterpartyId: string, contactId: string, actorId: string): Promise<void> {
     await this.requireActiveCounterparty(counterpartyId);
     await this.findOwned(counterpartyId, contactId);
+    // Подписант зарегистрированного письма — историческая запись (Р11, F10):
+    // удаление сделало бы подпись в карточке письма безымянной.
+    if (await this.usages.contactInUse(contactId)) {
+      throw new DomainException(
+        ErrorCode.CRM_CONTACT_IN_USE,
+        'Contact is used as a letter signer',
+        { contactId },
+      );
+    }
     await this.txRunner.run(async (tx) => {
       await this.contacts.delete(contactId, tx);
       await this.emit(tx, counterpartyId, contactId, 'deleted', actorId);

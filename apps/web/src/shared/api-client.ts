@@ -259,3 +259,25 @@ export async function apiUpload<T>(
     throw error;
   }
 }
+
+/** Результат чтения текста по подписанной ссылке (тело письма, #55 Р9). */
+export type SignedTextResult = { kind: 'text'; text: string } | { kind: 'too_large' };
+
+/** Текст файла по подписанной ссылке (HTML/текстовое тело письма): подпись —
+ *  в самой ссылке, Bearer не нужен; читается не больше `maxBytes` — больше →
+ *  `too_large` (хост показывает карточку скачивания, а не вешает вкладку). */
+export async function fetchSignedText(
+  url: string,
+  maxBytes: number,
+  signal?: AbortSignal,
+): Promise<SignedTextResult> {
+  const response = await fetch(url, { credentials: 'same-origin', signal });
+  if (!response.ok) {
+    throw new ApiError('INTERNAL_ERROR', `HTTP ${response.status}`, response.status);
+  }
+  const declared = Number(response.headers.get('content-length') ?? '0');
+  if (declared > maxBytes) return { kind: 'too_large' };
+  const buffer = await response.arrayBuffer();
+  if (buffer.byteLength > maxBytes) return { kind: 'too_large' };
+  return { kind: 'text', text: new TextDecoder('utf-8').decode(buffer) };
+}

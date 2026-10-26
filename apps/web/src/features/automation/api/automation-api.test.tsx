@@ -34,6 +34,7 @@ const makeType = (n: string): ProcessType => ({
   },
   creationForm: { fields: [], chips: [] },
   viewer: { canView: true, canCreate: true },
+  numbering: null,
 });
 
 function hook(client: QueryClient) {

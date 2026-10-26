@@ -65,6 +65,7 @@ function setup(transitions: TransitionDef[], subjectFacts: () => typeof facts = 
       order.push('subject');
       return {
         workflowId: 'wf',
+        typeId: 'type',
         stageId: ACTIVE,
         roles: new Set(['assignee']),
         bypassConditions: false,
@@ -93,6 +94,7 @@ function setup(transitions: TransitionDef[], subjectFacts: () => typeof facts = 
     workflows as never,
     { get: () => adapter } as never,
     records as never,
+    { nextForType: vi.fn() } as never,
   );
   return { engine, adapter, records, order, wasApplied: () => applied };
 }
@@ -158,7 +160,7 @@ describe('WorkflowEngine — окно перехода (#380)', () => {
     await expect(
       engine.execute(TX, 't1', 'task', USER, { transitionId: 'tr' }, { form: {} }),
     ).rejects.toMatchObject({
-      code: ErrorCode.TASK_TRANSITION_FORM_INVALID,
+      code: ErrorCode.WORKFLOW_TRANSITION_FORM_INVALID,
       details: { transitionId: 'tr', missing: ['comment'] },
     });
     expect(adapter.applyForm).not.toHaveBeenCalled();
@@ -189,7 +191,7 @@ describe('WorkflowEngine — окно перехода (#380)', () => {
           form: { fields: { description: 'заполнено' } },
         },
       ),
-    ).rejects.toMatchObject({ code: ErrorCode.TASK_TRANSITION_BLOCKED });
+    ).rejects.toMatchObject({ code: ErrorCode.WORKFLOW_TRANSITION_BLOCKED });
     expect(adapter.applyForm).toHaveBeenCalled();
     expect(adapter.applyStage).not.toHaveBeenCalled();
     expect(records.insert).not.toHaveBeenCalled();
@@ -228,7 +230,7 @@ describe('WorkflowEngine — окно перехода (#380)', () => {
       }),
     ]);
     await expect(engine.execute(TX, 't1', 'task', USER, { stageId: DONE })).rejects.toMatchObject({
-      code: ErrorCode.TASK_TRANSITION_FORM_INVALID,
+      code: ErrorCode.WORKFLOW_TRANSITION_FORM_INVALID,
       details: { transitionId: 'tr', missing: ['comment'] },
     });
     expect(adapter.applyStage).not.toHaveBeenCalled();

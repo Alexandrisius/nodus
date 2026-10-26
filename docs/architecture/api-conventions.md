@@ -38,6 +38,16 @@ task.participants_changed / checklist_changed / result_set / relation_changed / 
 task.comments_counted  # пересчитан счётчик комментариев = сообщения беседы задачи (#252): клиенты ставят значение без рефеча досок
 task.personal_stage_created / personal_stage_updated / personal_stage_archived / personal_stage_changed  # УСТАРЕВШИЕ после «Моих действий» (ADR-0026): личные колонки сняты; имена зарезервированы
 task.type_created / type_updated / type_archived / workflow_published / workflow_layout_changed  # УСТАРЕВШИЕ (ADR-0024): движок в модуле «Процессы» — эмитятся `workflow.*`; имена зарезервированы, не эмитятся с #428
+correspondence.letter_received / letter_registered / letter_stage_changed /
+correspondence.letter_closed_unregistered / letter_updated /
+correspondence.letter_participants_changed / letter_deleted
+  # Корреспонденция (#55, ADR-0027): letter_received — приём почты/ручное создание
+  # ({letterId, typeId, direction, source, fileIds}), letter_registered — переход с выдачей
+  # номера ({letterId, regNumber, …состав}), letter_updated — правка реквизитов {changes},
+  # letter_stage_changed — любой переход маршрута (recordId/причина — блок чата),
+  # letter_participants_changed — присоединение/состав, letter_deleted — спам.
+  # letter_sent — зарезервировано (#464)
+
 task.type_changed
 chat.conversation_created / conversation_updated / member_added / member_removed / member_role_changed / message_sent / message_edited / message_deleted / message_read / message_pinned / message_unpinned / reaction_added / reaction_removed / thread_created
 chat.favorite_added / favorite_removed / favorite_updated  # личные закладки #171: только user-комната владельца (не рассылается участникам)
@@ -87,7 +97,7 @@ INTERNAL_ERROR      # непредвиденное (без деталей нар
 
 ### Окно перехода и блок чата (#380)
 
-- `POST /tasks/:id/transitions/:transitionId` принимает `form` (`.strict()`): `fields` (только поля раздела), `time` (1..1440 мин + дата), `result` (`text ≤ 5000`, `messageIds ≤ 50` уникальных), `comment ≤ 2000`. Состав сверяется с эффективным окном кнопки: лишнее или пропущенное обязательное — `422 TASK_TRANSITION_FORM_INVALID` (`details { transitionId, missing[], unexpected[] }`); гейт после окна — прежний `409 TASK_TRANSITION_BLOCKED` (`details.reasons`).
+- `POST /tasks/:id/transitions/:transitionId` принимает `form` (`.strict()`): `fields` (только поля раздела), `time` (1..1440 мин + дата), `result` (`text ≤ 5000`, `messageIds ≤ 50` уникальных), `comment ≤ 2000`. Состав сверяется с эффективным окном кнопки: лишнее или пропущенное обязательное — `422 WORKFLOW_TRANSITION_FORM_INVALID` (`details { transitionId, missing[], unexpected[] }`); гейт после окна — прежний `409 WORKFLOW_TRANSITION_BLOCKED` (`details.reasons`).
 - `task.stage_changed` расширен (все поля optional — старые события их не несут): `recordId`, `transitionName ≤32`, `fromStageName ≤40`, `comment ≤2000`, `commentLabel ≤60`, `result { resultId, fileCount, messageCount }`. По ним чат пишет блок перехода.
 - Вид сообщения: `kind` (`text | task_transition`; #313 добавит `system`) + `payload JSONB`; DTO сообщения — `kind` и `block` (закрытый union по виду, `null` при выключенном/битом payload). Правка блока запрещена (403).
 - `GET /chat/conversations/:id/messages/lookup?ids=` — до 50 id, только участник (иначе 404), живые сообщения в порядке `seq`; отсутствующие молча выпадают.
@@ -113,3 +123,14 @@ INTERNAL_ERROR      # непредвиденное (без деталей нар
 - **`GET /tasks/:id` → `layout`** = `{hiddenBlocks, roleLabels, requiredKeys}` — собирает сервер из типа (работает и для невидимого зрителю типа).
 - **Привязки атрибутов** — `PUT`/`DELETE /custom-fields/definitions/:id/types/:typeId`, идемпотентны, аудит `custom_field.bind` / `custom_field.unbind`, событие `custom_field.definition_changed {fields: ['typeIds']}`; снятие при использовании в опубликованном маршруте типа — 409 `CUSTOM_FIELD_IN_USE`.
 - **Каталог стадий** (`GET /tasks/stages`) не раскрывает типы, невидимые смотрящему (О11).
+
+### Корреспонденция (#55)
+
+- `GET /letters?box=new|incoming|outgoing&counterpartyId=&search=&cursor=` — курсор «(received_at,id) DESC» у «Новых», «(registered_at,id) DESC» у журналов; `box=new` без права `correspondence.register` — 403.
+- `POST /letters` — multipart: поля `typeId`, `mainIndex`, файлы `files` (1–20); письмо и файлы атомарно.
+- `POST /letters/:id/transitions/:transitionId` — общий движок; раздел окна `registration` (`letter-registration.schemas.ts`), пост-действие `assign_number`.
+- `PATCH /letters/:id` — `.strict()`, только реквизиты (номер и адресат так не меняются), пустое тело — ошибка.
+- `DELETE /letters/:id` — только «Новые» и только право регистрации (спам, Р12).
+- `POST /letters/:id/join` — состав беседы письма решает сервер.
+- `GET /letters/resolvers` — держатели `correspondence.resolve` («Принимают решения»); литеральный путь объявлен ДО `/letters/:id`.
+- Коды: `LETTER_REGISTRATION_INVALID` (`details {field, reason}` — подсветка поля), `LETTER_ALREADY_REGISTERED` (`details.regNumber`), `WORKFLOW_NUMBERING_NOT_CONFIGURED`.

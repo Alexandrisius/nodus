@@ -49,10 +49,15 @@ export class AuditInterceptor implements NestInterceptor {
           const user = (request as FastifyRequest & { [REQUEST_USER_KEY]?: AuthUser })[
             REQUEST_USER_KEY
           ];
-          const entityId =
+          // id сущности: из тела ответа, иначе из параметра маршрута (#55:
+          // DELETE/спам отвечает 204 без тела — журнал не должен терять связь).
+          const bodyId =
             body && typeof body === 'object' && 'id' in body && typeof body.id === 'string'
               ? body.id
               : undefined;
+          const params = (request as FastifyRequest & { params?: Record<string, unknown> }).params;
+          const paramId = typeof params?.id === 'string' ? params.id : undefined;
+          const entityId = bodyId ?? paramId;
           this.audit
             .append({
               actorId: user?.id ?? null,

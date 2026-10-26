@@ -18,6 +18,7 @@ import type { TransitionBlockReason, WorkflowTransitionRules } from './workflow.
 /** Раздел эффективного окна: `origin` — настройка кнопки или гейт (веб
  *  показывает подпись по умолчанию для гейтового раздела). */
 export type EffectiveSection =
+  | { kind: 'registration'; origin: 'form' | 'gate' }
   | { kind: 'fields'; fields: TransitionWindowFieldKey[]; origin: 'form' | 'gate' }
   | { kind: 'time'; mode: 'if_empty' | 'always'; origin: 'form' | 'gate' }
   | { kind: 'result'; origin: 'form' | 'gate' }
@@ -106,9 +107,11 @@ export function gateFixableBy(
   }
 }
 
-/** Есть ли в окне раздел, без которого переход невозможен (DnD/API без формы). */
+/** Есть ли в окне раздел, без которого переход невозможен (DnD/API без формы).
+ *  Регистрация письма обязательна всегда: без ввода номер не присвоить (#55). */
 export function requiredWindowSections(sections: readonly EffectiveSection[]): string[] {
   return sections.flatMap((section) => {
+    if (section.kind === 'registration') return ['registration'];
     if (section.kind === 'comment' && section.required) return ['comment'];
     if (section.kind === 'result_messages' && section.required) return ['result_messages'];
     return [];

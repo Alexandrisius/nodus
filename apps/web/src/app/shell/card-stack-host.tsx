@@ -3,8 +3,8 @@ import { ui } from '@nodus/contracts';
 
 import { ProjectIdentityIcon } from '../../shared/ui/project-identity-icon.js';
 import { useCounterpartyCard } from '../../shared/counterparties/queries.js';
-import { useLetterDetail } from '../../features/correspondence/api/letters-api.js';
-import { LetterCard } from '../../features/correspondence/components/letter-card.js';
+import { LetterCard } from '../../features/correspondence/components/card/letter-card.js';
+import { LetterTitle } from '../../features/correspondence/components/card/letter-title.js';
 import { CounterpartyCard } from '../../features/crm/components/counterparty-card.js';
 import { MessengerBody, type ChatTab } from '../../features/chat/components/messenger-body.js';
 import { MessengerTabs } from '../../features/chat/components/messenger-tabs.js';
@@ -80,12 +80,12 @@ function ProjectEntry({ id, source, onClose, dormant }: EntryProps) {
 }
 
 function LetterEntry({ id, source, onClose, dormant }: EntryProps) {
-  const { data: letter } = useLetterDetail(id);
   return (
     <SliderPanel
-      title={letter?.subject ?? ui.letters.letter}
+      title={<LetterTitle letterId={id} />}
       onClose={onClose}
       sourceRect={source}
+      fadeContent={false}
       dormant={dormant}
     >
       <LetterCard letterId={id} />

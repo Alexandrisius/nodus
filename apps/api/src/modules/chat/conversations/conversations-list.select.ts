@@ -19,6 +19,8 @@ export interface ConversationListRow {
   avatar_file_id: string | null;
   /** Привязка беседы задачи (type=task, #252). */
   task_id: string | null;
+  /** Привязка беседы письма (type=letter, #55). */
+  letter_id: string | null;
   last_message_at: Date | null;
   /** Активность для сортировки (#215): last_message_at, для «Избранного» —
    *  GREATEST с последней закладкой владельца (CASE ниже). */
@@ -101,6 +103,7 @@ export const LIST_SELECT = (userId: string): Prisma.Sql => Prisma.sql`
   SELECT
     c.id, c.type, c.title, c.description, c.visibility, c.permissions, c.avatar_file_id,
     c.task_id,
+    c.letter_id,
     c.last_message_at,
     ${ACTIVITY_EXPR(userId)} AS last_activity_at,
     cm.role, cm.pinned, cm.muted, cm.snoozed, cm.last_read_seq AS my_last_read_seq,

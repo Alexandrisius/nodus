@@ -41,10 +41,24 @@ export interface ProcessTypeRow {
 export function processTypeDto(
   row: ProcessTypeRow,
   workflowId: string,
-  opts: { creation?: unknown; subject?: TypeAccessSubject } = {},
+  opts: {
+    creation?: unknown;
+    subject?: TypeAccessSubject;
+    /** Серия нумерации типа (#55), гидрируется сервисом из `number_series`:
+     *  префикс живёт там, а config хранит только id. Без серии — null. */
+    numbering?: { id: string; prefix: string } | null;
+  } = {},
 ): ProcessType {
   const category = row.category as ProcessCategory;
   const config = normalizeTypeConfig(row.config);
+  const numbering =
+    config.numbering && opts.numbering?.id === config.numbering.seriesId
+      ? {
+          seriesId: config.numbering.seriesId,
+          prefix: opts.numbering.prefix,
+          reset: 'year' as const,
+        }
+      : null;
   return {
     id: row.id,
     code: row.code,
@@ -64,6 +78,7 @@ export function processTypeDto(
     viewer: opts.subject
       ? typeAccessFor({ config, creatable: row.creatable }, opts.subject)
       : { canView: true, canCreate: row.creatable },
+    numbering,
   };
 }
 

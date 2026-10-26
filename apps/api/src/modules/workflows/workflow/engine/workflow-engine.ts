@@ -21,6 +21,7 @@ import type {
   TransitionExecution,
   WorkflowEnginePort,
 } from '../../ports/workflow-engine.port.js';
+import { NumberSeriesService } from '../../numbering/number-series.service.js';
 import {
   effectiveTargetId,
   evaluateValidators,
@@ -62,6 +63,7 @@ export class WorkflowEngine implements WorkflowEnginePort {
     private readonly workflows: WorkflowRepository,
     private readonly adapters: WorkflowEntityRegistry,
     private readonly records: TransitionRecordsRepository,
+    private readonly numbers: NumberSeriesService,
   ) {}
 
   async available(
@@ -93,9 +95,13 @@ export class WorkflowEngine implements WorkflowEnginePort {
       // Имя текущего статуса — клиент собирает понятную строку (I15):
       // «Из статуса «В работе» так перейти нельзя» (перенос в «Моём плане»).
       const from = workflow.stages.find((s) => s.id === subject0.stageId);
-      throw new DomainException(ErrorCode.TASK_TRANSITION_NOT_ALLOWED, 'Transition not allowed', {
-        ...(from ? { fromStageName: from.name } : {}),
-      });
+      throw new DomainException(
+        ErrorCode.WORKFLOW_TRANSITION_NOT_ALLOWED,
+        'Transition not allowed',
+        {
+          ...(from ? { fromStageName: from.name } : {}),
+        },
+      );
     }
 
     const picked = this.pick(candidates, choice, opts.form);
@@ -117,6 +123,9 @@ export class WorkflowEngine implements WorkflowEnginePort {
     if (pick.reasons.length > 0) this.assertOverride(pick.reasons, subject1, opts);
 
     const target = this.stage(workflow, effectiveTargetId(pick.t, subject1.facts, workflow.stages));
+    // Пост-действие «Присвоить номер» (#55, Р1): номер выдаётся в этой же
+    // транзакции ДО смены стадии — откат перехода не сдвигает счётчик.
+    const numbering = await this.assignNumber(tx, subject1, pick.t);
     const recordId = randomUUID();
     const fromStage =
       workflow.stages.find((s) => s.id === subject0.stageId) ??
@@ -132,6 +141,7 @@ export class WorkflowEngine implements WorkflowEnginePort {
       comment: opts.form?.comment,
       commentLabel: this.commentLabelOf(pick.t),
       result: applied.result ?? undefined,
+      ...(numbering ? { numbering } : {}),
     } satisfies WorkflowStageChangeMeta);
     await this.records.insert(tx, {
       id: recordId,
@@ -146,10 +156,23 @@ export class WorkflowEngine implements WorkflowEnginePort {
       participantId: null,
       comment: opts.form?.comment ?? null,
       resultId: applied.result?.resultId ?? null,
-      fields: applied.fields,
+      fields: numbering
+        ? { ...applied.fields, number: { from: null, to: numbering.display } }
+        : applied.fields,
       timeEntryId: applied.timeEntryId,
     });
     return { stage: target, recordId };
+  }
+
+  /** Пост-функция `assign_number`: номер из серии типа сущности. Тип без
+   *  серии — 409 (маршрут с нумерацией без конфигурации неисполним). */
+  private async assignNumber(
+    tx: TransactionClient,
+    subject: WorkflowActorSubject,
+    t: TransitionDef,
+  ): Promise<WorkflowStageChangeMeta['numbering']> {
+    if (!t.rules.postFunctions.some((pf) => pf.kind === 'assign_number')) return undefined;
+    return this.numbers.nextForType(tx, subject.typeId);
   }
 
   /** Выбор кнопки: явная — она; DnD/«Мой план» — первая без обязательного
@@ -172,7 +195,7 @@ export class WorkflowEngine implements WorkflowEnginePort {
       const { sections } = windowOf(picked.form, picked.rules);
       const { missing } = checkFormInput(sections, {});
       throw new DomainException(
-        ErrorCode.TASK_TRANSITION_FORM_INVALID,
+        ErrorCode.WORKFLOW_TRANSITION_FORM_INVALID,
         'Transition window is required',
         { transitionId: picked.id, missing, unexpected: [] },
       );
@@ -185,7 +208,7 @@ export class WorkflowEngine implements WorkflowEnginePort {
     const { missing, unexpected } = checkFormInput(sections, form ?? {});
     if (missing.length > 0 || unexpected.length > 0) {
       throw new DomainException(
-        ErrorCode.TASK_TRANSITION_FORM_INVALID,
+        ErrorCode.WORKFLOW_TRANSITION_FORM_INVALID,
         'Transition window input does not match its form',
         { transitionId: t.id, missing, unexpected },
       );
@@ -230,16 +253,20 @@ export class WorkflowEngine implements WorkflowEnginePort {
     opts: { override?: boolean; reason?: string },
   ): void {
     if (!opts.override) {
-      throw new DomainException(ErrorCode.TASK_TRANSITION_BLOCKED, 'Transition gates not passed', {
-        reasons,
-      });
+      throw new DomainException(
+        ErrorCode.WORKFLOW_TRANSITION_BLOCKED,
+        'Transition gates not passed',
+        {
+          reasons,
+        },
+      );
     }
     if (!subject.canOverrideGates) {
       throw DomainException.forbidden('Gate override requires task.override_gate');
     }
     if (!opts.reason?.trim()) {
       throw new DomainException(
-        ErrorCode.TASK_OVERRIDE_REASON_REQUIRED,
+        ErrorCode.WORKFLOW_OVERRIDE_REASON_REQUIRED,
         'Override reason required',
       );
     }

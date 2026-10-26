@@ -1,13 +1,17 @@
 import { z } from 'zod';
 
+import { stageColorSchema } from '../workflows/workflow-primitives.schemas.js';
+
 /**
  * Виды сообщений и блоки ленты (#380): `text` — обычное; `task_transition` —
- * блок перехода задачи (причина/итог окна). Реестр блоков — закрытый union
- * по виду; #313 добавит `system` без переделки. Вынесено из chat.schemas.ts
- * (I5: файл агрегата перерос 300 строк).
+ * блок перехода задачи (причина/итог окна); `letter_transition` — блок
+ * перехода письма (#55, Р10: «Закрыть без регистрации», «Отменить
+ * регистрацию» с причиной). Реестр блоков — закрытый union по виду; #313
+ * добавит `system` без переделки. Вынесено из chat.schemas.ts (I5: файл
+ * агрегата перерос 300 строк).
  */
 
-export const chatMessageKindSchema = z.enum(['text', 'task_transition']);
+export const chatMessageKindSchema = z.enum(['text', 'task_transition', 'letter_transition']);
 export type ChatMessageKind = z.infer<typeof chatMessageKindSchema>;
 
 /** Блок перехода задачи в ленте (#380): данные из payload события
@@ -30,8 +34,26 @@ export const taskTransitionBlockSchema = z.object({
 });
 export type TaskTransitionBlock = z.infer<typeof taskTransitionBlockSchema>;
 
+/** Блок перехода письма (#55, Р10): из payload `correspondence.letter_stage_changed`
+ *  (запись журнала `recordId`); текст сообщения — причина. Цвет цели — чип
+ *  стадии, как в карточке письма. */
+export const letterTransitionBlockSchema = z.object({
+  kind: z.literal('letter_transition'),
+  letterId: z.uuid(),
+  recordId: z.uuid(),
+  transitionName: z.string().min(1).max(32),
+  fromStageName: z.string().min(1).max(40),
+  toStageName: z.string().min(1).max(40),
+  toStageColor: stageColorSchema,
+  commentLabel: z.string().max(60).nullable(),
+});
+export type LetterTransitionBlock = z.infer<typeof letterTransitionBlockSchema>;
+
 /** Реестр блоков — закрытый union по виду (#313: + system). */
-export const chatMessageBlockSchema = z.discriminatedUnion('kind', [taskTransitionBlockSchema]);
+export const chatMessageBlockSchema = z.discriminatedUnion('kind', [
+  taskTransitionBlockSchema,
+  letterTransitionBlockSchema,
+]);
 export type ChatMessageBlock = z.infer<typeof chatMessageBlockSchema>;
 
 /** Поиск сообщений по id (окно перехода: файлы/сообщения итога бывают вне

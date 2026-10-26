@@ -1,0 +1,56 @@
+import { Module } from '@nestjs/common';
+
+import { USER_PROFILE_READER } from '../../core/ports/user-profile.port.js';
+import { UserProfileProvider } from '../../core/ports/user-profile.provider.js';
+import { CrmPortsModule } from '../crm/crm-ports.module.js';
+import { CustomFieldsPortsModule } from '../custom-fields/custom-fields-ports.module.js';
+import { DictionariesPortsModule } from '../dictionaries/dictionaries-ports.module.js';
+import { WorkflowsPortsModule } from '../workflows/workflows-ports.module.js';
+import { LetterFileAccess } from './access/letter-file-access.js';
+import { LetterHistoryRepository } from './history/letter-history.repository.js';
+import { LetterHistoryService } from './history/letter-history.service.js';
+import { LetterDtoMapper } from './letters/letter-dto.mapper.js';
+import { LetterFieldsValidator } from './letters/letter-fields.validator.js';
+import { LettersController } from './letters/letters.controller.js';
+import { LettersMutationService } from './letters/letters-mutation.service.js';
+import { LettersQueryService } from './letters/letters-query.service.js';
+import { LettersRepository } from './letters/letters.repository.js';
+import { LetterFormApplier } from './workflow/letter-form.applier.js';
+import { LetterStageMover } from './workflow/letter-stage.mover.js';
+import { LetterTransitionsService } from './workflow/letter-transitions.service.js';
+import { LetterWorkflowAdapter } from './workflow/letter-workflow.adapter.js';
+
+/**
+ * Модуль корреспонденции (#55, ADR-0027): письма на движке «Процессы»
+ * (категория `letter`) — очередь «Новые», регистрация с нумерацией,
+ * журналы «Входящие»/«Исходящие», карточка с реквизитами, файлами и
+ * историей, чат письма (мост через порт `LETTER_CHAT_READER`), правка
+ * регистрационных данных и удаление спама. Изоляция (I3/I6): типы, стадии и
+ * движок — порты «Процессов»; корреспондент и подписант — порт CRM;
+ * справочник способов поступления — порт справочников; файлы — порт
+ * `FILE_STORAGE`/`FILE_OBJECT_READER`; сотрудники — read-порт core. Флаг
+ * `correspondence` (I10). Адаптер маршрута регистрируется DiscoveryService
+ * по `static readonly workflowCategory = 'letter'`.
+ */
+@Module({
+  imports: [WorkflowsPortsModule, CustomFieldsPortsModule, CrmPortsModule, DictionariesPortsModule],
+  controllers: [LettersController],
+  providers: [
+    UserProfileProvider,
+    { provide: USER_PROFILE_READER, useClass: UserProfileProvider },
+    // Репозитории — единственная точка доступа к таблицам модуля (patterns.md).
+    LettersRepository,
+    LetterFileAccess,
+    LetterHistoryRepository,
+    LetterDtoMapper,
+    LettersQueryService,
+    LetterFieldsValidator,
+    LetterFormApplier,
+    LetterStageMover,
+    LetterWorkflowAdapter,
+    LettersMutationService,
+    LetterTransitionsService,
+    LetterHistoryService,
+  ],
+})
+export class CorrespondenceModule {}

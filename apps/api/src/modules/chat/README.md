@@ -316,6 +316,20 @@ participants_changed` и `GET /chat/conversations/by-task/:taskId`
 сообщения беседы самой задачи.
 **Вне #252:** системные строки событий задачи (переход, ответственный,
 срок) — #313: у мессенджера пока нет вида служебных сообщений.
+
+### Чат письма (#55, `letter-chat/`)
+
+Беседа письма — беседа `type='letter'` (`conversations.letter_id`, частичный
+unique — арбитр гонки). Состав = адресат (owner) + участники
+`letter_participants` через порт `LETTER_CHAT_READER` (модуль correspondence);
+регистратор в чат не входит (В2). До регистрации беседы нет — roster null.
+Синхронизация идемпотентна: обработчики `correspondence.letter_registered|
+participants_changed|deleted` и `GET /chat/conversations/by-letter/:letterId`
+(не участник — 404 без оракула); правка темы (`letter_updated` с `subject`) —
+`chat.conversation_updated`. Блок `letter_transition` пишется по
+`letter_stage_changed` с `recordId` и причиной (закрытие без регистрации,
+отмена регистрации), текст сообщения — причина, цвет чипа — из каталога
+стадий; ключ идемпотентности — `letter-transition:<event.id>`.
 Счётчик `commentsCount` задачи пересчитывает модуль tasks по
 `chat.message_sent|message_deleted` через `CHAT_MESSAGE_ACCESS.taskDiscussion`.
 Realtime-доставка/typing/presence — WS-gateway (#104, `apps/gateway`).

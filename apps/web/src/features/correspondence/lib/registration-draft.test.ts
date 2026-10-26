@@ -1,0 +1,121 @@
+import { describe, expect, it } from 'vitest';
+import type { DictionaryItem, LetterDetail } from '@nodus/contracts';
+
+import { formatIsoDate, parseRuDate } from './letter-format.js';
+import {
+  defaultReceiptMethodId,
+  draftIssues,
+  initialDraft,
+  missingFields,
+  nextEmptyField,
+  registrationInputOf,
+  type RegistrationDraft,
+} from './registration-draft.js';
+
+const method = (id: string, code: string): DictionaryItem => ({
+  id,
+  dictionaryId: 'd',
+  parentId: null,
+  code,
+  name: code,
+  sortOrder: 0,
+  isActive: true,
+});
+const METHODS = [
+  method('00000000-0000-4000-8000-0000000000e1', 'email'),
+  method('00000000-0000-4000-8000-0000000000e2', 'post'),
+];
+
+const letter = {
+  source: 'mail',
+  counterparty: null,
+  signer: null,
+  theirNumber: null,
+  theirDate: null,
+  subject: 'О корректировке сроков',
+  receiptMethod: null,
+  project: null,
+  addressee: null,
+  responseDeadline: null,
+  customFields: {},
+} as unknown as LetterDetail;
+
+const complete = (patch: Partial<RegistrationDraft> = {}): RegistrationDraft => ({
+  ...initialDraft(letter, METHODS),
+  counterparty: { id: '00000000-0000-4000-8000-000000000001', name: 'АО «Галургия»' },
+  theirNumber: ' 0359-КЖ/152 ',
+  theirDate: '2026-10-25',
+  addressee: {
+    id: '00000000-0000-4000-8000-000000000007',
+    displayName: 'Валерия Шайдерова',
+    avatarUrl: null,
+  },
+  ...patch,
+});
+
+describe('черновик регистрации (#55, U5)', () => {
+  it('почта — тема и «Электронная почта» предзаполнены; бумага — «Почта»', () => {
+    const draft = initialDraft(letter, METHODS);
+    expect(draft.subject).toBe('О корректировке сроков');
+    expect(draft.receiptMethodId).toBe(METHODS[0]!.id);
+    expect(defaultReceiptMethodId('manual', METHODS)).toBe(METHODS[1]!.id);
+  });
+
+  it('«Не хватает»: корреспондент, их № и дата, адресат — в порядке формы', () => {
+    expect(missingFields(initialDraft(letter, METHODS))).toEqual([
+      'counterpartyId',
+      'theirNumber',
+      'theirDate',
+      'addresseeId',
+    ]);
+  });
+
+  it('Enter ведёт к следующему ПУСТОМУ обязательному полю (тема почты пропускается)', () => {
+    const draft = { ...initialDraft(letter, METHODS), counterparty: complete().counterparty };
+    expect(nextEmptyField(draft, 'counterpartyId')).toBe('theirNumber');
+    expect(
+      nextEmptyField({ ...draft, theirNumber: '1', theirDate: '2026-10-25' }, 'theirDate'),
+    ).toBe('addresseeId');
+    expect(nextEmptyField(complete(), 'addresseeId')).toBeNull();
+  });
+
+  it('тело — только id, строки обрезаны; неготовая форма и даты против сегодня — null', () => {
+    expect(registrationInputOf(complete(), '2026-10-26')).toEqual({
+      counterpartyId: '00000000-0000-4000-8000-000000000001',
+      signerId: null,
+      theirNumber: '0359-КЖ/152',
+      theirDate: '2026-10-25',
+      subject: 'О корректировке сроков',
+      receiptMethodId: METHODS[0]!.id,
+      projectId: null,
+      addresseeId: '00000000-0000-4000-8000-000000000007',
+      responseDeadline: null,
+    });
+    expect(registrationInputOf(initialDraft(letter, METHODS), '2026-10-26')).toBeNull();
+    const future = complete({ theirDate: '2026-10-27' });
+    expect(draftIssues(future, '2026-10-26')).toEqual([
+      { field: 'theirDate', reason: 'in_future' },
+    ]);
+    expect(registrationInputOf(future, '2026-10-26')).toBeNull();
+    expect(
+      registrationInputOf(complete({ responseDeadline: '2026-10-25' }), '2026-10-26'),
+    ).toBeNull();
+  });
+});
+
+describe('даты ДД.ММ.ГГГГ (#55)', () => {
+  it('разбирает ввод с клавиатуры в разных записях', () => {
+    expect(parseRuDate('25.10.2026')).toBe('2026-10-25');
+    expect(parseRuDate('5.1.26')).toBe('2026-01-05');
+    expect(parseRuDate('25/10/2026')).toBe('2026-10-25');
+    expect(parseRuDate('25102026')).toBe('2026-10-25');
+    expect(parseRuDate('251026')).toBe('2026-10-25');
+  });
+
+  it('несуществующий день и мусор — null; ISO → ДД.ММ.ГГГГ без сдвига пояса', () => {
+    expect(parseRuDate('31.02.2026')).toBeNull();
+    expect(parseRuDate('завтра')).toBeNull();
+    expect(formatIsoDate('2026-10-25')).toBe('25.10.2026');
+    expect(formatIsoDate(null)).toBe('');
+  });
+});

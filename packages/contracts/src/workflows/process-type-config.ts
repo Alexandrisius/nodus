@@ -85,10 +85,17 @@ export const processTypeAccessSchema = z
   .strict();
 export type ProcessTypeAccess = z.infer<typeof processTypeAccessSchema>;
 
+/** Нумерация типа (#55, Р2): серия «Процессов», из которой пост-действие
+ *  «Присвоить номер» выдаёт номер. Только у писем; правка серии в
+ *  интерфейсе — #504 (сейчас каталог ставит серию по коду типа). */
+export const processTypeNumberingConfigSchema = z.object({ seriesId: z.uuid() }).strict();
+export type ProcessTypeNumberingConfig = z.infer<typeof processTypeNumberingConfigSchema>;
+
 export const processTypeConfigSchema = z
   .object({
     card: processTypeCardSchema,
     access: processTypeAccessSchema,
+    numbering: processTypeNumberingConfigSchema.optional(),
   })
   .strict();
 export type ProcessTypeConfig = z.infer<typeof processTypeConfigSchema>;
@@ -126,13 +133,16 @@ function parseOr<T>(schema: z.ZodType<T>, raw: unknown, fallback: T): T {
 
 /** Толерантное чтение `process_types.config` (`{}` → умолчания, битый
  *  раздел → умолчание раздела; остальные разделы не страдают; лишние
- *  ключи отбрасываются). */
+ *  ключи отбрасываются). Нумерация (#55) — только валидная: битая или
+ *  отсутствующая не попадает в результат (тип «без серии»). */
 export function normalizeTypeConfig(raw: unknown): ProcessTypeConfig {
   if (raw === null || typeof raw !== 'object') return DEFAULT_PROCESS_TYPE_CONFIG;
   const source = raw as Record<string, unknown>;
+  const numbering = processTypeNumberingConfigSchema.safeParse(source.numbering);
   return {
     card: parseOr(processTypeCardSchema, source.card, DEFAULT_PROCESS_TYPE_CONFIG.card),
     access: parseOr(processTypeAccessSchema, source.access, DEFAULT_PROCESS_TYPE_CONFIG.access),
+    ...(numbering.success ? { numbering: numbering.data } : {}),
   };
 }
 

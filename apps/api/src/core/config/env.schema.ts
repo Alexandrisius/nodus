@@ -34,6 +34,16 @@ export function parseTrustProxy(raw: string): boolean | string | null {
   return items.join(',');
 }
 
+/** IANA-пояс проверяется движком Intl: опечатка в env падает на старте. */
+function isValidTimeZone(value: string): boolean {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: value });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Валидация env при старте (config-no-secrets: fail-fast, без секретов в коде).
  * Вызывается в main.ts до создания приложения: кривое окружение = понятная
@@ -107,6 +117,12 @@ const envSchema = z
     /** Потолок размера файла на открытие в редакторе (50 МБ: гигантские листы
      *  открываются карточкой скачивания — спека #138). */
     OFFICE_MAX_VIEW_BYTES: z.coerce.number().int().min(1).default(52_428_800),
+    /** Часовой пояс компании (#55, F7): границы года нумерации и дата
+     *  регистрации писем. IANA-имя, проверяется Intl при старте. */
+    COMPANY_TIMEZONE: z
+      .string()
+      .default('Europe/Minsk')
+      .refine(isValidTimeZone, 'IANA-пояс, например Europe/Minsk'),
     /** «Важные сообщения» (#100): интервал повторных напоминаний, секунды
      *  (канон Mattermost persistent: 300 = 5 мин). Тесты/live-приёмка сжимают. */
     NOTIFY_URGENT_REPEAT_SEC: z.coerce.number().int().min(1).default(300),

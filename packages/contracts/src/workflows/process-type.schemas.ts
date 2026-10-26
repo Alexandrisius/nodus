@@ -44,6 +44,15 @@ export type ProcessCategory = z.infer<typeof processCategorySchema>;
 export const letterDirectionSchema = z.enum(['incoming', 'outgoing']);
 export type LetterDirection = z.infer<typeof letterDirectionSchema>;
 
+/** Серия номеров типа в DTO (#55): префикс «Вх»/«Исх», сброс по году
+ *  часового пояса компании; номер — `${prefix}-${год}/${N}` без ведущих нулей. */
+export const processTypeNumberingSchema = z.object({
+  seriesId: z.uuid(),
+  prefix: z.string().min(1).max(16),
+  reset: z.literal('year'),
+});
+export type ProcessTypeNumbering = z.infer<typeof processTypeNumberingSchema>;
+
 /** Тип процесса (глобальный справочник, I15). `creatable=false` — скрыт:
  *  не предлагается при создании сущностей (новые и настроенные типы). */
 export const processTypeSchema = z.object({
@@ -73,6 +82,10 @@ export const processTypeSchema = z.object({
   /** Что может текущий пользователь (сервер — истина, I8): веб прячет
    *  невидимые типы и недоступное создание. */
   viewer: processTypeViewerSchema,
+  /** Нумерация типа (#55, Р2): серия и её префикс (гидрирует сервер из
+   *  `config.numbering`); null — тип без нумерации (все задачи). Веб
+   *  показывает «Будет присвоен номер Вх-2026/…» и «Нумерацию» настроек. */
+  numbering: processTypeNumberingSchema.nullable(),
 });
 export type ProcessType = z.infer<typeof processTypeSchema>;
 

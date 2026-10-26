@@ -1,26 +1,21 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { Download, Pencil, X } from 'lucide-react';
-import { ui, type OfficeSession } from '@nodus/contracts';
+import { ui } from '@nodus/contracts';
 
 import { Button } from '@nodus/ui/components/button';
-import { Spinner } from '@nodus/ui/components/spinner';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@nodus/ui/components/tooltip';
 
-import { api as apiFetch } from '../api-client.js';
-import { officeKeys, useOfficeConfig, useOfficeSession } from './api.js';
-import { DownloadCard } from './download-card.jsx';
-import { MediaViewer } from './media-viewer.jsx';
-import { OfficeViewer } from './office-viewer.jsx';
-import { PdfViewer } from './pdf-viewer.jsx';
-import { resolveViewerRoute } from './viewer-registry.js';
+import { useOfficeSession } from './api.js';
+import { FileViewerBody, useViewerRoute } from './file-viewer-body.jsx';
 import { useViewerStore } from './viewer-store.js';
 
 /**
  * Модалка-обёртка просмотрщика вложений (#138): шапка (имя, версия,
- * «Скачать», «Редактировать» по праву) + тело по маршруту реестра
- * (офис → ONLYOFFICE, PDF → pdf.js, медиа → нативно, прочее → скачивание).
+ * «Скачать», «Редактировать» по праву) + общее тело `FileViewerBody`
+ * (офис → ONLYOFFICE, PDF → pdf.js, медиа → нативно, прочее → скачивание;
+ * то же тело — во вкладках карточки письма, #55).
  * Один вьюер на приложение (стор), портал z-[80], Esc/задник закрывают,
  * фокус возвращается источнику. Спека: «как в Битриксе» — просмотр
  * встроенным редактором, правка отдельным режимом.
@@ -36,7 +31,6 @@ export function AttachmentViewer({ stripW = 0 }: { stripW?: number }) {
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<'view' | 'edit'>('view');
   const [engineFailed, setEngineFailed] = useState(false);
-  const [sessionStale, setSessionStale] = useState(0);
 
   // Свежесть файловых запросов (#182): после сохранения/закрытия версии
   // подхватываются без F5 — инвалидация обоих режимов сессии цели.
@@ -49,27 +43,14 @@ export function AttachmentViewer({ stripW = 0 }: { stripW?: number }) {
     close();
   }, [close, invalidateFile]);
 
-  const configQuery = useOfficeConfig();
-  const officeConfig = configQuery.data;
-
   // Сброс режима при открытии новой цели.
   useEffect(() => {
     setMode('view');
     setEngineFailed(false);
-    setSessionStale(0);
   }, [target?.fileId]);
 
-  const route = useMemo(
-    () =>
-      target && officeConfig
-        ? resolveViewerRoute(target.name, target.mime, target.size, {
-            officeEnabled: officeConfig.enabled && !engineFailed,
-            maxViewBytes: officeConfig.maxViewBytes,
-          })
-        : null,
-    [target, officeConfig, engineFailed],
-  );
-
+  const route = useViewerRoute(target, engineFailed);
+  // Та же сессия, что у тела (кэш TanStack Query): версия и право правки.
   const sessionQuery = useOfficeSession(target?.fileId ?? null, mode, route?.kind === 'office');
 
   const closeOnEsc = useCallback(
@@ -94,11 +75,6 @@ export function AttachmentViewer({ stripW = 0 }: { stripW?: number }) {
   const session = sessionQuery.data ?? null;
   const canSwitchToEdit = route.kind === 'office' && mode === 'view' && session?.canEdit === true;
   const downloadUrl = target.url;
-  // Fallback ONLYOFFICE (#139): движок выключен/лежит — офисный документ
-  // открывается PDF-копией из конвейера производных (битриксов паттерн);
-  // нет копии (404 по ссылке не проверяем заранее — pdf.js покажет ошибку
-  // загрузки только если ссылка жива, а объекта нет) → карточка скачивания.
-  const pdfFallback = route.reason === 'office_disabled' && target.pdfUrl ? target.pdfUrl : null;
 
   return createPortal(
     <div
@@ -154,91 +130,15 @@ export function AttachmentViewer({ stripW = 0 }: { stripW?: number }) {
         </header>
 
         <div className="min-h-0 flex-1">
-          {route.kind === 'office' ? (
-            sessionQuery.isPending ? (
-              <PreparingIndicator />
-            ) : sessionQuery.isError || !session ? (
-              <DownloadCard
-                name={target.name}
-                size={target.size}
-                url={downloadUrl}
-                reason="office_disabled"
-              />
-            ) : engineFailed ? (
-              <DownloadCard
-                name={target.name}
-                size={target.size}
-                url={downloadUrl}
-                reason="office_disabled"
-              />
-            ) : (
-              <OfficeViewer
-                // Стабильный монтаж (#182, репро владельца 02.10): fileId+
-                // режим+sessionStale — рефечи сессии (ws, повторные fetch)
-                // НЕ перемонтируют редактор; перемонтаж только при смене
-                // файла/режима или явном onOutdatedVersion от DS (новая
-                // версия от другого участника сессии).
-                key={`${target.fileId}:${session.mode}:${sessionStale}`}
-                session={session}
-                onOutdated={() => {
-                  // Легаси-ветка (DS < 9.4): документ пересохранён — сессия
-                  // с новым ключом версии, перемонтируем.
-                  setSessionStale((n) => n + 1);
-                  void sessionQuery.refetch();
-                }}
-                onEngineError={() => setEngineFailed(true)}
-                onRequestRefresh={async () => {
-                  // DS 9.4 просит свежий конфиг (ключ уже использовался для
-                  // сохранения): отдаём актуальную сессию сервера — движок
-                  // обновит документ сам, без тоста о перезагрузке.
-                  try {
-                    return await queryClient.fetchQuery({
-                      queryKey: officeKeys.session(target.fileId, mode),
-                      queryFn: () =>
-                        apiFetch<OfficeSession>(
-                          `/files/${target.fileId}/office-session?mode=${mode}`,
-                        ),
-                      staleTime: 0,
-                    });
-                  } catch {
-                    return null;
-                  }
-                }}
-              />
-            )
-          ) : route.kind === 'pdf' ? (
-            downloadUrl ? (
-              <PdfViewer url={downloadUrl} fileName={target.name} />
-            ) : (
-              <DownloadCard name={target.name} size={target.size} url={null} reason="unsupported" />
-            )
-          ) : route.kind === 'media' ? (
-            downloadUrl ? (
-              <MediaViewer url={downloadUrl} mime={target.mime} name={target.name} />
-            ) : (
-              <DownloadCard name={target.name} size={target.size} url={null} reason="unsupported" />
-            )
-          ) : pdfFallback ? (
-            <PdfViewer url={pdfFallback} fileName={`${target.name}.pdf`} />
-          ) : (
-            <DownloadCard
-              name={target.name}
-              size={target.size}
-              url={downloadUrl}
-              reason={route.reason ?? 'unsupported'}
-            />
-          )}
+          <FileViewerBody
+            key={`${target.fileId}:${mode}`}
+            target={target}
+            mode={mode}
+            onEngineError={() => setEngineFailed(true)}
+          />
         </div>
       </div>
     </div>,
     document.body,
-  );
-}
-
-function PreparingIndicator() {
-  return (
-    <div className="grid size-full place-items-center">
-      <Spinner className="size-5" />
-    </div>
   );
 }

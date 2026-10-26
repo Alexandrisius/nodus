@@ -115,12 +115,27 @@ export const automationStrings = {
   fromStage: 'Откуда',
   toStage: 'Куда',
   whoSeesHint: 'Сотрудники с правом «Управлять любой задачей» видят все кнопки',
+  /** Роли условий «кто» по категориям (#55, Р6): задачи и письма. */
   roles: {
     creator: 'Постановщик',
     assignee: 'Исполнитель',
     coexecutor: 'Соисполнители',
     observer: 'Наблюдатели',
+    registrar: 'Регистратор',
+    addressee: 'Адресат',
+    executor: 'Исполнитель письма',
+    resolver: 'Расписавший',
+    author: 'Автор',
+    participant: 'Участники',
   },
+  /** Пост-действия кнопки (#55, O8). */
+  postFunctions: {
+    assign_number: 'Присвоить номер',
+    assignNumberHint: 'Номер из серии типа выдаётся при нажатии — без пропусков',
+  },
+  /** Типы и маршруты писем до #463/#464 — только просмотр (В4, Р4). */
+  letterCatalogLocked: 'Маршрут письма настраивает система — правка откроется позже',
+  letterCatalogLockedShort: 'Настраивает система',
   roleCreatorAssignee: 'Постановщик = исполнитель',
   conditionsHint:
     'Если условие не выполнено, кнопка видна, но приглушена; при нажатии сотрудник увидит, чего не хватает',
@@ -145,6 +160,7 @@ export const automationStrings = {
     titleHint: 'По умолчанию — название кнопки',
     titlePlaceholder: 'Название кнопки',
     sections: {
+      registration: 'Регистрация',
       fields: 'Дозаполнить поля',
       time: 'Трудозатраты',
       result: 'Итог',
@@ -152,6 +168,8 @@ export const automationStrings = {
       result_messages: 'Сообщения из чата как итог',
       comment: 'Причина / комментарий',
     },
+    registrationHint:
+      'Корреспондент, подписант, их № и дата, тема, способ поступления, проект, адресат, срок ответа и атрибуты типа',
     fieldsHint: 'Поле обязательно, если оно есть в условии «Заполнены поля»',
     /** Подгруппа атрибутов в разделе «Поля» (#431). */
     customFieldsGroup: 'Атрибуты',
@@ -260,6 +278,12 @@ export const automationStrings = {
     creation_hidden_required: 'Скрытое поле нельзя сделать обязательным',
     creation_hidden_attribute_visible: 'Скрытый атрибут можно только скрытым полем',
     creation_field_unavailable: 'Поле недоступно — модуль проектов ещё не подключён',
+    role_not_in_category: 'В условии роль другой категории процесса',
+    section_not_in_category: 'В окне раздел, которого у этой категории процесса нет',
+    gate_not_in_category: 'Условие перехода не работает в этой категории процесса',
+    post_function_not_in_category: 'Особое правило не работает в этой категории процесса',
+    numbering_not_configured: 'Кнопка присваивает номер, а у типа нет серии номеров',
+    registration_without_number: 'Окно регистрации без присвоения номера — номер не выдастся',
   },
   /** Публикация. */
   publishTitle: 'Публикация маршрута',

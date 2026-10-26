@@ -65,7 +65,7 @@ function renderCombobox() {
       <CounterpartyCombobox value={null} onChange={onChange} ariaLabel="Корреспондент" />
     </QueryClientProvider>,
   );
-  const input = screen.getByRole('textbox', { name: 'Корреспондент' });
+  const input = screen.getByRole('combobox', { name: 'Корреспондент' });
   fireEvent.focus(input);
   fireEvent.change(input, { target: { value: 'Галургея' } });
   return { input, onChange };

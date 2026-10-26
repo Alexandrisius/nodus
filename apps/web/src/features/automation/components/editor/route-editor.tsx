@@ -16,7 +16,12 @@ import { useCanManageWorkflows } from '../../lib/use-can-manage-workflows.js';
 import { useRouteDocStore } from '../../model/route-doc-store.js';
 import { useLayoutAutosave } from '../../model/use-layout-autosave.js';
 import { AddTransitionPopover } from './add-transition-popover.js';
-import { DraftBanner, NavigationGuard, StaleDraftBanner } from './editor-parts.js';
+import {
+  CatalogLockBanner,
+  DraftBanner,
+  NavigationGuard,
+  StaleDraftBanner,
+} from './editor-parts.js';
 import { EditorPanel } from './panel/editor-panel.js';
 import { SIDE_PANEL_WIDTH } from './panel/side-panel.js';
 import { PublishDialog } from './publish-dialog.js';
@@ -56,8 +61,10 @@ function RouteEditorInner({ type, workflow, settings, settingsOpen = false }: Ro
   const draftSavedAt = useRouteDocStore((s) => s.draftSavedAt);
   const staleDraftAt = useRouteDocStore((s) => s.staleDraftAt);
   const pendingReload = useRouteDocStore((s) => s.pendingReload);
-  // Правка закрыта без права и пока после публикации не пришла свежая версия.
-  const canManage = useCanManageWorkflows() && !pendingReload;
+  // Правка закрыта без права, пока после публикации не пришла свежая версия,
+  // и всегда — у письма: каталог типов писем системный (#55, Р4).
+  const locked = type.category === 'letter';
+  const canManage = useCanManageWorkflows() && !pendingReload && !locked;
   const publish = usePublishWorkflow(workflow.id);
   const queryClient = useQueryClient();
   const { fitView, screenToFlowPosition } = useReactFlow();
@@ -198,6 +205,7 @@ function RouteEditorInner({ type, workflow, settings, settingsOpen = false }: Ro
 
         <div ref={canvasRef} className="relative min-h-0 flex-1 overflow-hidden">
           <RouteCanvas workflow={workflow} editable={canManage} problemStageIds={problemStageIds} />
+          {locked ? <CatalogLockBanner text={ui.automation.letterCatalogLocked} /> : null}
           {dirty && draftSavedAt ? (
             <DraftBanner
               savedAt={draftSavedAt}

@@ -19,11 +19,20 @@
   декомпрессионные бомбы) → квадратный WebP-дериват ≤640, реализация `avatars/`).
   Модуль `@Global` (как CryptoModule): потребитель инжектит токен без
   межмодульного импорта.
-- Обратное направление — порт **`FILE_ACCESS_CONTRIBUTORS`**
-  (`core/ports/file-access.port.ts`, #138): право пользователя на файл в
-  контексте потребителя. Реализацию регистрирует потребитель (@Global-модуль
-  `chat/file-access`): участник беседы с вложением → просмотр/правка.
-  files OR-ит решения с владением файла (`owner_id`); чужим — 404.
+- Обратное направление — реестр **`FileAccessRegistry`**
+  (`core/ports/file-access.registry.ts`, #138/#55): право пользователя на файл
+  в контексте потребителя. Контрибьютор объявляет `static readonly
+fileAccessContext` (`chat`, `letter`), DiscoveryService находит его среди
+  провайдеров (multi-токен `FILE_ACCESS_CONTRIBUTORS` упразднён в #55 — второй
+  потребитель не требовал правки каждого модуля). files OR-ит решения с
+  владением файла (`owner_id`); чужим — 404. Файлы писем: `LetterFileAccess`
+  (видимость письма, `canEdit:false` — входящий документ неизменяем).
+- Метаданные файлов для чужих DTO — порт **`FILE_OBJECT_READER`**
+  (`core/ports/file-object-reader.port.ts`, #55): имя/mime/размер пачкой;
+  содержимое — по подписи `SignedUrlService` после проверки видимости.
+- **Производные писем:** обработчик `correspondence.letter_received`
+  (`events/letter-received.handler.ts`) ставит офисные вложения в очередь
+  PDF-копий — тяжёлая работа вне HTTP-запроса.
 - `file_objects`/`file_versions` — только через `FilesRepository`.
 
 ## Механика

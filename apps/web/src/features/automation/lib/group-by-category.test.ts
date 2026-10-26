@@ -23,6 +23,7 @@ const type = (id: string, category: 'task' | 'letter'): ProcessType => ({
   },
   creationForm: { fields: [], chips: [] },
   viewer: { canView: true, canCreate: true },
+  numbering: null,
 });
 
 describe('groupByCategory (#428)', () => {

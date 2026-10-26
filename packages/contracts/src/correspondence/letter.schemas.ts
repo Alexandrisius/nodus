@@ -1,222 +1,226 @@
 import { z } from 'zod';
 
-import { counterpartyRefSchema } from '../counterparties/counterparty.schemas.js';
+import { contactRefSchema, counterpartyRefSchema } from '../counterparties/counterparty.schemas.js';
+import { customFieldRefSchema } from '../custom-fields/custom-field-refs.js';
+import {
+  customFieldValuesPatchSchema,
+  customFieldValuesSchema,
+} from '../custom-fields/custom-field-values.js';
 import { userRefSchema } from '../directory/user-ref.schema.js';
 import { cursorQuerySchema } from '../pagination/paginated.schema.js';
-import { projectRefSchema, taskRefSchema, taskStageSchema } from '../tasks/task.schemas.js';
+import { projectRefSchema, taskStageSchema } from '../tasks/task.schemas.js';
+import { letterDirectionSchema, processTypeRefSchema } from '../workflows/process-type.schemas.js';
+import { LETTER_LIMITS } from './letter-registration.schemas.js';
 
 /**
- * Контракты модуля корреспонденции (correspondence.Letter), модель v2
- * (вердикты владельца 22.09.2026):
- * - письмо и документ — РАЗНЫЕ вещи: почтовый клиент — базовый слой,
- *   регистрация — действие поверх; не вся почта становится документом;
- * - у письма статуса нет; статус появляется у ДОКУМЕНТА (registration ≠ null):
- *   в работе → исполнено → в дело; «просрочено» — производное (срок < сегодня),
- *   не значение статуса;
- * - резолюция порождает 1..N поручений; поручение = задача (source 'letter'),
- *   отдельной сущности нет;
- * - канал поступления (почта / СМДО / бумага) — у каждого письма с первого дня
- *   (коннектора СМДО нет, канал в модели есть).
+ * Контракты модуля корреспонденции (#55, ADR-0027): письмо — сущность
+ * модуля `correspondence` на движке «Процессы» (категория `letter`): тип
+ * процесса, стадия маршрута, кнопки и окна переходов — общие с задачами.
+ * Регистрация — кнопка маршрута с окном «Регистрация» и номером серии
+ * «Вх-ГГГГ/N» (`letter-registration.schemas.ts`); резолюция, поручения,
+ * связи и конфиденциальность — #461/#463.
  */
 
-/** Направление: входящее / исходящее. */
-export const letterTypeSchema = z.enum(['incoming', 'outgoing']);
-export type LetterType = z.infer<typeof letterTypeSchema>;
+/** Вкладка списка: «Новые» (незарегистрированные входящие, только
+ *  `correspondence.register`), «Входящие», «Исходящие». */
+export const letterBoxSchema = z.enum(['new', 'incoming', 'outgoing']);
+export type LetterBox = z.infer<typeof letterBoxSchema>;
 
-/** Канал поступления (входящие) или отправки (исходящие). */
-export const receiveChannelSchema = z.enum(['email', 'smdo', 'paper']);
-export type ReceiveChannel = z.infer<typeof receiveChannelSchema>;
+/** Как письмо попало в систему: создано вручную (скан бумаги) или пришло
+ *  почтой (#56). Способ поступления для реестра — справочник `receipt-method`. */
+export const letterSourceSchema = z.enum(['manual', 'mail']);
+export type LetterSource = z.infer<typeof letterSourceSchema>;
 
-/** Почтовый ящик портала: общий ящик компании сейчас, личные — фаза 2 продукта
- *  (переключатель «Общий / Личная» в списке — задел направления). */
-export const mailboxSchema = z.object({
-  id: z.uuid(),
-  address: z.string().min(1),
-  kind: z.enum(['shared', 'personal']),
-});
-export type Mailbox = z.infer<typeof mailboxSchema>;
-
-/** Статус ДОКУМЕНТА (зарегистрированного письма). «Просрочено» — производное:
- *  in_work + registration.deadline < сегодня (журнал-фильтр, чип в списках). */
-export const documentStatusSchema = z.enum(['in_work', 'executed', 'archived']);
-export type DocumentStatus = z.infer<typeof documentStatusSchema>;
-
-/** Вид документа — справочник (dictionaries, сид #54); дефолт «Письмо»,
- *  секретарь его не меняет. */
-export const documentKindSchema = z.object({
-  id: z.uuid(),
-  name: z.string().min(1),
-});
-export type DocumentKind = z.infer<typeof documentKindSchema>;
+/** Роль файла письма (Р8): главный документ (скан, PDF письма) — один,
+ *  тело письма почты (HTML/текст) — одно, приложения, исходник (.eml, #56). */
+export const letterAttachmentRoleSchema = z.enum(['main', 'body', 'attachment', 'source']);
+export type LetterAttachmentRole = z.infer<typeof letterAttachmentRoleSchema>;
 
 export const letterAttachmentSchema = z.object({
   id: z.uuid(),
+  /** Файл модуля files (сессия просмотра, PDF-копия, подпись ссылки). */
+  fileId: z.uuid(),
+  role: letterAttachmentRoleSchema,
   name: z.string().min(1),
-  size: z.number().int().min(0),
   mime: z.string().min(1),
+  size: z.number().int().min(0),
+  /** Подписанная ссылка содержимого (выдаётся только после проверки
+   *  видимости письма). */
+  url: z.string().min(1),
+  /** PDF-копия офисного документа (конвейер производных); null — не готова
+   *  или не офис. */
+  pdfUrl: z.string().nullable(),
+  /** Маршрут просмотрщика — серверная классификация (mime клиента не доверяем). */
+  previewKind: z.enum(['office', 'pdf', 'image', 'video', 'file']),
 });
-
 export type LetterAttachment = z.infer<typeof letterAttachmentSchema>;
 
-/** Регистрационная карточка (РКК): результат действия «Зарегистрировать».
- *  Рег.№ «Вх-2026/NNN» / «Исх-2026/NNN» — счётчик серии без щелей и дублей. */
-export const letterRegistrationSchema = z.object({
-  regNumber: z.string().min(1),
-  regDate: z.iso.date(),
-  /** Тип подставляется из папки, в карточке регистрации сменить можно. */
-  type: letterTypeSchema,
-  documentKind: documentKindSchema,
-  counterparty: counterpartyRefSchema,
-  project: projectRefSchema.nullable(),
-  /** Адресат-сотрудник (дефолт — ГИП проекта); письмо «у адресата». */
-  addressee: userRefSchema.nullable(),
-  deadline: z.iso.date().nullable(),
-  /** Номер и дата документа корреспондента (реквизиты входящего по инструкции). */
-  correspondentNumber: z.string().nullable(),
-  correspondentDate: z.iso.date().nullable(),
-});
+/** Что показывает вкладка «Тело» (Р8): главный документ во вьювере, иначе
+ *  тело почты (HTML — песочница, text/plain — текст), иначе пусто. */
+export const letterBodySchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('document'), attachmentId: z.uuid() }),
+  z.object({ kind: z.literal('html'), attachmentId: z.uuid() }),
+  z.object({ kind: z.literal('text'), attachmentId: z.uuid() }),
+  z.object({ kind: z.literal('none') }),
+]);
+export type LetterBody = z.infer<typeof letterBodySchema>;
 
-export type LetterRegistration = z.infer<typeof letterRegistrationSchema>;
-
-/** Строка поручения резолюции: поручение = задача (отдельной сущности нет),
- *  task — связь с созданной задачей (source 'letter', цепочка в карточке);
- *  taskStage — денормализованный снапшот стадии (образец: userRef/projectRef),
- *  блок резолюций показывает статус поручения живьём. */
-export const resolutionInstructionSchema = z.object({
-  id: z.uuid(),
-  text: z.string().min(1),
-  assignee: userRefSchema,
-  deadline: z.iso.date().nullable(),
-  task: taskRefSchema.nullable(),
-  taskStage: taskStageSchema.nullable(),
-});
-
-export type ResolutionInstruction = z.infer<typeof resolutionInstructionSchema>;
-
-/** Резолюция руководителя: текст + 0..N поручений (без поручения допустима —
- *  «для сведения»). */
-export const resolutionSchema = z.object({
-  id: z.uuid(),
-  text: z.string().min(1),
-  author: userRefSchema,
-  createdAt: z.iso.datetime(),
-  instructions: z.array(resolutionInstructionSchema),
-});
-
-export type Resolution = z.infer<typeof resolutionSchema>;
-
-/** Короткая ссылка на письмо (образец: taskRef) — беседы чата писем,
- *  превью portal://-ссылок. */
+/** Короткая ссылка на письмо (беседы чата писем, превью ссылок): у
+ *  незарегистрированного номера нет, у бумажного скана может не быть темы. */
 export const letterRefSchema = z.object({
   id: z.uuid(),
   regNumber: z.string().nullable(),
-  subject: z.string().min(1),
+  subject: z.string().nullable(),
 });
-
 export type LetterRef = z.infer<typeof letterRefSchema>;
+
+/** Элемент справочника способов поступления (`receipt-method`, Р14). */
+export const receiptMethodRefSchema = z.object({
+  id: z.uuid(),
+  name: z.string().min(1),
+});
+export type ReceiptMethodRef = z.infer<typeof receiptMethodRefSchema>;
 
 export const letterListItemSchema = z.object({
   id: z.uuid(),
-  type: letterTypeSchema,
-  receiveChannel: receiveChannelSchema,
-  mailbox: mailboxSchema,
-  /** Корреспондент: отправитель (входящее) или получатель (исходящее) —
-   *  ссылка на справочник контрагентов, не строка (I15). */
-  counterparty: counterpartyRefSchema,
-  subject: z.string().min(1),
-  /** Внутренние получатели «Кому» / «Копия» — ТОЛЬКО сотрудники компании;
-   *  внешние адресаты исходящего — counterparty. Участники чата письма. */
-  recipients: z.array(userRefSchema),
-  cc: z.array(userRefSchema),
-  /** Получено (входящее) / отправлено (исходящее). */
-  date: z.iso.datetime(),
-  /** null — письмо (не документ): незарегистрированное входящее или
-   *  исходящее «просто письмо». */
-  registration: letterRegistrationSchema.nullable(),
-  /** Статус документа; у письма (registration = null) — null. */
-  documentStatus: documentStatusSchema.nullable(),
-  /** Связь «ответ на» (пересылка запрещена концептуально — только ответы
-   *  и portal://-ссылки). */
-  inReplyToId: z.uuid().nullable(),
+  /** Тип процесса письма («Входящее письмо», «Исходящее письмо»). */
+  typeId: z.uuid(),
+  direction: letterDirectionSchema,
+  /** Стадия маршрута типа (чип статуса). */
+  stage: taskStageSchema,
+  /** «Вх-2026/118»; null — не зарегистрировано. */
+  regNumber: z.string().nullable(),
+  /** Дата регистрации (ISO-дата часового пояса компании). */
+  regDate: z.iso.date().nullable(),
+  registeredAt: z.iso.datetime().nullable(),
+  /** Поступило в систему (почта — время приёма, вручную — создания). */
+  receivedAt: z.iso.datetime(),
+  source: letterSourceSchema,
+  /** Тема: у почты — из письма, у бумажного скана до регистрации — пусто. */
+  subject: z.string().nullable(),
+  /** Корреспондент — ссылка на справочник контрагентов (I15); до
+   *  регистрации может быть пусто. */
+  counterparty: counterpartyRefSchema.nullable(),
+  /** № и дата документа корреспондента. */
+  theirNumber: z.string().nullable(),
+  theirDate: z.iso.date().nullable(),
+  receiptMethod: receiptMethodRefSchema.nullable(),
+  project: projectRefSchema.nullable(),
+  addressee: userRefSchema.nullable(),
+  /** Срок ответа (ISO-дата); по умолчанию не ставится. */
+  responseDeadline: z.iso.date().nullable(),
+  /** Файлов письма (без исходника .eml). */
+  attachmentCount: z.number().int().min(0),
 });
-
 export type LetterListItem = z.infer<typeof letterListItemSchema>;
 
-export const letterDetailSchema = letterListItemSchema.extend({
-  body: z.string(),
-  attachments: z.array(letterAttachmentSchema),
-  resolutions: z.array(resolutionSchema),
-  /** Чат письма — беседа type 'letter' (единый механизм обсуждений);
-   *  участники — только внутренние сотрудники. */
-  conversationId: z.uuid(),
+/** Что может текущий сотрудник с письмом (сервер — истина, I8; веб прячет
+ *  недоступное): правка регистрационных данных (В3), удаление спама из
+ *  «Новых» (Р12), «Присоединиться к обсуждению» (Р10). */
+export const letterAccessSchema = z.object({
+  canEdit: z.boolean(),
+  canDeleteSpam: z.boolean(),
+  canJoin: z.boolean(),
+  /** Участник чата письма (адресат или присоединившийся). */
+  isParticipant: z.boolean(),
 });
+export type LetterAccess = z.infer<typeof letterAccessSchema>;
 
+export const letterDetailSchema = letterListItemSchema.extend({
+  type: processTypeRefSchema,
+  /** Подписант — контакт корреспондента. */
+  signer: contactRefSchema.nullable(),
+  registrar: userRefSchema.nullable(),
+  attachments: z.array(letterAttachmentSchema),
+  body: letterBodySchema,
+  /** Атрибуты области `letter`, привязанные к типу (ADR-0029). */
+  customFields: customFieldValuesSchema,
+  customFieldRefs: z.array(customFieldRefSchema),
+  access: letterAccessSchema,
+});
 export type LetterDetail = z.infer<typeof letterDetailSchema>;
 
-/** Папки списка: входящие / отправленные / журнал. «Незарегистрированные» —
- *  НЕ папка (вердикт владельца): это входящие с пустым рег.№, секретарю —
- *  пресет-фильтр «К регистрации». Журнал — реестр ТОЛЬКО документов (Вх/Исх).
- *  Без folder — все письма (связанные письма в карточке контрагента). */
+/** `GET /letters`: без `box` — зарегистрированные обоих направлений
+ *  (палитра, вкладка «Письма» контрагента); `box=new` — только
+ *  `correspondence.register` (иначе 403). Курсор: «Новые» —
+ *  `(received_at, id) DESC`, остальное — `(registered_at, id) DESC`. */
 export const listLettersQuerySchema = cursorQuerySchema.extend({
-  folder: z.enum(['incoming', 'outgoing', 'registry']).optional(),
-  /** Письма контрагента (карточка контрагента — связанные письма). */
+  box: letterBoxSchema.optional(),
   counterpartyId: z.uuid().optional(),
-  search: z.string().trim().min(1).max(128).optional(),
+  search: z.string().trim().min(1).max(LETTER_LIMITS.search).optional(),
 });
-
 export type ListLettersQuery = z.infer<typeof listLettersQuerySchema>;
 
-/** Тело регистрации (POST /letters/:id/register): рег.№ присваивает сервер
- *  (счётчик серии). Повторная регистрация — 409 LETTER_ALREADY_REGISTERED. */
-export const registerLetterBodySchema = z.object({
-  type: letterTypeSchema,
-  counterpartyId: z.uuid(),
-  projectId: z.uuid().nullable(),
-  addresseeId: z.uuid().nullable(),
-  deadline: z.iso.date().nullable(),
-  correspondentNumber: z.string().trim().max(64).nullable(),
-  correspondentDate: z.iso.date().nullable(),
-  documentKindId: z.uuid(),
+/** Поля multipart `POST /letters` (ручное создание входящего в «Новое»):
+ *  идут ДО файлов; файлы 1–20, главный документ — `mainIndex` (по
+ *  умолчанию первый). Значения multipart — строки, отсюда coerce. */
+export const createLetterFieldsSchema = z.object({
+  typeId: z.uuid(),
+  mainIndex: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .max(LETTER_LIMITS.files - 1)
+    .default(0),
 });
+export type CreateLetterFields = z.infer<typeof createLetterFieldsSchema>;
 
-export type RegisterLetterBody = z.infer<typeof registerLetterBodySchema>;
+/** `PATCH /letters/:id` — правка регистрационных данных зарегистрированного
+ *  письма канцелярией (В3, Р11): адресат и номер так не меняются. Явные
+ *  необязательные поля без `.default()` (gotcha Zod 4: умолчания в патче
+ *  перетирали бы непереданное); `null` — очистить необязательное. */
+export const updateLetterBodySchema = z
+  .object({
+    counterpartyId: z.uuid().optional(),
+    signerId: z.uuid().nullable().optional(),
+    theirNumber: z.string().trim().min(1).max(LETTER_LIMITS.theirNumber).optional(),
+    theirDate: z.iso.date().optional(),
+    subject: z.string().trim().min(1).max(LETTER_LIMITS.subject).optional(),
+    receiptMethodId: z.uuid().optional(),
+    projectId: z.uuid().nullable().optional(),
+    responseDeadline: z.iso.date().nullable().optional(),
+    customFields: customFieldValuesPatchSchema.optional(),
+  })
+  .strict()
+  .refine((v) => Object.keys(v).length > 0, { message: 'empty update' });
+export type UpdateLetterBody = z.infer<typeof updateLetterBodySchema>;
 
-/** Тело резолюции (POST /letters/:id/resolutions): поручения становятся
- *  задачами (source 'letter'), письмо остаётся «в работе» до исполнения всех. */
-export const issueResolutionBodySchema = z.object({
-  text: z.string().trim().min(1).max(4000),
-  instructions: z
-    .array(
-      z.object({
-        text: z.string().trim().min(1).max(1000),
-        assigneeId: z.uuid(),
-        deadline: z.iso.date().nullable(),
-      }),
-    )
-    .max(20)
-    .default([]),
+/** Изменение поля в истории (`letter_updated`): ключ — системное поле
+ *  (`counterpartyId`, `theirDate`, …) или атрибут `cf.<uuid>`; значения —
+ *  строки показа (ссылки — имена, гидрирует сервер; даты — ISO-дата,
+ *  формат даёт веб по ключу поля); null — пусто. */
+export const letterHistoryChangeSchema = z.object({
+  field: z.string().min(1).max(64),
+  from: z.string().nullable(),
+  to: z.string().nullable(),
 });
+export type LetterHistoryChange = z.infer<typeof letterHistoryChangeSchema>;
 
-export type IssueResolutionBody = z.infer<typeof issueResolutionBodySchema>;
+const historyEntryBase = {
+  id: z.uuid(),
+  at: z.iso.datetime(),
+  /** Кто сделал; null — система (приём почты). */
+  actor: userRefSchema.nullable(),
+};
 
-/** Создание исходящего (композер): переключатель «письмо / документ Исх-№» —
- *  asDocument; документ регистрируется при отправке (номер присваивает сервер).
- *  Файлы прикрепляются вперёд текста (сценарий «скан → отправка»). */
-export const createLetterBodySchema = z.object({
-  mailboxId: z.uuid(),
-  counterpartyId: z.uuid(),
-  projectId: z.uuid().nullable(),
-  receiveChannel: receiveChannelSchema.exclude(['smdo']).default('email'),
-  asDocument: z.boolean().default(false),
-  subject: z.string().trim().min(1).max(512),
-  /** Текст сопроводительного — опционален (письмо может быть «только скан»). */
-  body: z.string().max(20000).default(''),
-  /** Выбранные файлы (имя+размер): загрузка файлов — с бэкендом хранилища. */
-  attachments: z
-    .array(z.object({ name: z.string().min(1).max(256), size: z.number().int().min(0) }))
-    .max(20)
-    .default([]),
-  inReplyToId: z.uuid().nullable(),
-});
-
-export type CreateLetterBody = z.infer<typeof createLetterBodySchema>;
+/** Запись истории письма (`GET /letters/:id/history`, event log по агрегату
+ *  `letter`, Р11); страница — курсором. */
+export const letterHistoryEntrySchema = z.discriminatedUnion('kind', [
+  z.object({ ...historyEntryBase, kind: z.literal('received'), source: letterSourceSchema }),
+  z.object({ ...historyEntryBase, kind: z.literal('registered'), regNumber: z.string().min(1) }),
+  z.object({
+    ...historyEntryBase,
+    kind: z.literal('updated'),
+    changes: z.array(letterHistoryChangeSchema).min(1).max(LETTER_LIMITS.changes),
+  }),
+  z.object({
+    ...historyEntryBase,
+    kind: z.literal('stage_changed'),
+    transitionName: z.string().min(1),
+    fromStageName: z.string().min(1),
+    toStageName: z.string().min(1),
+    comment: z.string().optional(),
+  }),
+  z.object({ ...historyEntryBase, kind: z.literal('participant_joined') }),
+]);
+export type LetterHistoryEntry = z.infer<typeof letterHistoryEntrySchema>;

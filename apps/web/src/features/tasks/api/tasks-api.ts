@@ -23,7 +23,6 @@ import { buildTempSubtask } from '../lib/temp-records.js';
 
 import { api } from '../../../shared/api-client.js';
 import { useAuthStore } from '../../../shared/auth-store.js';
-import { lettersKeys } from '../../../shared/api/letters-keys.js';
 import { mapTaskInPages, taskDependentKeys, tasksKeys } from '../../../shared/api/tasks-keys.js';
 
 // Ключи кэша и помощник страниц — canonical в shared/api/tasks-keys (общие
@@ -127,10 +126,6 @@ export function useUpdateTaskStage() {
       void queryClient.invalidateQueries({ queryKey: tasksKeys.listPages() });
       void queryClient.invalidateQueries({ queryKey: tasksKeys.kanbanAll() });
       void queryClient.invalidateQueries({ queryKey: tasksKeys.detail(vars.taskId) });
-      // Закрытие поручения двигает статус документа-письма («исполнено») и
-      // снапшоты стадий в блоке резолюций — ключи писем из shared (I6:
-      // без cross-feature импорта фичи корреспонденции).
-      void queryClient.invalidateQueries({ queryKey: lettersKeys.all });
     },
   });
 }

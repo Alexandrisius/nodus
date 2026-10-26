@@ -135,6 +135,16 @@ export class WorkflowRepository {
   /** Категория сущностей маршрута — по его типам (все типы маршрута одной
    *  категории: тип создаётся вместе с маршрутом). Маршрут без типов
    *  (сирота) считается задачным — поведение до переноса. */
+  /** Направление письма маршрута (#55): из типа схемы. null — задача. */
+  async letterDirectionOf(workflowId: string, tx?: TransactionClient): Promise<string | null> {
+    const entry = await (tx ?? this.prisma).workflowSchemeEntry.findFirst({
+      where: { workflowId },
+      orderBy: { processTypeId: 'asc' },
+      select: { processType: { select: { direction: true } } },
+    });
+    return entry?.processType.direction ?? null;
+  }
+
   async categoryOf(workflowId: string, tx?: TransactionClient): Promise<ProcessCategory> {
     const entry = await (tx ?? this.prisma).workflowSchemeEntry.findFirst({
       where: { workflowId },

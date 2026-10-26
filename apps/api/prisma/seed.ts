@@ -74,9 +74,9 @@ async function main(): Promise<void> {
       description: 'Руководитель подразделения: постановка и назначение задач',
       isSystem: true,
       permissions: {
-        create: ['directory.read', 'task.create', 'task.assign', 'correspondence.create'].map(
-          (permission) => ({ permission }),
-        ),
+        create: ['directory.read', 'task.create', 'task.assign'].map((permission) => ({
+          permission,
+        })),
       },
     },
   });
@@ -113,6 +113,30 @@ async function main(): Promise<void> {
     update: {},
     create: { roleId: moderatorRole.id, permission: 'chat.moderate' },
   });
+  // Канцелярия (#55, Р13): регистрация писем и ведение контрагентов.
+  // На проде роль и права доезжают миграцией 20261101120000_correspondence_core.
+  const officeRole = await prisma.role.upsert({
+    where: { code: 'office' },
+    update: {},
+    create: {
+      code: 'office',
+      name: 'Канцелярия',
+      description: 'Регистрация входящих писем, ведение контрагентов',
+      isSystem: true,
+      permissions: {
+        create: ['correspondence.register', 'crm.create', 'crm.manage'].map((permission) => ({
+          permission,
+        })),
+      },
+    },
+  });
+  for (const permission of ['correspondence.register', 'crm.create', 'crm.manage']) {
+    await prisma.rolePermission.upsert({
+      where: { roleId_permission: { roleId: officeRole.id, permission } },
+      update: {},
+      create: { roleId: officeRole.id, permission },
+    });
+  }
 
   // --- Должности (management; юр-структуры на пилоте нет) ---
   async function position(name: string, sortOrder = 0) {
@@ -301,6 +325,12 @@ async function main(): Promise<void> {
     where: { key: 'crm' },
     update: {},
     create: { key: 'crm', enabled: true },
+  });
+  // Корреспонденция (#55, ADR-0027): письма на движке «Процессы».
+  await prisma.featureFlag.upsert({
+    where: { key: 'correspondence' },
+    update: {},
+    create: { key: 'correspondence', enabled: true },
   });
 
   // Канал новостей компании (Ф4; вердикт 24.09: «Новости» — КАНАЛ, публикация

@@ -7,6 +7,12 @@ import { CounterpartiesController } from './counterparties/counterparties.contro
 import { CounterpartiesQueryService } from './counterparties/counterparties-query.service.js';
 import { CounterpartiesRepository } from './counterparties/counterparties.repository.js';
 import { CounterpartiesService } from './counterparties/counterparties.service.js';
+import { CounterpartyUsagesRepository } from './counterparties/counterparty-usages.repository.js';
+import {
+  LetterDeletedUsageHandler,
+  LetterRegisteredUsageHandler,
+  LetterUpdatedUsageHandler,
+} from './events/letter-usage.handler.js';
 
 /**
  * Модуль crm (#460, ADR-0033): master-данные внешних организаций —
@@ -19,10 +25,15 @@ import { CounterpartiesService } from './counterparties/counterparties.service.j
   controllers: [CounterpartiesController, ContactsController],
   providers: [
     CounterpartiesRepository,
+    CounterpartyUsagesRepository,
     ContactsRepository,
     CounterpartiesQueryService,
     CounterpartiesService,
     ContactsService,
+    // Проекция «письма контрагента» (#55, B6): события корреспонденции.
+    LetterRegisteredUsageHandler,
+    LetterUpdatedUsageHandler,
+    LetterDeletedUsageHandler,
   ],
 })
 export class CrmModule {}

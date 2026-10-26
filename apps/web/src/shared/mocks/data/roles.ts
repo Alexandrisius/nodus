@@ -32,12 +32,7 @@ const baseRoles: RoleBase[] = [
     name: 'Руководитель',
     description: 'Руководитель подразделения: постановка и назначение задач',
     isSystem: true,
-    permissions: sorted(
-      Permission.CORRESPONDENCE_CREATE,
-      Permission.DIRECTORY_READ,
-      Permission.TASK_ASSIGN,
-      Permission.TASK_CREATE,
-    ),
+    permissions: sorted(Permission.DIRECTORY_READ, Permission.TASK_ASSIGN, Permission.TASK_CREATE),
   },
   {
     id: rid(3),
@@ -55,6 +50,21 @@ const baseRoles: RoleBase[] = [
     isSystem: true,
     permissions: sorted(Permission.CHAT_MODERATE, Permission.DIRECTORY_READ),
   },
+  // «Канцелярия» — системная (#55, Р13; ADR-0033 доп. п.3): регистрирует
+  // письма и ведёт справочник контрагентов.
+  {
+    id: rid(6),
+    code: 'office',
+    name: 'Канцелярия',
+    description: 'Регистрация писем и справочник контрагентов',
+    isSystem: true,
+    permissions: sorted(
+      Permission.CORRESPONDENCE_REGISTER,
+      Permission.CRM_CREATE,
+      Permission.CRM_MANAGE,
+      Permission.DIRECTORY_READ,
+    ),
+  },
   {
     id: rid(5),
     code: 'gip',
@@ -66,20 +76,6 @@ const baseRoles: RoleBase[] = [
       Permission.TASK_ASSIGN,
       Permission.TASK_CREATE,
       Permission.TASK_VIEW_ALL,
-    ),
-  },
-  {
-    id: rid(6),
-    code: 'office',
-    name: 'Канцелярия',
-    description: 'Регистрация и архив писем, справочник контрагентов',
-    isSystem: false,
-    permissions: sorted(
-      Permission.CORRESPONDENCE_ARCHIVE,
-      Permission.CORRESPONDENCE_CREATE,
-      Permission.CRM_CREATE,
-      Permission.CRM_MANAGE,
-      Permission.DIRECTORY_READ,
     ),
   },
   {
@@ -103,6 +99,16 @@ const baseRoles: RoleBase[] = [
     description: 'Демо: роль удалил другой администратор — изменение не сохранится',
     isSystem: false,
     permissions: sorted(Permission.DIRECTORY_READ),
+  },
+  // «Руководство» (#55, Р13): держатели `correspondence.resolve` — первые в
+  // списке адресатов при регистрации письма.
+  {
+    id: rid(9),
+    code: 'management',
+    name: 'Руководство',
+    description: 'Принимают решения по письмам: первые в списке адресатов',
+    isSystem: false,
+    permissions: sorted(Permission.CORRESPONDENCE_RESOLVE, Permission.DIRECTORY_READ),
   },
 ];
 
@@ -128,6 +134,7 @@ export const demoRoleMembers: Record<string, { userIds: string[]; departmentIds:
   [rid(6)]: { userIds: [userIds.karpovich], departmentIds: [departmentIds.admin] },
   [rid(7)]: { userIds: [userIds.klimovich, userIds.matorin], departmentIds: [departmentIds.bim] },
   [rid(8)]: { userIds: [], departmentIds: [] },
+  [rid(9)]: { userIds: [userIds.shaiderova, userIds.vinnichek], departmentIds: [] },
 };
 
 /** id «Временной роли»: мок удаляет её на первой мутации (гонка с удалением). */
@@ -142,6 +149,7 @@ export const demoRoleIds = {
   gip: rid(5),
   office: rid(6),
   bimCoordinator: rid(7),
+  management: rid(9),
 } as const;
 
 /** Подразделение и его предки (управленческая структура) — мок серверного

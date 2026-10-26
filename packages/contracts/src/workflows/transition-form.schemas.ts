@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { letterRegistrationInputSchema } from '../correspondence/letter-registration.schemas.js';
 import { customFieldKeySchema } from '../custom-fields/custom-field-key.js';
 import {
   customFieldValuesInputSchema,
@@ -34,8 +35,10 @@ export const transitionWindowFieldKeySchema = z.union([
 ]);
 export type TransitionWindowFieldKey = z.infer<typeof transitionWindowFieldKeySchema>;
 
-/** Порядок разделов в окне фиксированный (не порядок массива документа). */
+/** Порядок разделов в окне фиксированный (не порядок массива документа).
+ *  `registration` — раздел только писем (#55, O8): ввод регистрации. */
 export const TRANSITION_FORM_SECTION_ORDER = [
+  'registration',
   'fields',
   'time',
   'result',
@@ -50,6 +53,7 @@ const draftLabel = z.string().max(60);
 
 /** Раздел окна на границе публикации: подписи обязательны. */
 export const transitionFormSectionSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('registration') }).strict(),
   z
     .object({
       kind: z.literal('fields'),
@@ -68,6 +72,7 @@ export type TransitionFormSection = z.infer<typeof transitionFormSectionSchema>;
 /** Раздел черновика редактора: подпись может быть пустой — её ловит
  *  `checkWorkflowDocument` (form_empty_label), а не zod. */
 export const transitionFormSectionDraftSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('registration') }).strict(),
   z
     .object({
       kind: z.literal('fields'),
@@ -109,9 +114,11 @@ export const DEFAULT_TRANSITION_FORM = { enabled: false, sections: [] } as const
  *  `timeEntryCreateBodySchema` без импорта из `tasks/*`: иначе цикл
  *  `workflow.schemas → task.schemas → workflow.schemas`. Поведение совпадает
  *  (тест паритета). Кастомные поля — общая форма значений по id определения
- *  (#431); `cf.<id>` в теле не передаётся. */
+ *  (#431); `cf.<id>` в теле не передаётся. `registration` — ввод раздела
+ *  «Регистрация» кнопки письма (#55, Р1). */
 export const transitionFormInputSchema = z
   .object({
+    registration: letterRegistrationInputSchema.optional(),
     fields: z
       .object({
         description: z.string().trim().min(1).max(5000).optional(),

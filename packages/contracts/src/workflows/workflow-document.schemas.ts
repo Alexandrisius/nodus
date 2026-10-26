@@ -230,6 +230,16 @@ export const workflowProblemCodeSchema = z.enum([
   'creation_hidden_required',
   'creation_hidden_attribute_visible',
   'creation_field_unavailable',
+  /** Словарь категории (#55, Р6): роль, раздел окна, гейт или пост-действие
+   *  чужой категории (роль письма в маршруте задачи, задачный гейт у письма)
+   *  — ошибки; присвоение номера без серии у типа — ошибка; регистрация без
+   *  присвоения номера — предупреждение. */
+  'role_not_in_category',
+  'section_not_in_category',
+  'gate_not_in_category',
+  'post_function_not_in_category',
+  'numbering_not_configured',
+  'registration_without_number',
 ]);
 export type WorkflowProblemCode = z.infer<typeof workflowProblemCodeSchema>;
 

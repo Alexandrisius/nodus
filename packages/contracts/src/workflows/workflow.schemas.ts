@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { Permission } from '../auth/permission.js';
 import { customFieldKeySchema } from '../custom-fields/custom-field-key.js';
 import { CUSTOM_FIELD_LIMITS } from '../custom-fields/custom-field-values.js';
+import type { ProcessCategory } from './process-type.schemas.js';
 import { transitionFormInputSchema, transitionFormSchema } from './transition-form.schemas.js';
 import {
   docIdSchema,
@@ -25,10 +26,32 @@ const PERMISSION_VALUES = Object.values(Permission) as [Permission, ...Permissio
 
 /** Роль пользователя относительно сущности процесса (вход условий переходов
  *  и прав). Словарь ролей задаёт адаптер категории (ADR-0024): у задачи —
- *  постановщик/ответственный/соисполнитель/наблюдатель, у письма — свой
- *  (добавит #55); движок ролей не знает, сравнивает с условиями маршрута. */
-export const workflowActorRoleSchema = z.enum(['creator', 'assignee', 'coexecutor', 'observer']);
+ *  постановщик/ответственный/соисполнитель/наблюдатель, у письма —
+ *  регистратор/адресат/исполнитель/расписавший/автор/участник (#55, Р6);
+ *  движок ролей не знает, сравнивает с условиями маршрута. Какие роли
+ *  допустимы в маршруте категории — `WORKFLOW_ROLES_BY_CATEGORY`. */
+export const workflowActorRoleSchema = z.enum([
+  'creator',
+  'assignee',
+  'coexecutor',
+  'observer',
+  'registrar',
+  'addressee',
+  'executor',
+  'resolver',
+  'author',
+  'participant',
+]);
 export type WorkflowActorRole = z.infer<typeof workflowActorRoleSchema>;
+
+/** Словарь ролей по категории типа (Р6): редактор предлагает только свои
+ *  роли, проверка документа ловит чужие (`role_not_in_category`). У письма
+ *  в #55 адаптер знает регистратора, адресата, участника и автора;
+ *  исполнитель и расписавший наполнятся в #463. */
+export const WORKFLOW_ROLES_BY_CATEGORY = {
+  task: ['creator', 'assignee', 'coexecutor', 'observer'],
+  letter: ['registrar', 'addressee', 'executor', 'resolver', 'author', 'participant'],
+} as const satisfies Record<ProcessCategory, readonly WorkflowActorRole[]>;
 
 /** Поля сущности, которые могут требовать гейты `fields_required` (DoR/DoD).
  *  Реестр полей — словарь категории: адаптер отдаёт заполненность по имени. */
@@ -98,8 +121,33 @@ export const workflowPostFunctionSchema = z.discriminatedUnion('kind', [
     when: z.literal('creator_is_assignee'),
     toStageId: docIdSchema,
   }),
+  /** Присвоить номер серии типа (#55, Р1/O8): движок берёт серию из
+   *  `config.numbering` типа и выдаёт номер в той же транзакции перехода
+   *  (без пропусков); нет серии — 409 WORKFLOW_NUMBERING_NOT_CONFIGURED.
+   *  Отделён от ввода регистрации: исходящие нумеруются без формы (#464). */
+  z.object({ kind: z.literal('assign_number') }),
 ]);
 export type WorkflowPostFunction = z.infer<typeof workflowPostFunctionSchema>;
+
+/** Пост-действия, допустимые в маршруте категории (Р6). */
+export const WORKFLOW_POST_FUNCTIONS_BY_CATEGORY = {
+  task: ['route_if_accept_required', 'route_if'],
+  letter: ['assign_number'],
+} as const satisfies Record<ProcessCategory, readonly WorkflowPostFunction['kind'][]>;
+
+/** Гейты, допустимые в маршруте категории: у писем в #55 гейтов нет —
+ *  задачные факты (подзадачи, чек-лист, время, итог) у письма не считаются. */
+export const WORKFLOW_VALIDATORS_BY_CATEGORY = {
+  task: [
+    'no_open_subtasks',
+    'checklist_complete',
+    'fields_required',
+    'time_logged',
+    'result_present',
+    'result_files',
+  ],
+  letter: [],
+} as const satisfies Record<ProcessCategory, readonly WorkflowValidator['kind'][]>;
 
 export const workflowTransitionRulesSchema = z.object({
   conditions: z.array(workflowConditionSchema).default([]),
@@ -160,7 +208,7 @@ export type WorkflowTransition = z.infer<typeof workflowTransitionSchema>;
 
 /** Выполнение перехода. reason — обязательна при обходе гейта (аудит).
  *  form — введённое в окне; сервер сверяет состав с эффективным окном
- *  (лишнее/пропущенное обязательное → 422 TASK_TRANSITION_FORM_INVALID). */
+ *  (лишнее/пропущенное обязательное → 422 WORKFLOW_TRANSITION_FORM_INVALID). */
 export const executeTransitionBodySchema = z
   .object({
     override: z.boolean().optional(),

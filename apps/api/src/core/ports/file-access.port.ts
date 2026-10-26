@@ -1,12 +1,12 @@
-import type { InjectionToken } from '@nestjs/common';
-
 /**
  * Порт проверки права на файл ПО КОНТЕКСТУ потребителя (I8, #138).
  *
  * files не знает, где «живёт» файл (вложение чата, письмо, задача) — таблицы
  * потребителей ему недоступны (I3/I6). Каждый модуль-потребитель регистрирует
  * своего контрибьютора в multi-токене FILE_ACCESS_CONTRIBUTORS (@Global-
- * модуль потребителя); движок просмотра OR-ит решения с владением файла.
+ * модуль потребителя; с #55 поиск идёт через `FileAccessRegistry` по
+ * статическому маркеру `fileAccessContext`). Движок просмотра OR-ит решения
+ * с владением файла.
  *
  * Паттерн зеркален FILE_STORAGE (ADR-0013): интерфейс — в core/ports,
  * реализация — у владельца данных. Точка расширения появилась вместе с
@@ -16,9 +16,16 @@ import type { InjectionToken } from '@nestjs/common';
 export interface FileAccessDecision {
   canView: boolean;
   canEdit: boolean;
+  /** Файл неизменяем в этом контексте (письмо, #55): вето поверх владения
+   *  файлом — регистратор не правит уже зарегистрированный документ. */
+  immutable?: boolean;
 }
 
 export interface FileAccessContributor {
+  /** Маркер контекста (`chat`, `letter`): по нему реестр находит
+   *  контрибьютора через DiscoveryService. */
+  readonly fileAccessContext: string;
+
   /**
    * Право пользователя на файл в контексте потребителя.
    * `null` — файл в контексте потребителя не встречается (вклад в решение
@@ -27,6 +34,3 @@ export interface FileAccessContributor {
    */
   check(fileId: string, userId: string): Promise<FileAccessDecision | null>;
 }
-
-/** Токен-массив контрибьюторов (инжектится @Optional у потребителя). */
-export const FILE_ACCESS_CONTRIBUTORS: InjectionToken = 'FILE_ACCESS_CONTRIBUTORS';

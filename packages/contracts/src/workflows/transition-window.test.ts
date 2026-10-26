@@ -16,6 +16,17 @@ const form = (sections: TransitionForm['sections']): TransitionForm => ({
 const rules = (validators: WorkflowValidator[]) =>
   workflowTransitionRulesSchema.parse({ validators });
 
+describe('раздел «Регистрация» письма (#55, O8)', () => {
+  it('идёт первым в окне и обязателен для перехода без формы', () => {
+    const sections = effectiveWindowSections(
+      form([{ kind: 'comment', label: 'Причина', required: false }, { kind: 'registration' }]),
+      rules([]),
+    );
+    expect(sections.map((s) => s.kind)).toEqual(['registration', 'comment']);
+    expect(requiredWindowSections(sections)).toEqual(['registration']);
+  });
+});
+
 describe('effectiveWindowSections (#380, Р4)', () => {
   it('окно выключено — только разделы из гейтов, в фиксированном порядке', () => {
     const sections = effectiveWindowSections(

@@ -62,3 +62,9 @@ export function roleLabelsSummary(type: ProcessType): string {
     .map((role) => `${t.card.roles[role]} → ${labels[role]}`);
   return renamed.length > 0 ? renamed.join(', ') : t.card.summaryStandardRoles;
 }
+
+/** «Вх-ГГГГ/N» — формат серии типа письма (только чтение, #55/Р2/#504). */
+export function numberingSummary(type: ProcessType): string {
+  if (!type.numbering) return t.numbering.none;
+  return `${type.numbering.prefix}-${t.numbering.yearToken}/${t.numbering.numberToken}`;
+}

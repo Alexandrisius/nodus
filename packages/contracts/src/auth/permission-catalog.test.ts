@@ -49,6 +49,21 @@ describe('каталог прав (#379)', () => {
     ]);
   });
 
+  it('«Письма» — регистрация и решения; права v2 удалены (#55, Р13/O6)', () => {
+    const letters = permissionsOfModule('correspondence');
+    expect(letters.map((entry) => entry.permission)).toEqual([
+      Permission.CORRESPONDENCE_REGISTER,
+      Permission.CORRESPONDENCE_RESOLVE,
+    ]);
+    expect(letters.map((entry) => entry.label)).toEqual([
+      'Регистрировать письма',
+      'Принимать решения по письмам',
+    ]);
+    expect(letters[0]?.description).toContain('Вкладка «Новые»');
+    expect(Object.values(Permission)).not.toContain('correspondence.create');
+    expect(Object.values(Permission)).not.toContain('correspondence.archive');
+  });
+
   it('срез раздела не теряет и не переставляет права', () => {
     const all = accessModuleSchema.options.flatMap((module) =>
       permissionsOfModule(module).map((entry) => entry.permission),

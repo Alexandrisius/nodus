@@ -13,7 +13,6 @@ import { ui } from '@nodus/contracts';
 import { toast } from 'sonner';
 
 import { api } from '../../../shared/api-client.js';
-import { lettersKeys } from '../../../shared/api/letters-keys.js';
 import { mapTaskInPages, taskDependentKeys, tasksKeys } from '../../../shared/api/tasks-keys.js';
 
 /** Правка полей карточки — подмножество PATCH без переноса по осям. */
@@ -62,7 +61,6 @@ export function useUpdateTask(taskId: string) {
       for (const key of taskDependentKeys(taskId)) {
         void queryClient.invalidateQueries({ queryKey: key });
       }
-      void queryClient.invalidateQueries({ queryKey: lettersKeys.all });
     },
   });
 }
@@ -134,7 +132,6 @@ export function useBulkTasks() {
     onError: () => toast.error(ui.common.saveError),
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: tasksKeys.all });
-      void queryClient.invalidateQueries({ queryKey: lettersKeys.all });
     },
   });
 }
@@ -152,7 +149,6 @@ export function useDeleteTask(taskId: string) {
     onError: () => toast.error(ui.common.saveError),
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: tasksKeys.all });
-      void queryClient.invalidateQueries({ queryKey: lettersKeys.all });
     },
   });
 }

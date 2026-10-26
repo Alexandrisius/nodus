@@ -4,7 +4,7 @@ import { Permission } from '@nodus/contracts';
 import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../database/prisma.service.js';
 import type { TransactionClient } from '../database/transaction-runner.js';
-import type { RoleMembershipReader } from './role-membership.port.js';
+import type { RoleMembershipReader, PermissionHolder } from './role-membership.port.js';
 
 /** Предохранитель рекурсии: глубина дерева подразделений на порядок меньше. */
 const MAX_DEPTH = 32;
@@ -52,6 +52,46 @@ export class RoleMembershipProvider implements RoleMembershipReader {
     return rows
       .map((row) => row.permission)
       .filter((permission): permission is Permission => known.has(permission));
+  }
+
+  /**
+   * Держатели права (#55): те же правила, что у `effectivePermissions`, но
+   * от права к сотрудникам — один запрос на весь список адресатов. Поддерево
+   * подразделений раскрывается от привязанных ролей вниз (роль подразделения
+   * действует на него и всех вложенных); архивные привязки и уволенные не
+   * участвуют.
+   */
+  async holdersOf(permission: Permission, tx?: TransactionClient): Promise<PermissionHolder[]> {
+    return this.db(tx).$queryRaw<PermissionHolder[]>(
+      Prisma.sql`
+        WITH RECURSIVE perm_roles AS (
+          SELECT role_id FROM role_permissions WHERE permission = ${permission}
+        ), subtree(id, role_id, depth) AS (
+          SELECT d.id, dr.role_id, 0
+          FROM department_roles dr
+          JOIN departments d ON d.id = dr.department_id AND d.is_active AND d.kind = 'management'
+          JOIN perm_roles pr ON pr.role_id = dr.role_id
+          UNION ALL
+          SELECT child.id, s.role_id, s.depth + 1
+          FROM departments child JOIN subtree s ON child.parent_id = s.id
+          WHERE s.depth < ${MAX_DEPTH}
+        )
+        SELECT DISTINCT u.id AS id, u.display_name AS "displayName"
+        FROM users u
+        WHERE u.status = 'active'
+          AND (
+            EXISTS (
+              SELECT 1 FROM user_roles ur JOIN perm_roles pr ON pr.role_id = ur.role_id
+              WHERE ur.user_id = u.id
+            )
+            OR EXISTS (
+              SELECT 1 FROM subtree s JOIN perm_roles pr ON pr.role_id = s.role_id
+              WHERE s.id = u.department_id
+            )
+          )
+        ORDER BY u.display_name, u.id
+      `,
+    );
   }
 
   private roleIdsQuery(userId: string): Prisma.Sql {

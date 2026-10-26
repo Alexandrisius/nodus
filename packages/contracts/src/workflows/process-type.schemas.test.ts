@@ -64,10 +64,48 @@ describe('processTypeSchema', () => {
       },
       creationForm: { fields: [], chips: [] },
       viewer: { canView: true, canCreate: true },
+      numbering: null,
     });
     expect(parsed.category).toBe('task');
     expect(parsed.direction).toBeNull();
+    expect(parsed.numbering).toBeNull();
     expect(parsed).not.toHaveProperty('structural');
+  });
+
+  it('тип письма несёт серию номеров; формат серии закрыт (#55, Р2)', () => {
+    const base = {
+      id: '11111111-1111-4111-8111-111111111111',
+      code: 'letter-incoming',
+      name: 'Входящее письмо',
+      category: 'letter',
+      direction: 'incoming',
+      icon: 'file-text',
+      color: 'info',
+      description: '',
+      creatable: true,
+      isSystem: true,
+      sortOrder: 0,
+      archivedAt: null,
+      workflowId: '22222222-2222-4222-8222-222222222222',
+      config: {
+        card: { hiddenBlocks: [], roleLabels: {} },
+        access: { view: null, create: null },
+        numbering: { seriesId: '33333333-3333-4333-8333-333333333333' },
+      },
+      creationForm: { fields: [], chips: [] },
+      viewer: { canView: true, canCreate: true },
+    };
+    const parsed = processTypeSchema.parse({
+      ...base,
+      numbering: { seriesId: '33333333-3333-4333-8333-333333333333', prefix: 'Вх', reset: 'year' },
+    });
+    expect(parsed.numbering?.prefix).toBe('Вх');
+    expect(parsed.config.numbering?.seriesId).toBe('33333333-3333-4333-8333-333333333333');
+    const monthly = processTypeSchema.safeParse({
+      ...base,
+      numbering: { seriesId: '33333333-3333-4333-8333-333333333333', prefix: 'Вх', reset: 'month' },
+    });
+    expect(monthly.success).toBe(false);
   });
 
   it('без конфигурации, формы и зрителя тип невалиден (#432)', () => {

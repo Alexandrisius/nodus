@@ -17,7 +17,6 @@ import { cn } from '@nodus/ui/lib/utils';
 import { useCloseCard } from '../../../app/shell/use-card-stack.js';
 import { isDomainMocked } from '../../../shared/api/api-mock-config.js';
 import { useClientProjects } from '../../../shared/api/counterparty-relations.js';
-import { useLettersList } from '../../../shared/api/letters-list.js';
 import { useSplitWidth } from '../../../shared/ui/use-split-width.js';
 import { useCounterpartyCard } from '../../../shared/counterparties/queries.js';
 import { useCanManageCounterparties } from '../../../shared/counterparties/use-crm-permissions.js';
@@ -196,9 +195,6 @@ export function CounterpartyCard({ counterpartyId }: { counterpartyId: string })
   const { data: card, isLoading } = useCounterpartyCard(counterpartyId);
   const canManage = useCanManageCounterparties();
   const [tab, setTab] = useState<CounterpartyTab>('contacts');
-  const lettersQuery = useLettersList(undefined, counterpartyId, {
-    enabled: card !== undefined && (isDomainMocked('letters') || card.lettersCount > 0),
-  });
   const projectsQuery = useClientProjects(counterpartyId, {
     enabled: card !== undefined && (isDomainMocked('projects') || card.projectsCount > 0),
   });
@@ -214,7 +210,6 @@ export function CounterpartyCard({ counterpartyId }: { counterpartyId: string })
   if (isLoading) return <CardSkeleton />;
   if (!card) return <CardNotFound />;
   const archived = card.archivedAt !== null;
-  const letters = lettersQuery.data?.items ?? [];
   const projects = projectsQuery.data?.items ?? [];
 
   const tabs: { id: CounterpartyTab; label: string; count: number }[] = [
@@ -226,7 +221,8 @@ export function CounterpartyCard({ counterpartyId }: { counterpartyId: string })
     {
       id: 'letters',
       label: ui.counterparties.tabLetters,
-      count: lettersQuery.data ? letters.length : card.lettersCount,
+      // Проекция сервера — точное число (список вкладки грузится страницами).
+      count: card.lettersCount,
     },
     {
       id: 'projects',
@@ -323,7 +319,10 @@ export function CounterpartyCard({ counterpartyId }: { counterpartyId: string })
             />
           ) : null}
           {tab === 'letters' ? (
-            <CounterpartyLettersTab letters={letters} isLoading={lettersQuery.isLoading} />
+            <CounterpartyLettersTab
+              counterpartyId={counterpartyId}
+              enabled={isDomainMocked('letters') || card.lettersCount > 0}
+            />
           ) : null}
           {tab === 'projects' ? (
             <CounterpartyProjectsTab projects={projects} isLoading={projectsQuery.isLoading} />

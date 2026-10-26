@@ -8,7 +8,6 @@ import {
 } from '../../../core/database/transaction-runner.js';
 import { EventBus } from '../../../core/events/event-bus.js';
 import {
-  CATALOG_REVISION,
   CATALOG_PROCESS_TYPES,
   DEFAULT_SCHEME,
   catalogPostFunctions,
@@ -66,7 +65,21 @@ export class CatalogBootstrap implements OnApplicationBootstrap {
     await this.txRunner.run(async (tx) => {
       const scheme = await this.repo.ensureDefaultScheme(tx, DEFAULT_SCHEME);
       for (const { type: typeDef, workflow: workflowDef } of CATALOG_PROCESS_TYPES) {
-        const type = await this.repo.ensureType(tx, typeDef);
+        // Серия нумерации (#55): создаётся до типа — её id ложится в
+        // config.numbering, из которого движок выдаёт номер.
+        const series = typeDef.numbering
+          ? await this.repo.ensureSeries(tx, typeDef.numbering)
+          : null;
+        const type = await this.repo.ensureType(tx, {
+          code: typeDef.code,
+          name: typeDef.name,
+          category: typeDef.category,
+          direction: typeDef.direction ?? null,
+          icon: typeDef.icon,
+          color: typeDef.color,
+          description: typeDef.description,
+          ...(series ? { config: { numbering: { seriesId: series.id } } } : {}),
+        });
         const workflow = await this.repo.ensureWorkflow(tx, {
           code: workflowDef.code,
           name: workflowDef.name,
@@ -76,10 +89,7 @@ export class CatalogBootstrap implements OnApplicationBootstrap {
         await this.seedOnce(tx, { id: type.id, def: typeDef }, workflow.id, workflowDef);
       }
     });
-    this.logger.info(
-      'workflows: системный каталог маршрутов на месте (ревизия %d)',
-      CATALOG_REVISION,
-    );
+    this.logger.info('workflows: системный каталог маршрутов на месте');
   }
 
   /** Применение ревизии каталога к типу и маршруту (если не настроено). */
@@ -96,7 +106,7 @@ export class CatalogBootstrap implements OnApplicationBootstrap {
       this.logger.info({ workflow: def.code }, 'catalog.skip_customized: каталог не трогает');
       return;
     }
-    if (workflow.catalogRevision >= CATALOG_REVISION) return;
+    if (workflow.catalogRevision >= def.revision) return;
 
     if (type) {
       const { name, icon, color, description, sortOrder } = type.def;
@@ -104,7 +114,7 @@ export class CatalogBootstrap implements OnApplicationBootstrap {
         tx,
         type.id,
         { name, icon, color, description, sortOrder },
-        CATALOG_REVISION,
+        def.revision,
       );
     }
 
@@ -131,7 +141,7 @@ export class CatalogBootstrap implements OnApplicationBootstrap {
       await this.seedTransition(tx, workflowId, t, index, stageIds);
     }
 
-    const version = await this.repo.applyWorkflowRevision(tx, workflowId, CATALOG_REVISION);
+    const version = await this.repo.applyWorkflowRevision(tx, workflowId, def.revision);
     if (type) {
       await this.eventBus.emit(
         tx,

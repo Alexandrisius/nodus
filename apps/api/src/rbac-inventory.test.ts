@@ -36,6 +36,16 @@ const TASK_VISIBILITY =
 const TASK_VISIBLE_ONE =
   'видимость задачи (visibleRow: участие, оргструктура, task.view_all), чужая — 404';
 const TASK_STAGES = 'каталог стадий + счётчики по фильтру видимости задач';
+const LETTER_VISIBILITY =
+  'видимость писем в сервисе (Р7): зарегистрированное — всем, незарегистрированное — ' +
+  'только correspondence.register; box=new без права — 403';
+const LETTER_VISIBLE_ONE =
+  'видимость письма (visibleRow, Р7) + условия кнопки в движке; невидимое — 404';
+const LETTER_RESOLVERS =
+  'адресаты «Принимают решения» — ФИО и аватар активных сотрудников (справочник), ' +
+  'нужен форме регистрации письма';
+const LETTER_CHAT =
+  'членство в беседе письма — адресат или участник (порт LETTER_CHAT_READER), иначе 404';
 const STICKER_BY_ID =
   'любой неудалённый пак по id — раздача «из чата»; личные паки не секретны (осознанно, findPack)';
 const DIRECT_CHAT =
@@ -67,6 +77,14 @@ const INTENTIONALLY_WITHOUT_PERMISSION: Record<string, string> = {
   'GET /chat/conversations/:id/attachments': CHAT_MEMBERSHIP,
   'GET /chat/conversations/:id/attachments/counts': CHAT_MEMBERSHIP,
   'GET /chat/conversations/by-task/:taskId': TASK_ACCESS,
+  'GET /chat/conversations/by-letter/:letterId': LETTER_CHAT,
+  'GET /letters': LETTER_VISIBILITY,
+  'GET /letters/resolvers': LETTER_RESOLVERS,
+  'GET /letters/:id': LETTER_VISIBLE_ONE,
+  'POST /letters/:id/join': LETTER_VISIBLE_ONE,
+  'GET /letters/:id/transitions': LETTER_VISIBLE_ONE,
+  'POST /letters/:id/transitions/:transitionId': LETTER_VISIBLE_ONE,
+  'GET /letters/:id/history': LETTER_VISIBLE_ONE,
   'GET /chat/favorites': OWN_FAVORITES,
   'GET /chat/favorites/labels': OWN_FAVORITES,
   'GET /chat/favorites/sources': OWN_FAVORITES,

@@ -85,6 +85,9 @@ export async function checkDocumentForPublish(
     document: WorkflowDocument;
     category: ProcessCategory;
     typeId?: string;
+    /** У типа настроена серия номеров (#55): маршрут письма с
+     *  `assign_number` без неё публиковать нельзя. */
+    numberingConfigured?: boolean;
     tx: TransactionClient;
   },
 ): Promise<void> {
@@ -104,6 +107,7 @@ export async function checkDocumentForPublish(
     // Проект — plain UUID без FK: значение сохраняется и до модуля #52,
     // окно показывает подсказку «недоступно» (веб, projectsAvailable).
     projectsAvailable: true,
+    numberingConfigured: ctx.numberingConfigured ?? true,
   });
   if (problems.some((problem) => problem.severity === 'error')) {
     throw new DomainException(ErrorCode.WORKFLOW_INVALID, 'Workflow document is invalid', {

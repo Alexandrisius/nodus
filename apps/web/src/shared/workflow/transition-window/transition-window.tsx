@@ -30,7 +30,11 @@ import {
   type WindowConditionLine,
 } from './window-conditions.js';
 import type { TransitionWindowContext } from './window-context.js';
-import { WindowSection, type WindowSectionApi } from './window-sections.js';
+import {
+  WindowSection,
+  type RenderWindowSection,
+  type WindowSectionApi,
+} from './window-sections.js';
 
 /** Ошибка отправки, которую окно показывает у себя (422/409 от сервера). */
 export interface TransitionWindowError {
@@ -75,6 +79,7 @@ export function TransitionWindow({
   onSubmit,
   onOpenChecklist,
   onOpenSubtasks,
+  renderSection,
 }: {
   open: boolean;
   mode: 'live' | 'preview';
@@ -86,6 +91,8 @@ export function TransitionWindow({
   onSubmit: (body: ExecuteTransitionBody, override?: { override: true; reason: string }) => void;
   onOpenChecklist?: () => void;
   onOpenSubtasks?: () => void;
+  /** Разделы сущности, которые рисует хост (регистрация письма, #55). */
+  renderSection?: RenderWindowSection;
 }) {
   const effectiveContext = mode === 'preview' ? (context ?? PREVIEW_CONTEXT) : context;
   const {
@@ -94,6 +101,7 @@ export function TransitionWindow({
     setTime,
     setResultText,
     setComment,
+    setRegistration,
     addFiles,
     toggleFile,
     toggleMessage,
@@ -149,6 +157,8 @@ export function TransitionWindow({
         addFiles,
         toggleFile,
         toggleMessage,
+        setRegistration,
+        renderSection: mode === 'live' ? renderSection : undefined,
       }
     : null;
 
@@ -174,6 +184,13 @@ export function TransitionWindow({
       <DialogContent
         showCloseButton={false}
         onInteractOutside={(event) => event.preventDefault()}
+        // Ctrl/⌘+Enter — главная кнопка окна (как в конвейере «Новые», #55).
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+            event.preventDefault();
+            submit();
+          }
+        }}
         className="flex max-h-[90vh] max-w-[640px] flex-col gap-4 overflow-hidden rounded-[14px] p-5 sm:max-w-[640px]"
       >
         <DialogHeader className="shrink-0">
@@ -268,6 +285,8 @@ export function TransitionWindow({
 
 function sectionTitle(section: EffectiveSection): string {
   switch (section.kind) {
+    case 'registration':
+      return ui.automation.window.sections.registration;
     case 'fields':
       return ui.tasks.window.fieldsLabel;
     case 'time':
@@ -289,6 +308,8 @@ function missingLabel(key: string): string {
       return ui.tasks.window.commentLabel;
     case 'result_messages':
       return ui.tasks.window.messagesLabel;
+    case 'registration':
+      return ui.automation.window.sections.registration;
     default:
       return key;
   }

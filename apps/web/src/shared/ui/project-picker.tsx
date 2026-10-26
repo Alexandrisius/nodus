@@ -1,5 +1,5 @@
 import { FolderOpen, Plus, Search, X } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { ui } from '@nodus/contracts';
 import { Input } from '@nodus/ui/components/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@nodus/ui/components/popover';
@@ -20,11 +20,15 @@ export function ProjectPicker({
   value,
   onChange,
   ariaLabel,
+  children,
 }: {
   /** id выбранного проекта; undefined — «Без проекта». */
   value: string | undefined;
   onChange: (projectId: string | undefined) => void;
   ariaLabel: string;
+  /** Свой триггер (поле карточки — значение строкой вместо полноширинного
+   *  поля формы; сброс тогда — забота хозяина). */
+  children?: ReactNode;
 }) {
   const { data } = useProjectsList();
   const [open, setOpen] = useState(false);
@@ -52,40 +56,42 @@ export function ProjectPicker({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button
-          type="button"
-          aria-label={ariaLabel}
-          className="flex h-8 w-full items-center gap-2 rounded-lg border border-input bg-transparent px-2.5 text-sm transition-colors hover:bg-accent/40 dark:bg-input/30"
-        >
-          {selected ? (
-            <ProjectIdentityIcon color={selected.color} className="size-4 shrink-0" />
-          ) : (
-            <FolderOpen className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.75} />
-          )}
-          <span
-            className={cn(
-              'min-w-0 flex-1 truncate text-left',
-              !selected && 'text-muted-foreground',
-            )}
-            title={selected ? `${selected.code} — ${selected.name}` : undefined}
+        {children ?? (
+          <button
+            type="button"
+            aria-label={ariaLabel}
+            className="flex h-8 w-full items-center gap-2 rounded-lg border border-input bg-transparent px-2.5 text-sm transition-colors hover:bg-accent/40 dark:bg-input/30"
           >
-            {selected ? `${selected.code} — ${selected.name}` : ui.tasks.noProject}
-          </span>
-          {selected ? (
+            {selected ? (
+              <ProjectIdentityIcon color={selected.color} className="size-4 shrink-0" />
+            ) : (
+              <FolderOpen className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={1.75} />
+            )}
             <span
-              role="button"
-              tabIndex={-1}
-              aria-label={ui.filters.reset}
-              onClick={(e) => {
-                e.stopPropagation();
-                choose(undefined);
-              }}
-              className="rounded p-0.5 text-muted-foreground hover:text-foreground"
+              className={cn(
+                'min-w-0 flex-1 truncate text-left',
+                !selected && 'text-muted-foreground',
+              )}
+              title={selected ? `${selected.code} — ${selected.name}` : undefined}
             >
-              <X className="size-3" strokeWidth={1.75} />
+              {selected ? `${selected.code} — ${selected.name}` : ui.tasks.noProject}
             </span>
-          ) : null}
-        </button>
+            {selected ? (
+              <span
+                role="button"
+                tabIndex={-1}
+                aria-label={ui.filters.reset}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  choose(undefined);
+                }}
+                className="rounded p-0.5 text-muted-foreground hover:text-foreground"
+              >
+                <X className="size-3" strokeWidth={1.75} />
+              </span>
+            ) : null}
+          </button>
+        )}
       </PopoverTrigger>
       <PopoverContent align="start" className="w-[26rem] p-0">
         <div className="border-b border-border p-2">

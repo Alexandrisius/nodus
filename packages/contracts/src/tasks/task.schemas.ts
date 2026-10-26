@@ -263,7 +263,7 @@ export type ChecklistItemUpdateBody = z.infer<typeof checklistItemUpdateBodySche
 
 /** DTO обновления задачи. Перенос между стадиями (канбан, drag-and-drop) —
  *  глобальной оси (stageId: попытка ПЕРЕХОДА маршрута — нет перехода или не
- *  пройден гейт → 409 TASK_TRANSITION_NOT_ALLOWED / TASK_TRANSITION_BLOCKED)
+ *  пройден гейт → 409 WORKFLOW_TRANSITION_NOT_ALLOWED / WORKFLOW_TRANSITION_BLOCKED)
  *  или личной (personalStageId, «Мой план»: колонка другого системного
  *  состояния = переход в стадию этого состояния). index — позиция внутри
  *  целевой колонки (порядок persistится). Поля карточки — правка (права:

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import type { LetterRegistrationInput } from '@nodus/contracts';
 
 import { EMPTY_TIME_ENTRY, type TimeEntryDraft } from '../../tasks/time-entry-fields.js';
 import type { TransitionWindowContext, WindowFieldValues } from './window-context.js';
@@ -16,6 +17,9 @@ export interface WindowDraft {
   /** id прежней ревизии итога: переносятся, пока пользователь их не заменил. */
   carried: string[];
   comment: string;
+  /** Раздел «Регистрация» (#55): валидный ввод хоста или null (форма не
+   *  дозаполнена) — окно не знает формы письма, только её итог. */
+  registration: LetterRegistrationInput | null;
 }
 
 export function emptyDraft(context: TransitionWindowContext): WindowDraft {
@@ -27,6 +31,7 @@ export function emptyDraft(context: TransitionWindowContext): WindowDraft {
     messages: [],
     carried: [...(context.lastResult?.messageIds ?? [])],
     comment: '',
+    registration: null,
   };
 }
 
@@ -59,6 +64,7 @@ export function useWindowDraft(context: TransitionWindowContext | null) {
           messages: [],
           carried: [],
           comment: '',
+          registration: null,
         },
   );
 
@@ -70,6 +76,7 @@ export function useWindowDraft(context: TransitionWindowContext | null) {
     setTime: (time: TimeEntryDraft) => patch({ time }),
     setResultText: (resultText: string) => patch({ resultText }),
     setComment: (comment: string) => patch({ comment }),
+    setRegistration: (registration: LetterRegistrationInput | null) => patch({ registration }),
     toggleFile: (messageId: string) =>
       setDraft((prev) => ({
         ...prev,

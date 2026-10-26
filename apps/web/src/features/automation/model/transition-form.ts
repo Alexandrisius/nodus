@@ -64,6 +64,8 @@ function defaultSection(kind: TransitionFormSectionKind): Section {
       return { kind, required: false };
     case 'comment':
       return { kind, label: ui.automation.window.sections.comment, required: true };
+    case 'registration':
+      return { kind };
   }
 }
 

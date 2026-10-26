@@ -260,6 +260,7 @@ export function buildMessageItems(input: MessageMenuInput): {
     !message.forwardedFrom &&
     !isSticker &&
     message.kind !== 'task_transition' &&
+    message.kind !== 'letter_transition' &&
     variant !== 'source-window';
   return {
     items: items.filter((item) => {

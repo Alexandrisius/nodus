@@ -26,7 +26,7 @@ export function ChatMessagePicker({
   const messages = useMemo(() => {
     const needle = search.trim().toLowerCase();
     return (data?.items ?? [])
-      .filter((m) => !m.deletedAt && m.kind !== 'task_transition')
+      .filter((m) => !m.deletedAt && m.kind !== 'task_transition' && m.kind !== 'letter_transition')
       .filter(
         (m) =>
           needle.length === 0 ||

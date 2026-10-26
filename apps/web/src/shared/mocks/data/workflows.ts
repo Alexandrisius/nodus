@@ -1,6 +1,7 @@
 import type { CreationForm, ProcessType, WorkflowDetail } from '@nodus/contracts';
 
 import { quickDocument, simpleDocument, standardDocument } from './workflows-documents.js';
+import { letterProcessTypes, letterWorkflowDetails } from './letter-catalog.js';
 
 import { quickProcessType, systemProcessType } from './task-stages.js';
 import { fieldIds } from './custom-fields.js';
@@ -10,8 +11,8 @@ import { demoRoleIds } from './roles.js';
 /** Библиотека типов задач и их маршрутов (ревизия 2, #378; формы и состав
  *  карточки — #432) — мок-данные «Автоматизации»: два системных типа,
  *  «Переработка» и «Кадровый запрос» (демонстраторы настроек типа) и
- *  архивный демо-тип. Документы — зеркало каталога API revision 2
- *  (system-catalog.ts). */
+ *  архивный демо-тип; типы писем (#55) — `letter-catalog.ts`. Документы —
+ *  зеркало каталога API revision 2 (system-catalog.ts). */
 
 export { quickDocument, standardDocument } from './workflows-documents.js';
 
@@ -43,6 +44,7 @@ export const standardProcessType: DemoProcessType = {
   sortOrder: 0,
   archivedAt: null,
   workflowId: STANDARD_WORKFLOW_ID,
+  numbering: null,
   // «Стандартный» — тип быстрых входов: доступ всем, карточка полная.
   config: { card: { hiddenBlocks: [], roleLabels: {} }, access: allAccess },
 };
@@ -61,6 +63,7 @@ export const quickTypeDto: DemoProcessType = {
   sortOrder: 1,
   archivedAt: null,
   workflowId: QUICK_WORKFLOW_ID,
+  numbering: null,
   config: { card: { hiddenBlocks: [], roleLabels: {} }, access: allAccess },
 };
 
@@ -80,6 +83,7 @@ export const overtimeType: DemoProcessType = {
   sortOrder: 2,
   archivedAt: null,
   workflowId: OVERTIME_WORKFLOW_ID,
+  numbering: null,
   config: {
     card: {
       hiddenBlocks: ['checklist', 'subtasks', 'time'],
@@ -105,6 +109,7 @@ export const hrType: DemoProcessType = {
   sortOrder: 3,
   archivedAt: null,
   workflowId: HR_WORKFLOW_ID,
+  numbering: null,
   config: {
     card: { hiddenBlocks: [], roleLabels: {} },
     access: { view: [demoRoleIds.head], create: [demoRoleIds.head] },
@@ -125,6 +130,7 @@ export const archivedDemoType: DemoProcessType = {
   sortOrder: 4,
   archivedAt: '2026-10-01T10:00:00Z',
   workflowId: ARCHIVED_WORKFLOW_ID,
+  numbering: null,
   config: { card: { hiddenBlocks: [], roleLabels: {} }, access: allAccess },
 };
 
@@ -134,6 +140,7 @@ export const demoProcessTypes: DemoProcessType[] = [
   overtimeType,
   hrType,
   archivedDemoType,
+  ...letterProcessTypes,
 ];
 
 const publishedAt = '2026-10-18T14:05:00Z';
@@ -202,4 +209,5 @@ export const demoWorkflowDetails: Record<string, WorkflowDetail> = {
     document: simpleDocument,
     stageEntityCounts: {},
   },
+  ...letterWorkflowDetails,
 };

@@ -1,13 +1,10 @@
-import { Inject, Injectable, Optional } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import type { AuthUser, OfficeMode, OfficeSession, OfficeVersionList } from '@nodus/contracts';
 import { ErrorCode, fileExtension, isOfficeTextFormat, officeFormat } from '@nodus/contracts';
 
 import { SignedUrlService } from '../../../core/crypto/signed-url.service.js';
 import { DomainException } from '../../../core/errors/domain-exception.js';
-import {
-  FILE_ACCESS_CONTRIBUTORS,
-  type FileAccessContributor,
-} from '../../../core/ports/file-access.port.js';
+import { FileAccessRegistry } from '../../../core/ports/file-access.registry.js';
 import type { FileObjectRow } from '../files.repository.js';
 import { FilesRepository } from '../files.repository.js';
 import { OFFICE_CONFIG, type OfficeConfig } from './office.config.js';
@@ -16,8 +13,9 @@ import { OfficeTokenService } from './office-token.service.js';
 /**
  * Сессия документа ONLYOFFICE (#138): право контекста (I8) → конфиг для
  * DocsAPI.DocEditor, собранный ЦЕЛИКОМ на сервере и подписанный JWT.
- * Право = владение файлом ИЛИ решение контрибьютора контекста (chat:
- * участник беседы с вложением; multi-порт FILE_ACCESS_CONTRIBUTORS, I13).
+ * Право = владение файлом ИЛИ решение контрибьютора контекста (chat —
+ * участник беседы с вложением, letter — видимое письмо; реестр
+ * `FileAccessRegistry`, I13).
  */
 @Injectable()
 export class OfficeSessionService {
@@ -26,9 +24,7 @@ export class OfficeSessionService {
     @Inject(OFFICE_CONFIG) private readonly config: OfficeConfig,
     private readonly tokens: OfficeTokenService,
     private readonly signedUrls: SignedUrlService,
-    @Optional()
-    @Inject(FILE_ACCESS_CONTRIBUTORS)
-    private readonly contributors: FileAccessContributor[] = [],
+    private readonly fileAccess: FileAccessRegistry,
   ) {}
 
   /** Общий резолвер прав (сессия и список версий): NOT_FOUND прячет чужие
@@ -41,13 +37,18 @@ export class OfficeSessionService {
     if (!file) throw DomainException.notFound('File not found');
     let canView = file.ownerId === userId;
     let canEdit = file.ownerId === userId;
-    for (const contributor of this.contributors) {
+    let immutable = false;
+    for (const contributor of this.fileAccess.contributors()) {
       const decision = await contributor.check(fileId, userId);
       if (decision) {
         canView ||= decision.canView;
         canEdit ||= decision.canEdit;
+        // Неизменяемость контекста — вето поверх владения (#55): файл письма
+        // не правит даже тот, кто его загрузил.
+        immutable ||= decision.immutable === true;
       }
     }
+    if (immutable) canEdit = false;
     if (!canView) throw DomainException.notFound('File not found');
     return { file, canEdit };
   }

@@ -65,7 +65,7 @@ function makeService(
     config,
     new OfficeTokenService(config),
     new SignedUrlService({ STORAGE_URL_SECRET: SECRET }),
-    contributors,
+    { contributors: () => contributors } as never,
   );
   return { service, repo };
 }
@@ -90,6 +90,7 @@ describe('OfficeSessionService (#138)', () => {
 
   it('право контекста: контрибьютор chat открывает файл участнику беседы', async () => {
     const contributor: FileAccessContributor = {
+      fileAccessContext: 'chat',
       check: vi.fn(async () => ({ canView: true, canEdit: true })),
     };
     const { service } = makeService(makeFile(), {}, [contributor]);
@@ -107,6 +108,7 @@ describe('OfficeSessionService (#138)', () => {
 
   it('контрибьютор с явным отказом не открывает доступ', async () => {
     const contributor: FileAccessContributor = {
+      fileAccessContext: 'chat',
       check: vi.fn(async () => ({ canView: false, canEdit: false })),
     };
     const { service } = makeService(makeFile(), {}, [contributor]);
@@ -117,6 +119,7 @@ describe('OfficeSessionService (#138)', () => {
 
   it('edit без права контекста деградирует в view (не 403)', async () => {
     const contributor: FileAccessContributor = {
+      fileAccessContext: 'chat',
       check: vi.fn(async () => ({ canView: true, canEdit: false })),
     };
     const { service } = makeService(makeFile(), {}, [contributor]);

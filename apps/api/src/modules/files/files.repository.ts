@@ -79,6 +79,14 @@ export class FilesRepository {
     return this.prisma.fileObject.findFirst({ where: { id, deletedAt: null } });
   }
 
+  /** Живые файлы по id пачкой (#55): метаданные для вложений писем. */
+  findByIds(ids: readonly string[]): Promise<FileObjectRow[]> {
+    if (ids.length === 0) return Promise.resolve([]);
+    return this.prisma.fileObject.findMany({
+      where: { id: { in: [...ids] }, deletedAt: null },
+    });
+  }
+
   /** Все версии файла (новые сверху) — история просмотрщика (#138). */
   async findVersions(fileObjectId: string): Promise<FileVersionRow[]> {
     return this.prisma.fileVersion.findMany({

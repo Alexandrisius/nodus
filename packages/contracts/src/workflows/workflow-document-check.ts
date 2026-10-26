@@ -2,6 +2,7 @@ import { customFieldIdOfKey } from '../custom-fields/custom-field-key.js';
 import type { CustomFieldDefinition } from '../custom-fields/custom-field.schemas.js';
 import { checkCreationForm } from './creation-form.js';
 import type { ProcessCategory } from './process-type.schemas.js';
+import { checkCategoryDictionary } from './workflow-document-category-check.js';
 import type {
   WorkflowDraftDocument,
   WorkflowDraftStage,
@@ -34,9 +35,12 @@ export interface WorkflowCustomFieldFacts {
 
 export interface WorkflowCheckOptions {
   customFields?: WorkflowCustomFieldFacts;
-  /** Категория типа — нужна для формы создания (#432). Без неё раздел
-   *  `creation` не проверяется (старые вызовы валидны). */
+  /** Категория типа — нужна для формы создания (#432) и словаря категории
+   *  (#55: роли, разделы, гейты, пост-действия). Без неё эти проверки
+   *  пропускаются (старые вызовы валидны). */
   category?: ProcessCategory;
+  /** У типа настроена серия номеров (#55) — для `numbering_not_configured`. */
+  numberingConfigured?: boolean;
   /** Определения области — тип и настройки для проверки пресетов. */
   definitions?: readonly Pick<CustomFieldDefinition, 'id' | 'type' | 'settings' | 'hidden'>[];
   /** Модуль проектов включён (поле «Проект» доступно в форме). */
@@ -214,8 +218,16 @@ export function checkWorkflowDocument(
     }
   }
 
-  // --- Форма создания типа (#432, Р2/Р4/Р8) -------------------------------
+  // --- Словарь категории (#55, Р6) и форма создания (#432) ---------------
 
+  if (opts.category) {
+    problems.push(
+      ...checkCategoryDictionary(doc, {
+        category: opts.category,
+        numberingConfigured: opts.numberingConfigured,
+      }),
+    );
+  }
   if (doc.creation && opts.category && fields) {
     problems.push(
       ...checkCreationForm(doc.creation, {

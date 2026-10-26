@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 
 import { CounterpartiesRepository } from './counterparties/counterparties.repository.js';
+import { ContactsRepository } from './contacts/contacts.repository.js';
 import { CounterpartyReaderProvider } from './ports/counterparty-reader.provider.js';
 import { COUNTERPARTY_READER } from './ports/counterparty-reader.port.js';
 
@@ -13,6 +14,7 @@ import { COUNTERPARTY_READER } from './ports/counterparty-reader.port.js';
 @Module({
   providers: [
     CounterpartiesRepository,
+    ContactsRepository,
     CounterpartyReaderProvider,
     { provide: COUNTERPARTY_READER, useExisting: CounterpartyReaderProvider },
   ],

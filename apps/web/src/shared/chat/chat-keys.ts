@@ -19,6 +19,7 @@ export const chatKeys = {
   direct: (userId: string) => [...chatKeys.conversations(), 'direct', userId] as const,
   /** Беседа задачи (#252): find-or-create по задаче для карточки. */
   byTask: (taskId: string) => [...chatKeys.conversations(), 'task', taskId] as const,
+  byLetter: (letterId: string) => [...chatKeys.conversations(), 'letter', letterId] as const,
   /** Вкладка мессенджера (#252): серверный фильтр и своя пагинация; под
    *  префиксом conversations() — общие инвалидации списка её достают. */
   scoped: (scope: ConversationScope) => [...chatKeys.conversations(), 'scope', scope] as const,

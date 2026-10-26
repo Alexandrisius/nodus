@@ -1,4 +1,6 @@
-import type { EffectiveSection } from '@nodus/contracts';
+import type { ReactNode } from 'react';
+import type { EffectiveSection, LetterRegistrationInput } from '@nodus/contracts';
+import { ui } from '@nodus/contracts';
 
 import type { TimeEntryDraft } from '../../tasks/time-entry-fields.js';
 import type { WindowDraft } from './use-window-draft.js';
@@ -9,6 +11,21 @@ import { ResultFilesSection } from './sections/result-files-section.js';
 import { ResultMessagesSection } from './sections/result-messages-section.js';
 import { ResultSection } from './sections/result-section.js';
 import { TimeSection } from './sections/time-section.js';
+
+/** Управление разделом, который рисует хост (`renderSection`, #55): окно
+ *  отдаёт блокировку и принимает итог ввода, форму держит хост. */
+export interface WindowSectionControl {
+  disabled: boolean;
+  /** Ввод раздела «Регистрация»: валидный — значение, неполный — null. */
+  setRegistration: (value: LetterRegistrationInput | null) => void;
+}
+
+/** Раздел, специфичный для сущности (регистрация письма): хост рисует сам,
+ *  undefined — окно рисует свой (общий) раздел. */
+export type RenderWindowSection = (
+  section: EffectiveSection,
+  ctl: WindowSectionControl,
+) => ReactNode | undefined;
 
 /** Всё, что нужно разделу окна: контекст, черновик и правки черновика. */
 export interface WindowSectionApi {
@@ -25,6 +42,8 @@ export interface WindowSectionApi {
   addFiles: (messageIds: string[]) => void;
   toggleFile: (messageId: string) => void;
   toggleMessage: (messageId: string) => void;
+  setRegistration: (value: LetterRegistrationInput | null) => void;
+  renderSection?: RenderWindowSection;
 }
 
 /** Реестр разделов: вид → компонент. Исчерпывающий switch — новый вид
@@ -37,7 +56,19 @@ export function WindowSection({
   section: EffectiveSection;
   api: WindowSectionApi;
 }) {
+  const custom = api.renderSection?.(section, {
+    disabled: api.disabled,
+    setRegistration: api.setRegistration,
+  });
+  if (custom !== undefined) return custom;
   switch (section.kind) {
+    case 'registration':
+      // Без хоста (предпросмотр редактора маршрутов) — состав раздела словами.
+      return (
+        <p className="rounded-[10px] border border-dashed border-border px-3 py-2.5 text-xs leading-relaxed text-muted-foreground">
+          {ui.automation.window.registrationHint}
+        </p>
+      );
     case 'fields':
       return (
         <FieldsSection

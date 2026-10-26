@@ -3,6 +3,7 @@ import { DiscoveryModule } from '@nestjs/core';
 
 import { ROLE_MEMBERSHIP_READER } from '../../core/ports/role-membership.port.js';
 import { RoleMembershipProvider } from '../../core/ports/role-membership.provider.js';
+import { NumberSeriesService } from './numbering/number-series.service.js';
 import { WorkflowEntityRegistry } from './workflow/engine/entity-adapter.registry.js';
 import { TransitionRecordsRepository } from './workflow/engine/transition-records.repository.js';
 import { WorkflowEngine } from './workflow/engine/workflow-engine.js';
@@ -39,6 +40,7 @@ import { ProcessTypesRepository } from './types/process-types.repository.js';
     ProcessTypesRepository,
     WorkflowEntityRegistry,
     TransitionRecordsRepository,
+    NumberSeriesService,
     WorkflowEngine,
     ProcessCatalogReaderProvider,
     { provide: WORKFLOW_ENGINE, useExisting: WorkflowEngine },

@@ -16,6 +16,10 @@ import { ChatFileAccessRepository } from './chat-file-access.repository.js';
  */
 @Injectable()
 export class ChatFileAccess implements FileAccessContributor {
+  /** Маркер контекста для реестра прав файлов (#55). */
+  static readonly fileAccessContext = 'chat';
+  readonly fileAccessContext = ChatFileAccess.fileAccessContext;
+
   constructor(private readonly repository: ChatFileAccessRepository) {}
 
   async check(fileId: string, userId: string): Promise<FileAccessDecision | null> {

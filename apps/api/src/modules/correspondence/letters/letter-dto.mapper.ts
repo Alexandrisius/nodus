@@ -1,0 +1,231 @@
+import { Inject, Injectable } from '@nestjs/common';
+import {
+  attachmentPreviewKind,
+  isPdfDerivativeCandidate,
+  type ContactRef,
+  type CounterpartyRef,
+  type LetterAccess,
+  type LetterAttachment,
+  type LetterBody,
+  type LetterDetail,
+  type LetterListItem,
+  type ProcessTypeRef,
+  type ReceiptMethodRef,
+  type UserRef,
+} from '@nodus/contracts';
+
+import { SignedUrlService } from '../../../core/crypto/signed-url.service.js';
+import {
+  FILE_OBJECT_READER,
+  type FileObjectReader,
+} from '../../../core/ports/file-object-reader.port.js';
+import {
+  USER_PROFILE_READER,
+  type UserProfileReader,
+} from '../../../core/ports/user-profile.port.js';
+import {
+  CUSTOM_FIELD_REGISTRY,
+  type CustomFieldRegistry,
+} from '../../custom-fields/ports/custom-field-registry.port.js';
+import {
+  DICTIONARY_READER,
+  type DictionaryReader,
+} from '../../dictionaries/ports/dictionary-reader.port.js';
+import {
+  COUNTERPARTY_READER,
+  type CounterpartyReader,
+} from '../../crm/ports/counterparty-reader.port.js';
+import {
+  PROCESS_CATALOG_READER,
+  type CatalogStage,
+  type ProcessCatalogReader,
+} from '../../workflows/ports/process-catalog-reader.port.js';
+import type { LetterAttachmentRow, LetterDetailRow, LetterListRow } from './letter-row.js';
+
+/** Ссылки страницы: гидратация пачками — один запрос на вид ссылки (Р6). */
+export interface LetterRefs {
+  stages: Map<string, CatalogStage>;
+  types: Map<string, ProcessTypeRef>;
+  counterparties: Map<string, CounterpartyRef>;
+  contacts: Map<string, ContactRef>;
+  users: Map<string, UserRef>;
+  receipts: Map<string, ReceiptMethodRef>;
+}
+
+const EMPTY_REFS = (): LetterRefs => ({
+  stages: new Map(),
+  types: new Map(),
+  counterparties: new Map(),
+  contacts: new Map(),
+  users: new Map(),
+  receipts: new Map(),
+});
+
+const dateOnly = (value: Date | null): string | null =>
+  value ? value.toISOString().slice(0, 10) : null;
+
+/**
+ * Сборка DTO писем (#55): ссылки — пачками через порты (типы и стадии —
+ * «Процессы», корреспондент и подписант — CRM, сотрудники — directory,
+ * способ поступления — справочник); подписанные ссылки файлов — только
+ * после проверки видимости (её делает сервис до вызова маппера).
+ */
+@Injectable()
+export class LetterDtoMapper {
+  constructor(
+    @Inject(PROCESS_CATALOG_READER) private readonly catalog: ProcessCatalogReader,
+    @Inject(COUNTERPARTY_READER) private readonly counterparties: CounterpartyReader,
+    @Inject(USER_PROFILE_READER) private readonly profiles: UserProfileReader,
+    @Inject(DICTIONARY_READER) private readonly dictionaries: DictionaryReader,
+    @Inject(FILE_OBJECT_READER) private readonly files: FileObjectReader,
+    @Inject(CUSTOM_FIELD_REGISTRY) private readonly customFields: CustomFieldRegistry,
+    private readonly signedUrls: SignedUrlService,
+  ) {}
+
+  /** Ссылки для страницы списка (стадии/типы/корреспонденты/сотрудники/справочник). */
+  async refsOf(
+    rows: readonly (LetterListRow | LetterDetailRow)[],
+    extra: { contacts?: readonly string[]; users?: readonly string[] } = {},
+  ): Promise<LetterRefs> {
+    const pick = <T>(values: (T | null)[]): string[] => [
+      ...new Set(values.filter((value): value is T & string => Boolean(value))),
+    ];
+    const stageIds = pick(rows.map((row) => row.stageId));
+    const typeIds = pick(rows.map((row) => row.typeId));
+    const counterpartyIds = pick(rows.map((row) => row.counterpartyId));
+    const receiptIds = pick(rows.map((row) => row.receiptMethodId));
+    const userIds = pick([...rows.map((row) => row.addresseeId), ...(extra.users ?? [])]);
+    const [stages, types, counterparties, receipts, users] = await Promise.all([
+      this.catalog.stagesByIds(stageIds),
+      this.catalog.typeRefs(typeIds),
+      this.counterparties.refs(counterpartyIds),
+      this.dictionaries.itemRefs(receiptIds),
+      this.profiles.findRefs(userIds),
+    ]);
+    const contacts = extra.contacts?.length
+      ? await this.counterparties.contactRefs(extra.contacts)
+      : [];
+    const refs = EMPTY_REFS();
+    for (const stage of stages) refs.stages.set(stage.id, stage);
+    for (const type of types) refs.types.set(type.id, type);
+    for (const item of counterparties) refs.counterparties.set(item.id, item);
+    for (const item of receipts) refs.receipts.set(item.id, { id: item.id, name: item.name });
+    for (const item of users) refs.users.set(item.id, item);
+    for (const item of contacts) refs.contacts.set(item.id, item);
+    return refs;
+  }
+
+  toListItem(
+    row: LetterListRow | LetterDetailRow,
+    refs: LetterRefs,
+    attachmentCount: number,
+  ): LetterListItem {
+    const stage = refs.stages.get(row.stageId);
+    return {
+      id: row.id,
+      typeId: row.typeId,
+      direction: row.direction as LetterListItem['direction'],
+      stage: {
+        id: row.stageId,
+        name: stage?.name ?? 'Статус',
+        order: stage?.sortOrder ?? 0,
+        systemState: (stage?.systemState ??
+          row.systemState) as LetterListItem['stage']['systemState'],
+        color: (stage?.color ?? 'neutral') as LetterListItem['stage']['color'],
+        outcome: (stage?.outcome ?? null) as LetterListItem['stage']['outcome'],
+      },
+      regNumber: row.regNumber,
+      regDate: dateOnly(row.regDate),
+      registeredAt: row.registeredAt?.toISOString() ?? null,
+      receivedAt: row.receivedAt.toISOString(),
+      source: row.source as LetterListItem['source'],
+      subject: row.subject,
+      counterparty: row.counterpartyId
+        ? (refs.counterparties.get(row.counterpartyId) ?? null)
+        : null,
+      theirNumber: row.theirNumber,
+      theirDate: dateOnly(row.theirDate),
+      receiptMethod: row.receiptMethodId ? (refs.receipts.get(row.receiptMethodId) ?? null) : null,
+      // Проекты (#52) ещё не модуль: ссылка появится вместе с портом проекта.
+      project: null,
+      addressee: row.addresseeId ? (refs.users.get(row.addresseeId) ?? null) : null,
+      responseDeadline: dateOnly(row.responseDeadline),
+      attachmentCount,
+    };
+  }
+
+  async toListItems(
+    rows: readonly LetterListRow[],
+    counts: Map<string, number>,
+  ): Promise<LetterListItem[]> {
+    const refs = await this.refsOf(rows);
+    return rows.map((row) => this.toListItem(row, refs, counts.get(row.id) ?? 0));
+  }
+
+  /** Деталь: тип, подписант, регистратор, файлы, тело и атрибуты. */
+  async toDetail(
+    row: LetterDetailRow,
+    attachments: readonly LetterAttachmentRow[],
+    access: LetterAccess,
+  ): Promise<LetterDetail> {
+    const refs = await this.refsOf([row], {
+      contacts: row.signerId ? [row.signerId] : [],
+      users: row.registrarId ? [row.registrarId] : [],
+    });
+    const fileRefs = new Map(
+      (await this.files.refs(attachments.map((a) => a.fileId))).map((f) => [f.id, f]),
+    );
+    const files: LetterAttachment[] = attachments.map((a) => {
+      const file = fileRefs.get(a.fileId);
+      const name = file?.name ?? 'Файл';
+      const mime = file?.mime ?? 'application/octet-stream';
+      const previewKind = attachmentPreviewKind(name, mime);
+      return {
+        id: a.id,
+        fileId: a.fileId,
+        role: a.role as LetterAttachment['role'],
+        name,
+        mime,
+        size: file?.size ?? 0,
+        url: this.signedUrls.fileContentUrl(a.fileId),
+        pdfUrl:
+          previewKind === 'office' && isPdfDerivativeCandidate(name)
+            ? this.signedUrls.fileDerivativeUrl(a.fileId, 'pdf')
+            : null,
+        previewKind,
+      };
+    });
+    const values = (row.customFields ?? {}) as LetterDetail['customFields'];
+    return {
+      ...this.toListItem(row, refs, files.filter((file) => file.role !== 'source').length),
+      type: refs.types.get(row.typeId) ?? {
+        id: row.typeId,
+        code: 'letter',
+        name: 'Письмо',
+        category: 'letter',
+      },
+      signer: row.signerId ? (refs.contacts.get(row.signerId) ?? null) : null,
+      registrar: row.registrarId ? (refs.users.get(row.registrarId) ?? null) : null,
+      attachments: files,
+      body: bodyOf(files),
+      customFields: values,
+      customFieldRefs: await this.customFields.refs('letter', values),
+      access,
+    };
+  }
+}
+
+/** Тело (Р8): главный документ во вьювере, иначе HTML/текст почты, иначе пусто. */
+export function bodyOf(files: readonly LetterAttachment[]): LetterBody {
+  const main = files.find((file) => file.role === 'main');
+  if (main) return { kind: 'document', attachmentId: main.id };
+  const body = files.find((file) => file.role === 'body');
+  if (!body) return { kind: 'none' };
+  const isHtml = body.mime.includes('html');
+  const isText = body.mime.startsWith('text/');
+  return isHtml
+    ? { kind: 'html', attachmentId: body.id }
+    : isText
+      ? { kind: 'text', attachmentId: body.id }
+      : { kind: 'none' };
+}

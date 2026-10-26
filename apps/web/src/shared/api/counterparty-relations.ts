@@ -6,8 +6,8 @@ import { api } from '../api-client.js';
 /**
  * Обратные связи карточки контрагента (вкладки «Письма»/«Проекты», #460).
  * Живут в shared/api: потребитель — features/crm, а I6 запрещает фичам
- * импортировать друг друга. Письма контрагента — общий `useLettersList`
- * (`?counterpartyId=`), проекты заказчика — здесь (`?clientId=`).
+ * импортировать друг друга. Письма контрагента — общий `useLettersInfinite`
+ * (`letters-list.ts`, `?counterpartyId=`), проекты заказчика — здесь (`?clientId=`).
  */
 
 export const counterpartyRelationsKeys = {

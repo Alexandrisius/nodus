@@ -21,6 +21,7 @@ import {
   ROLE_MEMBERSHIP_READER,
   type RoleMembershipReader,
 } from '../../../core/ports/role-membership.port.js';
+import { assertLetterCatalogEditable } from '../catalog/letter-lock.js';
 import { WorkflowEntityRegistry } from '../workflow/engine/entity-adapter.registry.js';
 import { WorkflowRepository } from '../workflow/workflow.repository.js';
 import { maskCreationPresets, processTypeDto, type ProcessTypeRow } from './process-type.mapper.js';
@@ -62,6 +63,7 @@ export class ProcessTypesService {
       this.subjectOf(user.id),
     ]);
     const creations = await this.repo.creationMap([...workflowMap.values()]);
+    const series = await this.seriesMap(rows.map((row) => row.config));
     const manage = user.permissions.includes(Permission.WORKFLOW_MANAGE);
     return rows
       .map((row) => {
@@ -69,6 +71,7 @@ export class ProcessTypesService {
         const type = processTypeDto(row, workflowId, {
           creation: creations.get(workflowId),
           subject,
+          numbering: series.get(seriesIdOf(row.config) ?? '') ?? null,
         });
         // Значения скрытых полей формы — только тому, кто настраивает процессы.
         return manage ? type : maskCreationPresets(type);
@@ -77,8 +80,13 @@ export class ProcessTypesService {
   }
 
   async create(user: AuthUser, body: CreateProcessTypeBody): Promise<ProcessType> {
-    // Категория без адаптера сущности (письма — #55) пока не исполнима:
-    // тип создался бы, а маршрут нельзя ни прочитать, ни опубликовать.
+    // Каталог писем под замком до #463/#464 (Р4): новый тип письма застыл бы
+    // без ревизий каталога.
+    if (body.category === 'letter') {
+      assertLetterCatalogEditable({ category: 'letter', direction: body.direction ?? null });
+    }
+    // Категория без адаптера сущности пока не исполнима: тип создался бы,
+    // а маршрут нельзя ни прочитать, ни опубликовать.
     if (!this.adapters.has(body.category)) {
       throw new DomainException(ErrorCode.CONFLICT, 'Process category is not available yet');
     }
@@ -145,6 +153,7 @@ export class ProcessTypesService {
   async update(user: AuthUser, id: string, body: UpdateProcessTypeBody): Promise<ProcessType> {
     const type = await this.repo.findById(id);
     if (!type) throw DomainException.notFound('Process type not found');
+    assertLetterCatalogEditable(type);
     // «Стандартный» — тип быстрых входов: выключить создание нельзя (О8),
     // иначе плюсики колонок, подзадачи и «В задачу» остались бы без типа.
     if (isDefaultProcessType(type) && body.creatable === false) {
@@ -189,6 +198,7 @@ export class ProcessTypesService {
   ): Promise<ProcessType> {
     const type = await this.repo.findById(id);
     if (!type) throw DomainException.notFound('Process type not found');
+    assertLetterCatalogEditable(type);
     const access = body.access;
     if (isDefaultProcessType(type) && access && (access.view !== null || access.create !== null)) {
       throw new DomainException(ErrorCode.PROCESS_TYPE_SYSTEM_LOCKED, 'Default type is locked', {
@@ -211,6 +221,7 @@ export class ProcessTypesService {
   async setArchived(user: AuthUser, id: string, archived: boolean): Promise<ProcessType> {
     const type = await this.repo.findById(id);
     if (!type) throw DomainException.notFound('Process type not found');
+    assertLetterCatalogEditable(type);
     if (type.isSystem && archived) {
       throw new DomainException(
         ErrorCode.PROCESS_TYPE_SYSTEM_LOCKED,
@@ -245,14 +256,34 @@ export class ProcessTypesService {
     type: ProcessTypeRow,
     workflowId: string,
   ): Promise<ProcessType> {
-    const [creation, subject] = await Promise.all([
+    const seriesId = seriesIdOf(type.config);
+    const [creation, subject, series] = await Promise.all([
       workflowId ? this.workflows.creationOf(workflowId) : Promise.resolve(null),
       this.subjectOf(userId),
+      seriesId ? this.repo.seriesRefs([seriesId]) : Promise.resolve([]),
     ]);
-    return processTypeDto(type, workflowId, { creation, subject });
+    return processTypeDto(type, workflowId, {
+      creation,
+      subject,
+      numbering: series[0] ?? null,
+    });
+  }
+
+  /** Серии нумерации страницы типов одним запросом (#55). */
+  private async seriesMap(
+    configs: readonly unknown[],
+  ): Promise<Map<string, { id: string; prefix: string }>> {
+    const ids = configs.map(seriesIdOf).filter((id): id is string => Boolean(id));
+    const rows = await this.repo.seriesRefs(ids);
+    return new Map(rows.map((row) => [row.id, row]));
   }
 
   private subjectOf(userId: string) {
     return typeSubjectOf(this.membership, userId);
   }
+}
+
+/** Id серии нумерации из `process_types.config` (#55), терпимо к битым. */
+function seriesIdOf(config: unknown): string | null {
+  return normalizeTypeConfig(config).numbering?.seriesId ?? null;
 }
