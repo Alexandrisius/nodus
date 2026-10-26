@@ -82,16 +82,13 @@ export function NewLettersList({
             tabIndex={selected || (!selectedId && letter === letters[0]) ? 0 : -1}
             onClick={() => onSelect(letter.id)}
             className={cn(
-              'relative flex w-full flex-col gap-1 rounded-[10px] px-3 py-2.5 text-left transition-colors',
+              'flex w-full flex-col gap-1 rounded-[10px] px-3 py-2.5 text-left transition-colors',
               'focus-visible:outline-2 focus-visible:outline-ring',
               selected
                 ? 'bg-accent text-foreground'
                 : 'text-secondary-foreground hover:bg-accent/50',
             )}
           >
-            {selected ? (
-              <span aria-hidden className="absolute top-3.5 -left-1 size-2 rounded-full bg-port" />
-            ) : null}
             <span className="flex items-baseline gap-2">
               <span
                 className={cn(
