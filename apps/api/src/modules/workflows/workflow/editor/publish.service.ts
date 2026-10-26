@@ -1,8 +1,8 @@
 import { Inject, Injectable } from '@nestjs/common';
 import {
-  checkWorkflowDocument,
   DEFAULT_TRANSITION_FORM,
   ErrorCode,
+  Permission,
   WORKFLOW_EVENTS,
   type AuthUser,
   type PublishWorkflowBody,
@@ -32,11 +32,9 @@ import {
   CUSTOM_FIELD_REGISTRY,
   type CustomFieldRegistry,
 } from '../../../custom-fields/ports/custom-field-registry.port.js';
-import { creationFactsOf } from './creation-facts.js';
-import { customFieldFactsOf } from './custom-field-facts.js';
 import { documentOf } from './document-of.js';
 import { liveLayout, resolveLayout } from './layout.js';
-import { serverChecksOf } from './publish-checks.js';
+import { checkDocumentForPublish, serverChecksOf } from './publish-checks.js';
 import {
   missingMigrations,
   planWorkflowPublish,
@@ -100,7 +98,10 @@ export class WorkflowEditorService {
       version: workflow.version,
       publishedAt: workflow.publishedAt?.toISOString() ?? null,
       publishedBy: refs[0] ?? null,
-      document: documentOf(row, workflow.layout, workflow.creation),
+      // Значения скрытых полей формы — только настройщикам процессов.
+      document: documentOf(row, workflow.layout, workflow.creation, {
+        maskPresets: !user.permissions.includes(Permission.WORKFLOW_MANAGE),
+      }),
       stageEntityCounts,
     };
   }
@@ -127,29 +128,10 @@ export class WorkflowEditorService {
       // Форма создания проверяется против типа этого маршрута (#432): форма
       // ссылается на атрибуты, привязанные к типу, а пресеты — на живых.
       const typeIds = await this.workflows.typeIdsOf(workflowId, tx);
-      const typeId = typeIds[0];
-      const customFields = await customFieldFactsOf(this.customFields, category, tx, typeId);
-      const creationFacts = await creationFactsOf(
-        this.customFields,
-        this.profiles,
-        category,
-        body.document.creation,
-        tx,
+      await checkDocumentForPublish(
+        { registry: this.customFields, profiles: this.profiles },
+        { document: body.document, category, typeId: typeIds[0], tx },
       );
-      const problems = checkWorkflowDocument(body.document, {
-        customFields,
-        category,
-        definitions: creationFacts.definitions,
-        activeUserIds: creationFacts.activeUserIds,
-        // Проект — plain UUID без FK: значение сохраняется и до модуля #52,
-        // окно показывает подсказку «недоступно» (веб, projectsAvailable).
-        projectsAvailable: true,
-      });
-      if (problems.some((p) => p.severity === 'error')) {
-        throw new DomainException(ErrorCode.WORKFLOW_INVALID, 'Workflow document is invalid', {
-          problems,
-        });
-      }
       const loaded = await this.workflows.load(workflowId, tx);
       serverChecksOf(loaded, body.document, body.migrations);
 

@@ -61,6 +61,23 @@ describe.skipIf(!process.env.DATABASE_URL)('type access and bindings (integratio
     cf.taskIds.push(((await byAdmin.json()) as { id: string }).id);
   });
 
+  it('документ маршрута: пресеты видны только настройщикам процессов', async () => {
+    const asEmployee = (await (
+      await cf.fx.api(cf.alice, 'GET', `/workflows/${cf.workflowId}`)
+    ).json()) as { document: { creation: { fields: { key: string; preset: unknown }[] } } };
+    const byKey = (doc: typeof asEmployee) =>
+      new Map(doc.document.creation.fields.map((slot) => [slot.key, slot.preset]));
+    // Сотрудник видит тип, но значения скрытых полей ему не отдаются.
+    expect(byKey(asEmployee).get('priority')).toBe('');
+    expect(byKey(asEmployee).get('assignee')).toBe('');
+
+    const asManager = (await (
+      await cf.fx.api(cf.admin, 'GET', `/workflows/${cf.workflowId}`)
+    ).json()) as typeof asEmployee;
+    expect(byKey(asManager).get('priority')).toBe('high');
+    expect(byKey(asManager).get('assignee')).toBe(cf.bob.id);
+  });
+
   it('creatable=false: создают только администраторы; «Стандартный» закрыть нельзя', async () => {
     const off = await cf.fx.api(cf.admin, 'PATCH', `/workflows/types/${cf.typeId}`, {
       body: { creatable: false },

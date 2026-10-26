@@ -9,6 +9,7 @@ import {
   effectiveCreationForm,
   normalizeTypeConfig,
   typeAccessFor,
+  type CreationForm,
   type TypeAccessSubject,
 } from '@nodus/contracts';
 
@@ -74,13 +75,14 @@ export function processTypeDto(
  * сохраняется, поэтому окно создания по-прежнему не рисует эти поля.
  */
 export function maskCreationPresets(type: ProcessType): ProcessType {
+  return { ...type, creationForm: maskCreationForm(type.creationForm) };
+}
+
+/** Та же маска на уровне формы: `GET /workflows/:id` отдаёт `document.creation`
+ *  и не должен раскрывать значения пресетов читателю без `workflow.manage`. */
+export function maskCreationForm(form: CreationForm): CreationForm {
   return {
-    ...type,
-    creationForm: {
-      ...type.creationForm,
-      fields: type.creationForm.fields.map((slot) =>
-        slot.preset === null ? slot : { ...slot, preset: '' },
-      ),
-    },
+    ...form,
+    fields: form.fields.map((slot) => (slot.preset === null ? slot : { ...slot, preset: '' })),
   };
 }

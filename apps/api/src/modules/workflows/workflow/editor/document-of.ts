@@ -1,18 +1,23 @@
 import type { WorkflowDocument } from '@nodus/contracts';
 
+import { maskCreationForm } from '../../types/process-type.mapper.js';
 import { liveLayout } from './layout.js';
 import type { LoadedWorkflow } from '../workflow.repository.js';
 
-/** Документ живого маршрута → документ контракта (+ раскладка холста). */
+/** Документ живого маршрута → документ контракта (+ раскладка холста).
+ *  `maskPresets` — читателю без `workflow.manage`: значения скрытых полей
+ *  формы не отдаются (признак «поле скрыто» сохраняется, #432 security). */
 export function documentOf(
   row: LoadedWorkflow,
   layout?: unknown,
   creation?: unknown,
+  opts: { maskPresets?: boolean } = {},
 ): WorkflowDocument {
+  const form = creation as WorkflowDocument['creation'];
   return {
     ...(creation === null || creation === undefined
       ? {}
-      : { creation: creation as WorkflowDocument['creation'] }),
+      : { creation: opts.maskPresets && form ? maskCreationForm(form) : form }),
     stages: row.stages.map((s) => ({
       id: s.id,
       code: s.code,

@@ -1,6 +1,17 @@
-import { ErrorCode, type WorkflowDocument, type WorkflowMigration } from '@nodus/contracts';
+import {
+  checkWorkflowDocument,
+  ErrorCode,
+  type ProcessCategory,
+  type WorkflowDocument,
+  type WorkflowMigration,
+} from '@nodus/contracts';
 
+import type { TransactionClient } from '../../../../core/database/transaction-runner.js';
 import { DomainException } from '../../../../core/errors/domain-exception.js';
+import type { UserProfileReader } from '../../../../core/ports/user-profile.port.js';
+import type { CustomFieldRegistry } from '../../../custom-fields/ports/custom-field-registry.port.js';
+import { creationFactsOf } from './creation-facts.js';
+import { customFieldFactsOf } from './custom-field-facts.js';
 import type { LoadedWorkflow } from '../workflow.repository.js';
 
 /**
@@ -58,5 +69,45 @@ export function serverChecksOf(
         'Migration target is not a stage of the document',
       );
     }
+  }
+}
+
+/**
+ * Проверка документа на публикации (#378, #431, #432): схема, атрибуты
+ * области, привязка к типу маршрута и живые сотрудники в пресетах формы
+ * создания. Ошибки запрещают публикацию (`422 WORKFLOW_INVALID` с перечнем
+ * проблем), предупреждения — нет. Вынесено из сервиса публикации: там
+ * остаётся порядок «замок → версия → проверки → план → применение».
+ */
+export async function checkDocumentForPublish(
+  deps: { registry: CustomFieldRegistry; profiles: UserProfileReader },
+  ctx: {
+    document: WorkflowDocument;
+    category: ProcessCategory;
+    typeId?: string;
+    tx: TransactionClient;
+  },
+): Promise<void> {
+  const customFields = await customFieldFactsOf(deps.registry, ctx.category, ctx.tx, ctx.typeId);
+  const creation = await creationFactsOf(
+    deps.registry,
+    deps.profiles,
+    ctx.category,
+    ctx.document.creation,
+    ctx.tx,
+  );
+  const problems = checkWorkflowDocument(ctx.document, {
+    customFields,
+    category: ctx.category,
+    definitions: creation.definitions,
+    activeUserIds: creation.activeUserIds,
+    // Проект — plain UUID без FK: значение сохраняется и до модуля #52,
+    // окно показывает подсказку «недоступно» (веб, projectsAvailable).
+    projectsAvailable: true,
+  });
+  if (problems.some((problem) => problem.severity === 'error')) {
+    throw new DomainException(ErrorCode.WORKFLOW_INVALID, 'Workflow document is invalid', {
+      problems,
+    });
   }
 }
