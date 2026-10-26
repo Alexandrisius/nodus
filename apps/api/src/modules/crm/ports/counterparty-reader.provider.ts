@@ -38,4 +38,8 @@ export class CounterpartyReaderProvider implements CounterpartyReader {
     const row = await this.contacts.findActiveRef(counterpartyId, contactId);
     return row ? { id: row.id, fullName: row.fullName, position: row.position } : null;
   }
+
+  searchIds(query: string, limit: number): Promise<string[]> {
+    return this.counterparties.searchIds(query, limit);
+  }
 }

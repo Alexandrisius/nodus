@@ -37,6 +37,20 @@ import { UrgentPolicyController } from './messages/urgent-policy.controller.js';
 import { UrgentPolicyReader } from './messages/urgent-policy.reader.js';
 import { FileVersionHandler } from './events/file-version.handler.js';
 import { TasksPortsModule } from '../tasks/tasks-ports.module.js';
+import { CorrespondencePortsModule } from '../correspondence/correspondence-ports.module.js';
+import { WorkflowsPortsModule } from '../workflows/workflows-ports.module.js';
+import { LetterChatController } from './letter-chat/letter-chat.controller.js';
+import {
+  LetterChatSyncRunner,
+  LetterDeletedChatHandler,
+  LetterParticipantsChatHandler,
+  LetterRegisteredChatHandler,
+  LetterUpdatedChatHandler,
+} from './letter-chat/letter-chat.handlers.js';
+import { LetterChatRepository } from './letter-chat/letter-chat.repository.js';
+import { LetterChatService } from './letter-chat/letter-chat.service.js';
+import { LetterTransitionBlockHandler } from './letter-chat/letter-transition-block.handler.js';
+import { LetterTransitionBlockService } from './letter-chat/letter-transition-block.service.js';
 import { TaskChatController } from './task-chat/task-chat.controller.js';
 import {
   TaskAssignedChatHandler,
@@ -83,8 +97,9 @@ import {
  * фичефлагом `chat` (I10) — гварды на контроллерах.
  */
 @Module({
-  // Read-порт задач (ADR-0012): состав, ссылки и видимость чата задачи (#252).
-  imports: [TasksPortsModule],
+  // Read-порты владельцев (ADR-0012): состав, ссылки и видимость чата задачи
+  // (#252) и письма (#55); каталог стадий — цвет чипа блока перехода письма.
+  imports: [TasksPortsModule, CorrespondencePortsModule, WorkflowsPortsModule],
   // Вложения (#57): порт FILE_STORAGE — @Global FilesModule (как CryptoModule),
   // без межмодульного импорта (I3/I6); здесь chat знает только интерфейс.
   controllers: [
@@ -98,6 +113,7 @@ import {
     UrgentPolicyController,
     VaultController,
     TaskChatController,
+    LetterChatController,
   ],
   providers: [
     // Агрегат Conversation по ответственности (I5): чтение / запись беседы /
@@ -175,6 +191,17 @@ import {
     TaskParticipantsChatHandler,
     TaskDeletedChatHandler,
     TaskUpdatedChatHandler,
+    // Чат письма (#55, Р10): беседа type=letter, состав = адресат + участники.
+    LetterChatRepository,
+    LetterChatService,
+    LetterChatSyncRunner,
+    // Блок перехода письма в ленте: kind='letter_transition'.
+    LetterTransitionBlockService,
+    LetterTransitionBlockHandler,
+    LetterRegisteredChatHandler,
+    LetterParticipantsChatHandler,
+    LetterDeletedChatHandler,
+    LetterUpdatedChatHandler,
   ],
 })
 export class ChatModule {}

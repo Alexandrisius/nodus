@@ -27,6 +27,7 @@ describe('ContactsService (#460)', () => {
     delete: vi.fn(),
   };
   const counterparties = { findById: vi.fn() };
+  const usages = { contactInUse: vi.fn(async () => false) };
   const txRunner = { run: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn({})) };
   const eventBus = { emit: vi.fn() };
   let service: ContactsService;
@@ -37,6 +38,7 @@ describe('ContactsService (#460)', () => {
     service = new ContactsService(
       contacts as never,
       counterparties as never,
+      usages as never,
       txRunner as never,
       eventBus as never,
     );
