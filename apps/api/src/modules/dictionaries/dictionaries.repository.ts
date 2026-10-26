@@ -218,6 +218,12 @@ export class DictionariesRepository {
     });
   }
 
+  /** Id системного справочника по коду (#55: `receipt-method` в регистрации). */
+  async findIdByCode(code: string, tx?: TransactionClient): Promise<string | null> {
+    const row = await this.db(tx).dictionary.findUnique({ where: { code }, select: { id: true } });
+    return row?.id ?? null;
+  }
+
   private db(tx?: TransactionClient) {
     return tx ?? this.prisma;
   }

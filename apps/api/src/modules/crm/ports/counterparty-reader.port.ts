@@ -1,4 +1,4 @@
-import type { CounterpartyRef } from '@nodus/contracts';
+import type { ContactRef, CounterpartyRef } from '@nodus/contracts';
 
 /**
  * Read-порт контрагентов для чужих модулей (ADR-0012, дополнение #460):
@@ -8,7 +8,7 @@ import type { CounterpartyRef } from '@nodus/contracts';
  *
  * Порт работает и при выключенном фичефлаге `crm`: флаг закрывает HTTP,
  * но письма и проекты продолжают показывать ссылки (I10).
- * Методы контактов (`contactRefs`, `activeContact`) добавит #55, адреса — #464.
+ * Адреса контактов (почта, телефон) добавит #464.
  */
 export const COUNTERPARTY_READER = Symbol('COUNTERPARTY_READER');
 
@@ -20,4 +20,12 @@ export interface CounterpartyReader {
   /** Действующий контрагент для записи ссылки (корреспондент, заказчик);
    *  null — записи нет или она в архиве. */
   activeRef(id: string): Promise<CounterpartyRef | null>;
+
+  /** Подписанты пачкой для DTO и истории (#55), включая архивных: подпись
+   *  под письмом не исчезает вместе с карточкой контакта. */
+  contactRefs(ids: readonly string[]): Promise<ContactRef[]>;
+
+  /** Действующий контакт СТРОГО этого контрагента — для записи подписанта;
+   *  null — контакта нет, он архивный или принадлежит другому. */
+  activeContact(counterpartyId: string, contactId: string): Promise<ContactRef | null>;
 }

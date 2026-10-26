@@ -21,6 +21,18 @@ export interface RoleMembershipReader {
 
   /** Объединение прав этих ролей — только значения каталога `Permission`, по алфавиту. */
   effectivePermissions(userId: string, tx?: TransactionClient): Promise<Permission[]>;
+
+  /** Активные сотрудники — держатели права (#55): адресаты «сверху» в
+   *  регистрации письма — держатели `correspondence.resolve`. Учитывает
+   *  прямые роли и роли управленческих подразделений (та же семантика, что
+   *  `effectivePermissions`, но одним запросом на всех). По ФИО. */
+  holdersOf(permission: Permission, tx?: TransactionClient): Promise<PermissionHolder[]>;
+}
+
+/** Держатель права: минимальные данные для выбора сотрудника в поле. */
+export interface PermissionHolder {
+  id: string;
+  displayName: string;
 }
 
 export const ROLE_MEMBERSHIP_READER: InjectionToken = 'ROLE_MEMBERSHIP_READER';

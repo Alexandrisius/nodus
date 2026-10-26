@@ -32,4 +32,8 @@ export class DictionaryReaderProvider implements DictionaryReader {
   ): Promise<DictionaryItemRef | null> {
     return this.dictionaries.findActiveItemRef(dictionaryId, itemId, tx);
   }
+
+  dictionaryIdByCode(code: string, tx?: TransactionClient): Promise<string | null> {
+    return this.dictionaries.findIdByCode(code, tx);
+  }
 }

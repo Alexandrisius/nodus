@@ -44,4 +44,8 @@ export interface DictionaryReader {
     itemId: string,
     tx?: TransactionClient,
   ): Promise<DictionaryItemRef | null>;
+
+  /** Id справочника по коду (#55): регистрация письма проверяет, что способ
+   *  поступления — активный элемент системного `receipt-method`. null — нет. */
+  dictionaryIdByCode(code: string, tx?: TransactionClient): Promise<string | null>;
 }
