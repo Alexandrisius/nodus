@@ -54,6 +54,31 @@ describe('блок перехода в ленте (#380)', () => {
     expect(screen.getByText(/Итог обновлён · 2 файла · 1 сообщение/)).toBeTruthy();
   });
 
+  it('блок письма (#55): цель — чип цвета стадии, причина с подписью, без строки итога', () => {
+    const letterMessage: ChatMessage = {
+      ...message,
+      text: 'Это счёт-фактура для бухгалтерии',
+      kind: 'letter_transition',
+      block: {
+        kind: 'letter_transition',
+        letterId: '00000000-0000-4000-8000-000000000003',
+        recordId: '00000000-0000-4000-8000-000000000004',
+        transitionName: 'Отменить регистрацию',
+        fromStageName: 'На резолюции',
+        toStageName: 'Ошибочно зарегистрировано',
+        toStageColor: 'danger',
+        commentLabel: 'Причина',
+      },
+    };
+    render(<TransitionBlock message={letterMessage} mine={false} showName avatarSlot="avatar" />);
+    expect(screen.getByText('Отменить регистрацию')).toBeTruthy();
+    expect(
+      screen.getByText('Ошибочно зарегистрировано').closest('span[class*="text-danger"]'),
+    ).toBeTruthy();
+    expect(screen.getByText('Причина:')).toBeTruthy();
+    expect(screen.queryByText(/Итог обновлён/)).toBeNull();
+  });
+
   it('в меню сообщения нет «Редактировать» у блока перехода', () => {
     const actions = Object.fromEntries(
       [
@@ -78,7 +103,7 @@ describe('блок перехода в ленте (#380)', () => {
       isFavorite: false,
       canModerate: true,
       hideFavorite: false,
-      taskId: message.block?.taskId,
+      taskId: message.block?.kind === 'task_transition' ? message.block.taskId : undefined,
       actions,
     });
     expect(items.some((item) => item.id === 'edit')).toBe(false);

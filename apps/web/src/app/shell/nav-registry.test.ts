@@ -13,15 +13,15 @@ describe('реестр навигации: вкладка «Права дост�
     expect(automation.tabs.map((tab) => tab.id)).toEqual(['processes', 'fields', 'access']);
     const access = automation.tabs.at(-1)!;
     expect(access.search).toEqual({ tab: 'access' });
-    expect(access.isActive(new URLSearchParams('tab=access'))).toBe(true);
-    expect(access.isActive(new URLSearchParams('tab=fields'))).toBe(false);
+    expect(access.isActive(new URLSearchParams('tab=access'), [])).toBe(true);
+    expect(access.isActive(new URLSearchParams('tab=fields'), [])).toBe(false);
   });
 
   it('«Процессы» неактивны при tab=access, по умолчанию — активны', () => {
     const automation = NAV_MODULES.find((module) => module.id === 'automation')!;
     const processes = automation.tabs.find((tab) => tab.id === 'processes')!;
-    expect(processes.isActive(new URLSearchParams('tab=access'))).toBe(false);
-    expect(processes.isActive(new URLSearchParams(''))).toBe(true);
+    expect(processes.isActive(new URLSearchParams('tab=access'), [])).toBe(false);
+    expect(processes.isActive(new URLSearchParams(''), [])).toBe(true);
   });
 
   it('у модуля без прав в каталоге вкладки access нет', () => {

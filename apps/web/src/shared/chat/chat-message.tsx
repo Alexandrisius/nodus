@@ -120,9 +120,12 @@ export const ChatMessageItem = memo(function ChatMessageItem({
     );
   }
 
-  // Блок перехода задачи (#380): запись журнала, не пузырь — компактный
-  // блок во всех хостах (карточка задачи и «Чаты задач и писем»).
-  if (message.kind === 'task_transition' && message.block?.kind === 'task_transition') {
+  // Блок перехода задачи (#380) и письма (#55): запись журнала, не пузырь —
+  // компактный блок во всех хостах (карточки и «Чаты задач и писем»).
+  if (
+    (message.kind === 'task_transition' || message.kind === 'letter_transition') &&
+    message.block
+  ) {
     return (
       <TransitionBlock message={message} mine={mine} showName={showName} avatarSlot={avatarSlot} />
     );

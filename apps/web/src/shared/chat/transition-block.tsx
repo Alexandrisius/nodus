@@ -6,6 +6,7 @@ import { cn } from '@nodus/ui/lib/utils';
 import { formatDateTime, shortPersonName } from '../lib/format.js';
 import { PersonAvatar } from '../ui/person-avatar.js';
 import { personTone } from '../ui/person-tone.js';
+import { StageChip } from '../ui/stage-chip.js';
 import { LinkifiedText } from './message-text.js';
 
 /** Склонение по числу (файл/файла/файлов, сообщение/…). */
@@ -22,6 +23,8 @@ function plural(n: number, forms: readonly [string, string, string]): string {
  * Приостановлена», подпись и текст причины, строка «Итог обновлён · N
  * файлов». Компактный, без пузыря: это запись журнала, а не реплика
  * (задел #313 — системные строки). Виден во всех хостах единого движка.
+ * Оба вида: задача (итог, #380) и письмо (#55 Р10 — цель чипом цвета
+ * стадии: «Ошибочно зарегистрировано» видно издалека).
  */
 export function TransitionBlock({
   message,
@@ -35,7 +38,7 @@ export function TransitionBlock({
   avatarSlot: 'avatar' | 'none';
 }) {
   const block = message.block;
-  if (!block || block.kind !== 'task_transition') return null;
+  if (!block) return null;
   return (
     <div className={cn('flex w-full min-w-0 gap-2 py-0.5', mine && 'flex-row-reverse')}>
       {avatarSlot === 'avatar' ? (
@@ -62,8 +65,12 @@ export function TransitionBlock({
             <span className="font-medium text-foreground">{block.transitionName}</span>
             <span aria-hidden>·</span>
             <span>
-              {block.fromStageName} {ui.chat.transitionBlock.arrow} {block.toStageName}
+              {block.fromStageName} {ui.chat.transitionBlock.arrow}
+              {block.kind === 'task_transition' ? ` ${block.toStageName}` : null}
             </span>
+            {block.kind === 'letter_transition' ? (
+              <StageChip name={block.toStageName} color={block.toStageColor} />
+            ) : null}
           </p>
           {message.text ? (
             <p className="text-sm leading-relaxed wrap-anywhere whitespace-pre-wrap">
@@ -73,7 +80,9 @@ export function TransitionBlock({
               <LinkifiedText text={message.text} />
             </p>
           ) : null}
-          {block.result ? <ResultLine result={block.result} /> : null}
+          {block.kind === 'task_transition' && block.result ? (
+            <ResultLine result={block.result} />
+          ) : null}
           <p className="text-[11px] text-muted-foreground">
             {shortPersonName(message.author.displayName)} · {formatDateTime(message.createdAt)}
           </p>

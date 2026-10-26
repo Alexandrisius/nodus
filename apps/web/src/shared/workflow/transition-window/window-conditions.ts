@@ -124,6 +124,7 @@ export function windowCanSubmit({
   if (!lines.every((line) => line.ok)) return false;
   for (const section of sections) {
     if (section.kind === 'comment' && section.required && !draft.comment.trim()) return false;
+    if (section.kind === 'registration' && draft.registration === null) return false;
     if (section.kind === 'result_messages' && section.required && draft.messages.length === 0) {
       return false;
     }

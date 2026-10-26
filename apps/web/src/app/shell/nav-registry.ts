@@ -9,14 +9,26 @@ import {
   Workflow,
   type LucideIcon,
 } from 'lucide-react';
-import { permissionsOfModule, ui, type AccessModule } from '@nodus/contracts';
+import { Permission, permissionsOfModule, ui, type AccessModule } from '@nodus/contracts';
 
-/** Вкладка модуля топбара (подмодуль): search-параметр + предикат активности. */
+import { resolveLettersTab } from '../../features/correspondence/lib/letters-tab.js';
+
+/** Вкладка модуля топбара (подмодуль): search-параметр + предикат активности.
+ *  `permission` — вкладка видна только держателю права (#55: «Новые» — у
+ *  канцелярии); сервер — истина (I8), топбар лишь не показывает лишнее.
+ *  Активность может зависеть от прав (вкладка по умолчанию — «Новые» у
+ *  канцелярии, «Входящие» у остальных). */
 export interface NavTabDef {
   id: string;
   label: string;
   search: Record<string, string>;
-  isActive: (search: URLSearchParams) => boolean;
+  permission?: Permission;
+  isActive: (search: URLSearchParams, permissions: readonly string[]) => boolean;
+}
+
+/** Вкладки модуля, видимые сотруднику с этими правами. */
+export function visibleNavTabs(module: NavModuleDef, permissions: readonly string[]): NavTabDef[] {
+  return module.tabs.filter((tab) => !tab.permission || permissions.includes(tab.permission));
 }
 
 /** Модуль левой рейки: id — ключ персонализации порядка (UiPreferences). */
@@ -84,28 +96,30 @@ export const NAV_MODULES: NavModuleDef[] = [
     label: ui.nav.letters,
     icon: Mail,
     badge: 'letters',
-    // Папки почты + журнал документов (модель v2, вердикты 22.09.2026):
-    // «Незарегистрированные» — НЕ папка, а пресет-фильтр «К регистрации»
-    // во «Входящих»; журнал — реестр только документов (Вх/Исх).
+    // Корреспонденция на движке «Процессы» (#55): «Новые» — очередь
+    // регистрации канцелярии (по праву), «Входящие»/«Исходящие» — журналы
+    // зарегистрированных, «Права доступа» — матрица раздела.
     tabs: [
       {
+        id: 'new',
+        label: ui.letters.tabs.new,
+        search: { tab: 'new' },
+        permission: Permission.CORRESPONDENCE_REGISTER,
+        isActive: (s, p) => resolveLettersTab(s, p) === 'new',
+      },
+      {
         id: 'incoming',
-        label: ui.letters.folderIncoming,
-        search: { folder: 'incoming' },
-        isActive: (s) => (s.get('folder') ?? 'incoming') === 'incoming',
+        label: ui.letters.tabs.incoming,
+        search: { tab: 'incoming' },
+        isActive: (s, p) => resolveLettersTab(s, p) === 'incoming',
       },
       {
         id: 'outgoing',
-        label: ui.letters.folderOutgoing,
-        search: { folder: 'outgoing' },
-        isActive: (s) => s.get('folder') === 'outgoing',
+        label: ui.letters.tabs.outgoing,
+        search: { tab: 'outgoing' },
+        isActive: (s, p) => resolveLettersTab(s, p) === 'outgoing',
       },
-      {
-        id: 'registry',
-        label: ui.letters.folderRegistry,
-        search: { folder: 'registry' },
-        isActive: (s) => s.get('folder') === 'registry',
-      },
+      ...accessTab('correspondence'),
     ],
   },
   {

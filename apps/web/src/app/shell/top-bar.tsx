@@ -9,11 +9,12 @@ import { HomeGreeting } from '../../features/home/components/home-greeting.js';
 import { BellPopover } from '../../features/notifications/components/bell-popover.js';
 import { RunningTimerChip } from '../../features/tasks/components/running-timer-chip.js';
 import { WhatsNewButton } from '../../features/whats-new/components/whats-new-button.js';
+import { useAuthStore } from '../../shared/auth-store.js';
 import { useChatUnreadSummary } from '../../shared/chat/chat-queries.js';
 import { TabUnreadBadge } from '../../shared/chat/tab-unread-badge.js';
 import { CIRCUIT_REMEASURE } from './circuit-geometry.js';
 import { DownloadAppButton } from './download-app-button.js';
-import { navModuleForPath } from './nav-registry.js';
+import { navModuleForPath, visibleNavTabs } from './nav-registry.js';
 import { ProfileMenu } from './profile-menu.js';
 import { useShellStore } from './shell-store.js';
 
@@ -26,6 +27,8 @@ import { useShellStore } from './shell-store.js';
  * списков за глаза; Ctrl+K работает), уведомления, тумблер темы. Профиль —
  * ВЕРХ служебной полосы за пределами мягкой рамы (ProfileMenu, план R3/R4).
  */
+const NO_PERMISSIONS: readonly string[] = [];
+
 export function TopBar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const searchStr = useRouterState({ select: (s) => s.location.searchStr });
@@ -34,6 +37,7 @@ export function TopBar() {
   const toggleTheme = useShellStore((s) => s.toggleTheme);
   const setCommandOpen = useShellStore((s) => s.setCommandOpen);
   const { data: unread } = useChatUnreadSummary();
+  const permissions = useAuthStore((s) => s.user?.permissions ?? NO_PERMISSIONS);
 
   /** Счётчик вкладки (#409): только у мессенджера; «Настройка» — без числа. */
   const tabCount = (moduleId: string | undefined, tabId: string): number => {
@@ -45,11 +49,12 @@ export function TopBar() {
 
   const search = new URLSearchParams(searchStr);
   const module = navModuleForPath(pathname);
+  const tabs = module ? visibleNavTabs(module, permissions) : [];
   // Вкладки топбара — search-параметры, а не маршрут: контур читает data-active
   // из DOM и о смене подмодуля сам не узнаёт (deps замера — только режимы).
   // Шлём перемер ПОСЛЕ коммита нового data-active (грамматика MessengerTabs),
   // иначе точка фокуса и вспышка застревают на прежнем подмодуле (баг #91).
-  const activeTabId = module?.tabs.find((t) => t.isActive(search))?.id ?? null;
+  const activeTabId = tabs.find((t) => t.isActive(search, permissions))?.id ?? null;
   useLayoutEffect(() => {
     window.dispatchEvent(new Event(CIRCUIT_REMEASURE));
   }, [activeTabId, module?.id]);
@@ -63,19 +68,19 @@ export function TopBar() {
       <nav className="flex h-full min-w-0 flex-1 items-center overflow-x-auto overflow-y-hidden">
         {/* Главная без вкладок: пустую полосу занимает приветствие — лента
             начинается выше (вердикт владельца 12.09.2026). */}
-        {!module || module.tabs.length === 0 ? (
+        {!module || tabs.length === 0 ? (
           <HomeGreeting />
         ) : (
-          module.tabs.map((tab) => (
+          tabs.map((tab) => (
             <Link
               key={tab.id}
               to={module.to}
               search={tab.search}
               data-tab-port
-              data-active={tab.isActive(search) ? 'true' : undefined}
+              data-active={tab.isActive(search, permissions) ? 'true' : undefined}
               className={cn(
                 'relative flex h-full items-center px-4 text-sm font-medium transition-colors',
-                tab.isActive(search)
+                tab.isActive(search, permissions)
                   ? 'text-foreground'
                   : 'text-muted-foreground hover:text-foreground/80',
               )}

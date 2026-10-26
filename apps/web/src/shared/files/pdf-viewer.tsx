@@ -16,13 +16,27 @@ pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 const DEVICE_SCALE = 2;
 const ZOOM_STEPS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
+/** Ширина страницы модалки при 100% (CSS-пиксели). */
+const BASE_WIDTH = 820;
+
 /**
  * Просмотр PDF (pdf.js, #138): лента страниц непрерывным скроллом, зум
  * шагами, номер страницы — по прокрутке. Страницы рендерятся лениво
  * (IntersectionObserver): бокс резервируется габаритами сразу — скролл
  * не прыгает, документ не рендерится целиком (100+ страниц не страшны).
+ * `fit="width"` (вкладки карточки письма, конвейер «Новые», #55): 100% —
+ * по ширине панели; ресайз панели масштабирует холст CSS-ом без
+ * перерисовки (канон ресайза — без работы на каждый кадр).
  */
-export function PdfViewer({ url, fileName }: { url: string; fileName: string }) {
+export function PdfViewer({
+  url,
+  fileName,
+  fit,
+}: {
+  url: string;
+  fileName: string;
+  fit?: 'width';
+}) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [doc, setDoc] = useState<pdfjs.PDFDocumentProxy | null>(null);
   const [failed, setFailed] = useState(false);
@@ -97,9 +111,9 @@ export function PdfViewer({ url, fileName }: { url: string; fileName: string }) 
             <Spinner className="size-5" />
           </div>
         ) : (
-          <div className="mx-auto flex w-fit flex-col gap-4">
+          <div className={fit ? 'flex w-full flex-col gap-4' : 'mx-auto flex w-fit flex-col gap-4'}>
             {Array.from({ length: doc.numPages }, (_, i) => (
-              <PdfPage key={i} doc={doc} pageNumber={i + 1} zoom={zoom} />
+              <PdfPage key={i} doc={doc} pageNumber={i + 1} zoom={zoom} fit={fit} />
             ))}
           </div>
         )}
@@ -113,10 +127,12 @@ function PdfPage({
   doc,
   pageNumber,
   zoom,
+  fit,
 }: {
   doc: pdfjs.PDFDocumentProxy;
   pageNumber: number;
   zoom: number;
+  fit?: 'width';
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [visible, setVisible] = useState(pageNumber <= 3);
@@ -147,11 +163,14 @@ function PdfPage({
         setAspect(base.width / base.height);
         const canvas = canvasRef.current;
         if (!canvas) return;
-        const cssWidth = 820 * zoom;
+        // По ширине: битмап под текущую ширину бокса (скрытая вкладка — база),
+        // дальше холст тянет CSS; иначе — фиксированная ширина модалки.
+        const boxWidth = canvas.parentElement?.clientWidth ?? 0;
+        const cssWidth = fit ? Math.max(boxWidth, BASE_WIDTH * zoom) : BASE_WIDTH * zoom;
         const viewport = page.getViewport({ scale: (cssWidth / base.width) * DEVICE_SCALE });
         canvas.width = viewport.width;
         canvas.height = viewport.height;
-        canvas.style.width = `${cssWidth}px`;
+        canvas.style.width = fit ? '100%' : `${cssWidth}px`;
         canvas.style.height = 'auto';
         // v6-контракт рендера: передаём сам canvas (canvasContext — deprecated).
         renderTask = page.render({ canvas, viewport });
@@ -164,13 +183,13 @@ function PdfPage({
       cancelled = true;
       renderTask?.cancel();
     };
-  }, [doc, pageNumber, zoom, visible]);
+  }, [doc, pageNumber, zoom, visible, fit]);
 
   return (
     <div
       data-pdf-page={pageNumber}
-      className="overflow-hidden rounded-[8px] border bg-card shadow-none"
-      style={{ aspectRatio: `${aspect}` }}
+      className="mx-auto shrink-0 overflow-hidden rounded-[8px] border bg-card shadow-none"
+      style={{ aspectRatio: `${aspect}`, ...(fit ? { width: `${zoom * 100}%` } : {}) }}
     >
       <canvas ref={canvasRef} className="block size-full" />
     </div>

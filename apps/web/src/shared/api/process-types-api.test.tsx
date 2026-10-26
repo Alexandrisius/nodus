@@ -26,6 +26,7 @@ const type = (id: string, category: 'task' | 'letter', creatable = true): Proces
   sortOrder: 0,
   archivedAt: null,
   workflowId: `wf-${id}`,
+  numbering: null,
   config: {
     card: { hiddenBlocks: [], roleLabels: {} },
     access: { view: null, create: null },

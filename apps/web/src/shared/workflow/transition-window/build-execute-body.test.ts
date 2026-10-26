@@ -131,4 +131,29 @@ describe('поля процесса в теле перехода (#431, Р7)', (
     });
     expect(body).toEqual({});
   });
+  it('раздел «Регистрация» (#55): валидный ввод хоста уходит целиком, неполный — нет', () => {
+    const registration = {
+      counterpartyId: '00000000-0000-4000-8000-000000000001',
+      signerId: null,
+      theirNumber: '0359-КЖ/152',
+      theirDate: '2026-10-25',
+      subject: 'О корректировке сроков',
+      receiptMethodId: '00000000-0000-4000-8000-000000000002',
+      projectId: null,
+      addresseeId: '00000000-0000-4000-8000-000000000003',
+      responseDeadline: null,
+    };
+    const only = sections({ kind: 'registration', origin: 'form' });
+    expect(buildExecuteBody({ sections: only, context, draft: draft({ registration }) })).toEqual({
+      form: { registration },
+    });
+    expect(buildExecuteBody({ sections: only, context, draft: draft() })).toEqual({});
+    expect(
+      buildExecuteBody({
+        sections: sections({ kind: 'comment', label: 'Причина', required: true, origin: 'form' }),
+        context,
+        draft: draft({ registration, comment: 'Спам' }),
+      }),
+    ).toEqual({ form: { comment: 'Спам' } });
+  });
 });

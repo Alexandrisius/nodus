@@ -81,6 +81,11 @@ export function buildExecuteBody({
     if (changed) form.result = { text, messageIds };
   }
 
+  // Регистрация (#55, Р1): ввод хоста уходит целиком — номер выдаёт сервер.
+  if (sections.some((s) => s.kind === 'registration') && draft.registration) {
+    form.registration = draft.registration;
+  }
+
   const commentSection = sections.find((s) => s.kind === 'comment');
   if (commentSection?.kind === 'comment' && draft.comment.trim()) {
     form.comment = draft.comment.trim();
