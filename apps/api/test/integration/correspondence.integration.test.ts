@@ -6,6 +6,7 @@ import {
   type LetterDetail,
 } from '@nodus/contracts';
 
+import { FileAccessRegistry } from '../../src/core/ports/file-access.registry.js';
 import {
   historyPage,
   registrationResult,
@@ -36,6 +37,14 @@ describe.skipIf(!process.env.DATABASE_URL)(
       return letterDetailSchema.parse(await res.json()).id;
     }
 
+    it('реестр прав файлов видит оба контекста (chat и letter)', () => {
+      const contexts = c.fx.app
+        .get(FileAccessRegistry)
+        .contributors()
+        .map((contributor) => contributor.fileAccessContext);
+      expect(contexts).toEqual(expect.arrayContaining(['chat', 'letter']));
+    });
+
     it('канцелярия создаёт и регистрирует: номер «Вх-ГГГГ/N», письмо во «Входящих» у сотрудника', async () => {
       const letterId = await newLetter();
       const res = await c.register(c.registrar, letterId);
@@ -51,6 +60,16 @@ describe.skipIf(!process.env.DATABASE_URL)(
       expect(incoming.status).toBe(200);
       const page = (await incoming.json()) as { items: { id: string }[] };
       expect(page.items.map((item) => item.id)).toContain(letterId);
+
+      // Фильтр корреспондента (вкладка «Письма» CRM) применяется сервером.
+      const byCounterparty = await c.api(
+        c.employee,
+        'GET',
+        `/letters?counterpartyId=${letter.counterparty!.id}`,
+      );
+      expect(byCounterparty.status).toBe(200);
+      const filtered = (await byCounterparty.json()) as { items: { id: string }[] };
+      expect(filtered.items.map((item) => item.id)).toContain(letterId);
 
       const history = await c.api(c.employee, 'GET', `/letters/${letterId}/history`);
       expect(history.status).toBe(200);
@@ -200,6 +219,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
         orderBy: { createdAt: 'desc' },
       });
       expect(audit).not.toBeNull();
+      expect(audit?.entityId).toBe(letterId);
       expect(JSON.stringify(audit?.details ?? {})).toContain(letterId);
       expect(JSON.stringify(audit?.details ?? {})).not.toContain('scan.pdf');
     });

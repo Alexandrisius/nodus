@@ -16,6 +16,9 @@
 export interface FileAccessDecision {
   canView: boolean;
   canEdit: boolean;
+  /** Файл неизменяем в этом контексте (письмо, #55): вето поверх владения
+   *  файлом — регистратор не правит уже зарегистрированный документ. */
+  immutable?: boolean;
 }
 
 export interface FileAccessContributor {

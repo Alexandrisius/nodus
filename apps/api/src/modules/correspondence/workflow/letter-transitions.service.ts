@@ -16,7 +16,6 @@ import {
   type WorkflowEnginePort,
 } from '../../workflows/ports/workflow-engine.port.js';
 import { LettersQueryService } from '../letters/letters-query.service.js';
-import { LettersRepository } from '../letters/letters.repository.js';
 
 /**
  * Переходы письма (#55, Р1/Р3): кнопки движка и исполнение в транзакции.
@@ -29,7 +28,6 @@ import { LettersRepository } from '../letters/letters.repository.js';
 export class LetterTransitionsService {
   constructor(
     private readonly query: LettersQueryService,
-    private readonly repo: LettersRepository,
     private readonly txRunner: TransactionRunner,
     private readonly eventBus: EventBus,
     @Inject(WORKFLOW_ENGINE) private readonly engine: WorkflowEnginePort,
@@ -86,8 +84,8 @@ export class LetterTransitionsService {
     if (!(error instanceof DomainException)) return error;
     if (error.code !== ErrorCode.WORKFLOW_TRANSITION_NOT_ALLOWED) return error;
     if (!body.form?.registration) return error;
-    const row = await this.repo.findDetailById(letterId);
-    if (!row?.registeredAt || !row.regNumber) return error;
+    const row = await this.query.visibleRow(user, letterId);
+    if (!row.registeredAt || !row.regNumber) return error;
     return new DomainException(
       ErrorCode.LETTER_ALREADY_REGISTERED,
       'Letter is already registered',

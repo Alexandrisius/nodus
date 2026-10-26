@@ -119,11 +119,12 @@ export class LetterWorkflowAdapter implements WorkflowEntityAdapter {
         await this.txRunner.run(async (tx) => {
           const letter = await this.letters.findDetailById(row.id, tx);
           if (!letter || letter.stageId !== fromStageId) return;
+          // Имя исходной стадии не передаём: у миграции его нет под рукой,
+          // а UUID в поле имени попал бы в историю (код-ревью #55).
           await this.mover.apply(tx, letter, toStage, null, {
             transitionId: null,
             cause: 'workflow_migration',
             transitionName: 'Перенос статуса',
-            fromStageName: letter.stageId,
           });
         });
         moved += 1;

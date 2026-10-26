@@ -38,10 +38,15 @@ task.participants_changed / checklist_changed / result_set / relation_changed / 
 task.comments_counted  # пересчитан счётчик комментариев = сообщения беседы задачи (#252): клиенты ставят значение без рефеча досок
 task.personal_stage_created / personal_stage_updated / personal_stage_archived / personal_stage_changed  # УСТАРЕВШИЕ после «Моих действий» (ADR-0026): личные колонки сняты; имена зарезервированы
 task.type_created / type_updated / type_archived / workflow_published / workflow_layout_changed  # УСТАРЕВШИЕ (ADR-0024): движок в модуле «Процессы» — эмитятся `workflow.*`; имена зарезервированы, не эмитятся с #428
-letter.received / registered / updated / stage_changed / participant_joined / deleted
-  # Корреспонденция (#55, ADR-0027): received — приём почты/ручное создание, registered — переход
-  # с выдачей номера (payload {letterId, regNumber}), updated — правка реквизитов {changes},
-  # stage_changed — любой переход маршрута, participant_joined — «Присоединиться к обсуждению»
+correspondence.letter_received / letter_registered / letter_stage_changed /
+correspondence.letter_closed_unregistered / letter_updated /
+correspondence.letter_participants_changed / letter_deleted
+  # Корреспонденция (#55, ADR-0027): letter_received — приём почты/ручное создание
+  # ({letterId, typeId, direction, source, fileIds}), letter_registered — переход с выдачей
+  # номера ({letterId, regNumber, …состав}), letter_updated — правка реквизитов {changes},
+  # letter_stage_changed — любой переход маршрута (recordId/причина — блок чата),
+  # letter_participants_changed — присоединение/состав, letter_deleted — спам.
+  # letter_sent — зарезервировано (#464)
 
 task.type_changed
 chat.conversation_created / conversation_updated / member_added / member_removed / member_role_changed / message_sent / message_edited / message_deleted / message_read / message_pinned / message_unpinned / reaction_added / reaction_removed / thread_created

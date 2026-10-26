@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import type {
   ConversationListItem,
   ConversationPermissions,
+  LetterRef,
   TaskRef,
   UserRef,
 } from '@nodus/contracts';
@@ -12,6 +13,10 @@ import {
   type UserProfileReader,
 } from '../../../core/ports/user-profile.port.js';
 import { parsePermissions } from '../permissions.js';
+import {
+  LETTER_CHAT_READER,
+  type LetterChatReader,
+} from '../../correspondence/ports/letter-chat-reader.port.js';
 import { TASK_CHAT_READER, type TaskChatReader } from '../../tasks/ports/task-chat-reader.port.js';
 import { MessageDtoMapper } from '../messages/message-dto.mapper.js';
 import type { ConversationListRow } from './conversations-list.select.js';
@@ -37,6 +42,7 @@ export class ConversationItemMapper {
     private readonly signedUrls: SignedUrlService,
     @Inject(USER_PROFILE_READER) private readonly userProfiles: UserProfileReader,
     @Inject(TASK_CHAT_READER) private readonly tasks: TaskChatReader,
+    @Inject(LETTER_CHAT_READER) private readonly letters: LetterChatReader,
   ) {}
 
   async toItem(
@@ -74,6 +80,13 @@ export class ConversationItemMapper {
         (ref) => [ref.id, ref],
       ),
     );
+    // Ссылка на письмо беседы письма (#55): номер и тема — read-порт
+    // корреспонденции (у незарегистрированного номера нет, тема может пустой).
+    const letterRefs = new Map<string, LetterRef>(
+      (await this.letters.refs(rows.flatMap((row) => (row.letter_id ? [row.letter_id] : [])))).map(
+        (ref) => [ref.id, ref],
+      ),
+    );
     const items: ConversationListItem[] = [];
     for (const row of rows) {
       const members = membersByConversation.get(row.id) ?? [];
@@ -99,7 +112,7 @@ export class ConversationItemMapper {
         description: row.description,
         project: null,
         task: row.task_id ? (taskRefs.get(row.task_id) ?? null) : null,
-        letter: null,
+        letter: row.letter_id ? (letterRefs.get(row.letter_id) ?? null) : null,
         membersPreview: preview,
         // Всего участников, считая зрителя (#186): кнопка «N участников».
         membersCount: members.length,

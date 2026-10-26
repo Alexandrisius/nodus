@@ -15,7 +15,11 @@ function setup(letters: { registeredAt: Date | null }[], permissions: string[]) 
 describe('LetterFileAccess (#55, B5)', () => {
   it('файл зарегистрированного письма виден всем, правка запрещена', async () => {
     const { access } = setup(REGISTERED, []);
-    expect(await access.check('file-1', 'u1')).toEqual({ canView: true, canEdit: false });
+    expect(await access.check('file-1', 'u1')).toEqual({
+      canView: true,
+      canEdit: false,
+      immutable: true,
+    });
   });
 
   it('файл незарегистрированного письма — только держателю регистрации', async () => {
@@ -23,11 +27,13 @@ describe('LetterFileAccess (#55, B5)', () => {
     expect(await employee.access.check('file-1', 'u1')).toEqual({
       canView: false,
       canEdit: false,
+      immutable: true,
     });
     const registrar = setup(UNREGISTERED, [Permission.CORRESPONDENCE_REGISTER]);
     expect(await registrar.access.check('file-1', 'u1')).toEqual({
       canView: true,
       canEdit: false,
+      immutable: true,
     });
   });
 

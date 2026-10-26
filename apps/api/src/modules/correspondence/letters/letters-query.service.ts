@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import {
+  LETTER_LIMITS,
   Permission,
   type AuthUser,
   type LetterDetail,
@@ -53,7 +54,13 @@ export class LettersQueryService {
     if (q.box === 'new' && !canRegisterLetters(user)) {
       throw DomainException.forbidden('Letter registration permission required');
     }
-    const where = { AND: [this.boxWhere(q, user), ...(await this.searchWhere(q.search))] };
+    const where = {
+      AND: [
+        this.boxWhere(q),
+        ...(q.counterpartyId ? [{ counterpartyId: q.counterpartyId }] : []),
+        ...(await this.searchWhere(q.search)),
+      ],
+    };
     const after = q.cursor ? (decodeCursor(q.cursor, cursorSchema) as LetterCursor) : undefined;
     const rows = await this.repo.list(where, listOrderOf(q.box), after, q.limit);
     const page = rows.slice(0, q.limit);
@@ -93,10 +100,11 @@ export class LettersQueryService {
     const refs = await this.profiles.findRefs(holders.map((holder) => holder.id));
     return refs
       .filter((ref) => holders.some((holder) => holder.id === ref.id))
-      .sort((a, b) => a.displayName.localeCompare(b.displayName, 'ru'));
+      .sort((a, b) => a.displayName.localeCompare(b.displayName, 'ru'))
+      .slice(0, LETTER_LIMITS.resolvers);
   }
 
-  private boxWhere(q: ListLettersQuery, user: AuthUser) {
+  private boxWhere(q: ListLettersQuery) {
     const registered = { registeredAt: { not: null } };
     switch (q.box) {
       case 'new':
@@ -106,10 +114,10 @@ export class LettersQueryService {
       case 'outgoing':
         return { ...registered, direction: 'outgoing' };
       default:
-        // Без box — зарегистрированные обоих направлений (палитра, CRM);
-        // невидимое незарегистрированное не подмешивается никому, кроме
-        // канцелярии (иначе поиск раскрывал бы «Новые»).
-        return canRegisterLetters(user) ? {} : registered;
+        // Без box — только зарегистрированные обоих направлений (палитра,
+        // CRM, вкладка «Письма» контрагента): «Новые» — отдельный box и
+        // отдельное право, подмешивать их в общий поиск нельзя.
+        return registered;
     }
   }
 

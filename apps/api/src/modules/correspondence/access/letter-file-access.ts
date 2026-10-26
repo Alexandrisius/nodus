@@ -34,6 +34,8 @@ export class LetterFileAccess implements FileAccessContributor {
     if (letters.length === 0) return null;
     const permissions = await this.membership.effectivePermissions(userId);
     const visible = letters.some((letter) => canViewLetter({ permissions }, letter));
-    return { canView: visible, canEdit: false };
+    // immutable — вето поверх владения файлом: загрузивший скан регистратор
+    // тоже не правит зарегистрированный документ (живое security-ревью #55).
+    return { canView: visible, canEdit: false, immutable: true };
   }
 }

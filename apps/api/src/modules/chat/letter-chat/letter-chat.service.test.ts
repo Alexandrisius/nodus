@@ -10,10 +10,10 @@ const CONVERSATION = '00000000-0000-4000-8000-000000000205';
 
 function setup(roster: unknown) {
   const repo = {
-    find: vi.fn(async () => CONVERSATION),
+    find: vi.fn<() => Promise<string | null>>(async () => CONVERSATION),
     findOrCreate: vi.fn(async () => ({ id: CONVERSATION, created: true })),
     lock: vi.fn(async () => void 0),
-    members: vi.fn(async () => []),
+    members: vi.fn<() => Promise<string[]>>(async () => []),
     addMembers: vi.fn(async (_tx: unknown, _id: string, members: { userId: string }[]) =>
       members.map((member) => member.userId),
     ),

@@ -10,6 +10,10 @@ import type { FastifyRequest } from 'fastify';
 import { DomainException } from '../../../core/errors/domain-exception.js';
 import type { UploadedLetterFile } from './letters-mutation.service.js';
 
+/** Суммарный потолок запроса ручного создания: 20×100 МБ по отдельности
+ *  дали бы 2 ГБ временных файлов на один запрос (security-ревью #55). */
+const MAX_REQUEST_BYTES = 250 * 1024 * 1024;
+
 /** Поля multipart-создания письма (до файлов — канон @fastify/multipart). */
 export interface LetterMultipart {
   fields: Record<string, string>;
@@ -29,6 +33,7 @@ export async function readLetterMultipart(request: FastifyRequest): Promise<Lett
   const cleanup = (): Promise<void> => rm(dir, { recursive: true, force: true });
   const fields: Record<string, string> = {};
   const files: UploadedLetterFile[] = [];
+  let totalBytes = 0;
   try {
     const parts = request.parts({
       limits: {
@@ -50,6 +55,15 @@ export async function readLetterMultipart(request: FastifyRequest): Promise<Lett
           ErrorCode.VALIDATION_FAILED,
           'Letter file exceeds limit',
           { maxBytes: LETTER_LIMITS.fileBytes },
+          413,
+        );
+      }
+      totalBytes += part.file.bytesRead;
+      if (totalBytes > MAX_REQUEST_BYTES) {
+        throw new DomainException(
+          ErrorCode.VALIDATION_FAILED,
+          'Letter files exceed request limit',
+          { maxBytes: MAX_REQUEST_BYTES },
           413,
         );
       }

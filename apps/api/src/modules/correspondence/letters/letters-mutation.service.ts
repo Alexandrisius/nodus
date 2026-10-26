@@ -66,6 +66,16 @@ export class LettersMutationService {
         max: LETTER_LIMITS.files,
       });
     }
+    if (fields.mainIndex >= parts.length) {
+      throw new DomainException(
+        ErrorCode.VALIDATION_FAILED,
+        'Main document index is out of range',
+        {
+          mainIndex: fields.mainIndex,
+          files: parts.length,
+        },
+      );
+    }
     const type = await this.catalog.resolveType(fields.typeId, {
       category: 'letter',
       requireCreatable: true,
@@ -158,6 +168,9 @@ export class LettersMutationService {
       companyDate(new Date()),
     );
     if (changes.length === 0) return this.query.detail(user, id);
+    // Эффективный подписант: смена корреспондента могла сбросить его в null
+    // (валидатор), и проекция CRM не должна оставить чужой контакт.
+    const signerChange = changes.find((change) => change.field === 'signerId');
     await this.txRunner.run(async (tx) => {
       await this.repo.lock(tx, id);
       await this.repo.update(tx, id, data);
@@ -168,7 +181,7 @@ export class LettersMutationService {
           letterId: id,
           changes,
           ...(body.counterpartyId !== undefined ? { counterpartyId: body.counterpartyId } : {}),
-          ...(body.signerId !== undefined ? { signerId: body.signerId } : {}),
+          ...(signerChange ? { signerId: signerChange.to as string | null } : {}),
         },
         { actorId: user.id, aggregateType: 'letter', aggregateId: id },
       );
@@ -201,7 +214,7 @@ export class LettersMutationService {
   async join(user: AuthUser, id: string): Promise<LetterDetail> {
     const row = await this.query.visibleRow(user, id);
     if (row.registeredAt === null) throw DomainException.notFound('Letter is not registered');
-    const added = await this.txRunner.run(async (tx) => {
+    await this.txRunner.run(async (tx) => {
       await this.repo.lock(tx, id);
       const created = await this.repo.addParticipant(tx, id, user.id);
       if (created) {
@@ -212,9 +225,7 @@ export class LettersMutationService {
           { actorId: user.id, aggregateType: 'letter', aggregateId: id },
         );
       }
-      return created;
     });
-    void added;
     return this.query.detail(user, id);
   }
 }

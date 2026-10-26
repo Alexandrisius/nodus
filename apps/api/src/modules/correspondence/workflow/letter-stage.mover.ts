@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { CORRESPONDENCE_EVENTS, type LetterStageChangedPayload } from '@nodus/contracts';
+import { CORRESPONDENCE_EVENTS, ErrorCode, type LetterStageChangedPayload } from '@nodus/contracts';
 
 import type { Prisma } from '../../../generated/prisma/client.js';
 import type { TransactionClient } from '../../../core/database/transaction-runner.js';
+import { DomainException } from '../../../core/errors/domain-exception.js';
 import { EventBus } from '../../../core/events/event-bus.js';
 import { companyDate } from '../../../core/time/company-time.js';
 import type {
@@ -33,6 +34,15 @@ export class LetterStageMover {
     meta: WorkflowStageChangeMeta,
   ): Promise<void> {
     const numbering = meta.numbering;
+    // Страховка Р3: номер не выдаётся зарегистрированному письму — даже если
+    // будущий маршрут вернёт его в «Новое» с кнопкой регистрации.
+    if (numbering && letter.registeredAt !== null) {
+      throw new DomainException(
+        ErrorCode.LETTER_ALREADY_REGISTERED,
+        'Letter is already registered',
+        { regNumber: letter.regNumber },
+      );
+    }
     const data: Prisma.LetterUncheckedUpdateInput = {
       stageId: target.id,
       systemState: target.systemState,
