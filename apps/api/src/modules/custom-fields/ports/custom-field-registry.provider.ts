@@ -66,7 +66,7 @@ export class CustomFieldRegistryProvider implements CustomFieldRegistry {
     const definitions = boundTo(all, args.typeId);
     // «Не привязан к типу» — только когда тип известен: без него причина
     // отказа прежняя (`unknown` из валидатора).
-    const unbound = args.typeId === undefined ? [] : unboundIssues(definitions, args.input);
+    const unbound = args.typeId === undefined ? [] : unboundIssues(all, definitions, args.input);
     if (unbound.length > 0) throw invalidValues(unbound);
     if (definitions.length === 0) {
       assertNoInput(args.input);
@@ -103,7 +103,7 @@ export class CustomFieldRegistryProvider implements CustomFieldRegistry {
     const definitions = boundTo(all, args.typeId);
     // Запись непривязанного — ошибка; очистка (`null`) разрешена всегда:
     // снятие привязки не должно блокировать уборку старого значения (Р8).
-    const unbound = args.typeId === undefined ? [] : unboundIssues(definitions, changed);
+    const unbound = args.typeId === undefined ? [] : unboundIssues(all, definitions, changed);
     if (unbound.length > 0) throw invalidValues(unbound);
     const issues = await this.validator.validate(scope, definitions, changed, tx);
     if (issues.length > 0) throw invalidValues(issues);
@@ -146,14 +146,21 @@ function boundTo(
     : definitions.filter((definition) => definition.typeIds.includes(typeId));
 }
 
-/** Значения непривязанных атрибутов — 422 с причиной `not_in_type` (Р8). */
+/** Значения СУЩЕСТВУЮЩИХ, но непривязанных атрибутов — 422 `not_in_type`
+ *  (Р8). Неизвестный ключ сюда не попадает: его причина — `unknown`, иначе
+ *  клиент не отличит опечатку в id от «атрибут есть, но не для этого типа». */
 function unboundIssues(
+  all: readonly CustomFieldDefinition[],
   bound: readonly CustomFieldDefinition[],
   values: Readonly<Record<string, unknown>>,
 ): CustomFieldIssue[] {
-  const ids = new Set(bound.map((definition) => definition.id));
+  const boundIds = new Set(bound.map((definition) => definition.id));
+  const knownIds = new Set(all.map((definition) => definition.id));
   return Object.entries(values)
-    .filter(([fieldId, value]) => value !== null && value !== undefined && !ids.has(fieldId))
+    .filter(
+      ([fieldId, value]) =>
+        value !== null && value !== undefined && knownIds.has(fieldId) && !boundIds.has(fieldId),
+    )
     .map(([fieldId]) => ({
       fieldId,
       reason: 'not_in_type' as const,

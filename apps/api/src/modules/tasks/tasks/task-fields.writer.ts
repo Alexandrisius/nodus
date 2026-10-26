@@ -124,9 +124,11 @@ export class TaskFieldsWriter {
     }
     if (patch.customFields && Object.keys(patch.customFields).length > 0) {
       const current = await this.facts.customFieldsOf(tx, row.id);
+      // Тип строки — привязка атрибутов (#432, Р8): запись значения
+      // непривязанного атрибута — 422 `not_in_type`, очистка разрешена.
       const prepared = await this.customFields.prepareUpdate(
         'task',
-        { current, patch: patch.customFields },
+        { current, patch: patch.customFields, typeId: row.typeId },
         tx,
       );
       fieldChanges = prepared.changes;
