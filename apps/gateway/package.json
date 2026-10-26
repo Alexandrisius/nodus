@@ -14,7 +14,7 @@
   "dependencies": {
     "@nodus/contracts": "workspace:*",
     "ioredis": "^6.0.0",
-    "jose": "^6.2.12",
+    "jose": "^6.2.13",
     "pg": "^8.23.1",
     "socket.io": "^4.8.4",
     "zod": "^4.6.7"
@@ -23,7 +23,7 @@
     "@nodus/config": "workspace:*",
     "@types/node": "^24.19.2",
     "@types/pg": "^8.23.1",
-    "dotenv": "^18.0.8",
+    "dotenv": "^18.0.9",
     "socket.io-client": "^4.8.4",
     "typescript": "~5.9.3",
     "vitest": "^4.1.12"
