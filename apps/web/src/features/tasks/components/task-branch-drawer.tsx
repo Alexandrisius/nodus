@@ -8,8 +8,9 @@ import { Input } from '@nodus/ui/components/input';
 import { Skeleton } from '@nodus/ui/components/skeleton';
 import { cn } from '@nodus/ui/lib/utils';
 
-import { useAddSubtaskTo, useTaskBranch, useTaskRelations } from '../api/tasks-api.js';
+import { useTaskBranch, useTaskRelations } from '../api/tasks-api.js';
 import { stageTone } from '../../../shared/ui/board/stage-tone.js';
+import { useQuickCreate } from '../../../shared/tasks/quick-create.js';
 
 type BranchTab = 'subtasks' | 'relations';
 
@@ -41,7 +42,7 @@ export const TaskBranchDrawer = memo(function TaskBranchDrawer({
   onClose: () => void;
 }) {
   const { data: branch } = useTaskBranch(rootId);
-  const addSubtask = useAddSubtaskTo();
+  const quick = useQuickCreate();
   const [tab, setTab] = useState<BranchTab>('subtasks');
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
   const [addingTo, setAddingTo] = useState<string | null>(null);
@@ -63,10 +64,11 @@ export const TaskBranchDrawer = memo(function TaskBranchDrawer({
 
   function submitSubtask(parentId: string) {
     const title = draft.trim();
-    if (!title || addSubtask.isPending) return;
+    if (!title) return;
     setDraft('');
     setAddingTo(null);
-    addSubtask.mutate({ parentId, title });
+    // #432 (Р10): строка подзадачи — быстрый вход единого окна создания.
+    quick.run({ title, parentId });
   }
 
   function renderNode(node: TaskBranchNode, depth: number): React.ReactNode {

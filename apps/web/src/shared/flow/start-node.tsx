@@ -7,6 +7,8 @@ import { cn } from '@nodus/ui/lib/utils';
 /** Данные терминала «Создание задачи» (старт маршрута). */
 export interface StartNodeData extends Record<string, unknown> {
   readOnly: boolean;
+  /** Выделен узел «Создание» — открыта панель «Окно создания» (#432). */
+  selected?: boolean;
 }
 
 export type StartFlowNode = Node<StartNodeData, 'start'>;
@@ -15,7 +17,7 @@ export type StartFlowNode = Node<StartNodeData, 'start'>;
  * Старт маршрута (реф Jira «Create»): пунктирная пилюля РОВНО h-10 слева от
  * начального статуса, центр — на одной линии с его центром (стрелка прямая).
  * В правке из точки справа тянется связь — так выбирается начальный статус;
- * клик — панель начального статуса.
+ * клик — панель «Окно создания» (#432): форма создания типа.
  */
 export const StartNode = memo(function StartNode({ data }: NodeProps<StartFlowNode>) {
   return (
@@ -24,7 +26,9 @@ export const StartNode = memo(function StartNode({ data }: NodeProps<StartFlowNo
         'flow-node-card flex h-[40px] w-[156px] items-center gap-2 rounded-full border border-dashed border-border px-3 text-muted-foreground',
         !data.readOnly &&
           'cursor-pointer transition-colors hover:border-input hover:text-foreground',
+        data.selected && 'border-solid border-ring text-foreground',
       )}
+      data-selected={data.selected ? 'true' : undefined}
       title={ui.automation.startNode}
     >
       <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-muted-foreground" />

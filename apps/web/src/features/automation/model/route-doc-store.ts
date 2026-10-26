@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type {
+  CreationForm,
   FlowHandleId,
   FlowPoint,
   TaskSystemState,
@@ -29,7 +30,12 @@ import { adoptedLayoutState, loadedState } from './route-doc-load.js';
  *  (use-layout-autosave, без новой версии). Перетаскивание на холсте живёт
  *  локально в React Flow; в документ — одним шагом истории на отпускании. */
 
-export type SelectionRef = { kind: 'stage' | 'transition'; id: string } | null;
+/** Выделение холста: статус, кнопка или окно создания (#432). У формы
+ *  `id` — константа, `field` — ключ слота (клик по проблеме публикации). */
+export type SelectionRef =
+  | { kind: 'stage' | 'transition'; id: string }
+  | { kind: 'creation'; id: 'creation'; field?: string }
+  | null;
 
 export interface CanvasConnection {
   source: string;
@@ -97,6 +103,10 @@ interface RouteDocState {
   /** Удаление выделенного с холста (Delete) — одним шагом. */
   removeElements: (stageIds: readonly string[], transitionIds: readonly string[]) => void;
 
+  /** Форма создания типа (#432, В1): раздел документа, `null` — умолчание.
+   *  Правки формы — шаг истории и черновик, как у статусов и кнопок. */
+  setCreationForm: (form: CreationForm | null) => void;
+
   /** «Упорядочить»: авторасстановка в раскладку (шаг истории). */
   arrange: () => void;
   undo: () => void;
@@ -149,7 +159,7 @@ export function createRouteDocStore(workflowId: string) {
     };
     const dropSelectionOf = (ids: ReadonlySet<string>) => {
       const selection = get().selection;
-      return selection && ids.has(selection.id) ? null : selection;
+      return selection && selection.kind !== 'creation' && ids.has(selection.id) ? null : selection;
     };
 
     return {
@@ -274,6 +284,8 @@ export function createRouteDocStore(workflowId: string) {
         const result = ops.toggleAny(get().document, stageId, on);
         if (result.doc !== get().document) commit(result.doc);
       },
+
+      setCreationForm: (form) => commit({ ...get().document, creation: form }),
 
       removeElements: (stageIds, transitionIds) => {
         if (stageIds.length === 0 && transitionIds.length === 0) return;

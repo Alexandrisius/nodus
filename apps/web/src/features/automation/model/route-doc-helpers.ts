@@ -65,16 +65,18 @@ export function normalize(doc: WorkflowDraftDocument): WorkflowDraftDocument {
   return { ...doc, stages: normalizeStages(doc.stages) };
 }
 
-/** Сменилась ли СТРУКТУРА маршрута (статусы и кнопки) против опубликованной.
- *  Расстановка холста — оформление: она сохраняется сама, без публикации, и
- *  черновиком маршрута не считается. */
+/** Сменилась ли СТРУКТУРА маршрута (статусы, кнопки и форма создания)
+ *  против опубликованной. Расстановка холста — оформление: она сохраняется
+ *  сама, без публикации, и черновиком маршрута не считается. Форма создания
+ *  входит в канонизацию и сравнение (урок #409): иначе «Сбросить» не
+ *  возвращал бы форму, а вход показывал ложное «есть изменения». */
 export function structureChanged(
   document: WorkflowDraftDocument,
   baseline: WorkflowDraftDocument,
 ): boolean {
   return (
-    JSON.stringify([document.stages, document.transitions]) !==
-    JSON.stringify([baseline.stages, baseline.transitions])
+    JSON.stringify([document.stages, document.transitions, document.creation ?? null]) !==
+    JSON.stringify([baseline.stages, baseline.transitions, baseline.creation ?? null])
   );
 }
 

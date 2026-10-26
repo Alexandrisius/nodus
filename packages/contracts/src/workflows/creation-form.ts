@@ -39,6 +39,9 @@ export const taskCreationSystemKeySchema = z.enum([
 ]);
 export type TaskCreationSystemKey = z.infer<typeof taskCreationSystemKeySchema>;
 
+/** Системные ключи в порядке выбора (группа «Системные» в редакторе формы). */
+export const TASK_CREATION_SYSTEM_KEYS = taskCreationSystemKeySchema.options;
+
 /** Ключ слота: системное поле задачи или атрибут `cf.<uuid>`. Union —
  *  надмножество: формы писем (#55) расширят системные ключи. */
 export const creationFieldKeySchema = z.union([taskCreationSystemKeySchema, customFieldKeySchema]);

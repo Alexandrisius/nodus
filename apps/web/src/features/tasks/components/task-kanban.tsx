@@ -12,9 +12,9 @@ import { makeTaskCardFields } from '../../../shared/views/task-card-fields.js';
 import { useFilteredList } from '../../../shared/views/use-list-toolbar.js';
 import { useViewFields } from '../../../shared/views/use-view-fields.js';
 import type { TaskListItem } from '@nodus/contracts';
+import { useQuickCreate } from '../../../shared/tasks/quick-create.js';
 import {
   useCreatePersonalStage,
-  useCreateTask,
   useDeletePersonalStage,
   usePersonalStages,
   useUpdatePersonalStage,
@@ -47,7 +47,7 @@ export function TaskKanban({
   const { data: stages } = usePersonalStages();
   const updatePersonalStage = useUpdateTaskPersonalStage();
   const createStage = useCreatePersonalStage();
-  const createTask = useCreateTask();
+  const quick = useQuickCreate();
   const updateStageMeta = useUpdatePersonalStage();
   const deleteStage = useDeletePersonalStage();
   const { isVisible } = useViewFields('tasks.kanban', taskCardFields);
@@ -138,21 +138,22 @@ export function TaskKanban({
               onRecolor={(stageId, color) => updateStageMeta.mutate({ stageId, body: { color } })}
               onDelete={(stageId) => deleteStage.mutate(stageId)}
               onCreateTask={(stageId, title) =>
-                createTask.mutate(
-                  { title, personalStageId: stageId },
-                  {
-                    onSuccess: (task) => {
-                      // Колонку назначает сервер (закрытая колонка — задача
-                      // встаёт в начальную): вставка — туда, где она живёт.
-                      const column = task.personalStageId ?? stageId;
-                      board.insertNewTask(column, task);
-                      setCountDelta((prev) => ({
-                        ...prev,
-                        [column]: (prev[column] ?? 0) + 1,
-                      }));
-                    },
+                // Быстрый вход (#432, Р10): форма типа без обязательных полей —
+                // создаём сразу; иначе открывается единое окно с заполнением.
+                quick.run({
+                  title,
+                  personalStageId: stageId,
+                  onCreated: (task) => {
+                    // Колонку назначает сервер (закрытая колонка — задача
+                    // встаёт в начальную): вставка — туда, где она живёт.
+                    const column = task.personalStageId ?? stageId;
+                    board.insertNewTask(column, task);
+                    setCountDelta((prev) => ({
+                      ...prev,
+                      [column]: (prev[column] ?? 0) + 1,
+                    }));
                   },
-                )
+                })
               }
             >
               {cards.map((task) => (

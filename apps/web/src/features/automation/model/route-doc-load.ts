@@ -19,6 +19,8 @@ export function loadedState(detail: WorkflowDetail) {
     stages: detail.document.stages.map((s) => ({ ...s })),
     transitions: detail.document.transitions.map((t) => ({ ...t })),
     layout: detail.document.layout ?? EMPTY_LAYOUT,
+    // Форма создания — раздел документа (#432): null — форма по умолчанию.
+    creation: detail.document.creation ?? null,
   });
   const draft = readDraft(detail.id, detail.version);
   const document = canonicalDocument(

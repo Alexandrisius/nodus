@@ -1,8 +1,9 @@
 import { useCallback, useState } from 'react';
-import type { CustomFieldScope, WorkflowDetail } from '@nodus/contracts';
+import type { CustomFieldScope, ProcessType, WorkflowDetail } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 
 import { useRouteDocStore, type SelectionRef } from '../../../model/route-doc-store.js';
+import { CreationPanel } from './creation-panel.js';
 import { SidePanel } from './side-panel.js';
 import { StageButtonsSection } from './stage-buttons-section.js';
 import { StagePanel } from './stage-panel.js';
@@ -34,10 +35,13 @@ const keyOf = (ref: SelectionRef) => (ref ? `${ref.kind}:${ref.id}` : null);
  */
 export function EditorPanel({
   workflow,
+  type,
   scope,
   readOnly,
 }: {
   workflow: WorkflowDetail;
+  /** Тип процесса: категория полей, форма создания, названия ролей (#432). */
+  type: ProcessType;
   /** Область кастомных полей по категории маршрута (#431, Р7). */
   scope: CustomFieldScope;
   readOnly: boolean;
@@ -62,7 +66,8 @@ export function EditorPanel({
     shown?.kind === 'stage' ? (doc.stages.find((s) => s.id === shown.id) ?? null) : null;
   const transition =
     shown?.kind === 'transition' ? (doc.transitions.find((t) => t.id === shown.id) ?? null) : null;
-  const open = selection !== null && (stage !== null || transition !== null);
+  const creation = shown?.kind === 'creation';
+  const open = selection !== null && (stage !== null || transition !== null || creation);
 
   const close = useCallback(() => useRouteDocStore.getState().select(null), []);
   const back = useCallback(() => setSection('root'), []);
@@ -71,12 +76,15 @@ export function EditorPanel({
   // Шапка — вид элемента или раздел; название — первое поле панели.
   const title = inSection
     ? SECTION_TITLE[section as Exclude<PanelSection, 'root'>]
-    : stage
-      ? ui.automation.panel.kindStage
-      : ui.automation.panel.kindTransition;
+    : creation
+      ? ui.automation.creation.title
+      : stage
+        ? ui.automation.panel.kindStage
+        : ui.automation.panel.kindTransition;
 
   return (
     <SidePanel open={open} title={title} onClose={close} onBack={inSection ? back : undefined}>
+      {creation ? <CreationPanel workflow={workflow} type={type} readOnly={readOnly} /> : null}
       {stage && section === 'root' ? (
         <StagePanel
           key={stage.id}

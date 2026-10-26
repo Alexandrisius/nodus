@@ -32,8 +32,9 @@ export interface RouteGraphOptions {
   highlightedTransitionIds?: ReadonlySet<string>;
   /** Счётчики задач по статусам (редактор). */
   stageEntityCounts?: Readonly<Record<string, number>>;
-  /** Выделение редактора (кольцо узла, подсветка стрелки и её подписи). */
-  selection?: { kind: 'stage' | 'transition'; id: string } | null;
+  /** Выделение редактора (кольцо узла, подсветка стрелки и её подписи);
+   *  `creation` — выделен узел «Создание» (#432). */
+  selection?: { kind: 'stage' | 'transition' | 'creation'; id: string } | null;
   onSelectTransition?: (id: string) => void;
   /** Подпись перетащили вдоль стрелки (только редактор). */
   onLabelT?: (transitionId: string, t: number) => void;
@@ -170,7 +171,8 @@ export function buildRouteGraph(
       selectable: false,
       deletable: false,
       connectable: !readOnly,
-      data: { readOnly },
+      // Форма создания (#432): узел «Создание» выделяется как элемент холста.
+      data: { readOnly, selected: options.selection?.kind === 'creation' },
     } satisfies StartFlowNode);
     edges.push({
       id: START_EDGE_ID,

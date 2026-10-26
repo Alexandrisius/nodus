@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { TaskDetail, TaskListItem, ProcessType } from '@nodus/contracts';
-import { ui } from '@nodus/contracts';
+import { DEFAULT_TASK_TYPE_CODE, ui } from '@nodus/contracts';
 import { toast } from 'sonner';
 
 import { api } from '../api-client.js';
@@ -9,43 +9,51 @@ import { tasksKeys } from './tasks-keys.js';
 
 /**
  * Типы процессов категории «задача» для потребителей вне фичи automation
- * (карточка задачи: смена типа, экспресс-форма: выбор типа) — кросс-фичевые
- * хуки в shared, канон task-stages.ts. Сами CRUD типов — features/automation.
- * Категория `task` — фильтр сервера и клиента: задачи не видят типы писем
- * (ADR-0024).
+ * (единое окно создания, смена типа в карточке, доска проекта) — кросс-
+ * фичевые хуки в shared, канон task-stages.ts. Сами CRUD типов —
+ * features/automation. Категория `task` — фильтр сервера и клиента: задачи
+ * не видят типы писем (ADR-0024).
+ *
+ * С #432 сервер отдаёт `viewer` (что можно текущему пользователю) и форму
+ * создания типа: хуки отсекают невидимое и недоступное к созданию (I8 —
+ * сервер всё равно проверит и ответит 403).
  */
 
-/** Доступные при создании типы: живые creatable категории задачи. */
+/** Типы, по которым сотрудник может создавать задачи (выбор в окне). */
 export function useCreatableProcessTypes() {
   return useQuery({
     queryKey: automationKeys.types('exclude', 'task'),
     queryFn: () => api<ProcessType[]>('/workflows/types?category=task'),
     staleTime: 60_000,
-    select: (types: ProcessType[]) => types.filter((t) => t.creatable && t.category === 'task'),
+    select: (types: ProcessType[]) =>
+      types.filter((t) => t.category === 'task' && t.creatable && t.viewer.canCreate),
   });
 }
 
-/** Тип по умолчанию (экспресс-форма, доска проекта): первый системный по
- *  порядку библиотеки («Стандартный»), иначе первый. Сервер без typeId
- *  берёт тот же «Стандартный», но форма шлёт выбранный тип явно. */
-export function defaultProcessType(
+/** Тип по умолчанию (Р9/О10): код `task` («Стандартный»), если его можно
+ *  создать, иначе первый доступный. Совпадает с умолчанием сервера — форма
+ *  и созданная задача не расходятся. */
+export function defaultTaskType(
   types: readonly ProcessType[] | undefined,
 ): ProcessType | undefined {
-  return types?.find((t) => t.isSystem) ?? types?.[0];
+  const list = types ?? [];
+  const standard = list.find((t) => t.code === DEFAULT_TASK_TYPE_CODE);
+  return standard ?? list[0];
 }
 
-/** Все живые типы (без фильтра creatable — для смены типа). */
+/** Живые типы, видимые сотруднику (смена типа — только доступные, Р6). */
 export function useAliveProcessTypes() {
   return useQuery({
     queryKey: automationKeys.types('exclude', 'task'),
     queryFn: () => api<ProcessType[]>('/workflows/types?category=task'),
     staleTime: 60_000,
-    select: (types: ProcessType[]) => types.filter((t) => !t.archivedAt && t.category === 'task'),
+    select: (types: ProcessType[]) =>
+      types.filter((t) => !t.archivedAt && t.category === 'task' && t.viewer.canView),
   });
 }
 
 /** Смена типа задачи (#378): если текущего статуса нет в новом маршруте —
- *  обязателен stageId. */
+ *  обязателен stageId. Доступ к целевому типу проверяет сервер (403). */
 export function useChangeProcessType(taskId: string) {
   const queryClient = useQueryClient();
   return useMutation({

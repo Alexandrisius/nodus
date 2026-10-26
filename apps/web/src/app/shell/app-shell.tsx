@@ -8,6 +8,7 @@ import { TooltipProvider } from '@nodus/ui/components/tooltip';
 import { registerCardBridge, registerReplaceTopMessenger } from '../../shared/lib/card-bridge.js';
 import { stageMessengerThread } from '../../shared/chat/messenger-nav.js';
 import { ChatDialogHosts } from '../../shared/chat/dialog-hosts.js';
+import { TaskCreateHost } from '../../shared/tasks/task-create-host.js';
 import { AttachmentViewer } from '../../shared/files/attachment-viewer.js';
 import { NotificationToasts } from '../../features/notifications/components/notification-toasts.js';
 import { useNotificationSink } from '../../features/notifications/model/use-notification-sink.js';
@@ -161,6 +162,8 @@ export function AppShell() {
       <CommandPalette />
       <WhatsNewPanel />
       <ChatDialogHosts />
+      {/* Единое окно создания задачи (#432): один хост на все входы. */}
+      <TaskCreateHost />
       <AttachmentViewer stripW={viewerStripW} />
       <Toaster richColors theme={theme} />
     </TooltipProvider>

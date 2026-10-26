@@ -7,7 +7,7 @@ import { cn } from '@nodus/ui/lib/utils';
 import { formatDate, withoutPatronymic } from '../../../shared/lib/format.js';
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
 import { TaskStatusBadge } from '../../../shared/ui/task-status-badge.js';
-import { useAddSubtask } from '../api/tasks-api.js';
+import { useQuickCreate } from '../../../shared/tasks/quick-create.js';
 import { isTempId } from '../lib/temp-records.js';
 import { InlineAddRow } from './inline-add-row.js';
 
@@ -21,7 +21,7 @@ import { InlineAddRow } from './inline-add-row.js';
  * утверждение видна своим статусом, но не готова (ADR-0020, дополнение 2).
  */
 export function TaskSubtasks({ task, onOpen }: { task: TaskDetail; onOpen: (id: string) => void }) {
-  const addSubtask = useAddSubtask(task.id);
+  const quick = useQuickCreate();
   const total = task.subtasks.length;
   const closed = task.subtasks.filter((s) => isFinalState(s.stage.systemState)).length;
   const parentDeadline = task.deadline ? Date.parse(task.deadline) : null;
@@ -96,7 +96,13 @@ export function TaskSubtasks({ task, onOpen }: { task: TaskDetail; onOpen: (id: 
             label={ui.tasks.subtaskAdd}
             icon={<Plus className="size-3.5" strokeWidth={1.75} />}
             maxLength={200}
-            onAdd={(title) => addSubtask.mutate(title)}
+            onAdd={(title) =>
+              quick.run({
+                title,
+                parentId: task.id,
+                contextLabel: `${ui.taskCreate.contextSubtask} № ${task.number}`,
+              })
+            }
           />
         ) : null}
       </div>

@@ -265,6 +265,8 @@ export const automationStrings = {
   publishTitle: 'Публикация маршрута',
   buttonsChangedForms: ['кнопка изменена', 'кнопки изменены', 'кнопок изменено'],
   publishLayoutChanged: 'изменена расстановка',
+  /** Публикация формы создания типа (#432): отдельная строка сводки. */
+  publishCreationChanged: 'изменена форма создания',
   publishNothingChanged: 'Изменений нет',
   publishMigrateTo: 'перенести в',
   publishRestateNote: '«Мой план» сотрудников обновится',
