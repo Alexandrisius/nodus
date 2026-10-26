@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import type { CreationFieldKey, ProcessType } from '@nodus/contracts';
-import { ErrorCode, slotLabel, ui } from '@nodus/contracts';
+import { ErrorCode, slotLabel, typeConfigOf, typeCreationFormOf, ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import { Dialog, DialogContent, DialogTitle } from '@nodus/ui/components/dialog';
 import { NodeLabel } from '@nodus/ui/components/node-label';
@@ -89,7 +89,7 @@ export function TaskCreateWindow({
   const shownType: ProcessType | undefined =
     types?.find((type) => type.id === draft.typeId) ?? defaultTaskType(types);
   // Форма — из типа (эффективная форма опубликованного маршрута, Р2).
-  const effectiveForm = shownType ? shownType.creationForm : EMPTY_FORM;
+  const effectiveForm = shownType ? typeCreationFormOf(shownType) : EMPTY_FORM;
 
   const missing = shownType ? missingFor(effectiveForm, draft) : [];
   const canSubmit =
@@ -104,7 +104,10 @@ export function TaskCreateWindow({
           required: true,
           preset: null,
         },
-        { roleLabels: shownType?.config.card.roleLabels, definitions: fieldDefs },
+        {
+          roleLabels: shownType ? typeConfigOf(shownType).card.roleLabels : undefined,
+          definitions: fieldDefs,
+        },
       ),
     )
     .join(', ');

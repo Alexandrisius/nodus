@@ -57,7 +57,7 @@ function transitionIcon(t: WorkflowTransition): LucideIcon | typeof PauseGlyph {
  * правом конце — таймер учёта времени. Личная колонка «Моего плана» здесь
  * не показывается (только DnD на доске).
  */
-export function TaskActionBar({ task }: { task: TaskDetail }) {
+export function TaskActionBar({ task, showTime = true }: { task: TaskDetail; showTime?: boolean }) {
   const { data: transitions } = useWorkflowTransitions(task.id);
   const runner = useTransitionRunner(task);
 
@@ -65,7 +65,7 @@ export function TaskActionBar({ task }: { task: TaskDetail }) {
     return (
       <div className="flex w-full min-w-0 items-center gap-1.5">
         <span className="ml-auto" />
-        <TaskTimerButton task={task} />
+        {showTime ? <TaskTimerButton task={task} /> : null}
       </div>
     );
   }
@@ -164,7 +164,7 @@ export function TaskActionBar({ task }: { task: TaskDetail }) {
         </span>
       ) : null}
       <span className="ml-auto" />
-      <TaskTimerButton task={task} />
+      {showTime ? <TaskTimerButton task={task} /> : null}
     </div>
   );
 }

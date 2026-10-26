@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ReactFlowProvider, useReactFlow } from '@xyflow/react';
 import { useQueryClient } from '@tanstack/react-query';
-import { checkWorkflowDocument } from '@nodus/contracts';
+import { checkWorkflowDocument, typeIdsOf } from '@nodus/contracts';
 import type { ProcessType, WorkflowDetail, WorkflowProblem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
@@ -83,7 +83,7 @@ function RouteEditorInner({ type, workflow, settings, settingsOpen = false }: Ro
             active: new Set(customFieldDefinitions.map((d) => d.id)),
             hidden: new Set(customFieldDefinitions.filter((d) => d.hidden).map((d) => d.id)),
             inType: new Set(
-              customFieldDefinitions.filter((d) => d.typeIds.includes(type.id)).map((d) => d.id),
+              customFieldDefinitions.filter((d) => typeIdsOf(d).includes(type.id)).map((d) => d.id),
             ),
           }
         : undefined,

@@ -34,7 +34,15 @@ const valueButton =
 /** Срок: чип — триггер календаря (DateTimePicker). Сдвиг срока родителя
  *  предлагает сдвинуть сроки открытых подзадач на тот же интервал (каскад
  *  #311, модель MS Project/Битрикс24 «сдвинуть связанные»). */
-export function TaskDeadlineField({ task }: { task: TaskDetail }) {
+/** Срок карточки. `required` — обязательное при создании поле типа (#432):
+ *  очистка недоступна, сервер ответил бы 422. */
+export function TaskDeadlineField({
+  task,
+  required = false,
+}: {
+  task: TaskDetail;
+  required?: boolean;
+}) {
   const update = useUpdateTask(task.id);
   const shift = useShiftSubtaskDeadlines();
   const [cascade, setCascade] = useState<{ id: string; deadline: string }[] | null>(null);
@@ -45,6 +53,7 @@ export function TaskDeadlineField({ task }: { task: TaskDetail }) {
 
   function onChange(next: Date | null) {
     const deadline = next?.toISOString() ?? null;
+    if (required && deadline === null) return;
     if (deadline === task.deadline) return;
     update.mutate({ deadline });
     if (!next || !task.deadline) return;
@@ -64,7 +73,7 @@ export function TaskDeadlineField({ task }: { task: TaskDetail }) {
         value={task.deadline ? new Date(task.deadline) : null}
         onChange={onChange}
         ariaLabel={ui.tasks.deadline}
-        clearLabel={ui.tasks.removeDeadline}
+        clearLabel={required ? undefined : ui.tasks.removeDeadline}
       >
         <button type="button" className={valueButton}>
           <DeadlineChip deadline={task.deadline} state={task.stage.systemState} />

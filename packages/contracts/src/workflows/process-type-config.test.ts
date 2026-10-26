@@ -2,9 +2,15 @@ import { describe, expect, it } from 'vitest';
 
 import {
   DEFAULT_PROCESS_TYPE_CONFIG,
+  DEFAULT_TASK_CARD_LAYOUT,
   isDefaultProcessType,
   normalizeTypeConfig,
+  taskLayoutOf,
   typeAccessFor,
+  typeConfigOf,
+  typeCreationFormOf,
+  typeIdsOf,
+  typeViewerOf,
   updateProcessTypeConfigBodySchema,
 } from './process-type-config.js';
 
@@ -120,5 +126,37 @@ describe('updateProcessTypeConfigBodySchema', () => {
     expect(
       updateProcessTypeConfigBodySchema.parse({ access: { view: null, create: [roleA] } }),
     ).toEqual({ access: { view: null, create: [roleA] } });
+  });
+});
+
+describe('терпимое чтение со старого API (:5173 без #432)', () => {
+  it('нет config — умолчания; нет viewer — права по creatable', () => {
+    expect(typeConfigOf({})).toEqual(DEFAULT_PROCESS_TYPE_CONFIG);
+    expect(typeViewerOf({ creatable: false })).toEqual({ canView: true, canCreate: false });
+    expect(typeViewerOf({ creatable: true })).toEqual({ canView: true, canCreate: true });
+  });
+
+  it('нет creationForm — форма по умолчанию категории', () => {
+    expect(typeCreationFormOf({ category: 'task' }).fields.map((slot) => slot.key)).toEqual([
+      'description',
+      'assignee',
+      'deadline',
+      'project',
+    ]);
+  });
+
+  it('нет typeIds — пустая привязка (атрибут нигде не показывается)', () => {
+    expect(typeIdsOf({})).toEqual([]);
+    expect(typeIdsOf({ typeIds: [roleA] })).toEqual([roleA]);
+  });
+
+  it('нет layout — полная карточка', () => {
+    expect(taskLayoutOf({})).toEqual(DEFAULT_TASK_CARD_LAYOUT);
+    expect(taskLayoutOf({ layout: { hiddenBlocks: ['chat'] } })).toEqual(DEFAULT_TASK_CARD_LAYOUT);
+    expect(
+      taskLayoutOf({
+        layout: { hiddenBlocks: ['chat'], roleLabels: { assignee: 'Заявитель' }, requiredKeys: [] },
+      }),
+    ).toEqual({ hiddenBlocks: ['chat'], roleLabels: { assignee: 'Заявитель' }, requiredKeys: [] });
   });
 });

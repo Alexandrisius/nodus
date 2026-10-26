@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { ProcessType, TaskCardBlock, TaskRoleKey } from '@nodus/contracts';
-import { taskCardBlockOrder, taskRoleKeySchema, ui } from '@nodus/contracts';
+import { taskCardBlockOrder, taskRoleKeySchema, typeConfigOf, ui } from '@nodus/contracts';
 import { Input } from '@nodus/ui/components/input';
 import { Switch } from '@nodus/ui/components/switch';
 
@@ -14,7 +14,7 @@ import { useUpdateProcessTypeConfig } from '../../../api/automation-api.js';
  */
 export function TypeCardSection({ type, readOnly }: { type: ProcessType; readOnly: boolean }) {
   const update = useUpdateProcessTypeConfig(type.id);
-  const { hiddenBlocks, roleLabels } = type.config.card;
+  const { hiddenBlocks, roleLabels } = typeConfigOf(type).card;
 
   const toggleBlock = (block: TaskCardBlock, on: boolean) =>
     update.mutate({

@@ -1,5 +1,11 @@
 import { toast } from 'sonner';
-import { ErrorCode, defaultCreationForm, requiredCreateKeys, ui } from '@nodus/contracts';
+import {
+  ErrorCode,
+  defaultCreationForm,
+  requiredCreateKeys,
+  typeCreationFormOf,
+  ui,
+} from '@nodus/contracts';
 
 import { ApiError } from '../api-client.js';
 import { useCreateTask } from '../api/task-create.js';
@@ -24,7 +30,7 @@ export function useQuickCreate() {
   const route = (): 'create' | 'window' => {
     const type = types?.find((entry) => entry.code === DEFAULT_TASK_TYPE_CODE) ?? types?.[0];
     if (!type) return 'create';
-    return requiredCreateKeys(type.creationForm).length > 0 ? 'window' : 'create';
+    return requiredCreateKeys(typeCreationFormOf(type)).length > 0 ? 'window' : 'create';
   };
 
   const run = (prefill: TaskCreatePrefill = {}): void => {
@@ -33,7 +39,7 @@ export function useQuickCreate() {
       return;
     }
     const type = types?.find((entry) => entry.code === DEFAULT_TASK_TYPE_CODE) ?? types?.[0];
-    const form = type?.creationForm ?? defaultCreationForm('task');
+    const form = type ? typeCreationFormOf(type) : defaultCreationForm('task');
     create.mutate(buildCreateBody(emptyDraft(prefill), prefill, form), {
       onSuccess: (task) => {
         prefill.onCreated?.(task);

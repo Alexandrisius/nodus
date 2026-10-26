@@ -1,10 +1,11 @@
 import { EyeOff, Info } from 'lucide-react';
 import type { CustomFieldDefinition } from '@nodus/contracts';
-import { SystemDictionary, ui } from '@nodus/contracts';
+import { SystemDictionary, typeIdsOf, ui } from '@nodus/contracts';
 
 import { CustomFieldTypeIcon } from '../../../../shared/custom-fields/field-type-icon.js';
 import { CustomFieldValueView, refsById } from '../../../../shared/custom-fields/value-view.js';
 import { useDictionaryItems } from '../../../../shared/dictionaries/queries.js';
+import { useProcessTypes } from '../../api/automation-api.js';
 import { formatDateTimeShort, plural } from '../../../../shared/lib/format.js';
 import { monoCell } from '../../../../shared/ui/person-cell.js';
 import type { DataTableField } from '../../../../shared/views/data-table.js';
@@ -67,6 +68,29 @@ function DefaultCell({ definition }: { definition: CustomFieldDefinition }) {
   );
 }
 
+/** Типы, которым принадлежит атрибут (#432, В2): пусто — «Нигде не
+ *  показывается» (приглушённо). У проектов и контрагентов типов нет. */
+function TypesCell({ definition }: { definition: CustomFieldDefinition }) {
+  const { data: types } = useProcessTypes();
+  if (definition.scope !== 'task' && definition.scope !== 'letter') {
+    return <span className={muted}>{ui.customFields.cells.allEntities}</span>;
+  }
+  const names = typeIdsOf(definition)
+    .map((id) => types?.find((type) => type.id === id)?.name)
+    .filter((name): name is string => Boolean(name));
+  if (names.length === 0) {
+    return <span className={muted}>{ui.customFields.bind.none}</span>;
+  }
+  const shown = names.slice(0, 2).join(', ');
+  const rest = names.length - 2;
+  return (
+    <span className="truncate text-sm text-secondary-foreground" title={names.join(', ')}>
+      {shown}
+      {rest > 0 ? ` ${ui.customFields.bind.moreTypes} ${rest}` : ''}
+    </span>
+  );
+}
+
 /**
  * Колонки реестра атрибутов (ключ вида `custom-fields.list`): название с
  * иконкой типа закреплено; тип, настройки типа, умолчание, видимость —
@@ -119,6 +143,14 @@ export const fieldColumns: DataTableField<CustomFieldDefinition>[] = [
       </span>
     ),
     sortValue: (definition) => ui.customFields.types[definition.type],
+  },
+  {
+    id: 'types',
+    label: ui.customFields.bind.column,
+    defaultVisible: true,
+    defaultWidth: 200,
+    render: (definition) => <TypesCell definition={definition} />,
+    sortValue: (definition) => typeIdsOf(definition).length,
   },
   {
     id: 'settings',

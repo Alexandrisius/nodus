@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { ProcessType, ProcessTypeAccess, Role } from '@nodus/contracts';
-import { isDefaultProcessType, ui } from '@nodus/contracts';
+import { isDefaultProcessType, typeConfigOf, ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@nodus/ui/components/popover';
 import { cn } from '@nodus/ui/lib/utils';
@@ -25,7 +25,7 @@ export function TypeAccessSection({ type, readOnly }: { type: ProcessType; readO
   const updateType = useUpdateProcessType();
   const { data: roles, isLoading, isError, refetch } = useRoles();
   const locked = isDefaultProcessType(type) || readOnly;
-  const access = type.config.access;
+  const access = typeConfigOf(type).access;
 
   const viewMode: AccessMode = access.view === null ? 'all' : 'roles';
   const createMode: CreateMode = !type.creatable

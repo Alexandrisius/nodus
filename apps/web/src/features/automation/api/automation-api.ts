@@ -9,7 +9,7 @@ import type {
   UpdateProcessTypeConfigBody,
   WorkflowLayout,
 } from '@nodus/contracts';
-import { ui } from '@nodus/contracts';
+import { typeConfigOf, ui } from '@nodus/contracts';
 import { toast } from 'sonner';
 
 import { api } from '../../../shared/api-client.js';
@@ -154,9 +154,9 @@ export function useUpdateProcessTypeConfig(typeId: string) {
               ? {
                   ...type,
                   config: {
-                    card: body.card ?? type.config.card,
-                    access: body.access ?? type.config.access,
-                    pulse: body.pulse ?? type.config.pulse,
+                    card: body.card ?? typeConfigOf(type).card,
+                    access: body.access ?? typeConfigOf(type).access,
+                    pulse: body.pulse ?? typeConfigOf(type).pulse,
                   },
                 }
               : type,

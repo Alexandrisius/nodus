@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { StageColor, ProcessType, ProcessTypeIcon } from '@nodus/contracts';
-import { processTypeIconSchema, ui } from '@nodus/contracts';
+import { processTypeIconSchema, typeConfigOf, ui } from '@nodus/contracts';
 import { Input } from '@nodus/ui/components/input';
 import { Switch } from '@nodus/ui/components/switch';
 import { Textarea } from '@nodus/ui/components/textarea';
@@ -135,7 +135,7 @@ export function TypeSettingsPanel({
               </span>
             </span>
             <Switch
-              checked={type.config.pulse}
+              checked={typeConfigOf(type).pulse}
               disabled={readOnly}
               onCheckedChange={(pulse) => updateConfig.mutate({ pulse })}
             />

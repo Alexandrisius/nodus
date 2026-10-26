@@ -6,7 +6,7 @@ import type {
   ProcessType,
   RoleLabels,
 } from '@nodus/contracts';
-import { customFieldIdOfKey, slotLabel, ui } from '@nodus/contracts';
+import { customFieldIdOfKey, slotLabel, typeConfigOf, ui } from '@nodus/contracts';
 import { Input } from '@nodus/ui/components/input';
 import { NodeLabel } from '@nodus/ui/components/node-label';
 import { cn } from '@nodus/ui/lib/utils';
@@ -37,7 +37,7 @@ export function TaskCreateFormBody({
   /** Предпросмотр в редакторе: контролы неактивны, но выглядят как живые. */
   preview?: boolean;
 }) {
-  const roleLabels: RoleLabels = type?.config.card.roleLabels ?? {};
+  const roleLabels: RoleLabels = type ? typeConfigOf(type).card.roleLabels : {};
   const byId = useMemo(
     () => new Map(definitions.map((definition) => [definition.id, definition])),
     [definitions],

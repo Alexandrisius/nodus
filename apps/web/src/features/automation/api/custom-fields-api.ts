@@ -6,7 +6,7 @@ import type {
   ReorderCustomFieldsBody,
   UpdateCustomFieldBody,
 } from '@nodus/contracts';
-import { ui } from '@nodus/contracts';
+import { typeIdsOf, ui } from '@nodus/contracts';
 import { toast } from 'sonner';
 
 import { api } from '../../../shared/api-client.js';
@@ -176,8 +176,8 @@ export function useBindFieldType(fieldId: string) {
       await queryClient.cancelQueries({ queryKey: customFieldsKeys.all });
       const previous = definitionLists(queryClient);
       patchLists(queryClient, (definition) =>
-        definition.id === fieldId && !definition.typeIds.includes(typeId)
-          ? { ...definition, typeIds: [...definition.typeIds, typeId] }
+        definition.id === fieldId && !typeIdsOf(definition).includes(typeId)
+          ? { ...definition, typeIds: [...typeIdsOf(definition), typeId] }
           : definition,
       );
       return { previous };
@@ -206,7 +206,7 @@ export function useUnbindFieldType(fieldId: string) {
       const previous = definitionLists(queryClient);
       patchLists(queryClient, (definition) =>
         definition.id === fieldId
-          ? { ...definition, typeIds: definition.typeIds.filter((id) => id !== typeId) }
+          ? { ...definition, typeIds: typeIdsOf(definition).filter((id) => id !== typeId) }
           : definition,
       );
       return { previous };

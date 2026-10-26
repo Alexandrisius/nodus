@@ -5,6 +5,7 @@ import {
   customFieldKey,
   isCustomFieldValueFilled,
   readCustomFieldValue,
+  typeIdsOf,
   ui,
 } from '@nodus/contracts';
 
@@ -28,7 +29,13 @@ export function useCustomFieldFilterDefs<T>(
   valuesOf: (item: T) => CustomFieldValues,
 ): FilterFieldDef<T>[] {
   const { data } = useCustomFieldDefinitions(scope);
-  const definitions = visibleDefinitions(data);
+  // #432 (Р8): группа «Атрибуты» — только атрибуты, привязанные хотя бы к
+  // одному типу процесса. У проектов и контрагентов типов нет — поле
+  // действует на всех, список не режется.
+  const typed = scope === 'task' || scope === 'letter';
+  const definitions = visibleDefinitions(data).filter(
+    (definition) => !typed || typeIdsOf(definition).length > 0,
+  );
   const { data: users } = useUsersList();
   const departments = useDepartmentsList();
   const projectsAvailableNow = projectsAvailable();

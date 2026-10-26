@@ -10,6 +10,7 @@ import {
   TASK_CREATION_SYSTEM_KEYS,
   customFieldKey,
   slotLabel,
+  typeIdsOf,
   ui,
 } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
@@ -46,11 +47,11 @@ export function CreationFieldPicker({
   const canManageFields = useCanManageFields();
 
   const inType = useMemo(
-    () => (definitions ?? []).filter((d) => d.typeIds.includes(type.id) && !d.hidden),
+    () => (definitions ?? []).filter((d) => typeIdsOf(d).includes(type.id) && !d.hidden),
     [definitions, type.id],
   );
   const notInType = useMemo(
-    () => (definitions ?? []).filter((d) => !d.typeIds.includes(type.id) && !d.hidden),
+    () => (definitions ?? []).filter((d) => !typeIdsOf(d).includes(type.id) && !d.hidden),
     [definitions, type.id],
   );
   const freeSystem = unusedKeys(

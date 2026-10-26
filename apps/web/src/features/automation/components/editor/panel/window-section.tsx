@@ -49,11 +49,14 @@ export function WindowSection({
   transition,
   document: doc,
   scope,
+  typeId,
   readOnly,
 }: {
   transition: WorkflowDraftTransition;
   document: WorkflowDraftDocument;
   scope: CustomFieldScope;
+  /** Тип процесса: в окно выбираются только его атрибуты (#432, Р8). */
+  typeId?: string;
   readOnly: boolean;
 }) {
   const form = transition.form;
@@ -107,6 +110,7 @@ export function WindowSection({
               })}
               <CustomFieldChecks
                 scope={scope}
+                typeId={typeId}
                 selected={sectionOf(form, 'fields')?.fields ?? []}
                 disabled={readOnly}
                 limit={CUSTOM_FIELD_LIMITS.windowFields}

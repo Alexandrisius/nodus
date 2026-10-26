@@ -23,6 +23,7 @@ import { formatDateTime } from '../../../shared/lib/format.js';
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
 import { EntityFields, type EntityFieldDef } from '../../../shared/ui/entity-fields.js';
 import { identityTone } from '../../../shared/ui/identity-tone.js';
+import type { TaskCardLayoutView } from '../lib/task-card-type-layout.js';
 import { TaskDeadlineField, TaskPlannedField, TaskPriorityField } from './task-field-editors.js';
 import { TaskChangeTypeDialog } from './task-change-type-dialog.js';
 import { TaskAssigneeField, TaskPeopleField } from './task-people-field.js';
@@ -38,7 +39,14 @@ const VISIBILITY_KEY = 'nodus-task-fields-v1';
  *  «Проектом», «Наблюдатели» — под «Соисполнителями» (вердикт владельца).
  *  Личная колонка «Моего плана» здесь НЕ показывается — она меняется
  *  только DnD на доске (модель Битрикса). */
-export const TaskFields = memo(function TaskFields({ task }: { task: TaskDetail }) {
+export const TaskFields = memo(function TaskFields({
+  task,
+  layout,
+}: {
+  task: TaskDetail;
+  /** Состав карточки по типу (#432): подписи ролей, скрытые блоки, обязательные. */
+  layout: TaskCardLayoutView;
+}) {
   const openCard = useOpenCard();
 
   const project: EntityFieldDef = {
@@ -115,18 +123,18 @@ export const TaskFields = memo(function TaskFields({ task }: { task: TaskDetail 
       key: 'deadline',
       icon: <CalendarClock className="size-3.5" />,
       label: ui.tasks.deadline,
-      render: () => <TaskDeadlineField task={task} />,
+      render: () => <TaskDeadlineField task={task} required={layout.isRequired('deadline')} />,
     },
     {
       key: 'assignee',
       icon: <User className="size-3.5" />,
-      label: ui.tasks.assignee,
+      label: layout.roleLabel('assignee'),
       render: () => <TaskAssigneeField task={task} />,
     },
     {
       key: 'creator',
       icon: <UserPen className="size-3.5" />,
-      label: ui.tasks.creator,
+      label: layout.roleLabel('creator'),
       render: () => (
         <>
           <PersonAvatar
@@ -142,7 +150,7 @@ export const TaskFields = memo(function TaskFields({ task }: { task: TaskDetail 
     {
       key: 'participants',
       icon: <Users className="size-3.5" />,
-      label: ui.tasks.participants,
+      label: layout.roleLabel('coexecutor'),
       render: () => <TaskPeopleField task={task} role="coexecutor" />,
     },
     {
@@ -154,21 +162,26 @@ export const TaskFields = memo(function TaskFields({ task }: { task: TaskDetail 
     {
       key: 'observers',
       icon: <Eye className="size-3.5" />,
-      label: ui.tasks.watchers,
+      label: layout.roleLabel('observer'),
       render: () => <TaskPeopleField task={task} role="observer" />,
     },
-    {
-      key: 'spent',
-      icon: <Timer className="size-3.5" />,
-      label: ui.tasks.spent,
-      render: () => <TaskSpentField task={task} />,
-    },
-    {
-      key: 'planned',
-      icon: <Hourglass className="size-3.5" />,
-      label: ui.tasks.plannedTime,
-      render: () => <TaskPlannedField task={task} />,
-    },
+    // Блок «Время» скрыт типом — нет «Затрачено» и «Плановое время» (#432, Р7).
+    ...(layout.blockVisible('time')
+      ? [
+          {
+            key: 'spent',
+            icon: <Timer className="size-3.5" />,
+            label: ui.tasks.spent,
+            render: () => <TaskSpentField task={task} />,
+          },
+          {
+            key: 'planned',
+            icon: <Hourglass className="size-3.5" />,
+            label: ui.tasks.plannedTime,
+            render: () => <TaskPlannedField task={task} />,
+          },
+        ]
+      : []),
     ...(withProject ? [type, created] : [created]),
   ];
 

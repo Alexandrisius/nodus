@@ -1,5 +1,5 @@
 import type { CustomFieldDefinition, CustomFieldKey, CustomFieldScope } from '@nodus/contracts';
-import { customFieldIdOfKey, customFieldKey, ui } from '@nodus/contracts';
+import { customFieldIdOfKey, customFieldKey, typeIdsOf, ui } from '@nodus/contracts';
 import { Checkbox } from '@nodus/ui/components/checkbox';
 
 import { useCustomFieldDefinitions } from '../../../../../shared/custom-fields/queries.js';
@@ -14,6 +14,7 @@ import { useCustomFieldDefinitions } from '../../../../../shared/custom-fields/q
  */
 export function CustomFieldChecks({
   scope,
+  typeId,
   selected,
   disabled,
   limit,
@@ -22,6 +23,8 @@ export function CustomFieldChecks({
   onToggle,
 }: {
   scope: CustomFieldScope;
+  /** Тип процесса: выбираются только привязанные к нему атрибуты (#432, Р8). */
+  typeId?: string;
   selected: readonly string[];
   disabled: boolean;
   limit: number;
@@ -33,8 +36,11 @@ export function CustomFieldChecks({
   const { data = [] } = useCustomFieldDefinitions(scope);
   const isSelected = (definition: CustomFieldDefinition) =>
     selected.some((key) => customFieldIdOfKey(key) === definition.id);
+  const typed = scope === 'task' || scope === 'letter';
   const shown = data.filter(
-    (definition) => includeHidden || !definition.hidden || isSelected(definition),
+    (definition) =>
+      (!typeId || !typed || typeIdsOf(definition).includes(typeId) || isSelected(definition)) &&
+      (includeHidden || !definition.hidden || isSelected(definition)),
   );
   const atLimit = selected.length >= limit;
 

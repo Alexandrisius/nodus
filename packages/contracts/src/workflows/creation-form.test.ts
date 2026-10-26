@@ -109,7 +109,7 @@ describe('checkCreationForm', () => {
     expect(checkCreationForm(form, facts()).map((p) => p.code)).toEqual([
       'creation_duplicate_field',
     ]);
-    expect(checkCreationForm(form, facts())[0].creationField).toBe('description');
+    expect(checkCreationForm(form, facts())[0]!.creationField).toBe('description');
   });
 
   it('«обязательно» у ответственного и приоритета запрещено', () => {

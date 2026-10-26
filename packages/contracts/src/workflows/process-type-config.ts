@@ -1,6 +1,10 @@
 import { z } from 'zod';
 
-import { creationFieldKeySchema } from './creation-form.js';
+import {
+  creationFieldKeySchema,
+  effectiveCreationForm,
+  type CreationForm,
+} from './creation-form.js';
 
 /**
  * Конфигурация типа процесса (#432, В6): состав карточки, доступ к типу и
@@ -175,4 +179,40 @@ export function typeAccessFor(
 /** Тип виден зрителю — фильтр списков типов и каталога стадий (Р6). */
 export function isTypeVisible(type: TypeAccessInput, subject: TypeAccessSubject): boolean {
   return typeAccessFor(type, subject).canView;
+}
+
+/**
+ * Терпимое чтение DTO со старого API (:5173 без бэкенд-пакета #432):
+ * `config`, `creationForm`, `viewer`, `layout`, `typeIds` приходят позже —
+ * веб живёт на умолчаниях, а не падает. Одна точка на весь фронт
+ * (риски плана §11: «:5173 со старым API»).
+ */
+
+export function typeConfigOf(type: { config?: unknown }): ProcessTypeConfig {
+  return normalizeTypeConfig(type.config);
+}
+
+export function typeCreationFormOf(type: {
+  creationForm?: unknown;
+  category: 'task' | 'letter';
+}): CreationForm {
+  return effectiveCreationForm(type.creationForm, type.category);
+}
+
+export function typeViewerOf(type: {
+  viewer?: ProcessTypeViewer;
+  creatable: boolean;
+}): ProcessTypeViewer {
+  return type.viewer ?? { canView: true, canCreate: type.creatable };
+}
+
+/** Привязки атрибута к типам; старый API поля не отдаёт — пусто. */
+export function typeIdsOf(definition: { typeIds?: readonly string[] }): string[] {
+  return [...(definition.typeIds ?? [])];
+}
+
+/** Состав карточки задачи; старый API `layout` не отдаёт — карточка полная. */
+export function taskLayoutOf(task: { layout?: unknown }): TaskCardLayout {
+  const parsed = taskCardLayoutSchema.safeParse(task.layout);
+  return parsed.success ? parsed.data : DEFAULT_TASK_CARD_LAYOUT;
 }

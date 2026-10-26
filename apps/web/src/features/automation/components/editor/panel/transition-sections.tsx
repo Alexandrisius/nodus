@@ -114,10 +114,13 @@ export function RolesSection({
 export function ConditionsSection({
   transition,
   scope,
+  typeId,
   readOnly,
 }: {
   transition: WorkflowDraftTransition;
   scope: CustomFieldScope;
+  /** Тип процесса: в гейт выбираются только его атрибуты (#432, Р8). */
+  typeId?: string;
   readOnly: boolean;
 }) {
   const patch = usePatchRules(transition);
@@ -177,6 +180,7 @@ export function ConditionsSection({
               ))}
               <CustomFieldChecks
                 scope={scope}
+                typeId={typeId}
                 selected={fields.fields}
                 disabled={readOnly}
                 limit={CUSTOM_FIELD_LIMITS.gateFields}

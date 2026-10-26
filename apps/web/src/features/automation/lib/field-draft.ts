@@ -9,6 +9,7 @@ import type {
   DictionaryItem,
   UpdateCustomFieldBody,
 } from '@nodus/contracts';
+import { typeIdsOf } from '@nodus/contracts';
 
 import {
   baseTypeOf,
@@ -124,7 +125,7 @@ export function draftOf(
           : [],
     hidden: definition.hidden,
     reportIndexed: definition.reportIndexed,
-    typeIds: [...definition.typeIds],
+    typeIds: typeIdsOf(definition),
   };
 }
 
@@ -256,7 +257,7 @@ export function patchBody(
   if (JSON.stringify(defaultValue) !== JSON.stringify(definition.defaultValue))
     body.defaultValue = defaultValue;
   if (draft.hidden !== definition.hidden) body.hidden = draft.hidden;
-  if (JSON.stringify(draft.typeIds) !== JSON.stringify(definition.typeIds))
+  if (JSON.stringify(draft.typeIds) !== JSON.stringify(typeIdsOf(definition)))
     body.typeIds = draft.typeIds;
   if (draft.reportIndexed !== definition.reportIndexed) body.reportIndexed = draft.reportIndexed;
   return Object.keys(body).length > 0 ? body : null;

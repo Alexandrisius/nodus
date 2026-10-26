@@ -113,13 +113,24 @@ export function EditorPanel({
         <RolesSection transition={transition} readOnly={readOnly} />
       ) : null}
       {transition && section === 'conditions' ? (
-        <ConditionsSection transition={transition} scope={scope} readOnly={readOnly} />
+        <ConditionsSection
+          transition={transition}
+          scope={scope}
+          typeId={type.id}
+          readOnly={readOnly}
+        />
       ) : null}
       {transition && section === 'rules' ? (
         <RulesSection transition={transition} document={doc} readOnly={readOnly} />
       ) : null}
       {transition && section === 'window' ? (
-        <WindowSection transition={transition} document={doc} scope={scope} readOnly={readOnly} />
+        <WindowSection
+          transition={transition}
+          document={doc}
+          scope={scope}
+          typeId={type.id}
+          readOnly={readOnly}
+        />
       ) : null}
     </SidePanel>
   );

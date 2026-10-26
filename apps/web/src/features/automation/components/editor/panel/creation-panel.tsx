@@ -25,6 +25,8 @@ import {
   customFieldIdOfKey,
   effectiveCreationForm,
   slotLabel,
+  typeConfigOf,
+  typeIdsOf,
   ui,
 } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
@@ -80,7 +82,7 @@ export function CreationPanel({
         active: new Set(scoped.map((entry) => entry.id)),
         hidden: new Set(scoped.filter((entry) => entry.hidden).map((entry) => entry.id)),
         inType: new Set(
-          scoped.filter((entry) => entry.typeIds.includes(type.id)).map((entry) => entry.id),
+          scoped.filter((entry) => typeIdsOf(entry).includes(type.id)).map((entry) => entry.id),
         ),
       },
       definitions: scoped.map((entry) => ({
@@ -140,7 +142,7 @@ export function CreationPanel({
                   const fieldId = customFieldIdOfKey(slot.key);
                   const definition = fieldId ? defs.find((d) => d.id === fieldId) : undefined;
                   const label = slotLabel(slot, {
-                    roleLabels: type.config.card.roleLabels,
+                    roleLabels: typeConfigOf(type).card.roleLabels,
                     definitions: defs,
                   });
                   const slotProblems = problemsOf(slot.key);

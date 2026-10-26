@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { TaskDetail, TaskListItem, ProcessType } from '@nodus/contracts';
-import { DEFAULT_TASK_TYPE_CODE, ui } from '@nodus/contracts';
+import { DEFAULT_TASK_TYPE_CODE, typeViewerOf, ui } from '@nodus/contracts';
 import { toast } from 'sonner';
 
 import { api } from '../api-client.js';
@@ -26,7 +26,7 @@ export function useCreatableProcessTypes() {
     queryFn: () => api<ProcessType[]>('/workflows/types?category=task'),
     staleTime: 60_000,
     select: (types: ProcessType[]) =>
-      types.filter((t) => t.category === 'task' && t.creatable && t.viewer.canCreate),
+      types.filter((t) => t.category === 'task' && t.creatable && typeViewerOf(t).canCreate),
   });
 }
 
@@ -48,7 +48,7 @@ export function useAliveProcessTypes() {
     queryFn: () => api<ProcessType[]>('/workflows/types?category=task'),
     staleTime: 60_000,
     select: (types: ProcessType[]) =>
-      types.filter((t) => !t.archivedAt && t.category === 'task' && t.viewer.canView),
+      types.filter((t) => !t.archivedAt && t.category === 'task' && typeViewerOf(t).canView),
   });
 }
 
