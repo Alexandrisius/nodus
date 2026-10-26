@@ -40,6 +40,11 @@ export function pushWorkflowKeys(
     batcher.push(tasksKeys.stages(), 'list');
     batcher.push([tasksKeys.all[0], 'transitions'], 'list');
     batcher.push(tasksKeys.listPages(), 'list');
+    // Настройки типа (#432) меняют состав карточки (`layout` в детали):
+    // открытые карточки задач перечитываются, а не живут со старым составом.
+    if (type === WORKFLOW_EVENTS.TYPE_UPDATED) {
+      batcher.push(tasksKeys.detailsAll(), 'list');
+    }
     return true;
   }
   return false;

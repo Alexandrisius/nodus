@@ -4,13 +4,12 @@ import type {
   WorkflowDraftTransition,
 } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
-import { Button } from '@nodus/ui/components/button';
 import { ArrowDown, ArrowUp, Plus } from 'lucide-react';
 
 import { useRouteDocStore } from '../../../model/route-doc-store.js';
 import { AddTransitionPopover } from '../add-transition-popover.js';
 import { ProcessPreview } from '../process-preview.js';
-import { PanelField, SectionLink } from './panel-kit.js';
+import { PanelAction, PanelField, SectionLink } from './panel-kit.js';
 
 const bySortOrder = (a: WorkflowDraftTransition, b: WorkflowDraftTransition) =>
   a.sortOrder - b.sortOrder;
@@ -127,12 +126,7 @@ export function StageButtonsSection({
             document={doc}
             defaultFrom={stage.id}
             onPick={(from, to) => store().addTransition(from, to)}
-            trigger={
-              <Button variant="ghost" size="sm" className="-ml-2 self-start">
-                <Plus className="size-3.5" strokeWidth={1.75} />
-                {ui.automation.addTransitionLabel}
-              </Button>
-            }
+            trigger={<PanelAction icon={Plus}>{ui.automation.addTransitionLabel}</PanelAction>}
           />
         ) : null}
       </div>

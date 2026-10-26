@@ -24,6 +24,7 @@ export class WorkflowFieldUsageProvider implements WorkflowFieldUsageReader {
   async workflowsUsingField(
     scope: CustomFieldScope,
     fieldId: string,
+    opts: { typeId?: string } = {},
   ): Promise<WorkflowFieldUsage[]> {
     // Маршруты есть только у задач и писем (ADR-0024); прочие области — пусто.
     if (scope !== 'task' && scope !== 'letter') return [];
@@ -37,6 +38,7 @@ export class WorkflowFieldUsageProvider implements WorkflowFieldUsageReader {
       LEFT JOIN process_types pt ON pt.id = se.process_type_id
       WHERE w.kind = ${scope}
         AND w.published_at IS NOT NULL
+        ${opts.typeId ? Prisma.sql`AND se.process_type_id = ${opts.typeId}::uuid` : Prisma.empty}
         AND (
           EXISTS (
             SELECT 1 FROM jsonb_array_elements(COALESCE(t.form->'sections', '[]'::jsonb)) s
@@ -50,6 +52,17 @@ export class WorkflowFieldUsageProvider implements WorkflowFieldUsageReader {
               AND v->'fields' ? ${key}
           )
         )
+      UNION
+      -- Форма создания (#432): атрибут стоит в окне узла «Создание».
+      SELECT DISTINCT w.id, COALESCE(pt.name, w.name) AS name
+      FROM workflows w
+      JOIN workflow_scheme_entries se ON se.workflow_id = w.id
+      JOIN process_types pt ON pt.id = se.process_type_id
+      CROSS JOIN LATERAL jsonb_array_elements(COALESCE(w.creation->'fields', '[]'::jsonb)) f
+      WHERE w.kind = ${scope}
+        AND w.published_at IS NOT NULL
+        ${opts.typeId ? Prisma.sql`AND se.process_type_id = ${opts.typeId}::uuid` : Prisma.empty}
+        AND f->>'key' = ${key}
       ORDER BY name
     `);
   }

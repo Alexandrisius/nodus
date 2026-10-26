@@ -126,10 +126,17 @@ export function applyDemoPatch(
 }
 
 /** Умолчания при создании: статическое значение и «подразделение автора»;
- *  явное значение важнее (Р5). Невалидное умолчание тихо пропускается. */
-export function demoDefaults(scope: CustomFieldScope, input: CustomFieldValues): CustomFieldValues {
+ *  явное значение важнее (Р5). Невалидное умолчание тихо пропускается.
+ *  `bound` — id атрибутов, привязанных к типу создаваемой задачи (#432):
+ *  умолчания чужих типов не подставляются. */
+export function demoDefaults(
+  scope: CustomFieldScope,
+  input: CustomFieldValues,
+  bound?: ReadonlySet<string>,
+): CustomFieldValues {
   const values: CustomFieldValues = {};
   for (const definition of demoFieldsOfScope(scope)) {
+    if (bound && !bound.has(definition.id)) continue;
     if (definition.defaultValue === null) continue;
     if (input[definition.id] !== undefined) continue;
     if (definition.defaultValue.kind === 'author_department') {

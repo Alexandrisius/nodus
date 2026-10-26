@@ -1,3 +1,5 @@
+import { creationStrings, typeSettingsStrings } from './ru-automation-forms.js';
+
 /** UI-строки раздела «Автоматизация» (#378, эпик #377; «Процессы» — #428,
  *  ADR-0024): библиотека типов процессов, редактор маршрутов на холсте,
  *  публикация. Секция вынесена из ru.ts (лимит строк, I5). */
@@ -40,7 +42,8 @@ export const automationStrings = {
   menuCopyType: 'Копировать тип',
   menuArchive: 'В архив',
   archiveSystemLocked: 'Системный тип нельзя убрать в архив',
-  typeSettings: 'Настройки типа',
+  /** Настройки типа (#432, В6): «Основное», «Доступ», «Карточка», «Пульс». */
+  typeSettings: typeSettingsStrings,
   workflowUnavailable: 'Маршрут недоступен',
   createFirstType: 'Создайте первый процесс',
   /** Группы статусов — пять смысловых категорий (системные фазы задачи):
@@ -175,6 +178,7 @@ export const automationStrings = {
     summaryEmpty: 'Разделы не выбраны',
   },
   deleteTransition: 'Удалить кнопку',
+  creation: creationStrings,
   /** Правая панель редактора (#378 ред. 2): разделы с переходом внутрь. */
   panel: {
     back: 'Назад',
@@ -248,11 +252,21 @@ export const automationStrings = {
     form_duplicate_section: 'Два одинаковых раздела в окне',
     custom_field_unknown: 'В окне или условии выбран удалённый атрибут',
     custom_field_hidden: 'В окне выбран скрытый атрибут — окно его не покажет',
+    custom_field_not_in_type: 'Атрибут не привязан к типу — уберите его из окна, условия или формы',
+    creation_duplicate_field: 'Поле добавлено в форму дважды',
+    creation_required_not_allowed: 'Это поле всегда заполнено — обязательным его не сделать',
+    creation_preset_not_allowed: 'У этого поля не бывает скрытого значения',
+    creation_preset_invalid: 'Скрытое значение не подходит полю или устарело',
+    creation_hidden_required: 'Скрытое поле нельзя сделать обязательным',
+    creation_hidden_attribute_visible: 'Скрытый атрибут можно только скрытым полем',
+    creation_field_unavailable: 'Поле недоступно — модуль проектов ещё не подключён',
   },
   /** Публикация. */
   publishTitle: 'Публикация маршрута',
   buttonsChangedForms: ['кнопка изменена', 'кнопки изменены', 'кнопок изменено'],
   publishLayoutChanged: 'изменена расстановка',
+  /** Публикация формы создания типа (#432): отдельная строка сводки. */
+  publishCreationChanged: 'изменена форма создания',
   publishNothingChanged: 'Изменений нет',
   publishMigrateTo: 'перенести в',
   publishRestateNote: '«Мой план» сотрудников обновится',

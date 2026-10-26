@@ -6,9 +6,10 @@ import type {
   SaveWorkflowLayoutResult,
   ProcessType,
   UpdateProcessTypeBody,
+  UpdateProcessTypeConfigBody,
   WorkflowLayout,
 } from '@nodus/contracts';
-import { ui } from '@nodus/contracts';
+import { typeConfigOf, ui } from '@nodus/contracts';
 import { toast } from 'sonner';
 
 import { api } from '../../../shared/api-client.js';
@@ -124,5 +125,63 @@ export function saveWorkflowLayout(
   return api<SaveWorkflowLayoutResult>(`/workflows/${workflowId}/layout`, {
     method: 'PUT',
     body: { layout },
+  });
+}
+
+/**
+ * Настройки типа (#432, Р11): разделы «Доступ» и «Карточка» (блоки,
+ * названия ролей) заменяются целиком и сохраняются СРАЗУ — публикации требует только
+ * маршрут. Оптимистично (I4): значение в кэше до ответа; мутации ОДНОГО типа
+ * идут по очереди (`scope`), иначе два быстрых переключения перетирают
+ * разделы друг друга.
+ */
+export function useUpdateProcessTypeConfig(typeId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    scope: { id: `type-config:${typeId}` },
+    mutationFn: (body: UpdateProcessTypeConfigBody) =>
+      api<ProcessType>(`/workflows/types/${typeId}/config`, { method: 'PATCH', body }),
+    onMutate: async (body) => {
+      await queryClient.cancelQueries({ queryKey: automationKeys.all });
+      const lists = queryClient.getQueriesData<ProcessType[]>({ queryKey: automationKeys.all });
+      const snapshots = lists.map(([key, data]) => ({ key, data }));
+      for (const [key, data] of lists) {
+        if (!data) continue;
+        queryClient.setQueryData<ProcessType[]>(
+          key,
+          data.map((type) =>
+            type.id === typeId
+              ? {
+                  ...type,
+                  config: {
+                    card: body.card ?? typeConfigOf(type).card,
+                    access: body.access ?? typeConfigOf(type).access,
+                  },
+                }
+              : type,
+          ),
+        );
+      }
+      return { snapshots };
+    },
+    onError: (_error, _body, context) => {
+      for (const snapshot of context?.snapshots ?? []) {
+        queryClient.setQueryData(snapshot.key, snapshot.data);
+      }
+      toast.error(ui.automation.typeSettings.saveError);
+    },
+    onSuccess: (type) => {
+      const lists = queryClient.getQueriesData<ProcessType[]>({ queryKey: automationKeys.all });
+      for (const [key, data] of lists) {
+        if (!data) continue;
+        queryClient.setQueryData<ProcessType[]>(
+          key,
+          data.map((entry) => (entry.id === type.id ? type : entry)),
+        );
+      }
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: automationKeys.all });
+    },
   });
 }

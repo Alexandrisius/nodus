@@ -10,6 +10,7 @@ import { userRefSchema } from '../directory/user-ref.schema.js';
 import { cursorQuerySchema } from '../pagination/paginated.schema.js';
 import { projectColorSchema } from '../projects/project.schemas.js';
 import { processTypeRefSchema } from '../workflows/process-type.schemas.js';
+import { taskCardLayoutSchema } from '../workflows/process-type-config.js';
 import { workflowTransitionSchema } from '../workflows/workflow.schemas.js';
 import {
   stageColorSchema,
@@ -188,6 +189,10 @@ export const taskDetailSchema = taskListItemSchema.extend({
   access: taskAccessSchema,
   /** Ссылки для показа значений кастомных полей (Р6): имя/аватар/архив. */
   customFieldRefs: z.array(customFieldRefSchema),
+  /** Состав карточки по типу (#432): скрытые блоки, названия ролей и
+   *  обязательные при создании поля. Собирает сервер — работает и для типа,
+   *  невидимого зрителю. */
+  layout: taskCardLayoutSchema,
   createdAt: z.iso.datetime(),
 });
 

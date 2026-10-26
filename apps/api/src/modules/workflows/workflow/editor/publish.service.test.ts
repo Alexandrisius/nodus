@@ -172,9 +172,7 @@ function makeService(
     categoryOf: vi.fn(async () => 'task'),
     typeIdsOf: vi.fn(async () => ['type-1']),
   };
-  const adapters = {
-    get: vi.fn(() => ({ countByStages: vi.fn(async () => taskCounts) })),
-  };
+  const adapters = { get: vi.fn(() => ({ countByStages: vi.fn(async () => taskCounts) })) };
   const service = new WorkflowEditorService(
     { run: vi.fn(async (fn: (t: unknown) => unknown) => fn(tx)) } as never,
     workflows as never,
@@ -183,6 +181,8 @@ function makeService(
     adapters as never,
     { findRefs: vi.fn(async () => []) } as never,
     { definitions: vi.fn(async () => []) } as never,
+    { effectiveRoles: vi.fn(async () => []) } as never,
+    { findByIds: vi.fn(async () => []) } as never,
   );
   return { service, calls };
 }

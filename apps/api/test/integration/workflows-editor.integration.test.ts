@@ -122,7 +122,9 @@ describe.skipIf(!process.env.DATABASE_URL)('tasks workflow editor (integration, 
       body: { title: `IT-задача ${fx.runId}`, typeId: customTypeId },
       key: `it-task-hidden-${fx.runId}`,
     });
-    expect(hidden.status).toBe(409);
+    // С #432 скрытый тип — доменный 403 PROCESS_TYPE_FORBIDDEN (не 409):
+    // клиент различает «нет доступа» и «нельзя создать» по reason.
+    expect(hidden.status).toBe(403);
 
     await fx.api(admin, 'PATCH', `/workflows/types/${customTypeId}`, {
       body: { creatable: true },
@@ -201,7 +203,7 @@ describe.skipIf(!process.env.DATABASE_URL)('tasks workflow editor (integration, 
     expect(moved).toBe(true);
   });
 
-  it('смена типа: без stageId — 422; со stageId — переезд; скрытый тип — 409', async () => {
+  it('смена типа: без stageId — 422; со stageId — переезд; скрытый тип — 403', async () => {
     const quick = (
       (await (await fx.api(admin, 'GET', '/workflows/types?archived=include')).json()) as {
         id: string;
@@ -252,7 +254,7 @@ describe.skipIf(!process.env.DATABASE_URL)('tasks workflow editor (integration, 
       body: { typeId: hidden.id },
       key: `it-type-hidden-${fx.runId}`,
     });
-    expect(refused.status).toBe(409);
+    expect(refused.status).toBe(403);
     // Чистим скрытый тип за собой.
     await fx.prisma.workflowSchemeEntry.deleteMany({ where: { processTypeId: hidden.id } });
     const hiddenWf = await fx.prisma.workflow.findFirst({

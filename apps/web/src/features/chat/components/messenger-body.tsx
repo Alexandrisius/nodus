@@ -21,7 +21,7 @@ import { ChatHostNavigationContext } from '../../../shared/chat/chat-host.js';
 import { ConversationOpenResponder } from '../../../shared/chat/conversation-open-responder.js';
 import { withoutPatronymic } from '../../../shared/lib/format.js';
 import { PersonAvatar } from '../../../shared/ui/person-avatar.js';
-import { TaskQuickCreate } from '../../../shared/tasks/task-quick-create.js';
+import { openTaskCreate } from '../../../shared/tasks/task-create-store.js';
 import { useConversations } from '../api/chat-api.js';
 import { conversationSubtitle, conversationTitle } from '../lib/conversations.js';
 import { ChatCreateDialog, type CreateConversationKind } from './chat-create-dialog.js';
@@ -86,7 +86,6 @@ export function MessengerBody({
   // на «Чатах задач и писем» попапа чата/канала нет, там рождается ЗАДАЧА
   // (чаты задач и писем — обсуждения сущностей: появляются вместе с сущностью,
   // а не из попапа мессенджера) — экспресс-форма TaskQuickCreate.
-  const [createTaskOpen, setCreateTaskOpen] = useState(false);
 
   const q = query.trim().toLowerCase();
 
@@ -252,7 +251,7 @@ export function MessengerBody({
                 className="ml-1.5 shrink-0 text-muted-foreground hover:bg-accent hover:text-foreground"
                 aria-label={ui.tasks.createTask}
                 title={ui.tasks.createTask}
-                onClick={() => setCreateTaskOpen(true)}
+                onClick={() => openTaskCreate()}
               >
                 <Plus className="size-4" strokeWidth={1.75} />
               </Button>
@@ -272,9 +271,6 @@ export function MessengerBody({
             задачу, тостом подтверждает и закрывается; её чат задачи появится
             во вкладке вместе с сущностью (обсуждения — от сущностей, не от
             мессенджера). */}
-          {tab === 'tasks' ? (
-            <TaskQuickCreate open={createTaskOpen} onOpenChange={setCreateTaskOpen} />
-          ) : null}
           {peopleMatches.length > 0 ? (
             // Секция людей над списком бесед: та же геометрия строк (мягкий
             // ховер, rounded-lg), подпись «Написать» справа.

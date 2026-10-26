@@ -11,6 +11,7 @@ import { WorkflowsPortsModule } from '../workflows/workflows-ports.module.js';
 import { DefinitionsController } from './definitions/definitions.controller.js';
 import { DefinitionMapper } from './definitions/definition.mapper.js';
 import { DefinitionsRepository } from './definitions/definitions.repository.js';
+import { DefinitionsBindingService } from './definitions/definitions-binding.service.js';
 import { DefinitionsService } from './definitions/definitions.service.js';
 import { CustomFieldDefaults } from './values/defaults.js';
 import { CustomFieldRefsHydrator } from './values/refs-hydrator.js';
@@ -36,6 +37,7 @@ import { CustomFieldValueValidator } from './values/value-validator.js';
     CustomFieldDefaults,
     CustomFieldRefsHydrator,
     DefinitionsService,
+    DefinitionsBindingService,
   ],
 })
 export class CustomFieldsModule {}

@@ -50,8 +50,13 @@ export class TaskTypeChangeService {
       throw DomainException.notFound('Process type not found');
     }
     if (nextType.id === row.typeId) return this.taskService.listItem(user.id, taskId);
-    // Скрытый тип недоступен смене и на сервере (security #378).
-    await this.catalog.resolveType(nextType.id, { category: 'task', requireCreatable: true });
+    // Доступ к целевому типу (#432, Р6): невидимый — 403 reason=view,
+    // без права создания — 403 reason=not_creatable.
+    await this.catalog.resolveType(nextType.id, {
+      category: 'task',
+      requireCreatable: true,
+      actorId: user.id,
+    });
     const workflowId = nextType.workflowId;
     const stages = await this.catalog.liveStages(workflowId);
     const sameStage = stages.find((s) => s.id === row.stageId);

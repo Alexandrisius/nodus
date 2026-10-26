@@ -19,6 +19,7 @@ import { familyModifier, modifierOf } from '../../lib/field-type-families.js';
 import { FieldDefaultValue } from './field-default-value.js';
 import { FieldOptionsEditor } from './field-options-editor.js';
 import { FieldSettings, SettingRow } from './field-settings.js';
+import { FieldTypesPicker } from './field-types-picker.js';
 
 function Section({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -114,6 +115,14 @@ export function FieldDialogForm({
             className="resize-none text-sm"
           />
         </Labeled>
+        {/* «Типы» (#432, В2): у задач и писем — обязательный выбор, у
+            проектов и контрагентов поля нет (компонент вернёт null). */}
+        <FieldTypesPicker
+          scope={scope}
+          typeIds={draft.typeIds}
+          disabled={disabled}
+          onChange={(typeIds) => onChange({ typeIds })}
+        />
       </Section>
       {/* Настройки типа и видимость — в две колонки: правый столбец окна
           широкий, а так форма списка с вариантами помещается без прокрутки

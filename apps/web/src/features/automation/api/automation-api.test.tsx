@@ -28,6 +28,12 @@ const makeType = (n: string): ProcessType => ({
   sortOrder: 0,
   archivedAt: null,
   workflowId: `00000000-0000-4000-8000-0000000000d${n}`,
+  config: {
+    card: { hiddenBlocks: [], roleLabels: {} },
+    access: { view: null, create: null },
+  },
+  creationForm: { fields: [], chips: [] },
+  viewer: { canView: true, canCreate: true },
 });
 
 function hook(client: QueryClient) {

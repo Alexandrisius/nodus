@@ -174,16 +174,13 @@ export function RouteCanvas({
       onNodeDragStop={onNodeDragStop}
       onNodeClick={(_event, node) => {
         // Любой узел холста открывает панель: статус — свою, метка «Любой
-        // статус» — панель своей кнопки, «Создание задачи» — панель
-        // начального статуса (где и настраивается «Начальный статус»).
+        // статус» — панель своей кнопки, «Создание задачи» — панель «Окно
+        // создания» (#432, В1; начальный статус настраивается в своей панели).
         const store = useRouteDocStore.getState();
         const anyTransition = transitionOfAnyNode(node.id);
-        const initial = store.document.stages.find((s) => s.isInitial);
         if (anyTransition) store.select({ kind: 'transition', id: anyTransition });
         else if (node.type === 'status') store.select({ kind: 'stage', id: node.id });
-        else if (node.id === START_NODE_ID && initial) {
-          store.select({ kind: 'stage', id: initial.id });
-        }
+        else if (node.id === START_NODE_ID) store.select({ kind: 'creation', id: 'creation' });
       }}
       onEdgeClick={(_event, edge) => {
         if (edge.id !== START_EDGE_ID) {

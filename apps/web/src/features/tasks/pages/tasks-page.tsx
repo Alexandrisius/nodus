@@ -21,7 +21,7 @@ import {
 import { taskListFields } from '../lib/task-fields.js';
 import { TaskKanban } from '../components/task-kanban.js';
 import { TaskList } from '../components/task-list.js';
-import { TaskQuickCreate } from '../../../shared/tasks/task-quick-create.js';
+import { openTaskCreate } from '../../../shared/tasks/task-create-store.js';
 
 /** Реестр блоков карточки канбана — module-константа (стабильная идентичность). */
 const taskCardFields = makeTaskCardFields();
@@ -55,7 +55,6 @@ function TasksSection({ view, overdueTotal }: { view: 'list' | 'kanban'; overdue
     [defs, toolbar.filters, toolbar.query],
   );
   const overdueActive = toolbar.filters.overdue === 'yes';
-  const [createOpen, setCreateOpen] = useState(false);
   const [scope, setScope] = useListScope();
 
   return (
@@ -73,7 +72,7 @@ function TasksSection({ view, overdueTotal }: { view: 'list' | 'kanban'; overdue
             // Закон кнопки создания (вердикт 15.09.2026): label всегда
             // «Создать» (без уточнения — кнопка не раздувается), высота =
             // поисковой строке (h-8, size default).
-            <Button onClick={() => setCreateOpen(true)}>
+            <Button onClick={() => openTaskCreate()}>
               <Plus data-icon="inline-start" />
               {ui.common.create}
             </Button>
@@ -108,12 +107,11 @@ function TasksSection({ view, overdueTotal }: { view: 'list' | 'kanban'; overdue
       </div>
       <div className="relative min-h-0 flex-1">
         {view === 'list' ? (
-          <TaskList filter={filter} scope={scope} onCreate={() => setCreateOpen(true)} />
+          <TaskList filter={filter} scope={scope} onCreate={() => openTaskCreate()} />
         ) : (
-          <TaskKanban filter={filter} onCreate={() => setCreateOpen(true)} />
+          <TaskKanban filter={filter} onCreate={() => openTaskCreate()} />
         )}
       </div>
-      <TaskQuickCreate open={createOpen} onOpenChange={setCreateOpen} />
     </>
   );
 }

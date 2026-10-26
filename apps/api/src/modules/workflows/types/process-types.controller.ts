@@ -13,11 +13,13 @@ import {
   processTypeListQuerySchema,
   processTypeSchema,
   updateProcessTypeBodySchema,
+  updateProcessTypeConfigBodySchema,
   type AuthUser,
   type CreateProcessTypeBody,
   type ProcessType,
   type ProcessTypeListQuery,
   type UpdateProcessTypeBody,
+  type UpdateProcessTypeConfigBody,
 } from '@nodus/contracts';
 
 import { Audit } from '../../../core/decorators/audit.decorator.js';
@@ -49,13 +51,14 @@ export class ProcessTypesController {
   @ApiOkResponse({ standardSchema: z.array(processTypeSchema) })
   @ApiErrors(400, 401)
   list(
+    @GetUser() user: AuthUser,
     @Query({
       schema: processTypeListQuerySchema,
       pipes: [new ZodValidationPipe(processTypeListQuerySchema)],
     })
     query: ProcessTypeListQuery,
   ): Promise<ProcessType[]> {
-    return this.types.list(query.archived ?? 'exclude', query.category);
+    return this.types.list(user, query.archived ?? 'exclude', query.category);
   }
 
   @Post('types')
@@ -81,7 +84,7 @@ export class ProcessTypesController {
   @RequirePermissions(Permission.WORKFLOW_MANAGE)
   @Audit({ action: 'workflow.type_update', entity: 'process_type' })
   @ApiOperation({ summary: 'Свойства типа (ставит customizedAt — каталог не трогает)' })
-  @ApiOkResponse({ standardSchema: z.object({ ok: z.literal(true) }) })
+  @ApiOkResponse({ standardSchema: processTypeSchema })
   @ApiErrors(400, 401, 403, 404, 409)
   @ApiIdempotencyKey()
   update(
@@ -92,8 +95,30 @@ export class ProcessTypesController {
       pipes: [new ZodValidationPipe(updateProcessTypeBodySchema)],
     })
     body: UpdateProcessTypeBody,
-  ): Promise<{ ok: true }> {
-    return this.types.update(user, id, body).then(() => ({ ok: true as const }));
+  ): Promise<ProcessType> {
+    return this.types.update(user, id, body);
+  }
+
+  @Patch('types/:id/config')
+  @HttpCode(200)
+  @RequirePermissions(Permission.WORKFLOW_MANAGE)
+  @Audit({ action: 'workflow.type_config_update', entity: 'process_type' })
+  @ApiOperation({
+    summary: 'Настройки типа: состав карточки и доступ (разделы заменяются целиком)',
+  })
+  @ApiOkResponse({ standardSchema: processTypeSchema })
+  @ApiErrors(400, 401, 403, 404, 409, 422)
+  @ApiIdempotencyKey()
+  updateConfig(
+    @GetUser() user: AuthUser,
+    @Param('id', uuid) id: string,
+    @Body({
+      schema: updateProcessTypeConfigBodySchema,
+      pipes: [new ZodValidationPipe(updateProcessTypeConfigBodySchema)],
+    })
+    body: UpdateProcessTypeConfigBody,
+  ): Promise<ProcessType> {
+    return this.types.updateConfig(user, id, body);
   }
 
   @Post('types/:id/archive')
@@ -101,11 +126,11 @@ export class ProcessTypesController {
   @RequirePermissions(Permission.WORKFLOW_MANAGE)
   @Audit({ action: 'workflow.type_archive', entity: 'process_type' })
   @ApiOperation({ summary: 'Тип в архив (системный — 409)' })
-  @ApiOkResponse({ standardSchema: z.object({ ok: z.literal(true) }) })
+  @ApiOkResponse({ standardSchema: processTypeSchema })
   @ApiErrors(400, 401, 403, 404, 409)
   @ApiIdempotencyKey()
-  archive(@GetUser() user: AuthUser, @Param('id', uuid) id: string): Promise<{ ok: true }> {
-    return this.types.setArchived(user, id, true).then(() => ({ ok: true as const }));
+  archive(@GetUser() user: AuthUser, @Param('id', uuid) id: string): Promise<ProcessType> {
+    return this.types.setArchived(user, id, true);
   }
 
   @Post('types/:id/restore')
@@ -113,10 +138,10 @@ export class ProcessTypesController {
   @RequirePermissions(Permission.WORKFLOW_MANAGE)
   @Audit({ action: 'workflow.type_restore', entity: 'process_type' })
   @ApiOperation({ summary: 'Вернуть тип из архива' })
-  @ApiOkResponse({ standardSchema: z.object({ ok: z.literal(true) }) })
+  @ApiOkResponse({ standardSchema: processTypeSchema })
   @ApiErrors(400, 401, 403, 404, 409)
   @ApiIdempotencyKey()
-  restore(@GetUser() user: AuthUser, @Param('id', uuid) id: string): Promise<{ ok: true }> {
-    return this.types.setArchived(user, id, false).then(() => ({ ok: true as const }));
+  restore(@GetUser() user: AuthUser, @Param('id', uuid) id: string): Promise<ProcessType> {
+    return this.types.setArchived(user, id, false);
   }
 }

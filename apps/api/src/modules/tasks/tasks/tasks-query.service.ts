@@ -12,6 +12,7 @@ import type {
   TaskStageWithCount,
   CustomFieldValues,
 } from '@nodus/contracts';
+import { normalizeTypeConfig, requiredCreateKeys } from '@nodus/contracts';
 
 import { DomainException } from '../../../core/errors/domain-exception.js';
 import { decodeCursor, encodeCursor } from '../../../core/pagination/cursor.util.js';
@@ -123,6 +124,15 @@ export class TasksQueryService {
       'task',
       (row.customFields ?? {}) as CustomFieldValues,
     );
+    // Состав карточки по типу (#432, Р7): сервер собирает его сам, поэтому
+    // он работает и для типа, невидимого зрителю (имя типа не раскрывается).
+    const type = await this.catalog.typeById(row.typeId);
+    const cardConfig = normalizeTypeConfig(type?.config);
+    const layout = {
+      hiddenBlocks: cardConfig.card.hiddenBlocks,
+      roleLabels: cardConfig.card.roleLabels,
+      requiredKeys: type ? requiredCreateKeys(type.creationForm) : [],
+    };
     const origin = [
       // Узлы чата строятся только при чтении (по правам смотрящего); старые
       // снимки в origin, если есть, не отдаются (security-гейт #37, р.3).
@@ -160,6 +170,7 @@ export class TasksQueryService {
         : null,
       completedAt: full.completedAt?.toISOString() ?? null,
       customFieldRefs,
+      layout,
       access: taskAccess(actorRoles(row, user.id), user.permissions),
       createdAt: full.createdAt.toISOString(),
     };
@@ -236,6 +247,7 @@ export class TasksQueryService {
       this.catalog,
       () => this.reads.stageCounts(visibleTasksWhere(viewer, scope), new Date()),
       typeId,
+      user.id,
     );
   }
 }

@@ -30,26 +30,32 @@
 
 ## Порты для владельцев (ADR-0012)
 
-`WORKFLOW_FIELD_USAGE_READER` (#431) — «где атрибут используется»: ищет ключ `cf.<id>` в опубликованных документах маршрутов области (окно и `fields_required`); модуль атрибутов блокирует удаление по этому ответу, сам таблицы процессов не читает.
+`WORKFLOW_FIELD_USAGE_READER` (#431) — «где атрибут используется»: ищет ключ `cf.<id>` в опубликованных документах маршрутов области (окно, `fields_required` и **форма создания** — #432); модуль атрибутов блокирует удаление и снятие привязки по этому ответу (`{ typeId }` — только маршрут этого типа), сам таблицы процессов не читает.
 
 `workflows-ports.module.ts` — единственная допустимая форма межмодульного импорта; доменные сервисы наружу не экспортируются.
 
 - **`WORKFLOW_ENGINE`** (`ports/workflow-engine.port.ts`): `available(tx, id, category, actor)` и `execute(tx, id, category, actor, choice, opts)` — **в транзакции вызывающего**. Порядок ведёт движок: замок → субъект → условия «кто» → гейты → обход (флаг адаптера + причина) → применение адаптером. Чужие таблицы движок не пишет.
-- **`PROCESS_CATALOG_READER`** (`ports/process-catalog-reader.port.ts`): `resolveType` (категория/архив/скрытость), `typeById`, `typeRefs`, `liveStages`, `stagesByIds`, `findLiveStage`, `stagesCatalog` — гидратация DTO и каталог стадий.
+- **`PROCESS_CATALOG_READER`** (`ports/process-catalog-reader.port.ts`): `resolveType` (категория/архив/скрытость/**доступ с актором** — #432), `typeById`, `typeRefs(ids, { live })`, `liveStages`, `stagesByIds`, `findLiveStage`, `stagesCatalog({ typeId?, category, viewerId? })` — гидратация DTO, каталог стадий и проверка доступа к типу.
+- **`ROLE_MEMBERSHIP_READER`** (`core/ports/role-membership.port.ts`, ADR-0034) — эффективные роли с кодом (`effectiveRoles`), по ним считается доступ к типу; привязан в `WorkflowsPortsModule`, чтобы порт каталога не зависел от HTTP-модуля auth.
 
 ## API (`/api/v1/workflows`)
 
 | Метод и путь                                 | Право             | Что                                                                                                                                                                                                                                                        |
 | -------------------------------------------- | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /workflows/types?archived=&category=`   | любой вошедший    | Типы процессов (расширенный DTO с `category`, `direction`, `workflowId`)                                                                                                                                                                                   |
+| `GET /workflows/types?archived=&category=`   | любой вошедший    | Типы процессов: `category`, `direction`, `workflowId`, **`config`, `creationForm`, `viewer`**; без `workflow.manage` — только видимые (#432)                                                                                                               |
 | `POST /workflows/types`                      | `workflow.manage` | Тип + маршрут-основа (копия того же вида или простой); тип рождается скрытым, код — `custom-<hex>`                                                                                                                                                         |
-| `PATCH /workflows/types/:id`                 | `workflow.manage` | Свойства типа; ставит `customizedAt` (каталог не трогает)                                                                                                                                                                                                  |
+| `PATCH /workflows/types/:id`                 | `workflow.manage` | Свойства типа; ставит `customizedAt` (каталог не трогает); ответ — DTO типа. «Стандартный»: `creatable:false` — `409 PROCESS_TYPE_SYSTEM_LOCKED` (#432)                                                                                                    |
+| `PATCH /workflows/types/:id/config`          | `workflow.manage` | Настройки типа (#432): `card` (скрытые блоки, подписи ролей) и `access` (кто видит / кто создаёт) — разделы заменяются ЦЕЛИКОМ, сохраняются сразу, публикации не требуют; событие `workflow.type_updated {fields: ['config.card'…]}`                       |
 | `POST /workflows/types/:id/archive\|restore` | `workflow.manage` | Архив/возврат; системный — `409 PROCESS_TYPE_SYSTEM_LOCKED`, имя уникально среди живых (`409 PROCESS_TYPE_NAME_TAKEN`)                                                                                                                                     |
 | `GET /workflows/:id`                         | любой вошедший    | Документ маршрута + версия + счётчики сущностей по статусам                                                                                                                                                                                                |
 | `POST /workflows/:id/publish`                | `workflow.manage` | Публикация: `SELECT … FOR UPDATE` → сверка `baseVersion` (`409 WORKFLOW_VERSION_CONFLICT`) → `checkWorkflowDocument` (`422 WORKFLOW_INVALID`) → серверные проверки → план → применение (удаление = архивация) → `version++` + событие `workflow.published` |
 | `PUT /workflows/:id/layout`                  | `workflow.manage` | Расстановка холста без новой версии (слияние по элементам, только живые id), событие `workflow.layout_changed`                                                                                                                                             |
 
 Мутации — `Idempotency-Key` (ADR-0005) + аудит (`workflow.*`). Чтение схем — решение владельца: типы и маршруты видят все вошедшие.
+
+## Форма создания (#432)
+
+`Workflow.creation` — раздел документа маршрута: `{ fields: [{ key, label, required, preset }], chips: ['checklist'|'planned'] }`, `null` — форма по умолчанию категории (описание, ответственный, срок, проект + чипы). Публикуется версией вместе со стадиями и кнопками: правка только формы поднимает версию, переносов нет. Проверки — `checkCreationForm` (contracts, общая грамматика с вебом) с фактами: привязанные к типу атрибуты (`customFieldFactsOf` с `typeId`), определения области и живые сотрудники в пресетах (`creation-facts.ts`). Копия типа переносит и форму, и привязки атрибутов основы — иначе окна скопированного маршрута стали бы невалидными.
 
 ## Публикация и фоновый перенос
 
@@ -61,7 +67,7 @@
 
 ## События (`WORKFLOW_EVENTS`)
 
-`workflow.type_created` (с `category`) / `type_updated` / `type_archived` / `published` (с `category`, `moves`, `restates`) / `layout_changed` — **без audience**: gateway рассылает их всем авторизованным сокетам (комната presence), клиенты инвалидируют каталоги. Прежние `task.type_*` / `task.workflow_*` зарезервированы и не эмитятся (#428); история задач читает старые записи event log.
+`workflow.type_created` (с `category`) / `type_updated` (поля — имена свойств и разделов `config.*`) / `type_archived` / `published` (с `category`, `moves`, `restates`) / `layout_changed` — **без audience**: gateway рассылает их всем авторизованным сокетам (комната presence), клиенты инвалидируют каталоги. Прежние `task.type_*` / `task.workflow_*` зарезервированы и не эмитятся (#428); история задач читает старые записи event log.
 
 ## Границы
 

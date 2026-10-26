@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import type { Prisma } from '../../../../generated/prisma/client.js';
+import { Prisma } from '../../../../generated/prisma/client.js';
 import type { TransactionClient } from '../../../../core/database/transaction-runner.js';
 import type { StageCreate, StageUpdate } from './publish-planner.js';
 
@@ -86,11 +86,17 @@ export class WorkflowPublishRepository {
     await tx.workflow.update({ where: { id: workflowId }, data: { layout } });
   }
 
-  /** Новая версия маршрута + раскладка холста (общая для всех). */
+  /** Новая версия маршрута + раскладка холста (общая для всех) + форма
+   *  создания (#432): всё это части одного документа публикации. */
   async bumpVersion(
     tx: TransactionClient,
     workflowId: string,
-    by: { userId: string; at: Date; layout: Prisma.InputJsonValue },
+    by: {
+      userId: string;
+      at: Date;
+      layout: Prisma.InputJsonValue;
+      creation?: Prisma.InputJsonValue | null;
+    },
   ): Promise<number> {
     const published = await tx.workflow.update({
       where: { id: workflowId },
@@ -100,6 +106,9 @@ export class WorkflowPublishRepository {
         publishedById: by.userId,
         customizedAt: by.at,
         layout: by.layout,
+        ...(by.creation === undefined
+          ? {}
+          : { creation: by.creation === null ? Prisma.DbNull : by.creation }),
       },
       select: { version: true },
     });

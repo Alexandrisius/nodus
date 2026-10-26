@@ -21,6 +21,7 @@ import { dictionaryById } from '../../mocks/data/dictionaries.js';
 import { demoCustomFieldDefinitions, demoFieldById } from '../../mocks/data/custom-fields.js';
 import { demoRefsForValues } from '../../mocks/data/custom-fields-refs.js';
 import { demoSubtasks, demoTasks } from '../../mocks/data/tasks.js';
+import { mockTypes } from '../../mocks/data/process-types-store.js';
 import { workflowsUsingField } from '../../mocks/data/workflows-store.js';
 
 /** Мок-сервер реестра атрибутов (#431): правила те же, что у бэкенда —
@@ -131,6 +132,7 @@ export const customFieldsHandlers = [
       defaultRefs: [],
       reportIndexed: body.reportIndexed,
       hidden: body.hidden,
+      typeIds: body.typeIds ?? [],
       sortOrder: maxOrder + 1,
       createdAt: now,
       updatedAt: now,
@@ -159,6 +161,45 @@ export const customFieldsHandlers = [
       if (definition) definition.sortOrder = index;
     });
     return new HttpResponse(null, { status: 204 });
+  }),
+
+  // Точечная привязка к типу (#432, Р8) — идемпотентна; снятие при
+  // использовании в опубликованном маршруте типа — 409 (путь с typeId
+  // раньше `:id`, gotcha msw-query).
+  http.put('/api/v1/custom-fields/definitions/:id/types/:typeId', ({ params }) => {
+    const definition = demoFieldById(String(params.id));
+    if (!definition) return error(ErrorCode.NOT_FOUND, 'Field not found', 404);
+    const type = mockTypes.find((entry) => entry.id === params.typeId);
+    if (!type) return error(ErrorCode.NOT_FOUND, 'Process type not found', 404);
+    if (definition.scope !== type.category) {
+      return error(ErrorCode.CUSTOM_FIELD_BINDING_INVALID, 'Scope does not match type', 422, {
+        typeIds: [type.id],
+      });
+    }
+    if (!definition.typeIds.includes(type.id))
+      definition.typeIds = [...definition.typeIds, type.id];
+    definition.updatedAt = new Date().toISOString();
+    return HttpResponse.json(dto(definition));
+  }),
+
+  http.delete('/api/v1/custom-fields/definitions/:id/types/:typeId', ({ params }) => {
+    const definition = demoFieldById(String(params.id));
+    if (!definition) return error(ErrorCode.NOT_FOUND, 'Field not found', 404);
+    const type = mockTypes.find((entry) => entry.id === params.typeId);
+    if (!type) return error(ErrorCode.NOT_FOUND, 'Process type not found', 404);
+    // Снятие привязки при использовании в опубликованном маршруте типа:
+    // форма создания, окно перехода или условие (409 CUSTOM_FIELD_IN_USE).
+    const inWorkflow = workflowsUsingField(definition.id).some(
+      (entry) => entry.id === type.workflowId,
+    );
+    if (inWorkflow) {
+      return error(ErrorCode.CUSTOM_FIELD_IN_USE, 'Field is used by the type workflow', 409, {
+        workflows: workflowsUsingField(definition.id).filter((e) => e.id === type.workflowId),
+      });
+    }
+    definition.typeIds = definition.typeIds.filter((id) => id !== type.id);
+    definition.updatedAt = new Date().toISOString();
+    return HttpResponse.json(dto(definition));
   }),
 
   http.patch('/api/v1/custom-fields/definitions/:id', async ({ params, request }) => {
@@ -191,6 +232,7 @@ export const customFieldsHandlers = [
     if (body.defaultValue !== undefined) definition.defaultValue = body.defaultValue;
     if (body.settings !== undefined)
       definition.settings = { ...definition.settings, ...body.settings };
+    if (body.typeIds !== undefined) definition.typeIds = body.typeIds;
     definition.updatedAt = new Date().toISOString();
     return HttpResponse.json(dto(definition));
   }),

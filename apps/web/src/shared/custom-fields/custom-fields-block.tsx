@@ -4,7 +4,7 @@ import type {
   CustomFieldValue,
   CustomFieldValues,
 } from '@nodus/contracts';
-import { ui } from '@nodus/contracts';
+import { typeIdsOf, ui } from '@nodus/contracts';
 import { NodeLabel } from '@nodus/ui/components/node-label';
 import { Skeleton } from '@nodus/ui/components/skeleton';
 
@@ -26,19 +26,25 @@ import { CustomFieldEditor } from './value-editor.js';
  */
 export function CustomFieldsBlock({
   scope,
+  typeId,
   values,
   refs,
   canEdit,
   onChange,
 }: {
   scope: CustomFieldScope;
+  /** Тип процесса: показываются только его атрибуты (#432, Р8). */
+  typeId?: string;
   values: CustomFieldValues;
   refs: readonly CustomFieldRef[];
   canEdit: boolean;
   onChange: (fieldId: string, value: CustomFieldValue | null, refs?: CustomFieldRef[]) => void;
 }) {
   const query = useCustomFieldDefinitions(scope);
-  const definitions = visibleDefinitions(query.data);
+  const typed = scope === 'task' || scope === 'letter';
+  const definitions = visibleDefinitions(query.data).filter(
+    (definition) => !typeId || !typed || typeIdsOf(definition).includes(typeId),
+  );
 
   if (query.isLoading) {
     return (

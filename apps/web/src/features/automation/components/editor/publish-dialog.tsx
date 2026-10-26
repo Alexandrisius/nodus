@@ -73,6 +73,10 @@ export function publishSummary(
   if (JSON.stringify(baseline.layout ?? null) !== JSON.stringify(next.layout ?? null)) {
     parts.push(ui.automation.publishLayoutChanged);
   }
+  // Форма создания типа (#432) — раздел документа, публикуется версией.
+  if (JSON.stringify(baseline.creation ?? null) !== JSON.stringify(next.creation ?? null)) {
+    parts.push(ui.automation.publishCreationChanged);
+  }
   return parts.length > 0 ? parts.join(', ') : ui.automation.publishNothingChanged;
 }
 

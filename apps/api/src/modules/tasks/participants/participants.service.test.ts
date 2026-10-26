@@ -10,17 +10,40 @@ const ROW = {
   id: 't1',
   number: 7,
   title: 'T',
+  typeId: 'type-1',
   creatorId: 'alice',
   assigneeId: 'bob',
-  participants: [{ userId: 'carol', role: 'observer' }],
+  participants: [
+    { userId: 'carol', role: 'observer' },
+    { userId: 'dave', role: 'coexecutor' },
+  ],
 };
 
-function setup(removed = 1) {
-  const repo = { assignRole: vi.fn(), remove: vi.fn().mockResolvedValue(removed) };
+function setup(removed = 1, opts: { required?: string[]; left?: number } = {}) {
+  const repo = {
+    assignRole: vi.fn(),
+    remove: vi.fn().mockResolvedValue(removed),
+    countRole: vi.fn().mockResolvedValue(opts.left ?? 1),
+  };
   const tasksRepo = { findWithParticipants: vi.fn().mockResolvedValue(ROW), touch: vi.fn() };
   const query = {
     visibleRow: vi.fn().mockResolvedValue(ROW),
     detail: vi.fn().mockResolvedValue({ id: 't1' }),
+  };
+  const catalog = {
+    typeById: vi.fn().mockResolvedValue({
+      id: 'type-1',
+      category: 'task',
+      creationForm: {
+        fields: (opts.required ?? []).map((key) => ({
+          key,
+          label: null,
+          required: true,
+          preset: null,
+        })),
+        chips: [],
+      },
+    }),
   };
   const service = new ParticipantsService(
     { run: (fn: (tx: unknown) => unknown) => fn(TX) } as never,
@@ -30,6 +53,7 @@ function setup(removed = 1) {
     { assertActiveUsers: vi.fn() } as never,
     tasksRepo as never,
     repo as never,
+    catalog as never,
   );
   return { service, repo };
 }
@@ -81,5 +105,26 @@ describe('ParticipantsRepository.assignRole', () => {
     });
     await new ParticipantsRepository().assignRole(tx as never, 't1', 'carol', 'observer');
     expect(upsert.mock.calls[1]![0].update).toEqual({ role: 'observer', muted: true });
+  });
+});
+
+describe('ParticipantsService: обязательные участники (#432, Р5)', () => {
+  it('снятие последнего обязательного соисполнителя — 422 reason=clear', async () => {
+    const { service } = setup(1, { required: ['coexecutors'], left: 0 });
+    await expect(service.remove(user('alice'), 't1', 'dave')).rejects.toMatchObject({
+      code: ErrorCode.PROCESS_TYPE_FIELDS_REQUIRED,
+      details: { fields: ['coexecutors'], reason: 'clear' },
+    });
+  });
+
+  it('остались другие — снятие проходит', async () => {
+    const { service, repo } = setup(1, { required: ['coexecutors'], left: 2 });
+    await service.remove(user('alice'), 't1', 'dave');
+    expect(repo.remove).toHaveBeenCalled();
+  });
+
+  it('участник не обязателен — снятие последнего проходит', async () => {
+    const { service } = setup(1, { required: [], left: 0 });
+    await service.remove(user('alice'), 't1', 'dave');
   });
 });

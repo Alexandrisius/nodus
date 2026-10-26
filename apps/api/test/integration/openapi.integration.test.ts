@@ -18,6 +18,7 @@ import { CounterpartiesController } from '../../src/modules/crm/counterparties/c
 import { CounterpartiesQueryService } from '../../src/modules/crm/counterparties/counterparties-query.service.js';
 import { CounterpartiesService } from '../../src/modules/crm/counterparties/counterparties.service.js';
 import { DefinitionsController } from '../../src/modules/custom-fields/definitions/definitions.controller.js';
+import { DefinitionsBindingService } from '../../src/modules/custom-fields/definitions/definitions-binding.service.js';
 import { DefinitionsService } from '../../src/modules/custom-fields/definitions/definitions.service.js';
 import { DictionariesController } from '../../src/modules/dictionaries/dictionaries.controller.js';
 import { DictionariesService } from '../../src/modules/dictionaries/dictionaries.service.js';
@@ -85,6 +86,7 @@ type OpenApiPaths = Record<string, Record<string, OpenApiOperation>>;
     { provide: DictionariesService, useValue: {} },
     { provide: DictionaryItemsService, useValue: {} },
     { provide: DefinitionsService, useValue: {} },
+    { provide: DefinitionsBindingService, useValue: {} },
     { provide: CounterpartiesQueryService, useValue: {} },
     { provide: CounterpartiesService, useValue: {} },
     { provide: ContactsService, useValue: {} },

@@ -5,6 +5,7 @@ import { ui } from '@nodus/contracts';
 import { Empty, EmptyTitle } from '@nodus/ui/components/empty';
 
 import { useProcessTypes } from '../../api/automation-api.js';
+import { useCanManageWorkflows } from '../../../../shared/api/use-can-manage-workflows.js';
 import { useRouteDocStore } from '../../model/route-doc-store.js';
 import { RouteEditor } from '../editor/route-editor.js';
 import { TypeList } from '../types/type-list.js';
@@ -29,6 +30,7 @@ export function ProcessesTab() {
   const navigate = useNavigate();
   const search = useSearch({ strict: false }) as { type?: string };
   const { data: types, isLoading } = useProcessTypes('include');
+  const canManage = useCanManageWorkflows();
   // Настройки типа открываются ДЛЯ КОНКРЕТНОЙ строки (#409): boolean терял
   // id, и панель всегда показывала selected — не тот тип, у которого нажали
   // «⋯ → Настройки типа». Выделение редактора при этом не меняется.
@@ -129,6 +131,7 @@ export function ProcessesTab() {
               <TypeSettingsPanel
                 open={settingsOpen}
                 type={settingsType ?? selected}
+                readOnly={!canManage}
                 onClose={() => setSettingsTypeId(null)}
               />
             }

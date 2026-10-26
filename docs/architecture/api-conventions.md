@@ -91,3 +91,25 @@ INTERNAL_ERROR      # непредвиденное (без деталей нар
 - `task.stage_changed` расширен (все поля optional — старые события их не несут): `recordId`, `transitionName ≤32`, `fromStageName ≤40`, `comment ≤2000`, `commentLabel ≤60`, `result { resultId, fileCount, messageCount }`. По ним чат пишет блок перехода.
 - Вид сообщения: `kind` (`text | task_transition`; #313 добавит `system`) + `payload JSONB`; DTO сообщения — `kind` и `block` (закрытый union по виду, `null` при выключенном/битом payload). Правка блока запрещена (403).
 - `GET /chat/conversations/:id/messages/lookup?ids=` — до 50 id, только участник (иначе 404), живые сообщения в порядке `seq`; отсутствующие молча выпадают.
+
+### Формы создания и состав карточки по типу (#432)
+
+**Политика создания задачи — одна на сервере, на всех путях** (`POST /tasks`, `POST /tasks/:id/subtasks`, «В задачу» из чата, будущий ИИ-агент, #436): тип резолвится портом `PROCESS_CATALOG_READER.resolveType(typeId, { category, requireCreatable, actorId })` → скрытые значения формы (`applyCreationPresets`) → умолчания привязанных атрибутов → обязательные поля. Порядок важен: значение формы важнее введённого клиентом.
+
+```
+403 PROCESS_TYPE_FORBIDDEN      {typeId, reason: 'view' | 'not_creatable'}
+409 PROCESS_TYPE_SYSTEM_LOCKED  {reason: 'default_type'}            # «Стандартный»: creatable/access
+422 PROCESS_TYPE_FIELDS_REQUIRED {typeId, fields: CreationFieldKey[], reason: 'create' | 'clear'}
+422 PROCESS_TYPE_PRESET_INVALID  {typeId, fields: CreationFieldKey[]}  # пресет ссылается на уволенного
+422 CUSTOM_FIELD_VALUE_INVALID   {issues: [{fieldId, reason: 'not_in_type' | ...}]}
+422 CUSTOM_FIELD_BINDING_INVALID {typeIds}                          # привязка к чужой категории/архиву
+```
+
+- **`clear`** приходит из трёх мест: `PATCH /tasks/:id` (срок, описание, атрибут), окно перехода (тот же писатель полей) и снятие последнего участника обязательной роли (`DELETE /tasks/:id/participants/:userId`).
+- **403, а не 409, на скрытый тип** (О7): клиент различает «нет доступа» (`view`) и «нельзя создавать» (`not_creatable`) — веб показывает разные подсказки. Внутренние вызовы без актора сохраняют 409.
+- **Смена типа** (`POST /tasks/:id/type`) требует доступа «создаёт» к целевому типу; обязательных полей не требует (О9).
+- **`GET /workflows/types`** отдаёт `config`, `creationForm` (эффективная форма опубликованного маршрута) и `viewer`; без `workflow.manage` — только видимые типы (О11). Мутации типов отвечают DTO типа.
+- **`PATCH /workflows/types/:id/config`** — разделы заменяются целиком (без `.default()`: gotcha Zod 4), событие `workflow.type_updated` с полями `config.card` / `config.access`.
+- **`GET /tasks/:id` → `layout`** = `{hiddenBlocks, roleLabels, requiredKeys}` — собирает сервер из типа (работает и для невидимого зрителю типа).
+- **Привязки атрибутов** — `PUT`/`DELETE /custom-fields/definitions/:id/types/:typeId`, идемпотентны, аудит `custom_field.bind` / `custom_field.unbind`, событие `custom_field.definition_changed {fields: ['typeIds']}`; снятие при использовании в опубликованном маршруте типа — 409 `CUSTOM_FIELD_IN_USE`.
+- **Каталог стадий** (`GET /tasks/stages`) не раскрывает типы, невидимые смотрящему (О11).

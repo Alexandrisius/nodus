@@ -65,6 +65,14 @@ export class ProcessTypesRepository {
     await tx.processType.update({ where: { id }, data });
   }
 
+  /** Конфигурация типа целиком (#432): разделы заменяются, не сливаются. */
+  async updateConfig(tx: TransactionClient, id: string, config: unknown): Promise<void> {
+    await tx.processType.update({
+      where: { id },
+      data: { config: config as Prisma.InputJsonValue, customizedAt: new Date() },
+    });
+  }
+
   findLiveByName(name: string, exceptId?: string) {
     return this.prisma.processType.findFirst({
       where: { name, archivedAt: null, ...(exceptId ? { id: { not: exceptId } } : {}) },
@@ -98,6 +106,18 @@ export class ProcessTypesRepository {
     return new Map(entries.map((e) => [e.processTypeId, e.workflowId]));
   }
 
+  /** Опубликованная форма создания по каждому маршруту (#432): список типов
+   *  отдаёт её в DTO — один запрос на весь список, а не на строку. */
+  async creationMap(workflowIds: readonly string[]): Promise<Map<string, unknown>> {
+    const unique = [...new Set(workflowIds)];
+    if (unique.length === 0) return new Map();
+    const rows = await this.prisma.workflow.findMany({
+      where: { id: { in: unique } },
+      select: { id: true, creation: true },
+    });
+    return new Map(rows.map((row) => [row.id, row.creation]));
+  }
+
   /** Копия маршрута-основы: новые id, каталог-кодов нет, route_if цели
    *  перемапливаются на новые стадии. Возвращает id нового маршрута. */
   async copyWorkflow(
@@ -110,6 +130,8 @@ export class ProcessTypesRepository {
       kind: string;
       code?: string;
       publishedAt?: Date | null;
+      /** Форма создания основы (#432): копия типа работает как оригинал. */
+      creation?: unknown;
     },
   ): Promise<string> {
     const created = await tx.workflow.create({
@@ -121,6 +143,9 @@ export class ProcessTypesRepository {
         publishedAt: def.publishedAt ?? new Date(),
         publishedById: def.publishedById,
         customizedAt: new Date(),
+        ...(def.creation === undefined || def.creation === null
+          ? {}
+          : { creation: def.creation as Prisma.InputJsonValue }),
       },
     });
     const idMap = new Map<string, string>();
@@ -161,6 +186,25 @@ export class ProcessTypesRepository {
       });
     }
     return created.id;
+  }
+
+  /** Привязки атрибутов основы → новому типу (#432): копия типа работает
+   *  как оригинал — окна скопированного маршрута ссылаются на те же
+   *  атрибуты, и без привязок публикация копии падала бы `custom_field_not_in_type`. */
+  async copyTypeBindings(
+    tx: TransactionClient,
+    fromTypeId: string,
+    toTypeId: string,
+  ): Promise<void> {
+    const rows = await tx.fieldDefinitionType.findMany({
+      where: { processTypeId: fromTypeId },
+      select: { definitionId: true },
+    });
+    if (rows.length === 0) return;
+    await tx.fieldDefinitionType.createMany({
+      data: rows.map((row) => ({ definitionId: row.definitionId, processTypeId: toTypeId })),
+      skipDuplicates: true,
+    });
   }
 
   async attachToDefaultScheme(tx: TransactionClient, typeId: string, workflowId: string) {

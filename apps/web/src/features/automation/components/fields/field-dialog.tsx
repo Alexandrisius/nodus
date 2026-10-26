@@ -42,7 +42,8 @@ import { useDefaultCurrencyId } from './field-settings.js';
 import { FieldTypePicker } from './field-type-picker.js';
 
 export type FieldDialogMode =
-  { kind: 'create'; scope: CustomFieldScope } | { kind: 'edit'; definition: CustomFieldDefinition };
+  | { kind: 'create'; scope: CustomFieldScope; presetTypeId?: string }
+  | { kind: 'edit'; definition: CustomFieldDefinition };
 
 interface Errors {
   name?: string;
@@ -85,7 +86,13 @@ export function FieldDialog({
   const createDictionary = useCreateDictionary();
 
   const [draft, setDraft] = useState<FieldDraft | null>(() =>
-    definition ? (code ? null : draftOf(definition, [])) : emptyDraft,
+    definition
+      ? code
+        ? null
+        : draftOf(definition, [])
+      : mode.kind === 'create' && mode.presetTypeId
+        ? { ...emptyDraft, typeIds: [mode.presetTypeId] }
+        : emptyDraft,
   );
   const [initial, setInitial] = useState<FieldDraft | null>(draft);
   // Варианты справочника приходят запросом: черновик правки собирается,

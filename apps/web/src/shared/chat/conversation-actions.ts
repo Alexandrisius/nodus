@@ -3,8 +3,6 @@ import type {
   ChatMessage,
   ConversationListItem,
   ConversationUpdateBody,
-  CreateTaskBody,
-  TaskListItem,
   TaskResult,
   TaskResultCreateBody,
   ThreadWatchResult,
@@ -13,6 +11,7 @@ import { stripMentionTokens, ui } from '@nodus/contracts';
 import { toast } from 'sonner';
 
 import { api } from '../api-client.js';
+import { useQuickCreate } from '../tasks/quick-create.js';
 import { tasksKeys } from '../api/tasks-keys.js';
 import { chatKeys } from './chat-keys.js';
 
@@ -50,31 +49,24 @@ export function useWatchThread(conversationId: string) {
   });
 }
 
-/** Поток Б: «В задачу» из сообщения чата — обычное создание задачи с
- *  происхождением (sourceMessageId: сервер проверяет доступ к сообщению и
- *  дедуплицирует — одна задача на сообщение у постановщика, #37/#252). */
+/** Поток Б: «В задачу» из сообщения чата (#252, #432 Р10) — быстрый вход
+ *  единого окна создания: первая строка — название, весь текст — описание,
+ *  источник — сообщение (сервер проверяет доступ и дедуплицирует: одна
+ *  задача на сообщение у постановщика, #37). Форма типа без обязательных
+ *  полей создаёт сразу, иначе открывается окно с заполнением.
+ */
 export function useMessageToTask() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (message: Pick<ChatMessage, 'id' | 'text'>) => {
-      const text = stripMentionTokens(message.text).trim();
-      const firstLine = text.split('\n')[0]?.trim() ?? '';
-      return api<TaskListItem>('/tasks', {
-        method: 'POST',
-        body: {
-          title: (firstLine || ui.chat.toTaskUntitled).slice(0, 200),
-          ...(text ? { description: text.slice(0, 5000) } : {}),
-          sourceMessageId: message.id,
-        } satisfies CreateTaskBody,
-      });
-    },
-    onSuccess: () => {
-      toast.success(ui.chat.toTaskDone);
-    },
-    onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: tasksKeys.all });
-    },
-  });
+  const quick = useQuickCreate();
+  return (message: Pick<ChatMessage, 'id' | 'text'>) => {
+    const text = stripMentionTokens(message.text).trim();
+    const firstLine = text.split('\n')[0]?.trim() ?? '';
+    quick.run({
+      title: (firstLine || ui.chat.toTaskUntitled).slice(0, 200),
+      ...(text ? { description: text.slice(0, 5000) } : {}),
+      sourceMessageId: message.id,
+      contextLabel: ui.taskCreate.contextFromMessage,
+    });
+  };
 }
 
 /** «Отметить как результат» (#252): сообщение чата задачи — новая ревизия

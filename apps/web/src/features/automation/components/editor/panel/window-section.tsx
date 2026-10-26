@@ -5,9 +5,9 @@ import type {
   WorkflowDraftTransition,
 } from '@nodus/contracts';
 import { CUSTOM_FIELD_LIMITS, ui } from '@nodus/contracts';
-import { Button } from '@nodus/ui/components/button';
 import { Checkbox } from '@nodus/ui/components/checkbox';
 import { Input } from '@nodus/ui/components/input';
+import { Eye } from 'lucide-react';
 
 import {
   visibleDefinitions,
@@ -28,11 +28,10 @@ import {
 import { setMinFiles, validatorOf } from '../../../model/transition-rules.js';
 import { TransitionWindow } from '../../../../../shared/workflow/transition-window/transition-window.js';
 import type { TransitionWindowContext } from '../../../../../shared/workflow/transition-window/window-context.js';
-import { PanelField, SwitchRow } from './panel-kit.js';
+import { ModeChoices, PanelAction, PanelField, SwitchRow } from './panel-kit.js';
 import { CustomFieldChecks } from './custom-fields-checks.js';
 import {
   GateCheck,
-  ModeChoices,
   RequiredCheck,
   SectionToggle,
   previewTransition,
@@ -49,11 +48,14 @@ export function WindowSection({
   transition,
   document: doc,
   scope,
+  typeId,
   readOnly,
 }: {
   transition: WorkflowDraftTransition;
   document: WorkflowDraftDocument;
   scope: CustomFieldScope;
+  /** Тип процесса: в окно выбираются только его атрибуты (#432, Р8). */
+  typeId?: string;
   readOnly: boolean;
 }) {
   const form = transition.form;
@@ -107,6 +109,7 @@ export function WindowSection({
               })}
               <CustomFieldChecks
                 scope={scope}
+                typeId={typeId}
                 selected={sectionOf(form, 'fields')?.fields ?? []}
                 disabled={readOnly}
                 limit={CUSTOM_FIELD_LIMITS.windowFields}
@@ -228,9 +231,9 @@ export function WindowSection({
             </div>
           </SectionToggle>
 
-          <Button type="button" variant="outline" onClick={() => setPreviewOpen(true)}>
+          <PanelAction icon={Eye} onClick={() => setPreviewOpen(true)}>
             {ui.automation.window.preview}
-          </Button>
+          </PanelAction>
           <TransitionWindow
             open={previewOpen}
             mode="preview"

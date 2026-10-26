@@ -24,6 +24,7 @@ const ROW: FieldDefinitionRow = {
   sortOrder: 0,
   createdAt: new Date('2026-10-26T00:00:00.000Z'),
   updatedAt: new Date('2026-10-26T00:00:00.000Z'),
+  typeBindings: [],
 };
 
 const DTO = {
@@ -38,6 +39,7 @@ const DTO = {
   defaultRefs: [],
   reportIndexed: false,
   hidden: false,
+  typeIds: [],
   sortOrder: 0,
   createdAt: '2026-10-26T00:00:00.000Z',
   updatedAt: '2026-10-26T00:00:00.000Z',
@@ -55,6 +57,9 @@ function makeService(overrides: { workflows?: { id: string; name: string }[] } =
     remove: vi.fn(async () => void 0),
     applyOrder: vi.fn(async () => void 0),
     lockScope: vi.fn(async () => void 0),
+    replaceTypes: vi.fn(async () => void 0),
+    bindType: vi.fn(async () => void 0),
+    unbindType: vi.fn(async () => true),
   };
   const mapper = { toDtos: vi.fn(async () => [DTO]), toDto: vi.fn(async () => DTO) };
   const validator = { validate: vi.fn(async () => []) };
@@ -71,6 +76,11 @@ function makeService(overrides: { workflows?: { id: string; name: string }[] } =
   };
   const values = { countValues: vi.fn(async () => 3) };
   const workflows = { workflowsUsingField: vi.fn(async () => overrides.workflows ?? []) };
+  const catalog = {
+    typeRefs: vi.fn(async (ids: string[]) =>
+      ids.map((id) => ({ id, code: `custom-${id}`, name: 'Тип', category: 'task' })),
+    ),
+  };
   const logger = { setContext: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() };
   const service = new DefinitionsService(
     definitions as never,
@@ -81,9 +91,10 @@ function makeService(overrides: { workflows?: { id: string; name: string }[] } =
     dictionaries as never,
     values as never,
     workflows as never,
+    catalog as never,
     logger as never,
   );
-  return { service, definitions, eventBus, workflows, validator, dictionaries, values };
+  return { service, definitions, eventBus, workflows, validator, dictionaries, values, catalog };
 }
 
 describe('DefinitionsService.create (#431, Р4)', () => {
@@ -220,5 +231,98 @@ describe('DefinitionsService.reorder (#431, Р4)', () => {
     definitions.list.mockResolvedValue([ROW]);
     await service.reorder({ scope: 'task', ids: [ROW.id] } as never, 'actor-1');
     expect(definitions.applyOrder).not.toHaveBeenCalled();
+  });
+});
+
+describe('DefinitionsService: привязка к типам (#432, Р8)', () => {
+  it('создание с typeIds пишет привязки и сообщает о них в событии', async () => {
+    const { service, definitions, eventBus } = makeService();
+    await service.create(
+      { scope: 'task', type: 'text', name: 'Новое', typeIds: ['t-1'] } as never,
+      'actor-1',
+    );
+    expect(definitions.replaceTypes).toHaveBeenCalledWith(ROW.id, ['t-1'], expect.anything());
+    expect(eventBus.emit).toHaveBeenCalledWith(
+      expect.anything(),
+      'custom_field.definition_changed',
+      expect.objectContaining({ change: 'created', fields: expect.arrayContaining(['typeIds']) }),
+      expect.anything(),
+    );
+  });
+
+  it('тип чужой категории — 422 CUSTOM_FIELD_BINDING_INVALID', async () => {
+    const { service, catalog, definitions } = makeService();
+    catalog.typeRefs.mockResolvedValue([
+      { id: 't-letter', code: 'custom-letter', name: 'Письмо', category: 'letter' },
+    ]);
+    await expect(
+      service.create(
+        { scope: 'task', type: 'text', name: 'Чужой', typeIds: ['t-letter'] } as never,
+        'actor-1',
+      ),
+    ).rejects.toMatchObject({ code: ErrorCode.CUSTOM_FIELD_BINDING_INVALID });
+    expect(definitions.create).not.toHaveBeenCalled();
+  });
+
+  it('архивный тип (нет в «живых») — 422, неизвестный — 404', async () => {
+    const archived = makeService();
+    archived.catalog.typeRefs
+      .mockResolvedValueOnce([{ id: 't-1', code: 'c', name: 'Тип', category: 'task' }])
+      .mockResolvedValueOnce([]);
+    await expect(
+      archived.service.create(
+        { scope: 'task', type: 'text', name: 'Архив', typeIds: ['t-1'] } as never,
+        'actor-1',
+      ),
+    ).rejects.toMatchObject({ code: ErrorCode.CUSTOM_FIELD_BINDING_INVALID });
+
+    const missing = makeService();
+    missing.catalog.typeRefs.mockResolvedValue([]);
+    await expect(
+      missing.service.create(
+        { scope: 'task', type: 'text', name: 'Нет типа', typeIds: ['t-x'] } as never,
+        'actor-1',
+      ),
+    ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND });
+  });
+
+  it('правка typeIds заменяет набор и проверяет типы', async () => {
+    const { service, definitions } = makeService();
+    await service.update(ROW.id, { typeIds: ['t-1', 't-2'] } as never, 'actor-1');
+    expect(definitions.replaceTypes).toHaveBeenCalledWith(
+      ROW.id,
+      ['t-1', 't-2'],
+      expect.anything(),
+    );
+  });
+});
+
+describe('DefinitionsService: снятие привязки через PATCH (#432, security)', () => {
+  it('убрать из typeIds тип, где атрибут работает в маршруте, — 409', async () => {
+    const { service, definitions, workflows } = makeService({
+      workflows: [{ id: 'w-1', name: 'Переработка' }],
+    });
+    definitions.findById.mockResolvedValue({
+      ...ROW,
+      typeBindings: [{ processTypeId: 't-1' }],
+    });
+    await expect(service.update(ROW.id, { typeIds: [] } as never, 'actor-1')).rejects.toMatchObject(
+      {
+        code: ErrorCode.CUSTOM_FIELD_IN_USE,
+        details: { workflows: [{ id: 'w-1', name: 'Переработка' }] },
+      },
+    );
+    expect(workflows.workflowsUsingField).toHaveBeenCalledWith('task', ROW.id, { typeId: 't-1' });
+    expect(definitions.replaceTypes).not.toHaveBeenCalled();
+  });
+
+  it('убрать непривязанный к маршруту тип можно', async () => {
+    const { service, definitions } = makeService();
+    definitions.findById.mockResolvedValue({
+      ...ROW,
+      typeBindings: [{ processTypeId: 't-1' }],
+    });
+    await service.update(ROW.id, { typeIds: [] } as never, 'actor-1');
+    expect(definitions.replaceTypes).toHaveBeenCalledWith(ROW.id, [], expect.anything());
   });
 });

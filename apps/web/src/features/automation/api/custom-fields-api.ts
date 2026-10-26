@@ -6,7 +6,7 @@ import type {
   ReorderCustomFieldsBody,
   UpdateCustomFieldBody,
 } from '@nodus/contracts';
-import { ui } from '@nodus/contracts';
+import { typeIdsOf, ui } from '@nodus/contracts';
 import { toast } from 'sonner';
 
 import { api } from '../../../shared/api-client.js';
@@ -94,6 +94,7 @@ function patchOf(
   if (body.settings !== undefined) {
     patch.settings = { ...definition.settings, ...body.settings };
   }
+  if (body.typeIds !== undefined) patch.typeIds = body.typeIds;
   return patch;
 }
 
@@ -152,6 +153,69 @@ export function useReorderCustomFields() {
     onError: (_error, _body, context) => {
       for (const [key, data] of context?.previous ?? []) queryClient.setQueryData(key, data);
       toast.error(ui.common.saveError);
+    },
+    onSettled: () => invalidate(queryClient),
+  });
+}
+
+/**
+ * Привязка атрибута к типу процесса (#432, Р8): оптимистично (I4) и по
+ * очереди на атрибут (`scope`): два быстрых клика по разным типам не
+ * перетирают список друг друга. Снятие привязки сервер может отклонить
+ * (409 CUSTOM_FIELD_IN_USE) — откат и текст ошибки из окна.
+ */
+export function useBindFieldType(fieldId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    scope: { id: `field-types:${fieldId}` },
+    mutationFn: (typeId: string) =>
+      api<CustomFieldDefinition>(`/custom-fields/definitions/${fieldId}/types/${typeId}`, {
+        method: 'PUT',
+      }),
+    onMutate: async (typeId) => {
+      await queryClient.cancelQueries({ queryKey: customFieldsKeys.all });
+      const previous = definitionLists(queryClient);
+      patchLists(queryClient, (definition) =>
+        definition.id === fieldId && !typeIdsOf(definition).includes(typeId)
+          ? { ...definition, typeIds: [...typeIdsOf(definition), typeId] }
+          : definition,
+      );
+      return { previous };
+    },
+    onError: (_error, _typeId, context) => {
+      for (const [key, data] of context?.previous ?? []) queryClient.setQueryData(key, data);
+    },
+    onSuccess: (definition) => {
+      patchLists(queryClient, (current) => (current.id === definition.id ? definition : current));
+    },
+    onSettled: () => invalidate(queryClient),
+  });
+}
+
+/** Снятие привязки атрибута к типу (#432): оптимистично; 409 — откат. */
+export function useUnbindFieldType(fieldId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    scope: { id: `field-types:${fieldId}` },
+    mutationFn: (typeId: string) =>
+      api<CustomFieldDefinition>(`/custom-fields/definitions/${fieldId}/types/${typeId}`, {
+        method: 'DELETE',
+      }),
+    onMutate: async (typeId) => {
+      await queryClient.cancelQueries({ queryKey: customFieldsKeys.all });
+      const previous = definitionLists(queryClient);
+      patchLists(queryClient, (definition) =>
+        definition.id === fieldId
+          ? { ...definition, typeIds: typeIdsOf(definition).filter((id) => id !== typeId) }
+          : definition,
+      );
+      return { previous };
+    },
+    onError: (_error, _typeId, context) => {
+      for (const [key, data] of context?.previous ?? []) queryClient.setQueryData(key, data);
+    },
+    onSuccess: (definition) => {
+      patchLists(queryClient, (current) => (current.id === definition.id ? definition : current));
     },
     onSettled: () => invalidate(queryClient),
   });

@@ -29,20 +29,25 @@ export interface CatalogStageWithType extends CatalogStage {
 }
 
 export interface ProcessCatalogReader {
-  /** Тип по id (по умолчанию — системный «Стандартный») с маршрутом.
-   *  `category` — ожидаемая категория сущности: тип чужой категории — 404
-   *  (задача не может идти по маршруту письма). `requireCreatable` —
-   *  явный выбор типа при создании/смене: скрытый тип отвергается (409). */
+  /** Тип по id (по умолчанию — системный «Стандартный») с маршрутом и
+   *  опубликованной формой создания. `category` — ожидаемая категория
+   *  сущности: тип чужой категории — 404 (задача не может идти по маршруту
+   *  письма). `requireCreatable` — явный выбор типа при создании/смене.
+   *  `actorId` — проверка доступа (#432, Р6): не видит тип — 403
+   *  `PROCESS_TYPE_FORBIDDEN` с `reason: 'view'`, не может создавать —
+   *  403 с `reason: 'not_creatable'`. Без `actorId` (внутренние вызовы, где
+   *  доступ проверен выше) — прежнее поведение: скрытый тип — 409. */
   resolveType(
     typeId: string | undefined,
-    opts: { category: ProcessCategory; requireCreatable?: boolean },
+    opts: { category: ProcessCategory; requireCreatable?: boolean; actorId?: string },
   ): Promise<ProcessType>;
 
   /** Тип по id (живой или архивный) — настройки, смена типа, история. */
   typeById(id: string): Promise<ProcessType | null>;
 
-  /** Ссылки на типы пачкой (гидратация строк DTO). */
-  typeRefs(ids: readonly string[]): Promise<ProcessTypeRef[]>;
+  /** Ссылки на типы пачкой (гидратация строк DTO). `live` — только живые:
+   *  привязка атрибута к архивному типу — мёртвая настройка (#432). */
+  typeRefs(ids: readonly string[], opts?: { live?: boolean }): Promise<ProcessTypeRef[]>;
 
   /** Живые стадии маршрута по порядку (выбор стадии при создании/смене типа). */
   liveStages(workflowId: string): Promise<CatalogStage[]>;
@@ -54,9 +59,12 @@ export interface ProcessCatalogReader {
   findLiveStage(stageId: string): Promise<CatalogStage | null>;
 
   /** Стадии одного типа (с typeId/typeName) или всех живых типов категории —
-   *  межтиповой фильтр «Тип · Статус»; счётчики считает модуль-владелец. */
+   *  межтиповой фильтр «Тип · Статус»; счётчики считает модуль-владелец.
+   *  `viewerId` — только видимые смотрящему типы (#432, Р6): каталог стадий
+   *  не раскрывает названия невидимых типов. */
   stagesCatalog(opts: {
     typeId?: string;
     category: ProcessCategory;
+    viewerId?: string;
   }): Promise<CatalogStageWithType[]>;
 }

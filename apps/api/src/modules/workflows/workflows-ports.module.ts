@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { DiscoveryModule } from '@nestjs/core';
 
+import { ROLE_MEMBERSHIP_READER } from '../../core/ports/role-membership.port.js';
+import { RoleMembershipProvider } from '../../core/ports/role-membership.provider.js';
 import { WorkflowEntityRegistry } from './workflow/engine/entity-adapter.registry.js';
 import { TransitionRecordsRepository } from './workflow/engine/transition-records.repository.js';
 import { WorkflowEngine } from './workflow/engine/workflow-engine.js';
@@ -21,12 +23,18 @@ import { ProcessTypesRepository } from './types/process-types.repository.js';
  * экспортируются для СОБСТВЕННЫХ сервисов WorkflowsModule (редактор, типы,
  * фоновый перенос), не для чужих модулей: чужой модуль берёт только токены
  * портов.
+ *
+ * #432: доступ к типу считается здесь же — каталог обязан знать роли
+ * смотрящего (`ROLE_MEMBERSHIP_READER`, ADR-0034), иначе задачи создавались
+ * бы по невидимым типам. Биндинг токена — в модуле-потребителе (ADR-0012).
  */
 @Module({
   // DiscoveryService — скан провайдеров со `static readonly workflowCategory`
   // при bootstrap (тот же приём, что eventType у обработчиков событий).
   imports: [DiscoveryModule],
   providers: [
+    RoleMembershipProvider,
+    { provide: ROLE_MEMBERSHIP_READER, useClass: RoleMembershipProvider },
     WorkflowRepository,
     ProcessTypesRepository,
     WorkflowEntityRegistry,
@@ -42,6 +50,7 @@ import { ProcessTypesRepository } from './types/process-types.repository.js';
     WORKFLOW_ENGINE,
     PROCESS_CATALOG_READER,
     WORKFLOW_FIELD_USAGE_READER,
+    ROLE_MEMBERSHIP_READER,
     WorkflowEntityRegistry,
     WorkflowRepository,
     ProcessTypesRepository,

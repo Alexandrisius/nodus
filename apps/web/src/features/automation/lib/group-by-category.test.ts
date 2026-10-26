@@ -17,6 +17,12 @@ const type = (id: string, category: 'task' | 'letter'): ProcessType => ({
   sortOrder: 0,
   archivedAt: null,
   workflowId: `wf-${id}`,
+  config: {
+    card: { hiddenBlocks: [], roleLabels: {} },
+    access: { view: null, create: null },
+  },
+  creationForm: { fields: [], chips: [] },
+  viewer: { canView: true, canCreate: true },
 });
 
 describe('groupByCategory (#428)', () => {

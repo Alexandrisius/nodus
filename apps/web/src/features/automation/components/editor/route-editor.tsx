@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ReactFlowProvider, useReactFlow } from '@xyflow/react';
 import { useQueryClient } from '@tanstack/react-query';
-import { checkWorkflowDocument } from '@nodus/contracts';
+import { checkWorkflowDocument, typeIdsOf } from '@nodus/contracts';
 import type { ProcessType, WorkflowDetail, WorkflowProblem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
@@ -9,6 +9,7 @@ import { Plus } from 'lucide-react';
 
 import { workflowKeys } from '../../../../shared/workflow/workflow-api.js';
 import { useCustomFieldDefinitions } from '../../../../shared/custom-fields/queries.js';
+import { projectsAvailable } from '../../../../shared/api/projects-available.js';
 import { ROUTE_GEOMETRY } from '../../../../shared/flow/route-layout.js';
 import { usePublishWorkflow } from '../../api/automation-api.js';
 import { useCanManageWorkflows } from '../../lib/use-can-manage-workflows.js';
@@ -71,8 +72,9 @@ function RouteEditorInner({ type, workflow, settings, settingsOpen = false }: Ro
   // Расстановка холста сохраняется сама — без черновика и новой версии.
   useLayoutAutosave(workflow.id, canManage);
 
-  // Атрибуты в окне и гейтах (#431, Р7): неизвестный — ошибка публикации,
-  // скрытый в окне — предупреждение; факты — из реестра области.
+  // Атрибуты в окне, гейтах и форме создания (#431, #432): неизвестный —
+  // ошибка публикации, скрытый в окне — предупреждение, чужой типу — ошибка;
+  // факты — из реестра области и привязок типа.
   const { data: customFieldDefinitions } = useCustomFieldDefinitions(type.category);
   const customFieldFacts = useMemo(
     () =>
@@ -80,13 +82,32 @@ function RouteEditorInner({ type, workflow, settings, settingsOpen = false }: Ro
         ? {
             active: new Set(customFieldDefinitions.map((d) => d.id)),
             hidden: new Set(customFieldDefinitions.filter((d) => d.hidden).map((d) => d.id)),
+            inType: new Set(
+              customFieldDefinitions.filter((d) => typeIdsOf(d).includes(type.id)).map((d) => d.id),
+            ),
           }
         : undefined,
+    [customFieldDefinitions, type.id],
+  );
+  const definitions = useMemo(
+    () =>
+      customFieldDefinitions?.map((d) => ({
+        id: d.id,
+        type: d.type,
+        settings: d.settings,
+        hidden: d.hidden,
+      })),
     [customFieldDefinitions],
   );
   const problems = useMemo(
-    () => checkWorkflowDocument(doc, { customFields: customFieldFacts }),
-    [doc, customFieldFacts],
+    () =>
+      checkWorkflowDocument(doc, {
+        customFields: customFieldFacts,
+        category: type.category,
+        definitions,
+        projectsAvailable: projectsAvailable(),
+      }),
+    [doc, customFieldFacts, definitions, type.category],
   );
   const problemStageIds = useMemo(
     () => new Set(problems.filter((p) => p.stageId).map((p) => p.stageId as string)),
@@ -127,6 +148,11 @@ function RouteEditorInner({ type, workflow, settings, settingsOpen = false }: Ro
 
   const onProblemClick = (problem: WorkflowProblem) => {
     const store = useRouteDocStore.getState();
+    // Проблема формы создания (#432) — панель окна создания, слот подсвечен.
+    if (problem.creationField) {
+      store.select({ kind: 'creation', id: 'creation', field: problem.creationField });
+      return;
+    }
     if (problem.transitionId) store.select({ kind: 'transition', id: problem.transitionId });
     else if (problem.stageId) store.select({ kind: 'stage', id: problem.stageId });
   };
@@ -184,7 +210,7 @@ function RouteEditorInner({ type, workflow, settings, settingsOpen = false }: Ro
         </div>
       </div>
 
-      <EditorPanel workflow={workflow} scope={type.category} readOnly={!canManage} />
+      <EditorPanel workflow={workflow} type={type} scope={type.category} readOnly={!canManage} />
       {settings}
       <NavigationGuard dirty={dirty} />
 

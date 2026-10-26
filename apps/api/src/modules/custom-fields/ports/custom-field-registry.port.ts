@@ -33,6 +33,9 @@ export interface PrepareCreateArgs {
   input: CustomFieldValues;
   /** Автор сущности — источник умолчания «подразделение автора» (Р5). */
   authorId: string;
+  /** Тип создаваемой сущности (#432, Р8): умолчания — только привязанных
+   *  атрибутов, значение непривязанного — 422 `not_in_type`. */
+  typeId?: string;
 }
 
 export interface PrepareUpdateArgs {
@@ -40,12 +43,24 @@ export interface PrepareUpdateArgs {
   current: CustomFieldValues;
   /** Патч: `null` удаляет ключ; непустые — проверяются. */
   patch: Record<string, CustomFieldValue | null>;
+  /** Тип сущности (#432, Р8): запись непривязанного — 422 `not_in_type`,
+   *  очистка (`null`) разрешена всегда. */
+  typeId?: string;
+}
+
+/** Что читать из реестра: `typeId` — только привязанные к типу (#432). */
+export interface RegistryQuery {
+  typeId?: string;
 }
 
 export interface CustomFieldRegistry {
   /** Определения области (включая скрытые — служебные значения пишет
    *  автоматика). Порядок — карточки и фильтров. */
-  definitions(scope: CustomFieldScope, tx?: TransactionClient): Promise<CustomFieldDefinition[]>;
+  definitions(
+    scope: CustomFieldScope,
+    opts?: RegistryQuery,
+    tx?: TransactionClient,
+  ): Promise<CustomFieldDefinition[]>;
 
   /** Создание сущности: умолчания (невалидные пропускаются) + ввод
    *  (явное значение важнее) + проверка. Ошибка — 422 со списком полей. */

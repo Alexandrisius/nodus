@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { AuthUser } from '@nodus/contracts';
 
 import { DuplicateTaskSourceError } from './tasks.repository.js';
+import { TaskCreatePolicy } from './task-create.policy.js';
 import { TasksService } from './tasks.service.js';
 
 const TX = { tx: true };
@@ -98,6 +99,7 @@ function setup() {
     profiles as never,
     messages as never,
     customFields as never,
+    new TaskCreatePolicy(profiles as never),
   );
   return { service, repo, placements, placementsRepo, txRunner, eventBus, catalog };
 }
@@ -145,17 +147,19 @@ describe('TasksService', () => {
     });
   });
 
-  it('тип резолвится портом «Процессов»: явный выбор — с проверкой creatable, неявный — без', async () => {
+  it('тип резолвится портом «Процессов» с актором: явный выбор — с проверкой создания', async () => {
     const { service, catalog } = setup();
     await service.create(USER, { title: 'Т' } as never);
     expect(catalog.resolveType).toHaveBeenCalledWith(undefined, {
       category: 'task',
       requireCreatable: false,
+      actorId: 'alice',
     });
     await service.create(USER, { title: 'Т', typeId: 'type' } as never);
     expect(catalog.resolveType).toHaveBeenCalledWith('type', {
       category: 'task',
       requireCreatable: true,
+      actorId: 'alice',
     });
   });
 

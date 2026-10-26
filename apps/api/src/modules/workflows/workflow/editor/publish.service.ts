@@ -1,8 +1,8 @@
 import { Inject, Injectable } from '@nestjs/common';
 import {
-  checkWorkflowDocument,
   DEFAULT_TRANSITION_FORM,
   ErrorCode,
+  Permission,
   WORKFLOW_EVENTS,
   type AuthUser,
   type PublishWorkflowBody,
@@ -21,6 +21,10 @@ import {
 import { DomainException } from '../../../../core/errors/domain-exception.js';
 import { EventBus } from '../../../../core/events/event-bus.js';
 import {
+  ROLE_MEMBERSHIP_READER,
+  type RoleMembershipReader,
+} from '../../../../core/ports/role-membership.port.js';
+import {
   USER_PROFILE_READER,
   type UserProfileReader,
 } from '../../../../core/ports/user-profile.port.js';
@@ -28,9 +32,9 @@ import {
   CUSTOM_FIELD_REGISTRY,
   type CustomFieldRegistry,
 } from '../../../custom-fields/ports/custom-field-registry.port.js';
-import { customFieldFactsOf } from './custom-field-facts.js';
+import { documentOf } from './document-of.js';
 import { liveLayout, resolveLayout } from './layout.js';
-import { serverChecksOf } from './publish-checks.js';
+import { checkDocumentForPublish, serverChecksOf } from './publish-checks.js';
 import {
   missingMigrations,
   planWorkflowPublish,
@@ -40,7 +44,9 @@ import {
   type WorkflowPublishPlan,
 } from './publish-planner.js';
 import { WorkflowPublishRepository } from './publish.repository.js';
+import { ProcessTypesRepository } from '../../types/process-types.repository.js';
 import { WorkflowRepository, type LoadedWorkflow } from '../workflow.repository.js';
+import { assertWorkflowVisible } from './workflow-visibility.js';
 import { WorkflowEntityRegistry } from '../engine/entity-adapter.registry.js';
 
 const NO_RULES = { conditions: [], validators: [], postFunctions: [] };
@@ -63,16 +69,23 @@ export class WorkflowEditorService {
     private readonly adapters: WorkflowEntityRegistry,
     @Inject(USER_PROFILE_READER) private readonly profiles: UserProfileReader,
     @Inject(CUSTOM_FIELD_REGISTRY) private readonly customFields: CustomFieldRegistry,
+    @Inject(ROLE_MEMBERSHIP_READER) private readonly membership: RoleMembershipReader,
+    private readonly types: ProcessTypesRepository,
   ) {}
 
-  /** GET /workflows/:id — документ живого маршрута + счётчики. */
-  async read(workflowId: string): Promise<WorkflowDetail> {
+  /** GET /workflows/:id — документ живого маршрута + счётчики. Маршрут
+   *  скрытого типа читателю без `workflow.manage` не отдаётся (#432). */
+  async read(
+    workflowId: string,
+    user: Pick<AuthUser, 'id' | 'permissions'>,
+  ): Promise<WorkflowDetail> {
     const workflow = await this.findTypeWorkflow(workflowId);
     const [row, typeIds, category] = await Promise.all([
       this.workflows.load(workflowId),
       this.workflows.typeIdsOf(workflowId),
       this.workflows.categoryOf(workflowId),
     ]);
+    await assertWorkflowVisible(this.types, this.membership, typeIds, user);
     const stageEntityCounts = await this.adapters
       .get(category)
       .countByStages(row.stages.map((s) => s.id));
@@ -85,7 +98,10 @@ export class WorkflowEditorService {
       version: workflow.version,
       publishedAt: workflow.publishedAt?.toISOString() ?? null,
       publishedBy: refs[0] ?? null,
-      document: documentOf(row, workflow.layout),
+      // Значения скрытых полей формы — только настройщикам процессов.
+      document: documentOf(row, workflow.layout, workflow.creation, {
+        maskPresets: !user.permissions.includes(Permission.WORKFLOW_MANAGE),
+      }),
       stageEntityCounts,
     };
   }
@@ -109,13 +125,13 @@ export class WorkflowEditorService {
       // Неизвестное поле в окне/гейте — ошибка публикации, скрытое в ОКНЕ —
       // предупреждение (в условии скрытое допустимо, Р7).
       const category = await this.workflows.categoryOf(workflowId, tx);
-      const customFields = await customFieldFactsOf(this.customFields, category, tx);
-      const problems = checkWorkflowDocument(body.document, { customFields });
-      if (problems.some((p) => p.severity === 'error')) {
-        throw new DomainException(ErrorCode.WORKFLOW_INVALID, 'Workflow document is invalid', {
-          problems,
-        });
-      }
+      // Форма создания проверяется против типа этого маршрута (#432): форма
+      // ссылается на атрибуты, привязанные к типу, а пресеты — на живых.
+      const typeIds = await this.workflows.typeIdsOf(workflowId, tx);
+      await checkDocumentForPublish(
+        { registry: this.customFields, profiles: this.profiles },
+        { document: body.document, category, typeId: typeIds[0], tx },
+      );
       const loaded = await this.workflows.load(workflowId, tx);
       serverChecksOf(loaded, body.document, body.migrations);
 
@@ -151,6 +167,9 @@ export class WorkflowEditorService {
         userId: user.id,
         at: now,
         layout: layout as Prisma.InputJsonValue,
+        // Форма создания — часть документа: публикуется тем же шагом, что
+        // стадии и кнопки (ADR-0024 п.5). null — форма по умолчанию.
+        creation: (body.document.creation ?? null) as Prisma.InputJsonValue | null,
       });
       const moves = plan.moves.map((m) => ({
         fromStageId: m.fromStageId,
@@ -308,35 +327,4 @@ export class WorkflowEditorService {
     }
     return workflow;
   }
-}
-
-/** Документ живого маршрута → документ контракта (+ раскладка холста). */
-export function documentOf(row: LoadedWorkflow, layout?: unknown): WorkflowDocument {
-  return {
-    stages: row.stages.map((s) => ({
-      id: s.id,
-      code: s.code,
-      name: s.name,
-      color: s.color as WorkflowDocument['stages'][number]['color'],
-      systemState: s.systemState as WorkflowDocument['stages'][number]['systemState'],
-      outcome: (s.outcome as 'success' | 'cancelled' | null) ?? null,
-      isInitial: s.isInitial,
-      sortOrder: s.sortOrder,
-    })),
-    transitions: row.transitions.map((t) => ({
-      id: t.id,
-      code: null,
-      name: t.name,
-      fromStageId: t.fromStageId,
-      toStageId: t.toStageId,
-      display: t.display,
-      sortOrder: t.sortOrder,
-      rules: t.rules,
-      form: t.form ?? { enabled: false, sections: [] },
-    })),
-    layout: liveLayout(layout, {
-      stageIds: new Set(row.stages.map((s) => s.id)),
-      transitionIds: new Set(row.transitions.map((t) => t.id)),
-    }),
-  };
 }

@@ -68,7 +68,7 @@ export class TaskWorkflowAdapter implements WorkflowEntityAdapter {
     // Реестр атрибутов области (#431, Р7): гейт «Заполнены поля» знает,
     // какие ключи `cf.<id>` существуют. Скрытые входят — условие процесса
     // видит служебные значения, а несуществующий ключ не блокирует переход.
-    const definitions = await this.customFields.definitions('task', tx);
+    const definitions = await this.customFields.definitions('task', {}, tx);
     return {
       workflowId: task.workflowId,
       stageId: task.stageId,

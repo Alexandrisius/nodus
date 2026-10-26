@@ -5,20 +5,19 @@ import { http, HttpResponse } from 'msw';
 
 import {
   demoPersonalStages,
+  demoSubtasks,
   demoTasks,
   detailsExtra,
   firstPersonalStageOfState,
   globalStageForPersonal,
 } from '../../../../shared/mocks/data/tasks.js';
 import { demoProjects } from '../../../../shared/mocks/data/projects.js';
-import {
-  checkDemoValues,
-  demoDefaults,
-} from '../../../../shared/mocks/data/custom-fields-rules.js';
-import { demoStages, systemProcessType } from '../../../../shared/mocks/data/task-stages.js';
+import { demoStages } from '../../../../shared/mocks/data/task-stages.js';
 import { demoProcessTypes, demoWorkflowDetails } from '../../../../shared/mocks/data/workflows.js';
 import type { WorkflowDetail } from '@nodus/contracts';
-import { currentAuthUser, userRef } from '../../../../shared/mocks/data/users.js';
+import { userRef } from '../../../../shared/mocks/data/users.js';
+import { getMockActor } from '../../../../shared/mocks/mock-actor.js';
+import { prepareCreateBody, resolveCreateType } from './task-create-policy.js';
 
 function notFound(message: string) {
   return HttpResponse.json({ code: ErrorCode.NOT_FOUND, message }, { status: 404 });
@@ -119,7 +118,9 @@ export const tasksListHandlers = [
   /** Быстрое создание задачи из колонки доски (плюсик в шапке): личная
    *  колонка «Моего плана» — глобальная стадия подставляется по состоянию
    *  колонки; глобальная стадия (проектная доска) — как есть, личное
-   *  размещение не создаётся (появится при первом DnD «Моего плана»). */
+   *  размещение не создаётся (появится при первом DnD «Моего плана»).
+   *  С #432 честно учитывает тип, приоритет, участников, план, родителя,
+   *  источник и скрытые значения формы; политика — `task-create-policy`. */
   http.post('/api/v1/tasks', async ({ request }) => {
     const parsed = createTaskBodySchema.safeParse(await request.json());
     if (!parsed.success)
@@ -127,14 +128,32 @@ export const tasksListHandlers = [
         { code: ErrorCode.VALIDATION_FAILED, message: 'Invalid body' },
         { status: 422 },
       );
-    const project = parsed.data.projectId
-      ? demoProjects.find((p) => p.id === parsed.data.projectId)
+    // Тип и доступ к нему (Р6): 404 — неизвестный/архивный, 403 — закрыт.
+    const typeResult = resolveCreateType(parsed.data.typeId);
+    if (!typeResult.ok) {
+      const { status, code, details } = typeResult.error;
+      return HttpResponse.json(
+        { code, message: code, ...(details ? { details } : {}) },
+        { status },
+      );
+    }
+    const type = typeResult.value;
+    // Политика создания: пресеты, умолчания привязанных, обязательные поля.
+    const policy = prepareCreateBody(type, parsed.data);
+    if (!policy.ok) {
+      const { status, code, details } = policy.error;
+      return HttpResponse.json(
+        { code, message: code, ...(details ? { details } : {}) },
+        { status },
+      );
+    }
+    const body = policy.value;
+    const project = body.projectId ? demoProjects.find((p) => p.id === body.projectId) : undefined;
+    const personalColumn = body.personalStageId
+      ? demoPersonalStages.find((s) => s.id === body.personalStageId)
       : undefined;
-    const personalColumn = parsed.data.personalStageId
-      ? demoPersonalStages.find((s) => s.id === parsed.data.personalStageId)
-      : undefined;
-    if (parsed.data.personalStageId && !personalColumn) return notFound('Stage not found');
-    const stage = initialStageFor(parsed.data.stageId, personalColumn);
+    if (body.personalStageId && !personalColumn) return notFound('Stage not found');
+    const stage = initialStageFor(body.stageId, personalColumn);
     if (!stage) return notFound('Stage not found');
     // Колонка — та, куда кликнули, если её состояние совпало со стадией
     // (закрытая колонка — задача встаёт в первую колонку начального
@@ -144,68 +163,61 @@ export const tasksListHandlers = [
         ? personalColumn.id
         : firstPersonalStageOfState(demoPersonalStages, stage.systemState).id
       : null;
-    const checklist = (parsed.data.checklist ?? []).map((text) => ({
+    const checklist = (body.checklist ?? []).map((text) => ({
       id: crypto.randomUUID(),
       text,
       done: false,
     }));
-    // Ответственный экспресс-формы; неизвестный id — текущий (userRef кидает
-    // на чужом id, мок держим мягким).
-    let assignee = userRef(currentAuthUser.id);
-    if (parsed.data.assigneeId) {
-      try {
-        assignee = userRef(parsed.data.assigneeId);
-      } catch {
-        /* fallback — текущий пользователь */
-      }
-    }
+    const actorId = getMockActor().id;
+    // Ответственный: явный (пресет формы важнее — он уже в теле) или постановщик.
+    const assignee = body.assigneeId ? userRef(body.assigneeId) : userRef(actorId);
+    const participants = [
+      ...(body.coexecutorIds ?? []).map((id) => userRef(id)),
+      ...(body.observerIds ?? []).map((id) => userRef(id)),
+    ].filter((ref) => ref.id !== assignee.id);
+    const parent = body.parentId
+      ? (demoTasks.find((t) => t.id === body.parentId) ?? findSubtask(body.parentId))
+      : undefined;
     const task: TaskListItem = {
       id: crypto.randomUUID(),
       number: Math.max(...demoTasks.map((t) => t.number)) + 1,
-      title: parsed.data.title,
-      type: systemProcessType,
+      title: body.title,
+      type: { id: type.id, code: type.code, name: type.name, category: type.category },
       stage,
       personalStageId,
-      customFields: {},
-      priority: 'normal',
-      deadline: parsed.data.deadline ?? null,
-      creator: userRef(currentAuthUser.id),
+      customFields: body.customFields ?? {},
+      priority: body.priority ?? 'normal',
+      deadline: body.deadline ?? null,
+      creator: userRef(actorId),
       assignee,
-      participants: [],
+      participants,
       project: project
         ? { id: project.id, code: project.code, name: project.name, color: project.color }
         : null,
-      parentId: null,
+      parentId: parent?.id ?? null,
       spentMinutes: 0,
       commentsCount: 0,
       checklistDone: 0,
       checklistTotal: checklist.length,
-      source: 'manual',
+      source: body.sourceMessageId ? 'chat_message' : 'manual',
       updatedAt: new Date().toISOString(),
     };
-    // Кастомные поля (#431): умолчания области подставляет «сервер» (Р5),
-    // явный ввод важнее; невалидное значение — 422 с перечнем полей.
-    const values = demoDefaults('task', parsed.data.customFields ?? {});
-    const fieldIssues = checkDemoValues('task', values);
-    if (fieldIssues.length > 0) {
-      return HttpResponse.json(
-        {
-          code: ErrorCode.CUSTOM_FIELD_VALUE_INVALID,
-          message: 'Custom field value is invalid',
-          details: { issues: fieldIssues },
-        },
-        { status: 422 },
-      );
-    }
-    task.customFields = values;
     demoTasks.push(task);
-    // Деталь (описание/чек-лист экспресс-формы) — карточка видит их сразу.
+    // Деталь (описание/чек-лист/наблюдатели/план) — карточка видит их сразу.
     detailsExtra[task.id] = {
-      description: parsed.data.description?.trim() || 'Описание уточняется постановщиком.',
-      observers: [],
+      description: body.description?.trim() ?? '',
+      observers: (body.observerIds ?? []).map((id) => userRef(id)),
       checklist,
+      plannedMinutes: body.plannedMinutes ?? null,
       createdAt: task.updatedAt,
     };
     return HttpResponse.json(task, { status: 201 });
   }),
 ];
+
+/** Подзадача по id (дети живут в demoSubtasks). */
+function findSubtask(id: string): TaskListItem | undefined {
+  return Object.values(demoSubtasks)
+    .flat()
+    .find((t) => t.id === id);
+}

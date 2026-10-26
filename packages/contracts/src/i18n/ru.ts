@@ -8,6 +8,7 @@ import { counterpartiesStrings } from './ru-crm.js';
 import { customFieldsStrings } from './ru-custom-fields.js';
 import { filesStrings } from './ru-files.js';
 import { notificationsStrings } from './ru-notifications.js';
+import { taskCreateStrings } from './ru-task-create.js';
 import { tasksStrings } from './ru-tasks.js';
 import { whatsNewStrings } from './ru-whats-new.js';
 
@@ -39,6 +40,11 @@ export const errorMessages: Record<ErrorCode, string> = {
   [ErrorCode.WORKFLOW_MIGRATION_REQUIRED]:
     'Удаляемые статусы содержат задачи — выберите, куда их перенести',
   [ErrorCode.PROCESS_TYPE_SYSTEM_LOCKED]: 'Системный тип нельзя убрать в архив',
+  [ErrorCode.PROCESS_TYPE_FORBIDDEN]: 'Этот тип процесса вам недоступен',
+  [ErrorCode.PROCESS_TYPE_FIELDS_REQUIRED]: 'Заполните обязательные поля задачи',
+  [ErrorCode.PROCESS_TYPE_PRESET_INVALID]:
+    'Настройка типа ссылается на недоступное значение — обратитесь к администратору',
+  [ErrorCode.CUSTOM_FIELD_BINDING_INVALID]: 'Атрибут нельзя привязать к этому типу',
   [ErrorCode.PROCESS_TYPE_NAME_TAKEN]: 'Тип с таким названием уже существует',
   [ErrorCode.CHAT_ATTACHMENT_TOO_LARGE]:
     'Файл больше 100 МБ — вложения такого размера не поддерживаются',
@@ -238,6 +244,9 @@ export const ui = {
     birthdaysEmpty: 'Дни рождения не заполнены в справочнике',
   },
   tasks: tasksStrings,
+  /** Единое окно создания задачи (#432) — своя секция: строки окна общие
+   *  для всех входов (страница задач, карточка сотрудника, чат, канбан). */
+  taskCreate: taskCreateStrings,
   automation: automationStrings,
   access: accessStrings,
   customFields: customFieldsStrings,

@@ -17,6 +17,7 @@ import {
   useChangeProcessType,
 } from '../../../shared/api/process-types-api.js';
 import { useWorkflowDetail } from '../../../shared/workflow/workflow-api.js';
+import { typeViewerOf } from '@nodus/contracts';
 import { ProcessTypeGlyph } from '../../../shared/workflow/process-type-icon.js';
 
 /**
@@ -44,7 +45,9 @@ export function TaskChangeTypeDialog({ task, onClose }: { task: TaskDetail; onCl
         </DialogHeader>
         <div className="flex flex-col gap-1">
           {(types ?? [])
-            .filter((t) => t.id !== task.type.id)
+            // Сменить тип можно только на тот, который сотруднику разрешено
+            // создавать (#432, Р6); сервер всё равно ответит 403.
+            .filter((t) => t.id !== task.type.id && typeViewerOf(t).canCreate)
             .map((type: ProcessType) => (
               <button
                 key={type.id}

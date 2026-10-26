@@ -5,7 +5,8 @@ import { ui } from '@nodus/contracts';
 import { useOpenCard } from '../../../app/shell/use-card-stack.js';
 import { tasksKeys } from '../../../shared/api/tasks-keys.js';
 import { useTaskStages } from '../../../shared/api/task-stages.js';
-import { defaultProcessType, useAliveProcessTypes } from '../../../shared/api/process-types-api.js';
+import { defaultTaskType, useAliveProcessTypes } from '../../../shared/api/process-types-api.js';
+import { useQuickCreate } from '../../../shared/tasks/quick-create.js';
 import { globalAxis } from '../../../shared/lib/board/kanban-board.js';
 import { BoardColumn } from '../../../shared/ui/board/board-column.js';
 import { BoardScroller } from '../../../shared/ui/board/board-scroller.js';
@@ -17,7 +18,7 @@ import { isFilteringActive, type ActiveListFilter } from '../../../shared/views/
 import { makeTaskCardFields } from '../../../shared/views/task-card-fields.js';
 import { useFilteredList } from '../../../shared/views/use-list-toolbar.js';
 import { useViewFields } from '../../../shared/views/use-view-fields.js';
-import { useCreateProjectTask, useMoveProjectTask } from '../api/projects-api.js';
+import { useMoveProjectTask } from '../api/projects-api.js';
 
 /** Реестр — module-константа; «Проект» скрыт по умолчанию (контекст очевиден). */
 export const projectKanbanCardFields = makeTaskCardFields({ projectVisible: false });
@@ -43,10 +44,10 @@ export function ProjectKanban({
   // маршрут, общий каталог задваивал колонки («В работе» ×2). Доску по
   // схеме проекта (тип → маршрут) даст ступень 3 (#38).
   const { data: types } = useAliveProcessTypes();
-  const defaultType = defaultProcessType(types);
+  const defaultType = defaultTaskType(types);
   const { data: stages } = useTaskStages(defaultType?.id, { enabled: defaultType !== undefined });
   const move = useMoveProjectTask();
-  const create = useCreateProjectTask(projectId);
+  const quick = useQuickCreate();
   const { isVisible } = useViewFields('projects.kanban', projectKanbanCardFields);
   const openCard = useOpenCard();
 
@@ -99,13 +100,15 @@ export function ProjectKanban({
               quickAdd={{
                 placeholder: ui.tasks.quickTaskPlaceholder,
                 addButtonLabel: ui.tasks.create,
+                // Быстрый вход (#432, Р10): обязательные поля формы типа —
+                // открывается единое окно; иначе создаём сразу в колонку.
                 onCreate: (stageId, title) =>
-                  create.mutate(
-                    { title, stageId },
-                    {
-                      onSuccess: (task) => board.insertNewTask(stageId, task),
-                    },
-                  ),
+                  quick.run({
+                    title,
+                    stageId,
+                    projectId,
+                    onCreated: (task) => board.insertNewTask(task.stage.id, task),
+                  }),
               }}
             >
               {cards.map((task) => (

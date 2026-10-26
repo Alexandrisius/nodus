@@ -15,7 +15,9 @@ import { familyModifier, type FieldFamily } from '../../lib/field-type-families.
 
 type Settings = Pick<CustomFieldSettings, 'precision' | 'currencyId'>;
 
-/** Строка настройки окна: подпись (+ пояснение) слева, контрол справа. */
+/** Строка настройки окна: подпись (+ пояснение) слева, контрол справа.
+ *  Контрол центрируется по ПЕРВОЙ строке подписи (min-h — line-height
+ *  text-sm): тонкий тумблер не прилипает к верхнему краю. */
 export function SettingRow({
   label,
   hint,
@@ -31,7 +33,7 @@ export function SettingRow({
         <span className="text-sm">{label}</span>
         {hint ? <span className="text-xs text-muted-foreground">{hint}</span> : null}
       </div>
-      <div className="flex shrink-0 items-center">{children}</div>
+      <div className="flex min-h-[22px] shrink-0 items-center">{children}</div>
     </div>
   );
 }

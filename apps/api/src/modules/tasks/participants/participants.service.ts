@@ -1,5 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import {
+  effectiveCreationForm,
+  ErrorCode,
+  requiredCreateKeys,
   TASK_EVENTS,
   type AuthUser,
   type TaskDetail,
@@ -18,6 +21,10 @@ import { TasksQueryService } from '../tasks/tasks-query.service.js';
 import { TasksRepository } from '../tasks/tasks.repository.js';
 import { TasksService } from '../tasks/tasks.service.js';
 import { ParticipantsRepository } from './participants.repository.js';
+import {
+  PROCESS_CATALOG_READER,
+  type ProcessCatalogReader,
+} from '../../workflows/ports/process-catalog-reader.port.js';
 
 /**
  * Соисполнители и наблюдатели (мини-спека #37): менять — постановщик,
@@ -37,6 +44,7 @@ export class ParticipantsService {
     private readonly tasks: TasksService,
     private readonly tasksRepo: TasksRepository,
     private readonly repo: ParticipantsRepository,
+    @Inject(PROCESS_CATALOG_READER) private readonly catalog: ProcessCatalogReader,
   ) {}
 
   async add(user: AuthUser, taskId: string, body: TaskParticipantAddBody): Promise<TaskDetail> {
@@ -69,6 +77,7 @@ export class ParticipantsService {
       throw DomainException.forbidden('Participants change not allowed');
     }
     await this.txRunner.run(async (tx) => {
+      const role = selfObserver ? 'observer' : await this.roleOf(tx, taskId, userId);
       const count = await this.repo.remove(
         tx,
         taskId,
@@ -80,10 +89,45 @@ export class ParticipantsService {
       }
       // Как у чек-листа и связей: снимать некого — 404, а не тихий успех.
       if (count === 0) throw DomainException.notFound('Participant not found');
+      // Обязательные при создании участники (#432, Р5): снятие последнего
+      // соисполнителя/наблюдателя запрещено — форма типа требует хотя бы одного.
+      await this.assertRequiredKept(tx, row.typeId, taskId, role);
       await this.afterChange(tx, user.id, taskId, [], [userId]);
     });
     // Снявший себя наблюдатель может потерять видимость — тогда ответ пустой.
     return this.query.detail(user, taskId).catch(() => null);
+  }
+
+  /** Роль снимаемого участника (для проверки обязательного состава). */
+  private async roleOf(
+    tx: TransactionClient,
+    taskId: string,
+    userId: string,
+  ): Promise<'coexecutor' | 'observer' | undefined> {
+    const task = await this.tasksRepo.findWithParticipants(taskId, tx);
+    return task.participants.find((p) => p.userId === userId)?.role as
+      'coexecutor' | 'observer' | undefined;
+  }
+
+  /** Последний обязательный участник не снимается (#432, Р5). */
+  private async assertRequiredKept(
+    tx: TransactionClient,
+    typeId: string,
+    taskId: string,
+    role: 'coexecutor' | 'observer' | undefined,
+  ): Promise<void> {
+    const key = role === 'coexecutor' ? 'coexecutors' : role === 'observer' ? 'observers' : null;
+    if (!key) return;
+    const type = await this.catalog.typeById(typeId);
+    if (!type) return;
+    const required = requiredCreateKeys(effectiveCreationForm(type.creationForm, type.category));
+    if (!required.includes(key)) return;
+    if ((await this.repo.countRole(tx, taskId, role!)) > 0) return;
+    throw new DomainException(
+      ErrorCode.PROCESS_TYPE_FIELDS_REQUIRED,
+      'Required participant cannot be removed',
+      { typeId, fields: [key], reason: 'clear' },
+    );
   }
 
   private async afterChange(

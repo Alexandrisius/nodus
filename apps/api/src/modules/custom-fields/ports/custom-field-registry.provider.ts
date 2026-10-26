@@ -21,6 +21,7 @@ import type {
   PrepareCreateArgs,
   PrepareUpdateArgs,
   RegistryFieldChange,
+  RegistryQuery,
 } from './custom-field-registry.port.js';
 
 /**
@@ -47,9 +48,10 @@ export class CustomFieldRegistryProvider implements CustomFieldRegistry {
 
   async definitions(
     scope: CustomFieldScope,
+    opts: RegistryQuery = {},
     tx?: TransactionClient,
   ): Promise<CustomFieldDefinition[]> {
-    const rows = await this.repository.list(scope, tx);
+    const rows = await this.repository.list(scope, tx, { typeId: opts.typeId });
     return this.mapper.toDtos(rows, tx);
   }
 
@@ -58,7 +60,14 @@ export class CustomFieldRegistryProvider implements CustomFieldRegistry {
     args: PrepareCreateArgs,
     tx?: TransactionClient,
   ): Promise<CustomFieldValues> {
-    const definitions = await this.definitions(scope, tx);
+    // Все определения области — чтобы отличить «нет такого атрибута» от
+    // «есть, но не привязан к типу» (#432, Р8): второе — отдельная причина.
+    const all = await this.definitions(scope, {}, tx);
+    const definitions = boundTo(all, args.typeId);
+    // «Не привязан к типу» — только когда тип известен: без него причина
+    // отказа прежняя (`unknown` из валидатора).
+    const unbound = args.typeId === undefined ? [] : unboundIssues(all, definitions, args.input);
+    if (unbound.length > 0) throw invalidValues(unbound);
     if (definitions.length === 0) {
       assertNoInput(args.input);
       return {};
@@ -90,7 +99,12 @@ export class CustomFieldRegistryProvider implements CustomFieldRegistry {
       if (canonical(args.current[fieldId]) !== canonical(value)) changed[fieldId] = value;
     }
 
-    const definitions = await this.definitions(scope, tx);
+    const all = await this.definitions(scope, {}, tx);
+    const definitions = boundTo(all, args.typeId);
+    // Запись непривязанного — ошибка; очистка (`null`) разрешена всегда:
+    // снятие привязки не должно блокировать уборку старого значения (Р8).
+    const unbound = args.typeId === undefined ? [] : unboundIssues(all, definitions, changed);
+    if (unbound.length > 0) throw invalidValues(unbound);
     const issues = await this.validator.validate(scope, definitions, changed, tx);
     if (issues.length > 0) throw invalidValues(issues);
 
@@ -117,9 +131,41 @@ export class CustomFieldRegistryProvider implements CustomFieldRegistry {
     tx?: TransactionClient,
   ): Promise<CustomFieldRef[]> {
     if (Object.keys(values).length === 0) return [];
-    const definitions = await this.definitions(scope, tx);
+    const definitions = await this.definitions(scope, {}, tx);
     return this.hydrator.hydrate(definitions, values, tx);
   }
+}
+
+/** Атрибуты, привязанные к типу; без `typeId` — все (старые вызовы, письма). */
+function boundTo(
+  definitions: readonly CustomFieldDefinition[],
+  typeId: string | undefined,
+): CustomFieldDefinition[] {
+  return typeId === undefined
+    ? [...definitions]
+    : definitions.filter((definition) => definition.typeIds.includes(typeId));
+}
+
+/** Значения СУЩЕСТВУЮЩИХ, но непривязанных атрибутов — 422 `not_in_type`
+ *  (Р8). Неизвестный ключ сюда не попадает: его причина — `unknown`, иначе
+ *  клиент не отличит опечатку в id от «атрибут есть, но не для этого типа». */
+function unboundIssues(
+  all: readonly CustomFieldDefinition[],
+  bound: readonly CustomFieldDefinition[],
+  values: Readonly<Record<string, unknown>>,
+): CustomFieldIssue[] {
+  const boundIds = new Set(bound.map((definition) => definition.id));
+  const knownIds = new Set(all.map((definition) => definition.id));
+  return Object.entries(values)
+    .filter(
+      ([fieldId, value]) =>
+        value !== null && value !== undefined && knownIds.has(fieldId) && !boundIds.has(fieldId),
+    )
+    .map(([fieldId]) => ({
+      fieldId,
+      reason: 'not_in_type' as const,
+      message: 'Field is not bound to the process type',
+    }));
 }
 
 /** Пустой ввод при отсутствии определений области — это «чужой ключ». */

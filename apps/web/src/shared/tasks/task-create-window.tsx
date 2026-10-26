@@ -1,0 +1,276 @@
+import { useMemo, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import type { CreationForm, ProcessType } from '@nodus/contracts';
+import { slotLabel, typeConfigOf, typeCreationFormOf, ui } from '@nodus/contracts';
+import { Button } from '@nodus/ui/components/button';
+import { Dialog, DialogClose, DialogContent, DialogTitle } from '@nodus/ui/components/dialog';
+import { Input } from '@nodus/ui/components/input';
+import { NodeLabel } from '@nodus/ui/components/node-label';
+import { X } from 'lucide-react';
+import { toast } from 'sonner';
+
+import { automationKeys } from '../api/automation-keys.js';
+import { defaultTaskType, useCreatableProcessTypes } from '../api/process-types-api.js';
+import { useCreateTask } from '../api/task-create.js';
+import { useCanManageWorkflows } from '../api/use-can-manage-workflows.js';
+import { useCustomFieldDefinitions, visibleDefinitions } from '../custom-fields/queries.js';
+import { ProcessTypeField } from './process-type-field.js';
+import { TaskChecklistSheet } from './task-checklist-sheet.js';
+import { TaskCreateChips } from './task-create-chips.js';
+import {
+  buildCreateBody,
+  emptyDraft,
+  missingFor,
+  withChecklist,
+  withTitle,
+  withType,
+  withValue,
+  type TaskCreateDraft,
+  type TaskCreatePrefill,
+} from './task-create-draft.js';
+import { createFailureOf } from './task-create-errors.js';
+import { TaskCreateFormBody } from './task-create-form-body.js';
+import { FormSkeleton } from './task-create-skeleton.js';
+
+/** Форма без типа (типы не загрузились): пустая — низ окна покажет заглушку. */
+const EMPTY_FORM: CreationForm = { fields: [], chips: [] };
+
+/** Предпросмотр из редактора маршрута: тип и ЧЕРНОВАЯ форма узла «Создание». */
+export interface TaskCreatePreview {
+  type: ProcessType;
+  form: CreationForm;
+}
+
+/**
+ * Единое окно создания задачи (#432, В1/Р9): верх зафиксирован — строка
+ * названия с крестиком и тип, низ — форма выбранного типа, перестраивается
+ * на лету. Значения живут в черновике по ключу слота: смена типа не стирает
+ * совместимое. «Создать» неактивна, пока пусто название или обязательное
+ * поле; живая строка «Не хватает: …» — `aria-describedby`. Создание
+ * пессимистичное: номер, стадию и скрытые значения назначает сервер.
+ *
+ * Правый край ровный (вердикт владельца 26.10.2026): крестик — кнопка-иконка
+ * по центру строки названия, ⚙ типа — такая же кнопка в той же колонке, поле
+ * названия и поле типа кончаются на одной вертикали. Клик мимо окно не
+ * закрывает (канон заполняемых окон); Esc сначала закрывает вложенный лист
+ * чек-листа и ввод плана — Radix ловит Esc на document в capture раньше их
+ * обработчиков, поэтому гасим его здесь (`onEscapeKeyDown`, gotchas).
+ *
+ * `preview` — «Посмотреть окно» редактора: настоящее окно по центру экрана с
+ * черновой формой, поля живые (видно «Не хватает»), отправки нет.
+ */
+export function TaskCreateWindow({
+  open,
+  prefill,
+  preview,
+  onClose,
+}: {
+  open: boolean;
+  prefill: TaskCreatePrefill | null;
+  preview?: TaskCreatePreview;
+  onClose: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const canManage = useCanManageWorkflows();
+  const create = useCreateTask();
+  const { data: creatable, isLoading } = useCreatableProcessTypes();
+  const { data: definitions } = useCustomFieldDefinitions('task');
+  const initial = useMemo(() => emptyDraft(prefill ?? {}), [prefill]);
+  const [draft, setDraft] = useState<TaskCreateDraft>(initial);
+  const [invalidKeys, setInvalidKeys] = useState<ReadonlySet<string>>(new Set());
+  const [error, setError] = useState<string | null>(null);
+  const [checklistOpen, setChecklistOpen] = useState(false);
+
+  // Чистое окно при каждом открытии и смене заполнения (плюсик другой
+  // колонки) — рендер-тайм сброс, канон React (аудит #45).
+  const [shownFor, setShownFor] = useState({ open, initial });
+  if (shownFor.open !== open || (open && shownFor.initial !== initial)) {
+    setShownFor({ open, initial });
+    if (open) {
+      setDraft(initial);
+      setInvalidKeys(new Set());
+      setError(null);
+      setChecklistOpen(false);
+    }
+  }
+
+  const types = preview ? [preview.type] : (creatable ?? []);
+  const shownType: ProcessType | undefined =
+    preview?.type ??
+    creatable?.find((type) => type.id === draft.typeId) ??
+    defaultTaskType(creatable);
+  // Форма — из типа (эффективная форма опубликованного маршрута, Р2), в
+  // предпросмотре — черновая форма редактора.
+  const form = preview?.form ?? (shownType ? typeCreationFormOf(shownType) : EMPTY_FORM);
+  const typesLoading = !preview && isLoading;
+
+  const missing = shownType ? missingFor(form, draft) : [];
+  const canSubmit =
+    !preview && draft.title.trim().length > 0 && missing.length === 0 && shownType !== undefined;
+  const fieldDefs = useMemo(() => visibleDefinitions(definitions), [definitions]);
+  const roleLabels = shownType ? typeConfigOf(shownType).card.roleLabels : undefined;
+  const missingText = missing
+    .map((key) =>
+      slotLabel(
+        form.fields.find((slot) => slot.key === key) ?? {
+          key,
+          label: null,
+          required: true,
+          preset: null,
+        },
+        { roleLabels, definitions: fieldDefs },
+      ),
+    )
+    .join(', ');
+  const dirty = JSON.stringify(draft) !== JSON.stringify(initial);
+
+  function submit(event?: React.FormEvent) {
+    event?.preventDefault();
+    if (!canSubmit || create.isPending) return;
+    setError(null);
+    setInvalidKeys(new Set());
+    create.mutate(buildCreateBody(draft, prefill ?? {}, form), {
+      onSuccess: (task) => {
+        prefill?.onCreated?.(task);
+        toast.success(ui.tasks.created);
+        onClose();
+      },
+      onError: (failure) => {
+        const { message, invalidKeys: keys, refetchTypes } = createFailureOf(failure);
+        setError(message);
+        setInvalidKeys(keys);
+        if (refetchTypes) {
+          void queryClient.invalidateQueries({ queryKey: automationKeys.types('exclude', 'task') });
+        }
+      },
+    });
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+      <DialogContent
+        className="max-w-lg gap-0 overflow-hidden p-0"
+        aria-describedby={undefined}
+        showCloseButton={false}
+        onInteractOutside={(event) => event.preventDefault()}
+        onEscapeKeyDown={(event) => {
+          if (checklistOpen) {
+            event.preventDefault();
+            setChecklistOpen(false);
+          } else if ((event.target as Element | null)?.closest?.('[data-esc-local]')) {
+            event.preventDefault();
+          }
+        }}
+      >
+        <DialogTitle className="sr-only">{ui.taskCreate.title}</DialogTitle>
+        <form onSubmit={submit} className="relative flex max-h-[80vh] min-w-0 flex-col">
+          <div className="flex flex-col gap-3 overflow-y-auto p-4 pb-3">
+            <div className="flex min-w-0 items-center gap-2">
+              <Input
+                value={draft.title}
+                onChange={(event) => setDraft(withTitle(draft, event.target.value))}
+                placeholder={ui.taskCreate.titlePlaceholder}
+                aria-label={ui.taskCreate.titlePlaceholder}
+                className="h-9 min-w-0 flex-1 text-body-lg"
+              />
+              <DialogClose asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="shrink-0 text-muted-foreground"
+                  aria-label={ui.common.close}
+                  title={ui.common.close}
+                >
+                  <X className="size-4" strokeWidth={1.75} />
+                </Button>
+              </DialogClose>
+            </div>
+
+            {prefill?.contextLabel ? (
+              <p className="text-xs text-muted-foreground">{prefill.contextLabel}</p>
+            ) : null}
+
+            <div className="grid grid-cols-[8rem_1fr] items-center gap-x-3">
+              <NodeLabel label={ui.taskCreate.typeLabel} />
+              <ProcessTypeField
+                types={types}
+                value={shownType?.id ?? ''}
+                disabled={Boolean(preview) || typesLoading || types.length === 0}
+                showSettings={canManage && !preview}
+                dirty={dirty}
+                onChange={(typeId) => {
+                  setDraft(withType(draft, typeId));
+                  setInvalidKeys(new Set());
+                }}
+                onLeave={onClose}
+              />
+            </div>
+
+            {typesLoading ? (
+              <FormSkeleton />
+            ) : shownType ? (
+              <TaskCreateFormBody
+                type={shownType}
+                form={form}
+                values={draft.values}
+                definitions={fieldDefs}
+                invalidKeys={invalidKeys}
+                onChange={(key, value) => setDraft(withValue(draft, key, value))}
+              />
+            ) : (
+              <p className="text-sm text-muted-foreground">{ui.taskCreate.noTypes}</p>
+            )}
+
+            <TaskCreateChips
+              chips={form.chips}
+              draft={draft}
+              onChange={setDraft}
+              onOpenChecklist={() => setChecklistOpen(true)}
+            />
+
+            {error ? (
+              <p role="alert" className="text-sm text-danger">
+                {error}
+              </p>
+            ) : null}
+            {missing.length > 0 ? (
+              <p
+                id="task-create-missing"
+                className="text-xs text-muted-foreground"
+                aria-live="polite"
+              >
+                {ui.taskCreate.missing} <span className="text-foreground">{missingText}</span>
+              </p>
+            ) : null}
+          </div>
+
+          <div className="flex h-12 shrink-0 items-center gap-2 px-4">
+            <Button
+              size="sm"
+              type="submit"
+              disabled={!canSubmit || create.isPending}
+              aria-describedby={missing.length > 0 ? 'task-create-missing' : undefined}
+            >
+              {ui.common.create}
+            </Button>
+            <Button size="sm" variant="ghost" type="button" onClick={onClose}>
+              {ui.common.cancel}
+            </Button>
+          </div>
+          {preview ? (
+            <p className="px-4 pb-3 text-xs text-muted-foreground">{ui.taskCreate.previewNote}</p>
+          ) : null}
+
+          {checklistOpen ? (
+            <TaskChecklistSheet
+              items={draft.checklist}
+              onChange={(items) => setDraft(withChecklist(draft, items))}
+              onClose={() => setChecklistOpen(false)}
+            />
+          ) : null}
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}

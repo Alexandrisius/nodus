@@ -1,8 +1,9 @@
-import type { UserRef } from '@nodus/contracts';
+import type { AuthUser, UserRef } from '@nodus/contracts';
 
 import { isDomainMocked } from '../api/api-mock-config.js';
 import { useAuthStore } from '../auth-store.js';
-import { currentAuthUser, demoUserListItems } from './data/users.js';
+import { demoUserListItems, currentAuthUser } from './data/users.js';
+import { mockEffectiveRoleIds, mockPermissionsOfRoleIds } from './data/roles.js';
 
 /**
  * Актёр мок-доменов (#48, фаза 2). В покомпонентном режиме (живой логин +
@@ -10,14 +11,14 @@ import { currentAuthUser, demoUserListItems } from './data/users.js';
  * статического currentAuthUser — иначе приёмка видит несуществующего
  * демо-пользователя (А. Климович вместо живого админа).
  *
- * ОСОЗНАННЫЙ СКОУП (#48): актёр применяется только к точкам ПОВЕДЕНЧЕСКОЙ
- * идентификации мок-хендлеров («только автор», прочтения, ответы от имени
- * «меня») — пока только в домене chat. ДЕМО-ДАННЫЕ остаются статичными:
- * чужие авторы сообщений/задач/писем не подменяются живым юзером, а домены
- * tasks/letters продолжают рисовать демо-актёра (их userRef() бросает на
- * незнакомых id — перевод потребует actorRef в данных, не нужно до приёмки
- * этих треков). При живом auth сам auth-домен выключен, его хендлеры
- * статичного актёра не выполняются.
+ * С #432 (#432, Р14) актёр выбирается по e-mail входа и в полном мок-режиме:
+ * `user1…user10@passatproekt.by` — демо-сотрудники, пароль любой. Права —
+ * объединение прав демо-ролей, видимость типов — по тем же ролям (прямые
+ * роли и цепочка подразделений). Состояние сессии живёт в памяти страницы:
+ * при перезагрузке мок-мир возвращается к Климовичу (gotcha msw-query).
+ *
+ * ОСОЗНАННЫЙ СКОУП: демо-данные остаются статичными (чужие авторы не
+ * подменяются живым юзером) — актёр меняет «кто я», а не содержимое мира.
  */
 
 /** Минимальный «кто я»: живой профиль может не иметь полей мок-юзера.
@@ -30,8 +31,41 @@ export interface MockActor {
   permissions: readonly string[];
 }
 
+/** E-mail, которым вошли в мок-сессию (в памяти страницы). */
+let sessionEmail: string | null = null;
+
+/** Логин мока запоминает e-mail: `/auth/me` и актёр хендлеров — тот же
+ *  сотрудник (Р14: актёр по e-mail входа). */
+export function rememberMockLogin(email: string): void {
+  sessionEmail = email.trim().toLowerCase();
+}
+
+/** Выход: сессия мока сбрасывается на демо-администратора. */
+export function resetMockLogin(): void {
+  sessionEmail = null;
+}
+
+export function mockSessionEmail(): string | null {
+  return sessionEmail;
+}
+
+/** Демо-сотрудник по e-mail (неизвестный — текущий демо-админ). */
+export function demoActorFor(email: string | null): AuthUser {
+  const item = email
+    ? demoUserListItems.find((entry) => entry.email.toLowerCase() === email)
+    : undefined;
+  if (!item) return currentAuthUser;
+  const roleIds = mockEffectiveRoleIds(item.id);
+  return {
+    id: item.id,
+    email: item.email,
+    displayName: item.displayName,
+    permissions: mockPermissionsOfRoleIds(roleIds),
+  };
+}
+
 /** Текущий актёр моков: живой юзер из auth-стора (когда auth НЕ мокается),
- *  иначе — демо-текущий пользователь. Читается на каждый вызов: актёр
+ *  иначе — демо-сотрудник по e-mail входа. Читается на каждый вызов: актёр
  *  меняется при входе/выходе без пересборки хендлеров. */
 export function getMockActor(): MockActor {
   if (!isDomainMocked('auth')) {
@@ -40,7 +74,7 @@ export function getMockActor(): MockActor {
     // Живой auth ещё не подгрузил карточку me (bootstrap в полёте):
     // демо-актёр лучше падения хендлера, моки до логина не вызываются.
   }
-  return currentAuthUser;
+  return demoActorFor(sessionEmail);
 }
 
 /** UserRef актёра для ответов мок-хендлеров: демо-пользователь — полный ref

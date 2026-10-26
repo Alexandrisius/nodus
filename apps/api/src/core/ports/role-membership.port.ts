@@ -15,6 +15,10 @@ export interface RoleMembershipReader {
   /** Прямые роли ∪ роли подразделения и его предков. */
   effectiveRoleIds(userId: string, tx?: TransactionClient): Promise<string[]>;
 
+  /** Те же роли с кодом справочника (`admin`, `employee`, …) — доступ к типу
+   *  процесса сравнивается по id, а «администратор» узнаётся по коду (#432). */
+  effectiveRoles(userId: string, tx?: TransactionClient): Promise<{ id: string; code: string }[]>;
+
   /** Объединение прав этих ролей — только значения каталога `Permission`, по алфавиту. */
   effectivePermissions(userId: string, tx?: TransactionClient): Promise<Permission[]>;
 }

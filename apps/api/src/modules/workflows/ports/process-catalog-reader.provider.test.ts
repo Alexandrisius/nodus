@@ -49,11 +49,18 @@ function setup(type: Record<string, unknown> | null = TYPE) {
     findStages: vi.fn(async () => [stage('s1')]),
     stagesByIds: vi.fn(async () => [stage('s1')]),
     findStageById: vi.fn(async () => stage('s1')),
+    creationOf: vi.fn(async () => null),
   };
+  const membership = { effectiveRoles: vi.fn(async () => [] as { id: string; code: string }[]) };
   return {
-    reader: new ProcessCatalogReaderProvider(types as never, workflows as never),
+    reader: new ProcessCatalogReaderProvider(
+      types as never,
+      workflows as never,
+      membership as never,
+    ),
     types,
     workflows,
+    membership,
   };
 }
 

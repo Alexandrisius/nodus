@@ -10,7 +10,6 @@ import type {
 } from '@nodus/contracts';
 import {
   checkDefinitionShape,
-  CUSTOM_FIELD_EVENTS,
   CUSTOM_FIELD_LIMITS,
   ErrorCode,
   isCompatibleTypeChange,
@@ -29,10 +28,16 @@ import {
   type CustomFieldValuesReader,
 } from '../../tasks/ports/custom-field-values.port.js';
 import {
+  PROCESS_CATALOG_READER,
+  type ProcessCatalogReader,
+} from '../../workflows/ports/process-catalog-reader.port.js';
+import {
   WORKFLOW_FIELD_USAGE_READER,
   type WorkflowFieldUsageReader,
 } from '../../workflows/ports/workflow-field-usage.port.js';
 import { DefinitionMapper, type FieldDefinitionRow } from './definition.mapper.js';
+import { emitDefinitionChanged } from './definition-events.js';
+import { assertBindable, assertUnbindable } from './type-bindings.js';
 import { DefinitionsRepository, type FieldDefinitionWriteData } from './definitions.repository.js';
 import { CustomFieldValueValidator } from '../values/value-validator.js';
 
@@ -58,6 +63,7 @@ export class DefinitionsService {
     @Inject(DICTIONARY_READER) private readonly dictionaries: DictionaryReader,
     @Inject(CUSTOM_FIELD_VALUES_READER) private readonly values: CustomFieldValuesReader,
     @Inject(WORKFLOW_FIELD_USAGE_READER) private readonly workflows: WorkflowFieldUsageReader,
+    @Inject(PROCESS_CATALOG_READER) private readonly catalog: ProcessCatalogReader,
     private readonly logger: PinoLogger,
   ) {
     this.logger.setContext(DefinitionsService.name);
@@ -71,6 +77,9 @@ export class DefinitionsService {
   async create(dto: CreateCustomFieldBody, actorId: string): Promise<CustomFieldDefinition> {
     if (dto.type === 'project') throw typeUnavailable('project');
     await this.assertSettingsUsable(dto.type, dto.settings?.dictionaryId, dto.settings?.currencyId);
+    // Привязка (#432, Р8): только живые типы своей категории; пусто — атрибут
+    // создаётся «нигде не показывается» (осознанный выбор администратора).
+    await assertBindable(this.catalog, dto.scope, dto.typeIds ?? []);
 
     return this.txRunner.run(async (tx) => {
       await this.definitions.lockScope(dto.scope, tx);
@@ -98,8 +107,17 @@ export class DefinitionsService {
         createdById: actorId,
       };
       const created = await this.definitions.create(data, tx);
-      await this.emitChanged(tx, created, 'created', actorId, Object.keys(data));
-      return this.mapper.toDto(created, tx);
+      await this.definitions.replaceTypes(created.id, dto.typeIds ?? [], tx);
+      const row = (await this.definitions.findById(created.id, tx)) ?? created;
+      const fields = Object.keys(data);
+      await this.emitChanged(
+        tx,
+        row,
+        'created',
+        actorId,
+        dto.typeIds === undefined ? fields : [...fields, 'typeIds'],
+      );
+      return this.mapper.toDto(row, tx);
     });
   }
 
@@ -133,6 +151,19 @@ export class DefinitionsService {
       });
     }
     await this.assertSettingsUsable(nextType, nextSettings.dictionaryId, nextSettings.currencyId);
+    if (dto.typeIds !== undefined) {
+      await assertBindable(this.catalog, current.scope, dto.typeIds);
+      // Снятие привязки тем же телом (#432, security-ревью): тип, где атрибут
+      // работает в опубликованном маршруте, из набора убрать нельзя.
+      await assertUnbindable(
+        this.workflows,
+        current.scope as CustomFieldScope,
+        id,
+        current.typeBindings
+          .map((binding) => binding.processTypeId)
+          .filter((typeId) => !dto.typeIds!.includes(typeId)),
+      );
+    }
     if (nextDefault?.kind === 'static') {
       const issues = await this.validator.validate(
         current.scope as CustomFieldScope,
@@ -169,8 +200,20 @@ export class DefinitionsService {
       if (dto.reportIndexed !== undefined) data.reportIndexed = dto.reportIndexed;
       if (dto.hidden !== undefined) data.hidden = dto.hidden;
       const updated = await this.definitions.update(id, data, tx);
-      await this.emitChanged(tx, updated, 'updated', actorId, Object.keys(data));
-      return this.mapper.toDto(updated, tx);
+      if (dto.typeIds !== undefined) await this.definitions.replaceTypes(id, dto.typeIds, tx);
+      const row =
+        dto.typeIds === undefined
+          ? updated
+          : ((await this.definitions.findById(id, tx)) ?? updated);
+      const fields = Object.keys(data);
+      await this.emitChanged(
+        tx,
+        row,
+        'updated',
+        actorId,
+        dto.typeIds === undefined ? fields : [...fields, 'typeIds'],
+      );
+      return this.mapper.toDto(row, tx);
     });
   }
 
@@ -262,25 +305,22 @@ export class DefinitionsService {
     }
   }
 
-  private async emitChanged(
+  /** Одна точка события изменения реестра — `definition-events.ts` (#432). */
+  private emitChanged(
     tx: Parameters<EventBus['emit']>[0],
     definition: FieldDefinitionRow,
     change: 'created' | 'updated' | 'deleted' | 'reordered',
     actorId: string,
     fields: string[],
   ): Promise<void> {
-    await this.eventBus.emit(
+    return emitDefinitionChanged(
+      { eventBus: this.eventBus, logger: this.logger },
       tx,
-      CUSTOM_FIELD_EVENTS.DEFINITION_CHANGED,
-      {
-        definitionId: definition.id,
-        scope: definition.scope,
-        change,
-        ...(fields.length > 0 ? { fields } : {}),
-      },
-      { actorId, aggregateType: 'field_definition', aggregateId: definition.id },
+      definition,
+      change,
+      actorId,
+      fields,
     );
-    this.logger.debug({ definitionId: definition.id, change }, 'Атрибут изменён');
   }
 }
 

@@ -27,12 +27,18 @@ export function TaskCardChainBar({
   task,
   branchOpen,
   aboutOpen,
+  showBranch = true,
+  showAbout = true,
   onToggleBranch,
   onToggleAbout,
 }: {
   task: TaskDetail;
   branchOpen: boolean;
   aboutOpen: boolean;
+  /** Скрыты и подзадачи, и связи — переключателя навигатора нет (#432, Р7). */
+  showBranch?: boolean;
+  /** Скрыт чат — нет колонки обсуждения и «О задаче» (Р7). */
+  showAbout?: boolean;
   onToggleBranch: () => void;
   onToggleAbout: () => void;
 }) {
@@ -53,18 +59,20 @@ export function TaskCardChainBar({
   return (
     <div className="shrink-0 border-b border-border">
       <div className="content-fade flex h-14 items-center gap-3 px-5">
-        <button
-          type="button"
-          onClick={onToggleBranch}
-          aria-label={ui.tasks.branch}
-          title={ui.tasks.branch}
-          className={cn(
-            'shrink-0 rounded-lg p-2 transition-colors hover:bg-accent',
-            branchOpen ? 'text-foreground' : 'text-muted-foreground',
-          )}
-        >
-          <Waypoints className="size-4" strokeWidth={1.75} />
-        </button>
+        {showBranch ? (
+          <button
+            type="button"
+            onClick={onToggleBranch}
+            aria-label={ui.tasks.branch}
+            title={ui.tasks.branch}
+            className={cn(
+              'shrink-0 rounded-lg p-2 transition-colors hover:bg-accent',
+              branchOpen ? 'text-foreground' : 'text-muted-foreground',
+            )}
+          >
+            <Waypoints className="size-4" strokeWidth={1.75} />
+          </button>
+        ) : null}
         <div className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden">
           <DomainChain nodes={chainNodes} />
         </div>
@@ -80,18 +88,20 @@ export function TaskCardChainBar({
           </NodeChip>
         ) : null}
         <TaskCardMenu task={task} />
-        <button
-          type="button"
-          onClick={onToggleAbout}
-          aria-label={ui.tasks.aboutTask}
-          title={ui.tasks.aboutTask}
-          className={cn(
-            'shrink-0 rounded-lg p-2 transition-colors hover:bg-accent',
-            aboutOpen ? 'text-foreground' : 'text-muted-foreground',
-          )}
-        >
-          <PanelRight className="size-4" strokeWidth={1.75} />
-        </button>
+        {showAbout ? (
+          <button
+            type="button"
+            onClick={onToggleAbout}
+            aria-label={ui.tasks.aboutTask}
+            title={ui.tasks.aboutTask}
+            className={cn(
+              'shrink-0 rounded-lg p-2 transition-colors hover:bg-accent',
+              aboutOpen ? 'text-foreground' : 'text-muted-foreground',
+            )}
+          >
+            <PanelRight className="size-4" strokeWidth={1.75} />
+          </button>
+        ) : null}
       </div>
     </div>
   );

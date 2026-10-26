@@ -11,7 +11,6 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
-import { openCardViaBridge } from '../lib/card-bridge.js';
 import { cachedConversation } from './chat-queries.js';
 import { useMarkMessageAsResult, useMessageToTask } from './conversation-actions.js';
 import { useChatDrafts } from './chat-drafts.js';
@@ -189,11 +188,9 @@ export function MessageMenu({
             focusComposerWhenFree(scope);
           },
           forward: () => useForwardDialog.getState().open(conversationId, [message.id]),
-          toTask: () => {
-            toTask.mutate(message, {
-              onSuccess: (task) => openCardViaBridge({ kind: 'task', id: task.id }),
-            });
-          },
+          // #432: «В задачу» — быстрый вход единого окна создания; карточка
+          // после успеха не открывается (вердикт владельца 26.10).
+          toTask: () => toTask(message),
           markResult: (taskId) => markResult.mutate({ taskId, message }),
           pin: () => {
             if (message.pinned) {

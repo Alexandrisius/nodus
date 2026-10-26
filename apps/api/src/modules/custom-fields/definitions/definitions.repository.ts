@@ -21,6 +21,7 @@ const definitionSelect = {
   sortOrder: true,
   createdAt: true,
   updatedAt: true,
+  typeBindings: { select: { processTypeId: true } },
 } as const;
 
 /** Поля записи определения (белый список сервиса, без id/служебных). */
@@ -47,10 +48,18 @@ export interface FieldDefinitionWriteData {
 export class DefinitionsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Реестр области (или всех) в порядке карточки и фильтров. */
-  async list(scope: string | null, tx?: TransactionClient): Promise<FieldDefinitionRow[]> {
+  /** Реестр области (или всех) в порядке карточки и фильтров. С `typeId` —
+   *  только атрибуты, привязанные к типу (#432, Р8). */
+  async list(
+    scope: string | null,
+    tx?: TransactionClient,
+    opts: { typeId?: string } = {},
+  ): Promise<FieldDefinitionRow[]> {
     const rows = await this.db(tx).fieldDefinition.findMany({
-      where: scope ? { scope } : {},
+      where: {
+        ...(scope ? { scope } : {}),
+        ...(opts.typeId ? { typeBindings: { some: { processTypeId: opts.typeId } } } : {}),
+      },
       select: definitionSelect,
     });
     return rows.sort(
@@ -124,6 +133,42 @@ export class DefinitionsRepository {
 
   async remove(id: string, tx: TransactionClient): Promise<void> {
     await tx.fieldDefinition.delete({ where: { id } });
+  }
+
+  /** Привязка к типу — идемпотентна: повтор не ошибка (#432, Р8). */
+  async bindType(definitionId: string, typeId: string, tx: TransactionClient): Promise<void> {
+    await tx.fieldDefinitionType.upsert({
+      where: { definitionId_processTypeId: { definitionId, processTypeId: typeId } },
+      update: {},
+      create: { definitionId, processTypeId: typeId },
+    });
+  }
+
+  /** Снятие привязки — идемпотентно; `false` — связи не было. */
+  async unbindType(definitionId: string, typeId: string, tx: TransactionClient): Promise<boolean> {
+    const { count } = await tx.fieldDefinitionType.deleteMany({
+      where: { definitionId, processTypeId: typeId },
+    });
+    return count > 0;
+  }
+
+  /** Замена набора типов атрибута (тело создания/правки с `typeIds`). */
+  async replaceTypes(
+    definitionId: string,
+    typeIds: readonly string[],
+    tx: TransactionClient,
+  ): Promise<void> {
+    await tx.fieldDefinitionType.deleteMany({
+      where: {
+        definitionId,
+        ...(typeIds.length > 0 ? { processTypeId: { notIn: [...typeIds] } } : {}),
+      },
+    });
+    if (typeIds.length === 0) return;
+    await tx.fieldDefinitionType.createMany({
+      data: typeIds.map((processTypeId) => ({ definitionId, processTypeId })),
+      skipDuplicates: true,
+    });
   }
 
   /** Порядок атрибутов области: sortOrder = индекс в `ids` (один UPDATE … FROM). */

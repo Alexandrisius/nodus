@@ -17,7 +17,7 @@ import {
   useChatSidePanel,
 } from '../../../shared/chat/chat-side-panel.js';
 import { ConversationPane } from '../../../shared/chat/conversation-pane.js';
-import { TaskQuickCreate } from '../../../shared/tasks/task-quick-create.js';
+import { openTaskCreate } from '../../../shared/tasks/task-create-store.js';
 import { MIN_CHAT_W, useChatWidth } from '../../../shared/ui/use-chat-width.js';
 import { useEmployeePresence, useUserCard, useUsersList } from '../api/directory-api.js';
 import { EmployeeCardSkeleton } from './employee-card-skeleton.js';
@@ -59,7 +59,6 @@ export function EmployeeCard({ userId }: { userId: string }) {
   const panel = useChatSidePanel();
   // Экспресс-форма задачи ИЗ КАРТОЧКИ сотрудника (вердикт владельца
   // 15.09.2026, модель Битрикс24): исполнитель подставляется сам сотрудник.
-  const [createOpen, setCreateOpen] = useState(false);
   const chatRef = useRef<HTMLDivElement>(null);
   // КАНОН «чат — буфер сужений» (issue #63): панель беседы и раскрытие
   // служебной полосы сужают КОЛОНКУ ДИАЛОГА до её минимума (лента 360 при
@@ -155,7 +154,7 @@ export function EmployeeCard({ userId }: { userId: string }) {
                 <EmployeeTasksTab
                   tasks={tasks}
                   isLoading={tasksQuery.isLoading}
-                  onCreateTask={() => setCreateOpen(true)}
+                  onCreateTask={() => openTaskCreate({ assigneeId: userId })}
                 />
               ) : null}
 
@@ -232,7 +231,6 @@ export function EmployeeCard({ userId }: { userId: string }) {
           headerClass="h-10"
         />
       ) : null}
-      <TaskQuickCreate open={createOpen} onOpenChange={setCreateOpen} defaultAssigneeId={userId} />
     </div>
   );
 }

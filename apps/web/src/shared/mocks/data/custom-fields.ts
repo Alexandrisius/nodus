@@ -9,6 +9,7 @@ import { SystemDictionary } from '@nodus/contracts';
 
 import { currencyIds, dictionaryByCode, itemsOf, workKindIds } from './dictionaries.js';
 import { departmentIds } from './org-ids.js';
+import { processTypeIds } from './process-type-ids.js';
 import { projectRefs, tid } from './task-item-factory.js';
 import { userIds } from './users.js';
 
@@ -36,6 +37,8 @@ export const fieldIds = {
   sourceProject: fid(15),
   contractor: fid(16),
   legacyCode: fid(17),
+  /** Атрибут типа «Переработка» (#432): дата — обязательная в форме. */
+  overtimeDate: fid(18),
   letterReplyNumber: fid(21),
   letterReplyDate: fid(22),
   counterpartyErp: fid(31),
@@ -63,6 +66,7 @@ function definition(
     defaultRefs: [],
     reportIndexed: false,
     hidden: false,
+    typeIds: [],
     sortOrder,
     createdAt: STAMP,
     updatedAt: STAMP,
@@ -84,43 +88,68 @@ function dictionaryRef(code: string) {
 
 const moneySettings: CustomFieldSettings = { currencyId: currencyIds.byn };
 
+/** Привязка атрибута к типам (#432, В2): стандарт и переработка — основные
+ *  демо-типы задач; «Сайт заказчика» и «Проект-источник» намеренно без
+ *  типов — проверка правила «атрибут без типов нигде не показывается». */
+const STD = [processTypeIds.standard];
+const STD_OVT = [processTypeIds.standard, processTypeIds.overtime];
+
 /** Определения в порядке реестра (области: task, letter, project, counterparty). */
 export const demoCustomFieldDefinitions: CustomFieldDefinition[] = [
   definition(fieldIds.invoiceNumber, 'task', 'text', '№ накладной', 0, {
     hint: 'Номер из накладной поставщика',
+    typeIds: STD,
   }),
-  definition(fieldIds.handoverDate, 'task', 'date', 'Дата передачи', 1),
-  definition(fieldIds.customer, 'task', 'user', 'Сотрудник-заказчик', 2),
+  definition(fieldIds.handoverDate, 'task', 'date', 'Дата передачи', 1, { typeIds: STD }),
+  definition(fieldIds.customer, 'task', 'user', 'Сотрудник-заказчик', 2, { typeIds: STD }),
   definition(fieldIds.contractAmount, 'task', 'money', 'Сумма договора', 3, {
     settings: moneySettings,
     dictionary: dictionaryRef(SystemDictionary.CURRENCY),
+    typeIds: STD,
   }),
   definition(fieldIds.workKind, 'task', 'enum', 'Вид работ', 4, {
     settings: { dictionaryId: dictionaryByCode('work-kind')!.id },
     dictionary: dictionaryRef('work-kind'),
     defaultValue: { kind: 'static', value: workKindIds.design },
+    typeIds: STD,
   }),
   definition(fieldIds.objects, 'task', 'multienum', 'Объекты', 5, {
     settings: { dictionaryId: dictionaryByCode('object')!.id },
     dictionary: dictionaryRef('object'),
+    typeIds: STD,
   }),
-  definition(fieldIds.overtime, 'task', 'duration', 'Часы переработки', 6),
-  definition(fieldIds.approved, 'task', 'bool', 'Согласовано с заказчиком', 7),
-  definition(fieldIds.projectFolder, 'task', 'link', 'Папка проекта', 8, {
+  definition(fieldIds.overtime, 'task', 'duration', 'Часы переработки', 6, {
+    typeIds: STD_OVT,
+  }),
+  definition(fieldIds.overtimeDate, 'task', 'date', 'Дата переработки', 7, {
+    typeIds: [processTypeIds.overtime],
+  }),
+  definition(fieldIds.approved, 'task', 'bool', 'Согласовано с заказчиком', 8, { typeIds: STD }),
+  definition(fieldIds.projectFolder, 'task', 'link', 'Папка проекта', 9, {
     hint: 'Путь в общем хранилище',
+    typeIds: STD,
   }),
-  definition(fieldIds.customerSite, 'task', 'link', 'Сайт заказчика', 9),
-  definition(fieldIds.applicantDepartment, 'task', 'department', 'Подразделение заявителя', 10, {
+  definition(fieldIds.customerSite, 'task', 'link', 'Сайт заказчика', 10),
+  definition(fieldIds.applicantDepartment, 'task', 'department', 'Подразделение заявителя', 11, {
     defaultValue: { kind: 'author_department' },
+    typeIds: STD,
   }),
-  definition(fieldIds.area, 'task', 'number', 'Площадь, м²', 11, { settings: { precision: 2 } }),
-  definition(fieldIds.customerComment, 'task', 'long_text', 'Комментарий заказчика', 12),
-  definition(fieldIds.customerObservers, 'task', 'users', 'Наблюдатели заказчика', 13),
-  definition(fieldIds.sourceProject, 'task', 'project', 'Проект-источник', 14),
-  definition(fieldIds.contractor, 'task', 'counterparty', 'Подрядчик', 15),
-  definition(fieldIds.legacyCode, 'task', 'text', 'Шифр сметы (служебный)', 16, {
+  definition(fieldIds.area, 'task', 'number', 'Площадь, м²', 12, {
+    settings: { precision: 2 },
+    typeIds: STD,
+  }),
+  definition(fieldIds.customerComment, 'task', 'long_text', 'Комментарий заказчика', 13, {
+    typeIds: STD,
+  }),
+  definition(fieldIds.customerObservers, 'task', 'users', 'Наблюдатели заказчика', 14, {
+    typeIds: STD,
+  }),
+  definition(fieldIds.sourceProject, 'task', 'project', 'Проект-источник', 15),
+  definition(fieldIds.contractor, 'task', 'counterparty', 'Подрядчик', 16, { typeIds: STD }),
+  definition(fieldIds.legacyCode, 'task', 'text', 'Шифр сметы (служебный)', 17, {
     hint: 'Заполняет автоматика из сметной программы',
     hidden: true,
+    typeIds: STD,
   }),
   definition(fieldIds.letterReplyNumber, 'letter', 'text', 'Исх. номер контрагента', 0),
   definition(fieldIds.letterReplyDate, 'letter', 'date', 'Дата ответа', 1),

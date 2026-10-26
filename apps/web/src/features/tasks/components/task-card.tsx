@@ -32,6 +32,7 @@ import {
   rowMinWidthsCss,
 } from '../lib/task-card-layout.js';
 import { useBranchWidth } from '../lib/use-branch-width.js';
+import { useTaskCardLayout } from '../lib/task-card-type-layout.js';
 
 /** Ширина панели «О задаче»: на неё же сужается чат по общему канону буфера
  *  (ниже — пол чата, дальше двигается левая зона); панель полновысотная и
@@ -122,6 +123,10 @@ export function TaskCard({ taskId }: { taskId: string }) {
   const closeBranch = useCallback(() => setBranchOpen(false), []);
   const closeAbout = useCallback(() => setAboutOpen(false), []);
 
+  // Состав карточки по типу (#432, Р7) — хук до ранних возвратов (порядок
+  // хуков неизменен); без данных — умолчания (полная карточка).
+  const layout = useTaskCardLayout(task ?? null);
+
   // Задачи нет (удалена, сняли с участия, чужая ссылка): объяснение вместо
   // вечного скелетона.
   if (!task && error instanceof ApiError && error.status === 404) {
@@ -135,6 +140,9 @@ export function TaskCard({ taskId }: { taskId: string }) {
     return <TaskCardSkeleton chatW={chatColumnW} />;
   }
 
+  const showChat = layout.blockVisible('chat');
+  const showBranch = layout.blockVisible('subtasks') || layout.blockVisible('relations');
+
   return (
     // Панель «О задаче» — ПОЛНОВЫСОТНЫЙ сиблинг всей карточки (геометрия
     // Битрикс24, вердикт владельца 15.09.2026): занимает верхнюю полосу
@@ -146,6 +154,8 @@ export function TaskCard({ taskId }: { taskId: string }) {
           task={task}
           branchOpen={branchOpen}
           aboutOpen={aboutOpen}
+          showBranch={showBranch}
+          showAbout={showChat}
           onToggleBranch={() => {
             setBranchMounted(true);
             setBranchOpen((v) => !v);
@@ -226,16 +236,18 @@ export function TaskCard({ taskId }: { taskId: string }) {
                 в теле не дублируется: тело начинается с описания. Секции
                 разделяются отступами, без висячих линий-сепараторов. */}
               <div className="mx-auto max-w-4xl pb-4">
-                <TaskDescription task={task} />
-                <TaskFields task={task} />
+                {layout.blockVisible('description') ? <TaskDescription task={task} /> : null}
+                <TaskFields task={task} layout={layout} />
                 {/* Поля процесса (#431) — сразу после системных полей: тот же
                     реестр-грамматика, своя секция с настройкой. */}
                 <TaskCustomFields task={task} />
                 {/* Чек-лист — сразу после полей, ДО подзадач (вердикт
                   владельца 15.09.2026: «чек-листам — важное место»). */}
-                <TaskChecklist task={task} />
-                <TaskSubtasks task={task} onOpen={navigateInCard} />
-                <TaskResultSection task={task} />
+                {layout.blockVisible('checklist') ? <TaskChecklist task={task} /> : null}
+                {layout.blockVisible('subtasks') ? (
+                  <TaskSubtasks task={task} onOpen={navigateInCard} />
+                ) : null}
+                {layout.blockVisible('result') ? <TaskResultSection task={task} /> : null}
               </div>
             </div>
 
@@ -244,7 +256,7 @@ export function TaskCard({ taskId }: { taskId: string }) {
               Высота h-16 = высоте композера чата: их верхние линии образуют
               ОДНУ горизонталь через границу зон (вердикт владельца) */}
             <div className="flex h-16 shrink-0 items-center border-t border-border px-5">
-              <TaskActionBar task={task} />
+              <TaskActionBar task={task} showTime={layout.blockVisible('time')} />
             </div>
 
             {/* Ручка ресайза чата: невидимый оверлей ПОВЕРХ структурной

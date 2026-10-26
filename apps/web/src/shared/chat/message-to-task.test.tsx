@@ -12,29 +12,43 @@ vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 const MESSAGE_ID = '60000000-0000-4000-8000-000000000001';
 
 function wrapper({ children }: { children: ReactNode }) {
-  return createElement(QueryClientProvider, { client: new QueryClient() }, children);
+  return createElement(
+    QueryClientProvider,
+    { client: new QueryClient({ defaultOptions: { queries: { retry: false } } }) },
+    children,
+  );
 }
 
 async function sentBody(text: string): Promise<Record<string, unknown>> {
   const fetchMock = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(
-    async () =>
-      new Response(JSON.stringify({ id: 't1' }), {
+    async (input) => {
+      // Библиотека типов пуста: быстрый вход создаёт задачу сразу (#432).
+      if (String(input).includes('/workflows/types')) {
+        return new Response(JSON.stringify([]), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      return new Response(JSON.stringify({ id: 't1' }), {
         status: 201,
         headers: { 'content-type': 'application/json' },
-      }),
+      });
+    },
   );
   vi.stubGlobal('fetch', fetchMock);
   const { result } = renderHook(() => useMessageToTask(), { wrapper });
   await act(async () => {
-    await result.current.mutateAsync({ id: MESSAGE_ID, text });
+    result.current({ id: MESSAGE_ID, text });
   });
-  const [input, init] = fetchMock.mock.calls[0]!;
+  const call = fetchMock.mock.calls.find(([input]) => String(input).endsWith('/tasks'));
+  expect(call).toBeTruthy();
+  const [input, init] = call!;
   expect(String(input)).toMatch(/\/tasks$/);
   expect(init?.method).toBe('POST');
   return JSON.parse(String(init?.body)) as Record<string, unknown>;
 }
 
-describe('useMessageToTask (#252): «В задачу» — обычное создание задачи', () => {
+describe('useMessageToTask (#252): «В задачу» — быстрый вход единого окна', () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it('название — первая строка, описание — весь текст, происхождение — id сообщения', async () => {

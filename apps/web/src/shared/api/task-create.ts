@@ -24,11 +24,16 @@ export function useCreateTask() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (body: CreateTaskBody) => api<TaskListItem>('/tasks', { method: 'POST', body }),
-    onSettled: () => {
+    onSettled: (_data, _error, body) => {
       void queryClient.invalidateQueries({ queryKey: tasksKeys.personalStages() });
       void queryClient.invalidateQueries({ queryKey: tasksKeys.listPages() });
       void queryClient.invalidateQueries({ queryKey: tasksKeys.kanbanAll() });
       void queryClient.invalidateQueries({ queryKey: tasksKeys.stages() });
+      // Подзадача из быстрого входа (#432): карточка родителя показывает
+      // новую строку сразу после ответа.
+      if (body.parentId) {
+        void queryClient.invalidateQueries({ queryKey: tasksKeys.detail(body.parentId) });
+      }
     },
   });
 }

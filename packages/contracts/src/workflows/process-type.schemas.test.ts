@@ -58,9 +58,34 @@ describe('processTypeSchema', () => {
       sortOrder: 0,
       archivedAt: null,
       workflowId: '22222222-2222-4222-8222-222222222222',
+      config: {
+        card: { hiddenBlocks: [], roleLabels: {} },
+        access: { view: null, create: null },
+      },
+      creationForm: { fields: [], chips: [] },
+      viewer: { canView: true, canCreate: true },
     });
     expect(parsed.category).toBe('task');
     expect(parsed.direction).toBeNull();
     expect(parsed).not.toHaveProperty('structural');
+  });
+
+  it('без конфигурации, формы и зрителя тип невалиден (#432)', () => {
+    const result = processTypeSchema.safeParse({
+      id: '11111111-1111-4111-8111-111111111111',
+      code: 'task.default',
+      name: 'Стандартный',
+      category: 'task',
+      direction: null,
+      icon: 'square-check',
+      color: 'neutral',
+      description: '',
+      creatable: true,
+      isSystem: true,
+      sortOrder: 0,
+      archivedAt: null,
+      workflowId: '22222222-2222-4222-8222-222222222222',
+    });
+    expect(result.success).toBe(false);
   });
 });

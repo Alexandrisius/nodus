@@ -67,6 +67,10 @@ export async function setupCustomFieldsFixture(): Promise<CustomFieldsFixture> {
   // Детерминизм против прошлых прогонов — ТОЛЬКО форма окна: правила
   // системного каталога (`no_open_subtasks` и др.) не трогаем, иначе
   // соседние наборы теряют гейты (класс #486 — тест не изолирует данные).
+  // Стандартный тип: атрибуты набора привязаны к нему (#432, Р8) — без
+  // привязки атрибут нигде не виден и не принимает значения.
+  const standardType = await fx.prisma.processType.findUnique({ where: { code: 'task' } });
+  if (!standardType) throw new Error('Standard process type not found');
   const standard = await fx.prisma.workflow.findUnique({ where: { code: 'task.default' } });
   let completeOriginal: { id: string; form: unknown; rules: unknown } | null = null;
   let standardId: string | null = null;
@@ -101,7 +105,7 @@ export async function setupCustomFieldsFixture(): Promise<CustomFieldsFixture> {
     departmentIds: [],
     async createField(body) {
       const res = await fx.api(admin, 'POST', '/custom-fields/definitions', {
-        body,
+        body: { typeIds: [standardType.id], ...body },
         key: `it-cf-${crypto.randomUUID()}`,
       });
       expect(res.status, await res.clone().text()).toBe(201);
