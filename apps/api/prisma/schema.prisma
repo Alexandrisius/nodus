@@ -937,11 +937,16 @@ model ProcessType {
   /// Ревизия каталога, последняя применённая к типу (ADR-0021).
   catalogRevision Int  @default(0) @map("catalog_revision")
   sortOrder  Int       @default(0) @map("sort_order")
+  /// Конфигурация типа (#432, ADR-0024 п.5): состав карточки (`card`) и
+  /// доступ (`access`). Сохраняется сразу, публикации не требует; схема
+  /// `processTypeConfigSchema`, битый раздел читается как умолчание.
+  config     Json      @default("{}")
   archivedAt DateTime? @map("archived_at") @db.Timestamptz()
   createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
 
   schemeEntries WorkflowSchemeEntry[]
+  fieldBindings FieldDefinitionType[]
 
   @@map("process_types")
 }
@@ -971,6 +976,9 @@ model Workflow {
   /// позиции статусов, точки подключения и положение подписей кнопок
   /// (схема `workflowLayoutSchema`). Пусто — авторасстановка.
   layout     Json     @default("{}")
+  /// Форма создания — окно узла «Создание» (#432): слоты и чипы. null —
+  /// форма по умолчанию (нынешняя экспресс-форма). Публикуется версией.
+  creation   Json?
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz()
 
@@ -1457,7 +1465,27 @@ model FieldDefinition {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
 
+  typeBindings FieldDefinitionType[]
+
   /// Выдача реестра области в порядке карточки: (scope, sort_order, id).
   @@index([scope, sortOrder, id])
   @@map("field_definitions")
+}
+
+/// Привязка атрибута к типу процесса (#432, Р8): атрибут виден и принимает
+/// значения только у своих типов; заполненное при снятии привязки не
+/// стирается. Каскад — определение удаляется целиком, тип не удаляется
+/// (архив), но каскад страхует от сирот. Обратный индекс — по типу: список
+/// «атрибуты типа» читается на каждой карточке и форме.
+model FieldDefinitionType {
+  definitionId  String   @map("definition_id") @db.Uuid
+  processTypeId String   @map("process_type_id") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  definition  FieldDefinition @relation(fields: [definitionId], references: [id], onDelete: Cascade)
+  processType ProcessType     @relation(fields: [processTypeId], references: [id], onDelete: Cascade)
+
+  @@id([definitionId, processTypeId])
+  @@index([processTypeId])
+  @@map("field_definition_types")
 }
