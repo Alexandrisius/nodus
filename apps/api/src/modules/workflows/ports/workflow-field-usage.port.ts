@@ -21,5 +21,12 @@ export interface WorkflowFieldUsage {
 }
 
 export interface WorkflowFieldUsageReader {
-  workflowsUsingField(scope: CustomFieldScope, fieldId: string): Promise<WorkflowFieldUsage[]>;
+  /** Маршруты, где атрибут стоит в опубликованном окне, условии или форме
+   *  создания. `typeId` — только маршрут этого типа (#432: снятие привязки
+   *  блокируется, если атрибут работает в маршруте типа). */
+  workflowsUsingField(
+    scope: CustomFieldScope,
+    fieldId: string,
+    opts?: { typeId?: string },
+  ): Promise<WorkflowFieldUsage[]>;
 }

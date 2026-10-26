@@ -55,15 +55,17 @@ export class ProcessCatalogReaderProvider implements ProcessCatalogReader {
     return processTypeDto(type, workflowId);
   }
 
-  async typeRefs(ids: readonly string[]): Promise<ProcessTypeRef[]> {
+  async typeRefs(ids: readonly string[], opts: { live?: boolean } = {}): Promise<ProcessTypeRef[]> {
     if (ids.length === 0) return [];
     const rows = await this.types.findByIds(ids);
-    return rows.map((t) => ({
-      id: t.id,
-      code: t.code,
-      name: t.name,
-      category: t.category as ProcessCategory,
-    }));
+    return rows
+      .filter((t) => !opts.live || t.archivedAt === null)
+      .map((t) => ({
+        id: t.id,
+        code: t.code,
+        name: t.name,
+        category: t.category as ProcessCategory,
+      }));
   }
 
   liveStages(workflowId: string): Promise<CatalogStage[]> {

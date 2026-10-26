@@ -28,8 +28,10 @@ import {
 /** Что валидатору нужно знать об определении (DTO или строка репозитория). */
 export type DefinitionFacts = Pick<CustomFieldDefinition, 'id' | 'scope' | 'type' | 'settings'>;
 
-/** Причина отказа значения (Р2): код читает интерфейс, текст — i18n веба. */
-export type CustomFieldIssueReason = 'unknown' | 'invalid' | 'not_found' | 'inactive';
+/** Причина отказа значения (Р2): код читает интерфейс, текст — i18n веба.
+ *  `not_in_type` — атрибут существует, но не привязан к типу сущности (#432). */
+export type CustomFieldIssueReason =
+  'unknown' | 'invalid' | 'not_found' | 'inactive' | 'not_in_type';
 
 export interface CustomFieldIssue {
   fieldId: string;

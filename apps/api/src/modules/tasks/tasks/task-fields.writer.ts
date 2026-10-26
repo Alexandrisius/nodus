@@ -1,8 +1,12 @@
 import { Inject, Injectable } from '@nestjs/common';
 import {
+  clearedRequiredKeys,
   CUSTOM_FIELD_LIMITS,
+  effectiveCreationForm,
   ErrorCode,
+  requiredCreateKeys,
   TASK_EVENTS,
+  type CreationFieldKey,
   type CustomFieldValue,
 } from '@nodus/contracts';
 
@@ -17,14 +21,20 @@ import {
   type CustomFieldRegistry,
   type RegistryFieldChange,
 } from '../../custom-fields/ports/custom-field-registry.port.js';
+import {
+  PROCESS_CATALOG_READER,
+  type ProcessCatalogReader,
+} from '../../workflows/ports/process-catalog-reader.port.js';
 import { TaskFactsRepository } from './task-facts.repository.js';
 import { TasksRepository, type TaskFieldsPatch } from './tasks.repository.js';
 
-/** Строка задачи для правки полей: хватает идентичности и текущих значений,
- *  которые пишут события (TaskListRow подходит структурно). */
+/** Строка задачи для правки полей: хватает идентичности, типа (обязательные
+ *  поля формы создания, #432) и текущих значений, которые пишут события
+ *  (TaskListRow подходит структурно). */
 export interface TaskFieldsRow {
   id: string;
   number: number;
+  typeId: string;
   parentId: string | null;
   assigneeId: string;
 }
@@ -58,6 +68,7 @@ export class TaskFieldsWriter {
     private readonly participantsRepo: ParticipantsRepository,
     private readonly placements: Placements,
     @Inject(CUSTOM_FIELD_REGISTRY) private readonly customFields: CustomFieldRegistry,
+    @Inject(PROCESS_CATALOG_READER) private readonly catalog: ProcessCatalogReader,
   ) {}
 
   async apply(
@@ -87,6 +98,7 @@ export class TaskFieldsWriter {
         throw new DomainException(ErrorCode.TASK_PARENT_CYCLE, 'Parent is a descendant');
       }
     }
+    await this.assertRequiredKept(row.typeId, patch);
     const data: TaskFieldsPatch = {};
     // Значения атрибутов читаются и пишутся под замком строки: параллельные
     // PATCH сливаются по ключам, а не перетирают карту целиком (#431).
@@ -161,6 +173,34 @@ export class TaskFieldsWriter {
       meta,
     );
     return { customFieldChanges: fieldChanges };
+  }
+
+  /**
+   * Обязательное при создании нельзя очистить (#432, Р5): срок, описание и
+   * атрибуты типа проверяются общим предикатом формы — одной точкой для
+   * PATCH карточки и окна перехода. Смена ответственного обязательной не
+   * бывает (`requiredAllowed`), поэтому её здесь нет.
+   */
+  private async assertRequiredKept(typeId: string, patch: TaskFieldsWrite): Promise<void> {
+    const values: Record<string, unknown> = {};
+    if (patch.description !== undefined) values.description = patch.description;
+    if (patch.deadline !== undefined) values.deadline = patch.deadline;
+    for (const [fieldId, value] of Object.entries(patch.customFields ?? {})) {
+      values[`cf.${fieldId}`] = value;
+    }
+    if (Object.keys(values).length === 0) return;
+    const type = await this.catalog.typeById(typeId);
+    if (!type) return;
+    const required: CreationFieldKey[] = requiredCreateKeys(
+      effectiveCreationForm(type.creationForm, type.category),
+    );
+    const cleared = clearedRequiredKeys(required, values);
+    if (cleared.length === 0) return;
+    throw new DomainException(
+      ErrorCode.PROCESS_TYPE_FIELDS_REQUIRED,
+      'Required field cannot be cleared',
+      { typeId, fields: cleared, reason: 'clear' },
+    );
   }
 }
 

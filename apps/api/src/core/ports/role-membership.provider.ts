@@ -25,6 +25,20 @@ export class RoleMembershipProvider implements RoleMembershipReader {
     return rows.map((row) => row.role_id);
   }
 
+  async effectiveRoles(
+    userId: string,
+    tx?: TransactionClient,
+  ): Promise<{ id: string; code: string }[]> {
+    return this.db(tx).$queryRaw<{ id: string; code: string }[]>(
+      Prisma.sql`
+        WITH ${this.roleIdsCte(userId)}
+        SELECT r.id AS id, r.code AS code
+        FROM role_ids ri JOIN roles r ON r.id = ri.role_id
+        ORDER BY r.code
+      `,
+    );
+  }
+
   async effectivePermissions(userId: string, tx?: TransactionClient): Promise<Permission[]> {
     const rows = await this.db(tx).$queryRaw<{ permission: string }[]>(
       Prisma.sql`

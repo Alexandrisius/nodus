@@ -126,9 +126,10 @@ export class TasksService {
       .run(async (tx) => {
         // Кастомные атрибуты (#431, Р5): умолчания области + ввод, проверка
         // ссылок портом реестра — до записи строки, в той же транзакции.
+        // С #432 — только привязанные к типу задачи (Р8).
         const customFields = await this.customFields.prepareCreate(
           'task',
-          { input: body.customFields ?? {}, authorId: user.id },
+          { input: body.customFields ?? {}, authorId: user.id, typeId },
           tx,
         );
         const task = await this.repo.create(

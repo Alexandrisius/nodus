@@ -22,6 +22,8 @@ export interface FieldDefinitionRow {
   sortOrder: number;
   createdAt: Date;
   updatedAt: Date;
+  /** Привязки к типам процессов (#432, Р8); пусто — атрибут нигде не виден. */
+  typeBindings: { processTypeId: string }[];
 }
 
 /**
@@ -106,8 +108,8 @@ export class DefinitionMapper {
       defaultValue: (row.defaultValue ?? null) as CustomFieldDefinition['defaultValue'],
       reportIndexed: row.reportIndexed,
       hidden: row.hidden,
-      // #432 UI-пакет: заглушка до бэкенд-пакета — привязка к типам процессов.
-      typeIds: [],
+      // Привязки к типам (#432, Р8): порядок детерминирован — id по возрастанию.
+      typeIds: row.typeBindings.map((binding) => binding.processTypeId).sort(),
       sortOrder: row.sortOrder,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),

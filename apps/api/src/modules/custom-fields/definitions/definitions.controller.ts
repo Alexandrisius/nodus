@@ -42,6 +42,7 @@ import { RequirePermissions } from '../../../core/decorators/require-permissions
 import { ApiErrors } from '../../../core/openapi/api-errors.decorator.js';
 import { ApiIdempotencyKey } from '../../../core/openapi/api-idempotency.decorator.js';
 import { ZodValidationPipe } from '../../../core/pipes/zod-validation.pipe.js';
+import { DefinitionsBindingService } from './definitions-binding.service.js';
 import { DefinitionsService } from './definitions.service.js';
 
 const idParamSchema = z.uuid();
@@ -56,7 +57,10 @@ const idParamSchema = z.uuid();
 @ApiBearerAuth()
 @Controller('custom-fields/definitions')
 export class DefinitionsController {
-  constructor(private readonly definitions: DefinitionsService) {}
+  constructor(
+    private readonly definitions: DefinitionsService,
+    private readonly bindings: DefinitionsBindingService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'Реестр атрибутов (область — необязательный фильтр)' })
@@ -121,6 +125,59 @@ export class DefinitionsController {
   @ApiErrors(400, 401, 403, 404)
   usage(@Param('id', new ZodValidationPipe(idParamSchema)) id: string): Promise<CustomFieldUsage> {
     return this.definitions.usage(id);
+  }
+
+  // Привязка атрибута к типу процесса (#432, Р8): идемпотентна, ответ — DTO.
+  @Put(':id/types/:typeId')
+  @HttpCode(200)
+  @RequirePermissions(Permission.CUSTOM_FIELD_MANAGE)
+  @Audit({ action: 'custom_field.bind', entity: 'field_definition' })
+  @ApiOperation({ summary: 'Привязать атрибут к типу процесса (повтор — без изменений)' })
+  @ApiParam({
+    name: 'id',
+    description: 'UUID атрибута',
+    schema: { type: 'string', format: 'uuid' },
+  })
+  @ApiParam({
+    name: 'typeId',
+    description: 'UUID типа',
+    schema: { type: 'string', format: 'uuid' },
+  })
+  @ApiOkResponse({ standardSchema: customFieldDefinitionSchema })
+  @ApiErrors(400, 401, 403, 404, 422)
+  @ApiIdempotencyKey()
+  bind(
+    @Param('id', new ZodValidationPipe(idParamSchema)) id: string,
+    @Param('typeId', new ZodValidationPipe(idParamSchema)) typeId: string,
+    @GetUser() actor: AuthUser,
+  ): Promise<CustomFieldDefinition> {
+    return this.bindings.bind(id, typeId, actor.id);
+  }
+
+  @Delete(':id/types/:typeId')
+  @HttpCode(200)
+  @RequirePermissions(Permission.CUSTOM_FIELD_MANAGE)
+  @Audit({ action: 'custom_field.unbind', entity: 'field_definition' })
+  @ApiOperation({ summary: 'Снять привязку атрибута к типу (409, если работает в маршруте)' })
+  @ApiParam({
+    name: 'id',
+    description: 'UUID атрибута',
+    schema: { type: 'string', format: 'uuid' },
+  })
+  @ApiParam({
+    name: 'typeId',
+    description: 'UUID типа',
+    schema: { type: 'string', format: 'uuid' },
+  })
+  @ApiOkResponse({ standardSchema: customFieldDefinitionSchema })
+  @ApiErrors(400, 401, 403, 404, 409)
+  @ApiIdempotencyKey()
+  unbind(
+    @Param('id', new ZodValidationPipe(idParamSchema)) id: string,
+    @Param('typeId', new ZodValidationPipe(idParamSchema)) typeId: string,
+    @GetUser() actor: AuthUser,
+  ): Promise<CustomFieldDefinition> {
+    return this.bindings.unbind(id, typeId, actor.id);
   }
 
   @Patch(':id')

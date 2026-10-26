@@ -25,6 +25,7 @@ const definition = (
     reportIndexed: false,
     hidden: false,
     sortOrder: 0,
+    typeIds: [],
     createdAt: '2026-10-26T00:00:00.000Z',
     updatedAt: '2026-10-26T00:00:00.000Z',
     ...overrides,
@@ -36,7 +37,11 @@ function makeRegistry(definitions: CustomFieldDefinition[]) {
   const repository = { list: vi.fn(async () => []) };
   const mapper = { toDtos: vi.fn(async () => definitions), toDto: vi.fn() };
   const validator = { validate: vi.fn(async (): Promise<CustomFieldIssue[]> => []) };
-  const defaults = { resolve: vi.fn(async () => ({})) };
+  const defaults = {
+    resolve: vi.fn<(defs: readonly CustomFieldDefinition[]) => Promise<Record<string, unknown>>>(
+      async () => ({}),
+    ),
+  };
   const hydrator = { hydrate: vi.fn(async () => []) };
   const logger = { setContext: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() };
   const registry = new CustomFieldRegistryProvider(
@@ -90,6 +95,64 @@ describe('CustomFieldRegistry.prepareCreate (#431, Р5)', () => {
       details: { issues: [{ fieldId: 'f-x', reason: 'unknown' }] },
     });
   });
+
+  it('умолчания — только привязанных к типу (#432, Р8)', async () => {
+    const definitions = [
+      definition({
+        id: 'f-bound',
+        type: 'text',
+        typeIds: ['t-1'],
+        defaultValue: { kind: 'static', value: 'своё' },
+      }),
+      definition({
+        id: 'f-other',
+        type: 'text',
+        typeIds: ['t-2'],
+        defaultValue: { kind: 'static', value: 'чужое' },
+      }),
+    ];
+    const { registry, defaults } = makeRegistry(definitions);
+    // Умолчание считается только для переданных определений — как в проде.
+    defaults.resolve.mockImplementation(async (defs) =>
+      Object.fromEntries(
+        defs
+          .filter((entry) => entry.defaultValue?.kind === 'static')
+          .map((entry) => [
+            entry.id,
+            (entry.defaultValue as { kind: 'static'; value: unknown }).value,
+          ]),
+      ),
+    );
+    const values = await registry.prepareCreate('task', {
+      input: {},
+      authorId: 'author-1',
+      typeId: 't-1',
+    });
+    expect(values).toEqual({ 'f-bound': 'своё' });
+    // Валидатор получает только привязанные определения.
+    expect(defaults.resolve).toHaveBeenCalledWith(
+      [expect.objectContaining({ id: 'f-bound' })],
+      'author-1',
+      undefined,
+    );
+  });
+
+  it('значение непривязанного атрибута — not_in_type (422, #432)', async () => {
+    const { registry } = makeRegistry([
+      definition({ id: 'f-bound', type: 'text', typeIds: ['t-1'] }),
+      definition({ id: 'f-other', type: 'text', typeIds: ['t-2'] }),
+    ]);
+    await expect(
+      registry.prepareCreate('task', {
+        input: { 'f-other': 'v' },
+        authorId: 'author-1',
+        typeId: 't-1',
+      }),
+    ).rejects.toMatchObject({
+      code: ErrorCode.CUSTOM_FIELD_VALUE_INVALID,
+      details: { issues: [{ fieldId: 'f-other', reason: 'not_in_type' }] },
+    });
+  });
 });
 
 describe('CustomFieldRegistry.prepareUpdate (#431, Р1/Р2)', () => {
@@ -139,6 +202,29 @@ describe('CustomFieldRegistry.prepareUpdate (#431, Р1/Р2)', () => {
     const { registry } = makeRegistry([definition({ id: 'f-a', type: 'text' })]);
     const result = await registry.prepareUpdate('task', { current: { 'f-a': 'x' }, patch: {} });
     expect(result).toEqual({ next: { 'f-a': 'x' }, changes: [] });
+  });
+
+  it('очистка непривязанного разрешена, запись — not_in_type (#432, Р8)', async () => {
+    const definitions = [
+      definition({ id: 'f-bound', type: 'text', typeIds: ['t-1'] }),
+      definition({ id: 'f-other', type: 'text', typeIds: ['t-2'] }),
+    ];
+    const { registry } = makeRegistry(definitions);
+    const cleared = await registry.prepareUpdate('task', {
+      current: { 'f-other': 'старое' },
+      patch: { 'f-other': null },
+      typeId: 't-1',
+    });
+    expect(cleared.next).toEqual({});
+    await expect(
+      registry.prepareUpdate('task', {
+        current: {},
+        patch: { 'f-other': 'новое' },
+        typeId: 't-1',
+      }),
+    ).rejects.toMatchObject({
+      details: { issues: [{ fieldId: 'f-other', reason: 'not_in_type' }] },
+    });
   });
 });
 

@@ -41,8 +41,9 @@ export interface ProcessCatalogReader {
   /** Тип по id (живой или архивный) — настройки, смена типа, история. */
   typeById(id: string): Promise<ProcessType | null>;
 
-  /** Ссылки на типы пачкой (гидратация строк DTO). */
-  typeRefs(ids: readonly string[]): Promise<ProcessTypeRef[]>;
+  /** Ссылки на типы пачкой (гидратация строк DTO). `live` — только живые:
+   *  привязка атрибута к архивному типу — мёртвая настройка (#432). */
+  typeRefs(ids: readonly string[], opts?: { live?: boolean }): Promise<ProcessTypeRef[]>;
 
   /** Живые стадии маршрута по порядку (выбор стадии при создании/смене типа). */
   liveStages(workflowId: string): Promise<CatalogStage[]>;
