@@ -2,13 +2,10 @@ import { Inject, Injectable } from '@nestjs/common';
 import type { Redis } from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
 
+import { runRedisCommand } from '../../core/redis/redis-command.js';
 import { REDIS_CLIENT } from '../../core/redis/redis.module.js';
 import { getAuthConfig } from './auth.config.js';
 
-/** Потолок ожидания Redis на горячем пути guard'а: общий клиент держит
- *  команды в offline-очереди без лимита (`maxRetriesPerRequest: null`), и без
- *  таймаута упавший Redis подвешивал бы каждый авторизованный запрос. */
-const REDIS_TIMEOUT_MS = 300;
 /** Запас к моменту деактивации: `createdAt` события — начало транзакции в
  *  часах PG, а refresh/login, прочитавший статус до её коммита, подпишет
  *  токен на миллисекунды позже (`iat` — часы Node, точность — секунда). */
@@ -23,16 +20,6 @@ if (not cur) or tonumber(ARGV[1]) > cur then
   redis.call('SET', KEYS[1], ARGV[1], 'EX', ARGV[2])
 end
 return 1`;
-
-class RedisTimeoutError extends Error {}
-
-function withTimeout<T>(promise: Promise<T>): Promise<T> {
-  let timer: NodeJS.Timeout | undefined;
-  const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new RedisTimeoutError('Redis timeout')), REDIS_TIMEOUT_MS);
-  });
-  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
-}
 
 /**
  * Отзыв действующих access-токенов уволенного сотрудника (#333). Access-JWT
@@ -68,11 +55,8 @@ export class RevokedUsersStore {
 
   /** Отзыв всех токенов, выданных не позже `at` (+ запас). */
   async revoke(userId: string, at: Date = new Date()): Promise<void> {
-    if (this.redis.status !== 'ready') {
-      throw new Error(`revoked-users: Redis не готов (${this.redis.status})`);
-    }
     const seconds = Math.floor(at.getTime() / 1000) + REVOKE_MARGIN_SECONDS;
-    await withTimeout(
+    await runRedisCommand(this.redis, () =>
       this.redis.eval(
         SET_MAX_SCRIPT,
         1,
@@ -87,8 +71,7 @@ export class RevokedUsersStore {
   async isRevoked(userId: string, issuedAtSeconds: number | undefined): Promise<boolean> {
     let raw: string | null;
     try {
-      if (this.redis.status !== 'ready') throw new Error(`Redis не готов (${this.redis.status})`);
-      raw = await withTimeout(this.redis.get(this.key(userId)));
+      raw = await runRedisCommand(this.redis, () => this.redis.get(this.key(userId)));
     } catch (error) {
       this.warnThrottled(error);
       return false;

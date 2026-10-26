@@ -2,9 +2,10 @@ import { Inject, Injectable } from '@nestjs/common';
 import { HealthIndicatorService, type HealthIndicatorResult } from '@nestjs/terminus';
 import type { Redis } from 'ioredis';
 
+import { runRedisCommand } from '../core/redis/redis-command.js';
 import { REDIS_CLIENT } from '../core/redis/redis.module.js';
 
-/** Готовность Redis: PING (без internals наружу). */
+/** Готовность Redis: PING с таймаутом (без internals наружу). */
 @Injectable()
 export class RedisHealthIndicator {
   constructor(
@@ -15,7 +16,7 @@ export class RedisHealthIndicator {
   async isHealthy(key: string): Promise<HealthIndicatorResult> {
     const indicator = this.healthIndicator.check(key);
     try {
-      await this.redis.ping();
+      await runRedisCommand(this.redis, () => this.redis.ping());
       return indicator.up();
     } catch {
       return indicator.down({ message: 'connection failed' });
