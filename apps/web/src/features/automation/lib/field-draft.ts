@@ -57,6 +57,9 @@ export interface FieldDraft {
   defaultOptionIds: string[];
   hidden: boolean;
   reportIndexed: boolean;
+  /** Типы процессов, которым принадлежит атрибут (#432, В2): пусто — нигде
+   *  не показывается. У проектов и контрагентов поля нет — список остаётся пустым. */
+  typeIds: string[];
 }
 
 export const emptyDraft: FieldDraft = {
@@ -72,6 +75,7 @@ export const emptyDraft: FieldDraft = {
   defaultOptionIds: [],
   hidden: false,
   reportIndexed: false,
+  typeIds: [],
 };
 
 export function isListFamily(family: FieldFamily | null): boolean {
@@ -120,6 +124,7 @@ export function draftOf(
           : [],
     hidden: definition.hidden,
     reportIndexed: definition.reportIndexed,
+    typeIds: [...definition.typeIds],
   };
 }
 
@@ -166,6 +171,7 @@ export function draftDefinition(
     defaultRefs: [],
     reportIndexed: false,
     hidden: false,
+    typeIds: draft.typeIds,
     sortOrder: 0,
     createdAt: now,
     updatedAt: now,
@@ -226,6 +232,7 @@ export function createBody(
     defaultValue: extra.defaultValue !== undefined ? extra.defaultValue : scalarDefault(draft),
     reportIndexed: draft.reportIndexed,
     hidden: draft.hidden,
+    ...(draft.typeIds.length > 0 ? { typeIds: draft.typeIds } : {}),
   };
 }
 
@@ -249,6 +256,8 @@ export function patchBody(
   if (JSON.stringify(defaultValue) !== JSON.stringify(definition.defaultValue))
     body.defaultValue = defaultValue;
   if (draft.hidden !== definition.hidden) body.hidden = draft.hidden;
+  if (JSON.stringify(draft.typeIds) !== JSON.stringify(definition.typeIds))
+    body.typeIds = draft.typeIds;
   if (draft.reportIndexed !== definition.reportIndexed) body.reportIndexed = draft.reportIndexed;
   return Object.keys(body).length > 0 ? body : null;
 }

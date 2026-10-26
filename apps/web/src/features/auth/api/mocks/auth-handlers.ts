@@ -1,7 +1,12 @@
 import { http, HttpResponse } from 'msw';
 import { loginSchema } from '@nodus/contracts';
 
-import { currentAuthUser } from '../../../../shared/mocks/data/users.js';
+import {
+  demoActorFor,
+  mockSessionEmail,
+  rememberMockLogin,
+  resetMockLogin,
+} from '../../../../shared/mocks/mock-actor.js';
 
 const tokens = { accessToken: 'mock-access-token', expiresIn: 900 };
 const COOKIE = 'nodus_refresh';
@@ -15,6 +20,10 @@ function isDead(request: Request): boolean {
  * cookie-меткой, чтобы в демо работали «Выйти» и экран входа. Тела мутаций
  * валидируются zod-схемами contracts (мок ≠ контракту = баг; refresh/logout —
  * без тела, валидировать нечего).
+ *
+ * С #432 (Р14) вход по e-mail демо-сотрудника (`user1…user10@passatproekt.by`)
+ * выбирает актёра моков: `/auth/me` и хендлеры отвечают от его имени, права —
+ * из демо-ролей. Пароль в демо любой.
  */
 export const authHandlers = [
   http.post('/api/v1/auth/login', async ({ request }) => {
@@ -24,6 +33,7 @@ export const authHandlers = [
         { code: 'VALIDATION_FAILED', message: 'Invalid credentials shape' },
         { status: 400 },
       );
+    rememberMockLogin(parsed.data.email);
     return HttpResponse.json(tokens, { headers: { 'Set-Cookie': `${COOKIE}=alive; Path=/` } });
   }),
 
@@ -39,12 +49,14 @@ export const authHandlers = [
   http.get('/api/v1/auth/me', ({ request }) =>
     isDead(request)
       ? HttpResponse.json({ code: 'UNAUTHENTICATED', message: 'Unauthenticated' }, { status: 401 })
-      : HttpResponse.json(currentAuthUser),
+      : HttpResponse.json(demoActorFor(mockSessionEmail())),
   ),
 
-  http.post(
-    '/api/v1/auth/logout',
-    () =>
-      new HttpResponse(null, { status: 204, headers: { 'Set-Cookie': `${COOKIE}=dead; Path=/` } }),
-  ),
+  http.post('/api/v1/auth/logout', () => {
+    resetMockLogin();
+    return new HttpResponse(null, {
+      status: 204,
+      headers: { 'Set-Cookie': `${COOKIE}=dead; Path=/` },
+    });
+  }),
 ];

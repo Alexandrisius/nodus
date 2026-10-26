@@ -22,6 +22,7 @@ import { letterIdByTaskId, syncLetterWithTasks } from '../../../../shared/mocks/
 import { demoStages } from '../../../../shared/mocks/data/task-stages.js';
 import { userRef } from '../../../../shared/mocks/data/users.js';
 import { applyDemoPatch } from '../../../../shared/mocks/data/custom-fields-rules.js';
+import { checkClearedRequired, checkUnboundValues, typeOfTask } from './task-create-policy.js';
 import { tasksChecklistHandlers } from './tasks-checklist-handlers.js';
 import { tasksListHandlers } from './tasks-list-handlers.js';
 import { tasksParticipantsHandlers } from './tasks-participants-handlers.js';
@@ -139,6 +140,29 @@ export const tasksHandlers = [
     // Правка полей без переноса (карточка: ответственный, срок, приоритет…).
     if (!parsed.data.stageId && !parsed.data.personalStageId) {
       const body = parsed.data;
+      const type = typeOfTask(task.type.id);
+      // Обязательное при создании поле нельзя очистить (#432, Р5) и значение
+      // непривязанного к типу атрибута записать нельзя (Р8).
+      const unbound = checkUnboundValues(type, body.customFields ?? {});
+      if (!unbound.ok) {
+        const { status, code, details } = unbound.error;
+        return HttpResponse.json(
+          { code, message: code, ...(details ? { details } : {}) },
+          { status },
+        );
+      }
+      const cleared = checkClearedRequired(type, {
+        description: body.description,
+        deadline: body.deadline,
+        customFields: body.customFields ?? undefined,
+      });
+      if (!cleared.ok) {
+        const { status, code, details } = cleared.error;
+        return HttpResponse.json(
+          { code, message: code, ...(details ? { details } : {}) },
+          { status },
+        );
+      }
       if (body.assigneeId) {
         task.assignee = userRef(body.assigneeId);
         task.participants = task.participants.filter((p) => p.id !== body.assigneeId);

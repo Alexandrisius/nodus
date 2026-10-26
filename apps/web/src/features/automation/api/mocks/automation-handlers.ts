@@ -1,27 +1,22 @@
-import type { ProcessType, WorkflowDocument } from '@nodus/contracts';
+import { http, HttpResponse } from 'msw';
 import {
   ErrorCode,
   checkWorkflowDocument,
-  createProcessTypeBodySchema,
+  hasBlockingProblems,
   publishWorkflowBodySchema,
   saveWorkflowLayoutBodySchema,
-  updateProcessTypeBodySchema,
-  hasBlockingProblems,
 } from '@nodus/contracts';
-import { http, HttpResponse } from 'msw';
 
-import { demoCustomFieldDefinitions } from '../../../../shared/mocks/data/custom-fields.js';
 import { demoSubtasks, demoTasks } from '../../../../shared/mocks/data/tasks.js';
-import { demoProcessTypes, quickDocument } from '../../../../shared/mocks/data/workflows.js';
 import { mockWorkflows } from '../../../../shared/mocks/data/workflows-store.js';
 import { resolvePublishedDocument } from './publish-resolve.js';
+import { documentFacts, typeDto } from '../../../../shared/mocks/data/process-types-dto.js';
+import { mockTypes, nextId } from '../../../../shared/mocks/data/process-types-store.js';
+import { automationTypeHandlers } from './automation-type-handlers.js';
 
-/** Моки «Автоматизации» (#378): библиотека типов, чтение/публикация
- *  маршрутов (проверки, конфликт версий, переносы), смена типа задачи.
- *  Тела валидируются схемами contracts (мок ≠ контракту = баг). */
-
-const mockTypes: ProcessType[] = structuredClone(demoProcessTypes);
-const workflows = mockWorkflows;
+/** Моки «Автоматизации» (#378; форма создания — #432): чтение и публикация
+ *  маршрутов (проверки, конфликт версий, переносы), расстановка холста и
+ *  смена типа задачи. Библиотека типов — `automation-type-handlers`. */
 
 const invalid = (status: number, code: keyof typeof ErrorCode, details?: unknown) =>
   HttpResponse.json({ code: ErrorCode[code], message: code, details }, { status });
@@ -33,40 +28,6 @@ const validationFailed = () =>
 const notFound = () =>
   HttpResponse.json({ code: ErrorCode.NOT_FOUND, message: 'Not found' }, { status: 404 });
 
-let mockSeq = 100;
-const nextId = () => `40000000-0000-4000-8000-${String((mockSeq += 1)).padStart(12, '0')}`;
-
-/** Копия маршрута с НОВЫМИ id стадий/переходов (коды — null: это не
- *  системный каталог). */
-function cloneDocument(source: WorkflowDocument): WorkflowDocument {
-  const remap = new Map<string, string>();
-  const stages = source.stages.map((s) => {
-    const id = nextId();
-    remap.set(s.id, id);
-    return { ...s, id, code: null };
-  });
-  const transitions = source.transitions.map((t) => ({
-    ...t,
-    id: nextId(),
-    code: null,
-    fromStageId: t.fromStageId ? remap.get(t.fromStageId)! : null,
-    toStageId: remap.get(t.toStageId)!,
-  }));
-  return { stages, transitions };
-}
-
-function simpleDocument(): WorkflowDocument {
-  // Архивный демо-маршрут: те же стартовые статусы и кнопки, что у «Быстрого»
-  // (Ожидает → В работе → Завершена) — документ не дублирует литералы.
-  return {
-    stages: quickDocument.stages,
-    transitions: [
-      quickDocument.transitions.find((t) => t.code === 'start')!,
-      quickDocument.transitions.find((t) => t.code === 'complete')!,
-    ],
-  };
-}
-
 function findTask(id: unknown) {
   return (
     demoTasks.find((t) => t.id === id) ??
@@ -77,100 +38,15 @@ function findTask(id: unknown) {
 }
 
 export const automationHandlers = [
-  // --- Библиотека типов -----------------------------------------------------
-
-  http.get('/api/v1/workflows/types', ({ request }) => {
-    const params = new URL(request.url).searchParams;
-    const archived = params.get('archived');
-    const category = params.get('category');
-    const scoped = category ? mockTypes.filter((t) => t.category === category) : mockTypes;
-    if (archived === 'only') return HttpResponse.json(scoped.filter((t) => t.archivedAt));
-    if (archived === 'include') return HttpResponse.json(scoped);
-    return HttpResponse.json(scoped.filter((t) => !t.archivedAt));
-  }),
-
-  http.post('/api/v1/workflows/types', async ({ request }) => {
-    const parsed = createProcessTypeBodySchema.safeParse(await request.json());
-    if (!parsed.success) return validationFailed();
-    const { name, category, direction, icon, color, description, base } = parsed.data;
-    if (mockTypes.some((t) => !t.archivedAt && t.name === name))
-      return invalid(409, 'PROCESS_TYPE_NAME_TAKEN');
-    const baseType = base.kind === 'copy' ? mockTypes.find((t) => t.id === base.typeId) : null;
-    const workflowId = nextId();
-    const document =
-      baseType && workflows.get(baseType.workflowId)
-        ? cloneDocument(workflows.get(baseType.workflowId)!.document)
-        : simpleDocument();
-    workflows.set(workflowId, {
-      id: workflowId,
-      typeIds: [],
-      version: 1,
-      publishedAt: null,
-      publishedBy: null,
-      document,
-      stageEntityCounts: Object.fromEntries(document.stages.map((s) => [s.id, 0])),
-    });
-    const type: ProcessType = {
-      id: nextId(),
-      // Код генерирует сервер; в UI не показывается.
-      code: `custom-${String(mockSeq)}`,
-      name,
-      icon,
-      color,
-      description: description ?? '',
-      creatable: false,
-      category,
-      direction: direction ?? null,
-      isSystem: false,
-      sortOrder: mockTypes.length,
-      archivedAt: null,
-      workflowId,
-    };
-    mockTypes.push(type);
-    const detail = workflows.get(workflowId)!;
-    detail.typeIds = [type.id];
-    return HttpResponse.json(type, { status: 201 });
-  }),
-
-  http.patch('/api/v1/workflows/types/:id', async ({ request, params }) => {
-    const parsed = updateProcessTypeBodySchema.safeParse(await request.json());
-    if (!parsed.success) return validationFailed();
-    const type = mockTypes.find((t) => t.id === params.id);
-    if (!type) return notFound();
-    if (
-      parsed.data.name !== undefined &&
-      mockTypes.some((t) => t.id !== type.id && !t.archivedAt && t.name === parsed.data.name)
-    ) {
-      return invalid(409, 'PROCESS_TYPE_NAME_TAKEN');
-    }
-    Object.assign(type, parsed.data);
-    return HttpResponse.json(type);
-  }),
-
-  http.post('/api/v1/workflows/types/:id/archive', ({ params }) => {
-    const type = mockTypes.find((t) => t.id === params.id);
-    if (!type) return notFound();
-    if (type.isSystem) return invalid(409, 'PROCESS_TYPE_SYSTEM_LOCKED');
-    type.archivedAt = new Date().toISOString();
-    return HttpResponse.json(type);
-  }),
-
-  http.post('/api/v1/workflows/types/:id/restore', ({ params }) => {
-    const type = mockTypes.find((t) => t.id === params.id);
-    if (!type) return notFound();
-    type.archivedAt = null;
-    return HttpResponse.json(type);
-  }),
-
-  // --- Маршрут: чтение и публикация ----------------------------------------
+  ...automationTypeHandlers,
 
   http.get('/api/v1/workflows/:id', ({ params }) => {
-    const detail = workflows.get(String(params.id));
+    const detail = mockWorkflows.get(String(params.id));
     return detail ? HttpResponse.json(structuredClone(detail)) : notFound();
   }),
 
   http.post('/api/v1/workflows/:id/publish', async ({ request, params }) => {
-    const detail = workflows.get(String(params.id));
+    const detail = mockWorkflows.get(String(params.id));
     if (!detail) return notFound();
     const parsed = publishWorkflowBodySchema.safeParse(await request.json());
     if (!parsed.success) return validationFailed();
@@ -179,16 +55,9 @@ export const automationHandlers = [
     if (baseVersion !== detail.version) {
       return invalid(409, 'WORKFLOW_VERSION_CONFLICT');
     }
-    // Кастомные поля в окне и гейтах (#431): факты области — из реестра мока
-    // (категория маршрута = область полей: task/letter).
-    const scope =
-      demoProcessTypes.find((type) => type.workflowId === detail.id)?.category ?? 'task';
-    const scoped = demoCustomFieldDefinitions.filter((entry) => entry.scope === scope);
-    const facts = {
-      active: new Set(scoped.map((entry) => entry.id)),
-      hidden: new Set(scoped.filter((entry) => entry.hidden).map((entry) => entry.id)),
-    };
-    const problems = checkWorkflowDocument(document, { customFields: facts });
+    // Тип-владелец маршрута: его привязки атрибутов и категория (Р8, #432).
+    const type = mockTypes.find((entry) => entry.workflowId === detail.id);
+    const problems = checkWorkflowDocument(document, documentFacts(type, type?.category ?? 'task'));
     if (hasBlockingProblems(problems)) {
       return invalid(422, 'WORKFLOW_INVALID', { problems });
     }
@@ -230,7 +99,7 @@ export const automationHandlers = [
   // Расстановка холста — без новой версии; слияние по элементам, только
   // живые статусы и кнопки (как на сервере).
   http.put('/api/v1/workflows/:id/layout', async ({ request, params }) => {
-    const detail = workflows.get(String(params.id));
+    const detail = mockWorkflows.get(String(params.id));
     if (!detail) return notFound();
     const parsed = saveWorkflowLayoutBodySchema.safeParse(await request.json());
     if (!parsed.success) return validationFailed();
@@ -260,7 +129,15 @@ export const automationHandlers = [
     const task = findTask(params.id);
     const type = mockTypes.find((t) => t.id === body.typeId);
     if (!task || !type) return notFound();
-    const detail = workflows.get(type.workflowId);
+    // Доступ к целевому типу (Р6): невидимый или неразрешённый — 403.
+    const viewer = typeDto(type).viewer;
+    if (!viewer.canCreate) {
+      return invalid(403, 'PROCESS_TYPE_FORBIDDEN', {
+        typeId: type.id,
+        reason: viewer.canView ? 'not_creatable' : 'view',
+      });
+    }
+    const detail = mockWorkflows.get(type.workflowId);
     if (!detail) return notFound();
     // Как сервер: тот же статус есть в новом маршруте — остаётся; иначе
     // stageId обязателен (422 WORKFLOW_MIGRATION_REQUIRED).

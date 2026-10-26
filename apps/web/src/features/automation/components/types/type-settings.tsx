@@ -33,7 +33,7 @@ export function TypeSettingsPanel({
   }, [type.id, type.name, type.description]);
 
   return (
-    <SidePanel open={open} title={ui.automation.typeSettings} onClose={onClose}>
+    <SidePanel open={open} title={ui.automation.typeSettings.title} onClose={onClose}>
       <label className="flex flex-col gap-1.5">
         <span className="text-[13px] text-muted-foreground">{ui.automation.fieldName}</span>
         <Input

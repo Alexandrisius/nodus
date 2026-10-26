@@ -26,6 +26,13 @@ const type = (id: string, category: 'task' | 'letter', creatable = true): Proces
   sortOrder: 0,
   archivedAt: null,
   workflowId: `wf-${id}`,
+  config: {
+    card: { hiddenBlocks: [], roleLabels: {} },
+    access: { view: null, create: null },
+    pulse: false,
+  },
+  creationForm: { fields: [], chips: [] },
+  viewer: { canView: true, canCreate: true },
 });
 
 function hook<T>(use: () => T) {

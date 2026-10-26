@@ -158,7 +158,7 @@ export function TypeList({
                 <>
                   <DropdownMenuItem onSelect={() => onOpenSettings(type.id)}>
                     <Settings2 className="size-3.5" />
-                    {ui.automation.typeSettings}
+                    {ui.automation.typeSettings.title}
                   </DropdownMenuItem>
                   <DropdownMenuItem onSelect={() => onCopyType(type.id)}>
                     <Copy className="size-3.5" />

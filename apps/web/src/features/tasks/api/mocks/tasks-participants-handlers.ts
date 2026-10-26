@@ -4,6 +4,7 @@ import { http, HttpResponse } from 'msw';
 
 import { demoTasks, detailsExtra, taskDetailOf } from '../../../../shared/mocks/data/tasks.js';
 import { userRef } from '../../../../shared/mocks/data/users.js';
+import { requiredKeysOf, typeOfTask } from './task-create-policy.js';
 
 function notFound(message: string) {
   return HttpResponse.json({ code: ErrorCode.NOT_FOUND, message }, { status: 404 });
@@ -39,8 +40,31 @@ export const tasksParticipantsHandlers = [
     const task = demoTasks.find((t) => t.id === params.id);
     if (!task) return notFound('Task not found');
     const userId = String(params.userId);
-    task.participants = task.participants.filter((p) => p.id !== userId);
     const extra = detailsExtra[task.id];
+    // Снятие последнего обязательного участника — 422 `reason: 'clear'` (#432, Р5).
+    const type = typeOfTask(task.type.id);
+    const required = requiredKeysOf(type);
+    const isCoexecutor = task.participants.some((p) => p.id === userId);
+    const lastCoexecutor = isCoexecutor && task.participants.length === 1;
+    const lastObserver = !isCoexecutor && (extra?.observers.length ?? 0) === 1;
+    if (
+      (lastCoexecutor && required.includes('coexecutors')) ||
+      (lastObserver && required.includes('observers'))
+    ) {
+      return HttpResponse.json(
+        {
+          code: ErrorCode.PROCESS_TYPE_FIELDS_REQUIRED,
+          message: ErrorCode.PROCESS_TYPE_FIELDS_REQUIRED,
+          details: {
+            typeId: task.type.id,
+            fields: [lastCoexecutor ? 'coexecutors' : 'observers'],
+            reason: 'clear',
+          },
+        },
+        { status: 422 },
+      );
+    }
+    task.participants = task.participants.filter((p) => p.id !== userId);
     if (extra) extra.observers = extra.observers.filter((p) => p.id !== userId);
     return HttpResponse.json(taskDetailOf(task));
   }),

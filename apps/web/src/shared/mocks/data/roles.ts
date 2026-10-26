@@ -1,7 +1,8 @@
 import { Permission, type Role } from '@nodus/contracts';
 
+import { demoDepartments } from './departments.js';
 import { departmentIds } from './org-ids.js';
-import { userIds } from './users.js';
+import { demoUserListItems, userIds } from './users.js';
 
 /**
  * Демо-роли портала для моков «Прав доступа» (#379, ADR-0034). Форма —
@@ -131,3 +132,56 @@ export const demoRoleMembers: Record<string, { userIds: string[]; departmentIds:
 
 /** id «Временной роли»: мок удаляет её на первой мутации (гонка с удалением). */
 export const DEMO_GONE_ROLE_ID = rid(8);
+
+/** id системных ролей — демо-данные типов процессов ссылаются на них (#432). */
+export const demoRoleIds = {
+  admin: rid(1),
+  head: rid(2),
+  employee: rid(3),
+  moderator: rid(4),
+  gip: rid(5),
+  office: rid(6),
+  bimCoordinator: rid(7),
+} as const;
+
+/** Подразделение и его предки (управленческая структура) — мок серверного
+ *  CTE эффективных ролей (#379): роль подразделения-предка действует на
+ *  сотрудников вложенных подразделений. */
+export function mockDepartmentChain(departmentId: string | null | undefined): string[] {
+  const byId = new Map(demoDepartments.map((entry) => [entry.id, entry]));
+  const chain: string[] = [];
+  let current = departmentId ?? null;
+  while (current !== null && !chain.includes(current)) {
+    chain.push(current);
+    current = byId.get(current)?.parentId ?? null;
+  }
+  return chain;
+}
+
+/** Эффективные роли сотрудника: прямые + роли подразделения и его предков
+ *  (состав ролей — `demoRoleMembers`, меняется мутациями «Прав доступа»). */
+export function mockEffectiveRoleIds(userId: string): string[] {
+  const user = demoUserListItems.find((entry) => entry.id === userId);
+  const chain = mockDepartmentChain(user?.departmentId);
+  const result = new Set<string>();
+  for (const [roleId, members] of Object.entries(demoRoleMembers)) {
+    if (members.userIds.includes(userId)) result.add(roleId);
+    if (members.departmentIds.some((id) => chain.includes(id))) result.add(roleId);
+  }
+  return [...result];
+}
+
+/** Права актёра — объединение прав демо-ролей (#432: доступ к типам). */
+export function mockPermissionsOfRoleIds(roleIds: readonly string[]): Permission[] {
+  const permissions = new Set<Permission>();
+  for (const role of demoRoles) {
+    if (!roleIds.includes(role.id)) continue;
+    for (const permission of role.permissions) permissions.add(permission);
+  }
+  return [...permissions].sort();
+}
+
+/** Среди эффективных ролей есть «Администратор» (Р6: ему можно всё). */
+export function mockIsAdmin(userId: string): boolean {
+  return mockEffectiveRoleIds(userId).includes(demoRoleIds.admin);
+}
