@@ -1,6 +1,5 @@
 import type { CreationFieldSlot, CustomFieldDefinition } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
-import { Input } from '@nodus/ui/components/input';
 import {
   Select,
   SelectContent,
@@ -35,12 +34,13 @@ export function isWide(
   return definition?.type === 'long_text';
 }
 
+/** Контрол поля: тот же и в окне создания, и в редакторе скрытого значения
+ *  («Окно создания» — администратор видит ровно то, что увидит сотрудник). */
 export function SlotControl({
   slot,
   definition,
   value,
   invalid,
-  preview,
   label,
   onChange,
 }: {
@@ -48,7 +48,6 @@ export function SlotControl({
   definition: CustomFieldDefinition | undefined;
   value: unknown;
   invalid: boolean;
-  preview: boolean;
   label: string;
   onChange: (value: unknown) => void;
 }) {
@@ -59,7 +58,6 @@ export function SlotControl({
           definition={definition}
           value={value as never}
           refs={[]}
-          disabled={preview}
           variant="form"
           onCommit={(next) => onChange(next)}
         />
@@ -79,31 +77,14 @@ export function SlotControl({
           aria-label={label}
           aria-invalid={invalid || undefined}
           rows={3}
-          readOnly={preview}
           className={cn('text-sm', invalid && 'border-danger')}
         />
       );
     case 'assignee':
-      return (
-        <AssigneeField
-          value={value}
-          invalid={invalid}
-          preview={preview}
-          label={label}
-          onChange={onChange}
-        />
-      );
+      return <AssigneeField value={value} invalid={invalid} label={label} onChange={onChange} />;
     case 'coexecutors':
     case 'observers':
-      return (
-        <PeopleField
-          value={value}
-          invalid={invalid}
-          preview={preview}
-          label={label}
-          onChange={onChange}
-        />
-      );
+      return <PeopleField value={value} invalid={invalid} label={label} onChange={onChange} />;
     case 'deadline':
       return (
         <DateTimePicker
@@ -117,7 +98,6 @@ export function SlotControl({
         <Select
           value={typeof value === 'string' ? value : 'normal'}
           onValueChange={(next) => onChange(next)}
-          disabled={preview}
         >
           <SelectTrigger
             className={cn('h-8 w-full', invalid && 'border-danger')}
@@ -153,13 +133,11 @@ export function SlotControl({
 function AssigneeField({
   value,
   invalid,
-  preview,
   label,
   onChange,
 }: {
   value: unknown;
   invalid: boolean;
-  preview: boolean;
   label: string;
   onChange: (value: unknown) => void;
 }) {
@@ -169,14 +147,6 @@ function AssigneeField({
     label: user.displayName,
     avatarUrl: user.avatarUrl ?? null,
   }));
-  if (preview) {
-    const selected = options.find((option) => option.value === value);
-    return (
-      <div className="flex h-8 items-center rounded-lg border border-input bg-muted/40 px-2.5 text-sm">
-        {selected?.label ?? <span className="text-muted-foreground">{ui.common.notSet}</span>}
-      </div>
-    );
-  }
   return (
     <div className={cn('min-w-0', invalid && 'rounded-lg ring-1 ring-danger')}>
       <FilterCombobox
@@ -194,13 +164,11 @@ function AssigneeField({
 function PeopleField({
   value,
   invalid,
-  preview,
   label,
   onChange,
 }: {
   value: unknown;
   invalid: boolean;
-  preview: boolean;
   label: string;
   onChange: (value: unknown) => void;
 }) {
@@ -231,57 +199,26 @@ function PeopleField({
               className="size-4"
             />
             <span className="max-w-28 truncate">{byId.get(id)?.displayName ?? id}</span>
-            {preview ? null : (
-              <button
-                type="button"
-                onClick={() => toggle(id)}
-                aria-label={`${ui.common.remove}: ${byId.get(id)?.displayName ?? ''}`}
-                className="rounded-sm text-muted-foreground hover:text-foreground"
-              >
-                <X className="size-3" strokeWidth={2} />
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => toggle(id)}
+              aria-label={`${ui.common.remove}: ${byId.get(id)?.displayName ?? ''}`}
+              className="rounded-sm text-muted-foreground hover:text-foreground"
+            >
+              <X className="size-3" strokeWidth={2} />
+            </button>
           </span>
         ))
       )}
-      {preview ? null : (
-        <PeoplePicker
-          selectedIds={selected}
-          multiple
-          ariaLabel={label}
-          onToggle={(id) => toggle(id)}
+      <PeoplePicker selectedIds={selected} multiple ariaLabel={label} onToggle={(id) => toggle(id)}>
+        <button
+          type="button"
+          className="ml-auto flex size-6 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+          aria-label={`${ui.common.add}: ${label}`}
         >
-          <button
-            type="button"
-            className="flex size-6 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
-            aria-label={`${ui.common.add}: ${label}`}
-          >
-            <Plus className="size-3.5" strokeWidth={1.75} />
-          </button>
-        </PeoplePicker>
-      )}
+          <Plus className="size-3.5" strokeWidth={1.75} />
+        </button>
+      </PeoplePicker>
     </div>
-  );
-}
-
-/** Поле ввода для предпросмотра названия (шапка окна) — вне формы. */
-export function TaskCreateTitleField({
-  value,
-  onChange,
-  readOnly,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  readOnly?: boolean;
-}) {
-  return (
-    <Input
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={ui.taskCreate.titlePlaceholder}
-      aria-label={ui.taskCreate.titlePlaceholder}
-      readOnly={readOnly}
-      className="h-9 w-[calc(100%-2.5rem)] text-body-lg"
-    />
   );
 }

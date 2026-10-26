@@ -6,35 +6,31 @@ import { Input } from '@nodus/ui/components/input';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { formatDuration, parseDuration } from '../lib/minutes.js';
-import { TaskChecklistSheet, type DraftChecklistItem } from './task-checklist-sheet.js';
-import type { TaskCreateDraft } from './task-create-draft.js';
+import { withPlanned, type TaskCreateDraft } from './task-create-draft.js';
 
 /**
  * Чипы-блоки внизу окна создания (#432, Р2): «Чек-лист» (лист поверх формы —
- * модель Битрикс24) и «Планируемое время» (ввод деловой длительности).
- * Включаются настройкой типа; чип без значения — приглушён, со значением —
- * счётчик или «План: 2ч 30м».
+ * модель Битрикс24; лист рендерит окно, оно же гасит им Esc) и
+ * «Планируемое время» (ввод деловой длительности). Включаются формой типа;
+ * чип без значения — приглушён, со значением — счётчик или «2ч 30м».
  */
 export function TaskCreateChips({
   chips,
   draft,
   onChange,
-  preview = false,
+  onOpenChecklist,
 }: {
   chips: readonly CreationChip[];
   draft: TaskCreateDraft;
   onChange: (draft: TaskCreateDraft) => void;
-  preview?: boolean;
+  onOpenChecklist: () => void;
 }) {
-  const [checklistOpen, setChecklistOpen] = useState(false);
   const [plannedOpen, setPlannedOpen] = useState(false);
   if (chips.length === 0) return null;
 
-  const hoursShort = ui.tasks.hoursShort;
-  const minutesShort = ui.tasks.minutesShort;
   const planned =
     draft.plannedMinutes !== null
-      ? formatDuration(draft.plannedMinutes, hoursShort, minutesShort)
+      ? formatDuration(draft.plannedMinutes, ui.tasks.hoursShort, ui.tasks.minutesShort)
       : null;
 
   return (
@@ -42,13 +38,12 @@ export function TaskCreateChips({
       {chips.includes('checklist') ? (
         <button
           type="button"
-          disabled={preview}
-          onClick={() => setChecklistOpen(true)}
+          onClick={onOpenChecklist}
           className={cn(
-            'flex h-8 items-center gap-1.5 rounded-lg border border-input px-2.5 text-sm transition-colors',
+            'flex h-8 items-center gap-1.5 rounded-lg border border-input px-2.5 text-sm transition-colors hover:bg-accent',
             draft.checklist.length > 0
-              ? 'text-foreground hover:bg-accent'
-              : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+              ? 'text-foreground'
+              : 'text-muted-foreground hover:text-foreground',
           )}
         >
           <ListChecks className="size-3.5" strokeWidth={1.75} />
@@ -60,11 +55,11 @@ export function TaskCreateChips({
       ) : null}
 
       {chips.includes('planned') ? (
-        plannedOpen && !preview ? (
+        plannedOpen ? (
           <PlannedInput
             value={draft.plannedMinutes}
             onCommit={(minutes) => {
-              onChange({ ...draft, plannedMinutes: minutes });
+              onChange(withPlanned(draft, minutes));
               setPlannedOpen(false);
             }}
             onCancel={() => setPlannedOpen(false)}
@@ -72,13 +67,10 @@ export function TaskCreateChips({
         ) : (
           <button
             type="button"
-            disabled={preview}
             onClick={() => setPlannedOpen(true)}
             className={cn(
-              'flex h-8 items-center gap-1.5 rounded-lg border border-input px-2.5 text-sm transition-colors',
-              planned
-                ? 'text-foreground hover:bg-accent'
-                : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+              'flex h-8 items-center gap-1.5 rounded-lg border border-input px-2.5 text-sm transition-colors hover:bg-accent',
+              planned ? 'text-foreground' : 'text-muted-foreground hover:text-foreground',
             )}
           >
             <Timer className="size-3.5" strokeWidth={1.75} />
@@ -89,19 +81,13 @@ export function TaskCreateChips({
           </button>
         )
       ) : null}
-
-      {checklistOpen ? (
-        <TaskChecklistSheet
-          items={draft.checklist}
-          onChange={(items: DraftChecklistItem[]) => onChange({ ...draft, checklist: items })}
-          onClose={() => setChecklistOpen(false)}
-        />
-      ) : null}
     </div>
   );
 }
 
-/** Ввод планового времени: деловая длительность, Enter — сохранить, Esc — отмена. */
+/** Ввод планового времени: деловая длительность, Enter — сохранить, Esc —
+ *  отмена ввода. `data-esc-local`: окно не закрывается этим Esc (Radix ловит
+ *  его на document в capture раньше поля — гасит окно, см. gotchas). */
 function PlannedInput({
   value,
   onCommit,
@@ -114,23 +100,20 @@ function PlannedInput({
   const [text, setText] = useState(
     value !== null ? formatDuration(value, ui.tasks.hoursShort, ui.tasks.minutesShort) : '',
   );
-  const commit = () => {
-    const minutes = parseDuration(text);
-    onCommit(minutes);
-  };
+  const commit = () => onCommit(parseDuration(text));
   return (
     <Input
       autoFocus
+      data-esc-local
       value={text}
       onChange={(e) => setText(e.target.value)}
       onBlur={commit}
       onKeyDown={(e) => {
-        if (e.key === 'Enter') commit();
-        if (e.key === 'Escape') {
+        if (e.key === 'Enter') {
           e.preventDefault();
-          e.stopPropagation();
-          onCancel();
+          commit();
         }
+        if (e.key === 'Escape') onCancel();
       }}
       placeholder={ui.tasks.plannedPlaceholder}
       aria-label={ui.tasks.plannedTime}

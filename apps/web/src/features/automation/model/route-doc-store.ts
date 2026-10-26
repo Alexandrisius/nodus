@@ -104,8 +104,10 @@ interface RouteDocState {
   removeElements: (stageIds: readonly string[], transitionIds: readonly string[]) => void;
 
   /** Форма создания типа (#432, В1): раздел документа, `null` — умолчание.
-   *  Правки формы — шаг истории и черновик, как у статусов и кнопок. */
-  setCreationForm: (form: CreationForm | null) => void;
+   *  Правки формы — шаг истории и черновик, как у статусов и кнопок;
+   *  `coalesce` — ключ серии правок одного поля (ввод скрытого значения):
+   *  нажатия подряд — один шаг отмены, а не «по букве». */
+  setCreationForm: (form: CreationForm | null, coalesce?: string) => void;
 
   /** «Упорядочить»: авторасстановка в раскладку (шаг истории). */
   arrange: () => void;
@@ -285,7 +287,8 @@ export function createRouteDocStore(workflowId: string) {
         if (result.doc !== get().document) commit(result.doc);
       },
 
-      setCreationForm: (form) => commit({ ...get().document, creation: form }),
+      setCreationForm: (form, coalesce) =>
+        commit({ ...get().document, creation: form }, {}, coalesce),
 
       removeElements: (stageIds, transitionIds) => {
         if (stageIds.length === 0 && transitionIds.length === 0) return;

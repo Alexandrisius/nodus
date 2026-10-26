@@ -129,8 +129,8 @@ export function saveWorkflowLayout(
 }
 
 /**
- * Настройки типа (#432, Р11): разделы «Доступ», «Карточка», «Пульс»
- * заменяются целиком и сохраняются СРАЗУ — публикации требует только
+ * Настройки типа (#432, Р11): разделы «Доступ» и «Карточка» (блоки,
+ * названия ролей) заменяются целиком и сохраняются СРАЗУ — публикации требует только
  * маршрут. Оптимистично (I4): значение в кэше до ответа; мутации ОДНОГО типа
  * идут по очереди (`scope`), иначе два быстрых переключения перетирают
  * разделы друг друга.
@@ -156,7 +156,6 @@ export function useUpdateProcessTypeConfig(typeId: string) {
                   config: {
                     card: body.card ?? typeConfigOf(type).card,
                     access: body.access ?? typeConfigOf(type).access,
-                    pulse: body.pulse ?? typeConfigOf(type).pulse,
                   },
                 }
               : type,

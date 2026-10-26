@@ -3,6 +3,7 @@ import type { CreationForm } from '@nodus/contracts';
 
 import {
   hasSlot,
+  initialPreset,
   unusedKeys,
   withChipToggled,
   withSlotAdded,
@@ -77,5 +78,12 @@ describe('слоты формы', () => {
   it('свободные ключи выбора поля', () => {
     expect(unusedKeys(base(), ['description', 'deadline', KEY])).toEqual(['deadline', KEY]);
     expect(hasSlot(base(), 'assignee')).toBe(true);
+  });
+
+  it('начальное скрытое значение: приоритет — «Обычный», люди — пустой список', () => {
+    expect(initialPreset('priority')).toBe('normal');
+    expect(initialPreset('observers')).toEqual([]);
+    expect(initialPreset('description')).toBe('');
+    expect(initialPreset(KEY)).toBe('');
   });
 });

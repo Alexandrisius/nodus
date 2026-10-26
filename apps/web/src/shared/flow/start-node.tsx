@@ -18,20 +18,31 @@ export type StartFlowNode = Node<StartNodeData, 'start'>;
  * начального статуса, центр — на одной линии с его центром (стрелка прямая).
  * В правке из точки справа тянется связь — так выбирается начальный статус;
  * клик — панель «Окно создания» (#432): форма создания типа.
+ *
+ * Выделение — сплошное кольцо и тон `foreground`, БЕЗ свечения (вердикт
+ * владельца 26.10.2026: свечение — только у текущего статуса задачи, у
+ * служебной метки старта его нет). Ховер меняет рамку ТОЛЬКО у невыделенного:
+ * класс наведения перебивал кольцо выделения (псевдокласс специфичнее), и
+ * выделение «пропадало» под курсором (баг-вердикт 26.10.2026).
  */
 export const StartNode = memo(function StartNode({ data }: NodeProps<StartFlowNode>) {
+  const selected = data.selected === true;
   return (
     <div
       className={cn(
-        'flow-node-card flex h-[40px] w-[156px] items-center gap-2 rounded-full border border-dashed border-border px-3 text-muted-foreground',
-        !data.readOnly &&
-          'cursor-pointer transition-colors hover:border-input hover:text-foreground',
-        data.selected && 'border-solid border-ring text-foreground',
+        'flow-node-card flex h-[40px] w-[156px] items-center gap-2 rounded-full border bg-card px-3 transition-colors',
+        !data.readOnly && 'cursor-pointer',
+        selected
+          ? 'border-ring text-foreground ring-1 ring-ring/30'
+          : cn(
+              'border-dashed border-border text-muted-foreground',
+              !data.readOnly && 'hover:border-input hover:text-foreground',
+            ),
       )}
-      data-selected={data.selected ? 'true' : undefined}
+      data-selected={selected ? 'true' : undefined}
       title={ui.automation.startNode}
     >
-      <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-muted-foreground" />
+      <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-current" />
       <span className="truncate pt-[1px] text-[11px] leading-none font-medium tracking-[0.08em] uppercase">
         {ui.automation.startNode}
       </span>

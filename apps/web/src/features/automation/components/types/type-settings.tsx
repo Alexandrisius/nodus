@@ -1,25 +1,41 @@
-import { useEffect, useState } from 'react';
-import type { StageColor, ProcessType, ProcessTypeIcon } from '@nodus/contracts';
-import { processTypeIconSchema, typeConfigOf, ui } from '@nodus/contracts';
-import { Input } from '@nodus/ui/components/input';
-import { Switch } from '@nodus/ui/components/switch';
-import { Textarea } from '@nodus/ui/components/textarea';
+import { useMemo, useState } from 'react';
+import type {
+  ProcessType,
+  ProcessTypeIcon,
+  StageColor,
+  UpdateProcessTypeBody,
+} from '@nodus/contracts';
+import { processTypeIconSchema, ui } from '@nodus/contracts';
 import { cn } from '@nodus/ui/lib/utils';
 
-import { useUpdateProcessType, useUpdateProcessTypeConfig } from '../../api/automation-api.js';
-import { SidePanel } from '../editor/panel/side-panel.js';
-import { TypeAccessSection } from '../editor/panel/type-settings-access.js';
-import { TypeCardSection } from '../editor/panel/type-settings-card.js';
+import { useRoles } from '../../../../shared/api/roles.js';
 import { stageColorOrder, stageTone } from '../../../../shared/ui/board/stage-tone.js';
 import { ProcessTypeGlyph } from '../../../../shared/workflow/process-type-icon.js';
+import { useUpdateProcessType } from '../../api/automation-api.js';
+import {
+  accessSummary,
+  blocksSummary,
+  roleLabelsSummary,
+} from '../../lib/type-settings-summary.js';
+import { CommitInput, CommitTextarea } from '../editor/panel/commit-field.js';
+import { PanelField, SectionLink } from '../editor/panel/panel-kit.js';
+import { SidePanel } from '../editor/panel/side-panel.js';
+import { TypeAccessSection } from '../editor/panel/type-settings-access.js';
+import { TypeBlocksSection, TypeRoleLabelsSection } from '../editor/panel/type-settings-card.js';
+
+type Section = 'root' | 'access' | 'blocks' | 'roles';
+
+const t = ui.automation.typeSettings;
 
 /**
- * Настройки типа — та же внутриоконная панель справа, что у статуса и
- * кнопки (монтирована всегда: открытие плавное и в первый раз). Разделы
- * (#432, В6): «Основное» (название, значок, цвет, описание), «Доступ»,
- * «Карточка», «Пульс». Всё сохраняется СРАЗУ (оптимистично); публикации
- * требует только маршрут. Тумблера `creatable` здесь нет — «Создают: никто,
- * кроме администратора» живёт в разделе «Доступ».
+ * Настройки типа — та же правая панель, что у статуса и кнопки, и та же
+ * анатомия (#378 ред. 2): в корне — поля самого типа (название, значок,
+ * цвет, описание), дальше строки «›» со сводкой — «Доступ», «Блоки
+ * карточки», «Названия ролей» (#432, В6); каждая открывает свой раздел со
+ * стрелкой «назад» (и первым Esc). Колбасы до низа нет: в корне — только
+ * сводки (вердикт владельца 26.10.2026). Всё сохраняется СРАЗУ
+ * (оптимистично); публикации требует только маршрут. Панель монтирована
+ * всегда: открытие плавное и в первый раз.
  */
 export function TypeSettingsPanel({
   open,
@@ -33,119 +49,140 @@ export function TypeSettingsPanel({
   readOnly?: boolean;
   onClose: () => void;
 }) {
-  const update = useUpdateProcessType();
-  const updateConfig = useUpdateProcessTypeConfig(type.id);
-  const [name, setName] = useState(type.name);
-  const [description, setDescription] = useState(type.description);
+  const [section, setSection] = useState<Section>('root');
+  // Каждое открытие и другой тип — с корня; на закрытии раздел остаётся до
+  // конца анимации ширины (derive-during-render, без эффекта).
+  const [prev, setPrev] = useState({ open, typeId: type.id });
+  if (prev.open !== open || prev.typeId !== type.id) {
+    setPrev({ open, typeId: type.id });
+    if (open) setSection('root');
+  }
 
-  useEffect(() => {
-    setName(type.name);
-    setDescription(type.description);
-  }, [type.id, type.name, type.description]);
+  const { data: roles } = useRoles();
+  const roleName = useMemo(() => {
+    const names = new Map((roles ?? []).map((role) => [role.id, role.name]));
+    return (id: string) => names.get(id);
+  }, [roles]);
+  const back = () => setSection('root');
+  const task = type.category === 'task';
 
   return (
-    <SidePanel open={open} title={ui.automation.typeSettings.title} onClose={onClose}>
-      <section className="flex flex-col gap-3">
-        <span className="text-sm font-medium">{ui.automation.typeSettings.basic}</span>
-        <label className="flex flex-col gap-1.5">
-          <span className="text-[13px] text-muted-foreground">{ui.automation.fieldName}</span>
-          <Input
-            value={name}
-            readOnly={readOnly}
-            onChange={(e) => setName(e.target.value)}
-            onBlur={() =>
-              name.trim() &&
-              name !== type.name &&
-              update.mutate({ id: type.id, body: { name: name.trim() } })
-            }
-          />
-        </label>
-
-        <div className="flex flex-col gap-1.5">
-          <span className="text-[13px] text-muted-foreground">{ui.automation.fieldIcon}</span>
-          <div className="grid grid-cols-8 gap-1.5">
-            {processTypeIconSchema.options.map((key: ProcessTypeIcon) => (
-              <button
-                key={key}
-                type="button"
-                aria-pressed={type.icon === key}
-                disabled={readOnly}
-                onClick={() => update.mutate({ id: type.id, body: { icon: key } })}
-                className={cn(
-                  'flex size-8 items-center justify-center rounded-lg border transition-colors',
-                  type.icon === key
-                    ? 'border-ring bg-accent text-foreground'
-                    : 'border-border text-muted-foreground hover:border-input',
-                )}
-              >
-                <ProcessTypeGlyph icon={key} className="size-4" />
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-1.5">
-          <span className="text-[13px] text-muted-foreground">{ui.automation.fieldColor}</span>
-          <div className="flex gap-2">
-            {stageColorOrder.map((tone: StageColor) => (
-              <button
-                key={tone}
-                type="button"
-                aria-pressed={type.color === tone}
-                disabled={readOnly}
-                onClick={() => update.mutate({ id: type.id, body: { color: tone } })}
-                className={cn(
-                  'size-6 rounded-full border-2 transition-colors',
-                  stageTone[tone].swatch,
-                  type.color === tone ? 'border-foreground' : 'border-transparent',
-                )}
-              />
-            ))}
-          </div>
-        </div>
-
-        <label className="flex flex-col gap-1.5">
-          <span className="text-[13px] text-muted-foreground">
-            {ui.automation.fieldDescription}
-          </span>
-          <Textarea
-            value={description}
-            rows={3}
-            readOnly={readOnly}
-            onChange={(e) => setDescription(e.target.value)}
-            onBlur={() =>
-              description !== type.description &&
-              update.mutate({ id: type.id, body: { description } })
-            }
-          />
-        </label>
-      </section>
-
-      <TypeAccessSection type={type} readOnly={readOnly} />
-      <TypeCardSection type={type} readOnly={readOnly} />
-
-      <section className="flex flex-col gap-2">
-        <span className="text-sm font-medium">{ui.automation.typeSettings.pulse.title}</span>
-        {type.category === 'task' ? (
-          <label className="flex items-start justify-between gap-3">
-            <span className="flex min-w-0 flex-col gap-0.5">
-              <span className="text-sm">{ui.automation.typeSettings.pulse.toggle}</span>
-              <span className="text-xs text-muted-foreground">
-                {ui.automation.typeSettings.pulse.hint}
-              </span>
-            </span>
-            <Switch
-              checked={typeConfigOf(type).pulse}
-              disabled={readOnly}
-              onCheckedChange={(pulse) => updateConfig.mutate({ pulse })}
+    <SidePanel
+      open={open}
+      title={section === 'root' ? t.title : t.sections[section]}
+      onClose={onClose}
+      onBack={section === 'root' ? undefined : back}
+    >
+      {section === 'root' ? (
+        <>
+          <TypeBasics type={type} readOnly={readOnly} />
+          <div className="flex min-w-0 flex-col">
+            <SectionLink
+              title={t.sections.access}
+              summary={accessSummary(type, roleName)}
+              onClick={() => setSection('access')}
             />
-          </label>
-        ) : (
-          <p className="text-xs text-muted-foreground">
-            {ui.automation.typeSettings.onlyTaskCategory}
-          </p>
-        )}
-      </section>
+            {task ? (
+              <>
+                <SectionLink
+                  title={t.sections.blocks}
+                  summary={blocksSummary(type)}
+                  onClick={() => setSection('blocks')}
+                />
+                <SectionLink
+                  title={t.sections.roles}
+                  summary={roleLabelsSummary(type)}
+                  onClick={() => setSection('roles')}
+                />
+              </>
+            ) : null}
+          </div>
+        </>
+      ) : null}
+      {section === 'access' ? <TypeAccessSection type={type} readOnly={readOnly} /> : null}
+      {section === 'blocks' ? <TypeBlocksSection type={type} readOnly={readOnly} /> : null}
+      {section === 'roles' ? <TypeRoleLabelsSection type={type} readOnly={readOnly} /> : null}
     </SidePanel>
+  );
+}
+
+/** Поля самого типа — первые в панели (название — первое поле, в шапке
+ *  не дублируется). Текст сохраняется по уходу фокуса, значок и цвет —
+ *  кликом. */
+function TypeBasics({ type, readOnly }: { type: ProcessType; readOnly: boolean }) {
+  const update = useUpdateProcessType();
+  const patch = (body: UpdateProcessTypeBody) => update.mutate({ id: type.id, body });
+
+  return (
+    <>
+      <PanelField label={ui.automation.fieldName}>
+        <CommitInput
+          value={type.name}
+          required
+          maxLength={60}
+          readOnly={readOnly}
+          aria-label={ui.automation.fieldName}
+          onCommit={(name) => patch({ name })}
+        />
+      </PanelField>
+
+      <PanelField label={ui.automation.fieldIcon}>
+        {/* Ячейки — доли ширины, а не size-8: восемь кнопок по 40px с
+            зазорами не помещались в колонку панели и наезжали друг на друга. */}
+        <div className="grid grid-cols-8 gap-1">
+          {processTypeIconSchema.options.map((key: ProcessTypeIcon, index) => (
+            <button
+              key={key}
+              type="button"
+              aria-pressed={type.icon === key}
+              aria-label={`${ui.automation.fieldIcon} ${index + 1}`}
+              disabled={readOnly}
+              onClick={() => type.icon !== key && patch({ icon: key })}
+              className={cn(
+                'flex aspect-square min-w-0 items-center justify-center rounded-lg border transition-colors disabled:cursor-default',
+                type.icon === key
+                  ? 'border-ring bg-accent text-foreground'
+                  : 'border-border text-muted-foreground enabled:hover:border-input enabled:hover:text-foreground',
+              )}
+            >
+              <ProcessTypeGlyph icon={key} className="size-4" />
+            </button>
+          ))}
+        </div>
+      </PanelField>
+
+      <PanelField label={ui.automation.fieldColor}>
+        <div className="flex flex-wrap gap-2">
+          {stageColorOrder.map((tone: StageColor) => (
+            <button
+              key={tone}
+              type="button"
+              aria-pressed={type.color === tone}
+              aria-label={ui.tasks.stageColors[tone]}
+              title={ui.tasks.stageColors[tone]}
+              disabled={readOnly}
+              onClick={() => type.color !== tone && patch({ color: tone })}
+              className={cn(
+                'size-6 rounded-full border-2 transition-colors disabled:cursor-default',
+                stageTone[tone].swatch,
+                type.color === tone ? 'border-foreground' : 'border-transparent',
+              )}
+            />
+          ))}
+        </div>
+      </PanelField>
+
+      <PanelField label={ui.automation.fieldDescription}>
+        <CommitTextarea
+          value={type.description}
+          rows={3}
+          maxLength={500}
+          readOnly={readOnly}
+          aria-label={ui.automation.fieldDescription}
+          className="resize-none text-sm"
+          onCommit={(description) => patch({ description })}
+        />
+      </PanelField>
+    </>
   );
 }

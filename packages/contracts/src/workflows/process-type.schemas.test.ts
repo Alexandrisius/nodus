@@ -61,7 +61,6 @@ describe('processTypeSchema', () => {
       config: {
         card: { hiddenBlocks: [], roleLabels: {} },
         access: { view: null, create: null },
-        pulse: false,
       },
       creationForm: { fields: [], chips: [] },
       viewer: { canView: true, canCreate: true },

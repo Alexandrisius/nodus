@@ -7,7 +7,6 @@ import type {
   RoleLabels,
 } from '@nodus/contracts';
 import { customFieldIdOfKey, slotLabel, typeConfigOf, ui } from '@nodus/contracts';
-import { Input } from '@nodus/ui/components/input';
 import { NodeLabel } from '@nodus/ui/components/node-label';
 import { cn } from '@nodus/ui/lib/utils';
 
@@ -15,9 +14,12 @@ import { isWide, SlotControl } from './task-create-fields.js';
 
 /**
  * Низ окна создания (#432, Р9): поля эффективной формы выбранного типа —
- * системные и атрибуты типа, в порядке формы. Подпись — своё название слота,
- * иначе название роли из настроек типа, иначе стандартное (Р3). Поле с
- * ошибкой 422 подсвечено; пустое обязательное помечено звёздочкой.
+ * системные и атрибуты типа, в порядке формы. Скрытые поля (со значением,
+ * которое ставит система) сотруднику НЕ показываются. Подпись — своё
+ * название слота, иначе название роли из настроек типа, иначе стандартное
+ * (Р3). Поле с ошибкой 422 подсвечено; обязательное помечено звёздочкой —
+ * `leading-none`, чтобы звёздочка не раздувала строку подписи и низ не
+ * прыгал при смене типа.
  */
 export function TaskCreateFormBody({
   type,
@@ -26,7 +28,6 @@ export function TaskCreateFormBody({
   onChange,
   definitions,
   invalidKeys,
-  preview = false,
 }: {
   type: ProcessType | null;
   form: CreationForm;
@@ -34,26 +35,24 @@ export function TaskCreateFormBody({
   onChange: (key: CreationFieldKey, value: unknown) => void;
   definitions: readonly CustomFieldDefinition[];
   invalidKeys?: ReadonlySet<string>;
-  /** Предпросмотр в редакторе: контролы неактивны, но выглядят как живые. */
-  preview?: boolean;
 }) {
   const roleLabels: RoleLabels = type ? typeConfigOf(type).card.roleLabels : {};
   const byId = useMemo(
     () => new Map(definitions.map((definition) => [definition.id, definition])),
     [definitions],
   );
+  const visible = form.fields.filter((slot) => slot.preset === null);
 
-  if (form.fields.length === 0) {
+  if (visible.length === 0) {
     return <p className="text-sm text-muted-foreground">{ui.taskCreate.noFields}</p>;
   }
 
   return (
     <div className="flex flex-col gap-3">
-      {form.fields.map((slot) => {
+      {visible.map((slot) => {
         const fieldId = customFieldIdOfKey(slot.key);
         const definition = fieldId ? byId.get(fieldId) : undefined;
         const label = slotLabel(slot, { roleLabels, definitions });
-        const invalid = invalidKeys?.has(slot.key) ?? false;
         const wide = isWide(slot, definition);
         return (
           <div
@@ -66,49 +65,25 @@ export function TaskCreateFormBody({
             <div className="flex min-w-0 items-center gap-1">
               <NodeLabel label={label} className="min-w-0" />
               {slot.required ? (
-                <span aria-hidden className="text-danger">
+                <span aria-hidden className="text-label leading-none text-danger">
                   *
                 </span>
               ) : null}
+              {slot.required ? <span className="sr-only">{ui.taskCreate.requiredMark}</span> : null}
             </div>
             <div className="min-w-0">
               <SlotControl
                 slot={slot}
                 definition={definition}
                 value={values[slot.key]}
-                invalid={invalid}
-                preview={preview}
+                invalid={invalidKeys?.has(slot.key) ?? false}
                 label={label}
                 onChange={(value) => onChange(slot.key, value)}
               />
             </div>
-            {slot.required ? <span className="sr-only">{ui.taskCreate.requiredMark}</span> : null}
           </div>
         );
       })}
     </div>
-  );
-}
-
-/** Поле названия (шапка окна) — вынесено сюда же, чтобы окно и предпросмотр
- *  держали одну грамматику верхней строки. */
-export function TaskCreateTitleField({
-  value,
-  onChange,
-  readOnly,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  readOnly?: boolean;
-}) {
-  return (
-    <Input
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={ui.taskCreate.titlePlaceholder}
-      aria-label={ui.taskCreate.titlePlaceholder}
-      readOnly={readOnly}
-      className="h-9 w-[calc(100%-2.5rem)] text-body-lg"
-    />
   );
 }

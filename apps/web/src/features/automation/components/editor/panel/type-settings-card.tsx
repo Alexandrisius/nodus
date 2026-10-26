@@ -1,120 +1,89 @@
-import { useEffect, useState } from 'react';
 import type { ProcessType, TaskCardBlock, TaskRoleKey } from '@nodus/contracts';
 import { taskCardBlockOrder, taskRoleKeySchema, typeConfigOf, ui } from '@nodus/contracts';
-import { Input } from '@nodus/ui/components/input';
-import { Switch } from '@nodus/ui/components/switch';
 
 import { useUpdateProcessTypeConfig } from '../../../api/automation-api.js';
+import { CommitInput } from './commit-field.js';
+import { PanelField, SwitchRow } from './panel-kit.js';
+
+const t = ui.automation.typeSettings.card;
 
 /**
- * Раздел «Карточка» настроек типа (#432, В6/Р7): блоки карточки вкл/выкл и
- * свои названия ролей («Постановщик» → «Заявитель»). Состав карточки —
- * представление, не права: скрытый блок просто не рисуется. Названия
- * сохраняются по уходу фокуса, переключатели — сразу.
+ * Раздел «Блоки карточки» настроек типа (#432, В6/Р7; переход внутрь из
+ * корня): семь тумблеров с пояснением, что именно прячет блок. Состав
+ * карточки — представление, не права: скрытый блок просто не рисуется.
+ * Сохраняется сразу; раздел `card` уходит целиком (названия ролей — те же).
  */
-export function TypeCardSection({ type, readOnly }: { type: ProcessType; readOnly: boolean }) {
+export function TypeBlocksSection({ type, readOnly }: { type: ProcessType; readOnly: boolean }) {
   const update = useUpdateProcessTypeConfig(type.id);
   const { hiddenBlocks, roleLabels } = typeConfigOf(type).card;
 
-  const toggleBlock = (block: TaskCardBlock, on: boolean) =>
+  const toggleBlock = (block: TaskCardBlock, visible: boolean) =>
     update.mutate({
       card: {
-        hiddenBlocks: on
+        hiddenBlocks: visible
           ? hiddenBlocks.filter((entry) => entry !== block)
           : [...hiddenBlocks, block],
         roleLabels,
       },
     });
 
+  return (
+    <>
+      <p className="text-sm break-words text-muted-foreground">{t.blocksLead}</p>
+      <div className="flex min-w-0 flex-col gap-3.5">
+        {taskCardBlockOrder.map((block) => (
+          <SwitchRow
+            key={block}
+            title={t.blocksNames[block]}
+            hint={t.blocksHints[block]}
+            checked={!hiddenBlocks.includes(block)}
+            disabled={readOnly}
+            onChange={(visible) => toggleBlock(block, visible)}
+          />
+        ))}
+      </div>
+    </>
+  );
+}
+
+/**
+ * Раздел «Названия ролей» (#432, В3/Р3): своё название роли в карточке и
+ * окне создания задач типа («Постановщик» → «Заявитель»). Пусто —
+ * стандартное (подсказка в поле). Сохраняется по уходу фокуса или Enter,
+ * а не на каждую букву.
+ */
+export function TypeRoleLabelsSection({
+  type,
+  readOnly,
+}: {
+  type: ProcessType;
+  readOnly: boolean;
+}) {
+  const update = useUpdateProcessTypeConfig(type.id);
+  const { hiddenBlocks, roleLabels } = typeConfigOf(type).card;
+
   const setRoleLabel = (role: TaskRoleKey, value: string) => {
     const next = { ...roleLabels };
-    const trimmed = value.trim();
-    if (trimmed) next[role] = trimmed;
+    if (value) next[role] = value;
     else delete next[role];
     update.mutate({ card: { hiddenBlocks, roleLabels: next } });
   };
 
   return (
-    <section className="flex flex-col gap-3">
-      <span className="text-sm font-medium">{ui.automation.typeSettings.card.title}</span>
-      <div className="flex flex-col gap-2">
-        <span className="text-[13px] text-muted-foreground">
-          {ui.automation.typeSettings.card.blocks}
-        </span>
-        {taskCardBlockOrder.map((block) => (
-          <label key={block} className="flex items-center justify-between gap-3">
-            <span className="text-sm">{ui.automation.typeSettings.card.blocksNames[block]}</span>
-            <Switch
-              checked={!hiddenBlocks.includes(block)}
-              disabled={readOnly}
-              onCheckedChange={(on) => toggleBlock(block, on)}
-            />
-          </label>
-        ))}
-        <span className="text-xs text-muted-foreground">
-          {ui.automation.typeSettings.card.blocksHint}
-        </span>
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <span className="text-[13px] text-muted-foreground">
-          {ui.automation.typeSettings.card.roleLabels}
-        </span>
-        {taskRoleKeySchema.options.map((role) => (
-          <RoleLabelField
-            key={role}
-            label={ui.automation.typeSettings.card.roles[role]}
+    <>
+      <p className="text-sm break-words text-muted-foreground">{t.rolesLead}</p>
+      {taskRoleKeySchema.options.map((role) => (
+        <PanelField key={role} label={t.roles[role]}>
+          <CommitInput
             value={roleLabels[role] ?? ''}
-            disabled={readOnly}
+            maxLength={40}
+            readOnly={readOnly}
+            placeholder={t.roles[role]}
+            aria-label={t.roles[role]}
             onCommit={(value) => setRoleLabel(role, value)}
           />
-        ))}
-        <span className="text-xs text-muted-foreground">
-          {ui.automation.typeSettings.card.roleLabelsHint}
-        </span>
-      </div>
-    </section>
-  );
-}
-
-/** Название роли: правится локально, сохраняется по blur/Enter (не на букву). */
-function RoleLabelField({
-  label,
-  value,
-  disabled,
-  onCommit,
-}: {
-  label: string;
-  value: string;
-  disabled: boolean;
-  onCommit: (value: string) => void;
-}) {
-  const [text, setText] = useState(value);
-  useEffect(() => setText(value), [value]);
-
-  const commit = () => {
-    if (text.trim() !== value) onCommit(text);
-  };
-
-  return (
-    <label className="grid grid-cols-[7rem_1fr] items-center gap-2">
-      <span className="truncate text-[13px] text-muted-foreground">{label}</span>
-      <Input
-        value={text}
-        maxLength={40}
-        readOnly={disabled}
-        placeholder={label}
-        aria-label={label}
-        onChange={(e) => setText(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            commit();
-          }
-        }}
-        className="h-8 text-sm"
-      />
-    </label>
+        </PanelField>
+      ))}
+    </>
   );
 }

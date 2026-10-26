@@ -2,7 +2,7 @@ import { Settings2 } from 'lucide-react';
 import { useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import type { ProcessType } from '@nodus/contracts';
-import { Permission, ui } from '@nodus/contracts';
+import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import {
   Dialog,
@@ -20,71 +20,85 @@ import {
   SelectValue,
 } from '@nodus/ui/components/select';
 
-import { useAuthStore } from '../auth-store.js';
 import { ProcessTypeGlyph } from '../workflow/process-type-icon.js';
 
 /**
- * Поле «Тип» экспресс-формы (ADR-0020, #378): создаваемые типы (значок +
- * название) и ⚙ «Настроить типы» — в библиотеку «Автоматизации», только с
- * правом. Из заполненной формы — подтверждение диалогом Nodus (не системным
- * `confirm`): введённое пропадёт.
+ * Поле «Тип задачи» окна создания (#432, ADR-0020): доступные для создания
+ * типы (значок + название) и ⚙ «Настройки типа» — переход в «Автоматизацию»
+ * к ЭТОМУ типу, только с правом `workflow.manage`. ⚙ — кнопка-иконка того же
+ * габарита, что крестик в строке названия: обе стоят в одной колонке, поле
+ * типа кончается ровно там же, где поле названия. Из заполненного окна —
+ * подтверждение диалогом Nodus (не системным `confirm`): введённое пропадёт.
  */
 export function ProcessTypeField({
   types,
   value,
+  disabled,
+  showSettings,
+  dirty,
   onChange,
-  formFilled,
   onLeave,
 }: {
   types: readonly ProcessType[];
   /** Показанный тип — он же уходит в POST /tasks. */
   value: string;
+  disabled: boolean;
+  /** ⚙ «Настройки типа» (право `workflow.manage`, не предпросмотр). */
+  showSettings: boolean;
+  /** В окне есть введённые данные — уход в настройку спрашивает. */
+  dirty: boolean;
   onChange: (typeId: string) => void;
-  /** В форме есть введённые данные — уход в настройку спрашивает. */
-  formFilled: boolean;
-  /** Закрыть форму перед переходом в «Автоматизацию». */
+  /** Закрыть окно перед переходом в «Автоматизацию». */
   onLeave: () => void;
 }) {
   const navigate = useNavigate();
-  const canManageTypes = (useAuthStore((s) => s.user?.permissions) ?? []).includes(
-    Permission.WORKFLOW_MANAGE,
-  );
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const shown = types.find((type) => type.id === value);
 
   const leave = () => {
     setConfirmOpen(false);
     onLeave();
-    void navigate({ to: '/automation', search: (prev) => ({ ...prev, tab: 'processes' }) });
+    void navigate({ to: '/automation', search: { tab: 'processes', type: value } });
   };
 
   return (
-    <div className="flex min-w-0 items-center gap-1.5">
-      <Select value={value} onValueChange={onChange}>
-        <SelectTrigger aria-label={ui.tasks.type} className="min-w-0 flex-1">
-          <SelectValue placeholder={ui.tasks.task} />
+    <div className="flex min-w-0 items-center gap-2">
+      <Select value={value} onValueChange={onChange} disabled={disabled}>
+        <SelectTrigger className="h-8 min-w-0 flex-1" aria-label={ui.taskCreate.typeLabel}>
+          <SelectValue placeholder={ui.taskCreate.noTypes}>
+            {shown ? (
+              <span className="flex min-w-0 items-center gap-2">
+                <ProcessTypeGlyph icon={shown.icon} className="size-3.5 shrink-0" />
+                <span className="truncate">{shown.name}</span>
+              </span>
+            ) : null}
+          </SelectValue>
         </SelectTrigger>
         {/* popper — список ПОД полем, как у соседних пикеров формы
-            (ответственный, срок): режим item-aligned клал единственный
-            пункт пилюлей прямо поверх значения (фидбек владельца #311). */}
-        <SelectContent position="popper" align="start" sideOffset={4}>
-          {types.map((t) => (
-            <SelectItem key={t.id} value={t.id} className="py-1.5">
-              <ProcessTypeGlyph icon={t.icon} className="size-3.5 text-muted-foreground" />
-              {t.name}
+            (фидбек владельца #311: item-aligned клал пункт поверх значения). */}
+        <SelectContent position="popper" className="nokey">
+          {types.map((type) => (
+            <SelectItem key={type.id} value={type.id}>
+              <span className="flex items-center gap-2">
+                <ProcessTypeGlyph icon={type.icon} className="size-3.5 text-muted-foreground" />
+                {type.name}
+              </span>
             </SelectItem>
           ))}
         </SelectContent>
       </Select>
-      {canManageTypes ? (
-        <button
+      {showSettings && shown ? (
+        <Button
           type="button"
-          aria-label={ui.tasks.configureTypes}
-          title={ui.tasks.configureTypes}
-          onClick={() => (formFilled ? setConfirmOpen(true) : leave())}
-          className="shrink-0 rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          variant="ghost"
+          size="icon"
+          className="shrink-0 text-muted-foreground"
+          aria-label={ui.taskCreate.typeSettings}
+          title={ui.taskCreate.typeSettings}
+          onClick={() => (dirty ? setConfirmOpen(true) : leave())}
         >
           <Settings2 className="size-4" strokeWidth={1.75} />
-        </button>
+        </Button>
       ) : null}
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent className="max-w-sm">

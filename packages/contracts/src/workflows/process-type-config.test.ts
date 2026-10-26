@@ -29,23 +29,26 @@ describe('normalizeTypeConfig', () => {
   it('битый раздел заменяется умолчанием, целые разделы живут', () => {
     const config = normalizeTypeConfig({
       card: { hiddenBlocks: ['chat', 'нет-такого'], roleLabels: { assignee: 'Заявитель' } },
-      access: { view: 'все', create: null },
-      pulse: true,
+      access: { view: [roleA], create: null },
     });
     expect(config.card).toEqual(DEFAULT_PROCESS_TYPE_CONFIG.card);
-    expect(config.access).toEqual({ view: null, create: null });
-    expect(config.pulse).toBe(true);
+    expect(config.access).toEqual({ view: [roleA], create: null });
   });
 
   it('валидные разделы читаются целиком', () => {
     const config = normalizeTypeConfig({
       card: { hiddenBlocks: ['checklist', 'subtasks'], roleLabels: { assignee: 'Заявитель' } },
       access: { view: [roleA], create: [roleB] },
-      pulse: false,
     });
     expect(config.card.hiddenBlocks).toEqual(['checklist', 'subtasks']);
     expect(config.card.roleLabels.assignee).toBe('Заявитель');
     expect(config.access).toEqual({ view: [roleA], create: [roleB] });
+  });
+
+  it('снятые ключи (флаг пульса до 26.10) отбрасываются — схема закрыта', () => {
+    const config = normalizeTypeConfig({ pulse: true, access: { view: null, create: null } });
+    expect(config).toEqual(DEFAULT_PROCESS_TYPE_CONFIG);
+    expect('pulse' in config).toBe(false);
   });
 });
 
@@ -109,16 +112,20 @@ describe('typeAccessFor', () => {
 
 describe('updateProcessTypeConfigBodySchema', () => {
   it('один раздел не добавляет соседние (gotcha Zod 4 .partial)', () => {
-    const parsed = updateProcessTypeConfigBodySchema.parse({ pulse: true });
-    expect(parsed).toEqual({ pulse: true });
-    expect('card' in parsed).toBe(false);
+    const card = { hiddenBlocks: ['chat' as const], roleLabels: {} };
+    const parsed = updateProcessTypeConfigBodySchema.parse({ card });
+    expect(parsed).toEqual({ card });
     expect('access' in parsed).toBe(false);
   });
 
-  it('неизвестный ключ отвергается, пустая правка — тоже', () => {
-    expect(updateProcessTypeConfigBodySchema.safeParse({ pulse: true, extra: 1 }).success).toBe(
-      false,
-    );
+  it('неизвестный ключ отвергается (и снятый `pulse`), пустая правка — тоже', () => {
+    expect(updateProcessTypeConfigBodySchema.safeParse({ pulse: true }).success).toBe(false);
+    expect(
+      updateProcessTypeConfigBodySchema.safeParse({
+        access: { view: null, create: null },
+        extra: 1,
+      }).success,
+    ).toBe(false);
     expect(updateProcessTypeConfigBodySchema.safeParse({}).success).toBe(false);
   });
 

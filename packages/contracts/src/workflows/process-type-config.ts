@@ -7,11 +7,12 @@ import {
 } from './creation-form.js';
 
 /**
- * Конфигурация типа процесса (#432, В6): состав карточки, доступ к типу и
- * флаг «Пульс проекта». Живёт в `process_types.config` (JSONB), сохраняется
- * СРАЗУ — публикации требует только маршрут (форма создания). Схема
- * закрытая и явная: битый раздел при чтении заменяется умолчанием
- * (`normalizeTypeConfig`), запись — только целыми разделами.
+ * Конфигурация типа процесса (#432, В6): состав карточки и доступ к типу.
+ * Живёт в `process_types.config` (JSONB), сохраняется СРАЗУ — публикации
+ * требует только маршрут (форма создания). Схема закрытая и явная: битый
+ * раздел при чтении заменяется умолчанием (`normalizeTypeConfig`), запись —
+ * только целыми разделами. Флага «Показывать в пульсе проекта» у типа нет
+ * (вердикт владельца 26.10.2026): что видно в пульсе, решает проект (#469).
  */
 
 /** Служебный код типа по умолчанию («Стандартный»): по нему создают быстрые
@@ -88,7 +89,6 @@ export const processTypeConfigSchema = z
   .object({
     card: processTypeCardSchema,
     access: processTypeAccessSchema,
-    pulse: z.boolean(),
   })
   .strict();
 export type ProcessTypeConfig = z.infer<typeof processTypeConfigSchema>;
@@ -100,7 +100,6 @@ export const updateProcessTypeConfigBodySchema = z
   .object({
     card: processTypeCardSchema.optional(),
     access: processTypeAccessSchema.optional(),
-    pulse: z.boolean().optional(),
   })
   .strict()
   .refine((v) => Object.keys(v).length > 0, { message: 'empty update' });
@@ -114,11 +113,10 @@ export const processTypeViewerSchema = z.object({
 });
 export type ProcessTypeViewer = z.infer<typeof processTypeViewerSchema>;
 
-/** Умолчания конфигурации: карточка полная, доступ всем, пульс выключен. */
+/** Умолчания конфигурации: карточка полная, доступ всем. */
 export const DEFAULT_PROCESS_TYPE_CONFIG: ProcessTypeConfig = {
   card: { hiddenBlocks: [], roleLabels: {} },
   access: { view: null, create: null },
-  pulse: false,
 };
 
 function parseOr<T>(schema: z.ZodType<T>, raw: unknown, fallback: T): T {
@@ -127,14 +125,14 @@ function parseOr<T>(schema: z.ZodType<T>, raw: unknown, fallback: T): T {
 }
 
 /** Толерантное чтение `process_types.config` (`{}` → умолчания, битый
- *  раздел → умолчание раздела; остальные разделы не страдают). */
+ *  раздел → умолчание раздела; остальные разделы не страдают; лишние
+ *  ключи отбрасываются). */
 export function normalizeTypeConfig(raw: unknown): ProcessTypeConfig {
   if (raw === null || typeof raw !== 'object') return DEFAULT_PROCESS_TYPE_CONFIG;
   const source = raw as Record<string, unknown>;
   return {
     card: parseOr(processTypeCardSchema, source.card, DEFAULT_PROCESS_TYPE_CONFIG.card),
     access: parseOr(processTypeAccessSchema, source.access, DEFAULT_PROCESS_TYPE_CONFIG.access),
-    pulse: typeof source.pulse === 'boolean' ? source.pulse : DEFAULT_PROCESS_TYPE_CONFIG.pulse,
   };
 }
 

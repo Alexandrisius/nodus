@@ -110,7 +110,7 @@ export const automationTypeHandlers = [
       sortOrder: mockTypes.length,
       archivedAt: null,
       workflowId,
-      // Новый тип: доступ всем, карточка полная, пульс выключен.
+      // Новый тип: доступ всем, карточка полная.
       config: normalizeTypeConfig({}),
     };
     mockTypes.push(type);

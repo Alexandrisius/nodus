@@ -5,40 +5,37 @@ import type {
   CustomFieldDefinition,
   ProcessType,
 } from '@nodus/contracts';
-import {
-  CREATION_FORM_LIMITS,
-  TASK_CREATION_SYSTEM_KEYS,
-  customFieldKey,
-  slotLabel,
-  typeIdsOf,
-  ui,
-} from '@nodus/contracts';
-import { Button } from '@nodus/ui/components/button';
+import { TASK_CREATION_SYSTEM_KEYS, customFieldKey, typeIdsOf, ui } from '@nodus/contracts';
 import { Popover, PopoverContent, PopoverTrigger } from '@nodus/ui/components/popover';
 import { Plus } from 'lucide-react';
 
 import { projectsAvailable } from '../../../../../shared/api/projects-available.js';
+import { CustomFieldTypeIcon } from '../../../../../shared/custom-fields/field-type-icon.js';
 import { useCustomFieldDefinitions } from '../../../../../shared/custom-fields/queries.js';
 import { useCanManageFields } from '../../../../../shared/custom-fields/use-can-manage-fields.js';
 import { useBindFieldType } from '../../../api/custom-fields-api.js';
 import { unusedKeys } from '../../../model/creation-form.js';
 import { FieldDialog } from '../../fields/field-dialog.js';
+import { PanelAction } from './panel-kit.js';
+
+const c = ui.automation.creation;
 
 /**
- * «+ Поле» панели «Окно создания» (#432, Р12): группы «Системные»,
- * «Атрибуты типа», «Добавить в тип» и «Создать атрибут…». В форму попадают
- * только привязанные к типу атрибуты (Р8): чужой атрибут сначала
- * привязывается (быстрый путь) — иначе публикация отклонила бы форму.
+ * «+ Поле» панели «Окно создания» (#432, Р12) — тихое действие панели, как
+ * «+ Добавить переход». Группы «Системные», «Атрибуты типа», «Добавить в
+ * тип» и «Создать атрибут…». В форму попадают только привязанные к типу
+ * атрибуты (Р8): чужой атрибут сначала привязывается (быстрый путь) — иначе
+ * публикация отклонила бы форму.
  */
 export function CreationFieldPicker({
   type,
   form,
-  readOnly,
+  disabled,
   onPick,
 }: {
   type: ProcessType;
   form: CreationForm;
-  readOnly: boolean;
+  disabled: boolean;
   onPick: (key: CreationFieldKey) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -58,12 +55,13 @@ export function CreationFieldPicker({
     form,
     TASK_CREATION_SYSTEM_KEYS.filter((key) => key !== 'project' || projectsAvailable()),
   );
-  const freeAttributes = unusedKeys(
-    form,
-    inType.map((definition) => customFieldKey(definition.id)),
+  const freeAttributes = inType.filter(
+    (definition) => unusedKeys(form, [customFieldKey(definition.id)]).length > 0,
   );
-  const full = form.fields.length >= CREATION_FORM_LIMITS.fields;
-  const empty = freeSystem.length === 0 && freeAttributes.length === 0 && notInType.length === 0;
+  const empty =
+    freeSystem.length === 0 &&
+    freeAttributes.length === 0 &&
+    (!canManageFields || notInType.length === 0);
 
   function pick(key: CreationFieldKey) {
     onPick(key);
@@ -74,72 +72,67 @@ export function CreationFieldPicker({
     <>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="w-full justify-start"
-            disabled={readOnly || full}
-          >
-            <Plus className="size-3.5" strokeWidth={1.75} />
-            {ui.automation.creation.addField}
-          </Button>
+          <PanelAction icon={Plus} disabled={disabled}>
+            {c.addField}
+          </PanelAction>
         </PopoverTrigger>
         <PopoverContent align="start" className="nokey w-72 p-1.5">
-          {empty ? (
-            <p className="px-2 py-3 text-center text-xs text-muted-foreground">
-              {ui.automation.creation.pickerEmpty}
-            </p>
-          ) : (
-            <div className="flex max-h-80 flex-col gap-1 overflow-y-auto" data-no-scrollbar>
-              {freeSystem.length > 0 ? (
-                <Group title={ui.automation.creation.groups.system}>
-                  {freeSystem.map((key) => (
-                    <Row key={key} onClick={() => pick(key)}>
-                      {ui.taskCreate.fields[key as keyof typeof ui.taskCreate.fields]}
-                    </Row>
-                  ))}
-                </Group>
-              ) : null}
+          <div className="flex max-h-80 flex-col gap-1 overflow-y-auto" data-no-scrollbar>
+            {empty ? (
+              <p className="px-2 py-3 text-center text-xs text-muted-foreground">{c.pickerEmpty}</p>
+            ) : null}
 
-              {freeAttributes.length > 0 ? (
-                <Group title={ui.automation.creation.groups.attributes}>
-                  {inType
-                    .filter((d) => freeAttributes.includes(customFieldKey(d.id)))
-                    .map((definition) => (
-                      <Row key={definition.id} onClick={() => pick(customFieldKey(definition.id))}>
-                        {definition.name}
-                      </Row>
-                    ))}
-                </Group>
-              ) : null}
+            {freeSystem.length > 0 ? (
+              <Group title={c.groups.system}>
+                {freeSystem.map((key) => (
+                  <Row key={key} onClick={() => pick(key)}>
+                    {ui.taskCreate.fields[key as keyof typeof ui.taskCreate.fields]}
+                  </Row>
+                ))}
+              </Group>
+            ) : null}
 
-              {canManageFields && notInType.length > 0 ? (
-                <Group title={ui.automation.creation.groups.addToType}>
-                  {notInType.map((definition) => (
-                    <BindRow
-                      key={definition.id}
-                      definition={definition}
-                      typeId={type.id}
-                      onBound={() => pick(customFieldKey(definition.id))}
-                    />
-                  ))}
-                </Group>
-              ) : null}
-            </div>
-          )}
-          {canManageFields ? (
-            <div className="mt-1 border-t border-border pt-1">
-              <Row
+            {freeAttributes.length > 0 ? (
+              <Group title={c.groups.attributes}>
+                {freeAttributes.map((definition) => (
+                  <Row
+                    key={definition.id}
+                    definition={definition}
+                    onClick={() => pick(customFieldKey(definition.id))}
+                  >
+                    {definition.name}
+                  </Row>
+                ))}
+              </Group>
+            ) : null}
+
+            {canManageFields && notInType.length > 0 ? (
+              <Group title={c.groups.addToType}>
+                {notInType.map((definition) => (
+                  <BindRow
+                    key={definition.id}
+                    definition={definition}
+                    typeId={type.id}
+                    onBound={() => pick(customFieldKey(definition.id))}
+                  />
+                ))}
+              </Group>
+            ) : null}
+
+            {canManageFields ? (
+              <button
+                type="button"
                 onClick={() => {
                   setOpen(false);
                   setCreateOpen(true);
                 }}
+                className="mt-1 flex w-full items-center gap-2 rounded-md px-1.5 py-1.5 text-left text-sm text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
               >
-                {ui.automation.creation.groups.createAttribute}
-              </Row>
-            </div>
-          ) : null}
+                <Plus className="size-3.5 shrink-0" strokeWidth={1.75} />
+                {c.groups.createAttribute}
+              </button>
+            ) : null}
+          </div>
         </PopoverContent>
       </Popover>
 
@@ -173,6 +166,7 @@ function BindRow({
   const bind = useBindFieldType(definition.id);
   return (
     <Row
+      definition={definition}
       onClick={() => {
         bind.mutate(typeId);
         onBound();
@@ -194,19 +188,26 @@ function Group({ title, children }: { title: string; children: React.ReactNode }
   );
 }
 
-function Row({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
+/** Строка выбора; у атрибута — значок его типа (данные, не декор). */
+function Row({
+  children,
+  definition,
+  onClick,
+}: {
+  children: React.ReactNode;
+  definition?: CustomFieldDefinition;
+  onClick: () => void;
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-center gap-2 rounded-md px-1.5 py-1.5 text-left text-sm hover:bg-accent/60"
+      className="flex w-full items-center gap-2 rounded-md px-1.5 py-1.5 text-left text-sm transition-colors hover:bg-accent/60"
     >
-      {children}
+      {definition ? (
+        <CustomFieldTypeIcon type={definition.type} className="size-3.5 text-muted-foreground" />
+      ) : null}
+      <span className="min-w-0 flex-1 truncate">{children}</span>
     </button>
   );
-}
-
-/** Подпись поля формы для группы «Системные» (своё название — у слота). */
-export function systemFieldLabel(key: CreationFieldKey): string {
-  return slotLabel({ key, label: null, required: false, preset: null });
 }

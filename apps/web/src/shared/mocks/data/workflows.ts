@@ -44,7 +44,7 @@ export const standardProcessType: DemoProcessType = {
   archivedAt: null,
   workflowId: STANDARD_WORKFLOW_ID,
   // «Стандартный» — тип быстрых входов: доступ всем, карточка полная.
-  config: { card: { hiddenBlocks: [], roleLabels: {} }, access: allAccess, pulse: true },
+  config: { card: { hiddenBlocks: [], roleLabels: {} }, access: allAccess },
 };
 
 export const quickTypeDto: DemoProcessType = {
@@ -61,7 +61,7 @@ export const quickTypeDto: DemoProcessType = {
   sortOrder: 1,
   archivedAt: null,
   workflowId: QUICK_WORKFLOW_ID,
-  config: { card: { hiddenBlocks: [], roleLabels: {} }, access: allAccess, pulse: false },
+  config: { card: { hiddenBlocks: [], roleLabels: {} }, access: allAccess },
 };
 
 /** Демонстратор модели владельца (критерии приёмки #432): свои атрибуты,
@@ -86,7 +86,6 @@ export const overtimeType: DemoProcessType = {
       roleLabels: { creator: 'Заявитель' },
     },
     access: allAccess,
-    pulse: false,
   },
 };
 
@@ -109,7 +108,6 @@ export const hrType: DemoProcessType = {
   config: {
     card: { hiddenBlocks: [], roleLabels: {} },
     access: { view: [demoRoleIds.head], create: [demoRoleIds.head] },
-    pulse: false,
   },
 };
 
@@ -127,7 +125,7 @@ export const archivedDemoType: DemoProcessType = {
   sortOrder: 4,
   archivedAt: '2026-10-01T10:00:00Z',
   workflowId: ARCHIVED_WORKFLOW_ID,
-  config: { card: { hiddenBlocks: [], roleLabels: {} }, access: allAccess, pulse: false },
+  config: { card: { hiddenBlocks: [], roleLabels: {} }, access: allAccess },
 };
 
 export const demoProcessTypes: DemoProcessType[] = [

@@ -3,8 +3,9 @@ import type {
   CreationFieldKey,
   CreationFieldSlot,
   CreationForm,
+  CreationPreset,
 } from '@nodus/contracts';
-import { CREATION_FORM_LIMITS, creationFieldSlotSchema } from '@nodus/contracts';
+import { CREATION_FORM_LIMITS } from '@nodus/contracts';
 
 /**
  * Операции формы создания в редакторе маршрута (#432, Р2/Р12): чистые
@@ -86,15 +87,12 @@ export function withChipToggled(form: CreationForm, chip: CreationChip): Creatio
   };
 }
 
-/** Валидна ли форма как документ (для мока/предпросмотра): битый пресет или
- *  пустая подпись не должны доезжать до публикации. */
-export function formIsWellFormed(form: CreationForm): boolean {
-  return creationFieldSlotSchema.array().max(CREATION_FORM_LIMITS.fields).safeParse(form.fields)
-    .success;
-}
-
-/** Подпись слота для предпросмотра: своё название или стандартное (редактор
- *  передаёт `slotLabel` из contracts — здесь только фолбэк). */
-export function displayLabel(slot: CreationFieldSlot, fallback: string): string {
-  return slot.label ?? fallback;
+/** Начальное скрытое значение при включении «Скрыть и заполнить»: у
+ *  приоритета — «Обычный» (у поля всегда есть значение, и редактор
+ *  показывает именно его), у списков людей — пустой список, у остальных —
+ *  пусто до выбора (проверка публикации честно подсветит пустое). */
+export function initialPreset(key: CreationFieldKey): CreationPreset {
+  if (key === 'priority') return 'normal';
+  if (key === 'coexecutors' || key === 'observers') return [];
+  return '';
 }

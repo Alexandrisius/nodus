@@ -8,26 +8,32 @@ import { Check, Plus, X } from 'lucide-react';
 
 import { useRoles } from '../../../../../shared/api/roles.js';
 import { useUpdateProcessType, useUpdateProcessTypeConfig } from '../../../api/automation-api.js';
-import { PanelField, Segmented } from './panel-kit.js';
+import { ModeChoices, PanelField, PanelNote } from './panel-kit.js';
 
 /** Режим списка доступа: «всем» (`null` в конфигурации) или роли. */
-type AccessMode = 'all' | 'roles';
+type ViewMode = 'all' | 'roles';
 type CreateMode = 'all' | 'roles' | 'nobody';
 
+const t = ui.automation.typeSettings.access;
+
 /**
- * Раздел «Доступ» настроек типа (#432, В6/Р6): «Видят» — все или роли;
- * «Создают» — все, роли или «никто, кроме администратора» (`creatable=false`).
- * Администратор видит и создаёт всегда. «Стандартный» заблокирован: по нему
- * создают быстрые входы. Сохраняется сразу, откат — тост из мутации.
+ * Раздел «Доступ» настроек типа (#432, В6/Р6; переход внутрь из корня
+ * панели): «Кто видит тип» — все или роли; «Кто создаёт задачи» — все, кто
+ * видит, роли или «никто, кроме администратора» (`creatable=false`). Выбор
+ * — строками с пояснением (длинные подписи в сегментах обрезались —
+ * замечание владельца). Администратор видит и создаёт всегда.
+ * «Стандартный» заблокирован: по нему создают быстрые входы. Сохраняется
+ * сразу, откат — тост из мутации.
  */
 export function TypeAccessSection({ type, readOnly }: { type: ProcessType; readOnly: boolean }) {
   const updateConfig = useUpdateProcessTypeConfig(type.id);
   const updateType = useUpdateProcessType();
   const { data: roles, isLoading, isError, refetch } = useRoles();
-  const locked = isDefaultProcessType(type) || readOnly;
+  const isDefault = isDefaultProcessType(type);
+  const locked = isDefault || readOnly;
   const access = typeConfigOf(type).access;
 
-  const viewMode: AccessMode = access.view === null ? 'all' : 'roles';
+  const viewMode: ViewMode = access.view === null ? 'all' : 'roles';
   const createMode: CreateMode = !type.creatable
     ? 'nobody'
     : access.create === null
@@ -42,19 +48,21 @@ export function TypeAccessSection({ type, readOnly }: { type: ProcessType; readO
       },
     });
 
-  function setViewMode(mode: AccessMode) {
-    if (mode === 'all') save({ view: null });
-    else save({ view: access.view ?? [] });
+  function setViewMode(mode: ViewMode) {
+    if (mode === viewMode) return;
+    save({ view: mode === 'all' ? null : [] });
   }
 
   function setCreateMode(mode: CreateMode) {
+    if (mode === createMode) return;
     if (mode === 'nobody') {
       updateType.mutate({ id: type.id, body: { creatable: false } });
       return;
     }
     // `creatable` — свойство типа (прежний PATCH), списки — конфигурация.
     if (!type.creatable) updateType.mutate({ id: type.id, body: { creatable: true } });
-    save({ create: mode === 'all' ? null : (access.create ?? []) });
+    const create = mode === 'all' ? null : (access.create ?? []);
+    if (create !== access.create) save({ create });
   }
 
   function toggleRole(kind: 'view' | 'create', roleId: string) {
@@ -66,100 +74,59 @@ export function TypeAccessSection({ type, readOnly }: { type: ProcessType; readO
     save(kind === 'view' ? { view: next } : { create: next });
   }
 
-  return (
-    <section className="flex flex-col gap-3">
-      <span className="text-sm font-medium">{ui.automation.typeSettings.access.title}</span>
-      {isDefaultProcessType(type) ? (
-        <p className="rounded-lg bg-accent/50 px-2.5 py-2 text-xs text-muted-foreground">
-          {ui.automation.typeSettings.access.defaultLocked}
-        </p>
-      ) : null}
+  const roleChips = (kind: 'view' | 'create', ids: readonly string[]) => (
+    <RoleChips
+      roleIds={ids}
+      roles={roles}
+      disabled={locked}
+      isLoading={isLoading}
+      isError={isError}
+      onRetry={() => void refetch()}
+      onToggle={(roleId) => toggleRole(kind, roleId)}
+    />
+  );
 
-      <PanelField label={ui.automation.typeSettings.access.view}>
-        <Segmented
+  return (
+    <>
+      {isDefault ? <PanelNote>{t.defaultLocked}</PanelNote> : null}
+
+      <PanelField label={t.view}>
+        <ModeChoices
           value={viewMode}
           disabled={locked}
+          ariaLabel={t.view}
           options={[
-            { value: 'all', label: ui.automation.typeSettings.access.all },
-            { value: 'roles', label: ui.automation.typeSettings.access.roles },
+            { value: 'all', label: t.viewAll, hint: t.viewAllHint },
+            { value: 'roles', label: t.viewRoles, hint: t.viewRolesHint },
           ]}
           onChange={setViewMode}
         />
-        {viewMode === 'roles' ? (
-          <RoleChips
-            roleIds={access.view ?? []}
-            roles={roles}
-            disabled={locked}
-            isLoading={isLoading}
-            isError={isError}
-            onRetry={() => void refetch()}
-            onToggle={(roleId) => toggleRole('view', roleId)}
-          />
-        ) : null}
+        {viewMode === 'roles' ? roleChips('view', access.view ?? []) : null}
         {viewMode === 'roles' && (access.view ?? []).length === 0 ? (
-          <span className="text-xs text-warning">
-            {ui.automation.typeSettings.access.noViewWarning}
-          </span>
+          <span className="text-xs text-warning">{t.noViewWarning}</span>
         ) : null}
       </PanelField>
 
-      <PanelField label={ui.automation.typeSettings.access.create}>
-        {/* Три смысловых варианта — строками: длинные подписи не режутся
-            (канон: смысловой выбор не обрезается). */}
-        <div role="radiogroup" aria-label={ui.automation.typeSettings.access.create}>
-          {(
-            [
-              ['all', ui.automation.typeSettings.access.all],
-              ['roles', ui.automation.typeSettings.access.roles],
-              ['nobody', ui.automation.typeSettings.access.nobody],
-            ] as const
-          ).map(([mode, label]) => (
-            <button
-              key={mode}
-              type="button"
-              role="radio"
-              aria-checked={createMode === mode}
-              disabled={locked}
-              onClick={() => setCreateMode(mode)}
-              className={cn(
-                'flex w-full items-center gap-2 rounded-md px-1.5 py-1.5 text-left text-sm transition-colors',
-                createMode === mode
-                  ? 'bg-accent text-foreground'
-                  : 'text-secondary-foreground hover:bg-accent/60',
-                locked && 'cursor-default opacity-70',
-              )}
-            >
-              <span
-                aria-hidden
-                className={cn(
-                  'size-3.5 shrink-0 rounded-full border',
-                  createMode === mode ? 'border-primary bg-primary' : 'border-input',
-                )}
-              />
-              <span className="min-w-0">{label}</span>
-            </button>
-          ))}
-        </div>
-        {createMode === 'roles' ? (
-          <RoleChips
-            roleIds={access.create ?? []}
-            roles={roles}
-            disabled={locked}
-            isLoading={isLoading}
-            isError={isError}
-            onRetry={() => void refetch()}
-            onToggle={(roleId) => toggleRole('create', roleId)}
-          />
-        ) : null}
+      <PanelField label={t.create}>
+        <ModeChoices
+          value={createMode}
+          disabled={locked}
+          ariaLabel={t.create}
+          options={[
+            { value: 'all', label: t.createAll, hint: t.createAllHint },
+            { value: 'roles', label: t.createRoles, hint: t.createRolesHint },
+            { value: 'nobody', label: t.createNobody, hint: t.createNobodyHint },
+          ]}
+          onChange={setCreateMode}
+        />
+        {createMode === 'roles' ? roleChips('create', access.create ?? []) : null}
         {createMode === 'roles' && (access.create ?? []).length === 0 ? (
-          <span className="text-xs text-warning">
-            {ui.automation.typeSettings.access.noCreateWarning}
-          </span>
+          <span className="text-xs text-warning">{t.noCreateWarning}</span>
         ) : null}
       </PanelField>
 
-      <p className="text-xs text-muted-foreground">{ui.automation.typeSettings.access.adminHint}</p>
-    </section>
+      <p className="text-xs text-muted-foreground">{t.adminHint}</p>
+    </>
   );
 }
 
@@ -187,9 +154,9 @@ function RoleChips({
   if (isError) {
     return (
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        {ui.automation.typeSettings.access.rolesError}
+        {t.rolesError}
         <Button variant="ghost" size="sm" onClick={onRetry}>
-          {ui.automation.typeSettings.access.retry}
+          {t.retry}
         </Button>
       </div>
     );
@@ -198,13 +165,9 @@ function RoleChips({
   return (
     <div className="flex min-h-8 flex-wrap items-center gap-1.5 rounded-lg border border-input px-1.5 py-1">
       {isLoading ? (
-        <span className="px-1 text-xs text-muted-foreground">
-          {ui.automation.typeSettings.access.rolesLoading}
-        </span>
+        <span className="px-1 text-xs text-muted-foreground">{t.rolesLoading}</span>
       ) : roleIds.length === 0 ? (
-        <span className="px-1 text-xs text-muted-foreground">
-          {ui.automation.typeSettings.access.rolesPlaceholder}
-        </span>
+        <span className="px-1 text-xs text-muted-foreground">{t.rolesPlaceholder}</span>
       ) : (
         roleIds.map((id) => (
           <span
@@ -233,17 +196,17 @@ function RoleChips({
           <PopoverTrigger asChild>
             <button
               type="button"
-              aria-label={ui.automation.typeSettings.access.rolesPlaceholder}
-              className="flex size-6 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+              aria-label={t.rolesPlaceholder}
+              className="ml-auto flex size-6 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
             >
               <Plus className="size-3.5" strokeWidth={1.75} />
             </button>
           </PopoverTrigger>
-          <PopoverContent align="start" className="nokey w-64 p-1.5">
+          <PopoverContent align="end" className="nokey w-64 p-1.5">
             <div className="flex max-h-64 flex-col overflow-y-auto" data-no-scrollbar>
               {(roles ?? []).length === 0 ? (
                 <p className="px-2 py-3 text-center text-xs text-muted-foreground">
-                  {ui.automation.typeSettings.access.rolesEmpty}
+                  {t.rolesEmpty}
                 </p>
               ) : (
                 (roles ?? []).map((role) => {
@@ -255,11 +218,13 @@ function RoleChips({
                       onClick={() => onToggle(role.id)}
                       className={cn(
                         'flex items-center gap-2 rounded-md px-1.5 py-1.5 text-left text-sm hover:bg-accent/60',
-                        on ? 'text-port' : 'text-secondary-foreground',
+                        on ? 'text-foreground' : 'text-secondary-foreground',
                       )}
                     >
                       <span className="min-w-0 flex-1 truncate">{role.name}</span>
-                      {on ? <Check className="size-3.5 shrink-0" strokeWidth={1.75} /> : null}
+                      {on ? (
+                        <Check className="size-3.5 shrink-0 text-primary" strokeWidth={1.75} />
+                      ) : null}
                     </button>
                   );
                 })
