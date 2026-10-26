@@ -20,7 +20,10 @@ import {
   USER_PROFILE_READER,
   type UserProfileReader,
 } from '../../../core/ports/user-profile.port.js';
-import type { CounterpartyReader } from '../../crm/ports/counterparty-reader.port.js';
+import {
+  COUNTERPARTY_READER,
+  type CounterpartyReader,
+} from '../../crm/ports/counterparty-reader.port.js';
 import { canRegisterLetters, canViewLetter, letterAccessOf } from '../access/letter-access.js';
 import { LetterDtoMapper } from './letter-dto.mapper.js';
 import type { LetterCursor, LetterDetailRow } from './letter-row.js';
@@ -41,7 +44,7 @@ export class LettersQueryService {
   constructor(
     private readonly repo: LettersRepository,
     private readonly mapper: LetterDtoMapper,
-    private readonly counterparties: CounterpartyReader,
+    @Inject(COUNTERPARTY_READER) private readonly counterparties: CounterpartyReader,
     @Inject(ROLE_MEMBERSHIP_READER) private readonly membership: RoleMembershipReader,
     @Inject(USER_PROFILE_READER) private readonly profiles: UserProfileReader,
   ) {}
