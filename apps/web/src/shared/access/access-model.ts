@@ -16,6 +16,7 @@ export function catalogRows(module: AccessModule): AccessMatrixRow[] {
     id: entry.permission,
     label: entry.label,
     description: entry.description,
+    group: entry.group,
   }));
 }
 

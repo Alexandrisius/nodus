@@ -38,6 +38,9 @@ const adminRole: Role = {
   description: null,
   isSystem: true,
   permissions: Object.values(Permission),
+  memberCount: 2,
+  departmentCount: 0,
+  preview: [],
 };
 
 const headRole: Role = {
@@ -47,6 +50,9 @@ const headRole: Role = {
   description: 'Руководитель подразделения',
   isSystem: true,
   permissions: [Permission.DIRECTORY_READ, Permission.TASK_CREATE],
+  memberCount: 0,
+  departmentCount: 0,
+  preview: [],
 };
 
 const ROLES = [headRole, adminRole];
@@ -74,6 +80,7 @@ async function setup({
   const { api } = await import('../api-client.js');
   vi.mocked(api).mockImplementation(async (path) => {
     if (path === '/directory/roles') return roles;
+    if (String(path).startsWith('/directory/departments')) return [];
     return { ...headRole, permissions: [Permission.WORKFLOW_MANAGE] };
   });
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -105,7 +112,7 @@ describe('ModuleAccessMatrix (#379)', () => {
 
   it('под администратором: флажок активен, клик шлёт точечный PUT', async () => {
     const { api } = await setup();
-    const checkbox = await screen.findByRole('checkbox', {
+    const checkbox = await screen.findByRole('switch', {
       name: 'Настраивать процессы и маршруты — Руководитель',
     });
     expect(checkbox).not.toHaveProperty('disabled', true);
@@ -121,7 +128,7 @@ describe('ModuleAccessMatrix (#379)', () => {
 
   it('без права «Управлять ролями и правами» — только просмотр и видимая подсказка', async () => {
     await setup({ permissions: [Permission.DIRECTORY_READ] });
-    const checkbox = await screen.findByRole('checkbox', {
+    const checkbox = await screen.findByRole('switch', {
       name: 'Настраивать процессы и маршруты — Руководитель',
     });
     expect(checkbox).toHaveProperty('disabled', true);
@@ -134,9 +141,36 @@ describe('ModuleAccessMatrix (#379)', () => {
     expect(document.getElementById(describedBy!)?.textContent).toBe(ui.access.readOnlyHint);
   });
 
+  it('шапка роли: счётчик состава, кнопки «Создать роль» и «Копировать из роли» у админа', async () => {
+    await setup();
+    await screen.findByRole('switch', { name: 'Настраивать процессы и маршруты — Руководитель' });
+    expect(screen.getAllByText('2 сотр.').length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('button', { name: ui.access.createRole }).length).toBe(2);
+    expect(screen.getByRole('button', { name: new RegExp(ui.access.copyFromRole) })).toBeTruthy();
+    expect(
+      screen.getByRole('button', { name: `${ui.access.membersAdd}: Руководитель` }),
+    ).toBeTruthy();
+    // У «Администратора» меню роли нет: роль неизменяема.
+    expect(
+      screen.queryByRole('button', { name: `${ui.access.roleMenu}: Администратор` }),
+    ).toBeNull();
+    expect(
+      screen.getByRole('button', { name: `${ui.access.roleMenu}: Руководитель` }),
+    ).toBeTruthy();
+  });
+
+  it('только просмотр: ни создания ролей, ни меню роли', async () => {
+    await setup({ permissions: [Permission.DIRECTORY_READ] });
+    await screen.findByRole('switch', { name: 'Настраивать процессы и маршруты — Руководитель' });
+    expect(screen.queryByRole('button', { name: ui.access.createRole })).toBeNull();
+    expect(
+      screen.queryByRole('button', { name: `${ui.access.roleMenu}: Руководитель` }),
+    ).toBeNull();
+  });
+
   it('столбец «Администратор»: замок в шапке и недоступные флажки', async () => {
     await setup();
-    const checkbox = await screen.findByRole('checkbox', {
+    const checkbox = await screen.findByRole('switch', {
       name: 'Настраивать процессы и маршруты — Администратор',
     });
     expect(checkbox).toHaveProperty('disabled', true);
@@ -149,11 +183,11 @@ describe('ModuleAccessMatrix (#379)', () => {
 
   it('чужое право: неотмеченная ячейка недоступна, своя — доступна', async () => {
     await setup({ permissions: [Permission.ROLE_MANAGE, Permission.WORKFLOW_MANAGE] });
-    const foreign = await screen.findByRole('checkbox', {
+    const foreign = await screen.findByRole('switch', {
       name: 'Управлять атрибутами — Руководитель',
     });
     expect(foreign).toHaveProperty('disabled', true);
-    const own = screen.getByRole('checkbox', {
+    const own = screen.getByRole('switch', {
       name: 'Настраивать процессы и маршруты — Руководитель',
     });
     expect(own).toHaveProperty('disabled', false);
@@ -182,7 +216,7 @@ describe('ModuleAccessMatrix (#379)', () => {
     });
 
     expect(await screen.findByText('Настраивать процессы и маршруты')).toBeTruthy();
-    expect(screen.queryAllByRole('checkbox')).toHaveLength(0);
+    expect(screen.queryAllByRole('switch')).toHaveLength(0);
     expect(document.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(0);
   });
 

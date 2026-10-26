@@ -14,6 +14,9 @@ const role = (overrides: Partial<Role> = {}): Role => ({
   description: null,
   isSystem: true,
   permissions: [],
+  memberCount: 0,
+  departmentCount: 0,
+  preview: [],
   ...overrides,
 });
 

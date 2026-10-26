@@ -30,89 +30,147 @@ export const accessStrings = {
   retry: 'Повторить',
   /** Роль удалили, пока таблица была открыта. */
   roleGone: 'Роль не найдена — возможно, её удалили. Таблица обновлена.',
+  /** Панель ролей (модель Битрикс24: «Роли · Создать роль · Копировать из роли»). */
+  rolesLabel: 'Роли',
+  createRole: 'Создать роль',
+  copyFromRole: 'Копировать из роли',
+  copyFromPick: 'Скопировать права из…',
+  createTitle: 'Новая роль',
+  createNameLabel: 'Название роли',
+  createNamePlaceholder: 'Например: Руководитель проекта',
+  createDescriptionLabel: 'Описание',
+  createCopyLabel: 'Скопировать права из роли',
+  createCopyNone: 'Не копировать',
+  createSubmit: 'Создать',
+  createCancel: 'Отмена',
+  /** Меню столбца роли. */
+  roleMenu: 'Действия роли',
+  renameRole: 'Переименовать',
+  renameLabel: 'Название роли',
+  deleteRole: 'Удалить роль',
+  deleteBlockedMembers: 'Сначала уберите из роли сотрудников и подразделения',
+  deleteBlockedSystem: 'Системную роль удалить нельзя',
+  deleteTitle: (name: string): string => `Удалить роль «${name}»?`,
+  deleteBody: 'Роль исчезнет из таблицы. Права других ролей не изменятся.',
+  deleteConfirm: 'Удалить',
+  /** Состав роли. */
+  membersAdd: 'Добавить сотрудников и подразделения',
+  membersTitle: (name: string): string => `Состав роли «${name}»`,
+  membersEmpty: 'В роли пока никого нет',
+  tabUsers: 'Сотрудники',
+  tabDepartments: 'Подразделения',
+  searchPlaceholder: 'Поиск…',
+  notFound: 'Никого не нашли',
+  membersCount: (users: number, departments: number): string => {
+    const parts: string[] = [];
+    if (users > 0) parts.push(`${users} сотр.`);
+    if (departments > 0) parts.push(`${departments} подр.`);
+    return parts.length > 0 ? parts.join(' · ') : 'Никого';
+  },
+  membersHint: 'Сотрудник подразделения получает роль целиком; права ролей складываются',
   /** Название и однострочное описание каждого права каталога (порядок строк
    *  вкладки задаёт `PERMISSION_CATALOG`, не этот объект). */
   permissions: {
     'workflow.manage': {
+      group: 'Процессы',
       label: 'Настраивать процессы и маршруты',
       description: 'Создавать типы задач и писем, менять и публиковать их маршруты',
     },
     'custom_field.manage': {
+      group: 'Атрибуты',
       label: 'Управлять атрибутами',
       description: 'Создавать, менять, скрывать и удалять атрибуты карточек',
     },
     'dictionary.manage': {
+      group: 'Справочники',
       label: 'Управлять справочниками',
       description:
         'Варианты атрибутов-списков; для атрибута-списка нужно вместе с «Управлять атрибутами»',
     },
     'task.create': {
+      group: 'Задачи',
       label: 'Создавать задачи',
       description: 'Ставить задачи и поручения себе и коллегам',
     },
     'task.assign': {
+      group: 'Задачи',
       label: 'Назначать ответственного',
       description: 'Менять ответственного в задачах',
     },
     'task.view_all': {
+      group: 'Задачи',
       label: 'Видеть все задачи',
       description: 'Все задачи портала — без участия и вне своего подразделения',
     },
     'task.manage_any': {
+      group: 'Задачи',
       label: 'Управлять любой задачей',
       description: 'Править, переводить и удалять любую видимую задачу, как постановщик',
     },
     'task.override_gate': {
+      group: 'Задачи',
       label: 'Обходить условия перехода',
       description: 'Переводить задачу без выполненного условия маршрута — с обязательной причиной',
     },
     'correspondence.create': {
+      group: 'Письма',
       label: 'Регистрировать письма',
       description: 'Регистрация входящих и исходящих писем',
     },
     'correspondence.archive': {
+      group: 'Письма',
       label: 'Архивировать письма',
       description: 'Убирать письма в архив',
     },
     'crm.create': {
+      group: 'Контрагенты',
       label: 'Добавлять контрагентов',
       description: 'Новые контрагенты и контактные лица, в том числе при регистрации письма',
     },
     'crm.manage': {
+      group: 'Контрагенты',
       label: 'Вести справочник контрагентов',
       description: 'Править реквизиты, архивировать и возвращать контрагентов и контакты',
     },
     'chat.moderate': {
+      group: 'Мессенджер',
       label: 'Модерировать мессенджер',
       description: 'Удалять любые сообщения в группах и каналах',
     },
     'sticker.manage': {
+      group: 'Мессенджер',
       label: 'Управлять общими стикерами',
       description: 'Наборы стикеров для всех сотрудников',
     },
     'directory.read': {
+      group: 'Сотрудники и оргструктура',
       label: 'Видеть сотрудников и оргструктуру',
       description: 'Справочник сотрудников, подразделения и должности',
     },
     'directory.manage': {
+      group: 'Сотрудники и оргструктура',
       label: 'Управлять сотрудниками и оргструктурой',
       description: 'Добавлять сотрудников, править карточки, подразделения и должности',
     },
     'user.manage': {
+      group: 'Доступ',
       label: 'Управлять учётными записями',
       description: 'Блокировать вход и сбрасывать пароли',
     },
     'role.manage': {
+      group: 'Доступ',
       label: 'Управлять ролями и правами',
       description: 'Создавать роли и менять их права',
     },
     'settings.uiDefaults': {
+      group: 'Меню',
       label: 'Настраивать меню для всех',
       description: 'Порядок и состав модулей меню по умолчанию для всех сотрудников',
     },
     'core.admin': {
+      group: 'Портал',
       label: 'Администрирование портала',
       description: 'Флаги модулей и журнал аудита',
     },
-  } satisfies Record<Permission, { label: string; description: string }>,
+  } satisfies Record<Permission, { label: string; description: string; group: string }>,
 };

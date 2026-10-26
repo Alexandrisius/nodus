@@ -5,6 +5,8 @@ import { ErrorCode, Permission, roleSchema } from '@nodus/contracts';
 import { setupServer } from 'msw/node';
 import { z } from 'zod';
 
+import { userIds } from '../../mocks/data/users.js';
+
 import { useAuthStore } from '../../auth-store.js';
 import { DEMO_GONE_ROLE_ID, demoRoles } from '../../mocks/data/roles.js';
 import { resetRoleMocks, rolesHandlers } from './roles-handlers.js';
@@ -126,5 +128,81 @@ describe('roles-handlers (#379)', () => {
     expect(response.status).toBe(404);
     const roles = await listRoles();
     expect(roles.some((role) => role.id === DEMO_GONE_ROLE_ID)).toBe(false);
+  });
+
+  const json = { 'content-type': 'application/json' };
+  const roleOf = async (response: Response) => roleSchema.parse(await response.json());
+
+  it('создание: роль появляется, права копируются, чужие — 403', async () => {
+    actor([Permission.ROLE_MANAGE, Permission.TASK_CREATE]);
+    const created = await fetch(BASE, {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({ name: 'Проба', permissions: [Permission.TASK_CREATE] }),
+    });
+    expect(created.status).toBe(201);
+    const role = await roleOf(created);
+    expect(role.isSystem).toBe(false);
+    expect(role.permissions).toEqual([Permission.TASK_CREATE]);
+    expect((await listRoles()).some((item) => item.id === role.id)).toBe(true);
+
+    const denied = await fetch(BASE, {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({ name: 'Эскалация', permissions: [Permission.CORE_ADMIN] }),
+    });
+    expect(denied.status).toBe(403);
+  });
+
+  it('переименование администратора можно, права — нет', async () => {
+    const renamed = await fetch(`${BASE}/${adminRole.id}`, {
+      method: 'PATCH',
+      headers: json,
+      body: JSON.stringify({ name: 'Главный' }),
+    });
+    expect(renamed.status).toBe(200);
+    const locked = await fetch(`${BASE}/${adminRole.id}`, {
+      method: 'PATCH',
+      headers: json,
+      body: JSON.stringify({ permissions: [] }),
+    });
+    expect(locked.status).toBe(409);
+  });
+
+  it('состав: добавить сотрудника и подразделение, счётчики и аватары', async () => {
+    const gip = demoRoles.find((role) => role.code === 'office')!;
+    const before = (await listRoles()).find((role) => role.id === gip.id)!;
+    const added = await fetch(`${BASE}/${gip.id}/members/users/${userIds.matorin}`, {
+      method: 'PUT',
+    });
+    expect(added.status).toBe(200);
+    const after = await roleOf(added);
+    expect(after.memberCount).toBe(before.memberCount + 1);
+    const members = z
+      .object({ users: z.array(z.object({ id: z.string() })) })
+      .parse(await (await fetch(`${BASE}/${gip.id}/members`)).json());
+    expect(members.users.some((user) => user.id === userIds.matorin)).toBe(true);
+    const removed = await fetch(`${BASE}/${gip.id}/members/users/${userIds.matorin}`, {
+      method: 'DELETE',
+    });
+    expect((await roleOf(removed)).memberCount).toBe(before.memberCount);
+  });
+
+  it('удаление: системную и непустую нельзя, пустую можно', async () => {
+    const system = await fetch(`${BASE}/${headRole.id}`, { method: 'DELETE' });
+    expect(system.status).toBe(409);
+    const withPeople = demoRoles.find((role) => role.code === 'gip')!;
+    expect((await fetch(`${BASE}/${withPeople.id}`, { method: 'DELETE' })).status).toBe(409);
+    const empty = demoRoles.find((role) => role.code === 'temporary')!;
+    // «Временная роль» — демо-гонка: удаляется конкурентом (404), а не нами.
+    const other = await roleOf(
+      await fetch(BASE, {
+        method: 'POST',
+        headers: json,
+        body: JSON.stringify({ name: 'Пустая' }),
+      }),
+    );
+    expect((await fetch(`${BASE}/${other.id}`, { method: 'DELETE' })).status).toBe(204);
+    expect(empty.code).toBe('temporary');
   });
 });

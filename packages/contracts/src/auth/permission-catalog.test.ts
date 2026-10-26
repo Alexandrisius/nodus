@@ -1,3 +1,4 @@
+import { updateRoleSchema } from '../directory/role.schemas.js';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -53,5 +54,12 @@ describe('каталог прав (#379)', () => {
       permissionsOfModule(module).map((entry) => entry.permission),
     );
     expect(all).toEqual(PERMISSION_CATALOG.map((entry) => entry.permission));
+  });
+});
+
+describe('updateRoleSchema (#379)', () => {
+  it('правка одного поля не подставляет права и описание по умолчанию', () => {
+    expect(updateRoleSchema.parse({ name: 'Новое имя' })).toEqual({ name: 'Новое имя' });
+    expect(updateRoleSchema.parse({})).toEqual({});
   });
 });

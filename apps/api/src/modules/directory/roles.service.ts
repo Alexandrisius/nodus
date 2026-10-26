@@ -1,3 +1,5 @@
+import { randomBytes } from 'node:crypto';
+
 import { Injectable } from '@nestjs/common';
 import type { CreateRoleDto, Role, UpdateRoleDto } from '@nodus/contracts';
 
@@ -14,6 +16,11 @@ function toRole(row: RoleRow): Role {
     description: row.description,
     isSystem: row.isSystem,
     permissions: row.permissions.map((p) => p.permission) as Role['permissions'],
+    // #379 UI-пакет: заглушка до бэкенд-пакета — реальные счётчики и
+    // аватары даёт состав роли (B1–B3, ADR-0034).
+    memberCount: 0,
+    departmentCount: 0,
+    preview: [],
   };
 }
 
@@ -39,11 +46,12 @@ export class RolesService {
   }
 
   async createRole(dto: CreateRoleDto, actorId: string): Promise<Role> {
-    if (await this.roles.codeExists(dto.code)) {
-      throw DomainException.conflict('Role code already exists', { code: dto.code });
+    const code = dto.code ?? `role-${randomBytes(4).toString('hex')}`;
+    if (await this.roles.codeExists(code)) {
+      throw DomainException.conflict('Role code already exists', { code });
     }
     return this.tx.run(async (tx) => {
-      const created = await this.roles.create(dto, tx);
+      const created = await this.roles.create({ ...dto, code }, tx);
       await this.eventBus.emit(
         tx,
         'directory.role.created',

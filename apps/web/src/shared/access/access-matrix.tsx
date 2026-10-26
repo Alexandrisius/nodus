@@ -1,6 +1,6 @@
-import { useId, useRef, useState } from 'react';
+import { Fragment, useId, useRef, useState, type ReactNode } from 'react';
 import { Lock } from 'lucide-react';
-import { Checkbox } from '@nodus/ui/components/checkbox';
+import { Switch } from '@nodus/ui/components/switch';
 import { NodeLabel } from '@nodus/ui/components/node-label';
 import { Skeleton } from '@nodus/ui/components/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@nodus/ui/components/tooltip';
@@ -27,6 +27,8 @@ export interface AccessMatrixRow {
   readonly id: string;
   readonly label: string;
   readonly description: string;
+  /** Заголовок группы: подряд идущие строки одной группы объединены полосой. */
+  readonly group?: string;
 }
 
 export interface AccessMatrixColumn {
@@ -36,6 +38,8 @@ export interface AccessMatrixColumn {
   readonly title?: string;
   /** Задан → столбец заблокирован: замок в шапке + подсказка. */
   readonly lockedHint?: string;
+  /** Своя шапка столбца (имя, меню, участники): заменяет стандартную подпись. */
+  readonly header?: ReactNode;
 }
 
 export interface AccessMatrixCell {
@@ -48,7 +52,8 @@ export interface AccessMatrixCell {
 }
 
 const ROW_HEADER_W = uiPx(360);
-const ROLE_COL_W = uiPx(152);
+const ROLE_COL_W = uiPx(176);
+const TRAILING_COL_W = uiPx(64);
 
 export function AccessMatrix({
   label,
@@ -59,6 +64,7 @@ export function AccessMatrix({
   onToggle,
   cellLabel,
   describedBy,
+  trailingHeader,
 }: {
   /** Имя таблицы для скринридеров. */
   label: string;
@@ -71,12 +77,18 @@ export function AccessMatrix({
   cellLabel: (row: AccessMatrixRow, column: AccessMatrixColumn) => string;
   /** id видимой подсказки «только просмотр» (aria-describedby таблицы). */
   describedBy?: string;
+  /** Узкий столбец справа от ролей (кнопка «+» — новая роль). */
+  trailingHeader?: ReactNode;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [hovered, setHovered] = useState(false);
   const edge = useBoardEdgeScroll(containerRef, { pan: false, mounted: rows.length > 0 });
   const hintPrefix = useId();
-  const gridTemplateColumns = [ROW_HEADER_W, ...columns.map(() => ROLE_COL_W)]
+  const gridTemplateColumns = [
+    ROW_HEADER_W,
+    ...columns.map(() => ROLE_COL_W),
+    ...(trailingHeader ? [TRAILING_COL_W] : []),
+  ]
     .map((width) => `${width}px`)
     .join(' ');
 
@@ -96,7 +108,7 @@ export function AccessMatrix({
       >
         <div
           role="row"
-          className="sticky top-0 z-10 grid h-12 w-max min-w-full items-center gap-3 border-b border-border/60 bg-card px-4"
+          className="sticky top-0 z-30 grid min-h-12 w-max min-w-full items-center gap-3 border-b border-border/60 bg-card px-4 py-2"
           style={{ gridTemplateColumns }}
         >
           <span role="columnheader" className="sticky left-4 z-20 bg-card px-1">
@@ -111,80 +123,106 @@ export function AccessMatrix({
                 className="flex min-w-0 items-center justify-center gap-1.5 px-1"
                 title={column.title}
               >
-                <NodeLabel label={column.name} className="block min-w-0 truncate" />
-                {column.lockedHint ? (
+                {column.header ?? (
                   <>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          type="button"
-                          aria-label={column.lockedHint}
-                          className="flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground outline-none focus-visible:ring-1 focus-visible:ring-ring/30"
-                        >
-                          <Lock className="size-3.5" strokeWidth={1.75} aria-hidden />
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent>{column.lockedHint}</TooltipContent>
-                    </Tooltip>
-                    <span id={hintId} className="sr-only">
-                      {column.lockedHint}
-                    </span>
+                    <NodeLabel label={column.name} className="block min-w-0 truncate" />
+                    {column.lockedHint ? <LockedBadge hint={column.lockedHint} /> : null}
                   </>
+                )}
+                {column.lockedHint ? (
+                  <span id={hintId} className="sr-only">
+                    {column.lockedHint}
+                  </span>
                 ) : null}
               </span>
             );
           })}
+          {trailingHeader ? (
+            <span role="columnheader" className="flex items-center justify-center">
+              {trailingHeader}
+            </span>
+          ) : null}
         </div>
 
-        {rows.map((row) => (
-          <div
-            role="row"
-            key={row.id}
-            className="group grid min-h-16 w-max min-w-full items-stretch gap-3 border-b border-border/60 px-4 transition-colors last:border-b-0 hover:bg-accent/40"
-            style={{ gridTemplateColumns }}
-          >
-            <span
-              role="rowheader"
-              className="relative sticky left-4 z-10 flex flex-col justify-center gap-0.5 bg-card px-1 py-2 after:pointer-events-none after:absolute after:inset-0 after:-z-10 after:bg-accent/40 after:opacity-0 after:transition-opacity after:content-[''] group-hover:after:opacity-100"
-            >
-              <span className="text-body-xs font-medium">{row.label}</span>
-              <span className="text-xs text-muted-foreground">{row.description}</span>
-            </span>
-            {columns.map((column) => {
-              const state = cell(row.id, column.id);
-              const labelText = cellLabel(row, column);
-              const checkbox = (
-                <Checkbox
-                  checked={state.granted}
-                  disabled={state.disabled}
-                  aria-label={labelText}
-                  aria-busy={state.pending || undefined}
-                  aria-describedby={
-                    column.lockedHint ? `${hintPrefix}-locked-${column.id}` : undefined
-                  }
-                  onCheckedChange={(checked) => onToggle(row.id, column.id, checked === true)}
-                />
-              );
-              return (
-                <span role="cell" key={column.id} className="flex items-center justify-center">
-                  {state.hint ? (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="inline-flex">{checkbox}</span>
-                      </TooltipTrigger>
-                      <TooltipContent>{state.hint}</TooltipContent>
-                    </Tooltip>
-                  ) : (
-                    checkbox
-                  )}
+        {rows.map((row, index) => (
+          <Fragment key={row.id}>
+            {row.group && row.group !== rows[index - 1]?.group ? (
+              <div
+                role="row"
+                className="grid h-10 w-max min-w-full items-center border-b border-border/60 bg-muted/40 px-4"
+                style={{ gridTemplateColumns: '1fr' }}
+              >
+                <span role="columnheader" className="sticky left-4 w-fit px-1">
+                  <NodeLabel label={row.group} />
                 </span>
-              );
-            })}
-          </div>
+              </div>
+            ) : null}
+            <div
+              role="row"
+              className="group grid min-h-16 w-max min-w-full items-stretch gap-3 border-b border-border/60 px-4 transition-colors last:border-b-0 hover:bg-accent/40"
+              style={{ gridTemplateColumns }}
+            >
+              <span
+                role="rowheader"
+                className="relative sticky left-4 z-10 flex flex-col justify-center gap-0.5 bg-card px-1 py-2 after:pointer-events-none after:absolute after:inset-0 after:-z-10 after:bg-accent/40 after:opacity-0 after:transition-opacity after:content-[''] group-hover:after:opacity-100"
+              >
+                <span className="text-body-xs font-medium">{row.label}</span>
+                <span className="text-xs text-muted-foreground">{row.description}</span>
+              </span>
+              {columns.map((column) => {
+                const state = cell(row.id, column.id);
+                const labelText = cellLabel(row, column);
+                const checkbox = (
+                  <Switch
+                    checked={state.granted}
+                    disabled={state.disabled}
+                    aria-label={labelText}
+                    aria-busy={state.pending || undefined}
+                    aria-describedby={
+                      column.lockedHint ? `${hintPrefix}-locked-${column.id}` : undefined
+                    }
+                    onCheckedChange={(checked) => onToggle(row.id, column.id, checked === true)}
+                  />
+                );
+                return (
+                  <span role="cell" key={column.id} className="flex items-center justify-center">
+                    {state.hint ? (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="inline-flex">{checkbox}</span>
+                        </TooltipTrigger>
+                        <TooltipContent>{state.hint}</TooltipContent>
+                      </Tooltip>
+                    ) : (
+                      checkbox
+                    )}
+                  </span>
+                );
+              })}
+            </div>
+          </Fragment>
         ))}
       </div>
       <EdgeHints room={edge.room} hot={edge.hot} show={hovered} />
     </div>
+  );
+}
+
+/** Замок заблокированного столбца с подсказкой (фокусируемый). */
+export function LockedBadge({ hint }: { hint: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          aria-label={hint}
+          className="flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground outline-none focus-visible:ring-1 focus-visible:ring-ring/30"
+        >
+          <Lock className="size-3.5" strokeWidth={1.75} aria-hidden />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent>{hint}</TooltipContent>
+    </Tooltip>
   );
 }
 

@@ -1,7 +1,14 @@
-import { useId, useMemo } from 'react';
+import { ChevronDown, Plus } from 'lucide-react';
+import { useId, useMemo, useState } from 'react';
 import type { AccessModule, Permission, Role } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@nodus/ui/components/dropdown-menu';
 import { Empty, EmptyTitle } from '@nodus/ui/components/empty';
 
 import {
@@ -10,21 +17,35 @@ import {
   useRoles,
   useToggleRolePermission,
 } from '../api/roles.js';
+import { isTempRole } from '../api/role-admin.js';
 import { useAuthStore } from '../auth-store.js';
 import { AccessMatrix, AccessMatrixSkeleton, type AccessMatrixColumn } from './access-matrix.js';
 import { catalogRows, isLockedRole, orderColumns, roleCell } from './access-model.js';
+import { CreateRoleDialog } from './role-dialogs.js';
+import { RoleColumnHeader } from './role-column-header.js';
 import { useCanManageRoles } from './use-can-manage-roles.js';
 
 /** Пустой массив-константа: селектор стора не создаёт новую ссылку на каждый рендер. */
 const NO_PERMISSIONS: readonly string[] = [];
 
-function columnsOf(roles: readonly Role[]): AccessMatrixColumn[] {
-  return orderColumns(roles).map((role) => ({
-    id: role.id,
-    name: role.name,
-    title: role.description ?? undefined,
-    lockedHint: isLockedRole(role) ? ui.access.lockedHint : undefined,
-  }));
+function columnsOf(roles: readonly Role[], canManage: boolean): AccessMatrixColumn[] {
+  return orderColumns(roles).map((role) => {
+    const lockedHint = isLockedRole(role) ? ui.access.lockedHint : undefined;
+    return {
+      id: role.id,
+      name: role.name,
+      title: role.description ?? undefined,
+      lockedHint,
+      header: (
+        <RoleColumnHeader
+          role={role}
+          canManage={canManage}
+          lockedHint={lockedHint}
+          temporary={isTempRole(role)}
+        />
+      ),
+    };
+  });
 }
 
 /**
@@ -43,6 +64,7 @@ export function ModuleAccessMatrix({ module }: { module: AccessModule }) {
   const pending = usePendingRolePermissions();
   const toggle = useToggleRolePermission();
   const readOnlyHintId = useId();
+  const [createFrom, setCreateFrom] = useState<{ copyId?: string } | null>(null);
   const roleById = useMemo(
     () => new Map((roles.data ?? []).map((role) => [role.id, role])),
     [roles.data],
@@ -51,7 +73,7 @@ export function ModuleAccessMatrix({ module }: { module: AccessModule }) {
   // У раздела нет прав — вкладки нет вовсе (её не создаёт `accessTab`).
   if (rows.length === 0) return null;
 
-  const columns = columnsOf(roles.data ?? []);
+  const columns = columnsOf(roles.data ?? [], canManage);
 
   return (
     <div className="relative flex h-full flex-col">
@@ -59,7 +81,33 @@ export function ModuleAccessMatrix({ module }: { module: AccessModule }) {
         <h1 className="shrink-0 text-xl font-semibold text-balance text-foreground">
           {ui.access.title}
         </h1>
-        {canManage ? null : (
+        {canManage ? (
+          <div className="flex items-center gap-2">
+            <Button size="sm" onClick={() => setCreateFrom({})}>
+              <Plus className="size-4" strokeWidth={1.75} />
+              {ui.access.createRole}
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="outline" disabled={!roles.data?.length}>
+                  {ui.access.copyFromRole}
+                  <ChevronDown className="size-4" strokeWidth={1.75} />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                {(roles.data ?? []).map((role) => (
+                  <DropdownMenuItem
+                    key={role.id}
+                    disabled={isTempRole(role)}
+                    onSelect={() => setCreateFrom({ copyId: role.id })}
+                  >
+                    {role.name}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        ) : (
           <span className="ml-auto flex min-w-0 items-center gap-2">
             <span id={readOnlyHintId} className="truncate text-xs text-muted-foreground">
               {ui.access.readOnlyHint}
@@ -90,6 +138,18 @@ export function ModuleAccessMatrix({ module }: { module: AccessModule }) {
             rows={rows}
             columns={columns}
             describedBy={canManage ? undefined : readOnlyHintId}
+            trailingHeader={
+              canManage ? (
+                <button
+                  type="button"
+                  aria-label={ui.access.createRole}
+                  onClick={() => setCreateFrom({})}
+                  className="flex size-8 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors outline-none hover:bg-accent/60 hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring/30"
+                >
+                  <Plus className="size-4" strokeWidth={1.75} />
+                </button>
+              ) : undefined
+            }
             cell={(rowId, columnId) => {
               const role = roleById.get(columnId);
               if (!role) return { granted: false, disabled: true };
@@ -98,7 +158,7 @@ export function ModuleAccessMatrix({ module }: { module: AccessModule }) {
                 permission: rowId as Permission,
                 canManage,
                 actorPermissions,
-                pending: pending.has(rolePermissionKey(role.id, rowId)),
+                pending: isTempRole(role) || pending.has(rolePermissionKey(role.id, rowId)),
               });
             }}
             onToggle={(rowId, columnId, next) =>
@@ -112,6 +172,14 @@ export function ModuleAccessMatrix({ module }: { module: AccessModule }) {
           />
         )}
       </div>
+
+      {createFrom ? (
+        <CreateRoleDialog
+          roles={roles.data ?? []}
+          initialCopyId={createFrom.copyId}
+          onClose={() => setCreateFrom(null)}
+        />
+      ) : null}
 
       <p className="shrink-0 px-6 pb-4 pt-2 text-xs text-muted-foreground">{ui.access.footnote}</p>
     </div>

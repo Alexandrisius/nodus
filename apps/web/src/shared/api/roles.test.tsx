@@ -33,6 +33,9 @@ const makeRole = (overrides: Partial<Role> = {}): Role => ({
   description: 'Руководитель подразделения',
   isSystem: true,
   permissions: [],
+  memberCount: 0,
+  departmentCount: 0,
+  preview: [],
   ...overrides,
 });
 

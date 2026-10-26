@@ -37,6 +37,8 @@ export interface PermissionCatalogEntry {
   readonly module: AccessModule;
   readonly label: string;
   readonly description: string;
+  /** Заголовок группы строк на вкладке («Процессы», «Атрибуты», …). */
+  readonly group: string;
 }
 
 /**

@@ -1,5 +1,8 @@
 import { Permission, type Role } from '@nodus/contracts';
 
+import { departmentIds } from './org-ids.js';
+import { userIds } from './users.js';
+
 /**
  * Демо-роли портала для моков «Прав доступа» (#379, ADR-0034). Форма —
  * `roleSchema` contracts; порядок — как у сервера (системные первыми, далее
@@ -11,7 +14,9 @@ const rid = (n: number): string => `f1000000-0000-4000-8000-${String(n).padStart
 
 const sorted = (...permissions: Permission[]): Permission[] => [...permissions].sort();
 
-export const demoRoles: Role[] = [
+type RoleBase = Omit<Role, 'memberCount' | 'departmentCount' | 'preview'>;
+
+const baseRoles: RoleBase[] = [
   {
     id: rid(1),
     code: 'admin',
@@ -99,6 +104,30 @@ export const demoRoles: Role[] = [
     permissions: sorted(Permission.DIRECTORY_READ),
   },
 ];
+
+/** Роли демо с нулевым составом: счётчики и аватары считает мок-сервер
+ *  по `demoRoleMembers` (состав меняется мутациями). */
+export const demoRoles: Role[] = baseRoles.map((role) => ({
+  ...role,
+  memberCount: 0,
+  departmentCount: 0,
+  preview: [],
+}));
+
+/** Начальный состав демо-ролей: сотрудники и подразделения (ADR-0034). */
+export const demoRoleMembers: Record<string, { userIds: string[]; departmentIds: string[] }> = {
+  [rid(1)]: { userIds: [userIds.shaiderova, userIds.klimovich], departmentIds: [] },
+  [rid(2)]: {
+    userIds: [userIds.vinnichek, userIds.klevantovich, userIds.polomar],
+    departmentIds: [],
+  },
+  [rid(3)]: { userIds: [], departmentIds: [departmentIds.company] },
+  [rid(4)]: { userIds: [userIds.karpovich], departmentIds: [] },
+  [rid(5)]: { userIds: [userIds.klevantovich, userIds.voronina], departmentIds: [] },
+  [rid(6)]: { userIds: [userIds.karpovich], departmentIds: [departmentIds.admin] },
+  [rid(7)]: { userIds: [userIds.klimovich, userIds.matorin], departmentIds: [departmentIds.bim] },
+  [rid(8)]: { userIds: [], departmentIds: [] },
+};
 
 /** id «Временной роли»: мок удаляет её на первой мутации (гонка с удалением). */
 export const DEMO_GONE_ROLE_ID = rid(8);
