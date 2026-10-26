@@ -161,6 +161,36 @@ render: (task) => <PersonCell user={task.assignee} />,   // UserRef | string | n
 
 Поиск по названию/коду с `ProjectIdentityIcon`, значение — projectId; потребитель — экспресс-форма задачи и фильтры. Сброс запроса при закрытии — рендер-тайм.
 
+### AccessMatrix / ModuleAccessMatrix — матрица «право × роль» (`shared/access`)
+
+```tsx
+import { AccessMatrix, AccessMatrixSkeleton } from '../../../shared/access/access-matrix.js';
+import { ModuleAccessMatrix } from '../../../shared/access/module-access-matrix.js';
+
+<AccessMatrix
+  label="Права ролей"                     // имя таблицы для скринридеров
+  rowHeader="Право"                       // заголовок закреплённой колонки
+  rows={[{ id: 'workflow.manage', label: 'Настраивать процессы и маршруты', description: '…' }]}
+  columns={[{ id: role.id, name: role.name, title: role.description ?? undefined,
+              lockedHint: 'Администратор всегда имеет все права' }]}   // lockedHint → замок
+  cell={(rowId, columnId) => ({ granted, disabled, hint?, pending? })}
+  onToggle={(rowId, columnId, next) => …}
+  cellLabel={(row, column) => `${row.label} — ${column.name}`}
+  describedBy="hint-id"                   // видимая подсказка «только просмотр»
+/>
+
+<AccessMatrixSkeleton rowHeader="Право" rows={rows} columns={4} />
+<ModuleAccessMatrix module="automation" />   // тело вкладки раздела; у раздела без прав → null
+```
+
+Сетка в грамматике таблиц: фиксированные px-треки (`uiPx(360)` под право,
+`uiPx(152)` на роль), `w-max min-w-full`, шапка `sticky top-0`, колонка прав
+`sticky left-0` на `bg-card` (ховер строки тонирует её слоем-оверлеем),
+прокрутка подводом к краю (`useBoardEdgeScroll` + `EdgeHints`, только по
+ховеру). Ячейка — `Checkbox` по центру, `aria-label` «{право} — {роль}»,
+недоступность — Tooltip на обёртке-span; для клавиатуры — видимые подсказки
+шапки. Компонент общий: о ролях и правах не знает (#432 переиспользует).
+
 ### NotesGlyph — маркер «Заметок» (`shared/ui/notes-glyph.tsx`)
 
 Глиф сид-диалога с собой в списках бесед/полосе (модель Битрикс24: «Заметки» не дублируют профиль в списке, мок `cid(11)`).
