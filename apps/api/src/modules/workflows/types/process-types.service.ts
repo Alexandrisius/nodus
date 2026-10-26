@@ -23,7 +23,7 @@ import {
 } from '../../../core/ports/role-membership.port.js';
 import { WorkflowEntityRegistry } from '../workflow/engine/entity-adapter.registry.js';
 import { WorkflowRepository } from '../workflow/workflow.repository.js';
-import { processTypeDto, type ProcessTypeRow } from './process-type.mapper.js';
+import { maskCreationPresets, processTypeDto, type ProcessTypeRow } from './process-type.mapper.js';
 import { ProcessTypesRepository } from './process-types.repository.js';
 import { typeSubjectOf } from './type-subject.js';
 
@@ -66,10 +66,12 @@ export class ProcessTypesService {
     return rows
       .map((row) => {
         const workflowId = workflowMap.get(row.id) ?? '';
-        return processTypeDto(row, workflowId, {
+        const type = processTypeDto(row, workflowId, {
           creation: creations.get(workflowId),
           subject,
         });
+        // Значения скрытых полей формы — только тому, кто настраивает процессы.
+        return manage ? type : maskCreationPresets(type);
       })
       .filter((type) => manage || type.viewer.canView);
   }

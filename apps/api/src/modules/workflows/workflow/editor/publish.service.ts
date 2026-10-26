@@ -21,6 +21,10 @@ import {
 import { DomainException } from '../../../../core/errors/domain-exception.js';
 import { EventBus } from '../../../../core/events/event-bus.js';
 import {
+  ROLE_MEMBERSHIP_READER,
+  type RoleMembershipReader,
+} from '../../../../core/ports/role-membership.port.js';
+import {
   USER_PROFILE_READER,
   type UserProfileReader,
 } from '../../../../core/ports/user-profile.port.js';
@@ -42,7 +46,9 @@ import {
   type WorkflowPublishPlan,
 } from './publish-planner.js';
 import { WorkflowPublishRepository } from './publish.repository.js';
+import { ProcessTypesRepository } from '../../types/process-types.repository.js';
 import { WorkflowRepository, type LoadedWorkflow } from '../workflow.repository.js';
+import { assertWorkflowVisible } from './workflow-visibility.js';
 import { WorkflowEntityRegistry } from '../engine/entity-adapter.registry.js';
 
 const NO_RULES = { conditions: [], validators: [], postFunctions: [] };
@@ -65,16 +71,23 @@ export class WorkflowEditorService {
     private readonly adapters: WorkflowEntityRegistry,
     @Inject(USER_PROFILE_READER) private readonly profiles: UserProfileReader,
     @Inject(CUSTOM_FIELD_REGISTRY) private readonly customFields: CustomFieldRegistry,
+    @Inject(ROLE_MEMBERSHIP_READER) private readonly membership: RoleMembershipReader,
+    private readonly types: ProcessTypesRepository,
   ) {}
 
-  /** GET /workflows/:id — документ живого маршрута + счётчики. */
-  async read(workflowId: string): Promise<WorkflowDetail> {
+  /** GET /workflows/:id — документ живого маршрута + счётчики. Маршрут
+   *  скрытого типа читателю без `workflow.manage` не отдаётся (#432). */
+  async read(
+    workflowId: string,
+    user: Pick<AuthUser, 'id' | 'permissions'>,
+  ): Promise<WorkflowDetail> {
     const workflow = await this.findTypeWorkflow(workflowId);
     const [row, typeIds, category] = await Promise.all([
       this.workflows.load(workflowId),
       this.workflows.typeIdsOf(workflowId),
       this.workflows.categoryOf(workflowId),
     ]);
+    await assertWorkflowVisible(this.types, this.membership, typeIds, user);
     const stageEntityCounts = await this.adapters
       .get(category)
       .countByStages(row.stages.map((s) => s.id));

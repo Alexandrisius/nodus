@@ -65,3 +65,22 @@ export function processTypeDto(
       : { canView: true, canCreate: row.creatable },
   };
 }
+
+/**
+ * Скрытые значения формы — служебные (#432, security-ревью): значение
+ * пресета ставит СЕРВЕР, клиенту оно не нужно, а в списке типов его видит
+ * каждый, кому виден тип. Смотрящему без `workflow.manage` значения
+ * заменяются пустой строкой: признак «поле скрыто» (`preset !== null`)
+ * сохраняется, поэтому окно создания по-прежнему не рисует эти поля.
+ */
+export function maskCreationPresets(type: ProcessType): ProcessType {
+  return {
+    ...type,
+    creationForm: {
+      ...type.creationForm,
+      fields: type.creationForm.fields.map((slot) =>
+        slot.preset === null ? slot : { ...slot, preset: '' },
+      ),
+    },
+  };
+}

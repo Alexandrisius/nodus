@@ -37,7 +37,7 @@ import {
 } from '../../workflows/ports/workflow-field-usage.port.js';
 import { DefinitionMapper, type FieldDefinitionRow } from './definition.mapper.js';
 import { emitDefinitionChanged } from './definition-events.js';
-import { assertBindable } from './type-bindings.js';
+import { assertBindable, assertUnbindable } from './type-bindings.js';
 import { DefinitionsRepository, type FieldDefinitionWriteData } from './definitions.repository.js';
 import { CustomFieldValueValidator } from '../values/value-validator.js';
 
@@ -153,6 +153,16 @@ export class DefinitionsService {
     await this.assertSettingsUsable(nextType, nextSettings.dictionaryId, nextSettings.currencyId);
     if (dto.typeIds !== undefined) {
       await assertBindable(this.catalog, current.scope, dto.typeIds);
+      // Снятие привязки тем же телом (#432, security-ревью): тип, где атрибут
+      // работает в опубликованном маршруте, из набора убрать нельзя.
+      await assertUnbindable(
+        this.workflows,
+        current.scope as CustomFieldScope,
+        id,
+        current.typeBindings
+          .map((binding) => binding.processTypeId)
+          .filter((typeId) => !dto.typeIds!.includes(typeId)),
+      );
     }
     if (nextDefault?.kind === 'static') {
       const issues = await this.validator.validate(

@@ -42,8 +42,8 @@ export class WorkflowEditorController {
   @ApiOperation({ summary: 'Документ маршрута + версия + счётчики сущностей по статусам' })
   @ApiOkResponse({ standardSchema: workflowDetailSchema })
   @ApiErrors(400, 401, 404)
-  read(@Param('id', uuid) id: string): Promise<WorkflowDetail> {
-    return this.editor.read(id);
+  read(@GetUser() user: AuthUser, @Param('id', uuid) id: string): Promise<WorkflowDetail> {
+    return this.editor.read(id, user);
   }
 
   @Post(':id/publish')

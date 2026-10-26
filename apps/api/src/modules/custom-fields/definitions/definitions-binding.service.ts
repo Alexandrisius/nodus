@@ -1,7 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { PinoLogger } from 'nestjs-pino';
 import type { CustomFieldDefinition, CustomFieldScope } from '@nodus/contracts';
-import { ErrorCode } from '@nodus/contracts';
 
 import {
   TransactionRunner,
@@ -20,7 +19,7 @@ import {
 import { DefinitionMapper, type FieldDefinitionRow } from './definition.mapper.js';
 import { emitDefinitionChanged } from './definition-events.js';
 import { DefinitionsRepository } from './definitions.repository.js';
-import { assertBindable } from './type-bindings.js';
+import { assertBindable, assertUnbindable } from './type-bindings.js';
 
 /**
  * Привязка атрибута к типам процессов (#432, Р8): точечные PUT/DELETE.
@@ -59,14 +58,7 @@ export class DefinitionsBindingService {
   async unbind(id: string, typeId: string, actorId: string): Promise<CustomFieldDefinition> {
     const definition = await this.require(id);
     const scope = definition.scope as CustomFieldScope;
-    const usage = await this.workflows.workflowsUsingField(scope, id, { typeId });
-    if (usage.length > 0) {
-      throw new DomainException(
-        ErrorCode.CUSTOM_FIELD_IN_USE,
-        'Custom field is used by the type workflow',
-        { workflows: usage },
-      );
-    }
+    await assertUnbindable(this.workflows, scope, id, [typeId]);
     return this.txRunner.run(async (tx) => {
       await this.definitions.lockScope(scope, tx);
       await this.definitions.unbindType(id, typeId, tx);

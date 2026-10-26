@@ -296,3 +296,33 @@ describe('DefinitionsService: привязка к типам (#432, Р8)', () =>
     );
   });
 });
+
+describe('DefinitionsService: снятие привязки через PATCH (#432, security)', () => {
+  it('убрать из typeIds тип, где атрибут работает в маршруте, — 409', async () => {
+    const { service, definitions, workflows } = makeService({
+      workflows: [{ id: 'w-1', name: 'Переработка' }],
+    });
+    definitions.findById.mockResolvedValue({
+      ...ROW,
+      typeBindings: [{ processTypeId: 't-1' }],
+    });
+    await expect(service.update(ROW.id, { typeIds: [] } as never, 'actor-1')).rejects.toMatchObject(
+      {
+        code: ErrorCode.CUSTOM_FIELD_IN_USE,
+        details: { workflows: [{ id: 'w-1', name: 'Переработка' }] },
+      },
+    );
+    expect(workflows.workflowsUsingField).toHaveBeenCalledWith('task', ROW.id, { typeId: 't-1' });
+    expect(definitions.replaceTypes).not.toHaveBeenCalled();
+  });
+
+  it('убрать непривязанный к маршруту тип можно', async () => {
+    const { service, definitions } = makeService();
+    definitions.findById.mockResolvedValue({
+      ...ROW,
+      typeBindings: [{ processTypeId: 't-1' }],
+    });
+    await service.update(ROW.id, { typeIds: [] } as never, 'actor-1');
+    expect(definitions.replaceTypes).toHaveBeenCalledWith(ROW.id, [], expect.anything());
+  });
+});

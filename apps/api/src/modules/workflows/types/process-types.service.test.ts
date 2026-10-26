@@ -257,3 +257,36 @@ describe('ProcessTypesService: конфигурация типа и доступ
     ]);
   });
 });
+
+describe('ProcessTypesService: скрытые значения формы (#432, security)', () => {
+  const rows = [
+    { id: 't-1', code: 'c1', name: 'Переработка', category: 'task', config: {}, creatable: true },
+  ];
+  const form = {
+    fields: [{ key: 'assignee', label: null, required: false, preset: 'user-secret' }],
+    chips: [],
+  };
+
+  it('сотрудник без workflow.manage не видит значения пресетов, но поле остаётся скрытым', async () => {
+    const { service, repo, workflows } = setup({ rows });
+    repo.workflowMap.mockResolvedValue(new Map([['t-1', 'wf-1']]));
+    repo.creationMap.mockResolvedValue(new Map([['wf-1', form]]));
+    workflows.creationOf.mockResolvedValue(form);
+    const [type] = await service.list(USER, 'exclude');
+    const slot = type!.creationForm.fields[0]!;
+    expect(slot.preset).toBe('');
+    expect(slot.preset).not.toBeNull();
+  });
+
+  it('настройщик процессов видит настоящие значения', async () => {
+    const { service, repo, workflows } = setup({ rows });
+    repo.workflowMap.mockResolvedValue(new Map([['t-1', 'wf-1']]));
+    repo.creationMap.mockResolvedValue(new Map([['wf-1', form]]));
+    workflows.creationOf.mockResolvedValue(form);
+    const [type] = await service.list(
+      { id: 'u1', permissions: ['workflow.manage'] } as never,
+      'exclude',
+    );
+    expect(type!.creationForm.fields[0]!.preset).toBe('user-secret');
+  });
+});
