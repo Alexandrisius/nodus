@@ -99,6 +99,11 @@ export class ProcessTypesService {
         sortOrder,
       });
       const workflowId = await this.copyBase(tx, user.id, type.name, body);
+      // Копия типа несёт привязки атрибутов основы: окна скопированного
+      // маршрута ссылаются на те же атрибуты (#432, Р8).
+      if (body.base.kind === 'copy') {
+        await this.repo.copyTypeBindings(tx, body.base.typeId, type.id);
+      }
       await this.repo.attachToDefaultScheme(tx, type.id, workflowId);
       await this.eventBus.emit(
         tx,

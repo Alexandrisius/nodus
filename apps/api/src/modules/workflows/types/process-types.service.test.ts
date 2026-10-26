@@ -41,6 +41,7 @@ function setup(
     createSimpleWorkflow: vi.fn(async () => 'wf-simple'),
     workflowIdOf: vi.fn(async () => 'wf-src'),
     copyWorkflow: vi.fn(async () => 'wf-copy'),
+    copyTypeBindings: vi.fn(async () => void 0),
   };
   const workflows = {
     load: vi.fn(async () => ({ id: 'wf-src', stages: [], transitions: [] })),
@@ -95,12 +96,14 @@ describe('ProcessTypesService (#378)', () => {
     );
   });
 
-  it('основа «копия типа»: маршрут источника копируется новыми id', async () => {
+  it('основа «копия типа»: маршрут и привязки атрибутов копируются новыми id', async () => {
     const { service, repo, workflows } = setup();
     const created = await service.create(USER, body({ kind: 'copy', typeId: 'src-type' }));
     expect(repo.workflowIdOf).toHaveBeenCalledWith('src-type');
     expect(workflows.load).toHaveBeenCalledWith('wf-src', TX);
     expect(created.workflowId).toBe('wf-copy');
+    // Окна скопированного маршрута ссылаются на те же атрибуты (#432, Р8).
+    expect(repo.copyTypeBindings).toHaveBeenCalledWith(TX, 'src-type', 'new-type');
   });
 
   it('основа — архивный тип: 404, ничего не создаётся', async () => {

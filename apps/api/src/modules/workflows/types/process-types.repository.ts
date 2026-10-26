@@ -188,6 +188,25 @@ export class ProcessTypesRepository {
     return created.id;
   }
 
+  /** Привязки атрибутов основы → новому типу (#432): копия типа работает
+   *  как оригинал — окна скопированного маршрута ссылаются на те же
+   *  атрибуты, и без привязок публикация копии падала бы `custom_field_not_in_type`. */
+  async copyTypeBindings(
+    tx: TransactionClient,
+    fromTypeId: string,
+    toTypeId: string,
+  ): Promise<void> {
+    const rows = await tx.fieldDefinitionType.findMany({
+      where: { processTypeId: fromTypeId },
+      select: { definitionId: true },
+    });
+    if (rows.length === 0) return;
+    await tx.fieldDefinitionType.createMany({
+      data: rows.map((row) => ({ definitionId: row.definitionId, processTypeId: toTypeId })),
+      skipDuplicates: true,
+    });
+  }
+
   async attachToDefaultScheme(tx: TransactionClient, typeId: string, workflowId: string) {
     const scheme = await tx.workflowScheme.findFirstOrThrow({ where: { isDefault: true } });
     await tx.workflowSchemeEntry.upsert({
