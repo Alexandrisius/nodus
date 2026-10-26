@@ -26,6 +26,11 @@ export const roleSchema = z.object({
 
 export type Role = z.infer<typeof roleSchema>;
 
+/** Системная роль с неизменяемыми правами: `PUT/DELETE …/permissions`,
+ *  PATCH с `permissions` → `409 ROLE_LOCKED` (ADR-0034). Имя и описание
+ *  менять можно; удаление запрещено флагом `isSystem`. */
+export const SystemRole = { ADMIN: 'admin' } as const;
+
 export const createRoleSchema = z.object({
   code: roleCodeSchema,
   name: z.string().trim().min(1).max(128),

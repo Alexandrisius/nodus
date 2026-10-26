@@ -2,6 +2,7 @@ export * from './health/health-response.schema.js';
 export * from './errors/error-codes.js';
 export * from './errors/api-error-response.schema.js';
 export * from './auth/permission.js';
+export * from './auth/permission-catalog.js';
 export * from './auth/auth-user.js';
 export * from './auth/auth.schemas.js';
 export * from './directory/user.schemas.js';

@@ -86,6 +86,10 @@ const CODE_TO_STATUS: Record<ErrorCode, number> = {
   [ErrorCode.CUSTOM_FIELD_IN_USE]: HttpStatus.CONFLICT,
   [ErrorCode.DICTIONARY_SYSTEM_LOCKED]: HttpStatus.CONFLICT,
   [ErrorCode.DICTIONARY_ITEM_NAME_TAKEN]: HttpStatus.CONFLICT,
+  // Права доступа модулей (#379, ADR-0034): неизменяемая роль администратора —
+  // конфликт состояния; выдача права, которого нет у актора, — запрет.
+  [ErrorCode.ROLE_LOCKED]: HttpStatus.CONFLICT,
+  [ErrorCode.ROLE_PERMISSION_NOT_HELD]: HttpStatus.FORBIDDEN,
 };
 
 /** Код для HTTP-исключений Nest/Fastify (400 у нас — всегда валидация входа). */

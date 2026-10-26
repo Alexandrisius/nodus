@@ -1,5 +1,6 @@
 import { ErrorCode } from '../errors/error-codes.js';
 
+import { accessStrings } from './ru-access.js';
 import { automationStrings } from './ru-automation.js';
 import { chatStrings } from './ru-chat.js';
 import { lettersStrings } from './ru-correspondence.js';
@@ -70,6 +71,8 @@ export const errorMessages: Record<ErrorCode, string> = {
     'Атрибут стоит в маршрутах процессов — сначала уберите его оттуда',
   [ErrorCode.DICTIONARY_SYSTEM_LOCKED]: 'Системный справочник изменить нельзя',
   [ErrorCode.DICTIONARY_ITEM_NAME_TAKEN]: 'Такой вариант уже есть в списке',
+  [ErrorCode.ROLE_LOCKED]: 'Права администратора не меняются — у него всегда все права',
+  [ErrorCode.ROLE_PERMISSION_NOT_HELD]: 'Выдать можно только право, которое есть у вас',
 };
 
 /**
@@ -235,6 +238,7 @@ export const ui = {
   },
   tasks: tasksStrings,
   automation: automationStrings,
+  access: accessStrings,
   customFields: customFieldsStrings,
   letters: lettersStrings,
   counterparties: counterpartiesStrings,
