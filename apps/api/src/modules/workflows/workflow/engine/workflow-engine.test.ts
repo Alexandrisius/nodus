@@ -79,6 +79,7 @@ function makeEngine(subject: Partial<WorkflowActorSubject> = {}) {
     lock: vi.fn(async () => void 0),
     subject: vi.fn(async () => ({
       workflowId: 'wf',
+      typeId: 'type',
       stageId: STAGE_ACTIVE,
       roles: new Set(['assignee']),
       bypassConditions: false,
@@ -93,7 +94,14 @@ function makeEngine(subject: Partial<WorkflowActorSubject> = {}) {
   const workflows = { load: vi.fn(async () => structuredClone(workflow)) };
   const records = { insert: vi.fn(async () => void 0) };
   return {
-    engine: new WorkflowEngine(workflows as never, registry as never, records as never),
+    engine: new WorkflowEngine(
+      workflows as never,
+      registry as never,
+      records as never,
+      {
+        nextForType: vi.fn(),
+      } as never,
+    ),
     adapter,
     registry,
     workflows,

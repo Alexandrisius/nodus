@@ -45,8 +45,8 @@ export function checkFormInput(
 
   for (const section of sections) {
     switch (section.kind) {
-      // #55 UI-пакет: заглушка до бэкенд-пакета — ключ разрешён и обязателен;
-      // содержимое проверяет адаптер письма (B3/B4).
+      // Раздел «Регистрация» (#55): содержимое проверяет адаптер письма —
+      // движок лишь требует сам объект и не пускает ключ в чужие окна.
       case 'registration':
         allowed.add('registration');
         if (!input.registration) missing.push('registration');

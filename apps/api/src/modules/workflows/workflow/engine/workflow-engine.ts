@@ -21,6 +21,7 @@ import type {
   TransitionExecution,
   WorkflowEnginePort,
 } from '../../ports/workflow-engine.port.js';
+import { NumberSeriesService } from '../../numbering/number-series.service.js';
 import {
   effectiveTargetId,
   evaluateValidators,
@@ -62,6 +63,7 @@ export class WorkflowEngine implements WorkflowEnginePort {
     private readonly workflows: WorkflowRepository,
     private readonly adapters: WorkflowEntityRegistry,
     private readonly records: TransitionRecordsRepository,
+    private readonly numbers: NumberSeriesService,
   ) {}
 
   async available(
@@ -121,6 +123,9 @@ export class WorkflowEngine implements WorkflowEnginePort {
     if (pick.reasons.length > 0) this.assertOverride(pick.reasons, subject1, opts);
 
     const target = this.stage(workflow, effectiveTargetId(pick.t, subject1.facts, workflow.stages));
+    // Пост-действие «Присвоить номер» (#55, Р1): номер выдаётся в этой же
+    // транзакции ДО смены стадии — откат перехода не сдвигает счётчик.
+    const numbering = await this.assignNumber(tx, subject1, pick.t);
     const recordId = randomUUID();
     const fromStage =
       workflow.stages.find((s) => s.id === subject0.stageId) ??
@@ -136,6 +141,7 @@ export class WorkflowEngine implements WorkflowEnginePort {
       comment: opts.form?.comment,
       commentLabel: this.commentLabelOf(pick.t),
       result: applied.result ?? undefined,
+      ...(numbering ? { numbering } : {}),
     } satisfies WorkflowStageChangeMeta);
     await this.records.insert(tx, {
       id: recordId,
@@ -150,10 +156,23 @@ export class WorkflowEngine implements WorkflowEnginePort {
       participantId: null,
       comment: opts.form?.comment ?? null,
       resultId: applied.result?.resultId ?? null,
-      fields: applied.fields,
+      fields: numbering
+        ? { ...applied.fields, number: { from: null, to: numbering.display } }
+        : applied.fields,
       timeEntryId: applied.timeEntryId,
     });
     return { stage: target, recordId };
+  }
+
+  /** Пост-функция `assign_number`: номер из серии типа сущности. Тип без
+   *  серии — 409 (маршрут с нумерацией без конфигурации неисполним). */
+  private async assignNumber(
+    tx: TransactionClient,
+    subject: WorkflowActorSubject,
+    t: TransitionDef,
+  ): Promise<WorkflowStageChangeMeta['numbering']> {
+    if (!t.rules.postFunctions.some((pf) => pf.kind === 'assign_number')) return undefined;
+    return this.numbers.nextForType(tx, subject.typeId);
   }
 
   /** Выбор кнопки: явная — она; DnD/«Мой план» — первая без обязательного

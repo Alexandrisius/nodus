@@ -65,6 +65,7 @@ function setup(transitions: TransitionDef[], subjectFacts: () => typeof facts = 
       order.push('subject');
       return {
         workflowId: 'wf',
+        typeId: 'type',
         stageId: ACTIVE,
         roles: new Set(['assignee']),
         bypassConditions: false,
@@ -93,6 +94,7 @@ function setup(transitions: TransitionDef[], subjectFacts: () => typeof facts = 
     workflows as never,
     { get: () => adapter } as never,
     records as never,
+    { nextForType: vi.fn() } as never,
   );
   return { engine, adapter, records, order, wasApplied: () => applied };
 }

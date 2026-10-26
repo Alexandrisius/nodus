@@ -37,6 +37,7 @@ function setup(
     list: vi.fn(async () => opts.rows ?? []),
     workflowMap: vi.fn(async () => new Map<string, string>()),
     creationMap: vi.fn(async () => new Map<string, unknown>()),
+    seriesRefs: vi.fn(async () => []),
     attachToDefaultScheme: vi.fn(async () => void 0),
     createSimpleWorkflow: vi.fn(async () => 'wf-simple'),
     workflowIdOf: vi.fn(async () => 'wf-src'),
@@ -124,13 +125,24 @@ describe('ProcessTypesService (#378)', () => {
     expect(repo.copyWorkflow).not.toHaveBeenCalled();
   });
 
-  it('категория без адаптера сущности — 409 (письма до #55)', async () => {
+  it('категория без адаптера сущности — 409 CONFLICT', async () => {
     const { service, repo } = setup();
     const svc = service as unknown as { adapters: { has: (c: string) => boolean } };
     svc.adapters.has = () => false;
     await expect(
-      service.create(USER, body({ kind: 'simple' }, { category: 'letter', direction: 'incoming' })),
+      service.create(USER, body({ kind: 'simple' }, { category: 'future', direction: 'incoming' })),
     ).rejects.toMatchObject({ code: ErrorCode.CONFLICT });
+    expect(repo.createType).not.toHaveBeenCalled();
+  });
+
+  it('каталог писем под замком: новый тип письма — 409 letter_catalog (#55, Р4)', async () => {
+    const { service, repo } = setup();
+    await expect(
+      service.create(USER, body({ kind: 'simple' }, { category: 'letter', direction: 'incoming' })),
+    ).rejects.toMatchObject({
+      code: ErrorCode.PROCESS_TYPE_SYSTEM_LOCKED,
+      details: { reason: 'letter_catalog' },
+    });
     expect(repo.createType).not.toHaveBeenCalled();
   });
 

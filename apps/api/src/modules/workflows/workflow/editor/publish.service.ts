@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import {
   DEFAULT_TRANSITION_FORM,
   ErrorCode,
+  normalizeTypeConfig,
   Permission,
   WORKFLOW_EVENTS,
   type AuthUser,
@@ -32,6 +33,7 @@ import {
   CUSTOM_FIELD_REGISTRY,
   type CustomFieldRegistry,
 } from '../../../custom-fields/ports/custom-field-registry.port.js';
+import { assertLetterCatalogEditable } from '../../catalog/letter-lock.js';
 import { documentOf } from './document-of.js';
 import { liveLayout, resolveLayout } from './layout.js';
 import { checkDocumentForPublish, serverChecksOf } from './publish-checks.js';
@@ -115,6 +117,11 @@ export class WorkflowEditorService {
     return this.txRunner.run(async (tx) => {
       await this.workflows.lockForUpdate(tx, workflowId);
       const workflow = await this.findTypeWorkflow(workflowId, tx);
+      // Каталог писем — только просмотр до #463/#464 (Р4).
+      assertLetterCatalogEditable({
+        category: await this.workflows.categoryOf(workflowId, tx),
+        direction: await this.workflows.letterDirectionOf(workflowId, tx),
+      });
       if (workflow.version !== body.baseVersion) {
         throw new DomainException(
           ErrorCode.WORKFLOW_VERSION_CONFLICT,
@@ -128,9 +135,16 @@ export class WorkflowEditorService {
       // Форма создания проверяется против типа этого маршрута (#432): форма
       // ссылается на атрибуты, привязанные к типу, а пресеты — на живых.
       const typeIds = await this.workflows.typeIdsOf(workflowId, tx);
+      const typeRow = typeIds[0] ? (await this.types.findByIds([typeIds[0]]))[0] : undefined;
       await checkDocumentForPublish(
         { registry: this.customFields, profiles: this.profiles },
-        { document: body.document, category, typeId: typeIds[0], tx },
+        {
+          document: body.document,
+          category,
+          typeId: typeIds[0],
+          numberingConfigured: Boolean(normalizeTypeConfig(typeRow?.config).numbering),
+          tx,
+        },
       );
       const loaded = await this.workflows.load(workflowId, tx);
       serverChecksOf(loaded, body.document, body.migrations);
@@ -216,6 +230,11 @@ export class WorkflowEditorService {
     return this.txRunner.run(async (tx) => {
       await this.workflows.lockForUpdate(tx, workflowId);
       const workflow = await this.findTypeWorkflow(workflowId, tx);
+      // Расстановка холста письма — тоже правка каталога (Р4).
+      assertLetterCatalogEditable({
+        category: await this.workflows.categoryOf(workflowId, tx),
+        direction: await this.workflows.letterDirectionOf(workflowId, tx),
+      });
       const loaded = await this.workflows.load(workflowId, tx);
       const live = {
         stageIds: new Set(loaded.stages.map((s) => s.id)),

@@ -170,6 +170,7 @@ function makeService(
     })),
     load: vi.fn(async () => loaded),
     categoryOf: vi.fn(async () => 'task'),
+    letterDirectionOf: vi.fn(async () => null),
     typeIdsOf: vi.fn(async () => ['type-1']),
   };
   const adapters = { get: vi.fn(() => ({ countByStages: vi.fn(async () => taskCounts) })) };

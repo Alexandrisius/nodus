@@ -72,6 +72,7 @@ export class TaskWorkflowAdapter implements WorkflowEntityAdapter {
     const definitions = await this.customFields.definitions('task', {}, tx);
     return {
       workflowId: task.workflowId,
+      typeId: task.typeId,
       stageId: task.stageId,
       roles: new Set<string>(roles),
       bypassConditions: actor.permissions.includes(Permission.TASK_MANAGE_ANY),
@@ -91,8 +92,9 @@ export class TaskWorkflowAdapter implements WorkflowEntityAdapter {
     actor: WorkflowActor,
     input: TransitionFormInput,
   ): Promise<WorkflowFormApplied> {
-    // #55 UI-пакет: заглушка до бэкенд-пакета — раздел «Регистрация» есть
-    // только у писем; задача его не исполняет (страховка поверх сверки окна).
+    // Раздел «Регистрация» есть только у писем; задача его не исполняет
+    // (страховка поверх сверки окна — проверки документа не пускают раздел
+    // в задачный маршрут).
     if (input.registration) {
       throw new DomainException(
         ErrorCode.WORKFLOW_TRANSITION_FORM_INVALID,

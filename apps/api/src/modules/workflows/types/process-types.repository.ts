@@ -38,6 +38,15 @@ export class ProcessTypesRepository {
     return this.prisma.processType.findMany({ where: { id: { in: [...ids] } } });
   }
 
+  /** Серии нумерации пачкой (#55): префикс для DTO типа. */
+  seriesRefs(ids: readonly string[]): Promise<{ id: string; prefix: string }[]> {
+    if (ids.length === 0) return Promise.resolve([]);
+    return this.prisma.numberSeries.findMany({
+      where: { id: { in: [...ids] } },
+      select: { id: true, prefix: true },
+    });
+  }
+
   /** Системный тип по коду каталога (запасной тип создания). */
   findByCode(code: string) {
     return this.prisma.processType.findUnique({ where: { code } });

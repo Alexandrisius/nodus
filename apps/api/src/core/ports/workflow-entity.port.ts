@@ -50,6 +50,9 @@ export interface WorkflowGateFacts {
 export interface WorkflowActorSubject {
   /** Маршрут, по которому сущность идёт сейчас. */
   workflowId: string;
+  /** Тип процесса сущности: из его `config.numbering` движок берёт серию
+   *  для пост-действия `assign_number` (#55). */
+  typeId: string;
   /** Текущая стадия сущности. */
   stageId: string;
   /** Роли актора в словаре категории (задача — постановщик/ответственный/…). */
@@ -93,6 +96,16 @@ export interface WorkflowStageChangeMeta {
   /** Текст раздела «Причина / комментарий» окна и его подпись. */
   comment?: string;
   commentLabel?: string;
+  /** Номер, выданный пост-действием `assign_number` (#55): адаптер письма
+   *  пишет регистрационные поля в той же транзакции. */
+  numbering?: {
+    seriesId: string;
+    year: number;
+    seq: number;
+    /** «Вх-2026/118». */
+    display: string;
+    assignedAt: Date;
+  };
   /** Итог, созданный переходом (файлы — по живым вложениям). */
   result?: { resultId: string; fileCount: number; messageCount: number };
 }

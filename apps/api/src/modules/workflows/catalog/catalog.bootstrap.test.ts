@@ -1,133 +1,9 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { WORKFLOW_EVENTS } from '@nodus/contracts';
 
-import { CatalogBootstrap, stageDrift } from './catalog.bootstrap.js';
-import { CATALOG_REVISION, CATALOG_PROCESS_TYPES } from './system-catalog.js';
-
-type StageOverride = Partial<{
-  systemState: string;
-  sortOrder: number;
-  name: string;
-  outcome: string | null;
-}>;
-
-interface DbState {
-  /** код маршрута → { customizedAt, catalogRevision }. */
-  workflows: Record<string, { customizedAt: Date | null; catalogRevision: number }>;
-  /** typeId → customizedAt. */
-  typeCustomized: Record<string, Date | null>;
-  stageOverrides: Record<string, StageOverride>;
-  /** Живые переходы вне каталога (ревизия 1: complete_new, postpone_new). */
-  legacyTransitions: { id: string; code: string }[];
-  /** Маршруты без стадий в БД (новая установка): id workflow. */
-  emptyWorkflows: string[];
-}
-
-const STANDARD = CATALOG_PROCESS_TYPES[0]!.workflow;
-const QUICK = CATALOG_PROCESS_TYPES[1]!.workflow;
-const CODE_BY_ID: Record<string, string> = {
-  'wf-standard': STANDARD.code,
-  'wf-quick': QUICK.code,
-};
-
-/** id стадий — детерминированные uuid (цели route_if валидируются zod). */
-const uuidFor = (code: string): string => {
-  const codes = [...STANDARD.stages, ...QUICK.stages].map((s) => s.code);
-  const index = codes.indexOf(code);
-  return `00000000-0000-4000-8000-00000000${String(index).padStart(4, '0')}`;
-};
-
-/** Мок БД: по умолчанию текущая ревизия применена везде; validate семантики
- *  «засев один раз». */
-function setup(state: Partial<DbState> = {}) {
-  const applied = { customizedAt: null, catalogRevision: CATALOG_REVISION };
-  const workflows: DbState['workflows'] = {
-    [STANDARD.code]: applied,
-    [QUICK.code]: applied,
-    ...(state.workflows ?? {}),
-  };
-  const typeCustomized = state.typeCustomized ?? {};
-  const stageRow = (workflowId: string, code: string) => {
-    const def = workflowId === 'wf-standard' ? STANDARD : QUICK;
-    const index = def.stages.findIndex((s) => s.code === code);
-    const s = def.stages[index]!;
-    return {
-      id: uuidFor(code),
-      name: s.name,
-      color: s.color,
-      sortOrder: index,
-      systemState: s.systemState,
-      outcome: s.outcome ?? null,
-      isInitial: s.isInitial ?? false,
-      ...((state.stageOverrides ?? {})[code] ?? {}),
-    };
-  };
-  const created: string[] = [];
-  const repo = {
-    ensureType: vi
-      .fn()
-      .mockImplementation((_tx: unknown, def: { code: string }) =>
-        Promise.resolve({ id: `type-${def.code}` }),
-      ),
-    ensureDefaultScheme: vi.fn().mockResolvedValue({ id: 'scheme' }),
-    ensureSchemeEntry: vi.fn(),
-    lockWorkflow: vi.fn(),
-    seedState: vi
-      .fn()
-      .mockImplementation((_tx: unknown, id: string) =>
-        Promise.resolve(workflows[CODE_BY_ID[id]!]!),
-      ),
-    isTypeCustomized: vi
-      .fn()
-      .mockImplementation((_tx: unknown, id: string) =>
-        Promise.resolve((typeCustomized[id] ?? null) !== null),
-      ),
-    applyTypeRevision: vi.fn(),
-    applyWorkflowRevision: vi.fn().mockResolvedValue(5),
-    ensureWorkflow: vi
-      .fn()
-      .mockImplementation((_tx: unknown, def: { code: string }) =>
-        Promise.resolve({ id: def.code === STANDARD.code ? 'wf-standard' : 'wf-quick' }),
-      ),
-    findStage: vi
-      .fn()
-      .mockImplementation((_tx: unknown, wf: string, code: string) =>
-        Promise.resolve((state.emptyWorkflows ?? []).includes(wf) ? null : stageRow(wf, code)),
-      ),
-    createStage: vi.fn().mockImplementation((_tx: unknown, wf: string) => {
-      created.push(wf);
-      return Promise.resolve({ id: `created-${created.length}` });
-    }),
-    updateStage: vi.fn(),
-    liveTransitions: vi
-      .fn()
-      .mockImplementation((_tx: unknown, wf: string) =>
-        Promise.resolve(wf === 'wf-standard' ? (state.legacyTransitions ?? []) : []),
-      ),
-    archiveTransition: vi.fn(),
-    findTransition: vi
-      .fn()
-      .mockImplementation((_tx: unknown, wf: string) =>
-        Promise.resolve((state.emptyWorkflows ?? []).includes(wf) ? null : { id: 'tr' }),
-      ),
-    updateTransition: vi.fn(),
-    createTransition: vi.fn(),
-  };
-  const eventBus = { emit: vi.fn() };
-  const logger = { setContext: vi.fn(), info: vi.fn(), warn: vi.fn() };
-  const TX = { tx: true };
-  const bootstrap = new CatalogBootstrap(
-    { run: (fn: (tx: unknown) => unknown) => fn(TX) } as never,
-    repo as never,
-    eventBus as never,
-    logger as never,
-  );
-  return { bootstrap, repo, eventBus, logger, tx: TX as never };
-}
-
-const stale = (code: string) => ({
-  [code]: { customizedAt: null, catalogRevision: CATALOG_REVISION - 1 },
-});
+import { stageDrift } from './catalog.bootstrap.js';
+import { CATALOG_REVISION } from './system-catalog.js';
+import { QUICK, STANDARD, setup, stale, uuidFor, wfId } from './catalog-bootstrap.test-helper.js';
 
 describe('CatalogBootstrap — «засев один раз» (ADR-0021)', () => {
   it('ревизия применена — повторный прогон ничего не меняет', async () => {
@@ -153,20 +29,24 @@ describe('CatalogBootstrap — «засев один раз» (ADR-0021)', () =>
       name: 'На утверждении',
     });
     expect(repo.archiveTransition).toHaveBeenCalledWith(tx, 'tr-complete-new', expect.any(Date));
-    expect(repo.applyWorkflowRevision).toHaveBeenCalledWith(tx, 'wf-standard', CATALOG_REVISION);
+    expect(repo.applyWorkflowRevision).toHaveBeenCalledWith(
+      tx,
+      wfId(STANDARD.code),
+      CATALOG_REVISION,
+    );
     // Группа on_control не менялась (done → done) — пересчитывать нечего.
     expect(eventBus.emit).toHaveBeenCalledWith(
       tx,
       WORKFLOW_EVENTS.PUBLISHED,
       {
-        workflowId: 'wf-standard',
+        workflowId: wfId(STANDARD.code),
         typeIds: ['type-task'],
         version: 5,
         category: 'task',
         moves: [],
         restates: [],
       },
-      { actorId: null, aggregateType: 'workflow', aggregateId: 'wf-standard' },
+      { actorId: null, aggregateType: 'workflow', aggregateId: wfId(STANDARD.code) },
     );
   });
 
@@ -192,10 +72,10 @@ describe('CatalogBootstrap — «засев один раз» (ADR-0021)', () =>
   it('новая установка: «Быстрый» засевается с нуля (все статусы и кнопки каталога)', async () => {
     const { bootstrap, repo } = setup({
       workflows: { 'task.quick': { customizedAt: null, catalogRevision: 0 } },
-      emptyWorkflows: ['wf-quick'],
+      emptyWorkflows: [wfId(QUICK.code)],
     });
     await bootstrap.ensure();
-    const quickStages = repo.createStage.mock.calls.filter((c) => c[1] === 'wf-quick');
+    const quickStages = repo.createStage.mock.calls.filter((c) => c[1] === wfId(QUICK.code));
     expect(quickStages).toHaveLength(QUICK.stages.length);
     expect(repo.createTransition).toHaveBeenCalledTimes(QUICK.transitions.length);
   });

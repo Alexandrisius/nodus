@@ -1,11 +1,13 @@
 import type { CatalogStage, CatalogProcessType, CatalogWorkflow } from './system-catalog.js';
 import { commentWindow, resultWindow } from './catalog-forms.js';
+import { TASK_CATALOG_REVISION } from './catalog-revisions.js';
 
 /** Тип «Быстрый» (#378, ревизия 2): без этапа «Утверждение» — завершение
  *  сразу в «Завершена». Стадии — общие константы system-catalog.ts. */
 export const QUICK_PROCESS_TYPE: CatalogProcessType = {
   code: 'quick',
   name: 'Быстрый',
+  category: 'task',
   icon: 'zap',
   color: 'success',
   description: 'Без утверждения — для мелких поручений',
@@ -24,6 +26,7 @@ export function buildQuickWorkflow(stages: {
     code: 'task.quick',
     name: 'Быстрый',
     kind: 'task',
+    revision: TASK_CATALOG_REVISION,
     stages: [
       stages.newStage,
       stages.inProgress,

@@ -35,10 +35,9 @@ function json(data: CatalogTransitionData) {
 
 /**
  * Системный каталог маршрутов (ADR-0020/0021/0024): записи по `code` — типы
- * процессов, схема, маршруты, стадии, переходы. Только для бутстрапа
- * (CatalogBootstrap), всё внутри его транзакции; применение — «засев один
- * раз» по ревизии. Каталог описывает только категорию `task` (письма
- * придут с #55): категория типа — дефолт БД.
+ * процессов, схема, маршруты, стадии, переходы, серии нумерации. Только для
+ * бутстрапа (CatalogBootstrap), всё внутри его транзакции; применение —
+ * «засев один раз» по ревизии.
  */
 @Injectable()
 export class CatalogRepository {
@@ -47,16 +46,36 @@ export class CatalogRepository {
     def: {
       code: string;
       name: string;
+      category: string;
+      direction: string | null;
       icon: string;
       color: string;
       description: string;
+      /** Конфигурация типа: у писем — `numbering` с id серии (#55). */
+      config?: Record<string, unknown>;
     },
   ) {
     return (
       (await tx.processType.findUnique({ where: { code: def.code } })) ??
       // Создаётся с ревизией 0: seedOnce применит текущую ревизию каталога
       // (создание ≠ применённая ревизия).
-      (await tx.processType.create({ data: { ...def, isSystem: true, catalogRevision: 0 } }))
+      (await tx.processType.create({
+        data: {
+          ...def,
+          config: (def.config ?? {}) as Prisma.InputJsonValue,
+          isSystem: true,
+          catalogRevision: 0,
+        },
+      }))
+    );
+  }
+
+  /** Серия нумерации по коду (#55): существующая не перетирается — правка
+   *  префикса администратором (N7) переживает рестарты. */
+  async ensureSeries(tx: TransactionClient, def: { code: string; prefix: string }) {
+    return (
+      (await tx.numberSeries.findUnique({ where: { code: def.code } })) ??
+      (await tx.numberSeries.create({ data: { code: def.code, prefix: def.prefix } }))
     );
   }
 
