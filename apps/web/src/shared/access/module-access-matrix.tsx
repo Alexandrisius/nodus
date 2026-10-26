@@ -1,7 +1,7 @@
 import { Plus } from 'lucide-react';
 import { useId, useMemo, useState } from 'react';
 import type { AccessModule, Permission, Role } from '@nodus/contracts';
-import { ui } from '@nodus/contracts';
+import { permissionsOfModule, ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import { Empty, EmptyTitle } from '@nodus/ui/components/empty';
 
@@ -22,7 +22,11 @@ import { useCanManageRoles } from './use-can-manage-roles.js';
 /** Пустой массив-константа: селектор стора не создаёт новую ссылку на каждый рендер. */
 const NO_PERMISSIONS: readonly string[] = [];
 
-function columnsOf(roles: readonly Role[], canManage: boolean): AccessMatrixColumn[] {
+function columnsOf(
+  roles: readonly Role[],
+  canManage: boolean,
+  modulePermissions: readonly Permission[],
+): AccessMatrixColumn[] {
   return orderColumns(roles).map((role) => {
     const lockedHint = isLockedRole(role) ? ui.access.lockedHint : undefined;
     return {
@@ -36,6 +40,7 @@ function columnsOf(roles: readonly Role[], canManage: boolean): AccessMatrixColu
           canManage={canManage}
           lockedHint={lockedHint}
           temporary={isTempRole(role)}
+          modulePermissions={modulePermissions}
         />
       ),
     };
@@ -52,6 +57,10 @@ function columnsOf(roles: readonly Role[], canManage: boolean): AccessMatrixColu
  */
 export function ModuleAccessMatrix({ module }: { module: AccessModule }) {
   const rows = useMemo(() => catalogRows(module), [module]);
+  const modulePermissions = useMemo(
+    () => permissionsOfModule(module).map((entry) => entry.permission),
+    [module],
+  );
   const canManage = useCanManageRoles();
   const actorPermissions = useAuthStore((s) => s.user?.permissions) ?? NO_PERMISSIONS;
   const roles = useRoles();
@@ -67,7 +76,7 @@ export function ModuleAccessMatrix({ module }: { module: AccessModule }) {
   // У раздела нет прав — вкладки нет вовсе (её не создаёт `accessTab`).
   if (rows.length === 0) return null;
 
-  const columns = columnsOf(roles.data ?? [], canManage);
+  const columns = columnsOf(roles.data ?? [], canManage, modulePermissions);
 
   return (
     <div className="relative flex h-full flex-col">

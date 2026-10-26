@@ -1,7 +1,7 @@
 import { Check, Copy, Lock, MoreHorizontal, Pencil, Trash2, Users } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
-import type { Role } from '@nodus/contracts';
-import { Permission, ui } from '@nodus/contracts';
+import type { Permission, Role } from '@nodus/contracts';
+import { ui } from '@nodus/contracts';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,7 +10,8 @@ import {
 } from '@nodus/ui/components/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@nodus/ui/components/tooltip';
 
-import { useCreateRole, useUpdateRole } from '../api/role-admin.js';
+import { useCreateRole } from '../api/role-admin.js';
+import { useToggleRolePermission } from '../api/roles.js';
 import { useAuthStore } from '../auth-store.js';
 import { PersonAvatar } from '../ui/person-avatar.js';
 import { LockedBadge } from './access-matrix.js';
@@ -21,18 +22,27 @@ import { RoleMembersPopover } from './role-members-popover.js';
  * Шапка столбца роли (модель Битрикс24): название, меню «⋯» (переименовать,
  * удалить), аватары участников со счётчиком и «+» — состав роли.
  * «Администратор» — замок, без меню: роль системная и неизменяемая.
+ *
+ * Массовые пункты меню действуют только на права текущей вкладки и идут
+ * точечными `PUT/DELETE …/permissions/:permission` — как переключатель
+ * (ADR-0034, п. 2): «Закрыть» во вкладке «Автоматизации» не снимает базовые
+ * права портала, «Открыть» не выдаёт все права администратора, а
+ * параллельные правки двух администраторов не затираются.
  */
 export function RoleColumnHeader({
   role,
   canManage,
   lockedHint,
   temporary,
+  modulePermissions,
 }: {
   role: Role;
   canManage: boolean;
   lockedHint?: string;
   /** Роль создаётся (id ещё временный) — править нельзя. */
   temporary: boolean;
+  /** Права текущей вкладки — единственное, что трогают пункты «Открыть / Закрыть». */
+  modulePermissions: readonly Permission[];
 }) {
   const [dialog, setDialog] = useState<'rename' | 'delete' | null>(null);
   const hasMembers = role.memberCount > 0 || role.departmentCount > 0;
@@ -43,11 +53,18 @@ export function RoleColumnHeader({
       : null;
   const showMenu = canManage && !temporary;
   const actorPermissions = useAuthStore((state) => state.user?.permissions);
-  const update = useUpdateRole();
   const create = useCreateRole();
-  const heldAll = Object.values(Permission).filter((permission) =>
-    (actorPermissions ?? []).includes(permission),
+  const toggle = useToggleRolePermission();
+  const openable = modulePermissions.filter(
+    (permission) =>
+      (actorPermissions ?? []).includes(permission) && !role.permissions.includes(permission),
   );
+  const closable = modulePermissions.filter((permission) => role.permissions.includes(permission));
+  const setAll = (permissions: readonly Permission[], granted: boolean) => {
+    for (const permission of permissions) {
+      toggle.mutate({ roleId: role.id, permission, granted });
+    }
+  };
 
   return (
     <div className="flex w-full min-w-0 flex-col items-center gap-2">
@@ -77,13 +94,13 @@ export function RoleColumnHeader({
                     icon={<Check className="size-4 text-success" strokeWidth={2} />}
                     title={ui.access.openAll}
                     hint={ui.access.openAllHint}
-                    onSelect={() => update.mutate({ id: role.id, body: { permissions: heldAll } })}
+                    onSelect={() => setAll(openable, true)}
                   />
                   <MenuEntry
                     icon={<Lock className="size-4 text-danger" strokeWidth={2} />}
                     title={ui.access.closeAll}
                     hint={ui.access.closeAllHint}
-                    onSelect={() => update.mutate({ id: role.id, body: { permissions: [] } })}
+                    onSelect={() => setAll(closable, false)}
                   />
                 </>
               )}

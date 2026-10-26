@@ -94,6 +94,30 @@ async function setup({
   return { api: vi.mocked(api) };
 }
 
+const methodOf = (init: unknown): string | undefined =>
+  (init as { method?: string } | undefined)?.method;
+
+/** Права из вызовов `/directory/roles/:id/permissions/:permission` с нужным методом. */
+function permissionCalls(
+  calls: readonly (readonly unknown[])[],
+  method: 'PUT' | 'DELETE',
+): string[] {
+  return calls
+    .filter(([, init]) => methodOf(init) === method)
+    .map(([path]) => String(path))
+    .filter((path) => path.includes('/permissions/'))
+    .map((path) => decodeURIComponent(path.split('/').pop() ?? ''));
+}
+
+/** Меню роли открывается с клавиатуры: jsdom не несёт `PointerEvent`,
+ *  на который реагирует триггер Radix. */
+async function chooseMenuEntry(roleName: string, entry: string) {
+  fireEvent.keyDown(screen.getByRole('button', { name: `${ui.access.roleMenu}: ${roleName}` }), {
+    key: 'Enter',
+  });
+  fireEvent.click(await screen.findByText(entry));
+}
+
 describe('ModuleAccessMatrix (#379)', () => {
   afterEach(cleanup);
 
@@ -190,6 +214,55 @@ describe('ModuleAccessMatrix (#379)', () => {
       name: 'Настраивать процессы и маршруты — Руководитель',
     });
     expect(own).toHaveProperty('disabled', false);
+  });
+
+  it('«Открыть доступ ко всем»: только права вкладки и только права актора, без PATCH', async () => {
+    // Актёр не имеет «Управлять справочниками» — эта строка вкладки не выдаётся.
+    const { api } = await setup();
+    await screen.findByRole('switch', { name: 'Настраивать процессы и маршруты — Руководитель' });
+    await chooseMenuEntry('Руководитель', ui.access.openAll);
+
+    await waitFor(() => expect(permissionCalls(api.mock.calls, 'PUT')).toHaveLength(2));
+    expect(permissionCalls(api.mock.calls, 'PUT').sort()).toEqual(
+      [Permission.CUSTOM_FIELD_MANAGE, Permission.WORKFLOW_MANAGE].sort(),
+    );
+    // Права других разделов не трогаем: PATCH набора целиком веб не вызывает.
+    expect(api.mock.calls.some(([, init]) => methodOf(init) === 'PATCH')).toBe(false);
+  });
+
+  it('«Закрыть доступ ко всем»: снимает только права вкладки, права других разделов остаются', async () => {
+    const withAutomation: Role = {
+      ...headRole,
+      permissions: [Permission.DIRECTORY_READ, Permission.TASK_CREATE, Permission.WORKFLOW_MANAGE],
+    };
+    const { api } = await setup({ roles: [withAutomation, adminRole] });
+    await screen.findByRole('switch', { name: 'Настраивать процессы и маршруты — Руководитель' });
+    await chooseMenuEntry('Руководитель', ui.access.closeAll);
+
+    await waitFor(() => expect(permissionCalls(api.mock.calls, 'DELETE')).toHaveLength(1));
+    expect(permissionCalls(api.mock.calls, 'DELETE')).toEqual([Permission.WORKFLOW_MANAGE]);
+    expect(api.mock.calls.some(([, init]) => methodOf(init) === 'PATCH')).toBe(false);
+  });
+
+  it('состав «Администратора»: только сотрудники, без вкладки подразделений', async () => {
+    await setup();
+    await screen.findByRole('switch', { name: 'Настраивать процессы и маршруты — Руководитель' });
+    fireEvent.click(screen.getByRole('button', { name: `${ui.access.membersAdd}: Администратор` }));
+
+    // Одна поверхность — список сотрудников: переключателя вкладок нет вовсе.
+    expect(await screen.findByText(ui.access.membersAdminHint)).toBeTruthy();
+    expect(screen.queryAllByRole('radio')).toHaveLength(0);
+    expect(screen.queryByText(ui.access.tabDepartments)).toBeNull();
+  });
+
+  it('состав обычной роли: обе вкладки — сотрудники и подразделения', async () => {
+    await setup();
+    await screen.findByRole('switch', { name: 'Настраивать процессы и маршруты — Руководитель' });
+    fireEvent.click(screen.getByRole('button', { name: `${ui.access.membersAdd}: Руководитель` }));
+
+    expect(await screen.findByRole('radio', { name: ui.access.tabUsers })).toBeTruthy();
+    expect(screen.getByRole('radio', { name: ui.access.tabDepartments })).toBeTruthy();
+    expect(screen.getByText(ui.access.membersHint)).toBeTruthy();
   });
 
   it('загрузка: строки прав настоящие, вместо флажков — скелеты', async () => {

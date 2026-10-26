@@ -13,6 +13,7 @@ import { useUsersSearch } from '../api/users-list.js';
 import { withoutPatronymic } from '../lib/format.js';
 import { PersonAvatar } from '../ui/person-avatar.js';
 import { SegmentedControl } from '../ui/segmented-control.js';
+import { isLockedRole } from './access-model.js';
 
 type Tab = 'users' | 'departments';
 
@@ -21,14 +22,18 @@ type Tab = 'users' | 'departments';
  * «+» в шапке столбца. Один список с флажками — отмеченные входят в роль,
  * клик добавляет/убирает мгновенно (оптимистично). Две вкладки: сотрудники
  * (серверный поиск) и подразделения (их сотрудники получают роль целиком).
+ * У «Администратора» вкладки подразделений нет: его состав — только
+ * конкретные сотрудники (ADR-0034, п. 5).
  */
 export function RoleMembersPopover({ role, canManage }: { role: Role; canManage: boolean }) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<Tab>('users');
   const [text, setText] = useState('');
   const query = useDeferredValue(text.trim());
+  const departmentsAllowed = !isLockedRole(role);
+  const activeTab: Tab = departmentsAllowed ? tab : 'users';
   const members = useRoleMembers(role.id, open);
-  const people = useUsersSearch(open && tab === 'users' ? query : '');
+  const people = useUsersSearch(open && activeTab === 'users' ? query : '');
   const tree = useDepartmentTreeManagement();
   const toggle = useToggleRoleMember();
 
@@ -57,20 +62,22 @@ export function RoleMembersPopover({ role, canManage }: { role: Role; canManage:
       </PopoverTrigger>
       <PopoverContent align="center" className="w-80 p-2">
         <p className="px-1.5 pb-1.5 text-sm font-medium">{ui.access.membersTitle(role.name)}</p>
-        <SegmentedControl
-          value={tab}
-          options={[
-            { value: 'users', label: ui.access.tabUsers },
-            { value: 'departments', label: ui.access.tabDepartments },
-          ]}
-          onChange={(next) => {
-            setTab(next);
-            setText('');
-          }}
-          size="sm"
-          className="mb-2 w-full [&>button]:flex-1"
-          activeClassName="bg-accent text-foreground"
-        />
+        {departmentsAllowed ? (
+          <SegmentedControl
+            value={activeTab}
+            options={[
+              { value: 'users', label: ui.access.tabUsers },
+              { value: 'departments', label: ui.access.tabDepartments },
+            ]}
+            onChange={(next) => {
+              setTab(next);
+              setText('');
+            }}
+            size="sm"
+            className="mb-2 w-full [&>button]:flex-1"
+            activeClassName="bg-accent text-foreground"
+          />
+        ) : null}
         <div className="relative mb-1.5">
           <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -82,7 +89,7 @@ export function RoleMembersPopover({ role, canManage }: { role: Role; canManage:
           />
         </div>
         <div className="max-h-64 min-h-40 overflow-y-auto" data-no-scrollbar>
-          {tab === 'users' ? (
+          {activeTab === 'users' ? (
             (people.data?.items ?? []).length === 0 ? (
               <Empty />
             ) : (
@@ -144,7 +151,9 @@ export function RoleMembersPopover({ role, canManage }: { role: Role; canManage:
             })
           )}
         </div>
-        <p className="px-1.5 pt-2 text-xs text-muted-foreground">{ui.access.membersHint}</p>
+        <p className="px-1.5 pt-2 text-xs text-muted-foreground">
+          {departmentsAllowed ? ui.access.membersHint : ui.access.membersAdminHint}
+        </p>
       </PopoverContent>
     </Popover>
   );

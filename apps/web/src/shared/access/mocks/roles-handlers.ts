@@ -56,6 +56,10 @@ const departmentRef = (id: string) => {
   return department ? { id, name: department.name } : null;
 };
 
+/** Активные прямые участники роли: уволенные в счёт «последнего администратора» не идут. */
+const activeUsers = (ids: readonly string[]): string[] =>
+  ids.filter((id) => demoUserListItems.find((user) => user.id === id)?.status === 'active');
+
 /** Роль с актуальным составом: счётчики и до 4 аватаров. */
 function view(role: Role): Role {
   const membership = members[role.id] ?? { userIds: [], departmentIds: [] };
@@ -128,6 +132,14 @@ async function toggleMember(
 ) {
   const role = await loadRole(params.id);
   if (role instanceof Response) return role;
+  // Состав «Администратора» — только конкретные сотрудники (ADR-0034, п. 5).
+  if (add && kind === 'departments' && role.code === SystemRole.ADMIN) {
+    return error(ErrorCode.ROLE_LOCKED, 'Role departments are locked', 409, {
+      roleId: role.id,
+      code: role.code,
+      reason: 'departments',
+    });
+  }
   const targetId = String(params[kind === 'users' ? 'userId' : 'departmentId']);
   const exists = kind === 'users' ? userRef(targetId) : departmentRef(targetId);
   if (!z.uuid().safeParse(targetId).success || !exists) return validation();
@@ -140,14 +152,12 @@ async function toggleMember(
       permissions: missing,
     });
   }
-  // Портал не остаётся без администратора.
-  if (
-    !add &&
-    role.code === SystemRole.ADMIN &&
-    kind === 'users' &&
-    membership.userIds.length <= 1
-  ) {
-    return error(ErrorCode.ROLE_LAST_ADMIN, 'Last administrator', 409);
+  // Портал не остаётся без администратора: считаются активные прямые участники.
+  if (!add && role.code === SystemRole.ADMIN && kind === 'users') {
+    const remaining = membership.userIds.filter((id) => id !== targetId);
+    if (activeUsers(remaining).length === 0) {
+      return error(ErrorCode.ROLE_LAST_ADMIN, 'Last administrator', 409);
+    }
   }
   const rest = membership[key].filter((id) => id !== targetId);
   members[role.id] = { ...membership, [key]: add ? [...rest, targetId] : rest };

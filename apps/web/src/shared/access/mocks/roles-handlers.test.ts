@@ -6,6 +6,7 @@ import { setupServer } from 'msw/node';
 import { z } from 'zod';
 
 import { userIds } from '../../mocks/data/users.js';
+import { departmentIds } from '../../mocks/data/org-ids.js';
 
 import { useAuthStore } from '../../auth-store.js';
 import { DEMO_GONE_ROLE_ID, demoRoles } from '../../mocks/data/roles.js';
@@ -228,5 +229,20 @@ describe('roles-handlers (#379)', () => {
         expect(res.status).toBe(200);
       }
     }
+  });
+
+  it('подразделение в роли администратора → 409 ROLE_LOCKED (reason departments), снятие — 200', async () => {
+    actor(Object.values(Permission));
+    const url = `${BASE}/${adminRole.id}/members/departments/${departmentIds.bim}`;
+    const put = await fetch(url, { method: 'PUT' });
+    expect(put.status).toBe(409);
+    const body = (await put.json()) as { code: string; details: { reason: string } };
+    expect(body.code).toBe(ErrorCode.ROLE_LOCKED);
+    expect(body.details.reason).toBe('departments');
+
+    // Снятие идемпотентно: подразделения в составе и не было.
+    expect((await fetch(url, { method: 'DELETE' })).status).toBe(200);
+    const members = await (await fetch(`${BASE}/${adminRole.id}/members`)).json();
+    expect((members as { departments: unknown[] }).departments).toHaveLength(0);
   });
 });
