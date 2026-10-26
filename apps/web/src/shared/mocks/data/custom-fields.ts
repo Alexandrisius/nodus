@@ -39,8 +39,9 @@ export const fieldIds = {
   legacyCode: fid(17),
   /** Атрибут типа «Переработка» (#432): дата — обязательная в форме. */
   overtimeDate: fid(18),
-  letterReplyNumber: fid(21),
-  letterReplyDate: fid(22),
+  /** Атрибуты «Входящего письма» (#55): шифр объекта и отметка «нужен ответ». */
+  letterObjectCode: fid(21),
+  letterReplyRequired: fid(22),
   counterpartyErp: fid(31),
 };
 
@@ -151,8 +152,13 @@ export const demoCustomFieldDefinitions: CustomFieldDefinition[] = [
     hidden: true,
     typeIds: STD,
   }),
-  definition(fieldIds.letterReplyNumber, 'letter', 'text', 'Исх. номер контрагента', 0),
-  definition(fieldIds.letterReplyDate, 'letter', 'date', 'Дата ответа', 1),
+  definition(fieldIds.letterObjectCode, 'letter', 'text', 'Шифр объекта', 0, {
+    hint: 'Шифр проекта или объекта из письма корреспондента',
+    typeIds: [processTypeIds.letterIncoming],
+  }),
+  definition(fieldIds.letterReplyRequired, 'letter', 'bool', 'Требуется ответ', 1, {
+    typeIds: [processTypeIds.letterIncoming],
+  }),
   definition(fieldIds.counterpartyErp, 'counterparty', 'text', 'Код 1С', 0),
 ];
 

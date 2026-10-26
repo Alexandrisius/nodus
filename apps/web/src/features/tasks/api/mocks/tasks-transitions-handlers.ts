@@ -14,7 +14,6 @@ import {
   demoSubtasks,
   demoTasks,
 } from '../../../../shared/mocks/data/tasks.js';
-import { letterIdByTaskId, syncLetterWithTasks } from '../../../../shared/mocks/data/letters.js';
 import { quickDocument, standardDocument } from '../../../../shared/mocks/data/workflows.js';
 import { quickProcessType } from '../../../../shared/mocks/data/task-stages.js';
 import { applyDemoPatch } from '../../../../shared/mocks/data/custom-fields-rules.js';
@@ -170,11 +169,9 @@ export const tasksTransitionsHandlers = [
     }
     postBlock(task, transition, parsed.data.form ?? {});
     task.stage = resolveTarget(task, transition);
-    // Встроенное автоперемещение «Моего плана» (ADR-0008) и синхронизация
-    // письма-поручения — как у переноса по глобальной оси.
+    // Встроенное автоперемещение «Моего плана» (ADR-0008) — как у переноса
+    // по глобальной оси.
     autoMovePersonalPlacement(task, demoPersonalStages);
-    const letterId = letterIdByTaskId(task.id);
-    if (letterId) syncLetterWithTasks(letterId);
     task.updatedAt = new Date().toISOString();
     // Контракт: строка задачи + НОВЫЕ кнопки нажавшего (одним ходом).
     return HttpResponse.json({ task, transitions: transitionsOf(task) });

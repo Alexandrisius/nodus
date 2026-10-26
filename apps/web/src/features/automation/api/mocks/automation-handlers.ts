@@ -12,7 +12,11 @@ import { mockWorkflows } from '../../../../shared/mocks/data/workflows-store.js'
 import { resolvePublishedDocument } from './publish-resolve.js';
 import { documentFacts, typeDto } from '../../../../shared/mocks/data/process-types-dto.js';
 import { mockTypes, nextId } from '../../../../shared/mocks/data/process-types-store.js';
-import { automationTypeHandlers } from './automation-type-handlers.js';
+import {
+  automationTypeHandlers,
+  isLockedLetterType,
+  letterCatalogLocked,
+} from './automation-type-handlers.js';
 
 /** Моки «Автоматизации» (#378; форма создания — #432): чтение и публикация
  *  маршрутов (проверки, конфликт версий, переносы), расстановка холста и
@@ -48,6 +52,9 @@ export const automationHandlers = [
   http.post('/api/v1/workflows/:id/publish', async ({ request, params }) => {
     const detail = mockWorkflows.get(String(params.id));
     if (!detail) return notFound();
+    if (isLockedLetterType(mockTypes.find((entry) => entry.workflowId === detail.id))) {
+      return letterCatalogLocked();
+    }
     const parsed = publishWorkflowBodySchema.safeParse(await request.json());
     if (!parsed.success) return validationFailed();
     const { baseVersion, document, migrations } = parsed.data;
@@ -101,6 +108,9 @@ export const automationHandlers = [
   http.put('/api/v1/workflows/:id/layout', async ({ request, params }) => {
     const detail = mockWorkflows.get(String(params.id));
     if (!detail) return notFound();
+    if (isLockedLetterType(mockTypes.find((entry) => entry.workflowId === detail.id))) {
+      return letterCatalogLocked();
+    }
     const parsed = saveWorkflowLayoutBodySchema.safeParse(await request.json());
     if (!parsed.success) return validationFailed();
     const current = detail.document.layout ?? { stages: {}, transitions: {} };

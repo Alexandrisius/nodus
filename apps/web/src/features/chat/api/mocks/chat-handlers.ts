@@ -17,6 +17,7 @@ import { actorUserRef, getMockActor } from '../../../../shared/mocks/mock-actor.
 import { chatMutationHandlers } from './chat-mutation-handlers.js';
 import { conversationMutationHandlers } from './conversation-mutation-handlers.js';
 import { favoriteHandlers } from './favorite-handlers.js';
+import { letterConversationHandlers } from './letter-conversation-handlers.js';
 import { vaultHandlers } from './vault-handlers.js';
 import { findSticker } from './sticker-mock-state.js';
 import { stickerHandlers } from './sticker-handlers.js';
@@ -482,6 +483,8 @@ const conversationHandlers = [
  *  специфичные маршруты (:id/pins, :id/forward) MSW матчит по шаблону,
  *  конфликтов с :id/messages нет. */
 export const chatHandlers = [
+  // Буквальный by-letter — до параметрических маршрутов бесед (gotcha msw-query).
+  ...letterConversationHandlers,
   ...conversationHandlers,
   ...conversationMutationHandlers,
   ...chatMutationHandlers,

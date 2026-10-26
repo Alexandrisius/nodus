@@ -7,11 +7,13 @@ import {
   demoCounterpartyById,
   demoCounterpartyList,
 } from '../../mocks/data/counterparties.js';
+import { lettersCountOf } from '../../mocks/data/letters.js';
 
-/** Только ЧТЕНИЕ справочника контрагентов для UI-чекпоинта #431 (пикер
- *  поля «Контрагент», ссылки значений): живой API CRM (#460) пишет данные,
- *  мок отдаёт демо-набор — мок-мир цельный (О8). Создание и правка в моках
- *  не поддерживаются намеренно. */
+/** ЧТЕНИЕ справочника контрагентов для UI-чекпоинтов (#431 — пикер поля
+ *  «Контрагент», #55 — регистрация письма): живой API CRM (#460) — основной,
+ *  мок отдаёт демо-набор — мок-мир цельный (О8). Счётчик писем — проекция
+ *  мок-писем (#55); запись — только `crm-write-handlers` (создание «на
+ *  лету» и контакт-подписант). */
 export const crmReadHandlers = [
   http.get('/api/v1/counterparties/similar', () => HttpResponse.json([])),
 
@@ -20,6 +22,7 @@ export const crmReadHandlers = [
     const search = (url.searchParams.get('search') ?? '').trim().toLowerCase();
     const includeArchived = url.searchParams.get('includeArchived') === 'true';
     const items = demoCounterpartyList()
+      .map((item) => ({ ...item, lettersCount: lettersCountOf(item.id) }))
       .filter((item) => includeArchived || item.archivedAt === null)
       .filter(
         (item: CounterpartyListItem) =>
@@ -39,7 +42,7 @@ export const crmReadHandlers = [
         { status: 404 },
       );
     }
-    return HttpResponse.json(card);
+    return HttpResponse.json({ ...card, lettersCount: lettersCountOf(card.id) });
   }),
 ];
 

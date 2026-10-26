@@ -1,0 +1,150 @@
+import type {
+  CustomFieldValue,
+  LetterHistoryChange,
+  LetterRegistrationIssue,
+  ProjectRef,
+  UpdateLetterBody,
+} from '@nodus/contracts';
+import {
+  ErrorCode,
+  SystemDictionary,
+  checkLetterDates,
+  letterRegistrationFieldSchema,
+} from '@nodus/contracts';
+import { HttpResponse } from 'msw';
+import type { z } from 'zod';
+
+import { demoCounterpartyById } from '../../../../shared/mocks/data/counterparties.js';
+import { applyDemoPatch } from '../../../../shared/mocks/data/custom-fields-rules.js';
+import { itemsOf } from '../../../../shared/mocks/data/dictionaries.js';
+import { localIsoDate, type DemoLetter } from '../../../../shared/mocks/data/letters.js';
+import { demoProjects } from '../../../../shared/mocks/data/projects.js';
+import { demoUserListItems } from '../../../../shared/mocks/data/users.js';
+import { resolveCounterpartyRef } from '../../../../shared/mocks/live-counterparty.js';
+
+/** Общая грамматика проверок мок-сервера писем (#55): регистрация и правка
+ *  проверяют одно и то же (Р11 «та же проверка, что при регистрации»). */
+
+export const apiError = (status: number, code: keyof typeof ErrorCode, details?: unknown) =>
+  HttpResponse.json({ code: ErrorCode[code], message: code, details }, { status });
+
+export const notFound = () => apiError(404, 'NOT_FOUND');
+
+/** Ввод, который проверяется против справочников (регистрация и правка). */
+export interface LetterFieldsCheck {
+  counterpartyId: string;
+  signerId: string | null;
+  theirDate?: string | null;
+  responseDeadline?: string | null;
+  receiptMethodId: string;
+  addresseeId?: string;
+  customFields?: Record<string, CustomFieldValue | null>;
+}
+
+export async function letterFieldsIssue(
+  input: LetterFieldsCheck,
+  request: Request,
+): Promise<LetterRegistrationIssue | null> {
+  const card = demoCounterpartyById(input.counterpartyId);
+  if (!card && !(await resolveCounterpartyRef(input.counterpartyId, request))) {
+    return { field: 'counterpartyId', reason: 'not_found' };
+  }
+  if (card?.archivedAt) return { field: 'counterpartyId', reason: 'inactive' };
+  if (input.signerId && card) {
+    const person = card.contactPersons.find((entry) => entry.id === input.signerId);
+    if (!person || person.archivedAt) return { field: 'signerId', reason: 'not_of_counterparty' };
+  }
+  const method = itemsOf(SystemDictionary.RECEIPT_METHOD).find(
+    (entry) => entry.id === input.receiptMethodId,
+  );
+  if (!method) return { field: 'receiptMethodId', reason: 'not_found' };
+  if (input.addresseeId !== undefined) {
+    const user = demoUserListItems.find((entry) => entry.id === input.addresseeId);
+    if (!user) return { field: 'addresseeId', reason: 'not_found' };
+    if (user.status !== 'active') return { field: 'addresseeId', reason: 'inactive' };
+  }
+  const [dateIssue] = checkLetterDates(input, localIsoDate());
+  if (dateIssue) return dateIssue;
+  if (input.customFields) {
+    const { issues } = applyDemoPatch('letter', {}, input.customFields);
+    if (issues.length > 0) return { field: 'customFields', reason: 'invalid' };
+  }
+  return null;
+}
+
+/** Ошибка схемы ввода регистрации → поле и причина 422 (путь после `prefix`). */
+export function registrationIssueOf(
+  error: z.ZodError,
+  prefix: readonly string[],
+): LetterRegistrationIssue | null {
+  for (const issue of error.issues) {
+    if (!prefix.every((part, index) => issue.path[index] === part)) continue;
+    const field = letterRegistrationFieldSchema.safeParse(issue.path[prefix.length]);
+    if (!field.success) continue;
+    const empty = issue.code === 'invalid_type' || issue.code === 'too_small';
+    return { field: field.data, reason: empty ? 'required' : 'invalid' };
+  }
+  return null;
+}
+
+export function projectRefOf(id: string | null | undefined): ProjectRef | null {
+  if (!id) return null;
+  const project = demoProjects.find((entry) => entry.id === id);
+  return project
+    ? { id: project.id, code: project.code, name: project.name, color: project.color }
+    : null;
+}
+
+export function contactRefOf(counterpartyId: string, contactId: string | null) {
+  if (!contactId) return null;
+  const person = demoCounterpartyById(counterpartyId)?.contactPersons.find(
+    (entry) => entry.id === contactId,
+  );
+  return person ? { id: person.id, fullName: person.fullName, position: person.position } : null;
+}
+
+export function receiptMethodRefOf(id: string) {
+  const item = itemsOf(SystemDictionary.RECEIPT_METHOD).find((entry) => entry.id === id);
+  return item ? { id: item.id, name: item.name } : null;
+}
+
+function cfDisplay(value: unknown): string | null {
+  if (value === null || value === undefined || value === '') return null;
+  if (typeof value === 'boolean') return value ? 'Да' : 'Нет';
+  return typeof value === 'string' ? value : JSON.stringify(value);
+}
+
+/** Изменения правки для журнала (`letter_updated`): значения — строки показа,
+ *  ссылки — имена (как гидрирует сервер), даты — ISO. */
+export function patchChanges(
+  letter: DemoLetter,
+  body: UpdateLetterBody,
+  next: Pick<DemoLetter, 'counterparty' | 'signer' | 'receiptMethod' | 'project'>,
+): LetterHistoryChange[] {
+  const changes: LetterHistoryChange[] = [];
+  const push = (field: string, from: string | null, to: string | null) => {
+    if (from !== to) changes.push({ field, from, to });
+  };
+  if (body.counterpartyId !== undefined) {
+    push('counterpartyId', letter.counterparty?.name ?? null, next.counterparty?.name ?? null);
+  }
+  if (body.signerId !== undefined) {
+    push('signerId', letter.signer?.fullName ?? null, next.signer?.fullName ?? null);
+  }
+  if (body.theirNumber !== undefined) push('theirNumber', letter.theirNumber, body.theirNumber);
+  if (body.theirDate !== undefined) push('theirDate', letter.theirDate, body.theirDate);
+  if (body.subject !== undefined) push('subject', letter.subject, body.subject);
+  if (body.receiptMethodId !== undefined) {
+    push('receiptMethodId', letter.receiptMethod?.name ?? null, next.receiptMethod?.name ?? null);
+  }
+  if (body.projectId !== undefined) {
+    push('projectId', letter.project?.name ?? null, next.project?.name ?? null);
+  }
+  if (body.responseDeadline !== undefined) {
+    push('responseDeadline', letter.responseDeadline, body.responseDeadline);
+  }
+  for (const [id, value] of Object.entries(body.customFields ?? {})) {
+    push(`cf.${id}`, cfDisplay(letter.customFields[id]), cfDisplay(value));
+  }
+  return changes;
+}

@@ -18,7 +18,6 @@ import {
   makeSubtask,
   taskDetailOf,
 } from '../../../../shared/mocks/data/tasks.js';
-import { letterIdByTaskId, syncLetterWithTasks } from '../../../../shared/mocks/data/letters.js';
 import { demoStages } from '../../../../shared/mocks/data/task-stages.js';
 import { userRef } from '../../../../shared/mocks/data/users.js';
 import { applyDemoPatch } from '../../../../shared/mocks/data/custom-fields-rules.js';
@@ -209,11 +208,6 @@ export const tasksHandlers = [
       // Встроенное автоперемещение личной доски (ADR-0008): смена системного
       // состояния переезжает карточку в первую личную колонку этого состояния.
       autoMovePersonalPlacement(task, demoPersonalStages);
-      // Поручение из письма: закрытие/движение задачи синхронизирует документ
-      // (снапшоты стадий в резолюциях + «исполнено», когда все поручения
-      // завершены) — мок-мир один, письмо перечитывается следующим GET.
-      const letterId = letterIdByTaskId(task.id);
-      if (letterId) syncLetterWithTasks(letterId);
     } else {
       task.personalStageId = column.id;
     }

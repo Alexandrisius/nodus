@@ -9,6 +9,7 @@ import { homeHandlers } from '../features/home/api/mocks/home-handlers.js';
 import { notificationsHandlers } from '../features/notifications/api/mocks/notifications-handlers.js';
 import { filesHandlers } from '../shared/files/mocks/files-handlers.js';
 import { crmReadHandlers } from '../shared/counterparties/mocks/crm-read-handlers.js';
+import { crmWriteHandlers } from '../shared/counterparties/mocks/crm-write-handlers.js';
 import { customFieldsHandlers } from '../shared/custom-fields/mocks/custom-fields-handlers.js';
 import { dictionariesHandlers } from '../shared/dictionaries/mocks/dictionaries-handlers.js';
 import { rolesHandlers } from '../shared/access/mocks/roles-handlers.js';
@@ -37,7 +38,7 @@ const domainHandlers: Record<ApiMockDomain, HttpHandler[]> = {
   notifications: notificationsHandlers,
   'custom-fields': customFieldsHandlers,
   dictionaries: dictionariesHandlers,
-  crm: crmReadHandlers,
+  crm: [...crmReadHandlers, ...crmWriteHandlers],
   roles: rolesHandlers,
 };
 
