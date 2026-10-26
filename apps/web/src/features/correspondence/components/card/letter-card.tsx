@@ -8,7 +8,13 @@ import { useCloseCard } from '../../../../app/shell/use-card-stack.js';
 import { ApiError } from '../../../../shared/api-client.js';
 import { useReadEntityNotifications } from '../../../../shared/api/read-entity-notifications.js';
 import { uiPx } from '../../../../shared/ui/ui-scale.js';
-import { MIN_CHAT_W, useChatWidth } from '../../../../shared/ui/use-chat-width.js';
+import {
+  MIN_CHAT_W,
+  MIN_CHAT_WITH_PANEL,
+  useChatWidth,
+} from '../../../../shared/ui/use-chat-width.js';
+import { useLetterConversation } from '../../../../shared/chat/chat-queries.js';
+import { CHAT_PANEL_W, ChatSidePanel } from '../../../../shared/chat/chat-side-panel.js';
 import { useDeleteSpamLetter, useJoinLetter } from '../../api/letters-mutations.js';
 import { useLetterDetail } from '../../api/letters-queries.js';
 import {
@@ -63,10 +69,25 @@ export function LetterCard({ letterId }: { letterId: string }) {
   const [spamOpen, setSpamOpen] = useState(false);
   // Вкладки — до первого действия производные от письма (стартовая вкладка).
   const [tabsState, setTabsState] = useState<LetterTabsState | null>(null);
+  // Панель вложений беседы (#55): как в мессенджере — тоггл в полосе вкладок
+  // «Чата», панель — вталкивающая колонка справа от вкладок карточки.
+  const [panelOpen, setPanelOpen] = useState(false);
+  // Беседа письма — одна на карточку: тот же кэш, что у вкладки «Чат»
+  // (хук до ранних возвратов — порядок хуков неизменен).
+  const { data: conversation } = useLetterConversation(
+    letterId,
+    Boolean(letter?.access.isParticipant),
+  );
   const sideRef = useRef<HTMLDivElement>(null);
   const railShrink = useRailShrink();
-  const { chatW, onDividerDown, dragging } = useChatWidth(sideRef, railShrink, MIN_CHAT_W);
-  const sideW = Math.max(chatW - railShrink, MIN_CHAT_W);
+  const panelShrink = panelOpen ? CHAT_PANEL_W : 0;
+  const chatFloor = panelOpen ? MIN_CHAT_WITH_PANEL : MIN_CHAT_W;
+  const { chatW, onDividerDown, dragging } = useChatWidth(
+    sideRef,
+    railShrink + panelShrink,
+    chatFloor,
+  );
+  const sideW = Math.max(chatW - railShrink - panelShrink, chatFloor);
 
   if (!letter && error instanceof ApiError && error.status === 404) {
     return (
@@ -79,6 +100,9 @@ export function LetterCard({ letterId }: { letterId: string }) {
 
   const attachmentIds = letter.attachments.map((file) => file.id);
   const tabs = pruneFileTabs(tabsState ?? initialTabs(defaultTabOf(letter)), attachmentIds);
+  // Панель живёт только у вкладки «Чат»: ушли на «Письмо»/файл — закрываем.
+  const chatActive = tabs.active === 'chat';
+  const panelVisible = panelOpen && chatActive && Boolean(conversation);
   const updateTabs = (change: (state: LetterTabsState) => LetterTabsState) =>
     setTabsState((state) =>
       change(pruneFileTabs(state ?? initialTabs(defaultTabOf(letter)), attachmentIds)),
@@ -151,11 +175,30 @@ export function LetterCard({ letterId }: { letterId: string }) {
             letter={letter}
             tabs={tabs}
             joining={join.isPending}
-            onActivate={(tab) => updateTabs((state) => activateTab(state, tab))}
+            panelOpen={panelVisible}
+            onActivate={(tab) => {
+              if (tab !== 'chat') setPanelOpen(false);
+              updateTabs((state) => activateTab(state, tab));
+            }}
             onClose={(attachmentId) => updateTabs((state) => closeFileTab(state, attachmentId))}
             onJoin={onJoin}
+            onPanelToggle={() => setPanelOpen((open) => !open)}
           />
         </div>
+
+        {/* Панель вложений беседы письма — полновысотная вталкивающая
+            колонка справа (канон мессенджера: чат и композер остаются
+            доступны), шапка продолжает полосу вкладок карточки. */}
+        {conversation ? (
+          <ChatSidePanel
+            conversationId={conversation.id}
+            conversation={conversation}
+            open={panelVisible}
+            onClose={() => setPanelOpen(false)}
+            title={ui.chat.aboutChat}
+            headerClass="h-10"
+          />
+        ) : null}
       </div>
 
       <SpamConfirmDialog

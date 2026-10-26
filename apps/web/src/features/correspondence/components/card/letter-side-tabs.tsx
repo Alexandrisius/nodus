@@ -15,6 +15,7 @@ import { Spinner } from '@nodus/ui/components/spinner';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { useLetterConversation } from '../../../../shared/chat/chat-queries.js';
+import { ChatPanelToggle } from '../../../../shared/chat/chat-side-panel.js';
 import { ConversationPane } from '../../../../shared/chat/conversation-pane.js';
 import { FileTypeIcon } from '../../../../shared/files/file-type-icon.js';
 import {
@@ -108,16 +109,21 @@ export function LetterSideTabs({
   letter,
   tabs,
   joining,
+  panelOpen,
   onActivate,
   onClose,
   onJoin,
+  onPanelToggle,
 }: {
   letter: LetterDetail;
   tabs: LetterTabsState;
   joining: boolean;
+  /** Панель вложений беседы (как в мессенджере) открыта — тоггл подсвечен. */
+  panelOpen: boolean;
   onActivate: (tab: LetterTabId) => void;
   onClose: (attachmentId: string) => void;
   onJoin: () => void;
+  onPanelToggle: () => void;
 }) {
   const baseId = useId();
   const { data: conversation } = useLetterConversation(letter.id, letter.access.isParticipant);
@@ -222,6 +228,15 @@ export function LetterSideTabs({
             </div>
           );
         })}
+        {/* Тоггл панели вложений беседы — как в мессенджере (#55): в чате
+            письма его не было, хотя беседа та же. Панель — вталкивающая
+            колонка справа (хост карточки), кнопка стоит на правом краю
+            полосы вкладок и видна только на вкладке «Чат». */}
+        {tabs.active === 'chat' && conversation ? (
+          <div className="ml-auto flex h-10 shrink-0 items-center pr-1">
+            <ChatPanelToggle open={panelOpen} onToggle={onPanelToggle} />
+          </div>
+        ) : null}
       </div>
       <div className="relative min-h-0 flex-1">
         {strip
