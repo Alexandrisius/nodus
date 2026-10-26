@@ -24,6 +24,8 @@ export function SignerField({
   id,
   invalid,
   describedBy,
+  autoFocus,
+  onDismiss,
 }: {
   counterpartyId: string | null;
   value: ContactRef | null;
@@ -31,6 +33,9 @@ export function SignerField({
   id?: string;
   invalid?: boolean;
   describedBy?: string;
+  autoFocus?: boolean;
+  /** Список закрыт без выбора — правка по месту в карточке выходит из ввода. */
+  onDismiss?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
@@ -102,6 +107,7 @@ export function SignerField({
         if (!next) {
           setText('');
           setCreating(false);
+          onDismiss?.();
         }
       }}
     >
@@ -117,6 +123,7 @@ export function SignerField({
             aria-expanded={open}
             role="combobox"
             autoComplete="off"
+            autoFocus={autoFocus}
             onChange={(e) => {
               setText(e.target.value);
               setOpen(true);
@@ -136,6 +143,7 @@ export function SignerField({
               if (e.key === 'Escape' && open) {
                 e.preventDefault();
                 setOpen(false);
+                onDismiss?.();
                 return;
               }
               nav.onKeyDown(e, {

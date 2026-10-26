@@ -37,6 +37,7 @@ export function CounterpartyCombobox({
   invalid,
   describedBy,
   autoFocus,
+  onDismiss,
 }: {
   value: CounterpartyRef | null;
   onChange: (ref: CounterpartyRef | null) => void;
@@ -48,6 +49,9 @@ export function CounterpartyCombobox({
   invalid?: boolean;
   describedBy?: string;
   autoFocus?: boolean;
+  /** Список закрыт без выбора (клик мимо, Esc, уход фокуса) — правка по
+   *  месту в карточке на этом выходит из режима ввода. */
+  onDismiss?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
@@ -87,8 +91,11 @@ export function CounterpartyCombobox({
   ];
   const nav = useActiveOption(entries.length, `${open}:${query}:${entries.length}`);
 
+  // Активная строка в поле зрения; `?.()` — jsdom тестов scrollIntoView не знает.
   useEffect(() => {
-    listRef.current?.querySelector('[data-active="true"]')?.scrollIntoView({ block: 'nearest' });
+    listRef.current
+      ?.querySelector<HTMLElement>('[data-active="true"]')
+      ?.scrollIntoView?.({ block: 'nearest' });
   }, [nav.active]);
 
   function choose(ref: CounterpartyRef | null) {
@@ -128,7 +135,10 @@ export function CounterpartyCombobox({
       open={open}
       onOpenChange={(o) => {
         setOpen(o);
-        if (!o) setText('');
+        if (!o) {
+          setText('');
+          onDismiss?.();
+        }
       }}
     >
       <PopoverAnchor asChild>
@@ -154,6 +164,7 @@ export function CounterpartyCombobox({
               if (e.key === 'Escape' && open) {
                 e.preventDefault();
                 setOpen(false);
+                onDismiss?.();
                 return;
               }
               nav.onKeyDown(e, { onPick: pick, onOpen: () => setOpen(true) });
