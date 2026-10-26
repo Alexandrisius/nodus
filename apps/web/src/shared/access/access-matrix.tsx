@@ -174,7 +174,6 @@ export function AccessMatrix({
                 const labelText = cellLabel(row, column);
                 const checkbox = (
                   <Switch
-                    size="sm"
                     checked={state.granted}
                     disabled={state.disabled}
                     aria-label={labelText}

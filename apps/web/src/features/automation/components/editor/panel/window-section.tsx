@@ -5,9 +5,9 @@ import type {
   WorkflowDraftTransition,
 } from '@nodus/contracts';
 import { CUSTOM_FIELD_LIMITS, ui } from '@nodus/contracts';
-import { Button } from '@nodus/ui/components/button';
 import { Checkbox } from '@nodus/ui/components/checkbox';
 import { Input } from '@nodus/ui/components/input';
+import { Eye } from 'lucide-react';
 
 import {
   visibleDefinitions,
@@ -28,11 +28,10 @@ import {
 import { setMinFiles, validatorOf } from '../../../model/transition-rules.js';
 import { TransitionWindow } from '../../../../../shared/workflow/transition-window/transition-window.js';
 import type { TransitionWindowContext } from '../../../../../shared/workflow/transition-window/window-context.js';
-import { PanelField, SwitchRow } from './panel-kit.js';
+import { ModeChoices, PanelAction, PanelField, SwitchRow } from './panel-kit.js';
 import { CustomFieldChecks } from './custom-fields-checks.js';
 import {
   GateCheck,
-  ModeChoices,
   RequiredCheck,
   SectionToggle,
   previewTransition,
@@ -232,9 +231,9 @@ export function WindowSection({
             </div>
           </SectionToggle>
 
-          <Button type="button" variant="outline" onClick={() => setPreviewOpen(true)}>
+          <PanelAction icon={Eye} onClick={() => setPreviewOpen(true)}>
             {ui.automation.window.preview}
-          </Button>
+          </PanelAction>
           <TransitionWindow
             open={previewOpen}
             mode="preview"
