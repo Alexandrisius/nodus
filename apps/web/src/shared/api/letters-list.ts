@@ -1,15 +1,21 @@
 import { useInfiniteQuery, type InfiniteData } from '@tanstack/react-query';
-import type { LetterBox, LetterListItem, Paginated } from '@nodus/contracts';
+import {
+  LETTER_LIMITS,
+  type LetterBox,
+  type LetterListItem,
+  type Paginated,
+} from '@nodus/contracts';
 
 import { api } from '../api-client.js';
 import { lettersKeys, type LettersListFilters } from './letters-keys.js';
 
-export type LettersPages = InfiniteData<Paginated<LetterListItem>, string | null>;
+export type LettersPages = InfiniteData<Paginated<LetterListItem>>;
 
 function listPath(box: LetterBox | null, filters: LettersListFilters, cursor: string | null) {
   const params = new URLSearchParams();
   if (box) params.set('box', box);
-  if (filters.search) params.set('search', filters.search);
+  // Длиннее лимита контракта сервер ответил бы 400 — режем здесь, у всех потребителей.
+  if (filters.search) params.set('search', filters.search.slice(0, LETTER_LIMITS.search));
   if (filters.counterpartyId) params.set('counterpartyId', filters.counterpartyId);
   if (cursor) params.set('cursor', cursor);
   const qs = params.toString();
@@ -25,15 +31,28 @@ export function useLettersInfinite(
   filters: LettersListFilters = {},
   options: { enabled?: boolean } = {},
 ) {
+  const queryKey = lettersKeys.list(box, filters);
   return useInfiniteQuery({
-    queryKey: lettersKeys.list(box, filters),
+    queryKey,
     queryFn: ({ pageParam, signal }) =>
       api<Paginated<LetterListItem>>(listPath(box, filters, pageParam), { signal }),
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.nextCursor,
     enabled: options.enabled ?? true,
     staleTime: 30_000,
+    // Новый поисковый запрос — прежние строки до ответа (список не мигает
+    // скелетом на каждую букву); смена вкладки или контрагента — честная
+    // загрузка, без чужих строк.
+    placeholderData: (previous, previousQuery) =>
+      previousQuery?.queryKey[2] === queryKey[2] &&
+      sameCounterparty(previousQuery.queryKey[3], queryKey[3])
+        ? previous
+        : undefined,
   });
+}
+
+function sameCounterparty(a: unknown, b: { counterpartyId: string }): boolean {
+  return (a as { counterpartyId?: string } | undefined)?.counterpartyId === b.counterpartyId;
 }
 
 /** Строки всех загруженных страниц. */

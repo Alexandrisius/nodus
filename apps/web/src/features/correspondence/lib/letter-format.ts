@@ -1,5 +1,10 @@
 import { ui } from '@nodus/contracts';
 
+import {
+  formatIsoDate as formatDay,
+  toIsoDate,
+} from '../../../shared/custom-fields/value-format.js';
+
 /** Форматы писем (#55): тема с фолбэком, номер, ISO-даты ДД.ММ.ГГГГ без
  *  сдвига часового пояса (дата документа — календарный день, не момент). */
 
@@ -15,14 +20,12 @@ const pad = (n: number) => String(n).padStart(2, '0');
 
 /** Сегодня в часовом поясе браузера (сервер сверяет по поясу компании). */
 export function todayIso(at = new Date()): string {
-  return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}`;
+  return toIsoDate(at);
 }
 
 /** «2026-10-25» → «25.10.2026»; null — пустая строка. */
 export function formatIsoDate(iso: string | null | undefined): string {
-  if (!iso) return '';
-  const [year, month, day] = iso.slice(0, 10).split('-');
-  return year && month && day ? `${day}.${month}.${year}` : '';
+  return iso ? formatDay(iso) : '';
 }
 
 /** «25.10.2026», «25.10.26», «25/10/2026», «25102026», «251026» → ISO-дата;

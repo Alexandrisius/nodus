@@ -3,22 +3,26 @@ import type { LetterListItem, ProjectListItem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 
 import { useOpenCard } from '../../../app/shell/use-card-stack.js';
+import { letterRows, useLettersInfinite } from '../../../shared/api/letters-list.js';
+import { useDebouncedValue } from '../../../shared/lib/use-debounced-value.js';
 import { makeCardRowMenuItems } from '../../../shared/views/card-row-menu.js';
 import { DataTable } from '../../../shared/views/data-table.js';
+import {
+  letterBuiltinPresets,
+  useLetterFilterDefs,
+} from '../../../shared/views/letter-filter-fields.js';
+import { makeLetterTableFields } from '../../../shared/views/letter-table-fields.js';
 import { ListToolbar } from '../../../shared/views/list-toolbar.js';
 import type { ActiveListFilter, FilterFieldDef } from '../../../shared/views/list-filters.js';
 import { projectListFields } from '../../../shared/views/project-table-fields.js';
 import { useFilteredList, useListToolbar } from '../../../shared/views/use-list-toolbar.js';
 import { ViewSettings } from '../../../shared/views/view-settings.js';
-import { relatedLetterFields } from '../lib/related-letter-fields.js';
 
 const LETTERS_VIEW = 'crm.letters';
 const PROJECTS_VIEW = 'crm.projects';
-const noLetterDefs: FilterFieldDef<LetterListItem>[] = [];
 const noProjectDefs: FilterFieldDef<ProjectListItem>[] = [];
+const letterKey = (letter: LetterListItem) => letter.id;
 
-const letterSearchText = (l: LetterListItem) =>
-  [l.subject, l.registration?.regNumber].filter(Boolean).join(' ');
 const projectSearchText = (p: ProjectListItem) => `${p.code} ${p.name}`;
 
 function useSearch<T>(
@@ -36,36 +40,60 @@ function useSearch<T>(
 }
 
 /**
- * Вкладка «Письма» карточки контрагента (#460) — обратная связь: переписка
- * с организацией списком с колонками (поиск + шестерёнка, «модули не
- * отличаются»). Письма здесь НЕ создаются: письмо рождается в почте/журнале
- * корреспонденции, контрагент в нём — поле (с #55 возможна кнопка «Написать»
- * с подставленным корреспондентом). Клик — карточка письма поверх стека.
+ * Вкладка «Письма» карточки контрагента (#460, #55) — обратная связь:
+ * зарегистрированная переписка с организацией (оба направления, № несёт
+ * префикс «Вх»/«Исх») на ОБЩЕМ реестре колонок и фильтров писем без колонки
+ * «Корреспондент» (контекст очевиден; память колонок — своя). Поиск —
+ * серверный, страницы — курсором. Письма здесь НЕ создаются: входящее
+ * рождается в «Новых», корреспондент в нём — поле. Запрос идёт, только
+ * когда вкладка открыта и домен отвечает (`enabled`). Клик — карточка
+ * письма поверх стека.
  */
 export function CounterpartyLettersTab({
-  letters,
-  isLoading,
+  counterpartyId,
+  enabled,
 }: {
-  letters: LetterListItem[];
-  isLoading: boolean;
+  counterpartyId: string;
+  enabled: boolean;
 }) {
   const openCard = useOpenCard();
-  const { toolbar, rows } = useSearch(LETTERS_VIEW, letters, noLetterDefs, letterSearchText);
+  const toolbar = useListToolbar(LETTERS_VIEW, letterBuiltinPresets);
+  const search = useDebouncedValue(toolbar.query.trim(), 250);
+  const query = useLettersInfinite(
+    null,
+    { counterpartyId, search: search || undefined },
+    { enabled },
+  );
+  const serverRows = useMemo(() => letterRows(query.data), [query.data]);
+  const fields = useMemo(() => makeLetterTableFields({ counterpartyVisible: false }), []);
+  const defs = useLetterFilterDefs(serverRows, { counterpartyVisible: false });
+  const filter = useMemo<ActiveListFilter<LetterListItem>>(
+    () => ({ defs, state: toolbar.filters, query: '' }),
+    [defs, toolbar.filters],
+  );
+  const rows = useFilteredList(serverRows, filter);
+  const narrowed = search !== '' || rows.length < serverRows.length;
   return (
     <div className="flex h-full flex-col">
       <ListToolbar
         toolbar={toolbar}
-        defs={noLetterDefs}
-        right={<ViewSettings viewKey={LETTERS_VIEW} defs={relatedLetterFields} />}
+        defs={defs}
+        builtinPresets={letterBuiltinPresets}
+        searchPlaceholder={ui.letters.list.searchPlaceholder}
+        right={<ViewSettings viewKey={LETTERS_VIEW} defs={fields} />}
       />
       <div className="min-h-0 flex-1">
         <DataTable
           viewKey={LETTERS_VIEW}
-          defs={relatedLetterFields}
+          defs={fields}
           rows={rows}
-          rowKey={(letter) => letter.id}
-          isLoading={isLoading}
-          emptyTitle={ui.counterparties.noLetters}
+          rowKey={letterKey}
+          isLoading={enabled && query.isLoading}
+          hasNextPage={query.hasNextPage}
+          isFetchingNextPage={query.isFetchingNextPage}
+          onLoadMore={() => void query.fetchNextPage()}
+          label={ui.counterparties.tabLetters}
+          emptyTitle={narrowed ? ui.filters.notFound : ui.counterparties.noLetters}
           rowMenu={(letter) => makeCardRowMenuItems({ kind: 'letter', id: letter.id }, openCard)}
           onOpenRow={(letter, rowEl) =>
             openCard({ kind: 'letter', id: letter.id }, rowEl.getBoundingClientRect())

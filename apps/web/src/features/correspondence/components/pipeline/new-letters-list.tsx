@@ -2,8 +2,10 @@ import { Mail, Paperclip, ScanLine } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import type { LetterListItem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
+import { Skeleton } from '@nodus/ui/components/skeleton';
 import { cn } from '@nodus/ui/lib/utils';
 
+import { useInfiniteSentinel } from '../../../../shared/views/use-infinite-sentinel.js';
 import { letterSubject, receivedLabel } from '../../lib/letter-format.js';
 
 /**
@@ -17,14 +19,23 @@ export function NewLettersList({
   selectedId,
   onSelect,
   onEnter,
+  hasNextPage = false,
+  isFetchingNextPage = false,
+  onLoadMore,
 }: {
   letters: LetterListItem[];
   selectedId: string | null;
   onSelect: (id: string) => void;
   /** Enter на письме — фокус в форму регистрации. */
   onEnter: () => void;
+  /** Курсорная подгрузка очереди (sentinel у дна, как в журналах). */
+  hasNextPage?: boolean;
+  isFetchingNextPage?: boolean;
+  onLoadMore?: () => void;
 }) {
   const listRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  useInfiniteSentinel(listRef, sentinelRef, { hasNextPage, isFetchingNextPage, onLoadMore });
 
   // Выбранное письмо всегда в поле зрения (Alt+↑/↓, переход после регистрации).
   useEffect(() => {
@@ -109,6 +120,11 @@ export function NewLettersList({
           </button>
         );
       })}
+      {hasNextPage ? (
+        <div ref={sentinelRef} className="flex justify-center py-2">
+          {isFetchingNextPage ? <Skeleton className="h-16 w-full rounded-[10px]" /> : null}
+        </div>
+      ) : null}
     </div>
   );
 }

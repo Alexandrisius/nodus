@@ -1,4 +1,5 @@
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCallback } from 'react';
 import type {
   LetterAttachment,
   LetterDetail,
@@ -27,6 +28,22 @@ export function useLetterDetail(id: string) {
     enabled: id.length > 0 && !id.startsWith('temp-'),
     retry: (count, error) => !notFound(error) && count < 2,
   });
+}
+
+/** Префетч карточки по ховеру строки журнала: первое открытие слайдера
+ *  рисует контент одним проходом, без скелета. Беседу письма не трогаем. */
+export function usePrefetchLetter() {
+  const queryClient = useQueryClient();
+  return useCallback(
+    (id: string) => {
+      void queryClient.prefetchQuery({
+        queryKey: lettersKeys.detail(id),
+        queryFn: () => api<LetterDetail>(`/letters/${id}`),
+        staleTime: 30_000,
+      });
+    },
+    [queryClient],
+  );
 }
 
 /** Кнопки маршрута письма (сервер решает, кому какие — условия движка). */

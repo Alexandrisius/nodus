@@ -62,6 +62,7 @@ export function DataTable<T>({
   actions,
   rowMenu,
   emptyTitle = ui.common.empty,
+  label,
   selection: externalSelection,
 }: {
   viewKey: string;
@@ -81,6 +82,9 @@ export function DataTable<T>({
   /** Пункты контекстного меню строки («шашка» в ведущей ячейке). */
   rowMenu?: (row: T) => RowMenuItem[];
   emptyTitle?: string;
+  /** Доступное имя таблицы — название списка. Без него имя — `emptyTitle`
+   *  (у отфильтрованного списка «Ничего не найдено» звучало бы названием). */
+  label?: string;
   /** Внешнее управление выбором (островок массовых действий модуля): если не
    *  передан — таблица держит выбор сама. Один механизм во всех реестрах. */
   selection?: RowSelection;
@@ -148,7 +152,7 @@ export function DataTable<T>({
       <div
         ref={containerRef}
         role="table"
-        aria-label={emptyTitle}
+        aria-label={label ?? emptyTitle}
         className="h-full overflow-auto"
         {...edge.handlers}
       >

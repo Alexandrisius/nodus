@@ -18,6 +18,7 @@ export const SECTION_TITLES: Record<TransitionFormSectionKind, string> = {
   result_files: ui.automation.window.sections.result_files,
   result_messages: ui.automation.window.sections.result_messages,
   comment: ui.automation.window.sections.comment,
+  registration: ui.automation.window.sections.registration,
 };
 
 /** Флажок раздела: включён — настройки раздела видны под ним. */

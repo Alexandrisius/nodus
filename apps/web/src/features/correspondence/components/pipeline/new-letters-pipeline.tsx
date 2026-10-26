@@ -1,8 +1,7 @@
-import { FilePlus2, Mail, ScanLine, Search } from 'lucide-react';
+import { FilePlus2, Mail, MailCheck, ScanLine, Search } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
-import { Empty, EmptyContent, EmptyDescription, EmptyTitle } from '@nodus/ui/components/empty';
 import { Input } from '@nodus/ui/components/input';
 import { Skeleton } from '@nodus/ui/components/skeleton';
 import { cn } from '@nodus/ui/lib/utils';
@@ -21,6 +20,7 @@ import {
   pipelineKeyAction,
 } from '../../lib/pipeline-keys.js';
 import { BodyEmpty, LetterBodyView } from '../letter-body-view.js';
+import { LettersEmpty, LettersLoadError } from '../letters-empty.js';
 import { LettersHeader } from '../letters-header.js';
 import { ManualLetterDialog } from '../manual-letter-dialog.js';
 import { NewLettersList } from './new-letters-list.js';
@@ -43,7 +43,12 @@ export function NewLettersPipeline() {
   const ids = letters.map((letter) => letter.id);
   const [picked, setPicked] = useState<string | null>(null);
   const selectedId = picked && ids.includes(picked) ? picked : (ids[0] ?? null);
-  const { data: letter } = useLetterDetail(selectedId ?? '');
+  const detail = useLetterDetail(selectedId ?? '');
+  const letter = detail.data;
+  // Скелеты — только пока что-то едет: пустой поиск и пропавшее письмо
+  // (404 — зарегистрировал коллега) получают свои состояния, не вечную загрузку.
+  const pending = query.isLoading || (selectedId !== null && !letter && !detail.isError);
+  const failed = query.isError && !query.data;
   const panelRef = useRef<RegistrationPanelControl | null>(null);
   const listColumnRef = useRef<HTMLDivElement>(null);
   const split = useSplitWidth(listColumnRef, {
@@ -93,147 +98,153 @@ export function NewLettersPipeline() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <LettersHeader count={query.isSuccess ? letters.length : undefined}>
+      <LettersHeader
+        count={query.isSuccess ? `${letters.length}${query.hasNextPage ? '+' : ''}` : undefined}
+      >
         {createButton}
       </LettersHeader>
-      <div className="flex min-h-0 flex-1 border-t border-border">
-        <div
-          ref={listColumnRef}
-          className="relative flex min-h-0 shrink-0 flex-col border-r border-border"
-          style={split.style}
-        >
-          <div className="flex h-12 shrink-0 items-center border-b border-border px-3">
-            <div className="relative w-full">
-              <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                placeholder={ui.letters.pipeline.searchPlaceholder}
-                aria-label={ui.letters.pipeline.searchPlaceholder}
-                className="h-8 pl-8 text-sm"
-              />
-            </div>
-          </div>
-          {query.isLoading ? (
-            <div className="flex flex-col gap-2 p-3">
-              {[0, 1, 2, 3].map((i) => (
-                <Skeleton key={i} className="h-16 w-full rounded-[10px]" />
-              ))}
-            </div>
-          ) : query.isError ? (
-            <div className="flex flex-col items-center gap-2 p-6 text-center text-xs text-muted-foreground">
-              {ui.letters.list.loadError}
-              <Button variant="ghost" size="sm" onClick={() => void query.refetch()}>
-                {ui.letters.list.retry}
-              </Button>
-            </div>
-          ) : letters.length === 0 && search ? (
-            <p className="p-6 text-center text-xs text-muted-foreground">
-              {ui.letters.pipeline.searchEmpty}
-            </p>
-          ) : (
-            <NewLettersList
-              letters={letters}
-              selectedId={selectedId}
-              onSelect={setPicked}
-              onEnter={() => panelRef.current?.focusFirst()}
-            />
-          )}
-          <div
-            onPointerDown={split.onDividerDown}
-            role="separator"
-            aria-orientation="vertical"
-            aria-label={ui.common.resizePanel}
-            title={ui.common.resizePanel}
-            className="group absolute top-0 right-0 z-10 h-full w-3 translate-x-1/2 cursor-col-resize"
-          >
-            <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-port/60 opacity-0 transition-opacity group-hover:opacity-100" />
-          </div>
+      {failed ? (
+        <div className="min-h-0 flex-1 border-t border-border">
+          <LettersLoadError onRetry={() => void query.refetch()} />
         </div>
-
-        {query.isSuccess && letters.length === 0 && !search ? (
-          <div className="flex min-w-0 flex-1 items-center justify-center">
-            <Empty>
-              <EmptyTitle>{ui.letters.pipeline.empty}</EmptyTitle>
-              <EmptyDescription>{ui.letters.pipeline.emptyHint}</EmptyDescription>
-              <EmptyContent>{createButton}</EmptyContent>
-            </Empty>
-          </div>
-        ) : (
-          <>
-            <div className="flex min-w-0 flex-1 flex-col border-r border-border">
-              <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-4">
-                {letter ? (
-                  <>
-                    {letter.source === 'manual' ? (
-                      <ScanLine
-                        className="size-4 shrink-0 text-muted-foreground"
-                        strokeWidth={1.75}
-                        aria-hidden
-                      />
-                    ) : (
-                      <Mail
-                        className="size-4 shrink-0 text-muted-foreground"
-                        strokeWidth={1.75}
-                        aria-hidden
-                      />
-                    )}
-                    <span
-                      className={cn(
-                        'min-w-0 flex-1 truncate text-sm font-medium',
-                        !letter.subject && 'text-muted-foreground',
-                      )}
-                      title={letterSubject(letter)}
-                    >
-                      {letterSubject(letter)}
-                    </span>
-                    <span className="shrink-0 text-xs text-muted-foreground">
-                      {ui.letters.source[letter.source]} ·{' '}
-                      <span className="font-mono tabular-nums">
-                        {receivedLabel(letter.receivedAt)}
-                      </span>
-                    </span>
-                  </>
-                ) : (
-                  <Skeleton className="h-4 w-64" />
-                )}
+      ) : (
+        <div className="flex min-h-0 flex-1 border-t border-border">
+          <div
+            ref={listColumnRef}
+            className="relative flex min-h-0 shrink-0 flex-col border-r border-border"
+            style={split.style}
+          >
+            <div className="flex h-12 shrink-0 items-center border-b border-border px-3">
+              <div className="relative w-full">
+                <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  placeholder={ui.letters.pipeline.searchPlaceholder}
+                  aria-label={ui.letters.pipeline.searchPlaceholder}
+                  className="h-8 pl-8 text-sm"
+                />
               </div>
-              <div className="min-h-0 flex-1">
+            </div>
+            {query.isLoading ? (
+              <div className="flex flex-col gap-2 p-3">
+                {[0, 1, 2, 3].map((i) => (
+                  <Skeleton key={i} className="h-16 w-full rounded-[10px]" />
+                ))}
+              </div>
+            ) : letters.length === 0 && search ? (
+              <p className="p-6 text-center text-xs text-muted-foreground">
+                {ui.letters.pipeline.searchEmpty}
+              </p>
+            ) : (
+              <NewLettersList
+                letters={letters}
+                selectedId={selectedId}
+                onSelect={setPicked}
+                onEnter={() => panelRef.current?.focusFirst()}
+                hasNextPage={query.hasNextPage}
+                isFetchingNextPage={query.isFetchingNextPage}
+                onLoadMore={() => void query.fetchNextPage()}
+              />
+            )}
+            <div
+              onPointerDown={split.onDividerDown}
+              role="separator"
+              aria-orientation="vertical"
+              aria-label={ui.common.resizePanel}
+              title={ui.common.resizePanel}
+              className="group absolute top-0 right-0 z-10 h-full w-3 translate-x-1/2 cursor-col-resize"
+            >
+              <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-port/60 opacity-0 transition-opacity group-hover:opacity-100" />
+            </div>
+          </div>
+
+          {query.isSuccess && letters.length === 0 && !search ? (
+            <LettersEmpty
+              icon={MailCheck}
+              title={ui.letters.pipeline.empty}
+              hint={ui.letters.pipeline.emptyHint}
+            >
+              {createButton}
+            </LettersEmpty>
+          ) : (
+            <>
+              <div className="flex min-w-0 flex-1 flex-col border-r border-border">
+                <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-4">
+                  {letter ? (
+                    <>
+                      {letter.source === 'manual' ? (
+                        <ScanLine
+                          className="size-4 shrink-0 text-muted-foreground"
+                          strokeWidth={1.75}
+                          aria-hidden
+                        />
+                      ) : (
+                        <Mail
+                          className="size-4 shrink-0 text-muted-foreground"
+                          strokeWidth={1.75}
+                          aria-hidden
+                        />
+                      )}
+                      <span
+                        className={cn(
+                          'min-w-0 flex-1 truncate text-sm font-medium',
+                          !letter.subject && 'text-muted-foreground',
+                        )}
+                        title={letterSubject(letter)}
+                      >
+                        {letterSubject(letter)}
+                      </span>
+                      <span className="shrink-0 text-xs text-muted-foreground">
+                        {ui.letters.source[letter.source]} ·{' '}
+                        <span className="font-mono tabular-nums">
+                          {receivedLabel(letter.receivedAt)}
+                        </span>
+                      </span>
+                    </>
+                  ) : pending ? (
+                    <Skeleton className="h-4 w-64" />
+                  ) : null}
+                </div>
+                <div className="min-h-0 flex-1">
+                  {letter ? (
+                    <LetterBodyView
+                      key={letter.id}
+                      letter={letter}
+                      empty={
+                        <BodyEmpty
+                          title={ui.letters.pipeline.documentMissing}
+                          hint={ui.letters.pipeline.documentMissingHint}
+                        />
+                      }
+                    />
+                  ) : detail.isError ? (
+                    <BodyEmpty title={ui.letters.card.notFound} />
+                  ) : null}
+                </div>
+              </div>
+              <div className="flex min-h-0 shrink-0 flex-col" style={{ width: uiPx(420) }}>
                 {letter ? (
-                  <LetterBodyView
+                  <RegistrationPanel
                     key={letter.id}
                     letter={letter}
-                    empty={
-                      <BodyEmpty
-                        title={ui.letters.pipeline.documentMissing}
-                        hint={ui.letters.pipeline.documentMissingHint}
-                      />
-                    }
+                    controlRef={panelRef}
+                    onRegistered={() => advanceFrom(letter.id)}
+                    onClosed={() => advanceFrom(letter.id)}
+                    onDeleteSpam={() => setSpamOpen(true)}
                   />
+                ) : pending ? (
+                  <div className="flex flex-col gap-3 p-4">
+                    {[0, 1, 2, 3, 4].map((i) => (
+                      <Skeleton key={i} className="h-8 w-full" />
+                    ))}
+                  </div>
                 ) : null}
               </div>
-            </div>
-            <div className="flex min-h-0 shrink-0 flex-col" style={{ width: uiPx(420) }}>
-              {letter ? (
-                <RegistrationPanel
-                  key={letter.id}
-                  letter={letter}
-                  controlRef={panelRef}
-                  onRegistered={() => advanceFrom(letter.id)}
-                  onClosed={() => advanceFrom(letter.id)}
-                  onDeleteSpam={() => setSpamOpen(true)}
-                />
-              ) : (
-                <div className="flex flex-col gap-3 p-4">
-                  {[0, 1, 2, 3, 4].map((i) => (
-                    <Skeleton key={i} className="h-8 w-full" />
-                  ))}
-                </div>
-              )}
-            </div>
-          </>
-        )}
-      </div>
+            </>
+          )}
+        </div>
+      )}
 
       <SpamConfirmDialog
         open={spamOpen}

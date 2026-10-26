@@ -38,6 +38,8 @@ export const lettersStrings = {
     theirNumber: 'Их №',
     theirDate: 'Их дата',
     theirNumberAndDate: 'Их № и дата',
+    /** Связка «01-12/345 от 20.10.2026». */
+    dateFrom: 'от',
     subject: 'Тема',
     receiptMethod: 'Способ поступления',
     project: 'Проект',

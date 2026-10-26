@@ -30,6 +30,7 @@ const type = (
   },
   creationForm: { fields: [], chips: [] },
   viewer: { canView: true, canCreate: true },
+  numbering: null,
   ...over,
 });
 

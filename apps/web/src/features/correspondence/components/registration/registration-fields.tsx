@@ -238,7 +238,7 @@ export function RegistrationFields({
           describedBy={errorId('addresseeId')}
         />,
       )}
-      {projectsAvailable()
+      {projectsAvailable('letters')
         ? row(
             'projectId',
             <ProjectPicker
@@ -259,9 +259,12 @@ export function RegistrationFields({
                 value={value.customFields[definition.id]}
                 refs={letter.customFieldRefs}
                 variant="form"
-                onCommit={(next) =>
-                  set({ customFields: { ...value.customFields, [definition.id]: next } })
-                }
+                onCommit={(next) => {
+                  const customFields = { ...value.customFields };
+                  if (next === null) delete customFields[definition.id];
+                  else customFields[definition.id] = next;
+                  set({ customFields });
+                }}
               />
             </div>
           ))}

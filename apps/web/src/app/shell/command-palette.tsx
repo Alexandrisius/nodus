@@ -11,12 +11,14 @@ import {
   CommandList,
 } from '@nodus/ui/components/command';
 import { Dialog, DialogContent, DialogTitle } from '@nodus/ui/components/dialog';
+import { cn } from '@nodus/ui/lib/utils';
 
 import { useConversations } from '../../features/chat/api/chat-api.js';
-import { useLettersList } from '../../features/correspondence/api/letters-api.js';
 import { useUsersList } from '../../features/directory/api/directory-api.js';
 import { useProjectsList } from '../../features/projects/api/projects-api.js';
 import { useTasksSearch } from '../../features/tasks/api/tasks-api.js';
+import { letterRows, useLettersInfinite } from '../../shared/api/letters-list.js';
+import { useDebouncedValue } from '../../shared/lib/use-debounced-value.js';
 import { PersonAvatar } from '../../shared/ui/person-avatar.js';
 import { useShellStore } from './shell-store.js';
 import { useOpenCard } from './use-card-stack.js';
@@ -41,10 +43,16 @@ export function CommandPalette() {
   const { data: users } = useUsersList();
   const { data: projects } = useProjectsList();
   const { data: chats } = useConversations();
-  const { data: incoming } = useLettersList('incoming');
-  const { data: outgoing } = useLettersList('outgoing');
   const [query, setQuery] = useState('');
   const { data: tasks } = useTasksSearch(query.trim());
+  // Письма — серверный поиск зарегистрированных (№, тема, их №,
+  // корреспондент) с задержкой: запрос не на каждую букву.
+  const letterSearch = useDebouncedValue(query.trim(), 200);
+  const lettersQuery = useLettersInfinite(
+    null,
+    { search: letterSearch || undefined },
+    { enabled: open && letterSearch !== '' },
+  );
 
   // Сброс запроса при закрытии — во время рендера (канон React «adjust state
   // during render»: без лишнего кадра со старым состоянием, аудит #45).
@@ -63,9 +71,7 @@ export function CommandPalette() {
     const t = text.toLowerCase();
     return t.includes(q) || (stems.length > 0 && stems.every((s) => t.includes(s)));
   };
-  // Входящие (включая незарегистрированные) + отправленные — всё, что ищет
-  // палитра; журнал — подмножество (модель v2, #69).
-  const letters = [...(incoming?.items ?? []), ...(outgoing?.items ?? [])];
+  const letters = q === '' ? [] : letterRows(lettersQuery.data).slice(0, 8);
 
   function go(to: string, params?: Record<string, string>) {
     setOpen(false);
@@ -116,23 +122,33 @@ export function CommandPalette() {
                       ))}
                   </CommandGroup>
                 )}
-                {letters.filter((l) => has(l.subject) || has(l.counterparty.name)).length > 0 && (
+                {letters.length > 0 && (
                   <CommandGroup heading={ui.nav.letters}>
-                    {letters
-                      .filter((l) => has(l.subject) || has(l.counterparty.name))
-                      .map((letter) => (
-                        <CommandItem
-                          key={letter.id}
-                          value={letter.id}
-                          onSelect={() => {
-                            setOpen(false);
-                            openCard({ kind: 'letter', id: letter.id });
-                          }}
+                    {letters.map((letter) => (
+                      <CommandItem
+                        key={letter.id}
+                        value={letter.id}
+                        onSelect={() => {
+                          setOpen(false);
+                          openCard({ kind: 'letter', id: letter.id });
+                        }}
+                      >
+                        <Mail data-icon="inline-start" />
+                        <span className="shrink-0 font-mono text-label-sm text-muted-foreground tabular-nums">
+                          {letter.regNumber}
+                        </span>
+                        <span
+                          className={cn('truncate', !letter.subject && 'text-muted-foreground')}
                         >
-                          <Mail data-icon="inline-start" />
-                          {letter.subject}
-                        </CommandItem>
-                      ))}
+                          {letter.subject ?? ui.letters.noSubject}
+                        </span>
+                        {letter.counterparty ? (
+                          <span className="ml-auto max-w-[40%] shrink-0 truncate text-xs text-muted-foreground">
+                            {letter.counterparty.name}
+                          </span>
+                        ) : null}
+                      </CommandItem>
+                    ))}
                   </CommandGroup>
                 )}
                 {(projects?.items ?? []).filter((p) => has(p.name) || has(p.code)).length > 0 && (
