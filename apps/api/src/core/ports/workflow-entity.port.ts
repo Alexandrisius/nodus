@@ -73,6 +73,10 @@ export interface WorkflowActorSubject {
 /** Стадия — то, что нужно для применения смены (данные модуля «Процессы»). */
 export interface WorkflowEntityStage {
   id: string;
+  /** Код системной стадии (null у пользовательских): письма различают
+   *  «Не зарегистрировано» и «Ошибочно зарегистрировано» (#55, Р5).
+   *  Необязателен — старые адаптеры его не читают. */
+  code?: string | null;
   name: string;
   systemState: string;
   outcome: string | null;

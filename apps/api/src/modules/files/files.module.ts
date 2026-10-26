@@ -5,7 +5,9 @@ import { FILE_STORAGE } from '../../core/ports/file-storage.port.js';
 import { FileStorageProvider } from './file-storage.provider.js';
 import { FILES_CONFIG, getFilesConfig } from './files.config.js';
 import { FilesController } from './files.controller.js';
+import { DiscoveryModule } from '@nestjs/core';
 import { FILE_OBJECT_READER } from '../../core/ports/file-object-reader.port.js';
+import { FileAccessRegistry } from '../../core/ports/file-access.registry.js';
 import { FilesRepository } from './files.repository.js';
 import { FileObjectReaderProvider } from './ports/file-object-reader.provider.js';
 import { MinioStorageDriver } from './storage/minio-storage.driver.js';
@@ -21,6 +23,7 @@ import { DerivativesService } from './derivatives/derivatives.service.js';
 import { DerivativesWorker } from './derivatives/derivatives.worker.js';
 import { AvatarService } from './avatars/avatar.service.js';
 import { AttachmentSentHandler } from './events/attachment-sent.handler.js';
+import { LetterReceivedHandler } from './events/letter-received.handler.js';
 
 /**
  * Модуль files (M9, #57 ADR-0013 + #138 движок просмотра + #139 конвейер
@@ -30,12 +33,14 @@ import { AttachmentSentHandler } from './events/attachment-sent.handler.js';
  * office-эндпоинты (#138). @Global — как CryptoModule: токен FILE_STORAGE
  * инжектится модулями-потребителями (chat, дальше correspondence) БЕЗ
  * межмодульного импорта (I3/I6); обратное направление (права контекста) —
- * multi-порт FILE_ACCESS_CONTRIBUTORS от потребителей (core/ports).
+ * реестр FileAccessRegistry: потребители регистрируют контрибьютора
+ * статическим маркером `fileAccessContext`, DiscoveryService его находит.
  * Своего фичефлага нет: офис-движок гейтится OFFICE_ENABLED (внутри
  * колбэка/сессии), маршруты потребителя — под его флагом.
  */
 @Global()
 @Module({
+  imports: [DiscoveryModule],
   controllers: [FilesController, OfficeController],
   providers: [
     { provide: FILES_CONFIG, useFactory: getFilesConfig },
@@ -43,6 +48,7 @@ import { AttachmentSentHandler } from './events/attachment-sent.handler.js';
     { provide: DERIVATIVES_CONFIG, useFactory: getDerivativesConfig },
     MinioStorageDriver,
     FilesRepository,
+    FileAccessRegistry,
     FileObjectReaderProvider,
     { provide: FILE_OBJECT_READER, useExisting: FileObjectReaderProvider },
     FileStorageProvider,
@@ -59,11 +65,12 @@ import { AttachmentSentHandler } from './events/attachment-sent.handler.js';
     // Запуск конвейера по подтверждению вложений (#139): files слушает
     // chat.message_sent — связь модулей событием (I3).
     AttachmentSentHandler,
+    LetterReceivedHandler,
     { provide: FILE_STORAGE, useExisting: FileStorageProvider },
     // Аватарки (#186): порт для chat/directory (I3 — модули не импортируют
     // друг друга), реализация — AvatarService (см. avatars/).
     { provide: AVATAR_PROCESSOR, useExisting: AvatarService },
   ],
-  exports: [FILE_STORAGE, FILE_OBJECT_READER, AVATAR_PROCESSOR],
+  exports: [FILE_STORAGE, FILE_OBJECT_READER, FileAccessRegistry, AVATAR_PROCESSOR],
 })
 export class FilesModule {}

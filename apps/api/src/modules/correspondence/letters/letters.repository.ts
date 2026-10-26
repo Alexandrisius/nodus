@@ -118,6 +118,16 @@ export class LettersRepository {
     await tx.letter.delete({ where: { id } });
   }
 
+  /** Письма, в которых лежит файл, — видимость для контрибьютора прав
+   *  файлов (#55, B5). Файл может быть приложен к нескольким письмам. */
+  async visibilityByFile(fileId: string): Promise<{ registeredAt: Date | null }[]> {
+    const rows = await this.prisma.letterAttachment.findMany({
+      where: { fileId },
+      select: { letter: { select: { registeredAt: true } } },
+    });
+    return rows.map((row) => row.letter);
+  }
+
   /** Файлы письма для удаления объектов хранилища (спам, Р12). */
   fileIds(letterId: string): Promise<string[]> {
     return this.prisma.letterAttachment

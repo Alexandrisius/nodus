@@ -43,7 +43,8 @@ import { WorkflowsModule } from './modules/workflows/workflows.module.js';
     FilesModule,
     ChatModule,
     // Права chat на файлы для движка просмотра (#138, I13): @Global-мост
-    // FILE_ACCESS_CONTRIBUTORS — после ChatModule (свой модуль не тянет).
+    // Права файлов — реестр FileAccessRegistry (files) находит контрибьютора
+    // по маркеру fileAccessContext; ChatFileAccessModule — после ChatModule.
     ChatFileAccessModule,
     DirectoryModule,
     // Справочники (#54): бизнес-списки как данные (I15), модуль ядра.

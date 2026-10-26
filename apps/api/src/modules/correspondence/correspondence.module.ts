@@ -6,6 +6,7 @@ import { CrmPortsModule } from '../crm/crm-ports.module.js';
 import { CustomFieldsPortsModule } from '../custom-fields/custom-fields-ports.module.js';
 import { DictionariesPortsModule } from '../dictionaries/dictionaries-ports.module.js';
 import { WorkflowsPortsModule } from '../workflows/workflows-ports.module.js';
+import { LetterFileAccess } from './access/letter-file-access.js';
 import { LetterHistoryRepository } from './history/letter-history.repository.js';
 import { LetterHistoryService } from './history/letter-history.service.js';
 import { LetterDtoMapper } from './letters/letter-dto.mapper.js';
@@ -39,6 +40,7 @@ import { LetterWorkflowAdapter } from './workflow/letter-workflow.adapter.js';
     { provide: USER_PROFILE_READER, useClass: UserProfileProvider },
     // Репозитории — единственная точка доступа к таблицам модуля (patterns.md).
     LettersRepository,
+    LetterFileAccess,
     LetterHistoryRepository,
     LetterDtoMapper,
     LettersQueryService,
