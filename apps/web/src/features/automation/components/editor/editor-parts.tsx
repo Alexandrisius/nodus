@@ -1,3 +1,4 @@
+import { Lock } from 'lucide-react';
 import { useBlocker } from '@tanstack/react-router';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
@@ -42,6 +43,17 @@ export function DraftBanner({ savedAt, onReset }: { savedAt: string; onReset: ()
   );
   return (
     <Banner tone="warning" text={`${ui.automation.draftContinue} ${time}`} onReset={onReset} />
+  );
+}
+
+/** Маршрут письма — системный каталог (#55, Р4): правка закрыта, холст и
+ *  панели только для чтения. Баннер висит на холсте, пока тип письма выбран. */
+export function CatalogLockBanner({ text }: { text: string }) {
+  return (
+    <div className="absolute top-3 left-1/2 z-10 flex max-w-[calc(100%-2rem)] -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-card/95 px-3 py-1.5 text-xs text-muted-foreground shadow-none backdrop-blur-sm">
+      <Lock className="size-3.5 shrink-0" strokeWidth={1.75} aria-hidden />
+      <span className="min-w-0 truncate">{text}</span>
+    </div>
   );
 }
 

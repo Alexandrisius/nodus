@@ -1,9 +1,10 @@
 import type {
+  ProcessCategory,
   TransitionDisplay,
   WorkflowDraftDocument,
   WorkflowDraftTransition,
 } from '@nodus/contracts';
-import { ui } from '@nodus/contracts';
+import { WORKFLOW_ROLES_BY_CATEGORY, WORKFLOW_VALIDATORS_BY_CATEGORY, ui } from '@nodus/contracts';
 import { Input } from '@nodus/ui/components/input';
 import {
   Select,
@@ -16,7 +17,6 @@ import { ArrowRight } from 'lucide-react';
 
 import { useRouteDocStore } from '../../../model/route-doc-store.js';
 import {
-  ACTOR_ROLES,
   VALIDATOR_KINDS,
   rolesOf,
   routeIfOf,
@@ -30,9 +30,17 @@ const ANY = 'any';
 const DISPLAYS: readonly TransitionDisplay[] = ['primary', 'button', 'menu'];
 
 /** Сводки разделов (строка под названием раздела). */
-export function sectionSummaries(transition: WorkflowDraftTransition, doc: WorkflowDraftDocument) {
+export function sectionSummaries(
+  transition: WorkflowDraftTransition,
+  doc: WorkflowDraftDocument,
+  category: ProcessCategory = 'task',
+) {
   const roles = rolesOf(transition.rules);
-  const validators = VALIDATOR_KINDS.filter((kind) => validatorOf(transition.rules, kind));
+  const roleOrder = WORKFLOW_ROLES_BY_CATEGORY[category];
+  const validatorOrder = WORKFLOW_VALIDATORS_BY_CATEGORY[category] as readonly string[];
+  const validators = VALIDATOR_KINDS.filter(
+    (kind) => validatorOrder.includes(kind) && validatorOf(transition.rules, kind),
+  );
   const routeIf = routeIfOf(transition.rules);
   const windowSummary = !transition.form.enabled
     ? ui.automation.window.summaryOff
@@ -44,7 +52,8 @@ export function sectionSummaries(transition: WorkflowDraftTransition, doc: Workf
   return {
     roles:
       roles.size > 0
-        ? ACTOR_ROLES.filter((r) => roles.has(r))
+        ? roleOrder
+            .filter((r) => roles.has(r))
             .map((r) => ui.automation.roles[r])
             .join(', ')
         : ui.automation.panel.nobody,
@@ -73,16 +82,20 @@ export function TransitionPanel({
   readOnly,
   autoFocusName,
   onOpenSection,
+  category = 'task',
 }: {
   transition: WorkflowDraftTransition;
   document: WorkflowDraftDocument;
   readOnly: boolean;
   autoFocusName: boolean;
   onOpenSection: (section: Exclude<TransitionSection, 'root'>) => void;
+  /** Категория типа (Р6): у письма свои роли, нет гейтов и route_if,
+   *  а пост-действие «Присвоить номер» только показывается. */
+  category?: ProcessCategory;
 }) {
   const store = useRouteDocStore.getState;
   const patch = (value: Partial<WorkflowDraftTransition>) => store().patchTransition(t.id, value);
-  const summaries = sectionSummaries(t, doc);
+  const summaries = sectionSummaries(t, doc, category);
 
   return (
     <>
@@ -165,16 +178,20 @@ export function TransitionPanel({
           summary={summaries.roles}
           onClick={() => onOpenSection('roles')}
         />
-        <SectionLink
-          title={ui.automation.panel.sectionConditions}
-          summary={summaries.conditions}
-          onClick={() => onOpenSection('conditions')}
-        />
-        <SectionLink
-          title={ui.automation.panel.sectionRules}
-          summary={summaries.rules}
-          onClick={() => onOpenSection('rules')}
-        />
+        {category === 'task' ? (
+          <SectionLink
+            title={ui.automation.panel.sectionConditions}
+            summary={summaries.conditions}
+            onClick={() => onOpenSection('conditions')}
+          />
+        ) : null}
+        {category === 'task' ? (
+          <SectionLink
+            title={ui.automation.panel.sectionRules}
+            summary={summaries.rules}
+            onClick={() => onOpenSection('rules')}
+          />
+        ) : null}
         <SectionLink
           title={ui.automation.panel.sectionWindow}
           summary={summaries.window}

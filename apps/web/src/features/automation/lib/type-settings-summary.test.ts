@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { ProcessType, ProcessTypeConfig } from '@nodus/contracts';
 
-import { accessSummary, blocksSummary, roleLabelsSummary } from './type-settings-summary.js';
+import {
+  accessSummary,
+  blocksSummary,
+  numberingSummary,
+  roleLabelsSummary,
+} from './type-settings-summary.js';
 
 const HEAD = '11111111-1111-4111-8111-111111111111';
 const HR = '22222222-2222-4222-8222-222222222222';
@@ -76,5 +81,23 @@ describe('сводки «Настроек типа» (#432)', () => {
       },
     );
     expect(roleLabelsSummary(renamed)).toBe('Постановщик → Заявитель, Наблюдатель → Кадры');
+  });
+});
+
+describe('нумерация типа (#55, Р2)', () => {
+  it('серия письма — «Вх-ГГГГ/N», у задачи нумерации нет', () => {
+    expect(numberingSummary(type())).toBe('Без нумерации');
+    expect(
+      numberingSummary(
+        type({
+          category: 'letter',
+          numbering: {
+            seriesId: '00000000-0000-4000-8000-0000000000aa',
+            prefix: 'Вх',
+            reset: 'year',
+          },
+        }),
+      ),
+    ).toBe('Вх-ГГГГ/N');
   });
 });

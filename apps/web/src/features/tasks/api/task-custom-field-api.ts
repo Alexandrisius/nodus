@@ -9,7 +9,6 @@ import type {
 import { toast } from 'sonner';
 
 import { api } from '../../../shared/api-client.js';
-import { lettersKeys } from '../../../shared/api/letters-keys.js';
 import {
   fieldErrorText,
   mergedRefs,
@@ -69,7 +68,6 @@ export function useUpdateTaskCustomField(taskId: string) {
       for (const key of taskDependentKeys(taskId)) {
         void queryClient.invalidateQueries({ queryKey: key });
       }
-      void queryClient.invalidateQueries({ queryKey: lettersKeys.all });
     },
   });
 }

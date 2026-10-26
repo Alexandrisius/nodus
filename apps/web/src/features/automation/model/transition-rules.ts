@@ -44,13 +44,19 @@ export function rolesOf(rules: Rules): Set<WorkflowActorRole> {
   return new Set(rules.conditions.flatMap((c) => (c.kind === 'role_in' ? c.roles : [])));
 }
 
-/** Роль вкл/выкл; последнюю снять нельзя (кнопку должен кто-то видеть). */
-export function toggleRole(rules: Rules, role: WorkflowActorRole): Rules {
+/** Роль вкл/выкл; последнюю снять нельзя (кнопку должен кто-то видеть).
+ *  `allowed` — словарь ролей категории (Р6): у письма свои роли, чужие из
+ *  документа не переживают правку. */
+export function toggleRole(
+  rules: Rules,
+  role: WorkflowActorRole,
+  allowed: readonly WorkflowActorRole[] = ACTOR_ROLES,
+): Rules {
   const roles = rolesOf(rules);
   if (roles.has(role)) roles.delete(role);
   else roles.add(role);
   if (roles.size === 0) return rules;
-  const list = ACTOR_ROLES.filter((r) => roles.has(r));
+  const list = allowed.filter((r) => roles.has(r));
   const others = rules.conditions.filter((c) => c.kind !== 'role_in');
   return { ...rules, conditions: [{ kind: 'role_in', roles: list }, ...others] };
 }

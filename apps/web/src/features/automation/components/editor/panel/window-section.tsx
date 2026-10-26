@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import type {
   CustomFieldScope,
+  ProcessCategory,
   WorkflowDraftDocument,
   WorkflowDraftTransition,
 } from '@nodus/contracts';
-import { CUSTOM_FIELD_LIMITS, ui } from '@nodus/contracts';
+import { CUSTOM_FIELD_LIMITS, WORKFLOW_SECTIONS_BY_CATEGORY, ui } from '@nodus/contracts';
 import { Checkbox } from '@nodus/ui/components/checkbox';
 import { Input } from '@nodus/ui/components/input';
 import { Eye } from 'lucide-react';
@@ -50,6 +51,7 @@ export function WindowSection({
   scope,
   typeId,
   readOnly,
+  category = 'task',
 }: {
   transition: WorkflowDraftTransition;
   document: WorkflowDraftDocument;
@@ -57,8 +59,13 @@ export function WindowSection({
   /** Тип процесса: в окно выбираются только его атрибуты (#432, Р8). */
   typeId?: string;
   readOnly: boolean;
+  /** Разделы окна категории (Р6): у письма — «Регистрация» и «Причина /
+   *  комментарий», задачных (время, итог, файлы) нет. */
+  category?: ProcessCategory;
 }) {
   const form = transition.form;
+  const allowedSections = WORKFLOW_SECTIONS_BY_CATEGORY[category] as readonly string[];
+  const has = (kind: string) => allowedSections.includes(kind);
   const [previewOpen, setPreviewOpen] = useState(false);
   const { data: definitions } = useCustomFieldDefinitions(scope);
   const patch = (next: Partial<WorkflowDraftTransition['form']>) =>
@@ -86,150 +93,175 @@ export function WindowSection({
             />
           </PanelField>
 
-          <SectionToggle
-            kind="fields"
-            transition={transition}
-            readOnly={readOnly}
-            onToggle={() => toggle('fields')}
-          >
-            <div className="flex flex-col gap-1.5">
-              {WINDOW_FIELDS.map((field) => {
-                const section = sectionOf(form, 'fields');
-                const checked = section?.fields.includes(field) ?? false;
-                return (
-                  <label key={field} className="flex items-center gap-2 text-sm">
-                    <Checkbox
-                      checked={checked}
-                      disabled={readOnly || (checked && (section?.fields.length ?? 0) === 1)}
-                      onCheckedChange={() => patch(toggleWindowField(form, field))}
-                    />
-                    {ui.automation.requirableFields[field]}
-                  </label>
-                );
-              })}
-              <CustomFieldChecks
-                scope={scope}
-                typeId={typeId}
-                selected={sectionOf(form, 'fields')?.fields ?? []}
-                disabled={readOnly}
-                limit={CUSTOM_FIELD_LIMITS.windowFields}
-                onToggle={(key) => patch(toggleWindowField(form, key))}
-              />
-              <p className="text-xs text-muted-foreground">{ui.automation.window.fieldsHint}</p>
-            </div>
-          </SectionToggle>
+          {has('registration') ? (
+            <SectionToggle
+              kind="registration"
+              transition={transition}
+              readOnly={readOnly}
+              onToggle={() => toggle('registration')}
+            >
+              <p className="text-xs text-muted-foreground">
+                {ui.automation.window.registrationHint}
+              </p>
+            </SectionToggle>
+          ) : null}
 
-          <SectionToggle
-            kind="time"
-            transition={transition}
-            readOnly={readOnly}
-            onToggle={() => toggle('time')}
-          >
-            <div className="flex flex-col gap-2">
-              <ModeChoices
-                value={sectionOf(form, 'time')?.mode ?? 'if_empty'}
-                disabled={readOnly}
-                options={[
-                  {
-                    value: 'if_empty',
-                    label: ui.automation.window.modeIfEmpty,
-                    hint: ui.automation.window.modeIfEmptyHint,
-                  },
-                  {
-                    value: 'always',
-                    label: ui.automation.window.modeAlways,
-                    hint: ui.automation.window.modeAlwaysHint,
-                  },
-                ]}
-                onChange={(mode) => patch(setTimeMode(form, mode))}
-              />
-              <GateCheck transition={transition} kind="time_logged" disabled={readOnly} />
-            </div>
-          </SectionToggle>
-
-          <SectionToggle
-            kind="result"
-            transition={transition}
-            readOnly={readOnly}
-            onToggle={() => toggle('result')}
-          >
-            <GateCheck transition={transition} kind="result_present" disabled={readOnly} />
-          </SectionToggle>
-
-          <SectionToggle
-            kind="result_files"
-            transition={transition}
-            readOnly={readOnly}
-            onToggle={() => toggle('result_files')}
-          >
-            <div className="flex flex-col gap-2">
-              <PanelField label={ui.automation.window.label}>
-                <Input
-                  value={sectionOf(form, 'result_files')?.label ?? ''}
-                  maxLength={60}
-                  readOnly={readOnly}
-                  placeholder={ui.automation.window.labelPlaceholder}
-                  onChange={(e) => patch(setLabel(form, 'result_files', e.target.value))}
+          {has('fields') ? (
+            <SectionToggle
+              kind="fields"
+              transition={transition}
+              readOnly={readOnly}
+              onToggle={() => toggle('fields')}
+            >
+              <div className="flex flex-col gap-1.5">
+                {WINDOW_FIELDS.map((field) => {
+                  const section = sectionOf(form, 'fields');
+                  const checked = section?.fields.includes(field) ?? false;
+                  return (
+                    <label key={field} className="flex items-center gap-2 text-sm">
+                      <Checkbox
+                        checked={checked}
+                        disabled={readOnly || (checked && (section?.fields.length ?? 0) === 1)}
+                        onCheckedChange={() => patch(toggleWindowField(form, field))}
+                      />
+                      {ui.automation.requirableFields[field]}
+                    </label>
+                  );
+                })}
+                <CustomFieldChecks
+                  scope={scope}
+                  typeId={typeId}
+                  selected={sectionOf(form, 'fields')?.fields ?? []}
+                  disabled={readOnly}
+                  limit={CUSTOM_FIELD_LIMITS.windowFields}
+                  onToggle={(key) => patch(toggleWindowField(form, key))}
                 />
-              </PanelField>
-              <PanelField
-                label={ui.automation.window.minFiles}
-                hint={ui.automation.window.filesHint}
-              >
-                <Input
-                  type="number"
-                  min={0}
-                  max={5}
-                  value={validatorOf(transition.rules, 'result_files')?.min ?? 0}
-                  readOnly={readOnly}
-                  aria-label={ui.automation.window.minFiles}
-                  onChange={(e) =>
-                    useRouteDocStore.getState().patchTransition(transition.id, {
-                      rules: setMinFiles(transition.rules, Number(e.target.value)),
-                    })
-                  }
-                />
-              </PanelField>
-            </div>
-          </SectionToggle>
+                <p className="text-xs text-muted-foreground">{ui.automation.window.fieldsHint}</p>
+              </div>
+            </SectionToggle>
+          ) : null}
 
-          <SectionToggle
-            kind="result_messages"
-            transition={transition}
-            readOnly={readOnly}
-            onToggle={() => toggle('result_messages')}
-          >
-            <RequiredCheck
-              checked={sectionOf(form, 'result_messages')?.required ?? false}
-              disabled={readOnly}
-              onChange={(checked) => patch(setRequired(form, 'result_messages', checked))}
-            />
-          </SectionToggle>
-
-          <SectionToggle
-            kind="comment"
-            transition={transition}
-            readOnly={readOnly}
-            onToggle={() => toggle('comment')}
-          >
-            <div className="flex flex-col gap-2">
-              <PanelField label={ui.automation.window.label}>
-                <Input
-                  value={sectionOf(form, 'comment')?.label ?? ''}
-                  maxLength={60}
-                  readOnly={readOnly}
-                  placeholder={ui.automation.window.labelPlaceholder}
-                  onChange={(e) => patch(setLabel(form, 'comment', e.target.value))}
+          {has('time') ? (
+            <SectionToggle
+              kind="time"
+              transition={transition}
+              readOnly={readOnly}
+              onToggle={() => toggle('time')}
+            >
+              <div className="flex flex-col gap-2">
+                <ModeChoices
+                  value={sectionOf(form, 'time')?.mode ?? 'if_empty'}
+                  disabled={readOnly}
+                  options={[
+                    {
+                      value: 'if_empty',
+                      label: ui.automation.window.modeIfEmpty,
+                      hint: ui.automation.window.modeIfEmptyHint,
+                    },
+                    {
+                      value: 'always',
+                      label: ui.automation.window.modeAlways,
+                      hint: ui.automation.window.modeAlwaysHint,
+                    },
+                  ]}
+                  onChange={(mode) => patch(setTimeMode(form, mode))}
                 />
-              </PanelField>
+                <GateCheck transition={transition} kind="time_logged" disabled={readOnly} />
+              </div>
+            </SectionToggle>
+          ) : null}
+
+          {has('result') ? (
+            <SectionToggle
+              kind="result"
+              transition={transition}
+              readOnly={readOnly}
+              onToggle={() => toggle('result')}
+            >
+              <GateCheck transition={transition} kind="result_present" disabled={readOnly} />
+            </SectionToggle>
+          ) : null}
+
+          {has('result_files') ? (
+            <SectionToggle
+              kind="result_files"
+              transition={transition}
+              readOnly={readOnly}
+              onToggle={() => toggle('result_files')}
+            >
+              <div className="flex flex-col gap-2">
+                <PanelField label={ui.automation.window.label}>
+                  <Input
+                    value={sectionOf(form, 'result_files')?.label ?? ''}
+                    maxLength={60}
+                    readOnly={readOnly}
+                    placeholder={ui.automation.window.labelPlaceholder}
+                    onChange={(e) => patch(setLabel(form, 'result_files', e.target.value))}
+                  />
+                </PanelField>
+                <PanelField
+                  label={ui.automation.window.minFiles}
+                  hint={ui.automation.window.filesHint}
+                >
+                  <Input
+                    type="number"
+                    min={0}
+                    max={5}
+                    value={validatorOf(transition.rules, 'result_files')?.min ?? 0}
+                    readOnly={readOnly}
+                    aria-label={ui.automation.window.minFiles}
+                    onChange={(e) =>
+                      useRouteDocStore.getState().patchTransition(transition.id, {
+                        rules: setMinFiles(transition.rules, Number(e.target.value)),
+                      })
+                    }
+                  />
+                </PanelField>
+              </div>
+            </SectionToggle>
+          ) : null}
+
+          {has('result_messages') ? (
+            <SectionToggle
+              kind="result_messages"
+              transition={transition}
+              readOnly={readOnly}
+              onToggle={() => toggle('result_messages')}
+            >
               <RequiredCheck
-                checked={sectionOf(form, 'comment')?.required ?? false}
+                checked={sectionOf(form, 'result_messages')?.required ?? false}
                 disabled={readOnly}
-                onChange={(checked) => patch(setRequired(form, 'comment', checked))}
+                onChange={(checked) => patch(setRequired(form, 'result_messages', checked))}
               />
-              <p className="text-xs text-muted-foreground">{ui.automation.window.commentHint}</p>
-            </div>
-          </SectionToggle>
+            </SectionToggle>
+          ) : null}
+
+          {has('comment') ? (
+            <SectionToggle
+              kind="comment"
+              transition={transition}
+              readOnly={readOnly}
+              onToggle={() => toggle('comment')}
+            >
+              <div className="flex flex-col gap-2">
+                <PanelField label={ui.automation.window.label}>
+                  <Input
+                    value={sectionOf(form, 'comment')?.label ?? ''}
+                    maxLength={60}
+                    readOnly={readOnly}
+                    placeholder={ui.automation.window.labelPlaceholder}
+                    onChange={(e) => patch(setLabel(form, 'comment', e.target.value))}
+                  />
+                </PanelField>
+                <RequiredCheck
+                  checked={sectionOf(form, 'comment')?.required ?? false}
+                  disabled={readOnly}
+                  onChange={(checked) => patch(setRequired(form, 'comment', checked))}
+                />
+                <p className="text-xs text-muted-foreground">{ui.automation.window.commentHint}</p>
+              </div>
+            </SectionToggle>
+          ) : null}
 
           <PanelAction icon={Eye} onClick={() => setPreviewOpen(true)}>
             {ui.automation.window.preview}

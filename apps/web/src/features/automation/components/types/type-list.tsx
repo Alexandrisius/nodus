@@ -160,10 +160,14 @@ export function TypeList({
                     <Settings2 className="size-3.5" />
                     {ui.automation.typeSettings.title}
                   </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => onCopyType(type.id)}>
-                    <Copy className="size-3.5" />
-                    {ui.automation.menuCopyType}
-                  </DropdownMenuItem>
+                  {/* Копия — только из задачи: каталог писем системный
+                      (#55, Р4), копия письма родила бы задачный маршрут. */}
+                  {type.category === 'task' ? (
+                    <DropdownMenuItem onSelect={() => onCopyType(type.id)}>
+                      <Copy className="size-3.5" />
+                      {ui.automation.menuCopyType}
+                    </DropdownMenuItem>
+                  ) : null}
                   <DropdownMenuSeparator />
                 </>
               ) : null}

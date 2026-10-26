@@ -92,7 +92,7 @@ export function NewLettersPipeline() {
   const createButton = (
     <Button onClick={() => setManualOpen(true)}>
       <FilePlus2 data-icon="inline-start" />
-      {ui.letters.pipeline.createManual}
+      {ui.common.create}
     </Button>
   );
 

@@ -15,7 +15,6 @@ import { toast } from 'sonner';
 
 import { api, ApiError } from '../../../shared/api-client.js';
 import { markFreshFromMutation } from '../../../shared/api/fresh-from-mutation.js';
-import { lettersKeys } from '../../../shared/api/letters-keys.js';
 import { mapTaskInPages, tasksKeys } from '../../../shared/api/tasks-keys.js';
 
 /** Причины блокировки гейтов одной строкой (подпись кнопки и тост). */
@@ -129,7 +128,6 @@ export function useSubmitTransitionWindow(taskId: string) {
         tasksKeys.listPages(),
         tasksKeys.kanbanAll(),
         tasksKeys.personalStages(),
-        lettersKeys.all,
       ]) {
         void queryClient.invalidateQueries({ queryKey: key, refetchType: 'none' });
       }
@@ -183,7 +181,6 @@ export function useExecuteTransition(taskId: string) {
         tasksKeys.listPages(),
         tasksKeys.kanbanAll(),
         tasksKeys.personalStages(),
-        lettersKeys.all,
       ]) {
         void queryClient.invalidateQueries({ queryKey: key, refetchType: 'none' });
       }

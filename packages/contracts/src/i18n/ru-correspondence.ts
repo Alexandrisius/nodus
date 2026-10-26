@@ -19,10 +19,6 @@ export const lettersStrings = {
     incoming: 'Входящие',
     outgoing: 'Исходящие',
   },
-  direction: {
-    incoming: 'Входящее',
-    outgoing: 'Исходящее',
-  },
   source: {
     manual: 'Создано вручную',
     mail: 'Получено почтой',
@@ -30,7 +26,6 @@ export const lettersStrings = {
   /** Поля письма: колонки списков, доска полей карточки, форма регистрации. */
   fields: {
     regNumber: '№',
-    regNumberFull: 'Регистрационный номер',
     regDate: 'Дата регистрации',
     receivedAt: 'Поступило',
     counterparty: 'Корреспондент',
@@ -54,13 +49,10 @@ export const lettersStrings = {
   pipeline: {
     listLabel: 'Новые письма',
     empty: 'Новых писем нет',
-    emptyHint: 'Письма из почты появятся здесь сами, бумажное письмо — «Создать вручную»',
-    createManual: 'Создать вручную',
-    received: 'Поступило',
+    emptyHint: 'Письма из почты появятся здесь сами, бумажное письмо — кнопкой «Создать»',
     documentMissing: 'Документ не приложен',
     documentMissingHint: 'Регистрируйте по данным из почты или создайте письмо со сканом вручную',
     register: 'Зарегистрировать',
-    closeUnregistered: 'Закрыть без регистрации',
     deleteSpam: 'Удалить как спам',
     more: 'Ещё действия',
     willAssign: 'Будет присвоен номер',
@@ -79,20 +71,17 @@ export const lettersStrings = {
   form: {
     counterpartyPlaceholder: 'Организация или УНП',
     signerPlaceholder: 'Контакт корреспондента',
-    signerNone: 'Без подписанта',
     signerNeedsCounterparty: 'Сначала выберите корреспондента',
     signerEmpty: 'У корреспондента нет контактов',
     createContact: 'Создать контакт',
     contactName: 'ФИО',
     contactPosition: 'Должность',
     contactSave: 'Добавить контакт',
-    contactCreated: 'Контакт добавлен',
     theirNumberPlaceholder: 'Номер на бланке',
     datePlaceholder: 'ДД.ММ.ГГГГ',
     dateInvalid: 'Введите дату в формате ДД.ММ.ГГГГ',
     subjectPlaceholder: 'О чём письмо',
     receiptMethodPlaceholder: 'Как поступило',
-    projectPlaceholder: 'Без проекта',
     addresseePlaceholder: 'Кому передать письмо',
     resolversGroup: 'Принимают решения',
     allEmployeesGroup: 'Все сотрудники',
@@ -164,7 +153,9 @@ export const lettersStrings = {
     },
     newHint: 'Реквизиты заполняются при регистрации — кнопка «Зарегистрировать» внизу',
     tabsLabel: 'Содержимое письма',
-    tabBody: 'Тело',
+    /** Вкладка самого письма: документ (скан/PDF) или текст почты. «Тело»
+     *  владелец отверг как термин (26.10.2026) — «Письмо» читается сразу. */
+    tabBody: 'Письмо',
     tabChat: 'Чат',
     tabText: 'Текст письма',
     closeTab: 'Закрыть вкладку',
@@ -178,7 +169,6 @@ export const lettersStrings = {
     editHint: 'Изменить',
     readOnlyHint: 'Регистрационные данные меняет канцелярия',
     noActions: 'Действий по письму сейчас нет',
-    requisites: 'Реквизиты',
     notFound: 'Письмо не найдено — его удалили или у вас нет доступа',
   },
   /** Тело письма: документ, HTML-песочница, текст. */
@@ -187,7 +177,6 @@ export const lettersStrings = {
     frameTitle: 'Текст письма',
     imagesBlocked: 'Внешние изображения скрыты:',
     showImages: 'Показать изображения',
-    tooLarge: 'Текст письма слишком большой для просмотра — скачайте файл',
     loadError: 'Не удалось загрузить текст письма',
     download: 'Скачать',
     document: 'Документ',
