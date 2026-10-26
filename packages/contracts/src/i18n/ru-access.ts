@@ -10,7 +10,6 @@ import type { Permission } from '../auth/permission.js';
 export const accessStrings = {
   /** Вкладка модуля (всегда последняя) и её заголовок. */
   tab: 'Права доступа',
-  title: 'Права доступа',
   /** Имя таблицы для скринридеров. */
   tableLabel: 'Права ролей',
   /** Заголовок колонки прав. */
@@ -31,10 +30,7 @@ export const accessStrings = {
   /** Роль удалили, пока таблица была открыта. */
   roleGone: 'Роль не найдена — возможно, её удалили. Таблица обновлена.',
   /** Панель ролей (модель Битрикс24: «Роли · Создать роль · Копировать из роли»). */
-  rolesLabel: 'Роли',
   createRole: 'Создать роль',
-  copyFromRole: 'Копировать из роли',
-  copyFromPick: 'Скопировать права из…',
   createTitle: 'Новая роль',
   createNameLabel: 'Название роли',
   createNamePlaceholder: 'Например: Руководитель проекта',
@@ -46,6 +42,15 @@ export const accessStrings = {
   /** Меню столбца роли. */
   roleMenu: 'Действия роли',
   renameRole: 'Переименовать',
+  renameHint: 'Изменится название роли',
+  openAll: 'Открыть доступ ко всем',
+  openAllHint: 'Роли выдадутся все права, которые есть у вас',
+  closeAll: 'Закрыть доступ ко всем',
+  closeAllHint: 'У роли будут отняты все права',
+  copyRole: 'Скопировать',
+  copyRoleHint: 'Создастся новая роль с теми же правами',
+  copyName: (name: string): string => `${name} (копия)`,
+  deleteHint: 'Роль удалится со всеми настроенными правами',
   renameLabel: 'Название роли',
   deleteRole: 'Удалить роль',
   deleteBlockedMembers: 'Сначала уберите из роли сотрудников и подразделения',

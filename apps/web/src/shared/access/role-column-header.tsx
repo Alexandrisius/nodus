@@ -1,16 +1,17 @@
-import { MoreHorizontal, Users } from 'lucide-react';
-import { useState } from 'react';
+import { Check, Copy, Lock, MoreHorizontal, Pencil, Trash2, Users } from 'lucide-react';
+import { useState, type ReactNode } from 'react';
 import type { Role } from '@nodus/contracts';
-import { ui } from '@nodus/contracts';
+import { Permission, ui } from '@nodus/contracts';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@nodus/ui/components/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@nodus/ui/components/tooltip';
 
+import { useCreateRole, useUpdateRole } from '../api/role-admin.js';
+import { useAuthStore } from '../auth-store.js';
 import { PersonAvatar } from '../ui/person-avatar.js';
 import { LockedBadge } from './access-matrix.js';
 import { DeleteRoleDialog, RenameRoleDialog } from './role-dialogs.js';
@@ -40,7 +41,13 @@ export function RoleColumnHeader({
     : hasMembers
       ? ui.access.deleteBlockedMembers
       : null;
-  const showMenu = canManage && !lockedHint && !temporary;
+  const showMenu = canManage && !temporary;
+  const actorPermissions = useAuthStore((state) => state.user?.permissions);
+  const update = useUpdateRole();
+  const create = useCreateRole();
+  const heldAll = Object.values(Permission).filter((permission) =>
+    (actorPermissions ?? []).includes(permission),
+  );
 
   return (
     <div className="flex w-full min-w-0 flex-col items-center gap-2">
@@ -63,21 +70,50 @@ export function RoleColumnHeader({
                 <MoreHorizontal className="size-4" strokeWidth={1.75} />
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onSelect={() => setDialog('rename')}>
-                {ui.access.renameRole}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                disabled={deleteBlocked !== null}
-                onSelect={() => setDialog('delete')}
-                className="text-destructive focus:text-destructive"
-              >
-                {ui.access.deleteRole}
-              </DropdownMenuItem>
-              {deleteBlocked ? (
-                <p className="max-w-56 px-2 py-1 text-xs text-muted-foreground">{deleteBlocked}</p>
-              ) : null}
+            <DropdownMenuContent align="end" className="w-72 p-1.5">
+              {lockedHint ? null : (
+                <>
+                  <MenuEntry
+                    icon={<Check className="size-4 text-success" strokeWidth={2} />}
+                    title={ui.access.openAll}
+                    hint={ui.access.openAllHint}
+                    onSelect={() => update.mutate({ id: role.id, body: { permissions: heldAll } })}
+                  />
+                  <MenuEntry
+                    icon={<Lock className="size-4 text-danger" strokeWidth={2} />}
+                    title={ui.access.closeAll}
+                    hint={ui.access.closeAllHint}
+                    onSelect={() => update.mutate({ id: role.id, body: { permissions: [] } })}
+                  />
+                </>
+              )}
+              <MenuEntry
+                icon={<Pencil className="size-4 text-info" strokeWidth={2} />}
+                title={ui.access.renameRole}
+                hint={ui.access.renameHint}
+                onSelect={() => setDialog('rename')}
+              />
+              <MenuEntry
+                icon={<Copy className="size-4 text-info" strokeWidth={2} />}
+                title={ui.access.copyRole}
+                hint={ui.access.copyRoleHint}
+                onSelect={() =>
+                  create.mutate({
+                    name: ui.access.copyName(role.name),
+                    description: role.description,
+                    permissions: role.permissions,
+                  })
+                }
+              />
+              {lockedHint ? null : (
+                <MenuEntry
+                  icon={<Trash2 className="size-4 text-muted-foreground" strokeWidth={2} />}
+                  title={ui.access.deleteRole}
+                  hint={deleteBlocked ?? ui.access.deleteHint}
+                  disabled={deleteBlocked !== null}
+                  onSelect={() => setDialog('delete')}
+                />
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         ) : null}
@@ -120,5 +156,34 @@ export function RoleColumnHeader({
         <DeleteRoleDialog role={role} onClose={() => setDialog(null)} />
       ) : null}
     </div>
+  );
+}
+
+/** Пункт меню роли в грамматике Битрикса: значок, название и пояснение. */
+function MenuEntry({
+  icon,
+  title,
+  hint,
+  disabled,
+  onSelect,
+}: {
+  icon: ReactNode;
+  title: string;
+  hint: string;
+  disabled?: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <DropdownMenuItem
+      disabled={disabled}
+      onSelect={onSelect}
+      className="items-start gap-3 rounded-md px-2.5 py-2"
+    >
+      <span className="mt-0.5 shrink-0">{icon}</span>
+      <span className="flex min-w-0 flex-col gap-0.5">
+        <span className="text-sm font-medium">{title}</span>
+        <span className="text-xs font-normal text-muted-foreground">{hint}</span>
+      </span>
+    </DropdownMenuItem>
   );
 }

@@ -82,7 +82,7 @@ export function useUpdateRole() {
       body,
     }: {
       id: string;
-      body: { name?: string; description?: string | null };
+      body: { name?: string; description?: string | null; permissions?: Role['permissions'] };
     }) => api<Role>(`/directory/roles/${id}`, { method: 'PATCH', body }),
     onMutate: async ({ id, body }) => {
       await queryClient.cancelQueries({ queryKey: rolesKeys.list() });
@@ -101,6 +101,7 @@ export function useUpdateRole() {
                   ...role,
                   name: context.previous!.name,
                   description: context.previous!.description,
+                  permissions: context.previous!.permissions,
                 }
               : role,
           ),

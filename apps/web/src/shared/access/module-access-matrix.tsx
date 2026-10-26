@@ -3,15 +3,6 @@ import { useId, useMemo, useState } from 'react';
 import type { AccessModule, Permission, Role } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
-} from '@nodus/ui/components/dropdown-menu';
 import { Empty, EmptyTitle } from '@nodus/ui/components/empty';
 
 import {
@@ -67,7 +58,7 @@ export function ModuleAccessMatrix({ module }: { module: AccessModule }) {
   const pending = usePendingRolePermissions();
   const toggle = useToggleRolePermission();
   const readOnlyHintId = useId();
-  const [createFrom, setCreateFrom] = useState<{ copyId?: string } | null>(null);
+  const [createRole, setCreateRole] = useState(false);
   const roleById = useMemo(
     () => new Map((roles.data ?? []).map((role) => [role.id, role])),
     [roles.data],
@@ -80,21 +71,16 @@ export function ModuleAccessMatrix({ module }: { module: AccessModule }) {
 
   return (
     <div className="relative flex h-full flex-col">
-      <div className="flex h-14 shrink-0 items-center gap-3 px-6">
-        <h1 className="shrink-0 text-xl font-semibold text-balance text-foreground">
-          {ui.access.title}
-        </h1>
-        {canManage ? null : (
-          <span className="ml-auto flex min-w-0 items-center gap-2">
-            <span id={readOnlyHintId} className="truncate text-xs text-muted-foreground">
-              {ui.access.readOnlyHint}
-            </span>
-            <span className="shrink-0 rounded-full border border-border bg-accent/40 px-2.5 py-1 text-xs text-muted-foreground">
-              {ui.access.readOnlyBadge}
-            </span>
+      {canManage ? null : (
+        <div className="flex h-14 shrink-0 items-center justify-end gap-2 px-6">
+          <span id={readOnlyHintId} className="truncate text-xs text-muted-foreground">
+            {ui.access.readOnlyHint}
           </span>
-        )}
-      </div>
+          <span className="shrink-0 rounded-full border border-border bg-accent/40 px-2.5 py-1 text-xs text-muted-foreground">
+            {ui.access.readOnlyBadge}
+          </span>
+        </div>
+      )}
 
       <div className="min-h-0 flex-1">
         {roles.isPending ? (
@@ -117,38 +103,14 @@ export function ModuleAccessMatrix({ module }: { module: AccessModule }) {
             describedBy={canManage ? undefined : readOnlyHintId}
             trailingHeader={
               canManage ? (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      type="button"
-                      aria-label={ui.access.createRole}
-                      className="flex size-8 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors outline-none hover:bg-accent/60 hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring/30"
-                    >
-                      <Plus className="size-4" strokeWidth={1.75} />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onSelect={() => setCreateFrom({})}>
-                      {ui.access.createRole}
-                    </DropdownMenuItem>
-                    <DropdownMenuSub>
-                      <DropdownMenuSubTrigger disabled={!roles.data?.length}>
-                        {ui.access.copyFromRole}
-                      </DropdownMenuSubTrigger>
-                      <DropdownMenuSubContent>
-                        {(roles.data ?? []).map((role) => (
-                          <DropdownMenuItem
-                            key={role.id}
-                            disabled={isTempRole(role)}
-                            onSelect={() => setCreateFrom({ copyId: role.id })}
-                          >
-                            {role.name}
-                          </DropdownMenuItem>
-                        ))}
-                      </DropdownMenuSubContent>
-                    </DropdownMenuSub>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <button
+                  type="button"
+                  aria-label={ui.access.createRole}
+                  onClick={() => setCreateRole(true)}
+                  className="flex size-8 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors outline-none hover:bg-accent/60 hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring/30"
+                >
+                  <Plus className="size-4" strokeWidth={1.75} />
+                </button>
               ) : undefined
             }
             cell={(rowId, columnId) => {
@@ -174,12 +136,8 @@ export function ModuleAccessMatrix({ module }: { module: AccessModule }) {
         )}
       </div>
 
-      {createFrom ? (
-        <CreateRoleDialog
-          roles={roles.data ?? []}
-          initialCopyId={createFrom.copyId}
-          onClose={() => setCreateFrom(null)}
-        />
+      {createRole ? (
+        <CreateRoleDialog roles={roles.data ?? []} onClose={() => setCreateRole(false)} />
       ) : null}
 
       <p className="shrink-0 px-6 pb-4 pt-2 text-xs text-muted-foreground">{ui.access.footnote}</p>

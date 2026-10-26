@@ -33,17 +33,14 @@ const DIALOG_PROPS = {
 /** Создание роли (в т.ч. «Копировать из роли»): название, описание, источник прав. */
 export function CreateRoleDialog({
   roles,
-  initialCopyId,
   onClose,
 }: {
   roles: readonly Role[];
-  /** Источник прав, выбранный заранее («Копировать из роли»). */
-  initialCopyId?: string;
   onClose: () => void;
 }) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [copyId, setCopyId] = useState(initialCopyId ?? NO_COPY);
+  const [copyId, setCopyId] = useState(NO_COPY);
   const create = useCreateRole();
   const trimmed = name.trim();
 

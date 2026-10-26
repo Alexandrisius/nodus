@@ -146,14 +146,13 @@ describe('ModuleAccessMatrix (#379)', () => {
     await screen.findByRole('switch', { name: 'Настраивать процессы и маршруты — Руководитель' });
     expect(screen.getAllByText('2 сотр.').length).toBeGreaterThan(0);
     expect(screen.getAllByRole('button', { name: ui.access.createRole }).length).toBe(1);
-    expect(screen.queryByRole('button', { name: new RegExp(ui.access.copyFromRole) })).toBeNull();
     expect(
       screen.getByRole('button', { name: `${ui.access.membersAdd}: Руководитель` }),
     ).toBeTruthy();
-    // У «Администратора» меню роли нет: роль неизменяема.
+    // Меню роли есть и у «Администратора» (переименовать, скопировать).
     expect(
-      screen.queryByRole('button', { name: `${ui.access.roleMenu}: Администратор` }),
-    ).toBeNull();
+      screen.getByRole('button', { name: `${ui.access.roleMenu}: Администратор` }),
+    ).toBeTruthy();
     expect(
       screen.getByRole('button', { name: `${ui.access.roleMenu}: Руководитель` }),
     ).toBeTruthy();
