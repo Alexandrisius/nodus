@@ -28,4 +28,8 @@ export interface CounterpartyReader {
   /** Действующий контакт СТРОГО этого контрагента — для записи подписанта;
    *  null — контакта нет, он архивный или принадлежит другому. */
   activeContact(counterpartyId: string, contactId: string): Promise<ContactRef | null>;
+
+  /** Id контрагентов по подстроке названия (#55): поиск писем по
+   *  корреспонденту без join между модулями. Живые, по алфавиту. */
+  searchIds(query: string, limit: number): Promise<string[]>;
 }

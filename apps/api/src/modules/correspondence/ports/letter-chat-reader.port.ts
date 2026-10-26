@@ -1,0 +1,34 @@
+import type { LetterRef } from '@nodus/contracts';
+
+/**
+ * Порт письма для моста чата (#55, Р10, ADR-0012): модуль chat не читает
+ * `letters` и не знает правил видимости — он спрашивает владельца данных.
+ * Порт экспортирует `CorrespondencePortsModule`; реализация — провайдер
+ * модуля correspondence.
+ */
+export const LETTER_CHAT_READER = Symbol('LETTER_CHAT_READER');
+
+/** Состав беседы письма: адресат — владелец, участники — члены. */
+export interface LetterChatRoster {
+  ownerId: string;
+  members: { userId: string; muted: boolean }[];
+}
+
+/** Сотрудник для проверки видимости (id + права из токена). */
+export interface LetterViewer {
+  id: string;
+  permissions: readonly string[];
+}
+
+export interface LetterChatReader {
+  /** Состав по письму; null — письма нет или оно не зарегистрировано
+   *  (до регистрации беседы не существует — Р10). */
+  roster(letterId: string): Promise<LetterChatRoster | null>;
+
+  /** Ссылки на письма пачкой (превью ссылок, список бесед). */
+  refs(ids: readonly string[]): Promise<LetterRef[]>;
+
+  /** Видимость письма той же функцией, что у карточки (Р7): невидимое —
+   *  false без оракула (чат отвечает 404). */
+  canView(letterId: string, viewer: LetterViewer): Promise<boolean>;
+}

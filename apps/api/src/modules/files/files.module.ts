@@ -5,7 +5,9 @@ import { FILE_STORAGE } from '../../core/ports/file-storage.port.js';
 import { FileStorageProvider } from './file-storage.provider.js';
 import { FILES_CONFIG, getFilesConfig } from './files.config.js';
 import { FilesController } from './files.controller.js';
+import { FILE_OBJECT_READER } from '../../core/ports/file-object-reader.port.js';
 import { FilesRepository } from './files.repository.js';
+import { FileObjectReaderProvider } from './ports/file-object-reader.provider.js';
 import { MinioStorageDriver } from './storage/minio-storage.driver.js';
 import { OFFICE_CONFIG, getOfficeConfig } from './office/office.config.js';
 import { OfficeCallbackService } from './office/office-callback.service.js';
@@ -41,6 +43,8 @@ import { AttachmentSentHandler } from './events/attachment-sent.handler.js';
     { provide: DERIVATIVES_CONFIG, useFactory: getDerivativesConfig },
     MinioStorageDriver,
     FilesRepository,
+    FileObjectReaderProvider,
+    { provide: FILE_OBJECT_READER, useExisting: FileObjectReaderProvider },
     FileStorageProvider,
     OfficeTokenService,
     OfficeSessionService,
@@ -60,6 +64,6 @@ import { AttachmentSentHandler } from './events/attachment-sent.handler.js';
     // друг друга), реализация — AvatarService (см. avatars/).
     { provide: AVATAR_PROCESSOR, useExisting: AvatarService },
   ],
-  exports: [FILE_STORAGE, AVATAR_PROCESSOR],
+  exports: [FILE_STORAGE, FILE_OBJECT_READER, AVATAR_PROCESSOR],
 })
 export class FilesModule {}

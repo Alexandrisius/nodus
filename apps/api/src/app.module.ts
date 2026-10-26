@@ -17,6 +17,7 @@ import { AuthModule } from './modules/auth/auth.module.js';
 import { JwtAuthGuard } from './modules/auth/jwt-auth.guard.js';
 import { ChatFileAccessModule } from './modules/chat/file-access/chat-file-access.module.js';
 import { ChatModule } from './modules/chat/chat.module.js';
+import { CorrespondenceModule } from './modules/correspondence/correspondence.module.js';
 import { CrmModule } from './modules/crm/crm.module.js';
 import { CustomFieldsModule } from './modules/custom-fields/custom-fields.module.js';
 import { DictionariesModule } from './modules/dictionaries/dictionaries.module.js';
@@ -50,6 +51,7 @@ import { WorkflowsModule } from './modules/workflows/workflows.module.js';
     // CRM (#460, ADR-0033): контрагенты и контактные лица — master-данные,
     // на которые ссылаются письма (#55) и проекты (#52); за флагом `crm`.
     CrmModule,
+    CorrespondenceModule,
     // Реестр кастомных атрибутов (#431, ADR-0029): ядро без флага —
     // атрибуты нужны карточкам, фильтрам и окнам переходов задач.
     CustomFieldsModule,
