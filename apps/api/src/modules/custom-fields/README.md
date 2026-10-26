@@ -19,31 +19,37 @@
 
 ```ts
 CUSTOM_FIELD_REGISTRY: CustomFieldRegistry {
-  definitions(scope, tx?)                       // определения области, включая скрытые
-  prepareCreate(scope, { input, authorId }, tx?) // умолчания + ввод (ввод важнее) + проверка
-  prepareUpdate(scope, { current, patch }, tx?)  // null удаляет ключ; проверяются ТОЛЬКО изменённые
-  refs(scope, values, tx?)                       // имена/аватары/архивность для DTO детали
+  definitions(scope, { typeId? }, tx?)                       // определения области (с typeId — привязанные к типу)
+  prepareCreate(scope, { input, authorId, typeId? }, tx?)    // умолчания привязанных + ввод (ввод важнее) + проверка
+  prepareUpdate(scope, { current, patch, typeId? }, tx?)     // null удаляет ключ; запись непривязанного — not_in_type
+  refs(scope, values, tx?)                                   // имена/аватары/архивность для DTO детали
 }
 ```
 
-Владелец сущности не собирает zod-схемы и не ходит в справочники сам: единственная точка динамической валидации — порт (I7). Отказ — `422 CUSTOM_FIELD_VALUE_INVALID` с `details.issues[] = {fieldId, reason: unknown|invalid|not_found|inactive, message}`.
+Владелец сущности не собирает zod-схемы и не ходит в справочники сам: единственная точка динамической валидации — порт (I7). Отказ — `422 CUSTOM_FIELD_VALUE_INVALID` с `details.issues[] = {fieldId, reason: unknown|invalid|not_found|inactive|not_in_type, message}`.
+
+**Привязка к типам (#432, ADR-0029 «Дополнение»):** с `typeId` порт работает только с привязанными определениями — умолчания не «протекают» в чужой тип, запись значения непривязанного атрибута отвергается `not_in_type` (очистка `null` разрешена всегда), неизвестный ключ остаётся `unknown`.
 
 Ссылки проверяются пачками через порты владельцев данных: `USER_PROFILE_READER`, `ORG_STRUCTURE_READER`, `DICTIONARY_READER`, `COUNTERPARTY_READER`. Умолчание со ссылкой, ставшей неактивной, тихо пропускается с warn в лог — создание сущности не ломается.
 
 ## Эндпоинты (`/api/v1/custom-fields`)
 
-| Маршрут                      | Права                 | Назначение                                               |
-| ---------------------------- | --------------------- | -------------------------------------------------------- |
-| `GET /definitions?scope=`    | auth                  | Реестр (массив, без курсора — О9: ≤ 100 на область)      |
-| `POST /definitions`          | `custom_field.manage` | 201; 409 имя/лимит; 422 недоступный тип                  |
-| `PUT /definitions/order`     | `custom_field.manage` | `ids` = ровно все атрибуты области, иначе 409 `CONFLICT` |
-| `PATCH /definitions/:id`     | `custom_field.manage` | 200; 409 тип/имя; 422 форма настроек                     |
-| `DELETE /definitions/:id`    | `custom_field.manage` | 204; 409 `CUSTOM_FIELD_IN_USE` со списком процессов      |
-| `GET /definitions/:id/usage` | auth                  | `{ valueCount, workflows: [{id, name}] }`                |
+| Маршрут                                 | Права                 | Назначение                                                                                                            |
+| --------------------------------------- | --------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `GET /definitions?scope=&typeId=`       | auth                  | Реестр (массив, без курсора — О9: ≤ 100 на область); `typeId` — только привязанные к типу                             |
+| `POST /definitions`                     | `custom_field.manage` | 201; 409 имя/лимит; 422 недоступный тип; `typeIds` — привязка при создании                                            |
+| `PUT /definitions/:id/types/:typeId`    | `custom_field.manage` | Привязка к типу (#432), идемпотентна; 422 `CUSTOM_FIELD_BINDING_INVALID` (чужая категория/архив), 404 неизвестный тип |
+| `DELETE /definitions/:id/types/:typeId` | `custom_field.manage` | Снятие привязки, идемпотентно; 409 `CUSTOM_FIELD_IN_USE`, если атрибут работает в опубликованном маршруте типа        |
+| `PUT /definitions/order`                | `custom_field.manage` | `ids` = ровно все атрибуты области, иначе 409 `CONFLICT`                                                              |
+| `PATCH /definitions/:id`                | `custom_field.manage` | 200; 409 тип/имя; 422 форма настроек                                                                                  |
+| `DELETE /definitions/:id`               | `custom_field.manage` | 204; 409 `CUSTOM_FIELD_IN_USE` со списком процессов                                                                   |
+| `GET /definitions/:id/usage`            | auth                  | `{ valueCount, workflows: [{id, name}] }`                                                                             |
 
 Правила: имя уникально в области без учёта регистра (`lower(btrim(name))`, выраженный уникальный индекс + проверка под `pg_advisory_xact_lock(431, hashtext(scope))`); лимит 100 на область считается по всем атрибутам, включая скрытые; `sortOrder = max+1` при создании; `reorder` — по всем атрибутам области.
 
 **Удаление** физическое и стирает значения (вердикт владельца 25.10.2026 — архива у атрибутов нет). Запрещено, пока атрибут стоит в окне перехода или в условии «Заполнены поля» **опубликованного** маршрута области: порт `WORKFLOW_FIELD_USAGE_READER` ищет ключ `cf.<id>` в `form.sections[kind=fields].fields` и `rules.validators[kind=fields_required].fields` (оператор jsonb `?`, без LIKE по тексту документа). Черновик удаление не блокирует: публикация с неизвестным полем даёт ошибку `custom_field_unknown`.
+
+**Привязки** (`field_definition_types`, атрибут × тип): показ, выбор, умолчания и запись значений — по привязке; атрибут без привязок нигде не показывается. При создании типа «копией» привязки основы переносятся (иначе окна скопированного маршрута станут невалидными). Бэкфилл миграции #432 восстановил привязки по заполненным значениям задач и по использованию в опубликованных маршрутах.
 
 ## События (outbox, I9)
 
