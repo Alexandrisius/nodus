@@ -120,16 +120,6 @@ export class RolesRepository {
     await this.db(tx).role.delete({ where: { id } });
   }
 
-  /** Прямые назначения сотрудникам (блокирует удаление роли). */
-  async countAssignments(id: string, tx?: TransactionClient): Promise<number> {
-    return this.db(tx).userRole.count({ where: { roleId: id } });
-  }
-
-  /** Привязки к подразделениям (тоже блокируют удаление роли). */
-  async countDepartmentBindings(id: string, tx?: TransactionClient): Promise<number> {
-    return this.db(tx).departmentRole.count({ where: { roleId: id } });
-  }
-
   /** Активные прямые участники: «последний администратор» считается по ним. */
   async countActiveDirectMembers(id: string, tx?: TransactionClient): Promise<number> {
     return this.db(tx).userRole.count({

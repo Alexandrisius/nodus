@@ -4,10 +4,11 @@ import type { Role } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { Checkbox } from '@nodus/ui/components/checkbox';
 import { Input } from '@nodus/ui/components/input';
+import { Skeleton } from '@nodus/ui/components/skeleton';
 import { Popover, PopoverContent, PopoverTrigger } from '@nodus/ui/components/popover';
 import { cn } from '@nodus/ui/lib/utils';
 
-import { useRoleMembers, useToggleRoleMember } from '../api/role-admin.js';
+import { usePrefetchRoleMembers, useRoleMembers, useToggleRoleMember } from '../api/role-admin.js';
 import { flattenDepartments, useDepartmentTreeManagement } from '../api/departments-list.js';
 import { useUsersSearch } from '../api/users-list.js';
 import { withoutPatronymic } from '../lib/format.js';
@@ -33,6 +34,7 @@ export function RoleMembersPopover({ role, canManage }: { role: Role; canManage:
   const departmentsAllowed = !isLockedRole(role);
   const activeTab: Tab = departmentsAllowed ? tab : 'users';
   const members = useRoleMembers(role.id, open);
+  const prefetch = usePrefetchRoleMembers();
   const people = useUsersSearch(open && activeTab === 'users' ? query : '');
   const tree = useDepartmentTreeManagement();
   const toggle = useToggleRoleMember();
@@ -55,6 +57,10 @@ export function RoleMembersPopover({ role, canManage }: { role: Role; canManage:
         <button
           type="button"
           aria-label={`${ui.access.membersAdd}: ${role.name}`}
+          // Наведение/фокус = намерение открыть: состав уже грузится, флажки
+          // появляются сразу отмеченными (без «пустого» кадра).
+          onPointerEnter={() => prefetch(role.id)}
+          onFocus={() => prefetch(role.id)}
           className="flex size-7 shrink-0 items-center justify-center rounded-full border border-dashed border-border text-muted-foreground transition-colors outline-none hover:bg-accent/60 hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring/30"
         >
           <Plus className="size-3.5" strokeWidth={1.75} />
@@ -89,7 +95,13 @@ export function RoleMembersPopover({ role, canManage }: { role: Role; canManage:
           />
         </div>
         <div className="max-h-64 min-h-40 overflow-y-auto" data-no-scrollbar>
-          {activeTab === 'users' ? (
+          {members.isPending ? (
+            <div className="flex flex-col gap-1.5 p-1.5">
+              {Array.from({ length: 4 }, (_, index) => (
+                <Skeleton key={index} className="h-8 w-full" />
+              ))}
+            </div>
+          ) : activeTab === 'users' ? (
             (people.data?.items ?? []).length === 0 ? (
               <Empty />
             ) : (

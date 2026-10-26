@@ -148,7 +148,7 @@ describe('Роли: состав (#379)', () => {
     expect(await permissionsOf(f.users.limited)).not.toContain(Permission.CUSTOM_FIELD_MANAGE);
   });
 
-  it('17. удаление роли с привязанным подразделением → 409', async () => {
+  it('17. удаление роли с привязанным подразделением → 204, привязка снимается', async () => {
     const roleId = await f.createRole('Проба 17', []);
     await f.api(f.users.manager, 'PUT', membersUrl(roleId, 'departments', neighbor), {
       key: randomUUID(),
@@ -157,7 +157,10 @@ describe('Роли: состав (#379)', () => {
     const response = await f.api(f.users.manager, 'DELETE', `/directory/roles/${roleId}`, {
       key: randomUUID(),
     });
-    expect(response.status).toBe(409);
+
+    expect(response.status).toBe(204);
+    expect((await f.api(f.users.manager, 'GET', `/directory/roles/${roleId}`)).status).toBe(404);
+    expect(await f.prisma.departmentRole.count({ where: { roleId } })).toBe(0);
   });
 
   it('19. подразделение в роли «Администратор» → 409 ROLE_LOCKED (reason departments)', async () => {

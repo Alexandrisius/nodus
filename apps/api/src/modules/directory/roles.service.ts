@@ -181,7 +181,12 @@ export class RolesService {
     });
   }
 
-  /** Удаление: системные, назначенные сотрудникам и подразделениям — нельзя. */
+  /**
+   * Удаление роли. Системная роль защищена; пользовательскую можно удалить
+   * вместе с составом: назначения снимаются каскадом (FK `ON DELETE CASCADE`),
+   * люди просто теряют эту роль — это и есть смысл удаления (решение
+   * владельца 26.10: запрет «сначала уберите всех» — лишний шаг).
+   */
   async deleteRole(id: string, actorId: string): Promise<void> {
     await this.tx.run(async (tx) => {
       if (!(await this.roles.lockForUpdate(id, tx))) {
@@ -192,14 +197,6 @@ export class RolesService {
         throw DomainException.conflict('System role cannot be deleted', {
           code: current.row.code,
         });
-      }
-      const assignments = await this.roles.countAssignments(id, tx);
-      if (assignments > 0) {
-        throw DomainException.conflict('Role is assigned to users', { assignments });
-      }
-      const departments = await this.roles.countDepartmentBindings(id, tx);
-      if (departments > 0) {
-        throw DomainException.conflict('Role is assigned to departments', { departments });
       }
       await this.roles.delete(id, tx);
       await this.eventBus.emit(

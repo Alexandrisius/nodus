@@ -29,6 +29,9 @@ describe('Роли: точечные права (#379)', () => {
   const permissionUrl = (roleId: string, permission: Permission) =>
     `/directory/roles/${roleId}/permissions/${permission}`;
   const changes = (roleId: string) => f.eventsFor(roleId, 'directory.role.permissions_changed');
+  const permissionsOf = async (user: typeof f.users.manager) =>
+    ((await (await f.api(user, 'GET', '/auth/me')).json()) as { permissions: string[] })
+      .permissions;
 
   it('1. PUT: право в ответе, ровно одно событие и строка аудита', async () => {
     const roleId = await f.createRole('Проба 1', []);
@@ -256,14 +259,19 @@ describe('Роли: точечные права (#379)', () => {
     expect(await changes(roleId)).toHaveLength(0);
   });
 
-  it('17. удаление роли с участником → 409', async () => {
-    const roleId = await f.createRole('Проба 17', []);
+  it('17. удаление роли с участником → 204, роль снимается каскадом', async () => {
+    const roleId = await f.createRole('Проба 17', [Permission.CUSTOM_FIELD_MANAGE]);
     await f.prisma.userRole.create({ data: { roleId, userId: f.users.employee.id } });
+    expect(await permissionsOf(f.users.employee)).toContain(Permission.CUSTOM_FIELD_MANAGE);
 
     const response = await f.api(f.users.manager, 'DELETE', `/directory/roles/${roleId}`, {
       key: randomUUID(),
     });
-    expect(response.status).toBe(409);
+
+    expect(response.status).toBe(204);
+    expect((await f.api(f.users.manager, 'GET', `/directory/roles/${roleId}`)).status).toBe(404);
+    // Сотрудник остался, роль у него снята.
+    expect(await permissionsOf(f.users.employee)).not.toContain(Permission.CUSTOM_FIELD_MANAGE);
   });
 
   it('18. GET /roles: счётчики и preview по контракту', async () => {

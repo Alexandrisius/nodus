@@ -51,10 +51,16 @@ export const accessStrings = {
   deleteHint: 'Роль удалится со всеми настроенными правами',
   renameLabel: 'Название роли',
   deleteRole: 'Удалить роль',
-  deleteBlockedMembers: 'Сначала уберите из роли сотрудников и подразделения',
   deleteBlockedSystem: 'Системную роль удалить нельзя',
   deleteTitle: (name: string): string => `Удалить роль «${name}»?`,
   deleteBody: 'Роль исчезнет из таблицы. Права других ролей не изменятся.',
+  /** Удаление роли с составом: назначения снимаются, люди теряют роль. */
+  deleteBodyMembers: (users: number, departments: number): string => {
+    const parts: string[] = [];
+    if (users > 0) parts.push(`${users} сотр.`);
+    if (departments > 0) parts.push(`${departments} подр.`);
+    return `Роль исчезнет из таблицы и будет снята у всех, у кого она есть (${parts.join(' · ')}). Права других ролей не изменятся.`;
+  },
   deleteConfirm: 'Удалить',
   /** Состав роли. */
   membersAdd: 'Добавить сотрудников и подразделения',

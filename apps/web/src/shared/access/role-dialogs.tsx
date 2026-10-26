@@ -125,7 +125,11 @@ export function DeleteRoleDialog({ role, onClose }: { role: Role; onClose: () =>
       <DialogContent className="sm:max-w-md" showCloseButton={false}>
         <DialogHeader>
           <DialogTitle>{ui.access.deleteTitle(role.name)}</DialogTitle>
-          <DialogDescription>{ui.access.deleteBody}</DialogDescription>
+          <DialogDescription>
+            {role.memberCount > 0 || role.departmentCount > 0
+              ? ui.access.deleteBodyMembers(role.memberCount, role.departmentCount)
+              : ui.access.deleteBody}
+          </DialogDescription>
         </DialogHeader>
         <DialogFooter>
           <Button variant="ghost" onClick={onClose}>

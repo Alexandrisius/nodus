@@ -147,9 +147,30 @@ export function useDeleteRole() {
 export function useRoleMembers(roleId: string, enabled: boolean) {
   return useQuery({
     queryKey: roleMembersKey(roleId),
-    queryFn: () => api<RoleMembers>(`/directory/roles/${roleId}/members`),
+    queryFn: () => fetchRoleMembers(roleId),
     enabled,
+    // Состав меняется редко: повторное открытие поповера — без сети и мигания.
+    staleTime: 30_000,
   });
+}
+
+function fetchRoleMembers(roleId: string): Promise<RoleMembers> {
+  return api<RoleMembers>(`/directory/roles/${roleId}/members`);
+}
+
+/**
+ * Предзагрузка состава по наведению/фокусу на «+» (намерение открыть):
+ * к клику данные уже в кэше — флажки не «моргают» с пустого состояния.
+ */
+export function usePrefetchRoleMembers(): (roleId: string) => void {
+  const queryClient = useQueryClient();
+  return (roleId) => {
+    void queryClient.prefetchQuery({
+      queryKey: roleMembersKey(roleId),
+      queryFn: () => fetchRoleMembers(roleId),
+      staleTime: 30_000,
+    });
+  };
 }
 
 export type RoleMemberTarget =

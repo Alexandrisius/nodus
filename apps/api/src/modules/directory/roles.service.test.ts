@@ -32,8 +32,6 @@ describe('RolesService (#379)', () => {
     create: vi.fn(),
     update: vi.fn(),
     delete: vi.fn(),
-    countAssignments: vi.fn(),
-    countDepartmentBindings: vi.fn(),
     addPermission: vi.fn(),
     removePermission: vi.fn(),
   };
@@ -51,16 +49,14 @@ describe('RolesService (#379)', () => {
 
   describe('setPermission', () => {
     it('выдача: замок → запись → событие с payload', async () => {
-      roles.findById
-        .mockResolvedValueOnce(record())
-        .mockResolvedValueOnce(
-          record({
-            permissions: [
-              { permission: Permission.DIRECTORY_READ },
-              { permission: Permission.WORKFLOW_MANAGE },
-            ],
-          }),
-        );
+      roles.findById.mockResolvedValueOnce(record()).mockResolvedValueOnce(
+        record({
+          permissions: [
+            { permission: Permission.DIRECTORY_READ },
+            { permission: Permission.WORKFLOW_MANAGE },
+          ],
+        }),
+      );
       roles.addPermission.mockResolvedValue(true);
 
       const role = await service.setPermission(
@@ -277,25 +273,16 @@ describe('RolesService (#379)', () => {
       expect(roles.delete).not.toHaveBeenCalled();
     });
 
-    it('есть сотрудники или подразделения → CONFLICT', async () => {
-      roles.findById.mockResolvedValue(record());
-      roles.countAssignments.mockResolvedValue(2);
-      await expect(service.deleteRole('role-1', 'admin-1')).rejects.toMatchObject({
-        code: ErrorCode.CONFLICT,
-      });
+    it('пользовательская роль с составом удаляется — назначения снимает каскад', async () => {
+      roles.findById.mockResolvedValue(record({ _count: { users: 3, departments: 1 } }));
 
-      roles.countAssignments.mockResolvedValue(0);
-      roles.countDepartmentBindings.mockResolvedValue(1);
-      await expect(service.deleteRole('role-1', 'admin-1')).rejects.toMatchObject({
-        code: ErrorCode.CONFLICT,
-      });
-      expect(roles.delete).not.toHaveBeenCalled();
+      await service.deleteRole('role-1', 'admin-1');
+
+      expect(roles.delete).toHaveBeenCalledWith('role-1', 'tx-handle');
     });
 
     it('свободная несистемная → удаляет + событие в той же транзакции', async () => {
       roles.findById.mockResolvedValue(record());
-      roles.countAssignments.mockResolvedValue(0);
-      roles.countDepartmentBindings.mockResolvedValue(0);
 
       await service.deleteRole('role-1', 'admin-1');
 

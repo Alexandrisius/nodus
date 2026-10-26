@@ -190,22 +190,16 @@ describe('roles-handlers (#379)', () => {
     expect((await roleOf(removed)).memberCount).toBe(before.memberCount);
   });
 
-  it('удаление: системную и непустую нельзя, пустую можно', async () => {
+  it('удаление: системную нельзя, роль с составом удаляется вместе с ним', async () => {
     const system = await fetch(`${BASE}/${headRole.id}`, { method: 'DELETE' });
     expect(system.status).toBe(409);
+
+    // Пользовательская роль с людьми уходит целиком: назначения снимает каскад.
     const withPeople = demoRoles.find((role) => role.code === 'gip')!;
-    expect((await fetch(`${BASE}/${withPeople.id}`, { method: 'DELETE' })).status).toBe(409);
-    const empty = demoRoles.find((role) => role.code === 'temporary')!;
-    // «Временная роль» — демо-гонка: удаляется конкурентом (404), а не нами.
-    const other = await roleOf(
-      await fetch(BASE, {
-        method: 'POST',
-        headers: json,
-        body: JSON.stringify({ name: 'Пустая' }),
-      }),
-    );
-    expect((await fetch(`${BASE}/${other.id}`, { method: 'DELETE' })).status).toBe(204);
-    expect(empty.code).toBe('temporary');
+    expect((await fetch(`${BASE}/${withPeople.id}`, { method: 'DELETE' })).status).toBe(204);
+    const roles = await listRoles();
+    expect(roles.some((role) => role.id === withPeople.id)).toBe(false);
+    expect((await fetch(`${BASE}/${withPeople.id}/members`)).status).toBe(404);
   });
 
   it('назначение роли: только с правами, которые есть у актора; последнего администратора не убрать', async () => {

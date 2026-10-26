@@ -229,10 +229,8 @@ export const rolesHandlers = [
     if (role.isSystem) {
       return error(ErrorCode.CONFLICT, 'System role cannot be deleted', 409, { code: role.code });
     }
-    const membership = members[role.id];
-    if (membership && (membership.userIds.length > 0 || membership.departmentIds.length > 0)) {
-      return error(ErrorCode.CONFLICT, 'Role is assigned', 409);
-    }
+    // Пользовательская роль удаляется вместе с составом: назначения снимаются
+    // каскадом (ADR-0034), как и на сервере.
     state = state.filter((item) => item.id !== role.id);
     delete members[role.id];
     return new HttpResponse(null, { status: 204 });

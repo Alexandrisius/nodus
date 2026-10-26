@@ -45,12 +45,9 @@ export function RoleColumnHeader({
   modulePermissions: readonly Permission[];
 }) {
   const [dialog, setDialog] = useState<'rename' | 'delete' | null>(null);
-  const hasMembers = role.memberCount > 0 || role.departmentCount > 0;
-  const deleteBlocked = role.isSystem
-    ? ui.access.deleteBlockedSystem
-    : hasMembers
-      ? ui.access.deleteBlockedMembers
-      : null;
+  // Блокирует удаление только системная роль: пользовательская уходит вместе
+  // с составом (назначения снимаются каскадом — ADR-0034).
+  const deleteBlocked = role.isSystem ? ui.access.deleteBlockedSystem : null;
   const showMenu = canManage && !temporary;
   const actorPermissions = useAuthStore((state) => state.user?.permissions);
   const create = useCreateRole();
