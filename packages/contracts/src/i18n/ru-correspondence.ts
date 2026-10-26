@@ -69,6 +69,9 @@ export const lettersStrings = {
     keyNeighbours: 'Alt+↑/↓ — соседнее письмо',
     keyRegister: 'Ctrl+Enter — зарегистрировать',
     keySpam: 'Shift+Delete — удалить как спам',
+    searchPlaceholder: 'Тема или корреспондент',
+    searchEmpty: 'Ничего не нашлось',
+    openCard: 'Открыть карточку письма',
   },
   /** Форма регистрации (конвейер и окно «Зарегистрировать» карточки). */
   form: {
@@ -132,6 +135,9 @@ export const lettersStrings = {
     outgoingEmptyHint: 'Исходящие появятся с отправкой писем из портала',
     loadError: 'Не удалось загрузить письма',
     retry: 'Повторить',
+    searchPlaceholder: 'Поиск: №, тема, корреспондент',
+    presetMine: 'Мне адресованы',
+    presetOverdue: 'Срок ответа истёк',
   },
   /** Карточка письма. */
   card: {
@@ -162,6 +168,8 @@ export const lettersStrings = {
     editHint: 'Изменить',
     readOnlyHint: 'Регистрационные данные меняет канцелярия',
     noActions: 'Действий по письму сейчас нет',
+    requisites: 'Реквизиты',
+    notFound: 'Письмо не найдено — его удалили или у вас нет доступа',
   },
   /** Тело письма: документ, HTML-песочница, текст. */
   body: {
@@ -172,5 +180,6 @@ export const lettersStrings = {
     tooLarge: 'Текст письма слишком большой для просмотра — скачайте файл',
     loadError: 'Не удалось загрузить текст письма',
     download: 'Скачать',
+    document: 'Документ',
   },
 } as const;

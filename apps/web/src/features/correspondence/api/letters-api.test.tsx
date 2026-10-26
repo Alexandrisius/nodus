@@ -1,54 +1,77 @@
 // @vitest-environment jsdom
 import { act, renderHook, waitFor } from '@testing-library/react';
-import {
-  QueryClient,
-  QueryClientProvider,
-  type QueryClientProviderProps,
-} from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createElement, type ReactNode } from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type {
-  CreateLetterBody,
-  DictionaryItem,
-  LetterDetail,
-  LetterListItem,
-  Mailbox,
-  Paginated,
-} from '@nodus/contracts';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { LetterDetail, LetterListItem } from '@nodus/contracts';
 
 import { useAuthStore } from '../../../shared/auth-store.js';
 import { lettersKeys } from '../../../shared/api/letters-keys.js';
-import { useCreateLetter, useDocumentKinds, type CreateLetterVars } from './letters-api.js';
+import type { LettersPages } from '../../../shared/api/letters-list.js';
+import { listItemOf } from './letters-cache.js';
+import { useDeleteSpamLetter, useUpdateLetter } from './letters-mutations.js';
 
-const MAILBOX: Mailbox = {
-  id: 'f0000000-0000-4000-8000-000000000001',
-  address: 'info@passatproekt.by',
-  kind: 'shared',
-};
-const CP_ID = 'd0000000-0000-4000-8000-000000000001';
-const SERVER_ID = '80000000-0000-4000-8000-000000000099';
-// Тот же ключ, что у shared useLettersList('outgoing') — общая фабрика.
-const OUTGOING_KEY = lettersKeys.folderList('outgoing');
+const ID = '80000000-0000-4000-8000-000000000003';
+const SPAM_ID = '80000000-0000-4000-8000-000000000021';
 
-function jsonResponse(status: number, body: unknown): Response {
-  return new Response(JSON.stringify(body), {
+const stage = {
+  id: '21000000-0000-4000-8000-000000000002',
+  name: 'На резолюции',
+  order: 1,
+  systemState: 'active',
+  color: 'info',
+} as const;
+
+function detail(patch: Partial<LetterDetail> = {}): LetterDetail {
+  return {
+    id: ID,
+    typeId: '20000000-0000-4000-8000-000000000910',
+    direction: 'incoming',
+    stage,
+    regNumber: 'Вх-2026/115',
+    regDate: '2026-10-22',
+    registeredAt: '2026-10-22T08:45:00.000Z',
+    receivedAt: '2026-10-22T07:45:00.000Z',
+    source: 'mail',
+    subject: 'Замечания по разделу КЖ',
+    counterparty: { id: 'd0000000-0000-4000-8000-000000000001', name: 'АО «Галургия»' },
+    theirNumber: '0359-КЖ/147',
+    theirDate: '2026-10-20',
+    receiptMethod: null,
+    project: null,
+    addressee: null,
+    responseDeadline: null,
+    attachmentCount: 1,
+    type: {
+      id: '20000000-0000-4000-8000-000000000910',
+      code: 'letter-incoming',
+      name: 'Входящее письмо',
+      category: 'letter',
+    },
+    signer: null,
+    registrar: null,
+    attachments: [],
+    body: { kind: 'none' },
+    customFields: {},
+    customFieldRefs: [],
+    access: { canEdit: true, canDeleteSpam: false, canJoin: false, isParticipant: true },
+    ...patch,
+  };
+}
+
+const pages = (items: LetterListItem[]): LettersPages => ({
+  pages: [{ items, nextCursor: null }],
+  pageParams: [null],
+});
+
+function json(status: number, body: unknown): Response {
+  return new Response(body === undefined ? null : JSON.stringify(body), {
     status,
     headers: { 'content-type': 'application/json' },
   });
 }
 
-function makeWrapper(client: QueryClient) {
-  return function Wrapper({ children }: { children: ReactNode }) {
-    return createElement(
-      QueryClientProvider,
-      { client } satisfies QueryClientProviderProps,
-      children,
-    );
-  };
-}
-
-/** Контролируемый deferred: ответ сервера отпускаем вручную (детерминизм,
- *  без миллисекунд — канон теста оптимистичности I4). */
+/** Ответ сервера отпускаем вручную — канон теста оптимистичности (I4). */
 function deferred<T>() {
   let resolve!: (value: T) => void;
   const promise = new Promise<T>((r) => {
@@ -57,184 +80,119 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-function makeBody(asDocument: boolean): CreateLetterBody {
-  return {
-    mailboxId: MAILBOX.id,
-    counterpartyId: CP_ID,
-    projectId: null,
-    receiveChannel: 'email',
-    asDocument,
-    subject: 'Исходящее',
-    body: '',
-    attachments: [],
-    inReplyToId: null,
-  };
+function wrapper(client: QueryClient) {
+  return ({ children }: { children: ReactNode }) =>
+    createElement(QueryClientProvider, { client }, children);
 }
 
-function makeVars(asDocument = false): CreateLetterVars {
-  return { body: makeBody(asDocument), counterpartyName: 'АО «Галургия»', mailbox: MAILBOX };
-}
+beforeEach(() => {
+  useAuthStore.setState({
+    status: 'authenticated',
+    accessToken: 't',
+    user: { id: 'u1', email: 'a@b.by', displayName: 'Тест Тест', permissions: [] },
+  });
+});
+afterEach(() => vi.unstubAllGlobals());
 
-function serverLetter(asDocument: boolean): LetterDetail {
-  const item: LetterListItem = {
-    id: SERVER_ID,
-    type: 'outgoing',
-    receiveChannel: 'email',
-    mailbox: MAILBOX,
-    counterparty: { id: CP_ID, name: 'АО «Галургия»' },
-    subject: 'Исходящее',
-    recipients: [],
-    cc: [],
-    date: new Date().toISOString(),
-    registration: asDocument
-      ? {
-          regNumber: 'Исх-2026/42',
-          regDate: '2026-09-22',
-          type: 'outgoing',
-          documentKind: { id: 'e0000000-0000-4000-8000-000000000001', name: 'Письмо' },
-          counterparty: { id: CP_ID, name: 'АО «Галургия»' },
-          project: null,
-          addressee: null,
-          deadline: null,
-          correspondentNumber: null,
-          correspondentDate: null,
-        }
-      : null,
-    documentStatus: asDocument ? 'in_work' : null,
-    inReplyToId: null,
-  };
-  return {
-    ...item,
-    body: '',
-    attachments: [],
-    resolutions: [],
-    conversationId: 'a0000000-0000-4000-8000-000000000199',
-  };
-}
+describe('useUpdateLetter — правка оптимистична (#55, I4)', () => {
+  it('значение в карточке и журнале «Входящие» ДО ответа; один fetch; ответ заменяет', async () => {
+    const client = new QueryClient();
+    client.setQueryData(lettersKeys.detail(ID), detail());
+    client.setQueryData(lettersKeys.list('incoming'), pages([listItemOf(detail())]));
+    const gate = deferred<Response>();
+    const fetchMock = vi.fn(() => gate.promise);
+    vi.stubGlobal('fetch', fetchMock);
 
-const EMPTY: Paginated<LetterListItem> = { items: [], nextCursor: null };
-
-describe('useCreateLetter: оптимистичность простого письма (I4)', () => {
-  beforeEach(() => {
-    useAuthStore.setState({
-      status: 'authenticated',
-      accessToken: 't',
-      user: {
-        id: '10000000-0000-4000-8000-000000000001',
-        email: 'a@b.by',
-        displayName: 'Тест Тест',
-        permissions: [],
-      },
+    const { result } = renderHook(() => useUpdateLetter(ID), { wrapper: wrapper(client) });
+    await act(async () => {
+      result.current.mutate({
+        body: { theirNumber: '0359-КЖ/148' },
+        patch: { theirNumber: '0359-КЖ/148' },
+      });
     });
+    expect(client.getQueryData<LetterDetail>(lettersKeys.detail(ID))?.theirNumber).toBe(
+      '0359-КЖ/148',
+    );
+    expect(
+      client.getQueryData<LettersPages>(lettersKeys.list('incoming'))?.pages[0]?.items[0]
+        ?.theirNumber,
+    ).toBe('0359-КЖ/148');
+
+    await act(async () =>
+      gate.resolve(json(200, detail({ theirNumber: '0359-КЖ/148', subject: 'С сервера' }))),
+    );
+    await waitFor(() =>
+      expect(client.getQueryData<LetterDetail>(lettersKeys.detail(ID))?.subject).toBe('С сервера'),
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it('письмо встаёт в «Отправленные» ДО ответа сервера, заменяется на серверное', async () => {
+  it('ошибка сервера — откат карточки и списка', async () => {
     const client = new QueryClient();
-    client.setQueryData(OUTGOING_KEY, EMPTY);
-    const gate = deferred<Response>();
+    client.setQueryData(lettersKeys.detail(ID), detail());
+    client.setQueryData(lettersKeys.list('incoming'), pages([listItemOf(detail())]));
     vi.stubGlobal(
       'fetch',
-      vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) =>
-        init?.method === 'POST' ? gate.promise : jsonResponse(200, EMPTY),
-      ),
+      vi.fn(async () => json(409, { code: 'LETTER_NOT_EDITABLE', message: 'x' })),
     );
 
-    const { result } = renderHook(() => useCreateLetter(), { wrapper: makeWrapper(client) });
+    const { result } = renderHook(() => useUpdateLetter(ID), { wrapper: wrapper(client) });
     await act(async () => {
-      result.current.mutate(makeVars(false));
+      result.current.mutate({ body: { subject: 'Новая' }, patch: { subject: 'Новая' } });
     });
-
-    const optimistic = client.getQueryData<Paginated<LetterListItem>>(OUTGOING_KEY);
-    expect(optimistic?.items).toHaveLength(1);
-    expect(optimistic?.items[0]?.id.startsWith('temp-')).toBe(true);
-    expect(optimistic?.items[0]?.counterparty.name).toBe('АО «Галургия»');
-
-    await act(async () => gate.resolve(jsonResponse(201, serverLetter(false))));
-    await waitFor(() => {
-      const done = client.getQueryData<Paginated<LetterListItem>>(OUTGOING_KEY);
-      expect(done?.items[0]?.id).toBe(SERVER_ID);
-      expect(client.getQueryData(lettersKeys.detail(SERVER_ID))).toBeTruthy();
-    });
-  });
-
-  it('ошибка сервера → откат по снапшоту', async () => {
-    const client = new QueryClient();
-    client.setQueryData(OUTGOING_KEY, EMPTY);
-    const gate = deferred<Response>();
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) =>
-        init?.method === 'POST' ? gate.promise : jsonResponse(200, EMPTY),
-      ),
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(client.getQueryData<LetterDetail>(lettersKeys.detail(ID))?.subject).toBe(
+      'Замечания по разделу КЖ',
     );
-
-    const { result } = renderHook(() => useCreateLetter(), { wrapper: makeWrapper(client) });
-    await act(async () => {
-      result.current.mutate(makeVars(false));
-    });
-    expect(client.getQueryData<Paginated<LetterListItem>>(OUTGOING_KEY)?.items).toHaveLength(1);
-
-    await act(async () => {
-      gate.resolve(jsonResponse(500, { code: 'INTERNAL_ERROR', message: 'x' }));
-    });
-    await waitFor(() => {
-      expect(client.getQueryData<Paginated<LetterListItem>>(OUTGOING_KEY)?.items).toHaveLength(0);
-    });
-  });
-
-  it('исходящий ДОКУМЕНТ — пессимистично: до ответа сервера в кэше ничего нет', async () => {
-    const client = new QueryClient();
-    client.setQueryData(OUTGOING_KEY, EMPTY);
-    const gate = deferred<Response>();
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) =>
-        init?.method === 'POST' ? gate.promise : jsonResponse(200, EMPTY),
-      ),
-    );
-
-    const { result } = renderHook(() => useCreateLetter(), { wrapper: makeWrapper(client) });
-    await act(async () => {
-      result.current.mutate(makeVars(true));
-    });
-
-    // Рег.№ присваивает сервер — оптимистичная вставка документа запрещена.
-    expect(client.getQueryData<Paginated<LetterListItem>>(OUTGOING_KEY)?.items).toHaveLength(0);
-
-    await act(async () => gate.resolve(jsonResponse(201, serverLetter(true))));
-    await waitFor(() => {
-      expect(client.getQueryData(lettersKeys.detail(SERVER_ID))).toBeTruthy();
-    });
+    expect(
+      client.getQueryData<LettersPages>(lettersKeys.list('incoming'))?.pages[0]?.items[0]?.subject,
+    ).toBe('Замечания по разделу КЖ');
   });
 });
 
-describe('useDocumentKinds: справочник «вид документа» по контракту dictionaries (#54)', () => {
-  it('читает элементы системного справочника одной страницей; порядок — серверный', async () => {
-    const kind = (id: string, name: string, sortOrder: number): DictionaryItem => ({
-      id,
-      dictionaryId: 'e0000000-0000-4000-8000-0000000000d0',
-      parentId: null,
-      code: null,
-      name,
-      sortOrder,
-      isActive: true,
-    });
-    const page: Paginated<DictionaryItem> = {
-      items: [kind(CP_ID, 'Письмо', 10), kind(SERVER_ID, 'Договор', 20)],
-      nextCursor: null,
-    };
-    const fetchMock = vi.fn(async () => jsonResponse(200, page));
+describe('useDeleteSpamLetter — удаление спама оптимистично (#55, Р12)', () => {
+  const fresh = listItemOf(
+    detail({
+      id: SPAM_ID,
+      regNumber: null,
+      regDate: null,
+      registeredAt: null,
+      stage: { ...stage, systemState: 'backlog', name: 'Новое', color: 'neutral' },
+    }),
+  );
+
+  it('строка уходит из «Новых» ДО ответа; один fetch', async () => {
+    const client = new QueryClient();
+    client.setQueryData(lettersKeys.list('new'), pages([fresh]));
+    const gate = deferred<Response>();
+    const fetchMock = vi.fn(() => gate.promise);
     vi.stubGlobal('fetch', fetchMock);
 
-    const { result } = renderHook(() => useDocumentKinds(), {
-      wrapper: makeWrapper(new QueryClient()),
+    const { result } = renderHook(() => useDeleteSpamLetter(), { wrapper: wrapper(client) });
+    await act(async () => {
+      result.current.mutate(SPAM_ID);
     });
+    expect(client.getQueryData<LettersPages>(lettersKeys.list('new'))?.pages[0]?.items).toEqual([]);
+    await act(async () => gate.resolve(new Response(null, { status: 204 })));
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 
-    await waitFor(() =>
-      expect(result.current.data?.map((k) => k.name)).toEqual(['Письмо', 'Договор']),
+  it('ошибка (уже зарегистрировано) — строка возвращается', async () => {
+    const client = new QueryClient();
+    client.setQueryData(lettersKeys.list('new'), pages([fresh]));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => json(409, { code: 'LETTER_NOT_DELETABLE', message: 'x' })),
     );
-    expect(String((fetchMock.mock.calls[0] as unknown[])[0])).toContain(
-      '/dictionaries/document-kind/items?limit=100',
-    );
+
+    const { result } = renderHook(() => useDeleteSpamLetter(), { wrapper: wrapper(client) });
+    await act(async () => {
+      result.current.mutate(SPAM_ID);
+    });
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(
+      client.getQueryData<LettersPages>(lettersKeys.list('new'))?.pages[0]?.items,
+    ).toHaveLength(1);
   });
 });
