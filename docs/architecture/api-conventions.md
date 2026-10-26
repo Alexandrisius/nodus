@@ -38,6 +38,11 @@ task.participants_changed / checklist_changed / result_set / relation_changed / 
 task.comments_counted  # пересчитан счётчик комментариев = сообщения беседы задачи (#252): клиенты ставят значение без рефеча досок
 task.personal_stage_created / personal_stage_updated / personal_stage_archived / personal_stage_changed  # УСТАРЕВШИЕ после «Моих действий» (ADR-0026): личные колонки сняты; имена зарезервированы
 task.type_created / type_updated / type_archived / workflow_published / workflow_layout_changed  # УСТАРЕВШИЕ (ADR-0024): движок в модуле «Процессы» — эмитятся `workflow.*`; имена зарезервированы, не эмитятся с #428
+letter.received / registered / updated / stage_changed / participant_joined / deleted
+  # Корреспонденция (#55, ADR-0027): received — приём почты/ручное создание, registered — переход
+  # с выдачей номера (payload {letterId, regNumber}), updated — правка реквизитов {changes},
+  # stage_changed — любой переход маршрута, participant_joined — «Присоединиться к обсуждению»
+
 task.type_changed
 chat.conversation_created / conversation_updated / member_added / member_removed / member_role_changed / message_sent / message_edited / message_deleted / message_read / message_pinned / message_unpinned / reaction_added / reaction_removed / thread_created
 chat.favorite_added / favorite_removed / favorite_updated  # личные закладки #171: только user-комната владельца (не рассылается участникам)
@@ -113,3 +118,14 @@ INTERNAL_ERROR      # непредвиденное (без деталей нар
 - **`GET /tasks/:id` → `layout`** = `{hiddenBlocks, roleLabels, requiredKeys}` — собирает сервер из типа (работает и для невидимого зрителю типа).
 - **Привязки атрибутов** — `PUT`/`DELETE /custom-fields/definitions/:id/types/:typeId`, идемпотентны, аудит `custom_field.bind` / `custom_field.unbind`, событие `custom_field.definition_changed {fields: ['typeIds']}`; снятие при использовании в опубликованном маршруте типа — 409 `CUSTOM_FIELD_IN_USE`.
 - **Каталог стадий** (`GET /tasks/stages`) не раскрывает типы, невидимые смотрящему (О11).
+
+### Корреспонденция (#55)
+
+- `GET /letters?box=new|incoming|outgoing&counterpartyId=&search=&cursor=` — курсор «(received_at,id) DESC» у «Новых», «(registered_at,id) DESC» у журналов; `box=new` без права `correspondence.register` — 403.
+- `POST /letters` — multipart: поля `typeId`, `mainIndex`, файлы `files` (1–20); письмо и файлы атомарно.
+- `POST /letters/:id/transitions/:transitionId` — общий движок; раздел окна `registration` (`letter-registration.schemas.ts`), пост-действие `assign_number`.
+- `PATCH /letters/:id` — `.strict()`, только реквизиты (номер и адресат так не меняются), пустое тело — ошибка.
+- `DELETE /letters/:id` — только «Новые» и только право регистрации (спам, Р12).
+- `POST /letters/:id/join` — состав беседы письма решает сервер.
+- `GET /letters/resolvers` — держатели `correspondence.resolve` («Принимают решения»); литеральный путь объявлен ДО `/letters/:id`.
+- Коды: `LETTER_REGISTRATION_INVALID` (`details {field, reason}` — подсветка поля), `LETTER_ALREADY_REGISTERED` (`details.regNumber`), `WORKFLOW_NUMBERING_NOT_CONFIGURED`.
