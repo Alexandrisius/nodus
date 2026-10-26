@@ -9,11 +9,6 @@ import { ALL_PERMISSIONS } from '../prisma/all-permissions.js';
 /** Миграции — единственный путь данных на прод (seed там не запускается, #311/#398). */
 const migrationsDir = join(dirname(fileURLToPath(import.meta.url)), '../prisma/migrations');
 
-/** #431 UI-пакет: заглушка до бэкенд-пакета — права каталога, которые выдаст
- *  миграция B1 (`INSERT INTO "role_permissions"`). Список обязан опустеть
- *  в бэкенд-пакете: проверка «право доезжает до прода» остаётся строгой. */
-const PENDING_MIGRATION = new Set<string>(['custom_field.manage']);
-
 function grantedPermissions(): Set<string> {
   const granted = new Set<string>();
   for (const entry of readdirSync(migrationsDir, { withFileTypes: true })) {
@@ -33,9 +28,7 @@ describe('каталог прав и миграции', () => {
 
   it('каждое право Permission доезжает до прода миграцией role_permissions', () => {
     const granted = grantedPermissions();
-    const missing = Object.values(Permission).filter(
-      (permission) => !granted.has(permission) && !PENDING_MIGRATION.has(permission),
-    );
+    const missing = Object.values(Permission).filter((permission) => !granted.has(permission));
     expect(
       missing,
       `Новое право не доставлено на прод: добавьте INSERT INTO "role_permissions" в миграцию (${missing.join(', ')})`,

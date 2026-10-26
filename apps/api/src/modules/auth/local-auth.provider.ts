@@ -2,12 +2,14 @@ import { Injectable } from '@nestjs/common';
 
 import type { AuthProvider } from './auth-provider.js';
 import { AuthRepository, type AuthIdentity } from './auth.repository.js';
+import { IdentityLoader } from './identity.loader.js';
 import { PasswordService } from '../../core/crypto/password.service.js';
 
 /**
  * Локальный провайдер (email+пароль, Argon2id) — реализация AuthProvider (I13).
  * Защита от user-enumeration: при несуществующем email verify идёт против
  * заранее вычисленного dummy-хэша — время ответа не выдаёт наличие учётки.
+ * Права приходят из `IdentityLoader` (порт ролей, #379).
  */
 // Dummy-хэш пароля «nodus-timing-equalizer» параметрами ARGON2_OPTIONS.
 const DUMMY_HASH =
@@ -17,6 +19,7 @@ const DUMMY_HASH =
 export class LocalAuthProvider implements AuthProvider {
   constructor(
     private readonly authRepository: AuthRepository,
+    private readonly identityLoader: IdentityLoader,
     private readonly passwordService: PasswordService,
   ) {}
 
@@ -38,7 +41,7 @@ export class LocalAuthProvider implements AuthProvider {
     // Статус — ещё раз ПОСЛЕ argon2 (секунды под нагрузкой): деактивация,
     // закоммиченная во время проверки пароля, не должна выпустить токен мимо
     // стоп-листа #333 (его запас покрывает только «перечитал → подписал»).
-    const identity = await this.authRepository.findIdentityById(credentials.id);
+    const identity = await this.identityLoader.load(credentials.id);
     return identity?.status === 'active' ? identity : null;
   }
 }

@@ -18,6 +18,7 @@ import { TransactionRunner } from '../../core/database/transaction-runner.js';
 import { DomainException } from '../../core/errors/domain-exception.js';
 import { EventBus } from '../../core/events/event-bus.js';
 import { AVATAR_PROCESSOR, type AvatarProcessor } from '../../core/ports/avatar-processor.port.js';
+import { avatarUrlOf as signAvatarUrl } from './avatar-url.js';
 import { RolesRepository } from './roles.repository.js';
 import { UsersRepository, type UserCardRow, type UserListRow } from './users.repository.js';
 
@@ -110,7 +111,7 @@ export class UsersService {
   /** Аватар — файл-дериват (#186): подписная ссылка отдачи; null — инициалы.
    *  Arrow-свойство: передаётся в свободные функции-мапперы БЕЗ потери this. */
   private readonly avatarUrlOf = (fileId: string | null): string | null =>
-    fileId ? this.signedUrls.fileContentUrl(fileId) : null;
+    signAvatarUrl(this.signedUrls, fileId);
 
   async listUsers(query: ListUsersQuery): Promise<Paginated<UserListItem>> {
     const page = await this.users.findPage(

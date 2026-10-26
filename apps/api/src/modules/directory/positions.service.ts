@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { DIRECTORY_EVENTS } from '@nodus/contracts';
 import type { CreatePositionDto, OrgUnitKind, Position, UpdatePositionDto } from '@nodus/contracts';
 
 import { TransactionRunner } from '../../core/database/transaction-runner.js';
@@ -25,7 +26,7 @@ export class PositionsService {
       const created = await this.positions.create(dto, tx);
       await this.eventBus.emit(
         tx,
-        'directory.position.created',
+        DIRECTORY_EVENTS.POSITION_CREATED,
         { positionId: created.id, kind: created.kind },
         { actorId, aggregateType: 'position', aggregateId: created.id },
       );
@@ -39,7 +40,7 @@ export class PositionsService {
       const updated = await this.positions.update(id, dto, tx);
       await this.eventBus.emit(
         tx,
-        'directory.position.updated',
+        DIRECTORY_EVENTS.POSITION_UPDATED,
         { positionId: id, changedFields: Object.keys(dto) },
         { actorId, aggregateType: 'position', aggregateId: id },
       );
@@ -53,7 +54,7 @@ export class PositionsService {
       await this.positions.update(id, { isActive: false }, tx);
       await this.eventBus.emit(
         tx,
-        'directory.position.archived',
+        DIRECTORY_EVENTS.POSITION_ARCHIVED,
         { positionId: id },
         { actorId, aggregateType: 'position', aggregateId: id },
       );
