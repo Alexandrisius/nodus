@@ -199,10 +199,18 @@ export class RolesService {
         });
       }
       await this.roles.delete(id, tx);
+      // Состав уходит каскадом: в событии фиксируем, у скольких людей и
+      // подразделений роль снялась — иначе удаление = массовый отзыв прав
+      // без следа в журнале (security-ревью 26.10).
       await this.eventBus.emit(
         tx,
         DIRECTORY_EVENTS.ROLE_DELETED,
-        { roleId: id, code: current.row.code },
+        {
+          roleId: id,
+          code: current.row.code,
+          memberCount: current.row._count.users,
+          departmentCount: current.row._count.departments,
+        },
         { actorId, aggregateType: 'role', aggregateId: id },
       );
     });

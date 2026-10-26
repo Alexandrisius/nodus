@@ -12,6 +12,7 @@ import {
 } from '@nodus/ui/components/dialog';
 import { Input } from '@nodus/ui/components/input';
 import { useCreateRole, useDeleteRole, useUpdateRole } from '../api/role-admin.js';
+import { useRoles } from '../api/roles.js';
 
 /** Окна пополняются данными — мимо-клик их не закрывает (правило 30.09). */
 const DIALOG_PROPS = {
@@ -120,14 +121,16 @@ export function RenameRoleDialog({ role, onClose }: { role: Role; onClose: () =>
 /** Подтверждение удаления: необратимое действие — через диалог, не из меню. */
 export function DeleteRoleDialog({ role, onClose }: { role: Role; onClose: () => void }) {
   const remove = useDeleteRole();
+  // Состав мог измениться после загрузки списка — считаем по свежему кэшу.
+  const fresh = useRoles().data?.find((item) => item.id === role.id) ?? role;
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-md" showCloseButton={false}>
         <DialogHeader>
           <DialogTitle>{ui.access.deleteTitle(role.name)}</DialogTitle>
           <DialogDescription>
-            {role.memberCount > 0 || role.departmentCount > 0
-              ? ui.access.deleteBodyMembers(role.memberCount, role.departmentCount)
+            {fresh.memberCount > 0 || fresh.departmentCount > 0
+              ? ui.access.deleteBodyMembers(fresh.memberCount, fresh.departmentCount)
               : ui.access.deleteBody}
           </DialogDescription>
         </DialogHeader>

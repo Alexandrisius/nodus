@@ -290,7 +290,7 @@ describe('RolesService (#379)', () => {
       expect(eventBus.emit).toHaveBeenCalledWith(
         'tx-handle',
         'directory.role.deleted',
-        { roleId: 'role-1', code: 'editor' },
+        { roleId: 'role-1', code: 'editor', memberCount: 0, departmentCount: 0 },
         expect.objectContaining({ actorId: 'admin-1' }),
       );
     });

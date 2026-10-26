@@ -270,6 +270,9 @@ describe('Роли: точечные права (#379)', () => {
 
     expect(response.status).toBe(204);
     expect((await f.api(f.users.manager, 'GET', `/directory/roles/${roleId}`)).status).toBe(404);
+    // След в журнале: сколько людей потеряли роль при удалении.
+    const deleted = await f.eventsFor(roleId, 'directory.role.deleted');
+    expect(deleted[0]?.payload).toMatchObject({ roleId, memberCount: 1, departmentCount: 0 });
     // Сотрудник остался, роль у него снята.
     expect(await permissionsOf(f.users.employee)).not.toContain(Permission.CUSTOM_FIELD_MANAGE);
   });
