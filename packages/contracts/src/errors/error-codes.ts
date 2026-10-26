@@ -108,6 +108,14 @@ export const ErrorCode = {
   DICTIONARY_SYSTEM_LOCKED: 'DICTIONARY_SYSTEM_LOCKED',
   /** Вариант с таким названием уже есть среди активных (#431). */
   DICTIONARY_ITEM_NAME_TAKEN: 'DICTIONARY_ITEM_NAME_TAKEN',
+  /** Права системной роли «Администратор» неизменяемы (409); details — { roleId, code } (#379). */
+  ROLE_LOCKED: 'ROLE_LOCKED',
+  /** Выдать можно только право, которое есть у самого актора (403);
+   *  details — { permissions } (#379, ADR-0034). */
+  ROLE_PERMISSION_NOT_HELD: 'ROLE_PERMISSION_NOT_HELD',
+  /** Нельзя убрать из роли «Администратор» последнего сотрудника — портал
+   *  остался бы без администратора (409; #379, ADR-0034). */
+  ROLE_LAST_ADMIN: 'ROLE_LAST_ADMIN',
 } as const;
 
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];

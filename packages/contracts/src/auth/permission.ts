@@ -3,6 +3,8 @@
  * (канон — `docs/architecture/patterns.md`). Строковые литералы прав
  * в коде запрещены — только через этот каталог. Каталог только расширяется.
  */
+import { z } from 'zod';
+
 export const Permission = {
   /** Полный административный доступ к ядру (справочники, флаги, аудит). */
   CORE_ADMIN: 'core.admin',
@@ -18,8 +20,9 @@ export const Permission = {
   /** Обход гейта DoR/DoD перехода с обязательной причиной (аудит, ADR-0020). */
   TASK_OVERRIDE_GATE: 'task.override_gate',
   /** Управление «Процессами» (ADR-0024): создание и свойства типов,
-   *  публикация маршрутов, расстановка холста; до матрицы #379 — только
-   *  роль администратора. */
+   *  публикация маршрутов, расстановка холста; по умолчанию — у
+   *  администратора, ролям выдаётся во вкладке «Права доступа»
+   *  «Автоматизации» (#379, ADR-0034). */
   WORKFLOW_MANAGE: 'workflow.manage',
   /** Чтение справочника сотрудников и оргструктуры. */
   DIRECTORY_READ: 'directory.read',
@@ -55,3 +58,6 @@ export const Permission = {
 } as const;
 
 export type Permission = (typeof Permission)[keyof typeof Permission];
+
+/** Право каталога на границе API: параметр `:permission`, payload события. */
+export const permissionSchema = z.enum(Permission);

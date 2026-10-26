@@ -198,6 +198,9 @@ model Department {
   members      User[] @relation("DepartmentMembers")
   legalMembers User[] @relation("LegalDepartmentMembers")
 
+  /// Роли, привязанные к подразделению (#379, ADR-0034).
+  roles DepartmentRole[]
+
   @@index([kind, parentId, sortOrder])
   /// FK SetNull-проверки (удаление подразделения/сотрудника) и подъём по дереву.
   @@index([parentId])
@@ -239,8 +242,25 @@ model Role {
 
   users       UserRole[]
   permissions RolePermission[]
+  departments DepartmentRole[]
 
   @@map("roles")
+}
+
+/// Роль, привязанная к управленческому подразделению (#379, ADR-0034):
+/// действует на сотрудников подразделения и всех вложенных. Юридическая
+/// структура не участвует; архивная привязка прав не даёт.
+model DepartmentRole {
+  departmentId String @map("department_id") @db.Uuid
+  roleId       String @map("role_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([departmentId, roleId])
+  @@index([roleId])
+  @@map("department_roles")
 }
 
 model UserRole {

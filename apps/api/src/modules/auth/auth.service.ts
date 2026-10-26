@@ -5,6 +5,7 @@ import { AuditRepository } from '../../core/audit/audit.repository.js';
 import { DomainException } from '../../core/errors/domain-exception.js';
 import { AUTH_PROVIDER, type AuthProvider } from './auth-provider.js';
 import { AuthRepository, type SessionRow } from './auth.repository.js';
+import { IdentityLoader } from './identity.loader.js';
 import { LoginThrottleService } from './login-throttle.service.js';
 import { PasswordService } from '../../core/crypto/password.service.js';
 import { TokenService } from './token.service.js';
@@ -48,6 +49,7 @@ export class AuthService {
   constructor(
     @Inject(AUTH_PROVIDER) private readonly authProvider: AuthProvider,
     private readonly authRepository: AuthRepository,
+    private readonly identityLoader: IdentityLoader,
     private readonly passwordService: PasswordService,
     private readonly tokenService: TokenService,
     private readonly audit: AuditRepository,
@@ -137,7 +139,7 @@ export class AuthService {
 
       // Статус перечитывается на КАЖДОЙ попытке: деактивация между проигрышем
       // CAS и повтором не должна выпустить access-токен (security-ревью #317).
-      const identity = await this.authRepository.findIdentityById(session.userId);
+      const identity = await this.identityLoader.load(session.userId);
       if (!identity || identity.status !== 'active') {
         await this.authRepository.revokeSession(session.id);
         throw this.sessionInvalid();
@@ -262,9 +264,9 @@ export class AuthService {
     newPassword: string,
     currentSessionId: string | null,
   ): Promise<void> {
-    const identity = await this.authRepository.findIdentityById(userId);
-    const credentials = identity
-      ? await this.authRepository.findCredentialsByEmail(identity.email)
+    const profile = await this.authRepository.findProfileById(userId);
+    const credentials = profile
+      ? await this.authRepository.findCredentialsByEmail(profile.email)
       : null;
     if (!credentials) {
       throw new DomainException(ErrorCode.AUTH_INVALID_CREDENTIALS, 'Invalid password');
@@ -279,7 +281,7 @@ export class AuthService {
   }
 
   async getMe(userId: string): Promise<AuthUser> {
-    const identity = await this.authRepository.findIdentityById(userId);
+    const identity = await this.identityLoader.load(userId);
     if (!identity || identity.status !== 'active') {
       throw DomainException.unauthenticated();
     }

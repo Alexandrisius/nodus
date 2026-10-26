@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import {
+  DIRECTORY_EVENTS,
   ErrorCode,
   type CreateDepartmentDto,
   type DepartmentNode,
@@ -71,7 +72,7 @@ export class DepartmentsService {
       const created = await this.departments.create(dto, tx);
       await this.eventBus.emit(
         tx,
-        'directory.department.created',
+        DIRECTORY_EVENTS.DEPARTMENT_CREATED,
         { departmentId: created.id, kind: created.kind },
         { actorId, aggregateType: 'department', aggregateId: created.id },
       );
@@ -96,7 +97,7 @@ export class DepartmentsService {
       const updated = await this.departments.update(id, dto, tx);
       await this.eventBus.emit(
         tx,
-        'directory.department.updated',
+        DIRECTORY_EVENTS.DEPARTMENT_UPDATED,
         { departmentId: id, changedFields: Object.keys(dto) },
         { actorId, aggregateType: 'department', aggregateId: id },
       );
@@ -111,7 +112,7 @@ export class DepartmentsService {
       await this.departments.update(id, { isActive: false }, tx);
       await this.eventBus.emit(
         tx,
-        'directory.department.archived',
+        DIRECTORY_EVENTS.DEPARTMENT_ARCHIVED,
         { departmentId: id },
         { actorId, aggregateType: 'department', aggregateId: id },
       );

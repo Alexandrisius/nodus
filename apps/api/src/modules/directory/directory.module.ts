@@ -6,6 +6,7 @@ import { DepartmentsService } from './departments.service.js';
 import { PositionsController } from './positions.controller.js';
 import { PositionsRepository } from './positions.repository.js';
 import { PositionsService } from './positions.service.js';
+import { RoleMembersService } from './role-members.service.js';
 import { RolesController } from './roles.controller.js';
 import { RolesRepository } from './roles.repository.js';
 import { RolesService } from './roles.service.js';
@@ -28,6 +29,7 @@ import { UsersService } from './users.service.js';
     PositionsService,
     PositionsRepository,
     RolesService,
+    RoleMembersService,
     RolesRepository,
   ],
 })

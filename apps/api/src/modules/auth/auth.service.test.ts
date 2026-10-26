@@ -31,7 +31,7 @@ describe('AuthService', () => {
   const authProvider = { verifyCredentials: vi.fn() };
   const authRepository = {
     findCredentialsByEmail: vi.fn(),
-    findIdentityById: vi.fn(),
+    findProfileById: vi.fn(),
     updatePassword: vi.fn(),
     createSession: vi.fn(),
     findSessionById: vi.fn(),
@@ -40,6 +40,8 @@ describe('AuthService', () => {
     revokeAllSessions: vi.fn(),
     listActiveSessions: vi.fn(),
   };
+  // Права — из порта ролей (#379, ADR-0034): профиль отдельно, права отдельно.
+  const identityLoader = { load: vi.fn() };
   const passwordService = { verify: vi.fn(), hash: vi.fn(), needsRehash: vi.fn() };
   const tokenService = {
     config: { accessTtlSeconds: 900, refreshTtlDays: 30 },
@@ -72,6 +74,7 @@ describe('AuthService', () => {
     service = new AuthService(
       authProvider as never,
       authRepository as never,
+      identityLoader as never,
       passwordService as never,
       tokenService as never,
       audit as never,
@@ -158,7 +161,7 @@ describe('AuthService', () => {
         updatedAt: new Date(), // ротация только что
       });
       authRepository.findSessionById.mockResolvedValue(session);
-      authRepository.findIdentityById.mockResolvedValue(IDENTITY);
+      identityLoader.load.mockResolvedValue(IDENTITY);
 
       const result = await service.refresh('cookie', '1.1.1.1', 'ua');
 
@@ -179,7 +182,7 @@ describe('AuthService', () => {
 
     it('валидный токен → ротация и новая пара', async () => {
       authRepository.findSessionById.mockResolvedValue(makeSession());
-      authRepository.findIdentityById.mockResolvedValue(IDENTITY);
+      identityLoader.load.mockResolvedValue(IDENTITY);
 
       const result = await service.refresh('cookie', '1.1.1.1', 'ua');
 
@@ -203,7 +206,7 @@ describe('AuthService', () => {
             updatedAt: new Date(), // соседняя вкладка ротировала только что
           }),
         );
-      authRepository.findIdentityById.mockResolvedValue(IDENTITY);
+      identityLoader.load.mockResolvedValue(IDENTITY);
       authRepository.rotateSessionIfCurrent
         .mockResolvedValueOnce(false) // соседняя вкладка успела раньше
         .mockResolvedValueOnce(true);
@@ -229,7 +232,7 @@ describe('AuthService', () => {
           previousRefreshTokenHash: 'c'.repeat(64),
         }),
       );
-      authRepository.findIdentityById.mockResolvedValue(IDENTITY);
+      identityLoader.load.mockResolvedValue(IDENTITY);
       authRepository.rotateSessionIfCurrent.mockResolvedValueOnce(false);
 
       await expect(service.refresh('cookie', '1.1.1.1', 'ua')).rejects.toMatchObject({
@@ -241,7 +244,7 @@ describe('AuthService', () => {
 
     it('деактивация между проигрышем CAS и повтором → 401 и отзыв, токен не выпущен', async () => {
       authRepository.findSessionById.mockResolvedValue(makeSession());
-      authRepository.findIdentityById
+      identityLoader.load
         .mockResolvedValueOnce(IDENTITY)
         .mockResolvedValueOnce({ ...IDENTITY, status: 'inactive' });
       authRepository.rotateSessionIfCurrent.mockResolvedValueOnce(false);
@@ -256,7 +259,7 @@ describe('AuthService', () => {
 
     it('CAS проигран на всех попытках → 401, сессия не отзывается', async () => {
       authRepository.findSessionById.mockResolvedValue(makeSession());
-      authRepository.findIdentityById.mockResolvedValue(IDENTITY);
+      identityLoader.load.mockResolvedValue(IDENTITY);
       authRepository.rotateSessionIfCurrent.mockResolvedValue(false);
 
       await expect(service.refresh('cookie', '1.1.1.1', 'ua')).rejects.toMatchObject({
@@ -268,7 +271,7 @@ describe('AuthService', () => {
 
     it('деактивированный пользователь → отзыв сессии + 401', async () => {
       authRepository.findSessionById.mockResolvedValue(makeSession());
-      authRepository.findIdentityById.mockResolvedValue({ ...IDENTITY, status: 'deactivated' });
+      identityLoader.load.mockResolvedValue({ ...IDENTITY, status: 'deactivated' });
 
       await expect(service.refresh('cookie', '1.1.1.1', 'ua')).rejects.toMatchObject({
         code: ErrorCode.AUTH_SESSION_INVALID,
@@ -297,7 +300,7 @@ describe('AuthService', () => {
 
   describe('changePassword', () => {
     it('неверный старый пароль → AUTH_INVALID_CREDENTIALS', async () => {
-      authRepository.findIdentityById.mockResolvedValue(IDENTITY);
+      authRepository.findProfileById.mockResolvedValue(IDENTITY);
       authRepository.findCredentialsByEmail.mockResolvedValue({
         ...IDENTITY,
         passwordHash: 'hash',
@@ -312,7 +315,7 @@ describe('AuthService', () => {
     });
 
     it('успех → перехэш + отзыв всех сессий кроме текущей', async () => {
-      authRepository.findIdentityById.mockResolvedValue(IDENTITY);
+      authRepository.findProfileById.mockResolvedValue(IDENTITY);
       authRepository.findCredentialsByEmail.mockResolvedValue({
         ...IDENTITY,
         passwordHash: 'hash',

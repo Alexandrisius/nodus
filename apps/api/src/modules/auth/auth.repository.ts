@@ -13,12 +13,17 @@ export interface UserCredentials {
   status: 'active' | 'deactivated';
 }
 
-/** Идентичность для AuthUser/JWT: пользователь + развёрнутые права ролей. */
-export interface AuthIdentity {
+/** Профиль пользователя для AuthUser/JWT — БЕЗ прав (#379, ADR-0034 п. 4):
+ *  права считает порт `ROLE_MEMBERSHIP_READER`, а не join по прямым ролям. */
+export interface AuthProfile {
   id: string;
   email: string;
   displayName: string;
   status: 'active' | 'deactivated';
+}
+
+/** Идентичность для AuthUser/JWT: профиль + развёрнутые права ролей. */
+export interface AuthIdentity extends AuthProfile {
   permissions: string[];
 }
 
@@ -59,29 +64,13 @@ export class AuthRepository {
     return user;
   }
 
-  /** Пользователь + плоский набор прав (union прав всех ролей). */
-  async findIdentityById(id: string): Promise<AuthIdentity | null> {
-    const user = await this.prisma.user.findUnique({
+  /** Профиль без прав: их даёт порт ролей (прямые роли ∪ подразделение и предки). */
+  async findProfileById(id: string, tx?: TransactionClient): Promise<AuthProfile | null> {
+    const client = tx ?? this.prisma;
+    return client.user.findUnique({
       where: { id },
-      select: {
-        id: true,
-        email: true,
-        displayName: true,
-        status: true,
-        roles: { select: { role: { select: { permissions: { select: { permission: true } } } } } },
-      },
+      select: { id: true, email: true, displayName: true, status: true },
     });
-    if (!user) return null;
-    const permissions = [
-      ...new Set(user.roles.flatMap((ur) => ur.role.permissions.map((rp) => rp.permission))),
-    ];
-    return {
-      id: user.id,
-      email: user.email,
-      displayName: user.displayName,
-      status: user.status,
-      permissions,
-    };
   }
 
   async updatePassword(

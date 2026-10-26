@@ -26,6 +26,7 @@ import { DepartmentsController } from '../../src/modules/directory/departments.c
 import { DepartmentsService } from '../../src/modules/directory/departments.service.js';
 import { PositionsController } from '../../src/modules/directory/positions.controller.js';
 import { PositionsService } from '../../src/modules/directory/positions.service.js';
+import { RoleMembersService } from '../../src/modules/directory/role-members.service.js';
 import { RolesController } from '../../src/modules/directory/roles.controller.js';
 import { RolesService } from '../../src/modules/directory/roles.service.js';
 import { UsersController } from '../../src/modules/directory/users.controller.js';
@@ -80,6 +81,7 @@ type OpenApiPaths = Record<string, Record<string, OpenApiOperation>>;
     { provide: DepartmentsService, useValue: {} },
     { provide: PositionsService, useValue: {} },
     { provide: RolesService, useValue: {} },
+    { provide: RoleMembersService, useValue: {} },
     { provide: DictionariesService, useValue: {} },
     { provide: DictionaryItemsService, useValue: {} },
     { provide: DefinitionsService, useValue: {} },
@@ -145,6 +147,10 @@ describe('OpenAPI: генерация из кода и публикация /api
       '/api/v1/directory/positions/{id}/archive',
       '/api/v1/directory/roles',
       '/api/v1/directory/roles/{id}',
+      '/api/v1/directory/roles/{id}/members',
+      '/api/v1/directory/roles/{id}/members/users/{userId}',
+      '/api/v1/directory/roles/{id}/members/departments/{departmentId}',
+      '/api/v1/directory/roles/{id}/permissions/{permission}',
       '/api/v1/dictionaries',
       '/api/v1/dictionaries/{code}/items',
       '/api/v1/counterparties',

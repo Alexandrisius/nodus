@@ -8,11 +8,14 @@ const IDENTITY = { id: 'u1', email: 'u1@nodus.by', displayName: 'Сотрудн�
 function makeProvider(identityStatus: 'active' | 'deactivated') {
   const repo = {
     findCredentialsByEmail: vi.fn(async () => CREDENTIALS),
-    findIdentityById: vi.fn(async () => ({ ...IDENTITY, status: identityStatus })),
     updatePassword: vi.fn(),
   };
+  // Права приходят из порта ролей через `IdentityLoader` (#379, ADR-0034).
+  const identityLoader = {
+    load: vi.fn(async () => ({ ...IDENTITY, status: identityStatus })),
+  };
   const passwords = { verify: vi.fn(async () => true), needsRehash: vi.fn(() => false) };
-  return new LocalAuthProvider(repo as never, passwords as never);
+  return new LocalAuthProvider(repo as never, identityLoader as never, passwords as never);
 }
 
 /** Деактивация, закоммиченная во время argon2, не выпускает токен (#333). */

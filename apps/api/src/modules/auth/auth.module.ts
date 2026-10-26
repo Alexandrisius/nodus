@@ -1,12 +1,15 @@
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 
+import { ROLE_MEMBERSHIP_READER } from '../../core/ports/role-membership.port.js';
+import { RoleMembershipProvider } from '../../core/ports/role-membership.provider.js';
 import { AUTH_PROVIDER } from './auth-provider.js';
 import { getAuthConfig } from './auth.config.js';
 import { AuthController } from './auth.controller.js';
 import { AuthRepository } from './auth.repository.js';
 import { AuthService } from './auth.service.js';
 import { UserDeactivatedHandler } from './events/user-deactivated.handler.js';
+import { IdentityLoader } from './identity.loader.js';
 import { JwtAuthGuard } from './jwt-auth.guard.js';
 import { LocalAuthProvider } from './local-auth.provider.js';
 import { LoginThrottleService } from './login-throttle.service.js';
@@ -18,6 +21,8 @@ import { TokenService } from './token.service.js';
  * AuthProvider — точка расширения (I13): сейчас LocalAuthProvider,
  * Keycloak/LDAP в V2 за тем же токеном. JwtAuthGuard экспортируется —
  * глобальная регистрация (APP_GUARD, первым) в AppModule.
+ * Права сотрудника собирает `IdentityLoader` через порт
+ * `ROLE_MEMBERSHIP_READER` (ADR-0012, ADR-0034 п. 4).
  */
 @Module({
   imports: [
@@ -30,12 +35,14 @@ import { TokenService } from './token.service.js';
   providers: [
     AuthService,
     AuthRepository,
+    IdentityLoader,
     TokenService,
     JwtAuthGuard,
     UserDeactivatedHandler,
     LoginThrottleService,
     RevokedUsersStore,
     { provide: AUTH_PROVIDER, useClass: LocalAuthProvider },
+    { provide: ROLE_MEMBERSHIP_READER, useClass: RoleMembershipProvider },
   ],
   exports: [JwtAuthGuard, TokenService, JwtModule],
 })

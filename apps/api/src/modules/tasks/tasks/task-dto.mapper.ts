@@ -156,8 +156,6 @@ export class TaskDtoMapper {
       checklistDone: r.checklistDone,
       checklistTotal: r.checklistTotal,
       source: r.source as TaskSource,
-      // #431 UI-пакет: заглушка до бэкенд-пакета — реальное чтение колонки
-      // JSONB (значения пишет и валидирует модуль custom-fields в B5).
       customFields: (r.customFields ?? {}) as CustomFieldValues,
       updatedAt: r.updatedAt.toISOString(),
     };

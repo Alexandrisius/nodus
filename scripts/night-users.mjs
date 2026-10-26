@@ -56,7 +56,7 @@ async function mk({ email, password }, first, last) {
 await mk(USERS.nightA, 'Анна', 'Ночная');
 await mk(USERS.nightB, 'Борис', 'Ночной');
 // Роль admin: песочница — место приёмки владельца, night-учёткам нужен
-// полный доступ (task.workflow_manage #378: типы/маршруты/публикация;
+// полный доступ (workflow.manage #378: типы/маршруты/публикация;
 // task.manage_any/override_gate: любые задачи и обход гейтов). БД только
 // nodus_night — публичные пароли админов живут в одноразовой песочнице
 // (security-ревью #247: на проде скрипт не запускается вовсе).

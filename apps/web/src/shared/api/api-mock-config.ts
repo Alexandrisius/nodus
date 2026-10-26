@@ -25,6 +25,8 @@ export const API_MOCK_DOMAINS = [
   'custom-fields',
   'dictionaries',
   'crm',
+  // Матрица «Права доступа» (#379): UI-чекпоинт до бэкенда на живом входе.
+  'roles',
 ] as const;
 
 export type ApiMockDomain = (typeof API_MOCK_DOMAINS)[number];
