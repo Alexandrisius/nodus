@@ -169,12 +169,14 @@ export function RegistrationPanel({
         </Button>
       </div>
       <div className="content-fade min-h-0 flex-1 overflow-y-auto px-4 py-4">
+        {/* Без автофокуса: смена письма не должна открывать список
+            корреспондента сама — фокус ставит только действие сотрудника
+            (Enter в поиске/очереди, «Не хватает»). */}
         <RegistrationFields
           letter={letter}
           value={value}
           onChange={setDraft}
           invalidKeys={invalidKeys}
-          autoFocus
         />
         <div className="mt-4 flex flex-col gap-3">
           <RegistrationSummary letter={letter} draft={value} />

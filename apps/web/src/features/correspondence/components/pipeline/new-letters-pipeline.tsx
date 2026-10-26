@@ -120,6 +120,14 @@ export function NewLettersPipeline() {
                 <Input
                   value={text}
                   onChange={(e) => setText(e.target.value)}
+                  // Enter в поиске — в форму регистрации (сценарий «≤ 30 секунд»):
+                  // «Галур» → Enter → «Корреспондент» уже в фокусе.
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey && !e.altKey && selectedId) {
+                      e.preventDefault();
+                      panelRef.current?.focusFirst();
+                    }
+                  }}
                   placeholder={ui.letters.pipeline.searchPlaceholder}
                   aria-label={ui.letters.pipeline.searchPlaceholder}
                   className="h-8 pl-8 text-sm"
