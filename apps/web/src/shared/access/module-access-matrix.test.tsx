@@ -141,12 +141,12 @@ describe('ModuleAccessMatrix (#379)', () => {
     expect(document.getElementById(describedBy!)?.textContent).toBe(ui.access.readOnlyHint);
   });
 
-  it('шапка роли: счётчик состава, кнопки «Создать роль» и «Копировать из роли» у админа', async () => {
+  it('шапка роли: счётчик состава, «+» создания роли у админа', async () => {
     await setup();
     await screen.findByRole('switch', { name: 'Настраивать процессы и маршруты — Руководитель' });
     expect(screen.getAllByText('2 сотр.').length).toBeGreaterThan(0);
-    expect(screen.getAllByRole('button', { name: ui.access.createRole }).length).toBe(2);
-    expect(screen.getByRole('button', { name: new RegExp(ui.access.copyFromRole) })).toBeTruthy();
+    expect(screen.getAllByRole('button', { name: ui.access.createRole }).length).toBe(1);
+    expect(screen.queryByRole('button', { name: new RegExp(ui.access.copyFromRole) })).toBeNull();
     expect(
       screen.getByRole('button', { name: `${ui.access.membersAdd}: Руководитель` }),
     ).toBeTruthy();

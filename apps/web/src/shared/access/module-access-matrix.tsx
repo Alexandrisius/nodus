@@ -1,4 +1,4 @@
-import { ChevronDown, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { useId, useMemo, useState } from 'react';
 import type { AccessModule, Permission, Role } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
@@ -7,6 +7,9 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@nodus/ui/components/dropdown-menu';
 import { Empty, EmptyTitle } from '@nodus/ui/components/empty';
@@ -81,33 +84,7 @@ export function ModuleAccessMatrix({ module }: { module: AccessModule }) {
         <h1 className="shrink-0 text-xl font-semibold text-balance text-foreground">
           {ui.access.title}
         </h1>
-        {canManage ? (
-          <div className="flex items-center gap-2">
-            <Button size="sm" onClick={() => setCreateFrom({})}>
-              <Plus className="size-4" strokeWidth={1.75} />
-              {ui.access.createRole}
-            </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button size="sm" variant="outline" disabled={!roles.data?.length}>
-                  {ui.access.copyFromRole}
-                  <ChevronDown className="size-4" strokeWidth={1.75} />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
-                {(roles.data ?? []).map((role) => (
-                  <DropdownMenuItem
-                    key={role.id}
-                    disabled={isTempRole(role)}
-                    onSelect={() => setCreateFrom({ copyId: role.id })}
-                  >
-                    {role.name}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        ) : (
+        {canManage ? null : (
           <span className="ml-auto flex min-w-0 items-center gap-2">
             <span id={readOnlyHintId} className="truncate text-xs text-muted-foreground">
               {ui.access.readOnlyHint}
@@ -140,14 +117,38 @@ export function ModuleAccessMatrix({ module }: { module: AccessModule }) {
             describedBy={canManage ? undefined : readOnlyHintId}
             trailingHeader={
               canManage ? (
-                <button
-                  type="button"
-                  aria-label={ui.access.createRole}
-                  onClick={() => setCreateFrom({})}
-                  className="flex size-8 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors outline-none hover:bg-accent/60 hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring/30"
-                >
-                  <Plus className="size-4" strokeWidth={1.75} />
-                </button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      aria-label={ui.access.createRole}
+                      className="flex size-8 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors outline-none hover:bg-accent/60 hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring/30"
+                    >
+                      <Plus className="size-4" strokeWidth={1.75} />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onSelect={() => setCreateFrom({})}>
+                      {ui.access.createRole}
+                    </DropdownMenuItem>
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger disabled={!roles.data?.length}>
+                        {ui.access.copyFromRole}
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent>
+                        {(roles.data ?? []).map((role) => (
+                          <DropdownMenuItem
+                            key={role.id}
+                            disabled={isTempRole(role)}
+                            onSelect={() => setCreateFrom({ copyId: role.id })}
+                          >
+                            {role.name}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               ) : undefined
             }
             cell={(rowId, columnId) => {
