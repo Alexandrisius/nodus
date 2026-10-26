@@ -26,6 +26,11 @@
 ```
 # Реализованные (эмитятся кодом; payload-схемы — packages/contracts/src/**/*events*.ts)
 directory.user.created / updated / deactivated  # deactivated — gateway рвёт WS-сокеты пользователя
+directory.department.created / updated / archived
+directory.position.created / updated / archived
+directory.role.created / updated / deleted  # updated — ТОЛЬКО name/description (состав прав несёт permissions_changed)
+directory.role.permissions_changed  # {roleId, permission, granted} — любое реальное изменение состава прав роли, по событию на право; аудит пишется на каждый вызов, событие — только при изменении (#379, ADR-0034)
+directory.role.members_changed  # {roleId, kind: 'user'|'department', targetId, added} — реальное изменение состава роли (#379); без audience, gateway пока не маршрутизирует (подписчики — #382)
 workflow.type_created / type_updated / type_archived / published / layout_changed  # «Процессы» (ADR-0024, реализованы #428): каталог типов и маршрутов, без audience — всем; заменяют task.type_* / task.workflow_*
 task.created / updated / status_changed / stage_changed / personal_stage_changed / assigned / completed / overdue
 task.time_logged
@@ -45,9 +50,6 @@ notification.dispatch_requested / read  # dispatch — снимок для то�
 notification.acked       # выпилено ревизией 05.10 (ack-механика удалена), не эмитится; имя зарезервировано
 
 # Задел (модуль ещё не реализован; имена зарезервированы — уточняются тем же PR, что вводит модуль)
-directory.department.created / updated / archived
-directory.position.created / updated / archived
-directory.role.created / updated / deleted
 dictionary.created / updated · dictionary.item_created / updated / deleted  # реализованы #431 (Р10): запись вариантов атрибутов; reorder эмитит dictionary.updated
 workflow.press_recorded / press_round_completed   # «кнопку жмут несколько» (ADR-0025): отметка участника, кворум набран
 project.created / updated / archived / participants_changed / roles_changed / node_created / node_updated / node_archived / schema_published  # ADR-0030
