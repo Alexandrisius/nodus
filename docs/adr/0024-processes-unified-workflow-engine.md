@@ -97,3 +97,12 @@ config = { card: { hiddenBlocks: TaskCardBlock[], roleLabels: {creator?, assigne
 - Новый раздел окна `registration` и пост-действие `assign_number` — часть контракта (`transition-form.schemas.ts`), а не привилегия задач.
 - `ProcessType.numbering` (серия номеров) обязателен в DTO: у задач `null`.
 - Каталог типов писем системный: публикация маршрута письма и правка его типа — 409 (UI — режим «только просмотр» с баннером).
+
+## Реализация (#55, бэкенд)
+
+- **Нумерация — в «Процессах»** (`number_series`, `number_counters`): `NumberSeriesService.next` — upsert счётчика года в транзакции перехода, год — `companyYear` по `COMPANY_TIMEZONE` (Минск; граница года 31.12 23:30 UTC). Номер выдаёт пост-действие `assign_number`; нет серии у типа — 409 `WORKFLOW_NUMBERING_NOT_CONFIGURED`.
+- **Движок исполняет пост-действия в `execute`**: номер выдаётся до смены стадии, адаптер получает его в `meta.numbering` и пишет регистрационные поля в той же транзакции; в журнал `transition_records` ложится `fields.number = {from: null, to: 'Вх-2026/118'}`. Откат перехода не сдвигает счётчик — номеров без пропусков (проверено 8 параллельными регистрациями).
+- **`WorkflowActorSubject.typeId`** — тип сущности: движок берёт из него `config.numbering`. `WorkflowEntityStage.code` — код системной стадии: письма различают «Не зарегистрировано» и «Ошибочно зарегистрировано».
+- **Каталог — ревизия на маршрут**: `CatalogWorkflow.revision` (задачи 4, письма 1) и `catalog-revisions.ts`; правка писем в #463/#464 не поднимает версии маршрутов задач. `ensureSeries` создаёт серии «Вх»/«Исх» один раз (префикс не перетирается).
+- **Замок каталога писем** (`letter-lock.ts`): 409 `PROCESS_TYPE_SYSTEM_LOCKED {reason:'letter_catalog'}` на публикацию, раскладку, правку типа/конфига, архив/восстановление и создание типа письма; `LOCKED_LETTER_DIRECTIONS` — снятие в #463/#464 по направлению, не флагом.
+- **DTO типа гидрирует `numbering`** (серия + префикс) пачкой на страницу; проверка документа на публикации получает факт `numberingConfigured`.

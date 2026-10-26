@@ -51,3 +51,13 @@
 - **Чат письма — обычная беседа** `type='letter'` с `letter_transition`-сообщениями; участники — адресат и присоединившиеся, наружу не уходит (Р10).
 - **Вкладки «Новые / Входящие / Исходящие»**: `box=new` — только держателю `correspondence.register` (иначе 403); «Права доступа» — общая матрица раздела.
 - **Вне пакета**: приём почты (#56), исходящие с отправкой (#464), резолюции/поручения и конфиденциальность (#461/#463).
+
+## Реализация (#55, бэкенд)
+
+- **Схема:** `letters` (номер и его состав — CHECK полноты, UNIQUE серия×год×порядок, индексы «Новые»/реестров/корреспондента/адресата, GIN `custom_fields`), `letter_attachments` (роли `main|body|attachment|source`, частичные unique «один main и один body»), `letter_participants` (PK письмо×сотрудник), частичный unique беседы `conversations(letter_id) WHERE type='letter'`, `counterparty_usages.contact_id`.
+- **Модуль `correspondence`:** чтения (keyset-курсоры «Новые» по `received_at`, реестры по `registered_at`; серверный поиск по теме/номеру/их номеру/корреспонденту), карточка, ручное создание multipart (файлы потоком через временные файлы, атомарно с письмом, компенсация хранилища), правка реквизитов с историей, спам, присоединение. Видимость и права — одна функция (`letter-access.ts`): незарегистрированное — только `correspondence.register`, невидимое — 404, `box=new` без права — 403.
+- **Адаптер письма:** роли `registrar | addressee | participant | author` (автор — только у исходящих), факты нейтральные (гейтов в #55 нет), `applyStage` пишет `system_state`, номер и события `letter_stage_changed` / `letter_registered` / `letter_closed_unregistered`.
+- **Повторная регистрация** — 409 `LETTER_ALREADY_REGISTERED` с выданным номером: движок видит запрет перехода, сервис перечитывает письмо и объясняет причину; страховка — адаптер.
+- **Чат:** беседа `type='letter'` (find-or-create по `letter_id`), состав — адресат (owner) + участники, регистратор не входит (В2); мост через порт `LETTER_CHAT_READER`; блок `letter_transition` — по `letter_stage_changed` с причиной (цвет чипа — из каталога стадий, в событии его нет).
+- **Файлы:** порт `FILE_OBJECT_READER` (метаданные), `FILE_ACCESS_CONTRIBUTORS` заменён реестром `FileAccessRegistry` (маркер `fileAccessContext`), `LetterFileAccess` — видимость по письму, `canEdit:false`; офисные вложения письма ставятся в очередь PDF-производных обработчиком `correspondence.letter_received`.
+- **CRM:** обработчики `letter_registered|updated|deleted` ведут `counterparty_usages` (корреспондент + подписант); удаление контакта-подписанта — 409 `CRM_CONTACT_IN_USE`.
