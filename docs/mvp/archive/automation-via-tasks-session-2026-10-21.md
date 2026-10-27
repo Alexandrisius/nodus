@@ -172,8 +172,8 @@
 
 ## 11. Источники
 - `docs/product/incubator.md` — записи 19.10 (раунд 2), 21.10 (раунды 1–7).
-- `docs/mvp/prompt-collective-execution-2026-10.md`, `…-answer.md` — промпт и ответ внешней модели с поправками агента.
-- `docs/mvp/interview-plan-correspondence-2026-10.md` — план интервью по корреспонденции.
+- `docs/mvp/archive/prompt-collective-execution-2026-10.md`, `…-answer.md` — промпт и ответ внешней модели с поправками агента.
+- `docs/mvp/archive/interview-plan-correspondence-2026-10.md` — план интервью по корреспонденции.
 - `docs/mvp/process-map.md`, `docs/product/process-discovery.md`, `docs/product/interviews/*` — процессы и боли.
 - Внешние: Инструкция по делопроизводству РБ (пост. Минюста № 4 ред. 2024; № 65 от 29.08.2025, пп. 49, 123.9); Типовой регламент ФОИВ РФ (ПП № 452, пп. 4.2–4.6); Directum RX WebHelp (простое/составное поручение, ознакомление); ELMA365 (задачи нескольким исполнителям); Битрикс24 helpdesk 27359038 / 28202820 / 27047638; Jira Service Management (approvals на статусе); Asana («Why one assignee», «Assign copies»); MS Planner; ClickUp.
 - Интервью 22.10: `docs/product/interviews/2026-10-22-shaiderova-correspondence.md` (саммари), `interviews/full/2026-10-22-shaiderova-correspondence.md` (транскрипт, таймкоды).
