@@ -237,6 +237,7 @@ export const tasksStrings = {
     },
     openChecklist: 'Открыть чек-лист',
     openSubtasks: 'Открыть подзадачи',
+    openSubtask: 'Открыть подзадачу',
     filesMembersOnly: 'Файлы и сообщения доступны участникам обсуждения задачи',
     noConversation: 'Чат задачи ещё не создан — файлы и сообщения недоступны',
     commentLabel: 'Причина / комментарий',

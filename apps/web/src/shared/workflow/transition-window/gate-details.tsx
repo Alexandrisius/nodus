@@ -70,7 +70,7 @@ export function OpenSubtasksList({
   if (open.length === 0) return null;
 
   return (
-    <ul className="flex flex-col">
+    <ul className="flex max-h-56 flex-col overflow-y-auto overscroll-contain">
       {open.map((task) => {
         const row = (
           <>
@@ -88,7 +88,7 @@ export function OpenSubtasksList({
             {onOpen ? (
               <button
                 type="button"
-                title={ui.tasks.window.openSubtasks}
+                title={ui.tasks.window.openSubtask}
                 onClick={() => onOpen(task.id)}
                 className={cn(rowClass, 'hover:bg-accent/40')}
               >

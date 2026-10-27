@@ -199,7 +199,7 @@ export function TransitionDialog({
         }
       }}
     >
-      <DialogContent className="max-w-lg">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>
             {transition?.name} — {ui.tasks.transitionBlocked.toLowerCase()}

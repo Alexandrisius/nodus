@@ -65,7 +65,7 @@ describe('TransitionDialog: отказ без автозакрытия подз�
       />,
     );
 
-    fireEvent.click(screen.getByTitle('Открыть подзадачи'));
+    fireEvent.click(screen.getByTitle('Открыть подзадачу'));
     expect(onOpenSubtask).toHaveBeenCalledWith(SUBTASK.id);
   });
 });
