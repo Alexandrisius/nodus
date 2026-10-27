@@ -237,7 +237,7 @@ export function TaskCard({ taskId }: { taskId: string }) {
                 разделяются отступами, без висячих линий-сепараторов. */}
               <div className="mx-auto max-w-4xl pb-4">
                 {layout.blockVisible('description') ? <TaskDescription task={task} /> : null}
-                <TaskFields task={task} layout={layout} />
+                <TaskFields task={task} layout={layout} onOpenSubtask={navigateInCard} />
                 {/* Поля процесса (#431) — сразу после системных полей: тот же
                     реестр-грамматика, своя секция с настройкой. */}
                 <TaskCustomFields task={task} />
@@ -256,7 +256,11 @@ export function TaskCard({ taskId }: { taskId: string }) {
               Высота h-16 = высоте композера чата: их верхние линии образуют
               ОДНУ горизонталь через границу зон (вердикт владельца) */}
             <div className="flex h-16 shrink-0 items-center border-t border-border px-5">
-              <TaskActionBar task={task} showTime={layout.blockVisible('time')} />
+              <TaskActionBar
+                task={task}
+                showTime={layout.blockVisible('time')}
+                onOpenSubtask={navigateInCard}
+              />
             </div>
 
             {/* Ручка ресайза чата: невидимый оверлей ПОВЕРХ структурной

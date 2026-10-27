@@ -1,12 +1,6 @@
 import { useState } from 'react';
 import type { TaskDetail, WorkflowTransition } from '@nodus/contracts';
-import {
-  effectiveWindowSections,
-  isCompletedState,
-  isFinalState,
-  isReviewState,
-  ui,
-} from '@nodus/contracts';
+import { effectiveWindowSections, isReviewState, ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import {
   Dialog,
@@ -17,17 +11,19 @@ import {
   DialogTitle,
 } from '@nodus/ui/components/dialog';
 import { Textarea } from '@nodus/ui/components/textarea';
-import { toast } from 'sonner';
 
 import { useTaskConversation } from '../../../shared/chat/chat-queries.js';
 import {
   visibleDefinitions,
   useCustomFieldDefinitions,
 } from '../../../shared/custom-fields/queries.js';
+import {
+  TransitionGateDetails,
+  type GateDetailsHost,
+} from '../../../shared/workflow/transition-window/gate-details.js';
 import { TransitionWindow } from '../../../shared/workflow/transition-window/transition-window.js';
 import { routeTransition } from '../../../shared/workflow/transition-window/window-can-unblock.js';
 import type { TransitionWindowContext } from '../../../shared/workflow/transition-window/window-context.js';
-import { useBulkTasks } from '../api/task-edit-api.js';
 import {
   transitionWindowError,
   useExecuteTransition,
@@ -76,13 +72,14 @@ function windowContextOf(
 /** Запуск перехода маршрута (ADR-0020, #311, окно — #380):
  *  - кнопка с окном → окно перехода;
  *  - заблокированная кнопка, которую окно может разблокировать → окно;
- *  - иначе заблокированная → прежний диалог причин (обход, подзадачи);
+ *  - иначе заблокированная → диалог причин с деталями (что именно мешает);
  *  - свободная → сразу, оптимистично. */
-export function useTransitionRunner(task: TaskDetail) {
+export function useTransitionRunner(task: TaskDetail, onOpenSubtask?: (id: string) => void) {
   const execute = useExecuteTransition(task.id);
   const submit = useSubmitTransitionWindow(task.id);
   const { data: conversation } = useTaskConversation(task.id);
   const { data: definitions } = useCustomFieldDefinitions('task');
+  const taskDefinitions = visibleDefinitions(definitions);
   const [pending, setPending] = useState<WorkflowTransition | null>(null);
   const [windowTransition, setWindowTransition] = useState<WorkflowTransition | null>(null);
 
@@ -106,18 +103,25 @@ export function useTransitionRunner(task: TaskDetail) {
   const dialog = (
     <>
       <TransitionDialog
-        task={task}
         transition={pending}
         onClose={() => setPending(null)}
         onExecute={(vars) => execute.mutate(vars, { onSuccess: () => setPending(null) })}
         executing={execute.isPending}
+        gate={{
+          task,
+          definitions: taskDefinitions,
+          onOpenSubtask: (id) => {
+            setPending(null);
+            onOpenSubtask?.(id);
+          },
+        }}
       />
       {windowTransition ? (
         <TransitionWindow
           open
           mode="live"
           transition={windowTransition}
-          context={windowContextOf(task, conversation?.id ?? null, visibleDefinitions(definitions))}
+          context={windowContextOf(task, conversation?.id ?? null, taskDefinitions)}
           submitting={submit.isPending}
           error={submit.error ? transitionWindowError(submit.error) : null}
           onCancel={closeWindow}
@@ -132,6 +136,14 @@ export function useTransitionRunner(task: TaskDetail) {
           }
           onOpenChecklist={closeWindow}
           onOpenSubtasks={closeWindow}
+          gate={{
+            task,
+            definitions: taskDefinitions,
+            onOpenSubtask: (id) => {
+              closeWindow();
+              onOpenSubtask?.(id);
+            },
+          }}
         />
       ) : null}
     </>
@@ -146,14 +158,16 @@ export function useTransitionRunner(task: TaskDetail) {
   };
 }
 
-function TransitionDialog({
-  task,
+/** Диалог отказа: что именно мешает и как обойти (право `override`).
+ *  Автозакрытия подзадач нет — решение владельца 20.10.2026 (#391):
+ *  подзадачи закрываются людьми своими маршрутами, окно объясняет. */
+export function TransitionDialog({
   transition,
   onClose,
   onExecute,
   executing,
+  gate,
 }: {
-  task: TaskDetail;
   transition: WorkflowTransition | null;
   onClose: () => void;
   onExecute: (vars: {
@@ -162,44 +176,18 @@ function TransitionDialog({
     reason?: string;
   }) => void;
   executing: boolean;
+  gate: GateDetailsHost;
 }) {
-  const bulk = useBulkTasks();
   const [reason, setReason] = useState('');
   const reasons = transition?.blockedBy ?? [];
-  const openSubtasks = task.subtasks.filter((s) => !isFinalState(s.stage.systemState));
-  // Закрыть вместе с подзадачами — только если подзадачи единственный гейт
-  // и переход ЗАВЕРШАЕТ задачу (итог «выполнена»; подзадачи идут в ту же
-  // стадию). Сдача на утверждение — нет: строгий гейт считает и подзадачи
-  // на утверждении (ADR-0020, дополнение 2) — родитель снова упёрся бы.
-  const closesWithSubtasks =
-    transition !== null &&
-    isCompletedState(transition.toStageState, transition.toStageOutcome) &&
-    reasons.length === 1 &&
-    reasons[0]?.kind === 'no_open_subtasks' &&
-    openSubtasks.length > 0;
+  const allowReview =
+    transition?.validators.find((validator) => validator.kind === 'no_open_subtasks')
+      ?.allowReview ?? false;
   // Окно доступно, но не разблокирует (подзадачи/чек-лист) — показываем
   // подсказку: остальные условия можно дозаполнить в окне.
   const windowHelpful =
     transition !== null &&
     effectiveWindowSections(transition.form, { validators: transition.validators }).length > 0;
-
-  function closeAll() {
-    if (!transition) return;
-    bulk.mutate(
-      {
-        taskIds: openSubtasks.map((s) => s.id),
-        action: { kind: 'move_to_stage', stageId: transition.toStageId },
-      },
-      {
-        onSuccess: ({ results }) => {
-          if (results.every((r) => r.ok)) {
-            toast.success(ui.tasks.subtasksClosed);
-            onExecute({ transition: { ...transition, blockedBy: [] } });
-          } else toast.error(ui.tasks.subtasksNotClosed);
-        },
-      },
-    );
-  }
 
   return (
     <Dialog
@@ -211,7 +199,7 @@ function TransitionDialog({
         }
       }}
     >
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>
             {transition?.name} — {ui.tasks.transitionBlocked.toLowerCase()}
@@ -220,17 +208,7 @@ function TransitionDialog({
             {windowHelpful ? ui.tasks.window.overrideSection : ui.tasks.transitionBlockedHint}
           </DialogDescription>
         </DialogHeader>
-        <ul className="flex flex-col gap-1.5 text-sm">
-          {reasons.map((r) => (
-            <li key={r.kind} className="flex items-start gap-2">
-              <span aria-hidden className="mt-2 size-1.5 shrink-0 rounded-full bg-warning" />
-              <span>
-                {ui.tasks.gate[r.kind]}
-                {r.count ? ` · ${r.count}` : ''}
-              </span>
-            </li>
-          ))}
-        </ul>
+        <TransitionGateDetails reasons={reasons} gate={gate} allowReview={allowReview} />
         {transition?.canOverride ? (
           <Textarea
             value={reason}
@@ -254,11 +232,6 @@ function TransitionDialog({
               }
             >
               {ui.tasks.overrideGate}
-            </Button>
-          ) : null}
-          {closesWithSubtasks ? (
-            <Button disabled={bulk.isPending || executing} onClick={closeAll}>
-              {ui.tasks.closeWithSubtasks} · {openSubtasks.length}
             </Button>
           ) : null}
         </DialogFooter>
