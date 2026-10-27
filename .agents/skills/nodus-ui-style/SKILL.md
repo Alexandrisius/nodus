@@ -29,6 +29,7 @@ description: "Канон UI Nodus — тема «Инструмент» (node-ba
 | Холст схем: слоевая раскладка маршрутов, коридоры рёбер, узлы/подписи | `references/flow-canvas.md` | Редактор маршрутов, «Схема маршрута», будущие схемы проектов (#378/ADR-0022) |
 | Таблицы: модель AG Grid, кастомизация представлений (`shared/views`), деревья-графы | `references/views-customization.md` | Списки, колонки, ресайз, шестерёнка, иерархия |
 | Рецепт нового экрана + DoD + верификация прогонами | `references/new-screen-checklist.md` | Берёшь экран модуля |
+| Качество UI: оси критики (диагноз, не вкус) | `references/quality-critique.md` | Петля ui-writer, самопроверка исполнителя (по коду, без суждений о кадрах), формат замечаний качества |
 
 ## Кратко-канон (детали — в references)
 
@@ -54,4 +55,4 @@ description: "Канон UI Nodus — тема «Инструмент» (node-ba
 
 ## DoD экрана (полный — `references/new-screen-checklist.md`)
 
-Grep легаси-утилит пуст · строки из contracts · `pnpm --filter @nodus/web typecheck`, `pnpm lint`, `pnpm --filter @nodus/web test` зелёные · файлы ≤ 300 строк (I5) · ui-reviewer прогнан (обе темы, общий кадр + зумы; вердикт и кадры — в issue) → стоп до вердикта (UI-чекпоинт).
+Grep легаси-утилит пуст · строки из contracts · `pnpm --filter @nodus/web typecheck`, `pnpm lint`, `pnpm --filter @nodus/web test` зелёные · файлы ≤ 300 строк (I5) · ui-writer отработал визуальный скоуп с петлёй (эталонные кадры обеих тем — в issue) → стоп до вердикта владельца (UI-чекпоинт).

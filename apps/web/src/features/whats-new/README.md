@@ -31,7 +31,7 @@
 - `model/use-whats-new-auto-open.ts` — автопоказ в каркасе через 1,2 с после
   входа, если последний выпуск не просмотрен; фокус у рабочего места не
   крадётся (`openReason: 'auto'`). Под автоматизацией браузера
-  (`navigator.webdriver` — Playwright e2e, ui-reviewer) автопоказа НЕТ:
+  (`navigator.webdriver` — Playwright e2e, ui-writer) автопоказа НЕТ:
   панель перехватывала фокус и клики критичных путей; в пробах её открывают
   кнопкой топбара.
 - `components/whats-new-panel.tsx` — парящий лист справа на примитиве
