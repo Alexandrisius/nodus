@@ -2,7 +2,7 @@
 
 - **Статус:** Принят
 - **Дата:** 2026-10-25
-- **Контекст:** вердикты владельца 23–25.10 (`docs/mvp/master-plan-prompt-2026-10-23.md` §5, `docs/mvp/process-model-plan-2026-10-25.md`), #427. Развивает ADR-0020/0021/0022; отменяет движок согласований M7 (заделы `WorkflowDefinition/Instance`).
+- **Контекст:** вердикты владельца 23–25.10 (`docs/mvp/archive/master-plan-prompt-2026-10-23.md` §5, `docs/mvp/process-model-plan-2026-10-25.md`), #427. Развивает ADR-0020/0021/0022; отменяет движок согласований M7 (заделы `WorkflowDefinition/Instance`).
 
 ## Контекст
 
