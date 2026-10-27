@@ -22,6 +22,7 @@ import { Textarea } from '@nodus/ui/components/textarea';
 import { useMessagesLookup } from '../../chat/message-lookup-api.js';
 import { buildExecuteBody } from './build-execute-body.js';
 import { ConditionsList } from './conditions-list.js';
+import type { GateDetailsHost } from './gate-details.js';
 import { SubmissionBlock } from './submission-block.js';
 import { useWindowDraft, draftMessageIds } from './use-window-draft.js';
 import {
@@ -79,6 +80,7 @@ export function TransitionWindow({
   onSubmit,
   onOpenChecklist,
   onOpenSubtasks,
+  gate,
   renderSection,
 }: {
   open: boolean;
@@ -91,6 +93,7 @@ export function TransitionWindow({
   onSubmit: (body: ExecuteTransitionBody, override?: { override: true; reason: string }) => void;
   onOpenChecklist?: () => void;
   onOpenSubtasks?: () => void;
+  gate?: GateDetailsHost;
   /** Разделы сущности, которые рисует хост (регистрация письма, #55). */
   renderSection?: RenderWindowSection;
 }) {
@@ -233,6 +236,8 @@ export function TransitionWindow({
         <div className="flex shrink-0 flex-col gap-3 border-t-0 pt-1">
           <ConditionsList
             lines={lines}
+            reasons={transition.blockedBy}
+            gate={gate}
             onOpenChecklist={onOpenChecklist}
             onOpenSubtasks={onOpenSubtasks}
           />

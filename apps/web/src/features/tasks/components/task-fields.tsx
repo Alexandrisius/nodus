@@ -42,10 +42,13 @@ const VISIBILITY_KEY = 'nodus-task-fields-v1';
 export const TaskFields = memo(function TaskFields({
   task,
   layout,
+  onOpenSubtask,
 }: {
   task: TaskDetail;
   /** Состав карточки по типу (#432): подписи ролей, скрытые блоки, обязательные. */
   layout: TaskCardLayoutView;
+  /** Переход к подзадаче из окна причин перехода (#391). */
+  onOpenSubtask?: (id: string) => void;
 }) {
   const openCard = useOpenCard();
 
@@ -157,7 +160,7 @@ export const TaskFields = memo(function TaskFields({
       key: 'stage',
       icon: <Milestone className="size-3.5" />,
       label: ui.tasks.fieldStage,
-      render: () => <TaskStageField task={task} />,
+      render: () => <TaskStageField task={task} onOpenSubtask={onOpenSubtask} />,
     },
     {
       key: 'observers',

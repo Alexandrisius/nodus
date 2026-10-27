@@ -57,9 +57,17 @@ function transitionIcon(t: WorkflowTransition): LucideIcon | typeof PauseGlyph {
  * правом конце — таймер учёта времени. Личная колонка «Моего плана» здесь
  * не показывается (только DnD на доске).
  */
-export function TaskActionBar({ task, showTime = true }: { task: TaskDetail; showTime?: boolean }) {
+export function TaskActionBar({
+  task,
+  showTime = true,
+  onOpenSubtask,
+}: {
+  task: TaskDetail;
+  showTime?: boolean;
+  onOpenSubtask?: (id: string) => void;
+}) {
   const { data: transitions } = useWorkflowTransitions(task.id);
-  const runner = useTransitionRunner(task);
+  const runner = useTransitionRunner(task, onOpenSubtask);
 
   if (!transitions) {
     return (
@@ -172,9 +180,15 @@ export function TaskActionBar({ task, showTime = true }: { task: TaskDetail; sho
 /** Поле «Стадия» (глобальная ось): чип текущей стадии + список стадий,
  *  в которые ведут доступные переходы маршрута; последним пунктом —
  *  «Схема маршрута…» (#378). */
-export function TaskStageField({ task }: { task: TaskDetail }) {
+export function TaskStageField({
+  task,
+  onOpenSubtask,
+}: {
+  task: TaskDetail;
+  onOpenSubtask?: (id: string) => void;
+}) {
   const { data: transitions } = useWorkflowTransitions(task.id);
-  const runner = useTransitionRunner(task);
+  const runner = useTransitionRunner(task, onOpenSubtask);
   const [routeOpen, setRouteOpen] = useState(false);
   const tone = stageTone[task.stage.color];
 

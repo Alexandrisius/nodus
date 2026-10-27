@@ -177,9 +177,6 @@ export const tasksStrings = {
   /** Диалог перехода (#311, ADR-0020). */
   transitionBlocked: 'Переход недоступен',
   transitionBlockedHint: 'Условия маршрута не выполнены:',
-  closeWithSubtasks: 'Завершить вместе с подзадачами',
-  subtasksClosed: 'Подзадачи завершены',
-  subtasksNotClosed: 'Не удалось завершить часть подзадач — проверьте их условия',
   /** Массовые действия журнала (#311). */
   scopeMine: 'Мои',
   scopeAll: 'Все доступные',
@@ -240,6 +237,7 @@ export const tasksStrings = {
     },
     openChecklist: 'Открыть чек-лист',
     openSubtasks: 'Открыть подзадачи',
+    openSubtask: 'Открыть подзадачу',
     filesMembersOnly: 'Файлы и сообщения доступны участникам обсуждения задачи',
     noConversation: 'Чат задачи ещё не создан — файлы и сообщения недоступны',
     commentLabel: 'Причина / комментарий',
