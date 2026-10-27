@@ -37,7 +37,7 @@ export function ConditionsList({
       {lines.map((line) => {
         const kind = line.validator.kind;
         const reason = reasons.find((item) => item.kind === kind);
-        const detail = reason ? gateDetailText(reason, gate?.task) : null;
+        const detail = reason && !line.ok ? gateDetailText(reason, gate?.task) : null;
         const subtasks =
           !line.ok && kind === 'no_open_subtasks' && gate ? (
             <OpenSubtasksList
