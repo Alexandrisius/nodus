@@ -8,7 +8,7 @@
 <p align="center"><strong>Единый контур работы проектной компании: письма, задачи, чаты,<br>согласования и файлы — на собственном сервере.</strong></p>
 
 <p align="center">
-  <a href="https://github.com/Alexandrisius/nodus/releases"><img src="https://img.shields.io/github/v/release/Alexandrisius/nodus?include_prereleases&style=flat-square" alt="релиз"></a>
+  <a href="https://github.com/passat-project/nodus/releases"><img src="https://img.shields.io/github/v/release/passat-project/nodus?include_prereleases&style=flat-square" alt="релиз"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Elastic%202.0-23456e?style=flat-square" alt="Elastic License 2.0"></a>
   <img src="https://img.shields.io/badge/%D1%81%D1%82%D0%B0%D1%82%D1%83%D1%81-%D0%B0%D0%BA%D1%82%D0%B8%D0%B2%D0%BD%D0%B0%D1%8F%20%D1%80%D0%B0%D0%B7%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D0%BA%D0%B0-c28f2f?style=flat-square" alt="активная разработка">
 </p>

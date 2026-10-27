@@ -14,7 +14,7 @@ Node.js 24 (≥ 24.15, см. `.node-version`), pnpm 11 (`npm i -g pnpm@11`), Doc
 ## Быстрый старт
 
 ```bash
-git clone https://github.com/Alexandrisius/nodus.git && cd nodus
+git clone https://github.com/passat-project/nodus.git && cd nodus
 
 # Локальная разработка (приложения на хосте, горячая перезагрузка)
 pnpm install
@@ -52,12 +52,12 @@ docker compose up
 
 ### Команда: работаете в этом репозитории, форк не нужен
 
-Issues, ветки и PR — всё в `Alexandrisius/nodus`. Issues в форке не видны команде, а форк отстаёт от `main` — поэтому форками команда не пользуется.
+Issues, ветки и PR — всё в `passat-project/nodus`. Issues в форке не видны команде, а форк отстаёт от `main` — поэтому форками команда не пользуется.
 
 Если вы начали с форка — переключите локальную копию на основной репозиторий (код тот же, перекачивать не нужно):
 
 ```bash
-git remote set-url origin https://github.com/Alexandrisius/nodus.git
+git remote set-url origin https://github.com/passat-project/nodus.git
 git fetch origin
 git checkout main
 git pull --ff-only origin main
