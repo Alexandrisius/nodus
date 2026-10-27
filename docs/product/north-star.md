@@ -120,7 +120,7 @@
 |---|---|
 | Миссия, ограничения, стратегические слои | `docs/product/vision.md` |
 | План, статусы, дедлайн | `docs/product/roadmap.md` |
-| Задачи и проекты к декабрю | `docs/mvp/tasks-projects-december-vision.md` |
+| Задачи и проекты к декабрю | `docs/mvp/archive/tasks-projects-december-vision.md` |
 | Три слоя проекта, пять координат, порядок работ | `docs/product/incubator.md` — запись 09.10 (раунды 4–7) |
 | ИИ-агент в центре | `docs/product/incubator.md` — запись 30.09 |
 | Ядро прав доступа | `docs/product/incubator.md` — запись 02.10; issue #379 |
