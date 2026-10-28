@@ -154,8 +154,11 @@ function idsOf(changes: readonly RawChange[], field: string): string[] {
   const ids = new Set<string>();
   for (const change of changes) {
     if (change.field !== field) continue;
-    if (typeof change.from === 'string') ids.add(change.from);
-    if (typeof change.to === 'string') ids.add(change.to);
+    // Пустая строка — «пусто» (валидатор патча пишет `row.x ?? ''` в
+    // незарегистрированном письме): в refs она не идёт — Prisma падает на
+    // uuid '' (приёмка 28.10, история 500), показ — «пусто» в display.
+    if (typeof change.from === 'string' && change.from !== '') ids.add(change.from);
+    if (typeof change.to === 'string' && change.to !== '') ids.add(change.to);
   }
   return [...ids];
 }
