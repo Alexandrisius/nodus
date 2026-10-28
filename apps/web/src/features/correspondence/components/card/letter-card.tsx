@@ -187,8 +187,6 @@ export function LetterCard({ letterId }: { letterId: string }) {
           <div className="flex h-16 shrink-0 items-center border-t border-border px-5">
             <LetterActionBar
               letter={letter}
-              joining={join.isPending}
-              onJoin={onJoin}
               onInvite={() => setInviteOpen(true)}
               onDeleteSpam={() => setSpamOpen(true)}
             />

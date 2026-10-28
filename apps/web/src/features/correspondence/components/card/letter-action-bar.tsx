@@ -2,7 +2,6 @@ import {
   ArrowRight,
   Check,
   Loader2,
-  MessageSquarePlus,
   MoreHorizontal,
   Stamp,
   Trash2,
@@ -68,14 +67,10 @@ const isValidationRefusal = (error: unknown) =>
  */
 export function LetterActionBar({
   letter,
-  joining,
-  onJoin,
   onInvite,
   onDeleteSpam,
 }: {
   letter: LetterDetail;
-  joining: boolean;
-  onJoin: () => void;
   onInvite: () => void;
   onDeleteSpam: () => void;
 }) {
@@ -88,13 +83,6 @@ export function LetterActionBar({
   const closed = isFinalState(letter.stage.systemState);
   const { primary, visible, menu } = groupProcessButtons(transitions ?? []);
   const hasMenu = menu.length > 0 || letter.access.canDeleteSpam || letter.access.canEdit;
-  const joinLabel =
-    letter.registeredAt === null ? ui.letters.card.startDiscussion : ui.letters.card.join;
-  // В баре — короткая глагольная форма (полная — в гостевой вкладке «Чат» и в
-  // title/aria): «Начать обсуждение» / «Присоединиться к обсуждению» не
-  // влезают в узкую левую зону без обрезки, а действие частое.
-  const joinBarLabel =
-    letter.registeredAt === null ? ui.letters.card.startDiscussionBar : ui.letters.card.joinBar;
 
   /** Регистрация из карточки-формы (редизайн #56): обязательное заполнено —
    *  ввод собирается из самого письма, окно не нужно. */
@@ -235,29 +223,6 @@ export function LetterActionBar({
         </span>
       ) : null}
       <span className="ml-auto" />
-      {letter.access.canJoin ? (
-        <button
-          type="button"
-          onClick={onJoin}
-          disabled={joining}
-          aria-busy={joining || undefined}
-          aria-label={joinLabel}
-          title={joinLabel}
-          className={cn(
-            btn,
-            'min-w-0 border border-border px-2.5 text-foreground hover:bg-accent disabled:opacity-60',
-          )}
-        >
-          {joining ? (
-            <Loader2 className="size-4 shrink-0 animate-spin" strokeWidth={1.75} />
-          ) : (
-            <MessageSquarePlus className="size-4 shrink-0" strokeWidth={1.75} />
-          )}
-          {/* Совсем узкая левая зона — икона с aria/title; действие дублируется
-              гостевой вкладкой «Чат» с полной подписью. */}
-          <span className="min-w-0 truncate @max-[560px]:hidden">{joinBarLabel}</span>
-        </button>
-      ) : null}
     </div>
   );
 }

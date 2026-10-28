@@ -27,6 +27,7 @@ export function AddresseeField({
   placeholder = ui.letters.form.addresseePlaceholder,
   ariaLabel = ui.letters.fields.addressee,
   onDismiss,
+  openOnFocus = true,
 }: {
   value: UserRef | null;
   onChange: (user: UserRef | null) => void;
@@ -41,6 +42,10 @@ export function AddresseeField({
   /** Закрытие без выбора (клик мимо, Escape) — правка по месту в карточке
    *  закрывает поле, как у подписанта (приёмка 28.10). */
   onDismiss?: () => void;
+  /** Раскрывать ли список на авто-фокусе: окно приглашения открывает список
+   *  только по клику/вводу — авто-фокус диалога распахивал его «в воздухе»
+   *  до отрисовки самого окна (приёмка 28.10). */
+  openOnFocus?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
@@ -135,7 +140,7 @@ export function AddresseeField({
               fromPointer.current = true;
             }}
             onFocus={() => {
-              if (!fromPointer.current) setOpen(true);
+              if (openOnFocus && !fromPointer.current) setOpen(true);
             }}
             onClick={() => {
               fromPointer.current = false;

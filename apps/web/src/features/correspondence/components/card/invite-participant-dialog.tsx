@@ -60,6 +60,7 @@ export function InviteParticipantDialog({
           invalid={false}
           placeholder={ui.letters.card.invitePlaceholder}
           ariaLabel={ui.letters.card.invitePlaceholder}
+          openOnFocus={false}
         />
         <DialogFooter>
           <Button variant="ghost" onClick={() => close(false)} disabled={invite.isPending}>
