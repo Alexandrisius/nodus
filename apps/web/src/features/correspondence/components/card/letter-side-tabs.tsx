@@ -1,6 +1,6 @@
 import { FileText, Loader2, MessageSquare, MessagesSquare, X } from 'lucide-react';
 import { useId, type KeyboardEvent, type ReactNode } from 'react';
-import type { LetterAttachment, LetterDetail } from '@nodus/contracts';
+import type { LetterDetail } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import {
@@ -124,7 +124,6 @@ export function LetterSideTabs({
   tabs,
   joining,
   panelOpen,
-  textAttachment,
   onActivate,
   onClose,
   onJoin,
@@ -137,7 +136,6 @@ export function LetterSideTabs({
   panelOpen: boolean;
   /** Текстовая часть письма (role body при документе) — вкладка «Текст
    *  письма»; null — вкладки нет. */
-  textAttachment: LetterAttachment | null;
   onActivate: (tab: LetterTabId) => void;
   onClose: (attachmentId: string) => void;
   onJoin: () => void;
@@ -149,15 +147,6 @@ export function LetterSideTabs({
 
   const strip: TabDef[] = [
     { id: 'body', label: ui.letters.card.tabBody, icon: <FileText className="size-3.5" /> },
-    ...(textAttachment
-      ? [
-          {
-            id: 'text' as const,
-            label: ui.letters.card.tabText,
-            icon: <FileTypeIcon mime={textAttachment.mime} className="size-3.5" />,
-          },
-        ]
-      : []),
     {
       id: 'chat',
       label: ui.letters.card.tabChat,
@@ -191,7 +180,6 @@ export function LetterSideTabs({
 
   const panel = (tab: LetterTabId): ReactNode => {
     if (tab === 'body') return <LetterBodyView letter={letter} />;
-    if (tab === 'text') return <LetterBodyView letter={letter} attachmentId={textAttachment?.id} />;
     if (tab === 'chat') return <LetterChatTab letter={letter} joining={joining} onJoin={onJoin} />;
     const fileId = fileIdOf(tab);
     return fileId ? <LetterBodyView letter={letter} attachmentId={fileId} /> : null;

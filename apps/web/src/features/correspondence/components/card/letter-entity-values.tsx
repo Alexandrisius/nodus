@@ -54,7 +54,7 @@ export function CounterpartyValue({
     return (
       <button
         type="button"
-        className={valueButton}
+        className={cn(valueButton, 'shrink-0')}
         aria-label={editLabel(label)}
         onClick={() => setEditing(true)}
       >
@@ -99,6 +99,18 @@ export function SignerValue({
     notSet
   );
   if (!editable || !letter.counterparty) return text;
+  if (!signer) {
+    return (
+      <button
+        type="button"
+        className={cn(valueButton, 'shrink-0')}
+        aria-label={editLabel(label)}
+        onClick={() => setEditing(true)}
+      >
+        {text}
+      </button>
+    );
+  }
 
   if (editing) {
     return (
@@ -162,6 +174,20 @@ export function AddresseeValue({
     empty
   );
   if (!editable) return text;
+  // Пустое «Не задано» не сжимается: nowrap-текст шире плашки = ховер без
+  // последних символов (flex-слот давит кнопку, #56 приёмка 28.10).
+  if (!addressee) {
+    return (
+      <button
+        type="button"
+        className={cn(valueButton, 'shrink-0')}
+        aria-label={editLabel(label)}
+        onClick={() => setEditing(true)}
+      >
+        {empty}
+      </button>
+    );
+  }
 
   if (editing) {
     return (

@@ -79,7 +79,7 @@ export function TextFieldValue({
   ) : (
     <button
       type="button"
-      className={valueButton}
+      className={cn(valueButton, !value && 'shrink-0')}
       aria-label={editLabel(label)}
       onClick={() => setDraft(value ?? '')}
     >
@@ -127,7 +127,11 @@ export function DateFieldValue({
         onCommit(iso);
       }}
     >
-      <button type="button" className={valueButton} aria-label={editLabel(label)}>
+      <button
+        type="button"
+        className={cn(valueButton, !value && 'shrink-0')}
+        aria-label={editLabel(label)}
+      >
         {display}
       </button>
     </DateTimePicker>
@@ -154,7 +158,7 @@ export function ReceiptMethodValue({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        className={valueButton}
+        className={cn(valueButton, !current && 'shrink-0')}
         aria-label={editLabel(ui.letters.fields.receiptMethod)}
       >
         {text}

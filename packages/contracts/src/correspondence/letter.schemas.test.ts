@@ -78,9 +78,10 @@ describe('письмо v3 (#55)', () => {
     expect(detail.body).toEqual({ kind: 'document', attachmentId });
   });
 
-  it('тело — закрытый union; ссылка на письмо допускает пустую тему (чат)', () => {
+  it('тело — закрытый union (текст только PDF-копией, #56); ссылка допускает пустую тему', () => {
     expect(letterBodySchema.parse({ kind: 'none' })).toEqual({ kind: 'none' });
     expect(() => letterBodySchema.parse({ kind: 'html' })).toThrow();
+    expect(() => letterBodySchema.parse({ kind: 'text' })).toThrow();
     expect(
       letterRefSchema.parse({ id: listItem.id, regNumber: null, subject: null }).subject,
     ).toBeNull();
@@ -153,7 +154,7 @@ describe('письмо v3 (#55)', () => {
           previewKind: 'image',
         },
       ],
-      body: { kind: 'html', attachmentId: id() },
+      body: { kind: 'document', attachmentId: id() },
       customFields: {},
       customFieldRefs: [],
       access: { canEdit: false, canDeleteSpam: true, canJoin: true, isParticipant: false },

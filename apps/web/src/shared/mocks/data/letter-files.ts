@@ -182,8 +182,9 @@ export const newLetterFiles = {
 
 /** Почтовые письма #56 (lid 27…31) + исходящее lid 30. */
 export const mailLetterFiles = {
-  /** lid(27): ответ на исходящее — текст тела + подпись .p7s (метка). */
-  replyBody: demoAttachment(30, 'body', 'Текст письма.txt', 'new-galurgiya-reply.txt', TEXT, 546),
+  /** lid(27): ответ на исходящее — PDF-копия текста + подпись .p7s (метка).
+   *  Текст письма в продукте существует только PDF-копией (#56). */
+  replyBody: demoAttachment(30, 'body_pdf', 'Текст письма.pdf', 'in-110-tehsnab-kp.pdf', PDF, 546),
   replySignature: demoAttachment(
     31,
     'attachment',
@@ -192,15 +193,16 @@ export const mailLetterFiles = {
     'application/pkcs7-signature',
     63,
   ),
-  /** lid(28): «на № 1 от …» — текст тела. */
-  dopuskBody: demoAttachment(32, 'body', 'Текст письма.txt', 'new-galurgiya-dopusk.txt', TEXT, 598),
-  /** lid(29): КП с inline-логотипом (cid), winmail.dat (метка Outlook). */
+  /** lid(28): «на № 1 от …» — PDF-копия текста. */
+  dopuskBody: demoAttachment(32, 'body_pdf', 'Текст письма.pdf', 'in-110-tehsnab-kp.pdf', PDF, 598),
+  /** lid(29): КП с inline-логотипом (cid), winmail.dat (метка Outlook);
+   *  текст — PDF-копией (роль body_pdf), логотип — inline-картинка копии. */
   partnerHtml: demoAttachment(
     33,
-    'body',
-    'Текст письма.html',
-    'new-partner-kp.html',
-    'text/html',
+    'body_pdf',
+    'Текст письма.pdf',
+    'in-110-tehsnab-kp.pdf',
+    PDF,
     1560,
   ),
   partnerLogo: demoAttachment(

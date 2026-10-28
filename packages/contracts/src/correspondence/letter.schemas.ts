@@ -71,10 +71,12 @@ export type LetterAttachment = z.infer<typeof letterAttachmentSchema>;
 
 /** Что показывает вкладка «Тело» (Р8): главный документ во вьювере, иначе
  *  тело почты (HTML — песочница, text/plain — текст), иначе пусто. */
+/** Что показывает вкладка «Письмо»: документ во вьювере, иначе пусто.
+ *  Текст письма существует в продукте ТОЛЬКО PDF-копией — HTML/текстовые
+ *  варианты тела убраны (вердикт владельца 28.10: «текст письма только pdf
+ *  всегда», «Основной документ письма» #56). */
 export const letterBodySchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('document'), attachmentId: z.uuid() }),
-  z.object({ kind: z.literal('html'), attachmentId: z.uuid() }),
-  z.object({ kind: z.literal('text'), attachmentId: z.uuid() }),
   z.object({ kind: z.literal('none') }),
 ]);
 export type LetterBody = z.infer<typeof letterBodySchema>;

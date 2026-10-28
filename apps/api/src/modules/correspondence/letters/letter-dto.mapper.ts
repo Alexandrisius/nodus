@@ -268,20 +268,12 @@ function mailInfoOf(row: LetterDetailRow): LetterMailInfo | null {
   };
 }
 
-/** Тело (Р8): главный документ во вьювере, иначе HTML/текст почты, иначе
- *  пусто. «Основной документ письма» #56: главный де-факто — выбор канцелярии
- *  (main) или PDF-копия тела (body_pdf, системный кандидат по умолчанию). */
+/** Вкладка «Письмо» (Р8): документ во вьювере, иначе пусто — текст письма
+ *  показывается ТОЛЬКО PDF-копией («Основной документ письма» #56, вердикт
+ *  владельца 28.10). Главный де-факто — выбор канцелярии (main) или
+ *  PDF-копия тела (body_pdf, системный кандидат по умолчанию). */
 export function bodyOf(files: readonly LetterAttachment[]): LetterBody {
-  const main =
-    files.find((file) => file.role === 'main') ?? files.find((f) => f.role === 'body_pdf');
+  const main = files.find((file) => file.role === 'main' || file.role === 'body_pdf');
   if (main) return { kind: 'document', attachmentId: main.id };
-  const body = files.find((file) => file.role === 'body');
-  if (!body) return { kind: 'none' };
-  const isHtml = body.mime.includes('html');
-  const isText = body.mime.startsWith('text/');
-  return isHtml
-    ? { kind: 'html', attachmentId: body.id }
-    : isText
-      ? { kind: 'text', attachmentId: body.id }
-      : { kind: 'none' };
+  return { kind: 'none' };
 }

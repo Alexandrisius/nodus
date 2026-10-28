@@ -45,7 +45,7 @@ describe('«Основной документ письма» (#56) — выбо�
   it('главный де-факто — main, иначе PDF-копия тела (умолчание приёма)', () => {
     const pdf = file('p', 'body_pdf');
     expect(mainDocumentOf(letter([pdf], { kind: 'document', attachmentId: 'p' }))?.id).toBe('p');
-    const body = letter([file('t', 'body')], { kind: 'html', attachmentId: 't' });
+    const body = letter([file('t', 'body')], { kind: 'none' });
     expect(mainDocumentOf(body)).toBeNull();
     expect(mainDocumentMissing(body)).toBe(false); // кандидатов нет — пропуска нет
   });

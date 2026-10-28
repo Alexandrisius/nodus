@@ -39,7 +39,6 @@ describe('карточка письма — панель беседы как в 
         tabs={tabs}
         joining={false}
         panelOpen={false}
-        textAttachment={null}
         onActivate={vi.fn()}
         onClose={vi.fn()}
         onJoin={vi.fn()}
@@ -54,7 +53,6 @@ describe('карточка письма — панель беседы как в 
         tabs={{ ...tabs, active: 'body' }}
         joining={false}
         panelOpen={false}
-        textAttachment={null}
         onActivate={vi.fn()}
         onClose={vi.fn()}
         onJoin={vi.fn()}
@@ -72,7 +70,6 @@ describe('карточка письма — панель беседы как в 
         tabs={tabs}
         joining={false}
         panelOpen={false}
-        textAttachment={null}
         onActivate={vi.fn()}
         onClose={vi.fn()}
         onJoin={vi.fn()}

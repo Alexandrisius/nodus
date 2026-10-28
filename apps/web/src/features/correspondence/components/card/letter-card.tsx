@@ -30,7 +30,6 @@ import {
   type LetterTabId,
   type LetterTabsState,
 } from '../../lib/letter-tabs.js';
-import { letterTextPart } from '../letter-body-view.js';
 import { SpamConfirmDialog } from '../spam-confirm-dialog.js';
 import { InviteParticipantDialog } from './invite-participant-dialog.js';
 import { LetterActionBar } from './letter-action-bar.js';
@@ -48,8 +47,8 @@ import '../letter-link-preview.js';
 /** Левая зона не уже этого: дальше сужается правая панель до своего пола. */
 const MIN_MAIN_W = uiPx(320);
 
-/** Стартовая вкладка: «Письмо»; у письма без текста и документа участнику —
- *  сразу «Чат». */
+/** Стартовая вкладка: «Письмо»; у письма без документа (текста-PDF ещё
+ *  нет или отказ конвертера) участнику — сразу «Чат». */
 function defaultTabOf(letter: LetterDetail): LetterTabId {
   return letter.body.kind === 'none' && letter.access.isParticipant ? 'chat' : 'body';
 }
@@ -65,9 +64,10 @@ function defaultTabOf(letter: LetterDetail): LetterTabId {
  * слева — доска реквизитов (незарегистрированное — ФОРМА: поля по месту,
  * обязательные помечены), атрибуты типа, «Файлы», «История» (свёрнута) и
  * замоноличенный бар h-16 («Зарегистрировать» при заполненных полях идёт
- * без окна; после успешной регистрации карточка сменяется следующим письмом
- * «Новых»); справа — панель вкладок «Письмо» / «Текст письма» (когда есть
- * документ и текст) / «Чат» / вложения по канону «чат — буфер сужений».
+ * без окна; после успешной регистрации карточка закрывается — возврат к
+ * списку «Новых»); справа — панель вкладок «Письмо» (документ: выбор
+ * канцелярии или текст-PDF) / «Чат» / вложения по канону «чат — буфер
+ * сужений».
  * Открытие карточки гасит личную точку «я ещё не открывал» в «Новых».
  * Тема — в хроме слайдера (`LetterTitle`), в теле не дублируется.
  */
@@ -143,43 +143,25 @@ export function LetterCard({ letterId }: { letterId: string }) {
   if (isLoading || !letter) return <LetterCardSkeleton sideW={sideW} />;
 
   const attachmentIds = letter.attachments.map((file) => file.id);
-  const textAttachment = letterTextPart(letter);
-  const tabs = normalizeTabs(
-    pruneFileTabs(tabsState ?? initialTabs(defaultTabOf(letter)), attachmentIds),
-    Boolean(textAttachment),
-  );
+  const tabs = pruneFileTabs(tabsState ?? initialTabs(defaultTabOf(letter)), attachmentIds);
   // Панель живёт только у вкладки «Чат»: ушли на «Письмо»/файл — закрываем.
   const chatActive = tabs.active === 'chat';
   const panelVisible = panelOpen && chatActive && Boolean(conversation);
   const updateTabs = (change: (state: LetterTabsState) => LetterTabsState) =>
     setTabsState((state) =>
-      change(
-        normalizeTabs(
-          pruneFileTabs(state ?? initialTabs(defaultTabOf(letter)), attachmentIds),
-          Boolean(textAttachment),
-        ),
-      ),
+      change(pruneFileTabs(state ?? initialTabs(defaultTabOf(letter)), attachmentIds)),
     );
   const bodyAttachmentId = letter.body.kind === 'none' ? null : letter.body.attachmentId;
   // Подсветка плитки: файл активной вкладки, у «Письма» — его документ,
   // у «Текста письма» — текстовая часть.
-  const activeFileId =
-    fileIdOf(tabs.active) ??
-    (tabs.active === 'body'
-      ? bodyAttachmentId
-      : tabs.active === 'text'
-        ? (textAttachment?.id ?? null)
-        : null);
+  const activeFileId = fileIdOf(tabs.active) ?? (tabs.active === 'body' ? bodyAttachmentId : null);
 
-  /** Файл из блока «Файлы»: тело письма — вкладка «Письмо», текстовая часть
-   *  — вкладка «Текст письма», остальное — своя вкладка. */
+  /** Файл из блока «Файлы» — своя вкладка; главный — вкладка «Письмо». */
   const openAttachment = (attachmentId: string) =>
     updateTabs((state) =>
       attachmentId === bodyAttachmentId
         ? activateTab(state, 'body')
-        : attachmentId === textAttachment?.id
-          ? activateTab(state, 'text')
-          : openFileTab(state, attachmentId),
+        : openFileTab(state, attachmentId),
     );
   const onJoin = () =>
     join.mutate(undefined, { onSuccess: () => updateTabs((state) => activateTab(state, 'chat')) });
@@ -240,7 +222,6 @@ export function LetterCard({ letterId }: { letterId: string }) {
             tabs={tabs}
             joining={join.isPending}
             panelOpen={panelVisible}
-            textAttachment={textAttachment}
             onActivate={(tab) => {
               if (tab !== 'chat') setPanelOpen(false);
               updateTabs((state) => activateTab(state, tab));
@@ -284,14 +265,4 @@ export function LetterCard({ letterId }: { letterId: string }) {
       />
     </div>
   );
-}
-
-/** Текстовая вкладка живёт, пока жива текстовая часть: пропала (правка
- *  состава) — активная «Текст письма» уходит к «Письму». */
-function normalizeTabs(state: LetterTabsState, hasText: boolean): LetterTabsState {
-  if (hasText || state.active !== 'text') return state;
-  return {
-    ...activateTab(state, 'body'),
-    visited: state.visited.filter((tab) => tab !== 'text'),
-  };
 }

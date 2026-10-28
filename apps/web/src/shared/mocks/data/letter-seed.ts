@@ -91,8 +91,7 @@ function fresh(
   mail: DemoLetter['mail'] = null,
   extra: Partial<DemoLetter> = {},
 ): DemoLetter {
-  const main = attachments.find((a) => a.role === 'main');
-  const body = attachments.find((a) => a.role === 'body');
+  const main = attachments.find((a) => a.role === 'main' || a.role === 'body_pdf');
   return {
     ...base,
     id: lid(n),
@@ -102,11 +101,7 @@ function fresh(
     source: mail ? 'mail' : 'manual',
     subject,
     attachments,
-    body: main
-      ? { kind: 'document', attachmentId: main.id }
-      : body
-        ? { kind: body.mime === 'text/html' ? 'html' : 'text', attachmentId: body.id }
-        : { kind: 'none' },
+    body: main ? { kind: 'document', attachmentId: main.id } : { kind: 'none' },
     createdById: mail ? null : userIds.karpovich,
     mail,
     ...extra,

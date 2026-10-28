@@ -1,7 +1,6 @@
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
 import type {
-  LetterAttachment,
   LetterDetail,
   LetterHistoryEntry,
   LetterResolvers,
@@ -9,9 +8,9 @@ import type {
   ProcessType,
   WorkflowTransition,
 } from '@nodus/contracts';
-import { LETTER_LIMITS, SystemDictionary } from '@nodus/contracts';
+import { SystemDictionary } from '@nodus/contracts';
 
-import { ApiError, api, fetchSignedText } from '../../../shared/api-client.js';
+import { ApiError, api } from '../../../shared/api-client.js';
 import { lettersKeys } from '../../../shared/api/letters-keys.js';
 import { useDictionaryItems } from '../../../shared/dictionaries/queries.js';
 
@@ -91,19 +90,5 @@ export function useLetterTypes() {
     queryKey: lettersKeys.types(),
     queryFn: () => api<ProcessType[]>('/workflows/types?category=letter'),
     staleTime: 5 * 60_000,
-  });
-}
-
-/** Текст HTML/текстового тела (≤ 2 МБ, Р9): больше — карточка скачивания
- *  без запроса. Ссылка подписана — кэш по ней. */
-export function useLetterBodyText(attachment: LetterAttachment) {
-  const tooLarge = attachment.size > LETTER_LIMITS.bodyPreviewBytes;
-  return useQuery({
-    queryKey: lettersKeys.bodyText(attachment.url),
-    queryFn: ({ signal }) =>
-      fetchSignedText(attachment.url, LETTER_LIMITS.bodyPreviewBytes, signal),
-    enabled: !tooLarge,
-    staleTime: Infinity,
-    retry: 1,
   });
 }
