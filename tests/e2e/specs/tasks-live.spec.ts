@@ -71,10 +71,15 @@ test('задача: создание → работа → время → гей�
   await expect(page.getByText('Время внесено')).toBeVisible();
   await page.keyboard.press('Escape');
 
-  // Гейт «нет открытых подзадач»: кнопка видна, нажатие показывает причину.
+  // Гейт «нет открытых подзадач»: у типа с формой «Завершить» открывается ОКНО
+  // перехода (#510). При ✗ условие называет проблему (#511), а не положительное
+  // «Нет незавершённых подзадач»; закрытие — «Отмена» (клик мимо не закрывает).
   await card.getByRole('button', { name: 'Завершить' }).click();
-  await expect(page.getByText('Есть незавершённые подзадачи')).toBeVisible();
-  await page.getByRole('button', { name: 'Закрыть' }).click();
+  const transitionWindow = page.getByRole('dialog').filter({ hasText: 'Завершить' });
+  await expect(transitionWindow.getByText('Есть незавершённые подзадачи')).toBeVisible();
+  await expect(transitionWindow.getByText(`Подзадача ${stamp}`)).toBeVisible();
+  await transitionWindow.getByRole('button', { name: 'Отмена' }).click();
+  await expect(transitionWindow.getByRole('button', { name: 'Отмена' })).toHaveCount(0);
 
   // Удаление из меню «⋯» карточки (постановщик): карточка закрывается.
   await card.getByRole('button', { name: 'Действия задачи' }).click();
