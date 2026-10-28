@@ -24,6 +24,7 @@ import { ProjectPicker } from '../../../../shared/ui/project-picker.js';
 import { useReceiptMethods } from '../../api/letters-queries.js';
 import {
   nextEmptyField,
+  REQUIRED_FIELDS,
   registrationFieldLabel,
   type RegistrationDraft,
 } from '../../lib/registration-draft.js';
@@ -94,10 +95,17 @@ export function RegistrationFields({
     }
   }
 
+  // Обязательность — тонкой звёздочкой в тоне действия, прижатой к слову
+  // (канон EntityFields; вердикт владельца 28.10 — вместо текстовых списков).
   const row = (field: LetterRegistrationField, control: ReactNode, className?: string) => (
     <div data-reg-field={field} className={cn('flex min-w-0 flex-col gap-1', className)}>
       <label htmlFor={fieldId(field)} className="text-xs font-medium text-muted-foreground">
         {registrationFieldLabel[field]}
+        {REQUIRED_FIELDS.includes(field) ? (
+          <span aria-hidden className="ml-0.5 text-primary">
+            *
+          </span>
+        ) : null}
       </label>
       {control}
       {invalidKeys[field] ? (

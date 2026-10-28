@@ -8,7 +8,6 @@ import {
   defaultReceiptMethodId,
   draftIssues,
   initialDraft,
-  registrationErrorText,
   registrationInputOf,
   registrationReasonText,
   type RegistrationDraft,
@@ -40,14 +39,14 @@ export function RegistrationSection({
       ? { ...draft, receiptMethodId: defaultReceiptMethodId(letter.source, methods) }
       : draft;
 
+  // Рамки полей — только ПОСЛЕ попытки регистрации (сервер вернул 422):
+  // до попытки обязательность несут звёздочки, поля спокойны (28.10).
+  const attempted = serverIssue !== null;
   const invalidKeys: Partial<Record<LetterRegistrationField, string>> = {};
-  for (const issue of draftIssues(value, todayIso())) {
-    invalidKeys[issue.field] = registrationReasonText[issue.reason];
-  }
-  if (serverIssue) {
-    invalidKeys[serverIssue.field as LetterRegistrationField] =
-      registrationErrorText(serverIssue.field, serverIssue.reason) ??
-      registrationReasonText.invalid;
+  if (attempted) {
+    for (const issue of draftIssues(value, todayIso())) {
+      invalidKeys[issue.field] = registrationReasonText[issue.reason];
+    }
   }
 
   return (
@@ -63,7 +62,7 @@ export function RegistrationSection({
         }}
       />
       <MainDocumentSection letter={letter} />
-      <RegistrationSummary letter={letter} draft={value} />
+      <RegistrationSummary letter={letter} />
     </div>
   );
 }

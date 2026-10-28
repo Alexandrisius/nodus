@@ -56,8 +56,6 @@ export const lettersStrings = {
   pipeline: {
     deleteSpam: 'Удалить как спам',
     more: 'Ещё действия',
-    willAssign: 'Будет присвоен номер',
-    missing: 'Не хватает:',
     registeredToast: 'Зарегистрировано:',
     closedToast: 'Письмо закрыто без регистрации',
     /** Строка отправителя почтового письма; у ручного — «внесено вручную». */
