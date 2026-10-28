@@ -1,5 +1,5 @@
 import { Download, Star } from 'lucide-react';
-import type { LetterAttachment, LetterDetail } from '@nodus/contracts';
+import type { LetterDetail } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 import {
   Attachment,
@@ -12,7 +12,6 @@ import {
   AttachmentTitle,
   AttachmentTrigger,
 } from '@nodus/ui/components/attachment';
-import { NodeChip } from '@nodus/ui/components/node-chip';
 import { NodeLabel } from '@nodus/ui/components/node-label';
 import { cn } from '@nodus/ui/lib/utils';
 
@@ -30,14 +29,6 @@ export function visibleLetterFiles(letter: LetterDetail) {
   return letter.attachments.filter(
     (file) => file.role !== 'source' && file.role !== 'body' && !file.inline,
   );
-}
-
-/** Особая метка вложения почты (Р9): подпись .p7s/.sig, конверт Outlook. */
-export function attachmentLabel(file: LetterAttachment): string | null {
-  const name = file.name.toLowerCase();
-  if (name.endsWith('.p7s') || name.endsWith('.sig')) return ui.letters.card.fileLabels.signature;
-  if (name === 'winmail.dat') return ui.letters.card.fileLabels.outlook;
-  return null;
 }
 
 /**
@@ -76,11 +67,9 @@ export function LetterFilesBlock({
       <NodeLabel label={ui.letters.card.files} count={files.length} />
       <AttachmentGroup className="mt-2 flex-wrap overflow-visible">
         {files.map((file) => {
-          const role =
-            file.role === 'main' || file.role === 'body_pdf'
-              ? ui.letters.card.fileRoles[file.role]
-              : null;
-          const label = attachmentLabel(file);
+          // Подпись под файлом — только размер (приёмка 28.10: метки ролей
+          // и особых вложений из чипа убраны; «Текст письма» отличает PDF-копию
+          // только звезда и состав, «Электронная подпись» — имя .p7s).
           const isMain = main?.id === file.id;
           return (
             <Attachment
@@ -94,12 +83,6 @@ export function LetterFilesBlock({
               <AttachmentContent>
                 <AttachmentTitle title={file.name}>{file.name}</AttachmentTitle>
                 <AttachmentDescription>
-                  {role ? `${role} · ` : null}
-                  {label ? (
-                    <>
-                      <NodeChip tone="muted">{label}</NodeChip> ·{' '}
-                    </>
-                  ) : null}
                   <span className="font-mono tabular-nums">{formatBytes(file.size)}</span>
                 </AttachmentDescription>
               </AttachmentContent>
