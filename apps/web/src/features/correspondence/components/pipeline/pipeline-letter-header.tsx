@@ -5,13 +5,12 @@ import { Skeleton } from '@nodus/ui/components/skeleton';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { letterSubject, receivedLabel } from '../../lib/letter-format.js';
-import { LetterSenderLine } from '../letter-sender-line.js';
 
 /**
- * Шапка письма в конвейере «Новые» (#56, вердикт владельца 28.10) — как в
- * почтовом клиенте: тема, отправитель полным адресом (в списке он
- * обрезается шириной строки), способ поступления и время. Вложения живут
- * отдельной колонкой слева от просмотра (см. PipelineAttachmentsRail).
+ * Шапка письма в конвейере «Новые» — ровно h-12, как строка поиска слева и
+ * шапка «Регистрация» справа: горизонтальная линия модуля остаётся единой
+ * (вердикт владельца 28.10). Тема — здесь; отправитель — в блоке тела письма
+ * (`LetterSenderLine`, без заливки), чтобы не растягивать шапку.
  */
 export function PipelineLetterHeader({
   letter,
@@ -58,7 +57,6 @@ export function PipelineLetterHeader({
           <Skeleton className="h-4 w-64" />
         ) : null}
       </div>
-      {letter ? <LetterSenderLine letter={letter} className="px-4 pb-2.5" /> : null}
     </div>
   );
 }

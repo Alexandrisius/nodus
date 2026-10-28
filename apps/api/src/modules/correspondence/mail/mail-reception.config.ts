@@ -25,6 +25,22 @@ export interface MailSmtpConfig {
  *  фабрика в модуле, чтобы Nest не пытался внедрять сам env. */
 export const MAIL_RECEPTION_CONFIG: InjectionToken = 'MAIL_RECEPTION_CONFIG';
 
+/** dotenv-семантика: окружающие кавычки — разделители, а не часть значения.
+ *  Живой контур 28.10: пароль в `.env` записан в кавычках, и сырое значение
+ *  уходило в AUTHENTICATE PLAIN → «Authentication failed» (песочница
+ *  передаёт env строками, без разбора dotenv). */
+function unquote(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed || trimmed.length < 2) return trimmed;
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return trimmed.slice(1, -1);
+  }
+  return trimmed;
+}
+
 @Injectable()
 export class MailReceptionConfig {
   readonly imap: MailImapConfig | null;
@@ -38,26 +54,26 @@ export class MailReceptionConfig {
   readonly sourceMaxBytes: number = 200 * 1024 * 1024;
 
   constructor(source: NodeJS.ProcessEnv = process.env) {
-    const imapHost = source.MAIL_IMAP_HOST?.trim();
-    const imapUser = source.MAIL_IMAP_USER?.trim();
-    const imapPassword = source.MAIL_IMAP_PASSWORD;
+    const imapHost = unquote(source.MAIL_IMAP_HOST);
+    const imapUser = unquote(source.MAIL_IMAP_USER);
+    const imapPassword = unquote(source.MAIL_IMAP_PASSWORD);
     this.imap =
       imapHost && imapUser && imapPassword
         ? {
             host: imapHost,
-            port: Number(source.MAIL_IMAP_PORT ?? 993),
+            port: Number(unquote(source.MAIL_IMAP_PORT) ?? 993) || 993,
             user: imapUser,
             password: imapPassword,
           }
         : null;
-    const smtpHost = source.MAIL_SMTP_HOST?.trim();
-    const smtpUser = source.MAIL_SMTP_USER?.trim();
-    const smtpPassword = source.MAIL_SMTP_PASSWORD;
+    const smtpHost = unquote(source.MAIL_SMTP_HOST);
+    const smtpUser = unquote(source.MAIL_SMTP_USER);
+    const smtpPassword = unquote(source.MAIL_SMTP_PASSWORD);
     this.smtp =
       smtpHost && smtpUser && smtpPassword
         ? {
             host: smtpHost,
-            port: Number(source.MAIL_SMTP_PORT ?? 587),
+            port: Number(unquote(source.MAIL_SMTP_PORT) ?? 587) || 587,
             user: smtpUser,
             password: smtpPassword,
           }
@@ -65,7 +81,7 @@ export class MailReceptionConfig {
     this.pollMinutes = Math.max(1, Number(source.MAIL_POLL_MINUTES ?? 10));
     // .env владельца использует короткое имя MAIL_FROM (контур Керio 23.10):
     // каноническое MAIL_FROM_ADDRESS главнее, короткое — совместимость.
-    this.fromAddress = source.MAIL_FROM_ADDRESS?.trim() || source.MAIL_FROM?.trim() || null;
+    this.fromAddress = unquote(source.MAIL_FROM_ADDRESS) || unquote(source.MAIL_FROM) || null;
   }
 
   /** Приём вооружён: и флаг (проверяет сервис), и соединение настроено. */

@@ -18,6 +18,7 @@ import {
   pipelineKeyAction,
 } from '../../lib/pipeline-keys.js';
 import { BodyEmpty, LetterBodyView } from '../letter-body-view.js';
+import { LetterSenderLine } from '../letter-sender-line.js';
 import { LettersEmpty, LettersLoadError } from '../letters-empty.js';
 import { LettersHeader } from '../letters-header.js';
 import { ManualLetterDialog } from '../manual-letter-dialog.js';
@@ -193,33 +194,40 @@ export function NewLettersPipeline() {
             <>
               <div className="@container flex min-w-0 flex-1 flex-col border-r border-border">
                 <PipelineLetterHeader letter={letter} pending={pending} />
-                {/* Зона просмотра: слева — все файлы письма списком (при
-                    десятках вложений скроллится), справа — выбранный файл
-                    или само письмо (вердикт владельца 28.10). */}
-                <div className="flex min-h-0 flex-1">
+                {/* Блок тела письма — одна поверхность `--card` на отправителя,
+                    колонку файлов и просмотр (вердикт владельца 28.10: фон
+                    тела и вложений одинаковый, без чёрной/жёлтой заливки).
+                    Слева — все файлы списком (при десятках скроллится), справа
+                    выбранный файл или само письмо. */}
+                <div className="flex min-h-0 flex-1 flex-col bg-card">
                   {letter ? (
-                    <PipelineAttachmentsRail
-                      letter={letter}
-                      attachmentId={attachmentId}
-                      onSelect={setAttachmentId}
-                    />
+                    <LetterSenderLine letter={letter} className="shrink-0 px-4 pt-3 pb-2" />
                   ) : null}
-                  <div className="min-h-0 min-w-0 flex-1">
+                  <div className="flex min-h-0 flex-1">
                     {letter ? (
-                      <LetterBodyView
-                        key={letter.id}
+                      <PipelineAttachmentsRail
                         letter={letter}
-                        attachmentId={attachmentId ?? undefined}
-                        empty={
-                          <BodyEmpty
-                            title={ui.letters.pipeline.documentMissing}
-                            hint={ui.letters.pipeline.documentMissingHint}
-                          />
-                        }
+                        attachmentId={attachmentId}
+                        onSelect={setAttachmentId}
                       />
-                    ) : detail.isError ? (
-                      <BodyEmpty title={ui.letters.card.notFound} />
                     ) : null}
+                    <div className="min-h-0 min-w-0 flex-1">
+                      {letter ? (
+                        <LetterBodyView
+                          key={letter.id}
+                          letter={letter}
+                          attachmentId={attachmentId ?? undefined}
+                          empty={
+                            <BodyEmpty
+                              title={ui.letters.pipeline.documentMissing}
+                              hint={ui.letters.pipeline.documentMissingHint}
+                            />
+                          }
+                        />
+                      ) : detail.isError ? (
+                        <BodyEmpty title={ui.letters.card.notFound} />
+                      ) : null}
+                    </div>
                   </div>
                 </div>
               </div>

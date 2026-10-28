@@ -81,13 +81,19 @@ export class LettersRepository {
     });
   }
 
-  /** Число файлов письма по роли `source` исключено (контракт DTO). */
+  /** Скрепка в списке — ТОЛЬКО настоящие вложения: текст письма (body),
+   *  главный документ (main), исходник (source) и inline-картинки — части
+   *  письма, а не приложения (вердикт владельца 28.10). */
   async attachmentCounts(letterIds: readonly string[]): Promise<Map<string, number>> {
     const counts = new Map<string, number>();
     if (letterIds.length === 0) return counts;
     const rows = await this.prisma.letterAttachment.groupBy({
       by: ['letterId'],
-      where: { letterId: { in: [...letterIds] }, role: { not: 'source' } },
+      where: {
+        letterId: { in: [...letterIds] },
+        role: 'attachment',
+        inline: false,
+      },
       _count: { _all: true },
     });
     for (const row of rows) counts.set(row.letterId, row._count._all);

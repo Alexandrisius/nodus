@@ -22,7 +22,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { dbName, loadDotEnv, sandboxSecrets } from './live-stack-env.mjs';
+import { dbName, loadDotEnv, sandboxMailEnv, sandboxSecrets } from './live-stack-env.mjs';
 import { mockEnvOf } from './live-stack-mock.mjs';
 import { printStatus } from './live-stack-status.mjs';
 
@@ -256,6 +256,9 @@ async function up(mode, mock) {
       COOKIE_SECURE: 'false',
       // e2e-прогоны подряд с двух браузеров выбивают дефолт 3000/мин с NAT-IP.
       RATE_LIMIT_MAX: '30000',
+      // Почтовый контур песочницы — только тестовый ящик (MAIL_TEST_*),
+      // изоляция и анти-брутфорс Kerio: live-stack-env.sandboxMailEnv.
+      ...sandboxMailEnv(base),
       // ONLYOFFICE (#138): documentserver-контейнер (compose profile office)
       // ходит за файлами/колбэками на ЭТОТ api — адрес хоста из контейнера.
       OFFICE_API_INTERNAL_URL: `http://host.docker.internal:${PORTS.api}`,

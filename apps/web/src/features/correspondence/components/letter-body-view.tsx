@@ -10,7 +10,7 @@ import { LinkifiedText } from '../../../shared/chat/message-text.js';
 import { DownloadCard } from '../../../shared/files/download-card.js';
 import { FileViewerBody } from '../../../shared/files/file-viewer-body.js';
 import type { ViewerTarget } from '../../../shared/files/viewer-store.js';
-import { SandboxedHtml, emailSheetColorsFor } from '../../../shared/html/sandboxed-html.js';
+import { SandboxedHtml, useEmailSheetColors } from '../../../shared/html/sandboxed-html.js';
 import { SegmentedControl } from '../../../shared/ui/segmented-control.js';
 import { useLetterBodyText } from '../api/letters-queries.js';
 
@@ -118,7 +118,7 @@ function TextBody({
 }) {
   const query = useLetterBodyText(attachment);
   const theme = useShellStore((s) => s.theme);
-  const sheet = emailSheetColorsFor(theme);
+  const sheet = useEmailSheetColors(theme);
   const [allowImages, setAllowImages] = useState(false);
   const [blocked, setBlocked] = useState(0);
 

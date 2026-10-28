@@ -23,6 +23,10 @@ const NOTIFY_EVERY_MS = 24 * 60 * 60 * 1000;
 const IDLE_DEBOUNCE_MS = 2000;
 /** Реконнект: 5 с → 30 с → 5 мин (jitter ±20%). */
 const RECONNECT_STEPS_MS = [5_000, 30_000, 300_000] as const;
+/** Отказ авторизации — НЕ сетевой сбой: пробуем не чаще раза в 15 минут
+ *  (правило владельца 28.10: серия неудач включает анти-брутфорс Kerio и
+ *  банит весь хост; частые ретраи продлевают бан). */
+const AUTH_RETRY_MS = 15 * 60_000;
 
 export interface SyncResult {
   /** Цикл отработал (не «пропущен из-за флага/занятости»). */
@@ -66,7 +70,12 @@ export class MailInboxService implements OnModuleInit, OnModuleDestroy {
 
   onModuleInit(): void {
     this.client.onClose(() => this.scheduleReconnect());
-    this.client.onExists(() => this.scheduleIdleSync());
+    this.client.onExists(() => {
+      // Метка EXISTS — точка отсчёта «сервер почты увидел письмо» для
+      // диагностики задержки (владелец 28.10: «45 секунд» — чей это путь).
+      this.logger.info({ at: new Date().toISOString() }, 'IMAP: событие EXISTS');
+      this.scheduleIdleSync();
+    });
     // Флаг перепроверяется циклом; таймер — только поднять соединение, когда
     // рубильник включили (suspend гасит его сам).
     this.flagTimer = setInterval(() => void this.ensureConnection(), 30_000);
@@ -102,6 +111,16 @@ export class MailInboxService implements OnModuleInit, OnModuleDestroy {
         this.logger.info('IMAP подключён, приём активен');
         this.scheduleIdleSync();
       } catch (error) {
+        const authFailed =
+          typeof error === 'object' && error !== null && 'authenticationFailed' in error
+            ? (error as { authenticationFailed?: boolean }).authenticationFailed === true
+            : false;
+        if (authFailed) {
+          // Не долбим: серия отказов банит весь хост на 15–30 минут (Kerio).
+          this.logger.error({ err: error }, 'IMAP: отказ авторизации — проба через 15 минут');
+          this.scheduleAuthRetry();
+          return;
+        }
         this.logger.warn({ err: error }, 'IMAP недоступен');
         this.scheduleReconnect();
       }
@@ -112,6 +131,14 @@ export class MailInboxService implements OnModuleInit, OnModuleDestroy {
     if (this.stopped) return;
     if (this.debounceTimer) clearTimeout(this.debounceTimer);
     this.debounceTimer = setTimeout(() => void this.sync('idle'), IDLE_DEBOUNCE_MS);
+  }
+
+  /** Отказ авторизации: одна проба через 15 минут, без серии повторов. */
+  private scheduleAuthRetry(): void {
+    if (this.stopped) return;
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    this.reconnectAttempt = 0;
+    this.reconnectTimer = setTimeout(() => void this.ensureConnection(), AUTH_RETRY_MS);
   }
 
   private scheduleReconnect(): void {
@@ -148,6 +175,7 @@ export class MailInboxService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async runCycle(trigger: 'idle' | 'poll'): Promise<SyncResult> {
+    const startedAt = Date.now();
     if (!(await this.lock.tryAcquire())) {
       // Не молчать (код-ревью #56): цикл занят — виден в логе, а не «пусто».
       this.logger.warn({ trigger }, 'Цикл приёма занят (advisory lock) — пропуск');
@@ -176,6 +204,7 @@ export class MailInboxService implements OnModuleInit, OnModuleDestroy {
       }
 
       const uids = await this.client.searchAfter(lastUid);
+      const searchedAt = Date.now();
       let created = 0;
       for (const uid of uids) {
         const outcome = await this.writer.write(this.client, uid, async (tx, done) => {
@@ -185,7 +214,17 @@ export class MailInboxService implements OnModuleInit, OnModuleDestroy {
         if (outcome.created) created += 1;
       }
       await this.sources.recordSuccess(source.id);
-      if (created > 0) this.logger.info({ trigger, created }, 'Приняты письма');
+      if (created > 0)
+        this.logger.info(
+          {
+            trigger,
+            created,
+            searchMs: searchedAt - startedAt,
+            writeMs: Date.now() - searchedAt,
+            totalMs: Date.now() - startedAt,
+          },
+          'Приняты письма',
+        );
       return { ran: true, created, skipped: false };
     } catch (error) {
       await this.recordFailure(error);

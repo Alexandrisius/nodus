@@ -219,7 +219,9 @@ export class LetterDtoMapper {
       ...this.toListItem(
         row,
         refs,
-        files.filter((file) => file.role !== 'source' && !file.inline).length,
+        // Скрепка в списке — только настоящие вложения: тело письма и главный
+        // документ (скан) — части самого письма, а не приложения (вердикт 28.10).
+        files.filter((file) => file.role === 'attachment' && !file.inline).length,
         extra.replyTo,
       ),
       type: refs.types.get(row.typeId) ?? {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { sanitizeEmailHtml } from './sanitize-email-html.js';
 
@@ -37,13 +37,20 @@ export interface EmailSheetColors {
  *  бы на каждый кадр и iframe перезагружался. */
 let sheetCache: { theme: 'light' | 'dark'; colors: EmailSheetColors | undefined } | null = null;
 
-/** Токены текущей темы для листа письма: фон/текст/ссылка/бордюр. Значения
- *  живут в CSS-каскаде (data-theme), поэтому читаются при смене темы. */
-export function emailSheetColorsFor(theme: 'light' | 'dark'): EmailSheetColors | undefined {
-  if (sheetCache?.theme === theme) return sheetCache.colors;
+/** Токены текущей темы для листа письма: ПОВЕРХНОСТЬ КАРТОЧКИ (`--card`), а
+ *  не фон страницы — в тёмной это графит вместо чёрного, в светлой бумажный
+ *  лист вместо тёплого фона (вердикт владельца 28.10). Значения живут в
+ *  CSS-каскаде (data-theme), поэтому читаются при смене темы. */
+export function emailSheetColorsFor(
+  theme: 'light' | 'dark',
+  /** Перечитать после смены data-theme (эффект оболочки применяет атрибут
+   *  ПОСЛЕ рендера — читать в рендере сразу после переключения нельзя). */
+  refresh = false,
+): EmailSheetColors | undefined {
+  if (!refresh && sheetCache?.theme === theme) return sheetCache.colors;
   const style = getComputedStyle(document.documentElement);
-  const background = style.getPropertyValue('--background').trim();
-  const foreground = style.getPropertyValue('--foreground').trim();
+  const background = style.getPropertyValue('--card').trim();
+  const foreground = style.getPropertyValue('--card-foreground').trim();
   const colors =
     background && foreground
       ? {
@@ -54,6 +61,18 @@ export function emailSheetColorsFor(theme: 'light' | 'dark'): EmailSheetColors |
         }
       : undefined;
   sheetCache = { theme, colors };
+  return colors;
+}
+
+/** Цвета листа с перечитыванием после смены темы: начальный рендер берёт
+ *  кэш/текущий каскад (index.html ставит data-theme до первой отрисовки),
+ *  а после переключения — кадр спустя, когда оболочка применила атрибут. */
+export function useEmailSheetColors(theme: 'light' | 'dark'): EmailSheetColors | undefined {
+  const [colors, setColors] = useState(() => emailSheetColorsFor(theme));
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setColors(emailSheetColorsFor(theme, true)));
+    return () => cancelAnimationFrame(frame);
+  }, [theme]);
   return colors;
 }
 
