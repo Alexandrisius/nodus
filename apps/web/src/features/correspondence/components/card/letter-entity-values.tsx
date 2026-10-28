@@ -90,14 +90,9 @@ export function SignerValue({
   const [editing, setEditing] = useState(false);
   const label = ui.letters.fields.signer;
   const signer = letter.signer;
-  const text = signer ? (
-    <span className="min-w-0 truncate">
-      {signer.fullName}
-      {signer.position ? <span className="text-muted-foreground">, {signer.position}</span> : null}
-    </span>
-  ) : (
-    notSet
-  );
+  // Должность не в строке — не влезает (приёмка 28.10): только ФИО,
+  // должность — подсказкой на кнопке.
+  const text = signer ? <span className="min-w-0 truncate">{signer.fullName}</span> : notSet;
   if (!editable || !letter.counterparty) return text;
   if (editing) {
     return (
@@ -127,12 +122,14 @@ export function SignerValue({
       </button>
     );
   }
+  const hint = signer ? [signer.fullName, signer.position].filter(Boolean).join(', ') : undefined;
   return (
     <span className="group/value flex min-w-0 items-center gap-1">
       <button
         type="button"
         className={valueButton}
         aria-label={editLabel(label)}
+        title={hint}
         onClick={() => setEditing(true)}
       >
         {text}
