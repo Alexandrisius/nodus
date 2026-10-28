@@ -199,7 +199,14 @@ export function TransitionDialog({
         }
       }}
     >
-      <DialogContent className="sm:max-w-lg">
+      {/* Окно с вводом причины не закрывается кликом мимо (канон 30.09.2026,
+          #511): случайный клик не должен терять введённое; отмена — кнопка
+          или Esc, углового крестика нет. */}
+      <DialogContent
+        className="sm:max-w-lg"
+        showCloseButton={false}
+        onInteractOutside={(event) => event.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle>
             {transition?.name} — {ui.tasks.transitionBlocked.toLowerCase()}

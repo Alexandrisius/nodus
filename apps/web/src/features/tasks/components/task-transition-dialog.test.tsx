@@ -53,6 +53,47 @@ describe('TransitionDialog: отказ без автозакрытия подз�
     expect(screen.getByText('В работе')).toBeTruthy();
   });
 
+  it('не закрывается кликом мимо и не показывает угловой крестик (#511)', async () => {
+    const onClose = vi.fn();
+    render(
+      <TransitionDialog
+        transition={TRANSITION}
+        onClose={onClose}
+        onExecute={vi.fn()}
+        executing={false}
+        gate={GATE}
+      />,
+    );
+
+    const reason = screen.getByLabelText('Причина (попадёт в историю)') as HTMLTextAreaElement;
+    fireEvent.change(reason, { target: { value: 'Согласовано с заказчиком' } });
+    // Radix вешает pointerdown-слушатель на document асинхронно (setTimeout 0).
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    fireEvent.pointerDown(document.body, { button: 0, pointerType: 'mouse' });
+    fireEvent.click(document.body);
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog')).toBeTruthy();
+    expect(reason.value).toBe('Согласовано с заказчиком');
+    expect(screen.queryByText('Close')).toBeNull();
+  });
+
+  it('закрывается по Esc', () => {
+    const onClose = vi.fn();
+    render(
+      <TransitionDialog
+        transition={TRANSITION}
+        onClose={onClose}
+        onExecute={vi.fn()}
+        executing={false}
+        gate={GATE}
+      />,
+    );
+
+    fireEvent.keyDown(document.body, { key: 'Escape', code: 'Escape' });
+    expect(onClose).toHaveBeenCalled();
+  });
+
   it('переход к подзадаче из списка закрывает диалог и отдаёт id', () => {
     const onOpenSubtask = vi.fn();
     render(

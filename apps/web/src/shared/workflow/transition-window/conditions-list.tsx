@@ -69,7 +69,10 @@ export function ConditionsList({
               <span
                 className={cn('min-w-0', line.ok ? 'text-muted-foreground' : 'text-foreground')}
               >
-                {ui.tasks.window.conditionLabels[kind]}
+                {/* ✓ — положительная формулировка («Нет незавершённых подзадач»),
+                    ✗ — текст отказа из gate.*: та же фраза, что в диалоге
+                    блокировки, не читается наоборот (#511). */}
+                {line.ok ? ui.tasks.window.conditionLabels[kind] : ui.tasks.gate[kind]}
                 {detail ? ` · ${detail}` : ''}
                 {action?.onClick ? (
                   <Button
