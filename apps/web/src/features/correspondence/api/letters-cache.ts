@@ -9,6 +9,24 @@ import { mapLetterInPages, type LettersPages } from '../../../shared/api/letters
 /** Кэш писем (#55): строка из карточки, правка/удаление во всех списках,
  *  разбор ошибок регистрации по `ErrorCode` (не по тексту). */
 
+/** Снимок строки письма во всех списках (точечный откат, patterns.md:108).
+ *  При параллельных мутациях снапшот всех списков затирает чужие изменения —
+ *  поэтому onError восстанавливает ТОЛЬКО свою строку через syncLetterInLists. */
+export function snapshotLetterInList(queryClient: QueryClient, id: string): LetterListItem | null {
+  const allQueries = queryClient.getQueriesData<LettersPages>({
+    queryKey: lettersKeys.lists(),
+  });
+  for (const [, data] of allQueries) {
+    if (!data) continue;
+    for (const page of data.pages) {
+      for (const item of page.items) {
+        if (item.id === id) return item;
+      }
+    }
+  }
+  return null;
+}
+
 export function listItemOf(letter: LetterDetail): LetterListItem {
   return {
     id: letter.id,
@@ -40,18 +58,6 @@ export function boxOfLetter(
   return letter.stage.systemState === 'backlog' ? 'new' : null;
 }
 
-/** Снимок всех списков писем (откат оптимистичной мутации). */
-export function snapshotLists(queryClient: QueryClient) {
-  return queryClient.getQueriesData<LettersPages>({ queryKey: lettersKeys.lists() });
-}
-
-export function restoreLists(
-  queryClient: QueryClient,
-  snapshot: ReturnType<typeof snapshotLists> | undefined,
-) {
-  for (const [key, data] of snapshot ?? []) queryClient.setQueryData(key, data);
-}
-
 /** Письмо во всех списках: строка обновляется, а где вкладка больше не
  *  совпадает (зарегистрировали из «Новых») — уходит из списка. */
 export function syncLetterInLists(
@@ -59,7 +65,9 @@ export function syncLetterInLists(
   id: string,
   next: LetterListItem | null,
 ) {
-  for (const [key] of snapshotLists(queryClient)) {
+  for (const [key] of queryClient.getQueriesData<LettersPages>({
+    queryKey: lettersKeys.lists(),
+  })) {
     const box = key[2] as LetterBox | 'registered';
     queryClient.setQueryData<LettersPages>(key, (data) =>
       mapLetterInPages(data, id, () => {
@@ -69,6 +77,41 @@ export function syncLetterInLists(
         return fits ? next : null;
       }),
     );
+  }
+}
+
+/** Точечный откат: восстанавливает строку письма (или удаляет, если null)
+ *  во всех списках. В отличие от syncLetterInLists, ДОБАВЛЯЕТ строку обратно,
+ *  если она была удалена (#522 — mapLetterInPages не вставляет новые строки). */
+export function restoreLetterInLists(
+  queryClient: QueryClient,
+  id: string,
+  item: LetterListItem | null,
+) {
+  for (const [key] of queryClient.getQueriesData<LettersPages>({
+    queryKey: lettersKeys.lists(),
+  })) {
+    const box = key[2] as LetterBox | 'registered';
+    const current = queryClient.getQueryData<LettersPages>(key);
+    if (!current) continue;
+    const pages = current.pages.map((page) => ({
+      ...page,
+      items: page.items.filter((letter) => letter.id !== id),
+    }));
+    if (item) {
+      const own = boxOfLetter(item);
+      const fits = box === 'registered' ? item.registeredAt !== null : own === box;
+      if (fits) {
+        queryClient.setQueryData<LettersPages>(key, {
+          ...current,
+          pages: pages.map((page, index) =>
+            index === 0 ? { ...page, items: [item, ...page.items] } : page,
+          ),
+        });
+        continue;
+      }
+    }
+    queryClient.setQueryData<LettersPages>(key, { ...current, pages });
   }
 }
 
