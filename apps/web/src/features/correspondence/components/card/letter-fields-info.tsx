@@ -52,14 +52,9 @@ export function infoFieldDefs(letter: LetterDetail, unregistered: boolean): Enti
           <Mail className="size-3.5" />
         ),
       label: ui.letters.fields.receivedAt,
-      render: () => (
-        <span className="flex min-w-0 items-baseline gap-2">
-          {mono(formatDateTimeShort(letter.receivedAt))}
-          <span className="truncate text-xs text-muted-foreground">
-            {ui.letters.source[letter.source]}
-          </span>
-        </span>
-      ),
+      // Комментарий источника не показываем (приёмка 28.10: «Получено
+      // почтой» не влезает) — источник и так в полосе цепочки карточки.
+      render: () => mono(formatDateTimeShort(letter.receivedAt)),
     },
     ...(letter.mail
       ? [
