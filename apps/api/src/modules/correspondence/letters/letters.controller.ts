@@ -235,7 +235,7 @@ export class LettersController {
     })
     body: AddLetterParticipantBody,
   ): Promise<LetterDetail> {
-    return this.mutations.addParticipant(user, id, body.userId);
+    return this.mutations.addParticipants(user, id, body.userIds);
   }
 
   @Get(':id/transitions')

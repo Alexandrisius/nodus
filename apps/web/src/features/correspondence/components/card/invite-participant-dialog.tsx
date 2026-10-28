@@ -15,11 +15,11 @@ import { useInviteLetterParticipant } from '../../api/letters-mutations.js';
 import { AddresseeField } from '../registration/addressee-field.js';
 
 /**
- * «Пригласить в обсуждение» (редизайн #56): канцелярия добавляет коллегу во
- * внутренний чат письма — и до регистрации (обсуждение переживает её).
- * Выбор сотрудника — тот же селектор, что у адресата (группа «Принимают
- * решения» + серверный поиск). Окно закрывается только намеренно: выбор —
- * «грязная» работа, мимо-клик её не стирает.
+ * «Пригласить в обсуждение» (редизайн #56; множественный выбор — приёмка
+ * 28.10): канцелярия добавляет коллег во внутренний чат письма — и до
+ * регистрации. Селектор тот же, что у адресата, но с накоплением: выбранные
+ * — чипами под полем, крестик чипа убирает. Окно закрывается только
+ * намеренно: выбор — «грязная» работа, мимо-клик её не стирает.
  */
 export function InviteParticipantDialog({
   letterId,
@@ -30,13 +30,22 @@ export function InviteParticipantDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const [picked, setPicked] = useState<UserRef | null>(null);
+  const [picked, setPicked] = useState<UserRef[]>([]);
   const invite = useInviteLetterParticipant(letterId);
+
+  function toggle(user: UserRef | null) {
+    if (!user) return;
+    setPicked((current) =>
+      current.some((u) => u.id === user.id)
+        ? current.filter((u) => u.id !== user.id)
+        : [...current, user],
+    );
+  }
 
   function close(next: boolean) {
     if (invite.isPending) return;
     onOpenChange(next);
-    if (!next) setPicked(null);
+    if (!next) setPicked([]);
   }
 
   return (
@@ -52,28 +61,45 @@ export function InviteParticipantDialog({
             {ui.letters.card.inviteLead}
           </DialogDescription>
         </DialogHeader>
-        {/* Тот же селектор сотрудников, что у адресата, но со своей подсказкой:
-            выбираем коллегу в обсуждение, а не адресата письма. */}
+        {/* Тот же селектор сотрудников, что у адресата: каждый выбор
+            накапливается чипом, поле остаётся готовым к следующему. */}
         <AddresseeField
-          value={picked}
-          onChange={setPicked}
+          value={null}
+          onChange={toggle}
           invalid={false}
           placeholder={ui.letters.card.invitePlaceholder}
           ariaLabel={ui.letters.card.invitePlaceholder}
           openOnFocus={false}
         />
+        {picked.length > 0 ? (
+          <div className="flex flex-wrap gap-1.5">
+            {picked.map((user) => (
+              <button
+                key={user.id}
+                type="button"
+                onClick={() => toggle(user)}
+                aria-label={`${ui.filters.reset}: ${user.displayName}`}
+                className="inline-flex max-w-full items-center gap-1 rounded-full border border-border bg-accent/50 px-2 py-0.5 text-xs text-foreground transition-colors hover:bg-accent"
+              >
+                <span className="truncate">{user.displayName}</span>
+                <span aria-hidden>×</span>
+              </button>
+            ))}
+          </div>
+        ) : null}
         <DialogFooter>
           <Button variant="ghost" onClick={() => close(false)} disabled={invite.isPending}>
             {ui.common.cancel}
           </Button>
           <Button
             onClick={() =>
-              picked &&
-              invite.mutate(picked.id, {
-                onSuccess: () => close(false),
-              })
+              picked.length > 0 &&
+              invite.mutate(
+                picked.map((user) => user.id),
+                { onSuccess: () => close(false) },
+              )
             }
-            disabled={!picked || invite.isPending}
+            disabled={picked.length === 0 || invite.isPending}
             aria-busy={invite.isPending || undefined}
           >
             {ui.letters.card.inviteSubmit}

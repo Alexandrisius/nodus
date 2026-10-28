@@ -172,7 +172,7 @@ describe('обсуждение незарегистрированного пис
 
   it('приглашение коллеги: активный — участник + событие, повтор — без события', async () => {
     const { service, repo, eventBus } = setup(row(null));
-    await service.addParticipant(REGISTRAR, LETTER, COLLEAGUE);
+    await service.addParticipants(REGISTRAR, LETTER, [COLLEAGUE]);
     expect(repo.addParticipant).toHaveBeenCalledWith(expect.anything(), LETTER, COLLEAGUE);
     expect(eventBus.emit).toHaveBeenCalledWith(
       expect.anything(),
@@ -181,14 +181,14 @@ describe('обсуждение незарегистрированного пис
       expect.anything(),
     );
     repo.addParticipant.mockResolvedValue(false);
-    await service.addParticipant(REGISTRAR, LETTER, COLLEAGUE);
+    await service.addParticipants(REGISTRAR, LETTER, [COLLEAGUE]);
     expect(eventBus.emit).toHaveBeenCalledTimes(1);
   });
 
   it('приглашение уволенного/несуществующего — 404', async () => {
     const { service, repo, profiles } = setup(row(new Date()));
     profiles.filterActiveUserIds.mockResolvedValue([]);
-    await expect(service.addParticipant(REGISTRAR, LETTER, COLLEAGUE)).rejects.toMatchObject({
+    await expect(service.addParticipants(REGISTRAR, LETTER, [COLLEAGUE])).rejects.toMatchObject({
       code: 'NOT_FOUND',
     });
     expect(repo.addParticipant).not.toHaveBeenCalled();

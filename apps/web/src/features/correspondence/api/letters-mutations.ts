@@ -189,8 +189,8 @@ export function useJoinLetter(id: string) {
 export function useInviteLetterParticipant(id: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (userId: string) =>
-      api<LetterDetail>(`/letters/${id}/participants`, { method: 'POST', body: { userId } }),
+    mutationFn: (userIds: string[]) =>
+      api<LetterDetail>(`/letters/${id}/participants`, { method: 'POST', body: { userIds } }),
     onSuccess: (letter) => {
       applyLetter(queryClient, letter);
       void queryClient.invalidateQueries({ queryKey: chatKeys.byLetter(id) });

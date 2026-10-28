@@ -252,10 +252,13 @@ export const updateLetterBodySchema = z
   .refine((v) => Object.keys(v).length > 0, { message: 'empty update' });
 export type UpdateLetterBody = z.infer<typeof updateLetterBodySchema>;
 
-/** `POST /letters/:id/participants` — пригласить коллегу в обсуждение
- *  (редизайн #56): только держатель `correspondence.register`, письмо в любом
- *  состоянии, повторное приглашение идемпотентно. */
-export const addLetterParticipantBodySchema = z.object({ userId: z.uuid() }).strict();
+/** `POST /letters/:id/participants` — пригласить коллег в обсуждение
+ *  (редизайн #56; множественный выбор — приёмка 28.10): только держатель
+ *  `correspondence.register`, письмо в любом состоянии, 1–20 сотрудников,
+ *  повторные приглашения идемпотентны. */
+export const addLetterParticipantBodySchema = z
+  .object({ userIds: z.array(z.uuid()).min(1).max(20) })
+  .strict();
 export type AddLetterParticipantBody = z.infer<typeof addLetterParticipantBodySchema>;
 
 /** `POST /letters/:id/main-document` — выбор основного документа письма

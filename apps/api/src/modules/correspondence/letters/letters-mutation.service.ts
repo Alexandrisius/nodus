@@ -307,26 +307,12 @@ export class LettersMutationService {
     if (row.registeredAt === null && !canRegisterLetters(user)) {
       throw DomainException.notFound('Letter is not registered');
     }
-    await this.addParticipantRow(user, id, user.id);
+    await this.addOneParticipant(user, id, user.id);
     return this.query.detail(user, id);
   }
 
-  /** `POST /letters/:id/participants` — пригласить коллегу в обсуждение
-   *  (редизайн #56): только канцелярия (гуард контроллера), письмо в любом
-   *  состоянии; повторное приглашение — не ошибка, просто текущий состав. */
-  async addParticipant(user: AuthUser, id: string, userId: string): Promise<LetterDetail> {
-    await this.query.visibleRow(user, id);
-    const active = await this.profiles.filterActiveUserIds([userId]);
-    if (active.length === 0) {
-      throw DomainException.notFound('User not found');
-    }
-    await this.addParticipantRow(user, id, userId);
-    return this.query.detail(user, id);
-  }
-
-  /** Общая запись участника + событие состава (join и приглашение — одна
-   *  механика: эмитится только реальная вставка, повтор идемпотентен). */
-  private async addParticipantRow(user: AuthUser, id: string, userId: string): Promise<void> {
+  /** Личное присоединение — одиночная вставка (join). */
+  private async addOneParticipant(user: AuthUser, id: string, userId: string): Promise<void> {
     await this.txRunner.run(async (tx) => {
       await this.repo.lock(tx, id);
       const created = await this.repo.addParticipant(tx, id, userId);
@@ -339,6 +325,34 @@ export class LettersMutationService {
         );
       }
     });
+  }
+
+  /** `POST /letters/:id/participants` — пригласить коллег в обсуждение
+   *  (редизайн #56; пачка — приёмка 28.10): только канцелярия (гуард
+   *  контроллера), письмо в любом состоянии; повторные приглашения — не
+   *  ошибка, просто текущий состав. Событие состава — одно на пачку. */
+  async addParticipants(user: AuthUser, id: string, userIds: string[]): Promise<LetterDetail> {
+    await this.query.visibleRow(user, id);
+    const active = await this.profiles.filterActiveUserIds(userIds);
+    if (active.length !== userIds.length) {
+      throw DomainException.notFound('User not found');
+    }
+    const added: string[] = [];
+    await this.txRunner.run(async (tx) => {
+      await this.repo.lock(tx, id);
+      for (const userId of userIds) {
+        if (await this.repo.addParticipant(tx, id, userId)) added.push(userId);
+      }
+      if (added.length > 0) {
+        await this.eventBus.emit(
+          tx,
+          CORRESPONDENCE_EVENTS.LETTER_PARTICIPANTS_CHANGED,
+          { letterId: id, added, removed: [] },
+          { actorId: user.id, aggregateType: 'letter', aggregateId: id },
+        );
+      }
+    });
+    return this.query.detail(user, id);
   }
 
   /** `POST /letters/:id/view` — личный признак «просмотрено» (редизайн #56):
