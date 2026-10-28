@@ -9,6 +9,10 @@ import { ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
 import { Spinner } from '@nodus/ui/components/spinner';
 
+/** Тёмный показ PDF (тема портала = тёмный документ, вердикт владельца
+ *  28.10): канвас страницы инвертируется CSS-правилом темы в globals.css —
+ *  shared не тянет app (направление слоёв). */
+
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
 /** Масштаб рендера страницы (canvas-пикселей на CSS-пиксель; ×2 — чётко на
