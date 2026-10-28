@@ -1,14 +1,14 @@
-import { Redis } from 'ioredis';
 // Импорт с .ts-расширением осознанно: dev-режим запускает исходники напрямую
 // (Node 24 type stripping), а tsc при сборке переписывает расширение на .js
 // (rewriteRelativeImportExtensions).
 import { loadGatewayConfig } from './config.ts';
 import { createGatewayServer } from './gateway-server.ts';
 import { PgMembershipStore } from './membership.ts';
+import { createGatewayRedis } from './redis-connection.ts';
 
 const config = loadGatewayConfig();
 const store = new PgMembershipStore(config.DATABASE_URL);
-const redis = new Redis(config.REDIS_URL, { maxRetriesPerRequest: null });
+const redis = createGatewayRedis(config.REDIS_URL);
 const gateway = createGatewayServer({ jwtSecret: config.JWT_SECRET, store, redis });
 
 gateway.httpServer.listen(config.GATEWAY_PORT, '0.0.0.0', () => {

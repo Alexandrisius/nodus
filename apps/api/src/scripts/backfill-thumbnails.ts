@@ -8,10 +8,10 @@
 import { config } from 'dotenv';
 import { fileURLToPath } from 'node:url';
 import { Queue } from 'bullmq';
-import { Redis } from 'ioredis';
 import { PrismaPg } from '@prisma/adapter-pg';
 
 import { PrismaClient } from '../generated/prisma/client.js';
+import { createRedisClient } from '../core/redis/redis-connection.js';
 import {
   THUMBNAIL_QUEUE,
   THUMBNAIL_QUEUE_PREFIX,
@@ -31,7 +31,9 @@ async function main(): Promise<void> {
   });
   console.log(`Вложений-изображений без превью: ${rows.length}`);
 
-  const connection = new Redis(redisUrl, { maxRetriesPerRequest: null });
+  const connection = createRedisClient(redisUrl, 'api:script:backfill-thumbnails', {
+    maxRetriesPerRequest: null,
+  });
   const queue = new Queue(THUMBNAIL_QUEUE, { connection, prefix: THUMBNAIL_QUEUE_PREFIX });
   for (const row of rows) {
     await queue.add(

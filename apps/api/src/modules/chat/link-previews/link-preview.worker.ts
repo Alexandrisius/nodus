@@ -1,6 +1,8 @@
 import { Injectable, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
 import { Worker } from 'bullmq';
 import { Redis } from 'ioredis';
+
+import { createRedisClient } from '../../../core/redis/redis-connection.js';
 import { PinoLogger } from 'nestjs-pino';
 
 import {
@@ -29,7 +31,9 @@ export class LinkPreviewWorker implements OnModuleInit, OnModuleDestroy {
     this.logger.setContext(LinkPreviewWorker.name);
     const url = process.env.REDIS_URL;
     if (!url) throw new Error('REDIS_URL не задан');
-    this.connection = new Redis(url, { maxRetriesPerRequest: null });
+    this.connection = createRedisClient(url, 'api:bull:link-preview:worker', {
+      maxRetriesPerRequest: null,
+    });
   }
 
   onModuleInit(): void {

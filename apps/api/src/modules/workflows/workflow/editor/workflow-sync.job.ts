@@ -2,6 +2,11 @@ import { Injectable, type OnModuleDestroy, type OnModuleInit } from '@nestjs/com
 import type { ProcessCategory } from '@nodus/contracts';
 import { Queue, Worker } from 'bullmq';
 import { Redis } from 'ioredis';
+
+import {
+  createRedisClient,
+  duplicateRedisClient,
+} from '../../../../core/redis/redis-connection.js';
 import { PinoLogger } from 'nestjs-pino';
 
 import { WorkflowEntityRegistry } from '../engine/entity-adapter.registry.js';
@@ -47,7 +52,9 @@ export class WorkflowSyncJob implements OnModuleInit, OnModuleDestroy {
   async onModuleInit(): Promise<void> {
     const url = process.env.REDIS_URL;
     if (!url) throw new Error('REDIS_URL не задан');
-    this.connection = new Redis(url, { maxRetriesPerRequest: null });
+    this.connection = createRedisClient(url, 'api:bull:workflow-sync', {
+      maxRetriesPerRequest: null,
+    });
     this.queue = new Queue<SyncJobData>(WORKFLOW_SYNC_QUEUE, {
       connection: this.connection,
       prefix: PREFIX,
@@ -55,7 +62,11 @@ export class WorkflowSyncJob implements OnModuleInit, OnModuleDestroy {
     this.worker = new Worker<SyncJobData>(
       WORKFLOW_SYNC_QUEUE,
       async (job) => void (await this.run(job.data)),
-      { connection: this.connection.duplicate(), prefix: PREFIX, concurrency: 1 },
+      {
+        connection: duplicateRedisClient(this.connection, 'api:bull:workflow-sync:worker'),
+        prefix: PREFIX,
+        concurrency: 1,
+      },
     );
     this.worker.on('failed', (job, error) =>
       this.logger.warn(

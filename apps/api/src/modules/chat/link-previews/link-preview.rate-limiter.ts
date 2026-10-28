@@ -1,6 +1,7 @@
 import { Injectable, type OnModuleDestroy } from '@nestjs/common';
 import { Redis } from 'ioredis';
 
+import { createRedisClient } from '../../../core/redis/redis-connection.js';
 import { USER_FETCH_LIMIT_PER_HOUR } from './link-preview.guards.js';
 
 /**
@@ -14,7 +15,7 @@ export class LinkPreviewRateLimiter implements OnModuleDestroy {
 
   /** true — лимит не исчерпан (и счётчик увеличен). */
   async allow(userId: string): Promise<boolean> {
-    this.connection ??= new Redis(process.env.REDIS_URL ?? '', {
+    this.connection ??= createRedisClient(process.env.REDIS_URL ?? '', 'api:rate:link-preview', {
       maxRetriesPerRequest: null,
       lazyConnect: false,
     });

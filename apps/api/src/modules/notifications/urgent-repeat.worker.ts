@@ -1,6 +1,8 @@
 import { Injectable, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
 import { Worker } from 'bullmq';
 import { Redis } from 'ioredis';
+
+import { createRedisClient } from '../../core/redis/redis-connection.js';
 import { PinoLogger } from 'nestjs-pino';
 import { NOTIFICATION_EVENTS } from '@nodus/contracts';
 
@@ -42,7 +44,9 @@ export class UrgentRepeatWorker implements OnModuleInit, OnModuleDestroy {
   onModuleInit(): void {
     const url = process.env.REDIS_URL;
     if (!url) throw new Error('REDIS_URL не задан');
-    this.connection = new Redis(url, { maxRetriesPerRequest: null });
+    this.connection = createRedisClient(url, 'api:bull:notification-repeat:worker', {
+      maxRetriesPerRequest: null,
+    });
     this.worker = new Worker<{ notificationId: string }>(
       URGENT_REPEAT_QUEUE,
       async (job) => {

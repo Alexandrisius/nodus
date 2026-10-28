@@ -1,6 +1,8 @@
 import { Injectable, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
 import { Queue, Worker } from 'bullmq';
 import { Redis } from 'ioredis';
+
+import { createRedisClient, duplicateRedisClient } from '../../core/redis/redis-connection.js';
 import { PinoLogger } from 'nestjs-pino';
 
 import { NotificationsRepository } from './notifications.repository.js';
@@ -30,7 +32,9 @@ export class BackgroundRetentionJob implements OnModuleInit, OnModuleDestroy {
     this.logger.setContext(BackgroundRetentionJob.name);
     const url = process.env.REDIS_URL;
     if (!url) throw new Error('REDIS_URL не задан');
-    this.connection = new Redis(url, { maxRetriesPerRequest: null });
+    this.connection = createRedisClient(url, 'api:bull:retention', {
+      maxRetriesPerRequest: null,
+    });
     this.queue = new Queue(RETENTION_QUEUE, {
       connection: this.connection,
       prefix: RETENTION_PREFIX,
@@ -67,7 +71,7 @@ export class BackgroundRetentionJob implements OnModuleInit, OnModuleDestroy {
   }
 
   private duplicateConnection(): Redis {
-    return this.connection.duplicate();
+    return duplicateRedisClient(this.connection, 'api:bull:retention:worker');
   }
 
   async onModuleDestroy(): Promise<void> {
