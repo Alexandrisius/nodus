@@ -22,8 +22,8 @@ import {
   draftIssues,
   initialDraft,
   missingFields,
+  registrationErrorText,
   registrationInputOf,
-  registrationReasonText,
   type RegistrationDraft,
 } from '../../lib/registration-draft.js';
 import { useLetterTransitionRunner } from '../letter-transition-runner.js';
@@ -97,12 +97,12 @@ export function RegistrationPanel({
     for (const field of missingFields(value)) invalidKeys[field] = ui.letters.form.required;
   }
   for (const issue of draftIssues(value, todayIso())) {
-    invalidKeys[issue.field] = registrationReasonText[issue.reason];
+    invalidKeys[issue.field] = registrationErrorText(issue.field, issue.reason)!;
   }
   const serverIssue = registrationIssueOf(execute.error);
   if (serverIssue) {
     invalidKeys[serverIssue.field as LetterRegistrationField] =
-      registrationReasonText[serverIssue.reason as keyof typeof registrationReasonText];
+      registrationErrorText(serverIssue.field, serverIssue.reason) ?? ui.letters.form.invalid;
   }
 
   function register() {

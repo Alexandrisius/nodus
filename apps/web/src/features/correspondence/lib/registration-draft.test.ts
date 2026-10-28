@@ -101,6 +101,28 @@ describe('черновик регистрации (#55, U5)', () => {
       registrationInputOf(complete({ responseDeadline: '2026-10-25' }), '2026-10-26'),
     ).toBeNull();
   });
+
+  it('подтверждение подсказки «ответ на» (#56, Р5): уходит в тело только с галочкой', () => {
+    const suggested = {
+      id: '70000000-0000-4000-8000-000000000030',
+      regNumber: 'Исх-2026/1',
+      subject: 'Оферта',
+    };
+    const draft = complete({ suggestedReply: suggested });
+    // Без галочки связи нет — Вика подтверждает сама.
+    expect(registrationInputOf(draft, '2026-10-26')).not.toHaveProperty('replyToLetterId');
+    const linked = registrationInputOf(
+      complete({ suggestedReply: suggested, linkReply: true }),
+      '2026-10-26',
+    );
+    expect(linked.replyToLetterId).toBe(suggested.id);
+    // Подсказка берётся из карточки письма при монтировании формы.
+    expect(initialDraft(letter, METHODS).linkReply).toBe(false);
+    expect(
+      initialDraft({ ...letter, replySuggestion: suggested } as LetterDetail, METHODS)
+        .suggestedReply,
+    ).toBe(suggested);
+  });
 });
 
 describe('даты ДД.ММ.ГГГГ (#55)', () => {

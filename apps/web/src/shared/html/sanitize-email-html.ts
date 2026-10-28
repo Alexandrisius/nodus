@@ -51,8 +51,10 @@ export interface SanitizedEmail {
 }
 
 /** Параметры текущего прохода: `sanitize` не реентерабелен, хук читает их
- *  синхронно в пределах одного вызова. */
-let pass = { allowRemote: false, blocked: 0 };
+ *  синхронно в пределах одного вызова. `cidMap` — contentId → абсолютный
+ *  URL вложения (#56, Р11): cid: остаётся в HTML как есть, подмена — только
+ *  на показе, хранение не искажаем. */
+let pass = { allowRemote: false, blocked: 0, cidMap: {} as Record<string, string> };
 let instance: ReturnType<typeof DOMPurify> | null = null;
 
 function isRemote(url: string): boolean {
@@ -72,11 +74,20 @@ function purifier(): ReturnType<typeof DOMPurify> {
     if (node.tagName === 'IMG') {
       node.removeAttribute('srcset');
       const src = node.getAttribute('src') ?? '';
-      const allowed = pass.allowRemote && /^https:/i.test(src.trim());
-      if (isRemote(src) && !allowed) {
-        node.setAttribute('src', BLOCKED_IMAGE_SRC);
-        node.setAttribute('data-blocked', '');
-        pass.blocked += 1;
+      const cid = src.match(/^cid:(.+)$/i);
+      if (cid) {
+        // Inline-картинка письма: резолв в подписанную ссылку вложения
+        // (same-origin, CSP 'self'); незнакомый cid — сломанная картинка,
+        // безопасно.
+        const resolved = pass.cidMap[cid[1]!.trim()];
+        if (resolved) node.setAttribute('src', resolved);
+      } else {
+        const allowed = pass.allowRemote && /^https:/i.test(src.trim());
+        if (isRemote(src) && !allowed) {
+          node.setAttribute('src', BLOCKED_IMAGE_SRC);
+          node.setAttribute('data-blocked', '');
+          pass.blocked += 1;
+        }
       }
     }
     // Устаревший фон таблиц (`<td background>`) — та же утечка, что у картинки.
@@ -93,9 +104,12 @@ function purifier(): ReturnType<typeof DOMPurify> {
 
 export function sanitizeEmailHtml(
   html: string,
-  { allowRemoteImages }: { allowRemoteImages: boolean },
+  {
+    allowRemoteImages,
+    cidMap = {},
+  }: { allowRemoteImages: boolean; cidMap?: Record<string, string> },
 ): SanitizedEmail {
-  pass = { allowRemote: allowRemoteImages, blocked: 0 };
+  pass = { allowRemote: allowRemoteImages, blocked: 0, cidMap };
   const root = purifier().sanitize(html, CONFIG) as unknown as HTMLElement;
   const styles = [...root.querySelectorAll('style')]
     .filter((style) => !root.querySelector('body')?.contains(style))

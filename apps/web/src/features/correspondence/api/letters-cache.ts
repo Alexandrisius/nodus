@@ -38,6 +38,8 @@ export function listItemOf(letter: LetterDetail): LetterListItem {
     registeredAt: letter.registeredAt,
     receivedAt: letter.receivedAt,
     source: letter.source,
+    mailFromName: letter.mailFromName,
+    mailFromAddress: letter.mailFromAddress,
     subject: letter.subject,
     counterparty: letter.counterparty,
     theirNumber: letter.theirNumber,
@@ -46,6 +48,7 @@ export function listItemOf(letter: LetterDetail): LetterListItem {
     project: letter.project,
     addressee: letter.addressee,
     responseDeadline: letter.responseDeadline,
+    replyTo: letter.replyTo,
     attachmentCount: letter.attachmentCount,
   };
 }
@@ -121,11 +124,13 @@ export function applyLetter(queryClient: QueryClient, letter: LetterDetail) {
   syncLetterInLists(queryClient, letter.id, listItemOf(letter));
 }
 
-/** 422 регистрации → поле и причина (подсветка у поля). */
+/** 422 регистрации/связи → поле и причина (подсветка у поля). */
 export function registrationIssueOf(error: unknown) {
-  if (!(error instanceof ApiError) || error.code !== ErrorCode.LETTER_REGISTRATION_INVALID) {
-    return null;
-  }
+  if (!(error instanceof ApiError)) return null;
+  const codes =
+    error.code === ErrorCode.LETTER_REGISTRATION_INVALID ||
+    error.code === ErrorCode.LETTER_RELATION_INVALID;
+  if (!codes) return null;
   const field = error.details?.field;
   const reason = error.details?.reason;
   return typeof field === 'string' && typeof reason === 'string'

@@ -8,6 +8,7 @@ import {
   defaultReceiptMethodId,
   draftIssues,
   initialDraft,
+  registrationErrorText,
   registrationInputOf,
   registrationReasonText,
   type RegistrationDraft,
@@ -44,7 +45,8 @@ export function RegistrationSection({
   }
   if (serverIssue) {
     invalidKeys[serverIssue.field as LetterRegistrationField] =
-      registrationReasonText[serverIssue.reason as keyof typeof registrationReasonText];
+      registrationErrorText(serverIssue.field, serverIssue.reason) ??
+      registrationReasonText.invalid;
   }
 
   return (

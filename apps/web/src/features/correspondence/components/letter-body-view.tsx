@@ -1,5 +1,5 @@
 import { FileX2, ImageOff } from 'lucide-react';
-import { useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import type { LetterAttachment, LetterDetail } from '@nodus/contracts';
 import { LETTER_LIMITS, ui } from '@nodus/contracts';
 import { Button } from '@nodus/ui/components/button';
@@ -28,12 +28,23 @@ export function viewerTargetOf(attachment: LetterAttachment): ViewerTarget {
 const isTextBody = (a: LetterAttachment) =>
   a.role === 'body' || a.mime === 'text/html' || a.mime === 'text/plain';
 
+/** contentId → абсолютный URL вложения (Р11): резолв cid: картинок HTML-тела
+ *  на показе; ссылка подписанная и того же происхождения (CSP 'self'). */
+function cidMapOf(letter: LetterDetail): Record<string, string> {
+  const map: Record<string, string> = {};
+  for (const file of letter.attachments) {
+    if (file.contentId) map[file.contentId] = new URL(file.url, window.location.origin).href;
+  }
+  return map;
+}
+
 /**
- * Тело письма и его вложения (#55, Р8): главный документ — общим
- * просмотрщиком по ширине панели; HTML — песочница с «Показать
- * изображения»; text/plain — читательской колонкой со ссылками. При главном
- * документе И тексте почты — переключатель «Документ / Текст письма».
- * `attachmentId` — конкретное вложение (вкладка карточки).
+ * Тело письма и его вложения (#55, Р8; #56 — cid-картинки): главный документ
+ * — общим просмотрщиком по ширине панели; HTML — песочница с «Показать
+ * изображения» и резолвом inline-картинок; text/plain — читательской
+ * колонкой со ссылками. При главном документе И тексте почты —
+ * переключатель «Документ / Текст письма». `attachmentId` — конкретное
+ * вложение (вкладка карточки).
  */
 export function LetterBodyView({
   letter,
@@ -47,10 +58,11 @@ export function LetterBodyView({
 }) {
   const [mode, setMode] = useState<'document' | 'text'>('document');
   const byId = (id: string) => letter.attachments.find((a) => a.id === id);
+  const cidMap = useMemo(() => cidMapOf(letter), [letter]);
 
   if (attachmentId) {
     const attachment = byId(attachmentId);
-    return attachment ? <AttachmentView attachment={attachment} /> : null;
+    return attachment ? <AttachmentView attachment={attachment} cidMap={cidMap} /> : null;
   }
   if (letter.body.kind === 'none') {
     return <>{empty ?? <BodyEmpty title={ui.letters.body.none} />}</>;
@@ -58,7 +70,7 @@ export function LetterBodyView({
   const main = byId(letter.body.attachmentId);
   if (!main) return <>{empty ?? <BodyEmpty title={ui.letters.body.none} />}</>;
   const text = letter.body.kind === 'document' ? letter.attachments.find(isTextBody) : undefined;
-  if (!text) return <AttachmentView attachment={main} />;
+  if (!text) return <AttachmentView attachment={main} cidMap={cidMap} />;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -77,18 +89,30 @@ export function LetterBodyView({
         />
       </div>
       <div className="min-h-0 flex-1">
-        <AttachmentView key={mode} attachment={mode === 'document' ? main : text} />
+        <AttachmentView key={mode} attachment={mode === 'document' ? main : text} cidMap={cidMap} />
       </div>
     </div>
   );
 }
 
-function AttachmentView({ attachment }: { attachment: LetterAttachment }) {
-  if (isTextBody(attachment)) return <TextBody attachment={attachment} />;
+function AttachmentView({
+  attachment,
+  cidMap,
+}: {
+  attachment: LetterAttachment;
+  cidMap: Record<string, string>;
+}) {
+  if (isTextBody(attachment)) return <TextBody attachment={attachment} cidMap={cidMap} />;
   return <FileViewerBody key={attachment.fileId} target={viewerTargetOf(attachment)} fit="width" />;
 }
 
-function TextBody({ attachment }: { attachment: LetterAttachment }) {
+function TextBody({
+  attachment,
+  cidMap,
+}: {
+  attachment: LetterAttachment;
+  cidMap: Record<string, string>;
+}) {
   const query = useLetterBodyText(attachment);
   const [allowImages, setAllowImages] = useState(false);
   const [blocked, setBlocked] = useState(0);
@@ -137,6 +161,7 @@ function TextBody({ attachment }: { attachment: LetterAttachment }) {
           <SandboxedHtml
             html={query.data.text}
             allowRemoteImages={allowImages}
+            cidMap={cidMap}
             onBlockedImages={setBlocked}
             title={ui.letters.body.frameTitle}
           />

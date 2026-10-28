@@ -62,6 +62,15 @@ export const letterStages = {
     color: 'neutral',
     outcome: 'cancelled',
   },
+  /** Отправленное исходящее (демо #56; переход отправки — #464). */
+  sent: {
+    id: lsid(7),
+    name: 'Отправлено',
+    order: 1,
+    systemState: 'closed',
+    color: 'success',
+    outcome: 'success',
+  },
 } as const satisfies Record<string, TaskStage>;
 
 const registrar: WorkflowCondition = {

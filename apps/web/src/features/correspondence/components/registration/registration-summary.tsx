@@ -1,3 +1,4 @@
+import { TriangleAlert } from 'lucide-react';
 import type { LetterDetail } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
 
@@ -10,7 +11,9 @@ import {
 } from '../../lib/registration-draft.js';
 
 /** Итог формы под полями (#55): «Не хватает: …» по порядку формы и
- *  «Будет присвоен номер Вх-2026/…» — точный номер выдаст сервер. */
+ *  «Будет присвоен номер Вх-2026/…» — точный номер выдаст сервер.
+ *  Флаги приёма почты (#56): неполный разбор/хранение — Вика видит, что
+ *  регистрирует по неполным данным. */
 export function RegistrationSummary({
   letter,
   draft,
@@ -21,9 +24,18 @@ export function RegistrationSummary({
   const { data: types } = useLetterTypes();
   const prefix = types?.find((type) => type.id === letter.typeId)?.numbering?.prefix;
   const missing = missingFields(draft);
+  const flags: string[] = [];
+  if (letter.mail?.parseIssue) flags.push(ui.letters.card.mailParseIssue);
+  if (letter.mail?.storageIncomplete) flags.push(ui.letters.card.mailStorageIncomplete);
 
   return (
     <div className="flex flex-col gap-1 text-xs">
+      {flags.length > 0 ? (
+        <p className="flex items-center gap-1.5 text-warning">
+          <TriangleAlert className="size-3.5 shrink-0" strokeWidth={1.75} aria-hidden />
+          {flags.join(' · ')}
+        </p>
+      ) : null}
       {missing.length > 0 ? (
         <p className="text-muted-foreground" aria-live="polite">
           <span className="font-medium text-foreground">{ui.letters.pipeline.missing}</span>{' '}

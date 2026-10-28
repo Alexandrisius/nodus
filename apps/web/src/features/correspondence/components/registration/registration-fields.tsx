@@ -27,8 +27,10 @@ import {
   registrationFieldLabel,
   type RegistrationDraft,
 } from '../../lib/registration-draft.js';
+import { useSuggestedCounterparty } from '../../lib/registration-suggestion.js';
 import { AddresseeField } from './addressee-field.js';
 import { DateInput } from './date-input.js';
+import { ReplySuggestion } from './reply-suggestion.js';
 import { SignerField } from './signer-field.js';
 
 /** Фокус в поле формы по ключу (Enter → следующее пустое, «Не хватает»). */
@@ -76,6 +78,9 @@ export function RegistrationFields({
     typeIdsOf(definition).includes(letter.typeId),
   );
 
+  // Подстановка контрагента/подписанта по адресу отправителя (Р6, В2).
+  const { fromSuggestion } = useSuggestedCounterparty(letter, value, onChange);
+
   const fieldId = (field: LetterRegistrationField) => `${prefix}-${field}`;
   const errorId = (field: LetterRegistrationField) =>
     invalidKeys[field] ? `${prefix}-${field}-error` : undefined;
@@ -105,6 +110,12 @@ export function RegistrationFields({
 
   return (
     <div ref={rootRef} className="flex flex-col gap-3">
+      <ReplySuggestion
+        letter={letter}
+        value={value}
+        invalid={invalidKeys.replyToLetterId}
+        onToggle={(linkReply) => set({ linkReply })}
+      />
       {row(
         'counterpartyId',
         <CounterpartyCombobox
@@ -126,6 +137,11 @@ export function RegistrationFields({
           autoFocus={autoFocus}
         />,
       )}
+      {fromSuggestion ? (
+        <p className="-mt-2 text-xs text-muted-foreground">
+          {ui.letters.form.suggestedCounterparty}
+        </p>
+      ) : null}
       {row(
         'signerId',
         <SignerField

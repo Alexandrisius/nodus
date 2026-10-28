@@ -53,6 +53,17 @@ describe('sanitizeEmailHtml (#55, Р9)', () => {
     expect(blockedImages).toBe(1);
   });
 
+  it('cid: резолвится в URL вложения по карте, чужой contentId не трогается (#56, Р11)', () => {
+    const cidMap = { 'logo@mail': 'https://portal.nodus.by/api/v1/files/f/content?exp=1&sig=2' };
+    const { html } = sanitizeEmailHtml(DIRTY, { allowRemoteImages: false, cidMap });
+    // Атрибут в разметке — с &amp; (нормальный HTML-эскейп, в iframe — тот же URL).
+    expect(html).toContain('src="https://portal.nodus.by/api/v1/files/f/content?exp=1&amp;sig=2"');
+    expect(html).not.toContain('cid:logo@mail');
+    // Без карты cid остаётся как есть — сломанная картинка, безопасно.
+    const bare = sanitizeEmailHtml(DIRTY, { allowRemoteImages: false });
+    expect(bare.html).toContain('cid:logo@mail');
+  });
+
   it('ссылки открываются новой вкладкой без доступа к порталу; стили письма сохраняются', () => {
     const { html } = sanitizeEmailHtml(DIRTY, { allowRemoteImages: false });
     const doc = new DOMParser().parseFromString(html, 'text/html');

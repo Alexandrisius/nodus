@@ -27,6 +27,7 @@ import {
   apiError,
   contactRefOf,
   letterFieldsIssue,
+  letterRelationIssue,
   notFound,
   projectRefOf,
   receiptMethodRefOf,
@@ -188,6 +189,10 @@ export const lettersTransitionHandlers = [
     if (registration) {
       const issue = await letterFieldsIssue(registration, request);
       if (issue) return apiError(422, 'LETTER_REGISTRATION_INVALID', issue);
+      if (registration.replyToLetterId) {
+        const relationIssue = letterRelationIssue(letter, registration.replyToLetterId);
+        if (relationIssue) return apiError(422, 'LETTER_RELATION_INVALID', relationIssue);
+      }
     }
     const fromStageName = letter.stage.name;
     const now = new Date();
@@ -225,6 +230,14 @@ export const lettersTransitionHandlers = [
         letter.regNumber = nextLetterNumber(letter.direction, now);
         letter.regDate = localIsoDate(now);
         letter.registeredAt = now.toISOString();
+      }
+      // Подтверждённая подсказка становится связью «ответ на» (Р5).
+      if (registration.replyToLetterId) {
+        const target = findLetter(registration.replyToLetterId);
+        if (target) {
+          letter.replyTo = { id: target.id, regNumber: target.regNumber, subject: target.subject };
+          letter.replySuggestion = null;
+        }
       }
       pushLetterHistory(letter.id, {
         id: crypto.randomUUID(),

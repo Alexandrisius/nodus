@@ -1,18 +1,29 @@
-import { Mail, Paperclip, ScanLine } from 'lucide-react';
+import { CornerDownRight, Mail, Paperclip, ScanLine } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import type { LetterListItem } from '@nodus/contracts';
 import { ui } from '@nodus/contracts';
+import { NodeChip } from '@nodus/ui/components/node-chip';
 import { Skeleton } from '@nodus/ui/components/skeleton';
 import { cn } from '@nodus/ui/lib/utils';
 
 import { useInfiniteSentinel } from '../../../../shared/views/use-infinite-sentinel.js';
 import { letterSubject, receivedLabel } from '../../lib/letter-format.js';
 
+/** Строка отправителя (Р9): почта — «Имя <адрес>», вручную — «внесено вручную». */
+export function senderLabel(letter: LetterListItem): string {
+  if (letter.source !== 'mail') return ui.letters.pipeline.senderManual;
+  if (!letter.mailFromAddress) return ui.letters.pipeline.senderManual;
+  return letter.mailFromName
+    ? `${letter.mailFromName} <${letter.mailFromAddress}>`
+    : letter.mailFromAddress;
+}
+
 /**
- * Очередь «Новые» (#55, U4): письмо — строка с темой (у скана — «Письмо без
- * темы»), источником, числом файлов и временем поступления; выбранное —
- * подсветка и порт. ↑/↓ в списке — соседнее письмо, Enter — в форму.
- * Удаление спама — из формы/«Ещё» и Shift+Delete (вне поля ввода).
+ * Очередь «Новые» (#55, U4; #56 — отправитель и бейдж «Ответ на»): письмо —
+ * строка с темой (у скана — «Письмо без темы»), отправителем, числом файлов
+ * и временем поступления; выбранное — подсветка и порт. ↑/↓ в списке —
+ * соседнее письмо, Enter — в форму. Удаление спама — из формы/«Ещё» и
+ * Shift+Delete (вне поля ввода).
  */
 export function NewLettersList({
   letters,
@@ -104,8 +115,8 @@ export function NewLettersList({
             </span>
             <span className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
               <Source className="size-3.5 shrink-0" strokeWidth={1.75} aria-hidden />
-              <span className="min-w-0 truncate">
-                {letter.counterparty?.name ?? ui.letters.source[letter.source]}
+              <span className="min-w-0 truncate" title={senderLabel(letter)}>
+                {senderLabel(letter)}
               </span>
               {letter.attachmentCount > 0 ? (
                 <span className="ml-auto flex shrink-0 items-center gap-0.5 font-mono tabular-nums">
@@ -114,6 +125,15 @@ export function NewLettersList({
                 </span>
               ) : null}
             </span>
+            {letter.replyTo ? (
+              <span className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
+                <CornerDownRight className="size-3 shrink-0" strokeWidth={1.75} aria-hidden />
+                {ui.letters.pipeline.replyBadge}{' '}
+                <NodeChip tone="info" className="max-w-full">
+                  <span className="truncate">{letter.replyTo.regNumber}</span>
+                </NodeChip>
+              </span>
+            ) : null}
           </button>
         );
       })}

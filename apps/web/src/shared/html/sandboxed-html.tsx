@@ -16,7 +16,9 @@ import { sanitizeEmailHtml } from './sanitize-email-html.js';
 export const EMAIL_SANDBOX = 'allow-popups allow-popups-to-escape-sandbox';
 
 export function emailCsp(allowRemoteImages: boolean): string {
-  const images = allowRemoteImages ? 'data: cid: https:' : 'data: cid:';
+  // 'self' — резолвнутые cid-картинки (#56): подписанные ссылки того же
+  // происхождения; cid: — незнакомые contentId (сломанная картинка, безопасно).
+  const images = allowRemoteImages ? "'self' data: cid: https:" : "'self' data: cid:";
   return `default-src 'none'; img-src ${images}; style-src 'unsafe-inline'; font-src data:`;
 }
 
@@ -46,18 +48,21 @@ export function buildEmailSrcdoc(cleanHtml: string, allowRemoteImages: boolean):
 export function SandboxedHtml({
   html,
   allowRemoteImages,
+  cidMap,
   onBlockedImages,
   title,
 }: {
   html: string;
   allowRemoteImages: boolean;
+  /** contentId → абсолютный URL вложения письма (#56, Р11). */
+  cidMap?: Record<string, string>;
   /** Сколько внешних картинок скрыто — хост показывает строку «Показать изображения». */
   onBlockedImages?: (count: number) => void;
   title: string;
 }) {
   const sanitized = useMemo(
-    () => sanitizeEmailHtml(html, { allowRemoteImages }),
-    [html, allowRemoteImages],
+    () => sanitizeEmailHtml(html, { allowRemoteImages, cidMap }),
+    [html, allowRemoteImages, cidMap],
   );
   const srcDoc = useMemo(
     () => buildEmailSrcdoc(sanitized.html, allowRemoteImages),

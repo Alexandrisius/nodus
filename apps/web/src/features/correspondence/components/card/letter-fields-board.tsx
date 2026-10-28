@@ -1,4 +1,5 @@
 import {
+  AtSign,
   Building2,
   CalendarCheck,
   CalendarClock,
@@ -11,6 +12,7 @@ import {
   ScanLine,
   Shapes,
   Stamp,
+  TriangleAlert,
   UserCheck,
   UserPen,
   UserRound,
@@ -241,6 +243,25 @@ export const LetterFieldsBoard = memo(function LetterFieldsBoard({
         </span>
       ),
     },
+    ...(letter.mail
+      ? [
+          {
+            key: 'sender',
+            icon: <AtSign className="size-3.5" />,
+            label: ui.letters.fields.sender,
+            render: () => (
+              <span className="flex min-w-0 flex-col">
+                <span className="truncate">
+                  {letter.mail!.fromName ?? letter.mail!.fromAddress}
+                </span>
+                <span className="truncate font-mono text-label-sm text-muted-foreground">
+                  {letter.mail!.fromAddress}
+                </span>
+              </span>
+            ),
+          },
+        ]
+      : []),
     {
       key: 'type',
       icon: <Shapes className="size-3.5" />,
@@ -258,8 +279,23 @@ export const LetterFieldsBoard = memo(function LetterFieldsBoard({
         ? { icon: <Lock className="size-3.5" />, text: ui.letters.card.readOnlyHint }
         : null;
 
+  // Флаги приёма почты (#56): письмо разобрано/сохранено не полностью.
+  const mailFlags: string[] = [];
+  if (letter.mail?.parseIssue) mailFlags.push(ui.letters.card.mailParseIssue);
+  if (letter.mail?.storageIncomplete) mailFlags.push(ui.letters.card.mailStorageIncomplete);
+
   return (
     <>
+      {mailFlags.length > 0 ? (
+        <div className="mb-3 flex flex-col gap-1 text-xs text-warning">
+          {mailFlags.map((flag) => (
+            <p key={flag} className="flex items-center gap-1.5">
+              <TriangleAlert className="size-3.5 shrink-0" strokeWidth={1.75} aria-hidden />
+              {flag}
+            </p>
+          ))}
+        </div>
+      ) : null}
       <EntityFields defs={defs} storageKey={VISIBILITY_KEY} />
       {hint ? (
         <p className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">

@@ -17,7 +17,11 @@ import type { z } from 'zod';
 import { demoCounterpartyById } from '../../../../shared/mocks/data/counterparties.js';
 import { applyDemoPatch } from '../../../../shared/mocks/data/custom-fields-rules.js';
 import { itemsOf } from '../../../../shared/mocks/data/dictionaries.js';
-import { localIsoDate, type DemoLetter } from '../../../../shared/mocks/data/letters.js';
+import {
+  localIsoDate,
+  findLetter,
+  type DemoLetter,
+} from '../../../../shared/mocks/data/letters.js';
 import { demoProjects } from '../../../../shared/mocks/data/projects.js';
 import { demoUserListItems } from '../../../../shared/mocks/data/users.js';
 import { resolveCounterpartyRef } from '../../../../shared/mocks/live-counterparty.js';
@@ -83,6 +87,26 @@ export function registrationIssueOf(
     if (!field.success) continue;
     const empty = issue.code === 'invalid_type' || issue.code === 'too_small';
     return { field: field.data, reason: empty ? 'required' : 'invalid' };
+  }
+  return null;
+}
+
+/** Подтверждение подсказки «ответ на» (Р5): цель — зарегистрированное
+ *  исходящее и ровно свежая подсказка письма (произвольные связи — #461). */
+export function letterRelationIssue(
+  letter: DemoLetter,
+  replyToLetterId: string,
+): {
+  field: 'replyToLetterId';
+  reason: 'not_found' | 'not_outgoing_registered' | 'suggestion_mismatch';
+} | null {
+  const target = findLetter(replyToLetterId);
+  if (!target) return { field: 'replyToLetterId', reason: 'not_found' };
+  if (target.direction !== 'outgoing' || target.registeredAt === null) {
+    return { field: 'replyToLetterId', reason: 'not_outgoing_registered' };
+  }
+  if (letter.replyTo !== null || letter.replySuggestion?.id !== replyToLetterId) {
+    return { field: 'replyToLetterId', reason: 'suggestion_mismatch' };
   }
   return null;
 }

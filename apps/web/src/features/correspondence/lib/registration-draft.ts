@@ -7,6 +7,8 @@ import type {
   LetterRegistrationField,
   LetterRegistrationInput,
   LetterRegistrationIssue,
+  LetterRef,
+  LetterRelationReason,
   LetterSource,
   UserRef,
 } from '@nodus/contracts';
@@ -17,7 +19,8 @@ import { RECEIPT_METHOD_CODES, checkLetterDates, ui } from '@nodus/contracts';
  * и окна «Зарегистрировать» карточки: ссылки хранятся целиком (имя показывается
  * до ответа сервера), в тело уходят только id (`registrationInputOf`).
  * Обязательность — та же грамматика, что у схемы contracts; даты —
- * `checkLetterDates` (одна функция веба, моков и сервера).
+ * `checkLetterDates` (одна функция веба, моков и сервера). Почтовые подсказки
+ * #56: `suggestedReply` — «ответ на» по теме, `linkReply` — галочка Вики.
  */
 export interface RegistrationDraft {
   counterparty: CounterpartyRef | null;
@@ -31,6 +34,9 @@ export interface RegistrationDraft {
   addressee: UserRef | null;
   responseDeadline: string | null;
   customFields: CustomFieldValues;
+  /** Подсказка «ответ на» (Р5); подтверждение — `linkReply`. */
+  suggestedReply: LetterRef | null;
+  linkReply: boolean;
 }
 
 /** Обязательные поля в порядке формы — и порядок «Enter → следующее пустое». */
@@ -53,6 +59,7 @@ export const registrationFieldLabel: Record<LetterRegistrationField, string> = {
   projectId: ui.letters.fields.project,
   addresseeId: ui.letters.fields.addressee,
   responseDeadline: ui.letters.fields.responseDeadline,
+  replyToLetterId: ui.letters.pipeline.replyBadge,
   customFields: ui.letters.form.attributes,
 };
 
@@ -65,6 +72,23 @@ export const registrationReasonText: Record<LetterRegistrationIssue['reason'], s
   inactive: ui.letters.form.inactive,
   not_of_counterparty: ui.letters.form.notOfCounterparty,
 };
+
+/** Причины 422 связи «ответ на» (#56, Р5). */
+export const relationReasonText: Record<LetterRelationReason, string> = {
+  not_found: ui.letters.form.replyInvalid.not_found,
+  not_outgoing_registered: ui.letters.form.replyInvalid.not_outgoing_registered,
+  suggestion_mismatch: ui.letters.form.replyInvalid.suggestion_mismatch,
+};
+
+/** Текст ошибки сервера по полю+причине (регистрация и связь «ответ на»). */
+export function registrationErrorText(field: string, reason: string): string | null {
+  if (field === 'replyToLetterId' && reason in relationReasonText) {
+    return relationReasonText[reason as LetterRelationReason];
+  }
+  return reason in registrationReasonText
+    ? registrationReasonText[reason as LetterRegistrationIssue['reason']]
+    : null;
+}
 
 /** Умолчание способа поступления (Р14): бумага — «Почта», почта — «Электронная почта». */
 export function defaultReceiptMethodId(
@@ -90,6 +114,8 @@ export function initialDraft(
     addressee: letter.addressee,
     responseDeadline: letter.responseDeadline,
     customFields: { ...letter.customFields },
+    suggestedReply: letter.replySuggestion,
+    linkReply: false,
   };
 }
 
@@ -150,6 +176,9 @@ export function registrationInputOf(
     projectId: draft.projectId,
     addresseeId: draft.addressee!.id,
     responseDeadline: draft.responseDeadline,
+    ...(draft.linkReply && draft.suggestedReply
+      ? { replyToLetterId: draft.suggestedReply.id }
+      : {}),
     ...(Object.keys(customFields).length > 0 ? { customFields } : {}),
   };
 }
