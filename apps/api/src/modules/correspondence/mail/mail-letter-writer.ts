@@ -29,7 +29,7 @@ import { LetterThreadingService } from '../letters/letter-threading.service.js';
 import { LettersRepository } from '../letters/letters.repository.js';
 import type { MailClient } from './mail-client.port.js';
 import type { ParsedMail } from './mail-parser.service.js';
-import { MailReceptionConfig } from './mail-reception.config.js';
+import { MAIL_RECEPTION_CONFIG, type MailReceptionConfig } from './mail-reception.config.js';
 import { MailParserService } from './mail-parser.service.js';
 
 /** Системный автор приёма почты: createdBy и владелец файлов — plain UUID
@@ -58,7 +58,7 @@ export class MailLetterWriter {
   constructor(
     private readonly repo: LettersRepository,
     private readonly threading: LetterThreadingService,
-    private readonly reception: MailReceptionConfig,
+    @Inject(MAIL_RECEPTION_CONFIG) private readonly reception: MailReceptionConfig,
     private readonly txRunner: TransactionRunner,
     private readonly eventBus: EventBus,
     private readonly parser: MailParserService,
